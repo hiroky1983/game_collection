@@ -16,20 +16,23 @@ struct HubView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView {
-                VStack(spacing: 16) {
-                    ForEach(Array(registry.modules.enumerated()), id: \.element.id) { index, module in
-                        NavigationLink(value: module.id) {
-                            GameCard(
-                                module: module,
-                                accent: Theme.palette[index % Theme.palette.count],
-                                hasResume: services.snapshots.exists(for: module.id)
-                            )
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(Array(registry.modules.enumerated()), id: \.element.id) { index, module in
+                            NavigationLink(value: module.id) {
+                                GameCard(
+                                    module: module,
+                                    accent: Theme.palette[index % Theme.palette.count],
+                                    hasResume: services.snapshots.exists(for: module.id)
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(Theme.pad)
                 }
-                .padding(Theme.pad)
+                BannerSlot(ads: services.ads)
             }
             .popBackground()
             .navigationTitle("あそびば")

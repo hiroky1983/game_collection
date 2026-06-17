@@ -2,12 +2,19 @@ import Foundation
 import Observation
 import Core
 
+struct GomokuMoveRecord: Codable {
+    let row: Int
+    let col: Int
+    let stone: Int
+}
+
 struct GomokuSnapshot: Codable {
     let cells: [Int?]
     let currentStone: Int
     let humanSide: Int
     let aiLevel: Int
     let startedAt: Date
+    let moveHistory: [GomokuMoveRecord]?
 }
 
 @MainActor
@@ -26,6 +33,7 @@ public final class GomokuModel {
     private let services: GameServices?
     private let gameID = "gomoku"
     private var startedAt: Date
+    private var moves: [(row: Int, col: Int, stone: GomokuStone)]
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
@@ -39,15 +47,36 @@ public final class GomokuModel {
         let aiLevel: Int
         let startedAt: Date
         let moveCount: Int
+        let moves: [(row: Int, col: Int, stone: GomokuStone)]
+        let lastMove: (row: Int, col: Int)?
 
         if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
-            let cells = snap.cells.map { $0.flatMap { GomokuStone(rawValue: $0) } }
-            board        = GomokuBoard(cells: cells)
-            currentStone = GomokuStone(rawValue: snap.currentStone) ?? .black
-            humanSide    = GomokuStone(rawValue: snap.humanSide)    ?? .black
-            aiLevel      = snap.aiLevel
-            startedAt    = snap.startedAt
-            moveCount    = cells.compactMap { $0 }.count
+            humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
+            aiLevel   = snap.aiLevel
+            startedAt = snap.startedAt
+            if let history = snap.moveHistory {
+                let parsed = history.compactMap { rec -> (Int, Int, GomokuStone)? in
+                    guard let stone = GomokuStone(rawValue: rec.stone) else { return nil }
+                    return (rec.row, rec.col, stone)
+                }
+                moves     = parsed
+                board     = Self.board(from: parsed)
+                moveCount = parsed.count
+                if let last = parsed.last {
+                    lastMove      = (last.0, last.1)
+                    currentStone  = last.2.opponent
+                } else {
+                    lastMove     = nil
+                    currentStone = .black
+                }
+            } else {
+                let cells = snap.cells.map { $0.flatMap { GomokuStone(rawValue: $0) } }
+                board        = GomokuBoard(cells: cells)
+                currentStone = GomokuStone(rawValue: snap.currentStone) ?? .black
+                moveCount    = cells.compactMap { $0 }.count
+                moves        = []
+                lastMove     = nil
+            }
         } else {
             board        = GomokuBoard()
             currentStone = .black
@@ -55,6 +84,8 @@ public final class GomokuModel {
             aiLevel      = 1
             startedAt    = Date()
             moveCount    = 0
+            moves        = []
+            lastMove     = nil
         }
 
         self.board        = board
@@ -63,10 +94,11 @@ public final class GomokuModel {
         self.aiLevel      = aiLevel
         self.startedAt    = startedAt
         self.moveCount    = moveCount
+        self.moves        = moves
         self.winner       = nil
         self.isDraw       = false
         self.isThinking   = false
-        self.lastMove     = nil
+        self.lastMove     = lastMove
     }
 
     public func tap(row: Int, col: Int) {
@@ -76,6 +108,7 @@ public final class GomokuModel {
 
     private func place(row: Int, col: Int) {
         board[row, col] = currentStone
+        moves.append((row, col, currentStone))
         lastMove = (row, col)
         moveCount += 1
         if board.checkWin(row: row, col: col) {
@@ -114,8 +147,49 @@ public final class GomokuModel {
         isDraw        = false
         lastMove      = nil
         moveCount     = 0
+        moves         = []
         startedAt     = Date()
         persist()
+    }
+
+    // MARK: - 待った（自分の直前手＋CPU 応手の 2 手を戻す）
+
+    private func mover(at index: Int) -> GomokuStone {
+        index % 2 == 0 ? .black : .white
+    }
+
+    /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
+    public var canUndo: Bool {
+        guard !gameOver, !isAITurn, !isThinking else { return false }
+        let n = moves.count
+        guard n >= 2 else { return false }
+        return mover(at: n - 1) == humanSide.opponent && mover(at: n - 2) == humanSide
+    }
+
+    /// 待った: 直前 2 手（人間→CPU）を巻き戻し、人間が指し直せる状態にする。
+    public func undoLastExchange() {
+        guard canUndo else { return }
+        moves.removeLast(2)
+        board        = Self.board(from: moves)
+        moveCount    = moves.count
+        winner       = nil
+        isDraw       = false
+        if let last = moves.last {
+            lastMove     = (last.row, last.col)
+            currentStone = last.stone.opponent
+        } else {
+            lastMove     = nil
+            currentStone = .black
+        }
+        persist()
+    }
+
+    private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)]) -> GomokuBoard {
+        var board = GomokuBoard()
+        for move in moves {
+            board[move.row, move.col] = move.stone
+        }
+        return board
     }
 
     private func persist() {
@@ -124,7 +198,8 @@ public final class GomokuModel {
             currentStone: currentStone.rawValue,
             humanSide: humanSide.rawValue,
             aiLevel: aiLevel,
-            startedAt: startedAt
+            startedAt: startedAt,
+            moveHistory: moves.map { GomokuMoveRecord(row: $0.row, col: $0.col, stone: $0.stone.rawValue) }
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

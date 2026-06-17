@@ -3,10 +3,12 @@ import Core
 
 /// 2048 のプレイ画面。スワイプで操作し、盤面変化をアニメーションする。
 public struct Game2048View: View {
+    private let services: GameServices
     @State private var model: Game2048Model
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
+        self.services = services
         _model = State(initialValue: Game2048Model(services: services))
     }
 
@@ -17,18 +19,23 @@ public struct Game2048View: View {
             Label("スワイプで動かそう", systemImage: "hand.draw.fill")
                 .font(Theme.body(14))
                 .foregroundStyle(Theme.inkSub)
+            Spacer()
+            BannerSlot(ads: services.ads)
         }
         .padding()
         .popBackground()
-        .navigationTitle("2048")
         #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         #endif
         .tint(Theme.coral)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                // 途中退室（盤面は自動保存され、ハブの「続きから」で再開できる）。
                 Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
+            }
+            ToolbarItem(placement: .principal) {
+                Text("2048")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { withAnimation { model.newGame() } } label: {

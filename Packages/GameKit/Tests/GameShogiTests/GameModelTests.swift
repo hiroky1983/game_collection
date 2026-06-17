@@ -47,4 +47,19 @@ struct ShogiGameModelTests {
         await model.performAIMoveIfNeeded()
         #expect(model.moves.count == 1)
     }
+
+    @Test func undoLastExchangeRemovesHumanAndCPUMoves() async {
+        let model = ShogiGameModel(services: nil)
+        model.tapSquare(Sq.fromUSI("7g")!)
+        model.tapSquare(Sq.fromUSI("7f")!)
+        await model.performAIMoveIfNeeded()
+        #expect(model.moves.count == 2)
+        #expect(model.canUndo)
+
+        model.undoLastExchange()
+        #expect(model.moves.isEmpty)
+        #expect(model.isAITurn == false)
+        #expect(model.canUndo == false)
+        #expect(model.position.squares[Sq.fromUSI("7f")!] == nil)
+    }
 }

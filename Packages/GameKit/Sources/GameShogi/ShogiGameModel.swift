@@ -259,6 +259,33 @@ public final class ShogiGameModel {
         return (position.sideToMove == .black ? sente : gote) == .ai
     }
 
+    // MARK: - 待った（自分の直前手＋CPU 応手の 2 手を戻す）
+
+    private func mover(at index: Int) -> Side {
+        index % 2 == 0 ? .black : .white
+    }
+
+    /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
+    public var canUndo: Bool {
+        guard phase == .playing, !gameOver, !isAITurn, !isThinking, pendingPromotion == nil else {
+            return false
+        }
+        let n = moves.count
+        guard n >= 2 else { return false }
+        return mover(at: n - 1) == humanSide.opponent && mover(at: n - 2) == humanSide
+    }
+
+    /// 待った: 直前 2 手（人間→CPU）を巻き戻し、人間が指し直せる状態にする。
+    public func undoLastExchange() {
+        guard canUndo else { return }
+        moves.removeLast(2)
+        position = positionAt(ply: moves.count)
+        legalMovesCache = position.legalMoves()
+        reviewPly = moves.count
+        clearSelection()
+        persist()
+    }
+
     // MARK: - 永続化
 
     private func persist() {

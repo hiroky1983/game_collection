@@ -18,18 +18,23 @@ public struct GomokuView: View {
             board
             stoneRow(stone: model.humanSide, isYou: true)
             statusBar
+            Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
         .popBackground()
-        .navigationTitle("五目並べ")
         #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         #endif
         .tint(Theme.coral)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
+            }
+            ToolbarItem(placement: .principal) {
+                Text("五目並べ")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { showNewGame = true } label: {
@@ -184,6 +189,13 @@ public struct GomokuView: View {
                 }
             }
             Spacer()
+            if !model.gameOver {
+                Button { model.undoLastExchange() } label: {
+                    Label("待った", systemImage: "arrow.uturn.backward")
+                }
+                .font(Theme.body(14))
+                .disabled(!model.canUndo)
+            }
             Text("\(model.moveCount)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)

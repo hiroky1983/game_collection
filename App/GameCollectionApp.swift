@@ -5,13 +5,14 @@ import Core
 struct GameCollectionApp: App {
     var body: some Scene {
         WindowGroup {
-            // 起動引数 -startGame <id> で特定ゲームを push 状態で開く（開発時の確認用）。
-            // ハブを土台に push するので、ゲーム側「戻る」でハブに戻れる（実フローと同じ）。
             HubView(
                 registry: AppEnvironment.registry,
                 services: AppEnvironment.services,
                 initialGameID: startGameID
             )
+            .task {
+                await requestATTAndInitializeAds()
+            }
         }
     }
 

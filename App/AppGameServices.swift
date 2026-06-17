@@ -9,7 +9,7 @@ import GameGomoku
 enum AppEnvironment {
     static let services = GameServices(
         snapshots: FileSnapshotStore(),
-        ads: NoopAdService()
+        ads: AdMobAdService()
     )
 
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。

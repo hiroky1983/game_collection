@@ -8,6 +8,9 @@ options:
 packages:
   GameKit:
     path: Packages/GameKit
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads
+    from: 11.0.0
 
 targets:
   GameCollection:
@@ -25,6 +28,8 @@ targets:
         product: GameShogi
       - package: GameKit
         product: GameGomoku
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
     info:
       path: App/Info.plist
       properties:
@@ -32,6 +37,8 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        GADApplicationIdentifier: ca-app-pub-1869410932032409~4823987816
+        NSUserTrackingUsageDescription: より関連性の高い広告を表示するために使用します。
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.gamecollection

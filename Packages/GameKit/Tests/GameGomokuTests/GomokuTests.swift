@@ -61,3 +61,21 @@ struct GomokuEngineTests {
         #expect(move?.row == 3 && move?.col == 4)
     }
 }
+
+@MainActor
+@Suite("GomokuModel")
+struct GomokuModelTests {
+    @Test func undoLastExchangeRemovesHumanAndCPUMoves() async {
+        let model = GomokuModel(services: nil)
+        model.tap(row: 7, col: 7)
+        await model.performAIMoveIfNeeded()
+        #expect(model.moveCount == 2)
+        #expect(model.canUndo)
+
+        model.undoLastExchange()
+        #expect(model.moveCount == 0)
+        #expect(model.board[7, 7] == nil)
+        #expect(model.isAITurn == false)
+        #expect(model.canUndo == false)
+    }
+}

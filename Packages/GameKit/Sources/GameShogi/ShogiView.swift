@@ -23,18 +23,23 @@ public struct ShogiView: View {
             handView(color: model.humanSide)           // 下: 自分の持ち駒
             statusBar
             if model.gameOver { reviewControls }
+            Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
         .popBackground()
-        .navigationTitle("将棋")
         #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         #endif
         .tint(Theme.coral)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
+            }
+            ToolbarItem(placement: .principal) {
+                Text("将棋")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { showNewGame = true } label: {
@@ -50,18 +55,48 @@ public struct ShogiView: View {
                 showNewGame = false
             }
         }
-        .confirmationDialog("成りますか？", isPresented: promotionBinding, titleVisibility: .visible) {
-            Button("成る") { model.resolvePromotion(true) }
-            Button("不成") { model.resolvePromotion(false) }
-            Button("キャンセル", role: .cancel) { model.clearSelection() }
+        .overlay {
+            if model.pendingPromotion != nil {
+                promotionOverlay
+            }
         }
         .task(id: model.moves.count) {
             await model.performAIMoveIfNeeded()
         }
     }
 
-    private var promotionBinding: Binding<Bool> {
-        Binding(get: { model.pendingPromotion != nil }, set: { _ in })
+    private var promotionOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 20) {
+                Text("成りますか？")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                HStack(spacing: 16) {
+                    Button {
+                        model.resolvePromotion(false)
+                    } label: {
+                        Text("不成")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .frame(width: 80, height: 44)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    Button {
+                        model.resolvePromotion(true)
+                    } label: {
+                        Text("成る")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .frame(width: 80, height: 44)
+                            .background(Theme.coral, in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+            .padding(28)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
+        }
     }
 
     // MARK: - 盤
@@ -171,6 +206,13 @@ public struct ShogiView: View {
                 }
             }
             Spacer()
+            if !model.gameOver {
+                Button { model.undoLastExchange() } label: {
+                    Label("待った", systemImage: "arrow.uturn.backward")
+                }
+                .font(Theme.body(14))
+                .disabled(!model.canUndo)
+            }
             Text("\(model.moves.count)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
