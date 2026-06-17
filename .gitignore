@@ -1,0 +1,14 @@
+# Xcode / XcodeGen
+GameCollection.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/*/.build/
+
+# macOS
+.DS_Store

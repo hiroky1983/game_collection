@@ -1,0 +1,27 @@
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "GameKit",
+    // macOS も含めることで、SwiftUI を含む各ターゲットを `swift test`（macターゲット）で
+    // シミュレータ抜きにビルド・検証できる。iOS 専用 API は使わず、必要なら #if os(iOS) で隔離する。
+    platforms: [
+        .iOS(.v17),
+        .macOS(.v14),
+    ],
+    products: [
+        .library(name: "Core",       targets: ["Core"]),
+        .library(name: "Game2048",   targets: ["Game2048"]),
+        .library(name: "GameShogi",  targets: ["GameShogi"]),
+        .library(name: "GameGomoku", targets: ["GameGomoku"]),
+    ],
+    targets: [
+        .target(name: "Core"),
+        .target(name: "Game2048",   dependencies: ["Core"]),
+        .target(name: "GameShogi",  dependencies: ["Core"]),
+        .target(name: "GameGomoku", dependencies: ["Core"]),
+        .testTarget(name: "Game2048Tests",   dependencies: ["Game2048"]),
+        .testTarget(name: "GameShogiTests",  dependencies: ["GameShogi"]),
+        .testTarget(name: "GameGomokuTests", dependencies: ["GameGomoku"]),
+    ]
+)
