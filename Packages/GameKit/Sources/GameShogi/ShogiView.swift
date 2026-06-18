@@ -409,37 +409,40 @@ private struct HandAreaView: View {
             }
             .frame(width: 38, alignment: .leading)
 
-            if owned.isEmpty {
-                Text("持ち駒なし")
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                Spacer()
-            } else {
-                HStack(spacing: 6) {
-                    ForEach(owned, id: \.rawValue) { type in
-                        let selected = model.selectedHand == type && color == pos.sideToMove
-                        let count    = hand[type.rawValue]
-                        Button { model.tapHand(type, color: color) } label: {
-                            VStack(spacing: 2) {
-                                KomaView(piece: Piece(type: type, color: color),
-                                         size: 32, pointsUp: isYou)
-                                    .padding(.horizontal, 5).padding(.vertical, 3)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .fill(selected ? Theme.yellow : BoardStyle.komaSente)
-                                    )
-                                Text("×\(count)")
-                                    .font(.system(size: 10, weight: .black, design: .rounded))
-                                    .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
+            // ZStack で空/持ち駒あり共通サイズを確保し高さ変化によるガタつきを防ぐ
+            ZStack(alignment: .leading) {
+                if owned.isEmpty {
+                    Text("持ち駒なし")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                } else {
+                    HStack(spacing: 6) {
+                        ForEach(owned, id: \.rawValue) { type in
+                            let selected = model.selectedHand == type && color == pos.sideToMove
+                            let count    = hand[type.rawValue]
+                            Button { model.tapHand(type, color: color) } label: {
+                                VStack(spacing: 2) {
+                                    KomaView(piece: Piece(type: type, color: color),
+                                             size: 32, pointsUp: isYou)
+                                        .padding(.horizontal, 5).padding(.vertical, 3)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(selected ? Theme.yellow : BoardStyle.komaSente)
+                                        )
+                                    Text("×\(count)")
+                                        .font(.system(size: 10, weight: .black, design: .rounded))
+                                        .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .drawingGroup() // 駒形状・グラデーションを Metal で一括描画
                 }
-                .drawingGroup() // 駒形状・グラデーションを Metal で一括描画
-                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }

@@ -3,6 +3,7 @@ import Game2048
 import GameShogi
 import GameGomoku
 import GameMinesweeper
+import GameOthello
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -19,6 +20,7 @@ enum AppEnvironment {
         ShogiModule(),
         GomokuModule(),
         MinesweeperModule(),
+        OthelloModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
