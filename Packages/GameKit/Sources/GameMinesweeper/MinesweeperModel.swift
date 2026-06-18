@@ -7,10 +7,11 @@ public enum MinesweeperState: Equatable, Sendable {
 }
 
 public struct MinesweeperCell: Sendable {
-    public var isRevealed    = false
-    public var isFlagged     = false
-    public var isMine        = false
-    public var adjacentMines = 0
+    public var isRevealed      = false
+    public var isFlagged       = false
+    public var isMine          = false
+    public var adjacentMines   = 0
+    public var isContinuedMine = false  // コンティニューで確定した爆弾マス
 }
 
 @MainActor
@@ -99,8 +100,9 @@ public final class MinesweeperModel {
             }
         }
 
-        // 踏んだ地雷は旗を立てて既知の危険マスとして残す
-        cells[hit.row][hit.col].isFlagged = true
+        // 踏んだ地雷は専用マークで確定爆弾として残す
+        cells[hit.row][hit.col].isFlagged       = true
+        cells[hit.row][hit.col].isContinuedMine = true
         flagCount += 1
         hitMine = nil
         gameState = .playing
@@ -116,7 +118,7 @@ public final class MinesweeperModel {
     }
 
     public func toggleFlag(row: Int, col: Int) {
-        guard !gameOver, !cells[row][col].isRevealed else { return }
+        guard !gameOver, !cells[row][col].isRevealed, !cells[row][col].isContinuedMine else { return }
         if cells[row][col].isFlagged {
             cells[row][col].isFlagged = false
             flagCount -= 1

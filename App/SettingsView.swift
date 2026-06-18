@@ -1,3 +1,4 @@
+import SafariServices
 import SwiftUI
 import Core
 
@@ -5,6 +6,7 @@ struct SettingsView: View {
     let registry: GameRegistry
     let settings: GameSettings
     @Environment(\.dismiss) private var dismiss
+    @State private var legalURL: IdentifiableURL?
 
     private var appVersion: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -36,16 +38,18 @@ struct SettingsView: View {
 
                 // MARK: 規約
                 Section("規約") {
-                    NavigationLink {
-                        LegalPlaceholderView(title: "利用規約")
+                    Button {
+                        legalURL = IdentifiableURL(url: URL(string: "https://web-murex-sigma-62.vercel.app/terms")!)
                     } label: {
                         Label("利用規約", systemImage: "doc.text")
                     }
-                    NavigationLink {
-                        LegalPlaceholderView(title: "プライバシーポリシー")
+                    .foregroundStyle(Theme.ink)
+                    Button {
+                        legalURL = IdentifiableURL(url: URL(string: "https://web-murex-sigma-62.vercel.app/privacy")!)
                     } label: {
                         Label("プライバシーポリシー", systemImage: "hand.raised")
                     }
+                    .foregroundStyle(Theme.ink)
                 }
 
                 // MARK: その他
@@ -70,6 +74,10 @@ struct SettingsView: View {
             }
             .environment(\.editMode, .constant(.active))
             .navigationTitle("設定")
+            .sheet(item: $legalURL) { item in
+                SafariView(url: item.url)
+                    .ignoresSafeArea()
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -107,27 +115,17 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - WIP プレースホルダー
+private struct IdentifiableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
 
-private struct LegalPlaceholderView: View {
-    let title: String
+private struct SafariView: UIViewControllerRepresentable {
+    let url: URL
 
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(Theme.inkSub)
-            Text("準備中")
-                .font(Theme.title(22))
-                .foregroundStyle(Theme.ink)
-            Text("\(title)は現在準備中です。\nリリース時に公開いたします。")
-                .font(Theme.body(15))
-                .foregroundStyle(Theme.inkSub)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
     }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }

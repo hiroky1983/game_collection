@@ -174,8 +174,10 @@ public struct ShogiView: View {
         HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
             }
-            .foregroundStyle(Theme.coral)
             .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
                 Button("キャンセル", role: .cancel) {}

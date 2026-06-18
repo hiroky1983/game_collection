@@ -6,6 +6,7 @@ public struct MinesweeperView: View {
     private let services: GameServices
     @State private var showNewGame = true
     @State private var flagMode = false
+    @State private var showContinue = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -17,6 +18,9 @@ public struct MinesweeperView: View {
         VStack(spacing: 10) {
             statusBar
             board
+            if model.gameOver && !showContinue {
+                resultControls
+            }
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
@@ -45,15 +49,17 @@ public struct MinesweeperView: View {
             MinesweeperNewGameSheet { rows, cols, mines in
                 model.newGame(rows: rows, cols: cols, mines: mines)
                 flagMode = false
+                showContinue = false
                 showNewGame = false
             } onCancel: {
                 showNewGame = false
             }
         }
         .overlay {
-            if model.gameState == .lost {
-                continueOverlay
-            }
+            if showContinue { continueOverlay }
+        }
+        .onChange(of: model.gameState) { _, state in
+            if state == .lost { showContinue = true }
         }
     }
 
@@ -73,6 +79,7 @@ public struct MinesweeperView: View {
                     Task {
                         await services.ads.showInterstitial()
                         model.continueAfterAd()
+                        showContinue = false
                     }
                 } label: {
                     Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
@@ -84,7 +91,7 @@ public struct MinesweeperView: View {
                 }
                 .buttonStyle(.plain)
 
-                Button { showNewGame = true } label: {
+                Button { showContinue = false } label: {
                     Text("あきらめる")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
@@ -95,6 +102,34 @@ public struct MinesweeperView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
             .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
             .padding(.horizontal, 28)
+        }
+    }
+
+    // MARK: - Result Controls
+
+    private var resultControls: some View {
+        let won = model.gameState == .won
+        let s   = model.elapsedSeconds
+        let timeStr = s >= 60 ? "\(s / 60)分\(s % 60)秒" : "\(s)秒"
+        return VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: won ? "flag.checkered" : "xmark.octagon.fill")
+                    .foregroundStyle(won ? Theme.teal : Theme.coral)
+                Text(won ? "クリア！" : "ゲームオーバー")
+                    .font(Theme.body(15))
+                    .foregroundStyle(won ? Theme.teal : Theme.coral)
+                Spacer()
+                Label(timeStr, systemImage: "clock.fill")
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
+
+            Button { showNewGame = true } label: {
+                Text("次のゲーム").font(Theme.body(16)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
     }
 
@@ -110,12 +145,7 @@ public struct MinesweeperView: View {
 
             Spacer()
 
-            Button {
-                model.newGame(rows: model.rows, cols: model.cols, mines: model.totalMines)
-                flagMode = false
-            } label: {
-                Text(stateEmoji).font(.system(size: 28))
-            }
+            Text(stateEmoji).font(.system(size: 28))
 
             Spacer()
 
@@ -198,18 +228,45 @@ public struct MinesweeperView: View {
     }
 
     private func cellBg(cell: MinesweeperCell, isHit: Bool) -> Color {
-        guard cell.isRevealed else { return Color(hex: 0xBDBDBD) }
-        return isHit ? Theme.coral : Color(hex: 0xD8D8D8)
+        if cell.isRevealed {
+            return isHit ? Theme.coral : Color(hex: 0xD8D8D8)
+        }
+        if cell.isContinuedMine {
+            // コンティニューで確定した爆弾: 濃いオレンジ背景
+            return Color(hex: 0x7A3800)
+        }
+        if model.gameOver && cell.isFlagged {
+            // ゲームオーバー後のみ: 正しい旗=teal、誤旗=coral
+            return cell.isMine ? Theme.teal.opacity(0.28) : Theme.coral.opacity(0.28)
+        }
+        return Color(hex: 0xBDBDBD)
     }
 
     @ViewBuilder
     private func cellContent(cell: MinesweeperCell, isHit: Bool, size: CGFloat) -> some View {
-        let iconSize = size * 0.52
-        if !cell.isRevealed && cell.isFlagged {
-            Image(systemName: "flag.fill")
+        let iconSize   = size * 0.52
+        let gameIsOver = model.gameOver
+
+        if !cell.isRevealed && cell.isContinuedMine {
+            // コンティニューで確定した爆弾マス: 炎アイコン
+            Image(systemName: "flame.fill")
                 .resizable().scaledToFit()
                 .frame(width: iconSize, height: iconSize)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(.orange)
+        } else if !cell.isRevealed && cell.isFlagged {
+            if gameIsOver && !cell.isMine {
+                // 誤フラグ: バツ印（ゲームオーバー後のみ）
+                Image(systemName: "xmark.circle.fill")
+                    .resizable().scaledToFit()
+                    .frame(width: iconSize, height: iconSize)
+                    .foregroundStyle(Theme.coral)
+            } else {
+                // 正しい旗（プレイ中は通常の赤、ゲームオーバー後は緑）
+                Image(systemName: "flag.fill")
+                    .resizable().scaledToFit()
+                    .frame(width: iconSize, height: iconSize)
+                    .foregroundStyle(gameIsOver && cell.isMine ? Theme.teal : Theme.coral)
+            }
         } else if cell.isRevealed && cell.isMine {
             Image(systemName: isHit ? "burst.fill" : "circle.fill")
                 .resizable().scaledToFit()
