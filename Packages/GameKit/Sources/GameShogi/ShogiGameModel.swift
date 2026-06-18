@@ -209,6 +209,7 @@ public final class ShogiGameModel {
         gameOver = false
         resultText = nil
         undoUsed = false
+        resigned = false
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel

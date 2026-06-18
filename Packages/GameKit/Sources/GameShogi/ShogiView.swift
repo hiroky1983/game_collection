@@ -21,9 +21,10 @@ public struct ShogiView: View {
     public var body: some View {
         VStack(spacing: 12) {
             statusBar
-            handView(color: model.humanSide.opponent) // 上: 相手の持ち駒
+            if !model.gameOver { gameControls }
+            HandAreaView(model: model, color: model.humanSide.opponent)
             board
-            handView(color: model.humanSide)           // 下: 自分の持ち駒
+            HandAreaView(model: model, color: model.humanSide)
             if model.gameOver { reviewControls }
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
@@ -142,73 +143,6 @@ public struct ShogiView: View {
         Sq.boardIndex(row: row, col: col, flipped: flipped)
     }
 
-    // MARK: - 持ち駒
-
-    private func handView(color: Side) -> some View {
-        let pos = model.displayedPosition
-        let hand = pos.hands[color.rawValue]
-        let owned = PieceType.allCases.filter { $0.isDroppable && hand[$0.rawValue] > 0 }
-        let isYou = color == model.humanSide
-
-        return HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isYou ? "あなた" : "CPU")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
-                Text(color == .black ? "☗" : "☖")
-                    .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
-            }
-            .frame(width: 38, alignment: .leading)
-
-            if owned.isEmpty {
-                Text("持ち駒なし")
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                Spacer()
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(owned, id: \.rawValue) { type in
-                            handKomaButton(
-                                type: type,
-                                count: hand[type.rawValue],
-                                color: color,
-                                pos: pos,
-                                pointsUp: isYou
-                            )
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    private func handKomaButton(
-        type: PieceType, count: Int, color: Side, pos: Position, pointsUp: Bool
-    ) -> some View {
-        let selected = model.selectedHand == type && color == pos.sideToMove
-        return Button {
-            model.tapHand(type, color: color)
-        } label: {
-            VStack(spacing: 2) {
-                KomaView(piece: Piece(type: type, color: color), size: 32, pointsUp: pointsUp)
-                    .padding(.horizontal, 5).padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(selected ? Theme.yellow : BoardStyle.komaSente)
-                            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-                    )
-                Text("×\(count)")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: - ステータス
 
     private var statusBar: some View {
@@ -230,43 +164,47 @@ public struct ShogiView: View {
                 }
             }
             Spacer()
-            if !model.gameOver {
-                Button { showResignConfirm = true } label: {
-                    Label("投了", systemImage: "flag.fill")
-                }
-                .font(Theme.body(14))
-                .foregroundStyle(Theme.coral)
-                .alert("投了しますか？", isPresented: $showResignConfirm) {
-                    Button("投了する", role: .destructive) { model.resign() }
-                    Button("キャンセル", role: .cancel) {}
-                } message: {
-                    Text("現在の対局を終了します。\nCPUの勝ちになります。")
-                }
-
-                Button { showUndoConfirm = true } label: {
-                    Label("待った", systemImage: "arrow.uturn.backward")
-                }
-                .font(Theme.body(14))
-                .disabled(!model.canUndo)
-                .alert("待った確認", isPresented: $showUndoConfirm) {
-                    Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                        Task {
-                            if model.undoUsed {
-                                await services.ads.showInterstitial()
-                            }
-                            model.undoLastExchange()
-                        }
-                    }
-                    Button("キャンセル", role: .cancel) {}
-                } message: {
-                    Text(model.undoUsed
-                         ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                         : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
-                }
-            }
             Text("\(model.moves.count)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var gameControls: some View {
+        HStack(spacing: 12) {
+            Button { showResignConfirm = true } label: {
+                Label("投了", systemImage: "flag.fill")
+            }
+            .foregroundStyle(Theme.coral)
+            .alert("投了しますか？", isPresented: $showResignConfirm) {
+                Button("投了する", role: .destructive) { model.resign() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("現在の対局を終了します。\nCPUの勝ちになります。")
+            }
+
+            Spacer()
+
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+            .disabled(!model.canUndo)
+            .alert("待った確認", isPresented: $showUndoConfirm) {
+                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
+                    Task {
+                        if model.undoUsed { await services.ads.showInterstitial() }
+                        model.undoLastExchange()
+                    }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text(model.undoUsed
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
+                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
+            }
+        }
+        .font(Theme.body(14))
+        .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -444,6 +382,66 @@ struct KomaShape: Shape {
         p.addLine(to: CGPoint(x: w * 0.17, y: shoulder))
         p.closeSubpath()
         return p
+    }
+}
+
+// MARK: - 持ち駒エリア（独立 View で再描画スコープを分離）
+
+/// 持ち駒の表示・打ち駒選択。ShogiView.body から切り出すことで、
+/// isThinking など持ち駒に無関係なプロパティ変化では再描画されない。
+private struct HandAreaView: View {
+    let model: ShogiGameModel
+    let color: Side
+
+    var body: some View {
+        let pos     = model.displayedPosition
+        let hand    = pos.hands[color.rawValue]
+        let owned   = PieceType.allCases.filter { $0.isDroppable && hand[$0.rawValue] > 0 }
+        let isYou   = color == model.humanSide
+
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isYou ? "あなた" : "CPU")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
+                Text(color == .black ? "☗" : "☖")
+                    .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
+            }
+            .frame(width: 38, alignment: .leading)
+
+            if owned.isEmpty {
+                Text("持ち駒なし")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                Spacer()
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(owned, id: \.rawValue) { type in
+                        let selected = model.selectedHand == type && color == pos.sideToMove
+                        let count    = hand[type.rawValue]
+                        Button { model.tapHand(type, color: color) } label: {
+                            VStack(spacing: 2) {
+                                KomaView(piece: Piece(type: type, color: color),
+                                         size: 32, pointsUp: isYou)
+                                    .padding(.horizontal, 5).padding(.vertical, 3)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(selected ? Theme.yellow : BoardStyle.komaSente)
+                                    )
+                                Text("×\(count)")
+                                    .font(.system(size: 10, weight: .black, design: .rounded))
+                                    .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .drawingGroup() // 駒形状・グラデーションを Metal で一括描画
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 }
 
