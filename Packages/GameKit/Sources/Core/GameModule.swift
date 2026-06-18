@@ -7,6 +7,8 @@ public protocol GameModule {
     var id: String { get }
     /// ハブに表示するタイトル。
     var title: String { get }
+    /// ハブカードに表示する一言説明。
+    var description: String { get }
     /// ハブに表示するアイコン。
     var icon: Image { get }
     /// 横断サービスを注入してゲーム画面を生成する。

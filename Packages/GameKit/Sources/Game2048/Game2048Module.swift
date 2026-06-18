@@ -5,6 +5,7 @@ import Core
 public struct Game2048Module: GameModule {
     public let id = "2048"
     public let title = "2048"
+    public let description = "タイルを合体させて2048を目指そう"
     public var icon: Image { Image(systemName: "square.grid.2x2") }
 
     public init() {}

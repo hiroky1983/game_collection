@@ -84,6 +84,9 @@ private struct GameCard: View {
                 Text(module.title)
                     .font(Theme.title(22))
                     .foregroundStyle(Theme.ink)
+                Text(module.description)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
                 if hasResume {
                     Text("続きから")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
