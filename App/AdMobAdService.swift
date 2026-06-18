@@ -61,13 +61,14 @@ private final class InterstitialDelegate: NSObject, @preconcurrency GADFullScree
 
 @MainActor
 public final class AdMobAdService: AdService {
-    private let viewModel = AdMobBannerViewModel()
     private var interstitialDelegate: InterstitialDelegate?
 
     public init() {}
 
+    // 画面ごとに独立した GADBannerView を持たせる。共有すると UIView が奪われ HubView で表示されない。
     @MainActor public func makeBannerView() -> AnyView? {
-        AnyView(AdMobBannerView(viewModel: viewModel))
+        let vm = AdMobBannerViewModel()
+        return AnyView(AdMobBannerView(viewModel: vm))
     }
 
     @MainActor public func showInterstitial() async {

@@ -12,6 +12,12 @@ struct OthelloSnapshot: Codable {
     let isDraw: Bool
     let mustPass: Bool?
     let turnID: Int?
+    let undoUsed: Bool?
+}
+
+private struct TurnState {
+    let cells: [OthelloStone?]
+    let currentStone: OthelloStone
 }
 
 @MainActor
@@ -27,15 +33,20 @@ public final class OthelloModel {
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var mustPass: Bool
     public private(set) var turnID: Int
+    public private(set) var undoUsed: Bool
 
     private let services: GameServices?
     private let gameID = "othello"
     private var startedAt: Date
+    private var undoHistory: [TurnState] = []
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
     public var blackCount: Int { board.count(for: .black) }
     public var whiteCount: Int { board.count(for: .white) }
+    public var canUndo: Bool {
+        !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
+    }
 
     public init(services: GameServices? = nil) {
         self.services = services
@@ -51,6 +62,7 @@ public final class OthelloModel {
             isDraw       = snap.isDraw
             mustPass     = snap.mustPass ?? false
             turnID       = snap.turnID ?? 0
+            undoUsed     = snap.undoUsed ?? false
         } else {
             board        = OthelloBoard()
             currentStone = .black
@@ -61,6 +73,7 @@ public final class OthelloModel {
             isDraw       = false
             mustPass     = false
             turnID       = 0
+            undoUsed     = false
         }
         isThinking = false
         lastMove   = nil
@@ -69,15 +82,30 @@ public final class OthelloModel {
     public func tap(row: Int, col: Int) {
         guard !gameOver, !isAITurn, !mustPass else { return }
         guard board.isValid(row: row, col: col, stone: currentStone) else { return }
+        saveUndoState()
         place(row: row, col: col)
     }
 
     public func confirmPass() {
         guard mustPass, !gameOver else { return }
+        saveUndoState()
         mustPass     = false
         currentStone = currentStone.opponent
         turnID      += 1
         checkTermination()
+        persist()
+    }
+
+    public func undoLastExchange() {
+        guard canUndo, let prev = undoHistory.popLast() else { return }
+        board        = OthelloBoard(cells: prev.cells)
+        currentStone = prev.currentStone
+        lastMove     = nil
+        mustPass     = false
+        winner       = nil
+        isDraw       = false
+        undoUsed     = true
+        turnID      += 1
         persist()
     }
 
@@ -119,11 +147,17 @@ public final class OthelloModel {
         lastMove       = nil
         mustPass       = false
         turnID         = 0
+        undoUsed       = false
+        undoHistory    = []
         startedAt      = Date()
         persist()
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
+
+    private func saveUndoState() {
+        undoHistory.append(TurnState(cells: board.cells, currentStone: currentStone))
+    }
 
     private func place(row: Int, col: Int) {
         board.place(row: row, col: col, stone: currentStone)
@@ -160,7 +194,8 @@ public final class OthelloModel {
             winner: winner?.rawValue,
             isDraw: isDraw,
             mustPass: mustPass ? true : nil,
-            turnID: turnID
+            turnID: turnID,
+            undoUsed: undoUsed ? true : nil
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

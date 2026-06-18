@@ -204,11 +204,11 @@ public struct GomokuView: View {
                 Label("投了", systemImage: "flag.fill")
             }
             .foregroundStyle(Theme.coral)
-            .alert("投了しますか？", isPresented: $showResignConfirm) {
+            .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
                 Button("キャンセル", role: .cancel) {}
             } message: {
-                Text("現在の対局を終了します。\nCPUの勝ちになります。")
+                Text("現在の対局を終了します。CPUの勝ちになります。")
             }
 
             Spacer()

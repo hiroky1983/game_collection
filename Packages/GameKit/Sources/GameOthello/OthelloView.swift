@@ -7,6 +7,7 @@ public struct OthelloView: View {
     @State private var showNewGame = false
     @State private var showPassAlert = false
     @State private var showResignConfirm = false
+    @State private var showUndoConfirm = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -17,7 +18,6 @@ public struct OthelloView: View {
     public var body: some View {
         VStack(spacing: 10) {
             statusBar
-            scoreRow
             board
             if model.gameOver {
                 resultControls
@@ -59,11 +59,11 @@ public struct OthelloView: View {
         } message: {
             Text("打てるマスがありません。パスします。")
         }
-        .alert("投了しますか？", isPresented: $showResignConfirm) {
+        .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
             Button("投了する", role: .destructive) { model.resign() }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("現在の対局を終了します。")
+            Text("現在の対局を終了します。CPUの勝ちになります。")
         }
         .onChange(of: model.mustPass) { _, newValue in
             if newValue && !model.isAITurn { showPassAlert = true }
@@ -73,84 +73,54 @@ public struct OthelloView: View {
         }
     }
 
-    // MARK: - Status Bar
+    // MARK: - Status Bar (スコアも一行に統合)
 
     private var statusBar: some View {
         HStack(spacing: 8) {
+            // 手番 / 結果
             if let w = model.winner {
                 Label(w == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち",
                       systemImage: "flag.checkered")
-                    .font(Theme.body(16)).foregroundStyle(Theme.coral)
+                    .font(Theme.body(15)).foregroundStyle(Theme.coral)
             } else if model.isDraw {
                 Label("引き分け", systemImage: "equal.circle")
-                    .font(Theme.body(16)).foregroundStyle(Theme.inkSub)
+                    .font(Theme.body(15)).foregroundStyle(Theme.inkSub)
             } else {
                 let isMine = !model.isAITurn
                 Text(isMine ? "あなたの番" : "CPUの番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(Capsule().fill(isMine ? Theme.teal : Theme.coral))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("思考中…").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
                 }
             }
+
             Spacer()
-            Text("\(model.board.totalPieces)手")
-                .font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+
+            // コンパクトスコア
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(Color(hex: 0x1A1A1A))
+                    .frame(width: 13, height: 13)
+                Text("\(model.blackCount)")
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Text("–")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                Text("\(model.whiteCount)")
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Circle()
+                    .fill(Color(hex: 0xF0ECD8))
+                    .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
+                    .frame(width: 13, height: 13)
+            }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
-    }
-
-    // MARK: - Score Row
-
-    private var scoreRow: some View {
-        HStack(spacing: 0) {
-            scoreCell(stone: .black, label: "●黒")
-            Rectangle()
-                .fill(Color.gray.opacity(0.15))
-                .frame(width: 1)
-            scoreCell(stone: .white, label: "○白")
-        }
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    private func scoreCell(stone: OthelloStone, label: String) -> some View {
-        let count = stone == .black ? model.blackCount : model.whiteCount
-        let isActive = model.currentStone == stone && !model.gameOver
-        let isHuman  = model.humanSide == stone
-        return HStack(spacing: 10) {
-            if stone == .white {
-                Text("\(count)")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-            }
-            VStack(alignment: stone == .black ? .leading : .trailing, spacing: 1) {
-                Text(isHuman ? "あなた" : "CPU")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(isHuman ? Theme.teal : Theme.inkSub)
-                Text(label)
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-            }
-            Circle()
-                .fill(stone == .black ? Color(hex: 0x1A1A1A) : Color(hex: 0xF0ECD8))
-                .overlay(stone == .white ? Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1) : nil)
-                .frame(width: 22, height: 22)
-                .shadow(color: .black.opacity(stone == .black ? 0.3 : 0.1), radius: 2, y: 1)
-            if stone == .black {
-                Spacer()
-                Text("\(count)")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
-        .background(isActive ? Theme.teal.opacity(0.08) : Color.clear)
     }
 
     // MARK: - Board
@@ -233,12 +203,31 @@ public struct OthelloView: View {
     // MARK: - Controls
 
     private var gameControls: some View {
-        HStack {
+        HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
             }
             .foregroundStyle(Theme.coral)
+
             Spacer()
+
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+            .disabled(!model.canUndo)
+            .alert("待った確認", isPresented: $showUndoConfirm) {
+                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
+                    Task {
+                        if model.undoUsed { await services.ads.showInterstitial() }
+                        model.undoLastExchange()
+                    }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text(model.undoUsed
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
+                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
+            }
         }
         .font(Theme.body(14))
         .padding(.horizontal, 16).padding(.vertical, 8)
