@@ -17,6 +17,7 @@ struct GomokuSnapshot: Codable {
     let moveHistory: [GomokuMoveRecord]?
     let undoUsed: Bool?
     let resigned: Bool?
+    let winner: Int?
 }
 
 @MainActor
@@ -55,6 +56,7 @@ public final class GomokuModel {
         let lastMove: (row: Int, col: Int)?
         let undoUsed: Bool
         let resigned: Bool
+        let savedWinner: GomokuStone?
 
         if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
             humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
@@ -83,8 +85,9 @@ public final class GomokuModel {
                 moves        = []
                 lastMove     = nil
             }
-            undoUsed = snap.undoUsed ?? false
-            resigned = snap.resigned ?? false
+            undoUsed    = snap.undoUsed ?? false
+            resigned    = snap.resigned ?? false
+            savedWinner = snap.winner.flatMap { GomokuStone(rawValue: $0) }
         } else {
             board        = GomokuBoard()
             currentStone = .black
@@ -96,6 +99,7 @@ public final class GomokuModel {
             lastMove     = nil
             undoUsed     = false
             resigned     = false
+            savedWinner  = nil
         }
 
         self.board        = board
@@ -105,8 +109,9 @@ public final class GomokuModel {
         self.startedAt    = startedAt
         self.moveCount    = moveCount
         self.moves        = moves
-        self.winner       = resigned ? humanSide.opponent : nil
-        self.isDraw       = false
+        // savedWinner が最優先。なければ resign フラグで補完（旧スナップショット互換）
+        self.winner       = savedWinner ?? (resigned ? humanSide.opponent : nil)
+        self.isDraw       = (savedWinner == nil && !resigned && board.isFull)
         self.isThinking   = false
         self.lastMove     = lastMove
         self.undoUsed     = undoUsed
@@ -225,7 +230,8 @@ public final class GomokuModel {
             startedAt: startedAt,
             moveHistory: moves.map { GomokuMoveRecord(row: $0.row, col: $0.col, stone: $0.stone.rawValue) },
             undoUsed: undoUsed,
-            resigned: resigned ? true : nil
+            resigned: resigned ? true : nil,
+            winner: winner?.rawValue
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
