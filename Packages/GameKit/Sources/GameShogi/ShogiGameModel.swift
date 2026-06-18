@@ -26,6 +26,7 @@ public final class ShogiGameModel {
     public var sente: PlayerKind
     public var gote: PlayerKind
     public var aiLevel: Int
+    public private(set) var undoUsed: Bool
 
     private let services: GameServices?
     private let gameID = "shogi"
@@ -60,6 +61,7 @@ public final class ShogiGameModel {
         self.gote = snap?.gote ?? .ai
         self.aiLevel = snap?.aiLevel ?? 1
         self.startedAt = snap?.startedAt ?? Date()
+        self.undoUsed = snap?.undoUsed ?? false
         self.gameOver = false
         self.resultText = nil
 
@@ -199,6 +201,7 @@ public final class ShogiGameModel {
         reviewPly = 0
         gameOver = false
         resultText = nil
+        undoUsed = false
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
@@ -282,6 +285,7 @@ public final class ShogiGameModel {
         position = positionAt(ply: moves.count)
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
+        undoUsed = true
         clearSelection()
         persist()
     }
@@ -297,7 +301,8 @@ public final class ShogiGameModel {
             sente: sente,
             gote: gote,
             aiLevel: (sente == .ai || gote == .ai) ? aiLevel : nil,
-            startedAt: startedAt
+            startedAt: startedAt,
+            undoUsed: undoUsed
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

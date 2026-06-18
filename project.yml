@@ -28,6 +28,8 @@ targets:
         product: GameShogi
       - package: GameKit
         product: GameGomoku
+      - package: GameKit
+        product: GameMinesweeper
       - package: GoogleMobileAds
         product: GoogleMobileAds
     info:

@@ -15,6 +15,7 @@ struct GomokuSnapshot: Codable {
     let aiLevel: Int
     let startedAt: Date
     let moveHistory: [GomokuMoveRecord]?
+    let undoUsed: Bool?
 }
 
 @MainActor
@@ -29,6 +30,7 @@ public final class GomokuModel {
     public private(set) var isThinking: Bool
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var moveCount: Int
+    public private(set) var undoUsed: Bool
 
     private let services: GameServices?
     private let gameID = "gomoku"
@@ -49,6 +51,7 @@ public final class GomokuModel {
         let moveCount: Int
         let moves: [(row: Int, col: Int, stone: GomokuStone)]
         let lastMove: (row: Int, col: Int)?
+        let undoUsed: Bool
 
         if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
             humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
@@ -77,6 +80,7 @@ public final class GomokuModel {
                 moves        = []
                 lastMove     = nil
             }
+            undoUsed = snap.undoUsed ?? false
         } else {
             board        = GomokuBoard()
             currentStone = .black
@@ -86,6 +90,7 @@ public final class GomokuModel {
             moveCount    = 0
             moves        = []
             lastMove     = nil
+            undoUsed     = false
         }
 
         self.board        = board
@@ -99,6 +104,7 @@ public final class GomokuModel {
         self.isDraw       = false
         self.isThinking   = false
         self.lastMove     = lastMove
+        self.undoUsed     = undoUsed
     }
 
     public func tap(row: Int, col: Int) {
@@ -148,6 +154,7 @@ public final class GomokuModel {
         lastMove      = nil
         moveCount     = 0
         moves         = []
+        undoUsed      = false
         startedAt     = Date()
         persist()
     }
@@ -174,6 +181,7 @@ public final class GomokuModel {
         moveCount    = moves.count
         winner       = nil
         isDraw       = false
+        undoUsed     = true
         if let last = moves.last {
             lastMove     = (last.row, last.col)
             currentStone = last.stone.opponent
@@ -199,7 +207,8 @@ public final class GomokuModel {
             humanSide: humanSide.rawValue,
             aiLevel: aiLevel,
             startedAt: startedAt,
-            moveHistory: moves.map { GomokuMoveRecord(row: $0.row, col: $0.col, stone: $0.stone.rawValue) }
+            moveHistory: moves.map { GomokuMoveRecord(row: $0.row, col: $0.col, stone: $0.stone.rawValue) },
+            undoUsed: undoUsed
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

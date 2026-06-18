@@ -5,6 +5,7 @@ public struct GomokuView: View {
     @State private var model: GomokuModel
     private let services: GameServices
     @State private var showNewGame = false
+    @State private var showUndoConfirm = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -14,10 +15,10 @@ public struct GomokuView: View {
 
     public var body: some View {
         VStack(spacing: 10) {
+            statusBar
             stoneRow(stone: model.humanSide.opponent, isYou: false)
             board
             stoneRow(stone: model.humanSide, isYou: true)
-            statusBar
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
@@ -190,11 +191,26 @@ public struct GomokuView: View {
             }
             Spacer()
             if !model.gameOver {
-                Button { model.undoLastExchange() } label: {
+                Button { showUndoConfirm = true } label: {
                     Label("待った", systemImage: "arrow.uturn.backward")
                 }
                 .font(Theme.body(14))
                 .disabled(!model.canUndo)
+                .alert("待った確認", isPresented: $showUndoConfirm) {
+                    Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
+                        Task {
+                            if model.undoUsed {
+                                await services.ads.showInterstitial()
+                            }
+                            model.undoLastExchange()
+                        }
+                    }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text(model.undoUsed
+                         ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
+                         : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
+                }
             }
             Text("\(model.moveCount)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
         }

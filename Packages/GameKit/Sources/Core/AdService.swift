@@ -5,10 +5,13 @@ import SwiftUI
 public protocol AdService {
     /// バナー広告ビュー。広告無効・未ロード時は nil（ゲームは通常動作）。
     @MainActor func makeBannerView() -> AnyView?
+    /// インタースティシャル広告を表示し、閉じられるまで待つ。ロード失敗時は即 return。
+    @MainActor func showInterstitial() async
 }
 
 /// 広告を出さない実装。M5 で AdMob 実装に差し替える。
 public struct NoopAdService: AdService {
     public init() {}
     @MainActor public func makeBannerView() -> AnyView? { nil }
+    @MainActor public func showInterstitial() async {}
 }

@@ -2,6 +2,7 @@ import Core
 import Game2048
 import GameShogi
 import GameGomoku
+import GameMinesweeper
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -17,5 +18,6 @@ enum AppEnvironment {
         Game2048Module(),
         ShogiModule(),
         GomokuModule(),
+        MinesweeperModule(),
     ])
 }
