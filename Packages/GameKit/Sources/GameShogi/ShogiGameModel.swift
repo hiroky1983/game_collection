@@ -27,6 +27,7 @@ public final class ShogiGameModel {
     public var gote: PlayerKind
     public var aiLevel: Int
     public private(set) var undoUsed: Bool
+    public private(set) var resigned: Bool
 
     private let services: GameServices?
     private let gameID = "shogi"
@@ -62,11 +63,17 @@ public final class ShogiGameModel {
         self.aiLevel = snap?.aiLevel ?? 1
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
+        self.resigned = snap?.resigned ?? false
         self.gameOver = false
         self.resultText = nil
 
         if legalMovesCache.isEmpty {
             self.gameOver = true
+            self.phase = .review
+        }
+        if snap?.resigned == true {
+            self.gameOver = true
+            self.resultText = "あなたの負け（投了）"
             self.phase = .review
         }
     }
@@ -262,6 +269,19 @@ public final class ShogiGameModel {
         return (position.sideToMove == .black ? sente : gote) == .ai
     }
 
+    // MARK: - 投了
+
+    public func resign() {
+        guard phase == .playing, !gameOver else { return }
+        resigned = true
+        gameOver = true
+        resultText = "あなたの負け（投了）"
+        phase = .review
+        reviewPly = moves.count
+        clearSelection()
+        persist()
+    }
+
     // MARK: - 待った（自分の直前手＋CPU 応手の 2 手を戻す）
 
     private func mover(at index: Int) -> Side {
@@ -302,7 +322,8 @@ public final class ShogiGameModel {
             gote: gote,
             aiLevel: (sente == .ai || gote == .ai) ? aiLevel : nil,
             startedAt: startedAt,
-            undoUsed: undoUsed
+            undoUsed: undoUsed,
+            resigned: resigned
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

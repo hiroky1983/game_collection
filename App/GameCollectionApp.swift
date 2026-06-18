@@ -8,6 +8,7 @@ struct GameCollectionApp: App {
             HubView(
                 registry: AppEnvironment.registry,
                 services: AppEnvironment.services,
+                settings: AppEnvironment.settings,
                 initialGameID: startGameID
             )
             .task {

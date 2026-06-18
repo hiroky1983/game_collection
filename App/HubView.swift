@@ -6,11 +6,14 @@ import Core
 struct HubView: View {
     let registry: GameRegistry
     let services: GameServices
+    let settings: GameSettings
     @State private var path: [String]
+    @State private var showSettings = false
 
-    init(registry: GameRegistry, services: GameServices, initialGameID: String? = nil) {
+    init(registry: GameRegistry, services: GameServices, settings: GameSettings, initialGameID: String? = nil) {
         self.registry = registry
         self.services = services
+        self.settings = settings
         _path = State(initialValue: initialGameID.map { [$0] } ?? [])
     }
 
@@ -19,7 +22,7 @@ struct HubView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 16) {
-                        ForEach(Array(registry.modules.enumerated()), id: \.element.id) { index, module in
+                        ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
                             NavigationLink(value: module.id) {
                                 GameCard(
                                     module: module,
@@ -36,6 +39,14 @@ struct HubView: View {
             }
             .popBackground()
             .navigationTitle("あそびば")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                }
+            }
             .navigationDestination(for: String.self) { id in
                 if let module = registry.module(id: id) {
                     module.makeView(services: services)
@@ -43,6 +54,10 @@ struct HubView: View {
             }
         }
         .tint(Theme.coral)
+        .sheet(isPresented: $showSettings) {
+            SettingsView(registry: registry, settings: settings)
+                .presentationDetents([.large])
+        }
     }
 }
 

@@ -14,6 +14,7 @@ public struct ShogiSnapshot: Codable, Equatable, Sendable {
     public var aiLevel: Int?
     public var startedAt: Date
     public var undoUsed: Bool?
+    public var resigned: Bool?
 
     public init(
         initialSfen: String,
@@ -24,7 +25,8 @@ public struct ShogiSnapshot: Codable, Equatable, Sendable {
         gote: PlayerKind,
         aiLevel: Int?,
         startedAt: Date,
-        undoUsed: Bool
+        undoUsed: Bool,
+        resigned: Bool = false
     ) {
         self.initialSfen = initialSfen
         self.moves = moves
@@ -35,5 +37,6 @@ public struct ShogiSnapshot: Codable, Equatable, Sendable {
         self.aiLevel = aiLevel
         self.startedAt = startedAt
         self.undoUsed = undoUsed
+        self.resigned = resigned
     }
 }

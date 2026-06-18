@@ -16,6 +16,7 @@ struct GomokuSnapshot: Codable {
     let startedAt: Date
     let moveHistory: [GomokuMoveRecord]?
     let undoUsed: Bool?
+    let resigned: Bool?
 }
 
 @MainActor
@@ -31,6 +32,7 @@ public final class GomokuModel {
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var moveCount: Int
     public private(set) var undoUsed: Bool
+    private var resigned: Bool
 
     private let services: GameServices?
     private let gameID = "gomoku"
@@ -52,6 +54,7 @@ public final class GomokuModel {
         let moves: [(row: Int, col: Int, stone: GomokuStone)]
         let lastMove: (row: Int, col: Int)?
         let undoUsed: Bool
+        let resigned: Bool
 
         if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
             humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
@@ -81,6 +84,7 @@ public final class GomokuModel {
                 lastMove     = nil
             }
             undoUsed = snap.undoUsed ?? false
+            resigned = snap.resigned ?? false
         } else {
             board        = GomokuBoard()
             currentStone = .black
@@ -91,6 +95,7 @@ public final class GomokuModel {
             moves        = []
             lastMove     = nil
             undoUsed     = false
+            resigned     = false
         }
 
         self.board        = board
@@ -100,11 +105,12 @@ public final class GomokuModel {
         self.startedAt    = startedAt
         self.moveCount    = moveCount
         self.moves        = moves
-        self.winner       = nil
+        self.winner       = resigned ? humanSide.opponent : nil
         self.isDraw       = false
         self.isThinking   = false
         self.lastMove     = lastMove
         self.undoUsed     = undoUsed
+        self.resigned     = resigned
     }
 
     public func tap(row: Int, col: Int) {
@@ -145,17 +151,27 @@ public final class GomokuModel {
     }
 
     public func newGame(humanSide: GomokuStone = .black, aiLevel: Int = 1) {
-        board         = GomokuBoard()
-        currentStone  = .black
+        board          = GomokuBoard()
+        currentStone   = .black
         self.humanSide = humanSide
-        self.aiLevel  = aiLevel
-        winner        = nil
-        isDraw        = false
-        lastMove      = nil
-        moveCount     = 0
-        moves         = []
-        undoUsed      = false
-        startedAt     = Date()
+        self.aiLevel   = aiLevel
+        winner         = nil
+        isDraw         = false
+        lastMove       = nil
+        moveCount      = 0
+        moves          = []
+        undoUsed       = false
+        resigned       = false
+        startedAt      = Date()
+        persist()
+    }
+
+    // MARK: - 投了
+
+    public func resign() {
+        guard !gameOver else { return }
+        resigned = true
+        winner = humanSide.opponent
         persist()
     }
 
@@ -208,7 +224,8 @@ public final class GomokuModel {
             aiLevel: aiLevel,
             startedAt: startedAt,
             moveHistory: moves.map { GomokuMoveRecord(row: $0.row, col: $0.col, stone: $0.stone.rawValue) },
-            undoUsed: undoUsed
+            undoUsed: undoUsed,
+            resigned: resigned ? true : nil
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

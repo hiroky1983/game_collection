@@ -4,7 +4,7 @@ import Core
 public struct MinesweeperView: View {
     @State private var model: MinesweeperModel
     private let services: GameServices
-    @State private var showNewGame = false
+    @State private var showNewGame = true
     @State private var flagMode = false
     @Environment(\.dismiss) private var dismiss
 
@@ -49,6 +49,52 @@ public struct MinesweeperView: View {
             } onCancel: {
                 showNewGame = false
             }
+        }
+        .overlay {
+            if model.gameState == .lost {
+                continueOverlay
+            }
+        }
+    }
+
+    // MARK: - Continue Overlay
+
+    private var continueOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 20) {
+                Text("💥")
+                    .font(.system(size: 52))
+                Text("地雷を踏んだ！")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+
+                Button {
+                    Task {
+                        await services.ads.showInterstitial()
+                        model.continueAfterAd()
+                    }
+                } label: {
+                    Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Theme.coral, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+
+                Button { showNewGame = true } label: {
+                    Text("あきらめる")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(28)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
+            .padding(.horizontal, 28)
         }
     }
 
@@ -195,32 +241,28 @@ public struct MinesweeperView: View {
 struct MinesweeperNewGameSheet: View {
     let onStart: (Int, Int, Int) -> Void
     let onCancel: () -> Void
-    @State private var selected = 0
-
-    private let levels: [(label: String, sub: String, rows: Int, cols: Int, mines: Int)] = [
-        ("初級", "9×9  10地雷",   9,  9,  10),
-        ("中級", "12×12  25地雷", 12, 12,  25),
-        ("上級", "15×15  40地雷", 15, 15,  40),
-    ]
-    private let accents: [Color] = [Theme.teal, Theme.yellow, Theme.coral]
+    @State private var level = 0
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 24) {
                 section("難易度") {
                     HStack(spacing: 12) {
-                        ForEach(0..<levels.count, id: \.self) { i in
-                            chooser(title: levels[i].label, subtitle: levels[i].sub,
-                                    selected: selected == i, accent: accents[i]) {
-                                selected = i
-                            }
-                        }
+                        chooser(title: "初級", subtitle: "9×9  10地雷",
+                                selected: level == 0, accent: Theme.teal)   { level = 0 }
+                        chooser(title: "中級", subtitle: "12×12  25地雷",
+                                selected: level == 1, accent: Theme.yellow) { level = 1 }
+                        chooser(title: "上級", subtitle: "15×15  40地雷",
+                                selected: level == 2, accent: Theme.coral)  { level = 2 }
                     }
                 }
                 Spacer()
                 Button {
-                    let lv = levels[selected]
-                    onStart(lv.rows, lv.cols, lv.mines)
+                    switch level {
+                    case 1: onStart(12, 12, 25)
+                    case 2: onStart(15, 15, 40)
+                    default: onStart(9, 9, 10)
+                    }
                 } label: {
                     Text("スタート").font(Theme.body(18)).frame(maxWidth: .infinity)
                 }
@@ -235,7 +277,7 @@ struct MinesweeperNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {

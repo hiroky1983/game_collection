@@ -87,6 +87,34 @@ public final class MinesweeperModel {
         }
     }
 
+    // MARK: - Continue
+
+    public func continueAfterAd() {
+        guard gameState == .lost, let hit = hitMine else { return }
+
+        // ゲームオーバーで露出した地雷を再び隠す
+        for r in 0..<rows {
+            for c in 0..<cols where cells[r][c].isMine && !cells[r][c].isFlagged {
+                cells[r][c].isRevealed = false
+            }
+        }
+
+        // 踏んだ地雷は旗を立てて既知の危険マスとして残す
+        cells[hit.row][hit.col].isFlagged = true
+        flagCount += 1
+        hitMine = nil
+        gameState = .playing
+        startTimer()
+
+        // すでに全安全マスを開けていた場合（まずないが念のため）
+        if revealedCount == safeCellCount {
+            flagAllMines()
+            gameState = .won
+            timerTask?.cancel()
+            timerTask = nil
+        }
+    }
+
     public func toggleFlag(row: Int, col: Int) {
         guard !gameOver, !cells[row][col].isRevealed else { return }
         if cells[row][col].isFlagged {

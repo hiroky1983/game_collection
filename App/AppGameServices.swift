@@ -20,4 +20,6 @@ enum AppEnvironment {
         GomokuModule(),
         MinesweeperModule(),
     ])
+
+    static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
 }

@@ -6,6 +6,7 @@ public struct GomokuView: View {
     private let services: GameServices
     @State private var showNewGame = false
     @State private var showUndoConfirm = false
+    @State private var showResignConfirm = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -191,6 +192,18 @@ public struct GomokuView: View {
             }
             Spacer()
             if !model.gameOver {
+                Button { showResignConfirm = true } label: {
+                    Label("投了", systemImage: "flag.fill")
+                }
+                .font(Theme.body(14))
+                .foregroundStyle(Theme.coral)
+                .alert("投了しますか？", isPresented: $showResignConfirm) {
+                    Button("投了する", role: .destructive) { model.resign() }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text("現在の対局を終了します。\nCPUの勝ちになります。")
+                }
+
                 Button { showUndoConfirm = true } label: {
                     Label("待った", systemImage: "arrow.uturn.backward")
                 }
