@@ -78,13 +78,12 @@ public struct OthelloView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             // 手番 / 結果
-            if let w = model.winner {
-                Label(w == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち",
-                      systemImage: "flag.checkered")
-                    .font(Theme.body(15)).foregroundStyle(Theme.coral)
-            } else if model.isDraw {
-                Label("引き分け", systemImage: "equal.circle")
-                    .font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+            if model.gameOver {
+                Text("終局")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.inkSub))
             } else {
                 let isMine = !model.isAITurn
                 Text(isMine ? "あなたの番" : "CPUの番")
@@ -237,12 +236,57 @@ public struct OthelloView: View {
     }
 
     private var resultControls: some View {
-        Button { showNewGame = true } label: {
-            Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+        VStack(spacing: 10) {
+            // リザルトカード
+            VStack(spacing: 12) {
+                if let w = model.winner {
+                    let isWin = w == model.humanSide
+                    Image(systemName: isWin ? "trophy.fill" : "flag.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                    Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                } else {
+                    Image(systemName: "equal.circle.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(Theme.inkSub)
+                    Text("引き分け")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                }
+                // 最終スコア
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(Color(hex: 0x1A1A1A))
+                        .frame(width: 22, height: 22)
+                    Text("\(model.blackCount)")
+                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    Text("–")
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                    Text("\(model.whiteCount)")
+                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    Circle()
+                        .fill(Color(hex: 0xF0ECD8))
+                        .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
+                        .frame(width: 22, height: 22)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+            .popCard(corner: Theme.cornerSmall)
+
+            // もう一度ボタン
+            Button { showNewGame = true } label: {
+                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .tint(Theme.coral)
     }
 }
 
