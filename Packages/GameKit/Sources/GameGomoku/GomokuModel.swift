@@ -222,6 +222,10 @@ public final class GomokuModel {
     }
 
     private func persist() {
+        guard !gameOver else {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         let snap = GomokuSnapshot(
             cells: board.cells.map { $0?.rawValue },
             currentStone: currentStone.rawValue,
