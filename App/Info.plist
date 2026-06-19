@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1869410932032409~4823987816</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>より関連性の高い広告を表示するために使用します。</string>
 	<key>UILaunchScreen</key>

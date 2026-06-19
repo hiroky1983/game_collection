@@ -21,6 +21,7 @@ targets:
       - App
     resources:
       - App/PrivacyInfo.xcprivacy
+      - App/Assets.xcassets
     dependencies:
       - package: GameKit
         product: Core
@@ -45,6 +46,7 @@ targets:
           - UIInterfaceOrientationPortrait
         GADApplicationIdentifier: ca-app-pub-1869410932032409~4823987816
         NSUserTrackingUsageDescription: より関連性の高い広告を表示するために使用します。
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba
@@ -53,3 +55,6 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        DEVELOPMENT_TEAM: WLUV6S77T5
+        CODE_SIGN_STYLE: Automatic
