@@ -9,7 +9,6 @@ public struct MinesweeperView: View {
     @State private var showContinue = false
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
-    @State private var showBackAlert = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -39,13 +38,7 @@ public struct MinesweeperView: View {
         .tint(Theme.coral)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button {
-                    if model.gameState == .playing {
-                        showBackAlert = true
-                    } else {
-                        dismiss()
-                    }
-                } label: { Label("戻る", systemImage: "chevron.left") }
+                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
             }
             ToolbarItem(placement: .principal) {
                 Text("マインスイーパー")
@@ -84,12 +77,6 @@ public struct MinesweeperView: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("全ての地雷が公開されゲームオーバーになります。")
-        }
-        .alert("ゲームを終了しますか？", isPresented: $showBackAlert) {
-            Button("終了する", role: .destructive) { dismiss() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("ゲームの進行状況は保存されません。")
         }
         .overlay {
             if showContinue { continueOverlay }

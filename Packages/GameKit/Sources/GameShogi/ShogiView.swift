@@ -5,7 +5,8 @@ import Core
 public struct ShogiView: View {
     @State private var model: ShogiGameModel
     private let services: GameServices
-    @State private var showNewGame = false
+    @State private var showNewGame: Bool
+    @State private var showConfirmNewGame = false
     @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +14,7 @@ public struct ShogiView: View {
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: ShogiGameModel(services: services))
+        _showNewGame = State(initialValue: !services.snapshots.exists(for: "shogi"))
     }
 
     /// 人間が後手なら盤を反転して表示する。
@@ -21,11 +23,14 @@ public struct ShogiView: View {
     public var body: some View {
         VStack(spacing: 12) {
             statusBar
-            if !model.gameOver { gameControls }
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
             HandAreaView(model: model, color: model.humanSide)
-            if model.gameOver { reviewControls }
+            if model.gameOver {
+                reviewControls
+            } else {
+                gameControls
+            }
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
@@ -45,7 +50,13 @@ public struct ShogiView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
+                Button {
+                    if model.phase == .playing && !model.moves.isEmpty {
+                        showConfirmNewGame = true
+                    } else {
+                        showNewGame = true
+                    }
+                } label: {
                     Label("新規対局", systemImage: "plus.circle.fill")
                 }
             }
@@ -57,6 +68,12 @@ public struct ShogiView: View {
             } onCancel: {
                 showNewGame = false
             }
+        }
+        .confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規対局", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると対局データが失われます。")
         }
         .overlay {
             if model.pendingPromotion != nil {
@@ -166,6 +183,7 @@ public struct ShogiView: View {
             Spacer()
             Text("\(model.moves.count)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
         }
+        .frame(minHeight: 36)
         .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -211,20 +229,30 @@ public struct ShogiView: View {
     }
 
     private var reviewControls: some View {
-        HStack(spacing: 16) {
-            Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
-                .disabled(model.reviewPly <= 0)
-            Text("検討 \(model.reviewPly)/\(model.moves.count)手")
-                .font(Theme.body(15)).monospacedDigit().foregroundStyle(Theme.ink)
-            Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
-                .disabled(model.reviewPly >= model.moves.count)
-            ShareLink(item: KIF.export(model)) {
-                Label("KIF", systemImage: "square.and.arrow.up")
+        VStack(spacing: 10) {
+            HStack(spacing: 16) {
+                Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
+                    .disabled(model.reviewPly <= 0)
+                Text("\(model.reviewPly)/\(model.moves.count)手")
+                    .font(Theme.body(14)).monospacedDigit().foregroundStyle(Theme.ink)
+                Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
+                    .disabled(model.reviewPly >= model.moves.count)
+                Spacer()
+                ShareLink(item: KIF.export(model)) {
+                    Label("KIF", systemImage: "square.and.arrow.up")
+                }
             }
-            .font(Theme.body(15))
+            .font(Theme.body(14))
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
+
+            Button { showNewGame = true } label: {
+                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
         }
-        .padding(.vertical, 10).frame(maxWidth: .infinity)
-        .popCard(corner: Theme.cornerSmall)
     }
 }
 
