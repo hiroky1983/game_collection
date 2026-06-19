@@ -229,27 +229,30 @@ public struct ShogiView: View {
     }
 
     private var reviewControls: some View {
-        HStack(spacing: 12) {
+        VStack(spacing: 10) {
             Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
             }
-            Spacer()
-            Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
-                .disabled(model.reviewPly <= 0)
-            Text("\(model.reviewPly)/\(model.moves.count)手")
-                .font(Theme.body(14)).monospacedDigit().foregroundStyle(Theme.ink)
-            Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
-                .disabled(model.reviewPly >= model.moves.count)
-            ShareLink(item: KIF.export(model)) {
-                Label("KIF", systemImage: "square.and.arrow.up")
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
+
+            HStack(spacing: 16) {
+                Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
+                    .disabled(model.reviewPly <= 0)
+                Text("\(model.reviewPly)/\(model.moves.count)手")
+                    .font(Theme.body(14)).monospacedDigit().foregroundStyle(Theme.ink)
+                Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
+                    .disabled(model.reviewPly >= model.moves.count)
+                Spacer()
+                ShareLink(item: KIF.export(model)) {
+                    Label("KIF", systemImage: "square.and.arrow.up")
+                }
             }
+            .font(Theme.body(14))
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
         }
-        .font(Theme.body(14))
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 }
 
