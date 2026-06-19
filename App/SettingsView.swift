@@ -1,4 +1,5 @@
 import SafariServices
+import StoreKit
 import SwiftUI
 import Core
 
@@ -6,6 +7,7 @@ struct SettingsView: View {
     let registry: GameRegistry
     let settings: GameSettings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.requestReview) private var requestReview
     @State private var legalURL: IdentifiableURL?
 
     private var appVersion: String {
@@ -55,15 +57,14 @@ struct SettingsView: View {
                 // MARK: その他
                 Section("その他") {
                     Button {
-                        // アプリがリリースされたら App Store の評価ページへ
-                        // SKStoreReviewController.requestReview() を使う想定
+                        requestReview()
                     } label: {
                         Label("アプリを評価する", systemImage: "star")
                     }
                     .foregroundStyle(Theme.ink)
 
                     ShareLink(
-                        item: URL(string: "https://apps.apple.com")!,
+                        item: URL(string: "https://apps.apple.com/jp/app/id6781719499")!,
                         subject: Text("あそびばアプリ"),
                         message: Text("このゲームアプリ面白いよ！")
                     ) {
