@@ -6,6 +6,7 @@ public struct MinesweeperView: View {
     private let services: GameServices
     @State private var showNewGame = true
     @State private var flagMode = false
+    @State private var zoomMode = false
     @State private var showContinue = false
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
@@ -60,6 +61,7 @@ public struct MinesweeperView: View {
             MinesweeperNewGameSheet { rows, cols, mines in
                 model.newGame(rows: rows, cols: cols, mines: mines)
                 flagMode = false
+                zoomMode = false
                 showContinue = false
                 showNewGame = false
             } onCancel: {
@@ -208,6 +210,16 @@ public struct MinesweeperView: View {
                         )
                         .foregroundStyle(flagMode ? .white : Theme.inkSub)
                 }
+                Button { zoomMode.toggle() } label: {
+                    Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
+                        .font(.system(size: 13, weight: .bold))
+                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(zoomMode ? Theme.teal : Theme.surface)
+                        )
+                        .foregroundStyle(zoomMode ? .white : Theme.inkSub)
+                }
             }
             .frame(minWidth: 100, alignment: .trailing)
         }
@@ -226,24 +238,42 @@ public struct MinesweeperView: View {
     // MARK: - Board
 
     private var board: some View {
-        GeometryReader { geo in
-            let cellSize = geo.size.width / CGFloat(model.cols)
-            ZStack(alignment: .topLeading) {
-                Color(hex: 0x777777)
-                VStack(spacing: 0) {
-                    ForEach(0..<model.rows, id: \.self) { r in
-                        HStack(spacing: 0) {
-                            ForEach(0..<model.cols, id: \.self) { c in
-                                cellView(row: r, col: c, size: cellSize)
-                            }
+        Group {
+            if zoomMode {
+                ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                    boardGrid(cellSize: 44)
+                }
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 6)
+            } else {
+                GeometryReader { geo in
+                    boardGrid(cellSize: geo.size.width / CGFloat(model.cols))
+                }
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 6)
+            }
+        }
+    }
+
+    private func boardGrid(cellSize: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color(hex: 0x777777)
+            VStack(spacing: 0) {
+                ForEach(0..<model.rows, id: \.self) { r in
+                    HStack(spacing: 0) {
+                        ForEach(0..<model.cols, id: \.self) { c in
+                            cellView(row: r, col: c, size: cellSize)
                         }
                     }
                 }
             }
         }
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-        .shadow(color: .black.opacity(0.2), radius: 10, y: 6)
+        .frame(
+            width: cellSize * CGFloat(model.cols),
+            height: cellSize * CGFloat(model.rows)
+        )
     }
 
     private func cellView(row: Int, col: Int, size: CGFloat) -> some View {
