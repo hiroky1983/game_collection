@@ -16,7 +16,7 @@ export default function PrivacyPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">プライバシーポリシー</h1>
-        <p className="text-sm text-gray-400">最終更新日：2025年6月18日</p>
+        <p className="text-sm text-gray-400">最終更新日：2026年6月19日</p>
       </div>
 
       <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
