@@ -11,7 +11,8 @@ public struct MinesweeperView: View {
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: MinesweeperModel())
+        _model = State(initialValue: MinesweeperModel(services: services))
+        _showNewGame = State(initialValue: !services.snapshots.exists(for: "minesweeper"))
     }
 
     public var body: some View {
@@ -57,6 +58,9 @@ public struct MinesweeperView: View {
         }
         .overlay {
             if showContinue { continueOverlay }
+        }
+        .task {
+            model.resumeTimerIfNeeded()
         }
         .onChange(of: model.gameState) { _, state in
             if state == .lost { showContinue = true }
