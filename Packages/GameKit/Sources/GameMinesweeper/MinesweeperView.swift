@@ -87,7 +87,7 @@ public struct MinesweeperView: View {
             model.resumeTimerIfNeeded()
         }
         .onChange(of: model.gameState) { _, state in
-            if state == .lost { showContinue = true }
+            if state == .lost && model.hitMine != nil { showContinue = true }
         }
     }
 
