@@ -230,13 +230,6 @@ public struct ShogiView: View {
 
     private var reviewControls: some View {
         VStack(spacing: 10) {
-            Button { showNewGame = true } label: {
-                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
-
             HStack(spacing: 16) {
                 Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
                     .disabled(model.reviewPly <= 0)
@@ -250,6 +243,13 @@ public struct ShogiView: View {
                 }
             }
             .font(Theme.body(14))
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
+
+            Button { showNewGame = true } label: {
+                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         }
