@@ -7,6 +7,9 @@ public struct MinesweeperView: View {
     @State private var showNewGame = true
     @State private var flagMode = false
     @State private var showContinue = false
+    @State private var showConfirmNewGame = false
+    @State private var showGiveUpConfirm = false
+    @State private var showBackAlert = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -21,6 +24,8 @@ public struct MinesweeperView: View {
             board
             if model.gameOver && !showContinue {
                 resultControls
+            } else if model.gameState == .playing {
+                gameControls
             }
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
@@ -34,15 +39,27 @@ public struct MinesweeperView: View {
         .tint(Theme.coral)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
+                Button {
+                    if model.gameState == .playing {
+                        showBackAlert = true
+                    } else {
+                        dismiss()
+                    }
+                } label: { Label("戻る", systemImage: "chevron.left") }
             }
             ToolbarItem(placement: .principal) {
                 Text("マインスイーパー")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
+                Button {
+                    if model.gameState == .playing {
+                        showConfirmNewGame = true
+                    } else {
+                        showNewGame = true
+                    }
+                } label: {
+                    Label("新規ゲーム", systemImage: "plus.circle.fill")
                 }
             }
         }
@@ -56,6 +73,24 @@ public struct MinesweeperView: View {
                 showNewGame = false
             }
         }
+        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると対局データが失われます。")
+        }
+        .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
+            Button("諦める", role: .destructive) { model.giveUp() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("全ての地雷が公開されゲームオーバーになります。")
+        }
+        .alert("ゲームを終了しますか？", isPresented: $showBackAlert) {
+            Button("終了する", role: .destructive) { dismiss() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("ゲームの進行状況は保存されません。")
+        }
         .overlay {
             if showContinue { continueOverlay }
         }
@@ -65,6 +100,23 @@ public struct MinesweeperView: View {
         .onChange(of: model.gameState) { _, state in
             if state == .lost { showContinue = true }
         }
+    }
+
+    // MARK: - Game Controls
+
+    private var gameControls: some View {
+        HStack {
+            Button { showGiveUpConfirm = true } label: {
+                Label("諦める", systemImage: "flag.fill")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
+            }
+            Spacer()
+        }
+        .font(Theme.body(14))
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Continue Overlay

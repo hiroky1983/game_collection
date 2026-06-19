@@ -183,6 +183,15 @@ public final class MinesweeperModel {
         persist()
     }
 
+    public func giveUp() {
+        guard gameState == .playing else { return }
+        revealAllMines()
+        gameState = .lost
+        timerTask?.cancel()
+        timerTask = nil
+        services?.snapshots.clear(for: gameID)
+    }
+
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
 
     // MARK: - Private helpers
