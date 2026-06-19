@@ -5,8 +5,8 @@ export const metadata = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-10">
-      <h2 className="text-lg font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">{title}</h2>
-      <div className="text-gray-700 leading-relaxed space-y-3">{children}</div>
+      <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">{title}</h2>
+      <div className="text-gray-700 dark:text-gray-300 leading-relaxed space-y-3">{children}</div>
     </section>
   );
 }
@@ -15,11 +15,11 @@ export default function TermsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">利用規約</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">利用規約</h1>
         <p className="text-sm text-gray-400">最終更新日：2025年6月18日</p>
       </div>
 
-      <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 mb-10 text-sm text-orange-800 leading-relaxed">
+      <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
         本アプリ「あそびば」をご利用いただくことで、本利用規約に同意したものとみなします。
         ご利用前に必ずお読みください。
       </div>
