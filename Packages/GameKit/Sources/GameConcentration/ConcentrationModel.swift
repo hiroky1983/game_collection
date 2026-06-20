@@ -2,6 +2,18 @@ import Foundation
 import Observation
 import Core
 
+private struct ConcentrationSnapshot: Codable {
+    let symbols: [String]
+    let isFaceUp: [Bool]
+    let isMatched: [Bool]
+    let currentPlayer: Int   // 0=human, 1=cpu
+    let playerScore: Int
+    let cpuScore: Int
+    let pairCount: Int
+    let cpuLevel: Int
+    let mattaUsed: Bool
+}
+
 @MainActor
 @Observable
 public final class ConcentrationModel {
@@ -31,11 +43,16 @@ public final class ConcentrationModel {
     public var canMatta: Bool { !isGameOver && isHumanTurn && !mismatchedIndices.isEmpty }
 
     private let services: GameServices?
+    private let gameID = "concentration"
     private var ai: ConcentrationAI = ConcentrationAI(accuracy: 0.6)
 
     public init(services: GameServices? = nil) {
         self.services = services
-        setupGame(pairCount: .medium, cpuLevel: .normal)
+        if let snap = services?.snapshots.load(ConcentrationSnapshot.self, for: "concentration") {
+            restoreFrom(snap)
+        } else {
+            setupGame(pairCount: .medium, cpuLevel: .normal)
+        }
     }
 
     // MARK: - Public Actions
@@ -45,6 +62,7 @@ public final class ConcentrationModel {
         guard !cards[index].isFaceUp, !cards[index].isMatched else { return }
         guard mismatchedIndices.isEmpty else { return }
         flipCard(index: index)
+        persist()
     }
 
     public func clearMismatch() {
@@ -53,6 +71,7 @@ public final class ConcentrationModel {
         mismatchedIndices = []
         currentPlayer = currentPlayer.next
         turnID += 1
+        persist()
     }
 
     /// ミスマッチを取り消してプレイヤーのターンを継続する（ターン交代なし）
@@ -61,7 +80,7 @@ public final class ConcentrationModel {
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
-        // currentPlayer・turnID は変えない（onChange の clearMismatch は guard で空振りする）
+        persist()
     }
 
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
@@ -91,6 +110,7 @@ public final class ConcentrationModel {
 
             let second = ai.chooseCard(cards: cards, firstFlipped: first)
             flipCard(index: second)
+            persist()
 
             if !mismatchedIndices.isEmpty {
                 try? await Task.sleep(nanoseconds: 900_000_000)
@@ -121,6 +141,34 @@ public final class ConcentrationModel {
         let symbols = Array(concentrationSymbols.prefix(pairCount.rawValue))
         let doubled = (symbols + symbols).shuffled()
         cards = doubled.enumerated().map { ConcentrationCard(id: $0.offset, symbol: $0.element) }
+        persist()
+    }
+
+    private func restoreFrom(_ snap: ConcentrationSnapshot) {
+        pairCount = ConcentrationPairCount(rawValue: snap.pairCount) ?? .medium
+        cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel) ?? .normal
+        ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
+        playerScore = snap.playerScore
+        cpuScore = snap.cpuScore
+        currentPlayer = snap.currentPlayer == 0 ? .human : .cpu
+        mattaUsed = snap.mattaUsed
+        isThinking = false
+        firstFlippedIndex = nil
+        turnID = 0
+        isGameOver = false
+        lastMatchedIndices = []
+        mismatchedIndices = []
+
+        cards = snap.symbols.enumerated().map { i, symbol in
+            ConcentrationCard(
+                id: i,
+                symbol: symbol,
+                isFaceUp: snap.isFaceUp[i],
+                isMatched: snap.isMatched[i]
+            )
+        }
+        // 復元後はCPUターン開始のためturnIDをインクリメント
+        if currentPlayer == .cpu { turnID = 1 }
     }
 
     private func flipCard(index: Int) {
@@ -149,6 +197,23 @@ public final class ConcentrationModel {
     private func checkGameOver() {
         if cards.allSatisfy({ $0.isMatched }) {
             isGameOver = true
+            services?.snapshots.clear(for: gameID)
         }
+    }
+
+    private func persist() {
+        guard !isGameOver else { return }
+        let snap = ConcentrationSnapshot(
+            symbols: cards.map(\.symbol),
+            isFaceUp: cards.map(\.isFaceUp),
+            isMatched: cards.map(\.isMatched),
+            currentPlayer: currentPlayer == .human ? 0 : 1,
+            playerScore: playerScore,
+            cpuScore: cpuScore,
+            pairCount: pairCount.rawValue,
+            cpuLevel: cpuLevel.rawValue,
+            mattaUsed: mattaUsed
+        )
+        try? services?.snapshots.save(snap, for: gameID)
     }
 }
