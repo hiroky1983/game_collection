@@ -8,6 +8,7 @@ public struct PokerView: View {
     @State private var showStartSheet = true
     @State private var hasPlayedOnce = false
     @State private var revealCPU = false
+    @State private var showHandGuide = false
 
     public init(services: GameServices) {
         self.services = services
@@ -46,6 +47,14 @@ public struct PokerView: View {
                 Text("ポーカー")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showHandGuide = true } label: {
+                    Image(systemName: "list.bullet.rectangle")
+                }
+            }
+        }
+        .sheet(isPresented: $showHandGuide) {
+            HandGuideSheet()
         }
         .sheet(isPresented: $showStartSheet) {
             PokerStartSheet {
@@ -303,18 +312,13 @@ public struct PokerView: View {
 
     // リザルト（ラウンド終了）
     private var resultView: some View {
-        VStack(spacing: 8) {
-            Button {
-                revealCPU = false
-                if hasPlayedOnce {
-                    model.startGame()
-                } else {
-                    showStartSheet = true
-                }
-            } label: {
-                Text("次のゲーム").font(Theme.body(16)).frame(maxWidth: .infinity)
+        actionButton("次のゲーム", color: Theme.coral) {
+            revealCPU = false
+            if hasPlayedOnce {
+                model.startGame()
+            } else {
+                showStartSheet = true
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -432,22 +436,23 @@ struct PokerStartSheet: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("役")
-                        .font(Theme.body(15)).foregroundStyle(Theme.inkSub)
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                        ForEach(handRules, id: \.0) { name, desc in
-                            HStack {
-                                Text(name).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(Theme.coral)
-                                Text(desc).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.inkSub)
-                                Spacer()
-                            }
-                        }
+                NavigationLink {
+                    HandGuideSheet()
+                } label: {
+                    HStack {
+                        Image(systemName: "list.bullet.rectangle")
+                        Text("役一覧を見る")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.inkSub)
                     }
+                    .foregroundStyle(Theme.coral)
+                    .padding(16)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                        .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
                 }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
 
                 Spacer()
                 Button {
@@ -477,17 +482,109 @@ struct PokerStartSheet: View {
             Spacer()
         }
     }
+}
 
-    private let handRules: [(String, String)] = [
-        ("ロイヤルフラッシュ", "最強の役"),
-        ("ストレートフラッシュ", "同スーツ連続"),
-        ("フォーカード", "同ランク4枚"),
-        ("フルハウス", "3枚＋2枚"),
-        ("フラッシュ", "同スーツ5枚"),
-        ("ストレート", "連続5枚"),
-        ("スリーカード", "同ランク3枚"),
-        ("ツーペア", "ペア2組"),
-        ("ワンペア", "ペア1組"),
-        ("ハイカード", "役なし"),
-    ]
+// MARK: - Hand Guide Sheet
+
+struct HandGuideSheet: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                ForEach(handGuides, id: \.name) { guide in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text(guide.name)
+                                .font(.system(size: 14, weight: .black, design: .rounded))
+                                .foregroundStyle(Theme.coral)
+                            Text(guide.desc)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(Theme.inkSub)
+                        }
+                        HStack(spacing: 4) {
+                            ForEach(guide.cards) { card in
+                                MiniCardView(card: card)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
+                }
+            }
+            .padding(Theme.pad)
+        }
+        .popBackground()
+        .navigationTitle("役一覧")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+
+    private func c(_ rank: Int, _ suit: PokerSuit) -> PokerCard {
+        PokerCard(id: rank * 10 + suit.rawValue, suit: suit, rank: rank)
+    }
+
+    private var handGuides: [HandGuide] {
+        let s = PokerSuit.spades; let h = PokerSuit.hearts
+        let d = PokerSuit.diamonds; let cl = PokerSuit.clubs
+        return [
+            HandGuide("ロイヤルフラッシュ", "最強・同スーツ A K Q J 10",
+                      [c(14,s), c(13,s), c(12,s), c(11,s), c(10,s)]),
+            HandGuide("ストレートフラッシュ", "連続5枚の同スーツ",
+                      [c(9,h), c(8,h), c(7,h), c(6,h), c(5,h)]),
+            HandGuide("フォーカード", "同ランク4枚",
+                      [c(14,s), c(14,h), c(14,d), c(14,cl), c(7,s)]),
+            HandGuide("フルハウス", "3枚 ＋ 2枚",
+                      [c(13,s), c(13,h), c(13,d), c(9,s), c(9,h)]),
+            HandGuide("フラッシュ", "同スーツ5枚（順不同）",
+                      [c(14,cl), c(10,cl), c(7,cl), c(4,cl), c(2,cl)]),
+            HandGuide("ストレート", "連続5枚（スーツ混在）",
+                      [c(9,s), c(8,h), c(7,d), c(6,cl), c(5,s)]),
+            HandGuide("スリーカード", "同ランク3枚",
+                      [c(8,s), c(8,h), c(8,d), c(4,cl), c(2,s)]),
+            HandGuide("ツーペア", "ペア2組",
+                      [c(13,s), c(13,h), c(9,d), c(9,cl), c(5,s)]),
+            HandGuide("ワンペア", "ペア1組",
+                      [c(11,s), c(11,h), c(8,d), c(4,cl), c(2,s)]),
+            HandGuide("ハイカード", "役なし・最高位カードで比較",
+                      [c(14,s), c(10,h), c(7,d), c(4,cl), c(2,s)]),
+        ]
+    }
+
+    struct HandGuide: Identifiable {
+        let id = UUID()
+        let name: String
+        let desc: String
+        let cards: [PokerCard]
+        init(_ name: String, _ desc: String, _ cards: [PokerCard]) {
+            self.name = name; self.desc = desc; self.cards = cards
+        }
+    }
+}
+
+// MARK: - Mini Card View
+
+struct MiniCardView: View {
+    let card: PokerCard
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
+                )
+            VStack(spacing: 0) {
+                Text(card.rankLabel)
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                Text(card.suit.symbol)
+                    .font(.system(size: 14))
+            }
+            .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
+        }
+        .frame(width: 38, height: 54)
+    }
 }

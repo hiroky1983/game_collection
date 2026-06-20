@@ -203,7 +203,7 @@ public final class PokerModel {
 
     private var deck: [PokerCard] = []
     private let initialChips = 100
-    private let anteAmount = 100
+    private let anteAmount = 10
     private let betAmount = 20
     private let services: GameServices?
 
