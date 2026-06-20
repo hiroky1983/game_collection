@@ -57,17 +57,8 @@ public final class ConcentrationModel {
     }
 
     public func performCPUMoveIfNeeded() async {
-        // ミスマッチが残っていれば先に裏返す
-        if !mismatchedIndices.isEmpty {
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            clearMismatch()
-            // clearMismatch でターンが変わった後にCPUかどうか再確認
-            if currentPlayer == .cpu {
-                await doCPUTurn()
-            }
-            return
-        }
         guard currentPlayer == .cpu, !isThinking, !isGameOver else { return }
+        guard mismatchedIndices.isEmpty else { return }
         await doCPUTurn()
     }
 
@@ -90,8 +81,15 @@ public final class ConcentrationModel {
         let second = ai.chooseCard(cards: cards, firstFlipped: first)
         flipCard(index: second)
 
-        // CPUがマッチしたら連続ターン
-        if mismatchedIndices.isEmpty && !isGameOver && currentPlayer == .cpu {
+        if !mismatchedIndices.isEmpty {
+            // ミスマッチ: カードを見せてから裏返してターン交代
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            clearMismatch()
+            return
+        }
+
+        // マッチしたら連続ターン
+        if !isGameOver && currentPlayer == .cpu {
             try? await Task.sleep(nanoseconds: 500_000_000)
             await doCPUTurn()
         }
