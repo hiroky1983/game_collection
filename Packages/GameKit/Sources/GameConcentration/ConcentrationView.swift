@@ -5,6 +5,7 @@ public struct ConcentrationView: View {
     @State private var model: ConcentrationModel
     private let services: GameServices
     @State private var showNewGame = false
+    @State private var showMattaConfirm = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -16,6 +17,9 @@ public struct ConcentrationView: View {
         VStack(spacing: 10) {
             statusBar
             cardGrid
+            if !model.isGameOver {
+                mattaControls
+            }
             Spacer(minLength: 4)
             BannerSlot(ads: services.ads)
         }
@@ -53,6 +57,19 @@ public struct ConcentrationView: View {
             if model.isGameOver {
                 resultOverlay
             }
+        }
+        .alert("待った確認", isPresented: $showMattaConfirm) {
+            Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
+                Task {
+                    if model.mattaUsed { await services.ads.showInterstitial() }
+                    model.useMatta()
+                }
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text(model.mattaUsed
+                 ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
+                 : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
         }
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()
@@ -95,6 +112,21 @@ public struct ConcentrationView: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
         .background(Capsule().fill(isActive ? color : Theme.surface))
+    }
+
+    // MARK: - Matta Controls
+
+    private var mattaControls: some View {
+        HStack {
+            Spacer()
+            Button { showMattaConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+                    .font(Theme.body(14))
+            }
+            .disabled(!model.canMatta)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Card Grid
@@ -158,29 +190,14 @@ public struct ConcentrationView: View {
                     }
                 }
 
-                VStack(spacing: 10) {
-                    Button { showNewGame = true } label: {
-                        Text("もう一度")
-                            .font(Theme.body(16))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .tint(Theme.purple)
-
-                    Button {
-                        Task {
-                            await services.ads.showInterstitial()
-                            model.newGame(pairCount: model.pairCount, cpuLevel: model.cpuLevel)
-                        }
-                    } label: {
-                        Label("広告を見てもう1回", systemImage: "play.rectangle.fill")
-                            .font(Theme.body(14))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(Theme.yellow)
+                Button { showNewGame = true } label: {
+                    Text("もう一度")
+                        .font(Theme.body(16))
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Theme.purple)
                 .padding(.horizontal, 24)
             }
             .padding(28)

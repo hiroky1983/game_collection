@@ -18,6 +18,7 @@ public final class ConcentrationModel {
     public private(set) var isGameOver: Bool = false
     public private(set) var lastMatchedIndices: [Int] = []
     public private(set) var mismatchedIndices: [Int] = []
+    public private(set) var mattaUsed: Bool = false
 
     public var winner: ConcentrationPlayer? {
         guard isGameOver else { return nil }
@@ -27,6 +28,7 @@ public final class ConcentrationModel {
     }
     public var isDraw: Bool { isGameOver && playerScore == cpuScore }
     public var isHumanTurn: Bool { currentPlayer == .human }
+    public var canMatta: Bool { !isGameOver && isHumanTurn && !mismatchedIndices.isEmpty }
 
     private let services: GameServices?
     private var ai: ConcentrationAI = ConcentrationAI(accuracy: 0.6)
@@ -51,6 +53,15 @@ public final class ConcentrationModel {
         mismatchedIndices = []
         currentPlayer = currentPlayer.next
         turnID += 1
+    }
+
+    /// ミスマッチを取り消してプレイヤーのターンを継続する（ターン交代なし）
+    public func useMatta() {
+        guard canMatta else { return }
+        for i in mismatchedIndices { cards[i].isFaceUp = false }
+        mismatchedIndices = []
+        mattaUsed = true
+        // currentPlayer・turnID は変えない（onChange の clearMismatch は guard で空振りする）
     }
 
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
@@ -105,6 +116,7 @@ public final class ConcentrationModel {
         isGameOver = false
         lastMatchedIndices = []
         mismatchedIndices = []
+        mattaUsed = false
 
         let symbols = Array(concentrationSymbols.prefix(pairCount.rawValue))
         let doubled = (symbols + symbols).shuffled()
