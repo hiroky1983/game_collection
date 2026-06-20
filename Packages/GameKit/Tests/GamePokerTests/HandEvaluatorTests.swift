@@ -157,4 +157,21 @@ struct TieBreakerTests {
                         card(4, .clubs), card(2, .spades)]
         #expect(HandEvaluator.compare(aceHigh, kingHigh) == 1)
     }
+
+    @Test func wheelStraightLosesToSixHigh() {
+        // A-2-3-4-5 はポーカー最弱のストレート。6ハイに負けるべき
+        let wheel = [card(14, .spades), card(2, .hearts), card(3, .diamonds),
+                     card(4, .clubs), card(5, .spades)]
+        let sixHigh = [card(2, .hearts), card(3, .diamonds), card(4, .clubs),
+                       card(5, .spades), card(6, .hearts)]
+        #expect(HandEvaluator.compare(wheel, sixHigh) == -1)
+    }
+
+    @Test func wheelStraightLosesToSevenHigh() {
+        let wheel = [card(14, .spades), card(2, .hearts), card(3, .diamonds),
+                     card(4, .clubs), card(5, .spades)]
+        let sevenHigh = [card(3, .hearts), card(4, .diamonds), card(5, .clubs),
+                         card(6, .spades), card(7, .hearts)]
+        #expect(HandEvaluator.compare(wheel, sevenHigh) == -1)
+    }
 }

@@ -47,11 +47,13 @@ public struct PokerView: View {
                 Text("ポーカー")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+            #if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showHandGuide = true } label: {
                     Image(systemName: "list.bullet.rectangle")
                 }
             }
+            #endif
         }
         .sheet(isPresented: $showHandGuide) {
             HandGuideSheet()
@@ -328,15 +330,20 @@ public struct PokerView: View {
     private var sessionOverView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
-                let playerWon = model.sessionWinner == .player
-                Image(systemName: playerWon ? "trophy.fill" : "xmark.octagon.fill")
+                let winner = model.sessionWinner
+                let icon = winner == .player ? "trophy.fill" : winner == .tie ? "equal.circle.fill" : "xmark.octagon.fill"
+                let iconColor = winner == .player ? Theme.yellow : winner == .tie ? Theme.teal : Theme.coral
+                let title = winner == .player ? "セッション勝利！" : winner == .tie ? "引き分け" : "セッション敗北"
+                let titleColor = winner == .player ? Theme.teal : winner == .tie ? Theme.teal : Theme.coral
+                let subtitle = winner == .player ? "CPUのチップが尽きました" : winner == .tie ? "お互いのチップが尽きました" : "あなたのチップが尽きました"
+                Image(systemName: icon)
                     .font(.system(size: 24))
-                    .foregroundStyle(playerWon ? Theme.yellow : Theme.coral)
+                    .foregroundStyle(iconColor)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(playerWon ? "セッション勝利！" : "セッション敗北")
+                    Text(title)
                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(playerWon ? Theme.teal : Theme.coral)
-                    Text(playerWon ? "CPUのチップが尽きました" : "あなたのチップが尽きました")
+                        .foregroundStyle(titleColor)
+                    Text(subtitle)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                 }

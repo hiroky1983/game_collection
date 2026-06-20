@@ -75,13 +75,16 @@ struct HandEvaluator {
         for r in ranks { countMap[r, default: 0] += 1 }
         let groups = countMap.values.sorted(by: >)
 
+        let isWheel = ranks == [14, 5, 4, 3, 2]
+        let straightTieBreaker = isWheel ? [5, 4, 3, 2, 1] : ranks
+
         if isFlush && isStraight {
-            return ranks[0] == 14 && ranks[1] == 13 ? (.royalFlush, ranks) : (.straightFlush, ranks)
+            return ranks[0] == 14 && ranks[1] == 13 ? (.royalFlush, ranks) : (.straightFlush, straightTieBreaker)
         }
         if groups == [4, 1] { return (.fourOfAKind, sortedTieBreaker(countMap)) }
         if groups == [3, 2] { return (.fullHouse, sortedTieBreaker(countMap)) }
         if isFlush          { return (.flush, ranks) }
-        if isStraight       { return (.straight, ranks) }
+        if isStraight       { return (.straight, straightTieBreaker) }
         if groups == [3, 1, 1] { return (.threeOfAKind, sortedTieBreaker(countMap)) }
         if groups == [2, 2, 1] { return (.twoPair, sortedTieBreaker(countMap)) }
         if groups == [2, 1, 1, 1] { return (.onePair, sortedTieBreaker(countMap)) }
