@@ -10,7 +10,8 @@ public final class ConcentrationModel {
     public private(set) var playerScore: Int = 0
     public private(set) var cpuScore: Int = 0
     public private(set) var isThinking: Bool = false
-    public private(set) var difficulty: ConcentrationDifficulty = .normal
+    public private(set) var pairCount: ConcentrationPairCount = .medium
+    public private(set) var cpuLevel: ConcentrationCPULevel = .normal
     public private(set) var firstFlippedIndex: Int? = nil
     /// ターン交代時のみインクリメントし task(id:) の再起動トリガーとして使う
     public private(set) var turnID: Int = 0
@@ -26,14 +27,13 @@ public final class ConcentrationModel {
     }
     public var isDraw: Bool { isGameOver && playerScore == cpuScore }
     public var isHumanTurn: Bool { currentPlayer == .human }
-    public var totalPairs: Int { difficulty.pairCount }
 
     private let services: GameServices?
     private var ai: ConcentrationAI = ConcentrationAI(accuracy: 0.6)
 
     public init(services: GameServices? = nil) {
         self.services = services
-        setupGame(difficulty: .normal)
+        setupGame(pairCount: .medium, cpuLevel: .normal)
     }
 
     // MARK: - Public Actions
@@ -45,7 +45,6 @@ public final class ConcentrationModel {
         flipCard(index: index)
     }
 
-    /// ミスマッチカードを裏返してターン交代（ここだけで turnID を変える）
     public func clearMismatch() {
         guard !mismatchedIndices.isEmpty else { return }
         for i in mismatchedIndices { cards[i].isFaceUp = false }
@@ -54,11 +53,10 @@ public final class ConcentrationModel {
         turnID += 1
     }
 
-    public func newGame(difficulty: ConcentrationDifficulty) {
-        setupGame(difficulty: difficulty)
+    public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
+        setupGame(pairCount: pairCount, cpuLevel: cpuLevel)
     }
 
-    /// task(id: turnID) から呼ばれる。CPUターンなら doCPUTurn を実行。
     public func performCPUMoveIfNeeded() async {
         guard currentPlayer == .cpu, !isThinking, !isGameOver else { return }
         await doCPUTurn()
@@ -70,16 +68,13 @@ public final class ConcentrationModel {
         isThinking = true
         defer { isThinking = false }
 
-        // マッチする限り連続でターンを続ける（再帰ではなくループ）
         while currentPlayer == .cpu && !isGameOver {
-            // 1枚目
             try? await Task.sleep(nanoseconds: 600_000_000)
             guard currentPlayer == .cpu, !isGameOver else { return }
 
             let first = ai.chooseCard(cards: cards, firstFlipped: nil)
             flipCard(index: first)
 
-            // 2枚目
             try? await Task.sleep(nanoseconds: 700_000_000)
             guard currentPlayer == .cpu, !isGameOver else { return }
 
@@ -87,22 +82,21 @@ public final class ConcentrationModel {
             flipCard(index: second)
 
             if !mismatchedIndices.isEmpty {
-                // ミスマッチ: カードを見せてから裏返してターン交代
                 try? await Task.sleep(nanoseconds: 900_000_000)
-                clearMismatch()  // ← turnID++ & currentPlayer = .human
+                clearMismatch()
                 return
             }
 
             if isGameOver { return }
 
-            // マッチしたら少し間を置いて次のペアへ
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
     }
 
-    private func setupGame(difficulty: ConcentrationDifficulty) {
-        self.difficulty = difficulty
-        ai = ConcentrationAI(accuracy: difficulty.cpuMemoryAccuracy)
+    private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
+        self.pairCount = pairCount
+        self.cpuLevel = cpuLevel
+        ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
         playerScore = 0
         cpuScore = 0
         currentPlayer = .human
@@ -112,7 +106,7 @@ public final class ConcentrationModel {
         lastMatchedIndices = []
         mismatchedIndices = []
 
-        let symbols = Array(concentrationSymbols.prefix(difficulty.pairCount))
+        let symbols = Array(concentrationSymbols.prefix(pairCount.rawValue))
         let doubled = (symbols + symbols).shuffled()
         cards = doubled.enumerated().map { ConcentrationCard(id: $0.offset, symbol: $0.element) }
     }
@@ -130,7 +124,6 @@ public final class ConcentrationModel {
                 lastMatchedIndices = [first, index]
                 if currentPlayer == .human { playerScore += 1 } else { cpuScore += 1 }
                 checkGameOver()
-                // turnID は変えない（ターン交代なし・連続ターン）
             } else {
                 lastMatchedIndices = []
                 mismatchedIndices = [first, index]

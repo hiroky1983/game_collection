@@ -5,7 +5,6 @@ public struct ConcentrationView: View {
     @State private var model: ConcentrationModel
     private let services: GameServices
     @State private var showNewGame = false
-    @State private var showRewardAd = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -42,8 +41,11 @@ public struct ConcentrationView: View {
             }
         }
         .sheet(isPresented: $showNewGame) {
-            ConcentrationNewGameSheet(difficulty: model.difficulty) { diff in
-                model.newGame(difficulty: diff)
+            ConcentrationNewGameSheet(
+                pairCount: model.pairCount,
+                cpuLevel: model.cpuLevel
+            ) { pairs, level in
+                model.newGame(pairCount: pairs, cpuLevel: level)
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
@@ -98,7 +100,7 @@ public struct ConcentrationView: View {
     // MARK: - Card Grid
 
     private var cardGrid: some View {
-        let cols = model.difficulty == .hard ? 6 : (model.difficulty == .normal ? 6 : 4)
+        let cols = model.pairCount == .small ? 4 : 6
         let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: cols)
 
         return ScrollView {
@@ -157,9 +159,7 @@ public struct ConcentrationView: View {
                 }
 
                 VStack(spacing: 10) {
-                    Button {
-                        showNewGame = true
-                    } label: {
+                    Button { showNewGame = true } label: {
                         Text("もう一度")
                             .font(Theme.body(16))
                             .frame(maxWidth: .infinity)
@@ -171,7 +171,7 @@ public struct ConcentrationView: View {
                     Button {
                         Task {
                             await services.ads.showInterstitial()
-                            model.newGame(difficulty: model.difficulty)
+                            model.newGame(pairCount: model.pairCount, cpuLevel: model.cpuLevel)
                         }
                     } label: {
                         Label("広告を見てもう1回", systemImage: "play.rectangle.fill")
@@ -231,7 +231,6 @@ private struct CardView: View {
         }
         .aspectRatio(0.75, contentMode: .fit)
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-        .rotation3DEffect(.degrees(isFaceUp ? 0 : 0), axis: (x: 0, y: 1, z: 0))
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isFaceUp)
         .opacity(card.isMatched ? 0.6 : 1.0)
     }
@@ -240,14 +239,17 @@ private struct CardView: View {
 // MARK: - New Game Sheet
 
 struct ConcentrationNewGameSheet: View {
-    @State private var selectedDifficulty: ConcentrationDifficulty
-    let onStart: (ConcentrationDifficulty) -> Void
+    @State private var selectedPairCount: ConcentrationPairCount
+    @State private var selectedCPULevel: ConcentrationCPULevel
+    let onStart: (ConcentrationPairCount, ConcentrationCPULevel) -> Void
     let onCancel: () -> Void
 
-    init(difficulty: ConcentrationDifficulty,
-         onStart: @escaping (ConcentrationDifficulty) -> Void,
+    init(pairCount: ConcentrationPairCount,
+         cpuLevel: ConcentrationCPULevel,
+         onStart: @escaping (ConcentrationPairCount, ConcentrationCPULevel) -> Void,
          onCancel: @escaping () -> Void) {
-        _selectedDifficulty = State(initialValue: difficulty)
+        _selectedPairCount = State(initialValue: pairCount)
+        _selectedCPULevel = State(initialValue: cpuLevel)
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -255,37 +257,35 @@ struct ConcentrationNewGameSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 24) {
-                Text("難易度を選んでください")
-                    .font(Theme.body(15))
-                    .foregroundStyle(Theme.inkSub)
-
-                HStack(spacing: 12) {
-                    ForEach(ConcentrationDifficulty.allCases, id: \.rawValue) { diff in
-                        let selected = selectedDifficulty == diff
-                        Button { selectedDifficulty = diff } label: {
-                            VStack(spacing: 6) {
-                                Text(diff.displayName)
-                                    .font(Theme.body(16))
-                                    .foregroundStyle(selected ? .white : Theme.ink)
-                                Text(diff.subtitle)
-                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(selected ? .white.opacity(0.85) : Theme.inkSub)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
-                            .background(
-                                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                                    .fill(selected ? Theme.purple : Theme.surface)
-                                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-                            )
+                settingSection("盤面サイズ") {
+                    HStack(spacing: 12) {
+                        ForEach(ConcentrationPairCount.allCases, id: \.rawValue) { p in
+                            choiceButton(
+                                title: p.displayName,
+                                subtitle: p.subtitle,
+                                selected: selectedPairCount == p,
+                                accent: Theme.teal
+                            ) { selectedPairCount = p }
                         }
-                        .buttonStyle(.plain)
+                    }
+                }
+
+                settingSection("CPUの強さ") {
+                    HStack(spacing: 12) {
+                        ForEach(ConcentrationCPULevel.allCases, id: \.rawValue) { l in
+                            choiceButton(
+                                title: l.displayName,
+                                subtitle: l.subtitle,
+                                selected: selectedCPULevel == l,
+                                accent: Theme.coral
+                            ) { selectedCPULevel = l }
+                        }
                     }
                 }
 
                 Spacer()
 
-                Button { onStart(selectedDifficulty) } label: {
+                Button { onStart(selectedPairCount, selectedCPULevel) } label: {
                     Text("ゲーム開始")
                         .font(Theme.body(18))
                         .frame(maxWidth: .infinity)
@@ -303,6 +303,37 @@ struct ConcentrationNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    private func settingSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(Theme.body(15))
+                .foregroundStyle(Theme.inkSub)
+            content()
+        }
+    }
+
+    private func choiceButton(title: String, subtitle: String, selected: Bool,
+                              accent: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(Theme.body(16))
+                    .foregroundStyle(selected ? .white : Theme.ink)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(selected ? .white.opacity(0.85) : Theme.inkSub)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                    .fill(selected ? accent : Theme.surface)
+                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

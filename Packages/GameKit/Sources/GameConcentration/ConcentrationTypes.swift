@@ -1,40 +1,53 @@
 import Foundation
 
-public enum ConcentrationDifficulty: Int, CaseIterable {
-    case easy = 0
-    case normal = 1
-    case hard = 2
-
-    var pairCount: Int {
-        switch self {
-        case .easy:   return 8
-        case .normal: return 12
-        case .hard:   return 18
-        }
-    }
+public enum ConcentrationPairCount: Int, CaseIterable {
+    case small = 8
+    case medium = 12
+    case large = 18
 
     var displayName: String {
         switch self {
-        case .easy:   return "かんたん"
-        case .normal: return "ふつう"
-        case .hard:   return "むずかしい"
+        case .small:  return "8ペア"
+        case .medium: return "12ペア"
+        case .large:  return "18ペア"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .easy:   return "8ペア"
-        case .normal: return "12ペア"
-        case .hard:   return "18ペア"
+        case .small:  return "16枚"
+        case .medium: return "24枚"
+        case .large:  return "36枚"
+        }
+    }
+}
+
+public enum ConcentrationCPULevel: Int, CaseIterable {
+    case weak = 0
+    case normal = 1
+    case strong = 2
+
+    var displayName: String {
+        switch self {
+        case .weak:   return "よわい"
+        case .normal: return "ふつう"
+        case .strong: return "つよい"
         }
     }
 
-    /// CPU が表向きにされたカードを記憶する確率
-    var cpuMemoryAccuracy: Double {
+    var subtitle: String {
         switch self {
-        case .easy:   return 0.3
+        case .weak:   return "記憶30%"
+        case .normal: return "記憶60%"
+        case .strong: return "記憶100%"
+        }
+    }
+
+    var memoryAccuracy: Double {
+        switch self {
+        case .weak:   return 0.3
         case .normal: return 0.6
-        case .hard:   return 1.0
+        case .strong: return 1.0
         }
     }
 }
@@ -53,7 +66,6 @@ public struct ConcentrationCard: Identifiable {
     public var isMatched: Bool = false
 }
 
-// 36種まで対応できるシンボルセット
 let concentrationSymbols: [String] = [
     "🍎", "🍊", "🍋", "🍇", "🍓", "🍒", "🍑", "🥝",
     "🌸", "🌻", "🌈", "⭐", "🎵", "🎃", "🎄", "🎁",
