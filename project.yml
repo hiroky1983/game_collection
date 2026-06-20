@@ -35,6 +35,10 @@ targets:
         product: GameMinesweeper
       - package: GameKit
         product: GameOthello
+      - package: GameKit
+        product: GamePoker
+      - package: GameKit
+        product: GameConcentration
       - package: GoogleMobileAds
         product: GoogleMobileAds
     info:
