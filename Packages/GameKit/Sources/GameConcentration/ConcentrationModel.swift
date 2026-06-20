@@ -24,7 +24,7 @@ public final class ConcentrationModel {
     public private(set) var isThinking: Bool = false
     public private(set) var pairCount: ConcentrationPairCount = .medium
     public private(set) var cpuLevel: ConcentrationCPULevel = .normal
-    public private(set) var firstFlippedIndex: Int? = nil
+    public internal(set) var firstFlippedIndex: Int? = nil
     /// ターン交代時のみインクリメントし task(id:) の再起動トリガーとして使う
     public private(set) var turnID: Int = 0
     public private(set) var isGameOver: Bool = false
@@ -96,32 +96,34 @@ public final class ConcentrationModel {
 
     private func doCPUTurn() async {
         isThinking = true
-        defer { isThinking = false }
 
         while currentPlayer == .cpu && !isGameOver {
             try? await Task.sleep(nanoseconds: 600_000_000)
-            guard currentPlayer == .cpu, !isGameOver else { return }
+            guard currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let first = ai.chooseCard(cards: cards, firstFlipped: nil)
             flipCard(index: first)
 
             try? await Task.sleep(nanoseconds: 700_000_000)
-            guard currentPlayer == .cpu, !isGameOver else { return }
+            guard currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let second = ai.chooseCard(cards: cards, firstFlipped: first)
             flipCard(index: second)
             persist()
 
             if !mismatchedIndices.isEmpty {
+                isThinking = false  // clearMismatch前にfalseにして新タスクが動けるようにする
                 try? await Task.sleep(nanoseconds: 900_000_000)
-                clearMismatch()
+                clearMismatch()     // ← turnID++でtaskが再起動するが isThinking=false なので競合しない
                 return
             }
 
-            if isGameOver { return }
+            if isGameOver { isThinking = false; return }
 
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
+
+        isThinking = false
     }
 
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
@@ -167,7 +169,15 @@ public final class ConcentrationModel {
                 isMatched: snap.isMatched[i]
             )
         }
-        // 復元後はCPUターン開始のためturnIDをインクリメント
+
+        // 途中でめくれていたカード（非マッチ・フェイスアップ）を裏返す。
+        // firstFlippedIndex や mismatchedIndices はスナップショットに含めないため、
+        // 復元時に宙吊りカードが残るとゲームが詰まる。
+        for i in cards.indices where cards[i].isFaceUp && !cards[i].isMatched {
+            cards[i].isFaceUp = false
+        }
+
+        // CPUターン復元：turnID を非ゼロにすることで task(id:) を確実に起動させる
         if currentPlayer == .cpu { turnID = 1 }
     }
 

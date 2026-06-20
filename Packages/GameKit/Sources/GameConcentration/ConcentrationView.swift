@@ -74,14 +74,7 @@ public struct ConcentrationView: View {
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()
         }
-        .onChange(of: model.mismatchedIndices) { _, new in
-            // CPUのミスマッチだけ自動クリア。人間は「次へ」ボタンで手動操作。
-            guard !new.isEmpty, !model.isHumanTurn else { return }
-            Task {
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                model.clearMismatch()
-            }
-        }
+        // CPUのミスマッチは doCPUTurn が自前でクリアするため onChange 不要
     }
 
     // MARK: - Status Bar
