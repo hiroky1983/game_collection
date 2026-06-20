@@ -39,7 +39,7 @@ public enum ConcentrationCPULevel: Int, CaseIterable {
         switch self {
         case .weak:   return "記憶30%"
         case .normal: return "記憶60%"
-        case .strong: return "記憶100%"
+        case .strong: return "記憶80%"
         }
     }
 
@@ -47,7 +47,7 @@ public enum ConcentrationCPULevel: Int, CaseIterable {
         switch self {
         case .weak:   return 0.3
         case .normal: return 0.6
-        case .strong: return 1.0
+        case .strong: return 0.8
         }
     }
 }
