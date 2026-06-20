@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "GameGomoku",       targets: ["GameGomoku"]),
         .library(name: "GameMinesweeper",  targets: ["GameMinesweeper"]),
         .library(name: "GameOthello",      targets: ["GameOthello"]),
+        .library(name: "GamePoker",        targets: ["GamePoker"]),
     ],
     targets: [
         .target(name: "Core"),
@@ -24,9 +25,11 @@ let package = Package(
         .target(name: "GameGomoku",      dependencies: ["Core"]),
         .target(name: "GameMinesweeper", dependencies: ["Core"]),
         .target(name: "GameOthello",     dependencies: ["Core"]),
+        .target(name: "GamePoker",       dependencies: ["Core"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku"]),
         .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello"]),
+        .testTarget(name: "GamePokerTests",   dependencies: ["GamePoker"]),
     ]
 )
