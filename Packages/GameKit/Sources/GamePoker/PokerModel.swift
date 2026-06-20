@@ -7,7 +7,7 @@ import Core
 public enum PokerSuit: Int, CaseIterable, Codable, Sendable {
     case spades, hearts, diamonds, clubs
     public var symbol: String { ["♠", "♥", "♦", "♣"][rawValue] }
-    public var isRed: Bool { rawValue >= 2 }
+    public var isRed: Bool { self == .hearts || self == .diamonds }
 }
 
 public struct PokerCard: Identifiable, Codable, Sendable, Equatable {
