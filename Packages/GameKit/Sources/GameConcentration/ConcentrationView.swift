@@ -75,7 +75,8 @@ public struct ConcentrationView: View {
             await model.performCPUMoveIfNeeded()
         }
         .onChange(of: model.mismatchedIndices) { _, new in
-            guard !new.isEmpty, model.isHumanTurn else { return }
+            // CPUのミスマッチだけ自動クリア。人間は「次へ」ボタンで手動操作。
+            guard !new.isEmpty, !model.isHumanTurn else { return }
             Task {
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 model.clearMismatch()
@@ -118,12 +119,26 @@ public struct ConcentrationView: View {
 
     private var mattaControls: some View {
         HStack {
-            Spacer()
             Button { showMattaConfirm = true } label: {
                 Label("待った", systemImage: "arrow.uturn.backward")
                     .font(Theme.body(14))
             }
             .disabled(!model.canMatta)
+
+            Spacer()
+
+            // 人間がミスマッチ中のみ「次へ」ボタンを表示
+            if model.isHumanTurn && !model.mismatchedIndices.isEmpty {
+                Button {
+                    model.clearMismatch()
+                } label: {
+                    Label("次へ", systemImage: "arrow.right.circle.fill")
+                        .font(Theme.body(14))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.inkSub))
+                }
+            }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
