@@ -32,8 +32,6 @@ public final class ConcentrationModel {
     public private(set) var mismatchedIndices: [Int] = []
     public private(set) var mattaUsed: Bool = false
 
-    @ObservationIgnored private var autoClearTask: Task<Void, Never>?
-
     public var winner: ConcentrationPlayer? {
         guard isGameOver else { return nil }
         if playerScore > cpuScore { return .human }
@@ -65,20 +63,10 @@ public final class ConcentrationModel {
         guard mismatchedIndices.isEmpty else { return }
         flipCard(index: index)
         persist()
-
-        if !mismatchedIndices.isEmpty {
-            autoClearTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
-                guard !Task.isCancelled else { return }
-                self?.clearMismatch()
-            }
-        }
     }
 
     public func clearMismatch() {
         guard !mismatchedIndices.isEmpty else { return }
-        autoClearTask?.cancel()
-        autoClearTask = nil
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         currentPlayer = currentPlayer.next
@@ -89,8 +77,6 @@ public final class ConcentrationModel {
     /// ミスマッチを取り消してプレイヤーのターンを継続する（ターン交代なし）
     public func useMatta() {
         guard canMatta else { return }
-        autoClearTask?.cancel()
-        autoClearTask = nil
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
@@ -141,8 +127,6 @@ public final class ConcentrationModel {
     }
 
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
-        autoClearTask?.cancel()
-        autoClearTask = nil
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
         ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
@@ -163,6 +147,12 @@ public final class ConcentrationModel {
     }
 
     private func restoreFrom(_ snap: ConcentrationSnapshot) {
+        let count = snap.symbols.count
+        guard snap.isFaceUp.count == count, snap.isMatched.count == count, count > 0 else {
+            setupGame(pairCount: .medium, cpuLevel: .normal)
+            return
+        }
+
         pairCount = ConcentrationPairCount(rawValue: snap.pairCount) ?? .medium
         cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel) ?? .normal
         ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
