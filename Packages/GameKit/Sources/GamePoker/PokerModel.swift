@@ -147,7 +147,7 @@ struct HandEvaluator {
 
 // MARK: - Game Phase
 
-public enum PokerPhase: Equatable, Sendable {
+public enum PokerPhase: String, Equatable, Sendable, Codable {
     case idle, dealing, betting1, exchange, cpuExchange, betting2, showdown, result
 }
 
@@ -155,8 +155,25 @@ public enum PokerBetAction: Sendable {
     case check, bet(Int), call, raise(Int), fold
 }
 
-public enum PokerWinner: Sendable {
+public enum PokerWinner: String, Sendable, Codable {
     case player, cpu, tie
+}
+
+// MARK: - Snapshot
+
+struct PokerSnapshot: Codable {
+    let playerHand: [PokerCard]
+    let cpuHand: [PokerCard]
+    let deck: [PokerCard]
+    let playerChips: Int
+    let cpuChips: Int
+    let pot: Int
+    let phase: PokerPhase
+    let currentBet: Int
+    let playerBetInRound: Int
+    let cpuBetInRound: Int
+    let cpuFolded: Bool
+    let cpuAction: String
 }
 
 // MARK: - Model
@@ -166,8 +183,8 @@ public enum PokerWinner: Sendable {
 public final class PokerModel {
     public private(set) var playerHand: [PokerCard] = []
     public private(set) var cpuHand: [PokerCard] = []
-    public private(set) var playerChips: Int = 1000
-    public private(set) var cpuChips: Int = 1000
+    public private(set) var playerChips: Int
+    public private(set) var cpuChips: Int
     public private(set) var pot: Int = 0
     public private(set) var phase: PokerPhase = .idle
     public private(set) var winner: PokerWinner? = nil
@@ -179,22 +196,60 @@ public final class PokerModel {
     public private(set) var cpuBetInRound: Int = 0
     public private(set) var cpuFolded: Bool = false
     public private(set) var cpuAction: String = ""
+    public private(set) var sessionOver: Bool = false   // チップ0で全体終了
+    public private(set) var sessionWinner: PokerWinner? = nil
 
-    public var canStartGame: Bool { playerChips > 0 }
+    public var canStartRound: Bool { !sessionOver && playerChips >= anteAmount && cpuChips >= anteAmount }
 
     private var deck: [PokerCard] = []
-    private let anteAmount = 10
+    private let initialChips = 100
+    private let anteAmount = 100
     private let betAmount = 20
     private let services: GameServices?
 
+    private let gameID = "poker"
+
     public init(services: GameServices? = nil) {
         self.services = services
+        if let snap = services?.snapshots.load(PokerSnapshot.self, for: "poker") {
+            self.playerHand      = snap.playerHand
+            self.cpuHand         = snap.cpuHand
+            self.deck            = snap.deck
+            self.playerChips     = snap.playerChips
+            self.cpuChips        = snap.cpuChips
+            self.pot             = snap.pot
+            self.phase           = snap.phase
+            self.currentBet      = snap.currentBet
+            self.playerBetInRound = snap.playerBetInRound
+            self.cpuBetInRound   = snap.cpuBetInRound
+            self.cpuFolded       = snap.cpuFolded
+            self.cpuAction       = snap.cpuAction
+        } else {
+            self.playerChips = 100
+            self.cpuChips    = 100
+        }
+    }
+
+    private func persist() {
+        let savablePhases: [PokerPhase] = [.betting1, .exchange, .cpuExchange, .betting2]
+        guard savablePhases.contains(phase) else {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
+        let snap = PokerSnapshot(
+            playerHand: playerHand, cpuHand: cpuHand, deck: deck,
+            playerChips: playerChips, cpuChips: cpuChips, pot: pot,
+            phase: phase, currentBet: currentBet,
+            playerBetInRound: playerBetInRound, cpuBetInRound: cpuBetInRound,
+            cpuFolded: cpuFolded, cpuAction: cpuAction
+        )
+        try? services?.snapshots.save(snap, for: gameID)
     }
 
     // MARK: - Start
 
     public func startGame() {
-        guard playerChips >= anteAmount else { return }
+        guard canStartRound else { return }
         cpuFolded = false
         winner = nil
         cpuAction = ""
@@ -202,11 +257,17 @@ public final class PokerModel {
         currentBet = 0
         playerBetInRound = 0
         cpuBetInRound = 0
+        playerHandRank = .highCard
+        cpuHandRank = .highCard
+        sessionOver = false
+        sessionWinner = nil
 
         // アンティ
-        playerChips -= anteAmount
-        cpuChips -= anteAmount
-        pot = anteAmount * 2
+        let playerAnte = min(anteAmount, playerChips)
+        let cpuAnte    = min(anteAmount, cpuChips)
+        playerChips -= playerAnte
+        cpuChips    -= cpuAnte
+        pot = playerAnte + cpuAnte
 
         deck = makeDeck().shuffled()
         playerHand = Array(deck.prefix(5))
@@ -214,6 +275,7 @@ public final class PokerModel {
         deck = Array(deck.dropFirst(10))
 
         phase = .betting1
+        persist()
     }
 
     // MARK: - Betting Round 1 (before exchange)
@@ -237,14 +299,11 @@ public final class PokerModel {
     private func cpuBet1Response(playerBet: Int) {
         let (cpuRank, _) = HandEvaluator.evaluate(cpuHand)
         if playerBet == 0 {
-            // プレイヤーがチェック: CPUもチェック
             cpuAction = "チェック"
             cpuBetInRound = 0
             phase = .exchange
         } else {
-            // プレイヤーがベット
             if cpuRank >= .twoPair {
-                // コール
                 let callAmount = min(playerBet, cpuChips)
                 cpuChips -= callAmount
                 pot += callAmount
@@ -252,12 +311,12 @@ public final class PokerModel {
                 cpuAction = "コール"
                 phase = .exchange
             } else {
-                // フォールド
                 cpuFolded = true
                 cpuAction = "フォールド"
                 endRound()
             }
         }
+        persist()
     }
 
     // MARK: - Exchange
@@ -283,6 +342,7 @@ public final class PokerModel {
         selectedForExchange = []
         phase = .cpuExchange
         performCPUExchange()
+        persist()
     }
 
     private func performCPUExchange() {
@@ -302,6 +362,7 @@ public final class PokerModel {
         playerBetInRound = 0
         cpuBetInRound = 0
         phase = .betting2
+        persist()
     }
 
     // MARK: - Betting Round 2 (after exchange)
@@ -320,12 +381,14 @@ public final class PokerModel {
             cpuBet2Response(playerBet: amount)
         case .fold:
             cpuFolded = false
-            // プレイヤーがフォールド
+            playerHandRank = HandEvaluator.evaluate(playerHand).rank
+            cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
             cpuChips += pot
             pot = 0
             winner = .cpu
             cpuAction = "プレイヤーフォールド"
             phase = .result
+            persist()
         default: break
         }
     }
@@ -333,14 +396,12 @@ public final class PokerModel {
     private func cpuBet2Response(playerBet: Int) {
         let (cpuRank, _) = HandEvaluator.evaluate(cpuHand)
         if playerBet == 0 {
-            if cpuRank >= .twoPair {
-                // CPUベット
+            if cpuRank >= .twoPair && cpuChips >= betAmount {
                 let amount = min(betAmount, cpuChips)
                 cpuChips -= amount
                 pot += amount
                 cpuBetInRound = amount
                 cpuAction = "ベット \(amount)"
-                // プレイヤーはコールかフォールドへ → 一時停止してプレイヤーに選択させる
                 phase = .betting2
                 currentBet = amount
             } else {
@@ -349,7 +410,6 @@ public final class PokerModel {
                 resolveShowdown()
             }
         } else {
-            // プレイヤーがベット → CPUの応答
             if cpuRank >= .onePair {
                 let callAmount = min(playerBet, cpuChips)
                 cpuChips -= callAmount
@@ -364,6 +424,7 @@ public final class PokerModel {
                 endRound()
             }
         }
+        persist()
     }
 
     public func callCPUBet() {
@@ -375,15 +436,19 @@ public final class PokerModel {
         currentBet = 0
         phase = .showdown
         resolveShowdown()
+        persist()
     }
 
     public func foldToCPUBet() {
         guard phase == .betting2, currentBet > 0 else { return }
+        playerHandRank = HandEvaluator.evaluate(playerHand).rank
+        cpuHandRank = HandEvaluator.evaluate(cpuHand).rank
         cpuChips += pot
         pot = 0
         winner = .cpu
         currentBet = 0
         phase = .result
+        persist()
     }
 
     // MARK: - Showdown
@@ -405,6 +470,7 @@ public final class PokerModel {
         }
         pot = 0
         phase = .result
+        checkSessionOver()
     }
 
     // MARK: - End Round (fold by CPU or player)
@@ -418,18 +484,41 @@ public final class PokerModel {
         }
         pot = 0
         phase = .result
+        checkSessionOver()
     }
 
-    // MARK: - Reward Ad (chip recovery)
+    private func checkSessionOver() {
+        if playerChips < anteAmount {
+            sessionOver = true
+            sessionWinner = .cpu
+            services?.snapshots.clear(for: gameID)
+        } else if cpuChips < anteAmount {
+            sessionOver = true
+            sessionWinner = .player
+            services?.snapshots.clear(for: gameID)
+        }
+    }
+
+    // MARK: - Reward Ad / Session Reset
 
     public func recoverChipsAfterAd() {
         Task {
             await services?.ads.showInterstitial()
-            playerChips = 500
+            playerChips = initialChips
+            cpuChips    = initialChips
+            sessionOver = false
+            sessionWinner = nil
         }
     }
 
-    public var needsChipRecovery: Bool { playerChips == 0 && phase == .idle }
+    public func restartSession() {
+        playerChips   = initialChips
+        cpuChips      = initialChips
+        sessionOver   = false
+        sessionWinner = nil
+        phase         = .idle
+        services?.snapshots.clear(for: gameID)
+    }
 
     // MARK: - Deck
 

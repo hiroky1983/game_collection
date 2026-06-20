@@ -6,11 +6,15 @@ public struct PokerView: View {
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showStartSheet = true
+    @State private var hasPlayedOnce = false
     @State private var revealCPU = false
 
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: PokerModel(services: services))
+        let hasSnapshot = services.snapshots.exists(for: "poker")
+        _showStartSheet = State(initialValue: !hasSnapshot)
+        _hasPlayedOnce  = State(initialValue: hasSnapshot)
     }
 
     public var body: some View {
@@ -19,7 +23,11 @@ public struct PokerView: View {
             cpuArea
             potArea
             playerArea
-            actionArea
+            if model.sessionOver {
+                sessionOverView
+            } else {
+                actionArea
+            }
             Spacer(minLength: 4)
             BannerSlot(ads: services.ads)
         }
@@ -42,9 +50,11 @@ public struct PokerView: View {
         .sheet(isPresented: $showStartSheet) {
             PokerStartSheet {
                 showStartSheet = false
+                hasPlayedOnce = true
                 revealCPU = false
                 model.startGame()
             }
+            .interactiveDismissDisabled(true)
         }
         .onChange(of: model.phase) { _, phase in
             if phase == .result { revealCPU = true }
@@ -70,8 +80,8 @@ public struct PokerView: View {
     // MARK: - CPU Area
 
     private var cpuArea: some View {
-        VStack(spacing: 6) {
-            HStack {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Text("CPU")
                     .font(Theme.body(13))
                     .foregroundStyle(Theme.inkSub)
@@ -89,13 +99,15 @@ public struct PokerView: View {
                         .foregroundStyle(Theme.purple)
                 }
             }
-            HStack(spacing: 6) {
+
+            HStack(spacing: 8) {
                 ForEach(model.cpuHand) { card in
                     CardView(card: card, faceUp: revealCPU || model.phase == .result)
                 }
             }
+            .padding(.vertical, 8)
         }
-        .padding(10)
+        .padding(.horizontal, 18).padding(.vertical, 20)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -104,17 +116,34 @@ public struct PokerView: View {
     private var potArea: some View {
         HStack {
             Spacer()
-            VStack(spacing: 2) {
-                Text("ポット")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                Text("\(model.pot)枚")
-                    .font(.system(size: 20, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.yellow)
+            HStack(spacing: 10) {
+                ZStack {
+                    ForEach(0..<3, id: \.self) { i in
+                        Circle()
+                            .fill(Color(hex: 0xF5C842).gradient)
+                            .frame(width: 22, height: 22)
+                            .overlay(Circle().stroke(Color(hex: 0xC8980A), lineWidth: 1))
+                            .offset(y: CGFloat(i) * -4)
+                    }
+                }
+                .frame(width: 22, height: 30)
+
+                VStack(spacing: 2) {
+                    Text("ポット")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                    Text("\(model.pot)枚")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.yellow)
+                }
             }
             Spacer()
         }
+        .padding(.vertical, 12)
+        .popCard(corner: Theme.cornerSmall)
     }
+
+    // MARK: - Pot Area
 
     // MARK: - Player Area
 
@@ -141,7 +170,7 @@ public struct PokerView: View {
                         .foregroundStyle(Theme.teal)
                 }
             }
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 ForEach(model.playerHand) { card in
                     let isSelected = model.selectedForExchange.contains(card.id)
                     CardView(card: card, faceUp: true, selected: isSelected)
@@ -154,8 +183,9 @@ public struct PokerView: View {
                         .animation(.spring(response: 0.25), value: isSelected)
                 }
             }
+            .padding(.vertical, 6)
         }
-        .padding(10)
+        .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -271,28 +301,59 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    // リザルト
+    // リザルト（ラウンド終了）
     private var resultView: some View {
         VStack(spacing: 8) {
-            if model.playerChips == 0 {
-                // チップ切れ
-                Button {
-                    model.recoverChipsAfterAd()
-                } label: {
-                    Label("広告を見て500枚回復", systemImage: "play.rectangle.fill")
-                        .font(Theme.body(14))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Theme.yellow, in: RoundedRectangle(cornerRadius: 12))
-                        .foregroundStyle(Theme.ink)
-                }
-                .buttonStyle(.plain)
-            }
             Button {
                 revealCPU = false
-                showStartSheet = true
+                if hasPlayedOnce {
+                    model.startGame()
+                } else {
+                    showStartSheet = true
+                }
             } label: {
                 Text("次のゲーム").font(Theme.body(16)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    // セッション終了（チップ0）
+    private var sessionOverView: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                let playerWon = model.sessionWinner == .player
+                Image(systemName: playerWon ? "trophy.fill" : "xmark.octagon.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(playerWon ? Theme.yellow : Theme.coral)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(playerWon ? "セッション勝利！" : "セッション敗北")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(playerWon ? Theme.teal : Theme.coral)
+                    Text(playerWon ? "CPUのチップが尽きました" : "あなたのチップが尽きました")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                }
+                Spacer()
+            }
+
+            if model.sessionWinner == .cpu {
+                Button { model.recoverChipsAfterAd() } label: {
+                    Label("広告を見てチップ回復", systemImage: "play.rectangle.fill")
+                        .font(Theme.body(16)).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+            }
+
+            Button {
+                revealCPU = false
+                hasPlayedOnce = false
+                model.restartSession()
+                showStartSheet = true
+            } label: {
+                Text("もう一度はじめる").font(Theme.body(16)).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
@@ -334,20 +395,20 @@ struct CardView: View {
                 )
 
             if faceUp {
-                VStack(spacing: 1) {
+                VStack(spacing: 2) {
                     Text(card.rankLabel)
-                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .font(.system(size: 22, weight: .black, design: .rounded))
                     Text(card.suit.symbol)
-                        .font(.system(size: 13))
+                        .font(.system(size: 24))
                 }
                 .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
             } else {
                 Image(systemName: "suit.spade.fill")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.white.opacity(0.3))
             }
         }
-        .frame(width: 52, height: 74)
+        .frame(width: 62, height: 90)
     }
 }
 
@@ -355,7 +416,6 @@ struct CardView: View {
 
 struct PokerStartSheet: View {
     let onStart: () -> Void
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -392,7 +452,6 @@ struct PokerStartSheet: View {
                 Spacer()
                 Button {
                     onStart()
-                    dismiss()
                 } label: {
                     Text("ゲーム開始").font(Theme.body(18)).frame(maxWidth: .infinity)
                 }
@@ -401,11 +460,6 @@ struct PokerStartSheet: View {
             .padding(Theme.pad)
             .popBackground()
             .navigationTitle("5カードドロー")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { dismiss() }
-                }
-            }
         }
         .presentationDetents([.large])
     }
