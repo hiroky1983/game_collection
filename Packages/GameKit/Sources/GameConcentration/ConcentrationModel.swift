@@ -12,6 +12,7 @@ public final class ConcentrationModel {
     public private(set) var isThinking: Bool = false
     public private(set) var difficulty: ConcentrationDifficulty = .normal
     public private(set) var firstFlippedIndex: Int? = nil
+    /// ターン交代時のみインクリメントし task(id:) の再起動トリガーとして使う
     public private(set) var turnID: Int = 0
     public private(set) var isGameOver: Bool = false
     public private(set) var lastMatchedIndices: [Int] = []
@@ -44,6 +45,7 @@ public final class ConcentrationModel {
         flipCard(index: index)
     }
 
+    /// ミスマッチカードを裏返してターン交代（ここだけで turnID を変える）
     public func clearMismatch() {
         guard !mismatchedIndices.isEmpty else { return }
         for i in mismatchedIndices { cards[i].isFaceUp = false }
@@ -56,46 +58,47 @@ public final class ConcentrationModel {
         setupGame(difficulty: difficulty)
     }
 
+    /// task(id: turnID) から呼ばれる。CPUターンなら doCPUTurn を実行。
     public func performCPUMoveIfNeeded() async {
         guard currentPlayer == .cpu, !isThinking, !isGameOver else { return }
-        guard mismatchedIndices.isEmpty else { return }
         await doCPUTurn()
     }
 
+    // MARK: - Private
+
     private func doCPUTurn() async {
-        guard currentPlayer == .cpu, !isThinking, !isGameOver else { return }
         isThinking = true
         defer { isThinking = false }
 
-        // 1枚目
-        try? await Task.sleep(nanoseconds: 600_000_000)
-        guard currentPlayer == .cpu, !isGameOver else { return }
+        // マッチする限り連続でターンを続ける（再帰ではなくループ）
+        while currentPlayer == .cpu && !isGameOver {
+            // 1枚目
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard currentPlayer == .cpu, !isGameOver else { return }
 
-        let first = ai.chooseCard(cards: cards, firstFlipped: nil)
-        flipCard(index: first)
+            let first = ai.chooseCard(cards: cards, firstFlipped: nil)
+            flipCard(index: first)
 
-        // 2枚目
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        guard currentPlayer == .cpu, !isGameOver else { return }
+            // 2枚目
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard currentPlayer == .cpu, !isGameOver else { return }
 
-        let second = ai.chooseCard(cards: cards, firstFlipped: first)
-        flipCard(index: second)
+            let second = ai.chooseCard(cards: cards, firstFlipped: first)
+            flipCard(index: second)
 
-        if !mismatchedIndices.isEmpty {
-            // ミスマッチ: カードを見せてから裏返してターン交代
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            clearMismatch()
-            return
-        }
+            if !mismatchedIndices.isEmpty {
+                // ミスマッチ: カードを見せてから裏返してターン交代
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                clearMismatch()  // ← turnID++ & currentPlayer = .human
+                return
+            }
 
-        // マッチしたら連続ターン
-        if !isGameOver && currentPlayer == .cpu {
+            if isGameOver { return }
+
+            // マッチしたら少し間を置いて次のペアへ
             try? await Task.sleep(nanoseconds: 500_000_000)
-            await doCPUTurn()
         }
     }
-
-    // MARK: - Private
 
     private func setupGame(difficulty: ConcentrationDifficulty) {
         self.difficulty = difficulty
@@ -116,27 +119,21 @@ public final class ConcentrationModel {
 
     private func flipCard(index: Int) {
         cards[index].isFaceUp = true
-        // AIに見せる
         ai.observe(index: index, symbol: cards[index].symbol)
 
         if let first = firstFlippedIndex {
             firstFlippedIndex = nil
             if cards[first].symbol == cards[index].symbol {
-                // マッチ
                 cards[first].isMatched = true
                 cards[index].isMatched = true
                 ai.forget(indices: [first, index])
                 lastMatchedIndices = [first, index]
                 if currentPlayer == .human { playerScore += 1 } else { cpuScore += 1 }
                 checkGameOver()
-                if !isGameOver {
-                    turnID += 1
-                }
+                // turnID は変えない（ターン交代なし・連続ターン）
             } else {
-                // ミスマッチ - 少し待ってから裏返す
                 lastMatchedIndices = []
                 mismatchedIndices = [first, index]
-                // ターン交代はclearMismatch()で行う
             }
         } else {
             firstFlippedIndex = index
