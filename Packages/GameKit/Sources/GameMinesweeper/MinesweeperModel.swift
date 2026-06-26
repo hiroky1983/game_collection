@@ -14,6 +14,24 @@ public struct MinesweeperCell: Sendable {
     public var isContinuedMine = false  // コンティニューで確定した爆弾マス
 }
 
+struct MinesweeperSnapshot: Codable {
+    let rows: Int
+    let cols: Int
+    let totalMines: Int
+    let cells: [[CellData]]
+    let flagCount: Int
+    let revealedCount: Int
+    let elapsedSeconds: Int
+
+    struct CellData: Codable {
+        let isRevealed: Bool
+        let isFlagged: Bool
+        let isMine: Bool
+        let adjacentMines: Int
+        let isContinuedMine: Bool
+    }
+}
+
 @MainActor
 @Observable
 public final class MinesweeperModel {
@@ -28,16 +46,41 @@ public final class MinesweeperModel {
     public private(set) var hitMine: (row: Int, col: Int)?
 
     private var timerTask: Task<Void, Never>?
+    private let services: GameServices?
+    private let gameID = "minesweeper"
 
     public var remainingMines: Int { totalMines - flagCount }
     public var safeCellCount: Int  { rows * cols - totalMines }
     public var gameOver: Bool      { gameState == .won || gameState == .lost }
 
-    public init(rows: Int = 9, cols: Int = 9, mines: Int = 10) {
-        self.rows       = rows
-        self.cols       = cols
-        self.totalMines = mines
-        self.cells      = Self.emptyBoard(rows: rows, cols: cols)
+    public init(services: GameServices? = nil, rows: Int = 9, cols: Int = 9, mines: Int = 10) {
+        self.services = services
+
+        if let snap = services?.snapshots.load(MinesweeperSnapshot.self, for: "minesweeper") {
+            self.rows          = snap.rows
+            self.cols          = snap.cols
+            self.totalMines    = snap.totalMines
+            self.flagCount     = snap.flagCount
+            self.revealedCount = snap.revealedCount
+            self.elapsedSeconds = snap.elapsedSeconds
+            self.gameState     = .playing
+            self.cells = snap.cells.map { row in
+                row.map { data in
+                    var cell = MinesweeperCell()
+                    cell.isRevealed    = data.isRevealed
+                    cell.isFlagged     = data.isFlagged
+                    cell.isMine        = data.isMine
+                    cell.adjacentMines = data.adjacentMines
+                    cell.isContinuedMine = data.isContinuedMine
+                    return cell
+                }
+            }
+        } else {
+            self.rows       = rows
+            self.cols       = cols
+            self.totalMines = mines
+            self.cells      = Self.emptyBoard(rows: rows, cols: cols)
+        }
     }
 
     // MARK: - New game
@@ -54,6 +97,14 @@ public final class MinesweeperModel {
         self.revealedCount = 0
         self.elapsedSeconds = 0
         self.hitMine    = nil
+        persist()
+    }
+
+    // MARK: - Timer resume (call from onAppear when restoring saved game)
+
+    public func resumeTimerIfNeeded() {
+        guard gameState == .playing, timerTask == nil else { return }
+        startTimer()
     }
 
     // MARK: - Actions
@@ -75,17 +126,18 @@ public final class MinesweeperModel {
             gameState = .lost
             timerTask?.cancel()
             timerTask = nil
-            return
+        } else {
+            floodReveal(row: row, col: col)
+
+            if revealedCount == safeCellCount {
+                flagAllMines()
+                gameState = .won
+                timerTask?.cancel()
+                timerTask = nil
+            }
         }
 
-        floodReveal(row: row, col: col)
-
-        if revealedCount == safeCellCount {
-            flagAllMines()
-            gameState = .won
-            timerTask?.cancel()
-            timerTask = nil
-        }
+        persist()
     }
 
     // MARK: - Continue
@@ -115,6 +167,8 @@ public final class MinesweeperModel {
             timerTask?.cancel()
             timerTask = nil
         }
+
+        persist()
     }
 
     public func toggleFlag(row: Int, col: Int) {
@@ -126,9 +180,48 @@ public final class MinesweeperModel {
             cells[row][col].isFlagged = true
             flagCount += 1
         }
+        persist()
     }
 
+    public func giveUp() {
+        guard gameState == .playing else { return }
+        revealAllMines()
+        gameState = .lost
+        timerTask?.cancel()
+        timerTask = nil
+        services?.snapshots.clear(for: gameID)
+    }
+
+    public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
+
     // MARK: - Private helpers
+
+    private func persist() {
+        guard gameState == .playing else {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
+        let snap = MinesweeperSnapshot(
+            rows: rows,
+            cols: cols,
+            totalMines: totalMines,
+            cells: cells.map { row in
+                row.map { cell in
+                    MinesweeperSnapshot.CellData(
+                        isRevealed: cell.isRevealed,
+                        isFlagged: cell.isFlagged,
+                        isMine: cell.isMine,
+                        adjacentMines: cell.adjacentMines,
+                        isContinuedMine: cell.isContinuedMine
+                    )
+                }
+            },
+            flagCount: flagCount,
+            revealedCount: revealedCount,
+            elapsedSeconds: elapsedSeconds
+        )
+        try? services?.snapshots.save(snap, for: gameID)
+    }
 
     private func floodReveal(row: Int, col: Int) {
         var queue = [(row, col)]

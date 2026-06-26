@@ -4,7 +4,8 @@ import Core
 public struct GomokuView: View {
     @State private var model: GomokuModel
     private let services: GameServices
-    @State private var showNewGame = false
+    @State private var showNewGame: Bool
+    @State private var showConfirmNewGame = false
     @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
     @Environment(\.dismiss) private var dismiss
@@ -12,15 +13,20 @@ public struct GomokuView: View {
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: GomokuModel(services: services))
+        _showNewGame = State(initialValue: !services.snapshots.exists(for: "gomoku"))
     }
 
     public var body: some View {
         VStack(spacing: 10) {
             statusBar
-            if !model.gameOver { gameControls }
             stoneRow(stone: model.humanSide.opponent, isYou: false)
             board
             stoneRow(stone: model.humanSide, isYou: true)
+            if model.gameOver {
+                resultControls
+            } else {
+                gameControls
+            }
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
@@ -40,7 +46,13 @@ public struct GomokuView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
+                Button {
+                    if model.gameOver || model.moveCount == 0 {
+                        showNewGame = true
+                    } else {
+                        showConfirmNewGame = true
+                    }
+                } label: {
                     Label("新規対局", systemImage: "plus.circle.fill")
                 }
             }
@@ -51,9 +63,26 @@ public struct GomokuView: View {
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
+        .confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規対局", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると対局データが失われます。")
+        }
         .task(id: model.moveCount) {
             await model.performAIMoveIfNeeded()
         }
+    }
+
+    // MARK: - Result Controls
+
+    private var resultControls: some View {
+        Button { showNewGame = true } label: {
+            Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Board

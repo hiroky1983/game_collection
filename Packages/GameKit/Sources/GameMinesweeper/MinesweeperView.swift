@@ -6,12 +6,16 @@ public struct MinesweeperView: View {
     private let services: GameServices
     @State private var showNewGame = true
     @State private var flagMode = false
+    @State private var zoomMode = false
     @State private var showContinue = false
+    @State private var showConfirmNewGame = false
+    @State private var showGiveUpConfirm = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: MinesweeperModel())
+        _model = State(initialValue: MinesweeperModel(services: services))
+        _showNewGame = State(initialValue: !services.snapshots.exists(for: "minesweeper"))
     }
 
     public var body: some View {
@@ -20,6 +24,8 @@ public struct MinesweeperView: View {
             board
             if model.gameOver && !showContinue {
                 resultControls
+            } else if model.gameState == .playing {
+                gameControls
             }
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
@@ -40,8 +46,14 @@ public struct MinesweeperView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
+                Button {
+                    if model.gameState == .playing {
+                        showConfirmNewGame = true
+                    } else {
+                        showNewGame = true
+                    }
+                } label: {
+                    Label("新規ゲーム", systemImage: "plus.circle.fill")
                 }
             }
         }
@@ -49,18 +61,51 @@ public struct MinesweeperView: View {
             MinesweeperNewGameSheet { rows, cols, mines in
                 model.newGame(rows: rows, cols: cols, mines: mines)
                 flagMode = false
+                zoomMode = false
                 showContinue = false
                 showNewGame = false
             } onCancel: {
                 showNewGame = false
             }
         }
+        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると対局データが失われます。")
+        }
+        .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
+            Button("諦める", role: .destructive) { model.giveUp() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("全ての地雷が公開されゲームオーバーになります。")
+        }
         .overlay {
             if showContinue { continueOverlay }
         }
-        .onChange(of: model.gameState) { _, state in
-            if state == .lost { showContinue = true }
+        .task {
+            model.resumeTimerIfNeeded()
         }
+        .onChange(of: model.gameState) { _, state in
+            if state == .lost && model.hitMine != nil { showContinue = true }
+        }
+    }
+
+    // MARK: - Game Controls
+
+    private var gameControls: some View {
+        HStack {
+            Button { showGiveUpConfirm = true } label: {
+                Label("諦める", systemImage: "flag.fill")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
+            }
+            Spacer()
+        }
+        .font(Theme.body(14))
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Continue Overlay
@@ -165,6 +210,16 @@ public struct MinesweeperView: View {
                         )
                         .foregroundStyle(flagMode ? .white : Theme.inkSub)
                 }
+                Button { zoomMode.toggle() } label: {
+                    Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
+                        .font(.system(size: 13, weight: .bold))
+                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(zoomMode ? Theme.teal : Theme.surface)
+                        )
+                        .foregroundStyle(zoomMode ? .white : Theme.inkSub)
+                }
             }
             .frame(minWidth: 100, alignment: .trailing)
         }
@@ -183,24 +238,42 @@ public struct MinesweeperView: View {
     // MARK: - Board
 
     private var board: some View {
-        GeometryReader { geo in
-            let cellSize = geo.size.width / CGFloat(model.cols)
-            ZStack(alignment: .topLeading) {
-                Color(hex: 0x777777)
-                VStack(spacing: 0) {
-                    ForEach(0..<model.rows, id: \.self) { r in
-                        HStack(spacing: 0) {
-                            ForEach(0..<model.cols, id: \.self) { c in
-                                cellView(row: r, col: c, size: cellSize)
-                            }
+        Group {
+            if zoomMode {
+                ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                    boardGrid(cellSize: 44)
+                }
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 6)
+            } else {
+                GeometryReader { geo in
+                    boardGrid(cellSize: geo.size.width / CGFloat(model.cols))
+                }
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 6)
+            }
+        }
+    }
+
+    private func boardGrid(cellSize: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color(hex: 0x777777)
+            VStack(spacing: 0) {
+                ForEach(0..<model.rows, id: \.self) { r in
+                    HStack(spacing: 0) {
+                        ForEach(0..<model.cols, id: \.self) { c in
+                            cellView(row: r, col: c, size: cellSize)
                         }
                     }
                 }
             }
         }
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-        .shadow(color: .black.opacity(0.2), radius: 10, y: 6)
+        .frame(
+            width: cellSize * CGFloat(model.cols),
+            height: cellSize * CGFloat(model.rows)
+        )
     }
 
     private func cellView(row: Int, col: Int, size: CGFloat) -> some View {
