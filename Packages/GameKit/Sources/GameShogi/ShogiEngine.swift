@@ -472,6 +472,16 @@ private struct SearchContext {
 
         if usePositional {
             score += kingSafety(pos, .black) - kingSafety(pos, .white)
+            score += castleBonus(pos, .black) - castleBonus(pos, .white)
+
+            // 序盤（25手目未満）に角が5五にいるとペナルティ（角を早出しすぎ）
+            if pos.moveNumber < 25 {
+                let sq55 = Sq.index(file: 4, rank: 4)
+                if let p = pos.squares[sq55], p.type == .bishop, !p.promoted {
+                    let sign = p.color == .black ? 1 : -1
+                    score -= sign * 90
+                }
+            }
         }
 
         return pos.sideToMove == .black ? score : -score
@@ -511,5 +521,51 @@ private struct SearchContext {
         let homeRank = color == .black ? 8 : 0
         s += max(0, 2 - abs(kr - homeRank)) * 10
         return s
+    }
+
+    // 囲い形状ボーナス: 美濃囲い・矢倉形を検出して加点する
+    // 座標系: file 8=9筋(左端), file 0=1筋(右端), rank 8=9段(先手本陣), rank 0=1段(後手本陣)
+    func castleBonus(_ pos: Position, _ color: Side) -> Int {
+        guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
+            return 0
+        }
+        let kf = Sq.file(k), kr = Sq.rank(k)
+        let homeRank = color == .black ? 8 : 0
+        // 先手は上方向(rank-1)が前、後手は下方向(rank+1)が前
+        let fwd = color == .black ? -1 : 1
+
+        func hasOwn(f: Int, r: Int, _ type: PieceType) -> Bool {
+            guard Sq.onBoard(file: f, rank: r) else { return false }
+            guard let p = pos.squares[Sq.index(file: f, rank: r)] else { return false }
+            return p.color == color && p.type == type && !p.promoted
+        }
+
+        var bonus = 0
+        // 玉が本陣付近(homeRankから2マス以内)にいる場合のみ判定
+        guard abs(kr - homeRank) <= 2 else { return 0 }
+
+        // 美濃囲い: 玉が端筋(file=8 or file=0)、銀が斜め前、金が隣
+        if kf == 8 {
+            if hasOwn(f: 7, r: kr + fwd, .silver) { bonus += 70 }  // 銀が斜め前(美濃の特徴)
+            if hasOwn(f: 6, r: kr,        .gold)   { bonus += 55 }  // 金が隣のさらに隣
+            if hasOwn(f: 7, r: kr,        .gold)   { bonus += 45 }  // 金が隣
+        } else if kf == 0 {
+            if hasOwn(f: 1, r: kr + fwd, .silver) { bonus += 70 }
+            if hasOwn(f: 2, r: kr,        .gold)   { bonus += 55 }
+            if hasOwn(f: 1, r: kr,        .gold)   { bonus += 45 }
+        }
+
+        // 矢倉囲い: 玉がfile=7(8八相当)またはfile=1(2八相当)、金銀で三角を作る
+        if kf == 7 {
+            if hasOwn(f: 6, r: kr,        .gold)   { bonus += 60 }  // 金が玉の隣
+            if hasOwn(f: 6, r: kr + fwd,  .silver) { bonus += 60 }  // 銀が斜め前
+            if hasOwn(f: 5, r: kr + fwd,  .gold)   { bonus += 50 }  // 金がさらに前
+        } else if kf == 1 {
+            if hasOwn(f: 2, r: kr,        .gold)   { bonus += 60 }
+            if hasOwn(f: 2, r: kr + fwd,  .silver) { bonus += 60 }
+            if hasOwn(f: 3, r: kr + fwd,  .gold)   { bonus += 50 }
+        }
+
+        return bonus
     }
 }
