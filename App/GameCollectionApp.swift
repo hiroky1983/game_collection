@@ -3,6 +3,9 @@ import Core
 
 @main
 struct GameCollectionApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var attRequested = false
+
     var body: some Scene {
         WindowGroup {
             HubView(
@@ -11,8 +14,13 @@ struct GameCollectionApp: App {
                 settings: AppEnvironment.settings,
                 initialGameID: startGameID
             )
-            .task {
-                await requestATTAndInitializeAds()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active && !attRequested {
+                attRequested = true
+                Task {
+                    await requestATTAndInitializeAds()
+                }
             }
         }
     }
