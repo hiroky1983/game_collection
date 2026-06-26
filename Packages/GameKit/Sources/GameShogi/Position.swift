@@ -138,6 +138,31 @@ public struct Position: Equatable, Sendable {
         return Position(squares: squares, hands: hands, sideToMove: side, moveNumber: moveNumber)
     }
 
+    // MARK: - 王手判定
+
+    public func isInCheck() -> Bool {
+        isKingInCheck(sideToMove)
+    }
+
+    // MARK: - Null Move（手番だけ交代して相手に2手指させる擬似手）
+
+    public struct NullUndo: Sendable {
+        let prevSide: Side
+    }
+
+    @discardableResult
+    public mutating func makeNull() -> NullUndo {
+        let undo = NullUndo(prevSide: sideToMove)
+        sideToMove = sideToMove.opponent
+        moveNumber += 1
+        return undo
+    }
+
+    public mutating func unmakeNull(_ undo: NullUndo) {
+        sideToMove = undo.prevSide
+        moveNumber -= 1
+    }
+
     /// 局面を SFEN 文字列へ。`ShogiEngine`(USI 境界) へ渡すために使う。
     public func toSFEN() -> String {
         var rows: [String] = []
