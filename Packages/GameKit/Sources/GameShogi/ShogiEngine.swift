@@ -165,6 +165,13 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     func kingSafety(_ pos: Position, _ color: Side) -> Int {
         SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: 0).kingSafety(pos, color)
     }
+
+    /// データ生成用: 静的評価値を返す（手番視点の正規化済みスコア）
+    public func staticEval(sfen: String) -> Float? {
+        guard let pos = Position.fromSFEN(sfen) else { return nil }
+        let ctx = SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: 0)
+        return Float(ctx.evaluate(pos)) / 1000.0
+    }
 }
 
 // MARK: - SearchContext（探索の可変状態）
@@ -434,6 +441,11 @@ private struct SearchContext {
     // MARK: 静的評価
 
     func evaluate(_ pos: Position) -> Int {
+        // CoreML モデルがあればそちらを優先（手番視点の centipawn スコアを返す）
+        if usePositional, let mlScore = ShogiEvalModel.shared.evaluate(pos) {
+            return mlScore
+        }
+
         var score = 0
 
         for sq in 0..<Sq.count {
