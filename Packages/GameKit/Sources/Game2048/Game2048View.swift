@@ -99,8 +99,21 @@ public struct Game2048View: View {
             RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
             VStack(spacing: 12) {
                 Text("ゲームオーバー").font(.title2.bold()).foregroundStyle(.white)
-                Button("もう一度") { withAnimation { model.newGame() } }
+                if !model.continueUsed {
+                    Button {
+                        Task {
+                            let rewarded = await services.ads.showRewardedAd()
+                            if rewarded { withAnimation { model.continueAfterAd() } }
+                        }
+                    } label: {
+                        Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
+                    }
                     .buttonStyle(.borderedProminent)
+                    .tint(Theme.coral)
+                }
+                Button("もう一度") { withAnimation { model.newGame() } }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
             }
         }
     }

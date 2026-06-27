@@ -9,6 +9,7 @@ public final class Game2048Model {
     public private(set) var board: [[Int]]
     public private(set) var score: Int
     public private(set) var gameOver: Bool
+    public private(set) var continueUsed: Bool = false
 
     private let services: GameServices?
     private let gameID = "2048"
@@ -52,11 +53,21 @@ public final class Game2048Model {
         }
     }
 
+    /// リワード広告視聴後にコンティニュー。盤面・スコアを保持したまま再開。1回のみ使用可。
+    public func continueAfterAd() {
+        guard gameOver, !continueUsed else { return }
+        gameOver = false
+        continueUsed = true
+        Self.spawn(into: &board)
+        persist()
+    }
+
     /// 新規ゲーム。
     public func newGame() {
         board = Game2048Logic.emptyBoard()
         score = 0
         gameOver = false
+        continueUsed = false
         Self.spawn(into: &board)
         Self.spawn(into: &board)
         persist()
