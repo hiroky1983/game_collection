@@ -38,10 +38,10 @@ struct AdMobBannerView: UIViewRepresentable {
     func updateUIView(_ uiView: GADBannerView, context: Context) {}
 }
 
-// MARK: - Interstitial Delegate
+// MARK: - Full Screen Delegate
 
 @MainActor
-private final class InterstitialDelegate: NSObject, @preconcurrency GADFullScreenContentDelegate {
+private final class FullScreenDelegate: NSObject, @preconcurrency GADFullScreenContentDelegate {
     private let onDismiss: () -> Void
 
     init(onDismiss: @escaping () -> Void) {
@@ -61,7 +61,7 @@ private final class InterstitialDelegate: NSObject, @preconcurrency GADFullScree
 
 @MainActor
 public final class AdMobAdService: AdService {
-    private var interstitialDelegate: InterstitialDelegate?
+    private var fullScreenDelegate: FullScreenDelegate?
 
     public init() {}
 
@@ -72,7 +72,6 @@ public final class AdMobAdService: AdService {
     }
 
     @MainActor public func showInterstitial() async {
-        // ロード
         let ad: GADInterstitialAd?
         do {
             ad = try await GADInterstitialAd.load(
@@ -80,21 +79,47 @@ public final class AdMobAdService: AdService {
                 request: GADRequest()
             )
         } catch {
-            return // ロード失敗 → 広告なしで続行
+            return
         }
         guard let ad else { return }
+        guard let root = rootViewController() else { return }
 
-        // rootViewController を取得
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else { return }
-
-        // 表示 → 閉じるまで await
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let delegate = InterstitialDelegate { continuation.resume() }
-            self.interstitialDelegate = delegate   // delegate を保持
+            let delegate = FullScreenDelegate { continuation.resume() }
+            self.fullScreenDelegate = delegate
             ad.fullScreenContentDelegate = delegate
             ad.present(fromRootViewController: root)
         }
-        interstitialDelegate = nil
+        fullScreenDelegate = nil
+    }
+
+    @MainActor public func showRewardedAd() async -> Bool {
+        let ad: GADRewardedAd?
+        do {
+            ad = try await GADRewardedAd.load(
+                withAdUnitID: AdConfig.effectiveRewardedID,
+                request: GADRequest()
+            )
+        } catch {
+            return false
+        }
+        guard let ad else { return false }
+        guard let root = rootViewController() else { return false }
+
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            var rewarded = false
+            let delegate = FullScreenDelegate { continuation.resume(returning: rewarded) }
+            self.fullScreenDelegate = delegate
+            ad.fullScreenContentDelegate = delegate
+            ad.present(fromRootViewController: root) {
+                rewarded = true
+            }
+        }
+    }
+
+    private func rootViewController() -> UIViewController? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.rootViewController
     }
 }
