@@ -165,6 +165,13 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     func kingSafety(_ pos: Position, _ color: Side) -> Int {
         SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: 0).kingSafety(pos, color)
     }
+
+    /// データ生成用: 静的評価値を返す（手番視点の正規化済みスコア）
+    public func staticEval(sfen: String) -> Float? {
+        guard let pos = Position.fromSFEN(sfen) else { return nil }
+        let ctx = SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: 0)
+        return Float(ctx.evaluate(pos)) / 1000.0
+    }
 }
 
 // MARK: - SearchContext（探索の可変状態）
@@ -180,7 +187,7 @@ private struct SearchContext {
         self.maxDepth = maxDepth
         self.usePositional = usePositional
         self.deadline = Date().addingTimeInterval(timeLimit)
-        self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 10)
+        self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 20)
         self.tt = [TTEntry](repeating: TTEntry(), count: TT_SIZE)
     }
 
@@ -217,9 +224,9 @@ private struct SearchContext {
         return best
     }
 
-    // MARK: αβ ネガマックス + 置換表 + キラー
+    // MARK: αβ ネガマックス + 置換表 + キラー + Null Move + LMR
 
-    mutating func negamax(_ pos: inout Position, depth: Int, alpha: Int, beta: Int, ply: Int) -> Int {
+    mutating func negamax(_ pos: inout Position, depth: Int, alpha: Int, beta: Int, ply: Int, nullOk: Bool = true) -> Int {
         if Date() > deadline { return evaluate(pos) }
 
         // 置換表参照
@@ -230,14 +237,11 @@ private struct SearchContext {
             let s = Int(entry.score)
             switch entry.flag {
             case .exact:
-                // fail-hard: bounds 外のスコアをクランプして返す（バグ修正）
                 if s >= beta  { return beta  }
                 if s <= alpha { return alpha }
                 return s
             case .lower:
                 if s >= beta  { return beta }
-                // 下界でアルファを締める
-                // alpha = max(alpha, s)  // 必要なら有効化
             case .upper:
                 if s <= alpha { return alpha }
             }
@@ -245,16 +249,63 @@ private struct SearchContext {
 
         if depth == 0 { return quiesce(&pos, alpha: alpha, beta: beta, qdepth: 0) }
 
+        // 詰み専用探索（残り深さ3以下で王手がかかっていない場合のみ詰みチェック）
+        if depth <= 3 {
+            if let mateScore = mateSearch(&pos, depth: depth * 2 + 1, ply: ply) {
+                return mateScore
+            }
+        }
+
+        // Null Move Pruning（王手がかかっていない + 十分な深さ + 局面に駒がある）
+        if nullOk && depth >= 3 && !pos.isInCheck() && hasNonPawnPieces(pos) {
+            let R = depth >= 6 ? 3 : 2  // 削減量（深いほど大きく削減）
+            let undo = pos.makeNull()
+            let nullScore = -negamax(&pos, depth: depth - 1 - R, alpha: -beta, beta: -beta + 1, ply: ply + 1, nullOk: false)
+            pos.unmakeNull(undo)
+            if nullScore >= beta {
+                return beta  // Null Move カット
+            }
+        }
+
         let moves = pos.legalMoves()
         if moves.isEmpty { return -PieceValue.base(.king) - depth }
 
         var alpha = alpha
         var flag: TTFlag = .upper
         let killerSet = ply < killers.count ? killers[ply] : [nil, nil]
+        let orderedMoves = orderMoves(moves, pos: pos, killers: killerSet)
 
-        for move in orderMoves(moves, pos: pos, killers: killerSet) {
+        for (moveCount, move) in orderedMoves.enumerated() {
             let undo = pos.make(move)
-            let score = -negamax(&pos, depth: depth - 1, alpha: -beta, beta: -alpha, ply: ply + 1)
+
+            var score: Int
+            if moveCount == 0 {
+                // PV手はフル深さで探索
+                score = -negamax(&pos, depth: depth - 1, alpha: -beta, beta: -alpha, ply: ply + 1)
+            } else {
+                // LMR: 非キャプチャ・非昇格の後半手は削減して探索
+                let isQuiet = !isCapture(move, pos) && !isPromotion(move)
+                let lmrDepth: Int
+                if depth >= 3 && moveCount >= 4 && isQuiet {
+                    let reduction = moveCount >= 8 ? 2 : 1
+                    lmrDepth = max(1, depth - 1 - reduction)
+                } else {
+                    lmrDepth = depth - 1
+                }
+
+                // ゼロウィンドウ探索
+                score = -negamax(&pos, depth: lmrDepth, alpha: -alpha - 1, beta: -alpha, ply: ply + 1)
+
+                // LMR 削減した手がアルファを超えたらフル深さで再探索
+                if score > alpha && lmrDepth < depth - 1 {
+                    score = -negamax(&pos, depth: depth - 1, alpha: -alpha - 1, beta: -alpha, ply: ply + 1)
+                }
+                // PVS: alpha < score < beta ならフルウィンドウで再探索
+                if score > alpha && score < beta {
+                    score = -negamax(&pos, depth: depth - 1, alpha: -beta, beta: -alpha, ply: ply + 1)
+                }
+            }
+
             pos.unmake(undo)
 
             if score >= beta {
@@ -275,17 +326,56 @@ private struct SearchContext {
         return alpha
     }
 
+    // MARK: 詰み専用探索（奇数手詰めを読む）
+
+    mutating func mateSearch(_ pos: inout Position, depth: Int, ply: Int) -> Int? {
+        if Date() > deadline { return nil }
+        let moves = pos.legalMoves()
+        if moves.isEmpty { return -PieceValue.base(.king) - ply }
+        if depth <= 0 { return nil }
+
+        // 王手になる手のみ探索
+        let checks = moves.filter { move in
+            let undo = pos.make(move)
+            let inCheck = pos.isInCheck()  // 相手が王手状態か
+            pos.unmake(undo)
+            return inCheck
+        }
+        guard !checks.isEmpty else { return nil }
+
+        for move in checks {
+            let undo = pos.make(move)
+            // 相手の応手が全て詰みかどうか確認
+            let replies = pos.legalMoves()
+            if replies.isEmpty {
+                // 詰み発見
+                pos.unmake(undo)
+                return PieceValue.base(.king) + ply
+            }
+            // 全応手を試して逃げられるか確認
+            var allMate = true
+            for reply in replies {
+                let undo2 = pos.make(reply)
+                let result = mateSearch(&pos, depth: depth - 2, ply: ply + 2)
+                pos.unmake(undo2)
+                if result == nil {
+                    allMate = false
+                    break
+                }
+            }
+            pos.unmake(undo)
+            if allMate { return PieceValue.base(.king) + ply }
+        }
+        return nil
+    }
+
     // MARK: 静止探索（取り合いが落ち着くまで探索）
 
     mutating func quiesce(_ pos: inout Position, alpha: Int, beta: Int, qdepth: Int) -> Int {
-        // 深さ上限と時間チェックで暴走防止
         if qdepth >= 6 || Date() > deadline { return evaluate(pos) }
 
         let standPat = evaluate(pos)
         if standPat >= beta { return beta }
-
-        // デルタ枝刈り: 最高の取り駒（竜=1300）を加えても alpha に届かない場合はスキップ
-        // alpha - 1300 はオーバーフローするので standPat + 1300 < alpha の形にする
         if standPat + 1300 < alpha { return alpha }
 
         var alpha = max(alpha, standPat)
@@ -335,9 +425,27 @@ private struct SearchContext {
         return pos.squares[to] != nil
     }
 
+    func isPromotion(_ move: Move) -> Bool {
+        guard case let .board(_, _, promote) = move else { return false }
+        return promote
+    }
+
+    // Null Move Pruning の適用条件: 歩以外の駒が盤上にあるか
+    func hasNonPawnPieces(_ pos: Position) -> Bool {
+        pos.squares.contains { p in
+            guard let p else { return false }
+            return p.color == pos.sideToMove && p.type != .pawn && p.type != .king
+        }
+    }
+
     // MARK: 静的評価
 
     func evaluate(_ pos: Position) -> Int {
+        // CoreML モデルがあればそちらを優先（手番視点の centipawn スコアを返す）
+        if usePositional, let mlScore = ShogiEvalModel.shared.evaluate(pos) {
+            return mlScore
+        }
+
         var score = 0
 
         for sq in 0..<Sq.count {
@@ -348,10 +456,9 @@ private struct SearchContext {
 
             if usePositional && !p.promoted {
                 let rank = Sq.rank(sq)
-                let advance = p.color == .black ? (8 - rank) : rank  // 0=自陣、8=相手陣
+                let advance = p.color == .black ? (8 - rank) : rank
                 score += sign * advanceTable[p.type.rawValue][advance]
 
-                // 長距離駒のモビリティ（角道・飛車先が開いているほど高評価）
                 switch p.type {
                 case .bishop:
                     let mob = slidingMobility(pos, sq: sq, color: p.color,
@@ -377,12 +484,21 @@ private struct SearchContext {
 
         if usePositional {
             score += kingSafety(pos, .black) - kingSafety(pos, .white)
+            score += castleBonus(pos, .black) - castleBonus(pos, .white)
+
+            // 序盤（25手目未満）に角が5五にいるとペナルティ（角を早出しすぎ）
+            if pos.moveNumber < 25 {
+                let sq55 = Sq.index(file: 4, rank: 4)
+                if let p = pos.squares[sq55], p.type == .bishop, !p.promoted {
+                    let sign = p.color == .black ? 1 : -1
+                    score -= sign * 90
+                }
+            }
         }
 
         return pos.sideToMove == .black ? score : -score
     }
 
-    // 長距離駒が dirs 方向へ進める升目数（取れる相手駒も1カウント）
     func slidingMobility(_ pos: Position, sq: Int, color: Side, dirs: [(Int, Int)]) -> Int {
         var count = 0
         for (df, dr) in dirs {
@@ -391,7 +507,7 @@ private struct SearchContext {
             while Sq.onBoard(file: f, rank: r) {
                 let idx = Sq.index(file: f, rank: r)
                 if let p = pos.squares[idx] {
-                    if p.color != color { count += 1 }  // 取れる相手駒
+                    if p.color != color { count += 1 }
                     break
                 }
                 count += 1
@@ -417,5 +533,51 @@ private struct SearchContext {
         let homeRank = color == .black ? 8 : 0
         s += max(0, 2 - abs(kr - homeRank)) * 10
         return s
+    }
+
+    // 囲い形状ボーナス: 美濃囲い・矢倉形を検出して加点する
+    // 座標系: file 8=9筋(左端), file 0=1筋(右端), rank 8=9段(先手本陣), rank 0=1段(後手本陣)
+    func castleBonus(_ pos: Position, _ color: Side) -> Int {
+        guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
+            return 0
+        }
+        let kf = Sq.file(k), kr = Sq.rank(k)
+        let homeRank = color == .black ? 8 : 0
+        // 先手は上方向(rank-1)が前、後手は下方向(rank+1)が前
+        let fwd = color == .black ? -1 : 1
+
+        func hasOwn(f: Int, r: Int, _ type: PieceType) -> Bool {
+            guard Sq.onBoard(file: f, rank: r) else { return false }
+            guard let p = pos.squares[Sq.index(file: f, rank: r)] else { return false }
+            return p.color == color && p.type == type && !p.promoted
+        }
+
+        var bonus = 0
+        // 玉が本陣付近(homeRankから2マス以内)にいる場合のみ判定
+        guard abs(kr - homeRank) <= 2 else { return 0 }
+
+        // 美濃囲い: 玉が端筋(file=8 or file=0)、銀が斜め前、金が隣
+        if kf == 8 {
+            if hasOwn(f: 7, r: kr + fwd, .silver) { bonus += 70 }  // 銀が斜め前(美濃の特徴)
+            if hasOwn(f: 6, r: kr,        .gold)   { bonus += 55 }  // 金が隣のさらに隣
+            if hasOwn(f: 7, r: kr,        .gold)   { bonus += 45 }  // 金が隣
+        } else if kf == 0 {
+            if hasOwn(f: 1, r: kr + fwd, .silver) { bonus += 70 }
+            if hasOwn(f: 2, r: kr,        .gold)   { bonus += 55 }
+            if hasOwn(f: 1, r: kr,        .gold)   { bonus += 45 }
+        }
+
+        // 矢倉囲い: 玉がfile=7(8八相当)またはfile=1(2八相当)、金銀で三角を作る
+        if kf == 7 {
+            if hasOwn(f: 6, r: kr,        .gold)   { bonus += 60 }  // 金が玉の隣
+            if hasOwn(f: 6, r: kr + fwd,  .silver) { bonus += 60 }  // 銀が斜め前
+            if hasOwn(f: 5, r: kr + fwd,  .gold)   { bonus += 50 }  // 金がさらに前
+        } else if kf == 1 {
+            if hasOwn(f: 2, r: kr,        .gold)   { bonus += 60 }
+            if hasOwn(f: 2, r: kr + fwd,  .silver) { bonus += 60 }
+            if hasOwn(f: 3, r: kr + fwd,  .gold)   { bonus += 50 }
+        }
+
+        return bonus
     }
 }
