@@ -122,7 +122,8 @@ public struct MinesweeperView: View {
 
                 Button {
                     Task {
-                        await services.ads.showInterstitial()
+                        let rewarded = await services.ads.showRewardedAd()
+                        guard rewarded else { return }
                         model.continueAfterAd()
                         showContinue = false
                     }

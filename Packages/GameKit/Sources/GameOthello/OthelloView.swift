@@ -219,7 +219,10 @@ public struct OthelloView: View {
             .alert("待った確認", isPresented: $showUndoConfirm) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
                     Task {
-                        if model.undoUsed { await services.ads.showInterstitial() }
+                        if model.undoUsed {
+                            let rewarded = await services.ads.showRewardedAd()
+                            guard rewarded else { return }
+                        }
                         model.undoLastExchange()
                     }
                 }
