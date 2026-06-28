@@ -25,6 +25,7 @@ public struct ShogiView: View {
             statusBar
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
+                .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
             if model.gameOver {
                 reviewControls
@@ -34,6 +35,7 @@ public struct ShogiView: View {
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
+        .animation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
         #if os(iOS)

@@ -21,6 +21,7 @@ public struct GomokuView: View {
             statusBar
             stoneRow(stone: model.humanSide.opponent, isYou: false)
             board
+                .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
             if model.gameOver {
                 resultControls
@@ -30,6 +31,7 @@ public struct GomokuView: View {
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
+        .animation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
         #if os(iOS)

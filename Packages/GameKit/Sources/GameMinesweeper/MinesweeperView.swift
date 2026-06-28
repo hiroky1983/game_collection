@@ -22,6 +22,7 @@ public struct MinesweeperView: View {
         VStack(spacing: 10) {
             statusBar
             board
+                .layoutPriority(1)
             if model.gameOver && !showContinue {
                 resultControls
             } else if model.gameState == .playing {
@@ -30,6 +31,7 @@ public struct MinesweeperView: View {
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
+        .animation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
         #if os(iOS)
