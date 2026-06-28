@@ -19,14 +19,19 @@ public struct OthelloView: View {
         VStack(spacing: 10) {
             statusBar
             board
+                .layoutPriority(1)
+                .overlay {
+                    if model.gameOver { resultOverlay }
+                }
             if model.gameOver {
-                resultControls
+                newGameButton
             } else {
                 gameControls
             }
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
+        .animation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
         #if os(iOS)
@@ -238,9 +243,9 @@ public struct OthelloView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private var resultControls: some View {
-        VStack(spacing: 10) {
-            // リザルトカード
+    private var resultOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.45)
             VStack(spacing: 12) {
                 if let w = model.winner {
                     let isWin = w == model.humanSide
@@ -258,38 +263,38 @@ public struct OthelloView: View {
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                 }
-                // 最終スコア
                 HStack(spacing: 10) {
                     Circle()
                         .fill(Color(hex: 0x1A1A1A))
                         .frame(width: 22, height: 22)
                     Text("\(model.blackCount)")
                         .font(.system(size: 30, weight: .black, design: .rounded))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(.white)
                     Text("–")
                         .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(.white.opacity(0.7))
                     Text("\(model.whiteCount)")
                         .font(.system(size: 30, weight: .black, design: .rounded))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(.white)
                     Circle()
                         .fill(Color(hex: 0xF0ECD8))
                         .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                         .frame(width: 22, height: 22)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
-            .popCard(corner: Theme.cornerSmall)
-
-            // もう一度ボタン
-            Button { showNewGame = true } label: {
-                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
+            .padding(28)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+    }
+
+    private var newGameButton: some View {
+        Button { showNewGame = true } label: {
+            Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 }
 
