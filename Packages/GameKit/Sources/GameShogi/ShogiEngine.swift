@@ -105,8 +105,8 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     public init(level: Int = 1) {
         switch level {
         case 0:  (depth, usePositional, useBook, timeLimit) = (3, false, false, 0.5)
-        case 2:  (depth, usePositional, useBook, timeLimit) = (5, true,  true,  1.5)
-        default: (depth, usePositional, useBook, timeLimit) = (4, true,  false, 1.0)
+        case 2:  (depth, usePositional, useBook, timeLimit) = (9, true,  true,  2.0)
+        default: (depth, usePositional, useBook, timeLimit) = (6, true,  false, 1.0)
         }
     }
 
@@ -430,10 +430,10 @@ private struct SearchContext {
     // MARK: 静的評価
 
     func evaluate(_ pos: Position) -> Int {
-        // CoreML モデルがあればそちらを優先（手番視点の centipawn スコアを返す）
-        if usePositional, let mlScore = ShogiEvalModel.shared.evaluate(pos) {
-            return mlScore
-        }
+        // NOTE: CoreML 評価 (ShogiEvalModel) は探索では使わない。
+        // 現行の 95 次元特徴量は玉位置を持たず（king=0.0）駒種の区別も弱いため
+        // ハンドクラフト評価より精度が低く、かつ葉ノードごとの ML 推論は
+        // NPS を数桁落とす。特徴量と訓練データを刷新するまで無効化する。
 
         var score = 0
 
