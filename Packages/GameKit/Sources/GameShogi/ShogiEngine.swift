@@ -110,6 +110,14 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         }
     }
 
+    /// テスト・調整用: パラメータを直接指定する。
+    init(depth: Int, usePositional: Bool, useBook: Bool, timeLimit: TimeInterval) {
+        self.depth = depth
+        self.usePositional = usePositional
+        self.useBook = useBook
+        self.timeLimit = timeLimit
+    }
+
     public func bestMove(sfen: String) async -> String? {
         guard var pos = Position.fromSFEN(sfen) else { return nil }
         let moves = pos.legalMoves()
@@ -182,6 +190,8 @@ private struct SearchContext {
                 let undo = pos.make(move)
                 let score = -negamax(&pos, depth: d - 1, alpha: -beta, beta: -alpha, ply: 1)
                 pos.unmake(undo)
+                // 探索中に時間切れした場合、この手のスコアは途中打ち切りのゴミなので捨てる
+                if stopped { aborted = true; break }
                 if score > bestScore { bestScore = score; localBest = move }
                 if score > alpha { alpha = score }
             }
@@ -509,13 +519,21 @@ private struct SearchContext {
     func kingSafety(_ pos: Position, _ color: Side) -> Int {
         guard let k = pos.kingSquare(color) else { return 0 }
         let kf = Sq.file(k), kr = Sq.rank(k)
+        let enemy = color.opponent
         var s = 0
         for (df, dr) in [(-1,-1),(0,-1),(1,-1),(-1,0),(1,0),(-1,1),(0,1),(1,1)] {
             let f = kf + df, r = kr + dr
-            guard Sq.onBoard(file: f, rank: r),
-                  let p = pos.squares[Sq.index(file: f, rank: r)], p.color == color else { continue }
-            s += (p.type == .gold || p.type == .silver) ? 30 : 0
+            guard Sq.onBoard(file: f, rank: r) else { continue }
+            let sq = Sq.index(file: f, rank: r)
+            if let p = pos.squares[sq], p.color == color,
+               p.type == .gold || p.type == .silver {
+                s += 30
+            }
+            // 玉の周囲に敵の利きが通っているとペナルティ（寄せられている度合い）
+            if pos.isAttacked(sq, by: enemy) { s -= 18 }
         }
+        // 玉自身のマスに利きが当たっている（王手 or 直前の受け漏れ）はさらに重い
+        if pos.isAttacked(k, by: enemy) { s -= 40 }
         s += abs(kf - 4) * 15
         let homeRank = color == .black ? 8 : 0
         s += max(0, 2 - abs(kr - homeRank)) * 10
