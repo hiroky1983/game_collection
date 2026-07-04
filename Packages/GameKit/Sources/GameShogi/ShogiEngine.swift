@@ -34,78 +34,38 @@ enum PieceValue {
     }
 }
 
-// MARK: - Zobrist Hashing
-
-private struct LCG {
-    var state: UInt64
-    mutating func next() -> UInt64 {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
-        return state ^ (state >> 33)
-    }
-}
-
-private enum Zobrist {
-    // [pieceType 0-7][color 0-1][promoted 0-1][square 0-80]
-    static let piece: [[[[UInt64]]]] = {
-        var rng = LCG(state: 0xDEAD_BEEF_CAFE_BABE)
-        var t = [[[[UInt64]]]](
-            repeating: [[[UInt64]]](
-                repeating: [[UInt64]](
-                    repeating: [UInt64](repeating: 0, count: 81),
-                    count: 2),
-                count: 2),
-            count: 8)
-        for pt in 0..<8 { for c in 0..<2 { for pr in 0..<2 { for sq in 0..<81 {
-            t[pt][c][pr][sq] = rng.next()
-        }}}}
-        return t
-    }()
-
-    // [color 0-1][pieceType 0-6 droppable][count 0-18]
-    static let hand: [[[UInt64]]] = {
-        var rng = LCG(state: 0xCAFE_BABE_DEAD_BEEF)
-        var t = [[[UInt64]]](
-            repeating: [[UInt64]](
-                repeating: [UInt64](repeating: 0, count: 19),
-                count: 7),
-            count: 2)
-        for c in 0..<2 { for pt in 0..<7 { for n in 0..<19 {
-            t[c][pt][n] = rng.next()
-        }}}
-        return t
-    }()
-
-    static let sideToMove: UInt64 = {
-        var rng = LCG(state: 0x1234_5678_9ABC_DEF0)
-        return rng.next()
-    }()
-}
-
-extension Position {
-    func zobristHash() -> UInt64 {
-        var h: UInt64 = 0
-        for (sq, p) in squares.enumerated() {
-            guard let p else { continue }
-            h ^= Zobrist.piece[p.type.rawValue][p.color.rawValue][p.promoted ? 1 : 0][sq]
-        }
-        for c in 0..<2 {
-            for t in 0..<7 {
-                let n = hands[c][t]
-                if n > 0 { h ^= Zobrist.hand[c][t][min(n, 18)] }
-            }
-        }
-        if sideToMove == .black { h ^= Zobrist.sideToMove }
-        return h
-    }
-}
-
 // MARK: - Transposition Table
 
 private enum TTFlag: UInt8 { case exact, lower, upper }
 
+/// Move の 16bit エンコード（TT に best move を格納するため）。
+/// board: bit0-6=from, bit7-13=to, bit14=promote / drop: bit0-6=to, bit7-9=type, bit15=1
+private enum MoveCode {
+    static let none: UInt16 = 0xFFFF
+
+    static func encode(_ m: Move) -> UInt16 {
+        switch m {
+        case let .board(from, to, promote):
+            return UInt16(from) | (UInt16(to) << 7) | (promote ? 1 << 14 : 0)
+        case let .drop(type, to):
+            return UInt16(to) | (UInt16(type.rawValue) << 7) | (1 << 15)
+        }
+    }
+
+    static func decode(_ c: UInt16) -> Move? {
+        guard c != none else { return nil }
+        if c & (1 << 15) != 0 {
+            guard let type = PieceType(rawValue: Int((c >> 7) & 0x7)) else { return nil }
+            return .drop(type: type, to: Int(c & 0x7F))
+        }
+        return .board(from: Int(c & 0x7F), to: Int((c >> 7) & 0x7F), promote: c & (1 << 14) != 0)
+    }
+}
+
 private struct TTEntry {
     var hash: UInt64 = 0
     var score: Int32 = 0
+    var move: UInt16 = MoveCode.none
     var depth: Int8 = -1
     var flag: TTFlag = .exact
 }
@@ -179,26 +139,38 @@ public struct SimpleMinimaxEngine: ShogiEngine {
 private struct SearchContext {
     let maxDepth: Int
     let usePositional: Bool
-    let deadline: Date
+    let deadline: TimeInterval  // ProcessInfo.systemUptime 基準
     var killers: [[Move?]]   // killers[ply][0..1]
     var tt: [TTEntry]
+    var nodes: Int = 0
+    var stopped = false
 
     init(maxDepth: Int, usePositional: Bool, timeLimit: TimeInterval) {
         self.maxDepth = maxDepth
         self.usePositional = usePositional
-        self.deadline = Date().addingTimeInterval(timeLimit)
+        self.deadline = ProcessInfo.processInfo.systemUptime + timeLimit
         self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 20)
         self.tt = [TTEntry](repeating: TTEntry(), count: TT_SIZE)
+    }
+
+    /// 時間切れ判定。毎ノードの時刻取得を避けるため 1024 ノードごとにチェックする。
+    mutating func timeUp() -> Bool {
+        if stopped { return true }
+        nodes += 1
+        if nodes & 1023 == 0, ProcessInfo.processInfo.systemUptime > deadline {
+            stopped = true
+        }
+        return stopped
     }
 
     // MARK: 反復深化
 
     mutating func search(_ pos: inout Position) -> Move? {
-        var orderedMoves = orderMoves(pos.legalMoves(), pos: pos, killers: [nil, nil])
+        var orderedMoves = orderMoves(pos.legalMoves(), pos: pos, killers: [nil, nil], ttMove: nil)
         var best: Move? = orderedMoves.first
 
         for d in 1...maxDepth {
-            if Date() > deadline { break }
+            if ProcessInfo.processInfo.systemUptime > deadline { break }
             var localBest: Move?
             var bestScore = Int.min + 1
             var alpha = Int.min + 1
@@ -206,7 +178,7 @@ private struct SearchContext {
             var aborted = false
 
             for move in orderedMoves {
-                if Date() > deadline { aborted = true; break }
+                if stopped || ProcessInfo.processInfo.systemUptime > deadline { aborted = true; break }
                 let undo = pos.make(move)
                 let score = -negamax(&pos, depth: d - 1, alpha: -beta, beta: -alpha, ply: 1)
                 pos.unmake(undo)
@@ -227,23 +199,27 @@ private struct SearchContext {
     // MARK: αβ ネガマックス + 置換表 + キラー + Null Move + LMR
 
     mutating func negamax(_ pos: inout Position, depth: Int, alpha: Int, beta: Int, ply: Int, nullOk: Bool = true) -> Int {
-        if Date() > deadline { return evaluate(pos) }
+        if timeUp() { return evaluate(pos) }
 
         // 置換表参照
-        let hash = pos.zobristHash()
+        let hash = pos.hash
         let ttIdx = Int(hash & UInt64(TT_SIZE - 1))
         let entry = tt[ttIdx]
-        if entry.hash == hash && Int(entry.depth) >= depth {
-            let s = Int(entry.score)
-            switch entry.flag {
-            case .exact:
-                if s >= beta  { return beta  }
-                if s <= alpha { return alpha }
-                return s
-            case .lower:
-                if s >= beta  { return beta }
-            case .upper:
-                if s <= alpha { return alpha }
+        var ttMove: Move?
+        if entry.hash == hash {
+            ttMove = MoveCode.decode(entry.move)
+            if Int(entry.depth) >= depth {
+                let s = Int(entry.score)
+                switch entry.flag {
+                case .exact:
+                    if s >= beta  { return beta  }
+                    if s <= alpha { return alpha }
+                    return s
+                case .lower:
+                    if s >= beta  { return beta }
+                case .upper:
+                    if s <= alpha { return alpha }
+                }
             }
         }
 
@@ -272,8 +248,9 @@ private struct SearchContext {
 
         var alpha = alpha
         var flag: TTFlag = .upper
+        var bestMove: Move?
         let killerSet = ply < killers.count ? killers[ply] : [nil, nil]
-        let orderedMoves = orderMoves(moves, pos: pos, killers: killerSet)
+        let orderedMoves = orderMoves(moves, pos: pos, killers: killerSet, ttMove: ttMove)
 
         for (moveCount, move) in orderedMoves.enumerated() {
             let undo = pos.make(move)
@@ -313,23 +290,28 @@ private struct SearchContext {
                     killers[ply][1] = killers[ply][0]
                     killers[ply][0] = move
                 }
-                tt[ttIdx] = TTEntry(hash: hash, score: Int32(beta), depth: Int8(clamping: depth), flag: .lower)
+                tt[ttIdx] = TTEntry(
+                    hash: hash, score: Int32(clamping: beta), move: MoveCode.encode(move),
+                    depth: Int8(clamping: depth), flag: .lower)
                 return beta
             }
             if score > alpha {
                 alpha = score
                 flag = .exact
+                bestMove = move
             }
         }
 
-        tt[ttIdx] = TTEntry(hash: hash, score: Int32(alpha), depth: Int8(clamping: depth), flag: flag)
+        tt[ttIdx] = TTEntry(
+            hash: hash, score: Int32(clamping: alpha), move: bestMove.map(MoveCode.encode) ?? MoveCode.none,
+            depth: Int8(clamping: depth), flag: flag)
         return alpha
     }
 
     // MARK: 詰み専用探索（奇数手詰めを読む）
 
     mutating func mateSearch(_ pos: inout Position, depth: Int, ply: Int) -> Int? {
-        if Date() > deadline { return nil }
+        if timeUp() { return nil }
         let moves = pos.legalMoves()
         if moves.isEmpty { return -PieceValue.base(.king) - ply }
         if depth <= 0 { return nil }
@@ -372,17 +354,23 @@ private struct SearchContext {
     // MARK: 静止探索（取り合いが落ち着くまで探索）
 
     mutating func quiesce(_ pos: inout Position, alpha: Int, beta: Int, qdepth: Int) -> Int {
-        if qdepth >= 6 || Date() > deadline { return evaluate(pos) }
+        if qdepth >= 6 || timeUp() { return evaluate(pos) }
 
         let standPat = evaluate(pos)
         if standPat >= beta { return beta }
         if standPat + 1300 < alpha { return alpha }
 
         var alpha = max(alpha, standPat)
+        let side = pos.sideToMove
 
-        let captures = pos.legalMoves().filter { isCapture($0, pos) }
+        // 捕獲手のみ生成し、王手放置チェックは指した後に行う（全合法手生成を避ける）
+        let captures = pos.pseudoLegalCaptures()
         for move in captures.sorted(by: { captureScore($0, pos) > captureScore($1, pos) }) {
             let undo = pos.make(move)
+            if pos.isKingInCheck(side) {
+                pos.unmake(undo)
+                continue
+            }
             let score = -quiesce(&pos, alpha: -beta, beta: -alpha, qdepth: qdepth + 1)
             pos.unmake(undo)
             if score >= beta { return beta }
@@ -393,14 +381,15 @@ private struct SearchContext {
 
     // MARK: 指し手オーダリング（MVV-LVA + キラー）
 
-    func orderMoves(_ moves: [Move], pos: Position, killers: [Move?]) -> [Move] {
+    func orderMoves(_ moves: [Move], pos: Position, killers: [Move?], ttMove: Move?) -> [Move] {
         moves
-            .map { ($0, moveScore($0, pos: pos, killers: killers)) }
+            .map { ($0, moveScore($0, pos: pos, killers: killers, ttMove: ttMove)) }
             .sorted { $0.1 > $1.1 }
             .map { $0.0 }
     }
 
-    func moveScore(_ move: Move, pos: Position, killers: [Move?]) -> Int {
+    func moveScore(_ move: Move, pos: Position, killers: [Move?], ttMove: Move?) -> Int {
+        if let ttMove, move == ttMove { return 1_000_000 }  // 置換表の最善手を最優先
         switch move {
         case let .board(from, to, promote):
             if let cap = pos.squares[to] {
@@ -518,9 +507,7 @@ private struct SearchContext {
     }
 
     func kingSafety(_ pos: Position, _ color: Side) -> Int {
-        guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
-            return 0
-        }
+        guard let k = pos.kingSquare(color) else { return 0 }
         let kf = Sq.file(k), kr = Sq.rank(k)
         var s = 0
         for (df, dr) in [(-1,-1),(0,-1),(1,-1),(-1,0),(1,0),(-1,1),(0,1),(1,1)] {
@@ -538,9 +525,7 @@ private struct SearchContext {
     // 囲い形状ボーナス: 美濃囲い・矢倉形を検出して加点する
     // 座標系: file 8=9筋(左端), file 0=1筋(右端), rank 8=9段(先手本陣), rank 0=1段(後手本陣)
     func castleBonus(_ pos: Position, _ color: Side) -> Int {
-        guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
-            return 0
-        }
+        guard let k = pos.kingSquare(color) else { return 0 }
         let kf = Sq.file(k), kr = Sq.rank(k)
         let homeRank = color == .black ? 8 : 0
         // 先手は上方向(rank-1)が前、後手は下方向(rank+1)が前

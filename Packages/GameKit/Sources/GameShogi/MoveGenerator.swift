@@ -17,80 +17,127 @@ extension Position {
     private static let bishopDirs = [(1, -1), (-1, -1), (1, 1), (-1, 1)]
     private static let rookDirs = [(0, -1), (0, 1), (1, 0), (-1, 0)]
 
+    /// [type 0-7][promoted 0-1][color 0-1] → Movement。毎回のアロケートを避けるため事前計算。
+    private static let movementTable: [Movement] = {
+        var table = [Movement](repeating: Movement(steps: [], slides: []), count: 8 * 2 * 2)
+        for type in PieceType.allCases {
+            for promoted in 0..<2 {
+                var steps: [(Int, Int)] = []
+                var slides: [(Int, Int)] = []
+                if promoted == 1 {
+                    switch type {
+                    case .pawn, .lance, .knight, .silver:
+                        steps = goldSteps
+                    case .bishop: // 馬: 角の動き + 上下左右 1
+                        steps = rookDirs
+                        slides = bishopDirs
+                    case .rook: // 龍: 飛の動き + 斜め 1
+                        steps = bishopDirs
+                        slides = rookDirs
+                    case .gold, .king:
+                        break
+                    }
+                } else {
+                    switch type {
+                    case .pawn: steps = [(0, -1)]
+                    case .lance: slides = [(0, -1)]
+                    case .knight: steps = [(1, -2), (-1, -2)]
+                    case .silver: steps = silverSteps
+                    case .gold: steps = goldSteps
+                    case .king: steps = kingSteps
+                    case .bishop: slides = bishopDirs
+                    case .rook: slides = rookDirs
+                    }
+                }
+                for color in 0..<2 {
+                    let s = color == 0 ? steps : steps.map { ($0.0, -$0.1) }
+                    let sl = color == 0 ? slides : slides.map { ($0.0, -$0.1) }
+                    table[(type.rawValue << 2) | (promoted << 1) | color] = Movement(steps: s, slides: sl)
+                }
+            }
+        }
+        return table
+    }()
+
     private func movement(of piece: Piece) -> Movement {
-        var steps: [(Int, Int)] = []
-        var slides: [(Int, Int)] = []
-        if piece.promoted {
-            switch piece.type {
-            case .pawn, .lance, .knight, .silver:
-                steps = Self.goldSteps
-            case .bishop: // 馬: 角の動き + 上下左右 1
-                steps = Self.rookDirs
-                slides = Self.bishopDirs
-            case .rook: // 龍: 飛の動き + 斜め 1
-                steps = Self.bishopDirs
-                slides = Self.rookDirs
-            case .gold, .king:
-                break
-            }
-        } else {
-            switch piece.type {
-            case .pawn: steps = [(0, -1)]
-            case .lance: slides = [(0, -1)]
-            case .knight: steps = [(1, -2), (-1, -2)]
-            case .silver: steps = Self.silverSteps
-            case .gold: steps = Self.goldSteps
-            case .king: steps = Self.kingSteps
-            case .bishop: slides = Self.bishopDirs
-            case .rook: slides = Self.rookDirs
-            }
-        }
-        if piece.color == .white {
-            steps = steps.map { ($0.0, -$0.1) }
-            slides = slides.map { ($0.0, -$0.1) }
-        }
-        return Movement(steps: steps, slides: slides)
+        Self.movementTable[(piece.type.rawValue << 2) | ((piece.promoted ? 1 : 0) << 1) | piece.color.rawValue]
     }
 
-    // MARK: - 利き判定
-
-    /// from に居る駒が target を攻撃しているか。
-    private func pieceAttacks(from: Int, _ piece: Piece, target: Int) -> Bool {
-        let ff = Sq.file(from), fr = Sq.rank(from)
-        let m = movement(of: piece)
-        for (df, dr) in m.steps {
-            if Sq.onBoard(file: ff + df, rank: fr + dr),
-               Sq.index(file: ff + df, rank: fr + dr) == target {
-                return true
-            }
-        }
-        for (df, dr) in m.slides {
-            var f = ff + df, r = fr + dr
-            while Sq.onBoard(file: f, rank: r) {
-                let idx = Sq.index(file: f, rank: r)
-                if idx == target { return true }
-                if squares[idx] != nil { break } // 駒に遮られる
-                f += df; r += dr
-            }
-        }
-        return false
-    }
+    // MARK: - 利き判定（target から外向きに走査。全81マス走査を避ける）
 
     /// target が color の駒に攻撃されているか。
     public func isAttacked(_ target: Int, by color: Side) -> Bool {
-        for i in 0..<Sq.count {
-            if let p = squares[i], p.color == color, pieceAttacks(from: i, p, target: target) {
-                return true
+        let tf = Sq.file(target), tr = Sq.rank(target)
+
+        // 桂馬（跳び駒なので別扱い）。黒の桂は (±1, -2) へ跳ぶので攻撃元は (±1, +2)。
+        let nr = tr + (color == .black ? 2 : -2)
+        if nr >= 0 && nr < 9 {
+            for df in [-1, 1] {
+                let f = tf + df
+                if f >= 0 && f < 9,
+                   let p = squares[Sq.index(file: f, rank: nr)],
+                   p.color == color, p.type == .knight, !p.promoted {
+                    return true
+                }
+            }
+        }
+
+        // 8方向へ走査し、最初に見つかった駒が target を攻撃できるか判定する。
+        for (df, dr) in Self.kingSteps {
+            var f = tf + df, r = tr + dr
+            var dist = 1
+            while Sq.onBoard(file: f, rank: r) {
+                if let p = squares[Sq.index(file: f, rank: r)] {
+                    if p.color == color {
+                        // 攻撃方向（attacker → target）を黒基準に正規化。
+                        let adf = -df
+                        let adr = color == .black ? -dr : dr
+                        if dist == 1, stepAttacks(p, adf: adf, adr: adr) { return true }
+                        if slideAttacks(p, adf: adf, adr: adr) { return true }
+                    }
+                    break // 駒に遮られる
+                }
+                f += df; r += dr; dist += 1
             }
         }
         return false
+    }
+
+    /// 隣接マス (adf, adr) 方向（黒基準・attacker→target）へのステップ利きがあるか。
+    private func stepAttacks(_ p: Piece, adf: Int, adr: Int) -> Bool {
+        // 金の利き: 前3方向・横2方向・真後ろ
+        func goldStep() -> Bool { adr == -1 || adr == 0 || (adf == 0 && adr == 1) }
+
+        if p.promoted {
+            switch p.type {
+            case .pawn, .lance, .knight, .silver, .gold: return goldStep()
+            case .bishop: return adf == 0 || adr == 0  // 馬の上下左右1
+            case .rook: return adf != 0 && adr != 0    // 龍の斜め1
+            case .king: return true
+            }
+        }
+        switch p.type {
+        case .pawn: return adf == 0 && adr == -1
+        case .silver: return adr == -1 || (adf != 0 && adr == 1)
+        case .gold: return goldStep()
+        case .king: return true
+        case .knight, .lance, .bishop, .rook: return false // 桂は別扱い、走り駒は slideAttacks
+        }
+    }
+
+    /// (adf, adr) 単位方向（黒基準・attacker→target、経路は空き）へのスライド利きがあるか。
+    private func slideAttacks(_ p: Piece, adf: Int, adr: Int) -> Bool {
+        switch p.type {
+        case .lance: return !p.promoted && adf == 0 && adr == -1
+        case .bishop: return adf != 0 && adr != 0
+        case .rook: return adf == 0 || adr == 0
+        default: return false
+        }
     }
 
     /// 指定色の玉が王手されているか。
     public func isKingInCheck(_ color: Side) -> Bool {
-        guard let king = squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
-            return false
-        }
+        guard let king = kingSquare(color) else { return false }
         return isAttacked(king, by: color.opponent)
     }
 
@@ -144,6 +191,41 @@ extension Position {
         }
 
         appendDrops(side: side, into: &moves)
+        return moves
+    }
+
+    /// 相手駒を取る盤上手のみ生成（静止探索用）。王手放置のチェックは呼び出し側が行う。
+    public func pseudoLegalCaptures() -> [Move] {
+        var moves: [Move] = []
+        let side = sideToMove
+
+        for from in 0..<Sq.count {
+            guard let piece = squares[from], piece.color == side else { continue }
+            let ff = Sq.file(from), fr = Sq.rank(from)
+            let m = movement(of: piece)
+
+            for (df, dr) in m.steps {
+                let f = ff + df, r = fr + dr
+                guard Sq.onBoard(file: f, rank: r) else { continue }
+                let to = Sq.index(file: f, rank: r)
+                if let occ = squares[to], occ.color != side {
+                    appendBoardMoves(piece: piece, from: from, to: to, into: &moves)
+                }
+            }
+            for (df, dr) in m.slides {
+                var f = ff + df, r = fr + dr
+                while Sq.onBoard(file: f, rank: r) {
+                    let to = Sq.index(file: f, rank: r)
+                    if let occ = squares[to] {
+                        if occ.color != side {
+                            appendBoardMoves(piece: piece, from: from, to: to, into: &moves)
+                        }
+                        break
+                    }
+                    f += df; r += dr
+                }
+            }
+        }
         return moves
     }
 

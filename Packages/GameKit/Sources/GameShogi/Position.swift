@@ -8,6 +8,10 @@ public struct Position: Equatable, Sendable {
     public var hands: [[Int]]
     public var sideToMove: Side
     public var moveNumber: Int
+    /// Zobrist ハッシュ（make/unmake で差分更新。moveNumber は含まない）。
+    public private(set) var hash: UInt64
+    /// 玉の位置キャッシュ（[black, white]、盤上に無ければ -1）。
+    private var kingSq: [Int]
 
     public init(
         squares: [Piece?],
@@ -19,6 +23,18 @@ public struct Position: Equatable, Sendable {
         self.hands = hands
         self.sideToMove = sideToMove
         self.moveNumber = moveNumber
+        self.hash = Self.computeHash(squares: squares, hands: hands, sideToMove: sideToMove)
+        var kings = [-1, -1]
+        for (sq, p) in squares.enumerated() where p?.type == .king {
+            kings[p!.color.rawValue] = sq
+        }
+        self.kingSq = kings
+    }
+
+    /// 指定色の玉の位置（盤上に無ければ nil）。
+    public func kingSquare(_ color: Side) -> Int? {
+        let sq = kingSq[color.rawValue]
+        return sq >= 0 ? sq : nil
     }
 
     /// 平手初期局面。
@@ -44,17 +60,32 @@ public struct Position: Equatable, Sendable {
         case let .board(from, to, promote):
             var piece = squares[from]!
             captured = squares[to]
-            if let cap = captured, cap.type.isDroppable {
-                // 捕獲駒は成りを解除した基本形で自分の持ち駒へ（玉は持ち駒にならない）。
-                hands[side.rawValue][cap.type.rawValue] += 1
+            hash ^= Zobrist.piece[piece.type.rawValue][side.rawValue][piece.promoted ? 1 : 0][from]
+            if let cap = captured {
+                hash ^= Zobrist.piece[cap.type.rawValue][cap.color.rawValue][cap.promoted ? 1 : 0][to]
+                if cap.type.isDroppable {
+                    // 捕獲駒は成りを解除した基本形で自分の持ち駒へ（玉は持ち駒にならない）。
+                    let n = hands[side.rawValue][cap.type.rawValue]
+                    if n > 0 { hash ^= Zobrist.hand[side.rawValue][cap.type.rawValue][min(n, 18)] }
+                    hash ^= Zobrist.hand[side.rawValue][cap.type.rawValue][min(n + 1, 18)]
+                    hands[side.rawValue][cap.type.rawValue] = n + 1
+                }
+                if cap.type == .king { kingSq[cap.color.rawValue] = -1 }
             }
             squares[from] = nil
             if promote { piece.promoted = true }
             squares[to] = piece
+            hash ^= Zobrist.piece[piece.type.rawValue][side.rawValue][piece.promoted ? 1 : 0][to]
+            if piece.type == .king { kingSq[side.rawValue] = to }
         case let .drop(type, to):
-            hands[side.rawValue][type.rawValue] -= 1
+            let n = hands[side.rawValue][type.rawValue]
+            hash ^= Zobrist.hand[side.rawValue][type.rawValue][min(n, 18)]
+            if n - 1 > 0 { hash ^= Zobrist.hand[side.rawValue][type.rawValue][min(n - 1, 18)] }
+            hands[side.rawValue][type.rawValue] = n - 1
             squares[to] = Piece(type: type, color: side, promoted: false)
+            hash ^= Zobrist.piece[type.rawValue][side.rawValue][0][to]
         }
+        hash ^= Zobrist.sideToMove
         sideToMove = side.opponent
         moveNumber += 1
         return Undo(move: move, captured: captured, prevSide: side)
@@ -65,18 +96,33 @@ public struct Position: Equatable, Sendable {
         sideToMove = undo.prevSide
         moveNumber -= 1
         let side = undo.prevSide
+        hash ^= Zobrist.sideToMove
         switch undo.move {
         case let .board(from, to, promote):
             var piece = squares[to]!
+            hash ^= Zobrist.piece[piece.type.rawValue][side.rawValue][piece.promoted ? 1 : 0][to]
             if promote { piece.promoted = false }
             squares[from] = piece
             squares[to] = undo.captured
-            if let cap = undo.captured, cap.type.isDroppable {
-                hands[side.rawValue][cap.type.rawValue] -= 1
+            hash ^= Zobrist.piece[piece.type.rawValue][side.rawValue][piece.promoted ? 1 : 0][from]
+            if piece.type == .king { kingSq[side.rawValue] = from }
+            if let cap = undo.captured {
+                hash ^= Zobrist.piece[cap.type.rawValue][cap.color.rawValue][cap.promoted ? 1 : 0][to]
+                if cap.type.isDroppable {
+                    let n = hands[side.rawValue][cap.type.rawValue]
+                    hash ^= Zobrist.hand[side.rawValue][cap.type.rawValue][min(n, 18)]
+                    if n - 1 > 0 { hash ^= Zobrist.hand[side.rawValue][cap.type.rawValue][min(n - 1, 18)] }
+                    hands[side.rawValue][cap.type.rawValue] = n - 1
+                }
+                if cap.type == .king { kingSq[cap.color.rawValue] = to }
             }
         case let .drop(type, to):
+            hash ^= Zobrist.piece[type.rawValue][side.rawValue][0][to]
             squares[to] = nil
-            hands[side.rawValue][type.rawValue] += 1
+            let n = hands[side.rawValue][type.rawValue]
+            if n > 0 { hash ^= Zobrist.hand[side.rawValue][type.rawValue][min(n, 18)] }
+            hash ^= Zobrist.hand[side.rawValue][type.rawValue][min(n + 1, 18)]
+            hands[side.rawValue][type.rawValue] = n + 1
         }
     }
 
@@ -153,12 +199,14 @@ public struct Position: Equatable, Sendable {
     @discardableResult
     public mutating func makeNull() -> NullUndo {
         let undo = NullUndo(prevSide: sideToMove)
+        hash ^= Zobrist.sideToMove
         sideToMove = sideToMove.opponent
         moveNumber += 1
         return undo
     }
 
     public mutating func unmakeNull(_ undo: NullUndo) {
+        hash ^= Zobrist.sideToMove
         sideToMove = undo.prevSide
         moveNumber -= 1
     }
