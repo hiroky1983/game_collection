@@ -101,21 +101,27 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     let usePositional: Bool
     let useBook: Bool
     let timeLimit: TimeInterval
+    let useHistory: Bool
+    let useHangingEval: Bool
 
     public init(level: Int = 1) {
         switch level {
         case 0:  (depth, usePositional, useBook, timeLimit) = (3, false, false, 0.5)
-        case 2:  (depth, usePositional, useBook, timeLimit) = (9, true,  true,  2.0)
+        case 2:  (depth, usePositional, useBook, timeLimit) = (10, true, true, 3.0)
         default: (depth, usePositional, useBook, timeLimit) = (6, true,  false, 1.0)
         }
+        (useHistory, useHangingEval) = (true, true)
     }
 
     /// テスト・調整用: パラメータを直接指定する。
-    init(depth: Int, usePositional: Bool, useBook: Bool, timeLimit: TimeInterval) {
+    init(depth: Int, usePositional: Bool, useBook: Bool, timeLimit: TimeInterval,
+         useHistory: Bool = true, useHangingEval: Bool = true) {
         self.depth = depth
         self.usePositional = usePositional
         self.useBook = useBook
         self.timeLimit = timeLimit
+        self.useHistory = useHistory
+        self.useHangingEval = useHangingEval
     }
 
     public func bestMove(sfen: String) async -> String? {
@@ -126,7 +132,8 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         if useBook, let booked = OpeningBook.move(for: sfen),
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
-        var ctx = SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: timeLimit)
+        var ctx = SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: timeLimit,
+                                useHistory: useHistory, useHangingEval: useHangingEval)
         return ctx.search(&pos)?.usi
     }
 
@@ -147,15 +154,23 @@ public struct SimpleMinimaxEngine: ShogiEngine {
 private struct SearchContext {
     let maxDepth: Int
     let usePositional: Bool
+    let useHistory: Bool
+    let useHangingEval: Bool
     let deadline: TimeInterval  // ProcessInfo.systemUptime 基準
     var killers: [[Move?]]   // killers[ply][0..1]
     var tt: [TTEntry]
     var nodes: Int = 0
     var stopped = false
+    // ヒストリーヒューリスティック: βカットを起こした静かな手の実績値
+    var histBoard = [Int](repeating: 0, count: 81 * 81)  // from * 81 + to
+    var histDrop = [Int](repeating: 0, count: 7 * 81)    // type * 81 + to
 
-    init(maxDepth: Int, usePositional: Bool, timeLimit: TimeInterval) {
+    init(maxDepth: Int, usePositional: Bool, timeLimit: TimeInterval,
+         useHistory: Bool = true, useHangingEval: Bool = true) {
         self.maxDepth = maxDepth
         self.usePositional = usePositional
+        self.useHistory = useHistory
+        self.useHangingEval = useHangingEval
         self.deadline = ProcessInfo.processInfo.systemUptime + timeLimit
         self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 20)
         self.tt = [TTEntry](repeating: TTEntry(), count: TT_SIZE)
@@ -296,9 +311,18 @@ private struct SearchContext {
             pos.unmake(undo)
 
             if score >= beta {
-                if ply < killers.count && !isCapture(move, pos) {
-                    killers[ply][1] = killers[ply][0]
-                    killers[ply][0] = move
+                if !isCapture(move, pos) {
+                    if ply < killers.count {
+                        killers[ply][1] = killers[ply][0]
+                        killers[ply][0] = move
+                    }
+                    if useHistory {
+                        // 深い場所でのカットほど価値が高い
+                        switch move {
+                        case let .board(from, to, _): histBoard[from * 81 + to] += depth * depth
+                        case let .drop(type, to):     histDrop[type.rawValue * 81 + to] += depth * depth
+                        }
+                    }
                 }
                 tt[ttIdx] = TTEntry(
                     hash: hash, score: Int32(clamping: beta), move: MoveCode.encode(move),
@@ -411,6 +435,13 @@ private struct SearchContext {
         case .drop: break
         }
         if killers.contains(where: { $0 == move }) { return 4_000 }
+        if useHistory {
+            // 静かな手はヒストリー実績順（キラーは超えない）
+            switch move {
+            case let .board(from, to, _): return min(3_900, histBoard[from * 81 + to])
+            case let .drop(type, to):     return min(3_900, histDrop[type.rawValue * 81 + to])
+            }
+        }
         return 0
     }
 
@@ -452,6 +483,14 @@ private struct SearchContext {
             let v = PieceValue.onBoard(p)
             let sign = p.color == .black ? 1 : -1
             score += sign * v
+
+            // 浮き駒: 敵の利きに晒され味方の紐がない駒はペナルティ
+            // （タダ取られ・両取りを静的に検出。歩は安いので対象外）
+            if usePositional && useHangingEval && p.type != .king && p.type != .pawn,
+               pos.isAttacked(sq, by: p.color.opponent),
+               !pos.isAttacked(sq, by: p.color) {
+                score -= sign * (v / 3)
+            }
 
             if usePositional && !p.promoted {
                 let rank = Sq.rank(sq)
