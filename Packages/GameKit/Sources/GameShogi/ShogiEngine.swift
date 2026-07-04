@@ -103,25 +103,27 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     let timeLimit: TimeInterval
     let useHistory: Bool
     let useHangingEval: Bool
+    let useOpeningEval: Bool
 
     public init(level: Int = 1) {
         switch level {
         case 0:  (depth, usePositional, useBook, timeLimit) = (3, false, false, 0.5)
         case 2:  (depth, usePositional, useBook, timeLimit) = (10, true, true, 3.0)
-        default: (depth, usePositional, useBook, timeLimit) = (6, true,  false, 1.0)
+        default: (depth, usePositional, useBook, timeLimit) = (6, true,  true,  1.0)
         }
-        (useHistory, useHangingEval) = (true, true)
+        (useHistory, useHangingEval, useOpeningEval) = (true, true, true)
     }
 
     /// テスト・調整用: パラメータを直接指定する。
     init(depth: Int, usePositional: Bool, useBook: Bool, timeLimit: TimeInterval,
-         useHistory: Bool = true, useHangingEval: Bool = true) {
+         useHistory: Bool = true, useHangingEval: Bool = true, useOpeningEval: Bool = true) {
         self.depth = depth
         self.usePositional = usePositional
         self.useBook = useBook
         self.timeLimit = timeLimit
         self.useHistory = useHistory
         self.useHangingEval = useHangingEval
+        self.useOpeningEval = useOpeningEval
     }
 
     public func bestMove(sfen: String) async -> String? {
@@ -133,7 +135,8 @@ public struct SimpleMinimaxEngine: ShogiEngine {
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
         var ctx = SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: timeLimit,
-                                useHistory: useHistory, useHangingEval: useHangingEval)
+                                useHistory: useHistory, useHangingEval: useHangingEval,
+                                useOpeningEval: useOpeningEval)
         return ctx.search(&pos)?.usi
     }
 
@@ -156,6 +159,7 @@ private struct SearchContext {
     let usePositional: Bool
     let useHistory: Bool
     let useHangingEval: Bool
+    let useOpeningEval: Bool
     let deadline: TimeInterval  // ProcessInfo.systemUptime 基準
     var killers: [[Move?]]   // killers[ply][0..1]
     var tt: [TTEntry]
@@ -166,11 +170,12 @@ private struct SearchContext {
     var histDrop = [Int](repeating: 0, count: 7 * 81)    // type * 81 + to
 
     init(maxDepth: Int, usePositional: Bool, timeLimit: TimeInterval,
-         useHistory: Bool = true, useHangingEval: Bool = true) {
+         useHistory: Bool = true, useHangingEval: Bool = true, useOpeningEval: Bool = true) {
         self.maxDepth = maxDepth
         self.usePositional = usePositional
         self.useHistory = useHistory
         self.useHangingEval = useHangingEval
+        self.useOpeningEval = useOpeningEval
         self.deadline = ProcessInfo.processInfo.systemUptime + timeLimit
         self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 20)
         self.tt = [TTEntry](repeating: TTEntry(), count: TT_SIZE)
@@ -495,7 +500,13 @@ private struct SearchContext {
             if usePositional && !p.promoted {
                 let rank = Sq.rank(sq)
                 let advance = p.color == .black ? (8 - rank) : rank
-                score += sign * advanceTable[p.type.rawValue][advance]
+                var adv = advanceTable[p.type.rawValue][advance]
+                // 序盤は歩の深追いより駒組みを優先させる。端歩の前進は得が薄いので無効化
+                if useOpeningEval, pos.moveNumber < 30, p.type == .pawn {
+                    let f = Sq.file(sq)
+                    adv = (f == 0 || f == 8) ? 0 : adv / 2
+                }
+                score += sign * adv
 
                 switch p.type {
                 case .bishop:
@@ -521,8 +532,11 @@ private struct SearchContext {
         }
 
         if usePositional {
-            score += kingSafety(pos, .black) - kingSafety(pos, .white)
-            score += castleBonus(pos, .black) - castleBonus(pos, .white)
+            var safety = kingSafety(pos, .black) - kingSafety(pos, .white)
+            safety += castleBonus(pos, .black) - castleBonus(pos, .white)
+            // 序盤は囲い・玉の安全を重視させ、駒組みが終わる前の乱戦を抑制する
+            if useOpeningEval && pos.moveNumber < 40 { safety = safety * 3 / 2 }
+            score += safety
 
             // 序盤（25手目未満）に角が5五にいるとペナルティ（角を早出しすぎ）
             if pos.moveNumber < 25 {
@@ -576,6 +590,22 @@ private struct SearchContext {
         s += abs(kf - 4) * 15
         let homeRank = color == .black ? 8 : 0
         s += max(0, 2 - abs(kr - homeRank)) * 10
+
+        if useOpeningEval {
+            // 居玉ペナルティ: 12手目以降も初期位置(5九/5一)のままなら減点し、囲いを促す
+            let startSq = Sq.index(file: 4, rank: color == .black ? 8 : 0)
+            if k == startSq && pos.moveNumber >= 12 { s -= 45 }
+            // 距離2圏の金銀にも小さなボーナス（囲い形成途中を評価）
+            for df in -2...2 {
+                for dr in -2...2 where max(abs(df), abs(dr)) == 2 {
+                    let f = kf + df, r = kr + dr
+                    guard Sq.onBoard(file: f, rank: r),
+                          let p = pos.squares[Sq.index(file: f, rank: r)],
+                          p.color == color, p.type == .gold || p.type == .silver else { continue }
+                    s += 10
+                }
+            }
+        }
         return s
     }
 

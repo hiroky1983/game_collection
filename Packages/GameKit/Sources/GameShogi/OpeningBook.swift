@@ -3,9 +3,34 @@ import Foundation
 /// 定跡ブック。「局面(SFEN) → 次の一手(USI)」テーブルを戦型ごとの手順から自動構築する。
 /// 手順に非合法手が含まれていても構築時に自動打ち切りされるので安全。
 enum OpeningBook {
-    static func move(for sfen: String) -> String? { table[sfen] }
+    static func move(for sfen: String) -> String? { table[normalize(sfen)] }
+
+    /// 手数フィールドを除いた盤・手番・持ち駒だけでキー化する（手順前後でもヒットさせる）。
+    private static func normalize(_ sfen: String) -> String {
+        sfen.split(separator: " ").prefix(3).joined(separator: " ")
+    }
 
     private static let lines: [[String]] = [
+
+        // MARK: - 2六歩スタート（人間の最多出だし。先に登録して優先させる）
+
+        // 角換わり基本形: 角道を受け合い、銀金を整備する堅実な立ち上がり
+        ["2g2f", "8c8d", "2f2e", "8d8e",
+         "7g7f", "3c3d", "8h7g", "2b3c",
+         "7i8h", "3a2b", "6i7h", "4a3b",
+         "3i4h", "7a6b", "5i6i", "5a4b"],
+
+        // 対四間飛車: 舟囲いで受ける（後手が4四歩+4二飛のとき）
+        ["2g2f", "3c3d", "7g7f", "4c4d",
+         "3i4h", "8b4b", "5i6h", "7a7b",
+         "6h7h", "5a6b", "4i5h", "6b7a",
+         "9g9f", "7a8b"],
+
+        // 相掛かり引き飛車: 飛車先交換後は深く引いて陣形を整える
+        ["2g2f", "8c8d", "2f2e", "8d8e",
+         "7g7f", "3c3d", "6i7h", "4a3b",
+         "2e2d", "2c2d", "2h2d", "P*2c",
+         "2d2h", "7a6b", "3i3h", "5a4b"],
 
         // MARK: - 居飛車系（先手番）
 
@@ -99,7 +124,7 @@ enum OpeningBook {
             for usi in line {
                 guard let move = Move.fromUSI(usi),
                       pos.legalMoves().contains(move) else { break }
-                let key = pos.toSFEN()
+                let key = normalize(pos.toSFEN())
                 if dict[key] == nil { dict[key] = usi }
                 pos.make(move)
             }
