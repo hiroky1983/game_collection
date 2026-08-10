@@ -9,6 +9,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
     # パブリックリポジトリのため GitHub ホステッド macOS ランナーは無料
@@ -16,6 +19,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: GameKit 全テスト
         run: swift test --package-path Packages/GameKit
