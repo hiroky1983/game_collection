@@ -1,0 +1,42 @@
+# あそびば リリースパイプライン
+# 前提となる環境変数（~/.zshrc やランナーの環境に設定。リポジトリにはコミットしない）:
+#   ASC_KEY_ID     : App Store Connect API キーの Key ID
+#   ASC_ISSUER_ID  : 同 Issuer ID
+#   ASC_KEY_PATH   : ダウンロードした .p8 ファイルの絶対パス
+# 作成手順は docs/ai-devops.md の「セットアップ」参照。
+
+default_platform(:ios)
+
+platform :ios do
+  desc "GameKit の全テストを実行"
+  lane :test do
+    sh("swift", "test", "--package-path", "../Packages/GameKit")
+  end
+
+  desc "TestFlight へアップロード（ビルド番号は日時から自動採番）"
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: ENV.fetch("ASC_KEY_PATH"),
+    )
+
+    sh("xcodegen", "generate", "--project", "..")
+
+    build_number = Time.now.strftime("%Y%m%d%H%M")
+    build_app(
+      project: "GameCollection.xcodeproj",
+      scheme: "GameCollection",
+      export_method: "app-store",
+      xcargs: "-allowProvisioningUpdates CURRENT_PROJECT_VERSION=#{build_number}",
+      # 初回のみ Xcode で自動署名を一度通しておくと確実
+      # (Signing & Capabilities で Team を選択した状態で Archive できることを確認)
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      changelog: ENV["TESTFLIGHT_CHANGELOG"],
+    )
+  end
+end

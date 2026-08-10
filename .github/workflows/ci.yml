@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'release-*']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # パブリックリポジトリのため GitHub ホステッド macOS ランナーは無料
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: GameKit 全テスト
+        run: swift test --package-path Packages/GameKit
+
+      - name: アプリ本体のビルド検証（署名なし）
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -project GameCollection.xcodeproj \
+            -scheme GameCollection \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
