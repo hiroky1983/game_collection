@@ -1,6 +1,6 @@
 #!/bin/bash
 # 実装当番のローカル発火チェック。launchd から1時間おきに呼ばれる。
-# 仕事（承認済み Issue / 未解決 CodeRabbit スレッド）がある時だけ claude を起動する。
+# 仕事（承認済み Issue / 未解決 CodeRabbit スレッド / レビュー未着の PR）がある時だけ claude を起動する。
 # 作業は専用クローン（~/.asobiba-duty/）で行い、人間の作業ツリーとは衝突しない。
 # セットアップ手順は docs/ai-devops.md の「実装ループ」参照。
 set -uo pipefail
@@ -58,8 +58,51 @@ query {
   | (.comments.nodes[0].author.login // "") as $l
   | select($l == "coderabbitai" or $l == "coderabbitai[bot]")] | length' 2>/dev/null || echo 0)
 
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ]; then
-  log "仕事なし (approved=0, cr_threads=0)"
+# 仕事3: CodeRabbit のレビューが HEAD に対して未着のオープン PR（Issue #41）
+# 「未解決スレッド数」だけを見ていると、レビュー自体が走らなかった PR（レート制限・
+# デフォルト以外の base への PR で auto review がスキップされる等）を誰も拾えない。
+#
+# レビュー済みの判定: HEAD コミット以降に coderabbitai の review が付いている、または
+# coderabbitai のコメントのうち skip / rate limited のマーカーを含まないものがある。
+#   - スキップ:     <!-- This is an auto-generated comment: skip review by coderabbit.ai -->
+#   - レート制限:   <!-- This is an auto-generated comment: rate limited by coderabbit.ai -->
+#   （指摘ゼロで終わったレビューは review が付かずサマリコメントだけなので、両方を見る）
+# 自己発火ループ防止: 同じ HEAD に対する人手／当番の `@coderabbitai review` 催促が
+# 3回に達したら対象から外す（規程どおり「到着した指摘のみ消化」に倒す）。
+# 直後の発火を避けるため、HEAD が 30 分以上前のものだけを対象にする。
+PENDING_REVIEW=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    pullRequests(states: OPEN, first: 50) {
+      nodes {
+        isDraft
+        commits(last: 1) { nodes { commit { committedDate } } }
+        reviews(last: 20) { nodes { author { login } submittedAt } }
+        comments(last: 30) { nodes { author { login } updatedAt body } }
+      }
+    }
+  }
+}' --jq '[.data.repository.pullRequests.nodes[]
+  | select(.isDraft == false)
+  | (.commits.nodes[0].commit.committedDate | fromdateiso8601) as $head
+  | select(now - $head > 1800)
+  | ([.reviews.nodes[]
+      | select((.author.login // "") | . == "coderabbitai" or . == "coderabbitai[bot]")
+      | select((.submittedAt | fromdateiso8601) >= $head)] | length) as $cr_reviews
+  | ([.comments.nodes[]
+      | select((.author.login // "") | . == "coderabbitai" or . == "coderabbitai[bot]")
+      | select((.updatedAt | fromdateiso8601) >= $head)
+      | select(((.body // "") | contains("skip review by coderabbit.ai")) | not)
+      | select(((.body // "") | contains("rate limited by coderabbit.ai")) | not)] | length) as $cr_comments
+  | select($cr_reviews + $cr_comments == 0)
+  | ([.comments.nodes[]
+      | select((.author.login // "") | . != "coderabbitai" and . != "coderabbitai[bot]")
+      | select((.updatedAt | fromdateiso8601) >= $head)
+      | select((.body // "") | contains("@coderabbitai review"))] | length) as $nudges
+  | select($nudges < 3)] | length' 2>/dev/null || echo 0)
+
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ]; then
+  log "仕事なし (approved=0, cr_threads=0, cr_pending=0)"
   exit 0
 fi
 
@@ -84,7 +127,7 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
-log "当番起動 (approved=$APPROVED, cr_threads=$THREADS, workdir=$RUN_DIR)"
+log "当番起動 (approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, workdir=$RUN_DIR)"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
