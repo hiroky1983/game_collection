@@ -8,7 +8,7 @@ struct HubView: View {
     let services: GameServices
     let settings: GameSettings
     @State private var path: [String]
-    @State private var showSettings = false
+    @State private var showSettings: Bool
 
     init(
         registry: GameRegistry,
