@@ -9,6 +9,12 @@ struct HubView: View {
     let settings: GameSettings
     @State private var path: [String]
     @State private var showSettings: Bool
+    @State private var showTrackingConsent = false
+    @State private var pendingTrackingRequest = false
+    @State private var gameEnteredAt: Date?
+
+    /// 「遊んだ」とみなす最短の滞在時間。開いてすぐ戻っただけのときに ATT の事前説明を出さないための下限。
+    private static let minimumPlaySeconds: TimeInterval = 30
 
     init(
         registry: GameRegistry,
@@ -59,11 +65,56 @@ struct HubView: View {
                     module.makeView(services: services)
                 }
             }
+            // ゲームを一定時間遊んでからハブに戻ってきたタイミングで、ATT の事前説明を1回だけ出す。
+            // 設定シートと同じビューに .sheet を2つ重ねないよう、こちらは NavigationStack の中身に付ける。
+            .onChange(of: path) { oldPath, newPath in
+                if oldPath.isEmpty, !newPath.isEmpty {
+                    gameEnteredAt = Date()
+                    return
+                }
+                guard !oldPath.isEmpty, newPath.isEmpty else { return }
+                let played = gameEnteredAt.map { Date().timeIntervalSince($0) >= Self.minimumPlaySeconds } ?? false
+                gameEnteredAt = nil
+                // 開いてすぐ戻った（＝遊んでいない）場合は出さない。次に遊び終えたときに回る。
+                if played { didFinishGameSession() }
+            }
+            // システムの ATT ダイアログは説明シートが**閉じ切ってから**出す。
+            // 前面にシートが残っている間に要求すると、表示されずに終わることがあるため。
+            .sheet(isPresented: $showTrackingConsent, onDismiss: {
+                guard pendingTrackingRequest else { return }
+                pendingTrackingRequest = false
+                Task { await requestTrackingAuthorization() }
+            }) {
+                TrackingConsentPrompt {
+                    TrackingConsentGate.markPrompted()
+                    pendingTrackingRequest = true
+                    showTrackingConsent = false
+                }
+                .interactiveDismissDisabled()
+            }
+            .task {
+                #if DEBUG
+                // 撮影・動作確認用（DEBUG 限定）。ハブへ戻ってきたのと同じ経路を叩く。
+                if ProcessInfo.processInfo.arguments.contains("-simulateReturnToHub") {
+                    didFinishGameSession()
+                }
+                #endif
+            }
         }
         .tint(Theme.coral)
         .sheet(isPresented: $showSettings) {
             SettingsView(registry: registry, settings: settings)
                 .presentationDetents([.large])
+        }
+    }
+
+    /// ゲームを1つ遊び終えてハブに戻ったときの処理。
+    @MainActor
+    private func didFinishGameSession() {
+        // 撮影モードでは説明シートも ATT もスクショに被るため出さない（DEBUG のみ有効）。
+        guard !AppEnvironment.isScreenshotMode else { return }
+        if TrackingConsentGate.shouldPrompt(isUndetermined: isTrackingAuthorizationUndetermined) {
+            showTrackingConsent = true
         }
     }
 }

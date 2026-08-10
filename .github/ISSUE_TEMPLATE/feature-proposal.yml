@@ -34,6 +34,13 @@ body:
         - "risk:sensitive（広告/課金/プライバシー・必ず人間承認）"
     validations:
       required: true
+  - type: input
+    id: target-version
+    attributes:
+      label: 対象バージョン
+      description: この機能を含めるリリースバージョン（例 v1.1.0）。マイルストーンにも同じ値を設定する
+    validations:
+      required: true
   - type: textarea
     id: plan
     attributes:

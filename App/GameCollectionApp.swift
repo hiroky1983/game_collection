@@ -5,7 +5,7 @@ import FirebaseCore
 @main
 struct GameCollectionApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var attRequested = false
+    @State private var adsInitialized = false
 
     init() {
         // Firebase Analytics / Crashlytics の初期化（デフォルトの自動収集イベントのみ）
@@ -23,11 +23,13 @@ struct GameCollectionApp: App {
             )
         }
         .onChange(of: scenePhase) { _, newPhase in
-            // 撮影モードでは ATT ダイアログがスクショに被るため聞かない（DEBUG のみ有効）
-            if newPhase == .active && !attRequested && !AppEnvironment.isScreenshotMode {
-                attRequested = true
+            // 起動時は広告の初期化だけ行い、ATT 許可は聞かない（初回起動の1枚目がシステムダイアログに
+            // なるのを避ける。実際に聞くのは最初のゲームを遊び終えてハブに戻った時点＝HubView）。
+            // 撮影モードは広告そのものを出さない（NoopAdService）ので SDK の初期化も走らせない。
+            if newPhase == .active && !adsInitialized && !AppEnvironment.isScreenshotMode {
+                adsInitialized = true
                 Task {
-                    await requestATTAndInitializeAds()
+                    await initializeAds()
                 }
             }
         }
