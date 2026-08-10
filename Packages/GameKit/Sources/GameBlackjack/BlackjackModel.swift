@@ -227,17 +227,19 @@ public final class BlackjackModel {
 
     // MARK: - Reward Ad Recovery
 
-    public func recoverChipsAfterAd() {
-        Task {
-            await services?.ads.showInterstitial()
-            chips = 500
-            sessionOver = false
-            outcome = nil
-            playerHand = []
-            dealerHand = []
-            bet = 0
-            phase = .betting
-        }
+    /// リワード広告を表示し、**視聴完了したときだけ**チップを回復する。
+    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    @discardableResult
+    public func recoverChipsAfterAd() async -> Bool {
+        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        chips = 500
+        sessionOver = false
+        outcome = nil
+        playerHand = []
+        dealerHand = []
+        bet = 0
+        phase = .betting
+        return true
     }
 
     // MARK: - Restart

@@ -5,6 +5,7 @@ public struct BlackjackView: View {
     @State private var model: BlackjackModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
+    @State private var showRewardNotEarned = false
 
     // ベット選択肢
     private let betOptions = [50, 100, 200, 500]
@@ -42,6 +43,11 @@ public struct BlackjackView: View {
                 Text("ブラックジャック")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+        }
+        .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
     }
 
@@ -238,7 +244,11 @@ public struct BlackjackView: View {
                 Spacer()
             }
 
-            Button { model.recoverChipsAfterAd() } label: {
+            Button {
+                Task {
+                    if await model.recoverChipsAfterAd() == false { showRewardNotEarned = true }
+                }
+            } label: {
                 Label("広告を見てチップ回復 (+500枚)", systemImage: "play.rectangle.fill")
                     .font(Theme.body(16)).frame(maxWidth: .infinity)
             }
