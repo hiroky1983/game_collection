@@ -60,13 +60,32 @@ def snapshot_shogi():
 
 
 def snapshot_gomoku():
-    """中央付近で競り合っている中盤。黒（人間）の手番で止める。"""
+    """中央付近で競り合っている中盤（16手）。黒（人間）の手番で止める。"""
     history = [
         (7, 7, 0), (7, 8, 1),
         (8, 8, 0), (6, 8, 1),
         (8, 6, 0), (9, 9, 1),
         (6, 6, 0), (5, 7, 1),
+        (9, 5, 0), (6, 5, 1),
+        (7, 5, 0), (8, 5, 1),
+        (5, 9, 0), (6, 7, 1),
+        (9, 7, 0), (10, 4, 1),
     ]
+
+    # 実プレイで到達しうる棋譜であることの検査
+    assert len({(r, c) for r, c, _ in history}) == len(history), "同じ交点に2回打っている"
+    assert [s for _, _, s in history] == [i % 2 for i in range(len(history))], "手番が交互でない"
+    board = {(r, c): s for r, c, s in history}
+    for (r, c), stone in board.items():
+        for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1)):
+            run = 1
+            for sign in (1, -1):
+                nr, nc = r + dr * sign, c + dc * sign
+                while board.get((nr, nc)) == stone:
+                    run += 1
+                    nr, nc = nr + dr * sign, nc + dc * sign
+            assert run < 5, f"すでに5連ができている（{stone} at {r},{c}）= 終局後の盤面"
+
     return {
         "cells": [None] * (15 * 15),  # moveHistory から再構築されるため未使用
         "currentStone": 0,
@@ -137,7 +156,7 @@ def snapshot_othello():
         "winner": None,
         "isDraw": False,
         "mustPass": False,
-        "turnID": 0,
+        "turnID": 20,  # 20手進めた局面なので実機と同じ値にする
         "undoUsed": False,
     }
 
@@ -174,21 +193,46 @@ def snapshot_minesweeper():
                         if dr or dc:
                             stack.append((cr + dr, cc + dc))
 
-    flood(0, 0)
-    flood(6, 1)
-    flood(2, 4)
+    def click(r, c):
+        """プレイヤーが1マス開ける操作。0 のマスなら連鎖、数字マスなら1マスだけ開く。
 
-    # 開いた領域の周りを2巡だけ広げて「中盤らしい開き具合」にする（勝利状態にはしない）
-    for _ in range(2):
-        frontier = {
+        「開いたマスを直接集合に足す」やり方だと *0 のマスの隣が閉じたまま* という
+        実プレイでは起こり得ない盤面ができてしまう（アプリの `floodReveal` は 0 を開けたら
+        必ず全隣接マスを開ける）。必ずこの関数経由で開けること。
+        """
+        if not (0 <= r < rows and 0 <= c < cols) or (r, c) in mine_set:
+            return
+        if adjacent(r, c) == 0:
+            flood(r, c)
+        else:
+            revealed.add((r, c))
+
+    click(0, 0)
+    click(6, 1)
+    click(2, 4)
+
+    # 開いた領域のまわりを1巡ぶんクリックして「中盤らしい開き具合」にする
+    # （2巡やるとほぼ解き終わった盤面になり、途中でやめた画に見えなくなる）
+    frontier = sorted(
+        {
             (r + dr, c + dc)
             for r, c in revealed
             for dr in (-1, 0, 1)
             for dc in (-1, 0, 1)
         }
-        for r, c in sorted(frontier):
-            if 0 <= r < rows and 0 <= c < cols and (r, c) not in mine_set:
-                revealed.add((r, c))
+        - revealed
+    )
+    for r, c in frontier:
+        click(r, c)
+
+    # 実プレイで到達しうる盤面であることの検査（0 のマスの隣は必ず開いている）
+    for r, c in revealed:
+        if adjacent(r, c) == 0:
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < rows and 0 <= nc < cols and (nr, nc) not in mine_set:
+                        assert (nr, nc) in revealed, f"0のマス({r},{c})の隣({nr},{nc})が閉じている"
     assert len(revealed) < rows * cols - len(mine_set), "全マス開放（勝利）状態になっている"
 
     flags = [(1, 2), (3, 3)]  # 見抜いた地雷に旗を立てた状態
@@ -249,21 +293,27 @@ def snapshot_poker():
         "playerBetInRound": 0,
         "cpuBetInRound": 0,
         "cpuFolded": False,
-        "cpuAction": "",
+        "cpuAction": "チェック",  # .exchange へは cpuBet1Response 経由でしか入らず、必ず表示が付く
     }
 
 
 def snapshot_blackjack():
     """プレイヤーの手番（ディーラーの2枚目は伏せられた状態）。"""
-    player = [{"id": 9, "suit": 0, "rank": 10}, {"id": 19, "suit": 1, "rank": 7}]
-    dealer = [{"id": 38, "suit": 2, "rank": 13}, {"id": 4, "suit": 3, "rank": 5}]
+    def bj_card(suit, rank):
+        """id は BlackjackModel.makeDeck と同じ採番（suit*13 + rank - 1）にする。"""
+        return {"id": suit * 13 + rank - 1, "suit": suit, "rank": rank}
+
+    player = [bj_card(0, 10), bj_card(1, 7)]
+    dealer = [bj_card(2, 13), bj_card(3, 5)]
     used = {(c["suit"], c["rank"]) for c in player + dealer}
     deck = [
-        {"id": s * 13 + r - 1, "suit": s, "rank": r}
+        bj_card(s, r)
         for s in range(4)
         for r in range(1, 14)
         if (s, r) not in used
     ]
+    ids = [c["id"] for c in player + dealer + deck]
+    assert len(ids) == len(set(ids)) == 52, "カード id が重複または不足している"
     return {
         "playerHand": player,
         "dealerHand": dealer,
@@ -280,8 +330,8 @@ def snapshot_concentration():
     ミスマッチで開いたままの2枚はロード時に裏返される仕様なので再現しない。
     """
     pairs = ["🍎", "🍊", "🍋", "🍇", "🍓", "🍒", "🍑", "🥝", "🌸", "🌻", "🌈", "⭐"]
-    # 同じ絵柄が隣り合わないよう、固定シードでシャッフルした配置にする
-    # （ペアが並んでいると実際の対局ではありえない絵になる）
+    # 固定シードでシャッフルした配置にする（ペアが並んだ配置だと「取れたペアが
+    # 隣同士に並ぶ」不自然な絵になるため。裏向きのカードの並びは絵に出ない）
     positions = list(range(24))
     random.Random(7).shuffle(positions)
     symbols = [""] * 24
