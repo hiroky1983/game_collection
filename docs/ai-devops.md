@@ -4,7 +4,7 @@
 
 2026-08-10 の壁打ちでの決定事項:
 
-- **実行基盤**: 実装はこの Mac のローカル Claude Code 中心、CI は GitHub ホステッドランナー（パブリックリポジトリのため無料）。必要に応じてクラウドのスケジュール実行（ルーティン）を併用。
+- **実行基盤**: 実装はこの Mac のローカル Claude Code 中心、CI は GitHub ホステッドランナー（パブリックリポジトリのため無料）。クラウドのスケジュール実行は週次経営会議のみ（2026-08-10 稟議#5: 当番のクラウド常駐は廃止しローカル化）。
 - **マージ権限**: リスク階層化（下記）。
 - **着手順**: Phase 1（リリース基盤）と Phase 2（実装ループ）を同時に構築。
 
@@ -43,14 +43,14 @@ PR には必ずいずれかの `risk:*` ラベルを付ける（実装 AI が自
 
 PR に付いた CodeRabbit の指摘は、**全スレッドを消化してからマージする**（`risk:logic` の自動マージでも同様）。
 
-**CodeRabbit のレビューは CI と無関係に数分遅れて付く**（非同期）。すり抜けを防ぐ三重の仕組み（2026-08-10 稼働）:
+**CodeRabbit のレビューは CI と無関係に数分遅れて付く**（非同期）。すり抜けを防ぐ二重の仕組み（2026-08-10 改定）:
 
 1. **機械的ゲート**: main のブランチ保護で「CI の test 必須」+「未解決スレッドがあるとマージ不可
    (required_conversation_resolution)」を有効化済み。遅れて付いた指摘も未解決のままではマージできない。
    緊急時は会長（admin）のみバイパス可。
-2. **webhook 自動対応**: PR にレビューが投稿されると（pull_request_review イベント）、クラウドの
-   「CodeRabbit指摘対応係」ルーティンが自動起動し、下記トリアージを実行する。ポーリング不要。
-3. **フォールバック掃き**: 同ルーティンが毎朝 7:00 JST にも起動し、取りこぼした未解決スレッドを掃く。
+2. **ローカル当番の毎時巡回**: `Scripts/ai-duty.sh`（launchd・毎時）が未解決の CodeRabbit スレッドを
+   検知すると当番エージェントを起動し、下記トリアージを実行する。
+   ※当初はクラウド webhook 方式だったが、イベント配信が確認できなかったため廃止（2026-08-10）。
 
 対応係（または PR 作成エージェント）のトリアージ3分類:
 
@@ -74,14 +74,21 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 - GameKit は macOS プラットフォームを含むため、シミュレータ不要で高速にテストできる。
 - 実行環境は **GitHub ホステッド macOS ランナー**（パブリックリポジトリのため無料。2026-08-10 に self-hosted から変更）。
 
-### 実装ループ（Phase 2）
+### 実装ループ（Phase 2・ローカル当番方式）
 
-ローカルの Claude Code を起点にする。基本の運用:
+起点は **launchd による毎時チェック**（`Scripts/ai-duty.sh`）。Mac がスリープ中は動かない（許容済み・稟議#5）。
 
-1. 人間が Issue に `ai:approved` を付ける。
-2. Claude Code に「承認済み Issue を実装して」と依頼（または ralph-loop / スケジュール実行で定期起動）。
-3. エージェントの手順: `gh issue list --label ai:approved` → 最も優先度の高い 1 件に `ai:in-progress` を付与 → feature ブランチ作成 → 受け入れ条件を満たす実装 + テスト → verifier で敵対的検証 → PR 作成（base は現行のリリースブランチ、`risk:*` ラベル付与、受け入れ条件との対応と検証結果を本文に記載。UI 変更ならスクリーンショット添付）。
-4. 並列実装させる場合は worktree 分離必須（同一ワークツリーでの並列編集は禁止）。
+1. 人間が Issue に `ai:approved` を付ける（= ハンコ。これだけでよい）。
+2. launchd が毎時 `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue か未解決 CodeRabbit スレッドが
+   あるときだけ `claude -p`（Opus・人事規程の開発部リード）を起動する。仕事が無ければ Claude は起動しない。
+3. 当番の手順は `Scripts/ai-duty-prompt.md` に定義: 1回1件、`ai:in-progress` 付与 → 着手宣言 →
+   実装 + ローカルテスト → PR 作成（base: main、`risk:*` ラベル、受け入れ条件との対応表、UI 変更はスクショ添付）。
+4. セッション中の Claude に「承認済み Issue を実装して」と直接頼んでもよい（当番と同じ規程で動く）。
+5. 並列実装させる場合は worktree 分離必須（同一ワークツリーでの並列編集は禁止）。
+
+セットアップ（済・再現手順）: `~/Library/LaunchAgents/com.asobiba.ai-duty.plist` が
+`Scripts/ai-duty.sh` を毎時実行。ログは `~/Library/Logs/asobiba-ai-duty.log`。
+読み込みは `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.ai-duty.plist`。
 
 ### 配信（Phase 1）
 
