@@ -3,7 +3,7 @@ name: Close linked issues on merge
 on:
   pull_request:
     types: [closed]
-    branches: ['main']
+    branches: ['main', 'release/**']
 
 jobs:
   close-issues:
