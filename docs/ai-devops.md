@@ -1,0 +1,110 @@
+# AI 主導開発パイプライン（ai-devops）
+
+企画 → 実装 → テスト → リリースを AI が一貫して回し、人間は**意思決定**と**ごく一部の操作**に集中するための設計と運用手順。
+
+2026-08-10 の壁打ちでの決定事項:
+
+- **実行基盤**: この Mac 中心（self-hosted runner + ローカル Claude Code）。必要に応じてクラウドのスケジュール実行（ルーティン）を併用。
+- **マージ権限**: リスク階層化（下記）。
+- **着手順**: Phase 1（リリース基盤）と Phase 2（実装ループ）を同時に構築。
+
+---
+
+## 全体ループ
+
+```
+┌─ 企画 ── AI: ロードマップ / App Store レビューから機能案を Issue 化（ai:proposed）
+│            人間: ★ Issue を読んで ai:approved ラベルを付与（却下なら close）
+├─ 実装 ── AI: ai:approved の Issue を拾い branch → 実装 → テスト → PR
+│            AI: verifier / code-review による敵対的レビュー
+│            人間: ★ risk:ui / risk:sensitive の PR のみマージ判断
+├─ テスト ─ CI: swift test + アプリビルド検証（.github/workflows/ci.yml、全自動）
+├─ 配信 ── fastlane beta: 署名 → TestFlight 自動アップロード
+│            人間: ★ 実機で数分さわって体感確認（唯一の「操作」）
+└─ 提出 ── AI: リリースノート生成 → App Store Connect API で審査提出
+             人間: ★ 提出の最終承認 / リジェクト時の対応方針決定
+```
+
+人間の関所は 4 つ（★）。すべて「判断」であり、作業は TestFlight での実機確認のみ。
+
+## リスク階層とマージ規則
+
+PR には必ずいずれかの `risk:*` ラベルを付ける（実装 AI が自己申告し、レビュー AI が検証する）。
+
+| ラベル | 対象 | マージ条件 |
+|---|---|---|
+| `risk:logic` | ゲームロジック・AI 強化・バグ修正など UI/収益に触れない変更 | CI グリーン + AI レビュー通過で**自動マージ可** |
+| `risk:ui` | 画面・操作感に影響する変更 | スクリーンショット添付 + **人間がマージ** |
+| `risk:sensitive` | 広告・課金・ATT/プライバシー・審査事項に関わる変更 | **必ず人間がマージ**。自動化しない |
+
+判断に迷う場合は上位（より人間寄り）の階層に倒す。
+
+## Issue ラベル（パイプライン状態）
+
+- `ai:proposed` — AI が起案、人間の承認待ち（Issue テンプレート: 機能提案）
+- `ai:approved` — 人間承認済み。実装エージェントの着手対象
+- `ai:in-progress` — 実装中（二重着手防止のため着手時に AI が付ける）
+
+## 各フェーズの実装
+
+### テスト（稼働中）
+
+- `.github/workflows/ci.yml` が push / PR で `swift test --package-path Packages/GameKit` とアプリの署名なしビルドを実行。
+- GameKit は macOS プラットフォームを含むため、シミュレータ不要で Mac 上で高速にテストできる。
+- **フォークからの PR では CI を実行しない**（後述のセキュリティ対策）。
+
+### 実装ループ（Phase 2）
+
+ローカルの Claude Code を起点にする。基本の運用:
+
+1. 人間が Issue に `ai:approved` を付ける。
+2. Claude Code に「承認済み Issue を実装して」と依頼（または ralph-loop / スケジュール実行で定期起動）。
+3. エージェントの手順: `gh issue list --label ai:approved` → 最も優先度の高い 1 件に `ai:in-progress` を付与 → feature ブランチ作成 → 受け入れ条件を満たす実装 + テスト → verifier で敵対的検証 → PR 作成（base は現行のリリースブランチ、`risk:*` ラベル付与、受け入れ条件との対応と検証結果を本文に記載。UI 変更ならスクリーンショット添付）。
+4. 並列実装させる場合は worktree 分離必須（同一ワークツリーでの並列編集は禁止）。
+
+### 配信（Phase 1）
+
+- `bundle exec fastlane beta` で TestFlight に自動アップロード（`fastlane/Fastfile`）。
+- ビルド番号は日時 (`YYYYMMDDHHmm`) で自動採番。`MARKETING_VERSION` は `project.yml` で管理。
+- リリースノートは環境変数 `TESTFLIGHT_CHANGELOG` で渡す（AI がマージ済み PR から生成する）。
+
+### 審査提出（Phase 1.5、TestFlight 運用が安定してから）
+
+- fastlane `deliver` でメタデータ・スクリーンショット込みの提出も自動化できる。
+- 提出前に必ず人間の承認を取る。リジェクト時は AI が Resolution Center の内容を要約し、対応方針は人間が決める。
+
+### 企画（Phase 3、最後に構築）
+
+- スケジュール実行（クラウドルーティンまたはローカル cron）で定期的に起動し、
+  `docs/` の仕様・ロードマップメモリ・App Store レビューを読んで機能案を
+  「機能提案」Issue テンプレートの形式で起案（`ai:proposed`）。
+- 実行系（Phase 1/2）の信頼性が上がるまでは着手しない。ネタ出しより実行の確実性が先。
+
+---
+
+## セットアップ（残りは人間にしかできない作業）
+
+- [ ] **App Store Connect API キーの作成**（人間のみ・5分）
+  - App Store Connect > ユーザとアクセス > 統合 > App Store Connect API でキー作成（ロール: App Manager）
+  - `.p8` をダウンロードし、Mac 上の安全な場所（例: `~/.appstoreconnect/`）に保存
+  - `~/.zshrc` に `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_PATH` を設定
+- [ ] **fastlane のインストール**: `brew install fastlane` または `bundle install`
+- [ ] **初回署名の確認**: Xcode で Team を選択し一度 Archive が通ることを確認（以後は自動）
+- [ ] **self-hosted runner の起動**: `bash Scripts/setup-runner.sh`（下のセキュリティ注意を読んでから）
+- [ ] **GitHub Actions 設定**: リポジトリ Settings > Actions > General で
+      「Require approval for all outside collaborators」を有効化
+- [ ] `docs/release-checklist.md` の残項目（アプリアイコン等）の解消
+
+## セキュリティ上の注意（重要）
+
+このリポジトリは **PUBLIC**。self-hosted runner は登録した Mac 上で CI のコードを実行するため、
+第三者のフォーク PR で任意コードが動くと危険。対策として:
+
+1. `ci.yml` はフォーク PR でジョブを実行しない条件を入れてある（削らないこと）。
+2. Actions 設定で外部コラボレーターの実行に承認を必須にする（上記チェックリスト）。
+3. `.p8` キーや証明書は絶対にリポジトリにコミットしない（環境変数 + ローカルファイルのみ）。
+
+## 既存の運用ルール（変更なし）
+
+- PR のベースブランチは現行リリースブランチ（現在は `1.0.1`）。
+- コミット・プッシュ・マージの最終責任は従来どおり本人（自動マージは `risk:logic` のみ、導入時期も人間が決める）。

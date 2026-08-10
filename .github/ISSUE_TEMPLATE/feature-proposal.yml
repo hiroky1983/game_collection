@@ -1,0 +1,41 @@
+name: 機能提案（AI 起案）
+description: AI が起案する機能・改善の提案。人間が承認したら ai:approved ラベルを付ける。
+labels: ["ai:proposed"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 1〜3文で何を作るか
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: 背景・根拠
+      description: なぜ今これか（ロードマップ・レビュー・分析データなどの出典を明記）
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      description: テスト可能な形の箇条書き。実装 PR はこの条件を満たすことを検証して示す。
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: リスク階層
+      description: docs/ai-devops.md のマージ規則が適用される
+      options:
+        - "risk:logic（ロジックのみ・自動マージ可）"
+        - "risk:ui（UI 変更・スクショ付き人間承認）"
+        - "risk:sensitive（広告/課金/プライバシー・必ず人間承認）"
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: 実装方針案
+      description: 触るモジュール・おおまかな手順・懸念点

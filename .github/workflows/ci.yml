@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main, '1.0.1', 'release-*']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # PUBLIC リポジトリ + self-hosted runner の対策:
+    # フォークからの PR ではジョブを実行しない（Mac 上での任意コード実行を防ぐ）。
+    # 併せてリポジトリ設定 Actions > General で
+    # "Require approval for all outside collaborators" を有効にすること。
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: GameKit 全テスト
+        run: swift test --package-path Packages/GameKit
+
+      - name: アプリ本体のビルド検証（署名なし）
+        run: |
+          xcodegen generate
+          xcodebuild -project GameCollection.xcodeproj \
+            -scheme GameCollection \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
