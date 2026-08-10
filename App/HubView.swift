@@ -9,6 +9,8 @@ struct HubView: View {
     let settings: GameSettings
     @State private var path: [String]
     @State private var showSettings = false
+    @State private var showTrackingConsent = false
+    @State private var pendingTrackingRequest = false
 
     init(registry: GameRegistry, services: GameServices, settings: GameSettings, initialGameID: String? = nil) {
         self.registry = registry
@@ -52,11 +54,47 @@ struct HubView: View {
                     module.makeView(services: services)
                 }
             }
+            // ゲームから戻ってきた（= 1つ遊び終えた）タイミングで ATT の事前説明を1回だけ出す。
+            // 設定シートと同じビューに .sheet を2つ重ねないよう、こちらは NavigationStack の中身に付ける。
+            .onChange(of: path) { oldPath, newPath in
+                guard !oldPath.isEmpty, newPath.isEmpty else { return }
+                didFinishGameSession()
+            }
+            // システムの ATT ダイアログは説明シートが**閉じ切ってから**出す。
+            // 前面にシートが残っている間に要求すると、表示されずに終わることがあるため。
+            .sheet(isPresented: $showTrackingConsent, onDismiss: {
+                guard pendingTrackingRequest else { return }
+                pendingTrackingRequest = false
+                Task { await requestTrackingAuthorization() }
+            }) {
+                TrackingConsentPrompt {
+                    TrackingConsentGate.markPrompted()
+                    pendingTrackingRequest = true
+                    showTrackingConsent = false
+                }
+                .interactiveDismissDisabled()
+            }
+            .task {
+                #if DEBUG
+                // 撮影・動作確認用（DEBUG 限定）。ハブへ戻ってきたのと同じ経路を叩く。
+                if ProcessInfo.processInfo.arguments.contains("-simulateReturnToHub") {
+                    didFinishGameSession()
+                }
+                #endif
+            }
         }
         .tint(Theme.coral)
         .sheet(isPresented: $showSettings) {
             SettingsView(registry: registry, settings: settings)
                 .presentationDetents([.large])
+        }
+    }
+
+    /// ゲームを1つ遊び終えてハブに戻ったときの処理。
+    @MainActor
+    private func didFinishGameSession() {
+        if TrackingConsentGate.shouldPrompt(isUndetermined: isTrackingAuthorizationUndetermined) {
+            showTrackingConsent = true
         }
     }
 }
