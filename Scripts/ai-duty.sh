@@ -63,17 +63,30 @@ if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ]; then
   exit 0
 fi
 
-# 専用クローンを用意して main に同期（人間の作業ツリーには触らない）
+# ベースクローンを用意（fetch 専用。ここでは一切作業しない）
 if [ ! -d "$DUTY_DIR/.git" ]; then
   mkdir -p "$(dirname "$DUTY_DIR")"
   gh repo clone hiroky1983/game_collection "$DUTY_DIR" >>"$LOG" 2>&1 || { log "clone 失敗"; exit 0; }
 fi
-git -C "$DUTY_DIR" checkout main >>"$LOG" 2>&1
-git -C "$DUTY_DIR" pull origin main >>"$LOG" 2>&1
+git -C "$DUTY_DIR" fetch origin --prune >>"$LOG" 2>&1
 
-log "当番起動 (approved=$APPROVED, cr_threads=$THREADS)"
-cd "$DUTY_DIR" || exit 0
+# 1実行 = 1使い捨て worktree。前回の残骸（異常終了時の未コミット変更等）と物理的に隔離する
+RUNS_DIR="$HOME/.asobiba-duty/runs"
+mkdir -p "$RUNS_DIR"
+# 3日より古い実行用 worktree を掃除
+find "$RUNS_DIR" -maxdepth 1 -type d -name 'run-*' -mtime +3 | while read -r d; do
+  case "$d" in
+    "$RUNS_DIR"/run-*) git -C "$DUTY_DIR" worktree remove --force "$d" >>"$LOG" 2>&1 || rm -rf "$d" ;;
+  esac
+done
+git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
+
+RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
+git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
+
+log "当番起動 (approved=$APPROVED, cr_threads=$THREADS, workdir=$RUN_DIR)"
+cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
-  -p "$(cat "$DUTY_DIR/Scripts/ai-duty-prompt.md")" >>"$LOG" 2>&1
+  -p "$(cat "$RUN_DIR/Scripts/ai-duty-prompt.md")" >>"$LOG" 2>&1
 log "当番終了 (exit=$?)"
