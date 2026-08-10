@@ -12,12 +12,20 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 
-# 多重起動防止（前回の当番がまだ働いていたらスキップ）
+# 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
+PID_FILE="$LOCK_DIR/pid"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  log "前回実行中のためスキップ"
-  exit 0
+  OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
+  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+    log "前回実行中 (pid=$OLD_PID) のためスキップ"
+    exit 0
+  fi
+  log "停止済みプロセスのロックを回収 (pid=${OLD_PID:-不明})"
+  rm -rf "$LOCK_DIR"
+  mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
-trap 'rmdir "$LOCK_DIR"' EXIT
+echo $$ >"$PID_FILE"
+trap 'rm -rf "$LOCK_DIR"' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
@@ -27,12 +35,13 @@ APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --s
   --jq '[.[] | select([.labels[].name] | index("ai:in-progress") | not)] | length' 2>/dev/null || echo 0)
 
 # 仕事2: オープン PR 上の未解決 CodeRabbit スレッド
+# 上限 50 PR × 100 スレッド（個人リポジトリの規模では実質全件。超えたら要ページング対応）
 THREADS=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
-    pullRequests(states: OPEN, first: 20) {
+    pullRequests(states: OPEN, first: 50) {
       nodes {
-        reviewThreads(first: 50) {
+        reviewThreads(first: 100) {
           nodes {
             isResolved
             comments(first: 1) { nodes { author { login } } }
@@ -43,7 +52,8 @@ query {
   }
 }' --jq '[.data.repository.pullRequests.nodes[].reviewThreads.nodes[]
   | select(.isResolved == false)
-  | select(.comments.nodes[0].author.login | test("coderabbitai"))] | length' 2>/dev/null || echo 0)
+  | (.comments.nodes[0].author.login // "") as $l
+  | select($l == "coderabbitai" or $l == "coderabbitai[bot]")] | length' 2>/dev/null || echo 0)
 
 if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ]; then
   log "仕事なし (approved=0, cr_threads=0)"

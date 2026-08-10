@@ -15,7 +15,7 @@
 `ai:approved` かつ `ai:in-progress` が付いていないオープン Issue から **1件だけ**選ぶ（90日計画との整合、迷えば番号が小さい方）。選んだら即座に `ai:in-progress` を付け、着手宣言を Issue にコメントする。
 
 - **調査・分析系**: WebSearch/WebFetch（iTunes Search API `https://itunes.apple.com/search?country=jp&entity=software&term=...` が有用）で調査し、受け入れ条件を満たす成果物を Issue にコメントで報告。会長の決裁が必要な提案は「【要決裁あり】」を明記。完了したら ai:in-progress を外す（close は受け入れ条件を全て満たした場合のみ）。
-- **コード実装系**: main から feature ブランチを切り、最小差分で実装。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（base: main、適切な risk:* ラベル、本文に受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
+- **コード実装系**: main から feature ブランチを切り、最小差分で実装。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（base: main、適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
 - 完了報告の前に検証を行うこと（テスト実行・ビルド確認。「たぶん動く」で報告しない）。
 
 ## 共通ルール
