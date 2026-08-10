@@ -506,6 +506,7 @@ public final class PokerModel {
 
     /// リワード広告を表示し、**視聴完了したときだけ**チップを回復する。
     /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
         guard await services?.ads.showRewardedAd() ?? true else { return false }
