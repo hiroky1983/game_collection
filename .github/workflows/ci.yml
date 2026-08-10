@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, '1.0.1', 'release-*']
+    branches: [main, 'release-*']
   pull_request:
 
 concurrency:
@@ -11,12 +11,8 @@ concurrency:
 
 jobs:
   test:
-    # PUBLIC リポジトリ + self-hosted runner の対策:
-    # フォークからの PR ではジョブを実行しない（Mac 上での任意コード実行を防ぐ）。
-    # 併せてリポジトリ設定 Actions > General で
-    # "Require approval for all outside collaborators" を有効にすること。
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, macOS]
+    # パブリックリポジトリのため GitHub ホステッド macOS ランナーは無料
+    runs-on: macos-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +22,7 @@ jobs:
 
       - name: アプリ本体のビルド検証（署名なし）
         run: |
+          brew install xcodegen
           xcodegen generate
           xcodebuild -project GameCollection.xcodeproj \
             -scheme GameCollection \

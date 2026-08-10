@@ -4,7 +4,7 @@
 
 2026-08-10 の壁打ちでの決定事項:
 
-- **実行基盤**: この Mac 中心（self-hosted runner + ローカル Claude Code）。必要に応じてクラウドのスケジュール実行（ルーティン）を併用。
+- **実行基盤**: 実装はこの Mac のローカル Claude Code 中心、CI は GitHub ホステッドランナー（パブリックリポジトリのため無料）。必要に応じてクラウドのスケジュール実行（ルーティン）を併用。
 - **マージ権限**: リスク階層化（下記）。
 - **着手順**: Phase 1（リリース基盤）と Phase 2（実装ループ）を同時に構築。
 
@@ -50,8 +50,8 @@ PR には必ずいずれかの `risk:*` ラベルを付ける（実装 AI が自
 ### テスト（稼働中）
 
 - `.github/workflows/ci.yml` が push / PR で `swift test --package-path Packages/GameKit` とアプリの署名なしビルドを実行。
-- GameKit は macOS プラットフォームを含むため、シミュレータ不要で Mac 上で高速にテストできる。
-- **フォークからの PR では CI を実行しない**（後述のセキュリティ対策）。
+- GameKit は macOS プラットフォームを含むため、シミュレータ不要で高速にテストできる。
+- 実行環境は **GitHub ホステッド macOS ランナー**（パブリックリポジトリのため無料。2026-08-10 に self-hosted から変更）。
 
 ### 実装ループ（Phase 2）
 
@@ -90,17 +90,16 @@ PR には必ずいずれかの `risk:*` ラベルを付ける（実装 AI が自
   - `~/.zshrc` に `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_PATH` を設定
 - [ ] **fastlane のインストール**: `brew install fastlane` または `bundle install`
 - [ ] **初回署名の確認**: Xcode で Team を選択し一度 Archive が通ることを確認（以後は自動）
-- [ ] **self-hosted runner の起動**: `bash Scripts/setup-runner.sh`（下のセキュリティ注意を読んでから）
 - [ ] **GitHub Actions 設定**: リポジトリ Settings > Actions > General で
-      「Require approval for all outside collaborators」を有効化
+      「Require approval for all outside collaborators」を有効化（フォーク PR の実行を承認制に）
 - [ ] `docs/release-checklist.md` の残項目（アプリアイコン等）の解消
 
 ## セキュリティ上の注意（重要）
 
-このリポジトリは **PUBLIC**。self-hosted runner は登録した Mac 上で CI のコードを実行するため、
-第三者のフォーク PR で任意コードが動くと危険。対策として:
+このリポジトリは **PUBLIC**。
 
-1. `ci.yml` はフォーク PR でジョブを実行しない条件を入れてある（削らないこと）。
+1. CI は GitHub ホステッドランナーで実行する（隔離された使い捨て VM。フォーク PR には
+   シークレットが渡らない）。self-hosted runner をこのリポジトリに登録しないこと。
 2. Actions 設定で外部コラボレーターの実行に承認を必須にする（上記チェックリスト）。
 3. `.p8` キーや証明書は絶対にリポジトリにコミットしない（環境変数 + ローカルファイルのみ）。
 
