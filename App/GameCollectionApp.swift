@@ -18,11 +18,13 @@ struct GameCollectionApp: App {
                 registry: AppEnvironment.registry,
                 services: AppEnvironment.services,
                 settings: AppEnvironment.settings,
-                initialGameID: startGameID
+                initialGameID: startGameID,
+                showsSettingsInitially: showSettingsOnLaunch
             )
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active && !attRequested {
+            // 撮影モードでは ATT ダイアログがスクショに被るため聞かない（DEBUG のみ有効）
+            if newPhase == .active && !attRequested && !AppEnvironment.isScreenshotMode {
                 attRequested = true
                 Task {
                     await requestATTAndInitializeAds()
@@ -35,5 +37,11 @@ struct GameCollectionApp: App {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-startGame"), i + 1 < args.count else { return nil }
         return args[i + 1]
+    }
+
+    /// 撮影モードで設定画面を撮るための起動引数（`-screenshotMode -showSettings`）。
+    private var showSettingsOnLaunch: Bool {
+        AppEnvironment.isScreenshotMode
+            && ProcessInfo.processInfo.arguments.contains("-showSettings")
     }
 }

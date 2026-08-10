@@ -10,11 +10,18 @@ struct HubView: View {
     @State private var path: [String]
     @State private var showSettings = false
 
-    init(registry: GameRegistry, services: GameServices, settings: GameSettings, initialGameID: String? = nil) {
+    init(
+        registry: GameRegistry,
+        services: GameServices,
+        settings: GameSettings,
+        initialGameID: String? = nil,
+        showsSettingsInitially: Bool = false
+    ) {
         self.registry = registry
         self.services = services
         self.settings = settings
         _path = State(initialValue: initialGameID.map { [$0] } ?? [])
+        _showSettings = State(initialValue: showsSettingsInitially)
     }
 
     var body: some View {
