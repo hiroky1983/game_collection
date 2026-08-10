@@ -22,6 +22,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: { canonical: url },
     openGraph: {
       type: "article",
+      siteName: SITE_NAME,
+      locale: "ja_JP",
       url,
       title: `${game.pageTitle} | ${SITE_NAME}`,
       description: game.description,
