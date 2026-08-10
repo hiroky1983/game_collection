@@ -59,7 +59,7 @@
 
 PR に付いた CodeRabbit の指摘は、**全スレッドを消化してからマージする**（`risk:logic` の自動マージでも同様）。
 
-**CodeRabbit のレビューは CI と無関係に数分遅れて付く**（非同期）。すり抜けを防ぐ二重の仕組み（2026-08-10 改定）:
+**CodeRabbit のレビューは CI と無関係に数分遅れて付く**（非同期）。すり抜けを防ぐ三重の仕組み（2026-08-11 改定）:
 
 1. **機械的ゲート**: main のブランチ保護で「CI の test 必須」+「未解決スレッドがあるとマージ不可
    (required_conversation_resolution)」を有効化済み。遅れて付いた指摘も未解決のままではマージできない。
@@ -67,6 +67,17 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 2. **ローカル当番の毎時巡回**: `Scripts/ai-duty.sh`（launchd・毎時）が未解決の CodeRabbit スレッドを
    検知すると当番エージェントを起動し、下記トリアージを実行する。
    ※当初はクラウド webhook 方式だったが、イベント配信が確認できなかったため廃止（2026-08-10）。
+3. **レビュー未着 PR の検知**（Issue #41・2026-08-11 追加）: 1. と 2. はどちらも「スレッドが存在すること」を
+   前提にしているため、**レビュー自体が走らなかった PR**（レート制限 / デフォルト以外の base で
+   auto review がスキップされる = release ブランチ向け PR が該当）はどちらの網にもかからない。
+   `ai-duty.sh` は **HEAD コミットの OID に対する** CodeRabbit の**レビュー**（review、または skip /
+   rate limited のマーカーを含まないサマリコメント）が付いていない open PR を検知して当番を起動する。
+   時刻ではなく OID で突き合わせるのは、GraphQL に「head ref の更新時刻」を取れるフィールドが無く、
+   commit の `committedDate` は push 時刻とずれうるため（旧 HEAD へのレビューを現 HEAD のものと
+   誤認して見逃す）。当番は `@coderabbitai review` で明示依頼する（手動コマンドは base が release
+   ブランチでも効く）。自己発火ループ防止として、同じ HEAD への**信頼済みアカウント**（既定は会長。
+   `DUTY_TRUSTED_ACTORS` で変更可）からの催促が3回に達した PR と、HEAD が30分以内の PR は対象外。
+   3回で来なければ規程どおり「到着した指摘のみ消化」に倒す（稟議#6）。
 
 対応係（または PR 作成エージェント）のトリアージ3分類:
 
@@ -97,8 +108,9 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 起点は **launchd による毎時チェック**（`Scripts/ai-duty.sh`）。Mac がスリープ中は動かない（許容済み・稟議#5）。
 
 1. 人間が Issue に `ai:approved` を付ける（= ハンコ。これだけでよい）。
-2. launchd が毎時 `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue か未解決 CodeRabbit スレッドが
-   あるときだけ `claude -p`（Opus・人事規程の開発部リード）を起動する。仕事が無ければ Claude は起動しない。
+2. launchd が毎時 `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue・未解決 CodeRabbit スレッド・
+   レビュー未着の PR のいずれかがあるときだけ `claude -p`（Opus・人事規程の開発部リード）を
+   起動する。仕事が無ければ Claude は起動しない。
 3. 当番の手順は `Scripts/ai-duty-prompt.md` に定義: 1回1件、`ai:in-progress` 付与 → 着手宣言 →
    実装 + ローカルテスト → PR 作成（base: 最新の release/vX.Y.Z、`risk:*` ラベル、受け入れ条件との対応表、
    UI 変更はスクショ添付。運用系のみの変更は main 直可）。
