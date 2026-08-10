@@ -65,8 +65,16 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     postBuildScripts:
       # Crashlytics のクラッシュを記号化するための dSYM アップロード（Firebase 公式手順）
+      # SPM のチェックアウト先を移動する（-clonedSourcePackagesDirPath 等）と
+      # run が見つからずビルドが落ちるため、存在確認してから実行する。
       - name: Firebase Crashlytics
-        script: '"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"'
+        script: |
+          RUN="${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"
+          if [ -x "$RUN" ]; then
+            "$RUN"
+          else
+            echo "warning: Crashlytics の run が見つからないため dSYM アップロードをスキップしました ($RUN)"
+          fi
         inputFiles:
           - ${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}
           - $(SRCROOT)/$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)
