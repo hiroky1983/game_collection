@@ -1,10 +1,16 @@
 import SwiftUI
 import Core
+import FirebaseCore
 
 @main
 struct GameCollectionApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var attRequested = false
+
+    init() {
+        // Firebase Analytics / Crashlytics の初期化（デフォルトの自動収集イベントのみ）
+        FirebaseApp.configure()
+    }
 
     var body: some Scene {
         WindowGroup {
