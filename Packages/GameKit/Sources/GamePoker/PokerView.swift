@@ -9,6 +9,8 @@ public struct PokerView: View {
     @State private var hasPlayedOnce = false
     @State private var revealCPU = false
     @State private var showHandGuide = false
+    @State private var showRewardNotEarned = false
+    @State private var isRecoveringChips = false
 
     public init(services: GameServices) {
         self.services = services
@@ -69,6 +71,11 @@ public struct PokerView: View {
         }
         .onChange(of: model.phase) { _, phase in
             if phase == .result { revealCPU = true }
+        }
+        .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
     }
 
@@ -351,11 +358,20 @@ public struct PokerView: View {
             }
 
             if model.sessionWinner == .cpu {
-                Button { model.recoverChipsAfterAd() } label: {
+                Button {
+                    // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
+                    guard !isRecoveringChips else { return }
+                    isRecoveringChips = true
+                    Task {
+                        if await model.recoverChipsAfterAd() == false { showRewardNotEarned = true }
+                        isRecoveringChips = false
+                    }
+                } label: {
                     Label("広告を見てチップ回復", systemImage: "play.rectangle.fill")
                         .font(Theme.body(16)).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+                .disabled(isRecoveringChips)
             }
 
             Button {

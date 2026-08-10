@@ -36,5 +36,6 @@ let package = Package(
         .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello"]),
         .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker"]),
         .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration"]),
+        .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack"]),
     ]
 )
