@@ -65,6 +65,8 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 - `ai:proposed` — AI が起案、人間の承認待ち（Issue テンプレート: 機能提案）
 - `ai:approved` — 人間承認済み。実装エージェントの着手対象
 - `ai:in-progress` — 実装中（二重着手防止のため着手時に AI が付ける）
+- `ringi:pending` — 会長の決裁待ち。`ai:approved` が付いていても**当番の着手対象から外れる**
+  （提案まで出して決裁待ちの Issue を毎時拾い直さないため。決裁後に会長が外す or `ringi:approved` に付け替える）
 
 ## 各フェーズの実装
 
