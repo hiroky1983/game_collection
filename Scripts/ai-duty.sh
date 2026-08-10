@@ -101,9 +101,30 @@ query {
       | select((.body // "") | contains("@coderabbitai review"))] | length) as $nudges
   | select($nudges < 3)] | length' 2>/dev/null || echo 0)
 
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ]; then
-  log "仕事なし (approved=0, cr_threads=0, cr_pending=0)"
-  exit 0
+# 仕事4: コンフリクトで滞留しているオープン PR（誰のトリガーにも掛からず放置される穴の解消）
+CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeable \
+  --jq '[.[] | select(.mergeable == "CONFLICTING")] | length' 2>/dev/null || echo 0)
+
+# 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
+MODE="duty"
+PROMPT_FILE="Scripts/ai-duty-prompt.md"
+PLANNING_STAMP="$HOME/.asobiba-duty/last-planning"
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ]; then
+  # 乱造ガード: 未承認の企画（ai:proposed のみ）が3件以上滞留していたら起案しない
+  PROPOSED=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
+    --json number,labels \
+    --jq '[.[] | select([.labels[].name] | index("ai:approved") | not)] | length' 2>/dev/null || echo 99)
+  if [ "${PROPOSED:-99}" -ge 3 ]; then
+    log "仕事なし（未承認の企画 ${PROPOSED} 件が滞留中のため企画モードもスキップ）"
+    exit 0
+  fi
+  # 頻度ガード: 企画モードは1日1回まで
+  if [ -f "$PLANNING_STAMP" ] && [ -z "$(find "$PLANNING_STAMP" -mtime +1 2>/dev/null)" ]; then
+    log "仕事なし（企画モードは前回から24時間未経過のためスキップ）"
+    exit 0
+  fi
+  MODE="planning"
+  PROMPT_FILE="Scripts/ai-planning-prompt.md"
 fi
 
 # ベースクローンを用意（fetch 専用。ここでは一切作業しない）
@@ -127,9 +148,11 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
-log "当番起動 (approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, workdir=$RUN_DIR)"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, workdir=$RUN_DIR)"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
-  -p "$(cat "$RUN_DIR/Scripts/ai-duty-prompt.md")" >>"$LOG" 2>&1
-log "当番終了 (exit=$?)"
+  -p "$(cat "$RUN_DIR/$PROMPT_FILE")" >>"$LOG" 2>&1
+RC=$?
+[ "$MODE" = "planning" ] && touch "$PLANNING_STAMP"
+log "当番終了 (mode=$MODE, exit=$RC)"
