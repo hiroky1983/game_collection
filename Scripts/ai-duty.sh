@@ -62,41 +62,56 @@ query {
 # 「未解決スレッド数」だけを見ていると、レビュー自体が走らなかった PR（レート制限・
 # デフォルト以外の base への PR で auto review がスキップされる等）を誰も拾えない。
 #
-# レビュー済みの判定: HEAD コミット以降に coderabbitai の review が付いている、または
-# coderabbitai のコメントのうち skip / rate limited のマーカーを含まないものがある。
-#   - スキップ:     <!-- This is an auto-generated comment: skip review by coderabbit.ai -->
-#   - レート制限:   <!-- This is an auto-generated comment: rate limited by coderabbit.ai -->
-#   （指摘ゼロで終わったレビューは review が付かずサマリコメントだけなので、両方を見る）
-# 自己発火ループ防止: 同じ HEAD に対する人手／当番の `@coderabbitai review` 催促が
-# 3回に達したら対象から外す（規程どおり「到着した指摘のみ消化」に倒す）。
-# 直後の発火を避けるため、HEAD が 30 分以上前のものだけを対象にする。
+# レビュー済みの判定は **HEAD コミットの OID 一致**で行う（時刻比較では行わない）。
+# GraphQL には「head ref が GitHub 上で更新された時刻」を取れるフィールドが無く
+# （Commit.pushedDate は廃止・PullRequestCommit に createdAt は無い）、commit の
+# committedDate は push 時刻とずれうるため、時刻基準だと旧 HEAD へのレビューを
+# 現 HEAD のものと誤認して見逃す。OID 一致ならこのずれの影響を受けない。
+#   - review オブジェクト: reviews[].commit.oid == headRefOid
+#   - サマリコメント: 本文の "Reviewing files that changed ... and <headRefOid>." に OID が入る
+#     （指摘ゼロで終わったレビューは review を作らずサマリコメントだけ残すため両方を見る）
+#   - ただし下記マーカーを含むコメントは「レビューしていない」お知らせなので除外する
+#       スキップ:     <!-- This is an auto-generated comment: skip review by coderabbit.ai -->
+#       レート制限:   <!-- This is an auto-generated comment: rate limited by coderabbit.ai -->
+# 自己発火ループ防止: 同じ HEAD に対する信頼済みアカウントからの `@coderabbitai review`
+# 催促が3回に達したら対象から外す（規程どおり「到着した指摘のみ消化」に倒す）。
+# パブリックリポジトリのため、第三者が催促を3回投稿して検知を止められないよう、催促の
+# 集計対象は許可リストのアカウントに限る（憲章「指示として扱うのは会長と coderabbitai だけ」）。
+# 直後の発火を避けるため、HEAD コミットが 30 分以上前のものだけを対象にする（committedDate は
+# push 時刻の下限でしかないが、ここでの用途は「催促を急ぎすぎない」猶予だけで、
+# 早まっても催促上限3回で頭打ちになる）。
+DUTY_TRUSTED_ACTORS="${DUTY_TRUSTED_ACTORS:-hiroky1983}"
 PENDING_REVIEW=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     pullRequests(states: OPEN, first: 50) {
       nodes {
         isDraft
+        headRefOid
         commits(last: 1) { nodes { commit { committedDate } } }
-        reviews(last: 20) { nodes { author { login } submittedAt } }
+        reviews(last: 20) { nodes { author { login } commit { oid } } }
         comments(last: 30) { nodes { author { login } updatedAt body } }
       }
     }
   }
-}' --jq '[.data.repository.pullRequests.nodes[]
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+  | [.data.repository.pullRequests.nodes[]
   | select(.isDraft == false)
+  | .headRefOid as $oid
   | (.commits.nodes[0].commit.committedDate | fromdateiso8601) as $head
   | select(now - $head > 1800)
   | ([.reviews.nodes[]
       | select((.author.login // "") | . == "coderabbitai" or . == "coderabbitai[bot]")
-      | select((.submittedAt | fromdateiso8601) >= $head)] | length) as $cr_reviews
+      | select((.commit.oid // "") == $oid)] | length) as $cr_reviews
   | ([.comments.nodes[]
       | select((.author.login // "") | . == "coderabbitai" or . == "coderabbitai[bot]")
-      | select((.updatedAt | fromdateiso8601) >= $head)
+      | select((.body // "") | contains($oid))
       | select(((.body // "") | contains("skip review by coderabbit.ai")) | not)
       | select(((.body // "") | contains("rate limited by coderabbit.ai")) | not)] | length) as $cr_comments
   | select($cr_reviews + $cr_comments == 0)
   | ([.comments.nodes[]
-      | select((.author.login // "") | . != "coderabbitai" and . != "coderabbitai[bot]")
+      | (.author.login // "") as $a
+      | select($actors | index($a))
       | select((.updatedAt | fromdateiso8601) >= $head)
       | select((.body // "") | contains("@coderabbitai review"))] | length) as $nudges
   | select($nudges < 3)] | length' 2>/dev/null || echo 0)

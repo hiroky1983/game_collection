@@ -70,10 +70,13 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 3. **レビュー未着 PR の検知**（Issue #41・2026-08-11 追加）: 1. と 2. はどちらも「スレッドが存在すること」を
    前提にしているため、**レビュー自体が走らなかった PR**（レート制限 / デフォルト以外の base で
    auto review がスキップされる = release ブランチ向け PR が該当）はどちらの網にもかからない。
-   `ai-duty.sh` は HEAD コミット以降に CodeRabbit の**レビュー**（review、または skip / rate limited の
-   マーカーを含まないサマリコメント）が付いていない open PR を検知して当番を起動する。当番は
-   `@coderabbitai review` で明示依頼する（手動コマンドは base が release ブランチでも効く）。
-   自己発火ループ防止として、同じ HEAD への催促が3回に達した PR と、HEAD が30分以内の PR は対象外。
+   `ai-duty.sh` は **HEAD コミットの OID に対する** CodeRabbit の**レビュー**（review、または skip /
+   rate limited のマーカーを含まないサマリコメント）が付いていない open PR を検知して当番を起動する。
+   時刻ではなく OID で突き合わせるのは、GraphQL に「head ref の更新時刻」を取れるフィールドが無く、
+   commit の `committedDate` は push 時刻とずれうるため（旧 HEAD へのレビューを現 HEAD のものと
+   誤認して見逃す）。当番は `@coderabbitai review` で明示依頼する（手動コマンドは base が release
+   ブランチでも効く）。自己発火ループ防止として、同じ HEAD への**信頼済みアカウント**（既定は会長。
+   `DUTY_TRUSTED_ACTORS` で変更可）からの催促が3回に達した PR と、HEAD が30分以内の PR は対象外。
    3回で来なければ規程どおり「到着した指摘のみ消化」に倒す（稟議#6）。
 
 対応係（または PR 作成エージェント）のトリアージ3分類:
