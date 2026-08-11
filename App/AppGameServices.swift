@@ -1,3 +1,4 @@
+import Foundation
 import Core
 import Game2048
 import GameShogi
@@ -14,8 +15,20 @@ import GameBlackjack
 enum AppEnvironment {
     static let services = GameServices(
         snapshots: FileSnapshotStore(),
-        ads: AdMobAdService()
+        ads: isScreenshotMode ? NoopAdService() : AdMobAdService()
     )
+
+    /// App Store 用スクリーンショットの撮影モード（**DEBUG ビルドのみ有効**）。
+    /// `-screenshotMode` 付きで起動すると広告を出さず ATT も聞かない。
+    /// シミュレータは AdMob 側で自動的にテストデバイス扱いになり、Release ビルドでも
+    /// バナーに `Test mode` の帯が写り込むため、撮影時は広告そのものを無効化する。
+    static var isScreenshotMode: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-screenshotMode")
+        #else
+        return false
+        #endif
+    }
 
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
     static let registry = GameRegistry([

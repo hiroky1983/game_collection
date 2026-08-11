@@ -8,7 +8,7 @@ struct HubView: View {
     let services: GameServices
     let settings: GameSettings
     @State private var path: [String]
-    @State private var showSettings = false
+    @State private var showSettings: Bool
     @State private var showTrackingConsent = false
     @State private var pendingTrackingRequest = false
     @State private var gameEnteredAt: Date?
@@ -16,11 +16,18 @@ struct HubView: View {
     /// 「遊んだ」とみなす最短の滞在時間。開いてすぐ戻っただけのときに ATT の事前説明を出さないための下限。
     private static let minimumPlaySeconds: TimeInterval = 30
 
-    init(registry: GameRegistry, services: GameServices, settings: GameSettings, initialGameID: String? = nil) {
+    init(
+        registry: GameRegistry,
+        services: GameServices,
+        settings: GameSettings,
+        initialGameID: String? = nil,
+        showsSettingsInitially: Bool = false
+    ) {
         self.registry = registry
         self.services = services
         self.settings = settings
         _path = State(initialValue: initialGameID.map { [$0] } ?? [])
+        _showSettings = State(initialValue: showsSettingsInitially)
     }
 
     var body: some View {
@@ -104,6 +111,8 @@ struct HubView: View {
     /// ゲームを1つ遊び終えてハブに戻ったときの処理。
     @MainActor
     private func didFinishGameSession() {
+        // 撮影モードでは説明シートも ATT もスクショに被るため出さない（DEBUG のみ有効）。
+        guard !AppEnvironment.isScreenshotMode else { return }
         if TrackingConsentGate.shouldPrompt(isUndetermined: isTrackingAuthorizationUndetermined) {
             showTrackingConsent = true
         }
