@@ -1,11 +1,18 @@
 # あそびば リリースパイプライン
-# 前提となる環境変数（~/.zshrc やランナーの環境に設定。リポジトリにはコミットしない）:
+# 前提となる環境変数（~/.zshrc に設定済み。リポジトリにはコミットしない）:
 #   ASC_KEY_ID     : App Store Connect API キーの Key ID
 #   ASC_ISSUER_ID  : 同 Issuer ID
-#   ASC_KEY_PATH   : ダウンロードした .p8 ファイルの絶対パス
-# 作成手順は docs/ai-devops.md の「セットアップ」参照。
+#   ASC_KEY_PATH   : .p8 ファイルの絶対パス（~/.appstoreconnect/ 配下）
+#
+# 実績のある構成（2026-08-11 v1.1.0 build 5 で実証）:
+# - Team ID: 6MGM38HWDH（証明書名の括弧内 WLUV6S77T5 は証明書IDなので混同しないこと）
+# - API キーは Developer ロールのため証明書発行・ストア操作は不可。アップロードのみ使用
+# - archive/export は Xcode ログイン済みアカウントのセッションで署名
+#   （Distribution 証明書は初回 export 時に自動発行済み・キーチェーンに存在）
 
 default_platform(:ios)
+
+TEAM_ID = "6MGM38HWDH"
 
 platform :ios do
   desc "GameKit の全テストを実行"
@@ -13,29 +20,32 @@ platform :ios do
     sh("swift", "test", "--package-path", "../Packages/GameKit")
   end
 
-  desc "TestFlight へアップロード（ビルド番号は日時から自動採番）"
+  desc "TestFlight へアップロード（ビルド番号は project.yml の CURRENT_PROJECT_VERSION を使用）"
   lane :beta do
+    sh("xcodegen", "generate", "--project", "..")
+
+    build_app(
+      project: "../GameCollection.xcodeproj",
+      scheme: "GameCollection",
+      export_method: "app-store-connect",
+      export_options: {
+        teamID: TEAM_ID,
+        signingStyle: "automatic",
+        uploadSymbols: true,
+      },
+      xcargs: "-allowProvisioningUpdates CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{TEAM_ID}",
+    )
+
     api_key = app_store_connect_api_key(
       key_id: ENV.fetch("ASC_KEY_ID"),
       issuer_id: ENV.fetch("ASC_ISSUER_ID"),
       key_filepath: ENV.fetch("ASC_KEY_PATH"),
     )
 
-    sh("xcodegen", "generate", "--project", "..")
-
-    build_number = Time.now.strftime("%Y%m%d%H%M")
-    build_app(
-      project: "GameCollection.xcodeproj",
-      scheme: "GameCollection",
-      export_method: "app-store",
-      xcargs: "-allowProvisioningUpdates CURRENT_PROJECT_VERSION=#{build_number}",
-      # 初回のみ Xcode で自動署名を一度通しておくと確実
-      # (Signing & Capabilities で Team を選択した状態で Archive できることを確認)
-    )
-
     upload_to_testflight(
       api_key: api_key,
       skip_waiting_for_build_processing: true,
+      skip_submission: true,
       changelog: ENV["TESTFLIGHT_CHANGELOG"],
     )
   end
