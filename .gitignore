@@ -15,3 +15,10 @@ Packages/*/.build/
 
 # Claude Code ローカル設定・worktree
 .claude/
+
+# 秘密鍵・証明書類（公開リポジトリのため厳禁）
+AuthKey_*.p8
+*.p8
+*.p12
+*.mobileprovision
+GoogleService-Info.plist.bak
