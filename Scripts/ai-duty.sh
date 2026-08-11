@@ -140,11 +140,16 @@ query {
   | select(($b | contains("決裁反映")) | not)
   | select($b != "")] | length' 2>/dev/null || echo 0)
 
+# 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
+# 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
+STALLED=$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest \
+  --jq '[.[] | select(.mergeStateStatus == "CLEAN") | select(.autoMergeRequest == null)] | length' 2>/dev/null || echo 0)
+
 # 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
 PLANNING_STAMP="$HOME/.asobiba-duty/last-planning"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ]; then
   # 乱造ガード: 未承認の企画（ai:proposed のみ）が3件以上滞留していたら起案しない
   PROPOSED=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
     --json number,labels \
@@ -183,7 +188,7 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, workdir=$RUN_DIR)"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, workdir=$RUN_DIR)"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
