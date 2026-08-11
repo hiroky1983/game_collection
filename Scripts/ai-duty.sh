@@ -188,6 +188,10 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
+# 実行前に起動中のシミュレータを記録（会長が使用中のものを誤って落とさないため）
+SIMS_BEFORE=$(xcrun simctl list devices booted -j 2>/dev/null \
+  | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null | sort)
+
 log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, workdir=$RUN_DIR)"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
@@ -195,4 +199,18 @@ claude --model opus \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")" >>"$LOG" 2>&1
 RC=$?
 [ "$MODE" = "planning" ] && touch "$PLANNING_STAMP"
+
+# 後片付け: 当番の実行中に新しく起動されたシミュレータだけを shutdown する
+# （エージェントが自分で片付ける規程はあるが、忘れてもここで確実に止まる。実行前から
+#  起動していたもの = 会長が使っている可能性があるものには触らない）
+SIMS_AFTER=$(xcrun simctl list devices booted -j 2>/dev/null \
+  | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null | sort)
+comm -13 <(printf '%s\n' "$SIMS_BEFORE") <(printf '%s\n' "$SIMS_AFTER") | while read -r u; do
+  [ -n "$u" ] && xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown"
+done
+# 実行前にシミュレータがゼロで、当番だけが使っていた場合は Simulator.app も閉じる
+if [ -z "$SIMS_BEFORE" ] && pgrep -x Simulator >/dev/null 2>&1; then
+  killall Simulator 2>/dev/null && log "後片付け: Simulator.app を終了"
+fi
+
 log "当番終了 (mode=$MODE, exit=$RC)"
