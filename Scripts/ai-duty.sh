@@ -122,20 +122,26 @@ CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeab
 
 # 仕事5: 決裁コメントの着信（ringi:pending の Issue に決裁スレッド以外の新規コメントが付いたら
 # 会長の決裁着信の可能性として当番を起こす。判定と反映は当番エージェントが行う）
-# 注: 全コメントが同一アカウント(hiroky1983)で投稿されるため author では区別できない。
-#     「最後のコメントが決裁スレッド(【要決裁】)でも反映記録(決裁反映)でもない」ことを検知条件とする。
+# 注: 当番(AI)のコメントも会長と同じアカウント(hiroky1983)で投稿されるため、この2者は author では
+#     区別できない。よって「最後のコメントが決裁スレッド(【要決裁】)でも反映記録(決裁反映)でもない」
+#     ことを検知条件とする。ただし coderabbitai 等の bot・第三者のコメントは決裁になり得ないため、
+#     許可リスト外の author は無視して「最後の信頼済みコメント」で判定する
+#     （2026-08-11: Issue #68 に CodeRabbit の自動プランが付き毎時の空振り起動が発生したため追加）。
 RINGI_REPLIES=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     issues(states: OPEN, labels: ["ringi:pending"], first: 20) {
       nodes {
         number
-        comments(last: 1) { nodes { body } }
+        comments(last: 20) { nodes { body author { login } } }
       }
     }
   }
-}' --jq '[.data.repository.issues.nodes[]
-  | (.comments.nodes[0].body // "") as $b
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+  | [.data.repository.issues.nodes[]
+  | ([.comments.nodes[]
+      | select((.author.login // "") as $l | ($actors | index($l)) != null)
+      | .body] | last // "") as $b
   | select(($b | contains("【要決裁】")) | not)
   | select(($b | contains("決裁反映")) | not)
   | select($b != "")] | length' 2>/dev/null || echo 0)
