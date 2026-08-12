@@ -12,6 +12,8 @@ struct HubView: View {
     @State private var showTrackingConsent = false
     @State private var pendingTrackingRequest = false
     @State private var gameEnteredAt: Date?
+    /// レコメンドで別ゲームへ差し替えている最中の遷移先。途中の空 path を「ハブに戻った」と誤認しないための目印。
+    @State private var switchingToGameID: String?
 
     /// 「遊んだ」とみなす最短の滞在時間。開いてすぐ戻っただけのときに ATT の事前説明を出さないための下限。
     private static let minimumPlaySeconds: TimeInterval = 30
@@ -70,13 +72,26 @@ struct HubView: View {
             .onChange(of: path) { oldPath, newPath in
                 if oldPath.isEmpty, !newPath.isEmpty {
                     gameEnteredAt = Date()
+                    switchingToGameID = nil
                     return
                 }
                 guard !oldPath.isEmpty, newPath.isEmpty else { return }
+                // ゲームの差し替え中に通過する空 path はハブへの帰還ではない。
+                guard switchingToGameID == nil else { return }
                 let played = gameEnteredAt.map { Date().timeIntervalSince($0) >= Self.minimumPlaySeconds } ?? false
                 gameEnteredAt = nil
                 // 開いてすぐ戻った（＝遊んでいない）場合は出さない。次に遊び終えたときに回る。
                 if played { didFinishGameSession() }
+            }
+            // リザルトのレコメンドカードがタップされたら、そのゲームへ差し替えて遷移する。
+            .onChange(of: services.recommendations?.requestedGameID) { _, requested in
+                guard let id = requested else { return }
+                services.recommendations?.requestedGameID = nil
+                // NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
+                // いったん根まで戻し、次の runloop で積み直す。
+                switchingToGameID = id
+                path = []
+                DispatchQueue.main.async { path = [id] }
             }
             // システムの ATT ダイアログは説明シートが**閉じ切ってから**出す。
             // 前面にシートが残っている間に要求すると、表示されずに終わることがあるため。
@@ -98,12 +113,17 @@ struct HubView: View {
                 if ProcessInfo.processInfo.arguments.contains("-simulateReturnToHub") {
                     didFinishGameSession()
                 }
+                // 撮影・動作確認用: 提示条件を通さずにレコメンドカードを出す（`-simulateRecommendation <gameID>`）。
+                let args = ProcessInfo.processInfo.arguments
+                if let i = args.firstIndex(of: "-simulateRecommendation"), i + 1 < args.count {
+                    services.recommendations?.simulateSuggestion(gameID: args[i + 1])
+                }
                 #endif
             }
         }
         .tint(Theme.coral)
         .sheet(isPresented: $showSettings) {
-            SettingsView(registry: registry, settings: settings)
+            SettingsView(registry: registry, settings: settings, playLog: services.recommendations?.log)
                 .presentationDetents([.large])
         }
     }

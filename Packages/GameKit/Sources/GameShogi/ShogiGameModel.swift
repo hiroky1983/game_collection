@@ -197,6 +197,7 @@ public final class ShogiGameModel {
             resultText = (loser == .black ? "先手" : "後手") + "の負け（詰み）"
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
+            services?.recommendations?.gameDidFinish(gameID: gameID)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
             services?.feedback.impact(.medium)
@@ -294,6 +295,7 @@ public final class ShogiGameModel {
         resigned = true
         gameOver = true
         services?.feedback.notify(.error)
+        services?.recommendations?.gameDidFinish(gameID: gameID)
         resultText = "あなたの負け（投了）"
         phase = .review
         reviewPly = moves.count

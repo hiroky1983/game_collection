@@ -21,6 +21,7 @@ public struct Game2048View: View {
             Label("スワイプで動かそう", systemImage: "hand.draw.fill")
                 .font(Theme.body(14))
                 .foregroundStyle(Theme.inkSub)
+            RecommendationSlot(services: services, isFinished: model.gameOver)
             Spacer()
             BannerSlot(ads: services.ads)
         }

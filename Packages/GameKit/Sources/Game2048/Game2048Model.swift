@@ -51,6 +51,7 @@ public final class Game2048Model {
         if Game2048Logic.isGameOver(board) {
             gameOver = true
             services?.feedback.notify(.error)
+            services?.recommendations?.gameDidFinish(gameID: gameID)
             services?.snapshots.clear(for: gameID) // 終局でスナップショット破棄
         } else {
             services?.feedback.impact(result.gained > 0 ? .medium : .light)

@@ -289,6 +289,7 @@ public final class PokerModel {
         case .cpu:    services?.feedback.notify(.error)
         default:      services?.feedback.notify(.warning)
         }
+        services?.recommendations?.gameDidFinish(gameID: gameID)
     }
 
     // MARK: - Betting Round 1 (before exchange)

@@ -162,6 +162,7 @@ public final class BlackjackModel {
             bet = 0
             phase = .result
             services?.feedback.notify(.error)
+            services?.recommendations?.gameDidFinish(gameID: gameID)
             checkSessionOver()
             persist()
         } else {
@@ -215,6 +216,7 @@ public final class BlackjackModel {
         case .push:                  services?.feedback.notify(.warning)
         default:                     services?.feedback.notify(.error)
         }
+        services?.recommendations?.gameDidFinish(gameID: gameID)
         checkSessionOver()
         services?.snapshots.clear(for: gameID)
     }

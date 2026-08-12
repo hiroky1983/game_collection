@@ -16,7 +16,17 @@ enum AppEnvironment {
     static let services = GameServices(
         snapshots: FileSnapshotStore(),
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
-        feedback: GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled }
+        feedback: GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
+        recommendations: recommendations
+    )
+
+    /// プレイ履歴（回数カウンタと遊んだゲームの ID だけ。盤面・スコアは持たない）。
+    static let playLog = PlayLog()
+
+    /// ゲーム間レコメンド。候補はハブに並んでいるゲーム（非表示を除く）に限る。
+    static let recommendations = RecommendationService(
+        log: playLog,
+        availableModules: { settings.visibleModules(from: registry) }
     )
 
     /// App Store 用スクリーンショットの撮影モード（**DEBUG ビルドのみ有効**）。

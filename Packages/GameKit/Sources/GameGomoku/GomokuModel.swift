@@ -136,9 +136,11 @@ public final class GomokuModel {
         if board.checkWin(row: row, col: col) {
             winner = currentStone
             services?.feedback.notify(mover == humanSide ? .success : .error)
+            services?.recommendations?.gameDidFinish(gameID: gameID)
         } else if board.isFull {
             isDraw = true
             services?.feedback.notify(.warning)
+            services?.recommendations?.gameDidFinish(gameID: gameID)
         } else {
             currentStone = currentStone.opponent
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
@@ -187,6 +189,7 @@ public final class GomokuModel {
         resigned = true
         winner = humanSide.opponent
         services?.feedback.notify(.error)
+        services?.recommendations?.gameDidFinish(gameID: gameID)
         persist()
     }
 

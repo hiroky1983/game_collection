@@ -227,6 +227,7 @@ public final class ConcentrationModel {
             } else {
                 services?.feedback.notify(winner == .human ? .success : .error)
             }
+            services?.recommendations?.gameDidFinish(gameID: gameID)
             services?.snapshots.clear(for: gameID)
         }
     }

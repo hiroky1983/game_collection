@@ -27,6 +27,7 @@ public struct BlackjackView: View {
             } else {
                 actionArea
             }
+            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)

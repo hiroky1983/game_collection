@@ -6,9 +6,12 @@ import Core
 struct SettingsView: View {
     let registry: GameRegistry
     let settings: GameSettings
+    /// プレイ記録。注入されないとき（プレビュー等）は消去の導線を出さない。
+    var playLog: PlayLog?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.requestReview) private var requestReview
     @State private var legalURL: IdentifiableURL?
+    @State private var showClearPlayLogConfirm = false
 
     private var appVersion: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -52,6 +55,31 @@ struct SettingsView: View {
                     Text("フィードバック")
                 } footer: {
                     Text("駒を置く・マスを開く・勝敗が決まるといった場面で端末を軽く振動させます。")
+                }
+
+                // MARK: プレイ記録
+                if let playLog {
+                    Section {
+                        Button(role: .destructive) {
+                            showClearPlayLogConfirm = true
+                        } label: {
+                            Label("プレイ記録を消去", systemImage: "trash")
+                        }
+                        .confirmationDialog(
+                            "プレイ記録を消去しますか？",
+                            isPresented: $showClearPlayLogConfirm,
+                            titleVisibility: .visible
+                        ) {
+                            Button("消去する", role: .destructive) { playLog.clear() }
+                            Button("キャンセル", role: .cancel) {}
+                        } message: {
+                            Text("遊んだ回数と、おすすめの表示履歴を消します。")
+                        }
+                    } header: {
+                        Text("プレイ記録")
+                    } footer: {
+                        Text("「次はこれで遊ぶ？」のおすすめを出すために、遊んだ回数と遊んだあそびの種類だけをこの端末に保存しています（送信はしません）。盤面やスコアは残していません。")
+                    }
                 }
 
                 // MARK: 規約

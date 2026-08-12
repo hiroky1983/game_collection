@@ -117,6 +117,7 @@ public final class OthelloModel {
         guard !gameOver else { return }
         winner = humanSide.opponent
         services?.feedback.notify(.error)
+        services?.recommendations?.gameDidFinish(gameID: gameID)
         persist()
     }
 
@@ -187,6 +188,7 @@ public final class OthelloModel {
         } else {
             services?.feedback.notify(winner == humanSide ? .success : .error)
         }
+        services?.recommendations?.gameDidFinish(gameID: gameID)
         return true
     }
 
