@@ -7,9 +7,14 @@ import Core
 final class GameSettings {
     private(set) var orderedIDs: [String]
     private(set) var hiddenIDs: Set<String>
+    /// 触覚フィードバックのオン / オフ。既定はオン。
+    var hapticsEnabled: Bool {
+        didSet { UserDefaults.standard.set(hapticsEnabled, forKey: Self.hapticsKey) }
+    }
 
-    private static let orderKey  = "gameOrder_v1"
-    private static let hiddenKey = "hiddenGames_v1"
+    private static let orderKey    = "gameOrder_v1"
+    private static let hiddenKey   = "hiddenGames_v1"
+    private static let hapticsKey  = "hapticsEnabled_v1"
 
     init(registeredIDs: [String]) {
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
@@ -19,6 +24,9 @@ final class GameSettings {
 
         let hiddenArr = UserDefaults.standard.stringArray(forKey: Self.hiddenKey) ?? []
         self.hiddenIDs = Set(hiddenArr.filter { registeredIDs.contains($0) })
+
+        // 未設定（初回起動・キー無し）はオン。
+        self.hapticsEnabled = UserDefaults.standard.object(forKey: Self.hapticsKey) as? Bool ?? true
     }
 
     func visibleModules(from registry: GameRegistry) -> [GameModule] {

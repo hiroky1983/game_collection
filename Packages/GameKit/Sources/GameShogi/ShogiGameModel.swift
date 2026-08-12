@@ -143,6 +143,10 @@ public final class ShogiGameModel {
             selectedSquare = sq
             selectedHand = nil
         } else {
+            // 駒を選んだ状態で指せないマスを叩いた = 着手の拒否。
+            if selectedSquare != nil || selectedHand != nil {
+                services?.feedback.notify(.warning)
+            }
             clearSelection()
         }
     }
@@ -181,6 +185,7 @@ public final class ShogiGameModel {
 
     /// 合法手を適用する（AI もここを通る）。
     public func apply(_ move: Move) {
+        let mover = position.sideToMove
         position.make(move)
         moves.append(move)
         clearSelection()
@@ -191,6 +196,10 @@ public final class ShogiGameModel {
             let loser = position.sideToMove
             resultText = (loser == .black ? "先手" : "後手") + "の負け（詰み）"
             phase = .review
+            services?.feedback.notify(loser == humanSide ? .error : .success)
+        } else if mover == humanSide {
+            // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
+            services?.feedback.impact(.medium)
         }
         persist()
     }
@@ -284,6 +293,7 @@ public final class ShogiGameModel {
         guard phase == .playing, !gameOver else { return }
         resigned = true
         gameOver = true
+        services?.feedback.notify(.error)
         resultText = "あなたの負け（投了）"
         phase = .review
         reviewPly = moves.count

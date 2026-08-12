@@ -126,7 +126,11 @@ public final class BlackjackModel {
     // MARK: - Betting
 
     public func placeBet(_ amount: Int) {
-        guard phase == .betting, chips >= amount, amount > 0 else { return }
+        guard phase == .betting, amount > 0 else { return }
+        guard chips >= amount else {
+            services?.feedback.notify(.warning) // チップ不足でベットできない
+            return
+        }
         bet = amount
         deal()
     }
@@ -143,6 +147,7 @@ public final class BlackjackModel {
             resolveResult()
             return
         }
+        services?.feedback.impact(.medium) // カードを配る
         persist()
     }
 
@@ -156,9 +161,11 @@ public final class BlackjackModel {
             chips -= bet
             bet = 0
             phase = .result
+            services?.feedback.notify(.error)
             checkSessionOver()
             persist()
         } else {
+            services?.feedback.impact(.light) // 1枚引く
             persist()
         }
     }
@@ -203,6 +210,11 @@ public final class BlackjackModel {
 
         bet = 0
         phase = .result
+        switch outcome {
+        case .playerBlackjack, .win: services?.feedback.notify(.success)
+        case .push:                  services?.feedback.notify(.warning)
+        default:                     services?.feedback.notify(.error)
+        }
         checkSessionOver()
         services?.snapshots.clear(for: gameID)
     }

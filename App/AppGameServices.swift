@@ -15,7 +15,8 @@ import GameBlackjack
 enum AppEnvironment {
     static let services = GameServices(
         snapshots: FileSnapshotStore(),
-        ads: isScreenshotMode ? NoopAdService() : AdMobAdService()
+        ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
+        feedback: GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled }
     )
 
     /// App Store 用スクリーンショットの撮影モード（**DEBUG ビルドのみ有効**）。

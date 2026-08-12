@@ -2,9 +2,11 @@
 public struct GameServices {
     public let snapshots: SnapshotStore
     public let ads: AdService
+    public let feedback: FeedbackService
 
-    public init(snapshots: SnapshotStore, ads: AdService) {
+    public init(snapshots: SnapshotStore, ads: AdService, feedback: FeedbackService = NoopFeedbackService()) {
         self.snapshots = snapshots
         self.ads = ads
+        self.feedback = feedback
     }
 }

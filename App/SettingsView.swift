@@ -38,6 +38,22 @@ struct SettingsView: View {
                     Text("ドラッグで並べ替え、トグルで表示 / 非表示を切り替えられます。")
                 }
 
+                // MARK: フィードバック
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.hapticsEnabled },
+                        set: { settings.hapticsEnabled = $0 }
+                    )) {
+                        Label("触覚フィードバック", systemImage: "iphone.radiowaves.left.and.right")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
+                } header: {
+                    Text("フィードバック")
+                } footer: {
+                    Text("駒を置く・マスを開く・勝敗が決まるといった場面で端末を軽く振動させます。")
+                }
+
                 // MARK: 規約
                 Section("規約") {
                     Button {

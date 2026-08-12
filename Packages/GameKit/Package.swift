@@ -37,5 +37,10 @@ let package = Package(
         .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker"]),
         .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration"]),
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack"]),
+        // 触覚フィードバックは全ゲーム横断のため 1 ターゲットにまとめる（スパイ実装の重複を避ける）。
+        .testTarget(name: "FeedbackTests", dependencies: [
+            "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
+        ]),
     ]
 )
