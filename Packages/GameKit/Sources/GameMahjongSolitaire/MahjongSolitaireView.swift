@@ -135,7 +135,19 @@ public struct MahjongSolitaireView: View {
 
     private var board: some View {
         Group {
-            if zoomMode {
+            if model.phase == .won {
+                // 取り切った直後は盤面が空になるので、代わりにクリアの演出を置く。
+                VStack(spacing: 12) {
+                    Text("🎉").font(.system(size: 64))
+                    Text("全部取り切った！")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if zoomMode {
                 ScrollView([.horizontal, .vertical], showsIndicators: false) {
                     boardCanvas(tileWidth: Self.zoomedTileWidth)
                 }
