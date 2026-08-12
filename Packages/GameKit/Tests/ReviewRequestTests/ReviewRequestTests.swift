@@ -324,12 +324,27 @@ struct ReviewVersusRecommendationTests {
     }
 
     @Test("評価リクエストが出ない回はレコメンドが通常どおり出る")
-    func recommendationUnaffected() {
+    func recommendationUnaffected() async {
         let (services, review, recommend) = makeBoth(suite: "conflict-no-review")
-        for _ in 0..<20 { services.gameDidFinish(gameID: "shogi", outcome: .win) }
-        // 5勝目で1回予定が立つが、実行しなければ以降も予定は残る（提示が抑止されるのはその回だけ）。
+        for _ in 0..<5 { services.gameDidFinish(gameID: "shogi", outcome: .win) }
+        // 予定を消化する（実機では同じリザルト画面が必ず消化するため、予定が残り続けることはない）。
+        await review.performPendingRequest {}
+        #expect(review.pendingRequestID == nil)
+
+        // 以降は条件5（同一バージョンでは1回まで）で予定が立たないため、レコメンドは抑止されない。
+        for _ in 0..<15 { services.gameDidFinish(gameID: "shogi", outcome: .win) }
         #expect(review.log.totalWins == 20)
-        #expect(recommend.suggestedGameID == nil || recommend.suggestedGameID == "gomoku")
+        #expect(recommend.suggestedGameID == "gomoku", "20回目のリザルトでレコメンドが出る")
+    }
+
+    @Test("予定が残っている間はレコメンドを抑止し続ける")
+    func suppressionLastsWhilePending() {
+        let (services, review, recommend) = makeBoth(suite: "conflict-pending-lasts")
+        for _ in 0..<20 { services.gameDidFinish(gameID: "shogi", outcome: .win) }
+        // 5勝目で立った予定を消化しない間は、以降のリザルトでもレコメンドを出さない。
+        #expect(review.pendingRequestID != nil)
+        #expect(recommend.suggestedGameID == nil)
+        #expect(recommend.log.state.lastShownAt == nil, "提示カウントも消費しない")
     }
 }
 
