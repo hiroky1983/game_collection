@@ -10,6 +10,7 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameDaifugo
 
 // MARK: - Mocks
 
@@ -186,6 +187,33 @@ private func playConcentration(_ services: GameServices) {
     }
 }
 
+/// 大富豪: 何も選ばずに「出す」（拒否）→ 貪欲法で最後まで打ち切る（決着）。
+/// CPU の手番は `runCPUTurnsIfNeeded` が進める（CPU 側では鳴らさない）。
+@MainActor
+@discardableResult
+private func playDaifugo(_ services: GameServices) async -> DaifugoModel {
+    let model = DaifugoModel(services: services, cpuDelay: .zero, seed: 2026)
+    model.startGame()
+    var didReject = false
+    for _ in 0..<500 where model.phase == .playing {
+        await model.runCPUTurnsIfNeeded()
+        guard model.phase == .playing, model.isPlayerTurn else { continue }
+        if !didReject {
+            didReject = true
+            model.playSelected()   // 何も選んでいないので拒否される
+        }
+        if let play = DaifugoRules.greedyPlay(
+            hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+        ) {
+            for card in play { model.toggleSelection(card) }
+            model.playSelected()
+        } else {
+            model.pass()
+        }
+    }
+    return model
+}
+
 @MainActor
 @discardableResult
 private func playBlackjack(_ services: GameServices) -> BlackjackModel {
@@ -294,6 +322,23 @@ struct FeedbackEnabledTests {
         }
         #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
     }
+
+    @Test("大富豪: カード選択・出し・拒否・決着で発火する")
+    func daifugo() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = await playDaifugo(services)
+        #expect(spy.impacts.contains(.rigid), "カードを選ぶと発火する")
+        #expect(spy.impacts.contains(.medium), "配り・カードを出すと発火する")
+        #expect(spy.notices(of: .warning) > 0, "出せない組は拒否として発火する")
+        #expect(model.phase == .result, "手順の最後は必ず決着している")
+        let expected: FeedbackNotice
+        switch model.reviewOutcome {
+        case .win:  expected = .success
+        case .loss: expected = .error
+        case .draw: expected = .warning
+        }
+        #expect(spy.notices.last == expected, "決着が階級どおりに発火する")
+    }
 }
 
 // MARK: - CPU の着手では手応えを鳴らさない
@@ -352,7 +397,7 @@ struct FeedbackCPUSilentTests {
 @MainActor
 struct FeedbackDisabledTests {
 
-    @Test("設定がオフなら全8ゲームのどの契機でも発火しない")
+    @Test("設定がオフなら全9ゲームのどの契機でも発火しない")
     func nothingFiresWhenDisabled() async {
         let (services, spy) = makeServices(hapticsEnabled: false)
 
@@ -364,6 +409,7 @@ struct FeedbackDisabledTests {
         playPoker(services)
         playConcentration(services)
         playBlackjack(services)
+        await playDaifugo(services)
 
         #expect(spy.callCount == 0, "オフのときは impact / notify とも 1 度も呼ばれない")
     }
@@ -380,6 +426,7 @@ struct FeedbackDisabledTests {
         playPoker(services)
         playConcentration(services)
         playBlackjack(services)
+        await playDaifugo(services)
 
         #expect(spy.callCount > 0)
     }

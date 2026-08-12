@@ -45,6 +45,8 @@ targets:
         product: GameConcentration
       - package: GameKit
         product: GameBlackjack
+      - package: GameKit
+        product: GameDaifugo
       - package: GoogleMobileAds
         product: GoogleMobileAds
       - package: Firebase
