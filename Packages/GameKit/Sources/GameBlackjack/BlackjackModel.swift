@@ -84,6 +84,16 @@ public final class BlackjackModel {
     public private(set) var outcome: BlackjackOutcome? = nil
     public private(set) var sessionOver: Bool = false
 
+    /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    /// プッシュは引き分け、バストは敗北として扱う。
+    public var reviewOutcome: GameOutcome {
+        switch outcome {
+        case .playerBlackjack, .win: return .win
+        case .push:                  return .draw
+        default:                     return .loss
+        }
+    }
+
     public var playerValue: Int { handValue(playerHand) }
     public var dealerValue: Int { handValue(dealerHand) }
     public var dealerVisibleValue: Int {
@@ -162,7 +172,7 @@ public final class BlackjackModel {
             bet = 0
             phase = .result
             services?.feedback.notify(.error)
-            services?.recommendations?.gameDidFinish(gameID: gameID)
+            services?.gameDidFinish(gameID: gameID, outcome: .loss)
             checkSessionOver()
             persist()
         } else {
@@ -216,7 +226,7 @@ public final class BlackjackModel {
         case .push:                  services?.feedback.notify(.warning)
         default:                     services?.feedback.notify(.error)
         }
-        services?.recommendations?.gameDidFinish(gameID: gameID)
+        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
         checkSessionOver()
         services?.snapshots.clear(for: gameID)
     }

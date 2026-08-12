@@ -47,5 +47,10 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
         ]),
+        // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
+        .testTarget(name: "ReviewRequestTests", dependencies: [
+            "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
+        ]),
     ]
 )

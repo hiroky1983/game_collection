@@ -204,6 +204,15 @@ public final class PokerModel {
 
     public var canStartRound: Bool { !sessionOver && playerChips >= anteAmount && cpuChips >= anteAmount }
 
+    /// ラウンドの決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    public var reviewOutcome: GameOutcome {
+        switch winner {
+        case .player: return .win
+        case .tie:    return .draw
+        default:      return .loss
+        }
+    }
+
     private var deck: [PokerCard] = []
     private let initialChips = 100
     private let anteAmount = 10
@@ -289,7 +298,7 @@ public final class PokerModel {
         case .cpu:    services?.feedback.notify(.error)
         default:      services?.feedback.notify(.warning)
         }
-        services?.recommendations?.gameDidFinish(gameID: gameID)
+        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
     }
 
     // MARK: - Betting Round 1 (before exchange)

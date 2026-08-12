@@ -37,6 +37,7 @@ public struct PokerView: View {
         }
         .padding(Theme.pad)
         .popBackground()
+        .reviewRequestPrompt(services.review)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
