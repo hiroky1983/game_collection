@@ -11,12 +11,14 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameDaifugo
+import GameMahjongSolitaire
 
 // MARK: - 共通のヘルパー
 
 /// ハブの登録順（AppEnvironment.registry と同じ）。
 private let hubOrder = [
     "2048", "shogi", "gomoku", "minesweeper", "othello", "poker", "concentration", "blackjack", "daifugo",
+    "mahjong",
 ]
 
 @MainActor
@@ -24,7 +26,7 @@ private func makeRegistry() -> GameRegistry {
     GameRegistry([
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(),
         OthelloModule(), PokerModule(), ConcentrationModule(), BlackjackModule(),
-        DaifugoModule(),
+        DaifugoModule(), MahjongSolitaireModule(),
     ])
 }
 
@@ -92,9 +94,10 @@ struct RecommendationTableTests {
         ("poker",         ["blackjack", "concentration", "2048"]),
         ("blackjack",     ["poker", "concentration", "2048"]),
         ("daifugo",       ["poker", "blackjack", "concentration"]),
+        ("mahjong",       ["concentration", "minesweeper", "2048"]),
     ]
 
-    @Test("9ゲームそれぞれ、未プレイのみのときは第1候補が出る")
+    @Test("10ゲームそれぞれ、未プレイのみのときは第1候補が出る")
     func firstCandidate() {
         for (finished, expected) in Self.table {
             let got = RecommendationPolicy.candidate(
@@ -540,5 +543,18 @@ struct GameFinishCountingTests {
         #expect(model.phase == .result)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["blackjack"])
+    }
+
+    @Test("麻雀ソリティア: 取り切ると1回数える")
+    func mahjong() {
+        let (services, service) = makeServices(suite: "count-mahjong")
+        let model = MahjongSolitaireModel(services: services, seed: 808)
+        for pair in model.solution {
+            model.tap(pair[0])
+            model.tap(pair[1])
+        }
+        #expect(model.phase == .won)
+        #expect(service.log.totalFinishes == 1)
+        #expect(service.log.playedGameIDs == ["mahjong"])
     }
 }

@@ -29,6 +29,7 @@ public enum RecommendationPolicy {
         "poker":         ["blackjack", "concentration", "2048"],
         "blackjack":     ["poker", "concentration", "2048"],
         "daifugo":       ["poker", "blackjack", "concentration"],
+        "mahjong":       ["concentration", "minesweeper", "2048"],
     ]
 
     /// 現在の提示間隔。無視が続いているほど広がる。
