@@ -11,6 +11,7 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameDaifugo
+import GameMahjongSolitaire
 
 // MARK: - Mocks
 
@@ -214,6 +215,21 @@ private func playDaifugo(_ services: GameServices) async -> DaifugoModel {
     return model
 }
 
+/// 麻雀ソリティア: 取れない牌をタップ（拒否）→ 牌を選ぶ → 生成時の解法どおりに最後まで取り切る。
+@MainActor
+@discardableResult
+private func playMahjong(_ services: GameServices) -> MahjongSolitaireModel {
+    let model = MahjongSolitaireModel(services: services, seed: 4649)
+    if let covered = MahjongSolitaireRules.index(layer: 3, hx: 12, hy: 6) {
+        model.tap(covered)   // 最上段に覆われているので取れない
+    }
+    for pair in model.solution {
+        model.tap(pair[0])
+        model.tap(pair[1])
+    }
+    return model
+}
+
 @MainActor
 @discardableResult
 private func playBlackjack(_ services: GameServices) -> BlackjackModel {
@@ -339,6 +355,17 @@ struct FeedbackEnabledTests {
         }
         #expect(spy.notices.last == expected, "決着が階級どおりに発火する")
     }
+
+    @Test("麻雀ソリティア: 牌の選択・ペア成立・取れない牌・クリアで発火する")
+    func mahjong() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = playMahjong(services)
+        #expect(spy.impacts.contains(.rigid), "牌を選ぶと発火する")
+        #expect(spy.impacts.contains(.medium), "ペア成立で発火する")
+        #expect(spy.notices(of: .warning) > 0, "取れない牌は拒否として発火する")
+        #expect(model.phase == .won, "手順の最後は必ず取り切っている")
+        #expect(spy.notices.last == .success, "クリアで発火する")
+    }
 }
 
 // MARK: - CPU の着手では手応えを鳴らさない
@@ -397,7 +424,7 @@ struct FeedbackCPUSilentTests {
 @MainActor
 struct FeedbackDisabledTests {
 
-    @Test("設定がオフなら全9ゲームのどの契機でも発火しない")
+    @Test("設定がオフなら全10ゲームのどの契機でも発火しない")
     func nothingFiresWhenDisabled() async {
         let (services, spy) = makeServices(hapticsEnabled: false)
 
@@ -410,6 +437,7 @@ struct FeedbackDisabledTests {
         playConcentration(services)
         playBlackjack(services)
         await playDaifugo(services)
+        playMahjong(services)
 
         #expect(spy.callCount == 0, "オフのときは impact / notify とも 1 度も呼ばれない")
     }
@@ -427,6 +455,7 @@ struct FeedbackDisabledTests {
         playConcentration(services)
         playBlackjack(services)
         await playDaifugo(services)
+        playMahjong(services)
 
         #expect(spy.callCount > 0)
     }

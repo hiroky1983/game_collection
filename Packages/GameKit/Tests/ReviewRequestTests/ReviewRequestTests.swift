@@ -10,6 +10,7 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameDaifugo
+import GameMahjongSolitaire
 
 // MARK: - 共通のヘルパー
 
@@ -498,6 +499,23 @@ struct GameOutcomeRoutingTests {
             #expect(model.playerTitle != "大富豪")
             #expect(service.log.totalWins == 0)
         }
+    }
+
+    @Test("麻雀ソリティア: 取り切れば勝ち・手詰まりで諦めれば負けに振り分ける")
+    func mahjong() {
+        let (services, service) = makeServices(suite: "route-mahjong")
+        let model = MahjongSolitaireModel(services: services, seed: 909)
+        for pair in model.solution {
+            model.tap(pair[0])
+            model.tap(pair[1])
+        }
+        #expect(model.phase == .won)
+        #expect(service.log.totalWins == 1, "クリアは勝ちとして数える")
+
+        let (services2, service2) = makeServices(suite: "route-mahjong-loss")
+        let giveUp = MahjongSolitaireModel(services: services2, seed: 910)
+        giveUp.giveUpAndRestart()
+        #expect(service2.log.totalWins == 0, "諦めた回は勝ちに数えない")
     }
 
     @Test("ポーカー: ラウンドの結果どおりに振り分ける")

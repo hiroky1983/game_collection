@@ -47,6 +47,8 @@ targets:
         product: GameBlackjack
       - package: GameKit
         product: GameDaifugo
+      - package: GameKit
+        product: GameMahjongSolitaire
       - package: GoogleMobileAds
         product: GoogleMobileAds
       - package: Firebase
