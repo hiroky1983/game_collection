@@ -28,6 +28,8 @@ public final class ShogiGameModel {
     public var aiLevel: Int
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
+    /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
+    public private(set) var gameSerial: Int = 0
 
     private let services: GameServices?
     private let gameID = "shogi"
@@ -221,6 +223,7 @@ public final class ShogiGameModel {
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
         startedAt = startedAtFallback()
+        gameSerial += 1
         clearSelection()
         persist()
     }
@@ -231,6 +234,11 @@ public final class ShogiGameModel {
     // MARK: - CPU 着手
 
     public private(set) var isThinking: Bool = false
+
+    /// View の `.task(id:)` に渡す CPU 起動トリガー。
+    /// 手数だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
+    /// CPU の初手が起動しない（#82）。対局の通し番号と組にする。
+    public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: moves.count) }
 
     /// AI の手番なら最善手を計算して指す。View から手番変化のたびに呼ぶ。
     public func performAIMoveIfNeeded() async {
@@ -343,4 +351,10 @@ public final class ShogiGameModel {
 
     // Date.now を init 前に使えないため分離。
     private func startedAtFallback() -> Date { Date() }
+}
+
+/// CPU 起動トリガーの識別子（対局の通し番号 × 手数）。
+public struct AITurnKey: Hashable, Sendable {
+    public let gameSerial: Int
+    public let ply: Int
 }
