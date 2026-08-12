@@ -8,6 +8,7 @@ set -uo pipefail
 DUTY_DIR="$HOME/.asobiba-duty/game_collection"
 LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
+DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
@@ -26,10 +27,30 @@ log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 #     既存ファイルの内容も信用せず、毎回 origin/main から取り出し直して照合する
 #   - 実体は blob ハッシュ名で保存する。実行中の旧インスタンスが同じファイルを読んでいても
 #     内容が同一で、置換も mv（原子的・inode 差し替え）なので破損しない
+#   - この fetch はロックの外側で走るため、ハングすると launchd の10分間隔でプロセスが
+#     積み上がる（ロックを取れていないので後続も素通りして同じ場所で詰まる）。
+#     macOS には timeout(1) が無いので自前で見張り、上限を超えたら自己更新を諦めて先へ進む
 self_update() {
   [ -n "${DUTY_SELF_UPDATED:-}" ] && return 0
   [ -d "$DUTY_DIR/.git" ] || return 0
-  git -C "$DUTY_DIR" fetch origin --prune --quiet >>"$LOG" 2>&1 || return 0
+  local gpid waited=0
+  GIT_TERMINAL_PROMPT=0 git -C "$DUTY_DIR" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 \
+    fetch origin --prune --quiet >>"$LOG" 2>&1 &
+  gpid=$!
+  while [ "$waited" -lt "$DUTY_FETCH_TIMEOUT" ] && kill -0 "$gpid" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if kill -0 "$gpid" 2>/dev/null; then
+    kill "$gpid" 2>/dev/null
+    wait "$gpid" 2>/dev/null
+    log "自己更新: fetch が ${DUTY_FETCH_TIMEOUT} 秒を超えたため見送り"
+    return 0
+  fi
+  if ! wait "$gpid" 2>/dev/null; then
+    log "自己更新: fetch に失敗したため見送り"
+    return 0
+  fi
   local oid cache fresh tmp
   oid=$(git -C "$DUTY_DIR" rev-parse "origin/main:Scripts/ai-duty.sh" 2>/dev/null) || return 0
   [ -n "$oid" ] || return 0
