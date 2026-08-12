@@ -2,7 +2,7 @@
 
 作業ディレクトリはこの実行専用の**使い捨て worktree**（origin/main の detached 状態で開始）。前回実行の状態は残っていないので、ブランチは必ず `git checkout -b <name> origin/release/vX.Y.Z` のようにリモート参照から作ること。終了時の後片付けは不要（次回起動時に自動掃除される）。
 
-やること（両方チェックし、あるものを処理）:
+やること（すべてチェックし、あるものを処理）:
 
 ## 1. 未解決の CodeRabbit スレッドの消化（優先）
 
@@ -64,6 +64,23 @@ Issue 本文が「◯◯の2週間後」のような**当番の努力では満�
 - **調査・分析系**: WebSearch/WebFetch（iTunes Search API `https://itunes.apple.com/search?country=jp&entity=software&term=...` が有用）で調査し、受け入れ条件を満たす成果物を Issue にコメントで報告。会長の決裁が必要な提案は「【要決裁あり】」を明記。完了したら ai:in-progress を外す（close は受け入れ条件を全て満たした場合のみ）。
 - **コード実装系**: **最新の release/vX.Y.Z ブランチ**（`git branch -r | grep 'release/v'` の最大バージョン。無ければ着手せず Issue に記録して会長に確認）から feature ブランチを切り、最小差分で実装。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
 - 完了報告の前に検証を行うこと（テスト実行・ビルド確認。「たぶん動く」で報告しない）。
+
+## 3. 公開済み release ブランチの main への取り込み
+
+App Store で公開されたバージョンが `release/vX.Y.Z` に追いついているのに main へ未マージなら、規程
+（ai-devops.md「main = リリース済みバージョンの集合」）どおり取り込む。**この検知は会長の「公開された」
+という申告ではなく App Store の公開バージョンを直接見て行う**ため、リリース Issue が閉じられていても
+取りこぼさない（#68 が審査提出の時点で close され、実際に宙に浮いた）。
+
+1. `curl -s "https://itunes.apple.com/lookup?id=6781719499&country=jp"` の `version` /
+   `currentVersionReleaseDate` を自分でも確認する（公開前に main へ入れてしまわないための二重チェック）。
+2. `gh pr create --base main --head release/vX.Y.Z --title "release: vX.Y.Z を main へ取り込み（App Store 公開済み）"`。
+   本文に公開バージョンと公開日を根拠として書く。運用系の変更が main 側に先行していてコンフリクトする
+   場合は 1-c の手順で両側の意図を保って解消する。
+3. マージ後、main の HEAD に `git tag vX.Y.Z && git push origin vX.Y.Z`
+   （タグの push はブランチへの直接プッシュではないので可）。
+4. マイルストーン vX.Y.Z をクローズする（`gh api -X PATCH repos/hiroky1983/game_collection/milestones/<番号> -f state=closed`）。
+   リリース Issue が残っていれば、取り込み・タグ・クローズの結果をコメントで記録する。
 
 ## 決裁リクエストの形式（会長向け・必須）
 
