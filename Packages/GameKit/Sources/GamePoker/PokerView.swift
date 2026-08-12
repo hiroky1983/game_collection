@@ -31,6 +31,7 @@ public struct PokerView: View {
             } else {
                 actionArea
             }
+            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
             Spacer(minLength: 4)
             BannerSlot(ads: services.ads)
         }

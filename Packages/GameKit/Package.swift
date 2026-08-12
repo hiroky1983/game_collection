@@ -42,5 +42,10 @@ let package = Package(
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
         ]),
+        // ゲーム間レコメンドも全ゲーム横断（決着の数え上げを全 Model で検証する）。
+        .testTarget(name: "RecommendationTests", dependencies: [
+            "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
+        ]),
     ]
 )

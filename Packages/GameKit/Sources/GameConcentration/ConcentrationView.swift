@@ -21,6 +21,7 @@ public struct ConcentrationView: View {
             if !model.isGameOver {
                 mattaControls
             }
+            RecommendationSlot(services: services, isFinished: model.isGameOver)
             Spacer(minLength: 4)
             BannerSlot(ads: services.ads)
         }

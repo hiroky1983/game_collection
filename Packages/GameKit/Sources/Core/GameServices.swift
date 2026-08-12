@@ -3,10 +3,18 @@ public struct GameServices {
     public let snapshots: SnapshotStore
     public let ads: AdService
     public let feedback: FeedbackService
+    /// ゲーム間レコメンド。テスト・プレビューでは nil（何も起きない）。
+    public let recommendations: RecommendationService?
 
-    public init(snapshots: SnapshotStore, ads: AdService, feedback: FeedbackService = NoopFeedbackService()) {
+    public init(
+        snapshots: SnapshotStore,
+        ads: AdService,
+        feedback: FeedbackService = NoopFeedbackService(),
+        recommendations: RecommendationService? = nil
+    ) {
         self.snapshots = snapshots
         self.ads = ads
         self.feedback = feedback
+        self.recommendations = recommendations
     }
 }

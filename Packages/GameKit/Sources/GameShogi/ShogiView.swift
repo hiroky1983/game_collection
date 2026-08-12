@@ -33,6 +33,7 @@ public struct ShogiView: View {
             } else {
                 gameControls
             }
+            RecommendationSlot(services: services, isFinished: model.gameOver)
             Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
