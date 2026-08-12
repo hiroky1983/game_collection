@@ -58,9 +58,11 @@ public final class ConcentrationModel {
     // MARK: - Public Actions
 
     public func tap(index: Int) {
-        guard currentPlayer == .human, !isThinking else { return }
-        guard !cards[index].isFaceUp, !cards[index].isMatched else { return }
-        guard mismatchedIndices.isEmpty else { return }
+        guard currentPlayer == .human, !isThinking, !isGameOver else { return }
+        guard !cards[index].isFaceUp, !cards[index].isMatched, mismatchedIndices.isEmpty else {
+            services?.feedback.notify(.warning) // めくり済み・獲得済み、または不一致の表示中
+            return
+        }
         flipCard(index: index)
         persist()
     }
@@ -80,6 +82,7 @@ public final class ConcentrationModel {
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
+        services?.feedback.impact(.rigid)
         persist()
     }
 
@@ -200,19 +203,27 @@ public final class ConcentrationModel {
                 lastMatchedIndices = [first, index]
                 if currentPlayer == .human { playerScore += 1 } else { cpuScore += 1 }
                 checkGameOver()
+                if !isGameOver { services?.feedback.impact(.medium) } // ペア成立
             } else {
                 lastMatchedIndices = []
                 mismatchedIndices = [first, index]
+                services?.feedback.impact(.light)
             }
         } else {
             firstFlippedIndex = index
             lastMatchedIndices = []
+            services?.feedback.impact(.light)
         }
     }
 
     private func checkGameOver() {
         if cards.allSatisfy({ $0.isMatched }) {
             isGameOver = true
+            if isDraw {
+                services?.feedback.notify(.warning)
+            } else {
+                services?.feedback.notify(winner == .human ? .success : .error)
+            }
             services?.snapshots.clear(for: gameID)
         }
     }

@@ -81,7 +81,10 @@ public final class OthelloModel {
 
     public func tap(row: Int, col: Int) {
         guard !gameOver, !isAITurn, !mustPass else { return }
-        guard board.isValid(row: row, col: col, stone: currentStone) else { return }
+        guard board.isValid(row: row, col: col, stone: currentStone) else {
+            services?.feedback.notify(.warning) // 石を返せないマスへの着手
+            return
+        }
         saveUndoState()
         place(row: row, col: col)
     }
@@ -93,6 +96,7 @@ public final class OthelloModel {
         currentStone = currentStone.opponent
         turnID      += 1
         checkTermination()
+        notifyTermination()
         persist()
     }
 
@@ -112,6 +116,7 @@ public final class OthelloModel {
     public func resign() {
         guard !gameOver else { return }
         winner = humanSide.opponent
+        services?.feedback.notify(.error)
         persist()
     }
 
@@ -165,7 +170,22 @@ public final class OthelloModel {
         currentStone = currentStone.opponent
         turnID      += 1
         checkTermination()
+        if !notifyTermination() {
+            services?.feedback.impact(.medium)
+        }
         persist()
+    }
+
+    /// 決着していれば結果を触覚で伝える。決着していなければ false（呼び出し側が着手音を出す）。
+    @discardableResult
+    private func notifyTermination() -> Bool {
+        guard gameOver else { return false }
+        if isDraw {
+            services?.feedback.notify(.warning)
+        } else {
+            services?.feedback.notify(winner == humanSide ? .success : .error)
+        }
+        return true
     }
 
     private func checkTermination() {

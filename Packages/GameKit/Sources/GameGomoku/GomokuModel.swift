@@ -119,7 +119,11 @@ public final class GomokuModel {
     }
 
     public func tap(row: Int, col: Int) {
-        guard !gameOver, !isAITurn, board[row, col] == nil else { return }
+        guard !gameOver, !isAITurn else { return }
+        guard board[row, col] == nil else {
+            services?.feedback.notify(.warning) // 埋まっているマスへの着手
+            return
+        }
         place(row: row, col: col)
     }
 
@@ -130,10 +134,13 @@ public final class GomokuModel {
         moveCount += 1
         if board.checkWin(row: row, col: col) {
             winner = currentStone
+            services?.feedback.notify(currentStone == humanSide ? .success : .error)
         } else if board.isFull {
             isDraw = true
+            services?.feedback.notify(.warning)
         } else {
             currentStone = currentStone.opponent
+            services?.feedback.impact(.medium)
         }
         persist()
     }
@@ -177,6 +184,7 @@ public final class GomokuModel {
         guard !gameOver else { return }
         resigned = true
         winner = humanSide.opponent
+        services?.feedback.notify(.error)
         persist()
     }
 
