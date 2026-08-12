@@ -130,7 +130,7 @@ public final class MinesweeperModel {
             timerTask?.cancel()
             timerTask = nil
             services?.feedback.notify(.error)
-            services?.recommendations?.gameDidFinish(gameID: gameID)
+            services?.gameDidFinish(gameID: gameID, outcome: .loss)
         } else {
             floodReveal(row: row, col: col)
 
@@ -140,7 +140,7 @@ public final class MinesweeperModel {
                 timerTask?.cancel()
                 timerTask = nil
                 services?.feedback.notify(.success)
-                services?.recommendations?.gameDidFinish(gameID: gameID)
+                services?.gameDidFinish(gameID: gameID, outcome: .win)
             } else {
                 services?.feedback.impact(.light)
             }
@@ -176,7 +176,7 @@ public final class MinesweeperModel {
             timerTask?.cancel()
             timerTask = nil
             services?.feedback.notify(.success)
-            services?.recommendations?.gameDidFinish(gameID: gameID)
+            services?.gameDidFinish(gameID: gameID, outcome: .win)
         }
 
         persist()
@@ -204,7 +204,7 @@ public final class MinesweeperModel {
         revealAllMines()
         gameState = .lost
         services?.feedback.notify(.error)
-        services?.recommendations?.gameDidFinish(gameID: gameID)
+        services?.gameDidFinish(gameID: gameID, outcome: .loss)
         timerTask?.cancel()
         timerTask = nil
         services?.snapshots.clear(for: gameID)

@@ -37,6 +37,7 @@ public struct MinesweeperView: View {
         .animation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
+        .reviewRequestPrompt(services.review)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)

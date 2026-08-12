@@ -391,7 +391,8 @@ struct PlayLogStorageTests {
         log.markShown(at: Date(timeIntervalSince1970: 1_900_000_000))
         let after1020 = defaults.persistentDomain(forName: name) ?? [:]
 
-        #expect(Set(after20.keys) == Set(PlayLog.allKeys), "書き込むキーは5つだけ")
+        // 評価リクエスト（#53）の4キーはこのテストでは書き込まれない（勝利を記録していないため）。
+        #expect(Set(after20.keys) == Set(PlayLog.recommendationKeys), "書き込むキーは5つだけ")
         #expect(Set(after1020.keys) == Set(after20.keys), "1000回遊んでもキーは増えない")
         // 増えうるのは整数の桁だけ（バイナリ plist の整数幅）。追記型ログなら数十 KB になる。
         #expect(storedSize(after1020) - storedSize(after20) <= 16, "データ量はほぼ一定")

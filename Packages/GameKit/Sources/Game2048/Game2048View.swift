@@ -27,6 +27,7 @@ public struct Game2048View: View {
         }
         .padding()
         .popBackground()
+        .reviewRequestPrompt(services.review)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)

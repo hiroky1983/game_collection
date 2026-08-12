@@ -42,6 +42,11 @@ public final class OthelloModel {
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
+    /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    public var reviewOutcome: GameOutcome {
+        if isDraw { return .draw }
+        return winner == humanSide ? .win : .loss
+    }
     public var blackCount: Int { board.count(for: .black) }
     public var whiteCount: Int { board.count(for: .white) }
     public var canUndo: Bool {
@@ -117,7 +122,7 @@ public final class OthelloModel {
         guard !gameOver else { return }
         winner = humanSide.opponent
         services?.feedback.notify(.error)
-        services?.recommendations?.gameDidFinish(gameID: gameID)
+        services?.gameDidFinish(gameID: gameID, outcome: .loss)
         persist()
     }
 
@@ -188,7 +193,7 @@ public final class OthelloModel {
         } else {
             services?.feedback.notify(winner == humanSide ? .success : .error)
         }
-        services?.recommendations?.gameDidFinish(gameID: gameID)
+        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
         return true
     }
 

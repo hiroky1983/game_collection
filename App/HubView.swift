@@ -118,6 +118,11 @@ struct HubView: View {
                 if let i = args.firstIndex(of: "-simulateRecommendation"), i + 1 < args.count {
                     services.recommendations?.simulateSuggestion(gameID: args[i + 1])
                 }
+                // 撮影・動作確認用: 発火条件を通さずに評価リクエストを出す
+                // （`-startGame <id> -simulateReviewRequest` でそのゲームのリザルト経路に乗せる）。
+                if args.contains("-simulateReviewRequest") {
+                    services.review?.simulateRequest()
+                }
                 #endif
             }
         }

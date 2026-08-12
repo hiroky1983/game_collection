@@ -17,7 +17,8 @@ enum AppEnvironment {
         snapshots: FileSnapshotStore(),
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
         feedback: GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
-        recommendations: recommendations
+        recommendations: recommendations,
+        review: review
     )
 
     /// プレイ履歴（回数カウンタと遊んだゲームの ID だけ。盤面・スコアは持たない）。
@@ -28,6 +29,15 @@ enum AppEnvironment {
         log: playLog,
         availableModules: { settings.visibleModules(from: registry) }
     )
+
+    /// 評価リクエスト。勝った直後にだけ、生涯で1〜2回だけ聞く（条件は `ReviewRequestPolicy`）。
+    /// バージョンごとに1回までのため、`CFBundleShortVersionString` を判定に使う。
+    static let review = ReviewRequestService(log: playLog, appVersion: shortVersion)
+
+    /// 表示用のバージョン番号（例 "1.1.1"）。取れなければ判定を止めないよう "0" を使う。
+    static var shortVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    }
 
     /// App Store 用スクリーンショットの撮影モード（**DEBUG ビルドのみ有効**）。
     /// `-screenshotMode` 付きで起動すると広告を出さず ATT も聞かない。

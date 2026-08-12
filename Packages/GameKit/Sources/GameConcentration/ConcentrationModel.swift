@@ -39,6 +39,11 @@ public final class ConcentrationModel {
         return nil
     }
     public var isDraw: Bool { isGameOver && playerScore == cpuScore }
+    /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    public var reviewOutcome: GameOutcome {
+        if isDraw { return .draw }
+        return winner == .human ? .win : .loss
+    }
     public var isHumanTurn: Bool { currentPlayer == .human }
     public var canMatta: Bool { !isGameOver && isHumanTurn && !mismatchedIndices.isEmpty }
 
@@ -227,7 +232,7 @@ public final class ConcentrationModel {
             } else {
                 services?.feedback.notify(winner == .human ? .success : .error)
             }
-            services?.recommendations?.gameDidFinish(gameID: gameID)
+            services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
             services?.snapshots.clear(for: gameID)
         }
     }
