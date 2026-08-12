@@ -191,6 +191,9 @@ public final class ConcentrationModel {
     }
 
     private func flipCard(index: Int) {
+        // めくった手応えは自分がめくったときだけ。CPU の手番では鳴らさない
+        // （1ターンで2枚めくるため、鳴らすと触れていない間に連続で振動してしまう）。
+        let isHumanMove = currentPlayer == .human
         cards[index].isFaceUp = true
         ai.observe(index: index, symbol: cards[index].symbol)
 
@@ -203,16 +206,16 @@ public final class ConcentrationModel {
                 lastMatchedIndices = [first, index]
                 if currentPlayer == .human { playerScore += 1 } else { cpuScore += 1 }
                 checkGameOver()
-                if !isGameOver { services?.feedback.impact(.medium) } // ペア成立
+                if !isGameOver, isHumanMove { services?.feedback.impact(.medium) } // ペア成立
             } else {
                 lastMatchedIndices = []
                 mismatchedIndices = [first, index]
-                services?.feedback.impact(.light)
+                if isHumanMove { services?.feedback.impact(.light) }
             }
         } else {
             firstFlippedIndex = index
             lastMatchedIndices = []
-            services?.feedback.impact(.light)
+            if isHumanMove { services?.feedback.impact(.light) }
         }
     }
 

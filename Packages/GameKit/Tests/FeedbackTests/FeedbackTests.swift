@@ -144,7 +144,8 @@ private func playOthello(_ services: GameServices) {
 }
 
 @MainActor
-private func playPoker(_ services: GameServices) {
+@discardableResult
+private func playPoker(_ services: GameServices) -> PokerModel {
     let model = PokerModel(services: services)
     model.restartSession()
     model.startGame()                     // 成立（配り）
@@ -163,6 +164,7 @@ private func playPoker(_ services: GameServices) {
         model.callCPUBet()
     }
     // ここまでで必ず .result（CPU フォールドまたはショーダウン）＝ 決着。
+    return model
 }
 
 @MainActor
@@ -185,7 +187,8 @@ private func playConcentration(_ services: GameServices) {
 }
 
 @MainActor
-private func playBlackjack(_ services: GameServices) {
+@discardableResult
+private func playBlackjack(_ services: GameServices) -> BlackjackModel {
     let model = BlackjackModel(services: services)
     model.restartSession()
     model.placeBet(999_999)  // 拒否（チップ不足）
@@ -193,6 +196,7 @@ private func playBlackjack(_ services: GameServices) {
     if model.phase == .playerTurn { model.hit() }
     if model.phase == .playerTurn { model.stand() }
     // stand → ディーラー進行 → 決着。hit でバストした場合もその時点で決着。
+    return model
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -250,10 +254,18 @@ struct FeedbackEnabledTests {
     @Test("ポーカー: 配り・チップ不足・決着で発火する")
     func poker() {
         let (services, spy) = makeServices(hapticsEnabled: true)
-        playPoker(services)
+        let model = playPoker(services)
         #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
         #expect(spy.notices(of: .warning) > 0, "チップ不足のベットは拒否として発火する")
-        #expect(!spy.notices.isEmpty, "ラウンドの決着で発火する")
+        // 決着は「最後の notify が勝敗と一致するか」で見る（件数だけだと拒否の発火で常に真になる）。
+        #expect(model.phase == .result, "手順の最後は必ず決着している")
+        let expected: FeedbackNotice
+        switch model.winner {
+        case .player: expected = .success
+        case .cpu:    expected = .error
+        default:      expected = .warning
+        }
+        #expect(spy.notices.last == expected, "ラウンドの決着が勝敗どおりに発火する")
     }
 
     @Test("神経衰弱: めくり・めくり済み・全ペア成立で発火する")
@@ -269,10 +281,68 @@ struct FeedbackEnabledTests {
     @Test("ブラックジャック: 配り・チップ不足・決着で発火する")
     func blackjack() {
         let (services, spy) = makeServices(hapticsEnabled: true)
-        playBlackjack(services)
+        let model = playBlackjack(services)
         #expect(!spy.impacts.isEmpty, "配り・ヒットで発火する")
         #expect(spy.notices(of: .warning) > 0, "チップ不足のベットは拒否として発火する")
-        #expect(!spy.notices.isEmpty, "決着で発火する")
+        // ポーカーと同じ理由で、件数ではなく最後の notify を結果と突き合わせる。
+        #expect(model.phase == .result, "手順の最後は必ず決着している")
+        let expected: FeedbackNotice
+        switch model.outcome {
+        case .playerBlackjack, .win: expected = .success
+        case .push:                  expected = .warning
+        default:                     expected = .error
+        }
+        #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
+    }
+}
+
+// MARK: - CPU の着手では手応えを鳴らさない
+//
+// 指を触れていない間に端末が振動するのを避ける（決着の notify は結果の通知なので鳴らす）。
+
+@Suite("CPU の着手では鳴らさない")
+@MainActor
+struct FeedbackCPUSilentTests {
+
+    @Test("五目並べ: CPU の着手では impact が増えない")
+    func gomoku() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = GomokuModel(services: services)
+        model.newGame(humanSide: .black, aiLevel: 1)
+        model.tap(row: 7, col: 7)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("オセロ: CPU の着手では impact が増えない")
+    func othello() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = OthelloModel(services: services)
+        model.newGame(humanSide: .black, aiLevel: 1)
+        guard let move = model.board.validMoves(for: .black).first else { return }
+        model.tap(row: move.0, col: move.1)
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
+    }
+
+    @Test("将棋: CPU の着手では impact が増えない")
+    func shogi() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = ShogiGameModel(services: services)
+        model.newGame(humanSide: .black, aiLevel: 1)
+        guard case let .board(from, to, _)? = model.legalMovesCache.first(where: {
+            if case .board = $0 { return true }
+            return false
+        }) else { return }
+        model.apply(.board(from: from, to: to, promote: false))
+        let afterHuman = spy.impacts.count
+        #expect(afterHuman > 0, "人間の着手では鳴る")
+        await model.performAIMoveIfNeeded()
+        #expect(spy.impacts.count == afterHuman, "CPU の着手では鳴らない")
     }
 }
 

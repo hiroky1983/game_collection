@@ -185,6 +185,7 @@ public final class ShogiGameModel {
 
     /// 合法手を適用する（AI もここを通る）。
     public func apply(_ move: Move) {
+        let mover = position.sideToMove
         position.make(move)
         moves.append(move)
         clearSelection()
@@ -196,7 +197,8 @@ public final class ShogiGameModel {
             resultText = (loser == .black ? "先手" : "後手") + "の負け（詰み）"
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
-        } else {
+        } else if mover == humanSide {
+            // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
             services?.feedback.impact(.medium)
         }
         persist()

@@ -165,12 +165,14 @@ public final class OthelloModel {
     }
 
     private func place(row: Int, col: Int) {
+        let mover = currentStone
         board.place(row: row, col: col, stone: currentStone)
         lastMove     = (row, col)
         currentStone = currentStone.opponent
         turnID      += 1
         checkTermination()
-        if !notifyTermination() {
+        // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
+        if !notifyTermination(), mover == humanSide {
             services?.feedback.impact(.medium)
         }
         persist()

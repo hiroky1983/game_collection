@@ -128,19 +128,21 @@ public final class GomokuModel {
     }
 
     private func place(row: Int, col: Int) {
+        let mover = currentStone
         board[row, col] = currentStone
         moves.append((row, col, currentStone))
         lastMove = (row, col)
         moveCount += 1
         if board.checkWin(row: row, col: col) {
             winner = currentStone
-            services?.feedback.notify(currentStone == humanSide ? .success : .error)
+            services?.feedback.notify(mover == humanSide ? .success : .error)
         } else if board.isFull {
             isDraw = true
             services?.feedback.notify(.warning)
         } else {
             currentStone = currentStone.opponent
-            services?.feedback.impact(.medium)
+            // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
+            if mover == humanSide { services?.feedback.impact(.medium) }
         }
         persist()
     }

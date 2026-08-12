@@ -173,6 +173,7 @@ public final class MinesweeperModel {
             gameState = .won
             timerTask?.cancel()
             timerTask = nil
+            services?.feedback.notify(.success)
         }
 
         persist()
