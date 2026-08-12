@@ -19,6 +19,7 @@ let package = Package(
         .library(name: "GamePoker",         targets: ["GamePoker"]),
         .library(name: "GameConcentration", targets: ["GameConcentration"]),
         .library(name: "GameBlackjack",     targets: ["GameBlackjack"]),
+        .library(name: "GameDaifugo",       targets: ["GameDaifugo"]),
     ],
     targets: [
         .target(name: "Core"),
@@ -30,6 +31,7 @@ let package = Package(
         .target(name: "GamePoker",          dependencies: ["Core"]),
         .target(name: "GameConcentration",  dependencies: ["Core"]),
         .target(name: "GameBlackjack",      dependencies: ["Core"]),
+        .target(name: "GameDaifugo",        dependencies: ["Core"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku"]),
@@ -37,20 +39,21 @@ let package = Package(
         .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker"]),
         .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration"]),
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack"]),
+        .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo"]),
         // 触覚フィードバックは全ゲーム横断のため 1 ターゲットにまとめる（スパイ実装の重複を避ける）。
         .testTarget(name: "FeedbackTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
-            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
         ]),
         // ゲーム間レコメンドも全ゲーム横断（決着の数え上げを全 Model で検証する）。
         .testTarget(name: "RecommendationTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
-            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
         ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
         .testTarget(name: "ReviewRequestTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
-            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
         ]),
     ]
 )

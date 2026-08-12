@@ -9,6 +9,7 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameDaifugo
 
 // MARK: - 共通のヘルパー
 
@@ -467,6 +468,35 @@ struct GameOutcomeRoutingTests {
         switch model.reviewOutcome {
         case .win:  #expect(service.log.totalWins == 1)
         default:    #expect(service.log.totalWins == 0)
+        }
+    }
+
+    @Test("大富豪: 大富豪なら勝ち・大貧民なら負けに振り分ける")
+    func daifugo() async {
+        let (services, service) = makeServices(suite: "route-daifugo")
+        let model = DaifugoModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame()
+        for _ in 0..<500 where model.phase == .playing {
+            await model.runCPUTurnsIfNeeded()
+            guard model.phase == .playing, model.isPlayerTurn else { continue }
+            if let play = DaifugoRules.greedyPlay(
+                hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+            ) {
+                for card in play { model.toggleSelection(card) }
+                model.playSelected()
+            } else {
+                model.pass()
+            }
+        }
+        #expect(model.phase == .result)
+
+        switch model.reviewOutcome {
+        case .win:
+            #expect(model.playerTitle == "大富豪")
+            #expect(service.log.totalWins == 1)
+        default:
+            #expect(model.playerTitle != "大富豪")
+            #expect(service.log.totalWins == 0)
         }
     }
 
