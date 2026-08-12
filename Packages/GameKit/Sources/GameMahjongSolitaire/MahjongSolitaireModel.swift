@@ -168,9 +168,11 @@ public final class MahjongSolitaireModel {
         elapsedSeconds = 0
         shuffleCount = 0
         hintCount = 0
+        refreshDerivedState()
+        // 画面は開いたままなので、ここで計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         timerTask?.cancel()
         timerTask = nil
-        refreshDerivedState()
+        startTimer()
         services?.feedback.impact(.medium)
         services?.snapshots.clear(for: gameID)
     }
@@ -182,6 +184,9 @@ public final class MahjongSolitaireModel {
         services?.gameDidFinish(gameID: gameID, outcome: .loss)
         newGame()
     }
+
+    /// 計時が動いているか（テスト用）。
+    public var isCounting: Bool { timerTask != nil }
 
     /// 中断から復帰したときに計時を再開する（View の `.task` から呼ぶ）。
     public func resumeTimerIfNeeded() {

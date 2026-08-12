@@ -114,6 +114,22 @@ struct MahjongSolitaireModelTests {
         #expect(model.remainingCount == 144)
     }
 
+    @Test("新規ゲームでは計時が入り直す（クリア後に時計が止まったままにならない）")
+    func newGameRestartsTheClock() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 13)
+        model.resumeTimerIfNeeded()
+        #expect(model.isCounting)
+
+        clearBoard(model)
+        #expect(model.phase == .won)
+        #expect(!model.isCounting, "クリアしたら止まる")
+
+        model.newGame()
+        #expect(model.isCounting, "次のゲームでは計時が再開する")
+        #expect(model.elapsedSeconds == 0)
+    }
+
     @Test("ヒントはいま取れる合う2枚を指す")
     func hintPointsToAnAvailablePair() {
         let (services, _) = makeServices()
