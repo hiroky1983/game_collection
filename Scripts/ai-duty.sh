@@ -281,11 +281,28 @@ query {
 #      ロックで弾かれるため対象にならない。
 #   2) 経過時間 — 最終更新から30分以上のものだけを対象にする。着手宣言・進捗コメント・
 #      ラベル操作はいずれも updatedAt を更新するため、生きている作業は時間切れにならない。
+#   3) 成果物 — オープン PR に紐づいている Issue（PR 本文の `Closes #N`）は除外する。
+#      実装が PR まで到達していれば孤児ではなく、ラベルは PR のマージ（= Issue の close）で
+#      自然に片付く。除外しないと、当番が「PR があるのでラベルは残す」と正しく判断するたびに
+#      次の毎時起動でまた同じ Issue を拾い、マージされるまで空振りが続く。
 DUTY_ORPHAN_MIN_AGE="${DUTY_ORPHAN_MIN_AGE:-1800}"  # 孤児とみなす無更新の秒数（テストから短縮できるよう外出し）
+LINKED_ISSUES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    pullRequests(states: OPEN, first: 50) {
+      nodes { closingIssuesReferences(first: 10) { nodes { number } } }
+    }
+  }
+}' --jq '[.data.repository.pullRequests.nodes[].closingIssuesReferences.nodes[].number]' 2>/dev/null)
+# 取得に失敗したら「全部が紐づいている」とみなすのではなく空集合に倒すが、その場合でも
+# 経過時間ガードが効くため、当番が起きて状況を確認するだけで実害は無い
+LINKED_ISSUES="${LINKED_ISSUES:-[]}"
 ORPHANS=$(gh issue list -R hiroky1983/game_collection --label "ai:in-progress" --state open \
   --json number,updatedAt 2>/dev/null \
-  | jq --argjson age "$DUTY_ORPHAN_MIN_AGE" \
-     '[.[] | select((.updatedAt | fromdateiso8601) < (now - $age))] | length' 2>/dev/null || echo 0)
+  | jq --argjson age "$DUTY_ORPHAN_MIN_AGE" --argjson linked "$LINKED_ISSUES" \
+     '[.[] | . as $i
+           | select(($i.updatedAt | fromdateiso8601) < (now - $age))
+           | select(($linked | index($i.number)) == null)] | length' 2>/dev/null || echo 0)
 ORPHANS="${ORPHANS:-0}"
 
 # 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
