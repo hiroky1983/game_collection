@@ -129,6 +129,13 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 `Scripts/ai-duty.sh` を毎時実行。ログは `~/Library/Logs/asobiba-ai-duty.log`。
 読み込みは `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.ai-duty.plist`。
 
+launchd が起動するのは**会長の作業ツリー**（`~/myspace/game_collection`）の `ai-duty.sh` であり、
+main へマージしただけでは反映されない。会長の `git pull` を待つ間、修正済みの発火条件が効かないまま
+空振り起動が続く（2026-08-12: #73 の `blocked` 除外が反映されず10分おきに空振りしていた）。
+そのため `ai-duty.sh` は**起動時に自分自身を origin/main の最新版へ差し替えて exec し直す**
+（取得元は当番専用クローン `~/.asobiba-duty/game_collection` のみ。会長の作業ツリーには触れない）。
+この仕組み自体を有効化する一度だけの `git pull` は会長の操作が要る。
+
 ### 配信（Phase 1）
 
 - `bundle exec fastlane beta` で TestFlight に自動アップロード（`fastlane/Fastfile`）。
