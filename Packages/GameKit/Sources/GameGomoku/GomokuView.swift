@@ -8,6 +8,7 @@ public struct GomokuView: View {
     @State private var showConfirmNewGame = false
     @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
+    @State private var showRewardNotEarned = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -254,8 +255,11 @@ public struct GomokuView: View {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
                     Task {
                         if model.undoUsed {
-                            let rewarded = await services.ads.showRewardedAd()
-                            guard rewarded else { return }
+                            // 視聴完了（報酬獲得）したときだけ待ったを許可する
+                            guard await services.ads.showRewardedAd() else {
+                                showRewardNotEarned = true
+                                return
+                            }
                         }
                         model.undoLastExchange()
                     }
@@ -265,6 +269,11 @@ public struct GomokuView: View {
                 Text(model.undoUsed
                      ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                      : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
+            }
+            .alert("待ったは使えませんでした", isPresented: $showRewardNotEarned) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
             }
         }
         .font(Theme.body(14))

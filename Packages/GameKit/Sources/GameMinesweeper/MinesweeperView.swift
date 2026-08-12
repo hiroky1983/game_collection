@@ -10,6 +10,8 @@ public struct MinesweeperView: View {
     @State private var showContinue = false
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
+    @State private var showRewardNotEarned = false
+    @State private var isContinuing = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -85,6 +87,11 @@ public struct MinesweeperView: View {
         .overlay {
             if showContinue { continueOverlay }
         }
+        .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+        }
         .task {
             model.resumeTimerIfNeeded()
         }
@@ -123,11 +130,18 @@ public struct MinesweeperView: View {
                     .foregroundStyle(Theme.ink)
 
                 Button {
+                    // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
+                    guard !isContinuing else { return }
+                    isContinuing = true
                     Task {
-                        let rewarded = await services.ads.showRewardedAd()
-                        guard rewarded else { return }
-                        model.continueAfterAd()
-                        showContinue = false
+                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                        if await services.ads.showRewardedAd() {
+                            model.continueAfterAd()
+                            showContinue = false
+                        } else {
+                            showRewardNotEarned = true
+                        }
+                        isContinuing = false
                     }
                 } label: {
                     Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
@@ -138,6 +152,7 @@ public struct MinesweeperView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
+                .disabled(isContinuing)
 
                 Button { showContinue = false } label: {
                     Text("あきらめる")
