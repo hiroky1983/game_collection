@@ -12,6 +12,40 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 
+# 自己更新: launchd が起動するのは会長の作業ツリー（~/myspace/game_collection）の本ファイルであり、
+# main へマージしただけでは反映されない。会長が git pull するまで旧版が動き続け、修正済みの
+# 発火条件が効かないまま空振り起動を繰り返す（2026-08-12: #73 の blocked 除外がこの理由で効かず、
+# 10分おきに当番が空振り起動していた）。会長の手作業に依存せず、当番専用クローンから
+# origin/main の最新版を取り出して実行し直す。
+#   - 取得元は当番専用クローンのみ。会長の作業ツリーには一切触れない（別セッションとの競合回避）
+#   - ロック取得より **前** に行う。exec は PID を変えないため、ロック取得後に exec すると
+#     再入した自分自身を「前回実行中」と誤認して以後永久にスキップしてしまう
+#   - 取り出したスクリプトは blob ハッシュ名で保存する。実行中の旧インスタンスが同じファイルを
+#     読んでいても内容が同一になるため、書き換えによる破損が起きない（書き込みは mv で原子的に）
+self_update() {
+  [ -n "${DUTY_SELF_UPDATED:-}" ] && return 0
+  [ -d "$DUTY_DIR/.git" ] || return 0
+  git -C "$DUTY_DIR" fetch origin --prune --quiet >>"$LOG" 2>&1 || return 0
+  local oid fresh tmp
+  oid=$(git -C "$DUTY_DIR" rev-parse "origin/main:Scripts/ai-duty.sh" 2>/dev/null) || return 0
+  [ -n "$oid" ] || return 0
+  fresh="${TMPDIR:-/tmp}/asobiba-ai-duty-${oid}.sh"
+  if [ ! -s "$fresh" ]; then
+    tmp="$fresh.$$"
+    git -C "$DUTY_DIR" show "origin/main:Scripts/ai-duty.sh" >"$tmp" 2>/dev/null || { rm -f "$tmp"; return 0; }
+    [ -s "$tmp" ] || { rm -f "$tmp"; return 0; }
+    # 壊れたスクリプトへ乗り換えて当番が止まるのを防ぐ
+    bash -n "$tmp" 2>/dev/null || { rm -f "$tmp"; log "自己更新: origin/main の ai-duty.sh が構文エラーのため見送り"; return 0; }
+    mv -f "$tmp" "$fresh" || { rm -f "$tmp"; return 0; }
+  fi
+  cmp -s "$fresh" "$0" && return 0
+  find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'asobiba-ai-duty-*.sh' -mtime +7 -delete 2>/dev/null
+  log "自己更新: origin/main の ai-duty.sh へ切り替え (実行中=$0, blob=${oid:0:7})"
+  export DUTY_SELF_UPDATED=1
+  exec /bin/bash "$fresh" "$@"
+}
+self_update "$@"
+
 # 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
 PID_FILE="$LOCK_DIR/pid"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
