@@ -83,7 +83,7 @@ public struct ShogiView: View {
                 promotionOverlay
             }
         }
-        .task(id: model.moves.count) {
+        .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
     }
