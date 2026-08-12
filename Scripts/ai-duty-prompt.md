@@ -50,7 +50,16 @@
 
 ## 2. 承認済み Issue の実行
 
-`ai:approved` かつ `ai:in-progress` も `ringi:pending` も付いていないオープン Issue から **1件だけ**選ぶ（`ringi:pending` は会長の決裁待ち = 当番には進められないため対象外。成果物を出して決裁待ちにした Issue を毎時拾い直さないための除外）（90日計画との整合、迷えば番号が小さい方）。選んだら即座に `ai:in-progress` を付け、着手宣言を Issue にコメントする。
+`ai:approved` かつ `ai:in-progress` も `ringi:pending` も `blocked` も付いていないオープン Issue から **1件だけ**選ぶ（`ringi:pending` は会長の決裁待ち = 当番には進められないため対象外。成果物を出して決裁待ちにした Issue を毎時拾い直さないための除外）（90日計画との整合、迷えば番号が小さい方）。選んだら即座に `ai:in-progress` を付け、着手宣言を Issue にコメントする。
+
+### 2-b. 着手条件が未達の Issue（`blocked`）
+
+Issue 本文が「◯◯の2週間後」のような**当番の努力では満たせない着手条件**を定めていて、それが未達の場合は着手しない。代わりに:
+
+1. `blocked` ラベルを付ける（毎時の空振り起動を止めるため。`ai:approved` は外さない = 会長のハンコは残す）。
+2. 「着手見送り: 着手条件 <条件> が未達（根拠）。解除条件: <何が起きたら着手できるか>」を Issue にコメントする。既に同趣旨のコメントがあれば重複投稿しない。
+
+**起動したら（他の仕事で起動した場合も含め）`blocked` の Issue の解除条件を毎回確認する**。満たされていれば `blocked` を外し、そのまま着手対象に戻す。放置して塩漬けにしないこと。
 
 - **調査・分析系**: WebSearch/WebFetch（iTunes Search API `https://itunes.apple.com/search?country=jp&entity=software&term=...` が有用）で調査し、受け入れ条件を満たす成果物を Issue にコメントで報告。会長の決裁が必要な提案は「【要決裁あり】」を明記。完了したら ai:in-progress を外す（close は受け入れ条件を全て満たした場合のみ）。
 - **コード実装系**: **最新の release/vX.Y.Z ブランチ**（`git branch -r | grep 'release/v'` の最大バージョン。無ければ着手せず Issue に記録して会長に確認）から feature ブランチを切り、最小差分で実装。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。

@@ -32,10 +32,14 @@ gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; 
 # 仕事1: 承認済みで未着手の Issue
 # ai:in-progress（着手済み）と ringi:pending（会長の決裁待ち = 当番には進められない）は除外する。
 # 除外しないと、成果物を出して決裁待ちになった Issue を毎時拾い直して同じ作業を繰り返す。
+# blocked（Issue 自身が定めた着手条件が未達 = 外部イベント待ち）も同じ理由で除外する。
+# 例: 「v1.1.0 リリースから2週間経過後」のような条件は当番の努力では満たせないため、
+# 除外しないと条件成立まで毎時空振りで当番を起動し続けることになる（#54 で実際に発生）。
 APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
   --json number,labels \
   --jq '[.[] | ([.labels[].name]) as $l
-        | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null)] | length' 2>/dev/null || echo 0)
+        | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
+                 and ($l | index("blocked")) == null)] | length' 2>/dev/null || echo 0)
 
 # 仕事2: オープン PR 上の未解決 CodeRabbit スレッド
 # 上限 50 PR × 100 スレッド（個人リポジトリの規模では実質全件。超えたら要ページング対応）
