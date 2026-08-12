@@ -20,26 +20,34 @@ log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 #   - 取得元は当番専用クローンのみ。会長の作業ツリーには一切触れない（別セッションとの競合回避）
 #   - ロック取得より **前** に行う。exec は PID を変えないため、ロック取得後に exec すると
 #     再入した自分自身を「前回実行中」と誤認して以後永久にスキップしてしまう
-#   - 取り出したスクリプトは blob ハッシュ名で保存する。実行中の旧インスタンスが同じファイルを
-#     読んでいても内容が同一になるため、書き換えによる破損が起きない（書き込みは mv で原子的に）
+#   - 取り出し先は共有 /tmp ではなく所有者専用ディレクトリ（700）。共有 /tmp だとファイル名が
+#     公開済みの blob ハッシュから予測でき、同一マシンの第三者が構文の通る偽スクリプトを先回りで
+#     置くと、それをそのまま exec してしまう（PR #75 の CodeRabbit 指摘・Critical）。
+#     既存ファイルの内容も信用せず、毎回 origin/main から取り出し直して照合する
+#   - 実体は blob ハッシュ名で保存する。実行中の旧インスタンスが同じファイルを読んでいても
+#     内容が同一で、置換も mv（原子的・inode 差し替え）なので破損しない
 self_update() {
   [ -n "${DUTY_SELF_UPDATED:-}" ] && return 0
   [ -d "$DUTY_DIR/.git" ] || return 0
   git -C "$DUTY_DIR" fetch origin --prune --quiet >>"$LOG" 2>&1 || return 0
-  local oid fresh tmp
+  local oid cache fresh tmp
   oid=$(git -C "$DUTY_DIR" rev-parse "origin/main:Scripts/ai-duty.sh" 2>/dev/null) || return 0
   [ -n "$oid" ] || return 0
-  fresh="${TMPDIR:-/tmp}/asobiba-ai-duty-${oid}.sh"
-  if [ ! -s "$fresh" ]; then
-    tmp="$fresh.$$"
-    git -C "$DUTY_DIR" show "origin/main:Scripts/ai-duty.sh" >"$tmp" 2>/dev/null || { rm -f "$tmp"; return 0; }
-    [ -s "$tmp" ] || { rm -f "$tmp"; return 0; }
-    # 壊れたスクリプトへ乗り換えて当番が止まるのを防ぐ
-    bash -n "$tmp" 2>/dev/null || { rm -f "$tmp"; log "自己更新: origin/main の ai-duty.sh が構文エラーのため見送り"; return 0; }
-    mv -f "$tmp" "$fresh" || { rm -f "$tmp"; return 0; }
+  cache="$HOME/.asobiba-duty/bin"
+  mkdir -p "$cache" && chmod 700 "$cache" || return 0
+  # 古いキャッシュの掃除。このあと作る $fresh より前に行うので、更新対象を消してしまうことはない
+  find "$cache" -maxdepth 1 -type f -name 'ai-duty-*.sh' -mtime +7 -delete 2>/dev/null
+  fresh="$cache/ai-duty-${oid}.sh"
+  tmp=$(mktemp "$cache/ai-duty-XXXXXX") || return 0
+  if ! git -C "$DUTY_DIR" show "origin/main:Scripts/ai-duty.sh" >"$tmp" 2>/dev/null || [ ! -s "$tmp" ]; then
+    rm -f "$tmp"; return 0
   fi
-  cmp -s "$fresh" "$0" && return 0
-  find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'asobiba-ai-duty-*.sh' -mtime +7 -delete 2>/dev/null
+  # 壊れたスクリプトへ乗り換えて当番が止まるのを防ぐ
+  if ! bash -n "$tmp" 2>/dev/null; then
+    rm -f "$tmp"; log "自己更新: origin/main の ai-duty.sh が構文エラーのため見送り"; return 0
+  fi
+  if cmp -s "$tmp" "$0"; then rm -f "$tmp"; return 0; fi
+  mv -f "$tmp" "$fresh" || { rm -f "$tmp"; return 0; }
   log "自己更新: origin/main の ai-duty.sh へ切り替え (実行中=$0, blob=${oid:0:7})"
   export DUTY_SELF_UPDATED=1
   exec /bin/bash "$fresh" "$@"
