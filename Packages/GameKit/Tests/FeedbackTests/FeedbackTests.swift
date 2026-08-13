@@ -60,16 +60,41 @@ private func makeServices(hapticsEnabled: Bool) -> (GameServices, SpyFeedbackSer
 // ゲームごとに 1 本ずつ用意し、オン（発火する）とオフ（1 度も発火しない）の
 // 両方のテストから同じ手順を使う。
 
+/// 2048: マージ・移動のみ・拒否・終局を 1 度ずつ通す。
+///
+/// 自動プレイで終局まで回すと「1マスも動かないスワイプ」に一度も遭遇しない試行があり、
+/// 約 25% で落ちていた（#94）。局面を注入して、乱数（新タイルの位置・値）が
+/// どう転んでも結果が変わらない手順に固定する。
+/// 終局する手では impact を鳴らさない実装なので、鳴らす手と終局する手は別の局面に分ける。
 @MainActor
 private func play2048(_ services: GameServices) {
-    let model = Game2048Model(services: services)
-    // 4 方向を順に試すと必ず動く方向があり、動かない方向が拒否になる。終局まで回す。
-    outer: for _ in 0..<3000 {
-        for direction in Direction.allCases {
-            model.move(direction)
-            if model.gameOver { break outer }
-        }
-    }
+    // マージあり → impact(.medium)。空きが多いので新タイルがどこに出ても終局しない。
+    Game2048Model(services: services, board: [
+        [2, 2, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+    ]).move(.left)
+
+    // マージなしの移動 → impact(.light)。同上。
+    Game2048Model(services: services, board: [
+        [2, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+    ]).move(.right)
+
+    // 空きは (0,0) の 1 マスだけで、同値の隣接も無い盤面。
+    // 右へは 1 マスも動かず拒否になり、左へ寄せると空きが (0,3) に移る。
+    // (0,3) の隣は 8 と 16 なので、新タイルが 2 でも 4 でも同値の隣接は生まれない = 必ず終局。
+    let ending = Game2048Model(services: services, board: [
+        [0, 2, 4, 8],
+        [4, 8, 2, 16],
+        [2, 4, 8, 2],
+        [8, 2, 4, 8],
+    ])
+    ending.move(.right)  // 拒否 → notify(.warning)
+    ending.move(.left)   // 終局 → notify(.error)
 }
 
 @MainActor
@@ -230,10 +255,12 @@ private func playMahjong(_ services: GameServices) -> MahjongSolitaireModel {
     return model
 }
 
+/// ブラックジャック: 初手がブラックジャックだと配りの手応え（impact）に到達せずに決着するため、
+/// 種を固定して「初手がブラックジャックにならない配り」に寄せる（#94。無指定では約 4.8% で落ちていた）。
 @MainActor
 @discardableResult
 private func playBlackjack(_ services: GameServices) -> BlackjackModel {
-    let model = BlackjackModel(services: services)
+    let model = BlackjackModel(services: services, seed: 20260813)
     model.restartSession()
     model.placeBet(999_999)  // 拒否（チップ不足）
     model.placeBet(100)      // 成立（配り）
@@ -253,7 +280,8 @@ struct FeedbackEnabledTests {
     func game2048() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         play2048(services)
-        #expect(!spy.impacts.isEmpty, "動いたスワイプで発火する")
+        #expect(spy.impacts.contains(.medium), "マージが起きたスワイプで発火する")
+        #expect(spy.impacts.contains(.light), "マージなしで動いたスワイプで発火する")
         #expect(spy.notices(of: .warning) > 0, "1マスも動かないスワイプは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "ゲームオーバーで発火する")
     }
@@ -326,7 +354,7 @@ struct FeedbackEnabledTests {
     func blackjack() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         let model = playBlackjack(services)
-        #expect(!spy.impacts.isEmpty, "配り・ヒットで発火する")
+        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
         #expect(spy.notices(of: .warning) > 0, "チップ不足のベットは拒否として発火する")
         // ポーカーと同じ理由で、件数ではなく最後の notify を結果と突き合わせる。
         #expect(model.phase == .result, "手順の最後は必ず決着している")
