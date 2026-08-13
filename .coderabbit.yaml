@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit のリポジトリ設定。
+# 目的（#97）: base が非デフォルトブランチ（release/*）の PR でも auto review を走らせ、
+# レビュー開始を PR 作成直後に前倒しする。これが無いと release ブランチ向けの PR では
+# auto review がスキップされ、当番の手動依頼（@coderabbitai review）が CI より遅れて始まるため、
+# CI グリーンとレビュー到着が競合して指摘の消化前に auto-merge が発火する（PR #95 で発生）。
+#
+# 注意: このファイルを置くとリポジトリ設定が Organization UI の設定より優先される。
+# そのため、これまで UI 側で使われていた設定（日本語・CHILL プロファイル）も明示して同じ挙動を保つ。
+language: "ja-JP"
+reviews:
+  profile: "chill"
+  auto_review:
+    enabled: true
+    # 既定ブランチ（main）に加えてレビュー対象にする base ブランチ（正規表現）
+    base_branches:
+      - "release/.*"
