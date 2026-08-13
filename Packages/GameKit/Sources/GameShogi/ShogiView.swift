@@ -254,9 +254,6 @@ public struct ShogiView: View {
                 Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
                     .disabled(model.reviewPly >= model.moves.count)
                 Spacer()
-                ShareLink(item: KIF.export(model)) {
-                    Label("KIF", systemImage: "square.and.arrow.up")
-                }
             }
             .font(Theme.body(14))
             .padding(.horizontal, 16).padding(.vertical, 8)

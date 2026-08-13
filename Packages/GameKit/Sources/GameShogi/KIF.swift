@@ -1,31 +1,9 @@
 import Foundation
 
-/// 内部の指し手列(USI/Move)から KIF 形式テキストを生成する。エクスポート時のみ変換する。
+/// 指し手を KIF 形式の表記に変換する。直前手の表示に使う。
 enum KIF {
     private static let fileKanji = ["１", "２", "３", "４", "５", "６", "７", "８", "９"]
     private static let rankKanji = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
-
-    @MainActor
-    static func export(_ model: ShogiGameModel) -> String {
-        var lines: [String] = []
-        lines.append("# 思考ゲーム詰め合わせ KIF")
-        lines.append("手合割：平手")
-        lines.append("先手：" + (model.sente == .ai ? "CPU" : "プレイヤー"))
-        lines.append("後手：" + (model.gote == .ai ? "CPU" : "プレイヤー"))
-        lines.append("手数----指手---------消費時間--")
-
-        var pos = Position.fromSFEN(model.initialSFEN) ?? Position.start()
-        var prevTo: Int?
-        for (i, move) in model.moves.enumerated() {
-            lines.append(String(format: "%4d ", i + 1) + notation(move, pos: pos, prevTo: prevTo))
-            switch move {
-            case let .board(_, to, _): prevTo = to
-            case let .drop(_, to): prevTo = to
-            }
-            pos.make(move)
-        }
-        return lines.joined(separator: "\n") + "\n"
-    }
 
     static func notation(_ move: Move, pos: Position, prevTo: Int?) -> String {
         switch move {
