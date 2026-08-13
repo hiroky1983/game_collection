@@ -13,6 +13,52 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 
+# シミュレータの後片付け（Issue #100）。当番が動作確認のために起動したシミュレータだけを落とし、
+# 実行前から起動していたもの（= 会長が使用中の可能性がある）には触らない差分方式。
+#   - EXIT トラップから呼ぶ。claude が異常終了しても launchd に止められても必ず走らせるため
+#     （正常終了時だけの後片付けだと、落ちた回のシミュレータが残り続ける）
+#   - 実行前の状態を記録**できたとき**しか片付けない。記録に失敗した状態で片付けると
+#     「起動中のすべてが当番のもの」と誤認して会長のシミュレータを落としてしまう
+#   - **既知の限界**: 差分は「claude を起動する直前」のスナップショットとの比較なので、当番の実行中
+#     （長いと1時間近い）に会長が新しく起動したシミュレータは「当番が起動した」と見えて落ちる。
+#     Issue #100 の受け入れ条件が「当番の実行中に新しく起動されたものだけを落とす差分方式」と
+#     定めているため実装はこれに従う。当番の起動したデバイスだけを厳密に特定するには当番自身に
+#     UDID を記録させるしかないが、それを忘れることこそが本スクリプトの存在理由なので backstop に
+#     はできない。実害が出たら「あそびば以外のアプリが前面にあるデバイスは落とさない」等の
+#     追加条件を検討する
+SIMS_BEFORE=""
+SIMS_TRACKED=0
+
+booted_sims() {
+  xcrun simctl list devices booted -j 2>/dev/null \
+    | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null
+}
+
+# 失敗（xcrun/jq が使えない等）は黙って握りつぶさずログに残す。ここが崩れると後片付けが
+# 静かに効かなくなり、シミュレータが溜まり続ける（Issue #100 の実害そのもの）
+capture_sims_before() {
+  local raw
+  raw=$(xcrun simctl list devices booted -j 2>/dev/null) || { log "後片付け: シミュレータ一覧の取得に失敗（simctl）。後片付けは行わない"; return 0; }
+  SIMS_BEFORE=$(printf '%s' "$raw" | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null | tr '\n' ' ') \
+    || { log "後片付け: シミュレータ一覧の解析に失敗（jq）。後片付けは行わない"; SIMS_BEFORE=""; return 0; }
+  SIMS_TRACKED=1
+}
+
+cleanup_simulators() {
+  [ "$SIMS_TRACKED" -eq 1 ] || return 0
+  local u
+  for u in $(booted_sims); do
+    case " $SIMS_BEFORE " in
+      *" $u "*) continue ;;  # 実行前から起動していた = 触らない
+    esac
+    xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown"
+  done
+  # Simulator.app 自体は終了しない。実行前のシミュレータがゼロでも、当番の実行中（最大1時間）に
+  # 会長が Simulator.app を開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
+  # CodeRabbit 指摘・Major）。会長の訴え（PC が重い）の原因は起動中のシミュレータであって
+  # デバイスを持たない Simulator.app ではないため、落とす必要も無い
+}
+
 # 自己更新: launchd が起動するのは会長の作業ツリー（~/myspace/game_collection）の本ファイルであり、
 # main へマージしただけでは反映されない。会長が git pull するまで旧版が動き続け、修正済みの
 # 発火条件が効かないまま空振り起動を繰り返す（2026-08-12: #73 の blocked 除外がこの理由で効かず、
@@ -88,7 +134,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
 echo $$ >"$PID_FILE"
-trap 'rm -rf "$LOCK_DIR"' EXIT
+trap 'cleanup_simulators; rm -rf "$LOCK_DIR"' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
@@ -305,11 +351,53 @@ ORPHANS=$(gh issue list -R hiroky1983/game_collection --label "ai:in-progress" -
            | select(($linked | index($i.number)) == null)] | length' 2>/dev/null || echo 0)
 ORPHANS="${ORPHANS:-0}"
 
+# 仕事10: マージ済み PR のブランチに取り残されたコミット（Issue #100）
+# PR がマージされた後に同じブランチへ push すると、そのコミットはどの PR にも載らないまま
+# 取り残される。レビューもされず main にも入らないのに、ローカルには「実装した」痕跡だけが残るため
+# 誰も気づけない（481072e が実際にこれで失われ、シミュレータの後片付けが2日間効いていなかった）。
+# 検知は「マージ済み PR の head ブランチがまだ存在し、その変更が **base にも main にも入っていない**」で行う。
+#   - 判定は `git cherry`（patch-id 比較）。SHA の一致ではなく**内容**で見るため、あとから別 PR で
+#     同じ変更が入り直した場合は自動的に検知が止む（実際 PR #20 のブランチに残る 57b90dd は
+#     内容が main に入り直しており、SHA 比較だと永久に鳴り続けるが patch-id なら鳴らない）
+#   - base と main の両方を見る: base だけだと未公開の release ブランチ向け PR がすべて
+#     「main に無い」で誤検知し、main だけだと release ブランチに積んだ正規のコミットが誤検知される
+#   - 同じブランチにオープン PR があるなら、そのコミットはレビュー対象なので孤児ではない
+#   - ローカル git で判定する（self_update で fetch 済み）。GitHub の compare API だと PR 1本につき
+#     1リクエストかかって全件走査できず、検知窓から外れた古い取り残しを永久に見逃す
+#     （実際 481072e は PR #65 = 43本前で、直近20件の窓では捕まらなかった）
+#   - 回収時に内容そのままの cherry-pick をしないなら（別実装で作り直した等）patch-id が変わって
+#     鳴り続けるため、回収し終えたら**そのブランチを削除する**のが終了条件
+#   - 走査対象はマージ済み PR の直近1000件（`gh pr list` はこの件数までページングする）。
+#     現在のマージ済み PR は60件で全件を覆う。ここを超えたら古い方から検知漏れになるため、
+#     そのときはページングを明示した実装へ切り替える
+ORPHAN_COMMITS=0
+if [ -d "$DUTY_DIR/.git" ]; then
+  OPEN_PR_HEADS=$(gh pr list -R hiroky1983/game_collection --state open --json headRefName --jq '.[].headRefName' 2>/dev/null || true)
+  while IFS=$'\t' read -r H B; do
+    [ -n "${H:-}" ] && [ -n "${B:-}" ] || continue
+    printf '%s\n' "$OPEN_PR_HEADS" | grep -qxF "$H" && continue   # オープン PR がある = レビュー対象
+    # ブランチ削除済み（= 回収済み）や base ブランチ削除済みの PR はここで落ちる
+    git -C "$DUTY_DIR" rev-parse --verify -q "refs/remotes/origin/$H" >/dev/null || continue
+    git -C "$DUTY_DIR" rev-parse --verify -q "refs/remotes/origin/$B" >/dev/null || continue
+    NOT_IN_BASE=$(git -C "$DUTY_DIR" cherry "refs/remotes/origin/$B" "refs/remotes/origin/$H" 2>/dev/null | awk '$1 == "+" { print $2 }')
+    [ -n "$NOT_IN_BASE" ] || continue
+    NOT_IN_MAIN=$(git -C "$DUTY_DIR" cherry refs/remotes/origin/main "refs/remotes/origin/$H" 2>/dev/null | awk '$1 == "+" { print $2 }')
+    for C in $NOT_IN_BASE; do
+      # ブランチ単位ではなくコミット単位で数える（起動ログの orphan_commits を実数に合わせる）
+      printf '%s\n' "$NOT_IN_MAIN" | grep -qxF "$C" && ORPHAN_COMMITS=$((ORPHAN_COMMITS + 1))
+    done
+  done <<EOF
+$(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
+    --json headRefName,baseRefName,headRepositoryOwner \
+    --jq '.[] | select((.headRepositoryOwner.login // "") == "hiroky1983") | "\(.headRefName)\t\(.baseRefName)"' 2>/dev/null | sort -u)
+EOF
+fi
+
 # 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
 PLANNING_STAMP="$HOME/.asobiba-duty/last-planning"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ]; then
   # 乱造ガード: 未承認の企画（ai:proposed のみ）が3件以上滞留していたら起案しない
   PROPOSED=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
     --json number,labels \
@@ -348,7 +436,10 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, workdir=$RUN_DIR)"
+# claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
+capture_sims_before
+
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \

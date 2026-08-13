@@ -40,6 +40,40 @@ gh pr list --state open --json number,title,autoMergeRequest \
 
 出力があれば、決裁待ち等の理由が無い限りその場で仕込む（理由があるときは 1-c-2 のとおり PR にコメントで残す）。この確認を飛ばして終了してはならない。
 
+**コミットの取り残し防止（必須・2026-08-13 追加）**: 併せて、**自分がこのセッションで push したコミットが、すべて PR に載っていること**を確認する。マージ済みの PR のブランチに後から push すると、そのコミットはレビューもされず main にも入らないまま消える（#100: `481072e` がこれで2日間失われ、シミュレータの後片付けが効いていなかった）。
+
+```bash
+# 自分が触ったブランチについて、base に入っていないコミットが PR に載っているかを確認する
+git log --oneline origin/<base>..HEAD
+gh pr list --state open --head <ブランチ名>   # ← 上のコミットを含む PR があること
+```
+
+作業を追加したいときは、**マージ済み PR のブランチには push せず、新しいブランチと PR を作る**。
+
+### 1-f. 取り残されたコミットの回収（`ai-duty.sh` 仕事10 の検知）
+
+マージ済み PR の head ブランチに、**base にも main にも入っていない変更**が残っている場合、それは PR に載り損ねたコミットである。次の手順で回収する:
+
+1. 対象を洗い出す（`git cherry` は SHA ではなく patch-id で見るため、別 PR で同じ内容が入り直したものは出てこない）。
+
+   ```bash
+   D=~/.asobiba-duty/game_collection
+   gh pr list --state merged --limit 1000 --json number,headRefName,baseRefName \
+     --jq '.[] | "\(.headRefName)\t\(.baseRefName)\t\(.number)"' | sort -u \
+   | while IFS=$'\t' read -r H B N; do
+       git -C "$D" rev-parse --verify -q "refs/remotes/origin/$H" >/dev/null || continue
+       git -C "$D" rev-parse --verify -q "refs/remotes/origin/$B" >/dev/null || continue
+       for C in $(git -C "$D" cherry "refs/remotes/origin/$B" "refs/remotes/origin/$H" | awk '$1=="+"{print $2}'); do
+         git -C "$D" cherry refs/remotes/origin/main "refs/remotes/origin/$H" | grep -q "^+ $C" \
+           && echo "PR #$N $H: $(git -C "$D" log -1 --oneline "$C")"
+       done
+     done
+   ```
+
+2. 中身を読んで判断する。**必要な変更**なら新しいブランチへ cherry-pick して通常の PR フローに乗せる（そのまま使えないなら作り直してよい）。**不要・陳腐化**しているなら理由を記録するだけでよい。
+3. **回収し終えたら、そのブランチを削除する**（`gh api -X DELETE repos/hiroky1983/game_collection/git/refs/heads/<ブランチ名>`）。作り直した場合は patch-id が変わって検知が鳴り続けるため、**ブランチの削除が終了条件**。削除する前に、中身が main（または base）に入っていることを必ず確認する。
+4. 何を回収し何を捨てたか、削除したブランチ名とともに元の Issue または PR にコメントで記録する。
+
 ### 1-c. コンフリクトで滞留しているオープン PR の解消
 
 `gh pr list --json number,mergeable` で `CONFLICTING` の PR を見つけたら、新しい Issue に着手する前に解消する:
@@ -154,3 +188,4 @@ App Store で公開されたバージョンが `release/vX.Y.Z` に追いつい�
 - 対外提出・ストア設定変更（App Store Connect 操作）と、リリース前の実機確認は会長の責務。実施しない。
 - 禁止: main / release ブランチへの直接プッシュ / git stash / force push / 依頼範囲を超えるリファクタリング / App Store Connect 等への提出操作。
 - コミットメッセージはリポジトリ慣習（日本語、feat/fix/chore プレフィックス）に従う。
+- **シミュレータの後片付け**: 動作確認のために起動したシミュレータは、確認が終わったら必ず `xcrun simctl shutdown <UDID>` で停止する（自分が起動したものだけ。元から起動していたものは会長が使用中の可能性があるため触らない）。忘れた場合も `Scripts/ai-duty.sh` が実行前後の差分で自動停止するが、それに頼らないこと。
