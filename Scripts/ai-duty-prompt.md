@@ -75,7 +75,9 @@ Issue 本文が「◯◯の2週間後」のような**当番の努力では満�
   - **「最大バージョンの release ブランチを選ぶ」のは禁止**（2026-08-13 の事故: `release/v1.1.1` が存在しなかったため、v1.1.1 と v1.1.2 の成果物が審査提出済みの `release/v1.1.0` に8件積まれ、何が審査に入っているか判別不能になった）。
   - 対応する release ブランチが**無ければ自分で作る**: 直近の release ブランチの HEAD から `git push origin <sha>:refs/heads/release/vX.Y.Z` し、`gh api -X PUT repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection` で test 必須 + `required_conversation_resolution` を設定する。作成した事実を Issue にコメントで記録する。
   - **push する前に、ベースにしようとしている release ブランチが凍結（`lock_branch`）されていないか確認する**（`gh api repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection --jq '.lock_branch.enabled'`）。true なら審査提出済みなので、そのブランチには絶対に積まない。
-  - Issue にマイルストーンが設定されていない場合は着手せず、Issue に記録して会長に確認する。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
+  - Issue にマイルストーンが設定されていない場合は着手せず、Issue に記録して会長に確認する。
+
+  実装後はローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
 - 完了報告の前に検証を行うこと（テスト実行・ビルド確認。「たぶん動く」で報告しない）。
 
 ### 2-c. 孤児化した `ai:in-progress` の回収（**セクション2で着手する Issue を選ぶ前に行う**）
