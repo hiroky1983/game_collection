@@ -3,7 +3,7 @@ import Foundation
 public enum GamePhase: String, Codable, Sendable { case playing, review }
 public enum PlayerKind: String, Codable, Sendable { case human, ai }
 
-/// 将棋の中断スナップショット。中断復帰・検討・KIF エクスポートの 3 用途をこの 1 データで賄う。
+/// 将棋の中断スナップショット。中断復帰・検討の 2 用途をこの 1 データで賄う。
 public struct ShogiSnapshot: Codable, Equatable, Sendable {
     public var initialSfen: String   // 開始局面（平手の標準 SFEN）
     public var moves: [String]       // USI 形式の指し手列
