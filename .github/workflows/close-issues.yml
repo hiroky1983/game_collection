@@ -17,12 +17,17 @@ jobs:
           script: |
             const raw = context.payload.pull_request.body || '';
             // 引用・コード・HTML コメント内の言及で誤爆しないよう、マッチ前に除去する（#109）。
-            // 順序は「フェンス → インラインコード」。逆にするとフェンスの ``` が壊れる。
+            // 順序は GitHub の描画と同じ「HTML コメント → フェンス → インラインコード → 引用」。
+            // コメントを先に消さないと、コメント内の閉じないフェンス行が後方の実フェンスと対になり、
+            // 間にある通常の記載まで巻き込んで消える。
+            // 除去部は空白ではなく NUL に置き換える。空白にすると分断されていたキーワードと番号が
+            // 連結して新たな誤検出になる（例: Closes `foo` #12）。
+            const NUL = String.fromCharCode(0);
             const body = raw
-              .replace(/^\s{0,3}(?:```|~~~)[\s\S]*?^\s{0,3}(?:```|~~~)\s*$/gm, ' ')
-              .replace(/`[^`\n]*`/g, ' ')
-              .replace(/<!--[\s\S]*?-->/g, ' ')
-              .replace(/^\s{0,3}>.*$/gm, ' ');
+              .replace(/<!--[\s\S]*?-->/g, NUL)
+              .replace(/^\s{0,3}(?:```|~~~)[\s\S]*?^\s{0,3}(?:```|~~~)\s*$/gm, NUL)
+              .replace(/`[^`\n]*`/g, NUL)
+              .replace(/^\s{0,3}>.*$/gm, NUL);
             const matches = [...body.matchAll(/(?:closes?|fixes?|resolves?)\s+#(\d+)/gi)];
             const issueNumbers = [...new Set(matches.map((m) => parseInt(m[1], 10)))];
             for (const issueNumber of issueNumbers) {
