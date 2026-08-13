@@ -62,7 +62,11 @@ Issue 本文が「◯◯の2週間後」のような**当番の努力では満�
 **起動したら（他の仕事で起動した場合も含め）`blocked` の Issue の解除条件を毎回確認する**。満たされていれば `blocked` を外し、そのまま着手対象に戻す。放置して塩漬けにしないこと。
 
 - **調査・分析系**: WebSearch/WebFetch（iTunes Search API `https://itunes.apple.com/search?country=jp&entity=software&term=...` が有用）で調査し、受け入れ条件を満たす成果物を Issue にコメントで報告。会長の決裁が必要な提案は「【要決裁あり】」を明記。完了したら ai:in-progress を外す（close は受け入れ条件を全て満たした場合のみ）。
-- **コード実装系**: **最新の release/vX.Y.Z ブランチ**（`git branch -r | grep 'release/v'` の最大バージョン。無ければ着手せず Issue に記録して会長に確認）から feature ブランチを切り、最小差分で実装。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
+- **コード実装系**: **その Issue のマイルストーンと同名の release/vX.Y.Z ブランチ**から feature ブランチを切り、最小差分で実装。
+  - **「最大バージョンの release ブランチを選ぶ」のは禁止**（2026-08-13 の事故: `release/v1.1.1` が存在しなかったため、v1.1.1 と v1.1.2 の成果物が審査提出済みの `release/v1.1.0` に8件積まれ、何が審査に入っているか判別不能になった）。
+  - 対応する release ブランチが**無ければ自分で作る**: 直近の release ブランチの HEAD から `git push origin <sha>:refs/heads/release/vX.Y.Z` し、`gh api -X PUT repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection` で test 必須 + `required_conversation_resolution` を設定する。作成した事実を Issue にコメントで記録する。
+  - **push する前に、ベースにしようとしている release ブランチが凍結（`lock_branch`）されていないか確認する**（`gh api repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection --jq '.lock_branch.enabled'`）。true なら審査提出済みなので、そのブランチには絶対に積まない。
+  - Issue にマイルストーンが設定されていない場合は着手せず、Issue に記録して会長に確認する。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
 - 完了報告の前に検証を行うこと（テスト実行・ビルド確認。「たぶん動く」で報告しない）。
 
 ## 3. 公開済み release ブランチの main への取り込み
