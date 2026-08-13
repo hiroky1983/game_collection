@@ -35,6 +35,17 @@ public final class Game2048Model {
         persist()
     }
 
+    /// 盤面を直接与えて開始する。初期タイルの乱数生成と中断スナップショットの復元を
+    /// 経由しないので、狙った局面（1マスも動かない方向がある盤面など）から検証できる。
+    /// テスト用の経路で、`init(services:)` の挙動には影響しない。
+    public init(services: GameServices? = nil, board: [[Int]], score: Int = 0) {
+        self.services = services
+        self.board = board
+        self.score = score
+        gameOver = Game2048Logic.isGameOver(board)
+        persist()
+    }
+
     /// 指定方向へスライド。動いたときのみ新タイルを生成し、終局判定・永続化する。
     public func move(_ direction: Direction) {
         guard !gameOver else { return }

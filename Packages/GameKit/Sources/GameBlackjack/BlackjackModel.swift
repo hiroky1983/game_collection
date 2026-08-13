@@ -104,9 +104,12 @@ public final class BlackjackModel {
     private var deck: [BlackjackCard] = []
     private let gameID = "blackjack"
     private let services: GameServices?
+    private var seed: UInt64?
 
-    public init(services: GameServices? = nil) {
+    /// - Parameter seed: テスト用の固定種。nil ならシステムの乱数を使う。
+    public init(services: GameServices? = nil, seed: UInt64? = nil) {
         self.services = services
+        self.seed = seed
         if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: "blackjack") {
             self.playerHand = snap.playerHand
             self.dealerHand = snap.dealerHand
@@ -148,7 +151,7 @@ public final class BlackjackModel {
     // MARK: - Deal
 
     private func deal() {
-        deck = makeDeck().shuffled()
+        deck = shuffledDeck()
         playerHand = [drawCard(), drawCard()]
         dealerHand = [drawCard(), drawCard()]
         phase = .playerTurn
@@ -294,8 +297,38 @@ public final class BlackjackModel {
         return cards
     }
 
+    /// 山札を切る。`seed` があるときは決定的に切り、次の配りが同じにならないよう種を進める。
+    private func shuffledDeck() -> [BlackjackCard] {
+        var cards = makeDeck()
+        if let current = seed {
+            var generator = BlackjackSeededGenerator(seed: current)
+            cards.shuffle(using: &generator)
+            seed = generator.next()
+        } else {
+            cards.shuffle()
+        }
+        return cards
+    }
+
     private func drawCard() -> BlackjackCard {
-        if deck.isEmpty { deck = makeDeck().shuffled() }
+        if deck.isEmpty { deck = shuffledDeck() }
         return deck.removeFirst()
+    }
+}
+
+// MARK: - Seeded RNG
+
+/// テスト用の決定的な乱数生成器（SplitMix64）。本番は `seed` を渡さないので system の乱数を使う。
+struct BlackjackSeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) { self.state = seed }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
     }
 }
