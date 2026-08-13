@@ -58,7 +58,7 @@ gh pr list --state open --head <ブランチ名>   # ← 上のコミットを�
 
    ```bash
    D=~/.asobiba-duty/game_collection
-   gh pr list --state merged --limit 100 --json number,headRefName,baseRefName \
+   gh pr list --state merged --limit 1000 --json number,headRefName,baseRefName \
      --jq '.[] | "\(.headRefName)\t\(.baseRefName)\t\(.number)"' | sort -u \
    | while IFS=$'\t' read -r H B N; do
        git -C "$D" rev-parse --verify -q "refs/remotes/origin/$H" >/dev/null || continue

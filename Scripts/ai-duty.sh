@@ -46,10 +46,10 @@ cleanup_simulators() {
     esac
     xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown"
   done
-  # 実行前がゼロ = 当番だけが使っていたなら Simulator.app も閉じる
-  if [ -z "${SIMS_BEFORE// /}" ] && pgrep -x Simulator >/dev/null 2>&1; then
-    killall Simulator 2>/dev/null && log "後片付け: Simulator.app を終了"
-  fi
+  # Simulator.app 自体は終了しない。実行前のシミュレータがゼロでも、当番の実行中（最大1時間）に
+  # 会長が Simulator.app を開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
+  # CodeRabbit 指摘・Major）。会長の訴え（PC が重い）の原因は起動中のシミュレータであって
+  # デバイスを持たない Simulator.app ではないため、落とす必要も無い
 }
 
 # 自己更新: launchd が起動するのは会長の作業ツリー（~/myspace/game_collection）の本ファイルであり、
@@ -360,6 +360,9 @@ ORPHANS="${ORPHANS:-0}"
 #     （実際 481072e は PR #65 = 43本前で、直近20件の窓では捕まらなかった）
 #   - 回収時に内容そのままの cherry-pick をしないなら（別実装で作り直した等）patch-id が変わって
 #     鳴り続けるため、回収し終えたら**そのブランチを削除する**のが終了条件
+#   - 走査対象はマージ済み PR の直近1000件（`gh pr list` はこの件数までページングする）。
+#     現在のマージ済み PR は60件で全件を覆う。ここを超えたら古い方から検知漏れになるため、
+#     そのときはページングを明示した実装へ切り替える
 ORPHAN_COMMITS=0
 if [ -d "$DUTY_DIR/.git" ]; then
   OPEN_PR_HEADS=$(gh pr list -R hiroky1983/game_collection --state open --json headRefName --jq '.[].headRefName' 2>/dev/null || true)
@@ -373,12 +376,11 @@ if [ -d "$DUTY_DIR/.git" ]; then
     [ -n "$NOT_IN_BASE" ] || continue
     NOT_IN_MAIN=$(git -C "$DUTY_DIR" cherry refs/remotes/origin/main "refs/remotes/origin/$H" 2>/dev/null | awk '$1 == "+" { print $2 }')
     for C in $NOT_IN_BASE; do
-      if printf '%s\n' "$NOT_IN_MAIN" | grep -qxF "$C"; then
-        ORPHAN_COMMITS=$((ORPHAN_COMMITS + 1)); break
-      fi
+      # ブランチ単位ではなくコミット単位で数える（起動ログの orphan_commits を実数に合わせる）
+      printf '%s\n' "$NOT_IN_MAIN" | grep -qxF "$C" && ORPHAN_COMMITS=$((ORPHAN_COMMITS + 1))
     done
   done <<EOF
-$(gh pr list -R hiroky1983/game_collection --state merged --limit 100 \
+$(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
     --json headRefName,baseRefName,headRepositoryOwner \
     --jq '.[] | select((.headRepositoryOwner.login // "") == "hiroky1983") | "\(.headRefName)\t\(.baseRefName)"' 2>/dev/null | sort -u)
 EOF
