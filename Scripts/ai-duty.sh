@@ -242,11 +242,74 @@ if [ -n "${REL_BRANCH:-}" ]; then
   fi
 fi
 
+# 仕事8: 企画議論の着信（未承認の ai:proposed Issue に会長がコメントしたら経営企画室が応答する）
+# 決裁検知（仕事5）は ringi:pending しか見ておらず、提案段階の議論は誰も拾わなかった穴の解消。
+# 承認済み・着手済み・blocked のものは他のフローが担当するため除外。
+# 応答側は必ず「企画議論」で始まるコメントを返す（それが再検知を止める目印になる）。
+PROPOSED_REPLIES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    issues(states: OPEN, labels: ["ai:proposed"], first: 20) {
+      nodes {
+        number
+        labels(first: 10) { nodes { name } }
+        comments(last: 20) { nodes { body author { login } } }
+      }
+    }
+  }
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+  | [.data.repository.issues.nodes[]
+  | ([.labels.nodes[].name]) as $l
+  | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null and ($l | index("blocked")) == null)
+  | ([.comments.nodes[]
+      | select((.author.login // "") as $a | ($actors | index($a)) != null)
+      | .body] | last // "") as $b
+  | select($b != "")
+  | select(($b | startswith("企画議論")) | not)
+  | select(($b | contains("【要決裁】")) | not)
+  | select(($b | contains("決裁反映")) | not)] | length' 2>/dev/null || echo 0)
+
+# 仕事9: 孤児化した ai:in-progress の回収（Issue #83）
+# 当番が着手直後に異常終了すると ai:in-progress が残留し、その Issue は仕事1の集計から
+# 恒久的に外れて誰も着手できなくなる（#80 で発生。12:07 の実行が着手直後に死亡し約2.5時間滞留）。
+#
+# 誤検知ガードは2重:
+#   1) ロック — ここに到達している時点で他の当番は動いていない。生きている先行プロセスが
+#      あればロック取得の段階で既に exit 済みで、この行は実行されない。つまり
+#      「ロックが存在せず（= 当番が動いていない）」という条件は到達自体が保証している。
+#      逆に言うと、実行中の当番が長時間かけて実装している Issue は、次回の launchd 起動が
+#      ロックで弾かれるため対象にならない。
+#   2) 経過時間 — 最終更新から30分以上のものだけを対象にする。着手宣言・進捗コメント・
+#      ラベル操作はいずれも updatedAt を更新するため、生きている作業は時間切れにならない。
+#   3) 成果物 — オープン PR に紐づいている Issue（PR 本文の `Closes #N`）は除外する。
+#      実装が PR まで到達していれば孤児ではなく、ラベルは PR のマージ（= Issue の close）で
+#      自然に片付く。除外しないと、当番が「PR があるのでラベルは残す」と正しく判断するたびに
+#      次の毎時起動でまた同じ Issue を拾い、マージされるまで空振りが続く。
+DUTY_ORPHAN_MIN_AGE="${DUTY_ORPHAN_MIN_AGE:-1800}"  # 孤児とみなす無更新の秒数（テストから短縮できるよう外出し）
+LINKED_ISSUES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    pullRequests(states: OPEN, first: 50) {
+      nodes { closingIssuesReferences(first: 10) { nodes { number } } }
+    }
+  }
+}' --jq '[.data.repository.pullRequests.nodes[].closingIssuesReferences.nodes[].number]' 2>/dev/null)
+# 取得に失敗したら「全部が紐づいている」とみなすのではなく空集合に倒すが、その場合でも
+# 経過時間ガードが効くため、当番が起きて状況を確認するだけで実害は無い
+LINKED_ISSUES="${LINKED_ISSUES:-[]}"
+ORPHANS=$(gh issue list -R hiroky1983/game_collection --label "ai:in-progress" --state open \
+  --json number,updatedAt 2>/dev/null \
+  | jq --argjson age "$DUTY_ORPHAN_MIN_AGE" --argjson linked "$LINKED_ISSUES" \
+     '[.[] | . as $i
+           | select(($i.updatedAt | fromdateiso8601) < (now - $age))
+           | select(($linked | index($i.number)) == null)] | length' 2>/dev/null || echo 0)
+ORPHANS="${ORPHANS:-0}"
+
 # 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
 PLANNING_STAMP="$HOME/.asobiba-duty/last-planning"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ]; then
   # 乱造ガード: 未承認の企画（ai:proposed のみ）が3件以上滞留していたら起案しない
   PROPOSED=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
     --json number,labels \
@@ -285,7 +348,7 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, workdir=$RUN_DIR)"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, workdir=$RUN_DIR)"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
