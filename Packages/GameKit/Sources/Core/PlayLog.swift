@@ -55,10 +55,11 @@ public struct ReviewRequestState: Equatable, Sendable {
 /// 保存先は端末内の `UserDefaults` のみ（サーバ送信なし・iCloud 同期なし）。既存の `GameSettings`
 /// （`gameOrder_v1` / `hiddenGames_v1`）と同じ場所・同じ命名規則。
 ///
-/// **盤面・スコア・棋譜といったゲームの状態は一切残さない**。持つのは下の9キー
-/// （レコメンド #52 の5キー + 評価リクエスト #53 の4キー）だけで、いずれも追記型ログではなく
-/// 同じ値の上書きのため、何回遊んでもキー数もデータ量も増えない
-/// （`playedGameIDs` だけは増えるが、上限は登録ゲーム数でプレイ回数には依存しない）。
+/// **盤面・棋譜といったゲームの途中状態は一切残さない**。持つのは下の10キー
+/// （レコメンド #52 の5キー + 評価リクエスト #53 の4キー + プレイ記録 #115 の1キー）だけで、
+/// いずれも追記型ログではなく同じ値の上書きのため、何回遊んでもキー数もデータ量も増えない
+/// （`playedGameIDs` と `records` だけは増えるが、上限は登録ゲーム数（+ 難易度数）で
+/// プレイ回数には依存しない）。
 @MainActor
 public final class PlayLog {
     public static let totalFinishesKey  = "playLog_totalFinishes_v1"
@@ -82,8 +83,15 @@ public final class PlayLog {
         totalWinsKey, lastRequestedAtKey, lastRequestedWinsKey, lastRequestedVersionKey,
     ]
 
+    /// ゲーム別のプレイ記録（#115）。全ゲームぶんを JSON にまとめて**1キー**に入れる。
+    /// ゲームごとにキーを切ると登録ゲームが増えるたびにキーが増え、消去漏れの温床になるため。
+    public static let recordsKey = "playLog_records_v1"
+
+    /// プレイ記録（#115）が書き込むキー。
+    public static let playRecordKeys = [recordsKey]
+
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
-    public static let allKeys = recommendationKeys + reviewRequestKeys
+    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys
 
     private let defaults: UserDefaults
 
@@ -101,6 +109,9 @@ public final class PlayLog {
     private var lastRequestedWins: Int
     private var lastRequestedVersion: String?
 
+    /// ゲーム別の記録。キーは `recordKey(gameID:variant:)`。
+    public private(set) var records: [String: PlayRecord]
+
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.totalFinishes = defaults.integer(forKey: Self.totalFinishesKey)
@@ -116,6 +127,15 @@ public final class PlayLog {
             .map { Date(timeIntervalSince1970: $0) }
         self.lastRequestedWins = defaults.integer(forKey: Self.lastRequestedWinsKey)
         self.lastRequestedVersion = defaults.string(forKey: Self.lastRequestedVersionKey)
+
+        // 壊れた JSON（旧形式・書き込み途中の中断）で起動できなくならないよう、失敗したら空に倒す。
+        // 記録は再取得できない代わりに失っても遊べるため、可用性を優先する。
+        if let data = defaults.data(forKey: Self.recordsKey),
+           let decoded = try? JSONDecoder().decode([String: PlayRecord].self, from: data) {
+            self.records = decoded
+        } else {
+            self.records = [:]
+        }
     }
 
     public var state: RecommendationState {
@@ -184,7 +204,51 @@ public final class PlayLog {
         defaults.set(ignoredStreak, forKey: Self.ignoredStreakKey)
     }
 
-    /// 設定の「プレイ記録を消去」から呼ぶ。保存した9キーをすべて削除する。
+    // MARK: - ゲーム別の記録（#115）
+
+    /// `records` のキー。区分（マインスイーパーの難易度）があるゲームは区分ごとに 1 件持つ。
+    public static func recordKey(gameID: String, variant: String?) -> String {
+        guard let variant, !variant.isEmpty else { return gameID }
+        return "\(gameID)#\(variant)"
+    }
+
+    /// 1 件ぶんの記録を取り出す。まだ遊んでいなければ nil。
+    public func record(gameID: String, variant: String? = nil) -> PlayRecord? {
+        records[Self.recordKey(gameID: gameID, variant: variant)]
+    }
+
+    /// そのゲームの全区分の記録。キー順で安定させる（表示のちらつき防止）。
+    public func records(gameID: String) -> [PlayRecord] {
+        let prefix = "\(gameID)#"
+        return records
+            .filter { $0.key == gameID || $0.key.hasPrefix(prefix) }
+            .sorted { $0.key < $1.key }
+            .map(\.value)
+    }
+
+    /// ハブのカードに出す 1 行。記録がまだ無ければ nil。
+    public func summaryLine(gameID: String) -> String? {
+        RecordFormat.hubLine(records(gameID: gameID))
+    }
+
+    /// 決着 1 回を記録して、更新後の記録と更新内訳を返す。
+    ///
+    /// 判定そのものは `PlayRecord.applying` に閉じ込め、ここは永続化だけを担う。
+    @discardableResult
+    public func recordResult(gameID: String, outcome: GameOutcome, score: GameScore) -> RecordResult {
+        let key = Self.recordKey(gameID: gameID, variant: score.variant)
+        let result = PlayRecord.applying(outcome: outcome, score: score, to: records[key])
+        records[key] = result.record
+        persistRecords()
+        return result
+    }
+
+    private func persistRecords() {
+        guard let data = try? JSONEncoder().encode(records) else { return }
+        defaults.set(data, forKey: Self.recordsKey)
+    }
+
+    /// 設定の「プレイ記録を消去」から呼ぶ。保存した10キーをすべて削除する。
     public func clear() {
         for key in Self.allKeys { defaults.removeObject(forKey: key) }
         totalFinishes = 0
@@ -196,5 +260,6 @@ public final class PlayLog {
         lastRequestedAt = nil
         lastRequestedWins = 0
         lastRequestedVersion = nil
+        records = [:]
     }
 }

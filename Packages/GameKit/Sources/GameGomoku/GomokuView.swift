@@ -82,10 +82,13 @@ public struct GomokuView: View {
     // MARK: - Result Controls
 
     private var resultControls: some View {
-        Button { showNewGame = true } label: {
-            Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+        VStack(spacing: 8) {
+            RecordLabel(model.recordResult)
+            Button { showNewGame = true } label: {
+                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }

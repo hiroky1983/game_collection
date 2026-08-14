@@ -31,6 +31,11 @@ public final class ConcentrationModel {
     public private(set) var lastMatchedIndices: [Int] = []
     public private(set) var mismatchedIndices: [Int] = []
     public private(set) var mattaUsed: Bool = false
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    ///
+    /// 神経衰弱は CPU と交互にめくる**対戦もの**で、手数はプレイヤーの技量だけでは決まらない
+    /// （CPU が当てた回数に左右される）。そのため記録は手数ではなく勝敗・連勝で持つ。
+    public private(set) var recordResult: RecordResult?
 
     public var winner: ConcentrationPlayer? {
         guard isGameOver else { return nil }
@@ -147,6 +152,7 @@ public final class ConcentrationModel {
         lastMatchedIndices = []
         mismatchedIndices = []
         mattaUsed = false
+        recordResult = nil
 
         let symbols = Array(concentrationSymbols.prefix(pairCount.rawValue))
         let doubled = (symbols + symbols).shuffled()
@@ -232,7 +238,7 @@ public final class ConcentrationModel {
             } else {
                 services?.feedback.notify(winner == .human ? .success : .error)
             }
-            services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
             services?.snapshots.clear(for: gameID)
         }
     }

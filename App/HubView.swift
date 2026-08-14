@@ -42,7 +42,8 @@ struct HubView: View {
                                 GameCard(
                                     module: module,
                                     accent: Theme.palette[index % Theme.palette.count],
-                                    hasResume: services.snapshots.exists(for: module.id)
+                                    hasResume: services.snapshots.exists(for: module.id),
+                                    record: services.playLog?.summaryLine(gameID: module.id)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -128,7 +129,7 @@ struct HubView: View {
         }
         .tint(Theme.coral)
         .sheet(isPresented: $showSettings) {
-            SettingsView(registry: registry, settings: settings, playLog: services.recommendations?.log)
+            SettingsView(registry: registry, settings: settings, playLog: services.playLog)
                 .presentationDetents([.large])
         }
     }
@@ -149,6 +150,8 @@ private struct GameCard: View {
     let module: GameModule
     let accent: Color
     let hasResume: Bool
+    /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合は何も出さない。
+    let record: String?
 
     var body: some View {
         HStack(spacing: 16) {
@@ -170,6 +173,12 @@ private struct GameCard: View {
                 Text(module.description)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
+                if let record {
+                    Label(record, systemImage: "chart.bar.fill")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
+                }
                 if hasResume {
                     Text("続きから")
                         .font(.system(size: 12, weight: .bold, design: .rounded))

@@ -60,6 +60,8 @@ public final class DaifugoModel {
     public private(set) var lastRanking: [Int] = []
     /// 直前に行ったカード交換の内訳（リザルト直後の説明に使う）。
     public private(set) var lastTransfers: [DaifugoTransfer] = []
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
     /// 各プレイヤーの直近の動き（「パス」「8切り！」など）。画面のバッジ表示用。
     public private(set) var lastActions: [String] = Array(repeating: "", count: playerCount)
     /// 手札から選択中のカード ID。
@@ -178,6 +180,7 @@ public final class DaifugoModel {
         lastActions = Array(repeating: "", count: Self.playerCount)
         gameNumber += 1
         currentPlayer = openingPlayer()
+        recordResult = nil
         phase = .playing
 
         services?.feedback.impact(.medium)   // カードが配られた
@@ -360,7 +363,7 @@ public final class DaifugoModel {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
         services?.snapshots.clear(for: gameID)
     }
 

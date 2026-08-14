@@ -221,8 +221,11 @@ public struct BlackjackView: View {
     }
 
     private var resultView: some View {
-        actionButton("次のゲーム", color: Theme.coral) {
-            model.nextRound()
+        VStack(spacing: 8) {
+            RecordLabel(model.recordResult)
+            actionButton("次のゲーム", color: Theme.coral) {
+                model.nextRound()
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)

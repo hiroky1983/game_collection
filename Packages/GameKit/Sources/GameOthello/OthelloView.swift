@@ -292,6 +292,7 @@ public struct OthelloView: View {
                         .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                         .frame(width: 22, height: 22)
                 }
+                RecordLabel(model.recordResult)
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))

@@ -108,6 +108,7 @@ public struct Game2048View: View {
             RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
             VStack(spacing: 12) {
                 Text("ゲームオーバー").font(.title2.bold()).foregroundStyle(.white)
+                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
                     Button {
                         // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ

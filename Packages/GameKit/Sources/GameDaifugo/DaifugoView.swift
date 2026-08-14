@@ -268,6 +268,8 @@ public struct DaifugoView: View {
                     }
                 }
             }
+            RecordLabel(model.recordResult)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Text("次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.inkSub)

@@ -201,6 +201,8 @@ public final class PokerModel {
     public private(set) var cpuAction: String = ""
     public private(set) var sessionOver: Bool = false   // チップ0で全体終了
     public private(set) var sessionWinner: PokerWinner? = nil
+    /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     public var canStartRound: Bool { !sessionOver && playerChips >= anteAmount && cpuChips >= anteAmount }
 
@@ -298,7 +300,12 @@ public final class PokerModel {
         case .cpu:    services?.feedback.notify(.error)
         default:      services?.feedback.notify(.warning)
         }
-        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        // チップは pot の分配後なので、この時点の残高がそのラウンド終了時の持ち点。
+        recordResult = services?.gameDidFinish(
+            gameID: gameID,
+            outcome: reviewOutcome,
+            score: GameScore(metric: .points, points: playerChips)
+        )
     }
 
     // MARK: - Betting Round 1 (before exchange)
@@ -552,6 +559,7 @@ public final class PokerModel {
     }
 
     public func restartSession() {
+        recordResult  = nil
         playerChips   = initialChips
         cpuChips      = initialChips
         sessionOver   = false

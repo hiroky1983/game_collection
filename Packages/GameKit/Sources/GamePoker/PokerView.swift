@@ -323,12 +323,15 @@ public struct PokerView: View {
 
     // リザルト（ラウンド終了）
     private var resultView: some View {
-        actionButton("次のゲーム", color: Theme.coral) {
-            revealCPU = false
-            if hasPlayedOnce {
-                model.startGame()
-            } else {
-                showStartSheet = true
+        VStack(spacing: 8) {
+            RecordLabel(model.recordResult)
+            actionButton("次のゲーム", color: Theme.coral) {
+                revealCPU = false
+                if hasPlayedOnce {
+                    model.startGame()
+                } else {
+                    showStartSheet = true
+                }
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)

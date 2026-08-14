@@ -83,6 +83,8 @@ public final class BlackjackModel {
     public private(set) var phase: BlackjackPhase = .betting
     public private(set) var outcome: BlackjackOutcome? = nil
     public private(set) var sessionOver: Bool = false
+    /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     /// プッシュは引き分け、バストは敗北として扱う。
@@ -92,6 +94,11 @@ public final class BlackjackModel {
         case .push:                  return .draw
         default:                     return .loss
         }
+    }
+
+    /// 今のラウンドの成績。チップは精算後の残高で、これが「最高チップ数」の自己ベストになる。
+    private var currentScore: GameScore {
+        GameScore(metric: .points, points: chips)
     }
 
     public var playerValue: Int { handValue(playerHand) }
@@ -175,7 +182,7 @@ public final class BlackjackModel {
             bet = 0
             phase = .result
             services?.feedback.notify(.error)
-            services?.gameDidFinish(gameID: gameID, outcome: .loss)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
             checkSessionOver()
             persist()
         } else {
@@ -229,7 +236,7 @@ public final class BlackjackModel {
         case .push:                  services?.feedback.notify(.warning)
         default:                     services?.feedback.notify(.error)
         }
-        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: currentScore)
         checkSessionOver()
         services?.snapshots.clear(for: gameID)
     }
@@ -273,6 +280,7 @@ public final class BlackjackModel {
     // MARK: - Restart
 
     public func restartSession() {
+        recordResult = nil
         chips = 1000
         sessionOver = false
         outcome = nil

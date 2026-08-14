@@ -20,10 +20,11 @@ enum AppEnvironment {
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
         feedback: GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
         recommendations: recommendations,
-        review: review
+        review: review,
+        playLog: playLog
     )
 
-    /// プレイ履歴（回数カウンタと遊んだゲームの ID だけ。盤面・スコアは持たない）。
+    /// プレイ履歴（回数カウンタ・遊んだゲームの ID・ゲーム別の記録。盤面や棋譜は持たない）。
     static let playLog = PlayLog()
 
     /// ゲーム間レコメンド。候補はハブに並んでいるゲーム（非表示を除く）に限る。

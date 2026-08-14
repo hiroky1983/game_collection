@@ -44,6 +44,8 @@ public final class MinesweeperModel {
     public private(set) var revealedCount: Int = 0
     public private(set) var elapsedSeconds: Int = 0
     public private(set) var hitMine: (row: Int, col: Int)?
+    /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -52,6 +54,30 @@ public final class MinesweeperModel {
     public var remainingMines: Int { totalMines - flagCount }
     public var safeCellCount: Int  { rows * cols - totalMines }
     public var gameOver: Bool      { gameState == .won || gameState == .lost }
+
+    /// 記録を分ける区分のキー。盤の大きさと地雷数が同じものを同じ難易度として扱う。
+    /// 難易度の enum を持たない（View が rows/cols/mines を直接渡す）ため、盤の構成から導く。
+    private var recordVariant: String { "\(rows)x\(cols)-\(totalMines)" }
+
+    /// 区分の表示名。新規対局シートのプリセット3種は日本語名、それ以外は盤サイズで表す。
+    private var recordVariantLabel: String {
+        switch (rows, cols, totalMines) {
+        case (9, 9, 10):    return "初級"
+        case (12, 12, 25):  return "中級"
+        case (15, 15, 40):  return "上級"
+        default:            return "\(rows)×\(cols)"
+        }
+    }
+
+    /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
+    private var currentScore: GameScore {
+        GameScore(
+            metric: .shortestTime,
+            seconds: elapsedSeconds,
+            variant: recordVariant,
+            variantLabel: recordVariantLabel
+        )
+    }
 
     public init(services: GameServices? = nil, rows: Int = 9, cols: Int = 9, mines: Int = 10) {
         self.services = services
@@ -97,6 +123,7 @@ public final class MinesweeperModel {
         self.revealedCount = 0
         self.elapsedSeconds = 0
         self.hitMine    = nil
+        self.recordResult = nil
         persist()
     }
 
@@ -130,7 +157,7 @@ public final class MinesweeperModel {
             timerTask?.cancel()
             timerTask = nil
             services?.feedback.notify(.error)
-            services?.gameDidFinish(gameID: gameID, outcome: .loss)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         } else {
             floodReveal(row: row, col: col)
 
@@ -140,7 +167,7 @@ public final class MinesweeperModel {
                 timerTask?.cancel()
                 timerTask = nil
                 services?.feedback.notify(.success)
-                services?.gameDidFinish(gameID: gameID, outcome: .win)
+                recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
             } else {
                 services?.feedback.impact(.light)
             }
@@ -176,7 +203,7 @@ public final class MinesweeperModel {
             timerTask?.cancel()
             timerTask = nil
             services?.feedback.notify(.success)
-            services?.gameDidFinish(gameID: gameID, outcome: .win)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         }
 
         persist()
@@ -204,7 +231,7 @@ public final class MinesweeperModel {
         revealAllMines()
         gameState = .lost
         services?.feedback.notify(.error)
-        services?.gameDidFinish(gameID: gameID, outcome: .loss)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         timerTask?.cancel()
         timerTask = nil
         services?.snapshots.clear(for: gameID)
