@@ -9,6 +9,7 @@ DUTY_DIR="$HOME/.asobiba-duty/game_collection"
 LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
 DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
+DUTY_FETCH_KILL_GRACE="${DUTY_FETCH_KILL_GRACE:-5}"  # SIGTERM / SIGKILL それぞれの猶予秒数（同上）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
@@ -88,7 +89,25 @@ self_update() {
     waited=$((waited + 1))
   done
   if kill -0 "$gpid" 2>/dev/null; then
-    kill "$gpid" 2>/dev/null
+    # SIGTERM で死なない fetch を無制限に wait すると、タイムアウトを設けた意味が無くなる。
+    # この関数はロックの**外側**で走るため、ここで詰まると launchd の毎時起動がそのまま
+    # 積み上がる（後続もロックを取れていないので同じ場所で詰まる）。
+    # SIGTERM → 猶予 → SIGKILL → 猶予 と escalate し、それでも終了を確認できなければ
+    # wait せずに諦める（残る子プロセスはゾンビだが、当番の進行を止めるよりはよい）
+    local sig grace
+    for sig in TERM KILL; do
+      kill -"$sig" "$gpid" 2>/dev/null
+      grace=0
+      while [ "$grace" -lt "$DUTY_FETCH_KILL_GRACE" ] && kill -0 "$gpid" 2>/dev/null; do
+        sleep 1
+        grace=$((grace + 1))
+      done
+      kill -0 "$gpid" 2>/dev/null || break
+    done
+    if kill -0 "$gpid" 2>/dev/null; then
+      log "自己更新: fetch (pid=$gpid) が SIGKILL でも終了しないため wait せずに見送り"
+      return 0
+    fi
     wait "$gpid" 2>/dev/null
     log "自己更新: fetch が ${DUTY_FETCH_TIMEOUT} 秒を超えたため見送り"
     return 0
