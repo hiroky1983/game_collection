@@ -34,6 +34,15 @@ final class SoundFeedbackService: FeedbackService {
 
         configureSessionIfNeeded()
         guard let player = player(for: effect) else { return }
+
+        // 種類の違う音が同時に鳴らないよう、鳴っている他の音は止める。
+        // 着手の直後に決着が来る（`impact(.medium)` → `notify(.success)`）ような場面で
+        // 2 つ同時に鳴るのを防ぐ。`stop()` ではなく `pause()` を使うのは、
+        // `prepareToPlay()` で温めたバッファを捨てないため（次の発音が遅れない）。
+        for (kind, other) in players where kind != effect && other.isPlaying {
+            other.pause()
+        }
+
         // 鳴っている途中なら頭へ巻き戻して鳴らし直す（重ねない）。
         // `stop()` は `prepareToPlay()` のバッファまで捨ててしまい 2 回目以降の発音が遅れるので使わない。
         player.currentTime = 0
