@@ -1,4 +1,5 @@
 import AVFoundation
+import QuartzCore
 import Core
 
 /// 効果音による `FeedbackService` の実装。
@@ -14,12 +15,8 @@ final class SoundFeedbackService: FeedbackService {
     /// 種類ごとに 1 つだけ使い回す。連打されても同じ音は重ならず鳴り直すため、
     /// 音が積み重なって割れることがない。
     private var players: [SoundEffect: AVAudioPlayer] = [:]
-    /// 直前にその音を鳴らした時刻。連打の間引きに使う。
-    private var lastPlayedAt: [SoundEffect: TimeInterval] = [:]
-    private var didActivateSession = false
-
-    /// この間隔より短い連打では鳴らし直さない（マシンガンのように鳴るのを防ぐ）。
-    private let minimumInterval: TimeInterval = 0.04
+    /// 連打の間引き。判定は Core 側に置いてテストできるようにしてある。
+    private var throttle = SoundThrottle()
     /// 触覚に添える音なので控えめに。
     private let volume: Float = 0.6
 
@@ -32,26 +29,39 @@ final class SoundFeedbackService: FeedbackService {
     }
 
     private func play(_ effect: SoundEffect) {
-        let now = Date().timeIntervalSinceReferenceDate
-        if let last = lastPlayedAt[effect], now - last < minimumInterval { return }
-        lastPlayedAt[effect] = now
+        // 壁時計だと時刻が過去へ飛んだときに鳴らなくなるため、単調増加する時計を使う。
+        guard throttle.shouldPlay(effect, now: CACurrentMediaTime()) else { return }
 
-        activateSessionIfNeeded()
+        configureSessionIfNeeded()
         guard let player = player(for: effect) else { return }
-        // 鳴っている途中なら頭から鳴らし直す（重ねない）。
-        player.stop()
+        // 鳴っている途中なら頭へ巻き戻して鳴らし直す（重ねない）。
+        // `stop()` は `prepareToPlay()` のバッファまで捨ててしまい 2 回目以降の発音が遅れるので使わない。
         player.currentTime = 0
-        player.play()
+        if !player.play() {
+            // 通話・Siri などの割り込みでセッションが非アクティブになっていると play() が false を返す。
+            // その場合だけ張り直して 1 度やり直す（割り込み通知の購読より単純で、取りこぼしも無い）。
+            try? AVAudioSession.sharedInstance().setActive(true)
+            player.play()
+        }
     }
 
-    /// 初回の発音まで音声セッションに触らない。効果音がオフのままなら一度も有効化されない。
-    private func activateSessionIfNeeded() {
-        guard !didActivateSession else { return }
-        didActivateSession = true
+    /// カテゴリが `.ambient` でなければ張り直す。
+    ///
+    /// 一度きりの設定では不十分。**AdMob のリワード動画は再生時に自前でアプリの音声セッションを操作する**
+    /// （SDK 側の `audioSessionIsApplicationManaged` が既定で false）ため、広告のあとカテゴリが
+    /// `.ambient` 以外へ変わっていることがある。そのまま鳴らすと消音スイッチを無視したり
+    /// 他アプリの音楽を止めたりする側の挙動になり、本機能の前提が崩れる。
+    /// 発音のたびに呼ばれるが、`category` の読み取りは安価で、変化が無ければ何もしない。
+    private func configureSessionIfNeeded() {
         let session = AVAudioSession.sharedInstance()
+        guard session.category != .ambient else { return }
         // .ambient は他アプリの音とミックスされ、消音スイッチで無音になる。
         try? session.setCategory(.ambient, mode: .default)
         try? session.setActive(true)
+        #if DEBUG
+        // シミュレータで「実際に .ambient が適用されたか」を確認するための診断出力。
+        print("[SoundFeedback] AVAudioSession.category=\(session.category.rawValue)")
+        #endif
     }
 
     /// 波形の合成と `AVAudioPlayer` の生成は種類ごとに初回だけ行う。

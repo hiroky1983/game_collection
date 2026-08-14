@@ -117,6 +117,62 @@ struct SoundEffectMappingTests {
     }
 }
 
+// MARK: - 連打の間引き（受け入れ条件）
+
+@Suite("効果音の連打の間引き")
+struct SoundThrottleTests {
+
+    /// `shouldPlay` は mutating で `#expect` の中に直接書けないため、
+    /// 一連の呼び出しの結果を配列にしてから突き合わせる。
+    private func results(
+        _ throttle: inout SoundThrottle,
+        _ calls: [(SoundEffect, Double)]
+    ) -> [Bool] {
+        calls.map { throttle.shouldPlay($0.0, now: $0.1) }
+    }
+
+    @Test("既定は 40ms。それより短い連打は鳴らさない")
+    func suppressesRapidRepeats() {
+        var throttle = SoundThrottle()
+        // 40ms ちょうどは二進浮動小数の丸めでどちらにも転びうるため、境界の外側で判定する。
+        let got = results(&throttle, [
+            (.light, 10.000), (.light, 10.020), (.light, 10.039), (.light, 10.041),
+        ])
+        #expect(got == [true, false, false, true], "20ms・39ms は間引き、41ms で鳴らす")
+    }
+
+    @Test("間引きは種類ごとに独立している")
+    func throttleIsPerEffect() {
+        var throttle = SoundThrottle()
+        let got = results(&throttle, [(.light, 0), (.medium, 0), (.light, 0)])
+        #expect(got == [true, true, false], "別の音は同時刻でも鳴り、同じ音だけ間引く")
+    }
+
+    @Test("間引かれた発音は基準時刻を更新しない（連打し続けても必ず次が鳴る）")
+    func suppressedCallsDoNotExtendTheWindow() {
+        var throttle = SoundThrottle()
+        // 10ms 刻みの連打。間引いたぶんで基準を伸ばすと 40ms を超えても永遠に鳴らなくなる。
+        let got = results(&throttle, [
+            (.rigid, 0), (.rigid, 0.010), (.rigid, 0.020), (.rigid, 0.030), (.rigid, 0.041),
+        ])
+        #expect(got == [true, false, false, false, true], "最初の発音から 40ms 経てば鳴る")
+    }
+
+    @Test("時計が巻き戻っても鳴らなくならない")
+    func survivesClockGoingBackwards() {
+        var throttle = SoundThrottle()
+        let got = results(&throttle, [(.success, 100), (.success, 5), (.success, 5.010)])
+        #expect(got == [true, true, false], "過去へ飛んだら鳴らして基準を取り直し、以後は通常どおり間引く")
+    }
+
+    @Test("間隔は指定できる")
+    func intervalIsConfigurable() {
+        var throttle = SoundThrottle(minimumInterval: 0.5)
+        let got = results(&throttle, [(.warning, 0), (.warning, 0.4), (.warning, 0.5)])
+        #expect(got == [true, false, true])
+    }
+}
+
 // MARK: - オン / オフの保存（受け入れ条件）
 
 @Suite("フィードバック設定の保存")

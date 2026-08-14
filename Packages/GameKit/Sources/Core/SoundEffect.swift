@@ -88,6 +88,34 @@ public enum SoundEffect: String, CaseIterable, Sendable {
     public var wavData: Data { ToneGenerator.wavData(steps: steps) }
 }
 
+/// 同じ効果音の連打を間引く（受け入れ条件「連打しても音が重なって割れない」の一方の担保）。
+///
+/// 再生そのものは App 層（`AVAudioPlayer`）だが、間引きの判定はここに置いてテストできる形にする
+/// （App ターゲットにはテストターゲットが無いため、App に置くと自動テストで守れない）。
+/// 時刻は呼び出し側から渡す。App 層は**単調増加する時計**（`CACurrentMediaTime()`）を渡すこと。
+public struct SoundThrottle {
+    /// この間隔より短い連打では鳴らし直さない。
+    public let minimumInterval: Double
+    private var lastPlayedAt: [SoundEffect: Double] = [:]
+
+    public init(minimumInterval: Double = 0.04) {
+        self.minimumInterval = minimumInterval
+    }
+
+    /// 鳴らしてよいかを返す。true を返したときだけ発音時刻を記録する。
+    ///
+    /// - Parameter now: 単調増加する時計の現在値（秒）。
+    public mutating func shouldPlay(_ effect: SoundEffect, now: Double) -> Bool {
+        if let last = lastPlayedAt[effect], now >= last, now - last < minimumInterval {
+            return false
+        }
+        // now < last（時計が巻き戻った）ときは間引かずに鳴らし、基準を取り直す。
+        // 間引き続けて「音が出ない端末」になるより、一度多く鳴るほうが害が小さい。
+        lastPlayedAt[effect] = now
+        return true
+    }
+}
+
 /// `ToneStep` の並びを 16bit モノラル PCM の WAV（RIFF）バイト列に合成する。
 ///
 /// 音源ファイルを持たない代わりにこれで作る。UI の効果音は 2kHz 未満しか使わないため
