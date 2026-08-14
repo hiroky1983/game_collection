@@ -61,6 +61,12 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire",
         ]),
+        // 遊び方ガイド（#118）も全ゲーム横断（全ゲームぶんの文言と初回フラグの永続化を検証する）。
+        .testTarget(name: "HowToPlayTests", dependencies: [
+            "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
+            "GameMahjongSolitaire",
+        ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
         .testTarget(name: "ReviewRequestTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",

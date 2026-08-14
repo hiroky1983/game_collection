@@ -6,7 +6,6 @@ public struct DaifugoView: View {
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showStartSheet = true
-    @State private var showRuleSheet = false
 
     public init(services: GameServices) {
         self.services = services
@@ -28,6 +27,7 @@ public struct DaifugoView: View {
                 Spacer(minLength: 0)
                 handArea
             }
+            HowToPlayHint(.daifugo, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
             BannerSlot(ads: services.ads)
@@ -48,17 +48,9 @@ public struct DaifugoView: View {
                 Text("大富豪")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
-            #if os(iOS)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showRuleSheet = true } label: {
-                    Image(systemName: "list.bullet.rectangle")
-                }
-            }
-            #endif
         }
-        .sheet(isPresented: $showRuleSheet) {
-            NavigationStack { DaifugoRuleSheet() }
-        }
+        // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
+        .howToPlay(.daifugo) { DaifugoRuleSheet() }
         .sheet(isPresented: $showStartSheet) {
             DaifugoStartSheet {
                 showStartSheet = false

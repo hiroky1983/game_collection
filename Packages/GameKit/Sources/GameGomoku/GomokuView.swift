@@ -24,6 +24,7 @@ public struct GomokuView: View {
             board
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
+            HowToPlayHint(.gomoku, playLog: services.playLog)
             if model.gameOver {
                 resultControls
             } else {
@@ -62,6 +63,7 @@ public struct GomokuView: View {
                 }
             }
         }
+        .howToPlay(.gomoku)
         .sheet(isPresented: $showNewGame) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)

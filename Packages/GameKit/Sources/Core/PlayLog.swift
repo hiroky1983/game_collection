@@ -55,11 +55,12 @@ public struct ReviewRequestState: Equatable, Sendable {
 /// 保存先は端末内の `UserDefaults` のみ（サーバ送信なし・iCloud 同期なし）。既存の `GameSettings`
 /// （`gameOrder_v1` / `hiddenGames_v1`）と同じ場所・同じ命名規則。
 ///
-/// **盤面・棋譜といったゲームの途中状態は一切残さない**。持つのは下の10キー
-/// （レコメンド #52 の5キー + 評価リクエスト #53 の4キー + プレイ記録 #115 の1キー）だけで、
+/// **盤面・棋譜といったゲームの途中状態は一切残さない**。持つのは下の11キー
+/// （レコメンド #52 の5キー + 評価リクエスト #53 の4キー + プレイ記録 #115 の1キー
+/// + 遊び方ガイド #118 の1キー）だけで、
 /// いずれも追記型ログではなく同じ値の上書きのため、何回遊んでもキー数もデータ量も増えない
-/// （`playedGameIDs` と `records` だけは増えるが、上限は登録ゲーム数（+ 難易度数）で
-/// プレイ回数には依存しない）。
+/// （`playedGameIDs` と `records` と `guidedGameIDs` だけは増えるが、上限は登録ゲーム数
+/// （+ 難易度数）でプレイ回数には依存しない）。
 @MainActor
 public final class PlayLog {
     public static let totalFinishesKey  = "playLog_totalFinishes_v1"
@@ -90,8 +91,15 @@ public final class PlayLog {
     /// プレイ記録（#115）が書き込むキー。
     public static let playRecordKeys = [recordsKey]
 
+    /// 「遊び方」のミニガイド（#118）を出し終えた gameID。ゲームごとにキーを切らず**1キー**に配列で入れる
+    /// （`playedGameIDs` と同じ方針。登録ゲームが増えてもキーは増えない）。
+    public static let guidedGameIDsKey = "playLog_guidedGameIDs_v1"
+
+    /// 遊び方ガイド（#118）が書き込むキー。
+    public static let howToPlayKeys = [guidedGameIDsKey]
+
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
-    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys
+    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys
 
     private let defaults: UserDefaults
 
@@ -112,6 +120,9 @@ public final class PlayLog {
     /// ゲーム別の記録。キーは `recordKey(gameID:variant:)`。
     public private(set) var records: [String: PlayRecord]
 
+    /// 初回のミニガイド（#118）を出し終えた gameID。
+    public private(set) var guidedGameIDs: Set<String>
+
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.totalFinishes = defaults.integer(forKey: Self.totalFinishesKey)
@@ -127,6 +138,8 @@ public final class PlayLog {
             .map { Date(timeIntervalSince1970: $0) }
         self.lastRequestedWins = defaults.integer(forKey: Self.lastRequestedWinsKey)
         self.lastRequestedVersion = defaults.string(forKey: Self.lastRequestedVersionKey)
+
+        self.guidedGameIDs = Set(defaults.stringArray(forKey: Self.guidedGameIDsKey) ?? [])
 
         // 壊れた JSON（旧形式・書き込み途中の中断）で起動できなくならないよう、失敗したら空に倒す。
         // 記録は再取得できない代わりに失っても遊べるため、可用性を優先する。
@@ -262,6 +275,25 @@ public final class PlayLog {
         persistRecords()
     }
 
+    // MARK: - 遊び方のミニガイド（#118）
+
+    /// そのゲームのミニガイドを既に出したか。
+    public func hasShownGuide(for gameID: String) -> Bool {
+        guidedGameIDs.contains(gameID)
+    }
+
+    /// ミニガイドを出したことを記録する。
+    ///
+    /// - Returns: 今回が初回だったか（true のときだけ画面に出す）。判定と記録を 1 回の呼び出しに
+    ///   まとめてあるため、画面側が「読んでから書く」の間に二重表示することがない。
+    @discardableResult
+    public func markGuideShown(for gameID: String) -> Bool {
+        guard guidedGameIDs.insert(gameID).inserted else { return false }
+        // 並びを固定して保存し、同じ集合なら常に同じバイト列になるようにする。
+        defaults.set(guidedGameIDs.sorted(), forKey: Self.guidedGameIDsKey)
+        return true
+    }
+
     private func persistRecords() {
         guard let data = try? JSONEncoder().encode(records) else { return }
         defaults.set(data, forKey: Self.recordsKey)
@@ -280,5 +312,6 @@ public final class PlayLog {
         lastRequestedWins = 0
         lastRequestedVersion = nil
         records = [:]
+        guidedGameIDs = []
     }
 }

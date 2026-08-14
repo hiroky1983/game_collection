@@ -8,7 +8,6 @@ public struct PokerView: View {
     @State private var showStartSheet = true
     @State private var hasPlayedOnce = false
     @State private var revealCPU = false
-    @State private var showHandGuide = false
     @State private var showRewardNotEarned = false
     @State private var isRecoveringChips = false
 
@@ -26,6 +25,7 @@ public struct PokerView: View {
             cpuArea
             potArea
             playerArea
+            HowToPlayHint(.poker, playLog: services.playLog)
             if model.sessionOver {
                 sessionOverView
             } else {
@@ -51,17 +51,9 @@ public struct PokerView: View {
                 Text("ポーカー")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
-            #if os(iOS)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showHandGuide = true } label: {
-                    Image(systemName: "list.bullet.rectangle")
-                }
-            }
-            #endif
         }
-        .sheet(isPresented: $showHandGuide) {
-            HandGuideSheet()
-        }
+        // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
+        .howToPlay(.poker) { HandGuideSheet() }
         .sheet(isPresented: $showStartSheet) {
             PokerStartSheet {
                 showStartSheet = false

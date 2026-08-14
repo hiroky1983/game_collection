@@ -30,6 +30,7 @@ public struct BlackjackView: View {
                 Spacer(minLength: 4)
                 playerArea
             }
+            HowToPlayHint(.blackjack, playLog: services.playLog)
             if model.sessionOver {
                 sessionOverView
             } else {
@@ -55,6 +56,7 @@ public struct BlackjackView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
         }
+        .howToPlay(.blackjack)
         .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {

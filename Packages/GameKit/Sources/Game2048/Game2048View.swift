@@ -18,9 +18,8 @@ public struct Game2048View: View {
         VStack(spacing: 20) {
             header
             boardView
-            Label("スワイプで動かそう", systemImage: "hand.draw.fill")
-                .font(Theme.body(14))
-                .foregroundStyle(Theme.inkSub)
+            // 初回だけ出す 1 行（#118。以降は `?` ボタンからいつでも読める）。
+            HowToPlayHint(.game2048, playLog: services.playLog)
             RecommendationSlot(services: services, isFinished: model.gameOver)
             Spacer()
             BannerSlot(ads: services.ads)
@@ -47,6 +46,7 @@ public struct Game2048View: View {
                 }
             }
         }
+        .howToPlay(.game2048)
         .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
