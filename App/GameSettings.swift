@@ -9,12 +9,17 @@ final class GameSettings {
     private(set) var hiddenIDs: Set<String>
     /// 触覚フィードバックのオン / オフ。既定はオン。
     var hapticsEnabled: Bool {
-        didSet { UserDefaults.standard.set(hapticsEnabled, forKey: Self.hapticsKey) }
+        didSet { Self.haptics.isEnabled = hapticsEnabled }
+    }
+    /// 効果音のオン / オフ。既定はオン。触覚とは独立に切り替えられる。
+    var soundEnabled: Bool {
+        didSet { Self.sound.isEnabled = soundEnabled }
     }
 
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
-    private static let hapticsKey  = "hapticsEnabled_v1"
+    private static let haptics = FeedbackPreference(key: "hapticsEnabled_v1")
+    private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
 
     init(registeredIDs: [String]) {
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
@@ -25,8 +30,9 @@ final class GameSettings {
         let hiddenArr = UserDefaults.standard.stringArray(forKey: Self.hiddenKey) ?? []
         self.hiddenIDs = Set(hiddenArr.filter { registeredIDs.contains($0) })
 
-        // 未設定（初回起動・キー無し）はオン。
-        self.hapticsEnabled = UserDefaults.standard.object(forKey: Self.hapticsKey) as? Bool ?? true
+        // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
+        self.hapticsEnabled = Self.haptics.isEnabled
+        self.soundEnabled = Self.sound.isEnabled
     }
 
     func visibleModules(from registry: GameRegistry) -> [GameModule] {

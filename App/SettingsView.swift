@@ -51,10 +51,19 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
+
+                    Toggle(isOn: Binding(
+                        get: { settings.soundEnabled },
+                        set: { settings.soundEnabled = $0 }
+                    )) {
+                        Label("効果音", systemImage: "speaker.wave.2")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
                 } header: {
                     Text("フィードバック")
                 } footer: {
-                    Text("駒を置く・マスを開く・勝敗が決まるといった場面で端末を軽く振動させます。")
+                    Text("駒を置く・マスを開く・勝敗が決まるといった場面で、端末を軽く振動させたり短い効果音を鳴らしたりします。効果音は本体を消音（サイレント）にしているときは鳴らず、ほかのアプリで再生中の音楽も止めません。")
                 }
 
                 // MARK: プレイ記録

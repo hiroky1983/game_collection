@@ -1,3 +1,5 @@
+import Foundation
+
 /// 触覚フィードバックの強さ。UIKit の `UIImpactFeedbackGenerator.FeedbackStyle` に対応する。
 public enum FeedbackImpact: Equatable, Sendable {
     /// 軽い操作（1マス開く・カードを1枚めくる）。
@@ -53,5 +55,42 @@ public struct GatedFeedbackService: FeedbackService {
     @MainActor public func notify(_ type: FeedbackNotice) {
         guard isEnabled() else { return }
         base.notify(type)
+    }
+}
+
+/// 同じ発火を複数の実装へ配るラッパー。触覚と効果音を**同じ呼び出し箇所に相乗り**させるために使う。
+/// これにより各ゲーム側には新しい発火点を作らずに済み、鳴りすぎの制御も 1 か所に残る。
+public struct CompositeFeedbackService: FeedbackService {
+    private let services: [FeedbackService]
+
+    public init(_ services: [FeedbackService]) {
+        self.services = services
+    }
+
+    @MainActor public func impact(_ style: FeedbackImpact) {
+        for service in services { service.impact(style) }
+    }
+
+    @MainActor public func notify(_ type: FeedbackNotice) {
+        for service in services { service.notify(type) }
+    }
+}
+
+/// 触覚 / 効果音のオン・オフを `UserDefaults` に保存する小さな箱。
+/// 「未設定ならオン」という既定値と保存先キーの規則をここ 1 か所に閉じ込め、
+/// App 層の設定モデル（`GameSettings`）からは読み書きするだけにする。
+public struct FeedbackPreference {
+    private let key: String
+    private let defaults: UserDefaults
+
+    public init(key: String, defaults: UserDefaults = .standard) {
+        self.key = key
+        self.defaults = defaults
+    }
+
+    /// 保存された設定。キーが無いとき（初回起動）はオン。
+    public var isEnabled: Bool {
+        get { defaults.object(forKey: key) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: key) }
     }
 }
