@@ -18,6 +18,10 @@ struct HubView: View {
     /// 「遊んだ」とみなす最短の滞在時間。開いてすぐ戻っただけのときに ATT の事前説明を出さないための下限。
     private static let minimumPlaySeconds: TimeInterval = 30
 
+    /// ゲーム一覧のグリッド（#119）。iPhone は最小幅 130pt で必ず 2 列になり
+    /// （SE 相当の 320pt 幅でも 3 列にはならない）、画面が広い iPad では列が増えて一望性が上がる。
+    private static let columns = [GridItem(.adaptive(minimum: 130), spacing: 12)]
+
     init(
         registry: GameRegistry,
         services: GameServices,
@@ -36,7 +40,7 @@ struct HubView: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVGrid(columns: Self.columns, spacing: 12) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
                             NavigationLink(value: module.id) {
                                 GameCard(
@@ -156,57 +160,77 @@ struct HubView: View {
     }
 }
 
-/// ハブのゲームカード。
+/// ハブのゲームカード（2列グリッド・#119）。
+///
+/// 全 10 本を 1 画面に収めるため縦に積む情報は 3 段までに絞っている
+/// （アイコン + ゲーム名 + 1 行）。「続きから」はカード右上のバッジに移し、
+/// 記録（#115）の行を潰さずに両方見えるようにした。
 private struct GameCard: View {
     let module: GameModule
     let accent: Color
     let hasResume: Bool
-    /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合は何も出さない。
+    /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
 
     var body: some View {
-        HStack(spacing: 16) {
-            // カラフルなアイコンチップ
-            RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                .fill(accent.gradient)
-                .frame(width: 60, height: 60)
-                .overlay {
-                    module.icon
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                .shadow(color: accent.opacity(0.4), radius: 6, y: 3)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 6) {
+                // カラフルなアイコンチップ
+                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                    .fill(accent.gradient)
+                    .frame(width: 44, height: 44)
+                    .overlay {
+                        module.icon
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .shadow(color: accent.opacity(0.4), radius: 5, y: 3)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(module.title)
-                    .font(Theme.title(22))
-                    .foregroundStyle(Theme.ink)
-                Text(module.description)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                if let record {
-                    Label(record, systemImage: "chart.bar.fill")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                        .lineLimit(1)
-                }
+                Spacer(minLength: 0)
+
                 if hasResume {
                     Text("続きから")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(accent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(Capsule().fill(accent.opacity(0.15)))
+                        .fixedSize()
                 }
             }
 
-            Spacer()
+            Text(module.title)
+                .font(Theme.title(18))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(Theme.inkSub)
+            // 記録が無いうちはゲームの説明を出す（初見の手掛かり）。遊んだあとは記録に入れ替わる。
+            Group {
+                if let record {
+                    Label(record, systemImage: "chart.bar.fill")
+                        .foregroundStyle(Theme.inkSub)
+                } else {
+                    Text(module.description)
+                        .foregroundStyle(Theme.inkSub)
+                }
+            }
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
         }
-        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
         .popCard()
+        // 「続きから」バッジを右上（＝先頭行）に置いたため、既定の読み上げ順ではゲーム名より先に
+        // 読まれてしまう。カードを 1 要素にまとめ、必ずゲーム名から読ませる。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [module.title, record ?? module.description]
+        if hasResume { parts.append("続きから") }
+        return parts.joined(separator: "、")
     }
 }
