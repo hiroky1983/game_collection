@@ -221,8 +221,11 @@ public struct BlackjackView: View {
     }
 
     private var resultView: some View {
-        actionButton("次のゲーム", color: Theme.coral) {
-            model.nextRound()
+        VStack(spacing: 8) {
+            RecordLabel(model.recordResult)
+            actionButton("次のゲーム", color: Theme.coral) {
+                model.nextRound()
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -246,6 +249,9 @@ public struct BlackjackView: View {
                 }
                 Spacer()
             }
+
+            // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
+            RecordLabel(model.recordResult)
 
             Button {
                 // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ

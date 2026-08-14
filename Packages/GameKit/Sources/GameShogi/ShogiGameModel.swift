@@ -30,6 +30,8 @@ public final class ShogiGameModel {
     public private(set) var resigned: Bool
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
     private let gameID = "shogi"
@@ -77,6 +79,13 @@ public final class ShogiGameModel {
             self.gameOver = true
             self.resultText = "あなたの負け（投了）"
             self.phase = .review
+        }
+        // 将棋だけは終局後の検討画面をスナップショットに残す（他ゲームは終局で破棄する）。
+        // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
+        // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
+        // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
+        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+            self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
     }
 
@@ -197,7 +206,11 @@ public final class ShogiGameModel {
             resultText = (loser == .black ? "先手" : "後手") + "の負け（詰み）"
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
-            services?.gameDidFinish(gameID: gameID, outcome: loser == humanSide ? .loss : .win)
+            recordResult = services?.gameDidFinish(
+                gameID: gameID,
+                outcome: loser == humanSide ? .loss : .win,
+                score: GameScore(metric: .winLoss)
+            )
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
             services?.feedback.impact(.medium)
@@ -222,6 +235,7 @@ public final class ShogiGameModel {
         resultText = nil
         undoUsed = false
         resigned = false
+        recordResult = nil
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
@@ -295,7 +309,7 @@ public final class ShogiGameModel {
         resigned = true
         gameOver = true
         services?.feedback.notify(.error)
-        services?.gameDidFinish(gameID: gameID, outcome: .loss)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: GameScore(metric: .winLoss))
         resultText = "あなたの負け（投了）"
         phase = .review
         reviewPly = moves.count

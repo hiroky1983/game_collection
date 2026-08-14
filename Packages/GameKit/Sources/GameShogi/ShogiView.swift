@@ -29,6 +29,7 @@ public struct ShogiView: View {
                 .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
             if model.gameOver {
+                RecordLabel(model.recordResult)
                 reviewControls
             } else {
                 gameControls

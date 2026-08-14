@@ -34,6 +34,8 @@ public final class OthelloModel {
     public private(set) var mustPass: Bool
     public private(set) var turnID: Int
     public private(set) var undoUsed: Bool
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
     private let gameID = "othello"
@@ -122,7 +124,7 @@ public final class OthelloModel {
         guard !gameOver else { return }
         winner = humanSide.opponent
         services?.feedback.notify(.error)
-        services?.gameDidFinish(gameID: gameID, outcome: .loss)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: GameScore(metric: .winLoss))
         persist()
     }
 
@@ -160,6 +162,7 @@ public final class OthelloModel {
         turnID         = 0
         undoUsed       = false
         undoHistory    = []
+        recordResult   = nil
         startedAt      = Date()
         persist()
     }
@@ -193,7 +196,7 @@ public final class OthelloModel {
         } else {
             services?.feedback.notify(winner == humanSide ? .success : .error)
         }
-        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
         return true
     }
 

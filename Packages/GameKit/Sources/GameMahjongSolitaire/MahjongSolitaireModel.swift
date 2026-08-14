@@ -39,6 +39,8 @@ public final class MahjongSolitaireModel {
     /// **クリア可能な盤面しか配っていないことの根拠**であり、テストではこの順にタップして完走させる。
     /// プレイヤーが別の順で取り始めた時点で無効になる（ヒントはこの順序ではなく現在の盤面から探す）。
     public private(set) var solution: [[Int]] = []
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -168,6 +170,7 @@ public final class MahjongSolitaireModel {
         elapsedSeconds = 0
         shuffleCount = 0
         hintCount = 0
+        recordResult = nil
         refreshDerivedState()
         // 画面は開いたままなので、ここで計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         timerTask?.cancel()
@@ -181,12 +184,19 @@ public final class MahjongSolitaireModel {
     public func giveUpAndRestart() {
         guard phase == .playing else { return }
         services?.feedback.notify(.error)
-        services?.gameDidFinish(gameID: gameID, outcome: .loss)
+        // 手詰まりでの投了。タイムは勝ったときだけ記録されるので、ここでは通算回数だけが増える。
+        // 直後の newGame() が盤面ごとリザルト表示を畳むため、戻り値（recordResult）は使わない。
+        services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         newGame()
     }
 
     /// 計時が動いているか（テスト用）。
     public var isCounting: Bool { timerTask != nil }
+
+    /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
+    private var currentScore: GameScore {
+        GameScore(metric: .shortestTime, seconds: elapsedSeconds)
+    }
 
     /// 中断から復帰したときに計時を再開する（View の `.task` から呼ぶ）。
     public func resumeTimerIfNeeded() {
@@ -229,7 +239,7 @@ public final class MahjongSolitaireModel {
         selectedIndex = nil
         hintPair = []
         services?.feedback.notify(.success)
-        services?.gameDidFinish(gameID: gameID, outcome: .win)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         services?.snapshots.clear(for: gameID)
     }
 

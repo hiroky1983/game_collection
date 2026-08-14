@@ -323,12 +323,15 @@ public struct PokerView: View {
 
     // リザルト（ラウンド終了）
     private var resultView: some View {
-        actionButton("次のゲーム", color: Theme.coral) {
-            revealCPU = false
-            if hasPlayedOnce {
-                model.startGame()
-            } else {
-                showStartSheet = true
+        VStack(spacing: 8) {
+            RecordLabel(model.recordResult)
+            actionButton("次のゲーム", color: Theme.coral) {
+                revealCPU = false
+                if hasPlayedOnce {
+                    model.startGame()
+                } else {
+                    showStartSheet = true
+                }
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -358,6 +361,9 @@ public struct PokerView: View {
                 }
                 Spacer()
             }
+
+            // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
+            RecordLabel(model.recordResult)
 
             if model.sessionWinner == .cpu {
                 Button {

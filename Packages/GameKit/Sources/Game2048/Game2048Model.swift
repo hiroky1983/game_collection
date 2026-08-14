@@ -10,6 +10,8 @@ public final class Game2048Model {
     public private(set) var score: Int
     public private(set) var gameOver: Bool
     public private(set) var continueUsed: Bool = false
+    /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
     private let gameID = "2048"
@@ -62,7 +64,13 @@ public final class Game2048Model {
         if Game2048Logic.isGameOver(board) {
             gameOver = true
             services?.feedback.notify(.error)
-            services?.gameDidFinish(gameID: gameID, outcome: .loss)
+            // 2048 に勝ちは無いので、記録するのはスコアと到達した最大タイル。
+            let highestTile: Int? = board.flatMap { $0 }.max()
+            recordResult = services?.gameDidFinish(
+                gameID: gameID,
+                outcome: .loss,
+                score: GameScore(metric: .points, points: score, highestValue: highestTile)
+            )
             services?.snapshots.clear(for: gameID) // 終局でスナップショット破棄
         } else {
             services?.feedback.impact(result.gained > 0 ? .medium : .light)
@@ -73,6 +81,10 @@ public final class Game2048Model {
     /// リワード広告視聴後にコンティニュー。盤面・スコアを保持したまま再開。1回のみ使用可。
     public func continueAfterAd() {
         guard gameOver, !continueUsed else { return }
+        // 同じ盤面・同じスコアの続きなので、直前に記録した「負け」は無かったことにする
+        // （そのままだと1回のプレイが2回分として数えられる）。到達済みのスコアは取り消さない。
+        services?.playLog?.cancelLoss(gameID: gameID)
+        recordResult = nil
         gameOver = false
         continueUsed = true
         Self.spawn(into: &board)
@@ -85,6 +97,7 @@ public final class Game2048Model {
         score = 0
         gameOver = false
         continueUsed = false
+        recordResult = nil
         Self.spawn(into: &board)
         Self.spawn(into: &board)
         persist()

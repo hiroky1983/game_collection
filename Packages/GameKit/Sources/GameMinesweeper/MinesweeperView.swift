@@ -191,6 +191,8 @@ public struct MinesweeperView: View {
             .padding(.horizontal, 12).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
 
+            RecordLabel(model.recordResult)
+
             Button { showNewGame = true } label: {
                 Text("次のゲーム").font(Theme.body(16)).frame(maxWidth: .infinity)
             }
