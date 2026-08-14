@@ -8,9 +8,137 @@ set -uo pipefail
 DUTY_DIR="$HOME/.asobiba-duty/game_collection"
 LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
+DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
+DUTY_FETCH_KILL_GRACE="${DUTY_FETCH_KILL_GRACE:-5}"  # SIGTERM / SIGKILL それぞれの猶予秒数（同上）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
+
+# シミュレータの後片付け（Issue #100）。当番が動作確認のために起動したシミュレータだけを落とし、
+# 実行前から起動していたもの（= 会長が使用中の可能性がある）には触らない差分方式。
+#   - EXIT トラップから呼ぶ。claude が異常終了しても launchd に止められても必ず走らせるため
+#     （正常終了時だけの後片付けだと、落ちた回のシミュレータが残り続ける）
+#   - 実行前の状態を記録**できたとき**しか片付けない。記録に失敗した状態で片付けると
+#     「起動中のすべてが当番のもの」と誤認して会長のシミュレータを落としてしまう
+#   - **既知の限界**: 差分は「claude を起動する直前」のスナップショットとの比較なので、当番の実行中
+#     （長いと1時間近い）に会長が新しく起動したシミュレータは「当番が起動した」と見えて落ちる。
+#     Issue #100 の受け入れ条件が「当番の実行中に新しく起動されたものだけを落とす差分方式」と
+#     定めているため実装はこれに従う。当番の起動したデバイスだけを厳密に特定するには当番自身に
+#     UDID を記録させるしかないが、それを忘れることこそが本スクリプトの存在理由なので backstop に
+#     はできない。実害が出たら「あそびば以外のアプリが前面にあるデバイスは落とさない」等の
+#     追加条件を検討する
+SIMS_BEFORE=""
+SIMS_TRACKED=0
+
+booted_sims() {
+  xcrun simctl list devices booted -j 2>/dev/null \
+    | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null
+}
+
+# 失敗（xcrun/jq が使えない等）は黙って握りつぶさずログに残す。ここが崩れると後片付けが
+# 静かに効かなくなり、シミュレータが溜まり続ける（Issue #100 の実害そのもの）
+capture_sims_before() {
+  local raw
+  raw=$(xcrun simctl list devices booted -j 2>/dev/null) || { log "後片付け: シミュレータ一覧の取得に失敗（simctl）。後片付けは行わない"; return 0; }
+  SIMS_BEFORE=$(printf '%s' "$raw" | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null | tr '\n' ' ') \
+    || { log "後片付け: シミュレータ一覧の解析に失敗（jq）。後片付けは行わない"; SIMS_BEFORE=""; return 0; }
+  SIMS_TRACKED=1
+}
+
+cleanup_simulators() {
+  [ "$SIMS_TRACKED" -eq 1 ] || return 0
+  local u
+  for u in $(booted_sims); do
+    case " $SIMS_BEFORE " in
+      *" $u "*) continue ;;  # 実行前から起動していた = 触らない
+    esac
+    xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown"
+  done
+  # Simulator.app 自体は終了しない。実行前のシミュレータがゼロでも、当番の実行中（最大1時間）に
+  # 会長が Simulator.app を開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
+  # CodeRabbit 指摘・Major）。会長の訴え（PC が重い）の原因は起動中のシミュレータであって
+  # デバイスを持たない Simulator.app ではないため、落とす必要も無い
+}
+
+# 自己更新: launchd が起動するのは会長の作業ツリー（~/myspace/game_collection）の本ファイルであり、
+# main へマージしただけでは反映されない。会長が git pull するまで旧版が動き続け、修正済みの
+# 発火条件が効かないまま空振り起動を繰り返す（2026-08-12: #73 の blocked 除外がこの理由で効かず、
+# 10分おきに当番が空振り起動していた）。会長の手作業に依存せず、当番専用クローンから
+# origin/main の最新版を取り出して実行し直す。
+#   - 取得元は当番専用クローンのみ。会長の作業ツリーには一切触れない（別セッションとの競合回避）
+#   - ロック取得より **前** に行う。exec は PID を変えないため、ロック取得後に exec すると
+#     再入した自分自身を「前回実行中」と誤認して以後永久にスキップしてしまう
+#   - 取り出し先は共有 /tmp ではなく所有者専用ディレクトリ（700）。共有 /tmp だとファイル名が
+#     公開済みの blob ハッシュから予測でき、同一マシンの第三者が構文の通る偽スクリプトを先回りで
+#     置くと、それをそのまま exec してしまう（PR #75 の CodeRabbit 指摘・Critical）。
+#     既存ファイルの内容も信用せず、毎回 origin/main から取り出し直して照合する
+#   - 実体は blob ハッシュ名で保存する。実行中の旧インスタンスが同じファイルを読んでいても
+#     内容が同一で、置換も mv（原子的・inode 差し替え）なので破損しない
+#   - この fetch はロックの外側で走るため、ハングすると launchd の10分間隔でプロセスが
+#     積み上がる（ロックを取れていないので後続も素通りして同じ場所で詰まる）。
+#     macOS には timeout(1) が無いので自前で見張り、上限を超えたら自己更新を諦めて先へ進む
+self_update() {
+  [ -n "${DUTY_SELF_UPDATED:-}" ] && return 0
+  [ -d "$DUTY_DIR/.git" ] || return 0
+  local gpid waited=0
+  GIT_TERMINAL_PROMPT=0 git -C "$DUTY_DIR" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 \
+    fetch origin --prune --quiet >>"$LOG" 2>&1 &
+  gpid=$!
+  while [ "$waited" -lt "$DUTY_FETCH_TIMEOUT" ] && kill -0 "$gpid" 2>/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if kill -0 "$gpid" 2>/dev/null; then
+    # SIGTERM で死なない fetch を無制限に wait すると、タイムアウトを設けた意味が無くなる。
+    # この関数はロックの**外側**で走るため、ここで詰まると launchd の毎時起動がそのまま
+    # 積み上がる（後続もロックを取れていないので同じ場所で詰まる）。
+    # SIGTERM → 猶予 → SIGKILL → 猶予 と escalate し、それでも終了を確認できなければ
+    # wait せずに諦める（残る子プロセスはゾンビだが、当番の進行を止めるよりはよい）
+    local sig grace
+    for sig in TERM KILL; do
+      kill -"$sig" "$gpid" 2>/dev/null
+      grace=0
+      while [ "$grace" -lt "$DUTY_FETCH_KILL_GRACE" ] && kill -0 "$gpid" 2>/dev/null; do
+        sleep 1
+        grace=$((grace + 1))
+      done
+      kill -0 "$gpid" 2>/dev/null || break
+    done
+    if kill -0 "$gpid" 2>/dev/null; then
+      log "自己更新: fetch (pid=$gpid) が SIGKILL でも終了しないため wait せずに見送り"
+      return 0
+    fi
+    wait "$gpid" 2>/dev/null
+    log "自己更新: fetch が ${DUTY_FETCH_TIMEOUT} 秒を超えたため見送り"
+    return 0
+  fi
+  if ! wait "$gpid" 2>/dev/null; then
+    log "自己更新: fetch に失敗したため見送り"
+    return 0
+  fi
+  local oid cache fresh tmp
+  oid=$(git -C "$DUTY_DIR" rev-parse "origin/main:Scripts/ai-duty.sh" 2>/dev/null) || return 0
+  [ -n "$oid" ] || return 0
+  cache="$HOME/.asobiba-duty/bin"
+  mkdir -p "$cache" && chmod 700 "$cache" || return 0
+  # 古いキャッシュの掃除。このあと作る $fresh より前に行うので、更新対象を消してしまうことはない
+  find "$cache" -maxdepth 1 -type f -name 'ai-duty-*.sh' -mtime +7 -delete 2>/dev/null
+  fresh="$cache/ai-duty-${oid}.sh"
+  tmp=$(mktemp "$cache/ai-duty-XXXXXX") || return 0
+  if ! git -C "$DUTY_DIR" show "origin/main:Scripts/ai-duty.sh" >"$tmp" 2>/dev/null || [ ! -s "$tmp" ]; then
+    rm -f "$tmp"; return 0
+  fi
+  # 壊れたスクリプトへ乗り換えて当番が止まるのを防ぐ
+  if ! bash -n "$tmp" 2>/dev/null; then
+    rm -f "$tmp"; log "自己更新: origin/main の ai-duty.sh が構文エラーのため見送り"; return 0
+  fi
+  if cmp -s "$tmp" "$0"; then rm -f "$tmp"; return 0; fi
+  mv -f "$tmp" "$fresh" || { rm -f "$tmp"; return 0; }
+  log "自己更新: origin/main の ai-duty.sh へ切り替え (実行中=$0, blob=${oid:0:7})"
+  export DUTY_SELF_UPDATED=1
+  exec /bin/bash "$fresh" "$@"
+}
+self_update "$@"
 
 # 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
 PID_FILE="$LOCK_DIR/pid"
@@ -25,17 +153,21 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
 echo $$ >"$PID_FILE"
-trap 'rm -rf "$LOCK_DIR"' EXIT
+trap 'cleanup_simulators; rm -rf "$LOCK_DIR"' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
 # 仕事1: 承認済みで未着手の Issue
 # ai:in-progress（着手済み）と ringi:pending（会長の決裁待ち = 当番には進められない）は除外する。
 # 除外しないと、成果物を出して決裁待ちになった Issue を毎時拾い直して同じ作業を繰り返す。
+# blocked（Issue 自身が定めた着手条件が未達 = 外部イベント待ち）も同じ理由で除外する。
+# 例: 「v1.1.0 リリースから2週間経過後」のような条件は当番の努力では満たせないため、
+# 除外しないと条件成立まで毎時空振りで当番を起動し続けることになる（#54 で実際に発生）。
 APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
   --json number,labels \
   --jq '[.[] | ([.labels[].name]) as $l
-        | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null)] | length' 2>/dev/null || echo 0)
+        | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
+                 and ($l | index("blocked")) == null)] | length' 2>/dev/null || echo 0)
 
 # 仕事2: オープン PR 上の未解決 CodeRabbit スレッド
 # 上限 50 PR × 100 スレッド（個人リポジトリの規模では実質全件。超えたら要ページング対応）
@@ -120,11 +252,174 @@ query {
 CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeable \
   --jq '[.[] | select(.mergeable == "CONFLICTING")] | length' 2>/dev/null || echo 0)
 
+# 仕事5: 決裁コメントの着信（ringi:pending の Issue に決裁スレッド以外の新規コメントが付いたら
+# 会長の決裁着信の可能性として当番を起こす。判定と反映は当番エージェントが行う）
+# 注: 当番(AI)のコメントも会長と同じアカウント(hiroky1983)で投稿されるため、この2者は author では
+#     区別できない。よって「最後のコメントが決裁スレッド(【要決裁】)でも反映記録(決裁反映)でもない」
+#     ことを検知条件とする。ただし coderabbitai 等の bot・第三者のコメントは決裁になり得ないため、
+#     許可リスト外の author は無視して「最後の信頼済みコメント」で判定する
+#     （2026-08-11: Issue #68 に CodeRabbit の自動プランが付き毎時の空振り起動が発生したため追加）。
+RINGI_REPLIES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    issues(states: OPEN, labels: ["ringi:pending"], first: 20) {
+      nodes {
+        number
+        comments(last: 20) { nodes { body author { login } } }
+      }
+    }
+  }
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+  | [.data.repository.issues.nodes[]
+  | ([.comments.nodes[]
+      | select((.author.login // "") as $l | ($actors | index($l)) != null)
+      | .body] | last // "") as $b
+  | select(($b | contains("【要決裁】")) | not)
+  | select(($b | contains("決裁反映")) | not)
+  | select($b != "")] | length' 2>/dev/null || echo 0)
+
+# 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
+# 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
+STALLED=$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest \
+  --jq '[.[] | select(.mergeStateStatus == "CLEAN") | select(.autoMergeRequest == null)] | length' 2>/dev/null || echo 0)
+
+# 仕事7: App Store で公開済みなのに main へ未マージの release ブランチ
+# 規程（ai-devops.md）では「公開後に release/vX.Y.Z → main をマージしタグを打つ」のは AI の責務だが、
+# その起点はリリース Issue への会長の「公開された」コメントしかなく、Issue が閉じられると
+# どのトリガーにも掛からず宙に浮く（#68 が審査提出の時点で close され、実際にこの状態になった）。
+# 会長の申告を待たず App Store の公開バージョン（iTunes Lookup API）を直接見て、release ブランチの
+# バージョンに追いついたら当番を起こす。main へ取り込み済みなら ahead_by == 0 になり再発火しない。
+DUTY_APP_ID="${DUTY_APP_ID:-6781719499}"
+RELEASED=0
+REL_BRANCH=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
+  --jq '.[].ref | sub("^refs/heads/";"")' 2>/dev/null | sort -V | tail -1)
+if [ -n "${REL_BRANCH:-}" ]; then
+  AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...$REL_BRANCH" --jq '.ahead_by' 2>/dev/null || echo 0)
+  if [ "${AHEAD:-0}" -gt 0 ]; then
+    STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp" 2>/dev/null \
+      | jq -r '.results[0].version // empty' 2>/dev/null)
+    REL_VER="${REL_BRANCH#release/v}"
+    # 公開バージョン >= release ブランチのバージョン（= 世に出た）なら仕事あり
+    if [ -n "${STORE_VER:-}" ] \
+      && [ "$(printf '%s\n%s\n' "$REL_VER" "$STORE_VER" | sort -V | tail -1)" = "$STORE_VER" ]; then
+      RELEASED=1
+    fi
+  fi
+fi
+
+# 仕事8: 企画議論の着信（未承認の ai:proposed Issue に会長がコメントしたら経営企画室が応答する）
+# 決裁検知（仕事5）は ringi:pending しか見ておらず、提案段階の議論は誰も拾わなかった穴の解消。
+# 承認済み・着手済み・blocked のものは他のフローが担当するため除外。
+# 応答側は必ず「企画議論」で始まるコメントを返す（それが再検知を止める目印になる）。
+# 当番も会長アカウントのトークンでコメントするため投稿者では AI と会長を区別できない。そのため
+# 接頭辞は返信だけでなく、当番がこの種の Issue に投稿する記録コメント（保留・見送り等）にも必須。
+# 規程は ai-duty-prompt.md 1-e-3（#120: #79 の保留記録がマーカー無しで毎時の空振り起動を生んだ）。
+PROPOSED_REPLIES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    issues(states: OPEN, labels: ["ai:proposed"], first: 20) {
+      nodes {
+        number
+        labels(first: 10) { nodes { name } }
+        comments(last: 20) { nodes { body author { login } } }
+      }
+    }
+  }
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+  | [.data.repository.issues.nodes[]
+  | ([.labels.nodes[].name]) as $l
+  | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null and ($l | index("blocked")) == null)
+  | ([.comments.nodes[]
+      | select((.author.login // "") as $a | ($actors | index($a)) != null)
+      | .body] | last // "") as $b
+  | select($b != "")
+  | select(($b | startswith("企画議論")) | not)
+  | select(($b | contains("【要決裁】")) | not)
+  | select(($b | contains("決裁反映")) | not)] | length' 2>/dev/null || echo 0)
+
+# 仕事9: 孤児化した ai:in-progress の回収（Issue #83）
+# 当番が着手直後に異常終了すると ai:in-progress が残留し、その Issue は仕事1の集計から
+# 恒久的に外れて誰も着手できなくなる（#80 で発生。12:07 の実行が着手直後に死亡し約2.5時間滞留）。
+#
+# 誤検知ガードは2重:
+#   1) ロック — ここに到達している時点で他の当番は動いていない。生きている先行プロセスが
+#      あればロック取得の段階で既に exit 済みで、この行は実行されない。つまり
+#      「ロックが存在せず（= 当番が動いていない）」という条件は到達自体が保証している。
+#      逆に言うと、実行中の当番が長時間かけて実装している Issue は、次回の launchd 起動が
+#      ロックで弾かれるため対象にならない。
+#   2) 経過時間 — 最終更新から30分以上のものだけを対象にする。着手宣言・進捗コメント・
+#      ラベル操作はいずれも updatedAt を更新するため、生きている作業は時間切れにならない。
+#   3) 成果物 — オープン PR に紐づいている Issue（PR 本文の `Closes #N`）は除外する。
+#      実装が PR まで到達していれば孤児ではなく、ラベルは PR のマージ（= Issue の close）で
+#      自然に片付く。除外しないと、当番が「PR があるのでラベルは残す」と正しく判断するたびに
+#      次の毎時起動でまた同じ Issue を拾い、マージされるまで空振りが続く。
+DUTY_ORPHAN_MIN_AGE="${DUTY_ORPHAN_MIN_AGE:-1800}"  # 孤児とみなす無更新の秒数（テストから短縮できるよう外出し）
+LINKED_ISSUES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    pullRequests(states: OPEN, first: 50) {
+      nodes { closingIssuesReferences(first: 10) { nodes { number } } }
+    }
+  }
+}' --jq '[.data.repository.pullRequests.nodes[].closingIssuesReferences.nodes[].number]' 2>/dev/null)
+# 取得に失敗したら「全部が紐づいている」とみなすのではなく空集合に倒すが、その場合でも
+# 経過時間ガードが効くため、当番が起きて状況を確認するだけで実害は無い
+LINKED_ISSUES="${LINKED_ISSUES:-[]}"
+ORPHANS=$(gh issue list -R hiroky1983/game_collection --label "ai:in-progress" --state open \
+  --json number,updatedAt 2>/dev/null \
+  | jq --argjson age "$DUTY_ORPHAN_MIN_AGE" --argjson linked "$LINKED_ISSUES" \
+     '[.[] | . as $i
+           | select(($i.updatedAt | fromdateiso8601) < (now - $age))
+           | select(($linked | index($i.number)) == null)] | length' 2>/dev/null || echo 0)
+ORPHANS="${ORPHANS:-0}"
+
+# 仕事10: マージ済み PR のブランチに取り残されたコミット（Issue #100）
+# PR がマージされた後に同じブランチへ push すると、そのコミットはどの PR にも載らないまま
+# 取り残される。レビューもされず main にも入らないのに、ローカルには「実装した」痕跡だけが残るため
+# 誰も気づけない（481072e が実際にこれで失われ、シミュレータの後片付けが2日間効いていなかった）。
+# 検知は「マージ済み PR の head ブランチがまだ存在し、その変更が **base にも main にも入っていない**」で行う。
+#   - 判定は `git cherry`（patch-id 比較）。SHA の一致ではなく**内容**で見るため、あとから別 PR で
+#     同じ変更が入り直した場合は自動的に検知が止む（実際 PR #20 のブランチに残る 57b90dd は
+#     内容が main に入り直しており、SHA 比較だと永久に鳴り続けるが patch-id なら鳴らない）
+#   - base と main の両方を見る: base だけだと未公開の release ブランチ向け PR がすべて
+#     「main に無い」で誤検知し、main だけだと release ブランチに積んだ正規のコミットが誤検知される
+#   - 同じブランチにオープン PR があるなら、そのコミットはレビュー対象なので孤児ではない
+#   - ローカル git で判定する（self_update で fetch 済み）。GitHub の compare API だと PR 1本につき
+#     1リクエストかかって全件走査できず、検知窓から外れた古い取り残しを永久に見逃す
+#     （実際 481072e は PR #65 = 43本前で、直近20件の窓では捕まらなかった）
+#   - 回収時に内容そのままの cherry-pick をしないなら（別実装で作り直した等）patch-id が変わって
+#     鳴り続けるため、回収し終えたら**そのブランチを削除する**のが終了条件
+#   - 走査対象はマージ済み PR の直近1000件（`gh pr list` はこの件数までページングする）。
+#     現在のマージ済み PR は60件で全件を覆う。ここを超えたら古い方から検知漏れになるため、
+#     そのときはページングを明示した実装へ切り替える
+ORPHAN_COMMITS=0
+if [ -d "$DUTY_DIR/.git" ]; then
+  OPEN_PR_HEADS=$(gh pr list -R hiroky1983/game_collection --state open --json headRefName --jq '.[].headRefName' 2>/dev/null || true)
+  while IFS=$'\t' read -r H B; do
+    [ -n "${H:-}" ] && [ -n "${B:-}" ] || continue
+    printf '%s\n' "$OPEN_PR_HEADS" | grep -qxF "$H" && continue   # オープン PR がある = レビュー対象
+    # ブランチ削除済み（= 回収済み）や base ブランチ削除済みの PR はここで落ちる
+    git -C "$DUTY_DIR" rev-parse --verify -q "refs/remotes/origin/$H" >/dev/null || continue
+    git -C "$DUTY_DIR" rev-parse --verify -q "refs/remotes/origin/$B" >/dev/null || continue
+    NOT_IN_BASE=$(git -C "$DUTY_DIR" cherry "refs/remotes/origin/$B" "refs/remotes/origin/$H" 2>/dev/null | awk '$1 == "+" { print $2 }')
+    [ -n "$NOT_IN_BASE" ] || continue
+    NOT_IN_MAIN=$(git -C "$DUTY_DIR" cherry refs/remotes/origin/main "refs/remotes/origin/$H" 2>/dev/null | awk '$1 == "+" { print $2 }')
+    for C in $NOT_IN_BASE; do
+      # ブランチ単位ではなくコミット単位で数える（起動ログの orphan_commits を実数に合わせる）
+      printf '%s\n' "$NOT_IN_MAIN" | grep -qxF "$C" && ORPHAN_COMMITS=$((ORPHAN_COMMITS + 1))
+    done
+  done <<EOF
+$(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
+    --json headRefName,baseRefName,headRepositoryOwner \
+    --jq '.[] | select((.headRepositoryOwner.login // "") == "hiroky1983") | "\(.headRefName)\t\(.baseRefName)"' 2>/dev/null | sort -u)
+EOF
+fi
+
 # 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
 PLANNING_STAMP="$HOME/.asobiba-duty/last-planning"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ]; then
   # 乱造ガード: 未承認の企画（ai:proposed のみ）が3件以上滞留していたら起案しない
   PROPOSED=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
     --json number,labels \
@@ -163,7 +458,10 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, workdir=$RUN_DIR)"
+# claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
+capture_sims_before
+
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
