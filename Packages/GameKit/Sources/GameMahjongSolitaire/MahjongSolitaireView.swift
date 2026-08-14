@@ -28,6 +28,7 @@ public struct MahjongSolitaireView: View {
                 // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白ぶんまで使って牌を大きくする。
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
+            HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
             if model.phase == .won {
                 resultControls
             } else {
@@ -65,6 +66,7 @@ public struct MahjongSolitaireView: View {
                 }
             }
         }
+        .howToPlay(.mahjongSolitaire)
         .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
             Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
             Button("キャンセル", role: .cancel) {}

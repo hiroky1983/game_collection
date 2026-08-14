@@ -25,6 +25,7 @@ public struct MinesweeperView: View {
             statusBar
             board
                 .layoutPriority(1)
+            HowToPlayHint(.minesweeper, playLog: services.playLog)
             if model.gameOver && !showContinue {
                 resultControls
             } else if model.gameState == .playing {
@@ -63,6 +64,7 @@ public struct MinesweeperView: View {
                 }
             }
         }
+        .howToPlay(.minesweeper)
         .sheet(isPresented: $showNewGame) {
             MinesweeperNewGameSheet { rows, cols, mines in
                 model.newGame(rows: rows, cols: cols, mines: mines)

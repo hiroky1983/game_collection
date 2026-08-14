@@ -29,6 +29,7 @@ public struct OthelloView: View {
                     if model.gameOver { resultOverlay }
                 }
             Spacer(minLength: 0)
+            HowToPlayHint(.othello, playLog: services.playLog)
             if model.gameOver {
                 newGameButton
             } else {
@@ -60,6 +61,7 @@ public struct OthelloView: View {
                 }
             }
         }
+        .howToPlay(.othello)
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)

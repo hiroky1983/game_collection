@@ -28,6 +28,7 @@ public struct ShogiView: View {
             board
                 .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
+            HowToPlayHint(.shogi, playLog: services.playLog)
             if model.gameOver {
                 RecordLabel(model.recordResult)
                 reviewControls
@@ -67,6 +68,7 @@ public struct ShogiView: View {
                 }
             }
         }
+        .howToPlay(.shogi)
         .sheet(isPresented: $showNewGame) {
             NewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)

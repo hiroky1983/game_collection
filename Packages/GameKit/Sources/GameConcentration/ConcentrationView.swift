@@ -18,6 +18,7 @@ public struct ConcentrationView: View {
         VStack(spacing: 10) {
             statusBar
             cardGrid
+            HowToPlayHint(.concentration, playLog: services.playLog)
             if !model.isGameOver {
                 mattaControls
             }
@@ -46,6 +47,7 @@ public struct ConcentrationView: View {
                 }
             }
         }
+        .howToPlay(.concentration)
         .sheet(isPresented: $showNewGame) {
             ConcentrationNewGameSheet(
                 pairCount: model.pairCount,
