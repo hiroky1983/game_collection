@@ -1,6 +1,9 @@
 import Testing
 import Foundation
 import Core
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
 
 // MARK: - 波形の合成（#116）
 
@@ -85,6 +88,18 @@ struct ToneGeneratorTests {
         let data = ToneGenerator.wavData(steps: [ToneStep(frequency: 440, duration: 0, amplitude: 0.5)])
         #expect(data.count == 44)
     }
+
+    #if canImport(AVFoundation)
+    /// バイト列としての整合だけでは「実際に鳴るか」の裏が取れないため、
+    /// 再生に使う `AVAudioPlayer` にそのまま読ませて確認する（アプリ側と同じ経路）。
+    @Test("合成した WAV を AVAudioPlayer が実際に読める", arguments: SoundEffect.allCases)
+    func playerCanDecode(effect: SoundEffect) throws {
+        let player = try AVAudioPlayer(data: effect.wavData)
+        let expected = effect.steps.reduce(0) { $0 + $1.duration }
+        #expect(abs(player.duration - expected) < 0.01, "尺が定義どおりに読める")
+        #expect(player.numberOfChannels == 1)
+    }
+    #endif
 }
 
 // MARK: - 触覚との対応
