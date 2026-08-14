@@ -19,18 +19,22 @@ public struct OthelloView: View {
     public var body: some View {
         VStack(spacing: 10) {
             statusBar
+            // 盤は正方形で幅が上限になるため、左右の余白を削って盤そのものを広げる。
+            // 縦に残る空きは盤の上下へ均等に振り、下だけが大きく空く見た目をなくす。
+            Spacer(minLength: 0)
             board
+                .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
                 .overlay {
                     if model.gameOver { resultOverlay }
                 }
+            Spacer(minLength: 0)
             if model.gameOver {
                 newGameButton
             } else {
                 gameControls
             }
             RecommendationSlot(services: services, isFinished: model.gameOver)
-            Spacer(minLength: 8)
             BannerSlot(ads: services.ads)
         }
         .animation(.none, value: model.gameOver)

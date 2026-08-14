@@ -19,9 +19,17 @@ public struct BlackjackView: View {
     public var body: some View {
         VStack(spacing: 10) {
             chipsBar
-            dealerArea
-            Spacer(minLength: 4)
-            playerArea
+            // 配牌前は両者の手札が空で、テーブルを出すと白い空箱が画面の大半を占める。
+            // ベットを促す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
+            if isBeforeDeal {
+                Spacer(minLength: 0)
+                preDealTable
+                Spacer(minLength: 0)
+            } else {
+                dealerArea
+                Spacer(minLength: 4)
+                playerArea
+            }
             if model.sessionOver {
                 sessionOverView
             } else {
@@ -72,6 +80,34 @@ public struct BlackjackView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    // MARK: - Pre-deal Table
+
+    /// 手札が両者とも空で、これからベットする局面か
+    private var isBeforeDeal: Bool {
+        model.phase == .betting && model.dealerHand.isEmpty && model.playerHand.isEmpty
+    }
+
+    private var preDealTable: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 8) {
+                BJCardPlaceholder()
+                BJCardPlaceholder()
+            }
+            VStack(spacing: 6) {
+                Text("ベットするとカードが配られます")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Text("21 に近いほうが勝ち。ディーラーは 17 以上で止まります。")
+                    .font(Theme.body(13))
+                    .foregroundStyle(Theme.inkSub)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 14).padding(.vertical, 18)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
     // MARK: - Dealer Area
 
     private var dealerArea: some View {
@@ -93,9 +129,15 @@ public struct BlackjackView: View {
             }
 
             HStack(spacing: 8) {
-                ForEach(Array(model.dealerHand.enumerated()), id: \.element.id) { idx, card in
-                    let hidden = idx == 1 && model.phase == .playerTurn
-                    BJCardView(card: card, faceUp: !hidden)
+                if model.dealerHand.isEmpty {
+                    // 配牌前に中身が空だと「白い空箱」に見えるため、カードが配られる位置を示す
+                    BJCardPlaceholder()
+                    BJCardPlaceholder()
+                } else {
+                    ForEach(Array(model.dealerHand.enumerated()), id: \.element.id) { idx, card in
+                        let hidden = idx == 1 && model.phase == .playerTurn
+                        BJCardView(card: card, faceUp: !hidden)
+                    }
                 }
             }
             .frame(minHeight: 90)
@@ -124,8 +166,13 @@ public struct BlackjackView: View {
             }
 
             HStack(spacing: 8) {
-                ForEach(model.playerHand) { card in
-                    BJCardView(card: card, faceUp: true)
+                if model.playerHand.isEmpty {
+                    BJCardPlaceholder()
+                    BJCardPlaceholder()
+                } else {
+                    ForEach(model.playerHand) { card in
+                        BJCardView(card: card, faceUp: true)
+                    }
                 }
             }
             .frame(minHeight: 90)
@@ -325,5 +372,15 @@ struct BJCardView: View {
             }
         }
         .frame(width: 62, height: 90)
+    }
+}
+
+/// 配牌前のカード置き場（`BJCardView` と同じ寸法で、配牌時に高さが動かないようにする）
+struct BJCardPlaceholder: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(Theme.inkSub.opacity(0.3),
+                          style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+            .frame(width: 62, height: 90)
     }
 }

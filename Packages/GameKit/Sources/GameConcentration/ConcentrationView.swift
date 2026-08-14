@@ -22,7 +22,6 @@ public struct ConcentrationView: View {
                 mattaControls
             }
             RecommendationSlot(services: services, isFinished: model.isGameOver)
-            Spacer(minLength: 4)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -155,10 +154,22 @@ public struct ConcentrationView: View {
 
     private var cardGrid: some View {
         let cols = model.pairCount == .small ? 4 : 6
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: cols)
+        let rows = Int((Double(model.cards.count) / Double(cols)).rounded(.up))
 
-        return ScrollView {
-            LazyVGrid(columns: columns, spacing: 6) {
+        // 幅だけでカードの大きさを決めると縦に大きな空白が残る。与えられた高さも見て、
+        // 余っていればカードを縦に伸ばす（伸ばしすぎて不自然にならないよう上限を設ける）。
+        return GeometryReader { geo in
+            let spacing = Self.gridSpacing
+            let widthLimit = (geo.size.width - spacing * CGFloat(cols - 1)) / CGFloat(cols)
+            let heightLimit = rows > 0
+                ? (geo.size.height - spacing * CGFloat(rows - 1)) / CGFloat(rows)
+                : widthLimit / Self.cardAspect
+            // 高さが足りないときは幅を削って収める。余っているときは幅いっぱいに使う。
+            let cardWidth = max(1, min(widthLimit, heightLimit * Self.cardAspect / Self.maxStretch))
+            let cardHeight = max(1, min(heightLimit, cardWidth / Self.cardAspect * Self.maxStretch))
+            let columns = Array(repeating: GridItem(.fixed(cardWidth), spacing: spacing), count: cols)
+
+            LazyVGrid(columns: columns, spacing: spacing) {
                 ForEach(model.cards) { card in
                     CardView(
                         card: card,
@@ -169,11 +180,18 @@ public struct ConcentrationView: View {
                         guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
                         model.tap(index: card.id)
                     }
+                    .frame(width: cardWidth, height: cardHeight)
                 }
             }
-            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+
+    /// カードの基準の幅 : 高さ
+    private static let cardAspect: CGFloat = 0.75
+    /// 縦に余ったときにカードを引き伸ばしてよい上限（基準比に対する倍率）
+    private static let maxStretch: CGFloat = 1.3
+    private static let gridSpacing: CGFloat = 6
 
     // MARK: - Result Overlay
 
@@ -270,7 +288,7 @@ private struct CardView: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
         }
-        .aspectRatio(0.75, contentMode: .fit)
+        // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isFaceUp)
         .opacity(card.isMatched ? 0.6 : 1.0)
