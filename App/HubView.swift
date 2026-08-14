@@ -222,5 +222,15 @@ private struct GameCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .popCard()
+        // 「続きから」バッジを右上（＝先頭行）に置いたため、既定の読み上げ順ではゲーム名より先に
+        // 読まれてしまう。カードを 1 要素にまとめ、必ずゲーム名から読ませる。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [module.title, record ?? module.description]
+        if hasResume { parts.append("続きから") }
+        return parts.joined(separator: "、")
     }
 }
