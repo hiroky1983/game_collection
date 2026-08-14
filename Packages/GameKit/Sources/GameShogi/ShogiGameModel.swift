@@ -80,6 +80,13 @@ public final class ShogiGameModel {
             self.resultText = "あなたの負け（投了）"
             self.phase = .review
         }
+        // 将棋だけは終局後の検討画面をスナップショットに残す（他ゲームは終局で破棄する）。
+        // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
+        // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
+        // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
+        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+            self.recordResult = RecordResult(record: record, update: RecordUpdate())
+        }
     }
 
     // MARK: - 表示用

@@ -65,7 +65,8 @@ public final class MinesweeperModel {
         case (9, 9, 10):    return "初級"
         case (12, 12, 25):  return "中級"
         case (15, 15, 40):  return "上級"
-        default:            return "\(rows)×\(cols)"
+        // 区分は地雷数込みで分かれるため、ラベルにも地雷数を入れて別区分だと分かるようにする。
+        default:            return "\(rows)×\(cols)・地雷\(totalMines)"
         }
     }
 
@@ -180,6 +181,10 @@ public final class MinesweeperModel {
 
     public func continueAfterAd() {
         guard gameState == .lost, let hit = hitMine else { return }
+        // 同じ盤面の続きなので、直前に記録した「負け」は無かったことにする
+        // （そのままだと1回のプレイが2回分として数えられる）。
+        services?.playLog?.cancelLoss(gameID: gameID, variant: recordVariant)
+        recordResult = nil
 
         // ゲームオーバーで露出した地雷を再び隠す
         for r in 0..<rows {

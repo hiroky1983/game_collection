@@ -2,9 +2,14 @@ import Testing
 import Foundation
 import Core
 import Game2048
+import GameShogi
+import GameGomoku
 import GameMinesweeper
 import GameOthello
+import GamePoker
+import GameConcentration
 import GameBlackjack
+import GameDaifugo
 import GameMahjongSolitaire
 
 // MARK: - 共通のヘルパー
@@ -214,6 +219,44 @@ struct RecordFormatTests {
         winLoss = PlayRecord.applying(outcome: .win, score: GameScore(), to: winLoss).record
         winLoss = PlayRecord.applying(outcome: .win, score: GameScore(), to: winLoss).record
         #expect(RecordFormat.hubLine([winLoss!]) == "5勝1敗・2連勝中")
+    }
+
+    @Test("引き分けだけの記録でもハブに1行出る（大富豪の中位フィニッシュ）")
+    func hubLineShowsDrawOnlyRecord() {
+        // 大富豪は4人中1位が勝ち・最下位が負け・中位は引き分け。中位が続くと勝敗が両方0になる。
+        var record: PlayRecord?
+        for _ in 0..<3 {
+            record = PlayRecord.applying(outcome: .draw, score: GameScore(), to: record).record
+        }
+        #expect(RecordFormat.hubLine([record!]) == "0勝0敗3分")
+        #expect(RecordFormat.resultLine(record!) == "通算 0勝0敗3分")
+
+        // 勝ち負けが混ざれば引き分けも添える
+        record = PlayRecord.applying(outcome: .win, score: GameScore(), to: record).record
+        record = PlayRecord.applying(outcome: .loss, score: GameScore(), to: record).record
+        #expect(RecordFormat.hubLine([record!]) == "1勝1敗3分")
+    }
+
+    @Test("到達した最大値も同点は更新扱いにしない")
+    func highestValueStrictlyGreater() {
+        let first = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, highestValue: 512), to: nil
+        )
+        #expect(first.record.highestValue == 512)
+        #expect(first.update.highestValue)
+
+        let tie = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, highestValue: 512), to: first.record
+        )
+        #expect(tie.record.highestValue == 512)
+        #expect(!tie.update.highestValue)
+        #expect(!tie.update.isNewBest)
+
+        let better = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, highestValue: 1024), to: tie.record
+        )
+        #expect(better.record.highestValue == 1024)
+        #expect(better.update.highestValue)
     }
 
     @Test("難易度が複数あるゲームは、一番速い記録を難易度名つきで代表にする")
@@ -471,6 +514,202 @@ struct GameRecordingTests {
         #expect(record?.currentStreak == 0)
         #expect(record?.bestStreak == 2)
         #expect(log.summaryLine(gameID: "othello") == "2勝1敗")
+    }
+
+    @Test("将棋: 投了で敗北が記録され、新規対局で前局の表示が消える")
+    func shogiRecordsWinLoss() {
+        let (log, defaults, name) = makeLog(suite: "shogi")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = ShogiGameModel(services: makeServices(log: log))
+        model.resign()
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: "shogi")?.losses == 1)
+        #expect(log.record(gameID: "shogi")?.metric == .winLoss)
+        #expect(log.summaryLine(gameID: "shogi") == "0勝1敗")
+
+        // 新規対局に入ったら前局のリザルト表示は残さない
+        model.newGame()
+        #expect(model.recordResult == nil)
+    }
+
+    @Test("五目並べ: 投了で敗北が記録され、新規対局で前局の表示が消える")
+    func gomokuRecordsWinLoss() {
+        let (log, defaults, name) = makeLog(suite: "gomoku")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = GomokuModel(services: makeServices(log: log))
+        model.newGame(humanSide: .black, aiLevel: 1)
+        model.resign()
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: "gomoku")?.losses == 1)
+        #expect(log.summaryLine(gameID: "gomoku") == "0勝1敗")
+
+        model.newGame(humanSide: .black, aiLevel: 1)
+        #expect(model.recordResult == nil)
+    }
+
+    @Test("神経衰弱: 対戦ものなので手数ではなく勝敗を記録する")
+    func concentrationRecordsWinLoss() {
+        let (log, defaults, name) = makeLog(suite: "concentration")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = ConcentrationModel(services: makeServices(log: log))
+        model.newGame(pairCount: .medium, cpuLevel: .normal)
+        // 人が全ペアを取り切る（既存の ReviewRequestTests と同じ手順）
+        for _ in 0..<model.cards.count where !model.isGameOver {
+            let unmatched = model.cards.indices.filter { !model.cards[$0].isMatched }
+            guard let first = unmatched.first,
+                  let second = unmatched.first(where: {
+                      $0 != first && model.cards[$0].symbol == model.cards[first].symbol
+                  }) else { break }
+            if model.firstFlippedIndex == nil { model.tap(index: first) }
+            model.tap(index: second)
+        }
+
+        #expect(model.isGameOver)
+        let record = log.record(gameID: "concentration")
+        #expect(record?.metric == .winLoss)
+        #expect(record?.wins == 1)
+        // 対戦もののため手数は記録しない（受け入れ条件からの意図的な逸脱・PR の社長判断に記載）
+        #expect(record?.fewestMoves == nil)
+        #expect(log.summaryLine(gameID: "concentration") == "1勝0敗")
+    }
+
+    @Test("ポーカー: ラウンド終了時のチップが記録される")
+    func pokerRecordsChips() {
+        let (log, defaults, name) = makeLog(suite: "poker")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = PokerModel(services: makeServices(log: log))
+        model.restartSession()
+        model.startGame()
+        model.bet1Action(.check)
+        if model.phase == .exchange { model.confirmExchange() }
+        if model.phase == .betting2 { model.bet2Action(.check) }
+        if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
+
+        #expect(model.phase == .result)
+        let record = log.record(gameID: "poker")
+        #expect(record?.metric == .points)
+        #expect(record?.bestPoints == model.playerChips)
+        #expect(model.recordResult != nil)
+    }
+
+    @Test("大富豪: 中位フィニッシュ（引き分け扱い）でもハブに1行出る")
+    func daifugoRecordsEvenWhenAllDraws() async {
+        let (log, defaults, name) = makeLog(suite: "daifugo")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = DaifugoModel(services: makeServices(log: log), cpuDelay: .zero, seed: 2026)
+        model.startGame()
+        for _ in 0..<500 where model.phase == .playing {
+            await model.runCPUTurnsIfNeeded()
+            guard model.phase == .playing, model.isPlayerTurn else { continue }
+            if let play = DaifugoRules.greedyPlay(
+                hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+            ) {
+                for card in play { model.toggleSelection(card) }
+                model.playSelected()
+            } else {
+                model.pass()
+            }
+        }
+
+        #expect(model.phase == .result)
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: "daifugo")?.plays == 1)
+        // 大富豪は「1位=勝ち / 最下位=負け / 中位=引き分け」。中位で終わっても記録は出す
+        #expect(log.summaryLine(gameID: "daifugo") != nil)
+    }
+
+    @Test("2048: 広告コンティニューした回は1プレイとして数える（負けを二重に数えない）")
+    func game2048ContinueDoesNotDoubleCount() {
+        let (log, defaults, name) = makeLog(suite: "game2048Continue")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let deadBoard = [
+            [2, 2, 16, 32],
+            [8, 4, 64, 8],
+            [16, 8, 4, 64],
+            [4, 16, 8, 32],
+        ]
+        let model = Game2048Model(services: makeServices(log: log), board: deadBoard)
+        model.move(.left)
+        #expect(model.gameOver)
+        let scoreBeforeContinue = model.score
+        #expect(log.record(gameID: "2048")?.plays == 1)
+
+        // 広告を見て再開 → さっきの負けは無かったことになる。到達済みスコアは残る。
+        model.continueAfterAd()
+        #expect(!model.gameOver)
+        #expect(model.recordResult == nil, "続きを遊ぶ間は前の終局の記録行を出さない")
+        let afterContinue = log.record(gameID: "2048")
+        #expect(afterContinue?.plays == 0)
+        #expect(afterContinue?.losses == 0)
+        #expect(afterContinue?.bestPoints == scoreBeforeContinue, "到達済みのスコアは取り消さない")
+
+        // 続きを最後まで遊ぶところまでは検証しない。2048 は終局時に盤が必ず全埋まりのため、
+        // `continueAfterAd()` の新タイル生成が空振りして盤を動かせない既存の不具合があり
+        // （本 PR とは無関係・別 Issue で起票済み）、ここから終局まで進められないため。
+    }
+
+    @Test("マインスイーパー: コンティニューして勝った回は敗北として残らない")
+    func minesweeperContinueDoesNotDoubleCount() {
+        let (log, defaults, name) = makeLog(suite: "minesweeperContinue")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = MinesweeperModel(services: makeServices(log: log))
+        model.newGame(rows: 9, cols: 9, mines: 10)
+        model.tap(row: 0, col: 0)
+        guard let mine = model.cells.indices.flatMap({ r in
+            model.cells[r].indices.map { (r, $0) }
+        }).first(where: { model.cells[$0.0][$0.1].isMine }) else {
+            Issue.record("地雷が見つからない")
+            return
+        }
+        model.tap(row: mine.0, col: mine.1)
+        #expect(model.gameState == .lost)
+        #expect(log.record(gameID: "minesweeper", variant: "9x9-10")?.losses == 1)
+
+        model.continueAfterAd()
+        #expect(model.gameState == .playing)
+        let afterContinue = log.record(gameID: "minesweeper", variant: "9x9-10")
+        #expect(afterContinue?.losses == 0)
+        #expect(afterContinue?.plays == 0)
+
+        // 続きを開けきってクリア
+        for r in 0..<9 {
+            for c in 0..<9 where !model.cells[r][c].isMine {
+                model.tap(row: r, col: c)
+            }
+        }
+        #expect(model.gameState == .won)
+        let final = log.record(gameID: "minesweeper", variant: "9x9-10")
+        #expect(final?.plays == 1)
+        #expect(final?.losses == 0, "コンティニューして勝った回は敗北として残らない")
+        #expect(final?.wins == 1)
+    }
+
+    @Test("将棋: 終局の検討画面を再起動でも開き直すと、記録行は出るが二重に数えない")
+    func shogiRestoredReviewShowsRecordWithoutRecounting() {
+        let (log, defaults, name) = makeLog(suite: "shogiRestore")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let snapshots = MemorySnapshotStore()
+        let services = GameServices(snapshots: snapshots, ads: NoopAdService(), playLog: log)
+
+        let model = ShogiGameModel(services: services)
+        model.resign()
+        #expect(log.record(gameID: "shogi")?.losses == 1)
+
+        // 「再起動」— 同じスナップショットから作り直す
+        let reopened = ShogiGameModel(services: services)
+        #expect(reopened.gameOver)
+        #expect(reopened.recordResult != nil, "検討画面に戻っても記録行は出す")
+        #expect(reopened.recordResult?.update.isNewBest == false, "更新の瞬間は過ぎているのでバッジは出さない")
+        #expect(log.record(gameID: "shogi")?.losses == 1, "復元では記録し直さない")
+        #expect(log.record(gameID: "shogi")?.plays == 1)
     }
 
     @Test("記録サービスを注入しない構成（プレビュー・テスト）では何も記録されない")

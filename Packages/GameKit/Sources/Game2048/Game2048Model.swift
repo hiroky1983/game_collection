@@ -81,6 +81,10 @@ public final class Game2048Model {
     /// リワード広告視聴後にコンティニュー。盤面・スコアを保持したまま再開。1回のみ使用可。
     public func continueAfterAd() {
         guard gameOver, !continueUsed else { return }
+        // 同じ盤面・同じスコアの続きなので、直前に記録した「負け」は無かったことにする
+        // （そのままだと1回のプレイが2回分として数えられる）。到達済みのスコアは取り消さない。
+        services?.playLog?.cancelLoss(gameID: gameID)
+        recordResult = nil
         gameOver = false
         continueUsed = true
         Self.spawn(into: &board)

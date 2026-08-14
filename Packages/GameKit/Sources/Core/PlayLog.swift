@@ -243,6 +243,25 @@ public final class PlayLog {
         return result
     }
 
+    /// リワード広告のコンティニューで「その負けが無かったことになった」ときに呼ぶ。
+    ///
+    /// 2048・マインスイーパーは**同じ盤面のまま**再開するため、先に記録した敗北をそのままにすると
+    /// 1回のプレイが2回（負け + 最終結果）として数えられる。決着の通知そのもの
+    /// （`gameDidFinish`）はレコメンド #52・評価リクエスト #53 の発火点で従来どおり動かす必要があるため、
+    /// 記録側だけをここで巻き戻す。
+    ///
+    /// - Note: **自己ベスト（スコア・タイム）は巻き戻さない**。コンティニュー前に実際に到達した
+    ///   値なので取り消す理由がない。連勝も戻さないが、コンティニューを持つ2ゲームはどちらも
+    ///   連勝を表示しない指標（スコア / 最短タイム）のため表示への影響はない。
+    public func cancelLoss(gameID: String, variant: String? = nil) {
+        let key = Self.recordKey(gameID: gameID, variant: variant)
+        guard var record = records[key], record.plays > 0, record.losses > 0 else { return }
+        record.plays -= 1
+        record.losses -= 1
+        records[key] = record
+        persistRecords()
+    }
+
     private func persistRecords() {
         guard let data = try? JSONEncoder().encode(records) else { return }
         defaults.set(data, forKey: Self.recordsKey)

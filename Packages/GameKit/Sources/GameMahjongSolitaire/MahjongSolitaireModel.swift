@@ -185,6 +185,7 @@ public final class MahjongSolitaireModel {
         guard phase == .playing else { return }
         services?.feedback.notify(.error)
         // 手詰まりでの投了。タイムは勝ったときだけ記録されるので、ここでは通算回数だけが増える。
+        // 直後の newGame() が盤面ごとリザルト表示を畳むため、戻り値（recordResult）は使わない。
         services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         newGame()
     }

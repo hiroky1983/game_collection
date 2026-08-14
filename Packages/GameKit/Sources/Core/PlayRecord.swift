@@ -263,13 +263,23 @@ public enum RecordFormat {
             guard let best = played.compactMap(\.fewestMoves).min() else { return nil }
             return "最少 \(number(best))手"
         case .winLoss:
-            let wins = played.reduce(0) { $0 + $1.wins }
-            let losses = played.reduce(0) { $0 + $1.losses }
-            guard wins + losses > 0 else { return nil }
             let streak = played.map(\.currentStreak).max() ?? 0
-            let base = "\(wins)勝\(losses)敗"
+            let base = winLossText(played)
             return streak >= 2 ? "\(base)・\(streak)連勝中" : base
         }
+    }
+
+    /// 「3勝5敗」「1勝2敗1分」の表記。引き分けは 0 のときだけ省く。
+    ///
+    /// 大富豪は4人中1位が勝ち・最下位が負け・**中位は引き分け**扱いのため、勝ちも負けも 0 のまま
+    /// 引き分けだけが積み上がる状態が普通に起きる。勝敗だけを見て「記録なし」に倒すと、
+    /// 遊んでいるのにハブに何も出ないゲームができてしまう。
+    private static func winLossText(_ records: [PlayRecord]) -> String {
+        let wins = records.reduce(0) { $0 + $1.wins }
+        let losses = records.reduce(0) { $0 + $1.losses }
+        let draws = records.reduce(0) { $0 + $1.draws }
+        let base = "\(wins)勝\(losses)敗"
+        return draws > 0 ? "\(base)\(draws)分" : base
     }
 
     /// リザルトに出す 1 行（そのゲームの自己ベスト）。記録が無ければ nil。
@@ -292,7 +302,7 @@ public enum RecordFormat {
             guard let best = record.fewestMoves else { return nil }
             return "最少手数 \(number(best))手"
         case .winLoss:
-            let base = "通算 \(record.wins)勝\(record.losses)敗"
+            let base = "通算 \(winLossText([record]))"
             return record.bestStreak >= 2 ? "\(base)・最高\(record.bestStreak)連勝" : base
         }
     }

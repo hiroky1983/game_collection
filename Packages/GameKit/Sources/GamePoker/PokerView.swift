@@ -362,6 +362,9 @@ public struct PokerView: View {
                 Spacer()
             }
 
+            // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
+            RecordLabel(model.recordResult)
+
             if model.sessionWinner == .cpu {
                 Button {
                     // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
