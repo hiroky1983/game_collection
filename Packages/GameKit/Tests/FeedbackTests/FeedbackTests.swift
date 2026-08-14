@@ -270,6 +270,56 @@ private func playBlackjack(_ services: GameServices) -> BlackjackModel {
     return model
 }
 
+/// 発火を**効果音の種類に変換してから**記録するスパイ（#116）。
+/// アプリ本体の `SoundFeedbackService` と同じ `SoundEffect(_:)` を通すため、
+/// 「どのゲームのどの操作で、どの音が鳴るか」をそのまま検証できる。
+@MainActor
+private final class SpySoundService: FeedbackService {
+    private(set) var effects: [SoundEffect] = []
+
+    var kinds: Set<SoundEffect> { Set(effects) }
+    var callCount: Int { effects.count }
+
+    func impact(_ style: FeedbackImpact) { effects.append(SoundEffect(style)) }
+    func notify(_ type: FeedbackNotice) { effects.append(SoundEffect(type)) }
+}
+
+/// 触覚と効果音のトグルを別々に指定して、両方をスパイした GameServices を作る（#116）。
+/// 実機と同じ配線（`CompositeFeedbackService` で 2 つの `GatedFeedbackService` を束ねる）にして、
+/// 「片方を切ってももう片方は鳴る」ことをそのまま検証できるようにする。
+@MainActor
+private func makeServices(
+    hapticsEnabled: Bool,
+    soundEnabled: Bool
+) -> (GameServices, haptics: SpyFeedbackService, sound: SpySoundService) {
+    let haptics = SpyFeedbackService()
+    let sound = SpySoundService()
+    let services = GameServices(
+        snapshots: MemorySnapshotStore(),
+        ads: NoopAdService(),
+        feedback: CompositeFeedbackService([
+            GatedFeedbackService(base: haptics) { hapticsEnabled },
+            GatedFeedbackService(base: sound) { soundEnabled },
+        ])
+    )
+    return (services, haptics, sound)
+}
+
+/// 全 10 ゲームの手順を 1 度ずつ通す。
+@MainActor
+private func playAllGames(_ services: GameServices) async {
+    play2048(services)
+    playShogi(services)
+    await playGomoku(services)
+    playMinesweeper(services)
+    playOthello(services)
+    playPoker(services)
+    playConcentration(services)
+    playBlackjack(services)
+    await playDaifugo(services)
+    playMahjong(services)
+}
+
 // MARK: - オン: 3 種すべてが発火する
 
 @Suite("触覚フィードバック（オン）")
@@ -473,18 +523,89 @@ struct FeedbackDisabledTests {
     @Test("設定がオンなら同じ手順で発火する（オフの検証が空振りでないことの確認）")
     func firesWhenEnabled() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
-
-        play2048(services)
-        playShogi(services)
-        await playGomoku(services)
-        playMinesweeper(services)
-        playOthello(services)
-        playPoker(services)
-        playConcentration(services)
-        playBlackjack(services)
-        await playDaifugo(services)
-        playMahjong(services)
-
+        await playAllGames(services)
         #expect(spy.callCount > 0)
+    }
+}
+
+// MARK: - 効果音（#116）
+//
+// 効果音は触覚と同じ呼び出し箇所に相乗りする（各ゲームに新しい発火点を作らない）ため、
+// 「触覚が鳴るところでは効果音も鳴る」「トグルは互いに独立している」の 2 点を押さえれば足りる。
+
+@Suite("効果音")
+@MainActor
+struct SoundFeedbackTests {
+
+    /// 全10ゲームの「有効な操作の成立」「無効な操作の拒否」「局面の決着」で、
+    /// アプリ本体と同じ `SoundEffect` への変換を通した音が鳴ることを、ゲームごとに確かめる。
+    @Test("全10ゲームの主要な操作で効果音が鳴る（操作音・拒否音・決着音）")
+    func everyGameMakesSound() async {
+        // ゲームごとに分けて回し、どのゲームで落ちたかが分かるようにする。
+        func check(_ name: String, _ play: @MainActor (GameServices) async -> Void) async {
+            let (services, _, sound) = makeServices(hapticsEnabled: false, soundEnabled: true)
+            await play(services)
+
+            let operations: Set<SoundEffect> = [.light, .medium, .rigid]
+            let endings: Set<SoundEffect> = [.success, .warning, .error]
+            #expect(!sound.kinds.isDisjoint(with: operations), "\(name): 操作の成立で音が鳴る（鳴った音: \(sound.kinds)）")
+            #expect(!sound.kinds.isDisjoint(with: endings), "\(name): 拒否・決着で音が鳴る（鳴った音: \(sound.kinds)）")
+        }
+
+        await check("2048") { play2048($0) }
+        await check("将棋") { playShogi($0) }
+        await check("五目並べ") { await playGomoku($0) }
+        await check("マインスイーパー") { playMinesweeper($0) }
+        await check("オセロ") { playOthello($0) }
+        await check("ポーカー") { _ = playPoker($0) }
+        await check("神経衰弱") { playConcentration($0) }
+        await check("ブラックジャック") { _ = playBlackjack($0) }
+        await check("大富豪") { _ = await playDaifugo($0) }
+        await check("麻雀ソリティア") { _ = playMahjong($0) }
+    }
+
+    @Test("6種類の効果音がすべて、いずれかのゲームで実際に使われている（鳴らない音を定義していない）")
+    func everySoundIsReachable() async {
+        let (services, _, sound) = makeServices(hapticsEnabled: false, soundEnabled: true)
+        await playAllGames(services)
+        #expect(sound.kinds == Set(SoundEffect.allCases), "使われていない音: \(Set(SoundEffect.allCases).subtracting(sound.kinds))")
+    }
+
+    @Test("CompositeFeedbackService は束ねた全ての実装へ同じ発火を配る")
+    func compositeFansOutToEveryService() {
+        let a = SpyFeedbackService()
+        let b = SpyFeedbackService()
+        let c = SpyFeedbackService()
+        let composite = CompositeFeedbackService([a, b, c])
+        composite.impact(.medium)
+        composite.notify(.error)
+        for spy in [a, b, c] {
+            #expect(spy.impacts == [.medium])
+            #expect(spy.notices == [.error])
+        }
+    }
+
+    @Test("効果音だけオフにすると、効果音は鳴らず触覚は残る")
+    func soundOffKeepsHaptics() async {
+        let (services, haptics, sound) = makeServices(hapticsEnabled: true, soundEnabled: false)
+        await playAllGames(services)
+        #expect(sound.callCount == 0, "効果音は 1 度も鳴らない")
+        #expect(haptics.callCount > 0, "触覚は今までどおり鳴る")
+    }
+
+    @Test("触覚だけオフにすると、触覚は鳴らず効果音は残る")
+    func hapticsOffKeepsSound() async {
+        let (services, haptics, sound) = makeServices(hapticsEnabled: false, soundEnabled: true)
+        await playAllGames(services)
+        #expect(haptics.callCount == 0, "触覚は 1 度も鳴らない")
+        #expect(sound.callCount > 0, "効果音は今までどおり鳴る")
+    }
+
+    @Test("両方オフなら、どちらも 1 度も鳴らない")
+    func bothOff() async {
+        let (services, haptics, sound) = makeServices(hapticsEnabled: false, soundEnabled: false)
+        await playAllGames(services)
+        #expect(haptics.callCount == 0)
+        #expect(sound.callCount == 0)
     }
 }

@@ -124,6 +124,17 @@ struct HubView: View {
                 if args.contains("-simulateReviewRequest") {
                     services.review?.simulateRequest()
                 }
+                // 動作確認用: 触覚・効果音を発火条件を通さずに 1 種ずつ鳴らす（`-simulateFeedback`）。
+                // 効果音が音声セッションをどう設定したかをシミュレータで確認するために使う
+                // （ゲーム内の発火点はすべてタップ起点で、非対話の確認では叩けないため）。
+                if args.contains("-simulateFeedback") {
+                    for style: FeedbackImpact in [.light, .medium, .rigid] {
+                        services.feedback.impact(style)
+                    }
+                    for type: FeedbackNotice in [.success, .warning, .error] {
+                        services.feedback.notify(type)
+                    }
+                }
                 #endif
             }
         }

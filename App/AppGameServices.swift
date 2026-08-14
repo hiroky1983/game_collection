@@ -18,7 +18,11 @@ enum AppEnvironment {
     static let services = GameServices(
         snapshots: FileSnapshotStore(),
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
-        feedback: GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
+        // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
+        feedback: CompositeFeedbackService([
+            GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
+            GatedFeedbackService(base: SoundFeedbackService()) { settings.soundEnabled },
+        ]),
         recommendations: recommendations,
         review: review,
         playLog: playLog
