@@ -69,13 +69,14 @@ public struct ConcentrationView: View {
                         // 視聴完了（報酬獲得）したときだけ待ったを許可する
                         guard await services.ads.showRewardedAd() else {
                             showRewardNotEarned = true
+                            model.resumeAutoTurn()
                             return
                         }
                     }
                     model.useMatta()
                 }
             }
-            Button("キャンセル", role: .cancel) {}
+            Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
         } message: {
             Text(model.mattaUsed
                  ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
@@ -127,7 +128,11 @@ public struct ConcentrationView: View {
 
     private var mattaControls: some View {
         HStack {
-            Button { showMattaConfirm = true } label: {
+            // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
+            Button {
+                model.pauseAutoTurn()
+                showMattaConfirm = true
+            } label: {
                 Label("待った", systemImage: "arrow.uturn.backward")
                     .font(Theme.body(14))
             }
@@ -135,17 +140,12 @@ public struct ConcentrationView: View {
 
             Spacer()
 
-            // 人間がミスマッチ中のみ「次へ」ボタンを表示
-            if model.isHumanTurn && !model.mismatchedIndices.isEmpty {
-                Button {
-                    model.clearMismatch()
-                } label: {
-                    Label("次へ", systemImage: "arrow.right.circle.fill")
-                        .font(Theme.body(14))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .background(Capsule().fill(Theme.inkSub))
-                }
+            // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。
+            // 待っている間だけ「待った」が押せることをここで知らせる。
+            if model.canMatta {
+                Text("ミスマッチ… 待ったは今だけ")
+                    .font(Theme.body(13))
+                    .foregroundStyle(Theme.coral)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
