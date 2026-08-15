@@ -370,9 +370,3 @@ public final class ShogiGameModel {
     // Date.now を init 前に使えないため分離。
     private func startedAtFallback() -> Date { Date() }
 }
-
-/// CPU 起動トリガーの識別子（対局の通し番号 × 手数）。
-public struct AITurnKey: Hashable, Sendable {
-    public let gameSerial: Int
-    public let ply: Int
-}

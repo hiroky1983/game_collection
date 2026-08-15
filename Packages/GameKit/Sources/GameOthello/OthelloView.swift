@@ -82,7 +82,7 @@ public struct OthelloView: View {
         .onChange(of: model.mustPass) { _, newValue in
             if newValue && !model.isAITurn { showPassAlert = true }
         }
-        .task(id: model.turnID) {
+        .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
     }

@@ -34,6 +34,8 @@ public final class OthelloModel {
     public private(set) var mustPass: Bool
     public private(set) var turnID: Int
     public private(set) var undoUsed: Bool
+    /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
+    public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
 
@@ -54,6 +56,11 @@ public final class OthelloModel {
     public var canUndo: Bool {
         !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
     }
+
+    /// View の `.task(id:)` に渡す CPU 起動トリガー。
+    /// `turnID` だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
+    /// CPU の初手が起動しない（#140。将棋 #82 と同じ原因）。対局の通し番号と組にする。
+    public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: turnID) }
 
     public init(services: GameServices? = nil) {
         self.services = services
@@ -164,6 +171,7 @@ public final class OthelloModel {
         undoHistory    = []
         recordResult   = nil
         startedAt      = Date()
+        gameSerial    += 1
         persist()
     }
 

@@ -34,3 +34,64 @@ struct OthelloBoardTests {
         #expect(board.isFull)
     }
 }
+
+// MARK: - CPU 起動トリガー（#140: 後手を選ぶと CPU が初手を打たない）
+
+@MainActor
+@Suite("オセロ CPU 起動トリガー")
+struct OthelloAITurnKeyTests {
+    /// View は `.task(id: model.aiTurnKey)` で CPU を起動する。
+    /// 起動直後（turnID = 0）に後手を選んでも turnID が 0 のままなので、
+    /// キーが変わらないと初手が打たれない。
+    @Test func aiTurnKeyChangesWhenStartingAsGoteWithoutMoves() {
+        let model = OthelloModel(services: nil)
+        #expect(model.turnID == 0)
+        let before = model.aiTurnKey
+
+        model.newGame(humanSide: .white)
+        #expect(model.turnID == 0)         // turnID は 0 のまま
+        #expect(model.aiTurnKey != before) // それでもトリガーは変化する
+        #expect(model.isAITurn)
+    }
+
+    /// 後手開始 → CPU 初手 → 人間応手 → 再び CPU 番、まで通しで動くこと。
+    @Test func goteStartPlaysCPUFirstMoveThenHumanReply() async {
+        let model = OthelloModel(services: nil)
+        model.newGame(humanSide: .white)
+
+        await model.performAIMoveIfNeeded()
+        #expect(model.turnID == 1)
+        #expect(model.isAITurn == false) // 人間(白)の番
+        let afterCPU = model.aiTurnKey
+
+        let move = try! #require(model.board.validMoves(for: .white).first)
+        model.tap(row: move.0, col: move.1)
+
+        #expect(model.turnID == 2)
+        #expect(model.aiTurnKey != afterCPU)
+        #expect(model.isAITurn) // CPU(黒)の番に戻る
+    }
+
+    /// 対局途中から新規対局を始めて後手を選んだ場合もトリガーが変化すること。
+    @Test func aiTurnKeyChangesWhenRestartingMidGameAsGote() async {
+        let model = OthelloModel(services: nil)
+        let first = try! #require(model.board.validMoves(for: .black).first)
+        model.tap(row: first.0, col: first.1)
+        await model.performAIMoveIfNeeded()
+        let before = model.aiTurnKey
+
+        model.newGame(humanSide: .white)
+        #expect(model.turnID == 0)
+        #expect(model.aiTurnKey != before)
+        #expect(model.isAITurn)
+    }
+
+    /// 先手を選んだ場合は従来どおり CPU は動かず、人間の手番から始まる。
+    @Test func senteStartKeepsHumanTurn() async {
+        let model = OthelloModel(services: nil)
+        model.newGame(humanSide: .black)
+        #expect(model.isAITurn == false)
+        await model.performAIMoveIfNeeded()
+        #expect(model.turnID == 0)
+    }
+}
