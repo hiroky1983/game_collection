@@ -1,4 +1,5 @@
 import Foundation
+import MahjongTiles
 
 /// 麻雀ソリティアのルール判定と盤面生成。**状態も乱数の保持も持たない純粋関数**の集まりで、
 /// Model 側は進行・永続化・演出だけを持つ（`DaifugoRules` と同じ分け方）。

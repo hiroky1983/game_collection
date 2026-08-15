@@ -49,6 +49,8 @@ targets:
         product: GameDaifugo
       - package: GameKit
         product: GameMahjongSolitaire
+      - package: GameKit
+        product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds
       - package: Firebase

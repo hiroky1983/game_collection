@@ -21,6 +21,7 @@ let package = Package(
         .library(name: "GameBlackjack",     targets: ["GameBlackjack"]),
         .library(name: "GameDaifugo",       targets: ["GameDaifugo"]),
         .library(name: "GameMahjongSolitaire", targets: ["GameMahjongSolitaire"]),
+        .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
         .target(name: "Core"),
@@ -33,7 +34,9 @@ let package = Package(
         .target(name: "GameConcentration",  dependencies: ["Core"]),
         .target(name: "GameBlackjack",      dependencies: ["Core"]),
         .target(name: "GameDaifugo",        dependencies: ["Core"]),
-        .target(name: "GameMahjongSolitaire", dependencies: ["Core"]),
+        // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
+        .target(name: "MahjongTiles",       dependencies: ["Core"]),
+        .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku"]),
@@ -43,6 +46,7 @@ let package = Package(
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack"]),
         .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire"]),
+        .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
         // 触覚フィードバックは全ゲーム横断のため 1 ターゲットにまとめる（スパイ実装の重複を避ける）。
         .testTarget(name: "FeedbackTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",

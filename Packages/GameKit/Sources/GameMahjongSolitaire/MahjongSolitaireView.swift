@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import MahjongTiles
 
 public struct MahjongSolitaireView: View {
     @State private var model: MahjongSolitaireModel
@@ -300,109 +301,6 @@ public struct MahjongSolitaireView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
             .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
             .padding(.horizontal, 28)
-        }
-    }
-}
-
-// MARK: - 牌
-
-/// 1 枚の牌。絵柄は画像アセットを持たず、文字と図形だけで描く。
-struct MahjongTileView: View {
-    let face: MahjongFace
-    let width: CGFloat
-    let height: CGFloat
-    /// いま取れない牌（上に載っている・両隣が塞がっている）。暗く落として見分けられるようにする。
-    let isBlocked: Bool
-    let isSelected: Bool
-    let isHinted: Bool
-
-    private static let circleColor = Color(hex: 0x2E6FD8)
-    private static let bambooColor = Color(hex: 0x2E9E5B)
-    private static let kanjiNumerals = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
-    private static let winds = ["東", "南", "西", "北"]
-    private static let dragons = ["中", "發", "白"]
-    private static let flowers = ["梅", "蘭", "菊", "竹"]
-    private static let seasons = ["春", "夏", "秋", "冬"]
-
-    var body: some View {
-        let corner = width * 0.18
-        ZStack {
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(Color(hex: 0xFFFCF2))
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(borderColor, lineWidth: isSelected || isHinted ? width * 0.1 : max(0.5, width * 0.03))
-            content
-                .minimumScaleFactor(0.4)
-                .lineLimit(1)
-        }
-        .frame(width: width, height: height)
-        .overlay {
-            if isBlocked {
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(Color(hex: 0x4A3B33, alpha: 0.22))
-            }
-        }
-        .shadow(color: .black.opacity(0.18), radius: width * 0.06, x: width * 0.03, y: width * 0.05)
-    }
-
-    private var borderColor: Color {
-        if isSelected { return Theme.coral }
-        if isHinted { return Theme.teal }
-        return Color(hex: 0xD9CDB8)
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch face {
-        case .characters(let n):
-            VStack(spacing: -width * 0.08) {
-                Text(Self.kanjiNumerals[max(0, min(8, n - 1))])
-                    .font(.system(size: width * 0.5, weight: .bold, design: .serif))
-                    .foregroundStyle(Theme.ink)
-                Text("萬")
-                    .font(.system(size: width * 0.36, weight: .bold, design: .serif))
-                    .foregroundStyle(Theme.coral)
-            }
-        case .circles(let n):
-            ZStack {
-                Circle()
-                    .strokeBorder(Self.circleColor, lineWidth: width * 0.08)
-                    .frame(width: width * 0.68, height: width * 0.68)
-                Text("\(n)")
-                    .font(.system(size: width * 0.4, weight: .black, design: .rounded))
-                    .foregroundStyle(Self.circleColor)
-            }
-        case .bamboos(let n):
-            ZStack {
-                RoundedRectangle(cornerRadius: width * 0.14, style: .continuous)
-                    .strokeBorder(Self.bambooColor, lineWidth: width * 0.08)
-                    .frame(width: width * 0.62, height: width * 0.72)
-                Text("\(n)")
-                    .font(.system(size: width * 0.4, weight: .black, design: .rounded))
-                    .foregroundStyle(Self.bambooColor)
-            }
-        case .wind(let n):
-            glyph(Self.winds[max(0, min(3, n))], color: Theme.ink)
-        case .dragon(let n):
-            glyph(Self.dragons[max(0, min(2, n))], color: dragonColor(n))
-        case .flower(let n):
-            glyph(Self.flowers[max(0, min(3, n))], color: Theme.purple)
-        case .season(let n):
-            glyph(Self.seasons[max(0, min(3, n))], color: Theme.pink)
-        }
-    }
-
-    private func glyph(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.system(size: width * 0.62, weight: .bold, design: .serif))
-            .foregroundStyle(color)
-    }
-
-    private func dragonColor(_ n: Int) -> Color {
-        switch n {
-        case 0:  return Theme.coral        // 中
-        case 1:  return Self.bambooColor   // 發
-        default: return Self.circleColor   // 白
         }
     }
 }
