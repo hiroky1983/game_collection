@@ -99,3 +99,16 @@
 - [ ] **パフォーマンス確認**
   - 将棋 AI の思考時間 (特に「強」レベル)
   - メモリ使用量
+
+## 審査提出時の必須手順（2026-08-13 追加）
+
+提出のたびに必ず実施する。省略すると「どこまでが審査に入っているか」が後から判別できなくなる。
+
+1. 提出したビルドのコミットにタグを打つ: `git tag vX.Y.Z-build<N> <sha> && git push origin vX.Y.Z-build<N>`
+2. その release ブランチを凍結する:
+   ```
+   gh api -X PUT repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection \
+     --input <(echo '{"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,"lock_branch":true}')
+   ```
+3. 次版の release ブランチを作成し、保護を設定する（以降の作業先）。
+4. 公開後に main へ取り込むのは **タグの地点まで**（凍結後に誤って積まれた分を main に入れないため）。

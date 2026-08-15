@@ -4,6 +4,7 @@
 
 1. docs/ai-company.md（憲章。特に 90日計画・KPI ツリー・現フェーズの優先順位）を読む。
 2. 現状把握: `gh issue list --state all --limit 40 --json number,title,state,labels` と `gh api repos/hiroky1983/game_collection/milestones` で、既存の Issue・マイルストーンを確認する。**既存 Issue（closed 含む）と重複する案は起案しない**。
+   このとき `blocked` ラベルの Issue があれば、コメントに書かれた解除条件が満たされていないか毎回確認する。満たされていれば `blocked` を外す（次の当番が着手できる状態に戻す）。この確認が塩漬け防止の唯一の定期チェックなので省略しない。
 3. （データがあれば）App Store レビューや Firebase の状況も参考にする。無ければ 90日計画と直近の成果から次の一手を考える。
 4. **2〜3件だけ** Issue を起案する。`gh issue create` で、本文は機能提案テンプレートの構成（概要 / 背景・根拠 / 受け入れ条件 / リスク階層 / 対象バージョン / 実装方針案）に従う。ラベルは `ai:proposed` + 適切な `risk:*`、マイルストーンも設定する。
 

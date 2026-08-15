@@ -2,7 +2,7 @@
 
 作業ディレクトリはこの実行専用の**使い捨て worktree**（origin/main の detached 状態で開始）。前回実行の状態は残っていないので、ブランチは必ず `git checkout -b <name> origin/release/vX.Y.Z` のようにリモート参照から作ること。終了時の後片付けは不要（次回起動時に自動掃除される）。
 
-やること（両方チェックし、あるものを処理）:
+やること（すべてチェックし、あるものを処理）:
 
 ## 1. 未解決の CodeRabbit スレッドの消化（優先）
 
@@ -12,20 +12,67 @@
 - 判断に迷う Security/Major → 修正せず「会長の判断が必要です【要決裁あり】」と PR にコメント
 全スレッドに返信した後にのみ `gh pr comment <N> --body "@coderabbitai resolve"` を実行（無言 resolve 禁止）。
 
-### 1-b. レビューが未着のオープン PR の催促
+### 1-b. レビューが未着のオープン PR の扱い（会長決裁 2026-08-11: レートリミットは待たず即マージ）
 
-スレッドが1件も無くても、**CodeRabbit のレビュー自体が HEAD コミットに対して走っていない PR** は放置してはいけない。
-未着になる典型は2つ: **レート制限**（`Review limit reached`）と、**デフォルト以外の base への PR で auto review がスキップされる**（`Review skipped` / release ブランチ向け PR が該当）。
-どちらも CodeRabbit のコメントは付くがレビューはされていないので、コメントの有無では判定しないこと。
+スレッドが1件も無くても、**CodeRabbit のレビュー自体が HEAD コミットに対して走っていない PR** は放置してはいけない。ただし待ち続けもしない:
+
+- **レート制限**（`rate limited` マーカー）: **待たない・催促を繰り返さない**。CI グリーン + 既存スレッド全解決なら、その事実を PR に1行記録して**その場でマージする**（稟議#6「到着した指摘のみ消化」の適用）。
+- **スキップ**（release ブランチ向けで auto review が走らない）: `gh pr comment <N> --body "@coderabbitai review"` を**1回だけ**依頼して5分待つ。レビューが届いたら 1. で消化。届かない・レート制限が返った場合は上と同じく記録して即マージする。
+- いずれの場合も、**マージまでがこのタスクの完了条件**（記録だけ残して終わるのは禁止。マージできない事情があるなら理由を PR にコメントする）。
+
+### 1-b-2. マージ忘れ防止（必須）と auto-merge を仕込むタイミング（2026-08-13 改定）
+
+**auto-merge は「PR 作成直後」ではなく「到着したレビューを全消化した後」に仕込む**。
+理由: `required_conversation_resolution` は**すでに存在する**未解決スレッドしか止められず、「これから届くレビュー」は止められない。PR 作成直後に仕込むと、CI グリーンとレビュー到着が競合したとき指摘の消化前にマージされる（2026-08-13・PR #95 で7秒差で発生。#97）。
 
 手順:
 
-1. `gh pr comment <N> --body "@coderabbitai review"` で明示的にレビューを依頼する（この手動コマンドは base が release ブランチでも効く）。
-2. 5〜10分待って再確認する。レビューが届いたら 1. のトリアージで消化する。
-3. レート制限で待ち時間が 10 分を超える場合は待たずに次回の当番へ持ち越す。同じ HEAD に対しては
-   `Scripts/ai-duty.sh` が**最大3回まで**自動で当番を再起動するので、放置にはならない。
-4. 3回催促してもレビューが来ない場合は、規程どおり「到着した指摘のみ消化」でよい（稟議#6）。
-   その事実（催促した回数・CodeRabbit の応答）を PR にコメントで記録してから、CI グリーンを確認してマージする。
+1. PR を作成したら `@coderabbitai review`（release ブランチ向けで auto review が走らない場合）を含め、レビューの到着を待つ。
+2. 到着した指摘を 1. の3分類で全消化する（rate limit 等で来ない場合は 1-b のとおり待たない）。
+3. **そのうえで** `gh pr merge <番号> --merge --auto` を仕込む（残った CI を待つ用途。すでに全条件が揃っていれば `--auto` 無しで即マージしてよい）。
+
+**マージ忘れ防止（必須）**: 上のとおり仕込みが後ろにずれる分、**当番セッションを抜ける前に、自分が作成・操作したすべてのオープン PR に auto-merge が仕込まれている（またはマージ済みである）ことを必ず確認する**。
+
+```bash
+gh pr list --state open --json number,title,autoMergeRequest \
+  --jq '.[] | select(.autoMergeRequest == null) | "auto-merge 未設定: #\(.number) \(.title)"'
+```
+
+出力があれば、決裁待ち等の理由が無い限りその場で仕込む（理由があるときは 1-c-2 のとおり PR にコメントで残す）。この確認を飛ばして終了してはならない。
+
+**コミットの取り残し防止（必須・2026-08-13 追加）**: 併せて、**自分がこのセッションで push したコミットが、すべて PR に載っていること**を確認する。マージ済みの PR のブランチに後から push すると、そのコミットはレビューもされず main にも入らないまま消える（#100: `481072e` がこれで2日間失われ、シミュレータの後片付けが効いていなかった）。
+
+```bash
+# 自分が触ったブランチについて、base に入っていないコミットが PR に載っているかを確認する
+git log --oneline origin/<base>..HEAD
+gh pr list --state open --head <ブランチ名>   # ← 上のコミットを含む PR があること
+```
+
+作業を追加したいときは、**マージ済み PR のブランチには push せず、新しいブランチと PR を作る**。
+
+### 1-f. 取り残されたコミットの回収（`ai-duty.sh` 仕事10 の検知）
+
+マージ済み PR の head ブランチに、**base にも main にも入っていない変更**が残っている場合、それは PR に載り損ねたコミットである。次の手順で回収する:
+
+1. 対象を洗い出す（`git cherry` は SHA ではなく patch-id で見るため、別 PR で同じ内容が入り直したものは出てこない）。
+
+   ```bash
+   D=~/.asobiba-duty/game_collection
+   gh pr list --state merged --limit 1000 --json number,headRefName,baseRefName \
+     --jq '.[] | "\(.headRefName)\t\(.baseRefName)\t\(.number)"' | sort -u \
+   | while IFS=$'\t' read -r H B N; do
+       git -C "$D" rev-parse --verify -q "refs/remotes/origin/$H" >/dev/null || continue
+       git -C "$D" rev-parse --verify -q "refs/remotes/origin/$B" >/dev/null || continue
+       for C in $(git -C "$D" cherry "refs/remotes/origin/$B" "refs/remotes/origin/$H" | awk '$1=="+"{print $2}'); do
+         git -C "$D" cherry refs/remotes/origin/main "refs/remotes/origin/$H" | grep -q "^+ $C" \
+           && echo "PR #$N $H: $(git -C "$D" log -1 --oneline "$C")"
+       done
+     done
+   ```
+
+2. 中身を読んで判断する。**必要な変更**なら新しいブランチへ cherry-pick して通常の PR フローに乗せる（そのまま使えないなら作り直してよい）。**不要・陳腐化**しているなら理由を記録するだけでよい。
+3. **回収し終えたら、そのブランチを削除する**（`gh api -X DELETE repos/hiroky1983/game_collection/git/refs/heads/<ブランチ名>`）。作り直した場合は patch-id が変わって検知が鳴り続けるため、**ブランチの削除が終了条件**。削除する前に、中身が main（または base）に入っていることを必ず確認する。
+4. 何を回収し何を捨てたか、削除したブランチ名とともに元の Issue または PR にコメントで記録する。
 
 ### 1-c. コンフリクトで滞留しているオープン PR の解消
 
@@ -36,13 +83,84 @@
 3. 意味的に両立できない・どちらを優先すべきか判断できない場合は、解消せず「【要決裁あり】」で会長にエスカレーションする。
 4. 解消したら、何をどう統合したかを PR にコメントで記録し、プッシュする（以降は通常のレビュー・マージフローに乗る）。
 
+### 1-c-2. マージ可能なのに放置されている PR の処理
+
+`gh pr list --json number,mergeStateStatus,autoMergeRequest` で **CLEAN かつ auto-merge 未設定**の PR を見つけたら:
+到着済みレビューの消化漏れがないことを確認し、`gh pr merge <番号> --merge` でマージする。マージしない事情がある場合（決裁待ち等）はその理由を PR にコメントし、`gh pr merge <番号> --merge --auto` だけ仕込んでおく。
+
+### 1-d. 決裁コメント着信の処理（ringi:pending の Issue）
+
+`ringi:pending` の Issue で、最後のコメントが決裁スレッド（【要決裁】）でも反映記録（決裁反映）でもない場合、それは**会長が決裁を書き込んだ可能性**がある。以下を行う:
+
+1. そのコメントを読み、会長の決裁（「Aで」等の選択肢指定・承認・却下・修正指示）かどうか判断する。
+2. **決裁と判断できたら反映する**: 却下 → 理由を要約して Issue を close / 承認 → `ringi:pending` を外し `ringi:approved` を付け、決裁内容に沿って作業を続行（または次回の当番に委ねる）/ 修正指示付き → 指示を反映して続行。
+   反映したら必ず「決裁反映: <内容の要約>」をコメントで記録する（この記録が再検知を止める目印になる）。
+3. 決裁かどうか判断できないコメントだった場合は、「決裁の読み取りに失敗したため確認してください【要決裁】」と定型の決裁スレッドを再掲する。
+4. 注意: 決裁スレッドを投稿した後は、自分からその Issue にコメントを追加しない（最終コメント検知を壊さないため）。
+
+### 1-e. 企画議論への応答（ai:proposed の Issue）
+
+未承認の `ai:proposed` Issue（ai:approved / ai:in-progress / blocked が付いていないもの）で、最後の会長コメントが議論・質問・修正要望だったら、**経営企画室として応答する**:
+
+1. コメントを読み、質問には根拠を添えて答え、修正要望が妥当なら **Issue 本文（受け入れ条件含む）を編集して反映**する。反対意見には代替案か撤回で応える。
+2. 返信コメントは必ず「**企画議論（経営企画室）:**」で始める（この接頭辞が再検知を止める目印。忘れると毎回反応し続ける）。
+3. **接頭辞は返信だけでなく、未承認 `ai:proposed` Issue に当番が投稿するすべてのコメントに付ける**（保留・着手見送り・マイルストーン変更・取り残しコミットの回収結果などの単なる記録も対象）。当番も会長アカウントのトークンでコメントするため投稿者では区別できず、接頭辞の無い記録コメントは「未応答の会長コメント」として毎時の空振り起動を生み続ける（#120。#79 の保留記録で実際に発生）。
+   例外は決裁スレッド（`## 【要決裁】…`）と決裁反映の記録（`決裁反映: …`）の2つだけで、これらは検知側が本文のマーカーで既に除外している（接頭辞を付けると決裁の形式が崩れるため付けない）。
+4. コメントが明確な承認（「これで進めて」等）なら `ai:approved` を付けて着手フローに回してよい。明確な却下なら理由を要約して close する。判断がつかない場合は選択肢を整理して聞き返す。
+5. 勝手に実装を始めない（承認まではあくまで議論）。
+
 ## 2. 承認済み Issue の実行
 
-`ai:approved` かつ `ai:in-progress` も `ringi:pending` も付いていないオープン Issue から **1件だけ**選ぶ（`ringi:pending` は会長の決裁待ち = 当番には進められないため対象外。成果物を出して決裁待ちにした Issue を毎時拾い直さないための除外）（90日計画との整合、迷えば番号が小さい方）。選んだら即座に `ai:in-progress` を付け、着手宣言を Issue にコメントする。
+`ai:approved` かつ `ai:in-progress` も `ringi:pending` も `blocked` も付いていないオープン Issue から **1件だけ**選ぶ（`ringi:pending` は会長の決裁待ち = 当番には進められないため対象外。成果物を出して決裁待ちにした Issue を毎時拾い直さないための除外）（90日計画との整合、迷えば番号が小さい方）。選んだら即座に `ai:in-progress` を付け、着手宣言を Issue にコメントする。
+
+### 2-b. 着手条件が未達の Issue（`blocked`）
+
+Issue 本文が「◯◯の2週間後」のような**当番の努力では満たせない着手条件**を定めていて、それが未達の場合は着手しない。代わりに:
+
+1. `blocked` ラベルを付ける（毎時の空振り起動を止めるため。`ai:approved` は外さない = 会長のハンコは残す）。
+2. 「着手見送り: 着手条件 <条件> が未達（根拠）。解除条件: <何が起きたら着手できるか>」を Issue にコメントする。既に同趣旨のコメントがあれば重複投稿しない。
+
+**起動したら（他の仕事で起動した場合も含め）`blocked` の Issue の解除条件を毎回確認する**。満たされていれば `blocked` を外し、そのまま着手対象に戻す。放置して塩漬けにしないこと。
 
 - **調査・分析系**: WebSearch/WebFetch（iTunes Search API `https://itunes.apple.com/search?country=jp&entity=software&term=...` が有用）で調査し、受け入れ条件を満たす成果物を Issue にコメントで報告。会長の決裁が必要な提案は「【要決裁あり】」を明記。完了したら ai:in-progress を外す（close は受け入れ条件を全て満たした場合のみ）。
-- **コード実装系**: **最新の release/vX.Y.Z ブランチ**（`git branch -r | grep 'release/v'` の最大バージョン。無ければ着手せず Issue に記録して会長に確認）から feature ブランチを切り、最小差分で実装。ローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
+- **コード実装系**: **その Issue のマイルストーンと同名の release/vX.Y.Z ブランチ**から feature ブランチを切り、最小差分で実装。
+  - **「最大バージョンの release ブランチを選ぶ」のは禁止**（2026-08-13 の事故: `release/v1.1.1` が存在しなかったため、v1.1.1 と v1.1.2 の成果物が審査提出済みの `release/v1.1.0` に8件積まれ、何が審査に入っているか判別不能になった）。
+  - 対応する release ブランチが**無ければ自分で作る**: 直近の release ブランチの HEAD から `git push origin <sha>:refs/heads/release/vX.Y.Z` し、`gh api -X PUT repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection` で test 必須 + `required_conversation_resolution` を設定する。作成した事実を Issue にコメントで記録する。
+  - **push する前に、ベースにしようとしている release ブランチが凍結（`lock_branch`）されていないか確認する**（`gh api repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection --jq '.lock_branch.enabled'`）。true なら審査提出済みなので、そのブランチには絶対に積まない。
+  - Issue にマイルストーンが設定されていない場合は着手せず、Issue に記録して会長に確認する。
+
+  実装後はローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
 - 完了報告の前に検証を行うこと（テスト実行・ビルド確認。「たぶん動く」で報告しない）。
+
+### 2-c. 孤児化した `ai:in-progress` の回収（**セクション2で着手する Issue を選ぶ前に行う**）
+
+当番が着手直後に異常終了すると `ai:in-progress` が残留し、その Issue は着手対象の集計から恒久的に外れて誰も進められなくなる（#80 で発生。約2.5時間滞留）。**あなたがこの worktree で動いている時点で他の当番は動いていない**（多重起動はロックで防がれている）ため、`ai:in-progress` が付いていて**最終更新から30分以上経っている** Issue は孤児と断定してよい。
+
+1. `gh issue list --label "ai:in-progress" --state open --json number,title,updatedAt` で対象を洗い出す。**このセッションで自分が付けたものは対象外**（updatedAt が新しいので自然に外れる）。
+2. 作業の痕跡を確認する: `gh pr list --search "<Issue番号>" --state all` と `git branch -r` で、その Issue に紐づくブランチ・PR が残っていないか調べる。
+3. 状態に応じて回収する:
+   - **PR まで出来ている** → `ai:in-progress` は残したまま、PR 側を通常のレビュー・マージフロー（セクション1）で前に進める。孤児ではないので回収不要（`Closes #N` で紐づいた PR がオープンなら `ai-duty.sh` の検知側でも除外される。ここに現れるのは紐づけが無い PR のケース）。
+   - **ブランチだけある** → 続きを引き継げるならそのブランチで作業を再開する（引き継ぐ場合も `ai:in-progress` は残す）。中身が空・再開する価値が無ければブランチには触れず 4. に進む。
+   - **何も残っていない** → `ai:in-progress` を外して着手可能な状態に戻す。
+4. 回収したら必ず「復旧: 当番の異常終了により `ai:in-progress` が残留していたため解除しました（最終更新 <日時>・残存ブランチ/PR: <有無>）」を Issue にコメントで記録する。
+5. 回収して着手可能に戻った Issue は、そのままこの実行でセクション2の選択対象に含めてよい（`ai:approved` が付いていれば1件だけ着手する）。
+
+## 3. 公開済み release ブランチの main への取り込み
+
+App Store で公開されたバージョンが `release/vX.Y.Z` に追いついているのに main へ未マージなら、規程
+（ai-devops.md「main = リリース済みバージョンの集合」）どおり取り込む。**この検知は会長の「公開された」
+という申告ではなく App Store の公開バージョンを直接見て行う**ため、リリース Issue が閉じられていても
+取りこぼさない（#68 が審査提出の時点で close され、実際に宙に浮いた）。
+
+1. `curl -s "https://itunes.apple.com/lookup?id=6781719499&country=jp"` の `version` /
+   `currentVersionReleaseDate` を自分でも確認する（公開前に main へ入れてしまわないための二重チェック）。
+2. `gh pr create --base main --head release/vX.Y.Z --title "release: vX.Y.Z を main へ取り込み（App Store 公開済み）"`。
+   本文に公開バージョンと公開日を根拠として書く。運用系の変更が main 側に先行していてコンフリクトする
+   場合は 1-c の手順で両側の意図を保って解消する。
+3. マージ後、main の HEAD に `git tag vX.Y.Z && git push origin vX.Y.Z`
+   （タグの push はブランチへの直接プッシュではないので可）。
+4. マイルストーン vX.Y.Z をクローズする（`gh api -X PATCH repos/hiroky1983/game_collection/milestones/<番号> -f state=closed`）。
+   リリース Issue が残っていれば、取り込み・タグ・クローズの結果をコメントで記録する。
 
 ## 決裁リクエストの形式（会長向け・必須）
 
@@ -72,3 +190,4 @@
 - 対外提出・ストア設定変更（App Store Connect 操作）と、リリース前の実機確認は会長の責務。実施しない。
 - 禁止: main / release ブランチへの直接プッシュ / git stash / force push / 依頼範囲を超えるリファクタリング / App Store Connect 等への提出操作。
 - コミットメッセージはリポジトリ慣習（日本語、feat/fix/chore プレフィックス）に従う。
+- **シミュレータの後片付け**: 動作確認のために起動したシミュレータは、確認が終わったら必ず `xcrun simctl shutdown <UDID>` で停止する（自分が起動したものだけ。元から起動していたものは会長が使用中の可能性があるため触らない）。忘れた場合も `Scripts/ai-duty.sh` が実行前後の差分で自動停止するが、それに頼らないこと。

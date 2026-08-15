@@ -1,9 +1,35 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
+import { APP_SIZE_MB, APP_STORE_URL, SITE_NAME, SITE_URL } from "./lib/site";
+
+const defaultDescription = `将棋・2048・五目並べ・マインスイーパー・オセロ・ポーカー・神経衰弱・ブラックジャックの8つを1本にまとめた iPhone 用ゲームコレクション。すべてオフラインで遊べて、通信も会員登録も不要。無料・約${APP_SIZE_MB}。`;
 
 export const metadata: Metadata = {
-  title: "あそびば",
-  description: "将棋・2048・五目並べ・マインスイーパー・オセロが楽しめるゲームコレクションアプリ",
+  // 相対パスの canonical / OGP 画像をここを起点に絶対 URL 化する
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} - オフラインで遊べる無料ゲーム8種の詰め合わせ`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: defaultDescription,
+  applicationName: SITE_NAME,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "ja_JP",
+    url: "/",
+    title: `${SITE_NAME} - オフラインで遊べる無料ゲーム8種の詰め合わせ`,
+    description: defaultDescription,
+    images: [{ url: "/og/default.png", width: 1200, height: 630, alt: SITE_NAME }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} - オフラインで遊べる無料ゲーム8種の詰め合わせ`,
+    description: defaultDescription,
+    images: ["/og/default.png"],
+  },
 };
 
 export default function RootLayout({
@@ -17,9 +43,9 @@ export default function RootLayout({
         <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 sticky top-0 z-10">
           <div className="max-w-2xl mx-auto px-6 py-4 flex items-center gap-3">
             <span className="text-2xl">🎮</span>
-            <a href="/" className="text-xl font-bold text-gray-900 dark:text-white hover:text-orange-500 transition-colors">
+            <Link href="/" className="text-xl font-bold text-gray-900 dark:text-white hover:text-orange-500 transition-colors">
               あそびば
-            </a>
+            </Link>
           </div>
         </header>
 
@@ -30,9 +56,10 @@ export default function RootLayout({
         <footer className="border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
           <div className="max-w-2xl mx-auto px-6 py-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
             <span>© 2025 あそびば</span>
-            <nav className="flex gap-6">
-              <a href="/privacy" className="hover:text-orange-500 transition-colors">プライバシーポリシー</a>
-              <a href="/terms" className="hover:text-orange-500 transition-colors">利用規約</a>
+            <nav className="flex flex-wrap justify-center gap-6">
+              <a href={APP_STORE_URL} className="hover:text-orange-500 transition-colors">App Store</a>
+              <Link href="/privacy" className="hover:text-orange-500 transition-colors">プライバシーポリシー</Link>
+              <Link href="/terms" className="hover:text-orange-500 transition-colors">利用規約</Link>
             </nav>
           </div>
         </footer>
