@@ -10,6 +10,8 @@ LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
 DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
 DUTY_FETCH_KILL_GRACE="${DUTY_FETCH_KILL_GRACE:-5}"  # SIGTERM / SIGKILL それぞれの猶予秒数（同上）
+DUTY_NOTIFY_STATE="${DUTY_NOTIFY_STATE:-$HOME/.asobiba-duty/last-notify}"  # 通知の連投防止の状態ファイル
+DUTY_NOTIFY_INTERVAL="${DUTY_NOTIFY_INTERVAL:-86400}"  # 同じ対象を再通知しない秒数（既定 = 1日）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
@@ -58,6 +60,92 @@ cleanup_simulators() {
   # 会長が Simulator.app を開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
   # CodeRabbit 指摘・Major）。会長の訴え（PC が重い）の原因は起動中のシミュレータであって
   # デバイスを持たない Simulator.app ではないため、落とす必要も無い
+}
+
+# 会長への通知（Issue #132）。稟議（ringi:pending）と承認待ち（未承認の ai:proposed）はどちらも
+# **会長にしか進められない**のに、会長に届く通知が1つも無かった。当番は会長アカウントのトークンで
+# コメントするため、GitHub は「自分自身の操作」とみなして通知を出さない（#120 で確認済みの制約）。
+# 起案しても会長の受信箱には何も起きず、決裁待ちがそのまま滞留する（#128 は約32時間放置され、
+# その間ずっと仕事ゼロの当番が毎時起動していた）。launchd が会長の Mac の GUI セッションで動く前提を
+# そのまま使い、追加の権限・費用・外部サービスなしに届く macOS のローカル通知で知らせる。
+#   - 通知は EXIT トラップから出す。早期 exit（仕事なし）でも claude が異常終了しても必ず出すため。
+#     決裁待ちだけが残っている「仕事なし」の回こそ通知の必要性が高い
+#   - 連投防止: 対象 Issue の集合が同じなら DUTY_NOTIFY_INTERVAL（既定1日）に1回まで。
+#     集合が変われば即通知する（新しい稟議の起案を丸1日待たせないため）
+#   - 対象が0件なら何もしない（空振り時は無音）
+#   - osascript に渡すのは **Issue 番号だけ**にする。タイトルを埋め込むと AppleScript の文字列を
+#     壊すうえ、このリポジトリは PUBLIC で第三者も Issue を立てられるため注入の経路になる
+NOTIFY_RINGI=""
+NOTIFY_APPROVAL=""
+NOTIFY_READY=0
+
+# 通知対象の収集。gh が失敗したときは NOTIFY_READY を立てないので通知しない（黙って0件扱いにすると
+# 「対象なし」と区別が付かず、稟議があるのに無音になる）
+collect_notify_targets() {
+  local ringi approval
+  ringi=$(gh issue list -R hiroky1983/game_collection --label "ringi:pending" --state open \
+    --json number --jq '[.[].number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
+  # 承認待ち = ai:proposed のうち会長のハンコがまだ無いもの。着手済み・外部イベント待ち（blocked）と、
+  # 上の決裁待ちに既に出ているものは重複するので除く
+  approval=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
+    --json number,labels \
+    --jq '[.[] | ([.labels[].name]) as $l
+          | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null
+                   and ($l | index("blocked")) == null and ($l | index("ringi:pending")) == null)
+          | .number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
+  NOTIFY_RINGI="$ringi"
+  NOTIFY_APPROVAL="$approval"
+  NOTIFY_READY=1
+}
+
+# 番号の羅列を "#128 #106" の形にする。tr -cd で数字と空白以外を落としてあるので osascript に渡しても安全
+hash_numbers() {
+  local n out=""
+  for n in $1; do out="$out #$n"; done
+  printf '%s' "${out# }"
+}
+
+sanitize_numbers() {
+  printf '%s' "$1" | tr -cd '0-9 ' | tr -s ' ' | sed 's/^ //; s/ $//'
+}
+
+notify_pending() {
+  [ "$NOTIFY_READY" -eq 1 ] || return 0
+  local ringi approval key now last_key last_at body count
+  ringi=$(sanitize_numbers "$NOTIFY_RINGI")
+  approval=$(sanitize_numbers "$NOTIFY_APPROVAL")
+  [ -n "$ringi$approval" ] || return 0
+
+  key="ringi=$ringi;approval=$approval"
+  now=$(date +%s)
+  if [ -f "$DUTY_NOTIFY_STATE" ]; then
+    last_key=$(sed -n '1p' "$DUTY_NOTIFY_STATE" 2>/dev/null)
+    last_at=$(sed -n '2p' "$DUTY_NOTIFY_STATE" 2>/dev/null)
+    case "${last_at:-}" in ''|*[!0-9]*) last_at=0 ;; esac
+    if [ "$key" = "${last_key:-}" ] && [ "$((now - last_at))" -lt "$DUTY_NOTIFY_INTERVAL" ]; then
+      return 0
+    fi
+  fi
+
+  count=0
+  body=""
+  if [ -n "$ringi" ]; then
+    count=$((count + $(printf '%s' "$ringi" | wc -w)))
+    body="決裁待ち(ringi:pending): $(hash_numbers "$ringi")"
+  fi
+  if [ -n "$approval" ]; then
+    count=$((count + $(printf '%s' "$approval" | wc -w)))
+    [ -n "$body" ] && body="$body / "
+    body="${body}承認待ち(ai:approved を付けるだけ): $(hash_numbers "$approval")"
+  fi
+
+  osascript -e "display notification \"$body\" with title \"あそびば: 会長の操作待ち ${count}件\"" >/dev/null 2>&1 || {
+    log "通知: osascript に失敗したため見送り（対象: $body）"
+    return 0
+  }
+  mkdir -p "$(dirname "$DUTY_NOTIFY_STATE")" 2>/dev/null
+  printf '%s\n%s\n' "$key" "$now" >"$DUTY_NOTIFY_STATE" 2>/dev/null
+  log "通知: 会長へ ${count}件（$body）"
 }
 
 # 自己更新: launchd が起動するのは会長の作業ツリー（~/myspace/game_collection）の本ファイルであり、
@@ -138,6 +226,10 @@ self_update() {
   export DUTY_SELF_UPDATED=1
   exec /bin/bash "$fresh" "$@"
 }
+# テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
+# （Scripts/tests/test-ai-duty-notify.sh。source されたときだけ効く）
+if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
+
 self_update "$@"
 
 # 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
@@ -153,9 +245,12 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
 echo $$ >"$PID_FILE"
-trap 'cleanup_simulators; rm -rf "$LOCK_DIR"' EXIT
+trap 'cleanup_simulators; notify_pending; rm -rf "$LOCK_DIR"' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
+
+# 会長の操作待ち（決裁・承認）を先に集める。以降のどこで exit しても EXIT トラップから通知が出る
+collect_notify_targets
 
 # 仕事1: 承認済みで未着手の Issue
 # ai:in-progress（着手済み）と ringi:pending（会長の決裁待ち = 当番には進められない）は除外する。
