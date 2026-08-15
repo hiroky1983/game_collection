@@ -56,8 +56,27 @@ public final class ConcentrationModel {
     private let gameID = "concentration"
     private var ai: ConcentrationAI = ConcentrationAI(accuracy: 0.6)
 
-    public init(services: GameServices? = nil) {
+    /// 人間がミスマッチしてから自動で裏返すまでの待ち時間（#137）。
+    /// この間だけ「待った」を出すため、0 にはしない。
+    static let defaultAutoClearDelay: UInt64 = 1_200_000_000
+    private let autoClearDelay: UInt64
+
+    /// 人間のミスマッチを自動で裏返すタスク（#137）。
+    ///
+    /// 以前あった自動クリアは View の `onChange(of: mismatchedIndices)` を発火点にしていたため、
+    /// CPU のミスマッチにも反応して `doCPUTurn` の `clearMismatch()` と二重に走り、ターンが
+    /// 詰まった（`a234262` Bug 1 → `30fc8fb` で削除）。今回は発火点を **人間の `tap` だけ**に
+    /// 限定し、CPU 側の経路（`doCPUTurn`）からは一切スケジュールしない。
+    private var autoClearTask: Task<Void, Never>?
+
+    public convenience init(services: GameServices? = nil) {
+        self.init(services: services, autoClearDelay: Self.defaultAutoClearDelay)
+    }
+
+    /// テストが待ち時間を縮めるための入口
+    init(services: GameServices?, autoClearDelay: UInt64) {
         self.services = services
+        self.autoClearDelay = autoClearDelay
         if let snap = services?.snapshots.load(ConcentrationSnapshot.self, for: "concentration") {
             restoreFrom(snap)
         } else {
@@ -75,10 +94,13 @@ public final class ConcentrationModel {
         }
         flipCard(index: index)
         persist()
+        // 人間がミスマッチしたら「次へ」を押させず自動で進める（#137）
+        if !mismatchedIndices.isEmpty { scheduleAutoClear() }
     }
 
     public func clearMismatch() {
         guard !mismatchedIndices.isEmpty else { return }
+        cancelAutoClear()
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         currentPlayer = currentPlayer.next
@@ -89,11 +111,24 @@ public final class ConcentrationModel {
     /// ミスマッチを取り消してプレイヤーのターンを継続する（ターン交代なし）
     public func useMatta() {
         guard canMatta else { return }
+        cancelAutoClear()
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
         services?.feedback.impact(.rigid)
         persist()
+    }
+
+    /// 「待った」の確認ダイアログを出す前に自動ターン交代を止める（#137）。
+    /// 止めないと、ユーザーが確認している最中にターンが CPU へ移り「戻す」が空振りする。
+    public func pauseAutoTurn() {
+        cancelAutoClear()
+    }
+
+    /// 「待った」を使わずに確認ダイアログを閉じたときに自動ターン交代を再開する（#137）
+    public func resumeAutoTurn() {
+        guard isHumanTurn, !isGameOver, !mismatchedIndices.isEmpty else { return }
+        scheduleAutoClear()
     }
 
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
@@ -106,6 +141,22 @@ public final class ConcentrationModel {
     }
 
     // MARK: - Private
+
+    private func scheduleAutoClear() {
+        autoClearTask?.cancel()
+        autoClearTask = Task { [weak self, delay = autoClearDelay] in
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled, let self else { return }
+            // 待っている間に「待った」・新規ゲーム・画面離脱で状況が変わっていたら何もしない
+            guard self.isHumanTurn, !self.isGameOver, !self.mismatchedIndices.isEmpty else { return }
+            self.clearMismatch()
+        }
+    }
+
+    private func cancelAutoClear() {
+        autoClearTask?.cancel()
+        autoClearTask = nil
+    }
 
     private func doCPUTurn() async {
         isThinking = true
@@ -140,6 +191,7 @@ public final class ConcentrationModel {
     }
 
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
+        cancelAutoClear()
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
         ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
