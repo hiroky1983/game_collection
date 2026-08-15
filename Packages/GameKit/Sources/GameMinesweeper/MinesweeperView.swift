@@ -204,19 +204,20 @@ public struct MinesweeperView: View {
 
     // MARK: - Status Bar
 
+    /// 幅は固定値で決め打ちせず、各グループの内容幅（`fixedSize`）で決める。
+    /// 左右を `maxWidth: .infinity` の等分フレームに載せることで絵文字が常に中央に来る。
     private var statusBar: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             Label(String(format: "%02d", max(0, model.remainingMines)),
                   systemImage: "flag.fill")
                 .font(.system(size: 16, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.coral)
-                .frame(minWidth: 70, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
-
-            Text(stateEmoji).font(.system(size: 28))
-
-            Spacer()
+            Text(stateEmoji)
+                .font(.system(size: 28))
+                .fixedSize(horizontal: true, vertical: false)
 
             HStack(spacing: 8) {
                 Label(String(format: "%03d", min(model.elapsedSeconds, 999)),
@@ -245,7 +246,8 @@ public struct MinesweeperView: View {
                         .foregroundStyle(zoomMode ? .white : Theme.inkSub)
                 }
             }
-            .frame(minWidth: 100, alignment: .trailing)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
