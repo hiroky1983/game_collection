@@ -649,9 +649,26 @@ struct GameRecordingTests {
         #expect(afterContinue?.losses == 0)
         #expect(afterContinue?.bestPoints == scoreBeforeContinue, "到達済みのスコアは取り消さない")
 
-        // 続きを最後まで遊ぶところまでは検証しない。2048 は終局時に盤が必ず全埋まりのため、
-        // `continueAfterAd()` の新タイル生成が空振りして盤を動かせない既存の不具合があり
-        // （本 PR とは無関係・別 Issue で起票済み）、ここから終局まで進められないため。
+        // #122 の修正で、コンティニュー後は空きマス4が確保され続きを遊べるようになった。
+        // 終局まで遊びきって、1プレイ分としてだけ記録されることを確認する。
+        var moves = 0
+        while !model.gameOver, moves < 10_000 {
+            guard let direction = Direction.allCases.first(where: {
+                Game2048Logic.slide(model.board, $0).moved
+            }) else {
+                Issue.record("終局していないのに動かせる方向が無い: \(model.board)")
+                break
+            }
+            model.move(direction)
+            moves += 1
+        }
+        #expect(model.gameOver)
+        #expect(moves >= 4, "コンティニュー後は最低4手が保証される（実際は \(moves) 手）")
+
+        let final = log.record(gameID: "2048")
+        #expect(final?.plays == 1, "コンティニューを挟んでも1プレイとしてだけ数える")
+        #expect(final?.losses == 1)
+        #expect((final?.bestPoints ?? 0) >= scoreBeforeContinue, "続きで伸びたスコアが反映される")
     }
 
     @Test("マインスイーパー: コンティニューして勝った回は敗北として残らない")

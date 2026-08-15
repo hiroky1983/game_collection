@@ -141,3 +141,80 @@ struct GameOverTests {
         #expect(Game2048Logic.isGameOver(board))
     }
 }
+
+@Suite("コンティニューの復活処理（#122）")
+struct ReviveTests {
+    /// 実プレイで到達しうる終局盤面。最小値は 2 が 1 個、次に 4 が 4 個。
+    static let deadBoard = [
+        [2, 4, 8, 4],
+        [16, 8, 32, 16],
+        [4, 64, 128, 32],
+        [16, 8, 4, 8],
+    ]
+
+    @Test("空きマスがちょうど4になり、消えるのは最小値のタイルだけ")
+    func removesSmallestTilesDeterministically() {
+        let revived = Game2048Logic.revive(Self.deadBoard)
+
+        #expect(Game2048Logic.emptyCells(revived).count == 4)
+        // 値の昇順 → 行・列の昇順で 2(0,0) → 4(0,1) → 4(0,3) → 4(2,0) の 4 個が消える。
+        #expect(revived == [
+            [0, 0, 8, 0],
+            [16, 8, 32, 16],
+            [0, 64, 128, 32],
+            [16, 8, 4, 8],
+        ])
+    }
+
+    @Test("何度呼んでも結果が同じ（乱数に依存しない）")
+    func isDeterministic() {
+        let first = Game2048Logic.revive(Self.deadBoard)
+        for _ in 0..<50 {
+            #expect(Game2048Logic.revive(Self.deadBoard) == first)
+        }
+    }
+
+    @Test("最大タイルは取り除かない")
+    func keepsHighestTile() {
+        let revived = Game2048Logic.revive(Self.deadBoard)
+        #expect(revived.flatMap { $0 }.max() == 128)
+        #expect(revived[2][2] == 128)
+    }
+
+    @Test("復活後の盤面は終局ではない")
+    func revivedBoardIsPlayable() {
+        let revived = Game2048Logic.revive(Self.deadBoard)
+        #expect(Game2048Logic.isGameOver(revived) == false)
+        #expect(Direction.allCases.contains { Game2048Logic.slide(revived, $0).moved })
+    }
+
+    @Test("既に空きマスが足りている盤面には手を加えない")
+    func noOpWhenAlreadyEnoughSpace() {
+        let board = [
+            [2, 4, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ]
+        #expect(Game2048Logic.revive(board) == board)
+    }
+
+    /// 「最小値のタイルを 4 個消す」という仕様が、実プレイ由来ではない終局盤面でも
+    /// 成り立つことを機械的に確かめる。市松模様に敷いた最大タイルは保護対象。
+    @Test("最大タイルが8個ある最悪ケースでも空きマス4を確保できる")
+    func worksWhenHighestTileFillsCheckerboard() {
+        // 128 を市松の 8 マスに敷き、残りをマージ不可の 2/4/8/16 で埋めた終局盤面。
+        let board = [
+            [128, 2, 128, 4],
+            [8, 128, 16, 128],
+            [128, 4, 128, 2],
+            [16, 128, 8, 128],
+        ]
+        #expect(Game2048Logic.isGameOver(board))
+
+        let revived = Game2048Logic.revive(board)
+        #expect(Game2048Logic.emptyCells(revived).count == 4)
+        #expect(revived.flatMap { $0 }.filter { $0 == 128 }.count == 8, "最大タイルは1個も消えない")
+        #expect(Game2048Logic.isGameOver(revived) == false)
+    }
+}

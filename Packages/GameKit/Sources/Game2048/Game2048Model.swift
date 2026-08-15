@@ -87,7 +87,10 @@ public final class Game2048Model {
         recordResult = nil
         gameOver = false
         continueUsed = true
-        Self.spawn(into: &board)
+        // 終局盤面は必ず全埋まりなので、ここで新タイルを置こうとしても空振りする（それが #122 の不具合）。
+        // 最小値のタイルを消して空きマスを確保し、確実に続きを遊べる盤面で再開する。新タイルは置かない
+        // （コンティニューは手番ではないうえ、せっかく確保した空きマスを潰して続行手数を削るだけのため）。
+        board = Game2048Logic.revive(board)
         persist()
     }
 
