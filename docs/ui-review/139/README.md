@@ -26,8 +26,20 @@
 
 ## 再現方法
 
-`~/Library/Application Support/Snapshots/shogi.json`（アプリのデータコンテナ配下）に
-中断スナップショットを書き込み、`-startGame shogi` で起動する。レコメンドは
+シミュレータの**データコンテナ配下**（ホストのホームではない）に中断スナップショットを書き込み、
+`-startGame shogi` で起動する。
+
+```sh
+BUNDLE_ID=com.hirockysan1983.asobiba
+DATA_CONTAINER="$(xcrun simctl get_app_container booted "$BUNDLE_ID" data)"
+SNAPSHOT_DIR="$DATA_CONTAINER/Library/Application Support/Snapshots"
+mkdir -p "$SNAPSHOT_DIR"
+# "$SNAPSHOT_DIR/shogi.json" に ShogiSnapshot の JSON を書く
+xcrun simctl launch booted "$BUNDLE_ID" -startGame shogi
+```
+
+記録ラベル（`playLog_records_v1`）を出すときは、コンテナの plist を直接書くと cfprefsd に
+上書きされるため `xcrun simctl spawn booted defaults write "$BUNDLE_ID" ...` を使う。レコメンドは
 `-simulateRecommendation gomoku`（DEBUG 限定の起動引数）で条件を通さずに出せる。
 詰みの検証には「後手の合法手が金 5g→5h の 1 手だけで、それが詰み」になる局面
 （SFEN `9/9/9/9/9/4l4/3pgp3/3p1p3/3pKp3 w - 1`）を使い、CPU に実際に詰ませている。
