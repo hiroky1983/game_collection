@@ -107,8 +107,10 @@ hash_numbers() {
   printf '%s' "${out# }"
 }
 
+# 改行・タブは先に空白へ寄せる。いきなり tr -cd で落とすと、収集側の出力が複数行になったときに
+# "128" と "106" が "128106" という存在しない番号に化ける（PR #142 の CodeRabbit 指摘）
 sanitize_numbers() {
-  printf '%s' "$1" | tr -cd '0-9 ' | tr -s ' ' | sed 's/^ //; s/ $//'
+  printf '%s' "$1" | tr '\n\t' '  ' | tr -cd '0-9 ' | tr -s ' ' | sed 's/^ //; s/ $//'
 }
 
 notify_pending() {

@@ -133,7 +133,9 @@ check "変わった直後の再実行はまた抑止される" "0" "$(notified)"
 
 echo "== 8. 24時間経過したら同じ対象でも再通知 =="
 reset_log
-printf '%s\n%s\n' "$(sed -n '1p' "$STATE")" "$(( $(date +%s) - 86401 ))" >"$STATE"
+# キーは直前のテストの状態ファイルから読まず明示的に組み立てる（テストの前後関係に依存させない）
+if [ -f "$STATE" ]; then ok "テスト8の前提となる状態ファイルがある"; else ng "テスト8の前提となる状態ファイルが無い"; fi
+printf '%s\n%s\n' "ringi=128 106 999;approval=79" "$(( $(date +%s) - 86401 ))" >"$STATE"
 notify_pending
 check "前回から24時間超なら再通知する" "1" "$(notified)"
 
