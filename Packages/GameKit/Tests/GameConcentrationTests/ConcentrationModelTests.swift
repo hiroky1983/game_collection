@@ -39,6 +39,20 @@ private func matchPair(in cards: [ConcentrationCard]) -> (Int, Int) {
     return (first, second)
 }
 
+/// CPU の手を固定するテスト用 AI。`choices` を使い切ったら通常のロジックに戻る。
+private final class ScriptedConcentrationAI: ConcentrationAI {
+    var choices: [Int] = []
+
+    init() { super.init(accuracy: 0) }
+
+    override func chooseCard(cards: [ConcentrationCard], firstFlipped: Int?) -> Int {
+        guard !choices.isEmpty else {
+            return super.chooseCard(cards: cards, firstFlipped: firstFlipped)
+        }
+        return choices.removeFirst()
+    }
+}
+
 // MARK: - Tests
 
 /// 自動ターン交代の待ち時間。テストでは実時間を待つため短くする（#137）
@@ -157,22 +171,38 @@ struct ConcentrationModelTests {
 
     @Test("CPU がミスマッチしても二重クリアで詰まらず人間のターンに戻る")
     func cpuMismatch_returnsTurnToHuman() async {
-        let model = ConcentrationModel(services: nil, autoClearDelay: testAutoClearDelay)
+        // CPU の手を固定する。実 AI は選択がランダムで、マッチが続いて決着してしまうと
+        // 「CPU のミスマッチ」を一度も通らないままテストが緑になる（PR #146 指摘）。
+        let scripted = ScriptedConcentrationAI()
+        let model = ConcentrationModel(services: nil,
+                                       autoClearDelay: testAutoClearDelay,
+                                       aiFactory: { _ in scripted })
+
         let (a, b) = mismatchPair(in: model.cards)
         model.tap(index: a)
         model.tap(index: b)
         await waitPastAutoClear()
-        #expect(model.currentPlayer == .cpu)
+        #expect(model.currentPlayer == .cpu, "人間のミスマッチで CPU に手番が渡る")
+
+        // CPU にはシンボルの異なる2枚を必ず引かせる
+        let (c, d) = mismatchPair(in: model.cards)
+        scripted.choices = [c, d]
+        let turnIDAtCPUStart = model.turnID
+        let cpuScoreBefore = model.cpuScore
 
         await model.performCPUMoveIfNeeded()
 
+        #expect(model.cards[c].symbol != model.cards[d].symbol, "CPU が引いた2枚はミスマッチ")
+        #expect(model.cpuScore == cpuScoreBefore, "ミスマッチなので CPU は得点しない")
+        #expect(!model.isGameOver, "ミスマッチなので決着しない")
         #expect(!model.isThinking, "CPU ターン終了時に isThinking が残らない")
-        #expect(model.currentPlayer == .human || model.isGameOver,
-                "人間のターンに戻る（詰まらない）")
-        // CPU が自前でクリアした直後に人間側の自動クリアが走ると turnID が余計に進む
+        #expect(model.currentPlayer == .human, "人間のターンに戻る（詰まらない）")
+        #expect(model.turnID == turnIDAtCPUStart + 1, "CPU のミスマッチで turnID がちょうど1回だけ進む")
+
+        // CPU が自前でクリアした後に人間側の自動クリアが走ると turnID が余計に進む（Bug 1）
         await waitPastAutoClear()
-        #expect(model.currentPlayer == .human || model.isGameOver,
-                "CPU の後始末が人間のターンを奪わない")
+        #expect(model.currentPlayer == .human, "CPU の後始末が人間のターンを奪わない")
+        #expect(model.turnID == turnIDAtCPUStart + 1, "余計な clearMismatch が走っていない")
     }
 
     @Test("clearMismatch後にCPUターンへ移行する")

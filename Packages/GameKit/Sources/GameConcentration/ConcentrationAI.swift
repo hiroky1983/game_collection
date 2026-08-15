@@ -2,7 +2,10 @@ import Foundation
 
 /// CPU の記憶AIロジック。難易度に応じた確率でカードの位置を記憶し、
 /// 知っているペアがあれば優先的に選択する。
-final class ConcentrationAI {
+///
+/// 選択にランダム性があるため、テストが CPU の手を固定したいときは `chooseCard` を
+/// override したサブクラスを `ConcentrationModel` の `aiFactory` から返す（#137 の Bug 1 回帰テスト）。
+class ConcentrationAI {
     private let accuracy: Double
     /// 記憶: カードインデックス → シンボル
     private var memory: [Int: String] = [:]

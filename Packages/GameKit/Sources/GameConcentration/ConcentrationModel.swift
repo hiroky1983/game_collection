@@ -69,14 +69,21 @@ public final class ConcentrationModel {
     /// 限定し、CPU 側の経路（`doCPUTurn`）からは一切スケジュールしない。
     private var autoClearTask: Task<Void, Never>?
 
+    /// CPU の AI を作る。難易度が変わるたびに作り直すため関数で持つ
+    /// （テストは CPU の手を固定したサブクラスを返してくる）。
+    private let aiFactory: (Double) -> ConcentrationAI
+
     public convenience init(services: GameServices? = nil) {
         self.init(services: services, autoClearDelay: Self.defaultAutoClearDelay)
     }
 
-    /// テストが待ち時間を縮めるための入口
-    init(services: GameServices?, autoClearDelay: UInt64) {
+    /// テストが待ち時間と CPU の手を固定するための入口
+    init(services: GameServices?,
+         autoClearDelay: UInt64,
+         aiFactory: @escaping (Double) -> ConcentrationAI = { ConcentrationAI(accuracy: $0) }) {
         self.services = services
         self.autoClearDelay = autoClearDelay
+        self.aiFactory = aiFactory
         if let snap = services?.snapshots.load(ConcentrationSnapshot.self, for: "concentration") {
             restoreFrom(snap)
         } else {
@@ -194,7 +201,7 @@ public final class ConcentrationModel {
         cancelAutoClear()
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
-        ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
+        ai = aiFactory(cpuLevel.memoryAccuracy)
         playerScore = 0
         cpuScore = 0
         currentPlayer = .human
@@ -221,7 +228,7 @@ public final class ConcentrationModel {
 
         pairCount = ConcentrationPairCount(rawValue: snap.pairCount) ?? .medium
         cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel) ?? .normal
-        ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
+        ai = aiFactory(cpuLevel.memoryAccuracy)
         playerScore = snap.playerScore
         cpuScore = snap.cpuScore
         currentPlayer = snap.currentPlayer == 0 ? .human : .cpu
