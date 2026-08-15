@@ -176,6 +176,12 @@ reset_log
 MOCK_GH_AUTH_RC=1 TMPDIR="$TEST_HOME" HOME="$TEST_HOME" bash "$E2E"
 check "gh 未認証（収集前に exit）でも通知は出ない" "0" "$(notified)"
 
+echo "== 11. gh issue list の取得上限が明示されている =="
+# --limit を省略すると 30 件で打ち切られ、超えた分が黙って通知から漏れる（PR #142 の CodeRabbit 指摘）。
+# 偽 gh では件数の打ち切りを再現できないため、呼び出し側に上限が書かれていることを検査する
+LIMITS=$(sed -n '/^collect_notify_targets() {/,/^}/p' "$TARGET" | grep -cE -- '--limit [0-9]+')
+check "収集の gh issue list 2本すべてに --limit がある" "2" "$LIMITS"
+
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

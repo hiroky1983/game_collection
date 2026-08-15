@@ -82,12 +82,14 @@ NOTIFY_READY=0
 # 通知対象の収集。gh が失敗したときは NOTIFY_READY を立てないので通知しない（黙って0件扱いにすると
 # 「対象なし」と区別が付かず、稟議があるのに無音になる）
 collect_notify_targets() {
+  # --limit を省略すると 30 件で打ち切られ、超えた分が**黙って**通知から漏れる（PR #142 の
+  # CodeRabbit 指摘）。滞留が増えたときほど漏れるという最悪の壊れ方をするので上限を明示する
   local ringi approval
-  ringi=$(gh issue list -R hiroky1983/game_collection --label "ringi:pending" --state open \
+  ringi=$(gh issue list -R hiroky1983/game_collection --label "ringi:pending" --state open --limit 200 \
     --json number --jq '[.[].number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
   # 承認待ち = ai:proposed のうち会長のハンコがまだ無いもの。着手済み・外部イベント待ち（blocked）と、
   # 上の決裁待ちに既に出ているものは重複するので除く
-  approval=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
+  approval=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open --limit 200 \
     --json number,labels \
     --jq '[.[] | ([.labels[].name]) as $l
           | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null
