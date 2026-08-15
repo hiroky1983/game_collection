@@ -137,24 +137,33 @@ public final class OthelloModel {
 
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking, !gameOver else { return }
+        // 待ちの最中に新規対局が始まると、旧盤面での判断（パス・着手）が新しい盤面に
+        // 適用されてしまう。開始時のトリガー（対局の通し番号 × turnID）を控え、
+        // 完了時に一致する場合だけ進める。
+        let key = aiTurnKey
+        let serial = gameSerial
 
         if mustPass {
             try? await Task.sleep(nanoseconds: 600_000_000)
-            guard isAITurn else { return }
+            guard aiTurnKey == key, isAITurn, mustPass else { return }
             confirmPass()
             return
         }
 
         isThinking = true
-        defer { isThinking = false }
+        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
+        defer { if gameSerial == serial { isThinking = false } }
 
         let b = board, s = currentStone, lvl = aiLevel
         let move = await Task.detached(priority: .userInitiated) {
             await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
         }.value
 
-        guard isAITurn, !gameOver else { return }
-        if let (r, c) = move { place(row: r, col: c) }
+        guard aiTurnKey == key, isAITurn, !gameOver else { return }
+        // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
+        if let (r, c) = move, board.isValid(row: r, col: c, stone: currentStone) {
+            place(row: r, col: c)
+        }
     }
 
     public func newGame(humanSide: OthelloStone = .black, aiLevel: Int = 1) {
@@ -172,6 +181,9 @@ public final class OthelloModel {
         recordResult   = nil
         startedAt      = Date()
         gameSerial    += 1
+        // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする。
+        // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
+        isThinking     = false
         persist()
     }
 

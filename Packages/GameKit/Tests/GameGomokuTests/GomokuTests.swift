@@ -142,3 +142,30 @@ struct GomokuAITurnKeyTests {
         #expect(model.moveCount == 0)
     }
 }
+
+// MARK: - 思考中の新規対局（#140 のレビュー指摘: 旧盤面で選んだ手が新盤面に着手される）
+
+@MainActor
+@Suite("五目並べ 思考中の新規対局")
+struct GomokuNewGameDuringThinkingTests {
+    /// CPU の思考中に後手で新規対局を始めても、旧盤面で選んだ手が新しい盤面に着手されないこと。
+    /// 併せて、思考フラグが新しい対局のために解放され CPU の初手を起動できること。
+    ///
+    /// 思考の途中で `newGame` が入る状況を安定して作るため、CPU は深い探索（aiLevel 2）にしている。
+    /// 旧タスクが先に完走した場合でも下の期待値は成立するため、この検証は結果に対して決定的。
+    @Test func newGameDuringThinkingDiscardsStaleMove() async {
+        let model = GomokuModel(services: nil)
+        model.newGame(humanSide: .black, aiLevel: 2)
+        model.tap(row: 7, col: 7) // 人間(黒)が着手 → CPU(白)の番
+        let thinking = Task { await model.performAIMoveIfNeeded() }
+        await Task.yield()        // 思考を開始させる
+
+        model.newGame(humanSide: .white) // 思考中に後手で新規対局
+        await thinking.value             // 旧対局の計算が終わるまで待つ
+
+        #expect(model.moveCount == 0)      // 旧盤面で選んだ手は入っていない
+        #expect(model.board[7, 7] == nil)
+        #expect(model.isThinking == false) // 新しい対局の CPU を起動できる
+        #expect(model.isAITurn)            // 新しい対局は CPU(黒)の手番のまま
+    }
+}

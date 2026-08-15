@@ -95,3 +95,29 @@ struct OthelloAITurnKeyTests {
         #expect(model.turnID == 0)
     }
 }
+
+// MARK: - 思考中の新規対局（#140 のレビュー指摘: 旧盤面で選んだ手が新盤面に着手される）
+
+@MainActor
+@Suite("オセロ 思考中の新規対局")
+struct OthelloNewGameDuringThinkingTests {
+    /// CPU の思考中に後手で新規対局を始めても、旧盤面で選んだ手が新しい盤面に着手されないこと。
+    /// オセロは着手で石が返るため、旧盤面の手をそのまま打つと盤面が壊れる。
+    @Test func newGameDuringThinkingDiscardsStaleMove() async {
+        let model = OthelloModel(services: nil)
+        model.newGame(humanSide: .black, aiLevel: 2)
+        let first = try! #require(model.board.validMoves(for: .black).first)
+        model.tap(row: first.0, col: first.1) // 人間(黒)が着手 → CPU(白)の番
+        let thinking = Task { await model.performAIMoveIfNeeded() }
+        await Task.yield()
+
+        model.newGame(humanSide: .white)
+        await thinking.value
+
+        #expect(model.turnID == 0)         // 旧盤面で選んだ手は入っていない
+        #expect(model.blackCount == 2)     // 初期配置のまま（石が返っていない）
+        #expect(model.whiteCount == 2)
+        #expect(model.isThinking == false)
+        #expect(model.isAITurn)            // 新しい対局は CPU(黒)の手番のまま
+    }
+}
