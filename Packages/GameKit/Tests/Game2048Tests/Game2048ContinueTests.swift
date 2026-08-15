@@ -1,5 +1,21 @@
 import Testing
+import Foundation
+import Core
 @testable import Game2048
+
+/// 再起動をまたぐ挙動を、ファイルを触らずに再現するための中断データ置き場。
+private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
+    private var store: [String: Data] = [:]
+    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
+        store[gameID] = try JSONEncoder().encode(snapshot)
+    }
+    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
+        guard let data = store[gameID] else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
+    func exists(for gameID: String) -> Bool { store[gameID] != nil }
+}
 
 /// #122: 広告視聴後のコンティニューが「盤面を動かせないまま戻される」不具合の回帰テスト。
 /// 復活処理が決定的（乱数なし）になったので、盤面そのものを厳密な期待値で表明できる。
@@ -70,6 +86,37 @@ struct Game2048ContinueTests {
         let moves = playUntilGameOver(model)
         #expect(moves >= 4, "空きマス4を確保しているので最低4手は保証される（実際は \(moves) 手）")
         #expect(model.gameOver, "終局まで到達できる（無限ループにも詰まりにもならない）")
+    }
+
+    @Test("再起動してもコンティニュー権は復活しない（スナップショットに使用済みを持つ）")
+    func continueUsedSurvivesRestart() {
+        let store = MemorySnapshotStore()
+        let services = GameServices(snapshots: store, ads: NoopAdService())
+
+        let before = Game2048Model(services: services, board: Self.deadBoard, score: 1234)
+        before.continueAfterAd()
+        #expect(before.continueUsed)
+
+        // アプリを起動し直した状態を、同じスナップショット置き場から作り直して再現する。
+        let restored = Game2048Model(services: services)
+        #expect(restored.continueUsed, "使用済みフラグが復元される")
+        #expect(restored.board == before.board)
+        #expect(restored.score == 1234)
+
+        // 続きを遊んで再び終局しても、2回目のコンティニューは成立しない。
+        playUntilGameOver(restored)
+        let boardAtGameOver = restored.board
+        restored.continueAfterAd()
+        #expect(restored.gameOver)
+        #expect(restored.board == boardAtGameOver)
+    }
+
+    @Test("`continueUsed` を持たない旧バージョンの中断データも読める")
+    func decodesLegacySnapshotWithoutContinueUsed() throws {
+        let legacy = Data(#"{"board":[[2,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]],"score":8}"#.utf8)
+        let snapshot = try JSONDecoder().decode(Game2048Snapshot.self, from: legacy)
+        #expect(snapshot.score == 8, "キーが増えても既存の中断データを失わせない")
+        #expect(snapshot.continueUsed == false, "欠けていたら『まだ使っていない』として読む")
     }
 
     /// 動かせる方向が無くなるまで動かし続け、実際に動いた手数を返す。

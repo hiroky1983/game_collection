@@ -24,6 +24,8 @@ public final class Game2048Model {
         if let snap = services?.snapshots.load(Game2048Snapshot.self, for: gameID) {
             initialBoard = snap.board
             initialScore = snap.score
+            // 再起動でコンティニュー権が復活しないよう、使用済みフラグも復元する。
+            continueUsed = snap.continueUsed
         } else {
             initialBoard = Game2048Logic.emptyBoard()
             initialScore = 0
@@ -108,7 +110,10 @@ public final class Game2048Model {
 
     private func persist() {
         guard !gameOver else { return }
-        try? services?.snapshots.save(Game2048Snapshot(board: board, score: score), for: gameID)
+        try? services?.snapshots.save(
+            Game2048Snapshot(board: board, score: score, continueUsed: continueUsed),
+            for: gameID
+        )
     }
 
     /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。
