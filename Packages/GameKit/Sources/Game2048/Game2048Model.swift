@@ -24,6 +24,8 @@ public final class Game2048Model {
         if let snap = services?.snapshots.load(Game2048Snapshot.self, for: gameID) {
             initialBoard = snap.board
             initialScore = snap.score
+            // 再起動でコンティニュー権が復活しないよう、使用済みフラグも復元する。
+            continueUsed = snap.continueUsed
         } else {
             initialBoard = Game2048Logic.emptyBoard()
             initialScore = 0
@@ -87,7 +89,10 @@ public final class Game2048Model {
         recordResult = nil
         gameOver = false
         continueUsed = true
-        Self.spawn(into: &board)
+        // 終局盤面は必ず全埋まりなので、ここで新タイルを置こうとしても空振りする（それが #122 の不具合）。
+        // 最小値のタイルを消して空きマスを確保し、確実に続きを遊べる盤面で再開する。新タイルは置かない
+        // （コンティニューは手番ではないうえ、せっかく確保した空きマスを潰して続行手数を削るだけのため）。
+        board = Game2048Logic.revive(board)
         persist()
     }
 
@@ -105,7 +110,10 @@ public final class Game2048Model {
 
     private func persist() {
         guard !gameOver else { return }
-        try? services?.snapshots.save(Game2048Snapshot(board: board, score: score), for: gameID)
+        try? services?.snapshots.save(
+            Game2048Snapshot(board: board, score: score, continueUsed: continueUsed),
+            for: gameID
+        )
     }
 
     /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。

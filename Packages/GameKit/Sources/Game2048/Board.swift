@@ -93,6 +93,43 @@ public enum Game2048Logic {
         return true
     }
 
+    /// コンティニュー（リワード広告視聴後の復活）で確保する空きマス数。
+    public static let continueEmptyCells = 4
+
+    /// コンティニュー用の復活処理。空きマスが `targetEmpty` 個になるまで、盤上の最小値のタイルから
+    /// 順に取り除く。取り除く順は「値の昇順 →（同値なら）行・列の昇順」で完全に決定的（乱数を使わない）。
+    /// プレイヤーの成果を壊さないよう、盤上の最大値のタイルは取り除かない。
+    ///
+    /// 終局盤面は定義上必ず空きマス 0 なので、実際の挙動は「最小値のタイルを 4 個消す」になる。
+    /// 空きマスが 1 個でもあれば動かせる方向が必ず存在する（4 方向すべてで不変 = 各行が
+    /// 満杯か空、かつ各列も満杯か空 となり、空きマスとタイルが同時に存在する盤では矛盾する）ため、
+    /// 1 手で沸くタイルが高々 1 個であることと併せて **最低 4 手** の続行が保証される（#122）。
+    ///
+    /// 最大タイルを保護しても除去候補が枯れることはない: 終局盤面で最大値のタイル同士は
+    /// 隣接できない（隣接していればマージ可能で終局しない）ため 4x4 では高々 8 個、
+    /// 残る 8 個以上が除去候補になる。
+    public static func revive(_ board: [[Int]], targetEmpty: Int = continueEmptyCells) -> [[Int]] {
+        var result = board
+        let shortage = targetEmpty - emptyCells(board).count
+        guard shortage > 0 else { return result }
+
+        let tiles = board.indices.flatMap { r in
+            board[r].indices.compactMap { c -> (value: Int, row: Int, col: Int)? in
+                board[r][c] == 0 ? nil : (board[r][c], r, c)
+            }
+        }
+        guard let highest = tiles.map(\.value).max() else { return result }
+
+        let removable = tiles
+            .filter { $0.value != highest }
+            .sorted { ($0.value, $0.row, $0.col) < ($1.value, $1.row, $1.col) }
+
+        for tile in removable.prefix(shortage) {
+            result[tile.row][tile.col] = 0
+        }
+        return result
+    }
+
     /// 空盤を生成する。
     public static func emptyBoard() -> [[Int]] {
         Array(repeating: Array(repeating: 0, count: size), count: size)
