@@ -40,6 +40,19 @@
   `release/v1.1.2` にのみ積む。**対応するブランチが無ければ、直近の release ブランチの HEAD から自分で作成する**
   （`git push origin <最新releaseのHEAD>:refs/heads/release/vX.Y.Z`）。作成したらブランチ保護
   （test 必須 + 未解決スレッドでマージ不可）も同時に設定し、Issue にその旨を記録する。
+- **release ブランチを作成したら、そのブランチの `.github/` を main と同期する**（2026-08-15 追加・#131）。
+  以後も main 側で `.github/` を直した場合は、`origin/main` を release ブランチへマージして横展開する
+  （`App/` `Packages/` に差分が入らないことを `git diff --stat` で確認してから）。同期を怠ると、
+  release ブランチだけが古い CI 定義で動き続ける:
+  1. **push トリガのブランチフィルタは release ブランチ側の定義で評価される**。GitHub Actions の
+     ブランチフィルタでは `*` が `/` にマッチしないため、旧版の `branches: [main, 'release-*']` は
+     `release/v1.1.1` に**マッチしない**。結果、PR のマージコミット（= 統合後の状態）が一度も CI に
+     かからない。PR 単位のゲートは効いているので緑に見えるが、「A と B がそれぞれ base X に対して緑 →
+     A を先にマージ → B は X+A に対して再検証されない」という意味的コンフリクトがリリース直前まで
+     露見しない。
+  2. **`pull_request` イベントのワークフロー定義は base 側から読まれる**。base が release ブランチの
+     PR は、main で直したはずのワークフロー（例: `close-issues.yml` の誤クローズ対策）を
+     **旧版のまま実行する**。
 - **審査に提出した時点で、その release ブランチは凍結する**（2026-08-13 追加）。
   1. 提出したコミットに `vX.Y.Z-build<N>` のタグを打って push する（何が審査に入ったかの唯一の証跡）。
   2. GitHub のブランチ保護で `lock_branch: true` を設定し、以降そのブランチへは一切 push しない。
