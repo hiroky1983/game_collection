@@ -22,21 +22,17 @@ public struct ShogiView: View {
     private var flipped: Bool { model.humanSide == .white }
 
     public var body: some View {
-        VStack(spacing: 12) {
+        // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 盤に回せる高さを間隔から捻出している（#139）。
+        VStack(spacing: 8) {
             statusBar
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
                 .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
             HowToPlayHint(.shogi, playLog: services.playLog)
-            if model.gameOver {
-                RecordLabel(model.recordResult)
-                reviewControls
-            } else {
-                gameControls
-            }
-            RecommendationSlot(services: services, isFinished: model.gameOver)
-            Spacer(minLength: 8)
+            controlArea
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .animation(.none, value: model.gameOver)
@@ -175,6 +171,7 @@ public struct ShogiView: View {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
                     .font(Theme.body(16)).foregroundStyle(Theme.coral)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 Text(model.position.sideToMove == .black ? "先手番" : "後手番")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -188,12 +185,54 @@ public struct ShogiView: View {
                     Text("直前 \(last)").font(Theme.body(14)).foregroundStyle(Theme.ink)
                 }
             }
-            Spacer()
-            Text("\(model.moves.count)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+            Spacer(minLength: 8)
+            if model.gameOver {
+                // 終局後の記録は行を増やさずここに同居させる（#139）。手数は検討ナビが
+                // 「n/N手」で出しているため、入れ替えても情報は失われない。
+                RecordLabel(model.recordResult)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            } else {
+                Text("\(model.moves.count)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+            }
         }
         .frame(minHeight: 36)
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 12).padding(.vertical, 6)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    // MARK: - 盤の下の操作エリア
+
+    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度・レコメンド）で中身が入れ替わるが、
+    /// **高さは常に終局後の最大構成に揃える**（#139）。
+    ///
+    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
+    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
+    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    private var controlArea: some View {
+        ZStack(alignment: .top) {
+            finishedControls { RecommendationCard.heightPlaceholder }
+                .hidden()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            if model.gameOver {
+                finishedControls {
+                    RecommendationSlot(services: services, isFinished: true)
+                }
+            } else {
+                gameControls
+            }
+        }
+    }
+
+    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
+    private func finishedControls<Recommendation: View>(
+        @ViewBuilder recommendation: () -> Recommendation
+    ) -> some View {
+        VStack(spacing: 8) {
+            reviewControls
+            recommendation()
+        }
     }
 
     private var gameControls: some View {
@@ -247,28 +286,29 @@ public struct ShogiView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// 検討ナビと「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#139）。
+    /// 2 段のままだと盤の下が伸び、決着の瞬間に盤が縮む。
     private var reviewControls: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 16) {
-                Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
-                    .disabled(model.reviewPly <= 0)
-                Text("\(model.reviewPly)/\(model.moves.count)手")
-                    .font(Theme.body(14)).monospacedDigit().foregroundStyle(Theme.ink)
-                Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
-                    .disabled(model.reviewPly >= model.moves.count)
-                Spacer()
-            }
-            .font(Theme.body(14))
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
+        HStack(spacing: 12) {
+            Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
+                .disabled(model.reviewPly <= 0)
+            Text("\(model.reviewPly)/\(model.moves.count)手")
+                .font(Theme.body(14)).monospacedDigit().foregroundStyle(Theme.ink)
+            Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
+                .disabled(model.reviewPly >= model.moves.count)
+
+            Spacer(minLength: 8)
 
             Button { showNewGame = true } label: {
-                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+                Label("もう一度", systemImage: "arrow.clockwise")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
         }
+        .font(Theme.body(14))
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 }
 
@@ -489,7 +529,9 @@ private struct HandAreaView: View {
             .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        // 縦の余白は 4。終局後に出るもののぶんの高さを確保しても盤が小さくならないよう、
+        // 駒の大きさ（＝タップ目標）は変えずに余白から捻出している（#139）。
+        .padding(.horizontal, 12).padding(.vertical, 4)
         .popCard(corner: Theme.cornerSmall)
     }
 }
