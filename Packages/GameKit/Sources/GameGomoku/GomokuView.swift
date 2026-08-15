@@ -76,7 +76,7 @@ public struct GomokuView: View {
         } message: {
             Text("途中で終了すると対局データが失われます。")
         }
-        .task(id: model.moveCount) {
+        .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
     }

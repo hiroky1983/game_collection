@@ -33,6 +33,8 @@ public final class GomokuModel {
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var moveCount: Int
     public private(set) var undoUsed: Bool
+    /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
+    public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
     private var resigned: Bool
@@ -44,6 +46,11 @@ public final class GomokuModel {
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
+
+    /// View の `.task(id:)` に渡す CPU 起動トリガー。
+    /// 手数だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
+    /// CPU の初手が起動しない（#140。将棋 #82 と同じ原因）。対局の通し番号と組にする。
+    public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: moveCount) }
 
     public init(services: GameServices? = nil) {
         self.services = services
@@ -157,8 +164,13 @@ public final class GomokuModel {
 
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
+        // 計算中に新規対局が始まると、旧盤面で選んだ手が新しい盤面に着手されてしまう。
+        // 計算開始時のトリガー（対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する。
+        let key = aiTurnKey
+        let serial = gameSerial
         isThinking = true
-        defer { isThinking = false }
+        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
+        defer { if gameSerial == serial { isThinking = false } }
 
         let b = board
         let s = currentStone
@@ -168,7 +180,7 @@ public final class GomokuModel {
             await SimpleGomokuEngine(level: level).bestMove(board: b, stone: s)
         }.value
 
-        guard isAITurn, let (r, c) = move else { return }
+        guard aiTurnKey == key, isAITurn, let (r, c) = move, board[r, c] == nil else { return }
         place(row: r, col: c)
     }
 
@@ -186,6 +198,10 @@ public final class GomokuModel {
         resigned       = false
         recordResult   = nil
         startedAt      = Date()
+        gameSerial    += 1
+        // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする。
+        // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
+        isThinking     = false
         persist()
     }
 
