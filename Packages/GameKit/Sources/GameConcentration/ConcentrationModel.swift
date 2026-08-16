@@ -165,6 +165,14 @@ public final class ConcentrationModel {
         autoClearTask = nil
     }
 
+    /// 予約中の自動ターン交代（#151 のテスト用の待ち合わせ口）。
+    ///
+    /// テストが実時間（`Task.sleep`）で自動ターン交代を待つと、並列実行で MainActor が混んだときに
+    /// サスペンションからの復帰が遅れて落ちる（当番の実測で 1ms の `Task.sleep` の復帰に 3.5 秒）。
+    /// 時間ではなくタスクの完了で待ち合わせられるよう、予約中のタスクだけをテストに見せる。
+    /// `nil` は「自動ターン交代が予約されていない」ことの表明にも使う。
+    var pendingAutoClear: Task<Void, Never>? { autoClearTask }
+
     private func doCPUTurn() async {
         isThinking = true
 

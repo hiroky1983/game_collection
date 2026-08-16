@@ -55,12 +55,18 @@ private final class ScriptedConcentrationAI: ConcentrationAI {
 
 // MARK: - Tests
 
-/// 自動ターン交代の待ち時間。テストでは実時間を待つため短くする（#137）
+/// 自動ターン交代の待ち時間。テストの実行時間を縮めるため短くする（#137）
 private let testAutoClearDelay: UInt64 = 40_000_000  // 40ms
 
-/// 自動ターン交代が起きるのに十分な時間を待つ
-private func waitPastAutoClear() async {
-    try? await Task.sleep(nanoseconds: testAutoClearDelay * 6)
+/// 予約された自動ターン交代の完了を待つ（#151）。
+///
+/// 以前は `Task.sleep(240ms)` で「起きているはず」の時間を待っていたが、テストの並列実行で
+/// MainActor が混むとサスペンションからの復帰が桁違いに遅れ（実測: 1ms の sleep の復帰に 3.5 秒）、
+/// 猶予を超えてフレークした。時間ではなく**タスクの完了**で待ち合わせるため、待ち時間を
+/// いくら延ばしても取り切れない不定性が無くなる。予約が無ければ即座に戻る。
+@MainActor
+private func awaitAutoClear(_ model: ConcentrationModel) async {
+    await model.pendingAutoClear?.value
 }
 
 @Suite("ConcentrationModel")
@@ -89,7 +95,7 @@ struct ConcentrationModelTests {
         model.tap(index: a)
         model.tap(index: b)
 
-        await waitPastAutoClear()
+        await awaitAutoClear(model)
 
         #expect(model.mismatchedIndices.isEmpty, "自動でミスマッチが解除される")
         #expect(!model.cards[a].isFaceUp, "自動でカードが裏返る")
@@ -105,8 +111,7 @@ struct ConcentrationModelTests {
         model.tap(index: a)
         model.tap(index: b)
 
-        await waitPastAutoClear()
-
+        #expect(model.pendingAutoClear == nil, "マッチでは自動ターン交代を予約しない")
         #expect(model.currentPlayer == .human, "マッチ後は人間のターンが続く")
         #expect(model.playerScore == 1)
     }
@@ -117,10 +122,13 @@ struct ConcentrationModelTests {
         let (a, b) = mismatchPair(in: model.cards)
         model.tap(index: a)
         model.tap(index: b)
+        let pending = model.pendingAutoClear
+        #expect(pending != nil, "前提: 待ったを使う前は自動ターン交代が予約されている")
         model.useMatta()
 
-        await waitPastAutoClear()
+        await pending?.value   // 取り消された予約が「何もしないまま終わる」ことまで見届ける
 
+        #expect(model.pendingAutoClear == nil, "待ったで予約が取り消される")
         #expect(model.currentPlayer == .human, "待った後にターンが奪われない")
         #expect(model.mismatchedIndices.isEmpty)
     }
@@ -131,14 +139,17 @@ struct ConcentrationModelTests {
         let (a, b) = mismatchPair(in: model.cards)
         model.tap(index: a)
         model.tap(index: b)
+        let paused = model.pendingAutoClear
+        #expect(paused != nil, "前提: 一時停止する前は自動ターン交代が予約されている")
         model.pauseAutoTurn()   // 「待った」確認ダイアログを開いた状態
 
-        await waitPastAutoClear()
+        await paused?.value
+        #expect(model.pendingAutoClear == nil, "確認中は自動ターン交代の予約が無い")
         #expect(model.currentPlayer == .human, "確認中は自動でターンが移らない")
         #expect(model.canMatta, "確認中も待ったは有効なまま")
 
         model.resumeAutoTurn()  // ダイアログをキャンセル
-        await waitPastAutoClear()
+        await awaitAutoClear(model)
         #expect(model.currentPlayer == .cpu, "キャンセル後は自動交代が再開する")
     }
 
@@ -147,7 +158,7 @@ struct ConcentrationModelTests {
         let model = ConcentrationModel(services: nil, autoClearDelay: testAutoClearDelay)
         model.resumeAutoTurn()
 
-        await waitPastAutoClear()
+        #expect(model.pendingAutoClear == nil, "ミスマッチが無ければ予約もしない")
         #expect(model.currentPlayer == .human)
         #expect(model.turnID == 0, "ターンが進まない")
     }
@@ -158,10 +169,13 @@ struct ConcentrationModelTests {
         let (a, b) = mismatchPair(in: model.cards)
         model.tap(index: a)
         model.tap(index: b)
+        let pending = model.pendingAutoClear
+        #expect(pending != nil, "前提: 新規ゲームを始める前は自動ターン交代が予約されている")
         model.newGame(pairCount: .small, cpuLevel: .weak)
 
-        await waitPastAutoClear()
+        await pending?.value   // 旧対局の予約が新しい盤面に手を出さないことまで見届ける
 
+        #expect(model.pendingAutoClear == nil, "新規ゲームで予約が取り消される")
         #expect(model.currentPlayer == .human, "新しい対局は人間の先手のまま")
         #expect(model.turnID == 0)
         #expect(model.cards.allSatisfy { !$0.isFaceUp })
@@ -181,7 +195,7 @@ struct ConcentrationModelTests {
         let (a, b) = mismatchPair(in: model.cards)
         model.tap(index: a)
         model.tap(index: b)
-        await waitPastAutoClear()
+        await awaitAutoClear(model)
         #expect(model.currentPlayer == .cpu, "人間のミスマッチで CPU に手番が渡る")
 
         // CPU にはシンボルの異なる2枚を必ず引かせる
@@ -199,8 +213,10 @@ struct ConcentrationModelTests {
         #expect(model.currentPlayer == .human, "人間のターンに戻る（詰まらない）")
         #expect(model.turnID == turnIDAtCPUStart + 1, "CPU のミスマッチで turnID がちょうど1回だけ進む")
 
-        // CPU が自前でクリアした後に人間側の自動クリアが走ると turnID が余計に進む（Bug 1）
-        await waitPastAutoClear()
+        // CPU が自前でクリアした後に人間側の自動クリアが走ると turnID が余計に進む（Bug 1）。
+        // 予約そのものが残っていないことを見れば、あとから走る余地が無いと言い切れる
+        // （以前はここで実時間を待って「起きなかったこと」を確かめていた）。
+        #expect(model.pendingAutoClear == nil, "CPU の経路からは自動ターン交代を予約しない")
         #expect(model.currentPlayer == .human, "CPU の後始末が人間のターンを奪わない")
         #expect(model.turnID == turnIDAtCPUStart + 1, "余計な clearMismatch が走っていない")
     }
