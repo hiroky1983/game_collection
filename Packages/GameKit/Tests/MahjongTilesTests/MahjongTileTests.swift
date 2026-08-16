@@ -108,4 +108,18 @@ struct MahjongFaceTests {
             try JSONDecoder().decode(MahjongFace.self, from: Data(json.utf8))
         }
     }
+
+    /// 書き出せるのに読み戻せない JSON を作らないよう、エンコード側も同じ値域で止める。
+    @Test("値域外の牌はエンコードでも拒否する")
+    func rejectsEncodingOutOfRangeValues() {
+        #expect(throws: EncodingError.self) {
+            try JSONEncoder().encode(MahjongFace.wind(4))
+        }
+        #expect(throws: EncodingError.self) {
+            try JSONEncoder().encode([MahjongFace?.some(.characters(1)), .flower(9)])
+        }
+        #expect(throws: Never.self) {
+            try JSONEncoder().encode(MahjongFace.dragon(2))
+        }
+    }
 }

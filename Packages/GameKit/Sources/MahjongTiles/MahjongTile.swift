@@ -134,8 +134,19 @@ extension MahjongFace: Codable {
     }
 
     public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: Kind.self)
         let (kind, value) = encoded
+        // デコード側が値域外を拒否するので、書き出し側も同じ値域で止める。
+        // 通さないと「保存はできるのに読み戻せない」スナップショットが出来てしまう。
+        guard isValid else {
+            throw EncodingError.invalidValue(
+                value,
+                EncodingError.Context(
+                    codingPath: encoder.codingPath,
+                    debugDescription: "牌の数が値域外です: \(kind.rawValue) = \(value)"
+                )
+            )
+        }
+        var container = encoder.container(keyedBy: Kind.self)
         var payload = container.nestedContainer(keyedBy: Payload.self, forKey: kind)
         try payload.encode(value, forKey: ._0)
     }

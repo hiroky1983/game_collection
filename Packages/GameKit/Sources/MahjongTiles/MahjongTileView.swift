@@ -110,6 +110,17 @@ public struct MahjongTileArt: View {
 
     @ViewBuilder
     private var content: some View {
+        // 値域外の牌（`wind(4)` 等）は下の `clamp` で近い値へ丸まり、別の有効牌に化けて見える。
+        // 描く前に弾いて無地にし、壊れた牌だと分かるようにする。
+        if !face.isValid {
+            EmptyView()
+        } else {
+            validContent
+        }
+    }
+
+    @ViewBuilder
+    private var validContent: some View {
         switch face {
         case .standard(.characters(let n)): charactersFace(n)
         case .standard(.circles(let n)):    circlesFace(n)
