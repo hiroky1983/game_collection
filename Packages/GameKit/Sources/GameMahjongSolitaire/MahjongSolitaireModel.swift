@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import Core
+import MahjongTiles
 
 public enum MahjongSolitairePhase: String, Codable, Sendable, Equatable {
     /// 取り進めている最中。

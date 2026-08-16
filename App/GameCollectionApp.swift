@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import MahjongTiles
 import FirebaseCore
 
 @main
@@ -14,13 +15,17 @@ struct GameCollectionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            HubView(
-                registry: AppEnvironment.registry,
-                services: AppEnvironment.services,
-                settings: AppEnvironment.settings,
-                initialGameID: startGameID,
-                showsSettingsInitially: showSettingsOnLaunch
-            )
+            #if DEBUG
+            // 動作確認用: 麻雀牌の全 42 種を複数サイズで並べて出す（`-showMahjongTiles`）。
+            // 盤面では牌が重なって減光もかかるため、絵柄そのものの見分けはここで確認する。
+            if ProcessInfo.processInfo.arguments.contains("-showMahjongTiles") {
+                MahjongTileGallery()
+            } else {
+                hub
+            }
+            #else
+            hub
+            #endif
         }
         .onChange(of: scenePhase) { _, newPhase in
             // 起動時は広告の初期化だけ行い、ATT 許可は聞かない（初回起動の1枚目がシステムダイアログに
@@ -33,6 +38,16 @@ struct GameCollectionApp: App {
                 }
             }
         }
+    }
+
+    private var hub: some View {
+        HubView(
+            registry: AppEnvironment.registry,
+            services: AppEnvironment.services,
+            settings: AppEnvironment.settings,
+            initialGameID: startGameID,
+            showsSettingsInitially: showSettingsOnLaunch
+        )
     }
 
     private var startGameID: String? {
