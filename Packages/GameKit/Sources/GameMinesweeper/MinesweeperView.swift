@@ -93,6 +93,15 @@ public struct MinesweeperView: View {
         }
         .task {
             model.resumeTimerIfNeeded()
+            #if DEBUG
+            // 撮影・動作確認用（DEBUG 限定）: タップ無しで終局後のレイアウトにする（`-simulateGiveUp`）。
+            // この画面の終局状態はタップ起点でしか作れず、中断スナップショットからの復元は
+            // 常にプレイ中に戻る（`MinesweeperModel.init` が `.playing` 固定）ため、
+            // 非対話のシミュレータ確認ではこの経路が要る（#148）。
+            if ProcessInfo.processInfo.arguments.contains("-simulateGiveUp") {
+                model.giveUp()
+            }
+            #endif
         }
         .onChange(of: model.gameState) { _, state in
             if state == .lost && model.hitMine != nil { showContinue = true }
