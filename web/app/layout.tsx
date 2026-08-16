@@ -7,7 +7,7 @@ import { APP_SIZE_MB, APP_STORE_URL, SITE_NAME, SITE_URL } from "./lib/site";
 /// 収録本数とゲーム名は `games` から導出する（`app/page.tsx` と同じ理由。本数をベタ書きしない）。
 const gameCount = games.length;
 const defaultTitle = `${SITE_NAME} - オフラインで遊べる無料ゲーム${gameCount}種の詰め合わせ`;
-const defaultDescription = `${games.map((g) => g.name).join("・")}の${gameCount}つを1本にまとめた iPhone 用ゲームコレクション。すべてオフラインで遊べて、通信も会員登録も不要。無料・約${APP_SIZE_MB}。`;
+const defaultDescription = `${gameCount}種類のゲーム（${games.map((g) => g.name).join("・")}）を1本にまとめた iPhone 用ゲームコレクション。すべてオフラインで遊べて、通信も会員登録も不要。無料・約${APP_SIZE_MB}。`;
 
 export const metadata: Metadata = {
   // 相対パスの canonical / OGP 画像をここを起点に絶対 URL 化する

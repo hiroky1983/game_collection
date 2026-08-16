@@ -44,10 +44,20 @@ viewport 幅 430px（モバイル相当）でも撮ってみたが、headless Ch
 
 ## 再現方法
 
+`npm start` はフォアグラウンドで動き続けるため、**サーバーの起動と撮影は別のターミナルで**行う。
+
+ターミナル1（サーバー。撮影が終わるまで起動したままにする）:
+
 ```sh
 cd web
 export PATH="$HOME/.nodenv/shims:$PATH"   # システム既定の node v14 では npm ci が失敗する
-npm ci && npm run build && npm start -- -p 3111
+npm ci && npm run build
+npm start -- -p 3111
+```
+
+ターミナル2（撮影）:
+
+```sh
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headless=new --disable-gpu --hide-scrollbars --window-size=900,1960 \
   --screenshot=top.png "http://localhost:3111/"
