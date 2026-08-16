@@ -101,23 +101,42 @@ struct OthelloAITurnKeyTests {
 @MainActor
 @Suite("オセロ 思考中の新規対局")
 struct OthelloNewGameDuringThinkingTests {
-    /// CPU の思考中に後手で新規対局を始めても、旧盤面で選んだ手が新しい盤面に着手されないこと。
+    /// CPU の思考を開始し、探索の完了待ちで止まっている状態にして返す。
+    ///
+    /// 待ち合わせは時間ではなく **MainActor のジョブ順序**で行う（将棋 #145 と同じ）。思考タスクを
+    /// 積んだ直後に空タスクを積むと、空タスクが走る時点で思考タスクは必ず開始済み（= detached な
+    /// 探索の完了待ちで停止中）になる。思考タスクの再開ジョブは探索の完了時にキューの後ろへ積まれる。
+    ///
+    /// `Task.yield()` 1回では思考タスクが動き出す保証すら無く、動いても「思考中である」ことを
+    /// 確かめないまま先へ進むため、旧タスクが完走した経路だけを検証してバグを見逃す（#152）。
+    private func startThinking(_ model: OthelloModel) async throws -> Task<Void, Never> {
+        let task = Task { await model.performAIMoveIfNeeded() }
+        await Task { }.value
+        try #require(model.isThinking, "テストの前提: 旧対局の思考が計算中であること")
+        return task
+    }
+
+    /// CPU の思考中に新規対局を始めても、旧盤面で選んだ手が新しい盤面に着手されないこと。
     /// オセロは着手で石が返るため、旧盤面の手をそのまま打つと盤面が壊れる。
-    @Test func newGameDuringThinkingDiscardsStaleMove() async {
+    ///
+    /// 新旧どちらも「初期盤面・CPU が黒（先手）」に揃えているため、旧盤面で選んだ手は新しい盤面でも
+    /// **合法**になる。着手直前の合法手チェックでは弾けない最悪ケースで、世代（`aiTurnKey`）の一致を
+    /// 見て初めて弾ける。併せて、旧タスクの完了を待たずに思考フラグが解放されることも確かめる。
+    @Test func newGameDuringThinkingDiscardsStaleMove() async throws {
         let model = OthelloModel(services: nil)
-        model.newGame(humanSide: .black, aiLevel: 2)
-        let first = try! #require(model.board.validMoves(for: .black).first)
-        model.tap(row: first.0, col: first.1) // 人間(黒)が着手 → CPU(白)の番
-        let thinking = Task { await model.performAIMoveIfNeeded() }
-        await Task.yield()
+        model.newGame(humanSide: .white, aiLevel: 2) // CPU=黒(先手)
+        #expect(model.isAITurn)
 
-        model.newGame(humanSide: .white)
-        await thinking.value
+        let thinking = try await startThinking(model)
 
-        #expect(model.turnID == 0)         // 旧盤面で選んだ手は入っていない
-        #expect(model.blackCount == 2)     // 初期配置のまま（石が返っていない）
+        model.newGame(humanSide: .white, aiLevel: 2) // 思考中に同じ初期盤面で新規対局
+        #expect(model.isThinking == false)           // 新しい対局の CPU を起動できる
+
+        await thinking.value                // 旧対局の計算が終わるまで待つ
+        #expect(model.turnID == 0)          // 旧盤面で選んだ手は入っていない
+        #expect(model.blackCount == 2)      // 初期配置のまま（石が返っていない）
         #expect(model.whiteCount == 2)
-        #expect(model.isThinking == false)
-        #expect(model.isAITurn)            // 新しい対局は CPU(黒)の手番のまま
+        #expect(model.isThinking == false)  // 旧タスクの defer にフラグを奪われない
+        #expect(model.isAITurn)             // 新しい対局は CPU(黒)の手番のまま
     }
 }
