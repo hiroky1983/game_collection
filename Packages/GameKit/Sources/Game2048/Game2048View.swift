@@ -15,12 +15,14 @@ public struct Game2048View: View {
     }
 
     public var body: some View {
-        VStack(spacing: 20) {
+        // 縦の余白は 14。レコメンドのぶんの高さを常に確保するので、盤面に回せる高さを
+        // 間隔から捻出している（#148）。
+        VStack(spacing: 14) {
             header
             boardView
             // 初回だけ出す 1 行（#118。以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.game2048, playLog: services.playLog)
-            RecommendationSlot(services: services, isFinished: model.gameOver)
+            recommendationArea
             Spacer()
             BannerSlot(ads: services.ads)
         }
@@ -54,6 +56,19 @@ public struct Game2048View: View {
         }
     }
 
+    /// レコメンドカードの枠。**カードの有無で高さが動かない**ように、常にひな形で
+    /// 高さを確保しておく（#148）。
+    ///
+    /// ここが伸びると `boardView`（`aspectRatio(1, .fit)`）が帳尻合わせに縮み、
+    /// ゲームオーバーの瞬間に盤面が一段小さくなって見える。カードは出るとは限らず
+    /// ×でも閉じられるため、条件付きで高さを足すのでは安定しない。
+    private var recommendationArea: some View {
+        ZStack(alignment: .top) {
+            RecommendationCard.heightPlaceholder
+            RecommendationSlot(services: services, isFinished: model.gameOver)
+        }
+    }
+
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -67,7 +82,8 @@ public struct Game2048View: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 18).padding(.vertical, 12)
+        // 縦の余白は 10。スコアの文字の大きさは変えずに、ここからも盤面の高さを捻出している（#148）。
+        .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
     }
 
