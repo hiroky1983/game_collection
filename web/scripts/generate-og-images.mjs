@@ -21,6 +21,10 @@ const CARD = "#FFFFFF";
 const INK = "#2B2B2B";
 const INK_SUB = "#7A7A7A";
 
+/// 本数・ゲーム名は `games` から導出する（画像にベタ書きすると追加のたびに古い数字が焼き付く）。
+const gameCount = games.length;
+const footer = `オフラインで遊べる無料ゲーム${gameCount}種｜App Store で配信中`;
+
 const esc = (s) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -34,7 +38,7 @@ function card({ title, subtitle }) {
   <text x="104" y="168" font-family="Hiragino Sans" font-size="40" font-weight="bold" fill="${BG}">あそびば</text>
   <text x="104" y="${titleY}" font-family="Hiragino Sans" font-size="${titleSize}" font-weight="bold" fill="${INK}">${esc(title)}</text>
   <text x="104" y="${titleY + 78}" font-family="Hiragino Sans" font-size="40" fill="${INK_SUB}">${esc(subtitle)}</text>
-  <text x="104" y="512" font-family="Hiragino Sans" font-size="34" fill="${INK_SUB}">オフラインで遊べる無料ゲーム8種｜App Store で配信中</text>
+  <text x="104" y="512" font-family="Hiragino Sans" font-size="34" fill="${INK_SUB}">${esc(footer)}</text>
 </svg>`;
 }
 
@@ -52,8 +56,8 @@ mkdirSync(outDir, { recursive: true });
 render(
   "default",
   card({
-    title: "定番ゲーム8種の詰め合わせ",
-    subtitle: "将棋・2048・五目並べ・オセロ・ポーカーほか",
+    title: `定番ゲーム${gameCount}種の詰め合わせ`,
+    subtitle: `${games.slice(0, 5).map((g) => g.name).join("・")}ほか`,
   }),
 );
 
