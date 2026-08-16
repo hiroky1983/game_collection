@@ -28,7 +28,7 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: SITE_NAME,
-  description: `${gameNames}の${gameCount}つを収録した iPhone 用ゲームコレクション。オフラインで遊べて、会員登録も不要。`,
+  description: `${gameCount}種類のゲーム（${gameNames}）を収録した iPhone 用ゲームコレクション。オフラインで遊べて、会員登録も不要。`,
   applicationCategory: "GameApplication",
   operatingSystem: `iOS ${MIN_IOS_VERSION}+`,
   url: SITE_URL,
