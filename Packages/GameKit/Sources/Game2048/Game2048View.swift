@@ -15,7 +15,9 @@ public struct Game2048View: View {
     }
 
     public var body: some View {
-        VStack(spacing: 20) {
+        // 縦の余白は 14。レコメンドのぶんの高さを常に確保するので、盤面に回せる高さを
+        // 間隔から捻出している（#148）。
+        VStack(spacing: 14) {
             header
             boardView
             // 初回だけ出す 1 行（#118。以降は `?` ボタンからいつでも読める）。
@@ -80,7 +82,8 @@ public struct Game2048View: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 18).padding(.vertical, 12)
+        // 縦の余白は 10。スコアの文字の大きさは変えずに、ここからも盤面の高さを捻出している（#148）。
+        .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
     }
 

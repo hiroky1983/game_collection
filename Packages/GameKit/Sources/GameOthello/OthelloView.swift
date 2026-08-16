@@ -17,7 +17,9 @@ public struct OthelloView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 盤に回せる高さを間隔から捻出している（#148）。
+        VStack(spacing: 8) {
             statusBar
             // 盤は正方形で幅が上限になるため、左右の余白を削って盤そのものを広げる。
             // 縦に残る空きは盤の上下へ均等に振り、下だけが大きく空く見た目をなくす。
@@ -127,7 +129,8 @@ public struct OthelloView: View {
                     .frame(width: 13, height: 13)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        // 縦の余白は 6。石・数字の大きさは変えずに、ここからも盤の高さを捻出している（#148）。
+        .padding(.horizontal, 12).padding(.vertical, 6)
         .popCard(corner: Theme.cornerSmall)
     }
 

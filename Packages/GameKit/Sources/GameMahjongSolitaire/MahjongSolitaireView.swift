@@ -23,7 +23,9 @@ public struct MahjongSolitaireView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        // 縦の余白は 8。プレイ中と取り切った後で高さが変わらない `controlArea` を置くぶん、
+        // 盤面に回せる高さを間隔から捻出している（#148）。
+        VStack(spacing: 8) {
             statusBar
             board
                 // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白ぶんまで使って牌を大きくする。
@@ -127,7 +129,8 @@ public struct MahjongSolitaireView: View {
             }
             .frame(minWidth: 78, alignment: .trailing)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        // 縦の余白は 8。牌・数字の大きさは変えずに、ここからも盤面の高さを捻出している（#148）。
+        .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 

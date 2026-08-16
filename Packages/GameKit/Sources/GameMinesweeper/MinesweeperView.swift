@@ -21,7 +21,9 @@ public struct MinesweeperView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        // 縦の余白は 8。プレイ中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 盤に回せる高さを間隔から捻出している（#148）。
+        VStack(spacing: 8) {
             statusBar
             board
                 .layoutPriority(1)
@@ -295,7 +297,8 @@ public struct MinesweeperView: View {
             .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        // 縦の余白は 8。数字・ボタンの大きさは変えずに、ここからも盤の高さを捻出している（#148）。
+        .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
