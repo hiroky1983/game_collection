@@ -20,7 +20,7 @@ public struct Game2048View: View {
             boardView
             // 初回だけ出す 1 行（#118。以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.game2048, playLog: services.playLog)
-            RecommendationSlot(services: services, isFinished: model.gameOver)
+            recommendationArea
             Spacer()
             BannerSlot(ads: services.ads)
         }
@@ -51,6 +51,19 @@ public struct Game2048View: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+        }
+    }
+
+    /// レコメンドカードの枠。**カードの有無で高さが動かない**ように、常にひな形で
+    /// 高さを確保しておく（#148）。
+    ///
+    /// ここが伸びると `boardView`（`aspectRatio(1, .fit)`）が帳尻合わせに縮み、
+    /// ゲームオーバーの瞬間に盤面が一段小さくなって見える。カードは出るとは限らず
+    /// ×でも閉じられるため、条件付きで高さを足すのでは安定しない。
+    private var recommendationArea: some View {
+        ZStack(alignment: .top) {
+            RecommendationCard.heightPlaceholder
+            RecommendationSlot(services: services, isFinished: model.gameOver)
         }
     }
 

@@ -30,12 +30,7 @@ public struct OthelloView: View {
                 }
             Spacer(minLength: 0)
             HowToPlayHint(.othello, playLog: services.playLog)
-            if model.gameOver {
-                newGameButton
-            } else {
-                gameControls
-            }
-            RecommendationSlot(services: services, isFinished: model.gameOver)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .animation(.none, value: model.gameOver)
@@ -306,11 +301,55 @@ public struct OthelloView: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
     }
 
-    private var newGameButton: some View {
-        Button { showNewGame = true } label: {
-            Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+    // MARK: - 盤の下の操作エリア
+
+    /// 対局中（投了・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
+    /// **高さは常に終局後の最大構成に揃える**（#148）。
+    ///
+    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
+    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
+    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    private var controlArea: some View {
+        ZStack(alignment: .top) {
+            finishedControls { RecommendationCard.heightPlaceholder }
+                .hidden()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            if model.gameOver {
+                finishedControls {
+                    RecommendationSlot(services: services, isFinished: true)
+                }
+            } else {
+                gameControls
+            }
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+    }
+
+    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
+    private func finishedControls<Recommendation: View>(
+        @ViewBuilder recommendation: () -> Recommendation
+    ) -> some View {
+        VStack(spacing: 8) {
+            newGameButton
+            recommendation()
+        }
+    }
+
+    /// 「もう一度」は対局中の `gameControls` と同じ高さの 1 段に収める（#148）。
+    /// 全幅の大ボタンのままだと盤の下が伸び、決着の瞬間に盤が縮む。
+    private var newGameButton: some View {
+        HStack(spacing: 12) {
+            Spacer(minLength: 0)
+            Button { showNewGame = true } label: {
+                Label("もう一度", systemImage: "arrow.clockwise")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
+            }
+            Spacer(minLength: 0)
+        }
+        .font(Theme.body(14))
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }

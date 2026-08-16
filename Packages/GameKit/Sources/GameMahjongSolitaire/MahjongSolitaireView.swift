@@ -30,13 +30,8 @@ public struct MahjongSolitaireView: View {
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
             HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
-            if model.phase == .won {
-                resultControls
-            } else {
-                gameControls
-            }
-            RecommendationSlot(services: services, isFinished: model.phase == .won)
-            Spacer(minLength: 8)
+            controlArea
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -91,10 +86,22 @@ public struct MahjongSolitaireView: View {
 
     private var statusBar: some View {
         HStack(spacing: 0) {
-            Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
-                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                .foregroundStyle(Theme.coral)
-                .frame(minWidth: 78, alignment: .leading)
+            Group {
+                if model.phase == .won {
+                    // 取り切った後の表示は行を増やさずここに同居させる（#148）。
+                    // 残り枚数は 0 で固定になるため、入れ替えても失われる情報は無い。
+                    Label("クリア！", systemImage: "flag.checkered")
+                        .font(Theme.body(15))
+                        .foregroundStyle(Theme.teal)
+                } else {
+                    Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
+                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Theme.coral)
+                }
+            }
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 78, alignment: .leading)
 
             Spacer()
 
@@ -241,26 +248,60 @@ public struct MahjongSolitaireView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private var resultControls: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "flag.checkered").foregroundStyle(Theme.teal)
-                Text("クリア！").font(Theme.body(15)).foregroundStyle(Theme.teal)
-                Spacer()
-                Label(timeText, systemImage: "clock.fill")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
+    // MARK: - 盤の下の操作エリア
 
+    /// プレイ中（ヒント・並べ替え）と取り切った後（記録 + 次のゲーム + レコメンド）で
+    /// 中身が入れ替わるが、**高さは常に後者の最大構成に揃える**（#148）。
+    ///
+    /// ここが伸び縮みすると盤面（残りの高さいっぱいに牌を敷く）が帳尻合わせに縮む。
+    /// レコメンドは出るとは限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    private var controlArea: some View {
+        ZStack(alignment: .top) {
+            finishedControls { RecommendationCard.heightPlaceholder }
+                .hidden()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            if model.phase == .won {
+                finishedControls {
+                    RecommendationSlot(services: services, isFinished: true)
+                }
+            } else {
+                gameControls
+            }
+        }
+    }
+
+    /// 取り切った後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
+    private func finishedControls<Recommendation: View>(
+        @ViewBuilder recommendation: () -> Recommendation
+    ) -> some View {
+        VStack(spacing: 8) {
+            resultControls
+            recommendation()
+        }
+    }
+
+    /// 記録と「次のゲーム」は 1 段にまとめ、プレイ中の `gameControls` と同じ高さに収める（#148）。
+    /// 3 段のままだと盤面の下が伸び、取り切った瞬間に盤面の領域が縮む。クリアの表示と所要時間は
+    /// ステータスバーが出しているため、入れ替えても情報は失われない。
+    private var resultControls: some View {
+        HStack(spacing: 12) {
             RecordLabel(model.recordResult)
+                .lineLimit(1).minimumScaleFactor(0.7)
+
+            Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Text("次のゲーム").font(Theme.body(16)).frame(maxWidth: .infinity)
+                Label("次のゲーム", systemImage: "arrow.clockwise")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
+        .font(Theme.body(14))
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 手詰まり
