@@ -75,4 +75,37 @@ struct MahjongFaceTests {
             try JSONDecoder().decode(MahjongFace.self, from: Data(broken.utf8))
         }
     }
+
+    @Test("値域内の牌はすべて有効と判定される")
+    func validRanges() {
+        let standardAllValid = MahjongTile.all.allSatisfy(\.isValid)
+        let solitaireAllValid = (0..<4).allSatisfy {
+            MahjongFace.flower($0).isValid && MahjongFace.season($0).isValid
+        }
+        #expect(standardAllValid)
+        #expect(solitaireAllValid)
+        // 値域外（数牌の 0 と 10、風牌の 4、三元牌の 3、花牌・季節牌の 4 と -1）。
+        #expect(!MahjongTile.characters(0).isValid)
+        #expect(!MahjongTile.circles(10).isValid)
+        #expect(!MahjongTile.wind(4).isValid)
+        #expect(!MahjongTile.dragon(3).isValid)
+        #expect(!MahjongFace.flower(4).isValid)
+        #expect(!MahjongFace.season(-1).isValid)
+    }
+
+    /// 値域外の牌は描画時に近い値へ丸められるため、そのまま読むと別の牌に化けた盤面になる。
+    @Test("値域外の数を含む JSON はデコードで拒否する", arguments: [
+        #"{"characters":{"_0":0}}"#,
+        #"{"circles":{"_0":10}}"#,
+        #"{"bamboos":{"_0":-1}}"#,
+        #"{"wind":{"_0":4}}"#,
+        #"{"dragon":{"_0":3}}"#,
+        #"{"flower":{"_0":4}}"#,
+        #"{"season":{"_0":-1}}"#,
+    ])
+    func rejectsOutOfRangeValues(json: String) {
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(MahjongFace.self, from: Data(json.utf8))
+        }
+    }
 }

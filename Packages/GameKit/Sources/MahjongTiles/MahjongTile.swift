@@ -43,6 +43,16 @@ public enum MahjongTile: Hashable, Codable, Sendable {
         case .wind, .dragon: return nil
         }
     }
+
+    /// 数が種類ごとの値域（数牌 1〜9 / 風牌 0〜3 / 三元牌 0〜2）に収まっているか。
+    /// 範囲外の牌は `MahjongTileView` が近い値へ丸めて描くため、別の牌に化けて見える。
+    public var isValid: Bool {
+        switch self {
+        case .characters(let n), .circles(let n), .bamboos(let n): return (1...9).contains(n)
+        case .wind(let n):   return (0..<4).contains(n)
+        case .dragon(let n): return (0..<3).contains(n)
+        }
+    }
 }
 
 /// 牌の絵柄。標準 34 種に、麻雀ソリティア専用の花牌・季節牌を加えたもの。
@@ -84,6 +94,14 @@ public enum MahjongFace: Hashable, Sendable {
     /// 2 枚を取り除けるか（絵柄が合うか）。
     public func matches(_ other: MahjongFace) -> Bool {
         matchKey == other.matchKey
+    }
+
+    /// 数が値域（標準牌は `MahjongTile.isValid` / 花牌・季節牌は 0〜3）に収まっているか。
+    public var isValid: Bool {
+        switch self {
+        case .standard(let tile): return tile.isValid
+        case .flower(let n), .season(let n): return (0..<4).contains(n)
+        }
     }
 }
 
@@ -142,6 +160,16 @@ extension MahjongFace: Codable {
         case .dragon:     self = .standard(.dragon(value))
         case .flower:     self = .flower(value)
         case .season:     self = .season(value)
+        }
+        // 値域外の牌は描画時に近い値へ丸められ、別の有効牌に化けて見える。
+        // 壊れたスナップショットは黙って別の盤面として復元せず、読み込みごと失敗させる。
+        guard isValid else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "牌の数が値域外です: \(kind.rawValue) = \(value)"
+                )
+            )
         }
     }
 }
