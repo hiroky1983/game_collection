@@ -123,6 +123,7 @@ struct ConcentrationModelTests {
         model.tap(index: a)
         model.tap(index: b)
         let pending = model.pendingAutoClear
+        #expect(pending != nil, "前提: 待ったを使う前は自動ターン交代が予約されている")
         model.useMatta()
 
         await pending?.value   // 取り消された予約が「何もしないまま終わる」ことまで見届ける
@@ -139,6 +140,7 @@ struct ConcentrationModelTests {
         model.tap(index: a)
         model.tap(index: b)
         let paused = model.pendingAutoClear
+        #expect(paused != nil, "前提: 一時停止する前は自動ターン交代が予約されている")
         model.pauseAutoTurn()   // 「待った」確認ダイアログを開いた状態
 
         await paused?.value
@@ -168,6 +170,7 @@ struct ConcentrationModelTests {
         model.tap(index: a)
         model.tap(index: b)
         let pending = model.pendingAutoClear
+        #expect(pending != nil, "前提: 新規ゲームを始める前は自動ターン交代が予約されている")
         model.newGame(pairCount: .small, cpuLevel: .weak)
 
         await pending?.value   // 旧対局の予約が新しい盤面に手を出さないことまで見届ける
