@@ -241,6 +241,9 @@ public final class ShogiGameModel {
         self.aiLevel = aiLevel
         startedAt = startedAtFallback()
         gameSerial += 1
+        // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（#145）。
+        // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
+        isThinking = false
         clearSelection()
         persist()
     }
@@ -260,8 +263,14 @@ public final class ShogiGameModel {
     /// AI の手番なら最善手を計算して指す。View から手番変化のたびに呼ぶ。
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
+        // 計算中に新規対局が始まると、旧局面で選んだ手が新しい局面に指されうる
+        // （初期局面同士なら合法性の確認を通ってしまう）。開始時のトリガー
+        // （対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する（#145）。
+        let key = aiTurnKey
+        let serial = gameSerial
         isThinking = true
-        defer { isThinking = false }
+        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
+        defer { if gameSerial == serial { isThinking = false } }
 
         let level = aiLevel
         let sfen = position.toSFEN()
@@ -270,7 +279,7 @@ public final class ShogiGameModel {
         }.value
 
         // 計算中に状況が変わっていないか確認してから着手。
-        guard isAITurn, let usi, let move = Move.fromUSI(usi),
+        guard aiTurnKey == key, isAITurn, let usi, let move = Move.fromUSI(usi),
               legalMovesCache.contains(move) else { return }
         apply(move)
     }
