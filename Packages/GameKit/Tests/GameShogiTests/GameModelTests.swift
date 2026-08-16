@@ -142,3 +142,66 @@ struct ShogiAITurnKeyTests {
         #expect(resumed.isAITurn) // 再開直後は CPU(先手)の番
     }
 }
+
+// MARK: - 思考中の新規対局（#145: 旧タスクの思考フラグで新しい対局の CPU が止まる）
+
+@MainActor
+@Suite("将棋 思考中の新規対局")
+struct ShogiNewGameDuringThinkingTests {
+    /// CPU の思考を開始し、探索の完了待ちで止まっている状態にして返す。
+    ///
+    /// 待ち合わせは時間ではなく **MainActor のジョブ順序**で行う。思考タスクを積んだ直後に
+    /// 空タスクを積むと、空タスクが走る時点で思考タスクは必ず開始済み（= detached な探索の
+    /// 完了待ちで停止中）になる。思考タスクの再開ジョブは探索の完了時にキューの後ろへ積まれるため、
+    /// 空タスクより先に走ることはない。
+    ///
+    /// `Task.sleep` でフラグを見張る形にすると、テストの並列実行で MainActor が混むときに
+    /// 1ms の sleep が実測で数秒かかり、探索の窓（約1秒）をまるごと見落としてフレークする。
+    private func startThinking(_ model: ShogiGameModel) async throws -> Task<Void, Never> {
+        let task = Task { await model.performAIMoveIfNeeded() }
+        await Task { }.value
+        try #require(model.isThinking, "テストの前提: 旧対局の思考が計算中であること")
+        return task
+    }
+
+    /// CPU の思考中に新規対局を始めたら、旧局面で選んだ手が新しい局面に指されないこと
+    /// （PR #144 と同じ回帰テスト）。
+    ///
+    /// ここでは新旧どちらも「初期局面・CPU が先手」なので、旧局面で選んだ手は新しい局面でも
+    /// **合法**になる。将棋の合法性チェックだけでは弾けない最悪ケースで、世代（`aiTurnKey`）の
+    /// 一致を見て初めて弾ける（#145）。併せて、旧タスクの完了を待たずに思考フラグが解放される
+    /// ことも確かめる。修正前は `isThinking` が true のまま残り、新しい対局の `.task(id:)` が
+    /// `guard !isThinking` で即 return して CPU が初手を指さなかった。
+    @Test func newGameDuringThinkingDiscardsStaleMove() async throws {
+        let model = ShogiGameModel(services: nil)
+        model.newGame(humanSide: .white, aiLevel: 2) // CPU=先手
+        #expect(model.isAITurn)
+
+        let thinking = try await startThinking(model)
+
+        model.newGame(humanSide: .white, aiLevel: 2) // 思考中に新規対局
+        #expect(model.isThinking == false)           // 新しい対局の CPU を起動できる
+
+        await thinking.value               // 旧対局の計算が終わるまで待つ
+        #expect(model.moves.isEmpty)       // 旧局面で選んだ手は入っていない
+        #expect(model.isThinking == false) // 旧タスクの defer にフラグを奪われない
+        #expect(model.isAITurn)            // 新しい対局は CPU(先手)の手番のまま
+    }
+
+    /// 思考中に新規対局を始めても、新しい対局で CPU が手番どおり初手を指すこと（#145 の主症状）。
+    /// View の `.task(id: model.aiTurnKey)` は旧タスクの完了を待たずに再起動するため、ここでも待たずに呼ぶ。
+    @Test func cpuPlaysFirstMoveAfterNewGameDuringThinking() async throws {
+        let model = ShogiGameModel(services: nil)
+        model.newGame(humanSide: .white, aiLevel: 2)
+        let thinking = try await startThinking(model)
+
+        model.newGame(humanSide: .white, aiLevel: 2)
+        await model.performAIMoveIfNeeded() // `.task(id:)` の再起動に相当
+
+        #expect(model.moves.count == 1)  // CPU(先手)の初手が指された
+        #expect(model.isAITurn == false) // 人間(後手)の番
+
+        await thinking.value
+        #expect(model.moves.count == 1)  // 旧タスクは新しい局面に指さない
+    }
+}
