@@ -101,6 +101,9 @@ public struct MinesweeperView: View {
             // 常にプレイ中に戻る（`MinesweeperModel.init` が `.playing` 固定）ため、
             // 非対話のシミュレータ確認ではこの経路が要る（#148）。
             if ProcessInfo.processInfo.arguments.contains("-simulateGiveUp") {
+                // 中断スナップショットが無い初回起動では新規ゲームシートが前面に出たままに
+                // なるため、先に畳んでから終局させる（PR #153 指摘）。
+                showNewGame = false
                 model.giveUp()
             }
             #endif

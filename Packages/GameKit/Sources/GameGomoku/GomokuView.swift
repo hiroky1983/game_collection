@@ -272,13 +272,13 @@ public struct GomokuView: View {
             }
             Spacer(minLength: 8)
             if model.gameOver {
-                // 終局後の記録は行を増やさずここに同居させる（#148）。手数は決着後に
-                // 増えないため、記録と入れ替えても失われる情報は無い。
+                // 終局後の記録は行を増やさずここに同居させる（#148）。
+                // 将棋（#139）は手数を検討ナビの「n/N手」に譲れたが、五目並べには
+                // 代わりの表示が無いため、手数はここに残したまま記録を足す。
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
-            } else {
-                Text("\(model.moveCount)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
             }
+            Text("\(model.moveCount)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
         }
         .frame(minHeight: 32)
         .padding(.horizontal, 12).padding(.vertical, 6)
