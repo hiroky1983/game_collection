@@ -15,11 +15,17 @@ final class GameSettings {
     var soundEnabled: Bool {
         didSet { Self.sound.isEnabled = soundEnabled }
     }
+    /// 解析イベント送信のオン / オフ（#158）。既定はオン。オフのあいだ `logEvent` は呼ばれない。
+    var analyticsEnabled: Bool {
+        didSet { Self.analytics.isEnabled = analyticsEnabled }
+    }
 
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
     private static let haptics = FeedbackPreference(key: "hapticsEnabled_v1")
     private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
+    // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
+    private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
 
     init(registeredIDs: [String]) {
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
@@ -33,6 +39,7 @@ final class GameSettings {
         // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
+        self.analyticsEnabled = Self.analytics.isEnabled
     }
 
     func visibleModules(from registry: GameRegistry) -> [GameModule] {

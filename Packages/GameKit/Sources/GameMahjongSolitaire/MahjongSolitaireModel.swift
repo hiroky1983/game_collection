@@ -66,6 +66,8 @@ public final class MahjongSolitaireModel {
     ) {
         self.services = services
         self.seed = seed
+        // 盤面を新しく用意したか（= 新しいプレイの開始か）。復元のときだけ false。
+        var isFreshBoard = true
 
         if let snapshot = services?.snapshots.load(MahjongSolitaireSnapshot.self, for: gameID),
            snapshot.faces.count == MahjongSolitaireRules.layout.count {
@@ -73,6 +75,7 @@ public final class MahjongSolitaireModel {
             self.elapsedSeconds = snapshot.elapsedSeconds
             self.shuffleCount = snapshot.shuffleCount
             self.hintCount = snapshot.hintCount
+            isFreshBoard = false
         } else if let faces, faces.count == MahjongSolitaireRules.layout.count {
             self.faces = faces
         } else {
@@ -85,6 +88,9 @@ public final class MahjongSolitaireModel {
         self.remainingCount = self.faces.reduce(into: 0) { $0 += ($1 == nil ? 0 : 1) }
         refreshDerivedState()
         if remainingCount == 0 { phase = .won }
+        // 中断からの復元は「新しいプレイ」ではないので数えない（#158）。
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshBoard { services?.gameDidStart(gameID: gameID) }
     }
 
     // MARK: - 操作
@@ -179,6 +185,7 @@ public final class MahjongSolitaireModel {
         startTimer()
         services?.feedback.impact(.medium)
         services?.snapshots.clear(for: gameID)
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// 手詰まりで「最初から」を選んだとき。取り切れずに終わったので敗北として記録し、盤面を配り直す。

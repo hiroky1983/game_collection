@@ -80,6 +80,12 @@ struct HubView: View {
                     switchingToGameID = nil
                     return
                 }
+                // ゲーム画面から離れたことを解析へ伝える（#158）。次に開いたときを新しい
+                // 1 プレイとして数え直すための境界で、ここが唯一の発火点。
+                // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
+                if !oldPath.isEmpty, newPath.isEmpty, let leftGameID = oldPath.last {
+                    services.gameDidLeave(gameID: leftGameID)
+                }
                 guard !oldPath.isEmpty, newPath.isEmpty else { return }
                 // ゲームの差し替え中に通過する空 path はハブへの帰還ではない。
                 guard switchingToGameID == nil else { return }

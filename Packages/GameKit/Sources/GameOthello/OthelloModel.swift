@@ -64,6 +64,8 @@ public final class OthelloModel {
 
     public init(services: GameServices? = nil) {
         self.services = services
+        // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
+        var isFreshStart = false
 
         if let snap = services?.snapshots.load(OthelloSnapshot.self, for: "othello") {
             let cells = snap.cells.map { $0.flatMap { OthelloStone(rawValue: $0) } }
@@ -88,9 +90,12 @@ public final class OthelloModel {
             mustPass     = false
             turnID       = 0
             undoUsed     = false
+            isFreshStart = true
         }
         isThinking = false
         lastMove   = nil
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
     public func tap(row: Int, col: Int) {
@@ -185,6 +190,7 @@ public final class OthelloModel {
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
         persist()
+        services?.gameDidRestart(gameID: gameID)
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }

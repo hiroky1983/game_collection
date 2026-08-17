@@ -71,6 +71,12 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire",
         ]),
+        // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
+        .testTarget(name: "AnalyticsTests", dependencies: [
+            "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
+            "GameMahjongSolitaire",
+        ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
         .testTarget(name: "ReviewRequestTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
