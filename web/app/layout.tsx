@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { games } from "./lib/games";
 import { APP_SIZE_MB, APP_STORE_URL, SITE_NAME, SITE_URL } from "./lib/site";
 
-const defaultDescription = `将棋・2048・五目並べ・マインスイーパー・オセロ・ポーカー・神経衰弱・ブラックジャックの8つを1本にまとめた iPhone 用ゲームコレクション。すべてオフラインで遊べて、通信も会員登録も不要。無料・約${APP_SIZE_MB}。`;
+/// 収録本数とゲーム名は `games` から導出する（`app/page.tsx` と同じ理由。本数をベタ書きしない）。
+const gameCount = games.length;
+const defaultTitle = `${SITE_NAME} - オフラインで遊べる無料ゲーム${gameCount}種の詰め合わせ`;
+const defaultDescription = `${gameCount}種類のゲーム（${games.map((g) => g.name).join("・")}）を1本にまとめた iPhone 用ゲームコレクション。すべてオフラインで遊べて、通信も会員登録も不要。無料・約${APP_SIZE_MB}。`;
 
 export const metadata: Metadata = {
   // 相対パスの canonical / OGP 画像をここを起点に絶対 URL 化する
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} - オフラインで遊べる無料ゲーム8種の詰め合わせ`,
+    default: defaultTitle,
     template: `%s | ${SITE_NAME}`,
   },
   description: defaultDescription,
@@ -20,13 +24,13 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     locale: "ja_JP",
     url: "/",
-    title: `${SITE_NAME} - オフラインで遊べる無料ゲーム8種の詰め合わせ`,
+    title: defaultTitle,
     description: defaultDescription,
     images: [{ url: "/og/default.png", width: 1200, height: 630, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_NAME} - オフラインで遊べる無料ゲーム8種の詰め合わせ`,
+    title: defaultTitle,
     description: defaultDescription,
     images: ["/og/default.png"],
   },
