@@ -50,11 +50,26 @@ private final class SpyAnalyticsService: AnalyticsService {
     func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
 }
 
-/// ハブに登録済みのゲーム ID（`AppEnvironment.registry` と同じ 10 本）。
-private let hubGameIDs: Set<String> = [
-    "2048", "shogi", "gomoku", "minesweeper", "othello",
-    "poker", "concentration", "blackjack", "daifugo", "mahjong",
-]
+/// ハブに登録済みのゲーム ID。
+///
+/// 本番は `AppEnvironment.registry.modules.map(\.id)` から作る。テストは App ターゲットへ
+/// 依存できないため `GameRegistry` を組み直すが、**ID の文字列は書かず各 `GameModule` の
+/// `id` から取る**（`ReviewRequestTests` と同じやり方）。こうしておくと、どれかのモジュールの
+/// `id` が変わったときに実装と一緒にここも追従し、値がずれない。
+///
+/// - Note: ハブへ**新しいゲームを追加**したときは、この配列にもモジュールを1行足す必要がある
+///   （PR #162 の CodeRabbit 指摘。Core は各ゲームに依存できないため、Core 側の定数にはできない）。
+/// - Note: `GameModule` は `Sendable` ではないため、配列をグローバルに置かず関数の中で組む。
+private func makeHubGameIDs() -> Set<String> {
+    let modules: [GameModule] = [
+        Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
+        PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
+        MahjongSolitaireModule(),
+    ]
+    return Set(GameRegistry(modules).modules.map(\.id))
+}
+
+private let hubGameIDs: Set<String> = makeHubGameIDs()
 
 /// 進む時計。**実時間を待たない**（実時間の待ち合わせは並列実行で落ちるため）。
 @MainActor
@@ -240,6 +255,16 @@ struct GameAnalyticsTests {
         analytics.finishPlay(gameID: "shogi", outcome: .win)
         #expect(spy.starts == ["2048", "shogi"])
         #expect(spy.ends.map(\.gameID) == ["shogi"])
+    }
+
+    @Test("送信対象の gameID はハブの登録内容と一致する（10本）")
+    func allowedGameIDsMatchHub() {
+        #expect(hubGameIDs.count == 10, "ハブに並ぶゲームは10本")
+        // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
+        // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
+        let (services, spy) = makeServices()
+        _ = Game2048Model(services: services)
+        #expect(spy.starts == ["2048"], "Model の gameID がモジュールの id と一致している")
     }
 
     @Test("登録されていない gameID は送らない（任意の文字列が game_id にならない）")
