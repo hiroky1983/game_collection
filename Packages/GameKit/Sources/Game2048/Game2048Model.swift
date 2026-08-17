@@ -21,6 +21,8 @@ public final class Game2048Model {
         self.services = services
         var initialBoard: [[Int]]
         var initialScore: Int
+        // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
+        var isFreshStart = false
         if let snap = services?.snapshots.load(Game2048Snapshot.self, for: gameID) {
             initialBoard = snap.board
             initialScore = snap.score
@@ -32,11 +34,14 @@ public final class Game2048Model {
             // 初期タイル 2 個。
             Self.spawn(into: &initialBoard)
             Self.spawn(into: &initialBoard)
+            isFreshStart = true
         }
         board = initialBoard
         score = initialScore
         gameOver = Game2048Logic.isGameOver(initialBoard)
         persist()
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
     /// 盤面を直接与えて開始する。初期タイルの乱数生成と中断スナップショットの復元を
@@ -94,6 +99,9 @@ public final class Game2048Model {
         // （コンティニューは手番ではないうえ、せっかく確保した空きマスを潰して続行手数を削るだけのため）。
         board = Game2048Logic.revive(board)
         persist()
+        // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
+        // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる。
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// 新規ゲーム。
@@ -106,6 +114,7 @@ public final class Game2048Model {
         Self.spawn(into: &board)
         Self.spawn(into: &board)
         persist()
+        services?.gameDidRestart(gameID: gameID)
     }
 
     private func persist() {

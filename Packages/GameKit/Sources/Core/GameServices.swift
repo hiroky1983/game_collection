@@ -9,6 +9,8 @@ public struct GameServices {
     public let review: ReviewRequestService?
     /// プレイ記録（#115）。テスト・プレビューでは nil（記録しない）。
     public let playLog: PlayLog?
+    /// 解析イベントの送信（#158）。テスト・プレビューでは nil（送信しない）。
+    public let analytics: GameAnalytics?
 
     public init(
         snapshots: SnapshotStore,
@@ -16,7 +18,8 @@ public struct GameServices {
         feedback: FeedbackService = NoopFeedbackService(),
         recommendations: RecommendationService? = nil,
         review: ReviewRequestService? = nil,
-        playLog: PlayLog? = nil
+        playLog: PlayLog? = nil,
+        analytics: GameAnalytics? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -24,6 +27,28 @@ public struct GameServices {
         self.recommendations = recommendations
         self.review = review
         self.playLog = playLog
+        self.analytics = analytics
+    }
+
+    /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
+    /// 冪等なので、再描画で Model が作り直されても `game_start` は増えない。
+    /// 中断スナップショットから復元したときは**呼ばない**（新しいプレイではないため）。
+    @MainActor
+    public func gameDidStart(gameID: String) {
+        analytics?.startPlay(gameID: gameID)
+    }
+
+    /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。
+    /// 冪等ではなく、呼ぶたびに1プレイとして数える。
+    @MainActor
+    public func gameDidRestart(gameID: String) {
+        analytics?.restartPlay(gameID: gameID)
+    }
+
+    /// ゲーム画面から離れたときにハブから呼ぶ（#158）。次に開いたときを新しいプレイとして数え直す。
+    @MainActor
+    public func gameDidLeave(gameID: String) {
+        analytics?.leaveGame(gameID: gameID)
     }
 
     /// ゲームが決着したときに各 Model から呼ぶ唯一の入口。
@@ -44,6 +69,8 @@ public struct GameServices {
     ) -> RecordResult? {
         // 記録が先。リザルトは戻り値をそのまま描画するため、他の依頼より前に確定させる。
         let result = playLog?.recordResult(gameID: gameID, outcome: outcome, score: score)
+        // 解析（#158）。スコアの生値は渡さず、勝敗と経過秒だけを送る。
+        analytics?.finishPlay(gameID: gameID, outcome: outcome)
         let willRequestReview = review?.gameDidFinish(outcome: outcome) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
         return result

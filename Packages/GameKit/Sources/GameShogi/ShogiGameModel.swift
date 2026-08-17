@@ -87,6 +87,9 @@ public final class ShogiGameModel {
         if gameOver, let record = services?.playLog?.record(gameID: gameID) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
+        // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if snap == nil { services?.gameDidStart(gameID: gameID) }
     }
 
     // MARK: - 表示用
@@ -246,6 +249,7 @@ public final class ShogiGameModel {
         isThinking = false
         clearSelection()
         persist()
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// 人間が指している側（CPU 戦の表示用）。

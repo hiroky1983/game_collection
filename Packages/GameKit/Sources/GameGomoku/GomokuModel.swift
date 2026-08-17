@@ -66,6 +66,8 @@ public final class GomokuModel {
         let undoUsed: Bool
         let resigned: Bool
         let savedWinner: GomokuStone?
+        // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
+        var isFreshStart = false
 
         if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
             humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
@@ -109,6 +111,7 @@ public final class GomokuModel {
             undoUsed     = false
             resigned     = false
             savedWinner  = nil
+            isFreshStart = true
         }
 
         self.board        = board
@@ -125,6 +128,8 @@ public final class GomokuModel {
         self.lastMove     = lastMove
         self.undoUsed     = undoUsed
         self.resigned     = resigned
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
     public func tap(row: Int, col: Int) {
@@ -203,6 +208,7 @@ public final class GomokuModel {
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
         persist()
+        services?.gameDidRestart(gameID: gameID)
     }
 
     // MARK: - 投了

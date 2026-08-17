@@ -185,6 +185,9 @@ public final class DaifugoModel {
 
         services?.feedback.impact(.medium)   // カードが配られた
         persist()
+        // 1 ゲーム = 1 プレイ（`gameDidFinish` もゲームごとに呼んでいる）。
+        // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// 親（最初の手番）。初回は♦3を持つ人、2ゲーム目以降は前回の大貧民。
