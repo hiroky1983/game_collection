@@ -40,6 +40,16 @@ enum AppEnvironment {
         allowedGameIDs: Set(registry.modules.map(\.id))
     )
 
+    /// 設定の「利用状況の送信」を **Firebase SDK 全体の収集状態**へ反映する。
+    ///
+    /// `GatedAnalyticsService` は `game_start` / `game_end` しか止められないため、これを呼ばないと
+    /// オフにしても自動収集イベント（`session_start` 等）が送られ続け、設定画面の説明と食い違う。
+    /// 起動直後（`FirebaseApp.configure()` の後）と、トグルを切り替えたときに呼ぶ。
+    static func applyAnalyticsCollectionState() {
+        // 撮影モードは広告と同じ理由で送信そのものを止める（動作確認の操作を実データに混ぜない）。
+        FirebaseAnalyticsService.setCollectionEnabled(!isScreenshotMode && settings.analyticsEnabled)
+    }
+
     /// プレイ履歴（回数カウンタ・遊んだゲームの ID・ゲーム別の記録。盤面や棋譜は持たない）。
     static let playLog = PlayLog()
 

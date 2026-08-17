@@ -193,7 +193,7 @@ struct GameAnalyticsTests {
         #expect(spy.events.isEmpty)
     }
 
-    @Test("画面を離れると次に開いたときが新しい1プレイになる")
+    @Test("終局したあと画面を離れると、次に開いたときが新しい1プレイになる")
     func leavingGameAllowsNextPlay() {
         let (analytics, spy) = makeAnalytics()
         analytics.startPlay(gameID: "2048")
@@ -202,6 +202,34 @@ struct GameAnalyticsTests {
         analytics.startPlay(gameID: "2048")
         #expect(spy.starts.count == 2)
         #expect(spy.ends.count == 1)
+    }
+
+    @Test("遊びかけで画面を離れても進行中の扱いは続き、戻って終局すれば game_end が出る")
+    func leavingMidPlayKeepsItInFlight() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(40)
+        analytics.leaveGame(gameID: "2048")   // ハブへ戻った（まだ遊びかけ）
+        clock.advance(20)
+        analytics.startPlay(gameID: "2048")   // 「続きから」で再開 → 数え直さない
+        clock.advance(30)
+        analytics.finishPlay(gameID: "2048", outcome: .loss)
+
+        #expect(spy.starts.count == 1, "再開で game_start は増えない")
+        #expect(spy.ends.count == 1, "遊び切ったので game_end は出る")
+        #expect(spy.ends.first?.durationSec == 90, "経過秒は最初の開始からの通算")
+    }
+
+    @Test("遊びかけで離れたあと「新しいゲーム」を選べば次の1プレイとして数える")
+    func leavingMidPlayThenRestart() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.leaveGame(gameID: "2048")
+        analytics.restartPlay(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .loss)
+        #expect(spy.starts.count == 2, "遊びかけの1回 + 新しいゲームの1回")
+        #expect(spy.ends.count == 1, "終局したのは後者だけ")
     }
 
     @Test("ゲームごとに独立して数える")
@@ -315,6 +343,32 @@ struct AnalyticsDoubleFireTests {
         _ = Game2048Model(services: resumed)
         _ = Game2048Model(services: resumed)
         #expect(spyResumed.events.isEmpty, "続きからは新しいプレイではないので何も送らない")
+    }
+
+    @Test("遊びかけでハブに戻り、続きから再開して終局すると game_end が出る（実際の Model 経路）")
+    func leaveThenResumeThenFinishSendsEnd() {
+        let snapshots = MemorySnapshotStore()
+        let (services, spy) = makeServices(snapshots: snapshots)
+
+        let first = Game2048Model(services: services)
+        first.move(.left)
+        first.move(.up)
+        #expect(spy.starts(of: "2048") == 1)
+
+        // ハブへ戻る（`HubView` が path の変化で呼ぶ経路）。
+        services.gameDidLeave(gameID: "2048")
+
+        // 「続きから」で開き直して終局まで遊ぶ。
+        let resumed = Game2048Model(services: services)
+        outer: for _ in 0..<3000 {
+            for direction in Direction.allCases {
+                resumed.move(direction)
+                if resumed.gameOver { break outer }
+            }
+        }
+        #expect(resumed.gameOver)
+        #expect(spy.starts(of: "2048") == 1, "再開で game_start は増えない")
+        #expect(spy.ends(of: "2048") == 1, "遊び切ったぶんが「始めたのに終わっていない」に落ちない")
     }
 
     @Test("バックグラウンド復帰の計時再開では何も送らない")

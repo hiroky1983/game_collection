@@ -15,9 +15,14 @@ final class GameSettings {
     var soundEnabled: Bool {
         didSet { Self.sound.isEnabled = soundEnabled }
     }
-    /// 解析イベント送信のオン / オフ（#158）。既定はオン。オフのあいだ `logEvent` は呼ばれない。
+    /// 解析送信のオン / オフ（#158）。既定はオン。
+    /// オフのあいだ `logEvent` は呼ばれず、Firebase の自動収集イベントも止まる。
     var analyticsEnabled: Bool {
-        didSet { Self.analytics.isEnabled = analyticsEnabled }
+        didSet {
+            Self.analytics.isEnabled = analyticsEnabled
+            // 明示イベントだけでなく SDK 全体の収集を切り替える（PR #162 の CodeRabbit 指摘）。
+            AppEnvironment.applyAnalyticsCollectionState()
+        }
     }
 
     private static let orderKey    = "gameOrder_v1"

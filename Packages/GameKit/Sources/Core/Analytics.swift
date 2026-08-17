@@ -140,7 +140,13 @@ public final class GameAnalytics {
 
     /// ゲーム画面から離れたときに呼ぶ（ハブが1か所で呼ぶ）。
     /// 次に同じゲームを開いたときを新しいプレイとして数え直せるようにする。
+    ///
+    /// - Important: **進行中のプレイは残す**。遊びかけでハブに戻り「続きから」で再開して終局する
+    ///   のはよくある流れで、ここで状態を捨てると（再開では `game_start` を数えないため）
+    ///   `game_end` が送れず、実際は遊び切ったプレイが「始めたのに終わっていない」ぶんとして
+    ///   数えられてしまう（PR #162 の CodeRabbit 指摘）。捨てるのは終局済みのプレイだけ。
     public func leaveGame(gameID: String) {
+        guard case .finished = plays[gameID] else { return }
         plays[gameID] = nil
     }
 
