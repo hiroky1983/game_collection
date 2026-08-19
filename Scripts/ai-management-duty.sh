@@ -1,5 +1,7 @@
 #!/bin/bash
-# 経営企画室の日次発火。launchd から1日おきに呼ばれる。
+# 経営企画室の日次発火。launchd から1日1回呼ばれる
+# （設定は会長の Mac の ~/Library/LaunchAgents/com.asobiba.ai-management.plist・StartInterval 86400。
+#  ai-duty.sh の plist と同じくローカル環境の設定のためリポジトリには含めない）。
 # 開発当番（ai-duty.sh、毎時）とは役割が異なる: コードは一切変更せず、
 #   1) 未承認の ai:proposed への優先度・工数分析コメント付与
 #   2) 滞留した ringi:pending へのリマインド
@@ -15,6 +17,7 @@ LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-management.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-management.log"
 MGMT_FETCH_TIMEOUT="${MGMT_FETCH_TIMEOUT:-90}"
 MGMT_FETCH_KILL_GRACE="${MGMT_FETCH_KILL_GRACE:-5}"
+MGMT_LOCK_GRACE="${MGMT_LOCK_GRACE:-30}"  # PID 未書き込みのロックを「取得直後」とみなす秒数
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
@@ -79,6 +82,18 @@ self_update() {
 self_update "$@"
 
 # 多重起動防止（前回がまだ働いていたらスキップ。死んだプロセスのロックは回収）
+#   mkdir から PID_FILE の書き込みまでには僅かな隙があり、その間に来た次のプロセスが
+#   「PID が読めない = 停止済み」と誤判定して有効なロックを奪うと両方走る（PR #163 指摘）。
+#   PID が読めないロックは MGMT_LOCK_GRACE 秒だけ「取得直後」とみなして回収しない。
+#   回収した場合も、PID_FILE を書いてから読み直して自分のものであることを確かめる
+#   （回収そのものが競合したときに、最後に書いた1プロセスだけが残る）。
+lock_age() {
+  local mtime now
+  mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null || stat -c %Y "$LOCK_DIR" 2>/dev/null) || return 1
+  [ -n "$mtime" ] || return 1
+  now=$(date +%s)
+  echo $((now - mtime))
+}
 PID_FILE="$LOCK_DIR/pid"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
@@ -86,12 +101,24 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
     log "前回実行中 (pid=$OLD_PID) のためスキップ"
     exit 0
   fi
+  if [ -z "$OLD_PID" ]; then
+    AGE=$(lock_age || true)
+    if [ -z "$AGE" ] || [ "$AGE" -lt "$MGMT_LOCK_GRACE" ]; then
+      log "ロック取得直後（PID 未書き込み・経過=${AGE:-不明}秒）のためスキップ"
+      exit 0
+    fi
+  fi
   log "停止済みプロセスのロックを回収 (pid=${OLD_PID:-不明})"
   rm -rf "$LOCK_DIR"
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
 echo $$ >"$PID_FILE"
-trap 'rm -rf "$LOCK_DIR"' EXIT
+sleep 1
+if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
+  log "ロックの回収が競合したためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
+  exit 0
+fi
+trap '[ "$(cat "$PID_FILE" 2>/dev/null || true)" = "$$" ] && rm -rf "$LOCK_DIR"' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
@@ -100,7 +127,14 @@ if [ ! -d "$MGMT_DIR/.git" ]; then
   mkdir -p "$(dirname "$MGMT_DIR")"
   gh repo clone hiroky1983/game_collection "$MGMT_DIR" >>"$LOG" 2>&1 || { log "clone 失敗"; exit 0; }
 fi
-git -C "$MGMT_DIR" fetch origin --prune >>"$LOG" 2>&1
+# fetch の失敗時は続行しない。古い origin/main のまま worktree を作ると、経営判断も docs/ の
+# 更新も古い状態を根拠にしてしまう（PR #163 指摘）。self_update と同じ低速時の打ち切り設定を
+# 付けて、ネットワーク断で長時間ロックを保持しないようにする。
+if ! GIT_TERMINAL_PROMPT=0 git -C "$MGMT_DIR" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 \
+  fetch origin --prune >>"$LOG" 2>&1; then
+  log "fetch 失敗のため中止（古い origin/main では経営判断をしない）"
+  exit 0
+fi
 
 # 1実行 = 1使い捨て worktree
 RUNS_DIR="$HOME/.asobiba-mgmt/runs"
