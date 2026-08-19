@@ -17,6 +17,17 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 
+# DUTY_LOCK_GRACE は外部から差し替えられるため、0 以上の10進整数だけを通して既定値へ戻す。
+# `[ "$AGE" -lt "$DUTY_LOCK_GRACE" ]` は非数値だと「整数式が必要」で**失敗（= 偽）**になり、
+# 猶予の判定を素通りして取得直後の PID 未書き込みロックを回収してしまう
+# （= 本来防いでいる多重起動が起きる。PR #173 の CodeRabbit 指摘）
+case "$DUTY_LOCK_GRACE" in
+  ''|*[!0-9]*)
+    log "DUTY_LOCK_GRACE=$DUTY_LOCK_GRACE は 0 以上の整数でないため既定値 30 を使う"
+    DUTY_LOCK_GRACE=30
+    ;;
+esac
+
 # シミュレータの後片付け（Issue #100）。当番が動作確認のために起動したシミュレータだけを落とし、
 # 実行前から起動していたもの（= 会長が使用中の可能性がある）には触らない差分方式。
 #   - EXIT トラップから呼ぶ。claude が異常終了しても launchd に止められても必ず走らせるため
@@ -305,6 +316,9 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   fi
   if [ -z "$OLD_PID" ]; then
     AGE=$(lock_age || true)
+    # 非数値（stat の想定外出力）と負値（mtime が未来 = 時刻の巻き戻り）は「不明」に倒す。
+    # DUTY_LOCK_GRACE と同じ理由で、比較が失敗すると回収する側に落ちてしまう
+    case "$AGE" in ''|*[!0-9]*) AGE="" ;; esac
     if [ -z "$AGE" ] || [ "$AGE" -lt "$DUTY_LOCK_GRACE" ]; then
       log "ロック取得直後（PID 未書き込み・経過=${AGE:-不明}秒）のためスキップ"
       exit 0

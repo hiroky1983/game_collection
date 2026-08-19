@@ -97,6 +97,18 @@ run "$E2E" DUTY_LOCK_GRACE=0
 check "猶予 0 なら PID 未書き込みでも回収する" "1" "$(logged '停止済みプロセスのロックを回収')"
 check "回収後は解放される" "no" "$(lock_exists)"
 
+echo "== 4-c. DUTY_LOCK_GRACE が非数値・負値なら既定値へ戻す（猶予の判定を素通りさせない）=="
+# `[ "$AGE" -lt "$DUTY_LOCK_GRACE" ]` は非数値だと失敗（= 偽）になるため、検証しないと
+# 猶予の判定を素通りして取得直後のロックを回収してしまう（PR #173 の CodeRabbit 指摘）
+for BAD in invalid -5 "30 "; do
+  reset
+  mkdir "$LOCK"   # 取得直後（PID 未書き込み・経過 0 秒）
+  run "$E2E" DUTY_LOCK_GRACE="$BAD"
+  check "DUTY_LOCK_GRACE=[$BAD] でも取得直後のロックは残る" "yes" "$(lock_exists)"
+  check "DUTY_LOCK_GRACE=[$BAD] は既定値 30 に戻したとログに出る" "1" "$(logged '既定値 30 を使う')"
+  check "DUTY_LOCK_GRACE=[$BAD] でロックを回収しない" "0" "$(logged '停止済みプロセスのロックを回収')"
+done
+
 echo "== 5. 死んだ PID のロックは回収する =="
 reset
 mkdir "$LOCK"; echo "$DEAD_PID" >"$LOCK/pid"
