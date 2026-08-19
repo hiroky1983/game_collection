@@ -22,6 +22,10 @@ platform :ios do
 
   desc "TestFlight へアップロード（ビルド番号は project.yml の CURRENT_PROJECT_VERSION を使用）"
   lane :beta do
+    # MARKETING_VERSION の更新は配信直前の手作業なので、ここが唯一「ブランチ名と一致して
+    # いなければならない瞬間」になる。ビルドを始める前に落とす（#161）
+    sh("bash", "../Scripts/check-marketing-version.sh")
+
     sh("xcodegen", "generate", "--project", "..")
 
     build_app(
