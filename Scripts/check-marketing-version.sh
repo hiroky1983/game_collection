@@ -33,15 +33,20 @@ case "$BRANCH" in
     ;;
 esac
 
-# release/v で始まるのに X.Y.Z でない場合は、黙って通すと `release/vnext` のような名前で
-# 検証そのものを迂回できてしまう。規程（ai-devops）上そんなブランチは存在しないはずなので落とす。
+# release/v で始まるのに X.Y.Z でない場合は、黙って通すと `release/vnext` や `release/v1.2` の
+# ような名前で検証そのものを迂回できてしまう。規程（ai-devops）上そんなブランチは存在しないので落とす。
+# 数字とドットだけ・空の要素なし・ドットがちょうど2個 = 3要素、で X.Y.Z の完全一致を見る。
+DOTS="${EXPECTED//[!.]/}"
+VALID=no
 case "$EXPECTED" in
-  *[!0-9.]* | "" | *..* | .* | *.)
-    echo "check-marketing-version: ブランチ名 [$BRANCH] が release/vX.Y.Z の形式ではありません" >&2
-    echo "  配信は release/vX.Y.Z からのみ行ってください（規程 docs/ai-devops.md「ブランチ戦略」）。" >&2
-    exit 1
-    ;;
+  *[!0-9.]* | "" | *..* | .* | *.) VALID=no ;;
+  *) [ "${#DOTS}" -eq 2 ] && VALID=yes ;;
 esac
+if [ "$VALID" != "yes" ]; then
+  echo "check-marketing-version: ブランチ名 [$BRANCH] が release/vX.Y.Z の形式ではありません" >&2
+  echo "  配信は release/vX.Y.Z（数字3要素）からのみ行ってください（規程 docs/ai-devops.md「ブランチ戦略」）。" >&2
+  exit 1
+fi
 
 if [ ! -f "$PROJECT_YML" ]; then
   echo "check-marketing-version: project.yml が見つかりません: $PROJECT_YML" >&2

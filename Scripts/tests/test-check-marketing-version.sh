@@ -55,6 +55,10 @@ check "detached HEAD は対象外"                  0 "HEAD"                    
 
 echo "== 2-b. release/v なのに X.Y.Z でない名前は落とす（検証の迂回を許さない）=="
 check "release/vnext は落ちる"                  1 "release/vnext"               "$(yml 1.1.1)"
+# 数字だけで構成されていても要素数が 3 でなければ形式違反（CodeRabbit 指摘）
+check "release/v1.2（2要素）は落ちる"           1 "release/v1.2"                "$(yml 1.2)"
+check "release/v1.2.3.4（4要素）は落ちる"       1 "release/v1.2.3.4"            "$(yml 1.2.3.4)"
+check "release/v1（1要素）は落ちる"             1 "release/v1"                  "$(yml 1)"
 check "release/v1.1.2-rc1 は落ちる"             1 "release/v1.1.2-rc1"          "$(yml 1.1.2)"
 check "release/v（空）は落ちる"                 1 "release/v"                   "$(yml 1.1.2)"
 check "release/v1..2 は落ちる"                  1 "release/v1..2"               "$(yml 1.1.2)"
