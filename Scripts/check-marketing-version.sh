@@ -33,10 +33,13 @@ case "$BRANCH" in
     ;;
 esac
 
+# release/v で始まるのに X.Y.Z でない場合は、黙って通すと `release/vnext` のような名前で
+# 検証そのものを迂回できてしまう。規程（ai-devops）上そんなブランチは存在しないはずなので落とす。
 case "$EXPECTED" in
-  *[!0-9.]* | "" | *..*)
-    echo "check-marketing-version: ブランチ名 [$BRANCH] からバージョンを読み取れないため検証しません"
-    exit 0
+  *[!0-9.]* | "" | *..* | .* | *.)
+    echo "check-marketing-version: ブランチ名 [$BRANCH] が release/vX.Y.Z の形式ではありません" >&2
+    echo "  配信は release/vX.Y.Z からのみ行ってください（規程 docs/ai-devops.md「ブランチ戦略」）。" >&2
+    exit 1
     ;;
 esac
 
