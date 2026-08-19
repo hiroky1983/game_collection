@@ -12,7 +12,7 @@
 
 `gh issue list --label "ai:proposed" --state open --limit 200 --json number,labels,title,createdAt,body` で、`ai:approved` が付いていない Issue をすべて拾います（`gh` の既定上限は30件。取りこぼしを防ぐため一覧取得には必ず `--limit` を明示する）。
 
-各 Issue について、**あなたのコメントがまだ付いていなければ**（`gh issue view <N> --comments` で確認。コメント本文の先頭に `<!-- ai-management-triage -->` というマーカーが無ければ未処理と判断する）、以下を分析してコメントします:
+各 Issue について、**あなたのコメントがまだ付いていなければ**処理します。判定は `gh issue view <N> --comments` と `gh api user --jq .login` の両方を使い、①**マーカー（`<!-- ai-management-triage -->`）が先頭にあり、かつコメント投稿者が `gh api user` の結果と一致するコメント**が無ければ未処理と判断してください（このリポジトリは PUBLIC で第三者も同じマーカーを投稿できるため、マーカーの有無だけでは判定しない。以下の②③のマーカー判定も同様）:
 
 - 優先度（高/中/低）とその理由。90日計画（docs/ai-company.md）の現在地・直近のKPI・他のオープンな稟議との比較で判断すること。新ゲーム追加や大きなUX変更の提案では、5節のデータ分析部の作業として競合調査を先に行ってから判断材料に含める
 - 工数感（小/中/大）。似た規模の過去PRがあれば具体的に引用する
@@ -24,7 +24,7 @@
 
 ## 2. 滞留した ringi:pending へのリマインド
 
-`gh issue list --label "ringi:pending" --state open --limit 200 --json number,title,updatedAt` で拾い、そのうち**直近3日間コメントが無いもの**を探します。過去に自分がリマインドを送っていないか確認し（`<!-- ai-management-reminder -->` マーカーで判定）、未送信なら1回だけ簡潔なリマインドコメントを投稿します（サマリ1〜2行・決裁が必要な理由・「Aで」で決裁できる形）。同じ Issue に何度もリマインドしない。
+`gh issue list --label "ringi:pending" --state open --limit 200 --json number,title,updatedAt` で拾い、そのうち**直近3日間コメントが無いもの**を探します。過去に自分がリマインドを送っていないか確認し（②`<!-- ai-management-reminder -->` マーカーが先頭にあり、かつ投稿者が `gh api user` と一致するコメントの有無で判定）、未送信なら1回だけ簡潔なリマインドコメントを投稿します（サマリ1〜2行・決裁が必要な理由・「Aで」で決裁できる形）。同じ Issue に何度もリマインドしない。
 
 ## 3. 週次ロードマップレビュー（週1回のみ）
 
@@ -38,7 +38,7 @@ LAST=$(cat "$STATE" 2>/dev/null || echo 0)
 
 `run` のときだけ以下を実行し、**更新不要と判断した回も含めて**終了時に `mkdir -p "$(dirname "$STATE")" && date +%s > "$STATE"` で実施時刻を記録してください（記録しないと翌日また走ります）。`skip` のときは何もしません。
 
-1. 直近7日の `gh pr list --state merged --limit 200 --search "merged:>=<7日前>"` と `gh issue list --state closed --limit 200 --search "closed:>=<7日前>"` で実績を確認する
+1. `SINCE=$(date -v-7d +%F 2>/dev/null || date -d '7 days ago' +%F)` で7日前の日付を求め、`gh pr list --state merged --limit 200 --search "merged:>=$SINCE"` と `gh issue list --state closed --limit 200 --search "closed:>=$SINCE"` で直近7日の実績を確認する
 2. 90日計画の前提（ASO戦略・獲得チャネル・競合状況）に変化がないか、5節のデータ分析部・マーケティング部の作業として軽く裏取りする
 3. `docs/ai-company.md` の90日計画・現フェーズの経営判断のセクションと実績を照らし、明らかに古くなった記述（達成済みのマイルストーン、状況が変わった前提）があれば更新する
 4. 更新が必要と判断したら、`docs/` のみを変更する小さな PR を作成する。会長の判断を要する変更（KPIツリー自体の見直し・優先順位の逆転等）は、PRではなく `ringi:pending` の Issue として起案し、事実の反映（実績の追記等）だけを直接PRにすること
@@ -67,7 +67,7 @@ LAST=$(cat "$STATE" 2>/dev/null || echo 0)
 
 ルール:
 
-- **重複防止**: 調べる前に対象 Issue の既存コメントに `<!-- ai-management-research -->` が無いことを確認する。同じ問いを2回調べない。7日以上前の調査結果は陳腐化とみなして再調査してよい
+- **重複防止**: 調べる前に対象 Issue の既存コメントに、③`<!-- ai-management-research -->` が先頭にあり、かつ投稿者が `gh api user` と一致するコメントが無いことを確認する。同じ問いを2回調べない。7日以上前の調査結果は陳腐化とみなして再調査してよい
 - 調べた結果は必ず1節の優先度分析コメントに反映する（調べっぱなしで終わらせない）
 - 発火条件に当てはまるものが無ければ何もしない。ゼロ件の回でよい
 
