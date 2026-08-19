@@ -230,8 +230,42 @@ self_update() {
   export DUTY_SELF_UPDATED=1
   exec /bin/bash "$fresh" "$@"
 }
+# 会長の書き込みを見分けるための共通 jq 定義（仕事5・仕事8 が使う）。
+# 当番(AI)・経営企画室・会長はすべて同じ `hiroky1983` トークンで投稿するため author では区別できず、
+# 「自社が書いたコメント」を本文のマーカーで除外して最後の会長コメントを取り出す。
+#   - 許可リスト外の author（coderabbitai・第三者）は無視する（#68: 自動プランで空振り起動）
+#   - `<!-- ai-management-` で始まるコメントは経営企画室（Scripts/ai-management-duty.sh・日次）の
+#     分析/リマインドなので除外する。除外しないと経営企画室が1本置くたびに開発当番が「会長の着信」と
+#     誤認して毎時空振りする（#168。#120 と同じ失敗モードが経営企画室の常設化で再発した）。
+#     マーカーは経営企画室側の重複防止用として ai-management-prompt.md が先頭行に必須化済み
+# 変数に出しているのは、同じ定義を Scripts/tests/test-ai-duty-detect.sh から評価するため。
+DUTY_JQ_COMMENT_LIB='
+def last_owner_body($actors):
+  [.comments.nodes[]
+   | select((.author.login // "") as $l | ($actors | index($l)) != null)
+   | select(((.body // "") | startswith("<!-- ai-management-")) | not)
+   | (.body // "")] | last // "";
+
+def is_ringi_reply($actors):
+  last_owner_body($actors) as $b
+  | $b != ""
+    and (($b | contains("【要決裁】")) | not)
+    and (($b | contains("決裁反映")) | not);
+
+def is_proposed_reply($actors):
+  ([.labels.nodes[].name]) as $l
+  | ($l | index("ai:approved")) == null
+    and ($l | index("ai:in-progress")) == null
+    and ($l | index("blocked")) == null
+    and (last_owner_body($actors) as $b
+         | $b != ""
+           and (($b | startswith("企画議論")) | not)
+           and (($b | contains("【要決裁】")) | not)
+           and (($b | contains("決裁反映")) | not));
+'
+
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
-# （Scripts/tests/test-ai-duty-notify.sh。source されたときだけ効く）
+# （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
 if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
 
 self_update "$@"
@@ -353,11 +387,10 @@ CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeab
 
 # 仕事5: 決裁コメントの着信（ringi:pending の Issue に決裁スレッド以外の新規コメントが付いたら
 # 会長の決裁着信の可能性として当番を起こす。判定と反映は当番エージェントが行う）
-# 注: 当番(AI)のコメントも会長と同じアカウント(hiroky1983)で投稿されるため、この2者は author では
-#     区別できない。よって「最後のコメントが決裁スレッド(【要決裁】)でも反映記録(決裁反映)でもない」
-#     ことを検知条件とする。ただし coderabbitai 等の bot・第三者のコメントは決裁になり得ないため、
-#     許可リスト外の author は無視して「最後の信頼済みコメント」で判定する
-#     （2026-08-11: Issue #68 に CodeRabbit の自動プランが付き毎時の空振り起動が発生したため追加）。
+# 注: 当番(AI)・経営企画室のコメントも会長と同じアカウント(hiroky1983)で投稿されるため author では
+#     区別できない。よって「最後の会長コメント（= 自社のマーカーが付かないコメント）が決裁スレッド
+#     (【要決裁】)でも反映記録(決裁反映)でもない」ことを検知条件とする。判定は上の
+#     DUTY_JQ_COMMENT_LIB の is_ringi_reply（除外の内訳と経緯もそちらのコメント参照）。
 RINGI_REPLIES=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
@@ -368,14 +401,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | ([.comments.nodes[]
-      | select((.author.login // "") as $l | ($actors | index($l)) != null)
-      | .body] | last // "") as $b
-  | select(($b | contains("【要決裁】")) | not)
-  | select(($b | contains("決裁反映")) | not)
-  | select($b != "")] | length' 2>/dev/null || echo 0)
+  | select(is_ringi_reply($actors))] | length' 2>/dev/null || echo 0)
 
 # 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
 # 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
@@ -413,6 +441,7 @@ fi
 # 当番も会長アカウントのトークンでコメントするため投稿者では AI と会長を区別できない。そのため
 # 接頭辞は返信だけでなく、当番がこの種の Issue に投稿する記録コメント（保留・見送り等）にも必須。
 # 規程は ai-duty-prompt.md 1-e-3（#120: #79 の保留記録がマーカー無しで毎時の空振り起動を生んだ）。
+# 経営企画室のコメント（`<!-- ai-management-` 始まり）の除外は DUTY_JQ_COMMENT_LIB 側で行う（#168）。
 PROPOSED_REPLIES=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
@@ -424,17 +453,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | ([.labels.nodes[].name]) as $l
-  | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null and ($l | index("blocked")) == null)
-  | ([.comments.nodes[]
-      | select((.author.login // "") as $a | ($actors | index($a)) != null)
-      | .body] | last // "") as $b
-  | select($b != "")
-  | select(($b | startswith("企画議論")) | not)
-  | select(($b | contains("【要決裁】")) | not)
-  | select(($b | contains("決裁反映")) | not)] | length' 2>/dev/null || echo 0)
+  | select(is_proposed_reply($actors))] | length' 2>/dev/null || echo 0)
 
 # 仕事9: 孤児化した ai:in-progress の回収（Issue #83）
 # 当番が着手直後に異常終了すると ai:in-progress が残留し、その Issue は仕事1の集計から
