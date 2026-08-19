@@ -46,8 +46,10 @@ if [ ! -f "$PROJECT_YML" ]; then
 fi
 
 # `        MARKETING_VERSION: "1.1.2"` の形。ターゲットが増えて複数行あっても値が割れていないことを見る。
-# tr の \042 \047 は " と ' （シェルの引用符と混ざらないよう8進で書く）。
-ACTUAL="$(awk '$1 == "MARKETING_VERSION:" { print $2 }' "$PROJECT_YML" | tr -d '\042\047' | sort -u)"
+# tr の \015 \042 \047 は CR と " と ' （シェルの引用符と混ざらないよう8進で書く）。
+# CR を落とすのは、awk が空白で区切るため CRLF 改行だと値の末尾に \r が残り、
+# 一致しているのに配信をブロックしてしまうため。
+ACTUAL="$(awk '$1 == "MARKETING_VERSION:" { print $2 }' "$PROJECT_YML" | tr -d '\015\042\047' | sort -u)"
 COUNT="$(printf '%s' "$ACTUAL" | grep -c . || true)"
 
 if [ "$COUNT" -eq 0 ]; then

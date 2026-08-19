@@ -67,6 +67,11 @@ printf 'settings:\n        MARKETING_VERSION: 1.1.2\n' > "$TMP/bare.yml"
 check "引用符なしでも一致とみなす"              0 "release/v1.1.2" "$TMP/bare.yml"
 printf "settings:\n        MARKETING_VERSION: '1.1.2'\n" > "$TMP/single.yml"
 check "シングルクォートでも一致とみなす"        0 "release/v1.1.2" "$TMP/single.yml"
+# awk は空白区切りなので、CRLF 改行だと値の末尾に \r が残り一致しているのに落ちる
+printf 'settings:\r\n        MARKETING_VERSION: "1.1.2"\r\n' > "$TMP/crlf.yml"
+check "CRLF 改行でも一致とみなす"               0 "release/v1.1.2" "$TMP/crlf.yml"
+printf 'settings:\r\n        MARKETING_VERSION: "1.1.1"\r\n' > "$TMP/crlf-ng.yml"
+check "CRLF 改行でも不一致は落ちる"             1 "release/v1.1.2" "$TMP/crlf-ng.yml"
 
 echo "== 6. 配信レーンから呼ばれている（仕込み忘れの検出）=="
 FASTFILE="$SCRIPT_DIR/../../fastlane/Fastfile"
