@@ -514,26 +514,15 @@ $(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
 EOF
 fi
 
-# 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
+# 実行モード決定。仕事が無ければ何もしない。
+# 2026-08-19: 以前はここで「枯渇駆動の企画モード」（分析なしで機械的に2〜3件起票するだけ）に
+# 切り替えていたが、その乱造ガード自体が「未承認3件で永久停止」という別の詰まりを生んでいた
+# （#106 が6日間放置）。経営企画室の責務は Scripts/ai-management-duty.sh（日次）へ全面移管した。
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
-PLANNING_STAMP="$HOME/.asobiba-duty/last-planning"
 if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ]; then
-  # 乱造ガード: 未承認の企画（ai:proposed のみ）が3件以上滞留していたら起案しない
-  PROPOSED=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
-    --json number,labels \
-    --jq '[.[] | select([.labels[].name] | index("ai:approved") | not)] | length' 2>/dev/null || echo 99)
-  if [ "${PROPOSED:-99}" -ge 3 ]; then
-    log "仕事なし（未承認の企画 ${PROPOSED} 件が滞留中のため企画モードもスキップ）"
-    exit 0
-  fi
-  # 頻度ガード: 企画モードは1日1回まで
-  if [ -f "$PLANNING_STAMP" ] && [ -z "$(find "$PLANNING_STAMP" -mtime +1 2>/dev/null)" ]; then
-    log "仕事なし（企画モードは前回から24時間未経過のためスキップ）"
-    exit 0
-  fi
-  MODE="planning"
-  PROMPT_FILE="Scripts/ai-planning-prompt.md"
+  log "仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）"
+  exit 0
 fi
 
 # ベースクローンを用意（fetch 専用。ここでは一切作業しない）
@@ -566,5 +555,4 @@ claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")" >>"$LOG" 2>&1
 RC=$?
-[ "$MODE" = "planning" ] && touch "$PLANNING_STAMP"
 log "当番終了 (mode=$MODE, exit=$RC)"
