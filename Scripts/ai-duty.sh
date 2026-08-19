@@ -291,9 +291,15 @@ self_update "$@"
 #   落とす、といった競合が起きる（ai-duty-prompt.md 2-c は「多重起動はロックで防がれている」を
 #   前提に、30分以上更新の無い ai:in-progress を孤児と断定して回収する）。対策は3点:
 #     1. PID が読めないロックは DUTY_LOCK_GRACE 秒だけ「取得直後」とみなして回収しない
-#     2. 回収した回は PID_FILE を書いたあと読み直し、自分のものでなければ降りる
-#        （回収そのものが競合したとき、最後に書いた1プロセスだけが残る）
-#     3. EXIT トラップは自分が所有者のときだけロックを削除する（回収が競合した相手のロックを
+#     2. PID_FILE を書いたあと読み直し、自分のものでなければ降りる（競合したとき、最後に
+#        書いた1プロセスだけが残る）。**回収した回に限らず必ず確認する**のが要点で、
+#        「mkdir で新規に取れたのだから競合していない」は成り立たない: 回収経路に入った
+#        プロセスは猶予の判定を済ませており、その後の `rm -rf` は**誰が今ロックを
+#        持っていようと消す**。新規取得したプロセスのロックがその `rm -rf` で消され、
+#        回収側が取り直すと、確認を省いた新規取得側と回収側の両方が走る
+#        （40 並行のストレステストで3〜5プロセスが同時に当選することを実測。確認を
+#        無条件にすると常に1プロセスに戻る）
+#     3. EXIT トラップは自分が所有者のときだけロックを削除する（競合した相手のロックを
 #        巻き添えにしない）。cleanup_simulators / notify_pending は所有権と無関係に走らせる
 lock_age() {
   local mtime now
@@ -302,12 +308,18 @@ lock_age() {
   now=$(date +%s)
   echo $((now - mtime))
 }
+# PID の記録。失敗するのは直前に他プロセスの回収（rm -rf）でロックごと消えた場合。
+# リダイレクトの失敗はコマンド自身の stderr より先に評価されるため（`echo ... > f 2>/dev/null` では
+# 抑止されない）、グループ全体の stderr を潰して launchd の stderr に生のエラーを出さない
+write_pid() { { echo $$ >"$PID_FILE"; } 2>/dev/null; }
 release_lock() {
   [ "$(cat "$PID_FILE" 2>/dev/null || true)" = "$$" ] || return 0
-  rm -rf "$LOCK_DIR"
+  # 削除中に他プロセスが同じディレクトリへ書き込むと rm が "Directory not empty" で失敗しうる
+  # （40 並行のストレステストで観測）。EXIT トラップから呼ばれるので launchd の stderr へは
+  # 出さず、残ってもそのロックは PID 未書き込み扱いで次回の猶予超過に回収される
+  rm -rf "$LOCK_DIR" 2>/dev/null || log "ロックの解放に失敗（次回の猶予超過で回収される）"
 }
 PID_FILE="$LOCK_DIR/pid"
-RECLAIMED=0
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
   if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
@@ -325,20 +337,22 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
     fi
   fi
   log "停止済みプロセスのロックを回収 (pid=${OLD_PID:-不明})"
-  rm -rf "$LOCK_DIR"
+  # 削除中に他プロセスが書き込むと rm が失敗しうる（release_lock と同じ理由）。
+  # 失敗しても直後の mkdir が失敗して降りるので、ここは stderr を汚さないだけでよい
+  rm -rf "$LOCK_DIR" 2>/dev/null
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
-  RECLAIMED=1
 fi
-echo $$ >"$PID_FILE"
-# 所有権の確認は回収した回だけ行う。mkdir で新規に取れた回は、他のプロセスが猶予
-# （DUTY_LOCK_GRACE 秒）の間は回収してこないため確認するものが無く、毎回 sleep すると
-# launchd の毎時起動をそのぶん遅らせるだけになる
-if [ "$RECLAIMED" -eq 1 ]; then
-  sleep 1
-  if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
-    log "ロックの回収が競合したためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
-    exit 0
-  fi
+if ! write_pid; then
+  log "ロックへの PID 記録に失敗（他プロセスに回収された）ためスキップ"
+  exit 0
+fi
+# 所有権の確認は新規取得・回収のどちらの経路でも必ず行う（上のコメント 2. の理由）。
+# sleep は競合相手が PID を書き終えるのを待つためのもので、launchd の毎時起動が
+# 1秒遅れるだけの代償で二重当選を防ぐ
+sleep 1
+if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
+  log "ロックの所有権が他プロセスに移ったためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
+  exit 0
 fi
 trap 'cleanup_simulators; notify_pending; release_lock' EXIT
 

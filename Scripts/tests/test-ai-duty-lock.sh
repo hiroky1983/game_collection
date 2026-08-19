@@ -36,10 +36,25 @@ awk '{ print } /^trap .* EXIT$/ { print "exit 0" }' "$TARGET" >"$E2E"
 # PID_FILE を書いた直後に他プロセスが奪った状況を再現する版（回収の競合・所有者以外は消さない）
 E2E_STOLEN="$TEST_HOME/ai-duty-lock-stolen.sh"
 awk -v dead="$DEAD_PID" '
+  /^sleep 1$/      { print "echo " dead " >\"$PID_FILE\"" }   # 所有権の確認に入る直前に奪う
   { print }
-  /^echo \$\$ >"\$PID_FILE"$/ { print "echo " dead " >\"$PID_FILE\"" }
-  /^trap .* EXIT$/            { print "exit 0" }
+  /^trap .* EXIT$/ { print "exit 0" }
 ' "$TARGET" >"$E2E_STOLEN"
+# PID を書く直前にロックごと消された状況を再現する版（他プロセスの回収と衝突したケース）。
+# リダイレクトが失敗するので、生の stderr を出さずログを残して降りることを見る
+E2E_VANISHED="$TEST_HOME/ai-duty-lock-vanished.sh"
+awk '
+  /^if ! write_pid; then$/ { print "rmdir \"$LOCK_DIR\"" }
+  { print }
+  /^trap .* EXIT$/         { print "exit 0" }
+' "$TARGET" >"$E2E_VANISHED"
+# 所有権の確認を**通り抜けたあと**に奪われた状況を再現する版。EXIT トラップの release_lock が
+# 他プロセスのロックを巻き添えにしないことだけを切り出して見るために使う
+E2E_STOLEN_LATE="$TEST_HOME/ai-duty-lock-stolen-late.sh"
+awk -v dead="$DEAD_PID" '
+  { print }
+  /^trap .* EXIT$/ { print "echo " dead " >\"$PID_FILE\""; print "exit 0" }
+' "$TARGET" >"$E2E_STOLEN_LATE"
 
 run() {  # run [追加の環境変数...] — 生成済みスクリプトを走らせ、終了コードを返す
   local script="$1"; shift
@@ -53,8 +68,13 @@ echo "== 0. 前提 =="
 if bash -n "$TARGET"; then ok "bash -n が通る"; else ng "bash -n が失敗"; fi
 if grep -q '^exit 0$' "$E2E"; then ok "テスト用スクリプトを生成できた（trap 行が見つかる）"; else ng "テスト用スクリプトの生成に失敗（trap 行が見つからない）"; fi
 check "PID を奪う版を生成できた" "1" "$(grep -c "^echo $DEAD_PID >\"\$PID_FILE\"$" "$E2E_STOLEN")"
+check "確認後に PID を奪う版を生成できた" "1" "$(grep -c "^echo $DEAD_PID >\"\$PID_FILE\"$" "$E2E_STOLEN_LATE")"
+check "ロックを消しておく版を生成できた" "1" "$(grep -c '^rmdir "\$LOCK_DIR"$' "$E2E_VANISHED")"
 check "release_lock が EXIT トラップから呼ばれる" "1" "$(grep -c '^trap .*release_lock.* EXIT$' "$TARGET")"
 check "cleanup_simulators / notify_pending は所有権と無関係に走る" "1" "$(grep -c '^trap .cleanup_simulators; notify_pending; release_lock. EXIT$' "$TARGET")"
+# 所有権の確認を回収経路だけに絞ると二重当選が実在する（新規取得したプロセスのロックが、
+# 回収経路のプロセスの `rm -rf` で消される経路。テスト6-b で挙動として押さえる）
+check "所有権の確認が経路で条件分岐していない" "0" "$(grep -c 'RECLAIMED' "$TARGET")"
 
 echo "== 1. 通常取得と解放 =="
 reset
@@ -118,24 +138,44 @@ check "「ロックを回収」のログに死んだ PID が出る" "1" "$(logge
 check "回収後は解放される" "no" "$(lock_exists)"
 check "猶予の判定は PID があるときは働かない" "0" "$(logged 'ロック取得直後')"
 
-echo "== 6. 回収が競合したら降りる（後から書いた1プロセスだけが残る）=="
+echo "== 6. 回収経路で所有権を奪われたら降りる（後から書いた1プロセスだけが残る）=="
 reset
-mkdir "$LOCK"; echo "$DEAD_PID" >"$LOCK/pid"   # 回収経路に入れる（= 所有権の再確認が走る）
+mkdir "$LOCK"; echo "$DEAD_PID" >"$LOCK/pid"   # 回収経路に入れる
 run "$E2E_STOLEN"
 check "終了コード 0" "0" "$?"
-check "「回収が競合」のログが出る" "1" "$(logged 'ロックの回収が競合したためスキップ')"
+check "「所有権が他プロセスに移った」のログが出る" "1" "$(logged 'ロックの所有権が他プロセスに移ったためスキップ')"
 check "勝者のロックを消さずに降りる" "yes" "$(lock_exists)"
 check "勝者の PID がそのまま残る" "$DEAD_PID" "$(cat "$LOCK/pid")"
 
-echo "== 7. 所有者でなくなった場合は EXIT トラップでもロックを消さない =="
-# 6 は所有権の再確認（回収経路）で降りるケース。ここは再確認を通り抜けたあとに奪われた場合、
-# EXIT トラップの release_lock が他プロセスのロックを巻き添えにしないことを見る。
-# 新規取得（回収なし = 再確認をしない経路）で PID を奪わせると、この経路だけを切り出せる
+echo "== 6-b. 新規取得の経路でも所有権を確認する（二重当選を防ぐ本体）=="
+# 「mkdir で新規に取れたのだから競合していない」は成り立たない。回収経路に入ったプロセスは
+# 猶予の判定を済ませており、その後の `rm -rf` は誰が今ロックを持っていようと消す。
+# 新規取得側のロックがそれで消され、確認を省くと回収側と新規取得側の両方が走る
+# （40 並行のストレステストで3〜5プロセスが同時に当選することを実測）
 reset
-run "$E2E_STOLEN"
+run "$E2E_STOLEN"   # mkdir で新規に取れた経路（回収に入らない）
+check "終了コード 0" "0" "$?"
+check "新規取得でも所有権の喪失を検知して降りる" "1" "$(logged 'ロックの所有権が他プロセスに移ったためスキップ')"
+check "勝者のロックを消さずに降りる" "yes" "$(lock_exists)"
+check "勝者の PID がそのまま残る" "$DEAD_PID" "$(cat "$LOCK/pid")"
+
+echo "== 6-c. PID を書く直前にロックが消えていたら、stderr を汚さずログを残して降りる =="
+reset
+STDERR="$TEST_HOME/vanished.stderr"
+run "$E2E_VANISHED" 2>"$STDERR"
+check "終了コード 0" "0" "$?"
+check "「PID 記録に失敗」のログが出る" "1" "$(logged 'ロックへの PID 記録に失敗')"
+check "launchd の stderr を汚さない" "" "$(cat "$STDERR")"
+check "所有権の確認まで進まない" "0" "$(logged 'ロックの所有権が他プロセスに移った')"
+
+echo "== 7. 確認を通り抜けたあとに奪われても EXIT トラップでロックを消さない =="
+# 6 / 6-b は所有権の確認で降りるケース。ここは確認を通り抜けたあとに奪われた場合、
+# EXIT トラップの release_lock が他プロセスのロックを巻き添えにしないことだけを見る
+reset
+run "$E2E_STOLEN_LATE"
 check "終了コード 0" "0" "$?"
 check "所有者でないのでロックを消さない" "yes" "$(lock_exists)"
-check "回収の競合ログは出ない（新規取得の経路）" "0" "$(logged 'ロックの回収が競合')"
+check "確認は通り抜けている（喪失のログは出ない）" "0" "$(logged 'ロックの所有権が他プロセスに移った')"
 
 echo "== 8. 既存の通知テストが引き続き通る =="
 if bash "$SCRIPT_DIR/test-ai-duty-notify.sh" >"$TEST_HOME/notify.out" 2>&1; then
