@@ -10,6 +10,7 @@ LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
 DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
 DUTY_FETCH_KILL_GRACE="${DUTY_FETCH_KILL_GRACE:-5}"  # SIGTERM / SIGKILL それぞれの猶予秒数（同上）
+DUTY_LOCK_GRACE="${DUTY_LOCK_GRACE:-30}"  # PID 未書き込みのロックを「取得直後」とみなす秒数
 DUTY_NOTIFY_STATE="${DUTY_NOTIFY_STATE:-$HOME/.asobiba-duty/last-notify}"  # 通知の連投防止の状態ファイル
 DUTY_NOTIFY_INTERVAL="${DUTY_NOTIFY_INTERVAL:-86400}"  # 同じ対象を再通知しない秒数（既定 = 1日）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
@@ -271,19 +272,61 @@ if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
 self_update "$@"
 
 # 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
+#   mkdir から PID_FILE の書き込みまでには僅かな隙があり、その間に来た次のプロセスが
+#   「PID が読めない = 停止済み」と誤判定して有効なロックを奪うと当番が二重に走る
+#   （PR #163 で ai-management-duty.sh 側を直した CodeRabbit 指摘と同一構造・Issue #165）。
+#   多重起動を防いでいるのはこのロックだけなので、破れると稼働中の当番の Issue から別の当番が
+#   ai:in-progress を剥がす・同じ Issue に二重着手する・EXIT トラップが他方のシミュレータを
+#   落とす、といった競合が起きる（ai-duty-prompt.md 2-c は「多重起動はロックで防がれている」を
+#   前提に、30分以上更新の無い ai:in-progress を孤児と断定して回収する）。対策は3点:
+#     1. PID が読めないロックは DUTY_LOCK_GRACE 秒だけ「取得直後」とみなして回収しない
+#     2. 回収した回は PID_FILE を書いたあと読み直し、自分のものでなければ降りる
+#        （回収そのものが競合したとき、最後に書いた1プロセスだけが残る）
+#     3. EXIT トラップは自分が所有者のときだけロックを削除する（回収が競合した相手のロックを
+#        巻き添えにしない）。cleanup_simulators / notify_pending は所有権と無関係に走らせる
+lock_age() {
+  local mtime now
+  mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null || stat -c %Y "$LOCK_DIR" 2>/dev/null) || return 1
+  [ -n "$mtime" ] || return 1
+  now=$(date +%s)
+  echo $((now - mtime))
+}
+release_lock() {
+  [ "$(cat "$PID_FILE" 2>/dev/null || true)" = "$$" ] || return 0
+  rm -rf "$LOCK_DIR"
+}
 PID_FILE="$LOCK_DIR/pid"
+RECLAIMED=0
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
   if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
     log "前回実行中 (pid=$OLD_PID) のためスキップ"
     exit 0
   fi
+  if [ -z "$OLD_PID" ]; then
+    AGE=$(lock_age || true)
+    if [ -z "$AGE" ] || [ "$AGE" -lt "$DUTY_LOCK_GRACE" ]; then
+      log "ロック取得直後（PID 未書き込み・経過=${AGE:-不明}秒）のためスキップ"
+      exit 0
+    fi
+  fi
   log "停止済みプロセスのロックを回収 (pid=${OLD_PID:-不明})"
   rm -rf "$LOCK_DIR"
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+  RECLAIMED=1
 fi
 echo $$ >"$PID_FILE"
-trap 'cleanup_simulators; notify_pending; rm -rf "$LOCK_DIR"' EXIT
+# 所有権の確認は回収した回だけ行う。mkdir で新規に取れた回は、他のプロセスが猶予
+# （DUTY_LOCK_GRACE 秒）の間は回収してこないため確認するものが無く、毎回 sleep すると
+# launchd の毎時起動をそのぶん遅らせるだけになる
+if [ "$RECLAIMED" -eq 1 ]; then
+  sleep 1
+  if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
+    log "ロックの回収が競合したためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
+    exit 0
+  fi
+fi
+trap 'cleanup_simulators; notify_pending; release_lock' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
