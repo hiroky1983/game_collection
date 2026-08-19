@@ -10,11 +10,23 @@ LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
 DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
 DUTY_FETCH_KILL_GRACE="${DUTY_FETCH_KILL_GRACE:-5}"  # SIGTERM / SIGKILL それぞれの猶予秒数（同上）
+DUTY_LOCK_GRACE="${DUTY_LOCK_GRACE:-30}"  # PID 未書き込みのロックを「取得直後」とみなす秒数
 DUTY_NOTIFY_STATE="${DUTY_NOTIFY_STATE:-$HOME/.asobiba-duty/last-notify}"  # 通知の連投防止の状態ファイル
 DUTY_NOTIFY_INTERVAL="${DUTY_NOTIFY_INTERVAL:-86400}"  # 同じ対象を再通知しない秒数（既定 = 1日）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
+
+# DUTY_LOCK_GRACE は外部から差し替えられるため、0 以上の10進整数だけを通して既定値へ戻す。
+# `[ "$AGE" -lt "$DUTY_LOCK_GRACE" ]` は非数値だと「整数式が必要」で**失敗（= 偽）**になり、
+# 猶予の判定を素通りして取得直後の PID 未書き込みロックを回収してしまう
+# （= 本来防いでいる多重起動が起きる。PR #173 の CodeRabbit 指摘）
+case "$DUTY_LOCK_GRACE" in
+  ''|*[!0-9]*)
+    log "DUTY_LOCK_GRACE=$DUTY_LOCK_GRACE は 0 以上の整数でないため既定値 30 を使う"
+    DUTY_LOCK_GRACE=30
+    ;;
+esac
 
 # シミュレータの後片付け（Issue #100）。当番が動作確認のために起動したシミュレータだけを落とし、
 # 実行前から起動していたもの（= 会長が使用中の可能性がある）には触らない差分方式。
@@ -271,6 +283,42 @@ if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
 self_update "$@"
 
 # 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
+#   mkdir から PID_FILE の書き込みまでには僅かな隙があり、その間に来た次のプロセスが
+#   「PID が読めない = 停止済み」と誤判定して有効なロックを奪うと当番が二重に走る
+#   （PR #163 で ai-management-duty.sh 側を直した CodeRabbit 指摘と同一構造・Issue #165）。
+#   多重起動を防いでいるのはこのロックだけなので、破れると稼働中の当番の Issue から別の当番が
+#   ai:in-progress を剥がす・同じ Issue に二重着手する・EXIT トラップが他方のシミュレータを
+#   落とす、といった競合が起きる（ai-duty-prompt.md 2-c は「多重起動はロックで防がれている」を
+#   前提に、30分以上更新の無い ai:in-progress を孤児と断定して回収する）。対策は3点:
+#     1. PID が読めないロックは DUTY_LOCK_GRACE 秒だけ「取得直後」とみなして回収しない
+#     2. PID_FILE を書いたあと読み直し、自分のものでなければ降りる（競合したとき、最後に
+#        書いた1プロセスだけが残る）。**回収した回に限らず必ず確認する**のが要点で、
+#        「mkdir で新規に取れたのだから競合していない」は成り立たない: 回収経路に入った
+#        プロセスは猶予の判定を済ませており、その後の `rm -rf` は**誰が今ロックを
+#        持っていようと消す**。新規取得したプロセスのロックがその `rm -rf` で消され、
+#        回収側が取り直すと、確認を省いた新規取得側と回収側の両方が走る
+#        （40 並行のストレステストで3〜5プロセスが同時に当選することを実測。確認を
+#        無条件にすると常に1プロセスに戻る）
+#     3. EXIT トラップは自分が所有者のときだけロックを削除する（競合した相手のロックを
+#        巻き添えにしない）。cleanup_simulators / notify_pending は所有権と無関係に走らせる
+lock_age() {
+  local mtime now
+  mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null || stat -c %Y "$LOCK_DIR" 2>/dev/null) || return 1
+  [ -n "$mtime" ] || return 1
+  now=$(date +%s)
+  echo $((now - mtime))
+}
+# PID の記録。失敗するのは直前に他プロセスの回収（rm -rf）でロックごと消えた場合。
+# リダイレクトの失敗はコマンド自身の stderr より先に評価されるため（`echo ... > f 2>/dev/null` では
+# 抑止されない）、グループ全体の stderr を潰して launchd の stderr に生のエラーを出さない
+write_pid() { { echo $$ >"$PID_FILE"; } 2>/dev/null; }
+release_lock() {
+  [ "$(cat "$PID_FILE" 2>/dev/null || true)" = "$$" ] || return 0
+  # 削除中に他プロセスが同じディレクトリへ書き込むと rm が "Directory not empty" で失敗しうる
+  # （40 並行のストレステストで観測）。EXIT トラップから呼ばれるので launchd の stderr へは
+  # 出さず、残ってもそのロックは PID 未書き込み扱いで次回の猶予超過に回収される
+  rm -rf "$LOCK_DIR" 2>/dev/null || log "ロックの解放に失敗（次回の猶予超過で回収される）"
+}
 PID_FILE="$LOCK_DIR/pid"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
@@ -278,12 +326,35 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
     log "前回実行中 (pid=$OLD_PID) のためスキップ"
     exit 0
   fi
+  if [ -z "$OLD_PID" ]; then
+    AGE=$(lock_age || true)
+    # 非数値（stat の想定外出力）と負値（mtime が未来 = 時刻の巻き戻り）は「不明」に倒す。
+    # DUTY_LOCK_GRACE と同じ理由で、比較が失敗すると回収する側に落ちてしまう
+    case "$AGE" in ''|*[!0-9]*) AGE="" ;; esac
+    if [ -z "$AGE" ] || [ "$AGE" -lt "$DUTY_LOCK_GRACE" ]; then
+      log "ロック取得直後（PID 未書き込み・経過=${AGE:-不明}秒）のためスキップ"
+      exit 0
+    fi
+  fi
   log "停止済みプロセスのロックを回収 (pid=${OLD_PID:-不明})"
-  rm -rf "$LOCK_DIR"
+  # 削除中に他プロセスが書き込むと rm が失敗しうる（release_lock と同じ理由）。
+  # 失敗しても直後の mkdir が失敗して降りるので、ここは stderr を汚さないだけでよい
+  rm -rf "$LOCK_DIR" 2>/dev/null
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
-echo $$ >"$PID_FILE"
-trap 'cleanup_simulators; notify_pending; rm -rf "$LOCK_DIR"' EXIT
+if ! write_pid; then
+  log "ロックへの PID 記録に失敗（他プロセスに回収された）ためスキップ"
+  exit 0
+fi
+# 所有権の確認は新規取得・回収のどちらの経路でも必ず行う（上のコメント 2. の理由）。
+# sleep は競合相手が PID を書き終えるのを待つためのもので、launchd の毎時起動が
+# 1秒遅れるだけの代償で二重当選を防ぐ
+sleep 1
+if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
+  log "ロックの所有権が他プロセスに移ったためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
+  exit 0
+fi
+trap 'cleanup_simulators; notify_pending; release_lock' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
