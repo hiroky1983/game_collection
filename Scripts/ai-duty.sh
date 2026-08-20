@@ -274,6 +274,12 @@ def is_proposed_reply($actors):
            and (($b | startswith("企画議論")) | not)
            and (($b | contains("【要決裁】")) | not)
            and (($b | contains("決裁反映")) | not));
+
+def is_blocked_reply($actors):
+  last_owner_body($actors) as $b
+  | $b != ""
+    and (($b | startswith("解除確認")) | not)
+    and (($b | startswith("着手見送り:")) | not);
 '
 
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
@@ -606,13 +612,34 @@ $(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
 EOF
 fi
 
+# 仕事11: blocked 解除確認（Issue #158 で発覚した穴の解消）
+# blocked は仕事1・仕事8の集計から機械的に除外されるため、通常この当番から見えない。
+# しかし「解除条件を満たしたか」を再評価する経路がどこにも無く、会長が完了をコメントしても
+# 検知できなかった（#158: 会長が Firebase コンソール操作を終えて「done」とコメントしたのに
+# blocked のまま2日近く放置された）。仕事5・8と同じ DUTY_JQ_COMMENT_LIB のパターンで、
+# blocked Issue に会長（= 自社マーカーの付かない信頼アカウントコメント）の新規コメントが付き、
+# かつ当番の応答（先頭 "解除確認"）がまだ無いものだけを拾う。
+BLOCKED_UPDATES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    issues(states: OPEN, labels: ["blocked"], first: 20) {
+      nodes {
+        number
+        comments(last: 20) { nodes { body author { login } } }
+      }
+    }
+  }
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
+  | [.data.repository.issues.nodes[]
+  | select(is_blocked_reply($actors))] | length' 2>/dev/null || echo 0)
+
 # 実行モード決定。仕事が無ければ何もしない。
 # 2026-08-19: 以前はここで「枯渇駆動の企画モード」（分析なしで機械的に2〜3件起票するだけ）に
 # 切り替えていたが、その乱造ガード自体が「未承認3件で永久停止」という別の詰まりを生んでいた
 # （#106 が6日間放置）。経営企画室の責務は Scripts/ai-management-duty.sh（日次）へ全面移管した。
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ]; then
   log "仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）"
   exit 0
 fi
@@ -641,7 +668,7 @@ git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 ||
 # claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
 capture_sims_before
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
