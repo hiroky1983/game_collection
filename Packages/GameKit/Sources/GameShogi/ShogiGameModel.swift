@@ -255,6 +255,12 @@ public final class ShogiGameModel {
 
     public private(set) var isThinking: Bool = false
 
+    /// 思考タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
+    /// `isThinking = true` と局面の取り込みが済んだ直後・探索の開始前に await する。
+    /// テストはここで思考を止めることで、「探索の完了待ちで停止中」という状態を
+    /// 探索の所要時間に依存せず決定論的に作れる（#172）。
+    @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
+
     /// View の `.task(id:)` に渡す CPU 起動トリガー。
     /// 手数だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
     /// CPU の初手が起動しない（#82）。対局の通し番号と組にする。
@@ -274,6 +280,7 @@ public final class ShogiGameModel {
 
         let level = aiLevel
         let sfen = position.toSFEN()
+        await thinkingGate?()
         let usi = await Task.detached(priority: .userInitiated) {
             await SimpleMinimaxEngine(level: level).bestMove(sfen: sfen)
         }.value
