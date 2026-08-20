@@ -121,6 +121,10 @@ check "許可リスト外(coderabbitai)の最終コメントは無視する" "fa
   "$(blocked "$(node "blocked" "coderabbitai=何かのコメント")")"
 check "コメントが1件も無ければ発火しない" "false" \
   "$(blocked "$(node "blocked")")"
+# CodeRabbit指摘: 当番自身が着手見送り時に投稿する「着手見送り:」コメント（1-d-2記載の定型文）を
+# 会長の新規コメントと誤認すると、blockedを付けた直後に仕事11が不要に発火する
+check "最後が当番自身の「着手見送り」コメントなら発火しない（誤検知防止）" "false" \
+  "$(blocked "$(node "blocked" "hiroky1983=着手見送り: 着手条件 xxx が未達（根拠）。解除条件: yyy")")"
 
 echo "== 8. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")

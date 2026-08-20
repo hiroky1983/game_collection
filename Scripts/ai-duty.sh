@@ -277,7 +277,9 @@ def is_proposed_reply($actors):
 
 def is_blocked_reply($actors):
   last_owner_body($actors) as $b
-  | $b != "" and (($b | startswith("解除確認")) | not);
+  | $b != ""
+    and (($b | startswith("解除確認")) | not)
+    and (($b | startswith("着手見送り:")) | not);
 '
 
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
