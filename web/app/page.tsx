@@ -8,8 +8,12 @@ import {
   SITE_URL,
 } from "./lib/site";
 
+/// 収録本数とゲーム名の列挙は `games` から導出する（本数をベタ書きすると追加のたびに直し漏れる）。
+const gameCount = games.length;
+const gameNames = games.map((g) => g.name).join("・");
+
 const points = [
-  { icon: "✈️", title: "オフラインで遊べる", desc: "通信不要。電波の無い場所でも8本すべて動きます" },
+  { icon: "✈️", title: "オフラインで遊べる", desc: `通信不要。電波の無い場所でも${gameCount}本すべて動きます` },
   { icon: "🔓", title: "登録もログインも不要", desc: "入れてすぐ遊べます。アカウント作成はありません" },
   { icon: "🪶", title: `約${APP_SIZE_MB}と軽い`, desc: "ダウンロードもインストールもすぐ終わります" },
   {
@@ -24,7 +28,7 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: SITE_NAME,
-  description: `将棋・2048・五目並べ・マインスイーパー・オセロ・ポーカー・神経衰弱・ブラックジャックの8つを収録した iPhone 用ゲームコレクション。オフラインで遊べて、会員登録も不要。`,
+  description: `${gameCount}種類のゲーム（${gameNames}）を収録した iPhone 用ゲームコレクション。オフラインで遊べて、会員登録も不要。`,
   applicationCategory: "GameApplication",
   operatingSystem: `iOS ${MIN_IOS_VERSION}+`,
   url: SITE_URL,
@@ -49,10 +53,10 @@ export default function Home() {
         <div className="text-6xl mb-4">🎮</div>
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-3">あそびば</h1>
         <p className="text-gray-500 dark:text-gray-400 text-lg">
-          定番ゲーム8種の詰め合わせ
+          定番ゲーム{gameCount}種の詰め合わせ
         </p>
         <p className="text-gray-500 dark:text-gray-400 mt-3 leading-relaxed">
-          将棋・2048・五目並べ・マインスイーパー・オセロ・ポーカー・神経衰弱・ブラックジャックを1本に。
+          {gameNames}を1本に。
           <strong className="font-semibold text-gray-700 dark:text-gray-200">
             すべてオフラインで遊べて、通信も会員登録も不要
           </strong>
@@ -81,7 +85,7 @@ export default function Home() {
         ))}
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">収録ゲーム（8本）</h2>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">収録ゲーム（{gameCount}本）</h2>
       <div className="grid grid-cols-1 gap-3 mb-12">
         {games.map((g) => (
           <Link
