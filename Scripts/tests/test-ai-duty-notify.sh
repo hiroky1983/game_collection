@@ -214,8 +214,10 @@ echo "== 13. ブレース無しの変数参照の直後に多バイト文字を�
 # 上の1件を直しても、同じ書き方は日本語ログを足すたびに混入しうる。テスト12は通知経路しか通らないため、
 # 静的な全走査で他の行も塞ぐ。LC_ALL=C にすると 0x80 以上のバイトが [:print:] からも [:space:] からも
 # 外れるので、BSD grep（macOS ランナー）でも GNU grep でも同じ判定になる（タブ・改行は誤検出しない）
-SCAN_HITS=$(LC_ALL=C grep -nE '\$[A-Za-z_][A-Za-z0-9_]*[^[:print:][:space:]]' \
-  "$SCRIPT_DIR"/../*.sh "$SCRIPT_DIR"/*.sh 2>/dev/null)
+# 走査は find で再帰的に行う（グロブでは階層を掘り下げられず、Scripts/ にサブディレクトリが
+# 増えたときに黙って対象から漏れる。PR #182 の CodeRabbit 指摘）
+SCAN_HITS=$(LC_ALL=C find "$SCRIPT_DIR/.." -type f -name '*.sh' \
+  -exec grep -HnE '\$[A-Za-z_][A-Za-z0-9_]*[^[:print:][:space:]]' {} + 2>/dev/null)
 if [ -z "$SCAN_HITS" ]; then
   ok "Scripts/ 配下の .sh に該当箇所が無い"
 else
