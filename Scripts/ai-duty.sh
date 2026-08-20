@@ -155,13 +155,18 @@ notify_pending() {
     body="${body}承認待ち(ai:approved を付けるだけ): $(hash_numbers "$approval")"
   fi
 
+  # 以降のログの `${body}` は必ずブレースで囲む（#175）。UTF-8 ロケールの bash は 0x80 以上のバイトを
+  # 識別子の一部として受け入れるため、ブレース無しの変数参照の直後に全角文字を置くと、変数名が
+  # `body` + その全角文字の先頭バイトと解釈され、`set -u` で `unbound variable` になってスクリプトごと
+  # 落ちる（= 手動実行時に通知が飛ばない）。launchd は C ロケールで走るため今まで露見していなかった。
+  # 回帰検出はテスト12（UTF-8 での通し実行）とテスト13（全走査）で行う
   osascript -e "display notification \"$body\" with title \"あそびば: 会長の操作待ち ${count}件\"" >/dev/null 2>&1 || {
-    log "通知: osascript に失敗したため見送り（対象: $body）"
+    log "通知: osascript に失敗したため見送り（対象: ${body}）"
     return 0
   }
   mkdir -p "$(dirname "$DUTY_NOTIFY_STATE")" 2>/dev/null
   printf '%s\n%s\n' "$key" "$now" >"$DUTY_NOTIFY_STATE" 2>/dev/null
-  log "通知: 会長へ ${count}件（$body）"
+  log "通知: 会長へ ${count}件（${body}）"
 }
 
 # 自己更新: launchd が起動するのは会長の作業ツリー（~/myspace/game_collection）の本ファイルであり、
