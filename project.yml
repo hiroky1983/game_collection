@@ -63,6 +63,11 @@ targets:
         CFBundleDisplayName: あそびば
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # UI 文字列は Swift ソースに日本語で直書きされているが、この2キーが未指定だと
+        # 既定の en が使われ、App Store 上「英語のアプリ」として登録される（#171）
+        CFBundleDevelopmentRegion: ja
+        CFBundleLocalizations:
+          - ja
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
