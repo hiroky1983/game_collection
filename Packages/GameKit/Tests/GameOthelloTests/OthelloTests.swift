@@ -98,22 +98,60 @@ struct OthelloAITurnKeyTests {
 
 // MARK: - 思考中の新規対局（#140 のレビュー指摘: 旧盤面で選んだ手が新盤面に着手される）
 
+/// 思考タスクを探索の開始直前で止めておくためのゲート（#172）。
+///
+/// 以前は「思考タスクを積んだ直後に空タスクを積む」という MainActor のジョブ順序で待ち合わせて
+/// いたが、これは「空タスクが走る時点で探索がまだ終わっていない」ことまでは保証できない。
+/// オセロは初期盤面の合法手が4手しかなく探索が軽いため、CI の巡り合わせによっては前提の
+/// `#require(model.isThinking)` のほうが落ちて、無関係な PR のマージを止めていた。
+///
+/// ここではモデル側の待ち合わせ点（`thinkingGate`）で思考を明示的に止め、テストが `release()` を
+/// 呼ぶまで探索に入らせない。到達も解放もテストが制御するため、探索の所要時間に依存しない。
+@MainActor
+final class ThinkingGate {
+    private var hasArrived = false
+    private var isReleased = false
+    private var onArrival: CheckedContinuation<Void, Never>?
+    private var onRelease: CheckedContinuation<Void, Never>?
+
+    /// 思考タスク側。ゲートへの到達を知らせ、`release()` まで停止する。
+    func wait() async {
+        hasArrived = true
+        onArrival?.resume()
+        onArrival = nil
+        guard !isReleased else { return }
+        await withCheckedContinuation { onRelease = $0 }
+    }
+
+    /// テスト側。思考タスクがゲートに到達するまで待つ。
+    func waitUntilArrived() async {
+        guard !hasArrived else { return }
+        await withCheckedContinuation { onArrival = $0 }
+    }
+
+    /// テスト側。止めていた思考タスクを探索へ進ませる。
+    func release() {
+        isReleased = true
+        onRelease?.resume()
+        onRelease = nil
+    }
+}
+
 @MainActor
 @Suite("オセロ 思考中の新規対局")
 struct OthelloNewGameDuringThinkingTests {
-    /// CPU の思考を開始し、探索の完了待ちで止まっている状態にして返す。
+    /// CPU の思考を開始し、探索の直前で止まっている状態にして返す。
     ///
-    /// 待ち合わせは時間ではなく **MainActor のジョブ順序**で行う（将棋 #145 と同じ）。思考タスクを
-    /// 積んだ直後に空タスクを積むと、空タスクが走る時点で思考タスクは必ず開始済み（= detached な
-    /// 探索の完了待ちで停止中）になる。思考タスクの再開ジョブは探索の完了時にキューの後ろへ積まれる。
-    ///
-    /// `Task.yield()` 1回では思考タスクが動き出す保証すら無く、動いても「思考中である」ことを
-    /// 確かめないまま先へ進むため、旧タスクが完走した経路だけを検証してバグを見逃す（#152）。
-    private func startThinking(_ model: OthelloModel) async throws -> Task<Void, Never> {
+    /// ゲートは一度到達したら外す（`thinkingGate = nil`）。停止中の旧タスクはすでにゲートの中に
+    /// いるため影響を受けず、以降に始まる新しい対局の思考は素通りする。
+    private func startThinking(_ model: OthelloModel) async throws -> (task: Task<Void, Never>, gate: ThinkingGate) {
+        let gate = ThinkingGate()
+        model.thinkingGate = { await gate.wait() }
         let task = Task { await model.performAIMoveIfNeeded() }
-        await Task { }.value
+        await gate.waitUntilArrived()
+        model.thinkingGate = nil
         try #require(model.isThinking, "テストの前提: 旧対局の思考が計算中であること")
-        return task
+        return (task, gate)
     }
 
     /// CPU の思考中に新規対局を始めても、旧盤面で選んだ手が新しい盤面に着手されないこと。
@@ -127,11 +165,12 @@ struct OthelloNewGameDuringThinkingTests {
         model.newGame(humanSide: .white, aiLevel: 2) // CPU=黒(先手)
         #expect(model.isAITurn)
 
-        let thinking = try await startThinking(model)
+        let (thinking, gate) = try await startThinking(model)
 
         model.newGame(humanSide: .white, aiLevel: 2) // 思考中に同じ初期盤面で新規対局
         #expect(model.isThinking == false)           // 新しい対局の CPU を起動できる
 
+        gate.release()                      // 旧対局の探索はここで初めて走る（旧盤面のまま）
         await thinking.value                // 旧対局の計算が終わるまで待つ
         #expect(model.turnID == 0)          // 旧盤面で選んだ手は入っていない
         #expect(model.blackCount == 2)      // 初期配置のまま（石が返っていない）

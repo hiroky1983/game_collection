@@ -40,6 +40,11 @@ public final class OthelloModel {
     public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
+    /// 思考タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
+    /// `isThinking = true` と盤面の取り込みが済んだ直後・探索の開始前に await する。
+    /// テストはここで思考を止めることで、「探索の完了待ちで停止中」という状態を
+    /// 探索の所要時間に依存せず決定論的に作れる（#172）。
+    @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
     private let gameID = "othello"
     private var startedAt: Date
     private var undoHistory: [TurnState] = []
@@ -155,6 +160,7 @@ public final class OthelloModel {
         defer { if gameSerial == serial { isThinking = false } }
 
         let b = board, s = currentStone, lvl = aiLevel
+        await thinkingGate?()
         let move = await Task.detached(priority: .userInitiated) {
             await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
         }.value
