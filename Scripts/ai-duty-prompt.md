@@ -138,7 +138,15 @@ Issue 本文が「◯◯の2週間後」のような**当番の努力では満�
   - Issue にマイルストーンが設定されていない場合は着手せず、Issue に記録して会長に確認する。ただし下記の「release ブランチを待たない変更」は対象外（バージョン非依存のためマイルストーンを要求しない）。
   - **`web/`（LP）の変更は release ブランチを待たず `main` へ直接 PR してよい**（2026-08-20 追加・#176）。LP は Apple の審査を経ないため、アプリのリリース列車に乗せる理由が無い。本番デプロイ（Vercel）は `main` 追従なので、release ブランチに積むと**そのバージョンが App Store で公開されて main にマージされるまで LP も塩漬けになる**（#156 の修正が `release/v1.1.2` 止まりで、大富豪・麻雀ソリティアのページが3日間 404 のままだった）。アプリコードと `web/` の両方を触る Issue は、`web/` だけを main 直 PR に分離する。
 
-  実装後はローカルで `swift test --package-path Packages/GameKit` を通してからコミット・プッシュし、PR を作成（**base: その release ブランチ**。docs/ Scripts/ .github/ web/ など運用系のみの変更は main 直可。適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。UI 変更はシミュレータのスクリーンショットを PR に添付する。
+  実装後は**変更した領域に応じたローカル検証を通してから**コミット・プッシュする。触った領域が複数ならすべて実行する:
+
+  | 変更した領域 | 必須のローカル検証 | PR の base |
+  |---|---|---|
+  | アプリコード（`App/` `Packages/` `project.yml`） | `swift test --package-path Packages/GameKit` | その Issue のマイルストーンと同名の release ブランチ |
+  | `web/`（LP） | `cd web && npm ci && npm run build`（`export PATH="$HOME/.nodenv/shims:$PATH"`。システム既定の node v14 では `npm ci` が失敗する）。**新規 slug を追加したときは `.next/server/app/games/*.html` に該当ページが生成されていることまで確認する**（`generateStaticParams` 経由のため、ビルドが緑でもページが増えていないことがありうる） | `main` |
+  | `docs/` `Scripts/` `.github/` のみ | 変更したスクリプトのテスト（例 `bash Scripts/tests/test-ai-duty-detect.sh`）または `bash -n` | `main` |
+
+  そのうえで PR を作成する（適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。アプリの UI 変更はシミュレータのスクリーンショットを、LP の見た目を変える変更は LP のスクリーンショットを PR に添付する。
 - 完了報告の前に検証を行うこと（テスト実行・ビルド確認。「たぶん動く」で報告しない）。
 
 ### 2-c. 孤児化した `ai:in-progress` の回収（**セクション2で着手する Issue を選ぶ前に行う**）
