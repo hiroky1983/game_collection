@@ -63,8 +63,11 @@ targets:
         CFBundleDisplayName: あそびば
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        # UI 文字列は Swift ソースに日本語で直書きされているが、この2キーが未指定だと
-        # 既定の en が使われ、App Store 上「英語のアプリ」として登録される（#171）
+        # UI 文字列は Swift ソースに日本語で直書きされているのに、この2キーが未指定のため
+        # 既定の en（DEVELOPMENT_LANGUAGE）が使われ、バイナリが「英語アプリ」と名乗っていた（#171）。
+        # ここで直せるのは**バイナリ側のローカライゼーション宣言だけ**で、App Store Connect の
+        # 主要言語とメタデータローカライズは別管理。商品ページの是正には ASC 側の操作も要る
+        # （手順: docs/aso/keywords-cross-localization-v1.1.1.md §6）
         CFBundleDevelopmentRegion: ja
         CFBundleLocalizations:
           - ja
