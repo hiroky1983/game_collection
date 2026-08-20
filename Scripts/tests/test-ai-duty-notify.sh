@@ -184,6 +184,44 @@ echo "== 11. gh issue list の取得上限が明示されている =="
 LIMITS=$(sed -n '/^collect_notify_targets() {/,/^}/p' "$TARGET" | grep -cE -- '--limit [0-9]+')
 check "収集の gh issue list 2本すべてに --limit がある" "2" "$LIMITS"
 
+echo "== 12. UTF-8 ロケールでも通し実行が落ちない（#175 の回帰検出）=="
+# このテスト自体は C ロケールで走ることが多く（launchd も C）、本体のロケール依存バグを踏まない。
+# 会長が手で叩く UTF-8 の端末を再現するため、通し実行だけロケールを明示して回す。
+# 修正前はブレース無しの `$body` の直後の全角文字が変数名に食われ、`set -u` で
+# `unbound variable` になって通知の直前でスクリプトごと落ちていた。
+UTF8_LOCALE=$(locale -a 2>/dev/null | grep -ixE 'en_US\.(UTF-8|utf8)|C\.(UTF-8|utf8)|ja_JP\.(UTF-8|utf8)' | head -1)
+if [ -z "$UTF8_LOCALE" ]; then
+  ng "UTF-8 ロケールがこの環境に無く検証できない（locale -a を確認すること）"
+else
+  reset_log; rm -f "$STATE"
+  UTF8_ERR="$TEST_HOME/utf8.err"
+  LC_ALL="$UTF8_LOCALE" LANG="$UTF8_LOCALE" \
+    MOCK_GH_RINGI='[{"number":128}]' MOCK_GH_PROPOSED='[{"number":79,"labels":[{"name":"ai:proposed"}]}]' \
+    TMPDIR="$TEST_HOME" HOME="$TEST_HOME" bash "$E2E" 2>"$UTF8_ERR"
+  check "UTF-8 ロケール（${UTF8_LOCALE}）でも1回通知される" "1" "$(notified)"
+  if [ -s "$UTF8_ERR" ]; then
+    ng "UTF-8 ロケールの通し実行が標準エラーを出した ($(cat "$UTF8_ERR"))"
+  else
+    ok "UTF-8 ロケールの通し実行が unbound variable 等を出さない"
+  fi
+  case "$(cat "$MOCK_OSASCRIPT_LOG")" in
+    *"#128"*"#79"*) ok "UTF-8 ロケールでも本文に決裁待ち・承認待ちの両方が入る" ;;
+    *) ng "UTF-8 ロケールの本文が不正 ($(cat "$MOCK_OSASCRIPT_LOG"))" ;;
+  esac
+fi
+
+echo "== 13. ブレース無しの変数参照の直後に多バイト文字を置いていない（#175 の再発防止）=="
+# 上の1件を直しても、同じ書き方は日本語ログを足すたびに混入しうる。テスト12は通知経路しか通らないため、
+# 静的な全走査で他の行も塞ぐ。LC_ALL=C にすると 0x80 以上のバイトが [:print:] からも [:space:] からも
+# 外れるので、BSD grep（macOS ランナー）でも GNU grep でも同じ判定になる（タブ・改行は誤検出しない）
+SCAN_HITS=$(LC_ALL=C grep -nE '\$[A-Za-z_][A-Za-z0-9_]*[^[:print:][:space:]]' \
+  "$SCRIPT_DIR"/../*.sh "$SCRIPT_DIR"/*.sh 2>/dev/null)
+if [ -z "$SCAN_HITS" ]; then
+  ok "Scripts/ 配下の .sh に該当箇所が無い"
+else
+  ng "ブレースで囲むべき変数参照が残っている: $SCAN_HITS"
+fi
+
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]
