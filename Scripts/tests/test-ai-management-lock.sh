@@ -28,8 +28,10 @@ mkdir -p "$TEST_HOME/Library/Logs"
 
 LOCK="$TEST_HOME/asobiba-ai-management.lock"   # LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-management.lock"
 LOG="$TEST_HOME/Library/Logs/asobiba-ai-management.log"
-# macOS の既定の PID 上限は 99998。存在しえない PID を使うことで「死んだプロセス」を決定論的に作る
+# 「死んだプロセス」を決定論的に作るための PID。macOS の既定の PID 上限は 99998 なので 999999 は
+# 常に不在だが、Linux の既定 pid_max は 4194304 で実在しうる。実行時に不在の値まで繰り上げる
 DEAD_PID=999999
+while kill -0 "$DEAD_PID" 2>/dev/null; do DEAD_PID=$((DEAD_PID + 1)); done
 
 # ロックを取り終えた直後で終わる版（claude も gh も呼ばせない）
 E2E="$TEST_HOME/ai-mgmt-lock-e2e.sh"
