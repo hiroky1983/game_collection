@@ -41,9 +41,10 @@ node() {
     '{number: 1, labels: {nodes: $l}, comments: {nodes: $c}}'
 }
 
-# 仕事5 / 仕事8 の実際の判定（ai-duty.sh の呼び出し側と同じ式）を1ノードに適用する
+# 仕事5 / 仕事8 / 仕事11 の実際の判定（ai-duty.sh の呼び出し側と同じ式）を1ノードに適用する
 ringi()    { printf '%s' "$1" | jq --arg trusted "$ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $a | is_ringi_reply($a)'; }
 proposed() { printf '%s' "$1" | jq --arg trusted "$ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $a | is_proposed_reply($a)'; }
+blocked()  { printf '%s' "$1" | jq --arg trusted "$ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $a | is_blocked_reply($a)'; }
 
 RINGI_THREAD='## 【要決裁】当番の権限
 **サマリ**: …'
@@ -105,9 +106,25 @@ check "blocked は対象外" "false" \
 check "コメントが1件も無ければ発火しない" "false" \
   "$(proposed "$(node "ai:proposed")")"
 
-echo "== 6. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
+echo "== 6. 仕事11（blocked 解除確認）: 発火すべきケース =="
+check "会長の新規コメントが最後なら発火する" "true" \
+  "$(blocked "$(node "blocked" "hiroky1983=着手見送り: 着手条件が未達" "hiroky1983=done")")"
+check "経営企画室コメントの手前の会長コメントは隠れない（除外が着信を潰さない）" "true" \
+  "$(blocked "$(node "blocked" "hiroky1983=done" "hiroky1983=$MGMT_TRIAGE")")"
+
+echo "== 7. 仕事11: 発火してはいけないケース =="
+check "最後が当番の解除確認応答なら発火しない" "false" \
+  "$(blocked "$(node "blocked" "hiroky1983=done" "hiroky1983=解除確認: まだ条件未達")")"
+check "解除確認応答の後に経営企画室のコメントが挟まっても発火しない（#168 と同じ除外）" "false" \
+  "$(blocked "$(node "blocked" "hiroky1983=解除確認: まだ条件未達" "hiroky1983=$MGMT_TRIAGE")")"
+check "許可リスト外(coderabbitai)の最終コメントは無視する" "false" \
+  "$(blocked "$(node "blocked" "coderabbitai=何かのコメント")")"
+check "コメントが1件も無ければ発火しない" "false" \
+  "$(blocked "$(node "blocked")")"
+
+echo "== 8. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
-check "仕事5・仕事8 の2箇所が DUTY_JQ_COMMENT_LIB を渡している" "2" "$USES"
+check "仕事5・仕事8・仕事11 の3箇所が DUTY_JQ_COMMENT_LIB を渡している" "3" "$USES"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
