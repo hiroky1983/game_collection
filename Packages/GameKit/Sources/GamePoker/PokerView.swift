@@ -221,7 +221,7 @@ public struct PokerView: View {
                 .font(.system(size: 13, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Capsule().fill(Theme.inkSub))
+                .background(Capsule().fill(Theme.fillMuted))
         }
     }
 
@@ -287,7 +287,7 @@ public struct PokerView: View {
             if model.currentBet > 0 {
                 // CPUがベット済み → コールかフォールド
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.inkSub) {
+                    actionButton("フォールド", color: Theme.fillMuted) {
                         model.foldToCPUBet()
                     }
                     actionButton("コール \(model.currentBet)枚", color: Theme.coral,
@@ -297,7 +297,7 @@ public struct PokerView: View {
                 }
             } else {
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.inkSub) {
+                    actionButton("フォールド", color: Theme.fillMuted) {
                         model.bet2Action(.fold)
                     }
                     actionButton("チェック", color: Theme.teal) {

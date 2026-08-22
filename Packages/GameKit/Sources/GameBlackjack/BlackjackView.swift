@@ -203,7 +203,7 @@ public struct BlackjackView: View {
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.inkSub))
+                .background(Capsule().fill(Theme.fillMuted))
         case .lose:
             Text("負け")
                 .font(.system(size: 12, weight: .black, design: .rounded))
@@ -258,7 +258,7 @@ public struct BlackjackView: View {
 
     private var playerActionView: some View {
         HStack(spacing: 12) {
-            actionButton("スタンド", color: Theme.inkSub) {
+            actionButton("スタンド", color: Theme.fillMuted) {
                 model.stand()
             }
             actionButton("ヒット", color: Theme.coral) {

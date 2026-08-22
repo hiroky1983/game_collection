@@ -177,7 +177,7 @@ public struct ShogiView: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.ink : Theme.teal))
+                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.teal))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("CPU思考中…").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
@@ -334,7 +334,7 @@ struct NewGameSheet: View {
             VStack(alignment: .leading, spacing: 24) {
                 section("あなたの手番") {
                     HStack(spacing: 12) {
-                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black, accent: Theme.ink) { side = .black }
+                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black, accent: Theme.fillStrong) { side = .black }
                         chooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white, accent: Theme.teal) { side = .white }
                     }
                 }
@@ -444,11 +444,11 @@ struct KomaView: View {
         ZStack {
             KomaShape()
                 .fill((piece.color == .black ? BoardStyle.komaSente : BoardStyle.komaGote).gradient)
-                .overlay(KomaShape().stroke(Theme.ink.opacity(0.55), lineWidth: 1))
+                .overlay(KomaShape().stroke(Theme.Fixed.ink.opacity(0.55), lineWidth: 1))
                 .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1)
             Text(Glyph.kanji(for: piece))
                 .font(.system(size: size * 0.46, weight: .black, design: .rounded))
-                .foregroundStyle(piece.promoted ? Theme.coral : Theme.ink)
+                .foregroundStyle(piece.promoted ? Theme.coral : Theme.Fixed.ink)
         }
         .frame(width: size * 0.86, height: size * 0.86)
         .rotationEffect(.degrees(pointsUp ? 0 : 180))
