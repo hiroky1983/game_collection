@@ -22,6 +22,9 @@ final class GameSettings {
             Self.analytics.isEnabled = analyticsEnabled
             // 明示イベントだけでなく SDK 全体の収集を切り替える（PR #162 の CodeRabbit 指摘）。
             AppEnvironment.applyAnalyticsCollectionState()
+            // 設定をまたいだプレイは game_start / game_end の対応が取れないため、
+            // 切り替えた時点で進行中の数え方も捨てる（#212）。
+            AppEnvironment.analytics.discardPlayState()
         }
     }
 
