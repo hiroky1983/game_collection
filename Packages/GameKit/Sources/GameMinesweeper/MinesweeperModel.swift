@@ -149,6 +149,9 @@ public final class MinesweeperModel {
             placeMines(avoiding: row, col: col)
             gameState = .playing
             startTimer()
+            // 地雷を置いて計時が始まるここが 1 プレイの開始（#158）。
+            // 盤を用意しただけの `.idle` や、中断からの復元（`.playing` で始まる）では数えない。
+            services?.gameDidRestart(gameID: gameID)
         }
 
         if cells[row][col].isMine {
@@ -200,6 +203,8 @@ public final class MinesweeperModel {
         hitMine = nil
         gameState = .playing
         startTimer()
+        // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
+        services?.gameDidRestart(gameID: gameID)
 
         // すでに全安全マスを開けていた場合（まずないが念のため）
         if revealedCount == safeCellCount {

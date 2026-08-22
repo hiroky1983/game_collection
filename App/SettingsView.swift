@@ -66,6 +66,22 @@ struct SettingsView: View {
                     Text("駒を置く・マスを開く・勝敗が決まるといった場面で、端末を軽く振動させたり短い効果音を鳴らしたりします。効果音は本体を消音（サイレント）にしているときは鳴らず、ほかのアプリで再生中の音楽も止めません。")
                 }
 
+                // MARK: 解析
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.analyticsEnabled },
+                        set: { settings.analyticsEnabled = $0 }
+                    )) {
+                        Label("利用状況の送信", systemImage: "chart.bar.doc.horizontal")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
+                } header: {
+                    Text("解析")
+                } footer: {
+                    Text("どのあそびがどれくらい遊ばれているかを知るために、あそびの名前・勝敗・かかった時間を送ります。スコアや盤面、名前や連絡先のような個人を特定できる情報は送りません。オフにすると、これらに加えて起動回数などの自動計測もまとめて送信を止めます。")
+                }
+
                 // MARK: プレイ記録
                 if let playLog {
                     Section {

@@ -162,6 +162,9 @@ public final class BlackjackModel {
         playerHand = [drawCard(), drawCard()]
         dealerHand = [drawCard(), drawCard()]
         phase = .playerTurn
+        // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
+        // 決着が即決まるブラックジャックでも `game_start` が先に立つよう、判定より前に数える（#158）。
+        services?.gameDidRestart(gameID: gameID)
 
         if isBlackjack(playerHand) {
             resolveResult()

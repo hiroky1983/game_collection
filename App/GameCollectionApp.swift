@@ -9,8 +9,11 @@ struct GameCollectionApp: App {
     @State private var adsInitialized = false
 
     init() {
-        // Firebase Analytics / Crashlytics の初期化（デフォルトの自動収集イベントのみ）
+        // Firebase Analytics / Crashlytics の初期化
         FirebaseApp.configure()
+        // 設定の「利用状況の送信」を SDK 全体の収集状態へ反映する（#158）。
+        // configure() は自動収集イベントも有効にするため、オフのときはここで止める。
+        AppEnvironment.applyAnalyticsCollectionState()
     }
 
     var body: some Scene {

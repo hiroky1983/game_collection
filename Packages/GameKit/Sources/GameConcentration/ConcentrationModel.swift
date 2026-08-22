@@ -88,6 +88,9 @@ public final class ConcentrationModel {
             restoreFrom(snap)
         } else {
             setupGame(pairCount: .medium, cpuLevel: .normal)
+            // 中断からの復元は「新しいプレイ」ではないので数えない（#158）。
+            // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+            services?.gameDidStart(gameID: gameID)
         }
     }
 
@@ -140,6 +143,7 @@ public final class ConcentrationModel {
 
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         setupGame(pairCount: pairCount, cpuLevel: cpuLevel)
+        services?.gameDidRestart(gameID: gameID)
     }
 
     public func performCPUMoveIfNeeded() async {
