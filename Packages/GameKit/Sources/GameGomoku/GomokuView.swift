@@ -360,9 +360,9 @@ struct GomokuNewGameSheet: View {
                 section("あなたの石") {
                     HStack(spacing: 12) {
                         chooser(title: "●黒", subtitle: "先手",
-                                selected: side == .black, accent: Theme.ink) { side = .black }
+                                selected: side == .black, accent: Theme.fillStrong) { side = .black }
                         chooser(title: "○白", subtitle: "後手",
-                                selected: side == .white, accent: Theme.inkSub) { side = .white }
+                                selected: side == .white, accent: Theme.fillMuted) { side = .white }
                     }
                 }
                 section("CPUの強さ") {

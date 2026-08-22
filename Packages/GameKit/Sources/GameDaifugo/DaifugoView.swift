@@ -194,7 +194,7 @@ public struct DaifugoView: View {
             EmptyView()
         case .playing:
             HStack(spacing: 12) {
-                actionButton("パス", color: Theme.inkSub, disabled: !model.canPass) {
+                actionButton("パス", color: Theme.fillMuted, disabled: !model.canPass) {
                     model.pass()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
@@ -247,7 +247,7 @@ public struct DaifugoView: View {
                             .foregroundStyle(.white)
                             .frame(width: 58)
                             .padding(.vertical, 3)
-                            .background(Capsule().fill(place == 0 ? Theme.yellow : Theme.inkSub))
+                            .background(Capsule().fill(place == 0 ? Theme.yellow : Theme.fillMuted))
                         Text(model.playerName(player))
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coral : Theme.ink)

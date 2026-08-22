@@ -125,7 +125,7 @@ public struct MahjongTileArt: View {
         case .standard(.characters(let n)): charactersFace(n)
         case .standard(.circles(let n)):    circlesFace(n)
         case .standard(.bamboos(let n)):    bamboosFace(n)
-        case .standard(.wind(let n)):       glyph(Self.winds[clamp(n, 3)], color: Theme.ink)
+        case .standard(.wind(let n)):       glyph(Self.winds[clamp(n, 3)], color: Theme.Fixed.ink)
         case .standard(.dragon(let n)):     dragonFace(n)
         case .flower(let n):                glyph(Self.flowers[clamp(n, 3)], color: Theme.purple)
         case .season(let n):                glyph(Self.seasons[clamp(n, 3)], color: Theme.pink)
@@ -140,7 +140,7 @@ public struct MahjongTileArt: View {
         VStack(spacing: -height * 0.06) {
             Text(Self.kanjiNumerals[clamp(n - 1, 8)])
                 .font(.system(size: width * 0.62, weight: .bold, design: .serif))
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.Fixed.ink)
             Text("萬")
                 .font(.system(size: width * 0.46, weight: .bold, design: .serif))
                 .foregroundStyle(Self.accentColor)

@@ -438,7 +438,7 @@ public struct MinesweeperView: View {
         case 4: return Color(hex: 0x0D47A1)
         case 5: return Color(hex: 0xB71C1C)
         case 6: return Color(hex: 0x006064)
-        case 7: return Theme.ink
+        case 7: return Theme.Fixed.ink
         default: return Color(hex: 0x616161)
         }
     }
