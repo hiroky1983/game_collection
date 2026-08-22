@@ -25,8 +25,30 @@ enum AppEnvironment {
         ]),
         recommendations: recommendations,
         review: review,
-        playLog: playLog
+        playLog: playLog,
+        analytics: analytics
     )
+
+    /// 解析イベント（#158）。送るのは `game_start` / `game_end` の2種だけ。
+    /// 設定でオフにすると `GatedAnalyticsService` が Firebase へ渡さない。
+    /// 撮影モードは広告と同じ理由で送信そのものを止める（動作確認の操作を実データに混ぜない）。
+    static let analytics = GameAnalytics(
+        service: GatedAnalyticsService(
+            base: isScreenshotMode ? NoopAnalyticsService() : FirebaseAnalyticsService()
+        ) { settings.analyticsEnabled },
+        // ハブに登録済みのゲーム ID だけを送信対象にする（未知の文字列が game_id にならない）。
+        allowedGameIDs: Set(registry.modules.map(\.id))
+    )
+
+    /// 設定の「利用状況の送信」を **Firebase SDK 全体の収集状態**へ反映する。
+    ///
+    /// `GatedAnalyticsService` は `game_start` / `game_end` しか止められないため、これを呼ばないと
+    /// オフにしても自動収集イベント（`session_start` 等）が送られ続け、設定画面の説明と食い違う。
+    /// 起動直後（`FirebaseApp.configure()` の後）と、トグルを切り替えたときに呼ぶ。
+    static func applyAnalyticsCollectionState() {
+        // 撮影モードは広告と同じ理由で送信そのものを止める（動作確認の操作を実データに混ぜない）。
+        FirebaseAnalyticsService.setCollectionEnabled(!isScreenshotMode && settings.analyticsEnabled)
+    }
 
     /// プレイ履歴（回数カウンタ・遊んだゲームの ID・ゲーム別の記録。盤面や棋譜は持たない）。
     static let playLog = PlayLog()

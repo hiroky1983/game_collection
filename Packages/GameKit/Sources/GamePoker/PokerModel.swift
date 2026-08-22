@@ -291,6 +291,9 @@ public final class PokerModel {
         phase = .betting1
         services?.feedback.impact(.medium) // カードを配る
         persist()
+        // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
+        // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// ラウンドの決着を触覚で伝える。
