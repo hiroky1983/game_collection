@@ -137,10 +137,20 @@ public final class MinesweeperModel {
 
     // MARK: - Actions
 
+    /// このマスを開けるか。VoiceOver に「いま何ができるか」を伝えるためにも使うので、
+    /// 判定を `tap` の中に埋めずここに出しておく（二重管理で食い違わせないため・#188）。
+    public func canReveal(row: Int, col: Int) -> Bool {
+        !gameOver && !cells[row][col].isRevealed && !cells[row][col].isFlagged
+    }
+
+    /// このマスの旗を立て下ろしできるか。開き済み・確定爆弾マスには置けない。
+    public func canToggleFlag(row: Int, col: Int) -> Bool {
+        !gameOver && !cells[row][col].isRevealed && !cells[row][col].isContinuedMine
+    }
+
     public func tap(row: Int, col: Int) {
         guard !gameOver else { return }
-        guard !cells[row][col].isRevealed,
-              !cells[row][col].isFlagged else {
+        guard canReveal(row: row, col: col) else {
             services?.feedback.notify(.warning) // 開き済み・旗付きマスは開けない
             return
         }
@@ -221,7 +231,7 @@ public final class MinesweeperModel {
 
     public func toggleFlag(row: Int, col: Int) {
         guard !gameOver else { return }
-        guard !cells[row][col].isRevealed, !cells[row][col].isContinuedMine else {
+        guard canToggleFlag(row: row, col: col) else {
             services?.feedback.notify(.warning) // 開き済み・確定爆弾マスには旗を置けない
             return
         }

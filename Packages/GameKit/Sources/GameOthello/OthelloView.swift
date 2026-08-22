@@ -206,9 +206,44 @@ public struct OthelloView: View {
                             model.tap(row: row, col: col)
                         }
                 )
+                .accessibilityRepresentation {
+                    accessibilityGrid(cell: cell, validSet: validSet)
+                }
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// VoiceOver 用のマス目グリッド（#188）。
+    ///
+    /// 盤は `Canvas` 1 つで描いているため、そのままでは 64 マスが 1 要素にしか見えず、
+    /// 石の色も置ける場所も音声で分からない。`accessibilityRepresentation` は
+    /// **描画も当たり判定もされず、支援技術に見せる姿としてだけ使われる**ので、
+    /// 見た目と指でのタップ挙動（下の `Canvas` の `SpatialTapGesture`）は一切変わらない。
+    private func accessibilityGrid(cell: CGFloat, validSet: Set<Int>) -> some View {
+        VStack(spacing: 0) {
+            ForEach(0..<othelloBoardSize, id: \.self) { row in
+                HStack(spacing: 0) {
+                    ForEach(0..<othelloBoardSize, id: \.self) { col in
+                        Button {
+                            model.tap(row: row, col: col)
+                        } label: {
+                            Color.clear.frame(width: cell, height: cell)
+                        }
+                        // 置けない局面では「利用不可」として案内されるようにする。
+                        // ここは支援技術にだけ見せる Button なので、見た目には影響しない。
+                        .disabled(model.gameOver || model.isAITurn || model.mustPass)
+                        .accessibilityLabel(OthelloAccessibility.squareLabel(
+                            row: row,
+                            col: col,
+                            stone: model.board[row, col],
+                            isValidMove: validSet.contains(row * othelloBoardSize + col),
+                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false
+                        ))
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Controls

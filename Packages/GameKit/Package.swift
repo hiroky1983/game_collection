@@ -79,6 +79,12 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire",
         ]),
+        // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
+        // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
+        .testTarget(name: "AccessibilityTests", dependencies: [
+            "GameShogi", "GameGomoku", "GameMinesweeper", "GameOthello",
+            "GameDaifugo", "GameMahjongSolitaire", "MahjongTiles",
+        ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
         .testTarget(name: "ReviewRequestTests", dependencies: [
             "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
