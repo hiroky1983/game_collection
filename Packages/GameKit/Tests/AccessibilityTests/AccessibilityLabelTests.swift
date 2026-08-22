@@ -174,9 +174,9 @@ struct MinesweeperAccessibilityTests {
 
     @Test("旗モードでヒントが変わる") func hint() {
         #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: true, canToggleFlag: true)
-                .contains("旗"))
+                == "ダブルタップで旗を切り替えます")
         #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true)
-                .contains("開き"))
+                == "ダブルタップで開きます")
     }
 
     @Test("実行できない操作はヒントで案内しない") func hintSuppressedWhenUnavailable() {
