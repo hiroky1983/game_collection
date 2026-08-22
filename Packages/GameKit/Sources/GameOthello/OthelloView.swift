@@ -226,11 +226,13 @@ public struct OthelloView: View {
                 HStack(spacing: 0) {
                     ForEach(0..<othelloBoardSize, id: \.self) { col in
                         Button {
-                            guard !model.isAITurn, !model.gameOver, !model.mustPass else { return }
                             model.tap(row: row, col: col)
                         } label: {
                             Color.clear.frame(width: cell, height: cell)
                         }
+                        // 置けない局面では「利用不可」として案内されるようにする。
+                        // ここは支援技術にだけ見せる Button なので、見た目には影響しない。
+                        .disabled(model.gameOver || model.isAITurn || model.mustPass)
                         .accessibilityLabel(OthelloAccessibility.squareLabel(
                             row: row,
                             col: col,

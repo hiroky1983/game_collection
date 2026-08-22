@@ -234,11 +234,13 @@ public struct GomokuView: View {
                 HStack(spacing: 0) {
                     ForEach(0..<gomokuBoardSize, id: \.self) { col in
                         Button {
-                            guard !model.gameOver, !model.isAITurn else { return }
                             model.tap(row: row, col: col)
                         } label: {
                             Color.clear.frame(width: spacing, height: spacing)
                         }
+                        // 打てない局面では「利用不可」として案内されるようにする。
+                        // ここは支援技術にだけ見せる Button なので、見た目には影響しない。
+                        .disabled(model.gameOver || model.isAITurn)
                         .accessibilityLabel(GomokuAccessibility.pointLabel(
                             row: row,
                             col: col,

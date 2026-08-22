@@ -382,7 +382,11 @@ public struct MinesweeperView: View {
         .accessibilityLabel(MinesweeperAccessibility.cellLabel(
             row: row, col: col, cell: cell, isHit: isHit, gameOver: model.gameOver
         ))
-        .accessibilityHint(MinesweeperAccessibility.cellHint(flagMode: flagMode))
+        .accessibilityHint(MinesweeperAccessibility.cellHint(
+            flagMode: flagMode,
+            canReveal: model.canReveal(row: row, col: col),
+            canToggleFlag: model.canToggleFlag(row: row, col: col)
+        ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
             if flagMode {
@@ -391,8 +395,12 @@ public struct MinesweeperView: View {
                 model.tap(row: row, col: col)
             }
         }
-        .accessibilityAction(named: "旗を切り替える") {
-            model.toggleFlag(row: row, col: col)
+        // 旗モードでないときの近道。実際に旗を置けるマスにだけ出す
+        // （出しても何も起きない操作を VoiceOver に読み上げさせない）。
+        .accessibilityActions {
+            if !flagMode, model.canToggleFlag(row: row, col: col) {
+                Button("旗を切り替える") { model.toggleFlag(row: row, col: col) }
+            }
         }
     }
 

@@ -138,6 +138,9 @@ struct MinesweeperAccessibilityTests {
         #expect(MinesweeperAccessibility.cellLabel(row: 0, col: 0, cell: cell(),
                                                    isHit: false, gameOver: false)
                 == "1行1列、未開放")
+        #expect(MinesweeperAccessibility.cellLabel(row: 0, col: 0, cell: cell(continued: true),
+                                                   isHit: false, gameOver: false)
+                == "1行1列、確定した地雷")
         #expect(MinesweeperAccessibility.cellLabel(row: 2, col: 4, cell: cell(flagged: true),
                                                    isHit: false, gameOver: false)
                 == "3行5列、旗")
@@ -170,8 +173,38 @@ struct MinesweeperAccessibilityTests {
     }
 
     @Test("旗モードでヒントが変わる") func hint() {
-        #expect(MinesweeperAccessibility.cellHint(flagMode: true).contains("旗"))
-        #expect(MinesweeperAccessibility.cellHint(flagMode: false).contains("開き"))
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: true, canToggleFlag: true)
+                .contains("旗"))
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true)
+                .contains("開き"))
+    }
+
+    @Test("実行できない操作はヒントで案内しない") func hintSuppressedWhenUnavailable() {
+        // 開き済みのマス: 開けないし旗も置けない
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false)
+                .isEmpty)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false)
+                .isEmpty)
+        // 旗の立っているマス: 開けないが旗は下ろせる
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: true)
+                .isEmpty)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: true)
+                == "ダブルタップで旗を切り替えます")
+    }
+
+    @Test("操作の可否は Model が唯一の出どころ") @MainActor func modelIsSourceOfTruth() {
+        let model = MinesweeperModel(services: nil, rows: 9, cols: 9, mines: 10)
+        #expect(model.canReveal(row: 0, col: 0))
+        #expect(model.canToggleFlag(row: 0, col: 0))
+
+        model.toggleFlag(row: 0, col: 0)
+        // 旗を立てたら開けないが、旗は下ろせる
+        #expect(!model.canReveal(row: 0, col: 0))
+        #expect(model.canToggleFlag(row: 0, col: 0))
+
+        model.tap(row: 4, col: 4)
+        #expect(!model.canReveal(row: 4, col: 4))     // 開き済み
+        #expect(!model.canToggleFlag(row: 4, col: 4)) // 開き済みには旗を置けない
     }
 }
 

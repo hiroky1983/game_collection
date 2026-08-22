@@ -39,7 +39,14 @@ public enum MinesweeperAccessibility {
 
     /// 開くか旗を立てるかは画面上のトグル（`flagMode`）で決まるため、
     /// いまタップすると何が起きるかをヒントで補う。
-    public static func cellHint(flagMode: Bool) -> String {
-        flagMode ? "ダブルタップで旗を切り替えます" : "ダブルタップで開きます"
+    ///
+    /// **実行できない操作は案内しない**（開き済みのマスに「ダブルタップで開きます」と
+    /// 言われても何も起きない）。可否の判定は `MinesweeperModel.canReveal` /
+    /// `canToggleFlag` が唯一の出どころで、ここでは受け取るだけにする。
+    public static func cellHint(flagMode: Bool, canReveal: Bool, canToggleFlag: Bool) -> String {
+        if flagMode {
+            return canToggleFlag ? "ダブルタップで旗を切り替えます" : ""
+        }
+        return canReveal ? "ダブルタップで開きます" : ""
     }
 }

@@ -188,6 +188,9 @@ public struct DaifugoView: View {
                         .accessibilityHint("ダブルタップで選択を切り替えます")
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { model.toggleSelection(card) }
+                        // CPU の手番では `toggleSelection` が何もしないので、
+                        // 操作可能として案内しない（描画は素の図形なので見た目は変わらない）。
+                        .disabled(!model.isPlayerTurn)
                 }
             }
         }
