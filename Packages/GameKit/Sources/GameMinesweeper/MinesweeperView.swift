@@ -376,6 +376,32 @@ public struct MinesweeperView: View {
         .onLongPressGesture(minimumDuration: 0.35) {
             model.toggleFlag(row: row, col: col)
         }
+        // マスの状態は色とアイコンだけで表しているため、読み上げ文を明示する（#188）。
+        // `children: .ignore` にしないと数字だけが読まれ、旗や未開放が伝わらない。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(MinesweeperAccessibility.cellLabel(
+            row: row, col: col, cell: cell, isHit: isHit, gameOver: model.gameOver
+        ))
+        .accessibilityHint(MinesweeperAccessibility.cellHint(
+            flagMode: flagMode,
+            canReveal: model.canReveal(row: row, col: col),
+            canToggleFlag: model.canToggleFlag(row: row, col: col)
+        ))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            if flagMode {
+                model.toggleFlag(row: row, col: col)
+            } else {
+                model.tap(row: row, col: col)
+            }
+        }
+        // 旗モードでないときの近道。実際に旗を置けるマスにだけ出す
+        // （出しても何も起きない操作を VoiceOver に読み上げさせない）。
+        .accessibilityActions {
+            if !flagMode, model.canToggleFlag(row: row, col: col) {
+                Button("旗を切り替える") { model.toggleFlag(row: row, col: col) }
+            }
+        }
     }
 
     private func cellBg(cell: MinesweeperCell, isHit: Bool) -> Color {

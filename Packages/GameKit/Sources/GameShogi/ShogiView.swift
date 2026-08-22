@@ -143,6 +143,19 @@ public struct ShogiView: View {
                                 isLastMove: model.highlightedSquares.contains(idx)
                             )
                             .onTapGesture { model.tapSquare(idx) }
+                            // 盤は 81 個の図形の集まりでしかないため、マスごとに
+                            // 読み上げ要素を作る（#188）。`children: .ignore` にしないと
+                            // 駒の漢字1文字がそのまま読まれる。
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(ShogiAccessibility.squareLabel(
+                                index: idx,
+                                piece: pos.squares[idx],
+                                isSelected: model.selectedSquare == idx,
+                                isTarget: model.legalTargets.contains(idx),
+                                isLastMove: model.highlightedSquares.contains(idx)
+                            ))
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { model.tapSquare(idx) }
                         }
                     }
                 }
@@ -521,6 +534,9 @@ private struct HandAreaView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(ShogiAccessibility.handLabel(
+                                type: type, color: color, count: count, isSelected: selected
+                            ))
                         }
                     }
                     .drawingGroup() // 駒形状・グラデーションを Metal で一括描画

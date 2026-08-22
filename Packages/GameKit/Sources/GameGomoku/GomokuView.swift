@@ -214,9 +214,47 @@ public struct GomokuView: View {
                             model.tap(row: row, col: col)
                         }
                 )
+                .accessibilityRepresentation {
+                    accessibilityGrid(pad: pad, spacing: spacing)
+                }
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// VoiceOver 用の交点グリッド（#188）。
+    ///
+    /// 盤は `Canvas` 1 つで描いているため、そのままでは 225 個の交点が 1 要素にしか見えず、
+    /// 石の有無も打てる場所も音声で分からない。`accessibilityRepresentation` は
+    /// **描画も当たり判定もされず、支援技術に見せる姿としてだけ使われる**ので、
+    /// 見た目と指でのタップ挙動（下の `Canvas` の `SpatialTapGesture`）は一切変わらない。
+    private func accessibilityGrid(pad: CGFloat, spacing: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            ForEach(0..<gomokuBoardSize, id: \.self) { row in
+                HStack(spacing: 0) {
+                    ForEach(0..<gomokuBoardSize, id: \.self) { col in
+                        Button {
+                            model.tap(row: row, col: col)
+                        } label: {
+                            Color.clear.frame(width: spacing, height: spacing)
+                        }
+                        // 打てない局面では「利用不可」として案内されるようにする。
+                        // ここは支援技術にだけ見せる Button なので、見た目には影響しない。
+                        .disabled(model.gameOver || model.isAITurn)
+                        .accessibilityLabel(GomokuAccessibility.pointLabel(
+                            row: row,
+                            col: col,
+                            stone: model.board[row, col],
+                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false
+                        ))
+                    }
+                }
+            }
+        }
+        // 交点が各マスの中心に来るよう、格子ぶんの半マスだけ左上へずらす
+        // （`SpatialTapGesture` 側の四捨五入の境界とちょうど一致する）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .offset(x: pad - spacing / 2, y: pad - spacing / 2)
     }
 
     // MARK: - Stone Info Row

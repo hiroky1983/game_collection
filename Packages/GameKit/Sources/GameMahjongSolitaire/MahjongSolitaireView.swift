@@ -219,6 +219,17 @@ public struct MahjongSolitaireView: View {
         )
         .offset(x: x, y: y)
         .onTapGesture { model.tap(index) }
+        // 牌は図形と文字だけで描いているため、絵柄も取れるかどうかも音声では
+        // 伝わらない。`onTapGesture` なのでボタン trait も自動では付かない（#188）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(MahjongSolitaireAccessibility.tileLabel(
+            face: face,
+            isBlocked: !model.isFreeByIndex[index],
+            isSelected: model.selectedIndex == index,
+            isHinted: model.hintPair.contains(index)
+        ))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { model.tap(index) }
     }
 
     // MARK: - 操作

@@ -154,6 +154,9 @@ public struct DaifugoView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 22)
         .popCard(corner: Theme.cornerSmall)
+        // 場は「何が出ているか」が分かればよいので 1 要素にまとめる（#188）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(DaifugoAccessibility.fieldLabel(model.field))
     }
 
     // MARK: - 手札
@@ -178,6 +181,16 @@ public struct DaifugoView: View {
                         .offset(y: isSelected ? -6 : 0)
                         .animation(.spring(response: 0.2), value: isSelected)
                         .onTapGesture { model.toggleSelection(card) }
+                        // カードは `onTapGesture` で組んでいるため、Button と違って
+                        // ボタン trait も読み上げ文も自動では付かない（#188）。
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(DaifugoAccessibility.handCardLabel(card, isSelected: isSelected))
+                        .accessibilityHint("ダブルタップで選択を切り替えます")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { model.toggleSelection(card) }
+                        // CPU の手番では `toggleSelection` が何もしないので、
+                        // 操作可能として案内しない（描画は素の図形なので見た目は変わらない）。
+                        .disabled(!model.isPlayerTurn)
                 }
             }
         }
