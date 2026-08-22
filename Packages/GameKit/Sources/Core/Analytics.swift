@@ -138,6 +138,20 @@ public final class GameAnalytics {
         service.log(.gameEnd(gameID: gameID, outcome: outcome, durationSec: seconds))
     }
 
+    /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。
+    ///
+    /// `GatedAnalyticsService` は個々のイベントの送信を止めるだけで、ここの数え方は止まらない。
+    /// そのため設定をまたいだプレイは `game_start` と `game_end` の対応が崩れる（#212）:
+    /// - オフ中に開始 → オンに戻して終局: 対応する `game_start` の無い `game_end` が出る
+    /// - オン中に開始 → オフ → オンで終局: `duration_sec` にオフだった時間が混ざる
+    ///
+    /// 切り替えた時点で捨てることで、送るのは**設定がオンだった一続きの期間の中で
+    /// 開始し終局したプレイだけ**になる。捨てたプレイの `game_end` は送られないが、
+    /// 送信済みの `game_start` とだけ対応が付く（= 集計側では「始めたのに終わっていない」ぶんに入る）。
+    public func discardPlayState() {
+        plays.removeAll()
+    }
+
     /// ゲーム画面から離れたときに呼ぶ（ハブが1か所で呼ぶ）。
     /// 次に同じゲームを開いたときを新しいプレイとして数え直せるようにする。
     ///

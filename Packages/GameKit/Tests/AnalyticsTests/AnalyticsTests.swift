@@ -50,6 +50,22 @@ private final class SpyAnalyticsService: AnalyticsService {
     func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
 }
 
+/// 壊れた神経衰弱の中断データ（配列の長さが食い違う）。
+///
+/// 復元側の `ConcentrationSnapshot` は `private` で外から作れないため、**同じ鍵を持つ**
+/// 別の構造体を保存して JSON を作る（デコードは通り、健全性チェックだけが落ちる）。
+private struct BrokenConcentrationSnapshot: Codable {
+    var symbols: [String] = ["a", "a", "b", "b"]
+    var isFaceUp: [Bool] = [false]              // ← symbols と長さが合わない
+    var isMatched: [Bool] = [false, false, false, false]
+    var currentPlayer: Int = 0
+    var playerScore: Int = 0
+    var cpuScore: Int = 0
+    var pairCount: Int = 6
+    var cpuLevel: Int = 1
+    var mattaUsed: Bool = false
+}
+
 /// ハブに登録済みのゲーム ID。
 ///
 /// 本番は `AppEnvironment.registry.modules.map(\.id)` から作る。テストは App ターゲットへ
@@ -319,20 +335,71 @@ struct AnalyticsToggleTests {
         #expect(spy.events.isEmpty)
     }
 
-    @Test("オフでも数え方の状態は進むので、オンに戻したあと二重に開始しない")
-    func stateAdvancesWhileOff() {
-        let spy = SpyAnalyticsService()
-        var enabled = false
-        let analytics = GameAnalytics(
-            service: GatedAnalyticsService(base: spy) { enabled },
-            allowedGameIDs: hubGameIDs
-        )
-        analytics.startPlay(gameID: "2048")   // オフなので送られない
-        enabled = true
-        analytics.startPlay(gameID: "2048")   // 進行中なので冪等に無視される
-        #expect(spy.events.isEmpty)
-        analytics.finishPlay(gameID: "2048", outcome: .win)
-        #expect(spy.ends.count == 1, "終局だけが送られ、開始のない game_end にならない")
+    /// 設定トグルを再現する道具。`setEnabled` は本番で `GameSettings.analyticsEnabled` の
+    /// `didSet` が行うのと同じ2つ（送信可否の切り替えと `discardPlayState()`）をまとめて行う。
+    @MainActor
+    private final class ToggleHarness {
+        /// 送信可否。`GatedAnalyticsService` に閉じ込めた判定の裏側を書き換えるための箱。
+        private final class Flag { var isOn: Bool; init(_ isOn: Bool) { self.isOn = isOn } }
+
+        let spy: SpyAnalyticsService
+        let analytics: GameAnalytics
+        private let flag: Flag
+
+        init(enabled: Bool = true, clock: TestClock = TestClock()) {
+            let spy = SpyAnalyticsService()
+            let flag = Flag(enabled)
+            self.spy = spy
+            self.flag = flag
+            self.analytics = GameAnalytics(
+                service: GatedAnalyticsService(base: spy) { flag.isOn },
+                allowedGameIDs: hubGameIDs,
+                now: { clock.now }
+            )
+        }
+
+        func setEnabled(_ value: Bool) {
+            flag.isOn = value
+            analytics.discardPlayState()
+        }
+    }
+
+    @Test("オフ中に開始したプレイは、オンに戻して終局しても game_end を送らない（#212 シナリオ1）")
+    func playStartedWhileOffSendsNoEnd() {
+        let harness = ToggleHarness(enabled: false)
+        harness.analytics.startPlay(gameID: "2048")   // オフなので game_start は送られない
+        harness.setEnabled(true)                      // 設定をオンに戻す
+        harness.analytics.finishPlay(gameID: "2048", outcome: .win)
+        #expect(harness.spy.events.isEmpty, "対応する game_start の無い game_end を送らない")
+    }
+
+    @Test("オフ期間をまたいだプレイは終局しても game_end を送らない（duration にオフ期間が混ざらない・#212 シナリオ2）")
+    func playSpanningOffPeriodSendsNoEnd() {
+        let clock = TestClock()
+        let harness = ToggleHarness(clock: clock)
+        harness.analytics.startPlay(gameID: "2048")
+        #expect(harness.spy.starts == ["2048"], "オンで始めたので game_start は出る")
+
+        clock.advance(30)
+        harness.setEnabled(false)   // 遊びかけでオフにする
+        clock.advance(600)          // この時間が duration_sec に混ざってはいけない
+        harness.setEnabled(true)
+        harness.analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(harness.spy.ends.isEmpty, "設定をまたいだプレイの終局は送らない")
+    }
+
+    @Test("設定を切り替えたあとに始めたプレイは、通常どおり1組で送られる")
+    func playStartedAfterToggleIsCountedNormally() {
+        let clock = TestClock()
+        let harness = ToggleHarness(enabled: false, clock: clock)
+        harness.setEnabled(true)
+        harness.analytics.startPlay(gameID: "2048")
+        clock.advance(12)
+        harness.analytics.finishPlay(gameID: "2048", outcome: .loss)
+        #expect(harness.spy.starts.count == 1)
+        #expect(harness.spy.ends.count == 1, "オンのあいだに始めて終わったプレイは1組そろう")
+        #expect(harness.spy.ends.first?.durationSec == 12, "経過秒は切り替え後の開始からの差")
     }
 }
 
@@ -394,6 +461,48 @@ struct AnalyticsDoubleFireTests {
         #expect(resumed.gameOver)
         #expect(spy.starts(of: "2048") == 1, "再開で game_start は増えない")
         #expect(spy.ends(of: "2048") == 1, "遊び切ったぶんが「始めたのに終わっていない」に落ちない")
+    }
+
+    @Test("神経衰弱: 壊れた中断データからのフォールバックは新しい1プレイとして数える（#212）")
+    func concentrationBrokenSnapshotCountsAsFreshStart() {
+        let snapshots = MemorySnapshotStore()
+        // 復元側の健全性チェック（配列長が揃っていること）に引っかかる中断データを置く。
+        // `ConcentrationSnapshot` は private のため、同じ鍵を持つ構造体を保存して再現する。
+        try? snapshots.save(BrokenConcentrationSnapshot(), for: "concentration")
+
+        let (services, spy) = makeServices(snapshots: snapshots)
+        let model = ConcentrationModel(services: services)
+
+        #expect(model.cards.isEmpty == false, "壊れたデータでも新しい盤で始まる")
+        #expect(spy.starts(of: "concentration") == 1,
+                "復元できず新しい盤で始まったので、続く終局が捨てられないよう game_start を数える")
+
+        // 実際に遊び切ると game_end と1組になる（開始を数えていないと捨てられていた）。
+        for _ in 0..<model.cards.count where !model.isGameOver {
+            let unmatched = model.cards.indices.filter { !model.cards[$0].isMatched }
+            guard let first = unmatched.first,
+                  let second = unmatched.first(where: {
+                      $0 != first && model.cards[$0].symbol == model.cards[first].symbol
+                  }) else { break }
+            if model.firstFlippedIndex == nil { model.tap(index: first) }
+            model.tap(index: second)
+        }
+        #expect(model.isGameOver)
+        #expect(spy.ends(of: "concentration") == 1)
+    }
+
+    @Test("神経衰弱: 正しい中断データからの復元では game_start を数えない")
+    func concentrationValidSnapshotDoesNotStart() {
+        let snapshots = MemorySnapshotStore()
+        let (first, spyFirst) = makeServices(snapshots: snapshots)
+        let model = ConcentrationModel(services: first)
+        model.tap(index: 0)   // 保存が走る手を1つ指す
+        #expect(spyFirst.starts(of: "concentration") == 1, "初回の開始は1回")
+        #expect(snapshots.exists(for: "concentration"))
+
+        let (resumed, spyResumed) = makeServices(snapshots: snapshots)
+        _ = ConcentrationModel(services: resumed)
+        #expect(spyResumed.events.isEmpty, "続きからは新しいプレイではないので何も送らない")
     }
 
     @Test("バックグラウンド復帰の計時再開では何も送らない")
