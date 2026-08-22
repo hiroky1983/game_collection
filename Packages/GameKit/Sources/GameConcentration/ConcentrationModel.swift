@@ -84,14 +84,19 @@ public final class ConcentrationModel {
         self.services = services
         self.autoClearDelay = autoClearDelay
         self.aiFactory = aiFactory
+        // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
+        var isFreshStart = false
+
         if let snap = services?.snapshots.load(ConcentrationSnapshot.self, for: "concentration") {
-            restoreFrom(snap)
+            // 壊れたスナップショットは復元できず新しい盤で始まる。それは実質「新しいプレイ」
+            // なので数える（数えないと、続く終局が「開始していない」として捨てられる。#212）。
+            isFreshStart = !restoreFrom(snap)
         } else {
             setupGame(pairCount: .medium, cpuLevel: .normal)
-            // 中断からの復元は「新しいプレイ」ではないので数えない（#158）。
-            // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-            services?.gameDidStart(gameID: gameID)
+            isFreshStart = true
         }
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
     // MARK: - Public Actions
@@ -231,11 +236,14 @@ public final class ConcentrationModel {
         persist()
     }
 
-    private func restoreFrom(_ snap: ConcentrationSnapshot) {
+    /// スナップショットから状態を戻す。
+    /// - Returns: 復元できたら `true`。中身が壊れていて新しい盤へフォールバックしたときは `false`
+    ///   （呼び出し側はこれを「新しいプレイ」として数える。#212）。
+    private func restoreFrom(_ snap: ConcentrationSnapshot) -> Bool {
         let count = snap.symbols.count
         guard snap.isFaceUp.count == count, snap.isMatched.count == count, count > 0 else {
             setupGame(pairCount: .medium, cpuLevel: .normal)
-            return
+            return false
         }
 
         pairCount = ConcentrationPairCount(rawValue: snap.pairCount) ?? .medium
@@ -270,6 +278,7 @@ public final class ConcentrationModel {
 
         // CPUターン復元：turnID を非ゼロにすることで task(id:) を確実に起動させる
         if currentPlayer == .cpu { turnID = 1 }
+        return true
     }
 
     private func flipCard(index: Int) {
