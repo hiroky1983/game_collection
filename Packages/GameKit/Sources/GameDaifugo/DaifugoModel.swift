@@ -26,6 +26,10 @@ struct DaifugoSnapshot: Codable {
     let fouls: [Int]
     let gameNumber: Int
     let lastRanking: [Int]
+    /// 各プレイヤーの直近の動き（「パス」「8切り！」など）（#193）。
+    /// **旧バージョンの保存データには存在しない**ため optional にして、欠けていても復元を失敗させない
+    /// （`JSONDecoder` は非 optional のキーが無いと丸ごと復号に失敗し、中断データが消える）。
+    let lastActions: [String]?
 }
 
 // MARK: - Model
@@ -108,6 +112,11 @@ public final class DaifugoModel {
             fouls         = Set(snap.fouls)
             gameNumber    = snap.gameNumber
             lastRanking   = snap.lastRanking
+            // 直近の動きのバッジは、人数分そろっているときだけ戻す（#193）。旧データには無く、
+            // 壊れた配列をそのまま入れると `lastActions[index]` の参照で落ちるため。
+            if let actions = snap.lastActions, actions.count == Self.playerCount {
+                lastActions = actions
+            }
             phase         = .playing
         }
     }
@@ -539,7 +548,8 @@ public final class DaifugoModel {
             finishOrder: finishOrder,
             fouls: Array(fouls).sorted(),
             gameNumber: gameNumber,
-            lastRanking: lastRanking
+            lastRanking: lastRanking,
+            lastActions: lastActions
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

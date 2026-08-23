@@ -49,8 +49,12 @@ public enum DaifugoAccessibility {
     }
 
     /// 場に出ている組の読み上げ文。空なら「場は流れています」。
-    public static func fieldLabel(_ cards: [DaifugoCard]) -> String {
+    ///
+    /// 出し手（`ownerName`）は画面ではバッジで示しているだけなので、読み上げにも足す（#193）。
+    public static func fieldLabel(_ cards: [DaifugoCard], ownerName: String? = nil) -> String {
         guard !cards.isEmpty else { return "場は流れています" }
-        return "場のカード、" + cards.map(cardName).joined(separator: "、")
+        let cardsText = "場のカード、" + cards.map(cardName).joined(separator: "、")
+        guard let ownerName else { return cardsText }
+        return "\(cardsText)。\(ownerName)が出しました"
     }
 }
