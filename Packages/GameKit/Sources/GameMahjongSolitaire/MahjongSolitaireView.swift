@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import Core
 import MahjongTiles
@@ -5,17 +6,27 @@ import MahjongTiles
 public struct MahjongSolitaireView: View {
     @State private var model: MahjongSolitaireModel
     private let services: GameServices
-    @State private var zoomMode = false
+    /// 盤面全体を 1 画面に収める表示にしているか。
+    ///
+    /// **既定は false（= 牌を 44pt 以上にした表示）**。亀型レイアウトは横 15.56 枚ぶんあり、
+    /// 44pt の牌で全体を出すには 684.6pt の幅が要る。iPhone では両立しないため、
+    /// 「触れる大きさ」を既定にし、全体像はこのトグルで 1 タップ取り戻せるようにしている（#196）。
+    @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
     @State private var showConfirmNewGame = false
     @State private var showShuffleFailed = false
     @Environment(\.dismiss) private var dismiss
 
-    /// 牌の縦横比（実物の牌に近い縦長）。
-    private static let tileAspect: CGFloat = 1.40
-    /// 1 段上がるごとに右上へずらす量（牌の幅に対する比）。積み上がりを見せるための奥行き。
-    private static let layerShift: CGFloat = 0.14
-    /// 拡大表示のときの牌の幅。
-    private static let zoomedTileWidth: CGFloat = 40
+    private typealias Metrics = MahjongSolitaireBoardMetrics
+
+    /// 撮影用に全体表示の状態で起動する経路（DEBUG 限定）。
+    /// シミュレータは自動タップができないため、既定でない方の表示を撮る手段がこれしかない。
+    private static var initialShowsWholeBoard: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-mahjongWholeBoard")
+        #else
+        return false
+        #endif
+    }
 
     public init(services: GameServices) {
         self.services = services
@@ -116,16 +127,18 @@ public struct MahjongSolitaireView: View {
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(Theme.teal)
 
-                Button { zoomMode.toggle() } label: {
-                    Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
+                Button { showsWholeBoard.toggle() } label: {
+                    Image(systemName: showsWholeBoard ? "plus.magnifyingglass" : "minus.magnifyingglass")
                         .font(.system(size: 13, weight: .bold))
                         .padding(.horizontal, 8).padding(.vertical, 5)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.teal : Theme.surface)
+                                .fill(showsWholeBoard ? Theme.teal : Theme.surface)
                         )
-                        .foregroundStyle(zoomMode ? .white : Theme.inkSub)
+                        .foregroundStyle(showsWholeBoard ? .white : Theme.inkSub)
                 }
+                // 記号だけのボタンなので、音声では何のボタンか伝わらない。
+                .accessibilityLabel(showsWholeBoard ? "牌を大きくする" : "盤面全体を表示")
             }
             .frame(minWidth: 78, alignment: .trailing)
         }
@@ -160,64 +173,57 @@ public struct MahjongSolitaireView: View {
                         .foregroundStyle(Theme.inkSub)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if zoomMode {
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    boardCanvas(tileWidth: Self.zoomedTileWidth)
-                }
-                .frame(maxWidth: .infinity)
             } else {
                 GeometryReader { geo in
-                    let width = geo.size.width / Self.canvasWidthInTiles
-                    let height = geo.size.height / (Self.canvasHeightInTiles * Self.tileAspect)
-                    boardCanvas(tileWidth: max(1, min(width, height)))
+                    if showsWholeBoard {
+                        boardCanvas(tileWidth: Metrics.fittingTileWidth(in: geo.size))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        // 44pt の牌だと盤面は画面より広くなるのでスクロールで見て回る。
+                        // 左上ではなく中央から始めるのは、亀型の山が中央にあるため（両方向へ同じだけ動かせる）。
+                        ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                            boardCanvas(tileWidth: Metrics.comfortableTileWidth(in: geo.size))
+                                // 画面の方が広い辺（iPad 等）では全体表示と同じく中央に置く。
+                                .frame(
+                                    minWidth: geo.size.width,
+                                    minHeight: geo.size.height,
+                                    alignment: .center
+                                )
+                        }
+                        .defaultScrollAnchor(.center)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
             }
         }
     }
 
-    /// 牌の幅を 1 として、盤面全体が何枚分の広さになるか。
-    private static var canvasWidthInTiles: CGFloat {
-        CGFloat(MahjongSolitaireRules.halfWidth) / 2 + CGFloat(MahjongSolitaireRules.topLayer) * layerShift
-    }
-    private static var canvasHeightInTiles: CGFloat {
-        CGFloat(MahjongSolitaireRules.halfHeight) / 2 + CGFloat(MahjongSolitaireRules.topLayer) * layerShift
-    }
-
     private func boardCanvas(tileWidth: CGFloat) -> some View {
-        let tileHeight = tileWidth * Self.tileAspect
+        let canvas = Metrics.canvasSize(tileWidth: tileWidth)
         return ZStack(alignment: .topLeading) {
             // 下の段から順に描くことで、上に積まれた牌が手前に来る。
             ForEach(MahjongSolitaireRules.layout.indices, id: \.self) { index in
                 if let face = model.faces[index] {
-                    tileView(index: index, face: face, tileWidth: tileWidth, tileHeight: tileHeight)
+                    tileView(index: index, face: face, tileWidth: tileWidth)
                 }
             }
         }
         // 牌は `offset` で置くのでレイアウト上の大きさは 1 枚分しかない。
         // 盤面全体の枠を与え、左上を基準に揃えないと中央寄せされてずれる。
-        .frame(
-            width: tileWidth * Self.canvasWidthInTiles,
-            height: tileHeight * Self.canvasHeightInTiles,
-            alignment: .topLeading
-        )
+        .frame(width: canvas.width, height: canvas.height, alignment: .topLeading)
     }
 
-    private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat, tileHeight: CGFloat) -> some View {
-        let position = MahjongSolitaireRules.layout[index]
-        let depth = CGFloat(position.layer)
-        let top = CGFloat(MahjongSolitaireRules.topLayer)
-        let x = CGFloat(position.hx) / 2 * tileWidth + depth * Self.layerShift * tileWidth
-        let y = CGFloat(position.hy) / 2 * tileHeight + (top - depth) * Self.layerShift * tileHeight
+    private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat) -> some View {
+        let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth)
         return MahjongTileView(
             face: face,
-            width: tileWidth,
-            height: tileHeight,
+            width: frame.width,
+            height: frame.height,
             isBlocked: !model.isFreeByIndex[index],
             isSelected: model.selectedIndex == index,
             isHinted: model.hintPair.contains(index)
         )
-        .offset(x: x, y: y)
+        .offset(x: frame.minX, y: frame.minY)
         .onTapGesture { model.tap(index) }
         // 牌は図形と文字だけで描いているため、絵柄も取れるかどうかも音声では
         // 伝わらない。`onTapGesture` なのでボタン trait も自動では付かない（#188）。
