@@ -10,9 +10,11 @@ import CoreGraphics
 struct MahjongSolitaireBoardMetricsTests {
 
     /// 盤面領域（ステータスバーのカード下端〜操作カード上端）。
-    /// `docs/ui-review/196/README.md` で実測した値と同じものを使う。
-    static let iPhoneSE = CGSize(width: 375, height: 346.5)
-    static let iPhone17 = CGSize(width: 402, height: 467.7)
+    /// `docs/ui-review/197/README.md` で実測した値と同じものを使う。
+    /// #196 の実測（SE 346.5pt / iPhone 17 Pro 467.7pt）から 2.5pt / 2.4pt 縮んでいるのは、
+    /// 表示切り替えボタンを 44pt にしてステータスバーの帯がそのぶん高くなったため（#197）。
+    static let iPhoneSE = CGSize(width: 375, height: 344.0)
+    static let iPhone17 = CGSize(width: 402, height: 465.3)
 
     typealias Metrics = MahjongSolitaireBoardMetrics
 
