@@ -6,6 +6,7 @@ public struct DaifugoView: View {
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showStartSheet = true
+    @State private var showResignConfirm = false
 
     public init(services: GameServices) {
         self.services = services
@@ -48,9 +49,25 @@ public struct DaifugoView: View {
                 Text("大富豪")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+            // 中断すると次回は必ず「続きから」に戻るため、局面を降りる導線をここに置く（#194）。
+            // 他ゲームのツールバーはアイコンだけだが、旗単体では「投了」と読めない。ツールバーは
+            // `Label` を渡してもアイコンだけに畳むので、文字を出すために `Text` を直接渡す。
+            ToolbarItem(placement: .primaryAction) {
+                Button { showResignConfirm = true } label: {
+                    Text("投了")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                }
+                .disabled(!model.canResign)
+            }
         }
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.daifugo) { DaifugoRuleSheet() }
+        .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
+            Button("投了する", role: .destructive) { model.resign() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
+        }
         .sheet(isPresented: $showStartSheet) {
             DaifugoStartSheet {
                 showStartSheet = false
@@ -270,6 +287,20 @@ public struct DaifugoView: View {
 
     // MARK: - リザルト
 
+    /// リザルト見出しに添える但し書き。投了は反則上がりより下の扱いなので先に見る（#194）。
+    private var humanResultNote: String? {
+        if model.resigned.contains(DaifugoModel.humanIndex) { return "投了" }
+        if model.fouls.contains(DaifugoModel.humanIndex) { return "反則上がり" }
+        return nil
+    }
+
+    /// 順位表の各行に添える但し書き（見出しより短く詰める）。
+    private func rankRowNote(_ player: Int) -> String? {
+        if model.resigned.contains(player) { return "投了" }
+        if model.fouls.contains(player) { return "反則" }
+        return nil
+    }
+
     private var resultCard: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
@@ -279,8 +310,8 @@ public struct DaifugoView: View {
                 Text("あなたは \(model.playerTitle)")
                     .font(.system(size: 17, weight: .black, design: .rounded))
                     .foregroundStyle(model.playerPlace == 0 ? Theme.teal : Theme.ink)
-                if model.fouls.contains(DaifugoModel.humanIndex) {
-                    Text("反則上がり")
+                if let note = humanResultNote {
+                    Text(note)
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 8).padding(.vertical, 3)
@@ -300,8 +331,8 @@ public struct DaifugoView: View {
                         Text(model.playerName(player))
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coral : Theme.ink)
-                        if model.fouls.contains(player) {
-                            Text("反則")
+                        if let note = rankRowNote(player) {
+                            Text(note)
                                 .font(.system(size: 10, weight: .bold, design: .rounded))
                                 .foregroundStyle(Theme.coral)
                         }

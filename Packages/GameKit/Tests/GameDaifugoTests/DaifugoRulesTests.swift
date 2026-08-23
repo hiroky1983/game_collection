@@ -135,6 +135,18 @@ struct DaifugoRankingTests {
         let ranking = DaifugoRules.ranking(finishOrder: [0, 1, 2, 3], fouls: [0, 2])
         #expect(ranking == [1, 3, 0, 2])
     }
+
+    @Test("投了は反則上がりよりさらに下（必ず最下位）")
+    func resignDropsBelowFoul() {
+        let ranking = DaifugoRules.ranking(finishOrder: [1, 2, 3, 0], fouls: [2], resigned: [0])
+        #expect(ranking == [1, 3, 2, 0])
+    }
+
+    @Test("投了した人が反則も兼ねていても二重に数えない")
+    func resignAndFoulOverlap() {
+        let ranking = DaifugoRules.ranking(finishOrder: [1, 2, 3, 0], fouls: [0], resigned: [0])
+        #expect(ranking == [1, 2, 3, 0])
+    }
 }
 
 // MARK: - カード交換

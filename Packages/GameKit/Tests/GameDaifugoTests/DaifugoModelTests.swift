@@ -566,6 +566,130 @@ struct DaifugoFastForwardTests {
     }
 }
 
+// MARK: - 投了（#194）
+
+@Suite("投了")
+@MainActor
+struct DaifugoResignTests {
+
+    @Test("対局中だけ投了でき、上がった後は出せない")
+    func resignIsOfferedOnlyWhilePlaying() {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [[card(3)], [card(4), card(5)], [card(6), card(7)], [card(9), card(10)]]
+        )
+        #expect(model.canResign, "手札が残っているうちは投了できる")
+
+        model.toggleSelection(card(3))
+        model.playSelected()
+
+        #expect(model.isPlayerFinished)
+        #expect(model.canResign == false, "上がった後は勝ち取った階級を捨てる操作になるので出さない")
+    }
+
+    @Test("投了するとその場で決着し、大貧民・負けとして記録される")
+    func resignEndsGameAsLastPlace() {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [
+                [card(3), card(4)],                  // 人間
+                [card(5), card(6), card(7)],         // CPU1: 残り3枚
+                [card(9)],                           // CPU2: 残り1枚
+                [card(10), card(11)],                // CPU3: 残り2枚
+            ],
+            currentPlayer: 0
+        )
+
+        model.resign()
+
+        #expect(model.phase == .result)
+        #expect(model.resigned.contains(DaifugoModel.humanIndex))
+        #expect(model.ranking == [2, 3, 1, DaifugoModel.humanIndex],
+                "残った CPU は手札の少ない順、投了した自分は最下位")
+        #expect(model.playerTitle == "大貧民")
+        #expect(model.reviewOutcome == .loss)
+    }
+
+    @Test("既に上がった人の順位は投了しても保たれる")
+    func resignKeepsAlreadyFinishedPlaces() {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [
+                [card(3), card(4)],                  // 人間
+                [],                                  // CPU1: 上がり済み
+                [card(9)],                           // CPU2: 残り1枚
+                [card(10), card(11)],                // CPU3: 残り2枚
+            ],
+            currentPlayer: 0,
+            finishOrder: [1]
+        )
+
+        model.resign()
+
+        #expect(model.ranking == [1, 2, 3, DaifugoModel.humanIndex])
+        #expect(model.playerTitle == "大貧民")
+    }
+
+    @Test("反則上がりした CPU がいても、投了した自分が大貧民になる")
+    func resignDropsBelowFoulFinisher() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [
+                [card(3), card(4)],                  // 人間
+                [joker()],                           // CPU1: ジョーカーで反則上がり
+                [card(9)],                           // CPU2: ジョーカーに勝てずパス
+                [card(10), card(11)],                // CPU3: 同上
+            ],
+            currentPlayer: 1
+        )
+        await model.runCPUTurnsIfNeeded()
+        #expect(model.fouls.contains(1), "CPU1 は反則上がりしている")
+        #expect(model.isPlayerTurn, "残り3人はジョーカーに勝てず自分の手番に戻る")
+
+        model.resign()
+
+        #expect(model.ranking == [2, 3, 1, DaifugoModel.humanIndex],
+                "反則上がりより下に落ちるのは投了した自分")
+        #expect(model.playerTitle == "大貧民")
+        #expect(model.reviewOutcome == .loss)
+    }
+
+    @Test("投了すると中断データが消え、次回は続きからにならない（#194 の主目的）")
+    func resignClearsSnapshot() {
+        let store = MemorySnapshotStore()
+        let (model, services) = makeModel(store: store)
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            currentPlayer: 0
+        )
+        #expect(store.exists(for: "daifugo"), "対局中はスナップショットが残る")
+
+        model.resign()
+
+        #expect(!store.exists(for: "daifugo"))
+        let reopened = DaifugoModel(services: services, cpuDelay: .zero)
+        #expect(reopened.phase == .idle, "開き直すとスタートシートから始まる")
+    }
+
+    @Test("投了で決まった階級が次のゲームのカード交換に引き継がれる")
+    func resignedRankCarriesToNextGame() {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            currentPlayer: 0
+        )
+        model.resign()
+        let ranking = model.ranking
+
+        model.startGame()
+
+        #expect(model.lastRanking == ranking)
+        #expect(model.lastTransfers.isEmpty == false, "大貧民として強い札を差し出す")
+        #expect(model.resigned.isEmpty, "投了は次のゲームに持ち越さない")
+        #expect(model.phase == .playing)
+    }
+}
+
 /// 上の局面注入で使う決定的な乱数。配りを固定してテストを再現可能にするだけの用途。
 private enum SeededGeneratorBox {
     @MainActor static var shared = SeededGenerator(seed: 191)
