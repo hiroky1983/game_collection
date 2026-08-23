@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import SwiftUI
-import Core
+@testable import Core
 
 /// Reduce Motion 追従（#210）の共通レイヤー。
 ///
@@ -55,6 +55,9 @@ struct MotionTests {
         _ = Motion.isReduceMotionEnabled
     }
 
+    /// 素の `withAnimation` / `.animation(` を拾う正規表現。`(` の前の空白と行末での折り返しを許す。
+    private static let rawAnimationPattern = #"(?:\bwithAnimation|\.animation)\s*(?:\(|$)"#
+
     /// 規約（`docs/spec-app.md`）の機械的な担保。
     ///
     /// 演出追加の Issue が10件控えており（#195 #199 #200 #201 #202 #203 #204 #206 #208 #209）、
@@ -85,7 +88,9 @@ struct MotionTests {
                 guard !trimmed.hasPrefix("//") else { continue }
                 // ヘルパー呼び出し（.gameAnimation( / withGameAnimation）を消してから素の API を探す。
                 let stripped = trimmed.replacingOccurrences(of: "gameAnimation(", with: "")
-                if stripped.contains("withAnimation") || stripped.contains(".animation(") {
+                // `.animation (` のように括弧の前に空白を挟む書き方と、`(` が次の行に折り返された
+                // 書き方も拾う（単純な部分文字列一致だと素通りしてしまう）。
+                if stripped.range(of: Self.rawAnimationPattern, options: .regularExpression) != nil {
                     offenders.append("\(file):\(index + 1) \(trimmed)")
                 }
             }

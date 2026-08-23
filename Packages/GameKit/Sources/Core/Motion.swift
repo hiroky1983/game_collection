@@ -41,7 +41,8 @@ public enum Motion {
     }
 
     /// テストから `isReduceMotionEnabled` を差し替えるための注入口。`nil` で実機の設定に戻る。
-    @MainActor public static var override: Bool?
+    /// 製品コードから触らせないよう `internal` に留める（テストは `@testable import Core` で参照する）。
+    @MainActor static var override: Bool?
 }
 
 /// `withAnimation(_:_:)` の Reduce Motion 追従版（#210）。
