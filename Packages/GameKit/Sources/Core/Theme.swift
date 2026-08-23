@@ -228,6 +228,30 @@ public extension View {
     }
 }
 
+/// 押下中だけ縮んで沈む、`.plain` の代わりに使うボタンスタイル（#195）。
+///
+/// `.buttonStyle(.plain)` は装飾を一切付けない代わりに**押下フィードバックも消える**ため、
+/// 自前で背景を描いたボタン（各ゲームの操作ボタン）は「押したのか分からない」状態になっていた。
+/// 見た目（背景・文字色）はラベル側の指定をそのまま通し、押下時の変形だけをここで足す。
+///
+/// 縮小は Reduce Motion では動かしたくないので `gameAnimation` 経由にする。
+/// ON のときはアニメーションが消えるだけで、押下中に縮む状態そのものは残る（フィードバックは失われない）。
+public struct PopButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .gameAnimation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+public extension ButtonStyle where Self == PopButtonStyle {
+    /// 押下フィードバック付きの `.plain` 相当（#195）。
+    static var pop: PopButtonStyle { PopButtonStyle() }
+}
+
 /// `View.gameSheetDetents()` の実体。
 private struct GameSheetDetents: ViewModifier {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
