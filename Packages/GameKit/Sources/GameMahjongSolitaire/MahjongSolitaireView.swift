@@ -199,9 +199,12 @@ public struct MahjongSolitaireView: View {
                     Text("全部取り切った！")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.ink)
-                    Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回")
+                    // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
+                    // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
+                    Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -289,16 +292,44 @@ public struct MahjongSolitaireView: View {
                     .padding(.horizontal, 12).padding(.vertical, 6)
                     .background(Capsule().fill(Theme.purple))
             }
-            Spacer()
-            if model.hintCount > 0 || model.shuffleCount > 0 {
-                Text("ヒント\(model.hintCount) / 並べ替え\(model.shuffleCount)")
+            undoButton
+            Spacer(minLength: 4)
+            if let usage = usageText {
+                Text(usage)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。
+    private var undoButton: some View {
+        Button { model.undoLastTake() } label: {
+            Label("戻す", systemImage: "arrow.uturn.backward")
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(Theme.coral))
+        }
+        .disabled(!model.canUndo)
+        // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれ、誤タップの救済に気づかれない）。
+        .opacity(model.canUndo ? 1 : 0.4)
+        .accessibilityLabel("直前に取った2枚を戻す")
+        .accessibilityHint(model.canUndo ? "" : "牌を取った直後だけ使えます")
+    }
+
+    /// 補助の利用回数。**使ったものだけ**を並べる（3 つ常時出すと iPhone の幅でボタンを押し出す）。
+    /// クリア後のリザルトでは 0 回も含めて全部出す（そちらは記録の内訳なので省略しない）。
+    private var usageText: String? {
+        let parts = [
+            (model.hintCount, "ヒント"),
+            (model.shuffleCount, "並べ替え"),
+            (model.undoCount, "戻す"),
+        ].filter { $0.0 > 0 }.map { "\($0.1)\($0.0)" }
+        return parts.isEmpty ? nil : parts.joined(separator: " / ")
     }
 
     // MARK: - 盤の下の操作エリア
@@ -383,6 +414,20 @@ public struct MahjongSolitaireView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
+
+                // 手詰まりは直前の 1 手が作ったことが多い。オーバーレイは盤の下の操作を覆って
+                // しまうので、ここにも出口を置かないとアンドゥが**必要な場面でだけ押せない**（#198）。
+                if model.canUndo {
+                    Button { model.undoLastTake() } label: {
+                        Label("直前の1手を戻す", systemImage: "arrow.uturn.backward")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.coral, in: RoundedRectangle(cornerRadius: 14))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Button { model.giveUpAndRestart() } label: {
                     Text("最初から")
