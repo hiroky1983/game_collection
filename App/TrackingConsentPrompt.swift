@@ -28,32 +28,41 @@ struct TrackingConsentPrompt: View {
     @State private var isContinuing = false
 
     var body: some View {
+        // 説明はスクロールさせ、「続ける」は下端に固定する。文字を拡大すると説明だけで
+        // 画面を超え、固定レイアウトのままだと CTA に到達できなくなるため（#189）。
+        // 既定の文字サイズでは説明が収まるので、見た目は従来と変わらない。
         VStack(spacing: 24) {
-            Image(systemName: "hand.raised.fill")
-                .font(.system(size: 44, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 88, height: 88)
-                .background(Circle().fill(Theme.coral.gradient))
-                .shadow(color: Theme.coral.opacity(0.4), radius: 8, y: 4)
+            ScrollView {
+                VStack(spacing: 24) {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 88, height: 88)
+                        .background(Circle().fill(Theme.coral.gradient))
+                        .shadow(color: Theme.coral.opacity(0.4), radius: 8, y: 4)
 
-            Text("広告の表示について")
-                .font(Theme.title(24))
-                .foregroundStyle(Theme.ink)
+                    Text("広告の表示について")
+                        .themeTitle(24)
+                        .foregroundStyle(Theme.ink)
 
-            VStack(alignment: .leading, spacing: 14) {
-                row("sparkles", "より関連性の高い広告を表示するために、端末の広告識別子を使わせてください。")
-                row("checkmark.circle.fill", "許可しなくても、8つのゲームはすべてそのまま遊べます。")
-                row("info.circle.fill", "許可しない場合も広告は表示されます（内容が関連性の低いものになります）。")
+                    VStack(alignment: .leading, spacing: 14) {
+                        row("sparkles", "より関連性の高い広告を表示するために、端末の広告識別子を使わせてください。")
+                        row("checkmark.circle.fill", "許可しなくても、8つのゲームはすべてそのまま遊べます。")
+                        row("info.circle.fill", "許可しない場合も広告は表示されます（内容が関連性の低いものになります）。")
+                    }
+                    .padding(20)
+                    .popCard()
+
+                    Text("このあとに表示される確認画面で選べます。")
+                        .themeCaption(13, weight: .medium)
+                        .foregroundStyle(Theme.inkSub)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, Theme.pad)
+                .padding(.top, Theme.pad + 40)
             }
-            .padding(20)
-            .popCard()
-
-            Text("このあとに表示される確認画面で選べます。")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-                .multilineTextAlignment(.center)
-
-            Spacer(minLength: 12)
+            .scrollBounceBehavior(.basedOnSize)
 
             Button {
                 guard !isContinuing else { return }
@@ -61,7 +70,7 @@ struct TrackingConsentPrompt: View {
                 onContinue()
             } label: {
                 Text("続ける")
-                    .font(Theme.body(18))
+                    .themeBody(18)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -72,10 +81,9 @@ struct TrackingConsentPrompt: View {
             }
             .buttonStyle(.plain)
             .disabled(isContinuing)
+            .padding(.horizontal, Theme.pad)
+            .padding(.bottom, Theme.pad + 8)
         }
-        .padding(Theme.pad)
-        .padding(.top, 40)
-        .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .popBackground()
     }
@@ -87,7 +95,7 @@ struct TrackingConsentPrompt: View {
                 .foregroundStyle(Theme.coral)
                 .frame(width: 22)
             Text(text)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .themeBody(15, weight: .medium)
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)

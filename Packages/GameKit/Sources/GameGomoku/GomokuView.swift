@@ -126,7 +126,7 @@ public struct GomokuView: View {
             }
             Spacer(minLength: 0)
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -290,11 +290,11 @@ public struct GomokuView: View {
             if let w = model.winner {
                 Label(w == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち",
                       systemImage: "flag.checkered")
-                    .font(Theme.body(16)).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coral)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.isDraw {
                 Label("引き分け", systemImage: "equal.circle")
-                    .font(Theme.body(16)).foregroundStyle(Theme.inkSub)
+                    .themeBody(16).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 let isMine = model.currentStone == model.humanSide
@@ -305,7 +305,7 @@ public struct GomokuView: View {
                     .background(Capsule().fill(isMine ? Theme.teal : Theme.coral))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("思考中…").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+                    Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
             Spacer(minLength: 8)
@@ -316,7 +316,7 @@ public struct GomokuView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text("\(model.moveCount)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+            Text("\(model.moveCount)手").themeBody(13).foregroundStyle(Theme.inkSub)
         }
         .frame(minHeight: 32)
         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -369,7 +369,7 @@ public struct GomokuView: View {
                 Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -415,7 +415,7 @@ struct GomokuNewGameSheet: View {
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
-                    Text("対局開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }
@@ -428,12 +428,12 @@ struct GomokuNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
             content()
         }
     }
@@ -442,7 +442,7 @@ struct GomokuNewGameSheet: View {
                          selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).font(Theme.title(22)).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
             }

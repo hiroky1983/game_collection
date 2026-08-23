@@ -189,7 +189,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                                 .frame(width: 22, height: 22)
                                 .background(Circle().fill(Theme.coral))
                             Text(line)
-                                .font(Theme.body(15))
+                                .themeBody(15)
                                 .foregroundStyle(Theme.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: 0)
@@ -204,7 +204,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                         } label: {
                             HStack {
                                 Label("くわしいルール", systemImage: "book")
-                                    .font(Theme.body(15))
+                                    .themeBody(15)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 13, weight: .bold))
@@ -301,7 +301,7 @@ public struct HowToPlayHint: View {
     public var body: some View {
         if isVisible {
             Label(guide.hint, systemImage: guide.hintIcon)
-                .font(Theme.body(14))
+                .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
                 .allowsHitTesting(false)
         }

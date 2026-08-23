@@ -125,7 +125,7 @@ public struct MinesweeperView: View {
             }
             Spacer()
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -235,7 +235,7 @@ public struct MinesweeperView: View {
                     .background(Capsule().fill(Theme.coral))
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -253,17 +253,21 @@ public struct MinesweeperView: View {
                     let won = model.gameState == .won
                     Label(won ? "クリア！" : "ゲームオーバー",
                           systemImage: won ? "flag.checkered" : "xmark.octagon.fill")
-                        .font(Theme.body(15))
+                        .themeBody(15)
+                        // 文字を拡大すると「ゲームオーバー」が理想幅を要求して
+                        // 右のタイマー・旗・ズームを押し出すため、ここだけは縮めて収める（#189）。
+                        // 残り地雷数（下の分岐）は等幅で幅を固定したいので `fixedSize` を残す。
+                        .minimumScaleFactor(0.7)
                         .foregroundStyle(won ? Theme.teal : Theme.coral)
                 } else {
                     Label(String(format: "%02d", max(0, model.remainingMines)),
                           systemImage: "flag.fill")
                         .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(Theme.coral)
                 }
             }
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(stateEmoji)
@@ -498,7 +502,7 @@ struct MinesweeperNewGameSheet: View {
                     default: onStart(9, 9, 10)
                     }
                 } label: {
-                    Text("スタート").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("スタート").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }
@@ -511,12 +515,12 @@ struct MinesweeperNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
             content()
         }
     }
@@ -525,7 +529,7 @@ struct MinesweeperNewGameSheet: View {
                          selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).font(Theme.title(22)).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
             }

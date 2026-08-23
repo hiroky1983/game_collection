@@ -78,11 +78,11 @@ public struct PokerView: View {
     private var chipsBar: some View {
         HStack {
             Label("あなた: \(model.playerChips)枚", systemImage: "person.fill")
-                .font(Theme.body(14))
+                .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
             Label("CPU: \(model.cpuChips)枚", systemImage: "cpu")
-                .font(Theme.body(14))
+                .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
@@ -95,7 +95,7 @@ public struct PokerView: View {
         VStack(spacing: 12) {
             HStack(spacing: 8) {
                 Text("CPU")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                 if !model.cpuAction.isEmpty {
                     Text(model.cpuAction)
@@ -163,7 +163,7 @@ public struct PokerView: View {
         VStack(spacing: 6) {
             HStack {
                 Text("あなた")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if model.phase == .exchange {
@@ -267,7 +267,7 @@ public struct PokerView: View {
             if model.phase == .cpuExchange {
                 HStack {
                     ProgressView().controlSize(.small)
-                    Text("CPUが交換中…").font(Theme.body(14)).foregroundStyle(Theme.inkSub)
+                    Text("CPUが交換中…").themeBody(14).foregroundStyle(Theme.inkSub)
                 }
                 .frame(maxWidth: .infinity)
             } else {
@@ -368,7 +368,7 @@ public struct PokerView: View {
                     }
                 } label: {
                     Label("広告を見てチップ回復", systemImage: "play.rectangle.fill")
-                        .font(Theme.body(16)).frame(maxWidth: .infinity)
+                        .themeBody(16).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
                 .disabled(isRecoveringChips)
@@ -380,7 +380,7 @@ public struct PokerView: View {
                 model.restartSession()
                 showStartSheet = true
             } label: {
-                Text("もう一度はじめる").font(Theme.body(16)).frame(maxWidth: .infinity)
+                Text("もう一度はじめる").themeBody(16).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
@@ -391,7 +391,11 @@ public struct PokerView: View {
     private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(Theme.body(14))
+                .themeBody(14)
+                // 文字を拡大すると「カードを選ぶ」「コール 20枚」等が折り返して
+                // ボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
@@ -449,7 +453,7 @@ struct PokerStartSheet: View {
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ゲームの流れ")
-                        .font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+                        .themeBody(15).foregroundStyle(Theme.inkSub)
                     ruleRow("1", "アンティ 10枚 → 手札5枚配布")
                     ruleRow("2", "ベット（チェック or 20枚ベット）")
                     ruleRow("3", "カード交換（0〜5枚）")
@@ -481,7 +485,7 @@ struct PokerStartSheet: View {
                 Button {
                     onStart()
                 } label: {
-                    Text("ゲーム開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }

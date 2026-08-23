@@ -177,7 +177,7 @@ struct SettingsView: View {
                             .foregroundStyle(.white)
                     }
                 Text(module.title)
-                    .font(Theme.body(16))
+                    .themeBody(16)
                     .foregroundStyle(isVisible ? Theme.ink : Theme.inkSub)
             }
         }

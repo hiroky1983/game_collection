@@ -134,7 +134,7 @@ public struct ConcentrationView: View {
                 showMattaConfirm = true
             } label: {
                 Label("待った", systemImage: "arrow.uturn.backward")
-                    .font(Theme.body(14))
+                    .themeBody(14)
             }
             .disabled(!model.canMatta)
 
@@ -144,7 +144,7 @@ public struct ConcentrationView: View {
             // 待っている間だけ「待った」が押せることをここで知らせる。
             if model.canMatta {
                 Text("ミスマッチ… 待ったは今だけ")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.coral)
             }
         }
@@ -222,13 +222,13 @@ public struct ConcentrationView: View {
 
                 HStack(spacing: 20) {
                     VStack {
-                        Text("あなた").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
-                        Text("\(model.playerScore)").font(Theme.title(36)).foregroundStyle(Theme.teal)
+                        Text("あなた").themeBody(13).foregroundStyle(Theme.inkSub)
+                        Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.teal)
                     }
-                    Text("–").font(Theme.title(24)).foregroundStyle(Theme.inkSub)
+                    Text("–").themeTitle(24).foregroundStyle(Theme.inkSub)
                     VStack {
-                        Text("CPU").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
-                        Text("\(model.cpuScore)").font(Theme.title(36)).foregroundStyle(Theme.coral)
+                        Text("CPU").themeBody(13).foregroundStyle(Theme.inkSub)
+                        Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coral)
                     }
                 }
 
@@ -236,7 +236,7 @@ public struct ConcentrationView: View {
 
                 Button { showNewGame = true } label: {
                     Text("もう一度")
-                        .font(Theme.body(16))
+                        .themeBody(16)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -348,7 +348,7 @@ struct ConcentrationNewGameSheet: View {
 
                 Button { onStart(selectedPairCount, selectedCPULevel) } label: {
                     Text("ゲーム開始")
-                        .font(Theme.body(18))
+                        .themeBody(18)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -364,13 +364,13 @@ struct ConcentrationNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func settingSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(Theme.body(15))
+                .themeBody(15)
                 .foregroundStyle(Theme.inkSub)
             content()
         }
@@ -381,7 +381,7 @@ struct ConcentrationNewGameSheet: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Text(title)
-                    .font(Theme.body(16))
+                    .themeBody(16)
                     .foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
