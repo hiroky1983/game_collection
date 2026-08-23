@@ -436,3 +436,137 @@ struct DaifugoHandHintTests {
         #expect(model.canPlaySelection)
     }
 }
+
+
+// MARK: - 消化試合の早送り（#191）
+
+/// 人間が上がって CPU 同士の消化試合に入るところまで貪欲法で進める。
+/// 人間が最後まで残った配りでは `false` を返す（早送りの対象にならない）。
+@MainActor
+private func playUntilPlayerFinishes(_ model: DaifugoModel, maxTurns: Int = 500) async -> Bool {
+    var turns = 0
+    while model.phase == .playing, turns < maxTurns {
+        turns += 1
+        await model.runCPUTurnsIfNeeded()
+        guard model.phase == .playing, model.isPlayerTurn else { break }
+        if let play = DaifugoRules.greedyPlay(
+            hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+        ) {
+            for card in play { model.toggleSelection(card) }
+            model.playSelected()
+        } else {
+            model.pass()
+        }
+        // 上がった直後に抜ける。ここで `runCPUTurnsIfNeeded` を回すと決着まで走り切ってしまう。
+        if model.phase == .playing, model.isPlayerFinished { return true }
+    }
+    return false
+}
+
+@Suite("上がった後の消化試合")
+@MainActor
+struct DaifugoFastForwardTests {
+
+    @Test("上がった後だけ「結果まで進める」を出す")
+    func skipIsOfferedOnlyAfterFinishing() {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [[card(3)], [card(4), card(5)], [card(6), card(7)], [card(9), card(10)]]
+        )
+        #expect(model.canSkipToResult == false, "自分の手札が残っているうちは出さない")
+
+        model.skipToResult()
+        #expect(model.isSkippingToResult == false, "手番中に呼ばれても無視する")
+
+        model.toggleSelection(card(3))
+        model.playSelected()
+
+        #expect(model.isPlayerFinished)
+        #expect(model.canSkipToResult, "上がった直後・決着前は出す")
+        model.skipToResult()
+        #expect(model.isSkippingToResult)
+    }
+
+    @Test("早送りしても順位・記録は通常進行と変わらない")
+    func skipKeepsRankingIdentical() async {
+        let (plain, _)   = makeModel(seed: 42)
+        let (skipped, _) = makeModel(seed: 42)
+        plain.startGame()
+        skipped.startGame()
+
+        #expect(await playUntilPlayerFinishes(skipped), "seed 42 は人間が先に上がる配り")
+        skipped.skipToResult()
+        await skipped.runCPUTurnsIfNeeded()
+        #expect(await playToFinish(plain))
+
+        #expect(skipped.phase == .result)
+        #expect(skipped.ranking == plain.ranking, "早送りは見せ方だけを変える")
+        #expect(skipped.finishOrder == plain.finishOrder)
+        #expect(skipped.playerTitle == plain.playerTitle)
+        #expect(skipped.fouls == plain.fouls)
+    }
+
+    @Test("早送りは次のゲームに持ち越さない")
+    func skipResetsOnNextGame() async {
+        let (model, _) = makeModel(seed: 42)
+        model.startGame()
+        #expect(await playUntilPlayerFinishes(model))
+        model.skipToResult()
+        await model.runCPUTurnsIfNeeded()
+        #expect(model.phase == .result)
+
+        model.startGame()
+        #expect(model.isSkippingToResult == false)
+        #expect(model.canSkipToResult == false)
+        #expect(model.cpuTurnsAfterPlayerFinished == 0)
+    }
+
+    /// 受け入れ条件「実測の待ち時間が10秒以内」。早送りを**押さずに**眺めた場合の待ち時間を
+    /// 「消化試合の手番数 × 短縮した間合い」で見積もる（実時間で待つとテストがフレークするため）。
+    @Test("早送りを押さなくても消化試合は10秒以内に終わる")
+    func remainingTurnsFitInTenSeconds() async {
+        var measured = 0
+        var worstTurns = 0
+        for seed in (1...60).map(UInt64.init) {
+            let (model, _) = makeModel(seed: seed)
+            model.startGame()
+            guard await playUntilPlayerFinishes(model) else { continue }
+            await model.runCPUTurnsIfNeeded()
+            #expect(model.phase == .result)
+            measured += 1
+            worstTurns = max(worstTurns, model.cpuTurnsAfterPlayerFinished)
+        }
+
+        #expect(measured >= 20, "人間が先に上がる配りを十分に含むこと（実測 \(measured) 件）")
+        let wait = DaifugoModel.finishedCPUDelay * worstTurns
+        #expect(wait <= .seconds(10), "最長 \(worstTurns) 手番 = \(wait)")
+    }
+
+    /// #157 の計測局面（人間が上がった直後・CPU 13/13/14枚）をそのまま注入して見積もる。
+    /// 変更前は 650ms × 手番数 で 30〜35 秒かかっていた区間。
+    @Test("#157 の計測局面でも10秒以内に終わる")
+    func mostCardsLeftStillFitsInTenSeconds() async {
+        let (model, _) = makeModel(seed: 2026)
+        var deck = DaifugoCard.makeDeck()
+        deck.shuffle(using: &SeededGeneratorBox.shared)
+        model.configureForTesting(
+            hands: [[], Array(deck[0..<13]), Array(deck[13..<26]), Array(deck[26..<40])],
+            currentPlayer: 1,
+            finishOrder: [DaifugoModel.humanIndex]
+        )
+        #expect(model.canSkipToResult, "上がった直後は早送りを出せる")
+
+        await model.runCPUTurnsIfNeeded()
+
+        #expect(model.phase == .result)
+        #expect(model.ranking.count == DaifugoModel.playerCount)
+        #expect(model.playerPlace == 0, "最初に上がった人は大富豪のまま")
+        let wait = DaifugoModel.finishedCPUDelay * model.cpuTurnsAfterPlayerFinished
+        #expect(wait <= .seconds(10), "\(model.cpuTurnsAfterPlayerFinished) 手番 = \(wait)")
+    }
+}
+
+/// 上の局面注入で使う決定的な乱数。配りを固定してテストを再現可能にするだけの用途。
+private enum SeededGeneratorBox {
+    @MainActor static var shared = SeededGenerator(seed: 191)
+}
