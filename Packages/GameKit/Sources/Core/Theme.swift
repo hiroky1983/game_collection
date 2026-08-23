@@ -202,14 +202,14 @@ public extension View {
         background(Theme.background.ignoresSafeArea())
     }
 
-    /// 見出し（`Theme.title` 相当）を Dynamic Type 追従で適用する（#189）。
-    func themeTitle(_ size: CGFloat = 28) -> some View {
-        modifier(ScaledThemeFont(size: size, weight: .heavy, relativeTo: .title))
+    /// 見出しを Dynamic Type 追従で適用する（#189）。
+    func themeTitle(_ size: CGFloat = 28, weight: Font.Weight = .heavy) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .title))
     }
 
-    /// 本文（`Theme.body` 相当）を Dynamic Type 追従で適用する（#189）。
-    func themeBody(_ size: CGFloat = 17) -> some View {
-        modifier(ScaledThemeFont(size: size, weight: .semibold, relativeTo: .body))
+    /// 本文を Dynamic Type 追従で適用する（#189）。
+    func themeBody(_ size: CGFloat = 17, weight: Font.Weight = .semibold) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .body))
     }
 
     /// 記録・バッジなど小さな補助テキストを Dynamic Type 追従で適用する（#189）。

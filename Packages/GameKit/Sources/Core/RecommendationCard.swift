@@ -7,7 +7,8 @@ public struct RecommendationCard: View {
     /// 先頭のアイコンの一辺。カードの高さはこれで決まる（文字はこれより低い）。
     private static let iconSide: CGFloat = 36
     private static let verticalPadding: CGFloat = 10
-    private static let captionFont = Font.system(size: 11, weight: .semibold, design: .rounded)
+    /// 見出しの基準 pt。実カードと `heightPlaceholder` で必ず同じ値を使う（高さ契約）。
+    private static let captionSize: CGFloat = 11
 
     private let module: GameModule
     private let accent: Color
@@ -40,7 +41,7 @@ public struct RecommendationCard: View {
                         }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("次はこれで遊ぶ？")
-                            .font(Self.captionFont)
+                            .themeCaption(Self.captionSize, weight: .semibold)
                             .foregroundStyle(Theme.inkSub)
                         Text(module.title)
                             .themeBody(16)
@@ -48,7 +49,7 @@ public struct RecommendationCard: View {
                     }
                     Spacer(minLength: 4)
                     Text("あそぶ")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .themeCaption(13)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(Capsule().fill(accent))
@@ -80,7 +81,7 @@ public struct RecommendationCard: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .frame(width: iconSide, height: iconSide)
             VStack(alignment: .leading, spacing: 2) {
-                Text("次はこれで遊ぶ？").font(captionFont)
+                Text("次はこれで遊ぶ？").themeCaption(captionSize, weight: .semibold)
                 Text("　").themeBody(16)
             }
             Spacer(minLength: 4)

@@ -392,6 +392,10 @@ public struct PokerView: View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
+                // 文字を拡大すると「カードを選ぶ」「コール 20枚」等が折り返して
+                // ボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,

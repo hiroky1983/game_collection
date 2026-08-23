@@ -254,16 +254,20 @@ public struct MinesweeperView: View {
                     Label(won ? "クリア！" : "ゲームオーバー",
                           systemImage: won ? "flag.checkered" : "xmark.octagon.fill")
                         .themeBody(15)
+                        // 文字を拡大すると「ゲームオーバー」が理想幅を要求して
+                        // 右のタイマー・旗・ズームを押し出すため、ここだけは縮めて収める（#189）。
+                        // 残り地雷数（下の分岐）は等幅で幅を固定したいので `fixedSize` を残す。
+                        .minimumScaleFactor(0.7)
                         .foregroundStyle(won ? Theme.teal : Theme.coral)
                 } else {
                     Label(String(format: "%02d", max(0, model.remainingMines)),
                           systemImage: "flag.fill")
                         .font(.system(size: 16, weight: .bold, design: .monospaced))
+                        .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(Theme.coral)
                 }
             }
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(stateEmoji)
