@@ -172,7 +172,9 @@ public struct MahjongSolitaireView: View {
             // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // `.plain` は自前で描いた背景を通す代わりに押下フィードバックまで消える。
+        // そのために用意された `.pop` を使う（#195・`PopButtonStyle`）。
+        .buttonStyle(.pop)
         .accessibilityLabel(showsWholeBoard ? "牌を大きくする" : "盤面全体を表示")
     }
 

@@ -1,5 +1,6 @@
 import Testing
 import CoreGraphics
+import Foundation
 @testable import GameMahjongSolitaire
 
 /// 盤面の大きさ（#196）。牌のタップ標的が Apple HIG の 44pt を満たすかを、
@@ -85,10 +86,25 @@ struct MahjongSolitaireBoardMetricsTests {
     // MARK: - 表示切り替えボタン（#197）
 
     @Test("表示切り替えボタンのタップ標的は 44pt 以上")
-    func displayToggleMeetsTapTarget() {
+    func displayToggleMeetsTapTarget() throws {
         // 修正前は `padding(.horizontal, 8).padding(.vertical, 5)` + フォント 13 で実測 29×23pt だった。
         // 全体像を取り戻す唯一の入口なので、牌と同じ基準を満たす。
         #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
+
+        // 定数だけ見ても意味が無い。View が **この定数を** frame に渡していなければ、
+        // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
+        // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する
+        // （`MotionTests.noRawAnimationOutsideCore` と同じやり方）。
+        let source = try Self.viewSource()
+        for expected in [
+            #"minWidth:\s*Metrics\.toggleButtonMinSide"#,
+            #"minHeight:\s*Metrics\.toggleButtonMinSide"#,
+        ] {
+            #expect(
+                source.range(of: expected, options: .regularExpression) != nil,
+                "MahjongSolitaireView が \(expected) を使っていない（タップ標的が Metrics から切れている）"
+            )
+        }
     }
 
     @Test("44pt のボタンを置いてもステータスバーは高くならない")
@@ -102,6 +118,28 @@ struct MahjongSolitaireBoardMetricsTests {
         #expect(after - before <= 3)
         // 余白を詰めすぎてボタンが帯からはみ出さないこと。
         #expect(Metrics.statusBarVerticalPadding > 0)
+    }
+
+    @Test("ステータスバーの余白も View が Metrics の値を使っている")
+    func statusBarPaddingIsWiredToMetrics() throws {
+        let source = try Self.viewSource()
+        #expect(
+            source.range(
+                of: #"\.padding\(\.vertical,\s*Metrics\.statusBarVerticalPadding\)"#,
+                options: .regularExpression
+            ) != nil,
+            "ステータスバーの余白が Metrics から切れている（帯の高さの見積りが効かなくなる）"
+        )
+    }
+
+    /// View のソースを読む。`#filePath` からの相対で辿るので、パスの導出が壊れたら投げる。
+    private static func viewSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameMahjongSolitaireTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameMahjongSolitaire/MahjongSolitaireView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
     }
 
     @Test("牌の矩形は盤面の枠に収まる")
