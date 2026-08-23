@@ -69,12 +69,12 @@ public struct BlackjackView: View {
     private var chipsBar: some View {
         HStack {
             Label("チップ: \(model.chips)枚", systemImage: "circle.hexagongrid.fill")
-                .font(Theme.body(14))
+                .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
             if model.bet > 0 {
                 Label("ベット: \(model.bet)枚", systemImage: "dollarsign.circle.fill")
-                    .font(Theme.body(14))
+                    .themeBody(14)
                     .foregroundStyle(Theme.yellow)
             }
         }
@@ -100,7 +100,7 @@ public struct BlackjackView: View {
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.ink)
                 Text("21 に近いほうが勝ち。ディーラーは 17 以上で止まります。")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                     .multilineTextAlignment(.center)
             }
@@ -116,7 +116,7 @@ public struct BlackjackView: View {
         VStack(spacing: 10) {
             HStack {
                 Text("ディーラー")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                 Spacer()
                 if model.phase == .result || model.phase == .dealerTurn {
@@ -154,7 +154,7 @@ public struct BlackjackView: View {
         VStack(spacing: 10) {
             HStack {
                 Text("あなた")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if !model.playerHand.isEmpty {
@@ -312,13 +312,13 @@ public struct BlackjackView: View {
                 }
             } label: {
                 Label("広告を見てチップ回復 (+500枚)", systemImage: "play.rectangle.fill")
-                    .font(Theme.body(16)).frame(maxWidth: .infinity)
+                    .themeBody(16).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
             .disabled(isRecoveringChips)
 
             Button { model.restartSession() } label: {
-                Text("最初からやり直す (1000枚)").font(Theme.body(16)).frame(maxWidth: .infinity)
+                Text("最初からやり直す (1000枚)").themeBody(16).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
@@ -331,7 +331,11 @@ public struct BlackjackView: View {
     private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(Theme.body(14))
+                .themeBody(14)
+                // 文字を拡大すると「200枚」が「20」「0枚」に折り返されて別の額に読めるため、
+                // 折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,

@@ -37,7 +37,7 @@ struct TrackingConsentPrompt: View {
                 .shadow(color: Theme.coral.opacity(0.4), radius: 8, y: 4)
 
             Text("広告の表示について")
-                .font(Theme.title(24))
+                .themeTitle(24)
                 .foregroundStyle(Theme.ink)
 
             VStack(alignment: .leading, spacing: 14) {
@@ -61,7 +61,7 @@ struct TrackingConsentPrompt: View {
                 onContinue()
             } label: {
                 Text("続ける")
-                    .font(Theme.body(18))
+                    .themeBody(18)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)

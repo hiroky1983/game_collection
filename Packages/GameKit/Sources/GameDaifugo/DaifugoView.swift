@@ -70,7 +70,7 @@ public struct DaifugoView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
-                .font(Theme.body(13))
+                .themeBody(13)
                 .foregroundStyle(Theme.inkSub)
             if model.isRevolution {
                 Text("革命中")
@@ -165,7 +165,7 @@ public struct DaifugoView: View {
         VStack(spacing: 6) {
             HStack {
                 Text("あなた（残り\(model.playerHand.count)枚）")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if !model.lastActions[DaifugoModel.humanIndex].isEmpty {
@@ -287,7 +287,7 @@ public struct DaifugoView: View {
     private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(Theme.body(14))
+                .themeBody(14)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
@@ -357,7 +357,7 @@ struct DaifugoStartSheet: View {
             VStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ゲームの流れ")
-                        .font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+                        .themeBody(15).foregroundStyle(Theme.inkSub)
                     ruleRow("1", "CPU3人と対戦。手札を早く出し切るほど上の階級")
                     ruleRow("2", "場と同じ枚数で、より強い組だけ出せる")
                     ruleRow("3", "出せない・出したくないときはパス")
@@ -389,7 +389,7 @@ struct DaifugoStartSheet: View {
                 Button {
                     onStart()
                 } label: {
-                    Text("ゲーム開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }

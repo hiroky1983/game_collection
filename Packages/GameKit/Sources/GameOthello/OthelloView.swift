@@ -288,7 +288,7 @@ public struct OthelloView: View {
                 Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -387,7 +387,7 @@ public struct OthelloView: View {
             }
             Spacer(minLength: 0)
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -433,7 +433,7 @@ struct OthelloNewGameSheet: View {
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
-                    Text("対局開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }
@@ -446,12 +446,12 @@ struct OthelloNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
             content()
         }
     }
@@ -460,7 +460,7 @@ struct OthelloNewGameSheet: View {
                          accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).font(Theme.title(22)).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
             }

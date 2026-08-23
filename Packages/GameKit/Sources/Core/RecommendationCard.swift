@@ -43,7 +43,7 @@ public struct RecommendationCard: View {
                             .font(Self.captionFont)
                             .foregroundStyle(Theme.inkSub)
                         Text(module.title)
-                            .font(Theme.body(16))
+                            .themeBody(16)
                             .foregroundStyle(Theme.ink)
                     }
                     Spacer(minLength: 4)
@@ -81,7 +81,7 @@ public struct RecommendationCard: View {
                 .frame(width: iconSide, height: iconSide)
             VStack(alignment: .leading, spacing: 2) {
                 Text("次はこれで遊ぶ？").font(captionFont)
-                Text("　").font(Theme.body(16))
+                Text("　").themeBody(16)
             }
             Spacer(minLength: 4)
         }

@@ -93,7 +93,7 @@ public struct MahjongSolitaireView: View {
                     // 取り切った後の表示は行を増やさずここに同居させる（#148）。
                     // 残り枚数は 0 で固定になるため、入れ替えても失われる情報は無い。
                     Label("クリア！", systemImage: "flag.checkered")
-                        .font(Theme.body(15))
+                        .themeBody(15)
                         .foregroundStyle(Theme.teal)
                 } else {
                     Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
@@ -257,7 +257,7 @@ public struct MahjongSolitaireView: View {
                     .foregroundStyle(Theme.inkSub)
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -313,7 +313,7 @@ public struct MahjongSolitaireView: View {
                     .background(Capsule().fill(Theme.coral))
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }

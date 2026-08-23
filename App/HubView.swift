@@ -196,7 +196,7 @@ private struct GameCard: View {
 
                 if hasResume {
                     Text("続きから")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .themeCaption(11)
                         .foregroundStyle(accent)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -206,7 +206,7 @@ private struct GameCard: View {
             }
 
             Text(module.title)
-                .font(Theme.title(18))
+                .themeTitle(18)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -221,7 +221,7 @@ private struct GameCard: View {
                         .foregroundStyle(Theme.inkSub)
                 }
             }
-            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .themeCaption(11)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
         }

@@ -78,9 +78,31 @@ public enum Theme {
     public static let cornerSmall: CGFloat = 12
     public static let pad: CGFloat = 16
 
-    // フォント（丸ゴシックで楽しく）
-    public static func title(_ size: CGFloat = 28) -> Font { .system(size: size, weight: .heavy, design: .rounded) }
-    public static func body(_ size: CGFloat = 17) -> Font { .system(size: size, weight: .semibold, design: .rounded) }
+    // フォント（丸ゴシックで楽しく）は `View.themeTitle(_:)` / `View.themeBody(_:)` /
+    // `View.themeCaption(_:weight:)` で当てる。実体は `ScaledThemeFont`。
+    //
+    // かつては `Theme.title(_:)` / `Theme.body(_:)` が `Font` を返していたが、
+    // `Font.system(size:)` は固定 pt で文字サイズ設定（Dynamic Type）を無視するため廃止した（#189）。
+    // 盤面の駒・カードの数字など「図形のジオメトリに従うべき文字」は拡大させたくないので、
+    // 従来どおり呼び出し側で `.font(.system(size:))` を直接指定する。
+}
+
+/// Dynamic Type（文字サイズ設定）に追従するテーマフォント（#189）。
+///
+/// `@ScaledMetric` で基準 pt を拡大してから Font を作る。既定の文字サイズ（`.large`）では
+/// 倍率が 1.0 になるため、見た目は固定 pt 指定だったときと完全に一致する。
+public struct ScaledThemeFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight, relativeTo textStyle: Font.TextStyle) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
+        self.weight = weight
+    }
+
+    public func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: .rounded))
+    }
 }
 
 public extension Color {
@@ -178,5 +200,39 @@ public extension View {
     /// 画面全体のポップな背景。
     func popBackground() -> some View {
         background(Theme.background.ignoresSafeArea())
+    }
+
+    /// 見出し（`Theme.title` 相当）を Dynamic Type 追従で適用する（#189）。
+    func themeTitle(_ size: CGFloat = 28) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: .heavy, relativeTo: .title))
+    }
+
+    /// 本文（`Theme.body` 相当）を Dynamic Type 追従で適用する（#189）。
+    func themeBody(_ size: CGFloat = 17) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: .semibold, relativeTo: .body))
+    }
+
+    /// 記録・バッジなど小さな補助テキストを Dynamic Type 追従で適用する（#189）。
+    /// 基準を `.caption` にして本文より拡大幅を抑える（狭い枠に入るテキストのため）。
+    func themeCaption(_ size: CGFloat = 11, weight: Font.Weight = .bold) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .caption))
+    }
+
+    /// 新規ゲームシートの高さ。アクセシビリティ相当の文字サイズのときだけ `.large` で開く（#189）。
+    ///
+    /// これらのシートは「選択肢 + 下端の開始ボタン」の固定レイアウトで、文字が拡大されると
+    /// 選択肢が縦に伸びて開始ボタンが `.medium` の高さから押し出される。既定の文字サイズでは
+    /// 従来どおり `.medium` から始まるため、見た目も操作感も変わらない。
+    func gameSheetDetents() -> some View {
+        modifier(GameSheetDetents())
+    }
+}
+
+/// `View.gameSheetDetents()` の実体。
+private struct GameSheetDetents: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        content.presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
     }
 }

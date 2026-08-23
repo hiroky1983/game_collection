@@ -183,7 +183,7 @@ public struct ShogiView: View {
         HStack(spacing: 8) {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
-                    .font(Theme.body(16)).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coral)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 Text(model.position.sideToMove == .black ? "先手番" : "後手番")
@@ -193,9 +193,9 @@ public struct ShogiView: View {
                     .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.teal))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("CPU思考中…").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+                    Text("CPU思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 } else if let last = model.highlightedMoveText {
-                    Text("直前 \(last)").font(Theme.body(14)).foregroundStyle(Theme.ink)
+                    Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
             Spacer(minLength: 8)
@@ -205,7 +205,7 @@ public struct ShogiView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text("\(model.moves.count)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+                Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
         .frame(minHeight: 36)
@@ -294,7 +294,7 @@ public struct ShogiView: View {
                 Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -306,7 +306,7 @@ public struct ShogiView: View {
             Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
                 .disabled(model.reviewPly <= 0)
             Text("\(model.reviewPly)/\(model.moves.count)手")
-                .font(Theme.body(14)).monospacedDigit().foregroundStyle(Theme.ink)
+                .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
             Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
                 .disabled(model.reviewPly >= model.moves.count)
 
@@ -319,7 +319,7 @@ public struct ShogiView: View {
                     .background(Capsule().fill(Theme.coral))
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -360,7 +360,7 @@ struct NewGameSheet: View {
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
-                    Text("対局開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }
@@ -373,12 +373,12 @@ struct NewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
             content()
         }
     }
@@ -386,7 +386,7 @@ struct NewGameSheet: View {
     private func chooser(title: String, subtitle: String, selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).font(Theme.title(22)).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
             }
