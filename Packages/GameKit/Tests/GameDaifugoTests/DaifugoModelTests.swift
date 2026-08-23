@@ -318,6 +318,64 @@ struct DaifugoResumeTests {
         #expect(resumed.gameNumber == 3)
     }
 
+    @Test("復帰しても各プレイヤーの直近の動き（パス・8切り等）の表示が残る（#193）")
+    func restoresLastActions() {
+        let store = MemorySnapshotStore()
+        let (model, services) = makeModel(seed: 7, store: store)
+        model.configureForTesting(
+            hands: [
+                [card(3), card(9)],
+                [card(13), card(4)],
+                [card(12), card(5)],
+                [card(11), card(6)],
+            ],
+            field: [card(7)],
+            fieldOwner: 3,
+            currentPlayer: 0
+        )
+        // 人間がパスすると、その後 CPU が続けて打つので複数人のバッジが埋まる。
+        model.pass()
+        let expected = model.lastActions
+        #expect(!expected[DaifugoModel.humanIndex].isEmpty, "前提: 人間のバッジが立っている")
+
+        let resumed = DaifugoModel(services: services, cpuDelay: .zero)
+
+        #expect(resumed.lastActions == expected)
+    }
+
+    @Test("直近の動きを持たない旧バージョンの中断データでも復元できる（#193）")
+    func restoresSnapshotWithoutLastActions() {
+        /// `lastActions` を持たなかった頃の保存形式。
+        struct LegacySnapshot: Codable {
+            let hands: [[DaifugoCard]]
+            let field: [DaifugoCard]
+            let fieldOwner: Int?
+            let currentPlayer: Int
+            let passedPlayers: [Int]
+            let isRevolution: Bool
+            let finishOrder: [Int]
+            let fouls: [Int]
+            let gameNumber: Int
+            let lastRanking: [Int]
+        }
+        let store = MemorySnapshotStore()
+        try? store.save(
+            LegacySnapshot(
+                hands: [[card(3)], [card(4)], [card(5)], [card(6)]],
+                field: [], fieldOwner: nil, currentPlayer: 2, passedPlayers: [],
+                isRevolution: false, finishOrder: [], fouls: [], gameNumber: 4, lastRanking: []
+            ),
+            for: "daifugo"
+        )
+        let services = GameServices(snapshots: store, ads: NoopAdService())
+
+        let resumed = DaifugoModel(services: services, cpuDelay: .zero)
+
+        #expect(resumed.phase == .playing, "旧データが復号できず最初からになっていない")
+        #expect(resumed.gameNumber == 4)
+        #expect(resumed.lastActions == Array(repeating: "", count: DaifugoModel.playerCount))
+    }
+
     @Test("決着したらスナップショットは消える（次回は最初から）")
     func clearsSnapshotOnResult() async {
         let store = MemorySnapshotStore()
