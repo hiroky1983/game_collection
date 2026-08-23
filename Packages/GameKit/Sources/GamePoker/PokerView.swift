@@ -192,7 +192,7 @@ public struct PokerView: View {
                             }
                         }
                         .offset(y: isSelected ? 10 : 0)
-                        .animation(.spring(response: 0.25), value: isSelected)
+                        .gameAnimation(.spring(response: 0.25), value: isSelected)
                 }
             }
             .padding(.vertical, 6)

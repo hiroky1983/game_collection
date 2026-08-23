@@ -31,7 +31,7 @@ public struct GomokuView: View {
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
-        .animation(.none, value: model.gameOver)
+        .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
         .reviewRequestPrompt(services.review)

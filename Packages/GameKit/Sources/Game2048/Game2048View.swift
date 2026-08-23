@@ -43,7 +43,7 @@ public struct Game2048View: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { withAnimation { model.newGame() } } label: {
+                Button { withGameAnimation { model.newGame() } } label: {
                     Label("リセット", systemImage: "arrow.clockwise")
                 }
             }
@@ -114,7 +114,7 @@ public struct Game2048View: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
-        .animation(.easeInOut(duration: 0.12), value: model.board)
+        .gameAnimation(.easeInOut(duration: 0.12), value: model.board)
         .contentShape(Rectangle())
         .gesture(swipeGesture)
     }
@@ -133,7 +133,7 @@ public struct Game2048View: View {
                         Task {
                             // 視聴完了（報酬獲得）したときだけコンティニューを許可する
                             if await services.ads.showRewardedAd() {
-                                withAnimation { model.continueAfterAd() }
+                                withGameAnimation { model.continueAfterAd() }
                             } else {
                                 showRewardNotEarned = true
                             }
@@ -146,7 +146,7 @@ public struct Game2048View: View {
                     .tint(Theme.coral)
                     .disabled(isContinuing)
                 }
-                Button("もう一度") { withAnimation { model.newGame() } }
+                Button("もう一度") { withGameAnimation { model.newGame() } }
                     .buttonStyle(.bordered)
                     .tint(.white)
             }
@@ -161,7 +161,7 @@ public struct Game2048View: View {
                 let direction: Direction = abs(dx) > abs(dy)
                     ? (dx > 0 ? .right : .left)
                     : (dy > 0 ? .down : .up)
-                withAnimation(.easeInOut(duration: 0.12)) {
+                withGameAnimation(.easeInOut(duration: 0.12)) {
                     model.move(direction)
                 }
             }

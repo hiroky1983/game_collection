@@ -182,7 +182,7 @@ public struct DaifugoView: View {
                     let hint = handHint?.state(for: card.id) ?? .none
                     DaifugoCardView(card: card, size: .small, selected: isSelected, hint: hint)
                         .offset(y: isSelected ? -6 : 0)
-                        .animation(.spring(response: 0.2), value: isSelected)
+                        .gameAnimation(.spring(response: 0.2), value: isSelected)
                         .onTapGesture { model.toggleSelection(card) }
                         // カードは `onTapGesture` で組んでいるため、Button と違って
                         // ボタン trait も読み上げ文も自動では付かない（#188）。
