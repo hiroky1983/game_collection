@@ -13,6 +13,33 @@ public struct DaifugoTransfer: Codable, Sendable, Equatable {
     }
 }
 
+/// 手札1枚のヒント表示の状態（#190）。
+public enum DaifugoCardHint: Equatable, Sendable {
+    /// ヒント無し（設定オフ・相手の手番・手札すべてが出せる場合）。
+    case none
+    /// いま出せる札。
+    case playable
+    /// いま出せない札。
+    case unplayable
+}
+
+/// 手札全体のヒント（#190）。出せる札と出せない札を分けて持つ。
+public struct DaifugoHandHint: Equatable, Sendable {
+    public let playable: Set<Int>
+    public let unplayable: Set<Int>
+
+    public init(playable: Set<Int>, unplayable: Set<Int>) {
+        self.playable = playable
+        self.unplayable = unplayable
+    }
+
+    public func state(for cardID: Int) -> DaifugoCardHint {
+        if playable.contains(cardID) { return .playable }
+        if unplayable.contains(cardID) { return .unplayable }
+        return .none
+    }
+}
+
 /// 大富豪のルールを**乱数も状態も持たない純粋関数**として閉じ込めた層。
 ///
 /// Model（`DaifugoModel`）は進行と永続化だけを持ち、勝ち負けの判断はここに集約する。
@@ -90,6 +117,73 @@ public enum DaifugoRules {
     /// （2 しか残っていないと永久に上がれなくなるため）。
     public static func isFoulFinish(_ cards: [DaifugoCard]) -> Bool {
         cards.contains { $0.isJoker || $0.rank == 2 || $0.rank == 8 }
+    }
+
+    // MARK: - ヒント（#190）
+
+    /// いま出せる手札の ID。**その札を含む合法手が1つでもあれば「出せる」**として数える。
+    ///
+    /// `legalPlays` は CPU 用に「同ランクは弱い順に必要枚数だけ」しか列挙しないため、
+    /// 4枚組のうち2枚だけ出す手のように**同じ強さの別解**が落ちる。札単位の可否を問う
+    /// ヒント表示でそれを使うと「出せるのに暗く落ちる」札が出るので、ここで別に数える。
+    public static func playableCardIDs(
+        hand: [DaifugoCard],
+        field: [DaifugoCard],
+        isRevolution: Bool
+    ) -> Set<Int> {
+        guard !hand.isEmpty else { return [] }
+        // 場が流れていれば1枚から好きな組を出せる = 手札すべてが出せる。
+        guard !field.isEmpty else { return Set(hand.map(\.id)) }
+        guard let fieldStrength = playStrength(field, isRevolution: isRevolution) else { return [] }
+
+        let jokers = hand.filter(\.isJoker)
+        var groups: [Int: [DaifugoCard]] = [:]
+        for card in hand where !card.isJoker { groups[card.rank, default: []].append(card) }
+
+        let count = field.count
+        var ids: Set<Int> = []
+        var jokerUsable = false
+        for (rank, group) in groups {
+            guard strength(rank: rank, isRevolution: isRevolution) > fieldStrength else { continue }
+            // 足りない枚数はジョーカーで埋められる。
+            guard group.count + jokers.count >= count else { continue }
+            ids.formUnion(group.map(\.id))
+            // このランクで組が作れるなら、実札を1枚ジョーカーに置き換えた手も必ず作れる。
+            if !jokers.isEmpty { jokerUsable = true }
+        }
+        // ジョーカーだけで出す（場がジョーカーの組でない限り最強なので通る）。
+        if jokers.count >= count, strength(rank: jokerRank, isRevolution: isRevolution) > fieldStrength {
+            jokerUsable = true
+        }
+        if jokerUsable { ids.formUnion(jokers.map(\.id)) }
+        return ids
+    }
+
+    /// 選択中の組を出せない理由。出せる場合と未選択のときは nil。
+    ///
+    /// 画面に1行で出すため短く保つ。判定の順序は `isValidPlay` と同じ
+    /// （組として不成立 → 枚数違い → 強さ不足）にして、表示と可否がずれないようにする。
+    public static func rejectionReason(
+        _ cards: [DaifugoCard],
+        field: [DaifugoCard],
+        isRevolution: Bool
+    ) -> String? {
+        guard !cards.isEmpty else { return nil }
+        guard let played = playStrength(cards, isRevolution: isRevolution) else {
+            return "数字がそろっていません（ジョーカーは他の数字の代わりに使えます）"
+        }
+        guard !field.isEmpty else { return nil }
+        guard cards.count == field.count else {
+            return "場は\(field.count)枚です。\(cards.count)枚では出せません"
+        }
+        guard let current = playStrength(field, isRevolution: isRevolution), played > current else {
+            // 場がジョーカーだけのときは非ジョーカーが無いので、そのまま JOKER と呼ぶ。
+            let label = field.first { !$0.isJoker }?.rankLabel ?? "JOKER"
+            return isRevolution
+                ? "革命中です。場の \(label) より弱い数字が必要です"
+                : "場の \(label) より強い数字が必要です"
+        }
+        return nil
     }
 
     // MARK: - 手の列挙と CPU の選択

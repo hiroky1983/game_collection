@@ -15,6 +15,11 @@ final class GameSettings {
     var soundEnabled: Bool {
         didSet { Self.sound.isEnabled = soundEnabled }
     }
+    /// ヒント表示のオン / オフ（#190）。既定はオン。
+    /// 大富豪の「いま出せるカードの強調」「出せない理由の1行表示」がこれで切り替わる。
+    var hintsEnabled: Bool {
+        didSet { Self.hints.isEnabled = hintsEnabled }
+    }
     /// 解析送信のオン / オフ（#158）。既定はオン。
     /// オフのあいだ `logEvent` は呼ばれず、Firebase の自動収集イベントも止まる。
     var analyticsEnabled: Bool {
@@ -34,6 +39,8 @@ final class GameSettings {
     private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
     // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
     private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
+    // ヒント表示はゲーム側（GameKit）も同じキーを読むため、定義は Core に置いたものを共有する。
+    private static var hints: FeedbackPreference { .hints }
 
     init(registeredIDs: [String]) {
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
@@ -48,6 +55,7 @@ final class GameSettings {
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
         self.analyticsEnabled = Self.analytics.isEnabled
+        self.hintsEnabled = Self.hints.isEnabled
     }
 
     func visibleModules(from registry: GameRegistry) -> [GameModule] {

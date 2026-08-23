@@ -162,7 +162,9 @@ public struct DaifugoView: View {
     // MARK: - 手札
 
     private var handArea: some View {
-        VStack(spacing: 6) {
+        // 1枚ごとに引くと合法手の探索が手札の枚数ぶん走るので、ここで1回だけ求める（#190）。
+        let handHint = model.handHint
+        return VStack(spacing: 6) {
             HStack {
                 Text("あなた（残り\(model.playerHand.count)枚）")
                     .themeBody(13)
@@ -177,14 +179,17 @@ public struct DaifugoView: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
                 ForEach(model.playerHand) { card in
                     let isSelected = model.selected.contains(card.id)
-                    DaifugoCardView(card: card, size: .small, selected: isSelected)
+                    let hint = handHint?.state(for: card.id) ?? .none
+                    DaifugoCardView(card: card, size: .small, selected: isSelected, hint: hint)
                         .offset(y: isSelected ? -6 : 0)
                         .animation(.spring(response: 0.2), value: isSelected)
                         .onTapGesture { model.toggleSelection(card) }
                         // カードは `onTapGesture` で組んでいるため、Button と違って
                         // ボタン trait も読み上げ文も自動では付かない（#188）。
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(DaifugoAccessibility.handCardLabel(card, isSelected: isSelected))
+                        .accessibilityLabel(
+                            DaifugoAccessibility.handCardLabel(card, isSelected: isSelected, hint: hint)
+                        )
                         .accessibilityHint("ダブルタップで選択を切り替えます")
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { model.toggleSelection(card) }
@@ -193,9 +198,32 @@ public struct DaifugoView: View {
                         .disabled(!model.isPlayerTurn)
                 }
             }
+            hintLine(handHint)
         }
         .padding(.horizontal, 12).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 手札の下に出す1行の案内（#190）。
+    /// 出せない組を選んでいればその理由を、選んでいなければ「1枚も出せない」ときだけ助言を出す。
+    @ViewBuilder
+    private func hintLine(_ handHint: DaifugoHandHint?) -> some View {
+        let message = model.selectionIssue
+            ?? (handHint?.playable.isEmpty == true ? "出せる組がありません。パスしてください" : nil)
+        if let message {
+            HStack(spacing: 4) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text(message)
+                    // 受け入れ条件どおり1行に収める。文字を拡大しても高さが跳ねないよう縮めて入れる（#189）。
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .foregroundStyle(Theme.coral)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     // MARK: - 操作
@@ -317,6 +345,22 @@ struct DaifugoCardView: View {
     let card: DaifugoCard
     var size: Size = .small
     var selected: Bool = false
+    /// 出せる / 出せないの区別（#190）。`.none` なら素の見た目のまま。
+    var hint: DaifugoCardHint = .none
+
+    /// 出せない札は色に頼らず**明度**でも落として区別する（色覚特性の影響を受けないため）。
+    private var isDimmed: Bool { hint == .unplayable && !selected }
+
+    private var borderColor: Color {
+        if selected { return Theme.coral }
+        if hint == .playable { return Theme.teal }
+        return Color.gray.opacity(0.2)
+    }
+
+    private var borderWidth: CGFloat {
+        if selected { return 2 }
+        return hint == .playable ? 1.5 : 0.5
+    }
 
     var body: some View {
         ZStack {
@@ -326,7 +370,7 @@ struct DaifugoCardView: View {
                         radius: selected ? 6 : 3, y: 2)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(selected ? Theme.coral : Color.gray.opacity(0.2), lineWidth: selected ? 2 : 0.5)
+                        .stroke(borderColor, lineWidth: borderWidth)
                 )
 
             if card.isJoker {
@@ -348,6 +392,7 @@ struct DaifugoCardView: View {
             }
         }
         .frame(width: size.width, height: size.height)
+        .opacity(isDimmed ? 0.4 : 1)
     }
 }
 

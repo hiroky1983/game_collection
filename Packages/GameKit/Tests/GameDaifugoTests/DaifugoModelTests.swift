@@ -331,3 +331,108 @@ struct DaifugoResumeTests {
         #expect(!store.exists(for: "daifugo"))
     }
 }
+
+// MARK: - ヒント表示（#190）
+
+@Suite("手札ヒント")
+@MainActor
+struct DaifugoHandHintTests {
+
+    /// テストごとに使い捨ての UserDefaults を作り、標準の設定を汚さない。
+    private func makeHints(_ name: String, enabled: Bool) -> FeedbackPreference {
+        let suite = "DaifugoHintTests.\(name)"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        let pref = FeedbackPreference(key: "hintsEnabled_v1", defaults: UserDefaults(suiteName: suite)!)
+        pref.isEnabled = enabled
+        return pref
+    }
+
+    private func makeModel(hintsEnabled: Bool = true, name: String = #function) -> DaifugoModel {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        return DaifugoModel(
+            services: services, cpuDelay: .zero, seed: 42,
+            hints: makeHints(name, enabled: hintsEnabled)
+        )
+    }
+
+    @Test("出せない札があるときだけ、出せる / 出せないに振り分ける")
+    func splitsHandWhenSomeCardsAreUnplayable() {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [[card(3), card(9), card(13)], [card(4)], [card(5)], [card(6)]],
+            field: [card(9, .hearts)],
+            fieldOwner: 1
+        )
+        let hint = try! #require(model.handHint)
+        #expect(hint.playable == [card(13).id])
+        #expect(hint.unplayable == [card(3).id, card(9).id])
+        #expect(hint.state(for: card(13).id) == .playable)
+        #expect(hint.state(for: card(3).id) == .unplayable)
+    }
+
+    @Test("手札すべてが出せるときは強調しない（場が流れている）")
+    func noHintWhenEverythingIsPlayable() {
+        let model = makeModel()
+        model.configureForTesting(hands: [[card(3), card(9)], [card(4)], [card(5)], [card(6)]])
+        #expect(model.handHint == nil)
+    }
+
+    @Test("1枚も出せないときは全札を「出せない」にしてパスを促す")
+    func allUnplayable() {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(6)], [card(7)]],
+            field: [card(2)],
+            fieldOwner: 1
+        )
+        let hint = try! #require(model.handHint)
+        #expect(hint.playable.isEmpty)
+        #expect(hint.unplayable == [card(3).id, card(4).id])
+    }
+
+    @Test("CPU の手番ではヒントを出さない")
+    func noHintOnCPUTurn() {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [[card(3), card(9), card(13)], [card(4)], [card(5)], [card(6)]],
+            field: [card(9, .hearts)],
+            fieldOwner: 1,
+            currentPlayer: 1
+        )
+        #expect(model.handHint == nil)
+        #expect(model.selectionIssue == nil)
+    }
+
+    @Test("設定でオフにするとヒントも理由も出ない")
+    func settingTurnsHintsOff() {
+        let model = makeModel(hintsEnabled: false)
+        model.configureForTesting(
+            hands: [[card(3), card(9), card(13)], [card(4)], [card(5)], [card(6)]],
+            field: [card(9, .hearts)],
+            fieldOwner: 1
+        )
+        #expect(model.handHint == nil)
+        model.toggleSelection(card(3))
+        #expect(model.canPlaySelection == false, "設定に関わらず出せないことは変わらない")
+        #expect(model.selectionIssue == nil)
+    }
+
+    @Test("出せない組を選ぶと理由が出て、出せる組に変えると消える")
+    func selectionIssueFollowsSelection() {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [[card(3), card(9), card(13)], [card(4)], [card(5)], [card(6)]],
+            field: [card(9, .hearts)],
+            fieldOwner: 1
+        )
+        #expect(model.selectionIssue == nil, "未選択のうちは出さない")
+
+        model.toggleSelection(card(3))
+        #expect(model.selectionIssue == "場の 9 より強い数字が必要です")
+
+        model.toggleSelection(card(3))
+        model.toggleSelection(card(13))
+        #expect(model.selectionIssue == nil)
+        #expect(model.canPlaySelection)
+    }
+}

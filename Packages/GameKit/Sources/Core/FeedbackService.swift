@@ -76,9 +76,12 @@ public struct CompositeFeedbackService: FeedbackService {
     }
 }
 
-/// 触覚 / 効果音のオン・オフを `UserDefaults` に保存する小さな箱。
+/// オン・オフの設定を `UserDefaults` に保存する小さな箱。
 /// 「未設定ならオン」という既定値と保存先キーの規則をここ 1 か所に閉じ込め、
 /// App 層の設定モデル（`GameSettings`）からは読み書きするだけにする。
+///
+/// 触覚・効果音のために作ったが、解析送信（#158）・ヒント表示（#190）も同じ箱に相乗りしている
+/// （オン / オフ 1 つのために新しい永続化の仕組みを増やさない）。
 public struct FeedbackPreference {
     private let key: String
     private let defaults: UserDefaults
@@ -93,4 +96,16 @@ public struct FeedbackPreference {
         get { defaults.object(forKey: key) as? Bool ?? true }
         nonmutating set { defaults.set(newValue, forKey: key) }
     }
+}
+
+public extension FeedbackPreference {
+    /// ヒント表示（いま出せる手の強調・出せない理由の表示）のオン / オフ（#190）。既定はオン。
+    ///
+    /// 設定画面（App 層）と各ゲーム（GameKit 側）の両方が読むため、キーの定義をここで共有する。
+    /// 保存先は `UserDefaults.standard` 固定なので、テストは `FeedbackPreference(key:defaults:)` で
+    /// 使い捨ての suite を作って注入する。
+    ///
+    /// `static let` にすると `UserDefaults` を抱えた共有可変状態として Sendable 違反になるため、
+    /// 都度組み立てる計算プロパティにしている（実体は文字列と `UserDefaults` の参照だけなので安い）。
+    static var hints: FeedbackPreference { FeedbackPreference(key: "hintsEnabled_v1") }
 }

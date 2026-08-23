@@ -71,17 +71,22 @@ public final class DaifugoModel {
     private let gameID = "daifugo"
     private let cpuDelay: Duration
     private var seed: UInt64?
+    /// ヒント表示のオン / オフ（#190）。設定画面はハブ側にしか無く**対局中には変わらない**ため、
+    /// `@Observable` の追跡対象にはせず参照のたびに読む。
+    private let hints: FeedbackPreference
     /// CPU の連続手番が二重に走らないようにする門番（View から複数回呼ばれても1本に保つ）。
     private var isRunningCPUTurns = false
 
     public init(
         services: GameServices? = nil,
         cpuDelay: Duration = .milliseconds(650),
-        seed: UInt64? = nil
+        seed: UInt64? = nil,
+        hints: FeedbackPreference = .hints
     ) {
         self.services = services
         self.cpuDelay = cpuDelay
         self.seed = seed
+        self.hints = hints
         if let snap = services?.snapshots.load(DaifugoSnapshot.self, for: gameID) {
             hands         = snap.hands
             field         = snap.field
@@ -124,6 +129,30 @@ public final class DaifugoModel {
 
     /// 人間がパスできるか（親のときはパスできない = 場を流せないため）。
     public var canPass: Bool { isPlayerTurn && !field.isEmpty }
+
+    /// 手札のヒント（#190）。強調するものが無いときは nil。
+    ///
+    /// nil になるのは、設定でオフ / 自分の手番でない / 手札が空 / **手札すべてが出せる**
+    /// （場が流れている等）の4通り。最後の1つを弾くのは、全札に枠が付くだけの
+    /// 情報量ゼロの強調を出さないため。逆に**1枚も出せない**ときは全札を暗く落とし、
+    /// 「パスするしかない」ことを伝える。
+    public var handHint: DaifugoHandHint? {
+        guard hints.isEnabled, isPlayerTurn, !playerHand.isEmpty else { return nil }
+        let playable = DaifugoRules.playableCardIDs(
+            hand: playerHand, field: field, isRevolution: isRevolution
+        )
+        guard playable.count < playerHand.count else { return nil }
+        return DaifugoHandHint(
+            playable: playable,
+            unplayable: Set(playerHand.map(\.id)).subtracting(playable)
+        )
+    }
+
+    /// 選択中の組を出せない理由の1行表示（#190）。出せるとき・未選択・ヒントがオフなら nil。
+    public var selectionIssue: String? {
+        guard hints.isEnabled, isPlayerTurn else { return nil }
+        return DaifugoRules.rejectionReason(selectedCards, field: field, isRevolution: isRevolution)
+    }
 
     /// 評価リクエスト（#53）の判定用。大富豪なら勝ち、大貧民なら負け、間は引き分け扱い。
     public var reviewOutcome: GameOutcome {
