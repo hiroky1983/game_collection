@@ -127,24 +127,53 @@ public struct MahjongSolitaireView: View {
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(Theme.teal)
 
-                Button { showsWholeBoard.toggle() } label: {
-                    Image(systemName: showsWholeBoard ? "plus.magnifyingglass" : "minus.magnifyingglass")
-                        .font(.system(size: 13, weight: .bold))
-                        .padding(.horizontal, 8).padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(showsWholeBoard ? Theme.teal : Theme.surface)
-                        )
-                        .foregroundStyle(showsWholeBoard ? .white : Theme.inkSub)
-                }
-                // 記号だけのボタンなので、音声では何のボタンか伝わらない。
-                .accessibilityLabel(showsWholeBoard ? "牌を大きくする" : "盤面全体を表示")
+                displayToggle
             }
             .frame(minWidth: 78, alignment: .trailing)
         }
-        // 縦の余白は 8。牌・数字の大きさは変えずに、ここからも盤面の高さを捻出している（#148）。
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        // 縦の余白は 4。切り替えボタンが 44pt になって帯の高さを決めるようになったぶんここを詰め、
+        // #148 で捻出した盤面の高さを食わないようにしている（#197）。
+        .padding(.horizontal, 12).padding(.vertical, Metrics.statusBarVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 全体表示 ⇄ 拡大の切り替え（#197）。
+    ///
+    /// 全体像を取り戻す唯一の入口なので、次の2点を満たす形にしてある:
+    /// - **タップ標的 44pt 以上**（従来は実測 29×23pt で Apple HIG を下回っていた）
+    /// - **記号だけにしない**。虫めがねアイコン 1 つでは「押すと何が起きるか」が伝わらず、
+    ///   拡大・全体表示という機能の存在自体が初回プレイで気づかれない。常時出す短い文字で補う
+    ///   （一度きりのヒントと違い、初回でも 2 回目以降でも同じように読める）。
+    private var displayToggle: some View {
+        Button { showsWholeBoard.toggle() } label: {
+            HStack(spacing: 4) {
+                Image(systemName: showsWholeBoard ? "plus.magnifyingglass" : "minus.magnifyingglass")
+                    .font(.system(size: 15, weight: .bold))
+                Text(showsWholeBoard ? "拡大" : "全体")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            }
+            .padding(.horizontal, 10)
+            .frame(
+                minWidth: Metrics.toggleButtonMinSide,
+                minHeight: Metrics.toggleButtonMinSide
+            )
+            // 押していない側の面は `Theme.surface`（＝カードと同じ白）だったため、
+            // ボタンの輪郭がどこにも無く「押せる物」に見えなかった。薄い差し色と枠線を敷く（#197）。
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(showsWholeBoard ? Theme.teal : Theme.teal.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(showsWholeBoard ? .clear : Theme.teal.opacity(0.55), lineWidth: 1.5)
+            )
+            // 薄い面の上は白文字だと読めないので本文色を使う（差し色の面 + 白文字は押している側だけ）。
+            .foregroundStyle(showsWholeBoard ? .white : Theme.ink)
+            // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(showsWholeBoard ? "牌を大きくする" : "盤面全体を表示")
     }
 
     private var timeText: String {
@@ -181,7 +210,9 @@ public struct MahjongSolitaireView: View {
                     } else {
                         // 44pt の牌だと盤面は画面より広くなるのでスクロールで見て回る。
                         // 左上ではなく中央から始めるのは、亀型の山が中央にあるため（両方向へ同じだけ動かせる）。
-                        ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                        // スクロールバーは**出す**。盤面のどこを見ているかを知る唯一の手がかりで、
+                        // 隠すと「全体のどのあたりか」が分からないまま動かすことになる（#197）。
+                        ScrollView([.horizontal, .vertical], showsIndicators: true) {
                             boardCanvas(tileWidth: Metrics.comfortableTileWidth(in: geo.size))
                                 // 画面の方が広い辺（iPad 等）では全体表示と同じく中央に置く。
                                 .frame(

@@ -80,6 +80,28 @@ struct MahjongSolitaireBoardMetricsTests {
         }
     }
 
+    // MARK: - 表示切り替えボタン（#197）
+
+    @Test("表示切り替えボタンのタップ標的は 44pt 以上")
+    func displayToggleMeetsTapTarget() {
+        // 修正前は `padding(.horizontal, 8).padding(.vertical, 5)` + フォント 13 で実測 29×23pt だった。
+        // 全体像を取り戻す唯一の入口なので、牌と同じ基準を満たす。
+        #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
+    }
+
+    @Test("44pt のボタンを置いてもステータスバーは高くならない")
+    func statusBarStaysAsShortAsBefore() {
+        // 帯の高さ = max(中身の高さ) + 上下の余白 ×2。
+        // 修正前の中身でいちばん高いのは 28pt の絵文字（行の高さ ≈ 33.4pt）で、余白は 8 だった。
+        let emojiLineHeight: CGFloat = 33.4
+        let before = emojiLineHeight + 8 * 2
+        let after = max(emojiLineHeight, Metrics.toggleButtonMinSide) + Metrics.statusBarVerticalPadding * 2
+        // 盤面（残りの高さいっぱいに牌を敷く）を削らないことが条件（#148）。3pt 以内の増加に収める。
+        #expect(after - before <= 3)
+        // 余白を詰めすぎてボタンが帯からはみ出さないこと。
+        #expect(Metrics.statusBarVerticalPadding > 0)
+    }
+
     @Test("牌の矩形は盤面の枠に収まる")
     func tileFramesStayInsideCanvas() {
         let tileWidth: CGFloat = 44
