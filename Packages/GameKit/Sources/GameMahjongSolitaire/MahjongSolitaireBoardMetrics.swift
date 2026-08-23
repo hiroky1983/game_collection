@@ -12,6 +12,18 @@ enum MahjongSolitaireBoardMetrics {
     /// Apple HIG の最小タップ標的。牌の**幅**をこれ以上にする（高さは縦横比のぶんさらに大きくなる）。
     static let minimumTapTarget: CGFloat = 44
 
+    /// 表示切り替え（全体表示 ⇄ 拡大）ボタンの一辺の下限（#197）。
+    ///
+    /// 全体像を取り戻す唯一の入口がこのボタンなので、牌と同じく 44pt を下回らせない。
+    /// 実測 29×23pt だったものをここに集約し、値が縮んだらテストで気づけるようにする。
+    static let toggleButtonMinSide: CGFloat = minimumTapTarget
+
+    /// ステータスバーの上下の余白（#197）。
+    ///
+    /// 44pt のボタンをそのまま置くと帯が高くなり、#148 で捻出した盤面の高さを食う。
+    /// ボタンが帯の高さを決めるようになったぶん余白を詰め、帯の高さをほぼ据え置きにする。
+    static let statusBarVerticalPadding: CGFloat = 4
+
     /// 牌の縦横比（実物の牌に近い縦長）。
     static let tileAspect: CGFloat = 1.40
 

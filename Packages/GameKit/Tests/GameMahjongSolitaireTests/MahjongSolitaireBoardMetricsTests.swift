@@ -1,5 +1,6 @@
 import Testing
 import CoreGraphics
+import Foundation
 @testable import GameMahjongSolitaire
 
 /// 盤面の大きさ（#196）。牌のタップ標的が Apple HIG の 44pt を満たすかを、
@@ -10,9 +11,11 @@ import CoreGraphics
 struct MahjongSolitaireBoardMetricsTests {
 
     /// 盤面領域（ステータスバーのカード下端〜操作カード上端）。
-    /// `docs/ui-review/196/README.md` で実測した値と同じものを使う。
-    static let iPhoneSE = CGSize(width: 375, height: 346.5)
-    static let iPhone17 = CGSize(width: 402, height: 467.7)
+    /// `docs/ui-review/197/README.md` で実測した値と同じものを使う。
+    /// #196 の実測（SE 346.5pt / iPhone 17 Pro 467.7pt）から 2.5pt / 2.4pt 縮んでいるのは、
+    /// 表示切り替えボタンを 44pt にしてステータスバーの帯がそのぶん高くなったため（#197）。
+    static let iPhoneSE = CGSize(width: 375, height: 344.0)
+    static let iPhone17 = CGSize(width: 402, height: 465.3)
 
     typealias Metrics = MahjongSolitaireBoardMetrics
 
@@ -78,6 +81,65 @@ struct MahjongSolitaireBoardMetricsTests {
                 #expect(a.insetBy(dx: 0.001, dy: 0.001).intersects(b) == false)
             }
         }
+    }
+
+    // MARK: - 表示切り替えボタン（#197）
+
+    @Test("表示切り替えボタンのタップ標的は 44pt 以上")
+    func displayToggleMeetsTapTarget() throws {
+        // 修正前は `padding(.horizontal, 8).padding(.vertical, 5)` + フォント 13 で実測 29×23pt だった。
+        // 全体像を取り戻す唯一の入口なので、牌と同じ基準を満たす。
+        #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
+
+        // 定数だけ見ても意味が無い。View が **この定数を** frame に渡していなければ、
+        // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
+        // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する
+        // （`MotionTests.noRawAnimationOutsideCore` と同じやり方）。
+        let source = try Self.viewSource()
+        for expected in [
+            #"minWidth:\s*Metrics\.toggleButtonMinSide"#,
+            #"minHeight:\s*Metrics\.toggleButtonMinSide"#,
+        ] {
+            #expect(
+                source.range(of: expected, options: .regularExpression) != nil,
+                "MahjongSolitaireView が \(expected) を使っていない（タップ標的が Metrics から切れている）"
+            )
+        }
+    }
+
+    @Test("44pt のボタンを置いてもステータスバーは高くならない")
+    func statusBarStaysAsShortAsBefore() {
+        // 帯の高さ = max(中身の高さ) + 上下の余白 ×2。
+        // 修正前の中身でいちばん高いのは 28pt の絵文字（行の高さ ≈ 33.4pt）で、余白は 8 だった。
+        let emojiLineHeight: CGFloat = 33.4
+        let before = emojiLineHeight + 8 * 2
+        let after = max(emojiLineHeight, Metrics.toggleButtonMinSide) + Metrics.statusBarVerticalPadding * 2
+        // 盤面（残りの高さいっぱいに牌を敷く）を削らないことが条件（#148）。3pt 以内の増加に収める。
+        #expect(after - before <= 3)
+        // 余白を詰めすぎてボタンが帯からはみ出さないこと。
+        #expect(Metrics.statusBarVerticalPadding > 0)
+    }
+
+    @Test("ステータスバーの余白も View が Metrics の値を使っている")
+    func statusBarPaddingIsWiredToMetrics() throws {
+        let source = try Self.viewSource()
+        #expect(
+            source.range(
+                of: #"\.padding\(\.vertical,\s*Metrics\.statusBarVerticalPadding\)"#,
+                options: .regularExpression
+            ) != nil,
+            "ステータスバーの余白が Metrics から切れている（帯の高さの見積りが効かなくなる）"
+        )
+    }
+
+    /// View のソースを読む。`#filePath` からの相対で辿るので、パスの導出が壊れたら投げる。
+    private static func viewSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameMahjongSolitaireTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameMahjongSolitaire/MahjongSolitaireView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
     }
 
     @Test("牌の矩形は盤面の枠に収まる")
