@@ -52,6 +52,8 @@ public final class DaifugoModel {
     public private(set) var finishOrder: [Int] = []
     /// 反則上がりしたプレイヤー番号。
     public private(set) var fouls: Set<Int> = []
+    /// 投了したプレイヤー番号（#194）。今のところ人間だけが投了できる。
+    public private(set) var resigned: Set<Int> = []
     /// 決着後の最終順位（1位から順のプレイヤー番号）。対局中は空。
     public private(set) var ranking: [Int] = []
     /// 何ゲーム目か（1 始まり）。カード交換の有無の判定に使う。
@@ -123,6 +125,10 @@ public final class DaifugoModel {
 
     /// 「結果まで進める」を出せるか（#191）。自分が上がっていて、まだ決着していないとき。
     public var canSkipToResult: Bool { phase == .playing && isPlayerFinished }
+
+    /// 投了できるか（#194）。対局中で、まだ上がっていないときだけ。
+    /// 上がった後は勝ち取った階級を捨てる操作になってしまうので出さない（代わりに「結果まで進める」がある）。
+    public var canResign: Bool { phase == .playing && !isPlayerFinished }
 
     /// 人間の最終順位（0 始まり）。決着していなければ nil。
     public var playerPlace: Int? { ranking.firstIndex(of: Self.humanIndex) }
@@ -215,6 +221,7 @@ public final class DaifugoModel {
         isRevolution = false
         finishOrder = []
         fouls = []
+        resigned = []
         ranking = []
         selected = []
         lastActions = Array(repeating: "", count: Self.playerCount)
@@ -291,6 +298,28 @@ public final class DaifugoModel {
         guard canSkipToResult else { return }
         isSkippingToResult = true
         services?.feedback.impact(.light)
+    }
+
+    /// 投了する（#194）。その場でゲームを打ち切り、自分は大貧民（最下位）で決着する。
+    ///
+    /// 残った CPU の順位は**手札の少ない順**（同数はプレイヤー番号順）で埋める。打ち切りなので
+    /// 最後まで打たせず、上がりに最も近い並びで代用する。自分は反則上がりよりさらに下の最下位に
+    /// 固定するため、`ranking` へ投了者として渡す。決着を通常どおり `concludeGame()` に通すので、
+    /// 記録（敗北）・階級・次ゲームのカード交換の扱いは自然に上がったときと同じ経路になる。
+    public func resign() {
+        guard canResign else { return }
+        let remaining = activePlayers()
+            .filter { $0 != Self.humanIndex }
+            .sorted { (hands[$0].count, $0) < (hands[$1].count, $1) }
+        for player in remaining {
+            finishOrder.append(player)
+            hands[player] = []
+        }
+        hands[Self.humanIndex] = []
+        finishOrder.append(Self.humanIndex)
+        resigned.insert(Self.humanIndex)
+        lastActions[Self.humanIndex] = "投了"
+        concludeGame()
     }
 
     // MARK: - 進行
@@ -404,7 +433,7 @@ public final class DaifugoModel {
             finishOrder.append(last)
             hands[last] = []
         }
-        ranking = DaifugoRules.ranking(finishOrder: finishOrder, fouls: fouls)
+        ranking = DaifugoRules.ranking(finishOrder: finishOrder, fouls: fouls, resigned: resigned)
         lastRanking = ranking
         field = []
         fieldOwner = nil
@@ -483,6 +512,7 @@ public final class DaifugoModel {
         self.gameNumber = gameNumber
         self.finishOrder = finishOrder
         fouls = []
+        resigned = []
         ranking = []
         selected = []
         lastActions = Array(repeating: "", count: Self.playerCount)

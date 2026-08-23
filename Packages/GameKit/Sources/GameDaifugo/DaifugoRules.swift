@@ -255,13 +255,17 @@ public enum DaifugoRules {
 
     // MARK: - 順位と階級
 
-    /// 上がり順と反則上がりから最終順位を決める。反則上がりは順位を失い、末尾へ回る。
+    /// 上がり順・反則上がり・投了から最終順位を決める。反則上がりは順位を失い末尾へ回り、
+    /// 投了（#194）は最後まで打っていないので反則上がりよりさらに下に置く。
     /// - Parameters:
     ///   - finishOrder: 手札が尽きた順のプレイヤー番号。
     ///   - fouls: 反則上がりしたプレイヤー番号。
+    ///   - resigned: 投了したプレイヤー番号。反則上がりと重なっても投了の扱いを優先する。
     /// - Returns: 1位から順のプレイヤー番号。
-    public static func ranking(finishOrder: [Int], fouls: Set<Int>) -> [Int] {
-        finishOrder.filter { !fouls.contains($0) } + finishOrder.filter { fouls.contains($0) }
+    public static func ranking(finishOrder: [Int], fouls: Set<Int>, resigned: Set<Int> = []) -> [Int] {
+        finishOrder.filter { !fouls.contains($0) && !resigned.contains($0) }
+            + finishOrder.filter { fouls.contains($0) && !resigned.contains($0) }
+            + finishOrder.filter { resigned.contains($0) }
     }
 
     /// 順位（0 始まり）に対応する階級名。4人以外でも落ちないよう範囲外は空文字にする。
