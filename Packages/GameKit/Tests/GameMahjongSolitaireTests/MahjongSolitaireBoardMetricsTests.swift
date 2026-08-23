@@ -5,14 +5,14 @@ import CoreGraphics
 /// 盤面の大きさ（#196）。牌のタップ標的が Apple HIG の 44pt を満たすかを、
 /// シミュレータを立てずに実寸で検証する。
 ///
-/// 盤面領域の実寸は `docs/ui-review/148/README.md` の実測値（#148 の修正後）を使う。
 /// 対応 OS は iOS 17 以上なので、いちばん狭い実機は **iPhone SE 第2/第3世代（375pt 幅）**。
 @Suite("麻雀ソリティアの盤面の大きさ")
 struct MahjongSolitaireBoardMetricsTests {
 
-    /// #148 で実測した盤面領域（ステータスバーの下端〜操作カードの上端）。
-    static let iPhoneSE = CGSize(width: 375, height: 349.5)
-    static let iPhone17 = CGSize(width: 402, height: 469.7)
+    /// 盤面領域（ステータスバーのカード下端〜操作カード上端）。
+    /// `docs/ui-review/196/README.md` で実測した値と同じものを使う。
+    static let iPhoneSE = CGSize(width: 375, height: 346.5)
+    static let iPhone17 = CGSize(width: 402, height: 467.7)
 
     typealias Metrics = MahjongSolitaireBoardMetrics
 

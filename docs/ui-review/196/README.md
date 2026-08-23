@@ -13,7 +13,12 @@
 | iPhone 17 Pro（402×467.7pt） | 牌の並び 390.3pt ÷ 15.56 = **25.1pt** | 横ピッチ 132px ÷ 3 = **44.0pt** | 牌の並び 390.3pt ÷ 15.56 = **25.1pt** |
 | iPhone SE 第3世代（375×346.5pt） | 牌の並び 363.5pt ÷ 15.56 = **23.4pt** | 横ピッチ 88px ÷ 2 = **44.0pt** | 牌の並び 363.5pt ÷ 15.56 = **23.4pt** |
 
-- 修正前の値は `docs/ui-review/148/README.md` の実測（iPhone 17: 390.7pt / SE: 364.0pt）と一致する。
+- 修正前の値は `docs/ui-review/148/README.md` の実測（iPhone 17: 390.7pt / SE: 364.0pt）と
+  0.4pt / 0.5pt の差に収まる（機種と OS が違い、輪郭の拾い方も同じではないため完全一致はしない）。
+- 盤面領域の高さは**この README の実測値**（iPhone 17 Pro 467.7pt / iPhone SE 346.5pt）で統一している。
+  `MahjongSolitaireBoardMetricsTests` が使う端末条件も同じ値。#148 の 469.7pt / 349.5pt とは
+  2.0pt / 3.0pt 違うが、これは #148 が別の測り方（カードの外形）をしているためで、
+  本 README は「白が行の 8 割以上を占める帯」の境界で測っている。44pt の判定はどちらでも変わらない。
 - **全体表示は修正前の既定と 1px も違わない**（外接幅の実測ピクセルが iPhone 17 Pro: 1171px、
   iPhone SE: 727px で完全一致）。既定が入れ替わっただけで、全体表示そのものは変えていない。
 - 対応 OS は iOS 17 以上なので、いちばん狭い実機は **iPhone SE 第2/第3世代の 375pt**。
@@ -67,4 +72,11 @@ xcrun simctl launch "$UDID" "$BUNDLE_ID" -screenshotMode -startGame mahjong -mah
 - 初回だけ出る遊び方ヒントの 1 行が入ると盤面領域の高さが変わるため、撮影前に 2 回空打ちする。
 - 前のセッションの中断データが残っていると決着後の画面が写るため、撮影前に `simctl uninstall` して入れ直す。
 - 決着後の画面は `Library/Application Support/Snapshots/mahjong.json` に
-  `{"faces": [null × 144], "elapsedSeconds": 218, "shuffleCount": 1, "hintCount": 2}` を置いて復元する。
+  「`faces` が 144 個すべて `null`」のスナップショットを置いて復元する。JSON は次のコマンドで作る
+  （`[null × 144]` と直接書くのは JSON として不正なので、生成させる）:
+
+  ```sh
+  /usr/bin/python3 -c 'import json; json.dump(
+    {"faces": [None] * 144, "elapsedSeconds": 218, "shuffleCount": 1, "hintCount": 2},
+    open("mahjong.json", "w"))'
+  ```
