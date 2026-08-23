@@ -5,14 +5,11 @@ public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
-    @State private var showStartSheet = true
     @State private var showResignConfirm = false
 
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: DaifugoModel(services: services))
-        let hasSnapshot = services.snapshots.exists(for: "daifugo")
-        _showStartSheet = State(initialValue: !hasSnapshot)
     }
 
     public var body: some View {
@@ -74,15 +71,10 @@ public struct DaifugoView: View {
         } message: {
             Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
         }
-        .sheet(isPresented: $showStartSheet) {
-            DaifugoStartSheet {
-                showStartSheet = false
-                model.startGame()
-                Task { await model.runCPUTurnsIfNeeded() }
-            }
-            .interactiveDismissDisabled(true)
-        }
         .task {
+            // 開幕の全画面モーダルは廃止したので、盤を見せたまま既定値で配り始める（#192）。
+            // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
+            if model.phase == .idle { model.startGame() }
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
@@ -489,78 +481,13 @@ struct DaifugoCardView: View {
     }
 }
 
-// MARK: - Start Sheet
-
-struct DaifugoStartSheet: View {
-    let onStart: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ゲームの流れ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    ruleRow("1", "CPU3人と対戦。手札を早く出し切るほど上の階級")
-                    ruleRow("2", "場と同じ枚数で、より強い組だけ出せる")
-                    ruleRow("3", "出せない・出したくないときはパス")
-                    ruleRow("4", "決着後は階級に応じてカードを交換して次戦へ")
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                NavigationLink {
-                    DaifugoRuleSheet()
-                } label: {
-                    HStack {
-                        Image(systemName: "list.bullet.rectangle")
-                        Text("ルールを見る")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                    .foregroundStyle(Theme.coral)
-                    .padding(16)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                }
-
-                Spacer()
-                Button {
-                    onStart()
-                } label: {
-                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("大富豪")
-        }
-        .presentationDetents([.large])
-    }
-
-    private func ruleRow(_ num: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(num)
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.coral))
-            Text(text)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(Theme.ink)
-            Spacer()
-        }
-    }
-}
-
 // MARK: - Rule Sheet
 
 struct DaifugoRuleSheet: View {
     private let rules: [(String, String)] = [
+        // 廃止した開幕モーダル（#192）が持っていた「誰と何人で戦うのか」をここへ移した。
+        // 残りの3項目（出し方・パス・カード交換）は下の項目と `HowToPlayGuide.daifugo` に既にある。
+        ("ゲームの流れ", "CPU3人と対戦します。手札を早く出し切るほど上の階級になり、決着すると階級に応じてカードを交換して次のゲームへ進みます"),
         ("カードの強さ", "弱い ← 3 4 5 6 7 8 9 10 J Q K A 2 → 強い。ジョーカーが最強で、どのカードの代わりにもなります"),
         ("出し方", "場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます"),
         ("革命", "同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）"),
