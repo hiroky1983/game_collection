@@ -233,6 +233,14 @@ public struct DaifugoView: View {
         switch model.phase {
         case .idle:
             EmptyView()
+        case .playing where model.isPlayerFinished:
+            // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
+            actionButton("結果まで進める", color: Theme.coral, disabled: model.isSkippingToResult) {
+                model.skipToResult()
+                Task { await model.runCPUTurnsIfNeeded() }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
                 actionButton("パス", color: Theme.fillMuted, disabled: !model.canPass) {

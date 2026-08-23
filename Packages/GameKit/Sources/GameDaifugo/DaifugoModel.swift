@@ -76,6 +76,14 @@ public final class DaifugoModel {
     private let hints: FeedbackPreference
     /// CPU の連続手番が二重に走らないようにする門番（View から複数回呼ばれても1本に保つ）。
     private var isRunningCPUTurns = false
+    /// 「結果まで進める」が押されたか（#191）。以降の CPU 手番は間合いを取らずに消化する。
+    public private(set) var isSkippingToResult = false
+
+    /// 自分が上がった後の消化試合で使う間合い（#191）。自分の操作が無い区間なので短くする。
+    static let finishedCPUDelay: Duration = .milliseconds(120)
+    /// 自分が上がった後に消化した CPU の手番数（#191）。
+    /// 手番数 × `finishedCPUDelay` が消化試合の待ち時間になるため、テストで上限を見張る。
+    private(set) var cpuTurnsAfterPlayerFinished = 0
 
     public init(
         services: GameServices? = nil,
@@ -112,6 +120,9 @@ public final class DaifugoModel {
 
     /// 人間の手番か（上がっていれば false）。
     public var isPlayerTurn: Bool { phase == .playing && currentPlayer == Self.humanIndex }
+
+    /// 「結果まで進める」を出せるか（#191）。自分が上がっていて、まだ決着していないとき。
+    public var canSkipToResult: Bool { phase == .playing && isPlayerFinished }
 
     /// 人間の最終順位（0 始まり）。決着していなければ nil。
     public var playerPlace: Int? { ranking.firstIndex(of: Self.humanIndex) }
@@ -210,6 +221,8 @@ public final class DaifugoModel {
         gameNumber += 1
         currentPlayer = openingPlayer()
         recordResult = nil
+        isSkippingToResult = false
+        cpuTurnsAfterPlayerFinished = 0
         phase = .playing
 
         services?.feedback.impact(.medium)   // カードが配られた
@@ -270,6 +283,14 @@ public final class DaifugoModel {
         }
         services?.feedback.impact(.light)
         passTurn(by: Self.humanIndex)
+    }
+
+    /// 自分が上がった後の CPU 同士の消化試合を、待たずに決着まで進める（#191）。
+    /// 進行そのものは通常どおり行うため、階級・記録は早送りしても変わらない。
+    public func skipToResult() {
+        guard canSkipToResult else { return }
+        isSkippingToResult = true
+        services?.feedback.impact(.light)
     }
 
     // MARK: - 進行
@@ -409,16 +430,27 @@ public final class DaifugoModel {
         defer { isRunningCPUTurns = false }
 
         while phase == .playing, currentPlayer != Self.humanIndex {
-            if cpuDelay > .zero {
-                try? await Task.sleep(for: cpuDelay)
+            // 間合いは毎手番ごとに読み直す。消化試合に入った時点・早送りを押された時点から
+            // 待たずに済むようにするため（#191）。
+            let delay = currentCPUDelay
+            if delay > .zero {
+                try? await Task.sleep(for: delay)
                 guard phase == .playing, currentPlayer != Self.humanIndex else { return }
             }
             performCPUTurn(currentPlayer)
         }
     }
 
+    /// この手番で取る間合い（#191）。自分が上がった後は短くし、早送り中は取らない。
+    /// `cpuDelay` が 0 のテストでは常に 0 のまま（`min` で頭打ちにしているため）。
+    private var currentCPUDelay: Duration {
+        guard isPlayerFinished else { return cpuDelay }
+        return isSkippingToResult ? .zero : min(cpuDelay, Self.finishedCPUDelay)
+    }
+
     /// CPU の1手。CPU の着手では触覚を鳴らさない（人間の操作と区別するため）。
     private func performCPUTurn(_ player: Int) {
+        if isPlayerFinished { cpuTurnsAfterPlayerFinished += 1 }
         if let play = DaifugoRules.greedyPlay(
             hand: hands[player], field: field, isRevolution: isRevolution
         ) {
@@ -439,7 +471,8 @@ public final class DaifugoModel {
         currentPlayer: Int = DaifugoModel.humanIndex,
         isRevolution: Bool = false,
         passedPlayers: Set<Int> = [],
-        gameNumber: Int = 1
+        gameNumber: Int = 1,
+        finishOrder: [Int] = []
     ) {
         self.hands = hands.map { $0.sorted { $0.sortKey < $1.sortKey } }
         self.field = field
@@ -448,11 +481,13 @@ public final class DaifugoModel {
         self.isRevolution = isRevolution
         self.passedPlayers = passedPlayers
         self.gameNumber = gameNumber
-        finishOrder = []
+        self.finishOrder = finishOrder
         fouls = []
         ranking = []
         selected = []
         lastActions = Array(repeating: "", count: Self.playerCount)
+        isSkippingToResult = false
+        cpuTurnsAfterPlayerFinished = 0
         phase = .playing
         persist()
     }
