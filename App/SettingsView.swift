@@ -66,6 +66,22 @@ struct SettingsView: View {
                     Text("駒を置く・マスを開く・勝敗が決まるといった場面で、端末を軽く振動させたり短い効果音を鳴らしたりします。効果音は本体を消音（サイレント）にしているときは鳴らず、ほかのアプリで再生中の音楽も止めません。")
                 }
 
+                // MARK: ヒント
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.hintsEnabled },
+                        set: { settings.hintsEnabled = $0 }
+                    )) {
+                        Label("ヒント表示", systemImage: "lightbulb")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
+                } header: {
+                    Text("ヒント")
+                } footer: {
+                    Text("大富豪で、いま出せるカードを枠の色で目立たせ、出せない組を選んだときはその理由を1行で表示します。オフにすると何も表示しません。")
+                }
+
                 // MARK: 解析
                 Section {
                     Toggle(isOn: Binding(

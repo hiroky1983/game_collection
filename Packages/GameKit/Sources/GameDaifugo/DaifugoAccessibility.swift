@@ -32,8 +32,20 @@ public enum DaifugoAccessibility {
     }
 
     /// 手札 1 枚の読み上げ文。選択中かどうかは見た目では浮き上がりと枠色でしか分からない。
-    public static func handCardLabel(_ card: DaifugoCard, isSelected: Bool) -> String {
-        isSelected ? "\(cardName(card))、選択中" : cardName(card)
+    /// ヒント表示（#190）も枠色と明度でしか表していないので、状態を文字にして補う。
+    public static func handCardLabel(
+        _ card: DaifugoCard,
+        isSelected: Bool,
+        hint: DaifugoCardHint = .none
+    ) -> String {
+        var parts = [cardName(card)]
+        if isSelected { parts.append("選択中") }
+        switch hint {
+        case .none:       break
+        case .playable:   parts.append("出せます")
+        case .unplayable: parts.append("いまは出せません")
+        }
+        return parts.joined(separator: "、")
     }
 
     /// 場に出ている組の読み上げ文。空なら「場は流れています」。

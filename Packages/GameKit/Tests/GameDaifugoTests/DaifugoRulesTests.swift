@@ -245,3 +245,123 @@ struct DaifugoGreedyTests {
         #expect(play?.map(\.rank) == [13], "革命中に A に勝てる最弱は K")
     }
 }
+
+// MARK: - ヒント（#190）
+
+@Suite("出せるカードのヒント")
+struct DaifugoPlayableHintTests {
+
+    private func ids(_ cards: [DaifugoCard]) -> Set<Int> { Set(cards.map(\.id)) }
+
+    @Test("場が流れていれば手札すべてが出せる")
+    func everythingPlayableOnEmptyField() {
+        let hand = [card(3), card(8), card(2), joker()]
+        let playable = DaifugoRules.playableCardIDs(hand: hand, field: [], isRevolution: false)
+        #expect(playable == ids(hand))
+    }
+
+    @Test("1枚場では、場より強い札とジョーカーだけが出せる")
+    func singleCardField() {
+        let hand = [card(3), card(9), card(13), joker()]
+        let playable = DaifugoRules.playableCardIDs(hand: hand, field: [card(9, .hearts)], isRevolution: false)
+        #expect(playable == ids([card(13), joker()]), "同じ強さの 9 は出せない")
+    }
+
+    @Test("同ランク4枚から2枚だけ出す手も「出せる」と数える（legalPlays の列挙漏れを踏まない）")
+    func countsAlternativePlaysWithinSameRank() {
+        let hand = [card(9), card(9, .hearts), card(9, .diamonds), card(9, .clubs)]
+        let playable = DaifugoRules.playableCardIDs(hand: hand, field: [card(5), card(5, .hearts)], isRevolution: false)
+        #expect(playable == ids(hand), "2枚場に対し、4枚のどれを選んでもペアが作れる")
+    }
+
+    @Test("枚数が足りないランクは出せない。ジョーカーで埋まるなら出せる")
+    func jokerFillsMissingCards() {
+        let field = [card(5), card(5, .hearts)]
+        // 9 が1枚だけ。ジョーカーが無ければペアを作れない。
+        #expect(
+            DaifugoRules.playableCardIDs(hand: [card(9), card(3)], field: field, isRevolution: false).isEmpty
+        )
+        // ジョーカーを足すと 9 + JOKER のペアが作れる。
+        let withJoker = DaifugoRules.playableCardIDs(hand: [card(9), card(3), joker()], field: field, isRevolution: false)
+        #expect(withJoker == ids([card(9), joker()]), "3 はどう組んでも 5 のペアに勝てない")
+    }
+
+    @Test("ジョーカーだけの場には何も出せない")
+    func nothingBeatsJoker() {
+        let hand = [card(2), joker(1)]
+        #expect(DaifugoRules.playableCardIDs(hand: hand, field: [joker()], isRevolution: false).isEmpty)
+    }
+
+    @Test("革命中は弱い数字が出せる側になる")
+    func revolutionFlipsPlayableSet() {
+        let hand = [card(3), card(13), card(2)]
+        let playable = DaifugoRules.playableCardIDs(hand: hand, field: [card(9)], isRevolution: true)
+        #expect(playable == ids([card(3)]), "革命中に 9 より強いのは 3 だけ")
+    }
+
+    @Test("出せる札の集合は isValidPlay と矛盾しない（1枚場の総当たり）")
+    func agreesWithIsValidPlay() {
+        let hand = [card(3), card(7), card(7, .hearts), card(1), card(2), joker()]
+        for field in [[card(5)], [card(7, .diamonds)], [card(1, .hearts)], [card(2, .hearts)]] {
+            let playable = DaifugoRules.playableCardIDs(hand: hand, field: field, isRevolution: false)
+            for c in hand {
+                let canPlayAlone = DaifugoRules.isValidPlay([c], field: field, isRevolution: false)
+                #expect(playable.contains(c.id) == canPlayAlone, "\(c.rankLabel) が場 \(field[0].rankLabel) と食い違う")
+            }
+        }
+    }
+}
+
+@Suite("出せない理由の表示")
+struct DaifugoRejectionReasonTests {
+
+    @Test("未選択・出せる組では理由を出さない")
+    func silentWhenPlayable() {
+        #expect(DaifugoRules.rejectionReason([], field: [card(5)], isRevolution: false) == nil)
+        #expect(DaifugoRules.rejectionReason([card(9)], field: [card(5)], isRevolution: false) == nil)
+        #expect(DaifugoRules.rejectionReason([card(3)], field: [], isRevolution: false) == nil, "場が空なら何でも出せる")
+    }
+
+    @Test("数字が混ざっていればそう伝える")
+    func mixedRanks() {
+        let reason = DaifugoRules.rejectionReason([card(5), card(9)], field: [], isRevolution: false)
+        #expect(reason == "数字がそろっていません（ジョーカーは他の数字の代わりに使えます）")
+    }
+
+    @Test("枚数違いは場の枚数と選択枚数を出す")
+    func countMismatch() {
+        let reason = DaifugoRules.rejectionReason(
+            [card(9)], field: [card(5), card(5, .hearts)], isRevolution: false
+        )
+        #expect(reason == "場は2枚です。1枚では出せません")
+    }
+
+    @Test("強さ不足は場のランクを添えて伝える")
+    func tooWeak() {
+        let reason = DaifugoRules.rejectionReason([card(3)], field: [card(13)], isRevolution: false)
+        #expect(reason == "場の K より強い数字が必要です")
+    }
+
+    @Test("革命中は「弱い数字が必要」と反転して伝える")
+    func tooWeakDuringRevolution() {
+        let reason = DaifugoRules.rejectionReason([card(13)], field: [card(5)], isRevolution: true)
+        #expect(reason == "革命中です。場の 5 より弱い数字が必要です")
+    }
+
+    @Test("理由が出るのは isValidPlay が false のときだけ")
+    func matchesIsValidPlay() {
+        let field = [card(7), card(7, .hearts)]
+        let candidates: [[DaifugoCard]] = [
+            [card(9), card(9, .hearts)],
+            [card(3), card(3, .hearts)],
+            [card(9)],
+            [card(9), card(3)],
+            [card(9), joker()],
+        ]
+        for cards in candidates {
+            let valid = DaifugoRules.isValidPlay(cards, field: field, isRevolution: false)
+            let reason = DaifugoRules.rejectionReason(cards, field: field, isRevolution: false)
+            #expect(valid == (reason == nil), "\(cards.map(\.rankLabel)) の可否と理由の有無が食い違う")
+        }
+    }
+}
