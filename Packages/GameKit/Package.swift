@@ -81,8 +81,9 @@ let package = Package(
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
+        // Reduce Motion 追従（#210）の共通レイヤーも同じアクセシビリティ横断の関心なのでここに置く。
         .testTarget(name: "AccessibilityTests", dependencies: [
-            "GameShogi", "GameGomoku", "GameMinesweeper", "GameOthello",
+            "Core", "GameShogi", "GameGomoku", "GameMinesweeper", "GameOthello",
             "GameDaifugo", "GameMahjongSolitaire", "MahjongTiles",
         ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。

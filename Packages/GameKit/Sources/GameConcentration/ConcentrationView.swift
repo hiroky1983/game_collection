@@ -292,7 +292,7 @@ private struct CardView: View {
         }
         // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isFaceUp)
+        .gameAnimation(.spring(response: 0.35, dampingFraction: 0.75), value: isFaceUp)
         .opacity(card.isMatched ? 0.6 : 1.0)
     }
 }
