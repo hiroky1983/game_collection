@@ -22,17 +22,23 @@ public struct DaifugoView: View {
             // 決着後は場も手札も空になるので、代わりに階級のリザルトを出す。
             if model.phase == .result {
                 resultCard
+                    .transition(.opacity)
                 Spacer(minLength: 2)
             } else {
                 fieldArea
+                    .transition(.opacity)
                 Spacer(minLength: 0)
                 handArea
+                    .transition(.opacity)
             }
             HowToPlayHint(.daifugo, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
             BannerSlot(ads: services.ads)
         }
+        // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
+        // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
+        .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
         .popBackground()
         .reviewRequestPrompt(services.review)
@@ -161,9 +167,11 @@ public struct DaifugoView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(Theme.inkSub.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                         .frame(width: 56, height: 78)
+                        .transition(.opacity)
                 } else {
                     ForEach(model.field) { card in
                         DaifugoCardView(card: card, size: .large)
+                            .transition(.scale.combined(with: .opacity))
                     }
                 }
             }
@@ -171,6 +179,9 @@ public struct DaifugoView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 22)
         .popCard(corner: Theme.cornerSmall)
+        // 誰が出しても場は同じ経路（`field` の差し替え）で更新されるので、CPU の手も人間の手も
+        // ここ1箇所で演出できる。見出しの「場は流れています」も同じ変化で切り替わる（#195）。
+        .gameAnimation(.easeInOut(duration: 0.18), value: model.field)
         // 場は「何が出ているか」が分かればよいので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(DaifugoAccessibility.fieldLabel(model.field))
@@ -193,14 +204,25 @@ public struct DaifugoView: View {
                         .foregroundStyle(Theme.teal)
                 }
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: DaifugoHandLayout.columnSpacing),
+                    count: DaifugoHandLayout.columns
+                ),
+                spacing: DaifugoHandLayout.rowSpacing
+            ) {
                 ForEach(model.playerHand) { card in
                     let isSelected = model.selected.contains(card.id)
                     let hint = handHint?.state(for: card.id) ?? .none
                     DaifugoCardView(card: card, size: .small, selected: isSelected, hint: hint)
                         .offset(y: isSelected ? -6 : 0)
                         .gameAnimation(.spring(response: 0.2), value: isSelected)
+                        // 見えるカードは 42pt のまま、タップ判定だけを列いっぱいに広げて
+                        // 44pt 以上にする（#195）。`offset` は判定の位置に影響しない。
+                        .frame(maxWidth: .infinity, minHeight: DaifugoHandLayout.minimumTapTarget)
+                        .contentShape(Rectangle())
                         .onTapGesture { model.toggleSelection(card) }
+                        .transition(.scale.combined(with: .opacity))
                         // カードは `onTapGesture` で組んでいるため、Button と違って
                         // ボタン trait も読み上げ文も自動では付かない（#188）。
                         .accessibilityElement(children: .ignore)
@@ -215,9 +237,11 @@ public struct DaifugoView: View {
                         .disabled(!model.isPlayerTurn)
                 }
             }
+            // 出した札が手札から消える／交換で増える変化を演出する（#195）。
+            .gameAnimation(.easeInOut(duration: 0.18), value: model.playerHand)
             hintLine(handHint)
         }
-        .padding(.horizontal, 12).padding(.vertical, 12)
+        .padding(.horizontal, DaifugoHandLayout.horizontalPadding).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -365,8 +389,38 @@ public struct DaifugoView: View {
                             in: RoundedRectangle(cornerRadius: 10))
                 .foregroundStyle(disabled ? Theme.inkSub : .white)
         }
-        .buttonStyle(.plain)
+        // `.plain` は装飾を消す代わりに押下フィードバックまで消してしまうので、
+        // 背景・文字色はそのまま通しつつ押下時だけ縮むスタイルに替える（#195）。
+        .buttonStyle(.pop)
         .disabled(disabled)
+    }
+}
+
+// MARK: - 手札グリッドの寸法
+
+/// 手札グリッドの寸法（#195）。
+///
+/// 見た目のカード幅は 42pt（`DaifugoCardView.Size.small`）のままで、**タップ判定だけ**を
+/// 列いっぱいに広げて 44pt 以上にする。列は `GridItem(.flexible())` なので実効幅は画面幅で決まり、
+/// 列間隔 4pt のままでは最小構成の端末で 44pt を割っていた。間隔を 0 にして幅を列へ回し、
+/// 見た目の隙間は「列幅 − カード幅」で従来とほぼ同じに保つ。
+///
+/// 実効幅の計算をここに置いてビュー側からも参照するのは、寸法を変えたときに
+/// `DaifugoHandLayoutTests` の検証と実装がずれないようにするため。
+enum DaifugoHandLayout {
+    static let columns = 7
+    static let columnSpacing: CGFloat = 0
+    static let rowSpacing: CGFloat = 6
+    /// 手札カード（`popCard`）の内側の左右余白。
+    static let horizontalPadding: CGFloat = 12
+    /// Apple HIG の最小タップ標的。
+    static let minimumTapTarget: CGFloat = 44
+
+    /// 画面幅 `screenWidth` のときの、手札1枚あたりのタップ判定の幅。
+    /// 画面外周の `Theme.pad` と手札カードの内側余白を引いた残りを列数で割る。
+    static func tapWidth(screenWidth: CGFloat) -> CGFloat {
+        let available = screenWidth - Theme.pad * 2 - horizontalPadding * 2
+        return (available - columnSpacing * CGFloat(columns - 1)) / CGFloat(columns)
     }
 }
 
