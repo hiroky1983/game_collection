@@ -177,6 +177,34 @@ struct MahjongTurnTests {
         #expect(model.roundNumber == 1)
     }
 
+    @Test("流局で終局しても供託は消えず、トップが回収して点棒の合計が保たれる")
+    func leftoverRiichiSticksGoToTopPlayer() {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),   // 立直できる聴牌
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: MahjongNotation.tiles("9999m"),
+            dealer: 3,                                        // 親は自分ではない = 流局で東風戦が終わる
+            drawnTile: MahjongNotation.tile("1z"),
+            scores: [40_000, 20_000, 20_000, 20_000],
+            roundNumber: 4
+        )
+        model.declareRiichi()
+        model.discard(MahjongNotation.tile("1z"))
+        #expect(model.riichiSticks == 1)
+
+        model.exhaustWallForTesting()
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.riichiSticks == 0, "供託は終局時にトップへ渡る")
+        #expect(model.scores.reduce(0, +) == MahjongModel.startingScore * 4)
+    }
+
     @Test("東4局で親がトップなら連荘せず終局する（アガリやめ）")
     func dealerStopsWhenLeadingInFinalRound() {
         let model = makeModel()
@@ -451,6 +479,39 @@ struct MahjongRiichiTests {
         #expect(model.canDeclareRiichi == false)
     }
 
+    @Test("立直の直後、他家に遮られず自分の次のツモで和了すれば一発が付く")
+    func ippatsuOnOwnNextDraw() {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),  // 5s / 8s の両面待ち
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            // 他家 3 人が 1 枚ずつ自摸ったあと、4 枚目が自分に来る。9m は誰も持っていないので
+            // CPU の打牌が自分の待ち（5s / 8s）に当たることはない。
+            wall: MahjongNotation.tiles("999m") + MahjongNotation.tiles("8s"),
+            dealer: 0,
+            drawnTile: MahjongNotation.tile("1z")
+        )
+        model.declareRiichi()
+        model.discard(MahjongNotation.tile("1z"))
+        #expect(model.riichi[0])
+
+        for _ in 0..<3 { model.stepCPUForTesting() }
+        #expect(model.currentPlayer == 0, "1 巡回って自分の手番に戻っている")
+        #expect(model.drawnTile == MahjongNotation.tile("8s"))
+
+        model.declareTsumo()
+        #expect(model.handResult?.winner == 0)
+        #expect(
+            model.handResult?.yaku.contains { $0.hasPrefix("一発") } == true,
+            "立直後の第一ツモは一発。実際の役: \(model.handResult?.yaku ?? [])"
+        )
+    }
+
     @Test("ツモ牌を持っている打牌中でも聴牌ヒントが出る（13枚ぶんの待ちを見せる）")
     func waitsAreShownWhileHoldingDrawnTile() {
         let model = tenpaiModel()
@@ -552,7 +613,9 @@ struct MahjongFullGameTests {
         #expect(model.phase == .gameResult, "\(guardCount) 手で東風戦が終わらなかった")
         #expect(model.ranking.count == 4)
         #expect(Set(model.ranking) == [0, 1, 2, 3])
-        #expect(model.scores.reduce(0, +) == MahjongModel.startingScore * 4 - model.riichiSticks * 1000)
+        // 供託が残ったまま終局しても点棒は消えない（残りはトップが回収する）。
+        #expect(model.riichiSticks == 0)
+        #expect(model.scores.reduce(0, +) == MahjongModel.startingScore * 4)
         #expect(model.playerPlace != nil)
     }
 }

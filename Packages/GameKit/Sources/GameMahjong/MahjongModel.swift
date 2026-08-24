@@ -493,10 +493,15 @@ public final class MahjongModel {
         return MahjongScoring.score(hand: hand, context: context)
     }
 
-    /// 一発か。立直の宣言から 1 巡（= 4 手番）以内で、その間に自分が打牌していないこと。
+    /// 一発か。立直の宣言から 1 巡以内の和了。
+    ///
+    /// `turnCount` は自摸のたびに 1 増える通し番号で、`declaredAt` は宣言者が立直を宣言した
+    /// 手番の値。他家のロンは差が 1〜3、**宣言者自身の次の自摸によるツモは差がちょうど 4**
+    /// （= 参加人数）になるため、境界は `< playerCount` ではなく `<= playerCount`。
+    /// `<` にすると立直後の第一ツモだけ一発が付かない。
     private func isIppatsu(_ player: Int) -> Bool {
         guard riichi[player], let declaredAt = riichiTurn[player] else { return false }
-        return turnCount - declaredAt < Self.playerCount
+        return turnCount - declaredAt <= Self.playerCount
     }
 
     // MARK: - 局の決着
@@ -605,6 +610,14 @@ public final class MahjongModel {
         // 同点は席順（親から近い順）で上位にする。
         ranking = (0..<Self.playerCount).sorted {
             (scores[$0], -seatWind($0)) > (scores[$1], -seatWind($1))
+        }
+        // 最後の局が流局で終わると供託（立直棒）が残る。誰にも渡さないと点棒が消えるので、
+        // 一般的なルールどおりトップが回収する（回収してもトップは入れ替わらない）。
+        // 最後の局が流局で終わると供託（立直棒）が残る。誰にも渡さないと点棒が消えるので、
+        // 一般的なルールどおりトップが回収する（回収してもトップは入れ替わらない）。
+        if riichiSticks > 0, let top = ranking.first {
+            scores[top] += riichiSticks * 1000
+            riichiSticks = 0
         }
         phase = .gameResult
         services?.snapshots.clear(for: gameID)
