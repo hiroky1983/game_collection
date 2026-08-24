@@ -603,6 +603,8 @@ struct MahjongFullGameTests {
                 }
             case .ronOffer:
                 model.declareRon()
+            case .callOffer:
+                model.declineCall()   // 常に自摸切りの方針なので鳴かない
             case .handResult:
                 model.advanceToNextHand()
             case .idle, .gameResult:
