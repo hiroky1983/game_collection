@@ -5,6 +5,7 @@ import Testing
 @testable import GameMinesweeper
 @testable import GameOthello
 @testable import GameShogi
+@testable import GameSudoku
 @testable import MahjongTiles
 
 /// VoiceOver の読み上げ文（#188）。
@@ -283,5 +284,57 @@ struct MahjongAccessibilityTests {
         // スナップショット破損などで値域外が来ても、読み上げ側は落とさない
         #expect(!MahjongFace.wind(9).displayName.isEmpty)
         #expect(!MahjongFace.flower(-1).displayName.isEmpty)
+    }
+}
+
+@Suite("数独の読み上げ文")
+struct SudokuAccessibilityTests {
+
+    @Test("入っている数字と出処を読む") func filledCell() {
+        #expect(SudokuAccessibility.cellLabel(
+            row: 2, col: 4, digit: 7, isGiven: true, isHinted: false,
+            isError: false, noteDigits: [], isSelected: false
+        ) == "3行5列、7、出題")
+
+        #expect(SudokuAccessibility.cellLabel(
+            row: 0, col: 0, digit: 3, isGiven: false, isHinted: true,
+            isError: false, noteDigits: [], isSelected: true
+        ) == "1行1列、3、ヒント、選択中")
+
+        #expect(SudokuAccessibility.cellLabel(
+            row: 8, col: 8, digit: 9, isGiven: false, isHinted: false,
+            isError: true, noteDigits: [], isSelected: false
+        ) == "9行9列、9、間違い")
+    }
+
+    @Test("空きマスとメモを読み分ける") func emptyCell() {
+        #expect(SudokuAccessibility.cellLabel(
+            row: 4, col: 4, digit: 0, isGiven: false, isHinted: false,
+            isError: false, noteDigits: [], isSelected: false
+        ) == "5行5列、空きマス")
+
+        #expect(SudokuAccessibility.cellLabel(
+            row: 4, col: 4, digit: 0, isGiven: false, isHinted: false,
+            isError: false, noteDigits: [1, 5, 9], isSelected: false
+        ) == "5行5列、メモ 1、5、9")
+    }
+
+    @Test("実行できない操作は案内しない") func hints() {
+        #expect(SudokuAccessibility.cellHint(isGiven: false, isPlaying: true) == "ダブルタップで選びます")
+        #expect(SudokuAccessibility.cellHint(isGiven: true, isPlaying: true) == "")
+        #expect(SudokuAccessibility.cellHint(isGiven: false, isPlaying: false) == "")
+    }
+
+    @Test("数字パッドはメモモードと使い切りを読む") func padLabels() {
+        #expect(SudokuAccessibility.padLabel(digit: 3, noteMode: false, isExhausted: false) == "3")
+        #expect(SudokuAccessibility.padLabel(digit: 3, noteMode: true, isExhausted: false) == "メモ 3")
+        #expect(SudokuAccessibility.padLabel(digit: 3, noteMode: false, isExhausted: true) == "3、使い切り")
+    }
+
+    @Test("ヒントとステータスは残量を読む") func statusLabels() {
+        #expect(SudokuAccessibility.hintLabel(remaining: 2) == "ヒント、残り2回")
+        #expect(SudokuAccessibility.hintLabel(remaining: 0) == "ヒント、残りなし")
+        #expect(SudokuAccessibility.statusLabel(remainingCells: 30, elapsedSeconds: 75) == "残り30マス、経過1分15秒")
+        #expect(SudokuAccessibility.statusLabel(remainingCells: 1, elapsedSeconds: 9) == "残り1マス、経過9秒")
     }
 }

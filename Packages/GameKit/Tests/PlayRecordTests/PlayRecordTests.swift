@@ -12,6 +12,7 @@ import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
+import GameSudoku
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -481,6 +482,42 @@ struct GameRecordingTests {
         #expect(record?.wins == 1)
         #expect(record?.bestSeconds != nil)
         #expect(model.recordResult?.update.seconds == true)
+    }
+
+    @Test("数独: クリアで難易度別のタイムが記録される")
+    func sudokuRecordsTimePerDifficulty() async {
+        let (log, defaults, name) = makeLog(suite: "sudoku")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = SudokuModel(services: makeServices(log: log), seed: 555)
+        await model.newGame(difficulty: .hard)
+        for index in 0..<81 where model.board[index] == 0 {
+            if model.selected != index { model.select(index: index) }
+            model.enter(digit: model.solution[index])
+        }
+
+        #expect(model.state == .cleared)
+        // 記録は難易度ごとに分かれる（マインスイーパーの難易度別と同じ扱い）。
+        let record = log.record(gameID: "sudoku", variant: "hard")
+        #expect(record?.metric == .shortestTime)
+        #expect(record?.variantLabel == "むずかしい")
+        #expect(record?.wins == 1)
+        #expect(record?.bestSeconds != nil)
+        #expect(log.record(gameID: "sudoku", variant: "easy") == nil, "別の難易度には混ざらない")
+    }
+
+    @Test("数独: 諦めた局のタイムは記録されない")
+    func sudokuGiveUpDoesNotRecordTime() async {
+        let (log, defaults, name) = makeLog(suite: "sudoku-giveup")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = SudokuModel(services: makeServices(log: log), seed: 556)
+        await model.newGame(difficulty: .easy)
+        model.giveUp()
+
+        let record = log.record(gameID: "sudoku", variant: "easy")
+        #expect(record?.losses == 1)
+        #expect(record?.bestSeconds == nil, "クリアしていない局のタイムは自己ベストにしない")
     }
 
     @Test("ブラックジャック: 精算後のチップが最高記録になる")

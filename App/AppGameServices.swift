@@ -11,6 +11,7 @@ import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
+import GameSudoku
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -98,6 +99,8 @@ enum AppEnvironment {
         MinesweeperModule(),
         GomokuModule(),
         ConcentrationModule(),
+        // 数独（#262）は末尾に足す。上の並びは会長判断で決めたものなので順序は動かさない。
+        SudokuModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
