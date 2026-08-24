@@ -39,6 +39,34 @@ private func matchPair(in cards: [ConcentrationCard]) -> (Int, Int) {
     return (first, second)
 }
 
+/// 中断データを任意の中身で置くためのスタブ（#218）。
+///
+/// 復元側の `ConcentrationSnapshot` は `private` で外から作れないため、**同じ鍵を持つ**
+/// 別の構造体を保存して JSON を作る（デコードは通り、健全性チェックだけが落ちる）。
+/// `AnalyticsTests` の `BrokenConcentrationSnapshot` と同じ手口。
+private struct StubConcentrationSnapshot: Codable {
+    var symbols: [String]
+    var isFaceUp: [Bool]
+    var isMatched: [Bool]
+    var currentPlayer: Int = 0
+    var playerScore: Int = 0
+    var cpuScore: Int = 0
+    var pairCount: Int = ConcentrationPairCount.small.rawValue
+    var cpuLevel: Int = ConcentrationCPULevel.normal.rawValue
+    var mattaUsed: Bool = false
+
+    /// 8ペア16枚の正しい盤面。`symbols` だけ差し替えれば壊れた並びを作れる。
+    static func healthy() -> StubConcentrationSnapshot {
+        let pairs = ConcentrationPairCount.small.rawValue
+        let symbols = (0..<pairs).flatMap { ["s\($0)", "s\($0)"] }
+        return StubConcentrationSnapshot(
+            symbols: symbols,
+            isFaceUp: Array(repeating: false, count: symbols.count),
+            isMatched: Array(repeating: false, count: symbols.count)
+        )
+    }
+}
+
 /// CPU の手を固定するテスト用 AI。`choices` を使い切ったら通常のロジックに戻る。
 private final class ScriptedConcentrationAI: ConcentrationAI {
     var choices: [Int] = []
@@ -388,5 +416,89 @@ struct ConcentrationModelTests {
         model2.tap(index: next)
 
         #expect(model2.cards[next].isFaceUp, "復元後もカードをめくれる")
+    }
+
+    // MARK: 中断データの健全性検証（#218）
+
+    /// スタブの中断データを置いて復元させ、できあがったモデルを返す。
+    private func restored(from stub: StubConcentrationSnapshot) -> ConcentrationModel {
+        let store = MockSnapshotStore()
+        try? store.save(stub, for: "concentration")
+        return ConcentrationModel(services: makeServices(store))
+    }
+
+    /// 盤面のどのカードにも相方がいることを確かめる（= 最後まで揃えられる盤面）。
+    private func everyCardHasItsPair(_ model: ConcentrationModel) -> Bool {
+        let occurrences = model.cards.reduce(into: [String: Int]()) { $0[$1.symbol, default: 0] += 1 }
+        return occurrences.values.allSatisfy { $0 == 2 }
+    }
+
+    @Test("復元時: 配列長は揃っていてもシンボルが対を成さない中断データはフォールバックする")
+    func restore_rejectsSnapshotWhoseSymbolsDoNotPairUp() {
+        var stub = StubConcentrationSnapshot.healthy()
+        // 長さ・枚数は正しいまま、全カードのシンボルを別物にする（対が1組も無い）
+        stub.symbols = stub.symbols.indices.map { "u\($0)" }
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.medium.rawValue * 2,
+                "既定（12ペア）の新しい盤へフォールバックする")
+        #expect(everyCardHasItsPair(model), "復元された盤は最後まで揃えられる")
+    }
+
+    @Test("復元時: 一部のシンボルだけ対を欠く中断データもフォールバックする")
+    func restore_rejectsSnapshotWithPartiallyBrokenPairs() {
+        var stub = StubConcentrationSnapshot.healthy()
+        // 1枚だけ別のシンボルに差し替える → その2枚が孤立して揃わなくなる
+        stub.symbols[0] = "lonely"
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.medium.rawValue * 2)
+        #expect(everyCardHasItsPair(model))
+    }
+
+    @Test("復元時: pairCount が列挙値に無い中断データはフォールバックする")
+    func restore_rejectsSnapshotWithUnknownPairCount() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.pairCount = 7   // 8 / 12 / 18 のいずれでもない
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.medium.rawValue * 2)
+    }
+
+    @Test("復元時: cpuLevel が列挙値に無い中断データはフォールバックする")
+    func restore_rejectsSnapshotWithUnknownCPULevel() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.cpuLevel = 99
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.medium.rawValue * 2)
+    }
+
+    @Test("復元時: カード枚数が pairCount の2倍でない中断データはフォールバックする")
+    func restore_rejectsSnapshotWhoseCardCountMismatchesPairCount() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.pairCount = ConcentrationPairCount.large.rawValue  // 18ペア = 36枚のはずが16枚
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.medium.rawValue * 2)
+    }
+
+    @Test("復元時: 対の揃った中断データはそのまま復元される（検証強化の巻き添えが無い）")
+    func restore_acceptsHealthySnapshot() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.playerScore = 3
+        stub.cpuScore = 1
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.small.rawValue * 2, "8ペア16枚がそのまま戻る")
+        #expect(model.pairCount == .small)
+        #expect(model.playerScore == 3)
+        #expect(model.cpuScore == 1)
     }
 }
