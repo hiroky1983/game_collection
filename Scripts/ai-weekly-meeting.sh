@@ -138,15 +138,30 @@ find "$RUNS_DIR" -maxdepth 1 -type d -name 'run-*' -mtime +3 | while read -r d; 
 done
 git -C "$WEEKLY_DIR" worktree prune >>"$LOG" 2>&1
 
+# 重複防止（CodeRabbit指摘・Major）: LOCK_DIR は同時実行しか防げない。前回実行が
+# Issue 作成後にクラッシュした・launchd に再実行された等の場合、同じ「週次経営レポート
+# YYYY-MM-DD」を重ねて作ってしまいうる。判定をプロンプトの指示だけに委ねず、起動前に
+# シェル側で機械的に確認する（このリポジトリの他の重複防止と同じ「プロンプトではなく
+# スクリプト側で機械的に弾く」方針。#164 の議論を踏まえる）。
+TODAY_TITLE="週次経営レポート $(date +%F)"
+EXISTING=$(gh issue list -R hiroky1983/game_collection --label "report:weekly" --state all --limit 50 \
+  --search "in:title \"$TODAY_TITLE\"" --json number --jq 'length' 2>/dev/null || echo 0)
+if [ "${EXISTING:-0}" -gt 0 ]; then
+  log "本日分のレポート（$TODAY_TITLE）は既に存在するため見送り"
+  exit 0
+fi
+
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$WEEKLY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
 log "週次経営会議起動 (workdir=$RUN_DIR)"
 cd "$RUN_DIR" || exit 0
-# gh issue create 以外の書き込みは不要な役割のため、Edit/Write は渡さない
-# （プロンプト側の「コードは変更しない」という宣言を、渡すツール自体を絞ることで技術的にも裏付ける）。
+# 裸の Bash は Edit/Write を渡さなくても実質無制限（`cat > file` 等でファイル変更も
+# `gh` 以外のコマンドも通ってしまう。CodeRabbit指摘・Major）。必要なのは gh CLI の
+# 読み取り・Issue作成だけなので、そこにスコープしたパターンで渡す。iTunes Lookup API は
+# 単純な GET なので WebFetch で足り、curl は渡さない。
 claude --model sonnet \
-  --allowedTools "Bash,Read,Glob,Grep,WebFetch,WebSearch" \
+  --allowedTools "Bash(gh *),Read,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-weekly-meeting-prompt.md")" >>"$LOG" 2>&1
 RC=$?
 log "週次経営会議終了 (exit=$RC)"
