@@ -18,6 +18,13 @@ public struct MahjongView: View {
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showStartSheet = true
+    /// 手牌の「今画面に出ている並び」。`model.playerHand.tiles` は常にソート済みの新しい配列を
+    /// 返すため、これをそのまま `ForEach` に渡すとツモ替えのたびに手牌全体が作り直された
+    /// ものとして扱われかねない（IDを安定させても、位置アニメーションを止めても解消しなかった）。
+    /// 会長の提案どおり、**画面側で「変わった牌だけ」を差分適用**する方式にする: 無くなった牌を
+    /// その場から取り除き、増えた牌だけを末尾に足す。生き残った牌は配列中の位置が一切変わらないため、
+    /// SwiftUI 視点でも「同じ場所にずっといたView」になり、動きようがない。
+    @State private var displayedHand: [MahjongTile] = []
 
     public init(services: GameServices) {
         self.services = services
@@ -25,10 +32,45 @@ public struct MahjongView: View {
         _showStartSheet = State(initialValue: !services.snapshots.exists(for: "mahjong4"))
     }
 
+    /// `model.playerHand` の変化を `displayedHand` へ最小差分で反映する。
+    private func syncDisplayedHand() {
+        let target = model.playerHand.tiles
+        if displayedHand.isEmpty {
+            displayedHand = target
+            return
+        }
+        var remaining = Dictionary(target.map { ($0, 1) }, uniquingKeysWith: +)
+        var kept: [MahjongTile] = []
+        kept.reserveCapacity(target.count)
+        for tile in displayedHand {
+            if let count = remaining[tile], count > 0 {
+                kept.append(tile)
+                remaining[tile] = count - 1
+            }
+            // else: この牌（の、この分の枚数）は無くなった → その場で落とす（＝差分削除）。
+        }
+        // 増えた牌（鳴きは無いので通常は高々1種類・1枚）だけを、種類の昇順で末尾に追加する
+        // （Dictionary の走査順は不定なので、決定的な順序で足す）。
+        for index in 0..<MahjongTileOrder.kindCount {
+            let kind = MahjongTileOrder.tile(at: index)
+            let extra = remaining[kind] ?? 0
+            guard extra > 0 else { continue }
+            for _ in 0..<extra { kept.append(kind) }
+        }
+        displayedHand = kept
+    }
+
     public var body: some View {
         VStack(spacing: 6) {
             statusBar
-            opponentRow
+            // 卓（対面・上家・下家の河 + 自分の河）は局の決着後もそのまま見えている方が自然なので、
+            // 局面/リザルトの分岐の外に置く（実物の卓も清算が終わるまで牌は残ったまま）。
+            // layoutPriority(1) は将棋の盤（ShogiView.board）と同じ考え方: 卓を優先して
+            // 高さを確保させ、他の要素（手牌・アクション行・バナー）がそのぶん譲る。
+            // これが無いと卓が伸び放題になり、画面下のバナー広告が画面外へ押し出されて
+            // 見えなくなる／レイヤーが崩れて見える（会長のシミュレータ確認で発覚）。
+            mahjongTable
+                .layoutPriority(1)
             if model.phase == .gameResult {
                 gameResultCard.transition(.opacity)
                 Spacer(minLength: 0)
@@ -36,8 +78,6 @@ public struct MahjongView: View {
                 handResultCard.transition(.opacity)
                 Spacer(minLength: 0)
             } else {
-                playerDiscardArea.transition(.opacity)
-                Spacer(minLength: 0)
                 handArea.transition(.opacity)
             }
             HowToPlayHint(.mahjong, playLog: services.playLog)
@@ -70,16 +110,21 @@ public struct MahjongView: View {
             MahjongStartSheet {
                 showStartSheet = false
                 model.startGame()
+                syncDisplayedHand()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
             .interactiveDismissDisabled(true)
         }
         .task {
             // 中断から戻ったときに手番が止まったままにならないようにする。
+            syncDisplayedHand()
             await model.runCPUTurnsIfNeeded()
         }
         .task(id: model.turnKey) {
             await model.runCPUTurnsIfNeeded()
+        }
+        .onChange(of: model.playerHand) {
+            syncDisplayedHand()
         }
     }
 
@@ -125,88 +170,214 @@ public struct MahjongView: View {
         )
     }
 
-    // MARK: - 他家
+    // MARK: - 雀卓
 
-    private var opponentRow: some View {
-        HStack(spacing: 6) {
-            ForEach(1..<MahjongModel.playerCount, id: \.self) { index in
-                opponentCard(index)
+    /// 河（捨て牌）は全員共通のサイズにする（会長指摘「大きさはユーザー含め均一に」）。
+    private static let discardPerRow = 6
+    private static let discardMaxTiles = 18
+    /// 左右の家は縦に細い帯で見せる分、表示枚数と1行あたりの枚数を絞って卓の高さに収める。
+    private static let sideDiscardPerRow = 2
+    private static let sideDiscardMaxTiles = 8
+    private static let discardRowSpacing: CGFloat = 2
+    private static let discardTileAspect: CGFloat = 1.34
+    private static let discardTileWidthDivisor: CGFloat = 19
+    private static let tablePadding: CGFloat = 10
+
+    private static func discardTileWidth(forTableSide side: CGFloat) -> CGFloat {
+        max(10, side / discardTileWidthDivisor)
+    }
+
+    /// 緑の卓に、実物と同じ席の位置関係（自分=下・下家=右・対面=上・上家=左）で
+    /// 各家の河（捨て牌）を配置する。会長フィードバック「普通に雀卓のUIにしてほしい」「正方形にしてほしい」
+    /// に対応。手番の順は 0(自分)→1(右)→2(対面)→3(左) で、これは実物の反時計回りの席順そのもの。
+    /// `GeometryReader` + `aspectRatio(1, contentMode: .fit)` は将棋の盤（`ShogiView.board`）と
+    /// 同じ手法: 利用可能な高さを超えないぶんの正方形に自動で収まる。
+    ///
+    /// 配置は Stack 任せの自動フロー（以前の実装）だと「3人の名前が全員上に並んで見える」
+    /// 結果になり実機で確認して分かった（会長のスクリーンショット指摘）。Stack の自動配置に
+    /// 委ねず、`ZStack` + `position()` で卓の四辺（上/左/右/下）に明示的な座標を与える。
+    /// `position()` は指定した点を**その View の中心**に置くだけで、View 自身のサイズは
+    /// 考慮してくれない。牌基準の余白だけで座標を決めたところ、名前チップ（牌より幅がある）や
+    /// 複数段になった河がその分だけ卓の外へはみ出し、右側は画面端で切れた
+    /// （会長のスクリーンショットで発覚）。各要素に明示的な幅・高さの枠を持たせ、
+    /// その枠を基準に座標を計算する（枠の中では `alignment: .top` で内容を上詰めにする）。
+    private static let sideColumnWidth: CGFloat = 96
+    private static let sideColumnHeight: CGFloat = 150
+    private static let edgeRowHeight: CGFloat = 96
+
+    private var mahjongTable: some View {
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height)
+            let tileWidth = Self.discardTileWidth(forTableSide: side)
+            let edgeRowWidth = side - Self.tablePadding * 2
+            let topY = Self.tablePadding + Self.edgeRowHeight / 2
+            let bottomY = side - Self.tablePadding - Self.edgeRowHeight / 2
+            let sideX = Self.tablePadding + Self.sideColumnWidth / 2
+            ZStack {
+                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: 0x2E7A50), Color(hex: 0x1D5638)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                            .strokeBorder(Color(hex: 0x123726), lineWidth: 3)
+                    )
+                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+
+                // 会長指摘: 縦(左右)の河は卓に対して中央寄せ、横(上下)の河も中心に寄せたい。
+                // 予約した枠の中で `alignment: .top`（上詰め）にしていたのを `.center` に変える。
+                opponentRow(2, tileWidth: tileWidth) // 対面
+                    .frame(width: edgeRowWidth, height: Self.edgeRowHeight, alignment: .center)
+                    .position(x: side / 2, y: topY)
+                opponentColumn(3, tileWidth: tileWidth) // 上家（左）
+                    .frame(width: Self.sideColumnWidth, height: Self.sideColumnHeight, alignment: .center)
+                    .position(x: sideX, y: side / 2)
+                opponentColumn(1, tileWidth: tileWidth) // 下家（右）
+                    .frame(width: Self.sideColumnWidth, height: Self.sideColumnHeight, alignment: .center)
+                    .position(x: side - sideX, y: side / 2)
+                playerDiscardOnTable(tileWidth: tileWidth) // 自分
+                    .frame(width: edgeRowWidth, height: Self.edgeRowHeight, alignment: .center)
+                    .position(x: side / 2, y: bottomY)
+            }
+            .frame(width: side, height: side)
+            .frame(width: geo.size.width, height: geo.size.height)
+            // 河のアニメーションが止まらないという指摘のため、原因を特定しきれないまま
+            // 力技で対処する: 卓の中身への暗黙アニメーションを一切禁止する。牌の増減・並び替えは
+            // すべて瞬時に反映されるだけになる（実物の牌もアニメーションはしない）。
+            .transaction { $0.animation = nil }
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    private func opponentNameChip(_ index: Int) -> some View {
+        let isCurrent = model.currentPlayer == index && model.phase == .playing
+        return VStack(spacing: 2) {
+            HStack(spacing: 3) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(isCurrent ? Theme.coral : Theme.Fixed.ink.opacity(0.6))
+                Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Fixed.ink)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text("\(model.scores[index])")
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.Fixed.ink.opacity(0.7))
+            }
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Capsule().fill(Color.white.opacity(0.85)))
+            if model.riichi[index] {
+                Text("立直")
+                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Capsule().fill(Theme.coral))
             }
         }
     }
 
-    private func opponentCard(_ index: Int) -> some View {
+    /// 対面（横一列の河）。
+    private func opponentRow(_ index: Int, tileWidth: CGFloat) -> some View {
+        VStack(spacing: 3) {
+            opponentNameChip(index)
+            discardStrip(model.discards[index], tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(opponentAccessibilityLabel(index))
+    }
+
+    /// 上家・下家用のコンパクトな名前チップ。横幅が狭い（`sideColumnWidth`）ため、
+    /// 名前・風・点数を横一列に詰め込む `opponentNameChip` だと折り返してしまう
+    /// （会長のスクリーンショットで発覚）。縦積みにして幅を使わない形にする。
+    private func opponentNameChipCompact(_ index: Int) -> some View {
         let isCurrent = model.currentPlayer == index && model.phase == .playing
-        return VStack(spacing: 3) {
-            HStack(spacing: 3) {
+        return VStack(spacing: 1) {
+            HStack(spacing: 2) {
                 Image(systemName: "cpu")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(isCurrent ? Theme.coral : Theme.inkSub)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(isCurrent ? Theme.coral : Theme.Fixed.ink.opacity(0.6))
                 Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Fixed.ink)
+                    .lineLimit(1).minimumScaleFactor(0.6)
             }
             Text("\(model.scores[index])")
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.inkSub)
+                .font(.system(size: 9, weight: .black, design: .rounded))
+                .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.Fixed.ink.opacity(0.7))
+                .lineLimit(1)
             if model.riichi[index] {
                 Text("立直")
-                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .font(.system(size: 7, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .padding(.horizontal, 4).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.coral))
             }
-            discardStrip(model.discards[index], tileWidth: 13, perRow: 6, maxTiles: 12)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 7).padding(.horizontal, 4)
-        .popCard(corner: Theme.cornerSmall)
+        .padding(.horizontal, 5).padding(.vertical, 3)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.85)))
+    }
+
+    /// 上家・下家（縦に細い帯の河。回転はさせない）。
+    private func opponentColumn(_ index: Int, tileWidth: CGFloat) -> some View {
+        VStack(spacing: 3) {
+            opponentNameChipCompact(index)
+            discardStrip(
+                model.discards[index], tileWidth: tileWidth,
+                perRow: Self.sideDiscardPerRow, maxTiles: Self.sideDiscardMaxTiles
+            )
+        }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            MahjongAccessibility.playerLabel(
-                name: model.playerName(index), score: model.scores[index],
-                isRiichi: model.riichi[index], isCurrent: isCurrent
-            )
-            + "。"
-            + MahjongAccessibility.discardPileLabel(
-                player: model.playerName(index), tiles: model.discards[index]
-            )
+        .accessibilityLabel(opponentAccessibilityLabel(index))
+    }
+
+    private func opponentAccessibilityLabel(_ index: Int) -> String {
+        let isCurrent = model.currentPlayer == index && model.phase == .playing
+        return MahjongAccessibility.playerLabel(
+            name: model.playerName(index), score: model.scores[index],
+            isRiichi: model.riichi[index], isCurrent: isCurrent
+        )
+        + "。"
+        + MahjongAccessibility.discardPileLabel(
+            player: model.playerName(index), tiles: model.discards[index]
         )
     }
 
     /// 河を小さい牌で並べる。古い牌から順に、入りきらないぶんは新しい側を残す。
+    /// 会長指摘: 卓の中心寄せにしたい。中央寄せだと最終行の枚数が変わるたびに既に置いた牌の
+    /// 位置がずれるが、卓全体でアニメーションを止めている（`transaction { $0.animation = nil }`）
+    /// ため、ずれても瞬時に切り替わるだけでアニメーションはしない。
     private func discardStrip(
         _ tiles: [MahjongTile], tileWidth: CGFloat, perRow: Int, maxTiles: Int
     ) -> some View {
         let shown = Array(tiles.suffix(maxTiles))
         return LazyVGrid(
-            columns: Array(repeating: GridItem(.fixed(tileWidth), spacing: 2), count: perRow),
-            alignment: .leading,
-            spacing: 2
+            columns: Array(repeating: GridItem(.fixed(tileWidth), spacing: Self.discardRowSpacing), count: perRow),
+            alignment: .center,
+            spacing: Self.discardRowSpacing
         ) {
             ForEach(Array(shown.enumerated()), id: \.offset) { _, tile in
-                MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
+                MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * Self.discardTileAspect)
             }
         }
-        // 河は左上から順に並ぶもの。中央寄せだと捨てるたびに既に置いた牌が動いて見える。
-        .frame(maxWidth: .infinity, minHeight: tileWidth * 1.34, alignment: .topLeading)
+        .frame(minHeight: tileWidth * Self.discardTileAspect, alignment: .center)
     }
 
     // MARK: - 自分の河
 
-    private var playerDiscardArea: some View {
+    private func playerDiscardOnTable(tileWidth: CGFloat) -> some View {
         VStack(spacing: 4) {
-            Text("あなたの捨て牌")
+            Text("あなたの河")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            // 河は 6 枚 × 3 段（本来の並べ方）。捨てるたびに高さが跳ねないよう 3 段ぶんを常に確保する。
-            discardStrip(model.discards[MahjongModel.humanIndex], tileWidth: 26, perRow: 6, maxTiles: 18)
-                .frame(minHeight: 26 * 1.34 * 3 + 4, alignment: .topLeading)
+                .foregroundStyle(.white.opacity(0.85))
+            discardStrip(
+                model.discards[MahjongModel.humanIndex],
+                tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles
+            )
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8).padding(.horizontal, 10)
-        .popCard(corner: Theme.cornerSmall)
         .gameAnimation(.easeInOut(duration: 0.18), value: model.discards[MahjongModel.humanIndex])
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -245,18 +416,39 @@ public struct MahjongView: View {
                 ),
                 spacing: MahjongHandLayout.spacing
             ) {
-                ForEach(Array(model.playerHand.tiles.enumerated()), id: \.offset) { _, tile in
-                    handTile(tile, isDrawn: false, discardable: discardable)
+                // model.playerHand.tiles を直接使わない: それは毎回ソートし直された新しい配列で、
+                // id を安定させても位置アニメーションを止めても「ルーレット」化が収まらなかった。
+                // 代わりに displayedHand（syncDisplayedHand で最小差分だけ反映するローカル状態）を使う。
+                // 生き残った牌は配列中の位置が一切変わらないので、そもそも動く要素が無い。
+                ForEach(Self.stableHandIDs(displayedHand), id: \.id) { entry in
+                    handTile(entry.tile, isDrawn: false, discardable: discardable)
                 }
                 if let drawn = model.drawnTile {
                     handTile(drawn, isDrawn: true, discardable: discardable)
                 }
             }
-            .gameAnimation(.easeInOut(duration: 0.18), value: model.playerHand)
+            // ツモ切り以外で打牌すると、ツモった牌が手牌のソート済み位置へ挿入され、
+            // それより後ろの牌が軒並み1マスずつ後ろへずれる。ここへ位置アニメーションを
+            // かけると複数の牌が一斉に横滑り/改行をまたいで動き、スロットのリールのように
+            // 見えてしまっていた（id を安定させても、位置そのものが動く限り解消しない）。
+            // 実物の手牌も並べ替えはアニメーションしない（瞬時に確定した並びが見えるだけ）ため、
+            // ここは意図的に無アニメーションにする。
             hintLine(waits: waits)
         }
         .padding(.horizontal, 8).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 手牌に同じ牌が複数あっても安定した id を割り当てる（牌の値＋同値内の出現順）。
+    private static func stableHandIDs(
+        _ tiles: [MahjongTile]
+    ) -> [(tile: MahjongTile, id: String)] {
+        var seen: [MahjongTile: Int] = [:]
+        return tiles.map { tile in
+            let n = seen[tile, default: 0]
+            seen[tile] = n + 1
+            return (tile, "\(tile)#\(n)")
+        }
     }
 
     private func handTile(
