@@ -14,6 +14,13 @@ public struct MahjongSolitaireView: View {
     @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
     @State private var showConfirmNewGame = false
     @State private var showShuffleFailed = false
+    /// 盤面の場所にクリアの表示を出しているか（#199）。
+    ///
+    /// `model.phase` を直に見ると、最後の 2 枚は `faces` が nil になるのと**同じ更新**で
+    /// `phase` が `.won` になるため、盤面ごとクリア表示に差し替わって消失アニメーションが
+    /// 出ないまま終わる。牌が消えきる時間だけ切り替えを遅らせて、最後の 1 組も同じ演出で消す。
+    /// 遅らせるのは**盤面の表示だけ**で、勝敗・記録・計時（`model`）は従来どおり即座に確定する。
+    @State private var showsClearDisplay = false
     @Environment(\.dismiss) private var dismiss
 
     private typealias Metrics = MahjongSolitaireBoardMetrics
@@ -92,6 +99,19 @@ public struct MahjongSolitaireView: View {
         }
         .task {
             model.resumeTimerIfNeeded()
+        }
+        // 取り切ったら、最後の 1 組が消えきってから盤面をクリア表示に差し替える（#199）。
+        // Reduce Motion のときは演出そのものが無いので待たない。
+        .task(id: model.phase) {
+            guard model.phase == .won else {
+                showsClearDisplay = false
+                return
+            }
+            if !Motion.isReduceMotionEnabled {
+                try? await Task.sleep(nanoseconds: UInt64(Metrics.boardAnimationDuration * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            showsClearDisplay = true
         }
     }
 
@@ -192,7 +212,7 @@ public struct MahjongSolitaireView: View {
 
     private var board: some View {
         Group {
-            if model.phase == .won {
+            if showsClearDisplay {
                 // 取り切った直後は盤面が空になるので、代わりにクリアの演出を置く。
                 VStack(spacing: 12) {
                     Text("🎉").font(.system(size: 64))
@@ -247,6 +267,28 @@ public struct MahjongSolitaireView: View {
         // 牌は `offset` で置くのでレイアウト上の大きさは 1 枚分しかない。
         // 盤面全体の枠を与え、左上を基準に揃えないと中央寄せされてずれる。
         .frame(width: canvas.width, height: canvas.height, alignment: .topLeading)
+        .gameAnimation(.easeOut(duration: Metrics.boardAnimationDuration), value: boardAnimationKey)
+    }
+
+    /// 盤面のアニメーションを起こす値（#199）。
+    ///
+    /// 牌の増減（取得・並べ替え・配り直し）と枠色（選択・ヒント）を**ひとつにまとめて**、
+    /// `.gameAnimation` を盤面に 1 つだけ掛ける。`.animation(_:value:)` は入れ子にすると
+    /// 内側が外側のトランザクションを打ち消すため、2 つに分けると牌の消失アニメーションだけが
+    /// 効かなくなる。Reduce Motion のときは `gameAnimation` が nil に落ち、
+    /// 下の `.transition` ごと即時反映になる（状態変更そのものは必ず走る・#210）。
+    private var boardAnimationKey: BoardAnimationKey {
+        BoardAnimationKey(
+            faces: model.faces,
+            selectedIndex: model.selectedIndex,
+            hintPair: model.hintPair
+        )
+    }
+
+    private struct BoardAnimationKey: Equatable {
+        let faces: [MahjongFace?]
+        let selectedIndex: Int?
+        let hintPair: [Int]
     }
 
     private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat) -> some View {
@@ -259,6 +301,10 @@ public struct MahjongSolitaireView: View {
             isSelected: model.selectedIndex == index,
             isHinted: model.hintPair.contains(index)
         )
+        // 取った牌は縮みながら消える。**`.offset` より前に置くこと**（#199）。
+        // 後ろに置くと `offset` は牌のレイアウト上の位置（盤面の左上）を動かさないため、
+        // 縮小の基準が牌の中心ではなく盤面の左上になり、消える牌が左上へ吸い込まれる。
+        .transition(.scale(scale: 0.7).combined(with: .opacity))
         .offset(x: frame.minX, y: frame.minY)
         .onTapGesture { model.tap(index) }
         // 牌は図形と文字だけで描いているため、絵柄も取れるかどうかも音声では
@@ -329,13 +375,14 @@ public struct MahjongSolitaireView: View {
                 }
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            // アイコンだけの段は文字のぶんの幅・高さが無くなるので、44pt を下回らせない。
-            // 文字付きの段（既定の文字サイズで出る方）の 44pt 化はヒント・並べ替えと共通の
-            // 見直しになるため #199 のスコープ。ここで 1 つだけ大きくすると帯が不揃いになる。
+            .padding(.horizontal, 12)
+            // 高さは**どちらの段でも** 44pt（#199）。#198 の時点では文字付きの段を
+            // 上下 6pt の余白のままにして「44pt 化は #199 のスコープ」と保留していたが、
+            // ここで 3 つとも同じ下限に揃えた（1 つだけ大きくすると帯が不揃いになる）。
+            // 幅の下限はアイコンだけの段にのみ要る（文字付きの段は文字のぶんで足りる）。
             .frame(
                 minWidth: showsTitle ? nil : Metrics.minimumTapTarget,
-                minHeight: showsTitle ? nil : Metrics.minimumTapTarget
+                minHeight: Metrics.controlButtonMinHeight
             )
             .background(Capsule().fill(tint))
             // 広げた枠の隅まで反応させる（既定は描いた中身のぶんしか受けない）。
