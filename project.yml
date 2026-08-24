@@ -50,6 +50,8 @@ targets:
       - package: GameKit
         product: GameMahjongSolitaire
       - package: GameKit
+        product: GameMahjong
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

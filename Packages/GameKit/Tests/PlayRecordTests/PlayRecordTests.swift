@@ -11,6 +11,8 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
+import MahjongTiles
 
 // MARK: - 共通のヘルパー
 
@@ -623,6 +625,22 @@ struct GameRecordingTests {
         #expect(log.summaryLine(gameID: "daifugo") != nil)
     }
 
+    @Test("四人打ち麻雀: 東風戦を終えると1プレイとして記録し、ハブに1行出る")
+    func mahjongFourPlayerRecordsOncePerEastRound() async {
+        let (log, defaults, name) = makeLog(suite: "mahjong4")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = MahjongModel(services: makeServices(log: log), cpuDelay: .zero, seed: 4649)
+        model.startGame()
+        await playMahjongFourPlayer(model)
+
+        #expect(model.phase == .gameResult)
+        #expect(model.recordResult != nil)
+        // 東 1 局〜東 4 局まで打っても、記録は東風戦ごとに 1 プレイ。
+        #expect(log.record(gameID: "mahjong4")?.plays == 1)
+        #expect(log.summaryLine(gameID: "mahjong4") != nil)
+    }
+
     @Test("2048: 広告コンティニューした回は1プレイとして数える（負けを二重に数えない）")
     func game2048ContinueDoesNotDoubleCount() {
         let (log, defaults, name) = makeLog(suite: "game2048Continue")
@@ -736,5 +754,42 @@ struct GameRecordingTests {
             gameID: "othello", outcome: .win, score: GameScore(metric: .winLoss)
         )
         #expect(result == nil)
+    }
+}
+
+/// 四人打ち麻雀: 常に自摸切り・和了できるときは必ず和了する方針で東風戦を最後まで進める。
+/// CPU の間合いは 0 なので実時間は待たない。
+@MainActor
+private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = false) async {
+    var didReject = !rejectOnce
+    var guardCount = 0
+    while model.phase != .gameResult, guardCount < 800 {
+        guardCount += 1
+        switch model.phase {
+        case .playing:
+            if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+                if !didReject {
+                    didReject = true
+                    // 手牌にもツモ牌にも無い牌を指定すると拒否される（警告の発火を確かめる）。
+                    let absent = MahjongTileOrder.all.first {
+                        model.playerHand.count(of: $0) == 0 && $0 != drawn
+                    }
+                    if let absent { model.discard(absent) }
+                }
+                if model.canDeclareTsumo {
+                    model.declareTsumo()
+                } else {
+                    model.discard(drawn)
+                }
+            } else {
+                await model.runCPUTurnsIfNeeded()
+            }
+        case .ronOffer:
+            model.declareRon()
+        case .handResult:
+            model.advanceToNextHand()
+        case .idle, .gameResult:
+            return
+        }
     }
 }

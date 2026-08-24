@@ -10,6 +10,7 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -92,6 +93,7 @@ enum AppEnvironment {
         BlackjackModule(),
         DaifugoModule(),
         MahjongSolitaireModule(),
+        MahjongModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

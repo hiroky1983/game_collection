@@ -30,6 +30,9 @@ public enum RecommendationPolicy {
         "blackjack":     ["poker", "concentration", "2048"],
         "daifugo":       ["poker", "blackjack", "concentration"],
         "mahjong":       ["concentration", "minesweeper", "2048"],
+        // 四人打ち麻雀（#106）。牌が同じで手軽な麻雀ソリティア、同じ CPU 対戦の大富豪、
+        // 役の考え方が近いポーカーの順で近い。
+        "mahjong4":      ["mahjong", "daifugo", "poker"],
     ]
 
     /// 現在の提示間隔。無視が続いているほど広がる。

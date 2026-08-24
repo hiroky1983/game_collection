@@ -12,6 +12,8 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
+import MahjongTiles
 
 // MARK: - Mocks
 
@@ -450,6 +452,25 @@ struct FeedbackEnabledTests {
         #expect(spy.notices.last == expected, "決着が階級どおりに発火する")
     }
 
+    @Test("四人打ち麻雀: 配牌・打牌・切れない牌の拒否・決着で発火する")
+    func mahjongFourPlayer() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startGame()
+        await playMahjongFourPlayer(model, rejectOnce: true)
+        #expect(spy.impacts.contains(.medium), "配牌で発火する")
+        #expect(spy.impacts.contains(.light), "牌を切ると発火する")
+        #expect(spy.notices(of: .warning) > 0, "切れない牌は拒否として発火する")
+        #expect(model.phase == .gameResult, "手順の最後は必ず決着している")
+        let expected: FeedbackNotice
+        switch model.reviewOutcome {
+        case .win:  expected = .success
+        case .loss: expected = .error
+        case .draw: expected = .warning
+        }
+        #expect(spy.notices.last == expected, "決着が順位どおりに発火する")
+    }
+
     @Test("麻雀ソリティア: 牌の選択・ペア成立・取れない牌・クリアで発火する")
     func mahjong() {
         let (services, spy) = makeServices(hapticsEnabled: true)
@@ -578,6 +599,11 @@ struct SoundFeedbackTests {
         await check("ブラックジャック") { _ = playBlackjack($0) }
         await check("大富豪") { _ = await playDaifugo($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
+        await check("麻雀") { services in
+            let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
+            model.startGame()
+            await playMahjongFourPlayer(model, rejectOnce: true)
+        }
     }
 
     @Test("6種類の効果音がすべて、いずれかのゲームで実際に使われている（鳴らない音を定義していない）")
@@ -623,5 +649,42 @@ struct SoundFeedbackTests {
         await playAllGames(services)
         #expect(haptics.callCount == 0)
         #expect(sound.callCount == 0)
+    }
+}
+
+/// 四人打ち麻雀: 常に自摸切り・和了できるときは必ず和了する方針で東風戦を最後まで進める。
+/// CPU の間合いは 0 なので実時間は待たない。
+@MainActor
+private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = false) async {
+    var didReject = !rejectOnce
+    var guardCount = 0
+    while model.phase != .gameResult, guardCount < 800 {
+        guardCount += 1
+        switch model.phase {
+        case .playing:
+            if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+                if !didReject {
+                    didReject = true
+                    // 手牌にもツモ牌にも無い牌を指定すると拒否される（警告の発火を確かめる）。
+                    let absent = MahjongTileOrder.all.first {
+                        model.playerHand.count(of: $0) == 0 && $0 != drawn
+                    }
+                    if let absent { model.discard(absent) }
+                }
+                if model.canDeclareTsumo {
+                    model.declareTsumo()
+                } else {
+                    model.discard(drawn)
+                }
+            } else {
+                await model.runCPUTurnsIfNeeded()
+            }
+        case .ronOffer:
+            model.declareRon()
+        case .handResult:
+            model.advanceToNextHand()
+        case .idle, .gameResult:
+            return
+        }
     }
 }
