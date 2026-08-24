@@ -53,10 +53,36 @@ public struct MahjongTileView: View {
     public var body: some View {
         let corner = width * 0.18
         ZStack {
+            // 牌面: 上から光が当たって丸みを帯びて見えるよう、フラットな塗りではなく
+            // 縦方向のグラデーションにする（実物の象牙・樹脂牌の質感を意識）。
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(MahjongTileArt.faceColor)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0xFFFFF8), MahjongTileArt.faceColor, Color(hex: 0xEEE6D2)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
             RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .strokeBorder(borderColor, lineWidth: isSelected || isHinted ? width * 0.1 : max(0.5, width * 0.03))
+            // ベゼル: 縁の内側に「上は明るく・下は暗く」のグラデーション枠を重ね、
+            // 断面が丸まった厚みのある牌に見せる（内側ハイライト/シャドウの疑似表現）。
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.75), .clear, Color.black.opacity(0.18)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: max(1, width * 0.05)
+                )
+            // 上部の艶ハイライト: 光沢のある表面であることを強調する薄い楕円。
+            Ellipse()
+                .fill(Color.white.opacity(0.35))
+                .frame(width: width * 0.7, height: height * 0.22)
+                .offset(y: -height * 0.32)
+                .blendMode(.plusLighter)
+                .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
             MahjongTileArt(face: face, width: width * 0.76, height: height * 0.68)
         }
         .frame(width: width, height: height)
@@ -273,6 +299,9 @@ public struct MahjongTileArt: View {
             .foregroundStyle(color)
             .lineLimit(1)
             .minimumScaleFactor(0.4)
+            // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
+            .shadow(color: .white.opacity(0.5), radius: 0, x: 0, y: -width * 0.02)
+            .shadow(color: .black.opacity(0.25), radius: width * 0.015, x: 0, y: width * 0.02)
     }
 }
 
