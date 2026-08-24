@@ -43,6 +43,26 @@ struct PokerMetricsTests {
         let calls = Self.matchCount(of: #"\bactionButton\("#, in: source)
         // 定義 1 箇所 + 呼び出し 9 箇所。
         #expect(calls >= 10, "actionButton の定義・呼び出しが想定より少ない（実測 \(calls) 箇所）")
+
+        // 件数だけでは足りない（PR #267 の CodeRabbit 指摘）。1 箇所が `actionButton` を
+        // 使わなくなっても、別の呼び出しが 1 つ増えれば件数は保たれてしまう
+        // （そのため `== 10` に締めても同じ穴は残る）。**どの操作**が経由しているかを
+        // ラベルで個別に見て、抜けた操作をそのまま名指しできるようにする。
+        // ラベルは呼び出しと同じ行に書かれているので、行内で突き合わせる。
+        for label in [
+            "\"チェック\"",
+            "\"ベット \\(20)枚\"",
+            "\"フォールド\"",
+            "\"コール \\(model.currentBet)枚\"",
+            "\"\\(count)枚を交換\"",
+            "\"次のゲーム\"",
+        ] {
+            let pattern = #"actionButton\([^\n]*"# + NSRegularExpression.escapedPattern(for: label)
+            #expect(
+                Self.matchCount(of: pattern, in: source) >= 1,
+                "\(label) の操作が actionButton を経由していない（個別に組み直されると 44pt を外れる）"
+            )
+        }
     }
 
     // MARK: - ヘルパー

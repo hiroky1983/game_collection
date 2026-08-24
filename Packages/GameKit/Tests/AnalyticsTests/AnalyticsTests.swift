@@ -12,6 +12,7 @@ import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
+import GameSudoku
 import MahjongTiles
 
 // MARK: - Mocks
@@ -82,7 +83,7 @@ private func makeHubGameIDs() -> Set<String> {
     let modules: [GameModule] = [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
-        MahjongSolitaireModule(), MahjongModule(),
+        MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -275,9 +276,9 @@ struct GameAnalyticsTests {
         #expect(spy.ends.map(\.gameID) == ["shogi"])
     }
 
-    @Test("送信対象の gameID はハブの登録内容と一致する（11本）")
+    @Test("送信対象の gameID はハブの登録内容と一致する（12本）")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 11, "ハブに並ぶゲームは11本")
+        #expect(hubGameIDs.count == 12, "ハブに並ぶゲームは12本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -559,9 +560,9 @@ struct AnalyticsDoubleFireTests {
     }
 }
 
-// MARK: - 全10ゲームで1プレイ1組
+// MARK: - 全12ゲームで1プレイ1組
 
-@Suite("全10ゲームの発火（1プレイにつき game_start 1回・終局で game_end 1回）")
+@Suite("全12ゲームの発火（1プレイにつき game_start 1回・終局で game_end 1回）")
 @MainActor
 struct AllGamesAnalyticsTests {
 
@@ -738,6 +739,32 @@ struct AllGamesAnalyticsTests {
         #expect(spy.starts(of: "mahjong") == 2, "諦めた回 + 配り直した回")
         #expect(spy.ends(of: "mahjong") == 1)
         #expect(spy.ends.first?.outcome == .loss)
+    }
+
+    @Test("数独: 盤が生成された時点で開始・全マス埋めて終局（win）")
+    func sudoku() async {
+        let (services, spy) = makeServices()
+        let model = SudokuModel(services: services, seed: 2026)
+        #expect(spy.events.isEmpty, "画面を開いただけでは出題されない")
+        await model.newGame(difficulty: .easy)
+        for index in 0..<81 where model.board[index] == 0 {
+            if model.selected != index { model.select(index: index) }
+            model.enter(digit: model.solution[index])
+        }
+        #expect(model.state == .cleared)
+        expectOnePair(spy, gameID: "sudoku")
+        #expect(spy.ends.first?.outcome == .win)
+    }
+
+    @Test("数独: 生成中に新規ゲームを重ねても game_start は1回だけ")
+    func sudokuNewGameIsNotReentrant() async {
+        let (services, spy) = makeServices()
+        let model = SudokuModel(services: services, seed: 4242)
+        async let first: Void = model.newGame(difficulty: .hard)
+        async let second: Void = model.newGame(difficulty: .easy)
+        _ = await (first, second)
+        #expect(model.state == .playing)
+        #expect(spy.starts(of: "sudoku") == 1, "2本目の生成は弾かれる（1プレイ1組を崩さない）")
     }
 
     @Test("2回続けて遊ぶと2組になる（「新しいゲーム」）")
