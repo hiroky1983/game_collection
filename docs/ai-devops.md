@@ -204,6 +204,15 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 `Scripts/ai-duty.sh` を毎時実行。ログは `~/Library/Logs/asobiba-ai-duty.log`。
 読み込みは `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.ai-duty.plist`。
 
+同様に `Scripts/ai-management-duty.sh`（日次・`com.asobiba.ai-management.plist`）と
+`Scripts/ai-weekly-meeting.sh`（週次・`com.asobiba.ai-weekly.plist`）も launchd 常駐。
+後者は2026-08-24までクラウドルーティンで動いていたが、アプリの運営に無関係な MCP 接続
+（Supabase・Canva・Sentry・Notion 等）がクラウド側の設定に紐づいており、ヘッドレス実行時に
+認証待ちで即座に詰まって毎週空振りしていた。ローカル実行は `claude --allowedTools` で渡した
+ツールしか使わないため、同種の問題が構造的に起きない（会長発見・2026-08-24移行）。
+3スクリプトともログは `~/Library/Logs/asobiba-<name>.log`、読み込みは同じ
+`launchctl bootstrap gui/501 <plist>` パターン。
+
 当番が動作確認で起動したシミュレータは、`ai-duty.sh` が**実行前後の差分**で自動的に shutdown する
 （実行前から起動していたもの = 会長が使用中の可能性があるものには触らない）。後片付けは EXIT トラップから
 呼ぶため、claude が異常終了しても launchd に止められても走る。実行前の状態の記録に失敗したときは
