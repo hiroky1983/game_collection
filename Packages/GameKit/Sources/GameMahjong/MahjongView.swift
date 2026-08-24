@@ -133,7 +133,11 @@ public struct MahjongView: View {
 
     /// 河（捨て牌）は全員共通のサイズにする（会長指摘「大きさはユーザー含め均一に」）。
     private static let discardPerRow = 6
-    private static let discardMaxTiles = 18
+    // 会長指摘: 3列に増えると自分のセクション（チップ＋河＋手牌一覧）の高さが伸びて
+    // 手牌一覧側に食い込む・卓の角丸でクリップされる、という不具合につながっていた。
+    // 常に2列（12枚）までに固定し、それより古い牌は落とす（`discardStrip` 側で
+    // `tiles.suffix(maxTiles)` により新しい方を残す実装になっている）。
+    private static let discardMaxTiles = 12
     /// 左右の家は縦に細い帯で見せる分、表示枚数と1行あたりの枚数を絞って卓の高さに収める。
     private static let sideDiscardPerRow = 2
     private static let sideDiscardMaxTiles = 8
