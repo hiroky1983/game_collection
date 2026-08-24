@@ -12,6 +12,8 @@ public enum MahjongPhase: String, Equatable, Sendable, Codable {
     case playing
     /// 自分がロンできる牌が出て、宣言するか見逃すかを待っている。
     case ronOffer
+    /// 自分が鳴ける牌が出て、鳴くかスルーするかを待っている。
+    case callOffer
     /// 1 局の決着（和了 or 流局）を見せている。
     case handResult
     /// 東風戦そのものの終了（順位が出ている）。
@@ -58,15 +60,24 @@ struct MahjongSnapshot: Codable {
     let riichiSticks: Int
     let currentPlayer: Int
     let turnCount: Int
+    // 鳴き（#263）で足した項目。**古い中断データを読めなくしないため任意**にする
+    // （必須にすると更新直後の 1 局が黙って消える）。
+    let melds: [[MahjongCall]]?
+    /// フリテンの判定に使う「これまでに捨てた牌の種類」。鳴かれて河から消えた牌も残す。
+    let discardedKinds: [[Int]]?
+    let revealedDoraCount: Int?
+    let deadWallDraws: Int?
 }
 
 // MARK: - Model
 
 /// 四人打ち麻雀・東風戦（CPU 3 人との対局）。プレイヤーは常に番号 0。
 ///
-/// 決裁 A（#106・2026-08-24）の段階実装:
-/// **東風戦 / 鳴きなし（門前のみ）/ 主要な一飜・二飜役 + 七対子 / 簡易点数計算**。
-/// 鳴き（ポン・チー・カン）と半荘は次版以降。
+/// 決裁 A（#106・2026-08-24）の段階実装に、#263 で**鳴き（ポン・チー・カン）**を足した:
+/// **東風戦 / 鳴きあり / 主要な一飜・二飜役 + 七対子 / 簡易点数計算**。半荘は次版以降。
+///
+/// 鳴きの範囲外としたもの（#263 の PR に明記）: 立直後のカン（暗槓を含む）・食い替えの禁止・
+/// 四開槓・流し満貫。
 ///
 /// ルール判定（シャンテン・和了・役・点数・CPU の打牌）はすべて純粋関数側
 /// （`MahjongShanten` / `MahjongScoring` / `MahjongAI`）に寄せ、この型は**進行・永続化・演出**だけを持つ。
@@ -82,7 +93,10 @@ public final class MahjongModel {
     /// 王牌（14 枚）。ここからは自摸らない。
     public static let deadWallCount = 14
 
+    /// 門前の手牌。副露した面子は含まない（`melds` 側に入る）。
     public private(set) var hands: [MahjongHand] = Array(repeating: MahjongHand(), count: playerCount)
+    /// 各家が晒している副露。
+    public private(set) var melds: [[MahjongCall]] = Array(repeating: [], count: playerCount)
     /// いま自摸ってきた牌（手出しと区別して見せるため手牌とは別に持つ）。
     public private(set) var drawnTile: MahjongTile?
     public private(set) var discards: [[MahjongTile]] = Array(repeating: [], count: playerCount)
@@ -105,6 +119,8 @@ public final class MahjongModel {
     public private(set) var isDeclaringRiichi = false
     /// ロンできる牌が出たときの提示内容（`phase == .ronOffer` のとき有効）。
     public private(set) var ronOffer: RonOffer?
+    /// 鳴ける牌が出たときの提示内容（`phase == .callOffer` のとき有効）。
+    public private(set) var callOffer: CallOffer?
     /// CPU 起動用の通し番号 × 手数。
     public private(set) var turnCount = 0
     public private(set) var gameSerial = 0
@@ -113,11 +129,41 @@ public final class MahjongModel {
     public struct RonOffer: Equatable, Sendable {
         public let tile: MahjongTile
         public let discarder: Int
+        /// 槍槓（他家の加槓を横取りするロン）か。
+        public var isChankan = false
+    }
+
+    /// 鳴きの提示。
+    public struct CallOffer: Equatable, Sendable {
+        public let tile: MahjongTile
+        public let discarder: Int
+        /// 選べる鳴き（優先度の高い順）。
+        public let options: [MahjongCall]
+    }
+
+    /// 打牌に対して鳴きを主張できる家。優先度の高い順に並べて 1 人ずつ聞く。
+    private struct PendingClaim {
+        let player: Int
+        let options: [MahjongCall]
     }
 
     private var wall: [MahjongTile] = []
     private var wallIndex = 0
+    /// 王牌 14 枚。前から `[表ドラ, 裏ドラ] × 5` で、末尾 4 枚が嶺上牌。
     private var deadWall: [MahjongTile] = []
+    /// 嶺上牌を何枚引いたか（= カンの回数）。引いたぶん自摸れる枚数が減る。
+    private var deadWallDraws = 0
+    /// めくれている表ドラ表示牌の数。カンのたびに 1 増える。
+    private var revealedDoraCount = 1
+    /// フリテンの判定に使う「これまでに捨てた牌の種類」。鳴かれて河から消えた牌もここには残る。
+    private var discardedKinds: [Set<Int>] = Array(repeating: [], count: playerCount)
+    /// いま処理中の打牌（鳴きの主張を順に聞いている間だけ有効）。
+    private var pendingDiscard: (tile: MahjongTile, by: Int)?
+    private var pendingClaims: [PendingClaim] = []
+    /// 槍槓のロンを提示している間、保留している加槓。見逃されたら続きを実行する。
+    private var pendingKan: (call: MahjongCall, player: Int)?
+    /// いまのツモ牌が嶺上牌か（嶺上開花の判定に使う）。
+    private var isRinshanDraw = false
     /// 立直後に自分の待ち牌が河に流れたときの永続フリテン。
     private var riichiFuriten: [Bool] = Array(repeating: false, count: playerCount)
     /// 見逃しによる同巡内フリテン（次の自摸で解ける）。
@@ -160,6 +206,11 @@ public final class MahjongModel {
             riichiSticks = snap.riichiSticks
             currentPlayer = snap.currentPlayer
             turnCount = snap.turnCount
+            melds = snap.melds ?? Array(repeating: [], count: Self.playerCount)
+            discardedKinds = snap.discardedKinds.map { $0.map(Set.init) }
+                ?? snap.discards.map { Set($0.map(MahjongTileOrder.index(of:))) }
+            revealedDoraCount = snap.revealedDoraCount ?? 1
+            deadWallDraws = snap.deadWallDraws ?? 0
             phase = .playing
         }
     }
@@ -168,9 +219,20 @@ public final class MahjongModel {
 
     public var playerHand: MahjongHand { hands[Self.humanIndex] }
 
+    /// 自分の副露。
+    public var playerMelds: [MahjongCall] { melds[Self.humanIndex] }
+
+    /// その人が打牌を待っている状態か。ツモ牌があるか、鳴いた直後で手牌が 1 枚多いとき。
+    ///
+    /// ポン・チーの直後は自摸らずにそのまま切るので `drawnTile` は nil。門前の枚数は
+    /// 副露 1 つにつき 3 枚減るため、**3 で割った余りが 2** なら「1 枚多い = 切る番」と分かる。
+    func awaitsDiscard(_ player: Int) -> Bool {
+        (drawnTile != nil && currentPlayer == player) || hands[player].total % 3 == 2
+    }
+
     /// 自分の手番で、打牌を選べる状態か。
     public var isPlayerTurn: Bool {
-        phase == .playing && currentPlayer == Self.humanIndex && drawnTile != nil
+        phase == .playing && currentPlayer == Self.humanIndex && awaitsDiscard(Self.humanIndex)
     }
 
     /// 自分のツモ牌。`drawnTile` は「いま手番のプレイヤーが引いた牌」を表す**全員共有**の
@@ -182,28 +244,55 @@ public final class MahjongModel {
         currentPlayer == Self.humanIndex ? drawnTile : nil
     }
 
-    /// 山に残っている自摸れる枚数。
-    public var remainingTiles: Int { max(0, wall.count - wallIndex) }
+    /// 山に残っている自摸れる枚数。カンで引いた嶺上牌のぶんだけ山の末尾が王牌へ回る。
+    public var remainingTiles: Int { max(0, wall.count - wallIndex - deadWallDraws) }
 
-    /// ドラ表示牌（段階実装では 1 枚）。
+    /// ドラ表示牌。カンのたびに 1 枚増える（王牌の偶数番目）。
     public var doraIndicators: [MahjongTile] {
-        deadWall.isEmpty ? [] : [deadWall[0]]
+        (0..<revealedDoraCount).compactMap { index in
+            index * 2 < deadWall.count ? deadWall[index * 2] : nil
+        }
     }
 
-    /// 裏ドラ表示牌。和了の精算でだけ使い、対局中は見せない。
+    /// 裏ドラ表示牌。和了の精算でだけ使い、対局中は見せない（王牌の奇数番目）。
     private var uraIndicators: [MahjongTile] {
-        deadWall.count > 1 ? [deadWall[1]] : []
+        (0..<revealedDoraCount).compactMap { index in
+            index * 2 + 1 < deadWall.count ? deadWall[index * 2 + 1] : nil
+        }
     }
 
     /// 自分がツモ和了できるか。
     public var canDeclareTsumo: Bool {
         guard isPlayerTurn, let drawn = drawnTile else { return false }
-        return winScore(for: Self.humanIndex, winningTile: drawn, isTsumo: true) != nil
+        return winScore(
+            for: Self.humanIndex, winningTile: drawn, isTsumo: true, isRinshan: isRinshanDraw
+        ) != nil
     }
 
-    /// 立直を宣言できるか。門前のみなので鳴きの判定は要らない。
+    /// 自分がいまカンできる候補（暗槓・加槓）。
+    ///
+    /// **立直後はカンできない**ことにしている。立直後の暗槓は「待ちが変わらない」ことが条件で、
+    /// 送り槓かどうかの判定を入れないと成立しない待ちの手が出来てしまうため（#263 でスコープ外と宣言）。
+    public var availableSelfKans: [MahjongCall] {
+        guard isPlayerTurn, !riichi[Self.humanIndex], !isDeclaringRiichi else { return [] }
+        // **自摸ってきた手番でしかカンできない**。ポン・チーの直後は `isPlayerTurn` が true でも
+        // ツモ牌が無い（そのまま 1 枚切る番）ので、ここで弾かないと「ポンしてさらに暗槓し、
+        // 嶺上牌のツモと新ドラまで得る」という麻雀では起きない手が打ててしまう。
+        guard drawnTile != nil else { return [] }
+        guard remainingTiles > 0, deadWallDraws < 4 else { return [] }
+        return MahjongCallFinder.selfKanOptions(
+            hand: hands[Self.humanIndex], drawnTile: drawnTile, melds: melds[Self.humanIndex]
+        )
+    }
+
+    public var canDeclareKan: Bool { !availableSelfKans.isEmpty }
+
+    /// 立直を宣言できるか。鳴いていると宣言できない（**暗槓だけは門前のまま**）。
     public var canDeclareRiichi: Bool {
-        guard isPlayerTurn, !riichi[Self.humanIndex], !isDeclaringRiichi else { return false }
+        guard isPlayerTurn, drawnTile != nil, !riichi[Self.humanIndex], !isDeclaringRiichi else {
+            return false
+        }
+        guard melds[Self.humanIndex].allSatisfy({ !$0.breaksConcealment }) else { return false }
         guard scores[Self.humanIndex] >= 1000, remainingTiles >= Self.playerCount else { return false }
         return !riichiDiscardCandidates.isEmpty
     }
@@ -211,22 +300,26 @@ public final class MahjongModel {
     /// 立直の宣言牌にできる牌（切ったあとも聴牌が保てる牌）。
     public var riichiDiscardCandidates: Set<MahjongTile> {
         guard let drawn = drawnTile else { return [] }
+        let meldCount = melds[Self.humanIndex].count
         let full = hands[Self.humanIndex].adding(drawn)
         var result: Set<MahjongTile> = []
         for index in 0..<MahjongTileOrder.kindCount where full.counts[index] > 0 {
             let tile = MahjongTileOrder.tile(at: index)
-            if MahjongShanten.isTenpai(full.removing(tile)) { result.insert(tile) }
+            if MahjongShanten.isTenpai(full.removing(tile), meldCount: meldCount) {
+                result.insert(tile)
+            }
         }
         return result
     }
 
     /// いま切れる牌。立直中は自摸切りのみ、立直宣言中は聴牌を保てる牌のみ。
+    /// 鳴いた直後はツモ牌が無いので、手牌からだけ選ぶ。
     public var discardableTiles: Set<MahjongTile> {
-        guard isPlayerTurn, let drawn = drawnTile else { return [] }
+        guard isPlayerTurn else { return [] }
         if isDeclaringRiichi { return riichiDiscardCandidates }
-        if riichi[Self.humanIndex] { return [drawn] }
+        if riichi[Self.humanIndex], let drawn = drawnTile { return [drawn] }
         var result = Set(hands[Self.humanIndex].tiles)
-        result.insert(drawn)
+        if let drawn = drawnTile { result.insert(drawn) }
         return result
     }
 
@@ -239,7 +332,7 @@ public final class MahjongModel {
         guard hints.isEnabled else { return [] }
         let hand = hands[Self.humanIndex]
         guard hand.total % 3 == 1 else { return [] }
-        return MahjongShanten.waits(hand)
+        return MahjongShanten.waits(hand, meldCount: melds[Self.humanIndex].count)
     }
 
     /// 自分がフリテンか（ヒント表示用）。
@@ -315,12 +408,21 @@ public final class MahjongModel {
         wallIndex = Self.playerCount * 13
 
         discards = Array(repeating: [], count: Self.playerCount)
+        discardedKinds = Array(repeating: [], count: Self.playerCount)
+        melds = Array(repeating: [], count: Self.playerCount)
         riichi = Array(repeating: false, count: Self.playerCount)
         riichiFuriten = Array(repeating: false, count: Self.playerCount)
         temporaryFuriten = Array(repeating: false, count: Self.playerCount)
         riichiTurn = Array(repeating: nil, count: Self.playerCount)
         isDeclaringRiichi = false
         ronOffer = nil
+        callOffer = nil
+        pendingDiscard = nil
+        pendingClaims = []
+        pendingKan = nil
+        isRinshanDraw = false
+        deadWallDraws = 0
+        revealedDoraCount = 1
         handResult = nil
         turnCount = 0
         currentPlayer = dealer
@@ -343,15 +445,36 @@ public final class MahjongModel {
     // MARK: - 自摸と打牌
 
     private func draw(for player: Int) {
-        guard wallIndex < wall.count else {
+        // カンのたびに山の末尾 1 枚が王牌へ回るので、自摸れる範囲も同じだけ短くなる。
+        guard wallIndex < wall.count - deadWallDraws else {
             concludeExhaustiveDraw()
             return
         }
         temporaryFuriten[player] = false
+        isRinshanDraw = false
         drawnTile = wall[wallIndex]
         wallIndex += 1
         currentPlayer = player
         turnCount += 1
+    }
+
+    /// カンの直後に嶺上牌を引く。王牌の末尾から順に使う。
+    private func drawFromDeadWall(for player: Int) {
+        guard deadWallDraws < 4, deadWall.count >= Self.deadWallCount else {
+            concludeExhaustiveDraw()
+            return
+        }
+        temporaryFuriten[player] = false
+        drawnTile = deadWall[deadWall.count - 1 - deadWallDraws]
+        deadWallDraws += 1
+        isRinshanDraw = true
+        currentPlayer = player
+        turnCount += 1
+    }
+
+    /// カンで新しいドラをめくる（王牌は表裏 5 組ぶん用意してある）。
+    private func revealKanDora() {
+        revealedDoraCount = min(5, revealedDoraCount + 1)
     }
 
     /// 人間が牌を切る。`tile` は手牌かツモ牌のどちらでもよい。
@@ -386,15 +509,20 @@ public final class MahjongModel {
             services?.feedback.notify(.warning)
             return
         }
-        concludeWin(winner: Self.humanIndex, loser: nil, winningTile: drawn, isTsumo: true)
+        concludeWin(
+            winner: Self.humanIndex, loser: nil, winningTile: drawn,
+            isTsumo: true, isRinshan: isRinshanDraw
+        )
     }
 
     /// 提示されているロンを宣言する。
     public func declareRon() {
         guard phase == .ronOffer, let offer = ronOffer else { return }
         ronOffer = nil
+        pendingKan = nil
         concludeWin(
-            winner: Self.humanIndex, loser: offer.discarder, winningTile: offer.tile, isTsumo: false
+            winner: Self.humanIndex, loser: offer.discarder, winningTile: offer.tile,
+            isTsumo: false, isChankan: offer.isChankan
         )
     }
 
@@ -406,7 +534,16 @@ public final class MahjongModel {
         if riichi[Self.humanIndex] { riichiFuriten[Self.humanIndex] = true }
         phase = .playing
         services?.feedback.impact(.light)
-        continueAfterDiscard(by: offer.discarder)
+        // 槍槓を見逃した場合は、止めていた加槓をそのまま成立させて続ける。
+        if let pending = pendingKan {
+            completeSelfKan(pending.call, by: pending.player)
+            return
+        }
+        // 打牌に対するロンを見逃したときは、続けて鳴きの主張を順に聞く
+        // （ロンを見逃した牌をポンすること自体は妨げられない）。
+        pendingDiscard = (offer.tile, offer.discarder)
+        pendingClaims = claimOrder(for: offer.tile, discardedBy: offer.discarder)
+        resolveNextClaim()
     }
 
     private func commitRiichi(for player: Int) {
@@ -418,7 +555,7 @@ public final class MahjongModel {
         services?.feedback.notify(.success)
     }
 
-    /// 牌を河に置き、他家のロンを確かめる。
+    /// 牌を河に置き、他家のロンと鳴きを確かめる。
     private func performDiscard(_ tile: MahjongTile, by player: Int) {
         if drawnTile == tile {
             drawnTile = nil
@@ -429,11 +566,14 @@ public final class MahjongModel {
                 drawnTile = nil
             }
         }
+        isRinshanDraw = false
         discards[player].append(tile)
+        discardedKinds[player].insert(MahjongTileOrder.index(of: tile))
 
         // 立直者の待ちがこの牌なら、以後その人はロンできない（見逃しと同じ扱い）。
         for other in 0..<Self.playerCount where other != player && riichi[other] {
-            if MahjongShanten.waits(hands[other]).contains(tile) && !canWin(other, tile: tile) {
+            let waits = MahjongShanten.waits(hands[other], meldCount: melds[other].count)
+            if waits.contains(tile) && !canWin(other, tile: tile) {
                 riichiFuriten[other] = true
             }
         }
@@ -448,10 +588,71 @@ public final class MahjongModel {
             concludeWin(winner: claimant, loser: player, winningTile: tile, isTsumo: false)
             return
         }
-        continueAfterDiscard(by: player)
+
+        pendingDiscard = (tile, player)
+        pendingClaims = claimOrder(for: tile, discardedBy: player)
+        resolveNextClaim()
     }
 
-    /// ロンが起きなかったときに手番を次へ送る。
+    /// 打牌を鳴ける家を優先度順に並べる。
+    ///
+    /// ポン・カンは誰でも主張できるが**チーは下家だけ**で、ポン・カンのほうが優先される。
+    /// 同じ優先度が重なることは無い（同じ牌を 2 人がポンできるのは牌が 4 枚しか無い以上
+    /// ありえるが、その場合は放銃者に近い家が取る = 席順で先に来る）。
+    private func claimOrder(for tile: MahjongTile, discardedBy discarder: Int) -> [PendingClaim] {
+        var tripletClaims: [PendingClaim] = []
+        var runClaims: [PendingClaim] = []
+        for step in 1..<Self.playerCount {
+            let player = (discarder + step) % Self.playerCount
+            // 立直している人は手牌を変えられないので鳴けない。
+            guard !riichi[player] else { continue }
+            let options = MahjongCallFinder.claimOptions(
+                hand: hands[player], tile: tile, from: discarder, allowsChi: step == 1
+            )
+            guard !options.isEmpty else { continue }
+            let triplets = options.filter { $0.kind != .chi }
+            let runs = options.filter { $0.kind == .chi }
+            if !triplets.isEmpty {
+                tripletClaims.append(PendingClaim(player: player, options: triplets))
+            }
+            if !runs.isEmpty {
+                runClaims.append(PendingClaim(player: player, options: runs))
+            }
+        }
+        return tripletClaims + runClaims
+    }
+
+    /// 優先度の高い家から順に「鳴くか」を聞く。誰も鳴かなければ手番を次へ送る。
+    private func resolveNextClaim() {
+        while !pendingClaims.isEmpty, let pending = pendingDiscard {
+            let claim = pendingClaims.removeFirst()
+            if claim.player == Self.humanIndex {
+                callOffer = CallOffer(
+                    tile: pending.tile, discarder: pending.by, options: claim.options
+                )
+                phase = .callOffer
+                services?.feedback.impact(.rigid)
+                return
+            }
+            let chosen = MahjongAI.chooseCall(
+                options: claim.options,
+                hand: hands[claim.player],
+                melds: melds[claim.player],
+                seatWind: seatWind(claim.player),
+                roundWind: 0
+            )
+            if let chosen {
+                performCall(chosen, by: claim.player)
+                return
+            }
+        }
+        let discarder = pendingDiscard?.by ?? currentPlayer
+        pendingDiscard = nil
+        pendingClaims = []
+        continueAfterDiscard(by: discarder)
+    }
+
+    /// ロンも鳴きも起きなかったときに手番を次へ送る。
     private func continueAfterDiscard(by player: Int) {
         persist()
         guard phase == .playing else { return }
@@ -459,47 +660,167 @@ public final class MahjongModel {
         persist()
     }
 
+    // MARK: - 鳴き
+
+    /// 提示されている鳴きのうち 1 つを成立させる。
+    public func acceptCall(_ call: MahjongCall) {
+        guard phase == .callOffer, let offer = callOffer, offer.options.contains(call) else {
+            services?.feedback.notify(.warning)
+            return
+        }
+        performCall(call, by: Self.humanIndex)
+    }
+
+    /// 提示されている鳴きを見送る。下家のチーなど、優先度の低い主張があればそちらへ回る。
+    public func declineCall() {
+        guard phase == .callOffer else { return }
+        callOffer = nil
+        phase = .playing
+        services?.feedback.impact(.light)
+        resolveNextClaim()
+    }
+
+    /// 鳴きを成立させ、手番をその人へ移す。
+    private func performCall(_ call: MahjongCall, by player: Int) {
+        guard let pending = pendingDiscard else { return }
+        pendingDiscard = nil
+        pendingClaims = []
+        callOffer = nil
+        phase = .playing
+
+        // 鳴かれた牌は河から取り上げる。フリテンの判定に使う `discardedKinds` には残す
+        // （実際に捨てた事実は消えないため）。
+        if !discards[pending.by].isEmpty { discards[pending.by].removeLast() }
+        for tile in call.tilesFromHand { hands[player].remove(tile) }
+        melds[player].append(call)
+
+        cancelIppatsu()
+        currentPlayer = player
+        drawnTile = nil
+        isRinshanDraw = false
+        turnCount += 1
+        services?.feedback.impact(.medium)
+
+        if call.kind == .openKan {
+            revealKanDora()
+            drawFromDeadWall(for: player)
+        }
+        persist()
+    }
+
+    /// 自分の手番でカン（暗槓・加槓）を宣言する。
+    public func declareKan(_ call: MahjongCall) {
+        guard availableSelfKans.contains(call) else {
+            services?.feedback.notify(.warning)
+            return
+        }
+        performSelfKan(call, by: Self.humanIndex)
+    }
+
+    private func performSelfKan(_ call: MahjongCall, by player: Int) {
+        // 加槓は槍槓（他家が横取りするロン）の対象になる。暗槓は対象外。
+        if call.kind == .addedKan, let claimant = ronClaimant(
+            for: call.tile, discardedBy: player, isChankan: true
+        ) {
+            if claimant == Self.humanIndex {
+                pendingKan = (call, player)
+                ronOffer = RonOffer(tile: call.tile, discarder: player, isChankan: true)
+                phase = .ronOffer
+                services?.feedback.notify(.success)
+                return
+            }
+            concludeWin(
+                winner: claimant, loser: player, winningTile: call.tile,
+                isTsumo: false, isChankan: true
+            )
+            return
+        }
+        completeSelfKan(call, by: player)
+    }
+
+    private func completeSelfKan(_ call: MahjongCall, by player: Int) {
+        pendingKan = nil
+        // ツモ牌もいったん手牌に入れてから、槓に使う牌を抜く。
+        if let drawn = drawnTile {
+            hands[player].add(drawn)
+            drawnTile = nil
+        }
+        for tile in call.tilesFromHand { hands[player].remove(tile) }
+        if call.kind == .addedKan,
+           let index = melds[player].firstIndex(where: { $0.kind == .pon && $0.tile == call.tile }) {
+            melds[player][index] = call
+        } else {
+            melds[player].append(call)
+        }
+        cancelIppatsu()
+        services?.feedback.impact(.medium)
+        revealKanDora()
+        drawFromDeadWall(for: player)
+        persist()
+    }
+
+    /// 鳴きが入ると一発は消える。立直そのものは続く。
+    private func cancelIppatsu() {
+        riichiTurn = Array(repeating: nil, count: Self.playerCount)
+    }
+
     // MARK: - 和了の判定
 
     /// この牌でロンできる人。放銃者の下家から順に見て最初の 1 人（頭跳ね）。
-    private func ronClaimant(for tile: MahjongTile, discardedBy discarder: Int) -> Int? {
+    private func ronClaimant(
+        for tile: MahjongTile, discardedBy discarder: Int, isChankan: Bool = false
+    ) -> Int? {
         for step in 1..<Self.playerCount {
             let player = (discarder + step) % Self.playerCount
-            if canWin(player, tile: tile) { return player }
+            if canWin(player, tile: tile, isChankan: isChankan) { return player }
         }
         return nil
     }
 
     /// その牌でロンできるか（和了形 + 役 + フリテンでない）。
-    private func canWin(_ player: Int, tile: MahjongTile) -> Bool {
+    private func canWin(_ player: Int, tile: MahjongTile, isChankan: Bool = false) -> Bool {
         guard !isFuriten(player) else { return false }
-        return winScore(for: player, winningTile: tile, isTsumo: false) != nil
+        return winScore(
+            for: player, winningTile: tile, isTsumo: false, isChankan: isChankan
+        ) != nil
     }
 
-    /// フリテンか。自分の河に待ち牌が 1 つでもあれば該当する。
+    /// フリテンか。自分が捨てた牌に待ち牌が 1 つでもあれば該当する。
+    ///
+    /// 判定には河ではなく `discardedKinds`（捨てた牌の種類の記録）を使う。鳴かれた牌は河から
+    /// 消えるが、**捨てた事実は消えない**のでフリテンは続くため。
     func isFuriten(_ player: Int) -> Bool {
         if riichiFuriten[player] || temporaryFuriten[player] { return true }
-        let waits = Set(MahjongShanten.waits(hands[player]))
+        let waits = MahjongShanten.waits(hands[player], meldCount: melds[player].count)
         guard !waits.isEmpty else { return false }
-        return discards[player].contains { waits.contains($0) }
+        return waits.contains { discardedKinds[player].contains(MahjongTileOrder.index(of: $0)) }
     }
 
     /// 和了点。役が無ければ nil（= 和了できない）。
-    private func winScore(for player: Int, winningTile: MahjongTile, isTsumo: Bool) -> MahjongScore? {
+    private func winScore(
+        for player: Int,
+        winningTile: MahjongTile,
+        isTsumo: Bool,
+        isRinshan: Bool = false,
+        isChankan: Bool = false
+    ) -> MahjongScore? {
+        let calls = melds[player]
         let hand = hands[player].adding(winningTile)
-        guard hand.total == 14 else { return nil }
+        guard hand.total == 14 - calls.count * 3 else { return nil }
         let context = MahjongWinContext(
             winningTile: winningTile,
             isTsumo: isTsumo,
             isRiichi: riichi[player],
             isIppatsu: isIppatsu(player),
             isLastTile: remainingTiles == 0,
+            isRinshan: isRinshan,
+            isChankan: isChankan,
             seatWind: seatWind(player),
             roundWind: 0,
             doraIndicators: doraIndicators,
             uraIndicators: uraIndicators
         )
-        return MahjongScoring.score(hand: hand, context: context)
+        return MahjongScoring.score(hand: hand, calls: calls, context: context)
     }
 
     /// 一発か。立直の宣言から 1 巡以内の和了。
@@ -515,8 +836,22 @@ public final class MahjongModel {
 
     // MARK: - 局の決着
 
-    private func concludeWin(winner: Int, loser: Int?, winningTile: MahjongTile, isTsumo: Bool) {
-        guard let score = winScore(for: winner, winningTile: winningTile, isTsumo: isTsumo) else { return }
+    private func concludeWin(
+        winner: Int,
+        loser: Int?,
+        winningTile: MahjongTile,
+        isTsumo: Bool,
+        isRinshan: Bool = false,
+        isChankan: Bool = false
+    ) {
+        guard let score = winScore(
+            for: winner, winningTile: winningTile, isTsumo: isTsumo,
+            isRinshan: isRinshan, isChankan: isChankan
+        ) else { return }
+        pendingDiscard = nil
+        pendingClaims = []
+        pendingKan = nil
+        callOffer = nil
 
         var gained = score.total
         // 本場は 1 本につき 300 点（ツモなら 100 点ずつ）。
@@ -554,7 +889,13 @@ public final class MahjongModel {
 
     private func concludeExhaustiveDraw() {
         drawnTile = nil
-        let tenpai = (0..<Self.playerCount).filter { MahjongShanten.isTenpai(hands[$0]) }
+        pendingDiscard = nil
+        pendingClaims = []
+        pendingKan = nil
+        callOffer = nil
+        let tenpai = (0..<Self.playerCount).filter {
+            MahjongShanten.isTenpai(hands[$0], meldCount: melds[$0].count)
+        }
         applyExhaustiveDrawPayments(tenpaiPlayers: tenpai)
         handResult = MahjongHandResult(
             kind: .exhaustiveDraw,
@@ -649,10 +990,10 @@ public final class MahjongModel {
         isRunningCPUTurns = true
         defer { isRunningCPUTurns = false }
 
-        while phase == .playing, drawnTile != nil, isAutomaticTurn {
+        while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
             if cpuDelay > .zero {
                 try? await Task.sleep(for: cpuDelay)
-                guard phase == .playing, drawnTile != nil, isAutomaticTurn else { return }
+                guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
             }
             advanceAutomaticTurn()
         }
@@ -666,8 +1007,8 @@ public final class MahjongModel {
     }
 
     private func advanceAutomaticTurn() {
-        guard let drawn = drawnTile else { return }
         if currentPlayer == Self.humanIndex {
+            guard let drawn = drawnTile else { return }
             performDiscard(drawn, by: Self.humanIndex)   // 立直中の自摸切り
             return
         }
@@ -675,27 +1016,51 @@ public final class MahjongModel {
     }
 
     private func performCPUTurn(_ player: Int) {
-        guard let drawn = drawnTile else { return }
-        // ツモ和了できるなら必ず和了する。
-        if winScore(for: player, winningTile: drawn, isTsumo: true) != nil {
-            concludeWin(winner: player, loser: nil, winningTile: drawn, isTsumo: true)
-            return
+        let meldCount = melds[player].count
+        if let drawn = drawnTile {
+            // ツモ和了できるなら必ず和了する。
+            if winScore(
+                for: player, winningTile: drawn, isTsumo: true, isRinshan: isRinshanDraw
+            ) != nil {
+                concludeWin(
+                    winner: player, loser: nil, winningTile: drawn,
+                    isTsumo: true, isRinshan: isRinshanDraw
+                )
+                return
+            }
+            if riichi[player] {
+                performDiscard(drawn, by: player)
+                return
+            }
+            // 形が悪くならないカン（暗槓・加槓）はしてよい。
+            if deadWallDraws < 4, remainingTiles > 0 {
+                let options = MahjongCallFinder.selfKanOptions(
+                    hand: hands[player], drawnTile: drawn, melds: melds[player]
+                )
+                if let kan = MahjongAI.chooseSelfKan(
+                    options: options, hand: hands[player], drawnTile: drawn, melds: melds[player]
+                ) {
+                    performSelfKan(kan, by: player)
+                    return
+                }
+            }
         }
-        let full = hands[player].adding(drawn)
-        if riichi[player] {
-            performDiscard(drawn, by: player)
-            return
-        }
-        let choice = MahjongAI.chooseDiscard(from: full, visible: visibleCounts(for: player))
-        // 立直の条件（聴牌・点棒・残り牌）が揃っていれば宣言してから切る。
-        if MahjongAI.shouldDeclareRiichi(hand: full.removing(choice.tile)),
+        // 鳴いた直後はツモ牌が無く、手牌がそのまま 1 枚多い状態になっている。
+        var full = hands[player]
+        if let drawn = drawnTile { full.add(drawn) }
+        let choice = MahjongAI.chooseDiscard(
+            from: full, meldCount: meldCount, visible: visibleCounts(for: player)
+        )
+        // 立直の条件（門前・聴牌・点棒・残り牌）が揃っていれば宣言してから切る。
+        if drawnTile != nil, melds[player].allSatisfy({ !$0.breaksConcealment }),
+           MahjongAI.shouldDeclareRiichi(hand: full.removing(choice.tile)),
            scores[player] >= 1000, remainingTiles >= Self.playerCount {
             commitRiichi(for: player)
         }
         performDiscard(choice.tile, by: player)
     }
 
-    /// その人から見えている牌の枚数（自分の手牌 + 全員の河 + ドラ表示牌）。
+    /// その人から見えている牌の枚数（自分の手牌 + 全員の河と副露 + ドラ表示牌）。
     private func visibleCounts(for player: Int) -> [Int] {
         var counts = hands[player].counts
         if let drawn = drawnTile, player == currentPlayer {
@@ -703,6 +1068,9 @@ public final class MahjongModel {
         }
         for pile in discards {
             for tile in pile { counts[MahjongTileOrder.index(of: tile)] += 1 }
+        }
+        for calls in melds {
+            for tile in calls.flatMap(\.tiles) { counts[MahjongTileOrder.index(of: tile)] += 1 }
         }
         for indicator in doraIndicators { counts[MahjongTileOrder.index(of: indicator)] += 1 }
         return counts
@@ -730,7 +1098,11 @@ public final class MahjongModel {
             honba: honba,
             riichiSticks: riichiSticks,
             currentPlayer: currentPlayer,
-            turnCount: turnCount
+            turnCount: turnCount,
+            melds: melds,
+            discardedKinds: discardedKinds.map { Array($0).sorted() },
+            revealedDoraCount: revealedDoraCount,
+            deadWallDraws: deadWallDraws
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -749,13 +1121,16 @@ public final class MahjongModel {
         riichi: [Bool]? = nil,
         scores: [Int]? = nil,
         roundNumber: Int = 1,
-        honba: Int = 0
+        honba: Int = 0,
+        melds: [[MahjongCall]]? = nil
     ) {
         self.hands = hands
         self.wall = wall
         self.wallIndex = 0
         self.deadWall = deadWall
         self.discards = discards ?? Array(repeating: [], count: Self.playerCount)
+        self.discardedKinds = self.discards.map { Set($0.map(MahjongTileOrder.index(of:))) }
+        self.melds = melds ?? Array(repeating: [], count: Self.playerCount)
         self.currentPlayer = currentPlayer
         self.dealer = dealer
         self.drawnTile = drawnTile
@@ -770,8 +1145,20 @@ public final class MahjongModel {
         self.handResult = nil
         self.isDeclaringRiichi = false
         self.ronOffer = nil
+        self.callOffer = nil
+        self.pendingDiscard = nil
+        self.pendingClaims = []
+        self.pendingKan = nil
+        self.isRinshanDraw = false
+        self.deadWallDraws = 0
+        self.revealedDoraCount = 1
         self.turnCount = 1
         self.phase = .playing
+    }
+
+    /// テスト専用: 自分の手番でのカン（暗槓・加槓）を経由させる。
+    func declareKanForTesting(_ call: MahjongCall, by player: Int) {
+        performSelfKan(call, by: player)
     }
 
     /// テスト専用: 人間以外の手番を 1 つだけ進める。

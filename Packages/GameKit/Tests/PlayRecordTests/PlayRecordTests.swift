@@ -823,6 +823,9 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             }
         case .ronOffer:
             model.declareRon()
+        case .callOffer:
+            // この通しテストは「常に自摸切り」の方針なので鳴かない。
+            model.declineCall()
         case .handResult:
             model.advanceToNextHand()
         case .idle, .gameResult:
