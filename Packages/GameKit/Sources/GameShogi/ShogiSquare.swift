@@ -36,6 +36,13 @@ public enum Sq {
                 : index(file: 8 - col, rank: row)
     }
 
+    /// 内部マス → 画面の (row,col)。`boardIndex(row:col:flipped:)` の逆変換。
+    /// 盤を覆う 1 枚の層に駒を絶対座標で置くために使う（#200）。
+    public static func displayPosition(of square: Int, flipped: Bool) -> (row: Int, col: Int) {
+        flipped ? (row: 8 - rank(square), col: file(square))
+                : (row: rank(square), col: 8 - file(square))
+    }
+
     /// マス → USI 文字列（例 "7g"）。
     public static func toUSI(_ i: Int) -> String {
         let fileDigit = file(i) + 1
