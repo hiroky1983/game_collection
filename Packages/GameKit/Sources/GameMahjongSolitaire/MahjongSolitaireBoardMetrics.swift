@@ -18,6 +18,14 @@ enum MahjongSolitaireBoardMetrics {
     /// 実測 29×23pt だったものをここに集約し、値が縮んだらテストで気づけるようにする。
     static let toggleButtonMinSide: CGFloat = minimumTapTarget
 
+    /// 盤の下の操作ボタン（ヒント・並べ替え）の高さの下限（#199）。
+    ///
+    /// `Capsule` + 上下 6pt の余白しか無く、実測の高さは約 29pt で Apple HIG を下回っていた。
+    /// 表示切り替えボタン（#197）と同じく牌と同じ基準に揃える。
+    /// 操作カードが高くなるぶんは `controlArea` のひな形（リザルト + レコメンドカード ≒ 109pt）が
+    /// 吸収するため、盤面に配る高さは変わらない。
+    static let controlButtonMinHeight: CGFloat = minimumTapTarget
+
     /// ステータスバーの上下の余白（#197）。
     ///
     /// 44pt のボタンをそのまま置くと帯が高くなり、#148 で捻出した盤面の高さを食う。
