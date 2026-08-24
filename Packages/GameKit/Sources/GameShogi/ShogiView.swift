@@ -508,13 +508,14 @@ enum ShogiMotion {
     static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
 }
 
-/// 盤の配色（ポップ・明るい木目調）。
+/// 盤の配色（明るい木目調）。
 enum BoardStyle {
     static let frame = Color(hex: 0xE7B96A)
     static let cell = Color(hex: 0xFBE6B6)
     static let line = Color(hex: 0xCDA15B)
-    static let komaSente = Color(hex: 0xFFF1CF)
-    static let komaGote = Color(hex: 0xCFEFF0)
+    /// 駒は実物と同じくツゲ材（黄楊）のような単色。先手・後手は色ではなく向き（180度回転）で見分ける。
+    static let komaWoodLight = Color(hex: 0xF3DFAE)
+    static let komaWoodDark = Color(hex: 0xD9B673)
 }
 
 /// 1 マス。マスの色だけを描く。
@@ -541,7 +542,8 @@ struct ShogiCell: View {
     }
 }
 
-/// ポップな駒（将棋の駒形＝五角形）。pointsUp=false（相手の駒）は 180 度回転。
+/// 将棋の駒（木製の実物に寄せた見た目・五角形）。先手・後手は色ではなく
+/// 向き（pointsUp=false＝相手の駒は180度回転）だけで見分ける（実物と同じ規則）。
 struct KomaView: View {
     let piece: Piece
     let size: CGFloat
@@ -549,13 +551,35 @@ struct KomaView: View {
 
     var body: some View {
         ZStack {
+            // 木地: 上が明るく下がやや濃い縦グラデーションで、削り出した木の丸みを表現。
             KomaShape()
-                .fill((piece.color == .black ? BoardStyle.komaSente : BoardStyle.komaGote).gradient)
-                .overlay(KomaShape().stroke(Theme.Fixed.ink.opacity(0.55), lineWidth: 1))
-                .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1)
+                .fill(
+                    LinearGradient(
+                        colors: [BoardStyle.komaWoodLight, BoardStyle.komaWoodDark],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(KomaShape().stroke(Color(hex: 0x8A6A32).opacity(0.6), lineWidth: 1))
+                // ベゼル: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
+                .overlay(
+                    KomaShape()
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.55), .clear, Color.black.opacity(0.25)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: max(1, size * 0.035)
+                        )
+                )
+                .shadow(color: .black.opacity(0.28), radius: 2, y: 1.5)
             Text(Glyph.kanji(for: piece))
-                .font(.system(size: size * 0.46, weight: .black, design: .rounded))
-                .foregroundStyle(piece.promoted ? Theme.coral : Theme.Fixed.ink)
+                .font(.system(size: size * 0.46, weight: .black, design: .serif))
+                .foregroundStyle(piece.promoted ? Theme.coral : Color(hex: 0x2A1B0E))
+                // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
+                .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
+                .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
         }
         .frame(width: size * 0.86, height: size * 0.86)
         .rotationEffect(.degrees(pointsUp ? 0 : 180))
@@ -620,7 +644,7 @@ private struct HandAreaView: View {
                                         .padding(.horizontal, 5).padding(.vertical, 3)
                                         .background(
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .fill(selected ? Theme.yellow : BoardStyle.komaSente)
+                                                .fill(selected ? Theme.yellow : BoardStyle.komaWoodLight)
                                         )
                                     Text("×\(count)")
                                         .font(.system(size: 10, weight: .black, design: .rounded))

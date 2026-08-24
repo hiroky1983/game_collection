@@ -12,13 +12,14 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
 
 // MARK: - 共通のヘルパー
 
 /// ハブの登録順（AppEnvironment.registry と同じ）。
 private let hubOrder = [
     "2048", "shogi", "gomoku", "minesweeper", "othello", "poker", "concentration", "blackjack", "daifugo",
-    "mahjong",
+    "mahjong", "mahjong4",
 ]
 
 @MainActor
@@ -26,7 +27,7 @@ private func makeRegistry() -> GameRegistry {
     GameRegistry([
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(),
         OthelloModule(), PokerModule(), ConcentrationModule(), BlackjackModule(),
-        DaifugoModule(), MahjongSolitaireModule(),
+        DaifugoModule(), MahjongSolitaireModule(), MahjongModule(),
     ])
 }
 
@@ -95,9 +96,10 @@ struct RecommendationTableTests {
         ("blackjack",     ["poker", "concentration", "2048"]),
         ("daifugo",       ["poker", "blackjack", "concentration"]),
         ("mahjong",       ["concentration", "minesweeper", "2048"]),
+        ("mahjong4",      ["mahjong", "daifugo", "poker"]),
     ]
 
-    @Test("10ゲームそれぞれ、未プレイのみのときは第1候補が出る")
+    @Test("11ゲームそれぞれ、未プレイのみのときは第1候補が出る")
     func firstCandidate() {
         for (finished, expected) in Self.table {
             let got = RecommendationPolicy.candidate(

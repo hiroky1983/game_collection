@@ -28,7 +28,21 @@ public struct OthelloView: View {
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
                 .overlay {
-                    if model.gameOver { resultOverlay }
+                    // 勝敗はフェードで出す（#205）。`.gameAnimation` はこの ZStack に置く。
+                    // 外側の `.gameAnimation(.none, value: model.gameOver)`（下の VStack）は
+                    // 決着時に操作エリアが入れ替わって盤が伸び縮みするのを止めるためのもので、
+                    // ここで内側に置き直すことでオーバーレイの出現だけを演出に戻している。
+                    // 修飾子は 1 つのビューに 1 つだけ置くこと（入れ子にすると打ち消し合う・#199）。
+                    ZStack {
+                        if model.gameOver {
+                            resultOverlay
+                                .transition(.opacity)
+                        }
+                    }
+                    .gameAnimation(
+                        .easeOut(duration: OthelloBoardStyle.resultOverlayFadeDuration),
+                        value: model.gameOver
+                    )
                 }
             Spacer(minLength: 0)
             HowToPlayHint(.othello, playLog: services.playLog)
@@ -146,7 +160,7 @@ public struct OthelloView: View {
 
             ZStack {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Color(hex: 0x1C6B36))
+                    .fill(Color(hex: OthelloBoardStyle.boardGreen))
                     .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
 
                 Canvas { ctx, sz in
@@ -166,9 +180,10 @@ public struct OthelloView: View {
                     for idx in validSet {
                         let row = idx / othelloBoardSize, col = idx % othelloBoardSize
                         let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                        let r  = c * 0.18
+                        let r  = c * OthelloBoardStyle.legalMoveDotRadiusRatio
                         ctx.fill(Path(ellipseIn: CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)),
-                                 with: .color(Color.white.opacity(0.38)))
+                                 with: .color(Color(hex: OthelloBoardStyle.legalMoveDot)
+                                                  .opacity(OthelloBoardStyle.legalMoveDotOpacity)))
                     }
 
                     // 石
@@ -176,7 +191,7 @@ public struct OthelloView: View {
                         for col in 0..<othelloBoardSize {
                             guard let stone = model.board[row, col] else { continue }
                             let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                            let r  = c * 0.43
+                            let r  = c * OthelloBoardStyle.stoneRadiusRatio
                             let rect = CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)
                             if stone == .black {
                                 ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0x1A1A1A)))
@@ -189,8 +204,9 @@ public struct OthelloView: View {
                                 let mr = r * 0.3
                                 let mRect = CGRect(x: cx-mr, y: cy-mr, width: mr*2, height: mr*2)
                                 ctx.fill(Path(ellipseIn: mRect),
-                                         with: .color(stone == .black ? Color.white.opacity(0.5)
-                                                                       : Color(hex: 0x1C6B36).opacity(0.5)))
+                                         with: .color(stone == .black
+                                                      ? Color.white.opacity(0.5)
+                                                      : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5)))
                             }
                         }
                     }
