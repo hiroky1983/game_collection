@@ -134,6 +134,7 @@ private func playGomoku(_ services: GameServices) async {
     model.tap(row: 7, col: 7)          // 成立
     await model.performAIMoveIfNeeded() // 人間の手番に戻す
     model.tap(row: 7, col: 7)          // 拒否（埋まっているマス）
+    model.tap(row: -1, col: 7)         // 拒否（盤外・#202）
     model.resign()                     // 決着
 }
 
@@ -345,13 +346,28 @@ struct FeedbackEnabledTests {
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
 
-    @Test("五目並べ: 着手・埋まったマス・投了で発火する")
+    @Test("五目並べ: 着手・埋まったマス・盤外・CPU の手番・投了で発火する")
     func gomoku() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
         await playGomoku(services)
         #expect(spy.impacts.contains(.medium), "着手で発火する")
-        #expect(spy.notices(of: .warning) > 0, "埋まっているマスは拒否として発火する")
+        // 埋まっているマス（1回）と盤外（1回）で 2 回。無反応で済ませていた盤外を #202 で追加した。
+        #expect(spy.notices(of: .warning) >= 2, "埋まっているマス・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
+    }
+
+    /// CPU の手番中のタップ（#202）。`playGomoku` は人間の手番に戻してから拒否を作るため、
+    /// この経路だけ別に確かめる。
+    @Test("五目並べ: CPU の手番中のタップも拒否として発火する")
+    func gomokuDuringCPUTurn() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = GomokuModel(services: services)
+        model.newGame(humanSide: .black, aiLevel: 1)
+        model.tap(row: 7, col: 7)  // 人間が着手 → CPU の番
+        let before = spy.notices(of: .warning)
+
+        model.tap(row: 3, col: 3)
+        #expect(spy.notices(of: .warning) == before + 1, "CPU の手番中のタップが無反応にならない")
     }
 
     @Test("マインスイーパー: 開く・開き済み・地雷で発火する")

@@ -8,6 +8,22 @@ struct GomokuMoveRecord: Codable {
     let stone: Int
 }
 
+/// 着手が拒否された理由（#202）。
+///
+/// 判定は Model 側に集約する（`FeedbackService` の規約どおり。View のタップハンドラで
+/// 早期 return すると、その分岐だけフィードバックを付け忘れる）。View はこれを見て
+/// 震え演出のトリガーにするだけで、判定そのものは持たない。
+/// 決着後のタップは含まない。結果表示と「もう一度」が出ている状態で盤を触るのは
+/// 誤操作ではないため、拒否として鳴らすと雑音になる。
+public enum GomokuTapRejection: Equatable, Sendable {
+    /// CPU の手番・思考中のタップ。
+    case notYourTurn
+    /// 盤の外（格子の範囲外）へのタップ。
+    case outOfBoard
+    /// 既に石が置かれている交点へのタップ。
+    case occupied
+}
+
 struct GomokuSnapshot: Codable {
     let cells: [Int?]
     let currentStone: Int
@@ -37,6 +53,11 @@ public final class GomokuModel {
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// 拒否されたタップの通し番号（#202）。View はこの値の変化を震え演出のトリガーにする。
+    /// 同じ理由で連続して拒否されても毎回震えるよう、理由ではなく回数を見せる。
+    public private(set) var rejectedTapCount: Int = 0
+    /// 直近の拒否理由（#202）。フィードバックの内訳をテストから確かめるために公開する。
+    public private(set) var lastRejection: GomokuTapRejection?
     private var resigned: Bool
 
     private let services: GameServices?
@@ -132,13 +153,25 @@ public final class GomokuModel {
         if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
+    /// 盤面へのタップ。**盤外の座標を渡してよい**（範囲判定もここで行う）。
+    ///
+    /// 打てない理由はすべて `reject(_:)` を通す。View 側で早期 return させると、
+    /// 「タップしたのに何も起きない = アプリが固まったように見える」状態が残る（#202）。
     public func tap(row: Int, col: Int) {
-        guard !gameOver, !isAITurn else { return }
-        guard board[row, col] == nil else {
-            services?.feedback.notify(.warning) // 埋まっているマスへの着手
-            return
-        }
+        // 決着後は結果表示が出ているので、拒否として鳴らさず黙って無視する。
+        guard !gameOver else { return }
+        guard !isAITurn else { return reject(.notYourTurn) }
+        guard row >= 0, row < gomokuBoardSize,
+              col >= 0, col < gomokuBoardSize else { return reject(.outOfBoard) }
+        guard board[row, col] == nil else { return reject(.occupied) }
         place(row: row, col: col)
+    }
+
+    /// 打てないタップを記録し、触覚・効果音で拒否を伝える（#202）。
+    private func reject(_ reason: GomokuTapRejection) {
+        lastRejection = reason
+        rejectedTapCount += 1
+        services?.feedback.notify(.warning)
     }
 
     private func place(row: Int, col: Int) {

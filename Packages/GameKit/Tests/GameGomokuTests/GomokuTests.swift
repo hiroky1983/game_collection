@@ -169,3 +169,70 @@ struct GomokuNewGameDuringThinkingTests {
         #expect(model.isAITurn)            // 新しい対局は CPU(黒)の手番のまま
     }
 }
+
+// MARK: - 無効なタップへのフィードバック（#202）
+
+@MainActor
+@Suite("五目並べ 無効なタップ")
+struct GomokuInvalidTapTests {
+    /// 盤外の座標を渡しても添字の範囲外アクセスにならず、拒否として数えられること。
+    /// View は `SpatialTapGesture` の座標を丸めてそのまま渡すため、負値・15 以上が来る。
+    @Test func outOfBoardTapIsRejectedWithoutCrashing() {
+        let model = GomokuModel(services: nil)
+        model.newGame(humanSide: .black)
+
+        model.tap(row: -1, col: 7)
+        #expect(model.lastRejection == .outOfBoard)
+        #expect(model.rejectedTapCount == 1)
+
+        model.tap(row: 7, col: gomokuBoardSize)
+        #expect(model.lastRejection == .outOfBoard)
+        #expect(model.rejectedTapCount == 2)
+        #expect(model.moveCount == 0) // 盤は動かない
+    }
+
+    /// CPU の手番中のタップが「無反応」ではなく拒否として扱われること。
+    /// ここを View 側の早期 return に戻すと、思考中のタップだけ再び無反応になる。
+    @Test func tapDuringCPUTurnIsRejected() {
+        let model = GomokuModel(services: nil)
+        model.newGame(humanSide: .black)
+        model.tap(row: 7, col: 7)      // 人間(黒)が着手 → CPU(白)の番
+        #expect(model.isAITurn)
+        #expect(model.rejectedTapCount == 0)
+
+        model.tap(row: 3, col: 3)
+        #expect(model.lastRejection == .notYourTurn)
+        #expect(model.rejectedTapCount == 1)
+        #expect(model.moveCount == 1)  // CPU の番に人間の石は入らない
+    }
+
+    /// 石のあるマスへのタップは従来どおり拒否。理由まで区別できること。
+    ///
+    /// 人間の手番で埋まったマスを叩く必要があるので、後手（白）を選んで CPU に先に打たせ、
+    /// その石の上を叩く。
+    @Test func occupiedTapIsRejected() async {
+        let model = GomokuModel(services: nil)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        let cpuMove = try! #require(model.lastMove)
+        #expect(model.isAITurn == false)
+        #expect(model.rejectedTapCount == 0)
+
+        model.tap(row: cpuMove.row, col: cpuMove.col)
+        #expect(model.lastRejection == .occupied)
+        #expect(model.rejectedTapCount == 1)
+        #expect(model.moveCount == 1) // 上書きされない
+    }
+
+    /// 決着後の盤面へのタップは拒否として鳴らさない（結果表示中の雑音を避ける）。
+    @Test func tapAfterGameOverIsSilent() {
+        let model = GomokuModel(services: nil)
+        model.newGame(humanSide: .black)
+        model.resign()
+        #expect(model.gameOver)
+
+        model.tap(row: 3, col: 3)
+        #expect(model.rejectedTapCount == 0)
+        #expect(model.lastRejection == nil)
+    }
+}
