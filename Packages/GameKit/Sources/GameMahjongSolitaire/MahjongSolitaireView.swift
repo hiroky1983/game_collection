@@ -330,7 +330,16 @@ public struct MahjongSolitaireView: View {
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 12).padding(.vertical, 6)
+            // アイコンだけの段は文字のぶんの幅・高さが無くなるので、44pt を下回らせない。
+            // 文字付きの段（既定の文字サイズで出る方）の 44pt 化はヒント・並べ替えと共通の
+            // 見直しになるため #199 のスコープ。ここで 1 つだけ大きくすると帯が不揃いになる。
+            .frame(
+                minWidth: showsTitle ? nil : Metrics.minimumTapTarget,
+                minHeight: showsTitle ? nil : Metrics.minimumTapTarget
+            )
             .background(Capsule().fill(tint))
+            // 広げた枠の隅まで反応させる（既定は描いた中身のぶんしか受けない）。
+            .contentShape(Rectangle())
         }
         .accessibilityLabel(title)
     }
