@@ -166,6 +166,9 @@ public struct MahjongView: View {
     private static let sideColumnWidth: CGFloat = 128
     private static let sideColumnHeight: CGFloat = 150
     private static let edgeRowHeight: CGFloat = 96
+    /// 会長指摘「卓の下部の横スクロールは操作用の補助、卓の上にも一覧できる牌を置け」への対応。
+    /// 自分の枠（下辺）だけは河に加えて「縮小した手牌一覧」も収める分、対面より高さを取る。
+    private static let selfRowHeight: CGFloat = 150
 
     private var mahjongTable: some View {
         GeometryReader { geo in
@@ -173,7 +176,7 @@ public struct MahjongView: View {
             let tileWidth = Self.discardTileWidth(forTableSide: side)
             let edgeRowWidth = side - Self.tablePadding * 2
             let topY = Self.tablePadding + Self.edgeRowHeight / 2
-            let bottomY = side - Self.tablePadding - Self.edgeRowHeight / 2
+            let bottomY = side - Self.tablePadding - Self.selfRowHeight / 2
             let sideX = Self.tablePadding + Self.sideColumnWidth / 2
             ZStack {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
@@ -205,8 +208,8 @@ public struct MahjongView: View {
                 opponentColumn(1, tileWidth: tileWidth) // 下家（右）
                     .frame(width: Self.sideColumnWidth, height: Self.sideColumnHeight, alignment: .center)
                     .position(x: side - sideX, y: side / 2)
-                playerDiscardOnTable(tileWidth: tileWidth) // 自分
-                    .frame(width: edgeRowWidth, height: Self.edgeRowHeight, alignment: .center)
+                playerDiscardOnTable(tileWidth: tileWidth, overviewWidth: edgeRowWidth - 12) // 自分
+                    .frame(width: edgeRowWidth, height: Self.selfRowHeight, alignment: .center)
                     .position(x: side / 2, y: bottomY)
             }
             .frame(width: side, height: side)
@@ -338,13 +341,19 @@ public struct MahjongView: View {
 
     /// 会長指摘: 「あなたの河」という文字ラベルは不要。CPU と同じ表現（得点・東西南北）に揃える。
     /// `opponentNameChip` をそのまま流用し、アイコンだけ「あなた」向けに差し替える。
-    private func playerDiscardOnTable(tileWidth: CGFloat) -> some View {
+    ///
+    /// 会長指摘（2026-08-25）: 卓の下部（`handOnTable`・横スクロール）はタップしやすい大きさの
+    /// 操作用の補助セクションであって、「卓上に手牌を置け」の答えではなかった。卓の上＝この
+    /// `playerDiscardOnTable`（緑の正方形の卓そのものの中）に、縮小してでも手牌14枚が一目で
+    /// 見渡せる一覧を別途置く。
+    private func playerDiscardOnTable(tileWidth: CGFloat, overviewWidth: CGFloat) -> some View {
         VStack(spacing: 4) {
             opponentNameChip(MahjongModel.humanIndex, icon: "person.fill")
             discardStrip(
                 model.discards[MahjongModel.humanIndex],
                 tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles
             )
+            handOverviewOnTable(width: overviewWidth)
         }
         .frame(maxWidth: .infinity)
         // 河のアニメーションが「ルーレット」化する一因だったため、ここでは明示的に付けない
@@ -355,6 +364,35 @@ public struct MahjongView: View {
                 player: "あなた", tiles: model.discards[MahjongModel.humanIndex]
             )
         )
+    }
+
+    private static let handOverviewSpacing: CGFloat = 2
+    private static let handOverviewMaxTileWidth: CGFloat = 22
+    private static let handOverviewAspect: CGFloat = Self.tableHandTileHeight / Self.tableHandTileWidth
+
+    /// 卓の上（緑の正方形の中）に置く、手牌14枚を縮小して一目で見渡せる一覧。
+    /// タップ操作は卓下部の `handOnTable`（大きい牌・横スクロール）が担うので、こちらは
+    /// 視認性だけが目的の非インタラクティブな一覧にする（読み上げも下部側に一本化）。
+    private func handOverviewOnTable(width: CGFloat) -> some View {
+        let hand = model.playerHand.tiles
+        let drawn = model.playerDrawnTile
+        let tileCount = hand.count + (drawn != nil ? 1 : 0)
+        let totalSpacing = Self.handOverviewSpacing * CGFloat(max(0, tileCount - 1))
+        let rawWidth = tileCount > 0
+            ? (width - totalSpacing) / CGFloat(tileCount) : Self.handOverviewMaxTileWidth
+        let tileWidth = max(10, min(Self.handOverviewMaxTileWidth, rawWidth))
+        let tileHeight = tileWidth * Self.handOverviewAspect
+        return HStack(spacing: Self.handOverviewSpacing) {
+            ForEach(Array(hand.enumerated()), id: \.offset) { _, tile in
+                MahjongTileView(tile: tile, width: tileWidth, height: tileHeight)
+            }
+            if let drawn {
+                MahjongTileView(tile: drawn, width: tileWidth, height: tileHeight, isHinted: true)
+            }
+        }
+        .frame(width: width, alignment: .center)
+        .transaction { $0.animation = nil }
+        .accessibilityHidden(true)
     }
 
     // MARK: - 手牌
