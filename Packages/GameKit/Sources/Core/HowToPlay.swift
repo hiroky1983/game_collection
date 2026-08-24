@@ -148,10 +148,21 @@ public extension HowToPlayGuide {
         hint: "同じ牌を 2 枚タップで消そう"
     )
 
+    static let mahjong = HowToPlayGuide(
+        gameID: "mahjong4",
+        title: "麻雀の遊び方",
+        lines: [
+            "1 枚引いて 1 枚切ります。同じ牌 3 枚か連番 3 枚を 4 組と、同じ牌 2 枚を 1 組そろえたら和了です。",
+            "和了の形でも役が無いと上がれません。聴牌したら立直を宣言すると役が付きます。",
+            "CPU 3 人と東 1 局から東 4 局まで戦い、持ち点の多い順に順位が決まります。",
+        ],
+        hint: "切る牌をタップしよう"
+    )
+
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
-        .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire,
+        .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
     ]
 }
 

@@ -11,6 +11,8 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
+import MahjongTiles
 
 // MARK: - Mocks
 
@@ -80,7 +82,7 @@ private func makeHubGameIDs() -> Set<String> {
     let modules: [GameModule] = [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
-        MahjongSolitaireModule(),
+        MahjongSolitaireModule(), MahjongModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -273,9 +275,9 @@ struct GameAnalyticsTests {
         #expect(spy.ends.map(\.gameID) == ["shogi"])
     }
 
-    @Test("送信対象の gameID はハブの登録内容と一致する（10本）")
+    @Test("送信対象の gameID はハブの登録内容と一致する（11本）")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 10, "ハブに並ぶゲームは10本")
+        #expect(hubGameIDs.count == 11, "ハブに並ぶゲームは11本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -680,6 +682,7 @@ struct AllGamesAnalyticsTests {
         expectOnePair(spy, gameID: "blackjack")
     }
 
+
     @Test("大富豪: 配られた時点で開始・決着で終局")
     func daifugo() async {
         let (services, spy) = makeServices()
@@ -700,6 +703,18 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.phase == .result)
         expectOnePair(spy, gameID: "daifugo")
+    }
+
+    @Test("四人打ち麻雀: 東風戦 1 回が 1 プレイ（局ごとには数えない）")
+    func mahjongFourPlayer() async {
+        let (services, spy) = makeServices()
+        let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
+        #expect(spy.events.isEmpty, "画面を開いただけでは配られない")
+        model.startGame()
+        await playMahjongFourPlayer(model)
+        #expect(model.phase == .gameResult)
+        // 東 4 局まで進んでも、開始と終局は東風戦ごとに 1 組だけ。
+        expectOnePair(spy, gameID: "mahjong4")
     }
 
     @Test("麻雀ソリティア: 盤が配られた時点で開始・取り切りで終局（win）")
@@ -761,5 +776,42 @@ struct AnalyticsPayloadScopeTests {
             if case let .int(number) = value { return number } else { return nil }
         }
         #expect(ints.allSatisfy { $0 != model.score }, "スコアと同じ整数を送っていない")
+    }
+}
+
+/// 四人打ち麻雀: 常に自摸切り・和了できるときは必ず和了する方針で東風戦を最後まで進める。
+/// CPU の間合いは 0 なので実時間は待たない。
+@MainActor
+private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = false) async {
+    var didReject = !rejectOnce
+    var guardCount = 0
+    while model.phase != .gameResult, guardCount < 800 {
+        guardCount += 1
+        switch model.phase {
+        case .playing:
+            if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+                if !didReject {
+                    didReject = true
+                    // 手牌にもツモ牌にも無い牌を指定すると拒否される（警告の発火を確かめる）。
+                    let absent = MahjongTileOrder.all.first {
+                        model.playerHand.count(of: $0) == 0 && $0 != drawn
+                    }
+                    if let absent { model.discard(absent) }
+                }
+                if model.canDeclareTsumo {
+                    model.declareTsumo()
+                } else {
+                    model.discard(drawn)
+                }
+            } else {
+                await model.runCPUTurnsIfNeeded()
+            }
+        case .ronOffer:
+            model.declareRon()
+        case .handResult:
+            model.advanceToNextHand()
+        case .idle, .gameResult:
+            return
+        }
     }
 }

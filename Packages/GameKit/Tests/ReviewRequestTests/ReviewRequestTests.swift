@@ -11,6 +11,8 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
+import MahjongTiles
 
 // MARK: - 共通のヘルパー
 
@@ -501,6 +503,27 @@ struct GameOutcomeRoutingTests {
         }
     }
 
+    @Test("四人打ち麻雀: 1位なら勝ち・4位なら負け・中位は引き分けに振り分ける")
+    func mahjongFourPlayer() async {
+        let (services, service) = makeServices(suite: "route-mahjong4")
+        let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startGame()
+        await playMahjongFourPlayer(model)
+        #expect(model.phase == .gameResult)
+
+        switch model.reviewOutcome {
+        case .win:
+            #expect(model.playerPlace == 0)
+            #expect(service.log.totalWins == 1)
+        case .loss:
+            #expect(model.playerPlace == MahjongModel.playerCount - 1)
+            #expect(service.log.totalWins == 0)
+        case .draw:
+            #expect(model.playerPlace != 0)
+            #expect(service.log.totalWins == 0)
+        }
+    }
+
     @Test("麻雀ソリティア: 取り切れば勝ち・手詰まりで諦めれば負けに振り分ける")
     func mahjong() {
         let (services, service) = makeServices(suite: "route-mahjong")
@@ -627,5 +650,42 @@ struct ReviewRequestStorageTests {
         #expect(afterClear.pendingRequestID == nil)
         afterClear.gameDidFinish(outcome: .win)
         #expect(afterClear.pendingRequestID != nil)
+    }
+}
+
+/// 四人打ち麻雀: 常に自摸切り・和了できるときは必ず和了する方針で東風戦を最後まで進める。
+/// CPU の間合いは 0 なので実時間は待たない。
+@MainActor
+private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = false) async {
+    var didReject = !rejectOnce
+    var guardCount = 0
+    while model.phase != .gameResult, guardCount < 800 {
+        guardCount += 1
+        switch model.phase {
+        case .playing:
+            if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+                if !didReject {
+                    didReject = true
+                    // 手牌にもツモ牌にも無い牌を指定すると拒否される（警告の発火を確かめる）。
+                    let absent = MahjongTileOrder.all.first {
+                        model.playerHand.count(of: $0) == 0 && $0 != drawn
+                    }
+                    if let absent { model.discard(absent) }
+                }
+                if model.canDeclareTsumo {
+                    model.declareTsumo()
+                } else {
+                    model.discard(drawn)
+                }
+            } else {
+                await model.runCPUTurnsIfNeeded()
+            }
+        case .ronOffer:
+            model.declareRon()
+        case .handResult:
+            model.advanceToNextHand()
+        case .idle, .gameResult:
+            return
+        }
     }
 }
