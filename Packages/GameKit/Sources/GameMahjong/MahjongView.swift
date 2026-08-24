@@ -152,33 +152,35 @@ public struct MahjongView: View {
     /// `GeometryReader` + `aspectRatio(1, contentMode: .fit)` は将棋の盤（`ShogiView.board`）と
     /// 同じ手法: 利用可能な高さを超えないぶんの正方形に自動で収まる。
     ///
-    /// 配置は Stack 任せの自動フロー（以前の実装）だと「3人の名前が全員上に並んで見える」
-    /// 結果になり実機で確認して分かった（会長のスクリーンショット指摘）。Stack の自動配置に
-    /// 委ねず、`ZStack` + `position()` で卓の四辺（上/左/右/下）に明示的な座標を与える。
-    /// `position()` は指定した点を**その View の中心**に置くだけで、View 自身のサイズは
-    /// 考慮してくれない。牌基準の余白だけで座標を決めたところ、名前チップ（牌より幅がある）や
-    /// 複数段になった河がその分だけ卓の外へはみ出し、右側は画面端で切れた
-    /// （会長のスクリーンショットで発覚）。各要素に明示的な幅・高さの枠を持たせ、
-    /// その枠を基準に座標を計算する（枠の中では `alignment: .top` で内容を上詰めにする）。
-    // 会長指摘: 上下(横長1行)と左右(縦積み2行)でチップの形が違うのがキモい。1種類のチップに
-    // 統一し、左右の列は折り返さないぶんだけ幅を広げる（卓＝緑の正方形自体の大きさには効かないので
-    // 「卓に影響ないなら大きくしてOK」の条件を満たす）。
-    private static let sideColumnWidth: CGFloat = 128
-    private static let sideColumnHeight: CGFloat = 150
-    private static let edgeRowHeight: CGFloat = 96
-    /// 会長指摘「卓の下部の横スクロールは操作用の補助、卓の上にも一覧できる牌を置け」への対応。
-    /// 自分の枠（下辺）だけは河に加えて「縮小した手牌一覧」も収める分、対面より高さを取る。
-    private static let selfRowHeight: CGFloat = 150
-
+    /// 以前は `ZStack` + `position()` で卓の四辺に絶対座標を与えていたが、河が3段に増えたり
+    /// リーチで名前チップが伸びたりすると、固定の高さ・幅の枠に収まらず**中央パネルや反対側の
+    /// チップに重なって文字が読めなくなる**不具合が繰り返し出た（会長指摘）。絶対座標は要素どうしの
+    /// 重なりを構造的に防げないため、`VStack`/`HStack` の自動フローに置き換える。Stack は子を
+    /// 順番に並べるだけなので、河が増えて背が高くなっても・チップが伸びても**隣の要素を押しのける
+    /// だけで重ならない**。
     private var mahjongTable: some View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
             let tileWidth = Self.discardTileWidth(forTableSide: side)
-            let edgeRowWidth = side - Self.tablePadding * 2
-            let topY = Self.tablePadding + Self.edgeRowHeight / 2
-            let bottomY = side - Self.tablePadding - Self.selfRowHeight / 2
-            let sideX = Self.tablePadding + Self.sideColumnWidth / 2
-            ZStack {
+            let contentWidth = side - Self.tablePadding * 2
+            VStack(spacing: 6) {
+                opponentRow(2, tileWidth: tileWidth) // 対面
+                Spacer(minLength: 2)
+                HStack(alignment: .center, spacing: 4) {
+                    opponentColumn(3, tileWidth: tileWidth) // 上家（左）
+                    Spacer(minLength: 2)
+                    // 会長指摘「卓上にもUIが欲しい」への対応: 卓の中央がただの空き地だったので、
+                    // 実物の卓中央（点棒・ドラ表示・残り枚数が集まる場所）にならって小さな盤面を置く。
+                    tableCenterPanel
+                    Spacer(minLength: 2)
+                    opponentColumn(1, tileWidth: tileWidth) // 下家（右）
+                }
+                Spacer(minLength: 2)
+                playerDiscardOnTable(tileWidth: tileWidth, overviewWidth: contentWidth - 12) // 自分
+            }
+            .padding(Self.tablePadding)
+            .frame(width: side, height: side)
+            .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -191,28 +193,10 @@ public struct MahjongView: View {
                             .strokeBorder(Color(hex: 0x123726), lineWidth: 3)
                     )
                     .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-
-                // 会長指摘「卓上にもUIが欲しい」への対応: 卓の中央がただの空き地だったので、
-                // 実物の卓中央（点棒・ドラ表示・残り枚数が集まる場所）にならって小さな盤面を置く。
-                tableCenterPanel
-                    .position(x: side / 2, y: side / 2)
-
-                // 会長指摘: 縦(左右)の河は卓に対して中央寄せ、横(上下)の河も中心に寄せたい。
-                // 予約した枠の中で `alignment: .top`（上詰め）にしていたのを `.center` に変える。
-                opponentRow(2, tileWidth: tileWidth) // 対面
-                    .frame(width: edgeRowWidth, height: Self.edgeRowHeight, alignment: .center)
-                    .position(x: side / 2, y: topY)
-                opponentColumn(3, tileWidth: tileWidth) // 上家（左）
-                    .frame(width: Self.sideColumnWidth, height: Self.sideColumnHeight, alignment: .center)
-                    .position(x: sideX, y: side / 2)
-                opponentColumn(1, tileWidth: tileWidth) // 下家（右）
-                    .frame(width: Self.sideColumnWidth, height: Self.sideColumnHeight, alignment: .center)
-                    .position(x: side - sideX, y: side / 2)
-                playerDiscardOnTable(tileWidth: tileWidth, overviewWidth: edgeRowWidth - 12) // 自分
-                    .frame(width: edgeRowWidth, height: Self.selfRowHeight, alignment: .center)
-                    .position(x: side / 2, y: bottomY)
-            }
-            .frame(width: side, height: side)
+            )
+            // 河が伸びきってなお収まらない極端なケースでも、白背景側へにじみ出さず
+            // 卓の角丸の内側でだけ収まるようにする（重なりよりましな失敗のさせ方）。
+            .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             .frame(width: geo.size.width, height: geo.size.height)
             // 河のアニメーションが止まらないという指摘のため、原因を特定しきれないまま
             // 力技で対処する: 卓の中身への暗黙アニメーションを一切禁止する。牌の増減・並び替えは
@@ -224,32 +208,46 @@ public struct MahjongView: View {
 
     /// 卓中央パネル。実物の卓中央（点棒・ドラ表示・残り枚数が集まる場所）を模した小さな盤面。
     /// 情報は `statusBar` と重複するので、読み上げは `statusBar` 側に任せる（`accessibilityHidden`）。
+    ///
+    /// 会長指摘: 左右のチップ（特にリーチで「立直」タグが付くと長くなる）が省略されて読めなく
+    /// なっていた。卓の横幅は [左チップ][中央パネル][右チップ] の3つで奪い合っているので、
+    /// 中央パネルを小さくするほど左右チップに幅が回る。ここの情報は `statusBar` と重複している
+    /// ぶん、思い切って縮めても実害が無い。
     private var tableCenterPanel: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 3) {
             Text("東\(model.roundNumber)局\(model.honba > 0 ? " \(model.honba)本場" : "")")
-                .font(.system(size: 14, weight: .black, design: .rounded))
+                .font(.system(size: 11, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1).minimumScaleFactor(0.7)
             if let dora = model.doraIndicators.first {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Text("ドラ")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.8))
-                    MahjongTileView(tile: dora, width: 18, height: 24)
+                    MahjongTileView(tile: dora, width: 14, height: 19)
                 }
             }
             Text("残り\(model.remainingTiles)枚")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 8, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.8))
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.black.opacity(0.18)))
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black.opacity(0.18)))
         .accessibilityHidden(true)
+        // 左右チップを優先して幅を譲る（chip 側は最大 190pt まで伸びうる）が、
+        // 完全に0まで削られると「東…」のように文字自体が省略されるので下限は死守する。
+        .frame(minWidth: 60)
+        .layoutPriority(-1)
     }
+
+    /// チップ全体の最大幅。無制限に伸ばす `.fixedSize()` だと、長い名前・大きい点数・「立直」
+    /// タグが重なったときに中央パネルや反対側のチップへ食い込んで文字が重なって読めなくなった
+    /// （会長指摘）。上限を決めて、それを超える分は文字を縮小させる方に倒す。
+    private static let chipMaxWidth: CGFloat = 190
 
     /// 会長指摘「上下は横長・左右は2列でUIがキモい」への対応: 4 席すべて同じ横一列のチップに
     /// 統一する。リーチは別の小さなカプセルを浮かせるのではなく、**同じチップの中**で
-    /// 背景色を変え、末尾に「立直」タグを添える形にして「セクションの中でわかる」ようにする。
+    /// 縁取りを付け、末尾に「立直」タグを添える形にして「セクションの中でわかる」ようにする。
     private func opponentNameChip(_ index: Int, icon: String = "cpu") -> some View {
         let isCurrent = model.currentPlayer == index && model.phase == .playing
         let isRiichi = model.riichi[index]
@@ -260,26 +258,27 @@ public struct MahjongView: View {
             Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.Fixed.ink)
-                .lineLimit(1).minimumScaleFactor(0.75)
+                .lineLimit(1).minimumScaleFactor(0.5)
             Text("\(model.scores[index])")
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.Fixed.ink.opacity(0.7))
-                .lineLimit(1)
+                .lineLimit(1).minimumScaleFactor(0.5)
             if isRiichi {
                 Text("立直")
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 5).padding(.vertical, 2)
                     .background(Capsule().fill(Theme.coral))
+                    // タグ自体は縮めない。縮むのは隣の名前・点数のテキスト側。
+                    .fixedSize()
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 5)
-        .background(Capsule().fill(isRiichi ? Theme.coral.opacity(0.18) : Color.white.opacity(0.85)))
-        .overlay(Capsule().strokeBorder(isRiichi ? Theme.coral.opacity(0.55) : .clear, lineWidth: 1.5))
-        // 上家・下家の列は `sideColumnWidth` が狭いぶん、周りの VStack に幅を合わせて
-        // 潰される（「25,0...」と省略されてしまっていた）。`.frame()` は既定でクリップしないので、
-        // 自然な幅のまま列の外へ少しはみ出させて省略を防ぐ。
-        .fixedSize(horizontal: true, vertical: false)
+        // 会長指摘: リーチ中に背景を半透明の珊瑚色にしたら、緑の卓と混ざって文字が読みにくく
+        // なった。塗りは常にはっきりした不透明の白のままにして、リーチは縁取り＋タグだけで示す。
+        .background(Capsule().fill(Color.white.opacity(0.92)))
+        .overlay(Capsule().strokeBorder(isRiichi ? Theme.coral : .clear, lineWidth: isRiichi ? 2 : 0))
+        .frame(maxWidth: Self.chipMaxWidth)
     }
 
     /// 対面（横一列の河）。
@@ -353,7 +352,11 @@ public struct MahjongView: View {
                 model.discards[MahjongModel.humanIndex],
                 tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles
             )
-            handOverviewOnTable(width: overviewWidth)
+            // 会長指摘: リザルト画面ではこの一覧がリザルトカードと被って見づらいので隠してよい。
+            // 対局中（.playing・.ronOffer）のときだけ出す。
+            if model.phase == .playing || model.phase == .ronOffer {
+                handOverviewOnTable(width: overviewWidth)
+            }
         }
         .frame(maxWidth: .infinity)
         // 河のアニメーションが「ルーレット」化する一因だったため、ここでは明示的に付けない
@@ -502,7 +505,7 @@ public struct MahjongView: View {
         )
         .shadow(color: isSelected ? .black.opacity(0.3) : .clear, radius: isSelected ? 5 : 0, y: 3)
         .offset(y: isSelected ? -10 : 0)
-        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: isSelected)
+        .gameAnimation(.spring(response: 0.22, dampingFraction: 0.7), value: isSelected)
         .contentShape(Rectangle())
         .onTapGesture {
             guard model.isPlayerTurn, canDiscard else { return }

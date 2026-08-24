@@ -13,13 +13,20 @@ public struct BannerSlot: View {
     }
 
     public var body: some View {
-        Group {
-            if let b = banner { b } else { Color.clear }
+        GeometryReader { geo in
+            Group {
+                if let b = banner { b } else { Color.clear }
+            }
+            .frame(width: geo.size.width, height: Self.height)
+            // 呼び出し元の `.padding()` 等を差し引いた**実際にバナーが置かれる幅**を渡す。
+            // 画面全体の幅で広告を要求すると、実表示幅より広いサイズの広告が来て
+            // 左右に黒い余白が出ていた（会長指摘）。幅が確定してから一度だけ生成する。
+            .task(id: geo.size.width) {
+                guard banner == nil, geo.size.width > 0 else { return }
+                banner = ads.makeBannerView(width: geo.size.width)
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.height)
-        .task {
-            if banner == nil { banner = ads.makeBannerView() }
-        }
     }
 }
