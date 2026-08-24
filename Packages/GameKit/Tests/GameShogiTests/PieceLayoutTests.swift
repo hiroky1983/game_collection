@@ -213,15 +213,91 @@ struct ShogiPieceLayerSourceTests {
 
     @Test("駒には .transition を .position より前に付ける")
     func transitionComesBeforePosition() throws {
-        let lines = try Self.viewSource.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+        // 走査は `pieceLayer` の中だけに限る。ファイル全体から最初の `.transition(` を探すと、
+        // 他の演出（例: 成り確認の札 #201）が先に見つかって駒の層を検証しなくなる。
+        let lines = try Self.lines(ofFunction: "private func pieceLayer(cell: CGFloat) -> some View {")
         guard let transition = lines.firstIndex(where: { $0.hasPrefix(".transition(") }),
               let position = lines.firstIndex(where: { $0.hasPrefix(".position(") }) else {
-            Issue.record("駒の層の .transition / .position が見つからない")
+            Issue.record("駒の層の .transition / .position が見つからない:\n\(lines.joined(separator: "\n"))")
             return
         }
         // あとに置くと拡大・縮小の基準が盤の原点になり、消える駒が左上へ吸い込まれる。
         #expect(transition < position)
+    }
+
+    /// 宣言行から、インデントが戻るまでを 1 つのまとまりとして切り出す（前後の空白は落とす）。
+    fileprivate static func lines(ofFunction declaration: String) throws -> [String] {
+        let all = try viewSource.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard let start = all.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == declaration }) else {
+            Issue.record("走査の前提が壊れている: \(declaration) が見つからない")
+            return []
+        }
+        let indent = all[start].prefix { $0 == " " }
+        guard let end = all[start...].dropFirst().firstIndex(where: { $0 == indent + "}" }) else {
+            Issue.record("走査の前提が壊れている: \(declaration) の終わりが見つからない")
+            return []
+        }
+        return all[start...end].map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+}
+
+/// 成り確認オーバーレイと手番バッジの演出（#201）。
+///
+/// どちらも SwiftUI のビュー修飾子の**置き場所**が効くかどうかを決めるため、値の計算としては
+/// 検証できない。外すとビルドもテストも通ったまま演出だけが静かに消えるので、ソース走査で固定する。
+@Suite("成り確認と手番バッジの演出")
+struct ShogiOverlayMotionSourceTests {
+
+    @Test("成り確認の出入りは残り続ける親にアニメーションを置く（枝の中では効かない）")
+    func promotionOverlayAnimatesOnPersistingParent() throws {
+        let lines = try ShogiPieceLayerSourceTests.lines(
+            ofFunction: "private var promotionOverlay: some View {"
+        )
+        // 分岐は `promotionOverlay` の**中**にある（呼び出し側の `.overlay { if … }` だと、
+        // 出入りする枝と一緒に修飾子も消えて `.transition` が効かない）。
+        #expect(lines.contains { $0.hasPrefix("if model.pendingPromotion != nil {") },
+                "分岐が promotionOverlay の中にない:\n\(lines.joined(separator: "\n"))")
+        // 暗幕と札の 2 つ。ひとまとめに縮小を掛けると暗幕の縁が動いて見える。
+        #expect(lines.filter { $0.hasPrefix(".transition(") }.count == 2,
+                "暗幕と札のトランジションが揃っていない:\n\(lines.joined(separator: "\n"))")
+        // アニメーションは分岐の外（= ZStack）に 1 つだけ。入れ子にすると内側が外側の
+        // トランザクションを打ち消し、片方が静かに効かなくなる。
+        let animations = lines.filter { $0.hasPrefix(".gameAnimation(") }
+        #expect(animations == [".gameAnimation(ShogiMotion.promotionPrompt, value: model.pendingPromotion != nil)"])
+        // `.animation` の直呼びは Reduce Motion を無視する（#210）。
+        #expect(lines.contains { $0.hasPrefix(".animation(") } == false)
+    }
+
+    @Test("札を出していない間は盤のタップを塞がない")
+    func overlayIsTransparentToTouchesWhenIdle() throws {
+        let lines = try ShogiPieceLayerSourceTests.lines(
+            ofFunction: "private var promotionOverlay: some View {"
+        )
+        // 分岐を層の中に入れたので、この層は札が無い間も盤の上に常設される。
+        #expect(lines.contains(".allowsHitTesting(model.pendingPromotion != nil)"),
+                "常設した層が素通しであることの明示がない:\n\(lines.joined(separator: "\n"))")
+    }
+
+    @Test("札の消える速さは駒の移動より短い（札が動き出した駒に被って残らない）")
+    func promptIsShorterThanPieceMove() {
+        // `Animation` からは長さを読めないため、定義そのものを突き合わせる。
+        #expect(ShogiMotion.promotionPrompt == .easeOut(duration: 0.18))
+        #expect(ShogiMotion.pieceMove == .spring(response: 0.26, dampingFraction: 0.9))
+    }
+
+    @Test("手番バッジの色替えにアニメーションが付く")
+    func turnBadgeAnimatesColor() throws {
+        let lines = try ShogiPieceLayerSourceTests.lines(ofFunction: "private var statusBar: some View {")
+        guard let badge = lines.firstIndex(where: {
+            $0.hasPrefix(".background(Capsule().fill(model.position.sideToMove")
+        }) else {
+            Issue.record("手番バッジの背景が見つからない:\n\(lines.joined(separator: "\n"))")
+            return
+        }
+        // バッジの色は `sideToMove` から決まるので、同じ値を見張る指定がバッジに要る。
+        #expect(lines[(badge + 1)...].contains {
+            $0 == ".gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)"
+        }, "バッジの色替えを見張るアニメーションがない:\n\(lines.joined(separator: "\n"))")
     }
 }
 

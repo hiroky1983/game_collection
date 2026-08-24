@@ -84,11 +84,7 @@ public struct ShogiView: View {
         } message: {
             Text("途中で終了すると対局データが失われます。")
         }
-        .overlay {
-            if model.pendingPromotion != nil {
-                promotionOverlay
-            }
-        }
+        .overlay { promotionOverlay }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
@@ -99,38 +95,52 @@ public struct ShogiView: View {
         }
     }
 
+    /// 成り確認の札。出入りのアニメーションは**残り続ける親**（この `ZStack`）に置く（#201）。
+    /// 入れ替わる枝の中に置くと、消える側と一緒に修飾子も消えて効かない（#195）。
     private var promotionOverlay: some View {
         ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("成りますか？")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                HStack(spacing: 16) {
-                    Button {
-                        model.resolvePromotion(false)
-                    } label: {
-                        Text("不成")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(width: 80, height: 44)
-                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
-                            .foregroundStyle(Theme.ink)
-                    }
-                    Button {
-                        model.resolvePromotion(true)
-                    } label: {
-                        Text("成る")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(width: 80, height: 44)
-                            .background(Theme.coral, in: RoundedRectangle(cornerRadius: 12))
-                            .foregroundStyle(.white)
+            if model.pendingPromotion != nil {
+                // 暗幕と札で別のトランジションを使う。ひとまとめに縮小を掛けると
+                // 画面いっぱいの暗幕まで拡縮して、幕の縁が動いて見える。
+                Color.black.opacity(0.35).ignoresSafeArea()
+                    .transition(.opacity)
+                VStack(spacing: 20) {
+                    Text("成りますか？")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    HStack(spacing: 16) {
+                        Button {
+                            model.resolvePromotion(false)
+                        } label: {
+                            Text("不成")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .frame(width: 80, height: 44)
+                                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(Theme.ink)
+                        }
+                        Button {
+                            model.resolvePromotion(true)
+                        } label: {
+                            Text("成る")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .frame(width: 80, height: 44)
+                                .background(Theme.coral, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(.white)
+                        }
                     }
                 }
+                .padding(28)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
+                // 札は中央に置いてあり `offset` を持たないので、縮小の基準は札の中心になる。
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
         }
+        // 札を出していない間、この層は盤の上に常設される（分岐を中に入れたぶん）。
+        // 触れないことを明示しておく — 空の `ZStack` は素通しだが、暗黙に頼ると
+        // 中身を足したときに静かに盤のタップを塞ぐ。
+        .allowsHitTesting(model.pendingPromotion != nil)
+        .gameAnimation(ShogiMotion.promotionPrompt, value: model.pendingPromotion != nil)
     }
 
     // MARK: - 盤
@@ -260,6 +270,9 @@ public struct ShogiView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12).padding(.vertical, 5)
                     .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.teal))
+                    // 手番が移ったことを色の移り変わりで見せる（#201）。文字は差し替わるだけなので、
+                    // 目に留まるのは色の変化。着手そのものを待たせないよう短く取る。
+                    .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("CPU思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
@@ -472,11 +485,17 @@ struct NewGameSheet: View {
 
 // MARK: - 盤・駒
 
-/// 将棋の演出の長さ（#200）。Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ。
+/// 将棋の演出の長さ（#200・#201）。Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ。
 enum ShogiMotion {
     /// 駒の移動。CPU が即指しする場面や早指しでも次の着手に食い込まないよう短めに取る。
     /// 跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
     static let pieceMove: Animation = .spring(response: 0.26, dampingFraction: 0.9)
+    /// 成り確認の札の出入り（#201）。**駒の移動より短く取る**。
+    /// 札が消えるのと同時に成った駒が動き出すため、ここが長いと札が駒に被ったまま残る。
+    static let promotionPrompt: Animation = .easeOut(duration: 0.18)
+    /// 手番バッジの色替え（#201）。手番が移ったと分かる程度に留め、
+    /// タップから盤が反応するまでの体感を遅くしない。
+    static let turnChange: Animation = .easeInOut(duration: 0.2)
 }
 
 /// 盤の配色（ポップ・明るい木目調）。
