@@ -55,6 +55,12 @@ struct MahjongCallBar: View {
     let onAccept: (MahjongCall) -> Void
     let onDecline: () -> Void
 
+    /// 1 行に並べるボタンの上限。チーの取り方が 3 通り + スルーで 4 つになるのが現実的な上限で、
+    /// iPhone SE（画面 375pt）でもここまでは 1 行に収まる。これ以上（カンとポンも同時に鳴ける形）は
+    /// 折り返す。**縦に積むと画面から溢れて上下が切れる**ので、`.adaptive` ではなく列数を明示する。
+    private static let maximumColumns = 4
+    private static let buttonHeight: CGFloat = 46
+
     var body: some View {
         VStack(spacing: 6) {
             HStack(spacing: 4) {
@@ -66,44 +72,54 @@ struct MahjongCallBar: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(offer.tile.displayName)が出ました。鳴きますか")
-            // 選択肢はチーの取り方違いで 3 つまで増えるので、折り返せる並びにする。
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { buttons }
-                VStack(spacing: 6) { buttons }
+            // 選択肢はチーの取り方違いで最大 3 つ増える（カン + ポン + チー3通り + スルーで 6 つ）。
+            // 縦に積むと iPhone SE では画面からはみ出すので、入る数だけ横に並べて折り返す。
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(Array(offer.options.enumerated()), id: \.offset) { _, option in
+                    callButton(option)
+                }
+                Button(action: onDecline) {
+                    Text("スルー")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.fillMuted)
+                .accessibilityLabel("鳴かずに進める")
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
-    @ViewBuilder
-    private var buttons: some View {
-        ForEach(Array(offer.options.enumerated()), id: \.offset) { _, option in
-            callButton(option)
-        }
-        Button(action: onDecline) {
-            Text("スルー")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity, minHeight: 40)
-        }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.fillMuted)
-        .accessibilityLabel("鳴かずに進める")
+    /// 鳴きの選択肢 +「スルー」をちょうど収める列。数が少ないときに右側が空かないよう、
+    /// ボタンの数だけ等幅の列を作る。
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: 8),
+            count: min(offer.options.count + 1, Self.maximumColumns)
+        )
     }
 
     private func callButton(_ option: MahjongCall) -> some View {
-        Button { onAccept(option) } label: {
-            VStack(spacing: 0) {
+        // 同じ種類の鳴きが複数あるとき（チーの取り方違い）だけ、手牌から使う牌を絵で添える。
+        // 「萬子の3・萬子の4」という読み上げ用の文をそのまま出すと、この幅では潰れて読めない。
+        let needsDetail = offer.options.filter { $0.kind == option.kind }.count > 1
+        return Button { onAccept(option) } label: {
+            VStack(spacing: 2) {
                 Text(option.actionName)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
-                // 同じチーでも取り方が複数あるので、手牌から使う牌を添えて選び分けられるようにする。
-                if offer.options.filter({ $0.kind == option.kind }).count > 1 {
-                    Text(option.optionDetail)
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .lineLimit(1).minimumScaleFactor(0.6)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                if needsDetail {
+                    HStack(spacing: 2) {
+                        ForEach(Array(option.tilesFromHand.enumerated()), id: \.offset) { _, tile in
+                            MahjongTileView(tile: tile, width: 13, height: 17)
+                        }
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
         }
         .buttonStyle(.borderedProminent)
         .tint(option.isKan ? Theme.purple : Theme.coral)
