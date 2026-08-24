@@ -2,62 +2,19 @@ import SwiftUI
 import Core
 import MahjongTiles
 
-/// 手牌の並べ方。牌を 1 列 14 枚に並べると 1 枚が 24pt 前後になり、タップ標的が 44pt に
-/// 遠く届かない（#207 と同じ問題）。7 列 × 2 段にして 1 枚を大きく取る。
-enum MahjongHandLayout {
-    static let columns = 7
-    static let spacing: CGFloat = 4
-    static let tileWidth: CGFloat = 38
-    static let tileHeight: CGFloat = 52
-    /// タップ標的の最小の高さ（幅は列いっぱいに広げる）。
-    static let minimumTapTarget: CGFloat = 44
-}
-
 public struct MahjongView: View {
     @State private var model: MahjongModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showStartSheet = true
-    /// 手牌の「今画面に出ている並び」。`model.playerHand.tiles` は常にソート済みの新しい配列を
-    /// 返すため、これをそのまま `ForEach` に渡すとツモ替えのたびに手牌全体が作り直された
-    /// ものとして扱われかねない（IDを安定させても、位置アニメーションを止めても解消しなかった）。
-    /// 会長の提案どおり、**画面側で「変わった牌だけ」を差分適用**する方式にする: 無くなった牌を
-    /// その場から取り除き、増えた牌だけを末尾に足す。生き残った牌は配列中の位置が一切変わらないため、
-    /// SwiftUI 視点でも「同じ場所にずっといたView」になり、動きようがない。
-    @State private var displayedHand: [MahjongTile] = []
+    /// 誤タップ防止: 1タップ目は選択（浮かせる演出）だけ、同じ牌をもう1回タップしたら実際に切る。
+    /// 複数枚ある牌を区別できるよう `stableHandIDs` の合成ID（牌の値＋出現順）で管理する。
+    @State private var selectedTileID: String?
 
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: MahjongModel(services: services))
         _showStartSheet = State(initialValue: !services.snapshots.exists(for: "mahjong4"))
-    }
-
-    /// `model.playerHand` の変化を `displayedHand` へ最小差分で反映する。
-    private func syncDisplayedHand() {
-        let target = model.playerHand.tiles
-        if displayedHand.isEmpty {
-            displayedHand = target
-            return
-        }
-        var remaining = Dictionary(target.map { ($0, 1) }, uniquingKeysWith: +)
-        var kept: [MahjongTile] = []
-        kept.reserveCapacity(target.count)
-        for tile in displayedHand {
-            if let count = remaining[tile], count > 0 {
-                kept.append(tile)
-                remaining[tile] = count - 1
-            }
-            // else: この牌（の、この分の枚数）は無くなった → その場で落とす（＝差分削除）。
-        }
-        // 増えた牌（鳴きは無いので通常は高々1種類・1枚）だけを、種類の昇順で末尾に追加する
-        // （Dictionary の走査順は不定なので、決定的な順序で足す）。
-        for index in 0..<MahjongTileOrder.kindCount {
-            let kind = MahjongTileOrder.tile(at: index)
-            let extra = remaining[kind] ?? 0
-            guard extra > 0 else { continue }
-            for _ in 0..<extra { kept.append(kind) }
-        }
-        displayedHand = kept
     }
 
     public var body: some View {
@@ -78,7 +35,7 @@ public struct MahjongView: View {
                 handResultCard.transition(.opacity)
                 Spacer(minLength: 0)
             } else {
-                handArea.transition(.opacity)
+                handOnTable.transition(.opacity)
             }
             HowToPlayHint(.mahjong, playLog: services.playLog)
             actionArea
@@ -110,21 +67,23 @@ public struct MahjongView: View {
             MahjongStartSheet {
                 showStartSheet = false
                 model.startGame()
-                syncDisplayedHand()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
             .interactiveDismissDisabled(true)
         }
         .task {
             // 中断から戻ったときに手番が止まったままにならないようにする。
-            syncDisplayedHand()
             await model.runCPUTurnsIfNeeded()
         }
         .task(id: model.turnKey) {
             await model.runCPUTurnsIfNeeded()
         }
         .onChange(of: model.playerHand) {
-            syncDisplayedHand()
+            // 手牌が変わったら選択（誤タップ防止の1タップ目）は必ず解除する。
+            selectedTileID = nil
+        }
+        .onChange(of: model.currentPlayer) {
+            selectedTileID = nil
         }
     }
 
@@ -252,11 +211,11 @@ public struct MahjongView: View {
         .aspectRatio(1, contentMode: .fit)
     }
 
-    private func opponentNameChip(_ index: Int) -> some View {
+    private func opponentNameChip(_ index: Int, icon: String = "cpu") -> some View {
         let isCurrent = model.currentPlayer == index && model.phase == .playing
         return VStack(spacing: 2) {
             HStack(spacing: 3) {
-                Image(systemName: "cpu")
+                Image(systemName: icon)
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(isCurrent ? Theme.coral : Theme.Fixed.ink.opacity(0.6))
                 Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
@@ -367,18 +326,19 @@ public struct MahjongView: View {
 
     // MARK: - 自分の河
 
+    /// 会長指摘: 「あなたの河」という文字ラベルは不要。CPU と同じ表現（得点・東西南北）に揃える。
+    /// `opponentNameChip` をそのまま流用し、アイコンだけ「あなた」向けに差し替える。
     private func playerDiscardOnTable(tileWidth: CGFloat) -> some View {
         VStack(spacing: 4) {
-            Text("あなたの河")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.85))
+            opponentNameChip(MahjongModel.humanIndex, icon: "person.fill")
             discardStrip(
                 model.discards[MahjongModel.humanIndex],
                 tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles
             )
         }
         .frame(maxWidth: .infinity)
-        .gameAnimation(.easeInOut(duration: 0.18), value: model.discards[MahjongModel.humanIndex])
+        // 河のアニメーションが「ルーレット」化する一因だったため、ここでは明示的に付けない
+        // （卓全体は既に `.transaction { $0.animation = nil }` で無効化している）。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             MahjongAccessibility.discardPileLabel(
@@ -389,54 +349,54 @@ public struct MahjongView: View {
 
     // MARK: - 手牌
 
-    private var handArea: some View {
+    /// 会長指摘「持ち牌もグリーンの卓の上に一列に並べて見てほしい」への対応。
+    /// 以前の 7列×2段の白カードをやめ、卓と同じ緑フェルトの帯に単列（横スクロール可）で並べる。
+    /// 名前・風・点数は自分の河側（`playerDiscardOnTable`）のチップに一本化したので、ここでは持たない。
+    private static let tableHandTileWidth: CGFloat = 34
+    private static let tableHandTileHeight: CGFloat = 46
+    private static let tableHandSpacing: CGFloat = 3
+
+    private var handOnTable: some View {
         // 切れる牌の判定は手牌の枚数ぶん走るので、1 回だけ求めて配る（#190 と同じ考え方）。
         let discardable = model.discardableTiles
         let waits = model.playerWaits
         return VStack(spacing: 6) {
-            HStack {
-                Text("あなた・\(Self.windNames[model.seatWind(MahjongModel.humanIndex)])")
-                    .themeBody(13).foregroundStyle(Theme.ink)
-                if model.riichi[MahjongModel.humanIndex] {
-                    Text("立直")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(Capsule().fill(Theme.coral))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Self.tableHandSpacing) {
+                    // model.playerHand.tiles を直接使う（常にソート済み）。以前は差分適用の
+                    // ローカル state を挟んでいたが、末尾に追加するだけだとソート順が崩れて
+                    // 「並び替えが効かない」不具合になった。ルーレット対策はここでは
+                    // アニメーション自体を止めることで行う（下の `.transaction`）。
+                    ForEach(Self.stableHandIDs(model.playerHand.tiles), id: \.id) { entry in
+                        handTile(entry.tile, id: entry.id, isDrawn: false, discardable: discardable)
+                    }
+                    if let drawn = model.drawnTile {
+                        Spacer().frame(width: 10)
+                        handTile(drawn, id: "drawn", isDrawn: true, discardable: discardable)
+                    }
                 }
-                Spacer()
-                Text("\(model.scores[MahjongModel.humanIndex])点")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 6).padding(.vertical, 6)
             }
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.flexible(), spacing: MahjongHandLayout.spacing),
-                    count: MahjongHandLayout.columns
-                ),
-                spacing: MahjongHandLayout.spacing
-            ) {
-                // model.playerHand.tiles を直接使わない: それは毎回ソートし直された新しい配列で、
-                // id を安定させても位置アニメーションを止めても「ルーレット」化が収まらなかった。
-                // 代わりに displayedHand（syncDisplayedHand で最小差分だけ反映するローカル状態）を使う。
-                // 生き残った牌は配列中の位置が一切変わらないので、そもそも動く要素が無い。
-                ForEach(Self.stableHandIDs(displayedHand), id: \.id) { entry in
-                    handTile(entry.tile, isDrawn: false, discardable: discardable)
-                }
-                if let drawn = model.drawnTile {
-                    handTile(drawn, isDrawn: true, discardable: discardable)
-                }
-            }
-            // ツモ切り以外で打牌すると、ツモった牌が手牌のソート済み位置へ挿入され、
-            // それより後ろの牌が軒並み1マスずつ後ろへずれる。ここへ位置アニメーションを
-            // かけると複数の牌が一斉に横滑り/改行をまたいで動き、スロットのリールのように
-            // 見えてしまっていた（id を安定させても、位置そのものが動く限り解消しない）。
-            // 実物の手牌も並べ替えはアニメーションしない（瞬時に確定した並びが見えるだけ）ため、
-            // ここは意図的に無アニメーションにする。
+            // 並び替え・出し入れは瞬時に反映するだけにする（雀卓側と同じ考え方）。
+            // 選択（浮き上がり）演出は handTile 側で個別に `.animation` を付け直しているので、
+            // ここで止めても影響しない。
+            .transaction { $0.animation = nil }
             hintLine(waits: waits)
         }
-        .padding(.horizontal, 8).padding(.vertical, 10)
-        .popCard(corner: Theme.cornerSmall)
+        .padding(.horizontal, 6).padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0x2E7A50), Color(hex: 0x1D5638)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                        .strokeBorder(Color(hex: 0x123726), lineWidth: 3)
+                )
+        )
     }
 
     /// 手牌に同じ牌が複数あっても安定した id を割り当てる（牌の値＋同値内の出現順）。
@@ -451,22 +411,38 @@ public struct MahjongView: View {
         }
     }
 
+    /// 会長指摘「誤タップ防止のため1タップでフォーカス、2タップ目で捨てる」への対応。
+    /// 1回目のタップは選択（アウトライン＋浮き上がり）だけ。同じ牌をもう一度タップしたときだけ
+    /// 実際に `model.discard` を呼ぶ。別の牌をタップした場合は選択を切り替えるだけで切らない。
     private func handTile(
-        _ tile: MahjongTile, isDrawn: Bool, discardable: Set<MahjongTile>
+        _ tile: MahjongTile, id: String, isDrawn: Bool, discardable: Set<MahjongTile>
     ) -> some View {
         let canDiscard = discardable.contains(tile)
+        let isSelected = selectedTileID == id
         return MahjongTileView(
             tile: tile,
-            width: MahjongHandLayout.tileWidth,
-            height: MahjongHandLayout.tileHeight,
+            width: Self.tableHandTileWidth,
+            height: Self.tableHandTileHeight,
             isBlocked: model.isPlayerTurn && !canDiscard,
             isHinted: isDrawn
         )
-        // 見える牌の大きさは変えず、タップ判定だけを 44pt 以上に広げる（#195・#207 と同じ手当て）。
-        .frame(maxWidth: .infinity, minHeight: MahjongHandLayout.minimumTapTarget)
+        .overlay(
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(Theme.coral, lineWidth: isSelected ? 2.5 : 0)
+        )
+        .shadow(color: isSelected ? .black.opacity(0.3) : .clear, radius: isSelected ? 5 : 0, y: 3)
+        .offset(y: isSelected ? -10 : 0)
+        .animation(.spring(response: 0.22, dampingFraction: 0.7), value: isSelected)
         .contentShape(Rectangle())
-        .onTapGesture { model.discard(tile) }
-        .transition(.scale.combined(with: .opacity))
+        .onTapGesture {
+            guard model.isPlayerTurn, canDiscard else { return }
+            if isSelected {
+                model.discard(tile)
+                selectedTileID = nil
+            } else {
+                selectedTileID = id
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             MahjongAccessibility.handTileLabel(tile, isDrawn: isDrawn, isDiscardable: canDiscard)
