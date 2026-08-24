@@ -240,14 +240,13 @@ public final class ConcentrationModel {
     /// - Returns: 復元できたら `true`。中身が壊れていて新しい盤へフォールバックしたときは `false`
     ///   （呼び出し側はこれを「新しいプレイ」として数える。#212）。
     private func restoreFrom(_ snap: ConcentrationSnapshot) -> Bool {
-        let count = snap.symbols.count
-        guard snap.isFaceUp.count == count, snap.isMatched.count == count, count > 0 else {
+        guard let setting = Self.validatedSetting(of: snap) else {
             setupGame(pairCount: .medium, cpuLevel: .normal)
             return false
         }
 
-        pairCount = ConcentrationPairCount(rawValue: snap.pairCount) ?? .medium
-        cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel) ?? .normal
+        pairCount = setting.pairCount
+        cpuLevel = setting.cpuLevel
         ai = aiFactory(cpuLevel.memoryAccuracy)
         playerScore = snap.playerScore
         cpuScore = snap.cpuScore
@@ -279,6 +278,30 @@ public final class ConcentrationModel {
         // CPUターン復元：turnID を非ゼロにすることで task(id:) を確実に起動させる
         if currentPlayer == .cpu { turnID = 1 }
         return true
+    }
+
+    /// 中断データが「最後まで遊べる盤面」かを検証し、復元に使う設定を取り出す（#218）。
+    ///
+    /// 配列長の一致だけを見ていると、シンボルが対を成さない並び（例: 全て異なる）も
+    /// 「復元成功」として通ってしまい、一致するカードが1組も無い＝終局できない盤面が
+    /// 復元される（PR #217 の CodeRabbit 指摘）。
+    ///
+    /// 難易度も列挙値として妥当かを見る。`?? .medium` のように既定値へ読み替えると、
+    /// 枚数と食い違った設定のまま復元が続いてしまうため、読み替えではなく棄却する。
+    private static func validatedSetting(
+        of snap: ConcentrationSnapshot
+    ) -> (pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel)? {
+        let count = snap.symbols.count
+        guard snap.isFaceUp.count == count, snap.isMatched.count == count else { return nil }
+        guard let pairCount = ConcentrationPairCount(rawValue: snap.pairCount),
+              let cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel),
+              count == pairCount.rawValue * 2 else { return nil }
+
+        // 各シンボルがちょうど2枚ずつ = すべてのカードが対になる
+        let occurrences = snap.symbols.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+        guard occurrences.values.allSatisfy({ $0 == 2 }) else { return nil }
+
+        return (pairCount, cpuLevel)
     }
 
     private func flipCard(index: Int) {
