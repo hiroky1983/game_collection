@@ -159,10 +159,23 @@ public extension HowToPlayGuide {
         hint: "切る牌をタップしよう"
     )
 
+    static let sudoku = HowToPlayGuide(
+        gameID: "sudoku",
+        title: "数独の遊び方",
+        lines: [
+            "マスをタップして選び、下の数字パッドで 1〜9 を入れます。",
+            "たて 9 マス・よこ 9 マス・太線で囲んだ 3×3 のどれにも、同じ数字は 1 つまでです。",
+            "空いているマスをすべて埋めたらクリアです。",
+        ],
+        hint: "マスを選んで数字を入れよう",
+        hintIcon: "square.grid.3x3"
+    )
+
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
+        .sudoku,
     ]
 }
 
