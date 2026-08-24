@@ -26,6 +26,13 @@ enum MahjongSolitaireBoardMetrics {
     /// 吸収するため、盤面に配る高さは変わらない。
     static let controlButtonMinHeight: CGFloat = minimumTapTarget
 
+    /// 牌の増減・枠色の変化に掛ける演出の長さ（秒・#199）。
+    ///
+    /// 盤面の `.gameAnimation` と、最後の 1 組を消しきってからクリア表示へ切り替える待ち時間の
+    /// **両方がこの値を使う**。片方だけ変えると、最後の 2 枚が消える前に盤面が差し替わる
+    /// （または消えた後に間が空く）ため、定数を 1 つにして必ず連動させる。
+    static let boardAnimationDuration: Double = 0.2
+
     /// ステータスバーの上下の余白（#197）。
     ///
     /// 44pt のボタンをそのまま置くと帯が高くなり、#148 で捻出した盤面の高さを食う。

@@ -14,6 +14,13 @@ public struct MahjongSolitaireView: View {
     @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
     @State private var showConfirmNewGame = false
     @State private var showShuffleFailed = false
+    /// 盤面の場所にクリアの表示を出しているか（#199）。
+    ///
+    /// `model.phase` を直に見ると、最後の 2 枚は `faces` が nil になるのと**同じ更新**で
+    /// `phase` が `.won` になるため、盤面ごとクリア表示に差し替わって消失アニメーションが
+    /// 出ないまま終わる。牌が消えきる時間だけ切り替えを遅らせて、最後の 1 組も同じ演出で消す。
+    /// 遅らせるのは**盤面の表示だけ**で、勝敗・記録・計時（`model`）は従来どおり即座に確定する。
+    @State private var showsClearDisplay = false
     @Environment(\.dismiss) private var dismiss
 
     private typealias Metrics = MahjongSolitaireBoardMetrics
@@ -92,6 +99,19 @@ public struct MahjongSolitaireView: View {
         }
         .task {
             model.resumeTimerIfNeeded()
+        }
+        // 取り切ったら、最後の 1 組が消えきってから盤面をクリア表示に差し替える（#199）。
+        // Reduce Motion のときは演出そのものが無いので待たない。
+        .task(id: model.phase) {
+            guard model.phase == .won else {
+                showsClearDisplay = false
+                return
+            }
+            if !Motion.isReduceMotionEnabled {
+                try? await Task.sleep(nanoseconds: UInt64(Metrics.boardAnimationDuration * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            showsClearDisplay = true
         }
     }
 
@@ -192,7 +212,7 @@ public struct MahjongSolitaireView: View {
 
     private var board: some View {
         Group {
-            if model.phase == .won {
+            if showsClearDisplay {
                 // 取り切った直後は盤面が空になるので、代わりにクリアの演出を置く。
                 VStack(spacing: 12) {
                     Text("🎉").font(.system(size: 64))
@@ -244,7 +264,7 @@ public struct MahjongSolitaireView: View {
         // 牌は `offset` で置くのでレイアウト上の大きさは 1 枚分しかない。
         // 盤面全体の枠を与え、左上を基準に揃えないと中央寄せされてずれる。
         .frame(width: canvas.width, height: canvas.height, alignment: .topLeading)
-        .gameAnimation(.easeOut(duration: 0.2), value: boardAnimationKey)
+        .gameAnimation(.easeOut(duration: Metrics.boardAnimationDuration), value: boardAnimationKey)
     }
 
     /// 盤面のアニメーションを起こす値（#199）。

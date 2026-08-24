@@ -167,6 +167,24 @@ struct MahjongSolitaireBoardMetricsTests {
         )
     }
 
+    @Test("最後の1組が消えきってからクリア表示に切り替わる")
+    func clearDisplayWaitsForTheLastPairToVanish() throws {
+        // `tap(_:)` は最後の 1 組の `faces` を nil にしたのと**同じ更新**で `phase` を `.won` にする。
+        // 盤面が `model.phase` を直に見ていると、そこで盤面ごとクリア表示に差し替わり、
+        // 最後の 2 枚だけ消失アニメーションが出ないまま終わる（CodeRabbit の指摘・#235）。
+        let source = try Self.viewSource()
+        #expect(
+            source.range(of: #"if showsClearDisplay \{"#, options: .regularExpression) != nil,
+            "盤面が model.phase を直に見ている（最後の2枚の演出が飛ぶ）"
+        )
+        // 演出の長さと待ち時間が別々の値になると、消えきる前に差し替わる/消えた後に間が空く。
+        #expect(
+            Self.matchCount(of: #"Metrics\.boardAnimationDuration"#, in: source) >= 2,
+            "演出の長さと待ち時間が同じ定数から来ていない"
+        )
+        #expect(Metrics.boardAnimationDuration > 0)
+    }
+
     @Test("牌の transition は offset より前に置かれている")
     func tileTransitionComesBeforeOffset() throws {
         // `.offset` は牌のレイアウト上の位置（盤面の左上）を動かさないため、`.transition` を
