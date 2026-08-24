@@ -298,6 +298,38 @@ struct MahjongCallFormationTests {
         #expect(model.phase == .playing, "立直後は手牌を変えられないので鳴きは提示されない")
     }
 
+    @Test("ポンの直後（自摸っていない手番）はカンできない")
+    func cannotKanRightAfterCalling() {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("55m234p567p9999s1z"),   // ポン後に 9s が 4 枚残る
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: MahjongNotation.tiles("1111m2222m"),
+            deadWall: deadWall(rinshan: MahjongNotation.tiles("9p")),
+            currentPlayer: 1,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("5m")
+        )
+        model.discardForTesting(MahjongNotation.tile("5m"), by: 1)
+        model.acceptCall(model.callOffer!.options[0])
+
+        #expect(model.drawnTile == nil)
+        #expect(model.isPlayerTurn, "切る番ではある")
+        #expect(model.availableSelfKans.isEmpty, "自摸っていないのでカンはできない")
+        #expect(model.canDeclareKan == false)
+
+        // API を直に叩いても成立しない（UI で出さないだけでは不十分）。
+        model.declareKan(MahjongCall(kind: .closedKan, tile: MahjongNotation.tile("9s")))
+        #expect(model.playerMelds.map(\.kind) == [.pon], "暗槓は増えていない")
+        #expect(model.drawnTile == nil, "嶺上牌も引いていない")
+        #expect(model.doraIndicators.count == 1, "新ドラもめくれていない")
+    }
+
     @Test("鳴いたあとは立直できない。暗槓だけなら門前のままなので宣言できる")
     func callingBlocksRiichi() {
         let melds = [
@@ -768,7 +800,10 @@ struct MahjongCallAITests {
 @MainActor
 struct MahjongCallFullGameTests {
 
-    @Test("鳴けるときは必ず鳴いても東風戦が最後まで進む", .timeLimit(.minutes(1)))
+    // 進行が詰まらないことの保証は `guardCount` の上限で取っている。`.timeLimit` は
+    // 万一の無限ループを止める保険なので、フルスイートの並列実行で CPU を取り合っても
+    // 落ちないところまで緩める（1 分だと 8 コア機でも実測で超えることがある）。
+    @Test("鳴けるときは必ず鳴いても東風戦が最後まで進む", .timeLimit(.minutes(3)))
     func playsThroughWhileAlwaysCalling() async {
         let model = makeModel()
         model.startGame()

@@ -582,7 +582,10 @@ struct MahjongSnapshotTests {
 @MainActor
 struct MahjongFullGameTests {
 
-    @Test("CPU だけで東風戦が最後まで進み、順位が出る", .timeLimit(.minutes(1)))
+    // `.timeLimit` は無限ループを止める保険。フルスイートの並列実行では CPU を取り合って
+    // 1 分を超えることがあるため（#263 で鳴きありの通しが増えて顕在化）、上限を緩める。
+    // 進行が詰まらないことの保証は下の `guardCount` の上限が担っている。
+    @Test("CPU だけで東風戦が最後まで進み、順位が出る", .timeLimit(.minutes(3)))
     func playsThroughEastRound() async {
         let model = makeModel(seed: 4649)
         model.startGame()

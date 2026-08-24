@@ -266,6 +266,10 @@ public final class MahjongModel {
     /// 送り槓かどうかの判定を入れないと成立しない待ちの手が出来てしまうため（#263 でスコープ外と宣言）。
     public var availableSelfKans: [MahjongCall] {
         guard isPlayerTurn, !riichi[Self.humanIndex], !isDeclaringRiichi else { return [] }
+        // **自摸ってきた手番でしかカンできない**。ポン・チーの直後は `isPlayerTurn` が true でも
+        // ツモ牌が無い（そのまま 1 枚切る番）ので、ここで弾かないと「ポンしてさらに暗槓し、
+        // 嶺上牌のツモと新ドラまで得る」という麻雀では起きない手が打ててしまう。
+        guard drawnTile != nil else { return [] }
         guard remainingTiles > 0, deadWallDraws < 4 else { return [] }
         return MahjongCallFinder.selfKanOptions(
             hand: hands[Self.humanIndex], drawnTile: drawnTile, melds: melds[Self.humanIndex]
