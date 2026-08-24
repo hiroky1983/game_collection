@@ -132,6 +132,97 @@ struct MahjongSolitaireBoardMetricsTests {
         )
     }
 
+    // MARK: - 操作ボタンと演出（#199）
+
+    @Test("操作ボタン（ヒント・並べ替え・戻す）のタップ標的は 44pt 以上")
+    func gameControlButtonsMeetTapTarget() throws {
+        // 修正前は `padding(.horizontal, 12).padding(.vertical, 6)` + 本文 14pt で実測 約29pt だった。
+        // #198 でアイコンだけの段には 44pt が入ったが、既定の文字サイズで出る**文字付きの段**は
+        // 保留されていた（#199 のスコープ）。3 つとも同じ下限に揃える。
+        #expect(Metrics.controlButtonMinHeight >= Metrics.minimumTapTarget)
+
+        // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する
+        // （#197 の `displayToggleMeetsTapTarget` と同じやり方）。3 つのボタンは共通の
+        // `controlButton(_:systemImage:tint:showsTitle:action:)` を通るので、結線の点は 1 つ。
+        let source = try Self.viewSource()
+        #expect(
+            source.range(
+                of: #"minHeight:\s*Metrics\.controlButtonMinHeight"#,
+                options: .regularExpression
+            ) != nil,
+            "共通の controlButton が Metrics.controlButtonMinHeight を使っていない"
+        )
+        // 段を切り替える三項演算子（`showsTitle ? nil : …`）が高さ側に戻ると、
+        // 文字付きの段だけ 29pt に逆戻りする。そこも塞ぐ。
+        #expect(
+            source.range(
+                of: #"minHeight:\s*showsTitle\s*\?"#,
+                options: .regularExpression
+            ) == nil,
+            "文字付きの段だけ高さの下限が外れている（#199 の逆戻り）"
+        )
+        // ヒント・並べ替え・戻すの 3 つが同じヘルパーを通っていること。
+        #expect(Self.matchCount(of: #"controlButton\("#, in: source) >= 3)
+    }
+
+    @Test("牌の消失・枠色の演出は Reduce Motion 追従のヘルパー経由で盤面に掛かっている")
+    func boardAnimationIsWiredThroughMotionHelper() throws {
+        let source = try Self.viewSource()
+        // 素の `withAnimation` / `.animation(` を使っていないことは `MotionTests` が全ソースで見ている。
+        // ここでは「盤面に演出が**掛かっている**」ことを見る（消しても他のテストは赤くならないため）。
+        #expect(
+            source.range(
+                of: #"\.gameAnimation\(.*value:\s*boardAnimationKey\)"#,
+                options: .regularExpression
+            ) != nil,
+            "盤面に .gameAnimation(_:value: boardAnimationKey) が掛かっていない"
+        )
+        #expect(
+            source.range(of: #"\.transition\("#, options: .regularExpression) != nil,
+            "牌に .transition( が無い（取った牌が即座に消える）"
+        )
+    }
+
+    @Test("最後の1組が消えきってからクリア表示に切り替わる")
+    func clearDisplayWaitsForTheLastPairToVanish() throws {
+        // `tap(_:)` は最後の 1 組の `faces` を nil にしたのと**同じ更新**で `phase` を `.won` にする。
+        // 盤面が `model.phase` を直に見ていると、そこで盤面ごとクリア表示に差し替わり、
+        // 最後の 2 枚だけ消失アニメーションが出ないまま終わる（CodeRabbit の指摘・#235）。
+        let source = try Self.viewSource()
+        #expect(
+            source.range(of: #"if showsClearDisplay \{"#, options: .regularExpression) != nil,
+            "盤面が model.phase を直に見ている（最後の2枚の演出が飛ぶ）"
+        )
+        // 演出の長さと待ち時間が別々の値になると、消えきる前に差し替わる/消えた後に間が空く。
+        #expect(
+            Self.matchCount(of: #"Metrics\.boardAnimationDuration"#, in: source) >= 2,
+            "演出の長さと待ち時間が同じ定数から来ていない"
+        )
+        #expect(Metrics.boardAnimationDuration > 0)
+    }
+
+    @Test("牌の transition は offset より前に置かれている")
+    func tileTransitionComesBeforeOffset() throws {
+        // `.offset` は牌のレイアウト上の位置（盤面の左上）を動かさないため、`.transition` を
+        // `.offset` より後ろに置くと縮小の基準が牌の中心ではなく盤面の左上になり、
+        // 消える牌が左上へ吸い込まれる。順序が入れ替わっても画面を見るまで気づけないので固定する。
+        let source = try Self.viewSource()
+        let transition = try #require(source.range(of: #"\.transition\("#, options: .regularExpression))
+        let offset = try #require(source.range(of: #"\.offset\(x:\s*frame\.minX"#, options: .regularExpression))
+        #expect(transition.lowerBound < offset.lowerBound)
+    }
+
+    /// 正規表現に一致した箇所の数。
+    private static func matchCount(of pattern: String, in text: String) -> Int {
+        var count = 0
+        var cursor = text.startIndex
+        while let found = text.range(of: pattern, options: .regularExpression, range: cursor..<text.endIndex) {
+            count += 1
+            cursor = found.upperBound
+        }
+        return count
+    }
+
     /// View のソースを読む。`#filePath` からの相対で辿るので、パスの導出が壊れたら投げる。
     private static func viewSource() throws -> String {
         let url = URL(fileURLWithPath: #filePath)
