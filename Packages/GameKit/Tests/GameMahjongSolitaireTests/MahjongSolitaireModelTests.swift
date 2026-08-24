@@ -154,6 +154,244 @@ struct MahjongSolitaireModelTests {
     }
 }
 
+// MARK: - アンドゥ（#198）
+
+@Suite("麻雀ソリティアのアンドゥ")
+@MainActor
+struct MahjongSolitaireUndoTests {
+
+    /// 解法の先頭から `count` 手ぶん取る。
+    @MainActor
+    private func take(_ model: MahjongSolitaireModel, pairs count: Int) {
+        for pair in model.solution.prefix(count) {
+            model.tap(pair[0])
+            model.tap(pair[1])
+        }
+    }
+
+    @Test("取る前は戻せない")
+    func cannotUndoBeforeAnyTake() {
+        let (services, spy) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 61)
+        #expect(!model.canUndo)
+        #expect(!model.undoLastTake())
+        #expect(model.remainingCount == 144)
+        #expect(model.undoCount == 0)
+        #expect(spy.notices.contains(.warning), "戻せないことは拒否として鳴る")
+    }
+
+    @Test("直前に取った2枚が同じ位置・同じ絵柄で戻る")
+    func undoRestoresTheLastPair() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 62)
+        let before = model.faces
+        let pair = model.solution[0]
+
+        take(model, pairs: 1)
+        #expect(model.remainingCount == 142)
+        #expect(model.canUndo)
+
+        #expect(model.undoLastTake())
+        #expect(model.remainingCount == 144)
+        #expect(model.faces == before, "盤面は取る前と同一に戻る")
+        #expect(model.faces[pair[0]] != nil && model.faces[pair[1]] != nil)
+        #expect(model.undoCount == 1)
+        #expect(model.isFreeByIndex[pair[0]] && model.isFreeByIndex[pair[1]], "取れる状態も戻る")
+    }
+
+    @Test("戻せるのは1手ぶんだけ（連続では巻き戻せない）")
+    func undoIsLimitedToOneTake() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 63)
+        take(model, pairs: 3)
+        #expect(model.remainingCount == 138)
+
+        #expect(model.undoLastTake())
+        #expect(model.remainingCount == 140)
+        #expect(!model.canUndo, "2手目より前へは戻れない")
+        #expect(!model.undoLastTake())
+        #expect(model.remainingCount == 140)
+        #expect(model.undoCount == 1, "空振りは回数に数えない")
+    }
+
+    @Test("戻した後にもう1手取れば、また1手戻せる")
+    func undoBecomesAvailableAgainAfterNextTake() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 64)
+        take(model, pairs: 1)
+        #expect(model.undoLastTake())
+        #expect(!model.canUndo)
+
+        take(model, pairs: 1)
+        #expect(model.canUndo)
+        #expect(model.undoLastTake())
+        #expect(model.undoCount == 2)
+        #expect(model.remainingCount == 144)
+    }
+
+    @Test("並べ替えると戻せなくなる（位置と絵柄の対応が変わるため）")
+    func shuffleDiscardsTheUndoHistory() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 65)
+        take(model, pairs: 1)
+        #expect(model.canUndo)
+
+        #expect(model.shuffleRemaining())
+        #expect(!model.canUndo)
+        #expect(model.remainingCount == 142, "並べ替えでは枚数は動かない")
+    }
+
+    @Test("取り切った後は戻せない（確定した記録を巻き戻せないように）")
+    func cannotUndoAfterClearing() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 66)
+        clearBoard(model)
+        #expect(model.phase == .won)
+        #expect(!model.canUndo)
+        #expect(!model.undoLastTake())
+        #expect(model.remainingCount == 0)
+    }
+
+    @Test("新規ゲームで利用回数と履歴が消える")
+    func newGameResetsUndoState() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 67)
+        take(model, pairs: 1)
+        #expect(model.undoLastTake())
+        #expect(model.undoCount == 1)
+
+        model.newGame()
+        #expect(model.undoCount == 0)
+        #expect(!model.canUndo)
+    }
+
+    @Test("直前の1手が作った手詰まりはアンドゥで解ける")
+    func undoResolvesTheDeadlockItCaused() {
+        let (services, _) = makeServices()
+        // 手詰まりの盤面（合う相方がいずれも覆われている 6 枚）に、いま取れる 1 組だけを足す。
+        // その 1 組を取ると手詰まりの 6 枚だけが残る = 直前の 1 手が手詰まりを作った状態になる。
+        guard let freeA = MahjongSolitaireRules.index(layer: 0, hx: 2, hy: 0),
+              let freeB = MahjongSolitaireRules.index(layer: 0, hx: 24, hy: 0),
+              let freeC = MahjongSolitaireRules.index(layer: 4, hx: 13, hy: 7),
+              let coveredA = MahjongSolitaireRules.index(layer: 3, hx: 12, hy: 6),
+              let coveredB = MahjongSolitaireRules.index(layer: 3, hx: 14, hy: 6),
+              let coveredC = MahjongSolitaireRules.index(layer: 3, hx: 12, hy: 8),
+              let finLeft = MahjongSolitaireRules.index(layer: 0, hx: 0, hy: 7),
+              let finRight = MahjongSolitaireRules.index(layer: 0, hx: 28, hy: 7) else {
+            Issue.record("レイアウトの位置が見つからない")
+            return
+        }
+        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireRules.layout.count)
+        faces[freeA] = .characters(1)
+        faces[coveredA] = .characters(1)
+        faces[freeB] = .circles(2)
+        faces[coveredB] = .circles(2)
+        faces[freeC] = .dragon(0)
+        faces[coveredC] = .dragon(0)
+        // 盤の両端のヒレ。互いに離れていて、取っても他の牌の取得可否を変えない。
+        faces[finLeft] = .bamboos(3)
+        faces[finRight] = .bamboos(3)
+        let model = MahjongSolitaireModel(services: services, seed: 68, faces: faces)
+        #expect(model.remainingCount == 8)
+        #expect(!model.isDeadlocked)
+        #expect(model.availablePairCount == 1, "取れるのはヒレの1組だけ")
+
+        model.tap(finLeft)
+        model.tap(finRight)
+        #expect(model.remainingCount == 6)
+        #expect(model.isDeadlocked, "取った結果、合う相方が覆われた6枚だけが残って詰む")
+
+        #expect(model.undoLastTake())
+        #expect(!model.isDeadlocked)
+        #expect(model.availablePairCount == 1)
+    }
+
+    @Test("花牌は組では合うが絵柄が違う。戻したときに入れ替わらない")
+    func undoRestoresDistinctFlowerFaces() {
+        let (services, _) = makeServices()
+        guard let finLeft = MahjongSolitaireRules.index(layer: 0, hx: 0, hy: 7),
+              let finRight = MahjongSolitaireRules.index(layer: 0, hx: 28, hy: 7),
+              let keepA = MahjongSolitaireRules.index(layer: 0, hx: 2, hy: 0),
+              let keepB = MahjongSolitaireRules.index(layer: 0, hx: 24, hy: 0) else {
+            Issue.record("レイアウトの位置が見つからない")
+            return
+        }
+        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireRules.layout.count)
+        faces[finLeft] = .flower(0)
+        faces[finRight] = .flower(1)
+        // 取り切ってしまうと局が終わって戻せなくなるので、触らない組を残しておく。
+        faces[keepA] = .characters(1)
+        faces[keepB] = .characters(1)
+        let model = MahjongSolitaireModel(services: services, seed: 71, faces: faces)
+        #expect(model.faces[finLeft]?.matches(.flower(1)) == true, "花牌は組では合う")
+
+        model.tap(finLeft)
+        model.tap(finRight)
+        #expect(model.remainingCount == 2)
+
+        #expect(model.undoLastTake())
+        #expect(model.faces[finLeft] == .flower(0), "絵柄が相方のものに化けない")
+        #expect(model.faces[finRight] == .flower(1))
+    }
+
+    @Test("1手目を戻して満杯に戻ると、途中の盤面としては保存しない")
+    func undoingBackToAFullBoardClearsTheSnapshot() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 72)
+        take(model, pairs: 1)
+        #expect(store.exists(for: "mahjong"))
+
+        #expect(model.undoLastTake())
+        #expect(model.remainingCount == 144)
+        // 「配ったばかりの盤面は保存しない」ガード（ハブに「続きから」を出さない）に戻る。
+        #expect(!store.exists(for: "mahjong"))
+        // 記録の内訳はメモリ上には残るので、この局のリザルトには反映される。
+        #expect(model.undoCount == 1)
+    }
+
+    @Test("利用回数は中断・再開をまたいで残る")
+    func undoCountSurvivesSuspension() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 69)
+        take(model, pairs: 3)
+        #expect(model.undoLastTake())
+        #expect(model.undoCount == 1)
+
+        let resumed = MahjongSolitaireModel(services: services)
+        #expect(resumed.undoCount == 1, "記録の内訳は再開後も失われない")
+        #expect(resumed.remainingCount == 140)
+        #expect(!resumed.canUndo, "再開直後は戻せない（履歴は保存しない）")
+    }
+
+    @Test("アンドゥの項目が無い古いスナップショットも読める")
+    func legacySnapshotWithoutUndoCountStillLoads() throws {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let seeded = MahjongSolitaireModel(services: services, seed: 70)
+        take(seeded, pairs: 2)
+        let faces = seeded.faces
+
+        // v1.1.2 までの形（`undoCount` を持たない）をそのまま流し込む。
+        struct LegacySnapshot: Codable {
+            let faces: [MahjongFace?]
+            let elapsedSeconds: Int
+            let shuffleCount: Int
+            let hintCount: Int
+        }
+        try store.save(
+            LegacySnapshot(faces: faces, elapsedSeconds: 42, shuffleCount: 1, hintCount: 2),
+            for: "mahjong"
+        )
+
+        let resumed = MahjongSolitaireModel(services: services)
+        #expect(resumed.faces == faces, "盤面が捨てられずに戻る")
+        #expect(resumed.elapsedSeconds == 42)
+        #expect(resumed.undoCount == 0)
+    }
+}
+
 // MARK: - 手詰まり
 
 @Suite("手詰まりの検知と並べ替え")

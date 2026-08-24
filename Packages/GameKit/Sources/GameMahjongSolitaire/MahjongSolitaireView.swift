@@ -199,9 +199,12 @@ public struct MahjongSolitaireView: View {
                     Text("全部取り切った！")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.ink)
-                    Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回")
+                    // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
+                    // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
+                    Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -273,32 +276,84 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 操作
 
+    /// プレイ中の操作。アンドゥ（#198）を足して 3 つになったので、**1 段に収める**ための工夫が要る。
+    ///
+    /// 1. それまで右端に置いていた利用回数（「ヒント1 / 並べ替え1」）はやめた。3 つぶんの回数は
+    ///    どの iPhone の幅でも入らず、実測（iPhone 17 Pro）でボタンの文字が 2 行に折り返し、
+    ///    回数自体も「…」で切れた。回数はクリア後のリザルトに 3 つとも（0 回も省かず）出しており、
+    ///    情報は失われない。
+    /// 2. 文字が大きい設定では文字を捨ててアイコンだけにする（`ViewThatFits`）。縮小に頼ると
+    ///    アクセシビリティ XXXL で「ヒ…」まで切れて、大きいアイコンより読めなくなる（実測）。
+    ///    アイコンだけになるのは既定の文字サイズでは起きないので、#197 の「記号だけにしない」
+    ///    （＝初回に機能の存在が伝わらない）には抵触しない。読み上げのラベルは両方の段で同じ。
     private var gameControls: some View {
-        HStack(spacing: 10) {
-            Button { model.showHint() } label: {
-                Label("ヒント", systemImage: "lightbulb.fill")
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.teal))
+        HStack(spacing: 8) {
+            // 判定させたいのはボタン 3 つぶんの幅なので、伸び縮みする Spacer は外に置く
+            // （中に入れるとどんな幅でも「入る」と判定されて常に 1 つ目が選ばれる）。
+            ViewThatFits(in: .horizontal) {
+                controlRow(showsTitle: true)
+                controlRow(showsTitle: false)
             }
-            Button {
-                if !model.shuffleRemaining() { showShuffleFailed = true }
-            } label: {
-                Label("並べ替え", systemImage: "shuffle")
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.purple))
-            }
-            Spacer()
-            if model.hintCount > 0 || model.shuffleCount > 0 {
-                Text("ヒント\(model.hintCount) / 並べ替え\(model.shuffleCount)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-            }
+            Spacer(minLength: 0)
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    private func controlRow(showsTitle: Bool) -> some View {
+        HStack(spacing: 8) {
+            controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.teal, showsTitle: showsTitle) {
+                model.showHint()
+            }
+            controlButton("並べ替え", systemImage: "shuffle", tint: Theme.purple, showsTitle: showsTitle) {
+                if !model.shuffleRemaining() { showShuffleFailed = true }
+            }
+            undoButton(showsTitle: showsTitle)
+        }
+    }
+
+    private func controlButton(
+        _ title: String,
+        systemImage: String,
+        tint: Color,
+        showsTitle: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Group {
+                if showsTitle {
+                    Label(title, systemImage: systemImage).lineLimit(1)
+                } else {
+                    Image(systemName: systemImage)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            // アイコンだけの段は文字のぶんの幅・高さが無くなるので、44pt を下回らせない。
+            // 文字付きの段（既定の文字サイズで出る方）の 44pt 化はヒント・並べ替えと共通の
+            // 見直しになるため #199 のスコープ。ここで 1 つだけ大きくすると帯が不揃いになる。
+            .frame(
+                minWidth: showsTitle ? nil : Metrics.minimumTapTarget,
+                minHeight: showsTitle ? nil : Metrics.minimumTapTarget
+            )
+            .background(Capsule().fill(tint))
+            // 広げた枠の隅まで反応させる（既定は描いた中身のぶんしか受けない）。
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel(title)
+    }
+
+    /// 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。
+    private func undoButton(showsTitle: Bool) -> some View {
+        controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.coral, showsTitle: showsTitle) {
+            model.undoLastTake()
+        }
+        .disabled(!model.canUndo)
+        // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれ、誤タップの救済に気づかれない）。
+        .opacity(model.canUndo ? 1 : 0.4)
+        .accessibilityLabel("直前に取った2枚を戻す")
+        .accessibilityHint(model.canUndo ? "" : "牌を取った直後だけ使えます")
     }
 
     // MARK: - 盤の下の操作エリア
@@ -383,6 +438,20 @@ public struct MahjongSolitaireView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
+
+                // 手詰まりは直前の 1 手が作ったことが多い。オーバーレイは盤の下の操作を覆って
+                // しまうので、ここにも出口を置かないとアンドゥが**必要な場面でだけ押せない**（#198）。
+                if model.canUndo {
+                    Button { model.undoLastTake() } label: {
+                        Label("直前の1手を戻す", systemImage: "arrow.uturn.backward")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.coral, in: RoundedRectangle(cornerRadius: 14))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Button { model.giveUpAndRestart() } label: {
                     Text("最初から")

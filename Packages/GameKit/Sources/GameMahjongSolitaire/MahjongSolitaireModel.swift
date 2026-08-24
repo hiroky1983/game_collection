@@ -16,6 +16,18 @@ struct MahjongSolitaireSnapshot: Codable {
     let elapsedSeconds: Int
     let shuffleCount: Int
     let hintCount: Int
+    /// アンドゥの利用回数（#198）。**任意項目**にしてあるのは、この項目を持たない
+    /// 既存のスナップショットが復号に失敗して中断中の盤面を捨ててしまわないようにするため。
+    let undoCount: Int?
+}
+
+/// 直前に取った 2 枚。位置は不変なので、添字と絵柄を戻せば盤面はそのまま復元できる。
+/// 花牌・季節牌は「組では合うが絵柄は違う」ことがあるため、2 枚ぶんの絵柄を別々に持つ。
+private struct MahjongSolitaireTake {
+    let firstIndex: Int
+    let firstFace: MahjongFace
+    let secondIndex: Int
+    let secondFace: MahjongFace
 }
 
 @MainActor
@@ -36,6 +48,8 @@ public final class MahjongSolitaireModel {
     public private(set) var elapsedSeconds: Int = 0
     public private(set) var shuffleCount: Int = 0
     public private(set) var hintCount: Int = 0
+    /// アンドゥの利用回数（#198）。リザルトに出して記録の公平性を保つ。
+    public private(set) var undoCount: Int = 0
     /// 生成直後（およびシャッフル直後）の盤面を取り切れる順序。
     /// **クリア可能な盤面しか配っていないことの根拠**であり、テストではこの順にタップして完走させる。
     /// プレイヤーが別の順で取り始めた時点で無効になる（ヒントはこの順序ではなく現在の盤面から探す）。
@@ -47,11 +61,18 @@ public final class MahjongSolitaireModel {
     private let services: GameServices?
     private var seed: UInt64?
     private let gameID = "mahjong"
+    /// アンドゥで戻せる 1 手。**深さは常に 1 手ぶん**で、戻したら空になる（連続で巻き戻せない）。
+    /// 並べ替え・新規ゲーム・クリアでは位置と絵柄の対応が変わる（または局が終わる）ので破棄する。
+    /// 中断スナップショットには積まない = 再開直後は戻せない（オセロ・五目並べの「待った」と同じ扱い）。
+    private var lastTake: MahjongSolitaireTake?
 
     /// 手詰まり（牌は残っているのに取れる組が無い）。
     public var isDeadlocked: Bool {
         phase == .playing && remainingCount > 0 && availablePairCount == 0
     }
+
+    /// 1 手戻せるか。取った直後だけ true。
+    public var canUndo: Bool { phase == .playing && lastTake != nil }
 
     /// 残りの組数（表示用）。
     public var remainingPairCount: Int { remainingCount / 2 }
@@ -75,6 +96,7 @@ public final class MahjongSolitaireModel {
             self.elapsedSeconds = snapshot.elapsedSeconds
             self.shuffleCount = snapshot.shuffleCount
             self.hintCount = snapshot.hintCount
+            self.undoCount = snapshot.undoCount ?? 0
             isFreshBoard = false
         } else if let faces, faces.count == MahjongSolitaireRules.layout.count {
             self.faces = faces
@@ -117,6 +139,10 @@ public final class MahjongSolitaireModel {
             return
         }
 
+        lastTake = MahjongSolitaireTake(
+            firstIndex: first, firstFace: firstFace,
+            secondIndex: index, secondFace: face
+        )
         faces[first] = nil
         faces[index] = nil
         remainingCount -= 2
@@ -130,6 +156,32 @@ public final class MahjongSolitaireModel {
             if isDeadlocked { services?.feedback.notify(.warning) }
             persist()
         }
+    }
+
+    /// 直前に取った 2 枚を盤に戻す（#198）。誤タップと、取った結果の手詰まりの取り消し手段。
+    ///
+    /// 戻せるのは 1 手ぶんだけで、戻した時点で履歴は空になる。並べ替えや新規ゲームを挟むと戻せない。
+    /// 利用回数は `undoCount` に積み、リザルトに出す（ヒント・並べ替えと同じ扱い。記録からは除外しない）。
+    @discardableResult
+    public func undoLastTake() -> Bool {
+        guard phase == .playing, let take = lastTake else {
+            services?.feedback.notify(.warning)
+            return false
+        }
+        faces[take.firstIndex] = take.firstFace
+        faces[take.secondIndex] = take.secondFace
+        remainingCount += 2
+        lastTake = nil
+        selectedIndex = nil
+        hintPair = []
+        undoCount += 1
+        services?.feedback.impact(.medium)
+        refreshDerivedState()
+        // 1 手目を戻して満杯に戻った場合、`persist()` は「配ったばかりの盤面」として保存を消す。
+        // ハブに「続きから」を出さないための既存のガードで、意図どおり（利用回数はメモリ上に残るので
+        // この局のリザルトには出る。中断を挟むと 0 に戻るが、盤面ごと配り直しになる状態のため矛盾しない）。
+        persist()
+        return true
     }
 
     /// 取れる組を 1 組だけ光らせる。
@@ -157,6 +209,8 @@ public final class MahjongSolitaireModel {
         solution = board.solution
         selectedIndex = nil
         hintPair = []
+        // 位置と絵柄の対応が総取り替えになるので、戻せる 1 手は無効になる。
+        lastTake = nil
         shuffleCount += 1
         services?.feedback.impact(.medium)
         refreshDerivedState()
@@ -177,6 +231,8 @@ public final class MahjongSolitaireModel {
         elapsedSeconds = 0
         shuffleCount = 0
         hintCount = 0
+        undoCount = 0
+        lastTake = nil
         recordResult = nil
         refreshDerivedState()
         // 画面は開いたままなので、ここで計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
@@ -246,6 +302,8 @@ public final class MahjongSolitaireModel {
         timerTask = nil
         selectedIndex = nil
         hintPair = []
+        // 取り切った局はもう戻せない（記録が確定した後に盤面を巻き戻せてしまわないように）。
+        lastTake = nil
         services?.feedback.notify(.success)
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         services?.snapshots.clear(for: gameID)
@@ -267,7 +325,8 @@ public final class MahjongSolitaireModel {
             faces: faces,
             elapsedSeconds: elapsedSeconds,
             shuffleCount: shuffleCount,
-            hintCount: hintCount
+            hintCount: hintCount,
+            undoCount: undoCount
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }
