@@ -276,60 +276,75 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 操作
 
+    /// プレイ中の操作。アンドゥ（#198）を足して 3 つになったので、**1 段に収める**ための工夫が要る。
+    ///
+    /// 1. それまで右端に置いていた利用回数（「ヒント1 / 並べ替え1」）はやめた。3 つぶんの回数は
+    ///    どの iPhone の幅でも入らず、実測（iPhone 17 Pro）でボタンの文字が 2 行に折り返し、
+    ///    回数自体も「…」で切れた。回数はクリア後のリザルトに 3 つとも（0 回も省かず）出しており、
+    ///    情報は失われない。
+    /// 2. 文字が大きい設定では文字を捨ててアイコンだけにする（`ViewThatFits`）。縮小に頼ると
+    ///    アクセシビリティ XXXL で「ヒ…」まで切れて、大きいアイコンより読めなくなる（実測）。
+    ///    アイコンだけになるのは既定の文字サイズでは起きないので、#197 の「記号だけにしない」
+    ///    （＝初回に機能の存在が伝わらない）には抵触しない。読み上げのラベルは両方の段で同じ。
     private var gameControls: some View {
-        HStack(spacing: 10) {
-            Button { model.showHint() } label: {
-                Label("ヒント", systemImage: "lightbulb.fill")
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.teal))
+        HStack(spacing: 8) {
+            // 判定させたいのはボタン 3 つぶんの幅なので、伸び縮みする Spacer は外に置く
+            // （中に入れるとどんな幅でも「入る」と判定されて常に 1 つ目が選ばれる）。
+            ViewThatFits(in: .horizontal) {
+                controlRow(showsTitle: true)
+                controlRow(showsTitle: false)
             }
-            Button {
-                if !model.shuffleRemaining() { showShuffleFailed = true }
-            } label: {
-                Label("並べ替え", systemImage: "shuffle")
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.purple))
-            }
-            undoButton
-            Spacer(minLength: 4)
-            if let usage = usageText {
-                Text(usage)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-            }
+            Spacer(minLength: 0)
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
+    private func controlRow(showsTitle: Bool) -> some View {
+        HStack(spacing: 8) {
+            controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.teal, showsTitle: showsTitle) {
+                model.showHint()
+            }
+            controlButton("並べ替え", systemImage: "shuffle", tint: Theme.purple, showsTitle: showsTitle) {
+                if !model.shuffleRemaining() { showShuffleFailed = true }
+            }
+            undoButton(showsTitle: showsTitle)
+        }
+    }
+
+    private func controlButton(
+        _ title: String,
+        systemImage: String,
+        tint: Color,
+        showsTitle: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Group {
+                if showsTitle {
+                    Label(title, systemImage: systemImage).lineLimit(1)
+                } else {
+                    Image(systemName: systemImage)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(tint))
+        }
+        .accessibilityLabel(title)
+    }
+
     /// 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。
-    private var undoButton: some View {
-        Button { model.undoLastTake() } label: {
-            Label("戻す", systemImage: "arrow.uturn.backward")
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Capsule().fill(Theme.coral))
+    private func undoButton(showsTitle: Bool) -> some View {
+        controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.coral, showsTitle: showsTitle) {
+            model.undoLastTake()
         }
         .disabled(!model.canUndo)
         // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれ、誤タップの救済に気づかれない）。
         .opacity(model.canUndo ? 1 : 0.4)
         .accessibilityLabel("直前に取った2枚を戻す")
         .accessibilityHint(model.canUndo ? "" : "牌を取った直後だけ使えます")
-    }
-
-    /// 補助の利用回数。**使ったものだけ**を並べる（3 つ常時出すと iPhone の幅でボタンを押し出す）。
-    /// クリア後のリザルトでは 0 回も含めて全部出す（そちらは記録の内訳なので省略しない）。
-    private var usageText: String? {
-        let parts = [
-            (model.hintCount, "ヒント"),
-            (model.shuffleCount, "並べ替え"),
-            (model.undoCount, "戻す"),
-        ].filter { $0.0 > 0 }.map { "\($0.1)\($0.0)" }
-        return parts.isEmpty ? nil : parts.joined(separator: " / ")
     }
 
     // MARK: - 盤の下の操作エリア
