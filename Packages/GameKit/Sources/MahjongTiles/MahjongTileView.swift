@@ -76,6 +76,15 @@ public struct MahjongTileView: View {
                     ),
                     lineWidth: max(1, width * 0.05)
                 )
+            // 選択・ヒントの枠だけはベゼルより前面に描き直す（PR #256 の CodeRabbit 指摘）。
+            // ベゼルは上端が白 0.75・下端が黒 0.18 で、状態の枠（幅 0.1w）の外側半分（0.05w）を
+            // 覆って色を薄めてしまう。かといって枠とベゼルの順序をそのまま入れ替えると、
+            // 通常時の枠（0.03w）がベゼル（0.05w）より細いぶんベゼルの立体感を欠けさせるので、
+            // **状態が付いているときだけ**同じ枠を最後に重ねる。
+            if isSelected || isHinted {
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: width * 0.1)
+            }
             // 上部の艶ハイライト: 光沢のある表面であることを強調する薄い楕円。
             Ellipse()
                 .fill(Color.white.opacity(0.35))
