@@ -27,10 +27,33 @@ public enum MahjongAccessibility {
     }
 
     /// 各家の状況。
-    public static func playerLabel(name: String, score: Int, isRiichi: Bool, isCurrent: Bool) -> String {
+    public static func playerLabel(
+        name: String, score: Int, isRiichi: Bool, isCurrent: Bool, melds: [MahjongCall] = []
+    ) -> String {
         var parts = ["\(name)、持ち点\(score)点"]
         if isRiichi { parts.append("立直中") }
         if isCurrent { parts.append("手番") }
+        if !melds.isEmpty {
+            parts.append(melds.map { meldLabel($0) }.joined(separator: "、"))
+        }
         return parts.joined(separator: "、")
+    }
+
+    /// 晒している面子 1 つ。
+    public static func meldLabel(_ meld: MahjongCall) -> String {
+        let kind: String
+        switch meld.kind {
+        case .pon:       kind = "ポン"
+        case .chi:       kind = "チー"
+        case .openKan:   kind = "カン"
+        case .addedKan:  kind = "加槓"
+        case .closedKan: kind = "暗槓"
+        }
+        return "\(kind) \(meld.tiles.map(\.displayName).joined(separator: "、"))"
+    }
+
+    /// 鳴きの選択肢 1 つ。手牌から使う牌まで読み上げて、取り方の違うチーを選び分けられるようにする。
+    public static func callOptionLabel(_ option: MahjongCall) -> String {
+        "\(option.actionName)、手牌から\(option.optionDetail)を使います"
     }
 }
