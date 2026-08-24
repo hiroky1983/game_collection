@@ -10,11 +10,16 @@ public struct ShogiView: View {
     @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
     @State private var showRewardNotEarned = false
+    /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（#200）。
+    /// 表示局面が変わるたびに更新し、駒の層はこれだけを見て描く。
+    @State private var pieceLayout: ShogiPieceLayout
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: ShogiGameModel(services: services))
+        let model = ShogiGameModel(services: services)
+        _model = State(initialValue: model)
+        _pieceLayout = State(initialValue: ShogiPieceLayout(model.displayedPosition))
         _showNewGame = State(initialValue: !services.snapshots.exists(for: "shogi"))
     }
 
@@ -87,6 +92,11 @@ public struct ShogiView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // 人間の着手・CPU の着手・待った・検討ナビのどれで局面が変わっても、
+        // 経路を問わずここ 1 か所で駒の対応付けを進める（#200）。
+        .onChange(of: model.displayedPosition) { _, position in
+            pieceLayout.update(to: position)
+        }
     }
 
     private var promotionOverlay: some View {
@@ -135,11 +145,8 @@ public struct ShogiView: View {
                         ForEach(0..<9, id: \.self) { col in
                             let idx = squareIndex(row: row, col: col)
                             ShogiCell(
-                                piece: pos.squares[idx],
                                 size: cell,
-                                pointsUp: pos.squares[idx]?.color == model.humanSide,
                                 isSelected: model.selectedSquare == idx,
-                                isTarget: model.legalTargets.contains(idx),
                                 isLastMove: model.highlightedSquares.contains(idx)
                             )
                             .onTapGesture { model.tapSquare(idx) }
@@ -161,6 +168,12 @@ public struct ShogiView: View {
                 }
             }
             .background(BoardStyle.line)
+            // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
+            // マスに紐づけると駒の同一性がマスと一緒に変わり、移動が補間されない。
+            .overlay { pieceLayer(cell: cell) }
+            // 着手先の印は駒より**上**。マスの中に描いていた頃の重なり順をそのまま保つ
+            // （取れる駒に重ねる枠が駒の下に潜ると、何が取れるのか読めなくなる）。
+            .overlay { targetLayer(cell: cell) }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             .padding(4)
             .background(
@@ -175,6 +188,62 @@ public struct ShogiView: View {
     /// 画面 (row,col) → 内部マス。人間が先手なら先手視点、後手なら反転。
     private func squareIndex(row: Int, col: Int) -> Int {
         Sq.boardIndex(row: row, col: col, flipped: flipped)
+    }
+
+    /// 盤の上に重ねる駒の層。ここだけが駒を描き、マスの側は描かない（#200）。
+    ///
+    /// マス 1 つぶんの間隔は **盤の実寸 ÷ 9** から取る。`ShogiCell` 側の余白の積み上げを
+    /// 数式で再現しないので、マスの組み方を変えても駒の位置がずれない。
+    /// 駒そのものの大きさは従来どおりマスの実寸（`cell`）から作り、見た目を変えない。
+    private func pieceLayer(cell: CGFloat) -> some View {
+        GeometryReader { geo in
+            let slot = geo.size.width / 9
+            ZStack(alignment: .topLeading) {
+                ForEach(pieceLayout.placements) { placement in
+                    let spot = Sq.displayPosition(of: placement.square, flipped: flipped)
+                    KomaView(piece: placement.piece, size: cell,
+                             pointsUp: placement.piece.color == model.humanSide)
+                        // `.transition` は `.position` より前に置く。あとに置くと拡大・縮小の
+                        // 基準がマスではなく盤の原点になり、消える駒が左上へ吸い込まれる。
+                        .transition(.opacity)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
+                }
+            }
+            // アニメーションの指定は**この 1 か所だけ**にする。入れ子にすると内側が
+            // 外側のトランザクションを打ち消し、片方の演出が静かに効かなくなる。
+            .gameAnimation(ShogiMotion.pieceMove, value: pieceLayout)
+        }
+        // 当たり判定と読み上げはマス（`ShogiCell` 側）が持ち続ける。
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 着手先の印。駒の層より上に重ねる（#200）。
+    /// アニメーションは付けない — 選択の反映は従来どおり即時にする。
+    private func targetLayer(cell: CGFloat) -> some View {
+        GeometryReader { geo in
+            let slot = geo.size.width / 9
+            let pos = model.displayedPosition
+            ZStack(alignment: .topLeading) {
+                ForEach(model.legalTargets.sorted(), id: \.self) { square in
+                    let spot = Sq.displayPosition(of: square, flipped: flipped)
+                    Group {
+                        if pos.squares[square] == nil {
+                            Circle().fill(Theme.coral.opacity(0.55))
+                                .frame(width: cell * 0.28, height: cell * 0.28)
+                        } else {
+                            RoundedRectangle(cornerRadius: 4).stroke(Theme.coral, lineWidth: 3)
+                                .frame(width: cell - 4, height: cell - 4)
+                        }
+                    }
+                    .position(x: slot * (CGFloat(spot.col) + 0.5),
+                              y: slot * (CGFloat(spot.row) + 0.5))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     // MARK: - ステータス
@@ -403,6 +472,13 @@ struct NewGameSheet: View {
 
 // MARK: - 盤・駒
 
+/// 将棋の演出の長さ（#200）。Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ。
+enum ShogiMotion {
+    /// 駒の移動。CPU が即指しする場面や早指しでも次の着手に食い込まないよう短めに取る。
+    /// 跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
+    static let pieceMove: Animation = .spring(response: 0.26, dampingFraction: 0.9)
+}
+
 /// 盤の配色（ポップ・明るい木目調）。
 enum BoardStyle {
     static let frame = Color(hex: 0xE7B96A)
@@ -412,13 +488,13 @@ enum BoardStyle {
     static let komaGote = Color(hex: 0xCFEFF0)
 }
 
-/// 1 マス。
+/// 1 マス。マスの色だけを描く。
+///
+/// 駒と着手先の印は描かない（#200）。移動を補間するため、駒は盤全体を覆う 1 枚の層
+/// （`ShogiView.pieceLayer`）が、その上に重ねる印は `ShogiView.targetLayer` が受け持つ。
 struct ShogiCell: View {
-    let piece: Piece?
     let size: CGFloat
-    let pointsUp: Bool
     let isSelected: Bool
-    let isTarget: Bool
     let isLastMove: Bool
 
     var body: some View {
@@ -429,17 +505,6 @@ struct ShogiCell: View {
             }
             if isSelected {
                 Rectangle().fill(Theme.yellow.opacity(0.65))
-            }
-            if let piece {
-                KomaView(piece: piece, size: size, pointsUp: pointsUp)
-            }
-            if isTarget {
-                if piece == nil {
-                    Circle().fill(Theme.coral.opacity(0.55))
-                        .frame(width: size * 0.28, height: size * 0.28)
-                } else {
-                    RoundedRectangle(cornerRadius: 4).stroke(Theme.coral, lineWidth: 3).padding(2)
-                }
             }
         }
         .frame(width: size, height: size)
