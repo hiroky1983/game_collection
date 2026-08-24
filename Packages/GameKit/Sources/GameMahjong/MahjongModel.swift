@@ -173,6 +173,15 @@ public final class MahjongModel {
         phase == .playing && currentPlayer == Self.humanIndex && drawnTile != nil
     }
 
+    /// 自分のツモ牌。`drawnTile` は「いま手番のプレイヤーが引いた牌」を表す**全員共有**の
+    /// プロパティ（`draw(for:)` が誰の手番でも同じ1つの変数へ書く）なので、CPU の手番中は
+    /// CPU が引いた牌が入っている。手牌表示（`MahjongView.handOnTable`）が `drawnTile` を
+    /// そのまま「自分のツモ牌」として描いていたため、CPU3人が約0.5秒おきに打牌するたびに
+    /// 手牌14枚目の絵柄がランダムな牌へ切り替わって見えていた（会長指摘「ルーレット現象」の正体）。
+    public var playerDrawnTile: MahjongTile? {
+        currentPlayer == Self.humanIndex ? drawnTile : nil
+    }
+
     /// 山に残っている自摸れる枚数。
     public var remainingTiles: Int { max(0, wall.count - wallIndex) }
 

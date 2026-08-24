@@ -122,6 +122,35 @@ struct MahjongTurnTests {
         #expect(model.discards[0].count == before)
     }
 
+    @Test("CPU の手番中は playerDrawnTile が nil になる（自分のツモ牌欄に他家の牌が出ない）")
+    func playerDrawnTileHidesOthersDraw() {
+        // 「ルーレット現象」の回帰テスト: `drawnTile` は手番の持ち主が誰であれ書き込まれる
+        // 共有プロパティなので、CPU の手番中にそのまま画面へ出すと自分の手牌14枚目が
+        // 他家のツモ牌へ次々と切り替わって見えていた。`playerDrawnTile` は自分の手番以外
+        // 必ず nil を返すことをここで固定する。
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [MahjongNotation.tile("9s")],
+            currentPlayer: 1,
+            drawnTile: MahjongNotation.tile("5p")
+        )
+        #expect(model.drawnTile == MahjongNotation.tile("5p"))
+        #expect(model.playerDrawnTile == nil)
+    }
+
+    @Test("自分の手番なら playerDrawnTile はツモ牌を返す")
+    func playerDrawnTileShowsOwnDraw() {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [MahjongNotation.tile("9s")],
+            currentPlayer: MahjongModel.humanIndex,
+            drawnTile: MahjongNotation.tile("5p")
+        )
+        #expect(model.playerDrawnTile == MahjongNotation.tile("5p"))
+    }
+
     @Test("山が尽きると流局し、聴牌者が点棒を受け取る")
     func exhaustiveDraw() {
         let model = makeModel()

@@ -359,20 +359,25 @@ public struct MahjongView: View {
 
     // MARK: - 手牌
 
-    /// 会長指摘「持ち牌もグリーンの卓の上に一列に並べて見てほしい」への対応。
-    /// 以前の 7列×2段の白カードをやめ、卓と同じ緑フェルトの帯に単列で並べる。
+    /// 会長指摘「持ち牌もグリーンの卓の上に一列に並べて見てほしい」「横スクロールは維持して」への対応。
+    /// 以前の 7列×2段の白カードをやめ、卓と同じ緑フェルトの帯に単列（横スクロール）で並べる。
     /// 名前・風・点数は自分の河側（`playerDiscardOnTable`）のチップに一本化したので、ここでは持たない。
     ///
-    /// **「ルーレット」の正体**: 当初 `ScrollView(.horizontal)` に乗せていたが、これが真犯人だった。
-    /// ドラ牌の出し入れで中身の幅が変わるたびに、SwiftUI のアニメーション無効化
-    /// （`.transaction { $0.animation = nil }`）が一切効かない **UIScrollView 側のネイティブな
-    /// スクロール位置補正**が走り、表示中の牌が横へ流れて見えていた（録画をコマ送りして確認済み）。
-    /// 牌が入れ替わったのではなく、スクロール位置がひとりでにズレていただけ。
-    /// スクロールという概念自体をやめ、常に横幅いっぱいに収まるよう牌の幅を動的に縮める方式にする。
+    /// **「ルーレット現象」の正体**（Fable・Opus の並行調査で特定）: アニメーションでも
+    /// ScrollView でもなく、**CPU のツモ牌が自分の手牌14枚目として表示されるデータバグ**だった。
+    /// `model.drawnTile` は全員共有のプロパティ（`draw(for:)` が誰の手番でも同じ変数へ書く）で、
+    /// CPU の手番中（1人あたり `cpuDelay` ≒520ms）も値が入れ替わり続ける。ここを手番の判定なしに
+    /// 描いていたため、自分が1枚切るたびに右端の枠が CPU1→CPU2→CPU3 のツモ牌へパタパタと
+    /// 4回連続で切り替わって見えていた。これは本物のデータ変化なので、`transaction { animation
+    /// = nil }` でも identity 安定化でも ScrollView の有無でも止まらなかった
+    /// （過去の対策が軒並み効かなかった理由）。`MahjongModel.playerDrawnTile` で自分の手番以外は
+    /// nil を返すようにして解消した。
     private static let tableHandTileWidth: CGFloat = 34
     private static let tableHandTileHeight: CGFloat = 46
     private static let tableHandSpacing: CGFloat = 3
     private static let tableHandDrawnGap: CGFloat = 8
+    /// 選択時に牌を -10pt 持ち上げる演出が ScrollView の上端で切れないための余白。
+    private static let tableHandLift: CGFloat = 12
 
     private var handOnTable: some View {
         // 切れる牌の判定は手牌の枚数ぶん走るので、1 回だけ求めて配る（#190 と同じ考え方）。
@@ -381,32 +386,42 @@ public struct MahjongView: View {
         // model.playerHand.tiles を直接使う（常にソート済み）。以前は差分適用のローカル state を
         // 挟んでいたが、末尾に追加するだけだとソート順が崩れて「並び替えが効かない」不具合になった。
         let hand = model.playerHand.tiles
-        let drawn = model.drawnTile
-        let tileCount = hand.count + (drawn != nil ? 1 : 0)
+        let drawn = model.playerDrawnTile
         return VStack(spacing: 6) {
-            GeometryReader { geo in
-                let gap = drawn != nil ? Self.tableHandDrawnGap : 0
-                let totalSpacing = Self.tableHandSpacing * CGFloat(max(0, tileCount - 1)) + gap
-                let rawWidth = tileCount > 0
-                    ? (geo.size.width - totalSpacing) / CGFloat(tileCount) : Self.tableHandTileWidth
-                let tileWidth = max(18, min(Self.tableHandTileWidth, rawWidth))
+            ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Self.tableHandSpacing) {
-                    ForEach(Self.stableHandIDs(hand), id: \.id) { entry in
-                        handTile(entry.tile, id: entry.id, isDrawn: false, discardable: discardable, width: tileWidth)
+                    // identity は **配列の位置**（`\.offset`）にする。牌の値を identity にすると、
+                    // 途中の1枚が抜けて別の牌が別の位置に挿さったとき「生き残った牌が別スロットへ
+                    // 移動した」と SwiftUI に解釈され、横滑りを補間できる状態になってしまう
+                    // （Opus 指摘）。手牌は毎回ゼロから並べ直す配列なので、位置 identity にすれば
+                    // 各スロットは「同じ View の中身が差し替わるだけ」になり、動きようがない。
+                    ForEach(Array(hand.enumerated()), id: \.offset) { index, tile in
+                        handTile(tile, id: "hand\(index)", isDrawn: false, discardable: discardable)
                     }
-                    if let drawn {
-                        Spacer().frame(width: gap)
-                        handTile(drawn, id: "drawn", isDrawn: true, discardable: discardable, width: tileWidth)
+                    Spacer().frame(width: Self.tableHandDrawnGap)
+                    // ツモ牌が無い間も同じ幅の透明プレースホルダーを置き、コンテンツの総幅を
+                    // 常に一定に保つ。ツモ牌の出入りで ScrollView の contentSize が変わると
+                    // UIScrollView 側がスクロール位置を自前で補正することがあるため、幅そのものを
+                    // 固定してその発火条件自体を無くす。
+                    ZStack {
+                        Color.clear
+                        if let drawn {
+                            handTile(drawn, id: "drawn", isDrawn: true, discardable: discardable)
+                        }
                     }
+                    .frame(width: Self.tableHandTileWidth, height: Self.tableHandTileHeight)
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                .padding(.horizontal, 6)
+                .padding(.top, Self.tableHandLift)
+                .padding(.bottom, 6)
             }
-            .frame(height: Self.tableHandTileHeight)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .defaultScrollAnchor(.leading)
+            .frame(height: Self.tableHandTileHeight + Self.tableHandLift + 6)
             // 並び替え・出し入れは瞬時に反映するだけにする（雀卓側と同じ考え方）。
             // 選択（浮き上がり）演出は handTile 側で個別に `.animation` を付け直しているので、
             // ここで止めても影響しない。
-            .transaction { $0.animation = nil }
+            .transaction { $0.animation = nil; $0.disablesAnimations = true }
             hintLine(waits: waits)
         }
         .padding(.horizontal, 6).padding(.vertical, 6)
@@ -425,33 +440,24 @@ public struct MahjongView: View {
         )
     }
 
-    /// 手牌に同じ牌が複数あっても安定した id を割り当てる（牌の値＋同値内の出現順）。
-    private static func stableHandIDs(
-        _ tiles: [MahjongTile]
-    ) -> [(tile: MahjongTile, id: String)] {
-        var seen: [MahjongTile: Int] = [:]
-        return tiles.map { tile in
-            let n = seen[tile, default: 0]
-            seen[tile] = n + 1
-            return (tile, "\(tile)#\(n)")
-        }
-    }
-
     /// 会長指摘「誤タップ防止のため1タップでフォーカス、2タップ目で捨てる」への対応。
     /// 1回目のタップは選択（アウトライン＋浮き上がり）だけ。同じ牌をもう一度タップしたときだけ
     /// 実際に `model.discard` を呼ぶ。別の牌をタップした場合は選択を切り替えるだけで切らない。
     private func handTile(
-        _ tile: MahjongTile, id: String, isDrawn: Bool, discardable: Set<MahjongTile>, width: CGFloat
+        _ tile: MahjongTile, id: String, isDrawn: Bool, discardable: Set<MahjongTile>
     ) -> some View {
         let canDiscard = discardable.contains(tile)
         let isSelected = selectedTileID == id
         return MahjongTileView(
             tile: tile,
-            width: width,
+            width: Self.tableHandTileWidth,
             height: Self.tableHandTileHeight,
             isBlocked: model.isPlayerTurn && !canDiscard,
             isHinted: isDrawn
         )
+        // 牌の絵柄そのものは、外側の選択アニメーションの影響を受けないようここで打ち切る
+        // （無いと、選択解除と絵柄の差し替えが重なったときにクロスフェードして見える）。
+        .transaction { $0.animation = nil }
         .overlay(
             RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .stroke(Theme.coral, lineWidth: isSelected ? 2.5 : 0)
@@ -463,8 +469,15 @@ public struct MahjongView: View {
         .onTapGesture {
             guard model.isPlayerTurn, canDiscard else { return }
             if isSelected {
-                model.discard(tile)
-                selectedTileID = nil
+                // 選択解除と打牌を同じトランザクションにする。別々のフレームに分かれると
+                // 「選択解除」→「手牌の入れ替え」の2段ジャンプに見えることがある（Opus指摘）。
+                var transaction = Transaction()
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    selectedTileID = nil
+                    model.discard(tile)
+                }
             } else {
                 selectedTileID = id
             }
