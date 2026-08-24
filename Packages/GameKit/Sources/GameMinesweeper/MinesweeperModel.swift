@@ -12,6 +12,12 @@ public struct MinesweeperCell: Sendable {
     public var isMine          = false
     public var adjacentMines   = 0
     public var isContinuedMine = false  // コンティニューで確定した爆弾マス
+    /// このマスが開いたときの連鎖の波（タップ地点からの距離・#203）。
+    ///
+    /// View が「開く演出をどれだけ遅らせるか」を決めるためだけに使う表示用の値で、
+    /// ゲームの進行には影響しない。中断スナップショットにも含めない
+    /// （復元したマスは最初から開いているので演出を再生する余地が無い）。
+    public var revealWave      = 0
 }
 
 struct MinesweeperSnapshot: Codable {
@@ -203,6 +209,8 @@ public final class MinesweeperModel {
         for r in 0..<rows {
             for c in 0..<cols where cells[r][c].isMine && !cells[r][c].isFlagged {
                 cells[r][c].isRevealed = false
+                // 隠し直したマスは次に開くときの起点になるので、古い波を残さない（#203）。
+                cells[r][c].revealWave = 0
             }
         }
 
@@ -288,22 +296,27 @@ public final class MinesweeperModel {
         try? services?.snapshots.save(snap, for: gameID)
     }
 
+    /// タップ地点から幅優先で開いていく。**探索の深さを `revealWave` として各マスに残す**（#203）。
+    ///
+    /// FIFO で処理するので波は必ず非減少に並び、同じ波のマスは同じ遅延で一斉に開く。
+    /// 深さを持たせるだけなので探索そのものの計算量は従来と変わらない。
     private func floodReveal(row: Int, col: Int) {
-        var queue = [(row, col)]
+        var queue = [(row: row, col: col, wave: 0)]
         var i = 0
         while i < queue.count {
-            let (r, c) = queue[i]; i += 1
+            let (r, c, wave) = queue[i]; i += 1
             guard r >= 0, r < rows, c >= 0, c < cols,
                   !cells[r][c].isRevealed,
                   !cells[r][c].isFlagged,
                   !cells[r][c].isMine else { continue }
             cells[r][c].isRevealed = true
+            cells[r][c].revealWave = wave
             revealedCount += 1
             if cells[r][c].adjacentMines == 0 {
                 for dr in -1...1 {
                     for dc in -1...1 {
                         if dr == 0 && dc == 0 { continue }
-                        queue.append((r + dr, c + dc))
+                        queue.append((r + dr, c + dc, wave + 1))
                     }
                 }
             }
@@ -314,6 +327,8 @@ public final class MinesweeperModel {
         for r in 0..<rows {
             for c in 0..<cols where cells[r][c].isMine && !cells[r][c].isFlagged {
                 cells[r][c].isRevealed = true
+                // 決着時の一斉公開は連鎖ではないので波を持たせない（全マス同時に出す・#203）。
+                cells[r][c].revealWave = 0
             }
         }
     }
