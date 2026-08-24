@@ -306,6 +306,50 @@ struct MahjongSolitaireUndoTests {
         #expect(model.availablePairCount == 1)
     }
 
+    @Test("花牌は組では合うが絵柄が違う。戻したときに入れ替わらない")
+    func undoRestoresDistinctFlowerFaces() {
+        let (services, _) = makeServices()
+        guard let finLeft = MahjongSolitaireRules.index(layer: 0, hx: 0, hy: 7),
+              let finRight = MahjongSolitaireRules.index(layer: 0, hx: 28, hy: 7),
+              let keepA = MahjongSolitaireRules.index(layer: 0, hx: 2, hy: 0),
+              let keepB = MahjongSolitaireRules.index(layer: 0, hx: 24, hy: 0) else {
+            Issue.record("レイアウトの位置が見つからない")
+            return
+        }
+        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireRules.layout.count)
+        faces[finLeft] = .flower(0)
+        faces[finRight] = .flower(1)
+        // 取り切ってしまうと局が終わって戻せなくなるので、触らない組を残しておく。
+        faces[keepA] = .characters(1)
+        faces[keepB] = .characters(1)
+        let model = MahjongSolitaireModel(services: services, seed: 71, faces: faces)
+        #expect(model.faces[finLeft]?.matches(.flower(1)) == true, "花牌は組では合う")
+
+        model.tap(finLeft)
+        model.tap(finRight)
+        #expect(model.remainingCount == 2)
+
+        #expect(model.undoLastTake())
+        #expect(model.faces[finLeft] == .flower(0), "絵柄が相方のものに化けない")
+        #expect(model.faces[finRight] == .flower(1))
+    }
+
+    @Test("1手目を戻して満杯に戻ると、途中の盤面としては保存しない")
+    func undoingBackToAFullBoardClearsTheSnapshot() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 72)
+        take(model, pairs: 1)
+        #expect(store.exists(for: "mahjong"))
+
+        #expect(model.undoLastTake())
+        #expect(model.remainingCount == 144)
+        // 「配ったばかりの盤面は保存しない」ガード（ハブに「続きから」を出さない）に戻る。
+        #expect(!store.exists(for: "mahjong"))
+        // 記録の内訳はメモリ上には残るので、この局のリザルトには反映される。
+        #expect(model.undoCount == 1)
+    }
+
     @Test("利用回数は中断・再開をまたいで残る")
     func undoCountSurvivesSuspension() {
         let store = MemorySnapshotStore()

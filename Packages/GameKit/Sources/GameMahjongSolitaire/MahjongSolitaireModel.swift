@@ -177,6 +177,9 @@ public final class MahjongSolitaireModel {
         undoCount += 1
         services?.feedback.impact(.medium)
         refreshDerivedState()
+        // 1 手目を戻して満杯に戻った場合、`persist()` は「配ったばかりの盤面」として保存を消す。
+        // ハブに「続きから」を出さないための既存のガードで、意図どおり（利用回数はメモリ上に残るので
+        // この局のリザルトには出る。中断を挟むと 0 に戻るが、盤面ごと配り直しになる状態のため矛盾しない）。
         persist()
         return true
     }
