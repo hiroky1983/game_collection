@@ -280,32 +280,44 @@ public struct MinesweeperView: View {
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(Theme.teal)
 
+                // 旗・拡大の切り替えはどちらも実測 29×23pt しかなく Apple HIG の 44pt を
+                // 下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ形に揃える（#203）。
                 Button { flagMode.toggle() } label: {
                     Image(systemName: "flag.fill")
                         .font(.system(size: 13, weight: .bold))
-                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .frame(
+                            minWidth: MinesweeperMetrics.toggleButtonMinSide,
+                            minHeight: MinesweeperMetrics.toggleButtonMinSide
+                        )
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(flagMode ? Theme.coral : Theme.surface)
                         )
                         .foregroundStyle(flagMode ? .white : Theme.inkSub)
+                        // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない・#197 と同じ）。
+                        .contentShape(Rectangle())
                 }
                 Button { zoomMode.toggle() } label: {
                     Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
                         .font(.system(size: 13, weight: .bold))
-                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .frame(
+                            minWidth: MinesweeperMetrics.toggleButtonMinSide,
+                            minHeight: MinesweeperMetrics.toggleButtonMinSide
+                        )
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(zoomMode ? Theme.teal : Theme.surface)
                         )
                         .foregroundStyle(zoomMode ? .white : Theme.inkSub)
+                        .contentShape(Rectangle())
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        // 縦の余白は 8。数字・ボタンの大きさは変えずに、ここからも盤の高さを捻出している（#148）。
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        // 縦の余白は 4。もとは 8 だったが、44pt になった切り替えボタンが帯の高さを決めるように
+        // なったぶんここを詰め、#148 で盤に捻出した高さをほぼ据え置きにしている（#203・#197 と同じ手当て）。
+        .padding(.horizontal, 12).padding(.vertical, MinesweeperMetrics.statusBarVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -367,8 +379,17 @@ public struct MinesweeperView: View {
                 .fill(cellBg(cell: cell, isHit: isHit))
                 .padding(0.7)
             cellContent(cell: cell, isHit: isHit, size: size)
+            revealLid(cell: cell)
         }
         .frame(width: size, height: size)
+        // 連鎖で開いたマスは、タップ地点からの波のぶんだけ遅らせて蓋を外す（#203）。
+        // 演出の修飾子はマスに **1 つだけ** 置く。入れ子にすると内側が外側のトランザクションを
+        // 打ち消し、どちらかの演出が静かに効かなくなる（#199 で実際に踏んだ）。
+        .gameAnimation(
+            .easeOut(duration: MinesweeperMetrics.revealDuration)
+                .delay(MinesweeperMetrics.revealDelay(forWave: cell.revealWave)),
+            value: cell.isRevealed
+        )
         .contentShape(Rectangle())
         .onTapGesture {
             if flagMode {
@@ -408,6 +429,27 @@ public struct MinesweeperView: View {
         }
     }
 
+    /// 未開放のマスの面の色。`cellBg` と「蓋」（`revealLid`）が同じ値を使う必要があるので定数にする。
+    /// 片方だけ変えると開いた瞬間に色が飛ぶ（#203）。
+    private static let unrevealedFill = Color(hex: 0xBDBDBD)
+
+    /// 未開放の面（蓋）。**マスの中身の上**に重ね、開いた瞬間に縮みながら消える（#203）。
+    ///
+    /// 開放後の色と数字は最初から蓋の下に描かれているので、蓋が外れた順＝開いた順に見え、
+    /// 連鎖がどこから広がったかを目で追える。旗・確定爆弾のマスには出さない
+    /// （それらは開放されないので演出が要らないうえ、蓋がアイコンを隠してしまう）。
+    /// 蓋が出ているときの色は `cellBg` の未開放色と同じなので、**静止時の見た目は従来と変わらない**。
+    private func revealLid(cell: MinesweeperCell) -> some View {
+        let covers = !cell.isRevealed && !cell.isFlagged && !cell.isContinuedMine
+        return Rectangle()
+            .fill(Self.unrevealedFill)
+            .padding(0.7)
+            .scaleEffect(covers ? 1 : 0.62)
+            .opacity(covers ? 1 : 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
     private func cellBg(cell: MinesweeperCell, isHit: Bool) -> Color {
         if cell.isRevealed {
             return isHit ? Theme.coral : Color(hex: 0xD8D8D8)
@@ -420,7 +462,7 @@ public struct MinesweeperView: View {
             // ゲームオーバー後のみ: 正しい旗=teal、誤旗=coral
             return cell.isMine ? Theme.teal.opacity(0.28) : Theme.coral.opacity(0.28)
         }
-        return Color(hex: 0xBDBDBD)
+        return Self.unrevealedFill
     }
 
     @ViewBuilder
