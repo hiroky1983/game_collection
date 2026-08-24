@@ -82,18 +82,22 @@ enum AppEnvironment {
     }
 
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
+    /// 並び順 = 新規インストール時の既定表示順（会長判断・2026-08-24）。ゲーム数が増えて
+    /// 1画面で全ては見渡せなくなったため、五目並べ・神経衰弱を下へ、麻雀（4人打ち）を上へ寄せた。
+    /// 既にアプリを使っている人の並びには影響しない（`GameSettings` はユーザーの並び替えを
+    /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
         Game2048Module(),
         ShogiModule(),
-        GomokuModule(),
-        MinesweeperModule(),
-        OthelloModule(),
-        PokerModule(),
-        ConcentrationModule(),
-        BlackjackModule(),
-        DaifugoModule(),
-        MahjongSolitaireModule(),
         MahjongModule(),
+        OthelloModule(),
+        MahjongSolitaireModule(),
+        DaifugoModule(),
+        PokerModule(),
+        BlackjackModule(),
+        MinesweeperModule(),
+        GomokuModule(),
+        ConcentrationModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
