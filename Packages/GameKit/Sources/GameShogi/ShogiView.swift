@@ -486,16 +486,26 @@ struct NewGameSheet: View {
 // MARK: - 盤・駒
 
 /// 将棋の演出の長さ（#200・#201）。Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ。
+///
+/// 長さは秒の定数として持ち、`Animation` はそこから組む。`Animation` からは長さを読み出せないため、
+/// 定数を経由しないと「札は駒の移動より短い」のような**長さの大小関係をテストで固定できない**。
 enum ShogiMotion {
-    /// 駒の移動。CPU が即指しする場面や早指しでも次の着手に食い込まないよう短めに取る。
-    /// 跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
-    static let pieceMove: Animation = .spring(response: 0.26, dampingFraction: 0.9)
+    /// 駒の移動にかかる時間の目安（バネの `response`）。CPU が即指しする場面や早指しでも
+    /// 次の着手に食い込まないよう短めに取る。
+    static let pieceMoveResponse: TimeInterval = 0.26
+    /// 成り確認の札の出入り。`pieceMoveResponse` より短くする。
+    static let promotionPromptDuration: TimeInterval = 0.18
+    /// 手番バッジの色替え。
+    static let turnChangeDuration: TimeInterval = 0.2
+
+    /// 駒の移動。跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
+    static let pieceMove: Animation = .spring(response: pieceMoveResponse, dampingFraction: 0.9)
     /// 成り確認の札の出入り（#201）。**駒の移動より短く取る**。
     /// 札が消えるのと同時に成った駒が動き出すため、ここが長いと札が駒に被ったまま残る。
-    static let promotionPrompt: Animation = .easeOut(duration: 0.18)
+    static let promotionPrompt: Animation = .easeOut(duration: promotionPromptDuration)
     /// 手番バッジの色替え（#201）。手番が移ったと分かる程度に留め、
     /// タップから盤が反応するまでの体感を遅くしない。
-    static let turnChange: Animation = .easeInOut(duration: 0.2)
+    static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
 }
 
 /// 盤の配色（ポップ・明るい木目調）。

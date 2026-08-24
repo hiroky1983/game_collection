@@ -280,9 +280,12 @@ struct ShogiOverlayMotionSourceTests {
 
     @Test("札の消える速さは駒の移動より短い（札が動き出した駒に被って残らない）")
     func promptIsShorterThanPieceMove() {
-        // `Animation` からは長さを読めないため、定義そのものを突き合わせる。
-        #expect(ShogiMotion.promotionPrompt == .easeOut(duration: 0.18))
-        #expect(ShogiMotion.pieceMove == .spring(response: 0.26, dampingFraction: 0.9))
+        // 大小関係そのものを見張る。どちらの秒数を動かしても、逆転した時点で赤くなる。
+        #expect(ShogiMotion.promotionPromptDuration < ShogiMotion.pieceMoveResponse)
+        // 秒の定数から `Animation` を組んでいること（定数だけ直しても演出が変わらない、を防ぐ）。
+        #expect(ShogiMotion.promotionPrompt == .easeOut(duration: ShogiMotion.promotionPromptDuration))
+        #expect(ShogiMotion.pieceMove == .spring(response: ShogiMotion.pieceMoveResponse, dampingFraction: 0.9))
+        #expect(ShogiMotion.turnChange == .easeInOut(duration: ShogiMotion.turnChangeDuration))
     }
 
     @Test("手番バッジの色替えにアニメーションが付く")
