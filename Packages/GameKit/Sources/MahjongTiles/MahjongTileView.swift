@@ -256,26 +256,15 @@ public struct MahjongTileArt: View {
 
     // MARK: 字牌
 
-    /// 三元牌。中・發は文字だが、**白（白板）は文字ではなく枠だけ**というのが実物の牌。
+    /// 三元牌。中・發は文字だが、**白（白板）は何も描かない無地**というのが実物の牌
+    /// （枠だけ描く案は牌の外周ボーダーと二重に見えて紛らわしいという指摘を受け、完全な無地にした）。
     @ViewBuilder
     private func dragonFace(_ n: Int) -> some View {
         switch n {
         case 0:  glyph("中", color: Self.accentColor)
         case 1:  glyph("發", color: Self.bambooColor)
-        default: whiteDragonFace
+        default: EmptyView()
         }
-    }
-
-    private var whiteDragonFace: some View {
-        let inset = width * 0.12
-        return ZStack {
-            RoundedRectangle(cornerRadius: width * 0.1, style: .continuous)
-                .strokeBorder(Self.circleColor, lineWidth: max(0.8, width * 0.07))
-            RoundedRectangle(cornerRadius: width * 0.06, style: .continuous)
-                .strokeBorder(Self.circleColor, lineWidth: max(0.5, width * 0.04))
-                .padding(inset)
-        }
-        .frame(width: width * 0.84, height: height * 0.88)
     }
 
     private func glyph(_ text: String, color: Color) -> some View {

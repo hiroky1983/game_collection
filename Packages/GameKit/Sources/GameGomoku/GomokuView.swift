@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import Core
 
 public struct GomokuView: View {
@@ -144,73 +145,23 @@ public struct GomokuView: View {
                     .fill(Color(hex: 0xDEB568))
                     .shadow(color: .black.opacity(0.18), radius: 10, y: 6)
 
-                Canvas { ctx, size in
-                    let s = (size.width - pad * 2) / CGFloat(gomokuBoardSize - 1)
-                    let lineColor = GraphicsContext.Shading.color(Color(hex: 0x7A5810).opacity(0.55))
-
-                    // 盤の格子線
-                    for i in 0..<gomokuBoardSize {
-                        let x = pad + CGFloat(i) * s
-                        let y = pad + CGFloat(i) * s
-                        var vp = Path()
-                        vp.move(to: CGPoint(x: x, y: pad))
-                        vp.addLine(to: CGPoint(x: x, y: size.height - pad))
-                        ctx.stroke(vp, with: lineColor, lineWidth: 0.8)
-
-                        var hp = Path()
-                        hp.move(to: CGPoint(x: pad, y: y))
-                        hp.addLine(to: CGPoint(x: size.width - pad, y: y))
-                        ctx.stroke(hp, with: lineColor, lineWidth: 0.8)
-                    }
-
-                    // 星（天元 + 4隅）
-                    let dotColor = GraphicsContext.Shading.color(Color(hex: 0x7A5810).opacity(0.7))
-                    for ri in [3, 7, 11] {
-                        for ci in [3, 7, 11] {
-                            let cx = pad + CGFloat(ci) * s
-                            let cy = pad + CGFloat(ri) * s
-                            let dr: CGFloat = 2.5
-                            ctx.fill(Path(ellipseIn: CGRect(x: cx - dr, y: cy - dr, width: dr*2, height: dr*2)),
-                                     with: dotColor)
-                        }
-                    }
-
-                    // 駒（石）
-                    for row in 0..<gomokuBoardSize {
-                        for col in 0..<gomokuBoardSize {
-                            guard let stone = model.board[row, col] else { continue }
-                            let cx = pad + CGFloat(col) * s
-                            let cy = pad + CGFloat(row) * s
-                            let r  = s * 0.46
-                            let rect = CGRect(x: cx - r, y: cy - r, width: r*2, height: r*2)
-                            let path = Path(ellipseIn: rect)
-
-                            if stone == .black {
-                                ctx.fill(path, with: .color(Color(hex: 0x18140E)))
-                            } else {
-                                ctx.fill(path, with: .color(Color(hex: 0xF0E8D0)))
-                                ctx.stroke(path, with: .color(Color.gray.opacity(0.4)), lineWidth: 1)
-                            }
-
-                            // 直前手マーカー
-                            if let last = model.lastMove, last.row == row && last.col == col {
-                                let mr = r * 0.32
-                                let mRect = CGRect(x: cx - mr, y: cy - mr, width: mr*2, height: mr*2)
-                                ctx.fill(Path(ellipseIn: mRect),
-                                         with: .color(stone == .black ? Color.white.opacity(0.65)
-                                                                      : Color(hex: 0x2A1600).opacity(0.4)))
-                            }
-                        }
-                    }
-                }
+                GomokuBoardCanvas(
+                    board: model.board,
+                    lastMove: model.lastMove,
+                    moveCount: model.moveCount,
+                    pad: pad,
+                    revealedMoves: Double(model.moveCount)
+                )
+                // 置いた石が現れる演出（#202）。`Canvas` は View が再評価されないと描き直されない
+                // ため、`GomokuBoardCanvas` を `Animatable` にして手数を補間させている。
+                .gameAnimation(.easeOut(duration: 0.18), value: model.moveCount)
                 .gesture(
                     SpatialTapGesture()
                         .onEnded { val in
-                            guard !model.gameOver, !model.isAITurn else { return }
                             let col = Int(((val.location.x - pad) / spacing).rounded())
                             let row = Int(((val.location.y - pad) / spacing).rounded())
-                            guard row >= 0 && row < gomokuBoardSize,
-                                  col >= 0 && col < gomokuBoardSize else { return }
+                            // 盤外・手番違いの判定は Model 側に集約する（#202）。
+                            // ここで早期 return すると無効タップが無反応のまま残る。
                             model.tap(row: row, col: col)
                         }
                 )
@@ -218,6 +169,9 @@ public struct GomokuView: View {
                     accessibilityGrid(pad: pad, spacing: spacing)
                 }
             }
+            // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
+            .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
+            .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
         }
         .aspectRatio(1, contentMode: .fit)
     }
@@ -372,6 +326,143 @@ public struct GomokuView: View {
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+    }
+}
+
+// MARK: - Board Canvas
+
+/// 盤（格子・星・石）の描画（#202）。
+///
+/// `revealedMoves` は「何手目まで現れているか」を実数で持つ。`moveCount` が n-1 → n へ
+/// 変わるとき SwiftUI がこの値を補間するので、`revealedMoves - Double(moveCount - 1)` が
+/// そのまま「直前手の石がどこまで現れたか（0→1）」になる。
+///
+/// `Canvas` はビュー本体が作り直されない限り描き直されないため、外から `.gameAnimation` を
+/// 掛けただけでは石が瞬間表示のままになる。`Animatable` に適合させて毎フレーム `body` を
+/// 評価させるのがここでの肝。Reduce Motion が ON のときは `.gameAnimation` が
+/// アニメーションを落とし、補間が起きない = 従来どおりの即時表示になる。
+private struct GomokuBoardCanvas: View, Animatable {
+    nonisolated let board: GomokuBoard
+    nonisolated let lastMove: (row: Int, col: Int)?
+    nonisolated let moveCount: Int
+    nonisolated let pad: CGFloat
+    nonisolated var revealedMoves: Double
+
+    // `View` への適合でこの型は MainActor 隔離になるが、`Animatable` の要求は nonisolated。
+    // 保持しているのは値型（すべて Sendable）だけなので、格納プロパティごと nonisolated にして
+    // 適合を成立させる。
+    nonisolated var animatableData: Double {
+        get { revealedMoves }
+        set { revealedMoves = newValue }
+    }
+
+    /// 直前手の石が現れきったか（0→1）。
+    ///
+    /// 「待った」で手数が減る向きでは 1 を超えた値になるためクランプする
+    /// （巻き戻しの最中に残った石が薄くなるのを防ぐ）。
+    private var placementProgress: Double {
+        guard moveCount > 0 else { return 1 }
+        return min(max(revealedMoves - Double(moveCount - 1), 0), 1)
+    }
+
+    var body: some View {
+        let progress = placementProgress
+        Canvas { ctx, size in
+            let s = (size.width - pad * 2) / CGFloat(gomokuBoardSize - 1)
+            let lineColor = GraphicsContext.Shading.color(Color(hex: 0x7A5810).opacity(0.55))
+
+            // 盤の格子線
+            for i in 0..<gomokuBoardSize {
+                let x = pad + CGFloat(i) * s
+                let y = pad + CGFloat(i) * s
+                var vp = Path()
+                vp.move(to: CGPoint(x: x, y: pad))
+                vp.addLine(to: CGPoint(x: x, y: size.height - pad))
+                ctx.stroke(vp, with: lineColor, lineWidth: 0.8)
+
+                var hp = Path()
+                hp.move(to: CGPoint(x: pad, y: y))
+                hp.addLine(to: CGPoint(x: size.width - pad, y: y))
+                ctx.stroke(hp, with: lineColor, lineWidth: 0.8)
+            }
+
+            // 星（天元 + 4隅）
+            let dotColor = GraphicsContext.Shading.color(Color(hex: 0x7A5810).opacity(0.7))
+            for ri in [3, 7, 11] {
+                for ci in [3, 7, 11] {
+                    let cx = pad + CGFloat(ci) * s
+                    let cy = pad + CGFloat(ri) * s
+                    let dr: CGFloat = 2.5
+                    ctx.fill(Path(ellipseIn: CGRect(x: cx - dr, y: cy - dr, width: dr*2, height: dr*2)),
+                             with: dotColor)
+                }
+            }
+
+            // 駒（石）
+            for row in 0..<gomokuBoardSize {
+                for col in 0..<gomokuBoardSize {
+                    guard let stone = board[row, col] else { continue }
+                    let isLast = lastMove.map { $0.row == row && $0.col == col } ?? false
+                    // 直前手だけスケール + フェードで現れる。それ以外は常に実寸。
+                    let appear = isLast ? progress : 1
+                    guard appear > 0 else { continue }
+
+                    let cx = pad + CGFloat(col) * s
+                    let cy = pad + CGFloat(row) * s
+                    let r  = s * 0.46 * (0.55 + 0.45 * appear)
+                    let rect = CGRect(x: cx - r, y: cy - r, width: r*2, height: r*2)
+                    let path = Path(ellipseIn: rect)
+
+                    // 透明度は複製したレイヤーに掛ける（元の ctx に残すと以降の石まで薄くなる）。
+                    var layer = ctx
+                    layer.opacity = appear
+
+                    if stone == .black {
+                        layer.fill(path, with: .color(Color(hex: 0x18140E)))
+                    } else {
+                        layer.fill(path, with: .color(Color(hex: 0xF0E8D0)))
+                        layer.stroke(path, with: .color(Color.gray.opacity(0.4)), lineWidth: 1)
+                    }
+
+                    // 直前手マーカー: 外周のリング + 中央のドット（#202）。
+                    // 内側の小さなドットだけでは黒石の上でほとんど見えず、初見では
+                    // 直前手の位置が分からなかった。盤色・黒石・白石のいずれとも差が出る
+                    // アクセント色のリングを外周に足し、ドットも一回り大きく濃くする。
+                    if isLast {
+                        let ring = rect.insetBy(dx: -2, dy: -2)
+                        layer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
+
+                        let mr = r * 0.34
+                        let mRect = CGRect(x: cx - mr, y: cy - mr, width: mr*2, height: mr*2)
+                        layer.fill(Path(ellipseIn: mRect),
+                                   with: .color(stone == .black ? Color.white.opacity(0.9)
+                                                                : Color(hex: 0x2A1600).opacity(0.75)))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 無効操作の震え
+
+/// 打てないタップを伝える盤の横揺れ（#202）。
+///
+/// `animatableData` に拒否の通し番号を渡す。値が 1 進むあいだに左右へ `shakes` 往復し、
+/// 整数では `sin` が 0 になるので**必ず元位置へ戻る**（振れっぱなしにならない）。
+/// Reduce Motion が ON のときは `.gameAnimation` がアニメーションを落とすため補間自体が
+/// 起きず、盤は静止したままになる（触覚・効果音は Model 側から従来どおり鳴る）。
+private struct GomokuShake: GeometryEffect {
+    /// 片側の振れ幅（pt）。
+    var amount: CGFloat = 5
+    /// 通し番号 1 つにつき往復する回数。
+    var shakes: CGFloat = 3
+    var animatableData: CGFloat
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(
+            CGAffineTransform(translationX: amount * sin(animatableData * .pi * 2 * shakes), y: 0)
+        )
     }
 }
 
