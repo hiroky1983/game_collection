@@ -59,21 +59,15 @@ struct MahjongCallBar: View {
     /// iPhone SE（画面 375pt）でもここまでは 1 行に収まる。これ以上（カンとポンも同時に鳴ける形）は
     /// 折り返す。**縦に積むと画面から溢れて上下が切れる**ので、`.adaptive` ではなく列数を明示する。
     private static let maximumColumns = 4
-    // 会長指摘: ボタンが大きい・出現時にセクションが動く。Apple HIG の 44pt はタップ標的として
-    // 維持しつつ、見た目のかさ（フォント・パディング・見出し行）を削って全体の背を低くする。
-    private static let buttonHeight: CGFloat = 44
+    // 会長再指摘: 見出し行（牌＋「が出ました」）自体が対局中の1行ボタン行との差を生んでいた。
+    // 見出しを独立した行にせず、牌をボタン行の左に**同じ行で**並べて行数そのものを揃える。
+    private static let buttonHeight: CGFloat = 40
 
     var body: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
-                MahjongTileView(tile: offer.tile, width: 16, height: 21)
-                Text("が出ました")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                Spacer(minLength: 0)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(offer.tile.displayName)が出ました。鳴きますか")
+        HStack(alignment: .center, spacing: 6) {
+            MahjongTileView(tile: offer.tile, width: 18, height: 24)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(offer.tile.displayName)が出ました。鳴きますか")
             // 選択肢はチーの取り方違いで最大 3 つ増える（カン + ポン + チー3通り + スルーで 6 つ）。
             // 縦に積むと iPhone SE では画面からはみ出すので、入る数だけ横に並べて折り返す。
             LazyVGrid(columns: columns, spacing: 4) {
@@ -87,11 +81,15 @@ struct MahjongCallBar: View {
                         .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.small)
                 .tint(Theme.fillMuted)
                 .accessibilityLabel("鳴かずに進める")
             }
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
+        // 会長指摘: カードが画面幅いっぱいに広がらず、ボタンが狭まって「スルー」が省略されていた。
+        // 他のアクション行（立直・ツモ等）と同じく幅いっぱいに広げる。
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -124,6 +122,7 @@ struct MahjongCallBar: View {
             .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
         }
         .buttonStyle(.borderedProminent)
+        .controlSize(.small)
         .tint(option.isKan ? Theme.purple : Theme.coral)
         .accessibilityLabel(MahjongAccessibility.callOptionLabel(option))
     }
