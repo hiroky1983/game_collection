@@ -325,8 +325,13 @@ public struct MahjongView: View {
                 opponentNameChip(index)
             }
             // 会長指摘: 固定10ptだと河の牌より露骨に小さく、間隔が詰まって重なって見えていた。
-            // 河と同じ動的な `tileWidth` を使い、大きさを揃える。
-            MahjongMeldRow(melds: model.melds[index], tileWidth: tileWidth, showsBadge: false)
+            // 河と同じ動的な `tileWidth` を使い大きさを揃えたが、ポン(3枚)・カン(4枚)を
+            // 横一列のままにすると河のグリッド（2列）の幅を超えてはみ出し、隣の要素と
+            // 重なって見える不具合が別に出た（会長指摘）。河と同じ列数で折り返す。
+            MahjongMeldRow(
+                melds: model.melds[index], tileWidth: tileWidth,
+                showsBadge: false, maxTilesPerRow: Self.sideDiscardPerRow
+            )
             discardStrip(
                 model.discards[index], tileWidth: tileWidth,
                 perRow: Self.sideDiscardPerRow, maxTiles: Self.sideDiscardMaxTiles

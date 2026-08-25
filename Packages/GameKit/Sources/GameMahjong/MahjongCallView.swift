@@ -11,31 +11,59 @@ struct MahjongMeldRow: View {
     let tileWidth: CGFloat
     /// 種類の見出しを出すか（他家の小さい表示では省く）。
     var showsBadge: Bool = true
+    /// 指定すると、1つの副露の牌をこの枚数ごとに折り返し、複数の副露は横に並べず縦に積む。
+    /// 上家・下家の狭い列で牌のサイズを河と揃えたところ、ポン(3枚)やカン(4枚)が横一列のままだと
+    /// 河のグリッド（2列）の幅を超えてはみ出し、隣の要素と重なって見えていた（会長指摘）。
+    /// 河と同じ列数で折り返せば、幅が河のグリッドを超えることが構造的に無くなる。
+    var maxTilesPerRow: Int?
 
     var body: some View {
         if !melds.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
-                    VStack(spacing: 1) {
-                        HStack(spacing: 1) {
-                            ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
-                                MahjongTileView(
-                                    tile: tile, width: tileWidth, height: tileWidth * 1.34
-                                )
-                            }
-                        }
-                        if showsBadge {
-                            Text(Self.badge(meld))
-                                .font(.system(size: 8, weight: .black, design: .rounded))
-                                .foregroundStyle(Theme.inkSub)
-                        }
+            if let maxTilesPerRow {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
+                        wrappedMeld(meld, perRow: maxTilesPerRow)
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
                 }
-                Spacer(minLength: 0)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
+                        singleRowMeld(meld)
+                    }
+                    Spacer(minLength: 0)
+                }
             }
         }
+    }
+
+    private func singleRowMeld(_ meld: MahjongCall) -> some View {
+        VStack(spacing: 1) {
+            HStack(spacing: 1) {
+                ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
+                    MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
+                }
+            }
+            if showsBadge {
+                Text(Self.badge(meld))
+                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
+    }
+
+    private func wrappedMeld(_ meld: MahjongCall, perRow: Int) -> some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.fixed(tileWidth), spacing: 1), count: perRow),
+            alignment: .leading, spacing: 1
+        ) {
+            ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
+                MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
     }
 
     static func badge(_ meld: MahjongCall) -> String {
