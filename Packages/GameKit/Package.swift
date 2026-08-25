@@ -45,6 +45,8 @@ let package = Package(
         .target(name: "GameMahjong",        dependencies: ["Core", "MahjongTiles"]),
         // 配色（#187 のダークモード対応）はゲーム横断の共有資産なので Core 単体で検証する。
         .testTarget(name: "ThemeTests",       dependencies: ["Core"]),
+        // 広告枠（バナー）の生成判断。実際の GADBannerView は端末側なので、判断だけを純粋関数で検証する。
+        .testTarget(name: "AdsTests",         dependencies: ["Core"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku"]),

@@ -33,6 +33,25 @@ struct MahjongTileOrderTests {
         #expect(dora("6z") == .dragon(0))       // 發 → 中
         #expect(dora("7z") == .dragon(2))       // 中 → 白
     }
+
+    @Test("Int.min / Int.max の牌でもオーバーフローで停止せず 0〜33 に丸まる")
+    func extremeValuesDoNotOverflow() {
+        // 破損したスナップショットは `MahjongTile` の associated value に任意の Int を持ちうる
+        // （`Codable` は自動合成で値域を検査しない）。加算・減算をしてから丸めると
+        // `.characters(Int.min)` の `n - 1` と `.circles(Int.max)` の `8 + n` が
+        // オーバーフローして実行時に停止する。
+        let extremes: [MahjongTile] = [
+            .characters(.min), .characters(.max),
+            .circles(.min), .circles(.max),
+            .bamboos(.min), .bamboos(.max),
+            .wind(.min), .wind(.max),
+            .dragon(.min), .dragon(.max),
+        ]
+        for tile in extremes {
+            let index = MahjongTileOrder.index(of: tile)
+            #expect((0..<MahjongTileOrder.kindCount).contains(index))
+        }
+    }
 }
 
 // MARK: - シャンテン数

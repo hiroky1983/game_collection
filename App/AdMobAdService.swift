@@ -8,10 +8,8 @@ import Core
 final class AdMobBannerViewModel: NSObject, @preconcurrency GADBannerViewDelegate {
     let bannerView: GADBannerView
 
-    override init() {
-        bannerView = GADBannerView(adSize: GADCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(
-            UIScreen.main.bounds.width
-        ))
+    init(width: CGFloat) {
+        bannerView = GADBannerView(adSize: GADCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(width))
         bannerView.adUnitID = AdConfig.effectiveBannerID
         super.init()
         bannerView.delegate = self
@@ -66,8 +64,8 @@ public final class AdMobAdService: AdService {
     public init() {}
 
     // 画面ごとに独立した GADBannerView を持たせる。共有すると UIView が奪われ HubView で表示されない。
-    @MainActor public func makeBannerView() -> AnyView? {
-        let vm = AdMobBannerViewModel()
+    @MainActor public func makeBannerView(width: CGFloat) -> AnyView? {
+        let vm = AdMobBannerViewModel(width: width)
         return AnyView(AdMobBannerView(viewModel: vm))
     }
 

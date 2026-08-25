@@ -13,14 +13,29 @@ public enum MahjongTileOrder {
     /// 添字順に並べた 34 種。
     public static let all: [MahjongTile] = MahjongTile.all
 
+    /// 破損したスナップショット（不正な `n` を持つ牌、例: `.wind(4)`）を読み込んでも
+    /// 配列範囲外アクセスで全体がクラッシュしないよう、範囲外は端へ丸める。
+    /// `MahjongTileArt` の表示側クランプと同じ考え方（#マージ済みPRの実クラッシュで発覚）。
     public static func index(of tile: MahjongTile) -> Int {
+        let raw: Int
         switch tile {
-        case .characters(let n): return n - 1
-        case .circles(let n):    return 8 + n
-        case .bamboos(let n):    return 17 + n
-        case .wind(let n):       return 27 + n
-        case .dragon(let n):     return 31 + n
+        case .characters(let n): raw = shifted(n, by: -1)
+        case .circles(let n):    raw = shifted(n, by: 8)
+        case .bamboos(let n):    raw = shifted(n, by: 17)
+        case .wind(let n):       raw = shifted(n, by: 27)
+        case .dragon(let n):     raw = shifted(n, by: 31)
         }
+        return max(0, min(kindCount - 1, raw))
+    }
+
+    /// `n + offset` を飽和演算で求める。`n` は破損スナップショット由来で値域が保証されず、
+    /// 素の加算では `.characters(Int.min)` や `.circles(Int.max)` がオーバーフローして
+    /// 実行時に停止する（上のクランプは加算のあとなので間に合わない）。
+    /// 飽和させた端の値はどちらにせよクランプで 0 か 33 に丸まるので、結果は変わらない。
+    private static func shifted(_ n: Int, by offset: Int) -> Int {
+        let (sum, overflowed) = n.addingReportingOverflow(offset)
+        guard overflowed else { return sum }
+        return offset > 0 ? .max : .min
     }
 
     public static func tile(at index: Int) -> MahjongTile {
