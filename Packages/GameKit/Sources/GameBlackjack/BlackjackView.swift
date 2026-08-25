@@ -138,7 +138,12 @@ public struct BlackjackView: View {
                 } else {
                     ForEach(Array(model.dealerHand.enumerated()), id: \.element.id) { idx, card in
                         let hidden = idx == 1 && model.phase == .playerTurn
-                        BJCardView(card: card, faceUp: !hidden)
+                        // 伏せカードの公開はこのゲーム唯一の山場なので、表裏を差し替えるのではなく
+                        // 進捗を補間して実際に返す（#209）。
+                        BJDealtCardView(index: idx, isDealer: true) {
+                            BJFlipCardView(card: card, progress: hidden ? 0 : 1)
+                                .gameAnimation(BlackjackMotion.holeCardFlip, value: hidden)
+                        }
                     }
                 }
             }
@@ -162,9 +167,16 @@ public struct BlackjackView: View {
                         .font(.system(size: 14, weight: .black, design: .rounded))
                         .foregroundStyle(model.playerValue > 21 ? Theme.coral : Theme.teal)
                 }
-                if let outcome = model.outcome {
-                    outcomeBadge(outcome)
+                // 勝敗バッジはフェードで出す（#209）。`.gameAnimation` はこの ZStack にだけ置く
+                // （手札の値の入れ替えまで animate されると決着の瞬間に行が伸び縮みする）。
+                // 修飾子は1つのビューに1つだけ置くこと（入れ子にすると打ち消し合う・#199）。
+                ZStack {
+                    if let outcome = model.outcome {
+                        outcomeBadge(outcome)
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    }
                 }
+                .gameAnimation(BlackjackMotion.outcomeBadge, value: model.outcome)
             }
 
             HStack(spacing: 8) {
@@ -172,8 +184,10 @@ public struct BlackjackView: View {
                     BJCardPlaceholder()
                     BJCardPlaceholder()
                 } else {
-                    ForEach(model.playerHand) { card in
-                        BJCardView(card: card, faceUp: true)
+                    ForEach(Array(model.playerHand.enumerated()), id: \.element.id) { idx, card in
+                        BJDealtCardView(index: idx, isDealer: false) {
+                            BJCardView(card: card, faceUp: true)
+                        }
                     }
                 }
             }
@@ -344,6 +358,76 @@ public struct BlackjackView: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
+    }
+}
+
+// MARK: - Deal Animation
+
+/// 配られてくる 1 枚（#209）。上から落ちてきて実寸に収まる。
+///
+/// 段差は「置かれた順」で決まりビューの再生成では変わらないので、状態は**このビュー自身が持つ**。
+/// `ForEach` の identity はカードの `id` なので、ラウンドが変わって手札が入れ替われば
+/// ビューごと作り直され、`onAppear` から演出がやり直される。
+struct BJDealtCardView<Content: View>: View {
+    let index: Int
+    let isDealer: Bool
+    let content: () -> Content
+
+    /// 置き終わったか。`false` の間だけ持ち上げて薄くしておく。
+    @State private var dealt = false
+
+    init(index: Int, isDealer: Bool, @ViewBuilder content: @escaping () -> Content) {
+        self.index = index
+        self.isDealer = isDealer
+        self.content = content
+    }
+
+    var body: some View {
+        content()
+            // `.transition` と違い `.offset` より前に置く必要はないが、拡大・移動は
+            // 不透明度より先に掛けて「遠くから来て濃くなる」順にする。
+            .scaleEffect(dealt ? 1 : BlackjackMotion.dealStartScale)
+            .offset(y: dealt ? 0 : BlackjackMotion.dealOffset)
+            .opacity(dealt ? 1 : 0)
+            .onAppear {
+                // Reduce Motion が ON なら `withGameAnimation` が補間を落とすので、
+                // 遅れも動きも無く即座に置かれる（状態変更そのものは必ず走る）。
+                withGameAnimation(BlackjackMotion.dealAppear(index: index, isDealer: isDealer)) {
+                    dealt = true
+                }
+            }
+    }
+}
+
+// MARK: - Flip Reveal Card View
+
+/// 裏から表へ返るディーラーの伏せカード（#209）。
+///
+/// `faceUp` の切り替えに `.gameAnimation` を掛けただけでは表裏が瞬時に入れ替わるだけなので、
+/// ポーカーの `FlipRevealCardView`（#206）と同じく**このビュー自身を `Animatable`** にして
+/// 進捗を補間させ、進捗の翻訳は `BlackjackMotion` の純関数に任せる。
+struct BJFlipCardView: View, Animatable {
+    nonisolated let card: BlackjackCard
+    /// 0 = 裏 / 1 = 表。`.gameAnimation` が掛かっていればこの値が補間される。
+    nonisolated var progress: Double
+
+    // `View` への適合でこの型は MainActor 隔離になるが、`Animatable` の要求は nonisolated。
+    // 保持しているのは値型（すべて Sendable）だけなので、格納プロパティごと nonisolated にする。
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        let showsFace = BlackjackMotion.showsFace(progress: progress)
+        BJCardView(card: card, faceUp: showsFace)
+            // 後半はカードごと 90 度を越えて回っているので、表の中身が鏡像にならないよう
+            // ここで 180 度打ち消す（合計 360 度で元の向きに戻る）。
+            .rotation3DEffect(.degrees(showsFace ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+            .rotation3DEffect(
+                .degrees(BlackjackMotion.flipDegrees(progress: progress)),
+                axis: (x: 0, y: 1, z: 0)
+            )
     }
 }
 
