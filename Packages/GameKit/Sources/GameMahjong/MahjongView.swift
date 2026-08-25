@@ -46,6 +46,11 @@ public struct MahjongView: View {
                 Spacer(minLength: 0)
             } else {
                 handOnTable.transition(.opacity)
+                // 卓（`mahjongTable`）は正方形で、画面の余った縦幅をすべて使い切るとは限らない。
+                // リザルト画面（.handResult/.gameResult）側は既に Spacer で余りを吸収していたが、
+                // 対局中のこの分岐だけ抜けていて、余った分がそのまま広告の下の空白として
+                // 出てしまっていた（会長指摘: 広告下の変な余白）。同じ形で吸収する。
+                Spacer(minLength: 0)
             }
             // 会長指摘: リザルト画面でも「切る牌をタップしよう」が出ていて、打牌できない場面なのに
             // 打牌を促す文言が残っていた。対局中だけ出す。
@@ -274,14 +279,24 @@ public struct MahjongView: View {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(isCurrent ? Theme.coral : Theme.Fixed.ink.opacity(0.6))
-                Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Fixed.ink)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-                Text("\(model.scores[index])")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.Fixed.ink.opacity(0.7))
-                    .lineLimit(1).minimumScaleFactor(0.6)
+                if isInPlay {
+                    Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.Fixed.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                    Text("\(model.scores[index])")
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.Fixed.ink.opacity(0.7))
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                } else {
+                    // リザルト画面: 得点・自風はこのすぐ下の得点表と重複するので出さない。名前だけの
+                    // 短い表示にする。会長指摘: チップは常時出す形にしたが、フル情報のままだと
+                    // リザルトカードぶん卓（正方形）が縮んで「CPU… 24,…」のように省略記号化していた。
+                    Text(model.playerName(index))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.Fixed.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                }
             }
             // 会長指摘: 「立直」タグが名前・点数と同じ行で幅を取り合うと、リーチが入った瞬間に
             // 文字が縮んで見える。タグは行を分けて、名前・点数の行の幅取り合いに参加させない。
@@ -304,11 +319,12 @@ public struct MahjongView: View {
         .frame(maxWidth: Self.chipMaxWidth)
     }
 
-    /// 対局中（決着していない）か。会長指摘: リザルト画面ではリザルトカードの得点表が
-    /// 全員ぶんの名前・点数・増減をすでに示しているので、卓の上の名前チップは4席とも
-    /// 完全に冗長。加えて、リザルトカードが伸びるぶん卓自体（`mahjongTable`）が小さく
-    /// 描かれ、チップの文字が入り切らず省略記号だけになる不具合も出ていた（会長のスクショで発覚）。
-    /// 対局中だけ出す形にすれば、両方いっぺんに解消する。
+    /// 対局中（決着していない）か。「切る牌をタップしよう」のヒントや手牌一覧など、
+    /// 打牌操作に関わる要素はリザルト画面では意味を持たないのでここで隠す。
+    ///
+    /// 会長指摘（2026-08-25）: 名前チップは以前ここでリザルト中だけ隠していたが、CPUも含めて
+    /// 「常に固定で出ていてほしい」とのことなので、チップの表示・非表示にはもう使わない
+    /// （`opponentRow`/`opponentColumn`/`playerDiscardOnTable` は常時 `opponentNameChip` を出す）。
     private var isInPlay: Bool {
         model.phase == .playing || model.phase == .ronOffer || model.phase == .callOffer
     }
@@ -316,9 +332,7 @@ public struct MahjongView: View {
     /// 対面（横一列の河）。
     private func opponentRow(_ index: Int, tileWidth: CGFloat) -> some View {
         VStack(spacing: 3) {
-            if isInPlay {
-                opponentNameChip(index)
-            }
+            opponentNameChip(index)
             // 会長指摘: 固定10ptだと河の牌より露骨に小さく、間隔が詰まって重なって見えていた。
             // 河と同じ動的な `tileWidth` を使い、大きさを揃える。
             MahjongMeldRow(melds: model.melds[index], tileWidth: tileWidth, showsBadge: false)
@@ -341,9 +355,7 @@ public struct MahjongView: View {
     private func opponentColumn(_ index: Int, tileWidth: CGFloat) -> some View {
         let meldTileWidth = tileWidth * CGFloat(Self.sideDiscardPerRow) / CGFloat(Self.sideMeldPerRow)
         return VStack(spacing: 3) {
-            if isInPlay {
-                opponentNameChip(index)
-            }
+            opponentNameChip(index)
             MahjongMeldRow(
                 melds: model.melds[index], tileWidth: meldTileWidth,
                 showsBadge: false, maxTilesPerRow: Self.sideMeldPerRow
@@ -400,9 +412,7 @@ public struct MahjongView: View {
     /// 見渡せる一覧を別途置く。
     private func playerDiscardOnTable(tileWidth: CGFloat, overviewWidth: CGFloat) -> some View {
         VStack(spacing: 4) {
-            if isInPlay {
-                opponentNameChip(MahjongModel.humanIndex, icon: "person.fill")
-            }
+            opponentNameChip(MahjongModel.humanIndex, icon: "person.fill")
             // 会長指摘「鳴いた牌は卓の上においてほしい」への対応: 対面・上家・下家は既に卓の上
             // （このVStackと同じ緑の正方形の中）に副露を出している。自分だけ卓の下（操作用の
             // `handOnTable`）にあったのを、同じ卓の上に揃える。
