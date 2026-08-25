@@ -18,11 +18,24 @@ struct MahjongMeldRow: View {
     var maxTilesPerRow: Int?
 
     var body: some View {
+        // 中央寄せ（河のグリッドが中央寄せなので、左寄せだと副露だけズレて散らかって見える）。
         if !melds.isEmpty {
             if let maxTilesPerRow {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
-                        wrappedMeld(meld, perRow: maxTilesPerRow)
+                // 1組=1行にせず、上限枚数まで複数の副露を同じ行に詰める（ポン3枚+カン4枚=7枚が
+                // ちょうど1行）。組ごとに行を分けると、副露が多い終盤に縦へ伸びて河を圧迫する。
+                VStack(alignment: .center, spacing: 1) {
+                    ForEach(Array(Self.packRows(melds, perRow: maxTilesPerRow).enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 3) {
+                            ForEach(Array(row.enumerated()), id: \.offset) { _, meld in
+                                HStack(spacing: 1) {
+                                    ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
+                                        MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
+                                    }
+                                }
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
+                            }
+                        }
                     }
                 }
             } else {
@@ -30,10 +43,29 @@ struct MahjongMeldRow: View {
                     ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
                         singleRowMeld(meld)
                     }
-                    Spacer(minLength: 0)
                 }
             }
         }
+    }
+
+    /// 副露を、1行あたりの牌の枚数が `perRow` を超えないように前から詰めて行に分ける。
+    /// 1組（最大4枚）は行をまたがない。
+    static func packRows(_ melds: [MahjongCall], perRow: Int) -> [[MahjongCall]] {
+        var rows: [[MahjongCall]] = []
+        var current: [MahjongCall] = []
+        var count = 0
+        for meld in melds {
+            let n = meld.tiles.count
+            if !current.isEmpty && count + n > perRow {
+                rows.append(current)
+                current = []
+                count = 0
+            }
+            current.append(meld)
+            count += n
+        }
+        if !current.isEmpty { rows.append(current) }
+        return rows
     }
 
     private func singleRowMeld(_ meld: MahjongCall) -> some View {
@@ -47,19 +79,6 @@ struct MahjongMeldRow: View {
                 Text(Self.badge(meld))
                     .font(.system(size: 8, weight: .black, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
-    }
-
-    private func wrappedMeld(_ meld: MahjongCall, perRow: Int) -> some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.fixed(tileWidth), spacing: 1), count: perRow),
-            alignment: .leading, spacing: 1
-        ) {
-            ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
-                MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
             }
         }
         .accessibilityElement(children: .ignore)
