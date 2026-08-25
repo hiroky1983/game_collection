@@ -10,43 +10,48 @@ public enum MahjongShanten {
     // MARK: - 公開 API
 
     /// 手牌のシャンテン数。13 枚でも 14 枚でも受け取れる。
-    public static func shanten(_ hand: MahjongHand) -> Int {
-        min(standard(hand.counts), sevenPairs(hand.counts), thirteenOrphans(hand.counts))
+    ///
+    /// `meldCount` は副露した面子の数。渡す `hand` は**門前の部分だけ**（副露 1 つにつき 3 枚少ない）。
+    /// 副露していると七対子・国士無双は成立しないので、通常形だけを数える。
+    public static func shanten(_ hand: MahjongHand, meldCount: Int = 0) -> Int {
+        let normal = standard(hand.counts, meldCount: meldCount)
+        guard meldCount == 0 else { return normal }
+        return min(normal, sevenPairs(hand.counts), thirteenOrphans(hand.counts))
     }
 
     /// 和了形か（14 枚で 4 面子 + 雀頭 / 七対子 / 国士無双）。
-    public static func isWinningHand(_ hand: MahjongHand) -> Bool {
-        hand.total % 3 == 2 && shanten(hand) == -1
+    public static func isWinningHand(_ hand: MahjongHand, meldCount: Int = 0) -> Bool {
+        hand.total % 3 == 2 && shanten(hand, meldCount: meldCount) == -1
     }
 
     /// 聴牌か（あと 1 枚で和了）。
-    public static func isTenpai(_ hand: MahjongHand) -> Bool {
-        shanten(hand) == 0
+    public static func isTenpai(_ hand: MahjongHand, meldCount: Int = 0) -> Bool {
+        shanten(hand, meldCount: meldCount) == 0
     }
 
     /// 待ち牌（この牌が来れば和了になる牌）。13 枚の手牌に対して使う。
     ///
     /// 自分が既に 4 枚使っている牌は入りようがないので候補から外す。山や他家の河に
     /// 残っているかまでは見ない（待ちの形そのものを表すため）。
-    public static func waits(_ hand: MahjongHand) -> [MahjongTile] {
+    public static func waits(_ hand: MahjongHand, meldCount: Int = 0) -> [MahjongTile] {
         guard hand.total % 3 == 1 else { return [] }
         // 聴牌していなければ待ちは無い。1 回の判定で 34 通りの試行を丸ごと省ける
         // （フリテン判定が打牌のたびに全員ぶん走るため、ここの枝刈りが効く）。
-        guard shanten(hand) == 0 else { return [] }
+        guard shanten(hand, meldCount: meldCount) == 0 else { return [] }
         return (0..<MahjongTileOrder.kindCount).compactMap { index in
             guard hand.counts[index] < 4 else { return nil }
             let tile = MahjongTileOrder.tile(at: index)
-            return isWinningHand(hand.adding(tile)) ? tile : nil
+            return isWinningHand(hand.adding(tile), meldCount: meldCount) ? tile : nil
         }
     }
 
     /// 1 枚加えたときにシャンテン数が進む牌（受け入れ牌）。CPU の打牌選択に使う。
-    public static func acceptedTiles(_ hand: MahjongHand) -> [MahjongTile] {
-        let current = shanten(hand)
+    public static func acceptedTiles(_ hand: MahjongHand, meldCount: Int = 0) -> [MahjongTile] {
+        let current = shanten(hand, meldCount: meldCount)
         return (0..<MahjongTileOrder.kindCount).compactMap { index in
             guard hand.counts[index] < 4 else { return nil }
             let tile = MahjongTileOrder.tile(at: index)
-            return shanten(hand.adding(tile)) < current ? tile : nil
+            return shanten(hand.adding(tile), meldCount: meldCount) < current ? tile : nil
         }
     }
 
@@ -60,7 +65,10 @@ public enum MahjongShanten {
     /// **面子・搭子は色をまたがない**ので、萬子・筒子・索子・字牌の 4 グループを別々に分解し、
     /// あとから足し合わせる。34 種を一度に総当たりすると 1 回 0.3ms かかり、CPU の打牌選択
     /// （1 手あたり百数十回呼ぶ）が実用にならなかった。
-    static func standard(_ counts: [Int]) -> Int {
+    ///
+    /// `meldCount`（副露数）は「既に出来ている面子」として最後の集計に足す。門前の枚数が
+    /// 副露 1 つにつき 3 枚少ないため、分解側が数えられる面子は自然と `4 - meldCount` で頭打ちになる。
+    static func standard(_ counts: [Int], meldCount: Int = 0) -> Int {
         // dp[面子][搭子][雀頭を使ったか] = 到達可能か。面子・搭子は 4 で頭打ちにしてよい
         // （5 ブロック目は式に効かないため）。
         var reachable = [Bool](repeating: false, count: 5 * 5 * 2)
@@ -99,8 +107,9 @@ public enum MahjongShanten {
             for partials in 0...4 {
                 for hasPair in [false, true] where reachable[index(melds, partials, hasPair)] {
                     // 5 ブロック目（雀頭の分）は搭子として数えられないので、面子と合わせて 4 で頭打ち。
-                    let usable = min(partials, 4 - melds)
-                    best = min(best, 8 - 2 * melds - usable - (hasPair ? 1 : 0))
+                    let total = min(4, melds + meldCount)
+                    let usable = min(partials, 4 - total)
+                    best = min(best, 8 - 2 * total - usable - (hasPair ? 1 : 0))
                 }
             }
         }
