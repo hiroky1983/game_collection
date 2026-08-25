@@ -44,7 +44,7 @@ struct OthelloAITurnKeyTests {
     /// 起動直後（turnID = 0）に後手を選んでも turnID が 0 のままなので、
     /// キーが変わらないと初手が打たれない。
     @Test func aiTurnKeyChangesWhenStartingAsGoteWithoutMoves() {
-        let model = OthelloModel(services: nil)
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
         #expect(model.turnID == 0)
         let before = model.aiTurnKey
 
@@ -56,7 +56,7 @@ struct OthelloAITurnKeyTests {
 
     /// 後手開始 → CPU 初手 → 人間応手 → 再び CPU 番、まで通しで動くこと。
     @Test func goteStartPlaysCPUFirstMoveThenHumanReply() async {
-        let model = OthelloModel(services: nil)
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
         model.newGame(humanSide: .white)
 
         await model.performAIMoveIfNeeded()
@@ -74,7 +74,7 @@ struct OthelloAITurnKeyTests {
 
     /// 対局途中から新規対局を始めて後手を選んだ場合もトリガーが変化すること。
     @Test func aiTurnKeyChangesWhenRestartingMidGameAsGote() async {
-        let model = OthelloModel(services: nil)
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
         let first = try! #require(model.board.validMoves(for: .black).first)
         model.tap(row: first.0, col: first.1)
         await model.performAIMoveIfNeeded()
@@ -88,7 +88,7 @@ struct OthelloAITurnKeyTests {
 
     /// 先手を選んだ場合は従来どおり CPU は動かず、人間の手番から始まる。
     @Test func senteStartKeepsHumanTurn() async {
-        let model = OthelloModel(services: nil)
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
         model.newGame(humanSide: .black)
         #expect(model.isAITurn == false)
         await model.performAIMoveIfNeeded()
@@ -161,7 +161,7 @@ struct OthelloNewGameDuringThinkingTests {
     /// **合法**になる。着手直前の合法手チェックでは弾けない最悪ケースで、世代（`aiTurnKey`）の一致を
     /// 見て初めて弾ける。併せて、旧タスクの完了を待たずに思考フラグが解放されることも確かめる。
     @Test func newGameDuringThinkingDiscardsStaleMove() async throws {
-        let model = OthelloModel(services: nil)
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
         model.newGame(humanSide: .white, aiLevel: 2) // CPU=黒(先手)
         #expect(model.isAITurn)
 
