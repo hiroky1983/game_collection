@@ -653,3 +653,43 @@ struct MahjongFullGameTests {
         #expect(model.playerPlace != nil)
     }
 }
+
+// MARK: - CPU 進行のキャンセル
+
+@Suite("CPU 進行のキャンセル")
+@MainActor
+struct MahjongCancelTests {
+
+    /// `.task(id: model.turnKey)` は手番が変わるたびに前のタスクをキャンセルする。
+    /// `try? await Task.sleep(for:)` はキャンセル時に**即座に**返るため、キャンセル後の
+    /// ループが `cpuDelay` を一切待たずに残りの手番を走り抜けてしまう（CodeRabbit 指摘）。
+    /// 待ち時間の経過ではなく「キャンセル済みのタスクが打牌を進めないこと」で検証するので、
+    /// 実時間に依存せず安定する。
+    @Test("キャンセルされたら遅延を飛ばして打ち続けない")
+    func cancelledLoopDoesNotFastForward() async {
+        let model = MahjongModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()),
+            // キャンセルが効かなければ、この長さを無視して打牌が進んでしまう。
+            cpuDelay: .seconds(60),
+            seed: 2026
+        )
+        model.startGame()
+        if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+            model.discard(drawn)
+        }
+        try? #require(model.phase == .playing)
+        #expect(model.currentPlayer != MahjongModel.humanIndex, "CPU の手番になっていない")
+
+        let before = model.discards.reduce(0) { $0 + $1.count }
+        // MainActor 上なので、この Task の本体は `await` で手放すまで動かない。
+        // したがって cancel() は必ず本体の実行より先に確定する（実時間に依存しない）。
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.discards.reduce(0) { $0 + $1.count } == before,
+            "キャンセル済みのタスクが cpuDelay を無視して打牌を進めた"
+        )
+    }
+}

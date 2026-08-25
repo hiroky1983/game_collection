@@ -1016,6 +1016,11 @@ public final class MahjongModel {
             while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
                 if cpuDelay > .zero {
                     try? await Task.sleep(for: cpuDelay)
+                    // `try?` がキャンセルのエラーを握り潰すため、キャンセル後は
+                    // `Task.sleep` が即座に返る。ここで抜けないと、`.task(id:)` に
+                    // 差し替えられた古いタスクが `cpuDelay` を一切待たずに残りの手番を
+                    // 走り抜けてしまう（CodeRabbit 指摘）。
+                    guard !Task.isCancelled else { return }
                     guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
                 }
                 advanceAutomaticTurn()
@@ -1023,6 +1028,7 @@ public final class MahjongModel {
             guard autoPlayEnabled, phase == .handResult else { return }
             if cpuDelay > .zero {
                 try? await Task.sleep(for: cpuDelay)
+                guard !Task.isCancelled else { return }
                 guard autoPlayEnabled, phase == .handResult else { return }
             }
             advanceToNextHand()
