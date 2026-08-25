@@ -13,14 +13,19 @@ public enum MahjongTileOrder {
     /// 添字順に並べた 34 種。
     public static let all: [MahjongTile] = MahjongTile.all
 
+    /// 破損したスナップショット（不正な `n` を持つ牌、例: `.wind(4)`）を読み込んでも
+    /// 配列範囲外アクセスで全体がクラッシュしないよう、範囲外は端へ丸める。
+    /// `MahjongTileArt` の表示側クランプと同じ考え方（#マージ済みPRの実クラッシュで発覚）。
     public static func index(of tile: MahjongTile) -> Int {
+        let raw: Int
         switch tile {
-        case .characters(let n): return n - 1
-        case .circles(let n):    return 8 + n
-        case .bamboos(let n):    return 17 + n
-        case .wind(let n):       return 27 + n
-        case .dragon(let n):     return 31 + n
+        case .characters(let n): raw = n - 1
+        case .circles(let n):    raw = 8 + n
+        case .bamboos(let n):    raw = 17 + n
+        case .wind(let n):       raw = 27 + n
+        case .dragon(let n):     raw = 31 + n
         }
+        return max(0, min(kindCount - 1, raw))
     }
 
     public static func tile(at index: Int) -> MahjongTile {
