@@ -50,13 +50,13 @@ struct PokerMotionTests {
         #expect(Motion.showdownTotalDuration <= 0.8)
     }
 
-    @Test("演出のトーンは手札の選択 ≦ ポット < ショーダウン全体の順")
+    @Test("演出のトーンはポット ≦ 手札の選択 < 反転1枚 < ショーダウン全体の順")
     func showdownIsTheHeaviestEffect() {
-        // 山場（ショーダウン）が最も濃く、日常操作（選択・ポットの数値）は軽い、という
-        // 濃淡を固定する（#206 の受け入れ条件3。もとは逆転していた）。
-        #expect(Motion.potChangeDuration <= Motion.showdownFlipDuration)
-        #expect(Motion.showdownFlipDuration < Motion.showdownTotalDuration)
+        // 山場（ショーダウン）が最も濃く、日常操作（数値の入れ替え・カードの選択）は軽い、
+        // という濃淡を固定する（#206 の受け入れ条件3。もとは逆転していた）。
+        #expect(Motion.potChangeDuration <= Motion.handSelectionResponse)
         #expect(Motion.handSelectionResponse <= Motion.showdownFlipDuration)
+        #expect(Motion.showdownFlipDuration < Motion.showdownTotalDuration)
     }
 
     @Test("View がショーダウンの反転とポットの数値遷移に結線されている")
