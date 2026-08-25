@@ -9,7 +9,7 @@
 アプリのコンテナへ注入して、伏せカードがある局面から始めた。
 
 > **実装の所在**: この文書が説明している `BlackjackMotion` / `BJDealtCardView` / `BJFlipCardView` は
-> **PR #<impl>（base `release/v1.1.2`）にある**。この PR の base は `main` で、規程どおり `main` は
+> **PR #285（base `release/v1.1.2`）にある**。この PR の base は `main` で、規程どおり `main` は
 > 「App Store で公開済みのバージョンの集合」なので、まだ実装は入っていない。
 > 実装が main に現れるのは v1.1.2 が公開されて `release/v1.1.2` が main へ取り込まれた時点。
 
