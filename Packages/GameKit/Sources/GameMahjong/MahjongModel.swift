@@ -183,6 +183,10 @@ public final class MahjongModel {
     private var seed: UInt64?
     private let hints: FeedbackPreference
     private var isRunningCPUTurns = false
+    /// デバッグ用: 自分の手番・鳴き判断・ロン判断も CPU と同じロジックで自動的に進める。
+    /// `MahjongView` から起動引数（`-mahjongAutoPlay`）のときだけ有効化され、通常プレイでは
+    /// 常に false。会長がシミュレータで毎回手動プレイして確認する手間を省くための機能。
+    public private(set) var autoPlayEnabled = false
 
     public init(
         services: GameServices? = nil,
@@ -217,6 +221,12 @@ public final class MahjongModel {
             deadWallDraws = snap.deadWallDraws ?? 0
             phase = .playing
         }
+    }
+
+    /// 自分の手番以降もすべて CPU 判断で自動的に進めるようにする。一度有効にしたら
+    /// 対局が終わるまで無効化する手段は用意していない（デバッグ用途のみのため）。
+    public func enableAutoPlay() {
+        autoPlayEnabled = true
     }
 
     // MARK: - 公開状態
@@ -583,7 +593,7 @@ public final class MahjongModel {
         }
 
         if let claimant = ronClaimant(for: tile, discardedBy: player) {
-            if claimant == Self.humanIndex {
+            if claimant == Self.humanIndex, !autoPlayEnabled {
                 ronOffer = RonOffer(tile: tile, discarder: player)
                 phase = .ronOffer
                 services?.feedback.notify(.success)
@@ -630,7 +640,7 @@ public final class MahjongModel {
     private func resolveNextClaim() {
         while !pendingClaims.isEmpty, let pending = pendingDiscard {
             let claim = pendingClaims.removeFirst()
-            if claim.player == Self.humanIndex {
+            if claim.player == Self.humanIndex, !autoPlayEnabled {
                 callOffer = CallOffer(
                     tile: pending.tile, discarder: pending.by, options: claim.options
                 )
@@ -726,7 +736,7 @@ public final class MahjongModel {
         if call.kind == .addedKan, let claimant = ronClaimant(
             for: call.tile, discardedBy: player, isChankan: true
         ) {
-            if claimant == Self.humanIndex {
+            if claimant == Self.humanIndex, !autoPlayEnabled {
                 pendingKan = (call, player)
                 ronOffer = RonOffer(tile: call.tile, discarder: player, isChankan: true)
                 phase = .ronOffer
@@ -993,29 +1003,43 @@ public final class MahjongModel {
 
     /// 自動で進む手番が続く限り進める。自分が選ぶ番になるか、局が決着したら止まる。
     /// View から複数の契機で呼ばれても内部で 1 本に制限する。
+    ///
+    /// `autoPlayEnabled` のときは、局が終わって `.handResult` になっても止まらず、
+    /// そのまま「次の局へ」を自動で押した扱いにして次の局のCPU手番も続けて進める
+    /// （対局全体が終わる `.gameResult` まで無人で進む）。
     public func runCPUTurnsIfNeeded() async {
         guard !isRunningCPUTurns else { return }
         isRunningCPUTurns = true
         defer { isRunningCPUTurns = false }
 
-        while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
+        while true {
+            while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
+                if cpuDelay > .zero {
+                    try? await Task.sleep(for: cpuDelay)
+                    guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
+                }
+                advanceAutomaticTurn()
+            }
+            guard autoPlayEnabled, phase == .handResult else { return }
             if cpuDelay > .zero {
                 try? await Task.sleep(for: cpuDelay)
-                guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
+                guard autoPlayEnabled, phase == .handResult else { return }
             }
-            advanceAutomaticTurn()
+            advanceToNextHand()
         }
     }
 
     /// 人の選択を要さない手番か。CPU の手番と、**立直後でツモ和了もできない自分の手番**
-    /// （宣言後は自摸切りしかできないので選ばせる意味が無い）。
+    /// （宣言後は自摸切りしかできないので選ばせる意味が無い）。`autoPlayEnabled` のときは
+    /// 自分の手番も含めすべて自動。
     private var isAutomaticTurn: Bool {
         if currentPlayer != Self.humanIndex { return true }
+        if autoPlayEnabled { return true }
         return riichi[Self.humanIndex] && !canDeclareTsumo
     }
 
     private func advanceAutomaticTurn() {
-        if currentPlayer == Self.humanIndex {
+        if currentPlayer == Self.humanIndex, !autoPlayEnabled {
             guard let drawn = drawnTile else { return }
             performDiscard(drawn, by: Self.humanIndex)   // 立直中の自摸切り
             return

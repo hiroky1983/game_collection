@@ -13,8 +13,18 @@ public struct MahjongView: View {
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: MahjongModel(services: services))
-        _showStartSheet = State(initialValue: !services.snapshots.exists(for: "mahjong4"))
+        let m = MahjongModel(services: services)
+        _model = State(initialValue: m)
+        let hasSnapshot = services.snapshots.exists(for: "mahjong4")
+        // デバッグ用: 会長がシミュレータで毎回手動プレイして確認する手間を省くための
+        // 自動進行モード。起動引数（`-mahjongAutoPlay`）でだけ有効になり、通常起動には影響しない。
+        // 開始シートのタップも省き、対局が無ければその場で最初の局を配る。
+        let autoPlay = ProcessInfo.processInfo.arguments.contains("-mahjongAutoPlay")
+        if autoPlay {
+            m.enableAutoPlay()
+            if !hasSnapshot { m.startGame() }
+        }
+        _showStartSheet = State(initialValue: !hasSnapshot && !autoPlay)
     }
 
     public var body: some View {
