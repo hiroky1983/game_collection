@@ -305,7 +305,9 @@ public struct MahjongView: View {
             if isInPlay {
                 opponentNameChip(index)
             }
-            MahjongMeldRow(melds: model.melds[index], tileWidth: 10, showsBadge: false)
+            // 会長指摘: 固定10ptだと河の牌より露骨に小さく、間隔が詰まって重なって見えていた。
+            // 河と同じ動的な `tileWidth` を使い、大きさを揃える。
+            MahjongMeldRow(melds: model.melds[index], tileWidth: tileWidth, showsBadge: false)
             discardStrip(model.discards[index], tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles)
         }
         .accessibilityElement(children: .ignore)
@@ -318,7 +320,9 @@ public struct MahjongView: View {
             if isInPlay {
                 opponentNameChip(index)
             }
-            MahjongMeldRow(melds: model.melds[index], tileWidth: 10, showsBadge: false)
+            // 会長指摘: 固定10ptだと河の牌より露骨に小さく、間隔が詰まって重なって見えていた。
+            // 河と同じ動的な `tileWidth` を使い、大きさを揃える。
+            MahjongMeldRow(melds: model.melds[index], tileWidth: tileWidth, showsBadge: false)
             discardStrip(
                 model.discards[index], tileWidth: tileWidth,
                 perRow: Self.sideDiscardPerRow, maxTiles: Self.sideDiscardMaxTiles
@@ -374,6 +378,10 @@ public struct MahjongView: View {
             if isInPlay {
                 opponentNameChip(MahjongModel.humanIndex, icon: "person.fill")
             }
+            // 会長指摘「鳴いた牌は卓の上においてほしい」への対応: 対面・上家・下家は既に卓の上
+            // （このVStackと同じ緑の正方形の中）に副露を出している。自分だけ卓の下（操作用の
+            // `handOnTable`）にあったのを、同じ卓の上に揃える。
+            MahjongMeldRow(melds: model.playerMelds, tileWidth: tileWidth, showsBadge: false)
             discardStrip(
                 model.discards[MahjongModel.humanIndex],
                 tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles
@@ -487,9 +495,8 @@ public struct MahjongView: View {
             // 選択（浮き上がり）演出は handTile 側で個別に `.animation` を付け直しているので、
             // ここで止めても影響しない。
             .transaction { $0.animation = nil; $0.disablesAnimations = true }
-            // 副露は手牌の外に晒すものなので、手牌の帯のすぐ下に並べる（#263）。
-            // 鳴いていなければ何も描かないので、門前のままなら高さは増えない。
-            MahjongMeldRow(melds: model.playerMelds, tileWidth: 20)
+            // 副露は「卓の上においてほしい」（会長指摘）ため `playerDiscardOnTable` 側に移した。
+            // ここ（操作用のスクロール行）には置かない。
             hintLine(waits: waits)
         }
         .padding(.horizontal, 6).padding(.vertical, 6)
