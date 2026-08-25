@@ -12,6 +12,12 @@ CPU の手番から始まる盤にしておくと、`ConcentrationView.task(id:)
 1コマも中間状態を拾えない。そのため**長さを引き伸ばしたプローブビルド**で撮っている。
 **プローブの変更はコミットに含めていない**（この PR に入っているのは画像2枚とこの README のみ）。
 
+> **実装の所在**: この文書が説明している `ConcentrationMotion` / `.gameAnimation` / `.transition(.opacity)` は
+> **PR #283（base `release/v1.1.2`）にある**。この PR の base は `main` で、規程どおり `main` は
+> 「App Store で公開済みのバージョンの集合」なので、まだ実装は入っていない。
+> この文書の記述は**プローブ限定の挙動ではなく製品コードの挙動**で、差は演出の長さだけ（下表）。
+> 実装が main に現れるのは v1.1.2 が公開されて `release/v1.1.2` が main へ取り込まれた時点。
+
 | 画像 | 内容 | プローブでの長さ | 製品の長さ |
 |---|---|---|---|
 | `result-overlay-fade.jpg` | 終局オーバーレイの出現 | 待ち 2.5 秒・フェード 3.0 秒 | 待ち 0.35 秒・フェード 0.25 秒 |
@@ -19,7 +25,29 @@ CPU の手番から始まる盤にしておくと、`ConcentrationView.task(id:)
 
 長さと無関係な部分（トーンの大小関係・View への結線）は `ConcentrationMotionTests` が固定する。
 
+## 画素サンプリングの再現条件
+
+下の2節の数値は、連続スクリーンショットから同じ矩形の平均色を拾って並べたもの。再現手順:
+
+- 元画像: `xcrun simctl io <UDID> screenshot --type png` の出力（**1206 × 2622 px**・sRGB・
+  iPhone 17 Pro の @3x ネイティブ解像度）。この節の座標はすべてこのフル解像度のピクセル座標。
+- 集計: Pillow で `Image.open(f).convert("RGB").crop(box).resize((1,1)).getpixel((0,0))`。
+  **輝度へは変換せず sRGB の RGB 値をそのまま**記録している（「輝度」と書いてある箇所は
+  R ≒ G ≒ B の無彩色域なので R 値で代表している）。`resize` の既定の再標本化（バイキュービック）
+  による領域平均で、しきい値判定には使っていない（変化の向きと折り返し点だけを見る）。
+- 撮影間隔: `simctl io screenshot` を待ち無しの連続実行で回した実測値。終局の回は 14 秒 / 45 コマ
+  = 約 0.31 秒、手番の回は 12 秒 / 53 コマ = 約 0.23 秒。等間隔を保証するものではないので、
+  下の「◯コマ ≒ ◯秒」は総経過時間をコマ数で割った平均で見ている。
+
+| 名前 | 矩形 (left, top, right, bottom) | 何を見るための場所か |
+|---|---|---|
+| 盤の左上 | (60, 700, 360, 1000) | 暗幕は掛かるが結果カードは載らない = フェードの進行だけが出る |
+| `あなた` チップ | (110, 420, 300, 500) | 背景 Capsule の塗り（無地 ↔ `Theme.teal`） |
+| `CPU` チップ | (866, 420, 1096, 500) | 同上（無地 ↔ `Theme.coral`） |
+
 ## `result-overlay-fade.jpg`（受け入れ条件1）
+
+![終局オーバーレイのフェード](https://raw.githubusercontent.com/hiroky1983/game_collection/main/docs/ui-review/208/result-overlay-fade.jpg)
 
 | コマ | 状態 |
 |---|---|
@@ -39,6 +67,8 @@ CPU の手番から始まる盤にしておくと、`ConcentrationView.task(id:)
 となり、待ちとフェードの合計が撮影間隔 2 コマ分（≒0.6 秒 = 0.35 + 0.25）に収まることを確認した。
 
 ## `turn-highlight.jpg`（受け入れ条件2）
+
+![手番のアクティブ表示](https://raw.githubusercontent.com/hiroky1983/game_collection/main/docs/ui-review/208/turn-highlight.jpg)
 
 | コマ | 状態 |
 |---|---|
