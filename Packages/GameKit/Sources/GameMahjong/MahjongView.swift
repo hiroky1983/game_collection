@@ -318,19 +318,25 @@ public struct MahjongView: View {
         .accessibilityLabel(opponentAccessibilityLabel(index))
     }
 
+    /// 副露1組の最大枚数（暗槓・加槓）に合わせた、上家・下家の副露の折り返し列数。
+    /// 河の2列幅のまま1行2枚で折り返すと、3〜4枚ある副露が1組あたり2行になり、
+    /// 副露が最大4組（手牌の構造上の上限）並ぶと最大8行分の高さになって、下に置く
+    /// 捨て牌欄を押しのけて見えなくしていた（会長指摘の実戦画面: 捨て牌が追えず覚えゲーになる）。
+    /// 1行4枚まで並べれば1組4枚のカンでも必ず1行に収まり、副露の高さは
+    /// 「組数（最大4）」行を超えなくなる。牌の幅は河のグリッドと同じ全体幅に収まるよう、
+    /// 河の列数(2)ぶんの幅をこちらの列数(4)で割った分だけ縮める。
+    private static let sideMeldPerRow = 4
+
     /// 上家・下家（縦に細い帯の河。回転はさせない）。チップは対面・自分と同じ `opponentNameChip`。
     private func opponentColumn(_ index: Int, tileWidth: CGFloat) -> some View {
-        VStack(spacing: 3) {
+        let meldTileWidth = tileWidth * CGFloat(Self.sideDiscardPerRow) / CGFloat(Self.sideMeldPerRow)
+        return VStack(spacing: 3) {
             if isInPlay {
                 opponentNameChip(index)
             }
-            // 会長指摘: 固定10ptだと河の牌より露骨に小さく、間隔が詰まって重なって見えていた。
-            // 河と同じ動的な `tileWidth` を使い大きさを揃えたが、ポン(3枚)・カン(4枚)を
-            // 横一列のままにすると河のグリッド（2列）の幅を超えてはみ出し、隣の要素と
-            // 重なって見える不具合が別に出た（会長指摘）。河と同じ列数で折り返す。
             MahjongMeldRow(
-                melds: model.melds[index], tileWidth: tileWidth,
-                showsBadge: false, maxTilesPerRow: Self.sideDiscardPerRow
+                melds: model.melds[index], tileWidth: meldTileWidth,
+                showsBadge: false, maxTilesPerRow: Self.sideMeldPerRow
             )
             discardStrip(
                 model.discards[index], tileWidth: tileWidth,
