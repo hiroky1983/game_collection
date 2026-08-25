@@ -58,9 +58,17 @@ public struct ConcentrationView: View {
             } onCancel: { showNewGame = false }
         }
         .overlay {
-            if model.isGameOver {
-                resultOverlay
+            // 終局はフェードで出す（#208）。オセロ（#205）と同じく `.gameAnimation` は
+            // オーバーレイの ZStack にだけ置く。ここより外に置くと「待った」欄や
+            // レコメンド枠の入れ替えまで animate され、決着の瞬間に盤が伸び縮みする。
+            // 修飾子は1つのビューに1つだけ置くこと（入れ子にすると打ち消し合う・#199）。
+            ZStack {
+                if model.isGameOver {
+                    resultOverlay
+                        .transition(.opacity)
+                }
             }
+            .gameAnimation(ConcentrationMotion.resultOverlayFade, value: model.isGameOver)
         }
         .alert("待った確認", isPresented: $showMattaConfirm) {
             Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
@@ -122,6 +130,9 @@ public struct ConcentrationView: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
         .background(Capsule().fill(isActive ? color : Theme.surface))
+        // 手番が移ったことを色の変化で見せる（#208）。文字色（白 ↔ inkSub）も同じ値で
+        // 切り替わるため、この1つで chip 全体が一緒に馴染む。
+        .gameAnimation(ConcentrationMotion.turnHighlight, value: isActive)
     }
 
     // MARK: - Matta Controls
@@ -292,7 +303,7 @@ private struct CardView: View {
         }
         // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-        .gameAnimation(.spring(response: 0.35, dampingFraction: 0.75), value: isFaceUp)
+        .gameAnimation(ConcentrationMotion.cardFlip, value: isFaceUp)
         .opacity(card.isMatched ? 0.6 : 1.0)
     }
 }
