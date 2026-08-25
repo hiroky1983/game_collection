@@ -37,7 +37,11 @@ public struct MahjongView: View {
             } else {
                 handOnTable.transition(.opacity)
             }
-            HowToPlayHint(.mahjong, playLog: services.playLog)
+            // 会長指摘: リザルト画面でも「切る牌をタップしよう」が出ていて、打牌できない場面なのに
+            // 打牌を促す文言が残っていた。対局中だけ出す。
+            if isInPlay {
+                HowToPlayHint(.mahjong, playLog: services.playLog)
+            }
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .gameResult)
             BannerSlot(ads: services.ads)

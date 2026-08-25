@@ -75,13 +75,20 @@ struct MahjongCallBar: View {
                     callButton(option)
                 }
                 Button(action: onDecline) {
+                    // 4列（チー3択+スルー）まで並ぶと1列がかなり狭くなり、`lineLimit(1)` だと
+                    // `minimumScaleFactor` を下げても「ス…」と省略され続けた。1行に収める
+                    // こと自体を諦め、必要なら2行に折り返させて省略記号そのものを起こさせない。
                     Text("スルー")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+                // 会長指摘「ひどい」: `.controlSize(.small)` だけだとボタンの既定の丸みが強く、
+                // 幅に対して高さが近いとき（チーが3択でボタンが狭いとき）円に見えてしまっていた。
+                // 角丸の四角形だと明示して、幅・高さの比に関わらず同じ見た目にする。
+                .buttonBorderShape(.roundedRectangle(radius: 8))
                 .tint(Theme.fillMuted)
                 .accessibilityLabel("鳴かずに進める")
             }
@@ -107,14 +114,16 @@ struct MahjongCallBar: View {
         // 「萬子の3・萬子の4」という読み上げ用の文をそのまま出すと、この幅では潰れて読めない。
         let needsDetail = offer.options.filter { $0.kind == option.kind }.count > 1
         return Button { onAccept(option) } label: {
-            VStack(spacing: 1) {
+            // 会長指摘「ひどい」: 文字＋牌を縦に積むと、チーが3択で幅が狭いときにボタンが
+            // ほぼ正方形になり、既定の丸みで円に見えていた。横並びにして常に幅 > 高さを保つ。
+            HStack(spacing: 3) {
                 Text(option.actionName)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .lineLimit(1).minimumScaleFactor(0.6)
                 if needsDetail {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 1) {
                         ForEach(Array(option.tilesFromHand.enumerated()), id: \.offset) { _, tile in
-                            MahjongTileView(tile: tile, width: 11, height: 15)
+                            MahjongTileView(tile: tile, width: 10, height: 14)
                         }
                     }
                 }
@@ -123,6 +132,7 @@ struct MahjongCallBar: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.small)
+        .buttonBorderShape(.roundedRectangle(radius: 8))
         .tint(option.isKan ? Theme.purple : Theme.coral)
         .accessibilityLabel(MahjongAccessibility.callOptionLabel(option))
     }
