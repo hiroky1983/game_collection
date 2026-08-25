@@ -89,6 +89,9 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// CPU の手札を表向きにしてよいか。ショーダウン（`.result`）に入った時点で真になる。
+    private var cpuRevealed: Bool { revealCPU || model.phase == .result }
+
     // MARK: - CPU Area
 
     private var cpuArea: some View {
@@ -109,12 +112,22 @@ public struct PokerView: View {
                     Text(model.cpuHandRank.description)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.purple)
+                        // 役名が手札より先に出ると答えを見せてから返すことになるので、
+                        // 5 枚が返り終わってから薄く現れる（#206）。
+                        .opacity(cpuRevealed ? 1 : 0)
+                        .gameAnimation(
+                            .easeIn(duration: PokerMotion.potChangeDuration)
+                                .delay(PokerMotion.showdownTotalDuration),
+                            value: cpuRevealed
+                        )
                 }
             }
 
             HStack(spacing: 8) {
-                ForEach(model.cpuHand) { card in
-                    CardView(card: card, faceUp: revealCPU || model.phase == .result)
+                // ショーダウンでは左から順に返す（#206）。index は段差の順番にだけ使う。
+                ForEach(Array(model.cpuHand.enumerated()), id: \.element.id) { index, card in
+                    FlipRevealCardView(card: card, progress: cpuRevealed ? 1 : 0)
+                        .gameAnimation(PokerMotion.showdownFlip(index: index), value: cpuRevealed)
                 }
             }
             .padding(.vertical, 8)
@@ -147,6 +160,15 @@ public struct PokerView: View {
                     Text("\(model.pot)枚")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundStyle(Theme.yellow)
+                        // ベット・コールで増え、決着で勝者に渡って 0 に戻る。数字が瞬時に
+                        // 入れ替わると増減の向きが分からないので、転がして見せる（#206）。
+                        .contentTransition(.numericText(value: Double(model.pot)))
+                        .gameAnimation(PokerMotion.potChange, value: model.pot)
+                        // 枚数が変わるのと同時に画面全体のレイアウトが動く場面（ゲーム画面へ
+                        // 入りながらアンティが積まれるなど）では、この Text だけが古い位置から
+                        // 滑ってきてポットの枠の外に文字が出る。実測で確認したため、
+                        // 位置は親と一体で決まるようにして数字の入れ替えだけを演出に残す。
+                        .geometryGroup()
                 }
             }
             Spacer()
@@ -192,7 +214,7 @@ public struct PokerView: View {
                             }
                         }
                         .offset(y: isSelected ? 10 : 0)
-                        .gameAnimation(.spring(response: 0.25), value: isSelected)
+                        .gameAnimation(PokerMotion.handSelection, value: isSelected)
                 }
             }
             .padding(.vertical, 6)
@@ -407,6 +429,39 @@ public struct PokerView: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
+    }
+}
+
+// MARK: - Flip Reveal Card View
+
+/// 裏から表へ返る CPU の手札（#206）。
+///
+/// `faceUp` の切り替えに `.gameAnimation` を掛けただけでは表裏が瞬時に入れ替わるだけなので、
+/// オセロの盤（#204）と同じく**このビュー自身を `Animatable`** にして進捗を補間させ、
+/// 進捗の翻訳は `PokerMotion` の純関数に任せる（`PokerMotionTests` で固定できる）。
+struct FlipRevealCardView: View, Animatable {
+    nonisolated let card: PokerCard
+    /// 0 = 裏 / 1 = 表。`.gameAnimation` が掛かっていればこの値が補間される。
+    nonisolated var progress: Double
+
+    // `View` への適合でこの型は MainActor 隔離になるが、`Animatable` の要求は nonisolated。
+    // 保持しているのは値型（すべて Sendable）だけなので、格納プロパティごと nonisolated にして
+    // 適合を成立させる（オセロの `OthelloBoardCanvas` と同じ）。
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        let showsFace = PokerMotion.showsFace(progress: progress)
+        CardView(card: card, faceUp: showsFace)
+            // 後半はカードごと 90 度を越えて回っているので、表の中身が鏡像にならないよう
+            // ここで 180 度打ち消す（合計 360 度で元の向きに戻る）。
+            .rotation3DEffect(.degrees(showsFace ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+            .rotation3DEffect(
+                .degrees(PokerMotion.flipDegrees(progress: progress)),
+                axis: (x: 0, y: 1, z: 0)
+            )
     }
 }
 
