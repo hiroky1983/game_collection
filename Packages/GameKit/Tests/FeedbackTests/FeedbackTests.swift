@@ -13,6 +13,7 @@ import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
+import GameSudoku
 import MahjongTiles
 
 // MARK: - Mocks
@@ -258,6 +259,30 @@ private func playMahjong(_ services: GameServices) -> MahjongSolitaireModel {
     return model
 }
 
+/// 数独: 出題のマスへの書き込み（拒否）→ メモの付け外し → 数字の確定 → 最後まで埋めてクリア。
+@MainActor
+@discardableResult
+private func playSudoku(_ services: GameServices) async -> SudokuModel {
+    let model = SudokuModel(services: services, seed: 4649)
+    await model.newGame(difficulty: .easy)
+    if let given = (0..<81).first(where: { model.given[$0] }) {
+        model.select(index: given)
+        model.enter(digit: 1)   // 出題のマスは書き換えられない（拒否）
+    }
+    if let blank = (0..<81).first(where: { model.board[$0] == 0 }) {
+        model.select(index: blank)
+        model.toggleNoteMode()
+        model.enter(digit: 1)   // メモの付け外し
+        model.toggleNoteMode()
+    }
+    for index in 0..<81 where model.board[index] == 0 {
+        // 同じマスをもう一度タップすると選択が外れるので、選び直しは必要なときだけ。
+        if model.selected != index { model.select(index: index) }
+        model.enter(digit: model.solution[index])
+    }
+    return model
+}
+
 /// ブラックジャック: 初手がブラックジャックだと配りの手応え（impact）に到達せずに決着するため、
 /// 種を固定して「初手がブラックジャックにならない配り」に寄せる（#94。無指定では約 4.8% で落ちていた）。
 @MainActor
@@ -308,7 +333,7 @@ private func makeServices(
     return (services, haptics, sound)
 }
 
-/// 全 10 ゲームの手順を 1 度ずつ通す。
+/// 全 12 ゲームの手順を 1 度ずつ通す。
 @MainActor
 private func playAllGames(_ services: GameServices) async {
     play2048(services)
@@ -321,6 +346,7 @@ private func playAllGames(_ services: GameServices) async {
     playBlackjack(services)
     await playDaifugo(services)
     playMahjong(services)
+    await playSudoku(services)
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -452,6 +478,18 @@ struct FeedbackEnabledTests {
         #expect(spy.notices.last == expected, "決着が階級どおりに発火する")
     }
 
+    @Test("数独: 数字の確定・メモの付け外し・出題マスの拒否・クリアで発火する")
+    func sudoku() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = await playSudoku(services)
+        #expect(spy.impacts.contains(.medium), "数字を確定すると発火する")
+        #expect(spy.impacts.contains(.rigid), "メモの付け外しで発火する")
+        #expect(spy.impacts.contains(.light), "マスを選ぶと発火する")
+        #expect(spy.notices(of: .warning) > 0, "出題のマスへの書き込みは拒否として発火する")
+        #expect(model.state == .cleared, "手順の最後は必ず決着している")
+        #expect(spy.notices.last == .success, "クリアで決着音が鳴る")
+    }
+
     @Test("四人打ち麻雀: 配牌・打牌・切れない牌の拒否・決着で発火する")
     func mahjongFourPlayer() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
@@ -539,7 +577,7 @@ struct FeedbackCPUSilentTests {
 @MainActor
 struct FeedbackDisabledTests {
 
-    @Test("設定がオフなら全10ゲームのどの契機でも発火しない")
+    @Test("設定がオフなら全12ゲームのどの契機でも発火しない")
     func nothingFiresWhenDisabled() async {
         let (services, spy) = makeServices(hapticsEnabled: false)
 
@@ -553,6 +591,7 @@ struct FeedbackDisabledTests {
         playBlackjack(services)
         await playDaifugo(services)
         playMahjong(services)
+        await playSudoku(services)
 
         #expect(spy.callCount == 0, "オフのときは impact / notify とも 1 度も呼ばれない")
     }
@@ -574,9 +613,9 @@ struct FeedbackDisabledTests {
 @MainActor
 struct SoundFeedbackTests {
 
-    /// 全10ゲームの「有効な操作の成立」「無効な操作の拒否」「局面の決着」で、
+    /// 全12ゲームの「有効な操作の成立」「無効な操作の拒否」「局面の決着」で、
     /// アプリ本体と同じ `SoundEffect` への変換を通した音が鳴ることを、ゲームごとに確かめる。
-    @Test("全10ゲームの主要な操作で効果音が鳴る（操作音・拒否音・決着音）")
+    @Test("全12ゲームの主要な操作で効果音が鳴る（操作音・拒否音・決着音）")
     func everyGameMakesSound() async {
         // ゲームごとに分けて回し、どのゲームで落ちたかが分かるようにする。
         func check(_ name: String, _ play: @MainActor (GameServices) async -> Void) async {
@@ -598,6 +637,7 @@ struct SoundFeedbackTests {
         await check("神経衰弱") { playConcentration($0) }
         await check("ブラックジャック") { _ = playBlackjack($0) }
         await check("大富豪") { _ = await playDaifugo($0) }
+        await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
@@ -681,6 +721,9 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             }
         case .ronOffer:
             model.declareRon()
+        case .callOffer:
+            // この通しテストは「常に自摸切り」の方針なので鳴かない。
+            model.declineCall()
         case .handResult:
             model.advanceToNextHand()
         case .idle, .gameResult:

@@ -12,6 +12,7 @@ import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
+import GameSudoku
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -354,7 +355,7 @@ struct ReviewVersusRecommendationTests {
 
 // MARK: - 各ゲームの勝敗の振り分け（条件1）
 
-@Suite("全8ゲームの勝敗の振り分け")
+@Suite("全9ゲームの勝敗の振り分け")
 @MainActor
 struct GameOutcomeRoutingTests {
 
@@ -541,6 +542,25 @@ struct GameOutcomeRoutingTests {
         #expect(service2.log.totalWins == 0, "諦めた回は勝ちに数えない")
     }
 
+    @Test("数独: 解き切れば勝ち・諦めれば負けに振り分ける")
+    func sudoku() async {
+        let (services, service) = makeServices(suite: "route-sudoku")
+        let model = SudokuModel(services: services, seed: 777)
+        await model.newGame(difficulty: .easy)
+        for index in 0..<81 where model.board[index] == 0 {
+            if model.selected != index { model.select(index: index) }
+            model.enter(digit: model.solution[index])
+        }
+        #expect(model.state == .cleared)
+        #expect(service.log.totalWins == 1, "クリアは勝ちとして数える")
+
+        let (services2, service2) = makeServices(suite: "route-sudoku-loss")
+        let giveUp = SudokuModel(services: services2, seed: 778)
+        await giveUp.newGame(difficulty: .easy)
+        giveUp.giveUp()
+        #expect(service2.log.totalWins == 0, "諦めた回は勝ちに数えない")
+    }
+
     @Test("ポーカー: ラウンドの結果どおりに振り分ける")
     func poker() {
         let (services, service) = makeServices(suite: "route-poker")
@@ -682,6 +702,9 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             }
         case .ronOffer:
             model.declareRon()
+        case .callOffer:
+            // この通しテストは「常に自摸切り」の方針なので鳴かない。
+            model.declineCall()
         case .handResult:
             model.advanceToNextHand()
         case .idle, .gameResult:
