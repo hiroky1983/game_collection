@@ -40,6 +40,10 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     public let gainedPoints: Int
     /// 流局時に聴牌していた人。
     public let tenpaiPlayers: [Int]
+    /// この局で各プレイヤーの点数がどれだけ動いたか（添字はプレイヤー番号、この局の直前からの差分）。
+    /// 和了者はプラス、放銃・ツモ払い・流局のノーテン罰符はマイナス。会長指摘「誰が誰に振り込んだか
+    /// わかるようにしてほしい」への対応で、リザルト画面の得点表に添える。
+    public let pointChanges: [Int]
 }
 
 // MARK: - 永続化
@@ -852,6 +856,7 @@ public final class MahjongModel {
         pendingClaims = []
         pendingKan = nil
         callOffer = nil
+        let scoresBefore = scores
 
         var gained = score.total
         // 本場は 1 本につき 300 点（ツモなら 100 点ずつ）。
@@ -879,7 +884,8 @@ public final class MahjongModel {
             fu: score.fu,
             limitName: score.limitName,
             gainedPoints: gained,
-            tenpaiPlayers: []
+            tenpaiPlayers: [],
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
         )
         // 和了牌を手牌に入れた状態で見せる（リザルトで役を確かめられるように）。
         hands[winner] = hands[winner].adding(winningTile)
@@ -896,6 +902,7 @@ public final class MahjongModel {
         let tenpai = (0..<Self.playerCount).filter {
             MahjongShanten.isTenpai(hands[$0], meldCount: melds[$0].count)
         }
+        let scoresBefore = scores
         applyExhaustiveDrawPayments(tenpaiPlayers: tenpai)
         handResult = MahjongHandResult(
             kind: .exhaustiveDraw,
@@ -906,7 +913,8 @@ public final class MahjongModel {
             fu: 0,
             limitName: nil,
             gainedPoints: 0,
-            tenpaiPlayers: tenpai
+            tenpaiPlayers: tenpai,
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
         )
         finishHand(dealerContinues: tenpai.contains(dealer))
     }

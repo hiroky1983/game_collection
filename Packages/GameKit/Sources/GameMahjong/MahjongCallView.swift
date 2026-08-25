@@ -59,28 +59,30 @@ struct MahjongCallBar: View {
     /// iPhone SE（画面 375pt）でもここまでは 1 行に収まる。これ以上（カンとポンも同時に鳴ける形）は
     /// 折り返す。**縦に積むと画面から溢れて上下が切れる**ので、`.adaptive` ではなく列数を明示する。
     private static let maximumColumns = 4
-    private static let buttonHeight: CGFloat = 46
+    // 会長指摘: ボタンが大きい・出現時にセクションが動く。Apple HIG の 44pt はタップ標的として
+    // 維持しつつ、見た目のかさ（フォント・パディング・見出し行）を削って全体の背を低くする。
+    private static let buttonHeight: CGFloat = 44
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             HStack(spacing: 4) {
-                Text("\(offer.tile.displayName) を")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                MahjongTileView(tile: offer.tile, width: 16, height: 21)
+                Text("が出ました")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
-                MahjongTileView(tile: offer.tile, width: 20, height: 27)
                 Spacer(minLength: 0)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(offer.tile.displayName)が出ました。鳴きますか")
             // 選択肢はチーの取り方違いで最大 3 つ増える（カン + ポン + チー3通り + スルーで 6 つ）。
             // 縦に積むと iPhone SE では画面からはみ出すので、入る数だけ横に並べて折り返す。
-            LazyVGrid(columns: columns, spacing: 6) {
+            LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(Array(offer.options.enumerated()), id: \.offset) { _, option in
                     callButton(option)
                 }
                 Button(action: onDecline) {
                     Text("スルー")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
                 }
@@ -89,7 +91,7 @@ struct MahjongCallBar: View {
                 .accessibilityLabel("鳴かずに進める")
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 10).padding(.vertical, 6)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -107,14 +109,14 @@ struct MahjongCallBar: View {
         // 「萬子の3・萬子の4」という読み上げ用の文をそのまま出すと、この幅では潰れて読めない。
         let needsDetail = offer.options.filter { $0.kind == option.kind }.count > 1
         return Button { onAccept(option) } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text(option.actionName)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .lineLimit(1).minimumScaleFactor(0.7)
                 if needsDetail {
                     HStack(spacing: 2) {
                         ForEach(Array(option.tilesFromHand.enumerated()), id: \.offset) { _, tile in
-                            MahjongTileView(tile: tile, width: 13, height: 17)
+                            MahjongTileView(tile: tile, width: 11, height: 15)
                         }
                     }
                 }

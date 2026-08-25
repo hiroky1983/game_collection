@@ -255,40 +255,56 @@ public struct MahjongView: View {
     private func opponentNameChip(_ index: Int, icon: String = "cpu") -> some View {
         let isCurrent = model.currentPlayer == index && model.phase == .playing
         let isRiichi = model.riichi[index]
-        return HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(isCurrent ? Theme.coral : Theme.Fixed.ink.opacity(0.6))
-            Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.Fixed.ink)
-                .lineLimit(1).minimumScaleFactor(0.5)
-            Text("\(model.scores[index])")
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.Fixed.ink.opacity(0.7))
-                .lineLimit(1).minimumScaleFactor(0.5)
+        return VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(isCurrent ? Theme.coral : Theme.Fixed.ink.opacity(0.6))
+                Text("\(model.playerName(index))・\(Self.windNames[model.seatWind(index)])")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Fixed.ink)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                Text("\(model.scores[index])")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(model.scores[index] < 0 ? Theme.coral : Theme.Fixed.ink.opacity(0.7))
+                    .lineLimit(1).minimumScaleFactor(0.6)
+            }
+            // 会長指摘: 「立直」タグが名前・点数と同じ行で幅を取り合うと、リーチが入った瞬間に
+            // 文字が縮んで見える。タグは行を分けて、名前・点数の行の幅取り合いに参加させない。
             if isRiichi {
                 Text("立直")
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 5).padding(.vertical, 2)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.coral))
-                    // タグ自体は縮めない。縮むのは隣の名前・点数のテキスト側。
-                    .fixedSize()
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 5)
         // 会長指摘: リーチ中に背景を半透明の珊瑚色にしたら、緑の卓と混ざって文字が読みにくく
         // なった。塗りは常にはっきりした不透明の白のままにして、リーチは縁取り＋タグだけで示す。
-        .background(Capsule().fill(Color.white.opacity(0.92)))
-        .overlay(Capsule().strokeBorder(isRiichi ? Theme.coral : .clear, lineWidth: isRiichi ? 2 : 0))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.92)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(isRiichi ? Theme.coral : .clear, lineWidth: isRiichi ? 2 : 0)
+        )
         .frame(maxWidth: Self.chipMaxWidth)
+    }
+
+    /// 対局中（決着していない）か。会長指摘: リザルト画面ではリザルトカードの得点表が
+    /// 全員ぶんの名前・点数・増減をすでに示しているので、卓の上の名前チップは4席とも
+    /// 完全に冗長。加えて、リザルトカードが伸びるぶん卓自体（`mahjongTable`）が小さく
+    /// 描かれ、チップの文字が入り切らず省略記号だけになる不具合も出ていた（会長のスクショで発覚）。
+    /// 対局中だけ出す形にすれば、両方いっぺんに解消する。
+    private var isInPlay: Bool {
+        model.phase == .playing || model.phase == .ronOffer || model.phase == .callOffer
     }
 
     /// 対面（横一列の河）。
     private func opponentRow(_ index: Int, tileWidth: CGFloat) -> some View {
         VStack(spacing: 3) {
-            opponentNameChip(index)
+            if isInPlay {
+                opponentNameChip(index)
+            }
             MahjongMeldRow(melds: model.melds[index], tileWidth: 10, showsBadge: false)
             discardStrip(model.discards[index], tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles)
         }
@@ -299,7 +315,9 @@ public struct MahjongView: View {
     /// 上家・下家（縦に細い帯の河。回転はさせない）。チップは対面・自分と同じ `opponentNameChip`。
     private func opponentColumn(_ index: Int, tileWidth: CGFloat) -> some View {
         VStack(spacing: 3) {
-            opponentNameChip(index)
+            if isInPlay {
+                opponentNameChip(index)
+            }
             MahjongMeldRow(melds: model.melds[index], tileWidth: 10, showsBadge: false)
             discardStrip(
                 model.discards[index], tileWidth: tileWidth,
@@ -353,14 +371,14 @@ public struct MahjongView: View {
     /// 見渡せる一覧を別途置く。
     private func playerDiscardOnTable(tileWidth: CGFloat, overviewWidth: CGFloat) -> some View {
         VStack(spacing: 4) {
-            opponentNameChip(MahjongModel.humanIndex, icon: "person.fill")
+            if isInPlay {
+                opponentNameChip(MahjongModel.humanIndex, icon: "person.fill")
+            }
             discardStrip(
                 model.discards[MahjongModel.humanIndex],
                 tileWidth: tileWidth, perRow: Self.discardPerRow, maxTiles: Self.discardMaxTiles
             )
-            // 会長指摘: リザルト画面ではこの一覧がリザルトカードと被って見づらいので隠してよい。
-            // 対局中（.playing・.ronOffer）のときだけ出す。
-            if model.phase == .playing || model.phase == .ronOffer {
+            if isInPlay {
                 handOverviewOnTable(width: overviewWidth)
             }
         }
@@ -605,12 +623,19 @@ public struct MahjongView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。ロンは放銃した人が
+    /// 一意に決まるので、タイトルに「{放銃した人} → {和了した人}」を添える。ツモは複数人が
+    /// 別々の額を払うため、単一の矢印では表せない。下の `scoreTable` 側で全員の点数の動きを
+    /// 一覧できるようにして補う。
     private var handResultTitle: String {
         guard let result = model.handResult else { return "" }
+        let winnerName = model.playerName(result.winner ?? 0)
         switch result.kind {
         case .exhaustiveDraw: return "流局"
-        case .tsumo:  return "\(model.playerName(result.winner ?? 0))のツモ"
-        case .ron:    return "\(model.playerName(result.winner ?? 0))のロン"
+        case .tsumo:  return "\(winnerName)のツモ"
+        case .ron:
+            guard let loser = result.loser else { return "\(winnerName)のロン" }
+            return "\(model.playerName(loser)) → \(winnerName)のロン"
         }
     }
 
@@ -648,17 +673,26 @@ public struct MahjongView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。`pointChanges` で
+    /// 全員ぶんの増減を出す。ツモのように払う人が複数いるケースも、タイトルの矢印1本では
+    /// 表せないのでここで一覧にして補う。
     private var scoreTable: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 4) {
             ForEach(0..<MahjongModel.playerCount, id: \.self) { player in
                 HStack {
                     Text(model.playerName(player))
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                     Spacer()
+                    if let change = model.handResult?.pointChanges[player], change != 0 {
+                        Text(change > 0 ? "+\(change)" : "\(change)")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(change > 0 ? Theme.teal : Theme.coral)
+                    }
                     Text("\(model.scores[player])点")
                         .font(.system(size: 12, weight: .black, design: .rounded))
                         .foregroundStyle(model.scores[player] < 0 ? Theme.coral : Theme.ink)
+                        .frame(width: 66, alignment: .trailing)
                 }
             }
         }
@@ -666,6 +700,11 @@ public struct MahjongView: View {
     }
 
     // MARK: - 操作
+
+    /// 会長指摘: 鳴きの選択肢（`MahjongCallBar`）が出ると、それまでの1行ボタンより背が高いぶん
+    /// このセクション自体の高さが変わり、下のバナー広告などが動いて見える。全ケースに共通の
+    /// 最小高さを持たせて、差を小さくする（1行の鳴き提示ならほぼ動かなくなる）。
+    private static let actionAreaMinHeight: CGFloat = 72
 
     @ViewBuilder
     private var actionArea: some View {
@@ -682,6 +721,7 @@ public struct MahjongView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
+            .frame(minHeight: Self.actionAreaMinHeight)
         case .callOffer:
             if let offer = model.callOffer {
                 MahjongCallBar(
@@ -695,6 +735,7 @@ public struct MahjongView: View {
                         Task { await model.runCPUTurnsIfNeeded() }
                     }
                 )
+                .frame(minHeight: Self.actionAreaMinHeight)
             }
         case .playing:
             HStack(spacing: 12) {
@@ -718,6 +759,7 @@ public struct MahjongView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
+            .frame(minHeight: Self.actionAreaMinHeight)
         case .handResult:
             actionButton("次の局へ", color: Theme.coral) {
                 model.advanceToNextHand()
@@ -725,6 +767,7 @@ public struct MahjongView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
+            .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
             actionButton("もう一度", color: Theme.coral) {
                 model.startGame()
@@ -732,6 +775,7 @@ public struct MahjongView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
+            .frame(minHeight: Self.actionAreaMinHeight)
         }
     }
 
