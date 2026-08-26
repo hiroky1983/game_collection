@@ -11,31 +11,78 @@ struct MahjongMeldRow: View {
     let tileWidth: CGFloat
     /// 種類の見出しを出すか（他家の小さい表示では省く）。
     var showsBadge: Bool = true
+    /// 指定すると、1つの副露の牌をこの枚数ごとに折り返し、複数の副露は横に並べず縦に積む。
+    /// 上家・下家の狭い列で牌のサイズを河と揃えたところ、ポン(3枚)やカン(4枚)が横一列のままだと
+    /// 河のグリッド（2列）の幅を超えてはみ出し、隣の要素と重なって見えていた（会長指摘）。
+    /// 河と同じ列数で折り返せば、幅が河のグリッドを超えることが構造的に無くなる。
+    var maxTilesPerRow: Int?
 
     var body: some View {
+        // 中央寄せ（河のグリッドが中央寄せなので、左寄せだと副露だけズレて散らかって見える）。
         if !melds.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
-                    VStack(spacing: 1) {
-                        HStack(spacing: 1) {
-                            ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
-                                MahjongTileView(
-                                    tile: tile, width: tileWidth, height: tileWidth * 1.34
-                                )
+            if let maxTilesPerRow {
+                // 1組=1行にせず、上限枚数まで複数の副露を同じ行に詰める（ポン3枚+カン4枚=7枚が
+                // ちょうど1行）。組ごとに行を分けると、副露が多い終盤に縦へ伸びて河を圧迫する。
+                VStack(alignment: .center, spacing: 1) {
+                    ForEach(Array(Self.packRows(melds, perRow: maxTilesPerRow).enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 3) {
+                            ForEach(Array(row.enumerated()), id: \.offset) { _, meld in
+                                HStack(spacing: 1) {
+                                    ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
+                                        MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
+                                    }
+                                }
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
                             }
                         }
-                        if showsBadge {
-                            Text(Self.badge(meld))
-                                .font(.system(size: 8, weight: .black, design: .rounded))
-                                .foregroundStyle(Theme.inkSub)
-                        }
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
                 }
-                Spacer(minLength: 0)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
+                        singleRowMeld(meld)
+                    }
+                }
             }
         }
+    }
+
+    /// 副露を、1行あたりの牌の枚数が `perRow` を超えないように前から詰めて行に分ける。
+    /// 1組（最大4枚）は行をまたがない。
+    static func packRows(_ melds: [MahjongCall], perRow: Int) -> [[MahjongCall]] {
+        var rows: [[MahjongCall]] = []
+        var current: [MahjongCall] = []
+        var count = 0
+        for meld in melds {
+            let n = meld.tiles.count
+            if !current.isEmpty && count + n > perRow {
+                rows.append(current)
+                current = []
+                count = 0
+            }
+            current.append(meld)
+            count += n
+        }
+        if !current.isEmpty { rows.append(current) }
+        return rows
+    }
+
+    private func singleRowMeld(_ meld: MahjongCall) -> some View {
+        VStack(spacing: 1) {
+            HStack(spacing: 1) {
+                ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
+                    MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
+                }
+            }
+            if showsBadge {
+                Text(Self.badge(meld))
+                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(MahjongAccessibility.meldLabel(meld))
     }
 
     static func badge(_ meld: MahjongCall) -> String {
@@ -59,37 +106,44 @@ struct MahjongCallBar: View {
     /// iPhone SE（画面 375pt）でもここまでは 1 行に収まる。これ以上（カンとポンも同時に鳴ける形）は
     /// 折り返す。**縦に積むと画面から溢れて上下が切れる**ので、`.adaptive` ではなく列数を明示する。
     private static let maximumColumns = 4
-    private static let buttonHeight: CGFloat = 46
+    // 会長再指摘: 見出し行（牌＋「が出ました」）自体が対局中の1行ボタン行との差を生んでいた。
+    // 見出しを独立した行にせず、牌をボタン行の左に**同じ行で**並べて行数そのものを揃える。
+    private static let buttonHeight: CGFloat = 40
 
     var body: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 4) {
-                Text("\(offer.tile.displayName) を")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                MahjongTileView(tile: offer.tile, width: 20, height: 27)
-                Spacer(minLength: 0)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(offer.tile.displayName)が出ました。鳴きますか")
+        HStack(alignment: .center, spacing: 6) {
+            MahjongTileView(tile: offer.tile, width: 18, height: 24)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(offer.tile.displayName)が出ました。鳴きますか")
             // 選択肢はチーの取り方違いで最大 3 つ増える（カン + ポン + チー3通り + スルーで 6 つ）。
             // 縦に積むと iPhone SE では画面からはみ出すので、入る数だけ横に並べて折り返す。
-            LazyVGrid(columns: columns, spacing: 6) {
+            LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(Array(offer.options.enumerated()), id: \.offset) { _, option in
                     callButton(option)
                 }
                 Button(action: onDecline) {
+                    // 4列（チー3択+スルー）まで並ぶと1列がかなり狭くなり、`lineLimit(1)` だと
+                    // `minimumScaleFactor` を下げても「ス…」と省略され続けた。1行に収める
+                    // こと自体を諦め、必要なら2行に折り返させて省略記号そのものを起こさせない。
                     Text("スルー")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                // 会長指摘「ひどい」: `.controlSize(.small)` だけだとボタンの既定の丸みが強く、
+                // 幅に対して高さが近いとき（チーが3択でボタンが狭いとき）円に見えてしまっていた。
+                // 角丸の四角形だと明示して、幅・高さの比に関わらず同じ見た目にする。
+                .buttonBorderShape(.roundedRectangle(radius: 8))
                 .tint(Theme.fillMuted)
                 .accessibilityLabel("鳴かずに進める")
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        // 会長指摘: カードが画面幅いっぱいに広がらず、ボタンが狭まって「スルー」が省略されていた。
+        // 他のアクション行（立直・ツモ等）と同じく幅いっぱいに広げる。
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -107,14 +161,16 @@ struct MahjongCallBar: View {
         // 「萬子の3・萬子の4」という読み上げ用の文をそのまま出すと、この幅では潰れて読めない。
         let needsDetail = offer.options.filter { $0.kind == option.kind }.count > 1
         return Button { onAccept(option) } label: {
-            VStack(spacing: 2) {
+            // 会長指摘「ひどい」: 文字＋牌を縦に積むと、チーが3択で幅が狭いときにボタンが
+            // ほぼ正方形になり、既定の丸みで円に見えていた。横並びにして常に幅 > 高さを保つ。
+            HStack(spacing: 3) {
                 Text(option.actionName)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .lineLimit(1).minimumScaleFactor(0.6)
                 if needsDetail {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 1) {
                         ForEach(Array(option.tilesFromHand.enumerated()), id: \.offset) { _, tile in
-                            MahjongTileView(tile: tile, width: 13, height: 17)
+                            MahjongTileView(tile: tile, width: 10, height: 14)
                         }
                     }
                 }
@@ -122,6 +178,8 @@ struct MahjongCallBar: View {
             .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
         }
         .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .buttonBorderShape(.roundedRectangle(radius: 8))
         .tint(option.isKan ? Theme.purple : Theme.coral)
         .accessibilityLabel(MahjongAccessibility.callOptionLabel(option))
     }

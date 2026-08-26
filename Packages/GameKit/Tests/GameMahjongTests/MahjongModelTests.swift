@@ -122,6 +122,35 @@ struct MahjongTurnTests {
         #expect(model.discards[0].count == before)
     }
 
+    @Test("CPU の手番中は playerDrawnTile が nil になる（自分のツモ牌欄に他家の牌が出ない）")
+    func playerDrawnTileHidesOthersDraw() {
+        // 「ルーレット現象」の回帰テスト: `drawnTile` は手番の持ち主が誰であれ書き込まれる
+        // 共有プロパティなので、CPU の手番中にそのまま画面へ出すと自分の手牌14枚目が
+        // 他家のツモ牌へ次々と切り替わって見えていた。`playerDrawnTile` は自分の手番以外
+        // 必ず nil を返すことをここで固定する。
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [MahjongNotation.tile("9s")],
+            currentPlayer: 1,
+            drawnTile: MahjongNotation.tile("5p")
+        )
+        #expect(model.drawnTile == MahjongNotation.tile("5p"))
+        #expect(model.playerDrawnTile == nil)
+    }
+
+    @Test("自分の手番なら playerDrawnTile はツモ牌を返す")
+    func playerDrawnTileShowsOwnDraw() {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [MahjongNotation.tile("9s")],
+            currentPlayer: MahjongModel.humanIndex,
+            drawnTile: MahjongNotation.tile("5p")
+        )
+        #expect(model.playerDrawnTile == MahjongNotation.tile("5p"))
+    }
+
     @Test("山が尽きると流局し、聴牌者が点棒を受け取る")
     func exhaustiveDraw() {
         let model = makeModel()
@@ -622,5 +651,45 @@ struct MahjongFullGameTests {
         #expect(model.riichiSticks == 0)
         #expect(model.scores.reduce(0, +) == MahjongModel.startingScore * 4)
         #expect(model.playerPlace != nil)
+    }
+}
+
+// MARK: - CPU 進行のキャンセル
+
+@Suite("CPU 進行のキャンセル")
+@MainActor
+struct MahjongCancelTests {
+
+    /// `.task(id: model.turnKey)` は手番が変わるたびに前のタスクをキャンセルする。
+    /// `try? await Task.sleep(for:)` はキャンセル時に**即座に**返るため、キャンセル後の
+    /// ループが `cpuDelay` を一切待たずに残りの手番を走り抜けてしまう（CodeRabbit 指摘）。
+    /// 待ち時間の経過ではなく「キャンセル済みのタスクが打牌を進めないこと」で検証するので、
+    /// 実時間に依存せず安定する。
+    @Test("キャンセルされたら遅延を飛ばして打ち続けない")
+    func cancelledLoopDoesNotFastForward() async {
+        let model = MahjongModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()),
+            // キャンセルが効かなければ、この長さを無視して打牌が進んでしまう。
+            cpuDelay: .seconds(60),
+            seed: 2026
+        )
+        model.startGame()
+        if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+            model.discard(drawn)
+        }
+        try? #require(model.phase == .playing)
+        #expect(model.currentPlayer != MahjongModel.humanIndex, "CPU の手番になっていない")
+
+        let before = model.discards.reduce(0) { $0 + $1.count }
+        // MainActor 上なので、この Task の本体は `await` で手放すまで動かない。
+        // したがって cancel() は必ず本体の実行より先に確定する（実時間に依存しない）。
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.discards.reduce(0) { $0 + $1.count } == before,
+            "キャンセル済みのタスクが cpuDelay を無視して打牌を進めた"
+        )
     }
 }

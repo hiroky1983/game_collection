@@ -26,6 +26,13 @@ targets:
       - App/PrivacyInfo.xcprivacy
       - App/Assets.xcassets
       - App/GoogleService-Info.plist
+    # Game Center（#289 段階①）。iOS の App ID では Game Center が既定で有効なため、
+    # プロビジョニング側の追加操作は不要（entitlement と ASC のバージョン設定だけで済む）。
+    # このファイルは xcodegen generate が properties から自動生成する。
+    entitlements:
+      path: App/GameCollection.entitlements
+      properties:
+        com.apple.developer.game-center: true
     dependencies:
       - package: GameKit
         product: Core

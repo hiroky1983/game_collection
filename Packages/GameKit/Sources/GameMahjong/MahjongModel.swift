@@ -40,6 +40,10 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     public let gainedPoints: Int
     /// 流局時に聴牌していた人。
     public let tenpaiPlayers: [Int]
+    /// この局で各プレイヤーの点数がどれだけ動いたか（添字はプレイヤー番号、この局の直前からの差分）。
+    /// 和了者はプラス、放銃・ツモ払い・流局のノーテン罰符はマイナス。会長指摘「誰が誰に振り込んだか
+    /// わかるようにしてほしい」への対応で、リザルト画面の得点表に添える。
+    public let pointChanges: [Int]
 }
 
 // MARK: - 永続化
@@ -179,6 +183,10 @@ public final class MahjongModel {
     private var seed: UInt64?
     private let hints: FeedbackPreference
     private var isRunningCPUTurns = false
+    /// デバッグ用: 自分の手番・鳴き判断・ロン判断も CPU と同じロジックで自動的に進める。
+    /// `MahjongView` から起動引数（`-mahjongAutoPlay`）のときだけ有効化され、通常プレイでは
+    /// 常に false。会長がシミュレータで毎回手動プレイして確認する手間を省くための機能。
+    public private(set) var autoPlayEnabled = false
 
     public init(
         services: GameServices? = nil,
@@ -215,6 +223,12 @@ public final class MahjongModel {
         }
     }
 
+    /// 自分の手番以降もすべて CPU 判断で自動的に進めるようにする。一度有効にしたら
+    /// 対局が終わるまで無効化する手段は用意していない（デバッグ用途のみのため）。
+    public func enableAutoPlay() {
+        autoPlayEnabled = true
+    }
+
     // MARK: - 公開状態
 
     public var playerHand: MahjongHand { hands[Self.humanIndex] }
@@ -233,6 +247,15 @@ public final class MahjongModel {
     /// 自分の手番で、打牌を選べる状態か。
     public var isPlayerTurn: Bool {
         phase == .playing && currentPlayer == Self.humanIndex && awaitsDiscard(Self.humanIndex)
+    }
+
+    /// 自分のツモ牌。`drawnTile` は「いま手番のプレイヤーが引いた牌」を表す**全員共有**の
+    /// プロパティ（`draw(for:)` が誰の手番でも同じ1つの変数へ書く）なので、CPU の手番中は
+    /// CPU が引いた牌が入っている。手牌表示（`MahjongView.handOnTable`）が `drawnTile` を
+    /// そのまま「自分のツモ牌」として描いていたため、CPU3人が約0.5秒おきに打牌するたびに
+    /// 手牌14枚目の絵柄がランダムな牌へ切り替わって見えていた（会長指摘「ルーレット現象」の正体）。
+    public var playerDrawnTile: MahjongTile? {
+        currentPlayer == Self.humanIndex ? drawnTile : nil
     }
 
     /// 山に残っている自摸れる枚数。カンで引いた嶺上牌のぶんだけ山の末尾が王牌へ回る。
@@ -570,7 +593,7 @@ public final class MahjongModel {
         }
 
         if let claimant = ronClaimant(for: tile, discardedBy: player) {
-            if claimant == Self.humanIndex {
+            if claimant == Self.humanIndex, !autoPlayEnabled {
                 ronOffer = RonOffer(tile: tile, discarder: player)
                 phase = .ronOffer
                 services?.feedback.notify(.success)
@@ -617,7 +640,7 @@ public final class MahjongModel {
     private func resolveNextClaim() {
         while !pendingClaims.isEmpty, let pending = pendingDiscard {
             let claim = pendingClaims.removeFirst()
-            if claim.player == Self.humanIndex {
+            if claim.player == Self.humanIndex, !autoPlayEnabled {
                 callOffer = CallOffer(
                     tile: pending.tile, discarder: pending.by, options: claim.options
                 )
@@ -713,7 +736,7 @@ public final class MahjongModel {
         if call.kind == .addedKan, let claimant = ronClaimant(
             for: call.tile, discardedBy: player, isChankan: true
         ) {
-            if claimant == Self.humanIndex {
+            if claimant == Self.humanIndex, !autoPlayEnabled {
                 pendingKan = (call, player)
                 ronOffer = RonOffer(tile: call.tile, discarder: player, isChankan: true)
                 phase = .ronOffer
@@ -843,6 +866,7 @@ public final class MahjongModel {
         pendingClaims = []
         pendingKan = nil
         callOffer = nil
+        let scoresBefore = scores
 
         var gained = score.total
         // 本場は 1 本につき 300 点（ツモなら 100 点ずつ）。
@@ -870,7 +894,8 @@ public final class MahjongModel {
             fu: score.fu,
             limitName: score.limitName,
             gainedPoints: gained,
-            tenpaiPlayers: []
+            tenpaiPlayers: [],
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
         )
         // 和了牌を手牌に入れた状態で見せる（リザルトで役を確かめられるように）。
         hands[winner] = hands[winner].adding(winningTile)
@@ -887,6 +912,7 @@ public final class MahjongModel {
         let tenpai = (0..<Self.playerCount).filter {
             MahjongShanten.isTenpai(hands[$0], meldCount: melds[$0].count)
         }
+        let scoresBefore = scores
         applyExhaustiveDrawPayments(tenpaiPlayers: tenpai)
         handResult = MahjongHandResult(
             kind: .exhaustiveDraw,
@@ -897,7 +923,8 @@ public final class MahjongModel {
             fu: 0,
             limitName: nil,
             gainedPoints: 0,
-            tenpaiPlayers: tenpai
+            tenpaiPlayers: tenpai,
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
         )
         finishHand(dealerContinues: tenpai.contains(dealer))
     }
@@ -976,29 +1003,49 @@ public final class MahjongModel {
 
     /// 自動で進む手番が続く限り進める。自分が選ぶ番になるか、局が決着したら止まる。
     /// View から複数の契機で呼ばれても内部で 1 本に制限する。
+    ///
+    /// `autoPlayEnabled` のときは、局が終わって `.handResult` になっても止まらず、
+    /// そのまま「次の局へ」を自動で押した扱いにして次の局のCPU手番も続けて進める
+    /// （対局全体が終わる `.gameResult` まで無人で進む）。
     public func runCPUTurnsIfNeeded() async {
         guard !isRunningCPUTurns else { return }
         isRunningCPUTurns = true
         defer { isRunningCPUTurns = false }
 
-        while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
+        while true {
+            while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
+                if cpuDelay > .zero {
+                    try? await Task.sleep(for: cpuDelay)
+                    // `try?` がキャンセルのエラーを握り潰すため、キャンセル後は
+                    // `Task.sleep` が即座に返る。ここで抜けないと、`.task(id:)` に
+                    // 差し替えられた古いタスクが `cpuDelay` を一切待たずに残りの手番を
+                    // 走り抜けてしまう（CodeRabbit 指摘）。
+                    guard !Task.isCancelled else { return }
+                    guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
+                }
+                advanceAutomaticTurn()
+            }
+            guard autoPlayEnabled, phase == .handResult else { return }
             if cpuDelay > .zero {
                 try? await Task.sleep(for: cpuDelay)
-                guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
+                guard !Task.isCancelled else { return }
+                guard autoPlayEnabled, phase == .handResult else { return }
             }
-            advanceAutomaticTurn()
+            advanceToNextHand()
         }
     }
 
     /// 人の選択を要さない手番か。CPU の手番と、**立直後でツモ和了もできない自分の手番**
-    /// （宣言後は自摸切りしかできないので選ばせる意味が無い）。
+    /// （宣言後は自摸切りしかできないので選ばせる意味が無い）。`autoPlayEnabled` のときは
+    /// 自分の手番も含めすべて自動。
     private var isAutomaticTurn: Bool {
         if currentPlayer != Self.humanIndex { return true }
+        if autoPlayEnabled { return true }
         return riichi[Self.humanIndex] && !canDeclareTsumo
     }
 
     private func advanceAutomaticTurn() {
-        if currentPlayer == Self.humanIndex {
+        if currentPlayer == Self.humanIndex, !autoPlayEnabled {
             guard let drawn = drawnTile else { return }
             performDiscard(drawn, by: Self.humanIndex)   // 立直中の自摸切り
             return
