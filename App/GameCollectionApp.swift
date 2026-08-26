@@ -39,6 +39,10 @@ struct GameCollectionApp: App {
                 Task {
                     await initializeAds()
                 }
+                // Game Center 認証（#289 段階①）。iOS 26「ゲーム」アプリの推薦面に載る資格を
+                // 得るためのもので、失敗してもゲームには一切影響しない。撮影モードでは
+                // ウェルカムバナーがスクリーンショットに写り込むため開始しない。
+                GameCenterAuth.start()
             }
         }
     }
