@@ -113,7 +113,7 @@ targets:
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        DEVELOPMENT_TEAM: WLUV6S77T5
+        DEVELOPMENT_TEAM: 6MGM38HWDH
         CODE_SIGN_STYLE: Automatic
         # Firebase の静的ライブラリ内のクラス・カテゴリを取り込むために必須。
         # 無いと FirebaseAnalytics が実バイナリからリンク落ちし、Crashlytics が
