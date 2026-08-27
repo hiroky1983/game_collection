@@ -105,6 +105,40 @@ enum AppGameServices {
 SWIFT
 check "registry の外の Module() は数えない"  0 "$(pack '定番3種')" "$TMP/after.swift"
 
+# ブロックコメント内の `])` を終端と誤認すると、そこで数え終えて後続を落とす（CodeRabbit 指摘・PR #294）
+cat > "$TMP/block.swift" <<'SWIFT'
+enum AppGameServices {
+    static let registry = GameRegistry([
+        /* DummyModule(), ]) */
+        Game1Module(),
+        Game2Module(),
+    ])
+}
+SWIFT
+check "1行のブロックコメントを無視する"      0 "$(pack '定番2種')" "$TMP/block.swift"
+cat > "$TMP/block-multi.swift" <<'SWIFT'
+enum AppGameServices {
+    static let registry = GameRegistry([
+        Game1Module(),
+        /* 旧構成:
+           OldModule(),
+           ]) ← ここで終わらせてはいけない
+        */
+        Game2Module(), Game3Module(),
+    ])
+    static let unrelated = [AfterModule()]
+}
+SWIFT
+check "複数行のブロックコメントを無視する"   0 "$(pack '定番3種')" "$TMP/block-multi.swift"
+cat > "$TMP/block-inline.swift" <<'SWIFT'
+enum AppGameServices {
+    static let registry = GameRegistry([
+        Game1Module(), /* Game9Module() */ Game2Module(),
+    ])
+}
+SWIFT
+check "行中のブロックコメントを無視する"     0 "$(pack '定番2種')" "$TMP/block-inline.swift"
+
 echo "== 6. ブランチからパックを導く（引数なし）=="
 GIT_TMP="$TMP/repo"
 mkdir -p "$GIT_TMP/docs/aso" "$GIT_TMP/App"
@@ -137,10 +171,42 @@ else
 fi
 
 echo "== 8. 配信レーンから呼ばれている（仕込み忘れの検出）=="
-if grep -q "check-aso-game-count.sh" "$REPO/fastlane/Fastfile"; then
+# Fastfile 全体を grep すると、別レーンやコメントに文字列があるだけで通ってしまう
+# （beta から外しても気づけない）。`lane :beta do` 〜 対応する `end` の中だけを見る。
+beta_lane() {
+  awk '
+    /lane[[:space:]]*:beta[[:space:]]+do/ { indent = substr($0, 1, index($0, "lane") - 1); inside = 1; next }
+    inside && $0 == indent "end" { inside = 0; next }
+    inside
+  ' "$1"
+}
+calls_checker_in_beta() {
+  beta_lane "$1" | grep -qF 'sh("bash", "../Scripts/check-aso-game-count.sh")'
+}
+
+if calls_checker_in_beta "$REPO/fastlane/Fastfile"; then
   ok "fastlane の beta レーンが check-aso-game-count.sh を呼んでいる"
 else
   ng "fastlane の beta レーンが check-aso-game-count.sh を呼んでいない"
+fi
+
+# 上の判定が「Fastfile のどこかにあれば通る」ものに退化していないことを固定する
+cat > "$TMP/Fastfile-outside" <<'RUBY'
+platform :ios do
+  lane :lint do
+    sh("bash", "../Scripts/check-aso-game-count.sh")
+  end
+
+  lane :beta do
+    # check-aso-game-count.sh はここから外してある
+    sh("xcodegen", "generate", "--project", "..")
+  end
+end
+RUBY
+if calls_checker_in_beta "$TMP/Fastfile-outside"; then
+  ng "beta の外にだけ呼び出しがある Fastfile を誤って通した"
+else
+  ok "beta の外にだけ呼び出しがある Fastfile は通さない"
 fi
 
 echo

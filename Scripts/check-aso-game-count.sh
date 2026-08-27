@@ -59,14 +59,37 @@ if [ ! -f "$PACK" ]; then
 fi
 
 # 1. 実装側の本数 = GameRegistry([ ... ]) に並んだ `XxxModule()` の数。
-#    行コメント（// 数独（#262）は末尾に足す 等）に Module() が現れても数えないよう、先に落とす。
+#    コメントの中の Module() や `])` を拾うと本数も終端位置も狂うので、**先にコメントを落としてから**
+#    数える。行コメント（// 数独（#262）は末尾に足す）だけでなくブロックコメント（/* ... */）も、
+#    複数行にまたがるものを状態を持って除去する（CodeRabbit 指摘・PR #294）。
 ACTUAL="$(awk '
-  /GameRegistry\(\[/ { inside = 1 }
+  # 行からコメントを取り除いて返す。inblock はブロックコメントの継続状態（グローバル）。
+  function strip(line,   out, i) {
+    out = ""
+    while (length(line) > 0) {
+      if (inblock) {
+        i = index(line, "*/")
+        if (i == 0) return out
+        line = substr(line, i + 2)
+        inblock = 0
+        continue
+      }
+      i = index(line, "/*")
+      if (i > 0 && (index(line, "//") == 0 || index(line, "//") > i)) {
+        out = out substr(line, 1, i - 1)
+        line = substr(line, i + 2)
+        inblock = 1
+        continue
+      }
+      sub(/\/\/.*/, "", line)
+      return out line
+    }
+    return out
+  }
+  { line = strip($0) }
+  line ~ /GameRegistry\(\[/ { inside = 1 }
   inside {
-    line = $0
-    sub(/\/\/.*/, "", line)
-    n = gsub(/[A-Za-z0-9_]+Module\(\)/, "", line)
-    count += n
+    count += gsub(/[A-Za-z0-9_]+Module\(\)/, "", line)
     if (line ~ /\]\)/) { inside = 0 }
   }
   END { print count + 0 }
