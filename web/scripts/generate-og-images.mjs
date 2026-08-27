@@ -28,6 +28,24 @@ const footer = `オフラインで遊べる無料ゲーム${gameCount}種｜App 
 const esc = (s) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/// 文字列の表示幅を font-size 単位で概算する（全角1・半角0.5）。
+/// Hiragino Sans の全角はほぼ正方形なので、はみ出しの判定にはこの近似で足りる。
+const widthUnits = (s) =>
+  [...s].reduce((w, c) => w + (/[\x20-\x7E｡-ﾟ]/.test(c) ? 0.5 : 1), 0);
+
+/// 「A・B・C ほか」を、指定した幅に収まるぶんだけ並べて作る。
+/// 本数を固定（以前は先頭5本）にすると、名前の長いゲームが前に来た瞬間に右端から切れる。
+/// #296 で「麻雀（四人打ち）」が3番目に入り、実際に「麻雀ソリティアほ」で切れた。
+function fitNames(names, fontSize, maxWidth) {
+  const budget = maxWidth / fontSize - widthUnits("ほか");
+  const picked = [];
+  for (const name of names) {
+    if (picked.length > 0 && widthUnits([...picked, name].join("・")) > budget) break;
+    picked.push(name);
+  }
+  return `${picked.join("・")}ほか`;
+}
+
 /** 大見出し（複数行可）と小見出しを載せた OGP カードの SVG を作る。 */
 function card({ title, subtitle }) {
   const titleSize = title.length > 12 ? 76 : 96;
@@ -57,7 +75,9 @@ render(
   "default",
   card({
     title: `定番ゲーム${gameCount}種の詰め合わせ`,
-    subtitle: `${games.slice(0, 5).map((g) => g.name).join("・")}ほか`,
+    // 小見出しは x=104 から描くので、カード右端（1152）までの 1048px が上限。
+    // 少し余裕を見て 1000px に収める。
+    subtitle: fitNames(games.map((g) => g.name), 40, 1000),
   }),
 );
 
