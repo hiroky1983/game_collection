@@ -2,15 +2,28 @@ name: LP ゲーム一覧
 
 # LP（web/app/lib/games.ts）の顔ぶれ・順序が、アプリの GameRegistry と一致しているかを確認する（#296）。
 #
-# **games.ts を触る PR のときだけ**走らせる。常時実行しない理由は Scripts/check-lp-game-list.sh の
+# **games.ts を触る変更のときだけ**走らせる。常時実行しない理由は Scripts/check-lp-game-list.sh の
 # ヘッダに書いたとおりで、要点は2つ:
 #   1. 比較先が PR のツリーではなく別の ref（release/vX.Y.Z）なので、常時実行すると
 #      他所のマージで一度緑になった PR が後から赤くなる。
 #   2. 新しいゲームを足す PR は release ブランチへ入り、LP（main）の更新はその後の別 PR になる。
 #      途中に必ず不一致の期間があるので、常時落とすと正常な途中状態を事故として扱ってしまう。
-# 「一致していなければならない唯一の瞬間」= games.ts を触る PR が main にマージされる瞬間だけに絞る。
+# 「一致していなければならない唯一の瞬間」= games.ts を触る変更が main に入る瞬間だけに絞る。
+#
+# その瞬間を取り逃がさないため、PR 側（マージ前に気づける）と main への push 側（実際に入った時点の
+# 事実）の両方で走らせる。比較先の release ref は PR とは無関係に動くので、PR 側だけだと
+# 「最後の検証のあとに release へ13本目が入り、古い緑のままマージされて /games/<13本目> が 404」
+# を通してしまう（PR #299 の CodeRabbit 指摘）。pull_request の既定の activity type は
+# opened / synchronize / reopened だけで、release ref の更新では再実行されないため。
+# push 側は止める役ではなく「入った直後に気づく」役で、赤くなったら LP 追従の PR を出す合図。
 on:
   pull_request:
+    paths:
+      - 'web/app/lib/games.ts'
+      - 'Scripts/check-lp-game-list.sh'
+      - '.github/workflows/lp-game-list.yml'
+  push:
+    branches: [main]
     paths:
       - 'web/app/lib/games.ts'
       - 'Scripts/check-lp-game-list.sh'
