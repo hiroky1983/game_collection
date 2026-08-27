@@ -90,6 +90,12 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku",
         ]),
+        // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
+        .testTarget(name: "GameCenterTests", dependencies: [
+            "Core", "Game2048", "GameShogi", "GameGomoku", "GameMinesweeper",
+            "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
+            "GameMahjongSolitaire", "GameMahjong", "GameSudoku",
+        ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
         // Reduce Motion 追従（#210）の共通レイヤーも同じアクセシビリティ横断の関心なのでここに置く。

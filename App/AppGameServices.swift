@@ -1,4 +1,5 @@
 import Foundation
+import GameKit
 import Core
 import Game2048
 import GameShogi
@@ -28,7 +29,21 @@ enum AppEnvironment {
         recommendations: recommendations,
         review: review,
         playLog: playLog,
-        analytics: analytics
+        analytics: analytics,
+        gameCenter: gameCenter
+    )
+
+    /// Game Center のリーダーボード・実績（#289 段階②③）。
+    /// **未サインイン**では `isAvailable` が false になり、送信そのものが起きない。
+    /// サインイン済みのままオフラインになった場合は送信を試みるが、投げっぱなしなので
+    /// ゲームの進行は待たされない（失敗した実績は次の決着で送り直す）。
+    /// 撮影モードは広告・解析と同じ理由で止める（動作確認の記録を実データに混ぜない）。
+    static let gameCenter = GameCenterReporter(
+        service: isScreenshotMode ? NoopGameCenterService() : AppGameCenterService(),
+        // ハブに登録済みのゲーム ID だけを対象にする（`analytics` と同じ方針）。
+        // 実績「全ゲームを 1 回ずつ遊ぶ」の分母もこの件数になる。
+        allowedGameIDs: Set(registry.modules.map(\.id)),
+        isAvailable: { GKLocalPlayer.local.isAuthenticated }
     )
 
     /// 解析イベント（#158）。送るのは `game_start` / `game_end` の2種だけ。
