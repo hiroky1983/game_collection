@@ -26,6 +26,11 @@ platform :ios do
     # いなければならない瞬間」になる。ビルドを始める前に落とす（#161）
     sh("bash", "../Scripts/check-marketing-version.sh")
 
+    # 入稿パックの「収録N本」が実装のゲーム数と一致しているか（#281）。
+    # ゲーム追加 PR の直後は必ず不一致になる正常な途中状態があるので CI では見ず、
+    # 出荷する中身が確定するこの瞬間だけで落とす（理由はスクリプト冒頭のコメント）
+    sh("bash", "../Scripts/check-aso-game-count.sh")
+
     sh("xcodegen", "generate", "--project", "..")
 
     build_app(
