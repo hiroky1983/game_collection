@@ -2,8 +2,8 @@ import AppTrackingTransparency
 import GoogleMobileAds
 
 /// AdMob を初期化する。ATT の結果は待たない（拒否でも広告は出る＝非パーソナライズになるだけ）。
-/// ATT ダイアログは初回起動では出さず、最初のゲームを遊び終えた時点で事前説明を挟んでから出す
-/// （`TrackingConsentGate` / `TrackingConsentPrompt`）。
+/// ATT のシステムダイアログは、初回起動でハブが描画された直後に `HubView` が直接出す
+/// （AdMob を収入源とする以上 ATT は避けて通れないため、自前の事前説明は挟まない。会長決裁 2026-08-27）。
 @MainActor
 func initializeAds() async {
     // AdMob 独自の例外・シグナルハンドラを無効化する。有効のままだと Crashlytics の
