@@ -119,6 +119,12 @@ struct HubView: View {
                 .interactiveDismissDisabled()
             }
             .task {
+                // ATT の事前説明は**初回起動のハブ表示直後**に出す（v1.1.0 Build 6 と同じ変更・
+                // 審査指摘 Guideline 2.1 対応）。以前は「最初のゲームを遊び終えてハブに戻った
+                // 時点」だけで出していたが、審査でゲームを完了しないレビュアーが ATT ダイアログに
+                // 到達できず「見つからない」と指摘された。ハブの描画が落ち着いてから出す。
+                try? await Task.sleep(for: .milliseconds(600))
+                presentTrackingConsentIfNeeded()
                 #if DEBUG
                 // 撮影・動作確認用（DEBUG 限定）。ハブへ戻ってきたのと同じ経路を叩く。
                 if ProcessInfo.processInfo.arguments.contains("-simulateReturnToHub") {
@@ -155,9 +161,17 @@ struct HubView: View {
         }
     }
 
-    /// ゲームを1つ遊び終えてハブに戻ったときの処理。
+    /// ゲームを1つ遊び終えてハブに戻ったときの処理。ATT の事前説明は初回起動時に出す方式へ
+    /// 変えたため（上の .task）、ここは「初回起動時に何らかの理由で出せなかった場合」の
+    /// フォールバックとして残す（出し終えていれば `TrackingConsentGate` が二重表示を防ぐ）。
     @MainActor
     private func didFinishGameSession() {
+        presentTrackingConsentIfNeeded()
+    }
+
+    /// ATT の事前説明シートを、まだ出しておらず ATT が未決定のときだけ表示する。
+    @MainActor
+    private func presentTrackingConsentIfNeeded() {
         // 撮影モードでは説明シートも ATT もスクショに被るため出さない（DEBUG のみ有効）。
         guard !AppEnvironment.isScreenshotMode else { return }
         if TrackingConsentGate.shouldPrompt(isUndetermined: isTrackingAuthorizationUndetermined) {
