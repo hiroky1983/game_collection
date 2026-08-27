@@ -36,11 +36,17 @@ private final class SpyGameCenterService: GameCenterService {
     private(set) var achievements: [GameCenterAchievement] = []
     /// `report` が呼ばれた回数（まとめて送っているかの検証に使う）。
     private(set) var reportCalls = 0
+    /// 実績の送信が成功するか。false でオフライン（送信できなかった）を再現する。
+    var reportSucceeds = true
 
     func submit(_ score: GameCenterScore) { scores.append(score) }
-    func report(_ achievements: [GameCenterAchievement]) {
+    func report(
+        _ achievements: [GameCenterAchievement],
+        completion: @escaping @MainActor (Bool) -> Void
+    ) {
         reportCalls += 1
         self.achievements.append(contentsOf: achievements)
+        completion(reportSucceeds)
     }
 
     func percent(of achievementID: String) -> Double? {
@@ -357,6 +363,50 @@ struct GameCenterReporterTests {
             spy.achievements.filter { $0.achievementID == GameCenterAchievements.firstWin }.count == 1,
             "100% に達した実績は以後送らない"
         )
+    }
+
+    @Test("送信に失敗した実績の進捗は、次の決着で送り直される")
+    func failedAchievementIsRetried() {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: makeHubGameIDs())
+        let score = GameScore(metric: .points, points: 100)
+
+        // 1回目: オフラインで送信できなかった
+        spy.reportSucceeds = false
+        reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
+                               totalWins: 1, playedGameCount: 1)
+        #expect(spy.reportCalls == 1)
+
+        // 2回目: 進捗は変わっていないが、前回届いていないので送り直す
+        spy.reportSucceeds = true
+        reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
+                               totalWins: 1, playedGameCount: 1)
+        #expect(spy.reportCalls == 2, "失敗したぶんは送信済みにしない")
+        #expect(isClose(spy.percent(of: GameCenterAchievements.firstWin), 100))
+
+        // 3回目: 今度は届いているので送り直さない
+        reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
+                               totalWins: 1, playedGameCount: 1)
+        #expect(spy.reportCalls == 2)
+    }
+
+    @Test("失敗の通知が来ても、その間に進んだ進捗は巻き戻さない")
+    func rollbackKeepsNewerProgress() {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: makeHubGameIDs())
+        let score = GameScore(metric: .points, points: 100)
+
+        spy.reportSucceeds = true
+        reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
+                               totalWins: 1, playedGameCount: 1)   // wins10 = 10%
+        reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
+                               totalWins: 3, playedGameCount: 1)   // wins10 = 30%
+        #expect(spy.reportCalls == 2)
+
+        // 30% まで届いている状態で、同じ 30% を送り直させない
+        reporter.gameDidFinish(gameID: "2048", outcome: .loss, score: score,
+                               totalWins: 3, playedGameCount: 1)
+        #expect(spy.reportCalls == 2)
     }
 
     @Test("リーダーボードは決着のたびに送る（Game Center 側が自己ベストを保つ）")

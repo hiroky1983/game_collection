@@ -34,7 +34,9 @@ enum AppEnvironment {
     )
 
     /// Game Center のリーダーボード・実績（#289 段階②③）。
-    /// 未サインイン・オフラインでは `isAvailable` が false になり、送信そのものが起きない。
+    /// **未サインイン**では `isAvailable` が false になり、送信そのものが起きない。
+    /// サインイン済みのままオフラインになった場合は送信を試みるが、投げっぱなしなので
+    /// ゲームの進行は待たされない（失敗した実績は次の決着で送り直す）。
     /// 撮影モードは広告・解析と同じ理由で止める（動作確認の記録を実データに混ぜない）。
     static let gameCenter = GameCenterReporter(
         service: isScreenshotMode ? NoopGameCenterService() : AppGameCenterService(),

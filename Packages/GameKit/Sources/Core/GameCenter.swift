@@ -34,14 +34,29 @@ public struct GameCenterAchievement: Equatable, Sendable {
 ///   受け入れ条件（#289）は、この API 形状そのもので担保している。
 public protocol GameCenterService {
     @MainActor func submit(_ score: GameCenterScore)
-    @MainActor func report(_ achievements: [GameCenterAchievement])
+
+    /// - Parameter completion: 送信の成否を**後から**知らせる。呼び出し元はこれを待たない
+    ///   （リザルトの同期パスは即座に戻る）。用途は 1 つだけで、失敗したときに
+    ///   `GameCenterReporter` が送信済みの控えを巻き戻し、次の決着で同じ進捗を送り直せるように
+    ///   することにある。控えを送信前に確定させると、オフラインで失敗した進捗が
+    ///   「送信済み」として二度と送られなくなる（PR #297 の CodeRabbit 指摘）。
+    @MainActor func report(
+        _ achievements: [GameCenterAchievement],
+        completion: @escaping @MainActor (Bool) -> Void
+    )
 }
 
 /// 何もしない実装。テスト・プレビュー・撮影モード用。
 public struct NoopGameCenterService: GameCenterService {
     public init() {}
     @MainActor public func submit(_ score: GameCenterScore) {}
-    @MainActor public func report(_ achievements: [GameCenterAchievement]) {}
+    /// 「意図的に送らない」ので**成功扱い**にする（再送を溜め込まない）。
+    @MainActor public func report(
+        _ achievements: [GameCenterAchievement],
+        completion: @escaping @MainActor (Bool) -> Void
+    ) {
+        completion(true)
+    }
 }
 
 /// 決着 1 回をどのリーダーボードへ送るかの対応表（#289 段階②）。
@@ -195,9 +210,11 @@ public enum GameCenterAchievements {
 /// 何も変更しない（決着は既に `GameServices.gameDidFinish` の 1 点に集まっているため）。
 ///
 /// オフライン・未サインインでの振る舞い（#289 の最重要の非機能要件）:
-/// - `isAvailable` が false のときは `service` を**一度も呼ばない**。通信を試みる経路自体が無い。
-/// - `isAvailable` が true でも、`service` の実装は投げっぱなし（`GameCenterService` の契約）。
-/// どちらの経路でもゲームの進行は 1 ミリ秒も待たされない。
+/// - `isAvailable` が false（＝未サインイン）のときは `service` を**一度も呼ばない**。
+/// - サインイン済みのままオフラインになった場合は `service` を呼ぶが、**待たされない**。
+///   `GameCenterService` の契約が投げっぱなし（戻り値も throws も無い）なので、通信の可否に
+///   かかわらずゲームの進行は 1 ミリ秒も止まらない。失敗した実績の進捗は控えを巻き戻して
+///   次の決着で送り直す。
 @MainActor
 public final class GameCenterReporter {
     private let service: GameCenterService
@@ -242,9 +259,31 @@ public final class GameCenterReporter {
         ).filter { $0.percentComplete > (reportedPercent[$0.achievementID] ?? 0) }
 
         guard !updated.isEmpty else { return }
+
+        // 控えは送信「前」に進めておく（同じ決着の中で二重に送らないため）。ただし送信が
+        // 失敗したら巻き戻す。巻き戻さないと、オフラインで落ちた進捗が「送信済み」の扱いのまま
+        // 二度と送られない（100% に達した実績をその後遊ばずに終えると永久に解除されない）。
+        var previous: [String: Double] = [:]
         for achievement in updated {
+            if let recorded = reportedPercent[achievement.achievementID] {
+                previous[achievement.achievementID] = recorded
+            }
             reportedPercent[achievement.achievementID] = achievement.percentComplete
         }
-        service.report(updated)
+
+        service.report(updated) { [weak self] succeeded in
+            guard let self, !succeeded else { return }
+            for achievement in updated {
+                // 失敗の通知が届くまでに**さらに進んだ**進捗を送っていたら、そちらを優先する
+                // （古い値で上書きして送り直しを増やさない）。
+                guard reportedPercent[achievement.achievementID] == achievement.percentComplete
+                else { continue }
+                if let recorded = previous[achievement.achievementID] {
+                    reportedPercent[achievement.achievementID] = recorded
+                } else {
+                    reportedPercent.removeValue(forKey: achievement.achievementID)
+                }
+            }
+        }
     }
 }
