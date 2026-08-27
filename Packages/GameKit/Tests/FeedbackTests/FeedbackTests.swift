@@ -62,8 +62,22 @@ private func makeServices(hapticsEnabled: Bool) -> (GameServices, SpyFeedbackSer
 
 @MainActor
 private func play2048(_ services: GameServices) {
+    // 「1マスも動かないスワイプ」を確率に頼らず確実に起こす: 左端に寄せた盤面を
+    // スナップショットとして仕込んでから復元し、左へスワイプする（何も動かない＝拒否）。
+    // 以前は「4方向を順に試せばどれかは動かない」という確率頼みで、まれに一度も
+    // 拒否が起きないまま終局して flake していた（CI で実測・約2回に1回）。
+    try? services.snapshots.save(
+        Game2048Snapshot(board: [
+            [2, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ], score: 0),
+        for: "2048"
+    )
     let model = Game2048Model(services: services)
-    // 4 方向を順に試すと必ず動く方向があり、動かない方向が拒否になる。終局まで回す。
+    model.move(.left) // タイルは既に左端 → 確実に拒否（warning）
+    // あとは 4 方向を順に試して終局まで回す（動くスワイプの impact と終局の error を発火させる）。
     outer: for _ in 0..<3000 {
         for direction in Direction.allCases {
             model.move(direction)

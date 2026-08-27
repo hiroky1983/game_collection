@@ -9,14 +9,6 @@ struct HubView: View {
     let settings: GameSettings
     @State private var path: [String]
     @State private var showSettings: Bool
-    @State private var showTrackingConsent = false
-    @State private var pendingTrackingRequest = false
-    @State private var gameEnteredAt: Date?
-    /// レコメンドで別ゲームへ差し替えている最中の遷移先。途中の空 path を「ハブに戻った」と誤認しないための目印。
-    @State private var switchingToGameID: String?
-
-    /// 「遊んだ」とみなす最短の滞在時間。開いてすぐ戻っただけのときに ATT の事前説明を出さないための下限。
-    private static let minimumPlaySeconds: TimeInterval = 30
 
     init(
         registry: GameRegistry,
@@ -67,52 +59,29 @@ struct HubView: View {
                     module.makeView(services: services)
                 }
             }
-            // ゲームを一定時間遊んでからハブに戻ってきたタイミングで、ATT の事前説明を1回だけ出す。
-            // 設定シートと同じビューに .sheet を2つ重ねないよう、こちらは NavigationStack の中身に付ける。
-            .onChange(of: path) { oldPath, newPath in
-                if oldPath.isEmpty, !newPath.isEmpty {
-                    gameEnteredAt = Date()
-                    switchingToGameID = nil
-                    return
-                }
-                guard !oldPath.isEmpty, newPath.isEmpty else { return }
-                // ゲームの差し替え中に通過する空 path はハブへの帰還ではない。
-                guard switchingToGameID == nil else { return }
-                let played = gameEnteredAt.map { Date().timeIntervalSince($0) >= Self.minimumPlaySeconds } ?? false
-                gameEnteredAt = nil
-                // 開いてすぐ戻った（＝遊んでいない）場合は出さない。次に遊び終えたときに回る。
-                if played { didFinishGameSession() }
-            }
             // リザルトのレコメンドカードがタップされたら、そのゲームへ差し替えて遷移する。
             .onChange(of: services.recommendations?.requestedGameID) { _, requested in
                 guard let id = requested else { return }
                 services.recommendations?.requestedGameID = nil
                 // NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
                 // いったん根まで戻し、次の runloop で積み直す。
-                switchingToGameID = id
                 path = []
                 DispatchQueue.main.async { path = [id] }
             }
-            // システムの ATT ダイアログは説明シートが**閉じ切ってから**出す。
-            // 前面にシートが残っている間に要求すると、表示されずに終わることがあるため。
-            .sheet(isPresented: $showTrackingConsent, onDismiss: {
-                guard pendingTrackingRequest else { return }
-                pendingTrackingRequest = false
-                Task { await requestTrackingAuthorization() }
-            }) {
-                TrackingConsentPrompt {
-                    TrackingConsentGate.markPrompted()
-                    pendingTrackingRequest = true
-                    showTrackingConsent = false
-                }
-                .interactiveDismissDisabled()
-            }
             .task {
-                #if DEBUG
-                // 撮影・動作確認用（DEBUG 限定）。ハブへ戻ってきたのと同じ経路を叩く。
-                if ProcessInfo.processInfo.arguments.contains("-simulateReturnToHub") {
-                    didFinishGameSession()
+                // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
+                // 以前は自前の事前説明シートを挟み「最初のゲームを遊び終えてハブに戻った時点」で
+                // 出していたが、(1) ゲームを完了しないレビュアーがダイアログに到達できず審査で
+                // 「見つからない」と指摘された、(2) AdMob を収入源とする以上 ATT は避けて通れない、
+                // の2点から標準の形（起動直後にシステムダイアログのみ）へ戻した（会長決裁 2026-08-27）。
+                // ATT が既決の環境や、システム設定でトラッキング要求が無効の環境（新品のシミュレータや
+                // 審査機がこれに当たる）では、requestTrackingAuthorization は何も表示せず即座に返る。
+                // 撮影モードではスクショにダイアログが被るため出さない（DEBUG のみ有効）。
+                if !AppEnvironment.isScreenshotMode {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    await requestTrackingAuthorization()
                 }
+                #if DEBUG
                 // 撮影・動作確認用: 提示条件を通さずにレコメンドカードを出す（`-simulateRecommendation <gameID>`）。
                 let args = ProcessInfo.processInfo.arguments
                 if let i = args.firstIndex(of: "-simulateRecommendation"), i + 1 < args.count {
@@ -133,15 +102,6 @@ struct HubView: View {
         }
     }
 
-    /// ゲームを1つ遊び終えてハブに戻ったときの処理。
-    @MainActor
-    private func didFinishGameSession() {
-        // 撮影モードでは説明シートも ATT もスクショに被るため出さない（DEBUG のみ有効）。
-        guard !AppEnvironment.isScreenshotMode else { return }
-        if TrackingConsentGate.shouldPrompt(isUndetermined: isTrackingAuthorizationUndetermined) {
-            showTrackingConsent = true
-        }
-    }
 }
 
 /// ハブのゲームカード。
