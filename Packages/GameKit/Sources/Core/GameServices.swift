@@ -11,6 +11,8 @@ public struct GameServices {
     public let playLog: PlayLog?
     /// 解析イベントの送信（#158）。テスト・プレビューでは nil（送信しない）。
     public let analytics: GameAnalytics?
+    /// Game Center のリーダーボード・実績（#289）。テスト・プレビューでは nil（送信しない）。
+    public let gameCenter: GameCenterReporter?
 
     public init(
         snapshots: SnapshotStore,
@@ -19,7 +21,8 @@ public struct GameServices {
         recommendations: RecommendationService? = nil,
         review: ReviewRequestService? = nil,
         playLog: PlayLog? = nil,
-        analytics: GameAnalytics? = nil
+        analytics: GameAnalytics? = nil,
+        gameCenter: GameCenterReporter? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -28,6 +31,7 @@ public struct GameServices {
         self.review = review
         self.playLog = playLog
         self.analytics = analytics
+        self.gameCenter = gameCenter
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -73,6 +77,18 @@ public struct GameServices {
         analytics?.finishPlay(gameID: gameID, outcome: outcome)
         let willRequestReview = review?.gameDidFinish(outcome: outcome) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
+        // Game Center（#289）は**最後**に呼ぶ。実績の進捗は `PlayLog` の通算値から作るため、
+        // 勝利数を増やす `review`（`recordWin`）と、遊んだゲームを記録する `recommendations`
+        // （`recordFinish`）より後でないと 1 回ぶん古い値を送ることになる。
+        // 記録を持たない構成（`playLog` が nil）では実績の進捗は 0 として扱い、
+        // リーダーボードだけが動く（`GameCenterAchievements.progress` が 0 件を返す）。
+        gameCenter?.gameDidFinish(
+            gameID: gameID,
+            outcome: outcome,
+            score: score,
+            totalWins: playLog?.totalWins ?? 0,
+            playedGameCount: playLog?.playedGameIDs.count ?? 0
+        )
         return result
     }
 }
