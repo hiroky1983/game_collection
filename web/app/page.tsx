@@ -9,8 +9,12 @@ import {
 } from "./lib/site";
 
 /// 収録本数とゲーム名の列挙は `games` から導出する（本数をベタ書きすると追加のたびに直し漏れる）。
-const gameCount = games.length;
-const gameNames = games.map((g) => g.name).join("・");
+/// 「収録」と言えるのは配信済み（`comingSoon` 無し）のものだけ。配信予定のゲームは別枠で見せる
+/// （実アプリに無いゲームを「収録」と宣伝しない・2026-08-28 会長指示）。
+const releasedGames = games.filter((g) => !g.comingSoon);
+const upcomingGames = games.filter((g) => g.comingSoon);
+const gameCount = releasedGames.length;
+const gameNames = releasedGames.map((g) => g.name).join("・");
 
 const points = [
   { icon: "✈️", title: "オフラインで遊べる", desc: `通信不要。電波の無い場所でも${gameCount}本すべて動きます` },
@@ -87,7 +91,7 @@ export default function Home() {
 
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">収録ゲーム（{gameCount}本）</h2>
       <div className="grid grid-cols-1 gap-3 mb-12">
-        {games.map((g) => (
+        {releasedGames.map((g) => (
           <Link
             key={g.slug}
             href={`/games/${g.slug}`}
@@ -101,6 +105,35 @@ export default function Home() {
           </Link>
         ))}
       </div>
+
+      {upcomingGames.length > 0 && (
+        <>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">配信予定のゲーム</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            次のアップデートで追加予定です（現在のアプリにはまだ含まれていません）。
+          </p>
+          <div className="grid grid-cols-1 gap-3 mb-12">
+            {upcomingGames.map((g) => (
+              <Link
+                key={g.slug}
+                href={`/games/${g.slug}`}
+                className="bg-white dark:bg-gray-800 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
+              >
+                <span className="text-3xl">{g.emoji}</span>
+                <div>
+                  <p className="font-bold text-gray-900 dark:text-white">
+                    {g.name}
+                    <span className="ml-2 align-middle text-xs font-semibold text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-full px-2 py-0.5">
+                      配信予定
+                    </span>
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{g.tagline}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="text-center mb-12">
         <a
