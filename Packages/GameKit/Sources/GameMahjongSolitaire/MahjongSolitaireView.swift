@@ -82,7 +82,7 @@ public struct MahjongSolitaireView: View {
                 }
             }
         }
-        .howToPlay(.mahjongSolitaire)
+        .howToPlay(.mahjongSolitaire) { MahjongSolitaireRuleSheet() }
         .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
             Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
             Button("キャンセル", role: .cancel) {}
@@ -512,5 +512,50 @@ public struct MahjongSolitaireView: View {
             .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
             .padding(.horizontal, 28)
         }
+    }
+}
+
+// MARK: - くわしいルール
+
+/// 「遊び方」シートから開く詳細ページ（#238）。組み方は `DaifugoRuleSheet` / `MahjongRuleSheet` と同じ。
+///
+/// 3 行のミニガイドは「同じ絵柄の牌を 2 枚」としか言えないが、実装では
+/// `MahjongFace.matchKey` が花牌どうし・季節牌どうしを同一キーに潰しており、**絵柄が違っても合う**。
+/// 初回盤面に必ず出るのに説明がどこにも無く、「同じに見えないのに消える」混乱を生んでいた。
+struct MahjongSolitaireRuleSheet: View {
+    /// 文言はテストから検証したいので型の外に出しておく（花牌・季節牌の説明が落ちると受け入れ条件を割る）。
+    static let rules: [(String, String)] = [
+        ("取れる牌", "上に牌が1枚も載っておらず、左どなり・右どなりのどちらかが空いている牌だけを取れます。両どなりがふさがっている牌は、まわりを取り除くまで選べません"),
+        ("花牌と季節牌", "花牌（梅・蘭・菊・竹）どうし、季節牌（春・夏・秋・冬）どうしは、絵柄が違っても合わせて取れます。梅と蘭、春と冬のような組み合わせで消えるのはこのためです"),
+        ("そのほかの牌", "花牌・季節牌以外は、まったく同じ絵柄の2枚だけが合います。一萬と二萬のように種類が同じでも数が違えば合いません"),
+        ("並んでいる牌", "全部で144枚（標準の34種が4枚ずつ + 花牌4枚 + 季節牌4枚）です。配る盤面は取り切れる順番があるように作っているので、必ずクリアできます"),
+        ("ヒント・並べ替え・戻す", "「ヒント」は取れる2枚を1組光らせます。「並べ替え」は残りをそこから取り切れる配置に組み直します（戻せる1手は無くなります）。「戻す」は直前に取った2枚を盤に返します"),
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                ForEach(Self.rules, id: \.0) { rule in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(rule.0)
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .foregroundStyle(Theme.coral)
+                        Text(rule.1)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
+                }
+            }
+            .padding(Theme.pad)
+        }
+        .popBackground()
+        .navigationTitle("ルール")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
