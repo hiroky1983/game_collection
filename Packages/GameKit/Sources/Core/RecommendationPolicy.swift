@@ -19,17 +19,26 @@ public enum RecommendationPolicy {
     public static let minimumElapsed: TimeInterval = 24 * 60 * 60
 
     /// 直前に遊んだゲーム → 提示候補（近い順）。近さの根拠は Issue #52 の表を参照。
+    ///
+    /// **ハブの全ゲームがキーにも値にも1回以上現れること**が不変条件（#237）。値に現れない
+    /// ゲームは「他を遊んだ人には構造的に提案されない」状態になる（大富豪・麻雀ソリティア・
+    /// 四人打ち麻雀・数独で実際に起きていた）。ゲームを増やしたら
+    /// `RecommendationTableTests` の網羅テストが落ちるので、そこで気づける。
     public static let candidateTable: [String: [String]] = [
         "shogi":         ["gomoku", "othello", "2048"],
         "gomoku":        ["othello", "shogi", "minesweeper"],
         "othello":       ["gomoku", "shogi", "2048"],
-        "2048":          ["minesweeper", "concentration", "othello"],
-        "minesweeper":   ["2048", "concentration", "othello"],
-        "concentration": ["2048", "minesweeper", "blackjack"],
-        "poker":         ["blackjack", "concentration", "2048"],
-        "blackjack":     ["poker", "concentration", "2048"],
+        // 「1人で盤面を詰める」系。同じ手触りの麻雀ソリティアへ抜けられるようにし（#237）、
+        // マインスイーパーには最も近い論理パズルの数独を第1候補に置く。
+        "2048":          ["minesweeper", "mahjong", "concentration"],
+        "minesweeper":   ["sudoku", "2048", "mahjong"],
+        // トランプ系。同じ札を使う大富豪（#89）へ抜けられるようにする（#237）。
+        "concentration": ["2048", "daifugo", "blackjack"],
+        "poker":         ["blackjack", "daifugo", "concentration"],
+        "blackjack":     ["poker", "daifugo", "concentration"],
         "daifugo":       ["poker", "blackjack", "concentration"],
-        "mahjong":       ["concentration", "minesweeper", "2048"],
+        // 麻雀ソリティア（#90）。牌が同じ四人打ち麻雀が最も近い。
+        "mahjong":       ["mahjong4", "concentration", "minesweeper"],
         // 四人打ち麻雀（#106）。牌が同じで手軽な麻雀ソリティア、同じ CPU 対戦の大富豪、
         // 役の考え方が近いポーカーの順で近い。
         "mahjong4":      ["mahjong", "daifugo", "poker"],

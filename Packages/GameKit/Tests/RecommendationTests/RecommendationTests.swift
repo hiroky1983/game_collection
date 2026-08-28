@@ -85,18 +85,18 @@ private func advanceFinishes(_ service: RecommendationService, count: Int, gameI
 @MainActor
 struct RecommendationTableTests {
 
-    /// Issue #52 の表そのまま。第1〜第3候補まで検証する。
+    /// Issue #52 の表に #237 の入れ替えを反映したもの。第1〜第3候補まで検証する。
     static let table: [(String, [String])] = [
         ("shogi",         ["gomoku", "othello", "2048"]),
         ("gomoku",        ["othello", "shogi", "minesweeper"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
-        ("2048",          ["minesweeper", "concentration", "othello"]),
-        ("minesweeper",   ["2048", "concentration", "othello"]),
-        ("concentration", ["2048", "minesweeper", "blackjack"]),
-        ("poker",         ["blackjack", "concentration", "2048"]),
-        ("blackjack",     ["poker", "concentration", "2048"]),
+        ("2048",          ["minesweeper", "mahjong", "concentration"]),
+        ("minesweeper",   ["sudoku", "2048", "mahjong"]),
+        ("concentration", ["2048", "daifugo", "blackjack"]),
+        ("poker",         ["blackjack", "daifugo", "concentration"]),
+        ("blackjack",     ["poker", "daifugo", "concentration"]),
         ("daifugo",       ["poker", "blackjack", "concentration"]),
-        ("mahjong",       ["concentration", "minesweeper", "2048"]),
+        ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
     ]
@@ -140,6 +140,64 @@ struct RecommendationTableTests {
         let expected = hubOrder.first { !played.contains($0) }
         #expect(got == expected)
         #expect(got == "minesweeper", "ハブ順で最初の未プレイ")
+    }
+
+    /// #237 の再発防止。値に一度も出てこないゲームは「他を遊んだ人には構造的に提案されない」。
+    /// 大富豪・麻雀ソリティア・四人打ち麻雀・数独が実際にその状態だった。
+    @Test("候補テーブルはハブの全ゲームを網羅する（キーにも値にも1回以上出る）")
+    func coversEveryRegisteredGame() {
+        let registered = Set(makeRegistry().modules.map(\.id))
+        let table = RecommendationPolicy.candidateTable
+        let keys = Set(table.keys)
+        let values = Set(table.values.flatMap { $0 })
+
+        #expect(keys == registered,
+                "キーの過不足: \(keys.symmetricDifference(registered).sorted())")
+        #expect(values.subtracting(registered).isEmpty,
+                "登録の無い gameID が候補にある: \(values.subtracting(registered).sorted())")
+        #expect(registered.subtracting(values).isEmpty,
+                "どこからも提案されないゲーム: \(registered.subtracting(values).sorted())")
+
+        for (key, candidates) in table {
+            #expect(candidates.count == 3, "\(key) の候補は3件（実際: \(candidates.count)）")
+            #expect(!candidates.contains(key), "\(key) が自分自身を候補にしている")
+            #expect(Set(candidates).count == candidates.count, "\(key) の候補が重複している")
+        }
+    }
+
+    /// 上のテストは `makeRegistry()`（テスト用の複製）を基準にしているため、本体の
+    /// `AppEnvironment.registry` にゲームが増えたのに複製の更新を忘れると素通りしてしまう。
+    /// GameKit のテストから App ターゲットは import できないので、ソースを走査して突き合わせる。
+    @Test("テスト用のレジストリが AppEnvironment.registry と同じ構成である")
+    func testRegistryMatchesAppRegistry() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // RecommendationTests/
+            .deletingLastPathComponent()   // Tests/
+            .deletingLastPathComponent()   // GameKit/
+            .deletingLastPathComponent()   // Packages/
+            .deletingLastPathComponent()   // リポジトリのルート
+        let source = try String(
+            contentsOf: repoRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
+        )
+        guard let block = source.range(
+            of: #"static let registry = GameRegistry\(\[[^\]]*\]\)"#, options: .regularExpression
+        ) else {
+            Issue.record("AppEnvironment.registry の定義が見つからない（走査のパターンが壊れている可能性）")
+            return
+        }
+
+        let listed = Set(source[block].split(separator: "\n").compactMap { line -> String? in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.hasPrefix("//"),
+                  let name = trimmed.split(separator: "(").first, name.hasSuffix("Module")
+            else { return nil }
+            return String(name)
+        })
+        let fixture = Set(makeRegistry().modules.map { String(describing: type(of: $0)) })
+
+        #expect(listed.count == fixture.count && !listed.isEmpty)
+        #expect(listed == fixture,
+                "テスト用レジストリと本体の差分: \(listed.symmetricDifference(fixture).sorted())")
     }
 
     @Test("既プレイのゲームは候補にならない（全部遊んでいたら出さない）")
