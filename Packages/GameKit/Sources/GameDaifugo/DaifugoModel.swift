@@ -473,6 +473,11 @@ public final class DaifugoModel {
             let delay = currentCPUDelay
             if delay > .zero {
                 try? await Task.sleep(for: delay)
+                // `try? await Task.sleep(for:)` はキャンセル後**毎回即座に**返る
+                // （`CancellationError` を `try?` が握り潰す）。キャンセルを見ないと、
+                // 画面を離れた瞬間に残りの CPU 手番が遅延ゼロで走り抜けてしまう（#287）。
+                // 下の状態 guard は状態しか見ないので、これの代わりにはならない。
+                guard !Task.isCancelled else { return }
                 guard phase == .playing, currentPlayer != Self.humanIndex else { return }
             }
             performCPUTurn(currentPlayer)
