@@ -5,6 +5,8 @@ headless Chrome（`--headless=new --window-size=900,<高さ> --screenshot`）で
 
 ## top.jpg
 
+![トップページ](./top.jpg)
+
 トップページ。**本数・ゲーム名の列挙はすべて `web/app/lib/games.ts` の `games` から導出**していて、
 ベタ書きの「8」は残っていない。
 
@@ -15,11 +17,15 @@ headless Chrome（`--headless=new --window-size=900,<高さ> --screenshot`）で
 
 ## daifugo.jpg
 
+![大富豪ページ](./daifugo.jpg)
+
 新規追加した `/games/daifugo`。遊び方・特徴は `Packages/GameKit/Sources/GameDaifugo` の
 実装（`DaifugoRules` の革命・8切り・反則上がり・カード交換、`DaifugoView` のルール表示、
 `DaifugoModel` の中断保存）で確認できる範囲だけを書いている。
 
 ## mahjong-solitaire.jpg
+
+![麻雀ソリティアページ](./mahjong-solitaire.jpg)
 
 新規追加した `/games/mahjong-solitaire`。同じく `GameMahjongSolitaire` の実装
 （144枚の亀型レイアウト、`isFree` の「上に載っていない かつ 左右どちらかが空いている」、
@@ -31,6 +37,9 @@ headless Chrome（`--headless=new --window-size=900,<高さ> --screenshot`）で
 「とは別ルールです」と明記して誤誘導にならないようにしている。
 
 ## og-daifugo.jpg / og-mahjong-solitaire.jpg
+
+![大富豪 OGP](./og-daifugo.jpg)
+![麻雀ソリティア OGP](./og-mahjong-solitaire.jpg)
 
 `web/scripts/generate-og-images.mjs` で生成した OGP 画像（実体は 1200×630 PNG。
 ここに置いているのは確認用に JPEG 化したもの）。フッターの「無料ゲーム**10**種」も

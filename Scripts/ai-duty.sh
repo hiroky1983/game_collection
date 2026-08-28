@@ -10,9 +10,23 @@ LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
 DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
 DUTY_FETCH_KILL_GRACE="${DUTY_FETCH_KILL_GRACE:-5}"  # SIGTERM / SIGKILL それぞれの猶予秒数（同上）
+DUTY_LOCK_GRACE="${DUTY_LOCK_GRACE:-30}"  # PID 未書き込みのロックを「取得直後」とみなす秒数
+DUTY_NOTIFY_STATE="${DUTY_NOTIFY_STATE:-$HOME/.asobiba-duty/last-notify}"  # 通知の連投防止の状態ファイル
+DUTY_NOTIFY_INTERVAL="${DUTY_NOTIFY_INTERVAL:-86400}"  # 同じ対象を再通知しない秒数（既定 = 1日）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
+
+# DUTY_LOCK_GRACE は外部から差し替えられるため、0 以上の10進整数だけを通して既定値へ戻す。
+# `[ "$AGE" -lt "$DUTY_LOCK_GRACE" ]` は非数値だと「整数式が必要」で**失敗（= 偽）**になり、
+# 猶予の判定を素通りして取得直後の PID 未書き込みロックを回収してしまう
+# （= 本来防いでいる多重起動が起きる。PR #173 の CodeRabbit 指摘）
+case "$DUTY_LOCK_GRACE" in
+  ''|*[!0-9]*)
+    log "DUTY_LOCK_GRACE=$DUTY_LOCK_GRACE は 0 以上の整数でないため既定値 30 を使う"
+    DUTY_LOCK_GRACE=30
+    ;;
+esac
 
 # シミュレータの後片付け（Issue #100）。当番が動作確認のために起動したシミュレータだけを落とし、
 # 実行前から起動していたもの（= 会長が使用中の可能性がある）には触らない差分方式。
@@ -58,6 +72,101 @@ cleanup_simulators() {
   # 会長が Simulator.app を開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
   # CodeRabbit 指摘・Major）。会長の訴え（PC が重い）の原因は起動中のシミュレータであって
   # デバイスを持たない Simulator.app ではないため、落とす必要も無い
+}
+
+# 会長への通知（Issue #132）。稟議（ringi:pending）と承認待ち（未承認の ai:proposed）はどちらも
+# **会長にしか進められない**のに、会長に届く通知が1つも無かった。当番は会長アカウントのトークンで
+# コメントするため、GitHub は「自分自身の操作」とみなして通知を出さない（#120 で確認済みの制約）。
+# 起案しても会長の受信箱には何も起きず、決裁待ちがそのまま滞留する（#128 は約32時間放置され、
+# その間ずっと仕事ゼロの当番が毎時起動していた）。launchd が会長の Mac の GUI セッションで動く前提を
+# そのまま使い、追加の権限・費用・外部サービスなしに届く macOS のローカル通知で知らせる。
+#   - 通知は EXIT トラップから出す。早期 exit（仕事なし）でも claude が異常終了しても必ず出すため。
+#     決裁待ちだけが残っている「仕事なし」の回こそ通知の必要性が高い
+#   - 連投防止: 対象 Issue の集合が同じなら DUTY_NOTIFY_INTERVAL（既定1日）に1回まで。
+#     集合が変われば即通知する（新しい稟議の起案を丸1日待たせないため）
+#   - 対象が0件なら何もしない（空振り時は無音）
+#   - osascript に渡すのは **Issue 番号だけ**にする。タイトルを埋め込むと AppleScript の文字列を
+#     壊すうえ、このリポジトリは PUBLIC で第三者も Issue を立てられるため注入の経路になる
+NOTIFY_RINGI=""
+NOTIFY_APPROVAL=""
+NOTIFY_READY=0
+
+# 通知対象の収集。gh が失敗したときは NOTIFY_READY を立てないので通知しない（黙って0件扱いにすると
+# 「対象なし」と区別が付かず、稟議があるのに無音になる）
+collect_notify_targets() {
+  # --limit を省略すると 30 件で打ち切られ、超えた分が**黙って**通知から漏れる（PR #142 の
+  # CodeRabbit 指摘）。滞留が増えたときほど漏れるという最悪の壊れ方をするので上限を明示する
+  local ringi approval
+  ringi=$(gh issue list -R hiroky1983/game_collection --label "ringi:pending" --state open --limit 200 \
+    --json number --jq '[.[].number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
+  # 承認待ち = ai:proposed のうち会長のハンコがまだ無いもの。着手済み・外部イベント待ち（blocked）と、
+  # 上の決裁待ちに既に出ているものは重複するので除く
+  approval=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open --limit 200 \
+    --json number,labels \
+    --jq '[.[] | ([.labels[].name]) as $l
+          | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null
+                   and ($l | index("blocked")) == null and ($l | index("ringi:pending")) == null)
+          | .number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
+  NOTIFY_RINGI="$ringi"
+  NOTIFY_APPROVAL="$approval"
+  NOTIFY_READY=1
+}
+
+# 番号の羅列を "#128 #106" の形にする。tr -cd で数字と空白以外を落としてあるので osascript に渡しても安全
+hash_numbers() {
+  local n out=""
+  for n in $1; do out="$out #$n"; done
+  printf '%s' "${out# }"
+}
+
+# 改行・タブは先に空白へ寄せる。いきなり tr -cd で落とすと、収集側の出力が複数行になったときに
+# "128" と "106" が "128106" という存在しない番号に化ける（PR #142 の CodeRabbit 指摘）
+sanitize_numbers() {
+  printf '%s' "$1" | tr '\n\t' '  ' | tr -cd '0-9 ' | tr -s ' ' | sed 's/^ //; s/ $//'
+}
+
+notify_pending() {
+  [ "$NOTIFY_READY" -eq 1 ] || return 0
+  local ringi approval key now last_key last_at body count
+  ringi=$(sanitize_numbers "$NOTIFY_RINGI")
+  approval=$(sanitize_numbers "$NOTIFY_APPROVAL")
+  [ -n "$ringi$approval" ] || return 0
+
+  key="ringi=$ringi;approval=$approval"
+  now=$(date +%s)
+  if [ -f "$DUTY_NOTIFY_STATE" ]; then
+    last_key=$(sed -n '1p' "$DUTY_NOTIFY_STATE" 2>/dev/null)
+    last_at=$(sed -n '2p' "$DUTY_NOTIFY_STATE" 2>/dev/null)
+    case "${last_at:-}" in ''|*[!0-9]*) last_at=0 ;; esac
+    if [ "$key" = "${last_key:-}" ] && [ "$((now - last_at))" -lt "$DUTY_NOTIFY_INTERVAL" ]; then
+      return 0
+    fi
+  fi
+
+  count=0
+  body=""
+  if [ -n "$ringi" ]; then
+    count=$((count + $(printf '%s' "$ringi" | wc -w)))
+    body="決裁待ち(ringi:pending): $(hash_numbers "$ringi")"
+  fi
+  if [ -n "$approval" ]; then
+    count=$((count + $(printf '%s' "$approval" | wc -w)))
+    [ -n "$body" ] && body="$body / "
+    body="${body}承認待ち(ai:approved を付けるだけ): $(hash_numbers "$approval")"
+  fi
+
+  # 以降のログの `${body}` は必ずブレースで囲む（#175）。UTF-8 ロケールの bash は 0x80 以上のバイトを
+  # 識別子の一部として受け入れるため、ブレース無しの変数参照の直後に全角文字を置くと、変数名が
+  # `body` + その全角文字の先頭バイトと解釈され、`set -u` で `unbound variable` になってスクリプトごと
+  # 落ちる（= 手動実行時に通知が飛ばない）。launchd は C ロケールで走るため今まで露見していなかった。
+  # 回帰検出はテスト12（UTF-8 での通し実行）とテスト13（全走査）で行う
+  osascript -e "display notification \"$body\" with title \"あそびば: 会長の操作待ち ${count}件\"" >/dev/null 2>&1 || {
+    log "通知: osascript に失敗したため見送り（対象: ${body}）"
+    return 0
+  }
+  mkdir -p "$(dirname "$DUTY_NOTIFY_STATE")" 2>/dev/null
+  printf '%s\n%s\n' "$key" "$now" >"$DUTY_NOTIFY_STATE" 2>/dev/null
+  log "通知: 会長へ ${count}件（${body}）"
 }
 
 # 自己更新: launchd が起動するのは会長の作業ツリー（~/myspace/game_collection）の本ファイルであり、
@@ -138,9 +247,89 @@ self_update() {
   export DUTY_SELF_UPDATED=1
   exec /bin/bash "$fresh" "$@"
 }
+# 会長の書き込みを見分けるための共通 jq 定義（仕事5・仕事8 が使う）。
+# 当番(AI)・経営企画室・会長はすべて同じ `hiroky1983` トークンで投稿するため author では区別できず、
+# 「自社が書いたコメント」を本文のマーカーで除外して最後の会長コメントを取り出す。
+#   - 許可リスト外の author（coderabbitai・第三者）は無視する（#68: 自動プランで空振り起動）
+#   - `<!-- ai-management-` で始まるコメントは経営企画室（Scripts/ai-management-duty.sh・日次）の
+#     分析/リマインドなので除外する。除外しないと経営企画室が1本置くたびに開発当番が「会長の着信」と
+#     誤認して毎時空振りする（#168。#120 と同じ失敗モードが経営企画室の常設化で再発した）。
+#     マーカーは経営企画室側の重複防止用として ai-management-prompt.md が先頭行に必須化済み
+# 変数に出しているのは、同じ定義を Scripts/tests/test-ai-duty-detect.sh から評価するため。
+DUTY_JQ_COMMENT_LIB='
+def last_owner_body($actors):
+  [.comments.nodes[]
+   | select((.author.login // "") as $l | ($actors | index($l)) != null)
+   | select(((.body // "") | startswith("<!-- ai-management-")) | not)
+   | (.body // "")] | last // "";
+
+def is_ringi_reply($actors):
+  last_owner_body($actors) as $b
+  | $b != ""
+    and (($b | contains("【要決裁】")) | not)
+    and (($b | contains("決裁反映")) | not);
+
+def is_proposed_reply($actors):
+  ([.labels.nodes[].name]) as $l
+  | ($l | index("ai:approved")) == null
+    and ($l | index("ai:in-progress")) == null
+    and ($l | index("blocked")) == null
+    and (last_owner_body($actors) as $b
+         | $b != ""
+           and (($b | startswith("企画議論")) | not)
+           and (($b | contains("【要決裁】")) | not)
+           and (($b | contains("決裁反映")) | not));
+
+def is_blocked_reply($actors):
+  last_owner_body($actors) as $b
+  | $b != ""
+    and (($b | startswith("解除確認")) | not)
+    and (($b | startswith("着手見送り:")) | not);
+'
+
+# テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
+# （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
+if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
+
 self_update "$@"
 
 # 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
+#   mkdir から PID_FILE の書き込みまでには僅かな隙があり、その間に来た次のプロセスが
+#   「PID が読めない = 停止済み」と誤判定して有効なロックを奪うと当番が二重に走る
+#   （PR #163 で ai-management-duty.sh 側を直した CodeRabbit 指摘と同一構造・Issue #165）。
+#   多重起動を防いでいるのはこのロックだけなので、破れると稼働中の当番の Issue から別の当番が
+#   ai:in-progress を剥がす・同じ Issue に二重着手する・EXIT トラップが他方のシミュレータを
+#   落とす、といった競合が起きる（ai-duty-prompt.md 2-c は「多重起動はロックで防がれている」を
+#   前提に、30分以上更新の無い ai:in-progress を孤児と断定して回収する）。対策は3点:
+#     1. PID が読めないロックは DUTY_LOCK_GRACE 秒だけ「取得直後」とみなして回収しない
+#     2. PID_FILE を書いたあと読み直し、自分のものでなければ降りる（競合したとき、最後に
+#        書いた1プロセスだけが残る）。**回収した回に限らず必ず確認する**のが要点で、
+#        「mkdir で新規に取れたのだから競合していない」は成り立たない: 回収経路に入った
+#        プロセスは猶予の判定を済ませており、その後の `rm -rf` は**誰が今ロックを
+#        持っていようと消す**。新規取得したプロセスのロックがその `rm -rf` で消され、
+#        回収側が取り直すと、確認を省いた新規取得側と回収側の両方が走る
+#        （40 並行のストレステストで3〜5プロセスが同時に当選することを実測。確認を
+#        無条件にすると常に1プロセスに戻る）
+#     3. EXIT トラップは自分が所有者のときだけロックを削除する（競合した相手のロックを
+#        巻き添えにしない）。cleanup_simulators / notify_pending は所有権と無関係に走らせる
+lock_age() {
+  local mtime now
+  mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null || stat -c %Y "$LOCK_DIR" 2>/dev/null) || return 1
+  [ -n "$mtime" ] || return 1
+  now=$(date +%s)
+  echo $((now - mtime))
+}
+# PID の記録。失敗するのは直前に他プロセスの回収（rm -rf）でロックごと消えた場合。
+# リダイレクトの失敗はコマンド自身の stderr より先に評価されるため（`echo ... > f 2>/dev/null` では
+# 抑止されない）、グループ全体の stderr を潰して launchd の stderr に生のエラーを出さない
+write_pid() { { echo $$ >"$PID_FILE"; } 2>/dev/null; }
+release_lock() {
+  [ "$(cat "$PID_FILE" 2>/dev/null || true)" = "$$" ] || return 0
+  # 削除中に他プロセスが同じディレクトリへ書き込むと rm が "Directory not empty" で失敗しうる
+  # （40 並行のストレステストで観測）。EXIT トラップから呼ばれるので launchd の stderr へは
+  # 出さず、残ってもそのロックは PID 未書き込み扱いで次回の猶予超過に回収される
+  rm -rf "$LOCK_DIR" 2>/dev/null || log "ロックの解放に失敗（次回の猶予超過で回収される）"
+}
 PID_FILE="$LOCK_DIR/pid"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
@@ -148,14 +337,40 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
     log "前回実行中 (pid=$OLD_PID) のためスキップ"
     exit 0
   fi
+  if [ -z "$OLD_PID" ]; then
+    AGE=$(lock_age || true)
+    # 非数値（stat の想定外出力）と負値（mtime が未来 = 時刻の巻き戻り）は「不明」に倒す。
+    # DUTY_LOCK_GRACE と同じ理由で、比較が失敗すると回収する側に落ちてしまう
+    case "$AGE" in ''|*[!0-9]*) AGE="" ;; esac
+    if [ -z "$AGE" ] || [ "$AGE" -lt "$DUTY_LOCK_GRACE" ]; then
+      log "ロック取得直後（PID 未書き込み・経過=${AGE:-不明}秒）のためスキップ"
+      exit 0
+    fi
+  fi
   log "停止済みプロセスのロックを回収 (pid=${OLD_PID:-不明})"
-  rm -rf "$LOCK_DIR"
+  # 削除中に他プロセスが書き込むと rm が失敗しうる（release_lock と同じ理由）。
+  # 失敗しても直後の mkdir が失敗して降りるので、ここは stderr を汚さないだけでよい
+  rm -rf "$LOCK_DIR" 2>/dev/null
   mkdir "$LOCK_DIR" 2>/dev/null || exit 0
 fi
-echo $$ >"$PID_FILE"
-trap 'cleanup_simulators; rm -rf "$LOCK_DIR"' EXIT
+if ! write_pid; then
+  log "ロックへの PID 記録に失敗（他プロセスに回収された）ためスキップ"
+  exit 0
+fi
+# 所有権の確認は新規取得・回収のどちらの経路でも必ず行う（上のコメント 2. の理由）。
+# sleep は競合相手が PID を書き終えるのを待つためのもので、launchd の毎時起動が
+# 1秒遅れるだけの代償で二重当選を防ぐ
+sleep 1
+if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
+  log "ロックの所有権が他プロセスに移ったためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
+  exit 0
+fi
+trap 'cleanup_simulators; notify_pending; release_lock' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
+
+# 会長の操作待ち（決裁・承認）を先に集める。以降のどこで exit しても EXIT トラップから通知が出る
+collect_notify_targets
 
 # 仕事1: 承認済みで未着手の Issue
 # ai:in-progress（着手済み）と ringi:pending（会長の決裁待ち = 当番には進められない）は除外する。
@@ -254,11 +469,10 @@ CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeab
 
 # 仕事5: 決裁コメントの着信（ringi:pending の Issue に決裁スレッド以外の新規コメントが付いたら
 # 会長の決裁着信の可能性として当番を起こす。判定と反映は当番エージェントが行う）
-# 注: 当番(AI)のコメントも会長と同じアカウント(hiroky1983)で投稿されるため、この2者は author では
-#     区別できない。よって「最後のコメントが決裁スレッド(【要決裁】)でも反映記録(決裁反映)でもない」
-#     ことを検知条件とする。ただし coderabbitai 等の bot・第三者のコメントは決裁になり得ないため、
-#     許可リスト外の author は無視して「最後の信頼済みコメント」で判定する
-#     （2026-08-11: Issue #68 に CodeRabbit の自動プランが付き毎時の空振り起動が発生したため追加）。
+# 注: 当番(AI)・経営企画室のコメントも会長と同じアカウント(hiroky1983)で投稿されるため author では
+#     区別できない。よって「最後の会長コメント（= 自社のマーカーが付かないコメント）が決裁スレッド
+#     (【要決裁】)でも反映記録(決裁反映)でもない」ことを検知条件とする。判定は上の
+#     DUTY_JQ_COMMENT_LIB の is_ringi_reply（除外の内訳と経緯もそちらのコメント参照）。
 RINGI_REPLIES=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
@@ -269,14 +483,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | ([.comments.nodes[]
-      | select((.author.login // "") as $l | ($actors | index($l)) != null)
-      | .body] | last // "") as $b
-  | select(($b | contains("【要決裁】")) | not)
-  | select(($b | contains("決裁反映")) | not)
-  | select($b != "")] | length' 2>/dev/null || echo 0)
+  | select(is_ringi_reply($actors))] | length' 2>/dev/null || echo 0)
 
 # 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
 # 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
@@ -314,6 +523,7 @@ fi
 # 当番も会長アカウントのトークンでコメントするため投稿者では AI と会長を区別できない。そのため
 # 接頭辞は返信だけでなく、当番がこの種の Issue に投稿する記録コメント（保留・見送り等）にも必須。
 # 規程は ai-duty-prompt.md 1-e-3（#120: #79 の保留記録がマーカー無しで毎時の空振り起動を生んだ）。
+# 経営企画室のコメント（`<!-- ai-management-` 始まり）の除外は DUTY_JQ_COMMENT_LIB 側で行う（#168）。
 PROPOSED_REPLIES=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
@@ -325,17 +535,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | ([.labels.nodes[].name]) as $l
-  | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null and ($l | index("blocked")) == null)
-  | ([.comments.nodes[]
-      | select((.author.login // "") as $a | ($actors | index($a)) != null)
-      | .body] | last // "") as $b
-  | select($b != "")
-  | select(($b | startswith("企画議論")) | not)
-  | select(($b | contains("【要決裁】")) | not)
-  | select(($b | contains("決裁反映")) | not)] | length' 2>/dev/null || echo 0)
+  | select(is_proposed_reply($actors))] | length' 2>/dev/null || echo 0)
 
 # 仕事9: 孤児化した ai:in-progress の回収（Issue #83）
 # 当番が着手直後に異常終了すると ai:in-progress が残留し、その Issue は仕事1の集計から
@@ -415,26 +617,36 @@ $(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
 EOF
 fi
 
-# 実行モード決定。仕事が無ければ「枯渇駆動の企画モード」を検討する
+# 仕事11: blocked 解除確認（Issue #158 で発覚した穴の解消）
+# blocked は仕事1・仕事8の集計から機械的に除外されるため、通常この当番から見えない。
+# しかし「解除条件を満たしたか」を再評価する経路がどこにも無く、会長が完了をコメントしても
+# 検知できなかった（#158: 会長が Firebase コンソール操作を終えて「done」とコメントしたのに
+# blocked のまま2日近く放置された）。仕事5・8と同じ DUTY_JQ_COMMENT_LIB のパターンで、
+# blocked Issue に会長（= 自社マーカーの付かない信頼アカウントコメント）の新規コメントが付き、
+# かつ当番の応答（先頭 "解除確認"）がまだ無いものだけを拾う。
+BLOCKED_UPDATES=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    issues(states: OPEN, labels: ["blocked"], first: 20) {
+      nodes {
+        number
+        comments(last: 20) { nodes { body author { login } } }
+      }
+    }
+  }
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
+  | [.data.repository.issues.nodes[]
+  | select(is_blocked_reply($actors))] | length' 2>/dev/null || echo 0)
+
+# 実行モード決定。仕事が無ければ何もしない。
+# 2026-08-19: 以前はここで「枯渇駆動の企画モード」（分析なしで機械的に2〜3件起票するだけ）に
+# 切り替えていたが、その乱造ガード自体が「未承認3件で永久停止」という別の詰まりを生んでいた
+# （#106 が6日間放置）。経営企画室の責務は Scripts/ai-management-duty.sh（日次）へ全面移管した。
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
-PLANNING_STAMP="$HOME/.asobiba-duty/last-planning"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ]; then
-  # 乱造ガード: 未承認の企画（ai:proposed のみ）が3件以上滞留していたら起案しない
-  PROPOSED=$(gh issue list -R hiroky1983/game_collection --label "ai:proposed" --state open \
-    --json number,labels \
-    --jq '[.[] | select([.labels[].name] | index("ai:approved") | not)] | length' 2>/dev/null || echo 99)
-  if [ "${PROPOSED:-99}" -ge 3 ]; then
-    log "仕事なし（未承認の企画 ${PROPOSED} 件が滞留中のため企画モードもスキップ）"
-    exit 0
-  fi
-  # 頻度ガード: 企画モードは1日1回まで
-  if [ -f "$PLANNING_STAMP" ] && [ -z "$(find "$PLANNING_STAMP" -mtime +1 2>/dev/null)" ]; then
-    log "仕事なし（企画モードは前回から24時間未経過のためスキップ）"
-    exit 0
-  fi
-  MODE="planning"
-  PROMPT_FILE="Scripts/ai-planning-prompt.md"
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ]; then
+  log "仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）"
+  exit 0
 fi
 
 # ベースクローンを用意（fetch 専用。ここでは一切作業しない）
@@ -461,11 +673,10 @@ git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 ||
 # claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
 capture_sims_before
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")" >>"$LOG" 2>&1
 RC=$?
-[ "$MODE" = "planning" ] && touch "$PLANNING_STAMP"
 log "当番終了 (mode=$MODE, exit=$RC)"

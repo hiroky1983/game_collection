@@ -1,0 +1,50 @@
+name: LP ゲーム一覧
+
+# LP（web/app/lib/games.ts）の顔ぶれ・順序が、**同じツリーの** GameRegistry と一致しているかを
+# 確認する（#296 / 2026-08-28 改定・会長指示）。
+#
+# 不変条件: LP と registry は同じブランチで一緒に動く。main の LP は main の registry
+# （= App Store で公開済みの集合）と、release/vX.Y.Z の LP はその版の registry と一致する。
+# 未リリースゲームの LP 変更は該当 release ブランチに積む（Scripts/ai-duty-prompt.md の振り分け基準）。
+# かつては「もっとも新しい release ブランチ」と比較していたが、それは LP の未リリース先行を CI が
+# 強制する設計で、#299（12本 LP がアプリ公開前に本番公開）の一因になったため廃止した。
+#
+# 同一ツリー比較なので他所のマージで結果が変わることは無い。games.ts と registry の
+# どちらか片方だけを触る変更が食い違いの入り口なので、両方をトリガーにする。
+on:
+  pull_request:
+    paths:
+      - 'web/app/lib/games.ts'
+      - 'App/AppGameServices.swift'
+      - 'Scripts/check-lp-game-list.sh'
+      - '.github/workflows/lp-game-list.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'web/app/lib/games.ts'
+      - 'App/AppGameServices.swift'
+      - 'Scripts/check-lp-game-list.sh'
+      - '.github/workflows/lp-game-list.yml'
+
+concurrency:
+  group: lp-game-list-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 比較先は同一ツリー（HEAD）なので履歴・他ブランチの取得は不要。
+          persist-credentials: false
+
+      - name: LP の顔ぶれ・順序がアプリの登録と一致するか
+        run: bash Scripts/check-lp-game-list.sh
+
+      - name: check-lp-game-list.sh 自身の検証
+        run: bash Scripts/tests/test-check-lp-game-list.sh
