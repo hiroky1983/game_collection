@@ -13,6 +13,9 @@ public struct MahjongSolitaireView: View {
     /// 「触れる大きさ」を既定にし、全体像はこのトグルで 1 タップ取り戻せるようにしている（#196）。
     @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
     @State private var showConfirmNewGame = false
+    /// 確認ダイアログで「終了して新規ゲーム」を押したときに配るかたち（#239）。
+    /// nil なら今と同じかたちのまま配り直す。
+    @State private var pendingLayout: MahjongSolitaireLayout?
     @State private var showShuffleFailed = false
     /// 盤面の場所にクリアの表示を出しているか（#199）。
     ///
@@ -35,9 +38,25 @@ public struct MahjongSolitaireView: View {
         #endif
     }
 
+    /// 撮影用に特定のかたちで起動する経路（DEBUG 限定・#239）。
+    /// シミュレータは自動タップができないため、「＋」から選ぶ操作を再現する手段がこれしかない
+    /// （`-mahjongWholeBoard` と同じ理由）。
+    private static var initialLayout: MahjongSolitaireLayout {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-mahjongLayout"), i + 1 < args.count {
+            return .named(args[i + 1])
+        }
+        #endif
+        return .turtle
+    }
+
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: MahjongSolitaireModel(services: services))
+        _model = State(initialValue: MahjongSolitaireModel(
+            services: services,
+            layout: MahjongSolitaireView.initialLayout
+        ))
     }
 
     public var body: some View {
@@ -70,24 +89,15 @@ public struct MahjongSolitaireView: View {
                 Text("麻雀ソリティア")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.phase == .playing && model.remainingCount < MahjongSolitaireRules.layout.count {
-                        showConfirmNewGame = true
-                    } else {
-                        model.newGame()
-                    }
-                } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-            }
+            ToolbarItem(placement: .primaryAction) { newGameMenu }
         }
         .howToPlay(.mahjongSolitaire) { MahjongSolitaireRuleSheet() }
         .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
-            Button("キャンセル", role: .cancel) {}
+            Button("終了して新規ゲーム", role: .destructive) { model.newGame(layout: pendingLayout) }
+            Button("キャンセル", role: .cancel) { pendingLayout = nil }
         } message: {
-            Text("途中で終了すると今の盤面が失われます。")
+            Text(pendingLayout.map { "「\($0.displayName)」を配ります。途中で終了すると今の盤面が失われます。" }
+                 ?? "途中で終了すると今の盤面が失われます。")
         }
         .alert("この盤面は並べ替えられません", isPresented: $showShuffleFailed) {
             Button("OK", role: .cancel) {}
@@ -112,6 +122,44 @@ public struct MahjongSolitaireView: View {
             }
             guard !Task.isCancelled else { return }
             showsClearDisplay = true
+        }
+    }
+
+    // MARK: - 新規ゲーム（盤面のかたちの選択・#239）
+
+    /// 「＋」からかたちを選んで配り直す。
+    ///
+    /// 選択の導線をここ 1 か所にまとめているのは、盤面の下（操作カード）が既にヒント・並べ替え・
+    /// 戻すで埋まっていて iPhone の幅に 4 つ目が入らないため（#198 で実測済み）。
+    /// いま遊んでいるかたちにはチェックを付け、「どれで遊んでいるか」もこのメニューで分かるようにする。
+    private var newGameMenu: some View {
+        Menu {
+            ForEach(MahjongSolitaireLayout.all) { layout in
+                Button {
+                    startNewGame(layout: layout)
+                } label: {
+                    // 選択中はチェック付き。`Label` にすると iOS がアイコンだけに畳むことがあるので
+                    // メニュー項目は `Text` で組む。
+                    if layout == model.layout {
+                        Label(layout.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(layout.displayName)
+                    }
+                }
+            }
+        } label: {
+            Label("新規ゲーム", systemImage: "plus.circle.fill")
+        }
+        .accessibilityLabel("新規ゲーム（盤面のかたちを選ぶ）")
+    }
+
+    /// 途中の盤面があるときだけ確認を挟んでから配り直す。
+    private func startNewGame(layout: MahjongSolitaireLayout) {
+        if model.phase == .playing && model.remainingCount < model.layout.count {
+            pendingLayout = layout
+            showConfirmNewGame = true
+        } else {
+            model.newGame(layout: layout)
         }
     }
 
@@ -230,15 +278,16 @@ public struct MahjongSolitaireView: View {
             } else {
                 GeometryReader { geo in
                     if showsWholeBoard {
-                        boardCanvas(tileWidth: Metrics.fittingTileWidth(in: geo.size))
+                        boardCanvas(tileWidth: Metrics.fittingTileWidth(in: geo.size, layout: model.layout))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         // 44pt の牌だと盤面は画面より広くなるのでスクロールで見て回る。
-                        // 左上ではなく中央から始めるのは、亀型の山が中央にあるため（両方向へ同じだけ動かせる）。
+                        // 左上ではなく中央から始めるのは、どのかたちも山が中央にあるため
+                        // （両方向へ同じだけ動かせる）。
                         // スクロールバーは**出す**。盤面のどこを見ているかを知る唯一の手がかりで、
                         // 隠すと「全体のどのあたりか」が分からないまま動かすことになる（#197）。
                         ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                            boardCanvas(tileWidth: Metrics.comfortableTileWidth(in: geo.size))
+                            boardCanvas(tileWidth: Metrics.comfortableTileWidth(in: geo.size, layout: model.layout))
                                 // 画面の方が広い辺（iPad 等）では全体表示と同じく中央に置く。
                                 .frame(
                                     minWidth: geo.size.width,
@@ -255,10 +304,10 @@ public struct MahjongSolitaireView: View {
     }
 
     private func boardCanvas(tileWidth: CGFloat) -> some View {
-        let canvas = Metrics.canvasSize(tileWidth: tileWidth)
+        let canvas = Metrics.canvasSize(tileWidth: tileWidth, layout: model.layout)
         return ZStack(alignment: .topLeading) {
             // 下の段から順に描くことで、上に積まれた牌が手前に来る。
-            ForEach(MahjongSolitaireRules.layout.indices, id: \.self) { index in
+            ForEach(model.faces.indices, id: \.self) { index in
                 if let face = model.faces[index] {
                     tileView(index: index, face: face, tileWidth: tileWidth)
                 }
@@ -279,6 +328,7 @@ public struct MahjongSolitaireView: View {
     /// 下の `.transition` ごと即時反映になる（状態変更そのものは必ず走る・#210）。
     private var boardAnimationKey: BoardAnimationKey {
         BoardAnimationKey(
+            layoutID: model.layout.id,
             faces: model.faces,
             selectedIndex: model.selectedIndex,
             hintPair: model.hintPair
@@ -286,13 +336,16 @@ public struct MahjongSolitaireView: View {
     }
 
     private struct BoardAnimationKey: Equatable {
+        /// かたちを変えて配り直したときも演出を掛ける（枚数は同じなので `faces` だけでは
+        /// 「たまたま同じ並び」を区別できない）。
+        let layoutID: String
         let faces: [MahjongFace?]
         let selectedIndex: Int?
         let hintPair: [Int]
     }
 
     private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat) -> some View {
-        let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth)
+        let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth, layout: model.layout)
         return MahjongTileView(
             face: face,
             width: frame.width,
@@ -529,6 +582,7 @@ struct MahjongSolitaireRuleSheet: View {
         ("花牌と季節牌", "花牌（梅・蘭・菊・竹）どうし、季節牌（春・夏・秋・冬）どうしは、絵柄が違っても合わせて取れます。梅と蘭、春と冬のような組み合わせで消えるのはこのためです"),
         ("そのほかの牌", "花牌・季節牌以外は、まったく同じ絵柄の2枚だけが合います。一萬と二萬のように種類が同じでも数が違えば合いません"),
         ("並んでいる牌", "全部で144枚（標準の34種が4枚ずつ + 花牌4枚 + 季節牌4枚）です。配る盤面は取り切れる順番があるように作っているので、必ずクリアできます"),
+        ("盤面のかたち", "右上の「＋」から盤面のかたちを選べます。亀甲・ピラミッド・十字の3種類があり、どれも144枚で必ずクリアできます。最短タイムはかたちごとに別々に記録されます"),
         ("ヒント・並べ替え・戻す", "「ヒント」は取れる2枚を1組光らせます。「並べ替え」は残りをそこから取り切れる配置に組み直します（戻せる1手は無くなります）。「戻す」は直前に取った2枚を盤に返します"),
     ]
 

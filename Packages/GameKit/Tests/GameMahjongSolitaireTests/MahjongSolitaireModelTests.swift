@@ -68,7 +68,7 @@ struct MahjongSolitaireModelTests {
     func tappingBlockedTileIsRejected() {
         let (services, spy) = makeServices()
         let model = MahjongSolitaireModel(services: services, seed: 3)
-        guard let covered = MahjongSolitaireRules.index(layer: 3, hx: 12, hy: 6) else {
+        guard let covered = MahjongSolitaireLayout.turtle.index(layer: 3, hx: 12, hy: 6) else {
             Issue.record("レイアウトの位置が見つからない")
             return
         }
@@ -270,18 +270,18 @@ struct MahjongSolitaireUndoTests {
         let (services, _) = makeServices()
         // 手詰まりの盤面（合う相方がいずれも覆われている 6 枚）に、いま取れる 1 組だけを足す。
         // その 1 組を取ると手詰まりの 6 枚だけが残る = 直前の 1 手が手詰まりを作った状態になる。
-        guard let freeA = MahjongSolitaireRules.index(layer: 0, hx: 2, hy: 0),
-              let freeB = MahjongSolitaireRules.index(layer: 0, hx: 24, hy: 0),
-              let freeC = MahjongSolitaireRules.index(layer: 4, hx: 13, hy: 7),
-              let coveredA = MahjongSolitaireRules.index(layer: 3, hx: 12, hy: 6),
-              let coveredB = MahjongSolitaireRules.index(layer: 3, hx: 14, hy: 6),
-              let coveredC = MahjongSolitaireRules.index(layer: 3, hx: 12, hy: 8),
-              let finLeft = MahjongSolitaireRules.index(layer: 0, hx: 0, hy: 7),
-              let finRight = MahjongSolitaireRules.index(layer: 0, hx: 28, hy: 7) else {
+        guard let freeA = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 2, hy: 0),
+              let freeB = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 24, hy: 0),
+              let freeC = MahjongSolitaireLayout.turtle.index(layer: 4, hx: 13, hy: 7),
+              let coveredA = MahjongSolitaireLayout.turtle.index(layer: 3, hx: 12, hy: 6),
+              let coveredB = MahjongSolitaireLayout.turtle.index(layer: 3, hx: 14, hy: 6),
+              let coveredC = MahjongSolitaireLayout.turtle.index(layer: 3, hx: 12, hy: 8),
+              let finLeft = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 0, hy: 7),
+              let finRight = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 28, hy: 7) else {
             Issue.record("レイアウトの位置が見つからない")
             return
         }
-        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireRules.layout.count)
+        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireLayout.turtle.positions.count)
         faces[freeA] = .characters(1)
         faces[coveredA] = .characters(1)
         faces[freeB] = .circles(2)
@@ -309,14 +309,14 @@ struct MahjongSolitaireUndoTests {
     @Test("花牌は組では合うが絵柄が違う。戻したときに入れ替わらない")
     func undoRestoresDistinctFlowerFaces() {
         let (services, _) = makeServices()
-        guard let finLeft = MahjongSolitaireRules.index(layer: 0, hx: 0, hy: 7),
-              let finRight = MahjongSolitaireRules.index(layer: 0, hx: 28, hy: 7),
-              let keepA = MahjongSolitaireRules.index(layer: 0, hx: 2, hy: 0),
-              let keepB = MahjongSolitaireRules.index(layer: 0, hx: 24, hy: 0) else {
+        guard let finLeft = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 0, hy: 7),
+              let finRight = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 28, hy: 7),
+              let keepA = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 2, hy: 0),
+              let keepB = MahjongSolitaireLayout.turtle.index(layer: 0, hx: 24, hy: 0) else {
             Issue.record("レイアウトの位置が見つからない")
             return
         }
-        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireRules.layout.count)
+        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireLayout.turtle.positions.count)
         faces[finLeft] = .flower(0)
         faces[finRight] = .flower(1)
         // 取り切ってしまうと局が終わって戻せなくなるので、触らない組を残しておく。
@@ -399,7 +399,7 @@ struct MahjongSolitaireUndoTests {
 struct MahjongDeadlockTests {
 
     private func index(_ layer: Int, _ hx: Int, _ hy: Int) -> Int? {
-        MahjongSolitaireRules.index(layer: layer, hx: hx, hy: hy)
+        MahjongSolitaireLayout.turtle.index(layer: layer, hx: hx, hy: hy)
     }
 
     /// 取れる 3 枚の絵柄がすべて違い、合う相方はいずれも覆われている盤面。
@@ -408,7 +408,7 @@ struct MahjongDeadlockTests {
               let freeC = index(4, 13, 7),
               let coveredA = index(3, 12, 6), let coveredB = index(3, 14, 6),
               let coveredC = index(3, 12, 8) else { return nil }
-        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireRules.layout.count)
+        var faces = [MahjongFace?](repeating: nil, count: MahjongSolitaireLayout.turtle.positions.count)
         faces[freeA] = .characters(1)
         faces[coveredA] = .characters(1)
         faces[freeB] = .circles(2)
@@ -522,6 +522,77 @@ struct MahjongSnapshotTests {
         }
         #expect(model.phase == .won)
         #expect(!store.exists(for: "mahjong"))
+    }
+
+    @Test("中断した盤面はかたちごと復元される（#239）")
+    func resumeRestoresTheLayout() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 81, layout: .cross)
+        #expect(model.layout == .cross)
+        for pair in model.solution.prefix(3) {
+            model.tap(pair[0])
+            model.tap(pair[1])
+        }
+
+        let resumed = MahjongSolitaireModel(services: services)   // 既定は亀甲
+        #expect(resumed.layout == .cross, "中断データのかたちが既定に上書きされている")
+        #expect(resumed.faces == model.faces, "同じ盤面が戻る")
+        #expect(resumed.remainingCount == 138)
+        // 取得可否もそのかたちで計算し直されている（亀甲の関係表を使っていたら合わない）。
+        #expect(resumed.isFreeByIndex == model.isFreeByIndex)
+    }
+
+    @Test("レイアウト識別子を持たない古いスナップショットは亀甲として読める")
+    func legacySnapshotWithoutLayoutIDLoadsAsTurtle() throws {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let seeded = MahjongSolitaireModel(services: services, seed: 82)
+        for pair in seeded.solution.prefix(2) {
+            seeded.tap(pair[0])
+            seeded.tap(pair[1])
+        }
+        let faces = seeded.faces
+
+        // v1.1.1 までの形（`layoutID` を持たない）をそのまま流し込む。
+        struct LegacySnapshot: Codable {
+            let faces: [MahjongFace?]
+            let elapsedSeconds: Int
+            let shuffleCount: Int
+            let hintCount: Int
+            let undoCount: Int?
+        }
+        try store.save(
+            LegacySnapshot(faces: faces, elapsedSeconds: 12, shuffleCount: 0, hintCount: 1, undoCount: 0),
+            for: "mahjong"
+        )
+
+        let resumed = MahjongSolitaireModel(services: services)
+        #expect(resumed.layout == .turtle)
+        #expect(resumed.faces == faces, "盤面が捨てられずに戻る")
+        #expect(resumed.elapsedSeconds == 12)
+    }
+
+    @Test("かたちを変えて配り直すと、新しいかたちの盤面が取り切れる")
+    func newGameSwitchesLayout() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 83)
+        #expect(model.layout == .turtle)
+
+        model.newGame(layout: .pyramid)
+        #expect(model.layout == .pyramid)
+        #expect(model.remainingCount == 144)
+        clearBoard(model)
+        #expect(model.phase == .won)
+    }
+
+    @Test("かたちを指定しない配り直しは今と同じかたちのまま")
+    func newGameKeepsTheCurrentLayout() {
+        let (services, _) = makeServices()
+        let model = MahjongSolitaireModel(services: services, seed: 84, layout: .cross)
+        model.newGame()
+        #expect(model.layout == .cross)
+        #expect(model.remainingCount == 144)
     }
 
     @Test("新規ゲームを始めるとスナップショットは消える")

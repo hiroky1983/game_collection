@@ -236,6 +236,22 @@ struct GameCenterLeaderboardTests {
         ) == nil)
     }
 
+    @Test("麻雀ソリティアは標準の亀甲だけを順位表に載せる（#239）")
+    func mahjongSolitaireOnlyPostsTheStandardLayout() {
+        func id(_ variant: String?) -> String? {
+            GameCenterLeaderboard.score(
+                gameID: "mahjong", outcome: .win,
+                score: GameScore(metric: .shortestTime, seconds: 300, variant: variant)
+            )?.leaderboardID
+        }
+        // 区分なし（v1.1.1 までの記録）と亀甲は同じ表。
+        #expect(id(nil) == GameCenterLeaderboard.mahjongSolitaireTime)
+        #expect(id("turtle") == GameCenterLeaderboard.mahjongSolitaireTime)
+        // かたちが違えば難度も違うので、同じ表には混ぜない（かたちごとの表は未登録）。
+        #expect(id("pyramid") == nil)
+        #expect(id("cross") == nil)
+    }
+
     @Test("対応表が返す ID は必ず登録一覧（allIDs）に含まれる")
     func everyMappedIDIsRegistered() {
         let cases: [(String, GameScore)] = [

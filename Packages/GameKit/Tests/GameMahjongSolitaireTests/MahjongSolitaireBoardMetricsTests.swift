@@ -21,8 +21,8 @@ struct MahjongSolitaireBoardMetricsTests {
 
     @Test("盤面は横 15.56 枚・縦 8.56 枚ぶんの広さ")
     func canvasExtent() {
-        #expect(abs(Metrics.canvasWidthInTiles - 15.56) < 0.001)
-        #expect(abs(Metrics.canvasHeightInTiles - 8.56) < 0.001)
+        #expect(abs(Metrics.canvasWidthInTiles(layout: .turtle) - 15.56) < 0.001)
+        #expect(abs(Metrics.canvasHeightInTiles(layout: .turtle) - 8.56) < 0.001)
     }
 
     @Test(
@@ -30,7 +30,7 @@ struct MahjongSolitaireBoardMetricsTests {
         arguments: [iPhoneSE, iPhone17]
     )
     func comfortableTileMeetsTapTarget(size: CGSize) {
-        let width = Metrics.comfortableTileWidth(in: size)
+        let width = Metrics.comfortableTileWidth(in: size, layout: .turtle)
         #expect(width >= 44)
         // 縦横比のぶん高さはさらに大きい。
         #expect(width * Metrics.tileAspect >= 44)
@@ -43,13 +43,16 @@ struct MahjongSolitaireBoardMetricsTests {
     func fittingTileIsBelowTapTargetOnPhones(size: CGSize) {
         // 44pt の牌で盤面全体を出すには 684.6pt の幅が要る。iPhone では成立しないため
         // 「全体表示を既定に戻す」と #196 の受け入れ条件を満たせなくなる。この関係が崩れたら気づけるようにする。
-        #expect(Metrics.fittingTileWidth(in: size) < 44)
-        #expect(44 * Metrics.canvasWidthInTiles > 680)
+        #expect(Metrics.fittingTileWidth(in: size, layout: .turtle) < 44)
+        #expect(44 * Metrics.canvasWidthInTiles(layout: .turtle) > 680)
     }
 
     @Test("全体表示では盤面が与えられた領域に収まる", arguments: [iPhoneSE, iPhone17])
     func fittingCanvasFitsInside(size: CGSize) {
-        let canvas = Metrics.canvasSize(tileWidth: Metrics.fittingTileWidth(in: size))
+        let canvas = Metrics.canvasSize(
+            tileWidth: Metrics.fittingTileWidth(in: size, layout: .turtle),
+            layout: .turtle
+        )
         #expect(canvas.width <= size.width + 0.001)
         #expect(canvas.height <= size.height + 0.001)
     }
@@ -58,28 +61,83 @@ struct MahjongSolitaireBoardMetricsTests {
     func comfortableNeverShrinksBelowFitting() {
         // iPad 相当。全体表示のままで 44pt を超えるので、拡大が縮小になってはいけない。
         let iPad = CGSize(width: 1024, height: 1200)
-        let fitting = Metrics.fittingTileWidth(in: iPad)
+        let fitting = Metrics.fittingTileWidth(in: iPad, layout: .turtle)
         #expect(fitting > 44)
-        #expect(Metrics.comfortableTileWidth(in: iPad) == fitting)
+        #expect(Metrics.comfortableTileWidth(in: iPad, layout: .turtle) == fitting)
     }
 
     @Test("既定の牌の幅は全体表示を下回らない", arguments: [iPhoneSE, iPhone17])
     func comfortableIsNeverSmallerThanFitting(size: CGSize) {
-        #expect(Metrics.comfortableTileWidth(in: size) >= Metrics.fittingTileWidth(in: size))
+        #expect(Metrics.comfortableTileWidth(in: size, layout: .turtle) >= Metrics.fittingTileWidth(in: size, layout: .turtle))
     }
 
     @Test("同じ段の牌どうしは重ならない（44pt の枠がそのままタップ標的になる）")
     func tilesOnTheSameLayerDoNotOverlap() {
-        let tileWidth = Metrics.comfortableTileWidth(in: Self.iPhoneSE)
-        let layout = MahjongSolitaireRules.layout
+        let tileWidth = Metrics.comfortableTileWidth(in: Self.iPhoneSE, layout: .turtle)
+        let layout = MahjongSolitaireLayout.turtle.positions
         for i in layout.indices {
-            let a = Metrics.tileFrame(index: i, tileWidth: tileWidth)
+            let a = Metrics.tileFrame(index: i, tileWidth: tileWidth, layout: .turtle)
             #expect(a.width >= 44)
             for j in layout.indices where j > i && layout[j].layer == layout[i].layer {
-                let b = Metrics.tileFrame(index: j, tileWidth: tileWidth)
+                let b = Metrics.tileFrame(index: j, tileWidth: tileWidth, layout: .turtle)
                 // 接するのは可（幅ちょうどで隣り合う）。食い込んだら別の牌を押してしまう。
                 #expect(a.insetBy(dx: 0.001, dy: 0.001).intersects(b) == false)
             }
+        }
+    }
+
+    // MARK: - 盤面のかたちを増やしても崩れないこと（#239）
+
+    /// #239 の受け入れ条件が挙げている最小幅。実際に対応する最小の実機（SE 第2/第3世代）は
+    /// 375pt だが、それより狭い 320pt でも割らないことを見ておく。
+    static let narrowest = CGSize(width: 320, height: 300)
+
+    @Test(
+        "どのかたちでも既定の牌は 44pt を割らず、同じ段の牌どうしが食い込まない",
+        arguments: MahjongSolitaireLayout.all
+    )
+    func everyLayoutKeepsTheTapTarget(layout: MahjongSolitaireLayout) {
+        let tileWidth = Metrics.comfortableTileWidth(in: Self.narrowest, layout: layout)
+        #expect(tileWidth >= Metrics.minimumTapTarget, "\(layout.displayName) の牌が 44pt を割る")
+
+        let positions = layout.positions
+        for i in positions.indices {
+            let a = Metrics.tileFrame(index: i, tileWidth: tileWidth, layout: layout)
+            #expect(a.width >= Metrics.minimumTapTarget)
+            #expect(a.height >= Metrics.minimumTapTarget)
+            for j in positions.indices where j > i && positions[j].layer == positions[i].layer {
+                let b = Metrics.tileFrame(index: j, tileWidth: tileWidth, layout: layout)
+                // 接するのは可（幅ちょうどで隣り合う）。食い込んだら別の牌を押してしまう。
+                #expect(
+                    a.insetBy(dx: 0.001, dy: 0.001).intersects(b) == false,
+                    "\(layout.displayName) の \(positions[i]) と \(positions[j]) が食い込んでいる"
+                )
+            }
+        }
+    }
+
+    @Test("どのかたちでも牌の矩形は盤面の枠に収まる", arguments: MahjongSolitaireLayout.all)
+    func everyLayoutFitsInsideItsCanvas(layout: MahjongSolitaireLayout) {
+        let tileWidth: CGFloat = 44
+        let canvas = Metrics.canvasSize(tileWidth: tileWidth, layout: layout)
+        for index in layout.positions.indices {
+            let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth, layout: layout)
+            #expect(frame.minX >= -0.001, "\(layout.displayName) の \(index) が左にはみ出す")
+            #expect(frame.minY >= -0.001, "\(layout.displayName) の \(index) が上にはみ出す")
+            #expect(frame.maxX <= canvas.width + 0.001, "\(layout.displayName) の \(index) が右にはみ出す")
+            #expect(frame.maxY <= canvas.height + 0.001, "\(layout.displayName) の \(index) が下にはみ出す")
+        }
+    }
+
+    @Test("どのかたちでも全体表示なら与えられた領域に収まる", arguments: MahjongSolitaireLayout.all)
+    func everyLayoutFitsWhenShowingTheWholeBoard(layout: MahjongSolitaireLayout) {
+        for size in [Self.narrowest, Self.iPhoneSE, Self.iPhone17] {
+            let canvas = Metrics.canvasSize(
+                tileWidth: Metrics.fittingTileWidth(in: size, layout: layout),
+                layout: layout
+            )
+            #expect(canvas.width <= size.width + 0.001, "\(layout.displayName) が横にはみ出す")
+            #expect(canvas.height <= size.height + 0.001, "\(layout.displayName) が縦にはみ出す")
         }
     }
 
@@ -236,9 +294,9 @@ struct MahjongSolitaireBoardMetricsTests {
     @Test("牌の矩形は盤面の枠に収まる")
     func tileFramesStayInsideCanvas() {
         let tileWidth: CGFloat = 44
-        let canvas = Metrics.canvasSize(tileWidth: tileWidth)
-        for index in MahjongSolitaireRules.layout.indices {
-            let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth)
+        let canvas = Metrics.canvasSize(tileWidth: tileWidth, layout: .turtle)
+        for index in MahjongSolitaireLayout.turtle.positions.indices {
+            let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth, layout: .turtle)
             #expect(frame.minX >= -0.001)
             #expect(frame.minY >= -0.001)
             #expect(frame.maxX <= canvas.width + 0.001)

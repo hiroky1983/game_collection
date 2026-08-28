@@ -249,7 +249,7 @@ private func playDaifugo(_ services: GameServices) async -> DaifugoModel {
 @discardableResult
 private func playMahjong(_ services: GameServices) -> MahjongSolitaireModel {
     let model = MahjongSolitaireModel(services: services, seed: 4649)
-    if let covered = MahjongSolitaireRules.index(layer: 3, hx: 12, hy: 6) {
+    if let covered = MahjongSolitaireLayout.turtle.index(layer: 3, hx: 12, hy: 6) {
         model.tap(covered)   // 最上段に覆われているので取れない
     }
     for pair in model.solution {
