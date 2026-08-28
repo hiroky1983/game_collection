@@ -166,11 +166,12 @@ public extension MahjongSolitaireLayout {
             (1, 6...8, 1...8),      // 縦棒  3×8（重なる 3×2 は捨てて 44 枚）
             (2, 6...8, 4...5),      // 中央  3×2 = 6
         ]) + [
-            // 頂上の 4 枚は第3段の 3×2 に半マスずらして載せる。
-            MahjongPosition(layer: 3, hx: 13, hy: 9),
-            MahjongPosition(layer: 3, hx: 15, hy: 9),
-            MahjongPosition(layer: 3, hx: 13, hy: 11),
-            MahjongPosition(layer: 3, hx: 15, hy: 11),
+            // 頂上の 4 枚は第3段の 3×2 に載せる。横は 2 枚 vs 3 枚なので半マスずらすが、
+            // 縦は 2 行 vs 2 行で段差が偶数なのでずらさない（ずらすと頂上が下へ半マスはみ出す）。
+            MahjongPosition(layer: 3, hx: 13, hy: 8),
+            MahjongPosition(layer: 3, hx: 15, hy: 8),
+            MahjongPosition(layer: 3, hx: 13, hy: 10),
+            MahjongPosition(layer: 3, hx: 15, hy: 10),
         ]
     )
 
