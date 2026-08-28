@@ -509,6 +509,30 @@ struct GameRecordingTests {
         #expect(log.records(gameID: "mahjong").count == 3)
     }
 
+    @Test("麻雀ソリティア: 捨てた盤面は「＋の配り直し」も「手詰まりで最初から」も記録しない（#240）")
+    func mahjongSolitaireDiscardedBoardsAreNotRecorded() {
+        let (log, defaults, name) = makeLog(suite: "mahjong-discard")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let services = makeServices(log: log)
+
+        // ＋から配り直す経路。取りかけの盤面を捨てても通算成績には乗らない。
+        let restarted = MahjongSolitaireModel(services: services, seed: 4001)
+        for pair in restarted.solution.prefix(5) { for index in pair { restarted.tap(index) } }
+        #expect(restarted.remainingCount == 134, "前提: 取りかけの盤面になっている")
+        restarted.newGame()
+        #expect(log.records(gameID: "mahjong").isEmpty, "配り直しは記録しない")
+
+        // 手詰まりで「最初から」を選ぶ経路。#240 でこちらも記録しない側に揃えた。
+        let gaveUp = MahjongSolitaireModel(services: services, seed: 4002)
+        for pair in gaveUp.solution.prefix(5) { for index in pair { gaveUp.tap(index) } }
+        gaveUp.giveUpAndRestart()
+        #expect(
+            log.records(gameID: "mahjong").isEmpty,
+            "手詰まりでの配り直しも記録しない（＋からの配り直しと扱いを揃える）"
+        )
+    }
+
     @Test("数独: クリアで難易度別のタイムが記録される")
     func sudokuRecordsTimePerDifficulty() async {
         let (log, defaults, name) = makeLog(suite: "sudoku")
