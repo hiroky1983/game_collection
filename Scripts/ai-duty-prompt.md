@@ -143,14 +143,17 @@ Issue 本文が「◯◯の2週間後」のような**当番の努力では満�
   - 対応する release ブランチが**無ければ自分で作る**: 直近の release ブランチの HEAD から `git push origin <sha>:refs/heads/release/vX.Y.Z` し、`gh api -X PUT repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection` で test 必須 + `required_conversation_resolution` を設定する。作成した事実を Issue にコメントで記録する。
   - **push する前に、ベースにしようとしている release ブランチが凍結（`lock_branch`）されていないか確認する**（`gh api repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection --jq '.lock_branch.enabled'`）。true なら審査提出済みなので、そのブランチには絶対に積まない。
   - Issue にマイルストーンが設定されていない場合は着手せず、Issue に記録して会長に確認する。ただし下記の「release ブランチを待たない変更」は対象外（バージョン非依存のためマイルストーンを要求しない）。
-  - **`web/`（LP）の変更は release ブランチを待たず `main` へ直接 PR してよい**（2026-08-20 追加・#176）。LP は Apple の審査を経ないため、アプリのリリース列車に乗せる理由が無い。本番デプロイ（Vercel）は `main` 追従なので、release ブランチに積むと**そのバージョンが App Store で公開されて main にマージされるまで LP も塩漬けになる**（#156 の修正が `release/v1.1.2` 止まりで、大富豪・麻雀ソリティアのページが3日間 404 のままだった）。アプリコードと `web/` の両方を触る Issue は、`web/` だけを main 直 PR に分離する。
+  - **`web/`（LP）の変更は「内容がリリース済みアプリの事実か」で PR 先を決める**（2026-08-28 改定・会長指示）。main へのマージは即・本番公開（Vercel が main 追従）であることを常に前提にする。
+    - リリース済みアプリに関する変更（SEO・リンク切れ・文言修正・既収録ゲームの説明是正）→ `main` 直 PR。release ブランチに積むと塩漬けになる（#156 が `release/v1.1.2` 止まりで公開済みページが3日間 404 だった事例）。
+    - **未リリースのアプリ内容を含む変更（新ゲーム追加・収録本数の更新など、App Store の現行版に無い事実）→ 原則は該当バージョンの release ブランチへ PR。「収録済み」としての main 直接掲載は禁止**（2026-08-27 の #299 で、v1.1.1 収録の麻雀・数独を含む12本 LP がアプリ公開前に本番公開された失敗が根拠）。アプリ公開時の main へのマージで本番 LP に出る。例外: `comingSoon: true`（「配信予定」表示）を付ければ main へ先行掲載してよい（SEO の先行インデックス・#176）。ラベル無しは CI（lp-game-list）が落とす。リリース時にラベルを外すこと。
+    - アプリコードと `web/` の両方を触る Issue は、`web/` の変更を上の基準で振り分けて PR を分離する。
 
   実装後は**変更した領域に応じたローカル検証を通してから**コミット・プッシュする。触った領域が複数ならすべて実行する:
 
   | 変更した領域 | 必須のローカル検証 | PR の base |
   |---|---|---|
   | アプリコード（`App/` `Packages/` `project.yml`） | `swift test --package-path Packages/GameKit` | その Issue のマイルストーンと同名の release ブランチ |
-  | `web/`（LP） | `cd web && npm ci && npm run build`（`export PATH="$HOME/.nodenv/shims:$PATH"`。システム既定の node v14 では `npm ci` が失敗する）。**新規 slug を追加したときは `.next/server/app/games/*.html` に該当ページが生成されていることまで確認する**（`generateStaticParams` 経由のため、ビルドが緑でもページが増えていないことがありうる） | `main` |
+  | `web/`（LP） | `cd web && npm ci && npm run build`（`export PATH="$HOME/.nodenv/shims:$PATH"`。システム既定の node v14 では `npm ci` が失敗する）。**新規 slug を追加したときは `.next/server/app/games/*.html` に該当ページが生成されていることまで確認する**（`generateStaticParams` 経由のため、ビルドが緑でもページが増えていないことがありうる） | リリース済み内容なら `main`、未リリースのアプリ内容を含むなら該当版の release ブランチ（上の振り分け基準） |
   | `docs/` `Scripts/` `.github/` のみ | 変更したスクリプトのテスト（例 `bash Scripts/tests/test-ai-duty-detect.sh`）または `bash -n` | `main` |
 
   そのうえで PR を作成する（適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。アプリの UI 変更はシミュレータのスクリーンショットを、LP の見た目を変える変更は LP のスクリーンショットを PR に添付する。

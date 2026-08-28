@@ -6,7 +6,8 @@
 # LP の PR を止めるので、こちらも事故になる。実績のある落とし穴を固定するのが本テストの目的:
 #   - registry のコメント（// 数独（#262）は末尾に足す）に現れる Module() を拾ってしまう
 #   - LP の slug がアプリの id と意図的に違うケース（麻雀ソリティア: id は "mahjong"）で誤検知する
-#   - リモートに無いローカルの release ブランチ（削除済み・番号付け替えの名残）を比較先に選ぶ
+#   - `comingSoon: true`（配信予定・未リリース）のエントリを registry 照合に含めてしまう
+#   - ref 省略時に HEAD（同一ツリー）以外を比較先に選ぶ（旧仕様の「最新 release ブランチ」に戻る退行）
 #
 # 使い方: bash Scripts/tests/test-check-lp-game-list.sh
 set -uo pipefail
@@ -62,15 +63,16 @@ write_module() {
   } > "$dir/$1.swift"
 }
 
-# LP の games.ts 相当。引数は slug を並び順で。
+# LP の games.ts 相当。引数は slug を並び順で。"<slug>:soon" と書くと comingSoon: true を付ける。
 write_lp() {
   local path="$TMP/games-$RANDOM$RANDOM.ts" s
   {
     echo "export const games: Game[] = ["
     for s in "$@"; do
       echo "  {"
-      echo "    slug: \"$s\","
-      echo "    name: \"$s\","
+      echo "    slug: \"${s%:soon}\","
+      case "$s" in *:soon) echo "    comingSoon: true," ;; esac
+      echo "    name: \"${s%:soon}\","
       echo "  },"
     done
     echo "];"
@@ -124,9 +126,13 @@ check "1本足りないと落ちる（sudoku が 404 になるケース = #296�
   "$(write_lp "${LP_SLUGS[@]:0:11}")" release/v1.1.2
 check "アプリに無いゲームを載せていると落ちる" 1 \
   "$(write_lp "${LP_SLUGS[@]}" reversi)" release/v1.1.2
-check "顔ぶれが同じでも並び順が違えば落ちる" 1 \
+check "顔ぶれが同じなら並び順が違っても通る（比較は集合・2026-08-28 改定）" 0 \
   "$(write_lp shogi 2048 mahjong4 othello mahjong-solitaire daifugo poker blackjack \
               minesweeper gomoku concentration sudoku)" release/v1.1.2
+check "comingSoon 付きの未リリースゲームは照合から除外され通る" 0 \
+  "$(write_lp "${LP_SLUGS[@]}" reversi:soon)" release/v1.1.2
+check "配信済みゲームに comingSoon を付けると「LP に無い」扱いで落ちる（誤ラベルの検知）" 1 \
+  "$(write_lp "${LP_SLUGS[@]:0:11}" sudoku:soon)" release/v1.1.2
 check "麻雀ソリティアの slug をアプリの id（mahjong）にすると落ちる（公開済み URL を守る）" 1 \
   "$(write_lp 2048 shogi mahjong4 othello mahjong daifugo poker blackjack minesweeper \
               gomoku concentration sudoku)" release/v1.1.2
@@ -134,17 +140,17 @@ check "registry を読めない ref は落ちる（黙って通さない）" 1 \
   "$(write_lp "${LP_SLUGS[@]}")" no-such-ref
 check "games.ts が存在しなければ落ちる" 1 "$TMP/missing.ts" release/v1.1.2
 
-# ref を省略したときの既定の比較先。origin/release/v1.1.2 を選ぶべきで、
-# ローカルにしかない release/v1.1.9（中身は2本）を選んではいけない。
+# ref を省略したときの既定の比較先は HEAD（同一ツリー）。旧仕様のように release ブランチ
+# （release/v1.1.9 = ローカルに残った2本の registry や origin/release/v1.1.2）を探しに行かないこと。
 OUT="$(bash "$TARGET" "" "$(write_lp "${LP_SLUGS[@]}")" 2>&1)"
 GOT=$?
-if [ "$GOT" -eq 0 ] && printf '%s' "$OUT" | grep -q "origin/release/v1.1.2"; then
-  ok "ref 省略時は remote 追跡ブランチを選ぶ（削除済みのローカル release を掴まない）"
+if [ "$GOT" -eq 0 ] && printf '%s' "$OUT" | grep -q "HEAD"; then
+  ok "ref 省略時は HEAD（同一ツリー）と比べる"
 else
   ng "ref 省略時の既定が誤り（exit=${GOT} / 出力: ${OUT}）"
 fi
 
-# release ブランチがどこにも無ければ「対象外」で通す（黙らずに理由は出す）。
+# release ブランチが1つも無くても HEAD 比較で検証は行われる（旧仕様の「対象外で通す」は廃止）。
 NOREL="$TMP/norel"
 git clone -q --branch release/v1.1.2 --single-branch "$BARE" "$NOREL" 2>/dev/null
 cd "$NOREL" || exit 1
@@ -153,8 +159,8 @@ git branch -q -D release/v1.1.2 2>/dev/null
 git remote remove origin
 OUT="$(bash "$TARGET" "" "$(write_lp 2048)" 2>&1)"
 GOT=$?
-if [ "$GOT" -eq 0 ] && printf '%s' "$OUT" | grep -q "検証しません"; then
-  ok "release ブランチが無ければ対象外として通す（理由は出力する）"
+if [ "$GOT" -eq 1 ]; then
+  ok "release ブランチが無くても HEAD と照合して食い違いを検知する"
 else
   ng "release ブランチ不在時の扱いが誤り（exit=${GOT} / 出力: ${OUT}）"
 fi

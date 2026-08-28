@@ -16,12 +16,17 @@ export type Game = {
   howTo: string[];
   /// このゲームならではの特徴
   features: string[];
+  /// App Store 公開版にまだ収録されていないゲーム。カード・ページに「配信予定」を表示し、
+  /// `Scripts/check-lp-game-list.sh` の registry 照合から除外される（2026-08-28・会長指示）。
+  /// リリース版に入ったタイミング（release ブランチの main マージ）でこのフラグを外す。
+  comingSoon?: boolean;
 };
 
-/// 並び順の参照先は **次に出す版（`release/vX.Y.Z`）の `GameRegistry`** であって main のものではない。
-/// main は「App Store で公開済みの集合」なので、そちらに合わせると公開の瞬間までページが存在せず、
-/// 検索インデックスが付く前に最も重要な期間を落とす（#176 の教訓・#296）。
-/// 一致は `Scripts/check-lp-game-list.sh` で機械的に確認する。
+/// `comingSoon` の付いていないゲームの顔ぶれは、**同じブランチの `GameRegistry`**（main なら
+/// App Store 公開済みの集合）と一致していなければならない（`Scripts/check-lp-game-list.sh` が確認）。
+/// 未リリースのゲームは `comingSoon: true` を付ければ掲載できる（公開前に検索インデックスを
+/// 付けるため・#176）。ラベル無しの未リリース掲載は「存在しないゲームの宣伝」なので禁止
+/// （2026-08-28・会長指示。#299 で 12本 LP がアプリ公開前に本番公開された反省）。
 export const games: Game[] = [
   {
     slug: "2048",
@@ -65,6 +70,7 @@ export const games: Game[] = [
   },
   {
     slug: "mahjong4",
+    comingSoon: true,
     name: "麻雀（四人打ち）",
     emoji: "🎴",
     tagline: "CPU3人と東風戦。立直・鳴きあり！",
@@ -89,9 +95,9 @@ export const games: Game[] = [
     name: "オセロ",
     emoji: "⚪",
     tagline: "石を挟んでひっくり返せ！CPU に挑戦",
-    pageTitle: "オセロ（リバーシ） - CPU と対戦できる無料のオセロ",
+    pageTitle: "オセロ - CPU と対戦できる無料のオセロ",
     description:
-      "8×8のオセロ（リバーシ）を CPU と一人で対戦。黒・白を選べて、待った・投了に対応。石数はリアルタイムに表示されます。通信不要・登録不要で、iPhone アプリ「あそびば」に無料で収録。",
+      "8×8のオセロを CPU と一人で対戦。黒・白を選べて、待った・投了に対応。石数はリアルタイムに表示されます。通信不要・登録不要で、iPhone アプリ「あそびば」に無料で収録。",
     howTo: [
       "黒（先手）か白（後手）かを選んで対局を始めます",
       "相手の石を自分の石で挟めるマスをタップすると、挟んだ石がすべて裏返ります",
@@ -106,6 +112,7 @@ export const games: Game[] = [
   },
   {
     slug: "mahjong-solitaire",
+    comingSoon: true,
     name: "麻雀ソリティア",
     emoji: "🀄",
     tagline: "同じ牌を2枚ずつ取って全部消そう",
@@ -127,6 +134,7 @@ export const games: Game[] = [
   },
   {
     slug: "daifugo",
+    comingSoon: true,
     name: "大富豪",
     emoji: "👑",
     tagline: "CPU3人と対戦。革命・8切りあり！",
@@ -248,6 +256,7 @@ export const games: Game[] = [
   },
   {
     slug: "sudoku",
+    comingSoon: true,
     name: "数独",
     emoji: "🧩",
     tagline: "9×9のマスに1〜9を埋めよう",
