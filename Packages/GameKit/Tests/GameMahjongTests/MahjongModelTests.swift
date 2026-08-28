@@ -692,4 +692,44 @@ struct MahjongCancelTests {
             "キャンセル済みのタスクが cpuDelay を無視して打牌を進めた"
         )
     }
+
+    /// `.task(id:)` の差し替えでは「新タスクの起動」と「旧タスクのキャンセル検知」の順序が
+    /// 保証されない。新タスクが先に走ると、旧タスクがまだ `isRunningCPUTurns` を握っているため
+    /// 多重起動ガードで即リターンし、直後に旧タスクもキャンセルで抜けて**走者が誰もいなくなる**。
+    /// `turnKey` はもう変わらないため再起動も掛からず、CPU の手番が止まったままになる
+    /// （2026-08-29 会長報告「手が途中で止まる」の正体）。新タスクは先行タスクの終了を
+    /// 待って引き継がなければならない。
+    @Test("差し替え後の新タスクが先行タスクの終了を待って引き継ぐ（走者不在で止まらない）")
+    func replacementTaskTakesOverAfterCancelledPredecessor() async {
+        let model = MahjongModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()),
+            cpuDelay: .milliseconds(30),
+            seed: 2026
+        )
+        model.startGame()
+        if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+            model.discard(drawn)
+        }
+        try? #require(model.phase == .playing)
+        #expect(model.currentPlayer != MahjongModel.humanIndex, "CPU の手番になっていない")
+
+        // 旧タスク A を起動し、yield で「フラグを立てて sleep に入る」ところまで進める
+        // （MainActor は投入順に実行されるため、この yield で A は最初の suspend まで走る）。
+        let taskA = Task { await model.runCPUTurnsIfNeeded() }
+        await Task.yield()
+        // `.task(id:)` の差し替えを再現する: 新タスク B を起動してから A をキャンセルする。
+        // B の本体は A がフラグを握ったまま suspend している間に実行される。
+        let taskB = Task { await model.runCPUTurnsIfNeeded() }
+        taskA.cancel()
+        await taskA.value
+        await taskB.value
+
+        // B が引き継いでいれば「CPU の打牌待ち」では止まらない（人の選択待ちか決着まで進む）。
+        #expect(
+            !(model.phase == .playing
+                && model.currentPlayer != MahjongModel.humanIndex
+                && model.awaitsDiscard(model.currentPlayer)),
+            "走者不在で CPU の手番が止まった"
+        )
+    }
 }

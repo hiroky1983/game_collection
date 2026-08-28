@@ -1008,7 +1008,16 @@ public final class MahjongModel {
     /// そのまま「次の局へ」を自動で押した扱いにして次の局のCPU手番も続けて進める
     /// （対局全体が終わる `.gameResult` まで無人で進む）。
     public func runCPUTurnsIfNeeded() async {
-        guard !isRunningCPUTurns else { return }
+        // 多重起動防止。ただし「先行タスクがいたら即リターン」にすると、`.task(id:)` の
+        // 差し替え時に「新タスクが先に走る → 先行タスクがまだフラグを持っていて即リターン →
+        // 直後に先行タスクがキャンセルで抜ける」の順になったとき走者が誰もいなくなり、
+        // `turnKey` はもう変わらないので再起動も掛からず手番が止まる（レース）。
+        // 先行タスクの終了を待ってから引き継ぐ。待機中に自分がキャンセルされたら
+        // （さらに次のタスクへ差し替えられたら）そちらに譲って抜ける。
+        while isRunningCPUTurns {
+            guard !Task.isCancelled else { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
         isRunningCPUTurns = true
         defer { isRunningCPUTurns = false }
 
