@@ -36,6 +36,10 @@ private struct MahjongSolitaireTake {
 @MainActor
 @Observable
 public final class MahjongSolitaireModel {
+    /// 計時だけが進んでいる間に中断データを保存し直す間隔（秒）。#240。
+    /// 毎秒書くと中断データの書き込みが 1 局で数百回になるため、失われる幅の上限と釣り合う長さにする。
+    static let persistInterval = 30
+
     /// いま遊んでいる盤面のかたち（#239）。添字の意味がこれで決まるので、`faces` と必ず対で扱う。
     public private(set) var layout: MahjongSolitaireLayout
     /// 位置ごとの絵柄。取り除いた位置は nil。添字は `layout.positions` と対応する。
@@ -233,6 +237,9 @@ public final class MahjongSolitaireModel {
 
     /// 新しい盤面を配る（結果は記録しない）。
     ///
+    /// 途中の盤面を捨てても通算成績には乗せない。**「手詰まりで最初から」（`giveUpAndRestart()`）も
+    /// この扱いに揃えてある**（#240）。
+    ///
     /// - Parameter layout: 配る盤面のかたち。**nil なら今と同じかたちのまま配り直す**（#239）。
     public func newGame(layout newLayout: MahjongSolitaireLayout? = nil) {
         if let newLayout { layout = newLayout }
@@ -260,13 +267,16 @@ public final class MahjongSolitaireModel {
         services?.gameDidRestart(gameID: gameID)
     }
 
-    /// 手詰まりで「最初から」を選んだとき。取り切れずに終わったので敗北として記録し、盤面を配り直す。
+    /// 手詰まりで「最初から」を選んだとき。盤面を配り直す（結果は記録しない）。
+    ///
+    /// **記録の扱いは `newGame()` に揃えてある**（#240）。ここと「＋」からの配り直しは、
+    /// ユーザーから見ればどちらも「取り切れないまま盤面を捨てた」同じ操作なのに、
+    /// 以前はこちらだけが敗北として通算成績に乗っていた。手詰まりはユーザーが選んだ結果ではなく
+    /// 配りが行き止まりだったというだけなので、**捨てた盤面はどちらの経路でも記録しない**方に揃えた。
+    /// 違いは手応え（`.error` の触覚）だけで、記録には現れない。
     public func giveUpAndRestart() {
         guard phase == .playing else { return }
         services?.feedback.notify(.error)
-        // 手詰まりでの投了。タイムは勝ったときだけ記録されるので、ここでは通算回数だけが増える。
-        // 直後の newGame() が盤面ごとリザルト表示を畳むため、戻り値（recordResult）は使わない。
-        services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         newGame()
     }
 
@@ -369,8 +379,18 @@ public final class MahjongSolitaireModel {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled else { break }
-                elapsedSeconds += 1
+                tick()
             }
         }
+    }
+
+    /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
+    /// 経過秒の進み方と保存の間隔を検証できる（実時間で待つテストはフレークするため）。
+    func tick() {
+        elapsedSeconds += 1
+        // 経過秒はこれまで tap / hint / shuffle のときにしか保存されず、長考のあとにアプリを
+        // 終了すると最後の操作以降が失われて、自己ベスト（最短タイム）が実際より短い方向に
+        // 狂っていた（#240）。一定間隔で保存し直し、失われる幅を最大 `persistInterval` 秒に抑える。
+        if elapsedSeconds % Self.persistInterval == 0 { persist() }
     }
 }

@@ -381,12 +381,71 @@ struct DaifugoResumeTests {
         let store = MemorySnapshotStore()
         let (model, _) = makeModel(seed: 7, store: store)
         model.startGame()
-        #expect(store.exists(for: "daifugo"))
 
         _ = await playToFinish(model)
 
         #expect(model.phase == .result)
         #expect(!store.exists(for: "daifugo"))
+    }
+
+    @Test("配ったばかりの局は保存されない（ハブに「続きから」が付かない・#240）")
+    func untouchedDealIsNotSaved() {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(seed: 7, store: store)
+
+        model.startGame()
+
+        #expect(model.phase == .playing, "前提: 配り終えて対局中になっている")
+        #expect(
+            model.hands.reduce(0) { $0 + $1.count } == 54,
+            "前提: まだ 1 枚も場に出ていない（54枚が手札にある）"
+        )
+        #expect(!store.exists(for: "daifugo"), "1 手も進んでいない局は中断データを作らない")
+    }
+
+    @Test("1 手目が出た時点で保存され、続きから遊べる（#240 で保存を遅らせても中断は効く）")
+    func firstPlayStartsSaving() async {
+        let store = MemorySnapshotStore()
+        let (model, services) = makeModel(seed: 7, store: store)
+        model.startGame()
+        #expect(!store.exists(for: "daifugo"), "前提: 配っただけでは保存されない")
+
+        // 誰か 1 人がカードを出すところまで進める（親は場が空なので必ず出す手になる）。
+        await model.runCPUTurnsIfNeeded()
+        if model.isPlayerTurn, model.field.isEmpty {
+            let play = DaifugoRules.greedyPlay(
+                hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+            )
+            for card in play ?? [] { model.toggleSelection(card) }
+            model.playSelected()
+        }
+
+        #expect(!model.field.isEmpty, "前提: 1 手目が場に出ている")
+        #expect(store.exists(for: "daifugo"), "1 手目で中断データができる")
+        let resumed = DaifugoModel(services: services, cpuDelay: .zero)
+        #expect(resumed.phase == .playing)
+    }
+
+    @Test("配り直しても前の局の中断データは残らない（#240）")
+    func startGameClearsThePreviousSnapshot() {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(seed: 7, store: store)
+        model.configureForTesting(
+            hands: [
+                [card(3), card(9)],
+                [card(13), card(4)],
+                [card(12), card(5)],
+                [card(11), card(6)],
+            ],
+            currentPlayer: 0
+        )
+        model.toggleSelection(card(3))
+        model.playSelected()
+        #expect(store.exists(for: "daifugo"), "前提: 前の局の中断データがある")
+
+        model.startGame()
+
+        #expect(!store.exists(for: "daifugo"), "配り直しで前の局の中断データが消える")
     }
 }
 

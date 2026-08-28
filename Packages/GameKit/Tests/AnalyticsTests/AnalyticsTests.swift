@@ -731,14 +731,15 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.first?.outcome == .win)
     }
 
-    @Test("麻雀ソリティア: 手詰まりで「最初から」は loss で終局し、次の盤が新しい1プレイになる")
+    @Test("麻雀ソリティア: 手詰まりで「最初から」は終局を記録せず、次の盤が新しい1プレイになる（#240）")
     func mahjongGiveUpAndRestart() {
         let (services, spy) = makeServices()
         let model = MahjongSolitaireModel(services: services, seed: 910)
         model.giveUpAndRestart()
         #expect(spy.starts(of: "mahjong") == 2, "諦めた回 + 配り直した回")
-        #expect(spy.ends(of: "mahjong") == 1)
-        #expect(spy.ends.first?.outcome == .loss)
+        // 捨てた盤面は「＋からの配り直し」と同じ扱いにした（#240）。取り切らずに終わった局は
+        // どちらの経路でも game_end を出さない。
+        #expect(spy.ends(of: "mahjong") == 0)
     }
 
     @Test("数独: 盤が生成された時点で開始・全マス埋めて終局（win）")

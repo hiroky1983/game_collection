@@ -463,7 +463,7 @@ struct MahjongDeadlockTests {
         #expect(model.phase == .won)
     }
 
-    @Test("手詰まりで最初からを選ぶと敗北として記録し、新しい盤面を配る")
+    @Test("手詰まりで最初からを選ぶと新しい盤面を配る（記録は残さない・#240）")
     func giveUpDealsNewBoard() {
         let (services, spy) = makeServices()
         guard let faces = makeDeadlockedFaces() else {
@@ -508,6 +508,61 @@ struct MahjongSnapshotTests {
         let store = MemorySnapshotStore()
         let (services, _) = makeServices(store: store)
         _ = MahjongSolitaireModel(services: services, seed: 56)
+        #expect(!store.exists(for: "mahjong"))
+    }
+
+    @Test("計時だけが進んでも一定間隔で経過秒が保存される（#240）")
+    func elapsedSecondsArePersistedWhileOnlyTimeAdvances() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 58)
+        // 1 手取って中断データを作る（満杯の盤面は保存されないため）。
+        model.tap(model.solution[0][0])
+        model.tap(model.solution[0][1])
+        let saved = { store.load(MahjongSolitaireSnapshot.self, for: "mahjong")?.elapsedSeconds }
+        #expect(saved() == 0, "前提: タップ時点の経過秒が入っている")
+
+        // 保存の間隔に満たない間は、タップが無い限り古い経過秒のまま。
+        for _ in 0..<(MahjongSolitaireModel.persistInterval - 1) { model.tick() }
+        #expect(model.elapsedSeconds == MahjongSolitaireModel.persistInterval - 1)
+        #expect(saved() == 0)
+
+        model.tick()
+
+        #expect(model.elapsedSeconds == MahjongSolitaireModel.persistInterval)
+        #expect(
+            saved() == MahjongSolitaireModel.persistInterval,
+            "操作が無くても \(MahjongSolitaireModel.persistInterval) 秒ごとに経過秒が保存される"
+        )
+    }
+
+    @Test("保存された経過秒から再開するので、自己ベストが不当に短くならない（#240）")
+    func resumeKeepsTheElapsedSecondsSavedByTheTimer() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 59)
+        model.tap(model.solution[0][0])
+        model.tap(model.solution[0][1])
+        for _ in 0..<MahjongSolitaireModel.persistInterval { model.tick() }
+
+        // アプリを終了して開き直した状態。
+        let resumed = MahjongSolitaireModel(services: services)
+
+        #expect(
+            resumed.elapsedSeconds == MahjongSolitaireModel.persistInterval,
+            "最後の操作以降の経過秒が失われていない"
+        )
+    }
+
+    @Test("満杯の盤面は計時だけが進んでも保存しない（#240 の保存が「続きから」を復活させない）")
+    func timerDoesNotSaveAnUntouchedBoard() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 60)
+
+        for _ in 0..<(MahjongSolitaireModel.persistInterval * 2) { model.tick() }
+
+        #expect(model.remainingCount == 144, "前提: 1 枚も取っていない")
         #expect(!store.exists(for: "mahjong"))
     }
 
