@@ -70,7 +70,6 @@ export const games: Game[] = [
   },
   {
     slug: "mahjong4",
-    comingSoon: true,
     name: "麻雀（四人打ち）",
     emoji: "🎴",
     tagline: "CPU3人と東風戦。立直・鳴きあり！",
@@ -112,7 +111,6 @@ export const games: Game[] = [
   },
   {
     slug: "mahjong-solitaire",
-    comingSoon: true,
     name: "麻雀ソリティア",
     emoji: "🀄",
     tagline: "同じ牌を2枚ずつ取って全部消そう",
@@ -134,7 +132,6 @@ export const games: Game[] = [
   },
   {
     slug: "daifugo",
-    comingSoon: true,
     name: "大富豪",
     emoji: "👑",
     tagline: "CPU3人と対戦。革命・8切りあり！",
@@ -256,7 +253,6 @@ export const games: Game[] = [
   },
   {
     slug: "sudoku",
-    comingSoon: true,
     name: "数独",
     emoji: "🧩",
     tagline: "9×9のマスに1〜9を埋めよう",
