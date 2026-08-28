@@ -748,6 +748,86 @@ struct DaifugoResignTests {
     }
 }
 
+// MARK: - CPU 進行のキャンセル
+
+@Suite("CPU 進行のキャンセル")
+@MainActor
+struct DaifugoCancelTests {
+
+    /// `DaifugoView` は `.task { await model.runCPUTurnsIfNeeded() }` で CPU を回しており、
+    /// このタスクは**ビューが消えると（= 対局中に画面を離れると）キャンセルされる**。
+    /// `try? await Task.sleep(for:)` はキャンセル後は毎回即座に返るため、ループが
+    /// `Task.isCancelled` を見ていないと残りの手番が遅延ゼロで走り抜け、
+    /// 中断スナップショットが進んだ局面（最悪は決着後）で上書きされる（#287）。
+    ///
+    /// 待ち時間の経過ではなく「キャンセル済みのタスクが手番を進めないこと」で判定するので、
+    /// 実時間に依存せず安定する（麻雀側 `MahjongCancelTests` と同じ手法）。
+    @Test("キャンセルされたら遅延を飛ばして打ち続けない")
+    func cancelledLoopDoesNotFastForward() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        // キャンセルが効かなければ、この長さを無視して手番が進んでしまう。
+        let model = DaifugoModel(services: services, cpuDelay: .seconds(60), seed: 42)
+        // 乱数配りに依存せず、確実に CPU の手番から始まる局面を注入する。
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5), card(6)], [card(9)], [card(10)]],
+            currentPlayer: 1
+        )
+        #expect(model.phase == .playing)
+        #expect(model.currentPlayer != DaifugoModel.humanIndex, "CPU の手番になっていない")
+
+        let before = model.currentPlayer
+        let handsBefore = model.hands.map(\.count)
+        // MainActor 上なので、この Task の本体は `await` で手放すまで動かない。
+        // したがって cancel() は必ず本体の実行より先に確定する（実時間に依存しない）。
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.currentPlayer == before,
+            "キャンセル済みのタスクが cpuDelay を無視して手番を進めた"
+        )
+        #expect(
+            model.hands.map(\.count) == handsBefore,
+            "キャンセル済みのタスクが cpuDelay を無視して CPU に着手させた"
+        )
+    }
+
+    /// 「結果まで進める」（#191）を押した後の消化試合は `currentCPUDelay` が `.zero` になり、
+    /// **ループの中に suspend が1つも無い**。そのため sleep 直後のキャンセル判定を通らず、
+    /// キャンセル済みでも決着まで一気に走り抜ける（CodeRabbit 指摘・PR #312）。
+    /// ループ先頭でもキャンセルを見る必要がある。
+    @Test("早送り中（間合い 0）でもキャンセルされたら進めない")
+    func cancelledLoopDoesNotAdvanceWhileSkipping() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = DaifugoModel(services: services, cpuDelay: .seconds(60), seed: 42)
+        // 人間が上がり済み・CPU の手番、という消化試合の入口を注入する。
+        model.configureForTesting(
+            hands: [[], [card(5), card(6)], [card(9), card(10)], [card(11), card(12)]],
+            currentPlayer: 1,
+            finishOrder: [DaifugoModel.humanIndex]
+        )
+        #expect(model.canSkipToResult, "上がり済み・決着前なので早送りできる")
+        model.skipToResult()
+        #expect(model.isSkippingToResult)
+
+        let before = model.currentPlayer
+        let handsBefore = model.hands.map(\.count)
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.currentPlayer == before,
+            "キャンセル済みのタスクが早送り経路で手番を進めた"
+        )
+        #expect(
+            model.hands.map(\.count) == handsBefore,
+            "キャンセル済みのタスクが早送り経路で CPU に着手させた"
+        )
+    }
+}
+
 /// 上の局面注入で使う決定的な乱数。配りを固定してテストを再現可能にするだけの用途。
 private enum SeededGeneratorBox {
     @MainActor static var shared = SeededGenerator(seed: 191)
