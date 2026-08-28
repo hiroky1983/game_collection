@@ -464,7 +464,7 @@ struct GameRecordingTests {
         #expect(log.summaryLine(gameID: "minesweeper") == nil)   // クリア記録が無ければハブには出さない
     }
 
-    @Test("麻雀ソリティア: クリアでタイムとクリア回数が記録される")
+    @Test("麻雀ソリティア: クリアでタイムとクリア回数が盤面のかたちごとに記録される")
     func mahjongSolitaireRecordsTime() {
         let (log, defaults, name) = makeLog(suite: "mahjong")
         defer { defaults.removePersistentDomain(forName: name) }
@@ -477,11 +477,36 @@ struct GameRecordingTests {
         }
 
         #expect(model.phase == .won)
-        let record = log.record(gameID: "mahjong")
+        // 記録の区分キーはレイアウトの id（#239）。既定は亀甲。
+        let record = log.record(gameID: "mahjong", variant: "turtle")
         #expect(record?.metric == .shortestTime)
         #expect(record?.wins == 1)
         #expect(record?.bestSeconds != nil)
+        #expect(record?.variantLabel == "亀甲")
         #expect(model.recordResult?.update.seconds == true)
+        // 区分なしのキーには入らない（マインスイーパー・数独と同じ扱い）。
+        #expect(log.record(gameID: "mahjong") == nil)
+        #expect(log.summaryLine(gameID: "mahjong")?.contains("（亀甲）") == true)
+    }
+
+    @Test("麻雀ソリティア: 別のかたちのクリアは別の記録になる")
+    func mahjongSolitaireKeepsRecordsPerLayout() {
+        let (log, defaults, name) = makeLog(suite: "mahjong-layout")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let services = makeServices(log: log)
+        for layout in [MahjongSolitaireLayout.turtle, .pyramid, .cross] {
+            let model = MahjongSolitaireModel(services: services, layout: layout)
+            for pair in model.solution {
+                guard model.phase == .playing else { break }
+                for index in pair { model.tap(index) }
+            }
+            #expect(model.phase == .won, "\(layout.displayName) を取り切れない")
+            #expect(log.record(gameID: "mahjong", variant: layout.id)?.wins == 1,
+                    "\(layout.displayName) の記録が別枠になっていない")
+        }
+        // 3 つのかたちが混ざらず 3 件として残る。
+        #expect(log.records(gameID: "mahjong").count == 3)
     }
 
     @Test("数独: クリアで難易度別のタイムが記録される")

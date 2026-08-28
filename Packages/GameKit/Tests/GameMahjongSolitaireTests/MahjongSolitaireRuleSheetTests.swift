@@ -55,12 +55,28 @@ struct MahjongSolitaireRuleSheetTests {
 
     @Test("144 枚の内訳の記述が実際の盤面と一致する")
     func tileCountMatchesLayout() {
-        #expect(MahjongSolitaireRules.layout.count == 144)
+        #expect(MahjongSolitaireLayout.turtle.positions.count == 144)
         let faces = MahjongSolitaireRules.facePairs().flatMap { $0 }
         #expect(faces.count == 144)
         #expect(faces.filter { if case .flower = $0 { return true } else { return false } }.count == 4)
         #expect(faces.filter { if case .season = $0 { return true } else { return false } }.count == 4)
         #expect(bodies.contains { $0.contains("144枚") }, "枚数の記述が無い:\n\(allText)")
+    }
+
+    @Test("盤面のかたちが複数あることと、記録がかたちごとに分かれることが書いてある（#239）")
+    func explainsLayouts() {
+        let found = bodies.contains { body in
+            MahjongSolitaireLayout.all.map(\.displayName).allSatisfy(body.contains)
+                && body.contains("かたち")
+        }
+        #expect(found, "収録している全部のかたちの名前を含む項目が無い:\n\(allText)")
+        // 記録が分かれることはユーザーから見て挙動の変化なので、説明が落ちたら気づけるようにする。
+        #expect(
+            bodies.contains { $0.contains("かたちごと") },
+            "記録がかたちごとに分かれる説明が無い:\n\(allText)"
+        )
+        // 実装と食い違っていないか（3種類あり、id も表示名も重複しない）。
+        #expect(MahjongSolitaireLayout.all.count >= 3)
     }
 
     @Test("初回ミニガイドは1行のまま（#81 の方針を崩していない）")

@@ -134,7 +134,15 @@ public enum GameCenterLeaderboard {
         // 麻雀ソリティアの gameID は "mahjong"、四人打ち麻雀（#106）が "mahjong4"。
         // 後から増えた側に別名が付いているので取り違えないこと。
         case "mahjong":
-            return mahjongSolitaireTime
+            // 区分キーは `MahjongSolitaireLayout.id`（#239）。**標準の亀甲だけを順位表に載せる**。
+            // かたちが違えば取り切るまでの難度も違い、同じ表に混ぜると誰と competing しているのか
+            // 分からない数字になる。かたちごとの表を作るには App Store Connect への登録
+            // （会長のコンソール操作）が要るため、必要になった時点で稟議して足す。
+            // nil はレイアウト識別子を持たない v1.1.1 までの記録 = 亀甲。
+            switch variant {
+            case nil, "turtle": return mahjongSolitaireTime
+            default:            return nil
+            }
         case "minesweeper":
             // 区分キーは `MinesweeperModel` が盤の構成から作る "行x列-地雷数"。
             switch variant {

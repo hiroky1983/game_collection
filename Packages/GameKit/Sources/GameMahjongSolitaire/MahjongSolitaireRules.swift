@@ -4,108 +4,28 @@ import MahjongTiles
 /// 麻雀ソリティアのルール判定と盤面生成。**状態も乱数の保持も持たない純粋関数**の集まりで、
 /// Model 側は進行・永続化・演出だけを持つ（`DaifugoRules` と同じ分け方）。
 ///
-/// 盤上の位置は `layout` の添字（0..143）で識別する。位置はゲーム中に増減しないので、
-/// 添字がそのまま牌の ID になり、残り牌は `[MahjongFace?]`（取り除いた位置は nil）で表せる。
+/// 盤上の位置は `MahjongSolitaireLayout.positions` の添字（0..143）で識別する。位置はゲーム中に
+/// 増減しないので、添字がそのまま牌の ID になり、残り牌は `[MahjongFace?]`（取り除いた位置は nil）
+/// で表せる。**レイアウトは複数あり（#239）、どの関数も対象のレイアウトを引数で受け取る**
+/// （既定値は置かない。渡し忘れが亀甲で静かに動いてしまうのを防ぐため）。
 public enum MahjongSolitaireRules {
-
-    // MARK: - レイアウト
-
-    /// 標準的な亀（タートル）型レイアウト。144 枚。
-    ///
-    /// 第1段 87 枚（8 行の甲羅 84 枚 + 左のヒレ 1 枚 + 右のヒレ 2 枚）、
-    /// 第2段 36 枚（6×6）、第3段 16 枚（4×4）、第4段 4 枚（2×2）、第5段 1 枚。
-    public static let layout: [MahjongPosition] = {
-        var result: [MahjongPosition] = []
-
-        // 第1段の甲羅。(y の半マス座標, x の左端, x の右端) を上の行から並べる。
-        let rows: [(hy: Int, from: Int, to: Int)] = [
-            (0, 1, 12), (2, 3, 10), (4, 2, 11), (6, 1, 12),
-            (8, 1, 12), (10, 2, 11), (12, 3, 10), (14, 1, 12),
-        ]
-        for row in rows {
-            for x in row.from...row.to {
-                result.append(MahjongPosition(layer: 0, hx: x * 2, hy: row.hy))
-            }
-        }
-        // ヒレは 4 行目と 5 行目の間にまたがるので hy を半マスずらす（左 1 枚・右 2 枚）。
-        result.append(MahjongPosition(layer: 0, hx: 0, hy: 7))
-        result.append(MahjongPosition(layer: 0, hx: 26, hy: 7))
-        result.append(MahjongPosition(layer: 0, hx: 28, hy: 7))
-
-        // 第2〜4段は中央に向かって一回り小さくなる矩形。
-        let stacks: [(layer: Int, x: ClosedRange<Int>, y: ClosedRange<Int>)] = [
-            (1, 4...9, 1...6),
-            (2, 5...8, 2...5),
-            (3, 6...7, 3...4),
-        ]
-        for stack in stacks {
-            for y in stack.y {
-                for x in stack.x {
-                    result.append(MahjongPosition(layer: stack.layer, hx: x * 2, hy: y * 2))
-                }
-            }
-        }
-
-        // 第5段の 1 枚は第4段 2×2 の中央にまたがって載る。
-        result.append(MahjongPosition(layer: 4, hx: 13, hy: 7))
-        return result
-    }()
-
-    /// 盤面の広さ（半マス単位）。描画のスケール計算に使う。
-    public static let halfWidth = 30
-    public static let halfHeight = 16
-    /// 最上段の段番号。
-    public static let topLayer = 4
-
-    /// 位置から `layout` の添字を引く。テストで特定の場所を指すときに使う。
-    public static func index(layer: Int, hx: Int, hy: Int) -> Int? {
-        indexByPosition[MahjongPosition(layer: layer, hx: hx, hy: hy)]
-    }
-
-    private static let indexByPosition: [MahjongPosition: Int] = {
-        var map: [MahjongPosition: Int] = [:]
-        for (i, position) in layout.enumerated() { map[position] = i }
-        return map
-    }()
 
     // MARK: - 取得可否
 
-    /// 各位置について「上に載りうる牌」「左を塞ぐ牌」「右を塞ぐ牌」を先に洗い出しておく。
-    /// 位置は不変なので 1 度計算すれば済み、毎回 144×144 を舐めずに判定できる。
-    private static let relations: (above: [[Int]], left: [[Int]], right: [[Int]]) = {
-        let count = layout.count
-        var above = [[Int]](repeating: [], count: count)
-        var left = [[Int]](repeating: [], count: count)
-        var right = [[Int]](repeating: [], count: count)
-        for i in 0..<count {
-            let a = layout[i]
-            for j in 0..<count where i != j {
-                let b = layout[j]
-                if b.layer > a.layer, a.overlaps(b) {
-                    above[i].append(j)
-                } else if b.layer == a.layer, abs(a.hy - b.hy) < 2 {
-                    // 横に触れている（= 2 半マス以内でずれている）牌だけが取り出しを塞ぐ。
-                    if b.hx < a.hx, b.hx > a.hx - 4 { left[i].append(j) }
-                    if b.hx > a.hx, b.hx < a.hx + 4 { right[i].append(j) }
-                }
-            }
-        }
-        return (above, left, right)
-    }()
-
     /// その位置の牌を取れるか。上に何も載っておらず、左右のどちらかが空いていれば取れる。
-    /// - Parameter remaining: 位置ごとに牌が残っているか（`layout` と同じ長さ）。
-    public static func isFree(_ index: Int, remaining: [Bool]) -> Bool {
+    /// - Parameter remaining: 位置ごとに牌が残っているか（`layout.positions` と同じ長さ）。
+    public static func isFree(_ index: Int, remaining: [Bool], layout: MahjongSolitaireLayout) -> Bool {
         guard remaining[index] else { return false }
+        let relations = layout.relations
         for above in relations.above[index] where remaining[above] { return false }
         let blockedLeft = relations.left[index].contains { remaining[$0] }
         let blockedRight = relations.right[index].contains { remaining[$0] }
         return !blockedLeft || !blockedRight
     }
 
-    /// いま取れる位置の一覧（`layout` の並び順）。
-    public static func freeIndices(remaining: [Bool]) -> [Int] {
-        (0..<layout.count).filter { isFree($0, remaining: remaining) }
+    /// いま取れる位置の一覧（レイアウトの並び順）。
+    public static func freeIndices(remaining: [Bool], layout: MahjongSolitaireLayout) -> [Int] {
+        (0..<layout.count).filter { isFree($0, remaining: remaining, layout: layout) }
     }
 
     /// 残っている位置（`faces` が非 nil の位置）。
@@ -114,9 +34,12 @@ public enum MahjongSolitaireRules {
     }
 
     /// いま取れる組の一覧。手詰まり検知とヒントの両方がこれを使う。
-    public static func availablePairs(faces: [MahjongFace?]) -> [(Int, Int)] {
+    public static func availablePairs(
+        faces: [MahjongFace?],
+        layout: MahjongSolitaireLayout
+    ) -> [(Int, Int)] {
         let remaining = remainingFlags(faces: faces)
-        let free = freeIndices(remaining: remaining)
+        let free = freeIndices(remaining: remaining, layout: layout)
         var pairs: [(Int, Int)] = []
         for (offset, a) in free.enumerated() {
             guard let faceA = faces[a] else { continue }
@@ -167,18 +90,21 @@ public enum MahjongSolitaireRules {
     /// 「全部の位置が埋まった盤面から、そのとき取れる 2 枚を選んで取り除く」を 72 回繰り返し、
     /// **取り除けた順序に沿って同じ絵柄を割り当てる**。割り当てた順序がそのまま解法になるので、
     /// 到達不可能な盤面は原理的に生成されない。
-    public static func generate<G: RandomNumberGenerator>(using rng: inout G) -> Board {
-        let all = Array(layout.indices)
+    public static func generate<G: RandomNumberGenerator>(
+        using rng: inout G,
+        layout: MahjongSolitaireLayout
+    ) -> Board {
+        let all = Array(layout.positions.indices)
         var pairs = facePairs()
         pairs.shuffle(using: &rng)
         // 無作為に剥がす順序が見つからなかったときだけ、上の段を優先する剥がし方に切り替える
         // （下の段に牌が取り残されにくい代わりに、解法の形が段の順に偏る）。
-        if let order = removalOrder(positions: all, using: &rng)
-            ?? removalOrder(positions: all, using: &rng, topFirst: true) {
-            return assign(pairs: pairs, to: order)
+        if let order = removalOrder(positions: all, using: &rng, layout: layout)
+            ?? removalOrder(positions: all, using: &rng, layout: layout, topFirst: true) {
+            return assign(pairs: pairs, to: order, count: layout.count)
         }
-        // ここには実測で到達しない（テストで多数の種を通して確認している）。到達した場合も
-        // 遊べる盤面は返す（取り切れない配置になりうるが、手詰まりならシャッフルで作り直せる）。
+        // ここには実測で到達しない（テストで全レイアウト × 多数の種を通して確認している）。到達した
+        // 場合も遊べる盤面は返す（取り切れない配置になりうるが、手詰まりならシャッフルで作り直せる）。
         var faces = [MahjongFace?](repeating: nil, count: layout.count)
         for (i, face) in pairs.flatMap({ $0 }).enumerated() where i < faces.count {
             faces[i] = face
@@ -190,7 +116,8 @@ public enum MahjongSolitaireRules {
     /// 位置の組み合わせ自体が取り切れない（例: 残り 2 枚が上下に重なっている）場合は nil を返す。
     public static func rearrange<G: RandomNumberGenerator>(
         faces: [MahjongFace?],
-        using rng: inout G
+        using rng: inout G,
+        layout: MahjongSolitaireLayout
     ) -> Board? {
         let positions = faces.indices.filter { faces[$0] != nil }
         guard !positions.isEmpty else { return nil }
@@ -210,9 +137,10 @@ public enum MahjongSolitaireRules {
             }
         }
         pairs.shuffle(using: &rng)
-        guard let order = removalOrder(positions: positions, using: &rng)
-            ?? removalOrder(positions: positions, using: &rng, topFirst: true) else { return nil }
-        return assign(pairs: pairs, to: order)
+        guard let order = removalOrder(positions: positions, using: &rng, layout: layout)
+            ?? removalOrder(positions: positions, using: &rng, layout: layout, topFirst: true)
+        else { return nil }
+        return assign(pairs: pairs, to: order, count: layout.count)
     }
 
     /// 与えられた位置集合を全部取り切れる順序を探す。見つからなければ nil。
@@ -222,11 +150,14 @@ public enum MahjongSolitaireRules {
     static func removalOrder<G: RandomNumberGenerator>(
         positions: [Int],
         using rng: inout G,
+        layout: MahjongSolitaireLayout,
         topFirst: Bool = false,
         attempts: Int = 32
     ) -> [[Int]]? {
         for _ in 0..<attempts {
-            if let order = attemptRemovalOrder(positions: positions, using: &rng, topFirst: topFirst) {
+            if let order = attemptRemovalOrder(
+                positions: positions, using: &rng, layout: layout, topFirst: topFirst
+            ) {
                 return order
             }
         }
@@ -236,6 +167,7 @@ public enum MahjongSolitaireRules {
     private static func attemptRemovalOrder<G: RandomNumberGenerator>(
         positions: [Int],
         using rng: inout G,
+        layout: MahjongSolitaireLayout,
         topFirst: Bool
     ) -> [[Int]]? {
         var remaining = [Bool](repeating: false, count: layout.count)
@@ -243,11 +175,11 @@ public enum MahjongSolitaireRules {
         var left = positions.count
         var order: [[Int]] = []
         while left > 0 {
-            var free = freeIndices(remaining: remaining)
+            var free = freeIndices(remaining: remaining, layout: layout)
             guard free.count >= 2 else { return nil }
             free.shuffle(using: &rng)
             if topFirst {
-                free.sort { layout[$0].layer > layout[$1].layer }
+                free.sort { layout.positions[$0].layer > layout.positions[$1].layer }
             }
             let a = free[0], b = free[1]
             remaining[a] = false
@@ -259,8 +191,8 @@ public enum MahjongSolitaireRules {
     }
 
     /// 取り除く順序に沿って組を配る。順序に載っていない位置は絵柄なしになる。
-    private static func assign(pairs: [[MahjongFace]], to order: [[Int]]) -> Board {
-        var faces = [MahjongFace?](repeating: nil, count: layout.count)
+    private static func assign(pairs: [[MahjongFace]], to order: [[Int]], count: Int) -> Board {
+        var faces = [MahjongFace?](repeating: nil, count: count)
         for (step, pair) in order.enumerated() where step < pairs.count {
             faces[pair[0]] = pairs[step][0]
             faces[pair[1]] = pairs[step][1]

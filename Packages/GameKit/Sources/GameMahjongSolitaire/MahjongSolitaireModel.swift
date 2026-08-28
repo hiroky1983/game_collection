@@ -19,6 +19,9 @@ struct MahjongSolitaireSnapshot: Codable {
     /// アンドゥの利用回数（#198）。**任意項目**にしてあるのは、この項目を持たない
     /// 既存のスナップショットが復号に失敗して中断中の盤面を捨ててしまわないようにするため。
     let undoCount: Int?
+    /// どのレイアウトの盤面か（#239）。`undoCount` と同じ理由で**任意項目**にしてあり、
+    /// これを持たない古いスナップショットは亀甲として復元する（`MahjongSolitaireLayout.named`）。
+    let layoutID: String?
 }
 
 /// 直前に取った 2 枚。位置は不変なので、添字と絵柄を戻せば盤面はそのまま復元できる。
@@ -33,7 +36,9 @@ private struct MahjongSolitaireTake {
 @MainActor
 @Observable
 public final class MahjongSolitaireModel {
-    /// 位置ごとの絵柄。取り除いた位置は nil。添字は `MahjongSolitaireRules.layout` と対応する。
+    /// いま遊んでいる盤面のかたち（#239）。添字の意味がこれで決まるので、`faces` と必ず対で扱う。
+    public private(set) var layout: MahjongSolitaireLayout
+    /// 位置ごとの絵柄。取り除いた位置は nil。添字は `layout.positions` と対応する。
     public private(set) var faces: [MahjongFace?]
     /// 位置ごとに「いま取れるか」。描画で 144 回引くので毎回計算せず変化時にまとめて更新する。
     public private(set) var isFreeByIndex: [Bool] = []
@@ -80,28 +85,36 @@ public final class MahjongSolitaireModel {
     /// - Parameters:
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
     ///   - faces: テスト用に盤面を直接与える経路（本番では使わない）。
+    ///   - layout: 配る盤面のかたち。中断データがあればそちらのレイアウトが優先される。
     public init(
         services: GameServices? = nil,
         seed: UInt64? = nil,
-        faces: [MahjongFace?]? = nil
+        faces: [MahjongFace?]? = nil,
+        layout: MahjongSolitaireLayout = .turtle
     ) {
         self.services = services
         self.seed = seed
         // 盤面を新しく用意したか（= 新しいプレイの開始か）。復元のときだけ false。
         var isFreshBoard = true
 
-        if let snapshot = services?.snapshots.load(MahjongSolitaireSnapshot.self, for: gameID),
-           snapshot.faces.count == MahjongSolitaireRules.layout.count {
+        let snapshot = services?.snapshots.load(MahjongSolitaireSnapshot.self, for: gameID)
+        // レイアウト識別子を持たない古いスナップショットは亀甲として読む（`named` が nil を倒す）。
+        let snapshotLayout = snapshot.map { MahjongSolitaireLayout.named($0.layoutID) }
+
+        if let snapshot, let snapshotLayout, snapshot.faces.count == snapshotLayout.count {
+            self.layout = snapshotLayout
             self.faces = snapshot.faces
             self.elapsedSeconds = snapshot.elapsedSeconds
             self.shuffleCount = snapshot.shuffleCount
             self.hintCount = snapshot.hintCount
             self.undoCount = snapshot.undoCount ?? 0
             isFreshBoard = false
-        } else if let faces, faces.count == MahjongSolitaireRules.layout.count {
+        } else if let faces, faces.count == layout.count {
+            self.layout = layout
             self.faces = faces
         } else {
-            let dealt = MahjongSolitaireModel.makeBoard(seed: seed)
+            self.layout = layout
+            let dealt = MahjongSolitaireModel.makeBoard(seed: seed, layout: layout)
             self.faces = dealt.board.faces
             self.solution = dealt.board.solution
             self.seed = dealt.nextSeed   // 次の盤面が同じにならないよう種を進める
@@ -187,7 +200,7 @@ public final class MahjongSolitaireModel {
     /// 取れる組を 1 組だけ光らせる。
     public func showHint() {
         guard phase == .playing else { return }
-        guard let pair = MahjongSolitaireRules.availablePairs(faces: faces).first else {
+        guard let pair = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout).first else {
             services?.feedback.notify(.warning)
             return
         }
@@ -202,7 +215,7 @@ public final class MahjongSolitaireModel {
     @discardableResult
     public func shuffleRemaining() -> Bool {
         guard phase == .playing, remainingCount > 0 else { return false }
-        let rearranged = MahjongSolitaireModel.rearrange(faces: faces, seed: seed)
+        let rearranged = MahjongSolitaireModel.rearrange(faces: faces, seed: seed, layout: layout)
         seed = rearranged.nextSeed
         guard let board = rearranged.board else { return false }
         faces = board.faces
@@ -219,8 +232,11 @@ public final class MahjongSolitaireModel {
     }
 
     /// 新しい盤面を配る（結果は記録しない）。
-    public func newGame() {
-        let dealt = MahjongSolitaireModel.makeBoard(seed: seed)
+    ///
+    /// - Parameter layout: 配る盤面のかたち。**nil なら今と同じかたちのまま配り直す**（#239）。
+    public func newGame(layout newLayout: MahjongSolitaireLayout? = nil) {
+        if let newLayout { layout = newLayout }
+        let dealt = MahjongSolitaireModel.makeBoard(seed: seed, layout: layout)
         seed = dealt.nextSeed
         faces = dealt.board.faces
         solution = dealt.board.solution
@@ -258,8 +274,17 @@ public final class MahjongSolitaireModel {
     public var isCounting: Bool { timerTask != nil }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
+    ///
+    /// **記録はレイアウトごとに分ける**（#239）。かたちが違えば取り切るまでの手数も難度も違うため、
+    /// 同じ「最短タイム」に混ぜると自己ベストが比べものにならない。区分の仕組みは
+    /// マインスイーパーの難易度と同じ `GameScore.variant` を使うので、保存の形式は増えない。
     private var currentScore: GameScore {
-        GameScore(metric: .shortestTime, seconds: elapsedSeconds)
+        GameScore(
+            metric: .shortestTime,
+            seconds: elapsedSeconds,
+            variant: layout.id,
+            variantLabel: layout.displayName
+        )
     }
 
     /// 中断から復帰したときに計時を再開する（View の `.task` から呼ぶ）。
@@ -273,26 +298,30 @@ public final class MahjongSolitaireModel {
     // MARK: - 内部
 
     /// 盤面を 1 つ配る。種を渡した場合は「次に使う種」も返し、同じ配りが続かないようにする。
-    private static func makeBoard(seed: UInt64?) -> (board: MahjongSolitaireRules.Board, nextSeed: UInt64?) {
+    private static func makeBoard(
+        seed: UInt64?,
+        layout: MahjongSolitaireLayout
+    ) -> (board: MahjongSolitaireRules.Board, nextSeed: UInt64?) {
         guard let seed else {
             var system = SystemRandomNumberGenerator()
-            return (MahjongSolitaireRules.generate(using: &system), nil)
+            return (MahjongSolitaireRules.generate(using: &system, layout: layout), nil)
         }
         var generator = MahjongSeededGenerator(seed: seed)
-        let board = MahjongSolitaireRules.generate(using: &generator)
+        let board = MahjongSolitaireRules.generate(using: &generator, layout: layout)
         return (board, generator.next())
     }
 
     private static func rearrange(
         faces: [MahjongFace?],
-        seed: UInt64?
+        seed: UInt64?,
+        layout: MahjongSolitaireLayout
     ) -> (board: MahjongSolitaireRules.Board?, nextSeed: UInt64?) {
         guard let seed else {
             var system = SystemRandomNumberGenerator()
-            return (MahjongSolitaireRules.rearrange(faces: faces, using: &system), nil)
+            return (MahjongSolitaireRules.rearrange(faces: faces, using: &system, layout: layout), nil)
         }
         var generator = MahjongSeededGenerator(seed: seed)
-        let board = MahjongSolitaireRules.rearrange(faces: faces, using: &generator)
+        let board = MahjongSolitaireRules.rearrange(faces: faces, using: &generator, layout: layout)
         return (board, generator.next())
     }
 
@@ -311,13 +340,15 @@ public final class MahjongSolitaireModel {
 
     private func refreshDerivedState() {
         let remaining = MahjongSolitaireRules.remainingFlags(faces: faces)
-        isFreeByIndex = (0..<faces.count).map { MahjongSolitaireRules.isFree($0, remaining: remaining) }
-        availablePairCount = MahjongSolitaireRules.availablePairs(faces: faces).count
+        isFreeByIndex = (0..<faces.count).map {
+            MahjongSolitaireRules.isFree($0, remaining: remaining, layout: layout)
+        }
+        availablePairCount = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout).count
     }
 
     private func persist() {
         // 配ったばかりの盤面は保存しない（ハブに「続きから」が出続けるのを避ける）。
-        guard phase == .playing, remainingCount < MahjongSolitaireRules.layout.count else {
+        guard phase == .playing, remainingCount < layout.count else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -326,7 +357,8 @@ public final class MahjongSolitaireModel {
             elapsedSeconds: elapsedSeconds,
             shuffleCount: shuffleCount,
             hintCount: hintCount,
-            undoCount: undoCount
+            undoCount: undoCount,
+            layoutID: layout.id
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }
