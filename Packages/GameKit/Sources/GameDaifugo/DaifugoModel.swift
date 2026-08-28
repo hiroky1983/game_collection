@@ -468,6 +468,9 @@ public final class DaifugoModel {
         defer { isRunningCPUTurns = false }
 
         while phase == .playing, currentPlayer != Self.humanIndex {
+            // 間合いが 0 の手番（早送り中など）には suspend が無く、下の sleep 後の判定を
+            // 通らない。ループ先頭でも見て、どの経路でもキャンセル後は進めないようにする（#287）。
+            guard !Task.isCancelled else { return }
             // 間合いは毎手番ごとに読み直す。消化試合に入った時点・早送りを押された時点から
             // 待たずに済むようにするため（#191）。
             let delay = currentCPUDelay
