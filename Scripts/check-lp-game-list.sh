@@ -9,24 +9,20 @@
 # 入稿パック側の同種の検知は Scripts/check-aso-game-count.sh（#281）。あちらは「本数」だけを見るが、
 # LP は URL（slug）と並び順まで一致していなければ意味がないので、こちらは slug 列をそのまま比べる。
 #
-# ■ 何と比べるか（ここが入稿パック側と決定的に違う）
-#   比較先は **次に出す版（release/vX.Y.Z）の GameRegistry** であって、main のものではない。
-#   main は「App Store で公開済みの集合」（docs/ai-devops.md）なので、main の registry に LP を
-#   合わせると、公開されるまでその版のページが存在しないことになる。それは #176 でまさに起きた失敗
-#   （検索インデックスが付く前に、公開直後という最も重要な期間を落とす）。
-#   よって既定の比較先は「もっとも新しい release/vX.Y.Z」= これから出る全ゲームの上位集合とする。
+# ■ 何と比べるか
+#   比較先は**同じツリー（既定は HEAD）の GameRegistry**。main の LP は main の registry
+#   （= App Store で公開済みの集合・docs/ai-devops.md）と、release/vX.Y.Z の LP はその版の
+#   registry と一致していなければならない。
+#   かつての既定は「もっとも新しい release/vX.Y.Z」だったが、それは「LP を未リリース版へ先行させる」
+#   ことを CI が強制する設計で、2026-08-27 の #299（v1.1.1 収録の麻雀・数独を含む 12本 LP が
+#   アプリ公開前に本番 LP へ出た）の一因になった（2026-08-28 改定・会長指示）。
+#   未リリースゲームの LP 変更は該当 release ブランチに積み、その版の公開時の main へのマージで
+#   本番に出す（振り分け基準は Scripts/ai-duty-prompt.md / docs/ai-devops.md）。
 #
-# ■ なぜ CI で常時実行しないか
-#   1. 上のとおり比較先が **別の ref** なので、PR のツリーだけでは判定できない。release ブランチは
-#      PR とは無関係に動くため、常時実行すると「一度緑になった PR が、他所のマージで後から赤くなる」。
-#   2. 新しいゲームを足す PR は release ブランチへ入り、LP（main）の更新はその後の別 PR になる。
-#      途中に必ず不一致の期間があり、常時落とすと正常な途中状態を事故として扱ってしまう
-#      （check-aso-game-count.sh と同じ設計判断）。
-#   そこで「一致していなければならない唯一の瞬間」だけで走らせる。入稿パックのそれが `fastlane beta`
-#   なのに対し、**LP のそれは games.ts を触る PR が main にマージされる瞬間**なので、
-#   .github/workflows/lp-game-list.yml で `web/app/lib/games.ts` を変更した PR に限って実行する。
+#   同一ツリー比較になったので「他所のマージで緑だった PR が後から赤くなる」問題は無い。
+#   実行は .github/workflows/lp-game-list.yml が games.ts / registry を触る変更に絞って走らせる。
 #
-# 使い方: Scripts/check-lp-game-list.sh [比較先の ref] [games.ts のパス]
+# 使い方: Scripts/check-lp-game-list.sh [比較先の ref（省略時 HEAD）] [games.ts のパス]
 #   例: Scripts/check-lp-game-list.sh origin/release/v1.1.1
 # 終了コード: 0 = 一致 or 検証対象外 / 1 = 不一致 or 読み取り失敗
 set -uo pipefail
@@ -43,24 +39,10 @@ if [ ! -f "$LIST" ]; then
 fi
 
 if [ -z "$REF" ]; then
-  # もっとも新しい release/vX.Y.Z を選ぶ。バージョンは辞書順だと v1.1.10 < v1.1.2 になるので `sort -V`。
-  # **remote 追跡ブランチを優先する**: ローカルの refs/heads/release/* には削除済みのブランチが
-  # 残っていることがある（実際にこの検証中、リモートに無い release/v1.1.3 がローカルに残っていて
-  # 10本時代の registry を掴んだ。番号の付け替え = docs/ai-devops.md 2026-08-24 の名残）。
-  # `git fetch --prune` は remote 追跡側しか掃除しないので、ローカルは最後の手段に留める。
-  REF="$(git for-each-ref --format='%(refname)' 'refs/remotes/origin/release/v*' 2>/dev/null \
-         | sed 's|^refs/remotes/||' | sort -Vu | tail -1)"
-  if [ -z "$REF" ]; then
-    REF="$(git for-each-ref --format='%(refname)' 'refs/heads/release/v*' 2>/dev/null \
-           | sed 's|^refs/heads/||' | sort -Vu | tail -1)"
-    [ -n "$REF" ] && echo "check-lp-game-list: 注意 - origin の release ブランチが無いためローカルの $REF と比べます"
-  fi
-  if [ -z "$REF" ]; then
-    # 黙って通ると「チェックが働いた」と誤解されるため、対象外である旨は必ず出す。
-    echo "check-lp-game-list: release/vX.Y.Z ブランチが見当たらないため検証しません"
-    echo "  比較先を明示して単体で走らせられます: Scripts/check-lp-game-list.sh origin/release/v1.1.1"
-    exit 0
-  fi
+  # 既定は同一ツリー（HEAD）の registry。LP と registry は同じブランチで一緒に動くのが
+  # 新ルール（ヘッダ参照）なので、比較先を別の ref に探しに行かない。
+  REF="HEAD"
+  echo "check-lp-game-list: 比較先: HEAD（同一ツリーの registry）"
 fi
 
 SOURCE="App/AppGameServices.swift"
@@ -147,36 +129,42 @@ for M in $MODULES; do
 "
 done
 
-# 3. LP 側の slug を**配列の並び順のまま**取り出す。
-ACTUAL="$(sed -n 's/^[[:space:]]*slug: "\([^"]*\)".*/\1/p' "$LIST")"
+# 3. LP 側の slug を取り出す。`comingSoon: true` の付いたエントリ（「配信予定」表示・
+#    未リリースゲーム）は registry 照合の対象外（2026-08-28 改定）。
+#    games.ts の整形（エントリは2スペースの `{`、フィールドは4スペース）に依存する。
+ACTUAL="$(awk '
+  /^  \{/                     { slug = ""; soon = 0; next }
+  /^    slug: "/              { s = $0; sub(/^    slug: "/, "", s); sub(/".*$/, "", s); slug = s; next }
+  /^    comingSoon: true/     { soon = 1; next }
+  /^  \},/                    { if (slug != "" && !soon) print slug }
+' "$LIST")"
 
 if [ -z "$ACTUAL" ]; then
   echo "check-lp-game-list: $LIST から slug を読み取れませんでした" >&2
   exit 1
 fi
 
-if [ "$(printf '%s' "$EXPECTED")" = "$(printf '%s' "$ACTUAL")" ]; then
-  echo "check-lp-game-list: OK（$REF の registry $(printf '%s\n' "$MODULES" | grep -c .)本と $(basename "$LIST") が一致）"
-  exit 0
-fi
-
+# 比較は**顔ぶれ（集合）**で行う。並び順の機械検証は、配信予定エントリの挟まりや
+# バージョン間の登録順差で成立しなくなったため廃止した（並びはレビューで見る）。
 MISSING="$(comm -23 <(printf '%s' "$EXPECTED" | sort) <(printf '%s' "$ACTUAL" | sort) | tr '\n' ' ')"
 EXTRA="$(comm -13 <(printf '%s' "$EXPECTED" | sort) <(printf '%s' "$ACTUAL" | sort) | tr '\n' ' ')"
+
+if [ -z "$MISSING" ] && [ -z "$EXTRA" ]; then
+  echo "check-lp-game-list: OK（$REF の registry $(printf '%s\n' "$MODULES" | grep -c .)本と $(basename "$LIST") の配信済み分が一致）"
+  exit 0
+fi
 
 {
   echo "check-lp-game-list: LP のゲーム一覧がアプリの登録と一致しません"
   echo
   echo "  アプリ（$REF の GameRegistry・登録順）:"
   printf '%s' "$EXPECTED" | sed 's/^/    /'
-  echo "  LP（${LIST}・配列順）:"
+  echo "  LP（${LIST}・comingSoon を除く）:"
   printf '%s' "$ACTUAL" | sed 's/^/    /'
   echo
   [ -n "$MISSING" ] && echo "  LP に無い（= /games/<slug> が 404 になる）:$MISSING"
-  [ -n "$EXTRA" ]   && echo "  アプリに無い（= 存在しないゲームを宣伝している）:$EXTRA"
-  if [ -z "$MISSING" ] && [ -z "$EXTRA" ]; then
-    echo "  顔ぶれは同じですが並び順が違います（web/app/lib/games.ts 冒頭の規約）。"
-  fi
+  [ -n "$EXTRA" ]   && echo "  アプリに無い（= 存在しないゲームを宣伝している。未リリースなら comingSoon: true を付ける）:$EXTRA"
   echo
-  echo "過去の同じ食い違い: #156（8→10・本番404が3日間）・#296（10→12）"
+  echo "過去の同じ食い違い: #156（8→10・本番404が3日間）・#296（10→12）・#299（未リリース12本 LP の先行公開）"
 } >&2
 exit 1

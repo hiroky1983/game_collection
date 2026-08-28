@@ -55,7 +55,14 @@ export default async function GamePage({ params }: Props) {
 
       <div className="mb-8">
         <div className="text-5xl mb-3">{game.emoji}</div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{game.name}</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          {game.name}
+          {game.comingSoon && (
+            <span className="ml-3 align-middle text-sm font-semibold text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-full px-3 py-1">
+              配信予定
+            </span>
+          )}
+        </h1>
         <p className="text-gray-500 dark:text-gray-400">{game.tagline}</p>
       </div>
 
@@ -85,8 +92,9 @@ export default async function GamePage({ params }: Props) {
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 text-center mb-10">
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
-          {game.name}は、ゲームコレクションアプリ「あそびば」に収録されています。無料・約
-          {APP_SIZE_MB}、オフラインで遊べて会員登録も不要です。
+          {game.comingSoon
+            ? `${game.name}は、ゲームコレクションアプリ「あそびば」の次のアップデートで追加予定です（現在のアプリにはまだ含まれていません）。アプリは無料・約${APP_SIZE_MB}、オフラインで遊べて会員登録も不要です。`
+            : `${game.name}は、ゲームコレクションアプリ「あそびば」に収録されています。無料・約${APP_SIZE_MB}、オフラインで遊べて会員登録も不要です。`}
         </p>
         <a
           href={APP_STORE_URL}
@@ -107,6 +115,7 @@ export default async function GamePage({ params }: Props) {
             >
               <span className="mr-1">{g.emoji}</span>
               {g.name}
+              {g.comingSoon && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">（配信予定）</span>}
             </Link>
           ))}
         </div>
