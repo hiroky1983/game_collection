@@ -3,6 +3,40 @@ import SwiftUI
 import Core
 import MahjongTiles
 
+/// ヒント（リワード広告制・#336）に付くアラート 3 つ。
+///
+/// 並べ替えのアラートのように `body` へ直接ぶら下げると、修飾子が積み上がった時点で
+/// 「The compiler is unable to type-check this expression in reasonable time」でビルドが
+/// 通らなくなる（実測）。1 つの修飾子にまとめて型チェックの段数を減らしている。
+private struct HintAlerts: ViewModifier {
+    @Binding var showConfirm: Bool
+    @Binding var showNotEarned: Bool
+    @Binding var showUnavailable: Bool
+    let onWatchAd: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            // 押した直後に広告を出さず、広告が出ることを予告してから視聴へ進める
+            // （並べ替え・将棋の「待った」と同じ契約）。
+            .alert("ヒント確認", isPresented: $showConfirm) {
+                Button("広告を見てヒントを見る") { onWatchAd() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("広告を視聴すると、いま取れる組を1組だけ光らせます。")
+            }
+            .alert("ヒントを表示できませんでした", isPresented: $showNotEarned) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+            }
+            .alert("取れる組がありません", isPresented: $showUnavailable) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("光らせられる組が無くなりました。「並べ替え」で残りを配置し直してください。")
+            }
+    }
+}
+
 public struct MahjongSolitaireView: View {
     @State private var model: MahjongSolitaireModel
     private let services: GameServices
@@ -20,6 +54,11 @@ public struct MahjongSolitaireView: View {
     @State private var showShuffleConfirm = false
     @State private var isRequestingShuffle = false
     @State private var showShuffleNotEarned = false
+    // ヒントも並べ替えと同じリワード広告制（#336）。状態の持ち方・アラートの文言まで揃える。
+    @State private var showHintConfirm = false
+    @State private var isRequestingHint = false
+    @State private var showHintNotEarned = false
+    @State private var showHintUnavailable = false
     /// 盤面の場所にクリアの表示を出しているか（#199）。
     ///
     /// `model.phase` を直に見ると、最後の 2 枚は `faces` が nil になるのと**同じ更新**で
@@ -120,11 +159,28 @@ public struct MahjongSolitaireView: View {
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
+        // ヒントもリワード広告制（#336）。3 つのアラートは `HintAlerts` にまとめてある
+        // （ここへ直接ぶら下げると body の型チェックが破綻してコンパイルが通らない）。
+        .modifier(HintAlerts(
+            showConfirm: $showHintConfirm,
+            showNotEarned: $showHintNotEarned,
+            showUnavailable: $showHintUnavailable,
+            onWatchAd: requestHint
+        ))
         .overlay {
             if model.isDeadlocked { deadlockOverlay }
         }
         .task {
             model.resumeTimerIfNeeded()
+            #if DEBUG
+            // 撮影・動作確認用（DEBUG 限定）: タップ無しでヒントの確認ダイアログを出す
+            // （`-solitaireHintConfirm`）。この画面はタップ起点でしかダイアログを出せず、
+            // シミュレータは自動タップができないため、非対話の確認にはこの経路が要る
+            // （`-simulateGiveUp` と同じ理由・#336）。
+            if ProcessInfo.processInfo.arguments.contains("-solitaireHintConfirm") {
+                showHintConfirm = true
+            }
+            #endif
         }
         // 取り切ったら、最後の 1 組が消えきってから盤面をクリア表示に差し替える（#199）。
         // Reduce Motion のときは演出そのものが無いので待たない。
@@ -418,9 +474,17 @@ public struct MahjongSolitaireView: View {
 
     private func controlRow(showsTitle: Bool) -> some View {
         HStack(spacing: 8) {
+            // ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず
+            // 確認ダイアログを挟む。手詰まりで組が無いときは押せない（広告だけ見せない）。
             controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.teal, showsTitle: showsTitle) {
-                model.showHint()
+                showHintConfirm = true
             }
+            // 手詰まりでは押せない（広告だけ見せて何も起きない状態を作らない）。
+            // 手詰まりならこのボタンは `deadlockOverlay` に覆われるので実際には届かないが、
+            // 覆いに頼らず二重の歯止めにしておく。見た目を落とさないのは、押せない状態が
+            // ユーザーから見える経路が無く、薄くしても伝わる相手がいないため。
+            .disabled(!model.canHint || isRequestingHint)
+            .accessibilityHint("広告を見ると取れる組が1組光ります")
             // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。#199 の 3 ボタン化
             // （ViewThatFits）と衝突したため、レイアウトは #199 側・押したときの挙動は
             // #324 側を採って統合した。ここから確認ダイアログ → 視聴 → 並べ替えの順に進む。
@@ -546,6 +610,24 @@ public struct MahjongSolitaireView: View {
                 showShuffleNotEarned = true
             }
             isRequestingShuffle = false
+        }
+    }
+
+    // MARK: - ヒント
+
+    /// リワード広告を最後まで見たときだけヒントを出す（並べ替え・ナンプレのヒントと同じ契約・#336）。
+    /// `requestShuffle()` と同じく、視聴中の連打で2本目の広告が失敗して誤アラートが出ないよう塞ぐ。
+    private func requestHint() {
+        guard !isRequestingHint else { return }
+        isRequestingHint = true
+        Task {
+            if await services.ads.showRewardedAd() {
+                // 広告を見たのに光らない（視聴中に手詰まりになった）経路は黙って終わらせない。
+                if !model.showHint() { showHintUnavailable = true }
+            } else {
+                showHintNotEarned = true
+            }
+            isRequestingHint = false
         }
     }
 
