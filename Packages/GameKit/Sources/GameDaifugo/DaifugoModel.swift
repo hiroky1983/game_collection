@@ -454,7 +454,14 @@ public final class DaifugoModel {
     /// CPU の手番が続く限り進める。人間の手番になるか決着したら止まる。
     /// View から複数の契機で呼ばれても内部で1本に制限する。
     public func runCPUTurnsIfNeeded() async {
-        guard !isRunningCPUTurns else { return }
+        // 多重起動防止。「先行タスクがいたら即リターン」にすると、下のキャンセル検知と
+        // 組み合わさったとき「新タスクが即リターン → 先行タスクがキャンセルで抜ける」の順で
+        // 走者不在になり手番が止まりうるため、麻雀（#311）と同じく先行タスクの終了を
+        // 待ってから引き継ぐ。待機中に自分もキャンセルされたら次のタスクに譲って抜ける。
+        while isRunningCPUTurns {
+            guard !Task.isCancelled else { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
         isRunningCPUTurns = true
         defer { isRunningCPUTurns = false }
 
@@ -464,6 +471,10 @@ public final class DaifugoModel {
             let delay = currentCPUDelay
             if delay > .zero {
                 try? await Task.sleep(for: delay)
+                // `try?` がキャンセルのエラーを握り潰すため、キャンセル後は `Task.sleep` が
+                // 即座に返る。ここで抜けないと、画面を離れてキャンセルされたタスクが間合いを
+                // 一切取らずに残りの手番を最後まで走り抜けてしまう（#287）。
+                guard !Task.isCancelled else { return }
                 guard phase == .playing, currentPlayer != Self.humanIndex else { return }
             }
             performCPUTurn(currentPlayer)
