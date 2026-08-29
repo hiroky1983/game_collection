@@ -204,6 +204,15 @@ public final class PokerModel {
 
     public var canStartRound: Bool { !sessionOver && playerChips >= anteAmount && cpuChips >= anteAmount }
 
+    /// ラウンドの決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    public var reviewOutcome: GameOutcome {
+        switch winner {
+        case .player: return .win
+        case .tie:    return .draw
+        default:      return .loss
+        }
+    }
+
     private var deck: [PokerCard] = []
     private let initialChips = 100
     private let anteAmount = 10
@@ -278,7 +287,18 @@ public final class PokerModel {
         deck = Array(deck.dropFirst(10))
 
         phase = .betting1
+        services?.feedback.impact(.medium) // カードを配る
         persist()
+    }
+
+    /// ラウンドの決着を触覚で伝える。
+    private func notifyOutcome() {
+        switch winner {
+        case .player: services?.feedback.notify(.success)
+        case .cpu:    services?.feedback.notify(.error)
+        default:      services?.feedback.notify(.warning)
+        }
+        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
     }
 
     // MARK: - Betting Round 1 (before exchange)
@@ -290,10 +310,14 @@ public final class PokerModel {
             playerBetInRound = 0
             cpuBet1Response(playerBet: 0)
         case .bet(let amount):
-            guard playerChips >= amount else { return }
+            guard playerChips >= amount else {
+                services?.feedback.notify(.warning) // チップ不足でベットできない
+                return
+            }
             playerChips -= amount
             pot += amount
             playerBetInRound = amount
+            services?.feedback.impact(.medium)
             cpuBet1Response(playerBet: amount)
         default: break
         }
@@ -331,6 +355,7 @@ public final class PokerModel {
         } else {
             selectedForExchange.insert(card.id)
         }
+        services?.feedback.impact(.rigid)
     }
 
     public func confirmExchange() {
@@ -344,6 +369,7 @@ public final class PokerModel {
         }
         selectedForExchange = []
         phase = .cpuExchange
+        services?.feedback.impact(.medium) // 交換成立
         performCPUExchange()
         persist()
     }
@@ -377,10 +403,14 @@ public final class PokerModel {
             playerBetInRound = 0
             cpuBet2Response(playerBet: 0)
         case .bet(let amount):
-            guard playerChips >= amount else { return }
+            guard playerChips >= amount else {
+                services?.feedback.notify(.warning) // チップ不足でベットできない
+                return
+            }
             playerChips -= amount
             pot += amount
             playerBetInRound = amount
+            services?.feedback.impact(.medium)
             cpuBet2Response(playerBet: amount)
         case .fold:
             cpuFolded = false
@@ -391,6 +421,7 @@ public final class PokerModel {
             winner = .cpu
             cpuAction = "プレイヤーフォールド"
             phase = .result
+            notifyOutcome()
             persist()
         default: break
         }
@@ -451,6 +482,7 @@ public final class PokerModel {
         winner = .cpu
         currentBet = 0
         phase = .result
+        notifyOutcome()
         persist()
     }
 
@@ -473,6 +505,7 @@ public final class PokerModel {
         }
         pot = 0
         phase = .result
+        notifyOutcome()
         checkSessionOver()
     }
 
@@ -487,6 +520,7 @@ public final class PokerModel {
         }
         pot = 0
         phase = .result
+        notifyOutcome()
         checkSessionOver()
     }
 
@@ -504,14 +538,17 @@ public final class PokerModel {
 
     // MARK: - Reward Ad / Session Reset
 
-    public func recoverChipsAfterAd() {
-        Task {
-            await services?.ads.showInterstitial()
-            playerChips = initialChips
-            cpuChips    = initialChips
-            sessionOver = false
-            sessionWinner = nil
-        }
+    /// リワード広告を表示し、**視聴完了したときだけ**チップを回復する。
+    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
+    @discardableResult
+    public func recoverChipsAfterAd() async -> Bool {
+        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        playerChips = initialChips
+        cpuChips    = initialChips
+        sessionOver = false
+        sessionWinner = nil
+        return true
     }
 
     public func restartSession() {

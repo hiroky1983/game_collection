@@ -8,13 +8,20 @@ struct HubView: View {
     let services: GameServices
     let settings: GameSettings
     @State private var path: [String]
-    @State private var showSettings = false
+    @State private var showSettings: Bool
 
-    init(registry: GameRegistry, services: GameServices, settings: GameSettings, initialGameID: String? = nil) {
+    init(
+        registry: GameRegistry,
+        services: GameServices,
+        settings: GameSettings,
+        initialGameID: String? = nil,
+        showsSettingsInitially: Bool = false
+    ) {
         self.registry = registry
         self.services = services
         self.settings = settings
         _path = State(initialValue: initialGameID.map { [$0] } ?? [])
+        _showSettings = State(initialValue: showsSettingsInitially)
     }
 
     var body: some View {
@@ -52,13 +59,49 @@ struct HubView: View {
                     module.makeView(services: services)
                 }
             }
+            // リザルトのレコメンドカードがタップされたら、そのゲームへ差し替えて遷移する。
+            .onChange(of: services.recommendations?.requestedGameID) { _, requested in
+                guard let id = requested else { return }
+                services.recommendations?.requestedGameID = nil
+                // NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
+                // いったん根まで戻し、次の runloop で積み直す。
+                path = []
+                DispatchQueue.main.async { path = [id] }
+            }
+            .task {
+                // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
+                // 以前は自前の事前説明シートを挟み「最初のゲームを遊び終えてハブに戻った時点」で
+                // 出していたが、(1) ゲームを完了しないレビュアーがダイアログに到達できず審査で
+                // 「見つからない」と指摘された、(2) AdMob を収入源とする以上 ATT は避けて通れない、
+                // の2点から標準の形（起動直後にシステムダイアログのみ）へ戻した（会長決裁 2026-08-27）。
+                // ATT が既決の環境や、システム設定でトラッキング要求が無効の環境（新品のシミュレータや
+                // 審査機がこれに当たる）では、requestTrackingAuthorization は何も表示せず即座に返る。
+                // 撮影モードではスクショにダイアログが被るため出さない（DEBUG のみ有効）。
+                if !AppEnvironment.isScreenshotMode {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    await requestTrackingAuthorization()
+                }
+                #if DEBUG
+                // 撮影・動作確認用: 提示条件を通さずにレコメンドカードを出す（`-simulateRecommendation <gameID>`）。
+                let args = ProcessInfo.processInfo.arguments
+                if let i = args.firstIndex(of: "-simulateRecommendation"), i + 1 < args.count {
+                    services.recommendations?.simulateSuggestion(gameID: args[i + 1])
+                }
+                // 撮影・動作確認用: 発火条件を通さずに評価リクエストを出す
+                // （`-startGame <id> -simulateReviewRequest` でそのゲームのリザルト経路に乗せる）。
+                if args.contains("-simulateReviewRequest") {
+                    services.review?.simulateRequest()
+                }
+                #endif
+            }
         }
         .tint(Theme.coral)
         .sheet(isPresented: $showSettings) {
-            SettingsView(registry: registry, settings: settings)
+            SettingsView(registry: registry, settings: settings, playLog: services.recommendations?.log)
                 .presentationDetents([.large])
         }
     }
+
 }
 
 /// ハブのゲームカード。

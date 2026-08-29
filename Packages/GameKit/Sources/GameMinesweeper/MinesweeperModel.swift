@@ -110,9 +110,12 @@ public final class MinesweeperModel {
     // MARK: - Actions
 
     public func tap(row: Int, col: Int) {
-        guard !gameOver,
-              !cells[row][col].isRevealed,
-              !cells[row][col].isFlagged else { return }
+        guard !gameOver else { return }
+        guard !cells[row][col].isRevealed,
+              !cells[row][col].isFlagged else {
+            services?.feedback.notify(.warning) // 開き済み・旗付きマスは開けない
+            return
+        }
 
         if gameState == .idle {
             placeMines(avoiding: row, col: col)
@@ -126,6 +129,8 @@ public final class MinesweeperModel {
             gameState = .lost
             timerTask?.cancel()
             timerTask = nil
+            services?.feedback.notify(.error)
+            services?.gameDidFinish(gameID: gameID, outcome: .loss)
         } else {
             floodReveal(row: row, col: col)
 
@@ -134,6 +139,10 @@ public final class MinesweeperModel {
                 gameState = .won
                 timerTask?.cancel()
                 timerTask = nil
+                services?.feedback.notify(.success)
+                services?.gameDidFinish(gameID: gameID, outcome: .win)
+            } else {
+                services?.feedback.impact(.light)
             }
         }
 
@@ -166,13 +175,19 @@ public final class MinesweeperModel {
             gameState = .won
             timerTask?.cancel()
             timerTask = nil
+            services?.feedback.notify(.success)
+            services?.gameDidFinish(gameID: gameID, outcome: .win)
         }
 
         persist()
     }
 
     public func toggleFlag(row: Int, col: Int) {
-        guard !gameOver, !cells[row][col].isRevealed, !cells[row][col].isContinuedMine else { return }
+        guard !gameOver else { return }
+        guard !cells[row][col].isRevealed, !cells[row][col].isContinuedMine else {
+            services?.feedback.notify(.warning) // 開き済み・確定爆弾マスには旗を置けない
+            return
+        }
         if cells[row][col].isFlagged {
             cells[row][col].isFlagged = false
             flagCount -= 1
@@ -180,6 +195,7 @@ public final class MinesweeperModel {
             cells[row][col].isFlagged = true
             flagCount += 1
         }
+        services?.feedback.impact(.rigid)
         persist()
     }
 
@@ -187,6 +203,8 @@ public final class MinesweeperModel {
         guard gameState == .playing else { return }
         revealAllMines()
         gameState = .lost
+        services?.feedback.notify(.error)
+        services?.gameDidFinish(gameID: gameID, outcome: .loss)
         timerTask?.cancel()
         timerTask = nil
         services?.snapshots.clear(for: gameID)

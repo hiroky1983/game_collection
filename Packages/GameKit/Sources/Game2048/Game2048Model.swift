@@ -39,7 +39,10 @@ public final class Game2048Model {
     public func move(_ direction: Direction) {
         guard !gameOver else { return }
         let result = Game2048Logic.slide(board, direction)
-        guard result.moved else { return }
+        guard result.moved else {
+            services?.feedback.notify(.warning) // 1マスも動かない方向へのスワイプ
+            return
+        }
 
         board = result.board
         score += result.gained
@@ -47,8 +50,11 @@ public final class Game2048Model {
 
         if Game2048Logic.isGameOver(board) {
             gameOver = true
+            services?.feedback.notify(.error)
+            services?.gameDidFinish(gameID: gameID, outcome: .loss)
             services?.snapshots.clear(for: gameID) // 終局でスナップショット破棄
         } else {
+            services?.feedback.impact(result.gained > 0 ? .medium : .light)
             persist()
         }
     }

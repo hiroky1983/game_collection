@@ -5,6 +5,8 @@ import Core
 public struct Game2048View: View {
     private let services: GameServices
     @State private var model: Game2048Model
+    @State private var showRewardNotEarned = false
+    @State private var isContinuing = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -19,11 +21,13 @@ public struct Game2048View: View {
             Label("スワイプで動かそう", systemImage: "hand.draw.fill")
                 .font(Theme.body(14))
                 .foregroundStyle(Theme.inkSub)
+            RecommendationSlot(services: services, isFinished: model.gameOver)
             Spacer()
             BannerSlot(ads: services.ads)
         }
         .padding()
         .popBackground()
+        .reviewRequestPrompt(services.review)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -42,6 +46,11 @@ public struct Game2048View: View {
                     Label("リセット", systemImage: "arrow.clockwise")
                 }
             }
+        }
+        .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
     }
 
@@ -101,15 +110,24 @@ public struct Game2048View: View {
                 Text("ゲームオーバー").font(.title2.bold()).foregroundStyle(.white)
                 if !model.continueUsed {
                     Button {
+                        // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
+                        guard !isContinuing else { return }
+                        isContinuing = true
                         Task {
-                            let rewarded = await services.ads.showRewardedAd()
-                            if rewarded { withAnimation { model.continueAfterAd() } }
+                            // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                            if await services.ads.showRewardedAd() {
+                                withAnimation { model.continueAfterAd() }
+                            } else {
+                                showRewardNotEarned = true
+                            }
+                            isContinuing = false
                         }
                     } label: {
                         Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.coral)
+                    .disabled(isContinuing)
                 }
                 Button("もう一度") { withAnimation { model.newGame() } }
                     .buttonStyle(.bordered)

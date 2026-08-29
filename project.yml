@@ -11,6 +11,9 @@ packages:
   GoogleMobileAds:
     url: https://github.com/googleads/swift-package-manager-google-mobile-ads
     from: 11.0.0
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 12.17.0
 
 targets:
   GameCollection:
@@ -22,6 +25,7 @@ targets:
     resources:
       - App/PrivacyInfo.xcprivacy
       - App/Assets.xcassets
+      - App/GoogleService-Info.plist
     dependencies:
       - package: GameKit
         product: Core
@@ -41,8 +45,16 @@ targets:
         product: GameConcentration
       - package: GameKit
         product: GameBlackjack
+      - package: GameKit
+        product: GameDaifugo
+      - package: GameKit
+        product: GameMahjongSolitaire
       - package: GoogleMobileAds
         product: GoogleMobileAds
+      - package: Firebase
+        product: FirebaseAnalytics
+      - package: Firebase
+        product: FirebaseCrashlytics
     info:
       path: App/Info.plist
       properties:
@@ -55,14 +67,34 @@ targets:
         GADApplicationIdentifier: ca-app-pub-1869410932032409~4823987816
         NSUserTrackingUsageDescription: より関連性の高い広告を表示するために使用します。
         ITSAppUsesNonExemptEncryption: false
+    postBuildScripts:
+      # Crashlytics のクラッシュを記号化するための dSYM アップロード（Firebase 公式手順）
+      # SPM のチェックアウト先を移動する（-clonedSourcePackagesDirPath 等）と
+      # run が見つからずビルドが落ちるため、存在確認してから実行する。
+      - name: Firebase Crashlytics
+        script: |
+          RUN="${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"
+          if [ -x "$RUN" ]; then
+            "$RUN"
+          else
+            echo "warning: Crashlytics の run が見つからないため dSYM アップロードをスキップしました ($RUN)"
+          fi
+        inputFiles:
+          - ${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}
+          - $(SRCROOT)/$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba
-        MARKETING_VERSION: "1.0.2"
-        CURRENT_PROJECT_VERSION: "4"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "6"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         DEVELOPMENT_TEAM: WLUV6S77T5
         CODE_SIGN_STYLE: Automatic
+        # Firebase の静的ライブラリ内のクラス・カテゴリを取り込むために必須。
+        # 無いと FirebaseAnalytics が実バイナリからリンク落ちし、Crashlytics が
+        # 「Firebase Analytics SDK not detected」となる（Firebase 公式要件）。
+        OTHER_LDFLAGS: ["$(inherited)", "-ObjC"]
