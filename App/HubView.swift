@@ -98,7 +98,12 @@ struct HubView: View {
                 // 撮影・動作確認用: 提示条件を通さずにレコメンドカードを出す（`-simulateRecommendation <gameID>`）。
                 let args = ProcessInfo.processInfo.arguments
                 if let i = args.firstIndex(of: "-simulateRecommendation"), i + 1 < args.count {
-                    services.recommendations?.simulateSuggestion(gameID: args[i + 1])
+                    // 久しぶり枠（#335）の見出しは `-simulateRecommendationDays <日数>` を併せて渡す。
+                    let reason: RecommendationReason = args
+                        .firstIndex(of: "-simulateRecommendationDays")
+                        .flatMap { j in j + 1 < args.count ? Int(args[j + 1]) : nil }
+                        .map { .revisit(days: $0) } ?? .unplayed
+                    services.recommendations?.simulateSuggestion(gameID: args[i + 1], reason: reason)
                 }
                 // 撮影・動作確認用: 発火条件を通さずに評価リクエストを出す
                 // （`-startGame <id> -simulateReviewRequest` でそのゲームのリザルト経路に乗せる）。

@@ -244,13 +244,33 @@ public final class PlayLog {
         RecordFormat.hubLine(records(gameID: gameID))
     }
 
+    /// ゲームごとの最終プレイ日時（#335）。区分があるゲームは最も新しいものを代表にする。
+    ///
+    /// 日付を持たない記録（この項目が入る前に保存されたもの）は含めない。呼び出し側は
+    /// 「載っていない = いつ遊んだか分からないくらい前」として扱う。
+    public var lastPlayedAtByGame: [String: Date] {
+        var result: [String: Date] = [:]
+        for (key, record) in records {
+            guard let date = record.lastPlayedAt else { continue }
+            let gameID = key.split(separator: "#", maxSplits: 1).first.map(String.init) ?? key
+            if let existing = result[gameID], existing >= date { continue }
+            result[gameID] = date
+        }
+        return result
+    }
+
     /// 決着 1 回を記録して、更新後の記録と更新内訳を返す。
     ///
     /// 判定そのものは `PlayRecord.applying` に閉じ込め、ここは永続化だけを担う。
     @discardableResult
-    public func recordResult(gameID: String, outcome: GameOutcome, score: GameScore) -> RecordResult {
+    public func recordResult(
+        gameID: String,
+        outcome: GameOutcome,
+        score: GameScore,
+        at date: Date = Date()
+    ) -> RecordResult {
         let key = Self.recordKey(gameID: gameID, variant: score.variant)
-        let result = PlayRecord.applying(outcome: outcome, score: score, to: records[key])
+        let result = PlayRecord.applying(outcome: outcome, score: score, to: records[key], at: date)
         records[key] = result.record
         persistRecords()
         return result

@@ -109,7 +109,8 @@ struct RecommendationTableTests {
                 playedGameIDs: [finished],
                 availableIDs: hubOrder
             )
-            #expect(got == expected[0], "\(finished) の第1候補は \(expected[0])")
+            #expect(got?.gameID == expected[0], "\(finished) の第1候補は \(expected[0])")
+            #expect(got?.reason == .unplayed)
         }
     }
 
@@ -123,7 +124,7 @@ struct RecommendationTableTests {
                     playedGameIDs: played,
                     availableIDs: hubOrder
                 )
-                #expect(got == expected[skip], "\(finished): 上位\(skip)件が既プレイなら \(expected[skip])")
+                #expect(got?.gameID == expected[skip], "\(finished): 上位\(skip)件が既プレイなら \(expected[skip])")
             }
         }
     }
@@ -138,8 +139,8 @@ struct RecommendationTableTests {
             availableIDs: hubOrder
         )
         let expected = hubOrder.first { !played.contains($0) }
-        #expect(got == expected)
-        #expect(got == "minesweeper", "ハブ順で最初の未プレイ")
+        #expect(got?.gameID == expected)
+        #expect(got?.gameID == "minesweeper", "ハブ順で最初の未プレイ")
     }
 
     /// #237 の再発防止。値に一度も出てこないゲームは「他を遊んだ人には構造的に提案されない」。
@@ -200,16 +201,83 @@ struct RecommendationTableTests {
                 "テスト用レジストリと本体の差分: \(listed.symmetricDifference(fixture).sorted())")
     }
 
-    @Test("既プレイのゲームは候補にならない（全部遊んでいたら出さない）")
-    func neverSuggestsPlayedGames() {
+    /// #335: 以前は「未プレイが無ければ nil」で、12本を1回ずつ遊んだ時点でレコメンドが
+    /// 二度と出なくなっていた。未プレイが尽きたら久しぶり枠へ落ちる。
+    @Test("全ゲーム既プレイでも、最終プレイが最も古いゲームが提示される")
+    func fallsBackToLeastRecentlyPlayed() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // ハブ順に「新しく遊んだ」ほど後ろ。最も古いのは先頭の 2048。
+        var lastPlayedAt: [String: Date] = [:]
+        for (index, id) in hubOrder.enumerated() {
+            lastPlayedAt[id] = now.addingTimeInterval(-Double(hubOrder.count - index) * 86_400)
+        }
+
         for finished in hubOrder {
             let got = RecommendationPolicy.candidate(
                 finishedGameID: finished,
                 playedGameIDs: Set(hubOrder),
-                availableIDs: hubOrder
+                availableIDs: hubOrder,
+                lastPlayedAt: lastPlayedAt,
+                now: now
             )
-            #expect(got == nil, "\(finished): 未プレイが無ければ nil")
+            let expected = finished == "2048" ? "shogi" : "2048"
+            #expect(got?.gameID == expected, "\(finished): 最終プレイが最も古いゲーム")
+            #expect(got?.gameID != finished, "たった今遊び終えたゲームは勧めない")
+            if case .revisit = got?.reason {} else { Issue.record("\(finished): 久しぶり枠のはず") }
         }
+    }
+
+    @Test("久しぶり枠の日数は最終プレイからの経過日数（切り捨て・未来なら0日）")
+    func revisitDays() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func reason(daysAgo: Double) -> RecommendationReason? {
+            var lastPlayedAt = Dictionary(
+                uniqueKeysWithValues: hubOrder.map { ($0, now) }
+            )
+            lastPlayedAt["2048"] = now.addingTimeInterval(-daysAgo * 86_400)
+            return RecommendationPolicy.candidate(
+                finishedGameID: "shogi",
+                playedGameIDs: Set(hubOrder),
+                availableIDs: hubOrder,
+                lastPlayedAt: lastPlayedAt,
+                now: now
+            )?.reason
+        }
+        #expect(reason(daysAgo: 30) == .revisit(days: 30))
+        #expect(reason(daysAgo: 1.9) == .revisit(days: 1), "切り捨て")
+        #expect(reason(daysAgo: 0.5) == .revisit(days: 0))
+
+        // 端末の時計が巻き戻ると最終プレイが未来になりうる。「-5日ぶり」を出さない。
+        let future = RecommendationPolicy.candidate(
+            finishedGameID: "shogi",
+            playedGameIDs: Set(hubOrder),
+            availableIDs: hubOrder,
+            lastPlayedAt: Dictionary(
+                uniqueKeysWithValues: hubOrder.map { ($0, now.addingTimeInterval(5 * 86_400)) }
+            ),
+            now: now
+        )
+        #expect(future?.reason == .revisit(days: 0), "時計が巻き戻っても負の日数を出さない")
+
+        // 日付の記録が無い（この機能より前に遊んだ）ゲームは「最も古い」扱いで日数は nil。
+        let noDate = RecommendationPolicy.candidate(
+            finishedGameID: "shogi",
+            playedGameIDs: Set(hubOrder),
+            availableIDs: hubOrder,
+            lastPlayedAt: ["shogi": now],
+            now: now
+        )
+        #expect(noDate?.gameID == "2048", "日付の無いものはハブ順で先頭が出る")
+        #expect(noDate?.reason == .revisit(days: nil))
+    }
+
+    @Test("見出しは理由で出し分ける（久しぶり枠だけ日数を出す）")
+    func captionsPerReason() {
+        #expect(RecommendationReason.unplayed.caption == "次はこれで遊ぶ？")
+        #expect(RecommendationReason.revisit(days: 30).caption == "30日ぶりに遊んでみない？")
+        #expect(RecommendationReason.revisit(days: 1).caption == "1日ぶりに遊んでみない？")
+        #expect(RecommendationReason.revisit(days: 0).caption == "また遊んでみない？")
+        #expect(RecommendationReason.revisit(days: nil).caption == "ひさしぶりに遊んでみない？")
     }
 
     @Test("ハブで非表示にしているゲームは候補にならない")
@@ -221,7 +289,7 @@ struct RecommendationTableTests {
             playedGameIDs: ["shogi"],
             availableIDs: visible
         )
-        #expect(got == "othello")
+        #expect(got?.gameID == "othello")
 
         // 候補が1つも表示されていなければ nil。
         let onlyShogi = RecommendationPolicy.candidate(
@@ -229,7 +297,7 @@ struct RecommendationTableTests {
             playedGameIDs: ["shogi"],
             availableIDs: ["shogi"]
         )
-        #expect(onlyShogi == nil)
+        #expect(onlyShogi == nil, "自分以外に提示できるゲームが無ければ nil")
     }
 
     @Test("同じ入力なら常に同じ結果（ランダム要素が無い）")
@@ -242,7 +310,7 @@ struct RecommendationTableTests {
                     availableIDs: hubOrder
                 )
             }
-            #expect(Set(results.map { $0 ?? "nil" }).count == 1, "\(finished): 100回とも同じ結果")
+            #expect(Set(results.map { $0?.gameID ?? "nil" }).count == 1, "\(finished): 100回とも同じ結果")
         }
     }
 }
@@ -375,13 +443,58 @@ struct RecommendationServiceTests {
         #expect(log.state.ignoredStreak == RecommendationPolicy.stopStreak)
     }
 
-    @Test("未プレイのゲームが残っていなければ提示しない")
-    func silentWhenEverythingPlayed() {
-        let (_, service) = makeServices(suite: "service-all-played")
-        // 8ゲームを順に遊んで全て既プレイにしてから、20回に達するまで回す。
-        for id in hubOrder { service.gameDidFinish(gameID: id) }
-        advanceFinishes(service, count: 30, gameID: "shogi")
+    /// #335 の受け入れ条件。全ゲーム踏破後もレコメンドが出続けること（以前は永久に出なくなっていた）。
+    @Test("全ゲームを遊び尽くしても、久しぶり枠として提示され続ける")
+    func suggestsRevisitWhenEverythingPlayed() {
+        var clock = Date(timeIntervalSince1970: 1_800_000_000)
+        let (log, _) = makeLog(suite: "service-all-played")
+        let registry = makeRegistry()
+        let service = RecommendationService(
+            log: log,
+            availableModules: { hubOrder.compactMap { registry.module(id: $0) } },
+            now: { clock }
+        )
+        /// 本番の `GameServices.gameDidFinish` と同じ順（記録 → レコメンド判定）で1回ぶん進める。
+        func finish(_ id: String) {
+            log.recordResult(gameID: id, outcome: .loss, score: GameScore(), at: clock)
+            service.gameDidFinish(gameID: id)
+        }
+
+        // 12ゲームをハブ順に1回ずつ、1日ずつずらして遊ぶ（= 最も古いのは先頭の 2048）。
+        for id in hubOrder {
+            finish(id)
+            clock = clock.addingTimeInterval(86_400)
+        }
+        #expect(log.playedGameIDs.count == hubOrder.count, "全ゲーム既プレイ")
+
+        // 提示は20回目の終了から。19回目まではまだ出ない。
+        for _ in 0..<7 {
+            finish("shogi")
+            clock = clock.addingTimeInterval(3600)
+        }
+        #expect(service.suggestedGameID == nil, "19回目までは出さない")
+
+        finish("shogi")
+        #expect(service.suggestedGameID == "2048", "最終プレイが最も古いゲームが出る")
+        if case .revisit(let days?) = service.suggestedReason {
+            #expect(days >= 12, "12日以上ぶり（実際: \(days)日）")
+        } else {
+            Issue.record("久しぶり枠として提示されるはず（実際: \(service.suggestedReason)）")
+        }
+    }
+
+    /// 記録サービス（`PlayLog.records`）を持たない構成では最終プレイ日時が1件も無い。
+    /// その場合も「日付不明＝最も古い」に倒して提示は続ける（黙って消えない）。
+    @Test("最終プレイ日時が記録されていなくても、久しぶり枠は出る")
+    func suggestsRevisitWithoutDates() {
+        let (_, service) = makeServices(suite: "service-all-played-nodates")
+        for id in hubOrder { service.gameDidFinish(gameID: id) }   // 12回
+        advanceFinishes(service, count: 7, gameID: "shogi")        // 19回
         #expect(service.suggestedGameID == nil)
+
+        service.gameDidFinish(gameID: "shogi")                     // 20回目で提示
+        #expect(service.suggestedGameID == "2048", "日付が無ければハブ順で先頭（将棋以外）")
+        #expect(service.suggestedReason == .revisit(days: nil))
     }
 
     @Test("非表示のゲームは提示されない")

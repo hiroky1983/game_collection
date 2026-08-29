@@ -12,17 +12,22 @@ public struct RecommendationCard: View {
 
     private let module: GameModule
     private let accent: Color
+    private let caption: String
     private let onOpen: () -> Void
     private let onDismiss: () -> Void
 
+    /// - Parameter caption: 見出し（`RecommendationReason.caption`）。久しぶり枠では
+    ///   「◯日ぶりに遊んでみない？」に変わるため、**必ず1行に収める**（高さ契約・#139）。
     public init(
         module: GameModule,
         accent: Color,
+        caption: String,
         onOpen: @escaping () -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.module = module
         self.accent = accent
+        self.caption = caption
         self.onOpen = onOpen
         self.onDismiss = onDismiss
     }
@@ -40,9 +45,10 @@ public struct RecommendationCard: View {
                                 .foregroundStyle(.white)
                         }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("次はこれで遊ぶ？")
+                        Text(caption)
                             .themeCaption(Self.captionSize, weight: .semibold)
                             .foregroundStyle(Theme.inkSub)
+                            .lineLimit(1)
                         Text(module.title)
                             .themeBody(16)
                             .foregroundStyle(Theme.ink)
@@ -76,12 +82,16 @@ public struct RecommendationCard: View {
     /// 帳尻合わせに縮む画面がある。呼び出し側はこれを `ZStack` の高さの基準に置き、
     /// カードの有無で高さが動かないようにする。実カードと同じ寸法・同じフォントで組むため、
     /// カードの見た目を変えても基準がずれない。
+    ///
+    /// 見出しの文字列は見出しの**高さ**を決めるためだけのもので、実カードの文言
+    /// （`RecommendationReason.caption`）とは一致しなくてよい。実カード側を
+    /// `lineLimit(1)` に固定してあるので、文言が伸びても高さは変わらない。
     public static var heightPlaceholder: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .frame(width: iconSide, height: iconSide)
             VStack(alignment: .leading, spacing: 2) {
-                Text("次はこれで遊ぶ？").themeCaption(captionSize, weight: .semibold)
+                Text("次はこれで遊ぶ？").themeCaption(captionSize, weight: .semibold).lineLimit(1)
                 Text("　").themeBody(16)
             }
             Spacer(minLength: 4)
@@ -113,6 +123,7 @@ public struct RecommendationSlot: View {
             RecommendationCard(
                 module: module,
                 accent: service.suggestedAccent,
+                caption: service.suggestedReason.caption,
                 onOpen: { service.accept() },
                 onDismiss: { service.dismiss() }
             )

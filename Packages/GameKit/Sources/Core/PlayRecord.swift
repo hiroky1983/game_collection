@@ -80,6 +80,13 @@ public struct PlayRecord: Codable, Equatable, Sendable {
     public var bestSeconds: Int?
     /// 最少クリア手数。
     public var fewestMoves: Int?
+    /// 最後に決着した日時。レコメンドの「久しぶり枠」（#335）が使う。
+    ///
+    /// **必ず Optional にする**。旧データ（この項目が入る前に保存された JSON）には鍵が無く、
+    /// 非 Optional にすると `PlayLog` のデコードが丸ごと失敗して**全記録が空に倒れる**
+    /// （`PlayLog.init` の壊れた JSON へのフォールバック）。日付が無いものは
+    /// 「いつ遊んだか分からないくらい前」として扱う。
+    public var lastPlayedAt: Date?
 
     public init(
         metric: RecordMetric = .winLoss,
@@ -93,7 +100,8 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         bestPoints: Int? = nil,
         highestValue: Int? = nil,
         bestSeconds: Int? = nil,
-        fewestMoves: Int? = nil
+        fewestMoves: Int? = nil,
+        lastPlayedAt: Date? = nil
     ) {
         self.metric = metric
         self.variantLabel = variantLabel
@@ -107,6 +115,7 @@ public struct PlayRecord: Codable, Equatable, Sendable {
         self.highestValue = highestValue
         self.bestSeconds = bestSeconds
         self.fewestMoves = fewestMoves
+        self.lastPlayedAt = lastPlayedAt
     }
 
     /// 何か 1 つでも記録があるか。何も無いゲームはハブに 1 行も出さない。
@@ -160,13 +169,16 @@ public struct RecordResult: Equatable, Sendable {
 public extension PlayRecord {
     /// 決着 1 回を既存の記録に反映した結果を返す純粋関数。永続化から切り離してテストできるようにする。
     ///
-    /// - Parameter previous: それまでの記録。初回は nil。
+    /// - Parameters:
+    ///   - previous: それまでの記録。初回は nil。
+    ///   - at: 決着した日時（#335 の「久しぶり枠」に使う）。テストから固定できるよう引数で受ける。
     /// - Note: タイムと手数は**勝ち / クリアのときだけ**取り込む。負けた局の経過時間を
     ///   「最短クリアタイム」に混ぜると、投了した瞬間が常に最短になってしまうため。
     static func applying(
         outcome: GameOutcome,
         score: GameScore,
-        to previous: PlayRecord?
+        to previous: PlayRecord?,
+        at date: Date = Date()
     ) -> RecordResult {
         var record = previous ?? PlayRecord()
         var update = RecordUpdate()
@@ -176,6 +188,11 @@ public extension PlayRecord {
         if let label = score.variantLabel { record.variantLabel = label }
 
         record.plays += 1
+        // 前後する日時で呼ばれても巻き戻らない（端末の時計がずれて補正されたときなど）。
+        // 「最後に遊んだのはいつか」を古いほうに倒すと、久しぶり枠が実際より古い候補として拾う。
+        if date > (record.lastPlayedAt ?? .distantPast) {
+            record.lastPlayedAt = date
+        }
         switch outcome {
         case .win:
             record.wins += 1
