@@ -31,12 +31,19 @@ platform :ios do
     # 出荷する中身が確定するこの瞬間だけで落とす（理由はスクリプト冒頭のコメント）
     sh("bash", "../Scripts/check-aso-game-count.sh")
 
-    sh("xcodegen", "generate", "--project", "..")
+    # xcodegen の `--project` は**出力先**の指定で、spec の場所は `--spec`。
+    # fastlane の sh は fastlane/ を cwd に実行するため、spec を明示しないと
+    # fastlane/project.yml を探して落ちる（2026-08-30 に顕在化）。
+    sh("xcodegen", "generate", "--spec", "../project.yml", "--project", "..")
 
     build_app(
-      project: "../GameCollection.xcodeproj",
+      # 注意: `sh` は fastlane/ を cwd に走るが、**アクションはリポジトリルートを cwd に走る**。
+      # そのため sh の引数は `../` 始まり、build_app の path はルート相対で書く。
+      project: "GameCollection.xcodeproj",
       scheme: "GameCollection",
-      export_method: "app-store-connect",
+      # インストール済み fastlane が新表記 "app-store-connect" に未対応のため旧表記を使う
+      # （どのバージョンでも通る。中身は同じ App Store Connect 向け配布）。
+      export_method: "app-store",
       export_options: {
         teamID: TEAM_ID,
         signingStyle: "automatic",
