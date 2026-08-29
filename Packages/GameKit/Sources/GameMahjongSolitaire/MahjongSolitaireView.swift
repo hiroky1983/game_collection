@@ -17,6 +17,9 @@ public struct MahjongSolitaireView: View {
     /// nil なら今と同じかたちのまま配り直す。
     @State private var pendingLayout: MahjongSolitaireLayout?
     @State private var showShuffleFailed = false
+    @State private var showShuffleConfirm = false
+    @State private var isRequestingShuffle = false
+    @State private var showShuffleNotEarned = false
     /// 盤面の場所にクリアの表示を出しているか（#199）。
     ///
     /// `model.phase` を直に見ると、最後の 2 枚は `faces` が nil になるのと**同じ更新**で
@@ -103,6 +106,19 @@ public struct MahjongSolitaireView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("残った牌が重なっていて取り切れません。「最初から」で新しい盤面を配ってください。")
+        }
+        // 並べ替えはリワード広告制（会長指示 2026-08-30）。将棋の「待った」と同じく、
+        // 広告が出ることをダイアログで予告してから視聴に進める（突然の広告を出さない）。
+        .alert("並べ替え確認", isPresented: $showShuffleConfirm) {
+            Button("広告を見て並べ替える") { requestShuffle() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("広告を視聴すると、残りの牌をそこから必ず取り切れる配置に並べ替えます。")
+        }
+        .alert("並べ替えできませんでした", isPresented: $showShuffleNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
         .overlay {
             if model.isDeadlocked { deadlockOverlay }
@@ -405,8 +421,11 @@ public struct MahjongSolitaireView: View {
             controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.teal, showsTitle: showsTitle) {
                 model.showHint()
             }
+            // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。#199 の 3 ボタン化
+            // （ViewThatFits）と衝突したため、レイアウトは #199 側・押したときの挙動は
+            // #324 側を採って統合した。ここから確認ダイアログ → 視聴 → 並べ替えの順に進む。
             controlButton("並べ替え", systemImage: "shuffle", tint: Theme.purple, showsTitle: showsTitle) {
-                if !model.shuffleRemaining() { showShuffleFailed = true }
+                showShuffleConfirm = true
             }
             undoButton(showsTitle: showsTitle)
         }
@@ -514,6 +533,22 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 手詰まり
 
+    /// リワード広告を最後まで見たときだけ並べ替える（数独のヒントと同じ契約・#64 のアラート統一）。
+    /// 視聴中の連打で2本目の広告が失敗して誤アラートが出ないよう `isRequestingShuffle` で塞ぐ。
+    private func requestShuffle() {
+        guard !isRequestingShuffle else { return }
+        isRequestingShuffle = true
+        Task {
+            if await services.ads.showRewardedAd() {
+                // 広告を見たのに並べ替わらない盤面（取り切れない残り方）は黙って終わらせない。
+                if !model.shuffleRemaining() { showShuffleFailed = true }
+            } else {
+                showShuffleNotEarned = true
+            }
+            isRequestingShuffle = false
+        }
+    }
+
     private var deadlockOverlay: some View {
         ZStack {
             Color.black.opacity(0.45).ignoresSafeArea()
@@ -522,15 +557,15 @@ public struct MahjongSolitaireView: View {
                 Text("取れる牌がありません")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.ink)
-                Text("残りを並べ替えると、そこから必ず取り切れる配置になります。")
+                Text("広告を見ると残りが並べ替わり、そこから必ず取り切れる配置になります。")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
                     .multilineTextAlignment(.center)
 
                 Button {
-                    if !model.shuffleRemaining() { showShuffleFailed = true }
+                    requestShuffle()
                 } label: {
-                    Label("並べ替える", systemImage: "shuffle")
+                    Label("広告を見て並べ替える", systemImage: "play.rectangle.fill")
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
