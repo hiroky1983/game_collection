@@ -53,7 +53,7 @@ public struct SudokuView: View {
                 Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
             }
             ToolbarItem(placement: .principal) {
-                Text("数独")
+                Text("ナンプレ")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
