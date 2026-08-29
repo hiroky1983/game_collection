@@ -188,7 +188,11 @@ public extension PlayRecord {
         if let label = score.variantLabel { record.variantLabel = label }
 
         record.plays += 1
-        record.lastPlayedAt = date
+        // 前後する日時で呼ばれても巻き戻らない（端末の時計がずれて補正されたときなど）。
+        // 「最後に遊んだのはいつか」を古いほうに倒すと、久しぶり枠が実際より古い候補として拾う。
+        if date > (record.lastPlayedAt ?? .distantPast) {
+            record.lastPlayedAt = date
+        }
         switch outcome {
         case .win:
             record.wins += 1

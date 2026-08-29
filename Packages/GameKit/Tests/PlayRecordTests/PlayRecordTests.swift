@@ -424,6 +424,15 @@ struct PlayRecordStorageTests {
         )
 
         #expect(log.lastPlayedAtByGame["minesweeper"] == newer, "区分をまたいで最新")
+        // 同じ区分に古い日時で書き込んでも巻き戻らない（CodeRabbit 指摘）。
+        log.recordResult(
+            gameID: "minesweeper", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 40, variant: "15x15-40", variantLabel: "上級"),
+            at: older
+        )
+        #expect(log.record(gameID: "minesweeper", variant: "15x15-40")?.lastPlayedAt == newer,
+                "古い日時で上書きされない")
+        #expect(log.lastPlayedAtByGame["minesweeper"] == newer)
         // 再起動しても保持される（records と同じ1キーに入っているだけで、キーは増えない）。
         #expect(PlayLog(defaults: defaults).lastPlayedAtByGame["minesweeper"] == newer)
         #expect(Set((defaults.persistentDomain(forName: name) ?? [:]).keys) == Set(PlayLog.playRecordKeys),
