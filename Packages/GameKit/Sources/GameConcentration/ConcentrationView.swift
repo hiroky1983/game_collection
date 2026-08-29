@@ -6,6 +6,7 @@ public struct ConcentrationView: View {
     private let services: GameServices
     @State private var showNewGame = false
     @State private var showMattaConfirm = false
+    @State private var showRewardNotEarned = false
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -20,11 +21,13 @@ public struct ConcentrationView: View {
             if !model.isGameOver {
                 mattaControls
             }
+            RecommendationSlot(services: services, isFinished: model.isGameOver)
             Spacer(minLength: 4)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
         .popBackground()
+        .reviewRequestPrompt(services.review)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -61,7 +64,13 @@ public struct ConcentrationView: View {
         .alert("待った確認", isPresented: $showMattaConfirm) {
             Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
                 Task {
-                    if model.mattaUsed { await services.ads.showInterstitial() }
+                    if model.mattaUsed {
+                        // 視聴完了（報酬獲得）したときだけ待ったを許可する
+                        guard await services.ads.showRewardedAd() else {
+                            showRewardNotEarned = true
+                            return
+                        }
+                    }
                     model.useMatta()
                 }
             }
@@ -70,6 +79,11 @@ public struct ConcentrationView: View {
             Text(model.mattaUsed
                  ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                  : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
+        }
+        .alert("待ったは使えませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()

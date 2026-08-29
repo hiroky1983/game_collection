@@ -119,21 +119,32 @@ public final class GomokuModel {
     }
 
     public func tap(row: Int, col: Int) {
-        guard !gameOver, !isAITurn, board[row, col] == nil else { return }
+        guard !gameOver, !isAITurn else { return }
+        guard board[row, col] == nil else {
+            services?.feedback.notify(.warning) // 埋まっているマスへの着手
+            return
+        }
         place(row: row, col: col)
     }
 
     private func place(row: Int, col: Int) {
+        let mover = currentStone
         board[row, col] = currentStone
         moves.append((row, col, currentStone))
         lastMove = (row, col)
         moveCount += 1
         if board.checkWin(row: row, col: col) {
             winner = currentStone
+            services?.feedback.notify(mover == humanSide ? .success : .error)
+            services?.gameDidFinish(gameID: gameID, outcome: mover == humanSide ? .win : .loss)
         } else if board.isFull {
             isDraw = true
+            services?.feedback.notify(.warning)
+            services?.gameDidFinish(gameID: gameID, outcome: .draw)
         } else {
             currentStone = currentStone.opponent
+            // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
+            if mover == humanSide { services?.feedback.impact(.medium) }
         }
         persist()
     }
@@ -177,6 +188,8 @@ public final class GomokuModel {
         guard !gameOver else { return }
         resigned = true
         winner = humanSide.opponent
+        services?.feedback.notify(.error)
+        services?.gameDidFinish(gameID: gameID, outcome: .loss)
         persist()
     }
 

@@ -42,6 +42,11 @@ public final class OthelloModel {
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
+    /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    public var reviewOutcome: GameOutcome {
+        if isDraw { return .draw }
+        return winner == humanSide ? .win : .loss
+    }
     public var blackCount: Int { board.count(for: .black) }
     public var whiteCount: Int { board.count(for: .white) }
     public var canUndo: Bool {
@@ -81,7 +86,10 @@ public final class OthelloModel {
 
     public func tap(row: Int, col: Int) {
         guard !gameOver, !isAITurn, !mustPass else { return }
-        guard board.isValid(row: row, col: col, stone: currentStone) else { return }
+        guard board.isValid(row: row, col: col, stone: currentStone) else {
+            services?.feedback.notify(.warning) // 石を返せないマスへの着手
+            return
+        }
         saveUndoState()
         place(row: row, col: col)
     }
@@ -93,6 +101,7 @@ public final class OthelloModel {
         currentStone = currentStone.opponent
         turnID      += 1
         checkTermination()
+        notifyTermination()
         persist()
     }
 
@@ -112,6 +121,8 @@ public final class OthelloModel {
     public func resign() {
         guard !gameOver else { return }
         winner = humanSide.opponent
+        services?.feedback.notify(.error)
+        services?.gameDidFinish(gameID: gameID, outcome: .loss)
         persist()
     }
 
@@ -160,12 +171,30 @@ public final class OthelloModel {
     }
 
     private func place(row: Int, col: Int) {
+        let mover = currentStone
         board.place(row: row, col: col, stone: currentStone)
         lastMove     = (row, col)
         currentStone = currentStone.opponent
         turnID      += 1
         checkTermination()
+        // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
+        if !notifyTermination(), mover == humanSide {
+            services?.feedback.impact(.medium)
+        }
         persist()
+    }
+
+    /// 決着していれば結果を触覚で伝える。決着していなければ false（呼び出し側が着手音を出す）。
+    @discardableResult
+    private func notifyTermination() -> Bool {
+        guard gameOver else { return false }
+        if isDraw {
+            services?.feedback.notify(.warning)
+        } else {
+            services?.feedback.notify(winner == humanSide ? .success : .error)
+        }
+        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        return true
     }
 
     private func checkTermination() {

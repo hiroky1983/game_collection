@@ -39,6 +39,11 @@ public final class ConcentrationModel {
         return nil
     }
     public var isDraw: Bool { isGameOver && playerScore == cpuScore }
+    /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    public var reviewOutcome: GameOutcome {
+        if isDraw { return .draw }
+        return winner == .human ? .win : .loss
+    }
     public var isHumanTurn: Bool { currentPlayer == .human }
     public var canMatta: Bool { !isGameOver && isHumanTurn && !mismatchedIndices.isEmpty }
 
@@ -58,9 +63,11 @@ public final class ConcentrationModel {
     // MARK: - Public Actions
 
     public func tap(index: Int) {
-        guard currentPlayer == .human, !isThinking else { return }
-        guard !cards[index].isFaceUp, !cards[index].isMatched else { return }
-        guard mismatchedIndices.isEmpty else { return }
+        guard currentPlayer == .human, !isThinking, !isGameOver else { return }
+        guard !cards[index].isFaceUp, !cards[index].isMatched, mismatchedIndices.isEmpty else {
+            services?.feedback.notify(.warning) // めくり済み・獲得済み、または不一致の表示中
+            return
+        }
         flipCard(index: index)
         persist()
     }
@@ -80,6 +87,7 @@ public final class ConcentrationModel {
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
+        services?.feedback.impact(.rigid)
         persist()
     }
 
@@ -188,6 +196,9 @@ public final class ConcentrationModel {
     }
 
     private func flipCard(index: Int) {
+        // めくった手応えは自分がめくったときだけ。CPU の手番では鳴らさない
+        // （1ターンで2枚めくるため、鳴らすと触れていない間に連続で振動してしまう）。
+        let isHumanMove = currentPlayer == .human
         cards[index].isFaceUp = true
         ai.observe(index: index, symbol: cards[index].symbol)
 
@@ -200,19 +211,28 @@ public final class ConcentrationModel {
                 lastMatchedIndices = [first, index]
                 if currentPlayer == .human { playerScore += 1 } else { cpuScore += 1 }
                 checkGameOver()
+                if !isGameOver, isHumanMove { services?.feedback.impact(.medium) } // ペア成立
             } else {
                 lastMatchedIndices = []
                 mismatchedIndices = [first, index]
+                if isHumanMove { services?.feedback.impact(.light) }
             }
         } else {
             firstFlippedIndex = index
             lastMatchedIndices = []
+            if isHumanMove { services?.feedback.impact(.light) }
         }
     }
 
     private func checkGameOver() {
         if cards.allSatisfy({ $0.isMatched }) {
             isGameOver = true
+            if isDraw {
+                services?.feedback.notify(.warning)
+            } else {
+                services?.feedback.notify(winner == .human ? .success : .error)
+            }
+            services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
             services?.snapshots.clear(for: gameID)
         }
     }

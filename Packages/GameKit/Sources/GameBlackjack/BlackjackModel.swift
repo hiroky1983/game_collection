@@ -84,6 +84,16 @@ public final class BlackjackModel {
     public private(set) var outcome: BlackjackOutcome? = nil
     public private(set) var sessionOver: Bool = false
 
+    /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
+    /// プッシュは引き分け、バストは敗北として扱う。
+    public var reviewOutcome: GameOutcome {
+        switch outcome {
+        case .playerBlackjack, .win: return .win
+        case .push:                  return .draw
+        default:                     return .loss
+        }
+    }
+
     public var playerValue: Int { handValue(playerHand) }
     public var dealerValue: Int { handValue(dealerHand) }
     public var dealerVisibleValue: Int {
@@ -126,7 +136,11 @@ public final class BlackjackModel {
     // MARK: - Betting
 
     public func placeBet(_ amount: Int) {
-        guard phase == .betting, chips >= amount, amount > 0 else { return }
+        guard phase == .betting, amount > 0 else { return }
+        guard chips >= amount else {
+            services?.feedback.notify(.warning) // チップ不足でベットできない
+            return
+        }
         bet = amount
         deal()
     }
@@ -143,6 +157,7 @@ public final class BlackjackModel {
             resolveResult()
             return
         }
+        services?.feedback.impact(.medium) // カードを配る
         persist()
     }
 
@@ -156,9 +171,12 @@ public final class BlackjackModel {
             chips -= bet
             bet = 0
             phase = .result
+            services?.feedback.notify(.error)
+            services?.gameDidFinish(gameID: gameID, outcome: .loss)
             checkSessionOver()
             persist()
         } else {
+            services?.feedback.impact(.light) // 1枚引く
             persist()
         }
     }
@@ -203,6 +221,12 @@ public final class BlackjackModel {
 
         bet = 0
         phase = .result
+        switch outcome {
+        case .playerBlackjack, .win: services?.feedback.notify(.success)
+        case .push:                  services?.feedback.notify(.warning)
+        default:                     services?.feedback.notify(.error)
+        }
+        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
         checkSessionOver()
         services?.snapshots.clear(for: gameID)
     }
@@ -227,17 +251,20 @@ public final class BlackjackModel {
 
     // MARK: - Reward Ad Recovery
 
-    public func recoverChipsAfterAd() {
-        Task {
-            await services?.ads.showInterstitial()
-            chips = 500
-            sessionOver = false
-            outcome = nil
-            playerHand = []
-            dealerHand = []
-            bet = 0
-            phase = .betting
-        }
+    /// リワード広告を表示し、**視聴完了したときだけ**チップを回復する。
+    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
+    @discardableResult
+    public func recoverChipsAfterAd() async -> Bool {
+        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        chips = 500
+        sessionOver = false
+        outcome = nil
+        playerHand = []
+        dealerHand = []
+        bet = 0
+        phase = .betting
+        return true
     }
 
     // MARK: - Restart

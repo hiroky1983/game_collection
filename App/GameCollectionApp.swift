@@ -1,10 +1,16 @@
 import SwiftUI
 import Core
+import FirebaseCore
 
 @main
 struct GameCollectionApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var attRequested = false
+    @State private var adsInitialized = false
+
+    init() {
+        // Firebase Analytics / Crashlytics の初期化（デフォルトの自動収集イベントのみ）
+        FirebaseApp.configure()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -12,14 +18,18 @@ struct GameCollectionApp: App {
                 registry: AppEnvironment.registry,
                 services: AppEnvironment.services,
                 settings: AppEnvironment.settings,
-                initialGameID: startGameID
+                initialGameID: startGameID,
+                showsSettingsInitially: showSettingsOnLaunch
             )
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active && !attRequested {
-                attRequested = true
+            // 起動時は広告の初期化だけ行い、ATT 許可は聞かない（初回起動の1枚目がシステムダイアログに
+            // なるのを避ける。実際に聞くのは最初のゲームを遊び終えてハブに戻った時点＝HubView）。
+            // 撮影モードは広告そのものを出さない（NoopAdService）ので SDK の初期化も走らせない。
+            if newPhase == .active && !adsInitialized && !AppEnvironment.isScreenshotMode {
+                adsInitialized = true
                 Task {
-                    await requestATTAndInitializeAds()
+                    await initializeAds()
                 }
             }
         }
@@ -29,5 +39,11 @@ struct GameCollectionApp: App {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-startGame"), i + 1 < args.count else { return nil }
         return args[i + 1]
+    }
+
+    /// 撮影モードで設定画面を撮るための起動引数（`-screenshotMode -showSettings`）。
+    private var showSettingsOnLaunch: Bool {
+        AppEnvironment.isScreenshotMode
+            && ProcessInfo.processInfo.arguments.contains("-showSettings")
     }
 }

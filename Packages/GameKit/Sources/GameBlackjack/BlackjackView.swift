@@ -5,6 +5,8 @@ public struct BlackjackView: View {
     @State private var model: BlackjackModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
+    @State private var showRewardNotEarned = false
+    @State private var isRecoveringChips = false
 
     // ベット選択肢
     private let betOptions = [50, 100, 200, 500]
@@ -25,10 +27,12 @@ public struct BlackjackView: View {
             } else {
                 actionArea
             }
+            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
         .popBackground()
+        .reviewRequestPrompt(services.review)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -42,6 +46,11 @@ public struct BlackjackView: View {
                 Text("ブラックジャック")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+        }
+        .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
     }
 
@@ -238,11 +247,20 @@ public struct BlackjackView: View {
                 Spacer()
             }
 
-            Button { model.recoverChipsAfterAd() } label: {
+            Button {
+                // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
+                guard !isRecoveringChips else { return }
+                isRecoveringChips = true
+                Task {
+                    if await model.recoverChipsAfterAd() == false { showRewardNotEarned = true }
+                    isRecoveringChips = false
+                }
+            } label: {
                 Label("広告を見てチップ回復 (+500枚)", systemImage: "play.rectangle.fill")
                     .font(Theme.body(16)).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+            .disabled(isRecoveringChips)
 
             Button { model.restartSession() } label: {
                 Text("最初からやり直す (1000枚)").font(Theme.body(16)).frame(maxWidth: .infinity)
