@@ -807,6 +807,7 @@ public struct MahjongView: View {
     }
 
     static let windNames = ["東", "南", "西", "北"]
+
 }
 
 // MARK: - Start Sheet
