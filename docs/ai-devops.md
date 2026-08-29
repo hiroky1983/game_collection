@@ -53,6 +53,15 @@
   git diff --exit-code "$before" HEAD -- App Packages
   ```
   引数なしの `git diff --stat` は作業ツリーと index しか見ないため、マージ済みの差分の確認にはならない。
+  - **例外: `lp-game-list.yml` は release ブランチへ同期しない**（2026-08-29 追加）。このワークフローは
+    「LP（`web/app/lib/games.ts`）の顔ぶれ = **同じツリーの** GameRegistry」を検証するが、
+    2026-08-28 の web/ ポリシー改定で **release ブランチの `web/` は原則メンテナンスしない**運用になった
+    （未リリース内容の LP は該当 release ブランチに積むが、実際に積まれるのは新ゲーム追加の PR に
+    限られる）。そのため release ブランチでは registry だけが先に増え、LP は古いままになるのが**正常**で、
+    ここへ同期するとブランチ全体の CI が恒久的に赤くなり、無関係な PR まで止まる
+    （実測: 2026-08-29 時点の `release/v1.1.1` は registry 12 本に対し LP 10 本で、
+    `mahjong4` と `sudoku` が欠けて exit 1 になる）。LP と registry の一致は
+    **main へのマージ時点**で担保する（公開時に「配信予定」を外す PR で揃える。v1.1.0 では `b8658ee`）。
   **凍結後（`lock_branch: true`）はこの同期も行わない**。CI 定義の是正が必要になった場合だけ、
   下記「審査に提出した時点で〜」の凍結解除の手順（会長の承認）に従う。同期を怠ると、
   release ブランチだけが古い CI 定義で動き続ける:
