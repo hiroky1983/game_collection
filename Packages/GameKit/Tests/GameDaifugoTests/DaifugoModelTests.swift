@@ -750,10 +750,17 @@ struct DaifugoCancelTests {
             currentPlayer: 1
         )
 
-        // 先行タスク A を起動し、yield で「フラグを立てて sleep に入る」ところまで進める
-        // （MainActor は投入順に実行されるため、この yield で A は最初の suspend まで走る）。
+        // 先行タスク A を起動し、「フラグを立てて sleep に入った」ことを確認してから B を作る。
+        // 単発の `Task.yield()` では A の開始が保証されない（CodeRabbit 指摘）ため、
+        // フラグを同期ゲートとして待つ。MainActor は直列なので、テストがフラグ=true を
+        // 観測できた時点で A はフラグ設定後の最初の suspend（= cpuDelay の sleep）に入っている。
         let taskA = Task { await model.runCPUTurnsIfNeeded() }
-        await Task.yield()
+        var gate = 0
+        while !model.isRunningCPUTurns, gate < 1_000 {
+            gate += 1
+            await Task.yield()
+        }
+        try? #require(model.isRunningCPUTurns, "先行タスクが開始しなかった")
         // 差し替えを再現する: 新タスク B を起動してから A をキャンセルする。
         let taskB = Task { await model.runCPUTurnsIfNeeded() }
         taskA.cancel()

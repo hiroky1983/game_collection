@@ -77,7 +77,9 @@ public final class DaifugoModel {
     /// `@Observable` の追跡対象にはせず参照のたびに読む。
     private let hints: FeedbackPreference
     /// CPU の連続手番が二重に走らないようにする門番（View から複数回呼ばれても1本に保つ）。
-    private var isRunningCPUTurns = false
+    /// `internal` なのはテストが「先行タスクが開始した」ことを確認する同期ゲートに使うため
+    /// （`Task.yield()` 単発では開始を保証できない・#287 の PR レビュー指摘）。
+    var isRunningCPUTurns = false
     /// 「結果まで進める」が押されたか（#191）。以降の CPU 手番は間合いを取らずに消化する。
     public private(set) var isSkippingToResult = false
 
