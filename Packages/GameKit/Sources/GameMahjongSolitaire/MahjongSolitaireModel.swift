@@ -201,17 +201,28 @@ public final class MahjongSolitaireModel {
         return true
     }
 
+    /// ヒントを出せる状態か（#336）。
+    ///
+    /// ヒントはリワード広告制なので、**視聴の前にここで弾く**。手詰まりの盤面で広告だけ見せて
+    /// 何も起きない、という対価の無い状態を作らないための門（数独の `canHint` と同じ役割）。
+    public var canHint: Bool { phase == .playing && availablePairCount > 0 }
+
     /// 取れる組を 1 組だけ光らせる。
-    public func showHint() {
-        guard phase == .playing else { return }
+    ///
+    /// 出せなかったときは false を返す（#336）。広告の視聴中に盤面が変わって手詰まりになる経路が
+    /// 理屈のうえでは残るため、「広告を見たのに何も起きなかった」ことを呼び出し側へ伝える。
+    @discardableResult
+    public func showHint() -> Bool {
+        guard phase == .playing else { return false }
         guard let pair = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout).first else {
             services?.feedback.notify(.warning)
-            return
+            return false
         }
         hintPair = [pair.0, pair.1]
         hintCount += 1
         services?.feedback.impact(.light)
         persist()
+        return true
     }
 
     /// 残っている牌を並べ替えて、そこから必ず取り切れる配置に作り直す。
