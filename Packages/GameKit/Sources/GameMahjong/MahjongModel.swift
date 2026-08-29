@@ -71,6 +71,9 @@ struct MahjongSnapshot: Codable {
     let discardedKinds: [[Int]]?
     let revealedDoraCount: Int?
     let deadWallDraws: Int?
+    /// トビ復活（#338）を使い切ったか。中断を挟んでも「1 半荘 1 回まで」を守るために持ち回る。
+    /// 上と同じ理由で任意（古い中断データは「まだ使っていない」扱いになる）。
+    let hasRevivedThisGame: Bool?
 }
 
 // MARK: - Model
@@ -128,6 +131,9 @@ public final class MahjongModel {
     /// CPU 起動用の通し番号 × 手数。
     public private(set) var turnCount = 0
     public private(set) var gameSerial = 0
+    /// トビで終わった対局を、リワード広告を見て続けられる状態か（#338）。
+    /// 1 半荘 1 回までで、自分がトビたときにだけ立つ。
+    public private(set) var canReviveAfterBust = false
 
     /// ロンの提示。
     public struct RonOffer: Equatable, Sendable {
@@ -176,6 +182,8 @@ public final class MahjongModel {
     private var riichiTurn: [Int?] = Array(repeating: nil, count: playerCount)
     /// アガリやめが成立し、この局で東風戦を終えるか。
     private var endsAfterThisHand = false
+    /// この半荘でトビ復活（#338）を既に使ったか。1 半荘 1 回までの制限に使う。
+    private var hasRevivedThisGame = false
 
     private let services: GameServices?
     private let gameID = "mahjong4"
@@ -219,6 +227,7 @@ public final class MahjongModel {
                 ?? snap.discards.map { Set($0.map(MahjongTileOrder.index(of:))) }
             revealedDoraCount = snap.revealedDoraCount ?? 1
             deadWallDraws = snap.deadWallDraws ?? 0
+            hasRevivedThisGame = snap.hasRevivedThisGame ?? false
             phase = .playing
         }
     }
@@ -387,6 +396,8 @@ public final class MahjongModel {
         ranking = []
         recordResult = nil
         endsAfterThisHand = false
+        hasRevivedThisGame = false
+        canReviveAfterBust = false
         gameSerial += 1
         startHand()
         services?.gameDidRestart(gameID: gameID)
@@ -997,6 +1008,57 @@ public final class MahjongModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss)
         )
+        // 自分がトビて終わった対局は、リワード広告で 1 半荘 1 回だけ続けられる（#338）。
+        // 決着の通知（`gameDidFinish`）はここまでで従来どおり済ませ、復活したときに
+        // 記録側だけを巻き戻す（2048・マインスイーパーのコンティニューと同じ扱い。`reviveAfterAd`）。
+        canReviveAfterBust = didBustOut && !hasRevivedThisGame
+    }
+
+    /// 自分がトビて最下位で終わった対局か。次の 3 つは false（そのまま終局にする）:
+    /// - 東 4 局を終えた・アガリやめが同時に成立している → 復活しても続ける局が無い
+    /// - CPU だけがトビた → 自分は生き残っているので続ける動機が無い
+    ///   （ポーカー・ブラックジャックの「自分のチップが尽きたときだけ回復を出す」形に揃える）
+    /// - 自分がマイナスでも最下位ではない（複数人が同時にトビた稀なケース）→ 記録の巻き戻しが
+    ///   `PlayLog.cancelLoss`（= 負けの取り消し）しか無く、負け以外を取り消す手段が無いため対象外にする
+    private var didBustOut: Bool {
+        scores[Self.humanIndex] < 0
+            && reviewOutcome == .loss
+            && !endsAfterThisHand
+            && roundNumber <= Self.playerCount
+    }
+
+    /// リワード広告を表示し、**視聴完了したときだけ**トビ終了から復活して対局を続ける（#338）。
+    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり復活させる。
+    ///
+    /// 復活はマイナスの持ち点を初期値（25,000 点）へ戻すだけなので、点棒の合計は 100,000 点を
+    /// 超える。救済措置なので合計の保存より「そのまま続けられること」を優先する。
+    /// `concludeGame` でトップが回収した供託も戻さない（回収済みとして続ける）。
+    @discardableResult
+    public func reviveAfterAd() async -> Bool {
+        guard canReviveAfterBust else { return false }
+        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        hasRevivedThisGame = true
+        canReviveAfterBust = false
+        // 同じ半荘の続きなので、直前に記録した「負け」は無かったことにする（2048・マインスイーパーの
+        // コンティニューと同じ扱い）。そのままだと 1 半荘が 2 回（トビの負け + 復活後の最終着順）
+        // として数えられ、広告を見るほど通算成績が増える抜け道になる。
+        services?.playLog?.cancelLoss(gameID: gameID)
+        recordResult = nil
+        for player in 0..<Self.playerCount where scores[player] < 0 {
+            scores[player] = Self.startingScore
+        }
+        ranking = []
+        // 局と親は決着時に次へ進んでいる（`finishHand`）ので、そのまま次の局を配る。
+        startHand()
+        // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158。
+        // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる）。
+        services?.gameDidRestart(gameID: gameID)
+        // Game Center（#289）は送信済みのぶんを取り消さない。四人打ち麻雀はリーダーボードの
+        // 対象外（勝敗しか残らない対 CPU 戦のため `GameCenterLeaderboard` に登録が無い）で、
+        // 実績の進捗は勝利数と遊んだゲーム数から作られる。トビ = 負けなので勝利数は増えておらず、
+        // 「麻雀を遊んだ」という事実も復活で変わらないため、巻き戻す対象がそもそも無い。
+        return true
     }
 
     // MARK: - CPU
@@ -1149,7 +1211,8 @@ public final class MahjongModel {
             melds: melds,
             discardedKinds: discardedKinds.map { Array($0).sorted() },
             revealedDoraCount: revealedDoraCount,
-            deadWallDraws: deadWallDraws
+            deadWallDraws: deadWallDraws,
+            hasRevivedThisGame: hasRevivedThisGame
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -1202,6 +1265,18 @@ public final class MahjongModel {
         self.turnCount = 1
         self.phase = .playing
     }
+
+    #if DEBUG
+    /// 撮影・動作確認用（DEBUG 限定）: トビ終了のリザルト（復活ボタンが出る状態）をその場で作る（#338）。
+    /// トビは実プレイでは稀にしか起きず、シミュレータは自動タップができないため、非対話で
+    /// この画面を確認する経路が要る（`-solitaireHintConfirm` と同じ理由・#336）。
+    func simulateBustResultForTesting() {
+        scores = [-1_000, 30_000, 35_000, 36_000]
+        roundNumber = 2
+        handResult = nil
+        concludeGame()
+    }
+    #endif
 
     /// テスト専用: 自分の手番でのカン（暗槓・加槓）を経由させる。
     func declareKanForTesting(_ call: MahjongCall, by player: Int) {

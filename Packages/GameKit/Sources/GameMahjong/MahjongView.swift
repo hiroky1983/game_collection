@@ -10,6 +10,9 @@ public struct MahjongView: View {
     /// 誤タップ防止: 1タップ目は選択（浮かせる演出）だけ、同じ牌をもう1回タップしたら実際に切る。
     /// 複数枚ある牌を区別できるよう `stableHandIDs` の合成ID（牌の値＋出現順）で管理する。
     @State private var selectedTileID: String?
+    /// トビ復活（#338）。ポーカー・ブラックジャックの「広告を見てチップ回復」と同じ持ち方。
+    @State private var showRewardNotEarned = false
+    @State private var isReviving = false
 
     public init(services: GameServices) {
         self.services = services
@@ -97,6 +100,14 @@ public struct MahjongView: View {
             .interactiveDismissDisabled(true)
         }
         .task {
+            #if DEBUG
+            // 撮影・動作確認用（DEBUG 限定）: トビ終了のリザルト（復活ボタン）をタップ無しで出す（#338）。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongBustResult") {
+                showStartSheet = false
+                model.simulateBustResultForTesting()
+                return
+            }
+            #endif
             // 中断から戻ったときに手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
@@ -109,6 +120,11 @@ public struct MahjongView: View {
         }
         .onChange(of: model.currentPlayer) {
             selectedTileID = nil
+        }
+        .alert("復活できませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
     }
 
@@ -681,10 +697,36 @@ public struct MahjongView: View {
                 }
             }
             RecordLabel(model.recordResult)
+            if model.canReviveAfterBust { reviveButton }
         }
         .frame(maxWidth: .infinity)
         .padding(16)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// トビで終わったときだけ出る復活導線（#338）。ポーカー・ブラックジャックの
+    /// 「広告を見てチップ回復」と同じ形（リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
+    private var reviveButton: some View {
+        Button {
+            // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
+            guard !isReviving else { return }
+            isReviving = true
+            Task {
+                let revived = await model.reviveAfterAd()
+                isReviving = false
+                if revived {
+                    await model.runCPUTurnsIfNeeded()
+                } else {
+                    showRewardNotEarned = true
+                }
+            }
+        } label: {
+            Label("広告を見て25,000点で復活", systemImage: "play.rectangle.fill")
+                .themeBody(16).frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+        .disabled(isReviving)
+        .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
     }
 
     /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。`pointChanges` で
