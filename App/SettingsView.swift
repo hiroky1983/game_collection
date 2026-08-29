@@ -51,10 +51,51 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
+
+                    Toggle(isOn: Binding(
+                        get: { settings.soundEnabled },
+                        set: { settings.soundEnabled = $0 }
+                    )) {
+                        Label("効果音", systemImage: "speaker.wave.2")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
                 } header: {
                     Text("フィードバック")
                 } footer: {
-                    Text("駒を置く・マスを開く・勝敗が決まるといった場面で端末を軽く振動させます。")
+                    Text("駒を置く・マスを開く・勝敗が決まるといった場面で、端末を軽く振動させたり短い効果音を鳴らしたりします。効果音は本体を消音（サイレント）にしているときは鳴らず、ほかのアプリで再生中の音楽も止めません。")
+                }
+
+                // MARK: ヒント
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.hintsEnabled },
+                        set: { settings.hintsEnabled = $0 }
+                    )) {
+                        Label("ヒント表示", systemImage: "lightbulb")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
+                } header: {
+                    Text("ヒント")
+                } footer: {
+                    Text("大富豪で、いま出せるカードを枠の色で目立たせ、出せない組を選んだときはその理由を1行で表示します。オフにすると何も表示しません。")
+                }
+
+                // MARK: 解析
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.analyticsEnabled },
+                        set: { settings.analyticsEnabled = $0 }
+                    )) {
+                        Label("利用状況の送信", systemImage: "chart.bar.doc.horizontal")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
+                } header: {
+                    Text("解析")
+                } footer: {
+                    Text("どのあそびがどれくらい遊ばれているかを知るために、あそびの名前・勝敗・かかった時間を送ります。スコアや盤面、名前や連絡先のような個人を特定できる情報は送りません。オフにすると、これらに加えて起動回数などの自動計測もまとめて送信を止めます。")
                 }
 
                 // MARK: プレイ記録
@@ -73,12 +114,12 @@ struct SettingsView: View {
                             Button("消去する", role: .destructive) { playLog.clear() }
                             Button("キャンセル", role: .cancel) {}
                         } message: {
-                            Text("遊んだ回数・勝った回数と、おすすめや評価のお願いの表示履歴を消します。")
+                            Text("ベストスコア・最短タイム・勝敗と連勝の記録、遊んだ回数・勝った回数、おすすめや評価のお願い・遊び方ガイドの表示履歴を消します。元に戻せません。")
                         }
                     } header: {
                         Text("プレイ記録")
                     } footer: {
-                        Text("「次はこれで遊ぶ？」のおすすめと、アプリ評価のお願いを出すために、遊んだ回数・勝った回数・遊んだあそびの種類・おすすめと評価のお願いの表示履歴をこの端末に保存しています（送信はしません）。盤面やスコアは残していません。")
+                        Text("あそびごとのベストスコア・最短タイム・勝敗と連勝を、遊んだ回数・勝った回数・遊んだあそびの種類・おすすめと評価のお願い・遊び方ガイドの表示履歴とあわせてこの端末に保存しています（送信はしません）。盤面や棋譜は残していません。")
                     }
                 }
 
@@ -152,7 +193,7 @@ struct SettingsView: View {
                             .foregroundStyle(.white)
                     }
                 Text(module.title)
-                    .font(Theme.body(16))
+                    .themeBody(16)
                     .foregroundStyle(isVisible ? Theme.ink : Theme.inkSub)
             }
         }

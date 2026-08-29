@@ -83,6 +83,8 @@ public final class BlackjackModel {
     public private(set) var phase: BlackjackPhase = .betting
     public private(set) var outcome: BlackjackOutcome? = nil
     public private(set) var sessionOver: Bool = false
+    /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     /// プッシュは引き分け、バストは敗北として扱う。
@@ -92,6 +94,11 @@ public final class BlackjackModel {
         case .push:                  return .draw
         default:                     return .loss
         }
+    }
+
+    /// 今のラウンドの成績。チップは精算後の残高で、これが「最高チップ数」の自己ベストになる。
+    private var currentScore: GameScore {
+        GameScore(metric: .points, points: chips)
     }
 
     public var playerValue: Int { handValue(playerHand) }
@@ -104,9 +111,12 @@ public final class BlackjackModel {
     private var deck: [BlackjackCard] = []
     private let gameID = "blackjack"
     private let services: GameServices?
+    private var seed: UInt64?
 
-    public init(services: GameServices? = nil) {
+    /// - Parameter seed: テスト用の固定種。nil ならシステムの乱数を使う。
+    public init(services: GameServices? = nil, seed: UInt64? = nil) {
         self.services = services
+        self.seed = seed
         if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: "blackjack") {
             self.playerHand = snap.playerHand
             self.dealerHand = snap.dealerHand
@@ -148,10 +158,13 @@ public final class BlackjackModel {
     // MARK: - Deal
 
     private func deal() {
-        deck = makeDeck().shuffled()
+        deck = shuffledDeck()
         playerHand = [drawCard(), drawCard()]
         dealerHand = [drawCard(), drawCard()]
         phase = .playerTurn
+        // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
+        // 決着が即決まるブラックジャックでも `game_start` が先に立つよう、判定より前に数える（#158）。
+        services?.gameDidRestart(gameID: gameID)
 
         if isBlackjack(playerHand) {
             resolveResult()
@@ -172,7 +185,7 @@ public final class BlackjackModel {
             bet = 0
             phase = .result
             services?.feedback.notify(.error)
-            services?.gameDidFinish(gameID: gameID, outcome: .loss)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
             checkSessionOver()
             persist()
         } else {
@@ -226,7 +239,7 @@ public final class BlackjackModel {
         case .push:                  services?.feedback.notify(.warning)
         default:                     services?.feedback.notify(.error)
         }
-        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: currentScore)
         checkSessionOver()
         services?.snapshots.clear(for: gameID)
     }
@@ -270,6 +283,7 @@ public final class BlackjackModel {
     // MARK: - Restart
 
     public func restartSession() {
+        recordResult = nil
         chips = 1000
         sessionOver = false
         outcome = nil
@@ -294,8 +308,38 @@ public final class BlackjackModel {
         return cards
     }
 
+    /// 山札を切る。`seed` があるときは決定的に切り、次の配りが同じにならないよう種を進める。
+    private func shuffledDeck() -> [BlackjackCard] {
+        var cards = makeDeck()
+        if let current = seed {
+            var generator = BlackjackSeededGenerator(seed: current)
+            cards.shuffle(using: &generator)
+            seed = generator.next()
+        } else {
+            cards.shuffle()
+        }
+        return cards
+    }
+
     private func drawCard() -> BlackjackCard {
-        if deck.isEmpty { deck = makeDeck().shuffled() }
+        if deck.isEmpty { deck = shuffledDeck() }
         return deck.removeFirst()
+    }
+}
+
+// MARK: - Seeded RNG
+
+/// テスト用の決定的な乱数生成器（SplitMix64）。本番は `seed` を渡さないので system の乱数を使う。
+struct BlackjackSeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) { self.state = seed }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
     }
 }

@@ -6,7 +6,7 @@ public struct DaifugoView: View {
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showStartSheet = true
-    @State private var showRuleSheet = false
+    @State private var showResignConfirm = false
 
     public init(services: GameServices) {
         self.services = services
@@ -22,16 +22,23 @@ public struct DaifugoView: View {
             // 決着後は場も手札も空になるので、代わりに階級のリザルトを出す。
             if model.phase == .result {
                 resultCard
+                    .transition(.opacity)
                 Spacer(minLength: 2)
             } else {
                 fieldArea
+                    .transition(.opacity)
                 Spacer(minLength: 0)
                 handArea
+                    .transition(.opacity)
             }
+            HowToPlayHint(.daifugo, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
             BannerSlot(ads: services.ads)
         }
+        // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
+        // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
+        .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
         .popBackground()
         .reviewRequestPrompt(services.review)
@@ -48,16 +55,24 @@ public struct DaifugoView: View {
                 Text("大富豪")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
-            #if os(iOS)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showRuleSheet = true } label: {
-                    Image(systemName: "list.bullet.rectangle")
+            // 中断すると次回は必ず「続きから」に戻るため、局面を降りる導線をここに置く（#194）。
+            // 他ゲームのツールバーはアイコンだけだが、旗単体では「投了」と読めない。ツールバーは
+            // `Label` を渡してもアイコンだけに畳むので、文字を出すために `Text` を直接渡す。
+            ToolbarItem(placement: .primaryAction) {
+                Button { showResignConfirm = true } label: {
+                    Text("投了")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                 }
+                .disabled(!model.canResign)
             }
-            #endif
         }
-        .sheet(isPresented: $showRuleSheet) {
-            NavigationStack { DaifugoRuleSheet() }
+        // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
+        .howToPlay(.daifugo) { DaifugoRuleSheet() }
+        .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
+            Button("投了する", role: .destructive) { model.resign() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
         }
         .sheet(isPresented: $showStartSheet) {
             DaifugoStartSheet {
@@ -78,7 +93,7 @@ public struct DaifugoView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
-                .font(Theme.body(13))
+                .themeBody(13)
                 .foregroundStyle(Theme.inkSub)
             if model.isRevolution {
                 Text("革命中")
@@ -152,9 +167,11 @@ public struct DaifugoView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(Theme.inkSub.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
                         .frame(width: 56, height: 78)
+                        .transition(.opacity)
                 } else {
                     ForEach(model.field) { card in
                         DaifugoCardView(card: card, size: .large)
+                            .transition(.scale.combined(with: .opacity))
                     }
                 }
             }
@@ -162,15 +179,23 @@ public struct DaifugoView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 22)
         .popCard(corner: Theme.cornerSmall)
+        // 誰が出しても場は同じ経路（`field` の差し替え）で更新されるので、CPU の手も人間の手も
+        // ここ1箇所で演出できる。見出しの「場は流れています」も同じ変化で切り替わる（#195）。
+        .gameAnimation(.easeInOut(duration: 0.18), value: model.field)
+        // 場は「何が出ているか」が分かればよいので 1 要素にまとめる（#188）。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(DaifugoAccessibility.fieldLabel(model.field))
     }
 
     // MARK: - 手札
 
     private var handArea: some View {
-        VStack(spacing: 6) {
+        // 1枚ごとに引くと合法手の探索が手札の枚数ぶん走るので、ここで1回だけ求める（#190）。
+        let handHint = model.handHint
+        return VStack(spacing: 6) {
             HStack {
                 Text("あなた（残り\(model.playerHand.count)枚）")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if !model.lastActions[DaifugoModel.humanIndex].isEmpty {
@@ -179,18 +204,67 @@ public struct DaifugoView: View {
                         .foregroundStyle(Theme.teal)
                 }
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: DaifugoHandLayout.columnSpacing),
+                    count: DaifugoHandLayout.columns
+                ),
+                spacing: DaifugoHandLayout.rowSpacing
+            ) {
                 ForEach(model.playerHand) { card in
                     let isSelected = model.selected.contains(card.id)
-                    DaifugoCardView(card: card, size: .small, selected: isSelected)
+                    let hint = handHint?.state(for: card.id) ?? .none
+                    DaifugoCardView(card: card, size: .small, selected: isSelected, hint: hint)
                         .offset(y: isSelected ? -6 : 0)
-                        .animation(.spring(response: 0.2), value: isSelected)
+                        .gameAnimation(.spring(response: 0.2), value: isSelected)
+                        // 見えるカードは 42pt のまま、タップ判定だけを列いっぱいに広げて
+                        // 44pt 以上にする（#195）。`offset` は判定の位置に影響しない。
+                        .frame(maxWidth: .infinity, minHeight: DaifugoHandLayout.minimumTapTarget)
+                        .contentShape(Rectangle())
                         .onTapGesture { model.toggleSelection(card) }
+                        .transition(.scale.combined(with: .opacity))
+                        // カードは `onTapGesture` で組んでいるため、Button と違って
+                        // ボタン trait も読み上げ文も自動では付かない（#188）。
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            DaifugoAccessibility.handCardLabel(card, isSelected: isSelected, hint: hint)
+                        )
+                        .accessibilityHint("ダブルタップで選択を切り替えます")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { model.toggleSelection(card) }
+                        // CPU の手番では `toggleSelection` が何もしないので、
+                        // 操作可能として案内しない（描画は素の図形なので見た目は変わらない）。
+                        .disabled(!model.isPlayerTurn)
                 }
             }
+            // 出した札が手札から消える／交換で増える変化を演出する（#195）。
+            .gameAnimation(.easeInOut(duration: 0.18), value: model.playerHand)
+            hintLine(handHint)
         }
-        .padding(.horizontal, 12).padding(.vertical, 12)
+        .padding(.horizontal, DaifugoHandLayout.horizontalPadding).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 手札の下に出す1行の案内（#190）。
+    /// 出せない組を選んでいればその理由を、選んでいなければ「1枚も出せない」ときだけ助言を出す。
+    @ViewBuilder
+    private func hintLine(_ handHint: DaifugoHandHint?) -> some View {
+        let message = model.selectionIssue
+            ?? (handHint?.playable.isEmpty == true ? "出せる組がありません。パスしてください" : nil)
+        if let message {
+            HStack(spacing: 4) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text(message)
+                    // 受け入れ条件どおり1行に収める。文字を拡大しても高さが跳ねないよう縮めて入れる（#189）。
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .foregroundStyle(Theme.coral)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     // MARK: - 操作
@@ -200,9 +274,17 @@ public struct DaifugoView: View {
         switch model.phase {
         case .idle:
             EmptyView()
+        case .playing where model.isPlayerFinished:
+            // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
+            actionButton("結果まで進める", color: Theme.coral, disabled: model.isSkippingToResult) {
+                model.skipToResult()
+                Task { await model.runCPUTurnsIfNeeded() }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
-                actionButton("パス", color: Theme.inkSub, disabled: !model.canPass) {
+                actionButton("パス", color: Theme.fillMuted, disabled: !model.canPass) {
                     model.pass()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
@@ -229,6 +311,20 @@ public struct DaifugoView: View {
 
     // MARK: - リザルト
 
+    /// リザルト見出しに添える但し書き。投了は反則上がりより下の扱いなので先に見る（#194）。
+    private var humanResultNote: String? {
+        if model.resigned.contains(DaifugoModel.humanIndex) { return "投了" }
+        if model.fouls.contains(DaifugoModel.humanIndex) { return "反則上がり" }
+        return nil
+    }
+
+    /// 順位表の各行に添える但し書き（見出しより短く詰める）。
+    private func rankRowNote(_ player: Int) -> String? {
+        if model.resigned.contains(player) { return "投了" }
+        if model.fouls.contains(player) { return "反則" }
+        return nil
+    }
+
     private var resultCard: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
@@ -238,8 +334,8 @@ public struct DaifugoView: View {
                 Text("あなたは \(model.playerTitle)")
                     .font(.system(size: 17, weight: .black, design: .rounded))
                     .foregroundStyle(model.playerPlace == 0 ? Theme.teal : Theme.ink)
-                if model.fouls.contains(DaifugoModel.humanIndex) {
-                    Text("反則上がり")
+                if let note = humanResultNote {
+                    Text(note)
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 8).padding(.vertical, 3)
@@ -255,12 +351,12 @@ public struct DaifugoView: View {
                             .foregroundStyle(.white)
                             .frame(width: 58)
                             .padding(.vertical, 3)
-                            .background(Capsule().fill(place == 0 ? Theme.yellow : Theme.inkSub))
+                            .background(Capsule().fill(place == 0 ? Theme.yellow : Theme.fillMuted))
                         Text(model.playerName(player))
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coral : Theme.ink)
-                        if model.fouls.contains(player) {
-                            Text("反則")
+                        if let note = rankRowNote(player) {
+                            Text(note)
                                 .font(.system(size: 10, weight: .bold, design: .rounded))
                                 .foregroundStyle(Theme.coral)
                         }
@@ -268,6 +364,8 @@ public struct DaifugoView: View {
                     }
                 }
             }
+            RecordLabel(model.recordResult)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Text("次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
@@ -280,15 +378,49 @@ public struct DaifugoView: View {
     private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(Theme.body(14))
+                .themeBody(14)
+                // 文字を拡大すると「カードを選ぶ」「コール 20枚」等が折り返して
+                // ボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
                 .foregroundStyle(disabled ? Theme.inkSub : .white)
         }
-        .buttonStyle(.plain)
+        // `.plain` は装飾を消す代わりに押下フィードバックまで消してしまうので、
+        // 背景・文字色はそのまま通しつつ押下時だけ縮むスタイルに替える（#195）。
+        .buttonStyle(.pop)
         .disabled(disabled)
+    }
+}
+
+// MARK: - 手札グリッドの寸法
+
+/// 手札グリッドの寸法（#195）。
+///
+/// 見た目のカード幅は 42pt（`DaifugoCardView.Size.small`）のままで、**タップ判定だけ**を
+/// 列いっぱいに広げて 44pt 以上にする。列は `GridItem(.flexible())` なので実効幅は画面幅で決まり、
+/// 列間隔 4pt のままでは最小構成の端末で 44pt を割っていた。間隔を 0 にして幅を列へ回し、
+/// 見た目の隙間は「列幅 − カード幅」で従来とほぼ同じに保つ。
+///
+/// 実効幅の計算をここに置いてビュー側からも参照するのは、寸法を変えたときに
+/// `DaifugoHandLayoutTests` の検証と実装がずれないようにするため。
+enum DaifugoHandLayout {
+    static let columns = 7
+    static let columnSpacing: CGFloat = 0
+    static let rowSpacing: CGFloat = 6
+    /// 手札カード（`popCard`）の内側の左右余白。
+    static let horizontalPadding: CGFloat = 12
+    /// Apple HIG の最小タップ標的。
+    static let minimumTapTarget: CGFloat = 44
+
+    /// 画面幅 `screenWidth` のときの、手札1枚あたりのタップ判定の幅。
+    /// 画面外周の `Theme.pad` と手札カードの内側余白を引いた残りを列数で割る。
+    static func tapWidth(screenWidth: CGFloat) -> CGFloat {
+        let available = screenWidth - Theme.pad * 2 - horizontalPadding * 2
+        return (available - columnSpacing * CGFloat(columns - 1)) / CGFloat(columns)
     }
 }
 
@@ -306,6 +438,22 @@ struct DaifugoCardView: View {
     let card: DaifugoCard
     var size: Size = .small
     var selected: Bool = false
+    /// 出せる / 出せないの区別（#190）。`.none` なら素の見た目のまま。
+    var hint: DaifugoCardHint = .none
+
+    /// 出せない札は色に頼らず**明度**でも落として区別する（色覚特性の影響を受けないため）。
+    private var isDimmed: Bool { hint == .unplayable && !selected }
+
+    private var borderColor: Color {
+        if selected { return Theme.coral }
+        if hint == .playable { return Theme.teal }
+        return Color.gray.opacity(0.2)
+    }
+
+    private var borderWidth: CGFloat {
+        if selected { return 2 }
+        return hint == .playable ? 1.5 : 0.5
+    }
 
     var body: some View {
         ZStack {
@@ -315,7 +463,7 @@ struct DaifugoCardView: View {
                         radius: selected ? 6 : 3, y: 2)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(selected ? Theme.coral : Color.gray.opacity(0.2), lineWidth: selected ? 2 : 0.5)
+                        .stroke(borderColor, lineWidth: borderWidth)
                 )
 
             if card.isJoker {
@@ -337,6 +485,7 @@ struct DaifugoCardView: View {
             }
         }
         .frame(width: size.width, height: size.height)
+        .opacity(isDimmed ? 0.4 : 1)
     }
 }
 
@@ -350,7 +499,7 @@ struct DaifugoStartSheet: View {
             VStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ゲームの流れ")
-                        .font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+                        .themeBody(15).foregroundStyle(Theme.inkSub)
                     ruleRow("1", "CPU3人と対戦。手札を早く出し切るほど上の階級")
                     ruleRow("2", "場と同じ枚数で、より強い組だけ出せる")
                     ruleRow("3", "出せない・出したくないときはパス")
@@ -382,7 +531,7 @@ struct DaifugoStartSheet: View {
                 Button {
                     onStart()
                 } label: {
-                    Text("ゲーム開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }

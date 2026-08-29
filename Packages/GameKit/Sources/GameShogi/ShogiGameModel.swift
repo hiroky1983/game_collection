@@ -30,6 +30,8 @@ public final class ShogiGameModel {
     public private(set) var resigned: Bool
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
     private let gameID = "shogi"
@@ -78,6 +80,16 @@ public final class ShogiGameModel {
             self.resultText = "あなたの負け（投了）"
             self.phase = .review
         }
+        // 将棋だけは終局後の検討画面をスナップショットに残す（他ゲームは終局で破棄する）。
+        // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
+        // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
+        // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
+        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+            self.recordResult = RecordResult(record: record, update: RecordUpdate())
+        }
+        // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if snap == nil { services?.gameDidStart(gameID: gameID) }
     }
 
     // MARK: - 表示用
@@ -197,7 +209,11 @@ public final class ShogiGameModel {
             resultText = (loser == .black ? "先手" : "後手") + "の負け（詰み）"
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
-            services?.gameDidFinish(gameID: gameID, outcome: loser == humanSide ? .loss : .win)
+            recordResult = services?.gameDidFinish(
+                gameID: gameID,
+                outcome: loser == humanSide ? .loss : .win,
+                score: GameScore(metric: .winLoss)
+            )
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
             services?.feedback.impact(.medium)
@@ -222,13 +238,18 @@ public final class ShogiGameModel {
         resultText = nil
         undoUsed = false
         resigned = false
+        recordResult = nil
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
         startedAt = startedAtFallback()
         gameSerial += 1
+        // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（#145）。
+        // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
+        isThinking = false
         clearSelection()
         persist()
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// 人間が指している側（CPU 戦の表示用）。
@@ -238,6 +259,12 @@ public final class ShogiGameModel {
 
     public private(set) var isThinking: Bool = false
 
+    /// 思考タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
+    /// `isThinking = true` と局面の取り込みが済んだ直後・探索の開始前に await する。
+    /// テストはここで思考を止めることで、「探索の完了待ちで停止中」という状態を
+    /// 探索の所要時間に依存せず決定論的に作れる（#172）。
+    @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
+
     /// View の `.task(id:)` に渡す CPU 起動トリガー。
     /// 手数だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
     /// CPU の初手が起動しない（#82）。対局の通し番号と組にする。
@@ -246,17 +273,24 @@ public final class ShogiGameModel {
     /// AI の手番なら最善手を計算して指す。View から手番変化のたびに呼ぶ。
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
+        // 計算中に新規対局が始まると、旧局面で選んだ手が新しい局面に指されうる
+        // （初期局面同士なら合法性の確認を通ってしまう）。開始時のトリガー
+        // （対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する（#145）。
+        let key = aiTurnKey
+        let serial = gameSerial
         isThinking = true
-        defer { isThinking = false }
+        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
+        defer { if gameSerial == serial { isThinking = false } }
 
         let level = aiLevel
         let sfen = position.toSFEN()
+        await thinkingGate?()
         let usi = await Task.detached(priority: .userInitiated) {
             await SimpleMinimaxEngine(level: level).bestMove(sfen: sfen)
         }.value
 
         // 計算中に状況が変わっていないか確認してから着手。
-        guard isAITurn, let usi, let move = Move.fromUSI(usi),
+        guard aiTurnKey == key, isAITurn, let usi, let move = Move.fromUSI(usi),
               legalMovesCache.contains(move) else { return }
         apply(move)
     }
@@ -295,7 +329,7 @@ public final class ShogiGameModel {
         resigned = true
         gameOver = true
         services?.feedback.notify(.error)
-        services?.gameDidFinish(gameID: gameID, outcome: .loss)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: GameScore(metric: .winLoss))
         resultText = "あなたの負け（投了）"
         phase = .review
         reviewPly = moves.count
@@ -355,10 +389,4 @@ public final class ShogiGameModel {
 
     // Date.now を init 前に使えないため分離。
     private func startedAtFallback() -> Date { Date() }
-}
-
-/// CPU 起動トリガーの識別子（対局の通し番号 × 手数）。
-public struct AITurnKey: Hashable, Sendable {
-    public let gameSerial: Int
-    public let ply: Int
 }

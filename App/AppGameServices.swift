@@ -1,4 +1,5 @@
 import Foundation
+import GameKit
 import Core
 import Game2048
 import GameShogi
@@ -10,6 +11,8 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
+import GameSudoku
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -18,12 +21,53 @@ enum AppEnvironment {
     static let services = GameServices(
         snapshots: FileSnapshotStore(),
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
-        feedback: GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
+        // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
+        feedback: CompositeFeedbackService([
+            GatedFeedbackService(base: HapticFeedbackService()) { settings.hapticsEnabled },
+            GatedFeedbackService(base: SoundFeedbackService()) { settings.soundEnabled },
+        ]),
         recommendations: recommendations,
-        review: review
+        review: review,
+        playLog: playLog,
+        analytics: analytics,
+        gameCenter: gameCenter
     )
 
-    /// プレイ履歴（回数カウンタと遊んだゲームの ID だけ。盤面・スコアは持たない）。
+    /// Game Center のリーダーボード・実績（#289 段階②③）。
+    /// **未サインイン**では `isAvailable` が false になり、送信そのものが起きない。
+    /// サインイン済みのままオフラインになった場合は送信を試みるが、投げっぱなしなので
+    /// ゲームの進行は待たされない（失敗した実績は次の決着で送り直す）。
+    /// 撮影モードは広告・解析と同じ理由で止める（動作確認の記録を実データに混ぜない）。
+    static let gameCenter = GameCenterReporter(
+        service: isScreenshotMode ? NoopGameCenterService() : AppGameCenterService(),
+        // ハブに登録済みのゲーム ID だけを対象にする（`analytics` と同じ方針）。
+        // 実績「全ゲームを 1 回ずつ遊ぶ」の分母もこの件数になる。
+        allowedGameIDs: Set(registry.modules.map(\.id)),
+        isAvailable: { GKLocalPlayer.local.isAuthenticated }
+    )
+
+    /// 解析イベント（#158）。送るのは `game_start` / `game_end` の2種だけ。
+    /// 設定でオフにすると `GatedAnalyticsService` が Firebase へ渡さない。
+    /// 撮影モードは広告と同じ理由で送信そのものを止める（動作確認の操作を実データに混ぜない）。
+    static let analytics = GameAnalytics(
+        service: GatedAnalyticsService(
+            base: isScreenshotMode ? NoopAnalyticsService() : FirebaseAnalyticsService()
+        ) { settings.analyticsEnabled },
+        // ハブに登録済みのゲーム ID だけを送信対象にする（未知の文字列が game_id にならない）。
+        allowedGameIDs: Set(registry.modules.map(\.id))
+    )
+
+    /// 設定の「利用状況の送信」を **Firebase SDK 全体の収集状態**へ反映する。
+    ///
+    /// `GatedAnalyticsService` は `game_start` / `game_end` しか止められないため、これを呼ばないと
+    /// オフにしても自動収集イベント（`session_start` 等）が送られ続け、設定画面の説明と食い違う。
+    /// 起動直後（`FirebaseApp.configure()` の後）と、トグルを切り替えたときに呼ぶ。
+    static func applyAnalyticsCollectionState() {
+        // 撮影モードは広告と同じ理由で送信そのものを止める（動作確認の操作を実データに混ぜない）。
+        FirebaseAnalyticsService.setCollectionEnabled(!isScreenshotMode && settings.analyticsEnabled)
+    }
+
+    /// プレイ履歴（回数カウンタ・遊んだゲームの ID・ゲーム別の記録。盤面や棋譜は持たない）。
     static let playLog = PlayLog()
 
     /// ゲーム間レコメンド。候補はハブに並んでいるゲーム（非表示を除く）に限る。
@@ -54,17 +98,24 @@ enum AppEnvironment {
     }
 
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
+    /// 並び順 = 新規インストール時の既定表示順（会長判断・2026-08-24）。ゲーム数が増えて
+    /// 1画面で全ては見渡せなくなったため、五目並べ・神経衰弱を下へ、麻雀（4人打ち）を上へ寄せた。
+    /// 既にアプリを使っている人の並びには影響しない（`GameSettings` はユーザーの並び替えを
+    /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
         Game2048Module(),
         ShogiModule(),
-        GomokuModule(),
-        MinesweeperModule(),
+        MahjongModule(),
         OthelloModule(),
-        PokerModule(),
-        ConcentrationModule(),
-        BlackjackModule(),
-        DaifugoModule(),
         MahjongSolitaireModule(),
+        DaifugoModule(),
+        PokerModule(),
+        BlackjackModule(),
+        MinesweeperModule(),
+        GomokuModule(),
+        ConcentrationModule(),
+        // 数独（#262）は末尾に足す。上の並びは会長判断で決めたものなので順序は動かさない。
+        SudokuModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

@@ -30,6 +30,12 @@ public enum RecommendationPolicy {
         "blackjack":     ["poker", "concentration", "2048"],
         "daifugo":       ["poker", "blackjack", "concentration"],
         "mahjong":       ["concentration", "minesweeper", "2048"],
+        // 四人打ち麻雀（#106）。牌が同じで手軽な麻雀ソリティア、同じ CPU 対戦の大富豪、
+        // 役の考え方が近いポーカーの順で近い。
+        "mahjong4":      ["mahjong", "daifugo", "poker"],
+        // 数独（#262）。1人でじっくり詰める点でマインスイーパー・2048 が近く、
+        // 同じ「盤面を消していく」手触りの麻雀ソリティアを第3候補に置く。
+        "sudoku":        ["minesweeper", "2048", "mahjong"],
     ]
 
     /// 現在の提示間隔。無視が続いているほど広がる。

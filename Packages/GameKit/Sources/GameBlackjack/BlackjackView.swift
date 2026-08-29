@@ -19,9 +19,18 @@ public struct BlackjackView: View {
     public var body: some View {
         VStack(spacing: 10) {
             chipsBar
-            dealerArea
-            Spacer(minLength: 4)
-            playerArea
+            // 配牌前は両者の手札が空で、テーブルを出すと白い空箱が画面の大半を占める。
+            // ベットを促す1枚のカードに差し替え、配牌後に本来のテーブルへ切り替える。
+            if isBeforeDeal {
+                Spacer(minLength: 0)
+                preDealTable
+                Spacer(minLength: 0)
+            } else {
+                dealerArea
+                Spacer(minLength: 4)
+                playerArea
+            }
+            HowToPlayHint(.blackjack, playLog: services.playLog)
             if model.sessionOver {
                 sessionOverView
             } else {
@@ -47,6 +56,7 @@ public struct BlackjackView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
         }
+        .howToPlay(.blackjack)
         .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -59,16 +69,44 @@ public struct BlackjackView: View {
     private var chipsBar: some View {
         HStack {
             Label("チップ: \(model.chips)枚", systemImage: "circle.hexagongrid.fill")
-                .font(Theme.body(14))
+                .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
             if model.bet > 0 {
                 Label("ベット: \(model.bet)枚", systemImage: "dollarsign.circle.fill")
-                    .font(Theme.body(14))
+                    .themeBody(14)
                     .foregroundStyle(Theme.yellow)
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    // MARK: - Pre-deal Table
+
+    /// 手札が両者とも空で、これからベットする局面か
+    private var isBeforeDeal: Bool {
+        model.phase == .betting && model.dealerHand.isEmpty && model.playerHand.isEmpty
+    }
+
+    private var preDealTable: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 8) {
+                BJCardPlaceholder()
+                BJCardPlaceholder()
+            }
+            VStack(spacing: 6) {
+                Text("ベットするとカードが配られます")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Text("21 に近いほうが勝ち。ディーラーは 17 以上で止まります。")
+                    .themeBody(13)
+                    .foregroundStyle(Theme.inkSub)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 14).padding(.vertical, 18)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -78,7 +116,7 @@ public struct BlackjackView: View {
         VStack(spacing: 10) {
             HStack {
                 Text("ディーラー")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                 Spacer()
                 if model.phase == .result || model.phase == .dealerTurn {
@@ -93,9 +131,15 @@ public struct BlackjackView: View {
             }
 
             HStack(spacing: 8) {
-                ForEach(Array(model.dealerHand.enumerated()), id: \.element.id) { idx, card in
-                    let hidden = idx == 1 && model.phase == .playerTurn
-                    BJCardView(card: card, faceUp: !hidden)
+                if model.dealerHand.isEmpty {
+                    // 配牌前に中身が空だと「白い空箱」に見えるため、カードが配られる位置を示す
+                    BJCardPlaceholder()
+                    BJCardPlaceholder()
+                } else {
+                    ForEach(Array(model.dealerHand.enumerated()), id: \.element.id) { idx, card in
+                        let hidden = idx == 1 && model.phase == .playerTurn
+                        BJCardView(card: card, faceUp: !hidden)
+                    }
                 }
             }
             .frame(minHeight: 90)
@@ -110,7 +154,7 @@ public struct BlackjackView: View {
         VStack(spacing: 10) {
             HStack {
                 Text("あなた")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if !model.playerHand.isEmpty {
@@ -124,8 +168,13 @@ public struct BlackjackView: View {
             }
 
             HStack(spacing: 8) {
-                ForEach(model.playerHand) { card in
-                    BJCardView(card: card, faceUp: true)
+                if model.playerHand.isEmpty {
+                    BJCardPlaceholder()
+                    BJCardPlaceholder()
+                } else {
+                    ForEach(model.playerHand) { card in
+                        BJCardView(card: card, faceUp: true)
+                    }
                 }
             }
             .frame(minHeight: 90)
@@ -154,7 +203,7 @@ public struct BlackjackView: View {
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.inkSub))
+                .background(Capsule().fill(Theme.fillMuted))
         case .lose:
             Text("負け")
                 .font(.system(size: 12, weight: .black, design: .rounded))
@@ -209,7 +258,7 @@ public struct BlackjackView: View {
 
     private var playerActionView: some View {
         HStack(spacing: 12) {
-            actionButton("スタンド", color: Theme.inkSub) {
+            actionButton("スタンド", color: Theme.fillMuted) {
                 model.stand()
             }
             actionButton("ヒット", color: Theme.coral) {
@@ -221,8 +270,11 @@ public struct BlackjackView: View {
     }
 
     private var resultView: some View {
-        actionButton("次のゲーム", color: Theme.coral) {
-            model.nextRound()
+        VStack(spacing: 8) {
+            RecordLabel(model.recordResult)
+            actionButton("次のゲーム", color: Theme.coral) {
+                model.nextRound()
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -247,6 +299,9 @@ public struct BlackjackView: View {
                 Spacer()
             }
 
+            // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
+            RecordLabel(model.recordResult)
+
             Button {
                 // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
                 guard !isRecoveringChips else { return }
@@ -257,13 +312,13 @@ public struct BlackjackView: View {
                 }
             } label: {
                 Label("広告を見てチップ回復 (+500枚)", systemImage: "play.rectangle.fill")
-                    .font(Theme.body(16)).frame(maxWidth: .infinity)
+                    .themeBody(16).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
             .disabled(isRecoveringChips)
 
             Button { model.restartSession() } label: {
-                Text("最初からやり直す (1000枚)").font(Theme.body(16)).frame(maxWidth: .infinity)
+                Text("最初からやり直す (1000枚)").themeBody(16).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
@@ -276,7 +331,11 @@ public struct BlackjackView: View {
     private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(Theme.body(14))
+                .themeBody(14)
+                // 文字を拡大すると「200枚」が「20」「0枚」に折り返されて別の額に読めるため、
+                // 折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
@@ -319,5 +378,15 @@ struct BJCardView: View {
             }
         }
         .frame(width: 62, height: 90)
+    }
+}
+
+/// 配牌前のカード置き場（`BJCardView` と同じ寸法で、配牌時に高さが動かないようにする）
+struct BJCardPlaceholder: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(Theme.inkSub.opacity(0.3),
+                          style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+            .frame(width: 62, height: 90)
     }
 }

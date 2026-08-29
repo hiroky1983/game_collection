@@ -12,6 +12,12 @@ public struct MinesweeperCell: Sendable {
     public var isMine          = false
     public var adjacentMines   = 0
     public var isContinuedMine = false  // コンティニューで確定した爆弾マス
+    /// このマスが開いたときの連鎖の波（タップ地点からの距離・#203）。
+    ///
+    /// View が「開く演出をどれだけ遅らせるか」を決めるためだけに使う表示用の値で、
+    /// ゲームの進行には影響しない。中断スナップショットにも含めない
+    /// （復元したマスは最初から開いているので演出を再生する余地が無い）。
+    public var revealWave      = 0
 }
 
 struct MinesweeperSnapshot: Codable {
@@ -44,6 +50,8 @@ public final class MinesweeperModel {
     public private(set) var revealedCount: Int = 0
     public private(set) var elapsedSeconds: Int = 0
     public private(set) var hitMine: (row: Int, col: Int)?
+    /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -52,6 +60,31 @@ public final class MinesweeperModel {
     public var remainingMines: Int { totalMines - flagCount }
     public var safeCellCount: Int  { rows * cols - totalMines }
     public var gameOver: Bool      { gameState == .won || gameState == .lost }
+
+    /// 記録を分ける区分のキー。盤の大きさと地雷数が同じものを同じ難易度として扱う。
+    /// 難易度の enum を持たない（View が rows/cols/mines を直接渡す）ため、盤の構成から導く。
+    private var recordVariant: String { "\(rows)x\(cols)-\(totalMines)" }
+
+    /// 区分の表示名。新規対局シートのプリセット3種は日本語名、それ以外は盤サイズで表す。
+    private var recordVariantLabel: String {
+        switch (rows, cols, totalMines) {
+        case (9, 9, 10):    return "初級"
+        case (12, 12, 25):  return "中級"
+        case (15, 15, 40):  return "上級"
+        // 区分は地雷数込みで分かれるため、ラベルにも地雷数を入れて別区分だと分かるようにする。
+        default:            return "\(rows)×\(cols)・地雷\(totalMines)"
+        }
+    }
+
+    /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
+    private var currentScore: GameScore {
+        GameScore(
+            metric: .shortestTime,
+            seconds: elapsedSeconds,
+            variant: recordVariant,
+            variantLabel: recordVariantLabel
+        )
+    }
 
     public init(services: GameServices? = nil, rows: Int = 9, cols: Int = 9, mines: Int = 10) {
         self.services = services
@@ -97,6 +130,7 @@ public final class MinesweeperModel {
         self.revealedCount = 0
         self.elapsedSeconds = 0
         self.hitMine    = nil
+        self.recordResult = nil
         persist()
     }
 
@@ -109,10 +143,20 @@ public final class MinesweeperModel {
 
     // MARK: - Actions
 
+    /// このマスを開けるか。VoiceOver に「いま何ができるか」を伝えるためにも使うので、
+    /// 判定を `tap` の中に埋めずここに出しておく（二重管理で食い違わせないため・#188）。
+    public func canReveal(row: Int, col: Int) -> Bool {
+        !gameOver && !cells[row][col].isRevealed && !cells[row][col].isFlagged
+    }
+
+    /// このマスの旗を立て下ろしできるか。開き済み・確定爆弾マスには置けない。
+    public func canToggleFlag(row: Int, col: Int) -> Bool {
+        !gameOver && !cells[row][col].isRevealed && !cells[row][col].isContinuedMine
+    }
+
     public func tap(row: Int, col: Int) {
         guard !gameOver else { return }
-        guard !cells[row][col].isRevealed,
-              !cells[row][col].isFlagged else {
+        guard canReveal(row: row, col: col) else {
             services?.feedback.notify(.warning) // 開き済み・旗付きマスは開けない
             return
         }
@@ -121,6 +165,9 @@ public final class MinesweeperModel {
             placeMines(avoiding: row, col: col)
             gameState = .playing
             startTimer()
+            // 地雷を置いて計時が始まるここが 1 プレイの開始（#158）。
+            // 盤を用意しただけの `.idle` や、中断からの復元（`.playing` で始まる）では数えない。
+            services?.gameDidRestart(gameID: gameID)
         }
 
         if cells[row][col].isMine {
@@ -130,7 +177,7 @@ public final class MinesweeperModel {
             timerTask?.cancel()
             timerTask = nil
             services?.feedback.notify(.error)
-            services?.gameDidFinish(gameID: gameID, outcome: .loss)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         } else {
             floodReveal(row: row, col: col)
 
@@ -140,7 +187,7 @@ public final class MinesweeperModel {
                 timerTask?.cancel()
                 timerTask = nil
                 services?.feedback.notify(.success)
-                services?.gameDidFinish(gameID: gameID, outcome: .win)
+                recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
             } else {
                 services?.feedback.impact(.light)
             }
@@ -153,11 +200,17 @@ public final class MinesweeperModel {
 
     public func continueAfterAd() {
         guard gameState == .lost, let hit = hitMine else { return }
+        // 同じ盤面の続きなので、直前に記録した「負け」は無かったことにする
+        // （そのままだと1回のプレイが2回分として数えられる）。
+        services?.playLog?.cancelLoss(gameID: gameID, variant: recordVariant)
+        recordResult = nil
 
         // ゲームオーバーで露出した地雷を再び隠す
         for r in 0..<rows {
             for c in 0..<cols where cells[r][c].isMine && !cells[r][c].isFlagged {
                 cells[r][c].isRevealed = false
+                // 隠し直したマスは次に開くときの起点になるので、古い波を残さない（#203）。
+                cells[r][c].revealWave = 0
             }
         }
 
@@ -168,6 +221,8 @@ public final class MinesweeperModel {
         hitMine = nil
         gameState = .playing
         startTimer()
+        // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
+        services?.gameDidRestart(gameID: gameID)
 
         // すでに全安全マスを開けていた場合（まずないが念のため）
         if revealedCount == safeCellCount {
@@ -176,7 +231,7 @@ public final class MinesweeperModel {
             timerTask?.cancel()
             timerTask = nil
             services?.feedback.notify(.success)
-            services?.gameDidFinish(gameID: gameID, outcome: .win)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         }
 
         persist()
@@ -184,7 +239,7 @@ public final class MinesweeperModel {
 
     public func toggleFlag(row: Int, col: Int) {
         guard !gameOver else { return }
-        guard !cells[row][col].isRevealed, !cells[row][col].isContinuedMine else {
+        guard canToggleFlag(row: row, col: col) else {
             services?.feedback.notify(.warning) // 開き済み・確定爆弾マスには旗を置けない
             return
         }
@@ -204,7 +259,7 @@ public final class MinesweeperModel {
         revealAllMines()
         gameState = .lost
         services?.feedback.notify(.error)
-        services?.gameDidFinish(gameID: gameID, outcome: .loss)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         timerTask?.cancel()
         timerTask = nil
         services?.snapshots.clear(for: gameID)
@@ -241,22 +296,27 @@ public final class MinesweeperModel {
         try? services?.snapshots.save(snap, for: gameID)
     }
 
+    /// タップ地点から幅優先で開いていく。**探索の深さを `revealWave` として各マスに残す**（#203）。
+    ///
+    /// FIFO で処理するので波は必ず非減少に並び、同じ波のマスは同じ遅延で一斉に開く。
+    /// 深さを持たせるだけなので探索そのものの計算量は従来と変わらない。
     private func floodReveal(row: Int, col: Int) {
-        var queue = [(row, col)]
+        var queue = [(row: row, col: col, wave: 0)]
         var i = 0
         while i < queue.count {
-            let (r, c) = queue[i]; i += 1
+            let (r, c, wave) = queue[i]; i += 1
             guard r >= 0, r < rows, c >= 0, c < cols,
                   !cells[r][c].isRevealed,
                   !cells[r][c].isFlagged,
                   !cells[r][c].isMine else { continue }
             cells[r][c].isRevealed = true
+            cells[r][c].revealWave = wave
             revealedCount += 1
             if cells[r][c].adjacentMines == 0 {
                 for dr in -1...1 {
                     for dc in -1...1 {
                         if dr == 0 && dc == 0 { continue }
-                        queue.append((r + dr, c + dc))
+                        queue.append((r + dr, c + dc, wave + 1))
                     }
                 }
             }
@@ -267,6 +327,8 @@ public final class MinesweeperModel {
         for r in 0..<rows {
             for c in 0..<cols where cells[r][c].isMine && !cells[r][c].isFlagged {
                 cells[r][c].isRevealed = true
+                // 決着時の一斉公開は連鎖ではないので波を持たせない（全マス同時に出す・#203）。
+                cells[r][c].revealWave = 0
             }
         }
     }

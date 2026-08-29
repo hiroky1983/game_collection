@@ -31,6 +31,11 @@ public final class ConcentrationModel {
     public private(set) var lastMatchedIndices: [Int] = []
     public private(set) var mismatchedIndices: [Int] = []
     public private(set) var mattaUsed: Bool = false
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    ///
+    /// 神経衰弱は CPU と交互にめくる**対戦もの**で、手数はプレイヤーの技量だけでは決まらない
+    /// （CPU が当てた回数に左右される）。そのため記録は手数ではなく勝敗・連勝で持つ。
+    public private(set) var recordResult: RecordResult?
 
     public var winner: ConcentrationPlayer? {
         guard isGameOver else { return nil }
@@ -51,13 +56,47 @@ public final class ConcentrationModel {
     private let gameID = "concentration"
     private var ai: ConcentrationAI = ConcentrationAI(accuracy: 0.6)
 
-    public init(services: GameServices? = nil) {
+    /// 人間がミスマッチしてから自動で裏返すまでの待ち時間（#137）。
+    /// この間だけ「待った」を出すため、0 にはしない。
+    static let defaultAutoClearDelay: UInt64 = 1_200_000_000
+    private let autoClearDelay: UInt64
+
+    /// 人間のミスマッチを自動で裏返すタスク（#137）。
+    ///
+    /// 以前あった自動クリアは View の `onChange(of: mismatchedIndices)` を発火点にしていたため、
+    /// CPU のミスマッチにも反応して `doCPUTurn` の `clearMismatch()` と二重に走り、ターンが
+    /// 詰まった（`a234262` Bug 1 → `30fc8fb` で削除）。今回は発火点を **人間の `tap` だけ**に
+    /// 限定し、CPU 側の経路（`doCPUTurn`）からは一切スケジュールしない。
+    private var autoClearTask: Task<Void, Never>?
+
+    /// CPU の AI を作る。難易度が変わるたびに作り直すため関数で持つ
+    /// （テストは CPU の手を固定したサブクラスを返してくる）。
+    private let aiFactory: (Double) -> ConcentrationAI
+
+    public convenience init(services: GameServices? = nil) {
+        self.init(services: services, autoClearDelay: Self.defaultAutoClearDelay)
+    }
+
+    /// テストが待ち時間と CPU の手を固定するための入口
+    init(services: GameServices?,
+         autoClearDelay: UInt64,
+         aiFactory: @escaping (Double) -> ConcentrationAI = { ConcentrationAI(accuracy: $0) }) {
         self.services = services
+        self.autoClearDelay = autoClearDelay
+        self.aiFactory = aiFactory
+        // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
+        var isFreshStart = false
+
         if let snap = services?.snapshots.load(ConcentrationSnapshot.self, for: "concentration") {
-            restoreFrom(snap)
+            // 壊れたスナップショットは復元できず新しい盤で始まる。それは実質「新しいプレイ」
+            // なので数える（数えないと、続く終局が「開始していない」として捨てられる。#212）。
+            isFreshStart = !restoreFrom(snap)
         } else {
             setupGame(pairCount: .medium, cpuLevel: .normal)
+            isFreshStart = true
         }
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
     // MARK: - Public Actions
@@ -70,10 +109,13 @@ public final class ConcentrationModel {
         }
         flipCard(index: index)
         persist()
+        // 人間がミスマッチしたら「次へ」を押させず自動で進める（#137）
+        if !mismatchedIndices.isEmpty { scheduleAutoClear() }
     }
 
     public func clearMismatch() {
         guard !mismatchedIndices.isEmpty else { return }
+        cancelAutoClear()
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         currentPlayer = currentPlayer.next
@@ -84,6 +126,7 @@ public final class ConcentrationModel {
     /// ミスマッチを取り消してプレイヤーのターンを継続する（ターン交代なし）
     public func useMatta() {
         guard canMatta else { return }
+        cancelAutoClear()
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
@@ -91,8 +134,21 @@ public final class ConcentrationModel {
         persist()
     }
 
+    /// 「待った」の確認ダイアログを出す前に自動ターン交代を止める（#137）。
+    /// 止めないと、ユーザーが確認している最中にターンが CPU へ移り「戻す」が空振りする。
+    public func pauseAutoTurn() {
+        cancelAutoClear()
+    }
+
+    /// 「待った」を使わずに確認ダイアログを閉じたときに自動ターン交代を再開する（#137）
+    public func resumeAutoTurn() {
+        guard isHumanTurn, !isGameOver, !mismatchedIndices.isEmpty else { return }
+        scheduleAutoClear()
+    }
+
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         setupGame(pairCount: pairCount, cpuLevel: cpuLevel)
+        services?.gameDidRestart(gameID: gameID)
     }
 
     public func performCPUMoveIfNeeded() async {
@@ -101,6 +157,30 @@ public final class ConcentrationModel {
     }
 
     // MARK: - Private
+
+    private func scheduleAutoClear() {
+        autoClearTask?.cancel()
+        autoClearTask = Task { [weak self, delay = autoClearDelay] in
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled, let self else { return }
+            // 待っている間に「待った」・新規ゲーム・画面離脱で状況が変わっていたら何もしない
+            guard self.isHumanTurn, !self.isGameOver, !self.mismatchedIndices.isEmpty else { return }
+            self.clearMismatch()
+        }
+    }
+
+    private func cancelAutoClear() {
+        autoClearTask?.cancel()
+        autoClearTask = nil
+    }
+
+    /// 予約中の自動ターン交代（#151 のテスト用の待ち合わせ口）。
+    ///
+    /// テストが実時間（`Task.sleep`）で自動ターン交代を待つと、並列実行で MainActor が混んだときに
+    /// サスペンションからの復帰が遅れて落ちる（当番の実測で 1ms の `Task.sleep` の復帰に 3.5 秒）。
+    /// 時間ではなくタスクの完了で待ち合わせられるよう、予約中のタスクだけをテストに見せる。
+    /// `nil` は「自動ターン交代が予約されていない」ことの表明にも使う。
+    var pendingAutoClear: Task<Void, Never>? { autoClearTask }
 
     private func doCPUTurn() async {
         isThinking = true
@@ -135,9 +215,10 @@ public final class ConcentrationModel {
     }
 
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
+        cancelAutoClear()
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
-        ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
+        ai = aiFactory(cpuLevel.memoryAccuracy)
         playerScore = 0
         cpuScore = 0
         currentPlayer = .human
@@ -147,6 +228,7 @@ public final class ConcentrationModel {
         lastMatchedIndices = []
         mismatchedIndices = []
         mattaUsed = false
+        recordResult = nil
 
         let symbols = Array(concentrationSymbols.prefix(pairCount.rawValue))
         let doubled = (symbols + symbols).shuffled()
@@ -154,16 +236,18 @@ public final class ConcentrationModel {
         persist()
     }
 
-    private func restoreFrom(_ snap: ConcentrationSnapshot) {
-        let count = snap.symbols.count
-        guard snap.isFaceUp.count == count, snap.isMatched.count == count, count > 0 else {
+    /// スナップショットから状態を戻す。
+    /// - Returns: 復元できたら `true`。中身が壊れていて新しい盤へフォールバックしたときは `false`
+    ///   （呼び出し側はこれを「新しいプレイ」として数える。#212）。
+    private func restoreFrom(_ snap: ConcentrationSnapshot) -> Bool {
+        guard let setting = Self.validatedSetting(of: snap) else {
             setupGame(pairCount: .medium, cpuLevel: .normal)
-            return
+            return false
         }
 
-        pairCount = ConcentrationPairCount(rawValue: snap.pairCount) ?? .medium
-        cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel) ?? .normal
-        ai = ConcentrationAI(accuracy: cpuLevel.memoryAccuracy)
+        pairCount = setting.pairCount
+        cpuLevel = setting.cpuLevel
+        ai = aiFactory(cpuLevel.memoryAccuracy)
         playerScore = snap.playerScore
         cpuScore = snap.cpuScore
         currentPlayer = snap.currentPlayer == 0 ? .human : .cpu
@@ -193,6 +277,31 @@ public final class ConcentrationModel {
 
         // CPUターン復元：turnID を非ゼロにすることで task(id:) を確実に起動させる
         if currentPlayer == .cpu { turnID = 1 }
+        return true
+    }
+
+    /// 中断データが「最後まで遊べる盤面」かを検証し、復元に使う設定を取り出す（#218）。
+    ///
+    /// 配列長の一致だけを見ていると、シンボルが対を成さない並び（例: 全て異なる）も
+    /// 「復元成功」として通ってしまい、一致するカードが1組も無い＝終局できない盤面が
+    /// 復元される（PR #217 の CodeRabbit 指摘）。
+    ///
+    /// 難易度も列挙値として妥当かを見る。`?? .medium` のように既定値へ読み替えると、
+    /// 枚数と食い違った設定のまま復元が続いてしまうため、読み替えではなく棄却する。
+    private static func validatedSetting(
+        of snap: ConcentrationSnapshot
+    ) -> (pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel)? {
+        let count = snap.symbols.count
+        guard snap.isFaceUp.count == count, snap.isMatched.count == count else { return nil }
+        guard let pairCount = ConcentrationPairCount(rawValue: snap.pairCount),
+              let cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel),
+              count == pairCount.rawValue * 2 else { return nil }
+
+        // 各シンボルがちょうど2枚ずつ = すべてのカードが対になる
+        let occurrences = snap.symbols.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+        guard occurrences.values.allSatisfy({ $0 == 2 }) else { return nil }
+
+        return (pairCount, cpuLevel)
     }
 
     private func flipCard(index: Int) {
@@ -232,7 +341,7 @@ public final class ConcentrationModel {
             } else {
                 services?.feedback.notify(winner == .human ? .success : .error)
             }
-            services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
             services?.snapshots.clear(for: gameID)
         }
     }

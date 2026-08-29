@@ -22,22 +22,20 @@ public struct ShogiView: View {
     private var flipped: Bool { model.humanSide == .white }
 
     public var body: some View {
-        VStack(spacing: 12) {
+        // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 盤に回せる高さを間隔から捻出している（#139）。
+        VStack(spacing: 8) {
             statusBar
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
                 .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
-            if model.gameOver {
-                reviewControls
-            } else {
-                gameControls
-            }
-            RecommendationSlot(services: services, isFinished: model.gameOver)
-            Spacer(minLength: 8)
+            HowToPlayHint(.shogi, playLog: services.playLog)
+            controlArea
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
-        .animation(.none, value: model.gameOver)
+        .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
         .reviewRequestPrompt(services.review)
@@ -66,6 +64,7 @@ public struct ShogiView: View {
                 }
             }
         }
+        .howToPlay(.shogi)
         .sheet(isPresented: $showNewGame) {
             NewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)
@@ -144,6 +143,19 @@ public struct ShogiView: View {
                                 isLastMove: model.highlightedSquares.contains(idx)
                             )
                             .onTapGesture { model.tapSquare(idx) }
+                            // 盤は 81 個の図形の集まりでしかないため、マスごとに
+                            // 読み上げ要素を作る（#188）。`children: .ignore` にしないと
+                            // 駒の漢字1文字がそのまま読まれる。
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(ShogiAccessibility.squareLabel(
+                                index: idx,
+                                piece: pos.squares[idx],
+                                isSelected: model.selectedSquare == idx,
+                                isTarget: model.legalTargets.contains(idx),
+                                isLastMove: model.highlightedSquares.contains(idx)
+                            ))
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { model.tapSquare(idx) }
                         }
                     }
                 }
@@ -171,26 +183,69 @@ public struct ShogiView: View {
         HStack(spacing: 8) {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
-                    .font(Theme.body(16)).foregroundStyle(Theme.coral)
+                    .themeBody(16).foregroundStyle(Theme.coral)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 Text(model.position.sideToMove == .black ? "先手番" : "後手番")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.ink : Theme.teal))
+                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.teal))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text("CPU思考中…").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+                    Text("CPU思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 } else if let last = model.highlightedMoveText {
-                    Text("直前 \(last)").font(Theme.body(14)).foregroundStyle(Theme.ink)
+                    Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
-            Spacer()
-            Text("\(model.moves.count)手").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
+            Spacer(minLength: 8)
+            if model.gameOver {
+                // 終局後の記録は行を増やさずここに同居させる（#139）。手数は検討ナビが
+                // 「n/N手」で出しているため、入れ替えても情報は失われない。
+                RecordLabel(model.recordResult)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            } else {
+                Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
+            }
         }
         .frame(minHeight: 36)
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 12).padding(.vertical, 6)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    // MARK: - 盤の下の操作エリア
+
+    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度・レコメンド）で中身が入れ替わるが、
+    /// **高さは常に終局後の最大構成に揃える**（#139）。
+    ///
+    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
+    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
+    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    private var controlArea: some View {
+        ZStack(alignment: .top) {
+            finishedControls { RecommendationCard.heightPlaceholder }
+                .hidden()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            if model.gameOver {
+                finishedControls {
+                    RecommendationSlot(services: services, isFinished: true)
+                }
+            } else {
+                gameControls
+            }
+        }
+    }
+
+    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
+    private func finishedControls<Recommendation: View>(
+        @ViewBuilder recommendation: () -> Recommendation
+    ) -> some View {
+        VStack(spacing: 8) {
+            reviewControls
+            recommendation()
+        }
     }
 
     private var gameControls: some View {
@@ -239,36 +294,34 @@ public struct ShogiView: View {
                 Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// 検討ナビと「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#139）。
+    /// 2 段のままだと盤の下が伸び、決着の瞬間に盤が縮む。
     private var reviewControls: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 16) {
-                Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
-                    .disabled(model.reviewPly <= 0)
-                Text("\(model.reviewPly)/\(model.moves.count)手")
-                    .font(Theme.body(14)).monospacedDigit().foregroundStyle(Theme.ink)
-                Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
-                    .disabled(model.reviewPly >= model.moves.count)
-                Spacer()
-                ShareLink(item: KIF.export(model)) {
-                    Label("KIF", systemImage: "square.and.arrow.up")
-                }
-            }
-            .font(Theme.body(14))
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
+        HStack(spacing: 12) {
+            Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
+                .disabled(model.reviewPly <= 0)
+            Text("\(model.reviewPly)/\(model.moves.count)手")
+                .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
+            Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
+                .disabled(model.reviewPly >= model.moves.count)
+
+            Spacer(minLength: 8)
 
             Button { showNewGame = true } label: {
-                Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+                Label("もう一度", systemImage: "arrow.clockwise")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
         }
+        .themeBody(14)
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .popCard(corner: Theme.cornerSmall)
     }
 }
 
@@ -294,7 +347,7 @@ struct NewGameSheet: View {
             VStack(alignment: .leading, spacing: 24) {
                 section("あなたの手番") {
                     HStack(spacing: 12) {
-                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black, accent: Theme.ink) { side = .black }
+                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black, accent: Theme.fillStrong) { side = .black }
                         chooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white, accent: Theme.teal) { side = .white }
                     }
                 }
@@ -307,7 +360,7 @@ struct NewGameSheet: View {
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
-                    Text("対局開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }
@@ -320,12 +373,12 @@ struct NewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
             content()
         }
     }
@@ -333,7 +386,7 @@ struct NewGameSheet: View {
     private func chooser(title: String, subtitle: String, selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).font(Theme.title(22)).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
             }
@@ -350,13 +403,14 @@ struct NewGameSheet: View {
 
 // MARK: - 盤・駒
 
-/// 盤の配色（ポップ・明るい木目調）。
+/// 盤の配色（明るい木目調）。
 enum BoardStyle {
     static let frame = Color(hex: 0xE7B96A)
     static let cell = Color(hex: 0xFBE6B6)
     static let line = Color(hex: 0xCDA15B)
-    static let komaSente = Color(hex: 0xFFF1CF)
-    static let komaGote = Color(hex: 0xCFEFF0)
+    /// 駒は実物と同じくツゲ材（黄楊）のような単色。先手・後手は色ではなく向き（180度回転）で見分ける。
+    static let komaWoodLight = Color(hex: 0xF3DFAE)
+    static let komaWoodDark = Color(hex: 0xD9B673)
 }
 
 /// 1 マス。
@@ -394,7 +448,8 @@ struct ShogiCell: View {
     }
 }
 
-/// ポップな駒（将棋の駒形＝五角形）。pointsUp=false（相手の駒）は 180 度回転。
+/// 将棋の駒（木製の実物に寄せた見た目・五角形）。先手・後手は色ではなく
+/// 向き（pointsUp=false＝相手の駒は180度回転）だけで見分ける（実物と同じ規則）。
 struct KomaView: View {
     let piece: Piece
     let size: CGFloat
@@ -402,13 +457,35 @@ struct KomaView: View {
 
     var body: some View {
         ZStack {
+            // 木地: 上が明るく下がやや濃い縦グラデーションで、削り出した木の丸みを表現。
             KomaShape()
-                .fill((piece.color == .black ? BoardStyle.komaSente : BoardStyle.komaGote).gradient)
-                .overlay(KomaShape().stroke(Theme.ink.opacity(0.55), lineWidth: 1))
-                .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1)
+                .fill(
+                    LinearGradient(
+                        colors: [BoardStyle.komaWoodLight, BoardStyle.komaWoodDark],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(KomaShape().stroke(Color(hex: 0x8A6A32).opacity(0.6), lineWidth: 1))
+                // ベゼル: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
+                .overlay(
+                    KomaShape()
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.55), .clear, Color.black.opacity(0.25)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: max(1, size * 0.035)
+                        )
+                )
+                .shadow(color: .black.opacity(0.28), radius: 2, y: 1.5)
             Text(Glyph.kanji(for: piece))
-                .font(.system(size: size * 0.46, weight: .black, design: .rounded))
-                .foregroundStyle(piece.promoted ? Theme.coral : Theme.ink)
+                .font(.system(size: size * 0.46, weight: .black, design: .serif))
+                .foregroundStyle(piece.promoted ? Theme.coral : Color(hex: 0x2A1B0E))
+                // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
+                .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
+                .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
         }
         .frame(width: size * 0.86, height: size * 0.86)
         .rotationEffect(.degrees(pointsUp ? 0 : 180))
@@ -473,7 +550,7 @@ private struct HandAreaView: View {
                                         .padding(.horizontal, 5).padding(.vertical, 3)
                                         .background(
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .fill(selected ? Theme.yellow : BoardStyle.komaSente)
+                                                .fill(selected ? Theme.yellow : BoardStyle.komaWoodLight)
                                         )
                                     Text("×\(count)")
                                         .font(.system(size: 10, weight: .black, design: .rounded))
@@ -481,6 +558,9 @@ private struct HandAreaView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(ShogiAccessibility.handLabel(
+                                type: type, color: color, count: count, isSelected: selected
+                            ))
                         }
                     }
                     .drawingGroup() // 駒形状・グラデーションを Metal で一括描画
@@ -489,7 +569,9 @@ private struct HandAreaView: View {
             .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        // 縦の余白は 4。終局後に出るもののぶんの高さを確保しても盤が小さくならないよう、
+        // 駒の大きさ（＝タップ目標）は変えずに余白から捻出している（#139）。
+        .padding(.horizontal, 12).padding(.vertical, 4)
         .popCard(corner: Theme.cornerSmall)
     }
 }

@@ -17,23 +17,39 @@ public struct OthelloView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 盤に回せる高さを間隔から捻出している（#148）。
+        VStack(spacing: 8) {
             statusBar
+            // 盤は正方形で幅が上限になるため、左右の余白を削って盤そのものを広げる。
+            // 縦に残る空きは盤の上下へ均等に振り、下だけが大きく空く見た目をなくす。
+            Spacer(minLength: 0)
             board
+                .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
                 .overlay {
-                    if model.gameOver { resultOverlay }
+                    // 勝敗はフェードで出す（#205）。`.gameAnimation` はこの ZStack に置く。
+                    // 外側の `.gameAnimation(.none, value: model.gameOver)`（下の VStack）は
+                    // 決着時に操作エリアが入れ替わって盤が伸び縮みするのを止めるためのもので、
+                    // ここで内側に置き直すことでオーバーレイの出現だけを演出に戻している。
+                    // 修飾子は 1 つのビューに 1 つだけ置くこと（入れ子にすると打ち消し合う・#199）。
+                    ZStack {
+                        if model.gameOver {
+                            resultOverlay
+                                .transition(.opacity)
+                        }
+                    }
+                    .gameAnimation(
+                        .easeOut(duration: OthelloBoardStyle.resultOverlayFadeDuration),
+                        value: model.gameOver
+                    )
                 }
-            if model.gameOver {
-                newGameButton
-            } else {
-                gameControls
-            }
-            RecommendationSlot(services: services, isFinished: model.gameOver)
-            Spacer(minLength: 8)
+            Spacer(minLength: 0)
+            HowToPlayHint(.othello, playLog: services.playLog)
+            controlArea
             BannerSlot(ads: services.ads)
         }
-        .animation(.none, value: model.gameOver)
+        .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .popBackground()
         .reviewRequestPrompt(services.review)
@@ -56,6 +72,7 @@ public struct OthelloView: View {
                 }
             }
         }
+        .howToPlay(.othello)
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)
@@ -76,7 +93,7 @@ public struct OthelloView: View {
         .onChange(of: model.mustPass) { _, newValue in
             if newValue && !model.isAITurn { showPassAlert = true }
         }
-        .task(id: model.turnID) {
+        .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
     }
@@ -91,7 +108,7 @@ public struct OthelloView: View {
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.inkSub))
+                    .background(Capsule().fill(Theme.fillMuted))
             } else {
                 let isMine = !model.isAITurn
                 Text(isMine ? "あなたの番" : "CPUの番")
@@ -126,7 +143,8 @@ public struct OthelloView: View {
                     .frame(width: 13, height: 13)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        // 縦の余白は 6。石・数字の大きさは変えずに、ここからも盤の高さを捻出している（#148）。
+        .padding(.horizontal, 12).padding(.vertical, 6)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -142,7 +160,7 @@ public struct OthelloView: View {
 
             ZStack {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Color(hex: 0x1C6B36))
+                    .fill(Color(hex: OthelloBoardStyle.boardGreen))
                     .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
 
                 Canvas { ctx, sz in
@@ -162,9 +180,10 @@ public struct OthelloView: View {
                     for idx in validSet {
                         let row = idx / othelloBoardSize, col = idx % othelloBoardSize
                         let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                        let r  = c * 0.18
+                        let r  = c * OthelloBoardStyle.legalMoveDotRadiusRatio
                         ctx.fill(Path(ellipseIn: CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)),
-                                 with: .color(Color.white.opacity(0.38)))
+                                 with: .color(Color(hex: OthelloBoardStyle.legalMoveDot)
+                                                  .opacity(OthelloBoardStyle.legalMoveDotOpacity)))
                     }
 
                     // 石
@@ -172,7 +191,7 @@ public struct OthelloView: View {
                         for col in 0..<othelloBoardSize {
                             guard let stone = model.board[row, col] else { continue }
                             let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                            let r  = c * 0.43
+                            let r  = c * OthelloBoardStyle.stoneRadiusRatio
                             let rect = CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)
                             if stone == .black {
                                 ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0x1A1A1A)))
@@ -185,8 +204,9 @@ public struct OthelloView: View {
                                 let mr = r * 0.3
                                 let mRect = CGRect(x: cx-mr, y: cy-mr, width: mr*2, height: mr*2)
                                 ctx.fill(Path(ellipseIn: mRect),
-                                         with: .color(stone == .black ? Color.white.opacity(0.5)
-                                                                       : Color(hex: 0x1C6B36).opacity(0.5)))
+                                         with: .color(stone == .black
+                                                      ? Color.white.opacity(0.5)
+                                                      : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5)))
                             }
                         }
                     }
@@ -202,9 +222,44 @@ public struct OthelloView: View {
                             model.tap(row: row, col: col)
                         }
                 )
+                .accessibilityRepresentation {
+                    accessibilityGrid(cell: cell, validSet: validSet)
+                }
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// VoiceOver 用のマス目グリッド（#188）。
+    ///
+    /// 盤は `Canvas` 1 つで描いているため、そのままでは 64 マスが 1 要素にしか見えず、
+    /// 石の色も置ける場所も音声で分からない。`accessibilityRepresentation` は
+    /// **描画も当たり判定もされず、支援技術に見せる姿としてだけ使われる**ので、
+    /// 見た目と指でのタップ挙動（下の `Canvas` の `SpatialTapGesture`）は一切変わらない。
+    private func accessibilityGrid(cell: CGFloat, validSet: Set<Int>) -> some View {
+        VStack(spacing: 0) {
+            ForEach(0..<othelloBoardSize, id: \.self) { row in
+                HStack(spacing: 0) {
+                    ForEach(0..<othelloBoardSize, id: \.self) { col in
+                        Button {
+                            model.tap(row: row, col: col)
+                        } label: {
+                            Color.clear.frame(width: cell, height: cell)
+                        }
+                        // 置けない局面では「利用不可」として案内されるようにする。
+                        // ここは支援技術にだけ見せる Button なので、見た目には影響しない。
+                        .disabled(model.gameOver || model.isAITurn || model.mustPass)
+                        .accessibilityLabel(OthelloAccessibility.squareLabel(
+                            row: row,
+                            col: col,
+                            stone: model.board[row, col],
+                            isValidMove: validSet.contains(row * othelloBoardSize + col),
+                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false
+                        ))
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Controls
@@ -249,7 +304,7 @@ public struct OthelloView: View {
                 Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
             }
         }
-        .font(Theme.body(14))
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -292,6 +347,7 @@ public struct OthelloView: View {
                         .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
                         .frame(width: 22, height: 22)
                 }
+                RecordLabel(model.recordResult)
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
@@ -299,11 +355,55 @@ public struct OthelloView: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
     }
 
-    private var newGameButton: some View {
-        Button { showNewGame = true } label: {
-            Text("もう一度").font(Theme.body(16)).frame(maxWidth: .infinity)
+    // MARK: - 盤の下の操作エリア
+
+    /// 対局中（投了・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
+    /// **高さは常に終局後の最大構成に揃える**（#148）。
+    ///
+    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
+    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
+    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    private var controlArea: some View {
+        ZStack(alignment: .top) {
+            finishedControls { RecommendationCard.heightPlaceholder }
+                .hidden()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            if model.gameOver {
+                finishedControls {
+                    RecommendationSlot(services: services, isFinished: true)
+                }
+            } else {
+                gameControls
+            }
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+    }
+
+    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
+    private func finishedControls<Recommendation: View>(
+        @ViewBuilder recommendation: () -> Recommendation
+    ) -> some View {
+        VStack(spacing: 8) {
+            newGameButton
+            recommendation()
+        }
+    }
+
+    /// 「もう一度」は対局中の `gameControls` と同じ高さの 1 段に収める（#148）。
+    /// 全幅の大ボタンのままだと盤の下が伸び、決着の瞬間に盤が縮む。
+    private var newGameButton: some View {
+        HStack(spacing: 12) {
+            Spacer(minLength: 0)
+            Button { showNewGame = true } label: {
+                Label("もう一度", systemImage: "arrow.clockwise")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.coral))
+            }
+            Spacer(minLength: 0)
+        }
+        .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -332,9 +432,9 @@ struct OthelloNewGameSheet: View {
                 section("あなたの石") {
                     HStack(spacing: 12) {
                         chooser(title: "●黒", subtitle: "先手",
-                                selected: side == .black, accent: Theme.ink) { side = .black }
+                                selected: side == .black, accent: Theme.fillStrong) { side = .black }
                         chooser(title: "○白", subtitle: "後手",
-                                selected: side == .white, accent: Theme.inkSub) { side = .white }
+                                selected: side == .white, accent: Theme.fillMuted) { side = .white }
                     }
                 }
                 section("CPUの強さ") {
@@ -349,7 +449,7 @@ struct OthelloNewGameSheet: View {
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
-                    Text("対局開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }
@@ -362,12 +462,12 @@ struct OthelloNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
             content()
         }
     }
@@ -376,7 +476,7 @@ struct OthelloNewGameSheet: View {
                          accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).font(Theme.title(22)).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
             }

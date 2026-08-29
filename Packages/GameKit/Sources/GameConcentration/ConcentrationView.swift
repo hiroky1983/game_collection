@@ -18,11 +18,11 @@ public struct ConcentrationView: View {
         VStack(spacing: 10) {
             statusBar
             cardGrid
+            HowToPlayHint(.concentration, playLog: services.playLog)
             if !model.isGameOver {
                 mattaControls
             }
             RecommendationSlot(services: services, isFinished: model.isGameOver)
-            Spacer(minLength: 4)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -47,6 +47,7 @@ public struct ConcentrationView: View {
                 }
             }
         }
+        .howToPlay(.concentration)
         .sheet(isPresented: $showNewGame) {
             ConcentrationNewGameSheet(
                 pairCount: model.pairCount,
@@ -68,13 +69,14 @@ public struct ConcentrationView: View {
                         // 視聴完了（報酬獲得）したときだけ待ったを許可する
                         guard await services.ads.showRewardedAd() else {
                             showRewardNotEarned = true
+                            model.resumeAutoTurn()
                             return
                         }
                     }
                     model.useMatta()
                 }
             }
-            Button("キャンセル", role: .cancel) {}
+            Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
         } message: {
             Text(model.mattaUsed
                  ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
@@ -126,25 +128,24 @@ public struct ConcentrationView: View {
 
     private var mattaControls: some View {
         HStack {
-            Button { showMattaConfirm = true } label: {
+            // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
+            Button {
+                model.pauseAutoTurn()
+                showMattaConfirm = true
+            } label: {
                 Label("待った", systemImage: "arrow.uturn.backward")
-                    .font(Theme.body(14))
+                    .themeBody(14)
             }
             .disabled(!model.canMatta)
 
             Spacer()
 
-            // 人間がミスマッチ中のみ「次へ」ボタンを表示
-            if model.isHumanTurn && !model.mismatchedIndices.isEmpty {
-                Button {
-                    model.clearMismatch()
-                } label: {
-                    Label("次へ", systemImage: "arrow.right.circle.fill")
-                        .font(Theme.body(14))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .background(Capsule().fill(Theme.inkSub))
-                }
+            // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。
+            // 待っている間だけ「待った」が押せることをここで知らせる。
+            if model.canMatta {
+                Text("ミスマッチ… 待ったは今だけ")
+                    .themeBody(13)
+                    .foregroundStyle(Theme.coral)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -155,10 +156,22 @@ public struct ConcentrationView: View {
 
     private var cardGrid: some View {
         let cols = model.pairCount == .small ? 4 : 6
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: cols)
+        let rows = Int((Double(model.cards.count) / Double(cols)).rounded(.up))
 
-        return ScrollView {
-            LazyVGrid(columns: columns, spacing: 6) {
+        // 幅だけでカードの大きさを決めると縦に大きな空白が残る。与えられた高さも見て、
+        // 余っていればカードを縦に伸ばす（伸ばしすぎて不自然にならないよう上限を設ける）。
+        return GeometryReader { geo in
+            let spacing = Self.gridSpacing
+            let widthLimit = (geo.size.width - spacing * CGFloat(cols - 1)) / CGFloat(cols)
+            let heightLimit = rows > 0
+                ? (geo.size.height - spacing * CGFloat(rows - 1)) / CGFloat(rows)
+                : widthLimit / Self.cardAspect
+            // 高さが足りないときは幅を削って収める。余っているときは幅いっぱいに使う。
+            let cardWidth = max(1, min(widthLimit, heightLimit * Self.cardAspect / Self.maxStretch))
+            let cardHeight = max(1, min(heightLimit, cardWidth / Self.cardAspect * Self.maxStretch))
+            let columns = Array(repeating: GridItem(.fixed(cardWidth), spacing: spacing), count: cols)
+
+            LazyVGrid(columns: columns, spacing: spacing) {
                 ForEach(model.cards) { card in
                     CardView(
                         card: card,
@@ -169,11 +182,18 @@ public struct ConcentrationView: View {
                         guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
                         model.tap(index: card.id)
                     }
+                    .frame(width: cardWidth, height: cardHeight)
                 }
             }
-            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+
+    /// カードの基準の幅 : 高さ
+    private static let cardAspect: CGFloat = 0.75
+    /// 縦に余ったときにカードを引き伸ばしてよい上限（基準比に対する倍率）
+    private static let maxStretch: CGFloat = 1.3
+    private static let gridSpacing: CGFloat = 6
 
     // MARK: - Result Overlay
 
@@ -202,19 +222,21 @@ public struct ConcentrationView: View {
 
                 HStack(spacing: 20) {
                     VStack {
-                        Text("あなた").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
-                        Text("\(model.playerScore)").font(Theme.title(36)).foregroundStyle(Theme.teal)
+                        Text("あなた").themeBody(13).foregroundStyle(Theme.inkSub)
+                        Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.teal)
                     }
-                    Text("–").font(Theme.title(24)).foregroundStyle(Theme.inkSub)
+                    Text("–").themeTitle(24).foregroundStyle(Theme.inkSub)
                     VStack {
-                        Text("CPU").font(Theme.body(13)).foregroundStyle(Theme.inkSub)
-                        Text("\(model.cpuScore)").font(Theme.title(36)).foregroundStyle(Theme.coral)
+                        Text("CPU").themeBody(13).foregroundStyle(Theme.inkSub)
+                        Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coral)
                     }
                 }
 
+                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+
                 Button { showNewGame = true } label: {
                     Text("もう一度")
-                        .font(Theme.body(16))
+                        .themeBody(16)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -268,9 +290,9 @@ private struct CardView: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
         }
-        .aspectRatio(0.75, contentMode: .fit)
+        // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isFaceUp)
+        .gameAnimation(.spring(response: 0.35, dampingFraction: 0.75), value: isFaceUp)
         .opacity(card.isMatched ? 0.6 : 1.0)
     }
 }
@@ -326,7 +348,7 @@ struct ConcentrationNewGameSheet: View {
 
                 Button { onStart(selectedPairCount, selectedCPULevel) } label: {
                     Text("ゲーム開始")
-                        .font(Theme.body(18))
+                        .themeBody(18)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -342,13 +364,13 @@ struct ConcentrationNewGameSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .gameSheetDetents()
     }
 
     private func settingSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(Theme.body(15))
+                .themeBody(15)
                 .foregroundStyle(Theme.inkSub)
             content()
         }
@@ -359,7 +381,7 @@ struct ConcentrationNewGameSheet: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Text(title)
-                    .font(Theme.body(16))
+                    .themeBody(16)
                     .foregroundStyle(selected ? .white : Theme.ink)
                 Text(subtitle)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))

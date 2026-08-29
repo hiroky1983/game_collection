@@ -1,3 +1,5 @@
+import Foundation
+
 /// 触覚フィードバックの強さ。UIKit の `UIImpactFeedbackGenerator.FeedbackStyle` に対応する。
 public enum FeedbackImpact: Equatable, Sendable {
     /// 軽い操作（1マス開く・カードを1枚めくる）。
@@ -54,4 +56,56 @@ public struct GatedFeedbackService: FeedbackService {
         guard isEnabled() else { return }
         base.notify(type)
     }
+}
+
+/// 同じ発火を複数の実装へ配るラッパー。触覚と効果音を**同じ呼び出し箇所に相乗り**させるために使う。
+/// これにより各ゲーム側には新しい発火点を作らずに済み、鳴りすぎの制御も 1 か所に残る。
+public struct CompositeFeedbackService: FeedbackService {
+    private let services: [FeedbackService]
+
+    public init(_ services: [FeedbackService]) {
+        self.services = services
+    }
+
+    @MainActor public func impact(_ style: FeedbackImpact) {
+        for service in services { service.impact(style) }
+    }
+
+    @MainActor public func notify(_ type: FeedbackNotice) {
+        for service in services { service.notify(type) }
+    }
+}
+
+/// オン・オフの設定を `UserDefaults` に保存する小さな箱。
+/// 「未設定ならオン」という既定値と保存先キーの規則をここ 1 か所に閉じ込め、
+/// App 層の設定モデル（`GameSettings`）からは読み書きするだけにする。
+///
+/// 触覚・効果音のために作ったが、解析送信（#158）・ヒント表示（#190）も同じ箱に相乗りしている
+/// （オン / オフ 1 つのために新しい永続化の仕組みを増やさない）。
+public struct FeedbackPreference {
+    private let key: String
+    private let defaults: UserDefaults
+
+    public init(key: String, defaults: UserDefaults = .standard) {
+        self.key = key
+        self.defaults = defaults
+    }
+
+    /// 保存された設定。キーが無いとき（初回起動）はオン。
+    public var isEnabled: Bool {
+        get { defaults.object(forKey: key) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: key) }
+    }
+}
+
+public extension FeedbackPreference {
+    /// ヒント表示（いま出せる手の強調・出せない理由の表示）のオン / オフ（#190）。既定はオン。
+    ///
+    /// 設定画面（App 層）と各ゲーム（GameKit 側）の両方が読むため、キーの定義をここで共有する。
+    /// 保存先は `UserDefaults.standard` 固定なので、テストは `FeedbackPreference(key:defaults:)` で
+    /// 使い捨ての suite を作って注入する。
+    ///
+    /// `static let` にすると `UserDefaults` を抱えた共有可変状態として Sendable 違反になるため、
+    /// 都度組み立てる計算プロパティにしている（実体は文字列と `UserDefaults` の参照だけなので安い）。
+    static var hints: FeedbackPreference { FeedbackPreference(key: "hintsEnabled_v1") }
 }

@@ -12,13 +12,15 @@ import GameConcentration
 import GameBlackjack
 import GameDaifugo
 import GameMahjongSolitaire
+import GameMahjong
+import GameSudoku
 
 // MARK: - 共通のヘルパー
 
 /// ハブの登録順（AppEnvironment.registry と同じ）。
 private let hubOrder = [
     "2048", "shogi", "gomoku", "minesweeper", "othello", "poker", "concentration", "blackjack", "daifugo",
-    "mahjong",
+    "mahjong", "mahjong4", "sudoku",
 ]
 
 @MainActor
@@ -26,7 +28,7 @@ private func makeRegistry() -> GameRegistry {
     GameRegistry([
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(),
         OthelloModule(), PokerModule(), ConcentrationModule(), BlackjackModule(),
-        DaifugoModule(), MahjongSolitaireModule(),
+        DaifugoModule(), MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
     ])
 }
 
@@ -95,9 +97,11 @@ struct RecommendationTableTests {
         ("blackjack",     ["poker", "concentration", "2048"]),
         ("daifugo",       ["poker", "blackjack", "concentration"]),
         ("mahjong",       ["concentration", "minesweeper", "2048"]),
+        ("mahjong4",      ["mahjong", "daifugo", "poker"]),
+        ("sudoku",        ["minesweeper", "2048", "mahjong"]),
     ]
 
-    @Test("10ゲームそれぞれ、未プレイのみのときは第1候補が出る")
+    @Test("12ゲームそれぞれ、未プレイのみのときは第1候補が出る")
     func firstCandidate() {
         for (finished, expected) in Self.table {
             let got = RecommendationPolicy.candidate(
@@ -433,7 +437,7 @@ struct PlayLogStorageTests {
 
 // MARK: - 各ゲームの決着で1回ずつ数えられること
 
-@Suite("全8ゲームの決着を数える")
+@Suite("全9ゲームの決着を数える")
 @MainActor
 struct GameFinishCountingTests {
 
@@ -531,6 +535,20 @@ struct GameFinishCountingTests {
         #expect(model.isGameOver)
         #expect(service.log.totalFinishes == 1)
         #expect(service.log.playedGameIDs == ["concentration"])
+    }
+
+    @Test("数独: 解き切ると1回数える")
+    func sudoku() async {
+        let (services, service) = makeServices(suite: "count-sudoku")
+        let model = SudokuModel(services: services, seed: 31337)
+        await model.newGame(difficulty: .easy)
+        for index in 0..<81 where model.board[index] == 0 {
+            if model.selected != index { model.select(index: index) }
+            model.enter(digit: model.solution[index])
+        }
+        #expect(model.state == .cleared)
+        #expect(service.log.totalFinishes == 1)
+        #expect(service.log.playedGameIDs == ["sudoku"])
     }
 
     @Test("ブラックジャック: ラウンドの決着で1回数える")

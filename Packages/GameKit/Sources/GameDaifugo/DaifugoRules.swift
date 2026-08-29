@@ -13,6 +13,33 @@ public struct DaifugoTransfer: Codable, Sendable, Equatable {
     }
 }
 
+/// 手札1枚のヒント表示の状態（#190）。
+public enum DaifugoCardHint: Equatable, Sendable {
+    /// ヒント無し（設定オフ・相手の手番・手札すべてが出せる場合）。
+    case none
+    /// いま出せる札。
+    case playable
+    /// いま出せない札。
+    case unplayable
+}
+
+/// 手札全体のヒント（#190）。出せる札と出せない札を分けて持つ。
+public struct DaifugoHandHint: Equatable, Sendable {
+    public let playable: Set<Int>
+    public let unplayable: Set<Int>
+
+    public init(playable: Set<Int>, unplayable: Set<Int>) {
+        self.playable = playable
+        self.unplayable = unplayable
+    }
+
+    public func state(for cardID: Int) -> DaifugoCardHint {
+        if playable.contains(cardID) { return .playable }
+        if unplayable.contains(cardID) { return .unplayable }
+        return .none
+    }
+}
+
 /// 大富豪のルールを**乱数も状態も持たない純粋関数**として閉じ込めた層。
 ///
 /// Model（`DaifugoModel`）は進行と永続化だけを持ち、勝ち負けの判断はここに集約する。
@@ -92,6 +119,73 @@ public enum DaifugoRules {
         cards.contains { $0.isJoker || $0.rank == 2 || $0.rank == 8 }
     }
 
+    // MARK: - ヒント（#190）
+
+    /// いま出せる手札の ID。**その札を含む合法手が1つでもあれば「出せる」**として数える。
+    ///
+    /// `legalPlays` は CPU 用に「同ランクは弱い順に必要枚数だけ」しか列挙しないため、
+    /// 4枚組のうち2枚だけ出す手のように**同じ強さの別解**が落ちる。札単位の可否を問う
+    /// ヒント表示でそれを使うと「出せるのに暗く落ちる」札が出るので、ここで別に数える。
+    public static func playableCardIDs(
+        hand: [DaifugoCard],
+        field: [DaifugoCard],
+        isRevolution: Bool
+    ) -> Set<Int> {
+        guard !hand.isEmpty else { return [] }
+        // 場が流れていれば1枚から好きな組を出せる = 手札すべてが出せる。
+        guard !field.isEmpty else { return Set(hand.map(\.id)) }
+        guard let fieldStrength = playStrength(field, isRevolution: isRevolution) else { return [] }
+
+        let jokers = hand.filter(\.isJoker)
+        var groups: [Int: [DaifugoCard]] = [:]
+        for card in hand where !card.isJoker { groups[card.rank, default: []].append(card) }
+
+        let count = field.count
+        var ids: Set<Int> = []
+        var jokerUsable = false
+        for (rank, group) in groups {
+            guard strength(rank: rank, isRevolution: isRevolution) > fieldStrength else { continue }
+            // 足りない枚数はジョーカーで埋められる。
+            guard group.count + jokers.count >= count else { continue }
+            ids.formUnion(group.map(\.id))
+            // このランクで組が作れるなら、実札を1枚ジョーカーに置き換えた手も必ず作れる。
+            if !jokers.isEmpty { jokerUsable = true }
+        }
+        // ジョーカーだけで出す（場がジョーカーの組でない限り最強なので通る）。
+        if jokers.count >= count, strength(rank: jokerRank, isRevolution: isRevolution) > fieldStrength {
+            jokerUsable = true
+        }
+        if jokerUsable { ids.formUnion(jokers.map(\.id)) }
+        return ids
+    }
+
+    /// 選択中の組を出せない理由。出せる場合と未選択のときは nil。
+    ///
+    /// 画面に1行で出すため短く保つ。判定の順序は `isValidPlay` と同じ
+    /// （組として不成立 → 枚数違い → 強さ不足）にして、表示と可否がずれないようにする。
+    public static func rejectionReason(
+        _ cards: [DaifugoCard],
+        field: [DaifugoCard],
+        isRevolution: Bool
+    ) -> String? {
+        guard !cards.isEmpty else { return nil }
+        guard let played = playStrength(cards, isRevolution: isRevolution) else {
+            return "数字がそろっていません（ジョーカーは他の数字の代わりに使えます）"
+        }
+        guard !field.isEmpty else { return nil }
+        guard cards.count == field.count else {
+            return "場は\(field.count)枚です。\(cards.count)枚では出せません"
+        }
+        guard let current = playStrength(field, isRevolution: isRevolution), played > current else {
+            // 場がジョーカーだけのときは非ジョーカーが無いので、そのまま JOKER と呼ぶ。
+            let label = field.first { !$0.isJoker }?.rankLabel ?? "JOKER"
+            return isRevolution
+                ? "革命中です。場の \(label) より弱い数字が必要です"
+                : "場の \(label) より強い数字が必要です"
+        }
+        return nil
+    }
+
     // MARK: - 手の列挙と CPU の選択
 
     /// 今の場に出せる手の候補。ジョーカーは**必要な枚数だけ**使う版のみを挙げる
@@ -161,13 +255,17 @@ public enum DaifugoRules {
 
     // MARK: - 順位と階級
 
-    /// 上がり順と反則上がりから最終順位を決める。反則上がりは順位を失い、末尾へ回る。
+    /// 上がり順・反則上がり・投了から最終順位を決める。反則上がりは順位を失い末尾へ回り、
+    /// 投了（#194）は最後まで打っていないので反則上がりよりさらに下に置く。
     /// - Parameters:
     ///   - finishOrder: 手札が尽きた順のプレイヤー番号。
     ///   - fouls: 反則上がりしたプレイヤー番号。
+    ///   - resigned: 投了したプレイヤー番号。反則上がりと重なっても投了の扱いを優先する。
     /// - Returns: 1位から順のプレイヤー番号。
-    public static func ranking(finishOrder: [Int], fouls: Set<Int>) -> [Int] {
-        finishOrder.filter { !fouls.contains($0) } + finishOrder.filter { fouls.contains($0) }
+    public static func ranking(finishOrder: [Int], fouls: Set<Int>, resigned: Set<Int> = []) -> [Int] {
+        finishOrder.filter { !fouls.contains($0) && !resigned.contains($0) }
+            + finishOrder.filter { fouls.contains($0) && !resigned.contains($0) }
+            + finishOrder.filter { resigned.contains($0) }
     }
 
     /// 順位（0 始まり）に対応する階級名。4人以外でも落ちないよう範囲外は空文字にする。

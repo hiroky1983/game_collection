@@ -15,13 +15,14 @@ public struct Game2048View: View {
     }
 
     public var body: some View {
-        VStack(spacing: 20) {
+        // 縦の余白は 14。レコメンドのぶんの高さを常に確保するので、盤面に回せる高さを
+        // 間隔から捻出している（#148）。
+        VStack(spacing: 14) {
             header
             boardView
-            Label("スワイプで動かそう", systemImage: "hand.draw.fill")
-                .font(Theme.body(14))
-                .foregroundStyle(Theme.inkSub)
-            RecommendationSlot(services: services, isFinished: model.gameOver)
+            // 初回だけ出す 1 行（#118。以降は `?` ボタンからいつでも読める）。
+            HowToPlayHint(.game2048, playLog: services.playLog)
+            recommendationArea
             Spacer()
             BannerSlot(ads: services.ads)
         }
@@ -42,15 +43,29 @@ public struct Game2048View: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { withAnimation { model.newGame() } } label: {
+                Button { withGameAnimation { model.newGame() } } label: {
                     Label("リセット", systemImage: "arrow.clockwise")
                 }
             }
         }
+        .howToPlay(.game2048)
         .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+        }
+    }
+
+    /// レコメンドカードの枠。**カードの有無で高さが動かない**ように、常にひな形で
+    /// 高さを確保しておく（#148）。
+    ///
+    /// ここが伸びると `boardView`（`aspectRatio(1, .fit)`）が帳尻合わせに縮み、
+    /// ゲームオーバーの瞬間に盤面が一段小さくなって見える。カードは出るとは限らず
+    /// ×でも閉じられるため、条件付きで高さを足すのでは安定しない。
+    private var recommendationArea: some View {
+        ZStack(alignment: .top) {
+            RecommendationCard.heightPlaceholder
+            RecommendationSlot(services: services, isFinished: model.gameOver)
         }
     }
 
@@ -67,7 +82,8 @@ public struct Game2048View: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 18).padding(.vertical, 12)
+        // 縦の余白は 10。スコアの文字の大きさは変えずに、ここからも盤面の高さを捻出している（#148）。
+        .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -98,7 +114,7 @@ public struct Game2048View: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
-        .animation(.easeInOut(duration: 0.12), value: model.board)
+        .gameAnimation(.easeInOut(duration: 0.12), value: model.board)
         .contentShape(Rectangle())
         .gesture(swipeGesture)
     }
@@ -108,6 +124,7 @@ public struct Game2048View: View {
             RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
             VStack(spacing: 12) {
                 Text("ゲームオーバー").font(.title2.bold()).foregroundStyle(.white)
+                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
                     Button {
                         // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
@@ -116,7 +133,7 @@ public struct Game2048View: View {
                         Task {
                             // 視聴完了（報酬獲得）したときだけコンティニューを許可する
                             if await services.ads.showRewardedAd() {
-                                withAnimation { model.continueAfterAd() }
+                                withGameAnimation { model.continueAfterAd() }
                             } else {
                                 showRewardNotEarned = true
                             }
@@ -129,7 +146,7 @@ public struct Game2048View: View {
                     .tint(Theme.coral)
                     .disabled(isContinuing)
                 }
-                Button("もう一度") { withAnimation { model.newGame() } }
+                Button("もう一度") { withGameAnimation { model.newGame() } }
                     .buttonStyle(.bordered)
                     .tint(.white)
             }
@@ -144,7 +161,7 @@ public struct Game2048View: View {
                 let direction: Direction = abs(dx) > abs(dy)
                     ? (dx > 0 ? .right : .left)
                     : (dy > 0 ? .down : .up)
-                withAnimation(.easeInOut(duration: 0.12)) {
+                withGameAnimation(.easeInOut(duration: 0.12)) {
                     model.move(direction)
                 }
             }

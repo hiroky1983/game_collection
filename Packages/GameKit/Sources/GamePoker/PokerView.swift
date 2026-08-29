@@ -8,7 +8,6 @@ public struct PokerView: View {
     @State private var showStartSheet = true
     @State private var hasPlayedOnce = false
     @State private var revealCPU = false
-    @State private var showHandGuide = false
     @State private var showRewardNotEarned = false
     @State private var isRecoveringChips = false
 
@@ -26,6 +25,7 @@ public struct PokerView: View {
             cpuArea
             potArea
             playerArea
+            HowToPlayHint(.poker, playLog: services.playLog)
             if model.sessionOver {
                 sessionOverView
             } else {
@@ -51,17 +51,9 @@ public struct PokerView: View {
                 Text("ポーカー")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
-            #if os(iOS)
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showHandGuide = true } label: {
-                    Image(systemName: "list.bullet.rectangle")
-                }
-            }
-            #endif
         }
-        .sheet(isPresented: $showHandGuide) {
-            HandGuideSheet()
-        }
+        // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
+        .howToPlay(.poker) { HandGuideSheet() }
         .sheet(isPresented: $showStartSheet) {
             PokerStartSheet {
                 showStartSheet = false
@@ -86,11 +78,11 @@ public struct PokerView: View {
     private var chipsBar: some View {
         HStack {
             Label("あなた: \(model.playerChips)枚", systemImage: "person.fill")
-                .font(Theme.body(14))
+                .themeBody(14)
                 .foregroundStyle(Theme.ink)
             Spacer()
             Label("CPU: \(model.cpuChips)枚", systemImage: "cpu")
-                .font(Theme.body(14))
+                .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
@@ -103,7 +95,7 @@ public struct PokerView: View {
         VStack(spacing: 12) {
             HStack(spacing: 8) {
                 Text("CPU")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
                 if !model.cpuAction.isEmpty {
                     Text(model.cpuAction)
@@ -171,7 +163,7 @@ public struct PokerView: View {
         VStack(spacing: 6) {
             HStack {
                 Text("あなた")
-                    .font(Theme.body(13))
+                    .themeBody(13)
                     .foregroundStyle(Theme.ink)
                 Spacer()
                 if model.phase == .exchange {
@@ -200,7 +192,7 @@ public struct PokerView: View {
                             }
                         }
                         .offset(y: isSelected ? 10 : 0)
-                        .animation(.spring(response: 0.25), value: isSelected)
+                        .gameAnimation(.spring(response: 0.25), value: isSelected)
                 }
             }
             .padding(.vertical, 6)
@@ -229,7 +221,7 @@ public struct PokerView: View {
                 .font(.system(size: 13, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Capsule().fill(Theme.inkSub))
+                .background(Capsule().fill(Theme.fillMuted))
         }
     }
 
@@ -275,7 +267,7 @@ public struct PokerView: View {
             if model.phase == .cpuExchange {
                 HStack {
                     ProgressView().controlSize(.small)
-                    Text("CPUが交換中…").font(Theme.body(14)).foregroundStyle(Theme.inkSub)
+                    Text("CPUが交換中…").themeBody(14).foregroundStyle(Theme.inkSub)
                 }
                 .frame(maxWidth: .infinity)
             } else {
@@ -295,7 +287,7 @@ public struct PokerView: View {
             if model.currentBet > 0 {
                 // CPUがベット済み → コールかフォールド
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.inkSub) {
+                    actionButton("フォールド", color: Theme.fillMuted) {
                         model.foldToCPUBet()
                     }
                     actionButton("コール \(model.currentBet)枚", color: Theme.coral,
@@ -305,7 +297,7 @@ public struct PokerView: View {
                 }
             } else {
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.inkSub) {
+                    actionButton("フォールド", color: Theme.fillMuted) {
                         model.bet2Action(.fold)
                     }
                     actionButton("チェック", color: Theme.teal) {
@@ -323,12 +315,15 @@ public struct PokerView: View {
 
     // リザルト（ラウンド終了）
     private var resultView: some View {
-        actionButton("次のゲーム", color: Theme.coral) {
-            revealCPU = false
-            if hasPlayedOnce {
-                model.startGame()
-            } else {
-                showStartSheet = true
+        VStack(spacing: 8) {
+            RecordLabel(model.recordResult)
+            actionButton("次のゲーム", color: Theme.coral) {
+                revealCPU = false
+                if hasPlayedOnce {
+                    model.startGame()
+                } else {
+                    showStartSheet = true
+                }
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -359,6 +354,9 @@ public struct PokerView: View {
                 Spacer()
             }
 
+            // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
+            RecordLabel(model.recordResult)
+
             if model.sessionWinner == .cpu {
                 Button {
                     // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
@@ -370,7 +368,7 @@ public struct PokerView: View {
                     }
                 } label: {
                     Label("広告を見てチップ回復", systemImage: "play.rectangle.fill")
-                        .font(Theme.body(16)).frame(maxWidth: .infinity)
+                        .themeBody(16).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
                 .disabled(isRecoveringChips)
@@ -382,7 +380,7 @@ public struct PokerView: View {
                 model.restartSession()
                 showStartSheet = true
             } label: {
-                Text("もう一度はじめる").font(Theme.body(16)).frame(maxWidth: .infinity)
+                Text("もう一度はじめる").themeBody(16).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
         }
@@ -393,9 +391,16 @@ public struct PokerView: View {
     private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(Theme.body(14))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .themeBody(14)
+                // 文字を拡大すると「カードを選ぶ」「コール 20枚」等が折り返して
+                // ボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 8)
+                // 高さは上下の余白（10pt）任せだと実測 34〜37pt で Apple HIG の 44pt に届かない（#207）。
+                // 見た目のトーン（角丸・色）は変えず、下限だけを与えて背景ごと 44pt にする。
+                // 文字が大きくなって 44pt を超えるぶんには従来どおり伸びる。
+                .frame(maxWidth: .infinity, minHeight: PokerMetrics.actionButtonMinHeight)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
                 .foregroundStyle(disabled ? Theme.inkSub : .white)
@@ -451,7 +456,7 @@ struct PokerStartSheet: View {
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ゲームの流れ")
-                        .font(Theme.body(15)).foregroundStyle(Theme.inkSub)
+                        .themeBody(15).foregroundStyle(Theme.inkSub)
                     ruleRow("1", "アンティ 10枚 → 手札5枚配布")
                     ruleRow("2", "ベット（チェック or 20枚ベット）")
                     ruleRow("3", "カード交換（0〜5枚）")
@@ -483,7 +488,7 @@ struct PokerStartSheet: View {
                 Button {
                     onStart()
                 } label: {
-                    Text("ゲーム開始").font(Theme.body(18)).frame(maxWidth: .infinity)
+                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
             }

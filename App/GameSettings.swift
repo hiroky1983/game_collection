@@ -9,12 +9,38 @@ final class GameSettings {
     private(set) var hiddenIDs: Set<String>
     /// 触覚フィードバックのオン / オフ。既定はオン。
     var hapticsEnabled: Bool {
-        didSet { UserDefaults.standard.set(hapticsEnabled, forKey: Self.hapticsKey) }
+        didSet { Self.haptics.isEnabled = hapticsEnabled }
+    }
+    /// 効果音のオン / オフ。既定はオン。触覚とは独立に切り替えられる。
+    var soundEnabled: Bool {
+        didSet { Self.sound.isEnabled = soundEnabled }
+    }
+    /// ヒント表示のオン / オフ（#190）。既定はオン。
+    /// 大富豪の「いま出せるカードの強調」「出せない理由の1行表示」がこれで切り替わる。
+    var hintsEnabled: Bool {
+        didSet { Self.hints.isEnabled = hintsEnabled }
+    }
+    /// 解析送信のオン / オフ（#158）。既定はオン。
+    /// オフのあいだ `logEvent` は呼ばれず、Firebase の自動収集イベントも止まる。
+    var analyticsEnabled: Bool {
+        didSet {
+            Self.analytics.isEnabled = analyticsEnabled
+            // 明示イベントだけでなく SDK 全体の収集を切り替える（PR #162 の CodeRabbit 指摘）。
+            AppEnvironment.applyAnalyticsCollectionState()
+            // 設定をまたいだプレイは game_start / game_end の対応が取れないため、
+            // 切り替えた時点で進行中の数え方も捨てる（#212）。
+            AppEnvironment.analytics.discardPlayState()
+        }
     }
 
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
-    private static let hapticsKey  = "hapticsEnabled_v1"
+    private static let haptics = FeedbackPreference(key: "hapticsEnabled_v1")
+    private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
+    // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
+    private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
+    // ヒント表示はゲーム側（GameKit）も同じキーを読むため、定義は Core に置いたものを共有する。
+    private static var hints: FeedbackPreference { .hints }
 
     init(registeredIDs: [String]) {
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
@@ -25,8 +51,11 @@ final class GameSettings {
         let hiddenArr = UserDefaults.standard.stringArray(forKey: Self.hiddenKey) ?? []
         self.hiddenIDs = Set(hiddenArr.filter { registeredIDs.contains($0) })
 
-        // 未設定（初回起動・キー無し）はオン。
-        self.hapticsEnabled = UserDefaults.standard.object(forKey: Self.hapticsKey) as? Bool ?? true
+        // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
+        self.hapticsEnabled = Self.haptics.isEnabled
+        self.soundEnabled = Self.sound.isEnabled
+        self.analyticsEnabled = Self.analytics.isEnabled
+        self.hintsEnabled = Self.hints.isEnabled
     }
 
     func visibleModules(from registry: GameRegistry) -> [GameModule] {

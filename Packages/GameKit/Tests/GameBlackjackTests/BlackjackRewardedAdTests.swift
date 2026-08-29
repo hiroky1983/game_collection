@@ -28,7 +28,7 @@ private final class StubAdService: AdService, @unchecked Sendable {
 
     init(rewardEarned: Bool) { self.rewardEarned = rewardEarned }
 
-    @MainActor func makeBannerView() -> AnyView? { nil }
+    @MainActor func makeBannerView(width: CGFloat) -> AnyView? { nil }
     @MainActor func showInterstitial() async { interstitialCount += 1 }
     @MainActor func showRewardedAd() async -> Bool {
         rewardedCount += 1

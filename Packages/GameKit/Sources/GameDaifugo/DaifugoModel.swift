@@ -52,6 +52,8 @@ public final class DaifugoModel {
     public private(set) var finishOrder: [Int] = []
     /// 反則上がりしたプレイヤー番号。
     public private(set) var fouls: Set<Int> = []
+    /// 投了したプレイヤー番号（#194）。今のところ人間だけが投了できる。
+    public private(set) var resigned: Set<Int> = []
     /// 決着後の最終順位（1位から順のプレイヤー番号）。対局中は空。
     public private(set) var ranking: [Int] = []
     /// 何ゲーム目か（1 始まり）。カード交換の有無の判定に使う。
@@ -60,6 +62,8 @@ public final class DaifugoModel {
     public private(set) var lastRanking: [Int] = []
     /// 直前に行ったカード交換の内訳（リザルト直後の説明に使う）。
     public private(set) var lastTransfers: [DaifugoTransfer] = []
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
     /// 各プレイヤーの直近の動き（「パス」「8切り！」など）。画面のバッジ表示用。
     public private(set) var lastActions: [String] = Array(repeating: "", count: playerCount)
     /// 手札から選択中のカード ID。
@@ -69,17 +73,32 @@ public final class DaifugoModel {
     private let gameID = "daifugo"
     private let cpuDelay: Duration
     private var seed: UInt64?
+    /// ヒント表示のオン / オフ（#190）。設定画面はハブ側にしか無く**対局中には変わらない**ため、
+    /// `@Observable` の追跡対象にはせず参照のたびに読む。
+    private let hints: FeedbackPreference
     /// CPU の連続手番が二重に走らないようにする門番（View から複数回呼ばれても1本に保つ）。
-    private var isRunningCPUTurns = false
+    /// `internal` なのはテストが「先行タスクが開始した」ことを確認する同期ゲートに使うため
+    /// （`Task.yield()` 単発では開始を保証できない・#287 の PR レビュー指摘）。
+    var isRunningCPUTurns = false
+    /// 「結果まで進める」が押されたか（#191）。以降の CPU 手番は間合いを取らずに消化する。
+    public private(set) var isSkippingToResult = false
+
+    /// 自分が上がった後の消化試合で使う間合い（#191）。自分の操作が無い区間なので短くする。
+    static let finishedCPUDelay: Duration = .milliseconds(120)
+    /// 自分が上がった後に消化した CPU の手番数（#191）。
+    /// 手番数 × `finishedCPUDelay` が消化試合の待ち時間になるため、テストで上限を見張る。
+    private(set) var cpuTurnsAfterPlayerFinished = 0
 
     public init(
         services: GameServices? = nil,
         cpuDelay: Duration = .milliseconds(650),
-        seed: UInt64? = nil
+        seed: UInt64? = nil,
+        hints: FeedbackPreference = .hints
     ) {
         self.services = services
         self.cpuDelay = cpuDelay
         self.seed = seed
+        self.hints = hints
         if let snap = services?.snapshots.load(DaifugoSnapshot.self, for: gameID) {
             hands         = snap.hands
             field         = snap.field
@@ -106,6 +125,13 @@ public final class DaifugoModel {
     /// 人間の手番か（上がっていれば false）。
     public var isPlayerTurn: Bool { phase == .playing && currentPlayer == Self.humanIndex }
 
+    /// 「結果まで進める」を出せるか（#191）。自分が上がっていて、まだ決着していないとき。
+    public var canSkipToResult: Bool { phase == .playing && isPlayerFinished }
+
+    /// 投了できるか（#194）。対局中で、まだ上がっていないときだけ。
+    /// 上がった後は勝ち取った階級を捨てる操作になってしまうので出さない（代わりに「結果まで進める」がある）。
+    public var canResign: Bool { phase == .playing && !isPlayerFinished }
+
     /// 人間の最終順位（0 始まり）。決着していなければ nil。
     public var playerPlace: Int? { ranking.firstIndex(of: Self.humanIndex) }
 
@@ -122,6 +148,30 @@ public final class DaifugoModel {
 
     /// 人間がパスできるか（親のときはパスできない = 場を流せないため）。
     public var canPass: Bool { isPlayerTurn && !field.isEmpty }
+
+    /// 手札のヒント（#190）。強調するものが無いときは nil。
+    ///
+    /// nil になるのは、設定でオフ / 自分の手番でない / 手札が空 / **手札すべてが出せる**
+    /// （場が流れている等）の4通り。最後の1つを弾くのは、全札に枠が付くだけの
+    /// 情報量ゼロの強調を出さないため。逆に**1枚も出せない**ときは全札を暗く落とし、
+    /// 「パスするしかない」ことを伝える。
+    public var handHint: DaifugoHandHint? {
+        guard hints.isEnabled, isPlayerTurn, !playerHand.isEmpty else { return nil }
+        let playable = DaifugoRules.playableCardIDs(
+            hand: playerHand, field: field, isRevolution: isRevolution
+        )
+        guard playable.count < playerHand.count else { return nil }
+        return DaifugoHandHint(
+            playable: playable,
+            unplayable: Set(playerHand.map(\.id)).subtracting(playable)
+        )
+    }
+
+    /// 選択中の組を出せない理由の1行表示（#190）。出せるとき・未選択・ヒントがオフなら nil。
+    public var selectionIssue: String? {
+        guard hints.isEnabled, isPlayerTurn else { return nil }
+        return DaifugoRules.rejectionReason(selectedCards, field: field, isRevolution: isRevolution)
+    }
 
     /// 評価リクエスト（#53）の判定用。大富豪なら勝ち、大貧民なら負け、間は引き分け扱い。
     public var reviewOutcome: GameOutcome {
@@ -173,15 +223,22 @@ public final class DaifugoModel {
         isRevolution = false
         finishOrder = []
         fouls = []
+        resigned = []
         ranking = []
         selected = []
         lastActions = Array(repeating: "", count: Self.playerCount)
         gameNumber += 1
         currentPlayer = openingPlayer()
+        recordResult = nil
+        isSkippingToResult = false
+        cpuTurnsAfterPlayerFinished = 0
         phase = .playing
 
         services?.feedback.impact(.medium)   // カードが配られた
         persist()
+        // 1 ゲーム = 1 プレイ（`gameDidFinish` もゲームごとに呼んでいる）。
+        // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// 親（最初の手番）。初回は♦3を持つ人、2ゲーム目以降は前回の大貧民。
@@ -235,6 +292,36 @@ public final class DaifugoModel {
         }
         services?.feedback.impact(.light)
         passTurn(by: Self.humanIndex)
+    }
+
+    /// 自分が上がった後の CPU 同士の消化試合を、待たずに決着まで進める（#191）。
+    /// 進行そのものは通常どおり行うため、階級・記録は早送りしても変わらない。
+    public func skipToResult() {
+        guard canSkipToResult else { return }
+        isSkippingToResult = true
+        services?.feedback.impact(.light)
+    }
+
+    /// 投了する（#194）。その場でゲームを打ち切り、自分は大貧民（最下位）で決着する。
+    ///
+    /// 残った CPU の順位は**手札の少ない順**（同数はプレイヤー番号順）で埋める。打ち切りなので
+    /// 最後まで打たせず、上がりに最も近い並びで代用する。自分は反則上がりよりさらに下の最下位に
+    /// 固定するため、`ranking` へ投了者として渡す。決着を通常どおり `concludeGame()` に通すので、
+    /// 記録（敗北）・階級・次ゲームのカード交換の扱いは自然に上がったときと同じ経路になる。
+    public func resign() {
+        guard canResign else { return }
+        let remaining = activePlayers()
+            .filter { $0 != Self.humanIndex }
+            .sorted { (hands[$0].count, $0) < (hands[$1].count, $1) }
+        for player in remaining {
+            finishOrder.append(player)
+            hands[player] = []
+        }
+        hands[Self.humanIndex] = []
+        finishOrder.append(Self.humanIndex)
+        resigned.insert(Self.humanIndex)
+        lastActions[Self.humanIndex] = "投了"
+        concludeGame()
     }
 
     // MARK: - 進行
@@ -348,7 +435,7 @@ public final class DaifugoModel {
             finishOrder.append(last)
             hands[last] = []
         }
-        ranking = DaifugoRules.ranking(finishOrder: finishOrder, fouls: fouls)
+        ranking = DaifugoRules.ranking(finishOrder: finishOrder, fouls: fouls, resigned: resigned)
         lastRanking = ranking
         field = []
         fieldOwner = nil
@@ -360,7 +447,7 @@ public final class DaifugoModel {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
-        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
         services?.snapshots.clear(for: gameID)
     }
 
@@ -369,21 +456,43 @@ public final class DaifugoModel {
     /// CPU の手番が続く限り進める。人間の手番になるか決着したら止まる。
     /// View から複数の契機で呼ばれても内部で1本に制限する。
     public func runCPUTurnsIfNeeded() async {
-        guard !isRunningCPUTurns else { return }
+        // 多重起動防止。「先行タスクがいたら即リターン」にすると、下のキャンセル検知と
+        // 組み合わさったとき「新タスクが即リターン → 先行タスクがキャンセルで抜ける」の順で
+        // 走者不在になり手番が止まりうるため、麻雀（#311）と同じく先行タスクの終了を
+        // 待ってから引き継ぐ。待機中に自分もキャンセルされたら次のタスクに譲って抜ける。
+        while isRunningCPUTurns {
+            guard !Task.isCancelled else { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
         isRunningCPUTurns = true
         defer { isRunningCPUTurns = false }
 
         while phase == .playing, currentPlayer != Self.humanIndex {
-            if cpuDelay > .zero {
-                try? await Task.sleep(for: cpuDelay)
+            // 間合いは毎手番ごとに読み直す。消化試合に入った時点・早送りを押された時点から
+            // 待たずに済むようにするため（#191）。
+            let delay = currentCPUDelay
+            if delay > .zero {
+                try? await Task.sleep(for: delay)
+                // `try?` がキャンセルのエラーを握り潰すため、キャンセル後は `Task.sleep` が
+                // 即座に返る。ここで抜けないと、画面を離れてキャンセルされたタスクが間合いを
+                // 一切取らずに残りの手番を最後まで走り抜けてしまう（#287）。
+                guard !Task.isCancelled else { return }
                 guard phase == .playing, currentPlayer != Self.humanIndex else { return }
             }
             performCPUTurn(currentPlayer)
         }
     }
 
+    /// この手番で取る間合い（#191）。自分が上がった後は短くし、早送り中は取らない。
+    /// `cpuDelay` が 0 のテストでは常に 0 のまま（`min` で頭打ちにしているため）。
+    private var currentCPUDelay: Duration {
+        guard isPlayerFinished else { return cpuDelay }
+        return isSkippingToResult ? .zero : min(cpuDelay, Self.finishedCPUDelay)
+    }
+
     /// CPU の1手。CPU の着手では触覚を鳴らさない（人間の操作と区別するため）。
     private func performCPUTurn(_ player: Int) {
+        if isPlayerFinished { cpuTurnsAfterPlayerFinished += 1 }
         if let play = DaifugoRules.greedyPlay(
             hand: hands[player], field: field, isRevolution: isRevolution
         ) {
@@ -404,7 +513,8 @@ public final class DaifugoModel {
         currentPlayer: Int = DaifugoModel.humanIndex,
         isRevolution: Bool = false,
         passedPlayers: Set<Int> = [],
-        gameNumber: Int = 1
+        gameNumber: Int = 1,
+        finishOrder: [Int] = []
     ) {
         self.hands = hands.map { $0.sorted { $0.sortKey < $1.sortKey } }
         self.field = field
@@ -413,11 +523,14 @@ public final class DaifugoModel {
         self.isRevolution = isRevolution
         self.passedPlayers = passedPlayers
         self.gameNumber = gameNumber
-        finishOrder = []
+        self.finishOrder = finishOrder
         fouls = []
+        resigned = []
         ranking = []
         selected = []
         lastActions = Array(repeating: "", count: Self.playerCount)
+        isSkippingToResult = false
+        cpuTurnsAfterPlayerFinished = 0
         phase = .playing
         persist()
     }

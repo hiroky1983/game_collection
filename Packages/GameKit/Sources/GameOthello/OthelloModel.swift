@@ -34,8 +34,17 @@ public final class OthelloModel {
     public private(set) var mustPass: Bool
     public private(set) var turnID: Int
     public private(set) var undoUsed: Bool
+    /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
+    public private(set) var gameSerial: Int = 0
+    /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
+    /// 思考タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
+    /// `isThinking = true` と盤面の取り込みが済んだ直後・探索の開始前に await する。
+    /// テストはここで思考を止めることで、「探索の完了待ちで停止中」という状態を
+    /// 探索の所要時間に依存せず決定論的に作れる（#172）。
+    @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
     private let gameID = "othello"
     private var startedAt: Date
     private var undoHistory: [TurnState] = []
@@ -53,8 +62,15 @@ public final class OthelloModel {
         !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
     }
 
+    /// View の `.task(id:)` に渡す CPU 起動トリガー。
+    /// `turnID` だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
+    /// CPU の初手が起動しない（#140。将棋 #82 と同じ原因）。対局の通し番号と組にする。
+    public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: turnID) }
+
     public init(services: GameServices? = nil) {
         self.services = services
+        // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
+        var isFreshStart = false
 
         if let snap = services?.snapshots.load(OthelloSnapshot.self, for: "othello") {
             let cells = snap.cells.map { $0.flatMap { OthelloStone(rawValue: $0) } }
@@ -79,9 +95,12 @@ public final class OthelloModel {
             mustPass     = false
             turnID       = 0
             undoUsed     = false
+            isFreshStart = true
         }
         isThinking = false
         lastMove   = nil
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
     public func tap(row: Int, col: Int) {
@@ -122,30 +141,40 @@ public final class OthelloModel {
         guard !gameOver else { return }
         winner = humanSide.opponent
         services?.feedback.notify(.error)
-        services?.gameDidFinish(gameID: gameID, outcome: .loss)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: GameScore(metric: .winLoss))
         persist()
     }
 
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking, !gameOver else { return }
+        // 待ちの最中に新規対局が始まると、旧盤面での判断（パス・着手）が新しい盤面に
+        // 適用されてしまう。開始時のトリガー（対局の通し番号 × turnID）を控え、
+        // 完了時に一致する場合だけ進める。
+        let key = aiTurnKey
+        let serial = gameSerial
 
         if mustPass {
             try? await Task.sleep(nanoseconds: 600_000_000)
-            guard isAITurn else { return }
+            guard aiTurnKey == key, isAITurn, mustPass else { return }
             confirmPass()
             return
         }
 
         isThinking = true
-        defer { isThinking = false }
+        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
+        defer { if gameSerial == serial { isThinking = false } }
 
         let b = board, s = currentStone, lvl = aiLevel
+        await thinkingGate?()
         let move = await Task.detached(priority: .userInitiated) {
             await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
         }.value
 
-        guard isAITurn, !gameOver else { return }
-        if let (r, c) = move { place(row: r, col: c) }
+        guard aiTurnKey == key, isAITurn, !gameOver else { return }
+        // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
+        if let (r, c) = move, board.isValid(row: r, col: c, stone: currentStone) {
+            place(row: r, col: c)
+        }
     }
 
     public func newGame(humanSide: OthelloStone = .black, aiLevel: Int = 1) {
@@ -160,8 +189,14 @@ public final class OthelloModel {
         turnID         = 0
         undoUsed       = false
         undoHistory    = []
+        recordResult   = nil
         startedAt      = Date()
+        gameSerial    += 1
+        // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする。
+        // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
+        isThinking     = false
         persist()
+        services?.gameDidRestart(gameID: gameID)
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
@@ -193,7 +228,7 @@ public final class OthelloModel {
         } else {
             services?.feedback.notify(winner == humanSide ? .success : .error)
         }
-        services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
         return true
     }
 

@@ -10,6 +10,8 @@ public final class Game2048Model {
     public private(set) var score: Int
     public private(set) var gameOver: Bool
     public private(set) var continueUsed: Bool = false
+    /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
+    public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
     private let gameID = "2048"
@@ -19,19 +21,37 @@ public final class Game2048Model {
         self.services = services
         var initialBoard: [[Int]]
         var initialScore: Int
+        // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
+        var isFreshStart = false
         if let snap = services?.snapshots.load(Game2048Snapshot.self, for: gameID) {
             initialBoard = snap.board
             initialScore = snap.score
+            // 再起動でコンティニュー権が復活しないよう、使用済みフラグも復元する。
+            continueUsed = snap.continueUsed
         } else {
             initialBoard = Game2048Logic.emptyBoard()
             initialScore = 0
             // 初期タイル 2 個。
             Self.spawn(into: &initialBoard)
             Self.spawn(into: &initialBoard)
+            isFreshStart = true
         }
         board = initialBoard
         score = initialScore
         gameOver = Game2048Logic.isGameOver(initialBoard)
+        persist()
+        // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
+    }
+
+    /// 盤面を直接与えて開始する。初期タイルの乱数生成と中断スナップショットの復元を
+    /// 経由しないので、狙った局面（1マスも動かない方向がある盤面など）から検証できる。
+    /// テスト用の経路で、`init(services:)` の挙動には影響しない。
+    public init(services: GameServices? = nil, board: [[Int]], score: Int = 0) {
+        self.services = services
+        self.board = board
+        self.score = score
+        gameOver = Game2048Logic.isGameOver(board)
         persist()
     }
 
@@ -51,7 +71,13 @@ public final class Game2048Model {
         if Game2048Logic.isGameOver(board) {
             gameOver = true
             services?.feedback.notify(.error)
-            services?.gameDidFinish(gameID: gameID, outcome: .loss)
+            // 2048 に勝ちは無いので、記録するのはスコアと到達した最大タイル。
+            let highestTile: Int? = board.flatMap { $0 }.max()
+            recordResult = services?.gameDidFinish(
+                gameID: gameID,
+                outcome: .loss,
+                score: GameScore(metric: .points, points: score, highestValue: highestTile)
+            )
             services?.snapshots.clear(for: gameID) // 終局でスナップショット破棄
         } else {
             services?.feedback.impact(result.gained > 0 ? .medium : .light)
@@ -62,10 +88,20 @@ public final class Game2048Model {
     /// リワード広告視聴後にコンティニュー。盤面・スコアを保持したまま再開。1回のみ使用可。
     public func continueAfterAd() {
         guard gameOver, !continueUsed else { return }
+        // 同じ盤面・同じスコアの続きなので、直前に記録した「負け」は無かったことにする
+        // （そのままだと1回のプレイが2回分として数えられる）。到達済みのスコアは取り消さない。
+        services?.playLog?.cancelLoss(gameID: gameID)
+        recordResult = nil
         gameOver = false
         continueUsed = true
-        Self.spawn(into: &board)
+        // 終局盤面は必ず全埋まりなので、ここで新タイルを置こうとしても空振りする（それが #122 の不具合）。
+        // 最小値のタイルを消して空きマスを確保し、確実に続きを遊べる盤面で再開する。新タイルは置かない
+        // （コンティニューは手番ではないうえ、せっかく確保した空きマスを潰して続行手数を削るだけのため）。
+        board = Game2048Logic.revive(board)
         persist()
+        // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
+        // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる。
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// 新規ゲーム。
@@ -74,14 +110,19 @@ public final class Game2048Model {
         score = 0
         gameOver = false
         continueUsed = false
+        recordResult = nil
         Self.spawn(into: &board)
         Self.spawn(into: &board)
         persist()
+        services?.gameDidRestart(gameID: gameID)
     }
 
     private func persist() {
         guard !gameOver else { return }
-        try? services?.snapshots.save(Game2048Snapshot(board: board, score: score), for: gameID)
+        try? services?.snapshots.save(
+            Game2048Snapshot(board: board, score: score, continueUsed: continueUsed),
+            for: gameID
+        )
     }
 
     /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。

@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import MahjongTiles
 @testable import GameMahjongSolitaire
 
 // MARK: - Mocks
