@@ -409,6 +409,9 @@ public final class SudokuModel {
         guard snapshot.board != snapshot.solution,
               (0...maxHints).contains(snapshot.hintsUsed),
               snapshot.elapsedSeconds >= 0 else { return false }
+        // ミス回数も値域まで見る（nil は旧形式の中断データなので許可 = 0 扱い）。
+        guard snapshot.mistakes.map({ (0...maxMistakes).contains($0) }) ?? true
+        else { return false }
         return true
     }
 }

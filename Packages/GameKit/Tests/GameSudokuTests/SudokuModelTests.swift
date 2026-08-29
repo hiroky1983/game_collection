@@ -495,3 +495,47 @@ struct SudokuMistakeTests {
         #expect(restored.mistakes == 1)
     }
 }
+
+@Suite("数独 Model のミス回数の復元検証")
+@MainActor
+struct SudokuMistakeSnapshotValidationTests {
+
+    private func snapshot(mistakes: Int?) -> SudokuSnapshot {
+        // 有効な完成盤から1マスだけ空けた「プレイ途中」の形。
+        let solution = [
+            5,3,4,6,7,8,9,1,2, 6,7,2,1,9,5,3,4,8, 1,9,8,3,4,2,5,6,7,
+            8,5,9,7,6,1,4,2,3, 4,2,6,8,5,3,7,9,1, 7,1,3,9,2,4,8,5,6,
+            9,6,1,5,3,7,2,8,4, 2,8,7,4,1,9,6,3,5, 3,4,5,2,8,6,9,1,7,
+        ]
+        var board = solution
+        board[0] = 0
+        var given = [Bool](repeating: true, count: 81)
+        given[0] = false
+        return SudokuSnapshot(
+            board: board, given: given, solution: solution,
+            notes: [Int](repeating: 0, count: 81),
+            elapsedSeconds: 1, hintsUsed: 0, difficulty: .easy,
+            hintedCells: [], mistakes: mistakes
+        )
+    }
+
+    // arguments は nonisolated に評価されるため @MainActor の maxMistakes を参照できない。
+    // 4 = maxMistakes(3) + 1 のリテラル。
+    @Test("範囲外のミス回数を含む中断データは捨てる", arguments: [-1, 4])
+    func rejectsOutOfRangeMistakes(value: Int) throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(mistakes: value), for: "sudoku")
+        let (model, _) = makeModel(store: store)
+        #expect(model.state == .idle, "壊れた中断データを信じて復元してしまった")
+        #expect(!store.exists(for: "sudoku"))
+    }
+
+    @Test("mistakes 無し（旧形式）はミス0として復元できる")
+    func acceptsLegacySnapshot() throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(mistakes: nil), for: "sudoku")
+        let (model, _) = makeModel(store: store)
+        #expect(model.state == .playing)
+        #expect(model.mistakes == 0)
+    }
+}
