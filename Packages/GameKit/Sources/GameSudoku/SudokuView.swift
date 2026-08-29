@@ -9,6 +9,8 @@ public struct SudokuView: View {
     @State private var showGiveUpConfirm = false
     @State private var showRewardNotEarned = false
     @State private var isRequestingHint = false
+    @State private var isContinuing = false
+    @State private var showContinueNotEarned = false
     @State private var showHintUnavailable = false
     @State private var zoomMode = false
     @Environment(\.dismiss) private var dismiss
@@ -26,6 +28,9 @@ public struct SudokuView: View {
             statusBar
             board
                 .layoutPriority(1)
+                .overlay {
+                    if model.state == .failed { failedOverlay }
+                }
                 // 広告のロード〜視聴中は盤に触れない。ここが開いていると、
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
@@ -92,6 +97,11 @@ public struct SudokuView: View {
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
+        .alert("コンティニューできませんでした", isPresented: $showContinueNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+        }
         .alert("ヒントを入れられませんでした", isPresented: $showHintUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -130,6 +140,11 @@ public struct SudokuView: View {
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.coral)
+                    // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
+                    Label("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
                 }
             }
             .lineLimit(1)
@@ -519,6 +534,45 @@ public struct SudokuView: View {
             }
             isRequestingHint = false
         }
+    }
+
+    // MARK: - ミス上限（広告コンティニュー・2048 と同型）
+
+    private var failedOverlay: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                .fill(.black.opacity(0.55))
+            VStack(spacing: 12) {
+                Text("ミスが\(SudokuModel.maxMistakes)回になりました")
+                    .font(.title3.bold()).foregroundStyle(.white)
+                Text("広告を見るとミスが0に戻り、続きから遊べます")
+                    .themeCaption(12).foregroundStyle(.white.opacity(0.85))
+                Button {
+                    // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
+                    guard !isContinuing else { return }
+                    isContinuing = true
+                    Task {
+                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                        if await services.ads.showRewardedAd() {
+                            model.continueAfterAd()
+                        } else {
+                            showContinueNotEarned = true
+                        }
+                        isContinuing = false
+                    }
+                } label: {
+                    Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.coral)
+                .disabled(isContinuing)
+                Button("諦めて答えを見る") { model.giveUp() }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+            }
+            .padding(16)
+        }
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Result Controls
