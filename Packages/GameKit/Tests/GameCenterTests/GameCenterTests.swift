@@ -628,9 +628,18 @@ struct GameCenterEntryPointTests {
     @Test("ハブのツールバーから実績・ランキングを開ける")
     func hubHasGameCenterEntryPoint() throws {
         let source = try appSource("HubView.swift")
+        // 「トロフィーのボタンを押すと `openGameCenter()` が走る」という**結線**まで見る。
+        // 部品の有無を個別に contains で確かめるだけだと、ボタンの中身を空にしても
+        // `openGameCenter()` の定義側が文字列として残るため緑のまま素通りする（QA 指摘）。
+        #expect(
+            source.range(
+                of: #"Button \{ openGameCenter\(\) \} label: \{\s*Image\(systemName: "trophy\.fill"\)"#,
+                options: .regularExpression
+            ) != nil,
+            "トロフィーのボタンと openGameCenter() の結線が切れている"
+        )
         #expect(source.contains("GameCenterEntry.open()"),
                 "ハブから GameCenterEntry を呼ぶ導線が消えている")
-        #expect(source.contains("trophy.fill"), "ツールバーのアイコンが消えている")
         // アイコンだけのボタンは VoiceOver がシンボル名を読むため、明示のラベルが要る。
         #expect(source.contains(#"accessibilityLabel("実績・ランキング")"#),
                 "アイコンボタンの読み上げラベルが消えている")
