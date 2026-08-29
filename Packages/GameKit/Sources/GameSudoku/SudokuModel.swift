@@ -12,6 +12,8 @@ public enum SudokuState: Equatable, Sendable {
     case playing
     /// 完成した。
     case cleared
+    /// ミスが上限（`SudokuModel.maxMistakes`）に達した。広告のコンティニューで `playing` に戻れる。
+    case failed
     /// 諦めて答えを見た。
     case givenUp
 }
@@ -31,6 +33,8 @@ struct SudokuSnapshot: Codable {
     let hintsUsed: Int
     let difficulty: SudokuDifficulty
     let hintedCells: [Int]
+    /// ミス回数。**古い中断データを読めなくしないため任意**にする（麻雀の `melds` と同じ判断）。
+    let mistakes: Int?
 }
 
 @MainActor
@@ -38,6 +42,9 @@ struct SudokuSnapshot: Codable {
 public final class SudokuModel {
     /// 1 局で使えるヒントの上限。
     public static let maxHints = 3
+    /// 許されるミス（誤答の確定入力）の回数。上限に達すると `failed` になり、
+    /// 広告のコンティニュー（`continueAfterAd`）で続けられる（2048 と同じ型・会長指示 2026-08-30）。
+    public static let maxMistakes = 3
 
     public private(set) var board: [Int]
     public private(set) var given: [Bool]
@@ -49,6 +56,8 @@ public final class SudokuModel {
     public private(set) var difficulty: SudokuDifficulty = .normal
     public private(set) var elapsedSeconds: Int = 0
     public private(set) var hintsUsed: Int = 0
+    /// 誤答の確定入力の回数。`maxMistakes` で `failed`。
+    public private(set) var mistakes: Int = 0
     public private(set) var noteMode: Bool = false
     /// ヒントで埋まったマス。プレイヤーが自力で入れたマスと見分けて色を変える。
     public private(set) var hintedCells: Set<Int> = []
@@ -65,6 +74,7 @@ public final class SudokuModel {
     public var hasPuzzle: Bool { state != .idle && state != .generating }
     public var isFinished: Bool { state == .cleared || state == .givenUp }
     public var remainingHints: Int { max(0, Self.maxHints - hintsUsed) }
+    public var remainingMistakes: Int { max(0, Self.maxMistakes - mistakes) }
 
     /// まだ埋まっていないマスの数。ステータスバーに出す。
     public var remainingCount: Int { board.filter { $0 == 0 }.count }
@@ -147,7 +157,9 @@ public final class SudokuModel {
                 hintsUsed      = snapshot.hintsUsed
                 difficulty     = snapshot.difficulty
                 hintedCells    = Set(snapshot.hintedCells.filter { (0..<SudokuEngine.cellCount).contains($0) })
-                state          = .playing
+                mistakes       = snapshot.mistakes ?? 0
+                // ミス上限のまま閉じていたら `failed` に戻す（コンティニューの選択からやり直せる）。
+                state          = mistakes >= Self.maxMistakes ? .failed : .playing
             } else {
                 services?.snapshots.clear(for: gameID)
             }
@@ -188,6 +200,7 @@ public final class SudokuModel {
         notes           = [Int](repeating: 0, count: SudokuEngine.cellCount)
         hintsUsed       = 0
         hintedCells     = []
+        mistakes        = 0
         noteMode        = false
         self.difficulty = difficulty
         state           = .playing
@@ -225,12 +238,21 @@ public final class SudokuModel {
             notes[index] ^= (1 << (digit - 1))
             services?.feedback.impact(.rigid)
         } else {
+            // 同じ数字の入れ直し（無操作）をミスに数えないよう、変化があったときだけ判定する。
+            let isNewWrongEntry = digit != solution[index] && board[index] != digit
             board[index] = digit
             notes[index] = 0
             // 正解のときだけ、同じ行・列・ブロックの同じ数字のメモを消してやる。
             // 間違いのときに消すと、正しかったメモまで巻き添えで失われる。
             if digit == solution[index] { clearPeerNotes(for: index, digit: digit) }
             services?.feedback.impact(.medium)
+            if isNewWrongEntry {
+                mistakes += 1
+                if mistakes >= Self.maxMistakes {
+                    fail()
+                    return   // fail() が persist まで済ませる
+                }
+            }
             checkCompletion()
         }
         persist()
@@ -276,9 +298,33 @@ public final class SudokuModel {
         return true
     }
 
+    /// ミスが上限に達した。負けの記録はまだ付けない（コンティニューで続けられるため）。
+    /// スナップショットは**消さずに**残す: ここでアプリを閉じても、次に開いたとき
+    /// `failed` のまま復元され、コンティニューか諦めるかを選び直せる。
+    private func fail() {
+        state = .failed
+        selected = nil
+        stopTimer()
+        services?.feedback.notify(.error)
+        persist()
+    }
+
+    /// 広告を見終えたらミスを 0 に戻して続きから再開する。**視聴が済んでから** View が呼ぶ
+    /// （2048 の `continueAfterAd` と同じ契約）。2048 と違い 1 局 1 回の制限は設けない:
+    /// 数独は解が一意で「粘れば必ず解ける」ため、続けたい人を止める理由が無い。
+    public func continueAfterAd() {
+        guard state == .failed else { return }
+        mistakes = 0
+        state = .playing
+        startTimer()
+        services?.feedback.notify(.success)
+        persist()
+    }
+
     /// 諦めて答えを見る。マインスイーパーの「諦める」と同じく 1 敗として記録する。
+    /// ミス上限（`failed`）からも諦められる（コンティニューしない選択）。
     public func giveUp() {
-        guard state == .playing else { return }
+        guard state == .playing || state == .failed else { return }
         board = solution
         notes = [Int](repeating: 0, count: SudokuEngine.cellCount)
         selected = nil
@@ -326,7 +372,8 @@ public final class SudokuModel {
     }
 
     private func persist() {
-        guard state == .playing else {
+        // `failed` も保存対象: コンティニューするか選ぶ前に閉じても状態が戻せるように。
+        guard state == .playing || state == .failed else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -338,7 +385,8 @@ public final class SudokuModel {
             elapsedSeconds: elapsedSeconds,
             hintsUsed: hintsUsed,
             difficulty: difficulty,
-            hintedCells: Array(hintedCells)
+            hintedCells: Array(hintedCells),
+            mistakes: mistakes
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }
@@ -361,6 +409,9 @@ public final class SudokuModel {
         guard snapshot.board != snapshot.solution,
               (0...maxHints).contains(snapshot.hintsUsed),
               snapshot.elapsedSeconds >= 0 else { return false }
+        // ミス回数も値域まで見る（nil は旧形式の中断データなので許可 = 0 扱い）。
+        guard snapshot.mistakes.map({ (0...maxMistakes).contains($0) }) ?? true
+        else { return false }
         return true
     }
 }

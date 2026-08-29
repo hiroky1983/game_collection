@@ -333,7 +333,7 @@ struct SudokuModelSnapshotTests {
         try store.save(
             SudokuSnapshot(
                 board: [1, 2, 3], given: [true], solution: [1], notes: [0],
-                elapsedSeconds: 0, hintsUsed: 0, difficulty: .easy, hintedCells: []
+                elapsedSeconds: 0, hintsUsed: 0, difficulty: .easy, hintedCells: [], mistakes: nil
             ),
             for: "sudoku"
         )
@@ -356,7 +356,7 @@ struct SudokuModelSnapshotTests {
             SudokuSnapshot(
                 board: board, given: given, solution: solution,
                 notes: [Int](repeating: 0, count: 81),
-                elapsedSeconds: 0, hintsUsed: 0, difficulty: .normal, hintedCells: []
+                elapsedSeconds: 0, hintsUsed: 0, difficulty: .normal, hintedCells: [], mistakes: nil
             ),
             for: "sudoku"
         )
@@ -373,12 +373,169 @@ struct SudokuModelSnapshotTests {
             SudokuSnapshot(
                 board: solution, given: [Bool](repeating: true, count: 81), solution: solution,
                 notes: [Int](repeating: 0, count: 81),
-                elapsedSeconds: 10, hintsUsed: 0, difficulty: .easy, hintedCells: []
+                elapsedSeconds: 10, hintsUsed: 0, difficulty: .easy, hintedCells: [], mistakes: nil
             ),
             for: "sudoku"
         )
 
         let model = SudokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         #expect(model.state == .idle)
+    }
+}
+
+// MARK: - ミス上限と広告コンティニュー（会長指示 2026-08-30・2048 と同型）
+
+@Suite("数独 Model のミス上限とコンティニュー")
+@MainActor
+struct SudokuMistakeTests {
+
+    /// 空きマスを1つ選び、正解ではない数字を入れる。
+    private func enterWrongDigit(_ model: SudokuModel) {
+        guard let index = (0..<81).first(where: { !model.given[$0] && model.board[$0] == 0 }) else {
+            Issue.record("空きマスが無い")
+            return
+        }
+        if model.selected != index { model.select(index: index) }
+        let wrong = (1...9).first { $0 != model.solution[index] }!
+        model.enter(digit: wrong)
+    }
+
+    @Test("誤答でミスが増え、正解と同じ数字の入れ直しでは増えない")
+    func countsOnlyNewWrongEntries() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+
+        enterWrongDigit(model)
+        #expect(model.mistakes == 1)
+
+        // 同じマスに同じ誤答を入れ直しても無操作なので増えない。
+        let index = model.selected!
+        let current = model.board[index]
+        model.enter(digit: current)
+        #expect(model.mistakes == 1, "同じ数字の入れ直しがミスに数えられた")
+
+        // 正解を入れてもミスは増えない。
+        model.enter(digit: model.solution[index])
+        #expect(model.mistakes == 1)
+        #expect(model.state == .playing)
+    }
+
+    @Test("ミスが3回で failed になり、入力もヒントも受け付けない")
+    func failsAtLimit() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+
+        for _ in 0..<SudokuModel.maxMistakes { enterWrongDigit(model) }
+        #expect(model.state == .failed)
+        #expect(model.mistakes == SudokuModel.maxMistakes)
+        #expect(model.selected == nil)
+        #expect(!model.isFinished, "failed は決着ではない（コンティニューできる）")
+
+        // failed 中は盤を触れない。
+        model.select(index: 0)
+        #expect(model.selected == nil)
+        #expect(!model.canHint(at: 0))
+    }
+
+    @Test("コンティニューでミスが0に戻り、続きから遊べる")
+    func continueResetsMistakes() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let boardBefore = { (m: SudokuModel) in m.board }
+
+        for _ in 0..<SudokuModel.maxMistakes { enterWrongDigit(model) }
+        let failedBoard = boardBefore(model)
+        model.continueAfterAd()
+
+        #expect(model.state == .playing)
+        #expect(model.mistakes == 0)
+        #expect(model.board == failedBoard, "盤面はそのまま続きから")
+
+        // playing 中の誤ったコンティニュー呼び出しは無視される。
+        model.continueAfterAd()
+        #expect(model.state == .playing)
+    }
+
+    @Test("failed からも諦められる（負けとして決着）")
+    func canGiveUpFromFailed() async {
+        let (model, store) = makeModel()
+        await model.newGame(difficulty: .easy)
+
+        for _ in 0..<SudokuModel.maxMistakes { enterWrongDigit(model) }
+        model.giveUp()
+
+        #expect(model.state == .givenUp)
+        #expect(model.board == model.solution)
+        #expect(!store.exists(for: "sudoku"), "決着したらスナップショットは消える")
+    }
+
+    @Test("failed のまま閉じても復元で failed に戻る（ミスも保持）")
+    func restoresFailedState() async {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(store: store)
+        await model.newGame(difficulty: .easy)
+        for _ in 0..<SudokuModel.maxMistakes { enterWrongDigit(model) }
+        #expect(store.exists(for: "sudoku"), "failed でもスナップショットは残る")
+
+        let (restored, _) = makeModel(store: store)
+        #expect(restored.state == .failed)
+        #expect(restored.mistakes == SudokuModel.maxMistakes)
+        #expect(restored.board == model.board)
+    }
+
+    @Test("ミス途中の中断復元でミス回数が引き継がれる")
+    func restoresMistakeCount() async {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(store: store)
+        await model.newGame(difficulty: .easy)
+        enterWrongDigit(model)
+
+        let (restored, _) = makeModel(store: store)
+        #expect(restored.state == .playing)
+        #expect(restored.mistakes == 1)
+    }
+}
+
+@Suite("数独 Model のミス回数の復元検証")
+@MainActor
+struct SudokuMistakeSnapshotValidationTests {
+
+    private func snapshot(mistakes: Int?) -> SudokuSnapshot {
+        // 有効な完成盤から1マスだけ空けた「プレイ途中」の形。
+        let solution = [
+            5,3,4,6,7,8,9,1,2, 6,7,2,1,9,5,3,4,8, 1,9,8,3,4,2,5,6,7,
+            8,5,9,7,6,1,4,2,3, 4,2,6,8,5,3,7,9,1, 7,1,3,9,2,4,8,5,6,
+            9,6,1,5,3,7,2,8,4, 2,8,7,4,1,9,6,3,5, 3,4,5,2,8,6,9,1,7,
+        ]
+        var board = solution
+        board[0] = 0
+        var given = [Bool](repeating: true, count: 81)
+        given[0] = false
+        return SudokuSnapshot(
+            board: board, given: given, solution: solution,
+            notes: [Int](repeating: 0, count: 81),
+            elapsedSeconds: 1, hintsUsed: 0, difficulty: .easy,
+            hintedCells: [], mistakes: mistakes
+        )
+    }
+
+    // arguments は nonisolated に評価されるため @MainActor の maxMistakes を参照できない。
+    // 4 = maxMistakes(3) + 1 のリテラル。
+    @Test("範囲外のミス回数を含む中断データは捨てる", arguments: [-1, 4])
+    func rejectsOutOfRangeMistakes(value: Int) throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(mistakes: value), for: "sudoku")
+        let (model, _) = makeModel(store: store)
+        #expect(model.state == .idle, "壊れた中断データを信じて復元してしまった")
+        #expect(!store.exists(for: "sudoku"))
+    }
+
+    @Test("mistakes 無し（旧形式）はミス0として復元できる")
+    func acceptsLegacySnapshot() throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(mistakes: nil), for: "sudoku")
+        let (model, _) = makeModel(store: store)
+        #expect(model.state == .playing)
+        #expect(model.mistakes == 0)
     }
 }
