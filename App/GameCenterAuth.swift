@@ -22,6 +22,28 @@ enum GameCenterAuth {
     /// 一致しないため、出せないときは捨てずにここへ置いて後で出す。
     private static var pendingViewController: UIViewController?
 
+    /// Game Center にサインイン済みか（#334）。実績・ランキング画面を出せるかの判定に使う。
+    static var isSignedIn: Bool { GKLocalPlayer.local.isAuthenticated }
+
+    /// 預かったまま出しそびれているサインイン画面があれば出す（#334）。
+    ///
+    /// 認証を新しく始めることはしない（`authenticateHandler` は一度きりの設定で、こちらから
+    /// サインインシートを呼び出す API は GameKit に無い）。ここでできるのは、起動時に
+    /// 「他の画面を表示中で出せなかった」ぶんを消化することだけ。
+    ///
+    /// - Returns: 出せる画面があったら `true`。`false` のときは呼び出し側が案内を出す。
+    @discardableResult
+    static func presentSignInIfAvailable() -> Bool {
+        #if !DEBUG
+        guard pendingViewController != nil else { return false }
+        presentPendingIfPossible()
+        return true
+        #else
+        // DEBUG ではサインイン画面そのものを保持しない（`start()` のコメント参照）ため常に false。
+        return false
+        #endif
+    }
+
     /// 認証を開始する。多重呼び出しは無視する（`authenticateHandler` は一度設定すれば
     /// GameKit 側がサインイン状態の変化に追従するため、再設定は不要）。
     static func start() {
