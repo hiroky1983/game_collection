@@ -139,6 +139,11 @@ struct MahjongCallBar: View {
                 .tint(Theme.fillMuted)
                 .accessibilityLabel("鳴かずに進める")
             }
+            // 会長再々指摘（2026-08-29「文言が…になる」）の真因: `.frame(maxWidth:)` を
+            // HStack の外に付けても**外枠が広がるだけ**で、中の LazyVGrid には理想幅
+            // （列の最小幅）しか提案されず、ボタンが狭いまま中央に固まっていた。
+            // グリッド自身に付けて、余り幅がそのまま列幅の提案として届くようにする。
+            .frame(maxWidth: .infinity)
         }
         // 会長指摘: カードが画面幅いっぱいに広がらず、ボタンが狭まって「スルー」が省略されていた。
         // 他のアクション行（立直・ツモ等）と同じく幅いっぱいに広げる。
@@ -161,18 +166,18 @@ struct MahjongCallBar: View {
         // 「萬子の3・萬子の4」という読み上げ用の文をそのまま出すと、この幅では潰れて読めない。
         let needsDetail = offer.options.filter { $0.kind == option.kind }.count > 1
         return Button { onAccept(option) } label: {
-            // 会長指摘「ひどい」: 文字＋牌を縦に積むと、チーが3択で幅が狭いときにボタンが
-            // ほぼ正方形になり、既定の丸みで円に見えていた。横並びにして常に幅 > 高さを保つ。
-            HStack(spacing: 3) {
-                Text(option.actionName)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .lineLimit(1).minimumScaleFactor(0.6)
-                if needsDetail {
-                    HStack(spacing: 1) {
-                        ForEach(Array(option.tilesFromHand.enumerated()), id: \.offset) { _, tile in
-                            MahjongTileView(tile: tile, width: 10, height: 14)
-                        }
-                    }
+            // 会長指摘（2026-08-29）: 選択肢が多く列幅が狭いとき、文字＋牌の横並びでは
+            // 固定幅の牌に文字が押し潰されて「…」になっていた。文字は `fixedSize` で
+            // **絶対に省略させず**、横に入り切らないときだけ牌を下段に落とす。
+            // 縦積みでも円に見えないことは `.roundedRectangle` の明示で担保済み（下）。
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 3) {
+                    callButtonText(option)
+                    if needsDetail { detailTiles(option) }
+                }
+                VStack(spacing: 1) {
+                    callButtonText(option)
+                    if needsDetail { detailTiles(option) }
                 }
             }
             .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
@@ -182,6 +187,22 @@ struct MahjongCallBar: View {
         .buttonBorderShape(.roundedRectangle(radius: 8))
         .tint(option.isKan ? Theme.purple : Theme.coral)
         .accessibilityLabel(MahjongAccessibility.callOptionLabel(option))
+    }
+
+    /// ボタンの文言。`fixedSize` で縮小も省略もさせない（潰すのは牌の側・上のコメント参照）。
+    private func callButtonText(_ option: MahjongCall) -> some View {
+        Text(option.actionName)
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .fixedSize()
+    }
+
+    /// 手牌から使う牌の添え絵（チーの取り方違いの区別用）。
+    private func detailTiles(_ option: MahjongCall) -> some View {
+        HStack(spacing: 1) {
+            ForEach(Array(option.tilesFromHand.enumerated()), id: \.offset) { _, tile in
+                MahjongTileView(tile: tile, width: 10, height: 14)
+            }
+        }
     }
 }
 
