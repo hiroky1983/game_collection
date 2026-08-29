@@ -161,7 +161,7 @@ public extension HowToPlayGuide {
 
     static let sudoku = HowToPlayGuide(
         gameID: "sudoku",
-        title: "数独の遊び方",
+        title: "ナンプレの遊び方",
         lines: [
             "マスをタップして選び、下の数字パッドで 1〜9 を入れます。",
             "たて 9 マス・よこ 9 マス・太線で囲んだ 3×3 のどれにも、同じ数字は 1 つまでです。",
