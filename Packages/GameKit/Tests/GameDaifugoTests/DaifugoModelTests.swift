@@ -694,3 +694,83 @@ struct DaifugoResignTests {
 private enum SeededGeneratorBox {
     @MainActor static var shared = SeededGenerator(seed: 191)
 }
+
+// MARK: - CPU 進行のキャンセル（#287）
+
+@Suite("CPU 進行のキャンセル")
+@MainActor
+struct DaifugoCancelTests {
+
+    /// 対局中に画面を離れると `.task` のキャンセルが走るが、`try? await Task.sleep(for:)` は
+    /// キャンセル時に**即座に**返るため、キャンセル後のループが間合いを一切取らずに残りの
+    /// 手番を最後まで走り抜けてしまう（#287）。待ち時間の経過ではなく「キャンセル済みの
+    /// タスクが手番を進めないこと」で検証するので、実時間に依存せず安定する。
+    @Test("キャンセルされたら間合いを飛ばして打ち続けない")
+    func cancelledLoopDoesNotFastForward() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        // キャンセルが効かなければ、この長さを無視して手番が進んでしまう。
+        let model = DaifugoModel(services: services, cpuDelay: .seconds(60), seed: 42)
+        model.configureForTesting(
+            hands: [
+                [card(3), card(4)],
+                [card(13), card(5)],
+                [card(12), card(6)],
+                [card(11), card(7)],
+            ],
+            currentPlayer: 1
+        )
+        let before = model.hands.map(\.count)
+
+        // MainActor 上なので、この Task の本体は `await` で手放すまで動かない。
+        // したがって cancel() は必ず本体の実行より先に確定する（実時間に依存しない）。
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.hands.map(\.count) == before,
+            "キャンセル済みのタスクが間合いを無視して手番を進めた"
+        )
+    }
+
+    /// 先行タスクが `isRunningCPUTurns` を握ったまま suspend している間に新タスクが走ると、
+    /// 「新タスクが即リターン → 先行タスクがキャンセルで抜ける」の順で走者が誰もいなくなり
+    /// 手番が止まる（麻雀 #311 と同じレース）。新タスクは先行タスクの終了を待って引き継ぐこと。
+    @Test("差し替え後の新タスクが先行タスクの終了を待って引き継ぐ（走者不在で止まらない）")
+    func replacementTaskTakesOverAfterCancelledPredecessor() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = DaifugoModel(services: services, cpuDelay: .milliseconds(30), seed: 42)
+        model.configureForTesting(
+            hands: [
+                [card(3), card(4)],
+                [card(13), card(5)],
+                [card(12), card(6)],
+                [card(11), card(7)],
+            ],
+            currentPlayer: 1
+        )
+
+        // 先行タスク A を起動し、「フラグを立てて sleep に入った」ことを確認してから B を作る。
+        // 単発の `Task.yield()` では A の開始が保証されない（CodeRabbit 指摘）ため、
+        // フラグを同期ゲートとして待つ。MainActor は直列なので、テストがフラグ=true を
+        // 観測できた時点で A はフラグ設定後の最初の suspend（= cpuDelay の sleep）に入っている。
+        let taskA = Task { await model.runCPUTurnsIfNeeded() }
+        var gate = 0
+        while !model.isRunningCPUTurns, gate < 1_000 {
+            gate += 1
+            await Task.yield()
+        }
+        try? #require(model.isRunningCPUTurns, "先行タスクが開始しなかった")
+        // 差し替えを再現する: 新タスク B を起動してから A をキャンセルする。
+        let taskB = Task { await model.runCPUTurnsIfNeeded() }
+        taskA.cancel()
+        await taskA.value
+        await taskB.value
+
+        // B が引き継いでいれば CPU の手番では止まらない（人間の手番か決着まで進む）。
+        #expect(
+            model.phase != .playing || model.currentPlayer == DaifugoModel.humanIndex,
+            "走者不在で CPU の手番が止まった"
+        )
+    }
+}
