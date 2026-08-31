@@ -44,6 +44,48 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     /// 和了者はプラス、放銃・ツモ払い・流局のノーテン罰符はマイナス。会長指摘「誰が誰に振り込んだか
     /// わかるようにしてほしい」への対応で、リザルト画面の得点表に添える。
     public let pointChanges: [Int]
+    // 和了手の表示（#351）で足した項目。`handResult` はリザルト中断の保存対象（#350）なので、
+    // 古い中断データを読めなくしないため**任意**にする（`melds` と同じ判断）。
+    /// 和了者の門前手牌（和了牌を含まない）。流局では nil。
+    public let winningHand: [MahjongTile]?
+    /// 和了者の副露。流局では nil。
+    public let winningMelds: [MahjongCall]?
+    /// 和了牌。流局では nil。
+    public let winningTile: MahjongTile?
+    /// 立直で和了ったときの裏ドラ表示牌。立直していない和了・流局では nil。
+    public let uraDoraIndicators: [MahjongTile]?
+
+    init(
+        kind: Kind,
+        winner: Int?,
+        loser: Int?,
+        yaku: [String],
+        han: Int,
+        fu: Int,
+        limitName: String?,
+        gainedPoints: Int,
+        tenpaiPlayers: [Int],
+        pointChanges: [Int],
+        winningHand: [MahjongTile]? = nil,
+        winningMelds: [MahjongCall]? = nil,
+        winningTile: MahjongTile? = nil,
+        uraDoraIndicators: [MahjongTile]? = nil
+    ) {
+        self.kind = kind
+        self.winner = winner
+        self.loser = loser
+        self.yaku = yaku
+        self.han = han
+        self.fu = fu
+        self.limitName = limitName
+        self.gainedPoints = gainedPoints
+        self.tenpaiPlayers = tenpaiPlayers
+        self.pointChanges = pointChanges
+        self.winningHand = winningHand
+        self.winningMelds = winningMelds
+        self.winningTile = winningTile
+        self.uraDoraIndicators = uraDoraIndicators
+    }
 }
 
 /// 東風戦が終わった理由。リザルトの見出しに使う（#352。東2局で突然終わっても
@@ -932,7 +974,14 @@ public final class MahjongModel {
             limitName: score.limitName,
             gainedPoints: gained,
             tenpaiPlayers: [],
-            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] },
+            // 和了手の表示用（#351）。手牌は和了牌を足す前の門前部分を渡す（和了牌は別枠で
+            // ハイライトして出す）。裏ドラは点数計算（`winScore`）に既に入っているものを
+            // 立直和了のときだけ開示する。
+            winningHand: hands[winner].tiles,
+            winningMelds: melds[winner],
+            winningTile: winningTile,
+            uraDoraIndicators: riichi[winner] ? uraIndicators : nil
         )
         // 和了牌を手牌に入れた状態で見せる（リザルトで役を確かめられるように）。
         hands[winner] = hands[winner].adding(winningTile)
@@ -1308,6 +1357,35 @@ public final class MahjongModel {
     }
 
     #if DEBUG
+    /// 撮影・動作確認用（DEBUG 限定）: 和了のリザルト（手牌開示 #351・立直和了で裏ドラあり）を
+    /// その場で作る。和了はシミュレータの自動タップでは再現できないため、非対話でこの画面を
+    /// 確認する経路が要る（`simulateBustResultForTesting` と同じ理由）。
+    func simulateWinResultForTesting() {
+        let hand: [MahjongTile] = [
+            .characters(2), .characters(3), .characters(4),
+            .characters(5), .characters(6), .characters(7),
+            .circles(2), .circles(2), .circles(3), .circles(4), .circles(5),
+            .bamboos(6), .bamboos(7),
+        ]
+        handResult = MahjongHandResult(
+            kind: .tsumo,
+            winner: Self.humanIndex,
+            loser: nil,
+            yaku: ["立直 1飜", "門前清自摸和 1飜", "平和 1飜"],
+            han: 3,
+            fu: 20,
+            limitName: nil,
+            gainedPoints: 2700,
+            tenpaiPlayers: [],
+            pointChanges: [2700, -700, -700, -1300],
+            winningHand: hand,
+            winningMelds: [],
+            winningTile: .bamboos(8),
+            uraDoraIndicators: [.characters(9)]
+        )
+        phase = .handResult
+    }
+
     /// 撮影・動作確認用（DEBUG 限定）: トビ終了のリザルト（復活ボタンが出る状態）をその場で作る（#338）。
     /// トビは実プレイでは稀にしか起きず、シミュレータは自動タップができないため、非対話で
     /// この画面を確認する経路が要る（`-solitaireHintConfirm` と同じ理由・#336）。
