@@ -66,6 +66,16 @@ public struct PokerView: View {
         .onChange(of: model.phase) { _, phase in
             if phase == .result { revealCPU = true }
         }
+        .task {
+            #if DEBUG
+            // 撮影用（#366）: 開始シートを飛ばして1ラウンド配る。手札5枚 + CPU の裏札が写る。
+            if ProcessInfo.processInfo.arguments.contains("-pokerAutoStart") {
+                showStartSheet = false
+                hasPlayedOnce = true
+                if model.phase == .idle { model.startGame() }
+            }
+            #endif
+        }
         .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -474,8 +484,9 @@ struct CardView: View {
 
     var body: some View {
         ZStack {
+            // 表は紙の淡い縦グラデーション、裏は藍のグラデーション + 白の内枠（CardStyle #366）。
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(faceUp ? Color.white : Color(hex: 0x2A5298))
+                .fill(faceUp ? AnyShapeStyle(CardStyle.faceFill) : AnyShapeStyle(CardStyle.backFill))
                 .shadow(color: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
                         radius: selected ? 6 : 3, y: 2)
                 .overlay(
@@ -492,9 +503,10 @@ struct CardView: View {
                 }
                 .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
             } else {
+                CardStyle.backFrame(cornerRadius: 8)
                 Image(systemName: "suit.spade.fill")
                     .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(.white.opacity(CardStyle.backMotifOpacity))
             }
         }
         .frame(width: 62, height: 90)
