@@ -698,6 +698,74 @@ struct MahjongSnapshotTests {
     }
 }
 
+// MARK: - 和了手の開示（#351）
+
+@Suite("和了手の開示")
+@MainActor
+struct MahjongWinningHandDisclosureTests {
+
+    @Test("和了のリザルトに手牌・副露・和了牌が入る（立直なしなら裏ドラは出ない）")
+    func handResultCarriesWinningHand() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),  // 6s / 8s で平和
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: [],
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.declareTsumo()
+        let result = try #require(model.handResult)
+        #expect(result.winningTile == MahjongNotation.tile("8s"))
+        // 門前手牌は和了牌を含まない13枚（和了牌は別枠でハイライト表示するため）。
+        #expect(result.winningHand?.count == 13)
+        #expect(result.winningMelds?.isEmpty == true)
+        #expect(result.uraDoraIndicators == nil, "立直していない和了で裏ドラを開示しない")
+    }
+
+    @Test("立直で和了ると裏ドラ表示牌が入る")
+    func riichiWinRevealsUraDora() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),  // 5s / 8s の両面待ち
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: MahjongNotation.tiles("999m") + MahjongNotation.tiles("8s"),
+            dealer: 0,
+            drawnTile: MahjongNotation.tile("1z")
+        )
+        model.declareRiichi()
+        model.discard(MahjongNotation.tile("1z"))
+        for _ in 0..<3 { model.stepCPUForTesting() }
+        model.declareTsumo()
+        let result = try #require(model.handResult)
+        let ura = try #require(result.uraDoraIndicators)
+        #expect(!ura.isEmpty)
+        // 裏ドラ表示牌はめくれているドラ表示牌と同じ枚数（カンが無ければ1枚）。
+        #expect(ura.count == model.doraIndicators.count)
+    }
+
+    @Test("流局のリザルトには手牌・和了牌が入らない")
+    func exhaustiveDrawHasNoWinningHand() throws {
+        let model = makeModel()
+        model.startGame()
+        model.exhaustWallForTesting()
+        let result = try #require(model.handResult)
+        #expect(result.winningHand == nil)
+        #expect(result.winningTile == nil)
+        #expect(result.uraDoraIndicators == nil)
+    }
+}
+
 // MARK: - 終了理由（#352）
 
 @Suite("東風戦の終了理由")
