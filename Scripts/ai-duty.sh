@@ -247,7 +247,7 @@ self_update() {
   export DUTY_SELF_UPDATED=1
   exec /bin/bash "$fresh" "$@"
 }
-# 会長の書き込みを見分けるための共通 jq 定義（仕事5・仕事8 が使う）。
+# 会長の書き込みを見分けるための共通 jq 定義（仕事5・仕事8・仕事11 が使う）。
 # 当番(AI)・経営企画室・会長はすべて同じ `hiroky1983` トークンで投稿するため author では区別できず、
 # 「自社が書いたコメント」を本文のマーカーで除外して最後の会長コメントを取り出す。
 #   - 許可リスト外の author（coderabbitai・第三者）は無視する（#68: 自動プランで空振り起動）
@@ -255,6 +255,14 @@ self_update() {
 #     分析/リマインドなので除外する。除外しないと経営企画室が1本置くたびに開発当番が「会長の着信」と
 #     誤認して毎時空振りする（#168。#120 と同じ失敗モードが経営企画室の常設化で再発した）。
 #     マーカーは経営企画室側の重複防止用として ai-management-prompt.md が先頭行に必須化済み
+#   - 当番自身の応答マーカーは `is_duty_reply` に集約し、仕事5・仕事8・仕事11 が**同じ集合**を見る
+#     （#386。以前は判定ごとに部分集合しか知らず、仕事11 は `企画議論` を知らなかったため、
+#     `ai:proposed` + `blocked` の Issue に規程 1-e どおり「企画議論」で応答すると
+#     応答済みなのに毎時鳴り続けた。#184 で実際に発生。1-e と 2-b が要求する接頭辞が
+#     競合しうる以上、どちらを選んでも止まるよう集合を揃えるほかない）。
+#     `last_owner_body` 側の除外には**入れない**。あちらは「経営企画室のコメントを飛ばして
+#     手前の会長コメントを見る」ためのもので、当番マーカーを入れると自分の応答を飛ばして
+#     応答済みの古い会長コメントを拾い、かえって鳴り止まなくなる。
 # 変数に出しているのは、同じ定義を Scripts/tests/test-ai-duty-detect.sh から評価するため。
 DUTY_JQ_COMMENT_LIB='
 def last_owner_body($actors):
@@ -263,11 +271,16 @@ def last_owner_body($actors):
    | select(((.body // "") | startswith("<!-- ai-management-")) | not)
    | (.body // "")] | last // "";
 
+def is_duty_reply($b):
+  ($b | startswith("企画議論"))
+  or ($b | startswith("解除確認"))
+  or ($b | startswith("着手見送り:"))
+  or ($b | contains("【要決裁】"))
+  or ($b | contains("決裁反映"));
+
 def is_ringi_reply($actors):
   last_owner_body($actors) as $b
-  | $b != ""
-    and (($b | contains("【要決裁】")) | not)
-    and (($b | contains("決裁反映")) | not);
+  | $b != "" and ((is_duty_reply($b)) | not);
 
 def is_proposed_reply($actors):
   ([.labels.nodes[].name]) as $l
@@ -275,16 +288,11 @@ def is_proposed_reply($actors):
     and ($l | index("ai:in-progress")) == null
     and ($l | index("blocked")) == null
     and (last_owner_body($actors) as $b
-         | $b != ""
-           and (($b | startswith("企画議論")) | not)
-           and (($b | contains("【要決裁】")) | not)
-           and (($b | contains("決裁反映")) | not));
+         | $b != "" and ((is_duty_reply($b)) | not));
 
 def is_blocked_reply($actors):
   last_owner_body($actors) as $b
-  | $b != ""
-    and (($b | startswith("解除確認")) | not)
-    and (($b | startswith("着手見送り:")) | not);
+  | $b != "" and ((is_duty_reply($b)) | not);
 '
 
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする

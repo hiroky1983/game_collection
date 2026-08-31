@@ -147,7 +147,7 @@ TODAY_TITLE="週次経営レポート $(date +%F)"
 EXISTING=$(gh issue list -R hiroky1983/game_collection --label "report:weekly" --state all --limit 50 \
   --search "in:title \"$TODAY_TITLE\"" --json number --jq 'length' 2>/dev/null || echo 0)
 if [ "${EXISTING:-0}" -gt 0 ]; then
-  log "本日分のレポート（$TODAY_TITLE）は既に存在するため見送り"
+  log "本日分のレポート（${TODAY_TITLE}）は既に存在するため見送り"
   exit 0
 fi
 

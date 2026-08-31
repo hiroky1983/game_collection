@@ -39,7 +39,7 @@ SHOTS=(
   "10-settings||-showSettings"
 )
 
-echo "==> シミュレータ「$DEVICE_NAME」を探す"
+echo "==> シミュレータ「${DEVICE_NAME}」を探す"
 UDID=$(xcrun simctl list devices available -j | python3 -c "
 import json, sys
 want = sys.argv[1]
