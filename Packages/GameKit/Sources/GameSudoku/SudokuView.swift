@@ -118,6 +118,11 @@ public struct SudokuView: View {
                 if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
                 model.giveUp()
             }
+            // 撮影・動作確認用（DEBUG 限定）: 新規ゲームシートをキャンセルした直後（`.idle`）の
+            // 画面を非対話で出す（#354。シミュレータは自動タップができないため）。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuCancelSheet") {
+                showNewGame = false
+            }
             #endif
         }
     }
