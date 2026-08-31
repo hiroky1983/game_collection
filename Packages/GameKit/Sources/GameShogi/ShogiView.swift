@@ -1,38 +1,5 @@
 import SwiftUI
 import Core
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
-
-/// 同梱の木目テクスチャ（#366）。
-///
-/// `Image(名前, bundle: .module)` は SPM バンドル + 実ファイル（アセットカタログでない）の
-/// 組み合わせで解決に失敗して**静かに何も描かない**ため、URL から UIImage/NSImage 経由で
-/// 確実に読み込む。失敗時は透明ではなく単色を返し、消えたことに気づけるようにする。
-enum ShogiWood {
-    static let koma: Image = load("koma-wood")
-    static let board: Image = load("board-wood")
-
-    private static func load(_ name: String) -> Image {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "png") else {
-            assertionFailure("木目テクスチャが見つからない: \(name)")
-            return Image(systemName: "exclamationmark.triangle")
-        }
-        #if canImport(UIKit)
-        if let image = UIImage(contentsOfFile: url.path) {
-            return Image(uiImage: image)
-        }
-        #elseif canImport(AppKit)
-        if let image = NSImage(contentsOf: url) {
-            return Image(nsImage: image)
-        }
-        #endif
-        assertionFailure("木目テクスチャを読み込めない: \(name)")
-        return Image(systemName: "exclamationmark.triangle")
-    }
-}
 
 /// 将棋の対局画面（CPU 対戦）。人間の手番側を常に手前に表示する。
 public struct ShogiView: View {
@@ -59,21 +26,11 @@ public struct ShogiView: View {
     /// 人間が後手なら盤を反転して表示する。
     private var flipped: Bool { model.humanSide == .white }
 
-    #if DEBUG
-    /// 駒スタイルのコンペ（#366・会長レビュー用）。採用が決まったらピッカーごと畳む。
-    /// `-shogiKomaWoodgrain` 起動引数で新スタイルを初期選択にできる（撮影用）。
-    @State private var komaVariant: KomaCompetitionVariant =
-        ProcessInfo.processInfo.arguments.contains("-shogiKomaWoodgrain") ? .woodgrain : .standard
-    #endif
-
     public var body: some View {
         // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
         // 盤に回せる高さを間隔から捻出している（#139）。
         VStack(spacing: 8) {
             statusBar
-            #if DEBUG
-            komaCompetitionPicker
-            #endif
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
                 .layoutPriority(1)
@@ -84,9 +41,6 @@ public struct ShogiView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
-        #if DEBUG
-        .environment(\.komaStyle, komaVariant.spec)
-        #endif
         .padding(Theme.pad)
         .popBackground()
         .reviewRequestPrompt(services.review)
@@ -223,17 +177,14 @@ public struct ShogiView: View {
                     }
                 }
             }
-            // 盤の木地（#366）: 同梱の柾目テクスチャを盤全体に敷き、格子線と星をその上に引く。
-            // 画像は**格子の背景**として敷く。ZStack で並べると scaledToFill の画像が
-            // ZStack ごと膨らませ、中の GeometryReader（格子）が実寸とずれて
-            // 格子と駒が半マス食い違う（会長指摘の「ずれ」）。
+            // 盤の木地（#366）: 無地アンバーの縦グラデーション + 格子線と星。
+            // 木目テクスチャも試したが会長レビューで無地が採用になった（コンペ経緯は #366）。
             .background {
                 boardGrid
                     .background(
-                        ShogiWood.board
-                            .resizable()
-                            .scaledToFill()
-                            .clipped()
+                        LinearGradient(
+                            colors: [BoardStyle.frameTop, BoardStyle.frameBottom],
+                            startPoint: .top, endPoint: .bottom)
                     )
             }
             // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
@@ -386,18 +337,6 @@ public struct ShogiView: View {
         .padding(.horizontal, 12).padding(.vertical, 6)
         .popCard(corner: Theme.cornerSmall)
     }
-
-    #if DEBUG
-    /// #366 コンペ用の駒スタイル切り替え（DEBUG のみ）。盤・持ち駒の駒が即座に切り替わる。
-    private var komaCompetitionPicker: some View {
-        Picker("駒スタイル", selection: $komaVariant) {
-            ForEach(KomaCompetitionVariant.allCases) { variant in
-                Text(variant.rawValue).tag(variant)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    #endif
 
     // MARK: - 盤の下の操作エリア
 
@@ -612,23 +551,27 @@ enum ShogiMotion {
     static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
 }
 
-/// 盤の配色（明るい木目調）。
+/// 盤の配色（明るい木目調）。#366 の会長コンペで確定した「明るい飴色 × 無地アンバー」。
 enum BoardStyle {
     static let frame = Color(hex: 0xE7B96A)
-    /// 盤の枠は単色をやめて上→下の木のグラデーションにする（#366）。
+    /// 盤地と枠。単色をやめて上→下の木のグラデーションにする（#366）。
+    /// マスは透明なハイライト層になったので、この2色が盤全体の地の色でもある。
     static let frameTop = Color(hex: 0xEDC178)
     static let frameBottom = Color(hex: 0xD3A04D)
     static let cell = Color(hex: 0xFBE6B6)
     static let line = Color(hex: 0xCDA15B)
-    /// 盤面に薄く重ねる柾目と星の色（#366）。
-    static let boardGrain = Color(hex: 0xA87B3C)
     /// 駒は実物と同じくツゲ材（黄楊）のような単色。先手・後手は色ではなく向き（180度回転）で見分ける。
     static let komaWoodLight = Color(hex: 0xF3DFAE)
-    static let komaWoodDark = Color(hex: 0xD9B673)
-    /// 駒の側面（#366）。本体を下へずらした同じ駒形をこの色で敷き、木駒の厚みを見せる。
-    static let komaWoodSide = Color(hex: 0xA37C42)
-    /// 木目の筋（#366）。木地の上に低い不透明度で重ねる。
-    static let komaGrain = Color(hex: 0x8A6A32)
+    /// 駒の面（#366）: 明るい飴色の縦グラデーション。
+    static let komaFaceTop = Color(hex: 0xEFC98A)
+    static let komaFaceBottom = Color(hex: 0xD9A85C)
+    /// 駒の側面（#366）: 本体を下へずらした同じ駒形をこの色で敷き、木駒の厚みを見せる。
+    static let komaSideTop = Color(hex: 0x9A6F33)
+    static let komaSideBottom = Color(hex: 0x63431A)
+    /// 駒の輪郭・面取り・文字（#366）。
+    static let komaOutline = Color(hex: 0x6B4A1C)
+    static let komaChamfer = Color(hex: 0xFFEFC2)
+    static let komaText = Color(hex: 0x241708)
 }
 
 /// 1 マス。マスの色だけを描く。
@@ -656,97 +599,20 @@ struct ShogiCell: View {
     }
 }
 
-/// 駒の見た目一式（#366）。色・側面・木目・面取りをデータとして持ち、`KomaView` が描画する。
-///
-/// 会長コンペ（DEBUG の `KomaCompetitionVariant`）で候補を実機比較するための構造で、
-/// 本採用が決まったら `standard` に採用値を畳み、候補は削除する。
-struct KomaStyleSpec: Equatable {
-    let faceTop: UInt32
-    let faceBottom: UInt32
-    let sideTop: UInt32
-    let sideBottom: UInt32
-    /// 側面の見える高さ（駒サイズに対する比）。
-    let sideOffset: CGFloat
-    /// 側面を右下へもずらし、五角柱の2面に見せるか。
-    let sideDiagonal: Bool
-    /// true = 年輪の山形 + 縦筋の木目 v2。false = 従来の縦カーブ3本。
-    let organicGrain: Bool
-    let grain: UInt32
-    let grainOpacity: Double
-    /// 上辺の面取りの色（真っ白だと灰色に沈むため、木の明色を使う）。
-    let chamferTint: UInt32
-    let chamferOpacity: Double
-    let chamferWidth: CGFloat
-    let outline: UInt32
-    let outlineOpacity: Double
-    let text: UInt32
-    /// true = 同梱の木目テクスチャ画像（koma-wood）で面を塗る。false = グラデーション描画。
-    var textured: Bool = false
-
-    /// 現行の見た目（v1.1.2 からの流れ + #371/#372）。
-    static let standard = KomaStyleSpec(
-        faceTop: 0xF3DFAE, faceBottom: 0xD9B673,
-        sideTop: 0xA37C42, sideBottom: 0xA37C42,
-        sideOffset: 0.045, sideDiagonal: false,
-        organicGrain: false, grain: 0x8A6A32, grainOpacity: 0.16,
-        chamferTint: 0xFFFFFF, chamferOpacity: 0.55, chamferWidth: 0.035,
-        outline: 0x8A6A32, outlineOpacity: 0.6,
-        text: 0x2A1B0E)
-
-    /// 木地テクスチャ版（#366 会長フィードバック: 木目・厚み・稜線をこだわる）。
-    /// 面は自作生成の柾目テクスチャ、側面は濃い木色のグラデーション。
-    static let woodgrain = KomaStyleSpec(
-        faceTop: 0xEFC98A, faceBottom: 0xD9A85C,
-        sideTop: 0x9A6F33, sideBottom: 0x63431A,
-        sideOffset: 0.075, sideDiagonal: false,
-        organicGrain: false, grain: 0x8F6226, grainOpacity: 0,
-        chamferTint: 0xFFEFC2, chamferOpacity: 0.9, chamferWidth: 0.05,
-        outline: 0x6B4A1C, outlineOpacity: 0.75,
-        text: 0x241708,
-        textured: true)
-}
-
-private struct KomaStyleKey: EnvironmentKey {
-    static let defaultValue = KomaStyleSpec.standard
-}
-
-extension EnvironmentValues {
-    /// 駒の見た目。DEBUG のコンペピッカーが差し替える。既定は `standard`。
-    var komaStyle: KomaStyleSpec {
-        get { self[KomaStyleKey.self] }
-        set { self[KomaStyleKey.self] = newValue }
-    }
-}
-
-#if DEBUG
-/// 駒スタイルのコンペ候補（#366 会長レビュー用・DEBUG のみ）。
-/// 第4巡: 木目テクスチャ版（新）と現行の2択に絞った。
-enum KomaCompetitionVariant: String, CaseIterable, Identifiable {
-    case standard = "現"
-    case woodgrain = "新・木地"
-
-    var id: String { rawValue }
-
-    var spec: KomaStyleSpec {
-        switch self {
-        case .standard: return .standard
-        case .woodgrain: return .woodgrain
-        }
-    }
-}
-#endif
-
 /// 将棋の駒（木製の実物に寄せた見た目・五角形）。先手・後手は色ではなく
 /// 向き（pointsUp=false＝相手の駒は180度回転）だけで見分ける（実物と同じ規則）。
+///
+/// 見た目は #366 の会長コンペで確定した「明るい飴色 × なめらかな面」:
+/// 木目の筋は**描かない**（試したが小さい駒ではノイズにしかならず不採用）。
+/// 立体感は「厚い側面 + 稜線 + 面取り + 落ち影」で出す。
 struct KomaView: View {
     let piece: Piece
     let size: CGFloat
     let pointsUp: Bool
-    @Environment(\.komaStyle) private var style
 
     var body: some View {
         ZStack {
-            // 側面（#366）: 本体を下へずらした同じ駒形を濃い木色で敷き、木駒の厚みを見せる。
+            // 側面: 本体を下へずらした同じ駒形を濃い木色で敷き、木駒の厚みを見せる。
             // 落ち影はいちばん下のこの層に掛ける（本体に掛けると影が自分の側面に落ちて濁る）。
             //
             // 向きの回転はこの層と本体に**別々に**掛ける。外側の ZStack ごと回すと
@@ -756,64 +622,57 @@ struct KomaView: View {
             KomaShape()
                 .fill(
                     LinearGradient(
-                        colors: [Color(hex: style.sideTop), Color(hex: style.sideBottom)],
+                        colors: [BoardStyle.komaSideTop, BoardStyle.komaSideBottom],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
                 .rotationEffect(.degrees(pointsUp ? 0 : 180))
-                .offset(x: style.sideDiagonal ? size * 0.03 : 0,
-                        y: size * style.sideOffset)
+                .offset(y: size * 0.075)
                 .shadow(color: .black.opacity(0.30), radius: 2.5, y: 2)
-            // 木地: 上が明るく下がやや濃い縦グラデーションで、削り出した木の丸みを表現。
-            // テクスチャ版は同梱の柾目画像で塗り、その上に照りを重ねる。
+            // 木地: 上が明るく下がやや濃い縦グラデーション + 控えめな照りで、
+            // 削り出した木の丸みを表現。
             ZStack {
                 KomaShape()
                     .fill(
                         LinearGradient(
-                            colors: [Color(hex: style.faceTop), Color(hex: style.faceBottom)],
+                            colors: [BoardStyle.komaFaceTop, BoardStyle.komaFaceBottom],
                             startPoint: .top, endPoint: .bottom)
                     )
-                    // テクスチャ版: 同梱の柾目画像を面に敷く（`ImagePaint` はバンドル画像で
-                    // 描画されないことがあるため、overlay + clipShape で確実に貼る）。
-                    .overlay(textureOverlay)
                     .overlay(
-                        // 照り: テクスチャでも上を明るく下を沈ませ、削り出しの丸みを出す。
-                        // 強くすると木目が白飛びするので控えめに（会長指摘で 0.20→0.10）。
                         KomaShape().fill(
                             LinearGradient(
-                                colors: [Color.white.opacity(style.textured ? 0.10 : 0),
+                                colors: [Color.white.opacity(0.10),
                                          .clear,
-                                         Color.black.opacity(style.textured ? 0.10 : 0)],
+                                         Color.black.opacity(0.10)],
                                 startPoint: .top, endPoint: .bottom))
                     )
-                    // 木目（#366）: 低い不透明度の筋。文字より下の層。
-                    .overlay(grainOverlay)
                     .overlay(KomaShape().stroke(
-                        Color(hex: style.outline).opacity(style.outlineOpacity), lineWidth: 1))
-                    // ベゼル: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
+                        BoardStyle.komaOutline.opacity(0.75), lineWidth: 1))
+                    // 面取り: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
+                    // 上辺は真っ白だと灰色に沈むため、木の明色で照らす。
                     .overlay(
                         KomaShape()
                             .stroke(
                                 LinearGradient(
-                                    colors: [Color(hex: style.chamferTint).opacity(style.chamferOpacity),
+                                    colors: [BoardStyle.komaChamfer.opacity(0.9),
                                              .clear,
                                              Color.black.opacity(0.25)],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 ),
-                                lineWidth: max(1, size * style.chamferWidth)
+                                lineWidth: max(1, size * 0.05)
                             )
                     )
-                    // 稜線: 面と側面の境目に1本のエッジを立て、五角柱の折り目に見せる（#366）。
+                    // 稜線: 面と側面の境目に1本のエッジを立て、五角柱の折り目に見せる。
                     .overlay(
                         KomaBaseEdgeShape()
-                            .stroke(Color(hex: style.sideBottom).opacity(0.55),
+                            .stroke(BoardStyle.komaSideBottom.opacity(0.55),
                                     lineWidth: max(1, size * 0.02))
                     )
                 Text(Glyph.kanji(for: piece))
                     .font(.system(size: size * 0.46, weight: .black, design: .serif))
-                    .foregroundStyle(piece.promoted ? Theme.coral : Color(hex: style.text))
+                    .foregroundStyle(piece.promoted ? Theme.coral : BoardStyle.komaText)
                     // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
                     .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
                     .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
@@ -821,93 +680,6 @@ struct KomaView: View {
             .rotationEffect(.degrees(pointsUp ? 0 : 180))
         }
         .frame(width: size * 0.86, height: size * 0.86)
-    }
-
-    /// テクスチャ版の柾目画像。駒種ごとに拡大の基準点をずらし、
-    /// 全駒が同じ木目の複製に見えないようにする（駒種から決まる決定的な値）。
-    @ViewBuilder private var textureOverlay: some View {
-        if style.textured {
-            ShogiWood.koma
-                .resizable()
-                .scaledToFill()
-                .scaleEffect(1.35, anchor: textureAnchor)
-                .clipShape(KomaShape())
-        }
-    }
-
-    private var textureAnchor: UnitPoint {
-        let index = piece.type.rawValue
-        return UnitPoint(x: 0.2 + Double(index % 4) * 0.2,
-                         y: 0.25 + Double(index % 3) * 0.25)
-    }
-
-    @ViewBuilder private var grainOverlay: some View {
-        if style.textured {
-            EmptyView()
-        } else if style.organicGrain {
-            ZStack {
-                KomaGrainArcsShape()
-                    .stroke(Color(hex: style.grain).opacity(style.grainOpacity),
-                            lineWidth: max(0.7, size * 0.024))
-                KomaGrainStreaksShape()
-                    .stroke(Color(hex: style.grain).opacity(style.grainOpacity * 0.55),
-                            lineWidth: max(0.5, size * 0.015))
-            }
-            .clipShape(KomaShape())
-        } else {
-            KomaGrainShape()
-                .stroke(Color(hex: style.grain).opacity(style.grainOpacity),
-                        lineWidth: max(0.5, size * 0.02))
-                .clipShape(KomaShape())
-        }
-    }
-}
-
-/// 木目・主層（#366）: 緩く曲がる縦筋4本。会長レビューで「年輪の山形（v2）より
-/// 縦筋（1巡目）が良い」となったため、縦筋を本数多めにしたものを主層にする。
-struct KomaGrainArcsShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        for (x, bend) in [(0.24, -0.04), (0.40, 0.09), (0.56, -0.07), (0.72, 0.05)] {
-            p.move(to: CGPoint(x: w * x, y: h * 0.10))
-            p.addQuadCurve(to: CGPoint(x: w * (x + 0.02), y: h * 0.94),
-                           control: CGPoint(x: w * (x + bend), y: h * 0.5))
-        }
-        return p
-    }
-}
-
-/// 木目・副層（#366）: 主層の間を埋める細く薄い縦筋。
-struct KomaGrainStreaksShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        for (x, bend) in [(0.31, 0.05), (0.48, -0.06), (0.64, 0.08), (0.80, -0.04)] {
-            p.move(to: CGPoint(x: w * x, y: h * 0.14))
-            p.addQuadCurve(to: CGPoint(x: w * (x - 0.015), y: h * 0.92),
-                           control: CGPoint(x: w * (x + bend), y: h * 0.55))
-        }
-        return p
-    }
-}
-
-/// 木目の筋（#366）。緩い縦カーブ3本の**固定パターン**で、どの駒も同じ木目にする
-/// （駒ごとに乱数で変えると再描画のたびに柄が揺れて見えるため、決定的な形に留める）。
-struct KomaGrainShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        for (i, x) in [0.34, 0.52, 0.68].enumerated() {
-            // 中央の1本だけ逆へ曲げ、平行線に見えないようにする。
-            let bend = (i == 1 ? 0.07 : -0.05) * w
-            p.move(to: CGPoint(x: w * x, y: h * 0.16))
-            p.addQuadCurve(
-                to: CGPoint(x: w * x, y: h * 0.92),
-                control: CGPoint(x: w * x + bend, y: h * 0.55)
-            )
-        }
-        return p
     }
 }
 

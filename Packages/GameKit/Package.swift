@@ -28,8 +28,7 @@ let package = Package(
     targets: [
         .target(name: "Core"),
         .target(name: "Game2048",           dependencies: ["Core"]),
-        .target(name: "GameShogi",          dependencies: ["Core"],
-                resources: [.process("Resources")]),
+        .target(name: "GameShogi",          dependencies: ["Core"]),
         .target(name: "GameGomoku",         dependencies: ["Core"]),
         .target(name: "GameMinesweeper",    dependencies: ["Core"]),
         .target(name: "GameOthello",        dependencies: ["Core"]),
