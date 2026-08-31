@@ -539,3 +539,132 @@ struct SudokuMistakeSnapshotValidationTests {
         #expect(model.mistakes == 0)
     }
 }
+
+// MARK: - 元に戻す（#353）
+
+@Suite("元に戻す")
+@MainActor
+struct SudokuUndoTests {
+
+    /// そのマスに入れると必ず誤答になる数字。
+    @MainActor
+    private func wrongDigit(for index: Int, in model: SudokuModel) -> Int {
+        (1...9).first { $0 != model.solution[index] }!
+    }
+
+    @Test("誤答を取り消すと盤とミス回数が戻る。続けては取り消せない（深さ1）")
+    func undoRestoresMistake() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        model.select(index: blank)
+        model.enter(digit: wrongDigit(for: blank, in: model))
+        #expect(model.mistakes == 1)
+        #expect(model.canUndo)
+
+        model.undo()
+        #expect(model.board[blank] == 0)
+        #expect(model.mistakes == 0)
+        #expect(!model.canUndo, "深さ1: 直前の1手しか持たない")
+    }
+
+    @Test("取り消せるのは直前の1手だけ（1つ前の手は残る）")
+    func undoOnlyRevertsLastMove() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blanks = (0..<81).filter { model.board[$0] == 0 }
+        let first = blanks[0], second = blanks[1]
+
+        model.select(index: first)
+        model.enter(digit: model.solution[first])
+        model.select(index: second)
+        model.enter(digit: model.solution[second])
+
+        model.undo()
+        #expect(model.board[second] == 0, "直前の手は取り消される")
+        #expect(model.board[first] == model.solution[first], "1つ前の手は残る")
+        #expect(!model.canUndo)
+    }
+
+    @Test("ヒントで埋めたマスは取り消しの対象にならない")
+    func hintIsNotUndoable() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        #expect(model.applyHint(at: blank))
+        #expect(!model.canUndo, "ヒントは undo の履歴に載らない（広告の対価を取り消させない）")
+        model.undo()
+        #expect(model.board[blank] == model.solution[blank], "undo してもヒントは消えない")
+    }
+
+    @Test("メモの付け外しも取り消せる")
+    func undoRestoresNotes() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        model.toggleNoteMode()
+        model.select(index: blank)
+        model.enter(digit: 5)
+        #expect(model.hasNote(5, at: blank))
+
+        model.undo()
+        #expect(!model.hasNote(5, at: blank))
+    }
+
+    @Test("正解入力で巻き添えになった同じ行・列・ブロックのメモも戻る")
+    func undoRestoresPeerNotes() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        // 空きマス A と、その同行・列・ブロックにある別の空きマス B を選ぶ。
+        let blanks = (0..<81).filter { model.board[$0] == 0 }
+        let a = blanks.first { i in SudokuEngine.peers(of: i).contains { model.board[$0] == 0 } }!
+        let b = SudokuEngine.peers(of: a).first { model.board[$0] == 0 }!
+        let digit = model.solution[a]
+
+        model.toggleNoteMode()
+        model.select(index: b)
+        model.enter(digit: digit)      // B に digit のメモ
+        model.toggleNoteMode()
+        model.select(index: a)
+        model.enter(digit: digit)      // A に正解を確定 → B のメモが巻き添えで消える
+        #expect(!model.hasNote(digit, at: b))
+
+        model.undo()
+        #expect(model.board[a] == 0)
+        #expect(model.hasNote(digit, at: b), "巻き添えで消えたメモも戻る")
+    }
+
+    @Test("3回目のミスは取り消せない（広告コンティニューの仕様を素通りさせない）")
+    func thirdMistakeIsNotUndoable() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blanks = (0..<81).filter { model.board[$0] == 0 }
+        for i in 0..<3 {
+            model.select(index: blanks[i])
+            model.enter(digit: wrongDigit(for: blanks[i], in: model))
+        }
+        #expect(model.state == .failed)
+        #expect(!model.canUndo)
+
+        model.continueAfterAd()
+        #expect(model.mistakes == 0)
+        #expect(!model.canUndo, "コンティニュー後に古い履歴でミスが巻き戻らない")
+        model.undo()
+        #expect(model.mistakes == 0)
+    }
+
+    @Test("中断・再開をまたぐと取り消せない（履歴は保存しない）")
+    func undoDoesNotSurviveRestore() async {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(store: store)
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        model.select(index: blank)
+        model.enter(digit: model.solution[blank])
+        #expect(model.canUndo)
+
+        let (restored, _) = makeModel(store: store)
+        #expect(restored.state == .playing)
+        #expect(!restored.canUndo)
+    }
+}

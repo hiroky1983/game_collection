@@ -123,6 +123,11 @@ public struct SudokuView: View {
             if ProcessInfo.processInfo.arguments.contains("-sudokuCancelSheet") {
                 showNewGame = false
             }
+            // 撮影・動作確認用（DEBUG 限定）: シートを飛ばしてプレイ中の画面を出す（#353）。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuAutoStart") {
+                showNewGame = false
+                if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
+            }
             #endif
         }
     }
@@ -521,6 +526,24 @@ public struct SudokuView: View {
             }
             .buttonStyle(.pop)
             .accessibilityLabel(model.noteMode ? "メモモード、オン" : "メモモード、オフ")
+
+            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
+            Button { model.undo() } label: {
+                Label("戻す", systemImage: "arrow.uturn.backward")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
+                    .background(Capsule().fill(model.canUndo ? Theme.teal : Theme.fillMuted))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pop)
+            .disabled(!model.canUndo)
+            .accessibilityLabel("元に戻す")
+            .accessibilityHint(
+                model.canUndo
+                    ? "直前の1手を取り消します。ミスもその手のぶんだけ戻ります"
+                    : "取り消せる手がありません"
+            )
 
             Button {
                 requestHint()

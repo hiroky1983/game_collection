@@ -64,6 +64,27 @@ public final class SudokuModel {
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
 
+    /// 直前の1手（数字の入力・消去・メモの付け外し）の取り消し情報（#353）。
+    ///
+    /// **深さは1**（直前の1手だけ）。誤タップの救済が目的で、履歴を深くすると
+    /// 「間違えては戻す」の総当たりでミス上限（#322・会長指示の仕様）が形骸化するため。
+    /// ヒントで埋めた手は記録しない（広告の対価を undo で取り消させない）。
+    private struct UndoStep {
+        let index: Int
+        let previousBoard: Int
+        let previousNotes: Int
+        /// 正解入力の巻き添えで消えた同行・列・ブロックのメモ（マス → 消える前のビットマスク）。
+        let changedPeerNotes: [Int: Int]
+        let previousMistakes: Int
+        /// 消したマスがヒントで埋めたものだったか（`erase` は `hintedCells` からも外すため）。
+        let wasHinted: Bool
+    }
+    private var lastUndoStep: UndoStep?
+
+    /// 「元に戻す」を押せるか。中断・再開をまたぐと履歴は持ち越さない（`lastUndoStep` は
+    /// 保存しない）ため false になる。`failed`（ミス上限）からは戻せない（下の `fail()` 参照）。
+    public var canUndo: Bool { state == .playing && lastUndoStep != nil }
+
     private let services: GameServices?
     private let gameID = "sudoku"
     private var timerTask: Task<Void, Never>?
@@ -202,6 +223,7 @@ public final class SudokuModel {
         hintedCells     = []
         mistakes        = 0
         noteMode        = false
+        lastUndoStep    = nil
         self.difficulty = difficulty
         state           = .playing
 
@@ -235,11 +257,27 @@ public final class SudokuModel {
         }
 
         if noteMode {
+            lastUndoStep = UndoStep(
+                index: index, previousBoard: board[index], previousNotes: notes[index],
+                changedPeerNotes: [:], previousMistakes: mistakes, wasHinted: false
+            )
             notes[index] ^= (1 << (digit - 1))
             services?.feedback.impact(.rigid)
         } else {
             // 同じ数字の入れ直し（無操作）をミスに数えないよう、変化があったときだけ判定する。
             let isNewWrongEntry = digit != solution[index] && board[index] != digit
+            // 正解入力は同じ行・列・ブロックのメモも消す（下）ので、undo 用に消える前の値を控える。
+            let peerNotesBefore: [Int: Int] = digit == solution[index]
+                ? Dictionary(
+                    uniqueKeysWithValues: SudokuEngine.peers(of: index)
+                        .filter { notes[$0] & (1 << (digit - 1)) != 0 }
+                        .map { ($0, notes[$0]) }
+                )
+                : [:]
+            lastUndoStep = UndoStep(
+                index: index, previousBoard: board[index], previousNotes: notes[index],
+                changedPeerNotes: peerNotesBefore, previousMistakes: mistakes, wasHinted: false
+            )
             board[index] = digit
             notes[index] = 0
             // 正解のときだけ、同じ行・列・ブロックの同じ数字のメモを消してやる。
@@ -258,6 +296,20 @@ public final class SudokuModel {
         persist()
     }
 
+    /// 直前の1手を取り消す（#353）。盤・メモ・巻き添えで消えたメモ・その手で増えたミスが戻る。
+    public func undo() {
+        guard state == .playing, let step = lastUndoStep else { return }
+        lastUndoStep = nil
+        board[step.index] = step.previousBoard
+        notes[step.index] = step.previousNotes
+        for (peer, mask) in step.changedPeerNotes { notes[peer] = mask }
+        mistakes = step.previousMistakes
+        if step.wasHinted { hintedCells.insert(step.index) }
+        selected = step.index
+        services?.feedback.impact(.rigid)
+        persist()
+    }
+
     /// 選択マスの数字とメモを消す。
     public func erase() {
         guard state == .playing, let index = selected, !given[index] else {
@@ -265,6 +317,11 @@ public final class SudokuModel {
             return
         }
         guard board[index] != 0 || notes[index] != 0 else { return }
+        lastUndoStep = UndoStep(
+            index: index, previousBoard: board[index], previousNotes: notes[index],
+            changedPeerNotes: [:], previousMistakes: mistakes,
+            wasHinted: hintedCells.contains(index)
+        )
         board[index] = 0
         notes[index] = 0
         hintedCells.remove(index)
@@ -304,6 +361,10 @@ public final class SudokuModel {
     private func fail() {
         state = .failed
         selected = nil
+        // 3回目のミスは undo で取り消せない（#353）。取り消せると「広告を見てコンティニュー」
+        // （#322・会長指示の仕様）を素通りできてしまう。コンティニュー後に古い履歴で
+        // ミス回数が巻き戻るのも防ぐ（previousMistakes が失効するため）。
+        lastUndoStep = nil
         stopTimer()
         services?.feedback.notify(.error)
         persist()
