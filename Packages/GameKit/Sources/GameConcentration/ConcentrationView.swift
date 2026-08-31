@@ -274,8 +274,10 @@ private struct CardView: View {
     var body: some View {
         ZStack {
             if isFaceUp {
+                // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(card.isMatched ? Theme.teal.opacity(0.15) : Theme.surface)
+                    .fill(card.isMatched ? AnyShapeStyle(Theme.teal.opacity(0.15))
+                                         : AnyShapeStyle(CardStyle.faceFill))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(
@@ -288,6 +290,7 @@ private struct CardView: View {
                 Text(card.symbol)
                     .font(.system(size: 28))
             } else {
+                // 裏は神経衰弱の顔である紫を保ちつつ、白の内枠で「カードの裏」に寄せる（#366）。
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -296,6 +299,7 @@ private struct CardView: View {
                             endPoint: .bottomTrailing
                         )
                     )
+                CardStyle.backFrame(cornerRadius: 10)
                 Image(systemName: "questionmark")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white.opacity(0.6))

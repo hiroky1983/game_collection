@@ -486,8 +486,9 @@ struct DaifugoCardView: View {
 
     var body: some View {
         ZStack {
+            // 紙の淡い縦グラデーション（CardStyle #366。ポーカー・ブラックジャックと共通）。
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white)
+                .fill(CardStyle.faceFill)
                 .shadow(color: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
                         radius: selected ? 6 : 3, y: 2)
                 .overlay(

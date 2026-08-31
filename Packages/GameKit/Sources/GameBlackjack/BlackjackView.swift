@@ -439,8 +439,9 @@ struct BJCardView: View {
 
     var body: some View {
         ZStack {
+            // 表は紙の淡い縦グラデーション、裏は藍のグラデーション + 白の内枠（CardStyle #366）。
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(faceUp ? Color.white : Color(hex: 0x2A5298))
+                .fill(faceUp ? AnyShapeStyle(CardStyle.faceFill) : AnyShapeStyle(CardStyle.backFill))
                 .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -456,9 +457,10 @@ struct BJCardView: View {
                 }
                 .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
             } else {
+                CardStyle.backFrame(cornerRadius: 8)
                 Image(systemName: "suit.spade.fill")
                     .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(.white.opacity(CardStyle.backMotifOpacity))
             }
         }
         .frame(width: 62, height: 90)
