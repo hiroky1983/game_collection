@@ -743,11 +743,12 @@ struct KomaView: View {
                     .overlay(textureOverlay)
                     .overlay(
                         // 照り: テクスチャでも上を明るく下を沈ませ、削り出しの丸みを出す。
+                        // 強くすると木目が白飛びするので控えめに（会長指摘で 0.20→0.10）。
                         KomaShape().fill(
                             LinearGradient(
-                                colors: [Color.white.opacity(style.textured ? 0.20 : 0),
+                                colors: [Color.white.opacity(style.textured ? 0.10 : 0),
                                          .clear,
-                                         Color.black.opacity(style.textured ? 0.12 : 0)],
+                                         Color.black.opacity(style.textured ? 0.10 : 0)],
                                 startPoint: .top, endPoint: .bottom))
                     )
                     // 木目（#366）: 低い不透明度の筋。文字より下の層。
