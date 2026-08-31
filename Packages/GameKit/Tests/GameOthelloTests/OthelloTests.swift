@@ -1,4 +1,6 @@
 import Testing
+import Foundation
+import Core
 @testable import GameOthello
 
 @Suite("OthelloBoard")
@@ -177,5 +179,104 @@ struct OthelloNewGameDuringThinkingTests {
         #expect(model.whiteCount == 2)
         #expect(model.isThinking == false)  // 旧タスクの defer にフラグを奪われない
         #expect(model.isAITurn)             // 新しい対局は CPU(黒)の手番のまま
+    }
+}
+
+// MARK: - 撮影用プレビュー（#366 の PR #367 に付いた未消化のレビュー指摘）
+
+private final class MockSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
+    private var store: [String: Data] = [:]
+
+    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
+        store[gameID] = try JSONEncoder().encode(snapshot)
+    }
+    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
+        guard let data = store[gameID] else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
+    func exists(for gameID: String) -> Bool { store[gameID] != nil }
+}
+
+private func makeServices(_ store: MockSnapshotStore) -> GameServices {
+    GameServices(snapshots: store, ads: NoopAdService())
+}
+
+@MainActor
+@Suite("オセロ 撮影用プレビュー")
+struct OthelloPreviewMidgameTests {
+
+    /// 中断対局が残っていても撮影用の中盤盤面が作られること。
+    /// 以前は `guard turnID == 0` で弾いていたため、保存対局があると撮影が空振りしていた。
+    @Test func buildsMidgameEvenWithSavedGame() throws {
+        let store = MockSnapshotStore()
+        let seed = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        seed.tap(row: 2, col: 3)                  // 中断対局を1つ作る（黒が1手）
+
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        try #require(model.turnID == 1, "テストの前提: 中断対局から復元していること")
+
+        model.applyPreviewMidgameForTesting(placements: 9)
+
+        #expect(model.turnID >= 9)                             // 初期盤面から組み直されている
+        #expect(model.blackCount + model.whiteCount >= 4 + 9)  // 初期4個 + 置いた数（石は返るだけ）
+        #expect(model.isAITurn == false)                       // 人間の手番で止まる
+        #expect(model.gameOver == false)
+    }
+
+    /// `turnID` を持たない旧形式のスナップショットが残っていても、撮影用の着手が保存対局を
+    /// 上書きしないこと。以前は nil が 0 と読まれて `guard turnID == 0` を素通りし、
+    /// 復元した中盤の対局に撮影用の着手が重なって `persist()` が保存を壊していた。
+    @Test func doesNotOverwriteLegacySnapshot() throws {
+        let store = MockSnapshotStore()
+        let seed = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        seed.tap(row: 2, col: 3)
+        let saved = try #require(store.load(OthelloSnapshot.self, for: "othello"))
+
+        // 旧形式（`turnID` を持たない）へ落として保存し直す。
+        let legacy = OthelloSnapshot(
+            cells: saved.cells, currentStone: saved.currentStone, humanSide: saved.humanSide,
+            aiLevel: saved.aiLevel, startedAt: saved.startedAt, winner: nil, isDraw: false,
+            mustPass: nil, turnID: nil, undoUsed: nil)
+        try store.save(legacy, for: "othello")
+
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        try #require(model.turnID == 0, "テストの前提: 旧形式は 0 手として読まれること")
+
+        model.applyPreviewMidgameForTesting()
+
+        let after = try #require(store.load(OthelloSnapshot.self, for: "othello"))
+        #expect(after.cells == legacy.cells)   // 保存対局は撮影の着手で書き換わらない
+        #expect(after.turnID == nil)
+    }
+
+    /// CPU の思考中に撮影用プレビューを適用しても、旧盤面で選んだ手が混ざらず、
+    /// 「考え中」の表示も残らないこと。View は CPU 起動（`.task(id:)`）とプレビュー適用
+    /// （`.task`）を並行に走らせるため、白番で始めると探索の最中にプレビューが入りうる。
+    @Test func discardsStaleMoveWhenAppliedDuringThinking() async throws {
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
+        model.newGame(humanSide: .white, aiLevel: 2)   // CPU=黒(先手) → 起動直後から CPU の手番
+        try #require(model.isAITurn)
+
+        let gate = ThinkingGate()
+        model.thinkingGate = { await gate.wait() }
+        let thinking = Task { await model.performAIMoveIfNeeded() }
+        await gate.waitUntilArrived()
+        model.thinkingGate = nil
+        try #require(model.isThinking, "テストの前提: 探索の直前で止まっていること")
+
+        model.applyPreviewMidgameForTesting()
+        #expect(model.isThinking == false)   // 撮影に「考え中」が写らない
+
+        let turnID = model.turnID, black = model.blackCount, white = model.whiteCount
+
+        gate.release()          // 旧対局の探索はここで初めて走る（旧盤面のまま）
+        await thinking.value
+
+        #expect(model.turnID == turnID)          // 旧探索の手は入らない
+        #expect(model.blackCount == black)
+        #expect(model.whiteCount == white)
+        #expect(model.isThinking == false)       // 旧タスクの defer にフラグを奪われない
+        #expect(model.isAITurn == false)         // 人間(白)の手番で止まっている
     }
 }

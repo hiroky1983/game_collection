@@ -58,6 +58,10 @@ public final class OthelloModel {
     private let flipSettleDelay: Duration
     private var startedAt: Date
     private var undoHistory: [TurnState] = []
+    #if DEBUG
+    /// 撮影用プレビュー（`-othelloMidgame`）を組み立てている最中は保存対局へ書き戻さない。
+    private var isPreviewCapture = false
+    #endif
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
@@ -225,8 +229,33 @@ public final class OthelloModel {
     #if DEBUG
     /// 撮影用（#366）: 序盤から数手だけ機械的に進めた盤面を作る（`-othelloMidgame` 起動引数）。
     /// 人間の手番で止め、撮影中に CPU が着手して盤が動かないようにする。
+    ///
+    /// **保存対局の状態に依存させず、保存対局も壊さない**（PR #367 のレビュー指摘）。
+    /// 以前は `turnID == 0` を条件にしていたため、中断対局が残っていると撮影が空振りし、
+    /// 逆に `turnID` を持たない旧形式のスナップショットから中盤を復元した場合は、
+    /// 条件を素通りして撮影用の着手が保存対局を上書きしていた。
     public func applyPreviewMidgameForTesting(placements: Int = 9) {
-        guard turnID == 0, !gameOver else { return }
+        isPreviewCapture = true
+        defer { isPreviewCapture = false }
+
+        // 復元の有無によらず初期盤面から作り直す。`humanSide` / `aiLevel` は撮影対象なので保つ。
+        board        = OthelloBoard()
+        currentStone = .black
+        winner       = nil
+        isDraw       = false
+        lastMove     = nil
+        flippedCells = []
+        mustPass     = false
+        turnID       = 0
+        undoUsed     = false
+        undoHistory  = []
+        recordResult = nil
+        // 先に起動していた CPU 探索に、着手も `isThinking` の操作もさせない
+        // （`performAIMoveIfNeeded` は開始時の `gameSerial` と一致するときだけ進む）。
+        // 組み立て後は人間の手番で止まるので、以後 CPU が起動することもない。
+        gameSerial  += 1
+        isThinking   = false
+
         var remaining = placements
         while remaining > 0, !gameOver {
             if mustPass { confirmPass(); continue }
@@ -294,6 +323,10 @@ public final class OthelloModel {
     }
 
     private func persist() {
+        #if DEBUG
+        // 撮影用プレビューの機械的な着手は保存対局へ流さない（PR #367 のレビュー指摘）。
+        if isPreviewCapture { return }
+        #endif
         guard !gameOver else {
             services?.snapshots.clear(for: gameID)
             return
