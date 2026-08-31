@@ -1,5 +1,5 @@
 #!/bin/bash
-# ai-duty.sh の「会長の書き込み」検知（仕事5: 決裁着信 / 仕事8: 企画議論着信）の検証。
+# ai-duty.sh の「会長の書き込み」検知（仕事5: 決裁着信 / 仕事8: 企画議論着信 / 仕事11: blocked 解除確認）の検証。
 #
 # 当番(AI)・経営企画室・会長はすべて同じ hiroky1983 トークンで投稿するため、この3者を分けるのは
 # 本文のマーカーだけである。マーカーの取りこぼしはそのまま毎時の空振り起動になる（#120・#168）ので、
@@ -125,6 +125,55 @@ check "コメントが1件も無ければ発火しない" "false" \
 # 会長の新規コメントと誤認すると、blockedを付けた直後に仕事11が不要に発火する
 check "最後が当番自身の「着手見送り」コメントなら発火しない（誤検知防止）" "false" \
   "$(blocked "$(node "blocked" "hiroky1983=着手見送り: 着手条件 xxx が未達（根拠）。解除条件: yyy")")"
+# #386: ai:proposed + blocked の Issue では規程 1-e（企画議論）と 2-b（解除確認）が競合し、
+# どちらの接頭辞を選んでも別の検知が鳴っていた。#184 が実際にこれで毎時空振りしていた。
+check "最後が当番の「企画議論」応答なら発火しない（#386・#184）" "false" \
+  "$(blocked "$(node "ai:proposed,blocked" "hiroky1983=1.1.3のUI改修を終えてからやりましょう" "hiroky1983=企画議論（経営企画室）: 承知しました。blocked を付けました")")"
+check "最後が当番の決裁スレッドなら発火しない（#386）" "false" \
+  "$(blocked "$(node "blocked" "hiroky1983=$RINGI_THREAD")")"
+
+# #386: 当番マーカーの集合を is_duty_reply に集約したため、3つの判定がすべて同じ集合を見る。
+# どれか1つが取りこぼすと、その接頭辞で応答した Issue が恒久的に空振りし続ける。
+echo "== 7-b. 当番マーカーの集合が仕事5・8・11 で揃っている（#386）=="
+# "表示名=本文" の形で持つ（cut -c はバイト単位で、日本語を途中で割ると表示が壊れる）
+for entry in "企画議論=企画議論（経営企画室）: 回答します" \
+             "解除確認=解除確認: まだ条件未達" \
+             "着手見送り=着手見送り: 着手条件 xxx が未達" \
+             "決裁スレッド=$RINGI_THREAD" \
+             "決裁反映=決裁反映: 承認のため着手します"; do
+  label="${entry%%=*}"
+  prefix="${entry#*=}"
+  check "仕事5 が「${label}…」で発火しない" "false" \
+    "$(ringi "$(node "ringi:pending" "hiroky1983=会長の指示" "hiroky1983=$prefix")")"
+  check "仕事8 が「${label}…」で発火しない" "false" \
+    "$(proposed "$(node "ai:proposed" "hiroky1983=会長の指示" "hiroky1983=$prefix")")"
+  check "仕事11 が「${label}…」で発火しない" "false" \
+    "$(blocked "$(node "blocked" "hiroky1983=会長の指示" "hiroky1983=$prefix")")"
+done
+# PR #387 の CodeRabbit 指摘: マーカーは記録形式（先頭一致）で判定する。contains だと会長が
+# 語を引用しただけのコメントを当番の応答と誤認し、決裁着信・解除確認をまるごと取りこぼす。
+echo "== 7-c. 会長が決裁マーカーの語を引用しただけなら発火する（PR #387）=="
+for qentry in "決裁反映の引用=前回の決裁反映を確認しました。続けてください" \
+              "【要決裁】の引用=【要決裁】の件だけど、Bで進めてほしい"; do
+  qlabel="${qentry%%=*}"
+  quoted="${qentry#*=}"
+  check "仕事5 は引用「${qlabel}…」で発火する" "true" \
+    "$(ringi "$(node "ringi:pending" "hiroky1983=$RINGI_THREAD" "hiroky1983=$quoted")")"
+  check "仕事8 は引用「${qlabel}…」で発火する" "true" \
+    "$(proposed "$(node "ai:proposed" "hiroky1983=$quoted")")"
+  check "仕事11 は引用「${qlabel}…」で発火する" "true" \
+    "$(blocked "$(node "blocked" "hiroky1983=解除確認: 未達" "hiroky1983=$quoted")")"
+done
+check "正規の決裁反映（先頭一致）は当番の記録として除外される" "false" \
+  "$(ringi "$(node "ringi:pending" "hiroky1983=$CHAIRMAN" "hiroky1983=決裁反映: 承認のため着手します")")"
+
+# 集約が「常に false を返す」実装になっていないことの対照（会長の生コメントは3つとも発火する）
+check "仕事5 は会長の素のコメントでは発火する（集約が潰していない）" "true" \
+  "$(ringi "$(node "ringi:pending" "hiroky1983=解除しました" "hiroky1983=$CHAIRMAN")")"
+check "仕事8 は会長の素のコメントでは発火する（集約が潰していない）" "true" \
+  "$(proposed "$(node "ai:proposed" "hiroky1983=$CHAIRMAN")")"
+check "仕事11 は会長の素のコメントでは発火する（集約が潰していない）" "true" \
+  "$(blocked "$(node "blocked" "hiroky1983=解除確認: 未達" "hiroky1983=$CHAIRMAN")")"
 
 echo "== 8. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
