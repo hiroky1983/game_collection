@@ -907,3 +907,236 @@ struct MahjongCancelTests {
         )
     }
 }
+
+// MARK: - 和了手の開示（#351）
+
+@Suite("和了手の開示")
+@MainActor
+struct MahjongWinningHandRevealTests {
+
+    @Test("ツモ和了のリザルトに手牌と和了牌が入り、和了牌は手牌側に重複しない")
+    func tsumoRevealsHandAndWinningTile() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),  // 8s で平和
+                junkHand(), junkHand(), junkHand(),
+            ],
+            wall: [],
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.declareTsumo()
+
+        let result = try #require(model.handResult)
+        #expect(result.winningTile == MahjongNotation.tile("8s"))
+        #expect(result.winningHand == MahjongNotation.tiles("234m567m22p345p67s"))
+        #expect(
+            result.winningHand?.count == 13,
+            "和了牌は別に持つので、手牌側は 13 枚のまま（14 枚にすると和了牌が二重に出る）"
+        )
+        #expect(result.winningMelds == [])
+    }
+
+    @Test("ロン和了でも放銃された牌が和了牌として入る")
+    func ronRevealsWinningTile() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),  // 8s でロン
+                junkHand(), junkHand(), junkHand(),
+            ],
+            wall: [],
+            currentPlayer: 1,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.discardForTesting(MahjongNotation.tile("8s"), by: 1)
+        model.declareRon()
+
+        let result = try #require(model.handResult)
+        #expect(result.kind == .ron)
+        #expect(result.winningTile == MahjongNotation.tile("8s"))
+        #expect(result.winningHand == MahjongNotation.tiles("234m567m22p345p67s"))
+    }
+
+    @Test("副露して和了ると、晒していた面子もリザルトに入る")
+    func revealsMelds() throws {
+        let pon = MahjongCall(
+            kind: .pon, tile: MahjongNotation.tile("7z"), from: 1,
+            claimedTile: MahjongNotation.tile("7z")
+        )
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m345p2p"),   // 2p でロン（中のポンで役あり）
+                junkHand(), junkHand(), junkHand(),
+            ],
+            wall: [],
+            currentPlayer: 1,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("2p"),
+            melds: [[pon], [], [], []]
+        )
+        model.discardForTesting(MahjongNotation.tile("2p"), by: 1)
+        model.declareRon()
+
+        let result = try #require(model.handResult)
+        #expect(result.winner == 0)
+        #expect(result.winningMelds == [pon])
+        #expect(result.winningHand?.count == 10, "副露 1 つぶん手牌は 3 枚少ない")
+        #expect(result.winningTile == MahjongNotation.tile("2p"))
+    }
+
+    @Test("立直で和了ると裏ドラ表示牌が入る")
+    func riichiRevealsUraIndicators() throws {
+        let model = makeModel()
+        model.startGame()
+        // 王牌の偶数番目がドラ表示牌、奇数番目が裏ドラ表示牌。区別できる牌を置く。
+        var deadWall = Array(repeating: MahjongNotation.tile("9m"), count: MahjongModel.deadWallCount)
+        deadWall[1] = MahjongNotation.tile("5s")
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),
+                junkHand(), junkHand(), junkHand(),
+            ],
+            wall: [],
+            deadWall: deadWall,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s"),
+            riichi: [true, false, false, false]
+        )
+        model.declareTsumo()
+
+        let result = try #require(model.handResult)
+        #expect(result.uraIndicators == [MahjongNotation.tile("5s")])
+    }
+
+    @Test("立直していない和了では裏ドラ表示牌を出さない（点数にも乗らないため）")
+    func nonRiichiHidesUraIndicators() throws {
+        let model = makeModel()
+        model.startGame()
+        var deadWall = Array(repeating: MahjongNotation.tile("9m"), count: MahjongModel.deadWallCount)
+        deadWall[1] = MahjongNotation.tile("5s")
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),
+                junkHand(), junkHand(), junkHand(),
+            ],
+            wall: [],
+            deadWall: deadWall,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.declareTsumo()
+
+        let result = try #require(model.handResult)
+        #expect(result.uraIndicators == [], "立直していなければ裏ドラは乗らないので開かない")
+    }
+
+    @Test("流局のリザルトは手牌を開かない")
+    func exhaustiveDrawKeepsHandsHidden() throws {
+        let model = makeModel(seed: 11)
+        model.startGame()
+        model.exhaustWallForTesting()
+
+        let result = try #require(model.handResult)
+        #expect(result.kind == .exhaustiveDraw)
+        #expect(result.winningHand == nil)
+        #expect(result.winningTile == nil)
+        #expect(result.winningMelds == nil)
+        #expect(result.uraIndicators == nil)
+    }
+
+    @Test("和了手のフィールドが無い旧形式のリザルトも読める")
+    func decodesLegacyHandResult() throws {
+        // #351 より前に保存された中断データ（`winningHand` 等のキーが無い）と同じ形。
+        let legacy = """
+        {
+          "kind": "ron", "winner": 0, "loser": 1,
+          "yaku": ["立直 1飜"], "han": 1, "fu": 40,
+          "gainedPoints": 1300, "tenpaiPlayers": [],
+          "pointChanges": [1300, -1300, 0, 0]
+        }
+        """
+        let decoded = try JSONDecoder().decode(
+            MahjongHandResult.self, from: Data(legacy.utf8)
+        )
+        #expect(decoded.gainedPoints == 1300)
+        #expect(decoded.winningHand == nil, "欠けているフィールドは nil になり、表示側で開示を省く")
+        #expect(decoded.winningTile == nil)
+    }
+
+    @Test("リザルト中に中断して再開しても、開示した和了手がそのまま残る")
+    func persistsRevealedHand() throws {
+        let store = MemorySnapshotStore()
+        let model = makeModel(store: store)
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),
+                junkHand(), junkHand(), junkHand(),
+            ],
+            wall: [],
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.declareTsumo()
+        try #require(model.phase == .handResult)
+
+        let restored = MahjongModel(
+            services: GameServices(snapshots: store, ads: NoopAdService()),
+            cpuDelay: .zero
+        )
+        #expect(restored.handResult?.winningHand == model.handResult?.winningHand)
+        #expect(restored.handResult?.winningTile == model.handResult?.winningTile)
+    }
+}
+
+// MARK: - 和了手のレイアウト（#351）
+
+@Suite("和了手のレイアウト")
+struct MahjongWinningHandLayoutTests {
+
+    /// リザルトカードの内側で牌の並びに使える幅。画面幅から外周の `Theme.pad`（16）と
+    /// カードの内側余白（16）を左右ぶん引く。対応端末の最小は 375pt（iPhone SE 第2/第3世代）。
+    private static let availableWidths: [(name: String, width: CGFloat)] = [
+        ("iPhone SE (375pt)", 375 - 32 - 32),
+        ("iPhone 15 (393pt)", 393 - 32 - 32),
+        ("iPhone 15 Pro Max (430pt)", 430 - 32 - 32),
+    ]
+
+    @Test("門前の 14 枚が、対応する最小の端末幅でもはみ出さない")
+    func concealedHandFitsOnAllWidths() {
+        for (name, width) in Self.availableWidths {
+            let row = MahjongWinningHandLayout.rowWidth(available: width, handCount: 13, melds: [])
+            #expect(row <= width + 0.01, "\(name) で和了手がはみ出す（\(row)pt > \(width)pt）")
+        }
+    }
+
+    @Test("カンで牌が増えても、副露があってもはみ出さない")
+    func meldedHandFitsOnAllWidths() {
+        // 暗槓 1 つ = 手牌 10 枚 + 和了牌 + 槓子 4 枚 = 15 枚（門前より 1 枚多い最悪ケース）。
+        let kan = MahjongCall(kind: .closedKan, tile: .characters(1))
+        let pon = MahjongCall(kind: .pon, tile: .dragon(0), from: 1, claimedTile: .dragon(0))
+        for (name, width) in Self.availableWidths {
+            let kanRow = MahjongWinningHandLayout.rowWidth(available: width, handCount: 10, melds: [kan])
+            #expect(kanRow <= width + 0.01, "\(name) で暗槓ありの和了手がはみ出す")
+            let twoMelds = MahjongWinningHandLayout.rowWidth(
+                available: width, handCount: 7, melds: [pon, kan]
+            )
+            #expect(twoMelds <= width + 0.01, "\(name) で副露2つの和了手がはみ出す")
+        }
+    }
+
+    @Test("幅に余裕があっても上限より大きくはならない（カードが伸びて卓を潰さない）")
+    func doesNotGrowBeyondMax() {
+        #expect(
+            MahjongWinningHandLayout.tileWidth(available: 1000, handCount: 13, melds: [])
+                == MahjongWinningHandLayout.maxTileWidth
+        )
+    }
+}

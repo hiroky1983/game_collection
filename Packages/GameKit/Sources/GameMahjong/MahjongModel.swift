@@ -44,6 +44,49 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     /// 和了者はプラス、放銃・ツモ払い・流局のノーテン罰符はマイナス。会長指摘「誰が誰に振り込んだか
     /// わかるようにしてほしい」への対応で、リザルト画面の得点表に添える。
     public let pointChanges: [Int]
+    // 和了手の開示（#351）で足した項目。**古い中断データを読めなくしないため任意**にする
+    // （`MahjongSnapshot.melds` と同じ判断。必須にすると更新直後のリザルト中断が黙って消える）。
+    /// 和了者の門前手牌（**和了牌を含まない**・並べ替え済み）。流局と旧データでは nil。
+    public let winningHand: [MahjongTile]?
+    /// 和了者が晒していた副露。
+    public let winningMelds: [MahjongCall]?
+    /// 和了牌（ロンなら出た牌、ツモなら自摸ってきた牌）。
+    public let winningTile: MahjongTile?
+    /// 裏ドラ表示牌。**立直での和了のときだけ入る**（立直していなければ空配列）。
+    /// 点数計算には入っているのに一度も見えなかったので、精算のこの場面でだけ開く。
+    public let uraIndicators: [MahjongTile]?
+
+    public init(
+        kind: Kind,
+        winner: Int?,
+        loser: Int?,
+        yaku: [String],
+        han: Int,
+        fu: Int,
+        limitName: String?,
+        gainedPoints: Int,
+        tenpaiPlayers: [Int],
+        pointChanges: [Int],
+        winningHand: [MahjongTile]? = nil,
+        winningMelds: [MahjongCall]? = nil,
+        winningTile: MahjongTile? = nil,
+        uraIndicators: [MahjongTile]? = nil
+    ) {
+        self.kind = kind
+        self.winner = winner
+        self.loser = loser
+        self.yaku = yaku
+        self.han = han
+        self.fu = fu
+        self.limitName = limitName
+        self.gainedPoints = gainedPoints
+        self.tenpaiPlayers = tenpaiPlayers
+        self.pointChanges = pointChanges
+        self.winningHand = winningHand
+        self.winningMelds = winningMelds
+        self.winningTile = winningTile
+        self.uraIndicators = uraIndicators
+    }
 }
 
 /// 東風戦が終わった理由。リザルトの見出しに使う（#352。東2局で突然終わっても
@@ -932,7 +975,15 @@ public final class MahjongModel {
             limitName: score.limitName,
             gainedPoints: gained,
             tenpaiPlayers: [],
-            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] },
+            // ここではまだ和了牌を手牌に入れていないので、`hands[winner]` は門前の 13 枚
+            // （副露のぶんだけ少ない）。和了牌は別に持たせて、リザルトで見分けられるようにする。
+            winningHand: hands[winner].tiles,
+            winningMelds: melds[winner],
+            winningTile: winningTile,
+            // 裏ドラが乗るのは立直したときだけ（`MahjongScoring` も同じ条件で数える）。
+            // 立直していない和了で開くと「乗らない裏ドラ」を見せることになるので出さない。
+            uraIndicators: riichi[winner] ? self.uraIndicators : []
         )
         // 和了牌を手牌に入れた状態で見せる（リザルトで役を確かめられるように）。
         hands[winner] = hands[winner].adding(winningTile)
@@ -1316,6 +1367,41 @@ public final class MahjongModel {
         roundNumber = 2
         handResult = nil
         concludeGame()
+    }
+
+    /// 撮影・動作確認用（DEBUG 限定）: 立直ツモの和了リザルトをその場で作る（#351）。
+    /// 和了手の開示は「立直 + 副露なし = 手牌 13 枚 + 和了牌」がもっとも横幅を食う組み合わせで、
+    /// かつ裏ドラも出る唯一の条件。実プレイでこの形が出るまで待つのはシミュレータでは
+    /// 自動タップができず現実的でないため、非対話でこの画面を確認する経路を用意する
+    /// （`-mahjongBustResult` と同じ理由・#338）。
+    func simulateWinResultForTesting() {
+        var deadWall = Array(repeating: MahjongTile.characters(9), count: Self.deadWallCount)
+        // 偶数番目がドラ表示牌、奇数番目が裏ドラ表示牌。裏ドラ表示牌を 5s にすると
+        // 裏ドラは 6s になり、下の手牌の 6s に 1 枚乗る（= 裏ドラが効いた見た目になる）。
+        deadWall[1] = .bamboos(5)
+        // 234m 567m 22p 345p 67s の 13 枚。8s を自摸って平和で和了る形（テストと同じ牌姿）。
+        let hand = MahjongHand(tiles: [
+            .characters(2), .characters(3), .characters(4),
+            .characters(5), .characters(6), .characters(7),
+            .circles(2), .circles(2), .circles(3), .circles(4), .circles(5),
+            .bamboos(6), .bamboos(7),
+        ])
+        // 孤立した牌だけの手（他家が聴牌して話が変わらないようにする。テストの `junkHand` と同じ）。
+        let junk = MahjongHand(tiles: [
+            .characters(1), .characters(4), .characters(7),
+            .circles(2), .circles(5), .circles(8),
+            .bamboos(3), .bamboos(6), .bamboos(9),
+            .wind(0), .wind(1), .wind(2), .wind(3),
+        ])
+        configureForTesting(
+            hands: [hand, junk, junk, junk],
+            wall: [],
+            deadWall: deadWall,
+            dealer: 1,                                       // 自分は子
+            drawnTile: .bamboos(8),
+            riichi: [true, false, false, false]
+        )
+        declareTsumo()
     }
     #endif
 

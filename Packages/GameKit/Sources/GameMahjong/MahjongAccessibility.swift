@@ -52,6 +52,23 @@ public enum MahjongAccessibility {
         return "\(kind) \(meld.tiles.map(\.displayName).joined(separator: "、"))"
     }
 
+    /// リザルトで開く和了手（#351）。牌は図形で描くので、目で見て分かることを言葉でも同じだけ伝える。
+    /// 裏ドラは立直での和了のときだけ渡される（それ以外は空）。
+    public static func winningHandLabel(
+        player: String, hand: [MahjongTile], winningTile: MahjongTile,
+        melds: [MahjongCall], uraIndicators: [MahjongTile]
+    ) -> String {
+        var parts = ["\(player)の和了手、" + hand.map(\.displayName).joined(separator: "、")]
+        if !melds.isEmpty {
+            parts.append(melds.map { meldLabel($0) }.joined(separator: "、"))
+        }
+        parts.append("和了牌は\(winningTile.displayName)")
+        if !uraIndicators.isEmpty {
+            parts.append("裏ドラ表示牌は" + uraIndicators.map(\.displayName).joined(separator: "、"))
+        }
+        return parts.joined(separator: "。")
+    }
+
     /// 鳴きの選択肢 1 つ。手牌から使う牌まで読み上げて、取り方の違うチーを選び分けられるようにする。
     public static func callOptionLabel(_ option: MahjongCall) -> String {
         "\(option.actionName)、手牌から\(option.optionDetail)を使います"

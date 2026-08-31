@@ -114,6 +114,12 @@ public struct MahjongView: View {
                 model.simulateBustResultForTesting()
                 return
             }
+            // 同上（#351）: 立直ツモの和了リザルト（和了手・和了牌・裏ドラが出ている状態）。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongWinResult") {
+                showStartSheet = false
+                model.simulateWinResultForTesting()
+                return
+            }
             #endif
             // 中断から戻ったときに手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
@@ -631,9 +637,19 @@ public struct MahjongView: View {
                 .font(.system(size: 20, weight: .black, design: .rounded))
                 .foregroundStyle(Theme.coral)
             if let result = model.handResult, result.kind != .exhaustiveDraw {
-                Text("\(result.han)飜 \(result.fu > 0 ? "\(result.fu)符 " : "")\(result.limitName ?? "")")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
+                // 役より先に手牌を出す。「何で和了ったか」を見てから役名を読むほうが、
+                // 初心者が役と牌の並びを結び付けられる（#351 の狙い）。
+                winningHandSection(result)
+                // 裏ドラは独立した行にすると、ただでさえ縦に長いリザルトカードがさらに伸びて
+                // 卓（正方形）を圧迫する。飜符と同じ行に畳んで高さを増やさない。
+                HStack(spacing: 8) {
+                    Text("\(result.han)飜 \(result.fu > 0 ? "\(result.fu)符 " : "")\(result.limitName ?? "")")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    if let ura = result.uraIndicators, !ura.isEmpty {
+                        uraIndicatorRow(ura)
+                    }
+                }
                 VStack(spacing: 3) {
                     ForEach(Array(result.yaku.enumerated()), id: \.offset) { _, name in
                         Text(name)
@@ -674,6 +690,77 @@ public struct MahjongView: View {
             guard let loser = result.loser else { return "\(winnerName)のロン" }
             return "\(model.playerName(loser)) → \(winnerName)のロン"
         }
+    }
+
+    // MARK: - 和了手の開示（#351）
+
+    private static let resultUraTileWidth: CGFloat = 16
+
+    /// 和了者の手牌 + 副露 + 和了牌（裏ドラ表示牌は飜符の行に畳んで出す）。
+    ///
+    /// 旧形式の中断データから復元したリザルトには牌が入っていない（`winningHand` が nil）ので、
+    /// その場合はこのセクションごと出さない = 更新前と同じ見た目に戻るだけで壊れない。
+    @ViewBuilder
+    private func winningHandSection(_ result: MahjongHandResult) -> some View {
+        if let hand = result.winningHand, let winningTile = result.winningTile {
+            let melds = result.winningMelds ?? []
+            let ura = result.uraIndicators ?? []
+            GeometryReader { geo in
+                let tileWidth = MahjongWinningHandLayout.tileWidth(
+                    available: geo.size.width, handCount: hand.count, melds: melds
+                )
+                HStack(alignment: .center, spacing: MahjongWinningHandLayout.groupGap) {
+                    HStack(spacing: MahjongWinningHandLayout.tileSpacing) {
+                        ForEach(Array(hand.enumerated()), id: \.offset) { _, tile in
+                            MahjongTileView(
+                                tile: tile, width: tileWidth,
+                                height: tileWidth * MahjongWinningHandLayout.tileAspect
+                            )
+                        }
+                    }
+                    // 和了牌だけ枠の色を変えて（`isHinted`）、どの牌で和了ったかを一目で分かるようにする。
+                    MahjongTileView(
+                        tile: winningTile, width: tileWidth,
+                        height: tileWidth * MahjongWinningHandLayout.tileAspect, isHinted: true
+                    )
+                    if !melds.isEmpty {
+                        MahjongMeldRow(melds: melds, tileWidth: tileWidth, showsBadge: false)
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+            }
+            // GeometryReader は自分の高さを決められないので、牌がいちばん大きいときの高さで固定する
+            // （幅が足りずに縮んだときは上下に余白が出るだけで、カードからはみ出さない）。
+            .frame(height: MahjongWinningHandLayout.maxTileWidth * MahjongWinningHandLayout.tileAspect)
+            // 卓と同じ理由（牌の増減で横滑りして見える）でここも暗黙アニメーションを禁止する。
+            .transaction { $0.animation = nil }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                MahjongAccessibility.winningHandLabel(
+                    player: model.playerName(result.winner ?? 0), hand: hand,
+                    winningTile: winningTile, melds: melds, uraIndicators: ura
+                )
+            )
+        }
+    }
+
+    /// 裏ドラ表示牌。卓中央パネルの「ドラ」と同じ見せ方（見出し + 表示牌そのもの）に揃える。
+    /// 読み上げは和了手の 1 要素にまとめてある（`winningHandSection`）ので、ここでは重複させない。
+    private func uraIndicatorRow(_ tiles: [MahjongTile]) -> some View {
+        HStack(spacing: 4) {
+            Text("裏ドラ")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            HStack(spacing: MahjongWinningHandLayout.tileSpacing) {
+                ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
+                    MahjongTileView(
+                        tile: tile, width: Self.resultUraTileWidth,
+                        height: Self.resultUraTileWidth * MahjongWinningHandLayout.tileAspect
+                    )
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     /// 東風戦の終わり方は3種類あり、東2局で突然終わっても理由が読めるよう見出しを分ける（#352）。
@@ -988,5 +1075,56 @@ struct MahjongRuleSheet: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+}
+
+// MARK: - 和了手の並びの寸法（#351）
+
+/// リザルトで開く和了手を 1 行に収めるための寸法計算。
+///
+/// 牌の枚数は「門前の手牌 + 和了牌 + 副露」で最低 14 枚あり（カンのぶんだけ増える）、
+/// 上限の大きさのままでは対応端末の最小幅（375pt）で必ずはみ出す。「シミュレータで見たら
+/// 収まっていた」では最小構成の端末で重なることを防げないため、`DaifugoHandLayout` と同じく
+/// 寸法の計算を View の外へ出してテストで押さえる。
+enum MahjongWinningHandLayout {
+    /// 牌の最大の幅。幅に余裕があってもこれ以上大きくしない（リザルトカードが縦に伸びて
+    /// 卓（正方形）を圧迫するのを防ぐ）。
+    static let maxTileWidth: CGFloat = 21
+    /// 牌が潰れて読めなくなってもはみ出させないための下限。対応端末の幅では効かない。
+    static let minTileWidth: CGFloat = 8
+    /// `MahjongMeldRow` と同じ比率。手牌と副露で牌の形が食い違わないようにする。
+    static let tileAspect: CGFloat = 1.34
+    static let tileSpacing: CGFloat = 1
+    /// 手牌 / 和了牌 / 副露の間の空き。実物の卓で和了牌を少し離して置くのと同じ意味づけ。
+    static let groupGap: CGFloat = 7
+    /// `MahjongMeldRow` が副露どうしの間に空ける幅（`HStack(spacing: 6)`）。
+    static let meldGap: CGFloat = 6
+
+    /// 1 行に並ぶ牌の総数。
+    static func tileCount(handCount: Int, melds: [MahjongCall]) -> Int {
+        handCount + 1 + melds.reduce(0) { $0 + $1.tiles.count }
+    }
+
+    /// 牌以外に消費される幅（牌どうしの隙間と、グループ間の空き）。
+    static func spacingWidth(handCount: Int, melds: [MahjongCall]) -> CGFloat {
+        let count = tileCount(handCount: handCount, melds: melds)
+        return tileSpacing * CGFloat(max(0, count - 1))
+            + groupGap * (melds.isEmpty ? 1 : 2)
+            + meldGap * CGFloat(max(0, melds.count - 1))
+    }
+
+    /// 幅 `available` に収まる 1 枚あたりの幅。
+    static func tileWidth(available: CGFloat, handCount: Int, melds: [MahjongCall]) -> CGFloat {
+        let count = tileCount(handCount: handCount, melds: melds)
+        guard count > 0, available > 0 else { return maxTileWidth }
+        let raw = (available - spacingWidth(handCount: handCount, melds: melds)) / CGFloat(count)
+        return max(minTileWidth, min(maxTileWidth, raw))
+    }
+
+    /// 実際に描かれる 1 行の総幅。`available` を超えていれば牌が重なる。
+    static func rowWidth(available: CGFloat, handCount: Int, melds: [MahjongCall]) -> CGFloat {
+        let count = tileCount(handCount: handCount, melds: melds)
+        return tileWidth(available: available, handCount: handCount, melds: melds) * CGFloat(count)
+            + spacingWidth(handCount: handCount, melds: melds)
     }
 }
