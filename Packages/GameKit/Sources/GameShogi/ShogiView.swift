@@ -224,14 +224,17 @@ public struct ShogiView: View {
                 }
             }
             // 盤の木地（#366）: 同梱の柾目テクスチャを盤全体に敷き、格子線と星をその上に引く。
+            // 画像は**格子の背景**として敷く。ZStack で並べると scaledToFill の画像が
+            // ZStack ごと膨らませ、中の GeometryReader（格子）が実寸とずれて
+            // 格子と駒が半マス食い違う（会長指摘の「ずれ」）。
             .background {
-                ZStack {
-                    ShogiWood.board
-                        .resizable()
-                        .scaledToFill()
-                    boardGrid
-                }
-                .clipped()
+                boardGrid
+                    .background(
+                        ShogiWood.board
+                            .resizable()
+                            .scaledToFill()
+                            .clipped()
+                    )
             }
             // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
             // マスに紐づけると駒の同一性がマスと一緒に変わり、移動が補間されない。
