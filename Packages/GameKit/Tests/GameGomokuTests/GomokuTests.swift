@@ -235,4 +235,19 @@ struct GomokuInvalidTapTests {
         #expect(model.rejectedTapCount == 0)
         #expect(model.lastRejection == nil)
     }
+
+    /// 撮影用の中盤盤面（#366）は、決着せず人間の手番で止まること。
+    /// 決着したり CPU の手番で止まったりすると、撮影中に結果表示や CPU の着手で盤が動く。
+    @Test func previewMidgameStopsOnHumanTurnWithoutEnding() {
+        let model = GomokuModel(services: nil)
+        model.applyPreviewMidgameForTesting()
+
+        #expect(model.moveCount == 10)
+        #expect(model.gameOver == false)
+        #expect(model.isAITurn == false)
+
+        // 対局が進んだあとは何もしない（撮影引数を付けたまま再起動しても盤を壊さない）。
+        model.applyPreviewMidgameForTesting()
+        #expect(model.moveCount == 10)
+    }
 }

@@ -77,6 +77,14 @@ public struct GomokuView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        .task {
+            #if DEBUG
+            // 撮影用（#366）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
+            if ProcessInfo.processInfo.arguments.contains("-gomokuMidgame") {
+                model.applyPreviewMidgameForTesting()
+            }
+            #endif
+        }
     }
 
     // MARK: - 盤の下の操作エリア
@@ -416,11 +424,22 @@ private struct GomokuBoardCanvas: View, Animatable {
                     // 透明度は複製したレイヤーに掛ける（元の ctx に残すと以降の石まで薄くなる）。
                     var layer = ctx
                     layer.opacity = appear
+                    // 碁石はドーム（半球）に見せる: 左上寄りのラジアルの照り + 落ち影（#366）。
+                    // オセロの石（円柱・上面が平ら）とは意図的に描き分けている。
+                    layer.addFilter(.shadow(
+                        color: .black.opacity(0.30),
+                        radius: s * 0.09,
+                        x: 0, y: s * 0.07))
 
+                    let highlight = CGPoint(x: cx - r * 0.35, y: cy - r * 0.4)
                     if stone == .black {
-                        layer.fill(path, with: .color(Color(hex: 0x18140E)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0x55504A), Color(hex: 0x0F0C08)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.7))
                     } else {
-                        layer.fill(path, with: .color(Color(hex: 0xF0E8D0)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0xFFFCF0), Color(hex: 0xD9D2B8)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.7))
                         layer.stroke(path, with: .color(Color.gray.opacity(0.4)), lineWidth: 1)
                     }
 
@@ -429,12 +448,16 @@ private struct GomokuBoardCanvas: View, Animatable {
                     // 直前手の位置が分からなかった。盤色・黒石・白石のいずれとも差が出る
                     // アクセント色のリングを外周に足し、ドットも一回り大きく濃くする。
                     if isLast {
+                        // マーカーには石の落ち影を付けたくないので、影フィルタなしの複製に描く。
+                        var markerLayer = ctx
+                        markerLayer.opacity = appear
+
                         let ring = rect.insetBy(dx: -2, dy: -2)
-                        layer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
+                        markerLayer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
 
                         let mr = r * 0.34
                         let mRect = CGRect(x: cx - mr, y: cy - mr, width: mr*2, height: mr*2)
-                        layer.fill(Path(ellipseIn: mRect),
+                        markerLayer.fill(Path(ellipseIn: mRect),
                                    with: .color(stone == .black ? Color.white.opacity(0.9)
                                                                 : Color(hex: 0x2A1600).opacity(0.75)))
                     }
