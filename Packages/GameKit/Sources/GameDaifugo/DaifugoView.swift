@@ -5,14 +5,11 @@ public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
-    @State private var showStartSheet = true
     @State private var showResignConfirm = false
 
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: DaifugoModel(services: services))
-        let hasSnapshot = services.snapshots.exists(for: "daifugo")
-        _showStartSheet = State(initialValue: !hasSnapshot)
     }
 
     public var body: some View {
@@ -20,14 +17,17 @@ public struct DaifugoView: View {
             statusBar
             cpuRow
             // 決着後は場も手札も空になるので、代わりに階級のリザルトを出す。
+            //
+            // 縦の余りは `Spacer` ではなく**場 / リザルトのカード自身**に吸わせる（#193）。
+            // `Spacer` に吸わせると、その分がまるごと背景色の空白として残る（iPhone 17 Pro 実測で
+            // 場と手札の間に 131pt、リザルトの下に 174pt）。カード側を伸ばせば同じ余りが「広い場」
+            // 「大きなリザルト」になり、背景の空白は 0pt になる。
             if model.phase == .result {
                 resultCard
                     .transition(.opacity)
-                Spacer(minLength: 2)
             } else {
                 fieldArea
                     .transition(.opacity)
-                Spacer(minLength: 0)
                 handArea
                     .transition(.opacity)
             }
@@ -74,15 +74,10 @@ public struct DaifugoView: View {
         } message: {
             Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
         }
-        .sheet(isPresented: $showStartSheet) {
-            DaifugoStartSheet {
-                showStartSheet = false
-                model.startGame()
-                Task { await model.runCPUTurnsIfNeeded() }
-            }
-            .interactiveDismissDisabled(true)
-        }
         .task {
+            // 開幕の全画面モーダルは廃止したので、盤を見せたまま既定値で配り始める（#192）。
+            // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
+            if model.phase == .idle { model.startGame() }
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
@@ -159,9 +154,7 @@ public struct DaifugoView: View {
 
     private var fieldArea: some View {
         VStack(spacing: 6) {
-            Text(model.field.isEmpty ? "場は流れています（好きな組を出せます）" : "場")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
+            fieldHeader
             HStack(spacing: 6) {
                 if model.field.isEmpty {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -176,7 +169,8 @@ public struct DaifugoView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity)
+        // 縦の余りをここで吸い、場と手札の間に背景の空白を残さない（#193）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 22)
         .popCard(corner: Theme.cornerSmall)
         // 誰が出しても場は同じ経路（`field` の差し替え）で更新されるので、CPU の手も人間の手も
@@ -184,7 +178,36 @@ public struct DaifugoView: View {
         .gameAnimation(.easeInOut(duration: 0.18), value: model.field)
         // 場は「何が出ているか」が分かればよいので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(DaifugoAccessibility.fieldLabel(model.field))
+        .accessibilityLabel(DaifugoAccessibility.fieldLabel(model.field, ownerName: fieldOwnerName))
+    }
+
+    /// 場の出し手（`fieldOwner`）の名前。場が空 / 出し手が不明なら nil。
+    private var fieldOwnerName: String? {
+        guard !model.field.isEmpty, let owner = model.fieldOwner else { return nil }
+        return model.playerName(owner)
+    }
+
+    /// 場の見出し。組が出ているときは**誰が出したか**をバッジで添える（#193）。
+    /// 出し手が分からないと、パスして流れたときに親が誰になるか・自分が越えるべき相手が誰かを読めない。
+    @ViewBuilder
+    private var fieldHeader: some View {
+        if let ownerName = fieldOwnerName {
+            let isHuman = model.fieldOwner == DaifugoModel.humanIndex
+            HStack(spacing: 4) {
+                Image(systemName: isHuman ? "person.fill" : "cpu")
+                    .font(.system(size: 10, weight: .bold))
+                Text("\(ownerName)が出した")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(Capsule().fill(isHuman ? Theme.teal : Theme.purple))
+        } else {
+            Text(model.field.isEmpty ? "場は流れています（好きな組を出せます）" : "場")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+        }
     }
 
     // MARK: - 手札
@@ -364,6 +387,10 @@ public struct DaifugoView: View {
                     }
                 }
             }
+            // 「今回の結果」（見出し・順位表）を上、「この先」（通算成績・次ゲームの案内）を下に置き、
+            // 伸びた分の余りは2つの塊の**間**に集める（#193）。カード全体を中央寄せにすると
+            // 見出しが画面の真ん中まで降りてきてしまうので、間に寄せる。
+            Spacer(minLength: 8)
             RecordLabel(model.recordResult)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）")
@@ -371,6 +398,8 @@ public struct DaifugoView: View {
                 .foregroundStyle(Theme.inkSub)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // 縦の余りをここで吸い、リザルトの下に背景の空白を残さない（#193）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -489,78 +518,13 @@ struct DaifugoCardView: View {
     }
 }
 
-// MARK: - Start Sheet
-
-struct DaifugoStartSheet: View {
-    let onStart: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ゲームの流れ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    ruleRow("1", "CPU3人と対戦。手札を早く出し切るほど上の階級")
-                    ruleRow("2", "場と同じ枚数で、より強い組だけ出せる")
-                    ruleRow("3", "出せない・出したくないときはパス")
-                    ruleRow("4", "決着後は階級に応じてカードを交換して次戦へ")
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                NavigationLink {
-                    DaifugoRuleSheet()
-                } label: {
-                    HStack {
-                        Image(systemName: "list.bullet.rectangle")
-                        Text("ルールを見る")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                    .foregroundStyle(Theme.coral)
-                    .padding(16)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                }
-
-                Spacer()
-                Button {
-                    onStart()
-                } label: {
-                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("大富豪")
-        }
-        .presentationDetents([.large])
-    }
-
-    private func ruleRow(_ num: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(num)
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.coral))
-            Text(text)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(Theme.ink)
-            Spacer()
-        }
-    }
-}
-
 // MARK: - Rule Sheet
 
 struct DaifugoRuleSheet: View {
     private let rules: [(String, String)] = [
+        // 廃止した開幕モーダル（#192）が持っていた「誰と何人で戦うのか」をここへ移した。
+        // 残りの3項目（出し方・パス・カード交換）は下の項目と `HowToPlayGuide.daifugo` に既にある。
+        ("ゲームの流れ", "CPU3人と対戦します。手札を早く出し切るほど上の階級になり、決着すると階級に応じてカードを交換して次のゲームへ進みます"),
         ("カードの強さ", "弱い ← 3 4 5 6 7 8 9 10 J Q K A 2 → 強い。ジョーカーが最強で、どのカードの代わりにもなります"),
         ("出し方", "場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます"),
         ("革命", "同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）"),

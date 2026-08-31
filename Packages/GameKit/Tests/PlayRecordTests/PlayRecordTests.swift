@@ -377,6 +377,68 @@ struct PlayRecordStorageTests {
         #expect(log.records.count == 1)
     }
 
+    /// #335 で `lastPlayedAt` を足したときの旧データ互換。**Optional で足す**という前提が崩れると
+    /// `[String: PlayRecord]` のデコードが丸ごと失敗し、`PlayLog.init` のフォールバックで
+    /// 全ゲームの自己ベストが消える。
+    @Test("lastPlayedAt を持たない旧データを読んでも記録が消えない")
+    func decodesRecordsWithoutLastPlayedAt() {
+        let (_, defaults, name) = makeLog(suite: "legacy-records")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        // #335 より前のバージョンが書いた JSON（lastPlayedAt の鍵が無い）。
+        let legacy = """
+        {"2048":{"metric":"points","plays":7,"wins":0,"losses":7,"draws":0,\
+        "currentStreak":0,"bestStreak":0,"bestPoints":8888,"highestValue":1024}}
+        """
+        defaults.set(Data(legacy.utf8), forKey: PlayLog.recordsKey)
+
+        let log = PlayLog(defaults: defaults)
+        #expect(log.record(gameID: "2048")?.bestPoints == 8888, "旧データの自己ベストが読める")
+        #expect(log.record(gameID: "2048")?.plays == 7)
+        #expect(log.record(gameID: "2048")?.lastPlayedAt == nil, "日付は不明のまま")
+        #expect(log.lastPlayedAtByGame.isEmpty, "日付が無い記録は最終プレイ日時に載せない")
+
+        // 次に1回遊べば日付が入り、旧データの自己ベストも残っている。
+        let playedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        log.recordResult(gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 1), at: playedAt)
+        #expect(log.record(gameID: "2048")?.bestPoints == 8888)
+        #expect(log.lastPlayedAtByGame["2048"] == playedAt)
+    }
+
+    @Test("最終プレイ日時は難易度をまたいで最も新しいものを代表にする")
+    func lastPlayedAtAcrossVariants() {
+        let (log, defaults, name) = makeLog(suite: "last-played")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let older = Date(timeIntervalSince1970: 1_800_000_000)
+        let newer = older.addingTimeInterval(86_400)
+        log.recordResult(
+            gameID: "minesweeper", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 40, variant: "15x15-40", variantLabel: "上級"),
+            at: newer
+        )
+        log.recordResult(
+            gameID: "minesweeper", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 40, variant: "9x9-10", variantLabel: "初級"),
+            at: older
+        )
+
+        #expect(log.lastPlayedAtByGame["minesweeper"] == newer, "区分をまたいで最新")
+        // 同じ区分に古い日時で書き込んでも巻き戻らない（CodeRabbit 指摘）。
+        log.recordResult(
+            gameID: "minesweeper", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 40, variant: "15x15-40", variantLabel: "上級"),
+            at: older
+        )
+        #expect(log.record(gameID: "minesweeper", variant: "15x15-40")?.lastPlayedAt == newer,
+                "古い日時で上書きされない")
+        #expect(log.lastPlayedAtByGame["minesweeper"] == newer)
+        // 再起動しても保持される（records と同じ1キーに入っているだけで、キーは増えない）。
+        #expect(PlayLog(defaults: defaults).lastPlayedAtByGame["minesweeper"] == newer)
+        #expect(Set((defaults.persistentDomain(forName: name) ?? [:]).keys) == Set(PlayLog.playRecordKeys),
+                "日付を足してもキーは増えない")
+    }
+
     @Test("壊れた保存データがあっても空として起動する")
     func brokenDataFallsBackToEmpty() {
         let (_, defaults, name) = makeLog(suite: "broken")
@@ -464,7 +526,7 @@ struct GameRecordingTests {
         #expect(log.summaryLine(gameID: "minesweeper") == nil)   // クリア記録が無ければハブには出さない
     }
 
-    @Test("麻雀ソリティア: クリアでタイムとクリア回数が記録される")
+    @Test("麻雀ソリティア: クリアでタイムとクリア回数が盤面のかたちごとに記録される")
     func mahjongSolitaireRecordsTime() {
         let (log, defaults, name) = makeLog(suite: "mahjong")
         defer { defaults.removePersistentDomain(forName: name) }
@@ -477,11 +539,60 @@ struct GameRecordingTests {
         }
 
         #expect(model.phase == .won)
-        let record = log.record(gameID: "mahjong")
+        // 記録の区分キーはレイアウトの id（#239）。既定は亀甲。
+        let record = log.record(gameID: "mahjong", variant: "turtle")
         #expect(record?.metric == .shortestTime)
         #expect(record?.wins == 1)
         #expect(record?.bestSeconds != nil)
+        #expect(record?.variantLabel == "亀甲")
         #expect(model.recordResult?.update.seconds == true)
+        // 区分なしのキーには入らない（マインスイーパー・数独と同じ扱い）。
+        #expect(log.record(gameID: "mahjong") == nil)
+        #expect(log.summaryLine(gameID: "mahjong")?.contains("（亀甲）") == true)
+    }
+
+    @Test("麻雀ソリティア: 別のかたちのクリアは別の記録になる")
+    func mahjongSolitaireKeepsRecordsPerLayout() {
+        let (log, defaults, name) = makeLog(suite: "mahjong-layout")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let services = makeServices(log: log)
+        for layout in [MahjongSolitaireLayout.turtle, .pyramid, .cross] {
+            let model = MahjongSolitaireModel(services: services, layout: layout)
+            for pair in model.solution {
+                guard model.phase == .playing else { break }
+                for index in pair { model.tap(index) }
+            }
+            #expect(model.phase == .won, "\(layout.displayName) を取り切れない")
+            #expect(log.record(gameID: "mahjong", variant: layout.id)?.wins == 1,
+                    "\(layout.displayName) の記録が別枠になっていない")
+        }
+        // 3 つのかたちが混ざらず 3 件として残る。
+        #expect(log.records(gameID: "mahjong").count == 3)
+    }
+
+    @Test("麻雀ソリティア: 捨てた盤面は「＋の配り直し」も「手詰まりで最初から」も記録しない（#240）")
+    func mahjongSolitaireDiscardedBoardsAreNotRecorded() {
+        let (log, defaults, name) = makeLog(suite: "mahjong-discard")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let services = makeServices(log: log)
+
+        // ＋から配り直す経路。取りかけの盤面を捨てても通算成績には乗らない。
+        let restarted = MahjongSolitaireModel(services: services, seed: 4001)
+        for pair in restarted.solution.prefix(5) { for index in pair { restarted.tap(index) } }
+        #expect(restarted.remainingCount == 134, "前提: 取りかけの盤面になっている")
+        restarted.newGame()
+        #expect(log.records(gameID: "mahjong").isEmpty, "配り直しは記録しない")
+
+        // 手詰まりで「最初から」を選ぶ経路。#240 でこちらも記録しない側に揃えた。
+        let gaveUp = MahjongSolitaireModel(services: services, seed: 4002)
+        for pair in gaveUp.solution.prefix(5) { for index in pair { gaveUp.tap(index) } }
+        gaveUp.giveUpAndRestart()
+        #expect(
+            log.records(gameID: "mahjong").isEmpty,
+            "手詰まりでの配り直しも記録しない（＋からの配り直しと扱いを揃える）"
+        )
     }
 
     @Test("数独: クリアで難易度別のタイムが記録される")

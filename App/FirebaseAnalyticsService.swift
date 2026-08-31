@@ -27,6 +27,17 @@ struct FirebaseAnalyticsService: AnalyticsService {
         Analytics.setAnalyticsCollectionEnabled(isEnabled)
     }
 
+    /// 配布経路（`BuildChannel`）をユーザープロパティとして付与する（#347）。
+    ///
+    /// イベントのパラメータは従来どおり Core の `AnalyticsEvent` に閉じたまま、
+    /// これだけが App 層で足す唯一の追加送信データ。値は `appstore` / `testflight` / `debug` の
+    /// 3値 enum に閉じており、端末・個人を識別しうる情報は含まない。
+    /// GA4 では比較（`build_channel = appstore`）で実ユーザーだけを抽出して読む。
+    @MainActor
+    static func setBuildChannel(_ channel: String) {
+        Analytics.setUserProperty(channel, forName: "build_channel")
+    }
+
     /// `AnalyticsValue` を Firebase が受け取る型へ落とす。
     /// 変換の対象は文字列と整数の2種だけで、それ以外の型は `AnalyticsValue` に存在しない。
     private static func parameters(_ event: AnalyticsEvent) -> [String: Any] {

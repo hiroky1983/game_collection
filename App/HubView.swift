@@ -9,6 +9,8 @@ struct HubView: View {
     let settings: GameSettings
     @State private var path: [String]
     @State private var showSettings: Bool
+    /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
+    @State private var showGameCenterSignInGuidance = false
 
     /// ゲーム一覧のグリッド（#119）。iPhone は最小幅 130pt で必ず 2 列になり
     /// （SE 相当の 320pt 幅でも 3 列にはならない）、画面が広い iPad では列が増えて一望性が上がる。
@@ -52,6 +54,14 @@ struct HubView: View {
             .popBackground()
             .navigationTitle("あそびば")
             .toolbar {
+                // 実績・ランキング（#334）。歯車より左に置き、既存の設定ボタンの位置は動かさない。
+                ToolbarItem(placement: .primaryAction) {
+                    Button { openGameCenter() } label: {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .accessibilityLabel("実績・ランキング")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSettings = true } label: {
                         Image(systemName: "gearshape.fill")
@@ -98,12 +108,23 @@ struct HubView: View {
                 // 撮影・動作確認用: 提示条件を通さずにレコメンドカードを出す（`-simulateRecommendation <gameID>`）。
                 let args = ProcessInfo.processInfo.arguments
                 if let i = args.firstIndex(of: "-simulateRecommendation"), i + 1 < args.count {
-                    services.recommendations?.simulateSuggestion(gameID: args[i + 1])
+                    // 久しぶり枠（#335）の見出しは `-simulateRecommendationDays <日数>` を併せて渡す。
+                    let reason: RecommendationReason = args
+                        .firstIndex(of: "-simulateRecommendationDays")
+                        .flatMap { j in j + 1 < args.count ? Int(args[j + 1]) : nil }
+                        .map { .revisit(days: $0) } ?? .unplayed
+                    services.recommendations?.simulateSuggestion(gameID: args[i + 1], reason: reason)
                 }
                 // 撮影・動作確認用: 発火条件を通さずに評価リクエストを出す
                 // （`-startGame <id> -simulateReviewRequest` でそのゲームのリザルト経路に乗せる）。
                 if args.contains("-simulateReviewRequest") {
                     services.review?.simulateRequest()
+                }
+                // 動作確認用: ツールバーの「実績・ランキング」を押したのと同じ分岐を通す
+                // （`-simulateGameCenterEntry`）。シミュレータは Game Center 未サインインのため、
+                // 実際に確認できるのは案内アラートの側になる。
+                if args.contains("-simulateGameCenterEntry") {
+                    openGameCenter()
                 }
                 // 動作確認用: 触覚・効果音を発火条件を通さずに 1 種ずつ鳴らす（`-simulateFeedback`）。
                 // 効果音が音声セッションをどう設定したかをシミュレータで確認するために使う
@@ -124,8 +145,20 @@ struct HubView: View {
             SettingsView(registry: registry, settings: settings, playLog: services.playLog)
                 .presentationDetents([.large])
         }
+        .alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+        }
     }
 
+    /// ツールバーの「実績・ランキング」。サインイン済みなら Game Center を開き、
+    /// 未サインインのときだけサインインを促す（#334 の受け入れ条件）。
+    private func openGameCenter() {
+        if GameCenterEntry.open() == .needsSignInGuidance {
+            showGameCenterSignInGuidance = true
+        }
+    }
 }
 
 /// ハブのゲームカード（2列グリッド・#119）。

@@ -44,6 +44,59 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     /// 和了者はプラス、放銃・ツモ払い・流局のノーテン罰符はマイナス。会長指摘「誰が誰に振り込んだか
     /// わかるようにしてほしい」への対応で、リザルト画面の得点表に添える。
     public let pointChanges: [Int]
+    // 和了手の表示（#351）で足した項目。`handResult` はリザルト中断の保存対象（#350）なので、
+    // 古い中断データを読めなくしないため**任意**にする（`melds` と同じ判断）。
+    /// 和了者の門前手牌（和了牌を含まない）。流局では nil。
+    public let winningHand: [MahjongTile]?
+    /// 和了者の副露。流局では nil。
+    public let winningMelds: [MahjongCall]?
+    /// 和了牌。流局では nil。
+    public let winningTile: MahjongTile?
+    /// 立直で和了ったときの裏ドラ表示牌。立直していない和了・流局では nil。
+    public let uraDoraIndicators: [MahjongTile]?
+
+    init(
+        kind: Kind,
+        winner: Int?,
+        loser: Int?,
+        yaku: [String],
+        han: Int,
+        fu: Int,
+        limitName: String?,
+        gainedPoints: Int,
+        tenpaiPlayers: [Int],
+        pointChanges: [Int],
+        winningHand: [MahjongTile]? = nil,
+        winningMelds: [MahjongCall]? = nil,
+        winningTile: MahjongTile? = nil,
+        uraDoraIndicators: [MahjongTile]? = nil
+    ) {
+        self.kind = kind
+        self.winner = winner
+        self.loser = loser
+        self.yaku = yaku
+        self.han = han
+        self.fu = fu
+        self.limitName = limitName
+        self.gainedPoints = gainedPoints
+        self.tenpaiPlayers = tenpaiPlayers
+        self.pointChanges = pointChanges
+        self.winningHand = winningHand
+        self.winningMelds = winningMelds
+        self.winningTile = winningTile
+        self.uraDoraIndicators = uraDoraIndicators
+    }
+}
+
+/// 東風戦が終わった理由。リザルトの見出しに使う（#352。東2局で突然終わっても
+/// 「なぜ終わったか」が画面から読めるようにする）。
+public enum MahjongGameEndReason: Equatable, Sendable {
+    /// 東4局まで打ち切った（通常の終局）。
+    case completedAllRounds
+    /// 東4局の親がトップのまま連荘条件を満たしたため打ち切った。
+    case agariYame
+    /// 誰かの持ち点がマイナスになった。
+    case busted
 }
 
 // MARK: - 永続化
@@ -71,6 +124,15 @@ struct MahjongSnapshot: Codable {
     let discardedKinds: [[Int]]?
     let revealedDoraCount: Int?
     let deadWallDraws: Int?
+    /// トビ復活（#338）を使い切ったか。中断を挟んでも「1 半荘 1 回まで」を守るために持ち回る。
+    /// 上と同じ理由で任意（古い中断データは「まだ使っていない」扱いになる）。
+    let hasRevivedThisGame: Bool?
+    // 局のリザルト中の中断（#350）で足した項目。同じく任意にして古い中断データも読めるようにする。
+    /// リザルト表示中に中断したときの決着内容。**nil なら対局中の中断**（この有無が
+    /// `.handResult` か `.playing` かをそのまま表す。決着内容は決着時にしか入らないため）。
+    let handResult: MahjongHandResult?
+    /// アガリやめが確定しているか。リザルト中断から再開しても終局判定を引き継ぐ。
+    let endsAfterThisHand: Bool?
 }
 
 // MARK: - Model
@@ -128,6 +190,9 @@ public final class MahjongModel {
     /// CPU 起動用の通し番号 × 手数。
     public private(set) var turnCount = 0
     public private(set) var gameSerial = 0
+    /// トビで終わった対局を、リワード広告を見て続けられる状態か（#338）。
+    /// 1 半荘 1 回までで、自分がトビたときにだけ立つ。
+    public private(set) var canReviveAfterBust = false
 
     /// ロンの提示。
     public struct RonOffer: Equatable, Sendable {
@@ -176,6 +241,10 @@ public final class MahjongModel {
     private var riichiTurn: [Int?] = Array(repeating: nil, count: playerCount)
     /// アガリやめが成立し、この局で東風戦を終えるか。
     private var endsAfterThisHand = false
+    /// この半荘でトビ復活（#338）を既に使ったか。1 半荘 1 回までの制限に使う。
+    private var hasRevivedThisGame = false
+    /// 東風戦が終わった理由。`.gameResult` のときだけ入る（#352）。
+    public private(set) var gameEndReason: MahjongGameEndReason?
 
     private let services: GameServices?
     private let gameID = "mahjong4"
@@ -219,7 +288,14 @@ public final class MahjongModel {
                 ?? snap.discards.map { Set($0.map(MahjongTileOrder.index(of:))) }
             revealedDoraCount = snap.revealedDoraCount ?? 1
             deadWallDraws = snap.deadWallDraws ?? 0
-            phase = .playing
+            hasRevivedThisGame = snap.hasRevivedThisGame ?? false
+            // 局のリザルト表示中に中断した場合はリザルトから再開する（#350）。以前は決着と同時に
+            // 中断データを消していたため、「次の局へ」を押す前に終了すると東風戦の途中経過
+            // （局数・持ち点・親・本場）がまるごと失われていた。旧形式（キー無し）は nil に
+            // 落ちるので、従来どおり対局中（`.playing`）として復元される。
+            handResult = snap.handResult
+            endsAfterThisHand = snap.endsAfterThisHand ?? false
+            phase = snap.handResult != nil ? .handResult : .playing
         }
     }
 
@@ -387,6 +463,9 @@ public final class MahjongModel {
         ranking = []
         recordResult = nil
         endsAfterThisHand = false
+        hasRevivedThisGame = false
+        canReviveAfterBust = false
+        gameEndReason = nil
         gameSerial += 1
         startHand()
         services?.gameDidRestart(gameID: gameID)
@@ -895,7 +974,14 @@ public final class MahjongModel {
             limitName: score.limitName,
             gainedPoints: gained,
             tenpaiPlayers: [],
-            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] },
+            // 和了手の表示用（#351）。手牌は和了牌を足す前の門前部分を渡す（和了牌は別枠で
+            // ハイライトして出す）。裏ドラは点数計算（`winScore`）に既に入っているものを
+            // 立直和了のときだけ開示する。
+            winningHand: hands[winner].tiles,
+            winningMelds: melds[winner],
+            winningTile: winningTile,
+            uraDoraIndicators: riichi[winner] ? uraIndicators : nil
         )
         // 和了牌を手牌に入れた状態で見せる（リザルトで役を確かめられるように）。
         hands[winner] = hands[winner].adding(winningTile)
@@ -943,7 +1029,6 @@ public final class MahjongModel {
 
     private func finishHand(dealerContinues: Bool) {
         phase = .handResult
-        services?.snapshots.clear(for: gameID)
         // アガリやめ: 東 4 局で親が連荘する条件を満たしていても、その親がトップなら終局する。
         // これを入れないと、勝っている親が連荘し続けるかぎり東風戦が終わらない。
         let isFinalRound = roundNumber >= Self.playerCount
@@ -962,6 +1047,10 @@ public final class MahjongModel {
         case .some:           services?.feedback.notify(.error)
         case nil:             services?.feedback.notify(.warning)
         }
+        // リザルト表示中に離脱しても局間の経過が消えないよう、決着内容ごと保存する（#350）。
+        // 親・本場・局数の繰り上げが終わった後に保存するので、再開後の「次の局へ」は
+        // 中断が無かったときと同じ条件で次局を始められる。
+        persist()
     }
 
     /// 東風戦が終わったか。東 4 局を終えた（= 5 局目に入る）か、アガリやめか、誰かが飛んだとき。
@@ -975,6 +1064,13 @@ public final class MahjongModel {
     }
 
     private func concludeGame() {
+        // 終了理由をリザルトの見出し用に確定する（#352）。トビは他の条件と同時に成立しうるが、
+        // 突然終わる驚きが最も大きいので最優先で表示する。次いで「東4局を終えた」が自然な終局、
+        // アガリやめはその変形（roundNumber は 4 のまま）なので最後に判定する。
+        gameEndReason = scores.contains(where: { $0 < 0 }) ? .busted
+            : roundNumber > Self.playerCount ? .completedAllRounds
+            : endsAfterThisHand ? .agariYame
+            : .completedAllRounds
         // 同点は席順（親から近い順）で上位にする。
         ranking = (0..<Self.playerCount).sorted {
             (scores[$0], -seatWind($0)) > (scores[$1], -seatWind($1))
@@ -997,6 +1093,58 @@ public final class MahjongModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss)
         )
+        // 自分がトビて終わった対局は、リワード広告で 1 半荘 1 回だけ続けられる（#338）。
+        // 決着の通知（`gameDidFinish`）はここまでで従来どおり済ませ、復活したときに
+        // 記録側だけを巻き戻す（2048・マインスイーパーのコンティニューと同じ扱い。`reviveAfterAd`）。
+        canReviveAfterBust = didBustOut && !hasRevivedThisGame
+    }
+
+    /// 自分がトビて最下位で終わった対局か。次の 3 つは false（そのまま終局にする）:
+    /// - 東 4 局を終えた・アガリやめが同時に成立している → 復活しても続ける局が無い
+    /// - CPU だけがトビた → 自分は生き残っているので続ける動機が無い
+    ///   （ポーカー・ブラックジャックの「自分のチップが尽きたときだけ回復を出す」形に揃える）
+    /// - 自分がマイナスでも最下位ではない（複数人が同時にトビた稀なケース）→ 記録の巻き戻しが
+    ///   `PlayLog.cancelLoss`（= 負けの取り消し）しか無く、負け以外を取り消す手段が無いため対象外にする
+    private var didBustOut: Bool {
+        scores[Self.humanIndex] < 0
+            && reviewOutcome == .loss
+            && !endsAfterThisHand
+            && roundNumber <= Self.playerCount
+    }
+
+    /// リワード広告を表示し、**視聴完了したときだけ**トビ終了から復活して対局を続ける（#338）。
+    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり復活させる。
+    ///
+    /// 復活はマイナスの持ち点を初期値（25,000 点）へ戻すだけなので、点棒の合計は 100,000 点を
+    /// 超える。救済措置なので合計の保存より「そのまま続けられること」を優先する。
+    /// `concludeGame` でトップが回収した供託も戻さない（回収済みとして続ける）。
+    @discardableResult
+    public func reviveAfterAd() async -> Bool {
+        guard canReviveAfterBust else { return false }
+        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        hasRevivedThisGame = true
+        canReviveAfterBust = false
+        // 同じ半荘の続きなので、直前に記録した「負け」は無かったことにする（2048・マインスイーパーの
+        // コンティニューと同じ扱い）。そのままだと 1 半荘が 2 回（トビの負け + 復活後の最終着順）
+        // として数えられ、広告を見るほど通算成績が増える抜け道になる。
+        services?.playLog?.cancelLoss(gameID: gameID)
+        recordResult = nil
+        for player in 0..<Self.playerCount where scores[player] < 0 {
+            scores[player] = Self.startingScore
+        }
+        ranking = []
+        gameEndReason = nil
+        // 局と親は決着時に次へ進んでいる（`finishHand`）ので、そのまま次の局を配る。
+        startHand()
+        // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158。
+        // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる）。
+        services?.gameDidRestart(gameID: gameID)
+        // Game Center（#289）は送信済みのぶんを取り消さない。四人打ち麻雀はリーダーボードの
+        // 対象外（勝敗しか残らない対 CPU 戦のため `GameCenterLeaderboard` に登録が無い）で、
+        // 実績の進捗は勝利数と遊んだゲーム数から作られる。トビ = 負けなので勝利数は増えておらず、
+        // 「麻雀を遊んだ」という事実も復活で変わらないため、巻き戻す対象がそもそも無い。
+        return true
     }
 
     // MARK: - CPU
@@ -1126,7 +1274,9 @@ public final class MahjongModel {
     // MARK: - 永続化
 
     private func persist() {
-        guard phase == .playing || phase == .ronOffer else {
+        // `.handResult` も保存対象（#350）。東風戦の決着（`.gameResult`）だけは従来どおり消す
+        // （終わった対局を「続きから」で開かない）。
+        guard phase == .playing || phase == .ronOffer || phase == .handResult else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -1149,7 +1299,10 @@ public final class MahjongModel {
             melds: melds,
             discardedKinds: discardedKinds.map { Array($0).sorted() },
             revealedDoraCount: revealedDoraCount,
-            deadWallDraws: deadWallDraws
+            deadWallDraws: deadWallDraws,
+            hasRevivedThisGame: hasRevivedThisGame,
+            handResult: phase == .handResult ? handResult : nil,
+            endsAfterThisHand: endsAfterThisHand
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -1202,6 +1355,47 @@ public final class MahjongModel {
         self.turnCount = 1
         self.phase = .playing
     }
+
+    #if DEBUG
+    /// 撮影・動作確認用（DEBUG 限定）: 和了のリザルト（手牌開示 #351・立直和了で裏ドラあり）を
+    /// その場で作る。和了はシミュレータの自動タップでは再現できないため、非対話でこの画面を
+    /// 確認する経路が要る（`simulateBustResultForTesting` と同じ理由）。
+    func simulateWinResultForTesting() {
+        let hand: [MahjongTile] = [
+            .characters(2), .characters(3), .characters(4),
+            .characters(5), .characters(6), .characters(7),
+            .circles(2), .circles(2), .circles(3), .circles(4), .circles(5),
+            .bamboos(6), .bamboos(7),
+        ]
+        handResult = MahjongHandResult(
+            kind: .tsumo,
+            winner: Self.humanIndex,
+            loser: nil,
+            yaku: ["立直 1飜", "門前清自摸和 1飜", "平和 1飜"],
+            han: 3,
+            fu: 20,
+            limitName: nil,
+            gainedPoints: 2700,
+            tenpaiPlayers: [],
+            pointChanges: [2700, -700, -700, -1300],
+            winningHand: hand,
+            winningMelds: [],
+            winningTile: .bamboos(8),
+            uraDoraIndicators: [.characters(9)]
+        )
+        phase = .handResult
+    }
+
+    /// 撮影・動作確認用（DEBUG 限定）: トビ終了のリザルト（復活ボタンが出る状態）をその場で作る（#338）。
+    /// トビは実プレイでは稀にしか起きず、シミュレータは自動タップができないため、非対話で
+    /// この画面を確認する経路が要る（`-solitaireHintConfirm` と同じ理由・#336）。
+    func simulateBustResultForTesting() {
+        scores = [-1_000, 30_000, 35_000, 36_000]
+        roundNumber = 2
+        handResult = nil
+        concludeGame()
+    }
+    #endif
 
     /// テスト専用: 自分の手番でのカン（暗槓・加槓）を経由させる。
     func declareKanForTesting(_ call: MahjongCall, by player: Int) {

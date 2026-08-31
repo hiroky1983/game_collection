@@ -17,6 +17,8 @@ private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
     }
     func clear(for gameID: String) { store.removeValue(forKey: gameID) }
     func exists(for gameID: String) -> Bool { store[gameID] != nil }
+    /// 保存された生の JSON（旧形式との互換の検証に使う）。
+    func rawData(for gameID: String) -> Data? { store[gameID] }
 }
 
 /// 何を切っても和了に絡まない、聴牌から遠い手牌。
@@ -595,13 +597,253 @@ struct MahjongSnapshotTests {
         #expect(restored.hands[0].total == 13)
     }
 
-    @Test("局が終わるとスナップショットは消える（終わった局から再開しない）")
-    func clearsSnapshotOnResult() {
+    @Test("局のリザルト中もスナップショットが残り、同じリザルトから再開できる")
+    func persistsHandResultAndRestores() throws {
         let store = MemorySnapshotStore()
         let model = makeModel(seed: 11, store: store)
         model.startGame()
         model.exhaustWallForTesting()
+        try #require(model.phase == .handResult)
+        // 以前はここで clear していたため、「次の局へ」を押す前に終了すると
+        // 東風戦の途中経過がまるごと失われていた（#350）。
+        #expect(store.exists(for: "mahjong4"))
+
+        let restored = MahjongModel(
+            services: GameServices(snapshots: store, ads: NoopAdService()),
+            cpuDelay: .zero
+        )
+        #expect(restored.phase == .handResult)
+        #expect(restored.handResult == model.handResult)
+        #expect(restored.scores == model.scores)
+    }
+
+    @Test("復元したリザルトから「次の局へ」を押すと、点数・親・本場・供託が中断前と一致して次局が始まる")
+    func advancesFromRestoredHandResult() throws {
+        let store = MemorySnapshotStore()
+        let model = makeModel(seed: 11, store: store)
+        model.startGame()
+        model.exhaustWallForTesting()
+        try #require(model.phase == .handResult)
+        // `finishHand` が親・本場・局数を既に繰り上げた後の値。再開後の次局はこの条件で始まるべき。
+        let expected = (model.scores, model.dealer, model.roundNumber, model.honba, model.riichiSticks)
+
+        let restored = MahjongModel(
+            services: GameServices(snapshots: store, ads: NoopAdService()),
+            cpuDelay: .zero
+        )
+        try #require(restored.phase == .handResult)
+        restored.advanceToNextHand()
+        #expect(restored.phase == .playing)
+        #expect(restored.scores == expected.0)
+        #expect(restored.dealer == expected.1)
+        #expect(restored.roundNumber == expected.2)
+        #expect(restored.honba == expected.3)
+        #expect(restored.riichiSticks == expected.4)
+    }
+
+    @Test("旧形式の中断データ（handResult キー無し）は対局中として復元される")
+    func legacySnapshotRestoresAsPlaying() throws {
+        let store = MemorySnapshotStore()
+        let model = makeModel(seed: 11, store: store)
+        model.startGame()
+        // 対局中の保存は任意フィールドのキーを書かない（encodeIfPresent）ので、
+        // 旧形式の中断データと同じ形になっていることをまず生 JSON で確かめる。
+        let raw = try #require(store.rawData(for: "mahjong4"))
+        let json = try #require(try JSONSerialization.jsonObject(with: raw) as? [String: Any])
+        #expect(json["handResult"] == nil)
+
+        let restored = MahjongModel(
+            services: GameServices(snapshots: store, ads: NoopAdService()),
+            cpuDelay: .zero
+        )
+        #expect(restored.phase == .playing)
+    }
+
+    @Test("東風戦の決着でスナップショットは消える（終わった対局から再開しない）")
+    func clearsSnapshotOnGameResult() async throws {
+        let store = MemorySnapshotStore()
+        let model = makeModel(seed: 4649, store: store)
+        model.startGame()
+
+        // 通しテストと同じ方針（常に自摸切り・鳴かない）で東風戦を最後まで進める。
+        var guardCount = 0
+        while model.phase != .gameResult, guardCount < 400 {
+            guardCount += 1
+            switch model.phase {
+            case .playing:
+                if model.currentPlayer == MahjongModel.humanIndex, model.drawnTile != nil {
+                    if model.canDeclareTsumo {
+                        model.declareTsumo()
+                    } else {
+                        model.discard(model.drawnTile!)
+                    }
+                } else {
+                    await model.runCPUTurnsIfNeeded()
+                }
+            case .ronOffer:
+                model.declareRon()
+            case .callOffer:
+                model.declineCall()
+            case .handResult:
+                // 局間のリザルトでは残っている（#350）。
+                #expect(store.exists(for: "mahjong4"))
+                model.advanceToNextHand()
+            case .idle, .gameResult:
+                break
+            }
+        }
+
+        try #require(model.phase == .gameResult)
         #expect(store.exists(for: "mahjong4") == false)
+    }
+}
+
+// MARK: - 和了手の開示（#351）
+
+@Suite("和了手の開示")
+@MainActor
+struct MahjongWinningHandDisclosureTests {
+
+    @Test("和了のリザルトに手牌・副露・和了牌が入る（立直なしなら裏ドラは出ない）")
+    func handResultCarriesWinningHand() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),  // 6s / 8s で平和
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: [],
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.declareTsumo()
+        let result = try #require(model.handResult)
+        #expect(result.winningTile == MahjongNotation.tile("8s"))
+        // 門前手牌は和了牌を含まない13枚（和了牌は別枠でハイライト表示するため）。
+        #expect(result.winningHand?.count == 13)
+        #expect(result.winningMelds?.isEmpty == true)
+        #expect(result.uraDoraIndicators == nil, "立直していない和了で裏ドラを開示しない")
+    }
+
+    @Test("立直で和了ると裏ドラ表示牌が入る")
+    func riichiWinRevealsUraDora() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),  // 5s / 8s の両面待ち
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: MahjongNotation.tiles("999m") + MahjongNotation.tiles("8s"),
+            dealer: 0,
+            drawnTile: MahjongNotation.tile("1z")
+        )
+        model.declareRiichi()
+        model.discard(MahjongNotation.tile("1z"))
+        for _ in 0..<3 { model.stepCPUForTesting() }
+        model.declareTsumo()
+        let result = try #require(model.handResult)
+        let ura = try #require(result.uraDoraIndicators)
+        #expect(!ura.isEmpty)
+        // 裏ドラ表示牌はめくれているドラ表示牌と同じ枚数（カンが無ければ1枚）。
+        #expect(ura.count == model.doraIndicators.count)
+    }
+
+    @Test("流局のリザルトには手牌・和了牌が入らない")
+    func exhaustiveDrawHasNoWinningHand() throws {
+        let model = makeModel()
+        model.startGame()
+        model.exhaustWallForTesting()
+        let result = try #require(model.handResult)
+        #expect(result.winningHand == nil)
+        #expect(result.winningTile == nil)
+        #expect(result.uraDoraIndicators == nil)
+    }
+}
+
+// MARK: - 終了理由（#352）
+
+@Suite("東風戦の終了理由")
+@MainActor
+struct MahjongGameEndReasonTests {
+
+    @Test("誰かがトビると gameEndReason は .busted になる")
+    func bustedReason() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [],
+            scores: [30_000, -1_000, 35_000, 36_000],
+            roundNumber: 2
+        )
+        model.exhaustWallForTesting()
+        try #require(model.phase == .handResult)
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.gameEndReason == .busted)
+    }
+
+    @Test("東4局を終えると .completedAllRounds になる")
+    func completedReason() throws {
+        let model = makeModel()
+        model.startGame()
+        // 親は自分ではなく、全員ノーテンで流局 → 親が流れて roundNumber が 5 になる。
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [],
+            dealer: 3,
+            roundNumber: 4
+        )
+        model.exhaustWallForTesting()
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.gameEndReason == .completedAllRounds)
+    }
+
+    @Test("東4局でトップの親が連荘条件を満たすと .agariYame になる")
+    func agariYameReason() throws {
+        let model = makeModel()
+        model.startGame()
+        // 親（自分）がトップかつ聴牌で流局 → 連荘条件成立 + アガリやめで終局。
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("123m456m789m123p1s"),
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: [],
+            dealer: 0,
+            scores: [40_000, 20_000, 20_000, 20_000],
+            roundNumber: 4
+        )
+        model.exhaustWallForTesting()
+        try #require(model.handResult?.tenpaiPlayers.contains(0) == true)
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.gameEndReason == .agariYame)
+    }
+
+    @Test("新しい対局を始めると終了理由はクリアされる")
+    func reasonClearsOnNewGame() {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [],
+            scores: [30_000, -1_000, 35_000, 36_000]
+        )
+        model.exhaustWallForTesting()
+        model.advanceToNextHand()
+        #expect(model.gameEndReason == .busted)
+        model.startGame()
+        #expect(model.gameEndReason == nil)
     }
 }
 

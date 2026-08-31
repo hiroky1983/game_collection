@@ -14,6 +14,8 @@ public final class RecommendationService {
 
     /// 提示中のレコメンド先。nil なら何も出さない。
     public private(set) var suggestedGameID: String?
+    /// 提示中のカードの見出し（未プレイへの提案か、久しぶり枠か・#335）。
+    public private(set) var suggestedReason: RecommendationReason = .unplayed
     /// タップされたレコメンド先。ハブが監視して遷移し、nil に戻す。
     public var requestedGameID: String?
 
@@ -51,14 +53,17 @@ public final class RecommendationService {
 
         guard !isSuppressedByOtherPrompt else { return }
         guard RecommendationPolicy.shouldShow(state: log.state, now: now()) else { return }
-        guard let id = RecommendationPolicy.candidate(
+        guard let suggestion = RecommendationPolicy.candidate(
             finishedGameID: gameID,
             playedGameIDs: log.playedGameIDs,
-            availableIDs: availableModules().map(\.id)
+            availableIDs: availableModules().map(\.id),
+            lastPlayedAt: log.lastPlayedAtByGame,
+            now: now()
         ) else { return }
 
         log.markShown(at: now())
-        suggestedGameID = id
+        suggestedGameID = suggestion.gameID
+        suggestedReason = suggestion.reason
     }
 
     /// ×で閉じられたとき。無視の連続回数はそのまま（提示時に加算済み）。
@@ -76,8 +81,9 @@ public final class RecommendationService {
 
     #if DEBUG
     /// 撮影・動作確認用（DEBUG 限定）。提示条件を通さずにカードを出す。
-    public func simulateSuggestion(gameID: String) {
+    public func simulateSuggestion(gameID: String, reason: RecommendationReason = .unplayed) {
         suggestedGameID = gameID
+        suggestedReason = reason
     }
     #endif
 }

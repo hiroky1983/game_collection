@@ -10,6 +10,9 @@ public struct MahjongView: View {
     /// 誤タップ防止: 1タップ目は選択（浮かせる演出）だけ、同じ牌をもう1回タップしたら実際に切る。
     /// 複数枚ある牌を区別できるよう `stableHandIDs` の合成ID（牌の値＋出現順）で管理する。
     @State private var selectedTileID: String?
+    /// トビ復活（#338）。ポーカー・ブラックジャックの「広告を見てチップ回復」と同じ持ち方。
+    @State private var showRewardNotEarned = false
+    @State private var isReviving = false
 
     public init(services: GameServices) {
         self.services = services
@@ -93,10 +96,31 @@ public struct MahjongView: View {
                 showStartSheet = false
                 model.startGame()
                 Task { await model.runCPUTurnsIfNeeded() }
+            } onCancel: {
+                // 「覗いてみたけど今はやめる」の退路（#352）。対局は始まっていないので
+                // 記録・解析のイベントは何も発生しない（それらは `startGame()` だけが送る）。
+                showStartSheet = false
+                dismiss()
             }
+            // スワイプで閉じると「シートだけ消えて空の卓が残る」ため引き続き無効。
+            // 閉じる操作はキャンセル（ハブへ戻る）に一本化する。
             .interactiveDismissDisabled(true)
         }
         .task {
+            #if DEBUG
+            // 撮影・動作確認用（DEBUG 限定）: トビ終了のリザルト（復活ボタン）をタップ無しで出す（#338）。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongBustResult") {
+                showStartSheet = false
+                model.simulateBustResultForTesting()
+                return
+            }
+            // 撮影・動作確認用（DEBUG 限定）: 和了リザルトの手牌開示（#351）を非対話で出す。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongWinResult") {
+                showStartSheet = false
+                model.simulateWinResultForTesting()
+                return
+            }
+            #endif
             // 中断から戻ったときに手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
@@ -109,6 +133,11 @@ public struct MahjongView: View {
         }
         .onChange(of: model.currentPlayer) {
             selectedTileID = nil
+        }
+        .alert("復活できませんでした", isPresented: $showRewardNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
     }
 
@@ -621,6 +650,15 @@ public struct MahjongView: View {
                 Text("\(result.gainedPoints)点")
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(Theme.teal)
+                // 和了者の手を開く（#351）。何に振り込んだか・どんな手だったかを学べるようにする。
+                if let tiles = result.winningHand, let winTile = result.winningTile {
+                    winningHandRow(
+                        tiles: tiles, melds: result.winningMelds ?? [], winningTile: winTile
+                    )
+                }
+                if let ura = result.uraDoraIndicators, !ura.isEmpty {
+                    uraDoraRow(ura)
+                }
             } else if let result = model.handResult {
                 Text(
                     result.tenpaiPlayers.isEmpty
@@ -635,6 +673,49 @@ public struct MahjongView: View {
         .frame(maxWidth: .infinity)
         .padding(16)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 和了者の手（門前 + 副露 + 和了牌）。「なぜ負けたか」を学べるようにリザルトで開く（#351）。
+    /// 和了牌は `isHinted` のハイライトで半歩離して並べ、どれで和了ったかをひと目で分かるようにする。
+    private func winningHandRow(
+        tiles: [MahjongTile], melds: [MahjongCall], winningTile: MahjongTile
+    ) -> some View {
+        let sorted = tiles.sorted { MahjongTileOrder.index(of: $0) < MahjongTileOrder.index(of: $1) }
+        // 門前13枚 + 和了牌でもカード幅（約300pt）に収まる小ささ。副露があるぶん門前は減るので
+        // これより横に伸びることはない。
+        let tileWidth: CGFloat = 17
+        let tileHeight: CGFloat = 23
+        return HStack(spacing: 6) {
+            HStack(spacing: 2) {
+                ForEach(Array(sorted.enumerated()), id: \.offset) { _, tile in
+                    MahjongTileView(tile: tile, width: tileWidth, height: tileHeight)
+                }
+            }
+            if !melds.isEmpty {
+                MahjongMeldRow(melds: melds, tileWidth: tileWidth, showsBadge: false)
+            }
+            MahjongTileView(tile: winningTile, width: tileWidth, height: tileHeight, isHinted: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "和了した手: "
+                + sorted.map(\.displayName).joined(separator: "、")
+                + "、和了牌は \(winningTile.displayName)"
+        )
+    }
+
+    /// 立直で和了ったときだけ開示する裏ドラ表示牌（#351）。卓中央のドラ表示と同じ牌サイズ。
+    private func uraDoraRow(_ tiles: [MahjongTile]) -> some View {
+        HStack(spacing: 4) {
+            Text("裏ドラ")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
+                MahjongTileView(tile: tile, width: 14, height: 19)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("裏ドラ表示牌: " + tiles.map(\.displayName).joined(separator: "、"))
     }
 
     /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。ロンは放銃した人が
@@ -653,9 +734,18 @@ public struct MahjongView: View {
         }
     }
 
+    /// 東風戦の終わり方は3種類あり、東2局で突然終わっても理由が読めるよう見出しを分ける（#352）。
+    private var gameResultTitle: String {
+        switch model.gameEndReason {
+        case .busted:    return "トビで終了"
+        case .agariYame: return "アガリやめで終了"
+        case .completedAllRounds, nil: return "東風戦終了"
+        }
+    }
+
     private var gameResultCard: some View {
         VStack(spacing: 10) {
-            Text("東風戦終了")
+            Text(gameResultTitle)
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .foregroundStyle(Theme.coral)
             if let place = model.playerPlace {
@@ -681,10 +771,39 @@ public struct MahjongView: View {
                 }
             }
             RecordLabel(model.recordResult)
+            if model.canReviveAfterBust { reviveButton }
         }
         .frame(maxWidth: .infinity)
         .padding(16)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// トビで終わったときだけ出る復活導線（#338）。ポーカー・ブラックジャックの
+    /// 「広告を見てチップ回復」と同じ形（リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
+    private var reviveButton: some View {
+        Button {
+            // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
+            guard !isReviving else { return }
+            isReviving = true
+            Task {
+                let revived = await model.reviveAfterAd()
+                isReviving = false
+                if revived {
+                    await model.runCPUTurnsIfNeeded()
+                } else {
+                    showRewardNotEarned = true
+                }
+            }
+        } label: {
+            // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
+            // 書かないと2回目を期待して押す人が出る）。
+            Label("広告を見て25,000点で復活（1半荘に1回）", systemImage: "play.rectangle.fill")
+                .themeBody(16).frame(maxWidth: .infinity)
+                .minimumScaleFactor(0.8)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+        .disabled(isReviving)
+        .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
     }
 
     /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。`pointChanges` で
@@ -814,6 +933,8 @@ public struct MahjongView: View {
 
 struct MahjongStartSheet: View {
     let onStart: () -> Void
+    /// キャンセル（ハブへ戻る）。12本中この1本だけ「入ったら戻れない」状態だった（#352）。
+    let onCancel: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -859,6 +980,11 @@ struct MahjongStartSheet: View {
             .padding(Theme.pad)
             .popBackground()
             .navigationTitle("麻雀")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") { onCancel() }
+                }
+            }
         }
         .presentationDetents([.large])
     }

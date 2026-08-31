@@ -236,6 +236,22 @@ struct GameCenterLeaderboardTests {
         ) == nil)
     }
 
+    @Test("麻雀ソリティアは標準の亀甲だけを順位表に載せる（#239）")
+    func mahjongSolitaireOnlyPostsTheStandardLayout() {
+        func id(_ variant: String?) -> String? {
+            GameCenterLeaderboard.score(
+                gameID: "mahjong", outcome: .win,
+                score: GameScore(metric: .shortestTime, seconds: 300, variant: variant)
+            )?.leaderboardID
+        }
+        // 区分なし（v1.1.1 までの記録）と亀甲は同じ表。
+        #expect(id(nil) == GameCenterLeaderboard.mahjongSolitaireTime)
+        #expect(id("turtle") == GameCenterLeaderboard.mahjongSolitaireTime)
+        // かたちが違えば難度も違うので、同じ表には混ぜない（かたちごとの表は未登録）。
+        #expect(id("pyramid") == nil)
+        #expect(id("cross") == nil)
+    }
+
     @Test("対応表が返す ID は必ず登録一覧（allIDs）に含まれる")
     func everyMappedIDIsRegistered() {
         let cases: [(String, GameScore)] = [
@@ -586,5 +602,90 @@ struct GameCenterPerGameTests {
         // 自己ベスト（#115）もリザルトの表示も Game Center の可否に依存しない。
         #expect(log.record(gameID: "2048")?.bestPoints == model.score)
         #expect(model.recordResult?.update.points == true)
+    }
+}
+
+// MARK: - アプリ内から見る導線（#334）
+
+/// v1.1.1 までは実績・リーダーボードの**送信**しか無く、アプリ内から**見る手段がゼロ**だった。
+/// 導線は App ターゲット（`HubView` / `GameCenterEntry`）にあり GameKit のテストから import
+/// できないため、`AppEnvironment.registry` の突き合わせ（RecommendationTests）と同じく
+/// ソースを走査して固定する。
+@Suite("実績・ランキングの導線")
+struct GameCenterEntryPointTests {
+    private func appSource(_ fileName: String) throws -> String {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameCenterTests/
+            .deletingLastPathComponent()   // Tests/
+            .deletingLastPathComponent()   // GameKit/
+            .deletingLastPathComponent()   // Packages/
+            .deletingLastPathComponent()   // リポジトリのルート
+        return try String(
+            contentsOf: repoRoot.appendingPathComponent("App/\(fileName)"), encoding: .utf8
+        )
+    }
+
+    @Test("ハブのツールバーから実績・ランキングを開ける")
+    func hubHasGameCenterEntryPoint() throws {
+        let source = try appSource("HubView.swift")
+        // 「トロフィーのボタンを押すと `openGameCenter()` が走る」という**結線**まで見る。
+        // 部品の有無を個別に contains で確かめるだけだと、ボタンの中身を空にしても
+        // `openGameCenter()` の定義側が文字列として残るため緑のまま素通りする（QA 指摘）。
+        #expect(
+            source.range(
+                of: #"Button \{ openGameCenter\(\) \} label: \{\s*Image\(systemName: "trophy\.fill"\)"#,
+                options: .regularExpression
+            ) != nil,
+            "トロフィーのボタンと openGameCenter() の結線が切れている"
+        )
+        #expect(source.contains("GameCenterEntry.open()"),
+                "ハブから GameCenterEntry を呼ぶ導線が消えている")
+        // アイコンだけのボタンは VoiceOver がシンボル名を読むため、明示のラベルが要る。
+        #expect(source.contains(#"accessibilityLabel("実績・ランキング")"#),
+                "アイコンボタンの読み上げラベルが消えている")
+    }
+
+    @Test("未サインインのときは Game Center を開かず、案内に落ちる")
+    func entryChecksSignInBeforeOpening() throws {
+        let source = try appSource("GameCenterEntry.swift")
+        guard let signInGuard = source.range(of: "guard GameCenterAuth.isSignedIn"),
+              let trigger = source.range(of: "GKAccessPoint.shared.trigger")
+        else {
+            Issue.record("サインイン判定またはダッシュボード起動が見つからない（走査のパターンが壊れている可能性）")
+            return
+        }
+        // 判定が起動より**前**にあること。順序が入れ替わると、未サインインでも trigger を
+        // 呼んで無反応になる（GameKit は認証済みを前提にするため何も起きない）。
+        #expect(signInGuard.lowerBound < trigger.lowerBound,
+                "サインイン判定より先に Game Center を開こうとしている")
+        #expect(source.contains("case needsSignInGuidance"),
+                "案内へ落とす経路が消えている")
+    }
+
+    @Test("iOS 26 で deprecated の GKGameCenterViewController に戻っていない")
+    func doesNotUseDeprecatedGameCenterViewController() throws {
+        // 置き換え先は GKAccessPoint（SDK ヘッダの API_DEPRECATED_WITH_REPLACEMENT が明示）。
+        // 導線を触るときに「昔の作法」へ戻してしまわないよう、App/ 全体で禁止する。
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let appDir = repoRoot.appendingPathComponent("App")
+        let swiftFiles = try FileManager.default
+            .contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        #expect(!swiftFiles.isEmpty, "App/ の走査に失敗している")
+
+        for file in swiftFiles {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            // コメントでの言及（deprecated である理由の説明）は許す。コードとしての使用だけを禁じる。
+            let usages = source.split(separator: "\n").filter { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                return !trimmed.hasPrefix("//") && !trimmed.hasPrefix("///")
+                    && trimmed.contains("GKGameCenterViewController")
+            }
+            #expect(usages.isEmpty,
+                    "\(file.lastPathComponent) が deprecated な GKGameCenterViewController を使っている: \(usages)")
+        }
     }
 }

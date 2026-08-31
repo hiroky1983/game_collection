@@ -36,6 +36,12 @@ public final class OthelloModel {
     public private(set) var undoUsed: Bool
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
+    /// 直前の着手で裏返った石の位置（`行 * 8 + 列`）。反転演出の対象（#204）。
+    public private(set) var flippedCells: Set<Int> = []
+    /// 石を置いた回数。反転演出の進捗を補間するための通し番号（永続化しない）。
+    ///
+    /// `turnID` はパス・待ったでも増えるため、これらで反転演出が空振りしないよう別に持つ。
+    public private(set) var placementCount: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
 
@@ -46,6 +52,10 @@ public final class OthelloModel {
     /// 探索の所要時間に依存せず決定論的に作れる（#172）。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
     private let gameID = "othello"
+    /// CPU が着手する前に、直前の反転演出へ最低限あける間合い（#204）。
+    /// **読みと並行に測るので、読みが長い局面（強レベル）ではここによる追加の待ちは発生しない**。
+    /// テストは `.zero` を渡して実時間の待ちを消す（大富豪・麻雀の `cpuDelay` と同じ運用）。
+    private let flipSettleDelay: Duration
     private var startedAt: Date
     private var undoHistory: [TurnState] = []
 
@@ -67,8 +77,12 @@ public final class OthelloModel {
     /// CPU の初手が起動しない（#140。将棋 #82 と同じ原因）。対局の通し番号と組にする。
     public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: turnID) }
 
-    public init(services: GameServices? = nil) {
+    public init(
+        services: GameServices? = nil,
+        flipSettleDelay: Duration = .milliseconds(Int(OthelloFlip.duration * 1000))
+    ) {
         self.services = services
+        self.flipSettleDelay = flipSettleDelay
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
 
@@ -129,6 +143,8 @@ public final class OthelloModel {
         board        = OthelloBoard(cells: prev.cells)
         currentStone = prev.currentStone
         lastMove     = nil
+        // 戻した盤に「直前に返った石」は無い。残すと巻き戻した石が反転中の姿で描かれる。
+        flippedCells = []
         mustPass     = false
         winner       = nil
         isDraw       = false
@@ -165,10 +181,14 @@ public final class OthelloModel {
         defer { if gameSerial == serial { isThinking = false } }
 
         let b = board, s = currentStone, lvl = aiLevel
+        // 直前の着手の反転演出を見せてから打つための締切（#204）。読みを始める前に取り、
+        // 読みが終わったあとに「残り」だけ待つので、読みが長ければ待ちはゼロになる。
+        let settleDeadline = ContinuousClock.now + flipSettleDelay
         await thinkingGate?()
         let move = await Task.detached(priority: .userInitiated) {
             await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
         }.value
+        try? await Task.sleep(until: settleDeadline, clock: .continuous)
 
         guard aiTurnKey == key, isAITurn, !gameOver else { return }
         // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
@@ -185,6 +205,7 @@ public final class OthelloModel {
         winner         = nil
         isDraw         = false
         lastMove       = nil
+        flippedCells   = []
         mustPass       = false
         turnID         = 0
         undoUsed       = false
@@ -207,6 +228,10 @@ public final class OthelloModel {
 
     private func place(row: Int, col: Int) {
         let mover = currentStone
+        // 反転演出の対象は盤を書き換える前にしか取れない（#204）。
+        flippedCells = Set(board.flippable(row: row, col: col, stone: currentStone)
+            .map { $0.0 * othelloBoardSize + $0.1 })
+        placementCount += 1
         board.place(row: row, col: col, stone: currentStone)
         lastMove     = (row, col)
         currentStone = currentStone.opponent

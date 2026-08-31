@@ -16,12 +16,33 @@ struct MahjongSolitaireSnapshot: Codable {
     let elapsedSeconds: Int
     let shuffleCount: Int
     let hintCount: Int
+    /// アンドゥの利用回数（#198）。**任意項目**にしてあるのは、この項目を持たない
+    /// 既存のスナップショットが復号に失敗して中断中の盤面を捨ててしまわないようにするため。
+    let undoCount: Int?
+    /// どのレイアウトの盤面か（#239）。`undoCount` と同じ理由で**任意項目**にしてあり、
+    /// これを持たない古いスナップショットは亀甲として復元する（`MahjongSolitaireLayout.named`）。
+    let layoutID: String?
+}
+
+/// 直前に取った 2 枚。位置は不変なので、添字と絵柄を戻せば盤面はそのまま復元できる。
+/// 花牌・季節牌は「組では合うが絵柄は違う」ことがあるため、2 枚ぶんの絵柄を別々に持つ。
+private struct MahjongSolitaireTake {
+    let firstIndex: Int
+    let firstFace: MahjongFace
+    let secondIndex: Int
+    let secondFace: MahjongFace
 }
 
 @MainActor
 @Observable
 public final class MahjongSolitaireModel {
-    /// 位置ごとの絵柄。取り除いた位置は nil。添字は `MahjongSolitaireRules.layout` と対応する。
+    /// 計時だけが進んでいる間に中断データを保存し直す間隔（秒）。#240。
+    /// 毎秒書くと中断データの書き込みが 1 局で数百回になるため、失われる幅の上限と釣り合う長さにする。
+    static let persistInterval = 30
+
+    /// いま遊んでいる盤面のかたち（#239）。添字の意味がこれで決まるので、`faces` と必ず対で扱う。
+    public private(set) var layout: MahjongSolitaireLayout
+    /// 位置ごとの絵柄。取り除いた位置は nil。添字は `layout.positions` と対応する。
     public private(set) var faces: [MahjongFace?]
     /// 位置ごとに「いま取れるか」。描画で 144 回引くので毎回計算せず変化時にまとめて更新する。
     public private(set) var isFreeByIndex: [Bool] = []
@@ -36,6 +57,8 @@ public final class MahjongSolitaireModel {
     public private(set) var elapsedSeconds: Int = 0
     public private(set) var shuffleCount: Int = 0
     public private(set) var hintCount: Int = 0
+    /// アンドゥの利用回数（#198）。リザルトに出して記録の公平性を保つ。
+    public private(set) var undoCount: Int = 0
     /// 生成直後（およびシャッフル直後）の盤面を取り切れる順序。
     /// **クリア可能な盤面しか配っていないことの根拠**であり、テストではこの順にタップして完走させる。
     /// プレイヤーが別の順で取り始めた時点で無効になる（ヒントはこの順序ではなく現在の盤面から探す）。
@@ -47,11 +70,18 @@ public final class MahjongSolitaireModel {
     private let services: GameServices?
     private var seed: UInt64?
     private let gameID = "mahjong"
+    /// アンドゥで戻せる 1 手。**深さは常に 1 手ぶん**で、戻したら空になる（連続で巻き戻せない）。
+    /// 並べ替え・新規ゲーム・クリアでは位置と絵柄の対応が変わる（または局が終わる）ので破棄する。
+    /// 中断スナップショットには積まない = 再開直後は戻せない（オセロ・五目並べの「待った」と同じ扱い）。
+    private var lastTake: MahjongSolitaireTake?
 
     /// 手詰まり（牌は残っているのに取れる組が無い）。
     public var isDeadlocked: Bool {
         phase == .playing && remainingCount > 0 && availablePairCount == 0
     }
+
+    /// 1 手戻せるか。取った直後だけ true。
+    public var canUndo: Bool { phase == .playing && lastTake != nil }
 
     /// 残りの組数（表示用）。
     public var remainingPairCount: Int { remainingCount / 2 }
@@ -59,27 +89,36 @@ public final class MahjongSolitaireModel {
     /// - Parameters:
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
     ///   - faces: テスト用に盤面を直接与える経路（本番では使わない）。
+    ///   - layout: 配る盤面のかたち。中断データがあればそちらのレイアウトが優先される。
     public init(
         services: GameServices? = nil,
         seed: UInt64? = nil,
-        faces: [MahjongFace?]? = nil
+        faces: [MahjongFace?]? = nil,
+        layout: MahjongSolitaireLayout = .turtle
     ) {
         self.services = services
         self.seed = seed
         // 盤面を新しく用意したか（= 新しいプレイの開始か）。復元のときだけ false。
         var isFreshBoard = true
 
-        if let snapshot = services?.snapshots.load(MahjongSolitaireSnapshot.self, for: gameID),
-           snapshot.faces.count == MahjongSolitaireRules.layout.count {
+        let snapshot = services?.snapshots.load(MahjongSolitaireSnapshot.self, for: gameID)
+        // レイアウト識別子を持たない古いスナップショットは亀甲として読む（`named` が nil を倒す）。
+        let snapshotLayout = snapshot.map { MahjongSolitaireLayout.named($0.layoutID) }
+
+        if let snapshot, let snapshotLayout, snapshot.faces.count == snapshotLayout.count {
+            self.layout = snapshotLayout
             self.faces = snapshot.faces
             self.elapsedSeconds = snapshot.elapsedSeconds
             self.shuffleCount = snapshot.shuffleCount
             self.hintCount = snapshot.hintCount
+            self.undoCount = snapshot.undoCount ?? 0
             isFreshBoard = false
-        } else if let faces, faces.count == MahjongSolitaireRules.layout.count {
+        } else if let faces, faces.count == layout.count {
+            self.layout = layout
             self.faces = faces
         } else {
-            let dealt = MahjongSolitaireModel.makeBoard(seed: seed)
+            self.layout = layout
+            let dealt = MahjongSolitaireModel.makeBoard(seed: seed, layout: layout)
             self.faces = dealt.board.faces
             self.solution = dealt.board.solution
             self.seed = dealt.nextSeed   // 次の盤面が同じにならないよう種を進める
@@ -117,6 +156,10 @@ public final class MahjongSolitaireModel {
             return
         }
 
+        lastTake = MahjongSolitaireTake(
+            firstIndex: first, firstFace: firstFace,
+            secondIndex: index, secondFace: face
+        )
         faces[first] = nil
         faces[index] = nil
         remainingCount -= 2
@@ -132,17 +175,54 @@ public final class MahjongSolitaireModel {
         }
     }
 
-    /// 取れる組を 1 組だけ光らせる。
-    public func showHint() {
-        guard phase == .playing else { return }
-        guard let pair = MahjongSolitaireRules.availablePairs(faces: faces).first else {
+    /// 直前に取った 2 枚を盤に戻す（#198）。誤タップと、取った結果の手詰まりの取り消し手段。
+    ///
+    /// 戻せるのは 1 手ぶんだけで、戻した時点で履歴は空になる。並べ替えや新規ゲームを挟むと戻せない。
+    /// 利用回数は `undoCount` に積み、リザルトに出す（ヒント・並べ替えと同じ扱い。記録からは除外しない）。
+    @discardableResult
+    public func undoLastTake() -> Bool {
+        guard phase == .playing, let take = lastTake else {
             services?.feedback.notify(.warning)
-            return
+            return false
+        }
+        faces[take.firstIndex] = take.firstFace
+        faces[take.secondIndex] = take.secondFace
+        remainingCount += 2
+        lastTake = nil
+        selectedIndex = nil
+        hintPair = []
+        undoCount += 1
+        services?.feedback.impact(.medium)
+        refreshDerivedState()
+        // 1 手目を戻して満杯に戻った場合、`persist()` は「配ったばかりの盤面」として保存を消す。
+        // ハブに「続きから」を出さないための既存のガードで、意図どおり（利用回数はメモリ上に残るので
+        // この局のリザルトには出る。中断を挟むと 0 に戻るが、盤面ごと配り直しになる状態のため矛盾しない）。
+        persist()
+        return true
+    }
+
+    /// ヒントを出せる状態か（#336）。
+    ///
+    /// ヒントはリワード広告制なので、**視聴の前にここで弾く**。手詰まりの盤面で広告だけ見せて
+    /// 何も起きない、という対価の無い状態を作らないための門（数独の `canHint` と同じ役割）。
+    public var canHint: Bool { phase == .playing && availablePairCount > 0 }
+
+    /// 取れる組を 1 組だけ光らせる。
+    ///
+    /// 出せなかったときは false を返す（#336）。広告の視聴中に盤面が変わって手詰まりになる経路が
+    /// 理屈のうえでは残るため、「広告を見たのに何も起きなかった」ことを呼び出し側へ伝える。
+    @discardableResult
+    public func showHint() -> Bool {
+        guard phase == .playing else { return false }
+        guard let pair = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout).first else {
+            services?.feedback.notify(.warning)
+            return false
         }
         hintPair = [pair.0, pair.1]
         hintCount += 1
         services?.feedback.impact(.light)
         persist()
+        return true
     }
 
     /// 残っている牌を並べ替えて、そこから必ず取り切れる配置に作り直す。
@@ -150,13 +230,15 @@ public final class MahjongSolitaireModel {
     @discardableResult
     public func shuffleRemaining() -> Bool {
         guard phase == .playing, remainingCount > 0 else { return false }
-        let rearranged = MahjongSolitaireModel.rearrange(faces: faces, seed: seed)
+        let rearranged = MahjongSolitaireModel.rearrange(faces: faces, seed: seed, layout: layout)
         seed = rearranged.nextSeed
         guard let board = rearranged.board else { return false }
         faces = board.faces
         solution = board.solution
         selectedIndex = nil
         hintPair = []
+        // 位置と絵柄の対応が総取り替えになるので、戻せる 1 手は無効になる。
+        lastTake = nil
         shuffleCount += 1
         services?.feedback.impact(.medium)
         refreshDerivedState()
@@ -165,8 +247,14 @@ public final class MahjongSolitaireModel {
     }
 
     /// 新しい盤面を配る（結果は記録しない）。
-    public func newGame() {
-        let dealt = MahjongSolitaireModel.makeBoard(seed: seed)
+    ///
+    /// 途中の盤面を捨てても通算成績には乗せない。**「手詰まりで最初から」（`giveUpAndRestart()`）も
+    /// この扱いに揃えてある**（#240）。
+    ///
+    /// - Parameter layout: 配る盤面のかたち。**nil なら今と同じかたちのまま配り直す**（#239）。
+    public func newGame(layout newLayout: MahjongSolitaireLayout? = nil) {
+        if let newLayout { layout = newLayout }
+        let dealt = MahjongSolitaireModel.makeBoard(seed: seed, layout: layout)
         seed = dealt.nextSeed
         faces = dealt.board.faces
         solution = dealt.board.solution
@@ -177,6 +265,8 @@ public final class MahjongSolitaireModel {
         elapsedSeconds = 0
         shuffleCount = 0
         hintCount = 0
+        undoCount = 0
+        lastTake = nil
         recordResult = nil
         refreshDerivedState()
         // 画面は開いたままなので、ここで計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
@@ -188,13 +278,16 @@ public final class MahjongSolitaireModel {
         services?.gameDidRestart(gameID: gameID)
     }
 
-    /// 手詰まりで「最初から」を選んだとき。取り切れずに終わったので敗北として記録し、盤面を配り直す。
+    /// 手詰まりで「最初から」を選んだとき。盤面を配り直す（結果は記録しない）。
+    ///
+    /// **記録の扱いは `newGame()` に揃えてある**（#240）。ここと「＋」からの配り直しは、
+    /// ユーザーから見ればどちらも「取り切れないまま盤面を捨てた」同じ操作なのに、
+    /// 以前はこちらだけが敗北として通算成績に乗っていた。手詰まりはユーザーが選んだ結果ではなく
+    /// 配りが行き止まりだったというだけなので、**捨てた盤面はどちらの経路でも記録しない**方に揃えた。
+    /// 違いは手応え（`.error` の触覚）だけで、記録には現れない。
     public func giveUpAndRestart() {
         guard phase == .playing else { return }
         services?.feedback.notify(.error)
-        // 手詰まりでの投了。タイムは勝ったときだけ記録されるので、ここでは通算回数だけが増える。
-        // 直後の newGame() が盤面ごとリザルト表示を畳むため、戻り値（recordResult）は使わない。
-        services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         newGame()
     }
 
@@ -202,8 +295,17 @@ public final class MahjongSolitaireModel {
     public var isCounting: Bool { timerTask != nil }
 
     /// 今の対局の成績。クリアタイムは勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
+    ///
+    /// **記録はレイアウトごとに分ける**（#239）。かたちが違えば取り切るまでの手数も難度も違うため、
+    /// 同じ「最短タイム」に混ぜると自己ベストが比べものにならない。区分の仕組みは
+    /// マインスイーパーの難易度と同じ `GameScore.variant` を使うので、保存の形式は増えない。
     private var currentScore: GameScore {
-        GameScore(metric: .shortestTime, seconds: elapsedSeconds)
+        GameScore(
+            metric: .shortestTime,
+            seconds: elapsedSeconds,
+            variant: layout.id,
+            variantLabel: layout.displayName
+        )
     }
 
     /// 中断から復帰したときに計時を再開する（View の `.task` から呼ぶ）。
@@ -217,26 +319,30 @@ public final class MahjongSolitaireModel {
     // MARK: - 内部
 
     /// 盤面を 1 つ配る。種を渡した場合は「次に使う種」も返し、同じ配りが続かないようにする。
-    private static func makeBoard(seed: UInt64?) -> (board: MahjongSolitaireRules.Board, nextSeed: UInt64?) {
+    private static func makeBoard(
+        seed: UInt64?,
+        layout: MahjongSolitaireLayout
+    ) -> (board: MahjongSolitaireRules.Board, nextSeed: UInt64?) {
         guard let seed else {
             var system = SystemRandomNumberGenerator()
-            return (MahjongSolitaireRules.generate(using: &system), nil)
+            return (MahjongSolitaireRules.generate(using: &system, layout: layout), nil)
         }
         var generator = MahjongSeededGenerator(seed: seed)
-        let board = MahjongSolitaireRules.generate(using: &generator)
+        let board = MahjongSolitaireRules.generate(using: &generator, layout: layout)
         return (board, generator.next())
     }
 
     private static func rearrange(
         faces: [MahjongFace?],
-        seed: UInt64?
+        seed: UInt64?,
+        layout: MahjongSolitaireLayout
     ) -> (board: MahjongSolitaireRules.Board?, nextSeed: UInt64?) {
         guard let seed else {
             var system = SystemRandomNumberGenerator()
-            return (MahjongSolitaireRules.rearrange(faces: faces, using: &system), nil)
+            return (MahjongSolitaireRules.rearrange(faces: faces, using: &system, layout: layout), nil)
         }
         var generator = MahjongSeededGenerator(seed: seed)
-        let board = MahjongSolitaireRules.rearrange(faces: faces, using: &generator)
+        let board = MahjongSolitaireRules.rearrange(faces: faces, using: &generator, layout: layout)
         return (board, generator.next())
     }
 
@@ -246,6 +352,8 @@ public final class MahjongSolitaireModel {
         timerTask = nil
         selectedIndex = nil
         hintPair = []
+        // 取り切った局はもう戻せない（記録が確定した後に盤面を巻き戻せてしまわないように）。
+        lastTake = nil
         services?.feedback.notify(.success)
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         services?.snapshots.clear(for: gameID)
@@ -253,13 +361,15 @@ public final class MahjongSolitaireModel {
 
     private func refreshDerivedState() {
         let remaining = MahjongSolitaireRules.remainingFlags(faces: faces)
-        isFreeByIndex = (0..<faces.count).map { MahjongSolitaireRules.isFree($0, remaining: remaining) }
-        availablePairCount = MahjongSolitaireRules.availablePairs(faces: faces).count
+        isFreeByIndex = (0..<faces.count).map {
+            MahjongSolitaireRules.isFree($0, remaining: remaining, layout: layout)
+        }
+        availablePairCount = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout).count
     }
 
     private func persist() {
         // 配ったばかりの盤面は保存しない（ハブに「続きから」が出続けるのを避ける）。
-        guard phase == .playing, remainingCount < MahjongSolitaireRules.layout.count else {
+        guard phase == .playing, remainingCount < layout.count else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -267,7 +377,9 @@ public final class MahjongSolitaireModel {
             faces: faces,
             elapsedSeconds: elapsedSeconds,
             shuffleCount: shuffleCount,
-            hintCount: hintCount
+            hintCount: hintCount,
+            undoCount: undoCount,
+            layoutID: layout.id
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }
@@ -278,8 +390,18 @@ public final class MahjongSolitaireModel {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled else { break }
-                elapsedSeconds += 1
+                tick()
             }
         }
+    }
+
+    /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
+    /// 経過秒の進み方と保存の間隔を検証できる（実時間で待つテストはフレークするため）。
+    func tick() {
+        elapsedSeconds += 1
+        // 経過秒はこれまで tap / hint / shuffle のときにしか保存されず、長考のあとにアプリを
+        // 終了すると最後の操作以降が失われて、自己ベスト（最短タイム）が実際より短い方向に
+        // 狂っていた（#240）。一定間隔で保存し直し、失われる幅を最大 `persistInterval` 秒に抑える。
+        if elapsedSeconds % Self.persistInterval == 0 { persist() }
     }
 }

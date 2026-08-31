@@ -118,6 +118,16 @@ public struct SudokuView: View {
                 if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
                 model.giveUp()
             }
+            // 撮影・動作確認用（DEBUG 限定）: 新規ゲームシートをキャンセルした直後（`.idle`）の
+            // 画面を非対話で出す（#354。シミュレータは自動タップができないため）。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuCancelSheet") {
+                showNewGame = false
+            }
+            // 撮影・動作確認用（DEBUG 限定）: シートを飛ばしてプレイ中の画面を出す（#353）。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuAutoStart") {
+                showNewGame = false
+                if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
+            }
             #endif
         }
     }
@@ -135,7 +145,7 @@ public struct SudokuView: View {
                         // 文字を拡大しても右のタイマー・トグルを押し出さないよう縮めて収める（#189）。
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(cleared ? Theme.teal : Theme.coral)
-                } else {
+                } else if model.hasPuzzle {
                     Label("残り\(model.remainingCount)", systemImage: "square.grid.3x3")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
@@ -145,6 +155,12 @@ public struct SudokuView: View {
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
+                } else {
+                    // まだ出題が無い（#354）。存在しない問題の「残り81」「ミス 0/3」を出さない。
+                    Text("難易度を選んでください")
+                        .themeBody(15)
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(Theme.inkSub)
                 }
             }
             .lineLimit(1)
@@ -162,6 +178,8 @@ public struct SudokuView: View {
                 Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(Theme.teal)
+                    // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
+                    .opacity(model.hasPuzzle ? 1 : 0)
 
                 // 拡大トグル。マインスイーパー（#203）と同じ 44pt の矩形で受ける。
                 Button { zoomMode.toggle() } label: {
@@ -387,8 +405,33 @@ public struct SudokuView: View {
                 playingControls
                     // 盤と同じ理由でロックする（数字パッドからも答えを埋められるため）。
                     .disabled(isRequestingHint)
+            } else if model.state == .idle {
+                // 新規ゲームシートをキャンセルした直後（#354）。ここに何も出さないと空盤の下が
+                // 無の領域になり、次に何をすればよいかが画面から読めない。シートを開き直す導線を置く。
+                idleControls
             }
         }
+    }
+
+    /// まだ出題が無い（`.idle`）ときの操作エリア。高さは ZStack の隠し構成が確保しているので、
+    /// ここはシートを開き直すボタン1つでよい。
+    private var idleControls: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button { showNewGame = true } label: {
+                Label("難易度を選んで始める", systemImage: "play.fill")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
+                    .background(Capsule().fill(Theme.coral))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pop)
+            Spacer(minLength: 0)
+        }
+        .themeBody(14)
+        .padding(.horizontal, 12).padding(.vertical, 4)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     private var playingControls: some View {
@@ -483,6 +526,24 @@ public struct SudokuView: View {
             }
             .buttonStyle(.pop)
             .accessibilityLabel(model.noteMode ? "メモモード、オン" : "メモモード、オフ")
+
+            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
+            Button { model.undo() } label: {
+                Label("戻す", systemImage: "arrow.uturn.backward")
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
+                    .background(Capsule().fill(model.canUndo ? Theme.teal : Theme.fillMuted))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pop)
+            .disabled(!model.canUndo)
+            .accessibilityLabel("元に戻す")
+            .accessibilityHint(
+                model.canUndo
+                    ? "直前の1手を取り消します。ミスもその手のぶんだけ戻ります"
+                    : "取り消せる手がありません"
+            )
 
             Button {
                 requestHint()
@@ -613,9 +674,12 @@ struct SudokuNewGameSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("難易度").themeBody(15).foregroundStyle(Theme.inkSub)
                     HStack(spacing: 12) {
-                        chooser(.easy,   subtitle: "空き30〜35", accent: Theme.teal)
-                        chooser(.normal, subtitle: "空き40〜45", accent: Theme.yellow)
-                        chooser(.hard,   subtitle: "空き46〜50", accent: Theme.coral)
+                        // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
+                        // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
+                        // `removalRange` のコメント参照・#354 の S6）。
+                        chooser(.easy,   subtitle: "空き 約30〜35", accent: Theme.teal)
+                        chooser(.normal, subtitle: "空き 約40〜45", accent: Theme.yellow)
+                        chooser(.hard,   subtitle: "空き 約46〜50", accent: Theme.coral)
                     }
                 }
                 Spacer()

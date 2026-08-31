@@ -163,54 +163,19 @@ public struct OthelloView: View {
                     .fill(Color(hex: OthelloBoardStyle.boardGreen))
                     .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
 
-                Canvas { ctx, sz in
-                    let c = sz.width / CGFloat(othelloBoardSize)
-                    let lineShading = GraphicsContext.Shading.color(Color(hex: 0x145028).opacity(0.9))
-
-                    // グリッド線
-                    for i in 0...othelloBoardSize {
-                        let p = CGFloat(i) * c
-                        var vp = Path(); vp.move(to: CGPoint(x: p, y: 0)); vp.addLine(to: CGPoint(x: p, y: sz.height))
-                        ctx.stroke(vp, with: lineShading, lineWidth: 1)
-                        var hp = Path(); hp.move(to: CGPoint(x: 0, y: p)); hp.addLine(to: CGPoint(x: sz.width, y: p))
-                        ctx.stroke(hp, with: lineShading, lineWidth: 1)
-                    }
-
-                    // 合法手ドット
-                    for idx in validSet {
-                        let row = idx / othelloBoardSize, col = idx % othelloBoardSize
-                        let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                        let r  = c * OthelloBoardStyle.legalMoveDotRadiusRatio
-                        ctx.fill(Path(ellipseIn: CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)),
-                                 with: .color(Color(hex: OthelloBoardStyle.legalMoveDot)
-                                                  .opacity(OthelloBoardStyle.legalMoveDotOpacity)))
-                    }
-
-                    // 石
-                    for row in 0..<othelloBoardSize {
-                        for col in 0..<othelloBoardSize {
-                            guard let stone = model.board[row, col] else { continue }
-                            let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                            let r  = c * OthelloBoardStyle.stoneRadiusRatio
-                            let rect = CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)
-                            if stone == .black {
-                                ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0x1A1A1A)))
-                            } else {
-                                ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0xF0ECD8)))
-                                ctx.stroke(Path(ellipseIn: rect), with: .color(Color.gray.opacity(0.3)), lineWidth: 1)
-                            }
-                            // 直前手マーカー
-                            if let last = model.lastMove, last.row == row, last.col == col {
-                                let mr = r * 0.3
-                                let mRect = CGRect(x: cx-mr, y: cy-mr, width: mr*2, height: mr*2)
-                                ctx.fill(Path(ellipseIn: mRect),
-                                         with: .color(stone == .black
-                                                      ? Color.white.opacity(0.5)
-                                                      : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5)))
-                            }
-                        }
-                    }
-                }
+                OthelloBoardCanvas(
+                    board: model.board,
+                    validSet: validSet,
+                    lastMove: model.lastMove,
+                    flippedCells: model.flippedCells,
+                    placementCount: model.placementCount,
+                    revealedPlacements: Double(model.placementCount)
+                )
+                // 石が裏返る演出（#204）。`Canvas` は View が再評価されないと描き直されない
+                // ため、`OthelloBoardCanvas` を `Animatable` にして着手数を補間させている。
+                // 段差（`OthelloFlip.stagger`）は進捗の割合として持たせているので、
+                // ここは全体を等速で進める `.linear` にする。
+                .gameAnimation(.linear(duration: OthelloFlip.duration), value: model.placementCount)
                 .gesture(
                     SpatialTapGesture()
                         .onEnded { val in
@@ -406,6 +371,108 @@ public struct OthelloView: View {
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+    }
+}
+
+// MARK: - Board Canvas
+
+/// 盤（格子・合法手ドット・石）の描画（#204）。
+///
+/// `revealedPlacements` は「何手目まで返り終わっているか」を実数で持つ。`placementCount` が
+/// n-1 → n へ変わるとき SwiftUI がこの値を補間するので、`revealedPlacements - Double(n - 1)` が
+/// そのまま「直前の着手で返る石がどこまで返ったか（0→1）」になる。
+///
+/// `Canvas` はビュー本体が作り直されない限り描き直されないため、外から `.gameAnimation` を
+/// 掛けただけでは色が瞬間で入れ替わるだけになる。`Animatable` に適合させて毎フレーム `body` を
+/// 評価させるのがここでの肝（五目並べ #202 と同じ）。Reduce Motion が ON のときは
+/// `.gameAnimation` がアニメーションを落とし、補間が起きない = 従来どおりの即時反映になる。
+private struct OthelloBoardCanvas: View, Animatable {
+    nonisolated let board: OthelloBoard
+    nonisolated let validSet: Set<Int>
+    nonisolated let lastMove: (row: Int, col: Int)?
+    nonisolated let flippedCells: Set<Int>
+    nonisolated let placementCount: Int
+    nonisolated var revealedPlacements: Double
+
+    // `View` への適合でこの型は MainActor 隔離になるが、`Animatable` の要求は nonisolated。
+    // 保持しているのは値型（すべて Sendable）だけなので、格納プロパティごと nonisolated にして
+    // 適合を成立させる。
+    nonisolated var animatableData: Double {
+        get { revealedPlacements }
+        set { revealedPlacements = newValue }
+    }
+
+    /// 直前の着手の反転が全体としてどこまで進んだか（0→1）。
+    ///
+    /// 「待った」で着手数が変わらないまま盤だけ戻る場合に備えてクランプする
+    /// （はみ出した値のまま描くと、返り終わった石が反転中の姿で残る）。
+    private var flipProgress: Double {
+        guard placementCount > 0 else { return 1 }
+        return min(max(revealedPlacements - Double(placementCount - 1), 0), 1)
+    }
+
+    var body: some View {
+        let progress = flipProgress
+        Canvas { ctx, sz in
+            let c = sz.width / CGFloat(othelloBoardSize)
+            let lineShading = GraphicsContext.Shading.color(Color(hex: 0x145028).opacity(0.9))
+
+            // グリッド線
+            for i in 0...othelloBoardSize {
+                let p = CGFloat(i) * c
+                var vp = Path(); vp.move(to: CGPoint(x: p, y: 0)); vp.addLine(to: CGPoint(x: p, y: sz.height))
+                ctx.stroke(vp, with: lineShading, lineWidth: 1)
+                var hp = Path(); hp.move(to: CGPoint(x: 0, y: p)); hp.addLine(to: CGPoint(x: sz.width, y: p))
+                ctx.stroke(hp, with: lineShading, lineWidth: 1)
+            }
+
+            // 合法手ドット
+            for idx in validSet {
+                let row = idx / othelloBoardSize, col = idx % othelloBoardSize
+                let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
+                let r  = c * OthelloBoardStyle.legalMoveDotRadiusRatio
+                ctx.fill(Path(ellipseIn: CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)),
+                         with: .color(Color(hex: OthelloBoardStyle.legalMoveDot)
+                                          .opacity(OthelloBoardStyle.legalMoveDotOpacity)))
+            }
+
+            // 石
+            for row in 0..<othelloBoardSize {
+                for col in 0..<othelloBoardSize {
+                    guard let stone = board[row, col] else { continue }
+                    let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
+                    let r  = c * OthelloBoardStyle.stoneRadiusRatio
+
+                    // 返っている最中の石は、縦軸まわりに回っているように横幅だけ縮める。
+                    // 真横を向く折り返しで色が入れ替わるので、盤の色が変わる瞬間が目で追える。
+                    var shown = stone
+                    var rx = r
+                    if let last = lastMove, flippedCells.contains(row * othelloBoardSize + col) {
+                        let distance = max(abs(row - last.row), abs(col - last.col))
+                        let p = OthelloFlip.progress(distance: distance, overall: progress)
+                        shown = OthelloFlip.shownStone(target: stone, progress: p)
+                        rx = r * CGFloat(OthelloFlip.widthScale(progress: p))
+                    }
+
+                    let rect = CGRect(x: cx-rx, y: cy-r, width: rx*2, height: r*2)
+                    if shown == .black {
+                        ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0x1A1A1A)))
+                    } else {
+                        ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0xF0ECD8)))
+                        ctx.stroke(Path(ellipseIn: rect), with: .color(Color.gray.opacity(0.3)), lineWidth: 1)
+                    }
+                    // 直前手マーカー。置いた石にだけ出るので、反転中の石には掛からない。
+                    if let last = lastMove, last.row == row, last.col == col {
+                        let mr = r * 0.3
+                        let mRect = CGRect(x: cx-mr, y: cy-mr, width: mr*2, height: mr*2)
+                        ctx.fill(Path(ellipseIn: mRect),
+                                 with: .color(stone == .black
+                                              ? Color.white.opacity(0.5)
+                                              : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5)))
+                    }
+                }
+            }
+        }
     }
 }
 

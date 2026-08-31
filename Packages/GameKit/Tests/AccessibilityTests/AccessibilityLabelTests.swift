@@ -240,6 +240,15 @@ struct DaifugoAccessibilityTests {
         #expect(DaifugoAccessibility.fieldLabel(pair) == "場のカード、スペードの6、ハートの6")
     }
 
+    @Test("場は出し手も読む（バッジは見た目にしか出ないため・#193）") func fieldOwner() {
+        let pair = [DaifugoCard(id: 5, suit: .spades, rank: 6),
+                    DaifugoCard(id: 18, suit: .hearts, rank: 6)]
+        #expect(DaifugoAccessibility.fieldLabel(pair, ownerName: "CPU2")
+                == "場のカード、スペードの6、ハートの6。CPU2が出しました")
+        // 場が空なら出し手そのものが無いので、渡されても読まない。
+        #expect(DaifugoAccessibility.fieldLabel([], ownerName: "CPU2") == "場は流れています")
+    }
+
     @Test("配りうる54枚すべてに読みがある") func wholeDeck() {
         let names = DaifugoCard.makeDeck().map(DaifugoAccessibility.cardName)
         #expect(names.count == 54)

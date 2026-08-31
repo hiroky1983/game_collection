@@ -318,17 +318,134 @@ struct DaifugoResumeTests {
         #expect(resumed.gameNumber == 3)
     }
 
+    @Test("復帰しても各プレイヤーの直近の動き（パス・8切り等）の表示が残る（#193）")
+    func restoresLastActions() {
+        let store = MemorySnapshotStore()
+        let (model, services) = makeModel(seed: 7, store: store)
+        model.configureForTesting(
+            hands: [
+                [card(3), card(9)],
+                [card(13), card(4)],
+                [card(12), card(5)],
+                [card(11), card(6)],
+            ],
+            field: [card(7)],
+            fieldOwner: 3,
+            currentPlayer: 0
+        )
+        // 人間がパスすると、その後 CPU が続けて打つので複数人のバッジが埋まる。
+        model.pass()
+        let expected = model.lastActions
+        #expect(!expected[DaifugoModel.humanIndex].isEmpty, "前提: 人間のバッジが立っている")
+
+        let resumed = DaifugoModel(services: services, cpuDelay: .zero)
+
+        #expect(resumed.lastActions == expected)
+    }
+
+    @Test("直近の動きを持たない旧バージョンの中断データでも復元できる（#193）")
+    func restoresSnapshotWithoutLastActions() {
+        /// `lastActions` を持たなかった頃の保存形式。
+        struct LegacySnapshot: Codable {
+            let hands: [[DaifugoCard]]
+            let field: [DaifugoCard]
+            let fieldOwner: Int?
+            let currentPlayer: Int
+            let passedPlayers: [Int]
+            let isRevolution: Bool
+            let finishOrder: [Int]
+            let fouls: [Int]
+            let gameNumber: Int
+            let lastRanking: [Int]
+        }
+        let store = MemorySnapshotStore()
+        try? store.save(
+            LegacySnapshot(
+                hands: [[card(3)], [card(4)], [card(5)], [card(6)]],
+                field: [], fieldOwner: nil, currentPlayer: 2, passedPlayers: [],
+                isRevolution: false, finishOrder: [], fouls: [], gameNumber: 4, lastRanking: []
+            ),
+            for: "daifugo"
+        )
+        let services = GameServices(snapshots: store, ads: NoopAdService())
+
+        let resumed = DaifugoModel(services: services, cpuDelay: .zero)
+
+        #expect(resumed.phase == .playing, "旧データが復号できず最初からになっていない")
+        #expect(resumed.gameNumber == 4)
+        #expect(resumed.lastActions == Array(repeating: "", count: DaifugoModel.playerCount))
+    }
+
     @Test("決着したらスナップショットは消える（次回は最初から）")
     func clearsSnapshotOnResult() async {
         let store = MemorySnapshotStore()
         let (model, _) = makeModel(seed: 7, store: store)
         model.startGame()
-        #expect(store.exists(for: "daifugo"))
 
         _ = await playToFinish(model)
 
         #expect(model.phase == .result)
         #expect(!store.exists(for: "daifugo"))
+    }
+
+    @Test("配ったばかりの局は保存されない（ハブに「続きから」が付かない・#240）")
+    func untouchedDealIsNotSaved() {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(seed: 7, store: store)
+
+        model.startGame()
+
+        #expect(model.phase == .playing, "前提: 配り終えて対局中になっている")
+        #expect(
+            model.hands.reduce(0) { $0 + $1.count } == 54,
+            "前提: まだ 1 枚も場に出ていない（54枚が手札にある）"
+        )
+        #expect(!store.exists(for: "daifugo"), "1 手も進んでいない局は中断データを作らない")
+    }
+
+    @Test("1 手目が出た時点で保存され、続きから遊べる（#240 で保存を遅らせても中断は効く）")
+    func firstPlayStartsSaving() async {
+        let store = MemorySnapshotStore()
+        let (model, services) = makeModel(seed: 7, store: store)
+        model.startGame()
+        #expect(!store.exists(for: "daifugo"), "前提: 配っただけでは保存されない")
+
+        // 誰か 1 人がカードを出すところまで進める（親は場が空なので必ず出す手になる）。
+        await model.runCPUTurnsIfNeeded()
+        if model.isPlayerTurn, model.field.isEmpty {
+            let play = DaifugoRules.greedyPlay(
+                hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+            )
+            for card in play ?? [] { model.toggleSelection(card) }
+            model.playSelected()
+        }
+
+        #expect(!model.field.isEmpty, "前提: 1 手目が場に出ている")
+        #expect(store.exists(for: "daifugo"), "1 手目で中断データができる")
+        let resumed = DaifugoModel(services: services, cpuDelay: .zero)
+        #expect(resumed.phase == .playing)
+    }
+
+    @Test("配り直しても前の局の中断データは残らない（#240）")
+    func startGameClearsThePreviousSnapshot() {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(seed: 7, store: store)
+        model.configureForTesting(
+            hands: [
+                [card(3), card(9)],
+                [card(13), card(4)],
+                [card(12), card(5)],
+                [card(11), card(6)],
+            ],
+            currentPlayer: 0
+        )
+        model.toggleSelection(card(3))
+        model.playSelected()
+        #expect(store.exists(for: "daifugo"), "前提: 前の局の中断データがある")
+
+        model.startGame()
+
+        #expect(!store.exists(for: "daifugo"), "配り直しで前の局の中断データが消える")
     }
 }
 
@@ -690,37 +807,35 @@ struct DaifugoResignTests {
     }
 }
 
-/// 上の局面注入で使う決定的な乱数。配りを固定してテストを再現可能にするだけの用途。
-private enum SeededGeneratorBox {
-    @MainActor static var shared = SeededGenerator(seed: 191)
-}
-
-// MARK: - CPU 進行のキャンセル（#287）
+// MARK: - CPU 進行のキャンセル
 
 @Suite("CPU 進行のキャンセル")
 @MainActor
 struct DaifugoCancelTests {
 
-    /// 対局中に画面を離れると `.task` のキャンセルが走るが、`try? await Task.sleep(for:)` は
-    /// キャンセル時に**即座に**返るため、キャンセル後のループが間合いを一切取らずに残りの
-    /// 手番を最後まで走り抜けてしまう（#287）。待ち時間の経過ではなく「キャンセル済みの
-    /// タスクが手番を進めないこと」で検証するので、実時間に依存せず安定する。
-    @Test("キャンセルされたら間合いを飛ばして打ち続けない")
+    /// `DaifugoView` は `.task { await model.runCPUTurnsIfNeeded() }` で CPU を回しており、
+    /// このタスクは**ビューが消えると（= 対局中に画面を離れると）キャンセルされる**。
+    /// `try? await Task.sleep(for:)` はキャンセル後は毎回即座に返るため、ループが
+    /// `Task.isCancelled` を見ていないと残りの手番が遅延ゼロで走り抜け、
+    /// 中断スナップショットが進んだ局面（最悪は決着後）で上書きされる（#287）。
+    ///
+    /// 待ち時間の経過ではなく「キャンセル済みのタスクが手番を進めないこと」で判定するので、
+    /// 実時間に依存せず安定する（麻雀側 `MahjongCancelTests` と同じ手法）。
+    @Test("キャンセルされたら遅延を飛ばして打ち続けない")
     func cancelledLoopDoesNotFastForward() async {
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
         // キャンセルが効かなければ、この長さを無視して手番が進んでしまう。
         let model = DaifugoModel(services: services, cpuDelay: .seconds(60), seed: 42)
+        // 乱数配りに依存せず、確実に CPU の手番から始まる局面を注入する。
         model.configureForTesting(
-            hands: [
-                [card(3), card(4)],
-                [card(13), card(5)],
-                [card(12), card(6)],
-                [card(11), card(7)],
-            ],
+            hands: [[card(3), card(4)], [card(5), card(6)], [card(9)], [card(10)]],
             currentPlayer: 1
         )
-        let before = model.hands.map(\.count)
+        #expect(model.phase == .playing)
+        #expect(model.currentPlayer != DaifugoModel.humanIndex, "CPU の手番になっていない")
 
+        let before = model.currentPlayer
+        let handsBefore = model.hands.map(\.count)
         // MainActor 上なので、この Task の本体は `await` で手放すまで動かない。
         // したがって cancel() は必ず本体の実行より先に確定する（実時間に依存しない）。
         let task = Task { await model.runCPUTurnsIfNeeded() }
@@ -728,8 +843,46 @@ struct DaifugoCancelTests {
         await task.value
 
         #expect(
-            model.hands.map(\.count) == before,
-            "キャンセル済みのタスクが間合いを無視して手番を進めた"
+            model.currentPlayer == before,
+            "キャンセル済みのタスクが cpuDelay を無視して手番を進めた"
+        )
+        #expect(
+            model.hands.map(\.count) == handsBefore,
+            "キャンセル済みのタスクが cpuDelay を無視して CPU に着手させた"
+        )
+    }
+
+    /// 「結果まで進める」（#191）を押した後の消化試合は `currentCPUDelay` が `.zero` になり、
+    /// **ループの中に suspend が1つも無い**。そのため sleep 直後のキャンセル判定を通らず、
+    /// キャンセル済みでも決着まで一気に走り抜ける（CodeRabbit 指摘・PR #312）。
+    /// ループ先頭でもキャンセルを見る必要がある。
+    @Test("早送り中（間合い 0）でもキャンセルされたら進めない")
+    func cancelledLoopDoesNotAdvanceWhileSkipping() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = DaifugoModel(services: services, cpuDelay: .seconds(60), seed: 42)
+        // 人間が上がり済み・CPU の手番、という消化試合の入口を注入する。
+        model.configureForTesting(
+            hands: [[], [card(5), card(6)], [card(9), card(10)], [card(11), card(12)]],
+            currentPlayer: 1,
+            finishOrder: [DaifugoModel.humanIndex]
+        )
+        #expect(model.canSkipToResult, "上がり済み・決着前なので早送りできる")
+        model.skipToResult()
+        #expect(model.isSkippingToResult)
+
+        let before = model.currentPlayer
+        let handsBefore = model.hands.map(\.count)
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.currentPlayer == before,
+            "キャンセル済みのタスクが早送り経路で手番を進めた"
+        )
+        #expect(
+            model.hands.map(\.count) == handsBefore,
+            "キャンセル済みのタスクが早送り経路で CPU に着手させた"
         )
     }
 
@@ -773,4 +926,9 @@ struct DaifugoCancelTests {
             "走者不在で CPU の手番が止まった"
         )
     }
+}
+
+/// 上の局面注入で使う決定的な乱数。配りを固定してテストを再現可能にするだけの用途。
+private enum SeededGeneratorBox {
+    @MainActor static var shared = SeededGenerator(seed: 191)
 }

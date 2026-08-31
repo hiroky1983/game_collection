@@ -525,7 +525,7 @@ struct GameOutcomeRoutingTests {
         }
     }
 
-    @Test("麻雀ソリティア: 取り切れば勝ち・手詰まりで諦めれば負けに振り分ける")
+    @Test("麻雀ソリティア: 取り切ったときだけ勝ちに数える（諦めた回は記録しない・#240）")
     func mahjong() {
         let (services, service) = makeServices(suite: "route-mahjong")
         let model = MahjongSolitaireModel(services: services, seed: 909)

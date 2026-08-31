@@ -26,6 +26,10 @@ struct DaifugoSnapshot: Codable {
     let fouls: [Int]
     let gameNumber: Int
     let lastRanking: [Int]
+    /// 各プレイヤーの直近の動き（「パス」「8切り！」など）（#193）。
+    /// **旧バージョンの保存データには存在しない**ため optional にして、欠けていても復元を失敗させない
+    /// （`JSONDecoder` は非 optional のキーが無いと丸ごと復号に失敗し、中断データが消える）。
+    let lastActions: [String]?
 }
 
 // MARK: - Model
@@ -40,6 +44,9 @@ public final class DaifugoModel {
     public static let humanIndex = 0
     /// 参加人数（人間1 + CPU3）。
     public static let playerCount = 4
+    /// 山札の枚数（52 + ジョーカー2）。「配ったばかりか」の判定に使う（#240）。
+    /// 定数で持たず `makeDeck()` から導くので、山札の構成を変えても取り違えない。
+    private static let deckCount = DaifugoCard.makeDeck().count
 
     public private(set) var hands: [[DaifugoCard]] = Array(repeating: [], count: playerCount)
     public private(set) var field: [DaifugoCard] = []
@@ -110,6 +117,11 @@ public final class DaifugoModel {
             fouls         = Set(snap.fouls)
             gameNumber    = snap.gameNumber
             lastRanking   = snap.lastRanking
+            // 直近の動きのバッジは、人数分そろっているときだけ戻す（#193）。旧データには無く、
+            // 壊れた配列をそのまま入れると `lastActions[index]` の参照で落ちるため。
+            if let actions = snap.lastActions, actions.count == Self.playerCount {
+                lastActions = actions
+            }
             phase         = .playing
         }
     }
@@ -202,7 +214,8 @@ public final class DaifugoModel {
         }
 
         var dealt: [[DaifugoCard]] = Array(repeating: [], count: Self.playerCount)
-        // 53枚は割り切れないので、配り始めをゲームごとにずらして枚数の偏りを固定しない。
+        // 54枚（52 + ジョーカー2）は 4 で割り切れないので、配り始めをゲームごとにずらして
+        // 枚数の偏りを固定しない。
         let firstReceiver = gameNumber % Self.playerCount
         for (offset, card) in deck.enumerated() {
             dealt[(firstReceiver + offset) % Self.playerCount].append(card)
@@ -235,6 +248,8 @@ public final class DaifugoModel {
         phase = .playing
 
         services?.feedback.impact(.medium)   // カードが配られた
+        // 配ったばかりの局は `persist()` 側のガードで保存されず、前局の中断データが消えるだけになる
+        // （#240。1 手目を出した時点で改めて保存される）。
         persist()
         // 1 ゲーム = 1 プレイ（`gameDidFinish` もゲームごとに呼んでいる）。
         // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
@@ -468,14 +483,18 @@ public final class DaifugoModel {
         defer { isRunningCPUTurns = false }
 
         while phase == .playing, currentPlayer != Self.humanIndex {
+            // 間合いが 0 の手番（早送り中など）には suspend が無く、下の sleep 後の判定を
+            // 通らない。ループ先頭でも見て、どの経路でもキャンセル後は進めないようにする（#287）。
+            guard !Task.isCancelled else { return }
             // 間合いは毎手番ごとに読み直す。消化試合に入った時点・早送りを押された時点から
             // 待たずに済むようにするため（#191）。
             let delay = currentCPUDelay
             if delay > .zero {
                 try? await Task.sleep(for: delay)
-                // `try?` がキャンセルのエラーを握り潰すため、キャンセル後は `Task.sleep` が
-                // 即座に返る。ここで抜けないと、画面を離れてキャンセルされたタスクが間合いを
-                // 一切取らずに残りの手番を最後まで走り抜けてしまう（#287）。
+                // `try? await Task.sleep(for:)` はキャンセル後**毎回即座に**返る
+                // （`CancellationError` を `try?` が握り潰す）。キャンセルを見ないと、
+                // 画面を離れた瞬間に残りの CPU 手番が遅延ゼロで走り抜けてしまう（#287）。
+                // 下の状態 guard は状態しか見ないので、これの代わりにはならない。
                 guard !Task.isCancelled else { return }
                 guard phase == .playing, currentPlayer != Self.humanIndex else { return }
             }
@@ -537,8 +556,19 @@ public final class DaifugoModel {
 
     // MARK: - 永続化
 
+    /// 配ったばかりで 1 手も進んでいない局か（#240）。
+    ///
+    /// 場が空のときはパスできない（`canPass`）ので、**最初の 1 手は必ずカードを出す手**になる。
+    /// よって「4人の手札の合計が山札と同じ = まだ誰も何もしていない」と言い切れる。
+    /// 麻雀ソリティアの「満杯の盤は保存しない」（`remainingCount < layout.count`）と同じ考え方。
+    private var isUntouchedDeal: Bool {
+        hands.reduce(0) { $0 + $1.count } == Self.deckCount
+    }
+
     private func persist() {
-        guard phase == .playing else {
+        // 配ったばかりの盤面は保存しない（#240）。開始してすぐ閉じただけでハブに「続きから」が
+        // 付くと、#15 で作ったバッジが「途中の対局がある」という意味を持たなくなる。
+        guard phase == .playing, !isUntouchedDeal else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -552,7 +582,8 @@ public final class DaifugoModel {
             finishOrder: finishOrder,
             fouls: Array(fouls).sorted(),
             gameNumber: gameNumber,
-            lastRanking: lastRanking
+            lastRanking: lastRanking,
+            lastActions: lastActions
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

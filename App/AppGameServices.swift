@@ -63,8 +63,16 @@ enum AppEnvironment {
     /// オフにしても自動収集イベント（`session_start` 等）が送られ続け、設定画面の説明と食い違う。
     /// 起動直後（`FirebaseApp.configure()` の後）と、トグルを切り替えたときに呼ぶ。
     static func applyAnalyticsCollectionState() {
-        // 撮影モードは広告と同じ理由で送信そのものを止める（動作確認の操作を実データに混ぜない）。
-        FirebaseAnalyticsService.setCollectionEnabled(!isScreenshotMode && settings.analyticsEnabled)
+        // 撮影モードに加え、開発ビルド（シミュレータ・Xcode 実行）も送信そのものを止める（#347）。
+        // 8月の計測初データが内部トラフィックで埋まり実ユーザー指標として読めなくなったため、
+        // debug は送らない・TestFlight は build_channel で分別・App Store 版は現状どおり、と分ける。
+        let isAllowedChannel = BuildChannel.current != .debug
+        FirebaseAnalyticsService.setCollectionEnabled(
+            !isScreenshotMode && isAllowedChannel && settings.analyticsEnabled
+        )
+        // 配布経路をユーザープロパティで付与し、GA4 側で実ユーザー（appstore）だけを
+        // 抽出できるようにする（#347 案A相当。収集オフのビルドでは SDK が送らないだけなので常に設定する）。
+        FirebaseAnalyticsService.setBuildChannel(BuildChannel.current.rawValue)
     }
 
     /// プレイ履歴（回数カウンタ・遊んだゲームの ID・ゲーム別の記録。盤面や棋譜は持たない）。
@@ -106,6 +114,9 @@ enum AppEnvironment {
         Game2048Module(),
         ShogiModule(),
         MahjongModule(),
+        // ナンプレは国内の検索需要が最大級のカテゴリなので上位に置く（#355 会長決裁・2026-08-31。
+        // それまでは #262 で末尾だった）。
+        SudokuModule(),
         OthelloModule(),
         MahjongSolitaireModule(),
         DaifugoModule(),
@@ -114,8 +125,6 @@ enum AppEnvironment {
         MinesweeperModule(),
         GomokuModule(),
         ConcentrationModule(),
-        // 数独（#262）は末尾に足す。上の並びは会長判断で決めたものなので順序は動かさない。
-        SudokuModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
