@@ -74,6 +74,12 @@ struct MahjongSnapshot: Codable {
     /// トビ復活（#338）を使い切ったか。中断を挟んでも「1 半荘 1 回まで」を守るために持ち回る。
     /// 上と同じ理由で任意（古い中断データは「まだ使っていない」扱いになる）。
     let hasRevivedThisGame: Bool?
+    // 局のリザルト中の中断（#350）で足した項目。同じく任意にして古い中断データも読めるようにする。
+    /// リザルト表示中に中断したときの決着内容。**nil なら対局中の中断**（この有無が
+    /// `.handResult` か `.playing` かをそのまま表す。決着内容は決着時にしか入らないため）。
+    let handResult: MahjongHandResult?
+    /// アガリやめが確定しているか。リザルト中断から再開しても終局判定を引き継ぐ。
+    let endsAfterThisHand: Bool?
 }
 
 // MARK: - Model
@@ -228,7 +234,13 @@ public final class MahjongModel {
             revealedDoraCount = snap.revealedDoraCount ?? 1
             deadWallDraws = snap.deadWallDraws ?? 0
             hasRevivedThisGame = snap.hasRevivedThisGame ?? false
-            phase = .playing
+            // 局のリザルト表示中に中断した場合はリザルトから再開する（#350）。以前は決着と同時に
+            // 中断データを消していたため、「次の局へ」を押す前に終了すると東風戦の途中経過
+            // （局数・持ち点・親・本場）がまるごと失われていた。旧形式（キー無し）は nil に
+            // 落ちるので、従来どおり対局中（`.playing`）として復元される。
+            handResult = snap.handResult
+            endsAfterThisHand = snap.endsAfterThisHand ?? false
+            phase = snap.handResult != nil ? .handResult : .playing
         }
     }
 
@@ -954,7 +966,6 @@ public final class MahjongModel {
 
     private func finishHand(dealerContinues: Bool) {
         phase = .handResult
-        services?.snapshots.clear(for: gameID)
         // アガリやめ: 東 4 局で親が連荘する条件を満たしていても、その親がトップなら終局する。
         // これを入れないと、勝っている親が連荘し続けるかぎり東風戦が終わらない。
         let isFinalRound = roundNumber >= Self.playerCount
@@ -973,6 +984,10 @@ public final class MahjongModel {
         case .some:           services?.feedback.notify(.error)
         case nil:             services?.feedback.notify(.warning)
         }
+        // リザルト表示中に離脱しても局間の経過が消えないよう、決着内容ごと保存する（#350）。
+        // 親・本場・局数の繰り上げが終わった後に保存するので、再開後の「次の局へ」は
+        // 中断が無かったときと同じ条件で次局を始められる。
+        persist()
     }
 
     /// 東風戦が終わったか。東 4 局を終えた（= 5 局目に入る）か、アガリやめか、誰かが飛んだとき。
@@ -1188,7 +1203,9 @@ public final class MahjongModel {
     // MARK: - 永続化
 
     private func persist() {
-        guard phase == .playing || phase == .ronOffer else {
+        // `.handResult` も保存対象（#350）。東風戦の決着（`.gameResult`）だけは従来どおり消す
+        // （終わった対局を「続きから」で開かない）。
+        guard phase == .playing || phase == .ronOffer || phase == .handResult else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -1212,7 +1229,9 @@ public final class MahjongModel {
             discardedKinds: discardedKinds.map { Array($0).sorted() },
             revealedDoraCount: revealedDoraCount,
             deadWallDraws: deadWallDraws,
-            hasRevivedThisGame: hasRevivedThisGame
+            hasRevivedThisGame: hasRevivedThisGame,
+            handResult: phase == .handResult ? handResult : nil,
+            endsAfterThisHand: endsAfterThisHand
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
