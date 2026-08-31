@@ -64,6 +64,13 @@
   `release/v1.1.2` にのみ積む。**対応するブランチが無ければ、直近の release ブランチの HEAD から自分で作成する**
   （`git push origin <最新releaseのHEAD>:refs/heads/release/vX.Y.Z`）。作成したらブランチ保護
   （test 必須 + 未解決スレッドでマージ不可）も同時に設定し、Issue にその旨を記録する。
+  - **保護の設定漏れは静かに効く。ブランチを作った回だけでなく、そのブランチへ最初に PR を出すときにも
+    `gh api repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection` で確認する**
+    （2026-09-01 追加）。`release/v1.1.3` は保護が未設定（404）のまま7本の PR がマージされ、
+    そのうち PR #367 は **CodeRabbit の未解決スレッド3件を抱えたままマージされていた**
+    （`required_conversation_resolution` が無いと機械的ゲートが一切効かない）。
+    当番の毎時巡回は**オープン PR しか見ない**ため、マージ済み PR に残った指摘はどの検知にも
+    掛からず、誰も見ないまま消える。消化は PR #379 で行った。
 - **release ブランチを作成したら、そのブランチの `.github/` を main と同期する**（2026-08-15 追加・#131）。
   **審査提出（= 下記の凍結）までの間**に main 側で `.github/` を直した場合も、`origin/main` を
   release ブランチへマージして横展開する。手順は、マージ前の HEAD を控えてからマージし、
@@ -340,8 +347,9 @@ main へマージしただけでは反映されない。会長の `git pull` を
 ## 運用ルール
 
 - アプリコードの PR のベースは **Issue のマイルストーンと同名の release ブランチ**。
-  **2026-08-30 現在、動いているのは `release/v1.1.2` の1本だけ**（`release/v1.1.0` と
-  `release/v1.1.1` はどちらも公開済みで、main へ取り込み済み・凍結済みのため push 禁止）。
+  **2026-09-01 現在、動いているのは `release/v1.1.3` の1本だけ**（`release/v1.1.0` と
+  `release/v1.1.1` は公開済みで main へ取り込み済み、`release/v1.1.2` は 2026-08-31 に
+  審査提出・凍結済み（タグ `v1.1.2-submitted`）。いずれも push 禁止）。
   運用系のみの変更は main 直可。
   **積む先はこの文書ではなくマイルストーン名と `git ls-remote origin 'refs/heads/release/*'` で確認する**
   （下記のとおり番号の付け替えが起きうるため、文書のほうが遅れる）。
