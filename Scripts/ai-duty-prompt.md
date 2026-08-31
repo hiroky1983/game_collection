@@ -138,7 +138,7 @@ Issue 本文が「◯◯の2週間後」のような**当番の努力では満�
 3. **返信コメントは必ず先頭を「解除確認」にする**（次回以降の毎時起動で同じコメントを拾い直さないための目印。1-e の「企画議論」接頭辞と同じ仕組み）。
 
 - **調査・分析系**: WebSearch/WebFetch（iTunes Search API `https://itunes.apple.com/search?country=jp&entity=software&term=...` が有用）で調査し、受け入れ条件を満たす成果物を Issue にコメントで報告。会長の決裁が必要な提案は「【要決裁あり】」を明記。完了したら ai:in-progress を外す（close は受け入れ条件を全て満たした場合のみ）。
-- **コード実装系**: **その Issue のマイルストーンと同名の release/vX.Y.Z ブランチ**から feature ブランチを切り、最小差分で実装。
+- **コード実装系**: **その Issue のマイルストーンと同名の release/vX.Y.Z ブランチ**から feature ブランチを切り、最小差分で実装。**新しいゲームの追加なら、着手前に docs/ai-devops.md「新ゲーム追加時の権利チェック」を必ず実施し、結果を Issue に記録する**（表示名・別名の商標確認。リバーシ/数独/上海の再発防止・2026-08-30 会長指示）。
   - **「最大バージョンの release ブランチを選ぶ」のは禁止**（2026-08-13 の事故: `release/v1.1.1` が存在しなかったため、v1.1.1 と v1.1.2 の成果物が審査提出済みの `release/v1.1.0` に8件積まれ、何が審査に入っているか判別不能になった）。
   - 対応する release ブランチが**無ければ自分で作る**: 直近の release ブランチの HEAD から `git push origin <sha>:refs/heads/release/vX.Y.Z` し、`gh api -X PUT repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection` で test 必須 + `required_conversation_resolution` を設定する。作成した事実を Issue にコメントで記録する。
   - **push する前に、ベースにしようとしている release ブランチが凍結（`lock_branch`）されていないか確認する**（`gh api repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection --jq '.lock_branch.enabled'`）。true なら審査提出済みなので、そのブランチには絶対に積まない。
@@ -190,6 +190,14 @@ App Store で公開されたバージョンが `release/vX.Y.Z` に追いつい�
    リリース Issue が残っていれば、取り込み・タグ・クローズの結果をコメントで記録する。
 
 ## 決裁リクエストの形式（会長向け・必須）
+
+**稟議・決裁依頼を PR のコメントに書いてはならない**（2026-08-31 会長決裁・#307）。会長への通知・リマインドは
+Issue しか巡回しないため、PR 上の決裁依頼は構造的に誰にも届かない。PR の作業中に決裁が必要になったら、
+関連 Issue（無ければ新規 Issue）に起案し、PR からはその Issue 番号をリンクするだけにする。
+
+また、**実装と会長の手作業（コンソール設定・ASC 操作等）が両方必要な案件は Issue を分ける**（同・#307）。
+1つの Issue に混在させると、会長作業待ちで実装側まで滞留する。実装 Issue と【会長操作依頼】Issue に分割し、
+相互リンクで関係を示す。
 
 会長の決裁が必要になったら、調査レポート等の長文とは**別に**、Issue の最後に必ず次の形式の「決裁スレッド」を1コメントで投稿する。会長はこのコメントだけ読めば判断できる状態にすること:
 
