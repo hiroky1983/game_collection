@@ -698,6 +698,87 @@ struct MahjongSnapshotTests {
     }
 }
 
+// MARK: - 終了理由（#352）
+
+@Suite("東風戦の終了理由")
+@MainActor
+struct MahjongGameEndReasonTests {
+
+    @Test("誰かがトビると gameEndReason は .busted になる")
+    func bustedReason() throws {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [],
+            scores: [30_000, -1_000, 35_000, 36_000],
+            roundNumber: 2
+        )
+        model.exhaustWallForTesting()
+        try #require(model.phase == .handResult)
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.gameEndReason == .busted)
+    }
+
+    @Test("東4局を終えると .completedAllRounds になる")
+    func completedReason() throws {
+        let model = makeModel()
+        model.startGame()
+        // 親は自分ではなく、全員ノーテンで流局 → 親が流れて roundNumber が 5 になる。
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [],
+            dealer: 3,
+            roundNumber: 4
+        )
+        model.exhaustWallForTesting()
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.gameEndReason == .completedAllRounds)
+    }
+
+    @Test("東4局でトップの親が連荘条件を満たすと .agariYame になる")
+    func agariYameReason() throws {
+        let model = makeModel()
+        model.startGame()
+        // 親（自分）がトップかつ聴牌で流局 → 連荘条件成立 + アガリやめで終局。
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("123m456m789m123p1s"),
+                junkHand(),
+                junkHand(),
+                junkHand(),
+            ],
+            wall: [],
+            dealer: 0,
+            scores: [40_000, 20_000, 20_000, 20_000],
+            roundNumber: 4
+        )
+        model.exhaustWallForTesting()
+        try #require(model.handResult?.tenpaiPlayers.contains(0) == true)
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.gameEndReason == .agariYame)
+    }
+
+    @Test("新しい対局を始めると終了理由はクリアされる")
+    func reasonClearsOnNewGame() {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [junkHand(), junkHand(), junkHand(), junkHand()],
+            wall: [],
+            scores: [30_000, -1_000, 35_000, 36_000]
+        )
+        model.exhaustWallForTesting()
+        model.advanceToNextHand()
+        #expect(model.gameEndReason == .busted)
+        model.startGame()
+        #expect(model.gameEndReason == nil)
+    }
+}
+
 // MARK: - 通し
 
 @Suite("東風戦の通し")
