@@ -114,6 +114,9 @@ enum AppEnvironment {
         Game2048Module(),
         ShogiModule(),
         MahjongModule(),
+        // ナンプレは国内の検索需要が最大級のカテゴリなので上位に置く（#355 会長決裁・2026-08-31。
+        // それまでは #262 で末尾だった）。
+        SudokuModule(),
         OthelloModule(),
         MahjongSolitaireModule(),
         DaifugoModule(),
@@ -122,8 +125,6 @@ enum AppEnvironment {
         MinesweeperModule(),
         GomokuModule(),
         ConcentrationModule(),
-        // 数独（#262）は末尾に足す。上の並びは会長判断で決めたものなので順序は動かさない。
-        SudokuModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
