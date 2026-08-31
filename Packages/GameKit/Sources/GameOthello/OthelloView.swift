@@ -197,6 +197,14 @@ public struct OthelloView: View {
                 // 段差（`OthelloFlip.stagger`）は進捗の割合として持たせているので、
                 // ここは全体を等速で進める `.linear` にする。
                 .gameAnimation(.linear(duration: OthelloFlip.duration), value: model.placementCount)
+                // `Canvas` は下地の `RoundedRectangle` と兄弟で、自身の矩形いっぱいに描くため、
+                // 盤の四隅では角丸の外側へ**直角の角がはみ出す**（グリッド線・端のマスの石・
+                // #366 で足した落ち影が角丸の外に出て、盤の輪郭が角ばって見える）。
+                // 実測: 四隅だけで 740px の差が出ており、盤の内側の見た目は変わらない。
+                // クリップはヒットテスト領域も狭めるので、角のマスを取りこぼさないよう
+                // タップ判定は矩形のまま保つ。
+                .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+                .contentShape(Rectangle())
                 .gesture(
                     SpatialTapGesture()
                         .onEnded { val in
