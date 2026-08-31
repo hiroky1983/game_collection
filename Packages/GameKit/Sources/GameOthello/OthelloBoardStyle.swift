@@ -22,14 +22,19 @@ enum OthelloBoardStyle {
 
     // MARK: - 石の質感（#366）
 
-    /// 黒石のハイライト側（左上の照り）とベース側。ラジアルグラデーションの両端。
-    static let stoneBlackHighlight: UInt32 = 0x4F4F4F
-    static let stoneBlackBase: UInt32 = 0x0E0E0E
+    /// オセロの石は碁石（半球）ではなく**上面が平らな円柱**に見せる（会長フィードバック）。
+    /// 上面は縦の linear グラデーション（明度差は控えめ）、その下に側面のだ円をのぞかせる。
+    /// 左上ハイライトのラジアルにするとドーム（碁石）に見えるので使わない。
+    static let stoneBlackFaceTop: UInt32 = 0x3C3C3C
+    static let stoneBlackFaceBottom: UInt32 = 0x141414
+    static let stoneBlackSide: UInt32 = 0x000000
 
-    /// 白石のハイライト側とベース側。ベースは従来の単色（0xF0ECD8）より一段暗く沈め、
-    /// ハイライトとの差で盤上の白石にふくらみを出す。
-    static let stoneWhiteHighlight: UInt32 = 0xFFFFFF
-    static let stoneWhiteBase: UInt32 = 0xD8D2B9
+    static let stoneWhiteFaceTop: UInt32 = 0xFFFDF2
+    static let stoneWhiteFaceBottom: UInt32 = 0xE4DEC6
+    static let stoneWhiteSide: UInt32 = 0xAFA98F
+
+    /// 側面が見える高さ（石の半径に対する比）。上面と側面のだ円をこれだけ縦にずらす。
+    static let stoneRimHeightRatio: CGFloat = 0.18
 
     /// 石の落ち影。ぼかし半径と下方向のずれはマスの一辺に対する比で持つ。
     static let stoneShadowOpacity: Double = 0.30
