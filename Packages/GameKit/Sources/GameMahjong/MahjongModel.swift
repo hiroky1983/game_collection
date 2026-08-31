@@ -46,6 +46,17 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     public let pointChanges: [Int]
 }
 
+/// 東風戦が終わった理由。リザルトの見出しに使う（#352。東2局で突然終わっても
+/// 「なぜ終わったか」が画面から読めるようにする）。
+public enum MahjongGameEndReason: Equatable, Sendable {
+    /// 東4局まで打ち切った（通常の終局）。
+    case completedAllRounds
+    /// 東4局の親がトップのまま連荘条件を満たしたため打ち切った。
+    case agariYame
+    /// 誰かの持ち点がマイナスになった。
+    case busted
+}
+
 // MARK: - 永続化
 
 struct MahjongSnapshot: Codable {
@@ -190,6 +201,8 @@ public final class MahjongModel {
     private var endsAfterThisHand = false
     /// この半荘でトビ復活（#338）を既に使ったか。1 半荘 1 回までの制限に使う。
     private var hasRevivedThisGame = false
+    /// 東風戦が終わった理由。`.gameResult` のときだけ入る（#352）。
+    public private(set) var gameEndReason: MahjongGameEndReason?
 
     private let services: GameServices?
     private let gameID = "mahjong4"
@@ -410,6 +423,7 @@ public final class MahjongModel {
         endsAfterThisHand = false
         hasRevivedThisGame = false
         canReviveAfterBust = false
+        gameEndReason = nil
         gameSerial += 1
         startHand()
         services?.gameDidRestart(gameID: gameID)
@@ -1001,6 +1015,13 @@ public final class MahjongModel {
     }
 
     private func concludeGame() {
+        // 終了理由をリザルトの見出し用に確定する（#352）。トビは他の条件と同時に成立しうるが、
+        // 突然終わる驚きが最も大きいので最優先で表示する。次いで「東4局を終えた」が自然な終局、
+        // アガリやめはその変形（roundNumber は 4 のまま）なので最後に判定する。
+        gameEndReason = scores.contains(where: { $0 < 0 }) ? .busted
+            : roundNumber > Self.playerCount ? .completedAllRounds
+            : endsAfterThisHand ? .agariYame
+            : .completedAllRounds
         // 同点は席順（親から近い順）で上位にする。
         ranking = (0..<Self.playerCount).sorted {
             (scores[$0], -seatWind($0)) > (scores[$1], -seatWind($1))
@@ -1064,6 +1085,7 @@ public final class MahjongModel {
             scores[player] = Self.startingScore
         }
         ranking = []
+        gameEndReason = nil
         // 局と親は決着時に次へ進んでいる（`finishHand`）ので、そのまま次の局を配る。
         startHand()
         // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158。

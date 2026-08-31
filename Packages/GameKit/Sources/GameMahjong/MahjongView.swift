@@ -96,7 +96,14 @@ public struct MahjongView: View {
                 showStartSheet = false
                 model.startGame()
                 Task { await model.runCPUTurnsIfNeeded() }
+            } onCancel: {
+                // 「覗いてみたけど今はやめる」の退路（#352）。対局は始まっていないので
+                // 記録・解析のイベントは何も発生しない（それらは `startGame()` だけが送る）。
+                showStartSheet = false
+                dismiss()
             }
+            // スワイプで閉じると「シートだけ消えて空の卓が残る」ため引き続き無効。
+            // 閉じる操作はキャンセル（ハブへ戻る）に一本化する。
             .interactiveDismissDisabled(true)
         }
         .task {
@@ -669,9 +676,18 @@ public struct MahjongView: View {
         }
     }
 
+    /// 東風戦の終わり方は3種類あり、東2局で突然終わっても理由が読めるよう見出しを分ける（#352）。
+    private var gameResultTitle: String {
+        switch model.gameEndReason {
+        case .busted:    return "トビで終了"
+        case .agariYame: return "アガリやめで終了"
+        case .completedAllRounds, nil: return "東風戦終了"
+        }
+    }
+
     private var gameResultCard: some View {
         VStack(spacing: 10) {
-            Text("東風戦終了")
+            Text(gameResultTitle)
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .foregroundStyle(Theme.coral)
             if let place = model.playerPlace {
@@ -721,8 +737,11 @@ public struct MahjongView: View {
                 }
             }
         } label: {
-            Label("広告を見て25,000点で復活", systemImage: "play.rectangle.fill")
+            // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
+            // 書かないと2回目を期待して押す人が出る）。
+            Label("広告を見て25,000点で復活（1半荘に1回）", systemImage: "play.rectangle.fill")
                 .themeBody(16).frame(maxWidth: .infinity)
+                .minimumScaleFactor(0.8)
         }
         .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
         .disabled(isReviving)
@@ -856,6 +875,8 @@ public struct MahjongView: View {
 
 struct MahjongStartSheet: View {
     let onStart: () -> Void
+    /// キャンセル（ハブへ戻る）。12本中この1本だけ「入ったら戻れない」状態だった（#352）。
+    let onCancel: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -901,6 +922,11 @@ struct MahjongStartSheet: View {
             .padding(Theme.pad)
             .popBackground()
             .navigationTitle("麻雀")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") { onCancel() }
+                }
+            }
         }
         .presentationDetents([.large])
     }
