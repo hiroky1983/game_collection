@@ -263,6 +263,10 @@ self_update() {
 #     `last_owner_body` 側の除外には**入れない**。あちらは「経営企画室のコメントを飛ばして
 #     手前の会長コメントを見る」ためのもので、当番マーカーを入れると自分の応答を飛ばして
 #     応答済みの古い会長コメントを拾い、かえって鳴り止まなくなる。
+#     判定は `contains` ではなく**記録形式そのもの**（先頭一致）で行う。`contains("決裁反映")` だと
+#     会長が「前回の決裁反映を確認した」のように語を引用しただけのコメントを当番の応答と誤認し、
+#     決裁着信・解除確認をまるごと取りこぼす（PR #387 の CodeRabbit 指摘）。形式は
+#     ai-duty-prompt.md の正典（`## 【要決裁】…` / `決裁反映: …`）に揃えてある。
 # 変数に出しているのは、同じ定義を Scripts/tests/test-ai-duty-detect.sh から評価するため。
 DUTY_JQ_COMMENT_LIB='
 def last_owner_body($actors):
@@ -275,8 +279,8 @@ def is_duty_reply($b):
   ($b | startswith("企画議論"))
   or ($b | startswith("解除確認"))
   or ($b | startswith("着手見送り:"))
-  or ($b | contains("【要決裁】"))
-  or ($b | contains("決裁反映"));
+  or ($b | startswith("## 【要決裁】"))
+  or ($b | startswith("決裁反映:"));
 
 def is_ringi_reply($actors):
   last_owner_body($actors) as $b

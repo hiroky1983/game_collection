@@ -135,9 +135,14 @@ check "最後が当番の決裁スレッドなら発火しない（#386）" "fal
 # #386: 当番マーカーの集合を is_duty_reply に集約したため、3つの判定がすべて同じ集合を見る。
 # どれか1つが取りこぼすと、その接頭辞で応答した Issue が恒久的に空振りし続ける。
 echo "== 7-b. 当番マーカーの集合が仕事5・8・11 で揃っている（#386）=="
-for prefix in "企画議論（経営企画室）: 回答します" "解除確認: まだ条件未達" \
-              "着手見送り: 着手条件 xxx が未達" "$RINGI_THREAD" "決裁反映: 承認のため着手します"; do
-  label="$(printf '%s' "$prefix" | head -1 | cut -c1-12)"
+# "表示名=本文" の形で持つ（cut -c はバイト単位で、日本語を途中で割ると表示が壊れる）
+for entry in "企画議論=企画議論（経営企画室）: 回答します" \
+             "解除確認=解除確認: まだ条件未達" \
+             "着手見送り=着手見送り: 着手条件 xxx が未達" \
+             "決裁スレッド=$RINGI_THREAD" \
+             "決裁反映=決裁反映: 承認のため着手します"; do
+  label="${entry%%=*}"
+  prefix="${entry#*=}"
   check "仕事5 が「${label}…」で発火しない" "false" \
     "$(ringi "$(node "ringi:pending" "hiroky1983=会長の指示" "hiroky1983=$prefix")")"
   check "仕事8 が「${label}…」で発火しない" "false" \
@@ -145,6 +150,23 @@ for prefix in "企画議論（経営企画室）: 回答します" "解除確認
   check "仕事11 が「${label}…」で発火しない" "false" \
     "$(blocked "$(node "blocked" "hiroky1983=会長の指示" "hiroky1983=$prefix")")"
 done
+# PR #387 の CodeRabbit 指摘: マーカーは記録形式（先頭一致）で判定する。contains だと会長が
+# 語を引用しただけのコメントを当番の応答と誤認し、決裁着信・解除確認をまるごと取りこぼす。
+echo "== 7-c. 会長が決裁マーカーの語を引用しただけなら発火する（PR #387）=="
+for qentry in "決裁反映の引用=前回の決裁反映を確認しました。続けてください" \
+              "【要決裁】の引用=【要決裁】の件だけど、Bで進めてほしい"; do
+  qlabel="${qentry%%=*}"
+  quoted="${qentry#*=}"
+  check "仕事5 は引用「${qlabel}…」で発火する" "true" \
+    "$(ringi "$(node "ringi:pending" "hiroky1983=$RINGI_THREAD" "hiroky1983=$quoted")")"
+  check "仕事8 は引用「${qlabel}…」で発火する" "true" \
+    "$(proposed "$(node "ai:proposed" "hiroky1983=$quoted")")"
+  check "仕事11 は引用「${qlabel}…」で発火する" "true" \
+    "$(blocked "$(node "blocked" "hiroky1983=解除確認: 未達" "hiroky1983=$quoted")")"
+done
+check "正規の決裁反映（先頭一致）は当番の記録として除外される" "false" \
+  "$(ringi "$(node "ringi:pending" "hiroky1983=$CHAIRMAN" "hiroky1983=決裁反映: 承認のため着手します")")"
+
 # 集約が「常に false を返す」実装になっていないことの対照（会長の生コメントは3つとも発火する）
 check "仕事5 は会長の素のコメントでは発火する（集約が潰していない）" "true" \
   "$(ringi "$(node "ringi:pending" "hiroky1983=解除しました" "hiroky1983=$CHAIRMAN")")"
