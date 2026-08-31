@@ -1,5 +1,38 @@
 import SwiftUI
 import Core
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
+/// 同梱の木目テクスチャ（#366）。
+///
+/// `Image(名前, bundle: .module)` は SPM バンドル + 実ファイル（アセットカタログでない）の
+/// 組み合わせで解決に失敗して**静かに何も描かない**ため、URL から UIImage/NSImage 経由で
+/// 確実に読み込む。失敗時は透明ではなく単色を返し、消えたことに気づけるようにする。
+enum ShogiWood {
+    static let koma: Image = load("koma-wood")
+    static let board: Image = load("board-wood")
+
+    private static func load(_ name: String) -> Image {
+        guard let url = Bundle.module.url(forResource: name, withExtension: "png") else {
+            assertionFailure("木目テクスチャが見つからない: \(name)")
+            return Image(systemName: "exclamationmark.triangle")
+        }
+        #if canImport(UIKit)
+        if let image = UIImage(contentsOfFile: url.path) {
+            return Image(uiImage: image)
+        }
+        #elseif canImport(AppKit)
+        if let image = NSImage(contentsOf: url) {
+            return Image(nsImage: image)
+        }
+        #endif
+        assertionFailure("木目テクスチャを読み込めない: \(name)")
+        return Image(systemName: "exclamationmark.triangle")
+    }
+}
 
 /// 将棋の対局画面（CPU 対戦）。人間の手番側を常に手前に表示する。
 public struct ShogiView: View {
@@ -193,7 +226,7 @@ public struct ShogiView: View {
             // 盤の木地（#366）: 同梱の柾目テクスチャを盤全体に敷き、格子線と星をその上に引く。
             .background {
                 ZStack {
-                    Image("board-wood", bundle: .module)
+                    ShogiWood.board
                         .resizable()
                         .scaledToFill()
                     boardGrid
@@ -791,7 +824,7 @@ struct KomaView: View {
     /// 全駒が同じ木目の複製に見えないようにする（駒種から決まる決定的な値）。
     @ViewBuilder private var textureOverlay: some View {
         if style.textured {
-            Image("koma-wood", bundle: .module)
+            ShogiWood.koma
                 .resizable()
                 .scaledToFill()
                 .scaleEffect(1.35, anchor: textureAnchor)
