@@ -200,6 +200,19 @@ public final class GomokuModel {
         persist()
     }
 
+    #if DEBUG
+    /// 撮影用（#366）: 中盤風の盤面を作る（`-gomokuMidgame` 起動引数）。
+    /// 五連にならない固定手順で、人間（黒）の手番で止まるため CPU は動き出さない。
+    public func applyPreviewMidgameForTesting() {
+        guard moveCount == 0, !gameOver else { return }
+        let preset: [(Int, Int)] = [(7, 7), (7, 8), (8, 8), (8, 7), (6, 8),
+                                    (6, 7), (8, 6), (7, 6), (9, 7), (9, 9)]
+        for (row, col) in preset where board[row, col] == nil && !gameOver {
+            place(row: row, col: col)
+        }
+    }
+    #endif
+
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
         // 計算中に新規対局が始まると、旧盤面で選んだ手が新しい盤面に着手されてしまう。
