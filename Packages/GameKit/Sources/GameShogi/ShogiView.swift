@@ -557,48 +557,56 @@ struct KomaView: View {
         ZStack {
             // 側面（#366）: 本体を下へずらした同じ駒形を濃い木色で敷き、木駒の厚みを見せる。
             // 落ち影はいちばん下のこの層に掛ける（本体に掛けると影が自分の側面に落ちて濁る）。
+            //
+            // 向きの回転はこの層と本体に**別々に**掛ける。外側の ZStack ごと回すと
+            // 下方向のオフセットまで回って、後手の駒だけ厚みが上端に出てしまう
+            // （厚みと影は駒の向きに関係なく、机に置かれた実物として常に下端が正しい）。
+            // 回転 → オフセットの順なので、ずれは常に画面座標の下向きになる。
             KomaShape()
                 .fill(BoardStyle.komaWoodSide)
+                .rotationEffect(.degrees(pointsUp ? 0 : 180))
                 .offset(y: size * 0.045)
                 .shadow(color: .black.opacity(0.28), radius: 2, y: 1.5)
             // 木地: 上が明るく下がやや濃い縦グラデーションで、削り出した木の丸みを表現。
-            KomaShape()
-                .fill(
-                    LinearGradient(
-                        colors: [BoardStyle.komaWoodLight, BoardStyle.komaWoodDark],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                // 木目（#366）: 緩い縦カーブの筋を低い不透明度で重ねる。文字より下の層。
-                .overlay(
-                    KomaGrainShape()
-                        .stroke(BoardStyle.komaGrain.opacity(0.16),
-                                lineWidth: max(0.5, size * 0.02))
-                        .clipShape(KomaShape())
-                )
-                .overlay(KomaShape().stroke(Color(hex: 0x8A6A32).opacity(0.6), lineWidth: 1))
-                // ベゼル: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
-                .overlay(
-                    KomaShape()
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.55), .clear, Color.black.opacity(0.25)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: max(1, size * 0.035)
+            ZStack {
+                KomaShape()
+                    .fill(
+                        LinearGradient(
+                            colors: [BoardStyle.komaWoodLight, BoardStyle.komaWoodDark],
+                            startPoint: .top,
+                            endPoint: .bottom
                         )
-                )
-            Text(Glyph.kanji(for: piece))
-                .font(.system(size: size * 0.46, weight: .black, design: .serif))
-                .foregroundStyle(piece.promoted ? Theme.coral : Color(hex: 0x2A1B0E))
-                // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
-                .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
-                .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
+                    )
+                    // 木目（#366）: 緩い縦カーブの筋を低い不透明度で重ねる。文字より下の層。
+                    .overlay(
+                        KomaGrainShape()
+                            .stroke(BoardStyle.komaGrain.opacity(0.16),
+                                    lineWidth: max(0.5, size * 0.02))
+                            .clipShape(KomaShape())
+                    )
+                    .overlay(KomaShape().stroke(Color(hex: 0x8A6A32).opacity(0.6), lineWidth: 1))
+                    // ベゼル: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
+                    .overlay(
+                        KomaShape()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.55), .clear, Color.black.opacity(0.25)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: max(1, size * 0.035)
+                            )
+                    )
+                Text(Glyph.kanji(for: piece))
+                    .font(.system(size: size * 0.46, weight: .black, design: .serif))
+                    .foregroundStyle(piece.promoted ? Theme.coral : Color(hex: 0x2A1B0E))
+                    // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
+                    .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
+                    .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
+            }
+            .rotationEffect(.degrees(pointsUp ? 0 : 180))
         }
         .frame(width: size * 0.86, height: size * 0.86)
-        .rotationEffect(.degrees(pointsUp ? 0 : 180))
     }
 }
 
