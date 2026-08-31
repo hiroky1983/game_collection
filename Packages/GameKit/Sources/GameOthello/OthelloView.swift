@@ -96,6 +96,14 @@ public struct OthelloView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        .task {
+            #if DEBUG
+            // 撮影用（#366）: 中盤の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
+            if ProcessInfo.processInfo.arguments.contains("-othelloMidgame") {
+                model.applyPreviewMidgameForTesting()
+            }
+            #endif
+        }
     }
 
     // MARK: - Status Bar (スコアも一行に統合)
@@ -159,8 +167,21 @@ public struct OthelloView: View {
                 : Set(model.board.validMoves(for: model.currentStone).map { $0.0 * othelloBoardSize + $0.1 })
 
             ZStack {
+                // 盤は上端 `boardGreen` → 下端 `boardGreenDeep` へ暗くする（#366）。
+                // 合法手ドットのコントラストは明るい側（上端）で測っているので、
+                // 暗くする方向のグラデーションなら保証はどこでも崩れない。
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Color(hex: OthelloBoardStyle.boardGreen))
+                    .fill(LinearGradient(
+                        colors: [Color(hex: OthelloBoardStyle.boardGreen),
+                                 Color(hex: OthelloBoardStyle.boardGreenDeep)],
+                        startPoint: .top, endPoint: .bottom))
+                    .overlay(
+                        // 上辺にだけ細い照りを乗せ、盤の面が起きている感じを出す。
+                        RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                            .strokeBorder(LinearGradient(
+                                colors: [.white.opacity(0.22), .white.opacity(0)],
+                                startPoint: .top, endPoint: .bottom), lineWidth: 1.5)
+                    )
                     .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
 
                 OthelloBoardCanvas(
@@ -426,6 +447,14 @@ private struct OthelloBoardCanvas: View, Animatable {
                 ctx.stroke(hp, with: lineShading, lineWidth: 1)
             }
 
+            // 星（盤の目印・#366）。グリッド線の交点に打つので石より先に描く。
+            for star in OthelloBoardStyle.starPoints {
+                let px = CGFloat(star.col) * c, py = CGFloat(star.row) * c
+                let r = c * OthelloBoardStyle.starPointRadiusRatio
+                ctx.fill(Path(ellipseIn: CGRect(x: px-r, y: py-r, width: r*2, height: r*2)),
+                         with: lineShading)
+            }
+
             // 合法手ドット
             for idx in validSet {
                 let row = idx / othelloBoardSize, col = idx % othelloBoardSize
@@ -436,12 +465,27 @@ private struct OthelloBoardCanvas: View, Animatable {
                                           .opacity(OthelloBoardStyle.legalMoveDotOpacity)))
             }
 
-            // 石
+            // 石は「上面 + 下にのぞく側面」の 2 枚のだ円で**上面が平らな円柱**に見せる（#366）。
+            // 1 枚のだ円にラジアルの照りを乗せるとドーム（碁石）に見えるので使わない。
+            // 石ごとの姿（色・幅・大きさ）をここで確定し、描画は 2 パスで行う。
+            struct StoneShape {
+                let faceRect: CGRect
+                let sideRect: CGRect
+                let shown: OthelloStone
+                let edgeShade: Double
+                let centerX: CGFloat
+            }
+            var shapes: [StoneShape] = []
             for row in 0..<othelloBoardSize {
                 for col in 0..<othelloBoardSize {
                     guard let stone = board[row, col] else { continue }
                     let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                    let r  = c * OthelloBoardStyle.stoneRadiusRatio
+                    var r  = c * OthelloBoardStyle.stoneRadiusRatio
+
+                    // 置いた瞬間の石は大きめに出して実寸へ落とす（ドロップ感・#366）。
+                    if let last = lastMove, last.row == row, last.col == col {
+                        r *= CGFloat(OthelloFlip.popScale(progress: progress))
+                    }
 
                     // 返っている最中の石は、縦軸まわりに回っているように横幅だけ縮める。
                     // 真横を向く折り返しで色が入れ替わるので、盤の色が変わる瞬間が目で追える。
@@ -454,23 +498,72 @@ private struct OthelloBoardCanvas: View, Animatable {
                         rx = r * CGFloat(OthelloFlip.widthScale(progress: p))
                     }
 
-                    let rect = CGRect(x: cx-rx, y: cy-r, width: rx*2, height: r*2)
-                    if shown == .black {
-                        ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0x1A1A1A)))
-                    } else {
-                        ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0xF0ECD8)))
-                        ctx.stroke(Path(ellipseIn: rect), with: .color(Color.gray.opacity(0.3)), lineWidth: 1)
-                    }
-                    // 直前手マーカー。置いた石にだけ出るので、反転中の石には掛からない。
-                    if let last = lastMove, last.row == row, last.col == col {
-                        let mr = r * 0.3
-                        let mRect = CGRect(x: cx-mr, y: cy-mr, width: mr*2, height: mr*2)
-                        ctx.fill(Path(ellipseIn: mRect),
-                                 with: .color(stone == .black
-                                              ? Color.white.opacity(0.5)
-                                              : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5)))
-                    }
+                    // 側面の高さぶんを上下に振り分け、石全体をマスの中央に収める。
+                    let rimH = r * OthelloBoardStyle.stoneRimHeightRatio
+                    let faceRect = CGRect(x: cx - rx, y: cy - rimH / 2 - r, width: rx * 2, height: r * 2)
+                    shapes.append(StoneShape(
+                        faceRect: faceRect,
+                        sideRect: faceRect.offsetBy(dx: 0, dy: rimH),
+                        shown: shown,
+                        // 反転中は細くなった幅のぶんだけ暗く沈め、回転中の陰影に見せる。
+                        edgeShade: OthelloBoardStyle.flipEdgeShadeMaxOpacity
+                            * (1 - Double(rx / max(r, 0.0001))),
+                        centerX: cx))
                 }
+            }
+
+            // パス1: 側面（最下層）。落ち影はここにだけ掛ける（フィルタは以後の描画
+            // それぞれに適用されるので石 1 枚ごとに影が付く）。上面まで同じレイヤーに
+            // 入れると上面の影が自分の側面に落ちて縁が濁る。
+            ctx.drawLayer { layer in
+                layer.addFilter(.shadow(
+                    color: .black.opacity(OthelloBoardStyle.stoneShadowOpacity),
+                    radius: c * OthelloBoardStyle.stoneShadowRadiusRatio,
+                    x: 0, y: c * OthelloBoardStyle.stoneShadowOffsetRatio))
+                for shape in shapes {
+                    layer.fill(Path(ellipseIn: shape.sideRect),
+                               with: .color(Color(hex: shape.shown == .black
+                                                  ? OthelloBoardStyle.stoneBlackSide
+                                                  : OthelloBoardStyle.stoneWhiteSide)))
+                }
+            }
+
+            // パス2: 上面。平らな面に見えるよう明度差の小さい縦グラデーションに留める。
+            for shape in shapes {
+                let colors = shape.shown == .black
+                    ? [Color(hex: OthelloBoardStyle.stoneBlackFaceTop),
+                       Color(hex: OthelloBoardStyle.stoneBlackFaceBottom)]
+                    : [Color(hex: OthelloBoardStyle.stoneWhiteFaceTop),
+                       Color(hex: OthelloBoardStyle.stoneWhiteFaceBottom)]
+                let facePath = Path(ellipseIn: shape.faceRect)
+                ctx.fill(facePath, with: .linearGradient(
+                    Gradient(colors: colors),
+                    startPoint: CGPoint(x: shape.centerX, y: shape.faceRect.minY),
+                    endPoint: CGPoint(x: shape.centerX, y: shape.faceRect.maxY)))
+                if shape.shown == .white {
+                    ctx.stroke(facePath, with: .color(Color.gray.opacity(0.3)), lineWidth: 1)
+                }
+                if shape.edgeShade > 0.01 {
+                    ctx.fill(facePath, with: .color(.black.opacity(shape.edgeShade)))
+                    ctx.fill(Path(ellipseIn: shape.sideRect),
+                             with: .color(.black.opacity(shape.edgeShade)))
+                }
+            }
+
+            // 直前手マーカー。置いた石にだけ出るので、反転中の石には掛からない。
+            // 反転の進みに合わせてフェードインさせ、着地前の石に印が乗らないようにする。
+            if let last = lastMove, let stone = board[last.row, last.col] {
+                let cx = (CGFloat(last.col) + 0.5) * c, cy = (CGFloat(last.row) + 0.5) * c
+                let r = c * OthelloBoardStyle.stoneRadiusRatio
+                // 上面の中心（側面ぶん上にずれている）へ合わせる。
+                let faceCY = cy - r * OthelloBoardStyle.stoneRimHeightRatio / 2
+                let mr = r * 0.3
+                let mRect = CGRect(x: cx-mr, y: faceCY-mr, width: mr*2, height: mr*2)
+                ctx.fill(Path(ellipseIn: mRect),
+                         with: .color((stone == .black
+                                       ? Color.white.opacity(0.5)
+                                       : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5))
+                                          .opacity(progress)))
             }
         }
     }
