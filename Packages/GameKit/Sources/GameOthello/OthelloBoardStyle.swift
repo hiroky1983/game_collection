@@ -13,6 +13,40 @@ enum OthelloBoardStyle {
     /// 盤の緑地。合法手ドットのコントラストはこの色を背景として測る。
     static let boardGreen: UInt32 = 0x1C6B36
 
+    /// 盤の緑地の下端（#366）。上端 `boardGreen` から下へ向けて暗くするグラデーションの終点。
+    ///
+    /// **`boardGreen` より必ず暗い側にしか振らない**こと。白い合法手ドットのコントラストは
+    /// `boardGreen`（最も明るい上端）を背景として測っており、下端が明るくなると
+    /// `OthelloBoardStyleTests` の保証が実際の盤の一部で崩れる。
+    static let boardGreenDeep: UInt32 = 0x14522A
+
+    // MARK: - 石の質感（#366）
+
+    /// 黒石のハイライト側（左上の照り）とベース側。ラジアルグラデーションの両端。
+    static let stoneBlackHighlight: UInt32 = 0x4F4F4F
+    static let stoneBlackBase: UInt32 = 0x0E0E0E
+
+    /// 白石のハイライト側とベース側。ベースは従来の単色（0xF0ECD8）より一段暗く沈め、
+    /// ハイライトとの差で盤上の白石にふくらみを出す。
+    static let stoneWhiteHighlight: UInt32 = 0xFFFFFF
+    static let stoneWhiteBase: UInt32 = 0xD8D2B9
+
+    /// 石の落ち影。ぼかし半径と下方向のずれはマスの一辺に対する比で持つ。
+    static let stoneShadowOpacity: Double = 0.30
+    static let stoneShadowRadiusRatio: CGFloat = 0.09
+    static let stoneShadowOffsetRatio: CGFloat = 0.06
+
+    /// 反転中に見せる「縁の厚み」の濃さの上限。真横（幅が最小）でこの濃さになる。
+    static let flipEdgeShadeMaxOpacity: Double = 0.45
+
+    // MARK: - 星（盤の目印・#366）
+
+    /// 星を打つ線の交点（行・列の線番号）。実物の盤と同じく四隅から 2 マス内側。
+    static let starPoints: [(row: Int, col: Int)] = [(2, 2), (2, 6), (6, 2), (6, 6)]
+
+    /// 星の半径（マスの一辺に対する比）。合法手ドットより十分小さく、目印に徹する。
+    static let starPointRadiusRatio: CGFloat = 0.07
+
     // MARK: - 合法手ドット（#205）
 
     /// 合法手ドットの色。盤の緑地の上に `legalMoveDotOpacity` で重ねる。

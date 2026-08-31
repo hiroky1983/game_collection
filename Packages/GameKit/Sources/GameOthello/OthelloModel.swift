@@ -222,6 +222,26 @@ public final class OthelloModel {
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
 
+    #if DEBUG
+    /// 撮影用（#366）: 序盤から数手だけ機械的に進めた盤面を作る（`-othelloMidgame` 起動引数）。
+    /// 人間の手番で止め、撮影中に CPU が着手して盤が動かないようにする。
+    public func applyPreviewMidgameForTesting(placements: Int = 9) {
+        guard turnID == 0, !gameOver else { return }
+        var remaining = placements
+        while remaining > 0, !gameOver {
+            if mustPass { confirmPass(); continue }
+            guard let mv = board.validMoves(for: currentStone).first else { break }
+            place(row: mv.0, col: mv.1)
+            remaining -= 1
+        }
+        while !gameOver, currentStone != humanSide {
+            if mustPass { confirmPass(); continue }
+            guard let mv = board.validMoves(for: currentStone).first else { break }
+            place(row: mv.0, col: mv.1)
+        }
+    }
+    #endif
+
     private func saveUndoState() {
         undoHistory.append(TurnState(cells: board.cells, currentStone: currentStone))
     }

@@ -79,6 +79,31 @@ struct OthelloFlipTests {
         #expect(OthelloFlip.stagger * 5 + OthelloFlip.span <= 1.0)
     }
 
+    // MARK: - 着手のドロップ演出（#366）
+
+    /// 置いた石は「大きめに出て実寸へ着地する」こと。跳ね返らず単調に落ち着き、
+    /// 実寸を下回らない（下回ると着地の瞬間に石が凹んで見える）。
+    @Test func popScaleStartsLargeAndSettlesMonotonically() {
+        #expect(abs(OthelloFlip.popScale(progress: 0) - (1 + OthelloFlip.popExtraScale)) < 0.0001)
+        #expect(OthelloFlip.popScale(progress: OthelloFlip.popSettlePortion) == 1)
+        #expect(OthelloFlip.popScale(progress: 1) == 1)
+
+        var previous = OthelloFlip.popScale(progress: 0)
+        for step in 1...20 {
+            let scale = OthelloFlip.popScale(progress: Double(step) / 20)
+            #expect(scale <= previous + 0.0001)
+            #expect(scale >= 1)
+            previous = scale
+        }
+    }
+
+    /// 「置く → まわりが返る」の因果が読めるよう、最初の石（距離1・区間 `span`）が
+    /// 返りきるより先に着地すること。
+    @Test func popSettlesBeforeFirstFlipCompletes() {
+        #expect(OthelloFlip.popSettlePortion > 0)
+        #expect(OthelloFlip.popSettlePortion <= OthelloFlip.span)
+    }
+
     // MARK: - 受け入れ条件3: CPU 対戦のテンポが過度に長くならない
 
     /// 演出の長さの上限を固定する（受け入れ条件3）。
