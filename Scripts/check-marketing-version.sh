@@ -73,8 +73,8 @@ if [ "$ACTUAL" != "$EXPECTED" ]; then
   cat >&2 <<EOF
 check-marketing-version: MARKETING_VERSION がブランチ名と一致しません
 
-  ブランチ        : $BRANCH（期待するバージョン: $EXPECTED）
-  project.yml     : MARKETING_VERSION = $ACTUAL
+  ブランチ        : ${BRANCH}（期待するバージョン: ${EXPECTED}）
+  project.yml     : MARKETING_VERSION = ${ACTUAL}
 
 配信前に project.yml の MARKETING_VERSION を $EXPECTED に更新してください
 （更新後は xcodegen generate が fastlane beta 内で走るため手動生成は不要です）。
@@ -82,4 +82,7 @@ EOF
   exit 1
 fi
 
-echo "check-marketing-version: OK（$BRANCH / MARKETING_VERSION = $ACTUAL）"
+# 変数展開の直後に全角文字を続けると macOS 標準の bash 3.2（UTF-8 ロケール）が変数名を
+# 誤パースして「unbound variable」で落ちるため、必ず ${} でブレースする（fastlane beta が
+# このスクリプト経由で止まった実害あり・2026-08-31）。
+echo "check-marketing-version: OK（${BRANCH} / MARKETING_VERSION = ${ACTUAL}）"
