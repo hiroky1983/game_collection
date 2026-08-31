@@ -516,6 +516,10 @@ enum BoardStyle {
     /// 駒は実物と同じくツゲ材（黄楊）のような単色。先手・後手は色ではなく向き（180度回転）で見分ける。
     static let komaWoodLight = Color(hex: 0xF3DFAE)
     static let komaWoodDark = Color(hex: 0xD9B673)
+    /// 駒の側面（#366）。本体を下へずらした同じ駒形をこの色で敷き、木駒の厚みを見せる。
+    static let komaWoodSide = Color(hex: 0xA37C42)
+    /// 木目の筋（#366）。木地の上に低い不透明度で重ねる。
+    static let komaGrain = Color(hex: 0x8A6A32)
 }
 
 /// 1 マス。マスの色だけを描く。
@@ -551,6 +555,12 @@ struct KomaView: View {
 
     var body: some View {
         ZStack {
+            // 側面（#366）: 本体を下へずらした同じ駒形を濃い木色で敷き、木駒の厚みを見せる。
+            // 落ち影はいちばん下のこの層に掛ける（本体に掛けると影が自分の側面に落ちて濁る）。
+            KomaShape()
+                .fill(BoardStyle.komaWoodSide)
+                .offset(y: size * 0.045)
+                .shadow(color: .black.opacity(0.28), radius: 2, y: 1.5)
             // 木地: 上が明るく下がやや濃い縦グラデーションで、削り出した木の丸みを表現。
             KomaShape()
                 .fill(
@@ -559,6 +569,13 @@ struct KomaView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
+                )
+                // 木目（#366）: 緩い縦カーブの筋を低い不透明度で重ねる。文字より下の層。
+                .overlay(
+                    KomaGrainShape()
+                        .stroke(BoardStyle.komaGrain.opacity(0.16),
+                                lineWidth: max(0.5, size * 0.02))
+                        .clipShape(KomaShape())
                 )
                 .overlay(KomaShape().stroke(Color(hex: 0x8A6A32).opacity(0.6), lineWidth: 1))
                 // ベゼル: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
@@ -573,7 +590,6 @@ struct KomaView: View {
                             lineWidth: max(1, size * 0.035)
                         )
                 )
-                .shadow(color: .black.opacity(0.28), radius: 2, y: 1.5)
             Text(Glyph.kanji(for: piece))
                 .font(.system(size: size * 0.46, weight: .black, design: .serif))
                 .foregroundStyle(piece.promoted ? Theme.coral : Color(hex: 0x2A1B0E))
@@ -583,6 +599,25 @@ struct KomaView: View {
         }
         .frame(width: size * 0.86, height: size * 0.86)
         .rotationEffect(.degrees(pointsUp ? 0 : 180))
+    }
+}
+
+/// 木目の筋（#366）。緩い縦カーブ3本の**固定パターン**で、どの駒も同じ木目にする
+/// （駒ごとに乱数で変えると再描画のたびに柄が揺れて見えるため、決定的な形に留める）。
+struct KomaGrainShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        for (i, x) in [0.34, 0.52, 0.68].enumerated() {
+            // 中央の1本だけ逆へ曲げ、平行線に見えないようにする。
+            let bend = (i == 1 ? 0.07 : -0.05) * w
+            p.move(to: CGPoint(x: w * x, y: h * 0.16))
+            p.addQuadCurve(
+                to: CGPoint(x: w * x, y: h * 0.92),
+                control: CGPoint(x: w * x + bend, y: h * 0.55)
+            )
+        }
+        return p
     }
 }
 
