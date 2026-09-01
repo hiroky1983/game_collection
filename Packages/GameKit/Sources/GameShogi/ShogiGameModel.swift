@@ -117,6 +117,27 @@ public final class ShogiGameModel {
         }
     }
 
+    /// 王手されている側の玉のマス（表示局面基準）。王手でなければ nil。
+    ///
+    /// 状態として持たず**局面から毎回導く**（#377）。こうしておくと、検討ナビで戻った局面でも
+    /// 中断から復元した局面でも、玉の印が別途の復元処理なしに必ず正しく出る。
+    public var checkedKingSquare: Int? {
+        let pos = displayedPosition
+        let side = pos.sideToMove
+        guard pos.isKingInCheck(side) else { return nil }
+        return pos.squares.firstIndex { $0?.type == .king && $0?.color == side }
+    }
+
+    /// 「王手」の文字を飛び出させる契機（#377）。**実対局の着手で王手が生じるたび**に増える。
+    ///
+    /// 検討ナビ・中断復元では増えない。玉の印（`checkedKingSquare`）は局面から導くので
+    /// どの経路でも出るが、文字のほうは「いま王手が掛かった」瞬間の合図なので、
+    /// 盤を戻して王手局面を通過しただけで飛び出すと意味が変わる。
+    public private(set) var checkEventID: Int = 0
+
+    /// 直前の `checkEventID` で王手を**された**側。
+    public private(set) var lastCheckedSide: Side?
+
     /// 直前手の棋譜表記（例 "▲７六歩"）。無ければ nil。
     public var highlightedMoveText: String? {
         guard let m = highlightedMove else { return nil }
@@ -214,6 +235,13 @@ public final class ShogiGameModel {
                 outcome: loser == humanSide ? .loss : .win,
                 score: GameScore(metric: .winLoss)
             )
+        } else if position.isKingInCheck(position.sideToMove) {
+            // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す
+            // （初心者が「なぜ動かせないのか」で詰まるのは前者だが、掛けた側にも手応えが要る）。
+            // 着手の `impact` は鳴らさない — 同じ着手で 2 度鳴ると合図が濁る。
+            lastCheckedSide = position.sideToMove
+            checkEventID += 1
+            services?.feedback.notify(.warning)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
             services?.feedback.impact(.medium)
@@ -239,6 +267,9 @@ public final class ShogiGameModel {
         undoUsed = false
         resigned = false
         recordResult = nil
+        // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
+        // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
+        lastCheckedSide = nil
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
