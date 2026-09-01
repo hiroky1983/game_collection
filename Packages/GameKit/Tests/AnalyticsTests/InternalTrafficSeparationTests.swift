@@ -54,6 +54,32 @@ struct InternalTrafficSeparationTests {
                 "DEACTIVATED は runtime で戻せないため使ってはならない")
     }
 
+    @Test("収集の既定オフは project.yml 側に書かれている（xcodegen で消えない）")
+    func analyticsDefaultIsDeclaredInProjectSpec() throws {
+        // `App/Info.plist` は project.yml の `info.path` の**出力先**で、CI（ci.yml）と
+        // fastlane beta が毎回 `xcodegen generate` してから build する。plist にだけ足しても
+        // 出荷するバイナリに届く前に丸ごと再生成されて消える（#388 の取りこぼし）。
+        // 上の plist のテストは緑のまま素通しするので、正典である project.yml をここで固定する。
+        let spec = try String(
+            contentsOf: Self.appDirectory.deletingLastPathComponent()
+                .appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+        // コメント行にヒットして緑になることがないよう、行として突き合わせる。
+        let declared = spec
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .contains("FIREBASE_ANALYTICS_COLLECTION_ENABLED: false")
+        #expect(
+            declared,
+            "project.yml に FIREBASE_ANALYTICS_COLLECTION_ENABLED: false が無い。xcodegen が App/Info.plist を再生成した時点で既定オフが消える（#382 の決裁 A が届かない）"
+        )
+        #expect(
+            spec.contains("FIREBASE_ANALYTICS_COLLECTION_DEACTIVATED") == false,
+            "DEACTIVATED は runtime で戻せないため使ってはならない"
+        )
+    }
+
     @Test("収集を ON にするのは許可された経路だけ")
     func collectionIsEnabledOnlyForAllowedChannels() throws {
         let code = try appCode("AppGameServices.swift")
