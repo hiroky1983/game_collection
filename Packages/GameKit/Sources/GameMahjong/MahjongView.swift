@@ -242,7 +242,7 @@ public struct MahjongView: View {
     /// 中央パネルを小さくするほど左右チップに幅が回る。
     private var tableCenterPanel: some View {
         VStack(spacing: 3) {
-            Text("東\(model.roundNumber)局\(model.honba > 0 ? " \(model.honba)本場" : "")")
+            Text("東\(model.displayedRoundNumber)局\(model.displayedHonba > 0 ? " \(model.displayedHonba)本場" : "")")
                 .font(.system(size: 11, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(1).minimumScaleFactor(0.7)
@@ -268,7 +268,8 @@ public struct MahjongView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             MahjongAccessibility.roundLabel(
-                roundNumber: model.roundNumber, honba: model.honba, remainingTiles: model.remainingTiles
+                roundNumber: model.displayedRoundNumber, honba: model.displayedHonba,
+                remainingTiles: model.remainingTiles
             )
         )
         // 左右チップを優先して幅を譲る（chip 側は最大 190pt まで伸びうる）が、

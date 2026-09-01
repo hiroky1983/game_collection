@@ -497,6 +497,61 @@ struct MahjongRiichiTests {
         #expect(model.riichiSticks == 1)
     }
 
+    /// 人間が立直を宣言して切る `1z` を、下家（プレイヤー 1）が**七対子でロンできる**局面。
+    /// 立直の宣言牌がロンされたときの扱い（#375）を検証するために使う。
+    @MainActor
+    private func riichiTileIsRonnedModel() -> MahjongModel {
+        let model = makeModel()
+        model.startGame()
+        model.configureForTesting(
+            hands: [
+                MahjongNotation.hand("234m567m22p345p67s"),   // 5s / 8s 待ちの聴牌
+                MahjongNotation.hand("1188m1199p1199s1z"),    // 六対子 + 1z 単騎 = 七対子の聴牌
+                junkHand(),
+                junkHand(),
+            ],
+            wall: MahjongNotation.tiles("111122223333m"),
+            dealer: 0,
+            drawnTile: MahjongNotation.tile("1z")
+        )
+        return model
+    }
+
+    @Test("立直の宣言牌をロンされたら立直は不成立で 1000 点も出ない（#375）")
+    func riichiDeclarationTileRonnedDoesNotPayStick() {
+        let model = riichiTileIsRonnedModel()
+        model.declareRiichi()
+        #expect(model.scores[0] == MahjongModel.startingScore, "宣言しただけでは点棒は動かない")
+
+        model.discard(MahjongNotation.tile("1z"))
+
+        #expect(model.handResult?.kind == .ron)
+        #expect(model.handResult?.winner == 1)
+        #expect(model.handResult?.loser == 0)
+        #expect(model.riichi[0] == false, "宣言牌をロンされた立直は不成立")
+        #expect(model.riichiSticks == 0, "供託に立直棒は積まれない")
+        #expect(
+            model.scores.reduce(0, +) == MahjongModel.startingScore * 4,
+            "誰も出していない 1000 点が卓から消えていない"
+        )
+        #expect(
+            MahjongModel.startingScore - model.scores[0] == (model.handResult?.gainedPoints ?? 0),
+            "放銃者の減点は和了者の受取と一致する（1000 点が上乗せされていない）"
+        )
+    }
+
+    @Test("リザルト表示中の卓中央は決着した局を出す（#375）")
+    func handResultKeepsFinishedRoundOnDisplay() {
+        let model = riichiTileIsRonnedModel()
+        model.declareRiichi()
+        model.discard(MahjongNotation.tile("1z"))
+
+        #expect(model.phase == .handResult)
+        #expect(model.roundNumber == 2, "親が流れたので内部の局数は次局へ進んでいる")
+        #expect(model.displayedRoundNumber == 1, "リザルト中は決着した東 1 局を出す")
+        #expect(model.displayedHonba == 0)
+    }
+
     @Test("点棒が 1000 点未満なら立直できない")
     func riichiNeedsPoints() {
         let model = tenpaiModel()
