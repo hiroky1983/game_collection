@@ -250,6 +250,35 @@ struct DaifugoGreedyTests {
         #expect(play?.map(\.rank) == [2])
     }
 
+    @Test("親番では同じランクをまとめて出す（#375）")
+    func leadsWithAllCardsOfTheChosenRank() {
+        let hand = [card(3), card(3, .hearts), card(3, .diamonds), card(5)]
+        let play = DaifugoRules.greedyPlay(hand: hand, field: [], isRevolution: false)
+        #expect(play?.map(\.rank) == [3, 3, 3], "最弱ランクの 3 枚をまとめて出す")
+    }
+
+    @Test("親番で4枚そろっていれば革命になる手を出す（#375）")
+    func leadsWithRevolutionWhenPossible() {
+        let hand = [card(3), card(3, .hearts), card(3, .diamonds), card(3, .clubs), card(5)]
+        let play = DaifugoRules.greedyPlay(hand: hand, field: [], isRevolution: false)
+        #expect(play?.count == 4)
+        #expect(DaifugoRules.triggersRevolution(play ?? []), "同ランク4枚なので革命が起きる")
+    }
+
+    @Test("親番で枚数を優先してもジョーカーは温存する（#375）")
+    func leadDoesNotBurnJokerToMakeABiggerPlay() {
+        let hand = [card(3), joker()]
+        let play = DaifugoRules.greedyPlay(hand: hand, field: [], isRevolution: false)
+        #expect(play?.map(\.rank) == [3], "3 + ジョーカーの2枚組より、ジョーカーを残す1枚を選ぶ")
+    }
+
+    @Test("場に追随するときは枚数が場と一致する（#375 の変更の非影響）")
+    func followingKeepsFieldCount() {
+        let hand = [card(9), card(9, .hearts), card(13)]
+        let play = DaifugoRules.greedyPlay(hand: hand, field: [card(7)], isRevolution: false)
+        #expect(play?.map(\.rank) == [9], "場が1枚なので1枚しか出せない")
+    }
+
     @Test("革命中は反転した強さで選ぶ")
     func respectsRevolution() {
         let hand = [card(3), card(9), card(13)]
