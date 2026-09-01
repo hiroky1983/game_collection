@@ -358,6 +358,29 @@ struct SolitaireRecordTests {
         let snapshot = try! #require(store.load(SolitaireSnapshot.self, for: "solitaire"))
         #expect(snapshot.elapsedSeconds == SolitaireModel.persistInterval)
     }
+
+    @Test("画面を離れると計時が止まり、直前までの経過秒が保存される（#375）")
+    func pauseTimerStopsAndPersists() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        model.tapStock()
+        // 保存の間隔（30秒）に乗らない中途半端な経過秒で離脱する。実時間で待つとフレークするので
+        // 計時は `tick()` を直接回して進める。
+        for _ in 0..<5 { model.tick() }
+
+        model.pauseTimer()
+
+        let snapshot = try! #require(store.load(SolitaireSnapshot.self, for: "solitaire"))
+        #expect(snapshot.elapsedSeconds == 5, "直近の保存から先の計時が失われない")
+        #expect(model.elapsedSeconds == 5, "画面に戻ったときの経過秒も失われない")
+
+        // 画面に戻れば計時が動き、また離れると止まる。
+        model.resumeTimerIfNeeded()
+        #expect(model.isCounting)
+        model.pauseTimer()
+        #expect(!model.isCounting, "画面を離れたら計時の Task は残らない")
+    }
 }
 
 // MARK: - 寸法

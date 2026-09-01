@@ -65,6 +65,7 @@ public struct SolitaireView: View {
             }
             #endif
         }
+        .onDisappear { model.pauseTimer() }
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。

@@ -268,6 +268,19 @@ public final class SolitaireModel {
         startTimer()
     }
 
+    /// 画面を離れるときに計時を止める（`onDisappear` から呼ぶ）。
+    ///
+    /// 計時の `Task` は `self` を強く握るので、止めないと**モデルが解放されず**、
+    /// 画面を離れたあとも 1 秒ごとに経過秒とスナップショットが進み続ける（#375。数独・
+    /// マインスイーパーにも同型があった）。止める前に保存し直すのは、直近の保存から最大
+    /// `persistInterval` 秒ぶんの計時が失われるのを防ぐため（#240 と同じ理由）。
+    /// 画面に戻れば `resumeTimerIfNeeded()` が計時を再開するので、経過時間は失われない。
+    public func pauseTimer() {
+        persist()
+        timerTask?.cancel()
+        timerTask = nil
+    }
+
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
 
     // MARK: - 内部

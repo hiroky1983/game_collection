@@ -19,19 +19,24 @@ import GameSolitaire
 
 // MARK: - 共通のヘルパー
 
-/// ハブの登録順（AppEnvironment.registry と同じ）。
+/// ハブの登録順（`AppEnvironment.registry` と同じ並び）。
+///
+/// **並びまで本体と一致させること**。候補テーブルが尽きたときのフォールバックは
+/// `availableIDs` の順に下りるため、順序がずれていると本番とテストで違うゲームを勧める
+/// （#397 の CodeRabbit 指摘。以前は #262 以前の古い並びのまま放置されていた）。
+/// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 private let hubOrder = [
-    "2048", "shogi", "gomoku", "minesweeper", "othello", "poker", "concentration", "blackjack", "daifugo",
-    "mahjong", "mahjong4", "sudoku", "go", "solitaire",
+    "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "mahjong", "solitaire",
+    "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration",
 ]
 
 @MainActor
 private func makeRegistry() -> GameRegistry {
     GameRegistry([
-        Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(),
-        OthelloModule(), PokerModule(), ConcentrationModule(), BlackjackModule(),
-        DaifugoModule(), MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
-        GoModule(), SolitaireModule(),
+        Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
+        OthelloModule(), GoModule(), MahjongSolitaireModule(), SolitaireModule(),
+        DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
+        GomokuModule(), ConcentrationModule(),
     ])
 }
 
@@ -145,7 +150,7 @@ struct RecommendationTableTests {
         )
         let expected = hubOrder.first { !played.contains($0) }
         #expect(got?.gameID == expected)
-        #expect(got?.gameID == "minesweeper", "ハブ順で最初の未プレイ")
+        #expect(got?.gameID == "mahjong4", "ハブ順で最初の未プレイ")
     }
 
     /// #237 の再発防止。値に一度も出てこないゲームは「他を遊んだ人には構造的に提案されない」。
@@ -192,18 +197,23 @@ struct RecommendationTableTests {
             return
         }
 
-        let listed = Set(source[block].split(separator: "\n").compactMap { line -> String? in
+        let listed = source[block].split(separator: "\n").compactMap { line -> String? in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard !trimmed.hasPrefix("//"),
                   let name = trimmed.split(separator: "(").first, name.hasSuffix("Module")
             else { return nil }
             return String(name)
-        })
-        let fixture = Set(makeRegistry().modules.map { String(describing: type(of: $0)) })
+        }
+        let fixture = makeRegistry().modules.map { String(describing: type(of: $0)) }
 
         #expect(listed.count == fixture.count && !listed.isEmpty)
-        #expect(listed == fixture,
-                "テスト用レジストリと本体の差分: \(listed.symmetricDifference(fixture).sorted())")
+        #expect(Set(listed) == Set(fixture),
+                "テスト用レジストリと本体の差分: \(Set(listed).symmetricDifference(fixture).sorted())")
+        // **顔ぶれだけでなく並びも比べる**（#397 の CodeRabbit 指摘）。候補テーブルが尽きたときの
+        // フォールバックはハブ順に下りるため、順序がずれるとテストが本番と違う推薦を検証してしまう。
+        #expect(listed == fixture, "本体: \(listed) / テスト用: \(fixture)")
+        #expect(hubOrder == makeRegistry().modules.map(\.id),
+                "hubOrder がテスト用レジストリの並びとずれている")
     }
 
     /// #335: 以前は「未プレイが無ければ nil」で、12本を1回ずつ遊んだ時点でレコメンドが
