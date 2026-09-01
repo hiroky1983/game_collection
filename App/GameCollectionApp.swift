@@ -12,7 +12,7 @@ struct GameCollectionApp: App {
         // Firebase Analytics / Crashlytics の初期化
         FirebaseApp.configure()
         // 設定の「利用状況の送信」を SDK 全体の収集状態へ反映する（#158）。
-        // configure() は自動収集イベントも有効にするため、オフのときはここで止める。
+        // 収集は Info.plist で既定オフにしてあり（#382）、許可された経路でだけここが ON を立てる。
         AppEnvironment.applyAnalyticsCollectionState()
     }
 

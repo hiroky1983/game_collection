@@ -24,6 +24,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
+	<false/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1869410932032409~4823987816</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
