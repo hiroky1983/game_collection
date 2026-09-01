@@ -99,8 +99,14 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    /// CPU の手札を表向きにしてよいか。ショーダウン（`.result`）に入った時点で真になる。
-    private var cpuRevealed: Bool { revealCPU || model.phase == .result }
+    /// CPU の手札を表向きにしてよいか。`.result` に入った**次の**更新（`onChange`）で真になる。
+    ///
+    /// **`|| model.phase == .result` を足してはいけない**（#383）。それを足すと `.result` に
+    /// 入ったその描画で既に真になり、同じ描画で新規に挿入される役名 `Text` とカードには
+    /// 「変化前の値」が無いため `.gameAnimation(_:value:)` が一度も走らない。結果、
+    /// 遅延フェードが効かず**カードが返る前に役名が見えて**しまう。`.result` と `.showdown` は
+    /// `PokerModel.persist()` の保存対象外なので、この状態で復元されることもない。
+    private var cpuRevealed: Bool { revealCPU }
 
     // MARK: - CPU Area
 

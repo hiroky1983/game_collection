@@ -653,6 +653,53 @@ struct SudokuUndoTests {
         #expect(model.mistakes == 0)
     }
 
+    @Test("ヒントを使うと手前の履歴も消える（ヒントが消したメモを undo で復活させない）")
+    func hintDropsEarlierHistory() async throws {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+
+        // 互いに同行・列・ブロックの空きマス3つ（a に入力・b にヒント・c が両方のメモを持つ）。
+        let blanks = (0..<81).filter { model.board[$0] == 0 }
+        var found: (a: Int, b: Int, c: Int)?
+        outer: for a in blanks {
+            let peersOfA = SudokuEngine.peers(of: a)
+            for b in blanks where b != a && peersOfA.contains(b) {
+                let peersOfB = SudokuEngine.peers(of: b)
+                for c in blanks where c != a && c != b
+                    && peersOfA.contains(c) && peersOfB.contains(c) {
+                    found = (a, b, c)
+                    break outer
+                }
+            }
+        }
+        let (a, b, c) = try #require(found)
+
+        // c に「a の正解」と「b の正解」の2つをメモしておく。
+        model.toggleNoteMode()
+        model.select(index: c)
+        model.enter(digit: model.solution[a])
+        model.enter(digit: model.solution[b])
+        model.toggleNoteMode()
+        #expect(model.hasNote(model.solution[a], at: c))
+        #expect(model.hasNote(model.solution[b], at: c))
+
+        // 1. a に正解を確定 → c の「a の正解」のメモが巻き添えで消え、履歴に控えられる
+        model.select(index: a)
+        model.enter(digit: model.solution[a])
+        #expect(model.canUndo)
+
+        // 2. b にヒント → c の「b の正解」のメモも消える
+        #expect(model.applyHint(at: b))
+        #expect(!model.hasNote(model.solution[b], at: c))
+
+        // 3. 「元に戻す」— 手順1の履歴が残っていると、手順2でヒントが消したメモまで戻る
+        #expect(!model.canUndo, "ヒントの後に手前の履歴が残っている")
+        model.undo()
+        #expect(!model.hasNote(model.solution[b], at: c),
+                "ヒントが消したメモが undo で復活している（広告の対価が巻き戻る）")
+        #expect(model.board[a] == model.solution[a], "ヒントの後の undo で手前の入力まで戻っている")
+    }
+
     @Test("中断・再開をまたぐと取り消せない（履歴は保存しない）")
     func undoDoesNotSurviveRestore() async {
         let store = MemorySnapshotStore()

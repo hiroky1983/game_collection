@@ -101,6 +101,30 @@ struct PokerMotionTests {
         )
     }
 
+    @Test("公開の合図は onChange だけが立てる（.result 直読みだと演出が飛ぶ）")
+    func revealFlagIsDrivenOnlyByOnChange() throws {
+        let source = try Self.viewSource()
+
+        // `cpuRevealed` に `model.phase == .result` を混ぜると、`.result` に入った描画で
+        // 既に真になる。役名 Text とカードはその描画で新規に挿入されるため
+        // `.gameAnimation(_:value:)` に比較対象の前値が無く、遅延フェードも段差付きの反転も
+        // 一度も走らない（= 役名がカードより先に出る・#383）。
+        #expect(
+            Self.matchCount(of: #"cpuRevealed: Bool \{ revealCPU \}"#, in: source) == 1,
+            "cpuRevealed が revealCPU 単独になっていない"
+        )
+        // 合図を立てるのは phase の変化を見る onChange の1か所だけ。
+        #expect(
+            Self.matchCount(of: #"if phase == \.result \{ revealCPU = true \}"#, in: source) == 1,
+            "公開の合図が onChange から立っていない"
+        )
+        // 役名は「返り終わってから」出す遅延付き。定数ごと外れていないか見る。
+        #expect(
+            Self.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 1,
+            "役名のフェードから、カードが返り終わるまでの遅延が外れている"
+        )
+    }
+
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
