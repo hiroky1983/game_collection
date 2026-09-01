@@ -93,6 +93,9 @@ public struct MinesweeperView: View {
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
+        // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
+        // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
+        .onDisappear { model.pauseTimer() }
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG

@@ -552,8 +552,8 @@ struct SudokuUndoTests {
         (1...9).first { $0 != model.solution[index] }!
     }
 
-    @Test("誤答を取り消すと盤とミス回数が戻る。続けては取り消せない（深さ1）")
-    func undoRestoresMistake() async {
+    @Test("誤答を取り消すと盤は戻るが、ミス回数は戻らない（#375）")
+    func undoRestoresBoardButNotMistakes() async {
         let (model, _) = makeModel()
         await model.newGame(difficulty: .easy)
         let blank = (0..<81).first { model.board[$0] == 0 }!
@@ -563,9 +563,29 @@ struct SudokuUndoTests {
         #expect(model.canUndo)
 
         model.undo()
-        #expect(model.board[blank] == 0)
-        #expect(model.mistakes == 0)
+        #expect(model.board[blank] == 0, "誤タップの救済（#353）として盤は戻る")
+        #expect(model.mistakes == 1, "ミスは返還しない（ミス上限を形骸化させない）")
         #expect(!model.canUndo, "深さ1: 直前の1手しか持たない")
+    }
+
+    @Test("「誤答 → 戻す」を繰り返してもミス上限をすり抜けられない（#375）")
+    func undoLoopCannotBypassMistakeLimit() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+
+        for expected in 1...SudokuModel.maxMistakes {
+            if model.selected != blank { model.select(index: blank) }
+            model.enter(digit: wrongDigit(for: blank, in: model))
+            #expect(model.mistakes == expected)
+            // 上限に達する前は毎回「戻す」で盤を白紙に戻し、同じマスを何度でも試せる状態にする。
+            if expected < SudokuModel.maxMistakes {
+                model.undo()
+                #expect(model.board[blank] == 0)
+            }
+        }
+        #expect(model.state == .failed, "3回目の誤答でミス上限に達する")
+        #expect(!model.canUndo, "上限に達したあとは戻せない")
     }
 
     @Test("取り消せるのは直前の1手だけ（1つ前の手は残る）")
@@ -713,5 +733,41 @@ struct SudokuUndoTests {
         let (restored, _) = makeModel(store: store)
         #expect(restored.state == .playing)
         #expect(!restored.canUndo)
+    }
+}
+
+// MARK: - 計時の停止（#375: タイマー Task がモデルごとリークする）
+
+@Suite("数独 計時の停止")
+@MainActor
+struct SudokuTimerLifecycleTests {
+
+    @Test("新規ゲームで計時が始まる")
+    func timerStartsWithNewGame() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        #expect(model.isTimerRunning)
+    }
+
+    @Test("画面を離れると計時が止まり、戻ると再開する（#375）")
+    func pauseAndResumeTimer() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+
+        model.pauseTimer()
+        #expect(!model.isTimerRunning, "onDisappear で計時 Task を手放す（モデルが解放できるようになる）")
+
+        model.resumeTimerIfNeeded()
+        #expect(model.isTimerRunning, "画面に戻れば計時は再開する")
+    }
+
+    @Test("プレイ中でなければ再開しない")
+    func doesNotResumeWhenNotPlaying() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        model.giveUp()
+        model.pauseTimer()
+        model.resumeTimerIfNeeded()
+        #expect(!model.isTimerRunning)
     }
 }
