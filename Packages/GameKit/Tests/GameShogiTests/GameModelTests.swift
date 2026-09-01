@@ -241,3 +241,95 @@ struct ShogiNewGameDuringThinkingTests {
         #expect(model.moves.count == 1)  // 旧タスクは新しい局面に指さない
     }
 }
+
+// MARK: - 千日手と終局表示の復元（#375）
+
+@MainActor
+@Suite("千日手")
+struct ShogiRepetitionTests {
+
+    /// 双方が飛車を横に往復させて元の局面に戻る 4 手 1 組の循環。
+    /// ▲2h3h △8b7b ▲3h2h △7b8b で初期局面（先手番）へ戻る。
+    /// 飛車を使うのは、動きが完全に可逆な駒だから（金は斜め後ろへ戻れない）。
+    private static let cycle = ["2h3h", "8b7b", "3h2h", "7b8b"]
+
+    /// 人間 vs 人間にして、CPU の手が割り込まない状態で `cycle` を n 周ぶん指す。
+    @MainActor
+    private func playCycles(_ count: Int, on model: ShogiGameModel) {
+        for _ in 0..<count {
+            for usi in Self.cycle {
+                let move = Move.fromUSI(usi)!
+                #expect(model.legalMovesCache.contains(move), "\(usi) は合法手のはず")
+                model.apply(move)
+            }
+        }
+    }
+
+    @MainActor
+    private func humanVsHumanModel(_ store: MockSnapshotStore) -> ShogiGameModel {
+        let model = ShogiGameModel(services: makeServices(store))
+        model.sente = .human
+        model.gote = .human
+        return model
+    }
+
+    @Test("同一局面が 2 回・3 回では終局しない")
+    func doesNotEndBeforeFourthOccurrence() {
+        let model = humanVsHumanModel(MockSnapshotStore())
+        playCycles(2, on: model)   // 初期局面の出現は 0・4・8 手目の 3 回
+        #expect(model.moves.count == 8)
+        #expect(model.gameOver == false)
+        #expect(model.resultText == nil)
+    }
+
+    @Test("同一局面が 4 回現れたら千日手で引き分けになる")
+    func fourfoldRepetitionEndsAsDraw() {
+        let model = humanVsHumanModel(MockSnapshotStore())
+        playCycles(3, on: model)   // 0・4・8・12 手目で 4 回目
+        #expect(model.moves.count == 12)
+        #expect(model.gameOver)
+        #expect(model.resultText == "引き分け（千日手）")
+        #expect(model.phase == .review)
+    }
+
+    @Test("千日手はアプリを再起動しても引き分けのまま復元される")
+    func repetitionSurvivesRestart() {
+        let store = MockSnapshotStore()
+        let model = humanVsHumanModel(store)
+        playCycles(3, on: model)
+        #expect(model.resultText == "引き分け（千日手）")
+
+        let resumed = ShogiGameModel(services: makeServices(store))
+        #expect(resumed.gameOver)
+        #expect(resumed.resultText == "引き分け（千日手）")
+        #expect(resumed.phase == .review)
+    }
+
+    @Test("詰みで終わった対局を再起動しても勝敗表示が残る（#375）")
+    func checkmateResultSurvivesRestart() throws {
+        let store = MockSnapshotStore()
+        // 先手: 6c/5c/4c 金 + 1i 玉、後手: 5a 玉のみ。▲5c5b で 5a 玉は詰み。
+        try store.save(
+            ShogiSnapshot(
+                initialSfen: "4k4/9/3GGG3/9/9/9/9/9/8K b - 1",
+                moves: [], phase: .playing, reviewPly: nil,
+                sente: .human, gote: .human, aiLevel: nil,
+                startedAt: Date(), undoUsed: false
+            ),
+            for: "shogi"
+        )
+        let model = ShogiGameModel(services: makeServices(store))
+        let mate = Move.fromUSI("5c5b")!
+        #expect(model.legalMovesCache.contains(mate), "5c5b は合法手のはず")
+        model.apply(mate)
+        #expect(model.gameOver)
+        #expect(model.resultText == "後手の負け（詰み）")
+
+        let resumed = ShogiGameModel(services: makeServices(store))
+        #expect(resumed.gameOver)
+        #expect(
+            resumed.resultText == "後手の負け（詰み）",
+            "再起動で決着の文字が消えてはいけない。実際: \(String(describing: resumed.resultText))"
+        )
+    }
+}
