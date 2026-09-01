@@ -21,7 +21,9 @@ public enum SolitaireDealer {
             tableau.append(SolitairePile(faceDown: Array(cards.dropLast()), faceUp: [cards.last!]))
         }
         // 残りは山札。`last` が次にめくる1枚なので、配った順が上から来るように反転する。
-        return SolitaireBoard(tableau: tableau, stock: Array(deck[index...]).reversed())
+        // `Array(...)` を外側に置いて `[SolitaireCard]` を返す `reversed()` を明示する
+        // （引数の型から解決させると、式を let に切り出した瞬間に ReversedCollection に変わる）。
+        return SolitaireBoard(tableau: tableau, stock: Array(deck[index...].reversed()))
     }
 
     /// 出題に使う、ソルバーで勝ち筋を確認済みの種。

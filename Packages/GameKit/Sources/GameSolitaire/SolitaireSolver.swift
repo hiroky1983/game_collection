@@ -61,14 +61,17 @@ public enum SolitaireSolver {
                 guard !visited.contains(key) else { continue }
                 visited.insert(key)
 
-                nodes.append(Node(board: child, parent: index, movesFromParent: moves + autoMoves))
                 if child.isWon {
+                    nodes.append(Node(board: child, parent: index, movesFromParent: moves + autoMoves))
                     return Result(solution: path(to: nodes.count - 1, in: nodes),
                                   statesExplored: nodes.count, hitLimit: false)
                 }
+                // 上限の判定は**足す前**に行う。足してから見ると、`maxStates` が探索済みの
+                // 局面数より小さいときに上限を1つ超える（`maxStates <= 0` なら根だけ見て打ち切る）。
                 if nodes.count >= maxStates {
                     return Result(solution: nil, statesExplored: nodes.count, hitLimit: true)
                 }
+                nodes.append(Node(board: child, parent: index, movesFromParent: moves + autoMoves))
                 order += 1
                 frontier.push(priority: heuristic(child), order: order, node: nodes.count - 1)
             }

@@ -61,6 +61,16 @@ struct SolitaireSolverTests {
         #expect(!result.hitLimit)
     }
 
+    @Test("探索上限を1局面も超えない", arguments: [0, 1, 2, 5])
+    func neverExceedsTheStateLimit(limit: Int) {
+        // すぐには解けない盤面で、上限ちょうどで止まることを確かめる。
+        let b = SolitaireDealer.deal(seed: SolitaireDealer.verifiedSeeds[0])
+        let result = SolitaireSolver.solve(b, maxStates: limit)
+        #expect(result.statesExplored <= max(limit, 1))
+        #expect(!result.isSolvable)
+        #expect(result.hitLimit)
+    }
+
     @Test("安全な組札送りだけを分岐させずに実行する")
     func autoplaysOnlySafeCards() {
         // ♦2 は安全（A・2 は常に安全）。♠5 は反対色の組札が足りないので送らない。
