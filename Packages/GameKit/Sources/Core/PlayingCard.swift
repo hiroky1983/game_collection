@@ -232,6 +232,17 @@ public struct PlayingCardFace: View {
     }
 
     public var body: some View {
+        // 中身は数字・記号・図案に分かれているため、そのままだと VoiceOver が
+        // 「Q」「♠」と別々に読む。1枚を1要素にまとめて `spokenLabel` を読ませる。
+        // 呼び出し側が既に `.accessibilityElement(children: .ignore)` で束ねている場合
+        // （大富豪の手札・場）はそちらが優先されるため、二重読みにはならない。
+        content
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(figure.spokenLabel)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch figure {
         case .pip(let suit, _):
             VStack(spacing: metrics.pipSpacing) {
