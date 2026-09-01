@@ -6,6 +6,7 @@ import Testing
 @testable import GameOthello
 @testable import GameShogi
 @testable import GameSudoku
+@testable import GameGo
 @testable import MahjongTiles
 
 /// VoiceOver の読み上げ文（#188）。
@@ -293,6 +294,43 @@ struct MahjongAccessibilityTests {
         // スナップショット破損などで値域外が来ても、読み上げ側は落とさない
         #expect(!MahjongFace.wind(9).displayName.isEmpty)
         #expect(!MahjongFace.flower(-1).displayName.isEmpty)
+    }
+}
+
+@Suite("囲碁の読み上げ文")
+struct GoAccessibilityTests {
+
+    @Test("交点は 行・列・石の色 の順で読む")
+    func pointLabel() {
+        #expect(GoAccessibility.pointLabel(row: 0, col: 0, stone: nil, isLastMove: false)
+                == "1行1列、空点")
+        #expect(GoAccessibility.pointLabel(row: 4, col: 4, stone: .black, isLastMove: false)
+                == "5行5列、黒石")
+        #expect(GoAccessibility.pointLabel(row: 8, col: 2, stone: .white, isLastMove: true)
+                == "9行3列、白石、直前の手")
+    }
+
+    /// 死に石は画面では × 印で分かる。読み上げに入れないと、その情報が音声の利用者にだけ届かない。
+    @Test("終局の死に石は読み上げに含める")
+    func deadStoneIsAnnounced() {
+        #expect(GoAccessibility.pointLabel(row: 1, col: 1, stone: .white, isLastMove: false, isDead: true)
+                == "2行2列、白石、死に石")
+        #expect(GoAccessibility.pointLabel(row: 1, col: 1, stone: .white, isLastMove: true, isDead: true)
+                == "2行2列、白石、死に石、直前の手")
+    }
+
+    @Test("ステータスは局面ごとに要点だけを読む")
+    func statusLabel() {
+        #expect(GoAccessibility.statusLabel(
+            phase: .playing, isHumanTurn: true, capturedByHuman: 2, capturedByCPU: 1, result: nil
+        ) == "あなたの番、あなたが取った石 2、CPUが取った石 1")
+        #expect(GoAccessibility.statusLabel(
+            phase: .scoring, isHumanTurn: false, capturedByHuman: 0, capturedByCPU: 0, result: nil
+        ) == "終局の確認。計算中")
+        #expect(GoAccessibility.statusLabel(
+            phase: .finished, isHumanTurn: false, capturedByHuman: 0, capturedByCPU: 0,
+            result: "白 6.5目勝ち"
+        ) == "白 6.5目勝ち")
     }
 }
 

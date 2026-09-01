@@ -13,6 +13,7 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
 
 // MARK: - モック
 
@@ -87,7 +88,7 @@ private func makeHubModules() -> [GameModule] {
     [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
-        MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
+        MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
     ]
 }
 
@@ -495,7 +496,7 @@ struct GameCenterPerGameTests {
         // 実績の進捗は PlayLog の更新後の値から作る。ここが 100 でなければ、
         // `GameServices.gameDidFinish` の中で Game Center を review より先に呼んでいる（退行）。
         #expect(isClose(spy.percent(of: GameCenterAchievements.firstWin), 100))
-        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / 12))
+        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / Double(makeHubModules().count)))
     }
 
     @Test("マインスイーパー: 地雷を踏んだ局は送らない")
@@ -516,7 +517,7 @@ struct GameCenterPerGameTests {
         #expect(spy.scores.isEmpty, "クリアしていない局のタイムは順位表に混ぜない")
         // 負けでも「遊んだ本数」は進むので playAll だけは動く。
         #expect(spy.percent(of: GameCenterAchievements.firstWin) == nil)
-        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / 12))
+        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / Double(makeHubModules().count)))
     }
 
     @Test("数独: むずかしいをクリアすると hard のタイムが送られる")

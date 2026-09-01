@@ -14,6 +14,7 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
 import MahjongTiles
 
 // MARK: - Mocks
@@ -139,6 +140,17 @@ private func playGomoku(_ services: GameServices) async {
     model.tap(row: 7, col: 7)          // 拒否（埋まっているマス）
     model.tap(row: -1, col: 7)         // 拒否（盤外・#202）
     model.resign()                     // 決着
+}
+
+@MainActor
+private func playGo(_ services: GameServices) async {
+    let model = GoModel(services: services)
+    model.newGame(humanSide: .black, level: .easy)
+    model.tap(row: 4, col: 4)           // 成立
+    await model.performAIMoveIfNeeded() // 人間の手番に戻す
+    model.tap(row: 4, col: 4)           // 拒否（すでに石がある）
+    model.tap(row: -1, col: 4)          // 拒否（盤外）
+    model.resign()                      // 決着
 }
 
 @MainActor
@@ -333,12 +345,13 @@ private func makeServices(
     return (services, haptics, sound)
 }
 
-/// 全 12 ゲームの手順を 1 度ずつ通す。
+/// 全ゲームの手順を 1 度ずつ通す。
 @MainActor
 private func playAllGames(_ services: GameServices) async {
     play2048(services)
     playShogi(services)
     await playGomoku(services)
+    await playGo(services)
     playMinesweeper(services)
     playOthello(services)
     playPoker(services)
@@ -381,6 +394,15 @@ struct FeedbackEnabledTests {
         #expect(spy.impacts.contains(.medium), "着手で発火する")
         // 埋まっているマス（1回）と盤外（1回）で 2 回。無反応で済ませていた盤外を #202 で追加した。
         #expect(spy.notices(of: .warning) >= 2, "埋まっているマス・盤外はどちらも拒否として発火する")
+        #expect(spy.notices(of: .error) > 0, "投了で発火する")
+    }
+
+    @Test("囲碁: 着手・石のある交点・盤外・投了で発火する")
+    func go() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        await playGo(services)
+        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.notices(of: .warning) >= 2, "石のある交点・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
 
@@ -577,13 +599,14 @@ struct FeedbackCPUSilentTests {
 @MainActor
 struct FeedbackDisabledTests {
 
-    @Test("設定がオフなら全12ゲームのどの契機でも発火しない")
+    @Test("設定がオフなら全ゲームのどの契機でも発火しない")
     func nothingFiresWhenDisabled() async {
         let (services, spy) = makeServices(hapticsEnabled: false)
 
         play2048(services)
         playShogi(services)
         await playGomoku(services)
+        await playGo(services)
         playMinesweeper(services)
         playOthello(services)
         playPoker(services)
@@ -613,9 +636,9 @@ struct FeedbackDisabledTests {
 @MainActor
 struct SoundFeedbackTests {
 
-    /// 全12ゲームの「有効な操作の成立」「無効な操作の拒否」「局面の決着」で、
+    /// 全ゲームの「有効な操作の成立」「無効な操作の拒否」「局面の決着」で、
     /// アプリ本体と同じ `SoundEffect` への変換を通した音が鳴ることを、ゲームごとに確かめる。
-    @Test("全12ゲームの主要な操作で効果音が鳴る（操作音・拒否音・決着音）")
+    @Test("全ゲームの主要な操作で効果音が鳴る（操作音・拒否音・決着音）")
     func everyGameMakesSound() async {
         // ゲームごとに分けて回し、どのゲームで落ちたかが分かるようにする。
         func check(_ name: String, _ play: @MainActor (GameServices) async -> Void) async {
@@ -631,6 +654,7 @@ struct SoundFeedbackTests {
         await check("2048") { play2048($0) }
         await check("将棋") { playShogi($0) }
         await check("五目並べ") { await playGomoku($0) }
+        await check("囲碁") { await playGo($0) }
         await check("マインスイーパー") { playMinesweeper($0) }
         await check("オセロ") { playOthello($0) }
         await check("ポーカー") { _ = playPoker($0) }

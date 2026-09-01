@@ -13,6 +13,7 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -120,6 +121,8 @@ enum AppEnvironment {
         // それまでは #262 で末尾だった）。
         SudokuModule(),
         OthelloModule(),
+        // 囲碁（#398）。定番ボードの本丸で検索需要も大きいため、同系統の将棋・オセロの近くに置く。
+        GoModule(),
         MahjongSolitaireModule(),
         DaifugoModule(),
         PokerModule(),

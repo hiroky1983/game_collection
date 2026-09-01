@@ -62,8 +62,12 @@ public enum RecommendationPolicy {
     /// `RecommendationTableTests` の網羅テストが落ちるので、そこで気づける。
     public static let candidateTable: [String: [String]] = [
         "shogi":         ["gomoku", "othello", "2048"],
-        "gomoku":        ["othello", "shogi", "minesweeper"],
+        // 盤と石をそのまま流用した囲碁（#398）が最も近い。
+        "gomoku":        ["go", "othello", "shogi"],
         "othello":       ["gomoku", "shogi", "2048"],
+        // 囲碁（#398）。同じ盤・同じ石を使う五目並べが最も近く、次いで陣地を取り合うオセロ、
+        // 同じ本格ボードゲームの将棋の順で近い。
+        "go":            ["gomoku", "othello", "shogi"],
         // 「1人で盤面を詰める」系。同じ手触りの麻雀ソリティアへ抜けられるようにし（#237）、
         // マインスイーパーには最も近い論理パズルの数独を第1候補に置く。
         "2048":          ["minesweeper", "mahjong", "concentration"],

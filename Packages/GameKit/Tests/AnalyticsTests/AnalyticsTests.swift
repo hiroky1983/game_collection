@@ -13,6 +13,7 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
 import MahjongTiles
 
 // MARK: - Mocks
@@ -83,7 +84,7 @@ private func makeHubGameIDs() -> Set<String> {
     let modules: [GameModule] = [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
-        MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
+        MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -276,9 +277,9 @@ struct GameAnalyticsTests {
         #expect(spy.ends.map(\.gameID) == ["shogi"])
     }
 
-    @Test("送信対象の gameID はハブの登録内容と一致する（12本）")
+    @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 12, "ハブに並ぶゲームは12本")
+        #expect(hubGameIDs.count == 13, "ハブに並ぶゲームは13本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -613,6 +614,15 @@ struct AllGamesAnalyticsTests {
         let model = GomokuModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "gomoku")
+        #expect(spy.ends.first?.outcome == .loss)
+    }
+
+    @Test("囲碁: 開いた時点で開始・投了で終局（loss）")
+    func go() {
+        let (services, spy) = makeServices()
+        let model = GoModel(services: services)
+        model.resign()
+        expectOnePair(spy, gameID: "go")
         #expect(spy.ends.first?.outcome == .loss)
     }
 
