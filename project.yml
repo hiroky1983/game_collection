@@ -88,6 +88,14 @@ targets:
         GADApplicationIdentifier: ca-app-pub-1869410932032409~4823987816
         NSUserTrackingUsageDescription: より関連性の高い広告を表示するために使用します。
         ITSAppUsesNonExemptEncryption: false
+        # Firebase の自動収集を既定オフにする（#382 の会長決裁 A）。`FirebaseApp.configure()` から
+        # `applyAnalyticsCollectionState()` までの窓で session_start / first_open が出るのを塞ぐ。
+        # 許可した経路では起動時に `setAnalyticsCollectionEnabled(true)` が立ち、SDK 側で永続化
+        # されて plist より優先されるため、実ユーザーから取れるデータは減らない。
+        # **App/Info.plist ではなくここに書く**。App/Info.plist は下の `info.path` の出力先で、
+        # CI（ci.yml）と fastlane beta が毎回 `xcodegen generate` するたびに丸ごと再生成される。
+        # plist だけに足しても、出荷するバイナリに届く前に静かに消える（#388 の取りこぼし）。
+        FIREBASE_ANALYTICS_COLLECTION_ENABLED: false
     postBuildScripts:
       # Crashlytics のクラッシュを記号化するための dSYM アップロード（Firebase 公式手順）
       # SPM のチェックアウト先を移動する（-clonedSourcePackagesDirPath 等）と
