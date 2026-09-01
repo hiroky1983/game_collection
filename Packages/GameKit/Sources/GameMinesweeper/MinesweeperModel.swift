@@ -141,6 +141,19 @@ public final class MinesweeperModel {
         startTimer()
     }
 
+    /// 画面を離れるときに計時を止める（`onDisappear` から呼ぶ）。
+    ///
+    /// 計時の `Task` は `self` を強く握るので、止めないと**モデルが解放されず**、
+    /// 画面を離れたあとも 1 秒ごとに経過秒が進み続ける（#375。数独にも同型があった）。
+    /// 画面に戻れば `resumeTimerIfNeeded()` が計時を再開するので、経過時間は失われない。
+    public func pauseTimer() {
+        timerTask?.cancel()
+        timerTask = nil
+    }
+
+    /// 計時が動いているか。`@testable` から計時の開始・停止を実時間に依存せず確かめるために持つ。
+    var isTimerRunning: Bool { timerTask != nil }
+
     // MARK: - Actions
 
     /// このマスを開けるか。VoiceOver に「いま何ができるか」を伝えるためにも使うので、

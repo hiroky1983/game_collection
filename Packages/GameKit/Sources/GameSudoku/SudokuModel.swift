@@ -75,7 +75,6 @@ public final class SudokuModel {
         let previousNotes: Int
         /// 正解入力の巻き添えで消えた同行・列・ブロックのメモ（マス → 消える前のビットマスク）。
         let changedPeerNotes: [Int: Int]
-        let previousMistakes: Int
         /// 消したマスがヒントで埋めたものだったか（`erase` は `hintedCells` からも外すため）。
         let wasHinted: Bool
     }
@@ -239,6 +238,16 @@ public final class SudokuModel {
         startTimer()
     }
 
+    /// 画面を離れるときに計時を止める（`onDisappear` から呼ぶ）。
+    ///
+    /// 計時の `Task` は `self` を強く握るので、止めないと**モデルが解放されず**、
+    /// 画面を離れたあとも 1 秒ごとに `elapsedSeconds` が進み続ける（#375）。
+    /// 画面に戻れば `resumeTimerIfNeeded()` が計時を再開するので、経過時間は失われない。
+    public func pauseTimer() { stopTimer() }
+
+    /// 計時が動いているか。`@testable` から計時の開始・停止を実時間に依存せず確かめるために持つ。
+    var isTimerRunning: Bool { timerTask != nil }
+
     // MARK: - Actions
 
     /// マスを選ぶ。同じマスをもう一度タップすると選択解除。
@@ -259,7 +268,7 @@ public final class SudokuModel {
         if noteMode {
             lastUndoStep = UndoStep(
                 index: index, previousBoard: board[index], previousNotes: notes[index],
-                changedPeerNotes: [:], previousMistakes: mistakes, wasHinted: false
+                changedPeerNotes: [:], wasHinted: false
             )
             notes[index] ^= (1 << (digit - 1))
             services?.feedback.impact(.rigid)
@@ -276,7 +285,7 @@ public final class SudokuModel {
                 : [:]
             lastUndoStep = UndoStep(
                 index: index, previousBoard: board[index], previousNotes: notes[index],
-                changedPeerNotes: peerNotesBefore, previousMistakes: mistakes, wasHinted: false
+                changedPeerNotes: peerNotesBefore, wasHinted: false
             )
             board[index] = digit
             notes[index] = 0
@@ -296,14 +305,18 @@ public final class SudokuModel {
         persist()
     }
 
-    /// 直前の1手を取り消す（#353）。盤・メモ・巻き添えで消えたメモ・その手で増えたミスが戻る。
+    /// 直前の1手を取り消す（#353）。盤・メモ・巻き添えで消えたメモが戻る。
+    ///
+    /// **ミス回数は戻さない**（#375 の会長決裁 A）。以前は `previousMistakes` まで復元していたため、
+    /// 深さ 1 でも「誤答 → 戻す → 別の数字を試す」を繰り返すだけでミス上限（#322）が形骸化し、
+    /// 広告コンティニューの導線ごと骨抜きになっていた。盤面は戻すがミスは戻さないのが業界標準で、
+    /// 誤タップの救済という undo 本来の目的（#353）はそのまま果たせる。
     public func undo() {
         guard state == .playing, let step = lastUndoStep else { return }
         lastUndoStep = nil
         board[step.index] = step.previousBoard
         notes[step.index] = step.previousNotes
         for (peer, mask) in step.changedPeerNotes { notes[peer] = mask }
-        mistakes = step.previousMistakes
         if step.wasHinted { hintedCells.insert(step.index) }
         selected = step.index
         services?.feedback.impact(.rigid)
@@ -319,7 +332,7 @@ public final class SudokuModel {
         guard board[index] != 0 || notes[index] != 0 else { return }
         lastUndoStep = UndoStep(
             index: index, previousBoard: board[index], previousNotes: notes[index],
-            changedPeerNotes: [:], previousMistakes: mistakes,
+            changedPeerNotes: [:],
             wasHinted: hintedCells.contains(index)
         )
         board[index] = 0
@@ -367,8 +380,7 @@ public final class SudokuModel {
         state = .failed
         selected = nil
         // 3回目のミスは undo で取り消せない（#353）。取り消せると「広告を見てコンティニュー」
-        // （#322・会長指示の仕様）を素通りできてしまう。コンティニュー後に古い履歴で
-        // ミス回数が巻き戻るのも防ぐ（previousMistakes が失効するため）。
+        // （#322・会長指示の仕様）を素通りできてしまう。
         lastUndoStep = nil
         stopTimer()
         services?.feedback.notify(.error)

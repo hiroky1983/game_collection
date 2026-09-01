@@ -107,6 +107,9 @@ public struct SudokuView: View {
         } message: {
             Text("広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。")
         }
+        // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
+        // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
+        .onDisappear { model.pauseTimer() }
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
