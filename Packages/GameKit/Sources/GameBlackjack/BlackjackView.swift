@@ -437,42 +437,31 @@ struct BJCardView: View {
     let card: BlackjackCard
     var faceUp: Bool = true
 
+    private let metrics = PlayingCardMetrics.standard
+
     var body: some View {
         ZStack {
-            // 表は紙の淡い縦グラデーション、裏は藍のグラデーション + 白の内枠（CardStyle #366）。
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(faceUp ? AnyShapeStyle(CardStyle.faceFill) : AnyShapeStyle(CardStyle.backFill))
-                .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                )
+            // 外形・面・裏はトランプ共通基盤（#397。質感は CardStyle #366）。
+            PlayingCardSurface(faceUp: faceUp, cornerRadius: metrics.cornerRadius)
 
             if faceUp {
-                VStack(spacing: 2) {
-                    Text(card.rankLabel)
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                    Text(card.suit.symbol)
-                        .font(.system(size: 24))
-                }
-                .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
+                PlayingCardFace(figure: card.figure, metrics: metrics)
             } else {
-                CardStyle.backFrame(cornerRadius: 8)
-                Image(systemName: "suit.spade.fill")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white.opacity(CardStyle.backMotifOpacity))
+                PlayingCardBack(metrics: metrics)
             }
         }
-        .frame(width: 62, height: 90)
+        .frame(width: metrics.width, height: metrics.height)
     }
 }
 
 /// 配牌前のカード置き場（`BJCardView` と同じ寸法で、配牌時に高さが動かないようにする）
 struct BJCardPlaceholder: View {
+    private let metrics = PlayingCardMetrics.standard
+
     var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
             .strokeBorder(Theme.inkSub.opacity(0.3),
                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-            .frame(width: 62, height: 90)
+            .frame(width: metrics.width, height: metrics.height)
     }
 }

@@ -458,10 +458,12 @@ enum DaifugoHandLayout {
 struct DaifugoCardView: View {
     enum Size {
         case small, large
-        var width: CGFloat { self == .small ? 42 : 56 }
-        var height: CGFloat { self == .small ? 60 : 78 }
-        var rankFont: CGFloat { self == .small ? 16 : 22 }
-        var suitFont: CGFloat { self == .small ? 15 : 20 }
+        /// 寸法はトランプ共通基盤（#397）の定義を使う。small = 42×60、large = 56×78。
+        var metrics: PlayingCardMetrics { self == .small ? .compact : .medium }
+
+        // 手札レイアウト（#190 のタップ判定）が参照する寸法。共通基盤の値をそのまま返す。
+        var width: CGFloat { metrics.width }
+        var height: CGFloat { metrics.height }
     }
 
     let card: DaifugoCard
@@ -486,35 +488,19 @@ struct DaifugoCardView: View {
 
     var body: some View {
         ZStack {
-            // 紙の淡い縦グラデーション（CardStyle #366。ポーカー・ブラックジャックと共通）。
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(CardStyle.faceFill)
-                .shadow(color: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
-                        radius: selected ? 6 : 3, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(borderColor, lineWidth: borderWidth)
-                )
+            // 外形・面はトランプ共通基盤（#397。質感は CardStyle #366）。大富豪は常に表向き。
+            PlayingCardSurface(
+                cornerRadius: size.metrics.cornerRadius,
+                border: borderColor,
+                borderWidth: borderWidth,
+                shadowColor: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
+                shadowRadius: selected ? 6 : 3
+            )
 
-            if card.isJoker {
-                VStack(spacing: 1) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: size.suitFont))
-                    Text("JOKER")
-                        .font(.system(size: size.rankFont * 0.42, weight: .black, design: .rounded))
-                }
-                .foregroundStyle(Theme.purple)
-            } else {
-                VStack(spacing: 0) {
-                    Text(card.rankLabel)
-                        .font(.system(size: size.rankFont, weight: .black, design: .rounded))
-                    Text(card.suit?.symbol ?? "")
-                        .font(.system(size: size.suitFont))
-                }
-                .foregroundStyle((card.suit?.isRed ?? false) ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
-            }
+            // ジョーカーの図案は共通基盤の道化帽（#397 で新調。従来は star.fill だった）。
+            PlayingCardFace(figure: card.figure, metrics: size.metrics)
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: size.metrics.width, height: size.metrics.height)
         .opacity(isDimmed ? 0.4 : 1)
     }
 }
