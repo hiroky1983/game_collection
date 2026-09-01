@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 /// 大富豪のスート。ジョーカーはスートを持たない（`nil`）。
 public enum DaifugoSuit: Int, CaseIterable, Codable, Sendable {
@@ -6,6 +7,16 @@ public enum DaifugoSuit: Int, CaseIterable, Codable, Sendable {
 
     public var symbol: String { ["♠", "♥", "♦", "♣"][rawValue] }
     public var isRed: Bool { self == .hearts || self == .diamonds }
+
+    /// トランプ共通基盤（#397）の描画用スート。`rawValue` の一致に頼らず明示的に対応させる。
+    public var playing: PlayingCardSuit {
+        switch self {
+        case .spades:   return .spade
+        case .hearts:   return .heart
+        case .diamonds: return .diamond
+        case .clubs:    return .club
+        }
+    }
 }
 
 /// 大富豪の1枚。`rank` は A=1 / 2=2 / 3〜10 / J=11 / Q=12 / K=13、ジョーカーは `DaifugoRules.jokerRank`（0）。
@@ -39,6 +50,12 @@ public struct DaifugoCard: Identifiable, Codable, Sendable, Equatable, Hashable 
     /// 場・手札の並べ替えに使う既定の順序（革命の影響を受けない素の強さ → スート）。
     public var sortKey: Int {
         DaifugoRules.baseStrength(rank: rank) * 10 + (suit?.rawValue ?? 0)
+    }
+
+    /// トランプ共通基盤（#397）へ渡す面の内容。`rank` は既に A=1 表記なのでそのまま渡す。
+    public var figure: PlayingCardFigure {
+        guard let suit else { return .joker }
+        return .pip(suit: suit.playing, rank: rank)
     }
 }
 

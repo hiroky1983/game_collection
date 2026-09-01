@@ -8,6 +8,16 @@ public enum PokerSuit: Int, CaseIterable, Codable, Sendable {
     case spades, hearts, diamonds, clubs
     public var symbol: String { ["♠", "♥", "♦", "♣"][rawValue] }
     public var isRed: Bool { self == .hearts || self == .diamonds }
+
+    /// トランプ共通基盤（#397）の描画用スート。`rawValue` の一致に頼らず明示的に対応させる。
+    public var playing: PlayingCardSuit {
+        switch self {
+        case .spades:   return .spade
+        case .hearts:   return .heart
+        case .diamonds: return .diamond
+        case .clubs:    return .club
+        }
+    }
 }
 
 public struct PokerCard: Identifiable, Codable, Sendable, Equatable {
@@ -24,6 +34,12 @@ public struct PokerCard: Identifiable, Codable, Sendable, Equatable {
         case 10: return "10"
         default: return "\(rank)"
         }
+    }
+
+    /// トランプ共通基盤（#397）へ渡す面の内容。
+    /// 共通基盤は A=1 の表記なので、強さのために A=14 としている `rank` を戻して渡す。
+    public var figure: PlayingCardFigure {
+        .pip(suit: suit.playing, rank: rank == 14 ? 1 : rank)
     }
 }
 

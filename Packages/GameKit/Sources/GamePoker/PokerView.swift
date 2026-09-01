@@ -488,34 +488,27 @@ struct CardView: View {
     var faceUp: Bool = true
     var selected: Bool = false
 
+    private let metrics = PlayingCardMetrics.standard
+
     var body: some View {
         ZStack {
-            // 表は紙の淡い縦グラデーション、裏は藍のグラデーション + 白の内枠（CardStyle #366）。
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(faceUp ? AnyShapeStyle(CardStyle.faceFill) : AnyShapeStyle(CardStyle.backFill))
-                .shadow(color: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
-                        radius: selected ? 6 : 3, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(selected ? Theme.coral : Color.gray.opacity(0.2), lineWidth: selected ? 2 : 0.5)
-                )
+            // 外形・面・裏はトランプ共通基盤（#397。質感は CardStyle #366）。
+            PlayingCardSurface(
+                faceUp: faceUp,
+                cornerRadius: metrics.cornerRadius,
+                border: selected ? Theme.coral : Color.gray.opacity(0.2),
+                borderWidth: selected ? 2 : 0.5,
+                shadowColor: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
+                shadowRadius: selected ? 6 : 3
+            )
 
             if faceUp {
-                VStack(spacing: 2) {
-                    Text(card.rankLabel)
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                    Text(card.suit.symbol)
-                        .font(.system(size: 24))
-                }
-                .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
+                PlayingCardFace(figure: card.figure, metrics: metrics)
             } else {
-                CardStyle.backFrame(cornerRadius: 8)
-                Image(systemName: "suit.spade.fill")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white.opacity(CardStyle.backMotifOpacity))
+                PlayingCardBack(metrics: metrics)
             }
         }
-        .frame(width: 62, height: 90)
+        .frame(width: metrics.width, height: metrics.height)
     }
 }
 
