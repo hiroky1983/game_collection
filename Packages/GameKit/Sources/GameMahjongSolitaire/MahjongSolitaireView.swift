@@ -42,9 +42,9 @@ public struct MahjongSolitaireView: View {
     private let services: GameServices
     /// 盤面全体を 1 画面に収める表示にしているか。
     ///
-    /// **既定は false（= 牌を 44pt 以上にした表示）**。亀型レイアウトは横 15.56 枚ぶんあり、
-    /// 44pt の牌で全体を出すには 684.6pt の幅が要る。iPhone では両立しないため、
-    /// 「触れる大きさ」を既定にし、全体像はこのトグルで 1 タップ取り戻せるようにしている（#196）。
+    /// **既定は true（= 全体見渡し）**（会長指示 2026-09-02）。開幕はまず盤全体を見渡して
+    /// 形を把握し、取りに行くときに「拡大」で 44pt の触れる大きさへ切り替える流れにする。
+    /// （#196 当初は「触れる大きさ」既定だったが、初手から局所しか見えないほうが不便という判断）
     @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
     @State private var showConfirmNewGame = false
     /// 確認ダイアログで「終了して新規ゲーム」を押したときに配るかたち（#239）。
@@ -70,19 +70,18 @@ public struct MahjongSolitaireView: View {
 
     private typealias Metrics = MahjongSolitaireBoardMetrics
 
-    /// 撮影用に全体表示の状態で起動する経路（DEBUG 限定）。
+    /// 撮影用に拡大表示の状態で起動する経路（DEBUG 限定）。
     /// シミュレータは自動タップができないため、既定でない方の表示を撮る手段がこれしかない。
     private static var initialShowsWholeBoard: Bool {
         #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-mahjongWholeBoard")
-        #else
-        return false
+        if ProcessInfo.processInfo.arguments.contains("-mahjongSolitaireZoomed") { return false }
         #endif
+        return true
     }
 
     /// 撮影用に特定のかたちで起動する経路（DEBUG 限定・#239）。
     /// シミュレータは自動タップができないため、「＋」から選ぶ操作を再現する手段がこれしかない
-    /// （`-mahjongWholeBoard` と同じ理由）。
+    /// （`-mahjongSolitaireZoomed` と同じ理由）。
     private static var initialLayout: MahjongSolitaireLayout {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
