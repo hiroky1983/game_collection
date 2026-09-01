@@ -83,12 +83,15 @@ public enum GameCenterLeaderboard {
     public static let sudokuNormal            = "asobiba.sudoku.time.normal"
     public static let sudokuHard              = "asobiba.sudoku.time.hard"
     public static let mahjongSolitaireTime    = "asobiba.mahjongsolitaire.time"
+    /// ソリティア（クロンダイク・#397）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
+    public static let solitaireTime           = "asobiba.solitaire.time"
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blackjackChips,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
+        solitaireTime,
     ]
 
     /// 決着 1 回を送るリーダーボードと値。対象外なら nil（＝何も送らない）。
@@ -151,6 +154,11 @@ public enum GameCenterLeaderboard {
             case "15x15-40": return minesweeperExpert
             default:         return nil   // カスタム盤は対象外
             }
+        case "solitaire":
+            // 区分を持たないので、区分キーが付いていないときだけ送る。
+            // **ジョーカー（中継札）を使ったクリアを除外する仕掛けは #406 の決裁後に足す**
+            // （ジョーカーの入手経路そのものがまだ無く、この版では使用クリアが発生しない）。
+            return variant == nil ? solitaireTime : nil
         case "sudoku":
             // 区分キーは `SudokuDifficulty` の rawValue。
             switch variant {

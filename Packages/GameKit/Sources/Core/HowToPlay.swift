@@ -183,11 +183,26 @@ public extension HowToPlayGuide {
         hintIcon: "circle.circle"
     )
 
+    static let solitaire = HowToPlayGuide(
+        gameID: "solitaire",
+        // ハブでの表示名は「ソリティア」だが、遊びの正体（クロンダイク）はここで添える
+        // （#397 の「開始シートにクロンダイクを添える」。開幕モーダルは #192 で廃止済みのため、
+        //  遊ぶ前に読ませる唯一の面であるこのシートに寄せた）。
+        title: "ソリティア（クロンダイク）の遊び方",
+        lines: [
+            "動かす札をタップして選び、置きたい列か右上の組札をタップします。",
+            "場札は1つ小さくて色ちがいの札だけ重ねられます（黒の8 の上に 赤の7）。空いた列には K だけ置けます。",
+            "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。",
+        ],
+        hint: "札をタップ → 置き先をタップ",
+        hintIcon: "rectangle.stack.fill"
+    )
+
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go,
+        .sudoku, .go, .solitaire,
     ]
 }
 

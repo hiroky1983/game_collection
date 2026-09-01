@@ -15,13 +15,14 @@ import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
+import GameSolitaire
 
 // MARK: - 共通のヘルパー
 
 /// ハブの登録順（AppEnvironment.registry と同じ）。
 private let hubOrder = [
     "2048", "shogi", "gomoku", "minesweeper", "othello", "poker", "concentration", "blackjack", "daifugo",
-    "mahjong", "mahjong4", "sudoku", "go",
+    "mahjong", "mahjong4", "sudoku", "go", "solitaire",
 ]
 
 @MainActor
@@ -30,7 +31,7 @@ private func makeRegistry() -> GameRegistry {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(),
         OthelloModule(), PokerModule(), ConcentrationModule(), BlackjackModule(),
         DaifugoModule(), MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
-        GoModule(),
+        GoModule(), SolitaireModule(),
     ])
 }
 
@@ -94,7 +95,7 @@ struct RecommendationTableTests {
         ("othello",       ["gomoku", "shogi", "2048"]),
         ("2048",          ["minesweeper", "mahjong", "concentration"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
-        ("concentration", ["2048", "daifugo", "blackjack"]),
+        ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
         ("daifugo",       ["poker", "blackjack", "concentration"]),
@@ -102,6 +103,7 @@ struct RecommendationTableTests {
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
         ("go",            ["gomoku", "othello", "shogi"]),
+        ("solitaire",     ["mahjong", "concentration", "sudoku"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
