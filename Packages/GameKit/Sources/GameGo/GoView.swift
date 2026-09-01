@@ -87,7 +87,9 @@ public struct GoView: View {
         .task {
             #if DEBUG
             // 撮影用（#398）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
-            if ProcessInfo.processInfo.arguments.contains("-goMidgame") {
+            if ProcessInfo.processInfo.arguments.contains("-goScoring") {
+                await model.applyPreviewScoringForTesting()
+            } else if ProcessInfo.processInfo.arguments.contains("-goMidgame") {
                 model.applyPreviewMidgameForTesting()
             }
             #endif

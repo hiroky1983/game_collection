@@ -365,5 +365,16 @@ public final class GoModel {
             apply(.play(row: row, col: col))
         }
     }
+
+    /// 撮影用（#398）: 中盤の局面を作ってから両者パスし、終局の確認画面まで進める。
+    /// 死活の × 印と「対局続行」の導線は両者パスに到達しないと出ないため、
+    /// タップ操作なしでその画面を撮るにはここを通すしかない。
+    public func applyPreviewScoringForTesting() async {
+        applyPreviewMidgameForTesting()
+        guard phase == .playing else { return }
+        apply(.pass)
+        apply(.pass)
+        await evaluateEndgameIfNeeded()
+    }
     #endif
 }
