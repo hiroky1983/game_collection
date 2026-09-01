@@ -23,16 +23,22 @@ public struct ShogiView: View {
         let model = ShogiGameModel(services: services)
         _model = State(initialValue: model)
         _pieceLayout = State(initialValue: ShogiPieceLayout(model.displayedPosition))
-        _showNewGame = State(initialValue: !services.snapshots.exists(for: "shogi"))
+        var showSheet = !services.snapshots.exists(for: "shogi")
+        #if DEBUG
+        // 撮影用（#366系）: 開始シートを飛ばして初期局面を撮る。
+        if ProcessInfo.processInfo.arguments.contains("-shogiSkipStartSheet") { showSheet = false }
+        #endif
+        _showNewGame = State(initialValue: showSheet)
     }
 
     /// 人間が後手なら盤を反転して表示する。
     private var flipped: Bool { model.humanSide == .white }
 
     public var body: some View {
-        // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
-        // 盤に回せる高さを間隔から捻出している（#139）。
-        VStack(spacing: 8) {
+        // 縦の余白は 5。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 盤に回せる高さを間隔から捻出している（#139）。盤の横幅をカード類と同じ内寸まで
+        // 届かせるため、間隔・各カードの縦余白から高さを捻出している（会長指示 2026-09-01）。
+        VStack(spacing: 4) {
             statusBar
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
@@ -91,6 +97,12 @@ public struct ShogiView: View {
         .overlay { promotionOverlay }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        .task {
+            #if DEBUG
+            // 撮影用: 終局後レイアウト（検討ナビ・レコメンドのオーバーレイ）を即再現する。
+            if ProcessInfo.processInfo.arguments.contains("-shogiAutoResign") { model.resign() }
+            #endif
         }
         // 王手が掛かった瞬間だけ文字を出し、少し置いて引っ込める（#377）。
         // `.task(id:)` にしておくと、続けて王手が掛かったときに前の待機が破棄されるので、
@@ -249,6 +261,16 @@ public struct ShogiView: View {
             )
         }
         .aspectRatio(1, contentMode: .fit)
+        // 終局後のレコメンドは盤の下端に重ねる（#139 の高さ予約の代替。会長指示 2026-09-01:
+        // 予約をやめて盤の横幅をカード類と同じ内寸まで届かせる）。×で閉じられ、
+        // 検討ナビで盤を見たいときに邪魔なら閉じればよい。
+        .overlay(alignment: .bottom) {
+            if model.gameOver {
+                RecommendationSlot(services: services, isFinished: true)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+            }
+        }
     }
 
     /// 画面 (row,col) → 内部マス。人間が先手なら先手視点、後手なら反転。
@@ -382,7 +404,7 @@ public struct ShogiView: View {
                 Text(model.position.sideToMove == .black ? "先手番" : "後手番")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .padding(.horizontal, 12).padding(.vertical, 2)
                     .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.teal))
                     // 手番が移ったことを色の移り変わりで見せる（#201）。文字は差し替わるだけなので、
                     // 目に留まるのは色の変化。着手そのものを待たせないよう短く取る。
@@ -411,36 +433,19 @@ public struct ShogiView: View {
 
     // MARK: - 盤の下の操作エリア
 
-    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度・レコメンド）で中身が入れ替わるが、
-    /// **高さは常に終局後の最大構成に揃える**（#139）。
+    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度）で中身が入れ替わるが、
+    /// どちらも**同じ余白の1行**なので高さは変わらない（#139 の「決着で盤が縮まない」契約）。
     ///
-    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
-    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
-    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    /// かつてはレコメンドカードのぶんまで常時ひな形で高さを予約していたが、その予約（約55pt）が
+    /// 盤の幅をカード類より狭くしていた（会長指示 2026-09-01「盤の横幅をカードに揃える」）。
+    /// レコメンドは盤の下端へのオーバーレイ（`board` 側の `.overlay`）に移し、予約を撤廃した。
     private var controlArea: some View {
         ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
             if model.gameOver {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
+                reviewControls
             } else {
                 gameControls
             }
-        }
-    }
-
-    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
-            reviewControls
-            recommendation()
         }
     }
 
@@ -491,7 +496,7 @@ public struct ShogiView: View {
             }
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(.horizontal, 16).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -516,7 +521,7 @@ public struct ShogiView: View {
             }
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(.horizontal, 16).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }
 }
@@ -862,12 +867,12 @@ private struct HandAreaView: View {
                     .drawingGroup() // 駒形状・グラデーションを Metal で一括描画
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
-        // 縦の余白は 4。終局後に出るもののぶんの高さを確保しても盤が小さくならないよう、
-        // 駒の大きさ（＝タップ目標）は変えずに余白から捻出している（#139）。
-        .padding(.horizontal, 12).padding(.vertical, 4)
+        // 縦の余白は 3。終局後に出るもののぶんの高さを確保しても盤が小さくならないよう、
+        // 駒の大きさ（＝タップ目標）は変えずに余白から捻出している（#139・会長指示 2026-09-01）。
+        .padding(.horizontal, 12).padding(.vertical, 2)
         .popCard(corner: Theme.cornerSmall)
     }
 }
