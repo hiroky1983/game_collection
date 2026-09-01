@@ -518,7 +518,7 @@ public struct SudokuView: View {
     // MARK: - 操作ボタン
 
     private var gameControls: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Button { model.toggleNoteMode() } label: {
                 Label("メモ", systemImage: "pencil.tip")
                     .foregroundStyle(model.noteMode ? .white : Theme.inkSub)
@@ -576,7 +576,11 @@ public struct SudokuView: View {
             .buttonStyle(.pop)
         }
         .themeBody(14)
-        .padding(.horizontal, 12).padding(.vertical, 4)
+        // 4ボタン+残数表示で幅が詰まり「ヒント」が改行していた（会長指摘 2026-09-02）。
+        // 1行固定+縮小許容で確実に収める。
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, 10).padding(.vertical, 4)
         .popCard(corner: Theme.cornerSmall)
     }
 

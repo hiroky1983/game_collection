@@ -100,32 +100,20 @@ public struct GoView: View {
 
     /// 対局中（投了・パス・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// **高さは常に終局後の最大構成に揃える**（#148 の横展開）。
+    /// 対局中（パス・投了）/ 死活確認中 / 終局後（もう一度）で中身が入れ替わるが、どれも
+    /// 同じ余白の1行なので高さは変わらない（決着で盤が縮まない契約）。レコメンドの常時高さ予約は
+    /// 盤を狭くしていたため撤廃し、盤の下端へのオーバーレイに移した（将棋 #405 と同じ手当て。
+    /// 会長指摘 2026-09-02「碁盤が小さい」）。
     private var controlArea: some View {
         ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
             switch model.phase {
             case .playing:
                 gameControls
             case .scoring:
                 scoringControls
             case .finished:
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
+                resultControls
             }
-        }
-    }
-
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
-            resultControls
-            recommendation()
         }
     }
 
@@ -235,6 +223,14 @@ public struct GoView: View {
             .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
         }
         .aspectRatio(1, contentMode: .fit)
+        // 終局後のレコメンドは盤の下端に重ねる（常時高さ予約の代替。将棋 #405 と同じ）。
+        .overlay(alignment: .bottom) {
+            if model.phase == .finished {
+                RecommendationSlot(services: services, isFinished: true)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+            }
+        }
     }
 
     /// VoiceOver 用の交点グリッド（#188 の横展開）。
@@ -499,11 +495,22 @@ private struct GoBoardCanvas: View, Animatable {
 
                     var layer = ctx
                     layer.opacity = appear * (dead.contains(point) ? 0.45 : 1)
+                    // 碁石はドーム（半球）: 左上寄りのラジアルの照り + 落ち影（#366・#398 流用資産）。
+                    // 五目並べ（GomokuBoardCanvas）と同じ描き方で、質感を共通にする。
+                    layer.addFilter(.shadow(
+                        color: .black.opacity(0.30),
+                        radius: s * 0.09,
+                        x: 0, y: s * 0.07))
 
+                    let highlight = CGPoint(x: cx - r * 0.35, y: cy - r * 0.4)
                     if stone == .black {
-                        layer.fill(path, with: .color(Color(hex: 0x18140E)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0x3E3A34), Color(hex: 0x0C0A07)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.5))
                     } else {
-                        layer.fill(path, with: .color(Color(hex: 0xF0E8D0)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0xFFFCF0), Color(hex: 0xD9D2B8)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.7))
                         layer.stroke(path, with: .color(Color.gray.opacity(0.4)), lineWidth: 1)
                     }
 
@@ -519,13 +526,17 @@ private struct GoBoardCanvas: View, Animatable {
                     }
 
                     // 直前手マーカー（#202 と同じ、外周のリング + 中央のドット）。
+                    // 石の落ち影フィルタを継がないよう、影なしの複製に描く（五目 #368 と同じ）。
                     if isLast {
+                        var markerLayer = ctx
+                        markerLayer.opacity = appear
+
                         let ring = rect.insetBy(dx: -2, dy: -2)
-                        layer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
+                        markerLayer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
 
                         let mr = r * 0.34
                         let markerRect = CGRect(x: cx - mr, y: cy - mr, width: mr * 2, height: mr * 2)
-                        layer.fill(Path(ellipseIn: markerRect),
+                        markerLayer.fill(Path(ellipseIn: markerRect),
                                    with: .color(stone == .black ? Color.white.opacity(0.9)
                                                                 : Color(hex: 0x2A1600).opacity(0.75)))
                     }
@@ -573,6 +584,9 @@ struct GoRuleDetails: View {
     ]
 
     var body: some View {
+        // 他ゲームのルールシート（大富豪・ポーカー）と同じ包み: スクロール + 左右余白 + 共通背景
+        // （会長指摘 2026-09-02: 全面白地・余白なしで見た目が他と違う）。
+        ScrollView {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(sections, id: \.0) { title, lines in
                 VStack(alignment: .leading, spacing: 6) {
@@ -587,6 +601,9 @@ struct GoRuleDetails: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.pad)
+        }
+        .popBackground()
     }
 }
 
@@ -666,7 +683,9 @@ struct GoNewGameSheet: View {
                 }
             }
         }
-        .gameSheetDetents()
+        // 選択肢3節 + 置き石の条件節で .medium には収まらない（会長指摘 2026-09-02:
+        // ハンデ以降がはみ出て操作できない）。このシートだけ常に .large で開く。
+        .presentationDetents([.large])
     }
 
     private func accent(for level: GoLevel) -> Color {
