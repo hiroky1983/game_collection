@@ -5,6 +5,15 @@ import Core
 public struct SolitaireView: View {
     @State private var model: SolitaireModel
     @State private var showConfirmNewGame = false
+    /// ドラッグ中の札（会長要望 2026-09-02: ドラッグ&ドロップで動かす）。
+    /// タップ（選択→行き先）の従来操作はそのまま残し、ドラッグは同じモデル操作を
+    /// 別の入力経路から呼ぶだけにする（合法判定・拒否・記録の経路を増やさない）。
+    @State private var drag: SolitaireDragState?
+    /// ドロップ先の当たり判定枠（盤スクロール座標系）。
+    @State private var dropFrames: [SolitaireDropTarget: CGRect] = [:]
+
+    /// 盤の座標空間名。ドラッグの指の位置・ドロップ枠・追従オーバーレイを同じ空間で扱う。
+    private static let boardSpace = "solitaireBoard"
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
 
@@ -138,8 +147,109 @@ public struct SolitaireView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 2)
             }
+            // ドラッグの指の位置・ドロップ枠・追従表示を全て同じ座標空間で扱う。
+            .coordinateSpace(name: Self.boardSpace)
+            .onPreferenceChange(SolitaireDropFramesKey.self) { dropFrames = $0 }
+            .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics) }
             .gameAnimation(.easeOut(duration: 0.18), value: boardAnimationKey)
         }
+    }
+
+    // MARK: - ドラッグ&ドロップ（会長要望 2026-09-02）
+
+    /// 指に追従する持ち上げた札の描画。当たり判定は持たない。
+    @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics) -> some View {
+        if let drag {
+            let upStep = SolitaireMetrics.faceUpStep(cardHeight: metrics.height)
+            ZStack(alignment: .top) {
+                ForEach(Array(drag.cards.enumerated()), id: \.element.id) { index, card in
+                    cardView(card, faceUp: true, isSelected: false,
+                             isCovered: index < drag.cards.count - 1, metrics: metrics)
+                        .offset(y: CGFloat(index) * upStep)
+                }
+            }
+            .shadow(color: .black.opacity(0.25), radius: 8, y: 6)
+            .offset(x: drag.location.x - drag.grab.width,
+                    y: drag.location.y - drag.grab.height)
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// 札のドラッグ。移動の成立・拒否は既存のタップ操作（選択→行き先）をそのまま呼び、
+    /// 合法判定・拒否音・記録の経路を1本に保つ。
+    private func dragGesture(source: SolitaireSelection, metrics: PlayingCardMetrics) -> some Gesture {
+        DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.boardSpace))
+            .onChanged { value in
+                if drag == nil {
+                    guard model.phase == .playing,
+                          let cards = draggableCards(from: source), !cards.isEmpty else { return }
+                    model.deselect()
+                    drag = SolitaireDragState(
+                        source: source,
+                        cards: cards,
+                        location: value.location,
+                        // つかんだ位置がだいたい札の中央上部に来るように合わせる。
+                        grab: CGSize(width: metrics.width / 2, height: metrics.height / 3)
+                    )
+                    services.feedback.impact(.rigid)
+                } else {
+                    drag?.location = value.location
+                }
+            }
+            .onEnded { value in
+                guard let current = drag else { return }
+                drag = nil
+                resolveDrop(of: current, at: value.location)
+            }
+    }
+
+    /// ドラッグで持ち上げられる札の並び。動かせない並びは持ち上げさせない（タップ選択と同じ規則）。
+    private func draggableCards(from source: SolitaireSelection) -> [SolitaireCard]? {
+        switch source {
+        case .waste:
+            return model.board.waste.last.map { [$0] }
+        case .tableau(let pile, let cardIndex):
+            guard model.board.tableau.indices.contains(pile),
+                  model.board.tableau[pile].faceUp.indices.contains(cardIndex),
+                  model.board.isMovableRun(pile: pile, from: cardIndex) else { return nil }
+            return Array(model.board.tableau[pile].faceUp[cardIndex...])
+        }
+    }
+
+    /// 指を離した位置のドロップ先を探し、既存のタップ操作を再現して移動を試みる。
+    /// 何にも重なっていなければ何もしない（誤ドロップで拒否音を鳴らさない）。
+    private func resolveDrop(of drag: SolitaireDragState, at point: CGPoint) {
+        // 組札と場札の枠は重ならないが、辞書順は不定なので組札を先に探す。
+        let target = dropFrames.first { key, frame in
+            if case .foundation = key { return frame.contains(point) }
+            return false
+        }?.key ?? dropFrames.first { $0.value.contains(point) }?.key
+        guard let target else { return }
+
+        // 同じ列に戻しただけなら何もしない。
+        if case .tableau(let from, _) = drag.source, case .pile(let to) = target, from == to { return }
+
+        model.deselect()
+        switch drag.source {
+        case .waste:
+            model.tapWaste()
+        case .tableau(let pile, let cardIndex):
+            model.tapPile(pile, cardIndex: cardIndex)
+        }
+        switch target {
+        case .pile(let pile):
+            model.tapPile(pile)
+        case .foundation(let suit):
+            model.tapFoundation(suit)
+        }
+        // 移動が成立しなかったとき（拒否音は既に鳴っている）に選択が残らないようにする。
+        if model.selection != nil { model.deselect() }
+    }
+
+    /// この札がドラッグで持ち上げ中（元の位置は薄く見せる）か。
+    private func isLifted(pile: Int, cardIndex: Int) -> Bool {
+        guard let drag, case .tableau(let dragPile, let dragIndex) = drag.source else { return false }
+        return dragPile == pile && cardIndex >= dragIndex
     }
 
     /// 盤面の演出を起こす値。札の増減と選択の両方をひとつにまとめ、`.gameAnimation` は
@@ -199,12 +309,14 @@ public struct SolitaireView: View {
         Group {
             if let card = model.board.waste.last {
                 cardView(card, faceUp: true, isSelected: model.selection == .waste, metrics: metrics)
+                    .opacity(drag?.source == .waste ? 0.35 : 1)
             } else {
                 emptySlot(metrics: metrics, symbol: nil)
             }
         }
         .contentShape(Rectangle())
         .onTapGesture { model.tapWaste() }
+        .highPriorityGesture(dragGesture(source: .waste, metrics: metrics))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SolitaireAccessibility.wasteLabel(
             card: model.board.waste.last, isSelected: model.selection == .waste))
@@ -222,6 +334,11 @@ public struct SolitaireView: View {
                 emptySlot(metrics: metrics, symbol: nil, suit: suit)
             }
         }
+        .background(GeometryReader { g in
+            Color.clear.preference(
+                key: SolitaireDropFramesKey.self,
+                value: [.foundation(suit): g.frame(in: .named(Self.boardSpace))])
+        })
         .contentShape(Rectangle())
         .onTapGesture { model.tapFoundation(suit) }
         .accessibilityElement(children: .ignore)
@@ -286,6 +403,12 @@ public struct SolitaireView: View {
             }
         }
         .frame(width: metrics.width, height: height, alignment: .top)
+        // ドロップ先の枠を報告する（列全体。会長要望 2026-09-02 のドラッグ&ドロップ用）。
+        .background(GeometryReader { g in
+            Color.clear.preference(
+                key: SolitaireDropFramesKey.self,
+                value: [.pile(pile): g.frame(in: .named(Self.boardSpace))])
+        })
         .contentShape(Rectangle())
         .onTapGesture { model.tapPile(pile) }
     }
@@ -300,8 +423,11 @@ public struct SolitaireView: View {
     ) -> some View {
         let isSelected = model.selection == .tableau(pile: pile, cardIndex: index)
         return cardView(card, faceUp: true, isSelected: isSelected, isCovered: isCovered, metrics: metrics)
+            .opacity(isLifted(pile: pile, cardIndex: index) ? 0.35 : 1)
             .contentShape(Rectangle())
             .onTapGesture { model.tapPile(pile, cardIndex: index) }
+            .highPriorityGesture(dragGesture(
+                source: .tableau(pile: pile, cardIndex: index), metrics: metrics))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(SolitaireAccessibility.tableauCardLabel(
                 pile: pile,
@@ -584,5 +710,32 @@ struct SolitaireRuleSheet: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+}
+
+// MARK: - ドラッグ&ドロップ（会長要望 2026-09-02）
+
+/// ドラッグ中の札の状態。
+struct SolitaireDragState {
+    var source: SolitaireSelection
+    var cards: [SolitaireCard]
+    /// 盤座標系での指の位置。
+    var location: CGPoint
+    /// つかんだ点から札の左上までのずれ（追従表示の位置合わせ用）。
+    var grab: CGSize
+}
+
+/// ドロップ先の種類。
+enum SolitaireDropTarget: Hashable {
+    case pile(Int)
+    case foundation(SolitaireSuit)
+}
+
+/// ドロップ先の枠を子ビューから集める。
+struct SolitaireDropFramesKey: PreferenceKey {
+    static var defaultValue: [SolitaireDropTarget: CGRect] { [:] }
+    static func reduce(value: inout [SolitaireDropTarget: CGRect],
+                       nextValue: () -> [SolitaireDropTarget: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
