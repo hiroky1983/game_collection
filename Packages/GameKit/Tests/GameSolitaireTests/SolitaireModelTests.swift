@@ -56,26 +56,14 @@ private let fixedSeed = SolitaireDealer.verifiedSeeds[0]
 /// 操作そのものを 1 局ぶん通しで検証するため（View を組まずに触れるのはここが唯一の面）。
 @MainActor
 private func play(_ model: SolitaireModel, _ moves: [SolitaireMove]) {
+    // タップ経由だと「タップ=自動移動」（会長QA 2026-09-02）の解釈が挟まって
+    // ソルバーの手順どおりに進まないため、テスト専用の直接経路で 1 手ずつ適用する。
     for move in moves {
         switch move {
-        case .draw:
-            model.tapStock()
-        case .wasteToFoundation:
-            guard let suit = model.board.waste.last?.suit else { continue }
-            model.tapWaste()
-            model.tapFoundation(suit)
-        case .wasteToTableau(let pile):
-            model.tapWaste()
-            model.tapPile(pile)
-        case .tableauToFoundation(let pile):
-            guard let suit = model.board.tableau[pile].top?.suit else { continue }
-            model.tapPile(pile)
-            model.tapFoundation(suit)
-        case .tableauToTableau(let from, let index, let to):
-            model.tapPile(from, cardIndex: index)
-            model.tapPile(to)
         case .placeJoker(let pile):
             model.placeJoker(onPile: pile)
+        default:
+            model.applyForTesting(move)
         }
     }
 }
@@ -99,54 +87,78 @@ struct SolitaireModelTests {
         #expect(!model.canUndo)
     }
 
-    @Test("札をタップして選び、置き先をタップすると動く")
-    func selectThenPlace() {
+    @Test("札をタップすると置ける先へ自動で動く（タップ=自動移動）")
+    func tapAutoMoves() {
         let (services, _) = makeServices()
         let model = SolitaireModel(services: services, seed: fixedSeed)
-        // 場札から場札へ動かせる組を、盤面から 1 つ見つけて指す。
+        // 場札から場札へ動かせる札を盤面から 1 つ見つけてタップする（会長QA 2026-09-02 の新契約:
+        // 1タップで組札 > 場札の左の列の順に自動移動する）。
         var found = false
-        outer: for from in 0..<SolitaireBoard.pileCount {
-            for to in 0..<SolitaireBoard.pileCount where from != to {
-                let move = SolitaireMove.tableauToTableau(from: from, cardIndex: 0, to: to)
-                guard model.board.isLegal(move) else { continue }
-                let card = model.board.tableau[from].faceUp[0]
-                model.tapPile(from, cardIndex: 0)
-                #expect(model.selection == .tableau(pile: from, cardIndex: 0))
-                model.tapPile(to)
-                #expect(model.selection == nil)
-                #expect(model.board.tableau[to].top == card)
-                #expect(model.moveCount == 1)
-                found = true
-                break outer
+        for from in 0..<SolitaireBoard.pileCount {
+            let hasTarget = (0..<SolitaireBoard.pileCount).contains { to in
+                to != from && model.board.isLegal(.tableauToTableau(from: from, cardIndex: 0, to: to))
             }
+            guard hasTarget else { continue }
+            let card = model.board.tableau[from].faceUp[0]
+            model.tapPile(from, cardIndex: 0)
+            // 1タップで移動が成立し、選択状態は残らない。
+            #expect(model.selection == nil)
+            #expect(model.board.tableau[from].faceUp.contains(card) == false)
+            #expect(model.moveCount == 1)
+            found = true
+            break
         }
         #expect(found, "初期配置に場札どうしの合法手が 1 つも無い（種の選び直しが要る）")
     }
 
-    @Test("同じ札をもう一度タップすると選択が外れる")
-    func tapTwiceDeselects() {
+    @Test("置ける先が無い札のタップは選択になり、もう一度タップすると外れる")
+    func tapWithoutTargetSelectsAndDeselects() {
         let (services, _) = makeServices()
         let model = SolitaireModel(services: services, seed: fixedSeed)
-        model.tapPile(0, cardIndex: 0)
-        #expect(model.selection != nil)
-        model.tapPile(0, cardIndex: 0)
-        #expect(model.selection == nil)
+        // 自動移動の行き先が無い札を探してタップする（新契約のフォールバック=選択）。
+        var found = false
+        for from in 0..<SolitaireBoard.pileCount {
+            let top = model.board.tableau[from].faceUp.count - 1
+            let hasFoundation = model.board.isLegal(.tableauToFoundation(pile: from))
+            let hasTableau = (0..<SolitaireBoard.pileCount).contains { to in
+                to != from && model.board.isLegal(.tableauToTableau(from: from, cardIndex: top, to: to))
+            }
+            guard !hasFoundation, !hasTableau else { continue }
+            model.tapPile(from)
+            #expect(model.selection == .tableau(pile: from, cardIndex: top))
+            model.tapPile(from)
+            #expect(model.selection == nil)
+            found = true
+            break
+        }
+        #expect(found, "初期配置に行き先の無い札が 1 枚も無い（種の選び直しが要る）")
     }
 
     @Test("置けない先をタップしても盤面は動かず、拒否として数える")
     func illegalDestinationIsRejected() {
         let (services, spy) = makeServices()
         let model = SolitaireModel(services: services, seed: fixedSeed)
-        let before = model.board
-        // 組札は A からしか始まらないので、A 以外を選んで組札を叩けば必ず拒否される。
-        let pile = (0..<SolitaireBoard.pileCount).first { model.board.tableau[$0].top?.rank != 1 }
-        let target = try! #require(pile)
-        let suit = try! #require(model.board.tableau[target].top?.suit)
-        model.tapPile(target, cardIndex: 0)
-        model.tapFoundation(suit)
-        #expect(model.board == before)
-        #expect(model.rejectedTapCount == 1)
-        #expect(spy.notices.contains(.warning))
+        // 自動移動の行き先が無い（=選択状態になる）A 以外の札で組札を叩き、拒否を確かめる。
+        var found = false
+        for target in 0..<SolitaireBoard.pileCount {
+            let top = model.board.tableau[target].faceUp.count - 1
+            guard let card = model.board.tableau[target].top, card.rank != 1 else { continue }
+            let hasFoundation = model.board.isLegal(.tableauToFoundation(pile: target))
+            let hasTableau = (0..<SolitaireBoard.pileCount).contains { to in
+                to != target && model.board.isLegal(.tableauToTableau(from: target, cardIndex: top, to: to))
+            }
+            guard !hasFoundation, !hasTableau, let suit = card.suit else { continue }
+            let before = model.board
+            model.tapPile(target)
+            #expect(model.selection != nil)
+            model.tapFoundation(suit)
+            #expect(model.board == before)
+            #expect(model.rejectedTapCount == 1)
+            #expect(spy.notices.contains(.warning))
+            found = true
+            break
+        }
+        #expect(found, "行き先の無い A 以外の札が初期配置に無い（種の選び直しが要る）")
     }
 
     @Test("戻すは何回でも効き、配ったばかりの状態まで戻せる")
