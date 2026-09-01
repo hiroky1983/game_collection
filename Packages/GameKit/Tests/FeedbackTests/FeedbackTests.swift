@@ -161,8 +161,13 @@ private func playSolitaire(_ services: GameServices) {
     let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
     model.tapWaste()   // 拒否（捨て札がまだ空）
     model.tapStock()   // 成立（山を1枚めくる）
-    model.tapPile(0)   // 持ち上げる
-    model.newGame()    // 決着（1手指した配札を捨てた = 敗北）
+    // 持ち上げ（`.rigid`）は「置ける先が無い札に触れたとき」のフォールバックになった（#420 の
+    // タップ = 自動移動）。列を決め打ちすると自動移動が起きて持ち上げを一度も通らないため、
+    // 持ち上がるまで左の列から順に試す（配札は種で固定なので結果は決定的）。
+    for pile in 0..<7 where model.selection == nil {
+        model.tapPile(pile)
+    }
+    model.newGame()    // 決着（指した配札を捨てた = 敗北）
 }
 
 @MainActor
