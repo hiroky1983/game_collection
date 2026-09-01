@@ -62,6 +62,8 @@ enum AppEnvironment {
     /// `GatedAnalyticsService` は `game_start` / `game_end` しか止められないため、これを呼ばないと
     /// オフにしても自動収集イベント（`session_start` 等）が送られ続け、設定画面の説明と食い違う。
     /// 起動直後（`FirebaseApp.configure()` の後）と、トグルを切り替えたときに呼ぶ。
+    /// `Info.plist` 側で収集を既定オフにしてあるため、ここは「許可された経路で ON を立てる」役割で、
+    /// 呼ばれるまでの一瞬に自動収集イベントが漏れることはない（#382）。
     static func applyAnalyticsCollectionState() {
         // 撮影モードに加え、開発ビルド（シミュレータ・Xcode 実行）も送信そのものを止める（#347）。
         // 8月の計測初データが内部トラフィックで埋まり実ユーザー指標として読めなくなったため、

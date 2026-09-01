@@ -22,6 +22,8 @@ struct FirebaseAnalyticsService: AnalyticsService {
     /// - Note: この値は SDK 側でアプリのセッションをまたいで永続化され、`Info.plist` の
     ///   `FIREBASE_ANALYTICS_COLLECTION_ENABLED` より優先される。そのため起動時に必ず
     ///   こちらの設定値で上書きし、アプリの設定画面が唯一の正とする。
+    ///   `Info.plist` 側は `NO`（既定オフ）にしてあり、上書きが効くまでの窓
+    ///   （= 永続化された値がまだ無い初回起動）でも自動収集イベントが出ない（#382）。
     @MainActor
     static func setCollectionEnabled(_ isEnabled: Bool) {
         Analytics.setAnalyticsCollectionEnabled(isEnabled)
