@@ -143,12 +143,16 @@ public final class PlayLog {
 
         // 壊れた JSON（旧形式・書き込み途中の中断）で起動できなくならないよう、失敗したら空に倒す。
         // 記録は再取得できない代わりに失っても遊べるため、可用性を優先する。
+        let stored: [String: PlayRecord]
         if let data = defaults.data(forKey: Self.recordsKey),
            let decoded = try? JSONDecoder().decode([String: PlayRecord].self, from: data) {
-            self.records = decoded
+            stored = decoded
         } else {
-            self.records = [:]
+            stored = [:]
         }
+        self.records = Self.migratingLegacyRecords(stored)
+        // 移し替えが起きた回だけ書き戻す。次の起動では旧キーが無いので何も起きない。
+        if self.records != stored { persistRecords() }
     }
 
     public var state: RecommendationState {
@@ -223,6 +227,33 @@ public final class PlayLog {
     public static func recordKey(gameID: String, variant: String?) -> String {
         guard let variant, !variant.isEmpty else { return gameID }
         return "\(gameID)#\(variant)"
+    }
+
+    /// 区分（`GameScore.variant`）を**後から**導入したゲームの、旧記録の引き継ぎ先（#383）。
+    ///
+    /// 区分が無かった頃の記録は `gameID` 単独のキーに入っている。区分を入れた版に更新すると
+    /// 書き込み先が `gameID#variant` に変わるため、そのままでは旧記録がどこからも参照されず、
+    /// 更新後の初回クリアが無条件に「新記録」になる（麻雀ソリティアが #239 で該当した）。
+    /// 値は「区分が無かった頃に遊べた唯一の区分」= 既定区分を指す。
+    static let legacyRecordMigrations: [String: (variant: String, label: String)] = [
+        "mahjong": (variant: "turtle", label: "亀甲"),
+    ]
+
+    /// 旧キーの記録を既定区分のキーへ移し替えた結果を返す純粋関数（#383）。
+    ///
+    /// 引き継ぎ先に既に記録があれば**両方を合成**する。区分を入れた版で一度でも遊んでいると
+    /// 新旧のキーが並存するため、片方を捨てると自己ベストか通算成績のどちらかが失われる。
+    /// 合成後は旧キーを消すので、ハブに同じゲームの行が2つ出ることもなくなる。
+    static func migratingLegacyRecords(_ records: [String: PlayRecord]) -> [String: PlayRecord] {
+        var result = records
+        for (gameID, destination) in legacyRecordMigrations {
+            guard var legacy = result[gameID] else { continue }
+            legacy.variantLabel = destination.label
+            let key = recordKey(gameID: gameID, variant: destination.variant)
+            result[key] = result[key].map { legacy.merged(into: $0) } ?? legacy
+            result[gameID] = nil
+        }
+        return result
     }
 
     /// 1 件ぶんの記録を取り出す。まだ遊んでいなければ nil。

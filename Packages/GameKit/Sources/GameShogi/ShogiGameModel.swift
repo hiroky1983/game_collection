@@ -74,6 +74,15 @@ public final class ShogiGameModel {
         if legalMovesCache.isEmpty {
             self.gameOver = true
             self.phase = .review
+            // 詰みの勝敗表示は状態として保存していないので、復元時にここで組み直す。
+            // 以前は `gameOver` だけ立てて `resultText` を nil のままにしていたため、
+            // 詰んだ対局をアプリの再起動で開くと決着の文字だけが消えていた（#375）。
+            self.resultText = Self.checkmateResultText(loser: pos.sideToMove)
+        } else if Self.isFourfoldRepetition(initialSFEN: sfen, moves: moveList, current: pos) {
+            // 千日手も指し手列から導けるので、復元時も同じ判定でそのまま決着に戻る。
+            self.gameOver = true
+            self.phase = .review
+            self.resultText = Self.repetitionResultText
         }
         if snap?.resigned == true {
             self.gameOver = true
@@ -90,6 +99,43 @@ public final class ShogiGameModel {
         // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
         if snap == nil { services?.gameDidStart(gameID: gameID) }
+    }
+
+    // MARK: - 終局の判定
+
+    /// 千日手が成立する同一局面の出現回数。
+    static let repetitionLimit = 4
+
+    static func checkmateResultText(loser: Side) -> String {
+        (loser == .black ? "先手" : "後手") + "の負け（詰み）"
+    }
+
+    static let repetitionResultText = "引き分け（千日手）"
+
+    /// 千日手の「同一局面」。**盤・持ち駒・手番**が一致すれば同一とみなす。
+    /// `Position` の `==` は手数（`moveNumber`）も見るため、繰り返しの検出には使えない。
+    private static func isSamePosition(_ a: Position, _ b: Position) -> Bool {
+        a.squares == b.squares && a.hands == b.hands && a.sideToMove == b.sideToMove
+    }
+
+    /// 現在の局面が初手からの経過で 4 回目の出現か（= 千日手）。
+    ///
+    /// 状態として持たず**指し手列から毎回導く**（`checkedKingSquare` と同じ方針）。こうしておくと、
+    /// 中断からの復元でもスナップショットに項目を足さずに同じ判定になる。
+    ///
+    /// **連続王手の千日手（王手を掛け続けた側の負け）は v1 のスコープ外**で、この場合も引き分けに
+    /// なる。判定を誤ると勝敗が逆転するため、独立した Issue として起票する。
+    static func isFourfoldRepetition(initialSFEN: String, moves: [Move], current: Position) -> Bool {
+        // 同一局面の周期は最短でも 4 手（両者が動かした駒を戻して初めて一致する）なので、
+        // 4 回目の出現には少なくとも 12 手が要る。
+        guard moves.count >= (repetitionLimit - 1) * 4 else { return false }
+        var pos = Position.fromSFEN(initialSFEN) ?? Position.start()
+        var count = isSamePosition(pos, current) ? 1 : 0
+        for move in moves {
+            pos.make(move)
+            if isSamePosition(pos, current) { count += 1 }
+        }
+        return count >= repetitionLimit
     }
 
     // MARK: - 表示用
@@ -116,6 +162,27 @@ public final class ShogiGameModel {
         case nil: return []
         }
     }
+
+    /// 王手されている側の玉のマス（表示局面基準）。王手でなければ nil。
+    ///
+    /// 状態として持たず**局面から毎回導く**（#377）。こうしておくと、検討ナビで戻った局面でも
+    /// 中断から復元した局面でも、玉の印が別途の復元処理なしに必ず正しく出る。
+    public var checkedKingSquare: Int? {
+        let pos = displayedPosition
+        let side = pos.sideToMove
+        guard pos.isKingInCheck(side) else { return nil }
+        return pos.squares.firstIndex { $0?.type == .king && $0?.color == side }
+    }
+
+    /// 「王手」の文字を飛び出させる契機（#377）。**実対局の着手で王手が生じるたび**に増える。
+    ///
+    /// 検討ナビ・中断復元では増えない。玉の印（`checkedKingSquare`）は局面から導くので
+    /// どの経路でも出るが、文字のほうは「いま王手が掛かった」瞬間の合図なので、
+    /// 盤を戻して王手局面を通過しただけで飛び出すと意味が変わる。
+    public private(set) var checkEventID: Int = 0
+
+    /// 直前の `checkEventID` で王手を**された**側。
+    public private(set) var lastCheckedSide: Side?
 
     /// 直前手の棋譜表記（例 "▲７六歩"）。無ければ nil。
     public var highlightedMoveText: String? {
@@ -206,7 +273,7 @@ public final class ShogiGameModel {
         if legalMovesCache.isEmpty {
             gameOver = true
             let loser = position.sideToMove
-            resultText = (loser == .black ? "先手" : "後手") + "の負け（詰み）"
+            resultText = Self.checkmateResultText(loser: loser)
             phase = .review
             services?.feedback.notify(loser == humanSide ? .error : .success)
             recordResult = services?.gameDidFinish(
@@ -214,6 +281,24 @@ public final class ShogiGameModel {
                 outcome: loser == humanSide ? .loss : .win,
                 score: GameScore(metric: .winLoss)
             )
+        } else if Self.isFourfoldRepetition(initialSFEN: initialSFEN, moves: moves, current: position) {
+            // 千日手（#375）。同一局面が 4 回現れたら引き分けで終局する。これが無いと、
+            // 閉塞局面や相入玉で合法手は在り続けるのに勝敗が付かず、出口が投了（負け記録）
+            // しか無かった。
+            gameOver = true
+            resultText = Self.repetitionResultText
+            phase = .review
+            services?.feedback.notify(.warning)
+            recordResult = services?.gameDidFinish(
+                gameID: gameID, outcome: .draw, score: GameScore(metric: .winLoss)
+            )
+        } else if position.isKingInCheck(position.sideToMove) {
+            // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す
+            // （初心者が「なぜ動かせないのか」で詰まるのは前者だが、掛けた側にも手応えが要る）。
+            // 着手の `impact` は鳴らさない — 同じ着手で 2 度鳴ると合図が濁る。
+            lastCheckedSide = position.sideToMove
+            checkEventID += 1
+            services?.feedback.notify(.warning)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
             services?.feedback.impact(.medium)
@@ -239,6 +324,9 @@ public final class ShogiGameModel {
         undoUsed = false
         resigned = false
         recordResult = nil
+        // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
+        // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
+        lastCheckedSide = nil
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel

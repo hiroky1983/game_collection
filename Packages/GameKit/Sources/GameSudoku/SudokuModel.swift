@@ -349,6 +349,11 @@ public final class SudokuModel {
         hintsUsed += 1
         hintedCells.insert(index)
         clearPeerNotes(for: index, digit: solution[index])
+        // ヒント自体は `UndoStep` を作らないが、**手前の履歴も捨てる**（#383）。
+        // 残しておくと、その `changedPeerNotes` が「ヒントを使う前のメモ」を持っているため、
+        // 直後に「元に戻す」を押すとヒントが消したメモが復活し、広告の対価が一部巻き戻る。
+        // `fail()` が同じ理由で履歴を捨てているのと同じ扱い。
+        lastUndoStep = nil
         services?.feedback.impact(.medium)
         checkCompletion()
         persist()

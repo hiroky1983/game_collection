@@ -449,6 +449,130 @@ struct PlayRecordStorageTests {
     }
 }
 
+// MARK: - 区分を後から入れたゲームの記録の引き継ぎ（#383）
+
+/// 麻雀ソリティアは #239 でレイアウトごとに記録を分け、書き込み先のキーが
+/// `"mahjong"` から `"mahjong#turtle"` へ変わった。移行が無いと、v1.1.2 以前の
+/// 自己ベストがどこからも参照されず、更新後の初回クリアが無条件に「新記録」になる。
+@Suite("旧キーの記録の引き継ぎ")
+@MainActor
+struct LegacyRecordMigrationTests {
+
+    /// 区分が無かった頃の書き込み（`variant` なし）をそのまま再現して保存する。
+    private func seedLegacyMahjongRecord(
+        _ log: PlayLog, seconds: Int, at date: Date = Date(timeIntervalSince1970: 1_000_000)
+    ) {
+        log.recordResult(
+            gameID: "mahjong", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: seconds), at: date
+        )
+    }
+
+    @Test("旧キーだけのときは亀甲の記録として引き継がれる")
+    func legacyRecordMovesToDefaultLayout() {
+        let (log, defaults, name) = makeLog(suite: "legacy-move")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        seedLegacyMahjongRecord(log, seconds: 300)
+        #expect(log.record(gameID: "mahjong")?.bestSeconds == 300, "前提: 旧キーに入っている")
+
+        // 「更新して起動し直す」— 同じ UserDefaults から作り直す
+        let reopened = PlayLog(defaults: defaults)
+        #expect(reopened.record(gameID: "mahjong", variant: "turtle")?.bestSeconds == 300)
+        #expect(reopened.record(gameID: "mahjong", variant: "turtle")?.variantLabel == "亀甲")
+        // 旧キーは残さない（残すとハブに区分名の無い行がもう1つ出る）
+        #expect(reopened.record(gameID: "mahjong") == nil)
+        #expect(reopened.records(gameID: "mahjong").count == 1)
+    }
+
+    @Test("引き継いだ記録は更新後の初回クリアと比較される（無条件の新記録にならない）")
+    func migratedBestIsComparedAgainstNewPlays() {
+        let (log, defaults, name) = makeLog(suite: "legacy-compare")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        seedLegacyMahjongRecord(log, seconds: 300)
+
+        let reopened = PlayLog(defaults: defaults)
+        let slower = reopened.recordResult(
+            gameID: "mahjong", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 420, variant: "turtle", variantLabel: "亀甲")
+        )
+        #expect(slower.update.seconds == false, "旧記録より遅いのに「自己ベスト更新」になっている")
+        #expect(reopened.record(gameID: "mahjong", variant: "turtle")?.bestSeconds == 300)
+
+        let faster = reopened.recordResult(
+            gameID: "mahjong", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 250, variant: "turtle", variantLabel: "亀甲")
+        )
+        #expect(faster.update.seconds, "旧記録より速いのに更新扱いになっていない")
+        #expect(reopened.record(gameID: "mahjong", variant: "turtle")?.bestSeconds == 250)
+    }
+
+    @Test("新旧のキーが並んでいるときは合成する（どちらの成績も落とさない）")
+    func legacyAndCurrentRecordsAreMerged() {
+        let (log, defaults, name) = makeLog(suite: "legacy-merge")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let older = Date(timeIntervalSince1970: 1_000_000)
+        let newer = Date(timeIntervalSince1970: 2_000_000)
+        // v1.1.2 より前の記録（旧キー）
+        seedLegacyMahjongRecord(log, seconds: 300, at: older)
+        log.recordResult(
+            gameID: "mahjong", outcome: .loss, score: GameScore(metric: .shortestTime), at: older
+        )
+        // v1.1.2 に更新してから遊んだぶん（新キー）
+        log.recordResult(
+            gameID: "mahjong", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 500, variant: "turtle", variantLabel: "亀甲"),
+            at: newer
+        )
+
+        let reopened = PlayLog(defaults: defaults)
+        let merged = reopened.record(gameID: "mahjong", variant: "turtle")
+        #expect(merged?.bestSeconds == 300, "旧記録の自己ベストが落ちている")
+        #expect(merged?.plays == 3, "通算のプレイ回数が合算されていない")
+        #expect(merged?.wins == 2)
+        #expect(merged?.losses == 1)
+        #expect(merged?.lastPlayedAt == newer, "最終プレイ日時が古いほうに巻き戻っている")
+        #expect(reopened.record(gameID: "mahjong") == nil)
+        #expect(reopened.records(gameID: "mahjong").count == 1, "ハブに同じゲームの行が2つ出る")
+    }
+
+    @Test("引き継ぎは保存され、次の起動では何も起きない")
+    func migrationIsPersisted() {
+        let (log, defaults, name) = makeLog(suite: "legacy-persist")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        seedLegacyMahjongRecord(log, seconds: 300)
+        _ = PlayLog(defaults: defaults)   // 1回目の起動で移し替えて書き戻す
+
+        // 保存されたバイト列を直接見る（メモリ上の状態ではなく永続化まで届いているか）
+        let data = defaults.data(forKey: PlayLog.recordsKey)!
+        let stored = try! JSONDecoder().decode([String: PlayRecord].self, from: data)
+        #expect(stored["mahjong"] == nil)
+        #expect(stored["mahjong#turtle"]?.bestSeconds == 300)
+
+        let third = PlayLog(defaults: defaults)
+        #expect(third.record(gameID: "mahjong", variant: "turtle")?.bestSeconds == 300)
+        #expect(Set((defaults.persistentDomain(forName: name) ?? [:]).keys)
+                    .isSubset(of: Set(PlayLog.allKeys)), "移行でキーが増えている")
+    }
+
+    @Test("区分を後から入れていないゲームの記録は触らない")
+    func recordsWithoutMigrationAreUntouched() {
+        let (log, defaults, name) = makeLog(suite: "legacy-untouched")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        log.recordResult(gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 8888))
+        log.recordResult(gameID: "othello", outcome: .win, score: GameScore(metric: .winLoss))
+
+        let reopened = PlayLog(defaults: defaults)
+        #expect(reopened.record(gameID: "2048")?.bestPoints == 8888)
+        #expect(reopened.record(gameID: "othello")?.wins == 1)
+        #expect(reopened.records.count == 2)
+    }
+}
+
 // MARK: - 各ゲームからの記録
 
 @Suite("各ゲームが記録する指標")
