@@ -495,11 +495,22 @@ private struct GoBoardCanvas: View, Animatable {
 
                     var layer = ctx
                     layer.opacity = appear * (dead.contains(point) ? 0.45 : 1)
+                    // 碁石はドーム（半球）: 左上寄りのラジアルの照り + 落ち影（#366・#398 流用資産）。
+                    // 五目並べ（GomokuBoardCanvas）と同じ描き方で、質感を共通にする。
+                    layer.addFilter(.shadow(
+                        color: .black.opacity(0.30),
+                        radius: s * 0.09,
+                        x: 0, y: s * 0.07))
 
+                    let highlight = CGPoint(x: cx - r * 0.35, y: cy - r * 0.4)
                     if stone == .black {
-                        layer.fill(path, with: .color(Color(hex: 0x18140E)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0x3E3A34), Color(hex: 0x0C0A07)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.5))
                     } else {
-                        layer.fill(path, with: .color(Color(hex: 0xF0E8D0)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0xFFFCF0), Color(hex: 0xD9D2B8)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.7))
                         layer.stroke(path, with: .color(Color.gray.opacity(0.4)), lineWidth: 1)
                     }
 
@@ -515,13 +526,17 @@ private struct GoBoardCanvas: View, Animatable {
                     }
 
                     // 直前手マーカー（#202 と同じ、外周のリング + 中央のドット）。
+                    // 石の落ち影フィルタを継がないよう、影なしの複製に描く（五目 #368 と同じ）。
                     if isLast {
+                        var markerLayer = ctx
+                        markerLayer.opacity = appear
+
                         let ring = rect.insetBy(dx: -2, dy: -2)
-                        layer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
+                        markerLayer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
 
                         let mr = r * 0.34
                         let markerRect = CGRect(x: cx - mr, y: cy - mr, width: mr * 2, height: mr * 2)
-                        layer.fill(Path(ellipseIn: markerRect),
+                        markerLayer.fill(Path(ellipseIn: markerRect),
                                    with: .color(stone == .black ? Color.white.opacity(0.9)
                                                                 : Color(hex: 0x2A1600).opacity(0.75)))
                     }
