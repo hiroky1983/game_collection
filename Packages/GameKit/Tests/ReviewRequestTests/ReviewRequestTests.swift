@@ -13,6 +13,7 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -432,6 +433,15 @@ struct GameOutcomeRoutingTests {
         let (services, service) = makeServices(suite: "route-gomoku")
         let model = GomokuModel(services: services)
         model.newGame(humanSide: .black, aiLevel: 1)
+        model.resign()
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("囲碁: 投了は勝利にならない")
+    func goResign() {
+        let (services, service) = makeServices(suite: "route-go")
+        let model = GoModel(services: services)
+        model.newGame(humanSide: .black, level: .easy)
         model.resign()
         #expect(service.log.totalWins == 0)
     }

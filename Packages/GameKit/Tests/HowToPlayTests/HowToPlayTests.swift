@@ -13,6 +13,7 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
 
 /// ハブに登録されている全ゲーム（= 遊び方ガイドが要るゲーム）。
 @MainActor
@@ -29,9 +30,10 @@ private let registeredModules: [GameModule] = [
     MahjongSolitaireModule(),
     MahjongModule(),
     SudokuModule(),
+    GoModule(),
 ]
 
-// MARK: - 文言（受け入れ条件: 全12ゲームぶんある・ルールは3行以内）
+// MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）
 
 @Suite("遊び方の文言")
 @MainActor
@@ -42,7 +44,7 @@ struct HowToPlayGuideContentTests {
         let registered = Set(registeredModules.map(\.id))
         let guided = Set(HowToPlayGuide.all.map(\.gameID))
         #expect(guided == registered, "ガイドの無いゲーム: \(registered.subtracting(guided))／余分: \(guided.subtracting(registered))")
-        #expect(HowToPlayGuide.all.count == 12)
+        #expect(HowToPlayGuide.all.count == registeredModules.count)
     }
 
     @Test("gameID は重複しない")
@@ -122,7 +124,7 @@ struct HowToPlayFlagTests {
         defaults.removePersistentDomain(forName: name)
     }
 
-    @Test("全12ゲームぶん記録してもキーは1つだけ")
+    @Test("全ゲームぶん記録してもキーは1つだけ")
     func usesSingleKey() {
         let (defaults, name) = makeDefaults("keys")
         let log = PlayLog(defaults: defaults)
@@ -130,7 +132,7 @@ struct HowToPlayFlagTests {
         for guide in HowToPlayGuide.all { log.markGuideShown(for: guide.gameID) }
         let domain = defaults.persistentDomain(forName: name) ?? [:]
         #expect(Set(domain.keys) == Set(PlayLog.howToPlayKeys), "書き込むキーは \(PlayLog.guidedGameIDsKey) だけ")
-        #expect(defaults.stringArray(forKey: PlayLog.guidedGameIDsKey)?.count == 12)
+        #expect(defaults.stringArray(forKey: PlayLog.guidedGameIDsKey)?.count == HowToPlayGuide.all.count)
 
         defaults.removePersistentDomain(forName: name)
     }

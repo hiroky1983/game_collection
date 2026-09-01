@@ -171,11 +171,23 @@ public extension HowToPlayGuide {
         hintIcon: "square.grid.3x3"
     )
 
+    static let go = HowToPlayGuide(
+        gameID: "go",
+        title: "囲碁の遊び方",
+        lines: [
+            "線の交わるところをタップして、交互に石を置きます。",
+            "相手の石をぐるりと囲むと取り上げられます。",
+            "打つところが無くなったら「パス」。両者パスで終局し、地の広い方が勝ちです。",
+        ],
+        hint: "交点をタップして石を置こう",
+        hintIcon: "circle.circle"
+    )
+
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku,
+        .sudoku, .go,
     ]
 }
 

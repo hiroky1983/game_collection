@@ -13,6 +13,7 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -820,6 +821,22 @@ struct GameRecordingTests {
         #expect(log.summaryLine(gameID: "gomoku") == "0勝1敗")
 
         model.newGame(humanSide: .black, aiLevel: 1)
+        #expect(model.recordResult == nil)
+    }
+
+    @Test("囲碁: 対 CPU 戦なので勝敗を記録する")
+    func goRecordsWinLoss() {
+        let (log, defaults, name) = makeLog(suite: "go")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = GoModel(services: makeServices(log: log))
+        model.newGame(humanSide: .black, level: .easy)
+        model.resign()
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: "go")?.losses == 1)
+        #expect(log.summaryLine(gameID: "go") == "0勝1敗")
+
+        model.newGame(humanSide: .black, level: .easy)
         #expect(model.recordResult == nil)
     }
 
