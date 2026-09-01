@@ -100,32 +100,20 @@ public struct GoView: View {
 
     /// 対局中（投了・パス・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// **高さは常に終局後の最大構成に揃える**（#148 の横展開）。
+    /// 対局中（パス・投了）/ 死活確認中 / 終局後（もう一度）で中身が入れ替わるが、どれも
+    /// 同じ余白の1行なので高さは変わらない（決着で盤が縮まない契約）。レコメンドの常時高さ予約は
+    /// 盤を狭くしていたため撤廃し、盤の下端へのオーバーレイに移した（将棋 #405 と同じ手当て。
+    /// 会長指摘 2026-09-02「碁盤が小さい」）。
     private var controlArea: some View {
         ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
             switch model.phase {
             case .playing:
                 gameControls
             case .scoring:
                 scoringControls
             case .finished:
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
+                resultControls
             }
-        }
-    }
-
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
-            resultControls
-            recommendation()
         }
     }
 
@@ -235,6 +223,14 @@ public struct GoView: View {
             .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
         }
         .aspectRatio(1, contentMode: .fit)
+        // 終局後のレコメンドは盤の下端に重ねる（常時高さ予約の代替。将棋 #405 と同じ）。
+        .overlay(alignment: .bottom) {
+            if model.phase == .finished {
+                RecommendationSlot(services: services, isFinished: true)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+            }
+        }
     }
 
     /// VoiceOver 用の交点グリッド（#188 の横展開）。
@@ -573,6 +569,9 @@ struct GoRuleDetails: View {
     ]
 
     var body: some View {
+        // 他ゲームのルールシート（大富豪・ポーカー）と同じ包み: スクロール + 左右余白 + 共通背景
+        // （会長指摘 2026-09-02: 全面白地・余白なしで見た目が他と違う）。
+        ScrollView {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(sections, id: \.0) { title, lines in
                 VStack(alignment: .leading, spacing: 6) {
@@ -587,6 +586,9 @@ struct GoRuleDetails: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.pad)
+        }
+        .popBackground()
     }
 }
 
@@ -666,7 +668,9 @@ struct GoNewGameSheet: View {
                 }
             }
         }
-        .gameSheetDetents()
+        // 選択肢3節 + 置き石の条件節で .medium には収まらない（会長指摘 2026-09-02:
+        // ハンデ以降がはみ出て操作できない）。このシートだけ常に .large で開く。
+        .presentationDetents([.large])
     }
 
     private func accent(for level: GoLevel) -> Color {
