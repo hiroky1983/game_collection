@@ -448,6 +448,7 @@ public final class PokerModel {
             cpuAction = "プレイヤーフォールド"
             phase = .result
             notifyOutcome()
+            checkSessionOver()
             persist()
         default: break
         }
@@ -509,6 +510,7 @@ public final class PokerModel {
         currentBet = 0
         phase = .result
         notifyOutcome()
+        checkSessionOver()
         persist()
     }
 
