@@ -23,6 +23,7 @@ let package = Package(
         .library(name: "GameMahjongSolitaire", targets: ["GameMahjongSolitaire"]),
         .library(name: "GameMahjong",      targets: ["GameMahjong"]),
         .library(name: "GameSudoku",       targets: ["GameSudoku"]),
+        .library(name: "GameSolitaire",    targets: ["GameSolitaire"]),
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
@@ -38,6 +39,8 @@ let package = Package(
         .target(name: "GameDaifugo",        dependencies: ["Core"]),
         // 数独（#262・元 #5）。生成アルゴリズムは純粋ロジックなので Core だけに依存する。
         .target(name: "GameSudoku",         dependencies: ["Core"]),
+        // ソリティア（クロンダイク・#397）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
+        .target(name: "GameSolitaire",      dependencies: ["Core"]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"]),
         .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles"]),
@@ -57,6 +60,7 @@ let package = Package(
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack"]),
         .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo"]),
         .testTarget(name: "GameSudokuTests",          dependencies: ["GameSudoku"]),
+        .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
