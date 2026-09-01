@@ -65,6 +65,32 @@ func isBlackjack(_ hand: [BlackjackCard]) -> Bool {
     hand.count == 2 && handValue(hand) == 21
 }
 
+// MARK: - Settlement
+
+/// 勝敗とチップの増減を決める判定表（#413）。`resolveResult` から切り出した純関数。
+///
+/// ナチュラル（2枚21）は両者について対称に扱う。**ディーラーのみナチュラルなら、
+/// プレイヤーが3枚以上で21に届いていてもディーラーの勝ち**（標準ルール。以前は
+/// 同値としてプッシュに落ちていた）。
+/// プレイヤーのバストは `hit()` の時点で確定するためここには到達しない。
+func blackjackSettlement(
+    player: [BlackjackCard],
+    dealer: [BlackjackCard],
+    bet: Int
+) -> (outcome: BlackjackOutcome, chipDelta: Int) {
+    let pVal = handValue(player)
+    let dVal = handValue(dealer)
+    let playerNatural = isBlackjack(player)
+    let dealerNatural = isBlackjack(dealer)
+
+    if playerNatural && dealerNatural { return (.push, 0) }
+    if playerNatural { return (.playerBlackjack, Int(Double(bet) * 1.5)) }  // 1.5倍払い
+    if dealerNatural { return (.lose, -bet) }
+    if dVal > 21 || pVal > dVal { return (.win, bet) }
+    if pVal == dVal { return (.push, 0) }
+    return (.lose, -bet)
+}
+
 // MARK: - Game Phase
 
 public enum BlackjackPhase: String, Equatable, Sendable, Codable {
@@ -227,25 +253,9 @@ public final class BlackjackModel {
     // MARK: - Result
 
     private func resolveResult() {
-        let pVal = playerValue
-        let dVal = dealerValue
-
-        if isBlackjack(playerHand) && !isBlackjack(dealerHand) {
-            // ブラックジャック: 1.5倍払い
-            let payout = Int(Double(bet) * 1.5)
-            chips += payout
-            outcome = .playerBlackjack
-        } else if isBlackjack(playerHand) && isBlackjack(dealerHand) {
-            outcome = .push
-        } else if dVal > 21 || pVal > dVal {
-            chips += bet
-            outcome = .win
-        } else if pVal == dVal {
-            outcome = .push
-        } else {
-            chips -= bet
-            outcome = .lose
-        }
+        let settlement = blackjackSettlement(player: playerHand, dealer: dealerHand, bet: bet)
+        chips += settlement.chipDelta
+        outcome = settlement.outcome
 
         bet = 0
         phase = .result
