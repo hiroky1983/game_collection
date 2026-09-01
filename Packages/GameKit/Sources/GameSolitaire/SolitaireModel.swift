@@ -125,11 +125,20 @@ public final class SolitaireModel {
         perform(.draw)
     }
 
-    /// 捨て札の一番上をタップ。持ち上げる / 置く。
+    /// 捨て札の一番上をタップ。
+    ///
+    /// **タップ = 自動移動**（会長QA 2026-09-02「操作感が分からない」対応）。まず組札、
+    /// だめなら場札の左の列から順に、置ける先へ即移動する。ジャンルの標準操作
+    /// （Microsoft Solitaire 等）に合わせ、2タップの選択→行き先方式は「動かせない札に
+    /// 触れたとき」のフォールバックとして残す（読み上げ・手動での行き先指定用）。
     public func tapWaste() {
         guard phase == .playing else { return }
         if selection == .waste { return deselect() }
         guard board.waste.last != nil else { return reject() }
+        if board.isLegal(.wasteToFoundation) { return perform(.wasteToFoundation) }
+        for pile in board.tableau.indices where board.isLegal(.wasteToTableau(pile: pile)) {
+            return perform(.wasteToTableau(pile: pile))
+        }
         selection = .waste
         services?.feedback.impact(.rigid)
     }
@@ -165,6 +174,19 @@ public final class SolitaireModel {
         if selection == .tableau(pile: pile, cardIndex: index) { return deselect() }
         // 途中で切れている並び（降順・交互色でない）は動かせないので持ち上げさせない。
         guard board.isMovableRun(pile: pile, from: index) else { return reject() }
+
+        // タップ = 自動移動（会長QA 2026-09-02）。一番上の1枚は組札を最優先、
+        // 続いて（途中の並びも含めて）場札の左の列から順に置ける先へ即移動する。
+        // 動かせる先が無いときだけ従来どおり持ち上げ（選択）に落ちる。
+        if index == board.tableau[pile].faceUp.count - 1,
+           board.isLegal(.tableauToFoundation(pile: pile)) {
+            return perform(.tableauToFoundation(pile: pile))
+        }
+        for target in board.tableau.indices where target != pile {
+            let move = SolitaireMove.tableauToTableau(from: pile, cardIndex: index, to: target)
+            if board.isLegal(move) { return perform(move) }
+        }
+
         selection = .tableau(pile: pile, cardIndex: index)
         services?.feedback.impact(.rigid)
     }
@@ -316,6 +338,16 @@ public final class SolitaireModel {
             guard from != pile else { return nil }
             return .tableauToTableau(from: from, cardIndex: index, to: pile)
         }
+    }
+
+    /// テスト専用: 指し手をそのまま適用する。
+    ///
+    /// タップ経由だと「タップ=自動移動」（会長QA 2026-09-02）の解釈が挟まり、ソルバーの
+    /// 手順どおりに盤を進められないため、テストはこの直接経路で 1 手ずつ適用する。
+    /// 記録・クリア判定・スナップショット削除は `perform` の実経路をそのまま通る。
+    func applyForTesting(_ move: SolitaireMove) {
+        guard phase == .playing, board.isLegal(move) else { return }
+        perform(move)
     }
 
     private func perform(_ move: SolitaireMove) {
