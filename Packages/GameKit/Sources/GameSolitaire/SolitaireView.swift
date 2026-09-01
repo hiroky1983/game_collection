@@ -16,11 +16,7 @@ public struct SolitaireView: View {
     public var body: some View {
         VStack(spacing: 8) {
             statusBar
-            board
-                // 7 列は横幅で大きさが決まるので、左右の余白ぶんまで使って札を大きくする
-                // （麻雀ソリティアの盤面と同じ扱い）。
-                .padding(.horizontal, -Theme.pad)
-                .layoutPriority(1)
+            board.layoutPriority(1)
             HowToPlayHint(.solitaire, playLog: services.playLog)
             controlArea
             Spacer(minLength: 0)
@@ -59,7 +55,16 @@ public struct SolitaireView: View {
         .overlay {
             if model.isDeadEnd { deadEndOverlay }
         }
-        .task { model.resumeTimerIfNeeded() }
+        .task {
+            model.resumeTimerIfNeeded()
+            #if DEBUG
+            // 撮影用（#397）: 遊んでいる最中の盤面を機械的に作る。シミュレータは自動タップが
+            // できないため、初期配置以外を撮る手段がこれしかない（囲碁の `-goMidgame` と同じ理由）。
+            if ProcessInfo.processInfo.arguments.contains("-solitaireMidgame") {
+                model.applyPreviewProgressForTesting()
+            }
+            #endif
+        }
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。
@@ -115,7 +120,7 @@ public struct SolitaireView: View {
 
     private var stateEmoji: String {
         if model.phase == .won { return "🎉" }
-        return model.isDeadEnd ? "😵" : "🃏"
+        return model.isDeadEnd ? "😵" : "♠️"
     }
 
     // MARK: - 盤面
@@ -263,8 +268,15 @@ public struct SolitaireView: View {
             }
 
             ForEach(Array(column.faceUp.enumerated()), id: \.offset) { index, card in
-                faceUpCard(pile: pile, index: index, card: card, column: column, metrics: metrics)
-                    .offset(y: CGFloat(column.faceDown.count) * downStep + CGFloat(index) * upStep)
+                faceUpCard(
+                    pile: pile, index: index, card: card, column: column,
+                    // いちばん上の 1 枚だけが札の全体を出す。下に重なった札は段差ぶんの帯しか
+                    // 見えないため、中央寄せの面（`PlayingCardFace`）を出すと数字が隠れて
+                    // 「何の札が並んでいるか」が読めなくなる（実測）。
+                    isCovered: index < column.faceUp.count - 1,
+                    metrics: metrics
+                )
+                .offset(y: CGFloat(column.faceDown.count) * downStep + CGFloat(index) * upStep)
             }
         }
         .frame(width: metrics.width, height: height, alignment: .top)
@@ -279,10 +291,11 @@ public struct SolitaireView: View {
         index: Int,
         card: SolitaireCard,
         column: SolitairePile,
+        isCovered: Bool,
         metrics: PlayingCardMetrics
     ) -> some View {
         let isSelected = model.selection == .tableau(pile: pile, cardIndex: index)
-        return cardView(card, faceUp: true, isSelected: isSelected, metrics: metrics)
+        return cardView(card, faceUp: true, isSelected: isSelected, isCovered: isCovered, metrics: metrics)
             .contentShape(Rectangle())
             .onTapGesture { model.tapPile(pile, cardIndex: index) }
             .accessibilityElement(children: .ignore)
@@ -305,9 +318,10 @@ public struct SolitaireView: View {
         _ card: SolitaireCard,
         faceUp: Bool,
         isSelected: Bool,
+        isCovered: Bool = false,
         metrics: PlayingCardMetrics
     ) -> some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             // 外形・面はトランプ共通基盤（#397。質感は CardStyle #366）。
             PlayingCardSurface(
                 faceUp: faceUp,
@@ -317,7 +331,12 @@ public struct SolitaireView: View {
                 shadowColor: isSelected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
                 shadowRadius: isSelected ? 6 : 3
             )
-            PlayingCardFace(figure: card.figure, metrics: metrics)
+            if isCovered {
+                SolitaireCardIndex(card: card, metrics: metrics)
+            } else {
+                PlayingCardFace(figure: card.figure, metrics: metrics)
+                    .frame(width: metrics.width, height: metrics.height)
+            }
         }
         .frame(width: metrics.width, height: metrics.height)
     }
@@ -483,6 +502,41 @@ public struct SolitaireView: View {
             .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
             .padding(.horizontal, 28)
         }
+    }
+}
+
+/// 重なって「上端の帯」しか見えない札に出す、隅の小さな見出し（ランク + スート）。
+///
+/// 実物のトランプが左上に数字を刷っているのと同じ役割で、**扇状に重ねた列でも
+/// 何の札が並んでいるかを読めるようにする**ための表示。共通基盤の
+/// `PlayingCardFace` は中央寄せなので、重なった札では隠れてしまう（実測で数字が読めなかった）。
+struct SolitaireCardIndex: View {
+    let card: SolitaireCard
+    let metrics: PlayingCardMetrics
+
+    private var color: Color {
+        guard let suit = card.suit, !card.isJoker else { return PlayingCardInk.joker }
+        return PlayingCardInk.color(for: suit.playingCardSuit)
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            if card.isJoker {
+                JesterCapMark(color: PlayingCardInk.joker)
+                    .frame(width: metrics.rankFont * 0.8, height: metrics.rankFont * 0.8)
+            } else {
+                Text(card.rankLabel)
+                    .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded))
+                Text(card.suit?.symbol ?? "")
+                    .font(.system(size: metrics.suitFont * 0.66))
+            }
+        }
+        .foregroundStyle(color)
+        .lineLimit(1)
+        .padding(.leading, 5)
+        .padding(.top, 3)
+        // 読み上げは呼び出し側（列の 1 枚）が束ねて出すので、ここは黙らせる。
+        .accessibilityHidden(true)
     }
 }
 
