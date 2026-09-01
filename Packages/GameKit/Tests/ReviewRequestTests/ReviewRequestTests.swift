@@ -14,6 +14,7 @@ import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
+import GameSolitaire
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -434,6 +435,15 @@ struct GameOutcomeRoutingTests {
         let model = GomokuModel(services: services)
         model.newGame(humanSide: .black, aiLevel: 1)
         model.resign()
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("ソリティア: 捨てた配札は勝利にならない")
+    func solitaireAbandon() {
+        let (services, service) = makeServices(suite: "route-solitaire")
+        let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
+        model.tapStock()
+        model.newGame()
         #expect(service.log.totalWins == 0)
     }
 

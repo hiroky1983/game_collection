@@ -14,6 +14,7 @@ import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
+import GameSolitaire
 
 // MARK: - モック
 
@@ -89,6 +90,7 @@ private func makeHubModules() -> [GameModule] {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
+        SolitaireModule(),
     ]
 }
 
@@ -266,6 +268,7 @@ struct GameCenterLeaderboardTests {
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "normal")),
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "hard")),
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
+            ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID

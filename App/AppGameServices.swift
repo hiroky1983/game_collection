@@ -14,6 +14,7 @@ import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
+import GameSolitaire
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -124,6 +125,8 @@ enum AppEnvironment {
         // 囲碁（#398）。定番ボードの本丸で検索需要も大きいため、同系統の将棋・オセロの近くに置く。
         GoModule(),
         MahjongSolitaireModule(),
+        // ソリティア（クロンダイク・#397）。同じ「1人でトランプを片付ける」麻雀ソリティアの隣に置く。
+        SolitaireModule(),
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),

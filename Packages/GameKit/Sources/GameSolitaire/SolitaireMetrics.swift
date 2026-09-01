@@ -1,0 +1,58 @@
+import CoreGraphics
+import Core
+
+/// 盤面の寸法（#397）。
+///
+/// クロンダイクは**横に 7 列**が絶対条件で、画面幅から札の大きさが決まる。View に数値を撒くと
+/// 「iPhone SE で 7 列目がはみ出す」類の破綻がレイアウトの各所に散るため、寸法はここに集約して
+/// 純粋関数にし、View を組まずに検証できるようにする（麻雀ソリティアの `BoardMetrics` と同じ設計）。
+public enum SolitaireMetrics {
+    /// 列と列の間隔。
+    public static let columnGap: CGFloat = 5
+    /// トランプの縦横比（実物の 63×88 に近い値）。
+    public static let aspectRatio: CGFloat = 1.4
+    /// 札の幅の下限・上限。下限は iPhone SE（375pt）でも 7 列が収まる値、
+    /// 上限は iPad で札だけが間延びしないようにするための頭打ち。
+    public static let minCardWidth: CGFloat = 34
+    public static let maxCardWidth: CGFloat = 76
+
+    /// 与えられた幅に 7 列を収める札の幅。
+    public static func cardWidth(availableWidth: CGFloat) -> CGFloat {
+        let raw = (availableWidth - columnGap * CGFloat(SolitaireBoard.pileCount - 1))
+            / CGFloat(SolitaireBoard.pileCount)
+        return min(maxCardWidth, max(minCardWidth, raw))
+    }
+
+    public static func cardHeight(width: CGFloat) -> CGFloat { (width * aspectRatio).rounded() }
+
+    /// 伏せ札を重ねる段差。伏せ札は枚数が見えれば十分なので詰める。
+    public static func faceDownStep(cardHeight: CGFloat) -> CGFloat { (cardHeight * 0.13).rounded() }
+
+    /// 表向き札を重ねる段差。ランクとスートの 2 行が見える高さを確保する。
+    public static func faceUpStep(cardHeight: CGFloat) -> CGFloat { (cardHeight * 0.30).rounded() }
+
+    /// 列 1 本の高さ（いちばん上の札の全体が見える高さまで）。
+    public static func pileHeight(
+        faceDownCount: Int,
+        faceUpCount: Int,
+        cardHeight: CGFloat
+    ) -> CGFloat {
+        let down = CGFloat(max(0, faceDownCount)) * faceDownStep(cardHeight: cardHeight)
+        let up = CGFloat(max(0, faceUpCount - 1)) * faceUpStep(cardHeight: cardHeight)
+        return down + up + cardHeight
+    }
+
+    /// 札 1 枚ぶんの面の寸法。既存の「小さい札」（大富豪の 42×60）を基準に相似で伸縮させる。
+    public static func faceMetrics(width: CGFloat) -> PlayingCardMetrics {
+        let scale = width / PlayingCardMetrics.compact.width
+        return PlayingCardMetrics(
+            width: width,
+            height: cardHeight(width: width),
+            cornerRadius: (6 * scale).rounded(),
+            rankFont: (16 * scale).rounded(),
+            suitFont: (15 * scale).rounded(),
+            pipSpacing: 0,
+            backMotifFont: (17 * scale).rounded()
+        )
+    }
+}

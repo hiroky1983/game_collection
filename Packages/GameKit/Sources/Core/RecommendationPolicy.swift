@@ -73,7 +73,8 @@ public enum RecommendationPolicy {
         "2048":          ["minesweeper", "mahjong", "concentration"],
         "minesweeper":   ["sudoku", "2048", "mahjong"],
         // トランプ系。同じ札を使う大富豪（#89）へ抜けられるようにする（#237）。
-        "concentration": ["2048", "daifugo", "blackjack"],
+        // 第1候補は同じ「トランプを1人で並べる」ソリティア（#397）に置き換えた。
+        "concentration": ["solitaire", "daifugo", "blackjack"],
         "poker":         ["blackjack", "daifugo", "concentration"],
         "blackjack":     ["poker", "daifugo", "concentration"],
         "daifugo":       ["poker", "blackjack", "concentration"],
@@ -85,6 +86,9 @@ public enum RecommendationPolicy {
         // 数独（#262）。1人でじっくり詰める点でマインスイーパー・2048 が近く、
         // 同じ「盤面を消していく」手触りの麻雀ソリティアを第3候補に置く。
         "sudoku":        ["minesweeper", "2048", "mahjong"],
+        // ソリティア（クロンダイク・#397）。同じ「1人で盤面を片付ける」麻雀ソリティアが最も近く、
+        // 同じトランプを使う神経衰弱、1人でじっくり詰めるナンプレの順で近い。
+        "solitaire":     ["mahjong", "concentration", "sudoku"],
     ]
 
     /// 現在の提示間隔。無視が続いているほど広がる。
