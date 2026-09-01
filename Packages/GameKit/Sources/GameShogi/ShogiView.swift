@@ -13,6 +13,9 @@ public struct ShogiView: View {
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（#200）。
     /// 表示局面が変わるたびに更新し、駒の層はこれだけを見て描く。
     @State private var pieceLayout: ShogiPieceLayout
+    /// 表示中の「王手」の合図の契機 ID（#377）。nil なら出していない。
+    /// モデルの `checkEventID` をそのまま入れ、一定時間後に nil へ戻す。
+    @State private var checkBannerID: Int?
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -84,15 +87,50 @@ public struct ShogiView: View {
         } message: {
             Text("途中で終了すると対局データが失われます。")
         }
+        .overlay { checkOverlay }
         .overlay { promotionOverlay }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        // 王手が掛かった瞬間だけ文字を出し、少し置いて引っ込める（#377）。
+        // `.task(id:)` にしておくと、続けて王手が掛かったときに前の待機が破棄されるので、
+        // 古い着手の後始末が新しい合図を消してしまうことがない。
+        .task(id: model.checkEventID) {
+            guard model.checkEventID > 0 else { return }
+            checkBannerID = model.checkEventID
+            try? await Task.sleep(for: .seconds(ShogiMotion.checkBannerHold))
+            checkBannerID = nil
         }
         // 人間の着手・CPU の着手・待った・検討ナビのどれで局面が変わっても、
         // 経路を問わずここ 1 か所で駒の対応付けを進める（#200）。
         .onChange(of: model.displayedPosition) { _, position in
             pieceLayout.update(to: position)
         }
+    }
+
+    /// 「王手」の合図（#377）。玉の赤枠が「いま王手されている」を常時示すのに対し、
+    /// こちらは**王手が掛かった瞬間**だけ飛び出して消える。
+    ///
+    /// 成り確認の札（#201）と同じく、分岐は**この層の中**に置く。呼び出し側の
+    /// `.overlay { if … }` にすると、出入りする枝と一緒に修飾子まで消えて `.transition` が効かない。
+    private var checkOverlay: some View {
+        ZStack {
+            if checkBannerID != nil {
+                Text("王手")
+                    .font(.system(size: 44, weight: .black, design: .serif))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 32).padding(.vertical, 14)
+                    .background(Capsule().fill(BoardStyle.check))
+                    .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+                    // 札は中央にあり `offset` を持たないので、拡大の基準は札の中心になる。
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
+        }
+        .allowsHitTesting(false)
+        // 読み上げは盤のマス（`ShogiCell` の `isCheckedKing`）に持たせてある。1 秒あまりで
+        // 消える要素をここで読ませると、VoiceOver のフォーカスが消える要素に乗る。
+        .accessibilityHidden(true)
+        .gameAnimation(ShogiMotion.checkBanner, value: checkBannerID)
     }
 
     /// 成り確認の札。出入りのアニメーションは**残り続ける親**（この `ZStack`）に置く（#201）。
@@ -147,6 +185,10 @@ public struct ShogiView: View {
 
     private var board: some View {
         let pos = model.displayedPosition
+        // 81 マスの読み上げ文それぞれから引くので、ここで 1 回だけ求める。
+        // `checkedKingSquare` は表示局面を組み直す（検討中は指し手の全再生）ため、
+        // ループの中で呼ぶと 1 回の描画で 81 回それをやることになる。
+        let checkedKing = model.checkedKingSquare
         return GeometryReader { geo in
             let cell = (geo.size.width - 8) / 9
             VStack(spacing: 0) {
@@ -169,7 +211,8 @@ public struct ShogiView: View {
                                 piece: pos.squares[idx],
                                 isSelected: model.selectedSquare == idx,
                                 isTarget: model.legalTargets.contains(idx),
-                                isLastMove: model.highlightedSquares.contains(idx)
+                                isLastMove: model.highlightedSquares.contains(idx),
+                                isCheckedKing: checkedKing == idx
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -190,6 +233,8 @@ public struct ShogiView: View {
             // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
             // マスに紐づけると駒の同一性がマスと一緒に変わり、移動が補間されない。
             .overlay { pieceLayer(cell: cell) }
+            // 王手されている玉の印も駒より**上**。玉そのものを囲むので、駒の下に潜ると見えない。
+            .overlay { checkLayer(cell: cell) }
             // 着手先の印は駒より**上**。マスの中に描いていた頃の重なり順をそのまま保つ
             // （取れる駒に重ねる枠が駒の下に潜ると、何が取れるのか読めなくなる）。
             .overlay { targetLayer(cell: cell) }
@@ -269,6 +314,32 @@ public struct ShogiView: View {
             }
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 王手されている玉のマスの印（#377）。駒の層より上に重ねる。
+    ///
+    /// 出す条件は `model.checkedKingSquare`（表示局面から毎回導く）だけなので、検討ナビで
+    /// 王手局面へ戻ったときも中断から復元したときも、別の復元処理なしにそのまま正しく出る。
+    /// アニメーションは付けない — 王手は「いま起きている事実」であって、遷移の演出は
+    /// `checkOverlay` の文字が受け持つ。
+    private func checkLayer(cell: CGFloat) -> some View {
+        GeometryReader { geo in
+            let slot = geo.size.width / 9
+            ZStack(alignment: .topLeading) {
+                if let square = model.checkedKingSquare {
+                    let spot = Sq.displayPosition(of: square, flipped: flipped)
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(BoardStyle.check, lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(BoardStyle.check.opacity(0.22)))
+                        .frame(width: cell - 4, height: cell - 4)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        // 読み上げはマス（`ShogiCell` の `isCheckedKing`）が持つ。
         .accessibilityHidden(true)
     }
 
@@ -540,6 +611,11 @@ enum ShogiMotion {
     static let promotionPromptDuration: TimeInterval = 0.18
     /// 手番バッジの色替え。
     static let turnChangeDuration: TimeInterval = 0.2
+    /// 「王手」の合図が飛び出す・引っ込むのにかかる時間（バネの `response`）。
+    static let checkBannerResponse: TimeInterval = 0.24
+    /// 「王手」の合図を出しておく時間。**駒の移動より長く取る**（`pieceMoveResponse`）。
+    /// ここが短いと、王手を掛けた駒がまだ動いている最中に文字が消えて何が起きたか読めない。
+    static let checkBannerHold: TimeInterval = 1.1
 
     /// 駒の移動。跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
     static let pieceMove: Animation = .spring(response: pieceMoveResponse, dampingFraction: 0.9)
@@ -549,6 +625,9 @@ enum ShogiMotion {
     /// 手番バッジの色替え（#201）。手番が移ったと分かる程度に留め、
     /// タップから盤が反応するまでの体感を遅くしない。
     static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
+    /// 「王手」の合図の出入り（#377）。危急を伝えるので、駒の移動と違って少し跳ねさせる
+    /// （札は盤の上の中空にあり、マスから外れて見える心配がない）。
+    static let checkBanner: Animation = .spring(response: checkBannerResponse, dampingFraction: 0.65)
 }
 
 /// 盤の配色（明るい木目調）。#366 の会長コンペで確定した「明るい飴色 × 無地アンバー」。
@@ -568,6 +647,17 @@ enum BoardStyle {
     /// 駒の側面（#366）: 本体を下へずらした同じ駒形をこの色で敷き、木駒の厚みを見せる。
     static let komaSideTop = Color(hex: 0x9A6F33)
     static let komaSideBottom = Color(hex: 0x63431A)
+    /// 王手の合図（#377）。玉のマスの枠と「王手」の札に使う。
+    ///
+    /// 差し色（`Theme.coral` など）は**白文字を載せると WCAG AA 未達**で #220 の対象に
+    /// なっているため、ここでは使わない。この緋色は白文字との対比が 6.5:1 あり、
+    /// #220 がどの案で決着しても直す必要が無い（＝新しい違反を持ち込まない）。
+    /// 盤の飴色（`frameTop` 0xEDC178）に対しても十分に沈んで見える。
+    ///
+    /// `Color` は生成後に成分を取り出せないため、コントラストを検証するテストが参照できるよう
+    /// 数値のまま持つ（`Theme.Hex` と同じ理由）。
+    static let checkHex: UInt32 = 0xB3261E
+    static let check = Color(hex: checkHex)
     /// 駒の輪郭・面取り・文字（#366）。
     static let komaOutline = Color(hex: 0x6B4A1C)
     static let komaChamfer = Color(hex: 0xFFEFC2)

@@ -198,17 +198,19 @@ struct ShogiPieceLayerSourceTests {
         #expect(body.contains("KomaView(") == false, "ShogiCell が駒を描いています:\n\(body)")
     }
 
-    @Test("着手先の印は駒より後（= 上）に重ねる")
+    @Test("着手先の印・王手の印は駒より後（= 上）に重ねる")
     func targetLayerIsAbovePieceLayer() throws {
         let lines = try Self.viewSource.split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
         guard let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }"),
+              let check = lines.firstIndex(of: ".overlay { checkLayer(cell: cell) }"),
               let target = lines.firstIndex(of: ".overlay { targetLayer(cell: cell) }") else {
-            Issue.record("盤に重ねる 2 層が見つからない（走査の前提が壊れている）")
+            Issue.record("盤に重ねる 3 層が見つからない（走査の前提が壊れている）")
             return
         }
-        // 逆にすると、取れる駒を囲む枠が駒の下に潜って何が取れるのか読めなくなる。
-        #expect(piece < target)
+        // 逆にすると、取れる駒を囲む枠や王手の枠が駒の下に潜って読めなくなる（#200・#377）。
+        #expect(piece < check)
+        #expect(check < target)
     }
 
     @Test("駒には .transition を .position より前に付ける")
@@ -286,6 +288,36 @@ struct ShogiOverlayMotionSourceTests {
         #expect(ShogiMotion.promotionPrompt == .easeOut(duration: ShogiMotion.promotionPromptDuration))
         #expect(ShogiMotion.pieceMove == .spring(response: ShogiMotion.pieceMoveResponse, dampingFraction: 0.9))
         #expect(ShogiMotion.turnChange == .easeInOut(duration: ShogiMotion.turnChangeDuration))
+    }
+
+    @Test("王手の文字は残り続ける親にアニメーションを置く（#377）")
+    func checkOverlayAnimatesOnPersistingParent() throws {
+        let lines = try ShogiPieceLayerSourceTests.lines(
+            ofFunction: "private var checkOverlay: some View {"
+        )
+        // 成り確認の札（#201）と同じ形。呼び出し側の `.overlay { if … }` にすると、
+        // 出入りする枝と一緒に修飾子まで消えて `.transition` が効かない。
+        #expect(lines.contains { $0.hasPrefix("if checkBannerID != nil {") },
+                "分岐が checkOverlay の中にない:\n\(lines.joined(separator: "\n"))")
+        #expect(lines.filter { $0.hasPrefix(".transition(") }.count == 1,
+                "札のトランジションが 1 つでない:\n\(lines.joined(separator: "\n"))")
+        // アニメーションは分岐の外に 1 つだけ（入れ子にすると内側が外側を打ち消す）。
+        let animations = lines.filter { $0.hasPrefix(".gameAnimation(") }
+        #expect(animations == [".gameAnimation(ShogiMotion.checkBanner, value: checkBannerID)"])
+        // `.animation` の直呼びは Reduce Motion を無視する（#210）。
+        #expect(lines.contains { $0.hasPrefix(".animation(") } == false)
+        // 常設される層なので、盤のタップを塞がないことを明示しておく。
+        #expect(lines.contains(".allowsHitTesting(false)"),
+                "常設した層が素通しであることの明示がない:\n\(lines.joined(separator: "\n"))")
+    }
+
+    @Test("王手の文字は駒の移動より長く出しておく（#377）")
+    func checkBannerOutlastsThePieceMove() {
+        // 短いと、王手を掛けた駒がまだ動いている最中に文字が消える。
+        #expect(ShogiMotion.checkBannerHold > ShogiMotion.pieceMoveResponse)
+        // 秒の定数から `Animation` を組んでいること（定数だけ直しても演出が変わらない、を防ぐ）。
+        #expect(ShogiMotion.checkBanner
+                == .spring(response: ShogiMotion.checkBannerResponse, dampingFraction: 0.65))
     }
 
     @Test("手番バッジの色替えにアニメーションが付く")
