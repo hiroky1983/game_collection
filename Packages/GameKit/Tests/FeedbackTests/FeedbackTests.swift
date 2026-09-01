@@ -15,6 +15,7 @@ import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
+import GameSolitaire
 import MahjongTiles
 
 // MARK: - Mocks
@@ -151,6 +152,17 @@ private func playGo(_ services: GameServices) async {
     model.tap(row: 4, col: 4)           // 拒否（すでに石がある）
     model.tap(row: -1, col: 4)          // 拒否（盤外）
     model.resign()                      // 決着
+}
+
+/// ソリティア（#397）。決着まで指し切るにはソルバーが要る（`GameSolitaireTests` で通しを検証済み）ため、
+/// ここでは**捨てた配札が敗北として決着する**経路を使う。操作・拒否・決着がこれで一通り出る。
+@MainActor
+private func playSolitaire(_ services: GameServices) {
+    let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
+    model.tapWaste()   // 拒否（捨て札がまだ空）
+    model.tapStock()   // 成立（山を1枚めくる）
+    model.tapPile(0)   // 持ち上げる
+    model.newGame()    // 決着（1手指した配札を捨てた = 敗北）
 }
 
 @MainActor
@@ -404,6 +416,15 @@ struct FeedbackEnabledTests {
         #expect(spy.impacts.contains(.medium), "着手で発火する")
         #expect(spy.notices(of: .warning) >= 2, "石のある交点・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
+    }
+
+    @Test("ソリティア: 山めくり・持ち上げ・空の捨て札のタップで発火する")
+    func solitaire() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        playSolitaire(services)
+        #expect(spy.impacts.contains(.light), "山めくりで発火する")
+        #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
+        #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
     }
 
     /// CPU の手番中のタップ（#202）。`playGomoku` は人間の手番に戻してから拒否を作るため、
@@ -663,6 +684,7 @@ struct SoundFeedbackTests {
         await check("大富豪") { _ = await playDaifugo($0) }
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
+        await check("ソリティア") { playSolitaire($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
             model.startGame()

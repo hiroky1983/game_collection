@@ -253,6 +253,11 @@ public struct SolitaireView: View {
             // 列全体を「置く先」として受ける下敷き。札の無いところをタップしても列に置ける。
             if column.isEmpty {
                 emptySlot(metrics: metrics, symbol: "crown")
+                    // 空の列は「K だけ置ける」ことを読み上げないと、音声では置けない理由が分からない。
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(SolitaireAccessibility.emptyPileLabel(pile: pile))
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { model.tapPile(pile) }
             } else {
                 Color.clear.frame(width: metrics.width, height: height)
             }
@@ -282,8 +287,6 @@ public struct SolitaireView: View {
         .frame(width: metrics.width, height: height, alignment: .top)
         .contentShape(Rectangle())
         .onTapGesture { model.tapPile(pile) }
-        // 空の列は「K だけ置ける」ことを読み上げないと、音声では置けない理由が分からない。
-        .accessibilityLabel(column.isEmpty ? SolitaireAccessibility.emptyPileLabel(pile: pile) : "")
     }
 
     private func faceUpCard(

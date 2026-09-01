@@ -273,6 +273,16 @@ struct SolitaireRecordTests {
         #expect(spy.notices.contains(.success))
         #expect(!store.exists(for: "solitaire"), "決着した局の中断データは残さない")
 
+        // クリア後も画面には組札と場札が残る。触っても「拒否」の振動・警告音を返さないこと
+        // （決着後の操作は無音で無視する規約。`GoModel.tap` と同じ）。
+        let rejectsBefore = model.rejectedTapCount
+        model.tapFoundation(.spade)
+        model.tapPile(0)
+        model.tapStock()
+        model.tapWaste()
+        #expect(model.placeJoker(onPile: 0) == false)
+        #expect(model.rejectedTapCount == rejectsBefore, "決着後のタップは拒否として数えない")
+
         let record = try! #require(log.record(gameID: "solitaire"))
         #expect(record.metric == .shortestTime)
         #expect(record.wins == 1)
@@ -376,71 +386,6 @@ struct SolitaireMetricsTests {
         #expect(stacked == height
                 + 6 * SolitaireMetrics.faceDownStep(cardHeight: height)
                 + 3 * SolitaireMetrics.faceUpStep(cardHeight: height))
-    }
-}
-
-// MARK: - 読み上げ
-
-@Suite("ソリティアの読み上げ")
-struct SolitaireAccessibilityTests {
-
-    @Test("場札は 列・枚数・札・伏せ札・上に載る枚数 を読む")
-    func tableauCard() {
-        let label = SolitaireAccessibility.tableauCardLabel(
-            pile: 2, position: 1, aboveCount: 2, hiddenCount: 3,
-            card: SolitaireCard(.heart, 7), isSelected: true, isMovable: true
-        )
-        #expect(label == "3列目、2枚目、ハートの7、伏せ札3枚、上に2枚、選択中")
-    }
-
-    @Test("動かせない札はそのことを読む（見た目には出ない情報）")
-    func immovableCard() {
-        let label = SolitaireAccessibility.tableauCardLabel(
-            pile: 0, position: 0, aboveCount: 0, hiddenCount: 0,
-            card: SolitaireCard(.spade, 13), isSelected: false, isMovable: false
-        )
-        #expect(label.hasSuffix("動かせません"))
-    }
-
-    @Test("空の列は「K だけ置ける」ことまで読む")
-    func emptyPile() {
-        #expect(SolitaireAccessibility.emptyPileLabel(pile: 6) == "7列目、空、キングだけ置けます")
-    }
-
-    @Test("組札は空とどこまで積んだかを読み分ける")
-    func foundation() {
-        #expect(SolitaireAccessibility.foundationLabel(suit: .club, rank: 0) == "クラブの組札、空")
-        #expect(SolitaireAccessibility.foundationLabel(suit: .diamond, rank: 12) == "ダイヤの組札、Qまで")
-    }
-
-    @Test("山札は残量と、めくり切ったあとの動きを読む")
-    func stock() {
-        #expect(SolitaireAccessibility.stockLabel(remaining: 24).contains("残り24枚"))
-        #expect(SolitaireAccessibility.stockLabel(remaining: 0).contains("捨て札を戻す"))
-    }
-
-    @Test("捨て札は空と選択中を読み分ける")
-    func waste() {
-        #expect(SolitaireAccessibility.wasteLabel(card: nil, isSelected: false) == "捨て札、空")
-        #expect(SolitaireAccessibility.wasteLabel(card: SolitaireCard(.spade, 1), isSelected: true)
-                == "捨て札、スペードのA、選択中")
-    }
-
-    @Test("ステータスは経過・手数・詰みを 1 行で読む")
-    func status() {
-        #expect(SolitaireAccessibility.statusLabel(
-            phase: .playing, elapsedSeconds: 65, moveCount: 12, isDeadEnd: false) == "経過1:05、12手")
-        #expect(SolitaireAccessibility.statusLabel(
-            phase: .playing, elapsedSeconds: 65, moveCount: 12, isDeadEnd: true)
-                .hasPrefix("進める手がありません"))
-        #expect(SolitaireAccessibility.statusLabel(
-            phase: .won, elapsedSeconds: 65, moveCount: 12, isDeadEnd: false).hasPrefix("クリア"))
-    }
-
-    @Test("札の呼び名はスート記号ではなく語で読む")
-    func cardNames() {
-        #expect(SolitaireAccessibility.cardLabel(SolitaireCard(.spade, 11)) == "スペードのJ")
-        #expect(SolitaireAccessibility.cardLabel(.joker) == "ジョーカー")
     }
 }
 

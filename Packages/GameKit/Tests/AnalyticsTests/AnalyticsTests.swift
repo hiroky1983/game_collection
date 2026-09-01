@@ -619,6 +619,18 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.first?.outcome == .loss)
     }
 
+    @Test("ソリティア: 開いた時点で開始・配り直しで終局（loss）")
+    func solitaire() {
+        let (services, spy) = makeServices()
+        let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
+        model.tapStock()
+        model.newGame()
+        #expect(spy.ends.map(\.gameID) == ["solitaire"])
+        #expect(spy.ends.first?.outcome == .loss)
+        // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
+        #expect(spy.starts == ["solitaire", "solitaire"])
+    }
+
     @Test("囲碁: 開いた時点で開始・投了で終局（loss）")
     func go() {
         let (services, spy) = makeServices()

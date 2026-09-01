@@ -14,6 +14,7 @@ import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
+import GameSolitaire
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -822,6 +823,28 @@ struct GameRecordingTests {
 
         model.newGame(humanSide: .black, aiLevel: 1)
         #expect(model.recordResult == nil)
+    }
+
+    /// クリアまで指し切る経路はソルバーが要るので `GameSolitaireTests` で検証している。
+    /// ここでは**見出しの指標**と、クリア率を成立させるための「捨てた配札 = 敗北」を確かめる。
+    @Test("ソリティア: 最短タイムを見出しにし、捨てた配札は敗北として残る")
+    func solitaireRecordsTime() {
+        let (log, defaults, name) = makeLog(suite: "solitaire")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = SolitaireModel(services: makeServices(log: log),
+                                   seed: SolitaireDealer.verifiedSeeds[0])
+        model.tapStock()
+        model.newGame()
+        #expect(model.recordResult == nil, "配り直した直後のリザルトは持ち越さない")
+        let record = log.record(gameID: "solitaire")
+        #expect(record?.metric == .shortestTime)
+        #expect(record?.losses == 1)
+        #expect(record?.bestSeconds == nil, "クリアしていない局のタイムは自己ベストに入れない")
+
+        // 1 手も指していない配札の捨て直しは記録しない（確認ダイアログを出す境目と同じ）。
+        model.newGame()
+        #expect(log.record(gameID: "solitaire")?.plays == 1)
     }
 
     @Test("囲碁: 対 CPU 戦なので勝敗を記録する")

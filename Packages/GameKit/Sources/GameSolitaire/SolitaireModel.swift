@@ -136,7 +136,10 @@ public final class SolitaireModel {
 
     /// 組札（スートごとの積み札）をタップ。選んでいる札をそこへ送る。
     public func tapFoundation(_ suit: SolitaireSuit) {
-        guard phase == .playing, let selection else { return reject() }
+        // 決着後は無音で無視する（`tapStock` / `tapWaste` / `tapPile` と同じ規約）。
+        // ここを拒否に倒すと、クリア画面に残った組札に触るたび警告の振動と音が鳴る。
+        guard phase == .playing else { return }
+        guard let selection else { return reject() }
         guard let card = card(at: selection), card.suit == suit,
               let move = foundationMove(from: selection), board.isLegal(move)
         else { return reject() }
@@ -173,7 +176,8 @@ public final class SolitaireModel {
     /// `SolitaireBoard.canPlaceJoker` が false を返すので、この関数は何もしない。
     @discardableResult
     public func placeJoker(onPile pile: Int) -> Bool {
-        guard phase == .playing, board.isLegal(.placeJoker(pile: pile)) else {
+        guard phase == .playing else { return false }
+        guard board.isLegal(.placeJoker(pile: pile)) else {
             reject()
             return false
         }
