@@ -49,6 +49,18 @@ public struct Game2048View: View {
             }
         }
         .howToPlay(.game2048)
+        .onAppear {
+            #if DEBUG
+            // 撮影・動作確認用: `-simulate2048Move <up|down|left|right>` でその向きへ 1 手動かす（#438）。
+            // 勝利演出はスワイプ起点でしか出せず、中断スナップショットの復元だけでは画を作れない
+            // （#437 の `-simulateChord` と同型）。
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-simulate2048Move"), i + 1 < args.count,
+               let direction = Self.direction(named: args[i + 1]) {
+                withGameAnimation(.easeInOut(duration: 0.12)) { model.move(direction) }
+            }
+            #endif
+        }
         .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -65,7 +77,9 @@ public struct Game2048View: View {
     private var recommendationArea: some View {
         ZStack(alignment: .top) {
             RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: model.gameOver)
+            // 2048 到達も「決着」なのでレコメンドの対象になる（#438）。ここを `gameOver` だけで
+            // 見ていると、提示カウント（`markShown`）だけ消費してカードが一度も出ない。
+            RecommendationSlot(services: services, isFinished: model.gameOver || model.showWinPrompt)
         }
     }
 
@@ -110,6 +124,8 @@ public struct Game2048View: View {
             .overlay {
                 if model.gameOver {
                     gameOverOverlay
+                } else if model.showWinPrompt {
+                    winOverlay
                 }
             }
         }
@@ -117,6 +133,28 @@ public struct Game2048View: View {
         .gameAnimation(.easeInOut(duration: 0.12), value: model.board)
         .contentShape(Rectangle())
         .gesture(swipeGesture)
+    }
+
+    /// 2048 初到達の勝利演出（#438）。原典と同じく、ここから同じ盤面のまま続けられる。
+    private var winOverlay: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
+            VStack(spacing: 12) {
+                Text("2048 達成！").font(.title2.bold()).foregroundStyle(.white)
+                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+                Button {
+                    withGameAnimation { model.continueAfterWin() }
+                } label: {
+                    Label("続ける", systemImage: "arrow.forward.circle.fill")
+                        .foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.Fill.coral)
+                Button("もう一度") { withGameAnimation { model.newGame() } }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+            }
+        }
     }
 
     private var gameOverOverlay: some View {
@@ -153,6 +191,19 @@ public struct Game2048View: View {
             }
         }
     }
+
+    #if DEBUG
+    /// 起動引数の向きの綴りを `Direction` へ。知らない綴りは nil（何もしない）。
+    private static func direction(named name: String) -> Direction? {
+        switch name {
+        case "up":    return .up
+        case "down":  return .down
+        case "left":  return .left
+        case "right": return .right
+        default:      return nil
+        }
+    }
+    #endif
 
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 20)
