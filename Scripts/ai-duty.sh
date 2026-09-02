@@ -781,13 +781,32 @@ install_gh_shim() {
   # 素通しの経路が生きているか（ここが壊れると当番はコメントもマージも一切できない）
   PATH="$GH_SHIM_DIR:$PATH" "$GH_SHIM_DIR/gh" --version >/dev/null 2>&1 \
     || { log "入力フィルタ: 素通しの確認に失敗"; return 1; }
-  # 第三者の本文が実際に落ちるか（ここが壊れると黙って素通しになり、壊れたことに気づけない）
-  probe=$(printf '%s' '{"author":{"login":"duty-shim-probe"},"body":"DUTY-SHIM-LEAK"}' \
-    | jq --arg trusted "$DUTY_TRUSTED_ACTORS" -f "$GH_SHIM_DIR/filter.jq" 2>/dev/null) \
-    || { log "入力フィルタ: フィルタの実行に失敗"; return 1; }
-  case "$probe" in *DUTY-SHIM-LEAK*) log "入力フィルタ: 第三者の本文が除去されていない"; return 1 ;; esac
-  probe=$(printf '%s' '{"author":{"login":"hiroky1983"},"body":"DUTY-SHIM-KEEP"}' \
-    | jq --arg trusted "$DUTY_TRUSTED_ACTORS" -f "$GH_SHIM_DIR/filter.jq" 2>/dev/null)
+  # 第三者の本文が実際に落ちるか（ここが壊れると黙って素通しになり、壊れたことに気づけない）。
+  # **ラッパーの横取り判定まで含めて**実測する。filter.jq 単体の確認では、引数の読み違いによる
+  # 素通しを検知できない（PR #448 の敵対的検証で、`-R` の先置きとエイリアス経由の2通りが
+  # 実際に見つかった）。スタブの gh を噛ませ、代表的な並びで本文が漏れないことを確かめる
+  local stub="$GH_SHIM_DIR/.probe-gh" json="$GH_SHIM_DIR/.probe.json" args
+  cat >"$stub" <<PROBE
+#!/bin/bash
+cat "$json"
+PROBE
+  chmod +x "$stub" || { rm -f "$stub"; return 1; }
+  jq -nc '{number:1,title:"t",author:{login:"duty-shim-probe"},body:"DUTY-SHIM-LEAK",comments:[]}' >"$json" \
+    || { rm -f "$stub" "$json"; log "入力フィルタ: プローブの作成に失敗"; return 1; }
+  for args in "issue view 1" "-R o/r issue view 1" "--repo o/r pr list" "duty-shim-alias 1"; do
+    # shellcheck disable=SC2086
+    probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" $args 2>/dev/null)
+    case "$probe" in
+      *DUTY-SHIM-LEAK*)
+        rm -f "$stub" "$json"
+        log "入力フィルタ: 第三者の本文が素通しした（gh $args）"
+        return 1 ;;
+    esac
+  done
+  jq -nc --arg a "${DUTY_TRUSTED_ACTORS%%,*}" \
+    '{number:1,title:"t",author:{login:$a},body:"DUTY-SHIM-KEEP",comments:[]}' >"$json" || { rm -f "$stub" "$json"; return 1; }
+  probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" issue view 1 2>/dev/null)
+  rm -f "$stub" "$json"
   case "$probe" in
     *DUTY-SHIM-KEEP*) ;;
     *) log "入力フィルタ: 会長の本文まで除去されている"; return 1 ;;

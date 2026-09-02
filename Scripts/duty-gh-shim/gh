@@ -47,31 +47,89 @@ find_real_gh() {
 GH_REAL="${DUTY_REAL_GH:-$(find_real_gh || true)}"
 [ -n "$GH_REAL" ] && [ -x "$GH_REAL" ] || die "gh 本体が見つかりません（PATH: $PATH）"
 
-# ---- サブコマンドの判定 -------------------------------------------------------
-# gh の構文は `gh [グローバルフラグ] <command> <subcommand> ...` で、subcommand は command の
-# **直後**に来る。フラグの値（例: --label "ai:approved"）を subcommand と取り違えないよう、
-# 「最初の非フラグ引数 = command / その次の引数 = subcommand」で読む。
+# ---- コマンド／サブコマンドの判定 ---------------------------------------------
+# ここを素朴に「最初の非フラグ引数 = command / その次 = subcommand」で読むと2通りに騙される
+# （どちらも実測で第三者の本文が素通しになった。PR #448 の敵対的検証で検出）:
+#   1. 値を別トークンで取るグローバルフラグの先置き。`gh --repo o/r pr view 1` は gh が
+#      受け付ける正当な並びだが、素朴な読み方だと `o/r` が command、`pr` が subcommand に
+#      なり、どの横取り条件にも一致せず素通しされる（`-R` も同じ）
+#   2. エイリアス。`gh alias set iv 'issue view'` の後の `gh iv 1` は command が `iv` になり、
+#      やはり素通しされる（会長の環境には実際に `co: pr checkout` が定義済み）
+# そこで **gh の組み込みコマンド名の表と照合して探す**。フラグもその値も表に無いので読み飛ばされ、
+# エイリアスは「組み込みに無い」ので拒否できる。表は実行時に `gh --help` から作らない
+# （あちらの一覧にはエイリアスも混ざる。エイリアスを弾くのが目的なので正典はここに固定で持つ）。
+GH_COMMANDS=" alias api attestation auth browse cache codespace completion config extension gist gpg-key help issue label org pr preview project release repo ruleset run search secret ssh-key status variable version workflow "
+ISSUE_SUBS=" close comment create delete develop edit list lock pin reopen status transfer unlock unpin view "
+PR_SUBS=" checkout checks close comment create diff edit list lock merge ready reopen review status unlock update-branch view "
+SEARCH_SUBS=" code commits issues prs repos "
+
 ARGS=("$@")
+
+# --help / -h は gh の静的なヘルプを出すだけで GitHub の内容を返さない。ここで通しておかないと
+# `gh issue --help` が「サブコマンドを特定できない」で断られる
+for _a in ${ARGS[@]+"${ARGS[@]}"}; do
+  case "$_a" in
+    --help | -h) exec "$GH_REAL" "$@" ;;
+  esac
+done
+
 CMD=""
-SUB=""
+CMD_IDX=-1
+HAS_POSITIONAL=0
 for ((_i = 0; _i < ${#ARGS[@]}; _i++)); do
   case "${ARGS[$_i]}" in
     -*) continue ;;
   esac
-  CMD="${ARGS[$_i]}"
-  [ $((_i + 1)) -lt ${#ARGS[@]} ] && SUB="${ARGS[$((_i + 1))]}"
-  break
+  HAS_POSITIONAL=1
+  case "$GH_COMMANDS" in
+    *" ${ARGS[$_i]} "*) CMD="${ARGS[$_i]}"; CMD_IDX=$_i; break ;;
+  esac
 done
+
+if [ -z "$CMD" ]; then
+  # 位置引数が1つも無い = `gh --version` 等。GitHub の内容を返さないので素通しでよい
+  [ "$HAS_POSITIONAL" -eq 0 ] && exec "$GH_REAL" "$@"
+  die "gh の組み込みコマンドを特定できません。エイリアス経由の呼び出しは入力フィルタを迂回するため使えません（正式なコマンド名で呼び直してください）"
+fi
+
+# サブコマンドも同じく表と照合して探す（フラグとその値を読み飛ばすため）。
+# 特定できなければ**断る**。素通しに倒すと、上の 1. と同じ抜け道が subcommand 側に残る
+SUB=""
+SUBS=""
+case "$CMD" in
+  issue) SUBS="$ISSUE_SUBS" ;;
+  pr) SUBS="$PR_SUBS" ;;
+  search) SUBS="$SEARCH_SUBS" ;;
+esac
+if [ -n "$SUBS" ]; then
+  for ((_i = CMD_IDX + 1; _i < ${#ARGS[@]}; _i++)); do
+    case "${ARGS[$_i]}" in
+      -*) continue ;;
+    esac
+    case "$SUBS" in
+      *" ${ARGS[$_i]} "*) SUB="${ARGS[$_i]}"; break ;;
+    esac
+  done
+  [ -n "$SUB" ] || die "$CMD のサブコマンドを特定できないため実行しません（入力フィルタを適用できないため）"
+fi
 
 # INTERCEPT: 自由記述を返しうる経路だけを列挙する。
 #   json   … 応答 JSON をそのままフィルタに通す（api / search）
-#   record … issue/pr の詳細・一覧。--json の有無で扱いを変える（下の record_mode 参照）
+#   record … issue/pr の詳細・一覧。--json の有無で扱いを変える
+#   deny   … フィルタを適用できる形に整形できないので断る
 #   pass   … 素通し（コメント投稿・ラベル操作・マージ・diff 等）
 MODE="pass"
-case "$CMD/$SUB" in
-  api/*) MODE="json" ;;
-  search/issues | search/prs) MODE="json" ;;
-  issue/view | issue/list | pr/view | pr/list) MODE="record" ;;
+case "$CMD" in
+  api) MODE="json" ;;
+  search) MODE="json" ;;
+  issue | pr)
+    case "$SUB" in
+      view | list) MODE="record" ;;
+      # status は他と応答の形が違い（createdBy/assigned/… の入れ子）整形を共用できない。
+      # 一覧が要るなら list を使えばよいので、無理に対応せず断る
+      status) die "gh $CMD status は入力フィルタの整形に対応していません（gh $CMD list を使ってください）" ;;
+    esac
+    ;;
 esac
 
 if [ "$MODE" = "pass" ]; then
@@ -170,7 +228,7 @@ if [ "$MODE" = "json" ]; then
     run_and_filter "${STRIPPED[@]}"
   fi
   emit
-  exit 0
+  exit $?
 fi
 
 # ---- record モード（issue/pr の view・list） -----------------------------------
@@ -216,7 +274,7 @@ RENDER_LIST='
 if [ "$HAS_JSON" -eq 1 ]; then
   run_and_filter "${STRIPPED[@]}" --json "$(ensure_author "$JSON_FIELDS")"
   emit
-  exit 0
+  exit $?
 fi
 
 if [ "$SUB" = "view" ]; then
@@ -228,4 +286,4 @@ else
   run_and_filter "${STRIPPED[@]}" --json "$FIELDS"
   emit "$RENDER_LIST"
 fi
-exit 0
+exit $?

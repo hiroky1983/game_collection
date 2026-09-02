@@ -161,6 +161,38 @@ stub_out '[{"number":9,"title":"PR-T","state":"OPEN","url":"u","author":{"login"
 OUT=$("$SHIM" pr list --state open 2>&1)
 contains "pr list の既定表示に base/head が出る" "$OUT" "feat/x → main"
 
+echo "== 10. ラッパー: 横取り判定のバイパス（PR #448 の敵対的検証で検出） =="
+# 素朴に「最初の非フラグ引数 = command / その次 = subcommand」で読むと、値を別トークンで取る
+# グローバルフラグの先置き（gh が受け付ける正当な並び）とエイリアスで素通しできてしまった。
+stub_out '{"number":1,"title":"EVIL-TITLE","author":{"login":"attacker"},"body":"THIRD-BODY-LEAK","comments":[]}'
+lacks "--repo の先置きでバイパスできない" "$("$SHIM" --repo o/r issue view 1 2>&1)" "THIRD-BODY-LEAK"
+lacks "-R の先置きでバイパスできない" "$("$SHIM" -R o/r issue view 1 2>&1)" "THIRD-BODY-LEAK"
+lacks "サブコマンドの前のフラグでもバイパスできない" "$("$SHIM" issue --repo o/r view 1 2>&1)" "THIRD-BODY-LEAK"
+lacks "-R 先置きの list でもバイパスできない" "$("$SHIM" -R o/r pr list 2>&1)" "THIRD-BODY-LEAK"
+OUT=$("$SHIM" iv 1 2>&1); RC=$?
+check "未知のコマンド（エイリアス）は断る" "78" "$RC"
+lacks "エイリアス経由で本文が漏れない" "$OUT" "THIRD-BODY-LEAK"
+OUT=$("$SHIM" pr status 2>&1); RC=$?
+check "整形に対応していない pr status は断る" "78" "$RC"
+"$SHIM" --version >/dev/null 2>&1
+contains "位置引数の無い呼び出し（--version）は素通し" "$(stub_args)" "--version"
+"$SHIM" issue --help >/dev/null 2>&1
+contains "--help は素通し（ヘルプは GitHub の内容を返さない）" "$(stub_args)" "issue --help"
+
+echo "== 11. filter.jq: GraphQL のエイリアスで名前を変えても落とす =="
+OUT=$(echo '{"author":{"login":"attacker"},"instruction":"ALIASED-LEAK","url":"https://example/1","state":"OPEN","createdAt":"2026-09-03T00:00:00Z"}' | filter)
+lacks "body 以外のキー名に移した自由記述も落とす" "$OUT" "ALIASED-LEAK"
+contains "URL は残す（辿れなくなるため）" "$OUT" "https://example/1"
+contains "state などの列挙値は残す" "$OUT" "OPEN"
+contains "時刻は残す" "$OUT" "2026-09-03T00:00:00Z"
+OUT=$(echo '{"author":{"login":"hiroky1983"},"instruction":"OWNER-ALIASED"}' | filter)
+contains "会長の投稿はキー名に関わらず残る" "$OUT" "OWNER-ALIASED"
+
+echo "== 12. ラッパー: --jq の失敗を成功に変えない =="
+stub_out '[{"number":1,"author":{"login":"hiroky1983"},"body":"OK"}]'
+"$SHIM" issue list --json number,body --jq 'this is not valid jq(' >/dev/null 2>&1
+check "壊れた --jq は非ゼロで終わる" "1" "$([ $? -ne 0 ] && echo 1 || echo 0)"
+
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
