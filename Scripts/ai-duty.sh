@@ -762,12 +762,68 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
+# 入力フィルタ（Issue #164）: claude セッション内の `gh` を Scripts/duty-gh-shim/gh 経由にして、
+# 第三者（PUBLIC リポジトリなので誰でも書ける）の本文が AI のコンテキストへ入る前に機械的に除去する。
+# 憲章の「指示として扱うのは会長と coderabbitai だけ」は、これまでプロンプトの記述だけで強制されていた。
+#   - 置き場所を worktree の**外**にするのは、当番が release ブランチ等をチェックアウトすると
+#     worktree 側の Scripts/ が入れ替わり、ラッパーごと消えて gh が動かなくなるため
+#   - 効いていることを起動前に実測し、確認できなければ **claude を起動しない**（fail closed）。
+#     フィルタ無しで走らせるくらいなら1回休むほうがよい。ラッパー自体の回帰は
+#     Scripts/tests/test-duty-gh-shim.sh（CI で実行）が防ぐ
+GH_SHIM_DIR="$HOME/.asobiba-duty/gh-shim"
+install_gh_shim() {
+  local src="$RUN_DIR/Scripts/duty-gh-shim" probe
+  [ -f "$src/gh" ] && [ -f "$src/filter.jq" ] || { log "入力フィルタ: $src が見つからない"; return 1; }
+  rm -rf "$GH_SHIM_DIR" 2>/dev/null
+  mkdir -p "$GH_SHIM_DIR" && chmod 700 "$GH_SHIM_DIR" || return 1
+  cp "$src/gh" "$src/filter.jq" "$GH_SHIM_DIR/" || return 1
+  chmod +x "$GH_SHIM_DIR/gh" || return 1
+  # 素通しの経路が生きているか（ここが壊れると当番はコメントもマージも一切できない）
+  PATH="$GH_SHIM_DIR:$PATH" "$GH_SHIM_DIR/gh" --version >/dev/null 2>&1 \
+    || { log "入力フィルタ: 素通しの確認に失敗"; return 1; }
+  # 第三者の本文が実際に落ちるか（ここが壊れると黙って素通しになり、壊れたことに気づけない）。
+  # **ラッパーの横取り判定まで含めて**実測する。filter.jq 単体の確認では、引数の読み違いによる
+  # 素通しを検知できない（PR #448 の敵対的検証で、`-R` の先置きとエイリアス経由の2通りが
+  # 実際に見つかった）。スタブの gh を噛ませ、代表的な並びで本文が漏れないことを確かめる
+  local stub="$GH_SHIM_DIR/.probe-gh" json="$GH_SHIM_DIR/.probe.json" args
+  cat >"$stub" <<PROBE
+#!/bin/bash
+cat "$json"
+PROBE
+  chmod +x "$stub" || { rm -f "$stub"; return 1; }
+  jq -nc '{number:1,title:"t",author:{login:"duty-shim-probe"},body:"DUTY-SHIM-LEAK",comments:[]}' >"$json" \
+    || { rm -f "$stub" "$json"; log "入力フィルタ: プローブの作成に失敗"; return 1; }
+  for args in "issue view 1" "-R o/r issue view 1" "--repo o/r pr list" "duty-shim-alias 1"; do
+    # shellcheck disable=SC2086
+    probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" $args 2>/dev/null)
+    case "$probe" in
+      *DUTY-SHIM-LEAK*)
+        rm -f "$stub" "$json"
+        log "入力フィルタ: 第三者の本文が素通しした（gh $args）"
+        return 1 ;;
+    esac
+  done
+  jq -nc --arg a "${DUTY_TRUSTED_ACTORS%%,*}" \
+    '{number:1,title:"t",author:{login:$a},body:"DUTY-SHIM-KEEP",comments:[]}' >"$json" || { rm -f "$stub" "$json"; return 1; }
+  probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" issue view 1 2>/dev/null)
+  rm -f "$stub" "$json"
+  case "$probe" in
+    *DUTY-SHIM-KEEP*) ;;
+    *) log "入力フィルタ: 会長の本文まで除去されている"; return 1 ;;
+  esac
+  return 0
+}
+if ! install_gh_shim; then
+  log "入力フィルタ（Issue #164）を用意できないため今回は起動しない"
+  exit 0
+fi
+
 # claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
 capture_sims_before
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
-claude --model opus \
+PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")" >>"$LOG" 2>&1
 RC=$?

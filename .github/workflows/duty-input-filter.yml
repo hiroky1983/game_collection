@@ -1,0 +1,41 @@
+name: 当番の入力フィルタ
+
+# 当番セッション（実装当番・経営企画室）が読む GitHub の本文から、第三者の書き込みを機械的に
+# 除去するラッパー（Scripts/duty-gh-shim/）の検証（Issue #164）。
+#
+# なぜ CI で守るか: このラッパーは当番の gh をすべて経由させるため、壊れると
+#   1) 素通しの経路が死ねば当番はコメントもマージも一切できない
+#   2) フィルタが死ねば黙って第三者の本文が AI に入る（= 壊れたことに誰も気づけない）
+# のどちらかになる。当番スクリプト側にも起動前の実測（fail closed）を入れてあるが、そちらは
+# 「壊れたので今回は動かない」とログに書くだけなので、main に入る前に落とす層をここに置く。
+on:
+  pull_request:
+    paths:
+      - 'Scripts/duty-gh-shim/**'
+      - 'Scripts/tests/test-duty-gh-shim.sh'
+      - '.github/workflows/duty-input-filter.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Scripts/duty-gh-shim/**'
+      - 'Scripts/tests/test-duty-gh-shim.sh'
+      - '.github/workflows/duty-input-filter.yml'
+
+concurrency:
+  group: duty-input-filter-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 入力フィルタ（gh ラッパー）の検証
+        run: bash Scripts/tests/test-duty-gh-shim.sh

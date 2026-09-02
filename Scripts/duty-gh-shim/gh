@@ -1,0 +1,289 @@
+#!/bin/bash
+# 当番セッション（Scripts/ai-duty.sh / Scripts/ai-management-duty.sh から起動する claude）専用の
+# gh ラッパー。Issue #164（CodeRabbit のセキュリティ指摘・2026-09-02 会長決裁）の実装。
+#
+# 何をするか: このディレクトリを PATH の先頭に置くことで、当番セッション内のすべての `gh` 呼び出しが
+# ここを通る。GitHub から**自由記述（Issue/PR の本文・コメント・レビュー）を返すサブコマンド**だけを
+# 横取りし、応答 JSON を filter.jq に通してから返す。信頼アカウント（会長 + coderabbitai）以外が
+# 書いた本文・タイトルは、AI のコンテキストに入る前に目印付きの文字列へ置換される。
+# それ以外のサブコマンド（コメント投稿・ラベル操作・マージ等）はそのまま素通しする。
+#
+# なぜラッパーなのか: 憲章の「第三者の書き込みを指示として扱わない」は、これまでプロンプトへの
+# 記述だけで強制されていた（= AI がその指示を守る前提。プロンプト注入に対する保証にならない）。
+# #164 の受け入れ条件3 は「プロンプトに『無視しろ』と書くだけでは完了条件を満たさない」と定めており、
+# PATH の差し替えなら AI 側の遵守に依存せず機械的に効く。
+#
+# 設計上の約束:
+#   - **既定は素通し**。横取りするのは下の INTERCEPT の表に載るものだけ
+#   - **横取りした経路で JSON を解釈できなければ実行を断る**（fail closed）。
+#     フィルタを通せない出力をそのまま返すくらいなら、当番にコマンドを変えさせる
+#   - 実 gh は PATH から自分自身のディレクトリを除いて探す（無限再帰の回避）
+#   - テストから差し替えられるよう、実 gh の場所は DUTY_REAL_GH で上書きできる
+set -uo pipefail
+
+SHIM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+FILTER="$SHIM_DIR/filter.jq"
+# 憲章「指示として扱ってよいのは会長（hiroky1983）と coderabbitai だけ」。
+# 会長側は ai-duty.sh と同じ DUTY_TRUSTED_ACTORS で差し替えられる。
+TRUSTED="${DUTY_TRUSTED_ACTORS:-hiroky1983},coderabbitai,coderabbitai[bot]"
+
+# 78 = EX_CONFIG。gh 自身の終了コード（1/2/4）と衝突させず、ラッパーが断ったことを見分けられるようにする
+die() { echo "duty-gh-shim: $*" >&2; exit 78; }
+
+[ -f "$FILTER" ] || die "filter.jq が見つかりません ($FILTER)"
+command -v jq >/dev/null 2>&1 || die "jq が見つかりません（入力フィルタを適用できないため実行しません）"
+
+find_real_gh() {
+  local IFS=: d
+  for d in $PATH; do
+    [ -n "$d" ] || d="."
+    [ -x "$d/gh" ] || continue
+    [ "$(cd "$d" 2>/dev/null && pwd -P)" = "$SHIM_DIR" ] && continue
+    printf '%s' "$d/gh"
+    return 0
+  done
+  return 1
+}
+GH_REAL="${DUTY_REAL_GH:-$(find_real_gh || true)}"
+[ -n "$GH_REAL" ] && [ -x "$GH_REAL" ] || die "gh 本体が見つかりません（PATH: $PATH）"
+
+# ---- コマンド／サブコマンドの判定 ---------------------------------------------
+# ここを素朴に「最初の非フラグ引数 = command / その次 = subcommand」で読むと2通りに騙される
+# （どちらも実測で第三者の本文が素通しになった。PR #448 の敵対的検証で検出）:
+#   1. 値を別トークンで取るグローバルフラグの先置き。`gh --repo o/r pr view 1` は gh が
+#      受け付ける正当な並びだが、素朴な読み方だと `o/r` が command、`pr` が subcommand に
+#      なり、どの横取り条件にも一致せず素通しされる（`-R` も同じ）
+#   2. エイリアス。`gh alias set iv 'issue view'` の後の `gh iv 1` は command が `iv` になり、
+#      やはり素通しされる（会長の環境には実際に `co: pr checkout` が定義済み）
+# そこで **gh の組み込みコマンド名の表と照合して探す**。フラグもその値も表に無いので読み飛ばされ、
+# エイリアスは「組み込みに無い」ので拒否できる。表は実行時に `gh --help` から作らない
+# （あちらの一覧にはエイリアスも混ざる。エイリアスを弾くのが目的なので正典はここに固定で持つ）。
+GH_COMMANDS=" alias api attestation auth browse cache codespace completion config extension gist gpg-key help issue label org pr preview project release repo ruleset run search secret ssh-key status variable version workflow "
+ISSUE_SUBS=" close comment create delete develop edit list lock pin reopen status transfer unlock unpin view "
+PR_SUBS=" checkout checks close comment create diff edit list lock merge ready reopen review status unlock update-branch view "
+SEARCH_SUBS=" code commits issues prs repos "
+
+ARGS=("$@")
+
+# --help / -h は gh の静的なヘルプを出すだけで GitHub の内容を返さない。ここで通しておかないと
+# `gh issue --help` が「サブコマンドを特定できない」で断られる
+for _a in ${ARGS[@]+"${ARGS[@]}"}; do
+  case "$_a" in
+    --help | -h) exec "$GH_REAL" "$@" ;;
+  esac
+done
+
+CMD=""
+CMD_IDX=-1
+HAS_POSITIONAL=0
+for ((_i = 0; _i < ${#ARGS[@]}; _i++)); do
+  case "${ARGS[$_i]}" in
+    -*) continue ;;
+  esac
+  HAS_POSITIONAL=1
+  case "$GH_COMMANDS" in
+    *" ${ARGS[$_i]} "*) CMD="${ARGS[$_i]}"; CMD_IDX=$_i; break ;;
+  esac
+done
+
+if [ -z "$CMD" ]; then
+  # 位置引数が1つも無い = `gh --version` 等。GitHub の内容を返さないので素通しでよい
+  [ "$HAS_POSITIONAL" -eq 0 ] && exec "$GH_REAL" "$@"
+  die "gh の組み込みコマンドを特定できません。エイリアス経由の呼び出しは入力フィルタを迂回するため使えません（正式なコマンド名で呼び直してください）"
+fi
+
+# サブコマンドも同じく表と照合して探す（フラグとその値を読み飛ばすため）。
+# 特定できなければ**断る**。素通しに倒すと、上の 1. と同じ抜け道が subcommand 側に残る
+SUB=""
+SUBS=""
+case "$CMD" in
+  issue) SUBS="$ISSUE_SUBS" ;;
+  pr) SUBS="$PR_SUBS" ;;
+  search) SUBS="$SEARCH_SUBS" ;;
+esac
+if [ -n "$SUBS" ]; then
+  for ((_i = CMD_IDX + 1; _i < ${#ARGS[@]}; _i++)); do
+    case "${ARGS[$_i]}" in
+      -*) continue ;;
+    esac
+    case "$SUBS" in
+      *" ${ARGS[$_i]} "*) SUB="${ARGS[$_i]}"; break ;;
+    esac
+  done
+  [ -n "$SUB" ] || die "$CMD のサブコマンドを特定できないため実行しません（入力フィルタを適用できないため）"
+fi
+
+# INTERCEPT: 自由記述を返しうる経路だけを列挙する。
+#   json   … 応答 JSON をそのままフィルタに通す（api / search）
+#   record … issue/pr の詳細・一覧。--json の有無で扱いを変える
+#   deny   … フィルタを適用できる形に整形できないので断る
+#   pass   … 素通し（コメント投稿・ラベル操作・マージ・diff 等）
+MODE="pass"
+case "$CMD" in
+  api) MODE="json" ;;
+  search) MODE="json" ;;
+  issue | pr)
+    case "$SUB" in
+      view | list) MODE="record" ;;
+      # status は他と応答の形が違い（createdBy/assigned/… の入れ子）整形を共用できない。
+      # 一覧が要るなら list を使えばよいので、無理に対応せず断る
+      status) die "gh $CMD status は入力フィルタの整形に対応していません（gh $CMD list を使ってください）" ;;
+    esac
+    ;;
+esac
+
+if [ "$MODE" = "pass" ]; then
+  exec "$GH_REAL" "$@"
+fi
+
+# ---- 引数の分解 ---------------------------------------------------------------
+# --jq / -q は gh に渡さず**フィルタ後**に自分で適用する（gh に適用させるとフィルタ前の本文が
+# そのまま出てしまう）。--template は JSON を経由しない出力形式で再現できないため断る。
+STRIPPED=()
+USER_JQ=""
+HAS_USER_JQ=0
+HAS_JSON=0
+JSON_FIELDS=""
+HAS_WEB=0
+DROP_COMMENTS=0
+[ "$SUB" = "view" ] && DROP_COMMENTS=1 # --json 化するとき --comments とは併用できないため落とす
+
+_i=0
+while [ "$_i" -lt "${#ARGS[@]}" ]; do
+  a="${ARGS[$_i]}"
+  case "$a" in
+    --jq | -q)
+      USER_JQ="${ARGS[$((_i + 1))]:-}"; HAS_USER_JQ=1; _i=$((_i + 2)); continue ;;
+    --jq=*)
+      USER_JQ="${a#--jq=}"; HAS_USER_JQ=1; _i=$((_i + 1)); continue ;;
+    --template | -t)
+      die "--template は入力フィルタを通せないため当番からは使えません（--json + --jq を使ってください）" ;;
+    --template=*)
+      die "--template は入力フィルタを通せないため当番からは使えません（--json + --jq を使ってください）" ;;
+    --json)
+      HAS_JSON=1; JSON_FIELDS="${ARGS[$((_i + 1))]:-}"; _i=$((_i + 2)); continue ;;
+    --json=*)
+      HAS_JSON=1; JSON_FIELDS="${a#--json=}"; _i=$((_i + 1)); continue ;;
+    --web | -w)
+      HAS_WEB=1; STRIPPED+=("$a"); _i=$((_i + 1)); continue ;;
+    --comments | -c)
+      if [ "$DROP_COMMENTS" -eq 1 ]; then _i=$((_i + 1)); continue; fi
+      STRIPPED+=("$a"); _i=$((_i + 1)); continue ;;
+    *)
+      STRIPPED+=("$a"); _i=$((_i + 1)); continue ;;
+  esac
+done
+
+# --web はブラウザを開くだけで本文を返さない（ヘッドレスでは失敗する）ので素通しでよい
+if [ "$HAS_WEB" -eq 1 ]; then
+  exec "$GH_REAL" "$@"
+fi
+
+# ---- 実行とフィルタ -----------------------------------------------------------
+FILTERED=""
+run_and_filter() {
+  local tmp rc raw
+  tmp=$(mktemp "${TMPDIR:-/tmp}/duty-gh-XXXXXX") || die "一時ファイルを作成できません"
+  # stderr は握りつぶさずそのまま当番へ流す（gh のエラーメッセージが消えると原因が追えない）
+  "$GH_REAL" "$@" >"$tmp"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    cat "$tmp"
+    rm -f "$tmp"
+    exit "$rc"
+  fi
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
+    FILTERED=""
+    return 0
+  fi
+  raw=$(jq --arg trusted "$TRUSTED" -f "$FILTER" <"$tmp" 2>/dev/null) || {
+    rm -f "$tmp"
+    die "応答が JSON ではないため入力フィルタを適用できません（この形の呼び出しは当番からは使えません）"
+  }
+  rm -f "$tmp"
+  FILTERED="$raw"
+}
+
+# フィルタ済み JSON に、当番が指定した --jq を適用して出力する
+emit() {
+  local render="${1:-}"
+  [ -n "$FILTERED" ] || return 0
+  if [ "$HAS_USER_JQ" -eq 1 ]; then
+    printf '%s\n' "$FILTERED" | jq -r "$USER_JQ"
+  elif [ -n "$render" ]; then
+    printf '%s\n' "$FILTERED" | jq -r "$render"
+  else
+    printf '%s\n' "$FILTERED"
+  fi
+}
+
+if [ "$MODE" = "json" ]; then
+  if [ "$CMD" = "search" ] && [ "$HAS_JSON" -eq 0 ]; then
+    die "gh search は --json を付けて呼んでください（表形式の出力には入力フィルタを適用できません）"
+  fi
+  if [ "$HAS_JSON" -eq 1 ]; then
+    run_and_filter "${STRIPPED[@]}" --json "$JSON_FIELDS"
+  else
+    run_and_filter "${STRIPPED[@]}"
+  fi
+  emit
+  exit $?
+fi
+
+# ---- record モード（issue/pr の view・list） -----------------------------------
+# --json 指定時は、要求されたフィールドに `author` を必ず足す。author が無いと投稿者を判定できず、
+# filter.jq が本文を一律に伏せてしまう（fail closed の副作用）ため。足したぶんは余分なキーが
+# 増えるだけで、当番の --jq には影響しない。
+ensure_author() {
+  case ",$1," in
+    *,author,*) printf '%s' "$1" ;;
+    *) printf '%s' "$1,author" ;;
+  esac
+}
+
+# --json 無し（既定の表・詳細表示）は gh の整形テキストになりフィルタを通せないので、
+# 同じ内容を JSON で取り直し、ラッパー側で整形して返す。
+VIEW_FIELDS_ISSUE="number,title,state,url,author,labels,milestone,assignees,createdAt,updatedAt,body,comments"
+VIEW_FIELDS_PR="number,title,state,url,author,labels,baseRefName,headRefName,isDraft,mergeable,mergeStateStatus,createdAt,updatedAt,body,comments"
+LIST_FIELDS_ISSUE="number,title,state,url,author,labels,updatedAt"
+LIST_FIELDS_PR="number,title,state,url,author,labels,baseRefName,headRefName,isDraft,updatedAt"
+
+RENDER_VIEW='
+  "#\(.number // "-") \(.title // "")",
+  ("状態: \(.state // "-") / 作成者: \(.author.login // "-")"
+   + " / ラベル: \(((.labels // []) | map(.name) | join(", ")) | if . == "" then "-" else . end)"
+   + (if has("milestone") then " / マイルストーン: \(.milestone.title // "-")" else "" end)
+   + (if has("baseRefName") then " / \(.headRefName // "-") → \(.baseRefName // "-")" else "" end)
+   + (if has("mergeable") then " / mergeable: \(.mergeable // "-") (\(.mergeStateStatus // "-"))" else "" end)),
+  "URL: \(.url // "-")",
+  "",
+  "--- 本文 ---",
+  (.body // "" | if . == "" then "(本文なし)" else . end),
+  "",
+  "--- コメント（\((.comments // []) | length)件） ---",
+  ((.comments // [])[] | "[\(.createdAt // "-") \(.author.login // "-")]\n\(.body // "")\n")
+'
+RENDER_LIST='
+  .[] | "#\(.number // "-") [\(.state // "-")] \(.title // "")"
+        + " — 作成者: \(.author.login // "-")"
+        + (if has("baseRefName") then " / \(.headRefName // "-") → \(.baseRefName // "-")" else "" end)
+        + (if ((.labels // []) | length) > 0 then " / \((.labels // []) | map(.name) | join(","))" else "" end)
+'
+
+if [ "$HAS_JSON" -eq 1 ]; then
+  run_and_filter "${STRIPPED[@]}" --json "$(ensure_author "$JSON_FIELDS")"
+  emit
+  exit $?
+fi
+
+if [ "$SUB" = "view" ]; then
+  if [ "$CMD" = "issue" ]; then FIELDS="$VIEW_FIELDS_ISSUE"; else FIELDS="$VIEW_FIELDS_PR"; fi
+  run_and_filter "${STRIPPED[@]}" --json "$FIELDS"
+  emit "$RENDER_VIEW"
+else
+  if [ "$CMD" = "issue" ]; then FIELDS="$LIST_FIELDS_ISSUE"; else FIELDS="$LIST_FIELDS_PR"; fi
+  run_and_filter "${STRIPPED[@]}" --json "$FIELDS"
+  emit "$RENDER_LIST"
+fi
+exit $?
