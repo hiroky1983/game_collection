@@ -477,7 +477,35 @@ struct GameOutcomeRoutingTests {
             }
         }
         #expect(model.gameOver)
-        #expect(service.log.totalWins == 0, "2048 には「クリア」が無く、終局は必ずゲームオーバー")
+        #expect(!model.hasWon, "前提: 無作為に動かして 2048 に届くことはまず無い")
+        #expect(service.log.totalWins == 0, "2048 に届かない終局はゲームオーバー")
+    }
+
+    @Test("2048: 2048 到達は勝利として評価リクエストの条件に乗る（#438）")
+    func game2048Win() {
+        let (services, service) = makeServices(suite: "route-2048-win")
+        // 左へ寄せると 1024 どうしが合体して 2048 になる盤。
+        let winnableBoard = [
+            [1024, 1024, 4, 8],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ]
+
+        let first = Game2048Model(services: services, board: winnableBoard)
+        first.move(.left)
+        #expect(first.hasWon)
+        #expect(!first.gameOver, "勝ってもゲームは続く")
+        #expect(service.log.totalWins == 1, "2048 到達は勝利として数える")
+        #expect(service.pendingRequestID == nil, "条件2（通算5勝）にはまだ届かない")
+
+        // ここまで一度も乗れなかった経路（`outcome == .win`）に乗ったことを、
+        // 初回リクエストの条件（通算5勝）まで到達できることで確かめる。
+        for _ in 0..<(ReviewRequestPolicy.firstRequestWins - 1) {
+            Game2048Model(services: services, board: winnableBoard).move(.left)
+        }
+        #expect(service.log.totalWins == ReviewRequestPolicy.firstRequestWins)
+        #expect(service.pendingRequestID != nil, "評価リクエストが予定される")
     }
 
     @Test("ブラックジャック: ラウンドの結果どおりに振り分ける")

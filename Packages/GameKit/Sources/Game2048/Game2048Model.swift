@@ -10,6 +10,10 @@ public final class Game2048Model {
     public private(set) var score: Int
     public private(set) var gameOver: Bool
     public private(set) var continueUsed: Bool = false
+    /// この局で 2048 に到達済みか（#438）。勝利演出を局に 1 度だけ出すための印。
+    public private(set) var hasWon: Bool = false
+    /// 勝利演出（「続ける / もう一度」）を出しているか（#438）。`continueAfterWin()` で下ろす。
+    public private(set) var showWinPrompt: Bool = false
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
 
@@ -28,6 +32,8 @@ public final class Game2048Model {
             initialScore = snap.score
             // 再起動でコンティニュー権が復活しないよう、使用済みフラグも復元する。
             continueUsed = snap.continueUsed
+            // 到達済みフラグも復元する。復元しないと再起動のたびに勝利演出が出せてしまう（#438）。
+            hasWon = snap.hasWon
         } else {
             initialBoard = Game2048Logic.emptyBoard()
             initialScore = 0
@@ -52,6 +58,8 @@ public final class Game2048Model {
         self.board = board
         self.score = score
         gameOver = Game2048Logic.isGameOver(board)
+        // 既に 2048 が乗っている盤から始めたときは到達済みとして扱う（次の合体で演出が出ない）。
+        hasWon = Game2048Logic.hasWinningTile(board)
         persist()
     }
 
@@ -68,21 +76,47 @@ public final class Game2048Model {
         score += result.gained
         Self.spawn(into: &board)
 
+        // この手で初めて 2048 を作ったか（#438）。新タイルは 2 か 4 なので、判定は合体の結果だけを見る。
+        let justWon = !hasWon && Game2048Logic.hasWinningTile(board)
+        if justWon { hasWon = true }
+
         if Game2048Logic.isGameOver(board) {
             gameOver = true
             services?.feedback.notify(.error)
-            // 2048 に勝ちは無いので、記録するのはスコアと到達した最大タイル。
             let highestTile: Int? = board.flatMap { $0 }.max()
+            // 2048 を作った手がそのまま盤を埋め切った場合だけ、終局でも勝ちとして記録する
+            // （到達自体は成立しているため）。決着 1 回につき `gameDidFinish` は 1 回だけ呼ぶ。
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
-                outcome: .loss,
+                outcome: justWon ? .win : .loss,
                 score: GameScore(metric: .points, points: score, highestValue: highestTile)
             )
             services?.snapshots.clear(for: gameID) // 終局でスナップショット破棄
+        } else if justWon {
+            // 原典と同じく、勝ってもそのまま続けられる。演出を出して決着だけ先に記録する。
+            showWinPrompt = true
+            services?.feedback.notify(.success)
+            recordResult = services?.gameDidFinish(
+                gameID: gameID,
+                outcome: .win,
+                score: GameScore(metric: .points, points: score, highestValue: board.flatMap { $0 }.max())
+            )
+            persist()
         } else {
             services?.feedback.impact(result.gained > 0 ? .medium : .light)
             persist()
         }
+    }
+
+    /// 勝利演出の「続ける」。盤面もスコアもそのままに、続きを次の 1 プレイとして数え直す（#438）。
+    ///
+    /// `continueAfterAd` と同じ理由で `gameDidRestart` を呼ぶ: 到達時点で `game_end` を送っており、
+    /// ここで数え直さないと `game_start` 1 回に対して `game_end` が 2 回付いて対応が崩れる（#158）。
+    public func continueAfterWin() {
+        guard showWinPrompt else { return }
+        showWinPrompt = false
+        recordResult = nil
+        services?.gameDidRestart(gameID: gameID)
     }
 
     /// リワード広告視聴後にコンティニュー。盤面・スコアを保持したまま再開。1回のみ使用可。
@@ -110,6 +144,8 @@ public final class Game2048Model {
         score = 0
         gameOver = false
         continueUsed = false
+        hasWon = false
+        showWinPrompt = false
         recordResult = nil
         Self.spawn(into: &board)
         Self.spawn(into: &board)
@@ -120,7 +156,7 @@ public final class Game2048Model {
     private func persist() {
         guard !gameOver else { return }
         try? services?.snapshots.save(
-            Game2048Snapshot(board: board, score: score, continueUsed: continueUsed),
+            Game2048Snapshot(board: board, score: score, continueUsed: continueUsed, hasWon: hasWon),
             for: gameID
         )
     }
