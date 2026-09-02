@@ -85,6 +85,11 @@ public final class SudokuModel {
     public var canUndo: Bool { state == .playing && lastUndoStep != nil }
 
     private let services: GameServices?
+    /// 生成タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
+    /// `state = .generating` が確定した直後・生成の開始前に await する。
+    /// テストはここで生成を止めることで、「生成中」という状態を生成の所要時間に
+    /// 依存せず決定論的に作れる（将棋・オセロの `thinkingGate` と同じ形。#172 / #419）。
+    @ObservationIgnored var generationGate: (@MainActor () async -> Void)?
     private let gameID = "sudoku"
     private var timerTask: Task<Void, Never>?
     /// テスト用の固定種。nil ならシステムの乱数を使う。
@@ -204,6 +209,7 @@ public final class SudokuModel {
         recordResult   = nil
 
         let currentSeed = seed
+        await generationGate?()
         let puzzle = await Task.detached(priority: .userInitiated) {
             if var rng = currentSeed.map(SudokuSeededGenerator.init(seed:)) {
                 return SudokuEngine.generate(difficulty: difficulty, using: &rng)
