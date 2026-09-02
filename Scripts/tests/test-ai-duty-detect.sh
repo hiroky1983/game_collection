@@ -1,5 +1,6 @@
 #!/bin/bash
-# ai-duty.sh の「会長の書き込み」検知（仕事5: 決裁着信 / 仕事8: 企画議論着信 / 仕事11: blocked 解除確認）の検証。
+# ai-duty.sh の「会長の書き込み」検知（仕事5: 決裁着信 / 仕事8: 企画議論着信 / 仕事11: blocked 解除確認 /
+# 仕事12: ハンコによる決裁）の検証。
 #
 # 当番(AI)・経営企画室・会長はすべて同じ hiroky1983 トークンで投稿するため、この3者を分けるのは
 # 本文のマーカーだけである。マーカーの取りこぼしはそのまま毎時の空振り起動になる（#120・#168）ので、
@@ -175,9 +176,78 @@ check "仕事8 は会長の素のコメントでは発火する（集約が潰�
 check "仕事11 は会長の素のコメントでは発火する（集約が潰していない）" "true" \
   "$(blocked "$(node "blocked" "hiroky1983=解除確認: 未達" "hiroky1983=$CHAIRMAN")")"
 
-echo "== 8. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
+# 仕事12（ハンコによる決裁・#436）。会長は ringi:pending を外さないため、「決裁スレッドのあとに
+# ai:approved が付いた」= 推奨案での決裁成立として当番を起こす。#164 はこの経路が無かったせいで
+# ハンコが押されたまま2週間滞留した。
+# タイムライン付きのノードを組み立てる。
+# 引数: ラベル / ハンコ付与("時刻,actor" 形式・空なら付与イベント無し) / "時刻=本文" の並び（古い順）
+stamp_node() {
+  local labels="$1" stamp="$2"; shift 2
+  local jq_labels jq_comments jq_timeline c
+  jq_labels=$(printf '%s' "$labels" | tr ',' '\n' | jq -R '{name: .}' | jq -sc .)
+  jq_comments='[]'
+  for c in "$@"; do
+    jq_comments=$(printf '%s' "$jq_comments" \
+      | jq -c --arg t "${c%%=*}" --arg b "${c#*=}" \
+          '. + [{author: {login: "hiroky1983"}, createdAt: $t, body: $b}]')
+  done
+  jq_timeline='[]'
+  if [ -n "$stamp" ]; then
+    jq_timeline=$(jq -nc --arg t "${stamp%%,*}" --arg a "${stamp#*,}" \
+      '[{createdAt: $t, label: {name: "ai:approved"}, actor: {login: $a}}]')
+  fi
+  jq -nc --argjson l "$jq_labels" --argjson c "$jq_comments" --argjson tl "$jq_timeline" \
+    '{number: 1, labels: {nodes: $l}, comments: {nodes: $c}, timelineItems: {nodes: $tl}}'
+}
+ringi_stamp() { printf '%s' "$1" | jq --arg trusted "$ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $a | is_ringi_stamp($a)'; }
+
+T1="2026-09-01T00:00:00Z"   # 決裁スレッドの投稿
+T2="2026-09-02T00:00:00Z"   # ハンコ
+T3="2026-09-03T00:00:00Z"   # 当番の応答
+
+echo "== 9. 仕事12（ハンコ着信）: 発火すべきケース =="
+check "ハンコが決裁スレッドより後なら発火する（#436）" "true" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2,hiroky1983" "$T1=$RINGI_THREAD")")"
+check "決裁スレッドが無くてもハンコが押されていれば発火する" "true" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2,hiroky1983")")"
+check "ハンコの付与イベントが取れず当番の応答も無ければ発火する（順序不明・当番が再掲する）" "true" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "")")"
+
+echo "== 10. 仕事12: 発火してはいけないケース =="
+check "ハンコが決裁スレッドより前なら発火しない（起票時からの承認）" "false" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T1,hiroky1983" "$T2=$RINGI_THREAD")")"
+check "ringi:pending 単独（ハンコ無し）なら発火しない" "false" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending" "" "$T1=$RINGI_THREAD")")"
+check "ai:approved 単独（決裁待ちでない）なら発火しない" "false" \
+  "$(ringi_stamp "$(stamp_node "ai:approved" "$T2,hiroky1983")")"
+# 停止条件の本体。当番の処理は「反映記録」か「決裁スレッドの再掲」で必ず終わるので、
+# 応答した瞬間に鳴り止む（#120・#168・#386 と同型の空振り恒久化の再発防止）
+for entry in "決裁反映（正典の形）=決裁反映: ハンコを推奨案の承認として反映しました" \
+             "決裁反映（見出しの形・#164 の実データ）=## 決裁反映（2026-09-02）" \
+             "決裁スレッドの再掲=$RINGI_THREAD"; do
+  check "ハンコの後に当番が「${entry%%=*}」を書いたら発火しない" "false" \
+    "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2,hiroky1983" "$T1=$RINGI_THREAD" "$T3=${entry#*=}")")"
+done
+check "順序不明でも稟議の記録が既にあれば発火しない（無限空振りの防止）" "false" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "" "$T1=$RINGI_THREAD")")"
+check "ハンコの後の会長の素のコメントでは発火する（仕事5 と二重に拾って構わない）" "true" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2,hiroky1983" "$T1=$RINGI_THREAD" "$T3=$CHAIRMAN")")"
+check "許可リスト外のアカウントによるハンコは無視する" "false" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2,someone-else" "$T1=$RINGI_THREAD")")"
+
+# 基準を is_duty_reply の集合全部にすると、稟議と無関係な当番の記録が1本入っただけで
+# 未処理のハンコを取りこぼす。基準は稟議の記録2種に限る
+echo "== 10-b. 仕事12: 稟議と無関係な当番マーカーではハンコを取りこぼさない =="
+for entry in "企画議論=企画議論（経営企画室）: 補足します" \
+             "解除確認=解除確認: 条件は未達です" \
+             "着手見送り=着手見送り: 着手条件が未達"; do
+  check "ハンコの後に当番が「${entry%%=*}」を書いても発火する（取りこぼさない）" "true" \
+    "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2,hiroky1983" "$T1=$RINGI_THREAD" "$T3=${entry#*=}")")"
+done
+
+echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
-check "仕事5・仕事8・仕事11 の3箇所が DUTY_JQ_COMMENT_LIB を渡している" "3" "$USES"
+check "仕事5・仕事8・仕事11・仕事12 の4箇所が DUTY_JQ_COMMENT_LIB を渡している" "4" "$USES"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
