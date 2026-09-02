@@ -202,6 +202,181 @@ private func makeServices(_ store: MockSnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
+// MARK: - パス絡みの詰み（#414: 品質監査 #404 の High 2件）
+
+/// `.` 空 / `B` 黒 / `W` 白 の 8×8 図面を盤面へ起こす。
+private func othelloCells(_ diagram: String) -> [OthelloStone?] {
+    diagram.split(separator: "\n").flatMap { row in
+        row.map { ch -> OthelloStone? in
+            switch ch {
+            case "B": return .black
+            case "W": return .white
+            default:  return nil
+            }
+        }
+    }
+}
+
+private func othelloSnapshot(
+    cells: [OthelloStone?],
+    currentStone: OthelloStone,
+    humanSide: OthelloStone,
+    mustPass: Bool
+) -> OthelloSnapshot {
+    OthelloSnapshot(
+        cells: cells.map { $0?.rawValue },
+        currentStone: currentStone.rawValue,
+        humanSide: humanSide.rawValue,
+        aiLevel: 1,
+        startedAt: Date(),
+        winner: nil,
+        isDraw: false,
+        mustPass: mustPass ? true : nil,
+        turnID: 20,
+        undoUsed: nil
+    )
+}
+
+/// 黒（人間）の手番。**黒が (1,0) に打つと (1,1) の白が返り、白の合法手が 0 になる**。
+/// 盤は埋まっておらず黒には (4,5) (5,3) が残るため、決着ではなく「白のパス」になる。
+private let othelloPassPendingDiagram = """
+.B.B....
+.WBB....
+...B.W..
+...WW...
+..WWW...
+....W...
+....W...
+........
+"""
+
+/// 上の図面で黒が (1,0) に打った直後。白の手番だが合法手が無い（= `mustPass` が立つ局面）。
+private let othelloWhiteMustPassDiagram = """
+.B.B....
+BBBB....
+...B.W..
+...WW...
+..WWW...
+....W...
+....W...
+........
+"""
+
+@MainActor
+@Suite("オセロ パス絡みの詰み")
+struct OthelloPassDeadlockTests {
+
+    /// 症状1: CPU がパスした直後に「待った」を押すと、白番のまま誰も着手できなくなっていた。
+    ///
+    /// 原因は `undoLastExchange()` が `mustPass` を盤面から導出し直さず無条件に false にしていたこと。
+    /// 白番（`isAITurn`）のまま `mustPass` が false だと CPU は合法手 0 で何もせず終わり、
+    /// 以後は `tap()` も「待った」も `isAITurn` に塞がれて投了か新規対局しか手が無くなる。
+    @Test func undoAfterCPUPassLetsHumanKeepPlaying() async throws {
+        let store = MockSnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloPassPendingDiagram),
+                            currentStone: .black, humanSide: .black, mustPass: false),
+            for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        try #require(model.currentStone == .black && model.humanSide == .black)
+
+        model.tap(row: 1, col: 0)
+        try #require(model.mustPass, "前提: 黒の着手で白の合法手が 0 になること")
+        try #require(model.isAITurn, "前提: パスするのは CPU（白）側であること")
+
+        await model.performAIMoveIfNeeded()   // CPU が自動でパスする
+        try #require(model.isAITurn == false, "前提: 人間の手番に戻ること")
+        try #require(model.canUndo, "前提: 「待った」が押せる状態であること")
+
+        model.undoLastExchange()
+
+        #expect(model.isAITurn == false)    // 修正前はここで白番のまま固まっていた
+        #expect(model.mustPass == false)
+        #expect(model.gameOver == false)
+        // 詰んでいないことの本体: 実際に着手できるところまで確かめる。
+        let move = try #require(model.board.validMoves(for: model.currentStone).first)
+        let turnID = model.turnID
+        model.tap(row: move.0, col: move.1)
+        #expect(model.turnID == turnID + 1)
+    }
+
+    /// パスは石を動かさないので「待った」の巻き戻し地点にしない。
+    /// 積んでしまうと、戻った先で CPU が再びパスして同じ局面へ返る往復になり、
+    /// 履歴も減らないため自分の着手を永久に戻せなくなる。
+    @Test func undoGoesBackBeforeOwnMoveNotToThePassItself() async throws {
+        let store = MockSnapshotStore()
+        let cells = othelloCells(othelloPassPendingDiagram)
+        try store.save(
+            othelloSnapshot(cells: cells, currentStone: .black, humanSide: .black, mustPass: false),
+            for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+
+        model.tap(row: 1, col: 0)
+        await model.performAIMoveIfNeeded()   // CPU がパス
+        model.undoLastExchange()
+
+        #expect(model.board == OthelloBoard(cells: cells))   // 自分の着手ごと戻っている
+        #expect(model.currentStone == .black)
+        #expect(model.canUndo == false)                      // 履歴を使い切っている（往復しない）
+    }
+
+    /// 症状2: パスの案内を閉じる前に中断すると、再開後に案内が出ず詰んでいた。
+    /// モデル側は復元した状態を保っており（View の表示条件がそのまま真）、
+    /// 案内の「OK」にあたる `confirmPass()` で対局を続けられること。
+    @Test func restoredPassPendingGameIsStillPlayable() throws {
+        let store = MockSnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
+                            currentStone: .white, humanSide: .white, mustPass: true),
+            for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+
+        try #require(model.board.validMoves(for: .white).isEmpty, "前提: 人間（白）に合法手が無いこと")
+        // View がパスの案内を出す条件（`mustPass && !isAITurn`）が復元直後から成立している。
+        #expect(model.mustPass)
+        #expect(model.isAITurn == false)
+
+        model.confirmPass()
+        #expect(model.mustPass == false)
+        #expect(model.currentStone == .black)
+        #expect(model.gameOver == false)
+    }
+
+    /// View が復元直後にも案内を出すよう結線されていること。
+    /// モデル側が正しくても、2 引数版 `onChange` は `initial: true` が無いと初期値で発火せず、
+    /// パスの手段（案内の「OK」）に到達できないまま詰む。
+    @Test func viewShowsPassAlertOnRestore() throws {
+        let source = try Self.viewSource()
+        #expect(
+            Self.matchCount(of: #"\.onChange\(of: model\.mustPass, initial: true\)"#, in: source) == 1,
+            "パスの案内が initial: true で結線されていない（復元直後に案内が出ない）"
+        )
+        // パスの手段が案内の「OK」1箇所だけである、という上のテストの前提を固定する。
+        #expect(
+            Self.matchCount(of: #"model\.confirmPass\(\)"#, in: source) == 1,
+            "confirmPass() の呼び出し箇所が変わっている（パスの導線の前提が崩れている）"
+        )
+    }
+
+    // MARK: - ヘルパー
+
+    private static func viewSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameOthelloTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameOthello/OthelloView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private static func matchCount(of pattern: String, in source: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        return regex.numberOfMatches(
+            in: source, range: NSRange(source.startIndex..., in: source)
+        )
+    }
+}
+
 @MainActor
 @Suite("オセロ 撮影用プレビュー")
 struct OthelloPreviewMidgameTests {

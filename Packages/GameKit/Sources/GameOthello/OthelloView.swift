@@ -90,7 +90,10 @@ public struct OthelloView: View {
         } message: {
             Text("現在の対局を終了します。CPUの勝ちになります。")
         }
-        .onChange(of: model.mustPass) { _, newValue in
+        // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
+        // 保存され、復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
+        // パスの手段はこの案内の「OK」だけなので、出ないと着手も「待った」も塞がったまま詰む。
+        .onChange(of: model.mustPass, initial: true) { _, newValue in
             if newValue && !model.isAITurn { showPassAlert = true }
         }
         .task(id: model.aiTurnKey) {
