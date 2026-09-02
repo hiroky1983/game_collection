@@ -133,7 +133,10 @@ public final class OthelloModel {
 
     public func confirmPass() {
         guard mustPass, !gameOver else { return }
-        saveUndoState()
+        // パスは石を動かさないので「待った」の巻き戻し地点にはしない（#414）。
+        // ここで積むと、CPU のパス直後に「待った」を押したとき**パスの直前の局面**へ戻り、
+        // CPU が再びパスして同じ局面に戻る往復になる（履歴も減らないので永久に自分の手を戻せない）。
+        // パスを含む一連のやり取りは、直前の自分の着手まとめて `undoLastExchange()` で戻す。
         mustPass     = false
         currentStone = currentStone.opponent
         turnID      += 1
@@ -154,6 +157,9 @@ public final class OthelloModel {
         isDraw       = false
         undoUsed     = true
         turnID      += 1
+        // 決着・パスの有無は**戻した盤面から導出し直す**（#414）。無条件に false へ倒すと、
+        // 打てる手が無い局面へ戻ったときに誰も着手できず、投了か新規対局しか手が無くなる。
+        checkTermination()
         persist()
     }
 
