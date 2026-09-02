@@ -14,7 +14,7 @@
 
 ```text
 ┌─ 企画 ── AI: ロードマップ / App Store レビューから機能案を Issue 化（ai:proposed、対象バージョン付き）
-│            人間: ★ Issue を読んで ai:approved ラベルを付与（却下なら close）
+│            人間: ★ Issue を読んで ai:approved ラベルを付与（= ハンコ。却下なら「却下」とコメント返信し、close は AI が行う）
 ├─ 実装 ── AI: ai:approved の Issue を拾い release/vX.Y.Z 向けに branch → 実装 → テスト → PR
 │            AI: CI + CodeRabbit 消化ののち AI がマージ（全リスク階層）
 ├─ テスト ─ CI: swift test + アプリビルド検証（.github/workflows/ci.yml、全自動）
