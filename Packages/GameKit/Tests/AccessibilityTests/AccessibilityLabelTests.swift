@@ -176,23 +176,39 @@ struct MinesweeperAccessibilityTests {
     }
 
     @Test("旗モードでヒントが変わる") func hint() {
-        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: true, canToggleFlag: true)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: true, canToggleFlag: true,
+                                                  canChord: false)
                 == "ダブルタップで旗を切り替えます")
-        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true,
+                                                  canChord: false)
                 == "ダブルタップで開きます")
     }
 
     @Test("実行できない操作はヒントで案内しない") func hintSuppressedWhenUnavailable() {
         // 開き済みのマス: 開けないし旗も置けない
-        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false,
+                                                  canChord: false)
                 .isEmpty)
-        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false,
+                                                  canChord: false)
                 .isEmpty)
         // 旗の立っているマス: 開けないが旗は下ろせる
-        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: true)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: true,
+                                                  canChord: false)
                 .isEmpty)
-        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: true)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: true,
+                                                  canChord: false)
                 == "ダブルタップで旗を切り替えます")
+    }
+
+    /// コード（#437）は開き済みの数字マスでだけ案内する。旗モード中は旗の操作が優先。
+    @Test("コードできる数字マスにはヒントを出す") func hintForChord() {
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false,
+                                                  canChord: true)
+                == "ダブルタップで周囲をまとめて開きます")
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false,
+                                                  canChord: true)
+                .isEmpty, "旗モード中は旗の案内だけにする")
     }
 
     @Test("操作の可否は Model が唯一の出どころ") @MainActor func modelIsSourceOfTruth() {

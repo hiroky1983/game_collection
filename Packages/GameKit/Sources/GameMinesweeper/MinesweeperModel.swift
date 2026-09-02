@@ -167,10 +167,32 @@ public final class MinesweeperModel {
         !gameOver && !cells[row][col].isRevealed && !cells[row][col].isContinuedMine
     }
 
+    /// このマスでコード（数字タップによる周囲の一括開放）ができるか（#437）。
+    ///
+    /// 開いている数字マスで、周囲8マスの旗の数がその数字と一致し、かつ開く先が1マス以上
+    /// あるときだけ成立する。旗数が合わないときに成立させないのが誤爆防止の要。
+    /// 判定を `chord` の中に埋めずここに出すのは `canReveal` と同じ理由で、
+    /// 「やっても何も起きない操作」を VoiceOver に案内しないため（#188）。
+    public func canChord(row: Int, col: Int) -> Bool {
+        guard !gameOver else { return false }
+        let cell = cells[row][col]
+        guard cell.isRevealed, !cell.isMine, cell.adjacentMines > 0 else { return false }
+        let around = neighbors(row: row, col: col)
+        let flagsAround = around.filter { cells[$0.row][$0.col].isFlagged }.count
+        guard flagsAround == cell.adjacentMines else { return false }
+        return around.contains { !cells[$0.row][$0.col].isRevealed && !cells[$0.row][$0.col].isFlagged }
+    }
+
     public func tap(row: Int, col: Int) {
         guard !gameOver else { return }
+        // 開いているマスのタップはコード（周囲の一括開放）として扱う（#437）。
+        // 成立しない場合は `chord` 側で警告フィードバックを出して盤面を変えない。
+        if cells[row][col].isRevealed {
+            chord(row: row, col: col)
+            return
+        }
         guard canReveal(row: row, col: col) else {
-            services?.feedback.notify(.warning) // 開き済み・旗付きマスは開けない
+            services?.feedback.notify(.warning) // 旗付きマスは開けない
             return
         }
 
@@ -184,29 +206,62 @@ public final class MinesweeperModel {
         }
 
         if cells[row][col].isMine {
-            hitMine = (row, col)
-            revealAllMines()
-            gameState = .lost
-            timerTask?.cancel()
-            timerTask = nil
-            services?.feedback.notify(.error)
-            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
+            loseGame(hitRow: row, hitCol: col)
         } else {
             floodReveal(row: row, col: col)
-
-            if revealedCount == safeCellCount {
-                flagAllMines()
-                gameState = .won
-                timerTask?.cancel()
-                timerTask = nil
-                services?.feedback.notify(.success)
-                recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
-            } else {
-                services?.feedback.impact(.light)
-            }
+            settleAfterReveal()
         }
 
         persist()
+    }
+
+    /// コード: 開いている数字マスのタップで周囲を一括開放する（#437）。
+    ///
+    /// 旗が誤っていれば地雷を踏んで負ける（本家と同じ挙動。安全化しない）。
+    /// 旗数が一致しないときは `canChord` が false になるので盤面は一切変わらない。
+    private func chord(row: Int, col: Int) {
+        guard canChord(row: row, col: col) else {
+            services?.feedback.notify(.warning) // 旗数が合っていない・開く先が無い
+            return
+        }
+        let targets = neighbors(row: row, col: col).filter {
+            !cells[$0.row][$0.col].isRevealed && !cells[$0.row][$0.col].isFlagged
+        }
+
+        if let mine = targets.first(where: { cells[$0.row][$0.col].isMine }) {
+            loseGame(hitRow: mine.row, hitCol: mine.col)
+        } else {
+            // 開いた 0 マスからは既存のゼロ連鎖がそのまま波及する。
+            for target in targets { floodReveal(row: target.row, col: target.col) }
+            settleAfterReveal()
+        }
+
+        persist()
+    }
+
+    /// 地雷を踏んだときの終局処理。1マスのタップとコード（#437）で共有する。
+    private func loseGame(hitRow: Int, hitCol: Int) {
+        hitMine = (hitRow, hitCol)
+        revealAllMines()
+        gameState = .lost
+        timerTask?.cancel()
+        timerTask = nil
+        services?.feedback.notify(.error)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
+    }
+
+    /// 安全マスを開いたあとの後始末（勝利判定と触覚）。同じく両方の入口から呼ぶ。
+    private func settleAfterReveal() {
+        if revealedCount == safeCellCount {
+            flagAllMines()
+            gameState = .won
+            timerTask?.cancel()
+            timerTask = nil
+            services?.feedback.notify(.success)
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
+        } else {
+            services?.feedback.impact(.light)
+        }
     }
 
     // MARK: - Continue
@@ -334,6 +389,19 @@ public final class MinesweeperModel {
                 }
             }
         }
+    }
+
+    /// 盤内に収まる 8 近傍の座標（#437）。
+    private func neighbors(row: Int, col: Int) -> [(row: Int, col: Int)] {
+        var result: [(row: Int, col: Int)] = []
+        for dr in -1...1 {
+            for dc in -1...1 {
+                if dr == 0 && dc == 0 { continue }
+                let r = row + dr, c = col + dc
+                if r >= 0, r < rows, c >= 0, c < cols { result.append((row: r, col: c)) }
+            }
+        }
+        return result
     }
 
     private func revealAllMines() {

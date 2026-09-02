@@ -42,11 +42,18 @@ public enum MinesweeperAccessibility {
     ///
     /// **実行できない操作は案内しない**（開き済みのマスに「ダブルタップで開きます」と
     /// 言われても何も起きない）。可否の判定は `MinesweeperModel.canReveal` /
-    /// `canToggleFlag` が唯一の出どころで、ここでは受け取るだけにする。
-    public static func cellHint(flagMode: Bool, canReveal: Bool, canToggleFlag: Bool) -> String {
+    /// `canToggleFlag` / `canChord` が唯一の出どころで、ここでは受け取るだけにする。
+    public static func cellHint(
+        flagMode: Bool,
+        canReveal: Bool,
+        canToggleFlag: Bool,
+        canChord: Bool
+    ) -> String {
         if flagMode {
             return canToggleFlag ? "ダブルタップで旗を切り替えます" : ""
         }
-        return canReveal ? "ダブルタップで開きます" : ""
+        if canReveal { return "ダブルタップで開きます" }
+        // 開いている数字マスは、周囲の旗が揃っていればまとめて開ける（コード・#437）。
+        return canChord ? "ダブルタップで周囲をまとめて開きます" : ""
     }
 }
