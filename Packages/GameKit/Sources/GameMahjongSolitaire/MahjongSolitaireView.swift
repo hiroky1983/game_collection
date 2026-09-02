@@ -300,14 +300,14 @@ public struct MahjongSolitaireView: View {
             // ボタンの輪郭がどこにも無く「押せる物」に見えなかった。薄い差し色と枠線を敷く（#197）。
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(showsWholeBoard ? Theme.teal : Theme.teal.opacity(0.12))
+                    .fill(showsWholeBoard ? Theme.Fill.teal : Theme.teal.opacity(0.12))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(showsWholeBoard ? .clear : Theme.teal.opacity(0.55), lineWidth: 1.5)
             )
-            // 薄い面の上は白文字だと読めないので本文色を使う（差し色の面 + 白文字は押している側だけ）。
-            .foregroundStyle(showsWholeBoard ? .white : Theme.ink)
+            // 押している側は差し色の面なので `Theme.onAccent`、薄い面の側は本文色（#197・#220）。
+            .foregroundStyle(showsWholeBoard ? Theme.onAccent : Theme.ink)
             // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
             .contentShape(Rectangle())
         }

@@ -455,7 +455,8 @@ public struct MinesweeperView: View {
 
     private func cellBg(cell: MinesweeperCell, isHit: Bool) -> Color {
         if cell.isRevealed {
-            return isHit ? Theme.coral : Color(hex: 0xD8D8D8)
+            // 踏んだマスは面色なので `Theme.Fill`。上の爆発アイコンは `Theme.onAccent`（#220）。
+            return isHit ? Theme.Fill.coral : Color(hex: 0xD8D8D8)
         }
         if cell.isContinuedMine {
             // コンティニューで確定した爆弾: 濃いオレンジ背景
@@ -497,7 +498,7 @@ public struct MinesweeperView: View {
             Image(systemName: isHit ? "burst.fill" : "circle.fill")
                 .resizable().scaledToFit()
                 .frame(width: iconSize, height: iconSize)
-                .foregroundStyle(isHit ? .white : Color(hex: 0x2A2A2A))
+                .foregroundStyle(isHit ? Theme.onAccent : Color(hex: 0x2A2A2A))
         } else if cell.isRevealed && cell.adjacentMines > 0 {
             Text("\(cell.adjacentMines)")
                 .font(.system(size: size * 0.56, weight: .black, design: .rounded))
