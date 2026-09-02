@@ -171,6 +171,111 @@ struct SolitaireModelTests {
         #expect(model.canUndo, "めくった手そのものは戻せる")
     }
 
+    // MARK: - めくり演出のトリガー（#421）
+
+    @Test("山めくりの直後だけ、捨て札の1枚を裏から返す対象にする")
+    func drawMarksTheWasteCardAsFlipping() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        #expect(!model.lastMoveWasDraw, "配ったばかりの盤面では返す札が無い")
+
+        model.tapStock()
+        #expect(model.lastMoveWasDraw)
+
+        // 捨て札を場に出すと、下から出てくる札は**もともと表**なので返さない。
+        // 出せる先が無い配札もあるので、動かせたときだけ見る。
+        if let card = model.board.waste.last,
+           let pile = (0..<SolitaireBoard.pileCount).first(where: {
+               model.board.isLegal(.wasteToTableau(pile: $0))
+           }) {
+            model.tapWaste()
+            model.tapPile(pile)
+            #expect(model.board.tableau[pile].top == card)
+            #expect(!model.lastMoveWasDraw)
+        }
+
+        // 戻したぶんまで返して見せると「新しくめくれた」と読めてしまう。
+        model.undo()
+        #expect(!model.lastMoveWasDraw)
+        #expect(model.revealedCardIDs.isEmpty)
+    }
+
+    @Test("伏せ札から出てきた札だけを、裏から返す対象にする")
+    func uncoveredCardIsMarkedAsFlipping() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+
+        // 表向き 1 枚だけの列を動かすと、その下の伏せ札が 1 枚めくれる。
+        var moved = false
+        outer: for from in 1..<SolitaireBoard.pileCount {
+            for to in 0..<SolitaireBoard.pileCount where to != from {
+                let move = SolitaireMove.tableauToTableau(from: from, cardIndex: 0, to: to)
+                guard model.board.isLegal(move), !model.board.tableau[from].faceDown.isEmpty else { continue }
+                let hidden = model.board.tableau[from].faceDown.last!
+                model.tapPile(from, cardIndex: 0)
+                model.tapPile(to)
+                #expect(model.revealedCardIDs == [hidden.id])
+                #expect(model.board.tableau[from].top == hidden)
+                moved = true
+
+                // 巻き戻すと対象は消える（戻した札を返して見せない）。
+                model.undo()
+                #expect(model.revealedCardIDs.isEmpty)
+                break outer
+            }
+        }
+        #expect(moved, "この配札では伏せ札がめくれる手が見つからなかった")
+    }
+
+    @Test("配り直すと配札の演出の対象に戻り、返す札は残らない")
+    func newGameResetsTheFlipTargets() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        #expect(model.isFreshDeal)
+
+        model.tapStock()
+        #expect(!model.isFreshDeal, "1 手でも指したら配札の演出は出さない")
+        #expect(model.lastMoveWasDraw)
+
+        let serial = model.dealSerial
+        model.newGame()
+        #expect(model.isFreshDeal)
+        #expect(!model.lastMoveWasDraw)
+        #expect(model.revealedCardIDs.isEmpty)
+        // 配り直しの世代が上がらないと、同じ列に残った札のビューが使い回されて
+        // その札だけ配札の演出が出ない（CodeRabbit 指摘・PR #433）。
+        #expect(model.dealSerial == serial + 1)
+    }
+
+    @Test("配り直しの通し番号は、指しても戻しても増えない")
+    func dealSerialOnlyChangesOnNewGame() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        let serial = model.dealSerial
+        for _ in 0..<3 { model.tapStock() }
+        #expect(model.dealSerial == serial)
+        model.undo()
+        #expect(model.dealSerial == serial)
+        // 増え続けると、1 手ごとに盤面のビューが丸ごと作り直されて移動の補間が消える。
+        model.newGame()
+        model.newGame()
+        #expect(model.dealSerial == serial + 2)
+    }
+
+    @Test("中断から復元した局面では配札の演出を出さない")
+    func resumedGameIsNotDealtAgain() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        for _ in 0..<3 { model.tapStock() }
+
+        let (resumedServices, _) = makeServices(store: store)
+        let resumed = SolitaireModel(services: resumedServices)
+        #expect(!resumed.isFreshDeal)
+        #expect(!resumed.lastMoveWasDraw)
+        #expect(resumed.revealedCardIDs.isEmpty)
+    }
+
     @Test("ジョーカーは所持していないと置けない（入手経路は #406 の決裁待ち）")
     func jokerNeedsPossession() {
         let (services, _) = makeServices()

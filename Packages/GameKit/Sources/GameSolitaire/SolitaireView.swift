@@ -14,6 +14,12 @@ public struct SolitaireView: View {
 
     /// 盤の座標空間名。ドラッグの指の位置・ドロップ枠・追従オーバーレイを同じ空間で扱う。
     private static let boardSpace = "solitaireBoard"
+    /// 札の移動を補間するための名前空間（#421）。
+    ///
+    /// 場札・捨て札・組札は別々のビュー階層なので、そのままでは移動が「移動元のビューが消えて
+    /// 移動先のビューが生まれる」扱いになり座標を補間できない（将棋 #200 と同じ問題）。
+    /// **同じ札に同じ id を与える**ことで、盤のどこへ動いても 1 つの札として繋がる。
+    @Namespace private var cardMotion
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
 
@@ -151,7 +157,7 @@ public struct SolitaireView: View {
             .coordinateSpace(name: Self.boardSpace)
             .onPreferenceChange(SolitaireDropFramesKey.self) { dropFrames = $0 }
             .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics) }
-            .gameAnimation(.easeOut(duration: 0.18), value: boardAnimationKey)
+            .gameAnimation(SolitaireMotion.move, value: boardAnimationKey)
         }
     }
 
@@ -246,6 +252,14 @@ public struct SolitaireView: View {
         if model.selection != nil { model.deselect() }
     }
 
+    /// 移動の補間で札どうしを結ぶ鍵（#421）。
+    ///
+    /// 配り直しをまたいでは結ばない。またいで結ぶと、新しい配札の札が
+    /// **前の配札での居場所から飛んでくる**ことになり、山札から配る演出と食い違う。
+    private func motionID(_ card: SolitaireCard) -> SolitaireCardMotionID {
+        SolitaireCardMotionID(deal: model.dealSerial, card: card.id)
+    }
+
     /// この札がドラッグで持ち上げ中（元の位置は薄く見せる）か。
     private func isLifted(pile: Int, cardIndex: Int) -> Bool {
         guard let drag, case .tableau(let dragPile, let dragIndex) = drag.source else { return false }
@@ -308,8 +322,21 @@ public struct SolitaireView: View {
     private func wasteView(metrics: PlayingCardMetrics) -> some View {
         Group {
             if let card = model.board.waste.last {
-                cardView(card, faceUp: true, isSelected: model.selection == .waste, metrics: metrics)
-                    .opacity(drag?.source == .waste ? 0.35 : 1)
+                // 山札からめくった 1 枚だけが裏から返る。場に出して下から出てきた札は
+                // もともと表なので、`flips` を false にして返さない（#421）。
+                SolitaireRevealCardView(
+                    card: card,
+                    isSelected: model.selection == .waste,
+                    isCovered: false,
+                    metrics: metrics,
+                    flips: model.lastMoveWasDraw
+                )
+                // 捨て札の枠は「札が 1 枚ある」状態が続くので、**札が入れ替わっても
+                // SwiftUI から見れば同じビュー**になり `@State` が作り直されない。
+                // 札ごとに identity を切って、2 回目以降のめくりも必ず返るようにする。
+                .id(card.id)
+                .matchedGeometryEffect(id: motionID(card), in: cardMotion)
+                .opacity(drag?.source == .waste ? 0.35 : 1)
             } else {
                 emptySlot(metrics: metrics, symbol: nil)
             }
@@ -328,7 +355,9 @@ public struct SolitaireView: View {
         let rank = model.board.foundations[suit.rawValue]
         return Group {
             if rank > 0 {
+                // 送られてきた札と同じ id を与えて、場札・捨て札からここまで滑らせる（#421）。
                 cardView(SolitaireCard(suit, rank), faceUp: true, isSelected: false, metrics: metrics)
+                    .matchedGeometryEffect(id: motionID(SolitaireCard(suit, rank)), in: cardMotion)
             } else {
                 // 空の組札にはスート記号を薄く置く。どこに何を積むのかが最初から分かるようにする。
                 emptySlot(metrics: metrics, symbol: nil, suit: suit)
@@ -380,26 +409,38 @@ public struct SolitaireView: View {
                 Color.clear.frame(width: metrics.width, height: height)
             }
 
-            ForEach(Array(column.faceDown.enumerated()), id: \.offset) { index, _ in
-                ZStack {
-                    PlayingCardSurface(faceUp: false, cornerRadius: metrics.cornerRadius)
-                    PlayingCardBack(metrics: metrics)
+            // 札の同一性は**位置ではなく札そのもの**に持たせる（#421）。添字を id にすると
+            // 動いた札が「消えて生まれた」扱いになり、移動も裏返りも補間できない。
+            ForEach(Array(column.faceDown.enumerated()), id: \.element.id) { index, card in
+                let restY = CGFloat(index) * downStep
+                SolitaireDealtCardView(
+                    pile: pile, depth: index, restY: restY,
+                    metrics: metrics, dealing: model.isFreshDeal
+                ) {
+                    SolitaireCardBody(card: card, faceUp: false, isSelected: false,
+                                      isCovered: false, metrics: metrics)
                 }
-                .frame(width: metrics.width, height: metrics.height)
-                .offset(y: CGFloat(index) * downStep)
+                // 配り直しでは「もう配り終わった」状態のビューを使い回さない（下記 faceUpCard も同じ）。
+                .id(model.dealSerial)
+                .matchedGeometryEffect(id: motionID(card), in: cardMotion)
+                // 段差は `.offset` ではなく余白で作る。`.offset` はレイアウト上の位置を変えないため、
+                // 移動の補間が「札の位置」ではなく「列の上端」どうしを結んでしまう。
+                .padding(.top, restY)
                 .accessibilityHidden(true)
             }
 
-            ForEach(Array(column.faceUp.enumerated()), id: \.offset) { index, card in
+            ForEach(Array(column.faceUp.enumerated()), id: \.element.id) { index, card in
+                let restY = CGFloat(column.faceDown.count) * downStep + CGFloat(index) * upStep
                 faceUpCard(
                     pile: pile, index: index, card: card, column: column,
                     // いちばん上の 1 枚だけが札の全体を出す。下に重なった札は段差ぶんの帯しか
                     // 見えないため、中央寄せの面（`PlayingCardFace`）を出すと数字が隠れて
                     // 「何の札が並んでいるか」が読めなくなる（実測）。
                     isCovered: index < column.faceUp.count - 1,
+                    restY: restY,
                     metrics: metrics
                 )
-                .offset(y: CGFloat(column.faceDown.count) * downStep + CGFloat(index) * upStep)
+                .padding(.top, restY)
             }
         }
         .frame(width: metrics.width, height: height, alignment: .top)
@@ -419,10 +460,25 @@ public struct SolitaireView: View {
         card: SolitaireCard,
         column: SolitairePile,
         isCovered: Bool,
+        restY: CGFloat,
         metrics: PlayingCardMetrics
     ) -> some View {
         let isSelected = model.selection == .tableau(pile: pile, cardIndex: index)
-        return cardView(card, faceUp: true, isSelected: isSelected, isCovered: isCovered, metrics: metrics)
+        return SolitaireDealtCardView(
+            pile: pile, depth: column.faceDown.count + index, restY: restY,
+            metrics: metrics, dealing: model.isFreshDeal
+        ) {
+            // 伏せ札から出てきた 1 枚だけが裏から返る（#421）。
+            SolitaireRevealCardView(
+                card: card,
+                isSelected: isSelected,
+                isCovered: isCovered,
+                metrics: metrics,
+                flips: model.revealedCardIDs.contains(card.id)
+            )
+        }
+            .id(model.dealSerial)
+            .matchedGeometryEffect(id: motionID(card), in: cardMotion)
             .opacity(isLifted(pile: pile, cardIndex: index) ? 0.35 : 1)
             .contentShape(Rectangle())
             .onTapGesture { model.tapPile(pile, cardIndex: index) }
@@ -444,6 +500,7 @@ public struct SolitaireView: View {
 
     // MARK: - 札の見た目
 
+    /// 演出を掛けない素の 1 枚（ドラッグ中の追従表示・組札の頂点）。
     private func cardView(
         _ card: SolitaireCard,
         faceUp: Bool,
@@ -451,24 +508,8 @@ public struct SolitaireView: View {
         isCovered: Bool = false,
         metrics: PlayingCardMetrics
     ) -> some View {
-        ZStack(alignment: .topLeading) {
-            // 外形・面はトランプ共通基盤（#397。質感は CardStyle #366）。
-            PlayingCardSurface(
-                faceUp: faceUp,
-                cornerRadius: metrics.cornerRadius,
-                border: isSelected ? Theme.coral : Color.gray.opacity(0.2),
-                borderWidth: isSelected ? 2.5 : 0.5,
-                shadowColor: isSelected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
-                shadowRadius: isSelected ? 6 : 3
-            )
-            if isCovered {
-                SolitaireCardIndex(card: card, metrics: metrics)
-            } else {
-                PlayingCardFace(figure: card.figure, metrics: metrics)
-                    .frame(width: metrics.width, height: metrics.height)
-            }
-        }
-        .frame(width: metrics.width, height: metrics.height)
+        SolitaireCardBody(card: card, faceUp: faceUp, isSelected: isSelected,
+                          isCovered: isCovered, metrics: metrics)
     }
 
     private func emptySlot(
@@ -635,6 +676,162 @@ public struct SolitaireView: View {
     }
 }
 
+// MARK: - 札 1 枚の見た目
+
+/// 札 1 枚の外形と中身（表 / 裏）。
+///
+/// 反転の途中でも同じ外形を使うので、View のメソッドではなく型として切り出して
+/// `SolitaireFlipCardView` と共有する（#421）。
+struct SolitaireCardBody: View {
+    let card: SolitaireCard
+    let faceUp: Bool
+    let isSelected: Bool
+    let isCovered: Bool
+    let metrics: PlayingCardMetrics
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // 外形・面はトランプ共通基盤（#397。質感は CardStyle #366）。
+            PlayingCardSurface(
+                faceUp: faceUp,
+                cornerRadius: metrics.cornerRadius,
+                border: isSelected ? Theme.coral : Color.gray.opacity(0.2),
+                borderWidth: isSelected ? 2.5 : 0.5,
+                shadowColor: isSelected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
+                shadowRadius: isSelected ? 6 : 3
+            )
+            if !faceUp {
+                PlayingCardBack(metrics: metrics)
+            } else if isCovered {
+                SolitaireCardIndex(card: card, metrics: metrics)
+            } else {
+                PlayingCardFace(figure: card.figure, metrics: metrics)
+                    .frame(width: metrics.width, height: metrics.height)
+            }
+        }
+        .frame(width: metrics.width, height: metrics.height)
+    }
+}
+
+// MARK: - めくり（#421）
+
+/// 裏から表へ返る 1 枚。
+///
+/// `faceUp` の切り替えに `.gameAnimation` を掛けただけでは表裏が瞬時に入れ替わるだけなので、
+/// ポーカーの `FlipRevealCardView`・ブラックジャックの `BJFlipCardView` と同じく
+/// **このビュー自身を `Animatable`** にして進捗を補間させ、進捗の翻訳は
+/// `SolitaireMotion` の純関数に任せる。
+struct SolitaireFlipCardView: View, Animatable {
+    nonisolated let card: SolitaireCard
+    nonisolated let isSelected: Bool
+    nonisolated let isCovered: Bool
+    nonisolated let metrics: PlayingCardMetrics
+    /// 0 = 裏 / 1 = 表。掛かっているアニメーションがこの値を補間する。
+    nonisolated var progress: Double
+
+    // `View` への適合でこの型は MainActor 隔離になるが、`Animatable` の要求は nonisolated。
+    // 保持しているのは値型（すべて Sendable）だけなので、格納プロパティごと nonisolated にする。
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        let showsFace = SolitaireMotion.showsFace(progress: progress)
+        SolitaireCardBody(card: card, faceUp: showsFace, isSelected: isSelected,
+                          isCovered: isCovered, metrics: metrics)
+            // 後半は札ごと 90 度を越えて回っているので、表の中身が鏡像にならないよう
+            // ここで 180 度打ち消す（合計 360 度で元の向きに戻る）。
+            .rotation3DEffect(.degrees(showsFace ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+            .rotation3DEffect(
+                .degrees(SolitaireMotion.flipDegrees(progress: progress)),
+                axis: (x: 0, y: 1, z: 0)
+            )
+    }
+}
+
+/// 反転の起動役。`flips` が true のときだけ 0 → 1 を走らせる。
+///
+/// 返る必要のない札（もともと表で置かれていた札）は**進捗 1 の状態で作る**ので、
+/// 1 フレームだけ裏が見えることがない。Reduce Motion が ON なら `withGameAnimation` が
+/// 補間を落とすので、返る過程は出ずに即座に表になる。
+struct SolitaireRevealCardView: View {
+    let card: SolitaireCard
+    let isSelected: Bool
+    let isCovered: Bool
+    let metrics: PlayingCardMetrics
+    let flips: Bool
+
+    @State private var progress: Double
+
+    init(card: SolitaireCard, isSelected: Bool, isCovered: Bool,
+         metrics: PlayingCardMetrics, flips: Bool) {
+        self.card = card
+        self.isSelected = isSelected
+        self.isCovered = isCovered
+        self.metrics = metrics
+        self.flips = flips
+        _progress = State(initialValue: flips ? 0 : 1)
+    }
+
+    var body: some View {
+        SolitaireFlipCardView(card: card, isSelected: isSelected, isCovered: isCovered,
+                              metrics: metrics, progress: progress)
+            .onAppear {
+                guard flips else { return }
+                withGameAnimation(SolitaireMotion.flip) { progress = 1 }
+            }
+    }
+}
+
+// MARK: - 配札（#421）
+
+/// 山札から飛んできて場札に収まる 1 枚。
+///
+/// 段差は「配られた順」で決まりビューの再生成では変わらないので、状態は**このビュー自身が持つ**
+/// （ブラックジャックの `BJDealtCardView` と同じ設計）。`dealing` が false のときは何もしない。
+///
+/// `dealing` の判定は「まだ 1 手も指していないか」なので、**巻き戻して初手前まで戻したとき**に
+/// 動いた札だけがもう一度飛んでくる。その盤面は配ったばかりの状態そのものなので、
+/// 演出としても食い違わない。
+struct SolitaireDealtCardView<Content: View>: View {
+    let pile: Int
+    let depth: Int
+    /// 列の上端から測った、この札の落ち着き先。飛んでくる距離の計算に使う。
+    let restY: CGFloat
+    let metrics: PlayingCardMetrics
+
+    let content: Content
+
+    /// 置き終わったか。`false` の間だけ山札の位置に隠しておく。
+    @State private var dealt: Bool
+
+    init(pile: Int, depth: Int, restY: CGFloat, metrics: PlayingCardMetrics,
+         dealing: Bool, @ViewBuilder content: () -> Content) {
+        self.pile = pile
+        self.depth = depth
+        self.restY = restY
+        self.metrics = metrics
+        self.content = content()
+        _dealt = State(initialValue: !dealing)
+    }
+
+    var body: some View {
+        let start = SolitaireMotion.dealStartOffset(pile: pile, restY: restY, metrics: metrics)
+        content
+            .offset(x: dealt ? 0 : start.width, y: dealt ? 0 : start.height)
+            .opacity(dealt ? 1 : 0)
+            .onAppear {
+                guard !dealt else { return }
+                // Reduce Motion が ON なら `withGameAnimation` が補間を落とすので、
+                // 遅れも動きも無く即座に置かれる（状態変更そのものは必ず走る）。
+                withGameAnimation(SolitaireMotion.dealAppear(pile: pile, depth: depth)) {
+                    dealt = true
+                }
+            }
+    }
+}
+
 /// 重なって「上端の帯」しか見えない札に出す、隅の小さな見出し（ランク + スート）。
 ///
 /// 実物のトランプが左上に数字を刷っているのと同じ役割で、**扇状に重ねた列でも
@@ -723,6 +920,12 @@ struct SolitaireDragState {
     var location: CGPoint
     /// つかんだ点から札の左上までのずれ（追従表示の位置合わせ用）。
     var grab: CGSize
+}
+
+/// 移動の補間で札どうしを結ぶ鍵（#421）。配り直しの世代を含めるので、世代が変わると結ばれない。
+struct SolitaireCardMotionID: Hashable {
+    let deal: Int
+    let card: Int
 }
 
 /// ドロップ先の種類。
