@@ -48,6 +48,14 @@ public final class SolitaireModel {
     /// **毎描画で数え直すと重い**ので、盤面が動いたときにだけ更新する。
     public private(set) var isDeadEnd: Bool = false
 
+    /// 直前の手で伏せ札から表に出た札の id（#421 のめくり演出）。
+    /// View はこの集合に入っている札だけを「裏から返る」演出で描く。
+    public private(set) var revealedCardIDs: Set<Int> = []
+
+    /// 直前の手が山めくりだったか（#421。捨て札の 1 枚を裏から返す演出のトリガー）。
+    /// 捨て札の一番上は札を場に出したときにも入れ替わるが、そちらは**もともと表**なので返さない。
+    public private(set) var lastMoveWasDraw: Bool = false
+
     private var seed: UInt64
     private var moves: [SolitaireMove] = []
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。`isDeadEnd` と同じ理由で控えておく。
@@ -67,6 +75,10 @@ public final class SolitaireModel {
     }
 
     public var canUndo: Bool { phase == .playing && !moves.isEmpty }
+
+    /// 配ったまま 1 手も指していないか（#421。View は配札の演出を出すかの判定に使う）。
+    /// 中断から復元した局面では手順が入っているので false になり、再開のたびに配り直して見えない。
+    public var isFreshDeal: Bool { moves.isEmpty }
 
     /// 組札へ送る手（と山めくり）だけで勝ち切れる状態か。終盤の 52 回タップを 1 回に畳む。
     public var canAutoFinish: Bool { phase == .playing && autoFinishPlan != nil }
@@ -205,6 +217,7 @@ public final class SolitaireModel {
         moves.removeLast()
         board = Self.replay(moves, seed: seed)
         selection = nil
+        clearFlips()
         services?.feedback.impact(.medium)
         refreshDerivedState()
         persist()
@@ -217,10 +230,13 @@ public final class SolitaireModel {
     @discardableResult
     public func autoFinish() -> Bool {
         guard phase == .playing, let plan = autoFinishPlan else { return false }
+        let before = board
         for move in plan {
             board.apply(move)
             moves.append(move)
         }
+        revealedCardIDs = SolitaireBoard.revealedCardIDs(before: before, after: board)
+        lastMoveWasDraw = plan.last == .draw
         selection = nil
         refreshDerivedState()
         finish()
@@ -250,6 +266,7 @@ public final class SolitaireModel {
         selection = nil
         elapsedSeconds = 0
         recordResult = nil
+        clearFlips()
         refreshDerivedState()
         // 画面は開いたままなので計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         timerTask?.cancel()
@@ -319,7 +336,9 @@ public final class SolitaireModel {
     }
 
     private func perform(_ move: SolitaireMove) {
+        let before = board
         guard board.apply(move) else { return reject() }
+        noteFlips(from: before, move: move)
         moves.append(move)
         selection = nil
         services?.feedback.impact(move == .draw ? .light : .medium)
@@ -336,6 +355,20 @@ public final class SolitaireModel {
     private func reject() {
         rejectedTapCount += 1
         services?.feedback.notify(.warning)
+    }
+
+    /// 直前の手で「裏から表へ返った」ものを控える（#421 のめくり演出）。
+    ///
+    /// 巻き戻し・配り直しでは `clearFlips()` を呼んで空にする。戻した札まで返して見せると
+    /// 「新しくめくれた」と読めてしまい、盤面の意味と演出が食い違う。
+    private func noteFlips(from before: SolitaireBoard, move: SolitaireMove) {
+        revealedCardIDs = SolitaireBoard.revealedCardIDs(before: before, after: board)
+        lastMoveWasDraw = move == .draw
+    }
+
+    private func clearFlips() {
+        revealedCardIDs = []
+        lastMoveWasDraw = false
     }
 
     private func refreshDerivedState() {

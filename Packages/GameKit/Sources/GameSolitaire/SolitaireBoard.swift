@@ -193,6 +193,27 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
         tableau[pile].faceUp.append(contentsOf: run)
     }
 
+    // MARK: - めくり演出の材料
+
+    /// `before` では伏せていて `after` で表に出た札の id（#421 のめくり演出）。
+    ///
+    /// 表に返るのは `normalize()` の副作用なので、手の種類からは決まらない（同じ
+    /// `tableauToTableau` でも返る局面と返らない局面がある）。盤面どうしの差分で見るのが唯一確実で、
+    /// **手を適用する側の経路を増やさずに済む**。ジョーカーは伏せ札から出てこないので対象外になる。
+    public static func revealedCardIDs(before: SolitaireBoard, after: SolitaireBoard) -> Set<Int> {
+        var revealed: Set<Int> = []
+        for pile in after.tableau.indices where before.tableau.indices.contains(pile) {
+            let wasHidden = Set(before.tableau[pile].faceDown.map(\.id))
+            guard !wasHidden.isEmpty else { continue }
+            let wasShown = Set(before.tableau[pile].faceUp.map(\.id))
+            for card in after.tableau[pile].faceUp
+            where wasHidden.contains(card.id) && !wasShown.contains(card.id) {
+                revealed.insert(card.id)
+            }
+        }
+        return revealed
+    }
+
     // MARK: - 山札の巡回
 
     /// 山札を循環させて到達できる札を、必要なめくり回数とともに列挙する。
