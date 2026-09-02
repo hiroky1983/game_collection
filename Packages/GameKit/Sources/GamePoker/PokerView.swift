@@ -325,7 +325,7 @@ public struct PokerView: View {
             if model.currentBet > 0 {
                 // CPUがベット済み → コールかフォールド
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.fillMuted) {
+                    actionButton("フォールド", color: Theme.fillMuted, foreground: .white) {
                         model.foldToCPUBet()
                     }
                     actionButton("コール \(model.currentBet)枚", color: Theme.Fill.coral,
@@ -335,7 +335,7 @@ public struct PokerView: View {
                 }
             } else {
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.fillMuted) {
+                    actionButton("フォールド", color: Theme.fillMuted, foreground: .white) {
                         model.bet2Action(.fold)
                     }
                     actionButton("チェック", color: Theme.Fill.teal) {
@@ -428,7 +428,10 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
+    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
+                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
@@ -443,7 +446,7 @@ public struct PokerView: View {
                 .frame(maxWidth: .infinity, minHeight: PokerMetrics.actionButtonMinHeight)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : Theme.onAccent)
+                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
         .buttonStyle(.plain)
         .disabled(disabled)

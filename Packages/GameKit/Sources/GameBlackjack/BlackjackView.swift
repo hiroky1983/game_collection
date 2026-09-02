@@ -272,7 +272,7 @@ public struct BlackjackView: View {
 
     private var playerActionView: some View {
         HStack(spacing: 12) {
-            actionButton("スタンド", color: Theme.fillMuted) {
+            actionButton("スタンド", color: Theme.fillMuted, foreground: .white) {
                 model.stand()
             }
             actionButton("ヒット", color: Theme.Fill.coral) {
@@ -344,7 +344,10 @@ public struct BlackjackView: View {
 
     // MARK: - Helper
 
-    private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
+    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
+                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
@@ -356,7 +359,7 @@ public struct BlackjackView: View {
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : Theme.onAccent)
+                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
         .buttonStyle(.plain)
         .disabled(disabled)

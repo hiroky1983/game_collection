@@ -307,7 +307,7 @@ public struct DaifugoView: View {
             .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
-                actionButton("パス", color: Theme.fillMuted, disabled: !model.canPass) {
+                actionButton("パス", color: Theme.fillMuted, foreground: .white, disabled: !model.canPass) {
                     model.pass()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
@@ -405,7 +405,10 @@ public struct DaifugoView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
+    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
+                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
@@ -417,7 +420,7 @@ public struct DaifugoView: View {
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : Theme.onAccent)
+                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
         // `.plain` は装飾を消す代わりに押下フィードバックまで消してしまうので、
         // 背景・文字色はそのまま通しつつ押下時だけ縮むスタイルに替える（#195）。

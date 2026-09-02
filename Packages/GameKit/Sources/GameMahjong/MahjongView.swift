@@ -941,7 +941,7 @@ public struct MahjongView: View {
             EmptyView()
         case .ronOffer:
             HStack(spacing: 12) {
-                actionButton("見逃す", color: Theme.fillMuted) {
+                actionButton("見逃す", color: Theme.fillMuted, foreground: .white) {
                     model.declineRon()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
@@ -968,7 +968,7 @@ public struct MahjongView: View {
         case .playing:
             HStack(spacing: 12) {
                 if model.isDeclaringRiichi {
-                    actionButton("やめる", color: Theme.fillMuted) { model.cancelRiichiDeclaration() }
+                    actionButton("やめる", color: Theme.fillMuted, foreground: .white) { model.cancelRiichiDeclaration() }
                 } else {
                     actionButton("立直", color: Theme.Fill.purple, disabled: !model.canDeclareRiichi) {
                         model.declareRiichi()
@@ -1007,14 +1007,17 @@ public struct MahjongView: View {
         }
     }
 
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
     private func actionButton(
-        _ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void
+        _ title: String, color: Color, foreground: Color = Theme.onAccent,
+        disabled: Bool = false, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .frame(maxWidth: .infinity, minHeight: 40)
-                .foregroundStyle(Theme.onAccent)
+                .foregroundStyle(foreground)
         }
         .buttonStyle(.borderedProminent)
         .tint(color)

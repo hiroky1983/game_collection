@@ -171,7 +171,7 @@ public struct SudokuView: View {
 
             Text(model.difficulty.label)
                 .themeCaption(11)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .background(Capsule().fill(difficultyAccent))
                 .fixedSize(horizontal: true, vertical: false)
