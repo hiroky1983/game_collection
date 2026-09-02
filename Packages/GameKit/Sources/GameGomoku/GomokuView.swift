@@ -519,11 +519,11 @@ struct GomokuNewGameSheet: View {
                 }
                 section("CPUの強さ") {
                     HStack(spacing: 12) {
-                        chooser(title: "弱",   subtitle: "1手読み",
+                        chooser(title: "弱",   subtitle: "浅い読み",
                                 selected: level == 0, accent: Theme.teal)   { level = 0 }
-                        chooser(title: "普通", subtitle: "2手読み",
+                        chooser(title: "普通", subtitle: "標準",
                                 selected: level == 1, accent: Theme.yellow) { level = 1 }
-                        chooser(title: "強",   subtitle: "3手読み",
+                        chooser(title: "強",   subtitle: "深い読み",
                                 selected: level == 2, accent: Theme.coral)  { level = 2 }
                     }
                 }

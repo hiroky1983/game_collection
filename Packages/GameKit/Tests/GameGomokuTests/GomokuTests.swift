@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import GameGomoku
 
@@ -249,5 +250,58 @@ struct GomokuInvalidTapTests {
         // 対局が進んだあとは何もしない（撮影引数を付けたまま再起動しても盤を壊さない）。
         model.applyPreviewMidgameForTesting()
         #expect(model.moveCount == 10)
+    }
+}
+
+/// 新規対局シートの「CPUの強さ」表示が実装と食い違わないこと（#416）。
+@Suite("Gomoku 強さ表示")
+struct GomokuStrengthLabelTests {
+
+    /// 実際の探索深さは 1/2/3 ではなく 3/4/5。この前提が変わったら表示も見直す。
+    @Test func engineDepthsAreThreeFourFive() {
+        #expect(SimpleGomokuEngine(level: 0).depth == 3)
+        #expect(SimpleGomokuEngine(level: 1).depth == 4)
+        #expect(SimpleGomokuEngine(level: 2).depth == 5)
+    }
+
+    /// 手数を名乗らない。反復深化＋時間制限（0.4/0.8/1.5秒）で打ち切られるため、
+    /// depth は上限であって「必ず N 手読む」保証ではなく、具体的な数字は書けない。
+    @Test func viewDoesNotClaimAPlyCount() throws {
+        let source = try Self.viewSource()
+        #expect(
+            Self.matchCount(of: #"\d+\s*手読み"#, in: source) == 0,
+            "「N手読み」という表示が復活している（実際の探索深さは 3/4/5 で、しかも時間制限で上限に届かないことがある）"
+        )
+    }
+
+    /// 上のテストが「選択 UI ごと消えた」ことで空振りしないよう、
+    /// オセロと揃えた文言が揃って存在することを固定する。
+    @Test func viewUsesOthelloStyleWording() throws {
+        let source = try Self.viewSource()
+        #expect(source.contains(#"section("CPUの強さ")"#))
+        for wording in ["浅い読み", "標準", "深い読み"] {
+            #expect(
+                Self.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,
+                "「\(wording)」が1箇所でない（強さ選択の文言が変わっている）"
+            )
+        }
+    }
+
+    // MARK: - ヘルパー
+
+    private static func viewSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameGomokuTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameGomoku/GomokuView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private static func matchCount(of pattern: String, in source: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        return regex.numberOfMatches(
+            in: source, range: NSRange(source.startIndex..., in: source)
+        )
     }
 }
