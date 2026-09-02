@@ -116,18 +116,20 @@ public final class GoModel {
             isFreshStart = false
         }
 
+        // 終局まで進んだ対局はスナップショットを消しているので、復元されるのは対局中か
+        // 終局の確認中だけ。確認中で保存されていた場合は、もう一度計算し直す。
+        let restoredPhase: GoPhase = phase == .finished ? .playing : phase
+
         self.ruleset = ruleset
         self.humanSide = humanSide
         self.aiLevel = aiLevel
         self.moves = moves
         self.startedAt = startedAt
         self.undoUsed = undoUsed
-        self.state = Self.replay(moves, ruleset: ruleset)
+        self.state = Self.replay(moves, ruleset: ruleset, resumingAtEnd: restoredPhase == .playing)
         self.isThinking = false
         self.lastMove = moves.last?.point
-        // 終局まで進んだ対局はスナップショットを消しているので、復元されるのは対局中か
-        // 終局の確認中だけ。確認中で保存されていた場合は、もう一度計算し直す。
-        self.phase = phase == .finished ? .playing : phase
+        self.phase = restoredPhase
         self.winner = nil
         self.endgame = nil
         self.recordResult = nil
@@ -135,9 +137,24 @@ public final class GoModel {
         if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
-    private static func replay(_ moves: [GoMove], ruleset: GoRuleset) -> GoState {
+    /// 手順を先頭から再生して局面を作る。
+    ///
+    /// 連続パスのあとにまだ手が続く手順は、「対局続行」（#398 の導線）を通った証跡なので、
+    /// 再生でもそのつど終局判定を解いてから続ける。解かないと `isTwoPassEnd` が立ったままになり、
+    /// 以降の手が `.gameOver` として全部捨てられて盤面が壊れる（#426）。
+    /// - Parameter resumingAtEnd: 再生し終えた局面から対局を続けるか（`phase == .playing`）。
+    ///   「続行した直後に中断・待った」で手順の末尾が連続パスのまま残る場合に、ここで解く。
+    private static func replay(
+        _ moves: [GoMove],
+        ruleset: GoRuleset,
+        resumingAtEnd: Bool
+    ) -> GoState {
         var state = GoState.initial(ruleset: ruleset)
-        for move in moves { state.play(move) }
+        for move in moves {
+            if state.isTwoPassEnd { state.resumePlay() }
+            state.play(move)
+        }
+        if resumingAtEnd, state.isTwoPassEnd { state.resumePlay() }
         return state
     }
 
@@ -265,7 +282,8 @@ public final class GoModel {
     public func undoLastExchange() {
         guard canUndo else { return }
         moves.removeLast(2)
-        state = Self.replay(moves, ruleset: ruleset)
+        // 待ったで手順の末尾が「続行前の連続パス」に戻ることがあるので、対局中として再生する。
+        state = Self.replay(moves, ruleset: ruleset, resumingAtEnd: true)
         lastMove = moves.last?.point
         undoUsed = true
         endgame = nil

@@ -214,6 +214,31 @@ struct GoUndoTests {
         #expect(!model.canUndo, "CPU の応手が返る前は戻せない")
     }
 
+    /// 「対局続行」を通ると手順に連続パスが残る。待ったでそこまで巻き戻したとき、再生した局面が
+    /// 終局判定のままだと以後どこにも打てなくなる（#426）。
+    @Test("「対局続行」後の待ったで局面が終局に戻らない")
+    func undoAfterResumeKeepsTheGamePlayable() {
+        let model = GoModel(services: makeServices())
+        model.newGame(humanSide: .black, level: .easy)
+        model.pass()                                       // 黒（人間）
+        model.forcePassForTesting()                        // 白（CPU）
+        #expect(model.phase == .scoring)
+
+        model.resumePlay()
+        model.applyMoveForTesting(.play(row: 4, col: 4))   // 黒（人間）
+        model.applyMoveForTesting(.play(row: 2, col: 2))   // 白（CPU）
+        #expect(model.canUndo)
+
+        model.undoLastExchange()
+        #expect(model.moveCount == 2, "残るのは続行前の 2 手（両者パス）")
+        #expect(model.board[4, 4] == nil)
+        #expect(model.phase == .playing)
+        #expect(!model.state.isTwoPassEnd, "待ったで終局判定が復活してはいけない")
+
+        model.tap(row: 4, col: 4)
+        #expect(model.board[4, 4] == .black, "戻した局面から打ち直せる")
+    }
+
     @Test("戻した局面から打ち直せる（取った石も戻る）")
     func undoRestoresCapturedStones() {
         let model = GoModel(services: makeServices())
@@ -277,6 +302,50 @@ struct GoSnapshotTests {
         #expect(restored.endgame == nil, "計算結果は保存しない（同じ局面から作り直せる）")
         await restored.evaluateEndgameIfNeeded()
         #expect(restored.endgame != nil)
+    }
+
+    /// 保存するのは手順なので、「対局続行」で解いた終局判定も再生し直す必要がある。
+    /// 解かずに再生すると連続パス以降の手が全部捨てられ、盤面が壊れたうえに打てなくなる（#426）。
+    @Test("「対局続行」後に着手してから中断しても、続きの局面がそのまま戻る")
+    func restoresPositionAfterResumingFromScoring() {
+        let store = MemorySnapshotStore()
+        let first = GoModel(services: makeServices(store))
+        first.newGame(humanSide: .black, level: .easy)
+        first.pass()                                       // 黒（人間）
+        first.forcePassForTesting()                        // 白（CPU）
+        first.resumePlay()
+        first.applyMoveForTesting(.play(row: 4, col: 4))   // 黒（人間）
+        first.applyMoveForTesting(.play(row: 2, col: 2))   // 白（CPU）
+
+        let restored = GoModel(services: makeServices(store))
+        #expect(restored.phase == .playing)
+        #expect(restored.moveCount == 4)
+        #expect(restored.board[4, 4] == .black, "続行後の手が再生されている")
+        #expect(restored.board[2, 2] == .white)
+        #expect(restored.lastMove == GoPoint(row: 2, col: 2))
+        #expect(!restored.state.isTwoPassEnd)
+
+        restored.tap(row: 6, col: 6)
+        #expect(restored.board[6, 6] == .black, "再開後も打てる")
+    }
+
+    /// 続行した直後に中断すると、手順の末尾が連続パスのまま `phase == .playing` で保存される。
+    @Test("「対局続行」の直後に中断しても、再開したら打てる")
+    func restoresPlayableStateWhenSuspendedRightAfterResuming() {
+        let store = MemorySnapshotStore()
+        let first = GoModel(services: makeServices(store))
+        first.newGame(humanSide: .black, level: .easy)
+        first.pass()
+        first.forcePassForTesting()
+        first.resumePlay()
+
+        let restored = GoModel(services: makeServices(store))
+        #expect(restored.phase == .playing)
+        #expect(restored.moveCount == 2, "パスも手順として残す")
+        #expect(!restored.state.isTwoPassEnd)
+
+        restored.tap(row: 4, col: 4)
+        #expect(restored.board[4, 4] == .black)
     }
 
     /// 保存するのは**手順**で、局面は再生して作る。盤面そのものを保存する形にすると
