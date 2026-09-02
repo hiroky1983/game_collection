@@ -323,6 +323,10 @@ struct SudokuModelNewGameTests {
         let gate = GenerationGate()
         model.generationGate = { await gate.wait() }
         let first = Task { await model.newGame(difficulty: .hard) }
+        // 途中の `#require` が失敗して抜けたときも、ゲートで止まっている 1 本目を必ず解放する
+        // （解放しないと `withCheckedContinuation` が再開されないまま残る）。
+        // 正常系では下で先に `release()` するが、2 度呼んでも無害。
+        defer { gate.release() }
 
         // 1 本目が `.generating` に入り、生成の直前で止まるまで待つ（実時間では待たない）。
         await gate.waitUntilArrived()
