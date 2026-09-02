@@ -112,8 +112,10 @@ public struct MinesweeperView: View {
             // 同じく撮影・動作確認用: `-simulateChord <行> <列>` でそのマスをコードする（#437）。
             // コードはタップ起点の操作なので、中断スナップショットの復元だけでは結果の画を作れない。
             let args = ProcessInfo.processInfo.arguments
+            // 盤外の座標を渡されたら黙って無視する（`cells[row][col]` で落とさない）。
             if let i = args.firstIndex(of: "-simulateChord"), i + 2 < args.count,
-               let row = Int(args[i + 1]), let col = Int(args[i + 2]) {
+               let row = Int(args[i + 1]), let col = Int(args[i + 2]),
+               (0..<model.rows).contains(row), (0..<model.cols).contains(col) {
                 showNewGame = false
                 model.tap(row: row, col: col)
             }
