@@ -65,7 +65,9 @@ public final class Game2048Model {
 
     /// 指定方向へスライド。動いたときのみ新タイルを生成し、終局判定・永続化する。
     public func move(_ direction: Direction) {
-        guard !gameOver else { return }
+        // 勝利演出はスワイプ領域の上に重なるだけで、盤面へのジェスチャは生きている。
+        // ここで止めないと、演出を出したまま裏で盤面・スコア・中断データが進む（PR #450 指摘）。
+        guard !gameOver, !showWinPrompt else { return }
         let result = Game2048Logic.slide(board, direction)
         guard result.moved else {
             services?.feedback.notify(.warning) // 1マスも動かない方向へのスワイプ

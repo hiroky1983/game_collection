@@ -189,6 +189,67 @@ struct Game2048WinTests {
         #expect(harness.analytics.starts == 2, "続きは次の 1 プレイとして数える")
     }
 
+    @Test("勝利演出を出している間はスワイプを受け付けない")
+    func movesAreRejectedWhileThePromptIsUp() {
+        let harness = makeHarness(suite: "reject-move")
+        let model = makeModel(harness, board: Self.twoWinningTilesInOneMove)
+        model.move(.left)
+        #expect(model.showWinPrompt, "前提: 演出が出ている")
+        let boardAtWin = model.board
+        let scoreAtWin = model.score
+
+        // 演出はスワイプ領域に重なるだけなので、Model 側で止まっていないと盤面が進む。
+        for direction in Direction.allCases { model.move(direction) }
+
+        #expect(model.board == boardAtWin, "盤面も新タイルも動かない")
+        #expect(model.score == scoreAtWin, "スコアも動かない")
+        #expect(model.showWinPrompt, "演出は出たまま")
+
+        // 中断データも到達時点のまま（裏で進んだ盤が保存されていない）。
+        let saved = harness.services.snapshots.load(Game2048Snapshot.self, for: "2048")
+        #expect(saved?.board == boardAtWin)
+        #expect(saved?.score == scoreAtWin)
+
+        // 「続ける」を押せば従来どおり動かせる（拒否が恒久化していないことの確認）。
+        model.continueAfterWin()
+        model.move(.left)
+        #expect(model.board != boardAtWin)
+    }
+
+    @Test("勝利直後に中断・復元して終局しても、`game_end` は 1 回のまま")
+    func suspendingRightAfterTheWinDoesNotDoubleCountTheEnd() {
+        let harness = makeHarness(suite: "suspend-after-win")
+        let before = makeModel(harness, board: Self.oneMoveFromWin)
+        before.move(.left)
+        #expect(harness.analytics.outcomes == [.win], "前提: 到達で 1 回送っている")
+
+        // 「続ける」を押さずにアプリが落ちた状態を、解析の数え方ごと作り直して再現する。
+        let spy = SpyAnalyticsService()
+        let restarted = GameServices(
+            snapshots: harness.services.snapshots,
+            ads: NoopAdService(),
+            playLog: harness.log,
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["2048"])
+        )
+        let restored = Game2048Model(services: restarted)
+        #expect(restored.hasWon)
+        #expect(!restored.showWinPrompt)
+
+        // 復元した続きを終局まで遊ぶ。
+        while !restored.gameOver {
+            guard let direction = Direction.allCases.first(where: {
+                Game2048Logic.slide(restored.board, $0).moved
+            }) else { break }
+            restored.move(direction)
+        }
+        #expect(restored.gameOver)
+
+        // 中断からの再開は「新しいプレイ」として数えない（#158）ので、対応の取れない
+        // `game_end` は作られない。到達時の 1 回に対して 2 回目は送られない。
+        #expect(spy.starts == 0, "復元だけでは `game_start` を数えない")
+        #expect(spy.outcomes.isEmpty, "開始を数えていないプレイの終局は送らない")
+    }
+
     @Test("演出が出ていないときの `continueAfterWin()` は何もしない")
     func continueAfterWinIsNoOpWithoutPrompt() {
         let harness = makeHarness(suite: "noop")

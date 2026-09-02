@@ -469,15 +469,19 @@ struct GameOutcomeRoutingTests {
     @Test("2048: ゲームオーバーは勝利にならない")
     func game2048() {
         let (services, service) = makeServices(suite: "route-2048")
-        let model = Game2048Model(services: services)
-        outer: for _ in 0..<3000 {
-            for direction in Direction.allCases {
-                model.move(direction)
-                if model.gameOver { break outer }
-            }
-        }
+        // 左へ寄せると 8 どうしが合体し、空いた 1 マスに何が沸いても終局する盤（2048 には届かない）。
+        // 乱数任せに遊ばせると、まず起きないとはいえ 2048 到達で判定が揺れるため決め打ちする。
+        let model = Game2048Model(services: services, board: [
+            [8, 8, 4, 16],
+            [4, 16, 4, 8],
+            [8, 4, 8, 4],
+            [4, 8, 4, 8],
+        ])
+
+        model.move(.left)
+
         #expect(model.gameOver)
-        #expect(!model.hasWon, "前提: 無作為に動かして 2048 に届くことはまず無い")
+        #expect(!model.hasWon, "2048 に届いていない")
         #expect(service.log.totalWins == 0, "2048 に届かない終局はゲームオーバー")
     }
 
