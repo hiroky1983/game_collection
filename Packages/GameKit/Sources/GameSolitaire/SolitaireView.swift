@@ -252,6 +252,14 @@ public struct SolitaireView: View {
         if model.selection != nil { model.deselect() }
     }
 
+    /// 移動の補間で札どうしを結ぶ鍵（#421）。
+    ///
+    /// 配り直しをまたいでは結ばない。またいで結ぶと、新しい配札の札が
+    /// **前の配札での居場所から飛んでくる**ことになり、山札から配る演出と食い違う。
+    private func motionID(_ card: SolitaireCard) -> SolitaireCardMotionID {
+        SolitaireCardMotionID(deal: model.dealSerial, card: card.id)
+    }
+
     /// この札がドラッグで持ち上げ中（元の位置は薄く見せる）か。
     private func isLifted(pile: Int, cardIndex: Int) -> Bool {
         guard let drag, case .tableau(let dragPile, let dragIndex) = drag.source else { return false }
@@ -323,7 +331,11 @@ public struct SolitaireView: View {
                     metrics: metrics,
                     flips: model.lastMoveWasDraw
                 )
-                .matchedGeometryEffect(id: card.id, in: cardMotion)
+                // 捨て札の枠は「札が 1 枚ある」状態が続くので、**札が入れ替わっても
+                // SwiftUI から見れば同じビュー**になり `@State` が作り直されない。
+                // 札ごとに identity を切って、2 回目以降のめくりも必ず返るようにする。
+                .id(card.id)
+                .matchedGeometryEffect(id: motionID(card), in: cardMotion)
                 .opacity(drag?.source == .waste ? 0.35 : 1)
             } else {
                 emptySlot(metrics: metrics, symbol: nil)
@@ -345,7 +357,7 @@ public struct SolitaireView: View {
             if rank > 0 {
                 // 送られてきた札と同じ id を与えて、場札・捨て札からここまで滑らせる（#421）。
                 cardView(SolitaireCard(suit, rank), faceUp: true, isSelected: false, metrics: metrics)
-                    .matchedGeometryEffect(id: SolitaireCard(suit, rank).id, in: cardMotion)
+                    .matchedGeometryEffect(id: motionID(SolitaireCard(suit, rank)), in: cardMotion)
             } else {
                 // 空の組札にはスート記号を薄く置く。どこに何を積むのかが最初から分かるようにする。
                 emptySlot(metrics: metrics, symbol: nil, suit: suit)
@@ -408,7 +420,9 @@ public struct SolitaireView: View {
                     SolitaireCardBody(card: card, faceUp: false, isSelected: false,
                                       isCovered: false, metrics: metrics)
                 }
-                .matchedGeometryEffect(id: card.id, in: cardMotion)
+                // 配り直しでは「もう配り終わった」状態のビューを使い回さない（下記 faceUpCard も同じ）。
+                .id(model.dealSerial)
+                .matchedGeometryEffect(id: motionID(card), in: cardMotion)
                 // 段差は `.offset` ではなく余白で作る。`.offset` はレイアウト上の位置を変えないため、
                 // 移動の補間が「札の位置」ではなく「列の上端」どうしを結んでしまう。
                 .padding(.top, restY)
@@ -463,7 +477,8 @@ public struct SolitaireView: View {
                 flips: model.revealedCardIDs.contains(card.id)
             )
         }
-            .matchedGeometryEffect(id: card.id, in: cardMotion)
+            .id(model.dealSerial)
+            .matchedGeometryEffect(id: motionID(card), in: cardMotion)
             .opacity(isLifted(pile: pile, cardIndex: index) ? 0.35 : 1)
             .contentShape(Rectangle())
             .onTapGesture { model.tapPile(pile, cardIndex: index) }
@@ -905,6 +920,12 @@ struct SolitaireDragState {
     var location: CGPoint
     /// つかんだ点から札の左上までのずれ（追従表示の位置合わせ用）。
     var grab: CGSize
+}
+
+/// 移動の補間で札どうしを結ぶ鍵（#421）。配り直しの世代を含めるので、世代が変わると結ばれない。
+struct SolitaireCardMotionID: Hashable {
+    let deal: Int
+    let card: Int
 }
 
 /// ドロップ先の種類。

@@ -196,8 +196,20 @@ struct SolitaireMotionTests {
         )
         // 場札（伏せ・表）・捨て札・組札の 4 か所が同じ名前空間で繋がっていること。
         #expect(
-            Self.matchCount(of: #"\.matchedGeometryEffect\(id: .+, in: cardMotion\)"#, in: source) == 4,
+            Self.matchCount(of: #"\.matchedGeometryEffect\(id: motionID\(.+\), in: cardMotion\)"#, in: source) == 4,
             "札の移動を繋ぐ matchedGeometryEffect が欠けている"
+        )
+
+        // 4. `@State` の作り直し（CodeRabbit 指摘・PR #433）。
+        //    SwiftUI は**ビューの同一性が保たれている限り `@State` を初期化し直さない**ので、
+        //    identity を切らないと 2 回目以降のめくり・配り直しの配札が黙って出なくなる。
+        #expect(
+            Self.matchCount(of: #"\.id\(card\.id\)"#, in: source) == 1,
+            "捨て札のビューが札ごとに作り直されない（2 回目以降のめくりが出ない）"
+        )
+        #expect(
+            Self.matchCount(of: #"\.id\(model\.dealSerial\)"#, in: source) == 2,
+            "配り直しで場札のビューが作り直されない（同じ列に残った札の配札演出が出ない）"
         )
         #expect(
             Self.matchCount(of: #"SolitaireMotion\.move"#, in: source) == 1,

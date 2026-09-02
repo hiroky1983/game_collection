@@ -80,6 +80,13 @@ public final class SolitaireModel {
     /// 中断から復元した局面では手順が入っているので false になり、再開のたびに配り直して見えない。
     public var isFreshDeal: Bool { moves.isEmpty }
 
+    /// 配り直しの通し番号（#421）。`newGame()` のたびに増える。
+    ///
+    /// View はこの値を札のビューの identity に混ぜる。**SwiftUI は同一性が保たれている限り
+    /// `@State` を作り直さない**ため、これが無いと配り直しで同じ列に同じ札が残った場合に
+    /// 「もう配り終わった」状態のビューが再利用され、その札だけ配札の演出が出ない。
+    public private(set) var dealSerial: Int = 0
+
     /// 組札へ送る手（と山めくり）だけで勝ち切れる状態か。終盤の 52 回タップを 1 回に畳む。
     public var canAutoFinish: Bool { phase == .playing && autoFinishPlan != nil }
 
@@ -267,6 +274,7 @@ public final class SolitaireModel {
         elapsedSeconds = 0
         recordResult = nil
         clearFlips()
+        dealSerial += 1
         refreshDerivedState()
         // 画面は開いたままなので計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         timerTask?.cancel()

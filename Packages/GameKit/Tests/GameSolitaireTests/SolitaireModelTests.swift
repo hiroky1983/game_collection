@@ -237,10 +237,29 @@ struct SolitaireModelTests {
         #expect(!model.isFreshDeal, "1 手でも指したら配札の演出は出さない")
         #expect(model.lastMoveWasDraw)
 
+        let serial = model.dealSerial
         model.newGame()
         #expect(model.isFreshDeal)
         #expect(!model.lastMoveWasDraw)
         #expect(model.revealedCardIDs.isEmpty)
+        // 配り直しの世代が上がらないと、同じ列に残った札のビューが使い回されて
+        // その札だけ配札の演出が出ない（CodeRabbit 指摘・PR #433）。
+        #expect(model.dealSerial == serial + 1)
+    }
+
+    @Test("配り直しの通し番号は、指しても戻しても増えない")
+    func dealSerialOnlyChangesOnNewGame() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        let serial = model.dealSerial
+        for _ in 0..<3 { model.tapStock() }
+        #expect(model.dealSerial == serial)
+        model.undo()
+        #expect(model.dealSerial == serial)
+        // 増え続けると、1 手ごとに盤面のビューが丸ごと作り直されて移動の補間が消える。
+        model.newGame()
+        model.newGame()
+        #expect(model.dealSerial == serial + 2)
     }
 
     @Test("中断から復元した局面では配札の演出を出さない")
