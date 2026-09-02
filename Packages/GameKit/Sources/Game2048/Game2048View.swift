@@ -141,9 +141,10 @@ public struct Game2048View: View {
                         }
                     } label: {
                         Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
+                        .foregroundStyle(Theme.onAccent)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(Theme.coral)
+                    .tint(Theme.Fill.coral)
                     .disabled(isContinuing)
                 }
                 Button("もう一度") { withGameAnimation { model.newGame() } }

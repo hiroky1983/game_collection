@@ -42,7 +42,7 @@ public struct RecommendationCard: View {
                         .overlay {
                             module.icon
                                 .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Theme.onAccent)
                         }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(caption)
@@ -56,7 +56,7 @@ public struct RecommendationCard: View {
                     Spacer(minLength: 4)
                     Text("あそぶ")
                         .themeCaption(13)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(Capsule().fill(accent))
                 }

@@ -174,8 +174,8 @@ public struct ShogiView: View {
                             Text("成る")
                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .frame(width: 80, height: 44)
-                                .background(Theme.coral, in: RoundedRectangle(cornerRadius: 12))
-                                .foregroundStyle(.white)
+                                .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(Theme.onAccent)
                         }
                     }
                 }
@@ -403,9 +403,10 @@ public struct ShogiView: View {
             } else {
                 Text(model.position.sideToMove == .black ? "先手番" : "後手番")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    // 面色が先手＝濃色 / 後手＝差し色と大きく違うので、文字色も面に合わせて変える（#220）。
+                    .foregroundStyle(model.position.sideToMove == .black ? .white : Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 2)
-                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.teal))
+                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.Fill.teal))
                     // 手番が移ったことを色の移り変わりで見せる（#201）。文字は差し替わるだけなので、
                     // 目に留まるのは色の変化。着手そのものを待たせないよう短く取る。
                     .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
@@ -453,9 +454,9 @@ public struct ShogiView: View {
         HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
@@ -515,9 +516,9 @@ public struct ShogiView: View {
 
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
         }
         .themeBody(14)
@@ -548,22 +549,24 @@ struct NewGameSheet: View {
             VStack(alignment: .leading, spacing: 24) {
                 section("あなたの手番") {
                     HStack(spacing: 12) {
-                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black, accent: Theme.fillStrong) { side = .black }
-                        chooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white, accent: Theme.teal) { side = .white }
+                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black,
+                                accent: Theme.fillStrong, onAccent: .white) { side = .black }
+                        chooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white, accent: Theme.Fill.teal) { side = .white }
                     }
                 }
                 section("CPUの強さ") {
                     HStack(spacing: 12) {
-                        chooser(title: "弱", subtitle: "駒得だけ", selected: level == 0, accent: Theme.teal) { level = 0 }
-                        chooser(title: "普通", subtitle: "囲いを作る", selected: level == 1, accent: Theme.yellow) { level = 1 }
-                        chooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2, accent: Theme.coral) { level = 2 }
+                        chooser(title: "弱", subtitle: "駒得だけ", selected: level == 0, accent: Theme.Fill.teal) { level = 0 }
+                        chooser(title: "普通", subtitle: "囲いを作る", selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
+                        chooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2, accent: Theme.Fill.coral) { level = 2 }
                     }
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
                     Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -584,12 +587,15 @@ struct NewGameSheet: View {
         }
     }
 
-    private func chooser(title: String, subtitle: String, selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
+    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
+    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
+    private func chooser(title: String, subtitle: String, selected: Bool, accent: Color,
+                         onAccent: Color = Theme.onAccent, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(

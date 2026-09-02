@@ -11,11 +11,11 @@ public struct RecordLabel: View {
 
     /// - Parameters:
     ///   - result: `GameServices.gameDidFinish` の戻り値。nil なら何も出さない。
-    ///   - accent: 「自己ベスト更新！」の差し色。
+    ///   - accent: 「自己ベスト更新！」バッジの**面色**。`Theme.Fill` 側を渡す（#220）。
     ///   - textColor: 記録本文の色。暗いオーバーレイの上に直接置く画面（2048・神経衰弱）は
     ///     `.white` を渡す。既定は明るい背景向けの補助文字色（オセロのように暗幕の上でも
     ///     明るいカードに乗る画面はこちらでよい）。
-    public init(_ result: RecordResult?, accent: Color = Theme.coral, textColor: Color = Theme.inkSub) {
+    public init(_ result: RecordResult?, accent: Color = Theme.Fill.coral, textColor: Color = Theme.inkSub) {
         self.result = result
         self.accent = accent
         self.textColor = textColor
@@ -27,7 +27,7 @@ public struct RecordLabel: View {
                 if result.update.isNewBest {
                     Text("自己ベスト更新！")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Capsule().fill(accent))
                 }

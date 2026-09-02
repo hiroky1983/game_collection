@@ -93,9 +93,9 @@ public struct DaifugoView: View {
             if model.isRevolution {
                 Text("革命中")
                     .font(.system(size: 12, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer()
             Text(turnLabel)
@@ -139,11 +139,11 @@ public struct DaifugoView: View {
                 .foregroundStyle(Theme.inkSub)
             Text(model.lastActions[index].isEmpty ? " " : model.lastActions[index])
                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .padding(.horizontal, 6).padding(.vertical, 3)
                 .frame(maxWidth: .infinity)
-                .background(Capsule().fill(model.lastActions[index].isEmpty ? Color.clear : Theme.purple))
+                .background(Capsule().fill(model.lastActions[index].isEmpty ? Color.clear : Theme.Fill.purple))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10).padding(.horizontal, 6)
@@ -200,9 +200,9 @@ public struct DaifugoView: View {
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Capsule().fill(isHuman ? Theme.teal : Theme.purple))
+            .background(Capsule().fill(isHuman ? Theme.Fill.teal : Theme.Fill.purple))
         } else {
             Text(model.field.isEmpty ? "場は流れています（好きな組を出せます）" : "場")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -299,7 +299,7 @@ public struct DaifugoView: View {
             EmptyView()
         case .playing where model.isPlayerFinished:
             // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
-            actionButton("結果まで進める", color: Theme.coral, disabled: model.isSkippingToResult) {
+            actionButton("結果まで進める", color: Theme.Fill.coral, disabled: model.isSkippingToResult) {
                 model.skipToResult()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
@@ -311,7 +311,7 @@ public struct DaifugoView: View {
                     model.pass()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
-                actionButton(playButtonTitle, color: Theme.coral, disabled: !model.canPlaySelection) {
+                actionButton(playButtonTitle, color: Theme.Fill.coral, disabled: !model.canPlaySelection) {
                     model.playSelected()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
@@ -319,7 +319,7 @@ public struct DaifugoView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton("次のゲーム", color: Theme.coral) {
+            actionButton("次のゲーム", color: Theme.Fill.coral) {
                 model.startGame()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
@@ -360,9 +360,9 @@ public struct DaifugoView: View {
                 if let note = humanResultNote {
                     Text(note)
                         .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(Theme.coral))
+                        .background(Capsule().fill(Theme.Fill.coral))
                 }
                 Spacer()
             }
@@ -371,10 +371,11 @@ public struct DaifugoView: View {
                     HStack(spacing: 8) {
                         Text(DaifugoRules.title(forPlace: place))
                             .font(.system(size: 12, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
+                            // 1位だけ差し色の面。他は濃いグレーの面なので文字色を分ける（#220）。
+                            .foregroundStyle(place == 0 ? Theme.onAccent : .white)
                             .frame(width: 58)
                             .padding(.vertical, 3)
-                            .background(Capsule().fill(place == 0 ? Theme.yellow : Theme.fillMuted))
+                            .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
                         Text(model.playerName(player))
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coral : Theme.ink)
@@ -416,7 +417,7 @@ public struct DaifugoView: View {
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : .white)
+                .foregroundStyle(disabled ? Theme.inkSub : Theme.onAccent)
         }
         // `.plain` は装飾を消す代わりに押下フィードバックまで消してしまうので、
         // 背景・文字色はそのまま通しつつ押下時だけ縮むスタイルに替える（#195）。

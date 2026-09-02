@@ -9,10 +9,12 @@ import AppKit
 ///
 /// 配色は**システムのライト / ダーク設定に追従する**（#187）。追従させるのは
 /// 「地と文字」（`background` / `surface` / `ink` / `inkSub`）だけで、差し色（`coral` 等）は
-/// 両モードで同じ値を使う。差し色はほぼ全ての箇所で**白文字を載せる面色**として使われており、
-/// ダーク用に明るくすると白文字とのコントラストが落ちて、いまライトモードで確保できている
-/// 可読性を下げてしまうため。値を動かさなくてもダークの地・面に対するコントラストは
-/// ライト時より必ず良くなる（最小は面の上の `purple` で 4.32:1。ライト時は同じ組み合わせで 3.49:1）。
+/// 両モードで同じ値を使う。差し色は文字色としても使われており、ダーク用に値を動かすと
+/// ライト時に確保できている可読性を下げてしまうため。値を動かさなくてもダークの地・面に対する
+/// コントラストはライト時より必ず良くなる（最小は面の上の `purple` で 4.32:1）。
+///
+/// 差し色を**面色**として使うときは `Theme.coral` ではなく `Theme.Fill.coral` を使い、
+/// その上の文字には `Theme.onAccent` を載せる（#220。白文字は全差し色で AA 未達だった）。
 public enum Theme {
     /// ライト / ダークで切り替える色の実体（0xRRGGBB）。
     ///
@@ -32,7 +34,7 @@ public enum Theme {
         /// 同じく白文字を載せる「控えめな」チップ・ボタンの面色（パス・フォールド・後手など）。
         public static let fillMuted: Pair = (0x9A8A80, 0x504742)
 
-        // 差し色（両モード共通）。
+        // 差し色（両モード共通）。**文字色として**使うときの値。
         public static let coral: UInt32 = 0xFF6F61
         public static let teal: UInt32 = 0x22C3BE
         public static let purple: UInt32 = 0x8C7BE0
@@ -41,6 +43,27 @@ public enum Theme {
 
         /// 差し色の一覧（コントラスト検証用）。
         public static let accents: [UInt32] = [coral, teal, purple, yellow, pink]
+
+        /// 差し色を**面色**（チップ・ボタンの塗り）として使うときの値。上に載せる文字は `onAccent`。
+        ///
+        /// 1つの値で「面色」と「文字色」を兼ねることはできない（#220）。面色は上に載せる文字と
+        /// コントラストを取る必要があり、文字色は下の地とコントラストを取る必要があるので、
+        /// 求められる明るさが逆を向く。そのため `coral` / `purple` だけ**面色用に明るくした値**を
+        /// 別に持つ（元の値では白文字でも `ink` でも AA に届かない: coral 2.73/3.92・purple 3.49/3.07）。
+        /// 残る3色は面色でも同じ値で足りるので、呼び出し側の書き方を揃えるためだけにここへ再掲する。
+        public enum Fill {
+            public static let coral: UInt32 = 0xFF8A7E
+            public static let teal: UInt32 = Hex.teal
+            public static let purple: UInt32 = 0xB3A6F0
+            public static let yellow: UInt32 = Hex.yellow
+            public static let pink: UInt32 = Hex.pink
+
+            /// 面色の一覧（コントラスト検証用）。`accents` と同じ並び。
+            public static let all: [UInt32] = [coral, teal, purple, yellow, pink]
+        }
+
+        /// 差し色の面の上に載せる文字色。面色はモードによらず固定なので、`ink` のライト側で固定する。
+        public static let onAccent: UInt32 = ink.light
     }
 
     // 地と文字（システムのライト / ダーク設定に追従する）
@@ -57,6 +80,23 @@ public enum Theme {
     public static let purple = Color(hex: Hex.purple)
     public static let yellow = Color(hex: Hex.yellow)
     public static let pink = Color(hex: Hex.pink)
+
+    /// 差し色を**面色**（チップ・ボタンの塗り）として使うときの値。文字は必ず `Theme.onAccent` を載せる。
+    /// 値の根拠と、文字色用の差し色と別に持つ理由は `Hex.Fill` のコメントを参照（#220）。
+    public enum Fill {
+        public static let coral = Color(hex: Hex.Fill.coral)
+        public static let teal = Color(hex: Hex.Fill.teal)
+        public static let purple = Color(hex: Hex.Fill.purple)
+        public static let yellow = Color(hex: Hex.Fill.yellow)
+        public static let pink = Color(hex: Hex.Fill.pink)
+
+        /// ゲームごとの差し色を順番に割り当てる用（面色版）。
+        public static let palette: [Color] = [coral, teal, purple, yellow, pink]
+    }
+
+    /// 差し色の面の上に置く文字・アイコンの色。全差し色で共通なので「色付きの面＝同じ文字色」の
+    /// 統一感が保てる。白のままでは全差し色で AA を下回る（最悪 `yellow` の 1.61:1）ため #220 で置き換えた。
+    public static let onAccent = Color(hex: Hex.onAccent)
 
     /// ゲームごとの差し色を順番に割り当てる用。
     public static let palette: [Color] = [coral, teal, purple, yellow, pink]

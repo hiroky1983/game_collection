@@ -40,6 +40,7 @@ struct HubView: View {
                                 GameCard(
                                     module: module,
                                     accent: Theme.palette[index % Theme.palette.count],
+                                    accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: services.snapshots.exists(for: module.id),
                                     record: services.playLog?.summaryLine(gameID: module.id)
                                 )
@@ -168,7 +169,10 @@ struct HubView: View {
 /// 記録（#115）の行を潰さずに両方見えるようにした。
 private struct GameCard: View {
     let module: GameModule
+    /// 「続きから」バッジの**文字色**。明るい地の上に置くので差し色そのままを使う。
     let accent: Color
+    /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
+    let accentFill: Color
     let hasResume: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
@@ -178,12 +182,12 @@ private struct GameCard: View {
             HStack(alignment: .top, spacing: 6) {
                 // カラフルなアイコンチップ
                 RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(accent.gradient)
+                    .fill(accentFill.gradient)
                     .frame(width: 44, height: 44)
                     .overlay {
                         module.icon
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.onAccent)
                     }
                     .shadow(color: accent.opacity(0.4), radius: 5, y: 3)
 

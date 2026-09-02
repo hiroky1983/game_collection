@@ -194,9 +194,9 @@ public struct SudokuView: View {
                         )
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.teal : Theme.surface)
+                                .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
                         )
-                        .foregroundStyle(zoomMode ? .white : Theme.inkSub)
+                        .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
                         // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
                         .contentShape(Rectangle())
                 }
@@ -213,9 +213,9 @@ public struct SudokuView: View {
 
     private var difficultyAccent: Color {
         switch model.difficulty {
-        case .easy:   return Theme.teal
-        case .normal: return Theme.yellow
-        case .hard:   return Theme.coral
+        case .easy:   return Theme.Fill.teal
+        case .normal: return Theme.Fill.yellow
+        case .hard:   return Theme.Fill.coral
         }
     }
 
@@ -423,10 +423,10 @@ public struct SudokuView: View {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
                 Label("難易度を選んで始める", systemImage: "play.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 16)
                     .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
@@ -521,10 +521,10 @@ public struct SudokuView: View {
         HStack(spacing: 6) {
             Button { model.toggleNoteMode() } label: {
                 Label("メモ", systemImage: "pencil.tip")
-                    .foregroundStyle(model.noteMode ? .white : Theme.inkSub)
+                    .foregroundStyle(model.noteMode ? Theme.onAccent : Theme.inkSub)
                     .padding(.horizontal, 12)
                     .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.noteMode ? Theme.purple : Theme.surface))
+                    .background(Capsule().fill(model.noteMode ? Theme.Fill.purple : Theme.surface))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
@@ -533,10 +533,11 @@ public struct SudokuView: View {
             // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
             Button { model.undo() } label: {
                 Label("戻す", systemImage: "arrow.uturn.backward")
-                    .foregroundStyle(.white)
+                    // 有効時は差し色の面、無効時は濃いグレーの面。面ごとに読める文字色が違う（#220）。
+                    .foregroundStyle(model.canUndo ? Theme.onAccent : .white)
                     .padding(.horizontal, 12)
                     .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.canUndo ? Theme.teal : Theme.fillMuted))
+                    .background(Capsule().fill(model.canUndo ? Theme.Fill.teal : Theme.fillMuted))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
@@ -552,10 +553,10 @@ public struct SudokuView: View {
                 requestHint()
             } label: {
                 Label("ヒント\(model.remainingHints)", systemImage: "lightbulb.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(model.canHint ? Theme.onAccent : .white)
                     .padding(.horizontal, 12)
                     .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.canHint ? Theme.yellow : Theme.fillMuted))
+                    .background(Capsule().fill(model.canHint ? Theme.Fill.yellow : Theme.fillMuted))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
@@ -567,10 +568,10 @@ public struct SudokuView: View {
 
             Button { showGiveUpConfirm = true } label: {
                 Label("諦める", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12)
                     .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
@@ -630,9 +631,10 @@ public struct SudokuView: View {
                     }
                 } label: {
                     Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
+                    .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Theme.coral)
+                .tint(Theme.Fill.coral)
                 .disabled(isContinuing)
                 Button("諦めて答えを見る") { model.giveUp() }
                     .buttonStyle(.bordered)
@@ -654,10 +656,10 @@ public struct SudokuView: View {
 
             Button { showNewGame = true } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12)
                     .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
@@ -684,9 +686,9 @@ struct SudokuNewGameSheet: View {
                         // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
                         // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
                         // `removalRange` のコメント参照・#354 の S6）。
-                        chooser(.easy,   subtitle: "空き 約30〜35", accent: Theme.teal)
-                        chooser(.normal, subtitle: "空き 約40〜45", accent: Theme.yellow)
-                        chooser(.hard,   subtitle: "空き 約46〜50", accent: Theme.coral)
+                        chooser(.easy,   subtitle: "空き 約30〜35", accent: Theme.Fill.teal)
+                        chooser(.normal, subtitle: "空き 約40〜45", accent: Theme.Fill.yellow)
+                        chooser(.hard,   subtitle: "空き 約46〜50", accent: Theme.Fill.coral)
                     }
                 }
                 Spacer()
@@ -694,8 +696,9 @@ struct SudokuNewGameSheet: View {
                     onStart(difficulty)
                 } label: {
                     Text("スタート").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -715,10 +718,10 @@ struct SudokuNewGameSheet: View {
             difficulty = value
         } label: {
             VStack(spacing: 4) {
-                Text(value.label).themeTitle(20).foregroundStyle(selected ? .white : Theme.ink)
+                Text(value.label).themeTitle(20).foregroundStyle(selected ? Theme.onAccent : Theme.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(

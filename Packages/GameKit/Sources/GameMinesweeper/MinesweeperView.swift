@@ -122,9 +122,9 @@ public struct MinesweeperView: View {
         HStack {
             Button { showGiveUpConfirm = true } label: {
                 Label("諦める", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer()
         }
@@ -164,8 +164,8 @@ public struct MinesweeperView: View {
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Theme.coral, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(.white)
+                        .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.plain)
                 .disabled(isContinuing)
@@ -233,9 +233,9 @@ public struct MinesweeperView: View {
 
             Button { showNewGame = true } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
         }
         .themeBody(14)
@@ -294,9 +294,9 @@ public struct MinesweeperView: View {
                         )
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(flagMode ? Theme.coral : Theme.surface)
+                                .fill(flagMode ? Theme.Fill.coral : Theme.surface)
                         )
-                        .foregroundStyle(flagMode ? .white : Theme.inkSub)
+                        .foregroundStyle(flagMode ? Theme.onAccent : Theme.inkSub)
                         // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない・#197 と同じ）。
                         .contentShape(Rectangle())
                 }
@@ -309,9 +309,9 @@ public struct MinesweeperView: View {
                         )
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.teal : Theme.surface)
+                                .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
                         )
-                        .foregroundStyle(zoomMode ? .white : Theme.inkSub)
+                        .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
                         .contentShape(Rectangle())
                 }
             }
@@ -532,11 +532,11 @@ struct MinesweeperNewGameSheet: View {
                 section("難易度") {
                     HStack(spacing: 12) {
                         chooser(title: "初級", subtitle: "9×9  10地雷",
-                                selected: level == 0, accent: Theme.teal)   { level = 0 }
+                                selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
                         chooser(title: "中級", subtitle: "12×12  25地雷",
-                                selected: level == 1, accent: Theme.yellow) { level = 1 }
+                                selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
                         chooser(title: "上級", subtitle: "15×15  40地雷",
-                                selected: level == 2, accent: Theme.coral)  { level = 2 }
+                                selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
                     }
                 }
                 Spacer()
@@ -548,8 +548,9 @@ struct MinesweeperNewGameSheet: View {
                     }
                 } label: {
                     Text("スタート").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -574,9 +575,9 @@ struct MinesweeperNewGameSheet: View {
                          selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? Theme.onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(
