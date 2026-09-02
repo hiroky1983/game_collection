@@ -180,21 +180,36 @@ check "仕事11 は会長の素のコメントでは発火する（集約が潰�
 # ai:approved が付いた」= 推奨案での決裁成立として当番を起こす。#164 はこの経路が無かったせいで
 # ハンコが押されたまま2週間滞留した。
 # タイムライン付きのノードを組み立てる。
-# 引数: ラベル / ハンコ付与("時刻,actor" 形式・空なら付与イベント無し) / "時刻=本文" の並び（古い順）
+# 引数:
+#   $1 ラベル（カンマ区切り）
+#   $2 `ai:approved` のラベル操作履歴。"時刻,actor,L|U" を `;` で連結（L=付与 / U=剥がし）。
+#      actor を省くと hiroky1983、種別を省くと L。空文字なら履歴そのものが無い（順序不明）
+#   $3.. コメント "時刻=本文"（古い順）。時刻に `,author` を付けると投稿者を指定できる
 stamp_node() {
-  local labels="$1" stamp="$2"; shift 2
-  local jq_labels jq_comments jq_timeline c
+  local labels="$1" stamps="$2"; shift 2
+  local jq_labels jq_comments jq_timeline c key author ev t a kind
   jq_labels=$(printf '%s' "$labels" | tr ',' '\n' | jq -R '{name: .}' | jq -sc .)
   jq_comments='[]'
   for c in "$@"; do
+    key="${c%%=*}"
+    author="hiroky1983"
+    case "$key" in *,*) author="${key#*,}"; key="${key%%,*}" ;; esac
     jq_comments=$(printf '%s' "$jq_comments" \
-      | jq -c --arg t "${c%%=*}" --arg b "${c#*=}" \
-          '. + [{author: {login: "hiroky1983"}, createdAt: $t, body: $b}]')
+      | jq -c --arg t "$key" --arg a "$author" --arg b "${c#*=}" \
+          '. + [{author: {login: $a}, createdAt: $t, body: $b}]')
   done
   jq_timeline='[]'
-  if [ -n "$stamp" ]; then
-    jq_timeline=$(jq -nc --arg t "${stamp%%,*}" --arg a "${stamp#*,}" \
-      '[{createdAt: $t, label: {name: "ai:approved"}, actor: {login: $a}}]')
+  if [ -n "$stamps" ]; then
+    local IFS=';'
+    for ev in $stamps; do
+      t="${ev%%,*}"; a="hiroky1983"; kind="L"
+      case "$ev" in *,*) a="${ev#*,}"; a="${a%%,*}" ;; esac
+      case "$ev" in *,*,*) kind="${ev##*,}" ;; esac
+      jq_timeline=$(printf '%s' "$jq_timeline" | jq -c \
+        --arg t "$t" --arg a "$a" \
+        --arg ty "$([ "$kind" = "U" ] && echo UnlabeledEvent || echo LabeledEvent)" \
+        '. + [{__typename: $ty, createdAt: $t, label: {name: "ai:approved"}, actor: {login: $a}}]')
+    done
   fi
   jq -nc --argjson l "$jq_labels" --argjson c "$jq_comments" --argjson tl "$jq_timeline" \
     '{number: 1, labels: {nodes: $l}, comments: {nodes: $c}, timelineItems: {nodes: $tl}}'
@@ -244,6 +259,21 @@ for entry in "企画議論=企画議論（経営企画室）: 補足します" \
   check "ハンコの後に当番が「${entry%%=*}」を書いても発火する（取りこぼさない）" "true" \
     "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2,hiroky1983" "$T1=$RINGI_THREAD" "$T3=${entry#*=}")")"
 done
+
+# PR #446 の CodeRabbit 指摘（Security & Privacy・Major）。このリポジトリは PUBLIC で誰でも
+# Issue にコメントでき、共同作業者ならラベルも操作できる。検知を第三者に握り潰されない・
+# 第三者のラベル操作を会長のハンコと誤読しないことを確かめる。
+echo "== 10-c. 仕事12: 承認の出所が信頼アカウントであることを要求する（PR #446 指摘）=="
+check "第三者の「決裁反映」コメントでは検知を握り潰せない" "true" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2" "$T1=$RINGI_THREAD" "$T3,attacker=決裁反映: 対応済みです")")"
+check "第三者の決裁スレッド風コメントでも検知を握り潰せない" "true" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2" "$T1=$RINGI_THREAD" "$T3,attacker=## 【要決裁】偽の再掲")")"
+check "会長のハンコの後に第三者が剥がして付け直した場合は発火しない" "false" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2;$T3,attacker,U;$T3,attacker,L" "$T1=$RINGI_THREAD")")"
+check "最新のラベル操作が「剥がし」なら発火しない（会長が承認を取り消した）" "false" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T2;$T3,hiroky1983,U" "$T1=$RINGI_THREAD")")"
+check "会長が付け直した（第三者の剥がしの後）なら発火する" "true" \
+  "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T1,attacker,U;$T2,hiroky1983,L" "$T1=$RINGI_THREAD")")"
 
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")

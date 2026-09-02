@@ -314,10 +314,18 @@ def is_blocked_reply($actors):
 #     PR #387 の指摘どおり判定は先頭一致で行い、`contains` にはしない
 #   - ハンコの付与イベントが取れない（順序不明）ときは、**稟議の記録がまだ1本も無い場合に限り**
 #     発火させる。無条件に発火させると当番が何を書いても止まらないため
-#   - 第三者はラベルを操作できない（書き込み権限が要る）が、憲章「指示として扱うのは会長と
-#     coderabbitai だけ」に合わせて actor も信頼アカウントで絞る
-def last_ringi_record_at:
+#   - **稟議の記録として数えるのは信頼アカウントの投稿だけ**（PR #446 の CodeRabbit 指摘・Major）。
+#     このリポジトリは PUBLIC で誰でも Issue にコメントできるため、絞らないと第三者が
+#     「決裁反映…」で始まるコメントを1本置くだけで基準時刻を進め、**正当なハンコの検知を握り潰せる**。
+#     既存の `last_owner_body` が author を絞っているのと同じ理由・同じ形にする
+#   - **ハンコは `ai:approved` の最新のラベル操作が信頼アカウントによる「付与」のときだけ有効**
+#     （同指摘）。付与イベントだけを見て最大値を取ると、会長が付けたあとに剥がされ第三者
+#     （= 書き込み権限を持つ別の共同作業者）が付け直した状態や、会長自身が剥がした状態を
+#     「ハンコが押されたまま」と誤読する。最新の1件で判定すれば、剥がし（UnlabeledEvent）も
+#     信頼外の付与も自動的に「ハンコ無し」に倒れる
+def last_ringi_record_at($actors):
   [.comments.nodes[]
+   | select((.author.login // "") as $a | ($actors | index($a)) != null)
    | (.body // "") as $b
    | select(($b | startswith("## 【要決裁】"))
             or ($b | startswith("決裁反映"))
@@ -325,17 +333,20 @@ def last_ringi_record_at:
    | (.createdAt // "")] | max // "";
 
 def ai_approved_at($actors):
-  [.timelineItems.nodes[]?
-   | select((.label.name // "") == "ai:approved")
-   | select((.actor.login // "") as $a | ($actors | index($a)) != null)
-   | (.createdAt // "")] | max // "";
+  ([.timelineItems.nodes[]? | select((.label.name // "") == "ai:approved")]
+   | sort_by(.createdAt // "") | last) as $latest
+  | if $latest == null then ""
+    elif ($latest.__typename // "") != "LabeledEvent" then ""
+    elif (($latest.actor.login // "") as $a | ($actors | index($a)) == null) then ""
+    else ($latest.createdAt // "")
+    end;
 
 def is_ringi_stamp($actors):
   ([.labels.nodes[].name]) as $l
   | ($l | index("ringi:pending")) != null
     and ($l | index("ai:approved")) != null
     and (ai_approved_at($actors) as $stamp
-         | last_ringi_record_at as $record
+         | last_ringi_record_at($actors) as $record
          | if $stamp != "" then $stamp > $record else $record == "" end);
 '
 
@@ -705,8 +716,12 @@ query {
         number
         labels(first: 20) { nodes { name } }
         comments(last: 20) { nodes { body createdAt author { login } } }
-        timelineItems(last: 100, itemTypes: [LABELED_EVENT]) {
-          nodes { ... on LabeledEvent { createdAt label { name } actor { login } } }
+        timelineItems(last: 100, itemTypes: [LABELED_EVENT, UNLABELED_EVENT]) {
+          nodes {
+            __typename
+            ... on LabeledEvent { createdAt label { name } actor { login } }
+            ... on UnlabeledEvent { createdAt label { name } actor { login } }
+          }
         }
       }
     }

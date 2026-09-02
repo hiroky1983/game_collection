@@ -108,11 +108,16 @@ Issue はどの検知にも掛からず沈む（#164 は2週間滞留した）�
 
    ```bash
    gh api graphql -f query='query { repository(owner: "hiroky1983", name: "game_collection") {
-     issue(number: N) { timelineItems(last: 100, itemTypes: [LABELED_EVENT]) {
-       nodes { ... on LabeledEvent { createdAt label { name } actor { login } } } } } }' \
+     issue(number: N) { timelineItems(last: 100, itemTypes: [LABELED_EVENT, UNLABELED_EVENT]) {
+       nodes { __typename
+               ... on LabeledEvent { createdAt label { name } actor { login } }
+               ... on UnlabeledEvent { createdAt label { name } actor { login } } } } } }' \
      --jq '.data.repository.issue.timelineItems.nodes[] | select(.label.name == "ai:approved")'
    ```
 
+   **`actor.login` が会長（`hiroky1983`）であることを必ず確認する**。第三者（書き込み権限を持つ共同作業者）の
+   ラベル操作を会長のハンコと読んではならない。剥がしたあとに付け直されている場合は、**最新の操作**が
+   会長による付与でなければハンコ無しとして扱う。
 2. **ハンコが最後の決裁スレッド（`## 【要決裁】…`）より後なら、「推奨案で決裁成立」として扱う**
    （決裁スレッドには必ず推奨案が明記されているため、解釈に曖昧さは無い）。`ringi:pending` を外して
    `ringi:approved` を付け、「決裁反映: ハンコ（`ai:approved` 付与 YYYY-MM-DD）を推奨案 <X> の承認として
