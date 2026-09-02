@@ -318,9 +318,9 @@ public struct MahjongView: View {
             if isRiichi {
                 Text("立直")
                     .font(.system(size: 9, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
@@ -894,8 +894,9 @@ public struct MahjongView: View {
             Label("広告を見て25,000点で復活（1半荘に1回）", systemImage: "play.rectangle.fill")
                 .themeBody(16).frame(maxWidth: .infinity)
                 .minimumScaleFactor(0.8)
+                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
         .disabled(isReviving)
         .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
     }
@@ -940,11 +941,11 @@ public struct MahjongView: View {
             EmptyView()
         case .ronOffer:
             HStack(spacing: 12) {
-                actionButton("見逃す", color: Theme.fillMuted) {
+                actionButton("見逃す", color: Theme.fillMuted, foreground: .white) {
                     model.declineRon()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
-                actionButton("ロン", color: Theme.coral) { model.declareRon() }
+                actionButton("ロン", color: Theme.Fill.coral) { model.declareRon() }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -967,9 +968,9 @@ public struct MahjongView: View {
         case .playing:
             HStack(spacing: 12) {
                 if model.isDeclaringRiichi {
-                    actionButton("やめる", color: Theme.fillMuted) { model.cancelRiichiDeclaration() }
+                    actionButton("やめる", color: Theme.fillMuted, foreground: .white) { model.cancelRiichiDeclaration() }
                 } else {
-                    actionButton("立直", color: Theme.purple, disabled: !model.canDeclareRiichi) {
+                    actionButton("立直", color: Theme.Fill.purple, disabled: !model.canDeclareRiichi) {
                         model.declareRiichi()
                     }
                 }
@@ -980,7 +981,7 @@ public struct MahjongView: View {
                         Task { await model.runCPUTurnsIfNeeded() }
                     }
                 }
-                actionButton("ツモ", color: Theme.coral, disabled: !model.canDeclareTsumo) {
+                actionButton("ツモ", color: Theme.Fill.coral, disabled: !model.canDeclareTsumo) {
                     model.declareTsumo()
                 }
             }
@@ -988,7 +989,7 @@ public struct MahjongView: View {
             .popCard(corner: Theme.cornerSmall)
             .frame(minHeight: Self.actionAreaMinHeight)
         case .handResult:
-            actionButton("次の局へ", color: Theme.coral) {
+            actionButton("次の局へ", color: Theme.Fill.coral) {
                 model.advanceToNextHand()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
@@ -996,7 +997,7 @@ public struct MahjongView: View {
             .popCard(corner: Theme.cornerSmall)
             .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
-            actionButton("もう一度", color: Theme.coral) {
+            actionButton("もう一度", color: Theme.Fill.coral) {
                 model.startGame()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
@@ -1006,13 +1007,17 @@ public struct MahjongView: View {
         }
     }
 
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
     private func actionButton(
-        _ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void
+        _ title: String, color: Color, foreground: Color = Theme.onAccent,
+        disabled: Bool = false, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .frame(maxWidth: .infinity, minHeight: 40)
+                .foregroundStyle(foreground)
         }
         .buttonStyle(.borderedProminent)
         .tint(color)
@@ -1068,8 +1073,9 @@ struct MahjongStartSheet: View {
                     onStart()
                 } label: {
                     Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -1087,9 +1093,9 @@ struct MahjongStartSheet: View {
         HStack(alignment: .top, spacing: 8) {
             Text(num)
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.coral))
+                .background(Circle().fill(Theme.Fill.coral))
             Text(text)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.ink)

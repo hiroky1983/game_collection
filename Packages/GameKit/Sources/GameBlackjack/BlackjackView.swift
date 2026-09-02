@@ -203,15 +203,15 @@ public struct BlackjackView: View {
         case .playerBlackjack:
             Text("ブラックジャック！")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.yellow))
+                .background(Capsule().fill(Theme.Fill.yellow))
         case .win:
             Text("勝ち！")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.teal))
+                .background(Capsule().fill(Theme.Fill.teal))
         case .push:
             Text("引き分け")
                 .font(.system(size: 12, weight: .black, design: .rounded))
@@ -221,15 +221,15 @@ public struct BlackjackView: View {
         case .lose:
             Text("負け")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.coral))
+                .background(Capsule().fill(Theme.Fill.coral))
         case .bust:
             Text("バスト")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.coral))
+                .background(Capsule().fill(Theme.Fill.coral))
         }
     }
 
@@ -258,7 +258,7 @@ public struct BlackjackView: View {
                 ForEach(betOptions, id: \.self) { amount in
                     actionButton(
                         "\(amount)枚",
-                        color: Theme.coral,
+                        color: Theme.Fill.coral,
                         disabled: model.chips < amount
                     ) {
                         model.placeBet(amount)
@@ -272,10 +272,10 @@ public struct BlackjackView: View {
 
     private var playerActionView: some View {
         HStack(spacing: 12) {
-            actionButton("スタンド", color: Theme.fillMuted) {
+            actionButton("スタンド", color: Theme.fillMuted, foreground: .white) {
                 model.stand()
             }
-            actionButton("ヒット", color: Theme.coral) {
+            actionButton("ヒット", color: Theme.Fill.coral) {
                 model.hit()
             }
         }
@@ -286,7 +286,7 @@ public struct BlackjackView: View {
     private var resultView: some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
-            actionButton("次のゲーム", color: Theme.coral) {
+            actionButton("次のゲーム", color: Theme.Fill.coral) {
                 model.nextRound()
             }
         }
@@ -327,14 +327,16 @@ public struct BlackjackView: View {
             } label: {
                 Label("広告を見てチップ回復 (+500枚)", systemImage: "play.rectangle.fill")
                     .themeBody(16).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
             .disabled(isRecoveringChips)
 
             Button { model.restartSession() } label: {
                 Text("最初からやり直す (1000枚)").themeBody(16).frame(maxWidth: .infinity)
+                .foregroundStyle(Theme.onAccent)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -342,7 +344,10 @@ public struct BlackjackView: View {
 
     // MARK: - Helper
 
-    private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
+    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
+                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
@@ -354,7 +359,7 @@ public struct BlackjackView: View {
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : .white)
+                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
         .buttonStyle(.plain)
         .disabled(disabled)

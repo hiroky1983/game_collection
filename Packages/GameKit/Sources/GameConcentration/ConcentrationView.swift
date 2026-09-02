@@ -106,14 +106,14 @@ public struct ConcentrationView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             scoreChip(label: "あなた", score: model.playerScore,
-                      color: Theme.teal, isActive: model.isHumanTurn && !model.isGameOver)
+                      color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver)
             Spacer()
             if model.isThinking {
                 ProgressView().controlSize(.small)
             }
             Spacer()
             scoreChip(label: "CPU", score: model.cpuScore,
-                      color: Theme.coral, isActive: !model.isHumanTurn && !model.isGameOver)
+                      color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -123,10 +123,10 @@ public struct ConcentrationView: View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(isActive ? .white : Theme.inkSub)
+                .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSub)
             Text("\(score)")
                 .font(.system(size: 20, weight: .black, design: .rounded))
-                .foregroundStyle(isActive ? .white : Theme.ink)
+                .foregroundStyle(isActive ? Theme.onAccent : Theme.ink)
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
         .background(Capsule().fill(isActive ? color : Theme.surface))
@@ -249,10 +249,11 @@ public struct ConcentrationView: View {
                     Text("もう一度")
                         .themeBody(16)
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(Theme.purple)
+                .tint(Theme.Fill.purple)
                 .padding(.horizontal, 24)
             }
             .padding(28)
@@ -340,7 +341,7 @@ struct ConcentrationNewGameSheet: View {
                                 title: p.displayName,
                                 subtitle: p.subtitle,
                                 selected: selectedPairCount == p,
-                                accent: Theme.teal
+                                accent: Theme.Fill.teal
                             ) { selectedPairCount = p }
                         }
                     }
@@ -353,7 +354,7 @@ struct ConcentrationNewGameSheet: View {
                                 title: l.displayName,
                                 subtitle: l.subtitle,
                                 selected: selectedCPULevel == l,
-                                accent: Theme.coral
+                                accent: Theme.Fill.coral
                             ) { selectedCPULevel = l }
                         }
                     }
@@ -365,10 +366,11 @@ struct ConcentrationNewGameSheet: View {
                     Text("ゲーム開始")
                         .themeBody(18)
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(Theme.purple)
+                .tint(Theme.Fill.purple)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -397,10 +399,10 @@ struct ConcentrationNewGameSheet: View {
             VStack(spacing: 4) {
                 Text(title)
                     .themeBody(16)
-                    .foregroundStyle(selected ? .white : Theme.ink)
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.ink)
                 Text(subtitle)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.85) : Theme.inkSub)
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)

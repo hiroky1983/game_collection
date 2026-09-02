@@ -122,9 +122,9 @@ public struct GoView: View {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer(minLength: 0)
         }
@@ -163,9 +163,9 @@ public struct GoView: View {
                 Spacer(minLength: 0)
                 Button { model.acceptEndgame() } label: {
                     Text("この結果で終局")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Capsule().fill(Theme.coral))
+                        .background(Capsule().fill(Theme.Fill.coral))
                 }
                 .disabled(model.endgame == nil)
             }
@@ -309,9 +309,9 @@ public struct GoView: View {
                 let isMine = model.state.sideToMove == model.humanSide
                 Text(isMine ? "あなたの番" : "CPUの番")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(isMine ? Theme.teal : Theme.coral))
+                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
@@ -346,9 +346,9 @@ public struct GoView: View {
         HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
@@ -640,9 +640,11 @@ struct GoNewGameSheet: View {
                     section("あなたの石") {
                         HStack(spacing: 12) {
                             chooser(title: "●黒", subtitle: "先番",
-                                    selected: side == .black, accent: Theme.fillStrong) { side = .black }
+                                    selected: side == .black, accent: Theme.fillStrong,
+                                    onAccent: .white) { side = .black }
                             chooser(title: "○白", subtitle: "後番",
-                                    selected: side == .white, accent: Theme.fillMuted) { side = .white }
+                                    selected: side == .white, accent: Theme.fillMuted,
+                                    onAccent: .white) { side = .white }
                         }
                     }
                     section("CPUの強さ") {
@@ -662,7 +664,7 @@ struct GoNewGameSheet: View {
                                     chooser(title: count == 0 ? "互先" : "\(count)子",
                                             subtitle: count == 0 ? "コミ6.5" : "コミ0.5",
                                             selected: handicap == count,
-                                            accent: Theme.purple) { handicap = count }
+                                            accent: Theme.Fill.purple) { handicap = count }
                                 }
                             }
                         }
@@ -670,8 +672,9 @@ struct GoNewGameSheet: View {
 
                     Button { onStart(side, level, side == .black ? handicap : 0) } label: {
                         Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
                     }
-                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
                 }
                 .padding(Theme.pad)
             }
@@ -690,9 +693,9 @@ struct GoNewGameSheet: View {
 
     private func accent(for level: GoLevel) -> Color {
         switch level {
-        case .easy:   return Theme.teal
-        case .normal: return Theme.yellow
-        case .hard:   return Theme.coral
+        case .easy:   return Theme.Fill.teal
+        case .normal: return Theme.Fill.yellow
+        case .hard:   return Theme.Fill.coral
         }
     }
 
@@ -703,13 +706,16 @@ struct GoNewGameSheet: View {
         }
     }
 
+    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
+    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
     private func chooser(title: String, subtitle: String,
-                         selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
+                         selected: Bool, accent: Color, onAccent: Color = Theme.onAccent,
+                         action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(20).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(20).foregroundStyle(selected ? onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 14)

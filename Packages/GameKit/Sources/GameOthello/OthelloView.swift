@@ -124,9 +124,9 @@ public struct OthelloView: View {
                 let isMine = !model.isAITurn
                 Text(isMine ? "あなたの番" : "CPUの番")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(isMine ? Theme.teal : Theme.coral))
+                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                 }
@@ -265,9 +265,9 @@ public struct OthelloView: View {
         HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
 
             Spacer()
@@ -394,9 +394,9 @@ public struct OthelloView: View {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer(minLength: 0)
         }
@@ -603,26 +603,29 @@ struct OthelloNewGameSheet: View {
                 section("あなたの石") {
                     HStack(spacing: 12) {
                         chooser(title: "●黒", subtitle: "先手",
-                                selected: side == .black, accent: Theme.fillStrong) { side = .black }
+                                selected: side == .black, accent: Theme.fillStrong,
+                                onAccent: .white) { side = .black }
                         chooser(title: "○白", subtitle: "後手",
-                                selected: side == .white, accent: Theme.fillMuted) { side = .white }
+                                selected: side == .white, accent: Theme.fillMuted,
+                                onAccent: .white) { side = .white }
                     }
                 }
                 section("CPUの強さ") {
                     HStack(spacing: 12) {
                         chooser(title: "弱",   subtitle: "浅い読み",
-                                selected: level == 0, accent: Theme.teal)   { level = 0 }
+                                selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
                         chooser(title: "普通", subtitle: "標準",
-                                selected: level == 1, accent: Theme.yellow) { level = 1 }
+                                selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
                         chooser(title: "強",   subtitle: "深い読み",
-                                selected: level == 2, accent: Theme.coral)  { level = 2 }
+                                selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
                     }
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
                     Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -643,13 +646,16 @@ struct OthelloNewGameSheet: View {
         }
     }
 
+    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
+    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
     private func chooser(title: String, subtitle: String, selected: Bool,
-                         accent: Color, action: @escaping () -> Void) -> some View {
+                         accent: Color, onAccent: Color = Theme.onAccent,
+                         action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(

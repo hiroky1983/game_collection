@@ -236,9 +236,9 @@ public struct HowToPlaySheet<Extra: View>: View {
                         HStack(alignment: .top, spacing: 10) {
                             Text("\(index + 1)")
                                 .font(.system(size: 13, weight: .black, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Theme.onAccent)
                                 .frame(width: 22, height: 22)
-                                .background(Circle().fill(Theme.coral))
+                                .background(Circle().fill(Theme.Fill.coral))
                             Text(line)
                                 .themeBody(15)
                                 .foregroundStyle(Theme.ink)

@@ -574,9 +574,9 @@ public struct SolitaireView: View {
 
             Button { model.newGame() } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
         }
         .themeBody(14)
@@ -586,7 +586,7 @@ public struct SolitaireView: View {
 
     private var gameControls: some View {
         HStack(spacing: 8) {
-            controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.coral) {
+            controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral) {
                 model.undo()
             }
             .disabled(!model.canUndo)
@@ -597,7 +597,7 @@ public struct SolitaireView: View {
 
             // 「あとは組札へ積むだけ」になった局面でだけ出す。終盤の 52 回タップを 1 回に畳む。
             if model.canAutoFinish {
-                controlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.teal) {
+                controlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
                     model.autoFinish()
                 }
                 .accessibilityHint("残りの札をまとめて組札へ送ります")
@@ -619,7 +619,7 @@ public struct SolitaireView: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .lineLimit(1)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 12)
                 // 高さは 44pt（#199 で全ゲームの操作ボタンに揃えた下限）。
                 .frame(minHeight: 44)
@@ -655,8 +655,8 @@ public struct SolitaireView: View {
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Theme.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(.white)
+                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
+                            .foregroundStyle(Theme.onAccent)
                     }
                     .buttonStyle(.plain)
                 }

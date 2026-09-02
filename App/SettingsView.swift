@@ -177,7 +177,7 @@ struct SettingsView: View {
     private func gameRow(module: GameModule, id: String) -> some View {
         let isVisible = !settings.hiddenIDs.contains(id)
         let idx = settings.orderedIDs.firstIndex(of: id) ?? 0
-        let accent = Theme.palette[idx % Theme.palette.count]
+        let accent = Theme.Fill.palette[idx % Theme.Fill.palette.count]
 
         return Toggle(isOn: Binding(
             get: { isVisible },
@@ -190,7 +190,7 @@ struct SettingsView: View {
                     .overlay {
                         module.icon
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.onAccent)
                     }
                 Text(module.title)
                     .themeBody(16)

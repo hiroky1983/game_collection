@@ -150,7 +150,7 @@ struct MahjongSolitaireHintAdContractTests {
     func hintButtonOpensConfirmationFirst() throws {
         let source = try Self.viewSource()
         #expect(
-            source.contains(#"controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.teal, showsTitle: showsTitle) {"#),
+            source.contains(#"controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.Fill.teal, showsTitle: showsTitle) {"#),
             "ヒントボタンの定義が見つからない（テストの走査が空振りしている）"
         )
         #expect(source.contains("showHintConfirm = true"), "確認ダイアログを開いていない")
