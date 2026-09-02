@@ -274,24 +274,73 @@ struct SudokuModelHintTests {
     }
 }
 
+/// 生成タスクを生成の開始直前で止めておくためのゲート（#419。オセロ・将棋の `ThinkingGate` と同じ形）。
+///
+/// 以前は `Task.yield()` を 100 回まで回して `isGenerating` が立つのを待っていたが、これは
+/// 「回し終えた時点で生成がまだ終わっていない」ことまでは保証できない。`yield` 1 回の実時間は
+/// MainActor のジョブ行列の長さで決まるため、囲碁の重い CPU テストと並列に走ると 100 回ぶんで
+/// `hard` の生成（実測 約1秒）を追い越し、2 本目が「弾かれる」のではなく普通に走ってしまう。
+///
+/// ここではモデル側の待ち合わせ点（`generationGate`）で生成を明示的に止め、テストが `release()` を
+/// 呼ぶまで先へ進ませない。到達も解放もテストが制御するため、生成の所要時間に依存しない。
+@MainActor
+private final class GenerationGate {
+    private var hasArrived = false
+    private var isReleased = false
+    private var onArrival: CheckedContinuation<Void, Never>?
+    private var onRelease: CheckedContinuation<Void, Never>?
+
+    /// 生成タスク側。ゲートへの到達を知らせ、`release()` まで停止する。
+    func wait() async {
+        hasArrived = true
+        onArrival?.resume()
+        onArrival = nil
+        guard !isReleased else { return }
+        await withCheckedContinuation { onRelease = $0 }
+    }
+
+    /// テスト側。生成タスクがゲートに到達するまで待つ。
+    func waitUntilArrived() async {
+        guard !hasArrived else { return }
+        await withCheckedContinuation { onArrival = $0 }
+    }
+
+    /// テスト側。止めていた生成タスクを進ませる。
+    func release() {
+        isReleased = true
+        onRelease?.resume()
+        onRelease = nil
+    }
+}
+
 @Suite("数独 Model の新規ゲームの再入")
 @MainActor
 struct SudokuModelNewGameTests {
 
     @Test("生成中の新規ゲーム要求は弾かれる（2本目の生成が走らない）")
-    func newGameIsNotReentrant() async {
+    func newGameIsNotReentrant() async throws {
         let (model, _) = makeModel()
-        async let first: Void = model.newGame(difficulty: .hard)
+        let gate = GenerationGate()
+        model.generationGate = { await gate.wait() }
+        let first = Task { await model.newGame(difficulty: .hard) }
+        // 途中の `#require` が失敗して抜けたときも、ゲートで止まっている 1 本目を必ず解放する
+        // （解放しないと `withCheckedContinuation` が再開されないまま残る）。
+        // 正常系では下で先に `release()` するが、2 度呼んでも無害。
+        defer { gate.release() }
 
-        // 1 本目が `.generating` に入るまで進める（実時間では待たない）。
-        for _ in 0..<100 where !model.isGenerating { await Task.yield() }
-        #expect(model.isGenerating)
+        // 1 本目が `.generating` に入り、生成の直前で止まるまで待つ（実時間では待たない）。
+        await gate.waitUntilArrived()
+        // ゲートは一度到達したら外す。停止中の 1 本目はすでにゲートの中にいるため影響を受けず、
+        // 万一 2 本目が弾かれずに走ってしまったときも、待ちぼうけではなく #expect の失敗になる。
+        model.generationGate = nil
+        try #require(model.isGenerating, "テストの前提: 1 本目が生成中で止まっていること")
 
         // 2 本目。弾かれるので**生成を始めずに即座に返る**。
         await model.newGame(difficulty: .easy)
         #expect(model.isGenerating, "弾かれたので、まだ 1 本目が生成中のまま")
 
-        await first
+        gate.release()
+        await first.value
         #expect(model.state == .playing)
         #expect(model.difficulty == .hard, "先に入った方の盤が残る")
         #expect(model.board.count == 81)
