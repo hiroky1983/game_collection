@@ -9,20 +9,32 @@ class ConcentrationAI {
     private let accuracy: Double
     /// 記憶: カードインデックス → シンボル
     private var memory: [Int: String] = [:]
+    /// 「覚えるか」の判定を済ませたカード。再観測で判定をやり直さないための記録（#442）
+    private var judged: Set<Int> = []
+    /// 判定に使う 0..<1 の乱数。テストから決定的な列を注入できるようにしている（#442）
+    private let roll: () -> Double
 
-    init(accuracy: Double) {
+    init(accuracy: Double, roll: @escaping () -> Double = { Double.random(in: 0..<1) }) {
         self.accuracy = accuracy
+        self.roll = roll
     }
 
-    /// 表向きにされたカードを確率的に記憶する
+    /// 表向きにされたカードを確率的に記憶する。
+    ///
+    /// 判定は**カードごとに1回だけ**行う。観測のたびに独立に判定すると、同じ札を n 回見た
+    /// 実効記憶率が `1-(1-p)^n` まで上がり、難易度ラベル（「記憶30%」等）より賢くなる（#442）。
+    /// 覚えられなかった札は、何度めくられても覚えられないままにする。
     func observe(index: Int, symbol: String) {
-        let shouldMemorize = Double.random(in: 0..<1) < accuracy
-        if shouldMemorize {
+        guard judged.insert(index).inserted else { return }
+        if roll() < accuracy {
             memory[index] = symbol
         }
     }
 
-    /// マッチしたカードをメモリから削除する
+    /// マッチしたカードをメモリから削除する。
+    ///
+    /// 判定済みの記録（`judged`）は消さない。消すと、その札がもう一度観測されたときに
+    /// 判定をやり直せてしまい、`observe` が潰した記憶率の累積が戻る。
     func forget(indices: [Int]) {
         indices.forEach { memory.removeValue(forKey: $0) }
     }
@@ -76,5 +88,6 @@ class ConcentrationAI {
 
     func reset() {
         memory = [:]
+        judged = []
     }
 }
