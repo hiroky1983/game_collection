@@ -349,6 +349,46 @@ struct BlackjackSplitTests {
         #expect(model.bet == 300, "場の総額は 200 + 100")
     }
 
+    @Test("両手ともダブルまで積んでも残高を割らない（最大 4 倍の賭けが上限）")
+    func doublingBothSplitHandsStaysWithinBankroll() {
+        // 残高 400・1手 100。スプリットで 200、両手ダブルでちょうど 400 = 全額。
+        // 10,10 を割って各手 15 にし、10 を足して両方 25（バスト）にする。
+        let model = makeSplitReadyModel(rank: 10, dealer: [10, 7], deck: [5, 5, 10, 10], chips: 400)
+        model.split()
+        #expect(model.bet == 200)
+
+        model.doubleDown()          // ハンド1: 100 → 200
+        #expect(model.bet == 300)
+        #expect(model.activeHandIndex == 1)
+
+        #expect(model.canDoubleDown, "残り余力 100 = ハンド2 の賭け金なのでちょうど足りる")
+        model.doubleDown()          // ハンド2: 100 → 200
+        #expect(model.hands.allSatisfy { $0.bet == 200 })
+
+        #expect(model.chips == 0, "全額を失っても残高はちょうど 0 で止まる")
+        #expect(model.chips >= 0)
+        #expect(model.sessionOver)
+    }
+
+    @Test("余力を使い切ったら2手目のダブルは断られる")
+    func secondDoubleRefusedWhenBankrollExhausted() {
+        // 残高 300・1手 100。スプリットで 200、ハンド1 のダブルで 300 = 全額。
+        // ハンド2 をダブルすると 400 になり残高を超えるので選べない。
+        let model = makeSplitReadyModel(rank: 10, dealer: [10, 7], deck: [5, 5, 2, 2], chips: 300)
+        model.split()
+        model.doubleDown()
+
+        #expect(model.bet == 300)
+        #expect(model.activeHandIndex == 1)
+        #expect(model.isDoubleDownApplicable, "形としては2枚なのでボタンは出る")
+        #expect(!model.canDoubleDown, "余力 0 なので押せない")
+
+        model.doubleDown()
+        #expect(model.hands[1].bet == 100, "賭け金は増えていない")
+        #expect(model.bet == 300)
+        #expect(model.phase == .playerTurn, "手番も進んでいない")
+    }
+
     @Test("スプリットしたラウンドでもチップが尽きればセッション終了になる")
     func sessionEndsWhenChipsRunOut() {
         // 残高 200・各手 100 で両方負ける
@@ -494,12 +534,38 @@ struct BlackjackBaselineTests {
 
     @Test("ベットするとダブルダウンとスプリットの可否が手札から決まる")
     func freshDealExposesOptions() {
-        let model = BlackjackModel(seed: 42)
-        model.placeBet(100)
-        guard model.phase == .playerTurn else { return }
+        // 種によっては配った瞬間にナチュラルで決着して `.playerTurn` に入らないため、
+        // 「たまたま検証されずに通る」ことが無いよう、手番になった種で必ず1回検証する。
+        for seed in UInt64(1)...200 {
+            let model = BlackjackModel(seed: seed)
+            model.placeBet(100)
+            guard model.phase == .playerTurn else { continue }
 
-        let hand = model.playerHand
-        #expect(model.isDoubleDownApplicable == (hand.count == 2))
-        #expect(model.isSplitApplicable == (hand.count == 2 && hand[0].rank == hand[1].rank))
+            let hand = model.playerHand
+            #expect(hand.count == 2)
+            #expect(model.isDoubleDownApplicable)
+            #expect(model.isSplitApplicable == (hand[0].rank == hand[1].rank))
+            return
+        }
+        Issue.record("配ってプレイヤーの手番になる種が 200 件の中に無かった")
+    }
+
+    @Test("同ランクが配られた種ではスプリットが提示される")
+    func freshDealOffersSplitOnPair() {
+        // 上のテストは「ペアが来なければ isSplitApplicable が false」までしか見ないので、
+        // 実際にペアが配られたときに true になることも種を探して固定する。
+        for seed in UInt64(1)...5000 {
+            let model = BlackjackModel(seed: seed)
+            model.placeBet(100)
+            guard model.phase == .playerTurn,
+                  model.playerHand[0].rank == model.playerHand[1].rank else { continue }
+
+            #expect(model.isSplitApplicable)
+            #expect(model.canSplit)
+            model.split()
+            #expect(model.hands.count == 2)
+            return
+        }
+        Issue.record("同ランク2枚が配られる種が 5000 件の中に無かった")
     }
 }
