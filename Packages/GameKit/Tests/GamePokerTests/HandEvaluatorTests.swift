@@ -257,6 +257,15 @@ struct CPUKeepTests {
         #expect(HandEvaluator.cpuKeepIndices(from: hand) == [0, 1, 2, 3])
     }
 
+    @Test func highCardKeepsOpenEndedStraightDrawBelowTheHighCard() {
+        // 4連続が手札の一番上ではなく2番目から始まる筋（A が余る）。
+        // 検査窓が1つしか無いと拾えないので、窓が2つあることを固定する
+        let hand = [card(14, .spades), card(9, .hearts), card(8, .diamonds),
+                    card(7, .clubs), card(6, .spades)]
+        #expect(HandEvaluator.evaluate(hand).rank == .highCard)
+        #expect(HandEvaluator.cpuKeepIndices(from: hand) == [1, 2, 3, 4])
+    }
+
     @Test func highCardKeepsBroadwayStraightDraw() {
         // J-Q-K-A。A を 14 として数える筋なので現行の実装でも拾える
         let hand = [card(14, .spades), card(13, .hearts), card(12, .diamonds),
