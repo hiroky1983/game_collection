@@ -61,18 +61,48 @@ public enum SolitaireAccessibility {
     }
 
     /// ステータスバーの 1 行。
+    /// - Parameter isLost: 敗北確定（#406）。告知を閉じたあとも音声で状態が分かるようにする
+    ///   （画面には 🤔 が出続けるので、読み上げだけ何も言わないと状態が伝わらない）。
     public static func statusLabel(
         phase: SolitairePhase,
         elapsedSeconds: Int,
         moveCount: Int,
-        isDeadEnd: Bool
+        isDeadEnd: Bool,
+        isLost: Bool = false
     ) -> String {
         let base = "経過\(RecordFormat.time(elapsedSeconds))、\(moveCount)手"
         switch phase {
         case .won:
             return "クリア。\(base)"
         case .playing:
-            return isDeadEnd ? "進める手がありません。\(base)" : base
+            if isDeadEnd { return "進める手がありません。\(base)" }
+            return isLost ? "このままではクリアできません。\(base)" : base
         }
+    }
+
+    /// ジョーカーの所持ボタン（#406）。**所持しているかどうかが音声だけで分かる**必要がある。
+    ///
+    /// ボタンは持っていない間も枠を残す（見た目は薄くなるだけ）ので、
+    /// 画面を見ずに「ジョーカー」とだけ読まれると、持っていないのに押せると誤解される。
+    public static func jokerButtonLabel(hasJoker: Bool, isPlacing: Bool) -> String {
+        if isPlacing { return "ジョーカーを置くのをやめる" }
+        return hasJoker ? "ジョーカーを使う、1枚所持" : "ジョーカー、所持していません"
+    }
+
+    /// - Note: 補充の案内は**救済の告知が出る条件**（行き止まり = 有効手ゼロ、または
+    ///   敗北確定）に合わせる。「行き止まりになったとき」とだけ言うと、指せる手が残っている
+    ///   敗北確定でも広告が出ることが音声では伝わらない（PR #457 の CodeRabbit 指摘）。
+    public static func jokerButtonHint(hasJoker: Bool, isPlacing: Bool) -> String {
+        if isPlacing { return "置き先の列をタップすると置けます" }
+        return hasJoker
+            ? "押したあと、置きたい列をタップします"
+            : "手詰まりかクリアできない局面になったとき、広告を見て1枚受け取れます"
+    }
+
+    /// 救済の告知（#406）。行き止まりと敗北確定を読み分ける。
+    public static func rescuePromptLabel(isDeadEnd: Bool, hasJoker: Bool) -> String {
+        let head = isDeadEnd ? "進める手がありません" : "このままではクリアできません"
+        let action = hasJoker ? "ジョーカーが1枚使えます" : "広告を見るとジョーカーを1枚受け取れます"
+        return "\(head)。\(action)"
     }
 }

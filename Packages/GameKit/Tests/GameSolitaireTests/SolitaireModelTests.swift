@@ -276,13 +276,15 @@ struct SolitaireModelTests {
         #expect(resumed.revealedCardIDs.isEmpty)
     }
 
-    @Test("ジョーカーは所持していないと置けない（入手経路は #406 の決裁待ち）")
+    @Test("ジョーカーは所持していないと置けない（使い切ったあとは拒否される・#406）")
     func jokerNeedsPossession() {
         let (services, _) = makeServices()
         let model = SolitaireModel(services: services, seed: fixedSeed)
-        #expect(!model.board.jokerAvailable)
-        #expect(model.placeJoker(onPile: 0) == false)
-        #expect(!model.jokerUsed)
+        // 初期所持の 1 枚を置き切ってから試す（#397 のジョーカー経済）。
+        #expect(model.placeJoker(onPile: 0))
+        #expect(!model.hasJoker)
+
+        #expect(model.placeJoker(onPile: 1) == false)
         #expect(model.rejectedTapCount == 1)
     }
 }

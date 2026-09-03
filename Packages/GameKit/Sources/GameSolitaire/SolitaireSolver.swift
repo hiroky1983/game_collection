@@ -21,7 +21,8 @@ public enum SolitaireSolver {
         /// 勝ち筋（見つからなければ nil）。先頭から順に `SolitaireBoard.apply` すればクリアに到達する。
         public let solution: [SolitaireMove]?
         public let statesExplored: Int
-        /// 探索上限に達して打ち切ったか。true のときの `solution == nil` は「不能」ではなく「不明」。
+        /// 最後まで探索せずに打ち切ったか（**探索上限に達した**か、**取り消された**か）。
+        /// true のときの `solution == nil` は「不能」ではなく「不明」。
         public let hitLimit: Bool
 
         public var isSolvable: Bool { solution != nil }
@@ -33,10 +34,15 @@ public enum SolitaireSolver {
     /// 取りこぼしより速さを採る（捨てた種は「難しい配札」に偏るが、出題としてはむしろ望ましい）。
     public static let defaultMaxStates = 60_000
 
+    /// - Parameter isCancelled: 探索を途中で降ろすかを訊く。**局面を 1 つ取り出すたびに呼ぶ**ので、
+    ///   重い判定を渡さないこと。true を返したら `hitLimit` を立てて打ち切る（＝「不明」に倒れる。
+    ///   途中まで見ただけの結果を「クリア不能」と読ませないため）。既定は「降ろさない」。
+    ///   実行時の敗北確定の検知（#406）が、盤面が動いた時点で走行中の探索を止めるのに使う。
     public static func solve(
         _ board: SolitaireBoard,
         allowJoker: Bool = false,
-        maxStates: Int = defaultMaxStates
+        maxStates: Int = defaultMaxStates,
+        isCancelled: () -> Bool = { false }
     ) -> Result {
         let (root, rootMoves) = autoplaySafe(board)
         if root.isWon {
@@ -49,6 +55,9 @@ public enum SolitaireSolver {
         var order = 0
 
         while let index = frontier.pop() {
+            if isCancelled() {
+                return Result(solution: nil, statesExplored: nodes.count, hitLimit: true)
+            }
             let current = nodes[index].board
             for moves in successors(of: current, allowJoker: allowJoker) {
                 var next = current
