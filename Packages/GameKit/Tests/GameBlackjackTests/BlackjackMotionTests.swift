@@ -122,9 +122,11 @@ struct BlackjackMotionTests {
             Self.matchCount(of: #"BlackjackMotion\.dealAppear\(index:"#, in: source) == 1,
             "配布に段差付きのアニメーションが掛かっていない"
         )
+        // プレイヤー側は通常の手札とスプリット後の各手（#439）で複数箇所から呼ぶため
+        // 件数は固定しない。ディーラー側は 1 箇所のままであることを見る。
         #expect(
             Self.matchCount(of: #"isDealer: true"#, in: source) == 1
-                && Self.matchCount(of: #"isDealer: false"#, in: source) == 1,
+                && Self.matchCount(of: #"isDealer: false"#, in: source) >= 1,
             "配る順（あなた → ディーラー）の指定が View 側で失われている"
         )
 

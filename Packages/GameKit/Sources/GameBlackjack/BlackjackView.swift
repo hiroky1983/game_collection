@@ -57,6 +57,24 @@ public struct BlackjackView: View {
             }
         }
         .howToPlay(.blackjack)
+        .onAppear {
+            #if DEBUG
+            // 撮影・動作確認用: `-simulateBlackjackAction <double|split|hit|stand>` でその操作を1回行う（#439）。
+            // 配りが乱数なので中断スナップショットを注入して手札を決め打ちしたうえで、
+            // タップ起点の操作をここから起こす（#437 の `-simulateChord`・#438 の
+            // `-simulate2048Move` と同型。撮った画がコードの実行結果であることを担保する）。
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-simulateBlackjackAction"), i + 1 < args.count {
+                switch args[i + 1] {
+                case "double": model.doubleDown()
+                case "split":  model.split()
+                case "hit":    model.hit()
+                case "stand":  model.stand()
+                default:       break
+                }
+            }
+            #endif
+        }
         .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -157,6 +175,21 @@ public struct BlackjackView: View {
 
     private var playerArea: some View {
         VStack(spacing: 10) {
+            // スプリットしたラウンドは手が2つに割れ、それぞれ賭け金も勝敗も別（#439）。
+            if model.hands.count > 1 {
+                ForEach(Array(model.hands.enumerated()), id: \.element.id) { idx, hand in
+                    splitHandRow(index: idx, hand: hand)
+                }
+            } else {
+                singleHandArea
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 14)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var singleHandArea: some View {
+        VStack(spacing: 10) {
             HStack {
                 Text("あなた")
                     .themeBody(13)
@@ -193,8 +226,54 @@ public struct BlackjackView: View {
             }
             .frame(minHeight: 90)
         }
-        .padding(.horizontal, 14).padding(.vertical, 14)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    // MARK: - Split Hands (#439)
+
+    /// スプリットで分かれた手 1 つぶん。2 手ぶんを縦に積むため札は `compact` で描く。
+    private func splitHandRow(index: Int, hand: BlackjackHand) -> some View {
+        let isActive = model.phase == .playerTurn && index == model.activeHandIndex
+        return VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                Text("ハンド\(index + 1)")
+                    .themeBody(13)
+                    .foregroundStyle(isActive ? Theme.ink : Theme.inkSub)
+                Text("\(hand.bet)枚\(hand.isDoubled ? "（ダブル）" : "")")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
+                if isActive {
+                    Text("操作中")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.onAccent)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.Fill.teal))
+                }
+                Spacer(minLength: 0)
+                Text("\(hand.value)")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .foregroundStyle(hand.isBusted ? Theme.coral : Theme.teal)
+                if let outcome = hand.outcome {
+                    outcomeBadge(outcome)
+                }
+            }
+            HStack(spacing: 6) {
+                ForEach(Array(hand.cards.enumerated()), id: \.element.id) { idx, card in
+                    BJDealtCardView(index: idx, isDealer: false) {
+                        BJCardView(card: card, faceUp: true, metrics: .compact)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 60)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isActive ? Theme.teal : Color.clear, lineWidth: 2)
+        )
     }
 
     @ViewBuilder
@@ -271,12 +350,32 @@ public struct BlackjackView: View {
     }
 
     private var playerActionView: some View {
-        HStack(spacing: 12) {
-            actionButton("スタンド", color: Theme.fillMuted, foreground: .white) {
-                model.stand()
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                actionButton("スタンド", color: Theme.fillMuted, foreground: .white) {
+                    model.stand()
+                }
+                actionButton("ヒット", color: Theme.Fill.coral) {
+                    model.hit()
+                }
             }
-            actionButton("ヒット", color: Theme.Fill.coral) {
-                model.hit()
+            // ダブルダウン・スプリットは最初の2枚のときだけの選択肢（#439）。
+            // 手の形が合っているあいだだけ並べ、チップが足りないときは押せなくする。
+            if model.isDoubleDownApplicable || model.isSplitApplicable {
+                HStack(spacing: 12) {
+                    if model.isDoubleDownApplicable {
+                        actionButton("ダブルダウン", color: Theme.Fill.yellow,
+                                     disabled: !model.canDoubleDown) {
+                            model.doubleDown()
+                        }
+                    }
+                    if model.isSplitApplicable {
+                        actionButton("スプリット", color: Theme.Fill.purple,
+                                     disabled: !model.canSplit) {
+                            model.split()
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -441,8 +540,8 @@ struct BJFlipCardView: View, Animatable {
 struct BJCardView: View {
     let card: BlackjackCard
     var faceUp: Bool = true
-
-    private let metrics = PlayingCardMetrics.standard
+    /// 札の寸法。スプリットで2手を縦に積むときだけ `compact` を渡す（#439）。
+    var metrics: PlayingCardMetrics = .standard
 
     var body: some View {
         ZStack {
