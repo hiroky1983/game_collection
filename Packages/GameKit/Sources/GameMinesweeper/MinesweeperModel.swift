@@ -131,8 +131,13 @@ public final class MinesweeperModel {
     public var gameOver: Bool      { gameState == .won || gameState == .lost }
 
     /// 記録を分ける区分のキー。盤の大きさと地雷数が同じものを同じ難易度として扱う。
-    /// 難易度の enum を持たない（View が rows/cols/mines を直接渡す）ため、盤の構成から導く。
-    private var recordVariant: String { "\(rows)x\(cols)-\(totalMines)" }
+    /// 盤はプリセット以外（中断データ由来の旧プリセット）もありうるので、構成から導く。
+    ///
+    /// **この文字列は Game Center のリーダーボードの振り分けにもそのまま使われる**
+    /// （`GameCenterLeaderboard.timeLeaderboardID`）。`private` にせず `@testable` から
+    /// 読めるようにしているのは、プリセットと順位表の対応が切れていないかを機械的に
+    /// 確かめるため（#444）。
+    var recordVariant: String { "\(rows)x\(cols)-\(totalMines)" }
 
     /// 区分の表示名。新規対局シートのプリセット3種は日本語名、それ以外は盤サイズで表す。
     ///

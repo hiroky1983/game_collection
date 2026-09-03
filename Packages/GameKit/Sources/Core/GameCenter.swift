@@ -149,10 +149,19 @@ public enum GameCenterLeaderboard {
         case "minesweeper":
             // 区分キーは `MinesweeperModel` が盤の構成から作る "行x列-地雷数"。
             switch variant {
+            // **`MinesweeperDifficulty` を変えたらここも直す**（#444）。Core は GameMinesweeper に
+            // 依存できない（依存の向きが逆）ため文字列を写し取るしかなく、二重管理になる。
+            // 食い違うと「中級・上級で何秒でクリアしても順位表に載らない」という静かな故障になるので、
+            // `MinesweeperGameCenterVariantTests` が両者の一致を機械的に確かめている。
             case "9x9-10":   return minesweeperBeginner
-            case "12x12-25": return minesweeperIntermediate
-            case "15x15-40": return minesweeperExpert
-            default:         return nil   // カスタム盤は対象外
+            case "16x16-40": return minesweeperIntermediate
+            case "20x20-82": return minesweeperExpert
+            // カスタム盤に加えて**旧プリセット**（"12x12-25" / "15x15-40"・#444 以前）も対象外。
+            // 旧中級は 12×12/25、新中級は 16×16/40 で盤の広さも密度も違うため、同じ表に混ぜると
+            // 盤が小さいぶん有利な旧記録が上位を占める（冒頭の「初級と上級を混ぜない」と同じ理由）。
+            // 旧プリセットは中断データを再開したときにだけ現れる過渡的なもので、新規対局からは
+            // 二度と作られない。
+            default:         return nil
             }
         case "solitaire":
             // 区分を持たないので、区分キーが付いていないときだけ送る。

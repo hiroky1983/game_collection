@@ -440,6 +440,57 @@ struct MinesweeperDifficultyPresetTests {
             #expect(model.recordVariantLabel == preset.label)
         }
     }
+}
+
+/// プリセットと Game Center のリーダーボードの対応（#444）。
+///
+/// `GameCenterLeaderboard` は `Core` にあり、依存の向きの都合で `MinesweeperDifficulty` を
+/// 参照できないため、区分キーの文字列（"行x列-地雷数"）を写し取っている。**この写しが古いままだと
+/// 「中級・上級で何秒かけてクリアしても順位表に載らない」という、画面にも CI にも何も出ない故障になる**
+/// （プリセットを変えた最初の実装で実際に見落とし、`verifier` の敵対的検証で見つかった）。
+/// ここで両者を突き合わせて、次に誰かがプリセットを変えたら必ず落ちるようにしておく。
+@Suite("マインスイーパーのプリセットと順位表の対応（#444）")
+@MainActor
+struct MinesweeperGameCenterVariantTests {
+
+    /// プリセットの区分キーは、実際にモデルが作るもの（`recordVariant`）を使う。
+    /// テスト側で "16x16-40" と書き写すと、モデルの組み立て方が変わったときに空振りする。
+    private static func variant(for preset: MinesweeperDifficulty) -> String {
+        MinesweeperModel(rows: preset.rows, cols: preset.cols, mines: preset.mines).recordVariant
+    }
+
+    private static func leaderboardID(_ variant: String) -> String? {
+        GameCenterLeaderboard.score(
+            gameID: "minesweeper", outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 30, variant: variant)
+        )?.leaderboardID
+    }
+
+    @Test("3つのプリセットすべてが、それぞれ別のリーダーボードへ送られる")
+    func everyPresetMapsToItsOwnLeaderboard() {
+        var seen: [String] = []
+        for preset in MinesweeperDifficulty.allCases {
+            let v = Self.variant(for: preset)
+            let id = Self.leaderboardID(v)
+            #expect(id != nil,
+                    "\(preset.label)（\(v)）が順位表に送られない。GameCenter.swift の対応表が古い")
+            if let id { seen.append(id) }
+        }
+        #expect(Set(seen).count == MinesweeperDifficulty.allCases.count,
+                "難易度ごとに別の表でなければ、初級のタイムと上級のタイムが同じ表に混ざる")
+        #expect(Set(seen).isSubset(of: Set(GameCenterLeaderboard.allIDs)),
+                "App Store Connect への登録一覧（allIDs）に無い ID へ送っている")
+    }
+
+    @Test("プリセット以外の盤は送らない（カスタム盤・旧プリセット）")
+    func nonPresetBoardsAreNotSent() {
+        let presetVariants = Set(MinesweeperDifficulty.allCases.map(Self.variant(for:)))
+        for variant in ["12x12-25", "15x15-40", "20x20-99", "7x7-5"] {
+            #expect(!presetVariants.contains(variant), "前提: \(variant) はプリセットではない")
+            #expect(Self.leaderboardID(variant) == nil,
+                    "\(variant) が順位表に載っている（盤の広さも密度も違う記録が混ざる）")
+        }
+    }
 
     /// 旧プリセットは区分としては別物になったので、日本語名を共有させない（自己ベストが混ざらない）。
     @Test("旧プリセットは盤サイズで表示され、新しい難易度名と混ざらない")

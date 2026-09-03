@@ -185,9 +185,12 @@ struct GameCenterLeaderboardTests {
             )?.leaderboardID
         }
         #expect(id("9x9-10") == GameCenterLeaderboard.minesweeperBeginner)
-        #expect(id("12x12-25") == GameCenterLeaderboard.minesweeperIntermediate)
-        #expect(id("15x15-40") == GameCenterLeaderboard.minesweeperExpert)
+        #expect(id("16x16-40") == GameCenterLeaderboard.minesweeperIntermediate)
+        #expect(id("20x20-82") == GameCenterLeaderboard.minesweeperExpert)
         #expect(id("20x20-99") == nil, "カスタム盤は登録できないので送らない")
+        // 旧プリセット（#444 以前）は盤の広さも密度も違うので、新しい表には混ぜない。
+        #expect(id("12x12-25") == nil, "旧中級は新中級より盤が小さく、混ぜると有利になる")
+        #expect(id("15x15-40") == nil, "旧上級も同じ理由で対象外")
     }
 
     @Test("0 秒のクリアは送らない（抜けない 1 位を作らない）")
@@ -261,9 +264,10 @@ struct GameCenterLeaderboardTests {
             ("2048", GameScore(metric: .points, points: 1)),
             ("poker", GameScore(metric: .points, points: 1)),
             ("blackjack", GameScore(metric: .points, points: 1)),
+            // 区分キーは `MinesweeperDifficulty` のプリセット（#444 で 12×12/25・15×15/40 から変更）。
             ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "9x9-10")),
-            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "12x12-25")),
-            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "15x15-40")),
+            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "16x16-40")),
+            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "20x20-82")),
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "easy")),
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "normal")),
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "hard")),
