@@ -68,6 +68,22 @@ public extension HowToPlayGuide {
         hint: "タップで石を置こう"
     )
 
+    /// 「禁じ手（連珠ルール）」をオンにして対局しているときの五目並べ（#441）。
+    ///
+    /// `gameID` は `.gomoku` と同じ（同じゲームの表示違いなので、ミニガイドの
+    /// 「一度見たら出さない」フラグも共有する）。そのため **`all` には入れない**
+    /// ＝ 登録漏れ検査は `.gomoku` のほうで担保される。
+    static let gomokuRenju = HowToPlayGuide(
+        gameID: "gomoku",
+        title: "五目並べの遊び方（禁じ手あり）",
+        lines: [
+            "空いているマスをタップして石を置きます。",
+            "たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。",
+            "黒（先手）だけは禁じ手があり、三三・四四・長連（6 つ以上）になる場所には打てません。",
+        ],
+        hint: "黒は三三・四四・長連が打てない"
+    )
+
     static let minesweeper = HowToPlayGuide(
         gameID: "minesweeper",
         title: "マインスイーパーの遊び方",

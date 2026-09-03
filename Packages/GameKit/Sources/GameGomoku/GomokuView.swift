@@ -27,7 +27,8 @@ public struct GomokuView: View {
             board
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
-            HowToPlayHint(.gomoku, playLog: services.playLog)
+            HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
+                          playLog: services.playLog)
             controlArea
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
@@ -61,10 +62,11 @@ public struct GomokuView: View {
                 }
             }
         }
-        .howToPlay(.gomoku)
+        .howToPlay(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku)
         .sheet(isPresented: $showNewGame) {
-            GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
-                model.newGame(humanSide: side, aiLevel: level)
+            GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
+                               forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
+                model.newGame(humanSide: side, aiLevel: level, forbiddenMoves: renju)
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
@@ -82,6 +84,10 @@ public struct GomokuView: View {
             // 撮影用（#366）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
             if ProcessInfo.processInfo.arguments.contains("-gomokuMidgame") {
                 model.applyPreviewMidgameForTesting()
+            }
+            // 撮影用（#441）: 禁じ手で断られた直後の画面。
+            if ProcessInfo.processInfo.arguments.contains("-gomokuRenjuBlocked") {
+                model.applyRenjuBlockedPreviewForTesting()
             }
             #endif
         }
@@ -180,8 +186,31 @@ public struct GomokuView: View {
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
             .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
+            // 禁じ手の理由は揺れの外に置く（一緒に揺らすと読めない）。
+            .overlay(alignment: .top) { forbiddenNotice }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// 禁じ手で打てなかったことを盤の上に出す（#441）。
+    ///
+    /// 空いている交点なのに石が入らないので、震え（#202）と警告音だけでは
+    /// 「なぜ打てないのか」が伝わらない。次に打てたら `place` が `lastRejection` を
+    /// 消すので自然に引っ込む。盤への `overlay` なので、出ても消えても盤や
+    /// その下の操作エリアの高さは変わらない（#148 で揃えた高さを崩さない）。
+    @ViewBuilder
+    private var forbiddenNotice: some View {
+        if case .forbidden(let reason) = model.lastRejection {
+            Text("\(reason.label)は打てません（禁じ手）")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(Theme.Fill.coral))
+                .padding(.top, 10)
+                // 帯は盤より前面なので、既定のままだと重なった交点へのタップを吸ってしまう。
+                // 見せるだけの表示なので当たり判定から外す。
+                .allowsHitTesting(false)
+        }
     }
 
     /// VoiceOver 用の交点グリッド（#188）。
@@ -494,49 +523,61 @@ private struct GomokuShake: GeometryEffect {
 struct GomokuNewGameSheet: View {
     @State private var side: GomokuStone
     @State private var level: Int
-    let onStart: (GomokuStone, Int) -> Void
+    @State private var renju: Bool
+    let onStart: (GomokuStone, Int, Bool) -> Void
     let onCancel: () -> Void
 
-    init(humanSide: GomokuStone, aiLevel: Int,
-         onStart: @escaping (GomokuStone, Int) -> Void,
+    init(humanSide: GomokuStone, aiLevel: Int, forbiddenMoves: Bool,
+         onStart: @escaping (GomokuStone, Int, Bool) -> Void,
          onCancel: @escaping () -> Void) {
         _side  = State(initialValue: humanSide)
         _level = State(initialValue: aiLevel)
+        _renju = State(initialValue: forbiddenMoves)
         self.onStart  = onStart
         self.onCancel = onCancel
     }
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                section("あなたの石") {
-                    HStack(spacing: 12) {
-                        chooser(title: "●黒", subtitle: "先手",
-                                selected: side == .black, accent: Theme.fillStrong,
-                                onAccent: .white) { side = .black }
-                        chooser(title: "○白", subtitle: "後手",
-                                selected: side == .white, accent: Theme.fillMuted,
-                                onAccent: .white) { side = .white }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    section("あなたの石") {
+                        HStack(spacing: 12) {
+                            chooser(title: "●黒", subtitle: "先手",
+                                    selected: side == .black, accent: Theme.fillStrong,
+                                    onAccent: .white) { side = .black }
+                            chooser(title: "○白", subtitle: "後手",
+                                    selected: side == .white, accent: Theme.fillMuted,
+                                    onAccent: .white) { side = .white }
+                        }
                     }
-                }
-                section("CPUの強さ") {
-                    HStack(spacing: 12) {
-                        chooser(title: "弱",   subtitle: "浅い読み",
-                                selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
-                        chooser(title: "普通", subtitle: "標準",
-                                selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
-                        chooser(title: "強",   subtitle: "深い読み",
-                                selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
+                    section("CPUの強さ") {
+                        HStack(spacing: 12) {
+                            chooser(title: "弱",   subtitle: "浅い読み",
+                                    selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
+                            chooser(title: "普通", subtitle: "標準",
+                                    selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
+                            chooser(title: "強",   subtitle: "深い読み",
+                                    selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
+                        }
                     }
+                    // 既定はオフ（自由五目）。オンにすると黒だけが三三・四四・長連を打てなくなる。
+                    section("禁じ手（連珠ルール）") {
+                        HStack(spacing: 12) {
+                            chooser(title: "なし", subtitle: "自由五目",
+                                    selected: !renju, accent: Theme.Fill.teal)   { renju = false }
+                            chooser(title: "あり", subtitle: "黒に三三・四四・長連",
+                                    selected: renju,  accent: Theme.Fill.purple) { renju = true }
+                        }
+                    }
+                    Button { onStart(side, level, renju) } label: {
+                        Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
+                    }
+                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
                 }
-                Spacer()
-                Button { onStart(side, level) } label: {
-                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+                .padding(Theme.pad)
             }
-            .padding(Theme.pad)
             .popBackground()
             .navigationTitle("新規対局")
             .toolbar {
@@ -545,7 +586,9 @@ struct GomokuNewGameSheet: View {
                 }
             }
         }
-        .gameSheetDetents()
+        // 選択肢が3節になり `.medium` には収まらない（囲碁 GoNewGameSheet と同じで、
+        // はみ出すと「対局開始」が押せなくなる）。このシートも常に `.large` で開く。
+        .presentationDetents([.large])
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {

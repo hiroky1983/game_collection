@@ -22,6 +22,8 @@ public enum GomokuTapRejection: Equatable, Sendable {
     case outOfBoard
     /// 既に石が置かれている交点へのタップ。
     case occupied
+    /// 禁じ手ルールが有効なときに、黒が三三・四四・長連へ打とうとした（#441）。
+    case forbidden(GomokuForbidden)
 }
 
 struct GomokuSnapshot: Codable {
@@ -34,6 +36,8 @@ struct GomokuSnapshot: Codable {
     let undoUsed: Bool?
     let resigned: Bool?
     let winner: Int?
+    /// 連珠の禁じ手ルール（#441）。旧スナップショットには無いので optional。
+    let forbiddenMoves: Bool?
 }
 
 @MainActor
@@ -43,6 +47,9 @@ public final class GomokuModel {
     public private(set) var currentStone: GomokuStone
     public private(set) var humanSide: GomokuStone
     public private(set) var aiLevel: Int
+    /// 連珠の禁じ手ルール（#441）。既定はオフ = 従来どおりの自由五目。
+    /// オンのときだけ黒（先手）に三三・四四・長連が適用される。
+    public private(set) var forbiddenMovesEnabled: Bool
     public private(set) var winner: GomokuStone?
     public private(set) var isDraw: Bool
     public private(set) var isThinking: Bool
@@ -80,6 +87,7 @@ public final class GomokuModel {
         let currentStone: GomokuStone
         let humanSide: GomokuStone
         let aiLevel: Int
+        let forbiddenMoves: Bool
         let startedAt: Date
         let moveCount: Int
         let moves: [(row: Int, col: Int, stone: GomokuStone)]
@@ -93,6 +101,7 @@ public final class GomokuModel {
         if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
             humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
             aiLevel   = snap.aiLevel
+            forbiddenMoves = snap.forbiddenMoves ?? false
             startedAt = snap.startedAt
             if let history = snap.moveHistory {
                 let parsed = history.compactMap { rec -> (Int, Int, GomokuStone)? in
@@ -125,6 +134,7 @@ public final class GomokuModel {
             currentStone = .black
             humanSide    = .black
             aiLevel      = 1
+            forbiddenMoves = false
             startedAt    = Date()
             moveCount    = 0
             moves        = []
@@ -139,6 +149,7 @@ public final class GomokuModel {
         self.currentStone = currentStone
         self.humanSide    = humanSide
         self.aiLevel      = aiLevel
+        self.forbiddenMovesEnabled = forbiddenMoves
         self.startedAt    = startedAt
         self.moveCount    = moveCount
         self.moves        = moves
@@ -164,7 +175,16 @@ public final class GomokuModel {
         guard row >= 0, row < gomokuBoardSize,
               col >= 0, col < gomokuBoardSize else { return reject(.outOfBoard) }
         guard board[row, col] == nil else { return reject(.occupied) }
+        if let reason = forbiddenReason(row: row, col: col) { return reject(.forbidden(reason)) }
         place(row: row, col: col)
+    }
+
+    /// 現在の手番がその交点へ打てない禁じ手の理由（#441）。打てるなら `nil`。
+    ///
+    /// 禁じ手ルールがオフのとき、または手番が白のときは常に `nil`（＝従来の自由五目）。
+    public func forbiddenReason(row: Int, col: Int) -> GomokuForbidden? {
+        guard forbiddenMovesEnabled, currentStone == .black else { return nil }
+        return board.renjuForbidden(row: row, col: col)
     }
 
     /// 打てないタップを記録し、触覚・効果音で拒否を伝える（#202）。
@@ -176,6 +196,8 @@ public final class GomokuModel {
 
     private func place(row: Int, col: Int) {
         let mover = currentStone
+        // 打てた時点で直前の拒否は解消している。View の禁じ手表示もここで消える（#441）。
+        lastRejection = nil
         board[row, col] = currentStone
         moves.append((row, col, currentStone))
         lastMove = (row, col)
@@ -211,6 +233,24 @@ public final class GomokuModel {
             place(row: row, col: col)
         }
     }
+
+    /// 撮影用（#441）: 禁じ手で断られた直後の画面を作る（`-gomokuRenjuBlocked` 起動引数）。
+    ///
+    /// 三三は交互着手の固定手順では作りにくいので盤を直接組み、最後に禁じ手の交点を
+    /// 叩いて拒否を起こす。`persist()` を通さないので中断データは汚さない。
+    public func applyRenjuBlockedPreviewForTesting() {
+        guard moveCount == 0, !gameOver else { return }
+        forbiddenMovesEnabled = true
+        humanSide    = .black
+        currentStone = .black
+        var preview = GomokuBoard()
+        for (row, col) in [(7, 5), (7, 6), (5, 7), (6, 7)] { preview[row, col] = .black }
+        for (row, col) in [(6, 9), (8, 5), (5, 9), (9, 6)] { preview[row, col] = .white }
+        board     = preview
+        moveCount = 8
+        lastMove  = (9, 6)
+        tap(row: 7, col: 7)   // 三三 → 拒否され、盤の上に理由が出る
+    }
     #endif
 
     public func performAIMoveIfNeeded() async {
@@ -227,19 +267,23 @@ public final class GomokuModel {
         let s = currentStone
         let level = aiLevel
 
+        let renju = forbiddenMovesEnabled
+
         let move = await Task.detached(priority: .userInitiated) {
-            await SimpleGomokuEngine(level: level).bestMove(board: b, stone: s)
+            await SimpleGomokuEngine(level: level, forbiddenMoves: renju).bestMove(board: b, stone: s)
         }.value
 
         guard aiTurnKey == key, isAITurn, let (r, c) = move, board[r, c] == nil else { return }
         place(row: r, col: c)
     }
 
-    public func newGame(humanSide: GomokuStone = .black, aiLevel: Int = 1) {
+    public func newGame(humanSide: GomokuStone = .black, aiLevel: Int = 1, forbiddenMoves: Bool = false) {
         board          = GomokuBoard()
         currentStone   = .black
         self.humanSide = humanSide
         self.aiLevel   = aiLevel
+        forbiddenMovesEnabled = forbiddenMoves
+        lastRejection  = nil
         winner         = nil
         isDraw         = false
         lastMove       = nil
@@ -323,7 +367,8 @@ public final class GomokuModel {
             moveHistory: moves.map { GomokuMoveRecord(row: $0.row, col: $0.col, stone: $0.stone.rawValue) },
             undoUsed: undoUsed,
             resigned: resigned ? true : nil,
-            winner: winner?.rawValue
+            winner: winner?.rawValue,
+            forbiddenMoves: forbiddenMovesEnabled ? true : nil
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

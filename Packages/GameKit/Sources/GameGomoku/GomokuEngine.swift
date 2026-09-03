@@ -59,17 +59,21 @@ private let GOMOKU_TT_SIZE = 1 << 18  // 256K エントリ ≈ 4MB
 public struct SimpleGomokuEngine: GomokuEngine {
     let depth: Int
     let timeLimit: TimeInterval
+    /// 連珠の禁じ手ルール（#441）。オンのとき、黒番では三三・四四・長連を候補から外す。
+    let forbiddenMoves: Bool
 
-    public init(level: Int = 1) {
+    public init(level: Int = 1, forbiddenMoves: Bool = false) {
         switch level {
         case 0:  (depth, timeLimit) = (3, 0.4)
         case 2:  (depth, timeLimit) = (5, 1.5)
         default: (depth, timeLimit) = (4, 0.8)
         }
+        self.forbiddenMoves = forbiddenMoves
     }
 
     public func bestMove(board: GomokuBoard, stone: GomokuStone) async -> (row: Int, col: Int)? {
-        var ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit)
+        var ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
+                                      forbiddenMoves: forbiddenMoves)
         return ctx.search(board: board, stone: stone)
     }
 }
@@ -79,30 +83,56 @@ public struct SimpleGomokuEngine: GomokuEngine {
 private struct GomokuSearchContext {
     let maxDepth: Int
     let deadline: Date
+    let forbiddenMoves: Bool
     var killers: [[Int?]]   // killers[ply][0..1]、row*15+col でエンコード
     var tt: [GomokuTTEntry]
 
-    init(maxDepth: Int, timeLimit: TimeInterval) {
+    init(maxDepth: Int, timeLimit: TimeInterval, forbiddenMoves: Bool) {
         self.maxDepth = maxDepth
         self.deadline = Date().addingTimeInterval(timeLimit)
+        self.forbiddenMoves = forbiddenMoves
         self.killers = [[Int?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [GomokuTTEntry](repeating: GomokuTTEntry(), count: GOMOKU_TT_SIZE)
+    }
+
+    // MARK: 禁じ手のふるい分け（#441）
+
+    /// その手が「打ってはいけない手」か。禁じ手ルールがオフ、または白番なら常に `false`。
+    func isForbidden(_ board: GomokuBoard, row: Int, col: Int, stone: GomokuStone) -> Bool {
+        guard forbiddenMoves, stone == .black else { return false }
+        return board.renjuForbidden(row: row, col: col) != nil
+    }
+
+    /// 候補手から禁じ手を落とす。近傍の候補が全滅したときだけ、盤全体から打てる交点を拾う
+    /// （打つ場所が無くなって CPU が固まるのを防ぐ。禁じ手は黒自身の形の近くにしか出ないため、
+    /// 離れた交点はほぼ確実に打てる）。
+    func legalMoves(_ candidates: [(Int, Int)], board: GomokuBoard, stone: GomokuStone) -> [(Int, Int)] {
+        guard forbiddenMoves, stone == .black else { return candidates }
+        let legal = candidates.filter { !isForbidden(board, row: $0.0, col: $0.1, stone: stone) }
+        guard legal.isEmpty else { return legal }
+        var fallback: [(Int, Int)] = []
+        for row in 0..<gomokuBoardSize {
+            for col in 0..<gomokuBoardSize where board[row, col] == nil {
+                if !isForbidden(board, row: row, col: col, stone: stone) { fallback.append((row, col)) }
+            }
+        }
+        return fallback
     }
 
     // MARK: 反復深化
 
     mutating func search(board: GomokuBoard, stone: GomokuStone) -> (Int, Int)? {
-        let candidates = candidateMoves(board: board)
+        let candidates = legalMoves(candidateMoves(board: board), board: board, stone: stone)
         guard !candidates.isEmpty else { return (gomokuBoardSize / 2, gomokuBoardSize / 2) }
 
-        // 即勝ち
+        // 即勝ち（候補は禁じ手を除いてあるので、黒の 6 連は最初から入っていない）
         for (r, c) in candidates {
             var b = board; b[r, c] = stone
             if b.checkWin(row: r, col: c) { return (r, c) }
         }
-        // 相手の即勝ちをブロック
+        // 相手の即勝ちをブロック。相手が打てない手（禁じ手）は脅威ではないので数えない。
         let opp = stone.opponent
-        for (r, c) in candidates {
+        for (r, c) in candidates where !isForbidden(board, row: r, col: c, stone: opp) {
             var b = board; b[r, c] = opp
             if b.checkWin(row: r, col: c) { return (r, c) }
         }
@@ -175,7 +205,7 @@ private struct GomokuSearchContext {
 
         if depth == 0 { return evaluate(board, for: stone) }
 
-        let candidates = candidateMoves(board: board)
+        let candidates = legalMoves(candidateMoves(board: board), board: board, stone: stone)
         if candidates.isEmpty { return 0 }
 
         var alpha = alpha
