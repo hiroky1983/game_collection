@@ -127,10 +127,11 @@ struct MinesweeperAccessibilityTests {
 
     private func cell(revealed: Bool = false, flagged: Bool = false,
                       mine: Bool = false, adjacent: Int = 0,
-                      continued: Bool = false) -> MinesweeperCell {
+                      continued: Bool = false,
+                      mark: MinesweeperMark? = nil) -> MinesweeperCell {
         var c = MinesweeperCell()
         c.isRevealed = revealed
-        c.isFlagged = flagged
+        c.mark = mark ?? (flagged ? .flag : .none)
         c.isMine = mine
         c.adjacentMines = adjacent
         c.isContinuedMine = continued
@@ -153,6 +154,17 @@ struct MinesweeperAccessibilityTests {
         #expect(MinesweeperAccessibility.cellLabel(row: 2, col: 4, cell: cell(revealed: true),
                                                    isHit: false, gameOver: false)
                 == "3行5列、空き")
+    }
+
+    /// ? は旗と違って「開ける未開放マス」なので、旗と混ぜずに独立して読む（#444）。
+    @Test("? マークは旗と読み分ける") func questionMark() {
+        #expect(MinesweeperAccessibility.cellLabel(row: 2, col: 4, cell: cell(mark: .question),
+                                                   isHit: false, gameOver: false)
+                == "3行5列、はてな")
+        // 終局後も「誤った旗」にはならない（旗を立てたわけではないので責めない）。
+        #expect(MinesweeperAccessibility.cellLabel(row: 2, col: 4, cell: cell(mark: .question),
+                                                   isHit: false, gameOver: true)
+                == "3行5列、はてな")
     }
 
     @Test("誤った旗は終局後にだけ告げる（画面表示と同じ扱い）") func wrongFlag() {
@@ -178,7 +190,7 @@ struct MinesweeperAccessibilityTests {
     @Test("旗モードでヒントが変わる") func hint() {
         #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: true, canToggleFlag: true,
                                                   canChord: false)
-                == "ダブルタップで旗を切り替えます")
+                == "ダブルタップで旗・はてなを切り替えます")
         #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true,
                                                   canChord: false)
                 == "ダブルタップで開きます")
@@ -198,7 +210,7 @@ struct MinesweeperAccessibilityTests {
                 .isEmpty)
         #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: true,
                                                   canChord: false)
-                == "ダブルタップで旗を切り替えます")
+                == "ダブルタップで旗・はてなを切り替えます")
     }
 
     /// コード（#437）は開き済みの数字マスでだけ案内する。旗モード中は旗の操作が優先。
