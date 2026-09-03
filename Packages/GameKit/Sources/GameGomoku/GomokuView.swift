@@ -207,6 +207,9 @@ public struct GomokuView: View {
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(Theme.Fill.coral))
                 .padding(.top, 10)
+                // 帯は盤より前面なので、既定のままだと重なった交点へのタップを吸ってしまう。
+                // 見せるだけの表示なので当たり判定から外す。
+                .allowsHitTesting(false)
         }
     }
 
