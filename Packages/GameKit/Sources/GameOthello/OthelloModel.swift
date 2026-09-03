@@ -72,6 +72,21 @@ public final class OthelloModel {
     }
     public var blackCount: Int { board.count(for: .black) }
     public var whiteCount: Int { board.count(for: .white) }
+    /// 表示用のスコア（日本オセロ連盟ルールの「残りマス加算」#440）。
+    ///
+    /// 双方が打てなくなって**空きマスを残したまま終局**したときは、残ったマスを勝者の得点として数える
+    /// （合計は常に 64）。対局中・引き分け・投了による終局では加算しないので実石数と一致する。
+    /// 勝敗そのものは加算前の石数で決まる（`resolveWinner`）ため、この値は表示だけに使う。
+    public var blackScore: Int { blackCount + (winner == .black ? emptyCellBonus : 0) }
+    public var whiteScore: Int { whiteCount + (winner == .white ? emptyCellBonus : 0) }
+    /// 勝者に加算する空きマス数。引き分け（`winner == nil`）では上の2つが参照しないので 0 になる。
+    ///
+    /// 投了で終わった対局は連盟ルールの対象外なので加算しない（打ち切りであって「双方が打てなくなった」
+    /// 終局ではない）。判定は盤から導くので、終局の種類を別に持たなくても中断からの復元後に食い違わない。
+    private var emptyCellBonus: Int {
+        guard board.validMoves(for: .black).isEmpty, board.validMoves(for: .white).isEmpty else { return 0 }
+        return othelloBoardSize * othelloBoardSize - blackCount - whiteCount
+    }
     public var canUndo: Bool {
         !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
     }
