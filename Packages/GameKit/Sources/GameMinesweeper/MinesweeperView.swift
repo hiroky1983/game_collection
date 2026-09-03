@@ -450,11 +450,12 @@ public struct MinesweeperView: View {
     /// 未開放の面（蓋）。**マスの中身の上**に重ね、開いた瞬間に縮みながら消える（#203）。
     ///
     /// 開放後の色と数字は最初から蓋の下に描かれているので、蓋が外れた順＝開いた順に見え、
-    /// 連鎖がどこから広がったかを目で追える。旗・確定爆弾のマスには出さない
-    /// （それらは開放されないので演出が要らないうえ、蓋がアイコンを隠してしまう）。
+    /// 連鎖がどこから広がったかを目で追える。マーク付き（旗・?）・確定爆弾のマスには出さない
+    /// （蓋がアイコンを隠してしまうため。? は旗と違って開けるが、開くのは1マスずつなので
+    /// 連鎖の向きを示す蓋の役目が無い・#444）。
     /// 蓋が出ているときの色は `cellBg` の未開放色と同じなので、**静止時の見た目は従来と変わらない**。
     private func revealLid(cell: MinesweeperCell) -> some View {
-        let covers = !cell.isRevealed && !cell.isFlagged && !cell.isContinuedMine
+        let covers = !cell.isRevealed && cell.mark == .none && !cell.isContinuedMine
         return Rectangle()
             .fill(Self.unrevealedFill)
             .padding(0.7)
@@ -505,6 +506,13 @@ public struct MinesweeperView: View {
                     .frame(width: iconSize, height: iconSize)
                     .foregroundStyle(gameIsOver && cell.isMine ? Theme.teal : Theme.coral)
             }
+        } else if !cell.isRevealed && cell.mark == .question {
+            // 「たぶん地雷」の保留マーク（#444）。面（0xBDBDBD）はモードによらず固定なので
+            // 文字色も固定側を使う（`Theme.ink` だとダークで反転して読めなくなる）。
+            Image(systemName: "questionmark")
+                .resizable().scaledToFit()
+                .frame(width: iconSize, height: iconSize)
+                .foregroundStyle(Theme.Fixed.ink)
         } else if cell.isRevealed && cell.isMine {
             Image(systemName: isHit ? "burst.fill" : "circle.fill")
                 .resizable().scaledToFit()
@@ -536,28 +544,34 @@ public struct MinesweeperView: View {
 struct MinesweeperNewGameSheet: View {
     let onStart: (Int, Int, Int) -> Void
     let onCancel: () -> Void
-    @State private var level = 0
+    /// 盤の寸法・地雷数・表示名は `MinesweeperDifficulty` が唯一の出どころ（#444）。
+    /// ここに数値を直書きすると記録区分のラベルと二重管理になる。
+    @State private var level: MinesweeperDifficulty = .beginner
+
+    /// 難易度ごとの差し色。色だけは Theme に依存するのでここに置く（enum は SwiftUI を持ち込まない）。
+    private static let accents: [MinesweeperDifficulty: Color] = [
+        .beginner: Theme.Fill.teal,
+        .intermediate: Theme.Fill.yellow,
+        .advanced: Theme.Fill.coral,
+    ]
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 24) {
                 section("難易度") {
                     HStack(spacing: 12) {
-                        chooser(title: "初級", subtitle: "9×9  10地雷",
-                                selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
-                        chooser(title: "中級", subtitle: "12×12  25地雷",
-                                selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
-                        chooser(title: "上級", subtitle: "15×15  40地雷",
-                                selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
+                        ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
+                            chooser(title: difficulty.label, subtitle: difficulty.subtitle,
+                                    selected: level == difficulty,
+                                    accent: Self.accents[difficulty] ?? Theme.Fill.teal) {
+                                level = difficulty
+                            }
+                        }
                     }
                 }
                 Spacer()
                 Button {
-                    switch level {
-                    case 1: onStart(12, 12, 25)
-                    case 2: onStart(15, 15, 40)
-                    default: onStart(9, 9, 10)
-                    }
+                    onStart(level.rows, level.cols, level.mines)
                 } label: {
                     Text("スタート").themeBody(18).frame(maxWidth: .infinity)
                     .foregroundStyle(Theme.onAccent)
