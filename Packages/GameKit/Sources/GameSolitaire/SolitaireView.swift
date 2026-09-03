@@ -11,6 +11,10 @@ public struct SolitaireView: View {
     @State private var drag: SolitaireDragState?
     /// ドロップ先の当たり判定枠（盤スクロール座標系）。
     @State private var dropFrames: [SolitaireDropTarget: CGRect] = [:]
+    /// ジョーカー補充のリワード広告を出している最中（連打で 2 本目が失敗するのを防ぐ・#406）。
+    @State private var isWatchingJokerAd = false
+    @State private var showJokerNotEarned = false
+    @State private var showJokerUnavailable = false
 
     /// 盤の座標空間名。ドラッグの指の位置・ドロップ枠・追従オーバーレイを同じ空間で扱う。
     private static let boardSpace = "solitaireBoard"
@@ -67,8 +71,18 @@ public struct SolitaireView: View {
         } message: {
             Text("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。")
         }
+        .alert("ジョーカーをもらえませんでした", isPresented: $showJokerNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+        }
+        .alert("ジョーカーを受け取れませんでした", isPresented: $showJokerUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。")
+        }
         .overlay {
-            if model.isDeadEnd { deadEndOverlay }
+            if model.showsRescuePrompt { rescueOverlay }
         }
         .task {
             model.resumeTimerIfNeeded()
@@ -77,6 +91,19 @@ public struct SolitaireView: View {
             // できないため、初期配置以外を撮る手段がこれしかない（囲碁の `-goMidgame` と同じ理由）。
             if ProcessInfo.processInfo.arguments.contains("-solitaireMidgame") {
                 model.applyPreviewProgressForTesting()
+            }
+            // 救済の面（#406）は自然に到達させられないので、撮影用に直接その状態を作る。
+            if ProcessInfo.processInfo.arguments.contains("-solitaireRescue") {
+                model.applyPreviewProgressForTesting()
+                model.applyRescuePreviewForTesting(spendJoker: false)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-solitaireRescueAd") {
+                model.applyPreviewProgressForTesting()
+                model.applyRescuePreviewForTesting(spendJoker: true)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-solitaireJokerPlacing") {
+                model.applyPreviewProgressForTesting()
+                model.applyPlacingJokerPreviewForTesting()
             }
             #endif
         }
@@ -130,13 +157,16 @@ public struct SolitaireView: View {
             phase: model.phase,
             elapsedSeconds: model.elapsedSeconds,
             moveCount: model.moveCount,
-            isDeadEnd: model.isDeadEnd
+            isDeadEnd: model.isDeadEnd,
+            isLost: model.isLost
         ))
     }
 
     private var stateEmoji: String {
         if model.phase == .won { return "🎉" }
-        return model.isDeadEnd ? "😵" : "♠️"
+        if model.isDeadEnd { return "😵" }
+        // 敗北確定（#406）。告知を閉じたあとも、ここだけは状態を出し続ける。
+        return model.isLost ? "🤔" : "♠️"
     }
 
     // MARK: - 盤面
@@ -187,7 +217,8 @@ public struct SolitaireView: View {
         DragGesture(minimumDistance: 6, coordinateSpace: .named(Self.boardSpace))
             .onChanged { value in
                 if drag == nil {
-                    guard model.phase == .playing,
+                    // ジョーカーの置き先を選んでいる間は札を動かさない（タップだけを受ける）。
+                    guard model.phase == .playing, !model.isPlacingJoker,
                           let cards = draggableCards(from: source), !cards.isEmpty else { return }
                     model.deselect()
                     drag = SolitaireDragState(
@@ -595,6 +626,10 @@ public struct SolitaireView: View {
             .accessibilityLabel("1手戻す")
             .accessibilityHint(model.canUndo ? "何回でも戻せます" : "まだ戻せる手がありません")
 
+            // ジョーカーの所持を**常時**見せる（#406 の決裁1）。持っていない間も枠を残すのは
+            // 「戻す」と同じ理由で、消すと「そんな機能は無い」と読まれるため（#198）。
+            jokerButton
+
             // 「あとは組札へ積むだけ」になった局面でだけ出す。終盤の 52 回タップを 1 回に畳む。
             if model.canAutoFinish {
                 controlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
@@ -608,6 +643,43 @@ public struct SolitaireView: View {
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+        .overlay(alignment: .top) {
+            if model.isPlacingJoker { jokerPlacingBanner }
+        }
+    }
+
+    /// ジョーカーの所持ボタン。押すと「置く列を選ぶ」モードに入り、もう一度押すと抜ける。
+    private var jokerButton: some View {
+        controlButton(
+            model.isPlacingJoker ? "やめる" : "ジョーカー",
+            systemImage: model.isPlacingJoker ? "xmark.circle.fill" : "questionmark.app.fill",
+            tint: model.isPlacingJoker ? Theme.Fill.teal : Theme.Fill.purple
+        ) {
+            if model.isPlacingJoker { model.cancelPlacingJoker() } else { model.beginPlacingJoker() }
+        }
+        .disabled(!model.hasJoker && !model.isPlacingJoker)
+        .opacity(model.hasJoker || model.isPlacingJoker ? 1 : 0.4)
+        .accessibilityLabel(SolitaireAccessibility.jokerButtonLabel(
+            hasJoker: model.hasJoker,
+            isPlacing: model.isPlacingJoker
+        ))
+        .accessibilityHint(SolitaireAccessibility.jokerButtonHint(
+            hasJoker: model.hasJoker,
+            isPlacing: model.isPlacingJoker
+        ))
+    }
+
+    /// 置き先を選んでいる最中の案内。盤に被せず操作列の上に出す（列をタップさせる必要があるため）。
+    private var jokerPlacingBanner: some View {
+        Text("ジョーカーを置く列をタップしてください（空の列と、すでにジョーカーがある列には置けません）")
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(Theme.onAccent)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Capsule().fill(Theme.Fill.purple))
+            .padding(.horizontal, 8)
+            .offset(y: -34)
+            .allowsHitTesting(false)
     }
 
     private func controlButton(
@@ -629,25 +701,31 @@ public struct SolitaireView: View {
         .accessibilityLabel(title)
     }
 
-    // MARK: - 詰み
+    // MARK: - 詰み・敗北確定の救済（#406）
 
-    /// 山札を循環させるほかに進める手が無くなった局面（#397 の詰み検知）。
+    /// 2 種類の「もう届かない」を1つの面で受ける（#406 の決裁）。
     ///
-    /// **ジョーカーでの救済（広告）はここに出さない**。提示のしかたは #406 の決裁待ちで、
-    /// 決まるまでは「戻す」と「新しい配札」だけを出口にする（undo は無料・無制限なので、
-    /// 詰みは必ず巻き戻せる = 出口の無い行き止まりにはならない）。
-    private var deadEndOverlay: some View {
+    /// - **有効手ゼロ**（`isDeadEnd`）: 山札をめくる以外に何もできない。閉じても盤にできることが
+    ///   無いので「このまま続ける」は出さない。
+    /// - **敗北確定**（`isLost`）: 指せる手は残っているがソルバーが勝ち筋の不在を確定させた。
+    ///   まだ触れる盤を取り上げないよう**閉じられる**ようにする（閉じたら配り直すまで出さない）。
+    ///
+    /// ジョーカーは**持っていれば広告なしで使える**（決裁1）。持っていないときだけ広告で補充する
+    /// （決裁2）。ここで二重に対価を取らないよう、文言もボタンも所持で切り替える。
+    private var rescueOverlay: some View {
         ZStack {
             Color.black.opacity(0.45).ignoresSafeArea()
             VStack(spacing: 20) {
-                Text("😵").font(.system(size: 52))
-                Text("進める手がありません")
+                Text(model.isDeadEnd ? "😵" : "🤔").font(.system(size: 52))
+                Text(model.isDeadEnd ? "進める手がありません" : "このままではクリアできません")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.ink)
-                Text("山札をめくるしか手が残っていません。手を戻してやり直すか、新しい配札にしてください。")
+                Text(rescueMessage)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
                     .multilineTextAlignment(.center)
+
+                jokerRescueButton
 
                 if model.canUndo {
                     Button { model.undo() } label: {
@@ -659,6 +737,7 @@ public struct SolitaireView: View {
                             .foregroundStyle(Theme.onAccent)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isWatchingJokerAd)
                 }
 
                 Button { model.newGame() } label: {
@@ -667,11 +746,85 @@ public struct SolitaireView: View {
                         .foregroundStyle(Theme.inkSub)
                 }
                 .buttonStyle(.plain)
+                .disabled(isWatchingJokerAd)
+
+                // 敗北確定はまだ指せる手が残っている。宣告で操作を奪わない。
+                if !model.isDeadEnd {
+                    Button { model.dismissLostPrompt() } label: {
+                        Text("このまま続ける")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.inkSub)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isWatchingJokerAd)
+                }
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
             .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
             .padding(.horizontal, 28)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(SolitaireAccessibility.rescuePromptLabel(
+            isDeadEnd: model.isDeadEnd,
+            hasJoker: model.hasJoker
+        ))
+    }
+
+    private var rescueMessage: String {
+        let head = model.isDeadEnd
+            ? "山札をめくるしか手が残っていません。"
+            : "指せる手はありますが、ここからは組札を揃えきれません。"
+        let tail = model.hasJoker
+            ? "ジョーカーを場札に置くと、その上へどんな札でも1枚だけ重ねられます。"
+            : "広告を見るとジョーカーを1枚受け取れます。手を戻すか、新しい配札にすることもできます。"
+        return head + tail
+    }
+
+    /// 所持していれば広告なしで使い、持っていなければリワード広告で補充する。
+    private var jokerRescueButton: some View {
+        Button {
+            if model.hasJoker {
+                model.beginPlacingJoker()
+            } else {
+                requestJoker()
+            }
+        } label: {
+            Label(
+                model.hasJoker ? "ジョーカーを使う" : "広告を見てジョーカーをもらう",
+                systemImage: model.hasJoker ? "questionmark.app.fill" : "play.rectangle.fill"
+            )
+            .font(.system(size: 16, weight: .semibold, design: .rounded))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Theme.Fill.purple, in: RoundedRectangle(cornerRadius: 14))
+            .foregroundStyle(Theme.onAccent)
+        }
+        .buttonStyle(.plain)
+        .disabled(isWatchingJokerAd)
+        .opacity(isWatchingJokerAd ? 0.5 : 1)
+    }
+
+    /// リワード広告 → ジョーカー補充 → 置き先の選択、までを 1 本に繋ぐ。
+    ///
+    /// 「広告を見たのに何も起きない」経路を作らないのが要（既存の広告契約・ナンプレのヒントと同型）。
+    /// 視聴しなかったときと、視聴したのに補充できなかったとき（待っている間に自力で局面が
+    /// 変わって所持に戻った等）を読み分けて必ず知らせる。
+    private func requestJoker() {
+        // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ。
+        guard !isWatchingJokerAd else { return }
+        isWatchingJokerAd = true
+        Task {
+            if await services.ads.showRewardedAd() {
+                if model.grantJoker() {
+                    model.beginPlacingJoker()
+                } else {
+                    showJokerUnavailable = true
+                }
+            } else {
+                showJokerNotEarned = true
+            }
+            isWatchingJokerAd = false
         }
     }
 }
@@ -879,6 +1032,8 @@ struct SolitaireRuleSheet: View {
         ("山札", "左上の山札はタップで1枚ずつめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）"),
         ("操作", "動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます"),
         ("戻す", "「戻す」は何回でも無料で使えます。行き止まりになっても、手を戻してやり直せます"),
+        ("ジョーカー", "1局につき1枚持っています。場札の列の上に置くと、その上にはどんな札でも1枚だけ重ねられます（空の列と、すでにジョーカーがある列には置けません）。上の札が全部はけると自動で消えて、下の札がまた使えるようになります"),
+        ("ジョーカーの補充", "使い切ったあとに行き止まりになったら、広告を見て1枚受け取れます。「戻す」でジョーカーを置いた手を巻き戻せば、手持ちに戻ります。ジョーカーを使ってクリアした記録は、自己ベストには残りますが Game Center の順位表には送りません"),
         ("配られる札", "出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります"),
     ]
 

@@ -101,7 +101,12 @@ public enum GameCenterLeaderboard {
     /// - Note: 2048 のコンティニュー（#71）は、直前に送ったスコアを取り消せない。ただし
     ///   Game Center は自己ベストだけを残すため、続きを遊んで最終的に伸びたスコアを送れば
     ///   上書きされる。取り消せないことによる不利益は無い。
+    /// - Note: 救済アイテムを使った決着は送らない（#406。`GameScore.isLeaderboardEligible`）。
+    ///   ソリティアのジョーカーのように「広告を見れば盤面を有利にできる」仕掛けがあるゲームでは、
+    ///   使った記録と使わない記録を同じ表に混ぜると順位表が「何回広告を見たか」の表になる。
+    ///   判定は指標より前に置く。どの指標のゲームで救済を足しても自動的に対象外になる。
     public static func score(gameID: String, outcome: GameOutcome, score: GameScore) -> GameCenterScore? {
+        guard score.isLeaderboardEligible else { return nil }
         switch score.metric {
         case .points:
             guard let points = score.points, points >= 0 else { return nil }
@@ -165,8 +170,9 @@ public enum GameCenterLeaderboard {
             }
         case "solitaire":
             // 区分を持たないので、区分キーが付いていないときだけ送る。
-            // **ジョーカー（中継札）を使ったクリアを除外する仕掛けは #406 の決裁後に足す**
-            // （ジョーカーの入手経路そのものがまだ無く、この版では使用クリアが発生しない）。
+            // ジョーカー（中継札）を使ったクリアの除外は区分ではなく `isLeaderboardEligible`
+            // （上の `score(gameID:outcome:score:)` の先頭）で行う。区分で分けると
+            // ローカルの自己ベストまで「ジョーカーあり / なし」の 2 行に割れてしまう（#406）。
             return variant == nil ? solitaireTime : nil
         case "sudoku":
             // 区分キーは `SudokuDifficulty` の rawValue。

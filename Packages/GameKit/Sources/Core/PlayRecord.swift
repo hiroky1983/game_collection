@@ -34,6 +34,13 @@ public struct GameScore: Equatable, Sendable {
     public var variant: String?
     /// 区分の表示名（「初級」など）。ハブの 1 行に添える。
     public var variantLabel: String?
+    /// この決着を Game Center のリーダーボードへ送ってよいか（#406）。
+    ///
+    /// **ローカルの自己ベスト（`PlayRecord`）には影響しない**。救済アイテムを使ったクリアを
+    /// 全世界の順位表から外すためだけの旗で、手元の記録は使用の有無を問わず残す（#397 の
+    /// 「ローカル記録は使用有無を問わず保存」）。区分（`variant`）で分けると自己ベストの行が
+    /// 2 つに割れてしまうので、記録の分割とは別の軸として持つ。
+    public var isLeaderboardEligible: Bool
 
     public init(
         metric: RecordMetric = .winLoss,
@@ -42,7 +49,8 @@ public struct GameScore: Equatable, Sendable {
         seconds: Int? = nil,
         moves: Int? = nil,
         variant: String? = nil,
-        variantLabel: String? = nil
+        variantLabel: String? = nil,
+        isLeaderboardEligible: Bool = true
     ) {
         self.metric = metric
         self.points = points
@@ -51,6 +59,7 @@ public struct GameScore: Equatable, Sendable {
         self.moves = moves
         self.variant = variant
         self.variantLabel = variantLabel
+        self.isLeaderboardEligible = isLeaderboardEligible
     }
 }
 
