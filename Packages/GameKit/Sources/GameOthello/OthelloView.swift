@@ -134,18 +134,18 @@ public struct OthelloView: View {
 
             Spacer()
 
-            // コンパクトスコア
+            // コンパクトスコア（終局後はリザルトと同じ「残りマス加算」後の数字。#440）
             HStack(spacing: 5) {
                 Circle()
                     .fill(Color(hex: 0x1A1A1A))
                     .frame(width: 13, height: 13)
-                Text("\(model.blackCount)")
+                Text("\(model.blackScore)")
                     .font(.system(size: 15, weight: .black, design: .rounded))
                     .foregroundStyle(Theme.ink)
                 Text("–")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
-                Text("\(model.whiteCount)")
+                Text("\(model.whiteScore)")
                     .font(.system(size: 15, weight: .black, design: .rounded))
                     .foregroundStyle(Theme.ink)
                 Circle()
@@ -330,13 +330,13 @@ public struct OthelloView: View {
                     Circle()
                         .fill(Color(hex: 0x1A1A1A))
                         .frame(width: 22, height: 22)
-                    Text("\(model.blackCount)")
+                    Text("\(model.blackScore)")
                         .font(.system(size: 30, weight: .black, design: .rounded))
                         .foregroundStyle(Theme.ink)
                     Text("–")
                         .font(.system(size: 22, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
-                    Text("\(model.whiteCount)")
+                    Text("\(model.whiteScore)")
                         .font(.system(size: 30, weight: .black, design: .rounded))
                         .foregroundStyle(Theme.ink)
                     Circle()

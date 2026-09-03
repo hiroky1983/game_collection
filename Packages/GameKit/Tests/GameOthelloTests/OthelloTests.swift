@@ -455,3 +455,159 @@ struct OthelloPreviewMidgameTests {
         #expect(model.isAITurn == false)         // 人間(白)の手番で止まっている
     }
 }
+
+// MARK: - 終局スコアの残りマス加算（#440）
+
+/// 黒（人間）の手番。**黒が (2,5) に打つと白 2 個がすべて返り、盤上から白が消える**。
+/// 白は置く石が挟めず、黒も返す白が無いので、空きマス 60 を残したまま決着する。
+private let othelloWipeoutPendingDiagram = """
+........
+........
+..BWW...
+........
+........
+........
+........
+........
+"""
+
+/// 黒（人間）の手番。**黒が (0,2) に打つと (0,1) の白が返り 3 対 3 になる**。
+/// 黒と白が接する箇所が無くなるため双方とも打てず、空きマスを残したまま引き分けで終わる。
+private let othelloDrawPendingDiagram = """
+BW......
+........
+........
+........
+........
+........
+........
+.....WWW
+"""
+
+/// 黒（人間）の手番で残る空きマスは (0,0) の1つだけ。**黒が (0,0) に打つと (0,1) の白が返り盤が埋まる**。
+/// 最下段の白 8 個はこの着手では返らないので 56 対 8 で終局する。
+private let othelloLastCellDiagram = """
+.WBBBBBB
+BBBBBBBB
+BBBBBBBB
+BBBBBBBB
+BBBBBBBB
+BBBBBBBB
+BBBBBBBB
+WWWWWWWW
+"""
+
+@MainActor
+@Suite("オセロ 終局スコアの残りマス加算")
+struct OthelloEmptyCellBonusTests {
+
+    private func restored(_ diagram: String) throws -> OthelloModel {
+        let store = MockSnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(diagram),
+                            currentStone: .black, humanSide: .black, mustPass: false),
+            for: "othello")
+        return OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+    }
+
+    /// 空きマスを残した終局では、残りマスが勝者に加算されて合計 64 になる。
+    @Test func addsEmptyCellsToWinnerScore() throws {
+        let model = try restored(othelloWipeoutPendingDiagram)
+        model.tap(row: 2, col: 5)
+
+        try #require(model.gameOver, "前提: この着手で決着すること")
+        #expect(model.winner == .black)
+        #expect(model.blackCount == 4)          // 実石数は変わらない
+        #expect(model.whiteCount == 0)
+        #expect(model.blackScore == 64)         // 空き 60 が勝者に乗る
+        #expect(model.whiteScore == 0)
+        #expect(model.blackScore + model.whiteScore == 64)
+    }
+
+    /// 勝敗は加算前の石数で決まる（加算は表示だけ）。
+    @Test func winnerIsDecidedBeforeBonus() throws {
+        let model = try restored(othelloWipeoutPendingDiagram)
+        model.tap(row: 2, col: 5)
+
+        #expect(model.winner == .black)             // 石数 4 > 0 で黒の勝ち
+        #expect(model.blackCount > model.whiteCount)
+        #expect(model.reviewOutcome == .win)        // 人間（黒）から見た結果も変わらない
+    }
+
+    /// 石数が同数の引き分けでは加算しない（どちらかに 58 が乗ると勝敗が生まれてしまう）。
+    @Test func drawKeepsRawCounts() throws {
+        let model = try restored(othelloDrawPendingDiagram)
+        model.tap(row: 0, col: 2)
+
+        try #require(model.gameOver, "前提: この着手で決着すること")
+        #expect(model.isDraw)
+        #expect(model.winner == nil)
+        #expect(model.blackScore == 3)
+        #expect(model.whiteScore == 3)
+    }
+
+    /// 盤が埋まって終わる通常の終局では表示が変わらない。
+    @Test func fullBoardScoreIsUnchanged() throws {
+        let model = try restored(othelloLastCellDiagram)
+        model.tap(row: 0, col: 0)
+
+        try #require(model.gameOver, "前提: この着手で盤が埋まって決着すること")
+        try #require(model.board.isFull)
+        #expect(model.blackScore == model.blackCount)
+        #expect(model.whiteScore == model.whiteCount)
+        #expect(model.blackScore == 56)
+        #expect(model.whiteScore == 8)
+    }
+
+    /// 投了は「双方が打てなくなった終局」ではないので加算しない。
+    /// 加算すると、初手で投了しただけで CPU が 62 対 2 で勝ったように見える。
+    @Test func resignationDoesNotAddEmptyCells() {
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
+        model.resign()
+
+        #expect(model.gameOver)
+        #expect(model.winner == .white)          // 人間が黒なので CPU（白）の勝ち
+        #expect(model.blackScore == 2)
+        #expect(model.whiteScore == 2)
+    }
+
+    /// 対局中は空きマスが 60 あっても加算されない。
+    @Test func inProgressGameShowsRawCounts() {
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
+        model.tap(row: 2, col: 3)
+
+        try! #require(model.gameOver == false)
+        #expect(model.blackScore == model.blackCount)
+        #expect(model.whiteScore == model.whiteCount)
+    }
+
+    /// 表示の結線。スコアを出す2箇所（対局中のヘッダーとリザルト）が加算後の値を読んでいること。
+    /// モデルが正しくても実石数を読んだままだと、リザルトの合計が 64 にならず狙いが画面に出ない。
+    @Test func viewReadsBonusAppliedScore() throws {
+        let source = try Self.viewSource()
+        #expect(Self.matchCount(of: #"model\.blackScore"#, in: source) == 2)
+        #expect(Self.matchCount(of: #"model\.whiteScore"#, in: source) == 2)
+        #expect(
+            Self.matchCount(of: #"model\.(black|white)Count"#, in: source) == 0,
+            "スコアの表示に実石数（blackCount / whiteCount）が残っている"
+        )
+    }
+
+    // MARK: - ヘルパー
+
+    private static func viewSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameOthelloTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameOthello/OthelloView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private static func matchCount(of pattern: String, in source: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        return regex.numberOfMatches(
+            in: source, range: NSRange(source.startIndex..., in: source)
+        )
+    }
+}
