@@ -334,6 +334,22 @@ struct SolitaireLostDetectionTests {
         #expect(SolitaireModel.hopelessVerdict(for: board, maxStates: 1) == nil)
     }
 
+    @Test("取り消された探索も「分からない」に倒れる（途中まで見た結果を負けと読まない）")
+    func mapsCancelledSearchToUnknown() {
+        // もう勝てない盤面（本来なら true が返る）でも、取り消されたら nil。
+        #expect(SolitaireModel.hopelessVerdict(for: hopelessButMovableBoard()) == true)
+        #expect(
+            SolitaireModel.hopelessVerdict(for: hopelessButMovableBoard(), isCancelled: { true })
+                == nil
+        )
+        // ソルバー側でも「最後まで見ていない」印が立っている。
+        let cancelled = SolitaireSolver.solve(
+            SolitaireDealer.deal(seed: fixedSeed), allowJoker: false, isCancelled: { true }
+        )
+        #expect(cancelled.hitLimit)
+        #expect(cancelled.solution == nil)
+    }
+
     @Test("「分からない」が返ってきたときは告知を出さない")
     func doesNotFlagOnUnknownVerdict() {
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
@@ -573,6 +589,15 @@ struct SolitaireJokerAccessibilityTests {
         #expect(owned.contains("1枚所持"))
         #expect(empty.contains("所持していません"))
         #expect(owned != empty)
+    }
+
+    @Test("補充の案内は、告知が出る2つの条件のどちらも取りこぼさない")
+    func hintCoversBothRescueConditions() {
+        let hint = SolitaireAccessibility.jokerButtonHint(hasJoker: false, isPlacing: false)
+        // 有効手ゼロ（手詰まり）だけでなく、敗北確定（指せる手はあるがクリアできない）でも出る。
+        #expect(hint.contains("手詰まり"))
+        #expect(hint.contains("クリアできない"))
+        #expect(hint.contains("広告"))
     }
 
     @Test("置き先を選んでいる最中はやめ方が読まれる")

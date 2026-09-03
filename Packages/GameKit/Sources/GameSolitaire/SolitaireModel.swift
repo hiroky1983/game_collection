@@ -94,6 +94,9 @@ public final class SolitaireModel {
     /// テストはこの `Task` を `await` して、実時間を待たずに探索の完了を待ち合わせる
     /// （実時間で待つテストはフレークする・#375）。
     private(set) var lostCheckTask: Task<Void, Never>?
+    /// 走り出した探索そのもの。`Task.detached` は親のキャンセルを継がないので、
+    /// 降ろせるようにここで握っておく（PR #457 の CodeRabbit 指摘）。
+    private var lostSolveTask: Task<Bool?, Never>?
     /// 敗北が確定した局面の `stateKey`。undo で戻ってきた局面を**もう一度探索し直さない**ために持つ。
     private var hopelessKeys: Set<Data> = []
     /// 探索済みの局面の `stateKey`（結果を問わない）。同じ局面を二度掘らないための控え。
@@ -451,8 +454,7 @@ public final class SolitaireModel {
         timerTask?.cancel()
         timerTask = nil
         // 画面を離れたら敗北確定の探索も止める（結果を出す先が無いのに CPU を回さない）。
-        lostCheckTask?.cancel()
-        lostCheckTask = nil
+        cancelLostCheck()
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
@@ -547,21 +549,29 @@ public final class SolitaireModel {
     ///   回すため。型が `@MainActor` なので、付けないと static メソッドまで MainActor に載る。
     nonisolated static func hopelessVerdict(
         for board: SolitaireBoard,
-        maxStates: Int = SolitaireSolver.defaultMaxStates
+        maxStates: Int = SolitaireSolver.defaultMaxStates,
+        isCancelled: () -> Bool = { false }
     ) -> Bool? {
-        let result = SolitaireSolver.solve(board, allowJoker: false, maxStates: maxStates)
+        let result = SolitaireSolver.solve(
+            board, allowJoker: false, maxStates: maxStates, isCancelled: isCancelled
+        )
         if result.isSolvable { return false }
+        // 取り消されたときも `hitLimit` が立つので、ここで自動的に「分からない」に倒れる。
         return result.hitLimit ? nil : true
     }
 
     /// 盤面が動いたあとに敗北確定の探索を仕込む。
     ///
     /// 探索は 1 局面で最悪 1 秒近くかかる（#406 の実測）ので **MainActor では回さない**。
-    /// 連続タップで探索が積み上がらないよう、①直前の探索を取り消し ②少し待ってから始め
-    /// ③戻ってきた時点で盤面が変わっていたら結果を捨てる、の 3 段で守る。
+    /// 連続タップで探索が積み上がらないよう、①少し待ってから始める ②待っている間に盤面が
+    /// 動いたら始めない ③**走り出した探索も取り消す** ④戻ってきた時点で盤面が変わっていたら
+    /// 結果を捨てる、の 4 段で守る。
+    ///
+    /// ③ のために探索の `Task` を別に握る。`Task.detached` は**親のキャンセルを継がない**ので、
+    /// 外側を取り消しただけでは探索は最後まで走り切る（PR #457 の CodeRabbit 指摘）。
+    /// 取り消された探索は `hitLimit` を立てて戻るため、結果は自動的に「分からない」に倒れる。
     private func scheduleLostCheck() {
-        lostCheckTask?.cancel()
-        lostCheckTask = nil
+        cancelLostCheck()
         // 有効手ゼロは (a) が既に告知している。勝ち切れる手順が見えている局面も探索する必要が無い。
         guard phase == .playing, !isDeadEnd, !isLost, autoFinishPlan == nil else { return }
         let board = self.board
@@ -571,12 +581,25 @@ public final class SolitaireModel {
         lostCheckTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Self.lostCheckDelayMilliseconds))
             guard !Task.isCancelled else { return }
-            let verdict = await Task.detached(priority: .utility) {
-                Self.hopelessVerdict(for: board)
-            }.value
+            // 生成と控えの間に await を挟まない（挟むと、取り消しが先に来たときに
+            // 握られていない探索が走り残る）。
+            let solve = Task.detached(priority: .utility) {
+                Self.hopelessVerdict(for: board, isCancelled: { Task.isCancelled })
+            }
+            self?.lostSolveTask = solve
+            let verdict = await solve.value
             guard !Task.isCancelled, let self else { return }
+            self.lostSolveTask = nil
             self.applyLostVerdict(verdict, for: key)
         }
+    }
+
+    /// 待ちも走行中の探索もまとめて降ろす。
+    private func cancelLostCheck() {
+        lostCheckTask?.cancel()
+        lostCheckTask = nil
+        lostSolveTask?.cancel()
+        lostSolveTask = nil
     }
 
     /// テスト専用: 盤面だけを差し替えて派生状態を組み直す。
@@ -656,8 +679,7 @@ public final class SolitaireModel {
         phase = .won
         timerTask?.cancel()
         timerTask = nil
-        lostCheckTask?.cancel()
-        lostCheckTask = nil
+        cancelLostCheck()
         selection = nil
         isPlacingJoker = false
         isDeadEnd = false

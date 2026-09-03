@@ -89,11 +89,14 @@ public enum SolitaireAccessibility {
         return hasJoker ? "ジョーカーを使う、1枚所持" : "ジョーカー、所持していません"
     }
 
+    /// - Note: 補充の案内は**救済の告知が出る条件**（行き止まり = 有効手ゼロ、または
+    ///   敗北確定）に合わせる。「行き止まりになったとき」とだけ言うと、指せる手が残っている
+    ///   敗北確定でも広告が出ることが音声では伝わらない（PR #457 の CodeRabbit 指摘）。
     public static func jokerButtonHint(hasJoker: Bool, isPlacing: Bool) -> String {
         if isPlacing { return "置き先の列をタップすると置けます" }
         return hasJoker
             ? "押したあと、置きたい列をタップします"
-            : "行き止まりになったとき、広告を見て1枚受け取れます"
+            : "手詰まりかクリアできない局面になったとき、広告を見て1枚受け取れます"
     }
 
     /// 救済の告知（#406）。行き止まりと敗北確定を読み分ける。
