@@ -220,6 +220,39 @@ struct ChessResultTests {
         #expect(m.result == .threefoldRepetition)
     }
 
+    /// アンパッサン標的の正規化（CodeRabbit 指摘・Major）。
+    /// 標的は 2 マス進みの直後なら**取りに行けなくても必ず立つ**ので、生の値で局面を比べると
+    /// 「指せる手は全く同じなのに別の局面」と読んで反復を取り逃がす。
+    @Test("取れないアンパッサン標的は同一局面の判定に影響しない")
+    func threefoldIgnoresUncapturableEnPassantTarget() {
+        let m = model(fen: ChessPosition.startFEN)
+        // 1.Nf3 a5 で a6 に標的が立つが、白のポーンは b5 に居ないので取れない。
+        // 以後ナイトとナイトを往復させると、この局面が3回現れる。
+        for uci in ["g1f3", "a7a5", "f3g1", "b8c6", "g1f3", "c6b8", "f3g1", "b8c6", "g1f3"] {
+            #expect(m.gameOver == false, "\(uci) の前はまだ決着していない")
+            m.apply(ChessMove.fromUCI(uci)!)
+        }
+        m.apply(ChessMove.fromUCI("c6b8")!)
+        #expect(m.result == .threefoldRepetition,
+                "取れない標的の有無で別局面と読んではいけない")
+    }
+
+    @Test("取れるアンパッサン標的は別の局面として扱う")
+    func effectiveEnPassantKeepsCapturableTarget() {
+        // 白ポーンが b5 に居るので、a7a5 の直後は本当に取りに行ける。
+        let pos = ChessPosition.fromFEN("4k3/p7/8/1P6/8/8/8/4K3 w - - 0 1")!
+        var after = pos
+        after.make(ChessMove.fromUCI("e1e2")!)
+        after.make(ChessMove.fromUCI("a7a5")!)
+        #expect(after.enPassant != nil)
+        #expect(after.effectiveEnPassant() == after.enPassant, "bxa6 が指せるので標的は生きている")
+
+        // 白ポーンが居なければ同じ標的でも実効は nil。
+        let noPawn = ChessPosition.fromFEN("4k3/8/8/8/p7/8/8/4K3 w - a6 0 1")!
+        #expect(noPawn.enPassant != nil)
+        #expect(noPawn.effectiveEnPassant() == nil)
+    }
+
     @Test("駒が足りなくなったら引き分けになる")
     func insufficientMaterialIsDraw() {
         // 白ルークを黒キングが取ると K vs K になる。

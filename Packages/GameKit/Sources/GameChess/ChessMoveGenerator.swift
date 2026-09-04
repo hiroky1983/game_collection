@@ -212,6 +212,22 @@ extension ChessPosition {
 
     // MARK: - 合法手生成
 
+    /// **実際に取りに行けるときだけ**値を持つアンパッサン標的。
+    ///
+    /// 3回同形反復の「同じ局面」は、FIDE では「同じ指し手が指せること」で決まる。
+    /// アンパッサン標的は 2 マス進みの直後なら**取れなくても必ず立つ**ので、そのまま比較すると
+    /// 「指せる手は全く同じなのに別の局面」と読んでしまい、反復を検出し損ねる
+    /// （CodeRabbit 指摘・Major）。
+    ///
+    /// 標的が立っていない局面では合法手を数えないので、通常の手では追加のコストが掛からない。
+    public func effectiveEnPassant() -> Int? {
+        guard let target = enPassant else { return nil }
+        let capturable = legalMoves().contains {
+            $0.to == target && squares[$0.from]?.type == .pawn
+        }
+        return capturable ? target : nil
+    }
+
     /// 合法手（指したあとに自玉が取られない手のみ）。
     public func legalMoves() -> [ChessMove] {
         var pos = self

@@ -118,13 +118,17 @@ public final class ChessGameModel {
         return nil
     }
 
-    /// 3回同形反復の「同一局面」。**盤・手番・キャスリング権・アンパッサン標的**が
-    /// 一致すれば同一とみなす（FIDE が「同じ指し手が指せること」と定めているのを、
-    /// 実装しやすい形に落としたもの）。`ChessPosition` の `==` は手数と 50手計数まで
-    /// 見るため、繰り返しの検出には使えない。
+    /// 3回同形反復の「同一局面」。**盤・手番・キャスリング権・実効アンパッサン標的**が
+    /// 一致すれば同一とみなす（FIDE の「同じ指し手が指せること」を実装に落としたもの）。
+    /// `ChessPosition` の `==` は手数と 50手計数まで見るため、繰り返しの検出には使えない。
+    ///
+    /// アンパッサン標的に `effectiveEnPassant()` を使うのが要点。生の `enPassant` は
+    /// **取りに行けなくても 2 マス進みの直後なら必ず立つ**ため、そのまま比べると
+    /// 「指せる手は全く同じなのに別の局面」と読んで反復を取り逃がす。
     static func isSamePosition(_ a: ChessPosition, _ b: ChessPosition) -> Bool {
         a.squares == b.squares && a.sideToMove == b.sideToMove
-            && a.castling == b.castling && a.enPassant == b.enPassant
+            && a.castling == b.castling
+            && a.effectiveEnPassant() == b.effectiveEnPassant()
     }
 
     /// 現在の局面が初手からの経過で 3 回目の出現か。
@@ -137,11 +141,18 @@ public final class ChessGameModel {
         // 同一局面の周期は最短でも 4 手（両者が動かした駒を戻して初めて一致する）なので、
         // 3 回目の出現には少なくとも 8 手が要る。
         guard moves.count >= (repetitionLimit - 1) * 4 else { return false }
+        // 比較の相手は毎回同じなので、実効標的の算出（合法手生成を伴う）は 1 回で済ませる。
+        let currentEnPassant = current.effectiveEnPassant()
+        func isSameAsCurrent(_ pos: ChessPosition) -> Bool {
+            guard pos.squares == current.squares, pos.sideToMove == current.sideToMove,
+                  pos.castling == current.castling else { return false }
+            return pos.effectiveEnPassant() == currentEnPassant
+        }
         var pos = ChessPosition.fromFEN(initialFEN) ?? ChessPosition.start()
-        var count = isSamePosition(pos, current) ? 1 : 0
+        var count = isSameAsCurrent(pos) ? 1 : 0
         for move in moves {
             pos.make(move)
-            if isSamePosition(pos, current) { count += 1 }
+            if isSameAsCurrent(pos) { count += 1 }
         }
         return count >= repetitionLimit
     }

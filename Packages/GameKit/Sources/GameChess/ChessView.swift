@@ -111,11 +111,17 @@ public struct ChessView: View {
             #endif
         }
         // チェックが掛かった瞬間だけ文字を出し、少し置いて引っ込める。
+        //
+        // 引っ込めるのは**自分が出した合図がまだ出ているときだけ**にする。`.task(id:)` は
+        // 契機が変わると古いタスクを取り消すが、`Task.sleep` の `CancellationError` は
+        // `try?` が飲み込むので、古いタスクはそのまま最後の行まで走る。素朴に nil を書くと、
+        // 続けて王手が掛かったときに**古い後始末が新しい合図を消す**（CodeRabbit 指摘）。
         .task(id: model.checkEventID) {
-            guard model.checkEventID > 0 else { return }
-            checkBannerID = model.checkEventID
+            let id = model.checkEventID
+            guard id > 0 else { return }
+            checkBannerID = id
             try? await Task.sleep(for: .seconds(ChessMotion.checkBannerHold))
-            checkBannerID = nil
+            if checkBannerID == id { checkBannerID = nil }
         }
         // 人間の着手・CPU の着手・待った・検討ナビのどれで局面が変わっても、
         // 経路を問わずここ 1 か所で駒の対応付けを進める（#200）。
@@ -448,9 +454,11 @@ public struct ChessView: View {
                 }
                 Button("キャンセル", role: .cancel) {}
             } message: {
+                // 戻るのは「自分の1手 + CPU の応手」の2手（`undoLastExchange`）。
+                // 「直前の1手」とだけ書くと、盤が2手ぶん戻ることが伝わらない。
                 Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
+                     : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
             .alert("待ったは使えませんでした", isPresented: $showRewardNotEarned) {
                 Button("OK", role: .cancel) {}
@@ -466,12 +474,17 @@ public struct ChessView: View {
     /// 検討ナビと「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#139）。
     private var reviewControls: some View {
         HStack(spacing: 12) {
+            // 中身が記号だけのボタンは、VoiceOver が SF Symbols の名前を推測して読む。
+            // 何をするボタンかは伝わらないので、読み上げ文を明示する。
             Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
                 .disabled(model.reviewPly <= 0)
+                .accessibilityLabel("1手戻す")
             Text("\(model.reviewPly)/\(model.moves.count)手")
                 .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
+                .accessibilityLabel("\(model.moves.count)手中 \(model.reviewPly)手目")
             Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
                 .disabled(model.reviewPly >= model.moves.count)
+                .accessibilityLabel("1手進める")
 
             Spacer(minLength: 8)
 

@@ -22,7 +22,11 @@ enum ChessPieceValue {
 
 /// 詰みの評価値。`ply` を引いて**近い詰みほど高く**評価する（長引かせずに詰ませる）。
 /// `Int.min` を使わないのは、ネガマックスで符号を反転するときに溢れるため。
-private let mateScore = 1_000_000
+///
+/// `private` にせず module 内に公開しているのは、テストが「詰みを詰みとして返しているか」を
+/// **正確な値**で確かめられるようにするため。大小の比較だけだと、探索が
+/// 何も読まずに `alpha` を返しているだけでも通ってしまう（実測で確認済み）。
+let chessMateScore = 1_000_000
 
 // MARK: - 位置評価テーブル
 
@@ -244,9 +248,9 @@ struct ChessSearchContext {
         for d in 1...maxDepth {
             if Date() > deadline { break }
             var localBest: ChessMove?
-            var bestScore = -mateScore * 2
-            var alpha = -mateScore * 2
-            let beta = mateScore * 2
+            var bestScore = -chessMateScore * 2
+            var alpha = -chessMateScore * 2
+            let beta = chessMateScore * 2
             var aborted = false
 
             for move in orderedMoves {
@@ -303,11 +307,13 @@ struct ChessSearchContext {
             // **チェックメイトとステイルメイトをここで分ける**。将棋のように
             // 「合法手ゼロ＝負け」で括ると、ステイルメイト（引き分け）を負けと読んで
             // 勝てる終盤をわざと膠着させる打ち方になる。
-            return pos.isKingInCheck(pos.sideToMove) ? -(mateScore - ply) : 0
+            return pos.isKingInCheck(pos.sideToMove) ? -(chessMateScore - ply) : 0
         }
 
         if depth <= 0 {
-            return useQuiescence ? quiesce(&pos, alpha: alpha, beta: beta, qdepth: 0) : evaluate(pos)
+            return useQuiescence
+                ? quiesce(&pos, alpha: alpha, beta: beta, qdepth: 0, ply: ply)
+                : evaluate(pos)
         }
 
         var alpha = alpha
@@ -344,21 +350,50 @@ struct ChessSearchContext {
 
     // MARK: 静止探索（取り合いが落ち着くまで読む）
 
+    /// 静止探索。**終局と王手を `negamax` と同じ精度で扱う**（CodeRabbit 指摘・Major）。
+    ///
+    /// 素朴な静止探索は「取り合いだけを読む」ので、次の 2 つを取りこぼす:
+    /// 1. 取る手で詰んだ局面。合法手ゼロを見ないと `evaluate` の駒得だけが返り、詰みを見落とす
+    /// 2. **王手されている局面での stand-pat**。「何も指さなければこの評価値」は王手中には
+    ///    成り立たない（必ず何か指さなければならない）。取る手しか読まないので、
+    ///    静かな王手回避（逃げる・合駒）が見えず、実際より悪い評価が返る
+    ///
+    /// そのため、王手中は取る手に絞らず**全ての合法手**を読む。`qdepth` の上限で必ず止まる。
     mutating func quiesce(
-        _ pos: inout ChessPosition, alpha: Int, beta: Int, qdepth: Int
+        _ pos: inout ChessPosition, alpha: Int, beta: Int, qdepth: Int, ply: Int
     ) -> Int {
-        if qdepth >= 6 || Date() > deadline { return evaluate(pos) }
+        if Date() > deadline { return evaluate(pos) }
+
+        let moves = pos.legalMoves()
+        let inCheck = pos.isKingInCheck(pos.sideToMove)
+        // 終局は深さ上限より先に見る。上限で打ち切ると詰みを駒得として数えてしまう。
+        if moves.isEmpty { return inCheck ? -(chessMateScore - ply) : 0 }
+        if qdepth >= 6 { return evaluate(pos) }
+
+        var alpha = alpha
+        if inCheck {
+            for move in orderMoves(moves, pos: pos, killers: [nil, nil]) {
+                let undo = pos.make(move)
+                let score = -quiesce(&pos, alpha: -beta, beta: -alpha,
+                                     qdepth: qdepth + 1, ply: ply + 1)
+                pos.unmake(undo)
+                if score >= beta { return beta }
+                if score > alpha { alpha = score }
+            }
+            return alpha
+        }
 
         let standPat = evaluate(pos)
         if standPat >= beta { return beta }
         // デルタ枝刈り: 最大の取り駒（クイーン 900）を足しても alpha に届かないなら見る意味がない。
         if standPat + ChessPieceValue.base(.queen) < alpha { return alpha }
 
-        var alpha = max(alpha, standPat)
-        let captures = pos.legalMoves().filter { isCapture($0, pos) || $0.promotion != nil }
+        alpha = max(alpha, standPat)
+        let captures = moves.filter { isCapture($0, pos) || $0.promotion != nil }
         for move in captures.sorted(by: { captureScore($0, pos) > captureScore($1, pos) }) {
             let undo = pos.make(move)
-            let score = -quiesce(&pos, alpha: -beta, beta: -alpha, qdepth: qdepth + 1)
+            let score = -quiesce(&pos, alpha: -beta, beta: -alpha,
+                                 qdepth: qdepth + 1, ply: ply + 1)
             pos.unmake(undo)
             if score >= beta { return beta }
             if score > alpha { alpha = score }

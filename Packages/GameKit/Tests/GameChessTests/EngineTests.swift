@@ -112,6 +112,50 @@ struct EngineTests {
         }
     }
 
+    /// 静止探索の穴（CodeRabbit 指摘・Major）。`quiesce` が終局を見ずに `evaluate` を返すと、
+    /// 取る手で詰んだ局面が「駒得」としてしか数えられず、詰みを見落とす。
+    ///
+    /// **返り値を正確に突き合わせる**。「十分に負の値か」だけを見ると、探索が何も読まずに
+    /// `alpha` をそのまま返しているだけでも通ってしまう（変異テストで実測した穴）。
+    @Test("静止探索は終局を静的評価で誤魔化さない（詰みは詰み・ステイルメイトは 0）")
+    func quiescenceDetectsTerminalPositions() {
+        var ctx = ChessSearchContext(
+            maxDepth: 1, usePositional: true, useQuiescence: true, timeLimit: 600)
+        let wide = 2 * chessMateScore
+
+        // チェックメイト（黒番・合法手ゼロ・王手あり）。手数（ply）を引いた値がそのまま返る。
+        var mated = ChessPosition.fromFEN("R5k1/5ppp/8/8/8/8/8/6K1 b - - 0 1")!
+        #expect(mated.legalMoves().isEmpty && mated.isKingInCheck(.black), "テストの前提")
+        #expect(ctx.quiesce(&mated, alpha: -wide, beta: wide, qdepth: 0, ply: 3)
+                == -(chessMateScore - 3))
+
+        // ステイルメイト（黒番・合法手ゼロ・王手なし）。クイーンを1枚損している局面だが、
+        // 引き分けなので **0** でなければならない（静的評価をそのまま返すと大きく負になる）。
+        var stalemated = ChessPosition.fromFEN("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1")!
+        #expect(stalemated.legalMoves().isEmpty && !stalemated.isKingInCheck(.black), "テストの前提")
+        #expect(ctx.evaluate(stalemated) < -500, "静的評価では大きく負に見える局面であること")
+        #expect(ctx.quiesce(&stalemated, alpha: -wide, beta: wide, qdepth: 0, ply: 3) == 0)
+    }
+
+    /// 王手されている局面で stand-pat を許すと、「何も指さなければこの評価」という
+    /// 成り立たない前提で枝を切る。静かな回避手（逃げる・合駒）が見えなくなる。
+    @Test("王手されている局面では静かな回避手も読む（stand-pat しない）")
+    func searchesQuietEvasionsWhenInCheck() async {
+        // 黒番で王手されている。取る手は無く、キングが逃げるしかない。
+        // 王手中に stand-pat すると「取る手ゼロ = 静止」と見なして評価だけ返し、
+        // 回避手を1つも読まないまま探索が終わる。
+        let fen = "4k3/8/8/8/8/8/4R3/4K3 b - - 0 1"
+        var ctx = ChessSearchContext(
+            maxDepth: 1, usePositional: true, useQuiescence: true, timeLimit: 600)
+        var pos = ChessPosition.fromFEN(fen)!
+        let score = ctx.quiesce(&pos, alpha: -2_000_000, beta: 2_000_000, qdepth: 0, ply: 0)
+        // 逃げれば駒損はしないので、静的評価（ルーク1枚ぶんの劣勢 = 大きく負）より
+        // 悪くならない…ではなく、**回避手を読んだ結果**が返ることを見る。
+        // 王手中でも stand-pat していたら `evaluate` そのものが返る。
+        #expect(score != ctx.evaluate(pos), "王手中に静的評価をそのまま返していない")
+        #expect(pos == ChessPosition.fromFEN(fen)!, "探索が局面を壊していない")
+    }
+
     @Test("静的評価は手番側から見た値で、駒得している側が正になる")
     func evaluationIsFromSideToMove() {
         let e = engine(depth: 1)
