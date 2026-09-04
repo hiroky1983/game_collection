@@ -8,6 +8,7 @@ import Testing
 @testable import GameSudoku
 @testable import GameGo
 @testable import GameSolitaire
+@testable import GameChess
 @testable import MahjongTiles
 
 /// VoiceOver の読み上げ文（#188）。
@@ -360,6 +361,70 @@ struct GoAccessibilityTests {
             phase: .finished, isHumanTurn: false, capturedByHuman: 0, capturedByCPU: 0,
             result: "白 6.5目勝ち"
         ) == "白 6.5目勝ち")
+    }
+}
+
+@Suite("チェスの読み上げ文")
+struct ChessAccessibilityTests {
+
+    private func sq(_ name: String) -> Int { ChessSquare.fromName(Substring(name))! }
+
+    @Test("マスは 代数式・駒の色と種類 の順で読む")
+    func squareLabel() {
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("e4"), piece: ChessPiece(type: .knight, color: .white),
+            isSelected: false, isTarget: false, isLastMove: false
+        ) == "e4、白のナイト")
+
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("a8"), piece: nil,
+            isSelected: false, isTarget: false, isLastMove: false
+        ) == "a8、空きマス")
+    }
+
+    /// 画面では駒の形と明暗だけで色も駒種も表しているので、
+    /// 「取れる」「チェックされている」は読み上げに入れないと音声の利用者にだけ届かない。
+    @Test("選択中・着手先・直前手・チェックを読み分ける")
+    func squareStates() {
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("d1"), piece: ChessPiece(type: .queen, color: .white),
+            isSelected: true, isTarget: false, isLastMove: false
+        ) == "d1、白のクイーン、選択中")
+
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("d5"), piece: nil,
+            isSelected: false, isTarget: true, isLastMove: false
+        ) == "d5、空きマス、ここに指せます")
+
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("d5"), piece: ChessPiece(type: .pawn, color: .black),
+            isSelected: false, isTarget: true, isLastMove: true
+        ) == "d5、黒のポーン、取れます、直前の手")
+
+        // チェックは「なぜ動かせないのか」に直結するので選択状態より先に読む。
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("e1"), piece: ChessPiece(type: .king, color: .white),
+            isSelected: true, isTarget: false, isLastMove: false, isCheckedKing: true
+        ) == "e1、白のキング、チェックされています、選択中")
+    }
+
+    @Test("取られた駒は1文にまとめて読む")
+    func capturedLabel() {
+        #expect(ChessAccessibility.capturedLabel(owner: .black, lost: [])
+                == "黒の取られた駒、なし")
+        #expect(ChessAccessibility.capturedLabel(owner: .white, lost: [.pawn, .pawn, .knight])
+                == "白の取られた駒、ポーン2枚、ナイト1枚")
+    }
+
+    @Test("全駒種に呼び名がある")
+    func everyPieceHasName() {
+        for type in ChessPieceType.allCases {
+            for color in ChessColor.allCases {
+                let name = ChessAccessibility.pieceName(ChessPiece(type: type, color: color))
+                #expect(name.isEmpty == false)
+                #expect(name.hasPrefix(color.name))
+            }
+        }
     }
 }
 

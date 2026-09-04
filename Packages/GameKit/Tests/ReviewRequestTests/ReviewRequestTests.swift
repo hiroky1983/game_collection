@@ -15,6 +15,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameChess
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
