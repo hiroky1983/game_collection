@@ -16,6 +16,17 @@ enum MinesweeperMetrics {
     /// HIG を大きく下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ基準に揃える。
     static let toggleButtonMinSide: CGFloat = minimumTapTarget
 
+    /// 拡大モードでの 1 マスの一辺（#458）。
+    ///
+    /// 44pt は「iPhone では等倍の盤が 44pt に届かない」ことから来た**下限**であって目標値ではない。
+    /// iPad では等倍の盤のほうが 44pt より大きくなるため、44pt へ**切り下げると拡大モードが
+    /// 縮小モードになる**。麻雀ソリティアの `comfortableTileWidth` と同じ手当てで、
+    /// 等倍で入る大きさを下回らせない。
+    static func zoomedCellSize(availableWidth: CGFloat, cols: Int) -> CGFloat {
+        guard cols > 0 else { return minimumTapTarget }
+        return max(minimumTapTarget, availableWidth / CGFloat(cols))
+    }
+
     /// ステータスバーの上下の余白（#203）。
     ///
     /// 44pt のボタンが帯の高さを決めるようになるぶん余白を 8 → 4 に詰め、

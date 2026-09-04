@@ -822,6 +822,9 @@ struct KomaBaseEdgeShape: Shape {
 private struct HandAreaView: View {
     let model: ShogiGameModel
     let color: Side
+    /// 画面の広さ（#458）。盤は幅から作られるので勝手に広がるが、持ち駒だけは固定 pt なので
+    /// ここで一緒に拡大しないと iPad で盤との比率が崩れる。
+    @Environment(\.adaptiveLayout) private var layout
 
     var body: some View {
         let pos     = model.displayedPosition
@@ -853,7 +856,7 @@ private struct HandAreaView: View {
                             Button { model.tapHand(type, color: color) } label: {
                                 VStack(spacing: 2) {
                                     KomaView(piece: Piece(type: type, color: color),
-                                             size: 32, pointsUp: isYou)
+                                             size: layout.scaled(32), pointsUp: isYou)
                                         .padding(.horizontal, 5).padding(.vertical, 3)
                                         .background(
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -873,7 +876,7 @@ private struct HandAreaView: View {
                     .drawingGroup() // 駒形状・グラデーションを Metal で一括描画
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: layout.scaled(48), alignment: .leading)
         }
         .frame(maxWidth: .infinity)
         // 縦の余白は 3。終局後に出るもののぶんの高さを確保しても盤が小さくならないよう、

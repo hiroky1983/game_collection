@@ -1,4 +1,5 @@
 import Testing
+import CoreGraphics
 import Foundation
 @testable import GameMinesweeper
 
@@ -187,5 +188,68 @@ struct MinesweeperRevealTests {
             end += 1
         }
         return Array(lines[start...min(end, lines.count - 1)])
+    }
+}
+
+/// iPad 対応（#458）。数独（`SudokuZoomedCellTests`）と同じ理由で、拡大モードの 44pt は
+/// 下限であって目標値ではない。iPad では等倍のほうが大きくなる。
+@Suite("マインスイーパーの拡大モードの寸法（iPad 対応）")
+struct MinesweeperZoomedCellTests {
+
+    typealias Metrics = MinesweeperMetrics
+
+    /// 画面幅から `Theme.pad`（16pt）を左右に引いた、盤に使える幅。
+    private static func contentWidth(screenWidth: CGFloat) -> CGFloat { screenWidth - 16 * 2 }
+
+    /// 難易度ごとの列数（`MinesweeperModel` の初級 / 中級 / 上級）。
+    static let columnCounts = [9, 16, 20]
+
+    @Test("等倍が 44pt に届かない iPhone では従来どおり 44pt のまま")
+    func unchangedOnNarrowPhones() {
+        for screen: CGFloat in [320, 375, 393, 402] {
+            for cols in Self.columnCounts {
+                let size = Metrics.zoomedCellSize(availableWidth: Self.contentWidth(screenWidth: screen), cols: cols)
+                #expect(size == Metrics.minimumTapTarget, "画面幅 \(screen)pt・\(cols) 列で \(size)pt になった")
+            }
+        }
+    }
+
+    /// 中級（16 列）・上級（20 列）は Pro Max でも 44pt に届かないので不変。
+    /// 初級（9 列）だけは等倍でも 44pt をわずかに超えるため、そこに合わせて 0.2〜1.4pt 広がる
+    /// （従来はここでも切り下げていた = 同じ欠陥が小さく出ていた）。
+    @Test("Pro Max では初級だけ等倍に合わせてごくわずかに広がる")
+    func matchesFitOnLargestPhones() {
+        for screen: CGFloat in [430, 440] {
+            let available = Self.contentWidth(screenWidth: screen)
+            for cols in [16, 20] {
+                #expect(Metrics.zoomedCellSize(availableWidth: available, cols: cols) == Metrics.minimumTapTarget)
+            }
+            let beginner = Metrics.zoomedCellSize(availableWidth: available, cols: 9)
+            #expect(beginner == available / 9)
+            #expect(beginner - Metrics.minimumTapTarget < 1.5, "\(screen)pt で \(beginner)pt は広がりすぎ")
+        }
+    }
+
+    @Test("iPad の初級では等倍で入る大きさまで広げる（縮小しない）")
+    func growsOnPad() {
+        for screen: CGFloat in [744, 768, 1024, 1032] {
+            let available = Self.contentWidth(screenWidth: screen)
+            let size = Metrics.zoomedCellSize(availableWidth: available, cols: 9)
+            #expect(size > Metrics.minimumTapTarget, "画面幅 \(screen)pt で \(size)pt にとどまった")
+            #expect(size == available / 9)
+        }
+    }
+
+    @Test("列が多くて等倍が 44pt に届かないときは 44pt を保つ")
+    func keepsTapTargetWhenBoardIsWide() {
+        // 上級（20 列）は iPad でも等倍 1 マスが 44pt を下回るので、拡大モードの意味が残る。
+        let available = Self.contentWidth(screenWidth: 834)
+        #expect(available / 20 < Metrics.minimumTapTarget)
+        #expect(Metrics.zoomedCellSize(availableWidth: available, cols: 20) == Metrics.minimumTapTarget)
+    }
+
+    @Test("列数が 0 でも落ちない")
+    func handlesZeroColumns() {
+        #expect(Metrics.zoomedCellSize(availableWidth: 1000, cols: 0) == Metrics.minimumTapTarget)
     }
 }

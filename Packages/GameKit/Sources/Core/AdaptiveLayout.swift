@@ -37,6 +37,19 @@ public struct AdaptiveLayout: Equatable, Sendable {
     /// 広い側を 200pt に上げるのは、130pt のままだと 13 インチ iPad で 7 列に割れて
     /// カードが iPhone より小さくなってしまうため。1024pt 幅で 4 列・1366pt 幅で 6 列になる。
     public var hubCardMinWidth: CGFloat { isWide ? 200 : 130 }
+
+    /// 盤と一緒には拡大されない**固定 pt の部品**（将棋の持ち駒など）に掛ける倍率。
+    ///
+    /// 盤そのものは `GeometryReader` で幅から作られるので放っておいても広がるが、その脇に置かれた
+    /// 固定 pt の部品は据え置きのままで、盤だけが大きくなると比率が崩れて見える。
+    ///
+    /// 1.5 という値は**盤の拡大率そのものではない**。盤は iPhone の 393pt 幅から iPad の 1024pt 幅で
+    /// およそ 2.6 倍になるが、同じだけ脇の部品を大きくすると帯の高さが増えて盤の取り分を食う
+    /// （盤は幅ではなく高さで頭打ちになりうる）。見劣りしない範囲で盤を削らない中間に置いている。
+    public var elementScale: CGFloat { isWide ? 1.5 : 1 }
+
+    /// 固定 pt の寸法を広い画面向けに拡大する。狭い画面では恒等なので、iPhone の見た目は動かない。
+    public func scaled(_ points: CGFloat) -> CGFloat { points * elementScale }
 }
 
 // MARK: - Environment
