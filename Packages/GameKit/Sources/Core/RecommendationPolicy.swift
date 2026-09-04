@@ -61,7 +61,11 @@ public enum RecommendationPolicy {
     /// 四人打ち麻雀・数独で実際に起きていた）。ゲームを増やしたら
     /// `RecommendationTableTests` の網羅テストが落ちるので、そこで気づける。
     public static let candidateTable: [String: [String]] = [
-        "shogi":         ["gomoku", "othello", "2048"],
+        // 第3候補をチェス（#462）に差し替えた。同じ「駒を動かして相手の王を詰ます」型で、
+        // 2048 より近い（2048 はオセロ・マインスイーパー・数独の候補として引き続き出る）。
+        "shogi":         ["gomoku", "othello", "chess"],
+        // チェス（#462）。将棋が最も近く、次いで同じ盤で陣地を争うオセロ・囲碁の順。
+        "chess":         ["shogi", "othello", "go"],
         // 盤と石をそのまま流用した囲碁（#398）が最も近い。
         "gomoku":        ["go", "othello", "shogi"],
         "othello":       ["gomoku", "shogi", "2048"],

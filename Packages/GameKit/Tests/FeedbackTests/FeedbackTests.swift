@@ -16,6 +16,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameChess
 import MahjongTiles
 
 // MARK: - Mocks
@@ -141,6 +142,17 @@ private func playGomoku(_ services: GameServices) async {
     model.tap(row: 7, col: 7)          // 拒否（埋まっているマス）
     model.tap(row: -1, col: 7)         // 拒否（盤外・#202）
     model.resign()                     // 決着
+}
+
+@MainActor
+private func playChess(_ services: GameServices) async {
+    let model = ChessGameModel(services: services)
+    model.tapSquare(ChessSquare.fromName("e2")!)
+    model.tapSquare(ChessSquare.fromName("e4")!)   // 成立
+    await model.performAIMoveIfNeeded()            // 人間の手番に戻す
+    model.tapSquare(ChessSquare.fromName("d2")!)   // 自駒を選ぶ
+    model.tapSquare(ChessSquare.fromName("d8")!)   // 拒否（指せないマス）
+    model.resign()                                 // 決着
 }
 
 @MainActor
@@ -369,6 +381,7 @@ private func playAllGames(_ services: GameServices) async {
     playShogi(services)
     await playGomoku(services)
     await playGo(services)
+    await playChess(services)
     playMinesweeper(services)
     playOthello(services)
     playPoker(services)
@@ -420,6 +433,15 @@ struct FeedbackEnabledTests {
         await playGo(services)
         #expect(spy.impacts.contains(.medium), "着手で発火する")
         #expect(spy.notices(of: .warning) >= 2, "石のある交点・盤外はどちらも拒否として発火する")
+        #expect(spy.notices(of: .error) > 0, "投了で発火する")
+    }
+
+    @Test("チェス: 着手・指せないマス・投了で発火する")
+    func chess() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        await playChess(services)
+        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.notices(of: .warning) > 0, "指せないマスは拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
     }
 
@@ -633,6 +655,7 @@ struct FeedbackDisabledTests {
         playShogi(services)
         await playGomoku(services)
         await playGo(services)
+        await playChess(services)
         playMinesweeper(services)
         playOthello(services)
         playPoker(services)
@@ -681,6 +704,7 @@ struct SoundFeedbackTests {
         await check("将棋") { playShogi($0) }
         await check("五目並べ") { await playGomoku($0) }
         await check("囲碁") { await playGo($0) }
+        await check("チェス") { await playChess($0) }
         await check("マインスイーパー") { playMinesweeper($0) }
         await check("オセロ") { playOthello($0) }
         await check("ポーカー") { _ = playPoker($0) }

@@ -16,6 +16,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameChess
 
 // MARK: - 共通のヘルパー
 
@@ -26,7 +27,7 @@ import GameSolitaire
 /// （#397 の CodeRabbit 指摘。以前は #262 以前の古い並びのまま放置されていた）。
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 private let hubOrder = [
-    "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "mahjong", "solitaire",
+    "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong", "solitaire",
     "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration",
 ]
 
@@ -34,7 +35,7 @@ private let hubOrder = [
 private func makeRegistry() -> GameRegistry {
     GameRegistry([
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
-        OthelloModule(), GoModule(), MahjongSolitaireModule(), SolitaireModule(),
+        OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(),
     ])
@@ -95,7 +96,8 @@ struct RecommendationTableTests {
 
     /// Issue #52 の表に #237 の入れ替えを反映したもの。第1〜第3候補まで検証する。
     static let table: [(String, [String])] = [
-        ("shogi",         ["gomoku", "othello", "2048"]),
+        ("shogi",         ["gomoku", "othello", "chess"]),
+        ("chess",         ["shogi", "othello", "go"]),
         ("gomoku",        ["go", "othello", "shogi"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
         ("2048",          ["minesweeper", "mahjong", "concentration"]),
@@ -150,7 +152,7 @@ struct RecommendationTableTests {
         )
         let expected = hubOrder.first { !played.contains($0) }
         #expect(got?.gameID == expected)
-        #expect(got?.gameID == "mahjong4", "ハブ順で最初の未プレイ")
+        #expect(got?.gameID == "2048", "ハブ順で最初の未プレイ")
     }
 
     /// #237 の再発防止。値に一度も出てこないゲームは「他を遊んだ人には構造的に提案されない」。

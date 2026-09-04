@@ -15,6 +15,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameChess
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -807,6 +808,35 @@ struct GameRecordingTests {
         // 新規対局に入ったら前局のリザルト表示は残さない
         model.newGame()
         #expect(model.recordResult == nil)
+    }
+
+    @Test("チェス: 投了で敗北・引き分けは draw として記録される")
+    func chessRecordsWinLossAndDraw() {
+        let (log, defaults, name) = makeLog(suite: "chess")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = ChessGameModel(services: makeServices(log: log))
+        model.resign()
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: "chess")?.losses == 1)
+        #expect(log.record(gameID: "chess")?.metric == .winLoss)
+
+        // 新規対局に入ったら前局のリザルト表示は残さない。
+        model.newGame()
+        #expect(model.recordResult == nil)
+
+        // ステイルメイトは引き分けとして数える（負けに丸めない）。
+        let store = MemorySnapshotStore()
+        try? store.save(ChessSnapshot(
+            initialFen: "7k/8/6K1/5Q2/8/8/8/8 w - - 0 1",
+            moves: [], phase: .playing, reviewPly: nil,
+            white: .human, black: .human, aiLevel: nil, startedAt: Date(), undoUsed: false
+        ), for: "chess")
+        let drawing = ChessGameModel(services: GameServices(
+            snapshots: store, ads: NoopAdService(), playLog: log))
+        drawing.apply(ChessMove.fromUCI("f5f7")!)
+        #expect(log.record(gameID: "chess")?.draws == 1)
+        #expect(log.record(gameID: "chess")?.losses == 1, "引き分けは負けに数えない")
     }
 
     @Test("五目並べ: 投了で敗北が記録され、新規対局で前局の表示が消える")

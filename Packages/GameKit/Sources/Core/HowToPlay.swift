@@ -57,6 +57,17 @@ public extension HowToPlayGuide {
         hint: "駒をタップ → 移動先をタップ"
     )
 
+    static let chess = HowToPlayGuide(
+        gameID: "chess",
+        title: "チェスの遊び方",
+        lines: [
+            "自分の駒をタップすると、動けるマスが光ります。行きたいマスをタップで移動します。",
+            "駒ごとに動き方が違います（ナイトは L 字、ビショップはななめ…）。「くわしいルール」で確認できます。",
+            "相手のキングを逃げ場なく追いつめたら勝ちです。",
+        ],
+        hint: "駒をタップ → 移動先をタップ"
+    )
+
     static let gomoku = HowToPlayGuide(
         gameID: "gomoku",
         title: "五目並べの遊び方",
@@ -218,7 +229,7 @@ public extension HowToPlayGuide {
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go, .solitaire,
+        .sudoku, .go, .solitaire, .chess,
     ]
 }
 
