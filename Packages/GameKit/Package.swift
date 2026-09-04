@@ -53,6 +53,9 @@ let package = Package(
         .testTarget(name: "ThemeTests",       dependencies: ["Core"]),
         // 広告枠（バナー）の生成判断。実際の GADBannerView は端末側なので、判断だけを純粋関数で検証する。
         .testTarget(name: "AdsTests",         dependencies: ["Core"]),
+        // 画面の広さに応じた適応レイヤ（#458 の iPad 対応）。判定と数値を Core に集約しているため、
+        // レイアウトの正しさはシミュレータを起動しなくてもここで検証できる。
+        .testTarget(name: "LayoutTests",      dependencies: ["Core"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku"]),

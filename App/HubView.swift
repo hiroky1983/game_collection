@@ -11,10 +11,16 @@ struct HubView: View {
     @State private var showSettings: Bool
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
+    /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
+    @Environment(\.adaptiveLayout) private var layout
 
     /// ゲーム一覧のグリッド（#119）。iPhone は最小幅 130pt で必ず 2 列になり
-    /// （SE 相当の 320pt 幅でも 3 列にはならない）、画面が広い iPad では列が増えて一望性が上がる。
-    private static let columns = [GridItem(.adaptive(minimum: 130), spacing: 12)]
+    /// （SE 相当の 320pt 幅でも 3 列にはならない）、画面が広い iPad では
+    /// 最小幅が 200pt へ上がって 4〜6 列に並ぶ（#458。130pt のままだと 7 列に割れて
+    /// カードが iPhone より小さくなる）。
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: layout.hubCardMinWidth), spacing: 12)]
+    }
 
     init(
         registry: GameRegistry,
@@ -34,7 +40,7 @@ struct HubView: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 ScrollView {
-                    LazyVGrid(columns: Self.columns, spacing: 12) {
+                    LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
                             NavigationLink(value: module.id) {
                                 GameCard(
