@@ -219,9 +219,61 @@ export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=core.hooksPath
 export GIT_CONFIG_VALUE_0="$MGMT_HOOKS_DIR"
 
-log "経営当番起動 (workdir=$RUN_DIR)"
+# 入力フィルタ（Issue #164）: claude セッション内の `gh` を Scripts/duty-gh-shim/gh 経由にして、
+# 第三者の本文が AI のコンテキストへ入る前に機械的に除去する。実装当番（ai-duty.sh）と同一の
+# ラッパー・同一の理由。経営企画室はむしろ Issue 本文とコメントを読むのが主業務なので、
+# 未信頼の自由記述に触れる量は開発当番より多い。
+#   - 置き場所は worktree の外（開発当番と同じ理由。ただしクローンは別なのでディレクトリも別）
+#   - 効いていることを実測できなければ claude を起動しない（fail closed）
+MGMT_TRUSTED_ACTORS="${DUTY_TRUSTED_ACTORS:-hiroky1983}"
+GH_SHIM_DIR="$HOME/.asobiba-mgmt/gh-shim"
+install_gh_shim() {
+  local src="$RUN_DIR/Scripts/duty-gh-shim" probe
+  [ -f "$src/gh" ] && [ -f "$src/filter.jq" ] || { log "入力フィルタ: $src が見つからない"; return 1; }
+  rm -rf "$GH_SHIM_DIR" 2>/dev/null
+  mkdir -p "$GH_SHIM_DIR" && chmod 700 "$GH_SHIM_DIR" || return 1
+  cp "$src/gh" "$src/filter.jq" "$GH_SHIM_DIR/" || return 1
+  chmod +x "$GH_SHIM_DIR/gh" || return 1
+  PATH="$GH_SHIM_DIR:$PATH" "$GH_SHIM_DIR/gh" --version >/dev/null 2>&1 \
+    || { log "入力フィルタ: 素通しの確認に失敗"; return 1; }
+  # ラッパーの横取り判定まで含めて実測する（filter.jq 単体の確認では引数の読み違いによる
+  # 素通しを検知できない。ai-duty.sh 側のコメント参照）
+  local stub="$GH_SHIM_DIR/.probe-gh" json="$GH_SHIM_DIR/.probe.json" args
+  cat >"$stub" <<PROBE
+#!/bin/bash
+cat "$json"
+PROBE
+  chmod +x "$stub" || { rm -f "$stub"; return 1; }
+  jq -nc '{number:1,title:"t",author:{login:"duty-shim-probe"},body:"DUTY-SHIM-LEAK",comments:[]}' >"$json" \
+    || { rm -f "$stub" "$json"; log "入力フィルタ: プローブの作成に失敗"; return 1; }
+  for args in "issue view 1" "-R o/r issue view 1" "--repo o/r pr list" "duty-shim-alias 1"; do
+    # shellcheck disable=SC2086
+    probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" $args 2>/dev/null)
+    case "$probe" in
+      *DUTY-SHIM-LEAK*)
+        rm -f "$stub" "$json"
+        log "入力フィルタ: 第三者の本文が素通しした（gh $args）"
+        return 1 ;;
+    esac
+  done
+  jq -nc --arg a "${MGMT_TRUSTED_ACTORS%%,*}" \
+    '{number:1,title:"t",author:{login:$a},body:"DUTY-SHIM-KEEP",comments:[]}' >"$json" || { rm -f "$stub" "$json"; return 1; }
+  probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" issue view 1 2>/dev/null)
+  rm -f "$stub" "$json"
+  case "$probe" in
+    *DUTY-SHIM-KEEP*) ;;
+    *) log "入力フィルタ: 会長の本文まで除去されている"; return 1 ;;
+  esac
+  return 0
+}
+if ! install_gh_shim; then
+  log "入力フィルタ（Issue #164）を用意できないため今回は起動しない"
+  exit 0
+fi
+
+log "経営当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR)"
 cd "$RUN_DIR" || exit 0
-claude --model opus \
+PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-management-prompt.md")" >>"$LOG" 2>&1
 RC=$?
