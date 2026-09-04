@@ -347,8 +347,14 @@ public struct MinesweeperView: View {
     private var board: some View {
         Group {
             if zoomMode {
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    boardGrid(cellSize: 44)
+                GeometryReader { geo in
+                    ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                        boardGrid(cellSize: MinesweeperMetrics.zoomedCellSize(
+                            availableWidth: geo.size.width, cols: model.cols
+                        ))
+                        // 画面のほうが広い（iPad）ときは等倍と同じく中央に置く。
+                        .frame(minWidth: geo.size.width, alignment: .center)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))

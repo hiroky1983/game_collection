@@ -62,6 +62,32 @@ struct AdaptiveLayoutTests {
         }
     }
 
+    /// 固定 pt の部品（将棋の持ち駒など）は iPhone では 1pt も動かしてはならない。
+    @Test("固定 pt の拡大は狭い画面では恒等")
+    func elementScaleIsIdentityOnPhone() {
+        for width in Self.iPhoneWidths {
+            let layout = AdaptiveLayout(width: width)
+            #expect(layout.elementScale == 1)
+            #expect(layout.scaled(32) == 32)
+            #expect(layout.scaled(48) == 48)
+        }
+    }
+
+    @Test("固定 pt は広い画面でだけ拡大する")
+    func elementScaleGrowsOnPad() {
+        for width in Self.iPadWidths {
+            let layout = AdaptiveLayout(width: width)
+            #expect(layout.elementScale > 1)
+            #expect(layout.scaled(32) == 48)
+        }
+    }
+
+    /// 拡大しても最小タップ標的（44pt）を割らないことが、固定 pt を触ってよい前提。
+    @Test("拡大後の持ち駒は最小タップ標的を満たす")
+    func scaledHandPieceMeetsTapTarget() {
+        #expect(AdaptiveLayout(width: 1024).scaled(32) >= 44)
+    }
+
     // MARK: - LazyVGrid の列数の再現
 
     /// `GridItem(.adaptive(minimum:))` の列決定。`padding` と `spacing` は HubView の値。

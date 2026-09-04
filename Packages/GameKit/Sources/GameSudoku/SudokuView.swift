@@ -232,8 +232,12 @@ public struct SudokuView: View {
                 }
                 .aspectRatio(1, contentMode: .fit)
             } else if zoomMode {
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    boardGrid(cellSide: SudokuMetrics.zoomedCellSide)
+                GeometryReader { geo in
+                    ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                        boardGrid(cellSide: SudokuMetrics.zoomedCellSide(availableWidth: geo.size.width))
+                            // 画面のほうが広い（iPad）ときは等倍と同じく中央に置く。
+                            .frame(minWidth: geo.size.width, alignment: .center)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
