@@ -180,6 +180,28 @@ struct FieldTests {
         #expect(f.ball.vy < 0)
     }
 
+    /// ブロックの横面で跳ね返ったあとに角度の下限が効いているか。
+    ///
+    /// 壁もブロックも符号を反転するだけで `|vy| / 速さ` を変えないため、**浅い角度で入った球は
+    /// 浅いまま出ていく**。パドルの反射だけが角度を作り直すので、そこへ辿り着けない高さで
+    /// 横に往復し始めると詰む。`resolveBlocks` の `clampVertical` がその唯一の歯止めで、
+    /// 現行のステージ配置では自然到達しないため球の状態を直接置いて確かめる。
+    @Test("ブロックの横面で跳ね返ったあと、真横に近い角度は押し戻される")
+    func blockReflectionClampsShallowAngle() {
+        var f = field(["....n...."])
+        let rect = BlocksField.blockRect(row: 0, column: 4)
+        // ほぼ水平にブロックの左側面へ突っ込む。
+        f.placeBall(x: rect.minX - 2.05, y: rect.midY, vx: 90, vy: 0.05)
+        let speedBefore = f.ball.speed
+        #expect(f.step(dt: 0.005).count == 1)
+        #expect(f.ball.vx < 0, "左右は反転している")
+        #expect(
+            abs(f.ball.vy) / f.ball.speed >= BlocksField.Metrics.minimumVerticalRatio - 1e-9,
+            "浅い角度のまま出ていった（比: \(abs(f.ball.vy) / f.ball.speed)）"
+        )
+        #expect(abs(f.ball.speed - speedBefore) < 1e-9, "速さは保存する")
+    }
+
     @Test("横から当たったら左右反転する")
     func sideHitFlipsHorizontally() {
         var f = field(["....n...."])
