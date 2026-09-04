@@ -20,7 +20,13 @@ struct ModuleTests {
     func avoidsTrademarkedTerms() {
         let module = BlocksModule()
         let surfaces = [module.id, module.title, module.description]
-        for forbidden in ["breakout", "ブレイクアウト", "arkanoid", "アルカノイド"] {
+        // `docs/aso/metadata-v1.1.1.md` §3 の ⚠️ ブロックで禁止した語をすべて並べる。
+        // `Block Breaker`（Gameloft のシリーズ名）は分かち書きの有無で綴りが割れるため両方載せる。
+        for forbidden in [
+            "breakout", "ブレイクアウト",
+            "arkanoid", "アルカノイド",
+            "block breaker", "blockbreaker", "ブロックブレイカー",
+        ] {
             for surface in surfaces {
                 #expect(
                     !surface.lowercased().contains(forbidden.lowercased()),
