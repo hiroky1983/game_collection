@@ -89,6 +89,15 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # iPad も縦固定にする（#458 の「横向きの扱いを明示的に決める」）。
+        # 収録 14 本はいずれも「盤（または場札）を上、操作ボタンを下、最下段にバナー」という
+        # 縦 1 カラムの構成で、横向きでは盤が画面の高さに縛られて左右に大きな死に領域が出る。
+        # 正方形の盤を持つゲーム（将棋・囲碁・オセロ・五目並べ・ナンプレ）は縦向きのほうが
+        # 盤を大きく取れるため、iPad でも縦を既定にするのが素直。
+        # 上下逆さまは iPad では自然な持ち方なので許可する（iPhone 側は従来どおり許可しない）。
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
         GADApplicationIdentifier: ca-app-pub-1869410932032409~4823987816
         NSUserTrackingUsageDescription: より関連性の高い広告を表示するために使用します。
         ITSAppUsesNonExemptEncryption: false
@@ -123,7 +132,9 @@ targets:
         CURRENT_PROJECT_VERSION: "7"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
-        TARGETED_DEVICE_FAMILY: "1"
+        # 1 = iPhone / 2 = iPad（#458）。調べた競合 30 本すべてが iPad 対応で、
+        # あそびばだけが iPhone 専用だった。iPad の App Store の検索結果に載るための前提。
+        TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         DEVELOPMENT_TEAM: 6MGM38HWDH
         CODE_SIGN_STYLE: Automatic

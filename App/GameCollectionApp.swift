@@ -55,6 +55,10 @@ struct GameCollectionApp: App {
             initialGameID: startGameID,
             showsSettingsInitially: showSettingsOnLaunch
         )
+        // iPad の広い画面へ追従するための適応レイヤ（#458）。ウインドウの幅をここで一度だけ測り、
+        // `\.adaptiveLayout` として全画面へ配る。各画面はこの値を読むだけで、
+        // `horizontalSizeClass` の分岐を自前で持たない。
+        .providesAdaptiveLayout()
     }
 
     private var startGameID: String? {
