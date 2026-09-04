@@ -247,7 +247,7 @@ self_update() {
   export DUTY_SELF_UPDATED=1
   exec /bin/bash "$fresh" "$@"
 }
-# 会長の書き込みを見分けるための共通 jq 定義（仕事5・仕事8 が使う）。
+# 会長の書き込みを見分けるための共通 jq 定義（仕事5・仕事8・仕事11 が使う）。
 # 当番(AI)・経営企画室・会長はすべて同じ `hiroky1983` トークンで投稿するため author では区別できず、
 # 「自社が書いたコメント」を本文のマーカーで除外して最後の会長コメントを取り出す。
 #   - 許可リスト外の author（coderabbitai・第三者）は無視する（#68: 自動プランで空振り起動）
@@ -255,6 +255,18 @@ self_update() {
 #     分析/リマインドなので除外する。除外しないと経営企画室が1本置くたびに開発当番が「会長の着信」と
 #     誤認して毎時空振りする（#168。#120 と同じ失敗モードが経営企画室の常設化で再発した）。
 #     マーカーは経営企画室側の重複防止用として ai-management-prompt.md が先頭行に必須化済み
+#   - 当番自身の応答マーカーは `is_duty_reply` に集約し、仕事5・仕事8・仕事11 が**同じ集合**を見る
+#     （#386。以前は判定ごとに部分集合しか知らず、仕事11 は `企画議論` を知らなかったため、
+#     `ai:proposed` + `blocked` の Issue に規程 1-e どおり「企画議論」で応答すると
+#     応答済みなのに毎時鳴り続けた。#184 で実際に発生。1-e と 2-b が要求する接頭辞が
+#     競合しうる以上、どちらを選んでも止まるよう集合を揃えるほかない）。
+#     `last_owner_body` 側の除外には**入れない**。あちらは「経営企画室のコメントを飛ばして
+#     手前の会長コメントを見る」ためのもので、当番マーカーを入れると自分の応答を飛ばして
+#     応答済みの古い会長コメントを拾い、かえって鳴り止まなくなる。
+#     判定は `contains` ではなく**記録形式そのもの**（先頭一致）で行う。`contains("決裁反映")` だと
+#     会長が「前回の決裁反映を確認した」のように語を引用しただけのコメントを当番の応答と誤認し、
+#     決裁着信・解除確認をまるごと取りこぼす（PR #387 の CodeRabbit 指摘）。形式は
+#     ai-duty-prompt.md の正典（`## 【要決裁】…` / `決裁反映: …`）に揃えてある。
 # 変数に出しているのは、同じ定義を Scripts/tests/test-ai-duty-detect.sh から評価するため。
 DUTY_JQ_COMMENT_LIB='
 def last_owner_body($actors):
@@ -263,11 +275,16 @@ def last_owner_body($actors):
    | select(((.body // "") | startswith("<!-- ai-management-")) | not)
    | (.body // "")] | last // "";
 
+def is_duty_reply($b):
+  ($b | startswith("企画議論"))
+  or ($b | startswith("解除確認"))
+  or ($b | startswith("着手見送り:"))
+  or ($b | startswith("## 【要決裁】"))
+  or ($b | startswith("決裁反映:"));
+
 def is_ringi_reply($actors):
   last_owner_body($actors) as $b
-  | $b != ""
-    and (($b | contains("【要決裁】")) | not)
-    and (($b | contains("決裁反映")) | not);
+  | $b != "" and ((is_duty_reply($b)) | not);
 
 def is_proposed_reply($actors):
   ([.labels.nodes[].name]) as $l
@@ -275,16 +292,62 @@ def is_proposed_reply($actors):
     and ($l | index("ai:in-progress")) == null
     and ($l | index("blocked")) == null
     and (last_owner_body($actors) as $b
-         | $b != ""
-           and (($b | startswith("企画議論")) | not)
-           and (($b | contains("【要決裁】")) | not)
-           and (($b | contains("決裁反映")) | not));
+         | $b != "" and ((is_duty_reply($b)) | not));
 
 def is_blocked_reply($actors):
   last_owner_body($actors) as $b
-  | $b != ""
-    and (($b | startswith("解除確認")) | not)
-    and (($b | startswith("着手見送り:")) | not);
+  | $b != "" and ((is_duty_reply($b)) | not);
+
+# 仕事12（ハンコによる決裁）用。会長の操作契約（docs/ai-company.md）では会長がやるのは
+# 「ハンコ（ai:approved の付与）」と「Issue への返信」の2つだけで、`ringi:pending` を外すのは
+# AI の責務である。よって「決裁スレッドを出したあとにハンコが押された」= 推奨案での決裁成立。
+#   - 比較は ISO8601（UTC・`...Z`）文字列同士。GitHub の createdAt は桁が揃うので辞書順比較で足りる
+#   - 基準に取るのは**稟議の記録2種だけ**（決裁スレッド `## 【要決裁】…` と反映記録 `決裁反映…`）で、
+#     `is_duty_reply` の集合全部ではない。全部を基準にすると、ハンコの後に当番が無関係な記録
+#     （企画議論・着手見送り等）を1本置いただけで**未処理のハンコを取りこぼす**。
+#     一方この2種は「当番がその稟議を処理した」ことそのものの記録なので、基準にしても取りこぼさない
+#   - 停止条件はこの基準がハンコより後になること。当番の処理は必ず
+#     「反映（`決裁反映…` + ringi:pending 除去 = 集合から外れる）」か「決裁スレッドの再掲」の
+#     どちらかで終わるため、応答した瞬間に必ず鳴り止む。停止を ringi:pending の除去だけに
+#     依存させると、順序不明で再掲したときに毎時の空振りが恒久化する（#120・#168・#386 と同型）
+#   - 反映記録は正典の `決裁反映: …` に加えて `## 決裁反映（…）` の見出し形も受ける（#164 の実データ）。
+#     PR #387 の指摘どおり判定は先頭一致で行い、`contains` にはしない
+#   - ハンコの付与イベントが取れない（順序不明）ときは、**稟議の記録がまだ1本も無い場合に限り**
+#     発火させる。無条件に発火させると当番が何を書いても止まらないため
+#   - **稟議の記録として数えるのは信頼アカウントの投稿だけ**（PR #446 の CodeRabbit 指摘・Major）。
+#     このリポジトリは PUBLIC で誰でも Issue にコメントできるため、絞らないと第三者が
+#     「決裁反映…」で始まるコメントを1本置くだけで基準時刻を進め、**正当なハンコの検知を握り潰せる**。
+#     既存の `last_owner_body` が author を絞っているのと同じ理由・同じ形にする
+#   - **ハンコは `ai:approved` の最新のラベル操作が信頼アカウントによる「付与」のときだけ有効**
+#     （同指摘）。付与イベントだけを見て最大値を取ると、会長が付けたあとに剥がされ第三者
+#     （= 書き込み権限を持つ別の共同作業者）が付け直した状態や、会長自身が剥がした状態を
+#     「ハンコが押されたまま」と誤読する。最新の1件で判定すれば、剥がし（UnlabeledEvent）も
+#     信頼外の付与も自動的に「ハンコ無し」に倒れる
+def last_ringi_record_at($actors):
+  [.comments.nodes[]
+   | select((.author.login // "") as $a | ($actors | index($a)) != null)
+   | (.body // "") as $b
+   | select(($b | startswith("## 【要決裁】"))
+            or ($b | startswith("決裁反映"))
+            or ($b | startswith("## 決裁反映")))
+   | (.createdAt // "")] | max // "";
+
+def ai_approved_at($actors):
+  ([.timelineItems.nodes[]? | select((.label.name // "") == "ai:approved")]
+   | sort_by(.createdAt // "") | last) as $latest
+  | if $latest == null then ""
+    elif ($latest.__typename // "") != "LabeledEvent" then ""
+    elif (($latest.actor.login // "") as $a | ($actors | index($a)) == null) then ""
+    else ($latest.createdAt // "")
+    end;
+
+def is_ringi_stamp($actors):
+  ([.labels.nodes[].name]) as $l
+  | ($l | index("ringi:pending")) != null
+    and ($l | index("ai:approved")) != null
+    and (ai_approved_at($actors) as $stamp
+         | last_ringi_record_at($actors) as $record
+         | if $stamp != "" then $stamp > $record else $record == "" end);
 '
 
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
@@ -638,13 +701,42 @@ query {
   | [.data.repository.issues.nodes[]
   | select(is_blocked_reply($actors))] | length' 2>/dev/null || echo 0)
 
+# 仕事12: ハンコによる決裁の着信（Issue #436）
+# 会長の運用宣言（2026-09-02）: 「やるのはハンコ（ai:approved）を押すことと Issue に返信することだけ。
+# ringi:pending を外すなどのラベル操作は一切やらない」。仕事5 は**コメント**での決裁しか見ておらず、
+# ハンコだけ押された Issue は ringi:pending が残るせいで仕事1（着手対象）からも外れ、どの検知にも
+# 掛からないまま沈む（#164 は 2026-08-19 にハンコが押されたのに 2026-09-02 の会長指摘まで2週間滞留した）。
+# 「決裁スレッドを出したあとにハンコが押された」= 推奨案での決裁成立として当番を起こす。
+# 判定は DUTY_JQ_COMMENT_LIB の is_ringi_stamp（発火・停止の条件と経緯はそちらのコメント参照）。
+RINGI_STAMPS=$(gh api graphql -f query='
+query {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    issues(states: OPEN, labels: ["ringi:pending"], first: 20) {
+      nodes {
+        number
+        labels(first: 20) { nodes { name } }
+        comments(last: 20) { nodes { body createdAt author { login } } }
+        timelineItems(last: 100, itemTypes: [LABELED_EVENT, UNLABELED_EVENT]) {
+          nodes {
+            __typename
+            ... on LabeledEvent { createdAt label { name } actor { login } }
+            ... on UnlabeledEvent { createdAt label { name } actor { login } }
+          }
+        }
+      }
+    }
+  }
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
+  | [.data.repository.issues.nodes[]
+  | select(is_ringi_stamp($actors))] | length' 2>/dev/null || echo 0)
+
 # 実行モード決定。仕事が無ければ何もしない。
 # 2026-08-19: 以前はここで「枯渇駆動の企画モード」（分析なしで機械的に2〜3件起票するだけ）に
 # 切り替えていたが、その乱造ガード自体が「未承認3件で永久停止」という別の詰まりを生んでいた
 # （#106 が6日間放置）。経営企画室の責務は Scripts/ai-management-duty.sh（日次）へ全面移管した。
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ] && [ "${RINGI_STAMPS:-0}" -eq 0 ]; then
   log "仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）"
   exit 0
 fi
@@ -670,12 +762,68 @@ git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
+# 入力フィルタ（Issue #164）: claude セッション内の `gh` を Scripts/duty-gh-shim/gh 経由にして、
+# 第三者（PUBLIC リポジトリなので誰でも書ける）の本文が AI のコンテキストへ入る前に機械的に除去する。
+# 憲章の「指示として扱うのは会長と coderabbitai だけ」は、これまでプロンプトの記述だけで強制されていた。
+#   - 置き場所を worktree の**外**にするのは、当番が release ブランチ等をチェックアウトすると
+#     worktree 側の Scripts/ が入れ替わり、ラッパーごと消えて gh が動かなくなるため
+#   - 効いていることを起動前に実測し、確認できなければ **claude を起動しない**（fail closed）。
+#     フィルタ無しで走らせるくらいなら1回休むほうがよい。ラッパー自体の回帰は
+#     Scripts/tests/test-duty-gh-shim.sh（CI で実行）が防ぐ
+GH_SHIM_DIR="$HOME/.asobiba-duty/gh-shim"
+install_gh_shim() {
+  local src="$RUN_DIR/Scripts/duty-gh-shim" probe
+  [ -f "$src/gh" ] && [ -f "$src/filter.jq" ] || { log "入力フィルタ: $src が見つからない"; return 1; }
+  rm -rf "$GH_SHIM_DIR" 2>/dev/null
+  mkdir -p "$GH_SHIM_DIR" && chmod 700 "$GH_SHIM_DIR" || return 1
+  cp "$src/gh" "$src/filter.jq" "$GH_SHIM_DIR/" || return 1
+  chmod +x "$GH_SHIM_DIR/gh" || return 1
+  # 素通しの経路が生きているか（ここが壊れると当番はコメントもマージも一切できない）
+  PATH="$GH_SHIM_DIR:$PATH" "$GH_SHIM_DIR/gh" --version >/dev/null 2>&1 \
+    || { log "入力フィルタ: 素通しの確認に失敗"; return 1; }
+  # 第三者の本文が実際に落ちるか（ここが壊れると黙って素通しになり、壊れたことに気づけない）。
+  # **ラッパーの横取り判定まで含めて**実測する。filter.jq 単体の確認では、引数の読み違いによる
+  # 素通しを検知できない（PR #448 の敵対的検証で、`-R` の先置きとエイリアス経由の2通りが
+  # 実際に見つかった）。スタブの gh を噛ませ、代表的な並びで本文が漏れないことを確かめる
+  local stub="$GH_SHIM_DIR/.probe-gh" json="$GH_SHIM_DIR/.probe.json" args
+  cat >"$stub" <<PROBE
+#!/bin/bash
+cat "$json"
+PROBE
+  chmod +x "$stub" || { rm -f "$stub"; return 1; }
+  jq -nc '{number:1,title:"t",author:{login:"duty-shim-probe"},body:"DUTY-SHIM-LEAK",comments:[]}' >"$json" \
+    || { rm -f "$stub" "$json"; log "入力フィルタ: プローブの作成に失敗"; return 1; }
+  for args in "issue view 1" "-R o/r issue view 1" "--repo o/r pr list" "duty-shim-alias 1"; do
+    # shellcheck disable=SC2086
+    probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" $args 2>/dev/null)
+    case "$probe" in
+      *DUTY-SHIM-LEAK*)
+        rm -f "$stub" "$json"
+        log "入力フィルタ: 第三者の本文が素通しした（gh $args）"
+        return 1 ;;
+    esac
+  done
+  jq -nc --arg a "${DUTY_TRUSTED_ACTORS%%,*}" \
+    '{number:1,title:"t",author:{login:$a},body:"DUTY-SHIM-KEEP",comments:[]}' >"$json" || { rm -f "$stub" "$json"; return 1; }
+  probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" issue view 1 2>/dev/null)
+  rm -f "$stub" "$json"
+  case "$probe" in
+    *DUTY-SHIM-KEEP*) ;;
+    *) log "入力フィルタ: 会長の本文まで除去されている"; return 1 ;;
+  esac
+  return 0
+}
+if ! install_gh_shim; then
+  log "入力フィルタ（Issue #164）を用意できないため今回は起動しない"
+  exit 0
+fi
+
 # claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
 capture_sims_before
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, workdir=$RUN_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
-claude --model opus \
+PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")" >>"$LOG" 2>&1
 RC=$?
