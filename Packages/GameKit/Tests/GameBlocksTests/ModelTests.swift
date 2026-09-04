@@ -295,6 +295,60 @@ struct ModelTests {
         #expect(store.load(BlocksSnapshot.self, for: BlocksModel.gameID)?.stage == 2)
     }
 
+    /// 1 機失っても保存し直さない（「ステージ頭のみ」の約束の裏側）。
+    ///
+    /// ここで保存してしまうと、続きから再開したときの残機とスコアが**ステージ頭ではなく
+    /// 落球した時点**のものになり、契約が静かに変わる。
+    @Test("残機を1つ失っても中断データを更新しない")
+    func doesNotSaveOnLosingALife() {
+        let store = MemorySnapshotStore()
+        let model = BlocksModel(
+            services: makeServices(store: store), preference: makePreference("lifesave")
+        )
+        let afterInit = store.saveCount
+        let snapshotAtStageHead = store.load(BlocksSnapshot.self, for: BlocksModel.gameID)
+        dropBall(model)
+        #expect(model.lives == BlocksRules.initialLives - 1, "実際に 1 機失っている")
+        #expect(store.saveCount == afterInit, "落球で保存し直している")
+        #expect(store.load(BlocksSnapshot.self, for: BlocksModel.gameID) == snapshotAtStageHead,
+                "中断データがステージ頭のものから変わっている")
+    }
+
+    /// 同じ 1 フレームの中でステージクリアと落球が続けて起きても、残機を減らさない。
+    ///
+    /// `tick` のイベント処理は `guard phase == .playing else { break }` で打ち切っている。
+    /// この打ち切りが無いと、最後のブロックを壊した球がそのまま落ちたときに
+    /// **クリアしたのに 1 機失う**。現行のステージ配置ではこの並びに自然到達しないため、
+    /// 球の状態を直接置いて再現する。
+    @Test("同じフレームでクリアと落球が続いても残機は減らない")
+    func stopsProcessingEventsAfterStageClear() {
+        let store = MemorySnapshotStore()
+        let model = BlocksModel(
+            services: makeServices(store: store), preference: makePreference("clearthenlost")
+        )
+        model.launch()
+        // 最後の 1 個を残して崩す。
+        var guardCount = 0
+        while model.field.remainingBreakableCount > 1, guardCount < 4_000 {
+            guardCount += 1
+            guard let target = firstBreakable(model.field) else { break }
+            let rect = BlocksField.blockRect(row: target.row, column: target.column)
+            model.placeBallForTesting(x: rect.midX, y: rect.midY, vx: 0, vy: 1)
+            model.tick(dt: 1.0 / 60)
+        }
+        #expect(model.field.remainingBreakableCount == 1)
+
+        // 最後の 1 個へ、1 フレームで床まで到達する速さの球を真上から撃ち込む。
+        let last = firstBreakable(model.field)!
+        let rect = BlocksField.blockRect(row: last.row, column: last.column)
+        model.movePaddle(to: 5)   // パドルは反対側に置いて拾わせない
+        model.placeBallForTesting(x: rect.midX, y: rect.midY, vx: 0, vy: -6_000)
+        model.tick(dt: BlocksRules.maxStep)
+
+        #expect(model.phase == .stageCleared, "クリアで止まっていない（phase: \(model.phase)）")
+        #expect(model.lives == BlocksRules.initialLives, "クリアしたのに残機が減っている")
+    }
+
     @Test("続きからはステージの頭・そのステージ開始時点の残機とスコアで再開する")
     func restoresFromStageHead() {
         let store = MemorySnapshotStore()
