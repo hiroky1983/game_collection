@@ -17,10 +17,25 @@ public enum SolitaireMetrics {
     public static let maxCardWidth: CGFloat = 76
 
     /// 与えられた幅に 7 列を収める札の幅。
-    public static func cardWidth(availableWidth: CGFloat) -> CGFloat {
+    ///
+    /// `maxWidth` は上限の差し替え口（#458）。iPad では `AdaptiveLayout.scaled(_:)` を通した値を
+    /// 渡し、他の画面と同じ倍率で札を大きくする。既定値は従来どおり `maxCardWidth` なので、
+    /// 引数を省いた呼び出し（テスト・iPhone）の結果は 1pt も変わらない。
+    public static func cardWidth(availableWidth: CGFloat, maxWidth: CGFloat = maxCardWidth) -> CGFloat {
         let raw = (availableWidth - columnGap * CGFloat(SolitaireBoard.pileCount - 1))
             / CGFloat(SolitaireBoard.pileCount)
-        return min(maxCardWidth, max(minCardWidth, raw))
+        return min(maxWidth, max(minCardWidth, raw))
+    }
+
+    /// 7 列ぶんの盤面の幅（列と列の隙間を含む）。
+    ///
+    /// 上段（山札・捨て札・組札）は `Spacer` で左右いっぱいに広がるのに対し、下段の 7 列は
+    /// 札の幅の上限で頭打ちになる。画面が広い iPad では上段だけが伸びて**組札と 7 列目が
+    /// 縦に揃わなくなる**ため、両方をこの幅に揃えて中央に置く（#458）。
+    /// 上限に掛からない画面（iPhone）ではこの値は使える幅と一致するので、見た目は変わらない。
+    public static func boardWidth(cardWidth: CGFloat) -> CGFloat {
+        cardWidth * CGFloat(SolitaireBoard.pileCount)
+            + columnGap * CGFloat(SolitaireBoard.pileCount - 1)
     }
 
     public static func cardHeight(width: CGFloat) -> CGFloat { (width * aspectRatio).rounded() }

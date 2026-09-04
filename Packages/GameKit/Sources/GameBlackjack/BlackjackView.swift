@@ -5,6 +5,8 @@ public struct BlackjackView: View {
     @State private var model: BlackjackModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
+    /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
+    @Environment(\.adaptiveLayout) private var layout
     @State private var showRewardNotEarned = false
     @State private var isRecoveringChips = false
 
@@ -267,7 +269,7 @@ public struct BlackjackView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .frame(minHeight: 60)
+            .frame(minHeight: layout.scaled(60))
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .overlay(
@@ -542,25 +544,35 @@ struct BJCardView: View {
     var faceUp: Bool = true
     /// 札の寸法。スプリットで2手を縦に積むときだけ `compact` を渡す（#439）。
     var metrics: PlayingCardMetrics = .standard
+    /// 画面の広さ（#458）。この画面も `GeometryReader` を持たず札が固定 pt なので、
+    /// iPad では札だけが取り残される。渡された寸法をそのまま相似に拡大する
+    /// （`.standard` も `.compact` も同じ倍率で大きくなるので、スプリット時の比率は保たれる）。
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var scaled: PlayingCardMetrics { metrics.scaled(by: layout.elementScale) }
 
     var body: some View {
         ZStack {
             // 外形・面・裏はトランプ共通基盤（#397。質感は CardStyle #366）。
-            PlayingCardSurface(faceUp: faceUp, cornerRadius: metrics.cornerRadius)
+            PlayingCardSurface(faceUp: faceUp, cornerRadius: scaled.cornerRadius)
 
             if faceUp {
-                PlayingCardFace(figure: card.figure, metrics: metrics)
+                PlayingCardFace(figure: card.figure, metrics: scaled)
             } else {
-                PlayingCardBack(metrics: metrics)
+                PlayingCardBack(metrics: scaled)
             }
         }
-        .frame(width: metrics.width, height: metrics.height)
+        .frame(width: scaled.width, height: scaled.height)
     }
 }
 
 /// 配牌前のカード置き場（`BJCardView` と同じ寸法で、配牌時に高さが動かないようにする）
 struct BJCardPlaceholder: View {
-    private let metrics = PlayingCardMetrics.standard
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var metrics: PlayingCardMetrics {
+        PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+    }
 
     var body: some View {
         RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)

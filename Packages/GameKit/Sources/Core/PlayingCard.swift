@@ -92,6 +92,25 @@ public struct PlayingCardMetrics: Sendable, Equatable {
         self.backMotifFont = backMotifFont
     }
 
+    /// 全ての寸法と文字サイズを**相似に**拡大した寸法（#458・iPad 対応）。
+    ///
+    /// カードゲームは盤ゲームと違い `GeometryReader` を持たず、札が固定 pt で組まれている。
+    /// 幅から作り直すのではなく、既存の値を丸ごとスケールすることで**札の見た目そのものは
+    /// 1 ドットも変えずに大きさだけを変える**（角丸・文字・行間の比率が崩れない）。
+    /// 倍率は `AdaptiveLayout.elementScale` から受け取り、狭い画面では 1（＝恒等）になる。
+    public func scaled(by factor: CGFloat) -> PlayingCardMetrics {
+        guard factor != 1 else { return self }
+        return PlayingCardMetrics(
+            width: width * factor,
+            height: height * factor,
+            cornerRadius: cornerRadius * factor,
+            rankFont: rankFont * factor,
+            suitFont: suitFont * factor,
+            pipSpacing: pipSpacing * factor,
+            backMotifFont: backMotifFont * factor
+        )
+    }
+
     /// ポーカー・ブラックジャックの手札（既存の 62×90）。
     public static let standard = PlayingCardMetrics(
         width: 62, height: 90, rankFont: 22, suitFont: 24, pipSpacing: 2, backMotifFont: 26)

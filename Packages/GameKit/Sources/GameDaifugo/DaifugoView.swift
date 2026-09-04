@@ -6,6 +6,8 @@ public struct DaifugoView: View {
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showResignConfirm = false
+    /// 画面の広さ（#458）。場の空き枠を札と同じ倍率で拡大するために読む。
+    @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
@@ -159,7 +161,9 @@ public struct DaifugoView: View {
                 if model.field.isEmpty {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(Theme.inkSub.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                        .frame(width: 56, height: 78)
+                        // 場の札（`.large` = 56×78）と同じ枠。札が広い画面で拡大するので
+                        // ここも一緒に拡大しないと、札が出た瞬間に場の高さが跳ねる（#458）。
+                        .frame(width: layout.scaled(56), height: layout.scaled(78))
                         .transition(.opacity)
                 } else {
                     ForEach(model.field) { card in
@@ -475,6 +479,9 @@ struct DaifugoCardView: View {
     var selected: Bool = false
     /// 出せる / 出せないの区別（#190）。`.none` なら素の見た目のまま。
     var hint: DaifugoCardHint = .none
+    /// 画面の広さ（#458）。手札の**列幅**は `.flexible()` なので iPad で勝手に広がるのに、
+    /// 札の絵柄だけ 42pt 固定で取り残され、列のあいだの隙間だけが開いていた。
+    @Environment(\.adaptiveLayout) private var layout
 
     /// 出せない札は色に頼らず**明度**でも落として区別する（色覚特性の影響を受けないため）。
     private var isDimmed: Bool { hint == .unplayable && !selected }
@@ -490,11 +497,14 @@ struct DaifugoCardView: View {
         return hint == .playable ? 1.5 : 0.5
     }
 
+    /// 広い画面向けに相似拡大した寸法（#458）。狭い画面では `size.metrics` と同じ値になる。
+    private var metrics: PlayingCardMetrics { size.metrics.scaled(by: layout.elementScale) }
+
     var body: some View {
         ZStack {
             // 外形・面はトランプ共通基盤（#397。質感は CardStyle #366）。大富豪は常に表向き。
             PlayingCardSurface(
-                cornerRadius: size.metrics.cornerRadius,
+                cornerRadius: metrics.cornerRadius,
                 border: borderColor,
                 borderWidth: borderWidth,
                 shadowColor: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
@@ -502,9 +512,9 @@ struct DaifugoCardView: View {
             )
 
             // ジョーカーの図案は共通基盤の道化帽（#397 で新調。従来は star.fill だった）。
-            PlayingCardFace(figure: card.figure, metrics: size.metrics)
+            PlayingCardFace(figure: card.figure, metrics: metrics)
         }
-        .frame(width: size.metrics.width, height: size.metrics.height)
+        .frame(width: metrics.width, height: metrics.height)
         .opacity(isDimmed ? 0.4 : 1)
     }
 }
