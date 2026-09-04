@@ -17,6 +17,7 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameChess
+import GameBlocks
 import MahjongTiles
 
 // MARK: - Mocks
@@ -180,6 +181,22 @@ private func playSolitaire(_ services: GameServices) {
         model.tapPile(pile)
     }
     model.newGame()    // 決着（指した配札を捨てた = 敗北）
+}
+
+/// ブロック崩し（#463）。発射（`.rigid`）→ ブロック破壊（`.medium`）→ 落球（`.warning`）まで通す。
+/// 盤の状態を直接置けるので、フレーム数や反射の偶然に頼らず決定的に再現できる。
+@MainActor
+private func playBlocks(_ services: GameServices) {
+    let model = BlocksModel(services: services, startingAt: 1, lives: 1)
+    model.launch()                                   // 発射（操作音）
+    let rect = BlocksField.blockRect(row: 0, column: 0)
+    model.placeBallForTesting(x: rect.midX, y: rect.midY, vx: 0, vy: 1)
+    model.tick(dt: 1.0 / 60)                         // ブロックを壊す（操作音）
+    model.movePaddle(to: 5)
+    model.placeBallForTesting(x: 95, y: 6, vx: 0, vy: -60)
+    for _ in 0..<60 where model.phase == .playing {  // 落球 → 残機 0 でゲームオーバー（決着音）
+        model.tick(dt: 1.0 / 60)
+    }
 }
 
 @MainActor
@@ -390,6 +407,7 @@ private func playAllGames(_ services: GameServices) async {
     await playDaifugo(services)
     playMahjong(services)
     await playSudoku(services)
+    playBlocks(services)
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -714,6 +732,7 @@ struct SoundFeedbackTests {
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
         await check("ソリティア") { playSolitaire($0) }
+        await check("ブロック崩し") { playBlocks($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
             model.startGame()

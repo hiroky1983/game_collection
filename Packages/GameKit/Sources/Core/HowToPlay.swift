@@ -225,11 +225,23 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.stack.fill"
     )
 
+    static let blocks = HowToPlayGuide(
+        gameID: "blocks",
+        title: "ブロック崩しの遊び方",
+        lines: [
+            "画面を指でなぞるとパドルが動きます。タップすると球が飛び出します。",
+            "球をはね返してブロックに当てます。灰色のブロックは壊れません。",
+            "壊せるブロックを全部消すと次のステージへ。球を 3 回落とすと終わりです。",
+        ],
+        hint: "なぞってパドルを動かそう",
+        hintIcon: "hand.draw.fill"
+    )
+
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go, .solitaire, .chess,
+        .sudoku, .go, .solitaire, .chess, .blocks,
     ]
 }
 

@@ -67,6 +67,8 @@ targets:
       - package: GameKit
         product: GameChess
       - package: GameKit
+        product: GameBlocks
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds
