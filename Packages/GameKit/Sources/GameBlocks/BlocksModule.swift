@@ -8,7 +8,11 @@ import SwiftUI
 /// 普通名詞の `blocks` を使う（権利チェックの記録は Issue #463 と
 /// `docs/aso/metadata-v1.1.1.md` §3）。
 public struct BlocksModule: GameModule {
-    public let id = BlocksModel.gameID
+    // **文字列リテラルで書く**（`BlocksModel.gameID` を参照しない）。LP の顔ぶれ照合
+    // （`Scripts/check-lp-game-list.sh`）が `public let id = "..."` を静的に読み取るため、
+    // 定数参照にすると slug を突き合わせられずに CI が落ちる。
+    // `BlocksModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
+    public let id = "blocks"
     public let title = "ブロック崩し"
     public let description = "パドルではね返して全部くずそう"
     // 球の絵にしてある。ブロックを模した格子（`rectangle.grid.2x2.fill` 等）は、
