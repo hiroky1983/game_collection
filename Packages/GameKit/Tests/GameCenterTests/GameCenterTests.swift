@@ -16,6 +16,7 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameChess
+import GameBlocks
 
 // MARK: - モック
 
@@ -91,7 +92,7 @@ private func makeHubModules() -> [GameModule] {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(),
     ]
 }
 
@@ -259,12 +260,30 @@ struct GameCenterLeaderboardTests {
         #expect(id("cross") == nil)
     }
 
+    @Test("ブロック崩し: スコアは専用の表へ送るが、コンティニューを使った回は送らない（#406 と同じ扱い）")
+    func blocksScoreEligibility() {
+        let eligible = GameCenterLeaderboard.score(
+            gameID: "blocks",
+            outcome: .loss,
+            score: GameScore(metric: .points, points: 4_200)
+        )
+        #expect(eligible?.leaderboardID == GameCenterLeaderboard.blocksScore)
+        #expect(eligible?.value == 4_200)
+
+        #expect(GameCenterLeaderboard.score(
+            gameID: "blocks",
+            outcome: .loss,
+            score: GameScore(metric: .points, points: 4_200, isLeaderboardEligible: false)
+        ) == nil, "広告コンティニューを使った回は順位表に載せない")
+    }
+
     @Test("対応表が返す ID は必ず登録一覧（allIDs）に含まれる")
     func everyMappedIDIsRegistered() {
         let cases: [(String, GameScore)] = [
             ("2048", GameScore(metric: .points, points: 1)),
             ("poker", GameScore(metric: .points, points: 1)),
             ("blackjack", GameScore(metric: .points, points: 1)),
+            ("blocks", GameScore(metric: .points, points: 1)),
             // 区分キーは `MinesweeperDifficulty` のプリセット（#444 で 12×12/25・15×15/40 から変更）。
             ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "9x9-10")),
             ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "16x16-40")),

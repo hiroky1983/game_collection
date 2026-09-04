@@ -82,6 +82,22 @@ struct SettingsView: View {
                     Text("大富豪で、いま出せるカードを枠の色で目立たせ、出せない組を選んだときはその理由を1行で表示します。オフにすると何も表示しません。")
                 }
 
+                // MARK: あそびやすさ
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.blocksSlowModeEnabled },
+                        set: { settings.blocksSlowModeEnabled = $0 }
+                    )) {
+                        Label("ゆっくりモード", systemImage: "tortoise")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
+                } header: {
+                    Text("あそびやすさ")
+                } footer: {
+                    Text("ブロック崩しの球の速さを落とします。ゲーム中の一時停止画面からも切り替えられます。")
+                }
+
                 // MARK: 解析
                 Section {
                     Toggle(isOn: Binding(
@@ -159,6 +175,9 @@ struct SettingsView: View {
                 }
             }
             .environment(\.editMode, .constant(.active))
+            // ゲーム画面からも切り替えられる設定（ゆっくりモード・#463）があるため、
+            // 開くたびに保存値を読み直す。
+            .onAppear { settings.refreshFromDefaults() }
             .navigationTitle("設定")
             .sheet(item: $legalURL) { item in
                 SafariView(url: item.url)

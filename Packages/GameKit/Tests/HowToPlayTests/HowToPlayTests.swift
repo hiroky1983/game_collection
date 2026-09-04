@@ -16,6 +16,7 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameChess
+import GameBlocks
 
 /// ハブに登録されている全ゲーム（= 遊び方ガイドが要るゲーム）。
 @MainActor
@@ -35,6 +36,7 @@ private let registeredModules: [GameModule] = [
     SudokuModule(),
     GoModule(),
     ChessModule(),
+    BlocksModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）

@@ -85,15 +85,22 @@ public struct CompositeFeedbackService: FeedbackService {
 public struct FeedbackPreference {
     private let key: String
     private let defaults: UserDefaults
+    /// キーが保存されていないとき（初回起動）に返す値。
+    ///
+    /// 触覚・効果音・ヒント・解析はいずれも「既定でオン」だが、あとから足した機能には
+    /// 既定でオフにすべきものもある（ブロック崩しのゆっくりモード・#463）。
+    /// オン / オフ 1 つのために別の永続化の仕組みを増やさず、既定値だけを可変にする。
+    private let defaultValue: Bool
 
-    public init(key: String, defaults: UserDefaults = .standard) {
+    public init(key: String, defaults: UserDefaults = .standard, defaultValue: Bool = true) {
         self.key = key
         self.defaults = defaults
+        self.defaultValue = defaultValue
     }
 
-    /// 保存された設定。キーが無いとき（初回起動）はオン。
+    /// 保存された設定。キーが無いとき（初回起動）は `defaultValue`。
     public var isEnabled: Bool {
-        get { defaults.object(forKey: key) as? Bool ?? true }
+        get { defaults.object(forKey: key) as? Bool ?? defaultValue }
         nonmutating set { defaults.set(newValue, forKey: key) }
     }
 }
@@ -108,4 +115,14 @@ public extension FeedbackPreference {
     /// `static let` にすると `UserDefaults` を抱えた共有可変状態として Sendable 違反になるため、
     /// 都度組み立てる計算プロパティにしている（実体は文字列と `UserDefaults` の参照だけなので安い）。
     static var hints: FeedbackPreference { FeedbackPreference(key: "hintsEnabled_v1") }
+
+    /// ブロック崩しの「ゆっくりモード」（#463）。**既定はオフ**。
+    ///
+    /// 反射神経を使うゲームは VoiceOver で完全に代替できないため、球の速さを落とす手段を
+    /// アクセシビリティの代替手段として用意している（アクション枠の基盤規約）。
+    /// 設定画面（App 層）とゲームのポーズ画面（GameKit 側）の両方が読み書きするので、
+    /// `hints` と同じくキーの定義をここで共有する。
+    static var blocksSlowMode: FeedbackPreference {
+        FeedbackPreference(key: "blocksSlowMode_v1", defaultValue: false)
+    }
 }

@@ -17,6 +17,7 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameChess
+import GameBlocks
 
 // MARK: - 共通のヘルパー
 
@@ -28,7 +29,7 @@ import GameChess
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong", "solitaire",
-    "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration",
+    "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration", "blocks",
 ]
 
 @MainActor
@@ -37,7 +38,7 @@ private func makeRegistry() -> GameRegistry {
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
-        GomokuModule(), ConcentrationModule(),
+        GomokuModule(), ConcentrationModule(), BlocksModule(),
     ])
 }
 
@@ -100,7 +101,8 @@ struct RecommendationTableTests {
         ("chess",         ["shogi", "othello", "go"]),
         ("gomoku",        ["go", "othello", "shogi"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
-        ("2048",          ["minesweeper", "mahjong", "concentration"]),
+        ("2048",          ["minesweeper", "mahjong", "blocks"]),
+        ("blocks",        ["2048", "minesweeper", "concentration"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
         ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
