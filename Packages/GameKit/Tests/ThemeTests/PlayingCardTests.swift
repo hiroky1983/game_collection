@@ -142,3 +142,51 @@ struct PlayingCardTests {
         #expect(abs(b.height - a.height) < 0.001)
     }
 }
+
+/// iPad 対応（#458）。カードゲームは盤ゲームと違い `GeometryReader` を持たず札が固定 pt なので、
+/// 寸法を丸ごと相似に拡大する。**iPhone では倍率 1（恒等）**であることがこの型の前提。
+@Suite("カードの寸法の相似拡大")
+struct PlayingCardMetricsScaleTests {
+
+    static let presets: [PlayingCardMetrics] = [.standard, .compact, .medium]
+
+    @Test("倍率 1 では同じ値のまま")
+    func identityAtScaleOne() {
+        for m in Self.presets {
+            #expect(m.scaled(by: 1) == m)
+        }
+    }
+
+    @Test("全ての寸法と文字サイズが同じ倍率で拡大される")
+    func scalesEveryDimension() {
+        let factor: CGFloat = 1.5
+        for m in Self.presets {
+            let s = m.scaled(by: factor)
+            #expect(s.width == m.width * factor)
+            #expect(s.height == m.height * factor)
+            #expect(s.cornerRadius == m.cornerRadius * factor)
+            #expect(s.rankFont == m.rankFont * factor)
+            #expect(s.suitFont == m.suitFont * factor)
+            #expect(s.pipSpacing == m.pipSpacing * factor)
+            #expect(s.backMotifFont == m.backMotifFont * factor)
+        }
+    }
+
+    /// 縦横比が崩れると札が「引き伸ばされた」見た目になる。相似であることが要件。
+    @Test("縦横比が変わらない")
+    func keepsAspectRatio() {
+        for m in Self.presets {
+            let s = m.scaled(by: 1.5)
+            #expect(abs(s.height / s.width - m.height / m.width) < 0.0001)
+        }
+    }
+
+    /// 拡大した札は最小タップ標的（44pt）を満たす。狭い側の 42pt はタップ判定を別に広げてある
+    /// （大富豪 `DaifugoHandLayout`）が、広い側は札そのもので満たせる。
+    @Test("広い画面では札そのものが最小タップ標的を満たす")
+    func meetsTapTargetWhenScaled() {
+        for m in Self.presets {
+            #expect(m.scaled(by: 1.5).width >= 44)
+        }
+    }
+}

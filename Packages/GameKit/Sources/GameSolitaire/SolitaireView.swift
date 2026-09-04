@@ -26,6 +26,8 @@ public struct SolitaireView: View {
     @Namespace private var cardMotion
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
+    /// 画面の広さ（#458）。札の幅の上限をここから受け取る。
+    @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
@@ -173,13 +175,21 @@ public struct SolitaireView: View {
 
     private var board: some View {
         GeometryReader { geo in
-            let width = SolitaireMetrics.cardWidth(availableWidth: geo.size.width)
+            let width = SolitaireMetrics.cardWidth(
+                availableWidth: geo.size.width,
+                // 広い画面では他の画面と同じ倍率で札の上限を引き上げる（#458）。
+                // 狭い画面では `scaled` が恒等なので従来の 76pt のまま。
+                maxWidth: layout.scaled(SolitaireMetrics.maxCardWidth)
+            )
             let metrics = SolitaireMetrics.faceMetrics(width: width)
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 12) {
                     topRow(metrics: metrics)
                     tableau(metrics: metrics)
                 }
+                // 上段（`Spacer` で伸びる）と下段（7 列で頭打ち）の幅を揃えて中央に置く。
+                // これが無いと iPad で組札だけが右端へ逃げ、7 列目と縦に揃わない（#458）。
+                .frame(width: SolitaireMetrics.boardWidth(cardWidth: width))
                 .frame(maxWidth: .infinity)
                 .padding(.top, 2)
             }

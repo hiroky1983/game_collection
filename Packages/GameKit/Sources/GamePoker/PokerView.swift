@@ -493,7 +493,13 @@ struct CardView: View {
     var faceUp: Bool = true
     var selected: Bool = false
 
-    private let metrics = PlayingCardMetrics.standard
+    /// 画面の広さ（#458）。この画面は `GeometryReader` を 1 つも持たず札が固定 pt なので、
+    /// iPad では 5 枚並べても 310pt しか占めず左右に大きな空白が残る。ここで札ごと拡大する。
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var metrics: PlayingCardMetrics {
+        PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+    }
 
     var body: some View {
         ZStack {
