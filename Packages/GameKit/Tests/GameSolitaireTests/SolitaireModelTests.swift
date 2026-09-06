@@ -539,7 +539,7 @@ struct SolitaireUndoBudgetTests {
         #expect(spy.notices.contains(.warning), "拒否として扱う")
 
         // 視聴完了後の補充。
-        #expect(model.grantUndos())
+        #expect(model.grantUndos(forDeal: model.dealSerial))
         #expect(model.undosRemaining == SolitaireUndoBudget.refill)
         #expect(!model.needsUndoRefill)
         #expect(model.undo())
@@ -578,7 +578,7 @@ struct SolitaireUndoBudgetTests {
         #expect(resumed.board == model.board)
 
         // 補充したぶんも持ち越す（広告を見た事実が再起動で消えない）。
-        #expect(resumed.grantUndos())
+        #expect(resumed.grantUndos(forDeal: resumed.dealSerial))
         let after = SolitaireModel(services: services, seed: 999_999)
         #expect(after.undosRemaining == expected + SolitaireUndoBudget.refill)
     }
@@ -608,6 +608,27 @@ struct SolitaireUndoBudgetTests {
         #expect(model.undosRemaining == SolitaireUndoBudget.free)
     }
 
+    @Test("広告を見ているあいだに配り直されたら、その補充は新しい局に乗らない")
+    func refillIsDroppedWhenTheDealChanged() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        stack(model, moves: SolitaireUndoBudget.free)
+        for _ in 0..<SolitaireUndoBudget.free { #expect(model.undo()) }
+
+        // View が広告を出す前に控える値。この間に配り直しが起きうる（救済の告知の
+        // 「新しい配札にする」・ツールバーの「新規ゲーム」の両方が入口になる）。
+        let deal = model.dealSerial
+        model.newGame()
+
+        // 足してしまうと配り直した局が「無料3 + 補充3 = 6」から始まり、仕様1 が破れる。
+        #expect(!model.grantUndos(forDeal: deal))
+        #expect(model.undosRemaining == SolitaireUndoBudget.free)
+
+        // 同じ局に対する補充なら通る（ガードが常に false を返しているのではない）。
+        #expect(model.grantUndos(forDeal: model.dealSerial))
+        #expect(model.undosRemaining == SolitaireUndoBudget.free + SolitaireUndoBudget.refill)
+    }
+
     @Test("ジョーカーを置いた手を戻すのも消費は1回（#476 仕様5）")
     func undoingAJokerCostsOne() {
         let (services, _) = makeServices()
@@ -630,7 +651,7 @@ struct SolitaireUndoBudgetTests {
         play(model, solution)
 
         #expect(model.phase == .won)
-        #expect(!model.grantUndos())
+        #expect(!model.grantUndos(forDeal: model.dealSerial))
     }
 
     @Test("読み上げ文は残り回数と、使い切ったあとの補充手段を伝える")

@@ -423,9 +423,14 @@ public final class SolitaireModel {
     /// 呼ぶのは視聴完了を確認したあとだけ（自動再生禁止・プレイヤーが「見る」を選んだときだけ）。
     /// 決着したあとは補充しても使い道が無いので false を返す。呼び出し側（View）はこの戻り値で
     /// 「広告を見せたのに何も起きなかった」を検出できる（ジョーカー補充・ナンプレのヒントと同じ契約）。
+    ///
+    /// - Parameter serial: 広告を出す前に控えた `dealSerial`。**広告のロード〜視聴の間に配り直されたら
+    ///   補充しない**。`newGame()` は残数を無料枠へ戻すので、そのまま足すと配り直した局が
+    ///   `無料3 + 補充3 = 6` から始まり、仕様1「配り直しでリセット」が破れる（PR #480 の敵対的検証で発見）。
+    ///   ボタンの `disabled` だけで防ぐと、ツールバーの「新規ゲーム」など別の入口が漏れる。
     @discardableResult
-    public func grantUndos() -> Bool {
-        guard phase == .playing else { return false }
+    public func grantUndos(forDeal serial: Int) -> Bool {
+        guard phase == .playing, serial == dealSerial else { return false }
         undosRemaining += SolitaireUndoBudget.refill
         services?.feedback.notify(.success)
         persist()

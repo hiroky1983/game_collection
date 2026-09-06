@@ -103,7 +103,7 @@ public struct SolitaireView: View {
         .alert("「戻す」を補充できませんでした", isPresented: $showUndoUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("広告を見ているあいだに局が終わったため、補充できませんでした。")
+            Text("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。")
         }
         .overlay {
             if model.showsRescuePrompt { rescueOverlay }
@@ -793,7 +793,7 @@ public struct SolitaireView: View {
                         .foregroundStyle(Theme.inkSub)
                 }
                 .buttonStyle(.plain)
-                .disabled(isWatchingJokerAd)
+                .disabled(isWatchingJokerAd || isWatchingUndoAd)
 
                 // 敗北確定はまだ指せる手が残っている。宣告で操作を奪わない。
                 if !model.isDeadEnd {
@@ -803,7 +803,7 @@ public struct SolitaireView: View {
                             .foregroundStyle(Theme.inkSub)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isWatchingJokerAd)
+                    .disabled(isWatchingJokerAd || isWatchingUndoAd)
                 }
             }
             .padding(28)
@@ -848,8 +848,9 @@ public struct SolitaireView: View {
             .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.plain)
-        .disabled(isWatchingJokerAd)
-        .opacity(isWatchingJokerAd ? 0.5 : 1)
+        // 「戻す」の補充広告を出している最中もここは押させない（2 本の広告が並走する）。
+        .disabled(isWatchingJokerAd || isWatchingUndoAd)
+        .opacity(isWatchingJokerAd || isWatchingUndoAd ? 0.5 : 1)
     }
 
     /// リワード広告 → ジョーカー補充 → 置き先の選択、までを 1 本に繋ぐ。
@@ -893,9 +894,12 @@ public struct SolitaireView: View {
         // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ（ジョーカーと同型）。
         guard !isWatchingUndoAd else { return }
         isWatchingUndoAd = true
+        // どの局に対する補充かを、広告を出す前に控える。ボタンの `disabled` だけでは
+        // ツールバーの「新規ゲーム」からの配り直しを止められない（PR #480 の敵対的検証）。
+        let deal = model.dealSerial
         Task {
             if await services.ads.showRewardedAd() {
-                if !model.grantUndos() { showUndoUnavailable = true }
+                if !model.grantUndos(forDeal: deal) { showUndoUnavailable = true }
             } else {
                 showUndoNotEarned = true
             }
