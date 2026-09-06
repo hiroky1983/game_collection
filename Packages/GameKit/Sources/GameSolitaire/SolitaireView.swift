@@ -15,6 +15,12 @@ public struct SolitaireView: View {
     @State private var isWatchingJokerAd = false
     @State private var showJokerNotEarned = false
     @State private var showJokerUnavailable = false
+    /// 無料の「戻す」を使い切った状態でボタンを押したときの提案（#476）。
+    /// **自動再生はしない**。ここで「見る」を選んだときだけ広告を出す。
+    @State private var showUndoRefillPrompt = false
+    @State private var isWatchingUndoAd = false
+    @State private var showUndoNotEarned = false
+    @State private var showUndoUnavailable = false
 
     /// 盤の座標空間名。ドラッグの指の位置・ドロップ枠・追従オーバーレイを同じ空間で扱う。
     private static let boardSpace = "solitaireBoard"
@@ -82,6 +88,22 @@ public struct SolitaireView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。")
+        }
+        .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
+            Button("広告を見て\(SolitaireUndoBudget.refill)回補充する") { requestUndoRefill() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
+        }
+        .alert("「戻す」を補充できませんでした", isPresented: $showUndoNotEarned) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+        }
+        .alert("「戻す」を補充できませんでした", isPresented: $showUndoUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。")
         }
         .overlay {
             if model.showsRescuePrompt { rescueOverlay }
@@ -627,14 +649,22 @@ public struct SolitaireView: View {
 
     private var gameControls: some View {
         HStack(spacing: 8) {
-            controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral) {
-                model.undo()
+            // 残り回数を常時見せる（#476 仕様3）。ナンプレの「ヒント3」と同じ見せ方に揃えてある。
+            controlButton(
+                "戻す\(model.undosRemaining)",
+                systemImage: "arrow.uturn.backward",
+                tint: Theme.Fill.coral
+            ) {
+                requestUndo()
             }
-            .disabled(!model.canUndo)
+            .disabled(!model.canUndo || isWatchingUndoAd)
             // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
             .opacity(model.canUndo ? 1 : 0.4)
-            .accessibilityLabel("1手戻す")
-            .accessibilityHint(model.canUndo ? "何回でも戻せます" : "まだ戻せる手がありません")
+            .accessibilityLabel(SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining))
+            .accessibilityHint(SolitaireAccessibility.undoButtonHint(
+                canUndo: model.canUndo,
+                remaining: model.undosRemaining
+            ))
 
             // ジョーカーの所持を**常時**見せる（#406 の決裁1）。持っていない間も枠を残すのは
             // 「戻す」と同じ理由で、消すと「そんな機能は無い」と読まれるため（#198）。
@@ -738,8 +768,10 @@ public struct SolitaireView: View {
                 jokerRescueButton
 
                 if model.canUndo {
-                    Button { model.undo() } label: {
-                        Label("1手戻す", systemImage: "arrow.uturn.backward")
+                    Button { requestUndo() } label: {
+                        // ここでも残り回数を見せる（#476 仕様3）。押した先で初めて
+                        // 「使い切っていた」と分かるのでは、救済の面で二度手間になる。
+                        Label("1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward")
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -747,7 +779,12 @@ public struct SolitaireView: View {
                             .foregroundStyle(Theme.onAccent)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isWatchingJokerAd)
+                    .disabled(isWatchingJokerAd || isWatchingUndoAd)
+                    .accessibilityLabel(SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining))
+                    .accessibilityHint(SolitaireAccessibility.undoButtonHint(
+                        canUndo: model.canUndo,
+                        remaining: model.undosRemaining
+                    ))
                 }
 
                 Button { model.newGame() } label: {
@@ -756,7 +793,7 @@ public struct SolitaireView: View {
                         .foregroundStyle(Theme.inkSub)
                 }
                 .buttonStyle(.plain)
-                .disabled(isWatchingJokerAd)
+                .disabled(isWatchingJokerAd || isWatchingUndoAd)
 
                 // 敗北確定はまだ指せる手が残っている。宣告で操作を奪わない。
                 if !model.isDeadEnd {
@@ -766,7 +803,7 @@ public struct SolitaireView: View {
                             .foregroundStyle(Theme.inkSub)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isWatchingJokerAd)
+                    .disabled(isWatchingJokerAd || isWatchingUndoAd)
                 }
             }
             .padding(28)
@@ -811,8 +848,9 @@ public struct SolitaireView: View {
             .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.plain)
-        .disabled(isWatchingJokerAd)
-        .opacity(isWatchingJokerAd ? 0.5 : 1)
+        // 「戻す」の補充広告を出している最中もここは押させない（2 本の広告が並走する）。
+        .disabled(isWatchingJokerAd || isWatchingUndoAd)
+        .opacity(isWatchingJokerAd || isWatchingUndoAd ? 0.5 : 1)
     }
 
     /// リワード広告 → ジョーカー補充 → 置き先の選択、までを 1 本に繋ぐ。
@@ -835,6 +873,37 @@ public struct SolitaireView: View {
                 showJokerNotEarned = true
             }
             isWatchingJokerAd = false
+        }
+    }
+
+    /// 「戻す」の入口を 1 本にまとめる（#476）。
+    ///
+    /// 残り回数があればそのまま戻し、使い切っていたら**提案を出すだけ**にする。
+    /// ここで広告を直接出さないのが要で、押した瞬間に再生が始まると
+    /// 「戻すつもりが広告を見せられた」になる（決裁の「自動再生禁止」）。
+    private func requestUndo() {
+        if model.needsUndoRefill {
+            showUndoRefillPrompt = true
+        } else {
+            model.undo()
+        }
+    }
+
+    /// リワード広告 → 「戻す」の補充。視聴しなかったときと補充できなかったときを読み分けて必ず知らせる。
+    private func requestUndoRefill() {
+        // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ（ジョーカーと同型）。
+        guard !isWatchingUndoAd else { return }
+        isWatchingUndoAd = true
+        // どの局に対する補充かを、広告を出す前に控える。ボタンの `disabled` だけでは
+        // ツールバーの「新規ゲーム」からの配り直しを止められない（PR #480 の敵対的検証）。
+        let deal = model.dealSerial
+        Task {
+            if await services.ads.showRewardedAd() {
+                if !model.grantUndos(forDeal: deal) { showUndoUnavailable = true }
+            } else {
+                showUndoNotEarned = true
+            }
+            isWatchingUndoAd = false
         }
     }
 }
@@ -1041,7 +1110,7 @@ struct SolitaireRuleSheet: View {
         ("空いた列", "札が無くなった列に置けるのは K だけです。K を引くまで空けておくか、思い切って埋めるかがクロンダイクの読みどころです"),
         ("山札", "左上の山札はタップで1枚ずつめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）"),
         ("操作", "動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます"),
-        ("戻す", "「戻す」は何回でも無料で使えます。行き止まりになっても、手を戻してやり直せます"),
+        ("戻す", "「戻す」は1局につき\(SolitaireUndoBudget.free)回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると\(SolitaireUndoBudget.refill)回ぶん補充できます"),
         ("ジョーカー", "1局につき1枚持っています。場札の列の上に置くと、その上にはどんな札でも1枚だけ重ねられます（空の列と、すでにジョーカーがある列には置けません）。上の札が全部はけると自動で消えて、下の札がまた使えるようになります"),
         ("ジョーカーの補充", "使い切ったあと、手詰まりになったときや、指せる手はあってもクリアできなくなったときに、広告を見て1枚受け取れます。「戻す」でジョーカーを置いた手を巻き戻せば、手持ちに戻ります。ジョーカーを使ってクリアした記録は、自己ベストには残りますが Game Center の順位表には送りません"),
         ("配られる札", "出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります"),

@@ -80,6 +80,21 @@ public enum SolitaireAccessibility {
         }
     }
 
+    /// 「戻す」ボタン（#476）。**残り回数が音声だけで分かる**必要がある。
+    ///
+    /// 使い切っても枠は残る（押すと広告の提案が出る）ので、「戻す」とだけ読まれると
+    /// 無料でまだ戻せると誤解される。
+    public static func undoButtonLabel(remaining: Int) -> String {
+        remaining > 0 ? "1手戻す、残り\(remaining)回" : "1手戻す、残りなし"
+    }
+
+    public static func undoButtonHint(canUndo: Bool, remaining: Int) -> String {
+        guard canUndo else { return "まだ戻せる手がありません" }
+        return remaining > 0
+            ? "無料で戻せるのは1局につき\(SolitaireUndoBudget.free)回までです"
+            : "広告を見ると\(SolitaireUndoBudget.refill)回ぶん補充できます"
+    }
+
     /// ジョーカーの所持ボタン（#406）。**所持しているかどうかが音声だけで分かる**必要がある。
     ///
     /// ボタンは持っていない間も枠を残す（見た目は薄くなるだけ）ので、
