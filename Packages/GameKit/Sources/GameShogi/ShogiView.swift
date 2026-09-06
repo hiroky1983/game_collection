@@ -242,6 +242,10 @@ public struct ShogiView: View {
                             startPoint: .top, endPoint: .bottom)
                     )
             }
+            // 角丸は**マスと木地にだけ**掛ける。ここより後ろに重ねる層は丸めない。
+            // 駒の層まで一緒に丸めると、持ち上げた駒（拡大 + 上へ 12%）が盤の上端で
+            // 切り落とされる（PR #477 の CodeRabbit 指摘。表示 0 段目の駒で実測）。
+            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
             // マスに紐づけると駒の同一性がマスと一緒に変わり、移動が補間されない。
             .overlay { pieceLayer(cell: cell) }
@@ -250,7 +254,6 @@ public struct ShogiView: View {
             // 着手先の印は駒より**上**。マスの中に描いていた頃の重なり順をそのまま保つ
             // （取れる駒に重ねる枠が駒の下に潜ると、何が取れるのか読めなくなる）。
             .overlay { targetLayer(cell: cell) }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             .padding(4)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)

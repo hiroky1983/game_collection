@@ -110,4 +110,36 @@ struct ChessPieceLiftMotionTests {
         #expect(ChessMotion.pieceLiftRatio > 0 && ChessMotion.pieceLiftRatio <= 0.2)
         #expect(ChessMotion.pieceLiftScale > 1 && ChessMotion.pieceLiftScale <= 1.15)
     }
+
+    /// 修飾子の**置き場所**で決まるため、値では検証できない（将棋 `ShogiPieceLayerSourceTests` と同じ流儀）。
+    @Test("盤の角丸は駒の層より前に掛ける（持ち上げた駒が上端で切れる）")
+    func clipShapeComesBeforePieceLayer() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameChessTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameChess/ChessView.swift")
+        let all = try String(contentsOf: url, encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        // 走査は `board` の中だけに限る（ファイル全体だと別の面の clipShape を拾う）。
+        guard let start = all.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "private var board: some View {" }) else {
+            Issue.record("走査の前提が壊れている: private var board が見つからない")
+            return
+        }
+        let indent = all[start].prefix { $0 == " " }
+        guard let end = all[start...].dropFirst().firstIndex(where: { $0 == indent + "}" }) else {
+            Issue.record("走査の前提が壊れている: private var board の終わりが見つからない")
+            return
+        }
+        let lines = all[start...end].map { $0.trimmingCharacters(in: .whitespaces) }
+        let clips = lines.enumerated().filter { $0.element.hasPrefix(".clipShape(") }
+        // 2つ目を後ろに足されると、そちらが駒の層まで丸めてしまう（数も固定する）。
+        #expect(clips.count == 1, "盤の clipShape が1つではない:\n\(lines.joined(separator: "\n"))")
+        guard let clip = clips.first?.offset,
+              let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }") else {
+            Issue.record("盤の clipShape / 駒の層が見つからない（走査の前提が壊れている）")
+            return
+        }
+        #expect(clip < piece)
+    }
 }

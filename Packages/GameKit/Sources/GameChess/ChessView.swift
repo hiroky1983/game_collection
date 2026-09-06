@@ -239,6 +239,10 @@ public struct ChessView: View {
                     }
                 }
             }
+            // 角丸は**マスにだけ**掛ける。ここより後ろに重ねる層は丸めない。
+            // 駒の層まで一緒に丸めると、持ち上げた駒（拡大 + 上へ 12%）が盤の上端で
+            // 切り落とされる（PR #477 の CodeRabbit 指摘。将棋の表示 0 段目で実測）。
+            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
             .overlay { pieceLayer(cell: cell) }
             // 王手されているキングの印も駒より**上**。キングそのものを囲むので、下に潜ると見えない。
@@ -246,7 +250,6 @@ public struct ChessView: View {
             // 着手先の印も駒より**上**（取れる駒に重ねる枠が駒の下に潜ると読めなくなる）。
             .overlay { targetLayer(cell: cell) }
             .overlay { coordinateLayer(cell: cell) }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             .padding(4)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
