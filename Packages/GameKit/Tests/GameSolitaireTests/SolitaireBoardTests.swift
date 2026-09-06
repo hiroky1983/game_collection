@@ -234,7 +234,9 @@ struct SolitaireDeadEndTests {
         var rng = SeededRNG(seed: 0x5011_7A18)
         var deadEnds = 0
         var withKingMove = 0
-        for _ in 0..<3_000 {
+        var loneKing = 0
+        var kingRun = 0
+        for _ in 0..<8_000 {
             let b = randomKingAndEmptyColumnBoard(using: &rng)
             guard b.isDeadEnd else { continue }
             deadEnds += 1
@@ -242,6 +244,7 @@ struct SolitaireDeadEndTests {
                 b.tableau[$0].isEmpty && b.isLegal(.tableauToTableau(from: 0, cardIndex: 0, to: $0))
             }) {
                 withKingMove += 1
+                if b.tableau[0].faceUp.count == 1 { loneKing += 1 } else { kingRun += 1 }
             }
             #expect(progressSequence(from: b, depth: 4) == nil,
                     "詰みと判定した盤面に進む手順があった:\n\(b.tableau.map(\.debugText).joined(separator: "\n"))")
@@ -250,6 +253,10 @@ struct SolitaireDeadEndTests {
         // 残っている」= 会長が見た形**が十分な数だけ含まれていることまで確かめる。
         #expect(deadEnds > 500)
         #expect(withKingMove == deadEnds)
+        // 単独の K と**複数枚の連なり**の両方を踏むこと。片方だけだと、除外条件を
+        // 「1枚のときだけ」に狭める退行を素通りさせる（verifier の指摘・2026-09-07）。
+        #expect(loneKing > 100)
+        #expect(kingRun > 100)
     }
 }
 
@@ -272,21 +279,37 @@ private extension SolitairePile {
     var debugText: String { "down=\(faceDown.map(\.label)) up=\(faceUp.map(\.label))" }
 }
 
-/// 「伏せ札なしの K 単独列 + 空列」を必ず含む小さい盤面をランダムに作る（#475 の観測と同じ形）。
+/// 「K を先頭にした連なりの列 + 空列」を必ず含む小さい盤面をランダムに作る（#475 の観測と同じ形）。
+///
+/// **K を単独札にしてはいけない**。除外条件は連なりの長さを問わないので、単独の K しか作らないと
+/// 「複数枚の連なりを空列へ移す」分岐を一度も踏まず、そこを狭める退行を検知できない
+/// （verifier の指摘・2026-09-07。`run.count == 1` を条件に足す変異が緑のまま通った）。
 private func randomKingAndEmptyColumnBoard(using rng: inout SeededRNG) -> SolitaireBoard {
+    // K を下端にした降順・交互色の連なり（長さ1〜4）。
+    let runLength = Int.random(in: 1...4, using: &rng)
+    let kingIsRed = Bool.random(using: &rng)
+    let run = (0..<runLength).map { step -> SolitaireCard in
+        let isRed = (step % 2 == 0) == kingIsRed
+        return SolitaireCard(isRed ? .heart : .spade, 13 - step)
+    }
+
     var deck: [SolitaireCard] = []
-    for suit in SolitaireSuit.allCases { for rank in 1...13 { deck.append(SolitaireCard(suit, rank)) } }
+    let runIDs = Set(run.map(\.id))
+    for suit in SolitaireSuit.allCases {
+        for rank in 1...13 where !runIDs.contains(SolitaireCard(suit, rank).id) {
+            deck.append(SolitaireCard(suit, rank))
+        }
+    }
     deck.shuffle(using: &rng)
-    let king = deck.remove(at: deck.firstIndex { $0.rank == 13 }!)
 
     var index = 0
     // K の下に伏せ札がある形も母集団に入れる（こちらは「退かせば1枚めくれる」= 有効手）。
     var piles: [SolitairePile] = []
     if Bool.random(using: &rng) {
-        piles.append(SolitairePile(faceDown: [deck[index]], faceUp: [king]))
+        piles.append(SolitairePile(faceDown: [deck[index]], faceUp: run))
         index += 1
     } else {
-        piles.append(SolitairePile(faceUp: [king]))
+        piles.append(SolitairePile(faceUp: run))
     }
     for _ in 0..<Int.random(in: 1...4, using: &rng) {
         let size = Int.random(in: 1...3, using: &rng)
