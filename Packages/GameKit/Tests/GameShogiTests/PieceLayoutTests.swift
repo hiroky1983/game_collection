@@ -213,6 +213,21 @@ struct ShogiPieceLayerSourceTests {
         #expect(check < target)
     }
 
+    @Test("盤の角丸は駒の層より前に掛ける（持ち上げた駒が上端で切れる）")
+    func clipShapeComesBeforePieceLayer() throws {
+        let lines = try Self.lines(ofFunction: "private var board: some View {")
+        let clips = lines.enumerated().filter { $0.element.hasPrefix(".clipShape(") }
+        // 2つ目を後ろに足されると、そちらが駒の層まで丸めてしまう（数も固定する）。
+        #expect(clips.count == 1, "盤の clipShape が1つではない:\n\(lines.joined(separator: "\n"))")
+        guard let clip = clips.first?.offset,
+              let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }") else {
+            Issue.record("盤の clipShape / 駒の層が見つからない（走査の前提が壊れている）")
+            return
+        }
+        // あとに置くと、選択して持ち上げた駒（拡大 + 上へ）が盤の上端で切り落とされる。
+        #expect(clip < piece)
+    }
+
     @Test("駒には .transition を .position より前に付ける")
     func transitionComesBeforePosition() throws {
         // 走査は `pieceLayer` の中だけに限る。ファイル全体から最初の `.transition(` を探すと、
