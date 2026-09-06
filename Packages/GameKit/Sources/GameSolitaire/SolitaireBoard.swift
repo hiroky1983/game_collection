@@ -256,6 +256,12 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
                 for target in tableau.indices where target != pile {
                     guard canPlace(run, onPile: target) else { continue }
                     // 伏せ札も無く、移動先も空列なら「空列の入れ替え」だけで盤面は進まない。
+                    //
+                    // この除外は**1手先しか見ていないのではなく、見る必要が無い**（#475 の会長QAを
+                    // 実測で反証。`SolitaireDeadEndTests` の総当たりテストで固定）。連なりの下端から
+                    // 動かす（`index == 0`）うえに伏せ札も無いので、移動元は必ず空になる。つまり
+                    // 移動後の盤面は移動前の**列を入れ替えただけ**で、合法手は列の並び順に依存しない。
+                    // 「移した K の上に別列の札を載せられる」なら、移す前の位置でも同じように載る。
                     if index == 0, tableau[pile].faceDown.isEmpty, tableau[target].isEmpty { continue }
                     return true
                 }
