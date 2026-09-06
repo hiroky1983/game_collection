@@ -96,3 +96,18 @@ struct ChessLastMoveTests {
         #expect(lost.capturedPieces(of: .white).isEmpty)
     }
 }
+
+/// 選択した駒の持ち上げ演出（将棋と同じ値・同じ理由）。
+@Suite("チェス 駒の持ち上げ演出")
+struct ChessPieceLiftMotionTests {
+
+    @Test("持ち上げは駒の移動より速い（掴んだ手応えが遅れて見えない）")
+    func liftIsFasterThanPieceMove() {
+        #expect(ChessMotion.pieceLiftResponse < ChessMotion.pieceMoveResponse)
+        // 秒の定数から `Animation` を組んでいること（定数だけ直しても演出が変わらない、を防ぐ）。
+        #expect(ChessMotion.pieceLift == .spring(response: ChessMotion.pieceLiftResponse, dampingFraction: 0.7))
+        // 持ち上げ量と拡大は「浮いたと分かる最小限」。隣のマスに被るほど大きくしない。
+        #expect(ChessMotion.pieceLiftRatio > 0 && ChessMotion.pieceLiftRatio <= 0.2)
+        #expect(ChessMotion.pieceLiftScale > 1 && ChessMotion.pieceLiftScale <= 1.15)
+    }
+}
