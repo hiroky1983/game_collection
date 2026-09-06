@@ -178,10 +178,33 @@ struct TieBreakerTests {
 
 // MARK: - CPU の交換判断
 
+/// 常にバイアスが当たる生成器（`next() % 10 == 0`）。
+private struct AlwaysAmbitiousGenerator: RandomNumberGenerator {
+    mutating func next() -> UInt64 { 0 }
+}
+
+/// 常にバイアスが外れる生成器（`next() % 10 != 0`）。
+private struct NeverAmbitiousGenerator: RandomNumberGenerator {
+    mutating func next() -> UInt64 { 1 }
+}
+
+/// 固定シードの SplitMix64。発生率の検証を決定的にするために使う。
+private struct SplitMix64: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+}
+
 /// `cpuKeepIndices` は #443 の調査時点でテストが1件も無かった。
-/// **現行の挙動を固定する**目的の Suite で、#443 が提案している変更
-/// （ワンペアを崩してドローを狙う・ホイール方向 A-2-3-4 を拾う）は
-/// 400万〜600万局の実測でいずれもチップ収支を悪化させたため入れていない（決裁待ち）。
+/// ワンペアは**ふだんは崩さない**（崩すと 400万〜600万局の実測でチップ収支が悪化する）が、
+/// 会長決裁（2026-09-06）により **10回に1回だけ**ドローを狙う打ち回しに寄せている。
+/// 乱択が絡む判断は生成器を注入して当たり／外れを固定する。
 @Suite("CPU の交換判断")
 struct CPUKeepTests {
 
@@ -209,7 +232,7 @@ struct CPUKeepTests {
         #expect(HandEvaluator.cpuKeepIndices(from: hand) == [0, 1, 2, 3])
     }
 
-    // MARK: ワンペアはドローがあっても崩さない（#443 の決裁待ち）
+    // MARK: ワンペアは 9/10 で崩さない（#443）
 
     @Test func onePairKeepsThePair() {
         let hand = [card(9, .spades), card(9, .hearts), card(13, .diamonds),
@@ -217,20 +240,73 @@ struct CPUKeepTests {
         #expect(HandEvaluator.cpuKeepIndices(from: hand) == [0, 1])
     }
 
-    @Test func onePairKeepsThePairEvenWithFlushDraw() {
+    @Test func onePairKeepsThePairWhenBiasMisses() {
         // ♥4枚 + オフスートのペア。ペアを崩すとショーダウンの勝率が 58% → 35% に落ちる実測
+        var rng = NeverAmbitiousGenerator()
         let hand = [card(9, .hearts), card(9, .spades), card(5, .hearts),
                     card(3, .hearts), card(2, .hearts)]
         #expect(HandEvaluator.evaluate(hand).rank == .onePair)
-        #expect(HandEvaluator.cpuKeepIndices(from: hand) == [0, 1])
+        #expect(HandEvaluator.cpuKeepIndices(from: hand, using: &rng) == [0, 1])
     }
 
-    @Test func onePairKeepsThePairEvenWithOpenEndedStraightDraw() {
+    @Test func onePairKeepsThePairWhenBiasMissesWithStraightDraw() {
         // 5-6-7-8 + 余りの 8
+        var rng = NeverAmbitiousGenerator()
         let hand = [card(8, .spades), card(8, .hearts), card(7, .diamonds),
                     card(6, .clubs), card(5, .spades)]
         #expect(HandEvaluator.evaluate(hand).rank == .onePair)
-        #expect(HandEvaluator.cpuKeepIndices(from: hand) == [0, 1])
+        #expect(HandEvaluator.cpuKeepIndices(from: hand, using: &rng) == [0, 1])
+    }
+
+    // MARK: 10回に1回は強い役を狙う（#443・会長決裁 2026-09-06）
+
+    @Test func onePairChasesFlushDrawWhenBiasHits() {
+        var rng = AlwaysAmbitiousGenerator()
+        let hand = [card(9, .hearts), card(9, .spades), card(5, .hearts),
+                    card(3, .hearts), card(2, .hearts)]
+        // ♠9 だけを捨てて ♥4枚を残す
+        #expect(HandEvaluator.cpuKeepIndices(from: hand, using: &rng) == [0, 2, 3, 4])
+    }
+
+    @Test func onePairChasesOpenEndedStraightDrawWhenBiasHits() {
+        var rng = AlwaysAmbitiousGenerator()
+        let hand = [card(8, .spades), card(8, .hearts), card(7, .diamonds),
+                    card(6, .clubs), card(5, .spades)]
+        // 余った 8 を1枚だけ捨てて 5-6-7-8 を残す（どちらの 8 が残るかは同値なので枚数と札で見る）
+        let keep = HandEvaluator.cpuKeepIndices(from: hand, using: &rng)
+        #expect(keep.count == 4)
+        #expect(keep.isSuperset(of: [2, 3, 4]))
+        #expect(keep.map { hand[$0].rank }.sorted() == [5, 6, 7, 8])
+    }
+
+    @Test func onePairWithoutDrawKeepsThePairEvenWhenBiasHits() {
+        // 狙える形が無いので、バイアスが当たってもペアを残す
+        var rng = AlwaysAmbitiousGenerator()
+        let hand = [card(9, .spades), card(9, .hearts), card(13, .diamonds),
+                    card(5, .clubs), card(2, .spades)]
+        #expect(HandEvaluator.cpuKeepIndices(from: hand, using: &rng) == [0, 1])
+    }
+
+    @Test func onePairInsideStraightIsNotChasedEvenWhenBiasHits() {
+        // 9-8-6 + ペアの 6。間が抜けた筋は当たっても狙わない
+        var rng = AlwaysAmbitiousGenerator()
+        let hand = [card(6, .spades), card(6, .hearts), card(9, .diamonds),
+                    card(8, .clubs), card(2, .spades)]
+        #expect(HandEvaluator.evaluate(hand).rank == .onePair)
+        #expect(HandEvaluator.cpuKeepIndices(from: hand, using: &rng) == [0, 1])
+    }
+
+    @Test func ambitionRateIsOneInTen() {
+        // 固定シードなのでこの検証は決定的（実行のたびに同じ回数になる）
+        var rng = SplitMix64(seed: 0x0443_0906)
+        let hand = [card(9, .hearts), card(9, .spades), card(5, .hearts),
+                    card(3, .hearts), card(2, .hearts)]
+        let trials = 10_000
+        var chased = 0
+        for _ in 0..<trials {
+            if HandEvaluator.cpuKeepIndices(from: hand, using: &rng) != [0, 1] { chased += 1 }
+        }
+        #expect((900...1100).contains(chased), "1/10 から外れた: \(chased)/\(trials)")
     }
 
     // MARK: ハイカードのドロー
