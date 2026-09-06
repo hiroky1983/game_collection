@@ -280,6 +280,38 @@ struct ShogiOverlayMotionSourceTests {
                 "常設した層が素通しであることの明示がない:\n\(lines.joined(separator: "\n"))")
     }
 
+    @Test("選択した駒の持ち上げは駒単位に置き、移動は層に1つだけ置く")
+    func pieceLiftAnimatesOnSelectionOnly() throws {
+        let lines = try ShogiPieceLayerSourceTests.lines(
+            ofFunction: "private func pieceLayer(cell: CGFloat) -> some View {"
+        )
+        // 持ち上げは**駒単位**（`isLifted` を監視）、移動は**層に1つ**（`pieceLayout` を監視）。
+        // 持ち上げを層に置くと、着手確定で配置と選択が同時に変わったとき pieceMove 側の
+        // 指定に上書きされ、戻りの速さが意図とずれる（verifier 検証 2026-09-06）。
+        // 並び順そのものが構造（駒単位が先＝ForEach の中、層が後）を表すので配列で固定する。
+        let animations = lines.filter { $0.hasPrefix(".gameAnimation(") }
+        #expect(animations == [
+            ".gameAnimation(ShogiMotion.pieceLift, value: isLifted)",
+            ".gameAnimation(ShogiMotion.pieceMove, value: pieceLayout)",
+        ])
+        // 持ち上げの指定は `.transition`（駒単位の並びの中）より前にある＝駒にスコープされている。
+        let lift = lines.firstIndex(of: ".gameAnimation(ShogiMotion.pieceLift, value: isLifted)")
+        let transition = lines.firstIndex { $0.hasPrefix(".transition(") }
+        #expect(lift != nil && transition != nil && lift! < transition!)
+        // `.animation` の直呼びは Reduce Motion を無視する（#210）。
+        #expect(lines.contains { $0.hasPrefix(".animation(") } == false)
+    }
+
+    @Test("持ち上げは駒の移動より速い（掴んだ手応えが遅れて見えない）")
+    func liftIsFasterThanPieceMove() {
+        #expect(ShogiMotion.pieceLiftResponse < ShogiMotion.pieceMoveResponse)
+        // 秒の定数から `Animation` を組んでいること（定数だけ直しても演出が変わらない、を防ぐ）。
+        #expect(ShogiMotion.pieceLift == .spring(response: ShogiMotion.pieceLiftResponse, dampingFraction: 0.7))
+        // 持ち上げ量と拡大は「浮いたと分かる最小限」。隣のマスに被るほど大きくしない。
+        #expect(ShogiMotion.pieceLiftRatio > 0 && ShogiMotion.pieceLiftRatio <= 0.2)
+        #expect(ShogiMotion.pieceLiftScale > 1 && ShogiMotion.pieceLiftScale <= 1.15)
+    }
+
     @Test("札の消える速さは駒の移動より短い（札が動き出した駒に被って残らない）")
     func promptIsShorterThanPieceMove() {
         // 大小関係そのものを見張る。どちらの秒数を動かしても、逆転した時点で赤くなる。

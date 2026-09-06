@@ -289,8 +289,22 @@ public struct ShogiView: View {
             ZStack(alignment: .topLeading) {
                 ForEach(pieceLayout.placements) { placement in
                     let spot = Sq.displayPosition(of: placement.square, flipped: flipped)
+                    // 選択した駒は少し持ち上げる（拡大 + 浮かせ + 落ち影）。
+                    // 「浮いている」ことは駒の下に落ちる影で伝わるので、影を先に描く。
+                    let isLifted = model.selectedSquare == placement.square
                     KomaView(piece: placement.piece, size: cell,
                              pointsUp: placement.piece.color == model.humanSide)
+                        .scaleEffect(isLifted ? ShogiMotion.pieceLiftScale : 1)
+                        .shadow(color: .black.opacity(isLifted ? 0.28 : 0),
+                                radius: isLifted ? cell * 0.10 : 0,
+                                y: isLifted ? cell * 0.10 : 0)
+                        .offset(y: isLifted ? -cell * ShogiMotion.pieceLiftRatio : 0)
+                        // 持ち上げのアニメーションは**駒単位**でここに置く（層全体に置くと、
+                        // 着手確定で配置と選択が同時に変わったとき pieceMove 側の指定に
+                        // 上書きされて、戻りの速さが意図とずれる — verifier 検証 2026-09-06）。
+                        // この指定より下（scale/shadow/offset）だけに効き、`.position` は層の
+                        // pieceMove が受け持つ。
+                        .gameAnimation(ShogiMotion.pieceLift, value: isLifted)
                         // `.transition` は `.position` より前に置く。あとに置くと拡大・縮小の
                         // 基準がマスではなく盤の原点になり、消える駒が左上へ吸い込まれる。
                         .transition(.opacity)
@@ -298,8 +312,9 @@ public struct ShogiView: View {
                                   y: slot * (CGFloat(spot.row) + 0.5))
                 }
             }
-            // アニメーションの指定は**この 1 か所だけ**にする。入れ子にすると内側が
-            // 外側のトランザクションを打ち消し、片方の演出が静かに効かなくなる。
+            // 駒の移動（`.position`）のアニメーションは**この層に 1 つだけ**置く。
+            // 同じ値を監視する指定を入れ子にすると内側が外側を打ち消して片方が静かに消える。
+            // 持ち上げ（別の値 `isLifted` を監視）は上の駒単位の指定が受け持つ。
             .gameAnimation(ShogiMotion.pieceMove, value: pieceLayout)
         }
         // 当たり判定と読み上げはマス（`ShogiCell` 側）が持ち続ける。
@@ -639,6 +654,16 @@ enum ShogiMotion {
     /// 「王手」の合図の出入り（#377）。危急を伝えるので、駒の移動と違って少し跳ねさせる
     /// （札は盤の上の中空にあり、マスから外れて見える心配がない）。
     static let checkBanner: Animation = .spring(response: checkBannerResponse, dampingFraction: 0.65)
+
+    /// 選択した駒の持ち上げにかかる時間（バネの `response`）。**駒の移動より短く取る**。
+    /// タップへの即応が命の演出なので、ここが長いと操作が重く感じる。
+    static let pieceLiftResponse: TimeInterval = 0.16
+    /// 持ち上げ量（マス幅に対する比）と拡大率。浮いたと分かる最小限に留め、隣のマスに被せない。
+    static let pieceLiftRatio: CGFloat = 0.12
+    static let pieceLiftScale: CGFloat = 1.07
+    /// 選択した駒の持ち上げ。掴んだ手応えとして少しだけ跳ねさせる
+    /// （持ち上げは駒がマスの中心から浮く演出なので、跳ねてもマスからはみ出て見えない）。
+    static let pieceLift: Animation = .spring(response: pieceLiftResponse, dampingFraction: 0.7)
 }
 
 /// 盤の配色（明るい木目調）。#366 の会長コンペで確定した「明るい飴色 × 無地アンバー」。
