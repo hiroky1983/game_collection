@@ -9,6 +9,18 @@ public enum SolitairePhase: String, Codable, Sendable, Equatable {
     case won
 }
 
+/// 「戻す」の回数制（#476）。無料の初期回数とリワード広告での補充量を 1 か所に持つ。
+///
+/// **`SolitaireModel` の外に置く**のは、モデルが `@MainActor` なのに対し読み上げ文
+/// （`SolitaireAccessibility`）が非隔離の純関数だから。中に静的定数として持つと、
+/// 読み上げ側から回数を参照できず文言と実装が二重管理になる。
+public enum SolitaireUndoBudget {
+    /// 1 局につき無料で戻せる回数。配り直し・新規ゲームでここまで戻る。
+    public static let free = 3
+    /// リワード広告 1 本の視聴完了で補充する回数。
+    public static let refill = 3
+}
+
 /// いま持ち上げている札。
 ///
 /// 場札は「その位置から上を丸ごと」動かすため、列と `faceUp` の添字の組で表す。
@@ -36,6 +48,15 @@ struct SolitaireSnapshot: Codable {
     /// **省略可**。ジョーカーが存在しなかった版の中断データには入っていないので、欠けていたら
     /// 初期 1 枚だけもらった扱いにする（旧データを再開しても救済が使える）。
     let jokerGrants: Int?
+    /// 「戻す」の残り回数（#476）。
+    ///
+    /// **手順から導出できない**（消費も広告での補充も `moves` に残らない）ので、ジョーカーと
+    /// 同じくここだけは別に持つ。ジョーカーが「累計でもらった枚数」なのに対しこちらが残数
+    /// そのものなのは、undo の消費が単調で「戻すの undo」が存在しないため。
+    ///
+    /// **省略可**。回数制が無かった版の中断データには入っていないので、欠けていたら
+    /// 無料枠が丸ごと残っている扱いにする（再開した局が理不尽に戻せなくならない）。
+    let undosRemaining: Int?
 }
 
 @MainActor
@@ -82,6 +103,13 @@ public final class SolitaireModel {
     /// 直前の手が山めくりだったか（#421。捨て札の 1 枚を裏から返す演出のトリガー）。
     /// 捨て札の一番上は札を場に出したときにも入れ替わるが、そちらは**もともと表**なので返さない。
     public private(set) var lastMoveWasDraw: Bool = false
+
+    /// 「戻す」の残り回数（#476）。
+    ///
+    /// 本作は**クリア可能と検証済みの配札しか出さない**ため、無制限に戻せると理論上どの局面からも
+    /// やり直して必ず勝ててしまい、ジョーカー救済（#406）の存在意義が消える。将棋の「待った」と
+    /// 同型の回数制にする（会長決裁 2026-09-06）。
+    public private(set) var undosRemaining: Int
 
     private var seed: UInt64
     private var moves: [SolitaireMove] = []
@@ -135,7 +163,19 @@ public final class SolitaireModel {
         }
     }
 
+    /// 戻せる手があるか。**残り回数は見ない**。
+    ///
+    /// この値は「1 手でも指したか」の意味でも使われている（`newGame()` の敗北記録・配り直しの
+    /// 確認ダイアログ）。ここに残り回数を混ぜると、回数を使い切った盤面を捨てても
+    /// 「クリアできなかった」として記録されなくなり、クリア率が実態とずれる。
     public var canUndo: Bool { phase == .playing && !moves.isEmpty }
+
+    /// 無料で戻せる回数が残っているか（#476）。
+    public var hasUndoCredit: Bool { undosRemaining > 0 }
+
+    /// 「戻す」を押したときにリワード広告の提案を出す局面か（#476）。
+    /// 戻せる手が無いときは提案しない（広告を見ても何も起きないため）。
+    public var needsUndoRefill: Bool { canUndo && !hasUndoCredit }
 
     /// 配ったまま 1 手も指していないか（#421。View は配札の演出を出すかの判定に使う）。
     /// 中断から復元した局面では手順が入っているので false になり、再開のたびに配り直して見えない。
@@ -162,6 +202,7 @@ public final class SolitaireModel {
         var startMoves: [SolitaireMove] = []
         var startElapsed = 0
         var startGrants = Self.initialJokerGrants
+        var startUndos = SolitaireUndoBudget.free
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = true
 
@@ -173,12 +214,15 @@ public final class SolitaireModel {
             // 負の値（書き換えられたデータ）は 0 に丸める。所持が負になると `placeJoker` を
             // 含む手順が適用できなくなり、下の再生がそこで切り詰める。
             startGrants = max(0, snap.jokerGrants ?? Self.initialJokerGrants)
+            // 回数制が無かった版の中断データには入っていない。無料枠が丸ごと残っている扱い。
+            startUndos = max(0, snap.undosRemaining ?? SolitaireUndoBudget.free)
             isFreshStart = false
         }
 
         self.seed = startSeed
         self.elapsedSeconds = startElapsed
         self.jokerGrants = startGrants
+        self.undosRemaining = startUndos
         // 壊れた（または食い違った）中断データは、**適用できたところで打ち切る**。
         // 落ちた手を黙って読み飛ばすと、以降の手順が 1 手ずつずれた別の盤面になる（#406 申し送り2）。
         let restored = Self.replay(startMoves, seed: startSeed, jokerGrants: startGrants)
@@ -352,15 +396,17 @@ public final class SolitaireModel {
 
     // MARK: - 巻き戻し
 
-    /// 1 手戻す。**無料・無制限**（ジャンル標準・#397）。
+    /// 1 手戻す。**1 局につき無料 3 回まで**（#476。使い切ったら `grantUndos()` で補充する）。
     ///
     /// 種からの再生で戻すので、ジョーカーを置いた手を戻せば所持に自然に返る（#397 吟味2）。
+    /// ジョーカーを置いた手を戻す場合も消費は通常どおり 1 回（#476 仕様5）。
     @discardableResult
     public func undo() -> Bool {
-        guard canUndo else {
+        guard canUndo, hasUndoCredit else {
             reject()
             return false
         }
+        undosRemaining -= 1
         moves.removeLast()
         board = Self.replay(moves, seed: seed, jokerGrants: jokerGrants).board
         selection = nil
@@ -368,6 +414,20 @@ public final class SolitaireModel {
         clearFlips()
         services?.feedback.impact(.medium)
         refreshDerivedState()
+        persist()
+        return true
+    }
+
+    /// リワード広告の**視聴完了後**に「戻す」を補充する（#476 仕様2）。
+    ///
+    /// 呼ぶのは視聴完了を確認したあとだけ（自動再生禁止・プレイヤーが「見る」を選んだときだけ）。
+    /// 決着したあとは補充しても使い道が無いので false を返す。呼び出し側（View）はこの戻り値で
+    /// 「広告を見せたのに何も起きなかった」を検出できる（ジョーカー補充・ナンプレのヒントと同じ契約）。
+    @discardableResult
+    public func grantUndos() -> Bool {
+        guard phase == .playing else { return false }
+        undosRemaining += SolitaireUndoBudget.refill
+        services?.feedback.notify(.success)
         persist()
         return true
     }
@@ -411,6 +471,7 @@ public final class SolitaireModel {
         seed = Self.pickSeed()
         moves = []
         jokerGrants = Self.initialJokerGrants
+        undosRemaining = SolitaireUndoBudget.free
         board = Self.replay(moves, seed: seed, jokerGrants: jokerGrants).board
         phase = .playing
         selection = nil
@@ -700,7 +761,8 @@ public final class SolitaireModel {
             seed: seed,
             moves: moves,
             elapsedSeconds: elapsedSeconds,
-            jokerGrants: jokerGrants
+            jokerGrants: jokerGrants,
+            undosRemaining: undosRemaining
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }

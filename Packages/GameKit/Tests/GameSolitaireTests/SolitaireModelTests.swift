@@ -149,15 +149,15 @@ struct SolitaireModelTests {
         #expect(spy.notices.contains(.warning))
     }
 
-    @Test("戻すは何回でも効き、配ったばかりの状態まで戻せる")
-    func undoIsUnlimited() {
+    @Test("無料の回数ぶんは戻せ、配ったばかりの状態まで戻れる")
+    func undoRewindsToTheDeal() {
         let (services, _) = makeServices()
         let model = SolitaireModel(services: services, seed: fixedSeed)
         let initial = model.board
-        for _ in 0..<5 { model.tapStock() }
+        for _ in 0..<SolitaireUndoBudget.free { model.tapStock() }
         #expect(model.board != initial)
         #expect(model.canUndo)
-        while model.canUndo { model.undo() }
+        for _ in 0..<SolitaireUndoBudget.free { #expect(model.undo()) }
         #expect(model.board == initial)
         #expect(model.moveCount == 0)
     }
@@ -490,6 +490,162 @@ struct SolitaireRecordTests {
     }
 }
 
+// MARK: - 「戻す」の回数制（#476）
+
+/// 回数制が無かった版の中断データ（`undosRemaining` を持たない）。
+private struct PreUndoBudgetSnapshot: Codable {
+    let seed: UInt64
+    let moves: [SolitaireMove]
+    let elapsedSeconds: Int
+    let jokerGrants: Int
+}
+
+@Suite("ソリティアの「戻す」の回数制")
+@MainActor
+struct SolitaireUndoBudgetTests {
+
+    /// 山めくりだけで手順を積む（配札に依存せず、必ず戻せる手を作れる）。
+    private func stack(_ model: SolitaireModel, moves count: Int) {
+        for _ in 0..<count { model.tapStock() }
+    }
+
+    @Test("配った時点で無料の回数を持っている")
+    func startsWithFreeBudget() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        #expect(model.undosRemaining == SolitaireUndoBudget.free)
+        #expect(!model.needsUndoRefill, "戻せる手が無いうちは広告を提案しない")
+    }
+
+    @Test("無料の回数を使い切ると、次の「戻す」は広告の提案になり、視聴完了で補充される")
+    func exhaustsThenRefills() {
+        let (services, spy) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        stack(model, moves: SolitaireUndoBudget.free + 1)
+
+        for remaining in stride(from: SolitaireUndoBudget.free, to: 0, by: -1) {
+            #expect(model.undosRemaining == remaining)
+            #expect(model.undo())
+        }
+        #expect(model.undosRemaining == 0)
+
+        // 4 回目。戻せる手は残っているので、押した先は広告の提案（View がアラートを出す）。
+        let board = model.board
+        #expect(model.canUndo)
+        #expect(model.needsUndoRefill)
+        #expect(!model.undo(), "残り 0 のまま黙って戻さない")
+        #expect(model.board == board)
+        #expect(model.undosRemaining == 0)
+        #expect(spy.notices.contains(.warning), "拒否として扱う")
+
+        // 視聴完了後の補充。
+        #expect(model.grantUndos())
+        #expect(model.undosRemaining == SolitaireUndoBudget.refill)
+        #expect(!model.needsUndoRefill)
+        #expect(model.undo())
+    }
+
+    @Test("広告を見なければ補充されない（補充は視聴完了後の grantUndos だけが行う）")
+    func nothingRefillsWithoutTheReward() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        stack(model, moves: SolitaireUndoBudget.free + 2)
+        for _ in 0..<SolitaireUndoBudget.free { #expect(model.undo()) }
+
+        // View は `showRewardedAd()` が true を返したときだけ `grantUndos()` を呼ぶ。
+        // 視聴をやめた（false）経路ではこの関数が呼ばれないので、押し直しても 0 のまま。
+        for _ in 0..<3 {
+            #expect(!model.undo())
+            #expect(model.undosRemaining == 0)
+        }
+    }
+
+    @Test("残り回数は中断データに残り、再開しても増えも減りもしない")
+    func budgetSurvivesSuspend() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        stack(model, moves: SolitaireUndoBudget.free + 1)
+        #expect(model.undo())
+        #expect(model.undo())
+        let expected = SolitaireUndoBudget.free - 2
+
+        let snapshot = try! #require(store.load(SolitaireSnapshot.self, for: "solitaire"))
+        #expect(snapshot.undosRemaining == expected)
+
+        let resumed = SolitaireModel(services: services, seed: 999_999)
+        #expect(resumed.undosRemaining == expected)
+        #expect(resumed.board == model.board)
+
+        // 補充したぶんも持ち越す（広告を見た事実が再起動で消えない）。
+        #expect(resumed.grantUndos())
+        let after = SolitaireModel(services: services, seed: 999_999)
+        #expect(after.undosRemaining == expected + SolitaireUndoBudget.refill)
+    }
+
+    @Test("回数制が無かった版の中断データは、無料枠が丸ごと残っている扱いで読む")
+    func legacySnapshotGetsTheFullBudget() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        try! store.save(
+            PreUndoBudgetSnapshot(seed: fixedSeed, moves: [.draw, .draw], elapsedSeconds: 12, jokerGrants: 1),
+            for: "solitaire"
+        )
+        let model = SolitaireModel(services: services, seed: 999_999)
+        #expect(model.undosRemaining == SolitaireUndoBudget.free)
+        #expect(model.elapsedSeconds == 12, "同じ中断データから復元できている")
+    }
+
+    @Test("配り直すと無料の回数に戻る")
+    func newGameResetsTheBudget() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        stack(model, moves: SolitaireUndoBudget.free)
+        for _ in 0..<SolitaireUndoBudget.free { #expect(model.undo()) }
+        #expect(model.undosRemaining == 0)
+
+        model.newGame()
+        #expect(model.undosRemaining == SolitaireUndoBudget.free)
+    }
+
+    @Test("ジョーカーを置いた手を戻すのも消費は1回（#476 仕様5）")
+    func undoingAJokerCostsOne() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        #expect(model.placeJoker(onPile: 0))
+        #expect(!model.hasJoker)
+
+        #expect(model.undo())
+        #expect(model.undosRemaining == SolitaireUndoBudget.free - 1)
+        #expect(model.hasJoker, "巻き戻せば所持に返る（#397 吟味2）")
+    }
+
+    @Test("決着したあとは補充しても使い道が無いので受け付けない")
+    func grantIsRejectedAfterTheGameEnds() {
+        let store = MemorySnapshotStore()
+        let log = makeLog(suite: "undo-budget")
+        let (services, _) = makeServices(store: store, playLog: log)
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        let solution = try! #require(SolitaireSolver.solve(SolitaireDealer.deal(seed: fixedSeed)).solution)
+        play(model, solution)
+
+        #expect(model.phase == .won)
+        #expect(!model.grantUndos())
+    }
+
+    @Test("読み上げ文は残り回数と、使い切ったあとの補充手段を伝える")
+    func accessibilityReadsTheBudget() {
+        #expect(SolitaireAccessibility.undoButtonLabel(remaining: 2) == "1手戻す、残り2回")
+        #expect(SolitaireAccessibility.undoButtonLabel(remaining: 0) == "1手戻す、残りなし")
+        #expect(SolitaireAccessibility.undoButtonHint(canUndo: false, remaining: 3)
+                == "まだ戻せる手がありません")
+        #expect(SolitaireAccessibility.undoButtonHint(canUndo: true, remaining: 0)
+                .contains("広告を見ると\(SolitaireUndoBudget.refill)回"))
+        #expect(SolitaireAccessibility.undoButtonHint(canUndo: true, remaining: 1)
+                .contains("\(SolitaireUndoBudget.free)回まで"))
+    }
+}
+
 // MARK: - 寸法
 
 @Suite("ソリティアの盤面寸法")
@@ -524,12 +680,14 @@ struct SolitaireMetricsTests {
 @Suite("ソリティアのルールシート")
 struct SolitaireRuleSheetTests {
 
-    @Test("クロンダイクの要点（空列は K・山札の循環・戻すの無料）が抜けていない")
+    @Test("クロンダイクの要点（空列は K・山札の循環・戻すの回数制）が抜けていない")
     func coversTheEssentials() {
         let text = SolitaireRuleSheet.rules.map { $0.0 + $0.1 }.joined()
         #expect(text.contains("K だけ"))
         #expect(text.contains("捨て札が山札に戻ります"))
-        #expect(text.contains("何回でも無料"))
+        // 回数制（#476）。無料の回数と、使い切ったあとの補充手段の両方を書く。
+        #expect(text.contains("1局につき\(SolitaireUndoBudget.free)回まで無料"))
+        #expect(text.contains("広告を見ると\(SolitaireUndoBudget.refill)回ぶん補充"))
         #expect(text.contains("クリアできることを確かめて"))
     }
 }
