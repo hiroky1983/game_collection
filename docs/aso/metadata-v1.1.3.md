@@ -501,7 +501,8 @@ AI 側からは ASC アカウントの所在地を読めない（会長の職掌
 | 記載 | 実装 | 確認方法 |
 |---|---|---|
 | 新ゲーム4本（囲碁・チェス・ソリティア・ブロック崩し） | #398 / #462 / #397 / #463 | `GameRegistry` に `GoModule()` `ChessModule()` `SolitaireModule()` `BlocksModule()` が並ぶ。表示名は各 Module の `public let title` が `囲碁` `チェス` `ソリティア` `ブロック崩し` |
-| iPad 対応 | #458（PR #459 / #460 / #461）+ #485（PR #503） | `project.yml` の `TARGETED_DEVICE_FAMILY: "1,2"` |
+| iPad を対応デバイスに追加 | #458（PR #459） | `project.yml` の `TARGETED_DEVICE_FAMILY: "1,2"`（これは**対象デバイスの宣言だけ**で、後段の「大きな画面いっぱい」の根拠にはならない） |
+| **大きな画面いっぱいの盤面**（表示レイアウトの側） | #458（PR #459 / #460 / #461）+ #485（PR #503） | ①`Packages/GameKit/Sources/Core/AdaptiveLayout.swift` = 幅に応じて寸法を返す適応レイヤ ②`App/HubView.swift:28-38` が `AdaptiveLayout.hubColumnCount` で列数を決めるハブの適応グリッド ③`MahjongSolitaireBoardMetrics.swift:67`「画面が広くて全体表示の方が大きくなる場合（iPad 等）は全体表示に合わせる」 ④**現物**: `docs/aso/screenshots/ipad/` の **18枚**（#472・#485 の対応後に撮り直したもの。一覧とキャプションは `metadata-v1.1.1.md` §10） |
 | 収録は全16本 | — | `bash Scripts/check-aso-game-count.sh docs/aso/metadata-v1.1.3.md /tmp/AppGameServices-v113.swift` が `OK（実装 16本 / 主張 16本）` |
 | ブラックジャックのダブルダウン・スプリット | #439（PR #451） | `GameBlackjack/BlackjackModel.swift` に両方の実装、`Core/HowToPlay.swift` に遊び方の記載 |
 | マインスイーパーのコード（周囲の一括開放） | #437（PR #447） | `MinesweeperModel.swift:325` `コード: 開いている数字マスのタップで周囲を一括開放する（#437）` |
@@ -549,7 +550,8 @@ PY
 ### 7-4. バージョン番号は `1.1.3` 据え置き（#473 の受け入れ条件4つ目）
 
 **`1.2.0` へ上げず `1.1.3` のままにする。** 根拠は Issue #473 に付いた
-経営企画室の分析（2026-09-07）と、それに対する会長のハンコ（同日 07:07:56Z = **推奨案 A の承認**）:
+経営企画室の分析（**2026-09-07 13:34:47 JST**）と、それに対する会長のハンコ
+（**2026-09-07 16:07:56 JST** に `ai:approved` を付与 = **推奨案 A の承認**）:
 
 - 同ジャンル上位アプリのバージョン番号は 3.14.1 / 7.19.1 / 1.62 / 6.8.21 / 10.17 と**刻み方がばらばらで、
   評価数との相関が読めない**（1.62 で 9,935 件、10.17 で 3,667 件）。**番号を上げても ASO 上の実利はほぼゼロ**
