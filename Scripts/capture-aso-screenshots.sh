@@ -5,6 +5,13 @@
 #
 # 既定: docs/aso/screenshots / "iPhone 17 Pro Max"（6.9インチ = App Store Connect の必須サイズ）
 #
+# iPad 分（#472。TARGETED_DEVICE_FAMILY に 2 を含む版では入稿に必須）は出力先とデバイス名を渡す:
+#
+#   bash Scripts/capture-aso-screenshots.sh docs/aso/screenshots/ipad "iPad Pro 13-inch (M5)"
+#
+# 13インチ iPad の native は 2064×2752 portrait で、そのまま ASC の 13" 枠に入る
+# （他の iPad サイズは Apple 側で自動縮小される）。スクリプト側の分岐は不要。
+#
 # 仕組み:
 #   1. Debug ビルドを作り、`-screenshotMode` で起動する（広告を出さず ATT も聞かない。
 #      シミュレータは AdMob 側で自動的にテストデバイス扱いになるため、Release ビルドでも
