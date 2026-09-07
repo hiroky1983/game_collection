@@ -35,7 +35,7 @@ struct AdaptiveLayoutTests {
         for width in Self.iPhoneWidths {
             let layout = AdaptiveLayout(width: width)
             #expect(layout.hubCardMinWidth == 130)
-            #expect(columnCount(containerWidth: width, minimum: layout.hubCardMinWidth) == 2,
+            #expect(layout.hubColumnCount(containerWidth: width) == 2,
                     "幅 \(width)pt で 2 列にならなかった")
         }
     }
@@ -44,7 +44,7 @@ struct AdaptiveLayoutTests {
     func hubGetsMoreColumnsOnPad() {
         for width in Self.iPadWidths {
             let layout = AdaptiveLayout(width: width)
-            let columns = columnCount(containerWidth: width, minimum: layout.hubCardMinWidth)
+            let columns = layout.hubColumnCount(containerWidth: width)
             #expect(columns > 2, "幅 \(width)pt で \(columns) 列だった")
         }
     }
@@ -54,10 +54,10 @@ struct AdaptiveLayoutTests {
     @Test("iPad でカードが iPhone より小さくならない")
     func padCardsAreNotSmallerThanPhone() {
         let phone = AdaptiveLayout(width: 393)
-        let phoneCard = cardWidth(containerWidth: 393, minimum: phone.hubCardMinWidth)
+        let phoneCard = cardWidth(containerWidth: 393, layout: phone)
         for width in Self.iPadWidths {
             let layout = AdaptiveLayout(width: width)
-            let padCard = cardWidth(containerWidth: width, minimum: layout.hubCardMinWidth)
+            let padCard = cardWidth(containerWidth: width, layout: layout)
             #expect(padCard >= phoneCard, "幅 \(width)pt のカードが \(padCard)pt で iPhone の \(phoneCard)pt を下回った")
         }
     }
@@ -88,21 +88,48 @@ struct AdaptiveLayoutTests {
         #expect(AdaptiveLayout(width: 1024).scaled(32) >= 44)
     }
 
-    // MARK: - LazyVGrid の列数の再現
+    // MARK: - 縦方向の使い切り（#485）
 
-    /// `GridItem(.adaptive(minimum:))` の列決定。`padding` と `spacing` は HubView の値。
-    private func columnCount(containerWidth: CGFloat, minimum: CGFloat) -> Int {
-        let spacing: CGFloat = 12
-        let available = containerWidth - Theme.pad * 2
-        // n 列が入る条件: n * minimum + (n - 1) * spacing <= available
-        var n = 1
-        while (CGFloat(n + 1) * minimum + CGFloat(n) * spacing) <= available { n += 1 }
-        return n
+    /// iPhone のカードは「中身が決める高さ」のままでなければならない。
+    /// ここが nil を返さなくなると、`GameCard` に `minHeight` が入って iPhone の見た目が動く。
+    @Test("iPhone のハブカードには高さを与えない")
+    func hubCardHeightIsUntouchedOnPhone() {
+        for width in Self.iPhoneWidths {
+            let layout = AdaptiveLayout(width: width)
+            #expect(layout.hubCardMinHeight(viewportHeight: 700, rows: 8) == nil,
+                    "幅 \(width)pt で高さが与えられた")
+        }
     }
 
-    private func cardWidth(containerWidth: CGFloat, minimum: CGFloat) -> CGFloat {
+    /// #485 の本体。16 本を並べたときに、行の高さで縦を使い切れること。
+    @Test("iPad のハブは行の高さで縦を使い切る")
+    func hubFillsHeightOnPad() throws {
+        let viewport: CGFloat = 1270  // 13 インチ縦のスクロール領域のおよその高さ
+        for width in Self.iPadWidths {
+            let layout = AdaptiveLayout(width: width)
+            let columns = layout.hubColumnCount(containerWidth: width)
+            let rows = (16 + columns - 1) / columns
+            let height = try #require(layout.hubCardMinHeight(viewportHeight: viewport, rows: rows))
+            let used = height * CGFloat(rows) + 12 * CGFloat(rows - 1) + Theme.pad * 2
+            #expect(abs(used - viewport) < 0.5,
+                    "幅 \(width)pt: \(rows) 行で \(used)pt しか使えていない（容器は \(viewport)pt）")
+        }
+    }
+
+    /// 高さが測れる前（0）に割り算の結果を渡すと、カードが潰れる。
+    @Test("高さが測れていないうちは高さを与えない")
+    func hubCardHeightNeedsMeasuredViewport() {
+        let layout = AdaptiveLayout(width: 1032)
+        #expect(layout.hubCardMinHeight(viewportHeight: 0, rows: 4) == nil)
+        #expect(layout.hubCardMinHeight(viewportHeight: 1270, rows: 0) == nil)
+    }
+
+    // MARK: - LazyVGrid の列数の再現
+
+    /// 列数が決まればカード 1 枚の幅も決まる（`.flexible()` は等幅）。
+    private func cardWidth(containerWidth: CGFloat, layout: AdaptiveLayout) -> CGFloat {
         let spacing: CGFloat = 12
-        let n = CGFloat(columnCount(containerWidth: containerWidth, minimum: minimum))
+        let n = CGFloat(layout.hubColumnCount(containerWidth: containerWidth))
         let available = containerWidth - Theme.pad * 2
         return (available - (n - 1) * spacing) / n
     }

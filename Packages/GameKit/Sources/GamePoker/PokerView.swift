@@ -10,6 +10,8 @@ public struct PokerView: View {
     @State private var revealCPU = false
     @State private var showRewardNotEarned = false
     @State private var isRecoveringChips = false
+    /// 画面の広さ（#458）。iPad で縦の余白をどう配るかにだけ使う（#485）。
+    @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
@@ -22,9 +24,13 @@ public struct PokerView: View {
     public var body: some View {
         VStack(spacing: 10) {
             chipsBar
+            verticalSlack
             cpuArea
+            verticalSlack
             potArea
+            verticalSlack
             playerArea
+            verticalSlack
             HowToPlayHint(.poker, playLog: services.playLog)
             if model.sessionOver {
                 sessionOverView
@@ -32,7 +38,13 @@ public struct PokerView: View {
                 actionArea
             }
             RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
-            Spacer(minLength: 4)
+            // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
+            // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
+            if layout.isWide {
+                Color.clear.frame(height: 4)
+            } else {
+                Spacer(minLength: 4)
+            }
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -81,6 +93,13 @@ public struct PokerView: View {
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
+    }
+
+    /// iPad で余った高さを節の間に配るための可変余白（#485）。iPhone では何も置かないので
+    /// `VStack` の子の並びが変わらず、見た目は 1pt も動かない。
+    @ViewBuilder
+    private var verticalSlack: some View {
+        if layout.isWide { Spacer(minLength: 0) }
     }
 
     // MARK: - Chips Bar
