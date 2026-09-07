@@ -389,8 +389,23 @@ public struct MinesweeperView: View {
         )
     }
 
+    /// マス 1 つ。**添字が盤の範囲内であることを必ず確かめてから中身を描く**（#489）。
+    ///
+    /// 盤サイズが縮む変更（難易度の切り替え・新規ゲーム）が起きると、SwiftUI の差分更新
+    /// （`ForEachChild.updateValue`）が**旧盤面の添字のまま生きている子クロージャを新しい
+    /// 小さい `cells` に対して評価する**瞬間がある。ここで守らないと `model.cells[row][col]` が
+    /// 範囲外アクセスでトラップする（実ユーザーのクラッシュ・v1.1.2(7)）。範囲外の子は次の
+    /// 更新で消えるので、それまでの1フレームを透明で埋めれば見た目は変わらない。
+    @ViewBuilder
     private func cellView(row: Int, col: Int, size: CGFloat) -> some View {
-        let cell  = model.cells[row][col]
+        if let cell = model.cell(atRow: row, col: col) {
+            cellBody(row: row, col: col, cell: cell, size: size)
+        } else {
+            Color.clear.frame(width: size, height: size)
+        }
+    }
+
+    private func cellBody(row: Int, col: Int, cell: MinesweeperCell, size: CGFloat) -> some View {
         let isHit = model.hitMine.map { $0.row == row && $0.col == col } ?? false
 
         return ZStack {

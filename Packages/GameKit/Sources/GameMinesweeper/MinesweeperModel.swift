@@ -237,17 +237,37 @@ public final class MinesweeperModel {
     /// 計時が動いているか。`@testable` から計時の開始・停止を実時間に依存せず確かめるために持つ。
     var isTimerRunning: Bool { timerTask != nil }
 
+    // MARK: - Bounds
+
+    /// 盤の範囲内の添字か。
+    ///
+    /// 盤サイズが**縮む**変更（難易度の切り替え・新規ゲーム）の直後、SwiftUI の差分更新は
+    /// **旧盤面の添字を持ったままの子ビューを新しい小さい `cells` に対して評価する**瞬間がある。
+    /// そこで添字アクセスをすると範囲外で実行時トラップになる（#489。実ユーザーの
+    /// EXC_BREAKPOINT クラッシュ・v1.1.2(7)）。差分更新のタイミングにはアプリ側から介入できないので、
+    /// **添字を受け取る側**をここで守るのが唯一確実な手当てになる。
+    public func contains(row: Int, col: Int) -> Bool {
+        row >= 0 && row < rows && col >= 0 && col < cols
+    }
+
+    /// 範囲内ならそのマス、範囲外なら `nil`（#489）。View は `nil` のとき空のマスを描く。
+    public func cell(atRow row: Int, col: Int) -> MinesweeperCell? {
+        contains(row: row, col: col) ? cells[row][col] : nil
+    }
+
     // MARK: - Actions
 
     /// このマスを開けるか。VoiceOver に「いま何ができるか」を伝えるためにも使うので、
     /// 判定を `tap` の中に埋めずここに出しておく（二重管理で食い違わせないため・#188）。
     public func canReveal(row: Int, col: Int) -> Bool {
-        !gameOver && !cells[row][col].isRevealed && !cells[row][col].isFlagged
+        guard contains(row: row, col: col) else { return false }
+        return !gameOver && !cells[row][col].isRevealed && !cells[row][col].isFlagged
     }
 
     /// このマスの旗を立て下ろしできるか。開き済み・確定爆弾マスには置けない。
     public func canToggleFlag(row: Int, col: Int) -> Bool {
-        !gameOver && !cells[row][col].isRevealed && !cells[row][col].isContinuedMine
+        guard contains(row: row, col: col) else { return false }
+        return !gameOver && !cells[row][col].isRevealed && !cells[row][col].isContinuedMine
     }
 
     /// このマスでコード（数字タップによる周囲の一括開放）ができるか（#437）。
@@ -257,6 +277,7 @@ public final class MinesweeperModel {
     /// 判定を `chord` の中に埋めずここに出すのは `canReveal` と同じ理由で、
     /// 「やっても何も起きない操作」を VoiceOver に案内しないため（#188）。
     public func canChord(row: Int, col: Int) -> Bool {
+        guard contains(row: row, col: col) else { return false }
         guard !gameOver else { return false }
         let cell = cells[row][col]
         guard cell.isRevealed, !cell.isMine, cell.adjacentMines > 0 else { return false }
@@ -267,6 +288,9 @@ public final class MinesweeperModel {
     }
 
     public func tap(row: Int, col: Int) {
+        // 盤が縮んだ直後は、旧盤面の添字を持ったジェスチャが残っていることがある（#489）。
+        // 触れない盤の外なので、フィードバックも出さず黙って無視する。
+        guard contains(row: row, col: col) else { return }
         guard !gameOver else { return }
         // 開いているマスのタップはコード（周囲の一括開放）として扱う（#437）。
         // 成立しない場合は `chord` 側で警告フィードバックを出して盤面を変えない。
@@ -391,6 +415,7 @@ public final class MinesweeperModel {
     }
 
     public func toggleFlag(row: Int, col: Int) {
+        guard contains(row: row, col: col) else { return }  // #489（`tap` と同じ理由）
         guard !gameOver else { return }
         guard canToggleFlag(row: row, col: col) else {
             services?.feedback.notify(.warning) // 開き済み・確定爆弾マスには旗を置けない

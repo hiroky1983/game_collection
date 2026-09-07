@@ -151,12 +151,14 @@ struct MinesweeperRevealTests {
     /// マスの演出の修飾子はマスに 1 つだけ（入れ子にすると内側が外側を打ち消す・#199 の教訓）。
     @Test("マスの演出は gameAnimation 1 つだけで書かれている")
     func cellViewHasASingleAnimationModifier() throws {
+        // 修飾子が付いているのは `cellBody`。`cellView` は #489 の境界ガードだけを持つ
+        // 薄い包みになったので、走査対象は中身のほうを指す（包みを見ると常に 0 個になる）。
         let block = try Self.declarationBlock(
-            containing: "private func cellView(row: Int, col: Int, size: CGFloat) -> some View {",
+            containing: "private func cellBody(row: Int, col: Int, cell: MinesweeperCell, size: CGFloat) -> some View {",
             inSourceFile: "GameMinesweeper/MinesweeperView.swift"
         )
         let modifiers = block.filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix(".gameAnimation(") }.count
-        #expect(modifiers == 1, "cellView の .gameAnimation が \(modifiers) 個ある（1 個であること）")
+        #expect(modifiers == 1, "cellBody の .gameAnimation が \(modifiers) 個ある（1 個であること）")
     }
 
     // MARK: - Helpers
