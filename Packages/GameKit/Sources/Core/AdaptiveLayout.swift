@@ -38,6 +38,43 @@ public struct AdaptiveLayout: Equatable, Sendable {
     /// カードが iPhone より小さくなってしまうため。1024pt 幅で 4 列・1366pt 幅で 6 列になる。
     public var hubCardMinWidth: CGFloat { isWide ? 200 : 130 }
 
+    /// ハブのグリッドの列数。`GridItem(.adaptive(minimum:))` の数え方をそのまま値として持つ（#485）。
+    ///
+    /// `.adaptive` に任せていると**列数が View から見えず、行数も分からない**ため、縦方向の配分を
+    /// 決められなかった。列数をここで確定させ、HubView は同じ数の `.flexible()` を並べる
+    /// （`.adaptive` は「入るだけ並べて等幅に広げる」なので、同じ列数の `.flexible()` と同じ結果になる）。
+    ///
+    /// - Parameters:
+    ///   - containerWidth: グリッドを載せる容器の幅（= 画面幅）。左右の `Theme.pad` はこの中から引く。
+    ///   - spacing: 列の間隔（HubView の値）。
+    public func hubColumnCount(containerWidth: CGFloat, spacing: CGFloat = 12) -> Int {
+        let minimum = hubCardMinWidth
+        let available = containerWidth - Theme.pad * 2
+        // n 列が入る条件: n * minimum + (n - 1) * spacing <= available
+        var n = 1
+        while (CGFloat(n + 1) * minimum + CGFloat(n) * spacing) <= available { n += 1 }
+        return n
+    }
+
+    /// ハブのカード 1 枚に与える**最小の高さ**（#485）。
+    ///
+    /// iPad ではカードが自分の中身ぶんの高さしか持たず、16 枚を並べても画面の半分で終わって
+    /// 下に大きな余白が残っていた（13 インチで 53%。商品ページの 1 枚目がこれになる）。
+    /// 行数が分かれば「残りの高さを行数で割る」だけで縦を使い切れる。
+    ///
+    /// 狭い画面では `nil` を返す。iPhone のカードは中身が決める高さのままで 1pt も動かない。
+    ///
+    /// - Parameters:
+    ///   - viewportHeight: グリッドを載せるスクロール領域の高さ（上下の `Theme.pad` を含む）。
+    ///   - rows: 行数（= ceil(カード枚数 / 列数)）。
+    ///   - spacing: 行の間隔（HubView の値）。
+    public func hubCardMinHeight(viewportHeight: CGFloat, rows: Int, spacing: CGFloat = 12) -> CGFloat? {
+        guard isWide, rows > 0 else { return nil }
+        let available = viewportHeight - Theme.pad * 2 - spacing * CGFloat(rows - 1)
+        guard available > 0 else { return nil }
+        return available / CGFloat(rows)
+    }
+
     /// 盤と一緒には拡大されない**固定 pt の部品**（将棋の持ち駒など）に掛ける倍率。
     ///
     /// 盤そのものは `GeometryReader` で幅から作られるので放っておいても広がるが、その脇に置かれた
