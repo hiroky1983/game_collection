@@ -16,6 +16,10 @@ public struct BlockPuzzleSnapshot: Codable, Equatable, Sendable {
     /// これを保存しないと、再起動するだけで同じ局を何度でも復活できてしまう（2048 #122 と同型）。
     public var continueUsed: Bool
 
+    /// 復元を受け付ける得点・コンボの上限。両方を足し合わせても `Int` の範囲に遠く収まる。
+    static let maxScore = 1_000_000_000
+    static let maxCombo = 1_000_000
+
     public init(board: [[Int]], hand: [Int?], score: Int, combo: Int = 0, continueUsed: Bool = false) {
         self.board = board
         self.hand = hand
@@ -44,7 +48,10 @@ public struct BlockPuzzleSnapshot: Codable, Equatable, Sendable {
         }
         // 3 スロットすべて使用済みの状態は保存されない（置いた直後に必ず配り直すため）。
         guard pieces.contains(where: { $0 != nil }) else { return nil }
-        guard score >= 0, combo >= 0 else { return nil }
+        // 上限も検める。壊れた JSON で Int.max 近くの値を復元すると、次の `score += …` や
+        // `clearPoints(lines:combo:)` の乗算があふれてトラップする。到達しえない大きさは
+        // 壊れたデータとして扱う（実際の得点は 1 局で数万点の桁）。
+        guard (0...Self.maxScore).contains(score), (0...Self.maxCombo).contains(combo) else { return nil }
         return (board, pieces)
     }
 }

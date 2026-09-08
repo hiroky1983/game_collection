@@ -274,6 +274,9 @@ struct BlockPuzzleSnapshotTests {
             #"{"board":BOARD,"hand":[999,null,null],"score":0,"combo":0,"continueUsed":false}"#,   // 存在しない形
             #"{"board":BOARD,"hand":[null,null,null],"score":0,"combo":0,"continueUsed":false}"#,  // 手元が空
             #"{"board":BOARD,"hand":[0,null,null],"score":-5,"combo":0,"continueUsed":false}"#,    // 負のスコア
+            // 到達しえない大きさ。受け入れると次の `score += …` / `clearPoints` の乗算があふれてトラップする。
+            #"{"board":BOARD,"hand":[0,null,null],"score":9223372036854775807,"combo":0,"continueUsed":false}"#,
+            #"{"board":BOARD,"hand":[0,null,null],"score":0,"combo":9223372036854775807,"continueUsed":false}"#,
         ] {
             let full = broken.replacingOccurrences(
                 of: "BOARD",
