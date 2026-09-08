@@ -12,6 +12,7 @@ public struct BlocksView: View {
     @State private var model: BlocksModel
     @State private var scene: BlocksScene
     @State private var showRewardNotEarned = false
+    @State private var showContinueExpired = false
     @State private var isContinuing = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -54,7 +55,11 @@ public struct BlocksView: View {
                 }
             }
         }
-        .howToPlay(.blocks)
+        .howToPlay(.blocks, onPresent: {
+            // 読んでいる間に落球しないよう止める。発射前（.ready）は動くものが無いので
+            // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
+            if model.phase == .playing { model.pause() }
+        })
         .onAppear {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
@@ -75,6 +80,11 @@ public struct BlocksView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+        }
+        .alert("コンティニューできませんでした", isPresented: $showContinueExpired) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
         }
     }
 
@@ -253,9 +263,14 @@ public struct BlocksView: View {
             // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ。
             guard !isContinuing else { return }
             isContinuing = true
+            // どの局へのコンティニューかを広告前に控える。ロード中に「はじめから」で
+            // 盤が作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
+            let run = model.fieldGeneration
             Task {
                 if await services.ads.showRewardedAd() {
-                    model.continueAfterAd()
+                    if !model.continueAfterAd(forRun: run) {
+                        showContinueExpired = true
+                    }
                 } else {
                     showRewardNotEarned = true
                 }

@@ -139,6 +139,37 @@ struct GoModelFlowTests {
         #expect(model.board[4, 4] == .black, "続行後は打てる")
     }
 
+    /// 終局計算は detached で走るため、計算中に「対局続行→着手→再び両者パス」と進むと
+    /// **続行前の盤面**の結果が、同じ対局・同じ scoring 段階へ届くことがある（#512）。
+    @Test("対局続行して打ったあとに届いた古い終局計算は採用しない（#512）")
+    func staleEndgameFromBeforeResumeIsRejected() async {
+        let model = GoModel(services: makeServices())
+        model.newGame(humanSide: .black, level: .easy)
+        model.pass()
+        model.forcePassForTesting()
+        await model.evaluateEndgameIfNeeded()
+        let stale = model.endgame
+        let serial = model.gameSerial
+        let staleMoveCount = model.aiTurnKey.ply
+        #expect(stale != nil)
+
+        // 続行して 1 手打ち、また両者パスで scoring へ戻す。serial と phase は一致したまま。
+        model.resumePlay()
+        model.tap(row: 4, col: 4)
+        model.forcePassForTesting()
+        model.pass()
+        #expect(model.phase == .scoring)
+        #expect(model.endgame == nil)
+
+        // 続行前の手数で届いた結果は捨てる（黒石が乗った盤に「白の勝ち」が出る）。
+        model.adoptEndgame(stale!, serial: serial, moveCount: staleMoveCount)
+        #expect(model.endgame == nil, "古い盤面の計算結果が採用されている")
+
+        // いまの手数の結果は通る。
+        model.adoptEndgame(stale!, serial: serial, moveCount: model.aiTurnKey.ply)
+        #expect(model.endgame != nil)
+    }
+
     @Test("投了すると CPU の勝ちで決着し、中断データを消す")
     func resignEndsTheGame() {
         let store = MemorySnapshotStore()

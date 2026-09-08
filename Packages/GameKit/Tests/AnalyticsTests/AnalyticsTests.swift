@@ -656,7 +656,7 @@ struct AllGamesAnalyticsTests {
         for _ in 0..<60 where model.phase == .playing {
             model.tick(dt: 1.0 / 60)
         }
-        model.continueAfterAd()
+        model.continueAfterAd(forRun: model.fieldGeneration)
         #expect(spy.starts == ["blocks", "blocks"])
         #expect(spy.ends.map(\.gameID) == ["blocks"])
     }

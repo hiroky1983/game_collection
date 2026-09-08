@@ -200,8 +200,13 @@ public final class BlocksModel {
     /// リワード広告の視聴後にコンティニューする。残機 1 で、落ちたステージの頭から再開する。
     ///
     /// 中断復元と同じ「ステージ頭から」に揃えてある（同じゲームの中に 2 通りの再開地点を作らない）。
-    public func continueAfterAd() {
-        guard phase == .gameOver, !continueUsed else { return }
+    ///
+    /// - Parameter generation: 広告を出す前に控えた `fieldGeneration`。**広告のロード〜視聴の間に
+    ///   「はじめから」で盤が作り直されたら適用しない**。照合しないと、報酬が別の局に乗って
+    ///   `cancelLoss` まで走る（ソリティアの `grantUndos(forDeal:)` と同じ契約。#509）。
+    @discardableResult
+    public func continueAfterAd(forRun generation: Int) -> Bool {
+        guard phase == .gameOver, !continueUsed, generation == fieldGeneration else { return false }
         // 同じ 1 プレイの続きなので、直前に記録した「負け」は無かったことにする。
         services?.playLog?.cancelLoss(gameID: Self.gameID)
         recordResult = nil
@@ -210,6 +215,7 @@ public final class BlocksModel {
         startStage()
         // `game_end` は送信済みなので、続きは次の 1 プレイとして数え直す（#158）。
         services?.gameDidRestart(gameID: Self.gameID)
+        return true
     }
 
     // MARK: - 内部
@@ -250,6 +256,9 @@ public final class BlocksModel {
         services?.feedback.notify(.warning)
         field.resetBall()
         phase = .ready
+        // 減った残機をその場で保存する。しないと、落球のたびに強制終了すれば
+        // ステージ頭の残機へ戻せてしまい、広告コンティニューより条件が良くなる（#508）。
+        persist()
     }
 
     private func clearStage() {
@@ -261,6 +270,7 @@ public final class BlocksModel {
             return
         }
         phase = .stageCleared
+        persist()
     }
 
     private func finish(outcome: GameOutcome) {
@@ -278,12 +288,17 @@ public final class BlocksModel {
         services?.snapshots.clear(for: Self.gameID)
     }
 
-    /// ステージ頭の状態だけを保存する（規約どおりフレーム単位では保存しない）。
+    /// 区切りの状態だけを保存する（規約どおりフレーム単位では保存しない）。
+    /// 保存するのはステージ頭・落球直後・ステージクリア直後の 3 か所。
     private func persist() {
         guard !phase.isFinished else { return }
+        // クリア表示中に中断したら、進み先（次のステージ頭）として保存する。
+        // 表示中のステージ番号のまま保存すると、崩し終えたステージをボーナス込みの
+        // 得点でもう一度遊べてしまう。
+        let resumeStage = phase == .stageCleared ? stageNumber + 1 : stageNumber
         try? services?.snapshots.save(
             BlocksSnapshot(
-                stage: stageNumber,
+                stage: resumeStage,
                 score: score,
                 lives: lives,
                 continueUsed: continueUsed

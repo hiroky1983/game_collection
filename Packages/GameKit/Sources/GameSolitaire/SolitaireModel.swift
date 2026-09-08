@@ -371,9 +371,12 @@ public final class SolitaireModel {
     /// 所持上限は 1 枚なので、既に持っているときは何もせず false を返す。呼び出し側（View）は
     /// この戻り値で「広告を見せたのに何も起きなかった」を検出できる（既存の広告契約と同じ形。
     /// 麻雀ソリティアのヒント・ナンプレのコンティニューと揃えてある）。
+    ///
+    /// - Parameter serial: 広告を出す前に控えた `dealSerial`。ロード〜視聴の間に配り直されたら
+    ///   補充しない。`grantUndos(forDeal:)` と同じ契約（#480 で undo 側だけに入っていた。#511）。
     @discardableResult
-    public func grantJoker() -> Bool {
-        guard phase == .playing, !board.jokerAvailable else { return false }
+    public func grantJoker(forDeal serial: Int) -> Bool {
+        guard phase == .playing, !board.jokerAvailable, serial == dealSerial else { return false }
         jokerGrants += 1
         board.jokerAvailable = true
         services?.feedback.notify(.success)
