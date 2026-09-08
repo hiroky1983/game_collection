@@ -26,6 +26,8 @@ public final class RunnerModel {
     public private(set) var bestSeconds: [Int]
     /// このステージでチェックポイント再開（リワード広告）を使ったか。1 ステージ 1 回まで。
     public private(set) var checkpointUsed: Bool
+    /// 直前のクリアでベストタイムを更新したか。クリア表示のバッジに使う。
+    public private(set) var didSetBestTime = false
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
     /// ゆっくりモード（アクセシビリティ）。切り替えると即座に効く。
@@ -183,6 +185,10 @@ public final class RunnerModel {
     /// 「穴を跳び越せない = クリア不能」に変わる。
     public func tick(dt: Double) {
         guard phase.isRunning else { return }
+        #if DEBUG
+        // 撮影用に止めているあいだは進めない（下記 `applyDebugScenario` を参照）。
+        if isFrozenForCapture { return }
+        #endif
         let step = min(dt, RunnerRules.maxStep) * (isSlowMode ? RunnerRules.slowFactor : 1)
         elapsed += step
         for event in field.step(dt: step) {
@@ -250,6 +256,7 @@ public final class RunnerModel {
         isPressed = false
         elapsed = 0
         recordResult = nil
+        didSetBestTime = false
         persist()
     }
 
@@ -268,10 +275,13 @@ public final class RunnerModel {
     }
 
     private func clearStage() {
-        let seconds = max(1, Int(elapsed.rounded()))
+        // **表示と同じ切り捨て**にする。四捨五入すると、画面の「0:22」に対して記録が
+        // 「23秒」になって食い違う（最初の実機確認で判明）。
+        let seconds = max(1, Int(elapsed))
         // チェックポイント再開を使った回はベストタイムに残さない。ステージの半分しか
         // 走っていない回と通しで走った回を同じ表に混ぜない（#406 と同じ考え方）。
-        if !checkpointUsed, best(forStage: stageNumber).map({ seconds < $0 }) ?? true {
+        didSetBestTime = !checkpointUsed && (best(forStage: stageNumber).map { seconds < $0 } ?? true)
+        if didSetBestTime {
             bestSeconds[stageNumber - 1] = seconds
         }
         services?.feedback.notify(.success)
@@ -309,19 +319,29 @@ public final class RunnerModel {
     }
 
     #if DEBUG
+    /// 撮影中はゲームループを止める（`-simulateRunner` の静止画用）。
+    ///
+    /// 走るゲームなので、状態を作って放っておくと**シャッターを切る前に先へ進んでしまう**
+    /// （最初の撮影では「走行中」を撮ったつもりが、待っているあいだに最初の穴へ落ちて
+    /// ミスの画になった）。止まったブロック崩しと違い、狙った画を撮るには時間ごと
+    /// 止める必要がある。DEBUG ビルド限定で、製品には入らない。
+    private var isFrozenForCapture = false
+
     /// 撮影・動作確認用に狙った画面まで進める（起動引数 `-simulateRunner <名前>`）。
     ///
     /// 走行中・一時停止・ミス・クリアの画は、実機では**指で遊ばないと**出せない。
     /// シミュレータには自動タップの手段が無いため、`-simulateBlocks`（#463）と同じ形で
-    /// 起動引数から状態を作る。DEBUG ビルド限定で、製品には入らない。
+    /// 起動引数から状態を作る。
     public func applyDebugScenario(_ name: String) {
         switch name {
         case "running":
             press(); release()
-            advanceFramesForDebug(seconds: 1.2)
+            // 最初の障害を跳び越している最中で止める（走っていることが 1 枚で分かる画）。
+            autoPlayForDebug(until: { $0.field.altitude > RunnerRules.jumpApex * 0.6 })
+            isFrozenForCapture = true
         case "paused":
             press(); release()
-            advanceFramesForDebug(seconds: 1.2)
+            autoPlayForDebug(until: { $0.field.distance > 80 })
             pause()
         case "failed":
             press(); release()
@@ -329,7 +349,7 @@ public final class RunnerModel {
             advanceFramesForDebug(seconds: 30)
         case "cleared":
             press(); release()
-            autoPlayForDebug()
+            autoPlayForDebug(until: { _ in false })
         default:
             break
         }
@@ -344,13 +364,13 @@ public final class RunnerModel {
         }
     }
 
-    /// 地形を読んで自動で跳びながらゴールまで走る（撮影用）。
+    /// 地形を読んで自動で跳びながら、`until` が真になるかゴールに着くまで走る（撮影用）。
     ///
     /// 判断は `RunnerAutoPilot` に置いてある。**テストが全ステージのクリア可能性を
     /// 確かめるのに使うのと同じ関数**なので、撮影用にだけ都合の良い操作を書き足す余地がない。
-    private func autoPlayForDebug() {
+    private func autoPlayForDebug(until stop: (RunnerModel) -> Bool) {
         var frames = 0
-        while phase.isRunning, frames < 60 * 120 {
+        while phase.isRunning, !stop(self), frames < 60 * 120 {
             frames += 1
             if RunnerAutoPilot.shouldJump(field: field) { press(); release() }
             tick(dt: 1.0 / 60)

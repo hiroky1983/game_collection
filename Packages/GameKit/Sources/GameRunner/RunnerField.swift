@@ -13,12 +13,20 @@ public struct RunnerField: Equatable, Sendable {
     /// コースと走者の寸法。すべて抽象単位。
     public enum Metrics {
         /// 画面に見える横幅。
-        public static let width: Double = 120
+        ///
+        /// 縦持ちの画面に横長の帯として載るので、**広くしすぎない**。広げるほど 1 単位が
+        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（50.8 / 秒）でも
+        /// 走者の前に 74 単位 = 約 1.5 秒ぶんの地形が見えるので、初見でも反応できる。
+        public static let width: Double = 100
         public static let height: Double = 80
         /// 地面の高さ（走者の足がここに乗る）。
-        public static let groundY: Double = 16
+        ///
+        /// 跳んでも足が届くのは 26 + 21（大ジャンプの頂点）= 47 までなので、上端 80 まで
+        /// 空にすると余る。地面を厚くしてその余りを詰めてある（見た目の都合だけで、
+        /// 当たり判定はすべて地面からの相対値で書いてあるため軌道は変わらない）。
+        public static let groundY: Double = 26
         /// 走者の画面上の x（固定）。左に寄せて、先の地形を読む余裕を作る。
-        public static let playerX: Double = 30
+        public static let playerX: Double = 26
         public static let playerWidth: Double = 8
         public static let playerHeight: Double = 11
 
@@ -151,8 +159,7 @@ public struct RunnerField: Equatable, Sendable {
         }
 
         // 障害物は矩形どうしの重なりで見る。走者の足が上端より上にあれば飛び越えている。
-        if let hazard = collidingBlock() {
-            _ = hazard
+        if isHittingBlock {
             events.append(.crashed)
             return
         }
@@ -182,9 +189,9 @@ public struct RunnerField: Equatable, Sendable {
         }
     }
 
-    /// いま重なっている障害物。無ければ nil。
-    private func collidingBlock() -> RunnerHazard? {
-        stage.hazards.first { hazard in
+    /// いま障害物に当たっているか。足が上端より上にあれば飛び越えている。
+    private var isHittingBlock: Bool {
+        stage.hazards.contains { hazard in
             guard hazard.kind != .pit else { return false }
             guard hazard.start < playerMaxX, playerMinX < hazard.end else { return false }
             return footY < Metrics.groundY + hazard.height

@@ -28,6 +28,7 @@ public struct RunnerView: View {
         VStack(spacing: 14) {
             header
             course
+            bestTimeStrip
             HowToPlayHint(.runner, playLog: services.playLog)
             recommendationArea
             Spacer(minLength: 0)
@@ -146,6 +147,57 @@ public struct RunnerView: View {
         .disabled(model.phase == .failed || model.phase == .cleared || model.phase == .allCleared)
     }
 
+    /// ステージごとのベストタイム（#494 の「記録」）。
+    ///
+    /// 横長のコースは縦持ちの画面では帯にしかならないので、その下に記録を置いて
+    /// 「どこまで進んだか」「次にどこを縮めるか」が一目で分かるようにする。
+    /// 15 個を横に並べ、いま挑んでいるステージだけ色を変える。
+    private var bestTimeStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("ベストタイム")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                Spacer(minLength: 0)
+                Text(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
+                    .themeCaption(12)
+                    .foregroundStyle(Theme.inkSub)
+            }
+            HStack(spacing: 4) {
+                ForEach(1...RunnerRules.stageCount, id: \.self) { number in
+                    stageChip(number)
+                }
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .popCard(corner: Theme.cornerSmall)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func stageChip(_ number: Int) -> some View {
+        let best = model.best(forStage: number)
+        let isCurrent = number == model.stageNumber
+        return VStack(spacing: 1) {
+            // 数値の桁区切りが入らないよう verbatim で出す（#494 時点の既知の落とし穴）。
+            Text(verbatim: "\(number)")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(isCurrent ? Theme.onAccent : Theme.inkSub)
+            Text(best.map { "\($0)" } ?? "–")
+                .font(.system(size: 10, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(isCurrent ? Theme.onAccent : Theme.ink)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isCurrent ? Theme.Fill.coral : Theme.Fill.coral.opacity(0.12))
+        )
+        .accessibilityLabel(
+            "ステージ \(number) " + RunnerAccessibility.bestLabel(seconds: best)
+        )
+    }
+
     // MARK: - コース
 
     private var course: some View {
@@ -233,7 +285,16 @@ public struct RunnerView: View {
             Text(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.85))
-            RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+            if model.didSetBestTime {
+                // 共通の `RecordLabel` はここでは出さない。あちらが出す「自己ベスト N」は
+                // このゲームでは**到達ステージ数**（ハブの 1 行で使う指標）で、同じ枠に
+                // 並ぶタイムと取り違えられる。この画面で意味があるのはタイムのほう。
+                Text("ベストタイム更新！")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.Fill.coral))
+            }
         }
     }
 

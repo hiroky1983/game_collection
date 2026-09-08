@@ -73,6 +73,8 @@ targets:
       - package: GameKit
         product: GameBlockPuzzle
       - package: GameKit
+        product: GameRunner
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

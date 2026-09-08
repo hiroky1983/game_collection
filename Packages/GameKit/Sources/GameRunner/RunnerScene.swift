@@ -11,8 +11,9 @@ enum RunnerPalette {
     static let sky: UInt32 = 0x2E4066
     /// 地面の上面（草）。
     static let groundTop: UInt32 = 0x22C3BE
-    /// 地面の断面（土）。
-    static let groundBody: UInt32 = 0x1B2740
+    /// 地面の断面（土）。**空と系統の違う暖色にする**。同じ寒色の濃淡で塗ると、
+    /// 地面と空の境目も穴の切れ目も見分けが付かない（最初の実機確認で判明）。
+    static let groundBody: UInt32 = 0x6B4A32
     /// 障害物。`Theme.Fill.amber` と同じ値。
     static let obstacle: UInt32 = 0xFFC24B
     /// 自転車の車体。`Theme.Fill.coral` と同じ値。
@@ -171,10 +172,10 @@ final class RunnerScene: SKScene {
         body.position = CGPoint(x: start, y: 0)
         let top = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.groundTop),
-            size: CGSize(width: end - start, height: 1.2)
+            size: CGSize(width: end - start, height: 2.2)
         )
         top.anchorPoint = .zero
-        top.position = CGPoint(x: start, y: Metrics.groundY - 1.2)
+        top.position = CGPoint(x: start, y: Metrics.groundY - 2.2)
         courseLayer.addChild(body)
         courseLayer.addChild(top)
     }

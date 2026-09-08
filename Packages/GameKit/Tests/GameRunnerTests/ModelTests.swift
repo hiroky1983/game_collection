@@ -94,11 +94,22 @@ struct RunnerModelTests {
         guard let first = model.best(forStage: 1) else { Issue.record("記録されていない"); return }
         #expect(model.best(forStage: 2) == nil, "遊んでいないステージには記録が無い")
 
+        #expect(model.didSetBestTime, "初クリアは必ず更新")
+
         // ゆっくりモードで走ると同じ操作でも実時間は伸びる。遅いタイムで上書きされないこと。
         model.replayCurrentStage()
         model.setSlowMode(true)
         autoPlayCurrentStage(model)
         #expect(model.best(forStage: 1) == first, "遅いタイムでは更新しない")
+        #expect(!model.didSetBestTime, "更新していないのにバッジを出さない")
+    }
+
+    /// 画面の「0:22」と記録の「23秒」が食い違わないこと（最初の実機確認で見つかった不整合）。
+    @Test("ベストタイムは画面のタイム表示と同じ切り捨てで記録する")
+    func bestTimeMatchesDisplayedTime() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("best-round"))
+        autoPlayCurrentStage(model)
+        #expect(model.best(forStage: 1) == max(1, Int(model.elapsed)))
     }
 }
 
