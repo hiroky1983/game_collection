@@ -174,9 +174,11 @@ struct SolitaireMotionTests {
             Self.matchCount(of: #"SolitaireMotion\.flipDegrees\(progress:"#, in: source) == 1,
             "進捗から回転角への翻訳が View に直書きされている"
         )
+        // 3 枚めくり（#498）では 1 回のめくりで最大 3 枚が同時に返るので、条件は
+        // 「直前の手が山めくりか」ではなく「その札が今めくれた札か」でなければならない。
         #expect(
-            Self.matchCount(of: #"flips: model\.lastMoveWasDraw"#, in: source) == 1,
-            "山めくりの 1 枚だけを返す条件が View 側で失われている"
+            Self.matchCount(of: #"flips: model\.drawnCardIDs\.contains\(card\.id\)"#, in: source) == 1,
+            "山めくりで出た札だけを返す条件が View 側で失われている"
         )
         #expect(
             Self.matchCount(of: #"flips: model\.revealedCardIDs\.contains\(card\.id\)"#, in: source) == 1,

@@ -55,9 +55,22 @@ public enum SolitaireAccessibility {
     }
 
     /// 捨て札の一番上。
-    public static func wasteLabel(card: SolitaireCard?, isSelected: Bool) -> String {
+    ///
+    /// - Parameter covered: 3枚めくり（#498）で下に重なって見えている札（下から順）。
+    ///   使えるのは一番上の1枚だけだが、次に何が控えているかは画面には出ているので
+    ///   音声でも取れるようにする。空なら文言は 1枚めくりのときと変わらない。
+    public static func wasteLabel(
+        card: SolitaireCard?,
+        isSelected: Bool,
+        covered: [SolitaireCard] = []
+    ) -> String {
         guard let card else { return "捨て札、空" }
-        return isSelected ? "捨て札、\(cardLabel(card))、選択中" : "捨て札、\(cardLabel(card))"
+        var parts = ["捨て札", cardLabel(card)]
+        if isSelected { parts.append("選択中") }
+        if !covered.isEmpty {
+            parts.append("下に" + covered.map(cardLabel).joined(separator: "、"))
+        }
+        return parts.joined(separator: "、")
     }
 
     /// ステータスバーの 1 行。

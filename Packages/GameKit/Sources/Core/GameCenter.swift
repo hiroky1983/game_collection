@@ -194,10 +194,11 @@ public enum GameCenterLeaderboard {
             default:         return nil
             }
         case "solitaire":
-            // 区分を持たないので、区分キーが付いていないときだけ送る。
-            // ジョーカー（中継札）を使ったクリアの除外は区分ではなく `isLeaderboardEligible`
-            // （上の `score(gameID:outcome:score:)` の先頭）で行う。区分で分けると
-            // ローカルの自己ベストまで「ジョーカーあり / なし」の 2 行に割れてしまう（#406）。
+            // **標準（1 枚めくり）だけを順位表に載せる**。3 枚めくり（#498）は区分キー
+            // `draw3` が付くのでここで弾かれる（`isLeaderboardEligible` でも弾いてあり二重）。
+            // 一方、ジョーカー（中継札）を使ったクリアの除外は区分ではなく
+            // `isLeaderboardEligible`（上の `score(gameID:outcome:score:)` の先頭）で行う。
+            // 区分で分けるとローカルの自己ベストまで「ジョーカーあり / なし」の 2 行に割れる（#406）。
             return variant == nil ? solitaireTime : nil
         case "freecell":
             // 区分を持たないので、区分キーが付いていないときだけ送る（#492）。
