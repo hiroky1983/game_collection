@@ -298,8 +298,8 @@ struct GameCenterLeaderboardTests {
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
             ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
             ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
-            ("blockpuzzle", GameScore(metric: .points, points: 1)),            ("runner", GameScore(metric: .points, points: 1)),
-
+            ("blockpuzzle", GameScore(metric: .points, points: 1)),
+            ("runner", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID

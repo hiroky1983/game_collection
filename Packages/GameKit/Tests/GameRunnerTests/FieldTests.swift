@@ -192,13 +192,16 @@ struct RunnerHazardLayoutTests {
         #expect(stage.length == segment * 4)
     }
 
-    @Test("記号と高さの対応が定義どおり")
-    func hazardHeights() {
-        #expect(RunnerHazardKind.from(symbol: "_") == .pit)
-        #expect(RunnerHazardKind.from(symbol: "n") == .lowBlock)
-        #expect(RunnerHazardKind.from(symbol: "t") == .tallBlock)
-        #expect(RunnerHazardKind.from(symbol: ".") == nil)
+    @Test("区画記号と障害の種類・高さの対応が定義どおり")
+    func hazardKinds() {
+        #expect(RunnerStage.segmentSpec("_") == nil, "穴の長さは 1〜3 の数字で書く")
+        #expect(RunnerStage.segmentSpec("2")?.kind == .pit)
+        #expect(RunnerStage.segmentSpec("2")?.tiles == 2)
+        #expect(RunnerStage.segmentSpec("n")?.kind == .lowBlock)
+        #expect(RunnerStage.segmentSpec("t")?.kind == .tallBlock)
+        #expect(RunnerStage.segmentSpec("-") == nil, "平地")
         #expect(RunnerHazardKind.pit.height == 0)
         #expect(RunnerHazardKind.lowBlock.height < RunnerHazardKind.tallBlock.height)
+        #expect(RunnerHazardKind.tallBlock.height < RunnerRules.jumpApex, "跳んで越えられる高さ")
     }
 }

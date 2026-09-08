@@ -15,20 +15,6 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 高い障害物。ジャンプの頂点近くを通さないと当たる。
     case tallBlock
 
-    /// ステージのレイアウト文字列での 1 文字表現。`.` は平地（障害なし）。
-    public var symbol: Character {
-        switch self {
-        case .pit:       return "_"
-        case .lowBlock:  return "n"
-        case .tallBlock: return "t"
-        }
-    }
-
-    /// レイアウト文字列の 1 文字から。平地（"."）と未知の文字は nil。
-    public static func from(symbol: Character) -> RunnerHazardKind? {
-        allCases.first { $0.symbol == symbol }
-    }
-
     /// 地面からの高さ。穴は高さを持たない。
     ///
     /// 高さの上限は**ジャンプの頂点（`RunnerRules.jumpApex`）より十分低く**すること。
