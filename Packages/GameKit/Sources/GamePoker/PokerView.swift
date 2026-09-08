@@ -10,15 +10,21 @@ public struct PokerView: View {
     @State private var revealCPU = false
     @State private var showRewardNotEarned = false
     @State private var isRecoveringChips = false
+    /// 開始シートでの選択。**次の局に使う設定**であって、進行中の局はこれを見ない（#496）。
+    @State private var selectedRules: PokerRuleSet
+    @State private var showBonusTable = false
     /// 画面の広さ（#458）。iPad で縦の余白をどう配るかにだけ使う（#485）。
     @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: PokerModel(services: services))
+        let restored = PokerModel(services: services)
+        _model = State(initialValue: restored)
         let hasSnapshot = services.snapshots.exists(for: "poker")
         _showStartSheet = State(initialValue: !hasSnapshot)
         _hasPlayedOnce  = State(initialValue: hasSnapshot)
+        // 中断から戻ったときは、その局に焼き込まれていたルールを選択の初期値にする。
+        _selectedRules  = State(initialValue: restored.rules)
     }
 
     public var body: some View {
@@ -63,17 +69,36 @@ public struct PokerView: View {
                 Text("ポーカー")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+            // 配当表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
+            if model.rules == .bonus {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showBonusTable = true } label: {
+                        Image(systemName: "list.number")
+                    }
+                    .accessibilityLabel("役ボーナス配当表")
+                }
+            }
         }
         // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
         .howToPlay(.poker) { HandGuideSheet() }
         .sheet(isPresented: $showStartSheet) {
-            PokerStartSheet {
+            PokerStartSheet(rules: $selectedRules) {
                 showStartSheet = false
                 hasPlayedOnce = true
                 revealCPU = false
-                model.startGame()
+                model.startGame(rules: selectedRules)
             }
             .interactiveDismissDisabled(true)
+        }
+        .sheet(isPresented: $showBonusTable) {
+            NavigationStack {
+                BonusTableSheet()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("閉じる") { showBonusTable = false }.fontWeight(.semibold)
+                        }
+                    }
+            }
         }
         .onChange(of: model.phase) { _, phase in
             if phase == .result { revealCPU = true }
@@ -85,6 +110,28 @@ public struct PokerView: View {
                 showStartSheet = false
                 hasPlayedOnce = true
                 if model.phase == .idle { model.startGame() }
+            }
+            // 撮影用（#496）: 開始シートをボーナスルールを選んだ状態で出す。
+            if ProcessInfo.processInfo.arguments.contains("-pokerBonusPreview") {
+                selectedRules = .bonus
+                showStartSheet = true
+            }
+            // 撮影用（#496）: 配当表だけを出す。開始シートと同時には出せない
+            // （同じビューから2枚のシートは presented にならない）ので排他にする。
+            if ProcessInfo.processInfo.arguments.contains("-pokerBonusTable") {
+                showStartSheet = false
+                showBonusTable = true
+            }
+            // 撮影用（#496）: ダブルアップの提示まで進めた局面を出す。
+            if ProcessInfo.processInfo.arguments.contains("-pokerDoubleUpPreview") {
+                showStartSheet = false
+                hasPlayedOnce = true
+                revealCPU = true
+                model.debugPresentDoubleUp()
+                // さらに挑戦を始めた状態（ハイ・ローを選ぶ画面）。
+                if ProcessInfo.processInfo.arguments.contains("-pokerDoubleUpPlaying") {
+                    model.startDoubleUp()
+                }
             }
             #endif
         }
@@ -373,18 +420,123 @@ public struct PokerView: View {
     // リザルト（ラウンド終了）
     private var resultView: some View {
         VStack(spacing: 8) {
-            RecordLabel(model.recordResult)
-            actionButton("次のゲーム", color: Theme.Fill.coral) {
-                revealCPU = false
-                if hasPlayedOnce {
-                    model.startGame()
-                } else {
-                    showStartSheet = true
+            if model.playerBonus > 0 || model.cpuBonus > 0 { bonusLine }
+            if model.awaitsDoubleUp || model.doubleUp != nil { doubleUpArea }
+            // ダブルアップの決着待ちの間は記録がまだ確定していない（#496）。確定してから出す。
+            if !model.awaitsDoubleUp {
+                RecordLabel(model.recordResult)
+                actionButton("次のゲーム", color: Theme.Fill.coral) {
+                    revealCPU = false
+                    if hasPlayedOnce {
+                        model.startGame()
+                    } else {
+                        showStartSheet = true
+                    }
                 }
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 役ボーナスの配当を1行で伝える。
+    private var bonusLine: some View {
+        let isPlayer = model.playerBonus > 0
+        let chips = isPlayer ? model.playerBonus : model.cpuBonus
+        let who = isPlayer ? "あなた" : "CPU"
+        return HStack(spacing: 6) {
+            Image(systemName: "star.circle.fill")
+                .foregroundStyle(Theme.yellow)
+            Text("役ボーナス \(who) +\(chips)枚")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(isPlayer ? Theme.teal : Theme.inkSub)
+            Spacer()
+        }
+    }
+
+    // MARK: - ダブルアップ
+
+    @ViewBuilder
+    private var doubleUpArea: some View {
+        if let state = model.doubleUp {
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Text(state.isSettled ? "ダブルアップ終了" : "ダブルアップ \(state.streak)/\(PokerModel.maxDoubleUpStreak)")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                    Spacer()
+                    Text(state.isSettled ? "獲得 \(state.payout)枚" : "賭け金 \(state.stake)枚")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .foregroundStyle(state.isSettled && state.payout == 0 ? Theme.coral : Theme.yellow)
+                }
+                HStack(spacing: 12) {
+                    CardView(card: state.baseCard, faceUp: true)
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(Theme.inkSub)
+                    if let drawn = state.drawnCard {
+                        CardView(card: drawn, faceUp: true)
+                    } else {
+                        CardView(card: state.baseCard, faceUp: false)
+                    }
+                    Spacer()
+                    if let result = state.result { doubleUpResultBadge(result) }
+                }
+                doubleUpButtons(state)
+            }
+        } else {
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.right.circle.fill")
+                        .foregroundStyle(Theme.yellow)
+                    Text("獲得 \(model.pendingWinnings)枚 をダブルアップに賭けますか？")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    Spacer()
+                }
+                HStack(spacing: 12) {
+                    actionButton("受け取る", color: Theme.Fill.teal) { model.declineDoubleUp() }
+                    actionButton("ダブルアップ", color: Theme.Fill.yellow,
+                                 disabled: !model.canStartDoubleUp) {
+                        model.startDoubleUp()
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func doubleUpButtons(_ state: PokerDoubleUp) -> some View {
+        if state.isSettled {
+            EmptyView()
+        } else if state.isAwaitingGuess {
+            HStack(spacing: 12) {
+                actionButton("ロー ↓", color: Theme.Fill.purple) { model.guessDoubleUp(.low) }
+                actionButton("ハイ ↑", color: Theme.Fill.coral) { model.guessDoubleUp(.high) }
+            }
+        } else {
+            HStack(spacing: 12) {
+                actionButton("受け取る \(state.stake)枚", color: Theme.Fill.teal) {
+                    model.takeDoubleUpWinnings()
+                }
+                actionButton(state.result == .push ? "引き直す" : "続ける", color: Theme.Fill.yellow) {
+                    model.continueDoubleUp()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func doubleUpResultBadge(_ result: PokerDoubleUpResult) -> some View {
+        let (text, fill): (String, Color) = switch result {
+        case .success: ("当たり！", Theme.Fill.teal)
+        case .failure: ("はずれ", Theme.Fill.coral)
+        case .push:    ("引き分け", Theme.fillMuted)
+        }
+        Text(text)
+            .font(.system(size: 13, weight: .black, design: .rounded))
+            .foregroundStyle(result == .push ? .white : Theme.onAccent)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(Capsule().fill(fill))
     }
 
     // セッション終了（チップ0）
@@ -545,11 +697,53 @@ struct CardView: View {
 // MARK: - Start Sheet
 
 struct PokerStartSheet: View {
+    @Binding var rules: PokerRuleSet
     let onStart: () -> Void
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            VStack(spacing: 20) {
+                // ボーナスルールを選ぶと節が2つ増えるので、文字を大きくしても押し出されない
+                // ようにスクロールさせる（開始ボタンは下に固定したまま・#189 と同じ考え方）。
+                ScrollView {
+                    VStack(spacing: 20) { sections }
+                }
+                Button {
+                    onStart()
+                } label: {
+                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            }
+            .padding(Theme.pad)
+            .popBackground()
+            .navigationTitle("5カードドロー")
+        }
+        .presentationDetents([.large])
+    }
+
+    @ViewBuilder
+    private var sections: some View {
+        Group {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ルール")
+                        .themeBody(15).foregroundStyle(Theme.inkSub)
+                    Picker("ルール", selection: $rules) {
+                        ForEach(PokerRuleSet.allCases) { rule in
+                            Text(rule.title).tag(rule)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(rules.summary)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ゲームの流れ")
                         .themeBody(15).foregroundStyle(Theme.inkSub)
@@ -557,6 +751,9 @@ struct PokerStartSheet: View {
                     ruleRow("2", "ベット（チェック or 20枚ベット）")
                     ruleRow("3", "カード交換（0〜5枚）")
                     ruleRow("4", "最終ベット → 勝負")
+                    if rules == .bonus {
+                        ruleRow("5", "勝負に勝つと役ボーナス → ダブルアップに挑戦")
+                    }
                 }
                 .padding(16)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
@@ -580,20 +777,27 @@ struct PokerStartSheet: View {
                         .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
                 }
 
-                Spacer()
-                Button {
-                    onStart()
-                } label: {
-                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
+                if rules == .bonus {
+                    NavigationLink {
+                        BonusTableSheet()
+                    } label: {
+                        HStack {
+                            Image(systemName: "list.number")
+                            Text("役ボーナス配当表を見る")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Theme.inkSub)
+                        }
+                        .foregroundStyle(Theme.coral)
+                        .padding(16)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                            .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
+                    }
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("5カードドロー")
+
         }
-        .presentationDetents([.large])
     }
 
     private func ruleRow(_ num: String, _ text: String) -> some View {
@@ -608,6 +812,69 @@ struct PokerStartSheet: View {
                 .foregroundStyle(Theme.ink)
             Spacer()
         }
+    }
+}
+
+// MARK: - Bonus Table Sheet
+
+/// 役ボーナスの配当表（#496）。役を覚える教材を兼ねるので、金額だけでなく役の説明も添える。
+struct BonusTableSheet: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                Text("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 4)
+
+                ForEach(PokerBonusTable.payouts) { payout in
+                    HStack(spacing: 8) {
+                        Text(payout.rank.description)
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .foregroundStyle(Theme.coral)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Spacer()
+                        Text("+\(payout.chips)枚")
+                            .font(.system(size: 16, weight: .black, design: .rounded))
+                            .foregroundStyle(Theme.yellow)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
+                }
+
+                HStack(spacing: 8) {
+                    Text("ワンペア・ハイカード")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    Spacer()
+                    Text("なし")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                    .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
+
+                Text("勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+            }
+            .padding(Theme.pad)
+        }
+        .popBackground()
+        .navigationTitle("役ボーナス配当表")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 

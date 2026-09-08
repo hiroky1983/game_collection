@@ -216,6 +216,10 @@ struct PokerSnapshot: Codable {
     let cpuBetInRound: Int
     let cpuFolded: Bool
     let cpuAction: String
+    /// その局に焼き込まれたルール（#496）。**旧データには鍵が無い**ので optional のまま置く
+    /// （非 optional にすると旧データのデコードが丸ごと失敗し、中断が黙って消える）。
+    /// 復元時に nil ならスタンダードとして扱う。既定値があるので既存の呼び出しは変わらない。
+    var rules: PokerRuleSet? = nil
 }
 
 // MARK: - Model
@@ -242,6 +246,31 @@ public final class PokerModel {
     public private(set) var sessionWinner: PokerWinner? = nil
     /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+
+    // MARK: ルール分岐（#496）
+
+    /// **その局に焼き込まれた**ルール。`startGame(rules:)` でだけ変わり、局中は動かない。
+    public private(set) var rules: PokerRuleSet = .standard
+    /// 直近の勝負でプレイヤーに配当された役ボーナス（0 なら無し）。リザルトに1行出す。
+    public private(set) var playerBonus: Int = 0
+    /// 直近の勝負で CPU に配当された役ボーナス。
+    public private(set) var cpuBonus: Int = 0
+    /// ダブルアップに賭けられるチップ（この局でプレイヤーが勝ち取った額）。
+    public private(set) var pendingWinnings: Int = 0
+    /// ダブルアップの進行状態。挑戦していなければ nil。
+    public private(set) var doubleUp: PokerDoubleUp?
+    /// ダブルアップの決着待ちで、まだこの局の記録を確定していない。
+    public private(set) var awaitsDoubleUp: Bool = false
+
+    /// ダブルアップの連続上限。ここに達したら自動的に受け取って打ち止めにする。
+    public static let maxDoubleUpStreak = 5
+
+    /// ダブルアップに挑戦できるか。
+    ///
+    /// 山札を 2 枚（見せ札 + めくり札）使うので、残りが足りない局では出さない。
+    public var canStartDoubleUp: Bool {
+        awaitsDoubleUp && doubleUp == nil && pendingWinnings > 0 && deck.count >= 2
+    }
 
     public var canStartRound: Bool { !sessionOver && playerChips >= anteAmount && cpuChips >= anteAmount }
 
@@ -277,6 +306,8 @@ public final class PokerModel {
             self.cpuBetInRound   = snap.cpuBetInRound
             self.cpuFolded       = snap.cpuFolded
             self.cpuAction       = snap.cpuAction
+            // 旧データには鍵が無い。中断前の局はスタンダードしか存在しなかったのでそれに倒す。
+            self.rules           = snap.rules ?? .standard
         } else {
             self.playerChips = 100
             self.cpuChips    = 100
@@ -294,15 +325,28 @@ public final class PokerModel {
             playerChips: playerChips, cpuChips: cpuChips, pot: pot,
             phase: phase, currentBet: currentBet,
             playerBetInRound: playerBetInRound, cpuBetInRound: cpuBetInRound,
-            cpuFolded: cpuFolded, cpuAction: cpuAction
+            cpuFolded: cpuFolded, cpuAction: cpuAction, rules: rules
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
 
     // MARK: - Start
 
-    public func startGame() {
+    /// 1 局を始める。
+    ///
+    /// - Parameter rules: この局に**焼き込む**ルール。nil なら直前の局と同じものを使い続ける
+    ///   （リザルトの「次のゲーム」は開始シートを出さないため）。ここでしかルールは変わらない。
+    public func startGame(rules: PokerRuleSet? = nil) {
+        // 決着待ちのダブルアップが残っていたら、賭け金を受け取ってこの局を閉じてから次へ進む
+        // （持ち点が確定してからでないと `canStartRound` を正しく判定できない）。
+        concludeRoundIfNeeded()
         guard canStartRound else { return }
+        if let rules { self.rules = rules }
+        playerBonus = 0
+        cpuBonus = 0
+        pendingWinnings = 0
+        doubleUp = nil
+        awaitsDoubleUp = false
         cpuFolded = false
         winner = nil
         cpuAction = ""
@@ -335,19 +379,47 @@ public final class PokerModel {
         services?.gameDidRestart(gameID: gameID)
     }
 
-    /// ラウンドの決着を触覚で伝える。
-    private func notifyOutcome() {
+    /// ラウンドの決着。触覚で伝え、ダブルアップの決着待ちでなければその場で記録を確定する。
+    ///
+    /// ボーナスルールでプレイヤーが勝ち取ったチップはダブルアップで増減しうるので、
+    /// **記録（自己ベスト・GC 送信）はダブルアップが終わってから**確定させる（`concludeRound`）。
+    /// 触覚だけは勝敗が決まった瞬間に返す。
+    private func settleRound() {
         switch winner {
         case .player: services?.feedback.notify(.success)
         case .cpu:    services?.feedback.notify(.error)
         default:      services?.feedback.notify(.warning)
         }
-        // チップは pot の分配後なので、この時点の残高がそのラウンド終了時の持ち点。
+        if rules == .bonus, winner == .player, pendingWinnings > 0, deck.count >= 2 {
+            awaitsDoubleUp = true
+            return
+        }
+        concludeRound()
+    }
+
+    /// この局の記録を確定する（1 局につき 1 回だけ呼ばれる）。
+    private func concludeRound() {
+        awaitsDoubleUp = false
+        // チップは pot・ボーナス・ダブルアップの精算後なので、この時点の残高が局終了時の持ち点。
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: reviewOutcome,
-            score: GameScore(metric: .points, points: playerChips)
+            score: GameScore(
+                metric: .points,
+                points: playerChips,
+                variant: rules.recordVariant,
+                variantLabel: rules.recordVariantLabel,
+                isLeaderboardEligible: rules.isLeaderboardEligible
+            )
         )
+        checkSessionOver()
+    }
+
+    /// ダブルアップの決着待ちなら、賭け金を受け取って局を閉じる。待っていなければ何もしない。
+    private func concludeRoundIfNeeded() {
+        guard awaitsDoubleUp else { return }
+        if doubleUp != nil { collectDoubleUpStake() }
+        concludeRound()
     }
 
     // MARK: - Betting Round 1 (before exchange)
@@ -470,8 +542,7 @@ public final class PokerModel {
             winner = .cpu
             cpuAction = "プレイヤーフォールド"
             phase = .result
-            notifyOutcome()
-            checkSessionOver()
+            settleRound()
             persist()
         default: break
         }
@@ -532,8 +603,7 @@ public final class PokerModel {
         winner = .cpu
         currentBet = 0
         phase = .result
-        notifyOutcome()
-        checkSessionOver()
+        settleRound()
         persist()
     }
 
@@ -546,6 +616,7 @@ public final class PokerModel {
         if cmp > 0 {
             winner = .player
             playerChips += pot
+            pendingWinnings = pot
         } else if cmp < 0 {
             winner = .cpu
             cpuChips += pot
@@ -555,9 +626,25 @@ public final class PokerModel {
             cpuChips += pot / 2
         }
         pot = 0
+        // 役ボーナスは**手を見せ合って勝ったときだけ**（ショーダウン限定）。フォールド勝ちは
+        // 相手の手が伏せられたままなので、役を作った見返りという建て付けが成り立たない。
+        // 勝った側に等しく払う（プレイヤー側だけに払うと持ち点の増え方が非対称になり、
+        // セッションの難易度がルール選択で変わってしまう）。
+        if rules == .bonus {
+            switch winner {
+            case .player:
+                playerBonus = PokerBonusTable.chips(for: playerHandRank)
+                playerChips += playerBonus
+                pendingWinnings += playerBonus
+            case .cpu:
+                cpuBonus = PokerBonusTable.chips(for: cpuHandRank)
+                cpuChips += cpuBonus
+            default:
+                break
+            }
+        }
         phase = .result
-        notifyOutcome()
-        checkSessionOver()
+        settleRound()
     }
 
     // MARK: - End Round (fold by CPU or player)
@@ -568,12 +655,133 @@ public final class PokerModel {
         if cpuFolded {
             winner = .player
             playerChips += pot
+            // フォールド勝ちは役ボーナスもダブルアップも付かない（上記 `resolveShowdown` の理由）。
         }
         pot = 0
         phase = .result
-        notifyOutcome()
-        checkSessionOver()
+        settleRound()
     }
+
+    // MARK: - ダブルアップ（#496・ボーナスルールのみ）
+
+    /// 勝ち取ったチップを賭けてダブルアップに挑戦する。
+    ///
+    /// 賭け金はいったん手持ちから引く（外したときにその場で消えるのが自然に見えるため）。
+    /// 受け取り・上限到達で戻し、外したら戻さない。
+    public func startDoubleUp() {
+        guard canStartDoubleUp, let base = deck.first else { return }
+        deck.removeFirst()
+        playerChips -= pendingWinnings
+        doubleUp = PokerDoubleUp(
+            stake: pendingWinnings, baseCard: base, drawnCard: nil, streak: 0, result: nil
+        )
+        services?.feedback.impact(.medium)
+    }
+
+    /// 見せ札より上か下かを予想して 1 枚めくる。
+    ///
+    /// 同じ数字は引き分け。賭け金も挑戦回数もそのままで引き直す（`continueDoubleUp`）。
+    public func guessDoubleUp(_ guess: PokerHighLow) {
+        guard var state = doubleUp, state.isAwaitingGuess, let drawn = deck.first else { return }
+        deck.removeFirst()
+        state.drawnCard = drawn
+
+        if drawn.rank == state.baseCard.rank {
+            state.result = .push
+            doubleUp = state
+            services?.feedback.notify(.warning)
+            return
+        }
+
+        let isHigher = drawn.rank > state.baseCard.rank
+        if isHigher == (guess == .high) {
+            state.stake *= 2
+            state.streak += 1
+            state.result = .success
+            doubleUp = state
+            services?.feedback.notify(.success)
+            // 上限まで当てたら打ち止め。賭け金は自動で受け取る。
+            if state.streak >= Self.maxDoubleUpStreak { takeDoubleUpWinnings() }
+        } else {
+            state.stake = 0
+            state.result = .failure
+            state.isSettled = true
+            state.payout = 0
+            doubleUp = state
+            services?.feedback.notify(.error)
+            concludeRound()
+        }
+    }
+
+    /// 当たり（または引き分け）のあと、めくった札を新しい見せ札にして続ける。
+    public func continueDoubleUp() {
+        guard var state = doubleUp, let drawn = state.drawnCard,
+              state.result == .success || state.result == .push,
+              state.streak < Self.maxDoubleUpStreak, !deck.isEmpty
+        else { return }
+        state.baseCard = drawn
+        state.drawnCard = nil
+        state.result = nil
+        doubleUp = state
+        services?.feedback.impact(.rigid)
+    }
+
+    /// 賭け金を受け取ってダブルアップを終える。
+    public func takeDoubleUpWinnings() {
+        guard let state = doubleUp, !state.isSettled else { return }
+        collectDoubleUpStake()
+        services?.feedback.impact(.medium)
+        concludeRound()
+    }
+
+    /// 挑戦せずに（または挑戦を終えて）この局を閉じる。
+    public func declineDoubleUp() {
+        guard awaitsDoubleUp else { return }
+        concludeRoundIfNeeded()
+    }
+
+    /// 賭け金を手持ちへ戻す。挑戦の経過は表示のために残す。
+    private func collectDoubleUpStake() {
+        guard var state = doubleUp, !state.isSettled else { return }
+        playerChips += state.stake
+        state.payout = state.stake
+        state.stake = 0
+        state.isSettled = true
+        doubleUp = state
+    }
+
+    #if DEBUG
+    /// 撮影用（#496）: ボーナスルールでツーペアの勝ちを作り、ダブルアップの提示まで進める。
+    ///
+    /// 盤面を直接書き換えるのは配りだけで、決着は通常の `bet2Action` 経路に通す
+    /// （撮れた画面が実際の進行と食い違わないようにするため）。`.result` は中断データに
+    /// 載らない状態なので、起動引数以外にこの画面へ到達する手立てが無い。
+    func debugPresentDoubleUp() {
+        rules = .bonus
+        playerHand = [
+            PokerCard(id: 11, suit: .spades, rank: 13), PokerCard(id: 24, suit: .hearts, rank: 13),
+            PokerCard(id: 33, suit: .diamonds, rank: 9), PokerCard(id: 46, suit: .clubs, rank: 9),
+            PokerCard(id: 3, suit: .spades, rank: 5),
+        ]
+        cpuHand = [
+            PokerCard(id: 27, suit: .diamonds, rank: 3), PokerCard(id: 15, suit: .hearts, rank: 4),
+            PokerCard(id: 4, suit: .spades, rank: 6), PokerCard(id: 34, suit: .diamonds, rank: 10),
+            PokerCard(id: 22, suit: .hearts, rank: 11),
+        ]
+        deck = [
+            PokerCard(id: 5, suit: .spades, rank: 7), PokerCard(id: 18, suit: .hearts, rank: 7),
+            PokerCard(id: 44, suit: .clubs, rank: 7),
+        ]
+        playerChips = 100
+        cpuChips = 100
+        pot = 40
+        currentBet = 0
+        cpuFolded = false
+        winner = nil
+        phase = .betting2
+        bet2Action(.check)
+    }
+    #endif
 
     private func checkSessionOver() {
         if playerChips < anteAmount {
