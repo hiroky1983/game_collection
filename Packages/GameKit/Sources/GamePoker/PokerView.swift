@@ -551,6 +551,20 @@ public struct PokerView: View {
         "広告を見て\(PokerModel.reviveChips)枚で復活（1セッションに1回）"
     }
 
+    /// セッション終了の見出し下の説明。**自分が負けた回だけ**、復活を使い切ったことを書き添える
+    /// （#499・ブラックジャックの `sessionOverSubtitle` と揃える）。書かないとボタンが消えるだけになり、
+    /// なぜ選べないのかが画面から読み取れない。
+    private var sessionOverSubtitle: String {
+        switch model.sessionWinner {
+        case .player: return "CPUのチップが尽きました"
+        case .tie:    return "お互いのチップが尽きました"
+        default:
+            return model.canReviveAfterBust
+                ? "あなたのチップが尽きました"
+                : "あなたのチップが尽きました。復活はこのセッションで使いました"
+        }
+    }
+
     // セッション終了（チップ0）
     private var sessionOverView: some View {
         VStack(spacing: 8) {
@@ -560,7 +574,7 @@ public struct PokerView: View {
                 let iconColor = winner == .player ? Theme.yellow : winner == .tie ? Theme.teal : Theme.coral
                 let title = winner == .player ? "セッション勝利！" : winner == .tie ? "引き分け" : "セッション敗北"
                 let titleColor = winner == .player ? Theme.teal : winner == .tie ? Theme.teal : Theme.coral
-                let subtitle = winner == .player ? "CPUのチップが尽きました" : winner == .tie ? "お互いのチップが尽きました" : "あなたのチップが尽きました"
+                let subtitle = sessionOverSubtitle
                 Image(systemName: icon)
                     .font(.system(size: 24))
                     .foregroundStyle(iconColor)
