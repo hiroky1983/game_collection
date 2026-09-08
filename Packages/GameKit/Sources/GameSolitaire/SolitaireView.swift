@@ -862,9 +862,11 @@ public struct SolitaireView: View {
         // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ。
         guard !isWatchingJokerAd else { return }
         isWatchingJokerAd = true
+        // どの局に対する補充かを、広告を出す前に控える（`requestUndoRefill` と同型。#511）。
+        let deal = model.dealSerial
         Task {
             if await services.ads.showRewardedAd() {
-                if model.grantJoker() {
+                if model.grantJoker(forDeal: deal) {
                     model.beginPlacingJoker()
                 } else {
                     showJokerUnavailable = true

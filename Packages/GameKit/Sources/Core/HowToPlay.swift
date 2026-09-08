@@ -331,13 +331,17 @@ public struct HowToPlaySheet<Extra: View>: View {
 private struct HowToPlayToolbar<Extra: View>: ViewModifier {
     let guide: HowToPlayGuide
     let extra: (() -> Extra)?
+    var onPresent: (() -> Void)?
     @State private var isPresented = false
 
     func body(content: Content) -> some View {
         content
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { isPresented = true } label: {
+                    Button {
+                        onPresent?()
+                        isPresented = true
+                    } label: {
                         Image(systemName: "questionmark.circle")
                     }
                     .accessibilityLabel("遊び方")
@@ -355,8 +359,11 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
 
 public extension View {
     /// ツールバーに `?` ボタンを足し、タップで「遊び方」シートを開く。
-    func howToPlay(_ guide: HowToPlayGuide) -> some View {
-        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil))
+    ///
+    /// `onPresent` はシートを開く直前に呼ばれる。リアルタイム進行のゲームは
+    /// ここで一時停止する（読んでいる間に落球する、を防ぐ。#510）。
+    func howToPlay(_ guide: HowToPlayGuide, onPresent: (() -> Void)? = nil) -> some View {
+        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil, onPresent: onPresent))
     }
 
     /// 詳細ページ付きの `?` ボタン（ポーカーの役一覧・大富豪のルール）。

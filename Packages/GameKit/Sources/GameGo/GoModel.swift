@@ -211,16 +211,25 @@ public final class GoModel {
 
         let snapshot = state
         let ruleset = ruleset
+        let moveCount = moves.count
         // 種は手数から決める。同じ局面なら何度計算しても同じ結果になり、
         // 「もう一度パスしたら別の判定になった」という不可解な挙動を作らない。
-        let seed = UInt64(moves.count) &* 0x9E37_79B9 &+ 0x60_0D_5EED
+        let seed = UInt64(moveCount) &* 0x9E37_79B9 &+ 0x60_0D_5EED
         let result = await Task.detached(priority: .userInitiated) {
             let analysis = GoDeadStones.analyze(state: snapshot, playouts: 600, seed: seed)
             let score = GoScoring.score(board: snapshot.board, removing: analysis.dead, ruleset: ruleset)
             return GoEndgame(score: score, dead: analysis.dead, isUncertain: !analysis.isConfident)
         }.value
 
-        guard gameSerial == serial, phase == .scoring else { return }
+        adoptEndgame(result, serial: serial, moveCount: moveCount)
+    }
+
+    /// 計算結果を採用してよいか判定してから反映する。
+    ///
+    /// 手数まで照合するのは、計算中に「対局へ戻す→着手→再び両者パス」と進むと
+    /// `gameSerial` も `phase` も一致したまま**戻す前の盤面**の結果が届くため（#512）。
+    func adoptEndgame(_ result: GoEndgame, serial: Int, moveCount: Int) {
+        guard gameSerial == serial, phase == .scoring, moves.count == moveCount else { return }
         endgame = result
     }
 

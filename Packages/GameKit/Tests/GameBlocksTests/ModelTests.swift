@@ -276,8 +276,8 @@ struct ModelTests {
 
     // MARK: - 中断復元
 
-    @Test("保存されるのはステージ開始時点の状態だけ（フレームごとには保存しない）")
-    func savesOnlyAtStageHead() {
+    @Test("保存されるのは区切りだけ（フレームごとには保存しない）")
+    func savesOnlyAtCheckpoints() {
         let store = MemorySnapshotStore()
         let model = BlocksModel(
             services: makeServices(store: store), preference: makePreference("snapshot")
@@ -290,28 +290,45 @@ struct ModelTests {
         #expect(store.saveCount == afterInit, "遊んでいるあいだは保存し直さない")
 
         clearStage(model)
+        #expect(store.saveCount == afterInit + 1, "クリアの区切りで 1 回だけ保存する")
         model.advanceToNextStage()
-        #expect(store.saveCount == afterInit + 1, "次のステージの頭で 1 回だけ保存する")
+        #expect(store.saveCount == afterInit + 2, "次のステージの頭で 1 回だけ保存する")
         #expect(store.load(BlocksSnapshot.self, for: BlocksModel.gameID)?.stage == 2)
     }
 
-    /// 1 機失っても保存し直さない（「ステージ頭のみ」の約束の裏側）。
+    /// 落球のたびに保存し直す（#508）。
     ///
-    /// ここで保存してしまうと、続きから再開したときの残機とスコアが**ステージ頭ではなく
-    /// 落球した時点**のものになり、契約が静かに変わる。
-    @Test("残機を1つ失っても中断データを更新しない")
-    func doesNotSaveOnLosingALife() {
+    /// ステージ頭のまま放っておくと、落球するたび強制終了すれば残機がステージ頭へ戻り、
+    /// 広告コンティニュー（残機 1・順位表の資格喪失）より条件の良い抜け道になる。
+    @Test("残機を1つ失ったら中断データを更新する（#508）")
+    func savesOnLosingALife() {
         let store = MemorySnapshotStore()
         let model = BlocksModel(
             services: makeServices(store: store), preference: makePreference("lifesave")
         )
-        let afterInit = store.saveCount
-        let snapshotAtStageHead = store.load(BlocksSnapshot.self, for: BlocksModel.gameID)
         dropBall(model)
         #expect(model.lives == BlocksRules.initialLives - 1, "実際に 1 機失っている")
-        #expect(store.saveCount == afterInit, "落球で保存し直している")
-        #expect(store.load(BlocksSnapshot.self, for: BlocksModel.gameID) == snapshotAtStageHead,
-                "中断データがステージ頭のものから変わっている")
+        let saved = store.load(BlocksSnapshot.self, for: BlocksModel.gameID)
+        #expect(saved?.lives == BlocksRules.initialLives - 1,
+                "落球後の残機が保存されていない（強制終了で復活できてしまう）")
+        #expect(saved?.stage == model.stageNumber)
+    }
+
+    /// クリア表示中に中断しても、**次のステージ頭**として保存する（#508）。
+    ///
+    /// 表示中のステージ番号のまま保存すると、崩し終えたステージをボーナス込みの得点で
+    /// もう一度遊べてしまう（強制終了で得点を伸ばせる抜け道になる）。
+    @Test("クリア表示中の中断データは次のステージ頭として保存される（#508）")
+    func stageClearedSavesNextStage() {
+        let store = MemorySnapshotStore()
+        let model = BlocksModel(
+            services: makeServices(store: store), preference: makePreference("clearsave")
+        )
+        clearStage(model)
+        #expect(model.phase == .stageCleared)
+        let saved = store.load(BlocksSnapshot.self, for: BlocksModel.gameID)
+        #expect(saved?.stage == 2, "進み先で保存されていない")
+        #expect(saved?.score == model.score, "クリアボーナス込みの得点で保存する")
     }
 
     /// 同じ 1 フレームの中でステージクリアと落球が続けて起きても、残機を減らさない。
@@ -413,7 +430,7 @@ struct ModelTests {
         dropBall(model)
         #expect(model.phase == .gameOver)
 
-        model.continueAfterAd()
+        #expect(model.continueAfterAd(forRun: model.fieldGeneration))
         #expect(model.phase == .ready)
         #expect(model.lives == BlocksRules.continueLives)
         #expect(model.stageNumber == 3, "落ちたステージのまま")
@@ -428,10 +445,10 @@ struct ModelTests {
             services: makeServices(), startingAt: 1, lives: 1, preference: makePreference("continueonce")
         )
         dropBall(model)
-        model.continueAfterAd()
+        #expect(model.continueAfterAd(forRun: model.fieldGeneration))
         dropBall(model)
         #expect(model.phase == .gameOver)
-        model.continueAfterAd()
+        #expect(!model.continueAfterAd(forRun: model.fieldGeneration))
         #expect(model.phase == .gameOver, "2 回目は効かない")
     }
 
@@ -439,9 +456,36 @@ struct ModelTests {
     func cannotContinueWhilePlaying() {
         let model = BlocksModel(services: makeServices(), preference: makePreference("continuemid"))
         model.launch()
-        model.continueAfterAd()
+        #expect(!model.continueAfterAd(forRun: model.fieldGeneration))
         #expect(model.phase == .playing)
         #expect(!model.continueUsed)
+    }
+
+    /// 広告のロード〜視聴の間に「はじめから」で盤が作り直されたら、報酬は適用しない（#509）。
+    ///
+    /// 照合しないと、視聴完了の報酬が**別の局**に乗って `cancelLoss` まで走る
+    /// （ソリティアの `grantUndos(forDeal:)` と同じ契約）。
+    @Test("広告中に盤が作り直されたらコンティニューは適用されない（#509）")
+    func continueIsRejectedAfterRunChanges() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, lives: 1, preference: makePreference("continuerun")
+        )
+        dropBall(model)
+        #expect(model.phase == .gameOver)
+        let run = model.fieldGeneration
+
+        // 広告を見ている間に「はじめから」→ また残機を使い切ってゲームオーバー。
+        model.newGame()
+        dropBall(model)
+        dropBall(model)
+        dropBall(model)
+        #expect(model.phase == .gameOver, "検証の前提: 2 局目もゲームオーバーになっている")
+
+        #expect(!model.continueAfterAd(forRun: run), "別の局への報酬が適用されている")
+        #expect(!model.continueUsed)
+        #expect(model.phase == .gameOver)
+        // いまの局の連番なら通る。
+        #expect(model.continueAfterAd(forRun: model.fieldGeneration))
     }
 
     @Test("コンティニューを使うと、その回の記録は世界の順位表へ送らない（自己ベストには残る）")
@@ -453,7 +497,7 @@ struct ModelTests {
             preference: makePreference("leaderboard")
         )
         dropBall(model)
-        model.continueAfterAd()
+        #expect(model.continueAfterAd(forRun: model.fieldGeneration))
         spy.scores.removeAll()   // コンティニュー**前**の送信は対象外
         // コンティニュー後に改めてゲームオーバーまで落とす。
         dropBall(model)

@@ -88,7 +88,7 @@ struct SolitaireJokerEconomyTests {
     func grantIsCappedAtOne() {
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
         #expect(model.hasJoker)
-        #expect(model.grantJoker() == false)
+        #expect(model.grantJoker(forDeal: model.dealSerial) == false)
         #expect(model.hasJoker)
     }
 
@@ -98,17 +98,38 @@ struct SolitaireJokerEconomyTests {
         #expect(model.placeJoker(onPile: 0))
         #expect(!model.hasJoker)
 
-        #expect(model.grantJoker())
+        #expect(model.grantJoker(forDeal: model.dealSerial))
         #expect(model.hasJoker)
         #expect(model.placeJoker(onPile: 1))
         #expect(!model.hasJoker)
+    }
+
+    /// 広告のロード〜視聴の間に配り直されたら補充しない（#511。`grantUndos(forDeal:)` と同じ契約）。
+    ///
+    /// 照合しないと、前の局への報酬が新しい局で成立して 2 枚目のジョーカーになる。
+    @Test("広告中に配り直したら補充されない（#511）")
+    func grantIsRejectedAfterNewDeal() {
+        let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
+        #expect(model.placeJoker(onPile: 0))
+        let deal = model.dealSerial
+
+        // 広告を見ている間に配り直し、初期の 1 枚も置いて手持ちを空にする。
+        model.newGame()
+        #expect(model.placeJoker(onPile: 0))
+        #expect(!model.hasJoker)
+
+        #expect(!model.grantJoker(forDeal: deal), "別の局への報酬が適用されている")
+        #expect(!model.hasJoker)
+        // いまの局の連番なら通る。
+        #expect(model.grantJoker(forDeal: model.dealSerial))
+        #expect(model.hasJoker)
     }
 
     @Test("配り直すと所持が初期の1枚に戻る")
     func newGameRestoresInitialJoker() {
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
         #expect(model.placeJoker(onPile: 0))
-        #expect(model.grantJoker())
+        #expect(model.grantJoker(forDeal: model.dealSerial))
         #expect(model.placeJoker(onPile: 1))
         #expect(!model.hasJoker)
 
@@ -140,7 +161,7 @@ struct SolitaireJokerPlacementModeTests {
     func staysInModeOnIllegalPile() {
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
         #expect(model.placeJoker(onPile: 3))
-        #expect(model.grantJoker())
+        #expect(model.grantJoker(forDeal: model.dealSerial))
 
         model.beginPlacingJoker()
         // 上がジョーカーの列には置けない（#397 ルール1）。
@@ -226,7 +247,7 @@ struct SolitaireJokerSnapshotTests {
         let store = MemorySnapshotStore()
         let model = SolitaireModel(services: makeServices(store: store), seed: fixedSeed)
         #expect(model.placeJoker(onPile: 0))
-        #expect(model.grantJoker())
+        #expect(model.grantJoker(forDeal: model.dealSerial))
         #expect(model.hasJoker)
 
         let resumed = SolitaireModel(services: makeServices(store: store))
