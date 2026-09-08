@@ -4,7 +4,14 @@ import Core
 
 public struct SolitaireView: View {
     @State private var model: SolitaireModel
-    @State private var showConfirmNewGame = false
+    /// 配り直しの開始シート（#498）。**初回の配札では出さない**（既定で即座に配る）。
+    ///
+    /// #498 以前は「新しい配札にしますか？」の確認ダイアログを出していたが、
+    /// このシートが同じ警告と最終確認（キャンセルできる「配る」）を兼ねるので置き換えた。
+    /// ダイアログのあとにさらにシートを出すと、確認を 2 枚重ねることになる。
+    @State private var showSetup = false
+    /// 開始シートで選んでいる最中のルール。「配る」を押すまで局には効かない（1局=1RuleSet）。
+    @State private var draft = SolitaireRuleSet.standard
     /// ドラッグ中の札（会長要望 2026-09-02: ドラッグ&ドロップで動かす）。
     /// タップ（選択→行き先）の従来操作はそのまま残し、ドラッグは同じモデル操作を
     /// 別の入力経路から呼ぶだけにする（合法判定・拒否・記録の経路を増やさない）。
@@ -66,18 +73,19 @@ public struct SolitaireView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { startNewGame() } label: {
+                Button { openSetup() } label: {
                     Label("新規ゲーム", systemImage: "plus.circle.fill")
                 }
                 .accessibilityLabel("新しい配札にする")
             }
         }
         .howToPlay(.solitaire) { SolitaireRuleSheet() }
-        .confirmationDialog("新しい配札にしますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { model.newGame() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。")
+        // めくり方を選んでから配る（#498）。局に焼き込むのは「配る」を押した瞬間だけ。
+        .sheet(isPresented: $showSetup) {
+            SolitaireSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
+                showSetup = false
+                model.newGame(rules: draft)
+            }
         }
         .alert("ジョーカーをもらえませんでした", isPresented: $showJokerNotEarned) {
             Button("OK", role: .cancel) {}
@@ -129,18 +137,24 @@ public struct SolitaireView: View {
                 model.applyPreviewProgressForTesting()
                 model.applyPlacingJokerPreviewForTesting()
             }
+            // 3 枚めくり（#498）は開始シートで選ぶので、自動タップのできないシミュレータでは
+            // この 2 つの口からしか撮れない。
+            if ProcessInfo.processInfo.arguments.contains("-solitaireDraw3") {
+                model.applyDrawThreePreviewForTesting()
+            }
+            if ProcessInfo.processInfo.arguments.contains("-solitaireSetup") {
+                openSetup()
+            }
             #endif
         }
         .onDisappear { model.pauseTimer() }
     }
 
-    /// 途中の盤面があるときだけ確認を挟んでから配り直す。
-    private func startNewGame() {
-        if model.phase == .playing, model.canUndo {
-            showConfirmNewGame = true
-        } else {
-            model.newGame()
-        }
+    /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498）。
+    /// 前に開いたときの選択が残っていると、続けて配り直したときに勝手にルールが変わる。
+    private func openSetup() {
+        draft = model.rules
+        showSetup = true
     }
 
     // MARK: - ステータスバー
@@ -382,28 +396,53 @@ public struct SolitaireView: View {
         .accessibilityAction { model.tapStock() }
     }
 
+    /// 捨て札。**めくった枚数ぶんを横にずらして重ねる**（#498）。
+    ///
+    /// 使えるのは一番上の 1 枚だけだが、3 枚めくりでは次に何が控えているかが見えないと
+    /// 「3 枚に 1 枚しか使えない」制約の下で山札を回す計画が立てられない。
+    /// 1 枚めくりでは常に 1 枚しか出さないので、描画も当たり判定も従来と変わらない。
     private func wasteView(metrics: PlayingCardMetrics) -> some View {
-        Group {
-            if let card = model.board.waste.last {
-                // 山札からめくった 1 枚だけが裏から返る。場に出して下から出てきた札は
-                // もともと表なので、`flips` を false にして返さない（#421）。
-                SolitaireRevealCardView(
-                    card: card,
-                    isSelected: model.selection == .waste,
-                    isCovered: false,
-                    metrics: metrics,
-                    flips: model.lastMoveWasDraw
-                )
-                // 捨て札の枠は「札が 1 枚ある」状態が続くので、**札が入れ替わっても
-                // SwiftUI から見れば同じビュー**になり `@State` が作り直されない。
-                // 札ごとに identity を切って、2 回目以降のめくりも必ず返るようにする。
-                .id(card.id)
-                .matchedGeometryEffect(id: motionID(card), in: cardMotion)
-                .opacity(drag?.source == .waste ? 0.35 : 1)
-            } else {
+        let visible = Array(model.board.waste.suffix(model.rules.drawCount))
+        let step = SolitaireMetrics.wasteFanStep(cardWidth: metrics.width)
+        return Group {
+            if visible.isEmpty {
                 emptySlot(metrics: metrics, symbol: nil)
+            } else {
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, card in
+                        let isTop = index == visible.count - 1
+                        // 山札からめくった札だけが裏から返る。場に出して下から出てきた札は
+                        // もともと表なので返さない（#421）。3 枚めくりでは 1〜3 枚が同時に返る。
+                        SolitaireRevealCardView(
+                            card: card,
+                            isSelected: isTop && model.selection == .waste,
+                            // 隠れている札は左上の帯しか見えないので、中央寄せの面ではなく
+                            // 隅の見出し（ランク + スート）を出す（場札の重なりと同じ扱い）。
+                            isCovered: !isTop,
+                            metrics: metrics,
+                            flips: model.drawnCardIDs.contains(card.id)
+                        )
+                        // 捨て札の枠は「札がある」状態が続くので、**札が入れ替わっても
+                        // SwiftUI から見れば同じビュー**になり `@State` が作り直されない。
+                        // 札ごとに identity を切って、2 回目以降のめくりも必ず返るようにする。
+                        .id(card.id)
+                        .matchedGeometryEffect(id: motionID(card), in: cardMotion)
+                        .offset(x: CGFloat(index) * step)
+                        .zIndex(Double(index))
+                        // 持ち上げているのは一番上の 1 枚だけ。下の 2 枚まで薄くしない。
+                        .opacity(isTop && drag?.source == .waste ? 0.35 : 1)
+                    }
+                }
             }
         }
+        // 枠は**めくり枚数ぶんの幅で固定**する。見えている枚数に合わせて縮めると、
+        // 捨て札を 1 枚使うたびに右の組札が横へ動く。
+        .frame(
+            width: SolitaireMetrics.wasteWidth(
+                cardWidth: metrics.width, visibleCount: model.rules.drawCount),
+            height: metrics.height,
+            alignment: .topLeading
+        )
         .contentShape(Rectangle())
         .onTapGesture { model.tapWaste() }
         .highPriorityGesture(dragGesture(source: .waste, metrics: metrics))
@@ -679,6 +718,17 @@ public struct SolitaireView: View {
             }
 
             Spacer(minLength: 0)
+
+            // 標準以外のルールで遊んでいるときだけ出す（#498）。既定の1枚めくりは
+            // 「標準」そのものなので札は出さず、操作列の見た目を従来のまま保つ。
+            if model.rules.drawMode != .one {
+                Text(model.rules.drawMode.label)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .accessibilityLabel("このゲームのルールは\(model.rules.drawMode.label)")
+            }
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -1112,7 +1162,8 @@ struct SolitaireRuleSheet: View {
         ("ゲームの流れ", "配られた52枚を、右上の組札（4か所）に ♠♥♦♣ ごとに A から K まで順に積み上げれば クリアです。クロンダイクと呼ばれる、いちばん標準的なソリティアです"),
         ("場札の並べ方", "場札（下の7列）には、ひとつ上の札より1つ小さくて色ちがいの札だけを置けます（黒の8 の上には 赤の7）。そろっている並びは何枚でもまとめて動かせます"),
         ("空いた列", "札が無くなった列に置けるのは K だけです。K を引くまで空けておくか、思い切って埋めるかがクロンダイクの読みどころです"),
-        ("山札", "左上の山札はタップで1枚ずつめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）"),
+        ("山札", "左上の山札はタップでめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）"),
+        ("めくり方を選ぶ", "「新規ゲーム」を押すと、山札を1枚ずつめくるか3枚ずつめくるかを選べます。3枚めくりでは使えるのがいちばん上の1枚だけになるぶん歯ごたえがあり、自己ベストは1枚めくりとは別に記録されます（Game Center の順位表に載るのは1枚めくりだけです）。選んだめくり方はその配札のあいだ変わりません"),
         ("操作", "動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます"),
         ("戻す", "「戻す」は1局につき\(SolitaireUndoBudget.free)回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると\(SolitaireUndoBudget.refill)回ぶん補充できます"),
         ("ジョーカー", "1局につき1枚持っています。場札の列の上に置くと、その上にはどんな札でも1枚だけ重ねられます（空の列と、すでにジョーカーがある列には置けません）。上の札が全部はけると自動で消えて、下の札がまた使えるようになります"),

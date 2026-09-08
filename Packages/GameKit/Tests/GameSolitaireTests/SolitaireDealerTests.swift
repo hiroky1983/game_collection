@@ -40,29 +40,42 @@ struct SolitaireDealerTests {
         #expect(Set(SolitaireDealer.verifiedSeeds).count == SolitaireDealer.verifiedSeeds.count)
     }
 
-    /// **`SolitaireVerifiedSeeds.swift` を作り直す手順**
+    /// **`SolitaireVerifiedSeeds.swift` / `SolitaireVerifiedSeedsDraw3.swift` を作り直す手順**
     ///
     /// 種の並びは「1 から順に試して、ソルバーが勝ち筋を見つけた種を採用したもの」で、
     /// `SolitaireSolver.defaultMaxStates` と手の並び（`successors`）を変えると結果も変わる。
+    /// **めくり枚数を変えても変わる**ので、2 つの配列は別々に作り直す（#498）。
     /// ソルバーに手を入れたら、次を実行して出力でファイルの配列を丸ごと置き換える:
     ///
     /// ```
-    /// swift test --filter 検証済みの種を作り直す 2>/dev/null   # SOLITAIRE_REGENERATE_SEEDS=<本数> を付けて実行
+    /// # 1枚めくり（既定）
+    /// SOLITAIRE_REGENERATE_SEEDS=1000 swift test --filter 検証済みの種を作り直す 2>/dev/null
+    /// # 3枚めくり
+    /// SOLITAIRE_REGENERATE_SEEDS=1000 SOLITAIRE_REGENERATE_DRAW_MODE=three \
+    ///   swift test --filter 検証済みの種を作り直す 2>/dev/null
     /// ```
     ///
     /// デバッグビルドでは1配札あたり1秒前後かかるので、本数が多いときは
-    /// `Sources/GameSolitaire/*.swift` を `swiftc -O` で直接ビルドしたほうが速い。
+    /// `Sources/GameSolitaire/*.swift` を `swiftc -O` で直接ビルドしたほうが速い
+    /// （1000 本ぶんで数分。#498 の 3 枚めくりの配列はこの方法で作った）。
     @Test("検証済みの種を作り直す",
           .enabled(if: ProcessInfo.processInfo.environment["SOLITAIRE_REGENERATE_SEEDS"] != nil))
     func regenerateVerifiedSeeds() {
-        let target = Int(ProcessInfo.processInfo.environment["SOLITAIRE_REGENERATE_SEEDS"] ?? "400") ?? 400
+        let env = ProcessInfo.processInfo.environment
+        let target = Int(env["SOLITAIRE_REGENERATE_SEEDS"] ?? "400") ?? 400
+        let mode = SolitaireDrawMode(rawValue: env["SOLITAIRE_REGENERATE_DRAW_MODE"] ?? "one") ?? .one
+        let rules = SolitaireRuleSet(drawMode: mode)
+        let name = mode == .three ? "solitaireVerifiedSeedsDraw3" : "solitaireVerifiedSeeds"
+
         var seeds: [UInt64] = []
         var seed: UInt64 = 1
         while seeds.count < target {
-            if SolitaireSolver.solve(SolitaireDealer.deal(seed: seed)).isSolvable { seeds.append(seed) }
+            if SolitaireSolver.solve(SolitaireDealer.deal(seed: seed, rules: rules)).isSolvable {
+                seeds.append(seed)
+            }
             seed += 1
         }
-        var out = "let solitaireVerifiedSeeds: [UInt64] = [\n"
+        var out = "let \(name): [UInt64] = [\n"
         for start in stride(from: 0, to: seeds.count, by: 10) {
             out += "    " + seeds[start..<min(start + 10, seeds.count)]
                 .map(String.init).joined(separator: ", ") + ",\n"

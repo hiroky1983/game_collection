@@ -17,7 +17,8 @@ public struct SolitairePile: Equatable, Sendable, Codable {
 
 /// プレイヤーが選べる1手。UI・ソルバー・中断復元がすべてこの型を通す。
 public enum SolitaireMove: Equatable, Sendable, Codable, Hashable {
-    /// 山札を1枚めくる。山札が空なら捨て札を裏返して山札に戻す（循環は無制限）。
+    /// 山札をめくる（枚数は `SolitaireRuleSet.drawCount`）。
+    /// 山札が空なら捨て札を裏返して山札に戻す（循環は無制限）。
     case draw
     case wasteToFoundation
     case wasteToTableau(pile: Int)
@@ -30,11 +31,15 @@ public enum SolitaireMove: Equatable, Sendable, Codable, Hashable {
 
 /// クロンダイクの盤面と規則を、乱数も UI も持たない値型として閉じ込めた層。
 ///
-/// 採用ルール（#397）: 場札7列・組札4・**山札は1枚めくり**・**山札の循環は無制限**・空列は K のみ。
+/// 採用ルール（#397）: 場札7列・組札4・**山札の循環は無制限**・空列は K のみ。
+/// めくり枚数だけは局ごとに選べる分岐で（#498）、`rules` に焼き込んで持つ。
 /// ジョーカー（中継札）の規則もここに集約する。Model は進行と永続化だけを持ち、
 /// 合法手の判断はすべてこの型に問い合わせる。
 public struct SolitaireBoard: Equatable, Sendable, Codable {
     public static let pileCount = 7
+
+    /// この局に焼き込んだルール（#498）。盤面が生きている間は変わらない。
+    public var rules: SolitaireRuleSet
 
     public var tableau: [SolitairePile]
     /// 添字は `SolitaireSuit.rawValue`。値は積み上げた最大ランク（0 = 空）。
@@ -51,8 +56,10 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
         foundations: [Int] = [0, 0, 0, 0],
         stock: [SolitaireCard] = [],
         waste: [SolitaireCard] = [],
-        jokerAvailable: Bool = false
+        jokerAvailable: Bool = false,
+        rules: SolitaireRuleSet = .standard
     ) {
+        self.rules = rules
         self.tableau = tableau
         self.foundations = foundations
         self.stock = stock
@@ -159,11 +166,7 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
         guard isLegal(move) else { return false }
         switch move {
         case .draw:
-            if stock.isEmpty {
-                stock = waste.reversed()
-                waste.removeAll()
-            }
-            waste.append(stock.removeLast())
+            Self.drawOnce(stock: &stock, waste: &waste, count: rules.drawCount)
         case .wasteToFoundation:
             let card = waste.removeLast()
             foundations[card.suit!.rawValue] = card.rank
@@ -183,6 +186,25 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
         }
         normalize()
         return true
+    }
+
+    /// 山札を1回めくる。山札が空なら先に捨て札を裏返して戻す（循環は無制限）。
+    /// 山札の残りが `count` に足りなければ残り全部だけめくる（標準の draw-3・#498）。
+    ///
+    /// `apply(.draw)` と到達可能札の数え上げ（`reachableBySimulation`）が**この1本を共有する**。
+    /// 数え上げ側で規則を書き写すと、めくり方を変えたときに片方だけ古い規則で動く。
+    private static func drawOnce(
+        stock: inout [SolitaireCard],
+        waste: inout [SolitaireCard],
+        count: Int
+    ) {
+        if stock.isEmpty {
+            stock = waste.reversed()
+            waste.removeAll()
+        }
+        for _ in 0..<Swift.min(count, stock.count) {
+            waste.append(stock.removeLast())
+        }
     }
 
     /// 実際に積む。中継札の上に置いた1枚は、そのジョーカーを「受け取り済み」にする。
@@ -214,14 +236,30 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
         return revealed
     }
 
+    /// 山めくりで山札から捨て札へ新しく出た札の id（#421 のめくり演出。3枚めくりでは最大3枚）。
+    ///
+    /// 「あとの捨て札からまえの捨て札を引く」では取れない。捨て札を戻す循環が挟まると
+    /// `before.waste` にあった札がそのまま出てくるので、差集合が空になる。
+    /// 循環したかどうかは「めくる前の山札が空だったか」で決まる（`drawOnce`）。
+    public static func drawnCardIDs(before: SolitaireBoard, after: SolitaireBoard) -> Set<Int> {
+        let carried = before.stock.isEmpty ? 0 : before.waste.count
+        let count = Swift.max(0, after.waste.count - carried)
+        return Set(after.waste.suffix(count).map(\.id))
+    }
+
     // MARK: - 山札の巡回
 
     /// 山札を循環させて到達できる札を、必要なめくり回数とともに列挙する。
     ///
-    /// 循環が無制限なので、山札 + 捨て札のすべてが1周で表に出る。
-    /// ソルバーはこれを使って「n 回めくってからその札を使う」を1手として扱い、
-    /// めくるだけの手で探索が深くなるのを防ぐ。
+    /// ソルバーと詰み検知はこれを使って「n 回めくってからその札を使う」を1手として扱い、
+    /// めくるだけの手で探索が深くなるのを防ぐ。**めくり枚数で結果が変わる**（#498）ので、
+    /// 呼ぶ側はこの盤面の `rules` を通す。
     public func reachableStockCards() -> [(card: SolitaireCard, draws: Int)] {
+        rules.drawCount == 1 ? reachableDrawingOne() : reachableBySimulation()
+    }
+
+    /// 1枚めくりの閉じた式。循環が無制限なので、山札 + 捨て札のすべてが1周で表に出る。
+    private func reachableDrawingOne() -> [(card: SolitaireCard, draws: Int)] {
         var result: [(SolitaireCard, Int)] = []
         if let top = waste.last { result.append((top, 0)) }
         for (offset, card) in stock.reversed().enumerated() {
@@ -233,6 +271,41 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
             for (offset, card) in waste.dropLast().enumerated() {
                 result.append((card, stock.count + offset + 1))
             }
+        }
+        return result
+    }
+
+    /// 2枚以上めくるときの列挙。**実際にめくって数える**（#498 の本丸）。
+    ///
+    /// 3枚めくりでは表に出る札が3枚に1枚に間引かれるうえ、山札を使い切って捨て札を戻すと
+    /// **並びの区切り位置がずれる**（山札 S・捨て札 W から始めると、戻したあとの山札は
+    /// `S ++ reversed(W)` になる）。閉じた式で書き分けるより、循環の規則を持っている
+    /// `apply(.draw)` をそのまま回したほうが取りこぼしが無い。
+    ///
+    /// 2周ぶん回せば十分: 1周して捨て札を戻した時点の山札は `S ++ reversed(W)` で、
+    /// そこから先は毎周同じ並びに戻る（`reversed(W ++ reversed(S ++ reversed(W)))` が
+    /// 同じ山札を再現する）ため、3周めに新しく表に出る札は無い。
+    private func reachableBySimulation() -> [(card: SolitaireCard, draws: Int)] {
+        var result: [(SolitaireCard, Int)] = []
+        var seen: Set<Int> = []
+        if let top = waste.last {
+            result.append((top, 0))
+            seen.insert(top.id)
+        }
+        let total = stock.count + waste.count
+        guard total > 0 else { return result }
+
+        var stock = self.stock
+        var waste = self.waste
+        // 1周は「山札を空にするめくり」＋「捨て札を戻すめくり」の高々 total/drawCount + 2 回。
+        // 上の理由から2周ぶん回せば足りる。
+        let limit = 2 * (total / rules.drawCount + 3)
+        for draws in 1...limit {
+            Self.drawOnce(stock: &stock, waste: &waste, count: rules.drawCount)
+            guard let top = waste.last else { break }
+            guard seen.insert(top.id).inserted else { continue }
+            result.append((top, draws))
+            if seen.count == total { break }
         }
         return result
     }
