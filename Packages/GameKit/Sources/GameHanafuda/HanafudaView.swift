@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import Core
 
@@ -73,6 +74,16 @@ public struct HanafudaView: View {
         .task(id: model.aiTurnKey) {
             await model.runCPUTurnIfNeeded()
         }
+        #if DEBUG
+        // 撮影用。シミュレータはタップを自動化できないため、役の早見表はこの経路でしか撮れない
+        // （中断データの注入では「シートが開いている」状態を作れない）。
+        // `#if DEBUG` で囲ってあるので Release のバイナリには入らない。
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("-hanafudaShowYaku") else { return }
+            if model.phase == .idle { model.startMatch(options: draft) }
+            showYakuSheet = true
+        }
+        #endif
     }
 
     // MARK: - 得点表示
@@ -195,7 +206,10 @@ public struct HanafudaView: View {
                     .disabled(!isCandidate(card))
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            // 縦の余りは**場のカード自身**に吸わせ、札は中央に置く（#193 と同じ考え方）。
+            // 上寄せにすると、場が 1 行しか無いときに札の下へ大きな空白が残って
+            // 「描き損ねた」ように見える。
+            .frame(maxHeight: .infinity, alignment: .center)
         }
         .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
