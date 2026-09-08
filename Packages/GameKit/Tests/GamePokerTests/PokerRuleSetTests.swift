@@ -81,6 +81,7 @@ private func hand(for rank: PokerHandRank) -> [PokerCard] {
 private func makeModelBeforeShowdown(
     playerHand: [PokerCard],
     rules: PokerRuleSet,
+    cpuHand: [PokerCard] = weakCPUHand,
     pot: Int = 40,
     playerChips: Int = 100,
     cpuChips: Int = 100,
@@ -90,7 +91,7 @@ private func makeModelBeforeShowdown(
 ) -> PokerModel {
     let store = MockSnapshotStore()
     let snap = PokerSnapshot(
-        playerHand: playerHand, cpuHand: weakCPUHand, deck: deck,
+        playerHand: playerHand, cpuHand: cpuHand, deck: deck,
         playerChips: playerChips, cpuChips: cpuChips, pot: pot,
         phase: .betting2, currentBet: 0,
         playerBetInRound: 0, cpuBetInRound: 0,
@@ -234,6 +235,55 @@ struct PokerBonusPayoutTests {
         #expect(!model.awaitsDoubleUp)
     }
 
+    @Test("CPU が勝った局では CPU に配当され、ダブルアップは出ない")
+    func cpuWinPaysTheCPU() {
+        // プレイヤーが 20 枚ベット → フルハウスの CPU がコール → ショーダウンで CPU の勝ち。
+        let model = makeModelBeforeShowdown(
+            playerHand: hand(for: .highCard), rules: .bonus,
+            cpuHand: hand(for: .fullHouse), pot: 40
+        )
+        model.bet2Action(.bet(20))
+        #expect(model.winner == .cpu)
+        #expect(model.cpuHandRank == .fullHouse)
+        #expect(model.cpuBonus == 100)
+        #expect(model.playerBonus == 0)
+        #expect(model.cpuChips == 100 - 20 + 80 + 100, "コール20 → ポット80 総取り → 配当100")
+        #expect(model.playerChips == 80)
+        #expect(!model.awaitsDoubleUp, "ダブルアップはプレイヤーが勝った局にしか出ない")
+        #expect(model.pendingWinnings == 0)
+    }
+
+    @Test("スタンダードでは CPU が勝っても配当が付かない")
+    func cpuWinPaysNothingInStandard() {
+        let model = makeModelBeforeShowdown(
+            playerHand: hand(for: .highCard), rules: .standard,
+            cpuHand: hand(for: .fullHouse), pot: 40
+        )
+        model.bet2Action(.bet(20))
+        #expect(model.winner == .cpu)
+        #expect(model.cpuBonus == 0)
+        #expect(model.cpuChips == 100 - 20 + 80)
+    }
+
+    @Test("引き分けにはどちらにも配当が付かない")
+    func tiePaysNothing() {
+        // 同じ役・同じ強さ（スートだけ違うストレート）で引き分けにする。
+        let playerStraight = [
+            c(9, .spades), c(8, .hearts), c(7, .diamonds), c(6, .clubs), c(5, .spades),
+        ]
+        let cpuStraight = [
+            c(9, .hearts), c(8, .spades), c(7, .clubs), c(6, .diamonds), c(5, .hearts),
+        ]
+        let model = makeModelBeforeShowdown(
+            playerHand: playerStraight, rules: .bonus, cpuHand: cpuStraight, pot: 40
+        )
+        model.bet2Action(.bet(20))
+        #expect(model.winner == .tie)
+        #expect(model.playerBonus == 0)
+        #expect(model.cpuBonus == 0)
+        #expect(!model.awaitsDoubleUp)
+    }
+
     @Test("配当表は強い役ほど高い")
     func tableIsMonotonic() {
         let payouts = PokerBonusTable.payouts
@@ -332,6 +382,22 @@ struct PokerDoubleUpTests {
         #expect(model.doubleUp?.isSettled == true)
         #expect(!model.awaitsDoubleUp)
         #expect(model.recordResult != nil)
+    }
+
+    @Test("挑戦中にもう一度ボタンを押しても、賭け金は二重に引かれない")
+    func startingTwiceIsIgnored() {
+        // 山札を多めに残す（残り2枚未満なら別の理由で弾かれ、この検証にならない）。
+        let model = won(deck: ascendingDeck([5, 13, 3, 4, 6]))
+        model.startDoubleUp()
+        model.guessDoubleUp(.high)      // 賭け金 50 → 100
+        let chips = model.playerChips
+        #expect(!model.canStartDoubleUp, "挑戦中は再開始できない")
+
+        model.startDoubleUp()           // 連打
+        #expect(model.playerChips == chips, "手持ちから二重に引き落とされない")
+        #expect(model.doubleUp?.stake == 100, "賭け金が最初の額に巻き戻らない")
+        #expect(model.doubleUp?.streak == 1)
+        #expect(model.doubleUp?.baseCard.rank == 5, "見せ札が引き直されない")
     }
 
     @Test("受け取りは二度できない")
