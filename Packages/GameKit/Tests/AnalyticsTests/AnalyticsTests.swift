@@ -17,6 +17,7 @@ import GameGo
 import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
+import GameRunner
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -91,6 +92,7 @@ private func makeHubGameIDs() -> Set<String> {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
+        RunnerModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -285,7 +287,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 18, "ハブに並ぶゲームは18本")
+        #expect(hubGameIDs.count == 19, "ハブに並ぶゲームは19本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -670,6 +672,37 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.count == 1, "終局はまだ 1 回（続きの終局はこれから）")
     }
 
+    @Test("チャリンコおじさん: 開いた時点で開始・ステージクリアで終局（win）")
+    func runner() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        expectOnePair(spy, gameID: "runner")
+        #expect(spy.ends.first?.outcome == .win, "ステージクリアは勝ち")
+    }
+
+    @Test("チャリンコおじさん: ミスは決着ではない（リトライの回転で数えを増やさない）")
+    func runnerRetryIsNotAPlay() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        failRunnerStage(model)
+        model.retryStage()
+        failRunnerStage(model)
+        #expect(spy.starts == ["runner"], "開始は 1 回だけ")
+        #expect(spy.ends.isEmpty, "ミスでは終局しない")
+    }
+
+    @Test("チャリンコおじさん: 次のステージは次の 1 プレイとして数え直す")
+    func runnerNextStageCountsAsNewPlay() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        clearRunnerStage(model)
+        model.advanceToNextStage()
+        #expect(spy.starts == ["runner", "runner"])
+        #expect(spy.ends.count == 1, "次のステージの終局はこれから")
+    }
+
     @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
     func blocks() {
         let (services, spy) = makeServices()
@@ -960,4 +993,28 @@ private func blockPuzzleStuckBoard() -> [[Int]] {
 /// 1×1 と、置き場所の無い 3×3 が 2 つ。
 private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
     [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 一度も跳ばずに走らせてミスさせる。
+@MainActor
+private func failRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        model.tick(dt: 1.0 / 60)
+    }
 }

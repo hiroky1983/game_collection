@@ -85,8 +85,8 @@ struct SettingsView: View {
                 // MARK: あそびやすさ
                 Section {
                     Toggle(isOn: Binding(
-                        get: { settings.blocksSlowModeEnabled },
-                        set: { settings.blocksSlowModeEnabled = $0 }
+                        get: { settings.slowModeEnabled },
+                        set: { settings.slowModeEnabled = $0 }
                     )) {
                         Label("ゆっくりモード", systemImage: "tortoise")
                             .foregroundStyle(Theme.ink)
@@ -95,7 +95,7 @@ struct SettingsView: View {
                 } header: {
                     Text("あそびやすさ")
                 } footer: {
-                    Text("ブロック崩しの球の速さを落とします。ゲーム中の一時停止画面からも切り替えられます。")
+                    Text("ブロック崩しの球と、チャリンコおじさんの進みを遅くします。ゲーム中の一時停止画面からも切り替えられます。")
                 }
 
                 // MARK: 解析

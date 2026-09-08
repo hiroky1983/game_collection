@@ -17,6 +17,7 @@ import GameGo
 import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
+import GameRunner
 import GameChess
 import GameBlocks
 
@@ -95,6 +96,7 @@ private func makeHubModules() -> [GameModule] {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
+        RunnerModule(),
     ]
 }
 
@@ -296,7 +298,8 @@ struct GameCenterLeaderboardTests {
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
             ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
             ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
-            ("blockpuzzle", GameScore(metric: .points, points: 1)),
+            ("blockpuzzle", GameScore(metric: .points, points: 1)),            ("runner", GameScore(metric: .points, points: 1)),
+
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID
@@ -638,6 +641,35 @@ struct GameCenterPerGameTests {
         #expect(spy.scores.count == sentBeforeContinue, "コンティニュー後の決着は送らない")
     }
 
+    @Test("チャリンコおじさん: 到達ステージ数が送られる")
+    func runner() {
+        let (log, defaults, name) = makeLog(suite: "runner")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = RunnerModel(services: makeServices(log: log, spy: spy), startingAt: 3)
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        #expect(spy.scores == [
+            GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerStage, value: 3),
+        ])
+    }
+
+    /// #406 の考え方の横展開。広告を見た回数で順位が決まる表にしない。
+    @Test("チャリンコおじさん: 広告で途中から再開した回は順位表へ送らない")
+    func runnerAfterCheckpointResume() {
+        let (log, defaults, name) = makeLog(suite: "runner-checkpoint")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = RunnerModel(services: makeServices(log: log, spy: spy), startingAt: 3)
+        failRunnerAfterCheckpoint(model)
+        #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        #expect(spy.scores.isEmpty, "半分だけ走った回は送らない")
+    }
+
     @Test("ブラックジャック: 精算後のチップが送られる")
     func blackjack() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
@@ -818,4 +850,32 @@ private func blockPuzzleStuckBoard() -> [[Int]] {
 /// 1×1 と、置き場所の無い 3×3 が 2 つ。
 private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
     [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// チェックポイント通過後にミスさせる（広告での再開が出せる状態を作る）。
+@MainActor
+private func failRunnerAfterCheckpoint(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        if !model.field.passedCheckpoint, RunnerAutoPilot.shouldJump(field: model.field) {
+            model.press()
+            model.release()
+        }
+        model.tick(dt: 1.0 / 60)
+    }
 }

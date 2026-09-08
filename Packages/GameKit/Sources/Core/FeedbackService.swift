@@ -116,13 +116,18 @@ public extension FeedbackPreference {
     /// 都度組み立てる計算プロパティにしている（実体は文字列と `UserDefaults` の参照だけなので安い）。
     static var hints: FeedbackPreference { FeedbackPreference(key: "hintsEnabled_v1") }
 
-    /// ブロック崩しの「ゆっくりモード」（#463）。**既定はオフ**。
+    /// アクション枠の「ゆっくりモード」（#463・#494）。**既定はオフ**。
     ///
-    /// 反射神経を使うゲームは VoiceOver で完全に代替できないため、球の速さを落とす手段を
+    /// 反射神経を使うゲームは VoiceOver で完全に代替できないため、進みを遅くする手段を
     /// アクセシビリティの代替手段として用意している（アクション枠の基盤規約）。
     /// 設定画面（App 層）とゲームのポーズ画面（GameKit 側）の両方が読み書きするので、
     /// `hints` と同じくキーの定義をここで共有する。
-    static var blocksSlowMode: FeedbackPreference {
+    ///
+    /// **アクション枠のゲームすべてで 1 つの設定を共有する**（#494 で横スクロールランナーを
+    /// 足したときに、ゲームごとにスイッチを増やさない方針を採った）。保存キーが
+    /// `blocksSlowMode_v1` のままなのは、名前を変えると**既にオンにしている人の設定が
+    /// 初期値へ戻る**ため。キーは保存されたデータの識別子で、意味の説明はこの名前が担う。
+    static var actionSlowMode: FeedbackPreference {
         FeedbackPreference(key: "blocksSlowMode_v1", defaultValue: false)
     }
 }

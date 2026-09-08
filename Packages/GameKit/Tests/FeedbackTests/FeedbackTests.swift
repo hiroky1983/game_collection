@@ -18,6 +18,7 @@ import GameGo
 import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
+import GameRunner
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -182,6 +183,15 @@ private func playBlockPuzzle(_ services: GameServices) {
     )
     model.place(pieceIndex: 1, row: 0, col: 0)   // 拒否（3×3 は置けない）
     model.place(pieceIndex: 0, row: 0, col: 2)   // 成立 → 置ける形が尽きて決着
+}
+
+/// チャリンコおじさん（#494）。ミス（決着ではない失敗）→ リトライ → ステージクリア（決着）を通す。
+@MainActor
+private func playRunner(_ services: GameServices) {
+    let model = RunnerModel(services: services, startingAt: 1)
+    failRunnerStage(model)      // 跳ばずに走って穴に落ちる
+    model.retryStage()
+    clearRunnerStage(model)     // 自動操縦でゴールまで
 }
 
 /// フリーセル（#492）。決着まで指し切るにはソルバーが要る（`GameFreeCellTests` で通しを検証済み）ため、
@@ -437,6 +447,7 @@ private func playAllGames(_ services: GameServices) async {
     await playSudoku(services)
     playBlocks(services)
     playBlockPuzzle(services)
+    playRunner(services)
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -509,6 +520,15 @@ struct FeedbackEnabledTests {
         #expect(spy.impacts.contains(.light), "置けたときに発火する")
         #expect(spy.notices(of: .warning) > 0, "置けない位置は拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "詰みは決着として発火する")
+    }
+
+    @Test("チャリンコおじさん: 踏み切り・ミス・クリアで発火する")
+    func runner() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        playRunner(services)
+        #expect(spy.impacts.contains(.light), "踏み切り・着地で発火する")
+        #expect(spy.notices(of: .error) > 0, "ミスは失敗として発火する")
+        #expect(spy.notices(of: .success) > 0, "ステージクリアは決着として発火する")
     }
 
     /// CPU の手番中のタップ（#202）。`playGomoku` は人間の手番に戻してから拒否を作るため、
@@ -774,6 +794,7 @@ struct SoundFeedbackTests {
         await check("フリーセル") { playFreeCell($0) }
         await check("ブロック崩し") { playBlocks($0) }
         await check("ブロックならべ") { playBlockPuzzle($0) }
+        await check("チャリンコおじさん") { playRunner($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
             model.startGame()
@@ -864,5 +885,29 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
         case .idle, .gameResult:
             return
         }
+    }
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 一度も跳ばずに走らせてミスさせる。
+@MainActor
+private func failRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        model.tick(dt: 1.0 / 60)
     }
 }

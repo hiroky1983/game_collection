@@ -43,7 +43,7 @@ public final class BlocksModel {
     /// 本番の入口。中断スナップショットがあれば復元し、無ければステージ 1 から始める。
     public convenience init(
         services: GameServices? = nil,
-        preference: FeedbackPreference = .blocksSlowMode
+        preference: FeedbackPreference = .actionSlowMode
     ) {
         let snapshot = services?.snapshots.load(BlocksSnapshot.self, for: BlocksModel.gameID)
         self.init(
@@ -68,7 +68,7 @@ public final class BlocksModel {
         score: Int = 0,
         lives: Int = BlocksRules.initialLives,
         continueUsed: Bool = false,
-        preference: FeedbackPreference = .blocksSlowMode
+        preference: FeedbackPreference = .actionSlowMode
     ) {
         self.init(
             services: services,

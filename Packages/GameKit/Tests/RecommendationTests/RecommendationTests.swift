@@ -18,6 +18,7 @@ import GameGo
 import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
+import GameRunner
 import GameChess
 import GameBlocks
 
@@ -32,7 +33,7 @@ import GameBlocks
 private let hubOrder = [
     "2048", "blockpuzzle", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
     "solitaire", "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
-    "concentration", "blocks",
+    "concentration", "blocks", "runner",
 ]
 
 @MainActor
@@ -41,7 +42,7 @@ private func makeRegistry() -> GameRegistry {
         Game2048Module(), BlockPuzzleModule(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
-        GomokuModule(), ConcentrationModule(), BlocksModule(),
+        GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
     ])
 }
 
@@ -105,7 +106,7 @@ struct RecommendationTableTests {
         ("gomoku",        ["go", "othello", "shogi"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
         ("2048",          ["blockpuzzle", "minesweeper", "blocks"]),
-        ("blocks",        ["2048", "minesweeper", "concentration"]),
+        ("blocks",        ["runner", "2048", "minesweeper"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
         ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
@@ -118,6 +119,7 @@ struct RecommendationTableTests {
         ("solitaire",     ["freecell", "mahjong", "concentration"]),
         ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
         ("blockpuzzle",   ["2048", "sudoku", "minesweeper"]),
+        ("runner",        ["blocks", "2048", "concentration"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
