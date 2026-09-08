@@ -199,7 +199,7 @@ export const games: Game[] = [
   {
     slug: "freecell",
     name: "フリーセル",
-    emoji: "🂡",
+    emoji: "♦️",
     tagline: "全部見える52枚。詰まない配札を読み切ろう",
     pageTitle: "フリーセル - 無料でオフラインで遊べる定番のトランプ1人遊び",
     description:

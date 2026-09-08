@@ -138,7 +138,9 @@ public struct FreeCellView: View {
             VStack(spacing: 0) {
                 Text(stateEmoji).font(.system(size: 24))
                 // 番号付きディールはフリーセルの文化なので、どの配札を解いているかを常時出す（#492）。
-                Text("配札 #\(model.dealNumber)")
+                // `Text("...\(数値)")` は LocalizedStringKey 扱いになり **桁区切りが入る**
+                // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
+                Text(verbatim: "配札 #" + String(model.dealNumber))
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(Theme.inkSub)
             }
@@ -166,7 +168,7 @@ public struct FreeCellView: View {
 
     private var stateEmoji: String {
         if model.phase == .won { return "🎉" }
-        return model.isDeadEnd ? "😵" : "🃏"
+        return model.isDeadEnd ? "😵" : "♦️"
     }
 
     // MARK: - 盤面
@@ -336,6 +338,20 @@ public struct FreeCellView: View {
             ForEach(PlayingCardSuit.allCases, id: \.rawValue) { suit in
                 foundationView(suit: suit, metrics: metrics)
             }
+        }
+        // 左 4 つ（フリーセル）と右 4 つ（組札）の境目。
+        //
+        // 上段はちょうど 8 枠で、下段の 8 列と幅がぴったり揃う（`FreeCellMetrics.boardWidth`）。
+        // そのぶん `Spacer` が 0 に潰れるので、**札が載ると 8 枚が 1 列に並んでいるようにしか
+        // 見えない**（実測。空のうちは受け皿の絵と ♠♥♦♣ で区別が付くが、埋まると消える）。
+        // 列の幅を崩さずに境目だけ描くため、レイアウトを取らない overlay で中央に引く。
+        .overlay {
+            Capsule()
+                .fill(Theme.inkSub.opacity(0.5))
+                .frame(width: 2.5)
+                .padding(.vertical, 2)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 
