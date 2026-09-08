@@ -122,6 +122,13 @@ public struct PokerView: View {
                 showStartSheet = false
                 showBonusTable = true
             }
+            // 撮影・動作確認用（#499）: チップ切れのセッション終了画面を出す。
+            // 中断データで「手持ち0・2巡目」を注入したうえで、タップ起点のフォールドを
+            // ここから起こす（`-simulateBlackjackAction` と同型。撮った画が実行結果であることを担保する）。
+            if ProcessInfo.processInfo.arguments.contains("-pokerSessionOverPreview") {
+                revealCPU = true
+                model.bet2Action(.fold)
+            }
             // 撮影用（#496）: ダブルアップの提示まで進めた局面を出す。
             if ProcessInfo.processInfo.arguments.contains("-pokerDoubleUpPreview") {
                 showStartSheet = false
