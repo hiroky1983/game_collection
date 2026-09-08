@@ -312,10 +312,14 @@ public final class BlackjackModel {
         return availableChips >= hand.bet
     }
 
-    /// 手の形としてスプリットできるか（同ランク2枚。**再スプリットは不可**）。
+    /// 手の形としてスプリットできるか（同じ点数の2枚。**再スプリットは不可**）。
+    ///
+    /// 判定はランクではなく**点数**で行う（#497）。10・J・Q・K はどれも 10 点なので、
+    /// 10 と K のような組み合わせも割れる（標準カジノルール）。A は 11 点で他と重ならないため、
+    /// この判定でも「A のペア」だけが A のスプリットになる。
     public var isSplitApplicable: Bool {
         guard phase == .playerTurn, hands.count == 1, let hand = activeHand else { return false }
-        return hand.cards.count == 2 && !hand.isDone && hand.cards[0].rank == hand.cards[1].rank
+        return hand.cards.count == 2 && !hand.isDone && hand.cards[0].value == hand.cards[1].value
     }
 
     /// 実際にスプリットできるか（形が合っていて、かつ同額を追加で賭けられる）。
@@ -336,7 +340,7 @@ public final class BlackjackModel {
         advanceHand()
     }
 
-    /// 同ランク2枚を2つの手に分け、それぞれに同額を賭けて1枚ずつ配る。
+    /// 同じ点数の2枚を2つの手に分け、それぞれに同額を賭けて1枚ずつ配る。
     ///
     /// 標準的な簡略化として **スプリットしたAは1枚だけで強制スタンド**（引き直せない）、
     /// **再スプリット不可**（`isSplitApplicable` が `hands.count == 1` を要求する）とする。

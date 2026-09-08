@@ -176,16 +176,41 @@ struct BlackjackDoubleDownTests {
 @MainActor
 struct BlackjackSplitTests {
 
-    @Test("同ランク2枚のときだけ選べる")
-    func onlyOnSameRankPair() {
+    @Test("同じ点数2枚のときだけ選べる")
+    func onlyOnSameValuePair() {
         let pair = makeSplitReadyModel(rank: 8, dealer: [10, 7], deck: [3, 9])
         #expect(pair.isSplitApplicable)
         #expect(pair.canSplit)
 
-        // 10 と K は同じ 10 点だがランクが違うので割れない（標準ルール）
-        let (sameValue, _) = makeModel(player: [10, 13], dealer: [10, 7], deck: [3, 9])
-        #expect(!sameValue.isSplitApplicable)
-        #expect(!sameValue.canSplit)
+        // 点数が違えば割れない
+        let (mixed, _) = makeModel(player: [9, 10], dealer: [10, 7], deck: [3, 9])
+        #expect(!mixed.isSplitApplicable)
+        #expect(!mixed.canSplit)
+    }
+
+    @Test("10・J・Q・K は10値同士なので割れる（#497）", arguments: [
+        [10, 13], [11, 12], [10, 11], [12, 13],
+    ])
+    func splitsAcrossTenValueRanks(pair: [Int]) {
+        let (model, _) = makeModel(player: pair, dealer: [10, 7], deck: [3, 9])
+
+        #expect(model.isSplitApplicable)
+        #expect(model.canSplit)
+
+        model.split()
+
+        #expect(model.hands.count == 2)
+        #expect(model.hands[0].cards.map(\.rank) == [pair[0], 3])
+        #expect(model.hands[1].cards.map(\.rank) == [pair[1], 9])
+        #expect(model.bet == 200)
+    }
+
+    @Test("10値と A は点数が違うので割れない（#497）")
+    func doesNotSplitTenWithAce() {
+        // A は 11 点扱いなので、10 点札とは組にならない（そもそもナチュラルで決着する形）
+        let (model, _) = makeModel(player: [1, 10], dealer: [10, 7], deck: [3, 9])
+        #expect(!model.isSplitApplicable)
+        #expect(!model.canSplit)
     }
 
     @Test("チップが足りなければ選べない")
@@ -544,7 +569,7 @@ struct BlackjackBaselineTests {
             let hand = model.playerHand
             #expect(hand.count == 2)
             #expect(model.isDoubleDownApplicable)
-            #expect(model.isSplitApplicable == (hand[0].rank == hand[1].rank))
+            #expect(model.isSplitApplicable == (hand[0].value == hand[1].value))
             return
         }
         Issue.record("配ってプレイヤーの手番になる種が 200 件の中に無かった")
@@ -567,5 +592,25 @@ struct BlackjackBaselineTests {
             return
         }
         Issue.record("同ランク2枚が配られる種が 5000 件の中に無かった")
+    }
+
+    @Test("ランク違いの10値2枚が配られた種でもスプリットが提示される（#497）")
+    func freshDealOffersSplitOnMixedTenValuePair() {
+        // 注入した中断データではなく実際の配りでも解禁されていることを固定する。
+        for seed in UInt64(1)...5000 {
+            let model = BlackjackModel(seed: seed)
+            model.placeBet(100)
+            let hand = model.playerHand
+            guard model.phase == .playerTurn,
+                  hand[0].rank != hand[1].rank,
+                  hand[0].value == 10, hand[1].value == 10 else { continue }
+
+            #expect(model.isSplitApplicable)
+            #expect(model.canSplit)
+            model.split()
+            #expect(model.hands.count == 2)
+            return
+        }
+        Issue.record("ランク違いの10値2枚が配られる種が 5000 件の中に無かった")
     }
 }
