@@ -197,6 +197,15 @@ public final class HanafudaModel {
             guard !selection.candidates.isEmpty,
                   selection.candidates.allSatisfy({ fieldIDs.contains($0.id) })
             else { return nil }
+            // 出どころと札の在り処も合っていなければならない。合っていないと復元後の
+            // `chooseFieldCard` が元の場所に残ったままの札を取り札へ足し、同じ札が 2 枚になる。
+            switch selection.source {
+            case .deck:
+                guard snap.drawnCard?.id == selection.card.id else { return nil }
+            case .hand:
+                // 選択待ちに入れるのは人間の手番だけなので、札は人間の手札に在るはず。
+                guard snap.hands[0].contains(where: { $0.id == selection.card.id }) else { return nil }
+            }
         }
         return snap
     }

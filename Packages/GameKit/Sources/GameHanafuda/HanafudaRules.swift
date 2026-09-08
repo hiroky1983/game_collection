@@ -72,13 +72,13 @@ public enum HanafudaRules {
     ///
     /// **場に同月が 4 枚出たら配り直す**（標準ルール。その月は誰も取り合いようがなく、
     /// 出した瞬間に 4 枚がまとめて動くため局として成立しない）。配り直しは有限回で必ず終わる
-    /// ので、安全弁として上限を設けたうえで、上限に達したら最後の配りをそのまま使う。
+    /// ので、安全弁として上限を設けたうえで、**上限に達したら場を決定的に直して**不変条件を保つ。
     public static func deal<G: RandomNumberGenerator>(using rng: inout G) -> HanafudaDeal {
         for _ in 0..<maxRedeals {
             let deal = dealOnce(using: &rng)
             if !hasFourOfAMonth(deal.field) { return deal }
         }
-        return dealOnce(using: &rng)
+        return repairingField(dealOnce(using: &rng))
     }
 
     /// 配り直しの上限。48 枚のシャッフルで場に同月 4 枚が出る確率はごく低いので、
@@ -102,6 +102,36 @@ public enum HanafudaRules {
         var counts: [Int: Int] = [:]
         for card in field { counts[card.month, default: 0] += 1 }
         return counts.values.contains { $0 >= 4 }
+    }
+
+    /// 場の同月 4 枚を、山札の札と入れ替えて崩す（配り直しの上限に達したときだけ使う）。
+    ///
+    /// 入れ替え先は「その月が場にまだ 2 枚以下」の山札の札なので、1 回の交換で
+    /// 4 枚の月は 3 枚に減り、受け入れた側も 3 枚を超えない。場は 8 枚・山は 24 枚あり
+    /// 12 か月のうち 4 枚が揃う月は最大 2 つなので、交換先は必ず見つかる。
+    static func repairingField(_ deal: HanafudaDeal) -> HanafudaDeal {
+        var field = deal.field
+        var deck = deal.deck
+        while let month = monthWithFourCards(in: field) {
+            guard let fieldIndex = field.firstIndex(where: { $0.month == month }),
+                  let deckIndex = deck.firstIndex(where: { card in
+                      field.filter { $0.month == card.month }.count <= 2
+                  })
+            else { break }
+            let removed = field[fieldIndex]
+            field[fieldIndex] = deck[deckIndex]
+            deck[deckIndex] = removed
+        }
+        return HanafudaDeal(
+            dealerHand: deal.dealerHand, opponentHand: deal.opponentHand, field: field, deck: deck
+        )
+    }
+
+    /// 場に 4 枚ある月（無ければ nil）。
+    static func monthWithFourCards(in field: [HanafudaCard]) -> Int? {
+        var counts: [Int: Int] = [:]
+        for card in field { counts[card.month, default: 0] += 1 }
+        return counts.first { $0.value >= 4 }?.key
     }
 
     // MARK: - 場合わせ

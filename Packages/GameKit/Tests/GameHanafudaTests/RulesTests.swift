@@ -36,6 +36,36 @@ struct HanafudaRulesTests {
         }
     }
 
+    @Test("配り直しの上限に達しても、場の同月4枚は決定的に崩される")
+    func repairKeepsTheInvariantAtTheRedealLimit() {
+        // 松（1月）4枚が場に出た配りを組み立て、上限到達時の後始末だけを突く。
+        let all = HanafudaCard.fullDeck
+        let field = all.filter { $0.month == 1 } + Array(all.filter { $0.month != 1 }.prefix(4))
+        let fieldIDs = Set(field.map(\.id))
+        let rest = all.filter { !fieldIDs.contains($0.id) }
+        let deal = HanafudaDeal(
+            dealerHand: Array(rest[0..<8]), opponentHand: Array(rest[8..<16]),
+            field: field, deck: Array(rest[16...])
+        )
+        #expect(HanafudaRules.hasFourOfAMonth(deal.field), "前提: 直す前は同月4枚がある")
+
+        let repaired = HanafudaRules.repairingField(deal)
+        #expect(!HanafudaRules.hasFourOfAMonth(repaired.field))
+        #expect(repaired.field.count == 8)
+        #expect(repaired.deck.count == 24)
+        let cards = repaired.dealerHand + repaired.opponentHand + repaired.field + repaired.deck
+        #expect(Set(cards.map(\.id)) == Set(0..<48), "入れ替えで札が増減してはいけない")
+        #expect(repaired.dealerHand == deal.dealerHand, "手札には触らない")
+        #expect(repaired.opponentHand == deal.opponentHand, "手札には触らない")
+    }
+
+    @Test("同月4枚が無い配りは後始末で1枚も動かない")
+    func repairLeavesAValidDealUntouched() {
+        var rng = HanafudaRandom(seed: 7)
+        let deal = HanafudaRules.deal(using: &rng)
+        #expect(HanafudaRules.repairingField(deal) == deal)
+    }
+
     @Test("同月4枚の検出そのものが効いている")
     func detectsFourOfAMonth() {
         let fourPines = HanafudaCard.fullDeck.filter { $0.month == 1 }

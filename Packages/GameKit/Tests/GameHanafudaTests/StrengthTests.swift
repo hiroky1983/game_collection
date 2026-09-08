@@ -53,7 +53,10 @@ struct HanafudaStrengthTests {
                         hand: model.humanHand, field: model.field,
                         captured: model.humanCaptured, opponentCaptured: model.cpuCaptured,
                         options: model.options, difficulty: humanLevel, using: &rng
-                    ) else { return (model.humanTotal, model.cpuTotal) }
+                    ) else {
+                        Issue.record("seed=\(seed) 人間側AIが手を返さず試合が止まった")
+                        return (model.humanTotal, model.cpuTotal)
+                    }
                     model.play(move.card)
                     if model.selection != nil, let target = move.target {
                         model.chooseFieldCard(target)
@@ -62,9 +65,11 @@ struct HanafudaStrengthTests {
                     model.stepCPU()
                 }
             case .idle:
+                Issue.record("seed=\(seed) 試合が始まっていない状態へ落ちた")
                 return (model.humanTotal, model.cpuTotal)
             }
         }
+        Issue.record("seed=\(seed) 4000手以内に試合が決着しなかった")
         return (model.humanTotal, model.cpuTotal)
     }
 

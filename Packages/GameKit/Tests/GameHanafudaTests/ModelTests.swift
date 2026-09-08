@@ -144,7 +144,9 @@ struct HanafudaModelTests {
     @Test("12局戦は12局で試合が終わる")
     func twelveRoundMatchEndsAfterTwelveRounds() {
         let model = started(seed: 12, options: HanafudaOptions(rounds: 12))
-        #expect(playOut(model))
+        // 12局は 1 局あたり最大 41 手 ×12 で既定の 400 に収まらない。他の12局戦のループと
+        // 揃えて明示的に上げる（種を変えたときに本題と関係なく打ち切られないため）。
+        #expect(playOut(model, limit: 900))
         #expect(model.round == 12)
     }
 
@@ -456,6 +458,42 @@ struct HanafudaModelTests {
             drawnCard: snap.drawnCard, roundResult: snap.roundResult, message: snap.message
         )
         #expect(HanafudaModel.validate(broken) == nil)
+    }
+
+    @Test("選択待ちの出どころと札の在り処が食い違う中断データを弾く")
+    func selectionSourceMismatchIsRejected() {
+        let store = MemorySnapshotStore()
+        let model = HanafudaModel(services: makeServices(store: store), cpuDelay: .zero, seed: 93)
+        model.startMatch(options: HanafudaOptions())
+        let snap = store.load(HanafudaSnapshot.self, for: HanafudaModel.gameID)!
+
+        func rebuilt(selection: HanafudaSelection, drawnCard: HanafudaCard?) -> HanafudaSnapshot {
+            HanafudaSnapshot(
+                options: snap.options, round: snap.round, dealer: snap.dealer, turn: snap.turn,
+                hands: snap.hands, captured: snap.captured, field: snap.field, deck: snap.deck,
+                claimed: snap.claimed, koiKoiCounts: snap.koiKoiCounts, totals: snap.totals,
+                phase: snap.phase, selection: selection, drawnCard: drawnCard,
+                roundResult: snap.roundResult, message: snap.message
+            )
+        }
+
+        // 山からめくった扱いなのに、その札が手札に在る（復元後に取り札へ足されて 2 枚になる）。
+        let fromDeck = rebuilt(
+            selection: HanafudaSelection(
+                source: .deck, card: snap.hands[0][0], candidates: [snap.field[0]]
+            ),
+            drawnCard: nil
+        )
+        #expect(HanafudaModel.validate(fromDeck) == nil)
+
+        // 手札から出した扱いなのに、その札が手札に無い（同じく重複する）。
+        let fromHand = rebuilt(
+            selection: HanafudaSelection(
+                source: .hand, card: snap.deck[0], candidates: [snap.field[0]]
+            ),
+            drawnCard: nil
+        )
+        #expect(HanafudaModel.validate(fromHand) == nil)
     }
 
     @Test("局数の範囲外は既定の6局へ倒れる")
