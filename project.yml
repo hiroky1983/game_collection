@@ -75,6 +75,8 @@ targets:
       - package: GameKit
         product: GameRunner
       - package: GameKit
+        product: GameHanafuda
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

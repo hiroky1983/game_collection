@@ -18,6 +18,7 @@ import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
+import GameHanafuda
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -92,7 +93,7 @@ private func makeHubGameIDs() -> Set<String> {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(),
+        RunnerModule(), HanafudaModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -287,7 +288,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 19, "ハブに並ぶゲームは19本")
+        #expect(hubGameIDs.count == 20, "ハブに並ぶゲームは20本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -703,6 +704,39 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.count == 1, "次のステージの終局はこれから")
     }
 
+    @Test("花札こいこい: 試合を始めた時点で開始・全局終了で終局が1組")
+    func hanafuda() {
+        let (services, spy) = makeServices()
+        let model = playHanafudaMatch(services)
+        #expect(model.phase == .matchResult)
+        expectOnePair(spy, gameID: "hanafuda")
+    }
+
+    @Test("花札こいこい: 局が終わっても終局は増えない（試合が1プレイ）")
+    func hanafudaRoundIsNotAPlay() {
+        let (services, spy) = makeServices()
+        let model = HanafudaModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startMatch(options: HanafudaOptions(rounds: 6))
+        // 1 局だけ進める。
+        for _ in 0..<400 where model.phase != .roundResult {
+            if model.phase == .koiKoiPrompt {
+                if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+                continue
+            }
+            guard model.phase == .playing else { break }
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { break }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+        #expect(spy.starts == ["hanafuda"], "開始は 1 回だけ")
+        #expect(spy.ends.isEmpty, "1 局の決着では終局しない（試合が終わるまで数えない）")
+    }
+
     @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
     func blocks() {
         let (services, spy) = makeServices()
@@ -1017,4 +1051,32 @@ private func failRunnerStage(_ model: RunnerModel) {
         frames += 1
         model.tick(dt: 1.0 / 60)
     }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
 }

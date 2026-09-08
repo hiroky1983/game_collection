@@ -18,6 +18,7 @@ import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
+import GameHanafuda
 import GameChess
 import MahjongTiles
 
@@ -940,6 +941,22 @@ struct GameRecordingTests {
         #expect(record?.wins == 1, "ステージクリアは勝ち")
     }
 
+    @Test("花札こいこい: 合計文数を見出しにし、勝敗も残る")
+    func hanafudaRecordsPoints() {
+        let (log, defaults, name) = makeLog(suite: "hanafuda")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = playHanafudaMatch(makeServices(log: log))
+        #expect(model.phase == .matchResult)
+
+        let record = log.record(gameID: "hanafuda")
+        #expect(record?.metric == .points, "1 行で出すのは合計文数")
+        #expect(record?.bestPoints == model.humanTotal)
+        #expect(record?.plays == 1, "1 試合で 1 プレイ（局ごとには数えない）")
+        // 勝敗は指標に選ばなくても記録される。
+        #expect((record?.wins ?? 0) + (record?.losses ?? 0) + (record?.draws ?? 0) == 1)
+    }
+
     @Test("囲碁: 対 CPU 戦なので勝敗を記録する")
     func goRecordsWinLoss() {
         let (log, defaults, name) = makeLog(suite: "go")
@@ -1213,4 +1230,32 @@ private func clearRunnerStage(_ model: RunnerModel) {
         if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
         model.tick(dt: 1.0 / 60)
     }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
 }

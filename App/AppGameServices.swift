@@ -20,6 +20,7 @@ import GameBlocks
 import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
+import GameHanafuda
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -149,6 +150,9 @@ enum AppEnvironment {
         BlocksModule(),
         // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
         RunnerModule(),
+        // 花札こいこい（#495）。和風の看板として末尾に置く（初期表示順のみ。既にアプリを
+        // 使っている人の並びには影響しない）。
+        HanafudaModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
