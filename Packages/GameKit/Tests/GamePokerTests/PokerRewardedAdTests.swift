@@ -18,6 +18,18 @@ private final class MockSnapshotStore: SnapshotStore, @unchecked Sendable {
     }
     func clear(for gameID: String) { store.removeValue(forKey: gameID) }
     func exists(for gameID: String) -> Bool { store[gameID] != nil }
+
+    /// 旧バージョンが書いた JSON をそのまま流し込む（鍵を1つ落とした形を作るのに使う）。
+    func saveRaw(_ json: Data, for gameID: String) { store[gameID] = json }
+}
+
+/// `PokerSnapshot` を符号化してから指定の鍵を落とし、旧バージョンが書いた JSON を作る。
+private func encodingWithoutKey(_ snapshot: PokerSnapshot, key: String) throws -> Data {
+    let data = try JSONEncoder().encode(snapshot)
+    var object = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    object.removeValue(forKey: key)
+    #expect(object[key] == nil)
+    return try JSONSerialization.data(withJSONObject: object)
 }
 
 /// 視聴完了・未完了を制御できる広告スタブ。
@@ -252,6 +264,35 @@ struct PokerRewardedAdTests {
         let snap = try JSONDecoder().decode(PokerSnapshot.self, from: Data(legacy.utf8))
         #expect(snap.playerChips == 40)
         #expect(snap.hasRevivedThisSession == nil, "鍵が無くてもデコードは通る")
+    }
+
+    @Test("鍵が無い旧データから再開したセッションでも、1回目の復活は使える")
+    func legacySnapshotStartsWithReviveAvailable() throws {
+        // v1.1.3 以前から中断を持ち越したプレイヤーを、既定値の取り違えで
+        // 「もう使い切った」扱いにしないことを、モデルまで通して確かめる。
+        // （デコード結果が nil であることだけを見るテストでは、既定値を反転させても気づけない）
+        let playerHand = (0..<5).map { PokerCard(id: $0, suit: .spades, rank: $0 + 2) }
+        let cpuHand = (0..<5).map { PokerCard(id: $0 + 13, suit: .hearts, rank: $0 + 7) }
+        let deck = (0..<10).map { PokerCard(id: $0 + 26, suit: .clubs, rank: $0 % 13 + 2) }
+        let modern = PokerSnapshot(
+            playerHand: playerHand, cpuHand: cpuHand, deck: deck,
+            playerChips: 0, cpuChips: 90, pot: 20,
+            phase: .betting2, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "",
+            hasRevivedThisSession: nil
+        )
+        let store = MockSnapshotStore()
+        store.saveRaw(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "poker")
+
+        let model = PokerModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+        )
+        model.bet2Action(.fold)
+
+        #expect(model.sessionOver)
+        #expect(model.sessionWinner == .cpu)
+        #expect(model.canReviveAfterBust, "旧データは「まだ使っていない」に倒す")
     }
 }
 

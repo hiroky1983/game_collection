@@ -18,6 +18,18 @@ private final class MockSnapshotStore: SnapshotStore, @unchecked Sendable {
     }
     func clear(for gameID: String) { store.removeValue(forKey: gameID) }
     func exists(for gameID: String) -> Bool { store[gameID] != nil }
+
+    /// 旧バージョンが書いた JSON をそのまま流し込む（鍵を1つ落とした形を作るのに使う）。
+    func saveRaw(_ json: Data, for gameID: String) { store[gameID] = json }
+}
+
+/// `BlackjackSnapshot` を符号化してから指定の鍵を落とし、旧バージョンが書いた JSON を作る。
+private func encodingWithoutKey(_ snapshot: BlackjackSnapshot, key: String) throws -> Data {
+    let data = try JSONEncoder().encode(snapshot)
+    var object = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    object.removeValue(forKey: key)
+    #expect(object[key] == nil)
+    return try JSONSerialization.data(withJSONObject: object)
 }
 
 /// 視聴完了・未完了を制御できる広告スタブ。
@@ -231,6 +243,42 @@ struct BlackjackRewardedAdTests {
         let snap = try JSONDecoder().decode(BlackjackSnapshot.self, from: Data(legacy.utf8))
         #expect(snap.chips == 700)
         #expect(snap.hasRevivedThisSession == nil, "鍵が無くてもデコードは通る")
+    }
+
+    @Test("鍵が無い旧データから再開したセッションでも、1回目の復活は使える")
+    func legacySnapshotStartsWithReviveAvailable() throws {
+        // v1.1.3 以前から中断を持ち越したプレイヤーを、既定値の取り違えで
+        // 「もう使い切った」扱いにしないことを、モデルまで通して確かめる。
+        // （デコード結果が nil であることだけを見るテストでは、既定値を反転させても気づけない）
+        var nextID = 0
+        func make(_ ranks: [Int]) -> [BlackjackCard] {
+            ranks.map { rank in
+                defer { nextID += 1 }
+                return BlackjackCard(id: nextID, suit: BlackjackSuit.allCases[nextID % 4], rank: rank)
+            }
+        }
+        let playerCards = make([10, 5])
+        let modern = BlackjackSnapshot(
+            playerHand: playerCards,
+            dealerHand: make([10, 10]),
+            deck: make([2, 2]),
+            chips: 100,
+            bet: 100,
+            phase: .playerTurn,
+            hands: [BlackjackHand(id: 0, cards: playerCards, bet: 100)],
+            activeHandIndex: 0,
+            hasRevivedThisSession: nil
+        )
+        let store = MockSnapshotStore()
+        store.saveRaw(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "blackjack")
+
+        let model = BlackjackModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+        )
+        model.stand()
+
+        #expect(model.sessionOver)
+        #expect(model.canReviveAfterBust, "旧データは「まだ使っていない」に倒す")
     }
 }
 
