@@ -81,6 +81,10 @@ public enum GameCenterLeaderboard {
     /// チャリンコおじさん（#494）。送るのは**到達ステージ数**（High to Low）。
     /// コースは全員共通で、同じ地形を同じ速さで走るため比べられる。
     public static let runnerStage   = "asobiba.runner.stage"
+    /// 花札こいこい（#495）。送るのは**1 試合で稼いだ合計文数**（High to Low）。
+    /// 局数は 6 / 12 から選べるが、区分は分けない（12 局のほうが伸びるのは
+    /// 「長く打った」ぶんで、同じ土俵の上位を狙う指標として成り立つ）。
+    public static let hanafudaPoints = "asobiba.hanafuda.points"
 
     // 短いほど良い（App Store Connect では「Low to High」・フォーマットは経過時間で登録する）
     public static let minesweeperBeginner     = "asobiba.minesweeper.time.beginner"
@@ -98,6 +102,7 @@ public enum GameCenterLeaderboard {
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blackjackChips, blocksScore, blockPuzzleScore, runnerStage,
+        hanafudaPoints,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
         solitaireTime, freeCellTime,
@@ -151,6 +156,8 @@ public enum GameCenterLeaderboard {
         // チャリンコおじさん（#494）。チェックポイント再開（リワード広告）を使ったステージは
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
         case "runner":    return runnerStage
+        // 花札こいこい（#495）。試合の合計文数を送る。
+        case "hanafuda":  return hanafudaPoints
         default:          return nil
         }
     }

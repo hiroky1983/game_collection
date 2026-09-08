@@ -274,10 +274,25 @@ public extension HowToPlayGuide {
         hintIcon: "hand.tap.fill"
     )
 
+    /// 花札こいこい（#495）。役の一覧は 3 行に収まらないので、対局中の「役」ボタンと
+    /// 「くわしいルール」に送る。ここには**合わせ方**だけを書く。
+    static let hanafuda = HowToPlayGuide(
+        gameID: "hanafuda",
+        title: "花札こいこいの遊び方",
+        lines: [
+            "手札を1枚選ぶと、場にある同じ月の札と合わせて取れます。左上の数字が月です。",
+            "続けて山札が1枚めくれます。こちらも同じ月の札と合わさります。",
+            "役ができたら「あがり」で得点、「こいこい」で続けて役を伸ばせます。",
+        ],
+        hint: "同じ月を合わせる",
+        hintIcon: "leaf.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
+        .hanafuda,
     ]
 }
 

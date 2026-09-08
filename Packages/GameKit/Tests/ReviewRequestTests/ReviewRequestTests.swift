@@ -18,6 +18,7 @@ import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
+import GameHanafuda
 import GameChess
 import MahjongTiles
 
@@ -490,6 +491,16 @@ struct GameOutcomeRoutingTests {
         #expect(service.log.totalWins == 1)
     }
 
+    @Test("花札こいこい: 投了は勝利にならない")
+    func hanafudaResign() {
+        let (services, service) = makeServices(suite: "route-hanafuda")
+        let model = HanafudaModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startMatch(options: HanafudaOptions(rounds: 6))
+        model.resign()
+        #expect(model.phase == .matchResult)
+        #expect(service.log.totalWins == 0)
+    }
+
     @Test("囲碁: 投了は勝利にならない")
     func goResign() {
         let (services, service) = makeServices(suite: "route-go")
@@ -830,4 +841,32 @@ private func failRunnerStage(_ model: RunnerModel) {
         frames += 1
         model.tick(dt: 1.0 / 60)
     }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
 }

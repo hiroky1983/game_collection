@@ -19,6 +19,7 @@ import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
+import GameHanafuda
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -448,6 +449,7 @@ private func playAllGames(_ services: GameServices) async {
     playBlocks(services)
     playBlockPuzzle(services)
     playRunner(services)
+    _ = playHanafudaMatch(services)
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -520,6 +522,16 @@ struct FeedbackEnabledTests {
         #expect(spy.impacts.contains(.light), "置けたときに発火する")
         #expect(spy.notices(of: .warning) > 0, "置けない位置は拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "詰みは決着として発火する")
+    }
+
+    @Test("花札こいこい: 札を出す・取る・決着で発火する")
+    func hanafuda() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        _ = playHanafudaMatch(services)
+        #expect(spy.impacts.contains(.medium), "配りで発火する")
+        #expect(spy.impacts.contains(.rigid), "札を取ると発火する")
+        #expect(spy.notices(of: .success) > 0 || spy.notices(of: .error) > 0
+                || spy.notices(of: .warning) > 0, "局・試合の決着で発火する")
     }
 
     @Test("チャリンコおじさん: 踏み切り・ミス・クリアで発火する")
@@ -795,6 +807,7 @@ struct SoundFeedbackTests {
         await check("ブロック崩し") { playBlocks($0) }
         await check("ブロックならべ") { playBlockPuzzle($0) }
         await check("チャリンコおじさん") { playRunner($0) }
+        await check("花札こいこい") { _ = playHanafudaMatch($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
             model.startGame()
@@ -910,4 +923,32 @@ private func failRunnerStage(_ model: RunnerModel) {
         frames += 1
         model.tick(dt: 1.0 / 60)
     }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
 }

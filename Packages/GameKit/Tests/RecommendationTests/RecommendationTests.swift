@@ -19,6 +19,7 @@ import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
+import GameHanafuda
 import GameChess
 import GameBlocks
 
@@ -33,7 +34,7 @@ import GameBlocks
 private let hubOrder = [
     "2048", "blockpuzzle", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
     "solitaire", "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
-    "concentration", "blocks", "runner",
+    "concentration", "blocks", "runner", "hanafuda",
 ]
 
 @MainActor
@@ -43,6 +44,7 @@ private func makeRegistry() -> GameRegistry {
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
+        HanafudaModule(),
     ])
 }
 
@@ -111,7 +113,7 @@ struct RecommendationTableTests {
         ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
-        ("daifugo",       ["poker", "blackjack", "concentration"]),
+        ("daifugo",       ["poker", "blackjack", "hanafuda"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
@@ -120,6 +122,7 @@ struct RecommendationTableTests {
         ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
         ("blockpuzzle",   ["2048", "sudoku", "minesweeper"]),
         ("runner",        ["blocks", "2048", "concentration"]),
+        ("hanafuda",      ["daifugo", "poker", "blackjack"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
@@ -495,14 +498,17 @@ struct RecommendationServiceTests {
         #expect(log.playedGameIDs.count == hubOrder.count, "全ゲーム既プレイ")
 
         // 提示は20回目（`firstShowThreshold`）の終了から。その1つ手前まではまだ出ない。
-        // ゲームが増えても成り立つよう、回数はしきい値から逆算する。
-        for _ in 0..<(RecommendationPolicy.firstShowThreshold - hubOrder.count - 1) {
+        // **ハブのゲーム数がしきい値に達しているかで場合分けする**（#495 でゲームが 20 本になり、
+        // 上の「全ゲームを1回ずつ」だけでしきい値に届くようになった。引き算で回数を出すと
+        // `0..<(-1)` になってクラッシュする）。
+        if hubOrder.count < RecommendationPolicy.firstShowThreshold {
+            for _ in 0..<(RecommendationPolicy.firstShowThreshold - hubOrder.count - 1) {
+                finish("shogi")
+                clock = clock.addingTimeInterval(3600)
+            }
+            #expect(service.suggestedGameID == nil, "しきい値の1つ手前までは出さない")
             finish("shogi")
-            clock = clock.addingTimeInterval(3600)
         }
-        #expect(service.suggestedGameID == nil, "しきい値の1つ手前までは出さない")
-
-        finish("shogi")
         #expect(service.suggestedGameID == "2048", "最終プレイが最も古いゲームが出る")
         if case .revisit(let days?) = service.suggestedReason {
             #expect(days >= hubOrder.count - 1, "\(hubOrder.count - 1)日以上ぶり（実際: \(days)日）")
@@ -517,14 +523,16 @@ struct RecommendationServiceTests {
     func suggestsRevisitWithoutDates() {
         let (_, service) = makeServices(suite: "service-all-played-nodates")
         for id in hubOrder { service.gameDidFinish(gameID: id) }   // ハブのゲーム数ぶん
-        advanceFinishes(
-            service,
-            count: RecommendationPolicy.firstShowThreshold - hubOrder.count - 1,
-            gameID: "shogi"
-        )                                                          // しきい値の1つ手前まで
-        #expect(service.suggestedGameID == nil)
-
-        service.gameDidFinish(gameID: "shogi")                     // 20回目で提示
+        // 上と同じ理由で場合分けする（ゲーム数がしきい値以上なら、この時点でもう提示されている）。
+        if hubOrder.count < RecommendationPolicy.firstShowThreshold {
+            advanceFinishes(
+                service,
+                count: RecommendationPolicy.firstShowThreshold - hubOrder.count - 1,
+                gameID: "shogi"
+            )                                                      // しきい値の1つ手前まで
+            #expect(service.suggestedGameID == nil)
+            service.gameDidFinish(gameID: "shogi")                 // 20回目で提示
+        }
         #expect(service.suggestedGameID == "2048", "日付が無ければハブ順で先頭（将棋以外）")
         #expect(service.suggestedReason == .revisit(days: nil))
     }

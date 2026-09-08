@@ -88,7 +88,9 @@ public enum RecommendationPolicy {
         "concentration": ["solitaire", "daifugo", "blackjack"],
         "poker":         ["blackjack", "daifugo", "concentration"],
         "blackjack":     ["poker", "daifugo", "concentration"],
-        "daifugo":       ["poker", "blackjack", "concentration"],
+        // 第3候補を花札こいこい（#495）にした。同じ「CPU と札を取り合う」型で、
+        // 1 人で札をめくる神経衰弱より近い（神経衰弱はポーカー・ブラックジャックから引き続き出る）。
+        "daifugo":       ["poker", "blackjack", "hanafuda"],
         // 麻雀ソリティア（#90）。牌が同じ四人打ち麻雀が最も近い。
         "mahjong":       ["mahjong4", "concentration", "minesweeper"],
         // 四人打ち麻雀（#106）。牌が同じで手軽な麻雀ソリティア、同じ CPU 対戦の大富豪、
@@ -109,6 +111,9 @@ public enum RecommendationPolicy {
         // チャリンコおじさん（#494・アクション枠の2本目）。同じ反射で遊ぶブロック崩しが
         // 最も近く、次いで1人でスコアを伸ばす 2048、手軽に終わる神経衰弱。
         "runner":        ["blocks", "2048", "concentration"],
+        // 花札こいこい（#495）。同じ「CPU と札を取り合って役を作る」大富豪が最も近く、
+        // 次いで役の強さを競うポーカー、札を配って遊ぶブラックジャック。
+        "hanafuda":      ["daifugo", "poker", "blackjack"],
     ]
 
     /// 現在の提示間隔。無視が続いているほど広がる。
