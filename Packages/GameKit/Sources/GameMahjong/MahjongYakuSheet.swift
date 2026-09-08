@@ -50,9 +50,10 @@ public struct MahjongYakuSheet: View {
     static func footer(for section: MahjongYaku.Section) -> String? {
         switch section {
         case .one:
-            return "「門前のみ」はポン・チーをすると消える役です（暗槓は門前のままなので消えません）。"
+            // 門前を崩さないのは暗槓だけ（`MahjongCall.breaksConcealment`）。大明槓も崩す。
+            return "「門前のみ」はポン・チー・大明槓をすると消える役です（暗槓は門前のままなので消えません）。"
         case .two, .three:
-            return "「鳴きN飜」はポン・チーをすると飜数が下がる役、「門前のみ」は消える役です。"
+            return "「鳴きN飜」はポン・チー・大明槓をすると飜数が下がる役、「門前のみ」は消える役です。"
         case .yakuman:
             return "役満は飜数によらず点数が固定で、複数そろうと倍役満になります。"
         case .dora:

@@ -35,7 +35,15 @@ public struct MahjongView: View {
             m.enableAutoPlay()
             if !hasSnapshot { m.startGame() }
         }
-        _showStartSheet = State(initialValue: !hasSnapshot && !autoPlay)
+        // 撮影用（DEBUG 限定）: 早見表を出す起動では開始シートを最初から出さない。
+        // 同じビューの `.sheet` は 2 つ同時に出せないため、`.task` で開始シートを畳むだけだと
+        // 開始シートが一瞬見えたり、早見表が出そこねたりする（CodeRabbit 指摘）。
+        #if DEBUG
+        let showsYakuOnLaunch = ProcessInfo.processInfo.arguments.contains("-mahjongShowYaku")
+        #else
+        let showsYakuOnLaunch = false
+        #endif
+        _showStartSheet = State(initialValue: !hasSnapshot && !autoPlay && !showsYakuOnLaunch)
     }
 
     public var body: some View {
