@@ -119,14 +119,74 @@ struct SolitaireReachableStockTests {
         }
     }
 
-    @Test("3枚めくりでは「n回めくるとその札が一番上に来る」が実際に成り立つ",
+    /// 実装の数え上げを**一切使わずに**、山札と捨て札の状態が一巡するまで実際にめくって
+    /// 「一番上に来たことのある札 → 最小のめくり回数」を作る。
+    ///
+    /// 実装側は「2周ぶん回せば足りる」という理屈で打ち切り回数を決めているので、
+    /// 打ち切り回数に依存しないこちらの結果と突き合わせないと**取りこぼし**を検出できない
+    /// （`verifyReachable` は「出てきた札が本当に出るか」しか見ないため、
+    /// 打ち切りを半分にしても素通りする・PR #498 の敵対的検証で実測）。
+    private func bruteForceReachable(_ board: SolitaireBoard) -> [Int: Int] {
+        var result: [Int: Int] = [:]
+        if let top = board.waste.last { result[top.id] = 0 }
+        var replay = board
+        var seen: Set<[Int]> = []
+        var draws = 0
+        // めくりは決定的なので、山札と捨て札の並びが一度でも繰り返したらそれ以上新しい札は出ない。
+        while replay.isLegal(.draw) {
+            let key = replay.stock.map(\.id) + [-1] + replay.waste.map(\.id)
+            guard seen.insert(key).inserted else { break }
+            replay.apply(.draw)
+            draws += 1
+            if let top = replay.waste.last, result[top.id] == nil { result[top.id] = draws }
+        }
+        return result
+    }
+
+    private func verifyReachableIsComplete(_ board: SolitaireBoard) {
+        let counted = Dictionary(
+            uniqueKeysWithValues: board.reachableStockCards().map { ($0.card.id, $0.draws) }
+        )
+        #expect(counted == bruteForceReachable(board),
+                "到達できる札の数え上げが、実際にめくって出る札と一致しない")
+    }
+
+    @Test("3枚めくりの数え上げが、実際にめくって出る札と過不足なく一致する",
           arguments: [0, 1, 2, 5, 137])
-    func reachableCountsAreReplayable(index: Int) {
+    func reachableCountsMatchBruteForce(index: Int) {
         var board = SolitaireDealer.deal(seed: SolitaireDealer.verifiedSeedsDraw3[index], rules: draw3)
         verifyReachable(board)
-        // 途中で捨て札に札が溜まった局面（区切りがずれる形）でも成り立つこと。
+        verifyReachableIsComplete(board)
+
+        // 山札を回しただけの局面（区切りがずれる形）。
         for _ in 0..<3 { board.apply(.draw) }
         verifyReachable(board)
+        verifyReachableIsComplete(board)
+
+        // 捨て札から札を1枚抜いた局面。**枚数が変わると一番上に来る札の顔ぶれが総入れ替えになる**
+        // ので、3枚めくりでいちばん壊れやすいのはここ。
+        // `isLegal(.draw)` は循環がある限り常に真なので、**回数で必ず打ち切る**
+        // （山札 + 捨て札を 1 周する回数で足りる。見つからない配札はそのまま検証する）。
+        var played = board
+        for _ in 0..<(played.stock.count + played.waste.count) {
+            if let target = (0..<SolitaireBoard.pileCount).first(where: {
+                played.isLegal(.wasteToTableau(pile: $0))
+            }) {
+                played.apply(.wasteToTableau(pile: target))
+                break
+            }
+            played.apply(.draw)
+        }
+        verifyReachable(played)
+        verifyReachableIsComplete(played)
+    }
+
+    @Test("1枚めくりの数え上げも、実際にめくって出る札と一致する")
+    func singleDrawCountsMatchBruteForce() {
+        var board = SolitaireDealer.deal(seed: SolitaireDealer.verifiedSeeds[0])
+        verifyReachableIsComplete(board)
+        for _ in 0..<5 { board.apply(.draw) }
+        verifyReachableIsComplete(board)
     }
 
     @Test("1枚めくりでも同じ性質が成り立つ（既定の挙動が壊れていないことの裏取り）")
