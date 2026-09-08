@@ -453,7 +453,7 @@ struct SolitaireRescuePromptTests {
         model.applyLostVerdict(true, for: model.board.stateKey)
         #expect(model.showsRescuePrompt)
 
-        model.dismissLostPrompt()
+        model.dismissRescuePrompt()
         #expect(!model.showsRescuePrompt)
         // 状態そのものは残す（ステータスバーの表示に使う）。
         #expect(model.isLost)
@@ -463,10 +463,10 @@ struct SolitaireRescuePromptTests {
     func deadEndPromptSurvivesDismissal() {
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
         model.applyLostVerdict(true, for: model.board.stateKey)
-        model.dismissLostPrompt()
+        model.dismissRescuePrompt()
         #expect(!model.showsRescuePrompt)
 
-        // 有効手ゼロ（(a) の行き止まり）は閉じた覚えに関係なく出す。
+        // (a) の行き止まりは (b) を閉じた覚えとは別に数える（#491 でも分けたまま）。
         // 山札も捨て札も空で、動かせる札も無い盤面を置く。
         var piles = [SolitairePile](repeating: SolitairePile(), count: SolitaireBoard.pileCount)
         piles[0] = SolitairePile(faceDown: [SolitaireCard(.spade, 10)], faceUp: [SolitaireCard(.spade, 12)])
@@ -479,10 +479,89 @@ struct SolitaireRescuePromptTests {
     func newGameClearsDismissal() {
         let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
         model.applyLostVerdict(true, for: model.board.stateKey)
-        model.dismissLostPrompt()
+        model.dismissRescuePrompt()
 
         model.newGame()
         #expect(!model.isLost)
+        model.applyLostVerdict(true, for: model.board.stateKey)
+        #expect(model.showsRescuePrompt)
+    }
+
+    // MARK: - 行き止まりの告知も閉じられる（#491・#475 の決裁 C）
+
+    /// 行き止まりだが**合法手は残っている**盤面（#475 の会長QAの局面）。
+    ///
+    /// 先頭が K・伏せ札なしの列が1本だけあり、他は空。K を空列へ移す手は合法だが
+    /// 「列を入れ替えるだけ」で盤面は進まないので `hasProgressMove` は数えない。
+    /// 組札は ♠ が 0 なので K は送れず、山札・捨て札も空。
+    private static func deadEndBoardWithIdleMove() -> SolitaireBoard {
+        var piles = [SolitairePile](repeating: SolitairePile(), count: SolitaireBoard.pileCount)
+        piles[0] = SolitairePile(faceUp: [SolitaireCard(.spade, 13)])
+        return SolitaireBoard(tableau: piles, foundations: [0, 13, 13, 13])
+    }
+
+    @Test("行き止まりの盤面でも、K を空列へ動かす合法手は残っている")
+    func deadEndStillHasLegalMove() {
+        let board = Self.deadEndBoardWithIdleMove()
+        #expect(board.isDeadEnd)
+        // 「進む手が無い」だけで「触れる手が無い」ではない。ここが #491 の前提。
+        var moved = board
+        let applied = moved.apply(.tableauToTableau(from: 0, cardIndex: 0, to: 1))
+        #expect(applied)
+        #expect(moved.tableau[1].top == SolitaireCard(.spade, 13))
+    }
+
+    @Test("行き止まりの告知も「このまま続ける」で閉じられる")
+    func deadEndPromptIsDismissible() {
+        let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
+        model.replaceBoardForTesting(Self.deadEndBoardWithIdleMove())
+        #expect(model.isDeadEnd)
+        #expect(model.showsRescuePrompt)
+
+        model.dismissRescuePrompt()
+        #expect(!model.showsRescuePrompt)
+        // 状態そのものは残す（ステータスバーと 😵 の表示に使う）。
+        #expect(model.isDeadEnd)
+    }
+
+    @Test("行き止まりの告知は、閉じたら配り直すまで再表示しない")
+    func deadEndPromptStaysDismissedUntilNewGame() {
+        let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
+        model.replaceBoardForTesting(Self.deadEndBoardWithIdleMove())
+        model.dismissRescuePrompt()
+        #expect(!model.showsRescuePrompt)
+
+        // 残っている合法手（K → 空列）を指しても、告知は戻ってこない。
+        model.tapPile(0)
+        model.tapPile(1)
+        #expect(model.isDeadEnd)
+        #expect(!model.showsRescuePrompt)
+
+        model.newGame()
+        model.replaceBoardForTesting(Self.deadEndBoardWithIdleMove())
+        #expect(model.showsRescuePrompt)
+    }
+
+    @Test("行き止まりと敗北確定が同時に立っていても、1回で閉じ切れる")
+    func dismissClosesBothKindsAtOnce() {
+        let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
+        model.replaceBoardForTesting(Self.deadEndBoardWithIdleMove())
+        model.applyLostVerdict(true, for: model.board.stateKey)
+        #expect(model.isDeadEnd)
+        #expect(model.isLost)
+
+        // 片方しか閉じないと、😵 が 🤔 に差し替わって告知が居座る。
+        model.dismissRescuePrompt()
+        #expect(!model.showsRescuePrompt)
+    }
+
+    @Test("行き止まりを閉じたあとに敗北確定が立ったら、あらためて告知する")
+    func lostPromptSurvivesDeadEndDismissal() {
+        let model = SolitaireModel(services: makeServices(), seed: fixedSeed)
+        model.replaceBoardForTesting(Self.deadEndBoardWithIdleMove())
+        model.dismissRescuePrompt()
+        #expect(!model.showsRescuePrompt)
+
         model.applyLostVerdict(true, for: model.board.stateKey)
         #expect(model.showsRescuePrompt)
     }
@@ -656,5 +735,20 @@ struct SolitaireJokerAccessibilityTests {
         #expect(deadEndWithJoker.contains("ジョーカーが1枚使えます"))
         #expect(lostWithoutJoker.contains("クリアできません"))
         #expect(lostWithoutJoker.contains("広告"))
+    }
+
+    @Test("行き止まりの読み上げは、残っている入れ替えの存在を否定しない（#491）")
+    func rescueLabelDoesNotDenyIdleMoves() {
+        let deadEnd = SolitaireAccessibility.rescuePromptLabel(isDeadEnd: true, hasJoker: false)
+        // 画面の本文と同じ内容まで読む。見出しだけだと合法手までゼロだと伝わる。
+        #expect(deadEnd.contains("山札をめくるか、盤面が進まない入れ替えしか残っていません"))
+        #expect(!deadEnd.contains("山札をめくるしか手が残っていません"))
+
+        // ステータスバーは見出しと同じ文言のまま（画面表示と食い違わせない）。
+        let status = SolitaireAccessibility.statusLabel(
+            phase: .playing, elapsedSeconds: 10, moveCount: 3, isDeadEnd: true, isLost: false
+        )
+        #expect(status.hasPrefix("進める手がありません"))
+        #expect(deadEnd.hasPrefix("進める手がありません"))
     }
 }
