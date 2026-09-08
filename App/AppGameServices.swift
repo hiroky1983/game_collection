@@ -18,6 +18,7 @@ import GameSolitaire
 import GameChess
 import GameBlocks
 import GameFreeCell
+import GameBlockPuzzle
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -119,6 +120,8 @@ enum AppEnvironment {
     /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
         Game2048Module(),
+        // ブロックならべ（#493）。同じ「盤に置いてスコアを伸ばす」1人用パズルなので 2048 の隣に置く。
+        BlockPuzzleModule(),
         ShogiModule(),
         MahjongModule(),
         // ナンプレは国内の検索需要が最大級のカテゴリなので上位に置く（#355 会長決裁・2026-08-31。

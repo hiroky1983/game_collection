@@ -71,6 +71,8 @@ targets:
       - package: GameKit
         product: GameFreeCell
       - package: GameKit
+        product: GameBlockPuzzle
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

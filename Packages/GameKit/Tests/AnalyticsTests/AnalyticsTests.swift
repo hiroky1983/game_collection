@@ -16,6 +16,7 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
+import GameBlockPuzzle
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -89,7 +90,7 @@ private func makeHubGameIDs() -> Set<String> {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -284,7 +285,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 17, "ハブに並ぶゲームは17本")
+        #expect(hubGameIDs.count == 18, "ハブに並ぶゲームは18本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -647,6 +648,28 @@ struct AllGamesAnalyticsTests {
         #expect(spy.starts == ["freecell", "freecell"])
     }
 
+    @Test("ブロックならべ: 開いた時点で開始・置けなくなって終局（loss）")
+    func blockPuzzle() {
+        let (services, spy) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
+                                     hand: blockPuzzleStuckHand())
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        #expect(model.gameOver)
+        expectOnePair(spy, gameID: "blockpuzzle")
+        #expect(spy.ends.first?.outcome == .loss, "ブロックならべに勝ちは無い")
+    }
+
+    @Test("ブロックならべ: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
+    func blockPuzzleContinueCountsAsNewPlay() {
+        let (services, spy) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
+                                     hand: blockPuzzleStuckHand())
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        model.continueAfterAd()
+        #expect(spy.starts == ["blockpuzzle", "blockpuzzle"])
+        #expect(spy.ends.count == 1, "終局はまだ 1 回（続きの終局はこれから）")
+    }
+
     @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
     func blocks() {
         let (services, spy) = makeServices()
@@ -923,4 +946,18 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             return
         }
     }
+}
+
+/// ブロックならべ（#493）で「あと 1 手で詰む」盤。空きは対角線と (0, 2) だけで、
+/// どれも隣り合っていないので 1×1 しか置けない。(0, 2) に置いても行も列も揃わない。
+private func blockPuzzleStuckBoard() -> [[Int]] {
+    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
+    for i in 0..<10 { board[i][i] = 0 }
+    board[0][2] = 0
+    return board
+}
+
+/// 1×1 と、置き場所の無い 3×3 が 2 つ。
+private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
+    [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
 }

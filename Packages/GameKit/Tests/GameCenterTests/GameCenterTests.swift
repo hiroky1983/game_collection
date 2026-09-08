@@ -16,6 +16,7 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
+import GameBlockPuzzle
 import GameChess
 import GameBlocks
 
@@ -93,7 +94,7 @@ private func makeHubModules() -> [GameModule] {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
     ]
 }
 
@@ -295,6 +296,7 @@ struct GameCenterLeaderboardTests {
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
             ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
             ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
+            ("blockpuzzle", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID
@@ -600,6 +602,42 @@ struct GameCenterPerGameTests {
         #expect(leaderboardID(for: "freecell", in: log) == GameCenterLeaderboard.freeCellTime)
     }
 
+    @Test("ブロックならべ: 詰みでスコアが送られる")
+    func blockPuzzle() {
+        let (log, defaults, name) = makeLog(suite: "blockpuzzle")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = BlockPuzzleModel(services: makeServices(log: log, spy: spy),
+                                     board: blockPuzzleStuckBoard(), hand: blockPuzzleStuckHand(),
+                                     score: 500)
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        #expect(model.gameOver)
+        #expect(spy.scores == [
+            GameCenterScore(leaderboardID: GameCenterLeaderboard.blockPuzzleScore, value: 501),
+        ])
+    }
+
+    /// #406 の考え方の横展開。広告を見た回数で順位が決まる表にしない。
+    @Test("ブロックならべ: コンティニューを使った局は順位表へ送らない")
+    func blockPuzzleAfterContinue() {
+        let (log, defaults, name) = makeLog(suite: "blockpuzzle-continue")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = BlockPuzzleModel(services: makeServices(log: log, spy: spy),
+                                     board: blockPuzzleStuckBoard(), hand: blockPuzzleStuckHand(),
+                                     score: 500)
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        let sentBeforeContinue = spy.scores.count
+        model.continueAfterAd()
+
+        // 復活後に 3×3 を置いて、また詰ませる。
+        #expect(model.place(pieceIndex: 1, row: 2, col: 2))
+        #expect(model.gameOver, "中央を埋め戻すと再び置き場所が無くなる")
+        #expect(spy.scores.count == sentBeforeContinue, "コンティニュー後の決着は送らない")
+    }
+
     @Test("ブラックジャック: 精算後のチップが送られる")
     func blackjack() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
@@ -766,4 +804,18 @@ func playFreeCellSolution(_ model: FreeCellModel, _ solution: [FreeCellMove]) {
             model.tapFoundation(suit)
         }
     }
+}
+
+/// ブロックならべ（#493）で「あと 1 手で詰む」盤。空きは対角線と (0, 2) だけで、
+/// どれも隣り合っていないので 1×1 しか置けない。(0, 2) に置いても行も列も揃わない。
+private func blockPuzzleStuckBoard() -> [[Int]] {
+    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
+    for i in 0..<10 { board[i][i] = 0 }
+    board[0][2] = 0
+    return board
+}
+
+/// 1×1 と、置き場所の無い 3×3 が 2 つ。
+private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
+    [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
 }
