@@ -447,8 +447,11 @@ public struct SolitaireView: View {
         .onTapGesture { model.tapWaste() }
         .highPriorityGesture(dragGesture(source: .waste, metrics: metrics))
         .accessibilityElement(children: .ignore)
+        // 子要素は読み上げないので、重なって見えている札もここで束ねて読む（#498）。
         .accessibilityLabel(SolitaireAccessibility.wasteLabel(
-            card: model.board.waste.last, isSelected: model.selection == .waste))
+            card: model.board.waste.last,
+            isSelected: model.selection == .waste,
+            covered: Array(visible.dropLast())))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.tapWaste() }
     }

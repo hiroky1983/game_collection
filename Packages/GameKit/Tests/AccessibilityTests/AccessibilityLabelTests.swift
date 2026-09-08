@@ -526,6 +526,20 @@ struct SolitaireAccessibilityTests {
                 == "捨て札、スペードのA、選択中")
     }
 
+    @Test("3枚めくりでは、下に重なって見えている札も読む")
+    func wasteWithCoveredCards() {
+        // 画面に出ているのに音声では取れない、という差を作らない（#498）。
+        #expect(SolitaireAccessibility.wasteLabel(
+            card: SolitaireCard(.club, 12),
+            isSelected: false,
+            covered: [SolitaireCard(.heart, 9), SolitaireCard(.heart, 8)]
+        ) == "捨て札、クラブのQ、下にハートの9、ハートの8")
+        // 1枚めくり（重なりなし）の文言は変わらない。
+        #expect(SolitaireAccessibility.wasteLabel(
+            card: SolitaireCard(.club, 12), isSelected: false, covered: []
+        ) == SolitaireAccessibility.wasteLabel(card: SolitaireCard(.club, 12), isSelected: false))
+    }
+
     @Test("ステータスは経過・手数・詰みを 1 行で読む")
     func status() {
         #expect(SolitaireAccessibility.statusLabel(

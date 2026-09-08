@@ -281,11 +281,12 @@ struct SolitaireDraw3SeedTests {
     /// 検証を分けている理由そのものが無くなる。
     @Test("1枚めくりで解ける種にも、3枚めくりでは解けないものがある")
     func singleDrawSeedsAreNotAlwaysSolvableWithThree() {
-        let sample = SolitaireDealer.verifiedSeeds.prefix(60)
-        let unsolvable = sample.filter { seed in
+        // 1 件でも見つかれば主張は立つので、そこで探索を打ち切る（`filter` だと 60 件すべてで
+        // ソルバーを回すことになり、デバッグビルドでは 1 配札あたり 1 秒近くかかる）。
+        let hasUnsolvable = SolitaireDealer.verifiedSeeds.prefix(60).contains { seed in
             !SolitaireSolver.solve(SolitaireDealer.deal(seed: seed, rules: draw3)).isSolvable
         }
-        #expect(!unsolvable.isEmpty,
+        #expect(hasUnsolvable,
                 "1枚めくり用の種 60 個すべてが3枚めくりでも解けてしまった（検証の分離が無意味）")
     }
 
