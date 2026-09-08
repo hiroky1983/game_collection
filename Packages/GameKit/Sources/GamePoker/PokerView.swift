@@ -539,6 +539,11 @@ public struct PokerView: View {
             .background(Capsule().fill(fill))
     }
 
+    /// 復活導線の文言。回数制限を見た目にも出す（#499）。
+    private var reviveButtonTitle: String {
+        "広告を見て\(PokerModel.reviveChips)枚で復活（1セッションに1回）"
+    }
+
     // セッション終了（チップ0）
     private var sessionOverView: some View {
         VStack(spacing: 8) {
@@ -566,7 +571,10 @@ public struct PokerView: View {
             // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
             RecordLabel(model.recordResult)
 
-            if model.sessionWinner == .cpu {
+            // チップ切れ復活（#499）。麻雀のトビ復活（#338）と同じ形
+            // （リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
+            // 使い切ったセッションではボタンごと消す。
+            if model.canReviveAfterBust {
                 Button {
                     // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
                     guard !isRecoveringChips else { return }
@@ -576,8 +584,12 @@ public struct PokerView: View {
                         isRecoveringChips = false
                     }
                 } label: {
-                    Label("広告を見てチップ回復", systemImage: "play.rectangle.fill")
+                    // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由。
+                    // 書かないと2回目を期待して押す人が出る）。数値は `Text` 補間の桁区切りを避けて
+                    // 文字列を先に組む（#484）。
+                    Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
                         .themeBody(16).frame(maxWidth: .infinity)
+                        .minimumScaleFactor(0.8)
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
