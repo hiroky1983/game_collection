@@ -19,6 +19,8 @@ public struct MahjongView: View {
     /// トビ復活（#338）。ポーカー・ブラックジャックの「広告を見てチップ回復」と同じ持ち方。
     @State private var showRewardNotEarned = false
     @State private var isReviving = false
+    /// 役の早見表（#501）。`MahjongModel` には触れないので、開閉しても対局の状態は動かない。
+    @State private var showYakuSheet = false
 
     public init(services: GameServices) {
         self.services = services
@@ -94,9 +96,21 @@ public struct MahjongView: View {
                 Text("麻雀")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+            // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
+            // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
+            // 早見表をここに置く（#501。花札 #495 と同じ置き方）。ツールバーは `Label` を
+            // アイコンだけに畳むので、文字を出すために `Text` を直接渡す。
+            ToolbarItem(placement: .primaryAction) {
+                Button { showYakuSheet = true } label: {
+                    Text("役")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                }
+                .accessibilityLabel("役の早見表")
+            }
         }
         // 役と点数は 3 行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.mahjong) { MahjongRuleSheet() }
+        .sheet(isPresented: $showYakuSheet) { MahjongYakuSheet() }
         .sheet(isPresented: $showStartSheet) {
             MahjongStartSheet {
                 showStartSheet = false
@@ -124,6 +138,15 @@ public struct MahjongView: View {
             if ProcessInfo.processInfo.arguments.contains("-mahjongWinResult") {
                 showStartSheet = false
                 model.simulateWinResultForTesting()
+                return
+            }
+            // 撮影・動作確認用（DEBUG 限定）: 役の早見表（#501）を非対話で開く。
+            // シミュレータはタップを自動化できず、中断データの注入では「シートが開いている」
+            // 状態を作れないため、早見表はこの経路でしか撮れない。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongShowYaku") {
+                showStartSheet = false
+                if model.phase == .idle { model.startGame() }
+                showYakuSheet = true
                 return
             }
             #endif
