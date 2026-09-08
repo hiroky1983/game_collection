@@ -16,6 +16,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
 import GameChess
 import GameBlocks
 
@@ -29,7 +30,7 @@ import GameBlocks
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong", "solitaire",
-    "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration", "blocks",
+    "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration", "blocks",
 ]
 
 @MainActor
@@ -37,7 +38,7 @@ private func makeRegistry() -> GameRegistry {
     GameRegistry([
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
-        DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
+        FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(), BlocksModule(),
     ])
 }
@@ -112,7 +113,8 @@ struct RecommendationTableTests {
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
         ("go",            ["gomoku", "othello", "shogi"]),
-        ("solitaire",     ["mahjong", "concentration", "sudoku"]),
+        ("solitaire",     ["freecell", "mahjong", "concentration"]),
+        ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")

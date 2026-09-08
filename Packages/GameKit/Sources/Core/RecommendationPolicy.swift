@@ -97,7 +97,10 @@ public enum RecommendationPolicy {
         "sudoku":        ["minesweeper", "2048", "mahjong"],
         // ソリティア（クロンダイク・#397）。同じ「1人で盤面を片付ける」麻雀ソリティアが最も近く、
         // 同じトランプを使う神経衰弱、1人でじっくり詰めるナンプレの順で近い。
-        "solitaire":     ["mahjong", "concentration", "sudoku"],
+        "solitaire":     ["freecell", "mahjong", "concentration"],
+        // フリーセル（#492）。同じトランプ1人遊びのソリティアが最も近く、次いで
+        // 「全部見えている情報を読み切る」手触りが同じナンプレ・マインスイーパー。
+        "freecell":      ["solitaire", "sudoku", "minesweeper"],
     ]
 
     /// 現在の提示間隔。無視が続いているほど広がる。

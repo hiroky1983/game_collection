@@ -87,13 +87,15 @@ public enum GameCenterLeaderboard {
     public static let mahjongSolitaireTime    = "asobiba.mahjongsolitaire.time"
     /// ソリティア（クロンダイク・#397）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
     public static let solitaireTime           = "asobiba.solitaire.time"
+    /// フリーセル（#492）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
+    public static let freeCellTime            = "asobiba.freecell.time"
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blackjackChips, blocksScore,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
-        solitaireTime,
+        solitaireTime, freeCellTime,
     ]
 
     /// 決着 1 回を送るリーダーボードと値。対象外なら nil（＝何も送らない）。
@@ -179,6 +181,10 @@ public enum GameCenterLeaderboard {
             // （上の `score(gameID:outcome:score:)` の先頭）で行う。区分で分けると
             // ローカルの自己ベストまで「ジョーカーあり / なし」の 2 行に割れてしまう（#406）。
             return variant == nil ? solitaireTime : nil
+        case "freecell":
+            // 区分を持たないので、区分キーが付いていないときだけ送る（#492）。
+            // フリーセルは救済アイテムを持たないため、ソリティアのような除外の分岐も要らない。
+            return variant == nil ? freeCellTime : nil
         case "sudoku":
             // 区分キーは `SudokuDifficulty` の rawValue。
             switch variant {

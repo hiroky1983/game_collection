@@ -15,6 +15,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
 import GameChess
 import GameBlocks
 
@@ -92,7 +93,7 @@ private func makeHubModules() -> [GameModule] {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
     ]
 }
 
@@ -293,6 +294,7 @@ struct GameCenterLeaderboardTests {
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "hard")),
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
             ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
+            ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID
@@ -580,6 +582,24 @@ struct GameCenterPerGameTests {
         #expect(leaderboardID(for: "mahjong", in: log) == GameCenterLeaderboard.mahjongSolitaireTime)
     }
 
+    @Test("フリーセル: クリアでタイムが送られる")
+    func freeCellWin() {
+        let (log, defaults, name) = makeLog(suite: "freecell")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let seed = FreeCellDealer.verifiedSeeds[0]
+        let model = FreeCellModel(services: makeServices(log: log, spy: spy), seed: seed)
+        guard let solution = FreeCellSolver.solve(FreeCellDealer.deal(seed: seed)).solution else {
+            Issue.record("種 \(seed) の勝ち筋が見つからなかった")
+            return
+        }
+        playFreeCellSolution(model, solution)
+
+        #expect(model.phase == .won)
+        #expect(leaderboardID(for: "freecell", in: log) == GameCenterLeaderboard.freeCellTime)
+    }
+
     @Test("ブラックジャック: 精算後のチップが送られる")
     func blackjack() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
@@ -714,6 +734,36 @@ struct GameCenterEntryPointTests {
             }
             #expect(usages.isEmpty,
                     "\(file.lastPathComponent) が deprecated な GKGameCenterViewController を使っている: \(usages)")
+        }
+    }
+}
+
+/// ソルバーの勝ち筋を、**View と同じタップ操作に翻訳して**指す。
+///
+/// 直接 `FreeCellBoard.apply` を呼ばずタップ経路を通すのは、選択 → 置き先という 2 段の
+/// 操作そのものを 1 局ぶん通しで検証するため（View を組まずに触れるのはここが唯一の面）。
+/// ソリティアの `SolitaireModelTests` と同じ方針。
+@MainActor
+func playFreeCellSolution(_ model: FreeCellModel, _ solution: [FreeCellMove]) {
+    for move in solution {
+        switch move {
+        case .tableauToCell(let from, let cell):
+            model.tapPile(from)
+            model.tapCell(cell)
+        case .tableauToFoundation(let pile):
+            guard let suit = model.board.tableau[pile].last?.suit else { return }
+            model.tapPile(pile)
+            model.tapFoundation(suit)
+        case .tableauToTableau(let from, let cardIndex, let to):
+            model.tapPile(from, cardIndex: cardIndex)
+            model.tapPile(to)
+        case .cellToTableau(let cell, let to):
+            model.tapCell(cell)
+            model.tapPile(to)
+        case .cellToFoundation(let cell):
+            guard let suit = model.board.cells[cell]?.suit else { return }
+            model.tapCell(cell)
+            model.tapFoundation(suit)
         }
     }
 }

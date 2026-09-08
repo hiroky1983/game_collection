@@ -15,6 +15,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
 import GameChess
 import GameBlocks
 
@@ -32,6 +33,7 @@ private let registeredModules: [GameModule] = [
     DaifugoModule(),
     MahjongSolitaireModule(),
     SolitaireModule(),
+    FreeCellModule(),
     MahjongModule(),
     SudokuModule(),
     GoModule(),

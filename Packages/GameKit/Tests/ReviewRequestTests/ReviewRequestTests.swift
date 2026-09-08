@@ -15,6 +15,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
 import GameChess
 import MahjongTiles
 
@@ -444,6 +445,16 @@ struct GameOutcomeRoutingTests {
         let (services, service) = makeServices(suite: "route-solitaire")
         let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
         model.tapStock()
+        model.newGame()
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("フリーセル: 捨てた配札は勝利にならない")
+    func freeCellAbandon() {
+        let (services, service) = makeServices(suite: "route-freecell")
+        let model = FreeCellModel(services: services, seed: FreeCellDealer.verifiedSeeds[0])
+        model.tapPile(0)
+        model.tapCell(0)
         model.newGame()
         #expect(service.log.totalWins == 0)
     }

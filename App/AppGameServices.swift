@@ -17,6 +17,7 @@ import GameGo
 import GameSolitaire
 import GameChess
 import GameBlocks
+import GameFreeCell
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -131,6 +132,8 @@ enum AppEnvironment {
         MahjongSolitaireModule(),
         // ソリティア（クロンダイク・#397）。同じ「1人でトランプを片付ける」麻雀ソリティアの隣に置く。
         SolitaireModule(),
+        // フリーセル（#492）。同じ「1人でトランプを片付ける」ソリティアの隣に置く。
+        FreeCellModule(),
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),

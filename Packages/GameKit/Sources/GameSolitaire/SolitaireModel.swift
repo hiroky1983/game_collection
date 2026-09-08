@@ -14,11 +14,14 @@ public enum SolitairePhase: String, Codable, Sendable, Equatable {
 /// **`SolitaireModel` の外に置く**のは、モデルが `@MainActor` なのに対し読み上げ文
 /// （`SolitaireAccessibility`）が非隔離の純関数だから。中に静的定数として持つと、
 /// 読み上げ側から回数を参照できず文言と実装が二重管理になる。
+///
+/// 値そのものは `Core.RewardedUndoBudget` が持つ（#492 でフリーセルと共有するため Core へ上げた）。
+/// ここは呼び出し側の表記をソリティアの文脈に残すための転送で、**両ゲームの経済は常に一致する**。
 public enum SolitaireUndoBudget {
     /// 1 局につき無料で戻せる回数。配り直し・新規ゲームでここまで戻る。
-    public static let free = 3
+    public static let free = RewardedUndoBudget.free
     /// リワード広告 1 本の視聴完了で補充する回数。
-    public static let refill = 3
+    public static let refill = RewardedUndoBudget.refill
 }
 
 /// いま持ち上げている札。

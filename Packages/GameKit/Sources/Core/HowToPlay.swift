@@ -225,6 +225,18 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.stack.fill"
     )
 
+    static let freecell = HowToPlayGuide(
+        gameID: "freecell",
+        title: "フリーセルの遊び方",
+        lines: [
+            "動かす札をタップして選び、置きたい列か、左上のフリーセル、右上の組札をタップします。",
+            "場札は1つ小さくて色ちがいの札だけ重ねられます（黒の8 の上に 赤の7）。空いた列にはどの札でも置けます。",
+            "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。52枚すべて最初から見えています。",
+        ],
+        hint: "札をタップ → 置き先をタップ",
+        hintIcon: "rectangle.grid.1x2.fill"
+    )
+
     static let blocks = HowToPlayGuide(
         gameID: "blocks",
         title: "ブロック崩しの遊び方",
@@ -241,7 +253,7 @@ public extension HowToPlayGuide {
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go, .solitaire, .chess, .blocks,
+        .sudoku, .go, .solitaire, .chess, .blocks, .freecell,
     ]
 }
 

@@ -15,6 +15,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
 import GameChess
 import MahjongTiles
 
@@ -875,6 +876,29 @@ struct GameRecordingTests {
         // 1 手も指していない配札の捨て直しは記録しない（確認ダイアログを出す境目と同じ）。
         model.newGame()
         #expect(log.record(gameID: "solitaire")?.plays == 1)
+    }
+
+    /// クリアまで指し切る経路はソルバーが要るので `GameFreeCellTests` で検証している。
+    /// ここでは**見出しの指標**と、クリア率を成立させるための「捨てた配札 = 敗北」を確かめる。
+    @Test("フリーセル: 最短タイムを見出しにし、捨てた配札は敗北として残る")
+    func freeCellRecordsTime() {
+        let (log, defaults, name) = makeLog(suite: "freecell")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = FreeCellModel(services: makeServices(log: log),
+                                  seed: FreeCellDealer.verifiedSeeds[0])
+        model.tapPile(0)
+        model.tapCell(0)
+        model.newGame()
+        #expect(model.recordResult == nil, "配り直した直後のリザルトは持ち越さない")
+        let record = log.record(gameID: "freecell")
+        #expect(record?.metric == .shortestTime)
+        #expect(record?.losses == 1)
+        #expect(record?.bestSeconds == nil, "クリアしていない局のタイムは自己ベストに入れない")
+
+        // 1 手も指していない配札の捨て直しは記録しない（確認ダイアログを出す境目と同じ）。
+        model.newGame()
+        #expect(log.record(gameID: "freecell")?.plays == 1)
     }
 
     @Test("囲碁: 対 CPU 戦なので勝敗を記録する")

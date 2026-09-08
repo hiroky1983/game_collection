@@ -16,6 +16,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -165,6 +166,17 @@ private func playGo(_ services: GameServices) async {
     model.tap(row: 4, col: 4)           // 拒否（すでに石がある）
     model.tap(row: -1, col: 4)          // 拒否（盤外）
     model.resign()                      // 決着
+}
+
+/// フリーセル（#492）。決着まで指し切るにはソルバーが要る（`GameFreeCellTests` で通しを検証済み）ため、
+/// ここでは**捨てた配札が敗北として決着する**経路を使う。操作・拒否・決着がこれで一通り出る。
+@MainActor
+private func playFreeCell(_ services: GameServices) {
+    let model = FreeCellModel(services: services, seed: FreeCellDealer.verifiedSeeds[0])
+    model.tapCell(0)   // 拒否（空のセルを何も持たずに触った）
+    model.tapPile(0)   // 持ち上げ
+    model.tapCell(0)   // 成立（セルへ退避）
+    model.newGame()    // 決着（指した配札を捨てた = 敗北）
 }
 
 /// ソリティア（#397）。決着まで指し切るにはソルバーが要る（`GameSolitaireTests` で通しを検証済み）ため、
@@ -467,6 +479,7 @@ struct FeedbackEnabledTests {
     func solitaire() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playSolitaire(services)
+        playFreeCell(services)
         #expect(spy.impacts.contains(.light), "山めくりで発火する")
         #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
         #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
@@ -732,6 +745,7 @@ struct SoundFeedbackTests {
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
         await check("ソリティア") { playSolitaire($0) }
+        await check("フリーセル") { playFreeCell($0) }
         await check("ブロック崩し") { playBlocks($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
