@@ -17,6 +17,7 @@ import GameSudoku
 import GameGo
 import GameSolitaire
 import GameFreeCell
+import GameBlockPuzzle
 import GameChess
 import GameBlocks
 
@@ -29,14 +30,15 @@ import GameBlocks
 /// （#397 の CodeRabbit 指摘。以前は #262 以前の古い並びのまま放置されていた）。
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 private let hubOrder = [
-    "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong", "solitaire",
-    "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration", "blocks",
+    "2048", "blockpuzzle", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
+    "solitaire", "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
+    "concentration", "blocks",
 ]
 
 @MainActor
 private func makeRegistry() -> GameRegistry {
     GameRegistry([
-        Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
+        Game2048Module(), BlockPuzzleModule(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(), BlocksModule(),
@@ -102,7 +104,7 @@ struct RecommendationTableTests {
         ("chess",         ["shogi", "othello", "go"]),
         ("gomoku",        ["go", "othello", "shogi"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
-        ("2048",          ["minesweeper", "mahjong", "blocks"]),
+        ("2048",          ["blockpuzzle", "minesweeper", "blocks"]),
         ("blocks",        ["2048", "minesweeper", "concentration"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
         ("concentration", ["solitaire", "daifugo", "blackjack"]),
@@ -115,6 +117,7 @@ struct RecommendationTableTests {
         ("go",            ["gomoku", "othello", "shogi"]),
         ("solitaire",     ["freecell", "mahjong", "concentration"]),
         ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
+        ("blockpuzzle",   ["2048", "sudoku", "minesweeper"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
@@ -241,7 +244,8 @@ struct RecommendationTableTests {
                 lastPlayedAt: lastPlayedAt,
                 now: now
             )
-            let expected = finished == "2048" ? "shogi" : "2048"
+            // ハブ順の先頭が最も古い。その先頭を遊び終えた直後だけ 2 番目が出る。
+            let expected = finished == hubOrder[0] ? hubOrder[1] : hubOrder[0]
             #expect(got?.gameID == expected, "\(finished): 最終プレイが最も古いゲーム")
             #expect(got?.gameID != finished, "たった今遊び終えたゲームは勧めない")
             if case .revisit = got?.reason {} else { Issue.record("\(finished): 久しぶり枠のはず") }
