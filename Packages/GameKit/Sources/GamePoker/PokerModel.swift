@@ -220,6 +220,10 @@ struct PokerSnapshot: Codable {
     /// （非 optional にすると旧データのデコードが丸ごと失敗し、中断が黙って消える）。
     /// 復元時に nil ならスタンダードとして扱う。既定値があるので既存の呼び出しは変わらない。
     var rules: PokerRuleSet? = nil
+    /// チップ切れ復活（#499）をこのセッションで使い切ったか。中断を挟んでも
+    /// 「1 セッション 1 回まで」を守るために持ち回る（麻雀のトビ復活 #338 と同じ方式）。
+    /// `rules` と同じく**旧データには鍵が無い**ので optional のまま置き、nil は「まだ使っていない」に倒す。
+    var hasRevivedThisSession: Bool? = nil
 }
 
 // MARK: - Model
@@ -274,6 +278,24 @@ public final class PokerModel {
 
     public var canStartRound: Bool { !sessionOver && playerChips >= anteAmount && cpuChips >= anteAmount }
 
+    // MARK: チップ切れ復活（#499）
+
+    /// 復活で戻るプレイヤーのチップ。初期チップの**半分**。導線の文言もこの値から作る
+    /// （数え違いを1か所に閉じる）。
+    public static let reviveChips = PokerModel.initialChips / 2
+
+    /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
+    private var hasRevivedThisSession = false
+
+    /// チップ切れをリワード広告で 1 回だけ取り消せる状態か（#499）。
+    ///
+    /// **自分のチップが尽きて終わった**ときにだけ立てる。CPU が尽きた（＝こちらの勝ち）・
+    /// 相打ちの回に出しても続ける動機が無く、麻雀のトビ復活（#338）が「自分がトビたときだけ」に
+    /// 絞っているのと同じ判断。1 セッション 1 回まで。
+    public var canReviveAfterBust: Bool {
+        sessionOver && sessionWinner == .cpu && !hasRevivedThisSession
+    }
+
     /// ラウンドの決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     public var reviewOutcome: GameOutcome {
         switch winner {
@@ -284,7 +306,8 @@ public final class PokerModel {
     }
 
     private var deck: [PokerCard] = []
-    private let initialChips = 100
+    /// セッション開始時の持ちチップ（プレイヤー・CPU 共通）。
+    static let initialChips = 100
     private let anteAmount = 10
     private let betAmount = 20
     private let services: GameServices?
@@ -308,9 +331,11 @@ public final class PokerModel {
             self.cpuAction       = snap.cpuAction
             // 旧データには鍵が無い。中断前の局はスタンダードしか存在しなかったのでそれに倒す。
             self.rules           = snap.rules ?? .standard
+            // 同じく旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
+            self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
         } else {
-            self.playerChips = 100
-            self.cpuChips    = 100
+            self.playerChips = PokerModel.initialChips
+            self.cpuChips    = PokerModel.initialChips
         }
     }
 
@@ -325,7 +350,8 @@ public final class PokerModel {
             playerChips: playerChips, cpuChips: cpuChips, pot: pot,
             phase: phase, currentBet: currentBet,
             playerBetInRound: playerBetInRound, cpuBetInRound: cpuBetInRound,
-            cpuFolded: cpuFolded, cpuAction: cpuAction, rules: rules
+            cpuFolded: cpuFolded, cpuAction: cpuAction, rules: rules,
+            hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -409,7 +435,9 @@ public final class PokerModel {
                 points: playerChips,
                 variant: rules.recordVariant,
                 variantLabel: rules.recordVariantLabel,
-                isLeaderboardEligible: rules.isLeaderboardEligible
+                // 復活（#499）を使ったセッションは順位表へ送らない（ソリティアのジョーカー #406 と
+                // 同じ思想。送ると「広告を何回見たか」の表になる）。ローカルの自己ベストには残す。
+                isLeaderboardEligible: rules.isLeaderboardEligible && !hasRevivedThisSession
             )
         )
         checkSessionOver()
@@ -797,14 +825,25 @@ public final class PokerModel {
 
     // MARK: - Reward Ad / Session Reset
 
-    /// リワード広告を表示し、**視聴完了したときだけ**チップを回復する。
-    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
-    /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
+    /// リワード広告を表示し、**視聴完了したときだけ**チップ切れから復活する（#499）。
+    ///
+    /// - **自分のチップが尽きて終わったときだけ**効く（`canReviveAfterBust`）。
+    ///   まだ遊べる残高で呼んでも広告は出さない（プレイヤーが明示的に選んだ救済であって、
+    ///   いつでも押せる増量ボタンではない）。
+    /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
+    ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
+    /// - 戻すのは**プレイヤーだけ初期チップの半分**で、CPU は初期チップに戻す。
+    ///   CPU の持ち点は勝ち取った資産ではなく卓の設定値なので、そのまま（勝ち越したぶん）残すと
+    ///   50 対 250 の卓になって復活の意味が消える。半分の手持ちで対等な卓に戻る、が復活の価値。
+    /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
+        guard canReviveAfterBust else { return false }
         guard await services?.ads.showRewardedAd() ?? true else { return false }
-        playerChips = initialChips
-        cpuChips    = initialChips
+        hasRevivedThisSession = true
+        playerChips = PokerModel.reviveChips
+        cpuChips    = PokerModel.initialChips
         sessionOver = false
         sessionWinner = nil
         return true
@@ -812,8 +851,10 @@ public final class PokerModel {
 
     public func restartSession() {
         recordResult  = nil
-        playerChips   = initialChips
-        cpuChips      = initialChips
+        playerChips   = PokerModel.initialChips
+        cpuChips      = PokerModel.initialChips
+        // 新しいセッションなので復活の回数も戻る（#499）。
+        hasRevivedThisSession = false
         sessionOver   = false
         sessionWinner = nil
         phase         = .idle

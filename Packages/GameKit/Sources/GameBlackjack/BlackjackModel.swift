@@ -141,6 +141,11 @@ struct BlackjackSnapshot: Codable {
     /// （更新前に中断した1局が、復帰時に黙って消えないようにする）。
     let hands: [BlackjackHand]?
     let activeHandIndex: Int?
+    /// チップ切れ復活（#499）をこのセッションで使い切ったか。中断を挟んでも
+    /// 「1 セッション 1 回まで」を守るために持ち回る（麻雀のトビ復活 #338 と同じ方式）。
+    /// **旧データには鍵が無い**ので optional にする（非 optional にすると旧データの
+    /// デコードが丸ごと失敗し、中断が黙って消える）。nil は「まだ使っていない」に倒す。
+    var hasRevivedThisSession: Bool? = nil
 }
 
 // MARK: - Model
@@ -158,7 +163,7 @@ public final class BlackjackModel {
         hands.indices.contains(activeHandIndex) ? hands[activeHandIndex].cards : []
     }
     public private(set) var dealerHand: [BlackjackCard] = []
-    public private(set) var chips: Int = 1000
+    public private(set) var chips: Int = BlackjackModel.initialChips
     /// いま場に出ている総ベット額（スプリット・ダブルダウンで増える）。決着すると 0 に戻る。
     public private(set) var bet: Int = 0
     public private(set) var phase: BlackjackPhase = .betting
@@ -166,6 +171,20 @@ public final class BlackjackModel {
     public private(set) var sessionOver: Bool = false
     /// 直近のラウンドで確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+
+    // MARK: チップ切れ復活（#499）
+
+    /// セッション開始時の持ちチップ。復活はこの**半分**から再開する。
+    static let initialChips = 1000
+    /// 復活で戻るチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
+    public static let reviveChips = initialChips / 2
+
+    /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
+    private var hasRevivedThisSession = false
+
+    /// チップ切れをリワード広告で 1 回だけ取り消せる状態か（#499）。
+    /// 麻雀のトビ復活（#338）と同じで、1 セッション 1 回まで。
+    public var canReviveAfterBust: Bool { sessionOver && !hasRevivedThisSession }
 
     /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     /// プッシュは引き分け、バストは敗北として扱う。
@@ -178,8 +197,12 @@ public final class BlackjackModel {
     }
 
     /// 今のラウンドの成績。チップは精算後の残高で、これが「最高チップ数」の自己ベストになる。
+    ///
+    /// 復活（#499）を使ったセッションは順位表へ送らない（ソリティアのジョーカー #406 と同じ思想。
+    /// 送ると「広告を何回見たか」の表になる）。**ローカルの自己ベストには残す**ので、
+    /// 分けるのは `variant` ではなく `isLeaderboardEligible` のほう。
     private var currentScore: GameScore {
-        GameScore(metric: .points, points: chips)
+        GameScore(metric: .points, points: chips, isLeaderboardEligible: !hasRevivedThisSession)
     }
 
     public var playerValue: Int { handValue(playerHand) }
@@ -212,6 +235,8 @@ public final class BlackjackModel {
                 self.hands = [BlackjackHand(id: 0, cards: snap.playerHand, bet: snap.bet)]
                 self.activeHandIndex = 0
             }
+            // 旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
+            self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
             // 手を復元できなければ操作のしようがないので、賭ける前に戻す。
             if self.hands.isEmpty {
                 self.phase = .betting
@@ -233,7 +258,8 @@ public final class BlackjackModel {
             bet: bet,
             phase: phase,
             hands: hands,
-            activeHandIndex: activeHandIndex
+            activeHandIndex: activeHandIndex,
+            hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -467,13 +493,20 @@ public final class BlackjackModel {
 
     // MARK: - Reward Ad Recovery
 
-    /// リワード広告を表示し、**視聴完了したときだけ**チップを回復する。
-    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
-    /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
+    /// リワード広告を表示し、**視聴完了したときだけ**チップ切れから復活する（#499）。
+    ///
+    /// - **チップが尽きたときだけ**効く。まだ遊べる残高で呼んでも広告は出さない
+    ///   （プレイヤーが明示的に選んだ救済であって、いつでも押せる増量ボタンではない）。
+    /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
+    ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
+    /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
+        guard canReviveAfterBust else { return false }
         guard await services?.ads.showRewardedAd() ?? true else { return false }
-        chips = 500
+        hasRevivedThisSession = true
+        chips = BlackjackModel.reviveChips
         sessionOver = false
         outcome = nil
         clearHands()
@@ -486,7 +519,9 @@ public final class BlackjackModel {
 
     public func restartSession() {
         recordResult = nil
-        chips = 1000
+        chips = BlackjackModel.initialChips
+        // 新しいセッションなので復活の回数も戻る（#499）。
+        hasRevivedThisSession = false
         sessionOver = false
         outcome = nil
         clearHands()
