@@ -17,6 +17,7 @@ import GameGo
 import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
+import GameRunner
 import GameChess
 import MahjongTiles
 
@@ -924,6 +925,21 @@ struct GameRecordingTests {
         #expect(record?.losses == 1, "ハイスコア型なので決着は必ず敗北として数える")
     }
 
+    @Test("チャリンコおじさん: 到達ステージ数を見出しにし、クリアは勝利として残る")
+    func runnerRecordsReachedStage() {
+        let (log, defaults, name) = makeLog(suite: "runner")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = RunnerModel(services: makeServices(log: log), startingAt: 4)
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+
+        let record = log.record(gameID: "runner")
+        #expect(record?.metric == .points)
+        #expect(record?.bestPoints == 4, "クリアしたステージ番号が到達点")
+        #expect(record?.wins == 1, "ステージクリアは勝ち")
+    }
+
     @Test("囲碁: 対 CPU 戦なので勝敗を記録する")
     func goRecordsWinLoss() {
         let (log, defaults, name) = makeLog(suite: "go")
@@ -1183,5 +1199,18 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
         case .idle, .gameResult:
             return
         }
+    }
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
     }
 }

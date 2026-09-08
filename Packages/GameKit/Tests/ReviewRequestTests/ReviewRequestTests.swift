@@ -17,6 +17,7 @@ import GameGo
 import GameSolitaire
 import GameFreeCell
 import GameBlockPuzzle
+import GameRunner
 import GameChess
 import MahjongTiles
 
@@ -475,6 +476,20 @@ struct GameOutcomeRoutingTests {
         #expect(service.log.totalWins == 0)
     }
 
+    @Test("チャリンコおじさん: ステージクリアは勝利になり、ミスはならない")
+    func runnerStageClear() {
+        let (services, service) = makeServices(suite: "route-runner")
+        let model = RunnerModel(services: services, startingAt: 1)
+        failRunnerStage(model)
+        #expect(model.phase == .failed)
+        #expect(service.log.totalWins == 0, "ミスは決着ではない")
+
+        model.retryStage()
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        #expect(service.log.totalWins == 1)
+    }
+
     @Test("囲碁: 投了は勝利にならない")
     func goResign() {
         let (services, service) = makeServices(suite: "route-go")
@@ -790,5 +805,29 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
         case .idle, .gameResult:
             return
         }
+    }
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 一度も跳ばずに走らせてミスさせる。
+@MainActor
+private func failRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    while model.phase.isRunning, frames < 60 * 300 {
+        frames += 1
+        model.tick(dt: 1.0 / 60)
     }
 }

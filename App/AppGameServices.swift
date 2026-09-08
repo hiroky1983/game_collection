@@ -19,6 +19,7 @@ import GameChess
 import GameBlocks
 import GameFreeCell
 import GameBlockPuzzle
+import GameRunner
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -146,6 +147,8 @@ enum AppEnvironment {
         // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
         // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
         BlocksModule(),
+        // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
+        RunnerModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

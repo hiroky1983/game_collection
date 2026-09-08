@@ -262,10 +262,22 @@ public extension HowToPlayGuide {
     )
 
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
+    static let runner = HowToPlayGuide(
+        gameID: "runner",
+        title: "チャリンコおじさんの遊び方",
+        lines: [
+            "画面をタップするとおじさんが走り出します。あとは自動で右へ進みます。",
+            "タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。",
+            "ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。",
+        ],
+        hint: "タップでジャンプ",
+        hintIcon: "hand.tap.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle,
+        .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
     ]
 }
 

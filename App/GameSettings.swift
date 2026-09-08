@@ -20,14 +20,15 @@ final class GameSettings {
     var hintsEnabled: Bool {
         didSet { Self.hints.isEnabled = hintsEnabled }
     }
-    /// ブロック崩しの「ゆっくりモード」（#463）。**既定はオフ**。
+    /// アクション枠の「ゆっくりモード」（#463・#494）。**既定はオフ**。
     ///
-    /// 反射神経を使うアクション枠は VoiceOver で代替できないため、球の速さを落とす手段を
+    /// 反射神経を使うアクション枠は VoiceOver で代替できないため、進みを遅くする手段を
     /// アクセシビリティの代替として置いている（アクション枠の基盤規約）。
+    /// ブロック崩しと横スクロールランナーで**1 つの設定を共有する**。
     /// **ゲーム内のポーズ画面からも切り替えられる**ので、設定画面を開くたびに
     /// `refreshFromDefaults()` で保存値を読み直す（片方だけ古い表示にしない）。
-    var blocksSlowModeEnabled: Bool {
-        didSet { Self.blocksSlowMode.isEnabled = blocksSlowModeEnabled }
+    var slowModeEnabled: Bool {
+        didSet { Self.slowMode.isEnabled = slowModeEnabled }
     }
     /// 解析送信のオン / オフ（#158）。既定はオン。
     /// オフのあいだ `logEvent` は呼ばれず、Firebase の自動収集イベントも止まる。
@@ -50,8 +51,8 @@ final class GameSettings {
     private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
     // ヒント表示はゲーム側（GameKit）も同じキーを読むため、定義は Core に置いたものを共有する。
     private static var hints: FeedbackPreference { .hints }
-    // ゆっくりモード（#463）も同じ理由で Core 側の定義を共有する。既定値だけがオフ。
-    private static var blocksSlowMode: FeedbackPreference { .blocksSlowMode }
+    // ゆっくりモード（#463・#494）も同じ理由で Core 側の定義を共有する。既定値だけがオフ。
+    private static var slowMode: FeedbackPreference { .actionSlowMode }
 
     init(registeredIDs: [String]) {
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
@@ -67,7 +68,7 @@ final class GameSettings {
         self.soundEnabled = Self.sound.isEnabled
         self.analyticsEnabled = Self.analytics.isEnabled
         self.hintsEnabled = Self.hints.isEnabled
-        self.blocksSlowModeEnabled = Self.blocksSlowMode.isEnabled
+        self.slowModeEnabled = Self.slowMode.isEnabled
     }
 
     /// 保存されている設定を読み直す。
@@ -76,7 +77,7 @@ final class GameSettings {
     /// 開くたびに呼ぶ。これを飛ばすと、ゲーム内で切り替えた値がアプリを再起動するまで
     /// 設定画面に反映されない。
     func refreshFromDefaults() {
-        blocksSlowModeEnabled = Self.blocksSlowMode.isEnabled
+        slowModeEnabled = Self.slowMode.isEnabled
     }
 
     func visibleModules(from registry: GameRegistry) -> [GameModule] {
