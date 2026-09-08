@@ -15,6 +15,7 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -88,7 +89,7 @@ private func makeHubGameIDs() -> Set<String> {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -283,7 +284,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 16, "ハブに並ぶゲームは16本")
+        #expect(hubGameIDs.count == 17, "ハブに並ぶゲームは17本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -631,6 +632,19 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.first?.outcome == .loss)
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
         #expect(spy.starts == ["solitaire", "solitaire"])
+    }
+
+    @Test("フリーセル: 開いた時点で開始・配り直しで終局（loss）")
+    func freecell() {
+        let (services, spy) = makeServices()
+        let model = FreeCellModel(services: services, seed: FreeCellDealer.verifiedSeeds[0])
+        model.tapPile(0)
+        model.tapCell(0)
+        model.newGame()
+        #expect(spy.ends.map(\.gameID) == ["freecell"])
+        #expect(spy.ends.first?.outcome == .loss)
+        // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
+        #expect(spy.starts == ["freecell", "freecell"])
     }
 
     @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
