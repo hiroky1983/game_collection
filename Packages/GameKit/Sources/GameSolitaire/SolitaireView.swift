@@ -745,10 +745,12 @@ public struct SolitaireView: View {
 
     /// 2 種類の「もう届かない」を1つの面で受ける（#406 の決裁）。
     ///
-    /// - **有効手ゼロ**（`isDeadEnd`）: 山札をめくる以外に何もできない。閉じても盤にできることが
-    ///   無いので「このまま続ける」は出さない。
+    /// - **有効手ゼロ**（`isDeadEnd`）: 盤面が進む手が無い。ただし K → 空列の入れ替えは残るので、
+    ///   「何もできない」わけではない（#475 の実測）。
     /// - **敗北確定**（`isLost`）: 指せる手は残っているがソルバーが勝ち筋の不在を確定させた。
-    ///   まだ触れる盤を取り上げないよう**閉じられる**ようにする（閉じたら配り直すまで出さない）。
+    ///
+    /// **どちらも閉じられる**（#491 の決裁 C）。まだ触れる盤を告知で取り上げない。
+    /// 閉じたら配り直すまで出さない。
     ///
     /// ジョーカーは**持っていれば広告なしで使える**（決裁1）。持っていないときだけ広告で補充する
     /// （決裁2）。ここで二重に対価を取らないよう、文言もボタンも所持で切り替える。
@@ -795,16 +797,14 @@ public struct SolitaireView: View {
                 .buttonStyle(.plain)
                 .disabled(isWatchingJokerAd || isWatchingUndoAd)
 
-                // 敗北確定はまだ指せる手が残っている。宣告で操作を奪わない。
-                if !model.isDeadEnd {
-                    Button { model.dismissLostPrompt() } label: {
-                        Text("このまま続ける")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isWatchingJokerAd || isWatchingUndoAd)
+                // どちらの告知でも盤には触れる手が残っている。宣告で操作を奪わない（#491）。
+                Button { model.dismissRescuePrompt() } label: {
+                    Text("このまま続ける")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
                 }
+                .buttonStyle(.plain)
+                .disabled(isWatchingJokerAd || isWatchingUndoAd)
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
@@ -819,8 +819,10 @@ public struct SolitaireView: View {
     }
 
     private var rescueMessage: String {
+        // 行き止まりでも K → 空列の入れ替えは残る。「めくるしかない」と書くと、
+        // 盤に手が見えている人には事実に反して見える（#475 の会長QA → #491）。
         let head = model.isDeadEnd
-            ? "山札をめくるしか手が残っていません。"
+            ? "山札をめくるか、盤面が進まない入れ替えしか残っていません。"
             : "指せる手はありますが、ここからは組札を揃えきれません。"
         let tail = model.hasJoker
             ? "ジョーカーを場札に置くと、その上へどんな札でも1枚だけ重ねられます。"

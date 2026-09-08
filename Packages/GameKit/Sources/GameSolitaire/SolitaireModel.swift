@@ -93,6 +93,15 @@ public final class SolitaireModel {
     /// 「アプリに負けを宣告されて操作を奪われる」体験になる（#406 の判断材料の UX 副作用）。
     public private(set) var didDismissLostPrompt: Bool = false
 
+    /// 行き止まりの告知を「このまま続ける」で閉じたか。配り直すまで残る（#491）。
+    ///
+    /// `isDeadEnd` は「**盤面が進む**手がゼロ」であって「合法手がゼロ」ではない。
+    /// K（伏せ札なしの先頭連なり）→ 空列の入れ替えは残るので、閉じられないままだと
+    /// 「指せる手が見えているのに告知に阻まれて触れない」体験になる（#475 の会長QA → #491 の決裁 C）。
+    /// (b) と別に持つのは、片方を閉じたあとにもう片方が立ったときは**新しい情報**として
+    /// 告知したいため（既存テスト `deadEndPromptSurvivesDismissal` が固定している挙動）。
+    public private(set) var didDismissDeadEndPrompt: Bool = false
+
     /// ジョーカーを置く列を選んでいる最中か（#406）。この間は救済の告知を引っ込めて盤を触らせる。
     public private(set) var isPlacingJoker: Bool = false
 
@@ -152,7 +161,7 @@ public final class SolitaireModel {
     /// ジョーカーの置き先を選んでいる間は引っ込める。告知が盤に被ったままだと列をタップできない。
     public var showsRescuePrompt: Bool {
         guard phase == .playing, !isPlacingJoker else { return false }
-        return isDeadEnd || (isLost && !didDismissLostPrompt)
+        return (isDeadEnd && !didDismissDeadEndPrompt) || (isLost && !didDismissLostPrompt)
     }
 
     /// この局で置いたジョーカーの枚数。
@@ -381,12 +390,15 @@ public final class SolitaireModel {
         return true
     }
 
-    /// 敗北確定の告知を閉じる（「このまま続ける」）。配り直すまで再表示しない。
+    /// 救済の告知を閉じる（「このまま続ける」）。配り直すまで再表示しない。
     ///
-    /// **有効手ゼロ（`isDeadEnd`）の告知は閉じられない**。あちらは山札をめくる以外に
-    /// 何もできない状態で、閉じても盤に対してできることが無いため。
-    public func dismissLostPrompt() {
-        didDismissLostPrompt = true
+    /// **いま出ている種類だけを閉じる**（#491）。両方立っていれば両方閉じないと、
+    /// 押した瞬間に 😵 が 🤔 に差し替わって告知が居座り、「閉じられない」体験が残る。
+    /// 逆に片方しか立っていないときにもう片方まで伏せると、あとから別の状態になったことを
+    /// 伝えられなくなる（`deadEndPromptSurvivesDismissal`）。
+    public func dismissRescuePrompt() {
+        if isDeadEnd { didDismissDeadEndPrompt = true }
+        if isLost { didDismissLostPrompt = true }
     }
 
     public func deselect() {
@@ -482,6 +494,7 @@ public final class SolitaireModel {
         selection = nil
         isPlacingJoker = false
         didDismissLostPrompt = false
+        didDismissDeadEndPrompt = false
         hopelessKeys = []
         checkedKeys = []
         elapsedSeconds = 0

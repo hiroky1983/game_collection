@@ -115,8 +115,15 @@ public enum SolitaireAccessibility {
     }
 
     /// 救済の告知（#406）。行き止まりと敗北確定を読み分ける。
+    ///
+    /// - Note: 行き止まりは**画面の本文と同じ内容まで読む**（#491）。画面には
+    ///   「山札をめくるか、盤面が進まない入れ替えしか残っていません」と出ており、
+    ///   見出しの「進める手がありません」だけを読むと**合法手までゼロ**と伝わってしまう。
+    ///   実際には K → 空列の入れ替えが残っており、告知は閉じて盤に触れる。
     public static func rescuePromptLabel(isDeadEnd: Bool, hasJoker: Bool) -> String {
-        let head = isDeadEnd ? "進める手がありません" : "このままではクリアできません"
+        let head = isDeadEnd
+            ? "進める手がありません。山札をめくるか、盤面が進まない入れ替えしか残っていません"
+            : "このままではクリアできません"
         let action = hasJoker ? "ジョーカーが1枚使えます" : "広告を見るとジョーカーを1枚受け取れます"
         return "\(head)。\(action)"
     }
