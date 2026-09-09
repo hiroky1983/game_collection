@@ -69,7 +69,8 @@ public final class MahjongSolitaireModel {
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
     private var seed: UInt64?
-    private let gameID = "mahjong"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "mahjong"
     /// アンドゥで戻せる 1 手。**深さは常に 1 手ぶん**で、戻したら空になる（連続で巻き戻せない）。
     /// 並べ替え・新規ゲーム・クリアでは位置と絵柄の対応が変わる（または局が終わる）ので破棄する。
     /// 中断スナップショットには積まない = 再開直後は戻せない（オセロ・五目並べの「待った」と同じ扱い）。
@@ -155,6 +156,9 @@ public final class MahjongSolitaireModel {
             services?.feedback.impact(.rigid)
             return
         }
+
+        // 2 枚が揃って取れた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         lastTake = MahjongSolitaireTake(
             firstIndex: first, firstFace: firstFace,

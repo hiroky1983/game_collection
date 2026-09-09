@@ -128,7 +128,8 @@ public final class MinesweeperModel {
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
-    private let gameID = "minesweeper"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "minesweeper"
 
     public var remainingMines: Int { totalMines - flagCount }
     public var safeCellCount: Int  { rows * cols - totalMines }
@@ -318,7 +319,9 @@ public final class MinesweeperModel {
             startTimer()
             // 地雷を置いて計時が始まるここが 1 プレイの開始（#158）。
             // 盤を用意しただけの `.idle` や、中断からの復元（`.playing` で始まる）では数えない。
-            services?.gameDidRestart(gameID: gameID)
+            services?.gameDidRestart(gameID: gameID, level: analyticsLevel)
+            // 開始のきっかけがプレイヤーの1手なので、この時点で既に「指した盤面」になる（#500）。
+            services?.gameDidProgress(gameID: gameID)
         }
 
         if cells[row][col].isMine {
@@ -408,7 +411,9 @@ public final class MinesweeperModel {
         gameState = .playing
         startTimer()
         // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: analyticsLevel)
+        // 続きの盤面は既に開けたマスが残っているので、最初から「指した盤面」（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         // すでに全安全マスを開けていた場合（まずないが念のため）
         if revealedCount == safeCellCount {
@@ -610,5 +615,30 @@ public final class MinesweeperModel {
 
     private static func emptyBoard(rows: Int, cols: Int) -> [[MinesweeperCell]] {
         Array(repeating: Array(repeating: MinesweeperCell(), count: cols), count: rows)
+    }
+}
+
+// MARK: - 解析
+
+extension MinesweeperDifficulty {
+    /// `game_start` の `level` に載せる段階（#500）。
+    var analyticsLevel: AnalyticsLevel {
+        switch self {
+        case .beginner:     return .beginner
+        case .intermediate: return .normal
+        case .advanced:     return .hard
+        }
+    }
+}
+
+extension MinesweeperModel {
+    /// 今の盤の段階（#500）。プリセットに一致する盤だけ段階が決まる。
+    ///
+    /// 旧プリセット由来の中断データ（12×12/25 など）は現在のどの段階とも別物なので `nil` にして
+    /// `level` の鍵ごと送らない。`recordVariantLabel` が同じ理由で盤サイズ表示に落とすのと揃えてある。
+    var analyticsLevel: AnalyticsLevel? {
+        MinesweeperDifficulty.allCases.first {
+            $0.rows == rows && $0.cols == cols && $0.mines == totalMines
+        }?.analyticsLevel
     }
 }

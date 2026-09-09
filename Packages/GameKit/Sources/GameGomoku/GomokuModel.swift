@@ -68,7 +68,8 @@ public final class GomokuModel {
     private var resigned: Bool
 
     private let services: GameServices?
-    private let gameID = "gomoku"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "gomoku"
     private var startedAt: Date
     private var moves: [(row: Int, col: Int, stone: GomokuStone)]
 
@@ -161,6 +162,11 @@ public final class GomokuModel {
         self.undoUsed     = undoUsed
         self.resigned     = resigned
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
+        // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
+        // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。
+        // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
+        // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
+        // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
         if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
@@ -202,6 +208,8 @@ public final class GomokuModel {
         moves.append((row, col, currentStone))
         lastMove = (row, col)
         moveCount += 1
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         if board.checkWin(row: row, col: col) {
             winner = currentStone
             services?.feedback.notify(mover == humanSide ? .success : .error)
@@ -298,7 +306,7 @@ public final class GomokuModel {
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
         persist()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
     }
 
     // MARK: - 投了

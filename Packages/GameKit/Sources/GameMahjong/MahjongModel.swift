@@ -720,6 +720,8 @@ public final class MahjongModel {
             }
         }
         isRinshanDraw = false
+        // 牌が切られた = 捨てたら途中離脱として数える局面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         discards[player].append(tile)
         discardedKinds[player].insert(MahjongTileOrder.index(of: tile))
 
@@ -1192,7 +1194,7 @@ public final class MahjongModel {
     @discardableResult
     public func reviveAfterAd() async -> Bool {
         guard canReviveAfterBust else { return false }
-        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
         hasRevivedThisGame = true
         canReviveAfterBust = false
         // 同じ半荘の続きなので、直前に記録した「負け」は無かったことにする（2048・マインスイーパーの

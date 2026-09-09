@@ -76,7 +76,8 @@ public final class GoModel {
 
     private var moves: [GoMove]
     private let services: GameServices?
-    private let gameID = "go"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "go"
     private var startedAt: Date
 
     public var board: GoBoard { state.board }
@@ -133,6 +134,11 @@ public final class GoModel {
         self.endgame = nil
         self.recordResult = nil
 
+        // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
+        // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。
+        // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
+        // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
+        // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
         if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
@@ -207,6 +213,8 @@ public final class GoModel {
         guard state.play(move) == nil else { return }
         moves.append(move)
         lastMove = move.point
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         // 着手の手応えは自分が打ったときだけ。CPU の着手では鳴らさない。
         if mover == humanSide, move != .pass { services?.feedback.impact(.medium) }
@@ -342,7 +350,7 @@ public final class GoModel {
         self.isScoringInProgress = false
         self.gameSerial += 1
         persist()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel.rawValue))
     }
 
     // MARK: - CPU

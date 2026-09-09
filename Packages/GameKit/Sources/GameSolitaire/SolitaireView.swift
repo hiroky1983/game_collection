@@ -926,7 +926,7 @@ public struct SolitaireView: View {
         // どの局に対する補充かを、広告を出す前に控える（`requestUndoRefill` と同型。#511）。
         let deal = model.dealSerial
         Task {
-            if await services.ads.showRewardedAd() {
+            if await services.showRewardedAd(gameID: model.gameID, purpose: .joker) {
                 if model.grantJoker(forDeal: deal) {
                     model.beginPlacingJoker()
                 } else {
@@ -961,7 +961,7 @@ public struct SolitaireView: View {
         // ツールバーの「新規ゲーム」からの配り直しを止められない（PR #480 の敵対的検証）。
         let deal = model.dealSerial
         Task {
-            if await services.ads.showRewardedAd() {
+            if await services.showRewardedAd(gameID: model.gameID, purpose: .undo) {
                 if !model.grantUndos(forDeal: deal) { showUndoUnavailable = true }
             } else {
                 showUndoNotEarned = true

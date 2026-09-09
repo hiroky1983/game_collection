@@ -170,7 +170,7 @@ public struct Game2048View: View {
                         isContinuing = true
                         Task {
                             // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                            if await services.ads.showRewardedAd() {
+                            if await services.showRewardedAd(gameID: model.gameID, purpose: .continue) {
                                 withGameAnimation { model.continueAfterAd() }
                             } else {
                                 showRewardNotEarned = true

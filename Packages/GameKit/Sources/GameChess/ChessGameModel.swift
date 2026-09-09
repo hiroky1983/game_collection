@@ -33,7 +33,8 @@ public final class ChessGameModel {
     public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
-    private let gameID = "chess"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "chess"
     private var startedAt: Date
 
     public init(services: GameServices? = nil) {
@@ -98,6 +99,11 @@ public final class ChessGameModel {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
+        // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
+        // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。
+        // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
+        // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
+        // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
         if snap == nil { services?.gameDidStart(gameID: gameID) }
     }
 
@@ -293,6 +299,8 @@ public final class ChessGameModel {
         let mover = position.sideToMove
         position.make(move)
         moves.append(move)
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         clearSelection()
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
@@ -363,7 +371,7 @@ public final class ChessGameModel {
         isThinking = false
         clearSelection()
         persist()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
     }
 
     /// 人間が指している側（CPU 戦の表示用）。

@@ -88,7 +88,8 @@ public final class FreeCellModel {
     private var autoFinishPlan: [FreeCellMove]?
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
-    private let gameID = "freecell"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "freecell"
 
     /// 手数（記録に出す値）。フリーセルには山めくりのような「数えると無意味になる手」が無いので全部数える。
     public var moveCount: Int { moves.count }
@@ -388,6 +389,10 @@ public final class FreeCellModel {
     private func perform(_ move: FreeCellMove) {
         guard board.apply(move) else { return reject() }
         moves.append(move)
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        // 立つ契機は `canUndo` と同じ「1 手指したか」だが、**一度立つとその局の間は下りない**
+        // （`canUndo` は `undo()` で false に戻る）。全部戻して配り直しても遊んだ事実は消えない。
+        services?.gameDidProgress(gameID: gameID)
         selection = nil
         services?.feedback.impact(.medium)
         refreshDerivedState()

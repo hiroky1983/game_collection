@@ -108,7 +108,7 @@ public final class RunnerModel {
         self.field = RunnerField(stage: RunnerStage.all[number - 1])
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart { services?.gameDidStart(gameID: Self.gameID) }
+        if isFreshStart { services?.gameDidStart(gameID: Self.gameID, level: .stage(stageNumber)) }
     }
 
     // MARK: - 問い合わせ
@@ -137,6 +137,12 @@ public final class RunnerModel {
         switch phase {
         case .ready:
             phase = .running
+            // 走り出した = 捨てたら途中離脱として数える走行（#500）。
+            services?.gameDidProgress(gameID: Self.gameID)
+            // このゲームの中断データはステージ番号とベストタイムの控えで、決着後も消さない
+            // （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
+            // 始まるので、「中断データが在る = 続きから戻れる」の既定を打ち消す（PR #572 の指摘）。
+            services?.gameWillNotResume(gameID: Self.gameID)
             services?.feedback.impact(.rigid)
         case .running:
             if field.jump() { services?.feedback.impact(.light) }
@@ -210,7 +216,7 @@ public final class RunnerModel {
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
         // 1 ステージ = 1 プレイとして数え直す（#158。前のステージの `game_end` は送信済み）。
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
     }
 
     /// クリア済みのステージをもう一度走る（タイムアタック周回）。
@@ -218,7 +224,7 @@ public final class RunnerModel {
         guard phase == .cleared || phase == .allCleared else { return }
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
     }
 
     /// ステージ 1 からやり直す。
@@ -226,7 +232,7 @@ public final class RunnerModel {
         stageNumber = 1
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
     }
 
     /// リワード広告の視聴後にチェックポイントから再開する。1 ステージ 1 回まで。

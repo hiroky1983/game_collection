@@ -18,7 +18,8 @@ public final class Game2048Model {
     public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
-    private let gameID = "2048"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "2048"
 
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     public init(services: GameServices? = nil) {
@@ -79,6 +80,8 @@ public final class Game2048Model {
 
         board = result.board
         score += result.gained
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         Self.spawn(into: &board)
 
         // この手で初めて 2048 を作ったか（#438）。新タイルは 2 か 4 なので、判定は合体の結果だけを見る。

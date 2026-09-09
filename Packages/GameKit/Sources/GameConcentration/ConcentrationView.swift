@@ -75,7 +75,7 @@ public struct ConcentrationView: View {
                 Task {
                     if model.mattaUsed {
                         // 視聴完了（報酬獲得）したときだけ待ったを許可する
-                        guard await services.ads.showRewardedAd() else {
+                        guard await services.showRewardedAd(gameID: model.gameID, purpose: .undo) else {
                             showRewardNotEarned = true
                             model.resumeAutoTurn()
                             return

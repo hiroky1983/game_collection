@@ -116,6 +116,8 @@ public final class BlockPuzzleModel {
 
         score += BlockPuzzleScoring.placementPoints(piece)
         hand[index] = nil
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: Self.gameID)
 
         let cleared = BlockPuzzleBoard.clearLines(placed)
         board = cleared.board
