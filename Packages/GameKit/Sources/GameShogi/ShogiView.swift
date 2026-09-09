@@ -164,6 +164,7 @@ public struct ShogiView: View {
                 // 画面いっぱいの暗幕まで拡縮して、幕の縁が動いて見える。
                 Color.black.opacity(0.35).ignoresSafeArea()
                     .transition(.opacity)
+                    .onTapGesture { model.cancelPromotion() }
                 VStack(spacing: 20) {
                     Text("成りますか？")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -188,6 +189,9 @@ public struct ShogiView: View {
                                 .foregroundStyle(Theme.onAccent)
                         }
                     }
+                    Button("やめる") { model.cancelPromotion() }
+                        .themeBody(14)
+                        .foregroundStyle(Theme.inkSub)
                 }
                 .padding(28)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))

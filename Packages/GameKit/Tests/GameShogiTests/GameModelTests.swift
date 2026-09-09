@@ -64,6 +64,33 @@ struct ShogiGameModelTests {
         #expect(model.canUndo == false)
         #expect(model.position.squares[Sq.fromUSI("7f")!] == nil)
     }
+
+    @Test("成り・不成の選択をやめると着手されず、駒の選択も解ける")
+    func promotionCanBeCancelled() throws {
+        let store = MockSnapshotStore()
+        // 先手歩が 5d から 5c（成り可否が両方合法な、強制成りでないマス）へ進める局面。
+        try store.save(
+            ShogiSnapshot(
+                initialSfen: "4k4/9/9/4P4/9/9/9/9/8K b - 1",
+                moves: [], phase: .playing, reviewPly: nil,
+                sente: .human, gote: .ai, aiLevel: 1,
+                startedAt: Date(), undoUsed: false
+            ),
+            for: "shogi"
+        )
+        let model = ShogiGameModel(services: makeServices(store))
+        model.tapSquare(Sq.fromUSI("5d")!)
+        model.tapSquare(Sq.fromUSI("5c")!)
+        #expect(model.pendingPromotion != nil)
+
+        model.cancelPromotion()
+        #expect(model.pendingPromotion == nil)
+        #expect(model.selectedSquare == nil)
+        #expect(model.moves.isEmpty)
+        // 盤面も動いていない（着手そのものが取り消されている）。
+        #expect(model.position.squares[Sq.fromUSI("5c")!] == nil)
+        #expect(model.position.squares[Sq.fromUSI("5d")!] != nil)
+    }
 }
 
 // MARK: - CPU 起動トリガー（#82: 後手を選ぶと CPU が初手を指さない）
