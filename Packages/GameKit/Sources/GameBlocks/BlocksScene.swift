@@ -101,11 +101,32 @@ final class BlocksScene: SKScene {
         sync()
     }
 
+    /// 1 フレーム描き終えるたびに呼ぶ（#522）。
+    ///
+    /// 呼び出し側が描画ループを止めてよいかを判断する合図。**一度も描かないうちに止めると
+    /// 盤ごと出ないまま暗い矩形になる**ので、止める側はこれを待つ。止まったあとは
+    /// このフックも来なくなり、再開の判断は画面側の局面の変化が担う。
+    var onFrameRendered: (() -> Void)?
+
+    override func didFinishUpdate() {
+        onFrameRendered?()
+    }
+
     override func update(_ currentTime: TimeInterval) {
         defer { lastUpdate = currentTime }
         // 初回フレームは経過時間が測れないので進めない。
         guard let last = lastUpdate, currentTime > last else { return }
-        model.tick(dt: currentTime - last)
+        let dt = currentTime - last
+        // 描画ループを止めていたあいだ（#522 の `isPaused`）も `currentTime` は進み続ける。
+        // 再開の 1 フレーム目には止まっていた時間がまるごと入り、`BlocksRules.maxStep` で
+        // 刻んでも**そのフレームだけ 3 倍速で進む**。計時の穴とみなしてモデルは進めず、
+        // 時計だけ合わせ直す。**描画は写す**（広告後のコンティニューのように、
+        // 止まっているあいだに盤が作り直される経路がある）。
+        guard dt <= BlocksRules.staleFrameThreshold else {
+            sync()
+            return
+        }
+        model.tick(dt: dt)
         sync()
     }
 

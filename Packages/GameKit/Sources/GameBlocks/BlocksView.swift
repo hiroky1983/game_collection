@@ -195,6 +195,10 @@ public struct BlocksView: View {
                 // 当たり判定を残すと、機種によってはドラッグが SKView に吸われる。
                 SpriteView(scene: scene, preferredFramesPerSecond: 60)
                     .allowsHitTesting(false)
+                    // 描いたら止めてよいか見直す。画面を開き直して SKView が作り直された
+                    // ときも、次の 1 フレームでここに戻ってくる（#522）。
+                    .onAppear { scene.onFrameRendered = { syncRenderLoop() } }
+                    .onChange(of: model.phase) { _, _ in syncRenderLoop() }
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(paddleGesture(width: geo.size.width))
@@ -210,6 +214,23 @@ public struct BlocksView: View {
         // シーンは `.aspectFit` なので、枠の縦横比をフィールドと必ず一致させる。
         // ずれると左右に余白が出て、タップ位置とパドルの対応も狂う。
         .aspectRatio(BlocksField.Metrics.width / BlocksField.Metrics.height, contentMode: .fit)
+    }
+
+    /// 描画ループを局面に合わせる（#522）。
+    ///
+    /// 一時停止・結果オーバーレイ中は中身が動かないので、60fps を回し続けるのは電池を使うだけ。
+    /// 遊び方シートで止めた場合（#510）も `paused` になるのでここに揃う。
+    ///
+    /// **止めるのは `SKView` で、`SpriteView` の引数ではない**。`isPaused` も
+    /// `preferredFramesPerSecond` も生成時にしか効かず、あとから値を変えても伝わらない
+    /// （実測: 止まっているあいだ 1fps に落とすと、**再開しても 1fps のまま**だった）。
+    /// `SKScene.isPaused` のほうは SpriteView が毎フレーム上書きするので、これも使えない。
+    ///
+    /// 呼ぶのは局面が変わったときと、1 フレーム描き終えたとき。後者が要るのは、
+    /// **一度も描かないうちに止めると盤が出ないまま暗い矩形になる**ため
+    /// （`-simulateBlocks paused` で実測。ブロックもパドルも消えた）。
+    private func syncRenderLoop() {
+        scene.view?.isPaused = !model.phase.needsAnimationFrames
     }
 
     private func paddleGesture(width: CGFloat) -> some Gesture {

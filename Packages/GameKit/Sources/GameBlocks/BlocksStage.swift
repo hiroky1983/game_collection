@@ -178,6 +178,14 @@ public enum BlocksRules {
     /// 盤の端から端まで飛んで当たり判定が意味を失う。上限を掛けると**進みが遅くなるだけ**で、
     /// すり抜けは起きない。
     public static let maxStep: Double = 1.0 / 20
+    /// このフレームは「計時の穴」とみなす、という `dt` の下限（秒）。
+    ///
+    /// 一時停止・オーバーレイ中は描画ループごと止める（#522）一方で時計は進み続けるため、
+    /// 再開の 1 フレーム目には止めていた時間がまるごと `dt` として渡る。上の `maxStep` で
+    /// 刻んでも**そのフレームだけ 3 倍速で進む**ことに変わりはないので、この値を超えた
+    /// フレームは進めずに時計だけ合わせ直す。60fps の 15 フレームぶんにあたり、
+    /// 通常のフレーム落ちで届く値ではない。
+    public static let staleFrameThreshold: Double = 0.25
     /// 総ステージ数。
     public static var stageCount: Int { BlocksStage.all.count }
 }
