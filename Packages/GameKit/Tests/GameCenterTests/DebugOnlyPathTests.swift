@@ -24,7 +24,7 @@ struct DebugOnlyPathTests {
             .appendingPathComponent("Sources")
     }
 
-    private func source(_ relativePath: String) throws -> String {
+    private func sourceText(_ relativePath: String) throws -> String {
         try String(contentsOf: Self.sourcesDirectory.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
@@ -33,7 +33,7 @@ struct DebugOnlyPathTests {
     ///
     /// `#if DEBUG` の本体は落とし、その `#else` 側は残す。`DEBUG` 以外の条件（`#if canImport(…)` 等）は
     /// 両側とも残す = 判定を厳しい側へ倒す。
-    private func releaseVisibleCode(_ relativePath: String) throws -> String {
+    private func releaseVisibleCode(of source: String) -> String {
         struct Level {
             let isDebug: Bool
             var isInElse = false
@@ -42,14 +42,21 @@ struct DebugOnlyPathTests {
         var stack: [Level] = []
         var kept: [Substring] = []
 
-        for line in try source(relativePath).split(separator: "\n", omittingEmptySubsequences: false) {
+        for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("#if ") {
-                stack.append(Level(isDebug: trimmed == "#if DEBUG"))
-            } else if trimmed == "#else" || trimmed.hasPrefix("#elseif ") {
+            // `#endif // 理由` のような行末コメント付きの指令行も拾う。完全一致で見ていると
+            // `#endif` を取りこぼしてスタックが戻らず、以降のファイル全体が「DEBUG の中」と
+            // 誤認されて検査対象から丸ごと外れる = **見逃し方向**に壊れる。
+            let directive = trimmed.hasPrefix("#")
+                ? trimmed.components(separatedBy: "//")[0].trimmingCharacters(in: .whitespaces)
+                : trimmed
+
+            if directive.hasPrefix("#if ") {
+                stack.append(Level(isDebug: directive == "#if DEBUG"))
+            } else if directive == "#else" || directive.hasPrefix("#elseif ") {
                 guard !stack.isEmpty else { continue }
                 stack[stack.count - 1].isInElse = true
-            } else if trimmed == "#endif" {
+            } else if directive == "#endif" {
                 if !stack.isEmpty { stack.removeLast() }
             } else if !trimmed.hasPrefix("//"), stack.allSatisfy(\.survivesRelease) {
                 kept.append(line)
@@ -58,51 +65,89 @@ struct DebugOnlyPathTests {
         return kept.joined(separator: "\n")
     }
 
+    private func releaseVisibleCode(inFileAt relativePath: String) throws -> String {
+        releaseVisibleCode(of: try sourceText(relativePath))
+    }
+
+    @Test("走査は #if DEBUG を評価して Release 側だけを残す")
+    func scannerEvaluatesDebugBlocks() {
+        let fixture = """
+        let ordinary = 1
+        #if DEBUG
+        let debugOnly = 2
+        #else
+        let releaseOnly = 3
+        #endif
+        #if canImport(UIKit)
+        let anyCondition = 4
+        #endif
+        #if DEBUG
+        #if DEBUG
+        let nestedDebug = 5
+        #endif
+        let stillDebug = 6
+        #endif // ここに理由を書いても閉じ忘れ扱いにならないこと
+        let afterEndif = 7
+        """
+        let visible = releaseVisibleCode(of: fixture)
+
+        #expect(visible.contains("ordinary"))
+        #expect(visible.contains("releaseOnly"), "#else 側は Release に残る")
+        #expect(visible.contains("anyCondition"), "DEBUG 以外の条件は両側とも残す（厳しい側へ倒す）")
+        // 行末コメント付きの #endif でスタックが戻らないと、ここから後ろが丸ごと検査対象から
+        // 外れて「囲われていないコード」を見逃す。
+        #expect(visible.contains("afterEndif"), "#endif の行末コメントで入れ子が戻っていない")
+
+        #expect(visible.contains("debugOnly") == false)
+        #expect(visible.contains("nestedDebug") == false)
+        #expect(visible.contains("stillDebug") == false)
+    }
+
     @Test("走査そのものが機能している（Release 側の通常コードは残る）")
     func scannerKeepsOrdinaryCode() throws {
         // 走査が空文字列を返していると、以下の #expect は理由なく緑になる。
         // 各ファイルの「必ず Release に残るはずの行」で裏を取る。
-        #expect(try releaseVisibleCode("GameMahjong/MahjongView.swift").contains("public var body: some View"))
-        #expect(try releaseVisibleCode("GameMahjong/MahjongModel.swift").contains("public func startGame("))
-        #expect(try releaseVisibleCode("GameBlocks/BlocksModel.swift").contains("public func tick(dt: Double)"))
+        #expect(try releaseVisibleCode(inFileAt: "GameMahjong/MahjongView.swift").contains("public var body: some View"))
+        #expect(try releaseVisibleCode(inFileAt: "GameMahjong/MahjongModel.swift").contains("public func startGame("))
+        #expect(try releaseVisibleCode(inFileAt: "GameBlocks/BlocksModel.swift").contains("public func tick(dt: Double)"))
     }
 
     @Test("-mahjongAutoPlay の読み取りは Release に残っていない")
     func autoPlayLaunchArgumentIsDebugOnly() throws {
-        let raw = try source("GameMahjong/MahjongView.swift")
+        let raw = try sourceText("GameMahjong/MahjongView.swift")
         // 引数名を変えただけで緑になるのを防ぐ（対象が実在することを先に固定する）。
         #expect(raw.contains("-mahjongAutoPlay"),
                 "起動引数 -mahjongAutoPlay が見つからない。名前を変えたならこのテストも直すこと")
 
         #expect(
-            try releaseVisibleCode("GameMahjong/MahjongView.swift").contains("-mahjongAutoPlay") == false,
+            try releaseVisibleCode(inFileAt: "GameMahjong/MahjongView.swift").contains("-mahjongAutoPlay") == false,
             "-mahjongAutoPlay の読み取りが Release ビルドに残っている。引数注入で全自動対局が回り、戦績が Game Center の実績へ載る（#514）"
         )
     }
 
     @Test("自動プレイを有効化する API は Release に残っていない")
     func enableAutoPlayIsDebugOnly() throws {
-        let raw = try source("GameMahjong/MahjongModel.swift")
+        let raw = try sourceText("GameMahjong/MahjongModel.swift")
         #expect(raw.contains("func enableAutoPlay()"),
                 "enableAutoPlay() が見つからない。名前を変えたならこのテストも直すこと")
 
         // 起動引数を塞いでも、有効化の入口が public のまま残っていれば他経路から立てられる。
         #expect(
-            try releaseVisibleCode("GameMahjong/MahjongModel.swift").contains("enableAutoPlay") == false,
+            try releaseVisibleCode(inFileAt: "GameMahjong/MahjongModel.swift").contains("enableAutoPlay") == false,
             "enableAutoPlay() が Release ビルドに残っている（#514）"
         )
     }
 
     @Test("球を直接置くテスト用 API は Release に残っていない")
     func placeBallForTestingIsDebugOnly() throws {
-        let raw = try source("GameBlocks/BlocksModel.swift")
+        let raw = try sourceText("GameBlocks/BlocksModel.swift")
         #expect(raw.contains("func placeBallForTesting("),
                 "placeBallForTesting が見つからない。名前を変えたならこのテストも直すこと")
 
         // 呼び出し元（applyDebugScenario / breakBlocksForDebug）ごと DEBUG 限定なので、
         // Release 側にはこの識別子が1つも出てこないのが正しい状態。
         #expect(
-            try releaseVisibleCode("GameBlocks/BlocksModel.swift").contains("placeBallForTesting") == false,
+            try releaseVisibleCode(inFileAt: "GameBlocks/BlocksModel.swift").contains("placeBallForTesting") == false,
             "placeBallForTesting が Release ビルドに残っている。任意の位置・速度で球を置ける API が出荷される（#514）"
         )
     }
