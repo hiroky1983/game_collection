@@ -835,6 +835,8 @@ struct SudokuTimerPersistenceTests {
     @Test("計時だけが進んでも一定間隔で経過秒が保存される")
     func elapsedSecondsArePersistedWhileOnlyTimeAdvances() async {
         let (model, store) = makeModel()
+        // 計時 Task はモデルを強く握るので、テストを抜ける前に必ず止める（#375 と同じ理由）。
+        defer { model.pauseTimer() }
         await model.newGame(difficulty: .easy)
         #expect(savedElapsed(store) == 0, "前提: 生成直後の経過秒が入っている")
 
@@ -856,6 +858,7 @@ struct SudokuTimerPersistenceTests {
     func resumeKeepsTheElapsedSecondsSavedByTheTimer() async {
         let store = MemorySnapshotStore()
         let (model, _) = makeModel(store: store)
+        defer { model.pauseTimer() }
         await model.newGame(difficulty: .easy)
         // 保存の間隔ちょうど + 数秒。最後の保存以降のぶんだけが失われる。
         for _ in 0..<(SudokuModel.persistInterval + 5) { model.tick() }
@@ -911,5 +914,7 @@ struct SudokuTimerPersistenceTests {
 
         gate.release()
         await generating.value
+        // 生成が終わると計時が始まるので、テストを抜ける前に止める（#375 と同じ理由）。
+        model.pauseTimer()
     }
 }

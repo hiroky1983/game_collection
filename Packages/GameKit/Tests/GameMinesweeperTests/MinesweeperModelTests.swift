@@ -70,6 +70,8 @@ struct MinesweeperTimerPersistenceTests {
     func elapsedSecondsArePersistedWhileOnlyTimeAdvances() {
         let store = MemorySnapshotStore()
         let model = makeModel(store: store)
+        // 計時 Task はモデルを強く握るので、テストを抜ける前に必ず止める（#375 と同じ理由）。
+        defer { model.pauseTimer() }
         model.tap(row: 0, col: 0)   // 最初のタップで地雷が配置され、計時と保存が始まる
         #expect(savedElapsed(store) == 0, "前提: タップ時点の経過秒が入っている")
 
@@ -91,6 +93,7 @@ struct MinesweeperTimerPersistenceTests {
     func resumeKeepsTheElapsedSecondsSavedByTheTimer() {
         let store = MemorySnapshotStore()
         let model = makeModel(store: store)
+        defer { model.pauseTimer() }
         model.tap(row: 0, col: 0)
         // 保存の間隔ちょうど + 数秒。最後の保存以降のぶんだけが失われる。
         for _ in 0..<(MinesweeperModel.persistInterval + 5) { model.tick() }
