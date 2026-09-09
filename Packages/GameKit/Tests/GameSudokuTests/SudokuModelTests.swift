@@ -820,3 +820,101 @@ struct SudokuTimerLifecycleTests {
         #expect(!model.isTimerRunning)
     }
 }
+
+// MARK: - 計時の保存（#513: 経過秒が操作時にしか保存されず自己ベストが洗われる。#240 の横展開）
+
+@Suite("数独 計時の保存（#513）")
+@MainActor
+struct SudokuTimerPersistenceTests {
+
+    /// 保存済みの経過秒。まだ何も保存されていなければ nil。
+    private func savedElapsed(_ store: MemorySnapshotStore) -> Int? {
+        store.load(SudokuSnapshot.self, for: "sudoku")?.elapsedSeconds
+    }
+
+    @Test("計時だけが進んでも一定間隔で経過秒が保存される")
+    func elapsedSecondsArePersistedWhileOnlyTimeAdvances() async {
+        let (model, store) = makeModel()
+        // 計時 Task はモデルを強く握るので、テストを抜ける前に必ず止める（#375 と同じ理由）。
+        defer { model.pauseTimer() }
+        await model.newGame(difficulty: .easy)
+        #expect(savedElapsed(store) == 0, "前提: 生成直後の経過秒が入っている")
+
+        // 保存の間隔に満たない間は、操作が無い限り古い経過秒のまま。
+        for _ in 0..<(SudokuModel.persistInterval - 1) { model.tick() }
+        #expect(model.elapsedSeconds == SudokuModel.persistInterval - 1)
+        #expect(savedElapsed(store) == 0)
+
+        model.tick()
+
+        #expect(model.elapsedSeconds == SudokuModel.persistInterval)
+        #expect(
+            savedElapsed(store) == SudokuModel.persistInterval,
+            "操作が無くても \(SudokuModel.persistInterval) 秒ごとに経過秒が保存される"
+        )
+    }
+
+    @Test("強制終了して開き直しても、経過秒は直近の保存間隔ぶんまでしか失われない")
+    func resumeKeepsTheElapsedSecondsSavedByTheTimer() async {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(store: store)
+        defer { model.pauseTimer() }
+        await model.newGame(difficulty: .easy)
+        // 保存の間隔ちょうど + 数秒。最後の保存以降のぶんだけが失われる。
+        for _ in 0..<(SudokuModel.persistInterval + 5) { model.tick() }
+
+        // アプリを強制終了して開き直した状態（復元は init で行われる）。
+        let resumed = SudokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+
+        #expect(resumed.state == .playing, "前提: 中断データから復元できている")
+        #expect(
+            resumed.elapsedSeconds == SudokuModel.persistInterval,
+            "失われるのは直近の保存以降だけ（\(SudokuModel.persistInterval) 秒以内）"
+        )
+        #expect(
+            model.elapsedSeconds - resumed.elapsedSeconds < SudokuModel.persistInterval,
+            "受け入れ条件: 経過秒が直近 \(SudokuModel.persistInterval) 秒以内まで復元される"
+        )
+    }
+
+    @Test("画面を離れるときに経過秒が保存される")
+    func pauseTimerPersistsElapsedSeconds() async {
+        let (model, store) = makeModel()
+        await model.newGame(difficulty: .easy)
+        for _ in 0..<5 { model.tick() }
+        #expect(savedElapsed(store) == 0, "前提: 保存の間隔に乗っていないので、まだ古い経過秒のまま")
+
+        model.pauseTimer()
+
+        #expect(savedElapsed(store) == 5, "止める直前の経過秒が残る")
+    }
+
+    @Test("生成中に画面を離れても中断データを消さない")
+    func pauseTimerDuringGenerationKeepsTheSnapshot() async throws {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(store: store)
+        await model.newGame(difficulty: .easy)
+        for _ in 0..<3 { model.tick() }
+        model.pauseTimer()
+        try #require(store.exists(for: "sudoku"), "前提: 中断データがある")
+
+        // 次の盤の生成中（`.generating`）に画面を離れる。この状態では計時が止まっているので、
+        // `persist()` を無条件に呼ぶと「プレイ中でない」と判定されて中断データが消える。
+        let gate = GenerationGate()
+        model.generationGate = { await gate.wait() }
+        // 難易度は `.easy`。ゲートで生成の手前を押さえるので、生成そのものの重さは検証に要らない。
+        let generating = Task { await model.newGame(difficulty: .easy) }
+        defer { gate.release() }
+        await gate.waitUntilArrived()
+        try #require(model.isGenerating, "前提: 生成中で止まっている")
+
+        model.pauseTimer()
+
+        #expect(store.exists(for: "sudoku"), "生成が終わるまで中断データは残る")
+
+        gate.release()
+        await generating.value
+        // 生成が終わると計時が始まるので、テストを抜ける前に止める（#375 と同じ理由）。
+        model.pauseTimer()
+    }
+}
