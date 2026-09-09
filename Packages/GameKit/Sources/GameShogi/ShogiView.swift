@@ -113,6 +113,12 @@ public struct ShogiView: View {
             try? await Task.sleep(for: .seconds(ShogiMotion.checkBannerHold))
             checkBannerID = nil
         }
+        // 待った・新規対局・投了で盤の意味が変わったら、上の固定待ちを待たずに札を畳む（#519）。
+        // `checkEventID` は着手でしか増えないので、局面を戻しても上の `.task` は走り直さず、
+        // 王手でない盤の上に最大 1.1 秒ぶん札が残っていた。
+        .onChange(of: model.checkBannerDismissID) { _, _ in
+            checkBannerID = nil
+        }
         // 人間の着手・CPU の着手・待った・検討ナビのどれで局面が変わっても、
         // 経路を問わずここ 1 か所で駒の対応付けを進める（#200）。
         .onChange(of: model.displayedPosition) { _, position in
