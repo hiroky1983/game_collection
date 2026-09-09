@@ -374,3 +374,93 @@ struct ChessSnapshotTests {
         #expect(resumed.result == .resignation(loser: .white))
     }
 }
+
+@MainActor
+@Suite("チェス 中断データの合法性検証（#520）")
+struct ChessCorruptedSnapshotTests {
+
+    /// ディスク破損・旧バージョンのデータを想定して、モデルを通さずに壊れた中断データを直接置く。
+    private func store(
+        initialFen: String = ChessPosition.startFEN,
+        moves: [String],
+        phase: ChessGamePhase = .playing,
+        reviewPly: Int? = nil
+    ) -> MockChessSnapshotStore {
+        let store = MockChessSnapshotStore()
+        try? store.save(ChessSnapshot(
+            initialFen: initialFen, moves: moves, phase: phase, reviewPly: reviewPly,
+            white: .human, black: .ai, aiLevel: 0, startedAt: Date(), undoUsed: false
+        ), for: "chess")
+        return store
+    }
+
+    /// 修正前は `make` が移動元の駒を force-unwrap するため、空マスからの手でクラッシュしていた。
+    @Test("空のマスからの指し手は、その手前で切り詰める")
+    func truncatesAtMoveFromEmptySquare() {
+        let model = ChessGameModel(services: makeChessServices(
+            store(moves: ["e2e4", "e7e5", "h4h5"])   // h4 には駒が居ない
+        ))
+        #expect(model.moves.map(\.uci) == ["e2e4", "e7e5"])
+        #expect(model.position.sideToMove == .white)
+        #expect(!model.gameOver)
+    }
+
+    @Test("駒は居るが動けない指し手も、その手前で切り詰める")
+    func truncatesAtIllegalMove() {
+        let model = ChessGameModel(services: makeChessServices(
+            store(moves: ["e2e4", "e7e5", "a1a8"])   // ルークの前に自駒が詰まっている
+        ))
+        #expect(model.moves.map(\.uci) == ["e2e4", "e7e5"])
+    }
+
+    @Test("手番と違う色の駒を動かす指し手も切り詰める")
+    func truncatesAtWrongSideMove() {
+        let model = ChessGameModel(services: makeChessServices(
+            store(moves: ["e2e4", "d2d4"])           // 2 手目は白の連続手番
+        ))
+        #expect(model.moves.map(\.uci) == ["e2e4"])
+    }
+
+    /// `initialFEN` は `positionAt` / `isThreefoldRepetition` が再生の起点に使うので、
+    /// 読めなかったときは保存値ではなく**実際に使った初形**を残さないと再生が食い違う。
+    @Test("読めない初期局面は初形に倒し、initialFEN も初形になる")
+    func fallsBackWhenInitialFenIsBroken() {
+        let model = ChessGameModel(services: makeChessServices(
+            store(initialFen: "これはFENではない", moves: ["e2e4", "e7e5"])
+        ))
+        #expect(model.initialFEN == ChessPosition.startFEN)
+        #expect(model.moves.map(\.uci) == ["e2e4", "e7e5"])
+        #expect(model.position == model.positionAt(ply: 2), "再生の起点が一致している")
+    }
+
+    /// 修正前は `highlightedMove` の `moves[ply - 1]` が範囲外になっていた。
+    @Test("手数を超える検討位置は末尾に丸める")
+    func clampsReviewPlyBeyondMoveCount() {
+        let model = ChessGameModel(services: makeChessServices(
+            store(moves: ["e2e4"], phase: .review, reviewPly: 99)
+        ))
+        #expect(model.reviewPly == 1)
+        #expect(model.highlightedMove?.uci == "e2e4")
+        #expect(model.displayedPosition == model.position)
+    }
+
+    /// 切り詰めが起きた手順でも、保存された検討位置が残っていると同じ添字の事故になる。
+    @Test("切り詰めた手順に合わせて検討位置も縮む")
+    func clampsReviewPlyAfterTruncation() {
+        let model = ChessGameModel(services: makeChessServices(
+            store(moves: ["e2e4", "h4h5", "e7e5"], phase: .review, reviewPly: 3)
+        ))
+        #expect(model.moves.count == 1)
+        #expect(model.reviewPly == 1)
+        #expect(model.highlightedMove?.uci == "e2e4")
+    }
+
+    @Test("負の検討位置は 0 に丸める")
+    func clampsNegativeReviewPly() {
+        let model = ChessGameModel(services: makeChessServices(
+            store(moves: ["e2e4"], phase: .review, reviewPly: -5)
+        ))
+        #expect(model.reviewPly == 0)
+        #expect(model.highlightedMove == nil)
+    }
+}

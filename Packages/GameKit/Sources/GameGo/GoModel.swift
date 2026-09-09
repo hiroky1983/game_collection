@@ -105,8 +105,7 @@ public final class GoModel {
         var isFreshStart = true
 
         if let snap = services?.snapshots.load(GoSnapshot.self, for: "go") {
-            ruleset = GoRuleset(size: snap.size, handicap: snap.handicap)
-            ruleset.komi = snap.komi
+            ruleset = Self.restoredRuleset(size: snap.size, handicap: snap.handicap, komi: snap.komi)
             humanSide = GoStone(rawValue: snap.humanSide) ?? .black
             aiLevel = GoLevel(rawValue: snap.aiLevel) ?? .normal
             moves = snap.moves
@@ -123,10 +122,10 @@ public final class GoModel {
         self.ruleset = ruleset
         self.humanSide = humanSide
         self.aiLevel = aiLevel
+        self.state = Self.replay(&moves, ruleset: ruleset, resumingAtEnd: restoredPhase == .playing)
         self.moves = moves
         self.startedAt = startedAt
         self.undoUsed = undoUsed
-        self.state = Self.replay(moves, ruleset: ruleset, resumingAtEnd: restoredPhase == .playing)
         self.isThinking = false
         self.lastMove = moves.last?.point
         self.phase = restoredPhase
@@ -137,7 +136,22 @@ public final class GoModel {
         if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
-    /// 手順を先頭から再生して局面を作る。
+    /// 中断データから対局設定を組み直す。**既知の値だけを受け入れる**（#520）。
+    ///
+    /// 路数と置き石は `GoBoard` の確保と置き石の座標計算にそのまま渡るため、範囲外の値が入ると
+    /// 起動そのものが落ちる（路数 0 で置き石ありなら盤外への代入、負なら配列の確保で fatal）。
+    /// ディスク破損や旧バージョンのデータで起動不能ループに入らないよう、
+    /// 読めない値は既定（9 路・互先）に倒して対局を続けられる状態にする。
+    static func restoredRuleset(size: Int, handicap: Int, komi: Double) -> GoRuleset {
+        let boardSize = GoBoardSize(rawValue: size) ?? .nine
+        let validHandicap = GoRuleset.handicapChoices.contains(handicap) ? handicap : 0
+        var ruleset = GoRuleset(size: boardSize.rawValue, handicap: validHandicap)
+        // コミは勝敗の計算に直に効くので、有限値のときだけ引き継ぐ（不正なら置き石に応じた既定のまま）。
+        if komi.isFinite { ruleset.komi = komi }
+        return ruleset
+    }
+
+    /// 手順を先頭から再生して局面を作る。**不正な手が現れたらそこで `moves` を切り詰める**（#520）。
     ///
     /// 連続パスのあとにまだ手が続く手順は、「対局続行」（#398 の導線）を通った証跡なので、
     /// 再生でもそのつど終局判定を解いてから続ける。解かないと `isTwoPassEnd` が立ったままになり、
@@ -145,15 +159,20 @@ public final class GoModel {
     /// - Parameter resumingAtEnd: 再生し終えた局面から対局を続けるか（`phase == .playing`）。
     ///   「続行した直後に中断・待った」で手順の末尾が連続パスのまま残る場合に、ここで解く。
     private static func replay(
-        _ moves: [GoMove],
+        _ moves: inout [GoMove],
         ruleset: GoRuleset,
         resumingAtEnd: Bool
     ) -> GoState {
         var state = GoState.initial(ruleset: ruleset)
+        var applied = 0
         for move in moves {
             if state.isTwoPassEnd { state.resumePlay() }
-            state.play(move)
+            // 盤外・重複着手などが混ざった手順は、その手前で打ち切る。飛ばして続けると
+            // 手番と手数が手順とずれ、待った（`moves.removeLast(2)`）が別の局面を作る。
+            if state.play(move) != nil { break }
+            applied += 1
         }
+        if applied < moves.count { moves.removeLast(moves.count - applied) }
         if resumingAtEnd, state.isTwoPassEnd { state.resumePlay() }
         return state
     }
@@ -292,7 +311,7 @@ public final class GoModel {
         guard canUndo else { return }
         moves.removeLast(2)
         // 待ったで手順の末尾が「続行前の連続パス」に戻ることがあるので、対局中として再生する。
-        state = Self.replay(moves, ruleset: ruleset, resumingAtEnd: true)
+        state = Self.replay(&moves, ruleset: ruleset, resumingAtEnd: true)
         lastMove = moves.last?.point
         undoUsed = true
         endgame = nil

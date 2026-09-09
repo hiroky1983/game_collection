@@ -40,12 +40,19 @@ public final class ChessGameModel {
         self.services = services
         let snap = services?.snapshots.load(ChessSnapshot.self, for: "chess")
 
-        let fen = snap?.initialFen ?? ChessPosition.startFEN
-        var pos = ChessPosition.fromFEN(fen) ?? ChessPosition.start()
+        // 中断データが壊れていても起動できるようにする（#520）。読めない初期局面は初形に倒し、
+        // **`initialFEN` には実際に読めた側を残す**（`isThreefoldRepetition` がここから
+        // 指し手列を再生し直すため、食い違うと再生で不正な手を適用してしまう）。
+        let savedFEN = snap?.initialFen ?? ChessPosition.startFEN
+        let parsed = ChessPosition.fromFEN(savedFEN)
+        let fen = parsed == nil ? ChessPosition.startFEN : savedFEN
+        var pos = parsed ?? ChessPosition.start()
         var moveList: [ChessMove] = []
         if let snap {
             for uci in snap.moves {
-                guard let m = ChessMove.fromUCI(uci) else { break }
+                // 読めない表記に加えて**不正な手でも切り詰める**。`make` は移動元の駒を
+                // force-unwrap するので、検証せず適用するとディスク破損で起動不能になる。
+                guard let m = ChessMove.fromUCI(uci), pos.isLegal(m) else { break }
                 moveList.append(m)
                 pos.make(m)
             }
@@ -58,7 +65,9 @@ public final class ChessGameModel {
         self.selectedSquare = nil
         self.pendingPromotion = nil
         self.phase = snap?.phase ?? .playing
-        self.reviewPly = snap?.reviewPly ?? moveList.count
+        // 手数の範囲に収める。切り詰めが起きた手順や壊れた値でも `highlightedMove` の
+        // 添字（`moves[ply - 1]`）が範囲外にならないようにする（#520）。
+        self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=白 / CPU=黒）。
         self.white = snap?.white ?? .human
         self.black = snap?.black ?? .ai
