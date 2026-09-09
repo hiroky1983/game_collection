@@ -153,7 +153,6 @@ public struct BlocksView: View {
                     .foregroundStyle(Theme.inkSub)
                 livesView
             }
-            pauseButton
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -202,6 +201,11 @@ public struct BlocksView: View {
                 overlay
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+            // 一時停止は右上のヘッダーではなく、フィールドの右下に浮かせる
+            // （会長QA「右上は片手操作で押せない」）。親指の自然なリーチに合わせる。
+            .overlay(alignment: .bottomTrailing) {
+                pauseButton.padding(10)
+            }
         }
         // シーンは `.aspectFit` なので、枠の縦横比をフィールドと必ず一致させる。
         // ずれると左右に余白が出て、タップ位置とパドルの対応も狂う。
