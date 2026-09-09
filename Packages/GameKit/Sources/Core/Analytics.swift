@@ -245,6 +245,10 @@ public final class GameAnalytics {
     ///
     /// この値だけが「捨てたら離脱として数える盤面か」を決める。呼ばないゲームでは
     /// 離脱が一切記録されないだけで、`game_start` / `game_end` の対応は従来どおり保たれる。
+    ///
+    /// - Important: **一度立つと、そのプレイが終わるまで下ろす手段は無い**（下ろす API を置かない）。
+    ///   「戻す」で初期配置まで巻き戻してから捨てた場合も離脱として数える。遊んだ時間は実際に
+    ///   使われており、`duration_sec` と対応の取れない `game_start` を作らないほうが集計が読める。
     public func recordProgress(gameID: String) {
         guard case let .inFlight(startedAt, didProgress) = plays[gameID], !didProgress else { return }
         plays[gameID] = .inFlight(startedAt: startedAt, didProgress: true)

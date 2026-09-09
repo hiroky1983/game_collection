@@ -389,7 +389,9 @@ public final class FreeCellModel {
     private func perform(_ move: FreeCellMove) {
         guard board.apply(move) else { return reject() }
         moves.append(move)
-        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500。`canUndo` と同じ境目）。
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        // 立つ契機は `canUndo` と同じ「1 手指したか」だが、**一度立つとその局の間は下りない**
+        // （`canUndo` は `undo()` で false に戻る）。全部戻して配り直しても遊んだ事実は消えない。
         services?.gameDidProgress(gameID: gameID)
         selection = nil
         services?.feedback.impact(.medium)
