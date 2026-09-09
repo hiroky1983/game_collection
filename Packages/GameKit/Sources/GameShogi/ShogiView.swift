@@ -105,13 +105,17 @@ public struct ShogiView: View {
             #endif
         }
         // 王手が掛かった瞬間だけ文字を出し、少し置いて引っ込める（#377）。
-        // `.task(id:)` にしておくと、続けて王手が掛かったときに前の待機が破棄されるので、
-        // 古い着手の後始末が新しい合図を消してしまうことがない。
+        //
+        // 引っ込めるのは**自分が出した合図がまだ出ているときだけ**にする。`.task(id:)` は
+        // 契機が変わると古いタスクを取り消すが、`Task.sleep` の `CancellationError` は
+        // `try?` が飲み込むので、古いタスクはそのまま最後の行まで走る。素朴に nil を書くと、
+        // 続けて王手が掛かったときに**古い後始末が新しい合図を消す**（チェス側で先に判明。#519）。
         .task(id: model.checkEventID) {
-            guard model.checkEventID > 0 else { return }
-            checkBannerID = model.checkEventID
+            let id = model.checkEventID
+            guard id > 0 else { return }
+            checkBannerID = id
             try? await Task.sleep(for: .seconds(ShogiMotion.checkBannerHold))
-            checkBannerID = nil
+            if checkBannerID == id { checkBannerID = nil }
         }
         // 待った・新規対局・投了で盤の意味が変わったら、上の固定待ちを待たずに札を畳む（#519）。
         // `checkEventID` は着手でしか増えないので、局面を戻しても上の `.task` は走り直さず、
