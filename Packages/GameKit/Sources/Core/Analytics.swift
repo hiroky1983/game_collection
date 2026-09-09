@@ -197,8 +197,9 @@ public struct GatedAnalyticsService: AnalyticsService {
 public final class GameAnalytics {
     /// そのゲームの1プレイの状態。**キーが無い = この画面でまだ1プレイも数えていない**。
     private enum PlayState {
-        /// 進行中。`startedAt` は `duration_sec` の起点、`didProgress` は「1手でも指したか」。
-        case inFlight(startedAt: Date, didProgress: Bool)
+        /// 進行中。`startedAt` は `duration_sec` の起点、`didProgress` は「1手でも指したか」、
+        /// `canResume` は「画面を離れても続きから戻れるか」。
+        case inFlight(startedAt: Date, didProgress: Bool, canResume: Bool)
         /// 終局済み。`game_end` は送信済みなので、同じプレイで二度送らない。
         case finished
     }
@@ -250,15 +251,28 @@ public final class GameAnalytics {
     ///   「戻す」で初期配置まで巻き戻してから捨てた場合も離脱として数える。遊んだ時間は実際に
     ///   使われており、`duration_sec` と対応の取れない `game_start` を作らないほうが集計が読める。
     public func recordProgress(gameID: String) {
-        guard case let .inFlight(startedAt, didProgress) = plays[gameID], !didProgress else { return }
-        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: true)
+        guard case let .inFlight(startedAt, didProgress, canResume) = plays[gameID], !didProgress
+        else { return }
+        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: true, canResume: canResume)
+    }
+
+    /// この局は**画面を離れたら失われる**ことを伝える（#500）。
+    ///
+    /// 既定では「中断データが在る = 続きから戻れる」と見なすが、それが成り立たないゲームがある。
+    /// チャリンコおじさんの中断データはステージ番号とベストタイムの控えで、走行そのものは
+    /// 復元せず必ずステージの頭から始まる（しかも記録を守るため決着後も消さない）。
+    /// これを休憩と読むと、走行を捨てた離脱が永久に記録されない。
+    public func markUnresumable(gameID: String) {
+        guard case let .inFlight(startedAt, didProgress, canResume) = plays[gameID], canResume
+        else { return }
+        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: didProgress, canResume: false)
     }
 
     /// 終局したときに呼ぶ。進行中のプレイが無いときは**何も送らない**
     /// （中断からの再開など、開始を数えていないプレイの終局。`duration_sec` の起点が
     /// 分からないため、対応の取れない `game_end` を作らない）。
     public func finishPlay(gameID: String, outcome: GameOutcome) {
-        guard case let .inFlight(startedAt, _) = plays[gameID] else { return }
+        guard case let .inFlight(startedAt, _, _) = plays[gameID] else { return }
         plays[gameID] = .finished
         sendEnd(gameID: gameID, result: AnalyticsResult(outcome), startedAt: startedAt)
     }
@@ -300,7 +314,8 @@ public final class GameAnalytics {
             plays[gameID] = nil
             return
         }
-        guard !isResumable else { return }
+        // 中断データが在っても、そこから局を復元しないゲームは離脱として扱う（`markUnresumable`）。
+        if case let .inFlight(_, _, canResume) = plays[gameID], canResume, isResumable { return }
         endPlayAsQuitIfProgressed(gameID: gameID)
         // 送っても送らなくても、再開できない盤面はもう続きが無い。次に開いたら数え直す。
         plays[gameID] = nil
@@ -308,7 +323,7 @@ public final class GameAnalytics {
 
     /// 未決着のまま捨てられたプレイに `game_end`（`quit`）を送る。1手も指していなければ何も送らない。
     private func endPlayAsQuitIfProgressed(gameID: String) {
-        guard case let .inFlight(startedAt, didProgress) = plays[gameID], didProgress else { return }
+        guard case let .inFlight(startedAt, didProgress, _) = plays[gameID], didProgress else { return }
         plays[gameID] = .finished
         sendEnd(gameID: gameID, result: .quit, startedAt: startedAt)
     }
@@ -320,7 +335,7 @@ public final class GameAnalytics {
     }
 
     private func beginPlay(gameID: String, level: AnalyticsLevel?) {
-        plays[gameID] = .inFlight(startedAt: now(), didProgress: false)
+        plays[gameID] = .inFlight(startedAt: now(), didProgress: false, canResume: true)
         service.log(.gameStart(gameID: gameID, level: level))
     }
 }

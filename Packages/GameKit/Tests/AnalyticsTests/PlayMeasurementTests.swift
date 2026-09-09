@@ -211,6 +211,39 @@ struct QuitTrackingTests {
         #expect(spy.events.isEmpty)
     }
 
+    @Test("中断データを持っていても、局を復元しないゲームの離れ方は離脱")
+    func unresumablePlayQuitsEvenWithSnapshot() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.markUnresumable(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)   // 中断データは在る
+
+        #expect(spy.quits.map(\.gameID) == ["2048"],
+                "チャリンコおじさんのように記録の控えを中断データとして残すゲームの経路")
+    }
+
+    @Test("復元しない宣言をしても、1手も指していなければ離脱にはならない")
+    func unresumableWithoutProgressIsNotQuit() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.markUnresumable(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+
+        #expect(spy.ends.isEmpty)
+    }
+
+    @Test("進行中のプレイが無いところで markUnresumable を呼んでも何も起きない")
+    func markUnresumableWithoutPlayIsIgnored() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.markUnresumable(gameID: "2048")
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+
+        #expect(spy.ends.isEmpty, "宣言はプレイごとで、次のプレイへ持ち越さない")
+    }
+
     @Test("GameServices は中断データの有無から休憩と離脱を切り分ける")
     func gameServicesDerivesResumabilityFromSnapshotStore() throws {
         let store = MemorySnapshotStore()

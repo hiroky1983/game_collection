@@ -62,6 +62,15 @@ public struct GameServices {
         analytics?.recordProgress(gameID: gameID)
     }
 
+    /// この局は**画面を離れたら失われる**ことを各 Model から伝える（#500）。
+    ///
+    /// 既定の判定は「中断データが在る = 続きから戻れる」（`gameDidLeave`）だが、中断データを
+    /// 記録の控えとして使っていて局そのものは復元しないゲームは、これを呼んで打ち消す。
+    @MainActor
+    public func gameWillNotResume(gameID: String) {
+        analytics?.markUnresumable(gameID: gameID)
+    }
+
     /// ゲーム画面から離れたときにハブから呼ぶ（#158）。次に開いたときを新しいプレイとして数え直す。
     ///
     /// 中断データが残っているかをここで `SnapshotStore` に聞き、**休憩（あとで続きから再開できる）**と

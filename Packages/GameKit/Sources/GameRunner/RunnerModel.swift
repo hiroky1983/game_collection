@@ -139,6 +139,10 @@ public final class RunnerModel {
             phase = .running
             // 走り出した = 捨てたら途中離脱として数える走行（#500）。
             services?.gameDidProgress(gameID: Self.gameID)
+            // このゲームの中断データはステージ番号とベストタイムの控えで、決着後も消さない
+            // （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
+            // 始まるので、「中断データが在る = 続きから戻れる」の既定を打ち消す（PR #572 の指摘）。
+            services?.gameWillNotResume(gameID: Self.gameID)
             services?.feedback.impact(.rigid)
         case .running:
             if field.jump() { services?.feedback.impact(.light) }

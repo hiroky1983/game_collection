@@ -1128,3 +1128,81 @@ private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, ro
     }
     return model
 }
+
+// MARK: - 開始シートと level（#500 / PR #572 の CodeRabbit 指摘）
+
+@Suite("開始シートを出すゲームの level")
+@MainActor
+struct StartSheetLevelTests {
+
+    /// 開始シート（強さを選ぶ画面）は「中断データが無いこと」で出る。Model の init が
+    /// `gameDidStart` を送るのも同じ条件なので、**その時点ではまだ強さが選ばれていない**。
+    /// ここで既定値を送ると、あとで選び直された強さぶんまで `normal` として数えてしまう。
+    @Test("シートが開く局の game_start には level を載せない")
+    func initialStartCarriesNoLevel() {
+        for make in [
+            { (services: GameServices) in _ = ShogiGameModel(services: services) },
+            { (services: GameServices) in _ = ChessGameModel(services: services) },
+            { (services: GameServices) in _ = GoModel(services: services) },
+            { (services: GameServices) in _ = GomokuModel(services: services) },
+            { (services: GameServices) in _ = OthelloModel(services: services) },
+        ] {
+            let (services, spy) = makeServices()
+            make(services)
+            #expect(spy.starts.count == 1, "開始そのものは従来どおり数える")
+            #expect(spy.startLevels == [nil], "選ばれていない強さを送らない: \(spy.starts)")
+        }
+    }
+
+    @Test("シートで選んだ強さは、その対局の game_start に載る")
+    func chosenLevelIsSentOnNewGame() {
+        let (shogiServices, shogiSpy) = makeServices()
+        let shogi = ShogiGameModel(services: shogiServices)
+        shogi.newGame(aiLevel: 2)
+        #expect(shogiSpy.startLevels == [nil, .hard], "0 始まりの 2 は最上位ではなく hard")
+
+        let (goServices, goSpy) = makeServices()
+        let go = GoModel(services: goServices)
+        go.newGame(level: .easy)
+        #expect(goSpy.startLevels == [nil, .beginner])
+
+        let (othelloServices, othelloSpy) = makeServices()
+        let othello = OthelloModel(services: othelloServices)
+        othello.newGame(aiLevel: 0)
+        #expect(othelloSpy.startLevels == [nil, .beginner])
+    }
+}
+
+// MARK: - チャリンコおじさんの離脱（#500 / PR #572 の CodeRabbit 指摘）
+
+@Suite("走行を捨てた離脱")
+@MainActor
+struct RunnerQuitTests {
+
+    /// このゲームの中断データはステージ番号とベストタイムの控えで、**決着後も消さない**
+    /// （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
+    /// 始まるため、`snapshots.exists` を素直に読むと走行を捨てた離脱が永久に記録されない。
+    @Test("走り出したあと画面を離れると quit が出る（中断データは在るが走行は戻らない）")
+    func leavingMidRunIsQuit() {
+        let store = MemorySnapshotStore()
+        let (services, spy) = makeServices(snapshots: store)
+        let model = RunnerModel(services: services)
+        model.press()   // ready → running
+
+        #expect(store.exists(for: RunnerModel.gameID), "前提: 中断データは保存されている")
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+
+        #expect(spy.ends.map(\.result) == [.quit])
+        #expect(spy.quits(of: RunnerModel.gameID) == 1)
+    }
+
+    @Test("走り出す前に離れても quit は出ない")
+    func leavingBeforeRunningIsNotQuit() {
+        let (services, spy) = makeServices()
+        _ = RunnerModel(services: services)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+
+        #expect(spy.ends.isEmpty, "1 歩も走っていない走行は捨てても離脱にならない")
+        #expect(spy.starts == [RunnerModel.gameID])
+    }
+}

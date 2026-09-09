@@ -134,7 +134,12 @@ public final class GoModel {
         self.endgame = nil
         self.recordResult = nil
 
-        if isFreshStart { services?.gameDidStart(gameID: gameID, level: .aiStrength(aiLevel.rawValue)) }
+        // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
+        // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。
+        // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
+        // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
+        // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
+        if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
     /// 中断データから対局設定を組み直す。**既知の値だけを受け入れる**（#520）。
