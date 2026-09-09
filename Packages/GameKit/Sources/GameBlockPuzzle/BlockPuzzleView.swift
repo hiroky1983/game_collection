@@ -96,6 +96,10 @@ public struct BlockPuzzleView: View {
                                      : "\(model.lastClearedLines)本消し")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.coral)
+                    // `lastClearedLines` は「2本消し」が連続すると値が変わらないため、
+                    // `.id` を消去のたびに増える通し番号にして毎回ビューを差し替え、
+                    // ポップの `.transition` を再生させる（会長QA「消しても気持ちよくない」）。
+                    .id(model.clearEventID)
                     .transition(.scale.combined(with: .opacity))
             }
         }

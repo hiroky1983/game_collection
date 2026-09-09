@@ -21,6 +21,12 @@ public final class BlockPuzzleModel {
     public private(set) var continueUsed: Bool
     /// 直前の 1 手で消えた本数。0 なら消えていない。消えた瞬間の表示にだけ使う。
     public private(set) var lastClearedLines: Int = 0
+    /// 消すたびに 1 増える通し番号。**表示側のトランジションを毎回再生させるため**の nonce。
+    ///
+    /// `lastClearedLines` は「2本消し」が連続すると値が変わらず、`if lastClearedLines > 0 { … }`
+    /// の分岐は真のまま保たれるので SwiftUI の `.transition` は初回しか飛び出さない
+    /// （将棋の `checkBannerID` と同じ理由・同じ対処）。
+    public private(set) var clearEventID: Int = 0
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
 
@@ -115,6 +121,7 @@ public final class BlockPuzzleModel {
         board = cleared.board
         lastClearedLines = cleared.lines
         if cleared.lines > 0 {
+            clearEventID += 1
             combo += 1
             score += BlockPuzzleScoring.clearPoints(lines: cleared.lines, combo: combo)
             services?.feedback.impact(.medium)
