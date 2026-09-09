@@ -14,8 +14,11 @@ enum RunnerPalette {
     /// 地面の断面（土）。**空と系統の違う暖色にする**。同じ寒色の濃淡で塗ると、
     /// 地面と空の境目も穴の切れ目も見分けが付かない（最初の実機確認で判明）。
     static let groundBody: UInt32 = 0x6B4A32
-    /// 障害物。`Theme.Fill.amber` と同じ値。
-    static let obstacle: UInt32 = 0xFFC24B
+    /// 障害物（岩）の明るい面。「何なのか分からない」というQAを受け、平らな矩形から
+    /// 岩の塊に見える形へ変えた（会長QA）。
+    static let rockLight: UInt32 = 0x9C8B7A
+    /// 障害物（岩）の陰。
+    static let rockDark: UInt32 = 0x6B5A4B
     /// 自転車の車体。`Theme.Fill.coral` と同じ値。
     static let bike: UInt32 = 0xFF8A7E
     /// 車輪。
@@ -26,6 +29,11 @@ enum RunnerPalette {
     static let shirt: UInt32 = 0xB3A6F0
     /// ゴールの旗。
     static let goal: UInt32 = 0xFF8FB1
+    /// 穴の縁の警告帯。地面と同系色だと縁が分からず、落ちるかどうかの判断がつかない
+    /// というQAを受けて追加（会長QA）。
+    static let pitEdge: UInt32 = 0xFFD447
+    /// 雲。空より明るい半透明の白。
+    static let cloud: UInt32 = 0xFFFFFF
 
     static func color(_ hex: UInt32) -> SKColor {
         SKColor(
@@ -59,6 +67,14 @@ final class RunnerScene: SKScene {
     private let player = SKNode()
     private let frontWheel = SKShapeNode(circleOfRadius: 2.6)
     private let rearWheel = SKShapeNode(circleOfRadius: 2.6)
+    /// 空の雲。何も障害が無い区間が静止画に見える、というQAを受けて追加（会長QA）。
+    /// コースより遅い速度で流す（視差）ので、コースとは別レイヤーに持つ。
+    private let cloudLayer = SKNode()
+    /// 雲を並べる間隔（ワールド単位）。地面を作り直しても雲は作り直さないので、
+    /// ステージが変わっても同じ雲がそのまま流れ続ける。
+    private static let cloudSpacing: Double = 46
+    /// コースに対する雲の流れる速さの比率（視差）。1 未満で遠くに見える。
+    private static let cloudParallax: Double = 0.3
 
     init(model: RunnerModel) {
         self.model = model
@@ -78,6 +94,8 @@ final class RunnerScene: SKScene {
 
     override func didMove(to view: SKView) {
         guard courseLayer.parent == nil else { return }
+        addChild(cloudLayer)
+        buildClouds()
         addChild(courseLayer)
         buildPlayer()
         addChild(player)
@@ -134,6 +152,38 @@ final class RunnerScene: SKScene {
         player.position = CGPoint(x: Metrics.playerX, y: Metrics.groundY)
     }
 
+    /// 雲ノードそのもの（`cloudBaseX` と対で、`sync` が毎フレーム位置を計算し直す）。
+    private var clouds: [SKNode] = []
+    /// 雲の基準 x（`0, spacing, 2*spacing, …`）。`cloudLayer` は動かさず、
+    /// 各雲を「距離に応じて `cloudSpacing * clouds.count` 幅でループする」座標に置き直すことで、
+    /// ステージがどれだけ長くても雲を作り直さずに無限スクロールへ流せる。
+    private var cloudBaseX: [Double] = []
+
+    /// 空を流れる雲。ステージをまたいでも作り直さない（`rebuildCourse` の対象外）。
+    private func buildClouds() {
+        let count = 8
+        for i in 0..<count {
+            let cloud = SKNode()
+            let puffs: [(dx: Double, dy: Double, r: Double)] = [
+                (0, 0, 3.4), (-3.2, -0.6, 2.4), (3.0, -0.4, 2.6), (0.6, 1.2, 2.2),
+            ]
+            for puff in puffs {
+                let shape = SKShapeNode(circleOfRadius: puff.r)
+                shape.fillColor = RunnerPalette.color(RunnerPalette.cloud)
+                shape.alpha = 0.55
+                shape.strokeColor = .clear
+                shape.position = CGPoint(x: puff.dx, y: puff.dy)
+                cloud.addChild(shape)
+            }
+            // 高さを雲ごとに変えて、横一列に並んで見えないようにする。
+            let y = Metrics.height - 10 - Double(i % 3) * 7
+            cloud.position = CGPoint(x: Double(i) * Self.cloudSpacing, y: y)
+            cloudLayer.addChild(cloud)
+            clouds.append(cloud)
+            cloudBaseX.append(Double(i) * Self.cloudSpacing)
+        }
+    }
+
     /// 地面・穴・障害物・ゴールをまとめて作り直す。
     private func rebuildCourse() {
         courseLayer.removeAllChildren()
@@ -144,23 +194,56 @@ final class RunnerScene: SKScene {
         var x: Double = 0
         for pit in stage.hazards where pit.kind == .pit {
             if pit.start > x { addGround(from: x, to: pit.start) }
+            addPitEdgeMarkers(pit)
             x = pit.end
         }
         if x < stage.length { addGround(from: x, to: stage.length + Metrics.width) }
 
         for hazard in stage.hazards where hazard.kind != .pit {
-            let node = SKSpriteNode(
-                color: RunnerPalette.color(RunnerPalette.obstacle),
-                size: CGSize(width: hazard.length, height: hazard.height)
-            )
-            node.anchorPoint = CGPoint(x: 0, y: 0)
-            node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
-            courseLayer.addChild(node)
+            addRock(hazard)
         }
 
-        addMarker(at: stage.checkpoint, color: RunnerPalette.groundTop, height: 9)
-        addMarker(at: stage.length, color: RunnerPalette.goal, height: 16)
+        addCheckpointMarker(at: stage.checkpoint)
+        addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
+    }
+
+    /// 障害物（岩）。平らな矩形1枚だと「何なのか分からない」というQAを受け、
+    /// 明るい面 + 陰の2つの丸を重ねただけの塊に変えた（丸と長方形だけで組む規約を維持）。
+    /// 当たり判定は `RunnerField` が `hazard.start`〜`.end`/`.height` の矩形で見ており、
+    /// この見た目の変更とは独立している——中に収まる大きさで描いているだけ。
+    private func addRock(_ hazard: RunnerHazard) {
+        let node = SKNode()
+        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        let w = hazard.length, h = hazard.height
+
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 0.9, height: h * 0.85))
+        shadow.fillColor = RunnerPalette.color(RunnerPalette.rockDark)
+        shadow.strokeColor = .clear
+        shadow.position = CGPoint(x: w / 2, y: h * 0.42)
+        node.addChild(shadow)
+
+        let body = SKShapeNode(ellipseOf: CGSize(width: w * 0.76, height: h * 0.7))
+        body.fillColor = RunnerPalette.color(RunnerPalette.rockLight)
+        body.strokeColor = .clear
+        body.position = CGPoint(x: w * 0.42, y: h * 0.5)
+        node.addChild(body)
+
+        courseLayer.addChild(node)
+    }
+
+    /// 穴の縁の警告帯。地面と同系色の穴だけでは切れ目が分かりづらいというQAを受けて追加。
+    /// 当たり判定には影響しない、純粋な見た目の追加。
+    private func addPitEdgeMarkers(_ pit: RunnerHazard) {
+        for edgeX in [pit.start, pit.end] {
+            let strip = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.pitEdge),
+                size: CGSize(width: 0.6, height: 2.6)
+            )
+            strip.anchorPoint = CGPoint(x: 0.5, y: 1)
+            strip.position = CGPoint(x: edgeX, y: Metrics.groundY)
+            courseLayer.addChild(strip)
+        }
     }
 
     private func addGround(from start: Double, to end: Double) {
@@ -180,12 +263,35 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(top)
     }
 
-    /// チェックポイントとゴールの目印（細い柱）。
-    private func addMarker(at x: Double, color: UInt32, height: Double) {
-        let pole = SKSpriteNode(color: RunnerPalette.color(color), size: CGSize(width: 1, height: height))
+    /// チェックポイントの目印（細い柱のみ。旗はゴールと見分けるために付けない）。
+    private func addCheckpointMarker(at x: Double) {
+        let pole = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.groundTop),
+            size: CGSize(width: 1, height: 9)
+        )
         pole.anchorPoint = CGPoint(x: 0.5, y: 0)
-        pole.position = CGPoint(x: x, y: RunnerField.Metrics.groundY)
+        pole.position = CGPoint(x: x, y: Metrics.groundY)
         courseLayer.addChild(pole)
+    }
+
+    /// ゴールの目印（旗）。細い柱だけでは「何のオブジェクトか分からない」というQAを受け、
+    /// 三角の旗を足して一目でゴールと分かる形にした。
+    private func addGoalMarker(at x: Double) {
+        let pole = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.wheel), size: CGSize(width: 1, height: 16))
+        pole.anchorPoint = CGPoint(x: 0.5, y: 0)
+        pole.position = CGPoint(x: x, y: Metrics.groundY)
+        courseLayer.addChild(pole)
+
+        let flagPath = CGMutablePath()
+        flagPath.move(to: .zero)
+        flagPath.addLine(to: CGPoint(x: 4.4, y: -1.3))
+        flagPath.addLine(to: CGPoint(x: 0, y: -2.6))
+        flagPath.closeSubpath()
+        let flag = SKShapeNode(path: flagPath)
+        flag.fillColor = RunnerPalette.color(RunnerPalette.goal)
+        flag.strokeColor = .clear
+        flag.position = CGPoint(x: x + 0.5, y: Metrics.groundY + 14.5)
+        courseLayer.addChild(flag)
     }
 
     // MARK: - 反映
@@ -193,6 +299,15 @@ final class RunnerScene: SKScene {
     private func sync() {
         if renderedGeneration != model.runGeneration { rebuildCourse() }
         let field = model.field
+        // 雲はコースより遅く流す（視差）。`cloudLayer` 自体は動かさず、
+        // 雲1つ1つを「全雲の帯の幅」でラップする座標に置き直す（無限スクロール）。
+        let totalWidth = Self.cloudSpacing * Double(clouds.count)
+        for (i, cloud) in clouds.enumerated() {
+            let raw = (cloudBaseX[i] - field.distance * Self.cloudParallax)
+                .truncatingRemainder(dividingBy: totalWidth)
+            let wrapped = raw < 0 ? raw + totalWidth : raw
+            cloud.position.x = wrapped
+        }
         // 走者の画面上の x は動かさず、コースのほうを左へ流す。
         courseLayer.position = CGPoint(x: Metrics.playerX - field.distance, y: 0)
         player.position = CGPoint(x: Metrics.playerX, y: field.footY)

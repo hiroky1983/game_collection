@@ -112,7 +112,6 @@ public struct RunnerView: View {
                 .foregroundStyle(Theme.inkSub)
                 progressBar
             }
-            pauseButton
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -222,6 +221,12 @@ public struct RunnerView: View {
         .accessibilityHint("ダブルタップでジャンプ")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.press(); model.release() }
+        // 一時停止は右上のヘッダーではなく、コースの右下に浮かせる（会長QA「右上は片手操作で押せない」）。
+        // 親指の自然なリーチに合わせる。`.accessibilityElement()` の**あとに**重ねることで、
+        // コース本体の1個の要素（ジャンプ）に飲み込まれず、独立した VoiceOver 要素のまま残る。
+        .overlay(alignment: .bottomTrailing) {
+            pauseButton.padding(10)
+        }
     }
 
     /// 押している間だけ高く跳べるので、押し下げと離しの両方を拾う。
