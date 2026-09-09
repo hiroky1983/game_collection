@@ -7,7 +7,16 @@ public struct FreeCellView: View {
     @State private var showConfirmNewGame = false
     /// ドラッグ中の札。タップ（選択→行き先）の従来操作はそのまま残し、ドラッグは同じモデル操作を
     /// 別の入力経路から呼ぶだけにする（合法判定・拒否・記録の経路を増やさない。ソリティアと同じ設計）。
+    ///
+    /// **指の位置はここに入れない**（#521 と同じ理由）。持ち上げ・置くの瞬間にしか変わらない値だけを置く。
     @State private var drag: FreeCellDragState?
+    /// ドラッグ中の指の位置。**盤本体から切り離すために参照型に逃がす**（#521・#524）。
+    ///
+    /// `@State` の構造体に入れると 1 サンプルごとに `FreeCellView.body` 全体
+    /// （ステータスバー・8 列の場札・操作エリア）が作り直される。参照型にして
+    /// 追従表示の `CardDragLayer` だけが `point` を読むことで、盤本体は
+    /// 持ち上げ・置くの 2 回しか作り直されない。
+    @State private var dragLocation = CardDragLocation()
     /// ドロップ先の当たり判定枠（盤スクロール座標系）。
     @State private var dropFrames: [FreeCellDropTarget: CGRect] = [:]
     /// 無料の「戻す」を使い切った状態でボタンを押したときの提案。
@@ -194,7 +203,7 @@ public struct FreeCellView: View {
                 .padding(.top, 2)
             }
             .coordinateSpace(name: Self.boardSpace)
-            .onPreferenceChange(FreeCellDropFramesKey.self) { dropFrames = $0 }
+            .onPreferenceChange(CardDropFramesKey<FreeCellDropTarget>.self) { dropFrames = $0 }
             .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics) }
             .gameAnimation(FreeCellMotion.move, value: boardAnimationKey)
         }
@@ -221,20 +230,21 @@ public struct FreeCellView: View {
     // MARK: - ドラッグ&ドロップ
 
     /// 指に追従する持ち上げた札の描画。当たり判定は持たない。
+    ///
+    /// **位置を読むのはここではなく `CardDragLayer` の中**（#521・#524）。この関数は
+    /// `FreeCellView.body` の一部として評価されるので、ここで `dragLocation.point` を
+    /// 読むと盤本体が指の動きを購読してしまい、逃がした意味が無くなる。
     @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics) -> some View {
         if let drag {
-            let step = FreeCellMetrics.step(cardHeight: metrics.height)
-            ZStack(alignment: .top) {
-                ForEach(Array(drag.cards.enumerated()), id: \.element.id) { index, card in
-                    FreeCellCardBody(card: card, isSelected: false,
-                                     isCovered: index < drag.cards.count - 1, metrics: metrics)
-                        .offset(y: CGFloat(index) * step)
-                }
+            CardDragLayer(
+                cards: drag.cards,
+                grab: drag.grab,
+                location: dragLocation,
+                step: FreeCellMetrics.step(cardHeight: metrics.height)
+            ) { index, card in
+                FreeCellCardBody(card: card, isSelected: false,
+                                 isCovered: index < drag.cards.count - 1, metrics: metrics)
             }
-            .shadow(color: .black.opacity(0.25), radius: 8, y: 6)
-            .offset(x: drag.location.x - drag.grab.width,
-                    y: drag.location.y - drag.grab.height)
-            .allowsHitTesting(false)
         }
     }
 
@@ -247,16 +257,18 @@ public struct FreeCellView: View {
                     guard model.phase == .playing,
                           let cards = draggableCards(from: source), !cards.isEmpty else { return }
                     model.deselect()
+                    // 位置を先に入れる。持ち上げた最初の 1 フレームから正しい場所に出す。
+                    dragLocation.point = value.location
                     drag = FreeCellDragState(
                         source: source,
                         cards: cards,
-                        location: value.location,
                         // つかんだ位置がだいたい札の中央上部に来るように合わせる。
                         grab: CGSize(width: metrics.width / 2, height: metrics.height / 3)
                     )
                     services.feedback.impact(.rigid)
                 } else {
-                    drag?.location = value.location
+                    // 盤本体の `@State` は触らない（#521）。読むのは追従表示だけ。
+                    dragLocation.point = value.location
                 }
             }
             .onEnded { value in
@@ -317,8 +329,8 @@ public struct FreeCellView: View {
     }
 
     /// 移動の補間で札どうしを結ぶ鍵（#421）。配り直しをまたいでは結ばない。
-    private func motionID(_ card: FreeCellCard) -> FreeCellCardMotionID {
-        FreeCellCardMotionID(deal: model.dealSerial, card: card.id)
+    private func motionID(_ card: FreeCellCard) -> CardMotionID {
+        CardMotionID(deal: model.dealSerial, card: card.id)
     }
 
     /// この札がドラッグで持ち上げ中（元の位置は薄く見せる）か。
@@ -364,14 +376,10 @@ public struct FreeCellView: View {
                     .matchedGeometryEffect(id: motionID(card), in: cardMotion)
                     .opacity(drag?.source == .cell(cell) ? 0.35 : 1)
             } else {
-                emptySlot(metrics: metrics, symbol: "tray")
+                CardSlot(metrics: metrics, systemImage: "tray")
             }
         }
-        .background(GeometryReader { g in
-            Color.clear.preference(
-                key: FreeCellDropFramesKey.self,
-                value: [.cell(cell): g.frame(in: .named(Self.boardSpace))])
-        })
+        .cardDropTarget(FreeCellDropTarget.cell(cell), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapCell(cell) }
         .highPriorityGesture(dragGesture(source: .cell(cell), metrics: metrics))
@@ -392,14 +400,10 @@ public struct FreeCellView: View {
                     .matchedGeometryEffect(id: motionID(FreeCellCard(suit, rank)), in: cardMotion)
             } else {
                 // 空の組札にはスート記号を薄く置く。どこに何を積むのかが最初から分かるようにする。
-                emptySlot(metrics: metrics, symbol: nil, suit: suit)
+                CardSlot(metrics: metrics, suitSymbol: suit.symbol)
             }
         }
-        .background(GeometryReader { g in
-            Color.clear.preference(
-                key: FreeCellDropFramesKey.self,
-                value: [.foundation(suit): g.frame(in: .named(Self.boardSpace))])
-        })
+        .cardDropTarget(FreeCellDropTarget.foundation(suit), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapFoundation(suit) }
         .accessibilityElement(children: .ignore)
@@ -426,7 +430,7 @@ public struct FreeCellView: View {
         return ZStack(alignment: .top) {
             // 列全体を「置く先」として受ける下敷き。札の無いところをタップしても列に置ける。
             if column.isEmpty {
-                emptySlot(metrics: metrics, symbol: "square.dashed")
+                CardSlot(metrics: metrics, systemImage: "square.dashed")
                     // 空列は「どの札でも置ける」ことを読み上げないと、音声では規則が分からない。
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(FreeCellAccessibility.emptyPileLabel(pile: pile))
@@ -448,11 +452,7 @@ public struct FreeCellView: View {
             }
         }
         .frame(width: metrics.width, height: height, alignment: .top)
-        .background(GeometryReader { g in
-            Color.clear.preference(
-                key: FreeCellDropFramesKey.self,
-                value: [.pile(pile): g.frame(in: .named(Self.boardSpace))])
-        })
+        .cardDropTarget(FreeCellDropTarget.pile(pile), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapPile(pile) }
     }
@@ -499,28 +499,6 @@ public struct FreeCellView: View {
         ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.tapPile(pile, cardIndex: index) }
-    }
-
-    private func emptySlot(
-        metrics: PlayingCardMetrics,
-        symbol: String?,
-        suit: PlayingCardSuit? = nil
-    ) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
-                .strokeBorder(Theme.inkSub.opacity(0.35),
-                              style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-            if let suit {
-                Text(suit.symbol)
-                    .font(.system(size: metrics.suitFont))
-                    .foregroundStyle(Theme.inkSub.opacity(0.45))
-            } else if let symbol {
-                Image(systemName: symbol)
-                    .font(.system(size: metrics.suitFont * 0.8, weight: .semibold))
-                    .foregroundStyle(Theme.inkSub.opacity(0.45))
-            }
-        }
-        .frame(width: metrics.width, height: metrics.height)
     }
 
     // MARK: - 盤の下の操作エリア
@@ -782,17 +760,19 @@ struct FreeCellCardIndex: View {
 // MARK: - 配札（#421 の横展開）
 
 /// 配られてくる 1 枚。配り終わったあとは素通しなので、移動の補間には干渉しない。
+///
+/// 動きの器は共通基盤（`CardDealtView`・#524）が持ち、ここは**フリーセル固有の
+/// 「どこから」「どの順で」飛んでくるか**を `FreeCellMotion` から渡す口になる
+/// （配り元は上段のいちばん左・8 列へ 1 枚ずつ順に配る）。
 struct FreeCellDealtCardView<Content: View>: View {
     let pile: Int
     let depth: Int
     /// 列の上端から測った、この札の落ち着き先。飛んでくる距離の計算に使う。
     let restY: CGFloat
     let metrics: PlayingCardMetrics
+    let dealing: Bool
 
     let content: Content
-
-    /// 置き終わったか。`false` の間だけ配り元の位置に隠しておく。
-    @State private var dealt: Bool
 
     init(pile: Int, depth: Int, restY: CGFloat, metrics: PlayingCardMetrics,
          dealing: Bool, @ViewBuilder content: () -> Content) {
@@ -800,23 +780,18 @@ struct FreeCellDealtCardView<Content: View>: View {
         self.depth = depth
         self.restY = restY
         self.metrics = metrics
+        self.dealing = dealing
         self.content = content()
-        _dealt = State(initialValue: !dealing)
     }
 
     var body: some View {
-        let start = FreeCellMotion.dealStartOffset(pile: pile, restY: restY, metrics: metrics)
-        content
-            .offset(x: dealt ? 0 : start.width, y: dealt ? 0 : start.height)
-            .opacity(dealt ? 1 : 0)
-            .onAppear {
-                guard !dealt else { return }
-                // Reduce Motion が ON なら `withGameAnimation` が補間を落とすので、
-                // 遅れも動きも無く即座に置かれる（状態変更そのものは必ず走る）。
-                withGameAnimation(FreeCellMotion.dealAppear(pile: pile, depth: depth)) {
-                    dealt = true
-                }
-            }
+        CardDealtView(
+            startOffset: FreeCellMotion.dealStartOffset(pile: pile, restY: restY, metrics: metrics),
+            animation: FreeCellMotion.dealAppear(pile: pile, depth: depth),
+            dealing: dealing
+        ) {
+            content
+        }
     }
 }
 
@@ -866,34 +841,18 @@ struct FreeCellRuleSheet: View {
 
 // MARK: - ドラッグ&ドロップ
 
-/// ドラッグ中の札の状態。
+/// ドラッグ中の札の状態。**持ち上げた瞬間から置くまで変わらない値だけを持つ**（#521・#524）。
+/// 毎サンプル変わる指の位置は共通基盤の `CardDragLocation` にある。
 struct FreeCellDragState {
     var source: FreeCellSelection
     var cards: [FreeCellCard]
-    /// 盤座標系での指の位置。
-    var location: CGPoint
     /// つかんだ点から札の左上までのずれ（追従表示の位置合わせ用）。
     var grab: CGSize
 }
 
-/// 移動の補間で札どうしを結ぶ鍵（#421）。配り直しの世代を含めるので、世代が変わると結ばれない。
-struct FreeCellCardMotionID: Hashable {
-    let deal: Int
-    let card: Int
-}
-
-/// ドロップ先の種類。
+/// ドロップ先の種類。枠を集める仕組みそのものは共通基盤（`CardDropFramesKey`・#524）にある。
 enum FreeCellDropTarget: Hashable {
     case pile(Int)
     case cell(Int)
     case foundation(PlayingCardSuit)
-}
-
-/// ドロップ先の枠を子ビューから集める。
-struct FreeCellDropFramesKey: PreferenceKey {
-    static var defaultValue: [FreeCellDropTarget: CGRect] { [:] }
-    static func reduce(value: inout [FreeCellDropTarget: CGRect],
-                       nextValue: () -> [FreeCellDropTarget: CGRect]) {
-        value.merge(nextValue()) { _, new in new }
-    }
 }
