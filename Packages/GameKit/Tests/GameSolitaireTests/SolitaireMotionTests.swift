@@ -239,12 +239,7 @@ struct SolitaireMotionTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameSolitaireTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameSolitaire/SolitaireView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SolitaireSources.joined()
     }
 
     private static func matchCount(of pattern: String, in source: String) -> Int {
