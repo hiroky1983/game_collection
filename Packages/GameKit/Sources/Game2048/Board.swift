@@ -17,6 +17,14 @@ public struct SlideResult: Equatable, Sendable {
 public enum Game2048Logic {
     public static let size = 4
 
+    /// クリア扱いにするタイルの値（原典 Cirulli 版と同じ 2048）。到達しても続行できる。
+    public static let winningTile = 2048
+
+    /// クリアのタイルに到達しているか。到達後も合体は続くので `>=` で見る。
+    public static func hasWinningTile(_ board: [[Int]]) -> Bool {
+        board.contains { $0.contains { $0 >= winningTile } }
+    }
+
     /// 1 行を左へ寄せ、隣接同値をマージし、再度寄せる。各タイルは 1 回の操作で 1 度だけマージされる。
     /// 戻り値: 整形後の行と、マージで得たスコア。
     public static func slideRowLeft(_ row: [Int]) -> (row: [Int], gained: Int) {

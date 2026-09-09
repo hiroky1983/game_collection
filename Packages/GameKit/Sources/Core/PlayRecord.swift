@@ -34,6 +34,13 @@ public struct GameScore: Equatable, Sendable {
     public var variant: String?
     /// 区分の表示名（「初級」など）。ハブの 1 行に添える。
     public var variantLabel: String?
+    /// この決着を Game Center のリーダーボードへ送ってよいか（#406）。
+    ///
+    /// **ローカルの自己ベスト（`PlayRecord`）には影響しない**。救済アイテムを使ったクリアを
+    /// 全世界の順位表から外すためだけの旗で、手元の記録は使用の有無を問わず残す（#397 の
+    /// 「ローカル記録は使用有無を問わず保存」）。区分（`variant`）で分けると自己ベストの行が
+    /// 2 つに割れてしまうので、記録の分割とは別の軸として持つ。
+    public var isLeaderboardEligible: Bool
 
     public init(
         metric: RecordMetric = .winLoss,
@@ -42,7 +49,8 @@ public struct GameScore: Equatable, Sendable {
         seconds: Int? = nil,
         moves: Int? = nil,
         variant: String? = nil,
-        variantLabel: String? = nil
+        variantLabel: String? = nil,
+        isLeaderboardEligible: Bool = true
     ) {
         self.metric = metric
         self.points = points
@@ -51,6 +59,7 @@ public struct GameScore: Equatable, Sendable {
         self.moves = moves
         self.variant = variant
         self.variantLabel = variantLabel
+        self.isLeaderboardEligible = isLeaderboardEligible
     }
 }
 
@@ -167,6 +176,36 @@ public struct RecordResult: Equatable, Sendable {
 }
 
 public extension PlayRecord {
+    /// 自分（古い側）を `newer`（新しい側）に畳み込んだ記録を返す（#383）。
+    ///
+    /// キーの付け替え（区分の後付け）で新旧2件に割れてしまった記録を1件に戻すためのもの。
+    /// 通算は足し合わせ、自己ベストは良いほうを採り、「今」を表す項目
+    /// （見出しの指標・区分名・現在の連勝）は**新しい側を優先する**。
+    /// 古い記録の連勝は既に途切れているため、足したり大きいほうを採ったりしない。
+    func merged(into newer: PlayRecord) -> PlayRecord {
+        var result = newer
+        result.plays  += plays
+        result.wins   += wins
+        result.losses += losses
+        result.draws  += draws
+        result.bestStreak = max(bestStreak, newer.bestStreak)
+        result.bestPoints   = Self.better(bestPoints, newer.bestPoints, by: >)
+        result.highestValue = Self.better(highestValue, newer.highestValue, by: >)
+        result.bestSeconds  = Self.better(bestSeconds, newer.bestSeconds, by: <)
+        result.fewestMoves  = Self.better(fewestMoves, newer.fewestMoves, by: <)
+        if let mine = lastPlayedAt, mine > (newer.lastPlayedAt ?? .distantPast) {
+            result.lastPlayedAt = mine
+        }
+        return result
+    }
+
+    /// 「片方だけある」を落とさずに良いほうを選ぶ。両方あるときだけ `isBetter` で比べる。
+    private static func better(_ a: Int?, _ b: Int?, by isBetter: (Int, Int) -> Bool) -> Int? {
+        guard let a else { return b }
+        guard let b else { return a }
+        return isBetter(a, b) ? a : b
+    }
+
     /// 決着 1 回を既存の記録に反映した結果を返す純粋関数。永続化から切り離してテストできるようにする。
     ///
     /// - Parameters:

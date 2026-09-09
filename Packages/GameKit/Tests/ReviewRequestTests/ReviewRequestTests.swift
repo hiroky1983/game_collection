@@ -13,6 +13,9 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
+import GameSolitaire
+import GameChess
 import MahjongTiles
 
 // MARK: - 共通のヘルパー
@@ -436,6 +439,24 @@ struct GameOutcomeRoutingTests {
         #expect(service.log.totalWins == 0)
     }
 
+    @Test("ソリティア: 捨てた配札は勝利にならない")
+    func solitaireAbandon() {
+        let (services, service) = makeServices(suite: "route-solitaire")
+        let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
+        model.tapStock()
+        model.newGame()
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("囲碁: 投了は勝利にならない")
+    func goResign() {
+        let (services, service) = makeServices(suite: "route-go")
+        let model = GoModel(services: services)
+        model.newGame(humanSide: .black, level: .easy)
+        model.resign()
+        #expect(service.log.totalWins == 0)
+    }
+
     @Test("オセロ: 投了は勝利にならない")
     func othelloResign() {
         let (services, service) = makeServices(suite: "route-othello")
@@ -449,15 +470,47 @@ struct GameOutcomeRoutingTests {
     @Test("2048: ゲームオーバーは勝利にならない")
     func game2048() {
         let (services, service) = makeServices(suite: "route-2048")
-        let model = Game2048Model(services: services)
-        outer: for _ in 0..<3000 {
-            for direction in Direction.allCases {
-                model.move(direction)
-                if model.gameOver { break outer }
-            }
-        }
+        // 左へ寄せると 8 どうしが合体し、空いた 1 マスに何が沸いても終局する盤（2048 には届かない）。
+        // 乱数任せに遊ばせると、まず起きないとはいえ 2048 到達で判定が揺れるため決め打ちする。
+        let model = Game2048Model(services: services, board: [
+            [8, 8, 4, 16],
+            [4, 16, 4, 8],
+            [8, 4, 8, 4],
+            [4, 8, 4, 8],
+        ])
+
+        model.move(.left)
+
         #expect(model.gameOver)
-        #expect(service.log.totalWins == 0, "2048 には「クリア」が無く、終局は必ずゲームオーバー")
+        #expect(!model.hasWon, "2048 に届いていない")
+        #expect(service.log.totalWins == 0, "2048 に届かない終局はゲームオーバー")
+    }
+
+    @Test("2048: 2048 到達は勝利として評価リクエストの条件に乗る（#438）")
+    func game2048Win() {
+        let (services, service) = makeServices(suite: "route-2048-win")
+        // 左へ寄せると 1024 どうしが合体して 2048 になる盤。
+        let winnableBoard = [
+            [1024, 1024, 4, 8],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ]
+
+        let first = Game2048Model(services: services, board: winnableBoard)
+        first.move(.left)
+        #expect(first.hasWon)
+        #expect(!first.gameOver, "勝ってもゲームは続く")
+        #expect(service.log.totalWins == 1, "2048 到達は勝利として数える")
+        #expect(service.pendingRequestID == nil, "条件2（通算5勝）にはまだ届かない")
+
+        // ここまで一度も乗れなかった経路（`outcome == .win`）に乗ったことを、
+        // 初回リクエストの条件（通算5勝）まで到達できることで確かめる。
+        for _ in 0..<(ReviewRequestPolicy.firstRequestWins - 1) {
+            Game2048Model(services: services, board: winnableBoard).move(.left)
+        }
+        #expect(service.log.totalWins == ReviewRequestPolicy.firstRequestWins)
+        #expect(service.pendingRequestID != nil, "評価リクエストが予定される")
     }
 
     @Test("ブラックジャック: ラウンドの結果どおりに振り分ける")

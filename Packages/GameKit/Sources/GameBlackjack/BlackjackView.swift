@@ -5,6 +5,8 @@ public struct BlackjackView: View {
     @State private var model: BlackjackModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
+    /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
+    @Environment(\.adaptiveLayout) private var layout
     @State private var showRewardNotEarned = false
     @State private var isRecoveringChips = false
 
@@ -57,6 +59,24 @@ public struct BlackjackView: View {
             }
         }
         .howToPlay(.blackjack)
+        .onAppear {
+            #if DEBUG
+            // 撮影・動作確認用: `-simulateBlackjackAction <double|split|hit|stand>` でその操作を1回行う（#439）。
+            // 配りが乱数なので中断スナップショットを注入して手札を決め打ちしたうえで、
+            // タップ起点の操作をここから起こす（#437 の `-simulateChord`・#438 の
+            // `-simulate2048Move` と同型。撮った画がコードの実行結果であることを担保する）。
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-simulateBlackjackAction"), i + 1 < args.count {
+                switch args[i + 1] {
+                case "double": model.doubleDown()
+                case "split":  model.split()
+                case "hit":    model.hit()
+                case "stand":  model.stand()
+                default:       break
+                }
+            }
+            #endif
+        }
         .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -157,6 +177,21 @@ public struct BlackjackView: View {
 
     private var playerArea: some View {
         VStack(spacing: 10) {
+            // スプリットしたラウンドは手が2つに割れ、それぞれ賭け金も勝敗も別（#439）。
+            if model.hands.count > 1 {
+                ForEach(Array(model.hands.enumerated()), id: \.element.id) { idx, hand in
+                    splitHandRow(index: idx, hand: hand)
+                }
+            } else {
+                singleHandArea
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 14)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var singleHandArea: some View {
+        VStack(spacing: 10) {
             HStack {
                 Text("あなた")
                     .themeBody(13)
@@ -193,8 +228,54 @@ public struct BlackjackView: View {
             }
             .frame(minHeight: 90)
         }
-        .padding(.horizontal, 14).padding(.vertical, 14)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    // MARK: - Split Hands (#439)
+
+    /// スプリットで分かれた手 1 つぶん。2 手ぶんを縦に積むため札は `compact` で描く。
+    private func splitHandRow(index: Int, hand: BlackjackHand) -> some View {
+        let isActive = model.phase == .playerTurn && index == model.activeHandIndex
+        return VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                Text("ハンド\(index + 1)")
+                    .themeBody(13)
+                    .foregroundStyle(isActive ? Theme.ink : Theme.inkSub)
+                Text("\(hand.bet)枚\(hand.isDoubled ? "（ダブル）" : "")")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
+                if isActive {
+                    Text("操作中")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.onAccent)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.Fill.teal))
+                }
+                Spacer(minLength: 0)
+                Text("\(hand.value)")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .foregroundStyle(hand.isBusted ? Theme.coral : Theme.teal)
+                if let outcome = hand.outcome {
+                    outcomeBadge(outcome)
+                }
+            }
+            HStack(spacing: 6) {
+                ForEach(Array(hand.cards.enumerated()), id: \.element.id) { idx, card in
+                    BJDealtCardView(index: idx, isDealer: false) {
+                        BJCardView(card: card, faceUp: true, metrics: .compact)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: layout.scaled(60))
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isActive ? Theme.teal : Color.clear, lineWidth: 2)
+        )
     }
 
     @ViewBuilder
@@ -203,15 +284,15 @@ public struct BlackjackView: View {
         case .playerBlackjack:
             Text("ブラックジャック！")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.yellow))
+                .background(Capsule().fill(Theme.Fill.yellow))
         case .win:
             Text("勝ち！")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.teal))
+                .background(Capsule().fill(Theme.Fill.teal))
         case .push:
             Text("引き分け")
                 .font(.system(size: 12, weight: .black, design: .rounded))
@@ -221,15 +302,15 @@ public struct BlackjackView: View {
         case .lose:
             Text("負け")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.coral))
+                .background(Capsule().fill(Theme.Fill.coral))
         case .bust:
             Text("バスト")
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Theme.coral))
+                .background(Capsule().fill(Theme.Fill.coral))
         }
     }
 
@@ -258,7 +339,7 @@ public struct BlackjackView: View {
                 ForEach(betOptions, id: \.self) { amount in
                     actionButton(
                         "\(amount)枚",
-                        color: Theme.coral,
+                        color: Theme.Fill.coral,
                         disabled: model.chips < amount
                     ) {
                         model.placeBet(amount)
@@ -271,12 +352,32 @@ public struct BlackjackView: View {
     }
 
     private var playerActionView: some View {
-        HStack(spacing: 12) {
-            actionButton("スタンド", color: Theme.fillMuted) {
-                model.stand()
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                actionButton("スタンド", color: Theme.fillMuted, foreground: .white) {
+                    model.stand()
+                }
+                actionButton("ヒット", color: Theme.Fill.coral) {
+                    model.hit()
+                }
             }
-            actionButton("ヒット", color: Theme.coral) {
-                model.hit()
+            // ダブルダウン・スプリットは最初の2枚のときだけの選択肢（#439）。
+            // 手の形が合っているあいだだけ並べ、チップが足りないときは押せなくする。
+            if model.isDoubleDownApplicable || model.isSplitApplicable {
+                HStack(spacing: 12) {
+                    if model.isDoubleDownApplicable {
+                        actionButton("ダブルダウン", color: Theme.Fill.yellow,
+                                     disabled: !model.canDoubleDown) {
+                            model.doubleDown()
+                        }
+                    }
+                    if model.isSplitApplicable {
+                        actionButton("スプリット", color: Theme.Fill.purple,
+                                     disabled: !model.canSplit) {
+                            model.split()
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -286,7 +387,7 @@ public struct BlackjackView: View {
     private var resultView: some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
-            actionButton("次のゲーム", color: Theme.coral) {
+            actionButton("次のゲーム", color: Theme.Fill.coral) {
                 model.nextRound()
             }
         }
@@ -327,14 +428,16 @@ public struct BlackjackView: View {
             } label: {
                 Label("広告を見てチップ回復 (+500枚)", systemImage: "play.rectangle.fill")
                     .themeBody(16).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
             .disabled(isRecoveringChips)
 
             Button { model.restartSession() } label: {
                 Text("最初からやり直す (1000枚)").themeBody(16).frame(maxWidth: .infinity)
+                .foregroundStyle(Theme.onAccent)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -342,7 +445,10 @@ public struct BlackjackView: View {
 
     // MARK: - Helper
 
-    private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
+    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
+                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
@@ -354,7 +460,7 @@ public struct BlackjackView: View {
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : .white)
+                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
         .buttonStyle(.plain)
         .disabled(disabled)
@@ -436,41 +542,42 @@ struct BJFlipCardView: View, Animatable {
 struct BJCardView: View {
     let card: BlackjackCard
     var faceUp: Bool = true
+    /// 札の寸法。スプリットで2手を縦に積むときだけ `compact` を渡す（#439）。
+    var metrics: PlayingCardMetrics = .standard
+    /// 画面の広さ（#458）。この画面も `GeometryReader` を持たず札が固定 pt なので、
+    /// iPad では札だけが取り残される。渡された寸法をそのまま相似に拡大する
+    /// （`.standard` も `.compact` も同じ倍率で大きくなるので、スプリット時の比率は保たれる）。
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var scaled: PlayingCardMetrics { metrics.scaled(by: layout.elementScale) }
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(faceUp ? Color.white : Color(hex: 0x2A5298))
-                .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                )
+            // 外形・面・裏はトランプ共通基盤（#397。質感は CardStyle #366）。
+            PlayingCardSurface(faceUp: faceUp, cornerRadius: scaled.cornerRadius)
 
             if faceUp {
-                VStack(spacing: 2) {
-                    Text(card.rankLabel)
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                    Text(card.suit.symbol)
-                        .font(.system(size: 24))
-                }
-                .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
+                PlayingCardFace(figure: card.figure, metrics: scaled)
             } else {
-                Image(systemName: "suit.spade.fill")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.3))
+                PlayingCardBack(metrics: scaled)
             }
         }
-        .frame(width: 62, height: 90)
+        .frame(width: scaled.width, height: scaled.height)
     }
 }
 
 /// 配牌前のカード置き場（`BJCardView` と同じ寸法で、配牌時に高さが動かないようにする）
 struct BJCardPlaceholder: View {
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var metrics: PlayingCardMetrics {
+        PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+    }
+
     var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
             .strokeBorder(Theme.inkSub.opacity(0.3),
                           style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-            .frame(width: 62, height: 90)
+            .frame(width: metrics.width, height: metrics.height)
     }
 }

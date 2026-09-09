@@ -10,6 +10,8 @@ public struct PokerView: View {
     @State private var revealCPU = false
     @State private var showRewardNotEarned = false
     @State private var isRecoveringChips = false
+    /// 画面の広さ（#458）。iPad で縦の余白をどう配るかにだけ使う（#485）。
+    @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
@@ -22,9 +24,13 @@ public struct PokerView: View {
     public var body: some View {
         VStack(spacing: 10) {
             chipsBar
+            verticalSlack
             cpuArea
+            verticalSlack
             potArea
+            verticalSlack
             playerArea
+            verticalSlack
             HowToPlayHint(.poker, playLog: services.playLog)
             if model.sessionOver {
                 sessionOverView
@@ -32,7 +38,13 @@ public struct PokerView: View {
                 actionArea
             }
             RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
-            Spacer(minLength: 4)
+            // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
+            // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
+            if layout.isWide {
+                Color.clear.frame(height: 4)
+            } else {
+                Spacer(minLength: 4)
+            }
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -66,11 +78,28 @@ public struct PokerView: View {
         .onChange(of: model.phase) { _, phase in
             if phase == .result { revealCPU = true }
         }
+        .task {
+            #if DEBUG
+            // 撮影用（#366）: 開始シートを飛ばして1ラウンド配る。手札5枚 + CPU の裏札が写る。
+            if ProcessInfo.processInfo.arguments.contains("-pokerAutoStart") {
+                showStartSheet = false
+                hasPlayedOnce = true
+                if model.phase == .idle { model.startGame() }
+            }
+            #endif
+        }
         .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
+    }
+
+    /// iPad で余った高さを節の間に配るための可変余白（#485）。iPhone では何も置かないので
+    /// `VStack` の子の並びが変わらず、見た目は 1pt も動かない。
+    @ViewBuilder
+    private var verticalSlack: some View {
+        if layout.isWide { Spacer(minLength: 0) }
     }
 
     // MARK: - Chips Bar
@@ -89,8 +118,14 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    /// CPU の手札を表向きにしてよいか。ショーダウン（`.result`）に入った時点で真になる。
-    private var cpuRevealed: Bool { revealCPU || model.phase == .result }
+    /// CPU の手札を表向きにしてよいか。`.result` に入った**次の**更新（`onChange`）で真になる。
+    ///
+    /// **`|| model.phase == .result` を足してはいけない**（#383）。それを足すと `.result` に
+    /// 入ったその描画で既に真になり、同じ描画で新規に挿入される役名 `Text` とカードには
+    /// 「変化前の値」が無いため `.gameAnimation(_:value:)` が一度も走らない。結果、
+    /// 遅延フェードが効かず**カードが返る前に役名が見えて**しまう。`.result` と `.showdown` は
+    /// `PokerModel.persist()` の保存対象外なので、この状態で復元されることもない。
+    private var cpuRevealed: Bool { revealCPU }
 
     // MARK: - CPU Area
 
@@ -103,9 +138,9 @@ public struct PokerView: View {
                 if !model.cpuAction.isEmpty {
                     Text(model.cpuAction)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(Theme.purple))
+                        .background(Capsule().fill(Theme.Fill.purple))
                 }
                 Spacer()
                 if model.phase == .result && !model.cpuFolded {
@@ -229,15 +264,15 @@ public struct PokerView: View {
         case .player:
             Text("勝ち！")
                 .font(.system(size: 13, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Capsule().fill(Theme.teal))
+                .background(Capsule().fill(Theme.Fill.teal))
         case .cpu:
             Text("負け")
                 .font(.system(size: 13, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Capsule().fill(Theme.coral))
+                .background(Capsule().fill(Theme.Fill.coral))
         case .tie:
             Text("引き分け")
                 .font(.system(size: 13, weight: .black, design: .rounded))
@@ -272,10 +307,10 @@ public struct PokerView: View {
     // ベットラウンド1
     private var betting1View: some View {
         HStack(spacing: 12) {
-            actionButton("チェック", color: Theme.teal) {
+            actionButton("チェック", color: Theme.Fill.teal) {
                 model.bet1Action(.check)
             }
-            actionButton("ベット \(20)枚", color: Theme.coral, disabled: model.playerChips < 20) {
+            actionButton("ベット \(20)枚", color: Theme.Fill.coral, disabled: model.playerChips < 20) {
                 model.bet1Action(.bet(20))
             }
         }
@@ -294,7 +329,7 @@ public struct PokerView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 let count = model.selectedForExchange.count
-                actionButton(count == 0 ? "交換しない" : "\(count)枚を交換", color: Theme.coral) {
+                actionButton(count == 0 ? "交換しない" : "\(count)枚を交換", color: Theme.Fill.coral) {
                     model.confirmExchange()
                 }
             }
@@ -309,23 +344,23 @@ public struct PokerView: View {
             if model.currentBet > 0 {
                 // CPUがベット済み → コールかフォールド
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.fillMuted) {
+                    actionButton("フォールド", color: Theme.fillMuted, foreground: .white) {
                         model.foldToCPUBet()
                     }
-                    actionButton("コール \(model.currentBet)枚", color: Theme.coral,
+                    actionButton("コール \(model.currentBet)枚", color: Theme.Fill.coral,
                                  disabled: model.playerChips < model.currentBet) {
                         model.callCPUBet()
                     }
                 }
             } else {
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.fillMuted) {
+                    actionButton("フォールド", color: Theme.fillMuted, foreground: .white) {
                         model.bet2Action(.fold)
                     }
-                    actionButton("チェック", color: Theme.teal) {
+                    actionButton("チェック", color: Theme.Fill.teal) {
                         model.bet2Action(.check)
                     }
-                    actionButton("ベット \(20)枚", color: Theme.coral, disabled: model.playerChips < 20) {
+                    actionButton("ベット \(20)枚", color: Theme.Fill.coral, disabled: model.playerChips < 20) {
                         model.bet2Action(.bet(20))
                     }
                 }
@@ -339,7 +374,7 @@ public struct PokerView: View {
     private var resultView: some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
-            actionButton("次のゲーム", color: Theme.coral) {
+            actionButton("次のゲーム", color: Theme.Fill.coral) {
                 revealCPU = false
                 if hasPlayedOnce {
                     model.startGame()
@@ -391,8 +426,9 @@ public struct PokerView: View {
                 } label: {
                     Label("広告を見てチップ回復", systemImage: "play.rectangle.fill")
                         .themeBody(16).frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.yellow)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
                 .disabled(isRecoveringChips)
             }
 
@@ -403,14 +439,18 @@ public struct PokerView: View {
                 showStartSheet = true
             } label: {
                 Text("もう一度はじめる").themeBody(16).frame(maxWidth: .infinity)
+                .foregroundStyle(Theme.onAccent)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
+    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
+                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
@@ -425,7 +465,7 @@ public struct PokerView: View {
                 .frame(maxWidth: .infinity, minHeight: PokerMetrics.actionButtonMinHeight)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : .white)
+                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
         .buttonStyle(.plain)
         .disabled(disabled)
@@ -472,32 +512,33 @@ struct CardView: View {
     var faceUp: Bool = true
     var selected: Bool = false
 
+    /// 画面の広さ（#458）。この画面は `GeometryReader` を 1 つも持たず札が固定 pt なので、
+    /// iPad では 5 枚並べても 310pt しか占めず左右に大きな空白が残る。ここで札ごと拡大する。
+    @Environment(\.adaptiveLayout) private var layout
+
+    private var metrics: PlayingCardMetrics {
+        PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+    }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(faceUp ? Color.white : Color(hex: 0x2A5298))
-                .shadow(color: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
-                        radius: selected ? 6 : 3, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(selected ? Theme.coral : Color.gray.opacity(0.2), lineWidth: selected ? 2 : 0.5)
-                )
+            // 外形・面・裏はトランプ共通基盤（#397。質感は CardStyle #366）。
+            PlayingCardSurface(
+                faceUp: faceUp,
+                cornerRadius: metrics.cornerRadius,
+                border: selected ? Theme.coral : Color.gray.opacity(0.2),
+                borderWidth: selected ? 2 : 0.5,
+                shadowColor: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
+                shadowRadius: selected ? 6 : 3
+            )
 
             if faceUp {
-                VStack(spacing: 2) {
-                    Text(card.rankLabel)
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                    Text(card.suit.symbol)
-                        .font(.system(size: 24))
-                }
-                .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
+                PlayingCardFace(figure: card.figure, metrics: metrics)
             } else {
-                Image(systemName: "suit.spade.fill")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.3))
+                PlayingCardBack(metrics: metrics)
             }
         }
-        .frame(width: 62, height: 90)
+        .frame(width: metrics.width, height: metrics.height)
     }
 }
 
@@ -544,8 +585,9 @@ struct PokerStartSheet: View {
                     onStart()
                 } label: {
                     Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -558,9 +600,9 @@ struct PokerStartSheet: View {
         HStack(alignment: .top, spacing: 8) {
             Text(num)
                 .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.coral))
+                .background(Circle().fill(Theme.Fill.coral))
             Text(text)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.ink)

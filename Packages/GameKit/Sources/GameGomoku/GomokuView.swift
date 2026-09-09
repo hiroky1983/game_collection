@@ -27,7 +27,8 @@ public struct GomokuView: View {
             board
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
-            HowToPlayHint(.gomoku, playLog: services.playLog)
+            HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
+                          playLog: services.playLog)
             controlArea
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
@@ -61,10 +62,11 @@ public struct GomokuView: View {
                 }
             }
         }
-        .howToPlay(.gomoku)
+        .howToPlay(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku)
         .sheet(isPresented: $showNewGame) {
-            GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
-                model.newGame(humanSide: side, aiLevel: level)
+            GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
+                               forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
+                model.newGame(humanSide: side, aiLevel: level, forbiddenMoves: renju)
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
@@ -76,6 +78,18 @@ public struct GomokuView: View {
         }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        .task {
+            #if DEBUG
+            // 撮影用（#366）: 中盤風の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
+            if ProcessInfo.processInfo.arguments.contains("-gomokuMidgame") {
+                model.applyPreviewMidgameForTesting()
+            }
+            // 撮影用（#441）: 禁じ手で断られた直後の画面。
+            if ProcessInfo.processInfo.arguments.contains("-gomokuRenjuBlocked") {
+                model.applyRenjuBlockedPreviewForTesting()
+            }
+            #endif
         }
     }
 
@@ -121,9 +135,9 @@ public struct GomokuView: View {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer(minLength: 0)
         }
@@ -172,8 +186,31 @@ public struct GomokuView: View {
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
             .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
+            // 禁じ手の理由は揺れの外に置く（一緒に揺らすと読めない）。
+            .overlay(alignment: .top) { forbiddenNotice }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// 禁じ手で打てなかったことを盤の上に出す（#441）。
+    ///
+    /// 空いている交点なのに石が入らないので、震え（#202）と警告音だけでは
+    /// 「なぜ打てないのか」が伝わらない。次に打てたら `place` が `lastRejection` を
+    /// 消すので自然に引っ込む。盤への `overlay` なので、出ても消えても盤や
+    /// その下の操作エリアの高さは変わらない（#148 で揃えた高さを崩さない）。
+    @ViewBuilder
+    private var forbiddenNotice: some View {
+        if case .forbidden(let reason) = model.lastRejection {
+            Text("\(reason.label)は打てません（禁じ手）")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(Theme.Fill.coral))
+                .padding(.top, 10)
+                // 帯は盤より前面なので、既定のままだと重なった交点へのタップを吸ってしまう。
+                // 見せるだけの表示なので当たり判定から外す。
+                .allowsHitTesting(false)
+        }
     }
 
     /// VoiceOver 用の交点グリッド（#188）。
@@ -254,9 +291,9 @@ public struct GomokuView: View {
                 let isMine = model.currentStone == model.humanSide
                 Text(isMine ? "あなたの番" : "CPUの番")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(isMine ? Theme.teal : Theme.coral))
+                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
@@ -281,9 +318,9 @@ public struct GomokuView: View {
         HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
@@ -416,11 +453,22 @@ private struct GomokuBoardCanvas: View, Animatable {
                     // 透明度は複製したレイヤーに掛ける（元の ctx に残すと以降の石まで薄くなる）。
                     var layer = ctx
                     layer.opacity = appear
+                    // 碁石はドーム（半球）に見せる: 左上寄りのラジアルの照り + 落ち影（#366）。
+                    // オセロの石（円柱・上面が平ら）とは意図的に描き分けている。
+                    layer.addFilter(.shadow(
+                        color: .black.opacity(0.30),
+                        radius: s * 0.09,
+                        x: 0, y: s * 0.07))
 
+                    let highlight = CGPoint(x: cx - r * 0.35, y: cy - r * 0.4)
                     if stone == .black {
-                        layer.fill(path, with: .color(Color(hex: 0x18140E)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0x55504A), Color(hex: 0x0F0C08)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.7))
                     } else {
-                        layer.fill(path, with: .color(Color(hex: 0xF0E8D0)))
+                        layer.fill(path, with: .radialGradient(
+                            Gradient(colors: [Color(hex: 0xFFFCF0), Color(hex: 0xD9D2B8)]),
+                            center: highlight, startRadius: 0, endRadius: r * 1.7))
                         layer.stroke(path, with: .color(Color.gray.opacity(0.4)), lineWidth: 1)
                     }
 
@@ -429,12 +477,16 @@ private struct GomokuBoardCanvas: View, Animatable {
                     // 直前手の位置が分からなかった。盤色・黒石・白石のいずれとも差が出る
                     // アクセント色のリングを外周に足し、ドットも一回り大きく濃くする。
                     if isLast {
+                        // マーカーには石の落ち影を付けたくないので、影フィルタなしの複製に描く。
+                        var markerLayer = ctx
+                        markerLayer.opacity = appear
+
                         let ring = rect.insetBy(dx: -2, dy: -2)
-                        layer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
+                        markerLayer.stroke(Path(ellipseIn: ring), with: .color(Theme.coral), lineWidth: 2.4)
 
                         let mr = r * 0.34
                         let mRect = CGRect(x: cx - mr, y: cy - mr, width: mr*2, height: mr*2)
-                        layer.fill(Path(ellipseIn: mRect),
+                        markerLayer.fill(Path(ellipseIn: mRect),
                                    with: .color(stone == .black ? Color.white.opacity(0.9)
                                                                 : Color(hex: 0x2A1600).opacity(0.75)))
                     }
@@ -471,46 +523,61 @@ private struct GomokuShake: GeometryEffect {
 struct GomokuNewGameSheet: View {
     @State private var side: GomokuStone
     @State private var level: Int
-    let onStart: (GomokuStone, Int) -> Void
+    @State private var renju: Bool
+    let onStart: (GomokuStone, Int, Bool) -> Void
     let onCancel: () -> Void
 
-    init(humanSide: GomokuStone, aiLevel: Int,
-         onStart: @escaping (GomokuStone, Int) -> Void,
+    init(humanSide: GomokuStone, aiLevel: Int, forbiddenMoves: Bool,
+         onStart: @escaping (GomokuStone, Int, Bool) -> Void,
          onCancel: @escaping () -> Void) {
         _side  = State(initialValue: humanSide)
         _level = State(initialValue: aiLevel)
+        _renju = State(initialValue: forbiddenMoves)
         self.onStart  = onStart
         self.onCancel = onCancel
     }
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                section("あなたの石") {
-                    HStack(spacing: 12) {
-                        chooser(title: "●黒", subtitle: "先手",
-                                selected: side == .black, accent: Theme.fillStrong) { side = .black }
-                        chooser(title: "○白", subtitle: "後手",
-                                selected: side == .white, accent: Theme.fillMuted) { side = .white }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    section("あなたの石") {
+                        HStack(spacing: 12) {
+                            chooser(title: "●黒", subtitle: "先手",
+                                    selected: side == .black, accent: Theme.fillStrong,
+                                    onAccent: .white) { side = .black }
+                            chooser(title: "○白", subtitle: "後手",
+                                    selected: side == .white, accent: Theme.fillMuted,
+                                    onAccent: .white) { side = .white }
+                        }
                     }
-                }
-                section("CPUの強さ") {
-                    HStack(spacing: 12) {
-                        chooser(title: "弱",   subtitle: "1手読み",
-                                selected: level == 0, accent: Theme.teal)   { level = 0 }
-                        chooser(title: "普通", subtitle: "2手読み",
-                                selected: level == 1, accent: Theme.yellow) { level = 1 }
-                        chooser(title: "強",   subtitle: "3手読み",
-                                selected: level == 2, accent: Theme.coral)  { level = 2 }
+                    section("CPUの強さ") {
+                        HStack(spacing: 12) {
+                            chooser(title: "弱",   subtitle: "浅い読み",
+                                    selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
+                            chooser(title: "普通", subtitle: "標準",
+                                    selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
+                            chooser(title: "強",   subtitle: "深い読み",
+                                    selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
+                        }
                     }
+                    // 既定はオフ（自由五目）。オンにすると黒だけが三三・四四・長連を打てなくなる。
+                    section("禁じ手（連珠ルール）") {
+                        HStack(spacing: 12) {
+                            chooser(title: "なし", subtitle: "自由五目",
+                                    selected: !renju, accent: Theme.Fill.teal)   { renju = false }
+                            chooser(title: "あり", subtitle: "黒に三三・四四・長連",
+                                    selected: renju,  accent: Theme.Fill.purple) { renju = true }
+                        }
+                    }
+                    Button { onStart(side, level, renju) } label: {
+                        Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
+                    }
+                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
                 }
-                Spacer()
-                Button { onStart(side, level) } label: {
-                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .padding(Theme.pad)
             }
-            .padding(Theme.pad)
             .popBackground()
             .navigationTitle("新規対局")
             .toolbar {
@@ -519,7 +586,9 @@ struct GomokuNewGameSheet: View {
                 }
             }
         }
-        .gameSheetDetents()
+        // 選択肢が3節になり `.medium` には収まらない（囲碁 GoNewGameSheet と同じで、
+        // はみ出すと「対局開始」が押せなくなる）。このシートも常に `.large` で開く。
+        .presentationDetents([.large])
     }
 
     private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
@@ -529,13 +598,16 @@ struct GomokuNewGameSheet: View {
         }
     }
 
+    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
+    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
     private func chooser(title: String, subtitle: String,
-                         selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
+                         selected: Bool, accent: Color, onAccent: Color = Theme.onAccent,
+                         action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(

@@ -55,4 +55,22 @@ public enum OthelloFlip {
     public static func widthScale(progress: Double) -> Double {
         max(abs(cos(.pi * progress)), minimumWidthScale)
     }
+
+    // MARK: - 着手のドロップ演出（#366）
+
+    /// 置いた瞬間に石を大きめに出す倍率の上乗せぶん（1 + この値 から始まる）。
+    public static let popExtraScale: Double = 0.30
+
+    /// 置いた石が実寸に落ち着くまでに使う区間（全体の進捗に対する割合）。
+    ///
+    /// 反転（`span`）より先に着地させることで、「置く → まわりが返る」の因果が目で追える。
+    public static let popSettlePortion: Double = 0.35
+
+    /// 置いた石の倍率。進捗 0 で最大、`popSettlePortion` で実寸に着地する（ease-out）。
+    ///
+    /// Reduce Motion が ON のときは補間が起きず進捗が常に 1 のため、常に実寸で描かれる。
+    public static func popScale(progress: Double) -> Double {
+        let t = min(max(progress / popSettlePortion, 0), 1)
+        return 1 + popExtraScale * (1 - t) * (1 - t)
+    }
 }

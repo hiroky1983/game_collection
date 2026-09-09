@@ -228,7 +228,8 @@ public enum DaifugoRules {
 
     /// CPU の選択（貪欲法）: **出せる最弱の手**を選ぶ。強さ調整は Issue #89 のスコープ外。
     ///
-    /// 同じ強さならジョーカーを使わない手 → 枚数の少ない手を選ぶ。
+    /// 同じ強さならジョーカーを使わない手を選ぶ。枚数は場の状況で向きが変わる:
+    /// 場に追随するときは枚数が場と一致するので比較に効かず、**親番（場が空）では枚数の多い手**を選ぶ。
     /// 反則上がりになる手は、他に選べる手があるときだけ避ける（避けようがなければそのまま出す）。
     public static func greedyPlay(
         hand: [DaifugoCard],
@@ -241,12 +242,15 @@ public enum DaifugoRules {
         func isFoul(_ play: [DaifugoCard]) -> Bool {
             play.count == hand.count && isFoulFinish(play)
         }
+        // 親番だけ枚数を降順にする。場に追随するときは合法手の枚数が場と一致するのでこの項は効かないが、
+        // 場が空のときは同じランクを 1 枚だけ出す手が常に最小になり、CPU がペアも革命も一度も出さなかった（#375）。
+        let leadsField = field.isEmpty
         func rankKey(_ play: [DaifugoCard]) -> (Int, Int, Int, Int, Int) {
             (
                 isFoul(play) ? 1 : 0,
                 playStrength(play, isRevolution: isRevolution) ?? Int.max,
                 play.filter(\.isJoker).count,
-                play.count,
+                leadsField ? -play.count : play.count,
                 play.first?.id ?? 0
             )
         }

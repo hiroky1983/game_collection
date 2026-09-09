@@ -50,7 +50,8 @@ public enum ShogiAccessibility {
         piece: Piece?,
         isSelected: Bool,
         isTarget: Bool,
-        isLastMove: Bool
+        isLastMove: Bool,
+        isCheckedKing: Bool = false
     ) -> String {
         var parts = [squareName(index)]
         if let piece {
@@ -58,6 +59,9 @@ public enum ShogiAccessibility {
         } else {
             parts.append("空きマス")
         }
+        // 王手は「なぜ動かせないのか」に直結する情報なので、選択状態より先に読ませる（#377）。
+        // 見た目の赤枠（`ShogiView.checkLayer`）と同じ条件で出す。
+        if isCheckedKing { parts.append("王手されています") }
         if isSelected { parts.append("選択中") }
         if isTarget { parts.append(piece == nil ? "ここに指せます" : "取れます") }
         if isLastMove { parts.append("直前の手") }

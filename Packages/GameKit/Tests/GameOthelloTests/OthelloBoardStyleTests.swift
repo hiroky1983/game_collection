@@ -88,6 +88,25 @@ struct OthelloBoardStyleTests {
         #expect(OthelloBoardStyle.stoneRadiusRatio < 0.5)
     }
 
+    // MARK: - 盤の質感（#366）
+
+    /// 盤のグラデーションは暗くする方向にしか振らないこと。
+    /// 合法手ドットのコントラスト（上の 3:1 保証）は明るい側 `boardGreen` を背景に測って
+    /// いるため、下端が明るくなると盤の一部で保証が崩れる。
+    @Test("盤のグラデーション下端は上端より暗い")
+    func boardGradientOnlyDarkens() {
+        let top    = Self.relativeLuminance(Self.components(OthelloBoardStyle.boardGreen))
+        let bottom = Self.relativeLuminance(Self.components(OthelloBoardStyle.boardGreenDeep))
+        #expect(bottom < top)
+    }
+
+    /// 星が合法手ドットと紛らわしくならないよう、明確に小さく留める。
+    @Test("星は合法手ドットより小さい")
+    func starPointStaysSmallerThanLegalDot() {
+        #expect(OthelloBoardStyle.starPointRadiusRatio > 0)
+        #expect(OthelloBoardStyle.starPointRadiusRatio < OthelloBoardStyle.legalMoveDotRadiusRatio)
+    }
+
     // MARK: - 受け入れ条件 2: 終局オーバーレイのトランジション
 
     @Test("終局オーバーレイのフェードは目に見える長さがある")

@@ -22,6 +22,19 @@ enum SudokuMetrics {
     /// 既定の等倍表示は盤全体を一望できることを優先する。
     static let zoomedCellSide: CGFloat = minimumTapTarget
 
+    /// 拡大モードでの 1 マスの一辺（画面幅を見て決める版・#458）。
+    ///
+    /// 上の 44pt は「iPhone では等倍の盤が 44pt に届かない」ことから来た**下限**であって、
+    /// 目標値ではない。iPad では等倍の盤のほうが 44pt より大きくなるため、44pt へ**切り下げると
+    /// 拡大モードが縮小モードになる**。麻雀ソリティアの `comfortableTileWidth` と同じ手当てで、
+    /// 等倍で入る大きさを下回らせない。
+    static func zoomedCellSide(availableWidth: CGFloat) -> CGFloat {
+        max(zoomedCellSide, availableWidth / CGFloat(boardSize))
+    }
+
+    /// 盤の一辺のマス数。`SudokuEngine.size` と同じ値だが、寸法計算をロジックから独立させるため再掲する。
+    static let boardSize = 9
+
     /// 数字パッドの 1 行あたりのボタン数。
     ///
     /// 1〜9 と消しゴムの 10 個を 2 段に割る。10 個を 1 段に並べると

@@ -58,6 +58,10 @@ public final class OthelloModel {
     private let flipSettleDelay: Duration
     private var startedAt: Date
     private var undoHistory: [TurnState] = []
+    #if DEBUG
+    /// 撮影用プレビュー（`-othelloMidgame`）を組み立てている最中は保存対局へ書き戻さない。
+    private var isPreviewCapture = false
+    #endif
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
@@ -68,6 +72,21 @@ public final class OthelloModel {
     }
     public var blackCount: Int { board.count(for: .black) }
     public var whiteCount: Int { board.count(for: .white) }
+    /// 表示用のスコア（日本オセロ連盟ルールの「残りマス加算」#440）。
+    ///
+    /// 双方が打てなくなって**空きマスを残したまま終局**したときは、残ったマスを勝者の得点として数える
+    /// （合計は常に 64）。対局中・引き分け・投了による終局では加算しないので実石数と一致する。
+    /// 勝敗そのものは加算前の石数で決まる（`resolveWinner`）ため、この値は表示だけに使う。
+    public var blackScore: Int { blackCount + (winner == .black ? emptyCellBonus : 0) }
+    public var whiteScore: Int { whiteCount + (winner == .white ? emptyCellBonus : 0) }
+    /// 勝者に加算する空きマス数。引き分け（`winner == nil`）では上の2つが参照しないので 0 になる。
+    ///
+    /// 投了で終わった対局は連盟ルールの対象外なので加算しない（打ち切りであって「双方が打てなくなった」
+    /// 終局ではない）。判定は盤から導くので、終局の種類を別に持たなくても中断からの復元後に食い違わない。
+    private var emptyCellBonus: Int {
+        guard board.validMoves(for: .black).isEmpty, board.validMoves(for: .white).isEmpty else { return 0 }
+        return othelloBoardSize * othelloBoardSize - blackCount - whiteCount
+    }
     public var canUndo: Bool {
         !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
     }
@@ -129,7 +148,10 @@ public final class OthelloModel {
 
     public func confirmPass() {
         guard mustPass, !gameOver else { return }
-        saveUndoState()
+        // パスは石を動かさないので「待った」の巻き戻し地点にはしない（#414）。
+        // ここで積むと、CPU のパス直後に「待った」を押したとき**パスの直前の局面**へ戻り、
+        // CPU が再びパスして同じ局面に戻る往復になる（履歴も減らないので永久に自分の手を戻せない）。
+        // パスを含む一連のやり取りは、直前の自分の着手まとめて `undoLastExchange()` で戻す。
         mustPass     = false
         currentStone = currentStone.opponent
         turnID      += 1
@@ -150,6 +172,9 @@ public final class OthelloModel {
         isDraw       = false
         undoUsed     = true
         turnID      += 1
+        // 決着・パスの有無は**戻した盤面から導出し直す**（#414）。無条件に false へ倒すと、
+        // 打てる手が無い局面へ戻ったときに誰も着手できず、投了か新規対局しか手が無くなる。
+        checkTermination()
         persist()
     }
 
@@ -222,6 +247,51 @@ public final class OthelloModel {
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
 
+    #if DEBUG
+    /// 撮影用（#366）: 序盤から数手だけ機械的に進めた盤面を作る（`-othelloMidgame` 起動引数）。
+    /// 人間の手番で止め、撮影中に CPU が着手して盤が動かないようにする。
+    ///
+    /// **保存対局の状態に依存させず、保存対局も壊さない**（PR #367 のレビュー指摘）。
+    /// 以前は `turnID == 0` を条件にしていたため、中断対局が残っていると撮影が空振りし、
+    /// 逆に `turnID` を持たない旧形式のスナップショットから中盤を復元した場合は、
+    /// 条件を素通りして撮影用の着手が保存対局を上書きしていた。
+    public func applyPreviewMidgameForTesting(placements: Int = 9) {
+        isPreviewCapture = true
+        defer { isPreviewCapture = false }
+
+        // 復元の有無によらず初期盤面から作り直す。`humanSide` / `aiLevel` は撮影対象なので保つ。
+        board        = OthelloBoard()
+        currentStone = .black
+        winner       = nil
+        isDraw       = false
+        lastMove     = nil
+        flippedCells = []
+        mustPass     = false
+        turnID       = 0
+        undoUsed     = false
+        undoHistory  = []
+        recordResult = nil
+        // 先に起動していた CPU 探索に、着手も `isThinking` の操作もさせない
+        // （`performAIMoveIfNeeded` は開始時の `gameSerial` と一致するときだけ進む）。
+        // 組み立て後は人間の手番で止まるので、以後 CPU が起動することもない。
+        gameSerial  += 1
+        isThinking   = false
+
+        var remaining = placements
+        while remaining > 0, !gameOver {
+            if mustPass { confirmPass(); continue }
+            guard let mv = board.validMoves(for: currentStone).first else { break }
+            place(row: mv.0, col: mv.1)
+            remaining -= 1
+        }
+        while !gameOver, currentStone != humanSide {
+            if mustPass { confirmPass(); continue }
+            guard let mv = board.validMoves(for: currentStone).first else { break }
+            place(row: mv.0, col: mv.1)
+        }
+    }
+    #endif
+
     private func saveUndoState() {
         undoHistory.append(TurnState(cells: board.cells, currentStone: currentStone))
     }
@@ -274,6 +344,10 @@ public final class OthelloModel {
     }
 
     private func persist() {
+        #if DEBUG
+        // 撮影用プレビューの機械的な着手は保存対局へ流さない（PR #367 のレビュー指摘）。
+        if isPreviewCapture { return }
+        #endif
         guard !gameOver else {
             services?.snapshots.clear(for: gameID)
             return

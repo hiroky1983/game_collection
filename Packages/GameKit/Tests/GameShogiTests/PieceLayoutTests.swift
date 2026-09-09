@@ -198,17 +198,34 @@ struct ShogiPieceLayerSourceTests {
         #expect(body.contains("KomaView(") == false, "ShogiCell が駒を描いています:\n\(body)")
     }
 
-    @Test("着手先の印は駒より後（= 上）に重ねる")
+    @Test("着手先の印・王手の印は駒より後（= 上）に重ねる")
     func targetLayerIsAbovePieceLayer() throws {
         let lines = try Self.viewSource.split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
         guard let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }"),
+              let check = lines.firstIndex(of: ".overlay { checkLayer(cell: cell) }"),
               let target = lines.firstIndex(of: ".overlay { targetLayer(cell: cell) }") else {
-            Issue.record("盤に重ねる 2 層が見つからない（走査の前提が壊れている）")
+            Issue.record("盤に重ねる 3 層が見つからない（走査の前提が壊れている）")
             return
         }
-        // 逆にすると、取れる駒を囲む枠が駒の下に潜って何が取れるのか読めなくなる。
-        #expect(piece < target)
+        // 逆にすると、取れる駒を囲む枠や王手の枠が駒の下に潜って読めなくなる（#200・#377）。
+        #expect(piece < check)
+        #expect(check < target)
+    }
+
+    @Test("盤の角丸は駒の層より前に掛ける（持ち上げた駒が上端で切れる）")
+    func clipShapeComesBeforePieceLayer() throws {
+        let lines = try Self.lines(ofFunction: "private var board: some View {")
+        let clips = lines.enumerated().filter { $0.element.hasPrefix(".clipShape(") }
+        // 2つ目を後ろに足されると、そちらが駒の層まで丸めてしまう（数も固定する）。
+        #expect(clips.count == 1, "盤の clipShape が1つではない:\n\(lines.joined(separator: "\n"))")
+        guard let clip = clips.first?.offset,
+              let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }") else {
+            Issue.record("盤の clipShape / 駒の層が見つからない（走査の前提が壊れている）")
+            return
+        }
+        // あとに置くと、選択して持ち上げた駒（拡大 + 上へ）が盤の上端で切り落とされる。
+        #expect(clip < piece)
     }
 
     @Test("駒には .transition を .position より前に付ける")
@@ -278,6 +295,38 @@ struct ShogiOverlayMotionSourceTests {
                 "常設した層が素通しであることの明示がない:\n\(lines.joined(separator: "\n"))")
     }
 
+    @Test("選択した駒の持ち上げは駒単位に置き、移動は層に1つだけ置く")
+    func pieceLiftAnimatesOnSelectionOnly() throws {
+        let lines = try ShogiPieceLayerSourceTests.lines(
+            ofFunction: "private func pieceLayer(cell: CGFloat) -> some View {"
+        )
+        // 持ち上げは**駒単位**（`isLifted` を監視）、移動は**層に1つ**（`pieceLayout` を監視）。
+        // 持ち上げを層に置くと、着手確定で配置と選択が同時に変わったとき pieceMove 側の
+        // 指定に上書きされ、戻りの速さが意図とずれる（verifier 検証 2026-09-06）。
+        // 並び順そのものが構造（駒単位が先＝ForEach の中、層が後）を表すので配列で固定する。
+        let animations = lines.filter { $0.hasPrefix(".gameAnimation(") }
+        #expect(animations == [
+            ".gameAnimation(ShogiMotion.pieceLift, value: isLifted)",
+            ".gameAnimation(ShogiMotion.pieceMove, value: pieceLayout)",
+        ])
+        // 持ち上げの指定は `.transition`（駒単位の並びの中）より前にある＝駒にスコープされている。
+        let lift = lines.firstIndex(of: ".gameAnimation(ShogiMotion.pieceLift, value: isLifted)")
+        let transition = lines.firstIndex { $0.hasPrefix(".transition(") }
+        #expect(lift != nil && transition != nil && lift! < transition!)
+        // `.animation` の直呼びは Reduce Motion を無視する（#210）。
+        #expect(lines.contains { $0.hasPrefix(".animation(") } == false)
+    }
+
+    @Test("持ち上げは駒の移動より速い（掴んだ手応えが遅れて見えない）")
+    func liftIsFasterThanPieceMove() {
+        #expect(ShogiMotion.pieceLiftResponse < ShogiMotion.pieceMoveResponse)
+        // 秒の定数から `Animation` を組んでいること（定数だけ直しても演出が変わらない、を防ぐ）。
+        #expect(ShogiMotion.pieceLift == .spring(response: ShogiMotion.pieceLiftResponse, dampingFraction: 0.7))
+        // 持ち上げ量と拡大は「浮いたと分かる最小限」。隣のマスに被るほど大きくしない。
+        #expect(ShogiMotion.pieceLiftRatio > 0 && ShogiMotion.pieceLiftRatio <= 0.2)
+        #expect(ShogiMotion.pieceLiftScale > 1 && ShogiMotion.pieceLiftScale <= 1.15)
+    }
+
     @Test("札の消える速さは駒の移動より短い（札が動き出した駒に被って残らない）")
     func promptIsShorterThanPieceMove() {
         // 大小関係そのものを見張る。どちらの秒数を動かしても、逆転した時点で赤くなる。
@@ -286,6 +335,36 @@ struct ShogiOverlayMotionSourceTests {
         #expect(ShogiMotion.promotionPrompt == .easeOut(duration: ShogiMotion.promotionPromptDuration))
         #expect(ShogiMotion.pieceMove == .spring(response: ShogiMotion.pieceMoveResponse, dampingFraction: 0.9))
         #expect(ShogiMotion.turnChange == .easeInOut(duration: ShogiMotion.turnChangeDuration))
+    }
+
+    @Test("王手の文字は残り続ける親にアニメーションを置く（#377）")
+    func checkOverlayAnimatesOnPersistingParent() throws {
+        let lines = try ShogiPieceLayerSourceTests.lines(
+            ofFunction: "private var checkOverlay: some View {"
+        )
+        // 成り確認の札（#201）と同じ形。呼び出し側の `.overlay { if … }` にすると、
+        // 出入りする枝と一緒に修飾子まで消えて `.transition` が効かない。
+        #expect(lines.contains { $0.hasPrefix("if checkBannerID != nil {") },
+                "分岐が checkOverlay の中にない:\n\(lines.joined(separator: "\n"))")
+        #expect(lines.filter { $0.hasPrefix(".transition(") }.count == 1,
+                "札のトランジションが 1 つでない:\n\(lines.joined(separator: "\n"))")
+        // アニメーションは分岐の外に 1 つだけ（入れ子にすると内側が外側を打ち消す）。
+        let animations = lines.filter { $0.hasPrefix(".gameAnimation(") }
+        #expect(animations == [".gameAnimation(ShogiMotion.checkBanner, value: checkBannerID)"])
+        // `.animation` の直呼びは Reduce Motion を無視する（#210）。
+        #expect(lines.contains { $0.hasPrefix(".animation(") } == false)
+        // 常設される層なので、盤のタップを塞がないことを明示しておく。
+        #expect(lines.contains(".allowsHitTesting(false)"),
+                "常設した層が素通しであることの明示がない:\n\(lines.joined(separator: "\n"))")
+    }
+
+    @Test("王手の文字は駒の移動より長く出しておく（#377）")
+    func checkBannerOutlastsThePieceMove() {
+        // 短いと、王手を掛けた駒がまだ動いている最中に文字が消える。
+        #expect(ShogiMotion.checkBannerHold > ShogiMotion.pieceMoveResponse)
+        // 秒の定数から `Animation` を組んでいること（定数だけ直しても演出が変わらない、を防ぐ）。
+        #expect(ShogiMotion.checkBanner
+                == .spring(response: ShogiMotion.checkBannerResponse, dampingFraction: 0.65))
     }
 
     @Test("手番バッジの色替えにアニメーションが付く")

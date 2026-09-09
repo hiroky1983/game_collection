@@ -13,6 +13,10 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
+import GameSolitaire
+import GameChess
+import GameBlocks
 
 // MARK: - モック
 
@@ -87,7 +91,8 @@ private func makeHubModules() -> [GameModule] {
     [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
-        MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
+        MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(),
     ]
 }
 
@@ -182,9 +187,12 @@ struct GameCenterLeaderboardTests {
             )?.leaderboardID
         }
         #expect(id("9x9-10") == GameCenterLeaderboard.minesweeperBeginner)
-        #expect(id("12x12-25") == GameCenterLeaderboard.minesweeperIntermediate)
-        #expect(id("15x15-40") == GameCenterLeaderboard.minesweeperExpert)
+        #expect(id("16x16-40") == GameCenterLeaderboard.minesweeperIntermediate)
+        #expect(id("20x20-82") == GameCenterLeaderboard.minesweeperExpert)
         #expect(id("20x20-99") == nil, "カスタム盤は登録できないので送らない")
+        // 旧プリセット（#444 以前）は盤の広さも密度も違うので、新しい表には混ぜない。
+        #expect(id("12x12-25") == nil, "旧中級は新中級より盤が小さく、混ぜると有利になる")
+        #expect(id("15x15-40") == nil, "旧上級も同じ理由で対象外")
     }
 
     @Test("0 秒のクリアは送らない（抜けない 1 位を作らない）")
@@ -215,7 +223,7 @@ struct GameCenterLeaderboardTests {
 
     @Test("勝敗しか残らないゲームは対象外")
     func winLossGamesAreExcluded() {
-        for gameID in ["shogi", "gomoku", "othello", "daifugo", "mahjong4", "concentration"] {
+        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration"] {
             #expect(
                 GameCenterLeaderboard.score(
                     gameID: gameID, outcome: .win, score: GameScore(metric: .winLoss)
@@ -252,19 +260,39 @@ struct GameCenterLeaderboardTests {
         #expect(id("cross") == nil)
     }
 
+    @Test("ブロック崩し: スコアは専用の表へ送るが、コンティニューを使った回は送らない（#406 と同じ扱い）")
+    func blocksScoreEligibility() {
+        let eligible = GameCenterLeaderboard.score(
+            gameID: "blocks",
+            outcome: .loss,
+            score: GameScore(metric: .points, points: 4_200)
+        )
+        #expect(eligible?.leaderboardID == GameCenterLeaderboard.blocksScore)
+        #expect(eligible?.value == 4_200)
+
+        #expect(GameCenterLeaderboard.score(
+            gameID: "blocks",
+            outcome: .loss,
+            score: GameScore(metric: .points, points: 4_200, isLeaderboardEligible: false)
+        ) == nil, "広告コンティニューを使った回は順位表に載せない")
+    }
+
     @Test("対応表が返す ID は必ず登録一覧（allIDs）に含まれる")
     func everyMappedIDIsRegistered() {
         let cases: [(String, GameScore)] = [
             ("2048", GameScore(metric: .points, points: 1)),
             ("poker", GameScore(metric: .points, points: 1)),
             ("blackjack", GameScore(metric: .points, points: 1)),
+            ("blocks", GameScore(metric: .points, points: 1)),
+            // 区分キーは `MinesweeperDifficulty` のプリセット（#444 で 12×12/25・15×15/40 から変更）。
             ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "9x9-10")),
-            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "12x12-25")),
-            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "15x15-40")),
+            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "16x16-40")),
+            ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "20x20-82")),
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "easy")),
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "normal")),
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "hard")),
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
+            ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID
@@ -495,7 +523,7 @@ struct GameCenterPerGameTests {
         // 実績の進捗は PlayLog の更新後の値から作る。ここが 100 でなければ、
         // `GameServices.gameDidFinish` の中で Game Center を review より先に呼んでいる（退行）。
         #expect(isClose(spy.percent(of: GameCenterAchievements.firstWin), 100))
-        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / 12))
+        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / Double(makeHubModules().count)))
     }
 
     @Test("マインスイーパー: 地雷を踏んだ局は送らない")
@@ -516,7 +544,7 @@ struct GameCenterPerGameTests {
         #expect(spy.scores.isEmpty, "クリアしていない局のタイムは順位表に混ぜない")
         // 負けでも「遊んだ本数」は進むので playAll だけは動く。
         #expect(spy.percent(of: GameCenterAchievements.firstWin) == nil)
-        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / 12))
+        #expect(isClose(spy.percent(of: GameCenterAchievements.playAll), 100.0 / Double(makeHubModules().count)))
     }
 
     @Test("数独: むずかしいをクリアすると hard のタイムが送られる")

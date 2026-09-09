@@ -61,15 +61,29 @@ public enum RecommendationPolicy {
     /// 四人打ち麻雀・数独で実際に起きていた）。ゲームを増やしたら
     /// `RecommendationTableTests` の網羅テストが落ちるので、そこで気づける。
     public static let candidateTable: [String: [String]] = [
-        "shogi":         ["gomoku", "othello", "2048"],
-        "gomoku":        ["othello", "shogi", "minesweeper"],
+        // 第3候補をチェス（#462）に差し替えた。同じ「駒を動かして相手の王を詰ます」型で、
+        // 2048 より近い（2048 はオセロ・マインスイーパー・数独の候補として引き続き出る）。
+        "shogi":         ["gomoku", "othello", "chess"],
+        // チェス（#462）。将棋が最も近く、次いで同じ盤で陣地を争うオセロ・囲碁の順。
+        "chess":         ["shogi", "othello", "go"],
+        // 盤と石をそのまま流用した囲碁（#398）が最も近い。
+        "gomoku":        ["go", "othello", "shogi"],
         "othello":       ["gomoku", "shogi", "2048"],
+        // 囲碁（#398）。同じ盤・同じ石を使う五目並べが最も近く、次いで陣地を取り合うオセロ、
+        // 同じ本格ボードゲームの将棋の順で近い。
+        "go":            ["gomoku", "othello", "shogi"],
         // 「1人で盤面を詰める」系。同じ手触りの麻雀ソリティアへ抜けられるようにし（#237）、
         // マインスイーパーには最も近い論理パズルの数独を第1候補に置く。
-        "2048":          ["minesweeper", "mahjong", "concentration"],
+        // 第3候補をブロック崩し（#463）に差し替えた。同じ「1人でスコアを伸ばす」型で、
+        // 神経衰弱（CPU 対戦）より近い（神経衰弱は下のトランプ系とブロック崩しから引き続き出る）。
+        "2048":          ["minesweeper", "mahjong", "blocks"],
+        // ブロック崩し（#463・アクション枠の1本目）。同じ1人用スコアアタックの 2048 が最も近く、
+        // 次いで1人で盤面を消していくマインスイーパー、手軽に終わる神経衰弱の順。
+        "blocks":        ["2048", "minesweeper", "concentration"],
         "minesweeper":   ["sudoku", "2048", "mahjong"],
         // トランプ系。同じ札を使う大富豪（#89）へ抜けられるようにする（#237）。
-        "concentration": ["2048", "daifugo", "blackjack"],
+        // 第1候補は同じ「トランプを1人で並べる」ソリティア（#397）に置き換えた。
+        "concentration": ["solitaire", "daifugo", "blackjack"],
         "poker":         ["blackjack", "daifugo", "concentration"],
         "blackjack":     ["poker", "daifugo", "concentration"],
         "daifugo":       ["poker", "blackjack", "concentration"],
@@ -81,6 +95,9 @@ public enum RecommendationPolicy {
         // 数独（#262）。1人でじっくり詰める点でマインスイーパー・2048 が近く、
         // 同じ「盤面を消していく」手触りの麻雀ソリティアを第3候補に置く。
         "sudoku":        ["minesweeper", "2048", "mahjong"],
+        // ソリティア（クロンダイク・#397）。同じ「1人で盤面を片付ける」麻雀ソリティアが最も近く、
+        // 同じトランプを使う神経衰弱、1人でじっくり詰めるナンプレの順で近い。
+        "solitaire":     ["mahjong", "concentration", "sudoku"],
     ]
 
     /// 現在の提示間隔。無視が続いているほど広がる。

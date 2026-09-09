@@ -106,14 +106,14 @@ public struct ConcentrationView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             scoreChip(label: "あなた", score: model.playerScore,
-                      color: Theme.teal, isActive: model.isHumanTurn && !model.isGameOver)
+                      color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver)
             Spacer()
             if model.isThinking {
                 ProgressView().controlSize(.small)
             }
             Spacer()
             scoreChip(label: "CPU", score: model.cpuScore,
-                      color: Theme.coral, isActive: !model.isHumanTurn && !model.isGameOver)
+                      color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -123,10 +123,10 @@ public struct ConcentrationView: View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(isActive ? .white : Theme.inkSub)
+                .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSub)
             Text("\(score)")
                 .font(.system(size: 20, weight: .black, design: .rounded))
-                .foregroundStyle(isActive ? .white : Theme.ink)
+                .foregroundStyle(isActive ? Theme.onAccent : Theme.ink)
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
         .background(Capsule().fill(isActive ? color : Theme.surface))
@@ -249,10 +249,11 @@ public struct ConcentrationView: View {
                     Text("もう一度")
                         .themeBody(16)
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(Theme.purple)
+                .tint(Theme.Fill.purple)
                 .padding(.horizontal, 24)
             }
             .padding(28)
@@ -274,8 +275,10 @@ private struct CardView: View {
     var body: some View {
         ZStack {
             if isFaceUp {
+                // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(card.isMatched ? Theme.teal.opacity(0.15) : Theme.surface)
+                    .fill(card.isMatched ? AnyShapeStyle(Theme.teal.opacity(0.15))
+                                         : AnyShapeStyle(CardStyle.faceFill))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(
@@ -288,6 +291,7 @@ private struct CardView: View {
                 Text(card.symbol)
                     .font(.system(size: 28))
             } else {
+                // 裏は神経衰弱の顔である紫を保ちつつ、白の内枠で「カードの裏」に寄せる（#366）。
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -296,6 +300,7 @@ private struct CardView: View {
                             endPoint: .bottomTrailing
                         )
                     )
+                CardStyle.backFrame(cornerRadius: 10)
                 Image(systemName: "questionmark")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white.opacity(0.6))
@@ -336,7 +341,7 @@ struct ConcentrationNewGameSheet: View {
                                 title: p.displayName,
                                 subtitle: p.subtitle,
                                 selected: selectedPairCount == p,
-                                accent: Theme.teal
+                                accent: Theme.Fill.teal
                             ) { selectedPairCount = p }
                         }
                     }
@@ -349,7 +354,7 @@ struct ConcentrationNewGameSheet: View {
                                 title: l.displayName,
                                 subtitle: l.subtitle,
                                 selected: selectedCPULevel == l,
-                                accent: Theme.coral
+                                accent: Theme.Fill.coral
                             ) { selectedCPULevel = l }
                         }
                     }
@@ -361,10 +366,11 @@ struct ConcentrationNewGameSheet: View {
                     Text("ゲーム開始")
                         .themeBody(18)
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(Theme.purple)
+                .tint(Theme.Fill.purple)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -393,10 +399,10 @@ struct ConcentrationNewGameSheet: View {
             VStack(spacing: 4) {
                 Text(title)
                     .themeBody(16)
-                    .foregroundStyle(selected ? .white : Theme.ink)
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.ink)
                 Text(subtitle)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.85) : Theme.inkSub)
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)

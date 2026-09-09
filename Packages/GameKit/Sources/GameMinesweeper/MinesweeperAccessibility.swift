@@ -29,6 +29,9 @@ public enum MinesweeperAccessibility {
             }
         } else if cell.isFlagged {
             parts.append(gameOver && !cell.isMine ? "誤った旗" : "旗")
+        } else if cell.mark == .question {
+            // ? は旗と違って「開ける未開放マス」なので、旗と混ぜずに独立して読む（#444）。
+            parts.append("はてな")
         } else if cell.isContinuedMine {
             parts.append("確定した地雷")
         } else {
@@ -42,11 +45,20 @@ public enum MinesweeperAccessibility {
     ///
     /// **実行できない操作は案内しない**（開き済みのマスに「ダブルタップで開きます」と
     /// 言われても何も起きない）。可否の判定は `MinesweeperModel.canReveal` /
-    /// `canToggleFlag` が唯一の出どころで、ここでは受け取るだけにする。
-    public static func cellHint(flagMode: Bool, canReveal: Bool, canToggleFlag: Bool) -> String {
+    /// `canToggleFlag` / `canChord` が唯一の出どころで、ここでは受け取るだけにする。
+    public static func cellHint(
+        flagMode: Bool,
+        canReveal: Bool,
+        canToggleFlag: Bool,
+        canChord: Bool
+    ) -> String {
         if flagMode {
-            return canToggleFlag ? "ダブルタップで旗を切り替えます" : ""
+            // マークは「なし → 旗 → ? → なし」の3状態を循環する（#444）。いま何が置かれて
+            // いるかは `cellLabel` が読み上げるので、ここでは循環に何が含まれるかだけ伝える。
+            return canToggleFlag ? "ダブルタップで旗・はてなを切り替えます" : ""
         }
-        return canReveal ? "ダブルタップで開きます" : ""
+        if canReveal { return "ダブルタップで開きます" }
+        // 開いている数字マスは、周囲の旗が揃っていればまとめて開ける（コード・#437）。
+        return canChord ? "ダブルタップで周囲をまとめて開きます" : ""
     }
 }

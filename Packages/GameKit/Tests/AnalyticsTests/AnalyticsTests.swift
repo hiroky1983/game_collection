@@ -13,6 +13,10 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
+import GameSolitaire
+import GameChess
+import GameBlocks
 import MahjongTiles
 
 // MARK: - Mocks
@@ -83,7 +87,8 @@ private func makeHubGameIDs() -> Set<String> {
     let modules: [GameModule] = [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
-        MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
+        MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -276,9 +281,9 @@ struct GameAnalyticsTests {
         #expect(spy.ends.map(\.gameID) == ["shogi"])
     }
 
-    @Test("送信対象の gameID はハブの登録内容と一致する（12本）")
+    @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 12, "ハブに並ぶゲームは12本")
+        #expect(hubGameIDs.count == 16, "ハブに並ぶゲームは16本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -613,6 +618,65 @@ struct AllGamesAnalyticsTests {
         let model = GomokuModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "gomoku")
+        #expect(spy.ends.first?.outcome == .loss)
+    }
+
+    @Test("ソリティア: 開いた時点で開始・配り直しで終局（loss）")
+    func solitaire() {
+        let (services, spy) = makeServices()
+        let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
+        model.tapStock()
+        model.newGame()
+        #expect(spy.ends.map(\.gameID) == ["solitaire"])
+        #expect(spy.ends.first?.outcome == .loss)
+        // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
+        #expect(spy.starts == ["solitaire", "solitaire"])
+    }
+
+    @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
+    func blocks() {
+        let (services, spy) = makeServices()
+        let model = BlocksModel(services: services, startingAt: 1, lives: 1)
+        model.launch()
+        model.placeBallForTesting(x: 50, y: 6, vx: 0, vy: -60)
+        for _ in 0..<60 where model.phase == .playing {
+            model.tick(dt: 1.0 / 60)
+        }
+        #expect(model.phase == .gameOver)
+        expectOnePair(spy, gameID: "blocks")
+        #expect(spy.ends.first?.outcome == .loss)
+    }
+
+    @Test("ブロック崩し: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
+    func blocksContinueCountsAsNewPlay() {
+        let (services, spy) = makeServices()
+        let model = BlocksModel(services: services, startingAt: 1, lives: 1)
+        model.launch()
+        model.placeBallForTesting(x: 50, y: 6, vx: 0, vy: -60)
+        for _ in 0..<60 where model.phase == .playing {
+            model.tick(dt: 1.0 / 60)
+        }
+        model.continueAfterAd(forRun: model.fieldGeneration)
+        #expect(spy.starts == ["blocks", "blocks"])
+        #expect(spy.ends.map(\.gameID) == ["blocks"])
+    }
+
+    @Test("チェス: 開いた時点で開始・投了で終局（loss）")
+    func chess() {
+        let (services, spy) = makeServices()
+        let model = ChessGameModel(services: services)
+        model.resign()
+        #expect(model.gameOver)
+        expectOnePair(spy, gameID: "chess")
+        #expect(spy.ends.first?.outcome == .loss)
+    }
+
+    @Test("囲碁: 開いた時点で開始・投了で終局（loss）")
+    func go() {
+        let (services, spy) = makeServices()
+        let model = GoModel(services: services)
+        model.resign()
+        expectOnePair(spy, gameID: "go")
         #expect(spy.ends.first?.outcome == .loss)
     }
 

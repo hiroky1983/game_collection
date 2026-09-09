@@ -11,10 +11,44 @@ struct HubView: View {
     @State private var showSettings: Bool
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
+    /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
+    @Environment(\.adaptiveLayout) private var layout
+
+    /// グリッドを載せるスクロール領域の高さ（#485）。カードの高さを行数で割り付けるために測る。
+    @State private var viewportHeight: CGFloat = 0
+
+    /// 行と列の間隔。列数・行の高さの計算にも同じ値を使う。
+    private static let gridSpacing: CGFloat = 12
 
     /// ゲーム一覧のグリッド（#119）。iPhone は最小幅 130pt で必ず 2 列になり
-    /// （SE 相当の 320pt 幅でも 3 列にはならない）、画面が広い iPad では列が増えて一望性が上がる。
-    private static let columns = [GridItem(.adaptive(minimum: 130), spacing: 12)]
+    /// （SE 相当の 320pt 幅でも 3 列にはならない）、画面が広い iPad では
+    /// 最小幅が 200pt へ上がって 4〜6 列に並ぶ（#458。130pt のままだと 7 列に割れて
+    /// カードが iPhone より小さくなる）。
+    ///
+    /// `.adaptive` ではなく列数ぶんの `.flexible()` を並べるのは、**行数を知るため**（#485）。
+    /// 並びかたは同じで、`AdaptiveLayout.hubColumnCount` が `.adaptive` と同じ数え方をする。
+    ///
+    /// ただし幅がまだ測れていない最初の 1 フレームだけは `.adaptive` に任せる。列数を自分で
+    /// 数えると幅 0 から 1 列という答えが出てしまい、2 列に落ち着くまでの 1 フレームだけ
+    /// 1 列で描かれてちらつく（`.adaptive` は容器の実寸から数えるのでこれが起きない）。
+    private var columns: [GridItem] {
+        guard layout.width > 0 else {
+            return [GridItem(.adaptive(minimum: layout.hubCardMinWidth), spacing: Self.gridSpacing)]
+        }
+        return Array(repeating: GridItem(.flexible(), spacing: Self.gridSpacing), count: columnCount)
+    }
+
+    private var columnCount: Int {
+        max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
+    }
+
+    /// カード 1 枚に与える最小の高さ。iPad では縦を使い切るために伸び、iPhone では `nil`（＝据え置き）。
+    private var cardMinHeight: CGFloat? {
+        let count = settings.visibleModules(from: registry).count
+        guard count > 0 else { return nil }
+        let rows = (count + columnCount - 1) / columnCount
+        return layout.hubCardMinHeight(viewportHeight: viewportHeight, rows: rows, spacing: Self.gridSpacing)
+    }
 
     init(
         registry: GameRegistry,
@@ -34,20 +68,36 @@ struct HubView: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 ScrollView {
-                    LazyVGrid(columns: Self.columns, spacing: 12) {
+                    LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
                             NavigationLink(value: module.id) {
                                 GameCard(
                                     module: module,
                                     accent: Theme.palette[index % Theme.palette.count],
+                                    accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: services.snapshots.exists(for: module.id),
-                                    record: services.playLog?.summaryLine(gameID: module.id)
+                                    record: services.playLog?.summaryLine(gameID: module.id),
+                                    minHeight: cardMinHeight
                                 )
                             }
                             .buttonStyle(.plain)
                         }
                     }
                     .padding(Theme.pad)
+                }
+                // スクロール領域の高さを測る（#485）。`GeometryReader` をコンテナに使うと中身が
+                // 左上寄せに変わるため、`AdaptiveLayout` と同じく `.background` に潜り込ませる。
+                //
+                // `size.height` そのままではなく安全領域を引くのが要点。`ScrollView` の枠は
+                // ナビゲーションバー（大きなタイトル）の下まで伸びていて、中身はその内側に
+                // 置かれる。引き忘れるとバーの高さぶんだけ行が高くなり、**最終行が画面外へ
+                // はみ出して見切れる**（実測: 13 インチで 4 行目の説明文が切れた）。
+                .background {
+                    GeometryReader { geo in
+                        let usable = geo.size.height - geo.safeAreaInsets.top - geo.safeAreaInsets.bottom
+                        Color.clear
+                            .task(id: usable) { viewportHeight = usable }
+                    }
                 }
                 BannerSlot(ads: services.ads)
             }
@@ -168,22 +218,31 @@ struct HubView: View {
 /// 記録（#115）の行を潰さずに両方見えるようにした。
 private struct GameCard: View {
     let module: GameModule
+    /// 「続きから」バッジの**文字色**。明るい地の上に置くので差し色そのままを使う。
     let accent: Color
+    /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
+    let accentFill: Color
     let hasResume: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
+    /// iPad で縦を使い切るための最小の高さ（#485）。iPhone では nil ＝中身が決める高さのまま。
+    let minHeight: CGFloat?
+
+    /// 固定 pt の部品（アイコンチップ・文字）を広い画面で拡大するための倍率（#458 / #485）。
+    /// 狭い画面では恒等なので、iPhone のカードは 1pt も動かない。
+    @Environment(\.adaptiveLayout) private var layout
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 6) {
+        VStack(alignment: .leading, spacing: layout.scaled(6)) {
+            HStack(alignment: .top, spacing: layout.scaled(6)) {
                 // カラフルなアイコンチップ
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(accent.gradient)
-                    .frame(width: 44, height: 44)
+                RoundedRectangle(cornerRadius: layout.scaled(Theme.cornerSmall), style: .continuous)
+                    .fill(accentFill.gradient)
+                    .frame(width: layout.scaled(44), height: layout.scaled(44))
                     .overlay {
                         module.icon
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(.system(size: layout.scaled(22), weight: .bold))
+                            .foregroundStyle(Theme.onAccent)
                     }
                     .shadow(color: accent.opacity(0.4), radius: 5, y: 3)
 
@@ -191,17 +250,17 @@ private struct GameCard: View {
 
                 if hasResume {
                     Text("続きから")
-                        .themeCaption(11)
+                        .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, layout.scaled(8))
+                        .padding(.vertical, layout.scaled(3))
                         .background(Capsule().fill(accent.opacity(0.15)))
                         .fixedSize()
                 }
             }
 
             Text(module.title)
-                .themeTitle(18)
+                .themeTitle(layout.scaled(18))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -216,12 +275,15 @@ private struct GameCard: View {
                         .foregroundStyle(Theme.inkSub)
                 }
             }
-            .themeCaption(11)
+            .themeCaption(layout.scaled(11))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        // `.leading` は横だけの指定で縦は中央。高さを与えられた iPad では中身がカードの
+        // 縦中央に来る（上詰めのままだとカードの下半分が空く）。iPhone は高さが中身ぶんの
+        // ままなので、中央寄せは何も動かさない。
+        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
+        .padding(layout.scaled(10))
         .popCard()
         // 「続きから」バッジを右上（＝先頭行）に置いたため、既定の読み上げ順ではゲーム名より先に
         // 読まれてしまう。カードを 1 要素にまとめ、必ずゲーム名から読ませる。

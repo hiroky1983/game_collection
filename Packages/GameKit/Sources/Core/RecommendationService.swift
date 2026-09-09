@@ -36,11 +36,12 @@ public final class RecommendationService {
     }
 
     /// 提示中のゲームに割り当てる差し色。ハブのカードと同じ順で選び、見た目を揃える。
+    /// アイコンチップとボタンの**面色**として使うので `Theme.Fill` 側を返す（#220）。
     public var suggestedAccent: Color {
         guard let id = suggestedGameID,
               let index = availableModules().firstIndex(where: { $0.id == id })
-        else { return Theme.coral }
-        return Theme.palette[index % Theme.palette.count]
+        else { return Theme.Fill.coral }
+        return Theme.Fill.palette[index % Theme.Fill.palette.count]
     }
 
     /// リザルトが表示された（＝ゲームを1つ遊び終えた）ときに各ゲームの Model から呼ぶ。

@@ -16,6 +16,17 @@ enum MinesweeperMetrics {
     /// HIG を大きく下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ基準に揃える。
     static let toggleButtonMinSide: CGFloat = minimumTapTarget
 
+    /// 拡大モードでの 1 マスの一辺（#458）。
+    ///
+    /// 44pt は「iPhone では等倍の盤が 44pt に届かない」ことから来た**下限**であって目標値ではない。
+    /// iPad では等倍の盤のほうが 44pt より大きくなるため、44pt へ**切り下げると拡大モードが
+    /// 縮小モードになる**。麻雀ソリティアの `comfortableTileWidth` と同じ手当てで、
+    /// 等倍で入る大きさを下回らせない。
+    static func zoomedCellSize(availableWidth: CGFloat, cols: Int) -> CGFloat {
+        guard cols > 0 else { return minimumTapTarget }
+        return max(minimumTapTarget, availableWidth / CGFloat(cols))
+    }
+
     /// ステータスバーの上下の余白（#203）。
     ///
     /// 44pt のボタンが帯の高さを決めるようになるぶん余白を 8 → 4 に詰め、
@@ -35,7 +46,7 @@ enum MinesweeperMetrics {
 
     /// 連鎖全体に掛けてよい遅延の上限（秒）。
     ///
-    /// 上級（15×15）では波が 20 を超えうるため、素直に掛け算すると最後のマスが開くまで
+    /// 上級（20×20・#444）では波が 20 を超えうるため、素直に掛け算すると最後のマスが開くまで
     /// 0.7 秒以上待たされ、次のタップが利かない時間ができる。上限を置くことで
     /// **盤面全体が開くケースでも待ち時間が伸び続けない**（#203 の受け入れ条件3）。
     /// 上限に達したあとの波は同時に開くだけで、追加の計算も待ち時間も発生しない。

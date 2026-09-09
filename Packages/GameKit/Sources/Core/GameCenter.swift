@@ -74,6 +74,8 @@ public enum GameCenterLeaderboard {
     public static let game2048Score  = "asobiba.2048.score"
     public static let pokerChips     = "asobiba.poker.chips"
     public static let blackjackChips = "asobiba.blackjack.chips"
+    /// ブロック崩し（#463）。ステージ構成は全員共通で、同じ条件で比べられるため対象にする。
+    public static let blocksScore    = "asobiba.blocks.score"
 
     // 短いほど良い（App Store Connect では「Low to High」・フォーマットは経過時間で登録する）
     public static let minesweeperBeginner     = "asobiba.minesweeper.time.beginner"
@@ -83,12 +85,15 @@ public enum GameCenterLeaderboard {
     public static let sudokuNormal            = "asobiba.sudoku.time.normal"
     public static let sudokuHard              = "asobiba.sudoku.time.hard"
     public static let mahjongSolitaireTime    = "asobiba.mahjongsolitaire.time"
+    /// ソリティア（クロンダイク・#397）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
+    public static let solitaireTime           = "asobiba.solitaire.time"
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
-        game2048Score, pokerChips, blackjackChips,
+        game2048Score, pokerChips, blackjackChips, blocksScore,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
+        solitaireTime,
     ]
 
     /// 決着 1 回を送るリーダーボードと値。対象外なら nil（＝何も送らない）。
@@ -98,7 +103,12 @@ public enum GameCenterLeaderboard {
     /// - Note: 2048 のコンティニュー（#71）は、直前に送ったスコアを取り消せない。ただし
     ///   Game Center は自己ベストだけを残すため、続きを遊んで最終的に伸びたスコアを送れば
     ///   上書きされる。取り消せないことによる不利益は無い。
+    /// - Note: 救済アイテムを使った決着は送らない（#406。`GameScore.isLeaderboardEligible`）。
+    ///   ソリティアのジョーカーのように「広告を見れば盤面を有利にできる」仕掛けがあるゲームでは、
+    ///   使った記録と使わない記録を同じ表に混ぜると順位表が「何回広告を見たか」の表になる。
+    ///   判定は指標より前に置く。どの指標のゲームで救済を足しても自動的に対象外になる。
     public static func score(gameID: String, outcome: GameOutcome, score: GameScore) -> GameCenterScore? {
+        guard score.isLeaderboardEligible else { return nil }
         switch score.metric {
         case .points:
             guard let points = score.points, points >= 0 else { return nil }
@@ -125,6 +135,9 @@ public enum GameCenterLeaderboard {
         case "2048":      return game2048Score
         case "poker":     return pokerChips
         case "blackjack": return blackjackChips
+        // ブロック崩し（#463）。コンティニュー（リワード広告）を使った回は
+        // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
+        case "blocks":    return blocksScore
         default:          return nil
         }
     }
@@ -146,11 +159,26 @@ public enum GameCenterLeaderboard {
         case "minesweeper":
             // 区分キーは `MinesweeperModel` が盤の構成から作る "行x列-地雷数"。
             switch variant {
+            // **`MinesweeperDifficulty` を変えたらここも直す**（#444）。Core は GameMinesweeper に
+            // 依存できない（依存の向きが逆）ため文字列を写し取るしかなく、二重管理になる。
+            // 食い違うと「中級・上級で何秒でクリアしても順位表に載らない」という静かな故障になるので、
+            // `MinesweeperGameCenterVariantTests` が両者の一致を機械的に確かめている。
             case "9x9-10":   return minesweeperBeginner
-            case "12x12-25": return minesweeperIntermediate
-            case "15x15-40": return minesweeperExpert
-            default:         return nil   // カスタム盤は対象外
+            case "16x16-40": return minesweeperIntermediate
+            case "20x20-82": return minesweeperExpert
+            // カスタム盤に加えて**旧プリセット**（"12x12-25" / "15x15-40"・#444 以前）も対象外。
+            // 旧中級は 12×12/25、新中級は 16×16/40 で盤の広さも密度も違うため、同じ表に混ぜると
+            // 盤が小さいぶん有利な旧記録が上位を占める（冒頭の「初級と上級を混ぜない」と同じ理由）。
+            // 旧プリセットは中断データを再開したときにだけ現れる過渡的なもので、新規対局からは
+            // 二度と作られない。
+            default:         return nil
             }
+        case "solitaire":
+            // 区分を持たないので、区分キーが付いていないときだけ送る。
+            // ジョーカー（中継札）を使ったクリアの除外は区分ではなく `isLeaderboardEligible`
+            // （上の `score(gameID:outcome:score:)` の先頭）で行う。区分で分けると
+            // ローカルの自己ベストまで「ジョーカーあり / なし」の 2 行に割れてしまう（#406）。
+            return variant == nil ? solitaireTime : nil
         case "sudoku":
             // 区分キーは `SudokuDifficulty` の rawValue。
             switch variant {

@@ -90,11 +90,22 @@ public struct OthelloView: View {
         } message: {
             Text("現在の対局を終了します。CPUの勝ちになります。")
         }
-        .onChange(of: model.mustPass) { _, newValue in
+        // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
+        // 保存され、復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
+        // パスの手段はこの案内の「OK」だけなので、出ないと着手も「待った」も塞がったまま詰む。
+        .onChange(of: model.mustPass, initial: true) { _, newValue in
             if newValue && !model.isAITurn { showPassAlert = true }
         }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        .task {
+            #if DEBUG
+            // 撮影用（#366）: 中盤の盤面を機械的に作る。人間の手番で止まるので CPU は動かない。
+            if ProcessInfo.processInfo.arguments.contains("-othelloMidgame") {
+                model.applyPreviewMidgameForTesting()
+            }
+            #endif
         }
     }
 
@@ -113,9 +124,9 @@ public struct OthelloView: View {
                 let isMine = !model.isAITurn
                 Text(isMine ? "あなたの番" : "CPUの番")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(isMine ? Theme.teal : Theme.coral))
+                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                 }
@@ -123,18 +134,18 @@ public struct OthelloView: View {
 
             Spacer()
 
-            // コンパクトスコア
+            // コンパクトスコア（終局後はリザルトと同じ「残りマス加算」後の数字。#440）
             HStack(spacing: 5) {
                 Circle()
                     .fill(Color(hex: 0x1A1A1A))
                     .frame(width: 13, height: 13)
-                Text("\(model.blackCount)")
+                Text("\(model.blackScore)")
                     .font(.system(size: 15, weight: .black, design: .rounded))
                     .foregroundStyle(Theme.ink)
                 Text("–")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
-                Text("\(model.whiteCount)")
+                Text("\(model.whiteScore)")
                     .font(.system(size: 15, weight: .black, design: .rounded))
                     .foregroundStyle(Theme.ink)
                 Circle()
@@ -159,8 +170,21 @@ public struct OthelloView: View {
                 : Set(model.board.validMoves(for: model.currentStone).map { $0.0 * othelloBoardSize + $0.1 })
 
             ZStack {
+                // 盤は上端 `boardGreen` → 下端 `boardGreenDeep` へ暗くする（#366）。
+                // 合法手ドットのコントラストは明るい側（上端）で測っているので、
+                // 暗くする方向のグラデーションなら保証はどこでも崩れない。
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(Color(hex: OthelloBoardStyle.boardGreen))
+                    .fill(LinearGradient(
+                        colors: [Color(hex: OthelloBoardStyle.boardGreen),
+                                 Color(hex: OthelloBoardStyle.boardGreenDeep)],
+                        startPoint: .top, endPoint: .bottom))
+                    .overlay(
+                        // 上辺にだけ細い照りを乗せ、盤の面が起きている感じを出す。
+                        RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                            .strokeBorder(LinearGradient(
+                                colors: [.white.opacity(0.22), .white.opacity(0)],
+                                startPoint: .top, endPoint: .bottom), lineWidth: 1.5)
+                    )
                     .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
 
                 OthelloBoardCanvas(
@@ -176,6 +200,14 @@ public struct OthelloView: View {
                 // 段差（`OthelloFlip.stagger`）は進捗の割合として持たせているので、
                 // ここは全体を等速で進める `.linear` にする。
                 .gameAnimation(.linear(duration: OthelloFlip.duration), value: model.placementCount)
+                // `Canvas` は下地の `RoundedRectangle` と兄弟で、自身の矩形いっぱいに描くため、
+                // 盤の四隅では角丸の外側へ**直角の角がはみ出す**（グリッド線・端のマスの石・
+                // #366 で足した落ち影が角丸の外に出て、盤の輪郭が角ばって見える）。
+                // 実測: 四隅だけで 740px の差が出ており、盤の内側の見た目は変わらない。
+                // クリップはヒットテスト領域も狭めるので、角のマスを取りこぼさないよう
+                // タップ判定は矩形のまま保つ。
+                .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+                .contentShape(Rectangle())
                 .gesture(
                     SpatialTapGesture()
                         .onEnded { val in
@@ -233,9 +265,9 @@ public struct OthelloView: View {
         HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
 
             Spacer()
@@ -298,13 +330,13 @@ public struct OthelloView: View {
                     Circle()
                         .fill(Color(hex: 0x1A1A1A))
                         .frame(width: 22, height: 22)
-                    Text("\(model.blackCount)")
+                    Text("\(model.blackScore)")
                         .font(.system(size: 30, weight: .black, design: .rounded))
                         .foregroundStyle(Theme.ink)
                     Text("–")
                         .font(.system(size: 22, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
-                    Text("\(model.whiteCount)")
+                    Text("\(model.whiteScore)")
                         .font(.system(size: 30, weight: .black, design: .rounded))
                         .foregroundStyle(Theme.ink)
                     Circle()
@@ -362,9 +394,9 @@ public struct OthelloView: View {
             Spacer(minLength: 0)
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer(minLength: 0)
         }
@@ -426,6 +458,14 @@ private struct OthelloBoardCanvas: View, Animatable {
                 ctx.stroke(hp, with: lineShading, lineWidth: 1)
             }
 
+            // 星（盤の目印・#366）。グリッド線の交点に打つので石より先に描く。
+            for star in OthelloBoardStyle.starPoints {
+                let px = CGFloat(star.col) * c, py = CGFloat(star.row) * c
+                let r = c * OthelloBoardStyle.starPointRadiusRatio
+                ctx.fill(Path(ellipseIn: CGRect(x: px-r, y: py-r, width: r*2, height: r*2)),
+                         with: lineShading)
+            }
+
             // 合法手ドット
             for idx in validSet {
                 let row = idx / othelloBoardSize, col = idx % othelloBoardSize
@@ -436,12 +476,27 @@ private struct OthelloBoardCanvas: View, Animatable {
                                           .opacity(OthelloBoardStyle.legalMoveDotOpacity)))
             }
 
-            // 石
+            // 石は「上面 + 下にのぞく側面」の 2 枚のだ円で**上面が平らな円柱**に見せる（#366）。
+            // 1 枚のだ円にラジアルの照りを乗せるとドーム（碁石）に見えるので使わない。
+            // 石ごとの姿（色・幅・大きさ）をここで確定し、描画は 2 パスで行う。
+            struct StoneShape {
+                let faceRect: CGRect
+                let sideRect: CGRect
+                let shown: OthelloStone
+                let edgeShade: Double
+                let centerX: CGFloat
+            }
+            var shapes: [StoneShape] = []
             for row in 0..<othelloBoardSize {
                 for col in 0..<othelloBoardSize {
                     guard let stone = board[row, col] else { continue }
                     let cx = (CGFloat(col) + 0.5) * c, cy = (CGFloat(row) + 0.5) * c
-                    let r  = c * OthelloBoardStyle.stoneRadiusRatio
+                    var r  = c * OthelloBoardStyle.stoneRadiusRatio
+
+                    // 置いた瞬間の石は大きめに出して実寸へ落とす（ドロップ感・#366）。
+                    if let last = lastMove, last.row == row, last.col == col {
+                        r *= CGFloat(OthelloFlip.popScale(progress: progress))
+                    }
 
                     // 返っている最中の石は、縦軸まわりに回っているように横幅だけ縮める。
                     // 真横を向く折り返しで色が入れ替わるので、盤の色が変わる瞬間が目で追える。
@@ -454,23 +509,72 @@ private struct OthelloBoardCanvas: View, Animatable {
                         rx = r * CGFloat(OthelloFlip.widthScale(progress: p))
                     }
 
-                    let rect = CGRect(x: cx-rx, y: cy-r, width: rx*2, height: r*2)
-                    if shown == .black {
-                        ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0x1A1A1A)))
-                    } else {
-                        ctx.fill(Path(ellipseIn: rect), with: .color(Color(hex: 0xF0ECD8)))
-                        ctx.stroke(Path(ellipseIn: rect), with: .color(Color.gray.opacity(0.3)), lineWidth: 1)
-                    }
-                    // 直前手マーカー。置いた石にだけ出るので、反転中の石には掛からない。
-                    if let last = lastMove, last.row == row, last.col == col {
-                        let mr = r * 0.3
-                        let mRect = CGRect(x: cx-mr, y: cy-mr, width: mr*2, height: mr*2)
-                        ctx.fill(Path(ellipseIn: mRect),
-                                 with: .color(stone == .black
-                                              ? Color.white.opacity(0.5)
-                                              : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5)))
-                    }
+                    // 側面の高さぶんを上下に振り分け、石全体をマスの中央に収める。
+                    let rimH = r * OthelloBoardStyle.stoneRimHeightRatio
+                    let faceRect = CGRect(x: cx - rx, y: cy - rimH / 2 - r, width: rx * 2, height: r * 2)
+                    shapes.append(StoneShape(
+                        faceRect: faceRect,
+                        sideRect: faceRect.offsetBy(dx: 0, dy: rimH),
+                        shown: shown,
+                        // 反転中は細くなった幅のぶんだけ暗く沈め、回転中の陰影に見せる。
+                        edgeShade: OthelloBoardStyle.flipEdgeShadeMaxOpacity
+                            * (1 - Double(rx / max(r, 0.0001))),
+                        centerX: cx))
                 }
+            }
+
+            // パス1: 側面（最下層）。落ち影はここにだけ掛ける（フィルタは以後の描画
+            // それぞれに適用されるので石 1 枚ごとに影が付く）。上面まで同じレイヤーに
+            // 入れると上面の影が自分の側面に落ちて縁が濁る。
+            ctx.drawLayer { layer in
+                layer.addFilter(.shadow(
+                    color: .black.opacity(OthelloBoardStyle.stoneShadowOpacity),
+                    radius: c * OthelloBoardStyle.stoneShadowRadiusRatio,
+                    x: 0, y: c * OthelloBoardStyle.stoneShadowOffsetRatio))
+                for shape in shapes {
+                    layer.fill(Path(ellipseIn: shape.sideRect),
+                               with: .color(Color(hex: shape.shown == .black
+                                                  ? OthelloBoardStyle.stoneBlackSide
+                                                  : OthelloBoardStyle.stoneWhiteSide)))
+                }
+            }
+
+            // パス2: 上面。平らな面に見えるよう明度差の小さい縦グラデーションに留める。
+            for shape in shapes {
+                let colors = shape.shown == .black
+                    ? [Color(hex: OthelloBoardStyle.stoneBlackFaceTop),
+                       Color(hex: OthelloBoardStyle.stoneBlackFaceBottom)]
+                    : [Color(hex: OthelloBoardStyle.stoneWhiteFaceTop),
+                       Color(hex: OthelloBoardStyle.stoneWhiteFaceBottom)]
+                let facePath = Path(ellipseIn: shape.faceRect)
+                ctx.fill(facePath, with: .linearGradient(
+                    Gradient(colors: colors),
+                    startPoint: CGPoint(x: shape.centerX, y: shape.faceRect.minY),
+                    endPoint: CGPoint(x: shape.centerX, y: shape.faceRect.maxY)))
+                if shape.shown == .white {
+                    ctx.stroke(facePath, with: .color(Color.gray.opacity(0.3)), lineWidth: 1)
+                }
+                if shape.edgeShade > 0.01 {
+                    ctx.fill(facePath, with: .color(.black.opacity(shape.edgeShade)))
+                    ctx.fill(Path(ellipseIn: shape.sideRect),
+                             with: .color(.black.opacity(shape.edgeShade)))
+                }
+            }
+
+            // 直前手マーカー。置いた石にだけ出るので、反転中の石には掛からない。
+            // 反転の進みに合わせてフェードインさせ、着地前の石に印が乗らないようにする。
+            if let last = lastMove, let stone = board[last.row, last.col] {
+                let cx = (CGFloat(last.col) + 0.5) * c, cy = (CGFloat(last.row) + 0.5) * c
+                let r = c * OthelloBoardStyle.stoneRadiusRatio
+                // 上面の中心（側面ぶん上にずれている）へ合わせる。
+                let faceCY = cy - r * OthelloBoardStyle.stoneRimHeightRatio / 2
+                let mr = r * 0.3
+                let mRect = CGRect(x: cx-mr, y: faceCY-mr, width: mr*2, height: mr*2)
+                ctx.fill(Path(ellipseIn: mRect),
+                         with: .color((stone == .black
+                                       ? Color.white.opacity(0.5)
+                                       : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5))
+                                          .opacity(progress)))
             }
         }
     }
@@ -499,26 +603,29 @@ struct OthelloNewGameSheet: View {
                 section("あなたの石") {
                     HStack(spacing: 12) {
                         chooser(title: "●黒", subtitle: "先手",
-                                selected: side == .black, accent: Theme.fillStrong) { side = .black }
+                                selected: side == .black, accent: Theme.fillStrong,
+                                onAccent: .white) { side = .black }
                         chooser(title: "○白", subtitle: "後手",
-                                selected: side == .white, accent: Theme.fillMuted) { side = .white }
+                                selected: side == .white, accent: Theme.fillMuted,
+                                onAccent: .white) { side = .white }
                     }
                 }
                 section("CPUの強さ") {
                     HStack(spacing: 12) {
                         chooser(title: "弱",   subtitle: "浅い読み",
-                                selected: level == 0, accent: Theme.teal)   { level = 0 }
+                                selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
                         chooser(title: "普通", subtitle: "標準",
-                                selected: level == 1, accent: Theme.yellow) { level = 1 }
+                                selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
                         chooser(title: "強",   subtitle: "深い読み",
-                                selected: level == 2, accent: Theme.coral)  { level = 2 }
+                                selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
                     }
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
                     Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -539,13 +646,16 @@ struct OthelloNewGameSheet: View {
         }
     }
 
+    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
+    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
     private func chooser(title: String, subtitle: String, selected: Bool,
-                         accent: Color, action: @escaping () -> Void) -> some View {
+                         accent: Color, onAccent: Color = Theme.onAccent,
+                         action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(

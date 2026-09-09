@@ -54,6 +54,7 @@ private struct StubConcentrationSnapshot: Codable {
     var pairCount: Int = ConcentrationPairCount.small.rawValue
     var cpuLevel: Int = ConcentrationCPULevel.normal.rawValue
     var mattaUsed: Bool = false
+    var mismatchedIndices: [Int]? = nil
 
     /// 8ペア16枚の正しい盤面。`symbols` だけ差し替えれば壊れた並びを作れる。
     static func healthy() -> StubConcentrationSnapshot {
@@ -349,7 +350,7 @@ struct ConcentrationModelTests {
         #expect(model2.firstFlippedIndex == nil)
     }
 
-    @Test("復元時: ミスマッチカードは裏返される")
+    @Test("復元時: ミスマッチカードは裏返され、手番も CPU へ進む（#415）")
     func restore_flipsBackMismatchedCards() async {
         let store = MockSnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
@@ -364,7 +365,97 @@ struct ConcentrationModelTests {
         #expect(!model2.cards[a].isFaceUp, "ミスマッチカードaは裏返される")
         #expect(!model2.cards[b].isFaceUp, "ミスマッチカードbは裏返される")
         #expect(model2.mismatchedIndices.isEmpty)
-        #expect(model2.currentPlayer == .human)
+        #expect(model2.currentPlayer == .cpu,
+                "自動ターン交代の猶予中に離脱しても「外したら相手番」は踏み倒せない")
+        #expect(model2.turnID != 0, "CPU ターンとして task(id:) が起動する")
+    }
+
+    @Test("復元時: 人間のミスマッチ中の離脱を繰り返しても手番は CPU のまま（#415）")
+    func restore_mismatchTurnAdvanceIsIdempotent() async {
+        let store = MockSnapshotStore()
+        let model1 = ConcentrationModel(services: makeServices(store))
+
+        let (a, b) = mismatchPair(in: model1.cards)
+        model1.tap(index: a)
+        model1.tap(index: b)
+
+        // 一度復元 → さらにもう一度離脱・復元しても、手番が人間に戻ったり
+        // CPU→人間へ進みすぎたりしない（交代後の手番を書き戻しているため）
+        _ = ConcentrationModel(services: makeServices(store))
+        let model3 = ConcentrationModel(services: makeServices(store))
+
+        #expect(model3.currentPlayer == .cpu)
+        #expect(model3.mismatchedIndices.isEmpty)
+    }
+
+    @Test("復元時: CPU がミスマッチしたまま離脱すると人間の手番から再開する（#415）")
+    func restore_cpuMismatchAdvancesTurnToHuman() async {
+        let store = MockSnapshotStore()
+        let ai = ScriptedConcentrationAI()
+        let model1 = ConcentrationModel(services: makeServices(store),
+                                        autoClearDelay: testAutoClearDelay,
+                                        aiFactory: { _ in ai })
+        // 人間がミスマッチ → 自動交代で CPU 番へ
+        let (a, b) = mismatchPair(in: model1.cards)
+        model1.tap(index: a)
+        model1.tap(index: b)
+        await awaitAutoClear(model1)
+        #expect(model1.currentPlayer == .cpu)
+
+        // CPU がミスマッチした瞬間の中断データを作る（doCPUTurn は実時間で待つため
+        // モデルを介さず、同じ形のスタブを直接置く）
+        var stub = StubConcentrationSnapshot(
+            symbols: model1.cards.map(\.symbol),
+            isFaceUp: model1.cards.map(\.isFaceUp),
+            isMatched: model1.cards.map(\.isMatched)
+        )
+        let (c, d) = mismatchPair(in: model1.cards)
+        stub.isFaceUp[c] = true
+        stub.isFaceUp[d] = true
+        stub.mismatchedIndices = [c, d]
+        stub.currentPlayer = 1  // CPU
+        stub.pairCount = model1.pairCount.rawValue
+        stub.cpuLevel = model1.cpuLevel.rawValue
+        try? store.save(stub, for: "concentration")
+
+        let model2 = ConcentrationModel(services: makeServices(store))
+
+        #expect(model2.currentPlayer == .human, "CPU が外したら人間の手番に戻る")
+        #expect(!model2.cards[c].isFaceUp)
+        #expect(!model2.cards[d].isFaceUp)
+    }
+
+    @Test("復元時: 待ったでミスマッチを取り消していれば手番は人間のまま（#415）")
+    func restore_keepsHumanTurnAfterMatta() async {
+        let store = MockSnapshotStore()
+        let model1 = ConcentrationModel(services: makeServices(store),
+                                        autoClearDelay: testAutoClearDelay)
+        let (a, b) = mismatchPair(in: model1.cards)
+        model1.tap(index: a)
+        model1.tap(index: b)
+        model1.pauseAutoTurn()
+        model1.useMatta()
+        #expect(model1.currentPlayer == .human)
+
+        let model2 = ConcentrationModel(services: makeServices(store))
+
+        #expect(model2.currentPlayer == .human, "待ったで取り消したぶんは手番を進めない")
+        #expect(model2.mattaUsed)
+    }
+
+    @Test("復元時: 壊れた mismatchedIndices では手番を進めない（#415）")
+    func restore_ignoresBrokenMismatchedIndices() {
+        // 範囲外 / 枚数違い / 伏せたままの札 / 同じ絵柄 のいずれも clearMismatch は起きえない
+        let broken: [[Int]] = [[0, 99], [0], [0, 1, 2], [2, 3], [0, 0]]
+        for indices in broken {
+            var stub = StubConcentrationSnapshot.healthy()
+            // healthy() は s0,s0,s1,s1,… なので [0,1] は同じ絵柄、[2,3] も同じ絵柄
+            stub.isFaceUp[0] = true
+            stub.mismatchedIndices = indices
+            let model = restored(from: stub)
+            #expect(model.currentPlayer == .human,
+                    "壊れた中断データ \(indices) で手番だけ進んではいけない")
+        }
     }
 
     @Test("復元後: マッチ済みカードは保持される")

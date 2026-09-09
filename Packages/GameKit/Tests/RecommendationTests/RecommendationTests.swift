@@ -14,21 +14,31 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
+import GameSolitaire
+import GameChess
+import GameBlocks
 
 // MARK: - 共通のヘルパー
 
-/// ハブの登録順（AppEnvironment.registry と同じ）。
+/// ハブの登録順（`AppEnvironment.registry` と同じ並び）。
+///
+/// **並びまで本体と一致させること**。候補テーブルが尽きたときのフォールバックは
+/// `availableIDs` の順に下りるため、順序がずれていると本番とテストで違うゲームを勧める
+/// （#397 の CodeRabbit 指摘。以前は #262 以前の古い並びのまま放置されていた）。
+/// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 private let hubOrder = [
-    "2048", "shogi", "gomoku", "minesweeper", "othello", "poker", "concentration", "blackjack", "daifugo",
-    "mahjong", "mahjong4", "sudoku",
+    "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong", "solitaire",
+    "daifugo", "poker", "blackjack", "minesweeper", "gomoku", "concentration", "blocks",
 ]
 
 @MainActor
 private func makeRegistry() -> GameRegistry {
     GameRegistry([
-        Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(),
-        OthelloModule(), PokerModule(), ConcentrationModule(), BlackjackModule(),
-        DaifugoModule(), MahjongSolitaireModule(), MahjongModule(), SudokuModule(),
+        Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
+        OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
+        DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
+        GomokuModule(), ConcentrationModule(), BlocksModule(),
     ])
 }
 
@@ -87,21 +97,25 @@ struct RecommendationTableTests {
 
     /// Issue #52 の表に #237 の入れ替えを反映したもの。第1〜第3候補まで検証する。
     static let table: [(String, [String])] = [
-        ("shogi",         ["gomoku", "othello", "2048"]),
-        ("gomoku",        ["othello", "shogi", "minesweeper"]),
+        ("shogi",         ["gomoku", "othello", "chess"]),
+        ("chess",         ["shogi", "othello", "go"]),
+        ("gomoku",        ["go", "othello", "shogi"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
-        ("2048",          ["minesweeper", "mahjong", "concentration"]),
+        ("2048",          ["minesweeper", "mahjong", "blocks"]),
+        ("blocks",        ["2048", "minesweeper", "concentration"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
-        ("concentration", ["2048", "daifugo", "blackjack"]),
+        ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
         ("daifugo",       ["poker", "blackjack", "concentration"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
+        ("go",            ["gomoku", "othello", "shogi"]),
+        ("solitaire",     ["mahjong", "concentration", "sudoku"]),
     ]
 
-    @Test("12ゲームそれぞれ、未プレイのみのときは第1候補が出る")
+    @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
     func firstCandidate() {
         for (finished, expected) in Self.table {
             let got = RecommendationPolicy.candidate(
@@ -140,7 +154,7 @@ struct RecommendationTableTests {
         )
         let expected = hubOrder.first { !played.contains($0) }
         #expect(got?.gameID == expected)
-        #expect(got?.gameID == "minesweeper", "ハブ順で最初の未プレイ")
+        #expect(got?.gameID == "2048", "ハブ順で最初の未プレイ")
     }
 
     /// #237 の再発防止。値に一度も出てこないゲームは「他を遊んだ人には構造的に提案されない」。
@@ -187,18 +201,23 @@ struct RecommendationTableTests {
             return
         }
 
-        let listed = Set(source[block].split(separator: "\n").compactMap { line -> String? in
+        let listed = source[block].split(separator: "\n").compactMap { line -> String? in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard !trimmed.hasPrefix("//"),
                   let name = trimmed.split(separator: "(").first, name.hasSuffix("Module")
             else { return nil }
             return String(name)
-        })
-        let fixture = Set(makeRegistry().modules.map { String(describing: type(of: $0)) })
+        }
+        let fixture = makeRegistry().modules.map { String(describing: type(of: $0)) }
 
         #expect(listed.count == fixture.count && !listed.isEmpty)
-        #expect(listed == fixture,
-                "テスト用レジストリと本体の差分: \(listed.symmetricDifference(fixture).sorted())")
+        #expect(Set(listed) == Set(fixture),
+                "テスト用レジストリと本体の差分: \(Set(listed).symmetricDifference(fixture).sorted())")
+        // **顔ぶれだけでなく並びも比べる**（#397 の CodeRabbit 指摘）。候補テーブルが尽きたときの
+        // フォールバックはハブ順に下りるため、順序がずれるとテストが本番と違う推薦を検証してしまう。
+        #expect(listed == fixture, "本体: \(listed) / テスト用: \(fixture)")
+        #expect(hubOrder == makeRegistry().modules.map(\.id),
+                "hubOrder がテスト用レジストリの並びとずれている")
     }
 
     /// #335: 以前は「未プレイが無ければ nil」で、12本を1回ずつ遊んだ時点でレコメンドが
@@ -460,24 +479,25 @@ struct RecommendationServiceTests {
             service.gameDidFinish(gameID: id)
         }
 
-        // 12ゲームをハブ順に1回ずつ、1日ずつずらして遊ぶ（= 最も古いのは先頭の 2048）。
+        // 全ゲームをハブ順に1回ずつ、1日ずつずらして遊ぶ（= 最も古いのは先頭の 2048）。
         for id in hubOrder {
             finish(id)
             clock = clock.addingTimeInterval(86_400)
         }
         #expect(log.playedGameIDs.count == hubOrder.count, "全ゲーム既プレイ")
 
-        // 提示は20回目の終了から。19回目まではまだ出ない。
-        for _ in 0..<7 {
+        // 提示は20回目（`firstShowThreshold`）の終了から。その1つ手前まではまだ出ない。
+        // ゲームが増えても成り立つよう、回数はしきい値から逆算する。
+        for _ in 0..<(RecommendationPolicy.firstShowThreshold - hubOrder.count - 1) {
             finish("shogi")
             clock = clock.addingTimeInterval(3600)
         }
-        #expect(service.suggestedGameID == nil, "19回目までは出さない")
+        #expect(service.suggestedGameID == nil, "しきい値の1つ手前までは出さない")
 
         finish("shogi")
         #expect(service.suggestedGameID == "2048", "最終プレイが最も古いゲームが出る")
         if case .revisit(let days?) = service.suggestedReason {
-            #expect(days >= 12, "12日以上ぶり（実際: \(days)日）")
+            #expect(days >= hubOrder.count - 1, "\(hubOrder.count - 1)日以上ぶり（実際: \(days)日）")
         } else {
             Issue.record("久しぶり枠として提示されるはず（実際: \(service.suggestedReason)）")
         }
@@ -488,8 +508,12 @@ struct RecommendationServiceTests {
     @Test("最終プレイ日時が記録されていなくても、久しぶり枠は出る")
     func suggestsRevisitWithoutDates() {
         let (_, service) = makeServices(suite: "service-all-played-nodates")
-        for id in hubOrder { service.gameDidFinish(gameID: id) }   // 12回
-        advanceFinishes(service, count: 7, gameID: "shogi")        // 19回
+        for id in hubOrder { service.gameDidFinish(gameID: id) }   // ハブのゲーム数ぶん
+        advanceFinishes(
+            service,
+            count: RecommendationPolicy.firstShowThreshold - hubOrder.count - 1,
+            gameID: "shogi"
+        )                                                          // しきい値の1つ手前まで
         #expect(service.suggestedGameID == nil)
 
         service.gameDidFinish(gameID: "shogi")                     // 20回目で提示

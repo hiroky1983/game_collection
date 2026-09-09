@@ -8,6 +8,16 @@ public enum BlackjackSuit: Int, CaseIterable, Codable, Sendable {
     case spades, hearts, diamonds, clubs
     public var symbol: String { ["♠", "♥", "♦", "♣"][rawValue] }
     public var isRed: Bool { self == .hearts || self == .diamonds }
+
+    /// トランプ共通基盤（#397）の描画用スート。`rawValue` の一致に頼らず明示的に対応させる。
+    public var playing: PlayingCardSuit {
+        switch self {
+        case .spades:   return .spade
+        case .hearts:   return .heart
+        case .diamonds: return .diamond
+        case .clubs:    return .club
+        }
+    }
 }
 
 public struct BlackjackCard: Identifiable, Codable, Sendable, Equatable {
@@ -32,6 +42,11 @@ public struct BlackjackCard: Identifiable, Codable, Sendable, Equatable {
         default:      return rank
         }
     }
+
+    /// トランプ共通基盤（#397）へ渡す面の内容。`rank` は既に A=1 表記なのでそのまま渡す。
+    public var figure: PlayingCardFigure {
+        .pip(suit: suit.playing, rank: rank)
+    }
 }
 
 // MARK: - Hand Value
@@ -50,6 +65,36 @@ func isBlackjack(_ hand: [BlackjackCard]) -> Bool {
     hand.count == 2 && handValue(hand) == 21
 }
 
+// MARK: - Settlement
+
+/// 勝敗とチップの増減を決める判定表（#413）。`resolveResult` から切り出した純関数。
+///
+/// ナチュラル（2枚21）は両者について対称に扱う。**ディーラーのみナチュラルなら、
+/// プレイヤーが3枚以上で21に届いていてもディーラーの勝ち**（標準ルール。以前は
+/// 同値としてプッシュに落ちていた）。
+/// プレイヤーのバストは呼び出し側（`settleHand`）で先に弾くためここには到達しない。
+///
+/// - Parameter allowsPlayerNatural: プレイヤー側の2枚21をナチュラルとして扱うか。
+///   **スプリットで作った21はナチュラルにしない**という標準ルールのため false を渡す（#439）。
+func blackjackSettlement(
+    player: [BlackjackCard],
+    dealer: [BlackjackCard],
+    bet: Int,
+    allowsPlayerNatural: Bool = true
+) -> (outcome: BlackjackOutcome, chipDelta: Int) {
+    let pVal = handValue(player)
+    let dVal = handValue(dealer)
+    let playerNatural = allowsPlayerNatural && isBlackjack(player)
+    let dealerNatural = isBlackjack(dealer)
+
+    if playerNatural && dealerNatural { return (.push, 0) }
+    if playerNatural { return (.playerBlackjack, Int(Double(bet) * 1.5)) }  // 1.5倍払い
+    if dealerNatural { return (.lose, -bet) }
+    if dVal > 21 || pVal > dVal { return (.win, bet) }
+    if pVal == dVal { return (.push, 0) }
+    return (.lose, -bet)
+}
+
 // MARK: - Game Phase
 
 public enum BlackjackPhase: String, Equatable, Sendable, Codable {
@@ -60,15 +105,42 @@ public enum BlackjackOutcome: String, Sendable, Codable {
     case playerBlackjack, win, push, lose, bust
 }
 
+// MARK: - Player Hand
+
+/// プレイヤーの1手（#439）。スプリットすると2つに増え、それぞれ独立にベット・精算する。
+struct BlackjackHand: Identifiable, Codable, Sendable, Equatable {
+    let id: Int
+    var cards: [BlackjackCard]
+    /// この手に賭けている額。ダブルダウンで倍になる。
+    var bet: Int
+    /// スプリットで生まれた手か。**この手の2枚21はナチュラル扱いしない**（標準ルール）。
+    var isFromSplit: Bool = false
+    /// ダブルダウン済みか（1枚だけ引いて強制スタンド）。
+    var isDoubled: Bool = false
+    /// プレイヤーの操作が終わった手か（スタンド・ダブル・バスト・スプリットしたA）。
+    var isDone: Bool = false
+    /// 精算結果。`resolveAll()` で入る。
+    var outcome: BlackjackOutcome? = nil
+
+    var value: Int { handValue(cards) }
+    var isBusted: Bool { value > 21 }
+}
+
 // MARK: - Snapshot
 
 struct BlackjackSnapshot: Codable {
+    /// 旧形式（#439 以前）との互換のために残している「今操作している手」の手札。
     let playerHand: [BlackjackCard]
     let dealerHand: [BlackjackCard]
     let deck: [BlackjackCard]
     let chips: Int
     let bet: Int
     let phase: BlackjackPhase
+    /// #439 で追加。旧形式のスナップショットには無いので optional にし、
+    /// 欠けているときは `playerHand` + `bet` から手を1つ組み立てて読む
+    /// （更新前に中断した1局が、復帰時に黙って消えないようにする）。
+    let hands: [BlackjackHand]?
+    let activeHandIndex: Int?
 }
 
 // MARK: - Model
@@ -76,9 +148,18 @@ struct BlackjackSnapshot: Codable {
 @MainActor
 @Observable
 public final class BlackjackModel {
-    public private(set) var playerHand: [BlackjackCard] = []
+    /// プレイヤーの手。通常は1つで、スプリットしたときだけ2つになる（#439）。
+    private(set) var hands: [BlackjackHand] = []
+    /// いま操作している手の位置。スプリット時は 0 → 1 の順に進む。
+    private(set) var activeHandIndex: Int = 0
+
+    /// いま操作している手の手札。手が1つのときは従来どおり「プレイヤーの手札」そのもの。
+    public var playerHand: [BlackjackCard] {
+        hands.indices.contains(activeHandIndex) ? hands[activeHandIndex].cards : []
+    }
     public private(set) var dealerHand: [BlackjackCard] = []
     public private(set) var chips: Int = 1000
+    /// いま場に出ている総ベット額（スプリット・ダブルダウンで増える）。決着すると 0 に戻る。
     public private(set) var bet: Int = 0
     public private(set) var phase: BlackjackPhase = .betting
     public private(set) var outcome: BlackjackOutcome? = nil
@@ -118,12 +199,24 @@ public final class BlackjackModel {
         self.services = services
         self.seed = seed
         if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: "blackjack") {
-            self.playerHand = snap.playerHand
             self.dealerHand = snap.dealerHand
             self.deck       = snap.deck
             self.chips      = snap.chips
             self.bet        = snap.bet
             self.phase      = snap.phase
+            if let saved = snap.hands, !saved.isEmpty {
+                self.hands = saved
+                self.activeHandIndex = min(max(snap.activeHandIndex ?? 0, 0), saved.count - 1)
+            } else if !snap.playerHand.isEmpty {
+                // 旧形式（#439 以前）。手は必ず1つで、総ベット額がその手のベット額だった。
+                self.hands = [BlackjackHand(id: 0, cards: snap.playerHand, bet: snap.bet)]
+                self.activeHandIndex = 0
+            }
+            // 手を復元できなければ操作のしようがないので、賭ける前に戻す。
+            if self.hands.isEmpty {
+                self.phase = .betting
+                self.bet = 0
+            }
         }
     }
 
@@ -138,7 +231,9 @@ public final class BlackjackModel {
             deck: deck,
             chips: chips,
             bet: bet,
-            phase: phase
+            phase: phase,
+            hands: hands,
+            activeHandIndex: activeHandIndex
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -151,23 +246,28 @@ public final class BlackjackModel {
             services?.feedback.notify(.warning) // チップ不足でベットできない
             return
         }
-        bet = amount
-        deal()
+        deal(bet: amount)
     }
+
+    /// 追加で賭けられる額。`chips` は精算までベットぶんを引かないので、
+    /// ダブルダウン・スプリットの可否は「残高 − 場に出ている総額」で見る（#439）。
+    private var availableChips: Int { chips - bet }
 
     // MARK: - Deal
 
-    private func deal() {
+    private func deal(bet amount: Int) {
         deck = shuffledDeck()
-        playerHand = [drawCard(), drawCard()]
+        hands = [BlackjackHand(id: 0, cards: [drawCard(), drawCard()], bet: amount)]
+        activeHandIndex = 0
         dealerHand = [drawCard(), drawCard()]
+        bet = amount
         phase = .playerTurn
         // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
         // 決着が即決まるブラックジャックでも `game_start` が先に立つよう、判定より前に数える（#158）。
         services?.gameDidRestart(gameID: gameID)
 
         if isBlackjack(playerHand) {
-            resolveResult()
+            resolveAll()
             return
         }
         services?.feedback.impact(.medium) // カードを配る
@@ -177,25 +277,118 @@ public final class BlackjackModel {
     // MARK: - Player Actions
 
     public func hit() {
-        guard phase == .playerTurn else { return }
-        playerHand.append(drawCard())
-        if playerValue > 21 {
-            outcome = .bust
-            chips -= bet
-            bet = 0
-            phase = .result
-            services?.feedback.notify(.error)
-            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
-            checkSessionOver()
-            persist()
-        } else {
+        guard phase == .playerTurn, hands.indices.contains(activeHandIndex) else { return }
+        hands[activeHandIndex].cards.append(drawCard())
+        guard hands[activeHandIndex].isBusted else {
             services?.feedback.impact(.light) // 1枚引く
+            persist()
+            return
+        }
+        hands[activeHandIndex].isDone = true
+        // スプリットで次の手が残っているなら、この手だけが飛んだことを伝える
+        // （ラウンド全体の決着音は `resolveAll()` が鳴らすので二重に鳴らさない）。
+        if hasPendingHand { services?.feedback.notify(.error) }
+        advanceHand()
+    }
+
+    public func stand() {
+        guard phase == .playerTurn, hands.indices.contains(activeHandIndex) else { return }
+        hands[activeHandIndex].isDone = true
+        advanceHand()
+    }
+
+    // MARK: - Double Down / Split (#439)
+
+    /// 手の形としてダブルダウンできるか（最初の2枚のときだけ）。チップ不足でも true を返すので、
+    /// ボタンは出したうえで `canDoubleDown` で `disabled` にする。
+    public var isDoubleDownApplicable: Bool {
+        guard phase == .playerTurn, let hand = activeHand else { return false }
+        return hand.cards.count == 2 && !hand.isDone
+    }
+
+    /// 実際にダブルダウンできるか（形が合っていて、かつ同額を追加で賭けられる）。
+    public var canDoubleDown: Bool {
+        guard isDoubleDownApplicable, let hand = activeHand else { return false }
+        return availableChips >= hand.bet
+    }
+
+    /// 手の形としてスプリットできるか（同ランク2枚。**再スプリットは不可**）。
+    public var isSplitApplicable: Bool {
+        guard phase == .playerTurn, hands.count == 1, let hand = activeHand else { return false }
+        return hand.cards.count == 2 && !hand.isDone && hand.cards[0].rank == hand.cards[1].rank
+    }
+
+    /// 実際にスプリットできるか（形が合っていて、かつ同額を追加で賭けられる）。
+    public var canSplit: Bool {
+        guard isSplitApplicable, let hand = activeHand else { return false }
+        return availableChips >= hand.bet
+    }
+
+    /// ベット額を倍にして1枚だけ引き、強制スタンドする。
+    public func doubleDown() {
+        guard canDoubleDown else { return }
+        hands[activeHandIndex].bet *= 2
+        hands[activeHandIndex].isDoubled = true
+        hands[activeHandIndex].cards.append(drawCard())
+        hands[activeHandIndex].isDone = true
+        bet = totalBet
+        services?.feedback.impact(.medium)
+        advanceHand()
+    }
+
+    /// 同ランク2枚を2つの手に分け、それぞれに同額を賭けて1枚ずつ配る。
+    ///
+    /// 標準的な簡略化として **スプリットしたAは1枚だけで強制スタンド**（引き直せない）、
+    /// **再スプリット不可**（`isSplitApplicable` が `hands.count == 1` を要求する）とする。
+    /// 分けた手で作った21はナチュラルにならない（精算は `settleHand` が担う）。
+    public func split() {
+        guard canSplit, let source = activeHand else { return }
+        let stake = source.bet
+        let splittingAces = source.cards[0].rank == 1
+        var first = BlackjackHand(id: 0, cards: [source.cards[0], drawCard()],
+                                  bet: stake, isFromSplit: true)
+        var second = BlackjackHand(id: 1, cards: [source.cards[1], drawCard()],
+                                   bet: stake, isFromSplit: true)
+        if splittingAces {
+            first.isDone = true
+            second.isDone = true
+        }
+        hands = [first, second]
+        activeHandIndex = 0
+        bet = totalBet
+        services?.feedback.impact(.medium)
+        if hands[0].isDone {
+            advanceHand()
+        } else {
             persist()
         }
     }
 
-    public func stand() {
-        guard phase == .playerTurn else { return }
+    // MARK: - Hand Progression
+
+    private var activeHand: BlackjackHand? {
+        hands.indices.contains(activeHandIndex) ? hands[activeHandIndex] : nil
+    }
+
+    private var totalBet: Int { hands.reduce(0) { $0 + $1.bet } }
+
+    /// いまの手より後ろに、まだ操作していない手が残っているか。
+    private var hasPendingHand: Bool {
+        hands.indices.contains { $0 > activeHandIndex && !hands[$0].isDone }
+    }
+
+    /// 次の手へ進む。全部終わっていればディーラーの番（全滅していれば即精算）へ移る。
+    private func advanceHand() {
+        if let next = hands.indices.first(where: { $0 > activeHandIndex && !hands[$0].isDone }) {
+            activeHandIndex = next
+            persist()
+            return
+        }
+        // どの手も残っていなければディーラーは引く必要がない（従来のバストと同じ扱い）。
+        guard hands.contains(where: { !$0.isBusted }) else {
+            resolveAll()
+            return
+        }
         phase = .dealerTurn
         runDealer()
     }
@@ -206,31 +399,31 @@ public final class BlackjackModel {
         while handValue(dealerHand) < 17 {
             dealerHand.append(drawCard())
         }
-        resolveResult()
+        resolveAll()
     }
 
     // MARK: - Result
 
-    private func resolveResult() {
-        let pVal = playerValue
-        let dVal = dealerValue
+    /// 手1つぶんの精算。バストは相手を見るまでもなく賭け金を失う。
+    private func settleHand(_ hand: BlackjackHand) -> (outcome: BlackjackOutcome, chipDelta: Int) {
+        if hand.isBusted { return (.bust, -hand.bet) }
+        return blackjackSettlement(player: hand.cards, dealer: dealerHand, bet: hand.bet,
+                                   allowsPlayerNatural: !hand.isFromSplit)
+    }
 
-        if isBlackjack(playerHand) && !isBlackjack(dealerHand) {
-            // ブラックジャック: 1.5倍払い
-            let payout = Int(Double(bet) * 1.5)
-            chips += payout
-            outcome = .playerBlackjack
-        } else if isBlackjack(playerHand) && isBlackjack(dealerHand) {
-            outcome = .push
-        } else if dVal > 21 || pVal > dVal {
-            chips += bet
-            outcome = .win
-        } else if pVal == dVal {
-            outcome = .push
-        } else {
-            chips -= bet
-            outcome = .lose
+    private func resolveAll() {
+        var totalDelta = 0
+        for index in hands.indices {
+            let settlement = settleHand(hands[index])
+            hands[index].outcome = settlement.outcome
+            totalDelta += settlement.chipDelta
         }
+        chips += totalDelta
+        // 手が1つなら従来どおりその結果をそのまま出す。スプリットしたラウンドは
+        // 手ごとに勝敗が割れるので、まとめの表示・評価判定は収支で決める。
+        outcome = hands.count == 1
+            ? hands.first?.outcome
+            : (totalDelta > 0 ? .win : (totalDelta < 0 ? .lose : .push))
 
         bet = 0
         phase = .result
@@ -256,10 +449,16 @@ public final class BlackjackModel {
     public func nextRound() {
         guard !sessionOver else { return }
         outcome = nil
-        playerHand = []
+        clearHands()
         dealerHand = []
-        bet = 0
         phase = .betting
+    }
+
+    /// 手・操作位置・総ベット額をラウンド開始前の状態へ戻す。
+    private func clearHands() {
+        hands = []
+        activeHandIndex = 0
+        bet = 0
     }
 
     // MARK: - Reward Ad Recovery
@@ -273,9 +472,8 @@ public final class BlackjackModel {
         chips = 500
         sessionOver = false
         outcome = nil
-        playerHand = []
+        clearHands()
         dealerHand = []
-        bet = 0
         phase = .betting
         return true
     }
@@ -287,9 +485,8 @@ public final class BlackjackModel {
         chips = 1000
         sessionOver = false
         outcome = nil
-        playerHand = []
+        clearHands()
         dealerHand = []
-        bet = 0
         phase = .betting
         services?.snapshots.clear(for: gameID)
     }

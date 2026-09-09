@@ -93,6 +93,9 @@ public struct MinesweeperView: View {
         } message: {
             Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
         }
+        // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
+        // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
+        .onDisappear { model.pauseTimer() }
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -105,6 +108,16 @@ public struct MinesweeperView: View {
                 // なるため、先に畳んでから終局させる（PR #153 指摘）。
                 showNewGame = false
                 model.giveUp()
+            }
+            // 同じく撮影・動作確認用: `-simulateChord <行> <列>` でそのマスをコードする（#437）。
+            // コードはタップ起点の操作なので、中断スナップショットの復元だけでは結果の画を作れない。
+            let args = ProcessInfo.processInfo.arguments
+            // 盤外の座標を渡されたら黙って無視する（`cells[row][col]` で落とさない）。
+            if let i = args.firstIndex(of: "-simulateChord"), i + 2 < args.count,
+               let row = Int(args[i + 1]), let col = Int(args[i + 2]),
+               (0..<model.rows).contains(row), (0..<model.cols).contains(col) {
+                showNewGame = false
+                model.tap(row: row, col: col)
             }
             #endif
         }
@@ -119,9 +132,9 @@ public struct MinesweeperView: View {
         HStack {
             Button { showGiveUpConfirm = true } label: {
                 Label("諦める", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer()
         }
@@ -161,8 +174,8 @@ public struct MinesweeperView: View {
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Theme.coral, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(.white)
+                        .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.plain)
                 .disabled(isContinuing)
@@ -230,9 +243,9 @@ public struct MinesweeperView: View {
 
             Button { showNewGame = true } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
         }
         .themeBody(14)
@@ -291,9 +304,9 @@ public struct MinesweeperView: View {
                         )
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(flagMode ? Theme.coral : Theme.surface)
+                                .fill(flagMode ? Theme.Fill.coral : Theme.surface)
                         )
-                        .foregroundStyle(flagMode ? .white : Theme.inkSub)
+                        .foregroundStyle(flagMode ? Theme.onAccent : Theme.inkSub)
                         // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない・#197 と同じ）。
                         .contentShape(Rectangle())
                 }
@@ -306,9 +319,9 @@ public struct MinesweeperView: View {
                         )
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.teal : Theme.surface)
+                                .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
                         )
-                        .foregroundStyle(zoomMode ? .white : Theme.inkSub)
+                        .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
                         .contentShape(Rectangle())
                 }
             }
@@ -334,8 +347,14 @@ public struct MinesweeperView: View {
     private var board: some View {
         Group {
             if zoomMode {
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    boardGrid(cellSize: 44)
+                GeometryReader { geo in
+                    ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                        boardGrid(cellSize: MinesweeperMetrics.zoomedCellSize(
+                            availableWidth: geo.size.width, cols: model.cols
+                        ))
+                        // 画面のほうが広い（iPad）ときは等倍と同じく中央に置く。
+                        .frame(minWidth: geo.size.width, alignment: .center)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
@@ -370,8 +389,23 @@ public struct MinesweeperView: View {
         )
     }
 
+    /// マス 1 つ。**添字が盤の範囲内であることを必ず確かめてから中身を描く**（#489）。
+    ///
+    /// 盤サイズが縮む変更（難易度の切り替え・新規ゲーム）が起きると、SwiftUI の差分更新
+    /// （`ForEachChild.updateValue`）が**旧盤面の添字のまま生きている子クロージャを新しい
+    /// 小さい `cells` に対して評価する**瞬間がある。ここで守らないと `model.cells[row][col]` が
+    /// 範囲外アクセスでトラップする（実ユーザーのクラッシュ・v1.1.2(7)）。範囲外の子は次の
+    /// 更新で消えるので、それまでの1フレームを透明で埋めれば見た目は変わらない。
+    @ViewBuilder
     private func cellView(row: Int, col: Int, size: CGFloat) -> some View {
-        let cell  = model.cells[row][col]
+        if let cell = model.cell(atRow: row, col: col) {
+            cellBody(row: row, col: col, cell: cell, size: size)
+        } else {
+            Color.clear.frame(width: size, height: size)
+        }
+    }
+
+    private func cellBody(row: Int, col: Int, cell: MinesweeperCell, size: CGFloat) -> some View {
         let isHit = model.hitMine.map { $0.row == row && $0.col == col } ?? false
 
         return ZStack {
@@ -410,7 +444,8 @@ public struct MinesweeperView: View {
         .accessibilityHint(MinesweeperAccessibility.cellHint(
             flagMode: flagMode,
             canReveal: model.canReveal(row: row, col: col),
-            canToggleFlag: model.canToggleFlag(row: row, col: col)
+            canToggleFlag: model.canToggleFlag(row: row, col: col),
+            canChord: model.canChord(row: row, col: col)
         ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
@@ -436,11 +471,12 @@ public struct MinesweeperView: View {
     /// 未開放の面（蓋）。**マスの中身の上**に重ね、開いた瞬間に縮みながら消える（#203）。
     ///
     /// 開放後の色と数字は最初から蓋の下に描かれているので、蓋が外れた順＝開いた順に見え、
-    /// 連鎖がどこから広がったかを目で追える。旗・確定爆弾のマスには出さない
-    /// （それらは開放されないので演出が要らないうえ、蓋がアイコンを隠してしまう）。
+    /// 連鎖がどこから広がったかを目で追える。マーク付き（旗・?）・確定爆弾のマスには出さない
+    /// （蓋がアイコンを隠してしまうため。? は旗と違って開けるが、開くのは1マスずつなので
+    /// 連鎖の向きを示す蓋の役目が無い・#444）。
     /// 蓋が出ているときの色は `cellBg` の未開放色と同じなので、**静止時の見た目は従来と変わらない**。
     private func revealLid(cell: MinesweeperCell) -> some View {
-        let covers = !cell.isRevealed && !cell.isFlagged && !cell.isContinuedMine
+        let covers = !cell.isRevealed && cell.mark == .none && !cell.isContinuedMine
         return Rectangle()
             .fill(Self.unrevealedFill)
             .padding(0.7)
@@ -452,7 +488,8 @@ public struct MinesweeperView: View {
 
     private func cellBg(cell: MinesweeperCell, isHit: Bool) -> Color {
         if cell.isRevealed {
-            return isHit ? Theme.coral : Color(hex: 0xD8D8D8)
+            // 踏んだマスは面色なので `Theme.Fill`。上の爆発アイコンは `Theme.onAccent`（#220）。
+            return isHit ? Theme.Fill.coral : Color(hex: 0xD8D8D8)
         }
         if cell.isContinuedMine {
             // コンティニューで確定した爆弾: 濃いオレンジ背景
@@ -490,11 +527,18 @@ public struct MinesweeperView: View {
                     .frame(width: iconSize, height: iconSize)
                     .foregroundStyle(gameIsOver && cell.isMine ? Theme.teal : Theme.coral)
             }
+        } else if !cell.isRevealed && cell.mark == .question {
+            // 「たぶん地雷」の保留マーク（#444）。面（0xBDBDBD）はモードによらず固定なので
+            // 文字色も固定側を使う（`Theme.ink` だとダークで反転して読めなくなる）。
+            Image(systemName: "questionmark")
+                .resizable().scaledToFit()
+                .frame(width: iconSize, height: iconSize)
+                .foregroundStyle(Theme.Fixed.ink)
         } else if cell.isRevealed && cell.isMine {
             Image(systemName: isHit ? "burst.fill" : "circle.fill")
                 .resizable().scaledToFit()
                 .frame(width: iconSize, height: iconSize)
-                .foregroundStyle(isHit ? .white : Color(hex: 0x2A2A2A))
+                .foregroundStyle(isHit ? Theme.onAccent : Color(hex: 0x2A2A2A))
         } else if cell.isRevealed && cell.adjacentMines > 0 {
             Text("\(cell.adjacentMines)")
                 .font(.system(size: size * 0.56, weight: .black, design: .rounded))
@@ -521,32 +565,39 @@ public struct MinesweeperView: View {
 struct MinesweeperNewGameSheet: View {
     let onStart: (Int, Int, Int) -> Void
     let onCancel: () -> Void
-    @State private var level = 0
+    /// 盤の寸法・地雷数・表示名は `MinesweeperDifficulty` が唯一の出どころ（#444）。
+    /// ここに数値を直書きすると記録区分のラベルと二重管理になる。
+    @State private var level: MinesweeperDifficulty = .beginner
+
+    /// 難易度ごとの差し色。色だけは Theme に依存するのでここに置く（enum は SwiftUI を持ち込まない）。
+    private static let accents: [MinesweeperDifficulty: Color] = [
+        .beginner: Theme.Fill.teal,
+        .intermediate: Theme.Fill.yellow,
+        .advanced: Theme.Fill.coral,
+    ]
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 24) {
                 section("難易度") {
                     HStack(spacing: 12) {
-                        chooser(title: "初級", subtitle: "9×9  10地雷",
-                                selected: level == 0, accent: Theme.teal)   { level = 0 }
-                        chooser(title: "中級", subtitle: "12×12  25地雷",
-                                selected: level == 1, accent: Theme.yellow) { level = 1 }
-                        chooser(title: "上級", subtitle: "15×15  40地雷",
-                                selected: level == 2, accent: Theme.coral)  { level = 2 }
+                        ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
+                            chooser(title: difficulty.label, subtitle: difficulty.subtitle,
+                                    selected: level == difficulty,
+                                    accent: Self.accents[difficulty] ?? Theme.Fill.teal) {
+                                level = difficulty
+                            }
+                        }
                     }
                 }
                 Spacer()
                 Button {
-                    switch level {
-                    case 1: onStart(12, 12, 25)
-                    case 2: onStart(15, 15, 40)
-                    default: onStart(9, 9, 10)
-                    }
+                    onStart(level.rows, level.cols, level.mines)
                 } label: {
                     Text("スタート").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -571,9 +622,9 @@ struct MinesweeperNewGameSheet: View {
                          selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? Theme.onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(

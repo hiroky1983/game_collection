@@ -54,6 +54,12 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
     public let winningTile: MahjongTile?
     /// 立直で和了ったときの裏ドラ表示牌。立直していない和了・流局では nil。
     public let uraDoraIndicators: [MahjongTile]?
+    // 卓中央の表示ずれ（#375）で足した項目。上と同じ理由で**任意**にする。
+    /// 決着したこの局の局数（東 n 局の n）。`finishHand` はリザルト表示に入るのと同時に
+    /// 次局へ繰り上げるため、卓中央にはこちらを出す。古い中断データでは nil。
+    public let roundNumber: Int?
+    /// 決着したこの局の本場。`roundNumber` と同じ理由で持つ。
+    public let honba: Int?
 
     init(
         kind: Kind,
@@ -69,7 +75,9 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
         winningHand: [MahjongTile]? = nil,
         winningMelds: [MahjongCall]? = nil,
         winningTile: MahjongTile? = nil,
-        uraDoraIndicators: [MahjongTile]? = nil
+        uraDoraIndicators: [MahjongTile]? = nil,
+        roundNumber: Int? = nil,
+        honba: Int? = nil
     ) {
         self.kind = kind
         self.winner = winner
@@ -85,6 +93,8 @@ public struct MahjongHandResult: Equatable, Sendable, Codable {
         self.winningMelds = winningMelds
         self.winningTile = winningTile
         self.uraDoraIndicators = uraDoraIndicators
+        self.roundNumber = roundNumber
+        self.honba = honba
     }
 }
 
@@ -178,6 +188,21 @@ public final class MahjongModel {
     /// 供託されている立直棒の本数。
     public private(set) var riichiSticks: Int = 0
     public private(set) var handResult: MahjongHandResult?
+
+    /// 卓中央に出す局数。**リザルト表示中は決着した局の値**を返す（#375）。
+    ///
+    /// `finishHand` は次局に備えて `roundNumber` / `honba` をリザルトに入るのと同時に
+    /// 繰り上げるため、そのまま出すと「東1局が終わったのに東2局と書いてある」ずれになる。
+    /// 決着内容（`handResult`）に控えた値を使うので、リザルト中断からの復元でもずれない。
+    public var displayedRoundNumber: Int {
+        phase == .handResult ? (handResult?.roundNumber ?? roundNumber) : roundNumber
+    }
+
+    /// 卓中央に出す本場。`displayedRoundNumber` と同じ理由でリザルト中は決着した局の値を返す。
+    public var displayedHonba: Int {
+        phase == .handResult ? (handResult?.honba ?? honba) : honba
+    }
+
     /// 東風戦の最終順位（1 位から順のプレイヤー番号）。対局中は空。
     public private(set) var ranking: [Int] = []
     public private(set) var recordResult: RecordResult?
@@ -239,6 +264,14 @@ public final class MahjongModel {
     private var temporaryFuriten: [Bool] = Array(repeating: false, count: playerCount)
     /// 立直の宣言巡（一発の判定に使う）。`nil` は未立直。
     private var riichiTurn: [Int?] = Array(repeating: nil, count: playerCount)
+    /// 宣言牌がまだ通っていない立直の宣言者（#375）。宣言牌をロンされた立直は**不成立**で
+    /// 1000 点も出ないため、その支払いは宣言牌が通るまで保留する。
+    ///
+    /// これが立っているのは `performDiscard` の同期実行中と、人間へロンを提示している
+    /// `.ronOffer` の待ち受け中だけで、**どちらも `persist()` を通らない**（`.ronOffer` は
+    /// 復元時に `.playing` へ落ちて宣言前の状態から打ち直しになる）。そのため中断データに
+    /// 持ち回す必要がない。
+    private var pendingRiichi: Int?
     /// アガリやめが成立し、この局で東風戦を終えるか。
     private var endsAfterThisHand = false
     /// この半荘でトビ復活（#338）を既に使ったか。1 半荘 1 回までの制限に使う。
@@ -507,6 +540,7 @@ public final class MahjongModel {
         riichiFuriten = Array(repeating: false, count: Self.playerCount)
         temporaryFuriten = Array(repeating: false, count: Self.playerCount)
         riichiTurn = Array(repeating: nil, count: Self.playerCount)
+        pendingRiichi = nil
         isDeclaringRiichi = false
         ronOffer = nil
         callOffer = nil
@@ -626,6 +660,8 @@ public final class MahjongModel {
         temporaryFuriten[Self.humanIndex] = true
         if riichi[Self.humanIndex] { riichiFuriten[Self.humanIndex] = true }
         phase = .playing
+        // 見逃した = 宣言牌は通ったので、保留していた立直をここで成立させる（#375）。
+        settlePendingRiichi()
         services?.feedback.impact(.light)
         // 槍槓を見逃した場合は、止めていた加槓をそのまま成立させて続ける。
         if let pending = pendingKan {
@@ -639,13 +675,31 @@ public final class MahjongModel {
         resolveNextClaim()
     }
 
+    /// 立直を宣言した状態にする。**1000 点の支払いはここでは行わない**（#375）。
+    /// 宣言牌をロンされた立直は不成立で点棒も出ないため、支払いは宣言牌が通った時点
+    /// （`settlePendingRiichi`）まで保留する。
     private func commitRiichi(for player: Int) {
         isDeclaringRiichi = false
         riichi[player] = true
         riichiTurn[player] = turnCount
+        pendingRiichi = player
+        services?.feedback.notify(.success)
+    }
+
+    /// 宣言牌が誰にもロンされなかったので立直を成立させ、1000 点を供託に出す。
+    private func settlePendingRiichi() {
+        guard let player = pendingRiichi else { return }
+        pendingRiichi = nil
         scores[player] -= 1000
         riichiSticks += 1
-        services?.feedback.notify(.success)
+    }
+
+    /// 宣言牌をロンされたので立直を不成立に戻す。点棒は出ないので供託も動かさない。
+    private func cancelPendingRiichi() {
+        guard let player = pendingRiichi else { return }
+        pendingRiichi = nil
+        riichi[player] = false
+        riichiTurn[player] = nil
     }
 
     /// 牌を河に置き、他家のロンと鳴きを確かめる。
@@ -682,6 +736,9 @@ public final class MahjongModel {
             return
         }
 
+        // 宣言牌が誰にもロンされずに通ったので、ここで立直が成立する（#375）。
+        // 鳴かれた場合も立直そのものは成立するため、鳴きの解決より前に確定させる。
+        settlePendingRiichi()
         pendingDiscard = (tile, player)
         pendingClaims = claimOrder(for: tile, discardedBy: player)
         resolveNextClaim()
@@ -945,6 +1002,9 @@ public final class MahjongModel {
         pendingClaims = []
         pendingKan = nil
         callOffer = nil
+        // 立直の宣言牌をロンされた場合、その立直は不成立で 1000 点も出ない（#375）。
+        // 供託に積む前に取り消すので、和了者が受け取る供託にもこの 1000 点は入らない。
+        if !isTsumo, let loser, loser == pendingRiichi { cancelPendingRiichi() }
         let scoresBefore = scores
 
         var gained = score.total
@@ -981,7 +1041,9 @@ public final class MahjongModel {
             winningHand: hands[winner].tiles,
             winningMelds: melds[winner],
             winningTile: winningTile,
-            uraDoraIndicators: riichi[winner] ? uraIndicators : nil
+            uraDoraIndicators: riichi[winner] ? uraIndicators : nil,
+            roundNumber: roundNumber,
+            honba: honba
         )
         // 和了牌を手牌に入れた状態で見せる（リザルトで役を確かめられるように）。
         hands[winner] = hands[winner].adding(winningTile)
@@ -1010,7 +1072,9 @@ public final class MahjongModel {
             limitName: nil,
             gainedPoints: 0,
             tenpaiPlayers: tenpai,
-            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] }
+            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] },
+            roundNumber: roundNumber,
+            honba: honba
         )
         finishHand(dealerContinues: tenpai.contains(dealer))
     }

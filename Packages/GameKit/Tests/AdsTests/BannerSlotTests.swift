@@ -30,4 +30,34 @@ struct BannerSlotTests {
         #expect(BannerSlot.shouldMakeBanner(width: 640, currentWidth: 320))
         #expect(BannerSlot.shouldMakeBanner(width: 320, currentWidth: 640))
     }
+
+    /// アダプティブバナーの高さは要求した幅で決まる。枠は 50pt 固定なので、iPad の幅を
+    /// そのまま渡すと背の高い広告が返って枠から切れる（#458）。
+    @Test("iPhone の幅までは枠いっぱいに広げる")
+    func usesFullWidthOnPhone() {
+        for width: CGFloat in [320, 375, 393, 430, 440] {
+            #expect(BannerSlot.bannerWidth(containerWidth: width) == width)
+        }
+    }
+
+    @Test("iPad の幅では要求幅を頭打ちにする")
+    func capsWidthOnPad() {
+        for width: CGFloat in [744, 820, 1024, 1366] {
+            #expect(BannerSlot.bannerWidth(containerWidth: width) == BannerSlot.maxWidth)
+        }
+    }
+
+    /// 上限は「50pt の枠に収まる実績のある幅」であることが根拠なので、現行 iPhone の
+    /// 最大幅を超えて広げてはならない。
+    @Test("上限は現行 iPhone の最大幅を超えない")
+    func capMatchesLargestPhoneWidth() {
+        #expect(BannerSlot.maxWidth == 440)
+    }
+
+    @Test("頭打ちになった幅では枠が広がっても作り直さない")
+    func keepsBannerWhenOnlyContainerGrows() {
+        let first = BannerSlot.bannerWidth(containerWidth: 1024)
+        let second = BannerSlot.bannerWidth(containerWidth: 1366)
+        #expect(!BannerSlot.shouldMakeBanner(width: second, currentWidth: first))
+    }
 }

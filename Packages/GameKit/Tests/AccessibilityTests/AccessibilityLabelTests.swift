@@ -6,6 +6,9 @@ import Testing
 @testable import GameOthello
 @testable import GameShogi
 @testable import GameSudoku
+@testable import GameGo
+@testable import GameSolitaire
+@testable import GameChess
 @testable import MahjongTiles
 
 /// VoiceOver の読み上げ文（#188）。
@@ -125,10 +128,11 @@ struct MinesweeperAccessibilityTests {
 
     private func cell(revealed: Bool = false, flagged: Bool = false,
                       mine: Bool = false, adjacent: Int = 0,
-                      continued: Bool = false) -> MinesweeperCell {
+                      continued: Bool = false,
+                      mark: MinesweeperMark? = nil) -> MinesweeperCell {
         var c = MinesweeperCell()
         c.isRevealed = revealed
-        c.isFlagged = flagged
+        c.mark = mark ?? (flagged ? .flag : .none)
         c.isMine = mine
         c.adjacentMines = adjacent
         c.isContinuedMine = continued
@@ -153,6 +157,17 @@ struct MinesweeperAccessibilityTests {
                 == "3行5列、空き")
     }
 
+    /// ? は旗と違って「開ける未開放マス」なので、旗と混ぜずに独立して読む（#444）。
+    @Test("? マークは旗と読み分ける") func questionMark() {
+        #expect(MinesweeperAccessibility.cellLabel(row: 2, col: 4, cell: cell(mark: .question),
+                                                   isHit: false, gameOver: false)
+                == "3行5列、はてな")
+        // 終局後も「誤った旗」にはならない（旗を立てたわけではないので責めない）。
+        #expect(MinesweeperAccessibility.cellLabel(row: 2, col: 4, cell: cell(mark: .question),
+                                                   isHit: false, gameOver: true)
+                == "3行5列、はてな")
+    }
+
     @Test("誤った旗は終局後にだけ告げる（画面表示と同じ扱い）") func wrongFlag() {
         let flaggedSafe = cell(flagged: true)
         #expect(MinesweeperAccessibility.cellLabel(row: 0, col: 0, cell: flaggedSafe,
@@ -174,23 +189,39 @@ struct MinesweeperAccessibilityTests {
     }
 
     @Test("旗モードでヒントが変わる") func hint() {
-        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: true, canToggleFlag: true)
-                == "ダブルタップで旗を切り替えます")
-        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: true, canToggleFlag: true,
+                                                  canChord: false)
+                == "ダブルタップで旗・はてなを切り替えます")
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true,
+                                                  canChord: false)
                 == "ダブルタップで開きます")
     }
 
     @Test("実行できない操作はヒントで案内しない") func hintSuppressedWhenUnavailable() {
         // 開き済みのマス: 開けないし旗も置けない
-        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false,
+                                                  canChord: false)
                 .isEmpty)
-        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false,
+                                                  canChord: false)
                 .isEmpty)
         // 旗の立っているマス: 開けないが旗は下ろせる
-        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: true)
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: true,
+                                                  canChord: false)
                 .isEmpty)
-        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: true)
-                == "ダブルタップで旗を切り替えます")
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: true,
+                                                  canChord: false)
+                == "ダブルタップで旗・はてなを切り替えます")
+    }
+
+    /// コード（#437）は開き済みの数字マスでだけ案内する。旗モード中は旗の操作が優先。
+    @Test("コードできる数字マスにはヒントを出す") func hintForChord() {
+        #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false,
+                                                  canChord: true)
+                == "ダブルタップで周囲をまとめて開きます")
+        #expect(MinesweeperAccessibility.cellHint(flagMode: true, canReveal: false, canToggleFlag: false,
+                                                  canChord: true)
+                .isEmpty, "旗モード中は旗の案内だけにする")
     }
 
     @Test("操作の可否は Model が唯一の出どころ") @MainActor func modelIsSourceOfTruth() {
@@ -296,6 +327,107 @@ struct MahjongAccessibilityTests {
     }
 }
 
+@Suite("囲碁の読み上げ文")
+struct GoAccessibilityTests {
+
+    @Test("交点は 行・列・石の色 の順で読む")
+    func pointLabel() {
+        #expect(GoAccessibility.pointLabel(row: 0, col: 0, stone: nil, isLastMove: false)
+                == "1行1列、空点")
+        #expect(GoAccessibility.pointLabel(row: 4, col: 4, stone: .black, isLastMove: false)
+                == "5行5列、黒石")
+        #expect(GoAccessibility.pointLabel(row: 8, col: 2, stone: .white, isLastMove: true)
+                == "9行3列、白石、直前の手")
+    }
+
+    /// 死に石は画面では × 印で分かる。読み上げに入れないと、その情報が音声の利用者にだけ届かない。
+    @Test("終局の死に石は読み上げに含める")
+    func deadStoneIsAnnounced() {
+        #expect(GoAccessibility.pointLabel(row: 1, col: 1, stone: .white, isLastMove: false, isDead: true)
+                == "2行2列、白石、死に石")
+        #expect(GoAccessibility.pointLabel(row: 1, col: 1, stone: .white, isLastMove: true, isDead: true)
+                == "2行2列、白石、死に石、直前の手")
+    }
+
+    @Test("ステータスは局面ごとに要点だけを読む")
+    func statusLabel() {
+        #expect(GoAccessibility.statusLabel(
+            phase: .playing, isHumanTurn: true, capturedByHuman: 2, capturedByCPU: 1, result: nil
+        ) == "あなたの番、あなたが取った石 2、CPUが取った石 1")
+        #expect(GoAccessibility.statusLabel(
+            phase: .scoring, isHumanTurn: false, capturedByHuman: 0, capturedByCPU: 0, result: nil
+        ) == "終局の確認。計算中")
+        #expect(GoAccessibility.statusLabel(
+            phase: .finished, isHumanTurn: false, capturedByHuman: 0, capturedByCPU: 0,
+            result: "白 6.5目勝ち"
+        ) == "白 6.5目勝ち")
+    }
+}
+
+@Suite("チェスの読み上げ文")
+struct ChessAccessibilityTests {
+
+    private func sq(_ name: String) -> Int { ChessSquare.fromName(Substring(name))! }
+
+    @Test("マスは 代数式・駒の色と種類 の順で読む")
+    func squareLabel() {
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("e4"), piece: ChessPiece(type: .knight, color: .white),
+            isSelected: false, isTarget: false, isLastMove: false
+        ) == "e4、白のナイト")
+
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("a8"), piece: nil,
+            isSelected: false, isTarget: false, isLastMove: false
+        ) == "a8、空きマス")
+    }
+
+    /// 画面では駒の形と明暗だけで色も駒種も表しているので、
+    /// 「取れる」「チェックされている」は読み上げに入れないと音声の利用者にだけ届かない。
+    @Test("選択中・着手先・直前手・チェックを読み分ける")
+    func squareStates() {
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("d1"), piece: ChessPiece(type: .queen, color: .white),
+            isSelected: true, isTarget: false, isLastMove: false
+        ) == "d1、白のクイーン、選択中")
+
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("d5"), piece: nil,
+            isSelected: false, isTarget: true, isLastMove: false
+        ) == "d5、空きマス、ここに指せます")
+
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("d5"), piece: ChessPiece(type: .pawn, color: .black),
+            isSelected: false, isTarget: true, isLastMove: true
+        ) == "d5、黒のポーン、取れます、直前の手")
+
+        // チェックは「なぜ動かせないのか」に直結するので選択状態より先に読む。
+        #expect(ChessAccessibility.squareLabel(
+            index: sq("e1"), piece: ChessPiece(type: .king, color: .white),
+            isSelected: true, isTarget: false, isLastMove: false, isCheckedKing: true
+        ) == "e1、白のキング、チェックされています、選択中")
+    }
+
+    @Test("取られた駒は1文にまとめて読む")
+    func capturedLabel() {
+        #expect(ChessAccessibility.capturedLabel(owner: .black, lost: [])
+                == "黒の取られた駒、なし")
+        #expect(ChessAccessibility.capturedLabel(owner: .white, lost: [.pawn, .pawn, .knight])
+                == "白の取られた駒、ポーン2枚、ナイト1枚")
+    }
+
+    @Test("全駒種に呼び名がある")
+    func everyPieceHasName() {
+        for type in ChessPieceType.allCases {
+            for color in ChessColor.allCases {
+                let name = ChessAccessibility.pieceName(ChessPiece(type: type, color: color))
+                #expect(name.isEmpty == false)
+                #expect(name.hasPrefix(color.name))
+            }
+        }
+    }
+}
+
 @Suite("数独の読み上げ文")
 struct SudokuAccessibilityTests {
 
@@ -345,5 +477,68 @@ struct SudokuAccessibilityTests {
         #expect(SudokuAccessibility.hintLabel(remaining: 0) == "ヒント、残りなし")
         #expect(SudokuAccessibility.statusLabel(remainingCells: 30, elapsedSeconds: 75) == "残り30マス、経過1分15秒")
         #expect(SudokuAccessibility.statusLabel(remainingCells: 1, elapsedSeconds: 9) == "残り1マス、経過9秒")
+    }
+}
+
+@Suite("ソリティアの読み上げ文")
+struct SolitaireAccessibilityTests {
+
+    @Test("場札は 列・枚数・札・伏せ札・上に載る枚数 を読む")
+    func tableauCard() {
+        let label = SolitaireAccessibility.tableauCardLabel(
+            pile: 2, position: 1, aboveCount: 2, hiddenCount: 3,
+            card: SolitaireCard(.heart, 7), isSelected: true, isMovable: true
+        )
+        #expect(label == "3列目、2枚目、ハートの7、伏せ札3枚、上に2枚、選択中")
+    }
+
+    @Test("動かせない札はそのことを読む（見た目には出ない情報）")
+    func immovableCard() {
+        let label = SolitaireAccessibility.tableauCardLabel(
+            pile: 0, position: 0, aboveCount: 0, hiddenCount: 0,
+            card: SolitaireCard(.spade, 13), isSelected: false, isMovable: false
+        )
+        #expect(label.hasSuffix("動かせません"))
+    }
+
+    @Test("空の列は「K だけ置ける」ことまで読む")
+    func emptyPile() {
+        #expect(SolitaireAccessibility.emptyPileLabel(pile: 6) == "7列目、空、キングだけ置けます")
+    }
+
+    @Test("組札は空とどこまで積んだかを読み分ける")
+    func foundation() {
+        #expect(SolitaireAccessibility.foundationLabel(suit: .club, rank: 0) == "クラブの組札、空")
+        #expect(SolitaireAccessibility.foundationLabel(suit: .diamond, rank: 12) == "ダイヤの組札、Qまで")
+    }
+
+    @Test("山札は残量と、めくり切ったあとの動きを読む")
+    func stock() {
+        #expect(SolitaireAccessibility.stockLabel(remaining: 24).contains("残り24枚"))
+        #expect(SolitaireAccessibility.stockLabel(remaining: 0).contains("捨て札を戻す"))
+    }
+
+    @Test("捨て札は空と選択中を読み分ける")
+    func waste() {
+        #expect(SolitaireAccessibility.wasteLabel(card: nil, isSelected: false) == "捨て札、空")
+        #expect(SolitaireAccessibility.wasteLabel(card: SolitaireCard(.spade, 1), isSelected: true)
+                == "捨て札、スペードのA、選択中")
+    }
+
+    @Test("ステータスは経過・手数・詰みを 1 行で読む")
+    func status() {
+        #expect(SolitaireAccessibility.statusLabel(
+            phase: .playing, elapsedSeconds: 65, moveCount: 12, isDeadEnd: false) == "経過1:05、12手")
+        #expect(SolitaireAccessibility.statusLabel(
+            phase: .playing, elapsedSeconds: 65, moveCount: 12, isDeadEnd: true)
+                .hasPrefix("進める手がありません"))
+        #expect(SolitaireAccessibility.statusLabel(
+            phase: .won, elapsedSeconds: 65, moveCount: 12, isDeadEnd: false).hasPrefix("クリア"))
+    }
+
+    @Test("札の呼び名はスート記号ではなく語で読む")
+    func cardNames() {
+        #expect(SolitaireAccessibility.cardLabel(SolitaireCard(.spade, 11)) == "スペードのJ")
+        #expect(SolitaireAccessibility.cardLabel(.joker) == "ジョーカー")
     }
 }

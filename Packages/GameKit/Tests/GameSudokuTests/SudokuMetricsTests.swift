@@ -99,3 +99,54 @@ struct SudokuMetricsTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 }
+
+/// iPad 対応（#458）。拡大モードの 44pt は「iPhone の等倍では 44pt に届かない」ことから来た
+/// **下限**であって目標値ではない。iPad では等倍のほうが大きくなるため、44pt へ切り下げると
+/// 拡大モードが縮小モードになる。
+@Suite("数独の拡大モードの寸法（iPad 対応）")
+struct SudokuZoomedCellTests {
+
+    typealias Metrics = SudokuMetrics
+
+    /// 画面幅から `Theme.pad`（16pt）を左右に引いた、盤に使える幅。
+    private static func contentWidth(screenWidth: CGFloat) -> CGFloat { screenWidth - 16 * 2 }
+
+    /// iPhone SE(375) 〜 17 Pro(402) は 9 列が 44pt に届かないので、従来どおり 44pt で頭打ちになる。
+    @Test("等倍が 44pt に届かない iPhone では従来どおり 44pt のまま")
+    func unchangedOnNarrowPhones() {
+        for screen: CGFloat in [320, 375, 393, 402] {
+            let side = Metrics.zoomedCellSide(availableWidth: Self.contentWidth(screenWidth: screen))
+            #expect(side == Metrics.zoomedCellSide, "画面幅 \(screen)pt で \(side)pt になった")
+        }
+    }
+
+    /// Pro Max（430 / 440pt）は等倍でも 1 マスが 44pt をわずかに超える。
+    /// **従来はここでも 44pt へ切り下げていた**（拡大したのに等倍より小さいという同じ欠陥が
+    /// 小さく出ていた）。以後は等倍に合わせるので、この 2 機種だけ 0.2〜1.4pt 大きくなる。
+    @Test("Pro Max では等倍に合わせてごくわずかに広がる")
+    func matchesFitOnLargestPhones() {
+        for screen: CGFloat in [430, 440] {
+            let available = Self.contentWidth(screenWidth: screen)
+            let side = Metrics.zoomedCellSide(availableWidth: available)
+            #expect(side == available / CGFloat(Metrics.boardSize))
+            #expect(side - Metrics.zoomedCellSide < 1.5, "\(screen)pt で \(side)pt は広がりすぎ")
+        }
+    }
+
+    @Test("iPad では等倍で入る大きさまで広げる（縮小しない）")
+    func growsOnPad() {
+        for screen: CGFloat in [744, 768, 834, 1024, 1032] {
+            let available = Self.contentWidth(screenWidth: screen)
+            let side = Metrics.zoomedCellSide(availableWidth: available)
+            #expect(side > Metrics.zoomedCellSide, "画面幅 \(screen)pt で \(side)pt にとどまった")
+            #expect(side == available / CGFloat(Metrics.boardSize))
+        }
+    }
+
+    @Test("最小タップ標的は決して割らない")
+    func neverBelowTapTarget() {
+        for available: CGFloat in [0, 1, 100, 360, 1000] {
+            #expect(Metrics.zoomedCellSide(availableWidth: available) >= Metrics.minimumTapTarget)
+        }
+    }
+}

@@ -8,6 +8,16 @@ public enum PokerSuit: Int, CaseIterable, Codable, Sendable {
     case spades, hearts, diamonds, clubs
     public var symbol: String { ["♠", "♥", "♦", "♣"][rawValue] }
     public var isRed: Bool { self == .hearts || self == .diamonds }
+
+    /// トランプ共通基盤（#397）の描画用スート。`rawValue` の一致に頼らず明示的に対応させる。
+    public var playing: PlayingCardSuit {
+        switch self {
+        case .spades:   return .spade
+        case .hearts:   return .heart
+        case .diamonds: return .diamond
+        case .clubs:    return .club
+        }
+    }
 }
 
 public struct PokerCard: Identifiable, Codable, Sendable, Equatable {
@@ -24,6 +34,12 @@ public struct PokerCard: Identifiable, Codable, Sendable, Equatable {
         case 10: return "10"
         default: return "\(rank)"
         }
+    }
+
+    /// トランプ共通基盤（#397）へ渡す面の内容。
+    /// 共通基盤は A=1 の表記なので、強さのために A=14 としている `rank` を戻して渡す。
+    public var figure: PlayingCardFigure {
+        .pip(suit: suit.playing, rank: rank == 14 ? 1 : rank)
     }
 }
 
@@ -106,8 +122,39 @@ struct HandEvaluator {
         }.map(\.key)
     }
 
+    /// CPU が「強い役を目指す」バイアスの分母（#443・2026-09-06 会長決裁「10回に1回は強い役を目指す」）。
+    static let ambitionDenominator: UInt64 = 10
+
+    /// 強い役を狙うときに拾う4枚。4フラッシュを優先し、無ければオープンエンドの4連続。
+    /// どちらも無ければ nil。インサイドストレート（ガットショット）は期待値が低いので狙わない。
+    static func strongDrawIndices(in hand: [PokerCard]) -> Set<Int>? {
+        // フラッシュドロー（同スーツ4枚）
+        var suitMap: [PokerSuit: [Int]] = [:]
+        for (i, c) in hand.enumerated() { suitMap[c.suit, default: []].append(i) }
+        if let flushDraw = suitMap.first(where: { $0.value.count == 4 }) {
+            return Set(flushDraw.value)
+        }
+        // ストレートドロー（連続4枚）
+        let sorted = hand.enumerated().sorted { $0.element.rank > $1.element.rank }
+        let ranks = sorted.map(\.element.rank)
+        guard ranks.count >= 4 else { return nil }
+        for start in 0...(ranks.count - 4) {
+            let seq = Array(ranks[start..<start+4])
+            if Set(seq).count == 4 && seq[0] - seq[3] == 3 {
+                return Set(sorted[start..<start+4].map(\.offset))
+            }
+        }
+        return nil
+    }
+
     // CPU の捨て牌選択: 残すカードのインデックスセットを返す
     static func cpuKeepIndices(from hand: [PokerCard]) -> Set<Int> {
+        var rng = SystemRandomNumberGenerator()
+        return cpuKeepIndices(from: hand, using: &rng)
+    }
+
+    /// 乱数生成器を注入できる版（テスト用。バイアスの当たり外れを固定できる）。
+    static func cpuKeepIndices<G: RandomNumberGenerator>(from hand: [PokerCard], using rng: inout G) -> Set<Int> {
         let (rank, _) = evaluate(hand)
         var countMap: [Int: [Int]] = [:]
         for (i, c) in hand.enumerated() { countMap[c.rank, default: []].append(i) }
@@ -123,23 +170,15 @@ struct HandEvaluator {
             return Set(pairs.flatMap(\.value))
         case .onePair:
             let pair = countMap.first { $0.value.count == 2 }!
+            // ふだんはペアを残す（実測でこちらが強い）が、10回に1回だけペアを崩して
+            // 強い役を狙う（#443・会長決裁 2026-09-06）。狙える形が無ければ賽は振らない
+            if let draw = strongDrawIndices(in: hand), rng.next() % ambitionDenominator == 0 {
+                return draw
+            }
             return Set(pair.value)
         case .highCard:
-            // フラッシュドロー（同スーツ4枚）があればキープ
-            var suitMap: [PokerSuit: [Int]] = [:]
-            for (i, c) in hand.enumerated() { suitMap[c.suit, default: []].append(i) }
-            if let flushDraw = suitMap.first(where: { $0.value.count == 4 }) {
-                return Set(flushDraw.value)
-            }
-            // ストレートドロー（連続4枚）があればキープ
-            let sorted = hand.enumerated().sorted { $0.element.rank > $1.element.rank }
-            let ranks = sorted.map(\.element.rank)
-            for start in 0..<2 {
-                let seq = Array(ranks[start..<start+4])
-                if Set(seq).count == 4 && seq[0] - seq[3] == 3 {
-                    return Set(sorted[start..<start+4].map(\.offset))
-                }
-            }
+            // フラッシュドロー・オープンエンドの4連続があればキープ
+            if let draw = strongDrawIndices(in: hand) { return draw }
             // Aまたは高カード1枚だけキープ
             if let aceIdx = hand.firstIndex(where: { $0.rank == 14 }) { return [aceIdx] }
             let highIdx = hand.enumerated().max { $0.element.rank < $1.element.rank }!.offset
@@ -432,6 +471,7 @@ public final class PokerModel {
             cpuAction = "プレイヤーフォールド"
             phase = .result
             notifyOutcome()
+            checkSessionOver()
             persist()
         default: break
         }
@@ -493,6 +533,7 @@ public final class PokerModel {
         currentBet = 0
         phase = .result
         notifyOutcome()
+        checkSessionOver()
         persist()
     }
 

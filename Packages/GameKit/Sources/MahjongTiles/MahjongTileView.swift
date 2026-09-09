@@ -52,30 +52,60 @@ public struct MahjongTileView: View {
 
     public var body: some View {
         let corner = width * 0.18
+        // 下端にのぞかせる厚み（#366）。実物の牌と同じく「象牙の断面 + 背の緑」の2層。
+        // 枠の外へは出さず**枠内の下端を側面に充てる**ので、手牌・ソリティアの
+        // 重なりレイアウトはどこも変わらない。
+        let sideH = height * MahjongTileArt.sideHeightRatio
         ZStack {
-            // 牌面: 上から光が当たって丸みを帯びて見えるよう、フラットな塗りではなく
-            // 縦方向のグラデーションにする（実物の象牙・樹脂牌の質感を意識）。
+            // 背の緑（最下層。下端の角丸からのぞく）。
             RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color(hex: 0xFFFFF8), MahjongTileArt.faceColor, Color(hex: 0xEEE6D2)],
+                        colors: [MahjongTileArt.backGreenLight, MahjongTileArt.backGreenDark],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
+            // 象牙の断面（背の緑との間に挟まる層）。
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(MahjongTileArt.sideIvory)
+                .padding(.bottom, sideH * 0.45)
+            // 牌面: 上から光が当たって丸みを帯びて見えるよう、フラットな塗りではなく
+            // 縦方向のグラデーションにする（実物の象牙・樹脂牌の質感を意識）。
+            // 側面のぶんだけ短くし、絵柄ごと上へ寄せる。
+            ZStack {
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: 0xFFFFF8), MahjongTileArt.faceColor, Color(hex: 0xEEE6D2)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                // ベゼル: 縁の内側に「上は明るく・下は暗く」のグラデーション枠を重ね、
+                // 断面が丸まった厚みのある牌に見せる（内側ハイライト/シャドウの疑似表現）。
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.75), .clear, Color.black.opacity(0.18)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: max(1, width * 0.05)
+                    )
+                // 上部の艶ハイライト: 光沢のある表面であることを強調する薄い楕円。
+                Ellipse()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(width: width * 0.7, height: height * 0.22)
+                    .offset(y: -height * 0.32)
+                    .blendMode(.plusLighter)
+                    .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+                MahjongTileArt(face: face, width: width * 0.76, height: height * 0.68 - sideH)
+            }
+            .padding(.bottom, sideH)
+            // 枠は牌全体（側面を含む外形）を囲む。
             RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .strokeBorder(borderColor, lineWidth: isSelected || isHinted ? width * 0.1 : max(0.5, width * 0.03))
-            // ベゼル: 縁の内側に「上は明るく・下は暗く」のグラデーション枠を重ね、
-            // 断面が丸まった厚みのある牌に見せる（内側ハイライト/シャドウの疑似表現）。
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.75), .clear, Color.black.opacity(0.18)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: max(1, width * 0.05)
-                )
             // 選択・ヒントの枠だけはベゼルより前面に描き直す（PR #256 の CodeRabbit 指摘）。
             // ベゼルは上端が白 0.75・下端が黒 0.18 で、状態の枠（幅 0.1w）の外側半分（0.05w）を
             // 覆って色を薄めてしまう。かといって枠とベゼルの順序をそのまま入れ替えると、
@@ -85,14 +115,6 @@ public struct MahjongTileView: View {
                 RoundedRectangle(cornerRadius: corner, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: width * 0.1)
             }
-            // 上部の艶ハイライト: 光沢のある表面であることを強調する薄い楕円。
-            Ellipse()
-                .fill(Color.white.opacity(0.35))
-                .frame(width: width * 0.7, height: height * 0.22)
-                .offset(y: -height * 0.32)
-                .blendMode(.plusLighter)
-                .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-            MahjongTileArt(face: face, width: width * 0.76, height: height * 0.68)
         }
         .frame(width: width, height: height)
         .overlay {
@@ -130,6 +152,16 @@ public struct MahjongTileArt: View {
     static let faceColor = Color(hex: 0xFFFCF2)
     static let circleColor = Color(hex: 0x2E6FD8)
     static let bambooColor = Color(hex: 0x2E9E5B)
+
+    // MARK: - 側面（下端の厚み・#366）
+
+    /// 牌の高さに対する側面の割合。牌全体の外形は変えず、枠内の下端をこれだけ側面に充てる。
+    static let sideHeightRatio: CGFloat = 0.08
+    /// 象牙の断面（面と背の間に挟まる層）。
+    static let sideIvory = Color(hex: 0xD9CDB2)
+    /// 背の緑（実物の牌の背面樹脂）。上→下へ暗くする。
+    static let backGreenLight = Color(hex: 0x2E8060)
+    static let backGreenDark = Color(hex: 0x1E5C43)
     /// 五筒の中心・五索/七索・一索のくちばしなど、実物の牌で赤く塗られている部分。
     /// 同じ形が並ぶ数牌どうしの見分けにも効く。
     static let accentColor = Color(hex: 0xC63A2E)

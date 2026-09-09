@@ -12,6 +12,9 @@ private struct ConcentrationSnapshot: Codable {
     let pairCount: Int
     let cpuLevel: Int
     let mattaUsed: Bool
+    /// 不一致のまま中断された2枚（#415）。復元側が「自動ターン交代の途中だった」ことを
+    /// 知るための唯一の手がかり。この鍵を持たない旧い中断データもあるため optional で持つ。
+    let mismatchedIndices: [Int]?
 }
 
 @MainActor
@@ -269,15 +272,37 @@ public final class ConcentrationModel {
         }
 
         // 途中でめくれていたカード（非マッチ・フェイスアップ）を裏返す。
-        // firstFlippedIndex や mismatchedIndices はスナップショットに含めないため、
-        // 復元時に宙吊りカードが残るとゲームが詰まる。
+        // firstFlippedIndex は復元しないため、宙吊りカードが残るとゲームが詰まる。
         for i in cards.indices where cards[i].isFaceUp && !cards[i].isMatched {
             cards[i].isFaceUp = false
         }
 
+        // 不一致のまま中断していたら、伏せるだけでなく**手番も進める**（#415）。
+        // 手番交代は `clearMismatch()`（= 1.2 秒後の自動ターン交代）だけが行うため、
+        // その猶予の間に画面を離れて戻ると「外したら相手番」を操作だけで踏み倒せていた。
+        let hadPendingMismatch = Self.validatedMismatch(of: snap) != nil
+        if hadPendingMismatch { currentPlayer = currentPlayer.next }
+
         // CPUターン復元：turnID を非ゼロにすることで task(id:) を確実に起動させる
         if currentPlayer == .cpu { turnID = 1 }
+        // 交代後の手番を中断データにも書き戻し、次の復元が同じ判定を繰り返さないようにする
+        if hadPendingMismatch { persist() }
         return true
+    }
+
+    /// 中断データに残った「不一致で中断した2枚」を検証して取り出す（#415）。
+    ///
+    /// 壊れた値で手番だけ進むことがないよう、`clearMismatch()` が実際に起きうる形
+    /// （相異なる2枚・範囲内・表向き・未獲得・絵柄が不一致）だけを認める。
+    /// 呼び出しは `validatedSetting(of:)` を通った後に限る（配列長の一致が前提）。
+    private static func validatedMismatch(of snap: ConcentrationSnapshot) -> [Int]? {
+        guard let indices = snap.mismatchedIndices,
+              indices.count == 2,
+              indices[0] != indices[1],
+              indices.allSatisfy({ snap.symbols.indices.contains($0) }),
+              indices.allSatisfy({ snap.isFaceUp[$0] && !snap.isMatched[$0] }),
+              snap.symbols[indices[0]] != snap.symbols[indices[1]] else { return nil }
+        return indices
     }
 
     /// 中断データが「最後まで遊べる盤面」かを検証し、復元に使う設定を取り出す（#218）。
@@ -357,7 +382,8 @@ public final class ConcentrationModel {
             cpuScore: cpuScore,
             pairCount: pairCount.rawValue,
             cpuLevel: cpuLevel.rawValue,
-            mattaUsed: mattaUsed
+            mattaUsed: mattaUsed,
+            mismatchedIndices: mismatchedIndices
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

@@ -181,11 +181,12 @@ struct MahjongCallBar: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
+            .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.small)
         .buttonBorderShape(.roundedRectangle(radius: 8))
-        .tint(option.isKan ? Theme.purple : Theme.coral)
+        .tint(option.isKan ? Theme.Fill.purple : Theme.Fill.coral)
         .accessibilityLabel(MahjongAccessibility.callOptionLabel(option))
     }
 
@@ -221,18 +222,20 @@ struct MahjongKanButton: View {
                 }
             } label: {
                 label
+                .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent)
-            .tint(Theme.purple)
+            .tint(Theme.Fill.purple)
             .accessibilityLabel("カンする牌を選ぶ")
         } else {
             Button {
                 if let option = options.first { onSelect(option) }
             } label: {
                 label
+                .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent)
-            .tint(Theme.purple)
+            .tint(Theme.Fill.purple)
             .disabled(options.isEmpty)
             .accessibilityLabel(options.first.map(MahjongAccessibility.callOptionLabel) ?? "カン")
         }

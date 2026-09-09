@@ -13,6 +13,10 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
+import GameSolitaire
+import GameChess
+import GameBlocks
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -62,6 +66,8 @@ enum AppEnvironment {
     /// `GatedAnalyticsService` は `game_start` / `game_end` しか止められないため、これを呼ばないと
     /// オフにしても自動収集イベント（`session_start` 等）が送られ続け、設定画面の説明と食い違う。
     /// 起動直後（`FirebaseApp.configure()` の後）と、トグルを切り替えたときに呼ぶ。
+    /// `Info.plist` 側で収集を既定オフにしてあるため、ここは「許可された経路で ON を立てる」役割で、
+    /// 呼ばれるまでの一瞬に自動収集イベントが漏れることはない（#382）。
     static func applyAnalyticsCollectionState() {
         // 撮影モードに加え、開発ビルド（シミュレータ・Xcode 実行）も送信そのものを止める（#347）。
         // 8月の計測初データが内部トラフィックで埋まり実ユーザー指標として読めなくなったため、
@@ -118,13 +124,22 @@ enum AppEnvironment {
         // それまでは #262 で末尾だった）。
         SudokuModule(),
         OthelloModule(),
+        // 囲碁（#398）。定番ボードの本丸で検索需要も大きいため、同系統の将棋・オセロの近くに置く。
+        GoModule(),
+        // チェス（#462）。将棋と同じ「駒を動かして王を詰ます」型なので、盤ゲームの並びに続ける。
+        ChessModule(),
         MahjongSolitaireModule(),
+        // ソリティア（クロンダイク・#397）。同じ「1人でトランプを片付ける」麻雀ソリティアの隣に置く。
+        SolitaireModule(),
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),
         MinesweeperModule(),
         GomokuModule(),
         ConcentrationModule(),
+        // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
+        // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
+        BlocksModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

@@ -47,6 +47,9 @@ struct ThemeContrastTests {
         #expect(Theme.Hex.fillStrong.light == Theme.Hex.ink.light)
         #expect(Theme.Hex.fillMuted.light == Theme.Hex.inkSub.light)
         #expect(Theme.Hex.accents == [0xFF6F61, 0x22C3BE, 0x8C7BE0, 0xFFC24B, 0xFF8FB1])
+        // #220 で面色（`Hex.Fill`）を切り出したが、**文字色としての差し色は据え置き**。
+        // 差し色を文字色に使っている約 40 箇所の見た目は変わらない。
+        #expect(Theme.Hex.Fill.all == [0xFF8A7E, 0x22C3BE, 0xB3A6F0, 0xFFC24B, 0xFF8FB1])
     }
 
     // MARK: - 受け入れ条件 1 / 2: ダークでもコントラストが不足しない
@@ -102,6 +105,51 @@ struct ThemeContrastTests {
             // 最小は purple の 4.32:1（面の上）。ライト側の 3.49:1 より良い。
             #expect(onDarkBackground >= 4.0)
             #expect(onDarkSurface >= 4.0)
+        }
+    }
+
+    // MARK: - #220: 差し色を面色にした箇所の可読性
+
+    /// 差し色を**面色**にしてその上に文字を置く組み合わせ（アプリ全体で 26 箇所以上ある）は、
+    /// 白文字では全色 AA を下回っていた（最悪 `yellow` の 1.61:1）。#220 で
+    /// 「面色は `Theme.Fill`・その上の文字は `Theme.onAccent` に統一する」と決めたので、
+    /// **実際に使う組み合わせ**をここで固定する。
+    ///
+    /// 既存の `accentsStayReadableOnDarkSurfaces` は差し色を**文字色**として見ており、
+    /// 面色としての組み合わせは検証していなかった（それが #220 を素通りさせた原因）。
+    @Test func textOnAccentFillsMeetsAA() {
+        for fill in Theme.Hex.Fill.all {
+            #expect(Self.contrast(Theme.Hex.onAccent, fill) >= Self.aa)
+        }
+    }
+
+    /// 白文字はもう使えない（この事実が変わったら上の設計ごと見直す必要がある）。
+    @Test func whiteTextOnAccentFillsWouldFailAA() {
+        for fill in Theme.Hex.Fill.all {
+            #expect(Self.contrast(Self.white, fill) < Self.aa)
+        }
+    }
+
+    /// 面色として値を変えたのは `coral` / `purple` の2色だけ。残り3色は文字色と同じ値のままで、
+    /// **面色を変えていない = ライトモードの見た目が変わっていない**ことをここで担保する。
+    @Test func onlyCoralAndPurpleDifferBetweenTextAndFill() {
+        #expect(Theme.Hex.Fill.teal == Theme.Hex.teal)
+        #expect(Theme.Hex.Fill.yellow == Theme.Hex.yellow)
+        #expect(Theme.Hex.Fill.pink == Theme.Hex.pink)
+        #expect(Theme.Hex.Fill.coral != Theme.Hex.coral)
+        #expect(Theme.Hex.Fill.purple != Theme.Hex.purple)
+        // 明るくして `onAccent` とのコントラストを稼いだ（暗くすると文字色用の差し色と同じ値に
+        // 寄ってしまい、ダークの地の上で沈む）。
+        #expect(Self.relativeLuminance(Theme.Hex.Fill.coral) > Self.relativeLuminance(Theme.Hex.coral))
+        #expect(Self.relativeLuminance(Theme.Hex.Fill.purple) > Self.relativeLuminance(Theme.Hex.purple))
+    }
+
+    /// 面色を明るくしたぶん、面色を**文字色として**流用すると読めなくなる。
+    /// `Theme.Fill` を文字色に使う実装が紛れ込んでいないことは目視では守れないので、
+    /// 「面色は文字色として使うと地に対して AA を満たさない」ことを明示して固定しておく。
+    @Test func accentFillsAreNotUsableAsTextOnLightBackgrounds() {
+        for fill in [Theme.Hex.Fill.coral, Theme.Hex.Fill.purple] {
+            #expect(Self.contrast(fill, Theme.Hex.background.light) < Self.aa)
         }
     }
 

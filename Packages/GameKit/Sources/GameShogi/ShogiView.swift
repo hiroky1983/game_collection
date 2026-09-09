@@ -13,6 +13,9 @@ public struct ShogiView: View {
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（#200）。
     /// 表示局面が変わるたびに更新し、駒の層はこれだけを見て描く。
     @State private var pieceLayout: ShogiPieceLayout
+    /// 表示中の「王手」の合図の契機 ID（#377）。nil なら出していない。
+    /// モデルの `checkEventID` をそのまま入れ、一定時間後に nil へ戻す。
+    @State private var checkBannerID: Int?
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -20,16 +23,22 @@ public struct ShogiView: View {
         let model = ShogiGameModel(services: services)
         _model = State(initialValue: model)
         _pieceLayout = State(initialValue: ShogiPieceLayout(model.displayedPosition))
-        _showNewGame = State(initialValue: !services.snapshots.exists(for: "shogi"))
+        var showSheet = !services.snapshots.exists(for: "shogi")
+        #if DEBUG
+        // 撮影用（#366系）: 開始シートを飛ばして初期局面を撮る。
+        if ProcessInfo.processInfo.arguments.contains("-shogiSkipStartSheet") { showSheet = false }
+        #endif
+        _showNewGame = State(initialValue: showSheet)
     }
 
     /// 人間が後手なら盤を反転して表示する。
     private var flipped: Bool { model.humanSide == .white }
 
     public var body: some View {
-        // 縦の余白は 8。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
-        // 盤に回せる高さを間隔から捻出している（#139）。
-        VStack(spacing: 8) {
+        // 縦の余白は 5。対局中と終局後で高さが変わらない `controlArea` を置くぶん、
+        // 盤に回せる高さを間隔から捻出している（#139）。盤の横幅をカード類と同じ内寸まで
+        // 届かせるため、間隔・各カードの縦余白から高さを捻出している（会長指示 2026-09-01）。
+        VStack(spacing: 4) {
             statusBar
             HandAreaView(model: model, color: model.humanSide.opponent)
             board
@@ -84,15 +93,56 @@ public struct ShogiView: View {
         } message: {
             Text("途中で終了すると対局データが失われます。")
         }
+        .overlay { checkOverlay }
         .overlay { promotionOverlay }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
+        }
+        .task {
+            #if DEBUG
+            // 撮影用: 終局後レイアウト（検討ナビ・レコメンドのオーバーレイ）を即再現する。
+            if ProcessInfo.processInfo.arguments.contains("-shogiAutoResign") { model.resign() }
+            #endif
+        }
+        // 王手が掛かった瞬間だけ文字を出し、少し置いて引っ込める（#377）。
+        // `.task(id:)` にしておくと、続けて王手が掛かったときに前の待機が破棄されるので、
+        // 古い着手の後始末が新しい合図を消してしまうことがない。
+        .task(id: model.checkEventID) {
+            guard model.checkEventID > 0 else { return }
+            checkBannerID = model.checkEventID
+            try? await Task.sleep(for: .seconds(ShogiMotion.checkBannerHold))
+            checkBannerID = nil
         }
         // 人間の着手・CPU の着手・待った・検討ナビのどれで局面が変わっても、
         // 経路を問わずここ 1 か所で駒の対応付けを進める（#200）。
         .onChange(of: model.displayedPosition) { _, position in
             pieceLayout.update(to: position)
         }
+    }
+
+    /// 「王手」の合図（#377）。玉の赤枠が「いま王手されている」を常時示すのに対し、
+    /// こちらは**王手が掛かった瞬間**だけ飛び出して消える。
+    ///
+    /// 成り確認の札（#201）と同じく、分岐は**この層の中**に置く。呼び出し側の
+    /// `.overlay { if … }` にすると、出入りする枝と一緒に修飾子まで消えて `.transition` が効かない。
+    private var checkOverlay: some View {
+        ZStack {
+            if checkBannerID != nil {
+                Text("王手")
+                    .font(.system(size: 44, weight: .black, design: .serif))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 32).padding(.vertical, 14)
+                    .background(Capsule().fill(BoardStyle.check))
+                    .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+                    // 札は中央にあり `offset` を持たないので、拡大の基準は札の中心になる。
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
+        }
+        .allowsHitTesting(false)
+        // 読み上げは盤のマス（`ShogiCell` の `isCheckedKing`）に持たせてある。1 秒あまりで
+        // 消える要素をここで読ませると、VoiceOver のフォーカスが消える要素に乗る。
+        .accessibilityHidden(true)
+        .gameAnimation(ShogiMotion.checkBanner, value: checkBannerID)
     }
 
     /// 成り確認の札。出入りのアニメーションは**残り続ける親**（この `ZStack`）に置く（#201）。
@@ -124,8 +174,8 @@ public struct ShogiView: View {
                             Text("成る")
                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .frame(width: 80, height: 44)
-                                .background(Theme.coral, in: RoundedRectangle(cornerRadius: 12))
-                                .foregroundStyle(.white)
+                                .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(Theme.onAccent)
                         }
                     }
                 }
@@ -147,6 +197,10 @@ public struct ShogiView: View {
 
     private var board: some View {
         let pos = model.displayedPosition
+        // 81 マスの読み上げ文それぞれから引くので、ここで 1 回だけ求める。
+        // `checkedKingSquare` は表示局面を組み直す（検討中は指し手の全再生）ため、
+        // ループの中で呼ぶと 1 回の描画で 81 回それをやることになる。
+        let checkedKing = model.checkedKingSquare
         return GeometryReader { geo in
             let cell = (geo.size.width - 8) / 9
             VStack(spacing: 0) {
@@ -169,7 +223,8 @@ public struct ShogiView: View {
                                 piece: pos.squares[idx],
                                 isSelected: model.selectedSquare == idx,
                                 isTarget: model.legalTargets.contains(idx),
-                                isLastMove: model.highlightedSquares.contains(idx)
+                                isLastMove: model.highlightedSquares.contains(idx),
+                                isCheckedKing: checkedKing == idx
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -177,22 +232,48 @@ public struct ShogiView: View {
                     }
                 }
             }
-            .background(BoardStyle.line)
+            // 盤の木地（#366）: 無地アンバーの縦グラデーション + 格子線と星。
+            // 木目テクスチャも試したが会長レビューで無地が採用になった（コンペ経緯は #366）。
+            .background {
+                boardGrid
+                    .background(
+                        LinearGradient(
+                            colors: [BoardStyle.frameTop, BoardStyle.frameBottom],
+                            startPoint: .top, endPoint: .bottom)
+                    )
+            }
+            // 角丸は**マスと木地にだけ**掛ける。ここより後ろに重ねる層は丸めない。
+            // 駒の層まで一緒に丸めると、持ち上げた駒（拡大 + 上へ 12%）が盤の上端で
+            // 切り落とされる（PR #477 の CodeRabbit 指摘。表示 0 段目の駒で実測）。
+            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
             // マスに紐づけると駒の同一性がマスと一緒に変わり、移動が補間されない。
             .overlay { pieceLayer(cell: cell) }
+            // 王手されている玉の印も駒より**上**。玉そのものを囲むので、駒の下に潜ると見えない。
+            .overlay { checkLayer(cell: cell) }
             // 着手先の印は駒より**上**。マスの中に描いていた頃の重なり順をそのまま保つ
             // （取れる駒に重ねる枠が駒の下に潜ると、何が取れるのか読めなくなる）。
             .overlay { targetLayer(cell: cell) }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             .padding(4)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(BoardStyle.frame)
+                    .fill(LinearGradient(
+                        colors: [BoardStyle.frameTop, BoardStyle.frameBottom],
+                        startPoint: .top, endPoint: .bottom))
                     .shadow(color: .black.opacity(0.15), radius: 10, y: 6)
             )
         }
         .aspectRatio(1, contentMode: .fit)
+        // 終局後のレコメンドは盤の下端に重ねる（#139 の高さ予約の代替。会長指示 2026-09-01:
+        // 予約をやめて盤の横幅をカード類と同じ内寸まで届かせる）。×で閉じられ、
+        // 検討ナビで盤を見たいときに邪魔なら閉じればよい。
+        .overlay(alignment: .bottom) {
+            if model.gameOver {
+                RecommendationSlot(services: services, isFinished: true)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+            }
+        }
     }
 
     /// 画面 (row,col) → 内部マス。人間が先手なら先手視点、後手なら反転。
@@ -211,8 +292,22 @@ public struct ShogiView: View {
             ZStack(alignment: .topLeading) {
                 ForEach(pieceLayout.placements) { placement in
                     let spot = Sq.displayPosition(of: placement.square, flipped: flipped)
+                    // 選択した駒は少し持ち上げる（拡大 + 浮かせ + 落ち影）。
+                    // 「浮いている」ことは駒の下に落ちる影で伝わるので、影を先に描く。
+                    let isLifted = model.selectedSquare == placement.square
                     KomaView(piece: placement.piece, size: cell,
                              pointsUp: placement.piece.color == model.humanSide)
+                        .scaleEffect(isLifted ? ShogiMotion.pieceLiftScale : 1)
+                        .shadow(color: .black.opacity(isLifted ? 0.28 : 0),
+                                radius: isLifted ? cell * 0.10 : 0,
+                                y: isLifted ? cell * 0.10 : 0)
+                        .offset(y: isLifted ? -cell * ShogiMotion.pieceLiftRatio : 0)
+                        // 持ち上げのアニメーションは**駒単位**でここに置く（層全体に置くと、
+                        // 着手確定で配置と選択が同時に変わったとき pieceMove 側の指定に
+                        // 上書きされて、戻りの速さが意図とずれる — verifier 検証 2026-09-06）。
+                        // この指定より下（scale/shadow/offset）だけに効き、`.position` は層の
+                        // pieceMove が受け持つ。
+                        .gameAnimation(ShogiMotion.pieceLift, value: isLifted)
                         // `.transition` は `.position` より前に置く。あとに置くと拡大・縮小の
                         // 基準がマスではなく盤の原点になり、消える駒が左上へ吸い込まれる。
                         .transition(.opacity)
@@ -220,12 +315,71 @@ public struct ShogiView: View {
                                   y: slot * (CGFloat(spot.row) + 0.5))
                 }
             }
-            // アニメーションの指定は**この 1 か所だけ**にする。入れ子にすると内側が
-            // 外側のトランザクションを打ち消し、片方の演出が静かに効かなくなる。
+            // 駒の移動（`.position`）のアニメーションは**この層に 1 つだけ**置く。
+            // 同じ値を監視する指定を入れ子にすると内側が外側を打ち消して片方が静かに消える。
+            // 持ち上げ（別の値 `isLifted` を監視）は上の駒単位の指定が受け持つ。
             .gameAnimation(ShogiMotion.pieceMove, value: pieceLayout)
         }
         // 当たり判定と読み上げはマス（`ShogiCell` 側）が持ち続ける。
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 盤の格子線と星（#366）。木地テクスチャの上に引く。
+    /// 星は 3三・3六・6三・6六 の線の交点（実物の盤と同じ位置）。
+    private var boardGrid: some View {
+        GeometryReader { geo in
+            let slot = geo.size.width / 9
+            Canvas { ctx, sz in
+                let line = GraphicsContext.Shading.color(Color(hex: 0x8B6432).opacity(0.7))
+                for i in 0...9 {
+                    let p = CGFloat(i) * slot
+                    let w: CGFloat = (i == 0 || i == 9) ? 2 : 1
+                    var vp = Path()
+                    vp.move(to: CGPoint(x: p, y: 0)); vp.addLine(to: CGPoint(x: p, y: sz.height))
+                    ctx.stroke(vp, with: line, lineWidth: w)
+                    var hp = Path()
+                    hp.move(to: CGPoint(x: 0, y: p)); hp.addLine(to: CGPoint(x: sz.width, y: p))
+                    ctx.stroke(hp, with: line, lineWidth: w)
+                }
+                for r in [3, 6] {
+                    for c in [3, 6] {
+                        let pt = CGPoint(x: slot * CGFloat(c), y: slot * CGFloat(r))
+                        let dr: CGFloat = slot * 0.05
+                        ctx.fill(Path(ellipseIn: CGRect(x: pt.x - dr, y: pt.y - dr,
+                                                        width: dr * 2, height: dr * 2)),
+                                 with: .color(Color(hex: 0x5F4118).opacity(0.85)))
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 王手されている玉のマスの印（#377）。駒の層より上に重ねる。
+    ///
+    /// 出す条件は `model.checkedKingSquare`（表示局面から毎回導く）だけなので、検討ナビで
+    /// 王手局面へ戻ったときも中断から復元したときも、別の復元処理なしにそのまま正しく出る。
+    /// アニメーションは付けない — 王手は「いま起きている事実」であって、遷移の演出は
+    /// `checkOverlay` の文字が受け持つ。
+    private func checkLayer(cell: CGFloat) -> some View {
+        GeometryReader { geo in
+            let slot = geo.size.width / 9
+            ZStack(alignment: .topLeading) {
+                if let square = model.checkedKingSquare {
+                    let spot = Sq.displayPosition(of: square, flipped: flipped)
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(BoardStyle.check, lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(BoardStyle.check.opacity(0.22)))
+                        .frame(width: cell - 4, height: cell - 4)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        // 読み上げはマス（`ShogiCell` の `isCheckedKing`）が持つ。
         .accessibilityHidden(true)
     }
 
@@ -267,9 +421,10 @@ public struct ShogiView: View {
             } else {
                 Text(model.position.sideToMove == .black ? "先手番" : "後手番")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.teal))
+                    // 面色が先手＝濃色 / 後手＝差し色と大きく違うので、文字色も面に合わせて変える（#220）。
+                    .foregroundStyle(model.position.sideToMove == .black ? .white : Theme.onAccent)
+                    .padding(.horizontal, 12).padding(.vertical, 2)
+                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.Fill.teal))
                     // 手番が移ったことを色の移り変わりで見せる（#201）。文字は差し替わるだけなので、
                     // 目に留まるのは色の変化。着手そのものを待たせないよう短く取る。
                     .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
@@ -297,36 +452,19 @@ public struct ShogiView: View {
 
     // MARK: - 盤の下の操作エリア
 
-    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度・レコメンド）で中身が入れ替わるが、
-    /// **高さは常に終局後の最大構成に揃える**（#139）。
+    /// 対局中（投了・待った）と終局後（検討ナビ・もう一度）で中身が入れ替わるが、
+    /// どちらも**同じ余白の1行**なので高さは変わらない（#139 の「決着で盤が縮まない」契約）。
     ///
-    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
-    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
-    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    /// かつてはレコメンドカードのぶんまで常時ひな形で高さを予約していたが、その予約（約55pt）が
+    /// 盤の幅をカード類より狭くしていた（会長指示 2026-09-01「盤の横幅をカードに揃える」）。
+    /// レコメンドは盤の下端へのオーバーレイ（`board` 側の `.overlay`）に移し、予約を撤廃した。
     private var controlArea: some View {
         ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
             if model.gameOver {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
+                reviewControls
             } else {
                 gameControls
             }
-        }
-    }
-
-    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
-            reviewControls
-            recommendation()
         }
     }
 
@@ -334,9 +472,9 @@ public struct ShogiView: View {
         HStack(spacing: 12) {
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
@@ -377,7 +515,7 @@ public struct ShogiView: View {
             }
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(.horizontal, 16).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -396,13 +534,13 @@ public struct ShogiView: View {
 
             Button { showNewGame = true } label: {
                 Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(.horizontal, 16).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }
 }
@@ -429,22 +567,24 @@ struct NewGameSheet: View {
             VStack(alignment: .leading, spacing: 24) {
                 section("あなたの手番") {
                     HStack(spacing: 12) {
-                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black, accent: Theme.fillStrong) { side = .black }
-                        chooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white, accent: Theme.teal) { side = .white }
+                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black,
+                                accent: Theme.fillStrong, onAccent: .white) { side = .black }
+                        chooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white, accent: Theme.Fill.teal) { side = .white }
                     }
                 }
                 section("CPUの強さ") {
                     HStack(spacing: 12) {
-                        chooser(title: "弱", subtitle: "駒得だけ", selected: level == 0, accent: Theme.teal) { level = 0 }
-                        chooser(title: "普通", subtitle: "囲いを作る", selected: level == 1, accent: Theme.yellow) { level = 1 }
-                        chooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2, accent: Theme.coral) { level = 2 }
+                        chooser(title: "弱", subtitle: "駒得だけ", selected: level == 0, accent: Theme.Fill.teal) { level = 0 }
+                        chooser(title: "普通", subtitle: "囲いを作る", selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
+                        chooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2, accent: Theme.Fill.coral) { level = 2 }
                     }
                 }
                 Spacer()
                 Button { onStart(side, level) } label: {
                     Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.coral)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
             .padding(Theme.pad)
             .popBackground()
@@ -465,12 +605,15 @@ struct NewGameSheet: View {
         }
     }
 
-    private func chooser(title: String, subtitle: String, selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
+    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
+    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
+    private func chooser(title: String, subtitle: String, selected: Bool, accent: Color,
+                         onAccent: Color = Theme.onAccent, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? .white : Theme.ink)
+                Text(title).themeTitle(22).foregroundStyle(selected ? onAccent : Theme.ink)
                 Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? .white.opacity(0.9) : Theme.inkSub)
+                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
             .background(
@@ -497,6 +640,11 @@ enum ShogiMotion {
     static let promotionPromptDuration: TimeInterval = 0.18
     /// 手番バッジの色替え。
     static let turnChangeDuration: TimeInterval = 0.2
+    /// 「王手」の合図が飛び出す・引っ込むのにかかる時間（バネの `response`）。
+    static let checkBannerResponse: TimeInterval = 0.24
+    /// 「王手」の合図を出しておく時間。**駒の移動より長く取る**（`pieceMoveResponse`）。
+    /// ここが短いと、王手を掛けた駒がまだ動いている最中に文字が消えて何が起きたか読めない。
+    static let checkBannerHold: TimeInterval = 1.1
 
     /// 駒の移動。跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
     static let pieceMove: Animation = .spring(response: pieceMoveResponse, dampingFraction: 0.9)
@@ -506,16 +654,53 @@ enum ShogiMotion {
     /// 手番バッジの色替え（#201）。手番が移ったと分かる程度に留め、
     /// タップから盤が反応するまでの体感を遅くしない。
     static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
+    /// 「王手」の合図の出入り（#377）。危急を伝えるので、駒の移動と違って少し跳ねさせる
+    /// （札は盤の上の中空にあり、マスから外れて見える心配がない）。
+    static let checkBanner: Animation = .spring(response: checkBannerResponse, dampingFraction: 0.65)
+
+    /// 選択した駒の持ち上げにかかる時間（バネの `response`）。**駒の移動より短く取る**。
+    /// タップへの即応が命の演出なので、ここが長いと操作が重く感じる。
+    static let pieceLiftResponse: TimeInterval = 0.16
+    /// 持ち上げ量（マス幅に対する比）と拡大率。浮いたと分かる最小限に留め、隣のマスに被せない。
+    static let pieceLiftRatio: CGFloat = 0.12
+    static let pieceLiftScale: CGFloat = 1.07
+    /// 選択した駒の持ち上げ。掴んだ手応えとして少しだけ跳ねさせる
+    /// （持ち上げは駒がマスの中心から浮く演出なので、跳ねてもマスからはみ出て見えない）。
+    static let pieceLift: Animation = .spring(response: pieceLiftResponse, dampingFraction: 0.7)
 }
 
-/// 盤の配色（明るい木目調）。
+/// 盤の配色（明るい木目調）。#366 の会長コンペで確定した「明るい飴色 × 無地アンバー」。
 enum BoardStyle {
     static let frame = Color(hex: 0xE7B96A)
+    /// 盤地と枠。単色をやめて上→下の木のグラデーションにする（#366）。
+    /// マスは透明なハイライト層になったので、この2色が盤全体の地の色でもある。
+    static let frameTop = Color(hex: 0xEDC178)
+    static let frameBottom = Color(hex: 0xD3A04D)
     static let cell = Color(hex: 0xFBE6B6)
     static let line = Color(hex: 0xCDA15B)
     /// 駒は実物と同じくツゲ材（黄楊）のような単色。先手・後手は色ではなく向き（180度回転）で見分ける。
     static let komaWoodLight = Color(hex: 0xF3DFAE)
-    static let komaWoodDark = Color(hex: 0xD9B673)
+    /// 駒の面（#366）: 明るい飴色の縦グラデーション。
+    static let komaFaceTop = Color(hex: 0xEFC98A)
+    static let komaFaceBottom = Color(hex: 0xD9A85C)
+    /// 駒の側面（#366）: 本体を下へずらした同じ駒形をこの色で敷き、木駒の厚みを見せる。
+    static let komaSideTop = Color(hex: 0x9A6F33)
+    static let komaSideBottom = Color(hex: 0x63431A)
+    /// 王手の合図（#377）。玉のマスの枠と「王手」の札に使う。
+    ///
+    /// 差し色（`Theme.coral` など）は**白文字を載せると WCAG AA 未達**で #220 の対象に
+    /// なっているため、ここでは使わない。この緋色は白文字との対比が 6.5:1 あり、
+    /// #220 がどの案で決着しても直す必要が無い（＝新しい違反を持ち込まない）。
+    /// 盤の飴色（`frameTop` 0xEDC178）に対しても十分に沈んで見える。
+    ///
+    /// `Color` は生成後に成分を取り出せないため、コントラストを検証するテストが参照できるよう
+    /// 数値のまま持つ（`Theme.Hex` と同じ理由）。
+    static let checkHex: UInt32 = 0xB3261E
+    static let check = Color(hex: checkHex)
+    /// 駒の輪郭・面取り・文字（#366）。
+    static let komaOutline = Color(hex: 0x6B4A1C)
+    static let komaChamfer = Color(hex: 0xFFEFC2)
+    static let komaText = Color(hex: 0x241708)
 }
 
 /// 1 マス。マスの色だけを描く。
@@ -528,22 +713,27 @@ struct ShogiCell: View {
     let isLastMove: Bool
 
     var body: some View {
+        // 盤の木地は盤全体に敷いたテクスチャ（#366）が担うため、マスは
+        // ハイライトだけを描く透明な当たり判定になった。格子線は `boardGrid` が引く。
         ZStack {
-            Rectangle().fill(BoardStyle.cell)
             if isLastMove {
-                Rectangle().fill(Theme.coral.opacity(0.22)) // 直前手のマス
+                Rectangle().fill(Theme.coral.opacity(0.26)) // 直前手のマス
             }
             if isSelected {
-                Rectangle().fill(Theme.yellow.opacity(0.65))
+                Rectangle().fill(Theme.yellow.opacity(0.6))
             }
         }
         .frame(width: size, height: size)
-        .padding(0.5)
+        .contentShape(Rectangle())
     }
 }
 
 /// 将棋の駒（木製の実物に寄せた見た目・五角形）。先手・後手は色ではなく
 /// 向き（pointsUp=false＝相手の駒は180度回転）だけで見分ける（実物と同じ規則）。
+///
+/// 見た目は #366 の会長コンペで確定した「明るい飴色 × なめらかな面」:
+/// 木目の筋は**描かない**（試したが小さい駒ではノイズにしかならず不採用）。
+/// 立体感は「厚い側面 + 稜線 + 面取り + 落ち影」で出す。
 struct KomaView: View {
     let piece: Piece
     let size: CGFloat
@@ -551,53 +741,104 @@ struct KomaView: View {
 
     var body: some View {
         ZStack {
-            // 木地: 上が明るく下がやや濃い縦グラデーションで、削り出した木の丸みを表現。
+            // 側面: 本体を下へずらした同じ駒形を濃い木色で敷き、木駒の厚みを見せる。
+            // 落ち影はいちばん下のこの層に掛ける（本体に掛けると影が自分の側面に落ちて濁る）。
+            //
+            // 向きの回転はこの層と本体に**別々に**掛ける。外側の ZStack ごと回すと
+            // 下方向のオフセットまで回って、後手の駒だけ厚みが上端に出てしまう
+            // （厚みと影は駒の向きに関係なく、机に置かれた実物として常に下端が正しい）。
+            // 回転 → オフセットの順なので、ずれは常に画面座標の下向きになる。
             KomaShape()
                 .fill(
                     LinearGradient(
-                        colors: [BoardStyle.komaWoodLight, BoardStyle.komaWoodDark],
+                        colors: [BoardStyle.komaSideTop, BoardStyle.komaSideBottom],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .overlay(KomaShape().stroke(Color(hex: 0x8A6A32).opacity(0.6), lineWidth: 1))
-                // ベゼル: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
-                .overlay(
-                    KomaShape()
-                        .stroke(
+                .rotationEffect(.degrees(pointsUp ? 0 : 180))
+                .offset(y: size * 0.075)
+                .shadow(color: .black.opacity(0.30), radius: 2.5, y: 2)
+            // 木地: 上が明るく下がやや濃い縦グラデーション + 控えめな照りで、
+            // 削り出した木の丸みを表現。
+            ZStack {
+                KomaShape()
+                    .fill(
+                        LinearGradient(
+                            colors: [BoardStyle.komaFaceTop, BoardStyle.komaFaceBottom],
+                            startPoint: .top, endPoint: .bottom)
+                    )
+                    .overlay(
+                        KomaShape().fill(
                             LinearGradient(
-                                colors: [Color.white.opacity(0.55), .clear, Color.black.opacity(0.25)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: max(1, size * 0.035)
-                        )
-                )
-                .shadow(color: .black.opacity(0.28), radius: 2, y: 1.5)
-            Text(Glyph.kanji(for: piece))
-                .font(.system(size: size * 0.46, weight: .black, design: .serif))
-                .foregroundStyle(piece.promoted ? Theme.coral : Color(hex: 0x2A1B0E))
-                // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
-                .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
-                .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
+                                colors: [Color.white.opacity(0.10),
+                                         .clear,
+                                         Color.black.opacity(0.10)],
+                                startPoint: .top, endPoint: .bottom))
+                    )
+                    .overlay(KomaShape().stroke(
+                        BoardStyle.komaOutline.opacity(0.75), lineWidth: 1))
+                    // 面取り: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
+                    // 上辺は真っ白だと灰色に沈むため、木の明色で照らす。
+                    .overlay(
+                        KomaShape()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [BoardStyle.komaChamfer.opacity(0.9),
+                                             .clear,
+                                             Color.black.opacity(0.25)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: max(1, size * 0.05)
+                            )
+                    )
+                    // 稜線: 面と側面の境目に1本のエッジを立て、五角柱の折り目に見せる。
+                    .overlay(
+                        KomaBaseEdgeShape()
+                            .stroke(BoardStyle.komaSideBottom.opacity(0.55),
+                                    lineWidth: max(1, size * 0.02))
+                    )
+                Text(Glyph.kanji(for: piece))
+                    .font(.system(size: size * 0.46, weight: .black, design: .serif))
+                    .foregroundStyle(piece.promoted ? Theme.coral : BoardStyle.komaText)
+                    // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
+                    .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
+                    .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
+            }
+            .rotationEffect(.degrees(pointsUp ? 0 : 180))
         }
         .frame(width: size * 0.86, height: size * 0.86)
-        .rotationEffect(.degrees(pointsUp ? 0 : 180))
     }
 }
 
 /// 将棋の駒形（五角形）。上が尖り、下が平ら。
+///
+/// 会長フィードバック（#366）: 尖りすぎ → 実物の駒と同じく**天（てっぺん）に短い平らな辺**を
+/// 持たせ、肩も少し上げて先端の角度を鈍くした。
 struct KomaShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let shoulder = h * 0.32
+        let shoulder = h * 0.30
         var p = Path()
-        p.move(to: CGPoint(x: w * 0.50, y: h * 0.02))
-        p.addLine(to: CGPoint(x: w * 0.83, y: shoulder))
+        p.move(to: CGPoint(x: w * 0.455, y: h * 0.045))
+        p.addLine(to: CGPoint(x: w * 0.545, y: h * 0.045))
+        p.addLine(to: CGPoint(x: w * 0.845, y: shoulder))
         p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.96))
         p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.96))
-        p.addLine(to: CGPoint(x: w * 0.17, y: shoulder))
+        p.addLine(to: CGPoint(x: w * 0.155, y: shoulder))
         p.closeSubpath()
+        return p
+    }
+}
+
+/// 面と側面の境目（駒の底辺）。エッジを1本立てて五角柱の稜線に見せる（#366）。
+struct KomaBaseEdgeShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: w * 0.10, y: h * 0.96))
+        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.96))
         return p
     }
 }
@@ -609,6 +850,9 @@ struct KomaShape: Shape {
 private struct HandAreaView: View {
     let model: ShogiGameModel
     let color: Side
+    /// 画面の広さ（#458）。盤は幅から作られるので勝手に広がるが、持ち駒だけは固定 pt なので
+    /// ここで一緒に拡大しないと iPad で盤との比率が崩れる。
+    @Environment(\.adaptiveLayout) private var layout
 
     var body: some View {
         let pos     = model.displayedPosition
@@ -640,7 +884,7 @@ private struct HandAreaView: View {
                             Button { model.tapHand(type, color: color) } label: {
                                 VStack(spacing: 2) {
                                     KomaView(piece: Piece(type: type, color: color),
-                                             size: 32, pointsUp: isYou)
+                                             size: layout.scaled(32), pointsUp: isYou)
                                         .padding(.horizontal, 5).padding(.vertical, 3)
                                         .background(
                                             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -660,12 +904,12 @@ private struct HandAreaView: View {
                     .drawingGroup() // 駒形状・グラデーションを Metal で一括描画
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: layout.scaled(48), alignment: .leading)
         }
         .frame(maxWidth: .infinity)
-        // 縦の余白は 4。終局後に出るもののぶんの高さを確保しても盤が小さくならないよう、
-        // 駒の大きさ（＝タップ目標）は変えずに余白から捻出している（#139）。
-        .padding(.horizontal, 12).padding(.vertical, 4)
+        // 縦の余白は 3。終局後に出るもののぶんの高さを確保しても盤が小さくならないよう、
+        // 駒の大きさ（＝タップ目標）は変えずに余白から捻出している（#139・会長指示 2026-09-01）。
+        .padding(.horizontal, 12).padding(.vertical, 2)
         .popCard(corner: Theme.cornerSmall)
     }
 }

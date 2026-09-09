@@ -6,6 +6,8 @@ public struct DaifugoView: View {
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     @State private var showResignConfirm = false
+    /// 画面の広さ（#458）。場の空き枠を札と同じ倍率で拡大するために読む。
+    @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
@@ -93,9 +95,9 @@ public struct DaifugoView: View {
             if model.isRevolution {
                 Text("革命中")
                     .font(.system(size: 12, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
             Spacer()
             Text(turnLabel)
@@ -139,11 +141,11 @@ public struct DaifugoView: View {
                 .foregroundStyle(Theme.inkSub)
             Text(model.lastActions[index].isEmpty ? " " : model.lastActions[index])
                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.onAccent)
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .padding(.horizontal, 6).padding(.vertical, 3)
                 .frame(maxWidth: .infinity)
-                .background(Capsule().fill(model.lastActions[index].isEmpty ? Color.clear : Theme.purple))
+                .background(Capsule().fill(model.lastActions[index].isEmpty ? Color.clear : Theme.Fill.purple))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10).padding(.horizontal, 6)
@@ -159,7 +161,9 @@ public struct DaifugoView: View {
                 if model.field.isEmpty {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(Theme.inkSub.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                        .frame(width: 56, height: 78)
+                        // 場の札（`.large` = 56×78）と同じ枠。札が広い画面で拡大するので
+                        // ここも一緒に拡大しないと、札が出た瞬間に場の高さが跳ねる（#458）。
+                        .frame(width: layout.scaled(56), height: layout.scaled(78))
                         .transition(.opacity)
                 } else {
                     ForEach(model.field) { card in
@@ -200,9 +204,9 @@ public struct DaifugoView: View {
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Capsule().fill(isHuman ? Theme.teal : Theme.purple))
+            .background(Capsule().fill(isHuman ? Theme.Fill.teal : Theme.Fill.purple))
         } else {
             Text(model.field.isEmpty ? "場は流れています（好きな組を出せます）" : "場")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -299,7 +303,7 @@ public struct DaifugoView: View {
             EmptyView()
         case .playing where model.isPlayerFinished:
             // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
-            actionButton("結果まで進める", color: Theme.coral, disabled: model.isSkippingToResult) {
+            actionButton("結果まで進める", color: Theme.Fill.coral, disabled: model.isSkippingToResult) {
                 model.skipToResult()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
@@ -307,11 +311,11 @@ public struct DaifugoView: View {
             .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
-                actionButton("パス", color: Theme.fillMuted, disabled: !model.canPass) {
+                actionButton("パス", color: Theme.fillMuted, foreground: .white, disabled: !model.canPass) {
                     model.pass()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
-                actionButton(playButtonTitle, color: Theme.coral, disabled: !model.canPlaySelection) {
+                actionButton(playButtonTitle, color: Theme.Fill.coral, disabled: !model.canPlaySelection) {
                     model.playSelected()
                     Task { await model.runCPUTurnsIfNeeded() }
                 }
@@ -319,7 +323,7 @@ public struct DaifugoView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton("次のゲーム", color: Theme.coral) {
+            actionButton("次のゲーム", color: Theme.Fill.coral) {
                 model.startGame()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
@@ -360,9 +364,9 @@ public struct DaifugoView: View {
                 if let note = humanResultNote {
                     Text(note)
                         .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(Theme.coral))
+                        .background(Capsule().fill(Theme.Fill.coral))
                 }
                 Spacer()
             }
@@ -371,10 +375,11 @@ public struct DaifugoView: View {
                     HStack(spacing: 8) {
                         Text(DaifugoRules.title(forPlace: place))
                             .font(.system(size: 12, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
+                            // 1位だけ差し色の面。他は濃いグレーの面なので文字色を分ける（#220）。
+                            .foregroundStyle(place == 0 ? Theme.onAccent : .white)
                             .frame(width: 58)
                             .padding(.vertical, 3)
-                            .background(Capsule().fill(place == 0 ? Theme.yellow : Theme.fillMuted))
+                            .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
                         Text(model.playerName(player))
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coral : Theme.ink)
@@ -404,7 +409,10 @@ public struct DaifugoView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private func actionButton(_ title: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
+    ///   `fillMuted` のような濃い面には白を渡す（#220）。
+    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
+                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
@@ -416,7 +424,7 @@ public struct DaifugoView: View {
                 .padding(.vertical, 10)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : .white)
+                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
         // `.plain` は装飾を消す代わりに押下フィードバックまで消してしまうので、
         // 背景・文字色はそのまま通しつつ押下時だけ縮むスタイルに替える（#195）。
@@ -458,10 +466,12 @@ enum DaifugoHandLayout {
 struct DaifugoCardView: View {
     enum Size {
         case small, large
-        var width: CGFloat { self == .small ? 42 : 56 }
-        var height: CGFloat { self == .small ? 60 : 78 }
-        var rankFont: CGFloat { self == .small ? 16 : 22 }
-        var suitFont: CGFloat { self == .small ? 15 : 20 }
+        /// 寸法はトランプ共通基盤（#397）の定義を使う。small = 42×60、large = 56×78。
+        var metrics: PlayingCardMetrics { self == .small ? .compact : .medium }
+
+        // 手札レイアウト（#190 のタップ判定）が参照する寸法。共通基盤の値をそのまま返す。
+        var width: CGFloat { metrics.width }
+        var height: CGFloat { metrics.height }
     }
 
     let card: DaifugoCard
@@ -469,6 +479,9 @@ struct DaifugoCardView: View {
     var selected: Bool = false
     /// 出せる / 出せないの区別（#190）。`.none` なら素の見た目のまま。
     var hint: DaifugoCardHint = .none
+    /// 画面の広さ（#458）。手札の**列幅**は `.flexible()` なので iPad で勝手に広がるのに、
+    /// 札の絵柄だけ 42pt 固定で取り残され、列のあいだの隙間だけが開いていた。
+    @Environment(\.adaptiveLayout) private var layout
 
     /// 出せない札は色に頼らず**明度**でも落として区別する（色覚特性の影響を受けないため）。
     private var isDimmed: Bool { hint == .unplayable && !selected }
@@ -484,36 +497,24 @@ struct DaifugoCardView: View {
         return hint == .playable ? 1.5 : 0.5
     }
 
+    /// 広い画面向けに相似拡大した寸法（#458）。狭い画面では `size.metrics` と同じ値になる。
+    private var metrics: PlayingCardMetrics { size.metrics.scaled(by: layout.elementScale) }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
-                        radius: selected ? 6 : 3, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(borderColor, lineWidth: borderWidth)
-                )
+            // 外形・面はトランプ共通基盤（#397。質感は CardStyle #366）。大富豪は常に表向き。
+            PlayingCardSurface(
+                cornerRadius: metrics.cornerRadius,
+                border: borderColor,
+                borderWidth: borderWidth,
+                shadowColor: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
+                shadowRadius: selected ? 6 : 3
+            )
 
-            if card.isJoker {
-                VStack(spacing: 1) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: size.suitFont))
-                    Text("JOKER")
-                        .font(.system(size: size.rankFont * 0.42, weight: .black, design: .rounded))
-                }
-                .foregroundStyle(Theme.purple)
-            } else {
-                VStack(spacing: 0) {
-                    Text(card.rankLabel)
-                        .font(.system(size: size.rankFont, weight: .black, design: .rounded))
-                    Text(card.suit?.symbol ?? "")
-                        .font(.system(size: size.suitFont))
-                }
-                .foregroundStyle((card.suit?.isRed ?? false) ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
-            }
+            // ジョーカーの図案は共通基盤の道化帽（#397 で新調。従来は star.fill だった）。
+            PlayingCardFace(figure: card.figure, metrics: metrics)
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: metrics.width, height: metrics.height)
         .opacity(isDimmed ? 0.4 : 1)
     }
 }

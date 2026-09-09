@@ -42,9 +42,9 @@ public struct MahjongSolitaireView: View {
     private let services: GameServices
     /// 盤面全体を 1 画面に収める表示にしているか。
     ///
-    /// **既定は false（= 牌を 44pt 以上にした表示）**。亀型レイアウトは横 15.56 枚ぶんあり、
-    /// 44pt の牌で全体を出すには 684.6pt の幅が要る。iPhone では両立しないため、
-    /// 「触れる大きさ」を既定にし、全体像はこのトグルで 1 タップ取り戻せるようにしている（#196）。
+    /// **既定は true（= 全体見渡し）**（会長指示 2026-09-02）。開幕はまず盤全体を見渡して
+    /// 形を把握し、取りに行くときに「拡大」で 44pt の触れる大きさへ切り替える流れにする。
+    /// （#196 当初は「触れる大きさ」既定だったが、初手から局所しか見えないほうが不便という判断）
     @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
     @State private var showConfirmNewGame = false
     /// 確認ダイアログで「終了して新規ゲーム」を押したときに配るかたち（#239）。
@@ -70,19 +70,18 @@ public struct MahjongSolitaireView: View {
 
     private typealias Metrics = MahjongSolitaireBoardMetrics
 
-    /// 撮影用に全体表示の状態で起動する経路（DEBUG 限定）。
+    /// 撮影用に拡大表示の状態で起動する経路（DEBUG 限定）。
     /// シミュレータは自動タップができないため、既定でない方の表示を撮る手段がこれしかない。
     private static var initialShowsWholeBoard: Bool {
         #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-mahjongWholeBoard")
-        #else
-        return false
+        if ProcessInfo.processInfo.arguments.contains("-mahjongSolitaireZoomed") { return false }
         #endif
+        return true
     }
 
     /// 撮影用に特定のかたちで起動する経路（DEBUG 限定・#239）。
     /// シミュレータは自動タップができないため、「＋」から選ぶ操作を再現する手段がこれしかない
-    /// （`-mahjongWholeBoard` と同じ理由）。
+    /// （`-mahjongSolitaireZoomed` と同じ理由）。
     private static var initialLayout: MahjongSolitaireLayout {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
@@ -301,14 +300,14 @@ public struct MahjongSolitaireView: View {
             // ボタンの輪郭がどこにも無く「押せる物」に見えなかった。薄い差し色と枠線を敷く（#197）。
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(showsWholeBoard ? Theme.teal : Theme.teal.opacity(0.12))
+                    .fill(showsWholeBoard ? Theme.Fill.teal : Theme.teal.opacity(0.12))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(showsWholeBoard ? .clear : Theme.teal.opacity(0.55), lineWidth: 1.5)
             )
-            // 薄い面の上は白文字だと読めないので本文色を使う（差し色の面 + 白文字は押している側だけ）。
-            .foregroundStyle(showsWholeBoard ? .white : Theme.ink)
+            // 押している側は差し色の面なので `Theme.onAccent`、薄い面の側は本文色（#197・#220）。
+            .foregroundStyle(showsWholeBoard ? Theme.onAccent : Theme.ink)
             // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
             .contentShape(Rectangle())
         }
@@ -476,7 +475,7 @@ public struct MahjongSolitaireView: View {
         HStack(spacing: 8) {
             // ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず
             // 確認ダイアログを挟む。手詰まりで組が無いときは押せない（広告だけ見せない）。
-            controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.teal, showsTitle: showsTitle) {
+            controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.Fill.teal, showsTitle: showsTitle) {
                 showHintConfirm = true
             }
             // 手詰まりでは押せない（広告だけ見せて何も起きない状態を作らない）。
@@ -488,7 +487,7 @@ public struct MahjongSolitaireView: View {
             // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。#199 の 3 ボタン化
             // （ViewThatFits）と衝突したため、レイアウトは #199 側・押したときの挙動は
             // #324 側を採って統合した。ここから確認ダイアログ → 視聴 → 並べ替えの順に進む。
-            controlButton("並べ替え", systemImage: "shuffle", tint: Theme.purple, showsTitle: showsTitle) {
+            controlButton("並べ替え", systemImage: "shuffle", tint: Theme.Fill.purple, showsTitle: showsTitle) {
                 showShuffleConfirm = true
             }
             undoButton(showsTitle: showsTitle)
@@ -510,7 +509,7 @@ public struct MahjongSolitaireView: View {
                     Image(systemName: systemImage)
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 12)
             // 高さは**どちらの段でも** 44pt（#199）。#198 の時点では文字付きの段を
             // 上下 6pt の余白のままにして「44pt 化は #199 のスコープ」と保留していたが、
@@ -529,7 +528,7 @@ public struct MahjongSolitaireView: View {
 
     /// 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。
     private func undoButton(showsTitle: Bool) -> some View {
-        controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.coral, showsTitle: showsTitle) {
+        controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral, showsTitle: showsTitle) {
             model.undoLastTake()
         }
         .disabled(!model.canUndo)
@@ -585,9 +584,9 @@ public struct MahjongSolitaireView: View {
 
             Button { model.newGame() } label: {
                 Label("次のゲーム", systemImage: "arrow.clockwise")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.coral))
+                    .background(Capsule().fill(Theme.Fill.coral))
             }
         }
         .themeBody(14)
@@ -651,8 +650,8 @@ public struct MahjongSolitaireView: View {
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Theme.purple, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(.white)
+                        .background(Theme.Fill.purple, in: RoundedRectangle(cornerRadius: 14))
+                        .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.plain)
 
@@ -664,8 +663,8 @@ public struct MahjongSolitaireView: View {
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Theme.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(.white)
+                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
+                            .foregroundStyle(Theme.onAccent)
                     }
                     .buttonStyle(.plain)
                 }

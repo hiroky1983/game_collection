@@ -14,6 +14,10 @@ import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
+import GameGo
+import GameSolitaire
+import GameChess
+import GameBlocks
 import MahjongTiles
 
 // MARK: - Mocks
@@ -139,6 +143,60 @@ private func playGomoku(_ services: GameServices) async {
     model.tap(row: 7, col: 7)          // 拒否（埋まっているマス）
     model.tap(row: -1, col: 7)         // 拒否（盤外・#202）
     model.resign()                     // 決着
+}
+
+@MainActor
+private func playChess(_ services: GameServices) async {
+    let model = ChessGameModel(services: services)
+    model.tapSquare(ChessSquare.fromName("e2")!)
+    model.tapSquare(ChessSquare.fromName("e4")!)   // 成立
+    await model.performAIMoveIfNeeded()            // 人間の手番に戻す
+    model.tapSquare(ChessSquare.fromName("d2")!)   // 自駒を選ぶ
+    model.tapSquare(ChessSquare.fromName("d8")!)   // 拒否（指せないマス）
+    model.resign()                                 // 決着
+}
+
+@MainActor
+private func playGo(_ services: GameServices) async {
+    let model = GoModel(services: services)
+    model.newGame(humanSide: .black, level: .easy)
+    model.tap(row: 4, col: 4)           // 成立
+    await model.performAIMoveIfNeeded() // 人間の手番に戻す
+    model.tap(row: 4, col: 4)           // 拒否（すでに石がある）
+    model.tap(row: -1, col: 4)          // 拒否（盤外）
+    model.resign()                      // 決着
+}
+
+/// ソリティア（#397）。決着まで指し切るにはソルバーが要る（`GameSolitaireTests` で通しを検証済み）ため、
+/// ここでは**捨てた配札が敗北として決着する**経路を使う。操作・拒否・決着がこれで一通り出る。
+@MainActor
+private func playSolitaire(_ services: GameServices) {
+    let model = SolitaireModel(services: services, seed: SolitaireDealer.verifiedSeeds[0])
+    model.tapWaste()   // 拒否（捨て札がまだ空）
+    model.tapStock()   // 成立（山を1枚めくる）
+    // 持ち上げ（`.rigid`）は「置ける先が無い札に触れたとき」のフォールバックになった（#420 の
+    // タップ = 自動移動）。列を決め打ちすると自動移動が起きて持ち上げを一度も通らないため、
+    // 持ち上がるまで左の列から順に試す（配札は種で固定なので結果は決定的）。
+    for pile in 0..<7 where model.selection == nil {
+        model.tapPile(pile)
+    }
+    model.newGame()    // 決着（指した配札を捨てた = 敗北）
+}
+
+/// ブロック崩し（#463）。発射（`.rigid`）→ ブロック破壊（`.medium`）→ 落球（`.warning`）まで通す。
+/// 盤の状態を直接置けるので、フレーム数や反射の偶然に頼らず決定的に再現できる。
+@MainActor
+private func playBlocks(_ services: GameServices) {
+    let model = BlocksModel(services: services, startingAt: 1, lives: 1)
+    model.launch()                                   // 発射（操作音）
+    let rect = BlocksField.blockRect(row: 0, column: 0)
+    model.placeBallForTesting(x: rect.midX, y: rect.midY, vx: 0, vy: 1)
+    model.tick(dt: 1.0 / 60)                         // ブロックを壊す（操作音）
+    model.movePaddle(to: 5)
+    model.placeBallForTesting(x: 95, y: 6, vx: 0, vy: -60)
+    for _ in 0..<60 where model.phase == .playing {  // 落球 → 残機 0 でゲームオーバー（決着音）
+        model.tick(dt: 1.0 / 60)
+    }
 }
 
 @MainActor
@@ -333,12 +391,14 @@ private func makeServices(
     return (services, haptics, sound)
 }
 
-/// 全 12 ゲームの手順を 1 度ずつ通す。
+/// 全ゲームの手順を 1 度ずつ通す。
 @MainActor
 private func playAllGames(_ services: GameServices) async {
     play2048(services)
     playShogi(services)
     await playGomoku(services)
+    await playGo(services)
+    await playChess(services)
     playMinesweeper(services)
     playOthello(services)
     playPoker(services)
@@ -347,6 +407,7 @@ private func playAllGames(_ services: GameServices) async {
     await playDaifugo(services)
     playMahjong(services)
     await playSudoku(services)
+    playBlocks(services)
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -382,6 +443,33 @@ struct FeedbackEnabledTests {
         // 埋まっているマス（1回）と盤外（1回）で 2 回。無反応で済ませていた盤外を #202 で追加した。
         #expect(spy.notices(of: .warning) >= 2, "埋まっているマス・盤外はどちらも拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "投了で発火する")
+    }
+
+    @Test("囲碁: 着手・石のある交点・盤外・投了で発火する")
+    func go() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        await playGo(services)
+        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.notices(of: .warning) >= 2, "石のある交点・盤外はどちらも拒否として発火する")
+        #expect(spy.notices(of: .error) > 0, "投了で発火する")
+    }
+
+    @Test("チェス: 着手・指せないマス・投了で発火する")
+    func chess() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        await playChess(services)
+        #expect(spy.impacts.contains(.medium), "着手で発火する")
+        #expect(spy.notices(of: .warning) > 0, "指せないマスは拒否として発火する")
+        #expect(spy.notices(of: .error) > 0, "投了で発火する")
+    }
+
+    @Test("ソリティア: 山めくり・持ち上げ・空の捨て札のタップで発火する")
+    func solitaire() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        playSolitaire(services)
+        #expect(spy.impacts.contains(.light), "山めくりで発火する")
+        #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
+        #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
     }
 
     /// CPU の手番中のタップ（#202）。`playGomoku` は人間の手番に戻してから拒否を作るため、
@@ -577,13 +665,15 @@ struct FeedbackCPUSilentTests {
 @MainActor
 struct FeedbackDisabledTests {
 
-    @Test("設定がオフなら全12ゲームのどの契機でも発火しない")
+    @Test("設定がオフなら全ゲームのどの契機でも発火しない")
     func nothingFiresWhenDisabled() async {
         let (services, spy) = makeServices(hapticsEnabled: false)
 
         play2048(services)
         playShogi(services)
         await playGomoku(services)
+        await playGo(services)
+        await playChess(services)
         playMinesweeper(services)
         playOthello(services)
         playPoker(services)
@@ -613,9 +703,9 @@ struct FeedbackDisabledTests {
 @MainActor
 struct SoundFeedbackTests {
 
-    /// 全12ゲームの「有効な操作の成立」「無効な操作の拒否」「局面の決着」で、
+    /// 全ゲームの「有効な操作の成立」「無効な操作の拒否」「局面の決着」で、
     /// アプリ本体と同じ `SoundEffect` への変換を通した音が鳴ることを、ゲームごとに確かめる。
-    @Test("全12ゲームの主要な操作で効果音が鳴る（操作音・拒否音・決着音）")
+    @Test("全ゲームの主要な操作で効果音が鳴る（操作音・拒否音・決着音）")
     func everyGameMakesSound() async {
         // ゲームごとに分けて回し、どのゲームで落ちたかが分かるようにする。
         func check(_ name: String, _ play: @MainActor (GameServices) async -> Void) async {
@@ -631,6 +721,8 @@ struct SoundFeedbackTests {
         await check("2048") { play2048($0) }
         await check("将棋") { playShogi($0) }
         await check("五目並べ") { await playGomoku($0) }
+        await check("囲碁") { await playGo($0) }
+        await check("チェス") { await playChess($0) }
         await check("マインスイーパー") { playMinesweeper($0) }
         await check("オセロ") { playOthello($0) }
         await check("ポーカー") { _ = playPoker($0) }
@@ -639,6 +731,8 @@ struct SoundFeedbackTests {
         await check("大富豪") { _ = await playDaifugo($0) }
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
+        await check("ソリティア") { playSolitaire($0) }
+        await check("ブロック崩し") { playBlocks($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
             model.startGame()

@@ -57,6 +57,17 @@ public extension HowToPlayGuide {
         hint: "駒をタップ → 移動先をタップ"
     )
 
+    static let chess = HowToPlayGuide(
+        gameID: "chess",
+        title: "チェスの遊び方",
+        lines: [
+            "自分の駒をタップすると、動けるマスが光ります。行きたいマスをタップで移動します。",
+            "駒ごとに動き方が違います（ナイトは L 字、ビショップはななめ…）。「くわしいルール」で確認できます。",
+            "相手のキングに王手をかけ、逃げ場をなくしたら勝ちです（王手が無いのに動けないときは引き分け）。",
+        ],
+        hint: "駒をタップ → 移動先をタップ"
+    )
+
     static let gomoku = HowToPlayGuide(
         gameID: "gomoku",
         title: "五目並べの遊び方",
@@ -68,13 +79,29 @@ public extension HowToPlayGuide {
         hint: "タップで石を置こう"
     )
 
+    /// 「禁じ手（連珠ルール）」をオンにして対局しているときの五目並べ（#441）。
+    ///
+    /// `gameID` は `.gomoku` と同じ（同じゲームの表示違いなので、ミニガイドの
+    /// 「一度見たら出さない」フラグも共有する）。そのため **`all` には入れない**
+    /// ＝ 登録漏れ検査は `.gomoku` のほうで担保される。
+    static let gomokuRenju = HowToPlayGuide(
+        gameID: "gomoku",
+        title: "五目並べの遊び方（禁じ手あり）",
+        lines: [
+            "空いているマスをタップして石を置きます。",
+            "たて・よこ・ななめのどれかで先に 5 つ並べたら勝ちです。",
+            "黒（先手）だけは禁じ手があり、三三・四四・長連（6 つ以上）になる場所には打てません。",
+        ],
+        hint: "黒は三三・四四・長連が打てない"
+    )
+
     static let minesweeper = HowToPlayGuide(
         gameID: "minesweeper",
         title: "マインスイーパーの遊び方",
         lines: [
             "マスをタップして開きます。数字はまわり 8 マスにある地雷の数です。",
             "地雷がありそうなマスは長押しで旗を立てられます（旗のマスは開きません）。",
-            "地雷以外をすべて開けたらクリアです。",
+            "数字と同じ数だけ旗を立てたら、その数字をタップして周囲をまとめて開けます。地雷以外をすべて開けたらクリアです。",
         ],
         hint: "長押しで旗を立てられる",
         hintIcon: "flag.fill"
@@ -120,7 +147,7 @@ public extension HowToPlayGuide {
         lines: [
             "チップを賭ける枚数（ベット）を選ぶと、カードが配られます。",
             "カードの合計を 21 に近づけたほうが勝ち。21 を超えると負けです。",
-            "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。",
+            "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ数字を 2 手に分ける「スプリット」も選べます。",
         ],
         hint: "21 に近づけたほうが勝ち",
         hintIcon: "suit.spade.fill"
@@ -171,11 +198,50 @@ public extension HowToPlayGuide {
         hintIcon: "square.grid.3x3"
     )
 
+    static let go = HowToPlayGuide(
+        gameID: "go",
+        title: "囲碁の遊び方",
+        lines: [
+            "線の交わるところをタップして、交互に石を置きます。",
+            "相手の石をぐるりと囲むと取り上げられます。",
+            "打つところが無くなったら「パス」。両者パスで終局し、盤上の石と囲んだ地の合計が多い方が勝ちです。",
+        ],
+        hint: "交点をタップして石を置こう",
+        hintIcon: "circle.circle"
+    )
+
+    static let solitaire = HowToPlayGuide(
+        gameID: "solitaire",
+        // ハブでの表示名は「ソリティア」だが、遊びの正体（クロンダイク）はここで添える
+        // （#397 の「開始シートにクロンダイクを添える」。開幕モーダルは #192 で廃止済みのため、
+        //  遊ぶ前に読ませる唯一の面であるこのシートに寄せた）。
+        title: "ソリティア（クロンダイク）の遊び方",
+        lines: [
+            "動かす札をタップして選び、置きたい列か右上の組札をタップします。",
+            "場札は1つ小さくて色ちがいの札だけ重ねられます（黒の8 の上に 赤の7）。空いた列には K だけ置けます。",
+            "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。",
+        ],
+        hint: "札をタップ → 置き先をタップ",
+        hintIcon: "rectangle.stack.fill"
+    )
+
+    static let blocks = HowToPlayGuide(
+        gameID: "blocks",
+        title: "ブロック崩しの遊び方",
+        lines: [
+            "画面を指でなぞるとパドルが動きます。タップすると球が飛び出します。",
+            "球をはね返してブロックに当てます。灰色のブロックは壊れません。",
+            "壊せるブロックを全部消すと次のステージへ。球を 3 回落とすと終わりです。",
+        ],
+        hint: "なぞってパドルを動かそう",
+        hintIcon: "hand.draw.fill"
+    )
+
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku,
+        .sudoku, .go, .solitaire, .chess, .blocks,
     ]
 }
 
@@ -209,9 +275,9 @@ public struct HowToPlaySheet<Extra: View>: View {
                         HStack(alignment: .top, spacing: 10) {
                             Text("\(index + 1)")
                                 .font(.system(size: 13, weight: .black, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Theme.onAccent)
                                 .frame(width: 22, height: 22)
-                                .background(Circle().fill(Theme.coral))
+                                .background(Circle().fill(Theme.Fill.coral))
                             Text(line)
                                 .themeBody(15)
                                 .foregroundStyle(Theme.ink)
@@ -265,13 +331,17 @@ public struct HowToPlaySheet<Extra: View>: View {
 private struct HowToPlayToolbar<Extra: View>: ViewModifier {
     let guide: HowToPlayGuide
     let extra: (() -> Extra)?
+    var onPresent: (() -> Void)?
     @State private var isPresented = false
 
     func body(content: Content) -> some View {
         content
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { isPresented = true } label: {
+                    Button {
+                        onPresent?()
+                        isPresented = true
+                    } label: {
                         Image(systemName: "questionmark.circle")
                     }
                     .accessibilityLabel("遊び方")
@@ -289,8 +359,11 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
 
 public extension View {
     /// ツールバーに `?` ボタンを足し、タップで「遊び方」シートを開く。
-    func howToPlay(_ guide: HowToPlayGuide) -> some View {
-        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil))
+    ///
+    /// `onPresent` はシートを開く直前に呼ばれる。リアルタイム進行のゲームは
+    /// ここで一時停止する（読んでいる間に落球する、を防ぐ。#510）。
+    func howToPlay(_ guide: HowToPlayGuide, onPresent: (() -> Void)? = nil) -> some View {
+        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil, onPresent: onPresent))
     }
 
     /// 詳細ページ付きの `?` ボタン（ポーカーの役一覧・大富豪のルール）。
