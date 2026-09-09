@@ -134,14 +134,17 @@ struct HandEvaluator {
         if let flushDraw = suitMap.first(where: { $0.value.count == 4 }) {
             return Set(flushDraw.value)
         }
-        // ストレートドロー（連続4枚）
+        // ストレートドロー（連続4枚）。同じランクが2枚あっても筋としては1枚ぶんなので、
+        // ランクごとに代表1枚へ畳んでから4連続を探す（畳まないと 10-9-9-8-7 のように
+        // ペアが連続の中間に挟まる形で、どの窓にも重複が入って検出できない・#517）
         let sorted = hand.enumerated().sorted { $0.element.rank > $1.element.rank }
-        let ranks = sorted.map(\.element.rank)
-        guard ranks.count >= 4 else { return nil }
-        for start in 0...(ranks.count - 4) {
-            let seq = Array(ranks[start..<start+4])
-            if Set(seq).count == 4 && seq[0] - seq[3] == 3 {
-                return Set(sorted[start..<start+4].map(\.offset))
+        var seenRanks: Set<Int> = []
+        let distinct = sorted.filter { seenRanks.insert($0.element.rank).inserted }
+        guard distinct.count >= 4 else { return nil }
+        for start in 0...(distinct.count - 4) {
+            let window = distinct[start..<start+4]
+            if window.first!.element.rank - window.last!.element.rank == 3 {
+                return Set(window.map(\.offset))
             }
         }
         return nil
