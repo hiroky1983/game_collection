@@ -344,6 +344,8 @@ public final class DaifugoModel {
     private func play(_ cards: [DaifugoCard], by player: Int) {
         let ids = Set(cards.map(\.id))
         hands[player] = hands[player].filter { !ids.contains($0.id) }
+        // 札が出た = 捨てたら途中離脱として数える局面（#500。`isUntouchedDeal` の否定と同じ境目）。
+        services?.gameDidProgress(gameID: gameID)
 
         var note = cards.map(\.rankLabel).joined(separator: " ")
         if DaifugoRules.triggersRevolution(cards) {

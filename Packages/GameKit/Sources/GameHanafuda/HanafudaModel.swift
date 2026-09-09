@@ -259,7 +259,7 @@ public final class HanafudaModel {
         // 親決め。実物は札を引き合うが、結果は五分なのでそのまま乱数で決める。
         dealer = (rng.next() % 2 == 0) ? .human : .cpu
         round = 0
-        services?.gameDidStart(gameID: Self.gameID)
+        services?.gameDidStart(gameID: Self.gameID, level: options.difficulty.analyticsLevel)
         startRound()
     }
 
@@ -333,6 +333,8 @@ public final class HanafudaModel {
     /// 手札の 1 枚を場に適用し、続けて山札をめくる。
     private func applyHandPlay(_ card: HanafudaCard, chosen: HanafudaCard?, for player: HanafudaPlayer) {
         removeFromHand(card, of: player)
+        // 札が場に出た = 捨てたら途中離脱として数える局面（#500）。
+        services?.gameDidProgress(gameID: Self.gameID)
         let result = HanafudaRules.resolve(playing: card, field: field, chosen: chosen)
         field = result.field.sorted()
         capture(result.captured, for: player)
@@ -534,7 +536,7 @@ public final class HanafudaModel {
 
     /// 試合の決着後に「もう一度」。設定は前回のものを引き継ぐ。
     public func restartMatch() {
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: options.difficulty.analyticsLevel)
         let options = self.options
         humanTotal = 0
         cpuTotal = 0
@@ -658,6 +660,20 @@ public final class HanafudaModel {
         switch player {
         case .human: humanCaptured = (humanCaptured + cards).sorted()
         case .cpu:   cpuCaptured = (cpuCaptured + cards).sorted()
+        }
+    }
+}
+
+// MARK: - 解析
+
+extension HanafudaDifficulty {
+    /// `game_start` の `level` に載せる段階（#500）。
+    /// 写像はここ（Core を import するファイル）に置き、`HanafudaYaku` は解析を知らないままにする。
+    var analyticsLevel: AnalyticsLevel {
+        switch self {
+        case .easy:   return .beginner
+        case .normal: return .normal
+        case .hard:   return .hard
         }
     }
 }

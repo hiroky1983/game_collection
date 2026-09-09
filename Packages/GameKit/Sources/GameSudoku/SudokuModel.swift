@@ -93,7 +93,8 @@ public final class SudokuModel {
     /// テストはここで生成を止めることで、「生成中」という状態を生成の所要時間に
     /// 依存せず決定論的に作れる（将棋・オセロの `thinkingGate` と同じ形。#172 / #419）。
     @ObservationIgnored var generationGate: (@MainActor () async -> Void)?
-    private let gameID = "sudoku"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "sudoku"
     private var timerTask: Task<Void, Never>?
     /// テスト用の固定種。nil ならシステムの乱数を使う。
     private var seed: UInt64?
@@ -238,7 +239,7 @@ public final class SudokuModel {
         persist()
         startTimer()
         // 盤が出来て計時が始まるここが 1 プレイの開始（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: difficulty.analyticsLevel)
     }
 
     /// 中断から復帰したときに計時を再開する（`onAppear` / `task` から呼ぶ）。
@@ -281,6 +282,8 @@ public final class SudokuModel {
             services?.feedback.notify(.warning)  // 出題のマスは書き換えられない
             return
         }
+        // ここから先は必ず盤（またはメモ）が動く = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         if noteMode {
             lastUndoStep = UndoStep(
@@ -519,5 +522,19 @@ public final class SudokuModel {
         guard snapshot.mistakes.map({ (0...maxMistakes).contains($0) }) ?? true
         else { return false }
         return true
+    }
+}
+
+// MARK: - 解析
+
+extension SudokuDifficulty {
+    /// `game_start` の `level` に載せる段階（#500）。
+    /// 写像はここ（Core を import するファイル）に置き、`SudokuEngine` は解析を知らないままにする。
+    var analyticsLevel: AnalyticsLevel {
+        switch self {
+        case .easy:   return .beginner
+        case .normal: return .normal
+        case .hard:   return .hard
+        }
     }
 }

@@ -51,7 +51,8 @@ public final class OthelloModel {
     /// テストはここで思考を止めることで、「探索の完了待ちで停止中」という状態を
     /// 探索の所要時間に依存せず決定論的に作れる（#172）。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
-    private let gameID = "othello"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "othello"
     /// CPU が着手する前に、直前の反転演出へ最低限あける間合い（#204）。
     /// **読みと並行に測るので、読みが長い局面（強レベル）ではここによる追加の待ちは発生しない**。
     /// テストは `.zero` を渡して実時間の待ちを消す（大富豪・麻雀の `cpuDelay` と同じ運用）。
@@ -133,7 +134,7 @@ public final class OthelloModel {
         isThinking = false
         lastMove   = nil
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart { services?.gameDidStart(gameID: gameID) }
+        if isFreshStart { services?.gameDidStart(gameID: gameID, level: .aiStrength(aiLevel)) }
     }
 
     public func tap(row: Int, col: Int) {
@@ -242,7 +243,7 @@ public final class OthelloModel {
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
         persist()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }
@@ -302,6 +303,8 @@ public final class OthelloModel {
         flippedCells = Set(board.flippable(row: row, col: col, stone: currentStone)
             .map { $0.0 * othelloBoardSize + $0.1 })
         placementCount += 1
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         board.place(row: row, col: col, stone: currentStone)
         lastMove     = (row, col)
         currentStone = currentStone.opponent

@@ -111,7 +111,7 @@ public final class BlocksModel {
         )
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart { services?.gameDidStart(gameID: Self.gameID) }
+        if isFreshStart { services?.gameDidStart(gameID: Self.gameID, level: .stage(stageNumber)) }
     }
 
     // MARK: - 操作
@@ -127,6 +127,8 @@ public final class BlocksModel {
         guard phase == .ready else { return }
         field.launch()
         phase = .playing
+        // 球が出た = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: Self.gameID)
         services?.feedback.impact(.rigid)
     }
 
@@ -207,7 +209,7 @@ public final class BlocksModel {
         continueUsed = false
         recordResult = nil
         startStage()
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
     }
 
     /// リワード広告の視聴後にコンティニューする。残機 1 で、落ちたステージの頭から再開する。
@@ -227,7 +229,7 @@ public final class BlocksModel {
         lives = BlocksRules.continueLives
         startStage()
         // `game_end` は送信済みなので、続きは次の 1 プレイとして数え直す（#158）。
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
         return true
     }
 

@@ -37,22 +37,51 @@ public struct GameServices {
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
     /// 冪等なので、再描画で Model が作り直されても `game_start` は増えない。
     /// 中断スナップショットから復元したときは**呼ばない**（新しいプレイではないため）。
+    ///
+    /// - Parameter level: 難易度・段階（#500）。持たないゲームは省略し、`level` の鍵ごと送らない。
     @MainActor
-    public func gameDidStart(gameID: String) {
-        analytics?.startPlay(gameID: gameID)
+    public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil) {
+        analytics?.startPlay(gameID: gameID, level: level)
     }
 
     /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。
     /// 冪等ではなく、呼ぶたびに1プレイとして数える。
+    ///
+    /// 前のプレイが未決着のまま捨てられていれば、始め直す前に `game_end`（`quit`）が出る（#500）。
     @MainActor
-    public func gameDidRestart(gameID: String) {
-        analytics?.restartPlay(gameID: gameID)
+    public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil) {
+        analytics?.restartPlay(gameID: gameID, level: level)
+    }
+
+    /// そのプレイで**1手指した**（盤面が動いた）ときに各 Model から呼ぶ（#500）。冪等。
+    ///
+    /// この1点だけが「捨てたら途中離脱として数える盤面か」を決める。配っただけ・開いただけの
+    /// 盤面を捨てても離脱には数えない（ソリティア #397 の敗北記録と同じ境目）。
+    @MainActor
+    public func gameDidProgress(gameID: String) {
+        analytics?.recordProgress(gameID: gameID)
     }
 
     /// ゲーム画面から離れたときにハブから呼ぶ（#158）。次に開いたときを新しいプレイとして数え直す。
+    ///
+    /// 中断データが残っているかをここで `SnapshotStore` に聞き、**休憩（あとで続きから再開できる）**と
+    /// **離脱（盤面を捨てた）**を切り分ける（#500）。呼び出し側（ハブ）は判定を持たない。
     @MainActor
     public func gameDidLeave(gameID: String) {
-        analytics?.leaveGame(gameID: gameID)
+        analytics?.leaveGame(gameID: gameID, isResumable: snapshots.exists(for: gameID))
+    }
+
+    /// リワード広告を出し、**視聴完了したときだけ** `reward_ad` を送る（#500）。
+    ///
+    /// 各ゲームは `services.ads.showRewardedAd()` を直接呼ばず必ずここを通す。広告を出す判断と
+    /// 計測を1か所に束ねることで、面が増えるたびに計測を付け忘れる経路を作らない。
+    ///
+    /// - Returns: 視聴完了なら true。ロード失敗・途中で閉じた場合は false（`AdService` と同じ）。
+    @MainActor
+    public func showRewardedAd(gameID: String, purpose: RewardPurpose) async -> Bool {
+        guard await ads.showRewardedAd() else { return false }
+        analytics?.recordRewardAd(gameID: gameID, purpose: purpose)
+        return true
     }
 
     /// ゲームが決着したときに各 Model から呼ぶ唯一の入口。

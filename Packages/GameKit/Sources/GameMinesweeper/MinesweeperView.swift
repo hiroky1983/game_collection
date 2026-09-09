@@ -161,7 +161,7 @@ public struct MinesweeperView: View {
                     isContinuing = true
                     Task {
                         // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                        if await services.ads.showRewardedAd() {
+                        if await services.showRewardedAd(gameID: model.gameID, purpose: .continue) {
                             model.continueAfterAd()
                             showContinue = false
                         } else {

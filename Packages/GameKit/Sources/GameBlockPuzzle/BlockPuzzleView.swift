@@ -268,7 +268,7 @@ public struct BlockPuzzleView: View {
                         isContinuing = true
                         Task {
                             // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                            if await services.ads.showRewardedAd() {
+                            if await services.showRewardedAd(gameID: BlockPuzzleModel.gameID, purpose: .continue) {
                                 withGameAnimation { model.continueAfterAd() }
                             } else {
                                 showRewardNotEarned = true

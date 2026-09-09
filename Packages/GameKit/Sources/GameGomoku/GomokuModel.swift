@@ -68,7 +68,8 @@ public final class GomokuModel {
     private var resigned: Bool
 
     private let services: GameServices?
-    private let gameID = "gomoku"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "gomoku"
     private var startedAt: Date
     private var moves: [(row: Int, col: Int, stone: GomokuStone)]
 
@@ -161,7 +162,7 @@ public final class GomokuModel {
         self.undoUsed     = undoUsed
         self.resigned     = resigned
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart { services?.gameDidStart(gameID: gameID) }
+        if isFreshStart { services?.gameDidStart(gameID: gameID, level: .aiStrength(aiLevel)) }
     }
 
     /// 盤面へのタップ。**盤外の座標を渡してよい**（範囲判定もここで行う）。
@@ -202,6 +203,8 @@ public final class GomokuModel {
         moves.append((row, col, currentStone))
         lastMove = (row, col)
         moveCount += 1
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         if board.checkWin(row: row, col: col) {
             winner = currentStone
             services?.feedback.notify(mover == humanSide ? .success : .error)
@@ -298,7 +301,7 @@ public final class GomokuModel {
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
         persist()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
     }
 
     // MARK: - 投了

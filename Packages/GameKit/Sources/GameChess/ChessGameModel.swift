@@ -33,7 +33,8 @@ public final class ChessGameModel {
     public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
-    private let gameID = "chess"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "chess"
     private var startedAt: Date
 
     public init(services: GameServices? = nil) {
@@ -98,7 +99,7 @@ public final class ChessGameModel {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
-        if snap == nil { services?.gameDidStart(gameID: gameID) }
+        if snap == nil { services?.gameDidStart(gameID: gameID, level: .aiStrength(aiLevel)) }
     }
 
     // MARK: - 終局の判定
@@ -293,6 +294,8 @@ public final class ChessGameModel {
         let mover = position.sideToMove
         position.make(move)
         moves.append(move)
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         clearSelection()
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
@@ -363,7 +366,7 @@ public final class ChessGameModel {
         isThinking = false
         clearSelection()
         persist()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
     }
 
     /// 人間が指している側（CPU 戦の表示用）。

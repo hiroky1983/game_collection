@@ -140,7 +140,10 @@ struct MahjongSolitaireHintAdContractTests {
     @Test("requestHint() は広告の視聴完了時だけヒントを出し、連打を塞いでいる")
     func requestHintIsGatedByRewardedAd() throws {
         let body = try Self.functionBody("requestHint", in: try Self.viewSource())
-        #expect(body.contains("await services.ads.showRewardedAd()"), "リワード広告を経ていない")
+        // #500 で広告は `GameServices.showRewardedAd(gameID:purpose:)` 経由に統一した
+        // （視聴完了と `reward_ad` の送信を1か所に束ねるため）。`ads` を直に呼ぶと計測が漏れる。
+        #expect(body.contains("await services.showRewardedAd(gameID: model.gameID, purpose: .hint)"),
+                "リワード広告を経ていない（または計測を通らない直呼びに戻っている）")
         #expect(body.contains("guard !isRequestingHint else { return }"), "視聴中の連打ガードが無い")
         #expect(body.contains("showHintNotEarned = true"), "視聴未完了のときのアラートが無い")
         #expect(body.contains("showHintUnavailable = true"), "広告を見たのに出せなかったときのアラートが無い")

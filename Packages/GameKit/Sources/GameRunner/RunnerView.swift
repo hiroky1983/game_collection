@@ -352,7 +352,7 @@ public struct RunnerView: View {
             // コースが作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
             let run = model.runGeneration
             Task {
-                if await services.ads.showRewardedAd() {
+                if await services.showRewardedAd(gameID: RunnerModel.gameID, purpose: .checkpoint) {
                     if !model.resumeFromCheckpoint(forRun: run) {
                         showResumeExpired = true
                     }

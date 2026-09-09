@@ -159,7 +159,8 @@ public final class SolitaireModel {
     /// 探索済みの局面の `stateKey`（結果を問わない）。同じ局面を二度掘らないための控え。
     private var checkedKeys: Set<Data> = []
     private let services: GameServices?
-    private let gameID = "solitaire"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "solitaire"
 
     /// 敗北確定の探索を始めるまでの待ち（ミリ秒）。連続でタップしている間は走らせない。
     /// テストは 0 に落として、実時間を待たずに探索の完了だけを待ち合わせる。
@@ -627,6 +628,8 @@ public final class SolitaireModel {
         guard board.apply(move) else { return reject() }
         noteFlips(from: before, move: move)
         moves.append(move)
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500。`canUndo` と同じ境目）。
+        services?.gameDidProgress(gameID: gameID)
         selection = nil
         services?.feedback.impact(move == .draw ? .light : .medium)
         refreshDerivedState()

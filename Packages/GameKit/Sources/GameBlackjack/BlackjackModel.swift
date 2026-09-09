@@ -291,6 +291,8 @@ public final class BlackjackModel {
         // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
         // 決着が即決まるブラックジャックでも `game_start` が先に立つよう、判定より前に数える（#158）。
         services?.gameDidRestart(gameID: gameID)
+        // 配った時点でベットは確定済み。ここから捨てれば途中離脱として数える（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         if isBlackjack(playerHand) {
             resolveAll()
@@ -504,7 +506,7 @@ public final class BlackjackModel {
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
         guard canReviveAfterBust else { return false }
-        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
         hasRevivedThisSession = true
         chips = BlackjackModel.reviveChips
         sessionOver = false

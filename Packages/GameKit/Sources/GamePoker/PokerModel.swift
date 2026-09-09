@@ -406,6 +406,8 @@ public final class PokerModel {
         // 1 ラウンド = 1 プレイ（`gameDidFinish` もラウンドごとに呼んでいる）。
         // 中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
         services?.gameDidRestart(gameID: gameID)
+        // 配った時点でアンティは徴収済み。ここから捨てれば途中離脱として数える（#500）。
+        services?.gameDidProgress(gameID: gameID)
     }
 
     /// ラウンドの決着。触覚で伝え、ダブルアップの決着待ちでなければその場で記録を確定する。
@@ -843,7 +845,7 @@ public final class PokerModel {
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
         guard canReviveAfterBust else { return false }
-        guard await services?.ads.showRewardedAd() ?? true else { return false }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
         hasRevivedThisSession = true
         playerChips = PokerModel.reviveChips
         cpuChips    = PokerModel.initialChips

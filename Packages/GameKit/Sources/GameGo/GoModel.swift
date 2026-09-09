@@ -76,7 +76,8 @@ public final class GoModel {
 
     private var moves: [GoMove]
     private let services: GameServices?
-    private let gameID = "go"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "go"
     private var startedAt: Date
 
     public var board: GoBoard { state.board }
@@ -133,7 +134,7 @@ public final class GoModel {
         self.endgame = nil
         self.recordResult = nil
 
-        if isFreshStart { services?.gameDidStart(gameID: gameID) }
+        if isFreshStart { services?.gameDidStart(gameID: gameID, level: .aiStrength(aiLevel.rawValue)) }
     }
 
     /// 中断データから対局設定を組み直す。**既知の値だけを受け入れる**（#520）。
@@ -207,6 +208,8 @@ public final class GoModel {
         guard state.play(move) == nil else { return }
         moves.append(move)
         lastMove = move.point
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         // 着手の手応えは自分が打ったときだけ。CPU の着手では鳴らさない。
         if mover == humanSide, move != .pass { services?.feedback.impact(.medium) }
@@ -342,7 +345,7 @@ public final class GoModel {
         self.isScoringInProgress = false
         self.gameSerial += 1
         persist()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel.rawValue))
     }
 
     // MARK: - CPU

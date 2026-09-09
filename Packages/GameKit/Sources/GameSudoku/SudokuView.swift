@@ -599,7 +599,7 @@ public struct SudokuView: View {
         guard !isRequestingHint, let target = model.selected, model.canHint(at: target) else { return }
         isRequestingHint = true
         Task {
-            if await services.ads.showRewardedAd() {
+            if await services.showRewardedAd(gameID: model.gameID, purpose: .hint) {
                 // 広告を見たのに入らなかったら黙って終わらせない（対価が無い状態を作らない）。
                 if !model.applyHint(at: target) { showHintUnavailable = true }
             } else {
@@ -626,7 +626,7 @@ public struct SudokuView: View {
                     isContinuing = true
                     Task {
                         // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                        if await services.ads.showRewardedAd() {
+                        if await services.showRewardedAd(gameID: model.gameID, purpose: .continue) {
                             model.continueAfterAd()
                         } else {
                             showContinueNotEarned = true

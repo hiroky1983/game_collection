@@ -602,7 +602,7 @@ public struct MahjongSolitaireView: View {
         guard !isRequestingShuffle else { return }
         isRequestingShuffle = true
         Task {
-            if await services.ads.showRewardedAd() {
+            if await services.showRewardedAd(gameID: model.gameID, purpose: .shuffle) {
                 // 広告を見たのに並べ替わらない盤面（取り切れない残り方）は黙って終わらせない。
                 if !model.shuffleRemaining() { showShuffleFailed = true }
             } else {
@@ -620,7 +620,7 @@ public struct MahjongSolitaireView: View {
         guard !isRequestingHint else { return }
         isRequestingHint = true
         Task {
-            if await services.ads.showRewardedAd() {
+            if await services.showRewardedAd(gameID: model.gameID, purpose: .hint) {
                 // 広告を見たのに光らない（視聴中に手詰まりになった）経路は黙って終わらせない。
                 if !model.showHint() { showHintUnavailable = true }
             } else {

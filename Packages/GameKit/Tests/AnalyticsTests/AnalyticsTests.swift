@@ -47,18 +47,32 @@ private final class SpyAnalyticsService: AnalyticsService {
     func log(_ event: AnalyticsEvent) { events.append(event) }
 
     var starts: [String] {
-        events.compactMap { if case let .gameStart(gameID) = $0 { return gameID } else { return nil } }
+        events.compactMap { if case let .gameStart(gameID, _) = $0 { return gameID } else { return nil } }
     }
-    var ends: [(gameID: String, outcome: GameOutcome, durationSec: Int)] {
+    /// `game_start` に載った難易度（#500）。載せていないゲームは nil。
+    var startLevels: [AnalyticsLevel?] {
+        events.compactMap { if case let .gameStart(_, level) = $0 { return .some(level) } else { return nil } }
+    }
+    var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, outcome, durationSec) = $0 {
-                return (gameID, outcome, durationSec)
+            if case let .gameEnd(gameID, result, durationSec) = $0 {
+                return (gameID, result, durationSec)
             }
+            return nil
+        }
+    }
+    /// 視聴完了したリワード広告（#500）。
+    var rewards: [(gameID: String, purpose: RewardPurpose)] {
+        events.compactMap {
+            if case let .rewardAd(gameID, purpose) = $0 { return (gameID, purpose) }
             return nil
         }
     }
     func starts(of gameID: String) -> Int { starts.filter { $0 == gameID }.count }
     func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
+    func quits(of gameID: String) -> Int {
+        ends.filter { $0.gameID == gameID && $0.result == .quit }.count
+    }
 }
 
 /// 壊れた神経衰弱の中断データ（配列の長さが食い違う）。
@@ -143,12 +157,16 @@ private func makeServices(
 @Suite("送信するイベントの形")
 struct AnalyticsEventShapeTests {
 
-    @Test("イベントは game_start / game_end の2種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad の3種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
-        #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")])
+        #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")],
+                "難易度を持たないゲームでは level の鍵ごと出ない")
 
-        let end = AnalyticsEvent.gameEnd(gameID: "shogi", outcome: .win, durationSec: 42)
+        let leveled = AnalyticsEvent.gameStart(gameID: "sudoku", level: .hard)
+        #expect(leveled.parameters == ["game_id": .string("sudoku"), "level": .string("hard")])
+
+        let end = AnalyticsEvent.gameEnd(gameID: "shogi", result: .win, durationSec: 42)
         #expect(end.name == "game_end")
         #expect(end.parameters == [
             "game_id": .string("shogi"),
@@ -157,19 +175,49 @@ struct AnalyticsEventShapeTests {
         ])
         #expect(Set(end.parameters.keys) == ["game_id", "result", "duration_sec"],
                 "受け入れ条件どおり3鍵のみ。スコアや端末識別子の鍵は存在しない")
+
+        let reward = AnalyticsEvent.rewardAd(gameID: "solitaire", purpose: .undo)
+        #expect(reward.name == "reward_ad")
+        #expect(reward.parameters == ["game_id": .string("solitaire"), "purpose": .string("undo")])
+        #expect(Set(reward.parameters.keys) == ["game_id", "purpose"],
+                "広告の単価・報酬額など収益の生値は載せない")
     }
 
-    @Test("result は win / loss / draw の3値に閉じている")
+    @Test("result は win / loss / draw / quit の4値に閉じている（#500）")
     func resultIsClosed() {
-        // GameOutcome 以外の値を渡す経路が無いことを、全ケースの網羅で示す。
-        let outcomes: [GameOutcome] = [.win, .loss, .draw]
-        let sent = outcomes.map { outcome -> String in
+        // `AnalyticsResult` 以外の値を渡す経路が無いことを、全ケースの網羅で示す。
+        #expect(AnalyticsResult.allCases.map(\.rawValue) == ["win", "loss", "draw", "quit"])
+        let sent = AnalyticsResult.allCases.map { result -> String in
             guard case let .string(text)? = AnalyticsEvent
-                .gameEnd(gameID: "2048", outcome: outcome, durationSec: 0)
+                .gameEnd(gameID: "2048", result: result, durationSec: 0)
                 .parameters["result"] else { return "" }
             return text
         }
-        #expect(sent == ["win", "loss", "draw"])
+        #expect(sent == ["win", "loss", "draw", "quit"])
+
+        // 決着の3値は `GameOutcome` からの写像だけで作られ、`quit` は決着から作れない。
+        #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
+    }
+
+    @Test("purpose の全量は7種で、reward_ad 以外には載らない（#500）")
+    func rewardPurposeIsClosed() {
+        #expect(RewardPurpose.allCases.map(\.rawValue) == [
+            "undo", "continue", "revival", "hint", "joker", "checkpoint", "shuffle",
+        ])
+    }
+
+    @Test("level は強さ4段階と面番号だけで、0 始まりの設定値から写す（#500）")
+    func levelVocabularyIsClosed() {
+        #expect(AnalyticsLevel.allStrengths.map(\.parameterValue)
+                == ["beginner", "normal", "hard", "expert"])
+        // 各ゲームの `aiLevel` は 0 始まり。範囲外も型の上では作れるので両端に倒す。
+        #expect((0...3).map { AnalyticsLevel.aiStrength($0) }
+                == [.beginner, .normal, .hard, .expert])
+        #expect(AnalyticsLevel.aiStrength(-1) == .beginner)
+        #expect(AnalyticsLevel.aiStrength(99) == .expert)
+        // 面番号は丸めずそのまま送る（「何面で詰まるか」が難易度設計そのものなので）。
+        #expect(AnalyticsLevel.stage(7).parameterValue == "stage-7")
+        #expect(AnalyticsLevel.stage(0).parameterValue == "stage-1", "0 以下は 1 に丸める")
     }
 }
 
@@ -190,7 +238,7 @@ struct GameAnalyticsTests {
 
         #expect(spy.starts == ["2048"])
         #expect(spy.ends.count == 1)
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
         #expect(spy.ends.first?.durationSec == 75)
     }
 
@@ -227,7 +275,7 @@ struct GameAnalyticsTests {
         analytics.finishPlay(gameID: "2048", outcome: .loss)
         analytics.finishPlay(gameID: "2048", outcome: .win)
         #expect(spy.ends.count == 1)
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("開始を数えていないプレイの終局は送らない（中断からの再開）")
@@ -242,7 +290,7 @@ struct GameAnalyticsTests {
         let (analytics, spy) = makeAnalytics()
         analytics.startPlay(gameID: "2048")
         analytics.finishPlay(gameID: "2048", outcome: .loss)
-        analytics.leaveGame(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: false)
         analytics.startPlay(gameID: "2048")
         #expect(spy.starts.count == 2)
         #expect(spy.ends.count == 1)
@@ -254,7 +302,7 @@ struct GameAnalyticsTests {
         let (analytics, spy) = makeAnalytics(clock: clock)
         analytics.startPlay(gameID: "2048")
         clock.advance(40)
-        analytics.leaveGame(gameID: "2048")   // ハブへ戻った（まだ遊びかけ）
+        analytics.leaveGame(gameID: "2048", isResumable: true)   // ハブへ戻った（まだ遊びかけ）
         clock.advance(20)
         analytics.startPlay(gameID: "2048")   // 「続きから」で再開 → 数え直さない
         clock.advance(30)
@@ -269,7 +317,7 @@ struct GameAnalyticsTests {
     func leavingMidPlayThenRestart() {
         let (analytics, spy) = makeAnalytics()
         analytics.startPlay(gameID: "2048")
-        analytics.leaveGame(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
         analytics.restartPlay(gameID: "2048")
         analytics.finishPlay(gameID: "2048", outcome: .loss)
         #expect(spy.starts.count == 2, "遊びかけの1回 + 新しいゲームの1回")
@@ -604,7 +652,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.gameOver)
         expectOnePair(spy, gameID: "2048", durationSec: 31)
-        #expect(spy.ends.first?.outcome == .loss, "2048 に勝ちは無い")
+        #expect(spy.ends.first?.result == .loss, "2048 に勝ちは無い")
     }
 
     @Test("将棋: 開いた時点で開始・投了で終局（loss）")
@@ -614,7 +662,7 @@ struct AllGamesAnalyticsTests {
         model.resign()
         #expect(model.gameOver)
         expectOnePair(spy, gameID: "shogi")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("五目並べ: 開いた時点で開始・投了で終局（loss）")
@@ -623,7 +671,7 @@ struct AllGamesAnalyticsTests {
         let model = GomokuModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "gomoku")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("ソリティア: 開いた時点で開始・配り直しで終局（loss）")
@@ -633,7 +681,7 @@ struct AllGamesAnalyticsTests {
         model.tapStock()
         model.newGame()
         #expect(spy.ends.map(\.gameID) == ["solitaire"])
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
         #expect(spy.starts == ["solitaire", "solitaire"])
     }
@@ -646,7 +694,7 @@ struct AllGamesAnalyticsTests {
         model.tapCell(0)
         model.newGame()
         #expect(spy.ends.map(\.gameID) == ["freecell"])
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
         #expect(spy.starts == ["freecell", "freecell"])
     }
@@ -659,7 +707,7 @@ struct AllGamesAnalyticsTests {
         model.place(pieceIndex: 0, row: 0, col: 2)
         #expect(model.gameOver)
         expectOnePair(spy, gameID: "blockpuzzle")
-        #expect(spy.ends.first?.outcome == .loss, "ブロックならべに勝ちは無い")
+        #expect(spy.ends.first?.result == .loss, "ブロックならべに勝ちは無い")
     }
 
     @Test("ブロックならべ: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
@@ -680,7 +728,7 @@ struct AllGamesAnalyticsTests {
         clearRunnerStage(model)
         #expect(model.phase == .cleared)
         expectOnePair(spy, gameID: "runner")
-        #expect(spy.ends.first?.outcome == .win, "ステージクリアは勝ち")
+        #expect(spy.ends.first?.result == .win, "ステージクリアは勝ち")
     }
 
     @Test("チャリンコおじさん: ミスは決着ではない（リトライの回転で数えを増やさない）")
@@ -748,7 +796,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.phase == .gameOver)
         expectOnePair(spy, gameID: "blocks")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("ブロック崩し: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
@@ -772,7 +820,7 @@ struct AllGamesAnalyticsTests {
         model.resign()
         #expect(model.gameOver)
         expectOnePair(spy, gameID: "chess")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("囲碁: 開いた時点で開始・投了で終局（loss）")
@@ -781,7 +829,7 @@ struct AllGamesAnalyticsTests {
         let model = GoModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "go")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("マインスイーパー: 初手で開始・全マス開放で終局（win）")
@@ -797,7 +845,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.gameState == .won)
         expectOnePair(spy, gameID: "minesweeper")
-        #expect(spy.ends.first?.outcome == .win)
+        #expect(spy.ends.first?.result == .win)
     }
 
     @Test("オセロ: 開いた時点で開始・投了で終局（loss）")
@@ -806,7 +854,7 @@ struct AllGamesAnalyticsTests {
         let model = OthelloModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "othello")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("ポーカー: 配られた時点で開始・ラウンド決着で終局")
@@ -896,7 +944,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.phase == .won)
         expectOnePair(spy, gameID: "mahjong")
-        #expect(spy.ends.first?.outcome == .win)
+        #expect(spy.ends.first?.result == .win)
     }
 
     @Test("麻雀ソリティア: 手詰まりで「最初から」は終局を記録せず、次の盤が新しい1プレイになる（#240）")
@@ -922,7 +970,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.state == .cleared)
         expectOnePair(spy, gameID: "sudoku")
-        #expect(spy.ends.first?.outcome == .win)
+        #expect(spy.ends.first?.result == .win)
     }
 
     @Test("数独: 生成中に新規ゲームを重ねても game_start は1回だけ")

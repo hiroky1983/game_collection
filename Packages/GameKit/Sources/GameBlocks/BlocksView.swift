@@ -337,7 +337,7 @@ public struct BlocksView: View {
             // 盤が作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
             let run = model.fieldGeneration
             Task {
-                if await services.ads.showRewardedAd() {
+                if await services.showRewardedAd(gameID: BlocksModel.gameID, purpose: .continue) {
                     if !model.continueAfterAd(forRun: run) {
                         showContinueExpired = true
                     }
