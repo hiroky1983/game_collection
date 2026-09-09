@@ -1,40 +1,37 @@
 import Testing
 import Foundation
 import CoreGraphics
-@testable import GameSolitaire
+@testable import GameFreeCell
 
-/// ドラッグ中の再描画（#521）。
+/// ドラッグ中の再描画（#524 でソリティア #521 の対策を横展開した）。
 ///
-/// 指の位置を `@State` の構造体に持たせると、1 サンプルごとに `SolitaireView.body`
-/// （ステータスバー・7 列の場札・操作エリア）がまるごと作り直される。位置だけを
-/// 参照型（`CardDragLocation`）へ逃がし、**追従表示のサブビューだけが読む**形にした。
+/// フリーセルは #492 でクロンダイクの View を写して作られたが、指の位置は
+/// `FreeCellDragState`（`@State` の構造体）に入ったままだった。1 サンプルごとに
+/// `FreeCellView.body`（ステータスバー・8 列の場札・操作エリア）が作り直される形なので、
+/// 共通基盤（`CardDragLocation`）へ寄せるのに合わせて参照型へ逃がしてある。
 ///
-/// 見た目そのものはシミュレータでしか確認できないので、ここでは
-/// **①ドラッグ状態が位置を持たないこと**・**②盤本体が位置を読まないこと**
-/// （逃がした意味が残っている）をソースから見る（演出テスト `SolitaireMotionTests` と同じやり方）。
-/// 位置の共有・位置合わせの算術・追従表示が位置を読むことは、共通基盤へ移したので
-/// `CardTableTests`（Core）が受け持つ（#524）。
-@Suite("ソリティアのドラッグ位置")
+/// 見た目そのものはシミュレータでしか確認できないので、ソースから
+/// **①ドラッグ状態が位置を持たないこと**・**②盤本体が位置を読まないこと**を見る
+/// （`SolitaireDragLocationTests` と同じ形）。
+@Suite("フリーセルのドラッグ位置")
 @MainActor
-struct SolitaireDragLocationTests {
-
-    // MARK: - 受け入れ条件: 盤本体の body 再評価が起きない
+struct FreeCellDragLocationTests {
 
     @Test("ドラッグ状態は指の位置を持たない（持つと @State の更新になり盤が作り直される）")
     func dragStateDoesNotCarryTheFingerPosition() throws {
         let source = try Self.viewSource()
-        let block = try #require(Self.declaration(of: "struct SolitaireDragState", in: source))
+        let block = try #require(Self.declaration(of: "struct FreeCellDragState", in: source))
 
         #expect(
             !block.contains("location"),
-            "SolitaireDragState に位置が戻っている。毎サンプル @State が書き換わる"
+            "FreeCellDragState に位置が戻っている。毎サンプル @State が書き換わる"
         )
         #expect(block.contains("grab"), "取り違え防止。持ち上げ時にだけ決まる値はここに残す")
     }
 
     @Test("盤本体は指の位置を書くだけで読まない")
     func theBoardWritesTheFingerPositionButNeverReadsIt() throws {
-        // 追従表示（`CardDragLayer`）は Core へ移したので、このファイルは丸ごと「盤本体」になる。
+        // 追従表示（`CardDragLayer`）は Core にあるので、このファイルは丸ごと「盤本体」になる。
         // コメントは落とす。**この規約そのものを説明した注記まで「読んでいる」と数える**ため。
         let board = Self.strippingComments(try Self.viewSource())
 
@@ -51,10 +48,10 @@ struct SolitaireDragLocationTests {
 
     private static func viewSource() throws -> String {
         let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameSolitaireTests
+            .deletingLastPathComponent()   // GameFreeCellTests
             .deletingLastPathComponent()   // Tests
             .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameSolitaire/SolitaireView.swift")
+            .appendingPathComponent("Sources/GameFreeCell/FreeCellView.swift")
         return try String(contentsOf: url, encoding: .utf8)
     }
 

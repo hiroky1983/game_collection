@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 import SwiftUI
 import Core
 
@@ -23,9 +22,9 @@ public struct SolitaireView: View {
     ///
     /// `@State` の構造体に入れると 1 サンプルごとに `SolitaireView.body` 全体
     /// （ステータスバー・7 列の場札・操作エリア）が作り直される。参照型にして
-    /// 追従表示の `SolitaireDragLayer` だけが `point` を読むことで、盤本体は
+    /// 追従表示の `CardDragLayer` だけが `point` を読むことで、盤本体は
     /// 持ち上げ・置くの 2 回しか作り直されない。
-    @State private var dragLocation = SolitaireDragLocation()
+    @State private var dragLocation = CardDragLocation()
     /// ドロップ先の当たり判定枠（盤スクロール座標系）。
     @State private var dropFrames: [SolitaireDropTarget: CGRect] = [:]
     /// ジョーカー補充のリワード広告を出している最中（連打で 2 本目が失敗するのを防ぐ・#406）。
@@ -241,7 +240,7 @@ public struct SolitaireView: View {
             }
             // ドラッグの指の位置・ドロップ枠・追従表示を全て同じ座標空間で扱う。
             .coordinateSpace(name: Self.boardSpace)
-            .onPreferenceChange(SolitaireDropFramesKey.self) { dropFrames = $0 }
+            .onPreferenceChange(CardDropFramesKey<SolitaireDropTarget>.self) { dropFrames = $0 }
             .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics) }
             .gameAnimation(SolitaireMotion.move, value: boardAnimationKey)
         }
@@ -251,13 +250,20 @@ public struct SolitaireView: View {
 
     /// 指に追従する持ち上げた札の描画。当たり判定は持たない。
     ///
-    /// **位置を読むのはここではなく `SolitaireDragLayer` の中**（#521）。この関数は
+    /// **位置を読むのはここではなく `CardDragLayer` の中**（#521）。この関数は
     /// `SolitaireView.body` の一部として評価されるので、ここで `dragLocation.point` を
     /// 読むと盤本体が指の動きを購読してしまい、逃がした意味が無くなる。
     @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics) -> some View {
         if let drag {
-            SolitaireDragLayer(
-                cards: drag.cards, grab: drag.grab, location: dragLocation, metrics: metrics)
+            CardDragLayer(
+                cards: drag.cards,
+                grab: drag.grab,
+                location: dragLocation,
+                step: SolitaireMetrics.faceUpStep(cardHeight: metrics.height)
+            ) { index, card in
+                SolitaireCardBody(card: card, faceUp: true, isSelected: false,
+                                  isCovered: index < drag.cards.count - 1, metrics: metrics)
+            }
         }
     }
 
@@ -339,8 +345,8 @@ public struct SolitaireView: View {
     ///
     /// 配り直しをまたいでは結ばない。またいで結ぶと、新しい配札の札が
     /// **前の配札での居場所から飛んでくる**ことになり、山札から配る演出と食い違う。
-    private func motionID(_ card: SolitaireCard) -> SolitaireCardMotionID {
-        SolitaireCardMotionID(deal: model.dealSerial, card: card.id)
+    private func motionID(_ card: SolitaireCard) -> CardMotionID {
+        CardMotionID(deal: model.dealSerial, card: card.id)
     }
 
     /// この札がドラッグで持ち上げ中（元の位置は薄く見せる）か。
@@ -385,7 +391,7 @@ public struct SolitaireView: View {
     private func stockView(metrics: PlayingCardMetrics) -> some View {
         Group {
             if model.board.stock.isEmpty {
-                emptySlot(metrics: metrics, symbol: "arrow.clockwise")
+                CardSlot(metrics: metrics, systemImage: "arrow.clockwise")
             } else {
                 ZStack {
                     PlayingCardSurface(faceUp: false, cornerRadius: metrics.cornerRadius)
@@ -412,7 +418,7 @@ public struct SolitaireView: View {
         let step = SolitaireMetrics.wasteFanStep(cardWidth: metrics.width)
         return Group {
             if visible.isEmpty {
-                emptySlot(metrics: metrics, symbol: nil)
+                CardSlot(metrics: metrics)
             } else {
                 ZStack(alignment: .topLeading) {
                     ForEach(Array(visible.enumerated()), id: \.element.id) { index, card in
@@ -467,18 +473,15 @@ public struct SolitaireView: View {
         return Group {
             if rank > 0 {
                 // 送られてきた札と同じ id を与えて、場札・捨て札からここまで滑らせる（#421）。
-                cardView(SolitaireCard(suit, rank), faceUp: true, isSelected: false, metrics: metrics)
+                SolitaireCardBody(card: SolitaireCard(suit, rank), faceUp: true,
+                                  isSelected: false, isCovered: false, metrics: metrics)
                     .matchedGeometryEffect(id: motionID(SolitaireCard(suit, rank)), in: cardMotion)
             } else {
                 // 空の組札にはスート記号を薄く置く。どこに何を積むのかが最初から分かるようにする。
-                emptySlot(metrics: metrics, symbol: nil, suit: suit)
+                CardSlot(metrics: metrics, suitSymbol: suit.symbol)
             }
         }
-        .background(GeometryReader { g in
-            Color.clear.preference(
-                key: SolitaireDropFramesKey.self,
-                value: [.foundation(suit): g.frame(in: .named(Self.boardSpace))])
-        })
+        .cardDropTarget(SolitaireDropTarget.foundation(suit), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapFoundation(suit) }
         .accessibilityElement(children: .ignore)
@@ -510,7 +513,7 @@ public struct SolitaireView: View {
         return ZStack(alignment: .top) {
             // 列全体を「置く先」として受ける下敷き。札の無いところをタップしても列に置ける。
             if column.isEmpty {
-                emptySlot(metrics: metrics, symbol: "crown")
+                CardSlot(metrics: metrics, systemImage: "crown")
                     // 空の列は「K だけ置ける」ことを読み上げないと、音声では置けない理由が分からない。
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(SolitaireAccessibility.emptyPileLabel(pile: pile))
@@ -556,11 +559,7 @@ public struct SolitaireView: View {
         }
         .frame(width: metrics.width, height: height, alignment: .top)
         // ドロップ先の枠を報告する（列全体。会長要望 2026-09-02 のドラッグ&ドロップ用）。
-        .background(GeometryReader { g in
-            Color.clear.preference(
-                key: SolitaireDropFramesKey.self,
-                value: [.pile(pile): g.frame(in: .named(Self.boardSpace))])
-        })
+        .cardDropTarget(SolitaireDropTarget.pile(pile), in: Self.boardSpace)
         .contentShape(Rectangle())
         .onTapGesture { model.tapPile(pile) }
     }
@@ -607,42 +606,6 @@ public struct SolitaireView: View {
             ))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { model.tapPile(pile, cardIndex: index) }
-    }
-
-    // MARK: - 札の見た目
-
-    /// 演出を掛けない素の 1 枚（ドラッグ中の追従表示・組札の頂点）。
-    private func cardView(
-        _ card: SolitaireCard,
-        faceUp: Bool,
-        isSelected: Bool,
-        isCovered: Bool = false,
-        metrics: PlayingCardMetrics
-    ) -> some View {
-        SolitaireCardBody(card: card, faceUp: faceUp, isSelected: isSelected,
-                          isCovered: isCovered, metrics: metrics)
-    }
-
-    private func emptySlot(
-        metrics: PlayingCardMetrics,
-        symbol: String?,
-        suit: SolitaireSuit? = nil
-    ) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
-                .strokeBorder(Theme.inkSub.opacity(0.35),
-                              style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-            if let suit {
-                Text(suit.symbol)
-                    .font(.system(size: metrics.suitFont))
-                    .foregroundStyle(Theme.inkSub.opacity(0.45))
-            } else if let symbol {
-                Image(systemName: symbol)
-                    .font(.system(size: metrics.suitFont * 0.8, weight: .semibold))
-                    .foregroundStyle(Theme.inkSub.opacity(0.45))
-            }
-        }
-        .frame(width: metrics.width, height: metrics.height)
     }
 
     // MARK: - 盤の下の操作エリア
@@ -1083,8 +1046,9 @@ struct SolitaireRevealCardView: View {
 
 /// 山札から飛んできて場札に収まる 1 枚。
 ///
-/// 段差は「配られた順」で決まりビューの再生成では変わらないので、状態は**このビュー自身が持つ**
-/// （ブラックジャックの `BJDealtCardView` と同じ設計）。`dealing` が false のときは何もしない。
+/// 動きの器は共通基盤（`CardDealtView`・#524）が持ち、ここは**クロンダイク固有の
+/// 「どこから」「どの順で」飛んでくるか**を `SolitaireMotion` から渡す口になる
+/// （山札は上段のいちばん左・列ごとにまとめて配る）。
 ///
 /// `dealing` の判定は「まだ 1 手も指していないか」なので、**巻き戻して初手前まで戻したとき**に
 /// 動いた札だけがもう一度飛んでくる。その盤面は配ったばかりの状態そのものなので、
@@ -1095,11 +1059,9 @@ struct SolitaireDealtCardView<Content: View>: View {
     /// 列の上端から測った、この札の落ち着き先。飛んでくる距離の計算に使う。
     let restY: CGFloat
     let metrics: PlayingCardMetrics
+    let dealing: Bool
 
     let content: Content
-
-    /// 置き終わったか。`false` の間だけ山札の位置に隠しておく。
-    @State private var dealt: Bool
 
     init(pile: Int, depth: Int, restY: CGFloat, metrics: PlayingCardMetrics,
          dealing: Bool, @ViewBuilder content: () -> Content) {
@@ -1107,23 +1069,18 @@ struct SolitaireDealtCardView<Content: View>: View {
         self.depth = depth
         self.restY = restY
         self.metrics = metrics
+        self.dealing = dealing
         self.content = content()
-        _dealt = State(initialValue: !dealing)
     }
 
     var body: some View {
-        let start = SolitaireMotion.dealStartOffset(pile: pile, restY: restY, metrics: metrics)
-        content
-            .offset(x: dealt ? 0 : start.width, y: dealt ? 0 : start.height)
-            .opacity(dealt ? 1 : 0)
-            .onAppear {
-                guard !dealt else { return }
-                // Reduce Motion が ON なら `withGameAnimation` が補間を落とすので、
-                // 遅れも動きも無く即座に置かれる（状態変更そのものは必ず走る）。
-                withGameAnimation(SolitaireMotion.dealAppear(pile: pile, depth: depth)) {
-                    dealt = true
-                }
-            }
+        CardDealtView(
+            startOffset: SolitaireMotion.dealStartOffset(pile: pile, restY: restY, metrics: metrics),
+            animation: SolitaireMotion.dealAppear(pile: pile, depth: depth),
+            dealing: dealing
+        ) {
+            content
+        }
     }
 }
 
@@ -1211,7 +1168,7 @@ struct SolitaireRuleSheet: View {
 // MARK: - ドラッグ&ドロップ（会長要望 2026-09-02）
 
 /// ドラッグ中の札の状態。**持ち上げた瞬間から置くまで変わらない値だけを持つ**（#521）。
-/// 毎サンプル変わる指の位置は `SolitaireDragLocation` にある。
+/// 毎サンプル変わる指の位置は共通基盤の `CardDragLocation` にある。
 struct SolitaireDragState {
     var source: SolitaireSelection
     var cards: [SolitaireCard]
@@ -1219,70 +1176,8 @@ struct SolitaireDragState {
     var grab: CGSize
 }
 
-/// 盤座標系での指の位置だけを持つ入れ物（#521）。
-///
-/// 参照型にして「盤本体は持たず、追従表示だけが読む」形にするためのもの。値型で
-/// `@State` に置くと、指を 1 サンプル動かすたびにビュー全体が無効化される。
-/// `@Observable` なので、`point` を body で読んだビューだけが作り直される。
-@MainActor @Observable final class SolitaireDragLocation {
-    var point: CGPoint = .zero
-
-    init(point: CGPoint = .zero) {
-        self.point = point
-    }
-}
-
-/// 指に追従する持ち上げた札。**位置を読むのはこの body の中だけ**（#521）。
-///
-/// 盤本体（`SolitaireView.body`）から独立したビューにすることで、指の動きによる
-/// 無効化がこのビューで止まる。当たり判定は持たない（ドロップ先は下の盤が報告する）。
-private struct SolitaireDragLayer: View {
-    let cards: [SolitaireCard]
-    let grab: CGSize
-    let location: SolitaireDragLocation
-    let metrics: PlayingCardMetrics
-
-    var body: some View {
-        let upStep = SolitaireMetrics.faceUpStep(cardHeight: metrics.height)
-        let origin = SolitaireDragLayout.origin(location: location.point, grab: grab)
-        ZStack(alignment: .top) {
-            ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                SolitaireCardBody(card: card, faceUp: true, isSelected: false,
-                                  isCovered: index < cards.count - 1, metrics: metrics)
-                    .offset(y: CGFloat(index) * upStep)
-            }
-        }
-        .shadow(color: .black.opacity(0.25), radius: 8, y: 6)
-        .offset(x: origin.x, y: origin.y)
-        .allowsHitTesting(false)
-    }
-}
-
-/// 追従表示の位置合わせ。
-enum SolitaireDragLayout {
-    /// 指の位置とつかんだ点のずれから、持ち上げた札の左上を出す。
-    static func origin(location: CGPoint, grab: CGSize) -> CGPoint {
-        CGPoint(x: location.x - grab.width, y: location.y - grab.height)
-    }
-}
-
-/// 移動の補間で札どうしを結ぶ鍵（#421）。配り直しの世代を含めるので、世代が変わると結ばれない。
-struct SolitaireCardMotionID: Hashable {
-    let deal: Int
-    let card: Int
-}
-
-/// ドロップ先の種類。
+/// ドロップ先の種類。枠を集める仕組みそのものは共通基盤（`CardDropFramesKey`・#524）にある。
 enum SolitaireDropTarget: Hashable {
     case pile(Int)
     case foundation(SolitaireSuit)
-}
-
-/// ドロップ先の枠を子ビューから集める。
-struct SolitaireDropFramesKey: PreferenceKey {
-    static var defaultValue: [SolitaireDropTarget: CGRect] { [:] }
-    static func reduce(value: inout [SolitaireDropTarget: CGRect],
-                       nextValue: () -> [SolitaireDropTarget: CGRect]) {
-        value.merge(nextValue()) { _, new in new }
-    }
 }
