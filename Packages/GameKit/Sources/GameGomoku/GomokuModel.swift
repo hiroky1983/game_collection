@@ -305,6 +305,8 @@ public final class GomokuModel {
 
     public func resign() {
         guard !gameOver else { return }
+        // 投了で盤の意味が変わるので、直前の拒否の理由も一緒に片付ける（#518）。
+        lastRejection = nil
         resigned = true
         winner = humanSide.opponent
         services?.feedback.notify(.error)
@@ -329,6 +331,8 @@ public final class GomokuModel {
     /// 待った: 直前 2 手（人間→CPU）を巻き戻し、人間が指し直せる状態にする。
     public func undoLastExchange() {
         guard canUndo else { return }
+        // 盤が2手ぶん戻ると禁じ手の成立条件も変わるので、古い理由の帯を残さない（#518）。
+        lastRejection = nil
         moves.removeLast(2)
         board        = Self.board(from: moves)
         moveCount    = moves.count

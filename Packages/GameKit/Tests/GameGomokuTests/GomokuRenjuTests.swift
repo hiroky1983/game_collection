@@ -150,6 +150,34 @@ private func doubleThreeSnapshot(
     )
 }
 
+/// 上と同じ三三の一歩手前を、**待ったが効く形**（`moveHistory` あり）で注入する（#518）。
+///
+/// `canUndo` は着手履歴の並びを見るため、`cells` だけの旧形式では常に false になり
+/// 「待ったで帯が消える」ことを確かめられない。黒 4 手・白 4 手の交互着手として組み、
+/// 白（CPU）が打ち終わって黒（人間）の手番で止まった状態にする。
+private func doubleThreeSnapshotWithHistory() -> GomokuSnapshot {
+    let ordered: [(Int, Int, GomokuStone)] = [
+        (7, 5, .black), (0, 0, .white),
+        (7, 6, .black), (0, 14, .white),
+        (5, 7, .black), (14, 0, .white),
+        (6, 7, .black), (14, 14, .white),
+    ]
+    var board = GomokuBoard()
+    for (row, col, stone) in ordered { board[row, col] = stone }
+    return GomokuSnapshot(
+        cells: board.cells.map { $0?.rawValue },
+        currentStone: GomokuStone.black.rawValue,
+        humanSide: GomokuStone.black.rawValue,
+        aiLevel: 1,
+        startedAt: Date(),
+        moveHistory: ordered.map { GomokuMoveRecord(row: $0.0, col: $0.1, stone: $0.2.rawValue) },
+        undoUsed: nil,
+        resigned: nil,
+        winner: nil,
+        forbiddenMoves: true
+    )
+}
+
 @MainActor
 @Suite("五目並べ 禁じ手ルールの適用")
 struct GomokuRenjuModelTests {
@@ -206,6 +234,36 @@ struct GomokuRenjuModelTests {
         model.tap(row: 2, col: 2)   // 何もない場所なら打てる
         #expect(model.board[2, 2] == .black)
         #expect(model.lastRejection == nil)
+    }
+
+    /// 待ったで盤が 2 手戻ったら、古い理由の帯を残さない（#518）。
+    /// 戻した後の盤では三三が成立していないので、出したままだと嘘の表示になる。
+    @Test func rejectionClearsOnUndo() throws {
+        let store = MockSnapshotStore()
+        try store.save(doubleThreeSnapshotWithHistory(), for: "gomoku")
+        let model = GomokuModel(services: makeServices(store))
+
+        model.tap(row: 7, col: 7)
+        #expect(model.lastRejection == .forbidden(.doubleThree))
+        #expect(model.canUndo)
+
+        model.undoLastExchange()
+        #expect(model.lastRejection == nil)
+        #expect(model.moveCount == 6)
+    }
+
+    /// 投了で対局が終わったら、禁じ手の帯も一緒に片付ける（#518）。
+    @Test func rejectionClearsOnResign() throws {
+        let store = MockSnapshotStore()
+        try store.save(doubleThreeSnapshot(toMove: .black, forbiddenMoves: true), for: "gomoku")
+        let model = GomokuModel(services: makeServices(store))
+
+        model.tap(row: 7, col: 7)
+        #expect(model.lastRejection == .forbidden(.doubleThree))
+
+        model.resign()
+        #expect(model.lastRejection == nil)
+        #expect(model.gameOver)
     }
 
     /// トグルの状態が中断復元をまたいで一貫すること。
