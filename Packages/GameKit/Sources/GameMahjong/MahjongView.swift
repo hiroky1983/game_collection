@@ -27,14 +27,20 @@ public struct MahjongView: View {
         let m = MahjongModel(services: services)
         _model = State(initialValue: m)
         let hasSnapshot = services.snapshots.exists(for: "mahjong4")
-        // デバッグ用: 会長がシミュレータで毎回手動プレイして確認する手間を省くための
+        // デバッグ用（DEBUG 限定）: 会長がシミュレータで毎回手動プレイして確認する手間を省くための
         // 自動進行モード。起動引数（`-mahjongAutoPlay`）でだけ有効になり、通常起動には影響しない。
         // 開始シートのタップも省き、対局が無ければその場で最初の局を配る。
+        // Release に残すと起動引数を注入するだけで全自動対局が回り、その戦績が Game Center の
+        // 実績（wins10 / wins50 / playAll）に載ってしまうため、下の早見表と同じ形で囲う（#514）。
+        #if DEBUG
         let autoPlay = ProcessInfo.processInfo.arguments.contains("-mahjongAutoPlay")
         if autoPlay {
             m.enableAutoPlay()
             if !hasSnapshot { m.startGame() }
         }
+        #else
+        let autoPlay = false
+        #endif
         // 撮影用（DEBUG 限定）: 早見表を出す起動では開始シートを最初から出さない。
         // 同じビューの `.sheet` は 2 つ同時に出せないため、`.task` で開始シートを畳むだけだと
         // 開始シートが一瞬見えたり、早見表が出そこねたりする（CodeRabbit 指摘）。

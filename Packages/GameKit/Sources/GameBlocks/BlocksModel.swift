@@ -159,14 +159,17 @@ public final class BlocksModel {
         setSlowMode(preference.isEnabled)
     }
 
+    #if DEBUG
     /// テスト・撮影用に球の状態を直接置く。
     ///
     /// 落球の直前・ブロックの真下といった局面へ、通常の操作だけで到達しようとすると
     /// 数百フレームの再生が要り、検証がフレーム数と反射の偶然に依存してしまう。
-    /// 製品コードからは呼ばない。
+    /// 製品コードからは呼ばない。呼び出し元は下の `applyDebugScenario` 側（同じく DEBUG 限定）と
+    /// テストだけなので、Release ビルドからは丸ごと落とす（#514）。
     public func placeBallForTesting(x: Double, y: Double, vx: Double, vy: Double) {
         field.placeBall(x: x, y: y, vx: vx, vy: vy)
     }
+    #endif
 
     /// `dt` 秒ぶん進める。SpriteKit のゲームループから毎フレーム呼ばれる唯一の入口。
     public func tick(dt: Double) {

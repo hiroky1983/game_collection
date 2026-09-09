@@ -288,6 +288,7 @@ public final class MahjongModel {
     /// デバッグ用: 自分の手番・鳴き判断・ロン判断も CPU と同じロジックで自動的に進める。
     /// `MahjongView` から起動引数（`-mahjongAutoPlay`）のときだけ有効化され、通常プレイでは
     /// 常に false。会長がシミュレータで毎回手動プレイして確認する手間を省くための機能。
+    /// **Release ビルドでは有効化する手段（`enableAutoPlay()`）ごと消えるので恒久的に false**（#514）。
     public private(set) var autoPlayEnabled = false
 
     public init(
@@ -332,11 +333,16 @@ public final class MahjongModel {
         }
     }
 
+    #if DEBUG
     /// 自分の手番以降もすべて CPU 判断で自動的に進めるようにする。一度有効にしたら
     /// 対局が終わるまで無効化する手段は用意していない（デバッグ用途のみのため）。
+    ///
+    /// Release ビルドには入れない（#514）。`autoPlayEnabled` を true にする手段はここだけなので、
+    /// Release では下の分岐がすべて「自動プレイ無効」側に固定される。
     public func enableAutoPlay() {
         autoPlayEnabled = true
     }
+    #endif
 
     // MARK: - 公開状態
 
