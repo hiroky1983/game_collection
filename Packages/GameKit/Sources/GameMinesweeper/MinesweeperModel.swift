@@ -110,6 +110,10 @@ struct MinesweeperSnapshot: Codable {
 @MainActor
 @Observable
 public final class MinesweeperModel {
+    /// 計時だけが進んでいる間に中断データを保存し直す間隔（秒）。#240 の横展開（#513）。
+    /// 毎秒書くと中断データの書き込みが 1 局で数百回になるため、失われる幅の上限と釣り合う長さにする。
+    static let persistInterval = 30
+
     public private(set) var cells: [[MinesweeperCell]]
     public private(set) var gameState: MinesweeperState = .idle
     public private(set) var rows: Int
@@ -229,7 +233,12 @@ public final class MinesweeperModel {
     /// 計時の `Task` は `self` を強く握るので、止めないと**モデルが解放されず**、
     /// 画面を離れたあとも 1 秒ごとに経過秒が進み続ける（#375。数独にも同型があった）。
     /// 画面に戻れば `resumeTimerIfNeeded()` が計時を再開するので、経過時間は失われない。
+    ///
+    /// 止める前に保存し直すのは、直近の保存から最大 `persistInterval` 秒ぶんの計時が
+    /// 失われるのを防ぐため（#240 と同じ理由・#513）。計時が動いていないときは
+    /// 保存し直す経過秒が無いので触らない（`persist()` は非 `playing` だと中断データを消すため）。
     public func pauseTimer() {
+        if isTimerRunning { persist() }
         timerTask?.cancel()
         timerTask = nil
     }
@@ -583,9 +592,20 @@ public final class MinesweeperModel {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled else { break }
-                elapsedSeconds += 1
+                tick()
             }
         }
+    }
+
+    /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
+    /// 経過秒の進み方と保存の間隔を検証できる（実時間で待つテストはフレークするため）。
+    func tick() {
+        elapsedSeconds += 1
+        // 経過秒はこれまでマスを開く・旗を立てるときにしか保存されず、長考のあとにアプリを
+        // 終了すると最後の操作以降が失われて、自己ベスト（最短タイム）が実際より短い方向に
+        // 狂う（#240 の同型・#513）。一定間隔で保存し直し、失われる幅を最大
+        // `persistInterval` 秒に抑える。
+        if elapsedSeconds % Self.persistInterval == 0 { persist() }
     }
 
     private static func emptyBoard(rows: Int, cols: Int) -> [[MinesweeperCell]] {
