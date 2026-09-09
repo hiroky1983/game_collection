@@ -184,6 +184,15 @@ public final class ShogiGameModel {
     /// 直前の `checkEventID` で王手を**された**側。
     public private(set) var lastCheckedSide: Side?
 
+    /// 出したままの「王手」の文字を畳む契機（#519）。**盤の意味が変わる操作**
+    /// （待った・新規対局・投了）のたびに増える。
+    ///
+    /// 文字は `checkBannerHold` の固定待ちで引っ込むので、待った等でその途中に局面が変わると
+    /// 王手でない盤の上に札が残っていた。`checkEventID` は着手でしか増えないため、
+    /// 巻き戻し側の契機はこちらで別に持つ。`checkEventID` と同じく **0 には戻さない**
+    /// （View は「値が変わったこと」で畳むので、巻き戻すと畳む合図として誤読される）。
+    public private(set) var checkBannerDismissID: Int = 0
+
     /// 直前手の棋譜表記（例 "▲７六歩"）。無ければ nil。
     public var highlightedMoveText: String? {
         guard let m = highlightedMove else { return nil }
@@ -327,6 +336,8 @@ public final class ShogiGameModel {
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
         lastCheckedSide = nil
+        // 前対局の王手の札が出たままなら、新しい盤の上に残さない（#519）。
+        checkBannerDismissID += 1
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
@@ -414,6 +425,8 @@ public final class ShogiGameModel {
 
     public func resign() {
         guard phase == .playing, !gameOver else { return }
+        // 投了で盤の意味が変わるので、出したままの王手の札も一緒に片付ける（#519）。
+        checkBannerDismissID += 1
         resigned = true
         gameOver = true
         services?.feedback.notify(.error)
@@ -444,6 +457,8 @@ public final class ShogiGameModel {
     /// 待った: 直前 2 手（人間→CPU）を巻き戻し、人間が指し直せる状態にする。
     public func undoLastExchange() {
         guard canUndo else { return }
+        // 盤が 2 手ぶん戻ると王手も消えるので、出したままの札を残さない（#519）。
+        checkBannerDismissID += 1
         moves.removeLast(2)
         position = positionAt(ply: moves.count)
         legalMovesCache = position.legalMoves()

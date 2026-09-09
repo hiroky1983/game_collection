@@ -162,6 +162,84 @@ struct ShogiCheckIndicatorTests {
     }
 }
 
+// MARK: - 札を畳む契機
+
+/// 「王手」の札は `checkBannerHold` の固定待ちで引っ込む（#377）。その途中で盤の意味が変わる操作を
+/// されると、王手でない盤の上に札が残っていた（#519）。畳む契機を着手とは別の通し番号で持つ。
+@MainActor
+@Suite("王手の札を畳む契機（#519）")
+struct ShogiCheckBannerDismissTests {
+
+    @Test("待ったで札を畳む契機が進む")
+    func undoDismissesTheBanner() {
+        let model = ShogiGameModel(services: nil)
+        playIntoCheck(model)
+        #expect(model.checkEventID == 1)
+        // 王手を掛けた直後は人間の手番ではないので、まだ待ったはできない。
+        #expect(!model.canUndo)
+
+        // 後手（CPU 側）が王手を解消する。ここまでは札を畳む契機は増えない
+        // ＝「掛かった瞬間だけ光る」という #377 の合図を短く切らない。
+        let dismissBefore = model.checkBannerDismissID
+        model.apply(model.legalMovesCache.first!)
+        #expect(model.checkBannerDismissID == dismissBefore, "相手の応手だけで札を畳んでいる")
+        #expect(model.canUndo)
+
+        model.undoLastExchange()
+        #expect(model.checkBannerDismissID == dismissBefore + 1, "待ったで札を畳む契機が増えていない")
+        // 戻した盤では王手が掛かっていない ＝ 札を出したままだと嘘になる。
+        #expect(model.checkedKingSquare == nil)
+        #expect(model.moves.count == 2)
+    }
+
+    @Test("新規対局で札を畳む契機が進む")
+    func newGameDismissesTheBanner() {
+        let model = ShogiGameModel(services: nil)
+        playIntoCheck(model)
+        let dismissBefore = model.checkBannerDismissID
+
+        model.newGame(humanSide: .black)
+        #expect(model.checkBannerDismissID == dismissBefore + 1, "新規対局で札を畳む契機が増えていない")
+        #expect(model.checkedKingSquare == nil)
+    }
+
+    @Test("投了で札を畳む契機が進む")
+    func resignDismissesTheBanner() {
+        let model = ShogiGameModel(services: nil)
+        playIntoCheck(model)
+        let dismissBefore = model.checkBannerDismissID
+
+        model.resign()
+        #expect(model.checkBannerDismissID == dismissBefore + 1, "投了で札を畳む契機が増えていない")
+        #expect(model.gameOver)
+    }
+
+    @Test("ふつうの着手・検討ナビでは札を畳まない")
+    func ordinaryMovesKeepTheBanner() {
+        let model = ShogiGameModel(services: nil)
+        #expect(model.checkBannerDismissID == 0)
+        playIntoCheck(model)
+        // 王手を掛けた手そのもので畳んでしまうと、札が一瞬も出ない。
+        #expect(model.checkBannerDismissID == 0, "王手の着手で札を畳んでいる")
+
+        model.reviewGoTo(ply: 2)
+        #expect(model.checkBannerDismissID == 0, "検討ナビで札を畳んでいる")
+    }
+
+    @Test("契機の番号は対局をまたいで巻き戻さない")
+    func dismissCounterStaysMonotonic() {
+        let model = ShogiGameModel(services: nil)
+        playIntoCheck(model)
+        model.resign()
+        let afterResign = model.checkBannerDismissID
+        #expect(afterResign == 1)
+
+        model.newGame(humanSide: .black)
+        // 0 に戻すと、View 側の `.onChange` が次の対局で畳む合図として誤読する。
+        #expect(model.checkBannerDismissID == afterResign + 1)
+    }
+}
+
 // MARK: - 触覚
 
 @MainActor
