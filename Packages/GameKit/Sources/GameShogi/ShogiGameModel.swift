@@ -271,6 +271,12 @@ public final class ShogiGameModel {
         apply(.board(from: pp.from, to: pp.to, promote: promote))
     }
 
+    /// 成・不成の選択をやめる。指し手そのものを取り消し、駒の選択状態まで戻す
+    /// （チェスの `cancelPromotion` と同じ形。#201 時点では無かった逃げ道を足す）。
+    public func cancelPromotion() {
+        clearSelection()
+    }
+
     /// 合法手を適用する（AI もここを通る）。
     public func apply(_ move: Move) {
         let mover = position.sideToMove
