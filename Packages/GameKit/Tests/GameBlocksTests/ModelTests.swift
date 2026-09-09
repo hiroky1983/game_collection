@@ -222,6 +222,39 @@ struct ModelTests {
         #expect(model.phase == .playing)
     }
 
+    @Test("描画ループが要るのは発射前と進行中だけ（#522）")
+    func animationFramesOnlyWhileMoving() {
+        // 発射前は球こそ止まっているが、パドルがドラッグに追従する。
+        #expect(BlocksPhase.ready.needsAnimationFrames)
+        #expect(BlocksPhase.playing.needsAnimationFrames)
+        // ここから下は画面の中身が動かない。回し続けると電池を使うだけになる。
+        #expect(!BlocksPhase.paused.needsAnimationFrames)
+        #expect(!BlocksPhase.stageCleared.needsAnimationFrames)
+        #expect(!BlocksPhase.gameOver.needsAnimationFrames)
+        #expect(!BlocksPhase.allCleared.needsAnimationFrames)
+    }
+
+    @Test("一時停止で描画ループが止まり、再開すると戻る（#522）")
+    func animationFramesStopWhilePaused() {
+        let model = BlocksModel(services: makeServices(), preference: makePreference("frames"))
+        model.launch()
+        #expect(model.phase.needsAnimationFrames)
+        model.pause()
+        #expect(!model.phase.needsAnimationFrames)
+        model.resume()
+        #expect(model.phase.needsAnimationFrames)
+    }
+
+    @Test("ゲームオーバーの表示中は描画ループが止まる（#522）")
+    func animationFramesStopAfterGameOver() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, lives: 1, preference: makePreference("framesover")
+        )
+        dropBall(model)
+        #expect(model.phase == .gameOver)
+        #expect(!model.phase.needsAnimationFrames)
+    }
+
     @Test("決着後は一時停止できない")
     func cannotPauseAfterFinish() {
         let model = BlocksModel(
