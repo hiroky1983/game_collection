@@ -117,6 +117,36 @@ struct BlockPuzzlePlacementTests {
         #expect(model.lastClearedLines == 0)
     }
 
+    @Test("消去演出のポップは、同じ本数の消去が連続しても毎回番号が変わる")
+    func clearEventIDAdvancesOnEveryClearEvenWithSameLineCount() {
+        // `lastClearedLines` だけを見て `.transition` を出すと、2手連続で同じ「1本消し」が
+        // 起きたときに値が変わらず SwiftUI のトランジションが2回目以降飛び出さない。
+        // `clearEventID` はこの再生落ちを防ぐための通し番号なので、値そのものではなく
+        // 「毎回変わる」ことを確かめる。
+        var board = BlockPuzzleBoard.emptyBoard()
+        for c in 3..<10 { board[4][c] = 1 }
+        for c in 3..<10 { board[5][c] = 1 }
+        let (services, _) = makeServices()
+        let model = BlockPuzzleModel(
+            services: services, board: board,
+            hand: [Catalog.bar3, Catalog.bar3, Catalog.single]
+        )
+        #expect(model.clearEventID == 0, "まだ何も消していない")
+
+        #expect(model.place(pieceIndex: 0, row: 4, col: 0))
+        #expect(model.lastClearedLines == 1)
+        let first = model.clearEventID
+        #expect(first != 0)
+
+        #expect(model.place(pieceIndex: 1, row: 5, col: 0))
+        #expect(model.lastClearedLines == 1, "2手目も同じ1本消し")
+        let second = model.clearEventID
+        #expect(second != first, "本数が同じでも番号は進む")
+
+        #expect(model.place(pieceIndex: 2, row: 0, col: 0), "何も消さない手")
+        #expect(model.clearEventID == second, "消さない手では増えない")
+    }
+
     @Test("3 つ置くと次の 3 つが配られる")
     func refillsHand() {
         let (services, _) = makeServices()
