@@ -139,15 +139,38 @@ private let advanceTable: [[Int]] = [
 public struct SimpleMinimaxEngine: ShogiEngine {
     let depth: Int
     let usePositional: Bool
+    let useQuiescence: Bool
     let useBook: Bool
     let timeLimit: TimeInterval
 
+    /// 難易度。**表示している強さの文言と中身が一致していること**（#416 の教訓）:
+    ///
+    /// | level | 表示 | 探索深さ | 静止探索 | 位置評価 | 定跡 |
+    /// |---|---|---|---|---|---|
+    /// | 0 | 弱（駒得だけ） | 2 | 無し | 無し | 無し |
+    /// | 1 | 普通（囲いを作る） | 4 | 有り | 有り | 無し |
+    /// | 2 | 強（定跡＋深読み） | 5 | 有り | 有り | 有り |
+    ///
+    /// level 0 は「初心者が勝てる最弱」を作るために、**深さ 2 + 静止探索なし**にしてある（#502。
+    /// チェス `SimpleChessEngine` の level 0 と同じ設計）。静止探索を切ると取り合いの途中で
+    /// 数え終えるので、1回の取り返しの先にある駒得・駒損が見えなくなる。深さ 2 は残すので、
+    /// 「取ったら取り返されるだけ」の只捨ては避ける = 弱いが壊れてはいない、という水準になる。
+    /// 深さ 1 まで落とすと只捨てを始めるため採らない（測定結果は #502 / PR に記載）。
     public init(level: Int = 1) {
         switch level {
-        case 0:  (depth, usePositional, useBook, timeLimit) = (3, false, false, 0.5)
-        case 2:  (depth, usePositional, useBook, timeLimit) = (5, true,  true,  1.5)
-        default: (depth, usePositional, useBook, timeLimit) = (4, true,  false, 1.0)
+        case 0:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
+        case 2:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true,  true,  true,  1.5)
+        default: (depth, usePositional, useQuiescence, useBook, timeLimit) = (4, true,  true,  false, 1.0)
         }
+    }
+
+    /// テスト・計測用の直接指定。時間切れによる打ち切りを避けたいときは `timeLimit` を大きく取る。
+    init(depth: Int, usePositional: Bool, useQuiescence: Bool, useBook: Bool, timeLimit: TimeInterval) {
+        self.depth = depth
+        self.usePositional = usePositional
+        self.useQuiescence = useQuiescence
+        self.useBook = useBook
+        self.timeLimit = timeLimit
     }
 
     public func bestMove(sfen: String) async -> String? {
@@ -158,12 +181,14 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         if useBook, let booked = OpeningBook.move(for: sfen),
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
-        var ctx = SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: timeLimit)
+        var ctx = SearchContext(maxDepth: depth, usePositional: usePositional,
+                                useQuiescence: useQuiescence, timeLimit: timeLimit)
         return ctx.search(&pos)?.usi
     }
 
     func kingSafety(_ pos: Position, _ color: Side) -> Int {
-        SearchContext(maxDepth: depth, usePositional: usePositional, timeLimit: 0).kingSafety(pos, color)
+        SearchContext(maxDepth: depth, usePositional: usePositional,
+                      useQuiescence: useQuiescence, timeLimit: 0).kingSafety(pos, color)
     }
 }
 
@@ -172,13 +197,15 @@ public struct SimpleMinimaxEngine: ShogiEngine {
 private struct SearchContext {
     let maxDepth: Int
     let usePositional: Bool
+    let useQuiescence: Bool
     let deadline: Date
     var killers: [[Move?]]   // killers[ply][0..1]
     var tt: [TTEntry]
 
-    init(maxDepth: Int, usePositional: Bool, timeLimit: TimeInterval) {
+    init(maxDepth: Int, usePositional: Bool, useQuiescence: Bool, timeLimit: TimeInterval) {
         self.maxDepth = maxDepth
         self.usePositional = usePositional
+        self.useQuiescence = useQuiescence
         self.deadline = Date().addingTimeInterval(timeLimit)
         self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [TTEntry](repeating: TTEntry(), count: TT_SIZE)
@@ -243,7 +270,9 @@ private struct SearchContext {
             }
         }
 
-        if depth == 0 { return quiesce(&pos, alpha: alpha, beta: beta, qdepth: 0) }
+        if depth == 0 {
+            return useQuiescence ? quiesce(&pos, alpha: alpha, beta: beta, qdepth: 0) : evaluate(pos)
+        }
 
         let moves = pos.legalMoves()
         if moves.isEmpty { return -PieceValue.base(.king) - depth }
