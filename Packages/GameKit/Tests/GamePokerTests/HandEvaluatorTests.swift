@@ -279,6 +279,41 @@ struct CPUKeepTests {
         #expect(keep.map { hand[$0].rank }.sorted() == [5, 6, 7, 8])
     }
 
+    @Test func onePairChasesStraightDrawWithThePairInsideTheRun() {
+        // 10-9-9-8-7。ペアが連続の中間に挟まる形。ランクを畳まずに4枚窓を走らせると
+        // どの窓にも 9 が2枚入って検出できなかった（#517）
+        var rng = AlwaysAmbitiousGenerator()
+        let hand = [card(10, .spades), card(9, .hearts), card(9, .clubs),
+                    card(8, .diamonds), card(7, .spades)]
+        #expect(HandEvaluator.evaluate(hand).rank == .onePair)
+        let keep = HandEvaluator.cpuKeepIndices(from: hand, using: &rng)
+        #expect(keep.count == 4)
+        #expect(keep.isSuperset(of: [0, 3, 4]))
+        #expect(keep.map { hand[$0].rank }.sorted() == [7, 8, 9, 10])
+    }
+
+    @Test func onePairChasesStraightDrawWithTheLowerPairInsideTheRun() {
+        // 10-9-8-8-7。ペアの位置が1つ下がっただけの同型（#517）
+        var rng = AlwaysAmbitiousGenerator()
+        let hand = [card(10, .spades), card(9, .hearts), card(8, .clubs),
+                    card(8, .diamonds), card(7, .spades)]
+        #expect(HandEvaluator.evaluate(hand).rank == .onePair)
+        let keep = HandEvaluator.cpuKeepIndices(from: hand, using: &rng)
+        #expect(keep.count == 4)
+        #expect(keep.isSuperset(of: [0, 1, 4]))
+        #expect(keep.map { hand[$0].rank }.sorted() == [7, 8, 9, 10])
+    }
+
+    @Test func onePairWithGappedRunIsNotChasedAfterDeduplication() {
+        // 10-9-9-7-6。ランクを畳んでも 10-9-7-6 で間が抜けている。
+        // 畳んだせいで拾いすぎないことの歯止め
+        var rng = AlwaysAmbitiousGenerator()
+        let hand = [card(10, .spades), card(9, .hearts), card(9, .clubs),
+                    card(7, .diamonds), card(6, .spades)]
+        #expect(HandEvaluator.evaluate(hand).rank == .onePair)
+        #expect(HandEvaluator.cpuKeepIndices(from: hand, using: &rng) == [1, 2])
+    }
+
     @Test func onePairWithoutDrawKeepsThePairEvenWhenBiasHits() {
         // 狙える形が無いので、バイアスが当たってもペアを残す
         var rng = AlwaysAmbitiousGenerator()
