@@ -14,6 +14,10 @@ public struct BlocksView: View {
     @State private var showRewardNotEarned = false
     @State private var showContinueExpired = false
     @State private var isContinuing = false
+    @State private var showConfirmNewGame = false
+    /// 確認ダイアログを出すために**自分で**止めたか（#515）。
+    /// 元から一時停止中だった場合まで再開してしまわないよう区別する。
+    @State private var pausedForNewGameConfirm = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -50,7 +54,7 @@ public struct BlocksView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { model.newGame() } label: {
+                Button { startNewGame() } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
             }
@@ -74,7 +78,12 @@ public struct BlocksView: View {
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
             // （基盤規約「バックグラウンド移行時は即一時停止」）。
-            if phase != .active { model.pause() }
+            guard phase != .active else { return }
+            model.pause()
+            // 背面に回ったら「止めたのは確認ダイアログだ」という記憶は捨てる。
+            // 残すと、戻ってきてダイアログを閉じた瞬間に球が動き出し、上の規約に反する
+            // （発射前から開いた場合は元から記憶していないので、揃えて止めたままにする）。
+            pausedForNewGameConfirm = false
         }
         .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
@@ -86,6 +95,42 @@ public struct BlocksView: View {
         } message: {
             Text("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
         }
+        .confirmationDialog(
+            "はじめからやり直しますか？",
+            isPresented: $showConfirmNewGame,
+            titleVisibility: .visible
+        ) {
+            Button("終了してはじめから", role: .destructive) {
+                pausedForNewGameConfirm = false
+                model.newGame()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると今のスコアとステージが失われます。")
+        }
+        .onChange(of: showConfirmNewGame) { _, isPresented in
+            // キャンセルボタンを経由せず閉じた場合（iPad のポップオーバーで外側をタップ等）も
+            // 取りこぼさないよう、閉じたことそのものを再開の合図にする。
+            guard !isPresented, pausedForNewGameConfirm else { return }
+            pausedForNewGameConfirm = false
+            model.resume()
+        }
+    }
+
+    /// 進行中は確認を挟んでからやり直す（#515）。
+    ///
+    /// 反射神経を使うゲームなので、迷っているあいだに落球しないよう球を止めてから訊く
+    /// （`.howToPlay` を開いたときと同じ扱い）。
+    private func startNewGame() {
+        guard model.hasProgressToLose else {
+            model.newGame()
+            return
+        }
+        if model.phase == .playing {
+            model.pause()
+            pausedForNewGameConfirm = true
+        }
+        showConfirmNewGame = true
     }
 
     // MARK: - ヘッダー
@@ -285,8 +330,10 @@ public struct BlocksView: View {
         .disabled(isContinuing)
     }
 
+    /// 一時停止中とリザルトで共用する。前者は進行が残っているので確認を挟み、
+    /// 後者は `hasProgressToLose` が false なのでこれまでどおり即やり直す。
     private var restartButton: some View {
-        Button("はじめから") { model.newGame() }
+        Button("はじめから") { startNewGame() }
             .buttonStyle(.bordered)
             .tint(.white)
     }

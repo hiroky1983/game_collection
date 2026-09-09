@@ -540,6 +540,51 @@ struct ModelTests {
         #expect(model.fieldGeneration > generation, "描画側が盤を作り直せるよう連番が進む")
     }
 
+    @Test("開始直後は「はじめから」で失うものが無い")
+    func noProgressToLoseAtStart() {
+        let model = BlocksModel(services: makeServices(), preference: makePreference("progress-start"))
+        #expect(!model.hasProgressToLose)
+    }
+
+    @Test("発射したら「はじめから」に確認が要る")
+    func playingHasProgressToLose() {
+        let model = BlocksModel(services: makeServices(), preference: makePreference("progress-play"))
+        model.launch()
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("得点が付いていれば一時停止中でも確認が要る")
+    func scoreKeepsProgressWhilePaused() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, score: 120,
+            preference: makePreference("progress-score")
+        )
+        model.launch()
+        model.pause()
+        #expect(model.phase == .paused)
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("ステージ2以降は発射前でも確認が要る")
+    func laterStageHasProgressToLose() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 3, preference: makePreference("progress-stage")
+        )
+        #expect(model.phase == .ready)
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("決着後は得点が残っていても確認を挟まない")
+    func finishedGameHasNothingToLose() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, score: 900, lives: 1,
+            preference: makePreference("progress-gameover")
+        )
+        dropBall(model)
+        #expect(model.phase == .gameOver)
+        #expect(!model.hasProgressToLose)
+    }
+
     @Test("ステージ1で崩し終えてから「はじめから」を選んでも盤が組み直される")
     func newGameRebuildsEvenOnSameStage() {
         let model = BlocksModel(services: makeServices(), preference: makePreference("rebuild"))

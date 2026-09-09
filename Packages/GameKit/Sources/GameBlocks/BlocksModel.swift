@@ -189,6 +189,16 @@ public final class BlocksModel {
         startStage()
     }
 
+    /// 「はじめから」で失われる進行があるか（#515）。
+    ///
+    /// 誤タップで得点・ステージが丸ごと消えるのを防ぐため、画面側はこれが true のときだけ
+    /// 確認を挟む。決着後（`gameOver` / `allCleared`）はもう失うものが無いので false
+    /// （リザルトの「はじめから」に確認を挟むと、遊び直しの導線が一手増えるだけになる）。
+    public var hasProgressToLose: Bool {
+        guard !phase.isFinished else { return false }
+        return score > 0 || stageNumber > 1 || phase == .playing
+    }
+
     /// はじめから遊び直す。
     public func newGame() {
         stageNumber = 1
