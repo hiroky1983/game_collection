@@ -78,7 +78,12 @@ public struct BlocksView: View {
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
             // （基盤規約「バックグラウンド移行時は即一時停止」）。
-            if phase != .active { model.pause() }
+            guard phase != .active else { return }
+            model.pause()
+            // 背面に回ったら「止めたのは確認ダイアログだ」という記憶は捨てる。
+            // 残すと、戻ってきてダイアログを閉じた瞬間に球が動き出し、上の規約に反する
+            // （発射前から開いた場合は元から記憶していないので、揃えて止めたままにする）。
+            pausedForNewGameConfirm = false
         }
         .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
             Button("OK", role: .cancel) {}
