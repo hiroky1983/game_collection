@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftUI
 import Core
 
@@ -15,7 +16,16 @@ public struct SolitaireView: View {
     /// ドラッグ中の札（会長要望 2026-09-02: ドラッグ&ドロップで動かす）。
     /// タップ（選択→行き先）の従来操作はそのまま残し、ドラッグは同じモデル操作を
     /// 別の入力経路から呼ぶだけにする（合法判定・拒否・記録の経路を増やさない）。
+    ///
+    /// **指の位置はここに入れない**（#521）。持ち上げ・置くの瞬間にしか変わらない値だけを置く。
     @State private var drag: SolitaireDragState?
+    /// ドラッグ中の指の位置。**盤本体から切り離すために参照型に逃がす**（#521）。
+    ///
+    /// `@State` の構造体に入れると 1 サンプルごとに `SolitaireView.body` 全体
+    /// （ステータスバー・7 列の場札・操作エリア）が作り直される。参照型にして
+    /// 追従表示の `SolitaireDragLayer` だけが `point` を読むことで、盤本体は
+    /// 持ち上げ・置くの 2 回しか作り直されない。
+    @State private var dragLocation = SolitaireDragLocation()
     /// ドロップ先の当たり判定枠（盤スクロール座標系）。
     @State private var dropFrames: [SolitaireDropTarget: CGRect] = [:]
     /// ジョーカー補充のリワード広告を出している最中（連打で 2 本目が失敗するのを防ぐ・#406）。
@@ -240,20 +250,14 @@ public struct SolitaireView: View {
     // MARK: - ドラッグ&ドロップ（会長要望 2026-09-02）
 
     /// 指に追従する持ち上げた札の描画。当たり判定は持たない。
+    ///
+    /// **位置を読むのはここではなく `SolitaireDragLayer` の中**（#521）。この関数は
+    /// `SolitaireView.body` の一部として評価されるので、ここで `dragLocation.point` を
+    /// 読むと盤本体が指の動きを購読してしまい、逃がした意味が無くなる。
     @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics) -> some View {
         if let drag {
-            let upStep = SolitaireMetrics.faceUpStep(cardHeight: metrics.height)
-            ZStack(alignment: .top) {
-                ForEach(Array(drag.cards.enumerated()), id: \.element.id) { index, card in
-                    cardView(card, faceUp: true, isSelected: false,
-                             isCovered: index < drag.cards.count - 1, metrics: metrics)
-                        .offset(y: CGFloat(index) * upStep)
-                }
-            }
-            .shadow(color: .black.opacity(0.25), radius: 8, y: 6)
-            .offset(x: drag.location.x - drag.grab.width,
-                    y: drag.location.y - drag.grab.height)
-            .allowsHitTesting(false)
+            SolitaireDragLayer(
+                cards: drag.cards, grab: drag.grab, location: dragLocation, metrics: metrics)
         }
     }
 
@@ -267,16 +271,18 @@ public struct SolitaireView: View {
                     guard model.phase == .playing, !model.isPlacingJoker,
                           let cards = draggableCards(from: source), !cards.isEmpty else { return }
                     model.deselect()
+                    // 位置を先に入れる。持ち上げた最初の 1 フレームから正しい場所に出す。
+                    dragLocation.point = value.location
                     drag = SolitaireDragState(
                         source: source,
                         cards: cards,
-                        location: value.location,
                         // つかんだ位置がだいたい札の中央上部に来るように合わせる。
                         grab: CGSize(width: metrics.width / 2, height: metrics.height / 3)
                     )
                     services.feedback.impact(.rigid)
                 } else {
-                    drag?.location = value.location
+                    // 盤本体の `@State` は触らない（#521）。読むのは追従表示だけ。
+                    dragLocation.point = value.location
                 }
             }
             .onEnded { value in
@@ -1204,14 +1210,60 @@ struct SolitaireRuleSheet: View {
 
 // MARK: - ドラッグ&ドロップ（会長要望 2026-09-02）
 
-/// ドラッグ中の札の状態。
+/// ドラッグ中の札の状態。**持ち上げた瞬間から置くまで変わらない値だけを持つ**（#521）。
+/// 毎サンプル変わる指の位置は `SolitaireDragLocation` にある。
 struct SolitaireDragState {
     var source: SolitaireSelection
     var cards: [SolitaireCard]
-    /// 盤座標系での指の位置。
-    var location: CGPoint
     /// つかんだ点から札の左上までのずれ（追従表示の位置合わせ用）。
     var grab: CGSize
+}
+
+/// 盤座標系での指の位置だけを持つ入れ物（#521）。
+///
+/// 参照型にして「盤本体は持たず、追従表示だけが読む」形にするためのもの。値型で
+/// `@State` に置くと、指を 1 サンプル動かすたびにビュー全体が無効化される。
+/// `@Observable` なので、`point` を body で読んだビューだけが作り直される。
+@MainActor @Observable final class SolitaireDragLocation {
+    var point: CGPoint = .zero
+
+    init(point: CGPoint = .zero) {
+        self.point = point
+    }
+}
+
+/// 指に追従する持ち上げた札。**位置を読むのはこの body の中だけ**（#521）。
+///
+/// 盤本体（`SolitaireView.body`）から独立したビューにすることで、指の動きによる
+/// 無効化がこのビューで止まる。当たり判定は持たない（ドロップ先は下の盤が報告する）。
+private struct SolitaireDragLayer: View {
+    let cards: [SolitaireCard]
+    let grab: CGSize
+    let location: SolitaireDragLocation
+    let metrics: PlayingCardMetrics
+
+    var body: some View {
+        let upStep = SolitaireMetrics.faceUpStep(cardHeight: metrics.height)
+        let origin = SolitaireDragLayout.origin(location: location.point, grab: grab)
+        ZStack(alignment: .top) {
+            ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                SolitaireCardBody(card: card, faceUp: true, isSelected: false,
+                                  isCovered: index < cards.count - 1, metrics: metrics)
+                    .offset(y: CGFloat(index) * upStep)
+            }
+        }
+        .shadow(color: .black.opacity(0.25), radius: 8, y: 6)
+        .offset(x: origin.x, y: origin.y)
+        .allowsHitTesting(false)
+    }
+}
+
+/// 追従表示の位置合わせ。
+enum SolitaireDragLayout {
+    /// 指の位置とつかんだ点のずれから、持ち上げた札の左上を出す。
+    static func origin(location: CGPoint, grab: CGSize) -> CGPoint {
+        CGPoint(x: location.x - grab.width, y: location.y - grab.height)
+    }
 }
 
 /// 移動の補間で札どうしを結ぶ鍵（#421）。配り直しの世代を含めるので、世代が変わると結ばれない。
