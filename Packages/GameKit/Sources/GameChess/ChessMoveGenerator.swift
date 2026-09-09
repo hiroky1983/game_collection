@@ -234,6 +234,10 @@ extension ChessPosition {
         return pos.legalMovesInPlace()
     }
 
+    /// `move` が現局面で合法か。**中断データの検証に使う**（#520。`make` は移動元に駒が居ることを
+    /// 前提に force-unwrap するので、外から来た指し手はここを通してから適用する）。
+    public func isLegal(_ move: ChessMove) -> Bool { legalMoves().contains(move) }
+
     mutating func legalMovesInPlace() -> [ChessMove] {
         let side = sideToMove
         var result: [ChessMove] = []
