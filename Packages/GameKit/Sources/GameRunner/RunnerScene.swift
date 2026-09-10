@@ -32,8 +32,13 @@ enum RunnerPalette {
     /// 穴の縁の警告帯。地面と同系色だと縁が分からず、落ちるかどうかの判断がつかない
     /// というQAを受けて追加（会長QA）。
     static let pitEdge: UInt32 = 0xFFD447
+    /// 穴の中身（奈落）。縁の帯だけでは「穴の中はただの空」に見え、幅の実感が湧かない
+    /// というQAを受けて追加（会長QA）。地面の断面よりさらに暗い色で、地面と穴を塗り分ける。
+    static let pitVoid: UInt32 = 0x141824
     /// 雲。空より明るい半透明の白。
     static let cloud: UInt32 = 0xFFFFFF
+    /// チェックポイントの目印。ゴール（`goal`）と見分けられる別の色にする。
+    static let checkpoint: UInt32 = 0x5FA8FF
 
     static func color(_ hex: UInt32) -> SKColor {
         SKColor(
@@ -194,6 +199,7 @@ final class RunnerScene: SKScene {
         var x: Double = 0
         for pit in stage.hazards where pit.kind == .pit {
             if pit.start > x { addGround(from: x, to: pit.start) }
+            addPitVoid(pit)
             addPitEdgeMarkers(pit)
             x = pit.end
         }
@@ -232,6 +238,20 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(node)
     }
 
+    /// 穴の中身（奈落）。縁の帯だけだと穴の内側が空と同じ色のままで、
+    /// 「本当にここが穴なのか・幅はどれくらいか」が伝わらなかった（会長QA）。
+    /// 地面と同じ矩形をそのまま塗り替えるだけなので、幅は `pit.start`〜`.end` の実寸そのもの
+    /// ——当たり判定（`RunnerField.isPit`）が見ている境界と完全に一致する。
+    private func addPitVoid(_ pit: RunnerHazard) {
+        let void = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.pitVoid),
+            size: CGSize(width: pit.length, height: Metrics.groundY)
+        )
+        void.anchorPoint = .zero
+        void.position = CGPoint(x: pit.start, y: 0)
+        courseLayer.addChild(void)
+    }
+
     /// 穴の縁の警告帯。地面と同系色の穴だけでは切れ目が分かりづらいというQAを受けて追加。
     /// 当たり判定には影響しない、純粋な見た目の追加。
     private func addPitEdgeMarkers(_ pit: RunnerHazard) {
@@ -263,15 +283,24 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(top)
     }
 
-    /// チェックポイントの目印（細い柱のみ。旗はゴールと見分けるために付けない）。
+    /// チェックポイントの目印。「緑の棒が何なのか分からない」というQAを受け、
+    /// 柱だけでなく丸いバッジを付けた（ゴールの三角旗とは形で見分けが付く）。
+    /// ここより先で失敗すると、広告視聴でここから再開できる（`RunnerModel.canResumeFromCheckpoint`）。
     private func addCheckpointMarker(at x: Double) {
         let pole = SKSpriteNode(
-            color: RunnerPalette.color(RunnerPalette.groundTop),
+            color: RunnerPalette.color(RunnerPalette.checkpoint),
             size: CGSize(width: 1, height: 9)
         )
         pole.anchorPoint = CGPoint(x: 0.5, y: 0)
         pole.position = CGPoint(x: x, y: Metrics.groundY)
         courseLayer.addChild(pole)
+
+        let badge = SKShapeNode(circleOfRadius: 1.6)
+        badge.fillColor = RunnerPalette.color(RunnerPalette.checkpoint)
+        badge.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
+        badge.lineWidth = 0.4
+        badge.position = CGPoint(x: x, y: Metrics.groundY + 9)
+        courseLayer.addChild(badge)
     }
 
     /// ゴールの目印（旗）。細い柱だけでは「何のオブジェクトか分からない」というQAを受け、
