@@ -34,7 +34,7 @@ struct SolitaireDragLocationTests {
 
     @Test("盤本体は指の位置を書くだけで読まない")
     func theBoardWritesTheFingerPositionButNeverReadsIt() throws {
-        // 追従表示（`CardDragLayer`）は Core へ移したので、このファイルは丸ごと「盤本体」になる。
+        // 追従表示（`CardDragLayer`）は Core へ移したので、ゲーム側のソースは丸ごと「盤本体」になる。
         // コメントは落とす。**この規約そのものを説明した注記まで「読んでいる」と数える**ため。
         let board = Self.strippingComments(try Self.viewSource())
 
@@ -50,12 +50,7 @@ struct SolitaireDragLocationTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameSolitaireTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameSolitaire/SolitaireView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SolitaireSources.joined()
     }
 
     /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。

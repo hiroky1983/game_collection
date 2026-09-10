@@ -117,12 +117,15 @@ struct CardTableTests {
 
     // MARK: - 受け入れ条件: 2 つのゲームが同じ基盤を使っている
 
+    // 読むのは**ゲームのソース一式**で、View のファイル 1 本ではない（#525）。
+    // ソリティアは画面を盤面・救済オーバーレイ・操作エリアに割ったので、1 本を名指しすると
+    // 「使っている」の検査は移した先を見失い、「戻っていない」の検査は空振りで素通りする。
     @Test("ソリティアとフリーセルが共通基盤を経由している", arguments: [
-        "Sources/GameSolitaire/SolitaireView.swift",
-        "Sources/GameFreeCell/FreeCellView.swift",
+        "Sources/GameSolitaire",
+        "Sources/GameFreeCell",
     ])
     func bothGamesGoThroughTheSharedBase(path: String) throws {
-        let source = Self.strippingComments(try Self.read(path))
+        let source = Self.strippingComments(try Self.readDirectory(path))
 
         for symbol in ["CardSlot(", "cardDropTarget(", "CardDragLayer(", "CardDealtView(",
                        "CardMotionID(", "CardDragLocation("] {
@@ -146,12 +149,29 @@ struct CardTableTests {
     }
 
     private static func read(_ path: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        try String(contentsOf: url(path), encoding: .utf8)
+    }
+
+    /// ディレクトリ直下の Swift ソースを名前順に連結する。
+    /// パスを間違えて 0 件になると検査がまるごと素通りするので、件数も確かめる。
+    private static func readDirectory(_ path: String) throws -> String {
+        let base = url(path)
+        let names = try FileManager.default
+            .contentsOfDirectory(atPath: base.path)
+            .filter { $0.hasSuffix(".swift") }
+            .sorted()
+        #expect(names.count >= 3, "\(path) のソースが読めていない")
+        return try names
+            .map { try String(contentsOf: base.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
+    }
+
+    private static func url(_ path: String) -> URL {
+        URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // ThemeTests
             .deletingLastPathComponent()   // Tests
             .deletingLastPathComponent()   // GameKit
             .appendingPathComponent(path)
-        return try String(contentsOf: url, encoding: .utf8)
     }
 
     /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
