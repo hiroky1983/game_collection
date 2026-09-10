@@ -96,4 +96,11 @@ public enum BlocksPhase: Equatable, Sendable {
 
     /// 決着してこれ以上進まない状態か。
     public var isFinished: Bool { self == .gameOver || self == .allCleared }
+
+    /// 毎フレームの描画ループが要る状態か（#522）。
+    ///
+    /// 一時停止とオーバーレイ表示中は画面の中身が動かないので、SpriteKit のループごと止める
+    /// （回し続けると電池だけを使う）。**発射前（`ready`）は含める**: 球は止まっていても
+    /// パドルはドラッグで動き、その追従はこのループの `sync()` が担っているため。
+    public var needsAnimationFrames: Bool { self == .ready || self == .playing }
 }

@@ -6,7 +6,8 @@ public struct ConcentrationView: View {
     private let services: GameServices
     @State private var showNewGame = false
     @State private var showMattaConfirm = false
-    @State private var showRewardNotEarned = false
+    /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var undoRescue = RewardedRescue()
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -72,16 +73,22 @@ public struct ConcentrationView: View {
         }
         .alert("待った確認", isPresented: $showMattaConfirm) {
             Button(model.mattaUsed ? "広告を見て戻す" : "戻す（無料）") {
-                Task {
-                    if model.mattaUsed {
-                        // 視聴完了（報酬獲得）したときだけ待ったを許可する
-                        guard await services.ads.showRewardedAd() else {
-                            showRewardNotEarned = true
-                            model.resumeAutoTurn()
-                            return
-                        }
-                    }
+                guard model.mattaUsed else {
+                    // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
+                    // 手番で盤を動かす（同じ transaction に乗せると札の変化が
+                    // アラートの終了アニメーションに巻き込まれる）。
+                    Task { model.useMatta() }
+                    return
+                }
+                // 視聴完了（報酬獲得）したときだけ待ったを許可する
+                undoRescue.request(
+                    services, gameID: model.gameID, purpose: .undo,
+                    guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）"),
+                    // 待ったの確認中は自動めくりを止めてあるので、見なかったときは再開させる。
+                    whenNotEarned: { model.resumeAutoTurn() }
+                ) {
                     model.useMatta()
+                    return true
                 }
             }
             Button("キャンセル", role: .cancel) { model.resumeAutoTurn() }
@@ -90,11 +97,7 @@ public struct ConcentrationView: View {
                  ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                  : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
         }
-        .alert("待ったは使えませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()
         }
@@ -331,87 +334,41 @@ struct ConcentrationNewGameSheet: View {
         self.onCancel = onCancel
     }
 
+    /// 題名が「4×4」「みならい」のような語なので、見出し書体ではなく本文書体で並べる。
+    private static let metrics = GameSetupChooser.Metrics(title: .body(16))
+
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                settingSection("盤面サイズ") {
-                    HStack(spacing: 12) {
-                        ForEach(ConcentrationPairCount.allCases, id: \.rawValue) { p in
-                            choiceButton(
-                                title: p.displayName,
-                                subtitle: p.subtitle,
-                                selected: selectedPairCount == p,
-                                accent: Theme.Fill.teal
-                            ) { selectedPairCount = p }
-                        }
+        GameSetupSheet(
+            title: "新規ゲーム", startTitle: "ゲーム開始", startTint: Theme.Fill.purple,
+            onStart: { onStart(selectedPairCount, selectedCPULevel) }, onCancel: onCancel
+        ) {
+            GameSetupSection("盤面サイズ") {
+                HStack(spacing: 12) {
+                    ForEach(ConcentrationPairCount.allCases, id: \.rawValue) { p in
+                        GameSetupChooser(
+                            title: p.displayName,
+                            subtitle: p.subtitle,
+                            selected: selectedPairCount == p,
+                            accent: Theme.Fill.teal,
+                            metrics: Self.metrics
+                        ) { selectedPairCount = p }
                     }
                 }
+            }
 
-                settingSection("CPUの強さ") {
-                    HStack(spacing: 12) {
-                        ForEach(ConcentrationCPULevel.allCases, id: \.rawValue) { l in
-                            choiceButton(
-                                title: l.displayName,
-                                subtitle: l.subtitle,
-                                selected: selectedCPULevel == l,
-                                accent: Theme.Fill.coral
-                            ) { selectedCPULevel = l }
-                        }
+            GameSetupSection("CPUの強さ") {
+                HStack(spacing: 12) {
+                    ForEach(ConcentrationCPULevel.allCases, id: \.rawValue) { l in
+                        GameSetupChooser(
+                            title: l.displayName,
+                            subtitle: l.subtitle,
+                            selected: selectedCPULevel == l,
+                            accent: Theme.Fill.coral,
+                            metrics: Self.metrics
+                        ) { selectedCPULevel = l }
                     }
                 }
-
-                Spacer()
-
-                Button { onStart(selectedPairCount, selectedCPULevel) } label: {
-                    Text("ゲーム開始")
-                        .themeBody(18)
-                        .frame(maxWidth: .infinity)
-                        .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(Theme.Fill.purple)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("新規ゲーム")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
-                }
             }
         }
-        .gameSheetDetents()
-    }
-
-    private func settingSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .themeBody(15)
-                .foregroundStyle(Theme.inkSub)
-            content()
-        }
-    }
-
-    private func choiceButton(title: String, subtitle: String, selected: Bool,
-                              accent: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title)
-                    .themeBody(16)
-                    .foregroundStyle(selected ? Theme.onAccent : Theme.ink)
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
-        }
-        .buttonStyle(.plain)
     }
 }

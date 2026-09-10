@@ -15,6 +15,10 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
+import GameBlockPuzzle
+import GameRunner
+import GameHanafuda
 import GameChess
 import MahjongTiles
 
@@ -877,6 +881,82 @@ struct GameRecordingTests {
         #expect(log.record(gameID: "solitaire")?.plays == 1)
     }
 
+    /// クリアまで指し切る経路はソルバーが要るので `GameFreeCellTests` で検証している。
+    /// ここでは**見出しの指標**と、クリア率を成立させるための「捨てた配札 = 敗北」を確かめる。
+    @Test("フリーセル: 最短タイムを見出しにし、捨てた配札は敗北として残る")
+    func freeCellRecordsTime() {
+        let (log, defaults, name) = makeLog(suite: "freecell")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = FreeCellModel(services: makeServices(log: log),
+                                  seed: FreeCellDealer.verifiedSeeds[0])
+        model.tapPile(0)
+        model.tapCell(0)
+        model.newGame()
+        #expect(model.recordResult == nil, "配り直した直後のリザルトは持ち越さない")
+        let record = log.record(gameID: "freecell")
+        #expect(record?.metric == .shortestTime)
+        #expect(record?.losses == 1)
+        #expect(record?.bestSeconds == nil, "クリアしていない局のタイムは自己ベストに入れない")
+
+        // 1 手も指していない配札の捨て直しは記録しない（確認ダイアログを出す境目と同じ）。
+        model.newGame()
+        #expect(log.record(gameID: "freecell")?.plays == 1)
+    }
+
+    @Test("ブロックならべ: スコアを見出しにし、詰みは敗北として残る")
+    func blockPuzzleRecordsScore() {
+        let (log, defaults, name) = makeLog(suite: "blockpuzzle")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
+        for i in 0..<10 { board[i][i] = 0 }
+        board[0][2] = 0
+        let model = BlockPuzzleModel(
+            services: makeServices(log: log), board: board,
+            hand: [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]],
+            score: 500
+        )
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        #expect(model.gameOver)
+
+        let record = log.record(gameID: "blockpuzzle")
+        #expect(record?.metric == .points)
+        #expect(record?.bestPoints == 501)
+        #expect(record?.losses == 1, "ハイスコア型なので決着は必ず敗北として数える")
+    }
+
+    @Test("チャリンコおじさん: 到達ステージ数を見出しにし、クリアは勝利として残る")
+    func runnerRecordsReachedStage() {
+        let (log, defaults, name) = makeLog(suite: "runner")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = RunnerModel(services: makeServices(log: log), startingAt: 4)
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+
+        let record = log.record(gameID: "runner")
+        #expect(record?.metric == .points)
+        #expect(record?.bestPoints == 4, "クリアしたステージ番号が到達点")
+        #expect(record?.wins == 1, "ステージクリアは勝ち")
+    }
+
+    @Test("花札こいこい: 合計文数を見出しにし、勝敗も残る")
+    func hanafudaRecordsPoints() {
+        let (log, defaults, name) = makeLog(suite: "hanafuda")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = playHanafudaMatch(makeServices(log: log))
+        #expect(model.phase == .matchResult)
+
+        let record = log.record(gameID: "hanafuda")
+        #expect(record?.metric == .points, "1 行で出すのは合計文数")
+        #expect(record?.bestPoints == model.humanTotal)
+        #expect(record?.plays == 1, "1 試合で 1 プレイ（局ごとには数えない）")
+        // 勝敗は指標に選ばなくても記録される。
+        #expect((record?.wins ?? 0) + (record?.losses ?? 0) + (record?.draws ?? 0) == 1)
+    }
+
     @Test("囲碁: 対 CPU 戦なので勝敗を記録する")
     func goRecordsWinLoss() {
         let (log, defaults, name) = makeLog(suite: "go")
@@ -1137,4 +1217,47 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             return
         }
     }
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
 }

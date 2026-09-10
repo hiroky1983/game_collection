@@ -9,7 +9,8 @@ public struct ShogiView: View {
     @State private var showConfirmNewGame = false
     @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
-    @State private var showRewardNotEarned = false
+    /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var undoRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（#200）。
     /// 表示局面が変わるたびに更新し、駒の層はこれだけを見て描く。
     @State private var pieceLayout: ShogiPieceLayout
@@ -105,12 +106,22 @@ public struct ShogiView: View {
             #endif
         }
         // 王手が掛かった瞬間だけ文字を出し、少し置いて引っ込める（#377）。
-        // `.task(id:)` にしておくと、続けて王手が掛かったときに前の待機が破棄されるので、
-        // 古い着手の後始末が新しい合図を消してしまうことがない。
+        //
+        // 引っ込めるのは**自分が出した合図がまだ出ているときだけ**にする。`.task(id:)` は
+        // 契機が変わると古いタスクを取り消すが、`Task.sleep` の `CancellationError` は
+        // `try?` が飲み込むので、古いタスクはそのまま最後の行まで走る。素朴に nil を書くと、
+        // 続けて王手が掛かったときに**古い後始末が新しい合図を消す**（チェス側で先に判明。#519）。
         .task(id: model.checkEventID) {
-            guard model.checkEventID > 0 else { return }
-            checkBannerID = model.checkEventID
+            let id = model.checkEventID
+            guard id > 0 else { return }
+            checkBannerID = id
             try? await Task.sleep(for: .seconds(ShogiMotion.checkBannerHold))
+            if checkBannerID == id { checkBannerID = nil }
+        }
+        // 待った・新規対局・投了で盤の意味が変わったら、上の固定待ちを待たずに札を畳む（#519）。
+        // `checkEventID` は着手でしか増えないので、局面を戻しても上の `.task` は走り直さず、
+        // 王手でない盤の上に最大 1.1 秒ぶん札が残っていた。
+        .onChange(of: model.checkBannerDismissID) { _, _ in
             checkBannerID = nil
         }
         // 人間の着手・CPU の着手・待った・検討ナビのどれで局面が変わっても、
@@ -154,6 +165,7 @@ public struct ShogiView: View {
                 // 画面いっぱいの暗幕まで拡縮して、幕の縁が動いて見える。
                 Color.black.opacity(0.35).ignoresSafeArea()
                     .transition(.opacity)
+                    .onTapGesture { model.cancelPromotion() }
                 VStack(spacing: 20) {
                     Text("成りますか？")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -178,6 +190,9 @@ public struct ShogiView: View {
                                 .foregroundStyle(Theme.onAccent)
                         }
                     }
+                    Button("やめる") { model.cancelPromotion() }
+                        .themeBody(14)
+                        .foregroundStyle(Theme.inkSub)
                 }
                 .padding(28)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
@@ -491,15 +506,20 @@ public struct ShogiView: View {
             .disabled(!model.canUndo)
             .alert("待った確認", isPresented: $showUndoConfirm) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    Task {
-                        if model.undoUsed {
-                            // 視聴完了（報酬獲得）したときだけ待ったを許可する
-                            guard await services.ads.showRewardedAd() else {
-                                showRewardNotEarned = true
-                                return
-                            }
-                        }
+                    guard model.undoUsed else {
+                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
+                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
+                        // アラートの終了アニメーションに巻き込まれる）。
+                        Task { model.undoLastExchange() }
+                        return
+                    }
+                    // 視聴完了（報酬獲得）したときだけ待ったを許可する
+                    undoRescue.request(
+                        services, gameID: model.gameID, purpose: .undo,
+                        guardedBy: .unchecked(note: "対局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                    ) {
                         model.undoLastExchange()
+                        return true
                     }
                 }
                 Button("キャンセル", role: .cancel) {}
@@ -508,11 +528,7 @@ public struct ShogiView: View {
                      ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                      : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
             }
-            .alert("待ったは使えませんでした", isPresented: $showRewardNotEarned) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-            }
+            .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 5)
@@ -563,66 +579,29 @@ struct NewGameSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                section("あなたの手番") {
-                    HStack(spacing: 12) {
-                        chooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black,
-                                accent: Theme.fillStrong, onAccent: .white) { side = .black }
-                        chooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white, accent: Theme.Fill.teal) { side = .white }
-                    }
+        GameSetupSheet(
+            title: "新規対局", startTitle: "対局開始",
+            onStart: { onStart(side, level) }, onCancel: onCancel
+        ) {
+            GameSetupSection("あなたの手番") {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: "先手", subtitle: "▲ 先に指す", selected: side == .black,
+                                     accent: Theme.fillStrong, onAccent: .white) { side = .black }
+                    GameSetupChooser(title: "後手", subtitle: "△ 後に指す", selected: side == .white,
+                                     accent: Theme.Fill.teal) { side = .white }
                 }
-                section("CPUの強さ") {
-                    HStack(spacing: 12) {
-                        chooser(title: "弱", subtitle: "駒得だけ", selected: level == 0, accent: Theme.Fill.teal) { level = 0 }
-                        chooser(title: "普通", subtitle: "囲いを作る", selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
-                        chooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2, accent: Theme.Fill.coral) { level = 2 }
-                    }
-                }
-                Spacer()
-                Button { onStart(side, level) } label: {
-                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("新規対局")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
+            GameSetupSection("CPUの強さ") {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: "弱", subtitle: "駒得だけ", selected: level == 0,
+                                     accent: Theme.Fill.teal) { level = 0 }
+                    GameSetupChooser(title: "普通", subtitle: "囲いを作る", selected: level == 1,
+                                     accent: Theme.Fill.yellow) { level = 1 }
+                    GameSetupChooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2,
+                                     accent: Theme.Fill.coral) { level = 2 }
                 }
             }
         }
-        .gameSheetDetents()
-    }
-
-    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
-            content()
-        }
-    }
-
-    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
-    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
-    private func chooser(title: String, subtitle: String, selected: Bool, accent: Color,
-                         onAccent: Color = Theme.onAccent, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? onAccent : Theme.ink)
-                Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
-        }
-        .buttonStyle(.plain)
     }
 }
 

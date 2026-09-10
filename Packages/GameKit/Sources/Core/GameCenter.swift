@@ -76,6 +76,15 @@ public enum GameCenterLeaderboard {
     public static let blackjackChips = "asobiba.blackjack.chips"
     /// ブロック崩し（#463）。ステージ構成は全員共通で、同じ条件で比べられるため対象にする。
     public static let blocksScore    = "asobiba.blocks.score"
+    /// ブロックならべ（#493）。盤・ピースの出方は全員共通なので区分を持たない表 1 つ。
+    public static let blockPuzzleScore = "asobiba.blockpuzzle.score"
+    /// チャリンコおじさん（#494）。送るのは**到達ステージ数**（High to Low）。
+    /// コースは全員共通で、同じ地形を同じ速さで走るため比べられる。
+    public static let runnerStage   = "asobiba.runner.stage"
+    /// 花札こいこい（#495）。送るのは**1 試合で稼いだ合計文数**（High to Low）。
+    /// 局数は 6 / 12 から選べるが、区分は分けない（12 局のほうが伸びるのは
+    /// 「長く打った」ぶんで、同じ土俵の上位を狙う指標として成り立つ）。
+    public static let hanafudaPoints = "asobiba.hanafuda.points"
 
     // 短いほど良い（App Store Connect では「Low to High」・フォーマットは経過時間で登録する）
     public static let minesweeperBeginner     = "asobiba.minesweeper.time.beginner"
@@ -87,13 +96,16 @@ public enum GameCenterLeaderboard {
     public static let mahjongSolitaireTime    = "asobiba.mahjongsolitaire.time"
     /// ソリティア（クロンダイク・#397）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
     public static let solitaireTime           = "asobiba.solitaire.time"
+    /// フリーセル（#492）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
+    public static let freeCellTime            = "asobiba.freecell.time"
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
-        game2048Score, pokerChips, blackjackChips, blocksScore,
+        game2048Score, pokerChips, blackjackChips, blocksScore, blockPuzzleScore, runnerStage,
+        hanafudaPoints,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
-        solitaireTime,
+        solitaireTime, freeCellTime,
     ]
 
     /// 決着 1 回を送るリーダーボードと値。対象外なら nil（＝何も送らない）。
@@ -138,6 +150,14 @@ public enum GameCenterLeaderboard {
         // ブロック崩し（#463）。コンティニュー（リワード広告）を使った回は
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
         case "blocks":    return blocksScore
+        // ブロックならべ（#493）。コンティニュー（リワード広告）を使った回は
+        // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
+        case "blockpuzzle": return blockPuzzleScore
+        // チャリンコおじさん（#494）。チェックポイント再開（リワード広告）を使ったステージは
+        // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
+        case "runner":    return runnerStage
+        // 花札こいこい（#495）。試合の合計文数を送る。
+        case "hanafuda":  return hanafudaPoints
         default:          return nil
         }
     }
@@ -174,11 +194,16 @@ public enum GameCenterLeaderboard {
             default:         return nil
             }
         case "solitaire":
-            // 区分を持たないので、区分キーが付いていないときだけ送る。
-            // ジョーカー（中継札）を使ったクリアの除外は区分ではなく `isLeaderboardEligible`
-            // （上の `score(gameID:outcome:score:)` の先頭）で行う。区分で分けると
-            // ローカルの自己ベストまで「ジョーカーあり / なし」の 2 行に割れてしまう（#406）。
+            // **標準（1 枚めくり）だけを順位表に載せる**。3 枚めくり（#498）は区分キー
+            // `draw3` が付くのでここで弾かれる（`isLeaderboardEligible` でも弾いてあり二重）。
+            // 一方、ジョーカー（中継札）を使ったクリアの除外は区分ではなく
+            // `isLeaderboardEligible`（上の `score(gameID:outcome:score:)` の先頭）で行う。
+            // 区分で分けるとローカルの自己ベストまで「ジョーカーあり / なし」の 2 行に割れる（#406）。
             return variant == nil ? solitaireTime : nil
+        case "freecell":
+            // 区分を持たないので、区分キーが付いていないときだけ送る（#492）。
+            // フリーセルは救済アイテムを持たないため、ソリティアのような除外の分岐も要らない。
+            return variant == nil ? freeCellTime : nil
         case "sudoku":
             // 区分キーは `SudokuDifficulty` の rawValue。
             switch variant {

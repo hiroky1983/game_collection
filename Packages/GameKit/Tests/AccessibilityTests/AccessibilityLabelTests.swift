@@ -8,6 +8,7 @@ import Testing
 @testable import GameSudoku
 @testable import GameGo
 @testable import GameSolitaire
+@testable import GameFreeCell
 @testable import GameChess
 @testable import MahjongTiles
 
@@ -525,6 +526,20 @@ struct SolitaireAccessibilityTests {
                 == "捨て札、スペードのA、選択中")
     }
 
+    @Test("3枚めくりでは、下に重なって見えている札も読む")
+    func wasteWithCoveredCards() {
+        // 画面に出ているのに音声では取れない、という差を作らない（#498）。
+        #expect(SolitaireAccessibility.wasteLabel(
+            card: SolitaireCard(.club, 12),
+            isSelected: false,
+            covered: [SolitaireCard(.heart, 9), SolitaireCard(.heart, 8)]
+        ) == "捨て札、クラブのQ、下にハートの9、ハートの8")
+        // 1枚めくり（重なりなし）の文言は変わらない。
+        #expect(SolitaireAccessibility.wasteLabel(
+            card: SolitaireCard(.club, 12), isSelected: false, covered: []
+        ) == SolitaireAccessibility.wasteLabel(card: SolitaireCard(.club, 12), isSelected: false))
+    }
+
     @Test("ステータスは経過・手数・詰みを 1 行で読む")
     func status() {
         #expect(SolitaireAccessibility.statusLabel(
@@ -540,5 +555,92 @@ struct SolitaireAccessibilityTests {
     func cardNames() {
         #expect(SolitaireAccessibility.cardLabel(SolitaireCard(.spade, 11)) == "スペードのJ")
         #expect(SolitaireAccessibility.cardLabel(.joker) == "ジョーカー")
+    }
+}
+
+@Suite("フリーセルの読み上げ文")
+struct FreeCellAccessibilityTests {
+
+    @Test("場札は 列・枚数・札・上に載る枚数 を読む")
+    func tableauCard() {
+        let label = FreeCellAccessibility.tableauCardLabel(
+            pile: 2, position: 1, aboveCount: 2,
+            card: FreeCellCard(.heart, 7), isSelected: true, isMovable: true
+        )
+        #expect(label == "3列目、2枚目、ハートの7、上に2枚、選択中")
+    }
+
+    @Test("動かせない札はそのことを読む（見た目には出ない情報）")
+    func immovableCard() {
+        let label = FreeCellAccessibility.tableauCardLabel(
+            pile: 0, position: 0, aboveCount: 1,
+            card: FreeCellCard(.spade, 13), isSelected: false, isMovable: false
+        )
+        #expect(label.hasSuffix("動かせません"))
+    }
+
+    /// クロンダイク（K だけ）と規則が違うので、そこまで読まないと誤解される。
+    @Test("空の列は「どの札でも置ける」ことまで読む")
+    func emptyPile() {
+        #expect(FreeCellAccessibility.emptyPileLabel(pile: 7) == "8列目、空、どの札でも置けます")
+    }
+
+    @Test("フリーセルは空と選択中を読み分ける")
+    func cell() {
+        #expect(FreeCellAccessibility.cellLabel(index: 1, card: nil, isSelected: false)
+                == "フリーセル2、空")
+        #expect(FreeCellAccessibility.cellLabel(index: 0, card: FreeCellCard(.diamond, 13),
+                                                isSelected: true)
+                == "フリーセル1、ダイヤのK、選択中")
+    }
+
+    @Test("組札は空とどこまで積んだかを読み分ける")
+    func foundation() {
+        #expect(FreeCellAccessibility.foundationLabel(suit: .club, rank: 0) == "クラブの組札、空")
+        #expect(FreeCellAccessibility.foundationLabel(suit: .diamond, rank: 12) == "ダイヤの組札、Qまで")
+    }
+
+    /// 手が通らない理由のほとんどは枚数の上限なので、音声でも必ず分かるようにする。
+    @Test("ステータスは配札番号・経過・手数・一度に動かせる枚数を読む")
+    func status() {
+        let playing = FreeCellAccessibility.statusLabel(
+            phase: .playing, elapsedSeconds: 65, moveCount: 12,
+            dealNumber: 137, maxMovableCount: 5, isDeadEnd: false)
+        #expect(playing == "配札137番、経過1:05、12手、一度に5枚まで動かせます")
+
+        let dead = FreeCellAccessibility.statusLabel(
+            phase: .playing, elapsedSeconds: 65, moveCount: 12,
+            dealNumber: 137, maxMovableCount: 1, isDeadEnd: true)
+        #expect(dead.hasPrefix("指せる手がありません。"))
+
+        let won = FreeCellAccessibility.statusLabel(
+            phase: .won, elapsedSeconds: 65, moveCount: 12,
+            dealNumber: 137, maxMovableCount: 1, isDeadEnd: false)
+        #expect(won.hasPrefix("クリア。"))
+        #expect(!won.contains("動かせます"), "決着後に操作の案内を読まない")
+    }
+
+    @Test("「戻す」は残り回数を必ず読む")
+    func undoButton() {
+        #expect(FreeCellAccessibility.undoButtonLabel(remaining: 2) == "1手戻す、残り2回")
+        #expect(FreeCellAccessibility.undoButtonLabel(remaining: 0) == "1手戻す、残りなし")
+        #expect(FreeCellAccessibility.undoButtonHint(canUndo: false, remaining: 3)
+                == "まだ戻せる手がありません")
+        #expect(FreeCellAccessibility.undoButtonHint(canUndo: true, remaining: 0)
+                .contains("\(FreeCellUndoBudget.refill)回"))
+    }
+
+    /// 合法手が本当にゼロなので、クロンダイク（#491）のように「まだ触れる」と含みを持たせない。
+    @Test("行き止まりの告知は、残っている選択肢まで読み分ける")
+    func deadEndPrompt() {
+        let canUndo = FreeCellAccessibility.deadEndPromptLabel(canUndo: true, remaining: 2)
+        #expect(canUndo.contains("手を戻せます"))
+        #expect(canUndo.contains("残り2回"))
+
+        let noCredit = FreeCellAccessibility.deadEndPromptLabel(canUndo: true, remaining: 0)
+        #expect(noCredit.contains("広告"))
+
+        let fresh = FreeCellAccessibility.deadEndPromptLabel(canUndo: false, remaining: 3)
+        #expect(fresh.contains("新しい配札"))
     }
 }

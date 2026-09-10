@@ -147,7 +147,7 @@ public extension HowToPlayGuide {
         lines: [
             "チップを賭ける枚数（ベット）を選ぶと、カードが配られます。",
             "カードの合計を 21 に近づけたほうが勝ち。21 を超えると負けです。",
-            "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ数字を 2 手に分ける「スプリット」も選べます。",
+            "「ヒット」でもう 1 枚引き、「スタンド」でそこで止めます。最初の 2 枚では、賭けを倍にして 1 枚だけ引く「ダブルダウン」と、同じ点数の 2 枚（10・J・Q・K は同じ 10 点）を 2 手に分ける「スプリット」も選べます。",
         ],
         hint: "21 に近づけたほうが勝ち",
         hintIcon: "suit.spade.fill"
@@ -225,6 +225,30 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.stack.fill"
     )
 
+    static let freecell = HowToPlayGuide(
+        gameID: "freecell",
+        title: "フリーセルの遊び方",
+        lines: [
+            "動かす札をタップして選び、置きたい列か、左上のフリーセル、右上の組札をタップします。",
+            "場札は1つ小さくて色ちがいの札だけ重ねられます（黒の8 の上に 赤の7）。空いた列にはどの札でも置けます。",
+            "♠♥♦♣ ごとに A から K まで組札に積み上げたらクリアです。52枚すべて最初から見えています。",
+        ],
+        hint: "札をタップ → 置き先をタップ",
+        hintIcon: "rectangle.grid.1x2.fill"
+    )
+
+    static let blockPuzzle = HowToPlayGuide(
+        gameID: "blockpuzzle",
+        title: "ブロックならべの遊び方",
+        lines: [
+            "下に出ている3つのピースを、盤の空いているところへドラッグして置きます。",
+            "たて1列・よこ1行がすべて埋まると、その並びが消えて点になります。",
+            "3つ置くと次の3つが出ます。どれも置けなくなったらゲームオーバーです。",
+        ],
+        hint: "ピースを盤へドラッグ",
+        hintIcon: "hand.draw.fill"
+    )
+
     static let blocks = HowToPlayGuide(
         gameID: "blocks",
         title: "ブロック崩しの遊び方",
@@ -238,10 +262,37 @@ public extension HowToPlayGuide {
     )
 
     /// 全ゲームぶん。テストで「登録漏れが無いか」を突き合わせるのに使う。
+    static let runner = HowToPlayGuide(
+        gameID: "runner",
+        title: "チャリンコおじさんの遊び方",
+        lines: [
+            "画面をタップするとおじさんが走り出します。あとは自動で右へ進みます。",
+            "タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ってタイムが縮みます。",
+            "ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。",
+        ],
+        hint: "タップでジャンプ",
+        hintIcon: "hand.tap.fill"
+    )
+
+    /// 花札こいこい（#495）。役の一覧は 3 行に収まらないので、対局中の「役」ボタンと
+    /// 「くわしいルール」に送る。ここには**合わせ方**だけを書く。
+    static let hanafuda = HowToPlayGuide(
+        gameID: "hanafuda",
+        title: "花札こいこいの遊び方",
+        lines: [
+            "手札を1枚選ぶと、場にある同じ月の札と合わせて取れます。左上の数字が月です。",
+            "続けて山札が1枚めくれます。こちらも同じ月の札と合わさります。",
+            "役ができたら「あがり」で得点、「こいこい」で続けて役を伸ばせます。",
+        ],
+        hint: "同じ月を合わせる",
+        hintIcon: "leaf.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
-        .sudoku, .go, .solitaire, .chess, .blocks,
+        .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
+        .hanafuda,
     ]
 }
 

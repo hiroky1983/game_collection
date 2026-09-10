@@ -16,6 +16,10 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
+import GameBlockPuzzle
+import GameRunner
+import GameHanafuda
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -165,6 +169,41 @@ private func playGo(_ services: GameServices) async {
     model.tap(row: 4, col: 4)           // 拒否（すでに石がある）
     model.tap(row: -1, col: 4)          // 拒否（盤外）
     model.resign()                      // 決着
+}
+
+/// ブロックならべ（#493）。拒否（置けない位置）→ 成立（1×1 を置く）→ 決着（置ける形が尽きる）を
+/// 1 つの盤で通す。空きは対角線と (0, 2) だけで、どれも隣り合っていないので 1×1 しか置けない。
+@MainActor
+private func playBlockPuzzle(_ services: GameServices) {
+    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
+    for i in 0..<10 { board[i][i] = 0 }
+    board[0][2] = 0
+    let model = BlockPuzzleModel(
+        services: services, board: board,
+        hand: [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
+    )
+    model.place(pieceIndex: 1, row: 0, col: 0)   // 拒否（3×3 は置けない）
+    model.place(pieceIndex: 0, row: 0, col: 2)   // 成立 → 置ける形が尽きて決着
+}
+
+/// チャリンコおじさん（#494）。ミス（決着ではない失敗）→ リトライ → ステージクリア（決着）を通す。
+@MainActor
+private func playRunner(_ services: GameServices) {
+    let model = RunnerModel(services: services, startingAt: 1)
+    failRunnerStage(model)      // 跳ばずに走って穴に落ちる
+    model.retryStage()
+    clearRunnerStage(model)     // 自動操縦でゴールまで
+}
+
+/// フリーセル（#492）。決着まで指し切るにはソルバーが要る（`GameFreeCellTests` で通しを検証済み）ため、
+/// ここでは**捨てた配札が敗北として決着する**経路を使う。操作・拒否・決着がこれで一通り出る。
+@MainActor
+private func playFreeCell(_ services: GameServices) {
+    let model = FreeCellModel(services: services, seed: FreeCellDealer.verifiedSeeds[0])
+    model.tapCell(0)   // 拒否（空のセルを何も持たずに触った）
+    model.tapPile(0)   // 持ち上げ
+    model.tapCell(0)   // 成立（セルへ退避）
+    model.newGame()    // 決着（指した配札を捨てた = 敗北）
 }
 
 /// ソリティア（#397）。決着まで指し切るにはソルバーが要る（`GameSolitaireTests` で通しを検証済み）ため、
@@ -408,6 +447,9 @@ private func playAllGames(_ services: GameServices) async {
     playMahjong(services)
     await playSudoku(services)
     playBlocks(services)
+    playBlockPuzzle(services)
+    playRunner(services)
+    _ = playHanafudaMatch(services)
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -467,9 +509,38 @@ struct FeedbackEnabledTests {
     func solitaire() {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playSolitaire(services)
+        playFreeCell(services)
         #expect(spy.impacts.contains(.light), "山めくりで発火する")
         #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
         #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
+    }
+
+    @Test("ブロックならべ: 配置・置けない位置・詰みで発火する")
+    func blockPuzzle() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        playBlockPuzzle(services)
+        #expect(spy.impacts.contains(.light), "置けたときに発火する")
+        #expect(spy.notices(of: .warning) > 0, "置けない位置は拒否として発火する")
+        #expect(spy.notices(of: .error) > 0, "詰みは決着として発火する")
+    }
+
+    @Test("花札こいこい: 札を出す・取る・決着で発火する")
+    func hanafuda() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        _ = playHanafudaMatch(services)
+        #expect(spy.impacts.contains(.medium), "配りで発火する")
+        #expect(spy.impacts.contains(.rigid), "札を取ると発火する")
+        #expect(spy.notices(of: .success) > 0 || spy.notices(of: .error) > 0
+                || spy.notices(of: .warning) > 0, "局・試合の決着で発火する")
+    }
+
+    @Test("チャリンコおじさん: 踏み切り・ミス・クリアで発火する")
+    func runner() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        playRunner(services)
+        #expect(spy.impacts.contains(.light), "踏み切り・着地で発火する")
+        #expect(spy.notices(of: .error) > 0, "ミスは失敗として発火する")
+        #expect(spy.notices(of: .success) > 0, "ステージクリアは決着として発火する")
     }
 
     /// CPU の手番中のタップ（#202）。`playGomoku` は人間の手番に戻してから拒否を作るため、
@@ -732,7 +803,11 @@ struct SoundFeedbackTests {
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
         await check("ソリティア") { playSolitaire($0) }
+        await check("フリーセル") { playFreeCell($0) }
         await check("ブロック崩し") { playBlocks($0) }
+        await check("ブロックならべ") { playBlockPuzzle($0) }
+        await check("チャリンコおじさん") { playRunner($0) }
+        await check("花札こいこい") { _ = playHanafudaMatch($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
             model.startGame()
@@ -824,4 +899,60 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             return
         }
     }
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 一度も跳ばずに走らせてミスさせる。
+@MainActor
+private func failRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
 }

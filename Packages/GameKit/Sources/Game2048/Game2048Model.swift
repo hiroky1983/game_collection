@@ -18,7 +18,8 @@ public final class Game2048Model {
     public private(set) var recordResult: RecordResult?
 
     private let services: GameServices?
-    private let gameID = "2048"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "2048"
 
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     public init(services: GameServices? = nil) {
@@ -34,6 +35,9 @@ public final class Game2048Model {
             continueUsed = snap.continueUsed
             // 到達済みフラグも復元する。復元しないと再起動のたびに勝利演出が出せてしまう（#438）。
             hasWon = snap.hasWon
+            // 演出を出したまま中断していたら出し直す（#516）。ここで落とすと「続ける / もう一度」を
+            // 選ばないうちに選択肢が消え、続行が次の 1 プレイとして数え直されない。
+            showWinPrompt = snap.showWinPrompt
         } else {
             initialBoard = Game2048Logic.emptyBoard()
             initialScore = 0
@@ -76,6 +80,8 @@ public final class Game2048Model {
 
         board = result.board
         score += result.gained
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         Self.spawn(into: &board)
 
         // この手で初めて 2048 を作ったか（#438）。新タイルは 2 か 4 なので、判定は合体の結果だけを見る。
@@ -118,6 +124,9 @@ public final class Game2048Model {
         guard showWinPrompt else { return }
         showWinPrompt = false
         recordResult = nil
+        // 下ろしたことを中断データにも書く（#516）。書かないと、続行後に中断・復元するたびに
+        // 演出が出直し、そのつど `gameDidRestart` が走って `game_start` だけが増える。
+        persist()
         services?.gameDidRestart(gameID: gameID)
     }
 
@@ -158,7 +167,13 @@ public final class Game2048Model {
     private func persist() {
         guard !gameOver else { return }
         try? services?.snapshots.save(
-            Game2048Snapshot(board: board, score: score, continueUsed: continueUsed, hasWon: hasWon),
+            Game2048Snapshot(
+                board: board,
+                score: score,
+                continueUsed: continueUsed,
+                hasWon: hasWon,
+                showWinPrompt: showWinPrompt
+            ),
             for: gameID
         )
     }

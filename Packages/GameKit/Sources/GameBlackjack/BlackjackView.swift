@@ -7,8 +7,8 @@ public struct BlackjackView: View {
     @Environment(\.dismiss) private var dismiss
     /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
-    @State private var showRewardNotEarned = false
-    @State private var isRecoveringChips = false
+    /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
+    @State private var reviveRescue = RewardedRescue()
 
     // ベット選択肢
     private let betOptions = [50, 100, 200, 500]
@@ -77,11 +77,7 @@ public struct BlackjackView: View {
             }
             #endif
         }
-        .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
     }
 
     // MARK: - Chips Bar
@@ -397,6 +393,23 @@ public struct BlackjackView: View {
 
     // MARK: - Session Over
 
+    /// チップ切れの見出し下の説明。復活を使い切ったら選べる手を書き換える（#499）。
+    /// 数値は `Text` 補間の桁区切り（#484）を避けて文字列を先に組む。
+    private var sessionOverSubtitle: String {
+        model.canReviveAfterBust
+            ? "広告を見て\(BlackjackModel.reviveChips)枚で復活するか、最初からやり直せます"
+            : "復活はこのセッションで使いました。最初からやり直せます"
+    }
+
+    /// 復活導線の文言。回数制限を見た目にも出す（#499）。
+    private var reviveButtonTitle: String {
+        "広告を見て\(BlackjackModel.reviveChips)枚で復活（1セッションに1回）"
+    }
+
+    private var restartButtonTitle: String {
+        "最初からやり直す (\(BlackjackModel.initialChips)枚)"
+    }
+
     private var sessionOverView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -407,7 +420,7 @@ public struct BlackjackView: View {
                     Text("チップがなくなりました")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.coral)
-                    Text("広告を見て500枚回復するか、最初からやり直せます")
+                    Text(sessionOverSubtitle)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                 }
@@ -417,24 +430,27 @@ public struct BlackjackView: View {
             // チップが尽きた回は resultView ではなくこちらが出るため、記録行もここに置く。
             RecordLabel(model.recordResult)
 
-            Button {
-                // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-                guard !isRecoveringChips else { return }
-                isRecoveringChips = true
-                Task {
-                    if await model.recoverChipsAfterAd() == false { showRewardNotEarned = true }
-                    isRecoveringChips = false
+            // チップ切れ復活（#499）。麻雀のトビ復活（#338）と同じ形
+            // （リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
+            // 使い切ったセッションではボタンごと消す。
+            if model.canReviveAfterBust {
+                Button {
+                    // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
+                    // `recoverChipsAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
+                    reviveRescue.requestHandledByModel { await model.recoverChipsAfterAd() }
+                } label: {
+                    // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
+                    Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
+                        .themeBody(16).frame(maxWidth: .infinity)
+                        .minimumScaleFactor(0.8)
+                        .foregroundStyle(Theme.onAccent)
                 }
-            } label: {
-                Label("広告を見てチップ回復 (+500枚)", systemImage: "play.rectangle.fill")
-                    .themeBody(16).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+                .disabled(reviveRescue.isWatching)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
-            .disabled(isRecoveringChips)
 
             Button { model.restartSession() } label: {
-                Text("最初からやり直す (1000枚)").themeBody(16).frame(maxWidth: .infinity)
+                Text(restartButtonTitle).themeBody(16).frame(maxWidth: .infinity)
                 .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)

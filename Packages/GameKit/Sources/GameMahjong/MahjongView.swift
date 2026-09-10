@@ -17,23 +17,39 @@ public struct MahjongView: View {
     /// 邪魔になるので、一覧経由のときだけ立てる。送り終えたら nil に戻す。
     @State private var overviewScrollTarget: String?
     /// トビ復活（#338）。ポーカー・ブラックジャックの「広告を見てチップ回復」と同じ持ち方。
-    @State private var showRewardNotEarned = false
-    @State private var isReviving = false
+    /// トビ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
+    @State private var reviveRescue = RewardedRescue()
+    /// 役の早見表（#501）。`MahjongModel` には触れないので、開閉しても対局の状態は動かない。
+    @State private var showYakuSheet = false
 
     public init(services: GameServices) {
         self.services = services
         let m = MahjongModel(services: services)
         _model = State(initialValue: m)
         let hasSnapshot = services.snapshots.exists(for: "mahjong4")
-        // デバッグ用: 会長がシミュレータで毎回手動プレイして確認する手間を省くための
+        // デバッグ用（DEBUG 限定）: 会長がシミュレータで毎回手動プレイして確認する手間を省くための
         // 自動進行モード。起動引数（`-mahjongAutoPlay`）でだけ有効になり、通常起動には影響しない。
         // 開始シートのタップも省き、対局が無ければその場で最初の局を配る。
+        // Release に残すと起動引数を注入するだけで全自動対局が回り、その戦績が Game Center の
+        // 実績（wins10 / wins50 / playAll）に載ってしまうため、下の早見表と同じ形で囲う（#514）。
+        #if DEBUG
         let autoPlay = ProcessInfo.processInfo.arguments.contains("-mahjongAutoPlay")
         if autoPlay {
             m.enableAutoPlay()
             if !hasSnapshot { m.startGame() }
         }
-        _showStartSheet = State(initialValue: !hasSnapshot && !autoPlay)
+        #else
+        let autoPlay = false
+        #endif
+        // 撮影用（DEBUG 限定）: 早見表を出す起動では開始シートを最初から出さない。
+        // 同じビューの `.sheet` は 2 つ同時に出せないため、`.task` で開始シートを畳むだけだと
+        // 開始シートが一瞬見えたり、早見表が出そこねたりする（CodeRabbit 指摘）。
+        #if DEBUG
+        let showsYakuOnLaunch = ProcessInfo.processInfo.arguments.contains("-mahjongShowYaku")
+        #else
+        let showsYakuOnLaunch = false
+        #endif
+        _showStartSheet = State(initialValue: !hasSnapshot && !autoPlay && !showsYakuOnLaunch)
     }
 
     public var body: some View {
@@ -94,9 +110,21 @@ public struct MahjongView: View {
                 Text("麻雀")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
+            // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
+            // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
+            // 早見表をここに置く（#501。花札 #495 と同じ置き方）。ツールバーは `Label` を
+            // アイコンだけに畳むので、文字を出すために `Text` を直接渡す。
+            ToolbarItem(placement: .primaryAction) {
+                Button { showYakuSheet = true } label: {
+                    Text("役")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                }
+                .accessibilityLabel("役の早見表")
+            }
         }
         // 役と点数は 3 行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.mahjong) { MahjongRuleSheet() }
+        .sheet(isPresented: $showYakuSheet) { MahjongYakuSheet() }
         .sheet(isPresented: $showStartSheet) {
             MahjongStartSheet {
                 showStartSheet = false
@@ -126,6 +154,15 @@ public struct MahjongView: View {
                 model.simulateWinResultForTesting()
                 return
             }
+            // 撮影・動作確認用（DEBUG 限定）: 役の早見表（#501）を非対話で開く。
+            // シミュレータはタップを自動化できず、中断データの注入では「シートが開いている」
+            // 状態を作れないため、早見表はこの経路でしか撮れない。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongShowYaku") {
+                showStartSheet = false
+                if model.phase == .idle { model.startGame() }
+                showYakuSheet = true
+                return
+            }
             #endif
             // 中断から戻ったときに手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
@@ -140,11 +177,7 @@ public struct MahjongView: View {
         .onChange(of: model.currentPlayer) {
             selectedTileID = nil
         }
-        .alert("復活できませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(reviveRescue, notEarned: "復活できませんでした")
     }
 
     // MARK: - 雀卓
@@ -876,17 +909,12 @@ public struct MahjongView: View {
     /// 「広告を見てチップ回復」と同じ形（リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
     private var reviveButton: some View {
         Button {
-            // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-            guard !isReviving else { return }
-            isReviving = true
-            Task {
-                let revived = await model.reviveAfterAd()
-                isReviving = false
-                if revived {
-                    await model.runCPUTurnsIfNeeded()
-                } else {
-                    showRewardNotEarned = true
-                }
+            // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と復活は
+            // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
+            reviveRescue.requestHandledByModel {
+                await model.reviveAfterAd()
+            } whenGranted: {
+                await model.runCPUTurnsIfNeeded()
             }
         } label: {
             // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
@@ -897,7 +925,7 @@ public struct MahjongView: View {
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
-        .disabled(isReviving)
+        .disabled(reviveRescue.isWatching)
         .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
     }
 

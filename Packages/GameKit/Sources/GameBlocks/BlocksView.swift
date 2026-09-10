@@ -11,9 +11,12 @@ public struct BlocksView: View {
     private let services: GameServices
     @State private var model: BlocksModel
     @State private var scene: BlocksScene
-    @State private var showRewardNotEarned = false
-    @State private var showContinueExpired = false
-    @State private var isContinuing = false
+    /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var continueRescue = RewardedRescue()
+    @State private var showConfirmNewGame = false
+    /// 確認ダイアログを出すために**自分で**止めたか（#515）。
+    /// 元から一時停止中だった場合まで再開してしまわないよう区別する。
+    @State private var pausedForNewGameConfirm = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -50,7 +53,7 @@ public struct BlocksView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { model.newGame() } label: {
+                Button { startNewGame() } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
             }
@@ -74,18 +77,57 @@ public struct BlocksView: View {
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
             // （基盤規約「バックグラウンド移行時は即一時停止」）。
-            if phase != .active { model.pause() }
+            guard phase != .active else { return }
+            model.pause()
+            // 背面に回ったら「止めたのは確認ダイアログだ」という記憶は捨てる。
+            // 残すと、戻ってきてダイアログを閉じた瞬間に球が動き出し、上の規約に反する
+            // （発射前から開いた場合は元から記憶していないので、揃えて止めたままにする）。
+            pausedForNewGameConfirm = false
         }
-        .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: "コンティニューできませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "コンティニューできませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+            )
+        )
+        .confirmationDialog(
+            "はじめからやり直しますか？",
+            isPresented: $showConfirmNewGame,
+            titleVisibility: .visible
+        ) {
+            Button("終了してはじめから", role: .destructive) {
+                pausedForNewGameConfirm = false
+                model.newGame()
+            }
+            Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
+            Text("途中で終了すると今のスコアとステージが失われます。")
         }
-        .alert("コンティニューできませんでした", isPresented: $showContinueExpired) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
+        .onChange(of: showConfirmNewGame) { _, isPresented in
+            // キャンセルボタンを経由せず閉じた場合（iPad のポップオーバーで外側をタップ等）も
+            // 取りこぼさないよう、閉じたことそのものを再開の合図にする。
+            guard !isPresented, pausedForNewGameConfirm else { return }
+            pausedForNewGameConfirm = false
+            model.resume()
         }
+    }
+
+    /// 進行中は確認を挟んでからやり直す（#515）。
+    ///
+    /// 反射神経を使うゲームなので、迷っているあいだに落球しないよう球を止めてから訊く
+    /// （`.howToPlay` を開いたときと同じ扱い）。
+    private func startNewGame() {
+        guard model.hasProgressToLose else {
+            model.newGame()
+            return
+        }
+        if model.phase == .playing {
+            model.pause()
+            pausedForNewGameConfirm = true
+        }
+        showConfirmNewGame = true
     }
 
     // MARK: - ヘッダー
@@ -108,7 +150,6 @@ public struct BlocksView: View {
                     .foregroundStyle(Theme.inkSub)
                 livesView
             }
-            pauseButton
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -151,16 +192,42 @@ public struct BlocksView: View {
                 // 当たり判定を残すと、機種によってはドラッグが SKView に吸われる。
                 SpriteView(scene: scene, preferredFramesPerSecond: 60)
                     .allowsHitTesting(false)
+                    // 描いたら止めてよいか見直す。画面を開き直して SKView が作り直された
+                    // ときも、次の 1 フレームでここに戻ってくる（#522）。
+                    .onAppear { scene.onFrameRendered = { syncRenderLoop() } }
+                    .onChange(of: model.phase) { _, _ in syncRenderLoop() }
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(paddleGesture(width: geo.size.width))
                 overlay
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+            // 一時停止は右上のヘッダーではなく、フィールドの右下に浮かせる
+            // （会長QA「右上は片手操作で押せない」）。親指の自然なリーチに合わせる。
+            .overlay(alignment: .bottomTrailing) {
+                pauseButton.padding(10)
+            }
         }
         // シーンは `.aspectFit` なので、枠の縦横比をフィールドと必ず一致させる。
         // ずれると左右に余白が出て、タップ位置とパドルの対応も狂う。
         .aspectRatio(BlocksField.Metrics.width / BlocksField.Metrics.height, contentMode: .fit)
+    }
+
+    /// 描画ループを局面に合わせる（#522）。
+    ///
+    /// 一時停止・結果オーバーレイ中は中身が動かないので、60fps を回し続けるのは電池を使うだけ。
+    /// 遊び方シートで止めた場合（#510）も `paused` になるのでここに揃う。
+    ///
+    /// **止めるのは `SKView` で、`SpriteView` の引数ではない**。`isPaused` も
+    /// `preferredFramesPerSecond` も生成時にしか効かず、あとから値を変えても伝わらない
+    /// （実測: 止まっているあいだ 1fps に落とすと、**再開しても 1fps のまま**だった）。
+    /// `SKScene.isPaused` のほうは SpriteView が毎フレーム上書きするので、これも使えない。
+    ///
+    /// 呼ぶのは局面が変わったときと、1 フレーム描き終えたとき。後者が要るのは、
+    /// **一度も描かないうちに止めると盤が出ないまま暗い矩形になる**ため
+    /// （`-simulateBlocks paused` で実測。ブロックもパドルも消えた）。
+    private func syncRenderLoop() {
+        scene.view?.isPaused = !model.phase.needsAnimationFrames
     }
 
     private func paddleGesture(width: CGFloat) -> some Gesture {
@@ -260,21 +327,14 @@ public struct BlocksView: View {
 
     private var continueButton: some View {
         Button {
-            // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ。
-            guard !isContinuing else { return }
-            isContinuing = true
             // どの局へのコンティニューかを広告前に控える。ロード中に「はじめから」で
             // 盤が作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
             let run = model.fieldGeneration
-            Task {
-                if await services.ads.showRewardedAd() {
-                    if !model.continueAfterAd(forRun: run) {
-                        showContinueExpired = true
-                    }
-                } else {
-                    showRewardNotEarned = true
-                }
-                isContinuing = false
+            continueRescue.request(
+                services, gameID: BlocksModel.gameID, purpose: .continue,
+                guardedBy: .checkedByGrant
+            ) {
+                model.continueAfterAd(forRun: run)
             }
         } label: {
             Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
@@ -282,11 +342,13 @@ public struct BlocksView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(Theme.Fill.coral)
-        .disabled(isContinuing)
+        .disabled(continueRescue.isWatching)
     }
 
+    /// 一時停止中とリザルトで共用する。前者は進行が残っているので確認を挟み、
+    /// 後者は `hasProgressToLose` が false なのでこれまでどおり即やり直す。
     private var restartButton: some View {
-        Button("はじめから") { model.newGame() }
+        Button("はじめから") { startNewGame() }
             .buttonStyle(.bordered)
             .tint(.white)
     }

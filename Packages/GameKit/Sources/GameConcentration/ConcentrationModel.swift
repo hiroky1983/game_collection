@@ -56,7 +56,8 @@ public final class ConcentrationModel {
     public var canMatta: Bool { !isGameOver && isHumanTurn && !mismatchedIndices.isEmpty }
 
     private let services: GameServices?
-    private let gameID = "concentration"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "concentration"
     private var ai: ConcentrationAI = ConcentrationAI(accuracy: 0.6)
 
     /// 人間がミスマッチしてから自動で裏返すまでの待ち時間（#137）。
@@ -99,7 +100,7 @@ public final class ConcentrationModel {
             isFreshStart = true
         }
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart { services?.gameDidStart(gameID: gameID) }
+        if isFreshStart { services?.gameDidStart(gameID: gameID, level: .aiStrength(cpuLevel.rawValue)) }
     }
 
     // MARK: - Public Actions
@@ -151,7 +152,7 @@ public final class ConcentrationModel {
 
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         setupGame(pairCount: pairCount, cpuLevel: cpuLevel)
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(cpuLevel.rawValue))
     }
 
     public func performCPUMoveIfNeeded() async {
@@ -333,6 +334,8 @@ public final class ConcentrationModel {
         // めくった手応えは自分がめくったときだけ。CPU の手番では鳴らさない
         // （1ターンで2枚めくるため、鳴らすと触れていない間に連続で振動してしまう）。
         let isHumanMove = currentPlayer == .human
+        // 札がめくれた = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
         cards[index].isFaceUp = true
         ai.observe(index: index, symbol: cards[index].symbol)
 

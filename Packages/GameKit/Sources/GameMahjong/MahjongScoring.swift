@@ -57,16 +57,29 @@ public struct MahjongWinContext: Equatable, Sendable {
 }
 
 /// 成立した役 1 つ。
+///
+/// 名前も飜数も `MahjongYaku`（役早見表と共有する定義source）から取る。判定側で文字列を
+/// 直接書かないことで、早見表に載っていない役が生まれる余地を型で消している（#501）。
 public struct MahjongYakuEntry: Equatable, Sendable {
+    public let yaku: MahjongYaku
+    /// 表示名。役牌だけは牌の名前を足すので `yaku.name` と異なる。
     public let name: String
     /// 飜数。役満は 13 を入れる。
     public let han: Int
-    public let isYakuman: Bool
+    public var isYakuman: Bool { yaku.isYakuman }
 
-    public init(name: String, han: Int, isYakuman: Bool = false) {
-        self.name = name
+    /// 通常の役。飜数は門前かどうか（食い下がり）から決まる。
+    public init(_ yaku: MahjongYaku, isConcealed: Bool = true, name: String? = nil) {
+        self.yaku = yaku
+        self.name = name ?? yaku.name
+        self.han = yaku.han(isConcealed: isConcealed)
+    }
+
+    /// ドラのように枚数で飜数が決まるもの。
+    public init(_ yaku: MahjongYaku, han: Int) {
+        self.yaku = yaku
+        self.name = yaku.name
         self.han = han
-        self.isYakuman = isYakuman
     }
 }
 
@@ -189,35 +202,35 @@ public enum MahjongScoring {
         // --- 役満 ---
         var yakumanCount = 0
         if concealedTripletCount == 4 {
-            yaku.append(MahjongYakuEntry(name: "四暗刻", han: 13, isYakuman: true))
+            yaku.append(MahjongYakuEntry(.suuankou))
             yakumanCount += 1
         }
         let dragonTriplets = triplets.filter { if case .dragon = $0.tile { return true } else { return false } }
         if dragonTriplets.count == 3 {
-            yaku.append(MahjongYakuEntry(name: "大三元", han: 13, isYakuman: true))
+            yaku.append(MahjongYakuEntry(.daisangen))
             yakumanCount += 1
         }
         let windTriplets = triplets.filter { if case .wind = $0.tile { return true } else { return false } }
         let pairIsWind: Bool = { if case .wind = pair { return true } else { return false } }()
         if windTriplets.count == 4 {
-            yaku.append(MahjongYakuEntry(name: "大四喜", han: 13, isYakuman: true))
+            yaku.append(MahjongYakuEntry(.daisuushii))
             yakumanCount += 1
         } else if windTriplets.count == 3 && pairIsWind {
-            yaku.append(MahjongYakuEntry(name: "小四喜", han: 13, isYakuman: true))
+            yaku.append(MahjongYakuEntry(.shousuushii))
             yakumanCount += 1
         }
         // 副露した牌も一色・字一色・ドラの判定に数える。
         let allTiles = hand.tiles + calls.flatMap(\.tiles)
         if allTiles.allSatisfy({ isHonor($0) }) {
-            yaku.append(MahjongYakuEntry(name: "字一色", han: 13, isYakuman: true))
+            yaku.append(MahjongYakuEntry(.tsuuiisou))
             yakumanCount += 1
         }
         if allTiles.allSatisfy({ isTerminalNumber($0) }) {
-            yaku.append(MahjongYakuEntry(name: "清老頭", han: 13, isYakuman: true))
+            yaku.append(MahjongYakuEntry(.chinroutou))
             yakumanCount += 1
         }
         if kanCount == 4 {
-            yaku.append(MahjongYakuEntry(name: "四槓子", han: 13, isYakuman: true))
+            yaku.append(MahjongYakuEntry(.suukantsu))
             yakumanCount += 1
         }
         if yakumanCount > 0 {
@@ -229,17 +242,17 @@ public enum MahjongScoring {
         // --- 通常役 ---
         // 立直・一発・門前清自摸和・平和・一盃口は門前限定。鳴いた手では付かない。
         if context.isRiichi && isConcealedHand {
-            yaku.append(MahjongYakuEntry(name: "立直", han: 1))
-            if context.isIppatsu { yaku.append(MahjongYakuEntry(name: "一発", han: 1)) }
+            yaku.append(MahjongYakuEntry(.riichi))
+            if context.isIppatsu { yaku.append(MahjongYakuEntry(.ippatsu)) }
         }
         if context.isTsumo && isConcealedHand {
-            yaku.append(MahjongYakuEntry(name: "門前清自摸和", han: 1))
+            yaku.append(MahjongYakuEntry(.menzenTsumo))
         }
         if context.isLastTile {
-            yaku.append(MahjongYakuEntry(name: context.isTsumo ? "海底摸月" : "河底撈魚", han: 1))
+            yaku.append(MahjongYakuEntry(context.isTsumo ? .haitei : .houtei))
         }
-        if context.isRinshan { yaku.append(MahjongYakuEntry(name: "嶺上開花", han: 1)) }
-        if context.isChankan { yaku.append(MahjongYakuEntry(name: "槍槓", han: 1)) }
+        if context.isRinshan { yaku.append(MahjongYakuEntry(.rinshan)) }
+        if context.isChankan { yaku.append(MahjongYakuEntry(.chankan)) }
 
         let waitKind = self.waitKind(
             placement: winningPlacement, decomposition: decomposition, winningTile: context.winningTile
@@ -248,51 +261,51 @@ public enum MahjongScoring {
             && runs.count == 4
             && !isYakuhaiPair(pair, context: context)
             && waitKind == .twoSided
-        if isPinfu { yaku.append(MahjongYakuEntry(name: "平和", han: 1)) }
+        if isPinfu { yaku.append(MahjongYakuEntry(.pinfu)) }
 
         if allTiles.allSatisfy({ !isTerminalOrHonor($0) }) {
-            yaku.append(MahjongYakuEntry(name: "断幺九", han: 1))
+            yaku.append(MahjongYakuEntry(.tanyao))
         }
         for triplet in dragonTriplets {
-            yaku.append(MahjongYakuEntry(name: "役牌 \(triplet.tile.displayName)", han: 1))
+            yaku.append(MahjongYakuEntry(.yakuhaiDragon, name: "役牌 \(triplet.tile.displayName)"))
         }
         for triplet in windTriplets {
             guard case .wind(let wind) = triplet.tile else { continue }
             if wind == context.seatWind {
-                yaku.append(MahjongYakuEntry(name: "役牌 自風", han: 1))
+                yaku.append(MahjongYakuEntry(.yakuhaiSeatWind))
             }
             if wind == context.roundWind {
-                yaku.append(MahjongYakuEntry(name: "役牌 場風", han: 1))
+                yaku.append(MahjongYakuEntry(.yakuhaiRoundWind))
             }
         }
 
         if isConcealedHand {
             let identicalRunPairs = countIdenticalRunPairs(runs)
             if identicalRunPairs >= 2 {
-                yaku.append(MahjongYakuEntry(name: "二盃口", han: 3))
+                yaku.append(MahjongYakuEntry(.ryanpeikou))
             } else if identicalRunPairs == 1 {
-                yaku.append(MahjongYakuEntry(name: "一盃口", han: 1))
+                yaku.append(MahjongYakuEntry(.iipeikou))
             }
         }
         if hasThreeColorRuns(runs) {
-            yaku.append(MahjongYakuEntry(name: "三色同順", han: isConcealedHand ? 2 : 1))
+            yaku.append(MahjongYakuEntry(.sanshokuDoujun, isConcealed: isConcealedHand))
         }
         if hasStraight(runs) {
-            yaku.append(MahjongYakuEntry(name: "一気通貫", han: isConcealedHand ? 2 : 1))
+            yaku.append(MahjongYakuEntry(.ittsuu, isConcealed: isConcealedHand))
         }
         if triplets.count == 4 {
-            yaku.append(MahjongYakuEntry(name: "対々和", han: 2))
+            yaku.append(MahjongYakuEntry(.toitoi))
         }
         if concealedTripletCount == 3 {
-            yaku.append(MahjongYakuEntry(name: "三暗刻", han: 2))
+            yaku.append(MahjongYakuEntry(.sanankou))
         }
         if kanCount == 3 {
-            yaku.append(MahjongYakuEntry(name: "三槓子", han: 2))
+            yaku.append(MahjongYakuEntry(.sankantsu))
         }
 
         let allTerminalOrHonor = allTiles.allSatisfy { isTerminalOrHonor($0) }
         if allTerminalOrHonor {
-            yaku.append(MahjongYakuEntry(name: "混老頭", han: 2))
+            yaku.append(MahjongYakuEntry(.honroutou))
         } else {
             let blocksHaveTerminal = melds.allSatisfy(\.containsTerminalOrHonor)
                 && isTerminalOrHonor(pair)
@@ -300,8 +313,8 @@ public enum MahjongScoring {
                 let hasHonor = allTiles.contains { isHonor($0) }
                 yaku.append(
                     hasHonor
-                        ? MahjongYakuEntry(name: "混全帯幺九", han: isConcealedHand ? 2 : 1)
-                        : MahjongYakuEntry(name: "純全帯幺九", han: isConcealedHand ? 3 : 2)
+                        ? MahjongYakuEntry(.chanta, isConcealed: isConcealedHand)
+                        : MahjongYakuEntry(.junchan, isConcealed: isConcealedHand)
                 )
             }
         }
@@ -324,21 +337,21 @@ public enum MahjongScoring {
 
     private static func scoreSevenPairs(hand: MahjongHand, context: MahjongWinContext) -> MahjongScore? {
         guard MahjongShanten.sevenPairs(hand.counts) == -1 else { return nil }
-        var yaku: [MahjongYakuEntry] = [MahjongYakuEntry(name: "七対子", han: 2)]
+        var yaku: [MahjongYakuEntry] = [MahjongYakuEntry(.chiitoitsu)]
         if context.isRiichi {
-            yaku.append(MahjongYakuEntry(name: "立直", han: 1))
-            if context.isIppatsu { yaku.append(MahjongYakuEntry(name: "一発", han: 1)) }
+            yaku.append(MahjongYakuEntry(.riichi))
+            if context.isIppatsu { yaku.append(MahjongYakuEntry(.ippatsu)) }
         }
-        if context.isTsumo { yaku.append(MahjongYakuEntry(name: "門前清自摸和", han: 1)) }
+        if context.isTsumo { yaku.append(MahjongYakuEntry(.menzenTsumo)) }
         if context.isLastTile {
-            yaku.append(MahjongYakuEntry(name: context.isTsumo ? "海底摸月" : "河底撈魚", han: 1))
+            yaku.append(MahjongYakuEntry(context.isTsumo ? .haitei : .houtei))
         }
         let tiles = hand.tiles
         if tiles.allSatisfy({ !isTerminalOrHonor($0) }) {
-            yaku.append(MahjongYakuEntry(name: "断幺九", han: 1))
+            yaku.append(MahjongYakuEntry(.tanyao))
         }
         if tiles.allSatisfy({ isTerminalOrHonor($0) }) {
-            yaku.append(MahjongYakuEntry(name: "混老頭", han: 2))
+            yaku.append(MahjongYakuEntry(.honroutou))
         }
         appendFlushYaku(&yaku, tiles: tiles, isConcealedHand: true)
         appendDora(&yaku, tiles: tiles, context: context)
@@ -350,7 +363,7 @@ public enum MahjongScoring {
 
     private static func scoreThirteenOrphans(hand: MahjongHand, context: MahjongWinContext) -> MahjongScore? {
         guard MahjongShanten.thirteenOrphans(hand.counts) == -1 else { return nil }
-        let yaku = [MahjongYakuEntry(name: "国士無双", han: 13, isYakuman: true)]
+        let yaku = [MahjongYakuEntry(.kokushi)]
         return makeScore(yaku: yaku, han: 13, fu: 0, yakumanCount: 1, context: context)
     }
 
@@ -364,8 +377,8 @@ public enum MahjongScoring {
         let hasHonor = tiles.contains { isHonor($0) }
         yaku.append(
             hasHonor
-                ? MahjongYakuEntry(name: "混一色", han: isConcealedHand ? 3 : 2)
-                : MahjongYakuEntry(name: "清一色", han: isConcealedHand ? 6 : 5)
+                ? MahjongYakuEntry(.honitsu, isConcealed: isConcealedHand)
+                : MahjongYakuEntry(.chinitsu, isConcealed: isConcealedHand)
         )
     }
 
@@ -375,10 +388,10 @@ public enum MahjongScoring {
         // 枚数は飜数がそのまま表すので、名前には入れない
         // （"ドラ1" + " 1飜" で「ドラ11飜」と読める表示になっていた）。
         let dora = countDora(tiles: tiles, indicators: context.doraIndicators)
-        if dora > 0 { yaku.append(MahjongYakuEntry(name: "ドラ", han: dora)) }
+        if dora > 0 { yaku.append(MahjongYakuEntry(.dora, han: dora)) }
         guard context.isRiichi else { return }
         let ura = countDora(tiles: tiles, indicators: context.uraIndicators)
-        if ura > 0 { yaku.append(MahjongYakuEntry(name: "裏ドラ", han: ura)) }
+        if ura > 0 { yaku.append(MahjongYakuEntry(.uraDora, han: ura)) }
     }
 
     private static func countDora(tiles: [MahjongTile], indicators: [MahjongTile]) -> Int {

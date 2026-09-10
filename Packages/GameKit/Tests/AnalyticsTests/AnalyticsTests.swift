@@ -15,6 +15,10 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
+import GameBlockPuzzle
+import GameRunner
+import GameHanafuda
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -43,18 +47,32 @@ private final class SpyAnalyticsService: AnalyticsService {
     func log(_ event: AnalyticsEvent) { events.append(event) }
 
     var starts: [String] {
-        events.compactMap { if case let .gameStart(gameID) = $0 { return gameID } else { return nil } }
+        events.compactMap { if case let .gameStart(gameID, _) = $0 { return gameID } else { return nil } }
     }
-    var ends: [(gameID: String, outcome: GameOutcome, durationSec: Int)] {
+    /// `game_start` に載った難易度（#500）。載せていないゲームは nil。
+    var startLevels: [AnalyticsLevel?] {
+        events.compactMap { if case let .gameStart(_, level) = $0 { return .some(level) } else { return nil } }
+    }
+    var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, outcome, durationSec) = $0 {
-                return (gameID, outcome, durationSec)
+            if case let .gameEnd(gameID, result, durationSec) = $0 {
+                return (gameID, result, durationSec)
             }
+            return nil
+        }
+    }
+    /// 視聴完了したリワード広告（#500）。
+    var rewards: [(gameID: String, purpose: RewardPurpose)] {
+        events.compactMap {
+            if case let .rewardAd(gameID, purpose) = $0 { return (gameID, purpose) }
             return nil
         }
     }
     func starts(of gameID: String) -> Int { starts.filter { $0 == gameID }.count }
     func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
+    func quits(of gameID: String) -> Int {
+        ends.filter { $0.gameID == gameID && $0.result == .quit }.count
+    }
 }
 
 /// 壊れた神経衰弱の中断データ（配列の長さが食い違う）。
@@ -88,7 +106,8 @@ private func makeHubGameIDs() -> Set<String> {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
+        RunnerModule(), HanafudaModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -138,12 +157,16 @@ private func makeServices(
 @Suite("送信するイベントの形")
 struct AnalyticsEventShapeTests {
 
-    @Test("イベントは game_start / game_end の2種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad の3種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
-        #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")])
+        #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")],
+                "難易度を持たないゲームでは level の鍵ごと出ない")
 
-        let end = AnalyticsEvent.gameEnd(gameID: "shogi", outcome: .win, durationSec: 42)
+        let leveled = AnalyticsEvent.gameStart(gameID: "sudoku", level: .hard)
+        #expect(leveled.parameters == ["game_id": .string("sudoku"), "level": .string("hard")])
+
+        let end = AnalyticsEvent.gameEnd(gameID: "shogi", result: .win, durationSec: 42)
         #expect(end.name == "game_end")
         #expect(end.parameters == [
             "game_id": .string("shogi"),
@@ -152,19 +175,49 @@ struct AnalyticsEventShapeTests {
         ])
         #expect(Set(end.parameters.keys) == ["game_id", "result", "duration_sec"],
                 "受け入れ条件どおり3鍵のみ。スコアや端末識別子の鍵は存在しない")
+
+        let reward = AnalyticsEvent.rewardAd(gameID: "solitaire", purpose: .undo)
+        #expect(reward.name == "reward_ad")
+        #expect(reward.parameters == ["game_id": .string("solitaire"), "purpose": .string("undo")])
+        #expect(Set(reward.parameters.keys) == ["game_id", "purpose"],
+                "広告の単価・報酬額など収益の生値は載せない")
     }
 
-    @Test("result は win / loss / draw の3値に閉じている")
+    @Test("result は win / loss / draw / quit の4値に閉じている（#500）")
     func resultIsClosed() {
-        // GameOutcome 以外の値を渡す経路が無いことを、全ケースの網羅で示す。
-        let outcomes: [GameOutcome] = [.win, .loss, .draw]
-        let sent = outcomes.map { outcome -> String in
+        // `AnalyticsResult` 以外の値を渡す経路が無いことを、全ケースの網羅で示す。
+        #expect(AnalyticsResult.allCases.map(\.rawValue) == ["win", "loss", "draw", "quit"])
+        let sent = AnalyticsResult.allCases.map { result -> String in
             guard case let .string(text)? = AnalyticsEvent
-                .gameEnd(gameID: "2048", outcome: outcome, durationSec: 0)
+                .gameEnd(gameID: "2048", result: result, durationSec: 0)
                 .parameters["result"] else { return "" }
             return text
         }
-        #expect(sent == ["win", "loss", "draw"])
+        #expect(sent == ["win", "loss", "draw", "quit"])
+
+        // 決着の3値は `GameOutcome` からの写像だけで作られ、`quit` は決着から作れない。
+        #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
+    }
+
+    @Test("purpose の全量は7種で、reward_ad 以外には載らない（#500）")
+    func rewardPurposeIsClosed() {
+        #expect(RewardPurpose.allCases.map(\.rawValue) == [
+            "undo", "continue", "revival", "hint", "joker", "checkpoint", "shuffle",
+        ])
+    }
+
+    @Test("level は強さ4段階と面番号だけで、0 始まりの設定値から写す（#500）")
+    func levelVocabularyIsClosed() {
+        #expect(AnalyticsLevel.allStrengths.map(\.parameterValue)
+                == ["beginner", "normal", "hard", "expert"])
+        // 各ゲームの `aiLevel` は 0 始まり。範囲外も型の上では作れるので両端に倒す。
+        #expect((0...3).map { AnalyticsLevel.aiStrength($0) }
+                == [.beginner, .normal, .hard, .expert])
+        #expect(AnalyticsLevel.aiStrength(-1) == .beginner)
+        #expect(AnalyticsLevel.aiStrength(99) == .expert)
+        // 面番号は丸めずそのまま送る（「何面で詰まるか」が難易度設計そのものなので）。
+        #expect(AnalyticsLevel.stage(7).parameterValue == "stage-7")
+        #expect(AnalyticsLevel.stage(0).parameterValue == "stage-1", "0 以下は 1 に丸める")
     }
 }
 
@@ -185,7 +238,7 @@ struct GameAnalyticsTests {
 
         #expect(spy.starts == ["2048"])
         #expect(spy.ends.count == 1)
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
         #expect(spy.ends.first?.durationSec == 75)
     }
 
@@ -222,7 +275,7 @@ struct GameAnalyticsTests {
         analytics.finishPlay(gameID: "2048", outcome: .loss)
         analytics.finishPlay(gameID: "2048", outcome: .win)
         #expect(spy.ends.count == 1)
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("開始を数えていないプレイの終局は送らない（中断からの再開）")
@@ -237,7 +290,7 @@ struct GameAnalyticsTests {
         let (analytics, spy) = makeAnalytics()
         analytics.startPlay(gameID: "2048")
         analytics.finishPlay(gameID: "2048", outcome: .loss)
-        analytics.leaveGame(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: false)
         analytics.startPlay(gameID: "2048")
         #expect(spy.starts.count == 2)
         #expect(spy.ends.count == 1)
@@ -249,7 +302,7 @@ struct GameAnalyticsTests {
         let (analytics, spy) = makeAnalytics(clock: clock)
         analytics.startPlay(gameID: "2048")
         clock.advance(40)
-        analytics.leaveGame(gameID: "2048")   // ハブへ戻った（まだ遊びかけ）
+        analytics.leaveGame(gameID: "2048", isResumable: true)   // ハブへ戻った（まだ遊びかけ）
         clock.advance(20)
         analytics.startPlay(gameID: "2048")   // 「続きから」で再開 → 数え直さない
         clock.advance(30)
@@ -264,7 +317,7 @@ struct GameAnalyticsTests {
     func leavingMidPlayThenRestart() {
         let (analytics, spy) = makeAnalytics()
         analytics.startPlay(gameID: "2048")
-        analytics.leaveGame(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
         analytics.restartPlay(gameID: "2048")
         analytics.finishPlay(gameID: "2048", outcome: .loss)
         #expect(spy.starts.count == 2, "遊びかけの1回 + 新しいゲームの1回")
@@ -283,7 +336,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 16, "ハブに並ぶゲームは16本")
+        #expect(hubGameIDs.count == 20, "ハブに並ぶゲームは20本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -599,7 +652,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.gameOver)
         expectOnePair(spy, gameID: "2048", durationSec: 31)
-        #expect(spy.ends.first?.outcome == .loss, "2048 に勝ちは無い")
+        #expect(spy.ends.first?.result == .loss, "2048 に勝ちは無い")
     }
 
     @Test("将棋: 開いた時点で開始・投了で終局（loss）")
@@ -609,7 +662,7 @@ struct AllGamesAnalyticsTests {
         model.resign()
         #expect(model.gameOver)
         expectOnePair(spy, gameID: "shogi")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("五目並べ: 開いた時点で開始・投了で終局（loss）")
@@ -618,7 +671,7 @@ struct AllGamesAnalyticsTests {
         let model = GomokuModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "gomoku")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("ソリティア: 開いた時点で開始・配り直しで終局（loss）")
@@ -628,9 +681,108 @@ struct AllGamesAnalyticsTests {
         model.tapStock()
         model.newGame()
         #expect(spy.ends.map(\.gameID) == ["solitaire"])
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
         #expect(spy.starts == ["solitaire", "solitaire"])
+    }
+
+    @Test("フリーセル: 開いた時点で開始・配り直しで終局（loss）")
+    func freecell() {
+        let (services, spy) = makeServices()
+        let model = FreeCellModel(services: services, seed: FreeCellDealer.verifiedSeeds[0])
+        model.tapPile(0)
+        model.tapCell(0)
+        model.newGame()
+        #expect(spy.ends.map(\.gameID) == ["freecell"])
+        #expect(spy.ends.first?.result == .loss)
+        // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。
+        #expect(spy.starts == ["freecell", "freecell"])
+    }
+
+    @Test("ブロックならべ: 開いた時点で開始・置けなくなって終局（loss）")
+    func blockPuzzle() {
+        let (services, spy) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
+                                     hand: blockPuzzleStuckHand())
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        #expect(model.gameOver)
+        expectOnePair(spy, gameID: "blockpuzzle")
+        #expect(spy.ends.first?.result == .loss, "ブロックならべに勝ちは無い")
+    }
+
+    @Test("ブロックならべ: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
+    func blockPuzzleContinueCountsAsNewPlay() {
+        let (services, spy) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: blockPuzzleStuckBoard(),
+                                     hand: blockPuzzleStuckHand())
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        model.continueAfterAd()
+        #expect(spy.starts == ["blockpuzzle", "blockpuzzle"])
+        #expect(spy.ends.count == 1, "終局はまだ 1 回（続きの終局はこれから）")
+    }
+
+    @Test("チャリンコおじさん: 開いた時点で開始・ステージクリアで終局（win）")
+    func runner() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        expectOnePair(spy, gameID: "runner")
+        #expect(spy.ends.first?.result == .win, "ステージクリアは勝ち")
+    }
+
+    @Test("チャリンコおじさん: ミスは決着ではない（リトライの回転で数えを増やさない）")
+    func runnerRetryIsNotAPlay() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        failRunnerStage(model)
+        model.retryStage()
+        failRunnerStage(model)
+        #expect(spy.starts == ["runner"], "開始は 1 回だけ")
+        #expect(spy.ends.isEmpty, "ミスでは終局しない")
+    }
+
+    @Test("チャリンコおじさん: 次のステージは次の 1 プレイとして数え直す")
+    func runnerNextStageCountsAsNewPlay() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        clearRunnerStage(model)
+        model.advanceToNextStage()
+        #expect(spy.starts == ["runner", "runner"])
+        #expect(spy.ends.count == 1, "次のステージの終局はこれから")
+    }
+
+    @Test("花札こいこい: 試合を始めた時点で開始・全局終了で終局が1組")
+    func hanafuda() {
+        let (services, spy) = makeServices()
+        let model = playHanafudaMatch(services)
+        #expect(model.phase == .matchResult)
+        expectOnePair(spy, gameID: "hanafuda")
+    }
+
+    @Test("花札こいこい: 局が終わっても終局は増えない（試合が1プレイ）")
+    func hanafudaRoundIsNotAPlay() {
+        let (services, spy) = makeServices()
+        let model = HanafudaModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startMatch(options: HanafudaOptions(rounds: 6))
+        // 1 局だけ進める。
+        for _ in 0..<400 where model.phase != .roundResult {
+            if model.phase == .koiKoiPrompt {
+                if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+                continue
+            }
+            guard model.phase == .playing else { break }
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { break }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+        #expect(spy.starts == ["hanafuda"], "開始は 1 回だけ")
+        #expect(spy.ends.isEmpty, "1 局の決着では終局しない（試合が終わるまで数えない）")
     }
 
     @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
@@ -644,7 +796,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.phase == .gameOver)
         expectOnePair(spy, gameID: "blocks")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("ブロック崩し: コンティニューは次の1プレイとして数え直す（start と end の対応を崩さない）")
@@ -668,7 +820,7 @@ struct AllGamesAnalyticsTests {
         model.resign()
         #expect(model.gameOver)
         expectOnePair(spy, gameID: "chess")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("囲碁: 開いた時点で開始・投了で終局（loss）")
@@ -677,7 +829,7 @@ struct AllGamesAnalyticsTests {
         let model = GoModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "go")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("マインスイーパー: 初手で開始・全マス開放で終局（win）")
@@ -693,7 +845,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.gameState == .won)
         expectOnePair(spy, gameID: "minesweeper")
-        #expect(spy.ends.first?.outcome == .win)
+        #expect(spy.ends.first?.result == .win)
     }
 
     @Test("オセロ: 開いた時点で開始・投了で終局（loss）")
@@ -702,7 +854,7 @@ struct AllGamesAnalyticsTests {
         let model = OthelloModel(services: services)
         model.resign()
         expectOnePair(spy, gameID: "othello")
-        #expect(spy.ends.first?.outcome == .loss)
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("ポーカー: 配られた時点で開始・ラウンド決着で終局")
@@ -792,7 +944,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.phase == .won)
         expectOnePair(spy, gameID: "mahjong")
-        #expect(spy.ends.first?.outcome == .win)
+        #expect(spy.ends.first?.result == .win)
     }
 
     @Test("麻雀ソリティア: 手詰まりで「最初から」は終局を記録せず、次の盤が新しい1プレイになる（#240）")
@@ -818,7 +970,7 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.state == .cleared)
         expectOnePair(spy, gameID: "sudoku")
-        #expect(spy.ends.first?.outcome == .win)
+        #expect(spy.ends.first?.result == .win)
     }
 
     @Test("数独: 生成中に新規ゲームを重ねても game_start は1回だけ")
@@ -908,5 +1060,153 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
         case .idle, .gameResult:
             return
         }
+    }
+}
+
+/// ブロックならべ（#493）で「あと 1 手で詰む」盤。空きは対角線と (0, 2) だけで、
+/// どれも隣り合っていないので 1×1 しか置けない。(0, 2) に置いても行も列も揃わない。
+private func blockPuzzleStuckBoard() -> [[Int]] {
+    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
+    for i in 0..<10 { board[i][i] = 0 }
+    board[0][2] = 0
+    return board
+}
+
+/// 1×1 と、置き場所の無い 3×3 が 2 つ。
+private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
+    [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 一度も跳ばずに走らせてミスさせる。
+@MainActor
+private func failRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
+}
+
+// MARK: - 開始シートと level（#500 / PR #572 の CodeRabbit 指摘）
+
+@Suite("開始シートを出すゲームの level")
+@MainActor
+struct StartSheetLevelTests {
+
+    /// 開始シート（強さを選ぶ画面）は「中断データが無いこと」で出る。Model の init が
+    /// `gameDidStart` を送るのも同じ条件なので、**その時点ではまだ強さが選ばれていない**。
+    /// ここで既定値を送ると、あとで選び直された強さぶんまで `normal` として数えてしまう。
+    @Test("シートが開く局の game_start には level を載せない")
+    func initialStartCarriesNoLevel() {
+        for make in [
+            { (services: GameServices) in _ = ShogiGameModel(services: services) },
+            { (services: GameServices) in _ = ChessGameModel(services: services) },
+            { (services: GameServices) in _ = GoModel(services: services) },
+            { (services: GameServices) in _ = GomokuModel(services: services) },
+            { (services: GameServices) in _ = OthelloModel(services: services) },
+        ] {
+            let (services, spy) = makeServices()
+            make(services)
+            #expect(spy.starts.count == 1, "開始そのものは従来どおり数える")
+            #expect(spy.startLevels == [nil], "選ばれていない強さを送らない: \(spy.starts)")
+        }
+    }
+
+    @Test("シートで選んだ強さは、その対局の game_start に載る")
+    func chosenLevelIsSentOnNewGame() {
+        let (shogiServices, shogiSpy) = makeServices()
+        let shogi = ShogiGameModel(services: shogiServices)
+        shogi.newGame(aiLevel: 2)
+        #expect(shogiSpy.startLevels == [nil, .hard], "0 始まりの 2 は最上位ではなく hard")
+
+        let (goServices, goSpy) = makeServices()
+        let go = GoModel(services: goServices)
+        go.newGame(level: .easy)
+        #expect(goSpy.startLevels == [nil, .beginner])
+
+        let (othelloServices, othelloSpy) = makeServices()
+        let othello = OthelloModel(services: othelloServices)
+        othello.newGame(aiLevel: 0)
+        #expect(othelloSpy.startLevels == [nil, .beginner])
+    }
+}
+
+// MARK: - チャリンコおじさんの離脱（#500 / PR #572 の CodeRabbit 指摘）
+
+@Suite("走行を捨てた離脱")
+@MainActor
+struct RunnerQuitTests {
+
+    /// このゲームの中断データはステージ番号とベストタイムの控えで、**決着後も消さない**
+    /// （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
+    /// 始まるため、`snapshots.exists` を素直に読むと走行を捨てた離脱が永久に記録されない。
+    @Test("走り出したあと画面を離れると quit が出る（中断データは在るが走行は戻らない）")
+    func leavingMidRunIsQuit() {
+        let store = MemorySnapshotStore()
+        let (services, spy) = makeServices(snapshots: store)
+        let model = RunnerModel(services: services)
+        model.press()   // ready → running
+
+        #expect(store.exists(for: RunnerModel.gameID), "前提: 中断データは保存されている")
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+
+        #expect(spy.ends.map(\.result) == [.quit])
+        #expect(spy.quits(of: RunnerModel.gameID) == 1)
+    }
+
+    @Test("走り出す前に離れても quit は出ない")
+    func leavingBeforeRunningIsNotQuit() {
+        let (services, spy) = makeServices()
+        _ = RunnerModel(services: services)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+
+        #expect(spy.ends.isEmpty, "1 歩も走っていない走行は捨てても離脱にならない")
+        #expect(spy.starts == [RunnerModel.gameID])
     }
 }

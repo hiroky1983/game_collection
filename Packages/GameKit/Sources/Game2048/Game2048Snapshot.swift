@@ -10,12 +10,23 @@ public struct Game2048Snapshot: Codable, Equatable, Sendable {
     /// この局で 2048 に到達済みか（#438）。勝利演出を局に 1 度だけ出すための印で、
     /// 中断・復元をまたいで二重に発火させないために保存する。
     public var hasWon: Bool
+    /// 勝利演出（「続ける / もう一度」）を出したままか（#516）。これを保存しないと、
+    /// 演出を出している間に画面を離れる・アプリが落ちるだけで選択肢が黙って消え、
+    /// 続行が「次の 1 プレイ」として数え直されないまま盤だけ進む。
+    public var showWinPrompt: Bool
 
-    public init(board: [[Int]], score: Int, continueUsed: Bool = false, hasWon: Bool = false) {
+    public init(
+        board: [[Int]],
+        score: Int,
+        continueUsed: Bool = false,
+        hasWon: Bool = false,
+        showWinPrompt: Bool = false
+    ) {
         self.board = board
         self.score = score
         self.continueUsed = continueUsed
         self.hasWon = hasWon
+        self.showWinPrompt = showWinPrompt
     }
 
     /// `continueUsed` は後から足したキー。既存プレイヤーの中断データにはこのキーが無く、
@@ -30,5 +41,8 @@ public struct Game2048Snapshot: Codable, Equatable, Sendable {
         // 「クリア済みの局を再開したら、次の合体で勝利演出が出た」という誤発火を防ぐ。
         hasWon = try container.decodeIfPresent(Bool.self, forKey: .hasWon)
             ?? Game2048Logic.hasWinningTile(board)
+        // `showWinPrompt`（#516）も後から足したキー。旧データは演出を出していたかを
+        // 判別できないので、これまでどおり「出していない」に倒す。
+        showWinPrompt = try container.decodeIfPresent(Bool.self, forKey: .showWinPrompt) ?? false
     }
 }

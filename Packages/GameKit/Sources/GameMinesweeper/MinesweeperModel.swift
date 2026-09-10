@@ -110,6 +110,10 @@ struct MinesweeperSnapshot: Codable {
 @MainActor
 @Observable
 public final class MinesweeperModel {
+    /// 計時だけが進んでいる間に中断データを保存し直す間隔（秒）。#240 の横展開（#513）。
+    /// 毎秒書くと中断データの書き込みが 1 局で数百回になるため、失われる幅の上限と釣り合う長さにする。
+    static let persistInterval = 30
+
     public private(set) var cells: [[MinesweeperCell]]
     public private(set) var gameState: MinesweeperState = .idle
     public private(set) var rows: Int
@@ -124,7 +128,8 @@ public final class MinesweeperModel {
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
-    private let gameID = "minesweeper"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "minesweeper"
 
     public var remainingMines: Int { totalMines - flagCount }
     public var safeCellCount: Int  { rows * cols - totalMines }
@@ -229,7 +234,12 @@ public final class MinesweeperModel {
     /// 計時の `Task` は `self` を強く握るので、止めないと**モデルが解放されず**、
     /// 画面を離れたあとも 1 秒ごとに経過秒が進み続ける（#375。数独にも同型があった）。
     /// 画面に戻れば `resumeTimerIfNeeded()` が計時を再開するので、経過時間は失われない。
+    ///
+    /// 止める前に保存し直すのは、直近の保存から最大 `persistInterval` 秒ぶんの計時が
+    /// 失われるのを防ぐため（#240 と同じ理由・#513）。計時が動いていないときは
+    /// 保存し直す経過秒が無いので触らない（`persist()` は非 `playing` だと中断データを消すため）。
     public func pauseTimer() {
+        if isTimerRunning { persist() }
         timerTask?.cancel()
         timerTask = nil
     }
@@ -309,7 +319,9 @@ public final class MinesweeperModel {
             startTimer()
             // 地雷を置いて計時が始まるここが 1 プレイの開始（#158）。
             // 盤を用意しただけの `.idle` や、中断からの復元（`.playing` で始まる）では数えない。
-            services?.gameDidRestart(gameID: gameID)
+            services?.gameDidRestart(gameID: gameID, level: analyticsLevel)
+            // 開始のきっかけがプレイヤーの1手なので、この時点で既に「指した盤面」になる（#500）。
+            services?.gameDidProgress(gameID: gameID)
         }
 
         if cells[row][col].isMine {
@@ -399,7 +411,9 @@ public final class MinesweeperModel {
         gameState = .playing
         startTimer()
         // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: analyticsLevel)
+        // 続きの盤面は既に開けたマスが残っているので、最初から「指した盤面」（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         // すでに全安全マスを開けていた場合（まずないが念のため）
         if revealedCount == safeCellCount {
@@ -583,12 +597,48 @@ public final class MinesweeperModel {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled else { break }
-                elapsedSeconds += 1
+                tick()
             }
         }
     }
 
+    /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
+    /// 経過秒の進み方と保存の間隔を検証できる（実時間で待つテストはフレークするため）。
+    func tick() {
+        elapsedSeconds += 1
+        // 経過秒はこれまでマスを開く・旗を立てるときにしか保存されず、長考のあとにアプリを
+        // 終了すると最後の操作以降が失われて、自己ベスト（最短タイム）が実際より短い方向に
+        // 狂う（#240 の同型・#513）。一定間隔で保存し直し、失われる幅を最大
+        // `persistInterval` 秒に抑える。
+        if elapsedSeconds % Self.persistInterval == 0 { persist() }
+    }
+
     private static func emptyBoard(rows: Int, cols: Int) -> [[MinesweeperCell]] {
         Array(repeating: Array(repeating: MinesweeperCell(), count: cols), count: rows)
+    }
+}
+
+// MARK: - 解析
+
+extension MinesweeperDifficulty {
+    /// `game_start` の `level` に載せる段階（#500）。
+    var analyticsLevel: AnalyticsLevel {
+        switch self {
+        case .beginner:     return .beginner
+        case .intermediate: return .normal
+        case .advanced:     return .hard
+        }
+    }
+}
+
+extension MinesweeperModel {
+    /// 今の盤の段階（#500）。プリセットに一致する盤だけ段階が決まる。
+    ///
+    /// 旧プリセット由来の中断データ（12×12/25 など）は現在のどの段階とも別物なので `nil` にして
+    /// `level` の鍵ごと送らない。`recordVariantLabel` が同じ理由で盤サイズ表示に落とすのと揃えてある。
+    var analyticsLevel: AnalyticsLevel? {
+        MinesweeperDifficulty.allCases.first {
+            $0.rows == rows && $0.cols == cols && $0.mines == totalMines
+        }?.analyticsLevel
     }
 }

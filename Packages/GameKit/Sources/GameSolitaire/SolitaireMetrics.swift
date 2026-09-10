@@ -40,6 +40,19 @@ public enum SolitaireMetrics {
 
     public static func cardHeight(width: CGFloat) -> CGFloat { (width * aspectRatio).rounded() }
 
+    /// 3枚めくりで捨て札を横にずらして重ねる幅（#498）。
+    ///
+    /// 上段は「山札 + 捨て札 + 組札4」で 6 枚ぶんしか使っておらず、7 列に揃えた盤幅との差
+    /// （＝札 1 枚ぶん）が扇に使える全余白になる。ずらしは 2 回ぶん入るので、**札の幅の半分を
+    /// 超えると 7 列目からはみ出す**。0.45 はその上限のすぐ内側で、隠れる 2 枚の左上の
+    /// ランクとスートが読める幅。
+    public static func wasteFanStep(cardWidth: CGFloat) -> CGFloat { (cardWidth * 0.45).rounded() }
+
+    /// 捨て札の枠の幅（扇の枚数ぶん広がる）。1 枚しか見せないときは札の幅そのもの。
+    public static func wasteWidth(cardWidth: CGFloat, visibleCount: Int) -> CGFloat {
+        cardWidth + CGFloat(max(0, visibleCount - 1)) * wasteFanStep(cardWidth: cardWidth)
+    }
+
     /// 伏せ札を重ねる段差。伏せ札は枚数が見えれば十分なので詰める。
     public static func faceDownStep(cardHeight: CGFloat) -> CGFloat { (cardHeight * 0.13).rounded() }
 

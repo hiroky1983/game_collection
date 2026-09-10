@@ -10,8 +10,8 @@ public struct MinesweeperView: View {
     @State private var showContinue = false
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
-    @State private var showRewardNotEarned = false
-    @State private var isContinuing = false
+    /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var continueRescue = RewardedRescue()
     @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
@@ -88,11 +88,7 @@ public struct MinesweeperView: View {
         .overlay {
             if showContinue { continueOverlay }
         }
-        .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
@@ -156,18 +152,14 @@ public struct MinesweeperView: View {
                     .foregroundStyle(Theme.ink)
 
                 Button {
-                    // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-                    guard !isContinuing else { return }
-                    isContinuing = true
-                    Task {
-                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                        if await services.ads.showRewardedAd() {
-                            model.continueAfterAd()
-                            showContinue = false
-                        } else {
-                            showRewardNotEarned = true
-                        }
-                        isContinuing = false
+                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                    continueRescue.request(
+                        services, gameID: model.gameID, purpose: .continue,
+                        guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                    ) {
+                        model.continueAfterAd()
+                        showContinue = false
+                        return true
                     }
                 } label: {
                     Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
@@ -178,7 +170,7 @@ public struct MinesweeperView: View {
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.plain)
-                .disabled(isContinuing)
+                .disabled(continueRescue.isWatching)
 
                 Button { showContinue = false } label: {
                     Text("あきらめる")
@@ -576,63 +568,26 @@ struct MinesweeperNewGameSheet: View {
         .advanced: Theme.Fill.coral,
     ]
 
+    /// 副題（「9×9・地雷10」など）が横3つに並ぶので、標準より小さい字で入れる。
+    private static let metrics = GameSetupChooser.Metrics(subtitleSize: 11)
+
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                section("難易度") {
-                    HStack(spacing: 12) {
-                        ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
-                            chooser(title: difficulty.label, subtitle: difficulty.subtitle,
-                                    selected: level == difficulty,
-                                    accent: Self.accents[difficulty] ?? Theme.Fill.teal) {
-                                level = difficulty
-                            }
+        GameSetupSheet(
+            title: "新規対局", startTitle: "スタート",
+            onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
+        ) {
+            GameSetupSection("難易度") {
+                HStack(spacing: 12) {
+                    ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
+                        GameSetupChooser(title: difficulty.label, subtitle: difficulty.subtitle,
+                                         selected: level == difficulty,
+                                         accent: Self.accents[difficulty] ?? Theme.Fill.teal,
+                                         metrics: Self.metrics) {
+                            level = difficulty
                         }
                     }
                 }
-                Spacer()
-                Button {
-                    onStart(level.rows, level.cols, level.mines)
-                } label: {
-                    Text("スタート").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("新規対局")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
-                }
             }
         }
-        .gameSheetDetents()
-    }
-
-    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
-            content()
-        }
-    }
-
-    private func chooser(title: String, subtitle: String,
-                         selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? Theme.onAccent : Theme.ink)
-                Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
-        }
-        .buttonStyle(.plain)
     }
 }

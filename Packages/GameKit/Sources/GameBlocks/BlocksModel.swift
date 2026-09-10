@@ -43,7 +43,7 @@ public final class BlocksModel {
     /// 本番の入口。中断スナップショットがあれば復元し、無ければステージ 1 から始める。
     public convenience init(
         services: GameServices? = nil,
-        preference: FeedbackPreference = .blocksSlowMode
+        preference: FeedbackPreference = .actionSlowMode
     ) {
         let snapshot = services?.snapshots.load(BlocksSnapshot.self, for: BlocksModel.gameID)
         self.init(
@@ -68,7 +68,7 @@ public final class BlocksModel {
         score: Int = 0,
         lives: Int = BlocksRules.initialLives,
         continueUsed: Bool = false,
-        preference: FeedbackPreference = .blocksSlowMode
+        preference: FeedbackPreference = .actionSlowMode
     ) {
         self.init(
             services: services,
@@ -111,7 +111,7 @@ public final class BlocksModel {
         )
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart { services?.gameDidStart(gameID: Self.gameID) }
+        if isFreshStart { services?.gameDidStart(gameID: Self.gameID, level: .stage(stageNumber)) }
     }
 
     // MARK: - 操作
@@ -127,6 +127,8 @@ public final class BlocksModel {
         guard phase == .ready else { return }
         field.launch()
         phase = .playing
+        // 球が出た = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: Self.gameID)
         services?.feedback.impact(.rigid)
     }
 
@@ -159,14 +161,17 @@ public final class BlocksModel {
         setSlowMode(preference.isEnabled)
     }
 
+    #if DEBUG
     /// テスト・撮影用に球の状態を直接置く。
     ///
     /// 落球の直前・ブロックの真下といった局面へ、通常の操作だけで到達しようとすると
     /// 数百フレームの再生が要り、検証がフレーム数と反射の偶然に依存してしまう。
-    /// 製品コードからは呼ばない。
+    /// 製品コードからは呼ばない。呼び出し元は下の `applyDebugScenario` 側（同じく DEBUG 限定）と
+    /// テストだけなので、Release ビルドからは丸ごと落とす（#514）。
     public func placeBallForTesting(x: Double, y: Double, vx: Double, vy: Double) {
         field.placeBall(x: x, y: y, vx: vx, vy: vy)
     }
+    #endif
 
     /// `dt` 秒ぶん進める。SpriteKit のゲームループから毎フレーム呼ばれる唯一の入口。
     public func tick(dt: Double) {
@@ -186,6 +191,16 @@ public final class BlocksModel {
         startStage()
     }
 
+    /// 「はじめから」で失われる進行があるか（#515）。
+    ///
+    /// 誤タップで得点・ステージが丸ごと消えるのを防ぐため、画面側はこれが true のときだけ
+    /// 確認を挟む。決着後（`gameOver` / `allCleared`）はもう失うものが無いので false
+    /// （リザルトの「はじめから」に確認を挟むと、遊び直しの導線が一手増えるだけになる）。
+    public var hasProgressToLose: Bool {
+        guard !phase.isFinished else { return false }
+        return score > 0 || stageNumber > 1 || phase == .playing
+    }
+
     /// はじめから遊び直す。
     public func newGame() {
         stageNumber = 1
@@ -194,7 +209,7 @@ public final class BlocksModel {
         continueUsed = false
         recordResult = nil
         startStage()
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
     }
 
     /// リワード広告の視聴後にコンティニューする。残機 1 で、落ちたステージの頭から再開する。
@@ -214,7 +229,7 @@ public final class BlocksModel {
         lives = BlocksRules.continueLives
         startStage()
         // `game_end` は送信済みなので、続きは次の 1 プレイとして数え直す（#158）。
-        services?.gameDidRestart(gameID: Self.gameID)
+        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
         return true
     }
 

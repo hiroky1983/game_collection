@@ -397,6 +397,117 @@ struct GoSnapshotTests {
     }
 }
 
+@Suite("囲碁の中断データの合法性検証（#520）")
+@MainActor
+struct GoCorruptedSnapshotTests {
+
+    /// ディスク破損・旧バージョンのデータを想定して、モデルを通さずに壊れた中断データを直接置く。
+    private func store(
+        size: Int = GoBoardSize.nine.rawValue,
+        handicap: Int = 0,
+        komi: Double = GoRuleset.defaultKomi,
+        humanSide: Int = GoStone.black.rawValue,
+        aiLevel: Int = GoLevel.normal.rawValue,
+        moves: [GoMove] = []
+    ) -> MemorySnapshotStore {
+        let store = MemorySnapshotStore()
+        try? store.save(
+            GoSnapshot(
+                size: size, handicap: handicap, komi: komi,
+                humanSide: humanSide, aiLevel: aiLevel,
+                startedAt: Date(), moves: moves, undoUsed: false, phase: nil
+            ),
+            for: "go"
+        )
+        return store
+    }
+
+    /// 修正前は `handicapPoints()` が盤外の座標を返し、置き石を並べる時点で添字が範囲外になっていた。
+    @Test("路数が 0 でも起動でき、9 路に倒れる（置き石はそのまま生きる）")
+    func fallsBackWhenBoardSizeIsZero() {
+        let model = GoModel(services: makeServices(store(size: 0, handicap: 4)))
+        #expect(model.ruleset.size == 9)
+        #expect(model.board.size == 9)
+        #expect(model.ruleset.handicap == 4, "置き石の数自体は選べる値なので残す")
+        #expect(model.board.stoneCount == 4)
+        #expect(model.state.sideToMove == .white, "置き石ありなので白番から")
+    }
+
+    @Test("路数が 0・互先でも倒れたあと普通に打てる")
+    func playableAfterBoardSizeFallback() {
+        let model = GoModel(services: makeServices(store(size: 0)))
+        model.tap(row: 4, col: 4)
+        #expect(model.board[4, 4] == .black)
+        #expect(model.moveCount == 1)
+    }
+
+    /// 負の路数は盤（`size * size` 個の配列）の確保そのもので落ちうる。
+    @Test("路数が負でも起動でき、9 路に倒れる")
+    func fallsBackWhenBoardSizeIsNegative() {
+        let model = GoModel(services: makeServices(store(size: -9, handicap: 2)))
+        #expect(model.ruleset.size == 9)
+        #expect(model.board.size == 9)
+    }
+
+    @Test("未知の路数（19 路）は 9 路に倒れる")
+    func fallsBackWhenBoardSizeIsUnknown() {
+        let model = GoModel(services: makeServices(store(size: 19)))
+        #expect(model.ruleset.size == 9)
+    }
+
+    @Test("選べない置き石の数は互先に倒れる")
+    func fallsBackWhenHandicapIsOutOfRange() {
+        let model = GoModel(services: makeServices(store(handicap: 99)))
+        #expect(model.ruleset.handicap == 0)
+        #expect(model.board.stoneCount == 0)
+        #expect(model.state.sideToMove == .black, "置き石が無いので黒番から")
+    }
+
+    @Test("正しい 13 路・置き石ありの中断データはそのまま復元する")
+    func keepsValidRuleset() {
+        let model = GoModel(services: makeServices(store(size: 13, handicap: 4, komi: 0.5)))
+        #expect(model.ruleset.size == 13)
+        #expect(model.ruleset.handicap == 4)
+        #expect(model.ruleset.komi == 0.5)
+        #expect(model.board.stoneCount == 4)
+    }
+
+    @Test("盤外の座標が混ざった手順は、その手前で切り詰める")
+    func truncatesAtOutOfBoardMove() {
+        let moves: [GoMove] = [.play(row: 0, col: 0), .play(row: 99, col: 99), .play(row: 1, col: 1)]
+        let model = GoModel(services: makeServices(store(moves: moves)))
+        #expect(model.moveCount == 1)
+        #expect(model.board[0, 0] == .black)
+        #expect(model.board.stoneCount == 1, "切り詰めた先の手は盤に乗らない")
+        #expect(model.state.sideToMove == .white)
+    }
+
+    @Test("同じ交点への重複着手も、その手前で切り詰める")
+    func truncatesAtOccupiedMove() {
+        let moves: [GoMove] = [.play(row: 3, col: 3), .play(row: 3, col: 3)]
+        let model = GoModel(services: makeServices(store(moves: moves)))
+        #expect(model.moveCount == 1)
+        #expect(model.lastMove == GoPoint(row: 3, col: 3))
+    }
+
+    /// 切り詰めが起きても手番・手数・盤面が揃っていることを、待ったまで通して確かめる。
+    @Test("切り詰めた手順でも待ったが正しく戻る")
+    func undoWorksAfterTruncation() {
+        let moves: [GoMove] = [
+            .play(row: 0, col: 0), .play(row: 8, col: 8),
+            .play(row: 0, col: 1), .play(row: 8, col: 7),
+            .play(row: 0, col: 1),   // 重複。ここで切り詰める
+            .play(row: 5, col: 5),
+        ]
+        let model = GoModel(services: makeServices(store(moves: moves)))
+        #expect(model.moveCount == 4)
+        model.undoLastExchange()
+        #expect(model.moveCount == 2)
+        #expect(model.board[0, 1] == nil)
+        #expect(model.board[8, 7] == nil)
+    }
+}
+
 // MARK: - テスト用の入り口
 //
 // 対局の進行そのものを確かめたいテストで、毎回 MCTS を回すと時間ばかりかかる。

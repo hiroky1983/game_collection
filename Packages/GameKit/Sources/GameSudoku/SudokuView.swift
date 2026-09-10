@@ -7,11 +7,10 @@ public struct SudokuView: View {
     @State private var showNewGame = true
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
-    @State private var showRewardNotEarned = false
-    @State private var isRequestingHint = false
-    @State private var isContinuing = false
-    @State private var showContinueNotEarned = false
-    @State private var showHintUnavailable = false
+    /// ヒントのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var hintRescue = RewardedRescue()
+    /// コンティニューのリワード広告の段取り（同上）。
+    @State private var continueRescue = RewardedRescue()
     @State private var zoomMode = false
     @Environment(\.dismiss) private var dismiss
 
@@ -34,7 +33,7 @@ public struct SudokuView: View {
                 // 広告のロード〜視聴中は盤に触れない。ここが開いていると、
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
-                .disabled(isRequestingHint)
+                .disabled(hintRescue.isWatching)
             HowToPlayHint(.sudoku, playLog: services.playLog)
             controlArea
             Spacer(minLength: 0)
@@ -92,21 +91,15 @@ public struct SudokuView: View {
         } message: {
             Text("答えがすべて表示され、この局は記録上「クリアできなかった」扱いになります。")
         }
-        .alert("ヒントを使えませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
-        .alert("コンティニューできませんでした", isPresented: $showContinueNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
-        .alert("ヒントを入れられませんでした", isPresented: $showHintUnavailable) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。")
-        }
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: "ヒントを使えませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ヒントを入れられませんでした",
+                message: "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。"
+            )
+        )
+        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
@@ -411,7 +404,7 @@ public struct SudokuView: View {
             } else if model.state == .playing {
                 playingControls
                     // 盤と同じ理由でロックする（数字パッドからも答えを埋められるため）。
-                    .disabled(isRequestingHint)
+                    .disabled(hintRescue.isWatching)
             } else if model.state == .idle {
                 // 新規ゲームシートをキャンセルした直後（#354）。ここに何も出さないと空盤の下が
                 // 無の領域になり、次に何をすればよいかが画面から読めない。シートを開き直す導線を置く。
@@ -564,7 +557,7 @@ public struct SudokuView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pop)
-            .disabled(!model.canHint || isRequestingHint)
+            .disabled(!model.canHint || hintRescue.isWatching)
             .accessibilityLabel(SudokuAccessibility.hintLabel(remaining: model.remainingHints))
             .accessibilityHint(model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください")
 
@@ -592,20 +585,17 @@ public struct SudokuView: View {
     /// リワード広告を最後まで見たときだけヒントを与える（既存のコンティニューと同じ形・#262）。
     ///
     /// **対象のマスは要求した時点で確定させる**。広告の読み込み〜視聴のあいだに盤の操作は
-    /// 止めてある（`isRequestingHint` で `board` と数字パッドを無効化）が、
+    /// 止めてある（`hintRescue.isWatching` で `board` と数字パッドを無効化）が、
     /// それでも「広告を見たのにヒントが入らない」経路を残さないよう、
     /// 入れる先を選択状態から切り離しておく。
     private func requestHint() {
-        guard !isRequestingHint, let target = model.selected, model.canHint(at: target) else { return }
-        isRequestingHint = true
-        Task {
-            if await services.ads.showRewardedAd() {
-                // 広告を見たのに入らなかったら黙って終わらせない（対価が無い状態を作らない）。
-                if !model.applyHint(at: target) { showHintUnavailable = true }
-            } else {
-                showRewardNotEarned = true
-            }
-            isRequestingHint = false
+        guard !hintRescue.isWatching, let target = model.selected, model.canHint(at: target) else { return }
+        hintRescue.request(
+            services, gameID: model.gameID, purpose: .hint,
+            guardedBy: .checkedByGrant
+        ) {
+            // 広告を見たのに入らなかったら黙って終わらせない（対価が無い状態を作らない）。
+            model.applyHint(at: target)
         }
     }
 
@@ -621,17 +611,13 @@ public struct SudokuView: View {
                 Text("広告を見るとミスが0に戻り、続きから遊べます")
                     .themeCaption(12).foregroundStyle(.white.opacity(0.85))
                 Button {
-                    // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-                    guard !isContinuing else { return }
-                    isContinuing = true
-                    Task {
-                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                        if await services.ads.showRewardedAd() {
-                            model.continueAfterAd()
-                        } else {
-                            showContinueNotEarned = true
-                        }
-                        isContinuing = false
+                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                    continueRescue.request(
+                        services, gameID: model.gameID, purpose: .continue,
+                        guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                    ) {
+                        model.continueAfterAd()
+                        return true
                     }
                 } label: {
                     Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
@@ -639,7 +625,7 @@ public struct SudokuView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.Fill.coral)
-                .disabled(isContinuing)
+                .disabled(continueRescue.isWatching)
                 Button("諦めて答えを見る") { model.giveUp() }
                     .buttonStyle(.bordered)
                     .tint(.white)
@@ -681,60 +667,34 @@ struct SudokuNewGameSheet: View {
     let onCancel: () -> Void
     @State private var difficulty: SudokuDifficulty = .normal
 
+    /// 「かんたん／ふつう／むずかしい」は横3つでは収まらないので、題名を縮めて1行に収める。
+    private static let metrics = GameSetupChooser.Metrics(
+        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6
+    )
+
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("難易度").themeBody(15).foregroundStyle(Theme.inkSub)
-                    HStack(spacing: 12) {
-                        // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
-                        // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
-                        // `removalRange` のコメント参照・#354 の S6）。
-                        chooser(.easy,   subtitle: "空き 約30〜35", accent: Theme.Fill.teal)
-                        chooser(.normal, subtitle: "空き 約40〜45", accent: Theme.Fill.yellow)
-                        chooser(.hard,   subtitle: "空き 約46〜50", accent: Theme.Fill.coral)
-                    }
-                }
-                Spacer()
-                Button {
-                    onStart(difficulty)
-                } label: {
-                    Text("スタート").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("新規ゲーム")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
+        GameSetupSheet(
+            title: "新規ゲーム", startTitle: "スタート",
+            onStart: { onStart(difficulty) }, onCancel: onCancel
+        ) {
+            GameSetupSection("難易度") {
+                HStack(spacing: 12) {
+                    // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
+                    // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
+                    // `removalRange` のコメント参照・#354 の S6）。
+                    difficultyTile(.easy,   subtitle: "空き 約30〜35", accent: Theme.Fill.teal)
+                    difficultyTile(.normal, subtitle: "空き 約40〜45", accent: Theme.Fill.yellow)
+                    difficultyTile(.hard,   subtitle: "空き 約46〜50", accent: Theme.Fill.coral)
                 }
             }
         }
-        .gameSheetDetents()
     }
 
-    private func chooser(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
-        let selected = difficulty == value
-        return Button {
+    private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
+        GameSetupChooser(title: value.label, subtitle: subtitle,
+                         selected: difficulty == value, accent: accent,
+                         metrics: Self.metrics) {
             difficulty = value
-        } label: {
-            VStack(spacing: 4) {
-                Text(value.label).themeTitle(20).foregroundStyle(selected ? Theme.onAccent : Theme.ink)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-                Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }

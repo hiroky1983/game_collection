@@ -222,6 +222,39 @@ struct ModelTests {
         #expect(model.phase == .playing)
     }
 
+    @Test("描画ループが要るのは発射前と進行中だけ（#522）")
+    func animationFramesOnlyWhileMoving() {
+        // 発射前は球こそ止まっているが、パドルがドラッグに追従する。
+        #expect(BlocksPhase.ready.needsAnimationFrames)
+        #expect(BlocksPhase.playing.needsAnimationFrames)
+        // ここから下は画面の中身が動かない。回し続けると電池を使うだけになる。
+        #expect(!BlocksPhase.paused.needsAnimationFrames)
+        #expect(!BlocksPhase.stageCleared.needsAnimationFrames)
+        #expect(!BlocksPhase.gameOver.needsAnimationFrames)
+        #expect(!BlocksPhase.allCleared.needsAnimationFrames)
+    }
+
+    @Test("一時停止で描画ループが止まり、再開すると戻る（#522）")
+    func animationFramesStopWhilePaused() {
+        let model = BlocksModel(services: makeServices(), preference: makePreference("frames"))
+        model.launch()
+        #expect(model.phase.needsAnimationFrames)
+        model.pause()
+        #expect(!model.phase.needsAnimationFrames)
+        model.resume()
+        #expect(model.phase.needsAnimationFrames)
+    }
+
+    @Test("ゲームオーバーの表示中は描画ループが止まる（#522）")
+    func animationFramesStopAfterGameOver() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, lives: 1, preference: makePreference("framesover")
+        )
+        dropBall(model)
+        #expect(model.phase == .gameOver)
+        #expect(!model.phase.needsAnimationFrames)
+    }
+
     @Test("決着後は一時停止できない")
     func cannotPauseAfterFinish() {
         let model = BlocksModel(
@@ -538,6 +571,51 @@ struct ModelTests {
         #expect(!model.continueUsed)
         #expect(model.phase == .ready)
         #expect(model.fieldGeneration > generation, "描画側が盤を作り直せるよう連番が進む")
+    }
+
+    @Test("開始直後は「はじめから」で失うものが無い")
+    func noProgressToLoseAtStart() {
+        let model = BlocksModel(services: makeServices(), preference: makePreference("progress-start"))
+        #expect(!model.hasProgressToLose)
+    }
+
+    @Test("発射したら「はじめから」に確認が要る")
+    func playingHasProgressToLose() {
+        let model = BlocksModel(services: makeServices(), preference: makePreference("progress-play"))
+        model.launch()
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("得点が付いていれば一時停止中でも確認が要る")
+    func scoreKeepsProgressWhilePaused() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, score: 120,
+            preference: makePreference("progress-score")
+        )
+        model.launch()
+        model.pause()
+        #expect(model.phase == .paused)
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("ステージ2以降は発射前でも確認が要る")
+    func laterStageHasProgressToLose() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 3, preference: makePreference("progress-stage")
+        )
+        #expect(model.phase == .ready)
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("決着後は得点が残っていても確認を挟まない")
+    func finishedGameHasNothingToLose() {
+        let model = BlocksModel(
+            services: makeServices(), startingAt: 1, score: 900, lives: 1,
+            preference: makePreference("progress-gameover")
+        )
+        dropBall(model)
+        #expect(model.phase == .gameOver)
+        #expect(!model.hasProgressToLose)
     }
 
     @Test("ステージ1で崩し終えてから「はじめから」を選んでも盤が組み直される")

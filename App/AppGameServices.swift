@@ -17,6 +17,10 @@ import GameGo
 import GameSolitaire
 import GameChess
 import GameBlocks
+import GameFreeCell
+import GameBlockPuzzle
+import GameRunner
+import GameHanafuda
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -118,6 +122,8 @@ enum AppEnvironment {
     /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
         Game2048Module(),
+        // ブロックならべ（#493）。同じ「盤に置いてスコアを伸ばす」1人用パズルなので 2048 の隣に置く。
+        BlockPuzzleModule(),
         ShogiModule(),
         MahjongModule(),
         // ナンプレは国内の検索需要が最大級のカテゴリなので上位に置く（#355 会長決裁・2026-08-31。
@@ -131,6 +137,8 @@ enum AppEnvironment {
         MahjongSolitaireModule(),
         // ソリティア（クロンダイク・#397）。同じ「1人でトランプを片付ける」麻雀ソリティアの隣に置く。
         SolitaireModule(),
+        // フリーセル（#492）。同じ「1人でトランプを片付ける」ソリティアの隣に置く。
+        FreeCellModule(),
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),
@@ -140,6 +148,11 @@ enum AppEnvironment {
         // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
         // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
         BlocksModule(),
+        // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
+        RunnerModule(),
+        // 花札こいこい（#495）。和風の看板として末尾に置く（初期表示順のみ。既にアプリを
+        // 使っている人の並びには影響しない）。
+        HanafudaModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

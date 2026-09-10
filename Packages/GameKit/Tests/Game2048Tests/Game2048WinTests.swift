@@ -26,8 +26,8 @@ private final class SpyAnalyticsService: AnalyticsService {
     var starts: Int {
         events.filter { if case .gameStart = $0 { return true } else { return false } }.count
     }
-    var outcomes: [GameOutcome] {
-        events.compactMap { if case let .gameEnd(_, outcome, _) = $0 { return outcome } else { return nil } }
+    var outcomes: [AnalyticsResult] {
+        events.compactMap { if case let .gameEnd(_, result, _) = $0 { return result } else { return nil } }
     }
 }
 
@@ -216,8 +216,8 @@ struct Game2048WinTests {
         #expect(model.board != boardAtWin)
     }
 
-    @Test("勝利直後に中断・復元して終局しても、`game_end` は 1 回のまま")
-    func suspendingRightAfterTheWinDoesNotDoubleCountTheEnd() {
+    @Test("勝利直後に kill されても演出は残り、続行は 1 プレイとして対応が取れる")
+    func suspendingRightAfterTheWinKeepsThePromptAndThePairing() {
         let harness = makeHarness(suite: "suspend-after-win")
         let before = makeModel(harness, board: Self.oneMoveFromWin)
         before.move(.left)
@@ -233,9 +233,12 @@ struct Game2048WinTests {
         )
         let restored = Game2048Model(services: restarted)
         #expect(restored.hasWon)
-        #expect(!restored.showWinPrompt)
+        #expect(restored.showWinPrompt, "選ばないうちに演出が消えない（#516）")
+        #expect(spy.starts == 0, "復元だけでは `game_start` を数えない")
 
-        // 復元した続きを終局まで遊ぶ。
+        // 「続ける」を選んでから終局まで遊ぶ。
+        restored.continueAfterWin()
+        #expect(spy.starts == 1, "続行がこのプロセスの 1 プレイ目になる")
         while !restored.gameOver {
             guard let direction = Direction.allCases.first(where: {
                 Game2048Logic.slide(restored.board, $0).moved
@@ -244,10 +247,9 @@ struct Game2048WinTests {
         }
         #expect(restored.gameOver)
 
-        // 中断からの再開は「新しいプレイ」として数えない（#158）ので、対応の取れない
-        // `game_end` は作られない。到達時の 1 回に対して 2 回目は送られない。
-        #expect(spy.starts == 0, "復元だけでは `game_start` を数えない")
-        #expect(spy.outcomes.isEmpty, "開始を数えていないプレイの終局は送らない")
+        // 数え直した 1 プレイに対して `game_end` はちょうど 1 回。到達時の `.win` は
+        // 前のプロセスで送信済みなので、ここで二重には出ない。
+        #expect(spy.outcomes.count == 1, "`game_start` 1 回に `game_end` 1 回で対応する")
     }
 
     @Test("演出が出ていないときの `continueAfterWin()` は何もしない")
@@ -295,6 +297,32 @@ struct Game2048WinTests {
         #expect(!model.showWinPrompt)
     }
 
+    @Test("演出を出したまま画面を離れて入り直しても、演出は残る（#516）")
+    func reenteringWhileThePromptIsUpKeepsIt() {
+        let harness = makeHarness(suite: "reentry-with-prompt")
+        let before = makeModel(harness, board: Self.oneMoveFromWin)
+        before.move(.left)
+        #expect(before.showWinPrompt, "前提: 演出が出ている")
+        #expect(harness.analytics.outcomes == [.win], "前提: 到達で 1 回送っている")
+
+        // 「続ける」を押さずにハブへ戻り、同じプロセスのまま入り直す。
+        harness.services.gameDidLeave(gameID: "2048")
+        let restored = Game2048Model(services: harness.services)
+
+        #expect(restored.showWinPrompt, "演出は復元される（選ばないうちに消えない）")
+
+        // 続きは従来どおり次の 1 プレイとして数え直せる。
+        restored.continueAfterWin()
+        #expect(harness.analytics.starts == 2, "続行が 1 プレイとして数えられる")
+        while !restored.gameOver {
+            guard let direction = Direction.allCases.first(where: {
+                Game2048Logic.slide(restored.board, $0).moved
+            }) else { break }
+            restored.move(direction)
+        }
+        #expect(harness.analytics.outcomes.count == 2, "数え直したプレイの終局も送られる")
+    }
+
     // MARK: - スナップショットの後方互換
 
     @Test("`hasWon` を持たない旧バージョンの中断データも読める")
@@ -303,6 +331,14 @@ struct Game2048WinTests {
         let snapshot = try JSONDecoder().decode(Game2048Snapshot.self, from: legacy)
         #expect(snapshot.score == 8, "キーが増えても既存の中断データを失わせない")
         #expect(snapshot.hasWon == false)
+    }
+
+    @Test("`showWinPrompt` を持たない旧バージョンの中断データは演出なしとして読む（#516）")
+    func decodesLegacySnapshotWithoutShowWinPrompt() throws {
+        let legacy = Data(#"{"board":[[2048,4,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]],"score":30000,"hasWon":true}"#.utf8)
+        let snapshot = try JSONDecoder().decode(Game2048Snapshot.self, from: legacy)
+        #expect(snapshot.hasWon, "前提: 到達済みの中断データ")
+        #expect(!snapshot.showWinPrompt, "キーが増えても既存の中断データの挙動を変えない")
     }
 
     @Test("既に 2048 が乗っている旧バージョンの中断データは到達済みとして読む")

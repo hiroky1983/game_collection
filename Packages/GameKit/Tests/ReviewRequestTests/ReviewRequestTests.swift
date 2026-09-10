@@ -15,6 +15,10 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
+import GameBlockPuzzle
+import GameRunner
+import GameHanafuda
 import GameChess
 import MahjongTiles
 
@@ -448,6 +452,55 @@ struct GameOutcomeRoutingTests {
         #expect(service.log.totalWins == 0)
     }
 
+    @Test("フリーセル: 捨てた配札は勝利にならない")
+    func freeCellAbandon() {
+        let (services, service) = makeServices(suite: "route-freecell")
+        let model = FreeCellModel(services: services, seed: FreeCellDealer.verifiedSeeds[0])
+        model.tapPile(0)
+        model.tapCell(0)
+        model.newGame()
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("ブロックならべ: 詰みは勝利にならない")
+    func blockPuzzleStuck() {
+        let (services, service) = makeServices(suite: "route-blockpuzzle")
+        var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
+        for i in 0..<10 { board[i][i] = 0 }
+        board[0][2] = 0
+        let model = BlockPuzzleModel(
+            services: services, board: board,
+            hand: [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
+        )
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        #expect(model.gameOver)
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("チャリンコおじさん: ステージクリアは勝利になり、ミスはならない")
+    func runnerStageClear() {
+        let (services, service) = makeServices(suite: "route-runner")
+        let model = RunnerModel(services: services, startingAt: 1)
+        failRunnerStage(model)
+        #expect(model.phase == .failed)
+        #expect(service.log.totalWins == 0, "ミスは決着ではない")
+
+        model.retryStage()
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        #expect(service.log.totalWins == 1)
+    }
+
+    @Test("花札こいこい: 投了は勝利にならない")
+    func hanafudaResign() {
+        let (services, service) = makeServices(suite: "route-hanafuda")
+        let model = HanafudaModel(services: services, cpuDelay: .zero, seed: 4649)
+        model.startMatch(options: HanafudaOptions(rounds: 6))
+        model.resign()
+        #expect(model.phase == .matchResult)
+        #expect(service.log.totalWins == 0)
+    }
+
     @Test("囲碁: 投了は勝利にならない")
     func goResign() {
         let (services, service) = makeServices(suite: "route-go")
@@ -764,4 +817,60 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
             return
         }
     }
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 一度も跳ばずに走らせてミスさせる。
+@MainActor
+private func failRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
+@MainActor
+private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
+    let model = HanafudaModel(services: services, cpuDelay: .zero, seed: seed)
+    model.startMatch(options: HanafudaOptions(rounds: rounds))
+    for _ in 0..<2000 {
+        switch model.phase {
+        case .matchResult, .idle:
+            return model
+        case .roundResult:
+            model.advanceAfterRound()
+        case .koiKoiPrompt:
+            if model.canStop { model.declareStop() } else { model.declareKoiKoi() }
+        case .playing:
+            if let selection = model.selection {
+                model.chooseFieldCard(selection.candidates[0])
+            } else if model.turn == .human {
+                guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { return model }
+                model.play(card)
+            } else {
+                model.stepCPU()
+            }
+        }
+    }
+    return model
 }

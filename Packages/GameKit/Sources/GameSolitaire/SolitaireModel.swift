@@ -14,11 +14,14 @@ public enum SolitairePhase: String, Codable, Sendable, Equatable {
 /// **`SolitaireModel` の外に置く**のは、モデルが `@MainActor` なのに対し読み上げ文
 /// （`SolitaireAccessibility`）が非隔離の純関数だから。中に静的定数として持つと、
 /// 読み上げ側から回数を参照できず文言と実装が二重管理になる。
+///
+/// 値そのものは `Core.RewardedUndoBudget` が持つ（#492 でフリーセルと共有するため Core へ上げた）。
+/// ここは呼び出し側の表記をソリティアの文脈に残すための転送で、**両ゲームの経済は常に一致する**。
 public enum SolitaireUndoBudget {
     /// 1 局につき無料で戻せる回数。配り直し・新規ゲームでここまで戻る。
-    public static let free = 3
+    public static let free = RewardedUndoBudget.free
     /// リワード広告 1 本の視聴完了で補充する回数。
-    public static let refill = 3
+    public static let refill = RewardedUndoBudget.refill
 }
 
 /// いま持ち上げている札。
@@ -57,6 +60,12 @@ struct SolitaireSnapshot: Codable {
     /// **省略可**。回数制が無かった版の中断データには入っていないので、欠けていたら
     /// 無料枠が丸ごと残っている扱いにする（再開した局が理不尽に戻せなくならない）。
     let undosRemaining: Int?
+    /// この局に焼き込んだめくり枚数（#498。`SolitaireDrawMode.rawValue`）。
+    ///
+    /// **省略可**。分岐が無かった版の中断データには入っていないので、欠けていたら
+    /// 1 枚めくり（分岐が存在しなかった頃のルール）に倒す。非 optional にすると
+    /// 旧データのデコードが丸ごと失敗し、中断が黙って消える（`docs/ai-devops.md` 規約2）。
+    let drawMode: String?
 }
 
 @MainActor
@@ -109,9 +118,16 @@ public final class SolitaireModel {
     /// View はこの集合に入っている札だけを「裏から返る」演出で描く。
     public private(set) var revealedCardIDs: Set<Int> = []
 
-    /// 直前の手が山めくりだったか（#421。捨て札の 1 枚を裏から返す演出のトリガー）。
+    /// 直前の手が山めくりだったか（#421）。
     /// 捨て札の一番上は札を場に出したときにも入れ替わるが、そちらは**もともと表**なので返さない。
     public private(set) var lastMoveWasDraw: Bool = false
+
+    /// 直前の山めくりで捨て札へ出た札の id（#498。捨て札を裏から返す演出のトリガー）。
+    ///
+    /// 3 枚めくりでは 1 回のめくりで最大 3 枚が同時に返るので、`lastMoveWasDraw` の
+    /// 真偽だけでは「どの札が返るか」を決められない。1 枚めくりでは常に
+    /// `lastMoveWasDraw` が true のときの捨て札の一番上 1 枚だけが入る。
+    public private(set) var drawnCardIDs: Set<Int> = []
 
     /// 「戻す」の残り回数（#476）。
     ///
@@ -119,6 +135,10 @@ public final class SolitaireModel {
     /// やり直して必ず勝ててしまい、ジョーカー救済（#406）の存在意義が消える。将棋の「待った」と
     /// 同型の回数制にする（会長決裁 2026-09-06）。
     public private(set) var undosRemaining: Int
+
+    /// この局に焼き込んだルール（#498）。**局の途中では変わらない**（1 局 = 1 RuleSet）。
+    /// 変わるのは `newGame(rules:)` を通したときだけ。
+    public private(set) var rules: SolitaireRuleSet
 
     private var seed: UInt64
     private var moves: [SolitaireMove] = []
@@ -139,7 +159,8 @@ public final class SolitaireModel {
     /// 探索済みの局面の `stateKey`（結果を問わない）。同じ局面を二度掘らないための控え。
     private var checkedKeys: Set<Data> = []
     private let services: GameServices?
-    private let gameID = "solitaire"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "solitaire"
 
     /// 敗北確定の探索を始めるまでの待ち（ミリ秒）。連続でタップしている間は走らせない。
     /// テストは 0 に落として、実時間を待たずに探索の完了だけを待ち合わせる。
@@ -203,11 +224,19 @@ public final class SolitaireModel {
     /// 計時が動いているか（テスト用）。
     public var isCounting: Bool { timerTask != nil }
 
-    /// - Parameter seed: テスト・撮影用の固定種。nil なら検証済みの種から 1 つ選ぶ。
-    public init(services: GameServices? = nil, seed: UInt64? = nil) {
+    /// - Parameters:
+    ///   - seed: テスト・撮影用の固定種。nil なら検証済みの種から 1 つ選ぶ。
+    ///   - rules: 開始時に焼き込むルール（#498）。中断データがあればそちらが優先される
+    ///     （進行中の局のルールを外から差し替えない）。
+    public init(
+        services: GameServices? = nil,
+        seed: UInt64? = nil,
+        rules: SolitaireRuleSet = .standard
+    ) {
         self.services = services
 
-        var startSeed = seed ?? Self.pickSeed()
+        var startRules = rules
+        var startSeed = seed ?? Self.pickSeed(for: rules.drawMode)
         var startMoves: [SolitaireMove] = []
         var startElapsed = 0
         var startGrants = Self.initialJokerGrants
@@ -219,6 +248,11 @@ public final class SolitaireModel {
             startSeed = snap.seed
             startMoves = snap.moves
             startElapsed = snap.elapsedSeconds
+            // 分岐が無かった版の中断データには入っていない。読めない値も 1 枚めくりへ倒す
+            // （#498。中断した局のルールが再開で入れ替わらないことが要）。
+            startRules = SolitaireRuleSet(
+                drawMode: snap.drawMode.flatMap(SolitaireDrawMode.init(rawValue:)) ?? .one
+            )
             // ジョーカーが無かった版の中断データには入っていない。初期 1 枚として読む。
             // 負の値（書き換えられたデータ）は 0 に丸める。所持が負になると `placeJoker` を
             // 含む手順が適用できなくなり、下の再生がそこで切り詰める。
@@ -228,13 +262,16 @@ public final class SolitaireModel {
             isFreshStart = false
         }
 
+        self.rules = startRules
         self.seed = startSeed
         self.elapsedSeconds = startElapsed
         self.jokerGrants = startGrants
         self.undosRemaining = startUndos
         // 壊れた（または食い違った）中断データは、**適用できたところで打ち切る**。
         // 落ちた手を黙って読み飛ばすと、以降の手順が 1 手ずつずれた別の盤面になる（#406 申し送り2）。
-        let restored = Self.replay(startMoves, seed: startSeed, jokerGrants: startGrants)
+        let restored = Self.replay(
+            startMoves, seed: startSeed, jokerGrants: startGrants, rules: startRules
+        )
         self.moves = Array(startMoves.prefix(restored.applied))
         self.board = restored.board
         refreshDerivedState()
@@ -248,9 +285,10 @@ public final class SolitaireModel {
     /// 配ったときに無条件でもらえる枚数（#397 の「初期所持1枚」）。
     static let initialJokerGrants = 1
 
-    private static func pickSeed() -> UInt64 {
+    /// そのモードで検証済みの種から 1 つ選ぶ（#498。モードごとに検証結果が違う）。
+    private static func pickSeed(for mode: SolitaireDrawMode) -> UInt64 {
         var system = SystemRandomNumberGenerator()
-        return SolitaireDealer.randomVerifiedSeed(using: &system)
+        return SolitaireDealer.randomVerifiedSeed(for: mode, using: &system)
     }
 
     /// 種から配り直して手順を再生する。undo も新規配札もこの 1 本を通る。
@@ -265,9 +303,10 @@ public final class SolitaireModel {
     private static func replay(
         _ moves: [SolitaireMove],
         seed: UInt64,
-        jokerGrants: Int
+        jokerGrants: Int,
+        rules: SolitaireRuleSet
     ) -> (board: SolitaireBoard, applied: Int) {
-        var board = SolitaireDealer.deal(seed: seed)
+        var board = SolitaireDealer.deal(seed: seed, rules: rules)
         var placed = 0
         board.jokerAvailable = jokerGrants > placed
         for (index, move) in moves.enumerated() {
@@ -423,7 +462,7 @@ public final class SolitaireModel {
         }
         undosRemaining -= 1
         moves.removeLast()
-        board = Self.replay(moves, seed: seed, jokerGrants: jokerGrants).board
+        board = Self.replay(moves, seed: seed, jokerGrants: jokerGrants, rules: rules).board
         selection = nil
         isPlacingJoker = false
         clearFlips()
@@ -465,6 +504,9 @@ public final class SolitaireModel {
         }
         revealedCardIDs = SolitaireBoard.revealedCardIDs(before: before, after: board)
         lastMoveWasDraw = plan.last == .draw
+        // 一気に上がる手順は複数の山めくりをまたぐので、1 回ぶんの差分では数えられない。
+        // 上がりきった時点で捨て札は空になり、返す札そのものが無くなるので空でよい。
+        drawnCardIDs = []
         selection = nil
         isPlacingJoker = false
         refreshDerivedState()
@@ -484,15 +526,20 @@ public final class SolitaireModel {
     /// 麻雀ソリティア（#240）が「捨てた盤面はどちらの経路でも記録しない」に倒したのとは
     /// 逆だが、あちらは手詰まりを並べ替えで必ず解消でき「負け」に相当する状態が存在しない。
     /// クロンダイクは配札を落とすことが普通に起きるゲームで、クリア率はその前提でこそ意味を持つ。
-    public func newGame() {
+    /// - Parameter rules: 次の局に焼き込むルール（#498）。省略すると**今の局と同じルール**で
+    ///   配り直す（クリア後の「次のゲーム」・救済の面の「新しい配札にする」がこの経路）。
+    ///   ルールを変えられるのは開始シートを通したときだけで、**進行中の局には効かない**
+    ///   （1 局 = 1 RuleSet。ここで焼き直した瞬間に手順がリセットされるので前後で混ざらない）。
+    public func newGame(rules: SolitaireRuleSet? = nil) {
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
-        seed = Self.pickSeed()
+        self.rules = rules ?? self.rules
+        seed = Self.pickSeed(for: self.rules.drawMode)
         moves = []
         jokerGrants = Self.initialJokerGrants
         undosRemaining = SolitaireUndoBudget.free
-        board = Self.replay(moves, seed: seed, jokerGrants: jokerGrants).board
+        board = Self.replay(moves, seed: seed, jokerGrants: jokerGrants, rules: self.rules).board
         phase = .playing
         selection = nil
         isPlacingJoker = false
@@ -581,6 +628,10 @@ public final class SolitaireModel {
         guard board.apply(move) else { return reject() }
         noteFlips(from: before, move: move)
         moves.append(move)
+        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        // 立つ契機は `canUndo` と同じ「1 手指したか」だが、**一度立つとその局の間は下りない**
+        // （`canUndo` は `undo()` で false に戻る）。全部戻して配り直しても遊んだ事実は消えない。
+        services?.gameDidProgress(gameID: gameID)
         selection = nil
         services?.feedback.impact(move == .draw ? .light : .medium)
         refreshDerivedState()
@@ -605,11 +656,15 @@ public final class SolitaireModel {
     private func noteFlips(from before: SolitaireBoard, move: SolitaireMove) {
         revealedCardIDs = SolitaireBoard.revealedCardIDs(before: before, after: board)
         lastMoveWasDraw = move == .draw
+        drawnCardIDs = move == .draw
+            ? SolitaireBoard.drawnCardIDs(before: before, after: board)
+            : []
     }
 
     private func clearFlips() {
         revealedCardIDs = []
         lastMoveWasDraw = false
+        drawnCardIDs = []
     }
 
     private func refreshDerivedState() {
@@ -748,12 +803,19 @@ public final class SolitaireModel {
     ///
     /// **ジョーカーを使ったクリアは Game Center へ送らない**（#397 の受け入れ条件）。
     /// ローカルの自己ベストには使用の有無を問わず載る。
+    ///
+    /// **3 枚めくりの記録も順位表へは送らない**（#498。順位表は標準ルール固定）。
+    /// こちらは `variant` を付けてローカルの自己ベストを別枠にする
+    /// （めくり枚数でタイムの水準が変わるので同じ行に混ぜると自己ベストが比較にならない）。
+    /// 既定の 1 枚めくりは `recordVariant` が nil なので、保存先は従来どおり `solitaire` のまま。
     private var currentScore: GameScore {
         GameScore(
             metric: .shortestTime,
             seconds: elapsedSeconds,
             moves: moveCount,
-            isLeaderboardEligible: !jokerUsed
+            variant: rules.drawMode.recordVariant,
+            variantLabel: rules.drawMode.recordLabel,
+            isLeaderboardEligible: !jokerUsed && rules.drawMode == .one
         )
     }
 
@@ -783,7 +845,8 @@ public final class SolitaireModel {
             moves: moves,
             elapsedSeconds: elapsedSeconds,
             jokerGrants: jokerGrants,
-            undosRemaining: undosRemaining
+            undosRemaining: undosRemaining,
+            drawMode: rules.drawMode.rawValue
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }
@@ -814,7 +877,8 @@ public final class SolitaireModel {
     /// - Parameter ratio: 勝ち筋のうち先頭から進める割合（0...1）。
     public func applyPreviewProgressForTesting(ratio: Double = 0.45) {
         guard moves.isEmpty, phase == .playing else { return }
-        guard let solution = SolitaireSolver.solve(SolitaireDealer.deal(seed: seed)).solution else { return }
+        let deal = SolitaireDealer.deal(seed: seed, rules: rules)
+        guard let solution = SolitaireSolver.solve(deal).solution else { return }
         let count = max(0, min(solution.count, Int(Double(solution.count) * ratio)))
         for move in solution.prefix(count) {
             guard board.apply(move) else { break }
@@ -844,6 +908,17 @@ public final class SolitaireModel {
     /// 撮影用（#406）: ジョーカーの置き先を選んでいる最中の状態を作る。
     public func applyPlacingJokerPreviewForTesting() {
         beginPlacingJoker()
+    }
+
+    /// 撮影用（#498）: 3 枚めくりの局を作り、捨て札が 3 枚重なった状態まで進める。
+    ///
+    /// 3 枚めくりは開始シートで選ぶものなので、シミュレータ（自動タップができない）では
+    /// この口を通さないと扇の表示に到達できない。最後にもう一度めくるのは、
+    /// 勝ち筋の途中では捨て札が 1〜2 枚しか残っていないことがあるため。
+    public func applyDrawThreePreviewForTesting() {
+        newGame(rules: SolitaireRuleSet(drawMode: .three))
+        applyPreviewProgressForTesting()
+        if board.isLegal(.draw) { tapStock() }
     }
     #endif
 }

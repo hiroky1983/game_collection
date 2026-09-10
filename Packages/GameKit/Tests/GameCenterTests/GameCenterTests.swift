@@ -15,6 +15,10 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
+import GameBlockPuzzle
+import GameRunner
+import GameHanafuda
 import GameChess
 import GameBlocks
 
@@ -92,7 +96,8 @@ private func makeHubModules() -> [GameModule] {
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
-        SolitaireModule(), ChessModule(), BlocksModule(),
+        SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
+        RunnerModule(), HanafudaModule(),
     ]
 }
 
@@ -293,6 +298,10 @@ struct GameCenterLeaderboardTests {
             ("sudoku", GameScore(metric: .shortestTime, seconds: 1, variant: "hard")),
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
             ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
+            ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
+            ("blockpuzzle", GameScore(metric: .points, points: 1)),
+            ("runner", GameScore(metric: .points, points: 1)),
+            ("hanafuda", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID
@@ -580,6 +589,89 @@ struct GameCenterPerGameTests {
         #expect(leaderboardID(for: "mahjong", in: log) == GameCenterLeaderboard.mahjongSolitaireTime)
     }
 
+    @Test("フリーセル: クリアでタイムが送られる")
+    func freeCellWin() {
+        let (log, defaults, name) = makeLog(suite: "freecell")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let seed = FreeCellDealer.verifiedSeeds[0]
+        let model = FreeCellModel(services: makeServices(log: log, spy: spy), seed: seed)
+        guard let solution = FreeCellSolver.solve(FreeCellDealer.deal(seed: seed)).solution else {
+            Issue.record("種 \(seed) の勝ち筋が見つからなかった")
+            return
+        }
+        playFreeCellSolution(model, solution)
+
+        #expect(model.phase == .won)
+        #expect(leaderboardID(for: "freecell", in: log) == GameCenterLeaderboard.freeCellTime)
+    }
+
+    @Test("ブロックならべ: 詰みでスコアが送られる")
+    func blockPuzzle() {
+        let (log, defaults, name) = makeLog(suite: "blockpuzzle")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = BlockPuzzleModel(services: makeServices(log: log, spy: spy),
+                                     board: blockPuzzleStuckBoard(), hand: blockPuzzleStuckHand(),
+                                     score: 500)
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        #expect(model.gameOver)
+        #expect(spy.scores == [
+            GameCenterScore(leaderboardID: GameCenterLeaderboard.blockPuzzleScore, value: 501),
+        ])
+    }
+
+    /// #406 の考え方の横展開。広告を見た回数で順位が決まる表にしない。
+    @Test("ブロックならべ: コンティニューを使った局は順位表へ送らない")
+    func blockPuzzleAfterContinue() {
+        let (log, defaults, name) = makeLog(suite: "blockpuzzle-continue")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = BlockPuzzleModel(services: makeServices(log: log, spy: spy),
+                                     board: blockPuzzleStuckBoard(), hand: blockPuzzleStuckHand(),
+                                     score: 500)
+        model.place(pieceIndex: 0, row: 0, col: 2)
+        let sentBeforeContinue = spy.scores.count
+        model.continueAfterAd()
+
+        // 復活後に 3×3 を置いて、また詰ませる。
+        #expect(model.place(pieceIndex: 1, row: 2, col: 2))
+        #expect(model.gameOver, "中央を埋め戻すと再び置き場所が無くなる")
+        #expect(spy.scores.count == sentBeforeContinue, "コンティニュー後の決着は送らない")
+    }
+
+    @Test("チャリンコおじさん: 到達ステージ数が送られる")
+    func runner() {
+        let (log, defaults, name) = makeLog(suite: "runner")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = RunnerModel(services: makeServices(log: log, spy: spy), startingAt: 3)
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        #expect(spy.scores == [
+            GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerStage, value: 3),
+        ])
+    }
+
+    /// #406 の考え方の横展開。広告を見た回数で順位が決まる表にしない。
+    @Test("チャリンコおじさん: 広告で途中から再開した回は順位表へ送らない")
+    func runnerAfterCheckpointResume() {
+        let (log, defaults, name) = makeLog(suite: "runner-checkpoint")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let model = RunnerModel(services: makeServices(log: log, spy: spy), startingAt: 3)
+        failRunnerAfterCheckpoint(model)
+        #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
+        clearRunnerStage(model)
+        #expect(model.phase == .cleared)
+        #expect(spy.scores.isEmpty, "半分だけ走った回は送らない")
+    }
+
     @Test("ブラックジャック: 精算後のチップが送られる")
     func blackjack() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
@@ -715,5 +807,81 @@ struct GameCenterEntryPointTests {
             #expect(usages.isEmpty,
                     "\(file.lastPathComponent) が deprecated な GKGameCenterViewController を使っている: \(usages)")
         }
+    }
+}
+
+/// ソルバーの勝ち筋を、**View と同じタップ操作に翻訳して**指す。
+///
+/// 直接 `FreeCellBoard.apply` を呼ばずタップ経路を通すのは、選択 → 置き先という 2 段の
+/// 操作そのものを 1 局ぶん通しで検証するため（View を組まずに触れるのはここが唯一の面）。
+/// ソリティアの `SolitaireModelTests` と同じ方針。
+@MainActor
+func playFreeCellSolution(_ model: FreeCellModel, _ solution: [FreeCellMove]) {
+    for move in solution {
+        switch move {
+        case .tableauToCell(let from, let cell):
+            model.tapPile(from)
+            model.tapCell(cell)
+        case .tableauToFoundation(let pile):
+            guard let suit = model.board.tableau[pile].last?.suit else { return }
+            model.tapPile(pile)
+            model.tapFoundation(suit)
+        case .tableauToTableau(let from, let cardIndex, let to):
+            model.tapPile(from, cardIndex: cardIndex)
+            model.tapPile(to)
+        case .cellToTableau(let cell, let to):
+            model.tapCell(cell)
+            model.tapPile(to)
+        case .cellToFoundation(let cell):
+            guard let suit = model.board.cells[cell]?.suit else { return }
+            model.tapCell(cell)
+            model.tapFoundation(suit)
+        }
+    }
+}
+
+/// ブロックならべ（#493）で「あと 1 手で詰む」盤。空きは対角線と (0, 2) だけで、
+/// どれも隣り合っていないので 1×1 しか置けない。(0, 2) に置いても行も列も揃わない。
+private func blockPuzzleStuckBoard() -> [[Int]] {
+    var board = Array(repeating: Array(repeating: 1, count: 10), count: 10)
+    for i in 0..<10 { board[i][i] = 0 }
+    board[0][2] = 0
+    return board
+}
+
+/// 1×1 と、置き場所の無い 3×3 が 2 つ。
+private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
+    [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
+}
+
+/// チャリンコおじさん（#494）で 1 ステージを走り切る。
+/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+@MainActor
+private func clearRunnerStage(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        model.tick(dt: 1.0 / 60)
+    }
+}
+
+/// チェックポイント通過後にミスさせる（広告での再開が出せる状態を作る）。
+@MainActor
+private func failRunnerAfterCheckpoint(_ model: RunnerModel) {
+    if model.phase == .ready { model.press(); model.release() }
+    var frames = 0
+    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        frames += 1
+        if !model.field.passedCheckpoint, RunnerAutoPilot.shouldJump(field: model.field) {
+            model.press()
+            model.release()
+        }
+        model.tick(dt: 1.0 / 60)
     }
 }

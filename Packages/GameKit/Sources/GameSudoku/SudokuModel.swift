@@ -45,6 +45,9 @@ public final class SudokuModel {
     /// 許されるミス（誤答の確定入力）の回数。上限に達すると `failed` になり、
     /// 広告のコンティニュー（`continueAfterAd`）で続けられる（2048 と同じ型・会長指示 2026-08-30）。
     public static let maxMistakes = 3
+    /// 計時だけが進んでいる間に中断データを保存し直す間隔（秒）。#240 の横展開（#513）。
+    /// 毎秒書くと中断データの書き込みが 1 局で数百回になるため、失われる幅の上限と釣り合う長さにする。
+    static let persistInterval = 30
 
     public private(set) var board: [Int]
     public private(set) var given: [Bool]
@@ -90,7 +93,8 @@ public final class SudokuModel {
     /// テストはここで生成を止めることで、「生成中」という状態を生成の所要時間に
     /// 依存せず決定論的に作れる（将棋・オセロの `thinkingGate` と同じ形。#172 / #419）。
     @ObservationIgnored var generationGate: (@MainActor () async -> Void)?
-    private let gameID = "sudoku"
+    /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
+    let gameID = "sudoku"
     private var timerTask: Task<Void, Never>?
     /// テスト用の固定種。nil ならシステムの乱数を使う。
     private var seed: UInt64?
@@ -235,7 +239,7 @@ public final class SudokuModel {
         persist()
         startTimer()
         // 盤が出来て計時が始まるここが 1 プレイの開始（#158）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, level: difficulty.analyticsLevel)
     }
 
     /// 中断から復帰したときに計時を再開する（`onAppear` / `task` から呼ぶ）。
@@ -249,7 +253,15 @@ public final class SudokuModel {
     /// 計時の `Task` は `self` を強く握るので、止めないと**モデルが解放されず**、
     /// 画面を離れたあとも 1 秒ごとに `elapsedSeconds` が進み続ける（#375）。
     /// 画面に戻れば `resumeTimerIfNeeded()` が計時を再開するので、経過時間は失われない。
-    public func pauseTimer() { stopTimer() }
+    ///
+    /// 止める前に保存し直すのは、直近の保存から最大 `persistInterval` 秒ぶんの計時が
+    /// 失われるのを防ぐため（#240 と同じ理由・#513）。計時が動いていないときは
+    /// 保存し直す経過秒が無いので触らない（生成中に画面を離れたときに `persist()` が
+    /// 中断データを消してしまうのを避ける）。
+    public func pauseTimer() {
+        if isTimerRunning { persist() }
+        stopTimer()
+    }
 
     /// 計時が動いているか。`@testable` から計時の開始・停止を実時間に依存せず確かめるために持つ。
     var isTimerRunning: Bool { timerTask != nil }
@@ -270,6 +282,8 @@ public final class SudokuModel {
             services?.feedback.notify(.warning)  // 出題のマスは書き換えられない
             return
         }
+        // ここから先は必ず盤（またはメモ）が動く = 捨てたら途中離脱として数える盤面（#500）。
+        services?.gameDidProgress(gameID: gameID)
 
         if noteMode {
             lastUndoStep = UndoStep(
@@ -445,9 +459,20 @@ public final class SudokuModel {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled else { break }
-                elapsedSeconds += 1
+                tick()
             }
         }
+    }
+
+    /// 計時の 1 秒ぶん。**タイマーのループから切り出してある**ので、テストは実時間を待たずに
+    /// 経過秒の進み方と保存の間隔を検証できる（実時間で待つテストはフレークするため）。
+    func tick() {
+        elapsedSeconds += 1
+        // 経過秒はこれまで数字を入れる・メモを付けるときにしか保存されず、長考のあとにアプリを
+        // 終了すると最後の操作以降が失われて、自己ベスト（最短タイム）が実際より短い方向に
+        // 狂う（#240 の同型・#513）。一定間隔で保存し直し、失われる幅を最大
+        // `persistInterval` 秒に抑える。
+        if elapsedSeconds % Self.persistInterval == 0 { persist() }
     }
 
     private func stopTimer() {
@@ -497,5 +522,19 @@ public final class SudokuModel {
         guard snapshot.mistakes.map({ (0...maxMistakes).contains($0) }) ?? true
         else { return false }
         return true
+    }
+}
+
+// MARK: - 解析
+
+extension SudokuDifficulty {
+    /// `game_start` の `level` に載せる段階（#500）。
+    /// 写像はここ（Core を import するファイル）に置き、`SudokuEngine` は解析を知らないままにする。
+    var analyticsLevel: AnalyticsLevel {
+        switch self {
+        case .easy:   return .beginner
+        case .normal: return .normal
+        case .hard:   return .hard
+        }
     }
 }
