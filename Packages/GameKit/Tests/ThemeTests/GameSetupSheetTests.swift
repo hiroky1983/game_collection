@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import Core
 
 /// 開始前の設定シートが Core の共通枠（`GameSetupSheet`）から組まれていること（#527）。
 ///
@@ -66,6 +67,23 @@ struct GameSetupSheetSourceTests {
             \(offenders.joined(separator: "\n"))
             """
         )
+    }
+
+    /// 標準のタイル寸法。**8ゲームの見た目がこの1組の値で決まる**ので、うっかり触ると
+    /// 全ゲームが一斉に変わる。値を変えるときは、変えてよいと判断した根拠を PR に書くこと。
+    @Test("標準のタイル寸法は 見出し22・副題12・上下余白16・縮小なし")
+    @MainActor
+    func standardMetricsAreUnchanged() {
+        let metrics = GameSetupChooser.Metrics.standard
+        if case .title(let size) = metrics.title {
+            #expect(size == 22)
+        } else {
+            Issue.record("標準は見出し書体（themeTitle）で組む")
+        }
+        #expect(metrics.subtitleSize == 12)
+        #expect(metrics.verticalPadding == 16)
+        #expect(metrics.titleMinimumScale == nil, "標準では題名を縮めない（折り返す）")
+        #expect(metrics.subtitleMinimumScale == nil, "標準では副題を縮めない（折り返す）")
     }
 
     // MARK: - ヘルパー
