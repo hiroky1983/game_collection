@@ -431,7 +431,10 @@ public final class RunnerModel {
         var frames = 0
         while phase.isRunning, !stop(self), frames < 60 * 120 {
             frames += 1
-            if RunnerAutoPilot.shouldJump(field: field) { press(); release() }
+            // 着地するまで離さない（`RunnerAutoPilot.shouldRelease` を参照。早く離すと
+            // ジャンプが切り詰められて越えられない）。
+            if RunnerAutoPilot.shouldJump(field: field) { press() }
+            if RunnerAutoPilot.shouldRelease(field: field) { release() }
             tick(dt: 1.0 / 60)
         }
     }

@@ -1026,7 +1026,14 @@ final class RunnerScene: SKScene {
         // 序盤から倒れ始める。`easeIn` は終盤に速度が乗る動きで、演出時間の前半は
         // ほとんど回っておらず「立ったまま」に見えていた（会長QA「穴の横に落ちて
         // 縦になってるように見える」・2026-09-10）。
-        let topple = SKAction.rotate(byAngle: .pi * 0.85, duration: duration)
+        //
+        // 回転の向きは**負**（時計回り）にする。`player` の原点は前輪（+x）と後輪（-x）の
+        // ちょうど中間にあり、正の回転（反時計回り）だと前輪側が先に持ち上がり後輪側から
+        // 沈む——「なぜ後輪から落ちる、普通は前輪からやろ」という会長QA（2026-09-10）どおりの
+        // 見え方になっていた。負の回転なら前輪側（進行方向）が先に沈み、後輪が後から
+        // 持ち上がって前転するように見える。走者は左から近づき、穴・障害物は前方にあるので、
+        // 前輪から落ちる/突っ込むほうが物理的に自然。
+        let topple = SKAction.rotate(byAngle: -.pi * 0.85, duration: duration)
         topple.timingMode = .easeOut
 
         if model.field.isPit(at: model.field.distance) {

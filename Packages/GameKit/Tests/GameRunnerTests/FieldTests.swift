@@ -112,11 +112,13 @@ struct RunnerFieldTests {
         #expect(trace(jumpAt: 10) != trace(jumpAt: 20), "踏み切りの位置が違えば軌道も違う")
     }
 
-    @Test("押さないジャンプの頂点と滞空時間が定数どおり")
-    func jumpArcMatchesRules() {
+    /// 着地するまで離さなければ（＝十分長く押し続ければ）、切り詰め無しの全弾道になり、
+    /// 頂点と滞空時間が `RunnerRules.jumpApex`/`jumpAirTime` どおりになる。
+    /// `RunnerAutoPilot` が地形のクリア可能性を保証するのもこの軌道（`shouldRelease` 参照）。
+    @Test("十分長く押し続けたジャンプの頂点と滞空時間が定数どおり")
+    func jumpArcMatchesRulesWhenHeldToLanding() {
         var field = RunnerField(stage: flatStage())
         field.jump()
-        field.endHold()
         var apex: Double = 0
         var frames = 0
         while !field.isGrounded, frames < 300 {
@@ -129,35 +131,57 @@ struct RunnerFieldTests {
         #expect(abs(airTime - RunnerRules.jumpAirTime) < 0.02, "滞空 \(airTime)")
     }
 
-    @Test("押し続けると高く跳べる（大ジャンプ）")
-    func holdingJumpsHigher() {
-        func apex(holding: Bool) -> Double {
+    /// 踏み切ってすぐ離すと、`vy` が `jumpCutVelocity` まで切り詰められて
+    /// 本当に小さいホップになる（会長QA「軽いタップなら本当に小ジャンプぐらいの感じに
+    /// したい」2026-09-10）。最も低い障害物（`lowBlock` = 5）にも届かない高さであること
+    /// ——タップだけでは地形を越えられない、という新しい前提そのものを確かめる。
+    @Test("踏み切ってすぐ離すと本当に小さいホップになる")
+    func quickTapIsATinyHop() {
+        var field = RunnerField(stage: flatStage())
+        field.jump()
+        field.endHold()
+        var apex: Double = 0
+        var frames = 0
+        while !field.isGrounded, frames < 300 {
+            frames += 1
+            _ = field.step(dt: 1.0 / 240)
+            apex = max(apex, field.altitude)
+        }
+        let expectedApex = RunnerRules.jumpCutVelocity * RunnerRules.jumpCutVelocity
+            / (2 * RunnerRules.gravity)
+        #expect(abs(apex - expectedApex) < 0.3, "頂点 \(apex)")
+        #expect(apex < RunnerHazardKind.lowBlock.height, "最も低い障害物にも届かない高さであること")
+        #expect(apex < RunnerRules.jumpApex * 0.3, "十分長く押した場合よりはっきり低いこと")
+    }
+
+    /// 離すタイミングが遅くなるほど（＝長く押し続けるほど）、すでに `vy` が重力で
+    /// 減っているぶん切り詰めの影響が薄れ、より高く跳べる。
+    @Test("離すのが遅いほど高く跳べる（タップと長押しのあいだに連続的な差がある）")
+    func holdingLongerJumpsHigher() {
+        func apex(releaseAfter delaySeconds: Double) -> Double {
             var field = RunnerField(stage: flatStage())
             field.jump()
-            if !holding { field.endHold() }
+            var released = false
             var top: Double = 0
             var frames = 0
+            let step = 1.0 / 240
             while !field.isGrounded, frames < 400 {
                 frames += 1
-                _ = field.step(dt: 1.0 / 240)
+                if !released, Double(frames) * step >= delaySeconds {
+                    field.endHold()
+                    released = true
+                }
+                _ = field.step(dt: step)
                 top = max(top, field.altitude)
             }
             return top
         }
-        #expect(apex(holding: true) > apex(holding: false) + 3)
-    }
-
-    @Test("押しっぱなしでも浮き続けられない（上限は maxHoldTime）")
-    func holdIsCapped() {
-        var field = RunnerField(stage: flatStage(segments: 30))
-        field.jump()
-        var frames = 0
-        while !field.isGrounded, frames < 60 * 10 {
-            frames += 1
-            _ = field.step(dt: 1.0 / 60)
-        }
-        #expect(field.isGrounded, "いつかは必ず着地する")
-        #expect(Double(frames) / 60 < RunnerRules.jumpAirTime + RunnerRules.maxHoldTime * 2)
+        let tap = apex(releaseAfter: 0)
+        let shortHold = apex(releaseAfter: 0.1)
+        let longHold = apex(releaseAfter: 0.3)
+        #expect(tap < shortHold, "タップより短い長押しのほうが高い")
+        #expect(shortHold < longHold, "長押しが長いほうがさらに高い")
+        #expect(abs(longHold - RunnerRules.jumpApex) < 0.3, "切り詰めが効かなくなる時間まで押せば全弾道")
     }
 
     @Test("空中でも一度だけ二段目を踏み切れる")
@@ -305,6 +329,30 @@ struct RunnerFieldTests {
         #expect(events.contains(.collectedSpeedItem))
         #expect(field.pedalBoost == RunnerRules.maxPedalBoost, "取った瞬間に上限まで乗る")
         #expect(field.collectedPickupCount == 1)
+    }
+
+    /// 乗りがすでに上限（`maxPedalBoost`）まで達している状態で取っても、
+    /// `pedalBoost` 自体は頭打ちのままなので変化しないが、`currentSpeed` は
+    /// `pickupOverboost` の上乗せぶんだけ確実に速くなる（会長QA「取るタイミングが
+    /// 大体もうMAX速度で意味がない」2026-09-10 への対応）。
+    @Test("乗りが上限のときにピックアップを取っても currentSpeed がさらに上がる")
+    func collectingPickupAtMaxBoostStillSpeedsUp() {
+        // 序盤に十分な平地を挟み、ピックアップへ着くころには自然に乗りが上限へ達するようにする。
+        let stage = RunnerStage(number: 1, pattern: "----------s---", speed: 40)
+        guard let pickup = stage.pickups.first else { Issue.record("ピックアップが無い"); return }
+        var field = RunnerField(stage: stage)
+        var speedBeforePickup: Double = 0
+        var events: [RunnerEvent] = []
+        for _ in 0..<6000 where !events.contains(.collectedSpeedItem) {
+            speedBeforePickup = field.currentSpeed
+            events += field.step(dt: 1.0 / 60)
+        }
+        #expect(events.contains(.collectedSpeedItem))
+        #expect(field.pedalBoost == RunnerRules.maxPedalBoost, "前提: 取った時点で乗りは上限に達している")
+        #expect(field.currentSpeed > speedBeforePickup, "上限のまま取っても、取った瞬間は必ず速くなる")
+        // 上乗せは時間で減衰し、やがて元の（上限だけの）速さに戻る。
+        for _ in 0..<Int(RunnerRules.pickupOverboostDuration * 60) + 10 { _ = field.step(dt: 1.0 / 60) }
+        #expect(abs(field.currentSpeed - speedBeforePickup) < 0.5, "上乗せは時間切れで消える")
     }
 
     /// (b) 走者の当たり判定の矩形（幅 8）がピックアップの上を何フレームもまたぐあいだ、

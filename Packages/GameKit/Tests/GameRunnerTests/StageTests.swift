@@ -120,8 +120,9 @@ struct RunnerStageTests {
                 remaining -= 1.0 / 240
             }
             let takeOff = field.distance
+            // ここでは切り詰め無しの全弾道（着地まで離さない）を測る。地形の成立条件
+            // （`RunnerStageTests`）が前提にしているのもこちらの軌道なので合わせる。
             field.jump()
-            field.endHold()
             while !field.isGrounded { _ = field.step(dt: 1.0 / 240) }
             return field.distance - takeOff
         }
@@ -242,11 +243,16 @@ struct RunnerPlaythroughTests {
         // ための設計）ので、`.failed` に落ち着くまで回し続ける。
         while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
             frames += 1
+            // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。無駄ジャンプ
+            // （`hopWastefully`）も含め、自動操縦の跳躍はすべて切り詰め無しの全弾道で揃える
+            // ——早く離して小さいホップになると、ペダルの乗りへの影響が変わり
+            // タイム差を検証する既存テストの前提が崩れる。
             if RunnerAutoPilot.shouldJump(field: model.field) {
                 model.press()
-                model.release()
             } else if hopWastefully, shouldHopWastefully(field: model.field) {
                 model.press()
+            }
+            if RunnerAutoPilot.shouldRelease(field: model.field) {
                 model.release()
             }
             model.tick(dt: 1.0 / 60)

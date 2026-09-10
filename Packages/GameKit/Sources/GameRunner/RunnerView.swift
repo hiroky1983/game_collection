@@ -209,6 +209,14 @@ public struct RunnerView: View {
     /// 既定では現在のステージのベストだけを1行で見せ、15個のチップ一覧はタップして
     /// 開いたときだけ表示する（会長QA「上のセクションを縮めたい」を受けた折りたたみ化）。
     /// 開けば従来どおり「どこまで進んだか」「次にどこを縮めるか」が一目で分かる。
+    ///
+    /// チップ行の高さは**開閉に関わらず常に確保**する（`RecommendationCard.heightPlaceholder`
+    /// と同じ「見えないひな形で高さを固定する」手法）。以前は開いたときだけ高さが増え、
+    /// `topSummary` が伸びた分だけ `course`（`GeometryReader` + `aspectRatio(.fit)`）が
+    /// 帳尻合わせに縮んでいた——「一時停止ボタンのセクションが固定になってるせいか、
+    /// ベストタイムのセクションを出すとプレイ画面が縮む」という会長QA（2026-09-10）どおりの
+    /// 症状。チップ行を常時同じ高さで確保しておけば `topSummary` の高さが動かなくなり、
+    /// `course` も常に同じ大きさで安定する。
     private var bestTimeSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
@@ -234,17 +242,28 @@ public struct RunnerView: View {
             )
             .accessibilityValue(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
 
-            if showsAllBestTimes {
-                HStack(spacing: 4) {
-                    ForEach(1...RunnerRules.stageCount, id: \.self) { number in
-                        stageChip(number)
-                    }
+            ZStack(alignment: .topLeading) {
+                // 高さのひな形。常に同じレイアウトで場所を占め続け、当たり判定・読み上げには関わらない。
+                stageChipsRow
+                    .hidden()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                if showsAllBestTimes {
+                    stageChipsRow
+                        .accessibilityElement(children: .combine)
+                        .transition(.opacity)
                 }
-                .accessibilityElement(children: .combine)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var stageChipsRow: some View {
+        HStack(spacing: 4) {
+            ForEach(1...RunnerRules.stageCount, id: \.self) { number in
+                stageChip(number)
+            }
+        }
     }
 
     private func stageChip(_ number: Int) -> some View {

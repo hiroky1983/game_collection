@@ -21,6 +21,15 @@ public enum RunnerAutoPilot {
         return hazard.start - field.distance <= lead(for: hazard, speed: field.stage.speed)
     }
 
+    /// 踏み切ったジャンプを離すべきか。**着地するまで離さない**——早く離すと `vy` が
+    /// 切り詰められて低いホップになってしまう（会長QA「軽いタップなら本当に小ジャンプ」
+    /// 2026-09-10）ので、地形の成立条件（`RunnerStageTests`）が前提にしている
+    /// 「切り詰め無しの全弾道」を保証するには着地まで押し続ける必要がある。
+    /// 接地中に呼んでも（すでに `isHolding == false` のため）安全な no-op。
+    public static func shouldRelease(field: RunnerField) -> Bool {
+        field.isGrounded
+    }
+
     /// その障害に対して、何ワールド単位手前で踏み切るか。
     ///
     /// - 穴: 縁の少し手前。飛距離が穴の幅を上回ることは `RunnerStageTests` が保証する
