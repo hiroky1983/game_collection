@@ -586,10 +586,16 @@ final class RunnerScene: SKScene {
     /// の矩形で見ており、この見た目の変更とは独立している。
     private func addBird(_ hazard: RunnerHazard) {
         let node = SKNode()
-        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
         let w = hazard.length, h = hazard.height
+        // 鳥は止まっている障害物で、追いかけても向かってもこない（会長への回答どおり）。
+        // ただし走者は左から近づくので、頭・くちばしは**走者側（-x）**を向かせる。
+        // 各パーツは元々 +x 側を頭にする前提で組んであるので、丸ごと左右反転させるだけで
+        // 座標を1つずつ書き直さずに済む——ただし `xScale = -1` は自分のローカル原点
+        // （= `hazard.start`）を軸に反転するので、そのままだと絵が当たり判定の外
+        // （`hazard.start` より左）へはみ出す。原点を右へ `w` ぶんずらして帳尻を合わせる。
+        node.position = CGPoint(x: hazard.start + w, y: Metrics.groundY)
+        node.xScale = -1
         let r = min(w, h) * 0.4
-        // 進行方向（+x）を頭・くちばし側にする。
         let center = CGPoint(x: w * 0.45, y: h * 0.58)
 
         // 尾（後方＝-x 側の小さな三角）。
