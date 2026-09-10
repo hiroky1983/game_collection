@@ -79,8 +79,11 @@ enum RunnerPalette {
     /// 畳んだ翼と尾羽の重なりが遠目でも影として見えるようにする（会長QA 2026-09-10
     /// 「鳥もデザイン改善して欲しい」）。
     static let birdWing: UInt32 = 0x2F7D4E
-    /// 鳥のくちばし・脚。胴体と対比が付く暖色にする（「何の生き物か分からない」対策）。
+    /// 鳥のくちばし・畳んだ足。胴体と対比が付く暖色にする（「何の生き物か分からない」対策）。
     static let birdBeak: UInt32 = 0xFFB648
+    /// 鳥の奥の翼。手前の翼（`birdWing`）よりさらに暗くして、羽ばたきで手前・奥の
+    /// 2枚が重なる瞬間でも別の翼だと分かるようにする（飛行化・2026-09-10 会長QA）。
+    static let birdWingFar: UInt32 = 0x1F5C38
     /// 鳥の腹（明るい差し色）。胴体の丸だけだと単色の玉に見えるため、腹だけ明るくして
     /// 立体感と「鳥らしさ」を出す。
     static let birdBelly: UInt32 = 0xE8F5E0
@@ -639,130 +642,160 @@ final class RunnerScene: SKScene {
     }
 
     /// 鳥（`RunnerHazardKind.bird`）。「棒と穴しかない」というQAを受けて追加した敵の1つ
-    /// （会長QA「鳥とか右から車が来るとか要素はいる」）。最初の実装は丸1つ+翼の細い矩形2枚
-    /// だけで「何の生き物か分からない」という再QA（2026-09-10）を受け、尾・翼・胴・腹・頭・
-    /// くちばし・目の7パーツに描き直した——シルエットで頭とくちばしが前（進行方向）、
-    /// 尾が後ろに分かるようにする。丸と長方形が基本だが、翼・尾・くちばしは既存のゴール旗
-    /// （`addGoalMarker`）と同じ「パスで描く三角形」の踏襲（#494 の権利チェックはこの2つの
-    /// 形だけで新作品の意匠に寄せないことが要点で、パス自体は既に許容されている）。
-    /// 当たり判定は `RunnerField.isHittingBlock` が岩と同じ `hazard.start`〜`.end`/`.height`
-    /// の矩形で見ており、この見た目の変更とは独立している。
+    /// （会長QA「鳥とか右から車が来るとか要素はいる」）。丸1つ+矩形2枚 →「とまった小鳥」
+    /// と直してきたが、接地させた途端「地に足ついてるから岩と変わらない。空にいないと
+    /// 意味なくない？」という再QA（2026-09-10）を受けた。そこで**宙に浮いて飛んでいる鳥**
+    /// に描き直す：足は体に引き込み（飛行中の鳥の姿勢）、左右2枚の翼を大きく羽ばたかせ、
+    /// 体全体をゆっくり上下に浮遊させる。地面には楕円の影を落とし、体と影のすき間で
+    /// 「浮いている」ことが一目で分かるようにする。
+    /// 翼・尾・くちばしのパスは既存のゴール旗（`addGoalMarker`）と同じ技法（#494 の
+    /// 権利チェックの要点は特定作品の意匠に寄せないことで、パス自体は許容されている）。
+    /// 当たり判定は `RunnerField.isHittingBlock` が岩と同じ「地面〜`hazard.height`」の
+    /// 矩形のままで、この見た目の変更とは独立している——羽ばたき・浮遊を含めた絵は
+    /// その矩形（幅 4 × 高さ 7）の内側に収まる寸法で組む（見た目と判定のズレを作らない）。
     private func addBird(_ hazard: RunnerHazard) {
         let node = SKNode()
         let w = hazard.length, h = hazard.height
-        // 鳥は止まっている障害物で、追いかけても向かってもこない（会長への回答どおり）。
-        // ただし走者は左から近づくので、頭・くちばしは**走者側（-x）**を向かせる。
-        // 各パーツは元々 +x 側を頭にする前提で組んであるので、丸ごと左右反転させるだけで
-        // 座標を1つずつ書き直さずに済む——ただし `xScale = -1` は自分のローカル原点
+        // 鳥はその場に浮いている障害物で、追いかけても向かってもこない（水平移動の
+        // 「動く敵」化は別件 #569 の積み残し）。走者は左から近づくので、頭・くちばしは
+        // **走者側（-x）**を向かせる。各パーツは +x 側を頭にする前提で組んであるので、
+        // 丸ごと左右反転させるだけで済む——ただし `xScale = -1` は自分のローカル原点
         // （= `hazard.start`）を軸に反転するので、そのままだと絵が当たり判定の外
         // （`hazard.start` より左）へはみ出す。原点を右へ `w` ぶんずらして帳尻を合わせる。
         node.position = CGPoint(x: hazard.start + w, y: Metrics.groundY)
         node.xScale = -1
 
-        // 旧デザイン（胴の半径 1.6）は当たり判定の箱（4×7）の半分も使っておらず、
-        // 走者（8×11）と並ぶと豆粒で「緑の塊」にしか見えなかった（会長QA 2026-09-10
-        // 「鳥もデザイン改善して欲しい」）。岩と同じ教訓——**箱いっぱいに大きく**、
-        // **シルエットで正体が分かるように**——を鳥にも適用する。
-        // 横向きの「地面にとまった小鳥」として組み直す：足で接地させ（旧版は宙に
-        // 浮いて見えた）、胴＋頭をひとつながりの丸いシルエットにし、畳んだ翼・
-        // 段付きの尾羽・白目の入った目で読み取れるパーツだけを大きく描く。
-        let bodyR = h * 0.36                                  // ≒2.5。箱の幅 4 に収まる最大級の丸
-        let center = CGPoint(x: w * 0.5, y: bodyR + 0.9)      // 足の高さぶん持ち上げて接地させる
+        // 地面に落ちる影。体との間に空いたすき間が「飛んでいる」ことの一番の手がかり。
+        // 影は浮遊に合わせて動かさない（`bobber` の外に置く）——地面側は止まっている
+        // ほうが、上下しているのが鳥のほうだと分かる。
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 0.95, height: 0.55))
+        shadow.fillColor = RunnerPalette.color(RunnerPalette.pitVoid)
+        shadow.strokeColor = .clear
+        shadow.alpha = 0.4
+        shadow.position = CGPoint(x: w * 0.5, y: 0.3)
+        node.addChild(shadow)
 
-        // 尾羽（後方＝-x 側）。1枚の三角ではなく2枚ずらして重ね、「羽が重なっている」
-        // 段差で鳥らしさを出す。奥の1枚は翼と同じ濃色にして厚みを見せる。
+        // 浮遊はこの入れ物ごと上下させる（各パーツの座標は静止時のまま書ける）。
+        // 上下幅 ±0.45 と翼の振り上げを足しても箱の高さ 7 を超えない寸法にしてある。
+        let bobber = SKNode()
+        node.addChild(bobber)
+        let bob = SKAction.moveBy(x: 0, y: 0.45, duration: 0.7)
+        bob.timingMode = .easeInEaseOut
+        bobber.run(.repeatForever(.sequence([bob, bob.reversed()])))
+
+        // 体は箱の上半分に置く（下半分は地面とのすき間）。「とまった小鳥」の教訓
+        // ——箱いっぱいに大きく・シルエットで正体が分かるように——は引き継ぐ。
+        let bodyR = h * 0.22                                  // ≒1.5
+        let center = CGPoint(x: w * 0.5, y: h * 0.56)         // ≒3.9。浮かせる高さ
+
+        // 尾羽（後方＝-x 側）。2枚ずらして重ね、飛行姿勢に合わせて斜め上へ流す。
         let tailSpecs: [(dx: Double, dy: Double, len: Double, lift: Double, color: UInt32)] = [
-            (0.2, 0.4, 2.6, 1.9, RunnerPalette.birdWing),
-            (0.3, 0.0, 2.4, 1.2, RunnerPalette.birdBody),
+            (0.15, 0.35, 2.2, 1.1, RunnerPalette.birdWingFar),
+            (0.25, -0.05, 2.0, 0.6, RunnerPalette.birdBody),
         ]
         for spec in tailSpecs {
             let tailPath = CGMutablePath()
             tailPath.move(to: CGPoint(x: -bodyR * 0.5, y: 0))
-            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len, y: spec.lift + 0.9))
-            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len + 0.7, y: spec.lift - 0.6))
+            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len, y: spec.lift + 0.7))
+            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len + 0.7, y: spec.lift - 0.7))
             tailPath.closeSubpath()
             let tail = SKShapeNode(path: tailPath)
             tail.fillColor = RunnerPalette.color(spec.color)
             tail.strokeColor = .clear
             tail.position = CGPoint(x: center.x + spec.dx, y: center.y + spec.dy)
-            node.addChild(tail)
+            bobber.addChild(tail)
         }
 
-        // 足（2本）。とまっている鳥だと一目で分かる最重要パーツ。くちばしと同じ
-        // 暖色にして、地表のティール帯の上でも沈まないようにする。
-        for legX in [center.x - 0.7, center.x + 0.7] {
-            let leg = SKShapeNode(rectOf: CGSize(width: 0.35, height: 1.4))
-            leg.fillColor = RunnerPalette.color(RunnerPalette.birdBeak)
-            leg.strokeColor = .clear
-            leg.position = CGPoint(x: legX, y: 0.7)
-            node.addChild(leg)
-        }
+        // 翼。肩を軸に回すので、パスは肩（原点）から後方へ伸びる形で書く。
+        // 手前・奥の2枚を逆位相で大きく振り、横からでも「羽ばたいている」と読めるようにする
+        // （とまった小鳥時代の「畳んだ翼の小さな揺れ」からの置き換え）。
+        let wingPath = CGMutablePath()
+        wingPath.move(to: CGPoint(x: 0, y: 0.35))
+        wingPath.addLine(to: CGPoint(x: -1.1, y: 0.65))
+        wingPath.addLine(to: CGPoint(x: -2.8, y: 0.3))
+        wingPath.addLine(to: CGPoint(x: -0.9, y: -0.45))
+        wingPath.closeSubpath()
+
+        // 奥の翼（胴の向こう側）。濃色+背面に置き、手前の翼と逆位相で振る。
+        let farWing = SKShapeNode(path: wingPath)
+        farWing.fillColor = RunnerPalette.color(RunnerPalette.birdWingFar)
+        farWing.strokeColor = .clear
+        farWing.position = CGPoint(x: center.x - bodyR * 0.35, y: center.y + bodyR * 0.5)
+        farWing.zPosition = -1
+        farWing.zRotation = -0.2
+        bobber.addChild(farWing)
+        let farFlap = SKAction.rotate(byAngle: 0.9, duration: 0.24)
+        farFlap.timingMode = .easeInEaseOut
+        farWing.run(.repeatForever(.sequence([farFlap, farFlap.reversed()])))
 
         // 胴体（大きい丸）。頭は別の丸を上前方に重ね、ひとつながりの丸いシルエットにする。
         let body = SKShapeNode(circleOfRadius: bodyR)
         body.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
         body.strokeColor = .clear
         body.position = center
-        node.addChild(body)
+        bobber.addChild(body)
 
         let headRadius = bodyR * 0.66
-        let head = CGPoint(x: center.x + bodyR * 0.62, y: center.y + bodyR * 0.72)
+        let head = CGPoint(x: center.x + bodyR * 0.62, y: center.y + bodyR * 0.55)
         let headNode = SKShapeNode(circleOfRadius: headRadius)
         headNode.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
         headNode.strokeColor = .clear
         headNode.position = head
-        node.addChild(headNode)
+        bobber.addChild(headNode)
 
-        // 腹（明るい差し色）。胴の下前方に置き、地面と接する側を明るくして
-        // ティールの地表帯との境目も立てる。
-        let belly = SKShapeNode(circleOfRadius: bodyR * 0.62)
+        // 腹（明るい差し色）。単色の玉に見えないよう下面を明るくする。
+        let belly = SKShapeNode(circleOfRadius: bodyR * 0.6)
         belly.fillColor = RunnerPalette.color(RunnerPalette.birdBelly)
         belly.strokeColor = .clear
-        belly.position = CGPoint(x: center.x + bodyR * 0.25, y: center.y - bodyR * 0.42)
-        node.addChild(belly)
+        belly.position = CGPoint(x: center.x + bodyR * 0.28, y: center.y - bodyR * 0.42)
+        bobber.addChild(belly)
 
-        // 畳んだ翼（1枚・横向きなので見えるのは手前の1枚だけ）。胴より濃い色で
-        // 面を分け、肩を軸にした小さな羽ばたきだけ残す（当たり判定は動かさない）。
-        let shoulder = CGPoint(x: center.x + bodyR * 0.3, y: center.y + bodyR * 0.35)
-        let wingPath = CGMutablePath()
-        wingPath.move(to: .zero)
-        wingPath.addLine(to: CGPoint(x: -bodyR * 1.5, y: -bodyR * 0.1))
-        wingPath.addLine(to: CGPoint(x: -bodyR * 0.5, y: -bodyR * 0.95))
-        wingPath.closeSubpath()
-        let wing = SKShapeNode(path: wingPath)
-        wing.fillColor = RunnerPalette.color(RunnerPalette.birdWing)
-        wing.strokeColor = .clear
-        wing.position = shoulder
-        node.addChild(wing)
-        let flap = SKAction.rotate(byAngle: 0.22, duration: 0.4)
-        flap.timingMode = .easeInEaseOut
-        wing.run(.repeatForever(.sequence([flap, flap.reversed()])))
+        // 畳んだ足。飛行中の鳥は足を体へ引き込むので、ぶら下げず腹の後ろ寄りに
+        // 小さく畳んで添える（接地時代の「立つ2本足」の置き換え）。
+        let foot = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.birdBeak),
+                                size: CGSize(width: 0.9, height: 0.32))
+        foot.position = CGPoint(x: center.x + bodyR * 0.05, y: center.y - bodyR * 0.95)
+        foot.zRotation = -0.3
+        foot.zPosition = 1
+        bobber.addChild(foot)
+
+        // 手前の翼。奥の翼と逆位相・大振り。振り上げの頂点でも箱の高さ 7 に収まる角度まで。
+        let nearWing = SKShapeNode(path: wingPath)
+        nearWing.fillColor = RunnerPalette.color(RunnerPalette.birdWing)
+        nearWing.strokeColor = .clear
+        nearWing.position = CGPoint(x: center.x + bodyR * 0.15, y: center.y + bodyR * 0.45)
+        nearWing.zPosition = 3
+        nearWing.zRotation = 0.55
+        bobber.addChild(nearWing)
+        let nearFlap = SKAction.rotate(byAngle: -1.1, duration: 0.24)
+        nearFlap.timingMode = .easeInEaseOut
+        nearWing.run(.repeatForever(.sequence([nearFlap, nearFlap.reversed()])))
 
         // くちばし（進行方向側の三角）。頭の大きさに比例させ、遠目でも尖りが分かる長さにする。
         let beakPath = CGMutablePath()
         beakPath.move(to: CGPoint(x: headRadius * 0.7, y: headRadius * 0.35))
-        beakPath.addLine(to: CGPoint(x: headRadius * 1.9, y: -headRadius * 0.05))
+        beakPath.addLine(to: CGPoint(x: headRadius * 1.8, y: -headRadius * 0.05))
         beakPath.addLine(to: CGPoint(x: headRadius * 0.7, y: -headRadius * 0.45))
         beakPath.closeSubpath()
         let beak = SKShapeNode(path: beakPath)
         beak.fillColor = RunnerPalette.color(RunnerPalette.birdBeak)
         beak.strokeColor = .clear
         beak.position = head
-        node.addChild(beak)
+        bobber.addChild(beak)
 
-        // 目。白目の上に黒目を重ねる。旧版は暗緑に暗色の点でほぼ見えなかった。
+        // 目。白目の上に黒目を重ねる（暗緑に暗色の点では見えない、の教訓）。
         let eyeWhite = SKShapeNode(circleOfRadius: headRadius * 0.34)
         eyeWhite.fillColor = RunnerPalette.color(RunnerPalette.birdBelly)
         eyeWhite.strokeColor = .clear
         eyeWhite.position = CGPoint(x: head.x + headRadius * 0.3, y: head.y + headRadius * 0.18)
-        node.addChild(eyeWhite)
+        bobber.addChild(eyeWhite)
 
         let pupil = SKShapeNode(circleOfRadius: headRadius * 0.17)
         pupil.fillColor = RunnerPalette.color(RunnerPalette.birdEye)
         pupil.strokeColor = .clear
         // 進行方向（走者側）を見ている黒目。白目の中で少し前に寄せる。
         pupil.position = CGPoint(x: eyeWhite.position.x + headRadius * 0.12, y: eyeWhite.position.y)
-        node.addChild(pupil)
+        bobber.addChild(pupil)
 
         courseLayer.addChild(node)
     }
@@ -1048,14 +1081,81 @@ final class RunnerScene: SKScene {
             ])
             player.run(.group([sink, topple, fade]))
         } else {
-            // 障害物への激突。足元に地面はあるので沈めず、その場でつんのめって倒れる。
-            let jolt = SKAction.moveBy(x: -1.0, y: 0, duration: duration)
-            jolt.timingMode = .easeOut
+            // 障害物への激突。以前は後退1単位+前傾（`topple` 相当）+フェードだけで、
+            // 「その場で薄くなって終わり」にしか見えなかった（会長QA「岩にあたったときは
+            // コケるアニメーションを再現してほしい」・2026-09-10）。つまずいて転げる
+            // 「コケ」に作り直す:
+            // - 回転はちょうど 1 回転（-2π・前転）。`topple`（-0.85π）より派手に転げて
+            //   見えるうえ、終端で直立に戻るので、直後の `.failed` で `sync` が
+            //   `zRotation = 0` へ戻すときの画の飛びも出ない。
+            // - 体は岩に弾き返されて後方へ山なりに飛び、着地で小さくバウンドして止まる。
+            // - 車輪は惰性で空転させ、激突点には土煙を散らす（丸のみ・#494 の範囲内）。
+            //
+            // moveBy + rotate の合成ではなく custom action で毎フレーム姿勢を計算する。
+            // `player` の原点は足元にあり、rotate だけだと足元を軸に回って回転の途中で
+            // 頭が地面へ潜る（実機確認で判明）。見た目の重心（原点の上 4.5）を軸に
+            // 回って見えるよう、回転量に応じた座標の補正を毎フレーム掛ける。
+            let pivotY = 4.5
+            let baseX = player.position.x, baseY = player.position.y
+            let crash = SKAction.customAction(withDuration: duration) { node, elapsed in
+                let p = max(0, min(1, Double(elapsed) / duration))
+                // 回転は序盤に大きく（2次の easeOut）。激突の勢いで回り、終端で失速する。
+                let eased = 1 - (1 - p) * (1 - p)
+                let theta = -2 * Double.pi * eased
+                node.zRotation = CGFloat(theta)
+                // 後方への山なり（前 64%）+ 着地後の小さなバウンド（後 36%）。
+                // どちらも sin の半波なので、終端でちょうど y=0（地面）へ戻る。
+                let dy = p < 0.64
+                    ? 3.4 * sin(.pi * p / 0.64)
+                    : 1.0 * sin(.pi * (p - 0.64) / 0.36)
+                // 重心軸の回転に見せる補正: 原点 O を C=(0, pivotY) の周りに θ 回した
+                // ときの O の移動量。回転が 1 回転し切ると 0 に戻る。
+                let compX = pivotY * sin(theta)
+                let compY = pivotY * (1 - cos(theta))
+                node.position = CGPoint(
+                    x: baseX + CGFloat(-3.2 * p + compX),
+                    y: baseY + CGFloat(dy + compY)
+                )
+            }
             let fade = SKAction.sequence([
-                .wait(forDuration: duration * 0.5),
-                .fadeAlpha(to: 0.35, duration: duration * 0.5),
+                .wait(forDuration: duration * 0.6),
+                .fadeAlpha(to: 0.35, duration: duration * 0.4),
             ])
-            player.run(.group([jolt, topple, fade]))
+            player.run(.group([crash, fade]))
+            // 空転。走行中の回転は `sync` が距離から出すが、`.falling` の間は触らない
+            // （このメソッド参照）ので、ここで惰性ぶんを回し切る。有限時間の action
+            // なので次の走行開始（`rebuildCourse`）までに勝手に終わる。
+            for wheel in [frontWheel, rearWheel] {
+                wheel.run(.rotate(byAngle: -12, duration: duration))
+            }
+            spawnCrashDust()
+        }
+    }
+
+    /// 激突点の土煙。丸だけで組む（#494）。ノードは演出が終わると自分で消えるので、
+    /// `rebuildCourse` 側での後始末は要らない。座標は画面固定（走者の前輪の先）——
+    /// ミスの瞬間 `field` は凍っていてコースも流れないため、シーン直下に置いてよい。
+    private func spawnCrashDust() {
+        let origin = CGPoint(x: Metrics.playerX + 5.0, y: Metrics.groundY + 2.0)
+        // 弾ける方向は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
+        let specs: [(dx: Double, dy: Double, r: Double)] = [
+            (-1.5, 2.5, 1.1), (0.8, 3.2, 0.9), (2.0, 1.8, 1.2),
+            (-3.0, 1.2, 0.8), (0.2, 0.8, 1.3), (-4.5, 2.0, 0.7),
+        ]
+        for spec in specs {
+            let puff = SKShapeNode(circleOfRadius: spec.r)
+            puff.fillColor = RunnerPalette.color(RunnerPalette.cloud)
+            puff.strokeColor = .clear
+            puff.alpha = 0.8
+            puff.zPosition = 6
+            puff.position = origin
+            addChild(puff)
+            let drift = SKAction.moveBy(x: spec.dx, y: spec.dy, duration: 0.4)
+            drift.timingMode = .easeOut
+            puff.run(.sequence([
+                .group([drift, .scale(to: 1.8, duration: 0.4), .fadeOut(withDuration: 0.4)]),
+                .removeFromParent(),
+            ]))
         }
     }
 
