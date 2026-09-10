@@ -31,7 +31,7 @@ public struct BlocksView: View {
             header
             playfield
             HowToPlayHint(.blocks, playLog: services.playLog)
-            recommendationArea
+            controlRow
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
@@ -152,20 +152,48 @@ public struct BlocksView: View {
         .accessibilityLabel("残機 \(model.lives)")
     }
 
+    /// 一時停止ボタンの一辺（pt）。HIG のタップ標的の下限に合わせる（#600）。
+    static let pauseButtonSide: CGFloat = 44
+
     private var pauseButton: some View {
         Button {
             if model.phase == .paused { model.resume() } else { model.pause() }
         } label: {
             Image(systemName: model.phase == .paused ? "play.fill" : "pause.fill")
-                .font(.system(size: 16, weight: .bold))
-                .frame(width: 34, height: 34)
+                .font(.system(size: 18, weight: .bold))
+                .frame(width: Self.pauseButtonSide, height: Self.pauseButtonSide)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.pop)
         .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
         // 決着後は止めるものが無い。
-        .disabled(model.phase.isFinished || model.phase == .stageCleared)
+        .disabled(isPauseDisabled)
+        // 押せないことを見た目でも示す。盤に重ねていた頃は結果パネルの陰で目立たなかったが、
+        // 盤の外に出したことでリザルト中もはっきり見えるようになった（#600）。
+        .opacity(isPauseDisabled ? 0.35 : 1)
+    }
+
+    private var isPauseDisabled: Bool {
+        model.phase.isFinished || model.phase == .stageCleared
+    }
+
+    /// 盤の下に置く操作の行（#600）。
+    ///
+    /// 一時停止は**盤の外**に出す（会長QA 2026-09-10）。以前は盤の右下に浮かせていたが、
+    /// ゲームの絵の一部に見えるうえ、パドルが右端に来ると重なって盤面が隠れる。
+    ///
+    /// ただし**専用の行を足すと盤が縮む**。盤は `layoutPriority(1)` で余った縦を先取りしているが、
+    /// その「余り」は機種によってはほとんど無い（実測: iPhone SE の `Spacer` の取り分は 15.5pt で、
+    /// 行 44pt + `spacing` 14pt には足りない）。削られると盤は正方形なので横幅まで縮み、
+    /// #597（盤が横幅を使い切る）が後退する。そこで、**高さが常に確保されている**
+    /// レコメンド枠（`RecommendationArea` が隠しひな形で常に確保する 56pt）の右端に相乗りさせる。
+    /// ボタンのほうが低いので、この行の高さはレコメンド枠のまま変わらない = 盤は 1pt も削られない。
+    private var controlRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            recommendationArea
+            pauseButton
+        }
     }
 
     // MARK: - プレイフィールド
@@ -187,11 +215,6 @@ public struct BlocksView: View {
                 overlay(boardWidth: geo.size.width)
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-            // 一時停止は右上のヘッダーではなく、フィールドの右下に浮かせる
-            // （会長QA「右上は片手操作で押せない」）。親指の自然なリーチに合わせる。
-            .overlay(alignment: .bottomTrailing) {
-                pauseButton.padding(10)
-            }
         }
         // シーンは `.aspectFit` なので、枠の縦横比をフィールドと必ず一致させる。
         // ずれると左右に余白が出て、タップ位置とパドルの対応も狂う。
