@@ -164,6 +164,16 @@ public struct RunnerStage: Equatable, Sendable {
     /// 走行中に毎サブステップ参照するので、初期化時に 1 度だけ求めて持つ。
     public let checkpoint: Double
 
+    /// チェックポイントの到達率（`checkpoint / length` を四捨五入した整数パーセント）。
+    ///
+    /// `makeCheckpoint` が障害を避けて中点から後ろへずらすため、ステージによって
+    /// ちょうど 50% とは限らない（40〜90% 程度でばらつく）。見た目の標識にはこの
+    /// 実際の値をそのまま出す——「50% と書かれた旗」のように固定の数字に見せない
+    /// （会長QA「中間地点のデザインも変えたほうがいい。現状何なのかわからん」への対応）。
+    public var checkpointPercent: Int {
+        Int((checkpoint / length * 100).rounded())
+    }
+
     public init(number: Int, pattern: String, speed: Double) {
         self.number = number
         self.pattern = pattern

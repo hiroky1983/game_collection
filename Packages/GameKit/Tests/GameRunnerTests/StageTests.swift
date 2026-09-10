@@ -178,6 +178,24 @@ struct RunnerStageTests {
             }
         }
     }
+
+    /// 標識に出す到達率（会長QA「50%と書かれた旗とか」対応）。
+    /// ちょうど 50% 固定ではなく、ステージごとの実際の位置がそのまま数字になること。
+    @Test("チェックポイントの到達率は実際の位置から計算され、40〜90%に収まる")
+    func checkpointPercentMatchesPosition() {
+        var percents: Set<Int> = []
+        for stage in RunnerStage.all {
+            let expected = Int((stage.checkpoint / stage.length * 100).rounded())
+            #expect(stage.checkpointPercent == expected, "ステージ \(stage.number) の到達率")
+            #expect(
+                stage.checkpointPercent >= 40 && stage.checkpointPercent <= 90,
+                "ステージ \(stage.number) の到達率 \(stage.checkpointPercent)% が想定の範囲外"
+            )
+            percents.insert(stage.checkpointPercent)
+        }
+        // 全ステージが同じ割合だと「固定の数字」に見え、標識にする意味が薄れる。
+        #expect(percents.count > 1, "全ステージの到達率が同じ値になっている")
+    }
 }
 
 /// 全ステージを実際に走り切れることの実証（#494 の受け入れ条件1）。

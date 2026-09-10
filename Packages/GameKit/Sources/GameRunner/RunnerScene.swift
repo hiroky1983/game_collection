@@ -442,7 +442,7 @@ final class RunnerScene: SKScene {
         pickupNodes = stage.pickups.map { addPickup($0) }
         removedPickupCount = 0
 
-        addCheckpointMarker(at: stage.checkpoint)
+        addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
         addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
     }
@@ -598,10 +598,18 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(top)
     }
 
-    /// チェックポイントの目印。「緑の棒が何なのか分からない」というQAを受け、
-    /// 柱だけでなく丸いバッジを付けた（ゴールの三角旗とは形で見分けが付く）。
+    /// チェックポイントの目印。丸いバッジだけでは「これが何なのか分からない」というQAを受け、
+    /// マラソンの距離標識のように**そのステージで実際に計算された到達率**を数字で出す板に
+    /// 変えた（会長QA「50%と書かれた旗とか」——ただし実際の到達率は `checkpointPercent` の
+    /// とおりステージごとに違うので、固定の "50%" ではなくその値をそのまま表示する）。
+    /// 板は矩形・柱も矩形で「丸と長方形だけ」の意匠制約（#494）を保ったまま、
+    /// ゴールの三角旗（`addGoalMarker`）とは形・色の両方で見分けが付く。
     /// ここより先で失敗すると、広告視聴でここから再開できる（`RunnerModel.canResumeFromCheckpoint`）。
-    private func addCheckpointMarker(at x: Double) {
+    ///
+    /// **数字はこの標識自体の意味そのもの**（盤面の説明の重複ではない）なので、
+    /// 「SpriteKit の中に文字は描かない」（`RunnerAccessibility` の方針）はここでは適用しない。
+    /// 読み上げは従来どおり `RunnerAccessibility.progressLabel` が進み具合として担う。
+    private func addCheckpointMarker(at x: Double, percent: Int) {
         let pole = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.checkpoint),
             size: CGSize(width: 1, height: 9)
@@ -610,12 +618,23 @@ final class RunnerScene: SKScene {
         pole.position = CGPoint(x: x, y: Metrics.groundY)
         courseLayer.addChild(pole)
 
-        let badge = SKShapeNode(circleOfRadius: 1.6)
-        badge.fillColor = RunnerPalette.color(RunnerPalette.checkpoint)
-        badge.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
-        badge.lineWidth = 0.4
-        badge.position = CGPoint(x: x, y: Metrics.groundY + 9)
-        courseLayer.addChild(badge)
+        let signCenter = CGPoint(x: x, y: Metrics.groundY + 9)
+        let sign = SKShapeNode(rectOf: CGSize(width: 6.6, height: 3.6), cornerRadius: 0.6)
+        sign.fillColor = RunnerPalette.color(RunnerPalette.checkpoint)
+        sign.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
+        sign.lineWidth = 0.4
+        sign.position = signCenter
+        courseLayer.addChild(sign)
+
+        let label = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
+        label.text = "\(percent)%"
+        label.fontSize = 2.5
+        label.fontColor = RunnerPalette.color(RunnerPalette.wheel)
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        label.position = signCenter
+        label.zPosition = 1
+        courseLayer.addChild(label)
     }
 
     /// ゴールの目印（旗）。細い柱だけでは「何のオブジェクトか分からない」というQAを受け、
