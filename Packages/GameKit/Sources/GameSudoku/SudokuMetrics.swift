@@ -46,6 +46,13 @@ enum SudokuMetrics {
 
     /// 3×3 ブロックの区切り線の太さ。
     static let blockBorderWidth: CGFloat = 2
+
+    /// 直線で引く 3×3 ブロックの区切り線の位置（左上から何ブロック目か）。
+    ///
+    /// **外周（0 と 3）は含めない**（会長QA #595-1）。盤は角丸で切り抜かれているので、
+    /// 端に直線を置くと 4 隅で線が切れて枠が消えて見える。外周は切り抜きと同じ角丸の
+    /// `strokeBorder` で描く。ここに 0 や 3 が戻ると隅の欠けが再発する。
+    static let innerBlockLineIndices = [1, 2]
     /// マスどうしの区切り線の太さ。
     static let cellBorderWidth: CGFloat = 0.5
 

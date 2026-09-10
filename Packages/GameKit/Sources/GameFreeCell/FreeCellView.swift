@@ -324,19 +324,23 @@ public struct FreeCellView: View {
     // MARK: - フリーセル・組札
 
     private func topRow(metrics: PlayingCardMetrics) -> some View {
+        // **`Spacer` は置かない**（会長QA #595-9）。上段はちょうど 8 枠で下段の 8 列と幅が
+        // ぴったり揃う（`FreeCellMetrics.boardWidth` = 8 枠 + 隙間 7 つ）ため、`Spacer` を挟むと
+        // 子が 9 個になり、`HStack` の隙間が **8 つ**ぶん（+4pt）取られて上段だけが盤の幅を
+        // はみ出す。はみ出した分は中央寄せで左右 2pt ずつ切り落とされ、**左端の枠の左辺と
+        // 右端の枠の右辺の破線が丸ごと消える**（実測: 角の円弧だけが端に残る）。
+        // `Spacer(minLength: 0)` は幅 0 に潰れても、その両隣の隙間は消えない。
         HStack(spacing: FreeCellMetrics.columnGap) {
             ForEach(0..<FreeCellBoard.cellCount, id: \.self) { cell in
                 cellView(cell, metrics: metrics)
             }
-            Spacer(minLength: 0)
             ForEach(PlayingCardSuit.allCases, id: \.rawValue) { suit in
                 foundationView(suit: suit, metrics: metrics)
             }
         }
         // 左 4 つ（フリーセル）と右 4 つ（組札）の境目。
         //
-        // 上段はちょうど 8 枠で、下段の 8 列と幅がぴったり揃う（`FreeCellMetrics.boardWidth`）。
-        // そのぶん `Spacer` が 0 に潰れるので、**札が載ると 8 枚が 1 列に並んでいるようにしか
+        // 上段は 8 枠が等間隔に並ぶので、**札が載ると 8 枚が 1 列に並んでいるようにしか
         // 見えない**（実測。空のうちは受け皿の絵と ♠♥♦♣ で区別が付くが、埋まると消える）。
         // 列の幅を崩さずに境目だけ描くため、レイアウトを取らない overlay で中央に引く。
         .overlay {
