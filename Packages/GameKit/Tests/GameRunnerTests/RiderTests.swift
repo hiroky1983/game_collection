@@ -31,6 +31,23 @@ struct RunnerRiderTests {
         #expect(RunnerRider.advance(phase: 1.5, by: -120, isPedaling: true) == 1.5)
     }
 
+    @Test("走り出す前の脚の形が寸法どおりに決まる")
+    func poseAtRest() {
+        // 長さや向きの検証は「実装の定数」を期待値に使うため、**定数そのものの書き換えは
+        // 検知できない**（腿を伸ばす・クランクを動かす等）。ここだけは座標を直に固定して、
+        // 寸法を触ったら必ず気付くようにする（絵の作り直しなら、この期待値も一緒に直す）。
+        let near = RunnerRider.leg(phase: 0, isFar: false)
+        #expect(abs(near.pedal.x - 1.3) < 0.001)
+        #expect(abs(near.pedal.y - 3.6) < 0.001)
+        #expect(abs(near.knee.x - 0.9354) < 0.001)
+        #expect(abs(near.knee.y - 5.8709) < 0.001)
+        let far = RunnerRider.leg(phase: 0, isFar: true)
+        #expect(abs(far.pedal.x - (-0.9)) < 0.001)
+        #expect(abs(far.pedal.y - 3.6) < 0.001)
+        #expect(abs(far.knee.x - 0.6854) < 0.001)
+        #expect(abs(far.knee.y - 5.2663) < 0.001)
+    }
+
     @Test("クランクは車輪と同じ向き（前進で時計回り）に回る")
     func turnsWithTheWheels() {
         // 走者は +x を向いており、`RunnerScene` は車輪を `-distance` で回す = 時計回り。
