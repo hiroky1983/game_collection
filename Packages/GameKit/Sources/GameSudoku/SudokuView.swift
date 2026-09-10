@@ -667,60 +667,34 @@ struct SudokuNewGameSheet: View {
     let onCancel: () -> Void
     @State private var difficulty: SudokuDifficulty = .normal
 
+    /// 「かんたん／ふつう／むずかしい」は横3つでは収まらないので、題名を縮めて1行に収める。
+    private static let metrics = GameSetupChooser.Metrics(
+        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6
+    )
+
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("難易度").themeBody(15).foregroundStyle(Theme.inkSub)
-                    HStack(spacing: 12) {
-                        // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
-                        // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
-                        // `removalRange` のコメント参照・#354 の S6）。
-                        chooser(.easy,   subtitle: "空き 約30〜35", accent: Theme.Fill.teal)
-                        chooser(.normal, subtitle: "空き 約40〜45", accent: Theme.Fill.yellow)
-                        chooser(.hard,   subtitle: "空き 約46〜50", accent: Theme.Fill.coral)
-                    }
-                }
-                Spacer()
-                Button {
-                    onStart(difficulty)
-                } label: {
-                    Text("スタート").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("新規ゲーム")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
+        GameSetupSheet(
+            title: "新規ゲーム", startTitle: "スタート",
+            onStart: { onStart(difficulty) }, onCancel: onCancel
+        ) {
+            GameSetupSection("難易度") {
+                HStack(spacing: 12) {
+                    // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
+                    // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
+                    // `removalRange` のコメント参照・#354 の S6）。
+                    difficultyTile(.easy,   subtitle: "空き 約30〜35", accent: Theme.Fill.teal)
+                    difficultyTile(.normal, subtitle: "空き 約40〜45", accent: Theme.Fill.yellow)
+                    difficultyTile(.hard,   subtitle: "空き 約46〜50", accent: Theme.Fill.coral)
                 }
             }
         }
-        .gameSheetDetents()
     }
 
-    private func chooser(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
-        let selected = difficulty == value
-        return Button {
+    private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
+        GameSetupChooser(title: value.label, subtitle: subtitle,
+                         selected: difficulty == value, accent: accent,
+                         metrics: Self.metrics) {
             difficulty = value
-        } label: {
-            VStack(spacing: 4) {
-                Text(value.label).themeTitle(20).foregroundStyle(selected ? Theme.onAccent : Theme.ink)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-                Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }

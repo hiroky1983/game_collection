@@ -278,7 +278,7 @@ struct GomokuStrengthLabelTests {
     /// オセロと揃えた文言が揃って存在することを固定する。
     @Test func viewUsesOthelloStyleWording() throws {
         let source = try Self.viewSource()
-        #expect(source.contains(#"section("CPUの強さ")"#))
+        #expect(source.contains(#"GameSetupSection("CPUの強さ")"#))
         for wording in ["浅い読み", "標準", "深い読み"] {
             #expect(
                 Self.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,

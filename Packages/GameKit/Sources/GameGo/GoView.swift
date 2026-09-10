@@ -632,65 +632,56 @@ struct GoNewGameSheet: View {
         self.onCancel = onCancel
     }
 
+    /// 選択肢が横に3つ並ぶうえ「互先／2子…」と数が多いので、標準より一回り小さく詰める。
+    private static let metrics = GameSetupChooser.Metrics(
+        title: .title(20), subtitleSize: 11, verticalPadding: 14, subtitleMinimumScale: 0.7
+    )
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("9路盤・中国ルール（面積計算）")
-                        .themeBody(13).foregroundStyle(Theme.inkSub)
+        // 選択肢3節 + 置き石の条件節で .medium には収まらない（会長指摘 2026-09-02:
+        // ハンデ以降がはみ出て操作できない）。`.scrolling` は常に `.large` で開く。
+        GameSetupSheet(
+            title: "新規対局", startTitle: "対局開始", spacing: 20, layout: .scrolling,
+            onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
+        ) {
+            Text("9路盤・中国ルール（面積計算）")
+                .themeBody(13).foregroundStyle(Theme.inkSub)
 
-                    section("あなたの石") {
-                        HStack(spacing: 12) {
-                            chooser(title: "●黒", subtitle: "先番",
-                                    selected: side == .black, accent: Theme.fillStrong,
-                                    onAccent: .white) { side = .black }
-                            chooser(title: "○白", subtitle: "後番",
-                                    selected: side == .white, accent: Theme.fillMuted,
-                                    onAccent: .white) { side = .white }
-                        }
-                    }
-                    section("CPUの強さ") {
-                        HStack(spacing: 12) {
-                            ForEach(GoLevel.allCases, id: \.self) { candidate in
-                                chooser(title: candidate.label, subtitle: candidate.detail,
-                                        selected: level == candidate,
-                                        accent: accent(for: candidate)) { level = candidate }
-                            }
-                        }
-                    }
-                    // 置き石は黒（人間）がハンデをもらう仕組みなので、白を選んだときは出さない。
-                    if side == .black {
-                        section("置き石（ハンデ）") {
-                            HStack(spacing: 8) {
-                                ForEach(GoRuleset.handicapChoices, id: \.self) { count in
-                                    chooser(title: count == 0 ? "互先" : "\(count)子",
-                                            subtitle: count == 0 ? "コミ6.5" : "コミ0.5",
-                                            selected: handicap == count,
-                                            accent: Theme.Fill.purple) { handicap = count }
-                                }
-                            }
-                        }
-                    }
-
-                    Button { onStart(side, level, side == .black ? handicap : 0) } label: {
-                        Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
-                        .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            GameSetupSection("あなたの石") {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: "●黒", subtitle: "先番",
+                                     selected: side == .black, accent: Theme.fillStrong,
+                                     onAccent: .white, metrics: Self.metrics) { side = .black }
+                    GameSetupChooser(title: "○白", subtitle: "後番",
+                                     selected: side == .white, accent: Theme.fillMuted,
+                                     onAccent: .white, metrics: Self.metrics) { side = .white }
                 }
-                .padding(Theme.pad)
             }
-            .popBackground()
-            .navigationTitle("新規対局")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
+            GameSetupSection("CPUの強さ") {
+                HStack(spacing: 12) {
+                    ForEach(GoLevel.allCases, id: \.self) { candidate in
+                        GameSetupChooser(title: candidate.label, subtitle: candidate.detail,
+                                         selected: level == candidate,
+                                         accent: accent(for: candidate),
+                                         metrics: Self.metrics) { level = candidate }
+                    }
+                }
+            }
+            // 置き石は黒（人間）がハンデをもらう仕組みなので、白を選んだときは出さない。
+            if side == .black {
+                GameSetupSection("置き石（ハンデ）") {
+                    HStack(spacing: 8) {
+                        ForEach(GoRuleset.handicapChoices, id: \.self) { count in
+                            GameSetupChooser(title: count == 0 ? "互先" : "\(count)子",
+                                             subtitle: count == 0 ? "コミ6.5" : "コミ0.5",
+                                             selected: handicap == count,
+                                             accent: Theme.Fill.purple,
+                                             metrics: Self.metrics) { handicap = count }
+                        }
+                    }
                 }
             }
         }
-        // 選択肢3節 + 置き石の条件節で .medium には収まらない（会長指摘 2026-09-02:
-        // ハンデ以降がはみ出て操作できない）。このシートだけ常に .large で開く。
-        .presentationDetents([.large])
     }
 
     private func accent(for level: GoLevel) -> Color {
@@ -701,32 +692,4 @@ struct GoNewGameSheet: View {
         }
     }
 
-    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
-            content()
-        }
-    }
-
-    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
-    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
-    private func chooser(title: String, subtitle: String,
-                         selected: Bool, accent: Color, onAccent: Color = Theme.onAccent,
-                         action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title).themeTitle(20).foregroundStyle(selected ? onAccent : Theme.ink)
-                Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
-        }
-        .buttonStyle(.plain)
-    }
 }
