@@ -51,7 +51,8 @@ enum BlocksPalette {
 /// 結果として決まった `BlocksField` の状態をノードへ写すだけの層で、
 /// 得点・残機・当たり判定は一切知らない（アクション枠の基盤規約）。
 ///
-/// シーンの座標系はフィールドの抽象単位そのまま（100 × 150）で、`scaleMode = .aspectFit` により
+/// シーンの座標系はフィールドの抽象単位そのまま（`BlocksField.Metrics.width` × `.height`）で、
+/// `scaleMode = .aspectFit` により
 /// 表示サイズへ一括で拡大される。**呼び出し側は SpriteView の枠を必ず同じ縦横比にすること**
 /// （ずれると余白が出て、タップ位置とパドルの対応も狂う）。
 @MainActor

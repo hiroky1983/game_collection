@@ -31,12 +31,26 @@ public struct BlocksField: Equatable, Sendable {
     /// 盤の寸法。すべて抽象単位（`Metrics.width` × `Metrics.height` の枠に収まる）。
     public enum Metrics {
         public static let width: Double = 100
-        public static let height: Double = 150
+        /// 盤の高さ。**幅に対するこの比が、画面上での盤の大きさを決める**（#597）。
+        ///
+        /// 盤は `.aspectRatio(_:contentMode: .fit)` で枠に収めるため、比が縦長すぎると
+        /// 縦で頭打ちになり、左右に余白が残ったまま横幅を使い切れない。150 だった頃の実測では
+        /// iPhone 17 Pro で使える幅 370pt に対し盤は 286pt（77%）、iPhone SE では 343pt に
+        /// 対し 205pt（59%）しか無かった。
+        ///
+        /// 幅と同じ 100 = **正方形**にすると、対象実機のすべてで横幅を使い切れる
+        /// （`BlocksLayoutTests` が実測値で固定している）。1 つの比で全機種を満たす値はここだけで、
+        /// これより高くすると iPhone SE が、低くすると縦の可動域が削られる。
+        public static let height: Double = 100
         /// ブロックの列数。ステージのレイアウト文字列の 1 行の長さでもある。
         public static let columns = 9
         public static let blockHeight: Double = 5
         /// 最上段のブロックの上と天井のあいだの余白。
-        public static let topMargin: Double = 14
+        ///
+        /// 盤が低くなったぶん（#597）詰めて、球が動ける縦の可動域を確保する。
+        /// 球の直径（`ballRadius * 2` = 4）より広いので、最上段の上へ回り込む classic な
+        /// 攻略ルートは残る。
+        public static let topMargin: Double = 6
         public static let ballRadius: Double = 2
         public static let paddleWidth: Double = 17
         public static let paddleHeight: Double = 2.6
@@ -48,6 +62,57 @@ public struct BlocksField: Equatable, Sendable {
         public static var paddleTop: Double { paddleY + paddleHeight / 2 }
         /// 発射前に球が乗っている高さ。
         public static var restingBallY: Double { paddleTop + ballRadius }
+
+        // MARK: - 画面へ載せるときの寸法（#597）
+
+        /// 盤の縦横比（幅 / 高さ）。View はこの比で枠を作る（`BlocksView.playfield`）。
+        ///
+        /// シーンは `scaleMode = .aspectFit` なので、**枠の比がこれとずれると左右か上下に
+        /// 余白が出て、タップ位置とパドルの対応も狂う**。
+        public static var aspectRatio: Double { width / height }
+
+        /// 使える枠（pt）に収まる盤の実寸（pt）。
+        ///
+        /// `.aspectRatio(_:contentMode: .fit)` が行う計算そのもので、幅ごとの見え方を
+        /// テストで固定するために値として取り出している。**縦で頭打ちになると横幅が余る**ので、
+        /// 対象実機の枠を入れて余りが許容範囲かを `BlocksLayoutTests` が確かめる。
+        /// `ratio` は縦横比（幅 / 高さ）。既定は盤の比で、**テストが正方形以外の比でも
+        /// 頭打ちの向きを確かめられる**よう引数にしてある（現在の盤は 100 × 100 なので、
+        /// 比が 1 のままだと幅と高さを取り違えても結果が変わらず、変異を見逃す）。
+        public static func boardSize(
+            availableWidth: Double,
+            availableHeight: Double,
+            ratio: Double = aspectRatio
+        ) -> (width: Double, height: Double) {
+            guard availableWidth > 0, availableHeight > 0, ratio > 0 else { return (0, 0) }
+            let heightLimited = availableHeight * ratio
+            if heightLimited <= availableWidth {
+                return (heightLimited, availableHeight)
+            }
+            return (availableWidth, availableWidth / ratio)
+        }
+
+        /// 「タップで発射」の札を盤の下端から浮かせる高さ（抽象単位）。
+        ///
+        /// 発射前の球の頭（`restingBallY + ballRadius`）より上に置く。ここを pt の固定値に
+        /// すると、盤が大きい機種ほどパドルが上に来て札とぶつかる（#597）。
+        public static var readyHintClearance: Double { restingBallY + ballRadius * 3 }
+
+        /// 盤の実寸（pt）における 1 抽象単位の大きさ。
+        ///
+        /// バー・玉・ブロックの pt 寸法はすべてこれに比例する（描画は SpriteKit の
+        /// `scaleMode = .aspectFit` が担うので、View 側が使うのは**盤の上に重ねる部品**の
+        /// 位置決めだけ）。
+        public static func pointsPerUnit(boardWidth: Double) -> Double { boardWidth / width }
+
+        /// タップ位置（盤の枠のなかでの x・pt）を盤の x（抽象単位）へ写す。
+        ///
+        /// 盤の外へはみ出した指は端に丸める。パドル自身の可動域の制限は
+        /// `BlocksField.movePaddle(to:)` が持つので、ここでは盤の座標に写すだけ。
+        public static func fieldX(viewX: Double, viewWidth: Double) -> Double {
+            guard viewWidth > 0 else { return width / 2 }
+            return min(width, max(0, viewX / viewWidth * width))
+        }
 
         /// 反射角の下限（速さに対する `|vy|` の比）。sin(15°) ≒ 0.2588。
         public static let minimumVerticalRatio: Double = 0.26
