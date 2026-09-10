@@ -13,6 +13,12 @@ public struct RunnerView: View {
     @State private var scene: RunnerScene
     /// チェックポイント再開のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var resumeRescue = RewardedRescue()
+    /// 15 ステージぶんのベストタイム一覧を開いているか（既定は閉じて省スペースに、#583系）。
+    ///
+    /// 「ステージとベストタイムは上のセクションでいい。まだゲーム画面が真ん中にあって
+    /// 一時停止ボタンが遠い」という会長QA（2026-09-10）を受け、既定は現在のステージの
+    /// ベストだけを1行で見せ、15個のチップ一覧は開いたときだけ場所を取るようにした。
+    @State private var showsAllBestTimes = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -24,12 +30,12 @@ public struct RunnerView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 14) {
-            header
+        VStack(spacing: 10) {
+            topSummary
+            // `layoutPriority(1)` で縦幅の分配を先取りする（囲碁の盤と同じ組み方。詳細は `course` の doc）。
             course
-            bestTimeStrip
-            HowToPlayHint(.runner, playLog: services.playLog)
-            recommendationArea
+                .layoutPriority(1)
+            secondaryInfo
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
@@ -88,6 +94,22 @@ public struct RunnerView: View {
 
     // MARK: - ヘッダー
 
+    /// タイム・スピード・ステージ番号・記録を1枚にまとめた画面上部のセクション。
+    ///
+    /// 元は「タイム等」のカードと「ベストタイム一覧」のカードが縦に2枚並んでいたが、
+    /// 「ステージとベストタイムは上のセクションでいい。まだゲーム画面が真ん中にあって
+    /// 一時停止ボタンが遠い」という会長QA（2026-09-10）を受け、1枚に統合して縦の
+    /// 占有を減らした——浮いた分だけ `course` が画面の下まで伸び、右下の一時停止ボタンが
+    /// 自然と親指の届く位置に来る。
+    private var topSummary: some View {
+        VStack(spacing: 8) {
+            header
+            bestTimeSection
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
@@ -111,8 +133,6 @@ public struct RunnerView: View {
                 progressBar
             }
         }
-        .padding(.horizontal, 18).padding(.vertical, 10)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     /// ペダルの乗り（#569）。
@@ -179,30 +199,45 @@ public struct RunnerView: View {
 
     /// ステージごとのベストタイム（#494 の「記録」）。
     ///
-    /// 横長のコースは縦持ちの画面では帯にしかならないので、その下に記録を置いて
-    /// 「どこまで進んだか」「次にどこを縮めるか」が一目で分かるようにする。
-    /// 15 個を横に並べ、いま挑んでいるステージだけ色を変える。
-    private var bestTimeStrip: some View {
+    /// 既定では現在のステージのベストだけを1行で見せ、15個のチップ一覧はタップして
+    /// 開いたときだけ表示する（会長QA「上のセクションを縮めたい」を受けた折りたたみ化）。
+    /// 開けば従来どおり「どこまで進んだか」「次にどこを縮めるか」が一目で分かる。
+    private var bestTimeSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("ベストタイム")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                Spacer(minLength: 0)
-                Text(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
-                    .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
-            }
-            HStack(spacing: 4) {
-                ForEach(1...RunnerRules.stageCount, id: \.self) { number in
-                    stageChip(number)
+            Button {
+                withGameAnimation(.snappy(duration: 0.2)) { showsAllBestTimes.toggle() }
+            } label: {
+                HStack {
+                    Text("ベストタイム")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                    Spacer(minLength: 0)
+                    Text(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
+                        .themeCaption(12)
+                        .foregroundStyle(Theme.inkSub)
+                    Image(systemName: showsAllBestTimes ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Theme.inkSub)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                showsAllBestTimes ? "全ステージの記録をとじる" : "全ステージの記録を見る"
+            )
+            .accessibilityValue(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
+
+            if showsAllBestTimes {
+                HStack(spacing: 4) {
+                    ForEach(1...RunnerRules.stageCount, id: \.self) { number in
+                        stageChip(number)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .popCard(corner: Theme.cornerSmall)
-        .accessibilityElement(children: .combine)
     }
 
     private func stageChip(_ number: Int) -> some View {
@@ -230,16 +265,24 @@ public struct RunnerView: View {
 
     // MARK: - コース
 
+    /// **`GeometryReader` で包んで `.layoutPriority(1)` を付ける**（囲碁の盤 `GoView.board` と同じ組み方）。
+    ///
+    /// `.frame(maxWidth: .infinity, maxHeight: .infinity)` だけでも幅基準では同じ結果になるが、
+    /// `GeometryReader` は常に提案された枠いっぱいに広がる**「伸縮する子」だと `VStack` に
+    /// 確実に伝わる**ので、この画面より縦に余裕のある端末（`topSummary` を畳んだ状態など）でも
+    /// `course` が優先的に余った縦幅を取り、`BannerSlot` が浮かずに画面下へ収まることを保証できる。
     private var course: some View {
-        ZStack {
-            // 操作はすべて下の透明レイヤーで受ける。SpriteView 自身に当たり判定を残すと、
-            // 機種によってはタップが SKView に吸われる。
-            SpriteView(scene: scene, preferredFramesPerSecond: 60)
-                .allowsHitTesting(false)
-            Color.clear
-                .contentShape(Rectangle())
-                .gesture(jumpGesture)
-            overlay
+        GeometryReader { _ in
+            ZStack {
+                // 操作はすべて下の透明レイヤーで受ける。SpriteView 自身に当たり判定を残すと、
+                // 機種によってはタップが SKView に吸われる。
+                SpriteView(scene: scene, preferredFramesPerSecond: 60)
+                    .allowsHitTesting(false)
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(jumpGesture)
+                overlay
+            }
         }
         // シーンは `.aspectFit` なので、枠の縦横比をコースと必ず一致させる。
         // ずれると余白が出て、見えている範囲と当たり判定の対応も狂う。
@@ -434,6 +477,17 @@ public struct RunnerView: View {
         ZStack(alignment: .top) {
             RecommendationCard.heightPlaceholder
             RecommendationSlot(services: services, isFinished: model.phase == .allCleared)
+        }
+    }
+
+    /// 遊び方のヒントとレコメンドは、プレイ中に何度も見るものではないので
+    /// `course` の下に小さく残す（会長QA「ゲーム画面を下まで広げたい」）。
+    /// どちらも中身が無ければ実質高さ 0（`HowToPlayHint` は2回目以降 `EmptyView`）か
+    /// 固定の小さなプレースホルダなので、スクロールにしなくても場所を圧迫しない。
+    private var secondaryInfo: some View {
+        VStack(spacing: 6) {
+            HowToPlayHint(.runner, playLog: services.playLog)
+            recommendationArea
         }
     }
 }
