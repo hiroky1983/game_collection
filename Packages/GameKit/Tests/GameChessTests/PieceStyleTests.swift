@@ -80,6 +80,31 @@ struct ChessPieceStyleTests {
         }
     }
 
+    @Test("立体の陰影の値を実測値で固定する")
+    func sculptedValuesArePinned() {
+        // 相対比較（ツヤ > 0・黒 < 白 など）だけにすると、値を大きく崩す変異が素通りする
+        // （敵対的検証で実測: `highlightRadius` を 1.15 → 3.5 にしても全テストが緑のままだった）。
+        // ここはシミュレータで見た目を確かめて決めた値なので、動かすときは撮り直しが要る。
+        let white = ChessPieceStyle.sculpted.shading(for: .white)
+        #expect(white.highlight == CGPoint(x: 0.34, y: 0.26))
+        #expect(white.highlightRadius == 1.15)
+        #expect(white.sheen == 0.42)
+        #expect(white.depth == 0.18)
+        #expect(white.shadowOpacity == 0.34)
+
+        let black = ChessPieceStyle.sculpted.shading(for: .black)
+        #expect(black.highlight == CGPoint(x: 0.34, y: 0.26), "光源は色によらず同じ")
+        #expect(black.highlightRadius == 1.15)
+        #expect(black.sheen == 0.30)
+        #expect(black.depth == 0.30)
+        #expect(black.shadowOpacity == 0.40)
+
+        for shading in [white, black] {
+            #expect(shading.shadowRadius == 0.05)
+            #expect(shading.shadowOffset == 0.035)
+        }
+    }
+
     @Test("ツヤは黒駒のほうが弱く、陰は黒駒のほうが強い")
     func sculptedSplitsByPieceColor() {
         let white = ChessPieceStyle.sculpted.shading(for: .white)
