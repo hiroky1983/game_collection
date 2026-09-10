@@ -184,7 +184,7 @@ public struct BlocksView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(paddleGesture(width: geo.size.width))
-                overlay
+                overlay(boardWidth: geo.size.width)
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
             // 一時停止は右上のヘッダーではなく、フィールドの右下に浮かせる
@@ -195,7 +195,10 @@ public struct BlocksView: View {
         }
         // シーンは `.aspectFit` なので、枠の縦横比をフィールドと必ず一致させる。
         // ずれると左右に余白が出て、タップ位置とパドルの対応も狂う。
-        .aspectRatio(BlocksField.Metrics.width / BlocksField.Metrics.height, contentMode: .fit)
+        .aspectRatio(BlocksField.Metrics.aspectRatio, contentMode: .fit)
+        // 余った縦を**先に**盤へ渡す（#597）。付けないと下の `Spacer` と山分けになり、
+        // 盤は使える高さの手前で止まって横幅が余る（実測: iPhone SE で使える幅の 59%）。
+        .layoutPriority(1)
     }
 
     /// 描画ループを局面に合わせる（#522）。
@@ -229,16 +232,19 @@ public struct BlocksView: View {
 
     private func movePaddle(toViewX x: CGFloat, width: CGFloat) {
         guard width > 0 else { return }
-        model.movePaddle(to: Double(x / width) * BlocksField.Metrics.width)
+        model.movePaddle(to: BlocksField.Metrics.fieldX(
+            viewX: Double(x),
+            viewWidth: Double(width)
+        ))
     }
 
     // MARK: - オーバーレイ
 
     @ViewBuilder
-    private var overlay: some View {
+    private func overlay(boardWidth: CGFloat) -> some View {
         switch model.phase {
         case .ready:
-            readyOverlay
+            readyOverlay(boardWidth: boardWidth)
         case .playing:
             EmptyView()
         case .paused:
@@ -271,15 +277,20 @@ public struct BlocksView: View {
     }
 
     /// 発射前。操作を邪魔しないよう**タップを透過させる**（そのままパドルを動かして発射できる）。
-    private var readyOverlay: some View {
-        VStack {
+    ///
+    /// 下端からの距離は**盤の大きさに合わせて決める**（#597）。46pt のような固定値にすると、
+    /// 盤が大きい機種ほどパドルが上に来るため札とぶつかる（実測: 盤が 801pt になった
+    /// iPad Pro 11 インチで、発射前の球とパドルの上に札が重なった）。
+    private func readyOverlay(boardWidth: CGFloat) -> some View {
+        let unit = BlocksField.Metrics.pointsPerUnit(boardWidth: Double(boardWidth))
+        return VStack {
             Spacer()
             Label("タップで発射", systemImage: "hand.tap.fill")
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.9))
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(.black.opacity(0.35)))
-                .padding(.bottom, 46)
+                .padding(.bottom, BlocksField.Metrics.readyHintClearance * unit)
         }
         .allowsHitTesting(false)
     }
