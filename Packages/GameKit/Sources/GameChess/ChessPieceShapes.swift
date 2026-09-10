@@ -19,6 +19,8 @@ import Core
 struct ChessPieceView: View {
     let piece: ChessPiece
     let size: CGFloat
+    /// 駒の意匠（#598）。**形は意匠によらず同じ**で、変わるのは光の当て方だけ。
+    let style: ChessPieceStyle
 
     /// 輪郭線の太さ。駒が小さいときでも 1pt を切らないようにする。
     private var lineWidth: CGFloat { max(1, size * 0.022) }
@@ -29,24 +31,24 @@ struct ChessPieceView: View {
         piece.color == .white ? ChessBoardStyle.whitePieceLine : ChessBoardStyle.blackPieceLine
     }
 
-    private var gradientColors: [Color] {
-        piece.color == .white
-            ? [ChessBoardStyle.whitePieceTop, ChessBoardStyle.whitePieceBottom]
-            : [ChessBoardStyle.blackPieceTop, ChessBoardStyle.blackPieceBottom]
-    }
-
     var body: some View {
-        Canvas { ctx, sz in
+        let shading = style.shading(for: piece.color)
+        return Canvas { ctx, sz in
             let rect = CGRect(origin: .zero, size: sz)
-            let fill = GraphicsContext.Shading.linearGradient(
-                Gradient(colors: gradientColors),
-                startPoint: .zero,
-                endPoint: CGPoint(x: 0, y: sz.height)
-            )
+            let fill = Self.faceShading(shading, in: sz)
             let line = GraphicsContext.Shading.color(outline)
             for part in ChessPieceArt.parts(of: piece.type) {
                 let path = part.path(in: rect)
                 ctx.fill(path, with: fill)
+                // 立体の意匠では、部品ごとに切り抜いた層へツヤと陰を重ねる。
+                // 光源は**駒 1 枚に 1 つ**なので、重ねる図形は部品ではなく駒の矩形いっぱいに取り、
+                // 部品側では切り抜くだけにする（部品ごとに光らせると、冠や台座がそれぞれ
+                // 別方向から照らされたように見える）。
+                if shading.hasOverlay {
+                    var layer = ctx
+                    layer.clip(to: path)
+                    Self.drawOverlay(shading, in: rect, on: &layer)
+                }
                 ctx.stroke(path, with: line, lineWidth: lineWidth)
             }
             // 装飾線（ビショップの切れ込み）は塗りを持たないので線だけ引く。
@@ -55,7 +57,46 @@ struct ChessPieceView: View {
             }
         }
         .frame(width: size * 0.88, height: size * 0.88)
-        .shadow(color: .black.opacity(0.28), radius: size * 0.03, y: size * 0.02)
+        .shadow(color: .black.opacity(shading.shadowOpacity),
+                radius: size * shading.shadowRadius,
+                y: size * shading.shadowOffset)
+    }
+
+    /// 面の塗り。照りの中心を持つ意匠はラジアル、持たない意匠は従来どおり上→下の線形。
+    private static func faceShading(_ shading: ChessPieceShading,
+                                    in sz: CGSize) -> GraphicsContext.Shading {
+        guard let highlight = shading.highlight else {
+            return .linearGradient(Gradient(colors: shading.fill),
+                                   startPoint: .zero,
+                                   endPoint: CGPoint(x: 0, y: sz.height))
+        }
+        return .radialGradient(
+            Gradient(colors: shading.fill),
+            center: CGPoint(x: sz.width * highlight.x, y: sz.height * highlight.y),
+            startRadius: 0,
+            endRadius: sz.width * shading.highlightRadius)
+    }
+
+    /// 面の上に重ねる陰（下端）とツヤ（左上）。呼び出し側で部品の形に切り抜いてから渡す。
+    private static func drawOverlay(_ shading: ChessPieceShading,
+                                    in rect: CGRect,
+                                    on layer: inout GraphicsContext) {
+        if shading.depth > 0 {
+            layer.fill(Path(rect), with: .linearGradient(
+                Gradient(stops: [
+                    .init(color: .black.opacity(0), location: 0.35),
+                    .init(color: .black.opacity(shading.depth), location: 1),
+                ]),
+                startPoint: .zero,
+                endPoint: CGPoint(x: 0, y: rect.height)))
+        }
+        if shading.sheen > 0 {
+            layer.fill(Path(rect), with: .radialGradient(
+                Gradient(colors: [.white.opacity(shading.sheen), .white.opacity(0)]),
+                center: CGPoint(x: rect.width * 0.32, y: rect.height * 0.22),
+                startRadius: 0,
+                endRadius: rect.width * 0.46))
+        }
     }
 }
 
