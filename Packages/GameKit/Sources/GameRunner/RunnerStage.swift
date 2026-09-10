@@ -125,6 +125,8 @@ public enum RunnerRules {
 /// | `1` `2` `3` | 穴（1〜3 タイル） |
 /// | `n` | 低い障害物 |
 /// | `t` | 高い障害物 |
+/// | `b` | 鳥 |
+/// | `s` | スピードアップアイテム（平地 + アイテム。障害としては扱わない） |
 public struct RunnerStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -136,6 +138,12 @@ public struct RunnerStage: Equatable, Sendable {
     public let length: Double
     /// 左から順に並んだ障害。
     public let hazards: [RunnerHazard]
+    /// 左から順に並んだスピードアップアイテム。
+    ///
+    /// **`hazards` とは別の配列**。触れて失敗する障害と、触れて得するアイテムを
+    /// 同じ配列に混ぜると「越えられるか」の成立条件チェック（`RunnerStageTests`）に
+    /// アイテムまで巻き込んでしまう。
+    public let pickups: [RunnerPickup]
     /// チェックポイント（コースの中ほど）の x。
     ///
     /// **必ず平地に置く**。障害の上に置くと、再開した瞬間にまたミスになって進めない。
@@ -152,6 +160,7 @@ public struct RunnerStage: Equatable, Sendable {
         let hazards = Self.makeHazards(pattern: pattern)
         self.length = length
         self.hazards = hazards
+        self.pickups = Self.makePickups(pattern: pattern)
         self.checkpoint = Self.makeCheckpoint(length: length, hazards: hazards)
     }
 
@@ -178,6 +187,9 @@ public struct RunnerStage: Equatable, Sendable {
     /// 穴が走者より狭く見え、跳んで越えるべきものに見えなかった（会長QA）。
     /// 区画の並び（`hazardTileOffset`・`segmentTiles`）は変えていないので、
     /// 隣の障害までの間隔は従来どおり保たれる——広がるのは穴の幅だけ。
+    ///
+    /// `pickupSymbol`（`s`）はここには含めない。**アイテムは障害ではない**ので
+    /// `makeHazards`/`RunnerStageTests` の対象から自然に外れる。
     static func segmentSpec(_ symbol: Character) -> (kind: RunnerHazardKind, tiles: Int)? {
         switch symbol {
         case "1": return (.pit, 2)
@@ -185,8 +197,23 @@ public struct RunnerStage: Equatable, Sendable {
         case "3": return (.pit, 4)
         case "n": return (.lowBlock, 1)
         case "t": return (.tallBlock, 1)
+        case "b": return (.bird, 1)
         default:  return nil
         }
+    }
+
+    /// スピードアップアイテムの区画記号。
+    static let pickupSymbol: Character = "s"
+
+    /// 区画記号をスピードアップアイテムの並びへ展開する。障害と同じ「区画の中央」に置く。
+    static func makePickups(pattern: String) -> [RunnerPickup] {
+        let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        let offset = Double(RunnerRules.hazardTileOffset) * RunnerRules.tileWidth
+        var result: [RunnerPickup] = []
+        for (index, symbol) in pattern.enumerated() where symbol == pickupSymbol {
+            result.append(RunnerPickup(start: Double(index) * segmentWidth + offset))
+        }
+        return result
     }
 
     /// 中点から右へずらしながら、障害と重ならず着地に必要な余白もある位置を探す。
@@ -235,22 +262,28 @@ public extension RunnerStage {
     /// 区画数は `RunnerRules.baseSegments + (ステージ番号 - 1)`、障害の割合はステージ 1 の
     /// およそ 1/3 から最終面の 8 割強まで一定の刻みで増える。どちらも `RunnerStageTests` が
     /// 全ステージについて機械的に確かめる（手で足したときに間隔が崩れないようにするため）。
+    ///
+    /// `s`（スピードアップアイテム）はステージ 5 以降の平地区間に 1 個ずつ混ぜてある
+    /// （会長QA「スピードアップアイテムor床とかあったほうがいい」）。障害ではないので
+    /// 既存の障害の割合・間隔には影響しない。`b`（鳥）はステージ 13〜15 にだけ混ぜてある
+    /// （会長QA「鳥とか右から車が来るとか要素はいる」）——当たり判定は `lowBlock`/`tallBlock`
+    /// と同じ数学なので、間隔・跳べる高さの成立条件は他の障害と同じく `RunnerStageTests` が確かめる。
     private static let patterns: [String] = [
         "--1---1--1--",              // 1: 12区画・障害3個。1 タイルの穴だけで間合いを覚える
         "--1---n---1--",             // 2: 13区画・障害3個。低い障害物の初出
         "--1--n--2--n--",            // 3: 14区画・障害4個。2 タイルの穴の初出
         "--1-n--t--1-n--",           // 4: 15区画・障害5個。高い障害物の初出
-        "--n-1-t--2-n-t--",          // 5: 16区画・障害6個
-        "--1-n-3-t-2-n-t--",         // 6: 17区画・障害7個。3 タイル（跳べる最大幅）の穴の初出
-        "--1-n-3-t2-n-t-1--",        // 7: 18区画・障害8個。障害が隣り合う区画が出始める
-        "--2-t-1n-3-t2-n-t--",       // 8: 19区画・障害9個
-        "--2-t1-n-3t-2-nt-3--",      // 9: 20区画・障害10個
-        "--2-t1-n3-t-2n-t3-2--",     // 10: 21区画・障害11個
-        "--t2-n3-t1t-2t-3n-tt--",    // 11: 22区画・障害13個
-        "--t2-n3-t1t-2t3-nt-t2--",   // 12: 23区画・障害14個
-        "--t2-n3t1-t2t3-ntt2-n3--",  // 13: 24区画・障害16個
-        "--3t2-t3n-t3t2t-3tn-3t2--", // 14: 25区画・障害17個
-        "--3t2-t3nt3t2-t3tn3-t2t3--", // 15: 26区画・障害19個。速さ 50.8・約 33 秒
+        "--n-1-t-s2-n-t--",          // 5: 16区画・障害6個。スピードアップアイテムの初出
+        "--1-n-3-ts2-n-t--",         // 6: 17区画・障害7個。3 タイル（跳べる最大幅）の穴の初出
+        "--1-n-3-t2sn-t-1--",        // 7: 18区画・障害8個。障害が隣り合う区画が出始める
+        "--2-t-1n-3-t2sn-t--",       // 8: 19区画・障害9個
+        "--2-t1-n-3ts2-nt-3--",      // 9: 20区画・障害10個
+        "--2-t1-n3-t-2nst3-2--",     // 10: 21区画・障害11個
+        "--t2-n3-t1t-2ts3n-tt--",    // 11: 22区画・障害13個
+        "--t2-n3-t1t-2t3snt-t2--",   // 12: 23区画・障害14個
+        "--t2sn3t1bt2t3bntt2-n3--",  // 13: 24区画・障害18個（岩穴16+鳥2）。鳥の初出
+        "--3t2st3nbt3t2tb3tn-3t2--", // 14: 25区画・障害19個（岩穴17+鳥2）
+        "--3t2st3nt3t2bt3tn3bt2t3--", // 15: 26区画・障害21個（岩穴19+鳥2）。速さ 50.8・約 33 秒
     ]
 }
 

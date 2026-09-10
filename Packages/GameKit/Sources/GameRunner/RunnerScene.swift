@@ -55,6 +55,15 @@ enum RunnerPalette {
     static let cloud: UInt32 = 0xFFFFFF
     /// チェックポイントの目印。ゴール（`goal`）と見分けられる別の色にする。
     static let checkpoint: UInt32 = 0x5FA8FF
+    /// 鳥（`RunnerHazardKind.bird`）の胴体。岩（`rockLight`/`rockDark`）の茶系とは
+    /// 別系統の色にして、地を這う障害物と空を飛ぶ障害物を見分けられるようにする（会長QA）。
+    static let birdBody: UInt32 = 0x4FAE71
+    /// 鳥の翼。胴体より明るくして、羽ばたきのアニメーションで動きが見えるようにする。
+    static let birdWing: UInt32 = 0x8FE3AE
+    /// スピードアップアイテムの本体（丸）。「電気を帯びた玉」に見えるよう寒色にする。
+    static let pickupBody: UInt32 = 0x5CE1E6
+    /// スピードアップアイテムの稲妻（細い矩形2枚）。本体との対比を出すため明るい暖色にする。
+    static let pickupBolt: UInt32 = 0xFFF4B8
 
     static func color(_ hex: UInt32) -> SKColor {
         SKColor(
@@ -111,6 +120,12 @@ final class RunnerScene: SKScene {
     private static let cloudSpacing: Double = 46
     /// コースに対する雲の流れる速さの比率（視差）。1 未満で遠くに見える。
     private static let cloudParallax: Double = 0.3
+    /// このコースのスピードアップアイテムのノード（`stage.pickups` と同じ並び）。
+    /// `rebuildCourse` で作り直し、`sync` が `field.collectedPickupCount` を見て順に消す。
+    private var pickupNodes: [SKNode] = []
+    /// すでに消したピックアップの数。**走者は後退しないので、取得順は常に `pickups` の並びどおり**
+    /// ——`collectedPickupCount` 件目までを毎フレーム照合すれば、どれが取得済みか特定できる。
+    private var removedPickupCount = 0
 
     init(model: RunnerModel) {
         self.model = model
@@ -417,8 +432,15 @@ final class RunnerScene: SKScene {
         if x < stage.length { addGround(from: x, to: stage.length + Metrics.width) }
 
         for hazard in stage.hazards where hazard.kind != .pit {
-            addRock(hazard)
+            if hazard.kind == .bird {
+                addBird(hazard)
+            } else {
+                addRock(hazard)
+            }
         }
+
+        pickupNodes = stage.pickups.map { addPickup($0) }
+        removedPickupCount = 0
 
         addCheckpointMarker(at: stage.checkpoint)
         addGoalMarker(at: stage.length)
@@ -447,6 +469,88 @@ final class RunnerScene: SKScene {
         node.addChild(body)
 
         courseLayer.addChild(node)
+    }
+
+    /// 鳥（`RunnerHazardKind.bird`）。「棒と穴しかない」というQAを受けて追加した敵の1つ
+    /// （会長QA「鳥とか右から車が来るとか要素はいる」）。丸（胴体）+ 長方形2枚（翼）の
+    /// 組み合わせだけで描く（岩と同じ権利チェック上の制約）。羽ばたきは `SKAction` の
+    /// 純粋な見た目の演出で、当たり判定（`RunnerField.isHittingBlock`）には一切影響しない
+    /// ——判定は岩と同じ `hazard.start`〜`.end`/`.height` の矩形のまま。
+    private func addBird(_ hazard: RunnerHazard) {
+        let node = SKNode()
+        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        let w = hazard.length, h = hazard.height
+        let bodyRadius = min(w, h) * 0.45
+        let center = CGPoint(x: w / 2, y: h * 0.55)
+
+        for side in [-1.0, 1.0] {
+            let wing = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.birdWing),
+                size: CGSize(width: bodyRadius * 1.7, height: bodyRadius * 0.55)
+            )
+            wing.anchorPoint = CGPoint(x: side > 0 ? 0 : 1, y: 0.5)
+            wing.position = center
+            wing.zRotation = CGFloat(side > 0 ? 0.2 : .pi - 0.2)
+            node.addChild(wing)
+            // 羽ばたき。当たり判定の矩形は動かさない、純粋な見た目の周期アニメーション。
+            let flapAmount = CGFloat(side) * 0.5
+            let up = SKAction.rotate(byAngle: flapAmount, duration: 0.16)
+            wing.run(.repeatForever(.sequence([up, up.reversed()])))
+        }
+
+        let body = SKShapeNode(circleOfRadius: bodyRadius)
+        body.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
+        body.strokeColor = .clear
+        body.position = center
+        node.addChild(body)
+
+        courseLayer.addChild(node)
+    }
+
+    /// スピードアップアイテム。丸（本体）+ 長方形2枚（稲妻）の組み合わせで描く
+    /// （会長QA「スピードアップアイテムor床とかあったほうがいい」）。取得すると `sync` が
+    /// フェードアウト＋縮小で消す。戻り値は `sync` が取得済みかどうかを追うためのノード参照。
+    @discardableResult
+    private func addPickup(_ pickup: RunnerPickup) -> SKNode {
+        let node = SKNode()
+        let radius = 1.8
+        node.position = CGPoint(x: pickup.start, y: Metrics.groundY + radius + 1.5)
+
+        let body = SKShapeNode(circleOfRadius: radius)
+        body.fillColor = RunnerPalette.color(RunnerPalette.pickupBody)
+        body.strokeColor = .clear
+        node.addChild(body)
+
+        // 稲妻。中心をジグザグに横切る細い矩形2枚（丸と長方形だけで組む規約を維持）。
+        let boltUpper = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.pickupBolt),
+            size: CGSize(width: 0.6, height: radius * 1.1)
+        )
+        boltUpper.anchorPoint = CGPoint(x: 0.5, y: 1)
+        boltUpper.position = CGPoint(x: -0.35, y: radius * 0.6)
+        boltUpper.zRotation = 0.35
+        node.addChild(boltUpper)
+
+        let boltLower = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.pickupBolt),
+            size: CGSize(width: 0.6, height: radius * 1.1)
+        )
+        boltLower.anchorPoint = CGPoint(x: 0.5, y: 1)
+        boltLower.position = CGPoint(x: 0.35, y: -radius * 0.1)
+        boltLower.zRotation = -0.35
+        node.addChild(boltLower)
+
+        courseLayer.addChild(node)
+        return node
+    }
+
+    /// 取得済みのピックアップをフェードアウト＋縮小で消す。
+    private func removePickupNode(_ node: SKNode) {
+        guard node.parent != nil else { return }
+        node.run(.sequence([
+            .group([.fadeOut(withDuration: 0.25), .scale(to: 0.2, duration: 0.25)]),
+            .removeFromParent(),
+        ]))
     }
 
     /// 穴の中身（奈落）。縁の帯だけだと穴の内側が空と同じ色のままで、
@@ -558,6 +662,18 @@ final class RunnerScene: SKScene {
         syncPedaling(field)
         // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
         player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
+        syncPickups(field)
+    }
+
+    /// 取得済みのピックアップのノードを消す。走者は後退しないので、`collectedPickupCount` は
+    /// 常に `pickups` の並びの先頭からの件数と一致する（`pickupNodes` の宣言を参照）。
+    private func syncPickups(_ field: RunnerField) {
+        guard field.collectedPickupCount > removedPickupCount else { return }
+        let upper = min(field.collectedPickupCount, pickupNodes.count)
+        for i in removedPickupCount..<upper {
+            removePickupNode(pickupNodes[i])
+        }
+        removedPickupCount = field.collectedPickupCount
     }
 
     /// 漕ぐ脚を進める（#569）。

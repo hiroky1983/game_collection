@@ -31,7 +31,7 @@ public enum RunnerAutoPilot {
         switch hazard.kind {
         case .pit:
             return base
-        case .lowBlock, .tallBlock:
+        case .lowBlock, .tallBlock, .bird:
             return base + speed * RunnerRules.riseTime(to: hazard.height + clearance)
         }
     }
