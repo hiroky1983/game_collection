@@ -53,6 +53,11 @@ enum RunnerPalette {
     static let pitVoid: UInt32 = 0x141824
     /// 雲。空より明るい半透明の白。
     static let cloud: UInt32 = 0xFFFFFF
+    /// 遠景の丘（奥）。空より一段暗い寒色で、空との境目が分かる程度の差に留める。
+    static let hillFar: UInt32 = 0x263A5C
+    /// 近景の丘（手前）。奥の丘よりさらに暗く、地面（`groundBody`）との重なりでも
+    /// 手前にあると分かるようにする。
+    static let hillNear: UInt32 = 0x1F2F4C
     /// チェックポイントの目印。ゴール（`goal`）と見分けられる別の色にする。
     static let checkpoint: UInt32 = 0x5FA8FF
     /// 鳥（`RunnerHazardKind.bird`）の胴体。岩（`rockLight`/`rockDark`）の茶系とは
@@ -81,8 +86,9 @@ enum RunnerPalette {
 /// 決まった `RunnerField` の状態をノードへ写すだけの層で、当たり判定も進行も知らない
 /// （アクション枠の基盤規約）。
 ///
-/// シーンの座標系はコースの抽象単位そのまま（120 × 80）で、`scaleMode = .aspectFit` により
-/// 表示サイズへ一括で拡大される。**呼び出し側は SpriteView の枠を必ず同じ縦横比にすること**。
+/// シーンの座標系はコースの抽象単位そのまま（`RunnerField.Metrics.width` × `.height`）で、
+/// `scaleMode = .aspectFit` により表示サイズへ一括で拡大される。
+/// **呼び出し側は SpriteView の枠を必ず同じ縦横比にすること**。
 @MainActor
 final class RunnerScene: SKScene {
     private typealias Metrics = RunnerField.Metrics
@@ -130,6 +136,16 @@ final class RunnerScene: SKScene {
     /// ——`collectedPickupCount` 件目までを毎フレーム照合すれば、どれが取得済みか特定できる。
     private var removedPickupCount = 0
 
+    /// 遠景の丘（奥・手前の2層）。画面を縦長にした分だけ空が広がるので、
+    /// 何も無い帯にせず地平線側を丘の稜線で埋める（2026-09-10 会長QA「縦を活かす」対応）。
+    /// 雲と同じく無限スクロールにするので、コースとは別レイヤーに持つ。
+    private let hillLayer = SKNode()
+    /// 丘の稜線を並べる間隔（ワールド単位）。
+    private static let hillSpacing: Double = 60
+    /// コースに対する丘の流れる速さの比率（視差）。雲より近い＝雲より速いが、
+    /// コースそのもの（1.0）よりは遅い。
+    private static let hillParallax: Double = 0.55
+
     init(model: RunnerModel) {
         self.model = model
         super.init(size: CGSize(
@@ -150,6 +166,8 @@ final class RunnerScene: SKScene {
         guard courseLayer.parent == nil else { return }
         addChild(cloudLayer)
         buildClouds()
+        addChild(hillLayer)
+        buildHills()
         addChild(courseLayer)
         buildPlayer()
         addChild(player)
@@ -409,13 +427,47 @@ final class RunnerScene: SKScene {
                 shape.position = CGPoint(x: puff.dx, y: puff.dy)
                 cloud.addChild(shape)
             }
-            // 高さを雲ごとに変えて、横一列に並んで見えないようにする。
-            let y = Metrics.height - 10 - Double(i % 3) * 7
+            // 高さを雲ごとに変えて、横一列に並んで見えないようにする。縦長にした分だけ
+            // 帯を広く使う（丘の稜線 `buildHills` より上、画面の上端 8 単位手前まで）。
+            let y = Metrics.height - 12 - Double(i % 5) * 10
             cloud.position = CGPoint(x: Double(i) * Self.cloudSpacing, y: y)
             cloudLayer.addChild(cloud)
             clouds.append(cloud)
             cloudBaseX.append(Double(i) * Self.cloudSpacing)
         }
+    }
+
+    /// 丘のタイルそのもの（`hillBaseX` と対で、`sync` が毎フレーム位置を計算し直す）。
+    private var hillTiles: [SKNode] = []
+    /// 丘タイルの基準 x（雲と同じ「距離に応じて全タイル幅でループする」座標の仕組み）。
+    private var hillBaseX: [Double] = []
+
+    /// 地平線側の丘の稜線。縦長にした画面で地面から上の帯が広く空くぶん、
+    /// 何も無い空の帯にせず奥・手前 2 段の丘で埋める（2026-09-10 会長QA「縦を活かす」対応）。
+    /// ステージをまたいでも作り直さない（`rebuildCourse` の対象外）——雲と同じ理由。
+    private func buildHills() {
+        let count = 6
+        for i in 0..<count {
+            let tile = SKNode()
+            // 奥の丘（背が高く、色が薄い＝遠い）。
+            addHillBump(to: tile, color: RunnerPalette.hillFar, width: 42, height: 34, dx: 8)
+            addHillBump(to: tile, color: RunnerPalette.hillFar, width: 36, height: 27, dx: 42)
+            // 手前の丘（背が低く、色が濃い＝近い）。奥の丘に重ねて奥行きを出す。
+            addHillBump(to: tile, color: RunnerPalette.hillNear, width: 34, height: 19, dx: 22)
+            tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
+            hillLayer.addChild(tile)
+            hillTiles.append(tile)
+            hillBaseX.append(Double(i) * Self.hillSpacing)
+        }
+    }
+
+    /// 丘の山ひとつ。半分だけ地面から顔を出す楕円（下半分は `courseLayer` の地面に隠れる）。
+    private func addHillBump(to tile: SKNode, color: UInt32, width: Double, height: Double, dx: Double) {
+        let bump = SKShapeNode(ellipseOf: CGSize(width: width, height: height * 2))
+        bump.fillColor = RunnerPalette.color(color)
+        bump.strokeColor = .clear
+        bump.position = CGPoint(x: dx, y: Metrics.groundY)
+        tile.addChild(bump)
     }
 
     /// 地面・穴・障害物・ゴールをまとめて作り直す。
@@ -679,6 +731,14 @@ final class RunnerScene: SKScene {
                 .truncatingRemainder(dividingBy: totalWidth)
             let wrapped = raw < 0 ? raw + totalWidth : raw
             cloud.position.x = wrapped
+        }
+        // 丘は雲より近く（速く）、コースより遠く（遅く）流す。仕組みは雲と同じ無限スクロール。
+        let hillTotalWidth = Self.hillSpacing * Double(hillTiles.count)
+        for (i, tile) in hillTiles.enumerated() {
+            let raw = (hillBaseX[i] - field.distance * Self.hillParallax)
+                .truncatingRemainder(dividingBy: hillTotalWidth)
+            let wrapped = raw < 0 ? raw + hillTotalWidth : raw
+            tile.position.x = wrapped
         }
         // 走者の画面上の x は動かさず、コースのほうを左へ流す。
         courseLayer.position = CGPoint(x: Metrics.playerX - field.distance, y: 0)
