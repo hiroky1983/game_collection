@@ -14,14 +14,16 @@ enum RunnerPalette {
     /// 地面の断面（土）。**空と系統の違う暖色にする**。同じ寒色の濃淡で塗ると、
     /// 地面と空の境目も穴の切れ目も見分けが付かない（最初の実機確認で判明）。
     static let groundBody: UInt32 = 0x6B4A32
-    /// 障害物（岩）の明るい面（頂上のハイライト）。「何なのか分からない」というQAを受け、
-    /// 楕円2枚の塊から、頂上ハイライト・本体・接地陰・ひび割れの4層に底上げした（会長QA
-    /// 2026-09-10「岩のデザインもブラッシュアップして欲しい」）。
-    static let rockLight: UInt32 = 0xB8A896
+    /// 障害物（岩）の明るい面（日の当たる頂の面）。**茶系は使えない**。地面の断面
+    /// （`groundBody`）と同系になり、実機では遠景の丘（紺）とも地面とも見分けが付かず
+    /// 「何なのか分からない」というQAが続いた（会長 2026-09-10「岩のデザインはNG」）。
+    /// 空・丘の紺、地表のティール、断面の茶のどれとも系統の違う明るいストーングレー
+    /// 3階調にして、輪郭線なしでも岩塊が浮き出るようにする。
+    static let rockLight: UInt32 = 0xC2C8D2
     /// 障害物（岩）の本体（中間色）。
-    static let rockBody: UInt32 = 0x8C7B68
-    /// 障害物（岩）の陰（接地面・ひび割れ）。
-    static let rockDark: UInt32 = 0x5C4C3C
+    static let rockBody: UInt32 = 0x939AA8
+    /// 障害物（岩）の陰（陰の面・接地陰）。
+    static let rockDark: UInt32 = 0x565D6B
     /// 自転車の車体。`Theme.Fill.coral` と同じ値。
     static let bike: UInt32 = 0xFF8A7E
     /// 車輪。
@@ -65,6 +67,10 @@ enum RunnerPalette {
     static let checkpoint: UInt32 = 0x5FA8FF
     /// チェックポイントの旗の陰（奥側）。ゴールの旗と同じ厚みの出し方を踏襲する。
     static let checkpointShade: UInt32 = 0x3D7BD9
+    /// チェックポイントの旗の文字。白抜き（`wheel`）は旗の水色に対して薄く、実機で
+    /// 読めなかった（会長QA「旗の文字もいまだに見えない」）。旗より十分暗い紺で
+    /// コントラストを取る。
+    static let checkpointText: UInt32 = 0x14284A
     /// 鳥（`RunnerHazardKind.bird`）の胴体。岩の茶系・空の寒色とは別系統の色にして、
     /// 地を這う障害物と空を飛ぶ障害物を見分けられるようにする（会長QA）。
     static let birdBody: UInt32 = 0x4FAE71
@@ -524,10 +530,17 @@ final class RunnerScene: SKScene {
         player.yScale = 1
     }
 
-    /// 障害物（岩）。丸2枚を重ねただけの塊は平らに見え「何なのか分からない」というQAが
-    /// 再度出た（会長QA 2026-09-10「岩のデザインもブラッシュアップして欲しい」）ため、
-    /// 接地陰・大小2つの塊・頂上ハイライト・ひび割れの4層に描き直した
-    /// （丸と長方形だけで組む規約は維持。ひび割れだけ細い矩形）。
+    /// 障害物（岩）。丸2枚重ね→多角形1枚→矩形の積み石、と直してきたがいずれも
+    /// 「何なのか分からない」というQAが続いた（会長 2026-09-10「岩のデザインはNG」）。
+    /// 敗因は2つ：(1) 多角形1枚は縦横比の違う `tallBlock` に引き伸ばされて刃物のように潰れ、
+    /// 積み石の矩形は角が丸く「石」の硬さが出ない、(2) 茶系の配色が地面の断面・遠景の丘に
+    /// 溶けて実機ではシルエット自体が読めない。そこで**縦横比がほぼ正方形の「岩塊
+    /// （ボルダー）1個」を描く部品を作り、当たり判定の縦横比から積む個数を導出する**
+    /// 方式に変えた——低い障害物（4×5）は1個、高い障害物（4×9）は2個積み。岩塊は常に
+    /// 自分の縦横比で描かれるので、どちらでも潰れない。色はストーングレー3階調
+    /// （`rockLight`/`rockBody`/`rockDark`）。
+    /// 多角形のパスは既存のゴール旗と同じ技法（#494 の権利チェックの要点は特定作品の
+    /// 意匠に寄せないことで、パス自体は許容済み）。
     /// 当たり判定は `RunnerField` が `hazard.start`〜`.end`/`.height` の矩形で見ており、
     /// この見た目の変更とは独立している——中に収まる大きさで描いているだけ。
     private func addRock(_ hazard: RunnerHazard) {
@@ -536,39 +549,90 @@ final class RunnerScene: SKScene {
         let w = hazard.length, h = hazard.height
 
         // 接地の陰。岩の重みで地面に沈んでいるように、幅いっぱいの平たい楕円を敷く。
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 0.95, height: h * 0.3))
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 1.05, height: h * 0.14))
         shadow.fillColor = RunnerPalette.color(RunnerPalette.rockDark)
         shadow.strokeColor = .clear
-        shadow.position = CGPoint(x: w / 2, y: h * 0.18)
+        shadow.position = CGPoint(x: w / 2, y: 0)
         node.addChild(shadow)
 
-        // 本体は丸ではなく、積み上げた石（ケルン）の形にする。丸2つ重ねの案も、
-        // 多角形1枚の案（穴の少ないステージでは高さがある `tallBlock` に引き伸ばされ、
-        // 刃物のように見えてしまった）も「何なのか分からない」という指摘が続いたため
-        // （会長 2026-09-10「岩のデザインはNG」）、**幅の狭い矩形を少しずつ角度と
-        // 左右位置を変えて積む**方式に描き直した。矩形は縦横比に関わらず角があるままなので、
-        // 低い障害物（横長・短い）でも高い障害物（縦長）でも同じ組み方で「石を積んだ塊」に見える。
-        let tiers: [(widthRatio: CGFloat, heightRatio: CGFloat, xOffset: CGFloat, tilt: CGFloat, color: UInt32)] = [
-            (0.9, 0.42, 0.0, -0.06, RunnerPalette.rockDark),
-            (0.68, 0.4, 0.08, 0.08, RunnerPalette.rockBody),
-            (0.42, 0.34, -0.05, -0.1, RunnerPalette.rockLight),
-        ]
-        var y: CGFloat = 0
-        for tier in tiers {
-            let tierHeight = h * tier.heightRatio
-            let block = SKShapeNode(
-                rectOf: CGSize(width: w * tier.widthRatio, height: tierHeight),
-                cornerRadius: min(w, tierHeight) * 0.08
+        // 岩塊の個数は当たり判定の縦横比から決める（幅4×高さ5 → 1個、幅4×高さ9 → 2個）。
+        // 上下 15% ずつ重ねて積み、全体の頂が当たり判定の高さ h に一致するようにする。
+        let count = max(1, Int((h / w).rounded()))
+        let overlap = 0.15
+        let boulderHeight = h / (1 + Double(count - 1) * (1 - overlap))
+        var baseY = 0.0
+        for i in 0..<count {
+            // 上の岩塊は幅を絞り、少し右へずらして「同じ形の複製」に見せない。
+            // 左右反転で変化を付ける案は、光の向き（左上）が上下の岩塊で食い違い、
+            // 段差に黒い切れ込みのような影が出たので使わない（実機確認で判明）。
+            addBoulder(
+                to: node,
+                centerX: w / 2 + (i == 0 ? 0 : w * 0.05),
+                baseY: baseY,
+                width: i == 0 ? w : w * 0.78,
+                height: boulderHeight
             )
-            block.fillColor = RunnerPalette.color(tier.color)
-            block.strokeColor = .clear
-            block.position = CGPoint(x: w / 2 + w * tier.xOffset, y: y + tierHeight / 2)
-            block.zRotation = tier.tilt
-            node.addChild(block)
-            y += tierHeight * 0.72 // 段を少し重ねて隙間を作らない
+            baseY += boulderHeight * (1 - overlap)
         }
 
         courseLayer.addChild(node)
+    }
+
+    /// 岩塊（ボルダー）1個。底が平らで頂がやや左に寄った角ばった多角形に、
+    /// 日の当たる頂の面（明）と足元の陰の面（暗）を重ね、輪郭線なしで立体に見せる。
+    private func addBoulder(
+        to node: SKNode, centerX: Double, baseY: Double,
+        width: Double, height: Double
+    ) {
+        let boulder = SKNode()
+        boulder.position = CGPoint(x: centerX, y: baseY)
+
+        // 頂点は幅・高さそれぞれの比率で置く。岩塊は count の導出により常にほぼ正方形の
+        // 縦横比で描かれるので、この比率が潰れることはない。
+        func pt(_ fx: Double, _ fy: Double) -> CGPoint {
+            CGPoint(x: fx * width, y: fy * height)
+        }
+
+        let bodyPath = CGMutablePath()
+        bodyPath.move(to: pt(-0.48, 0))
+        bodyPath.addLine(to: pt(-0.5, 0.38))
+        bodyPath.addLine(to: pt(-0.28, 0.82))
+        bodyPath.addLine(to: pt(-0.02, 1.0))
+        bodyPath.addLine(to: pt(0.3, 0.88))
+        bodyPath.addLine(to: pt(0.5, 0.42))
+        bodyPath.addLine(to: pt(0.46, 0))
+        bodyPath.closeSubpath()
+        let body = SKShapeNode(path: bodyPath)
+        body.fillColor = RunnerPalette.color(RunnerPalette.rockBody)
+        body.strokeColor = .clear
+        boulder.addChild(body)
+
+        // 日の当たる頂の面。
+        let topPath = CGMutablePath()
+        topPath.move(to: pt(-0.28, 0.82))
+        topPath.addLine(to: pt(-0.02, 1.0))
+        topPath.addLine(to: pt(0.3, 0.88))
+        topPath.addLine(to: pt(0.06, 0.6))
+        topPath.addLine(to: pt(-0.16, 0.56))
+        topPath.closeSubpath()
+        let top = SKShapeNode(path: topPath)
+        top.fillColor = RunnerPalette.color(RunnerPalette.rockLight)
+        top.strokeColor = .clear
+        boulder.addChild(top)
+
+        // 足元の陰の面（光と反対側）。
+        let shadePath = CGMutablePath()
+        shadePath.move(to: pt(0.5, 0.42))
+        shadePath.addLine(to: pt(0.46, 0))
+        shadePath.addLine(to: pt(0.08, 0))
+        shadePath.addLine(to: pt(0.2, 0.34))
+        shadePath.closeSubpath()
+        let shade = SKShapeNode(path: shadePath)
+        shade.fillColor = RunnerPalette.color(RunnerPalette.rockDark)
+        shade.strokeColor = .clear
+        boulder.addChild(shade)
+
+        node.addChild(boulder)
     }
 
     /// 鳥（`RunnerHazardKind.bird`）。「棒と穴しかない」というQAを受けて追加した敵の1つ
@@ -783,7 +847,7 @@ final class RunnerScene: SKScene {
     private func addCheckpointMarker(at x: Double, percent: Int) {
         let pole = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.wheel),
-            size: CGSize(width: 1, height: 17)
+            size: CGSize(width: 1.4, height: 19)
         )
         pole.anchorPoint = CGPoint(x: 0.5, y: 0)
         pole.position = CGPoint(x: x, y: Metrics.groundY)
@@ -793,21 +857,25 @@ final class RunnerScene: SKScene {
         // という再QA（2026-09-10）を受け、ゴールの旗（`addGoalMarker`）と同じ
         // 「柱に付いた旗」という形の文法に揃えつつ、先端に三角の切れ込みを入れて
         // ゴールの単純な三角旗とは別物と分かるようにした。奥にもう1枚重ねて厚みを出す。
-        // 旗自体・文字とも初版は小さすぎて実機で読めなかった（会長QA「旗の文字もいまだに
-        // 見えない」・2026-09-10）ため、ひとまわり大きく作り直した。
+        // 大きさ・文字は2度直している：初版は小さすぎて実機で読めず（会長QA「旗の文字も
+        // いまだに見えない」）、1.5倍版も文字が旗の左端からはみ出してポールに重なり、
+        // 白抜き×水色でコントラストも足りなかった。旗をさらに広げ（幅17）、文字は
+        // 切れ込みのない無地部分（x: 0〜13.5）に収まる位置・大きさで、旗より十分暗い紺
+        // （`checkpointText`）に変えた（「%」の字幅が数字より広いことに注意。幅15では
+        // 「51%」がまだ両端にはみ出た——実機確認で判明）。
         let flagPath = CGMutablePath()
-        flagPath.move(to: CGPoint(x: 0, y: 3.2))
-        flagPath.addLine(to: CGPoint(x: 10.8, y: 3.2))
-        flagPath.addLine(to: CGPoint(x: 7.8, y: 0))
-        flagPath.addLine(to: CGPoint(x: 10.8, y: -3.2))
-        flagPath.addLine(to: CGPoint(x: 0, y: -3.2))
+        flagPath.move(to: CGPoint(x: 0, y: 4.6))
+        flagPath.addLine(to: CGPoint(x: 17, y: 4.6))
+        flagPath.addLine(to: CGPoint(x: 13.5, y: 0))
+        flagPath.addLine(to: CGPoint(x: 17, y: -4.6))
+        flagPath.addLine(to: CGPoint(x: 0, y: -4.6))
         flagPath.closeSubpath()
 
-        let flagCenter = CGPoint(x: x, y: Metrics.groundY + 13)
+        let flagCenter = CGPoint(x: x, y: Metrics.groundY + 13.8)
         let flagShade = SKShapeNode(path: flagPath)
         flagShade.fillColor = RunnerPalette.color(RunnerPalette.checkpointShade)
         flagShade.strokeColor = .clear
-        flagShade.position = CGPoint(x: flagCenter.x + 0.5, y: flagCenter.y - 0.5)
+        flagShade.position = CGPoint(x: flagCenter.x + 0.6, y: flagCenter.y - 0.6)
         courseLayer.addChild(flagShade)
 
         let flag = SKShapeNode(path: flagPath)
@@ -817,13 +885,14 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(flag)
 
         // 到達率。旗の意味そのものなので大きく載せる（会長案「50%と書かれた旗とか」）。
+        // 中心は切れ込みを除いた無地部分（x: 0〜13.5）の真ん中。
         let label = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
         label.text = "\(percent)%"
-        label.fontSize = 5
-        label.fontColor = RunnerPalette.color(RunnerPalette.wheel)
+        label.fontSize = 5.6
+        label.fontColor = RunnerPalette.color(RunnerPalette.checkpointText)
         label.verticalAlignmentMode = .center
         label.horizontalAlignmentMode = .center
-        label.position = CGPoint(x: flagCenter.x + 3.9, y: flagCenter.y)
+        label.position = CGPoint(x: flagCenter.x + 6.75, y: flagCenter.y)
         label.zPosition = 1
         courseLayer.addChild(label)
     }
