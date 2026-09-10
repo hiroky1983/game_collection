@@ -1087,7 +1087,11 @@ private func clearRunnerStage(_ model: RunnerModel) {
     // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
     while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
         frames += 1
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press(); model.release() }
+        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
+        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
+        // 2026-09-10）。
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
         model.tick(dt: 1.0 / 60)
     }
 }

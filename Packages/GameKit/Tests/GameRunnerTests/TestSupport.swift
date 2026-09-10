@@ -68,10 +68,11 @@ func autoPlayCurrentStage(_ model: RunnerModel, maxFrames: Int = 60 * 300) -> Bo
     // ための設計）ので、ここで打ち切らず `.failed` に落ち着くまで回し続ける。
     while model.phase.isRunning || model.phase == .falling, frames < maxFrames {
         frames += 1
-        if RunnerAutoPilot.shouldJump(field: model.field) {
-            model.press()
-            model.release()
-        }
+        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すと `vy` が
+        // 切り詰められて（会長QA「軽いタップなら本当に小ジャンプ」2026-09-10）
+        // 地形を越えられなくなる。
+        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
         model.tick(dt: 1.0 / 60)
     }
     return frames < maxFrames
@@ -93,8 +94,8 @@ func failCurrentStage(_ model: RunnerModel, stopAfterCheckpoint: Bool = false) {
         if stopAfterCheckpoint, !model.field.passedCheckpoint,
            RunnerAutoPilot.shouldJump(field: model.field) {
             model.press()
-            model.release()
         }
+        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
         model.tick(dt: 1.0 / 60)
     }
 }

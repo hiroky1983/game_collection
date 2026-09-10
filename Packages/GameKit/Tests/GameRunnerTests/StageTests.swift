@@ -120,8 +120,9 @@ struct RunnerStageTests {
                 remaining -= 1.0 / 240
             }
             let takeOff = field.distance
+            // ここでは切り詰め無しの全弾道（着地まで離さない）を測る。地形の成立条件
+            // （`RunnerStageTests`）が前提にしているのもこちらの軌道なので合わせる。
             field.jump()
-            field.endHold()
             while !field.isGrounded { _ = field.step(dt: 1.0 / 240) }
             return field.distance - takeOff
         }
@@ -242,11 +243,16 @@ struct RunnerPlaythroughTests {
         // ための設計）ので、`.failed` に落ち着くまで回し続ける。
         while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
             frames += 1
+            // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。無駄ジャンプ
+            // （`hopWastefully`）も含め、自動操縦の跳躍はすべて切り詰め無しの全弾道で揃える
+            // ——早く離して小さいホップになると、ペダルの乗りへの影響が変わり
+            // タイム差を検証する既存テストの前提が崩れる。
             if RunnerAutoPilot.shouldJump(field: model.field) {
                 model.press()
-                model.release()
             } else if hopWastefully, shouldHopWastefully(field: model.field) {
                 model.press()
+            }
+            if RunnerAutoPilot.shouldRelease(field: model.field) {
                 model.release()
             }
             model.tick(dt: 1.0 / 60)
@@ -270,6 +276,38 @@ struct RunnerPlaythroughTests {
             let result = play(stage: number)
             let expected: RunnerPhase = number == RunnerRules.stageCount ? .allCleared : .cleared
             #expect(result.phase == expected, "ステージ \(number) がクリアできない（\(result.phase)）")
+        }
+    }
+
+    /// **回帰テスト**: 会長QA「進まねえ」（2026-09-11）——踏み切った直後（同フレーム）に
+    /// 離す「瞬間タップ」でも、穴・低い障害物・鳥は必ず越えられること。`jumpCutGraceTime`
+    /// による猶予が無いと、ステージ1の最初の穴（幅8）にすら届かなかった。
+    ///
+    /// 高い障害物（`tallBlock`）だけは対象外——設計上「頂点近くを通す」必要があり、
+    /// 意図的に長押しを要求する（`RunnerRules.jumpCutGraceTime` のドキュメント参照）。
+    @Test("瞬間タップでも、高い障害物以外はすべて越えられる")
+    func instantTapClearsEveryHazardExceptTallBlocks() {
+        for stage in RunnerStage.all {
+            for hazard in stage.hazards where hazard.kind != .tallBlock {
+                var field = RunnerField(stage: stage)
+                while field.distance < hazard.start - RunnerAutoPilot.lead(for: hazard, speed: stage.speed) {
+                    _ = field.step(dt: 1.0 / 600)
+                }
+                field.jump()
+                field.endHold() // 同フレームで即離す＝瞬間タップ
+                var events: [RunnerEvent] = []
+                var frames = 0
+                while frames < 3000 {
+                    frames += 1
+                    events += field.step(dt: 1.0 / 600)
+                    if events.contains(where: { $0 == .fell || $0 == .crashed }) { break }
+                    if field.isGrounded, field.distance > hazard.end { break }
+                }
+                #expect(
+                    !events.contains(where: { $0 == .fell || $0 == .crashed }),
+                    "ステージ \(stage.number) の \(hazard.kind) を瞬間タップで越えられない"
+                )
+            }
         }
     }
 
