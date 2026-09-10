@@ -25,8 +25,24 @@ enum RunnerPalette {
     static let wheel: UInt32 = 0xFFF6EC
     /// おじさんの肌。
     static let skin: UInt32 = 0xF3C9A6
+    /// 肌の陰（鼻・耳）。輪郭線を引かずに顔の起伏を出すため、肌より一段暗い色で置く。
+    static let skinShade: UInt32 = 0xD9A57F
     /// おじさんの服。
     static let shirt: UInt32 = 0xB3A6F0
+    /// 服の陰（奥の腕）。手前の胴と同じ色だと、腕が胴に溶けて1つの塊に見える。
+    static let shirtShade: UInt32 = 0x8477C9
+    /// ズボン（手前の脚）。**空（`sky`）と近い濃い青は使えない**。脚は空を背に描かれるので、
+    /// 同系の暗い色にすると漕いでいるのに脚が見えない（最初の実機確認で判明）。
+    static let pants: UInt32 = 0xE0B27C
+    /// ズボンの陰（奥の脚）。左右の脚が重なる位相でも前後が分かるようにする。
+    static let pantsShade: UInt32 = 0xAD8351
+    /// 髪・口ひげ。「おじさん」と分かる要素はここだけなので、肌とはっきり差を付ける。
+    static let hair: UInt32 = 0x4A3B33
+    /// 靴。
+    static let shoe: UInt32 = 0x2B2B33
+    /// 金具（サドル・クランク・握り）。**空より明るい灰色**にする。暗い灰色にすると
+    /// サドルだけが黒い塊として浮き、自転車の一部に見えない。
+    static let metal: UInt32 = 0x8A93A6
     /// ゴールの旗。
     static let goal: UInt32 = 0xFF8FB1
     /// 穴の縁の警告帯。地面と同系色だと縁が分からず、落ちるかどうかの判断がつかない
@@ -72,6 +88,21 @@ final class RunnerScene: SKScene {
     private let player = SKNode()
     private let frontWheel = SKShapeNode(circleOfRadius: 2.6)
     private let rearWheel = SKShapeNode(circleOfRadius: 2.6)
+    /// 漕ぐ脚（奥・手前）と、それに合わせて回るクランクの腕（#569）。
+    /// 形は毎フレーム `RunnerRider` が返す座標で置き直す（寸法をここに書かない）。
+    private let farThigh = SKSpriteNode()
+    private let farShin = SKSpriteNode()
+    private let farKnee = SKShapeNode(circleOfRadius: 0.55)
+    private let farShoe = SKSpriteNode()
+    private let nearThigh = SKSpriteNode()
+    private let nearShin = SKSpriteNode()
+    private let nearKnee = SKShapeNode(circleOfRadius: 0.55)
+    private let nearShoe = SKSpriteNode()
+    private let crankArm = SKSpriteNode()
+    /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。
+    private var pedalPhase: Double = 0
+    /// 前のフレームの `distance`（進んだぶんを出すため）。
+    private var lastRenderedDistance: Double?
     /// 空の雲。何も障害が無い区間が静止画に見える、というQAを受けて追加（会長QA）。
     /// コースより遅い速度で流す（視差）ので、コースとは別レイヤーに持つ。
     private let cloudLayer = SKNode()
@@ -119,42 +150,222 @@ final class RunnerScene: SKScene {
     // MARK: - 組み立て
 
     /// 自転車に乗ったおじさん。**既存作品の意匠には寄せず**、丸と長方形だけで組む（#494 の権利チェック）。
+    ///
+    /// 「棒人間レベル」というQAを受けた底上げ（#569 決裁A）。**輪郭線は引かず**、色の差だけで
+    /// 面を分ける（1 単位が数 pt にしか描かれないので、線を足すと潰れて滲む）。増やしたのは
+    /// ①漕ぐ脚 ②ハンドルを握る腕 ③顔（目・鼻・口ひげ）とつばのある帽子 ④スポーク——
+    /// いずれも当たり判定には関わらない見た目だけの追加で、走者の占める寸法
+    /// （`Metrics.playerWidth` / `.playerHeight`）は変えていない。
     private func buildPlayer() {
+        buildBike()
+        buildLegs()
+        buildRiderBody()
+        buildFace()
+        player.position = CGPoint(x: Metrics.playerX, y: Metrics.groundY)
+    }
+
+    /// 自転車（車輪・スポーク・車体・サドル・クランク）。
+    private func buildBike() {
         for wheel in [frontWheel, rearWheel] {
             wheel.fillColor = .clear
             wheel.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
             wheel.lineWidth = 0.7
+            // スポーク。無地の円は回しても回転が見えず、止まっているように見えていた。
+            // 車輪の子にしておけば `zRotation` にそのまま追従する。
+            for i in 0..<3 {
+                let spoke = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.wheel),
+                                         size: CGSize(width: 5.0, height: 0.35))
+                spoke.zRotation = CGFloat(Double(i) * .pi / 3)
+                wheel.addChild(spoke)
+            }
             player.addChild(wheel)
         }
         frontWheel.position = CGPoint(x: 2.6, y: 2.6)
         rearWheel.position = CGPoint(x: -2.6, y: 2.6)
 
-        // 車体（前後の車輪をつなぐ棒とハンドル）。
-        let frame = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.bike),
-                                 size: CGSize(width: 7.4, height: 1.1))
-        frame.position = CGPoint(x: 0, y: 4.2)
-        let handle = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.bike),
-                                  size: CGSize(width: 1.0, height: 2.4))
-        handle.position = CGPoint(x: 2.6, y: 5.6)
-        player.addChild(frame)
-        player.addChild(handle)
+        // 車体。**太い1本の棒ではなく細い管を組む**。棒1枚だとクランクとペダルが棒に
+        // 埋まって漕いでいるのが見えず、自転車の形にも見えなかった（最初の実機確認で判明）。
+        addTube(from: RunnerRider.rearHub, to: RunnerRider.crank)     // チェーンステー
+        addTube(from: RunnerRider.crank, to: RunnerRider.seatBase)    // シートチューブ
+        addTube(from: RunnerRider.seatBase, to: RunnerRider.rearHub)  // シートステー
+        addTube(from: RunnerRider.crank, to: RunnerRider.headTop)     // ダウンチューブ
+        addTube(from: RunnerRider.seatBase, to: RunnerRider.headTop)  // トップチューブ
+        addTube(from: RunnerRider.headTop, to: RunnerRider.frontHub)  // フォーク
+        addTube(from: RunnerRider.headTop, to: RunnerRider.grip)      // ステム
 
-        // 乗っているおじさん（胴・頭・帽子）。
-        let torso = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.shirt),
-                                 size: CGSize(width: 3.4, height: 3.6))
-        torso.position = CGPoint(x: -0.6, y: 6.6)
+        // 握りとサドル。手と腰の行き先を絵の上でも示す（腕と脚の付け根が浮かないようにする）。
+        let grip = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.metal),
+                                size: CGSize(width: 1.4, height: 0.5))
+        grip.position = CGPoint(x: RunnerRider.grip.x, y: RunnerRider.grip.y)
+        let saddle = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.metal),
+                                  size: CGSize(width: 2.2, height: 0.6))
+        saddle.position = CGPoint(x: RunnerRider.seatBase.x, y: RunnerRider.seatBase.y + 0.3)
+        for node in [grip, saddle] { player.addChild(node) }
+
+        // クランク（ペダルの回転中心と、回る腕）。
+        let chainring = SKShapeNode(circleOfRadius: 0.8)
+        chainring.fillColor = .clear
+        chainring.strokeColor = RunnerPalette.color(RunnerPalette.metal)
+        chainring.lineWidth = 0.4
+        chainring.position = CGPoint(x: RunnerRider.crank.x, y: RunnerRider.crank.y)
+        player.addChild(chainring)
+
+        crankArm.color = RunnerPalette.color(RunnerPalette.metal)
+        crankArm.size = CGSize(width: RunnerRider.crankRadius, height: 0.45)
+        crankArm.anchorPoint = CGPoint(x: 0, y: 0.5)
+        crankArm.position = CGPoint(x: RunnerRider.crank.x, y: RunnerRider.crank.y)
+        crankArm.zPosition = 1
+        player.addChild(crankArm)
+    }
+
+    /// 車体の管を1本。2点を結ぶ細い矩形を、始点で回して置く。
+    private func addTube(from start: RunnerPoint, to end: RunnerPoint) {
+        let dx = end.x - start.x, dy = end.y - start.y
+        let tube = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.bike),
+            size: CGSize(width: (dx * dx + dy * dy).squareRoot(), height: 0.55)
+        )
+        tube.anchorPoint = CGPoint(x: 0, y: 0.5)
+        tube.position = CGPoint(x: start.x, y: start.y)
+        tube.zRotation = CGFloat(atan2(dy, dx))
+        player.addChild(tube)
+    }
+
+    /// 漕ぐ脚。奥の脚は車体より後ろ、手前の脚は胴より前に置く（重なる位相でも前後が分かる）。
+    private func buildLegs() {
+        configureLeg(thigh: farThigh, shin: farShin, knee: farKnee, shoe: farShoe,
+                     color: RunnerPalette.pantsShade, z: -1)
+        configureLeg(thigh: nearThigh, shin: nearShin, knee: nearKnee, shoe: nearShoe,
+                     color: RunnerPalette.pants, z: 3)
+    }
+
+    private func configureLeg(
+        thigh: SKSpriteNode, shin: SKSpriteNode, knee: SKShapeNode, shoe: SKSpriteNode,
+        color: UInt32, z: CGFloat
+    ) {
+        thigh.color = RunnerPalette.color(color)
+        thigh.size = CGSize(width: RunnerRider.thigh, height: 1.15)
+        shin.color = RunnerPalette.color(color)
+        shin.size = CGSize(width: RunnerRider.shin, height: 0.9)
+        for segment in [thigh, shin] {
+            // 関節を軸に回すので、左端の中央を基準にする。
+            segment.anchorPoint = CGPoint(x: 0, y: 0.5)
+            segment.zPosition = z
+            player.addChild(segment)
+        }
+        knee.fillColor = RunnerPalette.color(color)
+        knee.strokeColor = .clear
+        knee.zPosition = z
+        player.addChild(knee)
+        // 付け根。腿が胴からいきなり生えて見えるのを防ぐ（動かないので子ノードで置くだけ）。
+        let joint = SKShapeNode(circleOfRadius: 0.7)
+        joint.fillColor = RunnerPalette.color(color)
+        joint.strokeColor = .clear
+        joint.position = CGPoint(x: RunnerRider.hip.x, y: RunnerRider.hip.y)
+        joint.zPosition = z
+        player.addChild(joint)
+        shoe.color = RunnerPalette.color(RunnerPalette.shoe)
+        shoe.size = CGSize(width: 1.2, height: 0.5)
+        shoe.zPosition = z
+        player.addChild(shoe)
+    }
+
+    /// おじさんの胴・腹・腕・首。
+    private func buildRiderBody() {
+        // 前かがみの胴。楕円1枚を傾けて置く（矩形だと肩と腰の丸みが出ない）。
+        let torso = SKShapeNode(ellipseOf: CGSize(width: 4.2, height: 3.4))
+        torso.fillColor = RunnerPalette.color(RunnerPalette.shirt)
+        torso.strokeColor = .clear
+        torso.zRotation = 0.72
+        torso.position = CGPoint(x: -0.3, y: 7.4)
+        torso.zPosition = 2
+        player.addChild(torso)
+
+        // 腹。「おじさん」の体型はこの丸みだけで伝える（顔だけでは年齢が読めない）。
+        let belly = SKShapeNode(circleOfRadius: 1.45)
+        belly.fillColor = RunnerPalette.color(RunnerPalette.shirt)
+        belly.strokeColor = .clear
+        belly.position = CGPoint(x: 0.85, y: 6.9)
+        belly.zPosition = 2
+        player.addChild(belly)
+
+        // ハンドルへ伸びる腕（肩から握りまで1本の棒）と手。
+        let arm = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.shirtShade),
+                               size: CGSize(width: armLength, height: 0.95))
+        arm.anchorPoint = CGPoint(x: 0, y: 0.5)
+        arm.position = CGPoint(x: RunnerRider.shoulder.x, y: RunnerRider.shoulder.y)
+        arm.zRotation = CGFloat(atan2(
+            RunnerRider.grip.y - RunnerRider.shoulder.y,
+            RunnerRider.grip.x - RunnerRider.shoulder.x
+        ))
+        arm.zPosition = 4
+        player.addChild(arm)
+
+        let hand = SKShapeNode(circleOfRadius: 0.55)
+        hand.fillColor = RunnerPalette.color(RunnerPalette.skin)
+        hand.strokeColor = .clear
+        hand.position = CGPoint(x: RunnerRider.grip.x, y: RunnerRider.grip.y + 0.3)
+        hand.zPosition = 4
+        player.addChild(hand)
+    }
+
+    /// 肩から握りまでの長さ。
+    private var armLength: Double {
+        let dx = RunnerRider.grip.x - RunnerRider.shoulder.x
+        let dy = RunnerRider.grip.y - RunnerRider.shoulder.y
+        return (dx * dx + dy * dy).squareRoot()
+    }
+
+    /// 顔と帽子。**「おじさん」と分かるのはここだけ**なので、目・鼻・口ひげを省かない。
+    private func buildFace() {
         let head = SKShapeNode(circleOfRadius: 1.5)
         head.fillColor = RunnerPalette.color(RunnerPalette.skin)
         head.strokeColor = .clear
-        head.position = CGPoint(x: 0.2, y: 9.6)
-        let cap = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.bike),
-                               size: CGSize(width: 3.6, height: 0.9))
-        cap.position = CGPoint(x: 0.2, y: 10.9)
-        player.addChild(torso)
+        head.position = CGPoint(x: 1.0, y: 9.9)
+        head.zPosition = 5
         player.addChild(head)
-        player.addChild(cap)
 
-        player.position = CGPoint(x: Metrics.playerX, y: Metrics.groundY)
+        // 後頭部の髪（帽子とうなじの間）。
+        let hair = SKShapeNode(circleOfRadius: 0.85)
+        hair.fillColor = RunnerPalette.color(RunnerPalette.hair)
+        hair.strokeColor = .clear
+        hair.position = CGPoint(x: -0.1, y: 9.6)
+        hair.zPosition = 5
+        player.addChild(hair)
+
+        // 帽子（山とつば）。つばを前に出すことで、向いている方向が一目で分かる。
+        let crown = SKShapeNode(ellipseOf: CGSize(width: 3.2, height: 1.8))
+        crown.fillColor = RunnerPalette.color(RunnerPalette.bike)
+        crown.strokeColor = .clear
+        crown.position = CGPoint(x: 0.9, y: 11.0)
+        crown.zPosition = 6
+        player.addChild(crown)
+
+        let brim = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.bike),
+                                size: CGSize(width: 1.9, height: 0.45))
+        brim.position = CGPoint(x: 2.7, y: 10.7)
+        brim.zPosition = 6
+        player.addChild(brim)
+
+        let eye = SKShapeNode(circleOfRadius: 0.3)
+        eye.fillColor = RunnerPalette.color(RunnerPalette.hair)
+        eye.strokeColor = .clear
+        eye.position = CGPoint(x: 1.85, y: 10.15)
+        eye.zPosition = 7
+        player.addChild(eye)
+
+        let nose = SKShapeNode(circleOfRadius: 0.45)
+        nose.fillColor = RunnerPalette.color(RunnerPalette.skinShade)
+        nose.strokeColor = .clear
+        nose.position = CGPoint(x: 2.4, y: 9.7)
+        nose.zPosition = 7
+        player.addChild(nose)
+
+        let mustache = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.hair),
+                                    size: CGSize(width: 1.3, height: 0.45))
+        mustache.position = CGPoint(x: 1.95, y: 9.2)
+        mustache.zPosition = 7
+        player.addChild(mustache)
     }
 
     /// 雲ノードそのもの（`cloudBaseX` と対で、`sync` が毎フレーム位置を計算し直す）。
@@ -344,7 +555,44 @@ final class RunnerScene: SKScene {
         let angle = -field.distance / 2.6
         frontWheel.zRotation = CGFloat(angle)
         rearWheel.zRotation = CGFloat(angle)
+        syncPedaling(field)
         // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
         player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
+    }
+
+    /// 漕ぐ脚を進める（#569）。
+    ///
+    /// 位相は**接地して進んだ距離**から出す。時計で回すと、ゆっくりモードや一時停止のあいだも
+    /// 脚だけが動いてしまう。速く走れば漕ぐのも速くなる（`pedalBoost` が距離に乗るため、
+    /// ケイデンスはここで何もしなくても乗りに追従する）。
+    private func syncPedaling(_ field: RunnerField) {
+        // 初回は 0 から数える。`field.distance` を初期値にすると、シーンが出るより前に
+        // 進んでいた場合（撮影用の `-simulateRunner`）にその区間だけ漕いでいない扱いになる。
+        let delta = field.distance - (lastRenderedDistance ?? 0)
+        lastRenderedDistance = field.distance
+        pedalPhase = RunnerRider.advance(
+            phase: pedalPhase, by: delta, isPedaling: field.isGrounded
+        )
+        place(thigh: farThigh, shin: farShin, knee: farKnee, shoe: farShoe,
+              leg: RunnerRider.leg(phase: pedalPhase, isFar: true))
+        let near = RunnerRider.leg(phase: pedalPhase, isFar: false)
+        place(thigh: nearThigh, shin: nearShin, knee: nearKnee, shoe: nearShoe, leg: near)
+        crankArm.zRotation = CGFloat(atan2(
+            near.pedal.y - RunnerRider.crank.y, near.pedal.x - RunnerRider.crank.x
+        ))
+    }
+
+    /// 片脚のノードを、求めた形（腰 → 膝 → ペダル）へ置き直す。
+    private func place(
+        thigh: SKSpriteNode, shin: SKSpriteNode, knee: SKShapeNode, shoe: SKSpriteNode,
+        leg: RunnerRider.Leg
+    ) {
+        thigh.position = CGPoint(x: leg.hip.x, y: leg.hip.y)
+        thigh.zRotation = CGFloat(atan2(leg.knee.y - leg.hip.y, leg.knee.x - leg.hip.x))
+        shin.position = CGPoint(x: leg.knee.x, y: leg.knee.y)
+        shin.zRotation = CGFloat(atan2(leg.pedal.y - leg.knee.y, leg.pedal.x - leg.knee.x))
+        knee.position = CGPoint(x: leg.knee.x, y: leg.knee.y)
+        // 靴はペダルに乗っているので水平のまま（回すと足首が回転して見える）。
+        shoe.position = CGPoint(x: leg.pedal.x, y: leg.pedal.y + 0.15)
     }
 }

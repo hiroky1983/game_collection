@@ -345,6 +345,11 @@ public final class RunnerModel {
             // 最初の障害を跳び越している最中で止める（走っていることが 1 枚で分かる画）。
             autoPlayForDebug(until: { $0.field.altitude > RunnerRules.jumpApex * 0.6 })
             isFrozenForCapture = true
+        case "pedaling":
+            press(); release()
+            // 漕いでいる脚を撮る。`running` は空中で止めるので、そちらでは脚が止まる（#569）。
+            autoPlayForDebug(until: { $0.field.isGrounded && $0.field.distance > 34 })
+            isFrozenForCapture = true
         case "paused":
             press(); release()
             autoPlayForDebug(until: { $0.field.distance > 80 })
