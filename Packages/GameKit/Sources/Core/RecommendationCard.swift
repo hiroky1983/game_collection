@@ -52,6 +52,10 @@ public struct RecommendationCard: View {
                         Text(module.title)
                             .themeBody(16)
                             .foregroundStyle(Theme.ink)
+                            // ひな形（`heightPlaceholder`）の同じ位置は 1 文字 = 必ず 1 行なので、
+                            // 実カード側も 1 行に固定しないと高さの契約が崩れる（#600）。
+                            // 名前の長いゲームでは枠が伸び、下に置いたものが押し出される。
+                            .lineLimit(1)
                     }
                     Spacer(minLength: 4)
                     Text("あそぶ")
