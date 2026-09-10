@@ -89,6 +89,7 @@ struct RunnerStageTests {
 
     /// 前の障害を跳んで**着地してから**次の踏み切りに入れること。
     /// 間隔が足りないと、空中のまま次の障害へ突っ込んでどう操作しても越えられない。
+    ///
     @Test("隣り合う障害のあいだに着地して踏み切り直す余地がある")
     func hazardsAreFarEnoughApart() {
         for stage in RunnerStage.all {
@@ -101,6 +102,55 @@ struct RunnerStageTests {
                 )
             }
         }
+    }
+
+    /// **上の 2 つの成立条件が成り立ち続けるための前提**（#569）。
+    ///
+    /// どちらも「1 回のジャンプで進む距離 = `stage.speed × jumpAirTime`」を土台にしている。
+    /// ペダルの乗り（#569）が空中の横速度にも効くようになると、この距離が乗りの分だけ伸びて
+    /// 全ステージの間隔の判定がやり直しになる。**乗りをどこまで上げても空中は基準速度**である
+    /// ことを、ここで実際に走らせて確かめる。
+    @Test("跳んで進む距離はペダルの乗りに左右されない")
+    func jumpRangeIgnoresPedalBoost() {
+        let stage = RunnerStage(number: 1, pattern: String(repeating: "-", count: 40), speed: 40)
+
+        func jumpRange(afterRunningFor seconds: Double) -> Double {
+            var field = RunnerField(stage: stage)
+            var remaining = seconds
+            while remaining > 0 {
+                _ = field.step(dt: min(1.0 / 240, remaining))
+                remaining -= 1.0 / 240
+            }
+            let takeOff = field.distance
+            field.jump()
+            field.endHold()
+            while !field.isGrounded { _ = field.step(dt: 1.0 / 240) }
+            return field.distance - takeOff
+        }
+
+        let cold = jumpRange(afterRunningFor: 0)          // 乗りが 1.0 のまま
+        let hot = jumpRange(afterRunningFor: 10)          // 上限まで乗せてから踏み切る
+        #expect(hot > 1, "計測できていない")
+        #expect(abs(hot - cold) < 0.5, "乗りで飛距離が変わっている（\(cold) → \(hot)）")
+        #expect(
+            abs(cold - stage.speed * RunnerRules.jumpAirTime) < 0.5,
+            "飛距離が speed × jumpAirTime から外れている"
+        )
+    }
+
+    /// ペダルの乗りの範囲。下限 1.0 = 従来の速さで、そこを割ると全体が遅くなる。
+    @Test("ペダルの乗りは 1.0 を下限、maxPedalBoost を上限に収まる")
+    func pedalBoostStaysInRange() {
+        #expect(RunnerRules.maxPedalBoost > 1, "乗る余地が無いとタイムが操作で動かない")
+        #expect(RunnerRules.pedalGain > 0)
+        #expect(RunnerRules.pedalLoss > 0)
+        var field = RunnerField(stage: RunnerStage.all[0])
+        #expect(field.pedalBoost == 1, "走り出しは下限から")
+        for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+        #expect(field.pedalBoost <= RunnerRules.maxPedalBoost)
+        field.jump()
+        for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+        #expect(field.pedalBoost >= 1)
     }
 
     @Test("チェックポイントはコースの中ほどの平地にある")
@@ -129,11 +179,22 @@ struct RunnerStageTests {
 struct RunnerPlaythroughTests {
 
     /// 1 ステージを自動操縦で走らせる。戻り値は決着時の phase と経過フレーム数。
-    private func play(stage number: Int, slow: Bool = false) -> (phase: RunnerPhase, frames: Int) {
-        let model = RunnerModel(startingAt: number, preference: makePreference("play-\(number)-\(slow)"))
+    ///
+    /// `wastefulJumpAtStart` は「地形と関係なく 1 回跳ぶ」下手な操作の再現（#569）。
+    private func play(
+        stage number: Int,
+        slow: Bool = false,
+        wastefulJumpAtStart: Bool = false
+    ) -> (phase: RunnerPhase, frames: Int) {
+        let suite = "play-\(number)-\(slow)-\(wastefulJumpAtStart)"
+        let model = RunnerModel(startingAt: number, preference: makePreference(suite))
         model.setSlowMode(slow)
         model.press()
         model.release()
+        if wastefulJumpAtStart {
+            model.press()
+            model.release()
+        }
         var frames = 0
         while model.phase.isRunning, frames < 60 * 300 {
             frames += 1
@@ -170,11 +231,32 @@ struct RunnerPlaythroughTests {
         }
     }
 
-    @Test("1 ステージはおおむね 20〜60 秒で走り切れる")
+    /// 上手く漕げば 20 秒を切るステージもある（ペダルの乗り・#569）。下限を 15 秒に置いてあるのは
+    /// 「タイムが縮む」ことを許しつつ、コースが短すぎて手応えが無い状態を弾くため。
+    @Test("1 ステージはおおむね 15〜60 秒で走り切れる")
     func stagesAreShortEnough() {
         for number in 1...RunnerRules.stageCount {
             let seconds = Double(play(stage: number).frames) / 60
             #expect(seconds > 15 && seconds < 60, "ステージ \(number) は \(seconds) 秒")
+        }
+    }
+
+    /// **クリアタイムが操作を反映すること**の実証（#569 の A 案・2026-09-10 会長決裁）。
+    ///
+    /// 以前は `distance += stage.speed * dt` が操作と無関係だったため、1 ステージのタイムは
+    /// `length / speed` の固定値にしかならず、ベストタイムが更新される余地が無かった。
+    /// 走り出しに 1 回だけ余計に跳ぶ（コース頭の 2 区画は必ず平地なので安全に跳べる）と、
+    /// 空中にいるあいだの失速でゴールが遅れる。
+    @Test("無駄なジャンプを 1 回挟むとクリアタイムが遅くなる")
+    func wastefulJumpsCostTime() {
+        for number in [1, 8, RunnerRules.stageCount] {
+            let clean = play(stage: number)
+            let wasteful = play(stage: number, wastefulJumpAtStart: true)
+            #expect(wasteful.phase == clean.phase, "ステージ \(number): 余計なジャンプでミスになった")
+            #expect(
+                wasteful.frames > clean.frames,
+                "ステージ \(number): 無駄に跳んでもタイムが変わらない（\(clean.frames) → \(wasteful.frames)）"
+            )
         }
     }
 

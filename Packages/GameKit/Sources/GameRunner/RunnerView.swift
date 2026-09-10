@@ -100,6 +100,7 @@ public struct RunnerView: View {
             }
             .accessibilityElement()
             .accessibilityLabel(RunnerAccessibility.timeLabel(seconds: Int(model.elapsed)))
+            speedMeter
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 4) {
                 Text(RunnerAccessibility.stageLabel(
@@ -112,6 +113,36 @@ public struct RunnerView: View {
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// ペダルの乗り（#569）。
+    ///
+    /// タイムが操作で動くようになったので、**いま速いのか遅いのか**を走りながら読めるようにする。
+    /// 倍率の数字は走行中に読めないので、進み具合と同じ形のゲージにして伸び縮みだけで伝える。
+    private var speedMeter: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("スピード")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.Fill.coral.opacity(0.2))
+                    Capsule().fill(Theme.Fill.coral)
+                        .frame(width: geo.size.width * speedRatio)
+                }
+            }
+            .frame(width: 72, height: 6)
+        }
+        .padding(.leading, 14)
+        .accessibilityElement()
+        .accessibilityLabel(RunnerAccessibility.speedLabel(ratio: speedRatio))
+    }
+
+    /// ゲージの割合。0 が基準の速さ、1 が上限。
+    private var speedRatio: Double {
+        let span = RunnerRules.maxPedalBoost - 1
+        guard span > 0 else { return 0 }
+        return min(1, max(0, (model.field.pedalBoost - 1) / span))
     }
 
     private var progressBar: some View {

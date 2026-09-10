@@ -338,6 +338,16 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.progressLabel(0.51) == "ゴールまで 50パーセント")
     }
 
+    @Test("ペダルの乗りを読む")
+    func speed() {
+        #expect(RunnerAccessibility.speedLabel(ratio: 0) == "スピード 0パーセント")
+        #expect(RunnerAccessibility.speedLabel(ratio: 1) == "スピード 100パーセント")
+        // 10 刻みに丸める。範囲外は端に寄せる。
+        #expect(RunnerAccessibility.speedLabel(ratio: 0.53) == "スピード 50パーセント")
+        #expect(RunnerAccessibility.speedLabel(ratio: 1.5) == "スピード 100パーセント")
+        #expect(RunnerAccessibility.speedLabel(ratio: -1) == "スピード 0パーセント")
+    }
+
     @Test("タイムは分と秒に分けて読む")
     func time() {
         #expect(RunnerAccessibility.timeLabel(seconds: 42) == "42秒")

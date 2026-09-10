@@ -20,6 +20,16 @@ public enum RunnerAccessibility {
         return "ゴールまで \(100 - percent)パーセント"
     }
 
+    /// ペダルの乗り（#569）。0 が基準の速さ、100 が上限。
+    ///
+    /// 進み具合と同じく粗く丸める（走行中に 1% ごとに読み替えられても追えない）。
+    /// 倍率（1.45 倍）ではなくゲージの割合で言うのは、画面のゲージと同じものを指すため。
+    public static func speedLabel(ratio: Double) -> String {
+        let clamped = min(1, max(0, ratio))
+        let percent = Int((clamped * 10).rounded()) * 10
+        return "スピード \(percent)パーセント"
+    }
+
     /// タイム。分と秒に分けて読む（`1:05` は「いちころごー」と読まれてしまう）。
     public static func timeLabel(seconds: Int) -> String {
         let value = max(0, seconds)

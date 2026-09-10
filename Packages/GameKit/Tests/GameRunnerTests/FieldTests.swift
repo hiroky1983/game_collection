@@ -14,12 +14,86 @@ struct RunnerFieldTests {
         RunnerStage(number: 1, pattern: String(repeating: "-", count: segments), speed: speed)
     }
 
-    @Test("走ると距離が速さ×時間だけ進む")
+    @Test("走ると距離が速さ×時間だけ進む（ペダルの乗りのぶんだけ上振れる）")
     func runsForward() {
         var field = RunnerField(stage: flatStage())
         for _ in 0..<60 { _ = field.step(dt: 1.0 / 60) }
-        #expect(abs(field.distance - 40) < 0.5)
+        #expect(field.distance > 40, "接地して漕ぎ続けると基準より速くなる（#569）")
+        #expect(field.distance < 40 * RunnerRules.maxPedalBoost + 0.5, "上限を超えない")
         #expect(field.isGrounded, "平地では接地したまま")
+    }
+
+    // MARK: - ペダル（#569）
+
+    @Test("接地して漕ぎ続けると上限まで乗る")
+    func pedalBuildsUpOnGround() {
+        var field = RunnerField(stage: flatStage(segments: 40))
+        #expect(field.pedalBoost == 1, "走り出しは乗っていない")
+        // 上限までの半分だけ漕ぐ時間。
+        _ = field.step(dt: (RunnerRules.maxPedalBoost - 1) / RunnerRules.pedalGain / 2)
+        let midway = field.pedalBoost
+        #expect(midway > 1, "接地しているあいだは上がる")
+        #expect(midway < RunnerRules.maxPedalBoost, "上限までは時間がかかる")
+        for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+        #expect(abs(field.pedalBoost - RunnerRules.maxPedalBoost) < 1e-9, "上限で頭打ち")
+    }
+
+    @Test("跳んでいるあいだは漕げないので乗りが落ちる（下限は 1.0）")
+    func jumpingCostsPedal() {
+        var field = RunnerField(stage: flatStage(segments: 40))
+        // まず上限まで乗せてから踏み切る。
+        for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+        let before = field.pedalBoost
+        field.jump()
+        field.endHold()
+        while !field.isGrounded { _ = field.step(dt: 1.0 / 240) }
+        #expect(field.pedalBoost < before, "跳ぶと乗りが落ちる")
+        #expect(field.pedalBoost >= 1, "落ちきっても基準の速さが下限")
+    }
+
+    /// 乗りの下限は 1.0（= 基準の速さ）。
+    ///
+    /// **乗っていない状態から踏み切る**のがこの下限に当たる唯一の入口で、上の
+    /// 「上限まで乗せてから跳ぶ」形では滞空 1 回ぶんでは 1.0 まで落ちきらず素通りする。
+    /// 下限が外れると走る速さが基準を下回り、ステージの成立条件（`RunnerStageTests`）の
+    /// 前提そのものが崩れる。
+    @Test("乗っていない状態から跳んでも 1.0 を割らない")
+    func pedalNeverDropsBelowBase() {
+        var field = RunnerField(stage: flatStage(segments: 40))
+        #expect(field.pedalBoost == 1)
+        field.jump()   // 押しっぱなし = 滞空が最も長くなる跳び方
+        while !field.isGrounded { _ = field.step(dt: 1.0 / 240) }
+        #expect(field.pedalBoost == 1, "下限を割ると基準より遅くなる")
+    }
+
+    /// **タイムが操作を反映する**ことの実証（#569 の A 案そのもの）。
+    /// 同じ地点で踏み切っても、高く跳ぶほど空中が長くなり、着地後の速さも落ちる。
+    @Test("同じ地点で踏み切っても、高く跳ぶほど到達が遅れる")
+    func lowJumpsAreFaster() {
+        func distance(afterHolding holding: Bool) -> Double {
+            var field = RunnerField(stage: flatStage(segments: 40))
+            for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+            field.jump()
+            if !holding { field.endHold() }
+            for _ in 0..<180 { _ = field.step(dt: 1.0 / 60) }
+            return field.distance
+        }
+        #expect(
+            distance(afterHolding: false) > distance(afterHolding: true),
+            "低い弾道のほうが同じ時間で先へ進む"
+        )
+    }
+
+    /// 空中の横速度は乗りに左右されない（`RunnerStageTests` の成立条件の前提・#569）。
+    @Test("空中では乗りに関わらず基準の速さで進む")
+    func airborneSpeedIsAlwaysBase() {
+        var field = RunnerField(stage: flatStage(segments: 40))
+        for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+        #expect(field.currentSpeed > field.stage.speed, "接地中は乗りが効く")
+        field.jump()
+        field.endHold()
+        _ = field.step(dt: 1.0 / 240)
+        #expect(field.currentSpeed == field.stage.speed, "空中は基準の速さ")
     }
 
     @Test("同じ入力からは常に同じ軌道になる（乱数を使わない）")
