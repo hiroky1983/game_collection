@@ -130,3 +130,28 @@ public struct RecommendationSlot: View {
         }
     }
 }
+
+/// レコメンドの枠だけを置く画面用（#148・#528）。
+///
+/// 盤の下に操作列を持たないゲーム（2048・ブロックならべ・ブロック崩し・チャリンコおじさん）が
+/// **同じ 4 行を各自で書いていた**。ひな形（`RecommendationCard.heightPlaceholder`）を敷いて
+/// おかないと、カードが出た瞬間に下の領域が伸びて盤面が帳尻合わせに縮む。カードは出るとは
+/// 限らず×でも閉じられるため、条件付きで高さを足すのでは安定しない。
+///
+/// 終局後に操作列（「もう一度」など）も出す画面は `GameControlArea` を使う。
+public struct RecommendationArea: View {
+    private let services: GameServices
+    private let isFinished: Bool
+
+    public init(services: GameServices, isFinished: Bool) {
+        self.services = services
+        self.isFinished = isFinished
+    }
+
+    public var body: some View {
+        ZStack(alignment: .top) {
+            RecommendationCard.heightPlaceholder
+            RecommendationSlot(services: services, isFinished: isFinished)
+        }
+    }
+}

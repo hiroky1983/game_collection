@@ -12,7 +12,6 @@ public struct SudokuView: View {
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     @State private var zoomMode = false
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -40,21 +39,7 @@ public struct SudokuView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("ナンプレ")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "ナンプレ", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.state == .playing {
@@ -386,29 +371,26 @@ public struct SudokuView: View {
     /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
     /// 帳尻合わせに縮み、解き終わった瞬間に盤が一段小さくなって見える。
     private var controlArea: some View {
+        // 数字パッドは終局後の構成より高いことがあるので、`GameControlArea` が確保する
+        // 「終局後のぶん」に加えてプレイ中のぶんも隠しのひな形で確保する（この 1 枚だけ他ゲームに無い）。
         ZStack(alignment: .top) {
             playingControls
                 .hidden()
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            if model.isFinished {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
+            GameControlArea(isFinished: model.isFinished, services: services) {
+                resultControls
+            } playing: {
+                if model.state == .playing {
+                    playingControls
+                        // 盤と同じ理由でロックする（数字パッドからも答えを埋められるため）。
+                        .disabled(hintRescue.isWatching)
+                } else if model.state == .idle {
+                    // 新規ゲームシートをキャンセルした直後（#354）。ここに何も出さないと空盤の下が
+                    // 無の領域になり、次に何をすればよいかが画面から読めない。シートを開き直す導線を置く。
+                    idleControls
                 }
-            } else if model.state == .playing {
-                playingControls
-                    // 盤と同じ理由でロックする（数字パッドからも答えを埋められるため）。
-                    .disabled(hintRescue.isWatching)
-            } else if model.state == .idle {
-                // 新規ゲームシートをキャンセルした直後（#354）。ここに何も出さないと空盤の下が
-                // 無の領域になり、次に何をすればよいかが画面から読めない。シートを開き直す導線を置く。
-                idleControls
             }
         }
     }
@@ -438,15 +420,6 @@ public struct SudokuView: View {
         VStack(spacing: 8) {
             numberPad
             gameControls
-        }
-    }
-
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
-            resultControls
-            recommendation()
         }
     }
 

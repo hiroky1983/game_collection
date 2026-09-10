@@ -30,7 +30,6 @@ public struct FreeCellView: View {
     /// 札の移動を補間するための名前空間（#421 の横展開）。
     @Namespace private var cardMotion
     private let services: GameServices
-    @Environment(\.dismiss) private var dismiss
     /// 画面の広さ（#458）。札の幅の上限をここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -49,21 +48,7 @@ public struct FreeCellView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("フリーセル")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "フリーセル", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { startNewGame() } label: {
                     Label("新規ゲーム", systemImage: "plus.circle.fill")
@@ -501,31 +486,12 @@ public struct FreeCellView: View {
     // MARK: - 盤の下の操作エリア
 
     /// プレイ中（戻す・自動で上がる）とクリア後（記録 + 次のゲーム + レコメンド）で中身が
-    /// 入れ替わるが、**高さは常に後者の最大構成に揃える**（#148）。ここが伸び縮みすると
-    /// 盤面（残りの高さいっぱいに札を敷く）が帳尻合わせに縮む。
+    /// 入れ替わるが、**高さは常に後者の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            if model.phase == .won {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
-            } else {
-                gameControls
-            }
-        }
-    }
-
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
+        GameControlArea(isFinished: model.phase == .won, services: services) {
             resultControls
-            recommendation()
+        } playing: {
+            gameControls
         }
     }
 

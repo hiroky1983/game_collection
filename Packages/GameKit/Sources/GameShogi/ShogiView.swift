@@ -17,7 +17,6 @@ public struct ShogiView: View {
     /// 表示中の「王手」の合図の契機 ID（#377）。nil なら出していない。
     /// モデルの `checkEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var checkBannerID: Int?
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -52,21 +51,7 @@ public struct ShogiView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("将棋")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "将棋", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.phase == .playing && !model.moves.isEmpty {

@@ -29,7 +29,6 @@ public struct SolitaireView: View {
     @State private var undoRescue = RewardedRescue()
 
     private let services: GameServices
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -51,21 +50,7 @@ public struct SolitaireView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("ソリティア")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "ソリティア", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { openSetup() } label: {
                     Label("新規ゲーム", systemImage: "plus.circle.fill")

@@ -15,28 +15,10 @@ struct SolitaireControlsView: View {
     let onUndo: () -> Void
 
     var body: some View {
-        ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            if model.phase == .won {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
-            } else {
-                gameControls
-            }
-        }
-    }
-
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
+        GameControlArea(isFinished: model.phase == .won, services: services) {
             resultControls
-            recommendation()
+        } playing: {
+            gameControls
         }
     }
 
