@@ -338,9 +338,12 @@ struct RewardAdCallSiteTests {
     @Test("purpose は全種が実際に使われていて、使われない値を定義していない")
     func everyPurposeHasACallSite() throws {
         let sources = try Self.gameSources()
+        // 区切りの直後まで見ないのは、#526 で救済の段取りを `RewardedRescue.request` へ
+        // 移したときに `purpose: .undo)` が `purpose: .undo,` に変わったため。
+        // 引数の並びに依存させると、次に並びが変わったときも同じ理由で空振りする。
         let counts = Dictionary(uniqueKeysWithValues: RewardPurpose.allCases.map { purpose in
             (purpose, sources.reduce(0) { $0 + $1.text.components(
-                separatedBy: "purpose: .\(purpose.rawValue))"
+                separatedBy: "purpose: .\(purpose.rawValue)"
             ).count - 1 })
         })
 

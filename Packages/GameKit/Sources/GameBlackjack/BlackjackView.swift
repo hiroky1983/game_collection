@@ -7,8 +7,8 @@ public struct BlackjackView: View {
     @Environment(\.dismiss) private var dismiss
     /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
-    @State private var showRewardNotEarned = false
-    @State private var isRecoveringChips = false
+    /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
+    @State private var reviveRescue = RewardedRescue()
 
     // ベット選択肢
     private let betOptions = [50, 100, 200, 500]
@@ -77,11 +77,7 @@ public struct BlackjackView: View {
             }
             #endif
         }
-        .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
     }
 
     // MARK: - Chips Bar
@@ -439,13 +435,9 @@ public struct BlackjackView: View {
             // 使い切ったセッションではボタンごと消す。
             if model.canReviveAfterBust {
                 Button {
-                    // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-                    guard !isRecoveringChips else { return }
-                    isRecoveringChips = true
-                    Task {
-                        if await model.recoverChipsAfterAd() == false { showRewardNotEarned = true }
-                        isRecoveringChips = false
-                    }
+                    // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
+                    // `recoverChipsAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
+                    reviveRescue.requestHandledByModel { await model.recoverChipsAfterAd() }
                 } label: {
                     // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
                     Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
@@ -454,7 +446,7 @@ public struct BlackjackView: View {
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
-                .disabled(isRecoveringChips)
+                .disabled(reviveRescue.isWatching)
             }
 
             Button { model.restartSession() } label: {

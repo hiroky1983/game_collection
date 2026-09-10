@@ -137,16 +137,21 @@ struct MahjongSolitaireHintAdContractTests {
         #expect(inRequestHint == 1, "requestHint() の中から showHint() が呼ばれていない")
     }
 
-    @Test("requestHint() は広告の視聴完了時だけヒントを出し、連打を塞いでいる")
+    @Test("requestHint() は広告の視聴完了時だけヒントを出し、局ガードを宣言している")
     func requestHintIsGatedByRewardedAd() throws {
-        let body = try Self.functionBody("requestHint", in: try Self.viewSource())
-        // #500 で広告は `GameServices.showRewardedAd(gameID:purpose:)` 経由に統一した
-        // （視聴完了と `reward_ad` の送信を1か所に束ねるため）。`ads` を直に呼ぶと計測が漏れる。
-        #expect(body.contains("await services.showRewardedAd(gameID: model.gameID, purpose: .hint)"),
-                "リワード広告を経ていない（または計測を通らない直呼びに戻っている）")
-        #expect(body.contains("guard !isRequestingHint else { return }"), "視聴中の連打ガードが無い")
-        #expect(body.contains("showHintNotEarned = true"), "視聴未完了のときのアラートが無い")
-        #expect(body.contains("showHintUnavailable = true"), "広告を見たのに出せなかったときのアラートが無い")
+        let source = try Self.viewSource()
+        let body = try Self.functionBody("requestHint", in: source)
+        // #526 で段取り（連打ガード・広告・失敗アラート）は `RewardedRescue` に集約した。
+        // 広告と `reward_ad` の送信はその中の `GameServices.showRewardedAd(gameID:purpose:)` が
+        // 1 か所で受け持つので、ここで見るのは「共通 API を通っているか」になる。
+        #expect(body.contains("hintRescue.request("),
+                "リワード広告の共通 API を経ていない（計測を通らない直呼びに戻っている可能性）")
+        #expect(body.contains("purpose: .hint"), "purpose が hint でない")
+        #expect(body.contains("guardedBy: .checkedByGrant"),
+                "局ガードを宣言していない（視聴中に手詰まりになった盤面へヒントが乗る）")
+        // 視聴未完了・出せなかったときのアラートは共通 modifier が持つ。
+        #expect(source.contains(#"notEarned: "ヒントを表示できませんでした""#), "視聴未完了のときのアラートが無い")
+        #expect(source.contains(#"title: "取れる組がありません""#), "広告を見たのに出せなかったときのアラートが無い")
     }
 
     @Test("ヒントボタンは確認ダイアログを開くだけで、押した直後に広告を出さない")
@@ -158,18 +163,21 @@ struct MahjongSolitaireHintAdContractTests {
         )
         #expect(source.contains("showHintConfirm = true"), "確認ダイアログを開いていない")
         #expect(source.contains("Button(\"広告を見てヒントを見る\") { onWatchAd() }"), "確認ダイアログの視聴ボタンが無い")
-        #expect(source.contains(".disabled(!model.canHint || isRequestingHint)"), "取れる組が無いときにボタンを塞いでいない")
+        #expect(source.contains(".disabled(!model.canHint || hintRescue.isWatching)"), "取れる組が無いときにボタンを塞いでいない")
     }
 
-    @Test("視聴未完了のアラート文言が他ゲームと揃っている（#64）")
+    @Test("視聴未完了のアラート文言が他ゲームと揃っている（#64・#526）")
     func notEarnedAlertMatchesTheSharedWording() throws {
         let source = try Self.viewSource()
+        // #526 で文言そのものは `RewardedRescue.notEarnedMessage` の 1 か所へ移した。
+        // ここで確かめるのは「並べ替えとヒントの両方が共通 modifier を使っている」こと。
         #expect(
-            Self.occurrences(
-                of: "広告を最後まで視聴しなかったか、広告を読み込めませんでした。\\nもう一度お試しください。",
-                in: source
-            ) == 2,
-            "並べ替えとヒントの2箇所で同じ文言を使っているはず"
+            Self.occurrences(of: ".rewardedRescueAlerts(", in: source) == 2,
+            "並べ替えとヒントの2箇所で共通のアラートを使っているはず"
+        )
+        #expect(
+            !source.contains("広告を最後まで視聴しなかったか"),
+            "共通の文言を View 側に書き戻している（`RewardedRescue.notEarnedMessage` を使う）"
         )
     }
 }

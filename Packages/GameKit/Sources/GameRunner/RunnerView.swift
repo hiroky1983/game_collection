@@ -11,9 +11,8 @@ public struct RunnerView: View {
     private let services: GameServices
     @State private var model: RunnerModel
     @State private var scene: RunnerScene
-    @State private var showRewardNotEarned = false
-    @State private var showResumeExpired = false
-    @State private var isResuming = false
+    /// チェックポイント再開のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var resumeRescue = RewardedRescue()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -77,16 +76,14 @@ public struct RunnerView: View {
             // （基盤規約「バックグラウンド移行時は即一時停止」）。
             if phase != .active { model.pause() }
         }
-        .alert("再開できませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
-        .alert("再開できませんでした", isPresented: $showResumeExpired) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を見ているあいだに新しいコースが始まったため、途中から再開できませんでした。")
-        }
+        .rewardedRescueAlerts(
+            resumeRescue,
+            notEarned: "再開できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "再開できませんでした",
+                message: "広告を見ているあいだに新しいコースが始まったため、途中から再開できませんでした。"
+            )
+        )
     }
 
     // MARK: - ヘッダー
@@ -345,21 +342,14 @@ public struct RunnerView: View {
 
     private var resumeButton: some View {
         Button {
-            // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ。
-            guard !isResuming else { return }
-            isResuming = true
             // どのコースへの再開かを広告前に控える。ロード中に「はじめから」等で
             // コースが作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
             let run = model.runGeneration
-            Task {
-                if await services.showRewardedAd(gameID: RunnerModel.gameID, purpose: .checkpoint) {
-                    if !model.resumeFromCheckpoint(forRun: run) {
-                        showResumeExpired = true
-                    }
-                } else {
-                    showRewardNotEarned = true
-                }
-                isResuming = false
+            resumeRescue.request(
+                services, gameID: RunnerModel.gameID, purpose: .checkpoint,
+                guardedBy: .checkedByGrant
+            ) {
+                model.resumeFromCheckpoint(forRun: run)
             }
         } label: {
             Label("広告を見て途中から再開", systemImage: "play.rectangle.fill")
@@ -367,7 +357,7 @@ public struct RunnerView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(Theme.Fill.coral)
-        .disabled(isResuming)
+        .disabled(resumeRescue.isWatching)
     }
 
     private var replayButton: some View {
