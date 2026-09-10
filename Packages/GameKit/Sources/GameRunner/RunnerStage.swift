@@ -253,3 +253,19 @@ public extension RunnerStage {
         "--3t2-t3nt3t2-t3tn3-t2t3--", // 15: 26区画・障害19個。速さ 50.8・約 33 秒
     ]
 }
+
+#if DEBUG
+public extension RunnerStage {
+    /// QA用: 低い障害物・高い障害物・穴3サイズの計5種を1本で見比べられるステージ
+    /// （起動引数 `-simulateRunner showcase`）。`.all`（本番の15ステージ）には含めない
+    /// ——`number` を 0 にして「実ステージではない」ことを型で示す。
+    ///
+    /// 間隔は他ステージよりゆったり取ってある（QA中に慌てて次の障害へ突っ込まないため）。
+    /// 速さは1面と同じ `RunnerRules.baseSpeed` で固定。
+    static let debugShowcase = RunnerStage(
+        number: 0,
+        pattern: "--n--t--1--2--3--",
+        speed: RunnerRules.baseSpeed
+    )
+}
+#endif

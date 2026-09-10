@@ -361,9 +361,28 @@ public final class RunnerModel {
         case "cleared":
             press(); release()
             autoPlayForDebug(until: { _ in false })
+        case "showcase":
+            // QA用: 低い障害物・高い障害物・穴3サイズを1本で見比べる（`RunnerStage.debugShowcase`）。
+            // `.ready` のまま渡すので、実機・シミュレータで普通にタップして遊べる。
+            applyDebugStage(.debugShowcase)
         default:
             break
         }
+    }
+
+    /// `RunnerStage.all` を経由せず、任意のステージ定義で走らせ直す（QA用）。
+    ///
+    /// `stageNumber`（ヘッダーの「ステージ N/15」表示・ベストタイムの記録先）はそのまま
+    /// 動かさない。「もう一度」「はじめから」を押すと `startStage` が `RunnerStage.all` から
+    /// 引き直すので、ショーケースからは抜ける——QA専用の一時的な差し替えとして割り切る。
+    private func applyDebugStage(_ customStage: RunnerStage) {
+        field = RunnerField(stage: customStage)
+        runGeneration += 1
+        phase = .ready
+        isPressed = false
+        elapsed = 0
+        recordResult = nil
+        didSetBestTime = false
     }
 
     /// 指定秒ぶん 60fps で進める。
