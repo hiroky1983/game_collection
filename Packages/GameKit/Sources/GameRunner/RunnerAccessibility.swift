@@ -47,6 +47,7 @@ public enum RunnerAccessibility {
     /// ミス・クリアの結果。
     public static func resultLabel(phase: RunnerPhase, stageNumber: Int) -> String {
         switch phase {
+        case .falling:    return "ステージ \(stageNumber) でミスしました"
         case .failed:     return "ステージ \(stageNumber) でミスしました"
         case .cleared:    return "ステージ \(stageNumber) クリア"
         case .allCleared: return "全ステージクリア"

@@ -211,7 +211,9 @@ struct RunnerPlaythroughTests {
             model.release()
         }
         var frames = 0
-        while model.phase.isRunning, frames < 60 * 300 {
+        // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を無効にする
+        // ための設計）ので、`.failed` に落ち着くまで回し続ける。
+        while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
             frames += 1
             if RunnerAutoPilot.shouldJump(field: model.field) {
                 model.press()
@@ -318,7 +320,7 @@ struct RunnerPlaythroughTests {
             model.press()
             model.release()
             var frames = 0
-            while model.phase.isRunning, frames < 60 * 300 {
+            while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
                 frames += 1
                 model.tick(dt: 1.0 / 60)
             }

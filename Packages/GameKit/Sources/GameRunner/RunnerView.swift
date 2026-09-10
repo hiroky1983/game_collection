@@ -171,7 +171,10 @@ public struct RunnerView: View {
         .buttonStyle(.pop)
         .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
         // 止めるものが無い状態では押せない。
-        .disabled(model.phase == .failed || model.phase == .cleared || model.phase == .allCleared)
+        .disabled(
+            model.phase == .falling || model.phase == .failed
+                || model.phase == .cleared || model.phase == .allCleared
+        )
     }
 
     /// ステージごとのベストタイム（#494 の「記録」）。
@@ -275,6 +278,9 @@ public struct RunnerView: View {
             EmptyView()
         case .paused:
             pausedOverlay
+        case .falling:
+            // 落下・激突の短い演出中（`RunnerScene`）。ミスパネルはこの演出が終わってから出す。
+            EmptyView()
         case .failed:
             panel(title: "ミス！") {
                 if model.canResumeFromCheckpoint { resumeButton }
