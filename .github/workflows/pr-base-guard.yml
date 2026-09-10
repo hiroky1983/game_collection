@@ -1,0 +1,50 @@
+name: PR のベース検証
+
+# main をベースにしたアプリコードの PR を落とす（Issue #606）。
+#
+# main は規程（docs/ai-devops.md）では「リリース済みバージョンの集合」で、アプリコードの
+# PR を向ける場所ではない。ここへ入れた変更は release/vX.Y.Z を経由しないため次版の
+# 出荷物に載らず、当番の仕事10（取り残しコミット）にも掛からない（あちらは「base にも
+# main にも無いコミット」を探すので、main に入ってしまったものは対象外）。
+# PR #593 / #596 で実際に6コミットが取り残された。
+#
+# 判定ロジックは Scripts/check-pr-base.sh に置き、Scripts/tests/test-check-pr-base.sh で検証する。
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-base-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 判定ロジックの自己検証
+        run: bash Scripts/tests/test-check-pr-base.sh
+
+      - name: PR のベースとアプリコードの組み合わせを見る
+        env:
+          # ブランチ名は PR 作成者が決められるので、シェルへ直接展開せず環境変数で受ける。
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # 変更ファイルは GitHub API から取る。`git diff` にすると base のコミットを
+          # 取り寄せる必要があり、fetch-depth の設定漏れで静かに空振りする。
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
+            --jq '.[].filename' > "${RUNNER_TEMP}/pr-files.txt"
+          echo "変更ファイル $(wc -l < "${RUNNER_TEMP}/pr-files.txt") 件"
+          bash Scripts/check-pr-base.sh "$BASE_REF" "$HEAD_REF" "${RUNNER_TEMP}/pr-files.txt"
