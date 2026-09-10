@@ -1,4 +1,5 @@
 import Core
+import SceneKit
 import SpriteKit
 import SwiftUI
 
@@ -11,6 +12,10 @@ public struct RunnerView: View {
     private let services: GameServices
     @State private var model: RunnerModel
     @State private var scene: RunnerScene
+    #if DEBUG
+    /// 3D 描画の試作（会長指示「一回3Dにしてみてほしい」）。`-runner3D` のときだけ作る。
+    @State private var scene3D: RunnerScene3D?
+    #endif
     /// チェックポイント再開のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var resumeRescue = RewardedRescue()
     @Environment(\.dismiss) private var dismiss
@@ -21,6 +26,10 @@ public struct RunnerView: View {
         let model = RunnerModel(services: services)
         _model = State(initialValue: model)
         _scene = State(initialValue: RunnerScene(model: model))
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        _scene3D = State(initialValue: args.contains("-runner3D") ? RunnerScene3D(model: model) : nil)
+        #endif
     }
 
     public var body: some View {
@@ -229,10 +238,20 @@ public struct RunnerView: View {
 
     private var course: some View {
         ZStack {
-            // 操作はすべて下の透明レイヤーで受ける。SpriteView 自身に当たり判定を残すと、
-            // 機種によってはタップが SKView に吸われる。
+            // 操作はすべて下の透明レイヤーで受ける。SpriteView / SCNView 自身に当たり判定を残すと、
+            // 機種によってはタップが吸われる。
+            #if DEBUG && os(iOS)
+            if let scene3D {
+                RunnerSceneKitView(scene3D: scene3D)
+                    .allowsHitTesting(false)
+            } else {
+                SpriteView(scene: scene, preferredFramesPerSecond: 60)
+                    .allowsHitTesting(false)
+            }
+            #else
             SpriteView(scene: scene, preferredFramesPerSecond: 60)
                 .allowsHitTesting(false)
+            #endif
             Color.clear
                 .contentShape(Rectangle())
                 .gesture(jumpGesture)
