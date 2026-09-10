@@ -31,6 +31,21 @@ struct RunnerRiderTests {
         #expect(RunnerRider.advance(phase: 1.5, by: -120, isPedaling: true) == 1.5)
     }
 
+    @Test("クランクは車輪と同じ向き（前進で時計回り）に回る")
+    func turnsWithTheWheels() {
+        // 走者は +x を向いており、`RunnerScene` は車輪を `-distance` で回す = 時計回り。
+        // ペダルも時計回りでなければ後ろ漕ぎに見えるので、外積の符号で向きを固定する。
+        for phase in wholeTurn {
+            for isFar in [false, true] {
+                let before = RunnerRider.pedal(phase: phase, isFar: isFar)
+                let after = RunnerRider.pedal(phase: phase + 0.01, isFar: isFar)
+                let ax = before.x - RunnerRider.crank.x, ay = before.y - RunnerRider.crank.y
+                let bx = after.x - RunnerRider.crank.x, by = after.y - RunnerRider.crank.y
+                #expect(ax * by - ay * bx < 0)
+            }
+        }
+    }
+
     @Test("左右の脚は常に反対側のペダルを踏む")
     func pedalsAreOpposite() {
         for phase in wholeTurn {

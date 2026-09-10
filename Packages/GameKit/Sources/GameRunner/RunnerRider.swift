@@ -66,8 +66,12 @@ enum RunnerRider {
     }
 
     /// ペダルの位置。`isFar` の脚は半回転ずらす（左右の脚は常に反対側を踏む）。
+    ///
+    /// **位相を負の向きへ写す**。走者は +x を向いているので前進で車輪は時計回りに回り
+    /// （`RunnerScene` は `-distance` で回す）、クランクが逆向きだとペダルだけが
+    /// 後ろ漕ぎに見える。位相そのものは `advance` の契約どおり前進で増える。
     static func pedal(phase: Double, isFar: Bool) -> RunnerPoint {
-        let angle = phase + (isFar ? .pi : 0)
+        let angle = -phase + (isFar ? .pi : 0)
         return RunnerPoint(
             x: crank.x + crankRadius * cos(angle),
             y: crank.y + crankRadius * sin(angle)
