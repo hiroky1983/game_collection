@@ -131,41 +131,22 @@ struct RunnerFieldTests {
         #expect(abs(airTime - RunnerRules.jumpAirTime) < 0.02, "滞空 \(airTime)")
     }
 
-    /// 踏み切ってすぐ離すと、`vy` が `jumpCutVelocity` まで切り詰められて
-    /// 本当に小さいホップになる（会長QA「軽いタップなら本当に小ジャンプぐらいの感じに
-    /// したい」2026-09-10）。最も低い障害物（`lowBlock` = 5）にも届かない高さであること
-    /// ——タップだけでは地形を越えられない、という新しい前提そのものを確かめる。
-    @Test("踏み切ってすぐ離すと本当に小さいホップになる")
-    func quickTapIsATinyHop() {
-        var field = RunnerField(stage: flatStage())
-        field.jump()
-        field.endHold()
-        var apex: Double = 0
-        var frames = 0
-        while !field.isGrounded, frames < 300 {
-            frames += 1
-            _ = field.step(dt: 1.0 / 240)
-            apex = max(apex, field.altitude)
-        }
-        let expectedApex = RunnerRules.jumpCutVelocity * RunnerRules.jumpCutVelocity
-            / (2 * RunnerRules.gravity)
-        #expect(abs(apex - expectedApex) < 0.3, "頂点 \(apex)")
-        #expect(apex < RunnerHazardKind.lowBlock.height, "最も低い障害物にも届かない高さであること")
-        #expect(apex < RunnerRules.jumpApex * 0.3, "十分長く押した場合よりはっきり低いこと")
-    }
-
-    /// 離すタイミングが遅くなるほど（＝長く押し続けるほど）、すでに `vy` が重力で
-    /// 減っているぶん切り詰めの影響が薄れ、より高く跳べる。
-    @Test("離すのが遅いほど高く跳べる（タップと長押しのあいだに連続的な差がある）")
-    func holdingLongerJumpsHigher() {
+    /// 踏み切ってすぐ離しても、`RunnerRules.jumpCutGraceTime` ぶんは自然な弾道のまま
+    /// 上昇してから切り詰められる（会長QA「進まねえ」2026-09-11 への対応。詳細は
+    /// `RunnerRules.jumpCutGraceTime` のドキュメントを参照）。**猶予が明けるより前に離しても
+    /// 結果は変わらない**——`endHold()` を踏み切った直後（0秒）に呼んでも、猶予の終わり
+    /// （`jumpCutGraceTime`）に呼んでも、同じ頂点になる。それでも十分長く押した場合
+    /// （`jumpApex`）よりは明確に低い。
+    @Test("踏み切ってすぐ離しても猶予ぶんの弾道は保証され、全弾道よりは低い")
+    func quickReleaseStillGetsGraceTrajectory() {
         func apex(releaseAfter delaySeconds: Double) -> Double {
             var field = RunnerField(stage: flatStage())
             field.jump()
             var released = false
             var top: Double = 0
             var frames = 0
-            let step = 1.0 / 240
-            while !field.isGrounded, frames < 400 {
+            let step = 1.0 / 2400
+            while !field.isGrounded, frames < 4000 {
                 frames += 1
                 if !released, Double(frames) * step >= delaySeconds {
                     field.endHold()
@@ -176,12 +157,46 @@ struct RunnerFieldTests {
             }
             return top
         }
-        let tap = apex(releaseAfter: 0)
-        let shortHold = apex(releaseAfter: 0.1)
-        let longHold = apex(releaseAfter: 0.3)
-        #expect(tap < shortHold, "タップより短い長押しのほうが高い")
-        #expect(shortHold < longHold, "長押しが長いほうがさらに高い")
-        #expect(abs(longHold - RunnerRules.jumpApex) < 0.3, "切り詰めが効かなくなる時間まで押せば全弾道")
+        let instantRelease = apex(releaseAfter: 0)
+        let releaseAtGraceEnd = apex(releaseAfter: RunnerRules.jumpCutGraceTime)
+        let graceHeight = RunnerRules.jumpVelocity * RunnerRules.jumpCutGraceTime
+            - RunnerRules.gravity * RunnerRules.jumpCutGraceTime * RunnerRules.jumpCutGraceTime / 2
+        let expectedApex = graceHeight
+            + RunnerRules.jumpCutVelocity * RunnerRules.jumpCutVelocity / (2 * RunnerRules.gravity)
+        #expect(abs(instantRelease - expectedApex) < 0.3, "瞬間リリースの頂点 \(instantRelease)")
+        #expect(abs(releaseAtGraceEnd - expectedApex) < 0.3, "猶予終了時リリースの頂点 \(releaseAtGraceEnd)")
+        #expect(expectedApex < RunnerRules.jumpApex * 0.85, "十分長く押した場合よりはっきり低いこと")
+    }
+
+    /// 猶予（`jumpCutGraceTime`）を過ぎてから離すほど、すでに `vy` が重力で減っている
+    /// ぶん切り詰めの影響が薄れ、より高く跳べる。猶予明け前はどのタイミングで離しても
+    /// 同じ（上のテスト）だが、猶予を過ぎたあとは連続的に伸びる。
+    @Test("猶予を過ぎてから離すのが遅いほど高く跳べる")
+    func holdingPastGraceLongerJumpsHigher() {
+        func apex(releaseAfter delaySeconds: Double) -> Double {
+            var field = RunnerField(stage: flatStage())
+            field.jump()
+            var released = false
+            var top: Double = 0
+            var frames = 0
+            let step = 1.0 / 2400
+            while !field.isGrounded, frames < 4000 {
+                frames += 1
+                if !released, Double(frames) * step >= delaySeconds {
+                    field.endHold()
+                    released = true
+                }
+                _ = field.step(dt: step)
+                top = max(top, field.altitude)
+            }
+            return top
+        }
+        let atGraceEnd = apex(releaseAfter: RunnerRules.jumpCutGraceTime)
+        let midway = apex(releaseAfter: 0.18)
+        let fullHold = apex(releaseAfter: 0.3)
+        #expect(atGraceEnd < midway, "猶予明け直後より、もう少し粘ったほうが高い")
+        #expect(midway < fullHold, "さらに粘ったほうがもっと高い")
+        #expect(abs(fullHold - RunnerRules.jumpApex) < 0.3, "切り詰めが効かなくなる時間まで押せば全弾道")
     }
 
     @Test("空中でも一度だけ二段目を踏み切れる")

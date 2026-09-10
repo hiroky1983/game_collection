@@ -60,6 +60,13 @@ public struct RunnerField: Equatable, Sendable {
     /// `endHold()` が上昇速度を切り詰める（`RunnerRules.jumpCutVelocity`）。
     /// 着地すると自動的に `false` へ戻る。
     public private(set) var isHolding: Bool
+    /// 踏み切ってからの経過秒（`isHolding` のあいだだけ進む）。`jumpCutGraceTime` に
+    /// 達するまでは `endHold()` が呼ばれても実際には切り詰めず、猶予が明けた瞬間に
+    /// `pendingCut` があれば切り詰める（会長QA「進まねえ」2026-09-11 への対応。詳細は
+    /// `RunnerRules.jumpCutGraceTime` のドキュメントを参照）。
+    private var holdElapsed: Double = 0
+    /// 猶予中に `endHold()` が呼ばれ、猶予明けに切り詰めを適用すべきか。
+    private var pendingCut: Bool = false
     /// チェックポイントを通過済みか。
     public private(set) var passedCheckpoint: Bool
     /// ペダルの乗り（#569）。1.0 が下限で、`RunnerRules.maxPedalBoost` が上限。
@@ -147,22 +154,40 @@ public struct RunnerField: Equatable, Sendable {
         isGrounded = false
         jumpCount += 1
         isHolding = true
+        holdElapsed = 0
+        pendingCut = false
         return true
     }
 
     /// ボタンを離す。
     ///
-    /// **まだ上昇中（`vy > 0`）なら、その場で `vy` を切り詰める**（会長QA「軽いタップなら
-    /// 本当に小ジャンプぐらいの感じにしたい」2026-09-10）。踏み切った直後にすぐ離すほど
-    /// 高い `vy` のまま切り詰められて低いホップになり、離すのが遅くなる（＝長押しする）ほど
-    /// 重力で `vy` がすでに下がっているため切り詰めの影響が薄れ、十分粘れば無傷の全弾道
-    /// （`RunnerRules.jumpApex`）まで伸びる——重力そのものはどちらの場合も一定のまま
-    /// （旧方式の「押している間だけ重力を弱める」より単純）。
+    /// **猶予時間（`RunnerRules.jumpCutGraceTime`）を過ぎていれば、その場で `vy` を
+    /// 切り詰める**（会長QA「軽いタップなら本当に小ジャンプぐらいの感じにしたい」
+    /// 2026-09-10）。踏み切った直後にすぐ離すほど高い `vy` のまま切り詰められて低い
+    /// ホップになり、離すのが遅くなる（＝長押しする）ほど重力で `vy` がすでに下がっている
+    /// ため切り詰めの影響が薄れ、十分粘れば無傷の全弾道（`RunnerRules.jumpApex`）まで伸びる
+    /// ——重力そのものはどちらの場合も一定のまま（旧方式の「押している間だけ重力を弱める」
+    /// より単純）。
+    ///
+    /// **猶予時間の間に呼ばれた場合は、その場では切り詰めず `pendingCut` を立てるだけ**にする
+    /// （`advance(dt:)` が猶予明けに適用する）。`press()`→`release()` が同じフレーム内で
+    /// ほぼ同時に呼ばれるタップ操作で `vy` がまだ何も減っていないまま切り詰められ、
+    /// ステージ1の最初の穴にすら届かない、という不具合（会長QA「進まねえ」2026-09-11）
+    /// への対応。
     public mutating func endHold() {
-        if isHolding, vy > RunnerRules.jumpCutVelocity {
+        guard isHolding else { return }
+        if holdElapsed >= RunnerRules.jumpCutGraceTime {
+            applyCutIfNeeded()
+            isHolding = false
+        } else {
+            pendingCut = true
+        }
+    }
+
+    private mutating func applyCutIfNeeded() {
+        if vy > RunnerRules.jumpCutVelocity {
             vy = RunnerRules.jumpCutVelocity
         }
-        isHolding = false
     }
 
     /// テスト・撮影用に走者を直接置く。製品コードからは呼ばない。
@@ -173,6 +198,8 @@ public struct RunnerField: Equatable, Sendable {
         self.isGrounded = altitude <= 0 && vy <= 0
         self.jumpCount = self.isGrounded ? 0 : 1
         self.isHolding = false
+        self.holdElapsed = 0
+        self.pendingCut = false
     }
 
     // MARK: - 進行
@@ -221,6 +248,16 @@ public struct RunnerField: Equatable, Sendable {
             footY += vy * dt
         }
 
+        // 猶予時間ぶん経過したら、猶予中に来ていた `endHold()` を今適用する。
+        if isHolding {
+            holdElapsed += dt
+            if pendingCut, holdElapsed >= RunnerRules.jumpCutGraceTime {
+                applyCutIfNeeded()
+                isHolding = false
+                pendingCut = false
+            }
+        }
+
         // 障害物は矩形どうしの重なりで見る。走者の足が上端より上にあれば飛び越えている。
         if isHittingBlock {
             events.append(.crashed)
@@ -260,6 +297,7 @@ public struct RunnerField: Equatable, Sendable {
             isGrounded = true
             jumpCount = 0
             isHolding = false
+            pendingCut = false
             if wasAirborne { events.append(.landed) }
         }
 
