@@ -9,7 +9,8 @@ public struct ShogiView: View {
     @State private var showConfirmNewGame = false
     @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
-    @State private var showRewardNotEarned = false
+    /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var undoRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（#200）。
     /// 表示局面が変わるたびに更新し、駒の層はこれだけを見て描く。
     @State private var pieceLayout: ShogiPieceLayout
@@ -505,15 +506,20 @@ public struct ShogiView: View {
             .disabled(!model.canUndo)
             .alert("待った確認", isPresented: $showUndoConfirm) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    Task {
-                        if model.undoUsed {
-                            // 視聴完了（報酬獲得）したときだけ待ったを許可する
-                            guard await services.showRewardedAd(gameID: model.gameID, purpose: .undo) else {
-                                showRewardNotEarned = true
-                                return
-                            }
-                        }
+                    guard model.undoUsed else {
+                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
+                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
+                        // アラートの終了アニメーションに巻き込まれる）。
+                        Task { model.undoLastExchange() }
+                        return
+                    }
+                    // 視聴完了（報酬獲得）したときだけ待ったを許可する
+                    undoRescue.request(
+                        services, gameID: model.gameID, purpose: .undo,
+                        guardedBy: .unchecked(note: "対局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                    ) {
                         model.undoLastExchange()
+                        return true
                     }
                 }
                 Button("キャンセル", role: .cancel) {}
@@ -522,11 +528,7 @@ public struct ShogiView: View {
                      ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                      : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
             }
-            .alert("待ったは使えませんでした", isPresented: $showRewardNotEarned) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-            }
+            .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 5)

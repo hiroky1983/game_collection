@@ -8,8 +8,8 @@ public struct PokerView: View {
     @State private var showStartSheet = true
     @State private var hasPlayedOnce = false
     @State private var revealCPU = false
-    @State private var showRewardNotEarned = false
-    @State private var isRecoveringChips = false
+    /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
+    @State private var reviveRescue = RewardedRescue()
     /// 開始シートでの選択。**次の局に使う設定**であって、進行中の局はこれを見ない（#496）。
     @State private var selectedRules: PokerRuleSet
     @State private var showBonusTable = false
@@ -142,11 +142,7 @@ public struct PokerView: View {
             }
             #endif
         }
-        .alert("チップは回復しませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
     }
 
     /// iPad で余った高さを節の間に配るための可変余白（#485）。iPhone では何も置かないので
@@ -597,13 +593,9 @@ public struct PokerView: View {
             // 使い切ったセッションではボタンごと消す。
             if model.canReviveAfterBust {
                 Button {
-                    // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-                    guard !isRecoveringChips else { return }
-                    isRecoveringChips = true
-                    Task {
-                        if await model.recoverChipsAfterAd() == false { showRewardNotEarned = true }
-                        isRecoveringChips = false
-                    }
+                    // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
+                    // `recoverChipsAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
+                    reviveRescue.requestHandledByModel { await model.recoverChipsAfterAd() }
                 } label: {
                     // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由。
                     // 書かないと2回目を期待して押す人が出る）。数値は `Text` 補間の桁区切りを避けて
@@ -614,7 +606,7 @@ public struct PokerView: View {
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
-                .disabled(isRecoveringChips)
+                .disabled(reviveRescue.isWatching)
             }
 
             Button {

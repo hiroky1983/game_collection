@@ -8,8 +8,8 @@ import Core
 public struct BlockPuzzleView: View {
     private let services: GameServices
     @State private var model: BlockPuzzleModel
-    @State private var showRewardNotEarned = false
-    @State private var isContinuing = false
+    /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var continueRescue = RewardedRescue()
     /// 盤の内側（マスが並ぶ領域）の原点とマスの一辺。ドラッグ位置の翻訳に使う。
     @State private var boardOrigin: CGPoint = .zero
     @State private var cellSize: CGFloat = 0
@@ -69,11 +69,7 @@ public struct BlockPuzzleView: View {
             }
         }
         .howToPlay(.blockPuzzle)
-        .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
     }
 
     // MARK: - スコア
@@ -263,17 +259,13 @@ public struct BlockPuzzleView: View {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
                     Button {
-                        // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-                        guard !isContinuing else { return }
-                        isContinuing = true
-                        Task {
-                            // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                            if await services.showRewardedAd(gameID: BlockPuzzleModel.gameID, purpose: .continue) {
-                                withGameAnimation { model.continueAfterAd() }
-                            } else {
-                                showRewardNotEarned = true
-                            }
-                            isContinuing = false
+                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                        continueRescue.request(
+                            services, gameID: BlockPuzzleModel.gameID, purpose: .continue,
+                            guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                        ) {
+                            withGameAnimation { model.continueAfterAd() }
+                            return true
                         }
                     } label: {
                         Label("広告を見て中央を空ける", systemImage: "play.rectangle.fill")
@@ -281,7 +273,7 @@ public struct BlockPuzzleView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.Fill.coral)
-                    .disabled(isContinuing)
+                    .disabled(continueRescue.isWatching)
                 }
                 Button("もう一度") { withGameAnimation { model.newGame() } }
                     .buttonStyle(.bordered)

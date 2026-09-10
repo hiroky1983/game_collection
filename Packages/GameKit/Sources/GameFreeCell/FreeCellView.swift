@@ -22,9 +22,8 @@ public struct FreeCellView: View {
     /// 無料の「戻す」を使い切った状態でボタンを押したときの提案。
     /// **自動再生はしない**。ここで「見る」を選んだときだけ広告を出す。
     @State private var showUndoRefillPrompt = false
-    @State private var isWatchingUndoAd = false
-    @State private var showUndoNotEarned = false
-    @State private var showUndoUnavailable = false
+    /// 「戻す」補充のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var undoRescue = RewardedRescue()
 
     /// 盤の座標空間名。ドラッグの指の位置・ドロップ枠・追従オーバーレイを同じ空間で扱う。
     private static let boardSpace = "freeCellBoard"
@@ -85,16 +84,14 @@ public struct FreeCellView: View {
         } message: {
             Text("広告を最後まで視聴すると「戻す」を\(FreeCellUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
         }
-        .alert("「戻す」を補充できませんでした", isPresented: $showUndoNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
-        .alert("「戻す」を補充できませんでした", isPresented: $showUndoUnavailable) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。")
-        }
+        .rewardedRescueAlerts(
+            undoRescue,
+            notEarned: "「戻す」を補充できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "「戻す」を補充できませんでした",
+                message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
+            )
+        )
         .overlay {
             if model.showsDeadEndPrompt { deadEndOverlay }
         }
@@ -559,7 +556,7 @@ public struct FreeCellView: View {
                           tint: Theme.Fill.coral) {
                 requestUndo()
             }
-            .disabled(!model.canUndo || isWatchingUndoAd)
+            .disabled(!model.canUndo || undoRescue.isWatching)
             // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
             .opacity(model.canUndo ? 1 : 0.4)
             .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
@@ -645,7 +642,7 @@ public struct FreeCellView: View {
                             .foregroundStyle(Theme.onAccent)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isWatchingUndoAd)
+                    .disabled(undoRescue.isWatching)
                     .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
                     .accessibilityHint(FreeCellAccessibility.undoButtonHint(
                         canUndo: model.canUndo, remaining: model.undosRemaining))
@@ -657,7 +654,7 @@ public struct FreeCellView: View {
                         .foregroundStyle(Theme.inkSub)
                 }
                 .buttonStyle(.plain)
-                .disabled(isWatchingUndoAd)
+                .disabled(undoRescue.isWatching)
 
                 Button { model.dismissDeadEndPrompt() } label: {
                     Text("盤面を見る")
@@ -665,7 +662,7 @@ public struct FreeCellView: View {
                         .foregroundStyle(Theme.inkSub)
                 }
                 .buttonStyle(.plain)
-                .disabled(isWatchingUndoAd)
+                .disabled(undoRescue.isWatching)
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
@@ -692,19 +689,14 @@ public struct FreeCellView: View {
 
     /// リワード広告 → 「戻す」の補充。視聴しなかったときと補充できなかったときを読み分けて必ず知らせる。
     private func requestUndoRefill() {
-        // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ。
-        guard !isWatchingUndoAd else { return }
-        isWatchingUndoAd = true
         // どの局に対する補充かを、広告を出す前に控える。ボタンの `disabled` だけでは
         // ツールバーの「新規ゲーム」からの配り直しを止められない（PR #480 の敵対的検証）。
         let deal = model.dealSerial
-        Task {
-            if await services.showRewardedAd(gameID: model.gameID, purpose: .undo) {
-                if !model.grantUndos(forDeal: deal) { showUndoUnavailable = true }
-            } else {
-                showUndoNotEarned = true
-            }
-            isWatchingUndoAd = false
+        undoRescue.request(
+            services, gameID: model.gameID, purpose: .undo,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantUndos(forDeal: deal)
         }
     }
 }

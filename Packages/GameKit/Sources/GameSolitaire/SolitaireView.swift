@@ -20,16 +20,13 @@ public struct SolitaireView: View {
     @State private var showSetup = false
     /// 開始シートで選んでいる最中のルール。「配る」を押すまで局には効かない（1局=1RuleSet）。
     @State private var draft = SolitaireRuleSet.standard
-    /// ジョーカー補充のリワード広告を出している最中（連打で 2 本目が失敗するのを防ぐ・#406）。
-    @State private var isWatchingJokerAd = false
-    @State private var showJokerNotEarned = false
-    @State private var showJokerUnavailable = false
+    /// ジョーカー補充のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var jokerRescue = RewardedRescue()
     /// 無料の「戻す」を使い切った状態でボタンを押したときの提案（#476）。
     /// **自動再生はしない**。ここで「見る」を選んだときだけ広告を出す。
     @State private var showUndoRefillPrompt = false
-    @State private var isWatchingUndoAd = false
-    @State private var showUndoNotEarned = false
-    @State private var showUndoUnavailable = false
+    /// 「戻す」補充のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var undoRescue = RewardedRescue()
 
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
@@ -47,7 +44,7 @@ public struct SolitaireView: View {
             SolitaireControlsView(
                 model: model,
                 services: services,
-                isWatchingUndoAd: isWatchingUndoAd,
+                isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo
             )
             Spacer(minLength: 0)
@@ -84,38 +81,34 @@ public struct SolitaireView: View {
                 model.newGame(rules: draft)
             }
         }
-        .alert("ジョーカーをもらえませんでした", isPresented: $showJokerNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
-        .alert("ジョーカーを受け取れませんでした", isPresented: $showJokerUnavailable) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。")
-        }
+        .rewardedRescueAlerts(
+            jokerRescue,
+            notEarned: "ジョーカーをもらえませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "ジョーカーを受け取れませんでした",
+                message: "広告を見ているあいだに局面が変わったため、ジョーカーを追加できませんでした。\n手持ちのジョーカーはそのまま残っています。"
+            )
+        )
         .alert("無料の「戻す」を使い切りました", isPresented: $showUndoRefillPrompt) {
             Button("広告を見て\(SolitaireUndoBudget.refill)回補充する") { requestUndoRefill() }
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
         }
-        .alert("「戻す」を補充できませんでした", isPresented: $showUndoNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
-        .alert("「戻す」を補充できませんでした", isPresented: $showUndoUnavailable) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。")
-        }
+        .rewardedRescueAlerts(
+            undoRescue,
+            notEarned: "「戻す」を補充できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "「戻す」を補充できませんでした",
+                message: "広告を見ているあいだに配り直されたか、局が終わったため、補充できませんでした。\n新しい配札の「戻す」は無料の回数まで戻っています。"
+            )
+        )
         .overlay {
             if model.showsRescuePrompt {
                 SolitaireRescueOverlay(
                     model: model,
-                    isWatchingJokerAd: isWatchingJokerAd,
-                    isWatchingUndoAd: isWatchingUndoAd,
+                    isWatchingJokerAd: jokerRescue.isWatching,
+                    isWatchingUndoAd: undoRescue.isWatching,
                     onUndo: requestUndo,
                     onRequestJoker: requestJoker
                 )
@@ -220,22 +213,15 @@ public struct SolitaireView: View {
     /// 視聴しなかったときと、視聴したのに補充できなかったとき（待っている間に自力で局面が
     /// 変わって所持に戻った等）を読み分けて必ず知らせる。
     private func requestJoker() {
-        // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ。
-        guard !isWatchingJokerAd else { return }
-        isWatchingJokerAd = true
         // どの局に対する補充かを、広告を出す前に控える（`requestUndoRefill` と同型。#511）。
         let deal = model.dealSerial
-        Task {
-            if await services.showRewardedAd(gameID: model.gameID, purpose: .joker) {
-                if model.grantJoker(forDeal: deal) {
-                    model.beginPlacingJoker()
-                } else {
-                    showJokerUnavailable = true
-                }
-            } else {
-                showJokerNotEarned = true
-            }
-            isWatchingJokerAd = false
+        jokerRescue.request(
+            services, gameID: model.gameID, purpose: .joker,
+            guardedBy: .checkedByGrant
+        ) {
+            guard model.grantJoker(forDeal: deal) else { return false }
+            model.beginPlacingJoker()
+            return true
         }
     }
 
@@ -254,19 +240,14 @@ public struct SolitaireView: View {
 
     /// リワード広告 → 「戻す」の補充。視聴しなかったときと補充できなかったときを読み分けて必ず知らせる。
     private func requestUndoRefill() {
-        // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ（ジョーカーと同型）。
-        guard !isWatchingUndoAd else { return }
-        isWatchingUndoAd = true
         // どの局に対する補充かを、広告を出す前に控える。ボタンの `disabled` だけでは
         // ツールバーの「新規ゲーム」からの配り直しを止められない（PR #480 の敵対的検証）。
         let deal = model.dealSerial
-        Task {
-            if await services.showRewardedAd(gameID: model.gameID, purpose: .undo) {
-                if !model.grantUndos(forDeal: deal) { showUndoUnavailable = true }
-            } else {
-                showUndoNotEarned = true
-            }
-            isWatchingUndoAd = false
+        undoRescue.request(
+            services, gameID: model.gameID, purpose: .undo,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantUndos(forDeal: deal)
         }
     }
 }

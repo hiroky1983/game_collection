@@ -11,9 +11,8 @@ public struct BlocksView: View {
     private let services: GameServices
     @State private var model: BlocksModel
     @State private var scene: BlocksScene
-    @State private var showRewardNotEarned = false
-    @State private var showContinueExpired = false
-    @State private var isContinuing = false
+    /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
+    @State private var continueRescue = RewardedRescue()
     @State private var showConfirmNewGame = false
     /// 確認ダイアログを出すために**自分で**止めたか（#515）。
     /// 元から一時停止中だった場合まで再開してしまわないよう区別する。
@@ -85,16 +84,14 @@ public struct BlocksView: View {
             // （発射前から開いた場合は元から記憶していないので、揃えて止めたままにする）。
             pausedForNewGameConfirm = false
         }
-        .alert("コンティニューできませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
-        .alert("コンティニューできませんでした", isPresented: $showContinueExpired) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
-        }
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: "コンティニューできませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "コンティニューできませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+            )
+        )
         .confirmationDialog(
             "はじめからやり直しますか？",
             isPresented: $showConfirmNewGame,
@@ -330,21 +327,14 @@ public struct BlocksView: View {
 
     private var continueButton: some View {
         Button {
-            // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ。
-            guard !isContinuing else { return }
-            isContinuing = true
             // どの局へのコンティニューかを広告前に控える。ロード中に「はじめから」で
             // 盤が作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
             let run = model.fieldGeneration
-            Task {
-                if await services.showRewardedAd(gameID: BlocksModel.gameID, purpose: .continue) {
-                    if !model.continueAfterAd(forRun: run) {
-                        showContinueExpired = true
-                    }
-                } else {
-                    showRewardNotEarned = true
-                }
-                isContinuing = false
+            continueRescue.request(
+                services, gameID: BlocksModel.gameID, purpose: .continue,
+                guardedBy: .checkedByGrant
+            ) {
+                model.continueAfterAd(forRun: run)
             }
         } label: {
             Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
@@ -352,7 +342,7 @@ public struct BlocksView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(Theme.Fill.coral)
-        .disabled(isContinuing)
+        .disabled(continueRescue.isWatching)
     }
 
     /// 一時停止中とリザルトで共用する。前者は進行が残っているので確認を挟み、

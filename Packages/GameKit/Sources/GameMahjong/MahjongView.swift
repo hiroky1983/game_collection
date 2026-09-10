@@ -17,8 +17,8 @@ public struct MahjongView: View {
     /// 邪魔になるので、一覧経由のときだけ立てる。送り終えたら nil に戻す。
     @State private var overviewScrollTarget: String?
     /// トビ復活（#338）。ポーカー・ブラックジャックの「広告を見てチップ回復」と同じ持ち方。
-    @State private var showRewardNotEarned = false
-    @State private var isReviving = false
+    /// トビ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
+    @State private var reviveRescue = RewardedRescue()
     /// 役の早見表（#501）。`MahjongModel` には触れないので、開閉しても対局の状態は動かない。
     @State private var showYakuSheet = false
 
@@ -177,11 +177,7 @@ public struct MahjongView: View {
         .onChange(of: model.currentPlayer) {
             selectedTileID = nil
         }
-        .alert("復活できませんでした", isPresented: $showRewardNotEarned) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。")
-        }
+        .rewardedRescueAlerts(reviveRescue, notEarned: "復活できませんでした")
     }
 
     // MARK: - 雀卓
@@ -913,17 +909,12 @@ public struct MahjongView: View {
     /// 「広告を見てチップ回復」と同じ形（リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
     private var reviveButton: some View {
         Button {
-            // 広告のロード〜表示中の連打で2本目が失敗し、誤ってアラートが出るのを防ぐ
-            guard !isReviving else { return }
-            isReviving = true
-            Task {
-                let revived = await model.reviveAfterAd()
-                isReviving = false
-                if revived {
-                    await model.runCPUTurnsIfNeeded()
-                } else {
-                    showRewardNotEarned = true
-                }
+            // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と復活は
+            // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
+            reviveRescue.requestHandledByModel {
+                await model.reviveAfterAd()
+            } whenGranted: {
+                await model.runCPUTurnsIfNeeded()
             }
         } label: {
             // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
@@ -934,7 +925,7 @@ public struct MahjongView: View {
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
-        .disabled(isReviving)
+        .disabled(reviveRescue.isWatching)
         .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
     }
 
