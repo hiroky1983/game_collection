@@ -279,6 +279,38 @@ struct RunnerPlaythroughTests {
         }
     }
 
+    /// **回帰テスト**: 会長QA「進まねえ」（2026-09-11）——踏み切った直後（同フレーム）に
+    /// 離す「瞬間タップ」でも、穴・低い障害物・鳥は必ず越えられること。`jumpCutGraceTime`
+    /// による猶予が無いと、ステージ1の最初の穴（幅8）にすら届かなかった。
+    ///
+    /// 高い障害物（`tallBlock`）だけは対象外——設計上「頂点近くを通す」必要があり、
+    /// 意図的に長押しを要求する（`RunnerRules.jumpCutGraceTime` のドキュメント参照）。
+    @Test("瞬間タップでも、高い障害物以外はすべて越えられる")
+    func instantTapClearsEveryHazardExceptTallBlocks() {
+        for stage in RunnerStage.all {
+            for hazard in stage.hazards where hazard.kind != .tallBlock {
+                var field = RunnerField(stage: stage)
+                while field.distance < hazard.start - RunnerAutoPilot.lead(for: hazard, speed: stage.speed) {
+                    _ = field.step(dt: 1.0 / 600)
+                }
+                field.jump()
+                field.endHold() // 同フレームで即離す＝瞬間タップ
+                var events: [RunnerEvent] = []
+                var frames = 0
+                while frames < 3000 {
+                    frames += 1
+                    events += field.step(dt: 1.0 / 600)
+                    if events.contains(where: { $0 == .fell || $0 == .crashed }) { break }
+                    if field.isGrounded, field.distance > hazard.end { break }
+                }
+                #expect(
+                    !events.contains(where: { $0 == .fell || $0 == .crashed }),
+                    "ステージ \(stage.number) の \(hazard.kind) を瞬間タップで越えられない"
+                )
+            }
+        }
+    }
+
     /// ゆっくりモードは**時間の進みだけ**を遅くする（速さを落とすと飛距離が縮んで詰む）。
     /// 同じ操作でクリアでき、かかるフレーム数だけが増えることを確かめる。
     @Test("ゆっくりモードでも同じ操作でクリアでき、実時間だけが伸びる")
