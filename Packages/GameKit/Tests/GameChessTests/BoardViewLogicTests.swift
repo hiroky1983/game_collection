@@ -111,9 +111,60 @@ struct ChessPieceLiftMotionTests {
         #expect(ChessMotion.pieceLiftScale > 1 && ChessMotion.pieceLiftScale <= 1.15)
     }
 
+    /// 角丸 → 駒 → 王手 → 着手先 の重なり順そのものは、共通の `boardLayers`（Core・#530）が持つ。
+    /// **順番の検証はそちらに移した**（`BoardGameChromeSourceTests`）。ここではチェスが自前で
+    /// 積み直していないこと = 共通の順番に乗っていることだけを見る。
     /// 修飾子の**置き場所**で決まるため、値では検証できない（将棋 `ShogiPieceLayerSourceTests` と同じ流儀）。
-    @Test("盤の角丸は駒の層より前に掛ける（持ち上げた駒が上端で切れる）")
-    func clipShapeComesBeforePieceLayer() throws {
+    @Test("盤は共通の boardLayers に乗る（自前で層を積み直さない）")
+    func boardUsesSharedLayerOrder() throws {
+        let lines = try Self.lines(ofFunction: "private var board: some View {")
+        #expect(lines.contains(".boardLayers("), "board が boardLayers を使っていない:\n\(lines.joined(separator: "\n"))")
+        #expect(lines.contains("pieces: { pieceLayer(cell: cell) },"))
+        #expect(lines.contains("check: { checkLayer(cell: cell) },"))
+        #expect(lines.contains("targets: { targetLayer(cell: cell) }"))
+        #expect(lines.contains { $0.hasPrefix(".clipShape(") } == false,
+                "board に自前の clipShape がある（共通の角丸と二重に掛かる）:\n\(lines.joined(separator: "\n"))")
+        // 座標の層（チェスにしかない）は共通の重ね順の**後ろ**に来る。共通の 3 層より前に
+        // 割り込ませると、駒や着手先の印が座標の文字に隠れる。
+        guard let shared = lines.firstIndex(of: ".boardLayers("),
+              let coordinate = lines.firstIndex(of: ".overlay { coordinateLayer(cell: cell) }") else {
+            Issue.record("boardLayers / 座標の層が見つからない（走査の前提が壊れている）")
+            return
+        }
+        #expect(shared < coordinate)
+        // 共通の 3 層を自前の overlay で足し直していないこと（座標の 1 枚だけが許される）。
+        #expect(lines.filter { $0.hasPrefix(".overlay {") } == [".overlay { coordinateLayer(cell: cell) }"])
+    }
+
+    /// 選択した駒の持ち上げの見た目は共通の `pieceLift`（Core・#530）に置く。
+    /// 自前に書き戻すと、将棋と片方だけずれた状態に戻る。
+    @Test("駒の持ち上げは共通の pieceLift を使い、アニメーションはその後ろに置く")
+    func pieceLiftUsesSharedModifier() throws {
+        let lines = try Self.lines(ofFunction: "private func pieceLayer(cell: CGFloat) -> some View {")
+        #expect(lines.contains(".pieceLift(isLifted: isLifted, cell: cell)"),
+                "共通の pieceLift を使っていない:\n\(lines.joined(separator: "\n"))")
+        // 持ち上げは**駒単位**（`isLifted`）、移動は**層に1つ**（`pieceLayout`）。並び順が構造を表す。
+        let animations = lines.filter { $0.hasPrefix(".gameAnimation(") }
+        #expect(animations == [
+            ".gameAnimation(ChessMotion.pieceLift, value: isLifted)",
+            ".gameAnimation(ChessMotion.pieceMove, value: pieceLayout)",
+        ])
+        guard let modifier = lines.firstIndex(of: ".pieceLift(isLifted: isLifted, cell: cell)"),
+              let lift = lines.firstIndex(of: ".gameAnimation(ChessMotion.pieceLift, value: isLifted)"),
+              let transition = lines.firstIndex(where: { $0.hasPrefix(".transition(") }) else {
+            Issue.record("駒の層の指定が見つからない（走査の前提が壊れている）")
+            return
+        }
+        // 見た目 → アニメーション → `.transition` の順。アニメーションを前に置くと
+        // 拡大・影・浮かせに掛からず、持ち上げが一瞬で切り替わる。
+        #expect(modifier < lift)
+        #expect(lift < transition)
+        // `.animation` の直呼びは Reduce Motion を無視する（#210）。
+        #expect(lines.contains { $0.hasPrefix(".animation(") } == false)
+    }
+
+    /// 宣言行から、インデントが戻るまでを 1 つのまとまりとして切り出す（前後の空白は落とす）。
+    private static func lines(ofFunction declaration: String) throws -> [String] {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // GameChessTests
             .deletingLastPathComponent()   // Tests
@@ -121,25 +172,15 @@ struct ChessPieceLiftMotionTests {
             .appendingPathComponent("Sources/GameChess/ChessView.swift")
         let all = try String(contentsOf: url, encoding: .utf8)
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        // 走査は `board` の中だけに限る（ファイル全体だと別の面の clipShape を拾う）。
-        guard let start = all.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "private var board: some View {" }) else {
-            Issue.record("走査の前提が壊れている: private var board が見つからない")
-            return
+        guard let start = all.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == declaration }) else {
+            Issue.record("走査の前提が壊れている: \(declaration) が見つからない")
+            return []
         }
         let indent = all[start].prefix { $0 == " " }
         guard let end = all[start...].dropFirst().firstIndex(where: { $0 == indent + "}" }) else {
-            Issue.record("走査の前提が壊れている: private var board の終わりが見つからない")
-            return
+            Issue.record("走査の前提が壊れている: \(declaration) の終わりが見つからない")
+            return []
         }
-        let lines = all[start...end].map { $0.trimmingCharacters(in: .whitespaces) }
-        let clips = lines.enumerated().filter { $0.element.hasPrefix(".clipShape(") }
-        // 2つ目を後ろに足されると、そちらが駒の層まで丸めてしまう（数も固定する）。
-        #expect(clips.count == 1, "盤の clipShape が1つではない:\n\(lines.joined(separator: "\n"))")
-        guard let clip = clips.first?.offset,
-              let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }") else {
-            Issue.record("盤の clipShape / 駒の層が見つからない（走査の前提が壊れている）")
-            return
-        }
-        #expect(clip < piece)
+        return all[start...end].map { $0.trimmingCharacters(in: .whitespaces) }
     }
 }
