@@ -59,6 +59,10 @@ public struct RunnerField: Equatable, Sendable {
     /// 接地して漕いでいるあいだに上がり、跳んでいるあいだは漕げないので落ちる。
     /// **速さに効くのは接地しているあいだだけ**（`currentSpeed`）。
     public private(set) var pedalBoost: Double
+    /// 取得済みのスピードアップアイテムの数。まだ消していないノードを消すのに描画側が使う。
+    public private(set) var collectedPickupCount: Int = 0
+    /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
+    private var collectedPickupIndices: Set<Int> = []
 
     /// ステージの頭から始める。
     public init(stage: RunnerStage) {
@@ -189,6 +193,18 @@ public struct RunnerField: Equatable, Sendable {
         if isHittingBlock {
             events.append(.crashed)
             return
+        }
+
+        // スピードアップアイテム。「触れると得する」だけなので、穴・障害物と違って
+        // 高さは問わず横方向の重なりだけで見る。効果はペダルの乗りを即座に上限へ引き上げる
+        // だけで、`currentSpeed` の「空中では必ず基準速度」という不変条件には触れない
+        // （接地しているあいだしか乗りは効かないので、跳んで取ってもその場では速くならない）。
+        for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
+            guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { continue }
+            collectedPickupIndices.insert(index)
+            collectedPickupCount += 1
+            pedalBoost = RunnerRules.maxPedalBoost
+            events.append(.collectedSpeedItem)
         }
 
         if footY <= Metrics.groundY {

@@ -14,6 +14,11 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     case lowBlock
     /// 高い障害物。ジャンプの頂点近くを通さないと当たる。
     case tallBlock
+    /// 鳥。低い障害物と高い障害物の中間の高さ（会長QA「鳥とか右から車が来るとか要素はいる」）。
+    ///
+    /// **当たり判定・クリア可能性の数学は `lowBlock`/`tallBlock` と完全に同じ**
+    /// （地面から生えていて、ジャンプで頂点付近を通せば越えられる、という既存モデルをそのまま使う）。
+    case bird
 
     /// 地面からの高さ。穴は高さを持たない。
     ///
@@ -23,6 +28,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
         switch self {
         case .pit:       return 0
         case .lowBlock:  return 5
+        case .bird:      return 7
         case .tallBlock: return 9
         }
     }
@@ -48,6 +54,20 @@ public struct RunnerHazard: Equatable, Sendable {
     public var height: Double { kind.height }
 }
 
+/// コース上のスピードアップアイテム 1 つ（会長QA「スピードアップアイテムor床とかあったほうがいい」）。
+///
+/// **`RunnerHazard` とは別の型**にしてある。穴・障害物は「触れると失敗する」当たり判定
+/// （`isHittingBlock`/`isPit`）の対象だが、ピックアップは「触れると得する」だけで
+/// 失敗ロジックには一切混ぜない。位置だけを持つ軽量な値。
+public struct RunnerPickup: Equatable, Sendable {
+    /// 中心の x（コース先頭からのワールド座標）。
+    public let start: Double
+
+    public init(start: Double) {
+        self.start = start
+    }
+}
+
 /// 1 サブステップで起きたできごと。Model がこれを見て進行・記録・音を動かす。
 ///
 /// `RunnerField` は状態を進めるだけで、ステージ番号もタイムも記録も知らない
@@ -63,12 +83,14 @@ public enum RunnerEvent: Equatable, Sendable {
     case crashed
     /// ゴールに到達した。
     case reachedGoal
+    /// スピードアップアイテムを取った。決着ではないので `isTerminal` は false。
+    case collectedSpeedItem
 
     /// このできごとでコースが終わるか（ミスかゴール）。
     public var isTerminal: Bool {
         switch self {
-        case .fell, .crashed, .reachedGoal: return true
-        case .landed, .passedCheckpoint:    return false
+        case .fell, .crashed, .reachedGoal:                  return true
+        case .landed, .passedCheckpoint, .collectedSpeedItem: return false
         }
     }
 }

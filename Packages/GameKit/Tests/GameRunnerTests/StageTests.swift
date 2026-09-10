@@ -46,10 +46,8 @@ struct RunnerStageTests {
     func onlyKnownSymbols() {
         for stage in RunnerStage.all {
             for symbol in stage.pattern where symbol != "-" {
-                #expect(
-                    RunnerStage.segmentSpec(symbol) != nil,
-                    "ステージ \(stage.number) に未知の記号 '\(symbol)' がある"
-                )
+                let isKnown = RunnerStage.segmentSpec(symbol) != nil || symbol == RunnerStage.pickupSymbol
+                #expect(isKnown, "ステージ \(stage.number) に未知の記号 '\(symbol)' がある")
             }
         }
     }
@@ -70,7 +68,7 @@ struct RunnerStageTests {
                         range > needed + RunnerRules.tileWidth,
                         "ステージ \(stage.number) の穴（長さ \(hazard.length)）が跳び越せない"
                     )
-                case .lowBlock, .tallBlock:
+                case .lowBlock, .tallBlock, .bird:
                     // 当たり判定が重なるあいだ、ずっと上端より上にいられること。
                     let window = RunnerRules.airTime(above: hazard.height + RunnerAutoPilot.clearance)
                     let overlap = (hazard.length + halfWidth * 2) / stage.speed
@@ -151,6 +149,19 @@ struct RunnerStageTests {
         field.jump()
         for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
         #expect(field.pedalBoost >= 1)
+    }
+
+    /// (c) ピックアップは `hazards`/`checkpoint` に一切混ざらないので、
+    /// 有無で `RunnerStageTests` の成立条件（間隔・跳べる高さ）が変わらないこと。
+    @Test("スピードアップアイテムの有無はステージのクリア可能性に影響しない")
+    func pickupsDoNotAffectClearability() {
+        let withPickups = RunnerStage(number: 1, pattern: "--n-s-t--", speed: 40)
+        let withoutPickups = RunnerStage(number: 1, pattern: "--n---t--", speed: 40)
+        #expect(withPickups.hazards == withoutPickups.hazards)
+        #expect(withPickups.length == withoutPickups.length)
+        #expect(withPickups.checkpoint == withoutPickups.checkpoint)
+        #expect(withPickups.pickups.count == 1)
+        #expect(withoutPickups.pickups.isEmpty)
     }
 
     @Test("チェックポイントはコースの中ほどの平地にある")

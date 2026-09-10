@@ -272,6 +272,8 @@ public final class RunnerModel {
             services?.feedback.impact(.light)
         case .passedCheckpoint:
             services?.feedback.notify(.success)
+        case .collectedSpeedItem:
+            services?.feedback.impact(.light)
         case .fell, .crashed:
             phase = .failed
             services?.feedback.notify(.error)

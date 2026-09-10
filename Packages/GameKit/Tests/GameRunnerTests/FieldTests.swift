@@ -290,6 +290,35 @@ struct RunnerFieldTests {
         #expect(field.distance == stage.checkpoint)
         #expect(field.isGrounded)
     }
+
+    // MARK: - スピードアップアイテム（会長QA「スピードアップアイテムor床とかあったほうがいい」）
+
+    /// (a) ピックアップに重なるとイベントが出て、ペダルの乗りが即座に上限まで上がること。
+    @Test("ピックアップに触れるとイベントが出てペダルの乗りが上限まで即座に上がる")
+    func collectingPickupBoostsPedalImmediately() {
+        let stage = RunnerStage(number: 1, pattern: "--s---", speed: 40)
+        guard let pickup = stage.pickups.first else { Issue.record("ピックアップが無い"); return }
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: pickup.start, altitude: 0, vy: 0)
+        #expect(field.pedalBoost == 1, "取る前は下限のまま")
+        let events = field.step(dt: 1.0 / 600)
+        #expect(events.contains(.collectedSpeedItem))
+        #expect(field.pedalBoost == RunnerRules.maxPedalBoost, "取った瞬間に上限まで乗る")
+        #expect(field.collectedPickupCount == 1)
+    }
+
+    /// (b) 走者の当たり判定の矩形（幅 8）がピックアップの上を何フレームもまたぐあいだ、
+    /// 一度取ったら 2 回目は発火しないこと。
+    @Test("同じピックアップは同じ走行中に一度しか取れない")
+    func pickupIsCollectedOnlyOnce() {
+        let stage = RunnerStage(number: 1, pattern: "--s---", speed: 40)
+        #expect(stage.pickups.count == 1)
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        for _ in 0..<600 { events += field.step(dt: 1.0 / 60) }
+        #expect(events.filter { $0 == .collectedSpeedItem }.count == 1, "重なっている間ずっと発火してはいけない")
+        #expect(field.collectedPickupCount == 1)
+    }
 }
 
 @Suite("チャリンコおじさん: 障害の展開")
@@ -323,5 +352,20 @@ struct RunnerHazardLayoutTests {
         #expect(RunnerHazardKind.pit.height == 0)
         #expect(RunnerHazardKind.lowBlock.height < RunnerHazardKind.tallBlock.height)
         #expect(RunnerHazardKind.tallBlock.height < RunnerRules.jumpApex, "跳んで越えられる高さ")
+    }
+
+    /// 鳥（`b`）の区画記号が正しく `RunnerHazardKind.bird` に展開されること
+    /// （会長QA「鳥とか右から車が来るとか要素はいる」）。
+    @Test("鳥の区画記号が正しく展開される")
+    func birdSymbolExpandsToBirdHazard() {
+        #expect(RunnerStage.segmentSpec("b")?.kind == .bird)
+        #expect(RunnerStage.segmentSpec("b")?.tiles == 1)
+        let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
+        #expect(stage.hazards.count == 1)
+        #expect(stage.hazards.first?.kind == .bird)
+        // 当たり判定・クリア可能性の数学は lowBlock/tallBlock と同じ（高さは両者の中間）。
+        #expect(RunnerHazardKind.lowBlock.height < RunnerHazardKind.bird.height)
+        #expect(RunnerHazardKind.bird.height < RunnerHazardKind.tallBlock.height)
+        #expect(RunnerHazardKind.bird.height < RunnerRules.jumpApex, "跳んで越えられる高さ")
     }
 }
