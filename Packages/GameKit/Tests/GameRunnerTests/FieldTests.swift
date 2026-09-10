@@ -51,6 +51,21 @@ struct RunnerFieldTests {
         #expect(field.pedalBoost >= 1, "落ちきっても基準の速さが下限")
     }
 
+    /// 乗りの下限は 1.0（= 基準の速さ）。
+    ///
+    /// **乗っていない状態から踏み切る**のがこの下限に当たる唯一の入口で、上の
+    /// 「上限まで乗せてから跳ぶ」形では滞空 1 回ぶんでは 1.0 まで落ちきらず素通りする。
+    /// 下限が外れると走る速さが基準を下回り、ステージの成立条件（`RunnerStageTests`）の
+    /// 前提そのものが崩れる。
+    @Test("乗っていない状態から跳んでも 1.0 を割らない")
+    func pedalNeverDropsBelowBase() {
+        var field = RunnerField(stage: flatStage(segments: 40))
+        #expect(field.pedalBoost == 1)
+        field.jump()   // 押しっぱなし = 滞空が最も長くなる跳び方
+        while !field.isGrounded { _ = field.step(dt: 1.0 / 240) }
+        #expect(field.pedalBoost == 1, "下限を割ると基準より遅くなる")
+    }
+
     /// **タイムが操作を反映する**ことの実証（#569 の A 案そのもの）。
     /// 同じ地点で踏み切っても、高く跳ぶほど空中が長くなり、着地後の速さも落ちる。
     @Test("同じ地点で踏み切っても、高く跳ぶほど到達が遅れる")
