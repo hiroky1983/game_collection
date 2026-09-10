@@ -172,11 +172,17 @@ public struct RunnerStage: Equatable, Sendable {
     }
 
     /// 区画記号 1 文字の中身。`-`（平地）と未知の文字は nil。
+    ///
+    /// 穴（`1`〜`3`）は**表記の数字 + 1 タイル**ぶんの幅にする。走者の見た目の横幅
+    /// （`RunnerField.Metrics.playerWidth` = 8）に対して数字どおりの1タイル（4）だと
+    /// 穴が走者より狭く見え、跳んで越えるべきものに見えなかった（会長QA）。
+    /// 区画の並び（`hazardTileOffset`・`segmentTiles`）は変えていないので、
+    /// 隣の障害までの間隔は従来どおり保たれる——広がるのは穴の幅だけ。
     static func segmentSpec(_ symbol: Character) -> (kind: RunnerHazardKind, tiles: Int)? {
         switch symbol {
-        case "1": return (.pit, 1)
-        case "2": return (.pit, 2)
-        case "3": return (.pit, 3)
+        case "1": return (.pit, 2)
+        case "2": return (.pit, 3)
+        case "3": return (.pit, 4)
         case "n": return (.lowBlock, 1)
         case "t": return (.tallBlock, 1)
         default:  return nil

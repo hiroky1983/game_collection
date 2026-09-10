@@ -257,8 +257,9 @@ struct RunnerHazardLayoutTests {
         let offset = Double(RunnerRules.hazardTileOffset) * RunnerRules.tileWidth
         let stage = RunnerStage(number: 1, pattern: "-3-n", speed: 40)
         #expect(stage.hazards.count == 2)
+        // 穴は「表記の数字 + 1 タイル」の幅で展開される（会長QA: 見た目どおりの幅にする）。
         #expect(stage.hazards[0] == RunnerHazard(
-            kind: .pit, start: segment + offset, length: RunnerRules.tileWidth * 3
+            kind: .pit, start: segment + offset, length: RunnerRules.tileWidth * 4
         ))
         #expect(stage.hazards[1] == RunnerHazard(
             kind: .lowBlock, start: segment * 3 + offset, length: RunnerRules.tileWidth
@@ -270,7 +271,8 @@ struct RunnerHazardLayoutTests {
     func hazardKinds() {
         #expect(RunnerStage.segmentSpec("_") == nil, "穴の長さは 1〜3 の数字で書く")
         #expect(RunnerStage.segmentSpec("2")?.kind == .pit)
-        #expect(RunnerStage.segmentSpec("2")?.tiles == 2)
+        // 実際のタイル数は表記の数字 + 1（会長QA: 穴の見た目の幅を広げた）。
+        #expect(RunnerStage.segmentSpec("2")?.tiles == 3)
         #expect(RunnerStage.segmentSpec("n")?.kind == .lowBlock)
         #expect(RunnerStage.segmentSpec("t")?.kind == .tallBlock)
         #expect(RunnerStage.segmentSpec("-") == nil, "平地")
