@@ -181,12 +181,16 @@ struct RunnerPlaythroughTests {
     /// 1 ステージを自動操縦で走らせる。戻り値は決着時の phase と経過フレーム数。
     ///
     /// `wastefulJumpAtStart` は「地形と関係なく 1 回跳ぶ」下手な操作の再現（#569）。
+    /// `hopWastefully` は「地形上は要らないのに、安全な平地では毎回跳んでしまう」下手な操作の
+    /// 再現（#578 の会長再QA対応）。`wastefulJumpAtStart` の 1 回きりと違い、平地が続く限り
+    /// 跳び続けるので乗りが上限近くまで戻る暇が無い。
     private func play(
         stage number: Int,
         slow: Bool = false,
-        wastefulJumpAtStart: Bool = false
+        wastefulJumpAtStart: Bool = false,
+        hopWastefully: Bool = false
     ) -> (phase: RunnerPhase, frames: Int) {
-        let suite = "play-\(number)-\(slow)-\(wastefulJumpAtStart)"
+        let suite = "play-\(number)-\(slow)-\(wastefulJumpAtStart)-\(hopWastefully)"
         let model = RunnerModel(startingAt: number, preference: makePreference(suite))
         model.setSlowMode(slow)
         model.press()
@@ -201,10 +205,23 @@ struct RunnerPlaythroughTests {
             if RunnerAutoPilot.shouldJump(field: model.field) {
                 model.press()
                 model.release()
+            } else if hopWastefully, shouldHopWastefully(field: model.field) {
+                model.press()
+                model.release()
             }
             model.tick(dt: 1.0 / 60)
         }
         return (model.phase, frames)
+    }
+
+    /// `hopWastefully` 用の判断: 次の障害の踏み切りに間に合う余地がまだあるとき、
+    /// 要らないジャンプを 1 回挟んでも構わないか。**安全な間だけ**跳ぶので、
+    /// 下手なりにステージはクリアできる（クラッシュするだけの操作は比較にならない）。
+    private func shouldHopWastefully(field: RunnerField) -> Bool {
+        guard field.isGrounded, let hazard = field.nextHazard(from: field.playerMaxX) else { return false }
+        let jumpRange = field.stage.speed * RunnerRules.jumpAirTime
+        let requiredTakeoff = hazard.start - RunnerAutoPilot.lead(for: hazard, speed: field.stage.speed)
+        return field.distance + jumpRange + RunnerRules.tileWidth < requiredTakeoff
     }
 
     @Test("15 ステージすべてを最初から最後まで走り切れる")
@@ -256,6 +273,27 @@ struct RunnerPlaythroughTests {
             #expect(
                 wasteful.frames > clean.frames,
                 "ステージ \(number): 無駄に跳んでもタイムが変わらない（\(clean.frames) → \(wasteful.frames)）"
+            )
+        }
+    }
+
+    /// **効率よく走った場合と下手に走った場合で、クリアタイムに意味のある差が出ること**の実証
+    /// （#578 実装後の会長再QA「オブジェクトの出現回数が決まってるのでスピードの概念入れても
+    /// ゴールしたときの秒数に差がでない」対応）。`wastefulJumpsCostTime` の「1 回だけ余計に跳ぶ」
+    /// は乗りがすぐ回復してしまい、タイム差が 1〜2% 程度しか出なかった。ここでは平地のたびに
+    /// 跳んでしまう下手な操作と比べ、体感できる差（10% 以上）が出ることを確かめる。
+    @Test("平地でも跳び続ける下手な操作と比べ、クリアタイムに10%以上の差が出る")
+    func inefficientPlayCostsMeaningfulTime() {
+        for number in [1, 8, RunnerRules.stageCount] {
+            let efficient = play(stage: number)
+            let clumsy = play(stage: number, hopWastefully: true)
+            #expect(clumsy.phase == efficient.phase, "ステージ \(number): 下手なジャンプでミスになった")
+            let efficientSeconds = Double(efficient.frames) / 60
+            let clumsySeconds = Double(clumsy.frames) / 60
+            let diff = (clumsySeconds - efficientSeconds) / efficientSeconds
+            #expect(
+                diff > 0.1,
+                "ステージ \(number): タイム差が小さすぎる（\(efficientSeconds)秒 → \(clumsySeconds)秒、\(diff * 100)%）"
             )
         }
     }
