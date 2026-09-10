@@ -97,19 +97,12 @@ struct ChessLastMoveTests {
     }
 }
 
-/// 選択した駒の持ち上げ演出（将棋と同じ値・同じ理由）。
-@Suite("チェス 駒の持ち上げ演出")
-struct ChessPieceLiftMotionTests {
-
-    @Test("持ち上げは駒の移動より速い（掴んだ手応えが遅れて見えない）")
-    func liftIsFasterThanPieceMove() {
-        #expect(ChessMotion.pieceLiftResponse < ChessMotion.pieceMoveResponse)
-        // 秒の定数から `Animation` を組んでいること（定数だけ直しても演出が変わらない、を防ぐ）。
-        #expect(ChessMotion.pieceLift == .spring(response: ChessMotion.pieceLiftResponse, dampingFraction: 0.7))
-        // 持ち上げ量と拡大は「浮いたと分かる最小限」。隣のマスに被るほど大きくしない。
-        #expect(ChessMotion.pieceLiftRatio > 0 && ChessMotion.pieceLiftRatio <= 0.2)
-        #expect(ChessMotion.pieceLiftScale > 1 && ChessMotion.pieceLiftScale <= 1.15)
-    }
+/// 盤の組み方（#530）。演出の**値**（持ち上げが駒の移動より速い、等）は共通の
+/// `BoardGameMotion` が持つようになったため、検証も Core 側の `BoardGameMotionTests` に 1 つだけ置く
+/// （`ChessMotion` は `BoardGameMotion` の別名なので、ここで同じことを書いても二重管理になる）。
+/// ここに残すのは**チェスのソースの組み方**、つまり共通実装に乗っているかどうかだけ。
+@Suite("チェス 盤の組み方")
+struct ChessBoardViewSourceTests {
 
     /// 角丸 → 駒 → 王手 → 着手先 の重なり順そのものは、共通の `boardLayers`（Core・#530）が持つ。
     /// **順番の検証はそちらに移した**（`BoardGameChromeSourceTests`）。ここではチェスが自前で
