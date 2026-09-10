@@ -240,16 +240,15 @@ public struct ChessView: View {
                     }
                 }
             }
-            // 角丸は**マスにだけ**掛ける。ここより後ろに重ねる層は丸めない。
-            // 駒の層まで一緒に丸めると、持ち上げた駒（拡大 + 上へ 12%）が盤の上端で
-            // 切り落とされる（PR #477 の CodeRabbit 指摘。将棋の表示 0 段目で実測）。
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-            // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
-            .overlay { pieceLayer(cell: cell) }
-            // 王手されているキングの印も駒より**上**。キングそのものを囲むので、下に潜ると見えない。
-            .overlay { checkLayer(cell: cell) }
-            // 着手先の印も駒より**上**（取れる駒に重ねる枠が駒の下に潜ると読めなくなる）。
-            .overlay { targetLayer(cell: cell) }
+            // 角丸 → 駒 → 王手 → 着手先 の重なり順は将棋と共通（#530）。
+            // 順番そのものが不具合の有無を決めるため、理由ごと `boardLayers` に置いてある。
+            .boardLayers(
+                corner: Theme.cornerSmall,
+                pieces: { pieceLayer(cell: cell) },
+                check: { checkLayer(cell: cell) },
+                targets: { targetLayer(cell: cell) }
+            )
+            // 座標の文字はチェスにしかない層なので、共通の重ね順の外に置く。
             .overlay { coordinateLayer(cell: cell) }
             .padding(4)
             .background(
@@ -286,11 +285,8 @@ public struct ChessView: View {
                     // 選択した駒は少し持ち上げる（拡大 + 浮かせ + 落ち影）。将棋と同じ演出。
                     let isLifted = model.selectedSquare == placement.square
                     ChessPieceView(piece: placement.piece, size: cell)
-                        .scaleEffect(isLifted ? ChessMotion.pieceLiftScale : 1)
-                        .shadow(color: .black.opacity(isLifted ? 0.28 : 0),
-                                radius: isLifted ? cell * 0.10 : 0,
-                                y: isLifted ? cell * 0.10 : 0)
-                        .offset(y: isLifted ? -cell * ChessMotion.pieceLiftRatio : 0)
+                        // 拡大 + 浮かせ + 落ち影は将棋と共通（#530）。
+                        .pieceLift(isLifted: isLifted, cell: cell)
                         // 持ち上げのアニメーションは**駒単位**でここに置く（層全体に置くと、
                         // 着手確定で配置と選択が同時に変わったとき pieceMove 側の指定に
                         // 上書きされて、戻りの速さが意図とずれる — verifier 検証 2026-09-06）。
@@ -490,33 +486,15 @@ public struct ChessView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    /// 検討ナビと「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#139）。
+    /// 検討ナビと「もう一度」の帯。実体は将棋と共通の `ReviewNavBar`（#139・#530）。
     private var reviewControls: some View {
-        HStack(spacing: 12) {
-            // 中身が記号だけのボタンは、VoiceOver が SF Symbols の名前を推測して読む。
-            // 何をするボタンかは伝わらないので、読み上げ文を明示する。
-            Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
-                .disabled(model.reviewPly <= 0)
-                .accessibilityLabel("1手戻す")
-            Text("\(model.reviewPly)/\(model.moves.count)手")
-                .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
-                .accessibilityLabel("\(model.moves.count)手中 \(model.reviewPly)手目")
-            Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
-                .disabled(model.reviewPly >= model.moves.count)
-                .accessibilityLabel("1手進める")
-
-            Spacer(minLength: 8)
-
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 5)
-        .popCard(corner: Theme.cornerSmall)
+        ReviewNavBar(
+            ply: model.reviewPly,
+            total: model.moves.count,
+            onBack: { model.reviewStepBack() },
+            onForward: { model.reviewStepForward() },
+            onNewGame: { showNewGame = true }
+        )
     }
 }
 
@@ -684,39 +662,10 @@ struct ChessRuleDetail: View {
 
 /// チェスの演出の長さ。Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ（#210）。
 ///
-/// 長さは秒の定数として持ち、`Animation` はそこから組む。`Animation` からは長さを読み出せないため、
-/// 定数を経由しないと**長さの大小関係をテストで固定できない**。
-enum ChessMotion {
-    /// 駒の移動にかかる時間の目安（バネの `response`）。
-    static let pieceMoveResponse: TimeInterval = 0.26
-    /// プロモーション選択の札の出入り。`pieceMoveResponse` より短くする。
-    static let promotionPromptDuration: TimeInterval = 0.18
-    /// 手番バッジの色替え。
-    static let turnChangeDuration: TimeInterval = 0.2
-    /// 「チェック」の合図が飛び出す・引っ込むのにかかる時間（バネの `response`）。
-    static let checkBannerResponse: TimeInterval = 0.24
-    /// 「チェック」の合図を出しておく時間。**駒の移動より長く取る**。
-    /// ここが短いと、王手を掛けた駒がまだ動いている最中に文字が消えて何が起きたか読めない。
-    static let checkBannerHold: TimeInterval = 1.1
-
-    /// 駒の移動。跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
-    static let pieceMove: Animation = .spring(response: pieceMoveResponse, dampingFraction: 0.9)
-    /// プロモーション選択の札の出入り。**駒の移動より短く取る**。
-    static let promotionPrompt: Animation = .easeOut(duration: promotionPromptDuration)
-    /// 手番バッジの色替え。
-    static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
-    /// 「チェック」の合図の出入り。危急を伝えるので少し跳ねさせる。
-    static let checkBanner: Animation = .spring(response: checkBannerResponse, dampingFraction: 0.65)
-
-    /// 選択した駒の持ち上げにかかる時間（バネの `response`）。**駒の移動より短く取る**。
-    /// タップへの即応が命の演出なので、ここが長いと操作が重く感じる。
-    static let pieceLiftResponse: TimeInterval = 0.16
-    /// 持ち上げ量（マス幅に対する比）と拡大率。浮いたと分かる最小限に留め、隣のマスに被せない。
-    static let pieceLiftRatio: CGFloat = 0.12
-    static let pieceLiftScale: CGFloat = 1.07
-    /// 選択した駒の持ち上げ。掴んだ手応えとして少しだけ跳ねさせる（将棋と同じ値）。
-    static let pieceLift: Animation = .spring(response: pieceLiftResponse, dampingFraction: 0.7)
-}
+/// 実体は盤ゲーム共通の `BoardGameMotion`（#530）。将棋（`ShogiMotion`）とは値も理由も
+/// 同じで、片方だけ調整すると盤ゲーム間で手触りがずれるため 1 か所に置いてある。
+/// 呼び出し側の読み口はチェスの名前のまま残す（どのゲームの演出を触っているかを見失わないため）。
+typealias ChessMotion = BoardGameMotion
 
 // MARK: - 盤の配色
 
@@ -740,14 +689,11 @@ enum ChessBoardStyle {
 
     /// 王手の合図。キングのマスの枠と「チェック」の札に使う。
     ///
-    /// 差し色（`Theme.coral` など）は**白文字を載せると WCAG AA 未達**で #220 の対象に
-    /// なっているため、ここでは使わない。この緋色は白文字との対比が 6.5:1 あり、
-    /// 盤の明暗どちらのマスに対しても十分に沈んで見える（将棋 `BoardStyle.check` と同じ値）。
-    ///
-    /// `Color` は生成後に成分を取り出せないため、コントラストを検証するテストが参照できるよう
-    /// 数値のまま持つ。
-    static let checkHex: UInt32 = 0xB3261E
-    static let check = Color(hex: checkHex)
+    /// 実体は盤ゲーム共通の `BoardGameCheckColor`（#530）。将棋と同じ値・同じ理由で、
+    /// 片方だけ差し替えると盤ゲーム間で危急の合図の色が食い違う。
+    /// 盤の明暗どちらのマスに対しても十分に沈んで見える。
+    static let checkHex: UInt32 = BoardGameCheckColor.hex
+    static let check = BoardGameCheckColor.color
 
     /// マスに直接書く座標の文字色。**マスの反対色**で描くので明暗どちらでも読める。
     static func coordinate(onLight: Bool) -> Color {
