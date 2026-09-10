@@ -46,6 +46,8 @@ public struct RunnerField: Equatable, Sendable {
     /// 上下の速度。
     public private(set) var vy: Double
     public private(set) var isGrounded: Bool
+    /// 接地してから使ったジャンプの回数。着地すると 0 に戻る（`RunnerRules.maxJumps` まで）。
+    public private(set) var jumpCount: Int
     /// ジャンプボタンを押し続けているか（大ジャンプ）。
     public private(set) var isHolding: Bool
     /// このジャンプで重力を弱めてきた累計時間。
@@ -70,6 +72,7 @@ public struct RunnerField: Equatable, Sendable {
         self.footY = Metrics.groundY
         self.vy = 0
         self.isGrounded = true
+        self.jumpCount = 0
         self.isHolding = false
         self.holdElapsed = 0
         self.passedCheckpoint = passedCheckpoint
@@ -109,12 +112,17 @@ public struct RunnerField: Equatable, Sendable {
 
     // MARK: - 操作
 
-    /// 踏み切る。接地しているときだけ効く（空中での二段ジャンプは無し）。
+    /// 踏み切る。接地中か、空中でもまだ二段目が残っていれば効く（`RunnerRules.maxJumps`）。
+    ///
+    /// 二段目も初速は一段目と同じ `jumpVelocity` にする。踏み切った時点の `vy` へ足し込むと
+    /// 頂点付近で踏み切るほど高く跳べてしまい、地形の成立条件が踏み切りのタイミング次第で
+    /// 変わってしまう（`RunnerStageTests` が前提にできなくなる）。
     @discardableResult
     public mutating func jump() -> Bool {
-        guard isGrounded else { return false }
+        guard jumpCount < RunnerRules.maxJumps else { return false }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
+        jumpCount += 1
         isHolding = true
         holdElapsed = 0
         return true
@@ -131,6 +139,7 @@ public struct RunnerField: Equatable, Sendable {
         self.footY = Metrics.groundY + altitude
         self.vy = vy
         self.isGrounded = altitude <= 0 && vy <= 0
+        self.jumpCount = self.isGrounded ? 0 : 1
         self.isHolding = false
         self.holdElapsed = 0
     }
@@ -192,6 +201,7 @@ public struct RunnerField: Equatable, Sendable {
             footY = Metrics.groundY
             vy = 0
             isGrounded = true
+            jumpCount = 0
             isHolding = false
             if wasAirborne { events.append(.landed) }
         }

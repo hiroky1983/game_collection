@@ -160,14 +160,58 @@ struct RunnerFieldTests {
         #expect(Double(frames) / 60 < RunnerRules.jumpAirTime + RunnerRules.maxHoldTime * 2)
     }
 
-    @Test("空中では二段ジャンプできない")
-    func noDoubleJump() {
+    @Test("空中でも一度だけ二段目を踏み切れる")
+    func doubleJumpOnce() {
         var field = RunnerField(stage: flatStage())
         let first = field.jump()
         #expect(first)
         _ = field.step(dt: 1.0 / 60)
         let second = field.jump()
-        #expect(!second, "接地していないので踏み切れない")
+        #expect(second, "一段目のあと空中でも二段目は踏み切れる")
+    }
+
+    @Test("三段目は無い（空中で二段使い切ると着地まで踏み切れない）")
+    func noThirdJump() {
+        var field = RunnerField(stage: flatStage())
+        _ = field.jump()
+        _ = field.step(dt: 1.0 / 60)
+        _ = field.jump()
+        _ = field.step(dt: 1.0 / 60)
+        let third = field.jump()
+        #expect(!third, "二段使い切ったら着地するまで踏み切れない")
+    }
+
+    @Test("着地するとジャンプの回数がリセットされる")
+    func jumpCountResetsOnLanding() {
+        var field = RunnerField(stage: flatStage(segments: 30))
+        _ = field.jump()
+        _ = field.jump()
+        var frames = 0
+        while !field.isGrounded, frames < 60 * 10 {
+            frames += 1
+            _ = field.step(dt: 1.0 / 60)
+        }
+        #expect(field.isGrounded)
+        let canJumpAgain = field.jump()
+        #expect(canJumpAgain, "着地したのでまた一段目から踏み切れる")
+    }
+
+    /// 二段目も一段目と同じ初速で踏み切る。頂点付近で使うほど高く跳べてしまうと、
+    /// 踏み切りのタイミング次第で地形の成立条件が変わってしまう（`RunnerStageTests` の前提が壊れる）。
+    @Test("二段目の初速は一段目と同じ（踏み切るタイミングに左右されない）")
+    func secondJumpUsesSameVelocityRegardlessOfTiming() {
+        var field = RunnerField(stage: flatStage())
+        _ = field.jump()
+        // 頂点近くまで上がりきってから二段目を使う。
+        var frames = 0
+        while field.vy > 1, frames < 60 * 2 {
+            frames += 1
+            _ = field.step(dt: 1.0 / 60)
+        }
+        let altitudeBeforeSecond = field.altitude
+        _ = field.jump()
+        #expect(field.vy == RunnerRules.jumpVelocity, "踏み切った瞬間の速度は毎回同じ初速")
+        #expect(field.altitude >= altitudeBeforeSecond - 0.01)
     }
 
     @Test("穴に入ると落ちる")

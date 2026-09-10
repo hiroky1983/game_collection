@@ -21,8 +21,15 @@ public enum RunnerRules {
 
     /// 重力（ワールド単位 / 秒²）。
     public static let gravity: Double = 200
-    /// 踏み切りの初速。
+    /// 踏み切りの初速。二段目も同じ初速を使う（`RunnerField.jump()`）。
     public static let jumpVelocity: Double = 75
+    /// 接地してから使える踏み切りの回数（会長決裁 2026-09-10・2段ジャンプ）。
+    ///
+    /// **既存 15 ステージの成立条件（`RunnerStageTests`）は一段目の単発ジャンプだけで
+    /// 満たせるままにしてある**——二段目は「あってもクリア可能」を崩さない上振れの
+    /// 救済として足す。自動操縦（`RunnerAutoPilot`）も接地中しか踏み切らないので、
+    /// この定数を増やしてもテストの前提には影響しない。
+    public static let maxJumps: Int = 2
     /// 押している間だけ弱まる重力（大ジャンプ）。
     ///
     /// **弱めるのは上昇中の最大 `maxHoldTime` 秒だけ**。押しっぱなしで浮き続けられると
