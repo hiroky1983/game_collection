@@ -35,6 +35,13 @@ public struct RunnerView: View {
             // `layoutPriority(1)` で縦幅の分配を先取りする（囲碁の盤と同じ組み方。詳細は `course` の doc）。
             course
                 .layoutPriority(1)
+            // 一時停止はコース（ゲーム画面）の**外**に出す（会長QA「一時停止ボタンは画面外に出したい」
+            // ・2026-09-10）。以前はコースの右下に重ねていたが、ゲームの絵の一部に見えてしまう・
+            // 誤タップで盤面が隠れる、という指摘を受けた。右寄せの専用の行として独立させる。
+            HStack {
+                Spacer(minLength: 0)
+                pauseButton
+            }
             secondaryInfo
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
@@ -295,12 +302,6 @@ public struct RunnerView: View {
         .accessibilityHint("ダブルタップでジャンプ")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.press(); model.release() }
-        // 一時停止は右上のヘッダーではなく、コースの右下に浮かせる（会長QA「右上は片手操作で押せない」）。
-        // 親指の自然なリーチに合わせる。`.accessibilityElement()` の**あとに**重ねることで、
-        // コース本体の1個の要素（ジャンプ）に飲み込まれず、独立した VoiceOver 要素のまま残る。
-        .overlay(alignment: .bottomTrailing) {
-            pauseButton.padding(10)
-        }
     }
 
     /// 押している間だけ高く跳べるので、押し下げと離しの両方を拾う。
