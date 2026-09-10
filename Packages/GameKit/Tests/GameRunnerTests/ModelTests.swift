@@ -111,6 +111,29 @@ struct RunnerModelTests {
         autoPlayCurrentStage(model)
         #expect(model.best(forStage: 1) == max(1, Int(model.elapsed)))
     }
+
+    /// QA用ショーケース（`-simulateRunner showcase`）は `stageNumber` を動かさない差し替えなので、
+    /// クリアしても実ステージの記録・スコア送信を汚してはいけない（CodeRabbit指摘）。
+    @Test("QAショーケースのクリアは通常ステージの記録を書き換えない")
+    func showcaseClearDoesNotTouchRealStageRecord() {
+        let gameCenter = SpyGameCenterService()
+        let model = RunnerModel(
+            services: makeServices(gameCenter: gameCenter),
+            startingAt: 3,
+            preference: makePreference("showcase")
+        )
+        autoPlayCurrentStage(model)
+        model.replayCurrentStage()
+        guard let realBest = model.best(forStage: 3) else { Issue.record("記録されていない"); return }
+        let scoreCountBefore = gameCenter.scores.count
+
+        model.applyDebugScenario("showcase")
+        autoPlayCurrentStage(model)
+
+        #expect(model.phase == .allCleared, "ショーケースのクリアは全クリア扱いで打ち切る")
+        #expect(model.best(forStage: 3) == realBest, "ショーケースのクリアで実ステージの記録が書き換わってはいけない")
+        #expect(gameCenter.scores.count == scoreCountBefore, "ショーケースのクリアでスコアを送信してはいけない")
+    }
 }
 
 @Suite("チャリンコおじさん: チェックポイント再開")

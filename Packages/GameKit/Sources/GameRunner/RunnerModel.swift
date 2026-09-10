@@ -281,6 +281,16 @@ public final class RunnerModel {
     }
 
     private func clearStage() {
+        #if DEBUG
+        // QA用ショーケース（`RunnerStage.debugShowcase`、`number == 0`）は `stageNumber` を
+        // 動かさない差し替えなので、ここを素通りすると**通常ステージの記録を誤って上書きする**
+        // （CodeRabbit指摘）。ショーケースのクリアは記録を一切書かずに打ち切る。
+        guard field.stage.number > 0 else {
+            services?.feedback.notify(.success)
+            phase = .allCleared
+            return
+        }
+        #endif
         // **表示と同じ切り捨て**にする。四捨五入すると、画面の「0:22」に対して記録が
         // 「23秒」になって食い違う（最初の実機確認で判明）。
         let seconds = max(1, Int(elapsed))
