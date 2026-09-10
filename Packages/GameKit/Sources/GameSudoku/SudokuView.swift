@@ -256,23 +256,28 @@ public struct SudokuView: View {
     }
 
     /// 3×3 ブロックの太線。マスの枠とは別に上から引く（マス側で描くと隣と二重になる）。
+    ///
+    /// **外周だけは直線ではなく角丸の枠で描く**（会長QA #595-1）。盤は `Theme.cornerSmall` の
+    /// 角丸で切り抜いてあるため、端に置いた直線は 4 隅で切り落とされ、隅の枠が消えて見える。
+    /// 切り抜きと同じ角丸を `strokeBorder`（内側に引く）で描けば、隅まで途切れない。
     private func blockLines(cellSide: CGFloat) -> some View {
         let full = cellSide * CGFloat(SudokuEngine.size)
         return ZStack(alignment: .topLeading) {
-            ForEach(0...3, id: \.self) { i in
-                let offset = cellSide * CGFloat(i * 3)
+            ForEach(SudokuMetrics.innerBlockLineIndices, id: \.self) { i in
                 Rectangle()
                     .fill(Theme.ink)
                     .frame(width: full, height: SudokuMetrics.blockBorderWidth)
-                    .offset(y: min(offset, full - SudokuMetrics.blockBorderWidth))
+                    .offset(y: cellSide * CGFloat(i * 3))
             }
-            ForEach(0...3, id: \.self) { i in
-                let offset = cellSide * CGFloat(i * 3)
+            ForEach(SudokuMetrics.innerBlockLineIndices, id: \.self) { i in
                 Rectangle()
                     .fill(Theme.ink)
                     .frame(width: SudokuMetrics.blockBorderWidth, height: full)
-                    .offset(x: min(offset, full - SudokuMetrics.blockBorderWidth))
+                    .offset(x: cellSide * CGFloat(i * 3))
             }
+            RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                .strokeBorder(Theme.ink, lineWidth: SudokuMetrics.blockBorderWidth)
+                .frame(width: full, height: full)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
