@@ -196,6 +196,15 @@ struct RunnerStageTests {
         // 全ステージが同じ割合だと「固定の数字」に見え、標識にする意味が薄れる。
         #expect(percents.count > 1, "全ステージの到達率が同じ値になっている")
     }
+
+    /// `init` は空の `pattern` を受け取れる。`length` が 0 になると `checkpoint / length` が
+    /// NaN になり、`Int(_:)` の変換でクラッシュする（CodeRabbit 指摘・Major）。
+    @Test("長さ 0 のステージでも到達率の計算が落ちない")
+    func checkpointPercentIsSafeForEmptyPattern() {
+        let stage = RunnerStage(number: 0, pattern: "", speed: RunnerRules.baseSpeed)
+        #expect(stage.length == 0)
+        #expect(stage.checkpointPercent == 0)
+    }
 }
 
 /// 全ステージを実際に走り切れることの実証（#494 の受け入れ条件1）。
