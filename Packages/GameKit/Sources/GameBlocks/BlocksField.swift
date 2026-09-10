@@ -76,16 +76,20 @@ public struct BlocksField: Equatable, Sendable {
         /// `.aspectRatio(_:contentMode: .fit)` が行う計算そのもので、幅ごとの見え方を
         /// テストで固定するために値として取り出している。**縦で頭打ちになると横幅が余る**ので、
         /// 対象実機の枠を入れて余りが許容範囲かを `BlocksLayoutTests` が確かめる。
+        /// `ratio` は縦横比（幅 / 高さ）。既定は盤の比で、**テストが正方形以外の比でも
+        /// 頭打ちの向きを確かめられる**よう引数にしてある（現在の盤は 100 × 100 なので、
+        /// 比が 1 のままだと幅と高さを取り違えても結果が変わらず、変異を見逃す）。
         public static func boardSize(
             availableWidth: Double,
-            availableHeight: Double
+            availableHeight: Double,
+            ratio: Double = aspectRatio
         ) -> (width: Double, height: Double) {
-            guard availableWidth > 0, availableHeight > 0 else { return (0, 0) }
-            let heightLimited = availableHeight * aspectRatio
+            guard availableWidth > 0, availableHeight > 0, ratio > 0 else { return (0, 0) }
+            let heightLimited = availableHeight * ratio
             if heightLimited <= availableWidth {
                 return (heightLimited, availableHeight)
             }
-            return (availableWidth, availableWidth / aspectRatio)
+            return (availableWidth, availableWidth / ratio)
         }
 
         /// 「タップで発射」の札を盤の下端から浮かせる高さ（抽象単位）。

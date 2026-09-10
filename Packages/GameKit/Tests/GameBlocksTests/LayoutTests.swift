@@ -12,7 +12,8 @@ struct BlocksLayoutTests {
 
     /// 対象実機で `playfield` に渡っている枠（pt）。
     ///
-    /// 2026-09-11 に Debug ビルドを `-startGame blocks -simulateBlocks playing` で起動して実測した値。
+    /// **2026-09-11 04:00 JST**（= 2026-09-10 19:00 UTC）に Debug ビルドを
+    /// `-startGame blocks -simulateBlocks playing` で起動して実測した値。
     /// 幅は「画面幅 - `.padding()` の左右 16pt ずつ」。高さは、盤の比を極端に縦長（400）にした
     /// プローブビルドで盤が縦いっぱいに伸びたときの高さ（横で頭打ちになる機種は、
     /// 実測できた盤の高さ = 使える高さの**下限**を入れてある。狭いほうへ倒しているので、
@@ -72,7 +73,10 @@ struct BlocksLayoutTests {
         }
     }
 
-    /// 幅・高さのどちらで頭打ちになっても、返す枠は必ず `aspectRatio` を保つ。
+    /// 幅・高さのどちらで頭打ちになっても、返す枠は必ず比を保つ。
+    ///
+    /// **比は 1 以外も入れて確かめる**。現在の盤は 100 × 100 なので、比が 1 のままだと
+    /// `boardSize` の中で幅と高さを取り違えても結果が変わらず、変異を見逃す。
     @Test("極端に横長・縦長の枠でも比を保って収まる")
     func boardSizeHandlesExtremeBoxes() {
         let wide = BlocksField.Metrics.boardSize(availableWidth: 2000, availableHeight: 100)
@@ -83,9 +87,27 @@ struct BlocksLayoutTests {
         #expect(abs(tall.width - 100) < 1e-9, "横で頭打ちになるはずが横を使い切っていない")
         #expect(tall.height <= 2000)
 
+        // #597 以前の縦長の比（100 : 150）で、頭打ちの向きと返す値を確かめる。
+        let legacyRatio = 100.0 / 150.0
+        let heightLimited = BlocksField.Metrics.boardSize(
+            availableWidth: 370, availableHeight: 428, ratio: legacyRatio
+        )
+        #expect(abs(heightLimited.height - 428) < 1e-9)
+        #expect(abs(heightLimited.width - 428 * legacyRatio) < 1e-9)
+
+        let widthLimited = BlocksField.Metrics.boardSize(
+            availableWidth: 200, availableHeight: 1000, ratio: legacyRatio
+        )
+        #expect(abs(widthLimited.width - 200) < 1e-9)
+        #expect(abs(widthLimited.height - 200 / legacyRatio) < 1e-9)
+
         // 枠が無いときは 0 を返す（GeometryReader の初回など）。
         #expect(BlocksField.Metrics.boardSize(availableWidth: 0, availableHeight: 300) == (0, 0))
         #expect(BlocksField.Metrics.boardSize(availableWidth: 300, availableHeight: 0) == (0, 0))
+        #expect(
+            BlocksField.Metrics.boardSize(availableWidth: 300, availableHeight: 300, ratio: 0)
+                == (0, 0)
+        )
     }
 
     /// 盤が広がっても、バーと玉は盤に対する比で描かれるので見た目の比率は変わらない。
@@ -140,18 +162,44 @@ struct BlocksLayoutTests {
         )
     }
 
-    /// 盤を低くすると、ブロックの最下段からパドルまでの距離＝落球までの猶予が縮む。
-    /// **速さを据え置くとここだけが静かに厳しくなる**ので、時間で固定しておく。
-    @Test("いちばん段数の多いステージでも落球までの猶予が1秒を切らない")
-    func fallingGraceStaysAboveOneSecond() {
-        let deepest = BlocksStage.all.max { $0.rows.count < $1.rows.count }!
-        let lowest = BlocksField.blockRect(row: deepest.rows.count - 1, column: 0).minY
-        let travel = lowest - BlocksField.Metrics.restingBallY
-        let grace = travel / BlocksStage.baseSpeed
-        #expect(
-            grace >= 1.0,
-            "ステージ\(deepest.number)（\(deepest.rows.count)段）の猶予が \(grace) 秒しかない"
-        )
+    /// #597 以前の盤の値。難度を比べる基準として残す。
+    private enum Legacy {
+        static let height: Double = 150
+        static let topMargin: Double = 14
+        static let baseSpeed: Double = 70
+        static let speedStep: Double = 4
+    }
+
+    /// 盤を低くすると、ブロックの最下段からパドルまでの距離＝**落球までの猶予**が縮む。
+    /// 速さを据え置くとここだけが静かに厳しくなるので、**全ステージぶん**時間で固定する。
+    ///
+    /// ステージごとに段数も速さも違うため、代表 1 面だけを見てはいけない。可動域の縮み方は
+    /// 段数によって違い（3 段で 0.61 倍・7 段で 0.52 倍）、速さは終盤ほど上がるので、
+    /// **段数が多く速さも上がる終盤ステージがいちばん厳しくなる**。ここを見落とすと
+    /// 「難度は変えていない」という説明が終盤だけ成り立たなくなる。
+    @Test("どのステージでも落球までの猶予が #597 以前と変わらない")
+    func fallingGraceMatchesTheOldBoard() {
+        for stage in BlocksStage.all {
+            let rows = Double(stage.rows.count)
+            let ballTop = BlocksField.Metrics.restingBallY
+
+            let travel = BlocksField.blockRect(row: stage.rows.count - 1, column: 0).minY - ballTop
+            let grace = travel / stage.ballSpeed
+
+            let legacyTravel = Legacy.height - Legacy.topMargin
+                - rows * BlocksField.Metrics.blockHeight - ballTop
+            let legacySpeed = Legacy.baseSpeed + Double(stage.number - 1) * Legacy.speedStep
+            let legacyGrace = legacyTravel / legacySpeed
+
+            let ratio = grace / legacyGrace
+            #expect(
+                ratio >= 0.95 && ratio <= 1.15,
+                """
+                ステージ\(stage.number)（\(stage.rows.count)段・速さ \(stage.ballSpeed)）の猶予が \
+                \(grace) 秒。#597 以前は \(legacyGrace) 秒だったので \(ratio) 倍になっている
+                """
+            )
+        }
     }
 
     /// 天井とブロックのあいだは、球が回り込めるだけ空けておく（ブロック崩しの定石ルート）。
