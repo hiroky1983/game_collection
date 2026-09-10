@@ -91,25 +91,9 @@ public struct MahjongView: View {
         // 局面 → リザルトの差し替えは、入れ替わる枝ではなく残り続ける親に置く（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
         // ナビバーの既定の白背景がコンテンツのクリーム背景と食い違い、画面上部だけ白い帯に
         // 見えていた（会長指摘）。背景色を揃えて帯の境目を消す。
-        .toolbarBackground(Theme.background, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("麻雀")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "麻雀", review: services.review, matchesNavigationBarBackground: true) {
             // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
             // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
             // 早見表をここに置く（#501。花札 #495 と同じ置き方）。ツールバーは `Label` を

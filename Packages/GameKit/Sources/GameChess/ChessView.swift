@@ -15,7 +15,6 @@ public struct ChessView: View {
     @State private var pieceLayout: ChessPieceLayout
     /// 表示中の「チェック」の合図の契機 ID。nil なら出していない。
     @State private var checkBannerID: Int?
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -49,21 +48,7 @@ public struct ChessView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("チェス")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "チェス", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.phase == .playing && !model.moves.isEmpty {

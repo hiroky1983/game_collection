@@ -17,7 +17,6 @@ public struct BlocksView: View {
     /// 確認ダイアログを出すために**自分で**止めたか（#515）。
     /// 元から一時停止中だった場合まで再開してしまわないよう区別する。
     @State private var pausedForNewGameConfirm = false
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -37,21 +36,7 @@ public struct BlocksView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("ブロック崩し")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "ブロック崩し", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { startNewGame() } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
@@ -367,11 +352,8 @@ public struct BlocksView: View {
         }
     }
 
-    /// レコメンドカードの枠。**カードの有無で高さが動かない**ようひな形で確保する（#148）。
+    /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
     private var recommendationArea: some View {
-        ZStack(alignment: .top) {
-            RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: model.phase.isFinished)
-        }
+        RecommendationArea(services: services, isFinished: model.phase.isFinished)
     }
 }

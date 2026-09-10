@@ -7,7 +7,6 @@ public struct Game2048View: View {
     @State private var model: Game2048Model
     /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var continueRescue = RewardedRescue()
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -27,21 +26,7 @@ public struct Game2048View: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("2048")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "2048", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { withGameAnimation { model.newGame() } } label: {
                     Label("リセット", systemImage: "arrow.clockwise")
@@ -64,19 +49,13 @@ public struct Game2048View: View {
         .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
     }
 
-    /// レコメンドカードの枠。**カードの有無で高さが動かない**ように、常にひな形で
-    /// 高さを確保しておく（#148）。
+    /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
     ///
-    /// ここが伸びると `boardView`（`aspectRatio(1, .fit)`）が帳尻合わせに縮み、
-    /// ゲームオーバーの瞬間に盤面が一段小さくなって見える。カードは出るとは限らず
-    /// ×でも閉じられるため、条件付きで高さを足すのでは安定しない。
+    /// 2048 到達も「決着」なのでレコメンドの対象になる（#438）。ここを `gameOver` だけで
+    /// 見ていると、提示カウント（`markShown`）だけ消費してカードが一度も出ない。
     private var recommendationArea: some View {
-        ZStack(alignment: .top) {
-            RecommendationCard.heightPlaceholder
-            // 2048 到達も「決着」なのでレコメンドの対象になる（#438）。ここを `gameOver` だけで
-            // 見ていると、提示カウント（`markShown`）だけ消費してカードが一度も出ない。
-            RecommendationSlot(services: services, isFinished: model.gameOver || model.showWinPrompt)
-        }
+        RecommendationArea(services: services,
+                           isFinished: model.gameOver || model.showWinPrompt)
     }
 
     private var header: some View {

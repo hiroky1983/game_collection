@@ -4,7 +4,6 @@ import Core
 public struct BlackjackView: View {
     @State private var model: BlackjackModel
     private let services: GameServices
-    @Environment(\.dismiss) private var dismiss
     /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
     /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
@@ -42,22 +41,7 @@ public struct BlackjackView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("ブラックジャック")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
-        }
+        .gameChrome(title: "ブラックジャック", review: services.review)
         .howToPlay(.blackjack)
         .onAppear {
             #if DEBUG

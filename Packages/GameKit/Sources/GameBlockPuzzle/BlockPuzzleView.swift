@@ -14,7 +14,6 @@ public struct BlockPuzzleView: View {
     @State private var boardOrigin: CGPoint = .zero
     @State private var cellSize: CGFloat = 0
     @State private var drag: DragState?
-    @Environment(\.dismiss) private var dismiss
 
     /// 盤と手元を同じ物差しで測るための座標空間。
     private static let space = "blockpuzzle"
@@ -47,21 +46,7 @@ public struct BlockPuzzleView: View {
         .coordinateSpace(name: Self.space)
         // ドラッグ中のピースは盤にも手元にも属さないので、画面全体の上に別に描く。
         .overlay(alignment: .topLeading) { dragPreview }
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("ブロックならべ")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "ブロックならべ", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { withGameAnimation { model.newGame() } } label: {
                     Label("リセット", systemImage: "arrow.clockwise")
@@ -243,12 +228,9 @@ public struct BlockPuzzleView: View {
 
     // MARK: - レコメンド・ゲームオーバー
 
-    /// レコメンドカードの枠。カードの有無で高さが動かないよう、常にひな形で高さを確保する（#148）。
+    /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
     private var recommendationArea: some View {
-        ZStack(alignment: .top) {
-            RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: model.gameOver)
-        }
+        RecommendationArea(services: services, isFinished: model.gameOver)
     }
 
     private var gameOverOverlay: some View {

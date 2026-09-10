@@ -19,7 +19,6 @@ public struct RunnerView: View {
     /// 一時停止ボタンが遠い」という会長QA（2026-09-10）を受け、既定は現在のステージの
     /// ベストだけを1行で見せ、15個のチップ一覧は開いたときだけ場所を取るようにした。
     @State private var showsAllBestTimes = false
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -47,21 +46,7 @@ public struct RunnerView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("チャリンコおじさん")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "チャリンコおじさん", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { model.newGame() } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
@@ -473,12 +458,9 @@ public struct RunnerView: View {
         return String(format: "%d:%02d", value / 60, value % 60)
     }
 
-    /// レコメンドカードの枠。**カードの有無で高さが動かない**ようひな形で確保する（#148）。
+    /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
     private var recommendationArea: some View {
-        ZStack(alignment: .top) {
-            RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: model.phase == .allCleared)
-        }
+        RecommendationArea(services: services, isFinished: model.phase == .allCleared)
     }
 
     /// 遊び方のヒントとレコメンドは、プレイ中に何度も見るものではないので

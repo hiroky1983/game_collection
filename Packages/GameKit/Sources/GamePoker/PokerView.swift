@@ -4,7 +4,6 @@ import Core
 public struct PokerView: View {
     @State private var model: PokerModel
     private let services: GameServices
-    @Environment(\.dismiss) private var dismiss
     @State private var showStartSheet = true
     @State private var hasPlayedOnce = false
     @State private var revealCPU = false
@@ -54,21 +53,7 @@ public struct PokerView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("ポーカー")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "ポーカー", review: services.review) {
             // 配当表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
             if model.rules == .bonus {
                 ToolbarItem(placement: .primaryAction) {
