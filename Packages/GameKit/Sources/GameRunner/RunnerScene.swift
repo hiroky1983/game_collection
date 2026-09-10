@@ -91,6 +91,9 @@ final class RunnerScene: SKScene {
     private var lastUpdate: TimeInterval?
     /// コースのノードを作り直した時点の `RunnerModel.runGeneration`。
     private var renderedGeneration = -1
+    /// 直前の `sync()` で見た `phase`。`.falling` に入った最初のフレームだけ落下演出を
+    /// 発火させるための「前回反映した世代」パターン（`renderedGeneration` と同じ考え方）。
+    private var lastSyncedPhase: RunnerPhase = .ready
 
     /// コース（地面・障害物・ゴール）。走者は動かさず、こちらを左へ流す。
     private let courseLayer = SKNode()
@@ -442,9 +445,15 @@ final class RunnerScene: SKScene {
         pickupNodes = stage.pickups.map { addPickup($0) }
         removedPickupCount = 0
 
-        addCheckpointMarker(at: stage.checkpoint)
+        addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
         addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
+        // 新しい走行の頭（もう一度・はじめから等）。前回の落下演出が沈める・フェードして
+        // 終わった見た目のままだと、次の挑戦の走者が透けた/縮んだ状態で始まってしまう。
+        player.removeAllActions()
+        player.alpha = 1
+        player.xScale = 1
+        player.yScale = 1
     }
 
     /// 障害物（岩）。平らな矩形1枚だと「何なのか分からない」というQAを受け、
@@ -598,10 +607,18 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(top)
     }
 
-    /// チェックポイントの目印。「緑の棒が何なのか分からない」というQAを受け、
-    /// 柱だけでなく丸いバッジを付けた（ゴールの三角旗とは形で見分けが付く）。
+    /// チェックポイントの目印。丸いバッジだけでは「これが何なのか分からない」というQAを受け、
+    /// マラソンの距離標識のように**そのステージで実際に計算された到達率**を数字で出す板に
+    /// 変えた（会長QA「50%と書かれた旗とか」——ただし実際の到達率は `checkpointPercent` の
+    /// とおりステージごとに違うので、固定の "50%" ではなくその値をそのまま表示する）。
+    /// 板は矩形・柱も矩形で「丸と長方形だけ」の意匠制約（#494）を保ったまま、
+    /// ゴールの三角旗（`addGoalMarker`）とは形・色の両方で見分けが付く。
     /// ここより先で失敗すると、広告視聴でここから再開できる（`RunnerModel.canResumeFromCheckpoint`）。
-    private func addCheckpointMarker(at x: Double) {
+    ///
+    /// **数字はこの標識自体の意味そのもの**（盤面の説明の重複ではない）なので、
+    /// 「SpriteKit の中に文字は描かない」（`RunnerAccessibility` の方針）はここでは適用しない。
+    /// 読み上げは従来どおり `RunnerAccessibility.progressLabel` が進み具合として担う。
+    private func addCheckpointMarker(at x: Double, percent: Int) {
         let pole = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.checkpoint),
             size: CGSize(width: 1, height: 9)
@@ -610,12 +627,23 @@ final class RunnerScene: SKScene {
         pole.position = CGPoint(x: x, y: Metrics.groundY)
         courseLayer.addChild(pole)
 
-        let badge = SKShapeNode(circleOfRadius: 1.6)
-        badge.fillColor = RunnerPalette.color(RunnerPalette.checkpoint)
-        badge.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
-        badge.lineWidth = 0.4
-        badge.position = CGPoint(x: x, y: Metrics.groundY + 9)
-        courseLayer.addChild(badge)
+        let signCenter = CGPoint(x: x, y: Metrics.groundY + 9)
+        let sign = SKShapeNode(rectOf: CGSize(width: 6.6, height: 3.6), cornerRadius: 0.6)
+        sign.fillColor = RunnerPalette.color(RunnerPalette.checkpoint)
+        sign.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
+        sign.lineWidth = 0.4
+        sign.position = signCenter
+        courseLayer.addChild(sign)
+
+        let label = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
+        label.text = "\(percent)%"
+        label.fontSize = 2.5
+        label.fontColor = RunnerPalette.color(RunnerPalette.wheel)
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        label.position = signCenter
+        label.zPosition = 1
+        courseLayer.addChild(label)
     }
 
     /// ゴールの目印（旗）。細い柱だけでは「何のオブジェクトか分からない」というQAを受け、
@@ -654,15 +682,28 @@ final class RunnerScene: SKScene {
         }
         // 走者の画面上の x は動かさず、コースのほうを左へ流す。
         courseLayer.position = CGPoint(x: Metrics.playerX - field.distance, y: 0)
-        player.position = CGPoint(x: Metrics.playerX, y: field.footY)
-        // 車輪は進んだ距離ぶんだけ回す（半径 2.6 の円周で 1 回転）。
-        let angle = -field.distance / 2.6
-        frontWheel.zRotation = CGFloat(angle)
-        rearWheel.zRotation = CGFloat(angle)
-        syncPedaling(field)
-        // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
-        player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
-        syncPickups(field)
+        if model.phase == .falling {
+            // ミスした瞬間に `field` は凍る（`RunnerModel.tick` が `field.step` を呼ばなくなる）ので
+            // 値は変わらない。最初のフレームだけ、ミスした瞬間の位置・向きへきっちり合わせてから
+            // 演出を始める（以後 `player.position` / `.zRotation` はここでは触らず、演出の
+            // `SKAction` に専有させる。毎フレーム上書きすると動きが打ち消される）。
+            if lastSyncedPhase != .falling {
+                player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+                player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
+                playFallAnimation()
+            }
+        } else {
+            player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+            // 車輪は進んだ距離ぶんだけ回す（半径 2.6 の円周で 1 回転）。
+            let angle = -field.distance / 2.6
+            frontWheel.zRotation = CGFloat(angle)
+            rearWheel.zRotation = CGFloat(angle)
+            syncPedaling(field)
+            // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
+            player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
+            syncPickups(field)
+        }
+        lastSyncedPhase = model.phase
     }
 
     /// 取得済みのピックアップのノードを消す。走者は後退しないので、`collectedPickupCount` は
@@ -674,6 +715,25 @@ final class RunnerScene: SKScene {
             removePickupNode(pickupNodes[i])
         }
         removedPickupCount = field.collectedPickupCount
+    }
+
+    /// 穴に落ちる/ぶつかった瞬間だけ流す演出（`.falling` に入った最初のフレームで 1 回発火）。
+    ///
+    /// 新規アセットは作らず、既存の丸と長方形だけの走者ノード（`player`）をそのまま
+    /// 沈める・回す・フェードする。当たり判定・進行のタイミングは `RunnerModel` 側の
+    /// `RunnerRules.fallDuration` が決めており、ここは見た目だけを作る。
+    private func playFallAnimation() {
+        player.removeAllActions()
+        let duration = RunnerRules.fallDuration
+        let sink = SKAction.moveBy(x: 0, y: -3.5, duration: duration)
+        let topple = SKAction.rotate(byAngle: .pi * 0.55, duration: duration)
+        let fade = SKAction.sequence([
+            .wait(forDuration: duration * 0.35),
+            .fadeAlpha(to: 0.1, duration: duration * 0.65),
+        ])
+        sink.timingMode = .easeIn
+        topple.timingMode = .easeIn
+        player.run(.group([sink, topple, fade]))
     }
 
     /// 漕ぐ脚を進める（#569）。

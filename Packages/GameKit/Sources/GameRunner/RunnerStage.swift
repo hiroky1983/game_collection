@@ -122,6 +122,14 @@ public enum RunnerRules {
     /// 当たり判定が意味を失う。上限を掛けると**進みが遅くなるだけ**で、すり抜けは起きない。
     public static let maxStep: Double = 1.0 / 20
 
+    // MARK: 落下演出
+
+    /// 穴に落ちた/ぶつかった瞬間から失敗パネルを出すまでの間（秒）。
+    ///
+    /// この間は `RunnerPhase.falling` に留まり、`RunnerScene` が短い演出（沈む・回転・フェード）を
+    /// 1 回だけ流す。会長QA「穴に落ちるアニメーションがある方がいいかも」を受けて追加。
+    public static let fallDuration: Double = 0.5
+
     /// 総ステージ数。
     public static var stageCount: Int { RunnerStage.all.count }
 }
@@ -163,6 +171,20 @@ public struct RunnerStage: Equatable, Sendable {
     /// 中点から右へずらしながら、障害と重ならず着地に必要な余白もある位置を探す。
     /// 走行中に毎サブステップ参照するので、初期化時に 1 度だけ求めて持つ。
     public let checkpoint: Double
+
+    /// チェックポイントの到達率（`checkpoint / length` を四捨五入した整数パーセント）。
+    ///
+    /// `makeCheckpoint` が障害を避けて中点から後ろへずらすため、ステージによって
+    /// ちょうど 50% とは限らない（40〜90% 程度でばらつく）。見た目の標識にはこの
+    /// 実際の値をそのまま出す——「50% と書かれた旗」のように固定の数字に見せない
+    /// （会長QA「中間地点のデザインも変えたほうがいい。現状何なのかわからん」への対応）。
+    ///
+    /// 空の `pattern` で作られたステージは `length` が 0 になる。`0 / 0` は NaN で、
+    /// `Int(_:)` は NaN を変換できずクラッシュするため、その場合は 0 を返す。
+    public var checkpointPercent: Int {
+        guard length > 0 else { return 0 }
+        return Int((checkpoint / length * 100).rounded())
+    }
 
     public init(number: Int, pattern: String, speed: Double) {
         self.number = number

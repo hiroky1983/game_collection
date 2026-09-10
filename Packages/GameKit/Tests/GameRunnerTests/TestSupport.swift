@@ -64,7 +64,9 @@ func autoPlayCurrentStage(_ model: RunnerModel, maxFrames: Int = 60 * 300) -> Bo
         model.release()
     }
     var frames = 0
-    while model.phase.isRunning, frames < maxFrames {
+    // `.falling` は `isRunning` に含めない（ミス直後の短い演出中はタップ・一時停止を効かせない
+    // ための設計）ので、ここで打ち切らず `.failed` に落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase == .falling, frames < maxFrames {
         frames += 1
         if RunnerAutoPilot.shouldJump(field: model.field) {
             model.press()
@@ -83,7 +85,8 @@ func failCurrentStage(_ model: RunnerModel, stopAfterCheckpoint: Bool = false) {
         model.release()
     }
     var frames = 0
-    while model.phase.isRunning, frames < 60 * 300 {
+    // 同上: `.falling` の演出時間ぶんも回して `.failed` まで進める。
+    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
         frames += 1
         // `stopAfterCheckpoint` のときだけ、チェックポイントを通過するまで自動操縦で走る。
         // それ以外は一度も跳ばないので、最初の障害で必ずミスになる。

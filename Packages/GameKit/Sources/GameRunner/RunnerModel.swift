@@ -43,6 +43,8 @@ public final class RunnerModel {
     /// 押しっぱなしにすると着地のたびに自動で跳んでしまい、「押して伸ばす」操作と
     /// 「跳ぶ」操作が同じ入力で衝突する。
     private var isPressed = false
+    /// `.falling` に入ってからの経過秒。`RunnerRules.fallDuration` に達すると `.failed` へ移る。
+    private var fallElapsed: Double = 0
     /// 一時停止する前の状態。`resume()` で戻す。
     private var phaseBeforePause: RunnerPhase = .ready
     private let services: GameServices?
@@ -190,6 +192,13 @@ public final class RunnerModel {
     /// 速さだけを落とすとジャンプの飛距離が縮み、易しくするはずの設定が
     /// 「穴を跳び越せない = クリア不能」に変わる。
     public func tick(dt: Double) {
+        if phase == .falling {
+            // 演出中は `field.step` を呼ばない。物理を進め続けると走者が穴の底・画面外まで
+            // 無限に落ち続けてしまう（`field` はミスした瞬間の状態で凍らせたままにする）。
+            fallElapsed += dt
+            if fallElapsed >= RunnerRules.fallDuration { phase = .failed }
+            return
+        }
         guard phase.isRunning else { return }
         #if DEBUG
         // 撮影用に止めているあいだは進めない（下記 `applyDebugScenario` を参照）。
@@ -261,6 +270,7 @@ public final class RunnerModel {
         phase = .ready
         isPressed = false
         elapsed = 0
+        fallElapsed = 0
         recordResult = nil
         didSetBestTime = false
         persist()
@@ -275,7 +285,9 @@ public final class RunnerModel {
         case .collectedSpeedItem:
             services?.feedback.impact(.light)
         case .fell, .crashed:
-            phase = .failed
+            // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
+            phase = .falling
+            fallElapsed = 0
             services?.feedback.notify(.error)
         case .reachedGoal:
             clearStage()
@@ -393,14 +405,19 @@ public final class RunnerModel {
         phase = .ready
         isPressed = false
         elapsed = 0
+        fallElapsed = 0
         recordResult = nil
         didSetBestTime = false
     }
 
     /// 指定秒ぶん 60fps で進める。
+    ///
+    /// `.falling` は `isRunning` に含めていないので、ミスの演出中で止まらないよう
+    /// ループの継続条件にも加える（そうしないと `-simulateRunner failed` が `.falling` で
+    /// 止まってしまい `.failed` の画が撮れない）。
     private func advanceFramesForDebug(seconds: Double) {
         var remaining = seconds
-        while remaining > 0, phase.isRunning {
+        while remaining > 0, phase.isRunning || phase == .falling {
             tick(dt: 1.0 / 60)
             remaining -= 1.0 / 60
         }
