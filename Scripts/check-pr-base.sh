@@ -35,12 +35,35 @@ fi
 # 公開後の取り込み（release/vX.Y.Z → main）は規程が定める正規の経路で、
 # 当然アプリコードを含む。凍結済み release ブランチは push できないため中間ブランチを
 # 経由することがあり（#558 の chore/merge-release-v113-to-main）、その形も通す。
+#
+# **バージョン番号の形まで見る**。`release/*` の前方一致だけにすると、`release/` で始まる
+# 名前を付けるだけでこのチェックを迂回できてしまい、ラベル方式を退けた理由（付け方次第で
+# 歯止めが黙って無効になる）がそのまま残る。通すのは X.Y.Z の3要素だけ。
+is_version() {
+  local v="$1" dots
+  case "$v" in
+    ""|*[!0-9.]*|.*|*.|*..*) return 1 ;;
+  esac
+  dots="${v//[!.]/}"
+  [ "${#dots}" = 2 ]
+}
+
+TAKEOVER=""
 case "$HEAD_REF" in
-  release/*|chore/merge-release-*)
-    echo "check-pr-base: head が [$HEAD_REF] で release の取り込み経路のため検証しません"
-    exit 0
+  release/v*)              is_version "${HEAD_REF#release/v}" && TAKEOVER="release ブランチ" ;;
+  chore/merge-release-v*)
+    # #558 の形（chore/merge-release-v113-to-main）。バージョンはドット無しで書かれる。
+    rest="${HEAD_REF#chore/merge-release-v}"
+    case "$rest" in
+      [0-9]*-to-main) TAKEOVER="凍結回避の中間ブランチ" ;;
+    esac
     ;;
 esac
+
+if [ -n "$TAKEOVER" ]; then
+  echo "check-pr-base: head が [$HEAD_REF]（$TAKEOVER）で release の取り込み経路のため検証しません"
+  exit 0
+fi
 
 if [ -n "$FILES_PATH" ]; then
   if [ ! -f "$FILES_PATH" ]; then

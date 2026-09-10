@@ -51,9 +51,20 @@ check "head が release/v1.1.3"                  0 main "release/v1.1.3" "App/Hu
 check "head が凍結回避の中間ブランチ（#558）"    0 main "chore/merge-release-v113-to-main" "Packages/GameKit/Sources/Core/Theme.swift"
 
 echo "== 5. 取り込み経路に見せかけた迂回は通さない =="
-# 前方一致で判定しているので、release/ で「始まる」かどうかが要点になる。
+# ブランチ名は PR を出す側が自由に決められるので、**バージョン番号の形まで**見て初めて
+# 歯止めになる。`release/` の前方一致だけだと、その名前を付けるだけで素通しできてしまう
+# （#607 の敵対的検証の指摘）。
 check "head 名に release を含むだけ（fix/release-note）" 1 main "fix/release-note" "App/HubView.swift"
 check "head 名が my-release/v1.1.4"                       1 main "my-release/v1.1.4" "App/HubView.swift"
+check "release/ で始まるだけの作業ブランチ"               1 main "release/whatever" "App/HubView.swift"
+check "release の後にスラッシュが無い（release-v1.1.4）"  1 main "release-v1.1.4" "App/HubView.swift"
+check "release の後にスラッシュが無い（releasehotfix）"   1 main "releasehotfix" "App/HubView.swift"
+check "v が無い（release/1.1.4）"                         1 main "release/1.1.4" "App/HubView.swift"
+check "バージョンが2要素（release/v1.1）"                 1 main "release/v1.1" "App/HubView.swift"
+check "バージョンが4要素（release/v1.1.4.1）"             1 main "release/v1.1.4.1" "App/HubView.swift"
+check "release/vX.Y.Z の後ろに続きがある"                 1 main "release/v1.1.4-hotfix" "App/HubView.swift"
+check "中間ブランチに見せかけた名前"                      1 main "chore/merge-release-vXYZ" "App/HubView.swift"
+check "中間ブランチの語尾が違う"                          1 main "chore/merge-release-v113-to-release" "App/HubView.swift"
 
 echo "== 6. 使い方の誤りは 2 で落ちる（黙って通さない）=="
 check "base が空"  2 "" "feat/x" "App/HubView.swift"

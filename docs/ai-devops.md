@@ -82,8 +82,10 @@
   - **これは CI で機械的に強制する**（2026-09-11 追加・#606）。`.github/workflows/pr-base-guard.yml` が
     base = main の PR を見て、`App/` `Packages/` `project.yml` を含んでいれば落とす
     （判定は `Scripts/check-pr-base.sh`・検証は `Scripts/tests/test-check-pr-base.sh`）。
-    通すのは公開後の取り込み経路だけで、head が `release/*` か、凍結回避の中間ブランチ
-    `chore/merge-release-*` のときに限る。`docs/` `Scripts/` `.github/` `web/` は従来どおり main 直でよい。
+    通すのは公開後の取り込み経路だけで、head が `release/vX.Y.Z` か、凍結回避の中間ブランチ
+    `chore/merge-release-v<数字>-to-main` のときに限る。**バージョン番号の形まで見る**
+    （`release/` の前方一致だけにすると、その名前を付けるだけで歯止めを迂回できる）。
+    `docs/` `Scripts/` `.github/` `web/` は従来どおり main 直でよい。
     **この歯止めが無いあいだ、main 直マージは当番のどの検知にも掛からなかった**: 仕事10
     （取り残しコミット）は「base にも main にも無いコミット」を探すため、main に入ったものは
     構造的に対象外になる。実際に PR #593 / #596 でチャリンコおじさんの6コミットが
