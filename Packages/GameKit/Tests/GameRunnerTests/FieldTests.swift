@@ -112,11 +112,13 @@ struct RunnerFieldTests {
         #expect(trace(jumpAt: 10) != trace(jumpAt: 20), "踏み切りの位置が違えば軌道も違う")
     }
 
-    @Test("押さないジャンプの頂点と滞空時間が定数どおり")
-    func jumpArcMatchesRules() {
+    /// 着地するまで離さなければ（＝十分長く押し続ければ）、切り詰め無しの全弾道になり、
+    /// 頂点と滞空時間が `RunnerRules.jumpApex`/`jumpAirTime` どおりになる。
+    /// `RunnerAutoPilot` が地形のクリア可能性を保証するのもこの軌道（`shouldRelease` 参照）。
+    @Test("十分長く押し続けたジャンプの頂点と滞空時間が定数どおり")
+    func jumpArcMatchesRulesWhenHeldToLanding() {
         var field = RunnerField(stage: flatStage())
         field.jump()
-        field.endHold()
         var apex: Double = 0
         var frames = 0
         while !field.isGrounded, frames < 300 {
@@ -129,35 +131,72 @@ struct RunnerFieldTests {
         #expect(abs(airTime - RunnerRules.jumpAirTime) < 0.02, "滞空 \(airTime)")
     }
 
-    @Test("押し続けると高く跳べる（大ジャンプ）")
-    func holdingJumpsHigher() {
-        func apex(holding: Bool) -> Double {
+    /// 踏み切ってすぐ離しても、`RunnerRules.jumpCutGraceTime` ぶんは自然な弾道のまま
+    /// 上昇してから切り詰められる（会長QA「進まねえ」2026-09-11 への対応。詳細は
+    /// `RunnerRules.jumpCutGraceTime` のドキュメントを参照）。**猶予が明けるより前に離しても
+    /// 結果は変わらない**——`endHold()` を踏み切った直後（0秒）に呼んでも、猶予の終わり
+    /// （`jumpCutGraceTime`）に呼んでも、同じ頂点になる。それでも十分長く押した場合
+    /// （`jumpApex`）よりは明確に低い。
+    @Test("踏み切ってすぐ離しても猶予ぶんの弾道は保証され、全弾道よりは低い")
+    func quickReleaseStillGetsGraceTrajectory() {
+        func apex(releaseAfter delaySeconds: Double) -> Double {
             var field = RunnerField(stage: flatStage())
             field.jump()
-            if !holding { field.endHold() }
+            var released = false
             var top: Double = 0
             var frames = 0
-            while !field.isGrounded, frames < 400 {
+            let step = 1.0 / 2400
+            while !field.isGrounded, frames < 4000 {
                 frames += 1
-                _ = field.step(dt: 1.0 / 240)
+                if !released, Double(frames) * step >= delaySeconds {
+                    field.endHold()
+                    released = true
+                }
+                _ = field.step(dt: step)
                 top = max(top, field.altitude)
             }
             return top
         }
-        #expect(apex(holding: true) > apex(holding: false) + 3)
+        let instantRelease = apex(releaseAfter: 0)
+        let releaseAtGraceEnd = apex(releaseAfter: RunnerRules.jumpCutGraceTime)
+        let graceHeight = RunnerRules.jumpVelocity * RunnerRules.jumpCutGraceTime
+            - RunnerRules.gravity * RunnerRules.jumpCutGraceTime * RunnerRules.jumpCutGraceTime / 2
+        let expectedApex = graceHeight
+            + RunnerRules.jumpCutVelocity * RunnerRules.jumpCutVelocity / (2 * RunnerRules.gravity)
+        #expect(abs(instantRelease - expectedApex) < 0.3, "瞬間リリースの頂点 \(instantRelease)")
+        #expect(abs(releaseAtGraceEnd - expectedApex) < 0.3, "猶予終了時リリースの頂点 \(releaseAtGraceEnd)")
+        #expect(expectedApex < RunnerRules.jumpApex * 0.85, "十分長く押した場合よりはっきり低いこと")
     }
 
-    @Test("押しっぱなしでも浮き続けられない（上限は maxHoldTime）")
-    func holdIsCapped() {
-        var field = RunnerField(stage: flatStage(segments: 30))
-        field.jump()
-        var frames = 0
-        while !field.isGrounded, frames < 60 * 10 {
-            frames += 1
-            _ = field.step(dt: 1.0 / 60)
+    /// 猶予（`jumpCutGraceTime`）を過ぎてから離すほど、すでに `vy` が重力で減っている
+    /// ぶん切り詰めの影響が薄れ、より高く跳べる。猶予明け前はどのタイミングで離しても
+    /// 同じ（上のテスト）だが、猶予を過ぎたあとは連続的に伸びる。
+    @Test("猶予を過ぎてから離すのが遅いほど高く跳べる")
+    func holdingPastGraceLongerJumpsHigher() {
+        func apex(releaseAfter delaySeconds: Double) -> Double {
+            var field = RunnerField(stage: flatStage())
+            field.jump()
+            var released = false
+            var top: Double = 0
+            var frames = 0
+            let step = 1.0 / 2400
+            while !field.isGrounded, frames < 4000 {
+                frames += 1
+                if !released, Double(frames) * step >= delaySeconds {
+                    field.endHold()
+                    released = true
+                }
+                _ = field.step(dt: step)
+                top = max(top, field.altitude)
+            }
+            return top
         }
-        #expect(field.isGrounded, "いつかは必ず着地する")
-        #expect(Double(frames) / 60 < RunnerRules.jumpAirTime + RunnerRules.maxHoldTime * 2)
+        let atGraceEnd = apex(releaseAfter: RunnerRules.jumpCutGraceTime)
+        let midway = apex(releaseAfter: 0.18)
+        let fullHold = apex(releaseAfter: 0.3)
+        #expect(atGraceEnd < midway, "猶予明け直後より、もう少し粘ったほうが高い")
+        #expect(midway < fullHold, "さらに粘ったほうがもっと高い")
+        #expect(abs(fullHold - RunnerRules.jumpApex) < 0.3, "切り詰めが効かなくなる時間まで押せば全弾道")
     }
 
     @Test("空中でも一度だけ二段目を踏み切れる")
@@ -305,6 +344,30 @@ struct RunnerFieldTests {
         #expect(events.contains(.collectedSpeedItem))
         #expect(field.pedalBoost == RunnerRules.maxPedalBoost, "取った瞬間に上限まで乗る")
         #expect(field.collectedPickupCount == 1)
+    }
+
+    /// 乗りがすでに上限（`maxPedalBoost`）まで達している状態で取っても、
+    /// `pedalBoost` 自体は頭打ちのままなので変化しないが、`currentSpeed` は
+    /// `pickupOverboost` の上乗せぶんだけ確実に速くなる（会長QA「取るタイミングが
+    /// 大体もうMAX速度で意味がない」2026-09-10 への対応）。
+    @Test("乗りが上限のときにピックアップを取っても currentSpeed がさらに上がる")
+    func collectingPickupAtMaxBoostStillSpeedsUp() {
+        // 序盤に十分な平地を挟み、ピックアップへ着くころには自然に乗りが上限へ達するようにする。
+        let stage = RunnerStage(number: 1, pattern: "----------s---", speed: 40)
+        guard let pickup = stage.pickups.first else { Issue.record("ピックアップが無い"); return }
+        var field = RunnerField(stage: stage)
+        var speedBeforePickup: Double = 0
+        var events: [RunnerEvent] = []
+        for _ in 0..<6000 where !events.contains(.collectedSpeedItem) {
+            speedBeforePickup = field.currentSpeed
+            events += field.step(dt: 1.0 / 60)
+        }
+        #expect(events.contains(.collectedSpeedItem))
+        #expect(field.pedalBoost == RunnerRules.maxPedalBoost, "前提: 取った時点で乗りは上限に達している")
+        #expect(field.currentSpeed > speedBeforePickup, "上限のまま取っても、取った瞬間は必ず速くなる")
+        // 上乗せは時間で減衰し、やがて元の（上限だけの）速さに戻る。
+        for _ in 0..<Int(RunnerRules.pickupOverboostDuration * 60) + 10 { _ = field.step(dt: 1.0 / 60) }
+        #expect(abs(field.currentSpeed - speedBeforePickup) < 0.5, "上乗せは時間切れで消える")
     }
 
     /// (b) 走者の当たり判定の矩形（幅 8）がピックアップの上を何フレームもまたぐあいだ、

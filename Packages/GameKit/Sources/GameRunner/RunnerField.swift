@@ -56,10 +56,17 @@ public struct RunnerField: Equatable, Sendable {
     public private(set) var isGrounded: Bool
     /// 接地してから使ったジャンプの回数。着地すると 0 に戻る（`RunnerRules.maxJumps` まで）。
     public private(set) var jumpCount: Int
-    /// ジャンプボタンを押し続けているか（大ジャンプ）。
+    /// ジャンプボタンを押し続けているか（大ジャンプ）。**離した瞬間にまだ true なら**、
+    /// `endHold()` が上昇速度を切り詰める（`RunnerRules.jumpCutVelocity`）。
+    /// 着地すると自動的に `false` へ戻る。
     public private(set) var isHolding: Bool
-    /// このジャンプで重力を弱めてきた累計時間。
-    public private(set) var holdElapsed: Double
+    /// 踏み切ってからの経過秒（`isHolding` のあいだだけ進む）。`jumpCutGraceTime` に
+    /// 達するまでは `endHold()` が呼ばれても実際には切り詰めず、猶予が明けた瞬間に
+    /// `pendingCut` があれば切り詰める（会長QA「進まねえ」2026-09-11 への対応。詳細は
+    /// `RunnerRules.jumpCutGraceTime` のドキュメントを参照）。
+    private var holdElapsed: Double = 0
+    /// 猶予中に `endHold()` が呼ばれ、猶予明けに切り詰めを適用すべきか。
+    private var pendingCut: Bool = false
     /// チェックポイントを通過済みか。
     public private(set) var passedCheckpoint: Bool
     /// ペダルの乗り（#569）。1.0 が下限で、`RunnerRules.maxPedalBoost` が上限。
@@ -67,6 +74,15 @@ public struct RunnerField: Equatable, Sendable {
     /// 接地して漕いでいるあいだに上がり、跳んでいるあいだは漕げないので落ちる。
     /// **速さに効くのは接地しているあいだだけ**（`currentSpeed`）。
     public private(set) var pedalBoost: Double
+    /// スピードアップアイテムを取った直後だけ乗る、上限（`maxPedalBoost`）を超える一時的な
+    /// 上乗せ分。時間経過で 0 まで減衰する（`RunnerRules.pickupOverboostDuration`）。
+    ///
+    /// **「もう乗りが上限に達している状態で取っても意味がない」という会長QA
+    /// （2026-09-10）への対応**。`pedalBoost` 自体の上限は変えず、取った瞬間だけ別枠で
+    /// 上乗せすることで、どんな乗り具合で取っても必ず体感できる加速になる。
+    public private(set) var pickupOverboost: Double = 0
+    /// `pickupOverboost` が 0 になるまでの残り秒数。
+    private var pickupOverboostRemaining: Double = 0
     /// 取得済みのスピードアップアイテムの数。まだ消していないノードを消すのに描画側が使う。
     public private(set) var collectedPickupCount: Int = 0
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
@@ -86,7 +102,6 @@ public struct RunnerField: Equatable, Sendable {
         self.isGrounded = true
         self.jumpCount = 0
         self.isHolding = false
-        self.holdElapsed = 0
         self.passedCheckpoint = passedCheckpoint
         self.pedalBoost = 1
     }
@@ -103,8 +118,11 @@ public struct RunnerField: Equatable, Sendable {
     ///
     /// **空中では必ず `stage.speed`**（ペダルを漕げないので乗りが効かない・#569）。
     /// この一点で「跳んで進む距離 = `speed × 滞空時間`」が乗りに左右されなくなり、
-    /// ステージの成立条件（`RunnerStageTests`）を丸ごと据え置ける。
-    public var currentSpeed: Double { isGrounded ? stage.speed * pedalBoost : stage.speed }
+    /// ステージの成立条件（`RunnerStageTests`）を丸ごと据え置ける。`pickupOverboost` も
+    /// 同じ理由で接地中にしか効かせない。
+    public var currentSpeed: Double {
+        isGrounded ? stage.speed * (pedalBoost + pickupOverboost) : stage.speed
+    }
 
     /// 走者の当たり判定の矩形。
     public var playerMinX: Double { distance - Metrics.playerHalfWidth }
@@ -137,12 +155,39 @@ public struct RunnerField: Equatable, Sendable {
         jumpCount += 1
         isHolding = true
         holdElapsed = 0
+        pendingCut = false
         return true
     }
 
-    /// ボタンを離す。以降このジャンプでは重力が弱まらない。
+    /// ボタンを離す。
+    ///
+    /// **猶予時間（`RunnerRules.jumpCutGraceTime`）を過ぎていれば、その場で `vy` を
+    /// 切り詰める**（会長QA「軽いタップなら本当に小ジャンプぐらいの感じにしたい」
+    /// 2026-09-10）。踏み切った直後にすぐ離すほど高い `vy` のまま切り詰められて低い
+    /// ホップになり、離すのが遅くなる（＝長押しする）ほど重力で `vy` がすでに下がっている
+    /// ため切り詰めの影響が薄れ、十分粘れば無傷の全弾道（`RunnerRules.jumpApex`）まで伸びる
+    /// ——重力そのものはどちらの場合も一定のまま（旧方式の「押している間だけ重力を弱める」
+    /// より単純）。
+    ///
+    /// **猶予時間の間に呼ばれた場合は、その場では切り詰めず `pendingCut` を立てるだけ**にする
+    /// （`advance(dt:)` が猶予明けに適用する）。`press()`→`release()` が同じフレーム内で
+    /// ほぼ同時に呼ばれるタップ操作で `vy` がまだ何も減っていないまま切り詰められ、
+    /// ステージ1の最初の穴にすら届かない、という不具合（会長QA「進まねえ」2026-09-11）
+    /// への対応。
     public mutating func endHold() {
-        isHolding = false
+        guard isHolding else { return }
+        if holdElapsed >= RunnerRules.jumpCutGraceTime {
+            applyCutIfNeeded()
+            isHolding = false
+        } else {
+            pendingCut = true
+        }
+    }
+
+    private mutating func applyCutIfNeeded() {
+        if vy > RunnerRules.jumpCutVelocity {
+            vy = RunnerRules.jumpCutVelocity
+        }
     }
 
     /// テスト・撮影用に走者を直接置く。製品コードからは呼ばない。
@@ -154,6 +199,7 @@ public struct RunnerField: Equatable, Sendable {
         self.jumpCount = self.isGrounded ? 0 : 1
         self.isHolding = false
         self.holdElapsed = 0
+        self.pendingCut = false
     }
 
     // MARK: - 進行
@@ -187,14 +233,29 @@ public struct RunnerField: Equatable, Sendable {
         // ペダルは地面でしか漕げない（#569）。跳んでいるあいだは乗りが落ちる。
         let rate = isGrounded ? RunnerRules.pedalGain : -RunnerRules.pedalLoss
         pedalBoost = min(RunnerRules.maxPedalBoost, max(1, pedalBoost + rate * dt))
+        // アイテムの上乗せ分は時間で線形に減衰する。取った瞬間の乗り具合に関わらず、
+        // 必ず一定時間ぶんの加速が体感できる（`currentSpeed` を参照）。
+        if pickupOverboostRemaining > 0 {
+            pickupOverboostRemaining = max(0, pickupOverboostRemaining - dt)
+            pickupOverboost = RunnerRules.pickupOverboost
+                * (pickupOverboostRemaining / RunnerRules.pickupOverboostDuration)
+        }
         distance += currentSpeed * dt
 
         if !isGrounded || vy != 0 {
-            // 上昇中に押し続けているあいだだけ重力が弱まる（大ジャンプ）。
-            let boosted = isHolding && vy > 0 && holdElapsed < RunnerRules.maxHoldTime
-            if boosted { holdElapsed += dt }
-            vy -= (boosted ? RunnerRules.holdGravity : RunnerRules.gravity) * dt
+            // 重力は押している間も一定（大ジャンプの高さは `endHold()` の切り詰めだけで決まる）。
+            vy -= RunnerRules.gravity * dt
             footY += vy * dt
+        }
+
+        // 猶予時間ぶん経過したら、猶予中に来ていた `endHold()` を今適用する。
+        if isHolding {
+            holdElapsed += dt
+            if pendingCut, holdElapsed >= RunnerRules.jumpCutGraceTime {
+                applyCutIfNeeded()
+                isHolding = false
+                pendingCut = false
+            }
         }
 
         // 障害物は矩形どうしの重なりで見る。走者の足が上端より上にあれば飛び越えている。
@@ -204,14 +265,23 @@ public struct RunnerField: Equatable, Sendable {
         }
 
         // スピードアップアイテム。「触れると得する」だけなので、穴・障害物と違って
-        // 高さは問わず横方向の重なりだけで見る。効果はペダルの乗りを即座に上限へ引き上げる
-        // だけで、`currentSpeed` の「空中では必ず基準速度」という不変条件には触れない
-        // （接地しているあいだしか乗りは効かないので、跳んで取ってもその場では速くならない）。
+        // 高さは問わず横方向の重なりだけで見る。`currentSpeed` の「空中では必ず基準速度」
+        // という不変条件には触れない（接地しているあいだしか乗りは効かないので、
+        // 跳んで取ってもその場では速くならない）。
+        //
+        // 効果は2つ: (1) `pedalBoost` を即座に上限へ引き上げる（乗れていない状態で取った
+        // 場合の底上げ）、(2) それとは別枠の `pickupOverboost` を一時的に乗せる（会長QA
+        // 「取るタイミングが大体もうMAX速度で意味がない」2026-09-10 への対応。`pedalBoost`
+        // 自体はどの道 `maxPedalBoost` で頭打ちなので、上限に張り付いた状態で取っても
+        // (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
+        // 乗り具合に関わらず必ず体感できる加速にする）。
         for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
             guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { continue }
             collectedPickupIndices.insert(index)
             collectedPickupCount += 1
             pedalBoost = RunnerRules.maxPedalBoost
+            pickupOverboost = RunnerRules.pickupOverboost
+            pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
             events.append(.collectedSpeedItem)
         }
 
@@ -227,6 +297,7 @@ public struct RunnerField: Equatable, Sendable {
             isGrounded = true
             jumpCount = 0
             isHolding = false
+            pendingCut = false
             if wasAirborne { events.append(.landed) }
         }
 
