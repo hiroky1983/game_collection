@@ -568,63 +568,26 @@ struct MinesweeperNewGameSheet: View {
         .advanced: Theme.Fill.coral,
     ]
 
+    /// 副題（「9×9・地雷10」など）が横3つに並ぶので、標準より小さい字で入れる。
+    private static let metrics = GameSetupChooser.Metrics(subtitleSize: 11)
+
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                section("難易度") {
-                    HStack(spacing: 12) {
-                        ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
-                            chooser(title: difficulty.label, subtitle: difficulty.subtitle,
-                                    selected: level == difficulty,
-                                    accent: Self.accents[difficulty] ?? Theme.Fill.teal) {
-                                level = difficulty
-                            }
+        GameSetupSheet(
+            title: "新規対局", startTitle: "スタート",
+            onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
+        ) {
+            GameSetupSection("難易度") {
+                HStack(spacing: 12) {
+                    ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
+                        GameSetupChooser(title: difficulty.label, subtitle: difficulty.subtitle,
+                                         selected: level == difficulty,
+                                         accent: Self.accents[difficulty] ?? Theme.Fill.teal,
+                                         metrics: Self.metrics) {
+                            level = difficulty
                         }
                     }
                 }
-                Spacer()
-                Button {
-                    onStart(level.rows, level.cols, level.mines)
-                } label: {
-                    Text("スタート").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("新規対局")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
-                }
             }
         }
-        .gameSheetDetents()
-    }
-
-    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
-            content()
-        }
-    }
-
-    private func chooser(title: String, subtitle: String,
-                         selected: Bool, accent: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? Theme.onAccent : Theme.ink)
-                Text(subtitle).font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? Theme.onAccent : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
-        }
-        .buttonStyle(.plain)
     }
 }

@@ -600,72 +600,30 @@ struct OthelloNewGameSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                section("あなたの石") {
-                    HStack(spacing: 12) {
-                        chooser(title: "●黒", subtitle: "先手",
-                                selected: side == .black, accent: Theme.fillStrong,
-                                onAccent: .white) { side = .black }
-                        chooser(title: "○白", subtitle: "後手",
-                                selected: side == .white, accent: Theme.fillMuted,
-                                onAccent: .white) { side = .white }
-                    }
+        GameSetupSheet(
+            title: "新規対局", startTitle: "対局開始",
+            onStart: { onStart(side, level) }, onCancel: onCancel
+        ) {
+            GameSetupSection("あなたの石") {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: "●黒", subtitle: "先手",
+                                     selected: side == .black, accent: Theme.fillStrong,
+                                     onAccent: .white) { side = .black }
+                    GameSetupChooser(title: "○白", subtitle: "後手",
+                                     selected: side == .white, accent: Theme.fillMuted,
+                                     onAccent: .white) { side = .white }
                 }
-                section("CPUの強さ") {
-                    HStack(spacing: 12) {
-                        chooser(title: "弱",   subtitle: "浅い読み",
-                                selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
-                        chooser(title: "普通", subtitle: "標準",
-                                selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
-                        chooser(title: "強",   subtitle: "深い読み",
-                                selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
-                    }
-                }
-                Spacer()
-                Button { onStart(side, level) } label: {
-                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
             }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("新規対局")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
+            GameSetupSection("CPUの強さ") {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: "弱",   subtitle: "浅い読み",
+                                     selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
+                    GameSetupChooser(title: "普通", subtitle: "標準",
+                                     selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
+                    GameSetupChooser(title: "強",   subtitle: "深い読み",
+                                     selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
                 }
             }
         }
-        .gameSheetDetents()
-    }
-
-    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
-            content()
-        }
-    }
-
-    /// - Parameter onAccent: 選択中（＝面が `accent` で塗られている状態）の文字色。
-    ///   差し色の面には `Theme.onAccent`、`fillStrong` / `fillMuted` のような濃い面には白を渡す（#220）。
-    private func chooser(title: String, subtitle: String, selected: Bool,
-                         accent: Color, onAccent: Color = Theme.onAccent,
-                         action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(title).themeTitle(22).foregroundStyle(selected ? onAccent : Theme.ink)
-                Text(subtitle).font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? onAccent : Theme.inkSub)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(selected ? accent : Theme.surface)
-                    .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
-        }
-        .buttonStyle(.plain)
     }
 }
