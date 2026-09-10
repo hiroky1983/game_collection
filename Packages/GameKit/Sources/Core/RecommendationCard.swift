@@ -76,6 +76,14 @@ public struct RecommendationCard: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
+    /// `heightPlaceholder` が常に占める高さ（pt）の**下限**。
+    ///
+    /// 中身で一番背が高いのは先頭のアイコンなので、枠の高さはアイコンと上下の余白で決まる
+    /// （文字はこれより低い。ダイナミックタイプで文字が伸びた場合だけ枠もそのぶん伸びる）。
+    /// この枠に相乗りする部品が「枠を超えず、周りの寸法を動かさない」ことを
+    /// テストで確かめるための基準として公開している（#600 のブロック崩しの一時停止ボタン）。
+    public static let placeholderMinimumHeight: CGFloat = iconSide + verticalPadding * 2
+
     /// カードが出ていない間も同じ高さを占める**不可視**のひな形（#139）。
     ///
     /// カードが出た瞬間に下の領域が伸びると、盤面（`aspectRatio` + `layoutPriority`）が

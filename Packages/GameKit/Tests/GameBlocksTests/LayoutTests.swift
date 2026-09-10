@@ -1,3 +1,4 @@
+import Core
 import Foundation
 import Testing
 @testable import GameBlocks
@@ -218,5 +219,17 @@ struct BlocksLayoutTests {
         let deepest = BlocksStage.all.max { $0.rows.count < $1.rows.count }!
         let lowest = BlocksField.blockRect(row: deepest.rows.count - 1, column: 0).minY
         #expect(BlocksField.Metrics.readyHintClearance < lowest)
+    }
+
+    /// 盤の外へ出した一時停止ボタンの寸法（#600）。
+    ///
+    /// 下限は HIG のタップ標的（44pt）。上限はレコメンド枠の高さで、**こちらが盤の大きさを守る**:
+    /// ボタンが枠より高くなると操作の行がそのぶん伸び、盤が縦を削られて横幅まで縮む
+    /// （盤は正方形なので縦の不足がそのまま幅に出る。#597 の受け入れ条件が後退する）。
+    /// 専用の行に戻したときも同じことが起きるため、上限を外すなら盤幅を実機で測り直すこと。
+    @Test("一時停止ボタンは 44pt 以上で、レコメンド枠に収まる")
+    func pauseButtonFitsTheControlRow() {
+        #expect(BlocksView.pauseButtonSide >= 44)
+        #expect(BlocksView.pauseButtonSide <= RecommendationCard.placeholderMinimumHeight)
     }
 }
