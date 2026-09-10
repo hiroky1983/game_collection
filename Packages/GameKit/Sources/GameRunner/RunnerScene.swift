@@ -74,8 +74,11 @@ enum RunnerPalette {
     /// 鳥（`RunnerHazardKind.bird`）の胴体。岩の茶系・空の寒色とは別系統の色にして、
     /// 地を這う障害物と空を飛ぶ障害物を見分けられるようにする（会長QA）。
     static let birdBody: UInt32 = 0x4FAE71
-    /// 鳥の翼。胴体より明るくして、羽ばたきのアニメーションで動きが見えるようにする。
-    static let birdWing: UInt32 = 0x8FE3AE
+    /// 鳥の翼・尾羽の奥の1枚。旧版は胴体より明るい緑だったが、明るい腹・白目と
+    /// 差し色が渋滞して面の切れ目が読めなかった。胴体より一段**濃い**緑にして、
+    /// 畳んだ翼と尾羽の重なりが遠目でも影として見えるようにする（会長QA 2026-09-10
+    /// 「鳥もデザイン改善して欲しい」）。
+    static let birdWing: UInt32 = 0x2F7D4E
     /// 鳥のくちばし・脚。胴体と対比が付く暖色にする（「何の生き物か分からない」対策）。
     static let birdBeak: UInt32 = 0xFFB648
     /// 鳥の腹（明るい差し色）。胴体の丸だけだと単色の玉に見えるため、腹だけ明るくして
@@ -655,64 +658,91 @@ final class RunnerScene: SKScene {
         // （`hazard.start` より左）へはみ出す。原点を右へ `w` ぶんずらして帳尻を合わせる。
         node.position = CGPoint(x: hazard.start + w, y: Metrics.groundY)
         node.xScale = -1
-        let r = min(w, h) * 0.4
-        let center = CGPoint(x: w * 0.45, y: h * 0.58)
 
-        // 尾（後方＝-x 側の小さな三角）。
-        let tailPath = CGMutablePath()
-        tailPath.move(to: CGPoint(x: -r * 0.85, y: 0.35))
-        tailPath.addLine(to: CGPoint(x: -r * 1.8, y: 0.9))
-        tailPath.addLine(to: CGPoint(x: -r * 1.8, y: -0.4))
-        tailPath.closeSubpath()
-        let tail = SKShapeNode(path: tailPath)
-        tail.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
-        tail.strokeColor = .clear
-        tail.position = center
-        node.addChild(tail)
+        // 旧デザイン（胴の半径 1.6）は当たり判定の箱（4×7）の半分も使っておらず、
+        // 走者（8×11）と並ぶと豆粒で「緑の塊」にしか見えなかった（会長QA 2026-09-10
+        // 「鳥もデザイン改善して欲しい」）。岩と同じ教訓——**箱いっぱいに大きく**、
+        // **シルエットで正体が分かるように**——を鳥にも適用する。
+        // 横向きの「地面にとまった小鳥」として組み直す：足で接地させ（旧版は宙に
+        // 浮いて見えた）、胴＋頭をひとつながりの丸いシルエットにし、畳んだ翼・
+        // 段付きの尾羽・白目の入った目で読み取れるパーツだけを大きく描く。
+        let bodyR = h * 0.36                                  // ≒2.5。箱の幅 4 に収まる最大級の丸
+        let center = CGPoint(x: w * 0.5, y: bodyR + 0.9)      // 足の高さぶん持ち上げて接地させる
 
-        // 翼。胴体の上から後方へ伸びる三角形。羽ばたきは付け根を軸にした回転で、
-        // 当たり判定の矩形は動かさない純粋な見た目の演出。
-        for side in [-1.0, 1.0] {
-            let wingPath = CGMutablePath()
-            wingPath.move(to: .zero)
-            wingPath.addLine(to: CGPoint(x: r * side * 0.35, y: r * 1.3))
-            wingPath.addLine(to: CGPoint(x: -r * side * 1.5, y: r * 0.5))
-            wingPath.closeSubpath()
-            let wing = SKShapeNode(path: wingPath)
-            wing.fillColor = RunnerPalette.color(RunnerPalette.birdWing)
-            wing.strokeColor = .clear
-            wing.position = CGPoint(x: center.x - r * 0.1, y: center.y + r * 0.15)
-            node.addChild(wing)
-            let flap = SKAction.rotate(byAngle: CGFloat(side) * 0.5, duration: 0.15)
-            wing.run(.repeatForever(.sequence([flap, flap.reversed()])))
+        // 尾羽（後方＝-x 側）。1枚の三角ではなく2枚ずらして重ね、「羽が重なっている」
+        // 段差で鳥らしさを出す。奥の1枚は翼と同じ濃色にして厚みを見せる。
+        let tailSpecs: [(dx: Double, dy: Double, len: Double, lift: Double, color: UInt32)] = [
+            (0.2, 0.4, 2.6, 1.9, RunnerPalette.birdWing),
+            (0.3, 0.0, 2.4, 1.2, RunnerPalette.birdBody),
+        ]
+        for spec in tailSpecs {
+            let tailPath = CGMutablePath()
+            tailPath.move(to: CGPoint(x: -bodyR * 0.5, y: 0))
+            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len, y: spec.lift + 0.9))
+            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len + 0.7, y: spec.lift - 0.6))
+            tailPath.closeSubpath()
+            let tail = SKShapeNode(path: tailPath)
+            tail.fillColor = RunnerPalette.color(spec.color)
+            tail.strokeColor = .clear
+            tail.position = CGPoint(x: center.x + spec.dx, y: center.y + spec.dy)
+            node.addChild(tail)
         }
 
-        // 胴体（丸）+ 腹（明るい差し色の小さい丸）。単色の玉に見えないよう腹だけ明るくする。
-        let body = SKShapeNode(circleOfRadius: r)
+        // 足（2本）。とまっている鳥だと一目で分かる最重要パーツ。くちばしと同じ
+        // 暖色にして、地表のティール帯の上でも沈まないようにする。
+        for legX in [center.x - 0.7, center.x + 0.7] {
+            let leg = SKShapeNode(rectOf: CGSize(width: 0.35, height: 1.4))
+            leg.fillColor = RunnerPalette.color(RunnerPalette.birdBeak)
+            leg.strokeColor = .clear
+            leg.position = CGPoint(x: legX, y: 0.7)
+            node.addChild(leg)
+        }
+
+        // 胴体（大きい丸）。頭は別の丸を上前方に重ね、ひとつながりの丸いシルエットにする。
+        let body = SKShapeNode(circleOfRadius: bodyR)
         body.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
         body.strokeColor = .clear
         body.position = center
         node.addChild(body)
 
-        let belly = SKShapeNode(circleOfRadius: r * 0.52)
-        belly.fillColor = RunnerPalette.color(RunnerPalette.birdBelly)
-        belly.strokeColor = .clear
-        belly.position = CGPoint(x: center.x + r * 0.05, y: center.y - r * 0.4)
-        node.addChild(belly)
-
-        // 頭（進行方向側の少し小さい丸）+ くちばし（頭の先端の三角）+ 目。
-        let headRadius = r * 0.62
-        let head = CGPoint(x: center.x + r * 0.85, y: center.y + r * 0.4)
+        let headRadius = bodyR * 0.66
+        let head = CGPoint(x: center.x + bodyR * 0.62, y: center.y + bodyR * 0.72)
         let headNode = SKShapeNode(circleOfRadius: headRadius)
         headNode.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
         headNode.strokeColor = .clear
         headNode.position = head
         node.addChild(headNode)
 
+        // 腹（明るい差し色）。胴の下前方に置き、地面と接する側を明るくして
+        // ティールの地表帯との境目も立てる。
+        let belly = SKShapeNode(circleOfRadius: bodyR * 0.62)
+        belly.fillColor = RunnerPalette.color(RunnerPalette.birdBelly)
+        belly.strokeColor = .clear
+        belly.position = CGPoint(x: center.x + bodyR * 0.25, y: center.y - bodyR * 0.42)
+        node.addChild(belly)
+
+        // 畳んだ翼（1枚・横向きなので見えるのは手前の1枚だけ）。胴より濃い色で
+        // 面を分け、肩を軸にした小さな羽ばたきだけ残す（当たり判定は動かさない）。
+        let shoulder = CGPoint(x: center.x + bodyR * 0.3, y: center.y + bodyR * 0.35)
+        let wingPath = CGMutablePath()
+        wingPath.move(to: .zero)
+        wingPath.addLine(to: CGPoint(x: -bodyR * 1.5, y: -bodyR * 0.1))
+        wingPath.addLine(to: CGPoint(x: -bodyR * 0.5, y: -bodyR * 0.95))
+        wingPath.closeSubpath()
+        let wing = SKShapeNode(path: wingPath)
+        wing.fillColor = RunnerPalette.color(RunnerPalette.birdWing)
+        wing.strokeColor = .clear
+        wing.position = shoulder
+        node.addChild(wing)
+        let flap = SKAction.rotate(byAngle: 0.22, duration: 0.4)
+        flap.timingMode = .easeInEaseOut
+        wing.run(.repeatForever(.sequence([flap, flap.reversed()])))
+
+        // くちばし（進行方向側の三角）。頭の大きさに比例させ、遠目でも尖りが分かる長さにする。
         let beakPath = CGMutablePath()
-        beakPath.move(to: CGPoint(x: headRadius * 0.85, y: 0.25))
-        beakPath.addLine(to: CGPoint(x: headRadius * 1.8, y: 0))
-        beakPath.addLine(to: CGPoint(x: headRadius * 0.85, y: -0.55))
+        beakPath.move(to: CGPoint(x: headRadius * 0.7, y: headRadius * 0.35))
+        beakPath.addLine(to: CGPoint(x: headRadius * 1.9, y: -headRadius * 0.05))
+        beakPath.addLine(to: CGPoint(x: headRadius * 0.7, y: -headRadius * 0.45))
         beakPath.closeSubpath()
         let beak = SKShapeNode(path: beakPath)
         beak.fillColor = RunnerPalette.color(RunnerPalette.birdBeak)
@@ -720,11 +750,19 @@ final class RunnerScene: SKScene {
         beak.position = head
         node.addChild(beak)
 
-        let eye = SKShapeNode(circleOfRadius: headRadius * 0.2)
-        eye.fillColor = RunnerPalette.color(RunnerPalette.birdEye)
-        eye.strokeColor = .clear
-        eye.position = CGPoint(x: head.x + headRadius * 0.3, y: head.y + headRadius * 0.25)
-        node.addChild(eye)
+        // 目。白目の上に黒目を重ねる。旧版は暗緑に暗色の点でほぼ見えなかった。
+        let eyeWhite = SKShapeNode(circleOfRadius: headRadius * 0.34)
+        eyeWhite.fillColor = RunnerPalette.color(RunnerPalette.birdBelly)
+        eyeWhite.strokeColor = .clear
+        eyeWhite.position = CGPoint(x: head.x + headRadius * 0.3, y: head.y + headRadius * 0.18)
+        node.addChild(eyeWhite)
+
+        let pupil = SKShapeNode(circleOfRadius: headRadius * 0.17)
+        pupil.fillColor = RunnerPalette.color(RunnerPalette.birdEye)
+        pupil.strokeColor = .clear
+        // 進行方向（走者側）を見ている黒目。白目の中で少し前に寄せる。
+        pupil.position = CGPoint(x: eyeWhite.position.x + headRadius * 0.12, y: eyeWhite.position.y)
+        node.addChild(pupil)
 
         courseLayer.addChild(node)
     }
