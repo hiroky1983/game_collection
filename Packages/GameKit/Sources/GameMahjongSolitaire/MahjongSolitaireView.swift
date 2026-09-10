@@ -47,6 +47,11 @@ public struct MahjongSolitaireView: View {
     @State private var showHintConfirm = false
     /// ヒントのリワード広告の段取り（同上）。
     @State private var hintRescue = RewardedRescue()
+    /// ヒントと並べ替えは**同じリワード広告の枠**を奪い合う。`RewardedRescue` の連打ガードは
+    /// インスタンスごとなので、片方の広告をロードしている最中にもう片方を押せてしまい、
+    /// 2 本目のロードが失敗して「見ていないのに失敗アラート」が出る（PR #577 の CodeRabbit 指摘）。
+    /// 手詰まりでない盤面ではヒントも並べ替えも押せるので、この経路は実際に踏める。
+    private var isWatchingRewardAd: Bool { hintRescue.isWatching || shuffleRescue.isWatching }
     /// 盤面の場所にクリアの表示を出しているか（#199）。
     ///
     /// `model.phase` を直に見ると、最後の 2 枚は `faces` が nil になるのと**同じ更新**で
@@ -471,7 +476,7 @@ public struct MahjongSolitaireView: View {
             // 手詰まりならこのボタンは `deadlockOverlay` に覆われるので実際には届かないが、
             // 覆いに頼らず二重の歯止めにしておく。見た目を落とさないのは、押せない状態が
             // ユーザーから見える経路が無く、薄くしても伝わる相手がいないため。
-            .disabled(!model.canHint || hintRescue.isWatching)
+            .disabled(!model.canHint || isWatchingRewardAd)
             .accessibilityHint("広告を見ると取れる組が1組光ります")
             // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。#199 の 3 ボタン化
             // （ViewThatFits）と衝突したため、レイアウトは #199 側・押したときの挙動は
@@ -479,6 +484,8 @@ public struct MahjongSolitaireView: View {
             controlButton("並べ替え", systemImage: "shuffle", tint: Theme.Fill.purple, showsTitle: showsTitle) {
                 showShuffleConfirm = true
             }
+            // ヒントの広告をロードしている最中は押させない（上の `isWatchingRewardAd` の理由）。
+            .disabled(isWatchingRewardAd)
             undoButton(showsTitle: showsTitle)
         }
     }
@@ -588,6 +595,7 @@ public struct MahjongSolitaireView: View {
     /// リワード広告を最後まで見たときだけ並べ替える（数独のヒントと同じ契約・#64 のアラート統一）。
     /// 視聴中の連打で2本目の広告が失敗して誤アラートが出るのは共通側が塞ぐ（#526）。
     private func requestShuffle() {
+        guard !isWatchingRewardAd else { return }
         shuffleRescue.request(
             services, gameID: model.gameID, purpose: .shuffle,
             guardedBy: .checkedByGrant
@@ -602,6 +610,7 @@ public struct MahjongSolitaireView: View {
     /// リワード広告を最後まで見たときだけヒントを出す（並べ替え・ナンプレのヒントと同じ契約・#336）。
     /// `requestShuffle()` と同じく、視聴中の連打のガードは共通側が持つ（#526）。
     private func requestHint() {
+        guard !isWatchingRewardAd else { return }
         hintRescue.request(
             services, gameID: model.gameID, purpose: .hint,
             guardedBy: .checkedByGrant

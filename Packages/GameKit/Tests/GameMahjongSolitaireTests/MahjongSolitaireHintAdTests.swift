@@ -163,7 +163,28 @@ struct MahjongSolitaireHintAdContractTests {
         )
         #expect(source.contains("showHintConfirm = true"), "確認ダイアログを開いていない")
         #expect(source.contains("Button(\"広告を見てヒントを見る\") { onWatchAd() }"), "確認ダイアログの視聴ボタンが無い")
-        #expect(source.contains(".disabled(!model.canHint || hintRescue.isWatching)"), "取れる組が無いときにボタンを塞いでいない")
+        #expect(source.contains(".disabled(!model.canHint || isWatchingRewardAd)"), "取れる組が無いときにボタンを塞いでいない")
+    }
+
+    @Test("ヒントと並べ替えは同時に広告を要求しない（PR #577 の指摘）")
+    func theTwoRewardFlowsAreMutuallyExclusive() throws {
+        let source = try Self.viewSource()
+        #expect(
+            source.contains("private var isWatchingRewardAd: Bool { hintRescue.isWatching || shuffleRescue.isWatching }"),
+            "2つの救済をまたぐ busy 条件が無い"
+        )
+        // 入口（関数）と見た目（ボタン）の両方で塞ぐ。片方だけだと、押せてしまうか、
+        // 押せないのに理由が画面から読めないかのどちらかになる。
+        for name in ["requestHint", "requestShuffle"] {
+            #expect(
+                try Self.functionBody(name, in: source).contains("guard !isWatchingRewardAd else { return }"),
+                "\(name)() が排他を検査していない"
+            )
+        }
+        // 見た目側は2つのボタンの両方を塞ぐ（ヒントは取れる組の有無と併せて塞ぐ）。
+        // 出現数で数えると解説コメントに書いただけで通ってしまうので、書き方そのものを見る。
+        #expect(source.contains(".disabled(!model.canHint || isWatchingRewardAd)"), "ヒントボタンを塞いでいない")
+        #expect(source.contains("\n            .disabled(isWatchingRewardAd)"), "並べ替えボタンを塞いでいない")
     }
 
     @Test("視聴未完了のアラート文言が他ゲームと揃っている（#64・#526）")

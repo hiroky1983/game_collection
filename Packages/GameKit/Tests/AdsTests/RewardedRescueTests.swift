@@ -250,6 +250,39 @@ struct RewardGuardCallSiteTests {
         #expect(unchecked.reduce(0) { $0 + $1.count } == 10)
     }
 
+    @Test("照合すると宣言した面には、適用できなかったときのアラートが必ずある")
+    func checkedSitesAlwaysProvideTheUnavailableAlert() throws {
+        // `checkedByGrant` は「grant が false を返しうる」という宣言なので、
+        // `rewardedRescueAlerts(unavailable:)` を渡し忘れると失敗が**完全に無言**になる
+        // （`showsUnavailable` は立つが、渡していない側は `.constant(false)` で出ない）。
+        // 対価だけ払って何も起きない状態は広告の契約違反なので、ファイル単位で数を突き合わせる。
+        let mismatched = try Self.gameSources()
+            .map { (
+                path: $0.path,
+                checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text),
+                alerts: Self.occurrences(of: "unavailable: RewardUnavailableAlert(", in: $0.text)
+            ) }
+            .filter { $0.checked != $0.alerts }
+            .map { "\($0.path): checkedByGrant \($0.checked) 件に対しアラート \($0.alerts) 件" }
+        #expect(mismatched.isEmpty, "\(mismatched)")
+    }
+
+    @Test("救済は共通 API を迂回して広告を出さない")
+    func nobodyBypassesTheSharedEntryPoint() throws {
+        // `RewardedRescue` を通さずに `services.showRewardedAd(...)` を直に呼ぶと、
+        // 連打ガードも局ガードも失敗アラートも付かない面が 1 つだけ生まれる。
+        // モデルが広告ごと持っている3面（`requestHandledByModel` 側）だけが直に呼んでよい。
+        let callers = try Self.gameSources()
+            .filter { $0.text.contains("showRewardedAd(") }
+            .map(\.path)
+            .sorted()
+        #expect(callers == [
+            "GameBlackjack/BlackjackModel.swift",
+            "GameMahjong/MahjongModel.swift",
+            "GamePoker/PokerModel.swift",
+        ], "共通 API を迂回した広告の呼び出しがある: \(callers)")
+    }
+
     @Test("視聴できなかったときの文言はゲーム側に散らばっていない")
     func theSharedWordingLivesInExactlyOnePlace() throws {
         let sources = try Self.gameSources()
