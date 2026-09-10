@@ -52,6 +52,11 @@ public struct RunnerField: Equatable, Sendable {
     public private(set) var holdElapsed: Double
     /// チェックポイントを通過済みか。
     public private(set) var passedCheckpoint: Bool
+    /// ペダルの乗り（#569）。1.0 が下限で、`RunnerRules.maxPedalBoost` が上限。
+    ///
+    /// 接地して漕いでいるあいだに上がり、跳んでいるあいだは漕げないので落ちる。
+    /// **速さに効くのは接地しているあいだだけ**（`currentSpeed`）。
+    public private(set) var pedalBoost: Double
 
     /// ステージの頭から始める。
     public init(stage: RunnerStage) {
@@ -68,6 +73,7 @@ public struct RunnerField: Equatable, Sendable {
         self.isHolding = false
         self.holdElapsed = 0
         self.passedCheckpoint = passedCheckpoint
+        self.pedalBoost = 1
     }
 
     // MARK: - 問い合わせ
@@ -77,6 +83,13 @@ public struct RunnerField: Equatable, Sendable {
         guard stage.length > 0 else { return 1 }
         return min(1, max(0, distance / stage.length))
     }
+
+    /// いま実際に進んでいる速さ（ワールド単位 / 秒）。
+    ///
+    /// **空中では必ず `stage.speed`**（ペダルを漕げないので乗りが効かない・#569）。
+    /// この一点で「跳んで進む距離 = `speed × 滞空時間`」が乗りに左右されなくなり、
+    /// ステージの成立条件（`RunnerStageTests`）を丸ごと据え置ける。
+    public var currentSpeed: Double { isGrounded ? stage.speed * pedalBoost : stage.speed }
 
     /// 走者の当たり判定の矩形。
     public var playerMinX: Double { distance - Metrics.playerHalfWidth }
@@ -133,7 +146,9 @@ public struct RunnerField: Equatable, Sendable {
         var events: [RunnerEvent] = []
 
         // 1 サブステップの移動量を障害の最小寸法より小さく抑える（すり抜け防止）。
-        let horizontal = stage.speed * dt
+        // 横は**この dt のあいだに出しうる最大の速さ**で見積もる。いまの速さで割ると、
+        // 同じ dt の中でペダルが乗ったぶんだけ 1 サブステップの移動量が見積もりを超える。
+        let horizontal = stage.speed * RunnerRules.maxPedalBoost * dt
         let vertical = abs(vy) * dt + RunnerRules.gravity * dt * dt
         let travel = max(horizontal, vertical)
         let substeps = max(1, Int((travel / Metrics.maxSubstep).rounded(.up)))
@@ -148,7 +163,10 @@ public struct RunnerField: Equatable, Sendable {
 
     /// 1 サブステップ。
     private mutating func advance(dt: Double, into events: inout [RunnerEvent]) {
-        distance += stage.speed * dt
+        // ペダルは地面でしか漕げない（#569）。跳んでいるあいだは乗りが落ちる。
+        let rate = isGrounded ? RunnerRules.pedalGain : -RunnerRules.pedalLoss
+        pedalBoost = min(RunnerRules.maxPedalBoost, max(1, pedalBoost + rate * dt))
+        distance += currentSpeed * dt
 
         if !isGrounded || vy != 0 {
             // 上昇中に押し続けているあいだだけ重力が弱まる（大ジャンプ）。
