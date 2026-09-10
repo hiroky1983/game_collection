@@ -136,6 +136,62 @@ struct RunnerModelTests {
     }
 }
 
+@Suite("チャリンコおじさん: 落下演出")
+@MainActor
+struct RunnerFallingTests {
+
+    /// 跳ばずに走らせ、`.falling` に入った直後（まだ `.failed` にはなっていない）で止める。
+    private func failIntoFalling(_ model: RunnerModel) {
+        model.press()
+        model.release()
+        var frames = 0
+        while model.phase == .running, frames < 60 * 300 {
+            frames += 1
+            model.tick(dt: 1.0 / 60)
+        }
+    }
+
+    @Test("穴に落ちる/ぶつかった直後はまず falling になり、即座には failed にならない")
+    func fellGoesToFallingFirst() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("falling-enter"))
+        failIntoFalling(model)
+        #expect(model.phase == .falling, "ミスした直後は演出を挟む")
+    }
+
+    @Test("演出時間が経過すると failed になる")
+    func fallingBecomesFailedAfterDuration() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("falling-timeout"))
+        failIntoFalling(model)
+        #expect(model.phase == .falling)
+        // 演出時間の直前まではまだ falling のまま。
+        model.tick(dt: RunnerRules.fallDuration - 0.01)
+        #expect(model.phase == .falling, "演出時間の途中で failed になってはいけない")
+        // 演出時間を超えたら failed へ。
+        model.tick(dt: 0.02)
+        #expect(model.phase == .failed)
+    }
+
+    @Test("falling のあいだはタップしても状態が変わらない")
+    func fallingIgnoresPress() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("falling-press"))
+        failIntoFalling(model)
+        #expect(model.phase == .falling)
+        model.press()
+        #expect(model.phase == .falling, "演出中のタップは無効")
+        model.release()
+        #expect(model.phase == .falling)
+    }
+
+    @Test("falling のあいだは一時停止できない")
+    func fallingIgnoresPause() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("falling-pause"))
+        failIntoFalling(model)
+        #expect(model.phase == .falling)
+        model.pause()
+        #expect(model.phase == .falling, "演出中は一時停止できない")
+    }
+}
+
 @Suite("チャリンコおじさん: チェックポイント再開")
 @MainActor
 struct RunnerCheckpointTests {
@@ -381,6 +437,7 @@ struct RunnerAccessibilityTests {
 
     @Test("状態ごとの結果を読む")
     func result() {
+        #expect(RunnerAccessibility.resultLabel(phase: .falling, stageNumber: 2) == "ステージ 2 でミスしました")
         #expect(RunnerAccessibility.resultLabel(phase: .failed, stageNumber: 2) == "ステージ 2 でミスしました")
         #expect(RunnerAccessibility.resultLabel(phase: .cleared, stageNumber: 2) == "ステージ 2 クリア")
         #expect(RunnerAccessibility.resultLabel(phase: .allCleared, stageNumber: 15) == "全ステージクリア")

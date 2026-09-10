@@ -122,6 +122,14 @@ public enum RunnerRules {
     /// 当たり判定が意味を失う。上限を掛けると**進みが遅くなるだけ**で、すり抜けは起きない。
     public static let maxStep: Double = 1.0 / 20
 
+    // MARK: 落下演出
+
+    /// 穴に落ちた/ぶつかった瞬間から失敗パネルを出すまでの間（秒）。
+    ///
+    /// この間は `RunnerPhase.falling` に留まり、`RunnerScene` が短い演出（沈む・回転・フェード）を
+    /// 1 回だけ流す。会長QA「穴に落ちるアニメーションがある方がいいかも」を受けて追加。
+    public static let fallDuration: Double = 0.5
+
     /// 総ステージ数。
     public static var stageCount: Int { RunnerStage.all.count }
 }

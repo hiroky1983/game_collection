@@ -103,6 +103,10 @@ public enum RunnerPhase: Equatable, Sendable {
     case running
     /// 一時停止中。アクセシビリティ要件「いつでも一時停止できる」の実体。
     case paused
+    /// 穴に落ちた/ぶつかった直後の短い演出中（会長QA「落ちるアニメーションがある方がいい」）。
+    ///
+    /// タップ・一時停止は効かず、`RunnerRules.fallDuration` 秒で自動的に `.failed` へ移る。
+    case falling
     /// ミスした。リトライ（無料・無制限）か、チェックポイント再開（リワード広告・1 ステージ 1 回）を選ぶ。
     case failed
     /// ステージクリア（まだ次のステージが残っている）。

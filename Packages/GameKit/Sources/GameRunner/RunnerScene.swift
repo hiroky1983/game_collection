@@ -91,6 +91,9 @@ final class RunnerScene: SKScene {
     private var lastUpdate: TimeInterval?
     /// コースのノードを作り直した時点の `RunnerModel.runGeneration`。
     private var renderedGeneration = -1
+    /// 直前の `sync()` で見た `phase`。`.falling` に入った最初のフレームだけ落下演出を
+    /// 発火させるための「前回反映した世代」パターン（`renderedGeneration` と同じ考え方）。
+    private var lastSyncedPhase: RunnerPhase = .ready
 
     /// コース（地面・障害物・ゴール）。走者は動かさず、こちらを左へ流す。
     private let courseLayer = SKNode()
@@ -445,6 +448,12 @@ final class RunnerScene: SKScene {
         addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
         addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
+        // 新しい走行の頭（もう一度・はじめから等）。前回の落下演出が沈める・フェードして
+        // 終わった見た目のままだと、次の挑戦の走者が透けた/縮んだ状態で始まってしまう。
+        player.removeAllActions()
+        player.alpha = 1
+        player.xScale = 1
+        player.yScale = 1
     }
 
     /// 障害物（岩）。平らな矩形1枚だと「何なのか分からない」というQAを受け、
@@ -673,15 +682,28 @@ final class RunnerScene: SKScene {
         }
         // 走者の画面上の x は動かさず、コースのほうを左へ流す。
         courseLayer.position = CGPoint(x: Metrics.playerX - field.distance, y: 0)
-        player.position = CGPoint(x: Metrics.playerX, y: field.footY)
-        // 車輪は進んだ距離ぶんだけ回す（半径 2.6 の円周で 1 回転）。
-        let angle = -field.distance / 2.6
-        frontWheel.zRotation = CGFloat(angle)
-        rearWheel.zRotation = CGFloat(angle)
-        syncPedaling(field)
-        // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
-        player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
-        syncPickups(field)
+        if model.phase == .falling {
+            // ミスした瞬間に `field` は凍る（`RunnerModel.tick` が `field.step` を呼ばなくなる）ので
+            // 値は変わらない。最初のフレームだけ、ミスした瞬間の位置・向きへきっちり合わせてから
+            // 演出を始める（以後 `player.position` / `.zRotation` はここでは触らず、演出の
+            // `SKAction` に専有させる。毎フレーム上書きすると動きが打ち消される）。
+            if lastSyncedPhase != .falling {
+                player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+                player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
+                playFallAnimation()
+            }
+        } else {
+            player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+            // 車輪は進んだ距離ぶんだけ回す（半径 2.6 の円周で 1 回転）。
+            let angle = -field.distance / 2.6
+            frontWheel.zRotation = CGFloat(angle)
+            rearWheel.zRotation = CGFloat(angle)
+            syncPedaling(field)
+            // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
+            player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
+            syncPickups(field)
+        }
+        lastSyncedPhase = model.phase
     }
 
     /// 取得済みのピックアップのノードを消す。走者は後退しないので、`collectedPickupCount` は
@@ -693,6 +715,25 @@ final class RunnerScene: SKScene {
             removePickupNode(pickupNodes[i])
         }
         removedPickupCount = field.collectedPickupCount
+    }
+
+    /// 穴に落ちる/ぶつかった瞬間だけ流す演出（`.falling` に入った最初のフレームで 1 回発火）。
+    ///
+    /// 新規アセットは作らず、既存の丸と長方形だけの走者ノード（`player`）をそのまま
+    /// 沈める・回す・フェードする。当たり判定・進行のタイミングは `RunnerModel` 側の
+    /// `RunnerRules.fallDuration` が決めており、ここは見た目だけを作る。
+    private func playFallAnimation() {
+        player.removeAllActions()
+        let duration = RunnerRules.fallDuration
+        let sink = SKAction.moveBy(x: 0, y: -3.5, duration: duration)
+        let topple = SKAction.rotate(byAngle: .pi * 0.55, duration: duration)
+        let fade = SKAction.sequence([
+            .wait(forDuration: duration * 0.35),
+            .fadeAlpha(to: 0.1, duration: duration * 0.65),
+        ])
+        sink.timingMode = .easeIn
+        topple.timingMode = .easeIn
+        player.run(.group([sink, topple, fade]))
     }
 
     /// 漕ぐ脚を進める（#569）。
