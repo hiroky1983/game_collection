@@ -26,12 +26,19 @@ struct SelfPlayTests {
         // 玉が動いた分だけ安全度が一時的に下がり空振りする（誤検知の実例として確認済み）、
         // 16手で安定して上がる。24手は打ち切り無しの探索だと1手あたりのコストが跳ね上がり
         // 5分超のテストになる。16手・約145秒は元の実測値「約2分」から大きく伸びていない）。
+        var completedMoves = 0
         for _ in 0..<16 {
             guard let usi = await engine.bestMove(sfen: pos.toSFEN()),
                   let move = Move.fromUSI(usi),
                   pos.legalMoves().contains(move) else { break }
             pos.make(move)
+            completedMoves += 1
         }
+
+        // ループが早期break（bestMove取得失敗・不正USI・非合法手）で終わると、
+        // 安全度の比較だけでは「途中で止まったのに偶然安全度が上がっていた」ケースを
+        // 見逃す（CodeRabbit指摘・PR #646）。16手完走したことも明示的に検証する。
+        #expect(completedMoves == 16, "自己対戦が16手完走しなかった（\(completedMoves)手で中断）")
 
         let safetyEndBlack = engine.kingSafety(pos, .black)
         let safetyEndWhite = engine.kingSafety(pos, .white)
