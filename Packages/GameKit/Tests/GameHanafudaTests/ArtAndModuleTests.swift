@@ -1,4 +1,5 @@
 import Core
+import Foundation
 import Testing
 @testable import GameHanafuda
 
@@ -72,6 +73,95 @@ struct HanafudaArtTests {
     @Test("札の縦横比は実物と同じ 1.5:1")
     func aspectRatio() {
         #expect(HanafudaCardArt.aspectRatio == 1.5)
+    }
+}
+
+@Suite("花札: 月と種別の帯（#602）")
+struct HanafudaBandTests {
+
+    /// 帯の色が種別ごとに違うこと。**帯の文字が潰れる小ささ**（取り札の帯は幅 27pt 前後）では
+    /// 色だけが手掛かりになるので、4 種別 + 短冊の赤 / 青がすべて別の値でなければならない。
+    @Test("帯の色は光・タネ・赤短・青短・カスの5通りに分かれる")
+    func bandColorsAreDistinct() {
+        let hexes = HanafudaCard.fullDeck.map { HanafudaCardArt.kindHex(for: $0) }
+        #expect(Set(hexes).count == 5)
+        #expect(HanafudaCardArt.kindHex(for: HanafudaCard.named("松に鶴"))
+                != HanafudaCardArt.kindHex(for: HanafudaCard.named("梅に鶯")))
+        #expect(HanafudaCardArt.kindHex(for: HanafudaCard.named("松に赤短"))
+                == HanafudaCardArt.redRibbonBandHex)
+        #expect(HanafudaCardArt.kindHex(for: HanafudaCard.named("牡丹に青短"))
+                == HanafudaCardArt.blueRibbonBandHex)
+    }
+
+    /// 無地の短冊（藤・菖蒲・萩・柳）は赤短と同じ赤で出す。役の上では「タン」として
+    /// 同じ働きをするので、帯で区別を作らない。
+    @Test("無地の短冊の帯は赤短と同じ赤")
+    func plainRibbonSharesTheRedBand() {
+        #expect(HanafudaCardArt.kindHex(for: HanafudaCard.named("藤に短冊"))
+                == HanafudaCardArt.kindHex(for: HanafudaCard.named("松に赤短")))
+    }
+
+    /// `kindHex` は短冊札を `ribbon` で振り分けており、`.tanzaku` の分岐には来ない前提で書いてある。
+    /// 表のほうで短冊札に `ribbon` を付け忘れると、その札だけ赤短の帯になって静かに嘘をつく。
+    @Test("短冊札は10枚すべてが短冊の色を持つ")
+    func everyTanzakuHasARibbon() {
+        let tanzaku = HanafudaCard.fullDeck.filter { $0.kind == .tanzaku }
+        #expect(tanzaku.count == 10)
+        #expect(tanzaku.allSatisfy { $0.ribbon != nil })
+        // 逆向きも縛る（短冊以外に色が付いていない）。
+        #expect(HanafudaCard.fullDeck.filter { $0.ribbon != nil }.count == 10)
+    }
+
+    /// 帯は文字を載せる面なので、地と文字のコントラストが AA（4.5:1）を満たさなければ
+    /// 種別が読めない。**1 つの色で面と文字の両方は賄えない**ため、地ごとに文字色を選ぶ（#220）。
+    @Test("48枚すべてで帯の文字が AA のコントラストを満たす")
+    func bandLabelMeetsAA() {
+        for card in HanafudaCard.fullDeck {
+            let background = HanafudaCardArt.kindHex(for: card)
+            let label = HanafudaCardArt.bandLabelHex(on: background)
+            let ratio = HanafudaCardArt.contrastRatio(background, label)
+            #expect(ratio >= 4.5,
+                    "\(card.name) の帯 \(String(background, radix: 16)) と文字のコントラストが \(ratio)")
+        }
+    }
+
+    /// 金の帯だけは墨、それ以外は生成りが選ばれる。明るい面に白を載せて読めなくなる形
+    /// （`bandLabelHex` を固定色に戻す変異）をここで捕まえる。
+    @Test("文字色は帯の明るさで生成りと墨を選び分ける")
+    func bandLabelSwitchesWithBrightness() {
+        let hikari = HanafudaCardArt.kindHex(for: HanafudaCard.named("松に鶴"))
+        let kasu = HanafudaCardArt.kindHex(for: HanafudaCard.named("桐のカス"))
+        #expect(HanafudaCardArt.bandLabelHex(on: hikari) == HanafudaCardArt.bandLabelDarkHex)
+        #expect(HanafudaCardArt.bandLabelHex(on: kasu) == HanafudaCardArt.bandLabelLightHex)
+    }
+
+    /// 帯には月の数字も並ぶ。`label`（「短冊」）のままだと 12 月の短冊札で 4 文字になり、
+    /// 札の幅では潰れて読めない。
+    @Test("帯に出す種別の表記は2文字まで")
+    func badgeLabelsAreShort() {
+        for kind in HanafudaKind.allCases {
+            #expect(kind.badgeLabel.count <= 2, "\(kind.label) の帯表記が長い")
+        }
+        #expect(HanafudaKind.tanzaku.badgeLabel == "短")
+        // 短くするのは短冊だけ。他は読み上げと同じ語のままにする（画面と VoiceOver を揃える）。
+        for kind in HanafudaKind.allCases where kind != .tanzaku {
+            #expect(kind.badgeLabel == kind.label)
+        }
+    }
+
+    /// 帯と図案が食い合わないこと。帯を厚くしたり図案の領域を上へ広げたりすると、
+    /// 主役（鶴の首・幕・雁）が帯に隠れる。
+    @Test("帯と図案の領域が重ならず、合わせて札全体になる")
+    func bandAndArtDoNotOverlap() {
+        let rect = CGRect(x: 0, y: 0, width: 60, height: 90)
+        let band = HanafudaCardFace.bandRect(in: rect)
+        let art = HanafudaCardFace.artRect(in: rect)
+        #expect(band.maxY <= art.minY)
+        #expect(band.minY == rect.minY)
+        #expect(art.maxY == rect.maxY)
+        #expect(abs(band.height + art.height - rect.height) < 0.001)
+        // 図案が札の 3/4 以上を保つ（帯が太りすぎていない）。
+        #expect(art.height / rect.height >= 0.75)
     }
 }
 

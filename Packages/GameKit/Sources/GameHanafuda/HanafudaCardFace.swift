@@ -52,15 +52,34 @@ public struct HanafudaCardFace: View {
 
     static func draw(_ card: HanafudaCard, in context: inout GraphicsContext, size: CGSize) {
         let rect = CGRect(origin: .zero, size: size)
-        drawGround(card, in: &context, rect: rect)
-        drawPlant(month: card.month, in: &context, rect: rect)
+        // 図案は帯の下だけに描く。正規化座標のまま `artRect` を渡すので、地・植物・主役・短冊が
+        // まとめて下へ寄り、帯に食われる部品が出ない。
+        let art = artRect(in: rect)
+        drawGround(card, in: &context, rect: art)
+        drawPlant(month: card.month, in: &context, rect: art)
         if let motif = HanafudaCardArt.motif(for: card) {
-            drawMotif(motif, in: &context, rect: rect)
+            drawMotif(motif, in: &context, rect: art)
         }
         if let ribbon = card.ribbon {
-            drawRibbon(ribbon, in: &context, rect: rect)
+            drawRibbon(ribbon, in: &context, rect: art)
         }
-        drawMonthBadge(card, in: &context, rect: rect)
+        drawBand(card, in: &context, rect: rect)
+    }
+
+    /// 上端の帯（月と種別）が占める高さの割合（#602）。
+    static let bandRatio: Double = 0.15
+
+    /// 帯を敷く領域。
+    static func bandRect(in rect: CGRect) -> CGRect {
+        CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height * bandRatio)
+    }
+
+    /// 図案を描く領域。帯のぶんだけ下げる。
+    static func artRect(in rect: CGRect) -> CGRect {
+        CGRect(
+            x: rect.minX, y: rect.minY + rect.height * bandRatio,
+            width: rect.width, height: rect.height * (1 - bandRatio)
+        )
     }
 
     /// 正規化座標 → 実寸。
@@ -408,21 +427,32 @@ public struct HanafudaCardFace: View {
         }
     }
 
-    // MARK: 月の札（合わせの手掛かり）
+    // MARK: 帯（月と種別）
 
-    /// 左上に月を出す。**合わせは月でしか起きない**ので、絵柄から月を読み取れない人でも
-    /// 遊べるようにする（VoiceOver では `HanafudaSpeech` が同じ情報を読む）。
-    static func drawMonthBadge(_ card: HanafudaCard, in ctx: inout GraphicsContext, rect: CGRect) {
-        let badge = CGRect(
-            x: rect.minX + rect.width * 0.05, y: rect.minY + rect.height * 0.03,
-            width: rect.width * 0.30, height: rect.height * 0.13
-        )
-        ctx.fill(Path(roundedRect: badge, cornerRadius: rect.width * 0.06),
-                 with: .color(HanafudaCardArt.monthColor(card.month)))
-        let text = Text(verbatim: "\(card.month)")
-            .font(.system(size: max(rect.width * 0.24, 6), weight: .bold, design: .rounded))
-            .foregroundStyle(Color.white)
-        ctx.draw(text, at: CGPoint(x: badge.midX, y: badge.midY), anchor: .center)
+    /// 上端に「月」と「種別」を並べた帯を敷く（#602）。
+    ///
+    /// **こいこいで打つ手を決めるのに要る情報はこの 2 つだけ**で、合わせは月でしか起きず、
+    /// 役は種別の枚数で決まる。どちらも図案からしか読めない状態では、鶴と鶯の描き分けを
+    /// 知らない人が光札とタネ札を区別できない（会長 QA・2026-09-10）。
+    /// 帯の色そのものが種別を表すので、取り札の帯のように文字が潰れる小ささでも読み取れる。
+    static func drawBand(_ card: HanafudaCard, in ctx: inout GraphicsContext, rect: CGRect) {
+        let backgroundHex = HanafudaCardArt.kindHex(for: card)
+        let band = bandRect(in: rect)
+        ctx.fill(Path(band), with: .color(Color(hex: backgroundHex)))
+        let label = Color(hex: HanafudaCardArt.bandLabelHex(on: backgroundHex))
+        // 帯の高さに収まる大きさにする。下限を設けて逃がすと、小さく描いたときに文字だけが
+        // 帯からはみ出して図案に被る。
+        let size = min(rect.width * 0.21, band.height * 0.82)
+        func text(_ string: String) -> Text {
+            Text(verbatim: string)
+                .font(.system(size: size, weight: .bold, design: .rounded))
+                .foregroundStyle(label)
+        }
+        let inset = band.width * 0.07
+        ctx.draw(text("\(card.month)"),
+                 at: CGPoint(x: band.minX + inset, y: band.midY), anchor: .leading)
+        ctx.draw(text(card.kind.badgeLabel),
+                 at: CGPoint(x: band.maxX - inset, y: band.midY), anchor: .trailing)
     }
 }
 
