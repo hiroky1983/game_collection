@@ -655,82 +655,89 @@ final class RunnerScene: SKScene {
     /// 翼・尾・くちばしのパスは既存のゴール旗（`addGoalMarker`）と同じ技法（#494 の
     /// 権利チェックの要点は特定作品の意匠に寄せないことで、パス自体は許容されている）。
     /// 当たり判定は `RunnerField.isHittingBlock` が岩と同じ「地面〜`hazard.height`」の
-    /// 矩形のままで、この見た目の変更とは独立している——羽ばたき・浮遊を含めた絵は
-    /// その矩形（幅 4 × 高さ 7）の内側に収まる寸法で組む（見た目と判定のズレを作らない）。
+    /// 矩形のままで、この見た目の変更とは独立している。
+    ///
+    /// **絵の寸法は `RunnerBirdArt` が当たり判定の矩形から導く**（#609）。かつてはここに
+    /// 座標を直書きしており、「絵は矩形の内側に収まる寸法で組む」と書いていたにもかかわらず、
+    /// 実際にはくちばし・尾羽・翼が外へ出て**絵の幅が矩形の 1.5 倍**あった。今は
+    /// くちばしの先端・尾羽の先端・翼の振り切った先端が矩形の縁にちょうど一致し、
+    /// 浮遊の上端が矩形の天井に一致する。張り出しが 0 であることは `BirdArtTests` が
+    /// 寸法の計算で確かめるので、パーツを動かすとテストが落ちる。
     private func addBird(_ hazard: RunnerHazard) {
+        let art = RunnerBirdArt(width: hazard.length, height: hazard.height)
         let node = SKNode()
-        let w = hazard.length, h = hazard.height
         // 鳥はその場に浮いている障害物で、追いかけても向かってもこない（水平移動の
         // 「動く敵」化は別件 #569 の積み残し）。走者は左から近づくので、頭・くちばしは
-        // **走者側（-x）**を向かせる。各パーツは +x 側を頭にする前提で組んであるので、
+        // **走者側（-x）**を向かせる。`RunnerBirdArt` は +x 側を頭にして組んであるので、
         // 丸ごと左右反転させるだけで済む——ただし `xScale = -1` は自分のローカル原点
         // （= `hazard.start`）を軸に反転するので、そのままだと絵が当たり判定の外
-        // （`hazard.start` より左）へはみ出す。原点を右へ `w` ぶんずらして帳尻を合わせる。
-        node.position = CGPoint(x: hazard.start + w, y: Metrics.groundY)
+        // （`hazard.start` より左）へはみ出す。原点を右へ `length` ぶんずらして帳尻を合わせる。
+        node.position = CGPoint(x: hazard.start + hazard.length, y: Metrics.groundY)
         node.xScale = -1
 
         // 地面に落ちる影。体との間に空いたすき間が「飛んでいる」ことの一番の手がかり。
         // 影は浮遊に合わせて動かさない（`bobber` の外に置く）——地面側は止まっている
         // ほうが、上下しているのが鳥のほうだと分かる。
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 0.95, height: 0.55))
+        let shadow = SKShapeNode(ellipseOf: art.shadowSize)
         shadow.fillColor = RunnerPalette.color(RunnerPalette.pitVoid)
         shadow.strokeColor = .clear
         shadow.alpha = 0.4
-        shadow.position = CGPoint(x: w * 0.5, y: 0.3)
+        shadow.position = art.shadowCenter
         node.addChild(shadow)
 
         // 浮遊はこの入れ物ごと上下させる（各パーツの座標は静止時のまま書ける）。
-        // 上下幅 ±0.45 と翼の振り上げを足しても箱の高さ 7 を超えない寸法にしてある。
+        // 振れ幅は `art.bobAmplitude` に織り込み済みで、翼の振り上げを足しても箱をはみ出さない。
         let bobber = SKNode()
         node.addChild(bobber)
-        let bob = SKAction.moveBy(x: 0, y: 0.45, duration: 0.7)
+        let bob = SKAction.moveBy(x: 0, y: art.bobAmplitude, duration: 0.7)
         bob.timingMode = .easeInEaseOut
         bobber.run(.repeatForever(.sequence([bob, bob.reversed()])))
 
-        // 体は箱の上半分に置く（下半分は地面とのすき間）。「とまった小鳥」の教訓
-        // ——箱いっぱいに大きく・シルエットで正体が分かるように——は引き継ぐ。
-        let bodyR = h * 0.22                                  // ≒1.5
-        let center = CGPoint(x: w * 0.5, y: h * 0.56)         // ≒3.9。浮かせる高さ
+        let bodyR = art.bodyRadius
+        let center = art.bodyCenter
 
         // 尾羽（後方＝-x 側）。2枚ずらして重ね、飛行姿勢に合わせて斜め上へ流す。
-        let tailSpecs: [(dx: Double, dy: Double, len: Double, lift: Double, color: UInt32)] = [
-            (0.15, 0.35, 2.2, 1.1, RunnerPalette.birdWingFar),
-            (0.25, -0.05, 2.0, 0.6, RunnerPalette.birdBody),
-        ]
-        for spec in tailSpecs {
+        // 長いほうの先端が当たり判定の後端にちょうど届く長さ（`RunnerBirdArt` が導出する）。
+        for (index, spec) in art.tails.enumerated() {
             let tailPath = CGMutablePath()
-            tailPath.move(to: CGPoint(x: -bodyR * 0.5, y: 0))
-            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len, y: spec.lift + 0.7))
-            tailPath.addLine(to: CGPoint(x: -bodyR * 0.5 - spec.len + 0.7, y: spec.lift - 0.7))
+            tailPath.addLines(between: spec.points)
             tailPath.closeSubpath()
             let tail = SKShapeNode(path: tailPath)
-            tail.fillColor = RunnerPalette.color(spec.color)
+            tail.fillColor = RunnerPalette.color(
+                index == 0 ? RunnerPalette.birdWingFar : RunnerPalette.birdBody
+            )
             tail.strokeColor = .clear
-            tail.position = CGPoint(x: center.x + spec.dx, y: center.y + spec.dy)
+            tail.position = spec.anchor
             bobber.addChild(tail)
         }
 
         // 翼。肩を軸に回すので、パスは肩（原点）から後方へ伸びる形で書く。
         // 手前・奥の2枚を逆位相で大きく振り、横からでも「羽ばたいている」と読めるようにする
         // （とまった小鳥時代の「畳んだ翼の小さな揺れ」からの置き換え）。
-        let wingPath = CGMutablePath()
-        wingPath.move(to: CGPoint(x: 0, y: 0.35))
-        wingPath.addLine(to: CGPoint(x: -1.1, y: 0.65))
-        wingPath.addLine(to: CGPoint(x: -2.8, y: 0.3))
-        wingPath.addLine(to: CGPoint(x: -0.9, y: -0.45))
-        wingPath.closeSubpath()
+        func addWing(
+            _ spec: RunnerBirdArt.RotatingPart, color: UInt32, z: CGFloat, startsLow: Bool
+        ) {
+            let wingPath = CGMutablePath()
+            wingPath.addLines(between: spec.points)
+            wingPath.closeSubpath()
+            let wing = SKShapeNode(path: wingPath)
+            wing.fillColor = RunnerPalette.color(color)
+            wing.strokeColor = .clear
+            wing.position = spec.pivot
+            wing.zPosition = z
+            // 羽ばたきは `spec.rotation` の両端を往復する。ここを外れる角度で振ると、
+            // `RunnerBirdArt` が測った張り出しより絵が外へ出る。手前と奥で始点を
+            // 逆の端に取り、2枚が逆位相で振れるようにする。
+            let span = spec.rotation.upperBound - spec.rotation.lowerBound
+            wing.zRotation = startsLow ? spec.rotation.lowerBound : spec.rotation.upperBound
+            let flap = SKAction.rotate(byAngle: startsLow ? span : -span, duration: 0.24)
+            flap.timingMode = .easeInEaseOut
+            wing.run(.repeatForever(.sequence([flap, flap.reversed()])))
+            bobber.addChild(wing)
+        }
 
         // 奥の翼（胴の向こう側）。濃色+背面に置き、手前の翼と逆位相で振る。
-        let farWing = SKShapeNode(path: wingPath)
-        farWing.fillColor = RunnerPalette.color(RunnerPalette.birdWingFar)
-        farWing.strokeColor = .clear
-        farWing.position = CGPoint(x: center.x - bodyR * 0.35, y: center.y + bodyR * 0.5)
-        farWing.zPosition = -1
-        farWing.zRotation = -0.2
-        bobber.addChild(farWing)
-        let farFlap = SKAction.rotate(byAngle: 0.9, duration: 0.24)
-        farFlap.timingMode = .easeInEaseOut
-        farWing.run(.repeatForever(.sequence([farFlap, farFlap.reversed()])))
+        addWing(art.farWing, color: RunnerPalette.birdWingFar, z: -1, startsLow: true)
 
         // 胴体（大きい丸）。頭は別の丸を上前方に重ね、ひとつながりの丸いシルエットにする。
         let body = SKShapeNode(circleOfRadius: bodyR)
@@ -739,8 +746,8 @@ final class RunnerScene: SKScene {
         body.position = center
         bobber.addChild(body)
 
-        let headRadius = bodyR * 0.66
-        let head = CGPoint(x: center.x + bodyR * 0.62, y: center.y + bodyR * 0.55)
+        let headRadius = art.headRadius
+        let head = art.headCenter
         let headNode = SKShapeNode(circleOfRadius: headRadius)
         headNode.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
         headNode.strokeColor = .clear
@@ -757,34 +764,23 @@ final class RunnerScene: SKScene {
         // 畳んだ足。飛行中の鳥は足を体へ引き込むので、ぶら下げず腹の後ろ寄りに
         // 小さく畳んで添える（接地時代の「立つ2本足」の置き換え）。
         let foot = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.birdBeak),
-                                size: CGSize(width: 0.9, height: 0.32))
+                                size: CGSize(width: bodyR * 0.584, height: bodyR * 0.208))
         foot.position = CGPoint(x: center.x + bodyR * 0.05, y: center.y - bodyR * 0.95)
         foot.zRotation = -0.3
         foot.zPosition = 1
         bobber.addChild(foot)
 
-        // 手前の翼。奥の翼と逆位相・大振り。振り上げの頂点でも箱の高さ 7 に収まる角度まで。
-        let nearWing = SKShapeNode(path: wingPath)
-        nearWing.fillColor = RunnerPalette.color(RunnerPalette.birdWing)
-        nearWing.strokeColor = .clear
-        nearWing.position = CGPoint(x: center.x + bodyR * 0.15, y: center.y + bodyR * 0.45)
-        nearWing.zPosition = 3
-        nearWing.zRotation = 0.55
-        bobber.addChild(nearWing)
-        let nearFlap = SKAction.rotate(byAngle: -1.1, duration: 0.24)
-        nearFlap.timingMode = .easeInEaseOut
-        nearWing.run(.repeatForever(.sequence([nearFlap, nearFlap.reversed()])))
+        // 手前の翼。奥の翼と逆位相・大振り。
+        addWing(art.nearWing, color: RunnerPalette.birdWing, z: 3, startsLow: false)
 
-        // くちばし（進行方向側の三角）。頭の大きさに比例させ、遠目でも尖りが分かる長さにする。
+        // くちばし（進行方向側の三角）。先端が当たり判定の走者側の端にちょうど届く長さ。
         let beakPath = CGMutablePath()
-        beakPath.move(to: CGPoint(x: headRadius * 0.7, y: headRadius * 0.35))
-        beakPath.addLine(to: CGPoint(x: headRadius * 1.8, y: -headRadius * 0.05))
-        beakPath.addLine(to: CGPoint(x: headRadius * 0.7, y: -headRadius * 0.45))
+        beakPath.addLines(between: art.beak.points)
         beakPath.closeSubpath()
         let beak = SKShapeNode(path: beakPath)
         beak.fillColor = RunnerPalette.color(RunnerPalette.birdBeak)
         beak.strokeColor = .clear
-        beak.position = head
+        beak.position = art.beak.anchor
         bobber.addChild(beak)
 
         // 目。白目の上に黒目を重ねる（暗緑に暗色の点では見えない、の教訓）。
