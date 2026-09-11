@@ -1214,7 +1214,15 @@ public final class MahjongModel {
     @discardableResult
     public func reviveAfterAd() async -> Bool {
         guard canReviveAfterBust else { return false }
+        let serialBeforeAd = gameSerial
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
+        // 広告のロード〜視聴のあいだも画面は操作できる。そこで「新規対局」（#638）や
+        // リザルトの「もう一度」を押されていたら、**入れ替わったあとの対局**に復活が乗る
+        // （`RewardedRescue` が「#480 → #509 → #511 と 3 回続けて空いた穴」と呼んでいるもの）。
+        // 乗ると、始めたばかりの対局の手牌が配り直され、正しく記録済みの前局の負けまで
+        // `cancelLoss` で取り消される。通し番号で照合して、入れ替わっていたら適用しない
+        // （`requestHandledByModel` の「`perform` が false を返す形で局ガードを効かせる」契約）。
+        guard gameSerial == serialBeforeAd, canReviveAfterBust else { return false }
         hasRevivedThisGame = true
         canReviveAfterBust = false
         // 同じ半荘の続きなので、直前に記録した「負け」は無かったことにする（2048・マインスイーパーの

@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import SwiftUI
 import MahjongTiles
 @testable import GameMahjong
 
@@ -52,6 +53,23 @@ private func makeModel(
         cpuDelay: .zero,
         seed: 2026
     )
+}
+
+/// 視聴の**途中で**割り込みを起こせる広告スタブ。
+///
+/// 広告のロード〜視聴のあいだ画面は操作できるので、そこで「新規対局」を押された状況を作る。
+private final class InterruptingAdService: AdService, @unchecked Sendable {
+    /// 広告を見ているあいだに起きること（= ユーザーの割り込み）。
+    var duringAd: (@MainActor () -> Void)?
+
+    init() {}
+
+    @MainActor func makeBannerView(width: CGFloat) -> AnyView? { nil }
+    @MainActor func showInterstitial() async {}
+    @MainActor func showRewardedAd() async -> Bool {
+        duringAd?()
+        return true
+    }
 }
 
 /// 記録の増え方を見るための、テストごとに独立した UserDefaults。
@@ -218,5 +236,46 @@ struct MahjongNewGameTests {
 
         #expect(spy.quits == 0)
         #expect(spy.starts == 2)
+    }
+
+    /// トビ復活の広告を見ているあいだに「新規対局」を押されたら、**新しい対局に復活を乗せない**。
+    ///
+    /// 乗ると (1) 始めたばかりの対局の手牌が配り直され、(2) 正しく記録済みの前局の負けが
+    /// `cancelLoss` で取り消される。`RewardedRescue` が「#480 → #509 → #511 と 3 回続けて
+    /// 空いた穴」と呼んでいるものが、麻雀にも残っていた（#638 でボタンを増やすので塞ぐ）。
+    @Test("広告を見ているあいだに新規対局を始めたら、復活は新しい対局に乗らない")
+    func reviveDoesNotLandOnTheNewGame() async {
+        let (playLog, defaults, name) = makeIsolatedPlayLog()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let ads = InterruptingAdService()
+        let model = MahjongModel(
+            services: GameServices(snapshots: MemoryStore(), ads: ads, playLog: playLog),
+            cpuDelay: .zero,
+            seed: 2026
+        )
+        model.startGame()
+        // 自分がトビて終局させる（= 復活が提示される状態）。
+        model.configureForTesting(
+            hands: Array(repeating: junkHand(), count: MahjongModel.playerCount),
+            wall: [],
+            scores: [-1_000, 30_000, 35_000, 36_000]
+        )
+        model.exhaustWallForTesting()
+        model.advanceToNextHand()
+        #expect(model.phase == .gameResult)
+        #expect(model.canReviveAfterBust)
+        let lossesAfterBust = playLog.record(gameID: "mahjong4")?.losses
+        #expect(lossesAfterBust == 1, "トビの負けはこの時点で正しく記録されている")
+
+        // 広告を見ているあいだに「新規対局」で配り直す。
+        ads.duringAd = { model.startGame() }
+        let revived = await model.reviveAfterAd()
+
+        #expect(!revived, "入れ替わったあとの対局には復活を適用しない")
+        #expect(playLog.record(gameID: "mahjong4")?.losses == lossesAfterBust,
+                "記録済みの前局の負けが取り消されない")
+        #expect(model.roundNumber == 1, "新しく始めた対局はそのまま続く")
+        #expect(model.scores == Array(repeating: MahjongModel.startingScore,
+                                      count: MahjongModel.playerCount))
     }
 }
