@@ -343,16 +343,9 @@ public struct BlocksView: View {
 
     private var pausedOverlay: some View {
         panel(title: "一時停止") {
-            Toggle(isOn: Binding(
-                get: { model.isSlowMode },
-                set: { model.setSlowMode($0) }
-            )) {
-                Text("ゆっくりモード")
-                    .themeBody(15)
-                    .foregroundStyle(.white)
-            }
-            .tint(Theme.Fill.coral)
-            .padding(.horizontal, 24)
+            // ゆっくりモードの切り替えは設定画面のみに一本化した（#630）。理由は
+            // `RunnerView.pausedOverlay`と同じ（一時停止からいつでも切り替えられると
+            // 難易度調整の抜け道になっていた）。
 
             Button {
                 model.resume()

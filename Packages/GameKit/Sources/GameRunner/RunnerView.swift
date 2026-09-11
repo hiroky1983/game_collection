@@ -401,16 +401,13 @@ public struct RunnerView: View {
 
     private var pausedOverlay: some View {
         panel(title: "一時停止") {
-            Toggle(isOn: Binding(
-                get: { model.isSlowMode },
-                set: { model.setSlowMode($0) }
-            )) {
-                Text("ゆっくりモード")
-                    .themeBody(15)
-                    .foregroundStyle(.white)
-            }
-            .tint(Theme.Fill.coral)
-            .padding(.horizontal, 24)
+            // ゆっくりモードの切り替えは設定画面のみに一本化した（#630）。ゲーム内の
+            // 一時停止からいつでも切り替えられると、難所の直前で止めてオンにする→通過後に
+            // オフへ戻す、を繰り返すだけでベストタイムをいくらでも作り込めてしまい、
+            // アクセシビリティの代替手段のはずが難易度調整の抜け道になっていた
+            // （会長QA「一時停止でゆっくりモードに変えれるといくらでも難易度調整できる」・
+            // 2026-09-11）。設定変更時は`GameSettings.slowModeEnabled`のdidSetで
+            // 中断データを破棄するため、この画面を経由した抜け道は無い。
 
             Button {
                 model.resume()
