@@ -227,6 +227,66 @@ public struct MahjongView: View {
 
     // MARK: - 雀卓
 
+    /// 雀卓のフェルト面。正方形の卓（`mahjongTable`）と手牌の帯（`handOnTable`）で共有する。
+    ///
+    /// #598（チェス駒）・#367（オセロ盤）と同じ「立体感・ツヤ感の底上げ」路線（#637）。
+    /// 上下に振るだけの 1 枚のグラデーションは、実物のフェルトのように見える手がかりが
+    /// 「上が明るい」しかなく、面が起きているのか平らな紙なのか読めなかった。次の3つを重ねる:
+    ///
+    /// 1. **中央の照り** — 卓上の照明が当たっている側。牌が集まる中央がいちばん明るい
+    /// 2. **外周の落ち込み** — 縁へ向かって沈ませる。1 と対になって初めて面の丸みが出る
+    /// 3. **縁の内側の細い照り** — 暗い縁（`0x123726`）が「枠」として立ち上がって見える
+    ///
+    /// `EllipticalGradient` は自分の矩形に対する**割合**で効くので、正方形の卓でも横長の帯でも
+    /// 同じ記述で同じ見え方になる（`RadialGradient` だと半径を実寸で与える必要があり、
+    /// 帯側では円がはみ出して中央の照りが帯全体を覆ってしまう）。
+    private struct MahjongFelt: View {
+        private var shape: RoundedRectangle {
+            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+        }
+
+        var body: some View {
+            shape
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: 0x2E7A50), Color(hex: 0x1D5638)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    shape.fill(
+                        EllipticalGradient(
+                            colors: [Color.white.opacity(0.11), Color.white.opacity(0)],
+                            center: UnitPoint(x: 0.5, y: 0.42),
+                            startRadiusFraction: 0, endRadiusFraction: 0.62
+                        )
+                    )
+                )
+                .overlay(
+                    shape.fill(
+                        EllipticalGradient(
+                            stops: [
+                                .init(color: Color.black.opacity(0), location: 0.45),
+                                .init(color: Color.black.opacity(0.26), location: 1),
+                            ],
+                            center: .center,
+                            startRadiusFraction: 0, endRadiusFraction: 0.78
+                        )
+                    )
+                )
+                .overlay(shape.strokeBorder(Color(hex: 0x123726), lineWidth: 3))
+                .overlay(
+                    shape.inset(by: 3).strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.22), Color.white.opacity(0.03)],
+                            startPoint: .top, endPoint: .bottom
+                        ),
+                        lineWidth: 1
+                    )
+                )
+        }
+    }
+
     /// 河（捨て牌）は全員共通のサイズにする（会長指摘「大きさはユーザー含め均一に」）。
     ///
     /// **古い牌は捨てない**。以前は表示枚数の上限（12枚など）を超えた古い牌を落としていたが、
@@ -285,23 +345,14 @@ public struct MahjongView: View {
             }
             .padding(Self.tablePadding)
             .frame(width: side, height: side)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: 0x2E7A50), Color(hex: 0x1D5638)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                            .strokeBorder(Color(hex: 0x123726), lineWidth: 3)
-                    )
-                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-            )
+            .background(MahjongFelt())
             // 河が伸びきってなお収まらない極端なケースでも、白背景側へにじみ出さず
             // 卓の角丸の内側でだけ収まるようにする（重なりよりましな失敗のさせ方）。
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+            // 影は**切り抜きのあと**に付ける。`background` の中に置いていた頃は、直後の
+            // `clipShape` が卓の外側（＝影が落ちる領域）ごと切り落としてしまい、指定しているのに
+            // 一度も見えていなかった。外に出すと、卓がクリーム色の地の上に浮いて見える。
+            .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
             .frame(width: geo.size.width, height: geo.size.height)
             // 河のアニメーションが止まらないという指摘のため、原因を特定しきれないまま
             // 力技で対処する: 卓の中身への暗黙アニメーションを一切禁止する。牌の増減・並び替えは
@@ -342,7 +393,17 @@ public struct MahjongView: View {
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black.opacity(0.18)))
+        // 実物の卓中央（点棒受けの窪み）にならって、面から一段沈んだ板に見せる。
+        // 落とす量を少し増やし（0.18 → 0.24）、縁にだけ細い照りを置くと縁が立ち上がって見える。
+        // 白文字の下地が濃くなる方向なので、コントラストは上がりこそすれ下がらない。
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.black.opacity(0.24))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             MahjongAccessibility.roundLabel(
@@ -691,19 +752,10 @@ public struct MahjongView: View {
             hintLine(waits: waits)
         }
         .padding(.horizontal, 6).padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: 0x2E7A50), Color(hex: 0x1D5638)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                        .strokeBorder(Color(hex: 0x123726), lineWidth: 3)
-                )
-        )
+        // 卓と同じフェルト（`MahjongFelt`）。以前はここに卓の指定を写していたため、
+        // 片方だけ磨くと2つの緑が食い違う形になっていた。
+        // 影はフェルト自身に付ける（外側に付けると手牌の1枚1枚にまで影が落ちる）。
+        .background(MahjongFelt().shadow(color: .black.opacity(0.22), radius: 6, y: 3))
     }
 
     /// 会長指摘「誤タップ防止のため1タップでフォーカス、2タップ目で捨てる」への対応。
