@@ -84,6 +84,60 @@ public enum HanafudaCardArt {
     public static let inkHex: UInt32 = 0x3A2E27
     public static var ink: Color { Color(hex: inkHex) }
 
+    // MARK: - 種別の帯（#602）
+
+    /// 札の上端に敷く帯の色。**種別（光・タネ・短冊・カス）を色で表す**。
+    ///
+    /// 図案の色（`monthColor`）とは別に持つ。図案の色は花や葉として見える明るさが要るのに対し、
+    /// 帯は上に文字を載せる面なので暗くないと読めず、求められる明るさが逆を向く（#220 と同型）。
+    /// 短冊札だけは短冊自身の赤 / 青を使い、**帯を見ただけで赤短・青短が分かる**ようにする
+    /// （どちらも役の名前がそのまま付いている）。
+    public static func kindHex(for card: HanafudaCard) -> UInt32 {
+        if let ribbon = card.ribbon {
+            return ribbon == .blue ? blueRibbonBandHex : redRibbonBandHex
+        }
+        switch card.kind {
+        case .hikari:  return 0xD4A93A   // 金
+        case .tane:    return 0x2F7050   // 常緑
+        case .kasu:    return 0x6F675E   // 薄墨
+        // 短冊札は 10 枚すべてが `ribbon` を持つので、ここには来ない（`HanafudaBandTests` で固定）。
+        case .tanzaku: return redRibbonBandHex
+        }
+    }
+
+    public static func kindColor(for card: HanafudaCard) -> Color {
+        Color(hex: kindHex(for: card))
+    }
+
+    public static let redRibbonBandHex: UInt32 = 0xC63A3A
+    public static let blueRibbonBandHex: UInt32 = 0x3E6FB0
+
+    /// 帯の上に載せる文字色。**1 つの色で面と文字の両方は賄えない**ので、
+    /// 地の明るさを見て生成りか墨のどちらか読めるほうを選ぶ（#220）。
+    public static func bandLabelHex(on background: UInt32) -> UInt32 {
+        contrastRatio(background, bandLabelLightHex) >= contrastRatio(background, bandLabelDarkHex)
+            ? bandLabelLightHex : bandLabelDarkHex
+    }
+
+    public static let bandLabelLightHex: UInt32 = 0xFFFFFF
+    public static var bandLabelDarkHex: UInt32 { inkHex }
+
+    /// WCAG のコントラスト比。`bandLabelHex(on:)` の判断に使う。
+    public static func contrastRatio(_ a: UInt32, _ b: UInt32) -> Double {
+        let la = relativeLuminance(a), lb = relativeLuminance(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+    }
+
+    private static func relativeLuminance(_ hex: UInt32) -> Double {
+        func channel(_ raw: UInt32) -> Double {
+            let v = Double(raw) / 255
+            return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel((hex >> 16) & 0xFF)
+            + 0.7152 * channel((hex >> 8) & 0xFF)
+            + 0.0722 * channel(hex & 0xFF)
+    }
+
     /// 短冊の色。
     public static func ribbonColor(_ ribbon: HanafudaRibbon) -> Color {
         switch ribbon {
