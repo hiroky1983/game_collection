@@ -212,6 +212,7 @@ public struct BlocksView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(paddleGesture(width: geo.size.width))
+                if model.isPaddleWide, !model.phase.isFinished { effectBadge }
                 overlay(boardWidth: geo.size.width)
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
@@ -314,6 +315,28 @@ public struct BlocksView: View {
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(.black.opacity(0.35)))
                 .padding(.bottom, BlocksField.Metrics.readyHintClearance * unit)
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// バー伸長が効いているあいだ盤の上端に出す札（#599）。
+    ///
+    /// **盤の内側に重ねる**。ヘッダーや操作行に足すと、効果が出た瞬間に行の高さが変わって
+    /// 盤が縮み、#597 / #600 で確保した横幅がそのぶん削られる。ここは盤の枠の中なので
+    /// レイアウトに 1pt も影響しない。最上段のブロックの上の余白
+    /// （`BlocksField.Metrics.topMargin`）に収まる位置に置く。
+    ///
+    /// 読み上げ用に残機・スコアと同じく SwiftUI 側に置くのは基盤規約どおり
+    /// （SpriteKit の中に文字を描かない）。
+    private var effectBadge: some View {
+        VStack {
+            Label("バーが伸びている", systemImage: "arrow.left.and.right")
+                .themeCaption(12)
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(Capsule().fill(.black.opacity(0.45)))
+                .padding(.top, 4)
+            Spacer(minLength: 0)
         }
         .allowsHitTesting(false)
     }

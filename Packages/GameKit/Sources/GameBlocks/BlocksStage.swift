@@ -203,4 +203,31 @@ public enum BlocksRules {
     public static let staleFrameThreshold: Double = 0.25
     /// 総ステージ数。
     public static var stageCount: Int { BlocksStage.all.count }
+
+    // MARK: - パワーアップ（#599）
+
+    /// アイテムが落ちてくる間隔（**そのステージで壊したブロックの個数**）。
+    ///
+    /// 乱数は使わない（基盤規約）。ステージ 1（27 個）で 3 個、最終面（47 個）で 6 個ぶん落ちる。
+    /// **間隔を詰めるほど「常に効果が乗っている」状態に近づき、素の難度が消える**ため、
+    /// 効果時間（`widePaddleDuration`）より長い間隔になるよう選んである
+    /// （実測: 1 面の平均で 7 個壊すのに 12 秒より長くかかる）。
+    public static let itemDropInterval = 7
+    /// アイテムが落ちる速さ（フィールド単位 / 秒）。
+    ///
+    /// 球の最低速度（`BlocksStage.baseSpeed` = 43）より十分遅くして、球を追いながらでも
+    /// 取りに行けるようにする。
+    public static let itemFallSpeed: Double = 24
+    /// バー伸長でパドルの幅に掛ける倍率。
+    public static let widePaddleFactor: Double = 1.6
+    /// バー伸長の効果時間（秒）。**重ねがけしても幅は変わらず、この残り時間だけが延びる**。
+    public static let widePaddleDuration: Double = 12
+    /// 同時に盤上にいられる球の数の上限。
+    ///
+    /// 上限が無いと取るたびに倍々に増え、パドルを動かさなくても勝ててしまう。
+    public static let maxBalls = 3
+    /// 球を増やすときに元の球から振り分ける角度（ラジアン）。
+    ///
+    /// 同じ向きのまま増やすと 3 個が重なったまま飛び、増えた意味が無くなる。
+    public static let multiBallSpread: Double = .pi / 9
 }

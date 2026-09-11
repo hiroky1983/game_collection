@@ -114,6 +114,13 @@ public struct BlocksField: Equatable, Sendable {
             return min(width, max(0, viewX / viewWidth * width))
         }
 
+        /// 落ちてくるアイテムの寸法（#599）。ブロック（11.1 × 5）より小さく、角を丸めて
+        /// 「盤の部品ではなく拾うもの」と分かる形にする。
+        ///
+        /// 球（直径 4）より大きくないと、落ちてきたことに気づけないまま床まで抜ける。
+        public static let itemWidth: Double = 8
+        public static let itemHeight: Double = 3.8
+
         /// 反射角の下限（速さに対する `|vy|` の比）。sin(15°) ≒ 0.2588。
         public static let minimumVerticalRatio: Double = 0.26
         /// パドルの端で跳ね返るときの最大角（垂直から測る）。
@@ -126,7 +133,16 @@ public struct BlocksField: Equatable, Sendable {
     public private(set) var blocks: [[Block?]]
     /// パドル中心の x。`movePaddle(to:)` で動かす（範囲外は自動で丸める）。
     public private(set) var paddleX: Double
-    public private(set) var ball: BlocksBall
+    /// 盤上の球。**増える**（#599）ので配列で持つ。空になるのは全部落ちた瞬間だけ。
+    public private(set) var balls: [BlocksBall]
+    /// 落下中のアイテム（#599）。
+    public private(set) var items: [BlocksItem]
+    /// バー伸長の残り時間（秒）。0 なら効いていない。
+    public private(set) var widePaddleRemaining: Double
+    /// このステージで壊したブロックの通算数。アイテムの出現条件（#599）に使う。
+    ///
+    /// 盤はステージごとに作り直されるので、ステージをまたいで持ち越されない。
+    public private(set) var destroyedCount: Int
     /// このステージでの球の速さ。発射・パドル反射のたびにこの値へ揃える。
     public private(set) var speed: Double
 
@@ -134,12 +150,35 @@ public struct BlocksField: Equatable, Sendable {
         self.blocks = stage.makeBlocks()
         self.paddleX = Metrics.width / 2
         self.speed = speed
-        self.ball = BlocksBall(x: Metrics.width / 2, y: Metrics.restingBallY)
+        self.balls = [BlocksBall(x: Metrics.width / 2, y: Metrics.restingBallY)]
+        self.items = []
+        self.widePaddleRemaining = 0
+        self.destroyedCount = 0
     }
 
     // MARK: - 盤面の問い合わせ
 
     public var rowCount: Int { blocks.count }
+
+    /// 先頭の球。
+    ///
+    /// 球の本体は `balls`（#599）。1 個だけを見れば足りる呼び出し（発射前の位置・速さの確認など）が
+    /// 多いので入口を残してある。**球が 1 個も無いのは全部落ちた瞬間だけ**で、そのとき
+    /// `step` は `.ballLost` を返して即座に抜け、Model が `resetBall()` するか決着させる。
+    public var ball: BlocksBall { balls.first ?? BlocksBall(x: paddleX, y: Metrics.restingBallY) }
+
+    /// バー伸長が効いているか（#599）。
+    public var isPaddleWide: Bool { widePaddleRemaining > 0 }
+
+    /// いま効いているパドルの半幅。伸長中だけ `BlocksRules.widePaddleFactor` 倍になる。
+    ///
+    /// **当たり判定も可動域の丸めもこの値を見る**（`Metrics.paddleHalfWidth` は素の値）。
+    public var paddleHalfWidth: Double {
+        Metrics.paddleHalfWidth * (isPaddleWide ? BlocksRules.widePaddleFactor : 1)
+    }
+
+    /// いま効いているパドルの幅。描画（`BlocksScene`）が横方向の拡大率に使う。
+    public var paddleWidth: Double { paddleHalfWidth * 2 }
 
     public func block(row: Int, column: Int) -> Block? {
         guard row >= 0, row < blocks.count, column >= 0, column < Metrics.columns else { return nil }
@@ -176,69 +215,110 @@ public struct BlocksField: Equatable, Sendable {
 
     /// パドルを動かす。盤の外へは出ない。
     public mutating func movePaddle(to x: Double) {
-        let half = Metrics.paddleHalfWidth
+        // 伸びているあいだは半幅が広いぶん、端で止まる位置も内側になる（#599）。
+        let half = paddleHalfWidth
         paddleX = min(Metrics.width - half, max(half, x))
         // 発射前の球はパドルに乗せたまま一緒に動かす。
-        if !ball.isMoving {
-            ball.x = paddleX
-            ball.y = Metrics.restingBallY
+        for index in balls.indices where !balls[index].isMoving {
+            balls[index].x = paddleX
+            balls[index].y = Metrics.restingBallY
         }
     }
 
-    /// 球を発射する。すでに動いていれば何もしない。
+    /// 球を発射する。すでに動いている球には触らない。
     public mutating func launch() {
-        guard !ball.isMoving else { return }
         let velocity = BlocksPhysics.paddleBounce(offset: Metrics.launchOffset, speed: speed)
-        ball.vx = velocity.vx
-        ball.vy = velocity.vy
+        for index in balls.indices where !balls[index].isMoving {
+            balls[index].vx = velocity.vx
+            balls[index].vy = velocity.vy
+        }
     }
 
     /// 球をパドルの上へ戻す（1 機失ったあと）。
+    ///
+    /// **増えた球・落下中のアイテム・効いている効果もここで消える**（#599）。持ち越すと、
+    /// わざと落として効果だけ貯める遊び方ができてしまう。
     public mutating func resetBall() {
-        ball = BlocksBall(x: paddleX, y: Metrics.restingBallY)
+        balls = [BlocksBall(x: paddleX, y: Metrics.restingBallY)]
+        items.removeAll()
+        widePaddleRemaining = 0
+        // 縮んだパドルの位置で球を乗せ直す。
+        movePaddle(to: paddleX)
     }
 
     /// 球の速さを変える（ゆっくりモードの切り替え）。**向きは保ったまま**速さだけ差し替える。
     public mutating func setSpeed(_ newSpeed: Double) {
         speed = newSpeed
-        guard ball.isMoving, newSpeed > 0 else { return }
-        let scale = newSpeed / ball.speed
-        ball.vx *= scale
-        ball.vy *= scale
+        guard newSpeed > 0 else { return }
+        for index in balls.indices where balls[index].isMoving {
+            let scale = newSpeed / balls[index].speed
+            balls[index].vx *= scale
+            balls[index].vy *= scale
+        }
     }
 
-    /// テスト・撮影用に球の状態を直接置く。
+    /// テスト・撮影用に球の状態を直接置く。**盤上の球はこの 1 個だけになる**。
     ///
     /// 通常の操作（発射 → 反射）だけでは特定の局面（落球の直前など）へ数百フレームかけないと
     /// 到達できず、検証がフレーム数に依存してしまうため用意している。製品コードからは使わない。
     public mutating func placeBall(x: Double, y: Double, vx: Double, vy: Double) {
-        ball = BlocksBall(x: x, y: y, vx: vx, vy: vy)
+        balls = [BlocksBall(x: x, y: y, vx: vx, vy: vy)]
     }
+
+    #if DEBUG
+    /// テスト・撮影用にアイテムを直接落とす（#599）。
+    ///
+    /// 本来の出現条件はブロックを `BlocksRules.itemDropInterval` 個壊すことなので、
+    /// 効果そのものを確かめたいだけのときに 7 個壊す手順を毎回書くと、テストが
+    /// 出現条件の変更でまとめて壊れる。出現条件は専用のテストで別に固定する。
+    public mutating func dropItemForTesting(kind: BlocksItemKind, x: Double, y: Double) {
+        items.append(BlocksItem(kind: kind, x: x, y: y))
+    }
+    #endif
 
     // MARK: - 進行
 
-    /// `dt` 秒ぶん球を進め、その間に起きたできごとを順に返す。
+    /// `dt` 秒ぶん盤面を進め、その間に起きたできごとを順に返す。
     ///
-    /// **落球（`.ballLost`）が起きた時点で打ち切る**。以降のできごとは「もう存在しない球」のもので、
-    /// 続けて処理すると 1 回の落球で 2 機失うような取り違えを生む。
+    /// **盤上の球がすべて落ちた時点（`.ballLost`）で打ち切る**。以降のできごとは
+    /// 「もう存在しない球」のもので、続けて処理すると 1 回の落球で 2 機失うような取り違えを生む。
+    /// 球が増えているあいだ（#599）は、1 個落ちても残りが動いていれば何も起きない。
     public mutating func step(dt: Double) -> [BlocksEvent] {
-        guard dt > 0, ball.isMoving else { return [] }
+        guard dt > 0 else { return [] }
+        let hadBalls = !balls.isEmpty
         var events: [BlocksEvent] = []
 
         // 1 サブステップの移動量を球の半径以下に抑える（速い球が薄いブロックをすり抜けるのを防ぐ）。
-        let distance = ball.speed * dt
-        let substeps = max(1, Int((distance / Metrics.ballRadius).rounded(.up)))
+        // 盤上でいちばん速いものに合わせる（球が止まっていてもアイテムは落ちている）。
+        let fastest = max(balls.map(\.speed).max() ?? 0, BlocksRules.itemFallSpeed)
+        let substeps = max(1, Int((fastest * dt / Metrics.ballRadius).rounded(.up)))
         let substepDT = dt / Double(substeps)
 
         for _ in 0..<substeps {
-            ball.x += ball.vx * substepDT
-            ball.y += ball.vy * substepDT
+            var index = 0
+            while index < balls.count {
+                var ball = balls[index]
+                guard ball.isMoving else { index += 1; continue }
+                ball.x += ball.vx * substepDT
+                ball.y += ball.vy * substepDT
 
-            if resolveWalls() { events.append(.wallBounce) }
-            if resolvePaddle() { events.append(.paddleBounce) }
-            if let hit = resolveBlocks() { events.append(hit) }
+                if resolveWalls(&ball) { events.append(.wallBounce) }
+                if resolvePaddle(&ball) { events.append(.paddleBounce) }
+                if let hit = resolveBlocks(&ball) { events.append(hit) }
 
-            if ball.y < 0 {
+                if ball.y < 0 {
+                    // 増えた球のうちの 1 個が落ちただけ。残機が減るのは最後の 1 個のときだけ。
+                    balls.remove(at: index)
+                    continue
+                }
+                balls[index] = ball
+                index += 1
+            }
+
+            events.append(contentsOf: advanceItems(dt: substepDT))
+            expireEffects(dt: substepDT)
+
+            if hadBalls, balls.isEmpty {
                 events.append(.ballLost)
                 return events
             }
@@ -247,7 +327,7 @@ public struct BlocksField: Equatable, Sendable {
     }
 
     /// 左右の壁と天井。床は `step` 側で落球として扱う。
-    private mutating func resolveWalls() -> Bool {
+    private func resolveWalls(_ ball: inout BlocksBall) -> Bool {
         let r = Metrics.ballRadius
         var bounced = false
         if ball.x - r < 0 {
@@ -268,17 +348,21 @@ public struct BlocksField: Equatable, Sendable {
     }
 
     /// パドル。当てた位置で反射角が変わる（`BlocksPhysics.paddleBounce`）。
-    private mutating func resolvePaddle() -> Bool {
+    ///
+    /// 伸びているあいだ（#599）も**当てた位置と角度の対応は同じ**にする
+    /// （半幅で割るので、端は端のまま最大角で返る）。
+    private func resolvePaddle(_ ball: inout BlocksBall) -> Bool {
         guard ball.vy < 0 else { return false }
         let r = Metrics.ballRadius
         let top = Metrics.paddleTop
+        let half = paddleHalfWidth
         // 天面を跨いだフレームだけを拾う。下限を切らないと、パドルの真下を通過中の球まで
         // 拾い上げてしまう（サブステップの移動量は半径以下なのでこの帯を飛び越すことはない）。
         guard ball.y - r <= top, ball.y >= Metrics.paddleY - Metrics.paddleHeight else { return false }
-        guard abs(ball.x - paddleX) <= Metrics.paddleHalfWidth + r else { return false }
+        guard abs(ball.x - paddleX) <= half + r else { return false }
 
         ball.y = top + r
-        let offset = (ball.x - paddleX) / Metrics.paddleHalfWidth
+        let offset = (ball.x - paddleX) / half
         let velocity = BlocksPhysics.paddleBounce(offset: offset, speed: speed)
         ball.vx = velocity.vx
         ball.vy = velocity.vy
@@ -289,7 +373,7 @@ public struct BlocksField: Equatable, Sendable {
     ///
     /// 隣り合う 2 個に同時に重なったときに両方で反転させると、角に挟まれた球が元の向きへ
     /// 戻ってしまう（2 回反転 = 反転なし）。最も深く重なっている 1 個だけを見る。
-    private mutating func resolveBlocks() -> BlocksEvent? {
+    private mutating func resolveBlocks(_ ball: inout BlocksBall) -> BlocksEvent? {
         let r = Metrics.ballRadius
         // 球の周りにある候補だけを見る。行と列は座標から直接引けるので全走査はしない。
         let minColumn = max(0, Int(((ball.x - r) / Metrics.blockWidth).rounded(.down)))
@@ -329,11 +413,108 @@ public struct BlocksField: Equatable, Sendable {
 
         let result = block.damaged()
         blocks[hit.row][hit.column] = result.block
+        if result.destroyed { spawnItemIfDue(row: hit.row, column: hit.column) }
         return .blockHit(
             row: hit.row,
             column: hit.column,
             kind: block.kind,
             destroyed: result.destroyed
+        )
+    }
+
+    // MARK: - アイテム（#599）
+
+    /// 壊した通算数が `BlocksRules.itemDropInterval` の倍数に達したら、その場所からアイテムを落とす。
+    ///
+    /// **乱数は使わない**（基盤規約）。出る個数も順番も崩し方だけで決まるので、
+    /// 同じ操作からは常に同じ盤面になり、不具合をテストで再現できる。
+    private mutating func spawnItemIfDue(row: Int, column: Int) {
+        destroyedCount += 1
+        guard destroyedCount % BlocksRules.itemDropInterval == 0 else { return }
+        let order = destroyedCount / BlocksRules.itemDropInterval - 1
+        let kind = BlocksItemKind.dropOrder[order % BlocksItemKind.dropOrder.count]
+        let rect = Self.blockRect(row: row, column: column)
+        items.append(BlocksItem(kind: kind, x: rect.midX, y: rect.midY))
+    }
+
+    /// アイテムを落とし、受け止められたものの効果を出す。床まで落ちたものは黙って消える。
+    private mutating func advanceItems(dt: Double) -> [BlocksEvent] {
+        guard !items.isEmpty else { return [] }
+        var events: [BlocksEvent] = []
+        var index = 0
+        while index < items.count {
+            items[index].y -= BlocksRules.itemFallSpeed * dt
+            let item = items[index]
+            if isCaught(item) {
+                items.remove(at: index)
+                apply(item.kind)
+                events.append(.itemCaught(kind: item.kind))
+                continue
+            }
+            if item.y + Metrics.itemHeight / 2 < 0 {
+                items.remove(at: index)
+                continue
+            }
+            index += 1
+        }
+        return events
+    }
+
+    /// アイテムがパドルに重なっているか。矩形どうしの重なりで見る
+    /// （球と違って反射しないので、面で触れたら取れたことにしてよい）。
+    private func isCaught(_ item: BlocksItem) -> Bool {
+        let halfW = Metrics.itemWidth / 2
+        let halfH = Metrics.itemHeight / 2
+        guard item.y - halfH <= Metrics.paddleTop else { return false }
+        guard item.y + halfH >= Metrics.paddleY - Metrics.paddleHeight / 2 else { return false }
+        return abs(item.x - paddleX) <= paddleHalfWidth + halfW
+    }
+
+    private mutating func apply(_ kind: BlocksItemKind) {
+        switch kind {
+        case .widePaddle:
+            // 重ねがけで太り続けないよう、**幅は固定で残り時間だけ**を上書きする。
+            widePaddleRemaining = BlocksRules.widePaddleDuration
+            // 広がったぶんが盤の外へはみ出さないよう入れ直す。
+            movePaddle(to: paddleX)
+        case .multiBall:
+            splitBalls()
+        }
+    }
+
+    /// 時間で切れる効果を進める。
+    ///
+    /// 切れてもパドルの位置は動かさない。**縮むときは可動域が広がるだけ**なので、
+    /// いまの位置が盤の外へ出ることはない。
+    private mutating func expireEffects(dt: Double) {
+        guard widePaddleRemaining > 0 else { return }
+        widePaddleRemaining = max(0, widePaddleRemaining - dt)
+    }
+
+    /// 動いている球を左右へ振り分けて増やす。上限は `BlocksRules.maxBalls`。
+    ///
+    /// 増やすのは**向きだけ**で、速さは元の球のまま（増えた球が速いと避けようが無くなる）。
+    private mutating func splitBalls() {
+        let spread = BlocksRules.multiBallSpread
+        var added: [BlocksBall] = []
+        for ball in balls where ball.isMoving {
+            for sign in [1.0, -1.0] {
+                guard balls.count + added.count < BlocksRules.maxBalls else { break }
+                var copy = ball
+                let rotated = Self.rotate(vx: ball.vx, vy: ball.vy, by: sign * spread)
+                let clamped = BlocksPhysics.clampVertical(rotated)
+                copy.vx = clamped.vx
+                copy.vy = clamped.vy
+                added.append(copy)
+            }
+        }
+        balls.append(contentsOf: added)
+    }
+
+    private static func rotate(vx: Double, vy: Double, by angle: Double) -> BlocksPhysics.Velocity {
+        BlocksPhysics.Velocity(
+            vx: vx * cos(angle) - vy * sin(angle),
+            vy: vx * sin(angle) + vy * cos(angle)
         )
     }
 }
