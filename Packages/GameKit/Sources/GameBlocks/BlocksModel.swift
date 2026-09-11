@@ -28,6 +28,12 @@ public final class BlocksModel {
     public private(set) var recordResult: RecordResult?
     /// ゆっくりモード（アクセシビリティ）。設定の値をそのまま持ち、切り替えると即座に球へ効く。
     public private(set) var isSlowMode: Bool
+    /// バー伸長が効いているか（#599）。画面の札の出し入れに使う。
+    ///
+    /// `field` は毎フレーム変わるため、画面が `field.isPaddleWide` を直接読むと
+    /// **効果と関係なく毎フレーム再評価される**。ここで鏡を持ち、変わったときだけ代入することで
+    /// `@Observable` の通知もそのときだけになる。
+    public private(set) var isPaddleWide = false
     /// 盤を作り直すたびに 1 増える連番。
     ///
     /// 描画側（`BlocksScene`）が「ブロックのノードを作り直すべきか」を判断するのに使う。
@@ -171,6 +177,13 @@ public final class BlocksModel {
     public func placeBallForTesting(x: Double, y: Double, vx: Double, vy: Double) {
         field.placeBall(x: x, y: y, vx: vx, vy: vy)
     }
+
+    /// テスト・撮影用にアイテムを直接落とす（#599）。
+    ///
+    /// `field` は `private(set)` なので、盤面側の同名の入口へはここを通さないと届かない。
+    public func dropItemForTesting(kind: BlocksItemKind, x: Double, y: Double) {
+        field.dropItemForTesting(kind: kind, x: x, y: y)
+    }
     #endif
 
     /// `dt` 秒ぶん進める。SpriteKit のゲームループから毎フレーム呼ばれる唯一の入口。
@@ -182,6 +195,12 @@ public final class BlocksModel {
             guard phase == .playing else { break }
             handle(event)
         }
+        syncEffects()
+    }
+
+    /// 効果の鏡（`isPaddleWide`）を盤面に合わせる。**変わったときだけ**代入する。
+    private func syncEffects() {
+        if isPaddleWide != field.isPaddleWide { isPaddleWide = field.isPaddleWide }
     }
 
     /// ステージクリアの表示から次のステージへ。
@@ -240,6 +259,7 @@ public final class BlocksModel {
         let stage = BlocksStage.all[stageNumber - 1]
         field = BlocksField(stage: stage, speed: Self.speed(of: stage, slow: isSlowMode))
         fieldGeneration += 1
+        syncEffects()
         phase = .ready
         persist()
     }
@@ -255,6 +275,10 @@ public final class BlocksModel {
             score += BlocksScoring.blockPoints(kind: kind, destroyed: destroyed, stage: stageNumber)
             services?.feedback.impact(destroyed ? .medium : .light)
             if field.isCleared { clearStage() }
+        case .itemCaught:
+            // **得点は動かさない**（#599）。効果そのものは `BlocksField` が適用済みで、
+            // ここでやるのは取れたと分かる手応えを返すことだけ。
+            services?.feedback.notify(.success)
         case .ballLost:
             loseLife()
         }
@@ -270,6 +294,7 @@ public final class BlocksModel {
         }
         services?.feedback.notify(.warning)
         field.resetBall()
+        syncEffects()
         phase = .ready
         // 減った残機をその場で保存する。しないと、落球のたびに強制終了すれば
         // ステージ頭の残機へ戻せてしまい、広告コンティニューより条件が良くなる（#508）。
@@ -344,6 +369,16 @@ public final class BlocksModel {
         case "cleared":
             launch()
             breakBlocksForDebug(limit: .max)
+        case "items":
+            // アイテムが 1 個落ちてくる途中で、1 個目（バー伸長）は受け取り済みの画（#599）。
+            launch()
+            catchNextItemForDebug()
+            breakBlocksForDebug(limit: BlocksRules.itemDropInterval)
+        case "multiball":
+            // 2 個目（球増加）まで受け取って球が 3 個ある画（#599）。
+            launch()
+            catchNextItemForDebug()
+            catchNextItemForDebug()
         case "gameover":
             var guardCount = 0
             while !phase.isFinished, guardCount < 100 {
@@ -382,6 +417,30 @@ public final class BlocksModel {
         // シャッターを切る前に落ちて残機が減った画になる）。
         if phase == .playing {
             placeBallForTesting(x: field.paddleX, y: BlocksField.Metrics.height * 0.3, vx: 22, vy: 30)
+        }
+    }
+
+    /// 次のアイテムが出るまでブロックを壊し、落ちてくるのをパドルで受け止める（#599）。
+    ///
+    /// アイテムは落下に約 3 秒かかるので、そのあいだ球を落とさないよう毎フレーム同じ場所へ
+    /// 置き直す（実際には進まない）。**止まった球にはしない**: 球増加は動いている球を
+    /// 振り分けて増やすので、速度が 0 だと何も起きない。
+    private func catchNextItemForDebug() {
+        breakBlocksForDebug(limit: BlocksRules.itemDropInterval)
+        guard let item = field.items.first else { return }
+        movePaddle(to: item.x)
+        let parkY = BlocksField.Metrics.height * 0.3
+        var frames = 0
+        while !field.items.isEmpty, phase == .playing, frames < 900 {
+            frames += 1
+            placeBallForTesting(x: item.x, y: parkY, vx: 0, vy: 20)
+            tick(dt: 1.0 / 60)
+        }
+        // 増えた球は同じ点から出るので、重なったままだと 1 個に見える。少し離れるまで進める。
+        var spread = 0
+        while phase == .playing, spread < 30 {
+            spread += 1
+            tick(dt: 1.0 / 60)
         }
     }
 
