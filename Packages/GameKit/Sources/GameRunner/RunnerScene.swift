@@ -457,8 +457,9 @@ final class RunnerScene: SKScene {
             }
             // 高さを雲ごとに変えて、横一列に並んで見えないようにする。丘の稜線
             // （`buildHills`、最も高いもので地面+34=68）より確実に上、画面の上端付近に収める
-            // ——`Metrics.height` を95に下げた際（#621）、旧来の帯（-52〜-12）のままだと
-            // 丘の稜線に一部埋もれるため、丘より上の帯だけに詰めた。
+            // ——`Metrics.height` は95（#621で横幅優先に確定。140・180は#635の地ならしとして
+            // 一時的に試したが会長QA「横ーーーー」で95へ差し戻した・2026-09-11）なので、
+            // 旧来の広い帯（-52〜-12）のままだと丘の稜線に一部埋もれるため、丘より上の帯だけに詰める。
             let y = Metrics.height - 4 - Double(i % 4) * 6
             cloud.position = CGPoint(x: Double(i) * Self.cloudSpacing, y: y)
             cloudLayer.addChild(cloud)
