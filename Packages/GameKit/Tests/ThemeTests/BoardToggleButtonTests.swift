@@ -56,17 +56,34 @@ struct BoardToggleButtonTests {
 
     /// 押していない側を `Theme.surface`（＝帯のカードと同じ面色）に戻すと、輪郭がどこにも無くなり
     /// 「押せる物」に見えなくなる（#197 が直した症状。#641 以前のマインスイーパーがこれだった）。
+    ///
+    /// 面の色は**どちらの状態にどちらを出すか**まで見る。三項演算子の向きだけ入れ替える改変は
+    /// ON/OFF の見た目が丸ごと逆転する退行だが、「薄い面がある」ことしか見ていないと素通りする。
     @Test("押していない側は薄い差し色と枠線で輪郭を残す")
     func inactiveSideKeepsItsOutline() throws {
         let source = try Self.read("Core/BoardToggleButton.swift")
-        #expect(source.contains("accent.opacity(0.12)"), "押していない側の薄い面が無い")
-        #expect(source.contains(".strokeBorder("), "押していない側の枠線が無い")
+        #expect(source.contains("isOn ? fill : accent.opacity(0.12)"),
+                "押している側が差し色の面・押していない側が薄い面、の向きが崩れている")
+        #expect(source.contains("isOn ? .clear : accent.opacity(0.55)"),
+                "枠線は押していない側だけに出す（押している側は面が差し色なので枠は要らない）")
+        #expect(source.contains("isOn ? Theme.onAccent : Theme.ink"),
+                "文字色の向きが崩れている（差し色の面には onAccent・薄い面には本文色・#220）")
         // 実装行（コメントを除く）に `Theme.surface` が現れたら逆戻り。
         let offenders = source
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.hasPrefix("//") && $0.contains("Theme.surface") }
         #expect(offenders.isEmpty, "押していない側が Theme.surface に戻っています: \(offenders)")
+    }
+
+    /// 背景の角丸で当たり判定を取ると四隅がタップに反応せず、44pt を確保したつもりで実効の
+    /// 標的が狭まる（#197 がこれを避けるために矩形で受けている）。消えても寸法のテストは
+    /// 全部緑のままなので、ここで別に押さえる。
+    @Test("当たり判定は角丸ではなく矩形全体で受ける")
+    func tapTargetUsesTheFullRectangle() throws {
+        let source = try Self.read("Core/BoardToggleButton.swift")
+        #expect(source.contains(".contentShape(Rectangle())"),
+                "contentShape(Rectangle()) が無い（角丸の外側の四隅がタップに反応しなくなる）")
     }
 
     // MARK: - ヘルパー
