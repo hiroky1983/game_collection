@@ -31,20 +31,22 @@ import GameBlocks
 /// `availableIDs` の順に下りるため、順序がずれていると本番とテストで違うゲームを勧める
 /// （#397 の CodeRabbit 指摘。以前は #262 以前の古い並びのまま放置されていた）。
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
+// blockpuzzle・hanafudaは含めない（#642。v1.1.4のハブから次版へ持ち越したため）。
 private let hubOrder = [
-    "2048", "blockpuzzle", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
+    "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
     "solitaire", "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
-    "concentration", "blocks", "runner", "hanafuda",
+    "concentration", "blocks", "runner",
 ]
 
 @MainActor
 private func makeRegistry() -> GameRegistry {
+    // BlockPuzzleModule・HanafudaModuleは含めない（#642。v1.1.4の`AppEnvironment.registry`と
+    // 構成を一致させるため。分析基盤の先行リリースを優先し次版へ持ち越した）。
     GameRegistry([
-        Game2048Module(), BlockPuzzleModule(), ShogiModule(), MahjongModule(), SudokuModule(),
+        Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
-        HanafudaModule(),
     ])
 }
 
@@ -102,27 +104,26 @@ private func advanceFinishes(_ service: RecommendationService, count: Int, gameI
 struct RecommendationTableTests {
 
     /// Issue #52 の表に #237 の入れ替えを反映したもの。第1〜第3候補まで検証する。
+    /// blockpuzzle・hanafudaの行は無い（#642。v1.1.4のハブから次版へ持ち越したため）。
     static let table: [(String, [String])] = [
         ("shogi",         ["gomoku", "othello", "chess"]),
         ("chess",         ["shogi", "othello", "go"]),
         ("gomoku",        ["go", "othello", "shogi"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
-        ("2048",          ["blockpuzzle", "minesweeper", "blocks"]),
+        ("2048",          ["sudoku", "minesweeper", "blocks"]),
         ("blocks",        ["runner", "2048", "minesweeper"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
         ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
-        ("daifugo",       ["poker", "blackjack", "hanafuda"]),
+        ("daifugo",       ["poker", "blackjack", "concentration"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
         ("go",            ["gomoku", "othello", "shogi"]),
         ("solitaire",     ["freecell", "mahjong", "concentration"]),
         ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
-        ("blockpuzzle",   ["2048", "sudoku", "minesweeper"]),
         ("runner",        ["blocks", "2048", "concentration"]),
-        ("hanafuda",      ["daifugo", "poker", "blackjack"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
