@@ -262,38 +262,19 @@ public struct MahjongSolitaireView: View {
     /// - **記号だけにしない**。虫めがねアイコン 1 つでは「押すと何が起きるか」が伝わらず、
     ///   拡大・全体表示という機能の存在自体が初回プレイで気づかれない。常時出す短い文字で補う
     ///   （一度きりのヒントと違い、初回でも 2 回目以降でも同じように読める）。
+    ///
+    /// 見た目そのものはマインスイーパーの旗・拡大と共通の `BoardToggleButton`（Core・#641）が持つ。
     private var displayToggle: some View {
-        Button { showsWholeBoard.toggle() } label: {
-            HStack(spacing: 4) {
-                Image(systemName: showsWholeBoard ? "plus.magnifyingglass" : "minus.magnifyingglass")
-                    .font(.system(size: 15, weight: .bold))
-                Text(showsWholeBoard ? "拡大" : "全体")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-            }
-            .padding(.horizontal, 10)
-            .frame(
-                minWidth: Metrics.toggleButtonMinSide,
-                minHeight: Metrics.toggleButtonMinSide
-            )
-            // 押していない側の面は `Theme.surface`（＝カードと同じ白）だったため、
-            // ボタンの輪郭がどこにも無く「押せる物」に見えなかった。薄い差し色と枠線を敷く（#197）。
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(showsWholeBoard ? Theme.Fill.teal : Theme.teal.opacity(0.12))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(showsWholeBoard ? .clear : Theme.teal.opacity(0.55), lineWidth: 1.5)
-            )
-            // 押している側は差し色の面なので `Theme.onAccent`、薄い面の側は本文色（#197・#220）。
-            .foregroundStyle(showsWholeBoard ? Theme.onAccent : Theme.ink)
-            // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
-            .contentShape(Rectangle())
+        BoardToggleButton(
+            isOn: showsWholeBoard,
+            systemImage: showsWholeBoard ? "plus.magnifyingglass" : "minus.magnifyingglass",
+            title: showsWholeBoard ? "拡大" : "全体",
+            fill: Theme.Fill.teal,
+            accent: Theme.teal,
+            label: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
+        ) {
+            showsWholeBoard.toggle()
         }
-        // `.plain` は自前で描いた背景を通す代わりに押下フィードバックまで消える。
-        // そのために用意された `.pop` を使う（#195・`PopButtonStyle`）。
-        .buttonStyle(.pop)
-        .accessibilityLabel(showsWholeBoard ? "牌を大きくする" : "盤面全体を表示")
     }
 
     private var timeText: String {

@@ -1,4 +1,5 @@
 import CoreGraphics
+import Core
 
 /// マインスイーパーの寸法と演出の長さ。**状態を持たない純粋な定数・関数**として View から切り出す（#203）。
 ///
@@ -14,7 +15,10 @@ enum MinesweeperMetrics {
     ///
     /// 従来はアイコン 13pt + 左右 8pt・上下 5pt の余白で実測およそ 29×23pt しかなく、
     /// HIG を大きく下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ基準に揃える。
-    static let toggleButtonMinSide: CGFloat = minimumTapTarget
+    ///
+    /// 実際に frame へ渡すのは共通の `BoardToggleButton`（Core・#641）なので、値もそこから取る。
+    /// 帯の高さの見積り（`statusBarVerticalPadding`）がボタンの実寸から外れないようにするため。
+    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
 
     /// 拡大モードでの 1 マスの一辺（#458）。
     ///

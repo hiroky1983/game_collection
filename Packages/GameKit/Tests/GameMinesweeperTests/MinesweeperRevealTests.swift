@@ -1,6 +1,7 @@
 import Testing
 import CoreGraphics
 import Foundation
+import Core
 @testable import GameMinesweeper
 
 /// 連鎖開放の演出（#203）。
@@ -123,25 +124,33 @@ struct MinesweeperRevealTests {
     func toggleMeetsTapTarget() {
         #expect(Metrics.minimumTapTarget >= 44)
         #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
+        // frame を持っているのは共通の `BoardToggleButton`（Core・#641）なので、
+        // 帯の高さの見積りに使うこの定数がそこからずれていないことを押さえる。
+        #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide,
+                "帯の高さの見積りがボタンの実寸から外れている")
     }
 
     /// 定数を用意しただけで View 側が使っていなければ意味が無いので、実際の使用箇所を見る。
     /// **`statusBar` の宣言ブロックだけを切り出してから**走査する（ファイル全体を対象にすると、
     /// 後から別の場所に同じ文字列が入ったときに検証対象が静かにすり替わる・#201 の教訓）。
-    @Test("ステータスバーの切り替えボタンが 2 つとも定数で 44pt を確保している")
-    func statusBarTogglesUseTheConstant() throws {
+    ///
+    /// #641 で旗・拡大とも共通の `BoardToggleButton` に載せ替えたので、見るのは
+    /// 「2 つとも共通枠から組まれているか」になる（44pt を frame に渡していることは
+    /// Core 側の `BoardToggleButtonTests` が押さえる）。
+    @Test("ステータスバーの切り替えボタンが 2 つとも共通枠から組まれている")
+    func statusBarTogglesUseTheSharedToggle() throws {
         let block = try Self.declarationBlock(
             containing: "private var statusBar: some View {",
             inSourceFile: "GameMinesweeper/MinesweeperView.swift"
         )
 
-        let buttons = block.filter { $0.contains("Button {") }.count
-        #expect(buttons == 2, "ステータスバーのボタン数が変わっている（\(buttons) 個）")
+        let buttons = block.filter { $0.contains("BoardToggleButton(") }.count
+        #expect(buttons == 2, "ステータスバーの共通枠のボタン数が変わっている（\(buttons) 個）")
 
-        let uses = block.filter { $0.contains("MinesweeperMetrics.toggleButtonMinSide") }.count
+        // 手書きに戻すと、面の作り（薄い差し色・枠線・角丸 10）が再び揃わなくなる（#641 の再発）。
         #expect(
-            uses == 4,
-            "44pt を確保する frame の指定が \(uses) 箇所しかない（ボタン 2 個 × minWidth/minHeight = 4 箇所のはず）"
+            !block.contains { $0.contains("Button {") },
+            "ステータスバーに手書きのボタンが戻っている（共通枠へ寄せること）"
         )
 
         // 旧実装の余白指定が残っていたら、それは 44pt を潰す指定なので落とす。
