@@ -188,6 +188,11 @@ public final class BlocksModel {
 
     /// `dt` 秒ぶん進める。SpriteKit のゲームループから毎フレーム呼ばれる唯一の入口。
     public func tick(dt: Double) {
+        #if DEBUG
+        // 撮影用に時間だけを止める（#599）。一時停止と違って局面は `.playing` のままなので、
+        // 結果パネルに隠れない素の盤面を撮れる。
+        if isFrozenForDebug { return }
+        #endif
         guard phase == .playing else { return }
         let events = field.step(dt: min(dt, BlocksRules.maxStep))
         for event in events {
@@ -352,6 +357,13 @@ public final class BlocksModel {
     }
 
     #if DEBUG
+    /// 撮影用に時間を止めているか（#599）。
+    ///
+    /// 状態を作って放置すると、シャッターを切るまでの数秒で球が落ち、アイテムも画面外へ出て
+    /// **狙ったのと別の画になる**。`pause()` では結果パネルが盤を覆ってしまうので、
+    /// 局面はそのままに `tick` だけを止める。
+    private var isFrozenForDebug = false
+
     /// 撮影・動作確認用に狙った画面まで進める（起動引数 `-simulateBlocks <名前>`）。
     ///
     /// 一時停止・ステージクリア・ゲームオーバーの画は、実機では**指で遊ばないと**出せない。
@@ -369,16 +381,25 @@ public final class BlocksModel {
         case "cleared":
             launch()
             breakBlocksForDebug(limit: .max)
+        case "itemdrop":
+            // 1 個目（バー伸長）が落ちてくる途中の画。パドルはまだ素の幅（#599）。
+            launch()
+            breakBlocksForDebug(limit: BlocksRules.itemDropInterval)
+            parkBallForDebug(frames: 120)
+            isFrozenForDebug = true
         case "items":
             // アイテムが 1 個落ちてくる途中で、1 個目（バー伸長）は受け取り済みの画（#599）。
             launch()
             catchNextItemForDebug()
             breakBlocksForDebug(limit: BlocksRules.itemDropInterval)
+            parkBallForDebug(frames: 90)  // アイテムが盤の中ほどまで落ちるのを待つ
+            isFrozenForDebug = true
         case "multiball":
             // 2 個目（球増加）まで受け取って球が 3 個ある画（#599）。
             launch()
             catchNextItemForDebug()
             catchNextItemForDebug()
+            isFrozenForDebug = true
         case "gameover":
             var guardCount = 0
             while !phase.isFinished, guardCount < 100 {
@@ -429,17 +450,31 @@ public final class BlocksModel {
         breakBlocksForDebug(limit: BlocksRules.itemDropInterval)
         guard let item = field.items.first else { return }
         movePaddle(to: item.x)
-        let parkY = BlocksField.Metrics.height * 0.3
         var frames = 0
         while !field.items.isEmpty, phase == .playing, frames < 900 {
             frames += 1
-            placeBallForTesting(x: item.x, y: parkY, vx: 0, vy: 20)
-            tick(dt: 1.0 / 60)
+            parkBallForDebug(frames: 1)
         }
         // 増えた球は同じ点から出るので、重なったままだと 1 個に見える。少し離れるまで進める。
         var spread = 0
-        while phase == .playing, spread < 30 {
+        while phase == .playing, spread < 60 {
             spread += 1
+            tick(dt: 1.0 / 60)
+        }
+    }
+
+    /// 球を落とさずに時間だけ進める。
+    ///
+    /// 毎フレーム同じ場所へ置き直すので球は実際には動かない。**速度は持たせる**:
+    /// 球増加は動いている球を振り分けて増やすので、速度 0 だと何も起きない。
+    private func parkBallForDebug(frames: Int) {
+        for _ in 0..<frames {
+            placeBallForTesting(
+                x: field.paddleX,
+                y: BlocksField.Metrics.height * 0.3,
+                vx: 0,
+                vy: 20
+            )
             tick(dt: 1.0 / 60)
         }
     }

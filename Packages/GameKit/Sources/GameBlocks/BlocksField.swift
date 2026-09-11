@@ -116,8 +116,10 @@ public struct BlocksField: Equatable, Sendable {
 
         /// 落ちてくるアイテムの寸法（#599）。ブロック（11.1 × 5）より小さく、角を丸めて
         /// 「盤の部品ではなく拾うもの」と分かる形にする。
-        public static let itemWidth: Double = 7
-        public static let itemHeight: Double = 3.4
+        ///
+        /// 球（直径 4）より大きくないと、落ちてきたことに気づけないまま床まで抜ける。
+        public static let itemWidth: Double = 8
+        public static let itemHeight: Double = 3.8
 
         /// 反射角の下限（速さに対する `|vy|` の比）。sin(15°) ≒ 0.2588。
         public static let minimumVerticalRatio: Double = 0.26
