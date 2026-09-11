@@ -18,12 +18,17 @@
 App/                    ← iOS アプリ本体
 Packages/GameKit/
   Sources/
-    Core/               ← 共通基盤 (Protocol, Theme, AdService, SnapshotStore)
-    Game2048/           ← 2048
-    GameShogi/          ← 将棋
-    GameGomoku/         ← 五目並べ
-    GameMinesweeper/    ← マインスイーパー
+    Core/               ← 共通基盤 (Protocol, Theme, AdService, SnapshotStore, Analytics, GameCenter)
+    MahjongTiles/       ← 麻雀・麻雀ソリティアが共有する牌アセット
+    Game2048/ GameShogi/ GameGomoku/ GameMinesweeper/ GameSudoku/
+    GameMahjong/ GameMahjongSolitaire/ GameOthello/ GameGo/ GameChess/
+    GameSolitaire/ GameFreeCell/ GameDaifugo/ GamePoker/ GameBlackjack/
+    GameConcentration/ GameBlocks/ GameBlockPuzzle/ GameRunner/ GameHanafuda/
 ```
+
+ゲームパッケージは新規ゲームを追加するたびに増える。**このドキュメントの一覧は更新が遅れうる
+ため、正確な一覧は `Packages/GameKit/Sources/` 配下のディレクトリを見ること**。登録順・
+ハブでの表示順は `App/AppGameServices.swift` の `GameRegistry` が正。
 
 ### 主要プロトコル
 
@@ -55,7 +60,10 @@ AppEnvironment.settings  // GameSettings (並び順・表示設定)
 ## ハブ画面 (HubView)
 
 - `NavigationStack` ベース
-- 登録ゲームをカード形式で 2 列グリッド表示（全ゲームが 1 画面に収まることを優先。#119）
+- 登録ゲームをカード形式で 2 列グリッド表示（#119）。ゲーム数が増え、**現在は1画面に収まらず
+  スクロールする**（並び順は `AppGameServices.registry` の登録順が新規インストール時の既定
+  表示順。ユーザーがドラッグで並び替え・非表示にできる。2026-08-24 会長判断で検索需要の高い
+  ゲームを上位へ寄せる調整済み）
 - カード: ゲームアイコン / タイトル / 1 行（プレイ記録があれば記録・無ければゲームの説明） /
   右上に「続きから」バッジ（スナップショットあり時）
 - 右上: ⚙️ 設定ボタン → `SettingsView` (sheet)
@@ -71,7 +79,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 |------|------|
 | アプリ | バージョン表示 |
 | あそび | ゲームの並び替え (ドラッグ) + 表示/非表示トグル |
-| 規約 | 利用規約 / プライバシーポリシー (現在 WIP プレースホルダー) |
+| 規約 | 利用規約 / プライバシーポリシー |
 | その他 | アプリを評価する / アプリをシェア |
 
 - 並び順・非表示設定は `UserDefaults` に保存 (キー: `gameOrder_v1`, `hiddenGames_v1`)
@@ -84,7 +92,22 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | 種別 | 配置 |
 |------|------|
 | バナー (320×50 適応型) | ハブ画面・各ゲーム画面の最下部 |
-| リワード | 「待った」2回目以降（将棋・五目並べ・オセロ・神経衰弱）/ マインスイーパー・2048 のコンティニュー / ポーカー・ブラックジャックのチップ回復 |
+| リワード | 下表の目的（`RewardPurpose`）ごとに対象ゲームで使用 |
+
+リワードの目的別対象ゲーム（正典は `Packages/GameKit/Sources/Core/Analytics.swift` の
+`RewardPurpose`。このドキュメントは更新が遅れうる）:
+
+| 目的 | 内容 | 対象ゲーム |
+|---|---|---|
+| `undo`（待った/戻す） | 無料枠を使い切った後の「待った」再実行 | 将棋・五目並べ・オセロ・チェス・囲碁・神経衰弱・ソリティア・フリーセル |
+| `continue`（続ける） | ゲームオーバーから盤面を保ったまま続行 | 2048・マインスイーパー・ナンプレ・ブロック崩し・ブロックならべ |
+| `revival`（復活） | 残機・チップ等を回復して復活 | 麻雀（四人打ち）・ポーカー・ブラックジャック |
+| `hint`（ヒント） | ヒント表示・補充 | ナンプレ・麻雀ソリティア |
+| `joker`（ジョーカー付与） | 万能札の付与 | ソリティア |
+| `shuffle`（並べ替え） | 手詰まり盤面の並べ替え | 麻雀ソリティア |
+| `checkpoint`（チェックポイント復活） | 直前のチェックポイントからやり直し | チャリンコおじさん（ランナー） |
+
+大富豪・花札こいこいは現時点でリワード広告なし。
 
 報酬を約束する広告（上表のリワード）は**視聴完了したときだけ**報酬を渡す（`showRewardedAd()` が `true` を返した場合のみ）。
 視聴中断・ロード失敗時は報酬を与えず、その旨をアラートで伝える。インタースティシャルは現在どこからも使っていない。

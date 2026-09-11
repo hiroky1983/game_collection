@@ -432,17 +432,23 @@ main へマージしただけでは反映されない。会長の `git pull` を
 
 ---
 
-## セットアップ（残りは人間にしかできない作業）
+## セットアップ（初回のみ・完了済み）
 
-- [ ] **App Store Connect API キーの作成**（人間のみ・5分）
-  - App Store Connect > ユーザとアクセス > 統合 > App Store Connect API でキー作成（ロール: App Manager）
-  - `.p8` をダウンロードし、Mac 上の安全な場所（例: `~/.appstoreconnect/`）に保存
-  - `~/.zshrc` に `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_PATH` を設定
-- [ ] **fastlane のインストール**: `brew install fastlane` または `bundle install`
-- [ ] **初回署名の確認**: Xcode で Team を選択し一度 Archive が通ることを確認（以後は自動）
-- [ ] **GitHub Actions 設定**: リポジトリ Settings > Actions > General で
-      「Require approval for all outside collaborators」を有効化（フォーク PR の実行を承認制に）
-- [ ] `docs/release-checklist.md` の残項目（アプリアイコン等）の解消
+v1.1.0〜v1.1.3 を実際に TestFlight 配信 → 審査提出まで複数回通しているため、下記はすべて
+完了済み（再現手順として残すのみ）:
+
+- App Store Connect API キー作成・`.p8` 保存・`ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_PATH` 設定
+- fastlane インストール（`Gemfile` / `bundle install` で管理）
+- Xcode 署名・Archive の初回確認
+- `docs/release-checklist.md` の初回リリース項目（アプリアイコン・ToS/プライバシーポリシー本文・
+  評価/シェアボタンの実装など）は全て解消済み。同ファイルは以後の審査提出手順の参照先ではなく、
+  初回リリース時の完了記録として残すのみ（審査提出手順は本ファイルの上記セクションが正典）
+
+未確認のまま残っているのは以下だけ:
+
+- [ ] **GitHub Actions 設定の確認**: リポジトリ Settings > Actions > General で
+      「Require approval for all outside collaborators」が有効になっているか（フォーク PR の
+      実行を承認制にする設定。API からの機械確認手段が無いため、会長が一度画面で確認すること）
 
 ## セキュリティ上の注意（重要）
 
@@ -456,9 +462,8 @@ main へマージしただけでは反映されない。会長の `git pull` を
 ## 運用ルール
 
 - アプリコードの PR のベースは **Issue のマイルストーンと同名の release ブランチ**。
-  **2026-09-01 現在、動いているのは `release/v1.1.3` の1本だけ**（`release/v1.1.0`・
-  `release/v1.1.1`・`release/v1.1.2` はいずれも公開済みで main へ取り込み済み。
-  `release/v1.1.2` は凍結（`lock_branch`）も掛かったまま。いずれも push 禁止）。
+  **2026-09-11 現在、動いているのは `release/v1.1.4` の1本だけ**（`release/v1.1.0`〜`release/v1.1.3`
+  はいずれも公開済みで main へ取り込み・タグ付け済み。凍結済みのものは push 禁止）。
   運用系のみの変更は main 直可。
   **積む先はこの文書ではなくマイルストーン名と `git ls-remote origin 'refs/heads/release/*'` で確認する**
   （下記のとおり番号の付け替えが起きうるため、文書のほうが遅れる）。
