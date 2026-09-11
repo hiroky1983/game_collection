@@ -137,7 +137,11 @@ public struct FreeCellView: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(zoomMode ? "盤全体を表示" : "札を拡大")
-            .accessibilityHint("札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
+            // ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
+            // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
+            .accessibilityHint(zoomMode
+                ? "等倍に戻して盤全体を画面に収めます"
+                : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
         }
         // 44pt のトグルが帯の高さを決めるようになるぶん上下を詰める（#203・#262 と同じ手当て）。
         .padding(.horizontal, 12).padding(.vertical, 4)
