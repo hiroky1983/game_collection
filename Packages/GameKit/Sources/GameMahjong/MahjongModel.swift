@@ -490,9 +490,29 @@ public final class MahjongModel {
     /// CPU 起動キー。
     public var turnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: turnCount) }
 
+    /// 「新規対局」で失われるものがあるか（#638）。
+    ///
+    /// 東風戦が進行中なら、持ち点・局・河・供託はこの対局だけのもので、配り直すと戻せない。
+    /// 開始前（`.idle`）と決着後（`.gameResult`）は捨てるものが無いので確認を挟まない
+    /// （将棋 `moves.isEmpty` / ブロック崩し `hasProgressToLose` と同じ境目）。
+    public var hasGameInProgress: Bool {
+        switch phase {
+        case .playing, .ronOffer, .callOffer, .handResult: return true
+        case .idle, .gameResult: return false
+        }
+    }
+
     // MARK: - 対局の開始
 
-    /// 東風戦を最初から始める。
+    /// 東風戦を最初から始める。**進行中の対局はここで破棄される**（#638）。
+    ///
+    /// 破棄した東風戦の扱いは次のとおりで、未完了のまま戦績に載ることはない:
+    /// - **記録（`PlayLog`）**: 勝敗を書くのは終局（`concludeGame` の `gameDidFinish`）だけなので、
+    ///   打ち切った対局は通算成績にも Game Center の実績にも一切載らない。
+    /// - **中断データ**: 直後の `startHand` → `persist` が新しい配牌で上書きするため、
+    ///   捨てた対局の続きをあとから開ける経路は残らない。
+    /// - **解析**: `gameDidRestart` が、1 枚でも切っていた対局に `game_end`（`quit`）を付けてから
+    ///   次の `game_start` を送る（#500）。配っただけで切らずに捨てた対局は離脱に数えない。
     public func startGame() {
         scores = Array(repeating: Self.startingScore, count: Self.playerCount)
         dealer = 0
