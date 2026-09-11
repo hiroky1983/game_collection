@@ -18,6 +18,18 @@ public enum FreeCellMetrics {
     public static let minCardWidth: CGFloat = 30
     public static let maxCardWidth: CGFloat = 68
 
+    /// HIG の最小タップ標的。
+    public static let minimumTapTarget: CGFloat = 44
+    /// 拡大トグルの一辺（#604）。マインスイーパー（#203）・ナンプレ（#262）と同じ 44pt の矩形で受ける。
+    public static let toggleButtonMinSide: CGFloat = minimumTapTarget
+    /// 拡大モードで画面幅に収める列の数（#604）。
+    ///
+    /// 8 列を 6 列ぶんの幅で描くので札は約 1.36 倍になり、**はみ出す 2 列は横スクロールで見る**。
+    /// 44pt へ引き上げるだけでは足りない: iPhone 17 Pro（402pt）の等倍が 42.75pt なので、
+    /// 44pt にしても差は 1.25pt しかなく、会長が申告した「操作しにくい」は解けない。
+    /// 一望性を捨てるモードなのだから、捨てた分だけ大きくなる値を取る。
+    public static let zoomedVisibleColumns = 6
+
     /// 与えられた幅に 8 列を収める札の幅。
     ///
     /// `maxWidth` は上限の差し替え口（#458）。iPad では `AdaptiveLayout.scaled(_:)` を通した値を
@@ -26,6 +38,25 @@ public enum FreeCellMetrics {
         let raw = (availableWidth - columnGap * CGFloat(FreeCellBoard.pileCount - 1))
             / CGFloat(FreeCellBoard.pileCount)
         return min(maxWidth, max(minCardWidth, raw))
+    }
+
+    /// 拡大モードでの札の幅（#604）。
+    ///
+    /// - `zoomedVisibleColumns` 列ぶんの幅を取り、`minimumTapTarget` を下回らせない。
+    /// - **等倍で入る幅も下回らせない**。iPad では等倍のほうが大きくなるため、切り下げると
+    ///   拡大モードが縮小モードになる（マインスイーパー `zoomedCellSize`・麻雀ソリティア
+    ///   `comfortableTileWidth` と同じ手当て）。
+    /// - 上限は等倍と同じ `maxWidth`。広い画面で札だけが間延びするのを防ぐ。
+    ///   ただし**44pt の下限のほうが強い**（`maxWidth` に 44pt 未満を渡すと 44pt を返す）。
+    ///   実際の呼び出しは `maxCardWidth`（68）か `AdaptiveLayout` で倍率を掛けた値なので、
+    ///   この順序が問題になる幅は現れない。
+    public static func zoomedCardWidth(availableWidth: CGFloat, maxWidth: CGFloat = maxCardWidth) -> CGFloat {
+        let raw = (availableWidth - columnGap * CGFloat(zoomedVisibleColumns - 1))
+            / CGFloat(zoomedVisibleColumns)
+        return max(
+            cardWidth(availableWidth: availableWidth, maxWidth: maxWidth),
+            max(minimumTapTarget, min(maxWidth, raw))
+        )
     }
 
     /// 8 列ぶんの盤面の幅（列と列の隙間を含む）。
