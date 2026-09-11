@@ -223,12 +223,15 @@ struct ItemTests {
         f.launch()
         #expect(f.balls.count == 1)
 
-        f.dropItemForTesting(kind: .multiBall, x: 50, y: 60)
+        // **パドルのすぐ上に落とす**。高い位置から落とすと受け取るまでの数秒で球が散らばり、
+        // 2 個目を取る時点で盤上に 1 個しか残らない。それだと「1 個 + 2 個 = 3 個」に
+        // なるだけで、**上限で止まったことを見ていない**（上限の判定を丸ごと外しても緑のままになる）。
+        f.dropItemForTesting(kind: .multiBall, x: 50, y: 20)
         settleItems(&f)
         #expect(f.balls.count == BlocksRules.maxBalls)
 
-        // 何個取っても上限まで。
-        f.dropItemForTesting(kind: .multiBall, x: f.paddleX, y: 60)
+        // 上限に達したまま、もう 1 個取る。
+        f.dropItemForTesting(kind: .multiBall, x: 50, y: 20)
         settleItems(&f)
         #expect(f.balls.count == BlocksRules.maxBalls, "取るたびに増え続けてはいけない")
     }
@@ -238,7 +241,8 @@ struct ItemTests {
         var f = emptyField(speed: 70)
         f.movePaddle(to: 50)
         f.launch()
-        f.dropItemForTesting(kind: .multiBall, x: 50, y: 60)
+        // 散らばる前に受け取らせる（`multiBallIsCapped` と同じ理由）。
+        f.dropItemForTesting(kind: .multiBall, x: 50, y: 20)
         settleItems(&f)
 
         #expect(f.balls.count == BlocksRules.maxBalls)
@@ -254,7 +258,7 @@ struct ItemTests {
         var f = emptyField()
         f.movePaddle(to: 50)
         f.launch()
-        f.dropItemForTesting(kind: .multiBall, x: 50, y: 60)
+        f.dropItemForTesting(kind: .multiBall, x: 50, y: 20)
         settleItems(&f)
         #expect(f.balls.count == BlocksRules.maxBalls)
 
