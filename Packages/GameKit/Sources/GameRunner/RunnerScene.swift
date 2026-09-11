@@ -164,7 +164,8 @@ final class RunnerScene: SKScene {
     /// ——`collectedPickupCount` 件目までを毎フレーム照合すれば、どれが取得済みか特定できる。
     private var removedPickupCount = 0
 
-    /// 遠景の丘（奥・手前の2層）。画面を縦長にした分だけ空が広がるので、
+    /// 遠景の丘（奥・手前の2層）。`RunnerField.Metrics.groundY` から上端
+    /// （`RunnerField.Metrics.height`）までの空が広く空くので、
     /// 何も無い帯にせず地平線側を丘の稜線で埋める（2026-09-10 会長QA「縦を活かす」対応）。
     /// 雲と同じく無限スクロールにするので、コースとは別レイヤーに持つ。
     private let hillLayer = SKNode()
@@ -455,9 +456,11 @@ final class RunnerScene: SKScene {
                 shape.position = CGPoint(x: puff.dx, y: puff.dy)
                 cloud.addChild(shape)
             }
-            // 高さを雲ごとに変えて、横一列に並んで見えないようにする。縦長にした分だけ
-            // 帯を広く使う（丘の稜線 `buildHills` より上、画面の上端 8 単位手前まで）。
-            let y = Metrics.height - 12 - Double(i % 5) * 10
+            // 高さを雲ごとに変えて、横一列に並んで見えないようにする。丘の稜線
+            // （`buildHills`、最も高いもので地面+34=68）より確実に上、画面の上端付近に収める
+            // ——`Metrics.height` を95に下げた際（#621）、旧来の帯（-52〜-12）のままだと
+            // 丘の稜線に一部埋もれるため、丘より上の帯だけに詰めた。
+            let y = Metrics.height - 4 - Double(i % 4) * 6
             cloud.position = CGPoint(x: Double(i) * Self.cloudSpacing, y: y)
             cloudLayer.addChild(cloud)
             clouds.append(cloud)
@@ -470,7 +473,8 @@ final class RunnerScene: SKScene {
     /// 丘タイルの基準 x（雲と同じ「距離に応じて全タイル幅でループする」座標の仕組み）。
     private var hillBaseX: [Double] = []
 
-    /// 地平線側の丘の稜線。縦長にした画面で地面から上の帯が広く空くぶん、
+    /// 地平線側の丘の稜線。地面（`RunnerField.Metrics.groundY`）から上端
+    /// （`RunnerField.Metrics.height`）までの帯が広く空くぶん、
     /// 何も無い空の帯にせず奥・手前 2 段の丘で埋める（2026-09-10 会長QA「縦を活かす」対応）。
     /// ステージをまたいでも作り直さない（`rebuildCourse` の対象外）——雲と同じ理由。
     private func buildHills() {
