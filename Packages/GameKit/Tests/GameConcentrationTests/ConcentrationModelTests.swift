@@ -57,9 +57,13 @@ private struct StubConcentrationSnapshot: Codable {
     var mismatchedIndices: [Int]? = nil
 
     /// 8ペア16枚の正しい盤面。`symbols` だけ差し替えれば壊れた並びを作れる。
+    ///
+    /// 絵柄は実在する図案の識別子で置く（#601 以降、読み替えられない文字列は
+    /// 中断データごと棄却されるため、`"s0"` のような架空の値では「正しい盤面」にならない）。
     static func healthy() -> StubConcentrationSnapshot {
         let pairs = ConcentrationPairCount.small.rawValue
-        let symbols = (0..<pairs).flatMap { ["s\($0)", "s\($0)"] }
+        let symbols = (0..<pairs).flatMap { [ConcentrationFigure.allCases[$0].rawValue,
+                                             ConcentrationFigure.allCases[$0].rawValue] }
         return StubConcentrationSnapshot(
             symbols: symbols,
             isFaceUp: Array(repeating: false, count: symbols.count),
@@ -449,7 +453,7 @@ struct ConcentrationModelTests {
         let broken: [[Int]] = [[0, 99], [0], [0, 1, 2], [2, 3], [0, 0]]
         for indices in broken {
             var stub = StubConcentrationSnapshot.healthy()
-            // healthy() は s0,s0,s1,s1,… なので [0,1] は同じ絵柄、[2,3] も同じ絵柄
+            // healthy() は index 2i と 2i+1 が同じ絵柄なので [0,1] も [2,3] も対になる
             stub.isFaceUp[0] = true
             stub.mismatchedIndices = indices
             let model = restored(from: stub)
@@ -527,8 +531,9 @@ struct ConcentrationModelTests {
     @Test("復元時: 配列長は揃っていてもシンボルが対を成さない中断データはフォールバックする")
     func restore_rejectsSnapshotWhoseSymbolsDoNotPairUp() {
         var stub = StubConcentrationSnapshot.healthy()
-        // 長さ・枚数は正しいまま、全カードのシンボルを別物にする（対が1組も無い）
-        stub.symbols = stub.symbols.indices.map { "u\($0)" }
+        // 長さ・枚数は正しいまま、全カードのシンボルを別物にする（対が1組も無い）。
+        // 実在する図案で埋めるので、落ちる理由は「対を成さないこと」だけになる。
+        stub.symbols = stub.symbols.indices.map { ConcentrationFigure.allCases[$0].rawValue }
 
         let model = restored(from: stub)
 
@@ -540,8 +545,9 @@ struct ConcentrationModelTests {
     @Test("復元時: 一部のシンボルだけ対を欠く中断データもフォールバックする")
     func restore_rejectsSnapshotWithPartiallyBrokenPairs() {
         var stub = StubConcentrationSnapshot.healthy()
-        // 1枚だけ別のシンボルに差し替える → その2枚が孤立して揃わなくなる
-        stub.symbols[0] = "lonely"
+        // 1枚だけ別のシンボルに差し替える → その2枚が孤立して揃わなくなる。
+        // 差し替え先は8ペアの盤には出てこない実在の図案にする（棄却の理由を対の欠けに限る）。
+        stub.symbols[0] = ConcentrationFigure.allCases[ConcentrationPairCount.small.rawValue].rawValue
 
         let model = restored(from: stub)
 
@@ -577,6 +583,53 @@ struct ConcentrationModelTests {
         let model = restored(from: stub)
 
         #expect(model.cards.count == ConcentrationPairCount.medium.rawValue * 2)
+    }
+
+    // MARK: 絵柄の差し替え（#601）
+
+    @Test("新しい盤の絵柄はすべて自前の図案の識別子で、絵文字が残っていない")
+    func newBoardUsesFigureIdentifiers() {
+        for pairs in ConcentrationPairCount.allCases {
+            let model = ConcentrationModel(services: makeServices(MockSnapshotStore()))
+            model.newGame(pairCount: pairs, cpuLevel: .normal)
+
+            for card in model.cards {
+                let isASCII = card.symbol.allSatisfy { $0.isASCII }
+                #expect(isASCII,
+                        "\(pairs.displayName): 絵柄 '\(card.symbol)' に ASCII 以外が入っている")
+                #expect(card.figure != nil,
+                        "\(pairs.displayName): 絵柄 '\(card.symbol)' に対応する図案が無い")
+            }
+        }
+    }
+
+    /// 更新をまたいだ中断が消えないこと。旧版（v1.1.3 まで）の中断データには絵文字が入っている。
+    @Test("復元時: 旧版の絵文字で書かれた中断データも図案に読み替えて復元される")
+    func restore_acceptsLegacyEmojiSnapshot() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.symbols = stub.symbols.map { ConcentrationFigure.decode($0)!.legacyEmoji }
+        stub.playerScore = 2
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.small.rawValue * 2, "盤がそのまま戻る")
+        #expect(model.playerScore == 2)
+        #expect(everyCardHasItsPair(model))
+        #expect(model.cards.allSatisfy { $0.figure != nil }, "全札が図案に読み替えられる")
+    }
+
+    @Test("復元時: 図案に読み替えられない絵柄を含む中断データはフォールバックする")
+    func restore_rejectsSnapshotWithUndrawableSymbol() {
+        var stub = StubConcentrationSnapshot.healthy()
+        // 対は揃ったまま、1組だけ知らない文字列にする（描けない札が盤に出る形）
+        stub.symbols[0] = "s0"
+        stub.symbols[1] = "s0"
+
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == ConcentrationPairCount.medium.rawValue * 2,
+                "既定（12ペア）の新しい盤へフォールバックする")
+        #expect(model.cards.allSatisfy { $0.figure != nil })
     }
 
     @Test("復元時: 対の揃った中断データはそのまま復元される（検証強化の巻き添えが無い）")

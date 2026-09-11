@@ -234,7 +234,7 @@ public final class ConcentrationModel {
         mattaUsed = false
         recordResult = nil
 
-        let symbols = Array(concentrationSymbols.prefix(pairCount.rawValue))
+        let symbols = ConcentrationFigure.allCases.prefix(pairCount.rawValue).map(\.rawValue)
         let doubled = (symbols + symbols).shuffled()
         cards = doubled.enumerated().map { ConcentrationCard(id: $0.offset, symbol: $0.element) }
         persist()
@@ -314,6 +314,9 @@ public final class ConcentrationModel {
     ///
     /// 難易度も列挙値として妥当かを見る。`?? .medium` のように既定値へ読み替えると、
     /// 枚数と食い違った設定のまま復元が続いてしまうため、読み替えではなく棄却する。
+    ///
+    /// 絵柄も同じ扱いで、**図案に読み替えられない文字列が1つでもあれば棄却する**（#601）。
+    /// 描けない札を既定の図案へ倒すと、見た目の上では対に見えるのに中身が違う盤面ができる。
     private static func validatedSetting(
         of snap: ConcentrationSnapshot
     ) -> (pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel)? {
@@ -322,6 +325,9 @@ public final class ConcentrationModel {
         guard let pairCount = ConcentrationPairCount(rawValue: snap.pairCount),
               let cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel),
               count == pairCount.rawValue * 2 else { return nil }
+
+        // 描けない絵柄が1つでもあれば通さない（旧版の絵文字はここで読み替えられる）
+        guard snap.symbols.allSatisfy({ ConcentrationFigure.decode($0) != nil }) else { return nil }
 
         // 各シンボルがちょうど2枚ずつ = すべてのカードが対になる
         let occurrences = snap.symbols.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
