@@ -1,32 +1,35 @@
 # リリース前チェックリスト
 
+> **注記（2026-09-11）**: これは初回リリース（v1.0）前に作成した準備チェックリストで、
+> あそびばは既に v1.0〜v1.1.3 を App Store で公開済み。下記の一回きりの初期設定項目は
+> 完了しているため実測に基づき更新した。**今後の版でも繰り返し使うのは末尾の
+> 「審査提出時の必須手順」だけ**。
+
 ## アプリ設定
 
-- [ ] **Bundle ID 変更**
-  - 現在: `com.example.gamecollection`
-  - `project.yml` の `PRODUCT_BUNDLE_IDENTIFIER` を本番IDに変更 → `xcodegen generate`
+- [x] **Bundle ID 変更**
+  - `com.hirockysan1983.asobiba`（`project.yml` の `PRODUCT_BUNDLE_IDENTIFIER`）
 
-- [ ] **バージョン番号**
-  - 現在: `MARKETING_VERSION = "0.1.0"`
-  - `project.yml` を `1.0.0` に変更 → `xcodegen generate`
+- [x] **バージョン番号**
+  - `project.yml` の `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` で管理し、
+    リリースのたびに更新している（例のように固定の数字ではない。現在値は `project.yml` を直接参照）
 
-- [ ] **アプリ表示名の確認**
-  - `CFBundleDisplayName` が `"Asobiba"` になっている
-  - 日本語 `"あそびば"` にするか要確認
+- [x] **アプリ表示名の確認**
+  - `CFBundleDisplayName` は日本語 `"あそびば"`
 
-- [ ] **アプリアイコン**
-  - 現在設定なし。1024×1024px の PNG を用意して `project.yml` に追加
+- [x] **アプリアイコン**
+  - 設定済み（`App/Assets.xcassets/AppIcon.appiconset`）
 
 ---
 
 ## 広告 (AdMob)
 
-- [ ] **AdMob アカウントの審査通過確認**
+- [x] **AdMob アカウントの審査通過確認**
   - AdConfig.swift に本番ユニットIDは設定済み
     - App ID: `ca-app-pub-1869410932032409~4823987816`
     - Banner: `ca-app-pub-1869410932032409/5642245468`
     - Interstitial: `ca-app-pub-1869410932032409/6461337269`
-  - AdMob コンソールでアプリが承認されているか確認
+  - 承認済み・実際に広告収益が発生している（2026-09 時点）
 
 - [ ] **ATT ダイアログ文言確認**
   - `NSUserTrackingUsageDescription`: 「より関連性の高い広告を表示するために使用します。」
@@ -36,39 +39,33 @@
 
 ## 規約・法的コンテンツ
 
-- [ ] **利用規約の作成**
-  - 現在: SettingsView に「準備中」プレースホルダー
-  - 本番前に実際の利用規約テキストを用意して差し替え
+- [x] **利用規約の作成**
+  - `SettingsView` から外部 URL（`https://web-murex-sigma-62.vercel.app/terms`）を
+    `SFSafariViewController` の sheet で表示
 
-- [ ] **プライバシーポリシーの作成**
-  - 同上。AdMob 使用のため広告に関する記載が必須
-  - App Store Connect にも URL 登録が必要
+- [x] **プライバシーポリシーの作成**
+  - 同上（`.../privacy`）
 
-- [ ] **Privacy Manifest ファイル** (`PrivacyInfo.xcprivacy`)
-  - Apple が 2024年春以降必須化
-  - UserDefaults / ファイルシステム使用の申告が必要
+- [x] **Privacy Manifest ファイル** (`PrivacyInfo.xcprivacy`)
+  - `App/PrivacyInfo.xcprivacy` として存在
 
 ---
 
 ## App Store Connect
 
-- [ ] **アプリページ作成**
-  - カテゴリ: ゲーム > パズル
-  - 対応年齢レーティング設定 → **4+ で確定**（Issue #32・2026-08-11 会長決裁「これは指摘を受けてから
-    対応にしましょう」）。ポーカー・ブラックジャックの「シミュレートされたギャンブル」申告は行わず、
-    Apple から指摘が来た時点で対応する。**この項目を理由に提出を止めない**
+- [x] **アプリページ作成**
+  - カテゴリ: ゲーム > パズル、対応年齢レーティング 4+ で公開済み（Issue #32・2026-08-11 会長決裁）。
+    ポーカー・ブラックジャックの「シミュレートされたギャンブル」申告は据え置き方針のまま
 
-- [ ] **スクリーンショット用意**
-  - 6.5インチ (iPhone 15 Pro Max 等): 必須
-  - 5.5インチ (iPhone 8 Plus 等): 必須
-  - 各ゲーム画面・ハブ画面を撮影
+- [x] **スクリーンショット用意**
+  - `docs/aso/screenshots/`（iPhone・iPad 分）に版ごとの撮影一式あり。ゲーム数の増加に
+    追従して入稿を都度更新する運用（直近は `docs/aso/metadata-v1.1.3.md` 参照）
 
-- [ ] **アプリ説明文 (日本語)**
-  - 短い説明 (170文字以内)
-  - 長い説明 (4000文字以内)
-  - キーワード設定
+- [x] **アプリ説明文 (日本語)**
+  - `docs/aso/metadata-v1.1.*.md` に版ごとの確定文言・キーワードを記録
 
-- [ ] **サポートURL / マーケティングURL 設定**
+- [x] **サポートURL / マーケティングURL 設定**
+  - LP（`web/`）を利用規約・プライバシーポリシーと同じドメインで運用
 
 - [ ] **Game Center の設定**（#289・v1.1.1 で実装。**会長のコンソール操作が必要**）
   - バージョンページの「Game Center」を**有効化**する（これが無いと iOS 26「ゲーム」アプリの
@@ -83,21 +80,18 @@
 
 ## アプリ内リンク修正
 
-- [ ] **「アプリを評価する」ボタン**
-  - 現在: 空のクロージャ（何もしない）
-  - App Store の URL が決まったら `SKStoreReviewController.requestReview()` または
-    `UIApplication.shared.open(appStoreURL)` に差し替え
+- [x] **「アプリを評価する」ボタン**
+  - `requestReview()` を実装済み
 
-- [ ] **「アプリをシェア」リンク**
-  - 現在: `URL(string: "https://apps.apple.com")!` プレースホルダー
-  - 本番 App Store URL に差し替え
+- [x] **「アプリをシェア」リンク**
+  - 本番 App Store URL に差し替え済み
 
 ---
 
 ## テスト
 
 - [ ] **実機テスト** (シミュレーターでは確認できない項目)
-  - AdMob バナー・インタースティシャルの表示確認
+  - AdMob バナー・リワード広告の表示確認（インタースティシャルは現在どこからも呼んでいない）
   - ATT ダイアログ表示確認
   - 各ゲームの動作確認
 
