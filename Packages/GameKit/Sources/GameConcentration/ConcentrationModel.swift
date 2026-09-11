@@ -263,7 +263,10 @@ public final class ConcentrationModel {
         lastMatchedIndices = []
         mismatchedIndices = []
 
-        cards = snap.symbols.enumerated().map { i, symbol in
+        // 絵柄は**識別子に正規化してから**盤に載せる。旧版の絵文字のまま載せると、
+        // 次の `persist()` がそれを書き戻して中断データに絵文字が残り続ける
+        // （PR #614 の CodeRabbit 指摘）。
+        cards = setting.symbols.enumerated().map { i, symbol in
             ConcentrationCard(
                 id: i,
                 symbol: symbol,
@@ -281,7 +284,7 @@ public final class ConcentrationModel {
         // 不一致のまま中断していたら、伏せるだけでなく**手番も進める**（#415）。
         // 手番交代は `clearMismatch()`（= 1.2 秒後の自動ターン交代）だけが行うため、
         // その猶予の間に画面を離れて戻ると「外したら相手番」を操作だけで踏み倒せていた。
-        let hadPendingMismatch = Self.validatedMismatch(of: snap) != nil
+        let hadPendingMismatch = Self.validatedMismatch(of: snap, symbols: setting.symbols) != nil
         if hadPendingMismatch { currentPlayer = currentPlayer.next }
 
         // CPUターン復元：turnID を非ゼロにすることで task(id:) を確実に起動させる
@@ -296,13 +299,15 @@ public final class ConcentrationModel {
     /// 壊れた値で手番だけ進むことがないよう、`clearMismatch()` が実際に起きうる形
     /// （相異なる2枚・範囲内・表向き・未獲得・絵柄が不一致）だけを認める。
     /// 呼び出しは `validatedSetting(of:)` を通った後に限る（配列長の一致が前提）。
-    private static func validatedMismatch(of snap: ConcentrationSnapshot) -> [Int]? {
+    /// 絵柄は読み替え済みの値で比べる（旧版の絵文字と識別子が混ざった並びでも同じ答えになる）。
+    private static func validatedMismatch(of snap: ConcentrationSnapshot,
+                                          symbols: [String]) -> [Int]? {
         guard let indices = snap.mismatchedIndices,
               indices.count == 2,
               indices[0] != indices[1],
-              indices.allSatisfy({ snap.symbols.indices.contains($0) }),
+              indices.allSatisfy({ symbols.indices.contains($0) }),
               indices.allSatisfy({ snap.isFaceUp[$0] && !snap.isMatched[$0] }),
-              snap.symbols[indices[0]] != snap.symbols[indices[1]] else { return nil }
+              symbols[indices[0]] != symbols[indices[1]] else { return nil }
         return indices
     }
 
@@ -317,23 +322,28 @@ public final class ConcentrationModel {
     ///
     /// 絵柄も同じ扱いで、**図案に読み替えられない文字列が1つでもあれば棄却する**（#601）。
     /// 描けない札を既定の図案へ倒すと、見た目の上では対に見えるのに中身が違う盤面ができる。
+    /// 通った場合は、読み替え済みの絵柄（識別子）も返す。
     private static func validatedSetting(
         of snap: ConcentrationSnapshot
-    ) -> (pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel)? {
+    ) -> (pairCount: ConcentrationPairCount,
+          cpuLevel: ConcentrationCPULevel,
+          symbols: [String])? {
         let count = snap.symbols.count
         guard snap.isFaceUp.count == count, snap.isMatched.count == count else { return nil }
         guard let pairCount = ConcentrationPairCount(rawValue: snap.pairCount),
               let cpuLevel = ConcentrationCPULevel(rawValue: snap.cpuLevel),
               count == pairCount.rawValue * 2 else { return nil }
 
-        // 描けない絵柄が1つでもあれば通さない（旧版の絵文字はここで読み替えられる）
-        guard snap.symbols.allSatisfy({ ConcentrationFigure.decode($0) != nil }) else { return nil }
+        // 描けない絵柄が1つでもあれば通さない。旧版の絵文字はここで識別子へ読み替え、
+        // 以降は読み替え後の値だけを使う（判定と盤で別の値を見ないため）。
+        let symbols = snap.symbols.compactMap { ConcentrationFigure.decode($0)?.rawValue }
+        guard symbols.count == count else { return nil }
 
         // 各シンボルがちょうど2枚ずつ = すべてのカードが対になる
-        let occurrences = snap.symbols.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+        let occurrences = symbols.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
         guard occurrences.values.allSatisfy({ $0 == 2 }) else { return nil }
 
-        return (pairCount, cpuLevel)
+        return (pairCount, cpuLevel, symbols)
     }
 
     private func flipCard(index: Int) {

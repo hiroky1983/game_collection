@@ -618,6 +618,33 @@ struct ConcentrationModelTests {
         #expect(model.cards.allSatisfy { $0.figure != nil }, "全札が図案に読み替えられる")
     }
 
+    /// 旧版の絵文字をそのまま盤に載せると、次の保存でそれが書き戻されて中断データに
+    /// 絵文字が残り続ける（PR #614 の CodeRabbit 指摘）。復元した時点で識別子に直す。
+    @Test("復元時: 旧版の絵文字は識別子に正規化され、次の保存に絵文字が残らない")
+    func restore_normalizesLegacyEmojiOnSave() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.symbols = stub.symbols.map { ConcentrationFigure.decode($0)!.legacyEmoji }
+        let store = MockSnapshotStore()
+        try? store.save(stub, for: "concentration")
+
+        let model = ConcentrationModel(services: makeServices(store))
+        for card in model.cards {
+            #expect(ConcentrationFigure(rawValue: card.symbol) != nil,
+                    "復元した盤に旧版の絵柄 '\(card.symbol)' が残っている")
+        }
+
+        // 1手指して保存させ、書き戻された中断データの中身を見る
+        let next = model.cards.indices.first { !model.cards[$0].isMatched }!
+        model.tap(index: next)
+
+        let saved = store.load(StubConcentrationSnapshot.self, for: "concentration")
+        #expect(saved != nil, "前提: 保存が走っている")
+        for symbol in saved?.symbols ?? [] {
+            #expect(ConcentrationFigure(rawValue: symbol) != nil,
+                    "保存された中断データに旧版の絵柄 '\(symbol)' が残っている")
+        }
+    }
+
     @Test("復元時: 図案に読み替えられない絵柄を含む中断データはフォールバックする")
     func restore_rejectsSnapshotWithUndrawableSymbol() {
         var stub = StubConcentrationSnapshot.healthy()
