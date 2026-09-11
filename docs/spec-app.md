@@ -6,7 +6,7 @@
 **プラットフォーム**: iOS 17.0+
 **向き**: 縦固定 (Portrait only)
 **言語**: 日本語
-**収益モデル**: AdMob バナー広告 + インタースティシャル広告
+**収益モデル**: AdMob バナー広告 + リワード広告（インタースティシャルは実装はあるがどこからも呼んでいない）
 
 ---
 
@@ -15,15 +15,36 @@
 ### パッケージ構成
 
 ```
-App/                    ← iOS アプリ本体
+App/                    ← iOS アプリ本体（GameRegistry・AppEnvironment 等）
 Packages/GameKit/
   Sources/
-    Core/               ← 共通基盤 (Protocol, Theme, AdService, SnapshotStore)
+    Core/               ← 共通基盤 (Protocol, Theme, AdService, Analytics, SnapshotStore, RewardedRescue)
     Game2048/           ← 2048
+    GameBlockPuzzle/    ← ブロックならべ（未リリース。2026-09-10 時点）
     GameShogi/          ← 将棋
-    GameGomoku/         ← 五目並べ
+    GameMahjong/        ← 麻雀（4人打ち）
+    GameSudoku/         ← ナンプレ
+    GameOthello/        ← オセロ
+    GameGo/             ← 囲碁
+    GameChess/          ← チェス
+    GameMahjongSolitaire/ ← 麻雀ソリティア
+    GameSolitaire/      ← ソリティア（クロンダイク）
+    GameFreeCell/       ← フリーセル（未リリース。2026-09-10 時点）
+    GameDaifugo/        ← 大富豪
+    GamePoker/          ← ポーカー
+    GameBlackjack/      ← ブラックジャック
     GameMinesweeper/    ← マインスイーパー
+    GameGomoku/         ← 五目並べ
+    GameConcentration/  ← 神経衰弱
+    GameBlocks/         ← ブロック崩し（v1.1.3 で公開済み）
+    GameRunner/         ← チャリンコおじさん（横スクロールランナー・未リリース。2026-09-10 時点）
+    GameHanafuda/       ← 花札こいこい（未リリース。2026-09-10 時点）
 ```
+
+登録順・表示順の正典は `App/AppGameServices.swift` の `registry`（新ゲームは 1 行追加するだけ）。
+「未リリース」は App Store 配信中のバイナリにまだ含まれていないという意味で、コード上は
+他のゲームと同格に動く（`GameRegistry` はストア配信状態を持たない）。配信中かどうかは
+別途 ASO ドキュメント（`docs/aso/`）やリリースノートで確認すること。
 
 ### 主要プロトコル
 
@@ -34,8 +55,10 @@ Packages/GameKit/
 - `makeView(services:) -> AnyView` — ゲーム画面を生成
 
 **`AdService`**: 広告サービスの境界
-- `makeBannerView() -> AnyView?` — バナー広告
-- `showInterstitial() async` — インタースティシャル広告（待機付き）
+- `makeBannerView(width:) -> AnyView?` — バナー広告
+- `showInterstitial() async` — インタースティシャル広告（待機付き。プロトコルには残っているが呼び出し箇所は無い）
+- `showRewardedAd() async -> Bool` — リワード広告（視聴完了で true）。`GameServices` 経由で
+  呼ぶと `game_id` / `purpose` 付きで `reward_ad` イベントも送られる（後述の解析仕様）
 
 **`SnapshotStore`**: ゲーム状態の永続化
 - `save(_:for:)` / `load(_:for:)` / `exists(for:)` / `clear(for:)`
@@ -55,7 +78,10 @@ AppEnvironment.settings  // GameSettings (並び順・表示設定)
 ## ハブ画面 (HubView)
 
 - `NavigationStack` ベース
-- 登録ゲームをカード形式で 2 列グリッド表示（全ゲームが 1 画面に収まることを優先。#119）
+- 登録ゲームをカード形式で 2 列グリッド表示（#119）。ゲーム数が増え、**現在は1画面に収まらず
+  スクロールする**（並び順は `AppGameServices.registry` の登録順が新規インストール時の既定
+  表示順。ユーザーがドラッグで並び替え・非表示にできる。2026-08-24 会長判断で検索需要の高い
+  ゲームを上位へ寄せる調整済み）
 - カード: ゲームアイコン / タイトル / 1 行（プレイ記録があれば記録・無ければゲームの説明） /
   右上に「続きから」バッジ（スナップショットあり時）
 - 右上: ⚙️ 設定ボタン → `SettingsView` (sheet)
@@ -71,7 +97,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 |------|------|
 | アプリ | バージョン表示 |
 | あそび | ゲームの並び替え (ドラッグ) + 表示/非表示トグル |
-| 規約 | 利用規約 / プライバシーポリシー (現在 WIP プレースホルダー) |
+| 規約 | 利用規約 / プライバシーポリシー（外部 URL を `SFSafariViewController` の sheet で表示） |
 | その他 | アプリを評価する / アプリをシェア |
 
 - 並び順・非表示設定は `UserDefaults` に保存 (キー: `gameOrder_v1`, `hiddenGames_v1`)
@@ -84,14 +110,61 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | 種別 | 配置 |
 |------|------|
 | バナー (320×50 適応型) | ハブ画面・各ゲーム画面の最下部 |
-| リワード | 「待った」2回目以降（将棋・五目並べ・オセロ・神経衰弱）/ マインスイーパー・2048 のコンティニュー / ポーカー・ブラックジャックのチップ回復 |
+| リワード | ほぼ全ゲーム共通の「救済」導線（`RewardedRescue` 経由。下表） |
 
-報酬を約束する広告（上表のリワード）は**視聴完了したときだけ**報酬を渡す（`showRewardedAd()` が `true` を返した場合のみ）。
+報酬を約束する広告（リワード）は**視聴完了したときだけ**報酬を渡す（`showRewardedAd()` が `true` を返した場合のみ）。
 視聴中断・ロード失敗時は報酬を与えず、その旨をアラートで伝える。インタースティシャルは現在どこからも使っていない。
 
 - `DEBUG` ビルドでは自動的に Google 公式テスト広告 ID に切り替わる
 - ATT 許可ダイアログ → AdMob 初期化 の順序を保証 (`ATTPermission.swift`)
 - 許可・拒否どちらでも広告表示（拒否時は非パーソナライズ広告）
+
+### リワード救済（`RewardedRescue`・#526）
+
+各ゲームの View に同じ形で散っていた「連打ガード → 広告視聴 → 局ガード照合 → 適用 → 失敗アラート」の
+5点セットを `Core/RewardedRescue.swift` の1か所に集約したもの（この設計により、新しい救済を足しても
+連打ガードや局ガードの実装漏れが起きない）。ほぼ全ゲーム（2048・将棋・五目並べ・麻雀・麻雀ソリティア・
+ソリティア・フリーセル・ポーカー・ブラックジャック・マインスイーパー・オセロ・囲碁・チェス・神経衰弱・
+ブロック崩し・ブロックならべ・チャリンコおじさん、2026-09-11 時点）が採用している。
+救済の種類（`RewardPurpose`）は次の7つに閉じる:
+
+| purpose | 内容 |
+|---|---|
+| `undo` | 「戻す」「待った」の補充 |
+| `continue` | ゲームオーバーからそのまま続ける（盤面を保ったまま再開） |
+| `revival` | 失った残機・持ち駒などを回復して復活 |
+| `hint` | ヒントの表示・補充 |
+| `joker` | ジョーカー（万能札）の付与 |
+| `checkpoint` | チェックポイントからのやり直し |
+| `shuffle` | 手詰まりの盤面を、取り切れる配置へ並べ替える（麻雀ソリティア） |
+
+---
+
+## 解析仕様（Analytics・#158 / #500）
+
+`Core/Analytics.swift` に**送信するイベントを3種だけに閉じた** `AnalyticsEvent` enum がある。
+呼び出し側（各ゲーム）は任意のキー・値を足せず、イベントを増やすには enum にケースを足す必要がある
+（＝意図しないイベント発生や、ドキュメントと実装が知らないうちに乖離することを型で防ぐ設計）。
+
+| イベント名 | 発火タイミング | パラメータ |
+|---|---|---|
+| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level` |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec` |
+| `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
+
+- `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
+  `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで
+  自動的に対象へ入るため、**このドキュメントに `game_id` の値そのものを列挙しない**
+  （列挙すると新ゲーム追加のたびに手動同期が要り、漏れの温床になる。実際の値は各ゲームの
+  `GameModule.id` を参照すること）
+- `level`（`AnalyticsLevel`）はゲームごとの難易度呼称をゲーム横断で読める4段階
+  （`beginner`/`normal`/`hard`/`expert`）か、面を進めるゲームは `stage-N` に正規化して送る。
+  写像は各ゲームの `analyticsLevel` に置く
+- 送信は `GameAnalytics`（`Core/Analytics.swift`）が一括管理し、二重発火の抑制・経過秒の計測・
+  離脱と休憩の切り分けをここ1か所に閉じ込める。個々のゲームは
+  「開始した」「1手指した」「やり直した」「終局した」「画面を離れた」を伝えるだけでよい
+- 設定でオン/オフした境界をまたいだプレイは `game_start`/`game_end` の対応を保証しないため、
+  トグル時点で計測中の状態を丸ごと捨てる（`discardPlayState()`。#212）
 
 ---
 
