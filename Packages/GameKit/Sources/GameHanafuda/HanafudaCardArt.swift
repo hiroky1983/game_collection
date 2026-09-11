@@ -100,7 +100,7 @@ public enum HanafudaCardArt {
         case .hikari:  return 0xD4A93A   // 金
         case .tane:    return 0x2F7050   // 常緑
         case .kasu:    return 0x6F675E   // 薄墨
-        // 短冊札は 10 枚すべてが `ribbon` を持つので、ここには来ない（`HanafudaArtTests` で固定）。
+        // 短冊札は 10 枚すべてが `ribbon` を持つので、ここには来ない（`HanafudaBandTests` で固定）。
         case .tanzaku: return redRibbonBandHex
         }
     }
