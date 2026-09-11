@@ -33,8 +33,8 @@ public struct RunnerField: Equatable, Sendable {
         public static let height: Double = 95
         /// 地面の高さ（走者の足がここに乗る）。
         ///
-        /// 跳んでも足が届くのは 34 + 21（大ジャンプの頂点）= 55 までなので、上端 140 まで
-        /// 空にすると大きく余る。地面をやや厚くしてその余りの一部を詰め、残りは
+        /// 跳んでも足が届くのは 34 + 21（大ジャンプの頂点）= 55 までなので、上端
+        /// （`Metrics.height`）まで空にすると余る。地面をやや厚くしてその余りの一部を詰め、残りは
         /// `RunnerScene` の丘・雲で埋める（見た目の都合だけで、当たり判定はすべて
         /// 地面からの相対値で書いてあるため軌道は変わらない）。
         public static let groundY: Double = 34

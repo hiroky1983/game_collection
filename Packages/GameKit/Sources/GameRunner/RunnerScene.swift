@@ -164,7 +164,8 @@ final class RunnerScene: SKScene {
     /// ——`collectedPickupCount` 件目までを毎フレーム照合すれば、どれが取得済みか特定できる。
     private var removedPickupCount = 0
 
-    /// 遠景の丘（奥・手前の2層）。画面を縦長にした分だけ空が広がるので、
+    /// 遠景の丘（奥・手前の2層）。`RunnerField.Metrics.groundY` から上端
+    /// （`RunnerField.Metrics.height`）までの空が広く空くので、
     /// 何も無い帯にせず地平線側を丘の稜線で埋める（2026-09-10 会長QA「縦を活かす」対応）。
     /// 雲と同じく無限スクロールにするので、コースとは別レイヤーに持つ。
     private let hillLayer = SKNode()
@@ -472,7 +473,8 @@ final class RunnerScene: SKScene {
     /// 丘タイルの基準 x（雲と同じ「距離に応じて全タイル幅でループする」座標の仕組み）。
     private var hillBaseX: [Double] = []
 
-    /// 地平線側の丘の稜線。縦長にした画面で地面から上の帯が広く空くぶん、
+    /// 地平線側の丘の稜線。地面（`RunnerField.Metrics.groundY`）から上端
+    /// （`RunnerField.Metrics.height`）までの帯が広く空くぶん、
     /// 何も無い空の帯にせず奥・手前 2 段の丘で埋める（2026-09-10 会長QA「縦を活かす」対応）。
     /// ステージをまたいでも作り直さない（`rebuildCourse` の対象外）——雲と同じ理由。
     private func buildHills() {
