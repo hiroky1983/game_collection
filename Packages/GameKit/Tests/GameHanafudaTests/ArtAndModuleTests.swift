@@ -170,11 +170,12 @@ struct HanafudaModuleTests {
         #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.hanafudaPoints))
     }
 
-    @Test("レコメンドの遷移先が登録されている")
+    // 花札こいこいはv1.1.4開発中でmainにはまだ登録していないため（#629）、
+    // `RecommendationPolicy.candidateTable`にもエントリを持たない。release/v1.1.4→main
+    // の取り込みで復活するときは、このテストも本来の「遷移先が登録されている」検証に戻すこと。
+    @Test("レコメンドの遷移先は無い（mainでは未登録のため）")
     func recommendationIsWired() {
         let related = RecommendationPolicy.candidateTable[HanafudaModel.gameID]
-        #expect(related?.isEmpty == false)
-        // 自分自身を勧めない。
-        #expect(related?.contains(HanafudaModel.gameID) == false)
+        #expect(related == nil)
     }
 }

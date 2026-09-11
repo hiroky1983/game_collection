@@ -50,6 +50,7 @@ export const games: Game[] = [
   },
   {
     slug: "blockpuzzle",
+    comingSoon: true,
     name: "ブロックならべ",
     emoji: "🧩",
     tagline: "ピースを置いて行と列をそろえよう",
@@ -219,6 +220,7 @@ export const games: Game[] = [
   },
   {
     slug: "freecell",
+    comingSoon: true,
     name: "フリーセル",
     emoji: "♦️",
     tagline: "全部見える52枚。詰まない配札を読み切ろう",
@@ -406,6 +408,7 @@ export const games: Game[] = [
   },
   {
     slug: "runner",
+    comingSoon: true,
     name: "チャリンコおじさん",
     emoji: "🚲",
     tagline: "タップで跳んで15ステージを走りぬけよう",
@@ -428,6 +431,7 @@ export const games: Game[] = [
   },
   {
     slug: "hanafuda",
+    comingSoon: true,
     name: "花札こいこい",
     emoji: "🌸",
     tagline: "CPUと役を競う。こいこいで倍を狙おう",
