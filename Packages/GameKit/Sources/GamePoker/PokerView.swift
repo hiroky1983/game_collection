@@ -36,6 +36,7 @@ public struct PokerView: View {
             verticalSlack
             playerArea
             verticalSlack
+            actionSlack
             HowToPlayHint(.poker, playLog: services.playLog)
             if model.sessionOver {
                 sessionOverView
@@ -135,6 +136,23 @@ public struct PokerView: View {
     @ViewBuilder
     private var verticalSlack: some View {
         if layout.isWide { Spacer(minLength: 0) }
+    }
+
+    /// 操作の節（遊び方ヒント + チェック/ベット）の上に置く可変余白（#640）。
+    ///
+    /// iPhone では余りが下端の `Spacer` に全部たまり、操作の列が画面の中ほどに浮いて
+    /// 下だけが大きく空いていた。ここに同じ可変余白をもう 1 つ置くと余りが上下で等分され、
+    /// 列が半分ぶんだけ下がる（iPhone 17 Pro Max の実測で **+99pt**）。
+    /// `playerArea` 側に `.frame(maxHeight: .infinity)` を付ける手も試したが、
+    /// 余りを総取りして操作の列が広告に接してしまう（実測 +185pt）ため採らない。
+    ///
+    /// 余りが無い端末では `Spacer` 自体は 0pt だが、`VStack(spacing: 10)` の隙間が 1 つ増えるぶん
+    /// 節全体が 10pt 伸びる（iPhone SE で実測。上に 5pt / 下に 5pt 広がるだけで、広告まで収まる）。
+    ///
+    /// iPad は `verticalSlack` がすでに余りを節の間に配っているので何も置かない（#485 の配分を崩さない）。
+    @ViewBuilder
+    private var actionSlack: some View {
+        if !layout.isWide { Spacer(minLength: 0) }
     }
 
     // MARK: - Chips Bar
