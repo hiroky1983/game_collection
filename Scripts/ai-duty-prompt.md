@@ -222,6 +222,33 @@ App Store で公開されたバージョンが `release/vX.Y.Z` に追いつい�
 4. マイルストーン vX.Y.Z をクローズする（`gh api -X PATCH repos/hiroky1983/game_collection/milestones/<番号> -f state=closed`）。
    リリース Issue が残っていれば、取り込み・タグ・クローズの結果をコメントで記録する。
 
+## 3.5. 審査提出時の release ブランチ凍結（`-submitted` タグ + `lock_branch`）
+
+規程（ai-devops.md L134-139）は、審査に提出した時点で「その release ブランチは凍結する」ことを
+義務づけている。**実施主体がどの定期出社にも属していなかったため、v1.1.3 で丸ごと飛ばされた**
+（#580・2026-09-10 経営企画室が発見。会長QAで遡及是正済み）。ai-duty.sh の仕事7（上のセクション3
+と同じ判定ブロック）が、公開済みなのに `vX.Y.Z-submitted` タグ または `lock_branch` のどちらかが
+欠けている release ブランチを検知したら、この手順で埋める（セクション3の main 取り込みと同時に
+気づくことが多いが、判定・実施は独立している。片方だけ欠けている場合もある）。
+
+1. 欠けているものを確認する:
+   `git ls-remote --tags origin "v<バージョン>-submitted"`（空なら未タグ）
+   `gh api repos/hiroky1983/game_collection/branches/release%2Fv<バージョン>/protection --jq '.lock_branch.enabled'`（`false` なら未凍結）
+2. タグが無ければ、**提出時点のコミット**（= release ブランチが main へ取り込まれる直前の HEAD。
+   既に main へ取り込み済みなら、取り込みマージコミットの1つ前の release ブランチ側の HEAD）に打つ:
+   `git tag vX.Y.Z-submitted <sha> && git push origin vX.Y.Z-submitted`
+3. 凍結が無ければ:
+   ```
+   gh api -X PUT repos/hiroky1983/game_collection/branches/release%2FvX.Y.Z/protection \
+     --input <(echo '{"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null,"lock_branch":true}')
+   ```
+   **凍結済みブランチへは以後 push できない。** 既に main へ取り込み済みのバージョンでは
+   凍結が取り込みを阻害しないが、まだ main へ未取り込みで、かつ運用系の変更を同じ release
+   ブランチへ積む必要が生じた場合は、ai-devops.md L487-489（凍結ブランチには触らない中間ブランチ
+   経由）に従うこと。
+4. 対応した内容（タグ・凍結のどちらを埋めたか）を、関連するリリース Issue かこの検知自体を
+   起票した Issue にコメントで記録する。
+
 ## 決裁リクエストの形式（会長向け・必須）
 
 **稟議・決裁依頼を PR のコメントに書いてはならない**（2026-08-31 会長決裁・#307）。会長への通知・リマインドは

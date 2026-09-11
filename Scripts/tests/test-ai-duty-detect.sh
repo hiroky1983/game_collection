@@ -275,6 +275,21 @@ check "最新のラベル操作が「剥がし」なら発火しない（会長�
 check "会長が付け直した（第三者の剥がしの後）なら発火する" "true" \
   "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T1,attacker,U;$T2,hiroky1983,L" "$T1=$RINGI_THREAD")")"
 
+# 仕事7の凍結判定（#580）。v1.1.3 で「審査提出時に -submitted タグ・lock_branch を掛ける」
+# 手順の実施主体がどこにも無く、丸ごと飛ばされた。同じ判定ブロックで公開済み release ブランチの
+# タグ・凍結の有無も確認するようにした（is_submission_unfrozen）。
+echo "== 12. 仕事7（審査提出の凍結漏れ）: 発火すべきケース =="
+check "タグが無ければ発火する（lock は掛かっていても）" "0" \
+  "$(is_submission_unfrozen "" "true"; echo $?)"
+check "lock が掛かっていなければ発火する（タグはあっても）" "0" \
+  "$(is_submission_unfrozen "abc123	refs/tags/v1.1.3-submitted" "false"; echo $?)"
+check "タグも lock も無ければ発火する" "0" \
+  "$(is_submission_unfrozen "" "false"; echo $?)"
+
+echo "== 13. 仕事7: 発火してはいけないケース =="
+check "タグ・lock が両方揃っていれば発火しない" "1" \
+  "$(is_submission_unfrozen "abc123	refs/tags/v1.1.3-submitted" "true"; echo $?)"
+
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
 check "仕事5・仕事8・仕事11・仕事12 の4箇所が DUTY_JQ_COMMENT_LIB を渡している" "4" "$USES"
