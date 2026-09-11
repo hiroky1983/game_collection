@@ -24,6 +24,9 @@ public struct FreeCellView: View {
     @State private var showUndoRefillPrompt = false
     /// 「戻す」補充のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// 拡大モード（#604）。既定は等倍で、**盤全体を一望できる性質を既定から取り上げない**。
+    /// フリーセルは全札が表向きで、どこに何があるかを見渡せることが読みの前提になる。
+    @State private var zoomMode = false
 
     /// 盤の座標空間名。ドラッグの指の位置・ドロップ枠・追従オーバーレイを同じ空間で扱う。
     private static let boardSpace = "freeCellBoard"
@@ -91,6 +94,11 @@ public struct FreeCellView: View {
             if ProcessInfo.processInfo.arguments.contains("-freecellDeadEnd") {
                 model.applyDeadEndPreviewForTesting()
             }
+            // 拡大モード（#604）はトグルを押さないと入れないが、シミュレータは自動タップが
+            // できないため、起動引数から直接その状態にして撮る。
+            if ProcessInfo.processInfo.arguments.contains("-freecellZoom") {
+                zoomMode = true
+            }
             #endif
         }
         .onDisappear { model.pauseTimer() }
@@ -107,7 +115,42 @@ public struct FreeCellView: View {
 
     // MARK: - ステータスバー
 
+    /// 数字の並び + 拡大トグル。
     private var statusBar: some View {
+        HStack(spacing: 8) {
+            statusReadout
+
+            // 拡大トグル（#604）。ナンプレ（#262）・マインスイーパー（#203）と同じ位置・同じ 44pt の矩形。
+            Button { zoomMode.toggle() } label: {
+                Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(
+                        minWidth: FreeCellMetrics.toggleButtonMinSide,
+                        minHeight: FreeCellMetrics.toggleButtonMinSide
+                    )
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
+                    )
+                    .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
+                    // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(zoomMode ? "盤全体を表示" : "札を拡大")
+            .accessibilityHint("札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
+        }
+        // 44pt のトグルが帯の高さを決めるようになるぶん上下を詰める（#203・#262 と同じ手当て）。
+        .padding(.horizontal, 12).padding(.vertical, 4)
+        .popCard(corner: Theme.cornerSmall)
+        .accessibilityElement(children: .contain)
+    }
+
+    /// 読み上げの対象。**拡大トグルはこの外に置く**（#604）。
+    ///
+    /// 数字は `children: .ignore` の 1 要素にまとめてあるので、中にボタンを入れると
+    /// VoiceOver から押せなくなる。読み上げを 1 要素に保ったままボタンを押せるようにするには、
+    /// 要素の境界を帯全体ではなく「数字の並び」に引き直すしかない。
+    private var statusReadout: some View {
         HStack(spacing: 0) {
             Group {
                 if model.phase == .won {
@@ -143,8 +186,6 @@ public struct FreeCellView: View {
                 .foregroundStyle(Theme.teal)
                 .frame(minWidth: 78, alignment: .trailing)
         }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
         // 数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(FreeCellAccessibility.statusLabel(
@@ -166,14 +207,9 @@ public struct FreeCellView: View {
 
     private var board: some View {
         GeometryReader { geo in
-            let width = FreeCellMetrics.cardWidth(
-                availableWidth: geo.size.width,
-                // 広い画面では他の画面と同じ倍率で札の上限を引き上げる（#458）。
-                // 狭い画面では `scaled` が恒等なので従来どおり。
-                maxWidth: layout.scaled(FreeCellMetrics.maxCardWidth)
-            )
+            let width = cardWidth(availableWidth: geo.size.width)
             let metrics = FreeCellMetrics.faceMetrics(width: width)
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(zoomMode ? [.horizontal, .vertical] : [.vertical], showsIndicators: false) {
                 VStack(spacing: FreeCellMotion.topRowSpacing) {
                     topRow(metrics: metrics)
                     tableau(metrics: metrics)
@@ -181,14 +217,37 @@ public struct FreeCellView: View {
                 // 上段（4 セル + 4 組札）と下段（8 列）はどちらもちょうど 8 枠ぶんなので、
                 // 同じ幅に揃えて中央に置けば iPad でも縦に揃う（#458）。
                 .frame(width: FreeCellMetrics.boardWidth(cardWidth: width))
-                .frame(maxWidth: .infinity)
                 .padding(.top, 2)
+                // 盤が画面より狭いとき（等倍・iPad の拡大）は従来どおり中央に置く。
+                // 広いとき（拡大モード）は `minWidth` が効かず、はみ出した分が横スクロールになる。
+                // **`maxWidth: .infinity` は使えない**: 横スクロール側では幅の提案が無限大になり、
+                // 盤が画面ではなく無限に広がって中央寄せの基準が消える。
+                //
+                // `minHeight` と `.top` は**縦方向の浮き上がり止め**（#604 の実測）。2 軸の
+                // `ScrollView` は、中身がビューポートより短い軸で中身を**中央に置く**ため、
+                // 拡大した盤がステータスバーから 56pt 落ちた位置に浮いた。1 軸のときは上詰めなので
+                // この指定は等倍の見た目を変えない。
+                .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .top)
             }
             .coordinateSpace(name: Self.boardSpace)
             .onPreferenceChange(CardDropFramesKey<FreeCellDropTarget>.self) { dropFrames = $0 }
             .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics) }
             .gameAnimation(FreeCellMotion.move, value: boardAnimationKey)
         }
+    }
+
+    /// 札の幅（#604）。**等倍と拡大の分岐はここ 1 か所だけ**にする。
+    ///
+    /// 盤はこの 1 つの値から `faceMetrics` を作り、それを場札・上段・ドロップ枠・追従表示の
+    /// すべてへ同じものを配っている。分岐を各所に撒くと、拡大したのに当たり判定だけ等倍のまま、
+    /// という形のズレが生まれる。
+    private func cardWidth(availableWidth: CGFloat) -> CGFloat {
+        // 広い画面では他の画面と同じ倍率で札の上限を引き上げる（#458）。
+        // 狭い画面では `scaled` が恒等なので従来どおり。
+        let maxWidth = layout.scaled(FreeCellMetrics.maxCardWidth)
+        return zoomMode
+            ? FreeCellMetrics.zoomedCardWidth(availableWidth: availableWidth, maxWidth: maxWidth)
+            : FreeCellMetrics.cardWidth(availableWidth: availableWidth, maxWidth: maxWidth)
     }
 
     /// 盤面の演出を起こす値。`.gameAnimation` は盤面に 1 つだけ掛ける
