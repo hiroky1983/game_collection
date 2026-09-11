@@ -260,7 +260,31 @@ private struct CardView: View {
 
     private var isFaceUp: Bool { card.isFaceUp || card.isMatched }
 
+    /// 図案の一辺。札の短い辺に対する比で置き、盤面サイズに追従させる
+    /// （絵文字は 28pt 固定だったため、8ペアの大きい札では小さく、18ペアでは詰まって見えた）。
+    private static let figureRatio: CGFloat = 0.56
+
     var body: some View {
+        GeometryReader { geo in
+            face(side: min(geo.size.width, geo.size.height) * Self.figureRatio)
+                .frame(width: geo.size.width, height: geo.size.height)
+        }
+        // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
+        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .gameAnimation(ConcentrationMotion.cardFlip, value: isFaceUp)
+        .opacity(card.isMatched ? 0.6 : 1.0)
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityText)
+    }
+
+    /// 絵文字をやめると読み上げも消えるため、札の状態を言葉で持ち直す（#601）。
+    private var accessibilityText: String {
+        guard isFaceUp, let name = card.figure?.displayName else { return "裏向きの札" }
+        return card.isMatched ? "\(name)（獲得済み）" : name
+    }
+
+    @ViewBuilder
+    private func face(side: CGFloat) -> some View {
         ZStack {
             if isFaceUp {
                 // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
@@ -276,8 +300,11 @@ private struct CardView: View {
                                 lineWidth: 2
                             )
                     )
-                Text(card.symbol)
-                    .font(.system(size: 28))
+                // 図案はどれも同じ正方形に描くので、札ごとに大きさと余白がずれない。
+                if let figure = card.figure {
+                    ConcentrationFigureView(figure: figure)
+                        .frame(width: side, height: side)
+                }
             } else {
                 // 裏は神経衰弱の顔である紫を保ちつつ、白の内枠で「カードの裏」に寄せる（#366）。
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -294,10 +321,6 @@ private struct CardView: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
         }
-        // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-        .gameAnimation(ConcentrationMotion.cardFlip, value: isFaceUp)
-        .opacity(card.isMatched ? 0.6 : 1.0)
     }
 }
 
