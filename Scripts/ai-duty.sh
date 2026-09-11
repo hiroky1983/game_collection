@@ -350,6 +350,20 @@ def is_ringi_stamp($actors):
          | if $stamp != "" then $stamp > $record else $record == "" end);
 '
 
+# 仕事7の凍結判定（#580）を純粋関数に切り出す。gh/git の呼び出し結果（タグの有無・
+# lock_branch の有無）を引数で受け取るだけにし、ネットワーク呼び出しはこの外側（呼び出し側）
+# に残す——Scripts/tests/test-ai-duty-detect.sh がモュール無しで直接検証できるようにするため。
+# 引数: $1 = -submitted タグの有無（"true"/"false" 相当。空文字列も未タグ扱い）
+#       $2 = lock_branch.enabled の値（文字列。"true" だけが凍結済み）
+# 戻り値: 0 = 未凍結（仕事あり）/ 1 = 凍結済み（仕事なし）
+is_submission_unfrozen() {
+  local tag_exists="$1" lock_enabled="$2"
+  if [ -z "$tag_exists" ] || [ "$lock_enabled" != "true" ]; then
+    return 0
+  fi
+  return 1
+}
+
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
 # （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
 if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
@@ -563,6 +577,12 @@ STALLED=$(gh pr list -R hiroky1983/game_collection --state open --json mergeStat
 # バージョンに追いついたら当番を起こす。main へ取り込み済みなら ahead_by == 0 になり再発火しない。
 DUTY_APP_ID="${DUTY_APP_ID:-6781719499}"
 RELEASED=0
+# 審査提出時の凍結（`vX.Y.Z-submitted` タグ + `lock_branch: true`）に実施主体が無く、
+# v1.1.3 で丸ごと飛ばされた（#580・2026-09-10 経営企画室が発見。会長QAで遡及是正済み）。
+# 規程（ai-devops.md L134-139）はこの2つを義務づけているが、実行する手順がどの定期出社にも
+# 属していなかった。公開判定（下の RELEASED）と同じブロックで、同じ REL_BRANCH に対して
+# タグと凍結の有無も確認する——新しい検知ジョブを増やさずに済む。
+SUBMISSION_UNFROZEN=0
 REL_BRANCH=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
   --jq '.[].ref | sub("^refs/heads/";"")' 2>/dev/null | sort -V | tail -1)
 if [ -n "${REL_BRANCH:-}" ]; then
@@ -575,6 +595,12 @@ if [ -n "${REL_BRANCH:-}" ]; then
     if [ -n "${STORE_VER:-}" ] \
       && [ "$(printf '%s\n%s\n' "$REL_VER" "$STORE_VER" | sort -V | tail -1)" = "$STORE_VER" ]; then
       RELEASED=1
+      SUBMITTED_TAG=$(git ls-remote --tags origin "v${REL_VER}-submitted" 2>/dev/null)
+      LOCK_ENABLED=$(gh api "repos/hiroky1983/game_collection/branches/release%2Fv${REL_VER}/protection" \
+        --jq '.lock_branch.enabled' 2>/dev/null || echo "false")
+      if is_submission_unfrozen "${SUBMITTED_TAG:-}" "${LOCK_ENABLED:-false}"; then
+        SUBMISSION_UNFROZEN=1
+      fi
     fi
   fi
 fi
@@ -736,7 +762,7 @@ query {
 # （#106 が6日間放置）。経営企画室の責務は Scripts/ai-management-duty.sh（日次）へ全面移管した。
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ] && [ "${RINGI_STAMPS:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${SUBMISSION_UNFROZEN:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ] && [ "${RINGI_STAMPS:-0}" -eq 0 ]; then
   log "仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）"
   exit 0
 fi
@@ -821,7 +847,7 @@ fi
 # claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
 capture_sims_before
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
