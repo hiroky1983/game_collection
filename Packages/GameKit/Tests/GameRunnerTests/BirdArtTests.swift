@@ -33,7 +33,7 @@ struct BirdArtTests {
         #expect(extent.lowerBound >= -Self.epsilon)
     }
 
-    @Test("はみ出しをパーツごとに見る（胴・頭・くちばし・尾羽・影）")
+    @Test("はみ出しをパーツごとに見る（丸・多角形・影のすべて）")
     func eachStaticPartStaysInsideTheBox() {
         let art = Self.art
         let box = 0.0...Self.width
@@ -43,25 +43,39 @@ struct BirdArtTests {
             #expect(value <= box.upperBound + Self.epsilon, label)
         }
 
-        expectInside(Double(art.bodyCenter.x) - art.bodyRadius, "胴の後端")
-        expectInside(Double(art.bodyCenter.x) + art.bodyRadius, "胴の前端")
-        expectInside(Double(art.headCenter.x) - art.headRadius, "頭の後端")
-        expectInside(Double(art.headCenter.x) + art.headRadius, "頭の前端")
-        for point in art.beak.points {
-            expectInside(Double(art.beak.anchor.x) + Double(point.x), "くちばし")
+        for (index, disc) in art.discs.enumerated() {
+            expectInside(Double(disc.center.x) - disc.radius, "丸 \(index) の後端")
+            expectInside(Double(disc.center.x) + disc.radius, "丸 \(index) の前端")
         }
-        for (index, tail) in art.tails.enumerated() {
-            for point in tail.points {
-                expectInside(Double(tail.anchor.x) + Double(point.x), "尾羽 \(index)")
+        for (index, part) in art.fixedParts.enumerated() {
+            for point in part.points {
+                expectInside(Double(part.anchor.x) + Double(point.x), "多角形 \(index)")
             }
         }
         expectInside(Double(art.shadowCenter.x) - Double(art.shadowSize.width) / 2, "影の後端")
         expectInside(Double(art.shadowCenter.x) + Double(art.shadowSize.width) / 2, "影の前端")
     }
 
-    @Test("羽ばたきの振り切ったところでも翼が箱を出ない")
+    /// `addBird` が描くパーツの全量。**ここに載っていないパーツは張り出しを測られない**
+    /// （腹・目・足が測定の網から漏れていたのを PR #633 の敵対的検証が見つけた）。
+    /// `addBird` はこの一覧の値だけを使って描くので、数が合わなくなったら
+    /// どちらかに片付け忘れがある。
+    @Test("測定対象のパーツが、描いているパーツを漏れなく覆っている")
+    func partInventoryCoversEverythingDrawn() {
+        let art = Self.art
+        // 丸: 胴・頭・腹・白目・黒目
+        #expect(art.discs.count == 5)
+        // 多角形（回らない）: くちばし・尾羽2枚
+        #expect(art.fixedParts.count == 3)
+        // 回る: 奥の翼・手前の翼・足
+        #expect(art.rotatingParts.count == 3)
+        // 残るのは影 1 枚だけで、これは `horizontalExtent` / `verticalExtent` が直接足す。
+        #expect(art.shadowSize.width > 0)
+    }
+
+    @Test("羽ばたきの振り切ったところでも翼・足が箱を出ない")
     func wingsStayInsideThroughTheWholeFlap() {
-        for (label, wing) in [("奥", Self.art.farWing), ("手前", Self.art.nearWing)] {
+        for (label, wing) in Self.art.rotatingParts.enumerated().map({ ("回るパーツ \($0)", $1) }) {
             // 回転の端だけでなく、その間も刻んで見る（端が最外周とは限らない）。
             let steps = 200
             for step in 0...steps {

@@ -50,6 +50,12 @@ struct RunnerBirdArt {
         let points: [CGPoint]
     }
 
+    /// 丸いパーツ（胴・頭・腹・目）。
+    struct Disc {
+        let center: CGPoint
+        let radius: Double
+    }
+
     // MARK: 体
 
     let bodyRadius: Double
@@ -58,6 +64,16 @@ struct RunnerBirdArt {
     let headCenter: CGPoint
     /// くちばしの三角形（`headCenter` を原点とした座標）。
     let beak: FixedPart
+    /// 腹（明るい差し色）。単色の玉に見えないよう下面を明るくする。
+    let belly: Disc
+    /// 目（白目と黒目）。暗緑に暗色の点では見えないので白目を敷く。
+    let eyeWhite: Disc
+    let pupil: Disc
+    /// 畳んだ足。飛行中の鳥は足を体へ引き込むので、ぶら下げず腹の後ろ寄りに小さく畳む。
+    /// 傾いた矩形なので、張り出しは 4 隅を回して測る。
+    let foot: RotatingPart
+    /// 足の矩形の大きさ（`foot.pivot` を中心に置く）。
+    let footSize: CGSize
 
     // MARK: 付属物
 
@@ -170,6 +186,30 @@ struct RunnerBirdArt {
             CGPoint(x: headRadius * Ratio.beakReach, y: -headRadius * 0.05),
             CGPoint(x: headRadius * 0.7, y: -headRadius * 0.45),
         ])
+        belly = Disc(
+            center: CGPoint(x: centerX + bodyRadius * 0.28, y: centerY - bodyRadius * 0.42),
+            radius: bodyRadius * 0.6
+        )
+        let eyeCenter = CGPoint(
+            x: centerX + bodyRadius * Ratio.headOffsetX + headRadius * 0.3,
+            y: centerY + bodyRadius * Ratio.headOffsetY + headRadius * 0.18
+        )
+        eyeWhite = Disc(center: eyeCenter, radius: headRadius * 0.34)
+        pupil = Disc(
+            center: CGPoint(x: eyeCenter.x + headRadius * 0.12, y: eyeCenter.y),
+            radius: headRadius * 0.17
+        )
+        let footSize = CGSize(width: bodyRadius * 0.584, height: bodyRadius * 0.208)
+        self.footSize = footSize
+        let halfFoot = (x: Double(footSize.width) / 2, y: Double(footSize.height) / 2)
+        foot = RotatingPart(
+            pivot: CGPoint(x: centerX + bodyRadius * 0.05, y: centerY - bodyRadius * 0.95),
+            points: [
+                CGPoint(x: -halfFoot.x, y: -halfFoot.y), CGPoint(x: halfFoot.x, y: -halfFoot.y),
+                CGPoint(x: halfFoot.x, y: halfFoot.y), CGPoint(x: -halfFoot.x, y: halfFoot.y),
+            ],
+            rotation: (-0.3)...(-0.3)
+        )
         tails = zip(Self.tailSpecs, tailLengths).map { spec, length in
             FixedPart(
                 anchor: CGPoint(x: centerX + bodyRadius * spec.dx, y: centerY + bodyRadius * spec.dy),
@@ -206,50 +246,74 @@ struct RunnerBirdArt {
 
     // MARK: 張り出しの計測
 
+    /// 丸いパーツの全量。**`addBird` が描く丸はここに漏れなく並べる**——`horizontalExtent` /
+    /// `verticalExtent` はこの一覧しか見ないので、ここに載せ忘れたパーツは測られない
+    /// （腹・目を載せ忘れていたのを PR #633 の敵対的検証で指摘された）。
+    /// （影は丸ではなく平たい楕円なので、ここではなく `extent` が最後に直接足す。）
+    var discs: [Disc] { [bodyDisc, headDisc, belly, eyeWhite, pupil] }
+
+    /// 胴・頭を丸として取り出したもの（`addBird` が `discs` と同じ値で描くための入口）。
+    var bodyDisc: Disc { Disc(center: bodyCenter, radius: bodyRadius) }
+    var headDisc: Disc { Disc(center: headCenter, radius: headRadius) }
+
+    /// 回らない多角形の全量（くちばし・尾羽）。
+    var fixedParts: [FixedPart] { [beak] + tails }
+
+    /// 回る多角形の全量（翼・足）。
+    var rotatingParts: [RotatingPart] { [farWing, nearWing, foot] }
+
     /// 絵が占める x の範囲（羽ばたき・浮遊の端まで含む）。当たり判定は `0...width` なので、
     /// **この値が `0...width` に一致していること**が「見た目と判定のズレが無い」の定義。
     var horizontalExtent: ClosedRange<Double> {
-        var lower = Double(bodyCenter.x) - bodyRadius
-        var upper = Double(bodyCenter.x) + bodyRadius
-        func include(_ range: ClosedRange<Double>) {
-            lower = min(lower, range.lowerBound)
-            upper = max(upper, range.upperBound)
-        }
-        include((Double(headCenter.x) - headRadius)...(Double(headCenter.x) + headRadius))
-        for part in [beak] + tails {
-            let xs = part.points.map { Double(part.anchor.x) + Double($0.x) }
-            include((xs.min() ?? 0)...(xs.max() ?? 0))
-        }
-        for wing in [farWing, nearWing] {
-            let rotated = Self.rotatedXRange(wing.points, wing.rotation)
-            include((Double(wing.pivot.x) + rotated.lowerBound)...(Double(wing.pivot.x) + rotated.upperBound))
-        }
-        let halfShadow = Double(shadowSize.width) / 2
-        include((Double(shadowCenter.x) - halfShadow)...(Double(shadowCenter.x) + halfShadow))
-        return lower...upper
+        extent(
+            axis: { Double($0.x) },
+            rotated: { Self.rotatedXRange($0, $1) },
+            halfShadow: Double(shadowSize.width) / 2,
+            shadowCenter: Double(shadowCenter.x),
+            bob: 0
+        )
     }
 
     /// 絵が占める y の範囲。上端は浮遊の一番高いところ、下端は影の底。
     var verticalExtent: ClosedRange<Double> {
-        var lower = Double(bodyCenter.y) - bodyRadius
-        var upper = Double(bodyCenter.y) + bodyRadius
-        func include(_ range: ClosedRange<Double>) {
-            lower = min(lower, range.lowerBound)
-            upper = max(upper, range.upperBound)
+        extent(
+            axis: { Double($0.y) },
+            rotated: { Self.rotatedYRange($0, $1) },
+            halfShadow: Double(shadowSize.height) / 2,
+            shadowCenter: Double(shadowCenter.y),
+            bob: bobAmplitude
+        )
+    }
+
+    /// 上の 2 つの共通処理。片方だけパーツを足す取りこぼしが起きないよう 1 本にまとめてある。
+    ///
+    /// `bob` は浮遊の振れ幅。体（影以外）はこのぶん**上へ**動くので、y 方向でだけ上端に足す。
+    private func extent(
+        axis: (CGPoint) -> Double,
+        rotated: ([CGPoint], ClosedRange<Double>) -> ClosedRange<Double>,
+        halfShadow: Double,
+        shadowCenter: Double,
+        bob: Double
+    ) -> ClosedRange<Double> {
+        var lower = Double.infinity, upper = -Double.infinity
+        func include(_ low: Double, _ high: Double) {
+            lower = min(lower, low)
+            upper = max(upper, high)
         }
-        include((Double(headCenter.y) - headRadius)...(Double(headCenter.y) + headRadius))
-        for part in [beak] + tails {
-            let ys = part.points.map { Double(part.anchor.y) + Double($0.y) }
-            include((ys.min() ?? 0)...(ys.max() ?? 0))
+        for disc in discs {
+            include(axis(disc.center) - disc.radius, axis(disc.center) + disc.radius)
         }
-        for wing in [farWing, nearWing] {
-            let rotated = Self.rotatedYRange(wing.points, wing.rotation)
-            include((Double(wing.pivot.y) + rotated.lowerBound)...(Double(wing.pivot.y) + rotated.upperBound))
+        for part in fixedParts {
+            let values = part.points.map { axis(part.anchor) + axis($0) }
+            include(values.min() ?? 0, values.max() ?? 0)
         }
-        // 浮遊は体（影以外）ごと上へ動く。
-        upper += bobAmplitude
-        let halfShadow = Double(shadowSize.height) / 2
-        include((Double(shadowCenter.y) - halfShadow)...(Double(shadowCenter.y) + halfShadow))
+        for part in rotatingParts {
+            let range = rotated(part.points, part.rotation)
+            include(axis(part.pivot) + range.lowerBound, axis(part.pivot) + range.upperBound)
+        }
+        // 影は地面に敷いたままで浮遊に追従しないので、体の分を上げてから足す。
+        upper += bob
+        include(shadowCenter - halfShadow, shadowCenter + halfShadow)
         return lower...upper
     }
 

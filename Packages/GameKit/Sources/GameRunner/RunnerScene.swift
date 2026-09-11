@@ -663,6 +663,11 @@ final class RunnerScene: SKScene {
     /// くちばしの先端・尾羽の先端・翼の振り切った先端が矩形の縁にちょうど一致し、
     /// 浮遊の上端が矩形の天井に一致する。張り出しが 0 であることは `BirdArtTests` が
     /// 寸法の計算で確かめるので、パーツを動かすとテストが落ちる。
+    ///
+    /// **座標・大きさをここに直書きしないこと。** この関数は `art` が持つ値をそのまま
+    /// 使うだけにしてあり、直書きしたパーツは `RunnerBirdArt` の測定（= `BirdArtTests`）の
+    /// 網から外れる。パーツを増やすときは `RunnerBirdArt` に足し、`discs` / `fixedParts` /
+    /// `rotatingParts` のいずれかに登録してから使う。
     private func addBird(_ hazard: RunnerHazard) {
         let art = RunnerBirdArt(width: hazard.length, height: hazard.height)
         let node = SKNode()
@@ -692,9 +697,6 @@ final class RunnerScene: SKScene {
         let bob = SKAction.moveBy(x: 0, y: art.bobAmplitude, duration: 0.7)
         bob.timingMode = .easeInEaseOut
         bobber.run(.repeatForever(.sequence([bob, bob.reversed()])))
-
-        let bodyR = art.bodyRadius
-        let center = art.bodyCenter
 
         // 尾羽（後方＝-x 側）。2枚ずらして重ね、飛行姿勢に合わせて斜め上へ流す。
         // 長いほうの先端が当たり判定の後端にちょうど届く長さ（`RunnerBirdArt` が導出する）。
@@ -736,37 +738,29 @@ final class RunnerScene: SKScene {
             bobber.addChild(wing)
         }
 
+        func addDisc(_ disc: RunnerBirdArt.Disc, color: UInt32) {
+            let node = SKShapeNode(circleOfRadius: disc.radius)
+            node.fillColor = RunnerPalette.color(color)
+            node.strokeColor = .clear
+            node.position = disc.center
+            bobber.addChild(node)
+        }
+
         // 奥の翼（胴の向こう側）。濃色+背面に置き、手前の翼と逆位相で振る。
         addWing(art.farWing, color: RunnerPalette.birdWingFar, z: -1, startsLow: true)
 
         // 胴体（大きい丸）。頭は別の丸を上前方に重ね、ひとつながりの丸いシルエットにする。
-        let body = SKShapeNode(circleOfRadius: bodyR)
-        body.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
-        body.strokeColor = .clear
-        body.position = center
-        bobber.addChild(body)
-
-        let headRadius = art.headRadius
-        let head = art.headCenter
-        let headNode = SKShapeNode(circleOfRadius: headRadius)
-        headNode.fillColor = RunnerPalette.color(RunnerPalette.birdBody)
-        headNode.strokeColor = .clear
-        headNode.position = head
-        bobber.addChild(headNode)
-
-        // 腹（明るい差し色）。単色の玉に見えないよう下面を明るくする。
-        let belly = SKShapeNode(circleOfRadius: bodyR * 0.6)
-        belly.fillColor = RunnerPalette.color(RunnerPalette.birdBelly)
-        belly.strokeColor = .clear
-        belly.position = CGPoint(x: center.x + bodyR * 0.28, y: center.y - bodyR * 0.42)
-        bobber.addChild(belly)
+        // 腹は単色の玉に見えないための明るい差し色。
+        addDisc(art.bodyDisc, color: RunnerPalette.birdBody)
+        addDisc(art.headDisc, color: RunnerPalette.birdBody)
+        addDisc(art.belly, color: RunnerPalette.birdBelly)
 
         // 畳んだ足。飛行中の鳥は足を体へ引き込むので、ぶら下げず腹の後ろ寄りに
         // 小さく畳んで添える（接地時代の「立つ2本足」の置き換え）。
         let foot = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.birdBeak),
-                                size: CGSize(width: bodyR * 0.584, height: bodyR * 0.208))
-        foot.position = CGPoint(x: center.x + bodyR * 0.05, y: center.y - bodyR * 0.95)
-        foot.zRotation = -0.3
+                                size: art.footSize)
+        foot.position = art.foot.pivot
+        foot.zRotation = art.foot.rotation.lowerBound
         foot.zPosition = 1
         bobber.addChild(foot)
 
@@ -783,19 +777,10 @@ final class RunnerScene: SKScene {
         beak.position = art.beak.anchor
         bobber.addChild(beak)
 
-        // 目。白目の上に黒目を重ねる（暗緑に暗色の点では見えない、の教訓）。
-        let eyeWhite = SKShapeNode(circleOfRadius: headRadius * 0.34)
-        eyeWhite.fillColor = RunnerPalette.color(RunnerPalette.birdBelly)
-        eyeWhite.strokeColor = .clear
-        eyeWhite.position = CGPoint(x: head.x + headRadius * 0.3, y: head.y + headRadius * 0.18)
-        bobber.addChild(eyeWhite)
-
-        let pupil = SKShapeNode(circleOfRadius: headRadius * 0.17)
-        pupil.fillColor = RunnerPalette.color(RunnerPalette.birdEye)
-        pupil.strokeColor = .clear
-        // 進行方向（走者側）を見ている黒目。白目の中で少し前に寄せる。
-        pupil.position = CGPoint(x: eyeWhite.position.x + headRadius * 0.12, y: eyeWhite.position.y)
-        bobber.addChild(pupil)
+        // 目。白目の上に、進行方向（走者側）へ寄せた黒目を重ねる
+        // （暗緑に暗色の点では見えない、の教訓）。
+        addDisc(art.eyeWhite, color: RunnerPalette.birdBelly)
+        addDisc(art.pupil, color: RunnerPalette.birdEye)
 
         courseLayer.addChild(node)
     }
