@@ -1,6 +1,7 @@
 import Testing
 import CoreGraphics
 import Foundation
+import Core
 @testable import GameMahjongSolitaire
 
 /// 盤面の大きさ（#196）。牌のタップ標的が Apple HIG の 44pt を満たすかを、
@@ -153,16 +154,18 @@ struct MahjongSolitaireBoardMetricsTests {
         // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
         // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する
         // （`MotionTests.noRawAnimationOutsideCore` と同じやり方）。
+        //
+        // frame を持っているのは共通の `BoardToggleButton`（Core・#641）へ移った。結線は
+        // 「この定数が共通枠の寸法と同じ値」＋「View が共通枠を使っている」の 2 点に分かれる
+        // （共通枠が frame にこの寸法を渡していることは `BoardToggleButtonTests` が押さえる）。
+        #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide,
+                "帯の高さの見積りがボタンの実寸から外れている")
+
         let source = try Self.viewSource()
-        for expected in [
-            #"minWidth:\s*Metrics\.toggleButtonMinSide"#,
-            #"minHeight:\s*Metrics\.toggleButtonMinSide"#,
-        ] {
-            #expect(
-                source.range(of: expected, options: .regularExpression) != nil,
-                "MahjongSolitaireView が \(expected) を使っていない（タップ標的が Metrics から切れている）"
-            )
-        }
+        #expect(
+            source.contains("BoardToggleButton("),
+            "MahjongSolitaireView が共通の BoardToggleButton を使っていない（タップ標的が切れている）"
+        )
     }
 
     @Test("44pt のボタンを置いてもステータスバーは高くならない")

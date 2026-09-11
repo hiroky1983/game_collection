@@ -252,34 +252,33 @@ public struct MinesweeperView: View {
 
                 // 旗・拡大の切り替えはどちらも実測 29×23pt しかなく Apple HIG の 44pt を
                 // 下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ形に揃える（#203）。
-                Button { flagMode.toggle() } label: {
-                    Image(systemName: "flag.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(
-                            minWidth: MinesweeperMetrics.toggleButtonMinSide,
-                            minHeight: MinesweeperMetrics.toggleButtonMinSide
-                        )
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(flagMode ? Theme.Fill.coral : Theme.surface)
-                        )
-                        .foregroundStyle(flagMode ? Theme.onAccent : Theme.inkSub)
-                        // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない・#197 と同じ）。
-                        .contentShape(Rectangle())
+                //
+                // #203 で移植できていたのは 44pt のタップ標的だけで、アイコン 13pt・角丸 8・
+                // 枠線なしと面の作りは一回り小さいままだった。同じ形を 2 ヶ所に手書きしていたのが
+                // 原因なので、共通の `BoardToggleButton`（Core）へ寄せて揃える（#641）。
+                //
+                // 文字ラベル（麻雀ソリティアの「拡大」「全体」に当たるもの）は付けない。幅は足りる
+                // （iPhone SE で両方に文字を付けた対照ビルドを実測。帯の余りは 81.5pt → 49.5pt に
+                // 減るだけで収まる）が、旗モードには「拡大 ⇄ 全体」のような 2 状態の言い分けが無く、
+                // 片方だけ文字付きにすると同じ行のトグルが不揃いになる。文字を出すかどうかは
+                // #641 の受け入れ条件（寸法を揃える）の外なので、必要になったら別途決める。
+                BoardToggleButton(
+                    isOn: flagMode,
+                    systemImage: "flag.fill",
+                    fill: Theme.Fill.coral,
+                    accent: Theme.coral,
+                    label: flagMode ? "旗を立てるのをやめる" : "旗を立てるモードにする"
+                ) {
+                    flagMode.toggle()
                 }
-                Button { zoomMode.toggle() } label: {
-                    Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(
-                            minWidth: MinesweeperMetrics.toggleButtonMinSide,
-                            minHeight: MinesweeperMetrics.toggleButtonMinSide
-                        )
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
-                        )
-                        .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
-                        .contentShape(Rectangle())
+                BoardToggleButton(
+                    isOn: zoomMode,
+                    systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
+                    fill: Theme.Fill.teal,
+                    accent: Theme.teal,
+                    label: zoomMode ? "盤面全体を表示" : "マスを大きくする"
+                ) {
+                    zoomMode.toggle()
                 }
             }
             .fixedSize(horizontal: true, vertical: false)

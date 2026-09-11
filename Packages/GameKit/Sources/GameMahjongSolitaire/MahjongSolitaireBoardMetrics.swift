@@ -1,4 +1,5 @@
 import CoreGraphics
+import Core
 
 /// 盤面の大きさと牌の置き場所の計算。**状態を持たない純粋関数**として View から切り出してある。
 ///
@@ -16,7 +17,10 @@ enum MahjongSolitaireBoardMetrics {
     ///
     /// 全体像を取り戻す唯一の入口がこのボタンなので、牌と同じく 44pt を下回らせない。
     /// 実測 29×23pt だったものをここに集約し、値が縮んだらテストで気づけるようにする。
-    static let toggleButtonMinSide: CGFloat = minimumTapTarget
+    ///
+    /// 実際に frame へ渡すのは共通の `BoardToggleButton`（Core・#641）なので、値もそこから取る。
+    /// 帯の高さの見積り（`statusBarVerticalPadding`）がボタンの実寸から外れないようにするため。
+    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
 
     /// 盤の下の操作ボタン（ヒント・並べ替え）の高さの下限（#199）。
     ///
