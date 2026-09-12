@@ -377,6 +377,11 @@ public struct GoView: View {
     /// 出入りする枝と一緒に修飾子まで消えて `.transition` が効かない。
     /// 読み上げは持たせない — 1 秒あまりで消える要素に VoiceOver のフォーカスが乗ると、
     /// 消えた瞬間にフォーカスごと飛ぶ（将棋の王手札と同じ判断）。
+    ///
+    /// 面色は**パスボタンと同じ** `Theme.fillMuted`。将棋の王手札の緋色
+    /// （`BoardGameCheckColor`）は危急の合図の色で、この画面には投了ボタンと拒否理由の帯という
+    /// 赤系がすでに 2 つある。パスは危急ではないので、押した相手（ボタン）と同じ色にして
+    /// 「押したものの結果」と読めるようにする。
     private var passBanner: some View {
         ZStack {
             if passBannerID != nil {
@@ -384,7 +389,7 @@ public struct GoView: View {
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(BoardGameCheckColor.color))
+                    .background(Capsule().fill(Theme.fillMuted))
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
         }
