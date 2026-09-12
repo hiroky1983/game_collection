@@ -143,14 +143,18 @@ struct MahjongSnapshot: Codable {
     let handResult: MahjongHandResult?
     /// アガリやめが確定しているか。リザルト中断から再開しても終局判定を引き継ぐ。
     let endsAfterThisHand: Bool?
+    /// その対局に焼き込まれた長さ（#639）。上と同じく**旧データには鍵が無い**ので任意にする
+    /// （必須にすると更新直後の 1 局が黙って消える）。nil は一局戦が無かった頃の対局 = 東風戦。
+    let gameLength: MahjongGameLength?
 }
 
 // MARK: - Model
 
-/// 四人打ち麻雀・東風戦（CPU 3 人との対局）。プレイヤーは常に番号 0。
+/// 四人打ち麻雀（CPU 3 人との対局）。プレイヤーは常に番号 0。
 ///
 /// 決裁 A（#106・2026-08-24）の段階実装に、#263 で**鳴き（ポン・チー・カン）**を足した:
 /// **東風戦 / 鳴きあり / 主要な一飜・二飜役 + 七対子 / 簡易点数計算**。半荘は次版以降。
+/// #639 で**一局戦**（東 1 局だけ）を対局の長さの分岐として足した（`MahjongGameLength`）。
 ///
 /// 鳴きの範囲外としたもの（#263 の PR に明記）: 立直後のカン（暗槓を含む）・食い替えの禁止・
 /// 四開槓・流し満貫。
@@ -182,9 +186,11 @@ public final class MahjongModel {
     public private(set) var currentPlayer: Int = 0
     /// 親（0 = 自分）。
     public private(set) var dealer: Int = 0
-    /// 東何局か（1〜4）。
+    /// 東何局か（1〜`gameLength.roundCount`）。
     public private(set) var roundNumber: Int = 1
     public private(set) var honba: Int = 0
+    /// **その対局に焼き込まれた**長さ（#639）。`startGame(length:)` でだけ変わり、対局中は動かない。
+    public private(set) var gameLength: MahjongGameLength = .tonpuu
     /// 供託されている立直棒の本数。
     public private(set) var riichiSticks: Int = 0
     public private(set) var handResult: MahjongHandResult?
@@ -203,7 +209,7 @@ public final class MahjongModel {
         phase == .handResult ? (handResult?.honba ?? honba) : honba
     }
 
-    /// 東風戦の最終順位（1 位から順のプレイヤー番号）。対局中は空。
+    /// 対局の最終順位（1 位から順のプレイヤー番号）。対局中は空。
     public private(set) var ranking: [Int] = []
     public private(set) var recordResult: RecordResult?
     /// 立直を宣言しようとしていて、切る牌の選択を待っている状態。
@@ -329,6 +335,7 @@ public final class MahjongModel {
             // 落ちるので、従来どおり対局中（`.playing`）として復元される。
             handResult = snap.handResult
             endsAfterThisHand = snap.endsAfterThisHand ?? false
+            gameLength = snap.gameLength ?? .tonpuu
             phase = snap.handResult != nil ? .handResult : .playing
         }
     }
@@ -492,7 +499,7 @@ public final class MahjongModel {
 
     /// 「新規対局」で失われるものがあるか（#638）。
     ///
-    /// 東風戦が進行中なら、持ち点・局・河・供託はこの対局だけのもので、配り直すと戻せない。
+    /// 対局が進行中なら、持ち点・局・河・供託はこの対局だけのもので、配り直すと戻せない。
     /// 開始前（`.idle`）と決着後（`.gameResult`）は捨てるものが無いので確認を挟まない
     /// （将棋 `moves.isEmpty` / ブロック崩し `hasProgressToLose` と同じ境目）。
     public var hasGameInProgress: Bool {
@@ -504,16 +511,21 @@ public final class MahjongModel {
 
     // MARK: - 対局の開始
 
-    /// 東風戦を最初から始める。**進行中の対局はここで破棄される**（#638）。
+    /// 対局を最初から始める。**進行中の対局はここで破棄される**（#638）。
     ///
-    /// 破棄した東風戦の扱いは次のとおりで、未完了のまま戦績に載ることはない:
+    /// - Parameter length: この対局に**焼き込む**長さ（#639）。nil なら直前の対局と同じものを
+    ///   使い続ける（リザルトの「もう一度」とツールバーの「新規対局」は選び直しを挟まないため）。
+    ///   ここでしか対局の長さは変わらない。
+    ///
+    /// 破棄した対局の扱いは次のとおりで、未完了のまま戦績に載ることはない:
     /// - **記録（`PlayLog`）**: 勝敗を書くのは終局（`concludeGame` の `gameDidFinish`）だけなので、
     ///   打ち切った対局は通算成績にも Game Center の実績にも一切載らない。
     /// - **中断データ**: 直後の `startHand` → `persist` が新しい配牌で上書きするため、
     ///   捨てた対局の続きをあとから開ける経路は残らない。
     /// - **解析**: `gameDidRestart` が、1 枚でも切っていた対局に `game_end`（`quit`）を付けてから
     ///   次の `game_start` を送る（#500）。配っただけで切らずに捨てた対局は離脱に数えない。
-    public func startGame() {
+    public func startGame(length: MahjongGameLength? = nil) {
+        if let length { gameLength = length }
         scores = Array(repeating: Self.startingScore, count: Self.playerCount)
         dealer = 0
         roundNumber = 1
@@ -1121,13 +1133,18 @@ public final class MahjongModel {
 
     private func finishHand(dealerContinues: Bool) {
         phase = .handResult
-        // アガリやめ: 東 4 局で親が連荘する条件を満たしていても、その親がトップなら終局する。
-        // これを入れないと、勝っている親が連荘し続けるかぎり東風戦が終わらない。
-        let isFinalRound = roundNumber >= Self.playerCount
-        if dealerContinues && isFinalRound && isTopPlayer(dealer) {
+        // 一局戦（#639）は連荘しない。認めると「1局で終わる」という約束のほうが破れる
+        // （親が和了り続けるかぎり東1局1本場・2本場…と伸びる）。東風戦では `dealerContinues`
+        // がそのまま通るので、v1.1.4 までの進行と 1 ビットも変わらない。
+        let continues = dealerContinues && gameLength.allowsDealerRepeat
+        // アガリやめ: 最終局で親が連荘する条件を満たしていても、その親がトップなら終局する。
+        // これを入れないと、勝っている親が連荘し続けるかぎり対局が終わらない。
+        // 連荘の変形なので、連荘の無い一局戦では `continues` が常に false になり成立しない。
+        let isFinalRound = roundNumber >= gameLength.roundCount
+        if continues && isFinalRound && isTopPlayer(dealer) {
             endsAfterThisHand = true
         }
-        if dealerContinues {
+        if continues {
             honba += 1
         } else {
             honba = 0
@@ -1145,9 +1162,18 @@ public final class MahjongModel {
         persist()
     }
 
-    /// 東風戦が終わったか。東 4 局を終えた（= 5 局目に入る）か、アガリやめか、誰かが飛んだとき。
+    /// 対局が終わったか。最終局を終えた（= その次の局に入る）か、アガリやめか、誰かが飛んだとき。
+    /// 最終局は対局の長さで決まる（東風戦は東 4 局、一局戦は東 1 局。#639）。
     private func isGameOver() -> Bool {
-        endsAfterThisHand || roundNumber > Self.playerCount || scores.contains { $0 < 0 }
+        endsAfterThisHand || roundNumber > gameLength.roundCount || scores.contains { $0 < 0 }
+    }
+
+    /// いま見ている局のリザルトから進むと、次の局ではなく終局（順位）に行くか（#639）。
+    ///
+    /// 一局戦は必ずこれに当たる（打つ局が 1 つしかない）。東風戦でも最終局・アガリやめ・トビの
+    /// ときは同じで、リザルトのボタンが「次の局へ」のままだと押した先と表示が食い違う。
+    public var concludesAfterCurrentResult: Bool {
+        phase == .handResult && isGameOver()
     }
 
     /// その人が単独・同点を問わず最高点か。
@@ -1160,7 +1186,7 @@ public final class MahjongModel {
         // 突然終わる驚きが最も大きいので最優先で表示する。次いで「東4局を終えた」が自然な終局、
         // アガリやめはその変形（roundNumber は 4 のまま）なので最後に判定する。
         gameEndReason = scores.contains(where: { $0 < 0 }) ? .busted
-            : roundNumber > Self.playerCount ? .completedAllRounds
+            : roundNumber > gameLength.roundCount ? .completedAllRounds
             : endsAfterThisHand ? .agariYame
             : .completedAllRounds
         // 同点は席順（親から近い順）で上位にする。
@@ -1182,8 +1208,18 @@ public final class MahjongModel {
         case .loss: services?.feedback.notify(.error)
         case .draw: services?.feedback.notify(.warning)
         }
+        // 一局戦（#639）の成績は東風戦と別枠で数える。1 局の出来だけで順位が決まるぶん
+        // 結果のばらつきが大きく、同じ通算成績に混ぜると東風戦の勝率が読めなくなる。
+        // 東風戦は `recordVariant` が nil のままなので、これまでの記録をそのまま引き継ぐ。
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss)
+            gameID: gameID,
+            outcome: reviewOutcome,
+            score: GameScore(
+                metric: .winLoss,
+                variant: gameLength.recordVariant,
+                variantLabel: gameLength.recordVariantLabel,
+                isLeaderboardEligible: gameLength.isLeaderboardEligible
+            )
         )
         // 自分がトビて終わった対局は、リワード広告で 1 半荘 1 回だけ続けられる（#338）。
         // 決着の通知（`gameDidFinish`）はここまでで従来どおり済ませ、復活したときに
@@ -1192,7 +1228,9 @@ public final class MahjongModel {
     }
 
     /// 自分がトビて最下位で終わった対局か。次の 3 つは false（そのまま終局にする）:
-    /// - 東 4 局を終えた・アガリやめが同時に成立している → 復活しても続ける局が無い
+    /// - 最終局を終えた・アガリやめが同時に成立している → 復活しても続ける局が無い
+    ///   （**一局戦（#639）はトビても必ずここに当たる**。最終局 = 東 1 局なので、復活して
+    ///   続けられる局が構造的に存在しない。したがって一局戦では復活導線自体が出ない）
     /// - CPU だけがトビた → 自分は生き残っているので続ける動機が無い
     ///   （ポーカー・ブラックジャックの「自分のチップが尽きたときだけ回復を出す」形に揃える）
     /// - 自分がマイナスでも最下位ではない（複数人が同時にトビた稀なケース）→ 記録の巻き戻しが
@@ -1201,7 +1239,7 @@ public final class MahjongModel {
         scores[Self.humanIndex] < 0
             && reviewOutcome == .loss
             && !endsAfterThisHand
-            && roundNumber <= Self.playerCount
+            && roundNumber <= gameLength.roundCount
     }
 
     /// リワード広告を表示し、**視聴完了したときだけ**トビ終了から復活して対局を続ける（#338）。
@@ -1228,7 +1266,10 @@ public final class MahjongModel {
         // 同じ半荘の続きなので、直前に記録した「負け」は無かったことにする（2048・マインスイーパーの
         // コンティニューと同じ扱い）。そのままだと 1 半荘が 2 回（トビの負け + 復活後の最終着順）
         // として数えられ、広告を見るほど通算成績が増える抜け道になる。
-        services?.playLog?.cancelLoss(gameID: gameID)
+        // 取り消す先は決着を書いた記録と同じ区分でなければならない（#639）。一局戦では
+        // 復活導線自体が出ない（`didBustOut`）ので現状ここは常に東風戦 = nil だが、
+        // 書き込み先（`concludeGame`）と読み替え先が食い違う形を残さない。
+        services?.playLog?.cancelLoss(gameID: gameID, variant: gameLength.recordVariant)
         recordResult = nil
         for player in 0..<Self.playerCount where scores[player] < 0 {
             scores[player] = Self.startingScore
@@ -1402,7 +1443,8 @@ public final class MahjongModel {
             deadWallDraws: deadWallDraws,
             hasRevivedThisGame: hasRevivedThisGame,
             handResult: phase == .handResult ? handResult : nil,
-            endsAfterThisHand: endsAfterThisHand
+            endsAfterThisHand: endsAfterThisHand,
+            gameLength: gameLength
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -1422,8 +1464,10 @@ public final class MahjongModel {
         scores: [Int]? = nil,
         roundNumber: Int = 1,
         honba: Int = 0,
-        melds: [[MahjongCall]]? = nil
+        melds: [[MahjongCall]]? = nil,
+        length: MahjongGameLength? = nil
     ) {
+        if let length { self.gameLength = length }
         self.hands = hands
         self.wall = wall
         self.wallIndex = 0
@@ -1484,6 +1528,17 @@ public final class MahjongModel {
             uraDoraIndicators: [.characters(9)]
         )
         phase = .handResult
+    }
+
+    /// 撮影・動作確認用（DEBUG 限定）: 打ち切りで終わったリザルト（見出し + 順位表）をその場で作る。
+    /// 見出しは対局の長さで変わる（#639）が、実プレイで到達するには最後まで打つしかなく、
+    /// シミュレータは自動タップができない（`simulateBustResultForTesting` と同じ理由）。
+    func simulateFinalResultForTesting(length: MahjongGameLength) {
+        gameLength = length
+        scores = [32_000, 27_000, 23_000, 18_000]
+        roundNumber = length.roundCount + 1
+        handResult = nil
+        concludeGame()
     }
 
     /// 撮影・動作確認用（DEBUG 限定）: トビ終了のリザルト（復活ボタンが出る状態）をその場で作る（#338）。
