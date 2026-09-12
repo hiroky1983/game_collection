@@ -19,9 +19,10 @@ import GameChess
 import GameBlocks
 import GameFreeCell
 import GameRunner
-// GameBlockPuzzle・GameHanafuda は import しない（#642。分析基盤の先行リリースを優先するため
-// v1.1.4のハブからブロックならべ・花札こいこいを外した。コード自体は残っているので、
-// 次版で `registry` に1行ずつ戻せば復活できる）。
+import GameHanafuda
+// GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
+// 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
+// `registry` に1行足せば復活できる）。
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -149,6 +150,9 @@ enum AppEnvironment {
         BlocksModule(),
         // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
         RunnerModule(),
+        // 花札こいこい（#495）。和風の看板として末尾に置く（初期表示順のみ。既にアプリを
+        // 使っている人の並びには影響しない）。#642 で v1.1.4 から持ち越したぶんを #668 で戻した。
+        HanafudaModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

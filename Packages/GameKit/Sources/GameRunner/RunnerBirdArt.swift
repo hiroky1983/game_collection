@@ -13,28 +13,38 @@ import Foundation
 /// （#609・PR #607 の CodeRabbit 指摘を当番が数値で追試）。`addBird` の doc コメントは
 /// 「絵は矩形の内側に収まる寸法で組む」と書いていたが、実際には収まっていなかった。
 ///
-/// **当たり判定は 1 ビットも変えていない。** 鳥の箱は `RunnerHazard` が持つ
-/// 「1 タイル幅（`RunnerRules.tileWidth` = 4）× 高さ 7」のままで、難易度も 15 ステージの
-/// 成立条件も動かない。合わせにいったのは絵のほうで、はみ出していた 3 パーツ
-/// （くちばし・尾羽・翼）の寸法を**箱から導出する**形に変えてある:
+/// はみ出していた 3 パーツ（くちばし・尾羽・翼）の寸法を**箱から導出する**形に変えてある:
 ///
 /// - くちばしの先端がちょうど `width`（走者側の端）に来るように胴の中心 x を決める
 /// - 奥の翼が羽ばたきの端まで振れたとき、その先端がちょうど 0（後端）に来るように翼の倍率を決める
 /// - 長いほうの尾羽の先端がちょうど 0 に来るように尾羽の長さを決める
-/// - 一番高く上がるパーツ（尾羽の振り上げ）が浮遊の上端でちょうど `height` に来るように胴の中心 y を決める
+/// - 一番低いパーツ（畳んだ足）がちょうど 0（箱の床）に来るように胴の中心 y を決める
 ///
-/// つまり絵は**箱ちょうどいっぱい**で、はみ出しも余りもない。会長QA
+/// つまり絵は**箱の幅ちょうどいっぱい**で、横方向のはみ出しも余りもない。会長QA
 /// 「箱いっぱいに大きく・シルエットで正体が分かるように」（2026-09-10）はこの形で満たす。
 /// 胴は以前より小さくなるが（半径 1.54 → 1.16）、これは幅 4 の箱に収まる上限であり、
 /// 翼・尾羽の長さと胴の比（1.5 倍前後）は以前の見た目から保っている。
 ///
+/// **箱は当たり判定の「帯」そのもの**（#671）。鳥の当たり判定は地面から生えた矩形ではなく
+/// 空中の帯 `[bottom, height]`（13〜22）なので、ここの `height` には**帯の高さ**
+/// （上端 − 下端）を渡し、`addBird` が帯の床の位置へ置く。`groundDrop` は帯の床から
+/// 地面までの落差で、影だけがそのぶん下（地面）へ降りる。
+///
+/// 縦は**床合わせ**にしてある（#609 の頃は天井合わせだった）。帯の床は
+/// 「接地してくぐれる／跳ぶと当たる」の境目そのもので、ここに絵の無いすき間を残すと
+/// 「鳥の下を通ったのに当たった」になる。逆に天井側は 2 段ジャンプでしか届かない高さで、
+/// 幅 1 タイルの鳥では絵の縦横比が足りず帯の高さ（9）を埋めきれない——**埋めきれない余りは
+/// 必ず天井側に寄せる**、というのがこの合わせ方の意味。
+///
 /// 座標系は `addBird` のローカル系と同じで、**x は 0（後端）から `width`（走者側の端）へ、
-/// y は 0（地面）から `height` へ**。`addBird` はこれを丸ごと左右反転して置く。
+/// y は 0（帯の床）から `height`（帯の天井）へ**。`addBird` はこれを丸ごと左右反転して置く。
 struct RunnerBirdArt {
     /// 当たり判定の矩形の幅（`RunnerHazard.length`）。
     let width: Double
-    /// 当たり判定の矩形の高さ（`RunnerHazard.height`）。
+    /// 当たり判定の帯の高さ（`RunnerHazard.height - RunnerHazard.bottom`）。
     let height: Double
+    /// 帯の床から地面までの落差（`RunnerHazard.bottom`）。影はこのぶん下に敷く。
+    let groundDrop: Double
 
     /// 羽ばたき・尾羽のように回転するパーツ。`points` は `pivot` を原点とした座標で、
     /// `rotation` の範囲いっぱいに回る（羽ばたきの両端）。
@@ -130,9 +140,25 @@ struct RunnerBirdArt {
     /// 尾羽の三角形の厚み（胴の半径に対する比）。
     private static let tailThickness = 0.455
 
-    init(width: Double, height: Double) {
+    /// 帯（幅 `width` × 高さ `height`）に収まる鳥を組む。`groundDrop` は帯の床から
+    /// 地面までの落差で、影だけがそのぶん下へ降りる（#671）。
+    ///
+    /// 胴の中心 y は**一度 0 に置いて組んだ下組みを測り、一番低いパーツが帯の床（0）に
+    /// 来るだけ持ち上げて**決める。持ち上げ量を手で計算しないのは、パーツを 1 つ足したときに
+    /// 計算のほうを直し忘れて絵が床から浮く（＝くぐったのに当たる帯が下に残る）のを防ぐため
+    /// ——測るのは `birdVerticalExtent`、すなわち `BirdArtTests` が見るのと同じ値。
+    init(width: Double, height: Double, groundDrop: Double = 0) {
+        let probe = RunnerBirdArt(width: width, height: height, groundDrop: groundDrop, centerY: 0)
+        self.init(
+            width: width, height: height, groundDrop: groundDrop,
+            centerY: -probe.birdVerticalExtent.lowerBound
+        )
+    }
+
+    private init(width: Double, height: Double, groundDrop: Double, centerY: Double) {
         self.width = width
         self.height = height
+        self.groundDrop = groundDrop
 
         let bodyRadius = height * Ratio.body
         let headRadius = bodyRadius * Ratio.head
@@ -156,25 +182,7 @@ struct RunnerBirdArt {
         let wingScale = wingReach > 0 ? farPivotX / wingReach : 0
         let wingShape = Self.wingShape.map { CGPoint(x: $0.x * wingScale, y: $0.y * wingScale) }
 
-        // 胴の中心 y は「一番高く上がるパーツが浮遊の上端で箱の天井に一致する」ことから決める。
-        // 箱の上に絵の無い帯を残すと、見えている鳥を跳び越したのに当たる（理不尽な被弾）。
         let nearRotation = -0.55...0.55
-        var highestOffset = bodyRadius * Ratio.headOffsetY + headRadius
-        for (spec, length) in zip(Self.tailSpecs, tailLengths) {
-            let points = Self.tailPoints(bodyRadius: bodyRadius, spec: spec, length: length)
-            let top = points.map { Double($0.y) }.max() ?? 0
-            highestOffset = max(highestOffset, bodyRadius * spec.dy + top)
-        }
-        highestOffset = max(
-            highestOffset,
-            bodyRadius * 0.5 + Self.rotatedYRange(wingShape, farRotation).upperBound
-        )
-        highestOffset = max(
-            highestOffset,
-            bodyRadius * 0.45 + Self.rotatedYRange(wingShape, nearRotation).upperBound
-        )
-        let centerY = height - highestOffset - bobAmplitude
-
         let bodyCenter = CGPoint(x: centerX, y: centerY)
         self.bodyCenter = bodyCenter
         headCenter = CGPoint(
@@ -227,8 +235,10 @@ struct RunnerBirdArt {
             rotation: nearRotation
         )
 
+        // 影は帯の床ではなく**地面**に敷く（#671）。体とのすき間がそのまま
+        // 「この高さを飛んでいる」の手がかりになるので、帯が地面から離れているぶんだけ下げる。
         shadowSize = CGSize(width: width * 0.95, height: 0.55)
-        shadowCenter = CGPoint(x: width * 0.5, y: 0.3)
+        shadowCenter = CGPoint(x: width * 0.5, y: -groundDrop + 0.3)
     }
 
     private static func tailPoints(
@@ -274,7 +284,7 @@ struct RunnerBirdArt {
         )
     }
 
-    /// 絵が占める y の範囲。上端は浮遊の一番高いところ、下端は影の底。
+    /// 絵が占める y の範囲。上端は浮遊の一番高いところ、下端は**地面に敷いた影**の底。
     var verticalExtent: ClosedRange<Double> {
         extent(
             axis: { Double($0.y) },
@@ -285,13 +295,27 @@ struct RunnerBirdArt {
         )
     }
 
-    /// 上の 2 つの共通処理。片方だけパーツを足す取りこぼしが起きないよう 1 本にまとめてある。
+    /// 影を除いた、**鳥そのもの**が占める y の範囲（#671）。影は帯の外（地面）に敷くので、
+    /// 「絵が帯からはみ出していない」は影を抜いたこちらで見る。下端が 0 に一致することが
+    /// 「くぐれる側の縁と絵が合っている」の定義（`init` の持ち上げ量もこれで決めている）。
+    var birdVerticalExtent: ClosedRange<Double> {
+        extent(
+            axis: { Double($0.y) },
+            rotated: { Self.rotatedYRange($0, $1) },
+            halfShadow: nil,
+            shadowCenter: 0,
+            bob: bobAmplitude
+        )
+    }
+
+    /// 上の 3 つの共通処理。片方だけパーツを足す取りこぼしが起きないよう 1 本にまとめてある。
     ///
     /// `bob` は浮遊の振れ幅。体（影以外）はこのぶん**上へ**動くので、y 方向でだけ上端に足す。
+    /// `halfShadow` が nil のときは影を数えない。
     private func extent(
         axis: (CGPoint) -> Double,
         rotated: ([CGPoint], ClosedRange<Double>) -> ClosedRange<Double>,
-        halfShadow: Double,
+        halfShadow: Double?,
         shadowCenter: Double,
         bob: Double
     ) -> ClosedRange<Double> {
@@ -313,7 +337,9 @@ struct RunnerBirdArt {
         }
         // 影は地面に敷いたままで浮遊に追従しないので、体の分を上げてから足す。
         upper += bob
-        include(shadowCenter - halfShadow, shadowCenter + halfShadow)
+        if let halfShadow {
+            include(shadowCenter - halfShadow, shadowCenter + halfShadow)
+        }
         return lower...upper
     }
 

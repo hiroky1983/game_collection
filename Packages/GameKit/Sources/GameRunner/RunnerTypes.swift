@@ -14,22 +14,48 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     case lowBlock
     /// 高い障害物。ジャンプの頂点近くを通さないと当たる。
     case tallBlock
-    /// 鳥。低い障害物と高い障害物の中間の高さ（会長QA「鳥とか右から車が来るとか要素はいる」）。
+    /// 鳥（会長QA「鳥とか右から車が来るとか要素はいる」）。
     ///
-    /// **当たり判定・クリア可能性の数学は `lowBlock`/`tallBlock` と完全に同じ**
-    /// （地面から生えていて、ジャンプで頂点付近を通せば越えられる、という既存モデルをそのまま使う）。
+    /// **岩と違い、地面から生えていない「帯」の障害**（#671・#635 で会長決裁 2026-09-12）。
+    /// 判定は `bottom`（13）から `height`（22）までの空中の帯で、地面との間は空いている:
+    ///
+    /// - **接地していれば安全**（走者の高さ 11 < 13 なので頭がつかえずくぐれる）
+    /// - **跳ぶと当たる**（最小のジャンプでも頂点は `RunnerRules.jumpApex` ≒ 14.06 まで上がり、
+    ///   高さ 2 を超えた時点で頭が帯へ入る）
+    ///
+    /// つまり岩・穴が「跳んで越える」障害なのに対し、鳥は**跳ばずにくぐる**障害で、
+    /// 「跳ぶか跳ばないか」の判断そのものを問う。高さ 7 の“低い岩”のままでは
+    /// 「地に足ついてるから岩と変わらない」（会長QA 2026-09-10）が再発する。
+    /// ジャンプ物理は一切変えていない（#635 決裁）ので、15 ステージの他の成立条件は
+    /// そのまま据え置ける。
     case bird
 
-    /// 地面からの高さ。穴は高さを持たない。
+    /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
-    /// 高さの上限は**ジャンプの頂点（`RunnerRules.jumpApex`）より十分低く**すること。
-    /// 越えられない高さを置くとステージが詰む。`RunnerStageTests` が全ステージで機械的に確かめる。
+    /// 0 でないのは鳥だけで、`RunnerField.isHittingBlock` はこの値のおかげで
+    /// 「岩は従来どおりの高さ判定・鳥だけ帯判定」を 1 本の式で書ける。
+    public var bottom: Double {
+        switch self {
+        case .pit, .lowBlock, .tallBlock: return 0
+        // 走者の高さ（`RunnerField.Metrics.playerHeight` = 11）より高くしないと、
+        // 接地したままでは絶対にくぐれない障害になる。
+        case .bird:                       return 13
+        }
+    }
+
+    /// 当たり判定の**上端**（地面からの高さ）。穴は高さを持たない。
+    ///
+    /// 地面から生えている障害（`bottom` が 0）の上端は**ジャンプの頂点
+    /// （`RunnerRules.jumpApex`）より十分低く**すること。越えられない高さを置くと
+    /// ステージが詰む。`RunnerStageTests` が全ステージで機械的に確かめる。
+    /// 鳥だけは「跳ばずにくぐる」障害なのでこの上限が効かず、2 段ジャンプで
+    /// 上を抜けられる高さ（22）に置いてある。
     public var height: Double {
         switch self {
         case .pit:       return 0
         case .lowBlock:  return 5
-        case .bird:      return 7
         case .tallBlock: return 9
+        case .bird:      return 22
         }
     }
 }
@@ -50,6 +76,8 @@ public struct RunnerHazard: Equatable, Sendable {
 
     /// 右端の x。
     public var end: Double { start + length }
+    /// 下端の高さ（地面からの相対値）。地面から生えている障害は 0、鳥だけ 13。
+    public var bottom: Double { kind.bottom }
     /// 上端の高さ（地面からの相対値）。穴は 0。
     public var height: Double { kind.height }
 }
@@ -66,6 +94,65 @@ public struct RunnerPickup: Equatable, Sendable {
     public init(start: Double) {
         self.start = start
     }
+}
+
+/// コース上の「乗れる台座」1 つ（#674）。歩道橋・工事の足場・バスの屋根のような、
+/// 街の中の高い場所。
+///
+/// **`RunnerHazard` とは別の型・別の配列**にしてある。障害は「越えるもの」で当たり判定が
+/// 失敗に直結するが、台座は「上に乗って走るもの」で、地面と同じ**接地面**として働く
+/// （`RunnerField.surfaceY(at:)`）。同じ配列に混ぜると、既存の成立条件チェック
+/// （`RunnerStageTests` の「すべての障害が越えられる」）が台座まで「越えるべきもの」として
+/// 巻き込んでしまう——台座は越えるのではなく乗るので、その判定は意味を成さない。
+///
+/// 高低差を**地面の高さを動かさずに**作るための型（#635 会長決裁 2026-09-12）。
+/// `RunnerField.Metrics.groundY` は接地判定・障害の高さ・カメラ・自動操縦・テストの
+/// 物差しがすべて前提にしている全体でただ 1 つの定数なので、そこを可変にすると全部が
+/// 連鎖する。台座は「地面の上に置く物体」なのでその前提を一切壊さない。
+public struct RunnerPlatform: Equatable, Sendable {
+    /// 左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 長さ。レイアウトの連続した `P` がここでまとめられる。
+    public let length: Double
+    /// 上面の高さ（**地面からの相対値**。障害の `height` と同じ物差し）。
+    ///
+    /// 第 1 弾は 1 種類（`RunnerRules.platformHeight` = 8）だけ。値を型に持たせてあるのは、
+    /// 接地面の解決（`RunnerField.surfaceY(at:)`）を「覆っている台座のうち最も高い上面」で
+    /// 書けるようにするため——高さ違いの台座を足す日が来ても、重ねた段の解決はそのまま動く。
+    public let top: Double
+
+    public init(start: Double, length: Double, top: Double = RunnerRules.platformHeight) {
+        self.start = start
+        self.length = length
+        self.top = top
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
+}
+
+/// コース上のスピードアップ床 1 区間（#672。#635 で会長決裁）。
+///
+/// アイテム（`RunnerPickup`）が「空中で取る一過性のご褒美」なのに対し、床は
+/// **乗っているあいだだけずっと効く地面の区間**。区間から出れば即座に効果が切れるので、
+/// `RunnerField` は状態を持たず毎サブステップ位置から判定する（`isOnBoostFloor`）。
+///
+/// `RunnerHazard` とも `RunnerPickup` とも別の型にしてある。床は「触れると失敗する」
+/// 当たり判定（`isHittingBlock`/`isPit`）にも、ステージの成立条件チェック
+/// （`RunnerStageTests` の間隔・跳べる高さ）にも一切混ぜない——障害としては平地そのもの。
+public struct RunnerBoostFloor: Equatable, Sendable {
+    /// 左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 長さ。レイアウトの連続した `=` がここでまとめられる。
+    public let length: Double
+
+    public init(start: Double, length: Double) {
+        self.start = start
+        self.length = length
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
 }
 
 /// 1 サブステップで起きたできごと。Model がこれを見て進行・記録・音を動かす。

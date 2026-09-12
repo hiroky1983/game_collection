@@ -71,8 +71,20 @@ public final class GoModel {
     public private(set) var recordResult: RecordResult?
     /// 拒否されたタップの通し番号（#202）。View はこの値の変化を震え演出のトリガーにする。
     public private(set) var rejectedTapCount: Int = 0
-    /// 直近の拒否理由（#202）。
+    /// 直近の拒否理由（#202）。着手が通ると消える（View が理由の 1 行を引っ込める契機・#664）。
     public private(set) var lastRejection: GoTapRejection?
+    /// 「パス」の札を飛び出させる契機（#664）。**人間・CPU のどちらがパスしても**増える。
+    ///
+    /// パスは盤が一切変わらない唯一の着手で、震えも石も出ない。札と触覚だけが
+    /// 「押せた」「CPU がパスした」の手がかりになるため、着手の通し番号とは別に持つ。
+    public private(set) var passEventID: Int = 0
+    /// 出したままの「パス」の札を畳む契機（#664。将棋 #519 と同じ理由）。
+    ///
+    /// 札は固定時間で引っ込むので、その途中に**盤の意味が変わる操作**（待った・新規対局・
+    /// 投了・対局続行・終局の確定）が入ると、パスしていない盤の上に札が残る。
+    /// `passEventID` はパスでしか増えないため、畳む側の契機はこちらで別に持つ。
+    /// `passEventID` と同じく **0 には戻さない**（View は「値が変わったこと」で畳む）。
+    public private(set) var passBannerDismissID: Int = 0
 
     private var moves: [GoMove]
     private let services: GameServices?
@@ -213,11 +225,23 @@ public final class GoModel {
         guard state.play(move) == nil else { return }
         moves.append(move)
         lastMove = move.point
+        // 打てた時点で直前の拒否理由は用済み（五目の `place` と同じ畳み方・#664）。
+        lastRejection = nil
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
 
-        // 着手の手応えは自分が打ったときだけ。CPU の着手では鳴らさない。
-        if mover == humanSide, move != .pass { services?.feedback.impact(.medium) }
+        if move == .pass {
+            // パスは盤が変わらないので、札（View 側）と触覚だけが手応えになる（#664）。
+            // 札は CPU のパスでも出す — 相手がパスしたことが分からないと、こちらが
+            // パスして終局へ進めてよい局面なのか判断できない。
+            passEventID += 1
+            // 2 回目のパスは直後に終局の合図（`notify(.warning)`）が鳴るので重ねない
+            // （同じ着手で 2 度鳴ると合図が濁る・将棋 #377 と同じ判断）。
+            if mover == humanSide, !state.isTwoPassEnd { services?.feedback.impact(.light) }
+        } else if mover == humanSide {
+            // 着手の手応えは自分が打ったときだけ。CPU の着手では鳴らさない。
+            services?.feedback.impact(.medium)
+        }
 
         if state.isTwoPassEnd {
             phase = .scoring
@@ -263,6 +287,7 @@ public final class GoModel {
     /// 終局の結果を確定する。ここではじめて成績として記録する。
     public func acceptEndgame() {
         guard phase == .scoring, let endgame else { return }
+        passBannerDismissID += 1
         phase = .finished
         winner = endgame.score.winner
         finish(outcome: outcome(for: endgame.score.winner))
@@ -274,11 +299,14 @@ public final class GoModel {
         state.resumePlay()
         phase = .playing
         endgame = nil
+        // 連続パスを解いた盤なので、直前のパスの札は残さない（#664）。
+        passBannerDismissID += 1
         persist()
     }
 
     public func resign() {
         guard phase != .finished else { return }
+        passBannerDismissID += 1
         phase = .finished
         winner = humanSide.opponent
         endgame = nil
@@ -323,6 +351,9 @@ public final class GoModel {
         lastMove = moves.last?.point
         undoUsed = true
         endgame = nil
+        lastRejection = nil
+        // 戻した 2 手にパスが含まれることがあるので、札は残さない（#664）。
+        passBannerDismissID += 1
         persist()
     }
 
@@ -349,6 +380,11 @@ public final class GoModel {
         self.isThinking = false
         self.isScoringInProgress = false
         self.gameSerial += 1
+        self.lastRejection = nil
+        // 通し番号（`passEventID`）は 0 に戻さない。View は「値が変わったこと」で札を出すため、
+        // 対局をまたいで単調に増やさないと巻き戻しが合図として拾われる（将棋 #519 と同じ）。
+        // 前対局の札が出たままなら、新しい盤の上には残さない。
+        self.passBannerDismissID += 1
         persist()
         services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel.rawValue))
     }

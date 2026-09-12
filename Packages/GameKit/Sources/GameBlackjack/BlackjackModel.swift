@@ -179,6 +179,15 @@ public final class BlackjackModel {
     /// 復活で戻るチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
     public static let reviveChips = initialChips / 2
 
+    /// いちばん安いベット額。**ベットボタンの並びと破産判定の両方がここを見る**（#656）。
+    /// 残高がこれに届かなければ、たとえ 0 枚でなくても打つ手が一つも無い＝そのセッションは
+    /// 終わりなので、`checkSessionOver()` はこの値を境にする。
+    ///
+    /// 50 枚ベットでブラックジャックを引いたときだけ 1.5 倍払いで 25 の端数が生まれるため、
+    /// 「0 枚になるまで遊べる」という前提は成り立たない（25 枚だと全ボタンが無効になり、
+    /// 破産カードも出ないのでハブに戻る以外の脱出手段が無くなっていた）。
+    public static let minimumBet = 50
+
     /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
     private var hasRevivedThisSession = false
 
@@ -241,6 +250,10 @@ public final class BlackjackModel {
             if self.hands.isEmpty {
                 self.phase = .betting
                 self.bet = 0
+                // 賭けに戻したのに賭けられない残高なら、その場で終わりにする（#656）。
+                // 判定を精算のときだけに置くと、賭ける前に戻った局面が
+                // 「ボタンが全部無効・破産カードも出ない」で詰む。
+                self.checkSessionOver()
             }
         }
     }
@@ -267,7 +280,10 @@ public final class BlackjackModel {
     // MARK: - Betting
 
     public func placeBet(_ amount: Int) {
-        guard phase == .betting, amount > 0 else { return }
+        // 終わったセッションでは賭けられない。最小ベット未満も受け付けない（#656）。
+        // 画面側は `sessionOver` のときベット欄ごと出さないが、境目をモデルにも持たせて
+        // おかないと「賭けられない残高で終わりにする」という判定の意味が保てない。
+        guard phase == .betting, !sessionOver, amount >= BlackjackModel.minimumBet else { return }
         guard chips >= amount else {
             services?.feedback.notify(.warning) // チップ不足でベットできない
             return
@@ -470,8 +486,11 @@ public final class BlackjackModel {
     }
 
     private func checkSessionOver() {
-        if chips <= 0 {
-            chips = 0
+        // 0 枚ではなく「いちばん安いベットに届かない」で終わりにする（#656）。
+        // 残高は端数（25 枚）で止まりうるので、`chips = 0` に丸めずそのまま見せる
+        // ——チップバーの表示と食い違わせない。
+        if chips < BlackjackModel.minimumBet {
+            chips = max(0, chips)
             sessionOver = true
         }
     }
@@ -506,7 +525,10 @@ public final class BlackjackModel {
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
         guard canReviveAfterBust else { return false }
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
+        guard services?.screenGeneration.current == generationBeforeAd else { return false }
         hasRevivedThisSession = true
         chips = BlackjackModel.reviveChips
         sessionOver = false

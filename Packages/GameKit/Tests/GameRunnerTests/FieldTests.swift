@@ -300,6 +300,30 @@ struct RunnerFieldTests {
         #expect(field.step(dt: 1.0 / 600).contains(.crashed))
     }
 
+    /// 鳥の帯は**接地なら安全・跳べば当たる**（#671）。岩は下端 0 のままなので、
+    /// 上の `flyingOverBlockIsSafe` と合わせて「岩の判定は変わっていない」の対照にもなる。
+    @Test("鳥の下は接地していれば通れ、少しでも跳ぶと当たる")
+    func birdBandIsSafeOnlyWhileGrounded() {
+        let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
+        guard let bird = stage.hazards.first else { Issue.record("鳥が無い"); return }
+        let center = (bird.start + bird.end) / 2
+        var field = RunnerField(stage: stage)
+
+        field.placeForTesting(distance: center, altitude: 0, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "接地していればくぐれる")
+
+        // 頭（足元 + `playerHeight`）が下端に届いた瞬間から当たる。
+        let clearance = bird.bottom - RunnerField.Metrics.playerHeight
+        field.placeForTesting(distance: center, altitude: clearance - 0.1, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "下端に頭が届く手前は安全")
+        field.placeForTesting(distance: center, altitude: clearance + 0.1, vy: 0)
+        #expect(field.step(dt: 1.0 / 600).contains(.crashed), "頭が帯に入れば当たる")
+
+        // 上端を越えれば（2 段ジャンプで届く高さ）また安全になる。
+        field.placeForTesting(distance: center, altitude: bird.height + 0.1, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "帯の上を抜ければ安全")
+    }
+
     @Test("大きな dt が来てもすり抜けない")
     func hugeStepDoesNotTunnel() {
         let stage = RunnerStage(number: 1, pattern: "--t---", speed: 40)
@@ -372,6 +396,193 @@ struct RunnerFieldTests {
 
     /// (b) 走者の当たり判定の矩形（幅 8）がピックアップの上を何フレームもまたぐあいだ、
     /// 一度取ったら 2 回目は発火しないこと。
+    // MARK: - 乗れる台座（#674）
+
+    /// 台座を 1 基だけ置いたコース。台座は前後に平地を連れて行く（`RunnerStage.patterns`）。
+    private func platformStage(speed: Double = 40) -> RunnerStage {
+        RunnerStage(number: 1, pattern: "---PP----", speed: speed)
+    }
+
+    /// 接地面の解決そのもの。台座の範囲内だけ上面へ、外は地面へ。
+    @Test("接地面は台座の範囲内だけ上面になる")
+    func surfaceFollowsPlatform() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        let field = RunnerField(stage: stage)
+        let ground = RunnerField.Metrics.groundY
+        #expect(field.surfaceY(at: platform.start - 1) == ground, "手前は地面")
+        #expect(field.surfaceY(at: platform.start) == ground + platform.top, "左端から上面")
+        #expect(field.surfaceY(at: (platform.start + platform.end) / 2) == ground + platform.top)
+        #expect(field.surfaceY(at: platform.end) == ground, "右端を出たら地面")
+    }
+
+    /// 跳んで乗り、上を走り、端から降りて地面へ着地する——台座の基本の一連。
+    @Test("台座に跳んで乗れ、上を走れ、端から降りて着地する")
+    func ridesOntoPlatformAndOffTheEnd() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        var onPlatform = false
+        var frames = 0
+        while frames < 60 * 60, !events.contains(where: { $0.isTerminal }) {
+            frames += 1
+            // 自動操縦の判断そのもので踏み切る（製品コードと同じ関数・#494 の作法）。
+            if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
+            if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+            events += field.step(dt: 1.0 / 60)
+            if field.isGrounded, field.distance > platform.start, field.distance < platform.end {
+                onPlatform = true
+                #expect(
+                    field.altitude == platform.top,
+                    "台座の上では足が上面（地面から \(platform.top)）にある"
+                )
+            }
+            if onPlatform, field.distance > platform.end + 30 { break }
+        }
+        #expect(!events.contains(.crashed), "台座に当たってはいけない")
+        #expect(onPlatform, "台座の上を走れていない")
+        #expect(field.isGrounded, "端から降りたあと地面に着地している")
+        #expect(field.altitude == 0, "降りたら地面の高さへ戻る")
+        #expect(events.filter { $0 == .landed }.count >= 2, "乗るときと降りるときで 2 回着地する")
+    }
+
+    /// 正面から突っ込めば高い障害物と同じくミス（#674 の受け入れ条件）。
+    @Test("台座に正面から突っ込むとミスになる")
+    func crashesIntoPlatformFace() {
+        let stage = platformStage()
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        // 一度も跳ばなければ台座の左端に当たる。
+        for _ in 0..<60 * 60 where !events.contains(where: { $0.isTerminal }) {
+            events += field.step(dt: 1.0 / 60)
+        }
+        #expect(events.contains(.crashed))
+        #expect(!events.contains(.reachedGoal), "当たった時点で打ち切る")
+    }
+
+    /// 上面より上を通っていれば当たらない（境界の向きを取り違えていないことの対照。
+    /// 岩の `flyingOverBlockIsSafe` と同じ形で確かめる）。
+    @Test("上面より下で台座の左端に入ると当たり、上面より上なら当たらない")
+    func platformFaceBoundary() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: platform.start - 1, altitude: platform.top + 1, vy: 0)
+        #expect(field.playerMaxX > platform.start, "爪先は台座に掛かっている")
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "上面より上なら乗れる")
+
+        field.placeForTesting(distance: platform.start - 1, altitude: platform.top - 1, vy: 0)
+        #expect(field.step(dt: 1.0 / 600).contains(.crashed), "上面より下なら正面衝突")
+    }
+
+    /// **等号ちょうどは「乗った」側に倒す**（#674）。`isHittingPlatformFace` の 2 つの
+    /// 不等号がどちらも strict であること——「足が上面ちょうど」も「中心が左端ちょうど」も
+    /// 当たりではないこと——を、判定を直接読んで固定する。
+    ///
+    /// `step` 経由では突けない境界。判定に来る前に `distance` も `footY` も動いてしまう。
+    @Test("上面ちょうど・左端ちょうどは正面衝突にならない")
+    func platformFaceIsInclusiveAtTheBoundary() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+
+        // (1) 中心はまだ左端の手前、足がちょうど上面。`footY < 上面` を `<=` に緩めると当たる。
+        var atTop = RunnerField(stage: stage)
+        atTop.placeForTesting(distance: platform.start - 0.5, altitude: platform.top, vy: 0)
+        #expect(atTop.playerMaxX > platform.start, "爪先は台座に掛かっている")
+        #expect(atTop.altitude == platform.top)
+        #expect(!atTop.isHittingPlatformFace, "上面と同じ高さは当たりではない")
+
+        // (2) 中心が左端ちょうど＝もう乗っている側。`中心 < 左端` を `<=` に緩めると当たる。
+        var atEdge = RunnerField(stage: stage)
+        atEdge.placeForTesting(distance: platform.start, altitude: platform.top - 1, vy: 0)
+        #expect(!atEdge.isHittingPlatformFace, "中心が左端に届いていれば乗った側")
+        // 対照: 中心がわずかでも手前で、足が上面より下なら当たる（判定が死んでいない証明）。
+        var justBefore = RunnerField(stage: stage)
+        justBefore.placeForTesting(distance: platform.start - 0.5, altitude: platform.top - 1, vy: 0)
+        #expect(justBefore.isHittingPlatformFace)
+    }
+
+    /// **台座の上を走り切って端から降りる瞬間は正面衝突ではない**（矩形の重なりだけで
+    /// 判定すると、尻がまだ台座に重なったまま足が下がるここで誤ってミスになる）。
+    @Test("台座の右端から降りてもミスにならない")
+    func leavingPlatformIsNotACrash() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        var field = RunnerField(stage: stage)
+        // 右端の 1 手前に、上面に立った状態で置く。
+        field.placeForTesting(distance: platform.end - 1, altitude: platform.top, vy: 0)
+        #expect(field.isGrounded, "上面に接地している")
+        var events: [RunnerEvent] = []
+        for _ in 0..<600 where field.distance < platform.end + 20 {
+            events += field.step(dt: 1.0 / 600)
+        }
+        #expect(!events.contains(.crashed), "降りる動きを正面衝突と取り違えている")
+        #expect(events.contains(.landed), "地面へ着地する")
+        #expect(field.altitude == 0)
+    }
+
+    /// 台座の端から出た先が穴なら、そのまま穴に落ちる（#674 の受け入れ条件）。
+    /// 落下の処理は地面のときと同じで、穴の判定（中心の x）がそのまま効く。
+    @Test("台座の端から穴に落ちる")
+    func fallsIntoPitFromPlatformEdge() {
+        // 台座の直後の区画に穴を置く（本編のステージでは作らない配置。判定の確認用）。
+        let stage = RunnerStage(number: 1, pattern: "---PP3----", speed: 40)
+        guard let platform = stage.platforms.first, let pit = stage.hazards.first else {
+            Issue.record("台座か穴が無い"); return
+        }
+        #expect(pit.kind == .pit)
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: pit.start - 1, altitude: platform.top, vy: 0)
+        #expect(field.distance > platform.end, "台座から降りて穴の手前にいる")
+        var events: [RunnerEvent] = []
+        for _ in 0..<600 where !events.contains(where: { $0.isTerminal }) {
+            events += field.step(dt: 1.0 / 600)
+        }
+        #expect(events.contains(.fell))
+    }
+
+    /// 台座を乗り継ぐ（#674 の受け入れ条件「連続台座」）。1 基目を降りて地面へ着地し、
+    /// そのまま 2 基目・3 基目へ乗り直す、を自動操縦の判断だけで通せること。
+    ///
+    /// **段差（地面から 16・24 の高さ）にはならない**——第1弾の台座は高さが 1 種類
+    /// （`RunnerRules.platformHeight`）で、連続する `P` は 1 基に融合するため、
+    /// 「台座の上にもう 1 段」は原理的に作れない。段差は高さ違いの台座を足す次弾の話で、
+    /// 第1弾の受け入れ条件は**同じ高さの台座を地面を挟んで並べ、乗り継げること**（リード決裁）。
+    @Test("連続して並んだ台座を順に乗り継げる")
+    func ridesAcrossConsecutivePlatforms() {
+        let stage = RunnerStage(number: 1, pattern: "---PP-PP-PP---", speed: 40)
+        #expect(stage.platforms.count == 3, "3 基が別々の台座として展開される")
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        // どの台座にも足が乗ったことを 1 基ずつ確かめる。
+        var ridden = Set<Int>()
+        var frames = 0
+        while frames < 60 * 120, !events.contains(where: { $0.isTerminal }) {
+            frames += 1
+            if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
+            if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+            events += field.step(dt: 1.0 / 60)
+            for (index, platform) in stage.platforms.enumerated()
+            where field.isGrounded && field.altitude == platform.top
+                && platform.start < field.distance && field.distance < platform.end {
+                ridden.insert(index)
+            }
+        }
+        #expect(!events.contains(.crashed), "乗り継ぎの途中で台座に当たっている")
+        #expect(events.contains(.reachedGoal), "ゴールまで通せていない")
+        #expect(ridden.count == 3, "乗れた台座 \(ridden.sorted())")
+    }
+
+    /// 台座が無いコースでは接地面が地面のまま——既存 15 ステージの物差しが動いていないこと。
+    @Test("台座の無いコースでは接地面が常に地面")
+    func surfaceIsGroundWithoutPlatforms() {
+        let field = RunnerField(stage: flatStage(segments: 8))
+        for x in stride(from: 0.0, through: 8 * 64, by: 8) {
+            #expect(field.surfaceY(at: x) == RunnerField.Metrics.groundY)
+        }
+    }
+
     @Test("同じピックアップは同じ走行中に一度しか取れない")
     func pickupIsCollectedOnlyOnce() {
         let stage = RunnerStage(number: 1, pattern: "--s---", speed: 40)
@@ -403,24 +614,30 @@ struct RunnerFieldTests {
         while !field.isGrounded { _ = field.step(dt: 1.0 / 600) }
     }
 
-    /// 穴を渡り切った直後に降りると、ペダルの乗りが `justLandingGain` ぶん足される。
-    @Test("障害の真裏に降りるとペダルの乗りが足される")
-    func justLandingAddsPedalBoost() {
+    /// 穴を渡り切った直後に降りると、`maxPedalBoost` を超える一時的な上乗せが乗る。
+    @Test("障害の真裏に降りると上限を超える上乗せが乗る")
+    func justLandingAddsOverboost() {
         let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
         let pit = stage.hazards[0]
         var field = RunnerField(stage: stage)
+        let plainSpeed = field.currentSpeed
         land(&field, over: pit, offset: 2)
         #expect(field.lastLandingWasJust, "穴の真裏に降りたのにジャスト着地にならない")
         #expect(field.justLandingCount == 1)
         #expect(
-            abs(field.pedalBoost - (1 + RunnerRules.justLandingGain)) < 0.02,
-            "乗りが加算量ぶん足されていない（\(field.pedalBoost)）"
+            abs(field.justLandingOverboost - RunnerRules.justLandingOverboost) < 1e-9,
+            "上乗せが満タンで乗っていない（\(field.justLandingOverboost)）"
+        )
+        #expect(field.currentSpeed > plainSpeed, "上乗せが接地中の速さに効いていない")
+        #expect(
+            abs(field.currentSpeed - stage.speed * (field.pedalBoost + RunnerRules.justLandingOverboost)) < 1e-9,
+            "速さが乗り + 上乗せになっていない"
         )
     }
 
-    /// 窓（`justLandingWindow`）の外に降りたら足さない。**早すぎ・跳びすぎの着地に
+    /// 窓（`justLandingWindow`）の外に降りたら何も乗せない。**早すぎ・跳びすぎの着地に
     /// 報酬を出さない**ことがこの仕組みの本体なので、境界の外側を明示的に確かめる。
-    @Test("障害から離れて着地すると乗りは足されない")
+    @Test("障害から離れて着地すると上乗せは乗らない")
     func lateLandingEarnsNothing() {
         let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
         let pit = stage.hazards[0]
@@ -431,14 +648,12 @@ struct RunnerFieldTests {
         #expect(inside.lastLandingWasJust, "窓の内側なのに成立しない")
         #expect(!outside.lastLandingWasJust, "窓の外なのに成立してしまう")
         #expect(outside.justLandingCount == 0)
-        #expect(
-            inside.pedalBoost - outside.pedalBoost > RunnerRules.justLandingGain * 0.9,
-            "窓の内と外で乗りに差が出ていない"
-        )
+        #expect(outside.justLandingOverboost == 0)
+        #expect(inside.currentSpeed > outside.currentSpeed, "窓の内と外で速さに差が出ていない")
     }
 
     /// 跳んでいないあいだ、そして**障害を越えていないジャンプ**では何も起きない。
-    @Test("障害を越えていなければ着地しても乗りは足されない")
+    @Test("障害を越えていなければ着地しても上乗せは乗らない")
     func landingWithoutClearingHazardEarnsNothing() {
         var field = RunnerField(stage: flatStage(segments: 10))
         for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
@@ -449,35 +664,77 @@ struct RunnerFieldTests {
         field.endHold()
         while !field.isGrounded { _ = field.step(dt: 1.0 / 600) }
         #expect(field.justLandingCount == 0, "何も越えていないジャンプで成立している")
+        #expect(field.justLandingOverboost == 0)
         #expect(field.pedalBoost < before, "跳んだぶん乗りは落ちるだけ")
     }
 
-    /// 加算は `maxPedalBoost` で頭打ち。上限を超えると空中の距離こそ変わらないものの、
-    /// 接地中の速さがステージ設計の想定（`RunnerStageTests`）を外れる。
-    @Test("乗りが上限のときにジャスト着地しても上限を超えない")
-    func justLandingIsCappedAtMaxPedalBoost() {
+    /// **上乗せは上限（`maxPedalBoost`）を超えて効く**（2026-09-12 会長決裁の要点）。
+    ///
+    /// `pedalBoost` に足す形だと、乗り切った状態（障害の間の平地で毎回そうなる）では
+    /// 頭打ちになって何も起きなかった——それが実質無効だったので上乗せ方式に切り替えた
+    /// （`RunnerRules.justLandingOverboost`）。乗り切った状態でも速くなることを固定する。
+    @Test("乗りが上限のときでもジャスト着地は上限を超えて効く")
+    func justLandingWorksEvenAtMaxPedalBoost() {
         let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
         let pit = stage.hazards[0]
         var field = RunnerField(stage: stage)
         // 先に上限まで漕いでおく（`placeForTesting` は乗りを触らない）。
         for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
         #expect(abs(field.pedalBoost - RunnerRules.maxPedalBoost) < 1e-9, "上限まで乗せられていない")
+        let cappedSpeed = field.currentSpeed
         land(&field, over: pit, offset: 2)
         #expect(field.lastLandingWasJust)
-        #expect(field.pedalBoost <= RunnerRules.maxPedalBoost, "上限を超えている（\(field.pedalBoost)）")
+        #expect(field.pedalBoost <= RunnerRules.maxPedalBoost, "乗り自体は上限のまま")
+        #expect(
+            field.currentSpeed > cappedSpeed,
+            "上限に張り付いた状態で効いていない（\(cappedSpeed) → \(field.currentSpeed)）"
+        )
+        // 乗り（`pedalBoost`）は滞空のあいだ少し落ちるので、上限そのものとは一致しない。
+        // 確かめるのは「**上限を超えた速さ**が出ていること」と「その超過が上乗せ分ぴったり」であること。
+        #expect(
+            field.currentSpeed > stage.speed * RunnerRules.maxPedalBoost,
+            "上限を超えていない（\(field.currentSpeed)）"
+        )
+        #expect(
+            abs(field.currentSpeed - stage.speed * (field.pedalBoost + RunnerRules.justLandingOverboost)) < 1e-9,
+            "超過が上乗せ分と一致しない（\(field.currentSpeed)）"
+        )
     }
 
-    /// 鳥は対象外（#671 でくぐる障害に変わるため、跳び越えた報酬を出さない）。
-    @Test("鳥を越えて着地しても乗りは足されない")
+    /// 上乗せは時間で線形に減衰して消える（`pickupOverboost` と同じ形）。
+    @Test("ジャスト着地の上乗せは時間で減衰して消える")
+    func justLandingOverboostDecays() {
+        let stage = RunnerStage(number: 1, pattern: "--1---------", speed: 40)
+        let pit = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        land(&field, over: pit, offset: 2)
+        let immediately = field.justLandingOverboost
+        _ = field.step(dt: RunnerRules.justLandingOverboostDuration / 2)
+        #expect(field.justLandingOverboost < immediately, "減っていない")
+        #expect(field.justLandingOverboost > 0, "半分の時間で消えてしまっている")
+        _ = field.step(dt: RunnerRules.justLandingOverboostDuration)
+        #expect(field.justLandingOverboost == 0, "時間切れで消えていない")
+    }
+
+    /// 鳥は対象外（#671 でくぐる障害に変わったため、跳び越えた報酬を出さない）。
+    ///
+    /// **帯の上を越えて真裏に降りることは物理的に起こらない**（上端 22 から地面までの
+    /// 落下だけで体 5 つぶん進むので、窓 8 には絶対に入らない）。ここでは種類の除外だけを
+    /// 突くため、**帯の下をくぐる高さ（下端 13 に頭が届かない 1.9）から降ろす**——
+    /// 越えた対象としては鳥が確かに `hazards` に居て、右端も通過しているのに、
+    /// 種類の判断（`rewardsJustLanding`）だけで弾かれることを確かめる。
+    @Test("鳥をくぐって着地しても上乗せは乗らない")
     func birdIsNotRewarded() {
         let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
         let bird = stage.hazards[0]
         var field = RunnerField(stage: stage)
-        // 鳥の上端より高いところから、右端のすぐ裏へ降ろす（当たり判定は通る高さ）。
-        land(&field, over: bird, offset: 2, from: RunnerHazardKind.bird.height + 3)
+        land(&field, over: bird, offset: 2, from: 1.9)
         #expect(field.isGrounded)
+        #expect(field.distance > bird.end, "右端を通過している")
+        #expect(field.distance - bird.end <= RunnerRules.justLandingWindow, "窓の内側に降りている")
         #expect(!field.lastLandingWasJust, "鳥でジャスト着地が成立している")
         #expect(field.justLandingCount == 0)
+        #expect(field.justLandingOverboost == 0)
     }
 
     /// 直前の着地の結果は**次の着地で必ず書き換わる**（`RunnerModel` が `.landed` の
@@ -491,6 +748,93 @@ struct RunnerFieldTests {
         land(&field, over: stage.hazards[1], offset: RunnerRules.justLandingWindow + 4, from: 20)
         #expect(!field.lastLandingWasJust, "前の着地の結果が残っている")
         #expect(field.justLandingCount == 1, "回数は増えたぶんだけ残る")
+    }
+
+    // MARK: - スピードアップ床（#672・#635 会長決裁）
+
+    /// 床は**乗っているあいだだけ**効く区間で、出た瞬間に切れる（アイテムのような減衰は無い）。
+    @Test("床の上では接地速度が倍率ぶん上がり、出た瞬間に元へ戻る")
+    func boostFloorSpeedsUpOnlyWhileStandingOnIt() {
+        let stage = RunnerStage(number: 1, pattern: "--==--", speed: 40)
+        guard let floor = stage.boostFloors.first else { Issue.record("床が無い"); return }
+        var field = RunnerField(stage: stage)
+
+        // 床の手前。
+        field.placeForTesting(distance: floor.start - 1, altitude: 0, vy: 0)
+        #expect(!field.isOnBoostFloor)
+        let plainSpeed = field.currentSpeed
+
+        // 床の左端ちょうど（含む側）。ここを固定しないと `start <= distance` を `<` に
+        // 変えても全テストが緑のまま通ってしまう（敵対的検証の指摘）。
+        field.placeForTesting(distance: floor.start, altitude: 0, vy: 0)
+        #expect(field.isOnBoostFloor, "左端は区間に含む")
+
+        // 床の上（判定は中心の x）。
+        field.placeForTesting(distance: floor.start + 1, altitude: 0, vy: 0)
+        #expect(field.isOnBoostFloor)
+        #expect(
+            abs(field.currentSpeed - plainSpeed * RunnerRules.boostFloorMultiplier) < 1e-9,
+            "床の上の速さ \(field.currentSpeed)"
+        )
+
+        // 床を出た瞬間（右端は含まない）。
+        field.placeForTesting(distance: floor.end, altitude: 0, vy: 0)
+        #expect(!field.isOnBoostFloor, "区間から出たら即座に切れる")
+        #expect(field.currentSpeed == plainSpeed)
+    }
+
+    /// 実際に走らせても効くこと（`currentSpeed` を読むだけでなく、進んだ距離で確かめる）。
+    @Test("床の上を走ると同じ時間でふつうの地面より先へ進む")
+    func runningOnBoostFloorCoversMoreGround() {
+        func distanceRun(pattern: String) -> Double {
+            var field = RunnerField(stage: RunnerStage(number: 1, pattern: pattern, speed: 40))
+            for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
+            return field.distance
+        }
+        let plain = distanceRun(pattern: String(repeating: "-", count: 20))
+        let boosted = distanceRun(pattern: String(repeating: "=", count: 20))
+        #expect(boosted > plain * 1.25, "床のぶん明確に速い（\(plain) → \(boosted)）")
+    }
+
+    /// **`RunnerStageTests` の成立条件を据え置くための不変条件**（#623 決裁・#672 でも維持）。
+    /// 床の真上を跳んでいるあいだも空中は基準の速さのまま——ここが乗ると
+    /// 「1 回のジャンプで進む距離 = `speed × jumpAirTime`」が崩れる。
+    @Test("床の上から踏み切っても空中の速さは stage.speed のまま")
+    func boostFloorDoesNotAffectAirborneSpeed() {
+        let stage = RunnerStage(number: 1, pattern: "--====--", speed: 40)
+        guard let floor = stage.boostFloors.first else { Issue.record("床が無い"); return }
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: floor.start + 2, altitude: 0, vy: 0)
+        #expect(field.currentSpeed > stage.speed, "前提: 接地中は床が効いている")
+
+        field.jump()
+        _ = field.step(dt: 1.0 / 240)
+        #expect(!field.isGrounded)
+        #expect(field.distance < floor.end, "前提: まだ床の真上にいる")
+        #expect(!field.isOnBoostFloor, "空中では床の上とみなさない")
+        #expect(field.currentSpeed == stage.speed, "空中は基準の速さ")
+    }
+
+    /// 床の倍率とペダルの乗りの**合成結果を固定する**（#672 受け入れ条件）。
+    /// 合成は掛け算（理由は `RunnerRules.boostFloorMultiplier`）。
+    @Test("床の倍率はペダルの乗りと掛け算で合成される")
+    func boostFloorCompoundsWithPedalBoost() {
+        // 床は十分先に置き、そこへ届く前に乗りが上限へ達するようにする。
+        let pattern = String(repeating: "-", count: 40) + "====--"
+        let stage = RunnerStage(number: 1, pattern: pattern, speed: 40)
+        guard let floor = stage.boostFloors.first else { Issue.record("床が無い"); return }
+        var field = RunnerField(stage: stage)
+        for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+        #expect(abs(field.pedalBoost - RunnerRules.maxPedalBoost) < 1e-9, "前提: 乗りは上限")
+        #expect(field.distance < floor.start, "前提: まだ床へ入っていない")
+
+        // `placeForTesting` は乗り（`pedalBoost`）には触らないので、上限のまま床へ移せる。
+        field.placeForTesting(distance: floor.start + 1, altitude: 0, vy: 0)
+        #expect(field.isOnBoostFloor)
+        let expected = stage.speed * RunnerRules.maxPedalBoost * RunnerRules.boostFloorMultiplier
+        #expect(abs(field.currentSpeed - expected) < 1e-9, "合成後の速さ \(field.currentSpeed)")
+        // 定数が動いたら合成結果も見直す、という意図をここで固定する（40 × 1.55 × 1.3）。
+        #expect(abs(expected - 80.6) < 1e-9, "合成結果 \(expected)")
     }
 }
 
@@ -536,9 +880,14 @@ struct RunnerHazardLayoutTests {
         let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
         #expect(stage.hazards.count == 1)
         #expect(stage.hazards.first?.kind == .bird)
-        // 当たり判定・クリア可能性の数学は lowBlock/tallBlock と同じ（高さは両者の中間）。
-        #expect(RunnerHazardKind.lowBlock.height < RunnerHazardKind.bird.height)
-        #expect(RunnerHazardKind.bird.height < RunnerHazardKind.tallBlock.height)
-        #expect(RunnerHazardKind.bird.height < RunnerRules.jumpApex, "跳んで越えられる高さ")
+        // 鳥だけが下端を持つ「帯」の障害（#671）。岩・穴は地面から生えたまま。
+        #expect(RunnerHazardKind.pit.bottom == 0)
+        #expect(RunnerHazardKind.lowBlock.bottom == 0)
+        #expect(RunnerHazardKind.tallBlock.bottom == 0)
+        #expect(
+            RunnerHazardKind.bird.bottom > RunnerField.Metrics.playerHeight,
+            "接地したままくぐれる下端であること"
+        )
+        #expect(RunnerHazardKind.bird.bottom < RunnerHazardKind.bird.height)
     }
 }
