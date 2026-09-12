@@ -280,7 +280,10 @@ public final class BlackjackModel {
     // MARK: - Betting
 
     public func placeBet(_ amount: Int) {
-        guard phase == .betting, amount > 0 else { return }
+        // 終わったセッションでは賭けられない。最小ベット未満も受け付けない（#656）。
+        // 画面側は `sessionOver` のときベット欄ごと出さないが、境目をモデルにも持たせて
+        // おかないと「賭けられない残高で終わりにする」という判定の意味が保てない。
+        guard phase == .betting, !sessionOver, amount >= BlackjackModel.minimumBet else { return }
         guard chips >= amount else {
             services?.feedback.notify(.warning) // チップ不足でベットできない
             return

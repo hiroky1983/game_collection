@@ -157,6 +157,32 @@ struct BlackjackMinimumBetTests {
         #expect(!model.sessionOver)
     }
 
+    @Test("終わったセッション・最小ベット未満の額では賭けられない")
+    func placeBetRejectsEndedSessionsAndTooSmallAmounts() {
+        let store = MemorySnapshotStore()
+        try? store.save(
+            BlackjackSnapshot(
+                playerHand: [], dealerHand: [], deck: [],
+                chips: 25, bet: 0, phase: .playerTurn,
+                hands: [], activeHandIndex: 0, hasRevivedThisSession: false
+            ),
+            for: "blackjack"
+        )
+        let ended = BlackjackModel(
+            services: GameServices(snapshots: store, ads: SilentAdService())
+        )
+        #expect(ended.sessionOver && ended.phase == .betting, "前提の確認")
+        ended.placeBet(25)
+        #expect(ended.phase == .betting, "終わったセッションでは配られない")
+
+        // 遊べる残高でも、最小ベットに満たない額は受け付けない。
+        let playing = BlackjackModel(seed: 20260912)
+        playing.placeBet(BlackjackModel.minimumBet - 1)
+        #expect(playing.phase == .betting, "49 枚は賭けられない")
+        playing.placeBet(BlackjackModel.minimumBet)
+        #expect(playing.phase == .playerTurn, "50 枚なら賭けられる")
+    }
+
     @Test("破産の境目は、いちばん安いベット額と同じ値である")
     func bustThresholdMatchesTheCheapestBet() {
         // ここが食い違うと「全ボタンが無効なのに破産にならない」残高がまた生まれる。
