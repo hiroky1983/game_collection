@@ -525,7 +525,10 @@ public final class BlackjackModel {
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
         guard canReviveAfterBust else { return false }
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
+        guard services?.screenGeneration.current == generationBeforeAd else { return false }
         hasRevivedThisSession = true
         chips = BlackjackModel.reviveChips
         sessionOver = false

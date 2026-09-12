@@ -1253,7 +1253,15 @@ public final class MahjongModel {
     public func reviveAfterAd() async -> Bool {
         guard canReviveAfterBust else { return false }
         let serialBeforeAd = gameSerial
+        // 画面の世代（#653）。`gameSerial` は**このモデルの中**の通し番号なので、ハブへ戻って
+        // 開き直し、別の `MahjongModel` が動き出した場合には何も変わらない（下のガードを
+        // 素通りする）。モデルより長生きする世代で突き合わせる。
+        let generationBeforeAd = services?.screenGeneration.current
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
+        // ハブへ戻られていたら、この復活が乗るべき対局はもう画面に無い。適用すると、捨てられた
+        // このモデルが `cancelLoss` で**いま遊んでいる対局の負け**を取り消し、`gameDidRestart` で
+        // `game_start` / `game_end` の対応（#158）も崩す。
+        guard services?.screenGeneration.current == generationBeforeAd else { return false }
         // 広告のロード〜視聴のあいだも画面は操作できる。そこで「新規対局」（#638）や
         // リザルトの「もう一度」を押されていたら、**入れ替わったあとの対局**に復活が乗る
         // （`RewardedRescue` が「#480 → #509 → #511 と 3 回続けて空いた穴」と呼んでいるもの）。

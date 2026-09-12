@@ -37,6 +37,8 @@ private final class StubAdService: AdService, @unchecked Sendable {
     private let rewardEarned: Bool
     private(set) var rewardedCount = 0
     private(set) var interstitialCount = 0
+    /// 視聴のあいだに起きること（ハブへ戻る等）。広告のロード中も画面は操作できる（#653）。
+    var duringAd: (@MainActor () -> Void)?
 
     init(rewardEarned: Bool) { self.rewardEarned = rewardEarned }
 
@@ -44,6 +46,7 @@ private final class StubAdService: AdService, @unchecked Sendable {
     @MainActor func showInterstitial() async { interstitialCount += 1 }
     @MainActor func showRewardedAd() async -> Bool {
         rewardedCount += 1
+        duringAd?()
         return rewardEarned
     }
 }
@@ -70,7 +73,8 @@ private func makeBustedModel(
     rewardEarned: Bool = true,
     hasRevived: Bool = false,
     gameCenter: GameCenterReporter? = nil,
-    playLog: PlayLog? = nil
+    playLog: PlayLog? = nil,
+    screenGeneration: GameScreenGeneration = GameScreenGeneration()
 ) -> (PokerModel, StubAdService, MockSnapshotStore) {
     let store = MockSnapshotStore()
     // 役の強さは判定に影響しない（フォールドは無条件に CPU の勝ち）ため、重複しない札を機械的に配る。
@@ -88,7 +92,10 @@ private func makeBustedModel(
     try? store.save(snap, for: "poker")
     let ads = StubAdService(rewardEarned: rewardEarned)
     let model = PokerModel(
-        services: GameServices(snapshots: store, ads: ads, playLog: playLog, gameCenter: gameCenter)
+        services: GameServices(
+            snapshots: store, ads: ads, playLog: playLog, gameCenter: gameCenter,
+            screenGeneration: screenGeneration
+        )
     )
     model.bet2Action(.fold)
     #expect(model.sessionOver, "手持ち 0 < アンティ 10 なのでセッションは終了する")
@@ -116,6 +123,24 @@ struct PokerRewardedAdTests {
         #expect(model.sessionWinner == nil)
         #expect(model.canStartRound, "復活後は次の局を始められる")
         #expect(ads.rewardedCount == 1)
+    }
+
+    /// 広告のロード中はハブへ戻れる。戻ると Model は捨てられ、次に開くと別の Model が動くが、
+    /// 広告の完了を待つ `Task` は古い Model を強参照したまま生き残る（#653）。
+    /// 世代を進めるのは `GameServices.gameDidLeave`（配線の検証は `RewardedRescueTests`）。
+    @Test("広告を見ているあいだにハブへ戻ったら、捨てられたモデルにチップは戻らない")
+    func doesNotRecoverAfterLeavingTheScreen() async {
+        let generation = GameScreenGeneration()
+        let (model, ads, _) = makeBustedModel(screenGeneration: generation)
+        let chipsBefore = model.playerChips
+        ads.duringAd = { generation.advance() }
+
+        let recovered = await model.recoverChipsAfterAd()
+
+        #expect(!recovered, "捨てられたモデルに復活を適用している")
+        #expect(model.playerChips == chipsBefore, "画面に無いモデルのチップが増えている")
+        #expect(model.sessionOver, "セッション終了のまま")
+        #expect(ads.rewardedCount == 1, "広告そのものは出ている（計測は従来どおり付く）")
     }
 
     @Test("視聴未完了・ロード失敗ならチップは回復しない")
