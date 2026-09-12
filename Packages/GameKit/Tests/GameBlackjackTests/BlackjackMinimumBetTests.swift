@@ -115,6 +115,48 @@ struct BlackjackMinimumBetTests {
         #expect(model.chips == 25)
     }
 
+    @Test("賭ける前に戻った中断データも、賭けられない残高なら破産扱いで開く")
+    func restoringIntoAnUnbettableBalanceEndsTheSession() {
+        // 手を復元できない中断データは `phase = .betting` に戻される。そこへ
+        // 25 枚で入ると、判定が精算のときだけだとボタン全無効のまま詰む。
+        let store = MemorySnapshotStore()
+        try? store.save(
+            BlackjackSnapshot(
+                playerHand: [], dealerHand: [], deck: [],
+                chips: 25, bet: 0, phase: .playerTurn,
+                hands: [], activeHandIndex: 0, hasRevivedThisSession: false
+            ),
+            for: "blackjack"
+        )
+        let model = BlackjackModel(
+            services: GameServices(snapshots: store, ads: SilentAdService())
+        )
+
+        #expect(model.phase == .betting, "手が無いので賭ける前に戻る（前提の確認）")
+        #expect(model.chips == 25)
+        #expect(model.sessionOver, "賭けられない残高なので開いた時点で終わっている")
+        #expect(model.canReviveAfterBust)
+    }
+
+    @Test("賭けられる残高の中断データは、従来どおりそのまま開く")
+    func restoringIntoABettableBalanceKeepsPlaying() {
+        let store = MemorySnapshotStore()
+        try? store.save(
+            BlackjackSnapshot(
+                playerHand: [], dealerHand: [], deck: [],
+                chips: 50, bet: 0, phase: .playerTurn,
+                hands: [], activeHandIndex: 0, hasRevivedThisSession: false
+            ),
+            for: "blackjack"
+        )
+        let model = BlackjackModel(
+            services: GameServices(snapshots: store, ads: SilentAdService())
+        )
+
+        #expect(model.phase == .betting)
+        #expect(!model.sessionOver)
+    }
+
     @Test("破産の境目は、いちばん安いベット額と同じ値である")
     func bustThresholdMatchesTheCheapestBet() {
         // ここが食い違うと「全ボタンが無効なのに破産にならない」残高がまた生まれる。

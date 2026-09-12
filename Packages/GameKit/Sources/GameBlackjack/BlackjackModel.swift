@@ -250,6 +250,10 @@ public final class BlackjackModel {
             if self.hands.isEmpty {
                 self.phase = .betting
                 self.bet = 0
+                // 賭けに戻したのに賭けられない残高なら、その場で終わりにする（#656）。
+                // 判定を精算のときだけに置くと、賭ける前に戻った局面が
+                // 「ボタンが全部無効・破産カードも出ない」で詰む。
+                self.checkSessionOver()
             }
         }
     }
