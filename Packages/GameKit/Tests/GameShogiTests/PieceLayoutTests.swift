@@ -198,34 +198,22 @@ struct ShogiPieceLayerSourceTests {
         #expect(body.contains("KomaView(") == false, "ShogiCell が駒を描いています:\n\(body)")
     }
 
-    @Test("着手先の印・王手の印は駒より後（= 上）に重ねる")
-    func targetLayerIsAbovePieceLayer() throws {
-        let lines = try Self.viewSource.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-        guard let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }"),
-              let check = lines.firstIndex(of: ".overlay { checkLayer(cell: cell) }"),
-              let target = lines.firstIndex(of: ".overlay { targetLayer(cell: cell) }") else {
-            Issue.record("盤に重ねる 3 層が見つからない（走査の前提が壊れている）")
-            return
-        }
-        // 逆にすると、取れる駒を囲む枠や王手の枠が駒の下に潜って読めなくなる（#200・#377）。
-        #expect(piece < check)
-        #expect(check < target)
-    }
-
-    @Test("盤の角丸は駒の層より前に掛ける（持ち上げた駒が上端で切れる）")
-    func clipShapeComesBeforePieceLayer() throws {
+    /// 角丸 → 駒 → 王手 → 着手先 の重なり順そのものは、共通の `boardLayers`（Core・#530）が持つ。
+    /// **順番の検証はそちらに移した**（`BoardGameChromeSourceTests`）。ここでは将棋が自前で
+    /// 積み直していないこと = 共通の順番に乗っていることだけを見る。
+    /// 自前の `.clipShape` / `.overlay` を足すと、共通側を直しても将棋だけ古い順番のまま残る。
+    @Test("盤は共通の boardLayers に乗る（自前で層を積み直さない）")
+    func boardUsesSharedLayerOrder() throws {
         let lines = try Self.lines(ofFunction: "private var board: some View {")
-        let clips = lines.enumerated().filter { $0.element.hasPrefix(".clipShape(") }
-        // 2つ目を後ろに足されると、そちらが駒の層まで丸めてしまう（数も固定する）。
-        #expect(clips.count == 1, "盤の clipShape が1つではない:\n\(lines.joined(separator: "\n"))")
-        guard let clip = clips.first?.offset,
-              let piece = lines.firstIndex(of: ".overlay { pieceLayer(cell: cell) }") else {
-            Issue.record("盤の clipShape / 駒の層が見つからない（走査の前提が壊れている）")
-            return
-        }
-        // あとに置くと、選択して持ち上げた駒（拡大 + 上へ）が盤の上端で切り落とされる。
-        #expect(clip < piece)
+        #expect(lines.contains(".boardLayers("), "board が boardLayers を使っていない:\n\(lines.joined(separator: "\n"))")
+        // 3 層は引数として渡す。`.overlay { … }` を自前で足すと共通の順番の外に出る。
+        #expect(lines.contains("pieces: { pieceLayer(cell: cell) },"))
+        #expect(lines.contains("check: { checkLayer(cell: cell) },"))
+        #expect(lines.contains("targets: { targetLayer(cell: cell) }"))
+        #expect(lines.contains { $0.hasPrefix(".clipShape(") } == false,
+                "board に自前の clipShape がある（共通の角丸と二重に掛かる）:\n\(lines.joined(separator: "\n"))")
+        #expect(lines.contains { $0.hasPrefix(".overlay {") } == false,
+                "board に自前の overlay がある（共通の重ね順の外に出る）:\n\(lines.joined(separator: "\n"))")
     }
 
     @Test("駒には .transition を .position より前に付ける")
@@ -313,6 +301,14 @@ struct ShogiOverlayMotionSourceTests {
         let lift = lines.firstIndex(of: ".gameAnimation(ShogiMotion.pieceLift, value: isLifted)")
         let transition = lines.firstIndex { $0.hasPrefix(".transition(") }
         #expect(lift != nil && transition != nil && lift! < transition!)
+        // 見た目（拡大 + 浮かせ + 落ち影）は共通の `pieceLift`（Core・#530）に置く。
+        // ここで自前に書き戻すと、チェスと片方だけずれた状態に戻る。
+        #expect(lines.contains(".pieceLift(isLifted: isLifted, cell: cell)"),
+                "共通の pieceLift を使っていない:\n\(lines.joined(separator: "\n"))")
+        let modifier = lines.firstIndex(of: ".pieceLift(isLifted: isLifted, cell: cell)")
+        // アニメーションは見た目の指定より**後ろ**（= 上に掛かる位置）に置く。前に置くと
+        // 拡大・影・浮かせに掛からず、持ち上げが一瞬で切り替わる。
+        #expect(modifier != nil && lift != nil && modifier! < lift!)
         // `.animation` の直呼びは Reduce Motion を無視する（#210）。
         #expect(lines.contains { $0.hasPrefix(".animation(") } == false)
     }

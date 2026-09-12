@@ -17,7 +17,6 @@ public struct BlocksView: View {
     /// 確認ダイアログを出すために**自分で**止めたか（#515）。
     /// 元から一時停止中だった場合まで再開してしまわないよう区別する。
     @State private var pausedForNewGameConfirm = false
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -32,26 +31,12 @@ public struct BlocksView: View {
             header
             playfield
             HowToPlayHint(.blocks, playLog: services.playLog)
-            recommendationArea
+            controlRow
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("ブロック崩し")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "ブロック崩し", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { startNewGame() } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
@@ -167,20 +152,48 @@ public struct BlocksView: View {
         .accessibilityLabel("残機 \(model.lives)")
     }
 
+    /// 一時停止ボタンの一辺（pt）。HIG のタップ標的の下限に合わせる（#600）。
+    static let pauseButtonSide: CGFloat = 44
+
     private var pauseButton: some View {
         Button {
             if model.phase == .paused { model.resume() } else { model.pause() }
         } label: {
             Image(systemName: model.phase == .paused ? "play.fill" : "pause.fill")
-                .font(.system(size: 16, weight: .bold))
-                .frame(width: 34, height: 34)
+                .font(.system(size: 18, weight: .bold))
+                .frame(width: Self.pauseButtonSide, height: Self.pauseButtonSide)
                 .background(Circle().fill(Theme.Fill.coral))
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.pop)
         .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
         // 決着後は止めるものが無い。
-        .disabled(model.phase.isFinished || model.phase == .stageCleared)
+        .disabled(isPauseDisabled)
+        // 押せないことを見た目でも示す。盤に重ねていた頃は結果パネルの陰で目立たなかったが、
+        // 盤の外に出したことでリザルト中もはっきり見えるようになった（#600）。
+        .opacity(isPauseDisabled ? 0.35 : 1)
+    }
+
+    private var isPauseDisabled: Bool {
+        model.phase.isFinished || model.phase == .stageCleared
+    }
+
+    /// 盤の下に置く操作の行（#600）。
+    ///
+    /// 一時停止は**盤の外**に出す（会長QA 2026-09-10）。以前は盤の右下に浮かせていたが、
+    /// ゲームの絵の一部に見えるうえ、パドルが右端に来ると重なって盤面が隠れる。
+    ///
+    /// ただし**専用の行を足すと盤が縮む**。盤は `layoutPriority(1)` で余った縦を先取りしているが、
+    /// その「余り」は機種によってはほとんど無い（実測: iPhone SE の `Spacer` の取り分は 15.5pt で、
+    /// 行 44pt + `spacing` 14pt には足りない）。削られると盤は正方形なので横幅まで縮み、
+    /// #597（盤が横幅を使い切る）が後退する。そこで、**高さが常に確保されている**
+    /// レコメンド枠（`RecommendationArea` が隠しひな形で常に確保する 56pt）の右端に相乗りさせる。
+    /// ボタンのほうが低いので、この行の高さはレコメンド枠のまま変わらない = 盤は 1pt も削られない。
+    private var controlRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            recommendationArea
+            pauseButton
+        }
     }
 
     // MARK: - プレイフィールド
@@ -199,18 +212,17 @@ public struct BlocksView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(paddleGesture(width: geo.size.width))
-                overlay
+                if model.isPaddleWide, !model.phase.isFinished { effectBadge }
+                overlay(boardWidth: geo.size.width)
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-            // 一時停止は右上のヘッダーではなく、フィールドの右下に浮かせる
-            // （会長QA「右上は片手操作で押せない」）。親指の自然なリーチに合わせる。
-            .overlay(alignment: .bottomTrailing) {
-                pauseButton.padding(10)
-            }
         }
         // シーンは `.aspectFit` なので、枠の縦横比をフィールドと必ず一致させる。
         // ずれると左右に余白が出て、タップ位置とパドルの対応も狂う。
-        .aspectRatio(BlocksField.Metrics.width / BlocksField.Metrics.height, contentMode: .fit)
+        .aspectRatio(BlocksField.Metrics.aspectRatio, contentMode: .fit)
+        // 余った縦を**先に**盤へ渡す（#597）。付けないと下の `Spacer` と山分けになり、
+        // 盤は使える高さの手前で止まって横幅が余る（実測: iPhone SE で使える幅の 59%）。
+        .layoutPriority(1)
     }
 
     /// 描画ループを局面に合わせる（#522）。
@@ -244,16 +256,19 @@ public struct BlocksView: View {
 
     private func movePaddle(toViewX x: CGFloat, width: CGFloat) {
         guard width > 0 else { return }
-        model.movePaddle(to: Double(x / width) * BlocksField.Metrics.width)
+        model.movePaddle(to: BlocksField.Metrics.fieldX(
+            viewX: Double(x),
+            viewWidth: Double(width)
+        ))
     }
 
     // MARK: - オーバーレイ
 
     @ViewBuilder
-    private var overlay: some View {
+    private func overlay(boardWidth: CGFloat) -> some View {
         switch model.phase {
         case .ready:
-            readyOverlay
+            readyOverlay(boardWidth: boardWidth)
         case .playing:
             EmptyView()
         case .paused:
@@ -286,31 +301,51 @@ public struct BlocksView: View {
     }
 
     /// 発射前。操作を邪魔しないよう**タップを透過させる**（そのままパドルを動かして発射できる）。
-    private var readyOverlay: some View {
-        VStack {
+    ///
+    /// 下端からの距離は**盤の大きさに合わせて決める**（#597）。46pt のような固定値にすると、
+    /// 盤が大きい機種ほどパドルが上に来るため札とぶつかる（実測: 盤が 801pt になった
+    /// iPad Pro 11 インチで、発射前の球とパドルの上に札が重なった）。
+    private func readyOverlay(boardWidth: CGFloat) -> some View {
+        let unit = BlocksField.Metrics.pointsPerUnit(boardWidth: Double(boardWidth))
+        return VStack {
             Spacer()
             Label("タップで発射", systemImage: "hand.tap.fill")
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.9))
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Capsule().fill(.black.opacity(0.35)))
-                .padding(.bottom, 46)
+                .padding(.bottom, BlocksField.Metrics.readyHintClearance * unit)
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// バー伸長が効いているあいだ盤の上端に出す札（#599）。
+    ///
+    /// **盤の内側に重ねる**。ヘッダーや操作行に足すと、効果が出た瞬間に行の高さが変わって
+    /// 盤が縮み、#597 / #600 で確保した横幅がそのぶん削られる。ここは盤の枠の中なので
+    /// レイアウトに 1pt も影響しない。最上段のブロックの上の余白
+    /// （`BlocksField.Metrics.topMargin`）に収まる位置に置く。
+    ///
+    /// 読み上げ用に残機・スコアと同じく SwiftUI 側に置くのは基盤規約どおり
+    /// （SpriteKit の中に文字を描かない）。
+    private var effectBadge: some View {
+        VStack {
+            Label("バーが伸びている", systemImage: "arrow.left.and.right")
+                .themeCaption(12)
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(Capsule().fill(.black.opacity(0.45)))
+                .padding(.top, 4)
+            Spacer(minLength: 0)
         }
         .allowsHitTesting(false)
     }
 
     private var pausedOverlay: some View {
         panel(title: "一時停止") {
-            Toggle(isOn: Binding(
-                get: { model.isSlowMode },
-                set: { model.setSlowMode($0) }
-            )) {
-                Text("ゆっくりモード")
-                    .themeBody(15)
-                    .foregroundStyle(.white)
-            }
-            .tint(Theme.Fill.coral)
-            .padding(.horizontal, 24)
+            // ゆっくりモードの切り替えは設定画面のみに一本化した（#631）。理由は
+            // `RunnerView.pausedOverlay`と同じ（一時停止からいつでも切り替えられると
+            // 難易度調整の抜け道になっていた）。
 
             Button {
                 model.resume()
@@ -367,11 +402,8 @@ public struct BlocksView: View {
         }
     }
 
-    /// レコメンドカードの枠。**カードの有無で高さが動かない**ようひな形で確保する（#148）。
+    /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
     private var recommendationArea: some View {
-        ZStack(alignment: .top) {
-            RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: model.phase.isFinished)
-        }
+        RecommendationArea(services: services, isFinished: model.phase.isFinished)
     }
 }

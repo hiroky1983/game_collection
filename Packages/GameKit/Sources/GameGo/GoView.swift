@@ -11,7 +11,6 @@ public struct GoView: View {
     @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -35,21 +34,7 @@ public struct GoView: View {
         }
         .gameAnimation(.none, value: model.phase)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("囲碁")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "囲碁", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.gameOver || model.moveCount == 0 {

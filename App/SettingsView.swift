@@ -95,7 +95,7 @@ struct SettingsView: View {
                 } header: {
                     Text("あそびやすさ")
                 } footer: {
-                    Text("ブロック崩しの球と、チャリンコおじさんの進みを遅くします。ゲーム中の一時停止画面からも切り替えられます。")
+                    Text("ブロック崩しの球と、チャリンコおじさんの進みを遅くします。切り替えると、両方の進行中のデータは消えます。")
                 }
 
                 // MARK: 解析
@@ -175,8 +175,6 @@ struct SettingsView: View {
                 }
             }
             .environment(\.editMode, .constant(.active))
-            // ゲーム画面からも切り替えられる設定（ゆっくりモード・#463）があるため、
-            // 開くたびに保存値を読み直す。
             .onAppear { settings.refreshFromDefaults() }
             .navigationTitle("設定")
             .sheet(item: $legalURL) { item in

@@ -16,6 +16,10 @@ import GameMahjong
 import GameSudoku
 import GameGo
 import GameSolitaire
+import GameFreeCell
+import GameBlockPuzzle
+import GameRunner
+import GameHanafuda
 import GameChess
 import GameBlocks
 
@@ -27,21 +31,22 @@ import GameBlocks
 /// `availableIDs` の順に下りるため、順序がずれていると本番とテストで違うゲームを勧める
 /// （#397 の CodeRabbit 指摘。以前は #262 以前の古い並びのまま放置されていた）。
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
-// blockpuzzle・freecell・runner・hanafudaは含めない（#629。v1.1.4開発中でmainには
-// まだ登録していないため）。
+// blockpuzzle・hanafudaは含めない（#642。v1.1.4のハブから次版へ持ち越したため）。
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
-    "solitaire", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
-    "concentration", "blocks",
+    "solitaire", "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
+    "concentration", "blocks", "runner",
 ]
 
 @MainActor
 private func makeRegistry() -> GameRegistry {
+    // BlockPuzzleModule・HanafudaModuleは含めない（#642。v1.1.4の`AppEnvironment.registry`と
+    // 構成を一致させるため。分析基盤の先行リリースを優先し次版へ持ち越した）。
     GameRegistry([
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
-        DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
-        GomokuModule(), ConcentrationModule(), BlocksModule(),
+        FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
+        GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
     ])
 }
 
@@ -99,15 +104,14 @@ private func advanceFinishes(_ service: RecommendationService, count: Int, gameI
 struct RecommendationTableTests {
 
     /// Issue #52 の表に #237 の入れ替えを反映したもの。第1〜第3候補まで検証する。
-    /// blockpuzzle・freecell・runner・hanafudaの行は無い（#629。v1.1.4開発中でmainには
-    /// まだ登録していないため）。
+    /// blockpuzzle・hanafudaの行は無い（#642。v1.1.4のハブから次版へ持ち越したため）。
     static let table: [(String, [String])] = [
         ("shogi",         ["gomoku", "othello", "chess"]),
         ("chess",         ["shogi", "othello", "go"]),
         ("gomoku",        ["go", "othello", "shogi"]),
         ("othello",       ["gomoku", "shogi", "2048"]),
         ("2048",          ["sudoku", "minesweeper", "blocks"]),
-        ("blocks",        ["concentration", "2048", "minesweeper"]),
+        ("blocks",        ["runner", "2048", "minesweeper"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
         ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
@@ -117,7 +121,9 @@ struct RecommendationTableTests {
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
         ("go",            ["gomoku", "othello", "shogi"]),
-        ("solitaire",     ["daifugo", "mahjong", "concentration"]),
+        ("solitaire",     ["freecell", "mahjong", "concentration"]),
+        ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
+        ("runner",        ["blocks", "2048", "concentration"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")

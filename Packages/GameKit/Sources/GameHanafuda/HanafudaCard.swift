@@ -27,6 +27,13 @@ public enum HanafudaKind: Int, Codable, CaseIterable, Sendable, Equatable {
         case .kasu:    return "カス"
         }
     }
+
+    /// 札の絵柄の帯に出す表記（#602）。**2 文字までに収める**。
+    /// 帯には月の数字も並ぶため、`label` のままだと 12 月の短冊札で 4 文字になって潰れる。
+    /// 赤短・青短の別は帯の色が示すので、短冊は「短」だけでよい。
+    public var badgeLabel: String {
+        self == .tanzaku ? "短" : label
+    }
 }
 
 /// 短冊札の色分け。役（赤短・青短）の判定に使う。

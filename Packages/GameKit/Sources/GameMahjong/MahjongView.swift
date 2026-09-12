@@ -21,6 +21,8 @@ public struct MahjongView: View {
     @State private var reviveRescue = RewardedRescue()
     /// 役の早見表（#501）。`MahjongModel` には触れないので、開閉しても対局の状態は動かない。
     @State private var showYakuSheet = false
+    /// 進行中の東風戦を捨てて配り直す前の確認（#638）。
+    @State private var showConfirmNewGame = false
 
     public init(services: GameServices) {
         self.services = services
@@ -46,10 +48,17 @@ public struct MahjongView: View {
         // 開始シートが一瞬見えたり、早見表が出そこねたりする（CodeRabbit 指摘）。
         #if DEBUG
         let showsYakuOnLaunch = ProcessInfo.processInfo.arguments.contains("-mahjongShowYaku")
+        // 撮影用（DEBUG 限定）: 対局中のツールバー（「新規対局」#638）と、その確認ダイアログ。
+        // 開始シートを出したままだと卓もツールバーも隠れるので、早見表と同じく init で畳む。
+        let skipsStartSheet = ProcessInfo.processInfo.arguments.contains("-mahjongSkipStartSheet")
+            || ProcessInfo.processInfo.arguments.contains("-mahjongConfirmNewGame")
         #else
         let showsYakuOnLaunch = false
+        let skipsStartSheet = false
         #endif
-        _showStartSheet = State(initialValue: !hasSnapshot && !autoPlay && !showsYakuOnLaunch)
+        _showStartSheet = State(
+            initialValue: !hasSnapshot && !autoPlay && !showsYakuOnLaunch && !skipsStartSheet
+        )
     }
 
     public var body: some View {
@@ -91,25 +100,9 @@ public struct MahjongView: View {
         // 局面 → リザルトの差し替えは、入れ替わる枝ではなく残り続ける親に置く（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
         // ナビバーの既定の白背景がコンテンツのクリーム背景と食い違い、画面上部だけ白い帯に
         // 見えていた（会長指摘）。背景色を揃えて帯の境目を消す。
-        .toolbarBackground(Theme.background, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("麻雀")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "麻雀", review: services.review, matchesNavigationBarBackground: true) {
             // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
             // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
             // 早見表をここに置く（#501。花札 #495 と同じ置き方）。ツールバーは `Label` を
@@ -121,6 +114,23 @@ public struct MahjongView: View {
                 }
                 .accessibilityLabel("役の早見表")
             }
+            // 対局を始めると東風戦を打ち切るかトビるまで抜けられなかった（会長QA・#638）。
+            // 他ゲーム（将棋・囲碁・ナンプレ）と同じ位置・同じ絵柄で「新規対局」を置く。
+            ToolbarItem(placement: .primaryAction) {
+                Button { startNewGame() } label: {
+                    Label("新規対局", systemImage: "plus.circle.fill")
+                }
+            }
+        }
+        .confirmationDialog(
+            "新規対局しますか？",
+            isPresented: $showConfirmNewGame,
+            titleVisibility: .visible
+        ) {
+            Button("終了して新規対局", role: .destructive) { restartGame() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると今の持ち点と局の進行が失われます。この対局は成績に記録されません。")
         }
         // 役と点数は 3 行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.mahjong) { MahjongRuleSheet() }
@@ -163,6 +173,18 @@ public struct MahjongView: View {
                 showYakuSheet = true
                 return
             }
+            // 撮影・動作確認用（DEBUG 限定）: 対局中の卓（= ツールバーに「新規対局」が並ぶ状態）と、
+            // その確認ダイアログ（#638）。どちらもタップでしか到達できず、麻雀の中断データは
+            // 山・手牌・河を丸ごと持つため外から注入するのも現実的でない。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongSkipStartSheet")
+                || ProcessInfo.processInfo.arguments.contains("-mahjongConfirmNewGame") {
+                showStartSheet = false
+                if model.phase == .idle { model.startGame() }
+                if ProcessInfo.processInfo.arguments.contains("-mahjongConfirmNewGame") {
+                    startNewGame()
+                }
+                return
+            }
             #endif
             // 中断から戻ったときに手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
@@ -178,6 +200,29 @@ public struct MahjongView: View {
             selectedTileID = nil
         }
         .rewardedRescueAlerts(reviveRescue, notEarned: "復活できませんでした")
+    }
+
+    // MARK: - 新規対局（#638）
+
+    /// 進行中なら確認を挟んでから配り直す。捨てるものが無い局面（開始前・決着後）は直接始める。
+    ///
+    /// ブロック崩しの「はじめから」（#515）は確認を出す前に球を止めるが、あれは反射神経を
+    /// 使うゲームで、迷っているあいだに落球して状況が悪化するため。麻雀は**裏で CPU の手番が
+    /// 進むだけ**で、待たされても打牌を迫られることはないので止めない（キャンセルすれば
+    /// そのまま続けられ、確定すればどのみち全部配り直す）。
+    private func startNewGame() {
+        guard model.hasGameInProgress else {
+            restartGame()
+            return
+        }
+        showConfirmNewGame = true
+    }
+
+    /// 開始シートは通さない。中身は遊び方の説明だけで選ぶ項目が無く、対局中の人に
+    /// 読み物を再度出しても手数が増えるだけ（将棋の `NewGameSheet` は手番と棋力を選ぶので別）。
+    private func restartGame() {
+        model.startGame()
+        Task { await model.runCPUTurnsIfNeeded() }
     }
 
     // MARK: - 雀卓

@@ -4,7 +4,6 @@ import Core
 public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
-    @Environment(\.dismiss) private var dismiss
     @State private var showResignConfirm = false
     /// 画面の広さ（#458）。場の空き枠を札と同じ倍率で拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
@@ -42,21 +41,7 @@ public struct DaifugoView: View {
         // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("大富豪")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "大富豪", review: services.review) {
             // 中断すると次回は必ず「続きから」に戻るため、局面を降りる導線をここに置く（#194）。
             // 他ゲームのツールバーはアイコンだけだが、旗単体では「投了」と読めない。ツールバーは
             // `Label` を渡してもアイコンだけに畳むので、文字を出すために `Text` を直接渡す。

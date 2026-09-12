@@ -19,6 +19,21 @@ enum BlocksPalette {
     static let hardFull: UInt32 = 0x8E99BC
     /// 硬いブロック（あと 1 回）。明るくして「あと一撃」を色で伝える。
     static let hardCracked: UInt32 = 0xD3DAEE
+    /// バー伸長のアイテム。`Theme.Fill.palette` の黄。
+    static let itemWidePaddle: UInt32 = 0xFFC24B
+    /// 球増加のアイテム。同じく `Theme.Fill.palette` の青緑。
+    static let itemMultiBall: UInt32 = 0x22C3BE
+    /// アイテムの中の印。**地と同じ濃い色**にして、明るい面の上で形がはっきり出るようにする
+    /// （色が見分けにくくても、1 本のバーと 3 つの玉という形の違いで区別できる）。
+    static let itemMark: UInt32 = 0x1E2233
+
+    /// アイテムの地の色。
+    static func itemColor(_ kind: BlocksItemKind) -> UInt32 {
+        switch kind {
+        case .widePaddle: return itemWidePaddle
+        case .multiBall:  return itemMultiBall
+        }
+    }
 
     /// 通常ブロックの段ごとの色。`Theme.Fill.palette` と同じ 5 色を上から順に使う。
     static let normalRows: [UInt32] = [0xFF8A7E, 0xFFC24B, 0x22C3BE, 0xB3A6F0, 0xFF8FB1]
@@ -51,7 +66,8 @@ enum BlocksPalette {
 /// 結果として決まった `BlocksField` の状態をノードへ写すだけの層で、
 /// 得点・残機・当たり判定は一切知らない（アクション枠の基盤規約）。
 ///
-/// シーンの座標系はフィールドの抽象単位そのまま（100 × 150）で、`scaleMode = .aspectFit` により
+/// シーンの座標系はフィールドの抽象単位そのまま（`BlocksField.Metrics.width` × `.height`）で、
+/// `scaleMode = .aspectFit` により
 /// 表示サイズへ一括で拡大される。**呼び出し側は SpriteView の枠を必ず同じ縦横比にすること**
 /// （ずれると余白が出て、タップ位置とパドルの対応も狂う）。
 @MainActor
@@ -61,7 +77,11 @@ final class BlocksScene: SKScene {
     /// ブロックのノードを作り直した時点の `BlocksModel.fieldGeneration`。
     private var renderedGeneration = -1
 
-    private let ballNode = SKShapeNode(circleOfRadius: CGFloat(BlocksField.Metrics.ballRadius))
+    /// 球のノード。**上限ぶん先に作って余りを隠す**（#599）。増えるたびに作ると、
+    /// 球が増えた最初のフレームだけノードの生成が挟まって画が飛ぶ。
+    private var ballNodes: [SKShapeNode] = []
+    /// 落下中のアイテムのノード。種類ごとに見た目が違うので種類別に持つ。
+    private var itemNodes: [BlocksItemKind: [SKNode]] = [:]
     private let paddleNode = SKShapeNode(
         rectOf: CGSize(
             width: BlocksField.Metrics.paddleWidth,
@@ -90,13 +110,18 @@ final class BlocksScene: SKScene {
 
     override func didMove(to view: SKView) {
         guard blockLayer.parent == nil else { return }
-        ballNode.fillColor = BlocksPalette.color(BlocksPalette.ball)
-        ballNode.strokeColor = .clear
         paddleNode.fillColor = BlocksPalette.color(BlocksPalette.paddle)
         paddleNode.strokeColor = .clear
         addChild(blockLayer)
         addChild(paddleNode)
-        addChild(ballNode)
+        for _ in 0..<BlocksRules.maxBalls {
+            let node = SKShapeNode(circleOfRadius: CGFloat(BlocksField.Metrics.ballRadius))
+            node.fillColor = BlocksPalette.color(BlocksPalette.ball)
+            node.strokeColor = .clear
+            node.isHidden = true
+            ballNodes.append(node)
+            addChild(node)
+        }
         rebuildBlocks()
         sync()
     }
@@ -166,8 +191,19 @@ final class BlocksScene: SKScene {
             rebuildBlocks()
         }
         let field = model.field
-        ballNode.position = CGPoint(x: field.ball.x, y: field.ball.y)
+        for (index, node) in ballNodes.enumerated() {
+            guard index < field.balls.count else {
+                node.isHidden = true
+                continue
+            }
+            node.isHidden = false
+            node.position = CGPoint(x: field.balls[index].x, y: field.balls[index].y)
+        }
         paddleNode.position = CGPoint(x: field.paddleX, y: BlocksField.Metrics.paddleY)
+        // 伸長中は横だけ引き伸ばす（#599）。`SKShapeNode` は生成時の寸法を持つので、
+        // 幅を変えるには拡大率を動かす。
+        paddleNode.xScale = CGFloat(field.paddleWidth / BlocksField.Metrics.paddleWidth)
+        syncItems(field.items)
         for (row, nodes) in blockNodes.enumerated() {
             for (column, node) in nodes.enumerated() {
                 guard let node else { continue }
@@ -181,5 +217,65 @@ final class BlocksScene: SKScene {
                 node.color = BlocksPalette.blockColor(block, row: row)
             }
         }
+    }
+
+    /// 落下中のアイテムをノードへ写す（#599）。
+    ///
+    /// 同時に落ちる数はブロックの壊れ方で決まり上限が無いので、足りなくなったら足して使い回す
+    /// （毎フレーム作り直すと 60fps ぶんのノード生成が乗る）。
+    private func syncItems(_ items: [BlocksItem]) {
+        for kind in BlocksItemKind.allCases {
+            let ofKind = items.filter { $0.kind == kind }
+            var nodes = itemNodes[kind] ?? []
+            while nodes.count < ofKind.count {
+                let node = Self.makeItemNode(kind: kind)
+                nodes.append(node)
+                addChild(node)
+            }
+            for (index, node) in nodes.enumerated() {
+                guard index < ofKind.count else {
+                    node.isHidden = true
+                    continue
+                }
+                node.isHidden = false
+                node.position = CGPoint(x: ofKind[index].x, y: ofKind[index].y)
+            }
+            itemNodes[kind] = nodes
+        }
+    }
+
+    /// アイテム 1 個ぶんのノード。
+    ///
+    /// **色だけで区別しない**。地の色に加えて、バー伸長は横 1 本の印、球増加は玉 3 つの印を
+    /// 中に描く（色が見分けにくくても形で分かる）。
+    private static func makeItemNode(kind: BlocksItemKind) -> SKNode {
+        let width = BlocksField.Metrics.itemWidth
+        let height = BlocksField.Metrics.itemHeight
+        let body = SKShapeNode(
+            rectOf: CGSize(width: width, height: height),
+            cornerRadius: CGFloat(height / 2)
+        )
+        body.fillColor = BlocksPalette.color(BlocksPalette.itemColor(kind))
+        body.strokeColor = .clear
+        // ブロックより手前に置く（落ちてくる途中でブロックの列と重なる）。
+        body.zPosition = 1
+        let mark = BlocksPalette.color(BlocksPalette.itemMark)
+        switch kind {
+        case .widePaddle:
+            let bar = SKSpriteNode(
+                color: mark,
+                size: CGSize(width: width * 0.62, height: height * 0.26)
+            )
+            body.addChild(bar)
+        case .multiBall:
+            for offset in [-1.0, 0, 1.0] {
+                let dot = SKShapeNode(circleOfRadius: CGFloat(height * 0.17))
+                dot.fillColor = mark
+                dot.strokeColor = .clear
+                dot.position = CGPoint(x: offset * width * 0.22, y: 0)
+                body.addChild(dot)
+            }
+        }
+        return body
     }
 }

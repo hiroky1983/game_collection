@@ -34,21 +34,7 @@ public struct HanafudaView: View {
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("花札こいこい")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "花札こいこい", review: services.review) {
             // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
             // 早見表をここに置く（#495 の仕様）。ツールバーは `Label` をアイコンだけに畳むので
             // 文字を出すために `Text` を直接渡す。
