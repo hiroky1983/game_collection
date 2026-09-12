@@ -50,6 +50,7 @@ export const games: Game[] = [
   },
   {
     slug: "blockpuzzle",
+    comingSoon: true,
     name: "ブロックならべ",
     emoji: "🧩",
     tagline: "ピースを置いて行と列をそろえよう",
