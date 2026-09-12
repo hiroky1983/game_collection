@@ -93,6 +93,21 @@ public struct RunnerField: Equatable, Sendable {
     private var pickupOverboostRemaining: Double = 0
     /// 取得済みのスピードアップアイテムの数。まだ消していないノードを消すのに描画側が使う。
     public private(set) var collectedPickupCount: Int = 0
+    /// 直前の着地がジャスト着地だったか（#673）。
+    ///
+    /// 着地するたびに書き換わる（ジャストでなければ false に戻る）ので、`.landed` の
+    /// できごとと**同じフレームでだけ**意味を持つ。触覚の強さを変えるのに Model が使う。
+    public private(set) var lastLandingWasJust: Bool = false
+    /// この走行で決めたジャスト着地の回数。**1 回の着地につき 1 増える単調増加**。
+    ///
+    /// 描画側（`RunnerScene`）は毎フレームこの数を前フレームと比べて土煙を出す。
+    /// できごと（`RunnerEvent`）を増やさずに済ませているのは、`collectedPickupCount` と
+    /// 同じ理由——見た目だけの都合でルール層のできごとを増やすと、Model の分岐が
+    /// 演出のために太る。
+    public private(set) var justLandingCount: Int = 0
+    /// いまの滞空を始めた地点（接地中は nil）。ジャスト着地の判定で「この滞空のあいだに
+    /// 越えた障害」を絞り込むのに使う。
+    private var jumpStartDistance: Double?
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
     private var collectedPickupIndices: Set<Int> = []
 
@@ -158,6 +173,9 @@ public struct RunnerField: Equatable, Sendable {
     @discardableResult
     public mutating func jump() -> Bool {
         guard jumpCount < RunnerRules.maxJumps else { return false }
+        // 滞空の起点は**一段目の踏み切り**。二段目で上書きすると、一段目で越えた障害が
+        // 「この滞空で越えた障害」から外れてしまう（#673）。
+        if isGrounded { jumpStartDistance = distance }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
         jumpCount += 1
@@ -208,6 +226,8 @@ public struct RunnerField: Equatable, Sendable {
         self.isHolding = false
         self.holdElapsed = 0
         self.pendingCut = false
+        // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
+        self.jumpStartDistance = self.isGrounded ? nil : distance
     }
 
     // MARK: - 進行
@@ -306,7 +326,10 @@ public struct RunnerField: Equatable, Sendable {
             jumpCount = 0
             isHolding = false
             pendingCut = false
-            if wasAirborne { events.append(.landed) }
+            if wasAirborne {
+                applyJustLanding()
+                events.append(.landed)
+            }
         }
 
         if !passedCheckpoint, distance >= stage.checkpoint {
@@ -317,6 +340,41 @@ public struct RunnerField: Equatable, Sendable {
         if distance >= stage.length {
             distance = stage.length
             events.append(.reachedGoal)
+        }
+    }
+
+    /// 着地した瞬間に「越えた障害の真裏に降りられたか」を見て、ペダルの乗りを足す（#673）。
+    ///
+    /// **速さに触るのは接地中の `pedalBoost` だけ**——空中の横速度（`currentSpeed`）は
+    /// 基準のままなので、「1 回のジャンプで進む距離 = `speed × jumpAirTime`」という
+    /// 全ステージの成立条件（`RunnerStageTests`）の物差しは動かない（#635 決裁）。
+    ///
+    /// ギリギリで跳んで直後に降りれば乗りが積み上がり、早すぎ・遅すぎの跳び方では
+    /// 何も足されない。これがベストタイムに出るスキル差の実体。
+    private mutating func applyJustLanding() {
+        lastLandingWasJust = false
+        guard let takeOff = jumpStartDistance else { return }
+        jumpStartDistance = nil
+        // 「直前に越えた障害」= この滞空のあいだに**中心 x が右端を通過した**障害のうち最後のもの。
+        // `hazards` は左から順に並んでいるので `last` がそのまま「最後に越えたもの」になる。
+        guard let cleared = stage.hazards.last(where: {
+            Self.rewardsJustLanding($0.kind) && $0.end > takeOff && $0.end <= distance
+        }) else { return }
+        guard distance - cleared.end <= RunnerRules.justLandingWindow else { return }
+        pedalBoost = min(RunnerRules.maxPedalBoost, pedalBoost + RunnerRules.justLandingGain)
+        lastLandingWasJust = true
+        justLandingCount += 1
+    }
+
+    /// ジャスト着地の対象になる障害か（#673）。
+    ///
+    /// **跳んで越えるものだけ**——「越えた直後に降りる」が判定の実体なので、跳び越える
+    /// 対象でない障害を混ぜると、越え方と関係なく乗りが足される。鳥はくぐる障害に
+    /// 変わるため（#671）対象外。
+    private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
+        switch kind {
+        case .pit, .lowBlock, .tallBlock: return true
+        case .bird:                       return false
         }
     }
 

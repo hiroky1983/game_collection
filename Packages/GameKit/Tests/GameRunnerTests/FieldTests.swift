@@ -382,6 +382,116 @@ struct RunnerFieldTests {
         #expect(events.filter { $0 == .collectedSpeedItem }.count == 1, "重なっている間ずっと発火してはいけない")
         #expect(field.collectedPickupCount == 1)
     }
+
+    // MARK: - ジャスト着地（#673）
+
+    /// 障害を越えて**狙った位置へ降りる**状況を作る。
+    ///
+    /// 踏み切りのタイミングを逆算するとテストが弾道の計算だらけになるので、
+    /// `placeForTesting`（= その地点で踏み切った扱いになる）で空中から始める。
+    /// `offset` は障害の右端から着地点（走者の中心）までの距離、`altitude` は
+    /// 落とし始める高さ——落下時間 √(2h/g) のあいだに進むぶんだけ手前へ置く。
+    private func land(
+        _ field: inout RunnerField, over hazard: RunnerHazard, offset: Double, from altitude: Double = 6
+    ) {
+        let fall = (2 * altitude / RunnerRules.gravity).squareRoot()
+        field.placeForTesting(
+            distance: hazard.end + offset - field.stage.speed * fall,
+            altitude: altitude,
+            vy: 0
+        )
+        while !field.isGrounded { _ = field.step(dt: 1.0 / 600) }
+    }
+
+    /// 穴を渡り切った直後に降りると、ペダルの乗りが `justLandingGain` ぶん足される。
+    @Test("障害の真裏に降りるとペダルの乗りが足される")
+    func justLandingAddsPedalBoost() {
+        let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
+        let pit = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        land(&field, over: pit, offset: 2)
+        #expect(field.lastLandingWasJust, "穴の真裏に降りたのにジャスト着地にならない")
+        #expect(field.justLandingCount == 1)
+        #expect(
+            abs(field.pedalBoost - (1 + RunnerRules.justLandingGain)) < 0.02,
+            "乗りが加算量ぶん足されていない（\(field.pedalBoost)）"
+        )
+    }
+
+    /// 窓（`justLandingWindow`）の外に降りたら足さない。**早すぎ・跳びすぎの着地に
+    /// 報酬を出さない**ことがこの仕組みの本体なので、境界の外側を明示的に確かめる。
+    @Test("障害から離れて着地すると乗りは足されない")
+    func lateLandingEarnsNothing() {
+        let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
+        let pit = stage.hazards[0]
+        var inside = RunnerField(stage: stage)
+        land(&inside, over: pit, offset: RunnerRules.justLandingWindow - 1)
+        var outside = RunnerField(stage: stage)
+        land(&outside, over: pit, offset: RunnerRules.justLandingWindow + 4, from: 20)
+        #expect(inside.lastLandingWasJust, "窓の内側なのに成立しない")
+        #expect(!outside.lastLandingWasJust, "窓の外なのに成立してしまう")
+        #expect(outside.justLandingCount == 0)
+        #expect(
+            inside.pedalBoost - outside.pedalBoost > RunnerRules.justLandingGain * 0.9,
+            "窓の内と外で乗りに差が出ていない"
+        )
+    }
+
+    /// 跳んでいないあいだ、そして**障害を越えていないジャンプ**では何も起きない。
+    @Test("障害を越えていなければ着地しても乗りは足されない")
+    func landingWithoutClearingHazardEarnsNothing() {
+        var field = RunnerField(stage: flatStage(segments: 10))
+        for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
+        #expect(field.justLandingCount == 0, "走っているだけでは成立しない")
+        #expect(!field.lastLandingWasJust)
+        let before = field.pedalBoost
+        field.jump()
+        field.endHold()
+        while !field.isGrounded { _ = field.step(dt: 1.0 / 600) }
+        #expect(field.justLandingCount == 0, "何も越えていないジャンプで成立している")
+        #expect(field.pedalBoost < before, "跳んだぶん乗りは落ちるだけ")
+    }
+
+    /// 加算は `maxPedalBoost` で頭打ち。上限を超えると空中の距離こそ変わらないものの、
+    /// 接地中の速さがステージ設計の想定（`RunnerStageTests`）を外れる。
+    @Test("乗りが上限のときにジャスト着地しても上限を超えない")
+    func justLandingIsCappedAtMaxPedalBoost() {
+        let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
+        let pit = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        // 先に上限まで漕いでおく（`placeForTesting` は乗りを触らない）。
+        for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
+        #expect(abs(field.pedalBoost - RunnerRules.maxPedalBoost) < 1e-9, "上限まで乗せられていない")
+        land(&field, over: pit, offset: 2)
+        #expect(field.lastLandingWasJust)
+        #expect(field.pedalBoost <= RunnerRules.maxPedalBoost, "上限を超えている（\(field.pedalBoost)）")
+    }
+
+    /// 鳥は対象外（#671 でくぐる障害に変わるため、跳び越えた報酬を出さない）。
+    @Test("鳥を越えて着地しても乗りは足されない")
+    func birdIsNotRewarded() {
+        let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
+        let bird = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        // 鳥の上端より高いところから、右端のすぐ裏へ降ろす（当たり判定は通る高さ）。
+        land(&field, over: bird, offset: 2, from: RunnerHazardKind.bird.height + 3)
+        #expect(field.isGrounded)
+        #expect(!field.lastLandingWasJust, "鳥でジャスト着地が成立している")
+        #expect(field.justLandingCount == 0)
+    }
+
+    /// 直前の着地の結果は**次の着地で必ず書き換わる**（`RunnerModel` が `.landed` の
+    /// フレームだけこの値を見る前提が崩れると、土煙と触覚が出っぱなしになる）。
+    @Test("ジャストでない着地が続くとフラグは false に戻る")
+    func flagResetsOnTheNextLanding() {
+        let stage = RunnerStage(number: 1, pattern: "--1---1--", speed: 40)
+        var field = RunnerField(stage: stage)
+        land(&field, over: stage.hazards[0], offset: 2)
+        #expect(field.lastLandingWasJust)
+        land(&field, over: stage.hazards[1], offset: RunnerRules.justLandingWindow + 4, from: 20)
+        #expect(!field.lastLandingWasJust, "前の着地の結果が残っている")
+        #expect(field.justLandingCount == 1, "回数は増えたぶんだけ残る")
+    }
 }
 
 @Suite("チャリンコおじさん: 障害の展開")

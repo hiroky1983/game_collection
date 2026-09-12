@@ -228,7 +228,7 @@ struct RunnerPlaythroughTests {
         slow: Bool = false,
         wastefulJumpAtStart: Bool = false,
         hopWastefully: Bool = false
-    ) -> (phase: RunnerPhase, frames: Int) {
+    ) -> (phase: RunnerPhase, frames: Int, just: Int) {
         let suite = "play-\(number)-\(slow)-\(wastefulJumpAtStart)-\(hopWastefully)"
         let model = RunnerModel(startingAt: number, preference: makePreference(suite))
         model.setSlowMode(slow)
@@ -257,7 +257,7 @@ struct RunnerPlaythroughTests {
             }
             model.tick(dt: 1.0 / 60)
         }
-        return (model.phase, frames)
+        return (model.phase, frames, model.field.justLandingCount)
     }
 
     /// `hopWastefully` 用の判断: 次の障害の踏み切りに間に合う余地がまだあるとき、
@@ -398,5 +398,149 @@ struct RunnerPlaythroughTests {
             }
             #expect(model.phase == .failed, "ステージ \(number): 跳ばずにゴールできてしまう")
         }
+    }
+
+    // MARK: - ジャスト着地（#673）
+
+    /// タップ（踏み切って即離す＝越えられる最小のジャンプ）の弾道を 1 度だけ測った標本。
+    ///
+    /// 添字が `1/600` 秒刻みの経過時間、値がそのときの高さ。`jumpCutGraceTime` などの
+    /// 定数が変わってもテストが勝手に追従するよう、**数式で書かずに実際に 1 回跳ばせて**測る。
+    private static let tapFlight: [Double] = {
+        var field = RunnerField(stage: RunnerStage(number: 1, pattern: "----", speed: 40))
+        field.jump()
+        field.endHold()
+        var samples: [Double] = []
+        while !field.isGrounded, samples.count < 6000 {
+            _ = field.step(dt: tapSampleDT)
+            samples.append(field.altitude)
+        }
+        return samples
+    }()
+    private static let tapSampleDT = 1.0 / 600
+    /// タップの滞空時間。
+    private static var tapAirTime: Double { Double(tapFlight.count) * tapSampleDT }
+    /// タップで足が高さ `height` 以上にいる時間。
+    private static func tapTime(above height: Double) -> Double {
+        Double(tapFlight.filter { $0 >= height }.count) * tapSampleDT
+    }
+    /// タップで足が高さ `height` に届くまでの時間。届かなければ `.infinity`。
+    private static func tapRiseTime(to height: Double) -> Double {
+        guard let index = tapFlight.firstIndex(where: { $0 >= height }) else { return .infinity }
+        return Double(index) * tapSampleDT
+    }
+
+    /// **ジャスト着地（#673）を狙う操作**の再現。障害ごとに
+    ///
+    /// 1. 越えられる**最小のジャンプ**を選ぶ（高い障害物だけは頂点が要るので押しっぱなし）
+    /// 2. 着地が右端のすぐ裏（`justLandingWindow` の真ん中）に来る位置で踏み切る
+    ///
+    /// を狙う。空中の速さは乗りに左右されない（`currentSpeed`）ので、踏み切り位置と
+    /// 弾道だけで着地点は決まる——狙って降りられることが腕前、というのがこの仕組みの設計。
+    private func justLandingTakeOff(for hazard: RunnerHazard, speed: Double) -> (x: Double, tap: Bool) {
+        let half = RunnerField.Metrics.playerHalfWidth
+        let clearHeight = hazard.height + RunnerAutoPilot.clearance
+        // 高い障害物は頂点近くを通す設計なので、タップでは越えられない（`jumpCutGraceTime`）。
+        let overlap = (hazard.length + half * 2) / speed
+        let tap = hazard.kind != .pit
+            ? Self.tapTime(above: clearHeight) > overlap
+            : speed * Self.tapAirTime > hazard.length + half + RunnerRules.tileWidth
+        let airTime = tap ? Self.tapAirTime : RunnerRules.jumpAirTime
+        let range = speed * airTime
+        // 狙いは窓の真ん中。フレーム（1/60 秒）の粒度で踏み切り位置がずれても収まるように。
+        let desired = hazard.end + RunnerRules.justLandingWindow / 2 - range
+        switch hazard.kind {
+        case .pit:
+            // 早すぎると向こう岸に届かず穴へ落ちる。遅すぎると縁で踏み切れない。
+            let earliest = hazard.end - range + RunnerRules.tileWidth / 2
+            let latest = hazard.start - half
+            return (min(max(desired, earliest), latest), tap)
+        case .lowBlock, .tallBlock, .bird:
+            // 上端を越える高さに上がりきってから当たり判定へ入り、抜け切るまで落ちないこと。
+            let rise = tap ? Self.tapRiseTime(to: clearHeight) : RunnerRules.riseTime(to: clearHeight)
+            let above = tap ? Self.tapTime(above: clearHeight) : RunnerRules.airTime(above: clearHeight)
+            let latest = hazard.start - half - speed * rise
+            let earliest = latest - speed * max(0, above - overlap) + RunnerRules.tileWidth / 2
+            return (min(max(desired, earliest), latest), tap)
+        }
+    }
+
+    /// 上の判断でステージを走らせる。
+    private func playAimingAtJustLanding(stage number: Int) -> (phase: RunnerPhase, frames: Int, just: Int) {
+        let model = RunnerModel(startingAt: number, preference: makePreference("just-\(number)"))
+        model.press()
+        model.release()
+        var frames = 0
+        var releaseNow = false
+        while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+            frames += 1
+            let field = model.field
+            if field.isGrounded, let hazard = field.nextHazard(from: field.playerMaxX) {
+                let plan = justLandingTakeOff(for: hazard, speed: field.stage.speed)
+                if field.distance >= plan.x {
+                    model.press()
+                    releaseNow = plan.tap
+                }
+            }
+            // タップなら同じフレームで離す（最小のジャンプ）。押しっぱなしの場合は着地まで待つ。
+            if releaseNow || model.field.isGrounded {
+                model.release()
+                releaseNow = false
+            }
+            model.tick(dt: 1.0 / 60)
+        }
+        return (model.phase, frames, model.field.justLandingCount)
+    }
+
+    /// **ベストタイムにスキル差が出ること**の実証（#673・#635 決裁）。
+    ///
+    /// 比べるのは「安全に跳ぶだけの走り」（`RunnerAutoPilot` = 地形が要求する最後の瞬間に
+    /// 踏み切り、着地まで押しっぱなし。機械的に再現できる決め打ちの軌道）と、
+    /// 「越えられる最小のジャンプで、障害の真裏へ降りることを狙う走り」。
+    ///
+    /// **実測（2026-09-12）**: ステージ1で 1.4%（0.22 秒）、8 で 1.8%（0.38 秒）、
+    /// 15 で 3.0%（0.77 秒）。しきい値 1% はこの実測の下限に対して十分な余裕を取った値。
+    ///
+    /// なお 3.0% のうち加算そのものの寄与は 0.14 秒（残りは「小さく跳ぶぶん空中が短い」効果）。
+    /// 加算をこれ以上増やしても差は広がらない——`pedalGain` が速く、乗りは障害の間の平地で
+    /// 上限へ戻ってしまうため（`RunnerRules.justLandingGain` のドキュメント参照）。
+    @Test("ジャスト着地を狙うと、安全に跳ぶだけの走りよりクリアタイムが縮む")
+    func aimingAtJustLandingBeatsSafePlay() {
+        for number in [1, 8, RunnerRules.stageCount] {
+            let safe = play(stage: number)
+            let skilled = playAimingAtJustLanding(stage: number)
+            #expect(skilled.phase == safe.phase, "ステージ \(number): 狙った走りでミスになった（\(skilled.phase)）")
+            let hazards = RunnerStage.all[number - 1].hazards.count
+            #expect(
+                skilled.just >= hazards / 3,
+                "ステージ \(number): ジャスト着地が少なすぎる（\(skilled.just)/\(hazards)）"
+            )
+            let safeSeconds = Double(safe.frames) / 60
+            let skilledSeconds = Double(skilled.frames) / 60
+            let diff = (safeSeconds - skilledSeconds) / skilledSeconds
+            #expect(
+                diff > 0.01,
+                "ステージ \(number): タイム差が出ていない（\(safeSeconds)秒 → \(skilledSeconds)秒、\(diff * 100)%）"
+            )
+        }
+    }
+
+    /// **窓（`justLandingWindow`）の広さが正しいこと**の実証。
+    ///
+    /// 自動操縦は「地形が要求する最後の瞬間に踏み切って着地まで押しっぱなし」——
+    /// ジャスト着地を狙わないベースラインで、これで乗りが足されてしまうなら窓が広すぎる
+    /// （誰が走っても同じだけ足されるので、タイムにスキル差が出ない）。
+    ///
+    /// 実測では全15ステージ145障害のうち 1 回だけ成立する（ステージ6・跳べる最大幅の穴を
+    /// 全弾道でちょうど渡り切ったもので、これは実際にジャスト着地）。
+    @Test("安全に跳ぶだけの自動操縦では、ジャスト着地はほとんど起きない")
+    func autoPilotRarelyEarnsJustLanding() {
+        var total = 0
+        for number in 1...RunnerRules.stageCount {
+            let result = play(stage: number)
+            total += result.just
+            #expect(result.just <= 1, "ステージ \(number): 決め打ちの走りで \(result.just) 回も成立している")
+        }
+        #expect(total <= 2, "全ステージ合計 \(total) 回——窓が広すぎる")
     }
 }

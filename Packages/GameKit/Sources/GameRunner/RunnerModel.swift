@@ -279,7 +279,9 @@ public final class RunnerModel {
     private func handle(_ event: RunnerEvent) {
         switch event {
         case .landed:
-            services?.feedback.impact(.light)
+            // ジャスト着地（#673）だけ手応えを一段強くする。乗りが足されたことを
+            // 数字を見ずに指で分かるようにするための差で、演出の土煙は `RunnerScene` が出す。
+            services?.feedback.impact(field.lastLandingWasJust ? .medium : .light)
         case .passedCheckpoint:
             services?.feedback.notify(.success)
         case .collectedSpeedItem:
