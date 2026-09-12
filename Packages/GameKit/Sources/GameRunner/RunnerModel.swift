@@ -386,9 +386,21 @@ public final class RunnerModel {
             press(); release()
             autoPlayForDebug(until: { _ in false })
         case "showcase":
-            // QA用: 低い障害物・高い障害物・穴3サイズを1本で見比べる（`RunnerStage.debugShowcase`）。
+            // QA用: 低い障害物・高い障害物・鳥・穴3サイズを1本で見比べる（`RunnerStage.debugShowcase`）。
             // `.ready` のまま渡すので、実機・シミュレータで普通にタップして遊べる。
             applyDebugStage(.debugShowcase)
+        case "bird":
+            // 鳥の下をくぐっている瞬間で止める（#671 の受け入れ条件「接地して走れば鳥の下を
+            // 通り抜けられる」の画）。本番のステージでは鳥は 13 面以降にしか出ないので、
+            // ショーケース（`RunnerStage.debugShowcase`）の鳥を使う。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }) else { return true }
+                return field.isGrounded && field.playerMaxX > bird.start && field.playerMinX < bird.end
+            })
+            isFrozenForCapture = true
         default:
             break
         }

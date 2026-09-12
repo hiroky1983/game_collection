@@ -12,10 +12,11 @@ import Testing
 /// そのまま `horizontalExtent` / `verticalExtent` に出るので、この Suite が落ちる。
 @Suite("鳥の絵と当たり判定の一致（#609）")
 struct BirdArtTests {
-    /// 実際に使われている箱（`RunnerHazardKind.bird` の高さ 7 × 1 タイル幅）。
+    /// 実際に使われている箱（`RunnerHazardKind.bird` の**帯** 13〜22 × 1 タイル幅）。
     private static let width = RunnerRules.tileWidth
-    private static let height = RunnerHazardKind.bird.height
-    private static let art = RunnerBirdArt(width: width, height: height)
+    private static let groundDrop = RunnerHazardKind.bird.bottom
+    private static let height = RunnerHazardKind.bird.height - groundDrop
+    private static let art = RunnerBirdArt(width: width, height: height, groundDrop: groundDrop)
     private static let epsilon = 1e-9
 
     @Test("絵の水平方向の張り出しが 0（箱の幅ちょうどに収まる）")
@@ -25,12 +26,21 @@ struct BirdArtTests {
         #expect(abs(extent.upperBound - Self.width) < Self.epsilon)
     }
 
-    @Test("絵の上端が箱の天井に一致する（見えない当たり判定を上に残さない）")
-    func verticalExtentReachesCeiling() {
-        let extent = Self.art.verticalExtent
-        #expect(abs(extent.upperBound - Self.height) < Self.epsilon)
-        // 影は地面（y = 0）に敷くので、下端が地面より下へ潜らないことだけ見る。
-        #expect(extent.lowerBound >= -Self.epsilon)
+    /// 縦は**帯の床合わせ**（#671）。床は「接地してくぐれる／跳ぶと当たる」の境目そのもので、
+    /// ここに絵の無いすき間を残すと「鳥の下を通ったのに当たった」になる。
+    /// 天井側は 2 段ジャンプでしか届かない高さで、幅 1 タイルの鳥では縦横比が足りず
+    /// 帯の高さ（9）を埋めきれない——余りは必ず天井側に寄せる。
+    @Test("絵の下端が帯の床に一致し、天井を越えない")
+    func verticalExtentSitsOnTheBandFloor() {
+        let extent = Self.art.birdVerticalExtent
+        #expect(abs(extent.lowerBound - 0) < Self.epsilon)
+        #expect(extent.upperBound <= Self.height + Self.epsilon)
+        // 影は帯の外——地面（y = -groundDrop）に敷く。地面より下へ潜らないことだけ見る。
+        #expect(Self.art.verticalExtent.lowerBound >= -Self.groundDrop - Self.epsilon)
+        #expect(
+            Self.art.verticalExtent.lowerBound < 0,
+            "影が地面まで降りていない（体とのすき間が『飛んでいる』の手がかり）"
+        )
     }
 
     @Test("はみ出しをパーツごとに見る（丸・多角形・影のすべて）")
@@ -109,11 +119,15 @@ struct BirdArtTests {
 
     @Test("箱の寸法を変えても張り出しは 0 のまま（比率で組んである）")
     func extentFollowsAnyHitboxSize() {
-        for (width, height) in [(4.0, 7.0), (4.0, 5.0), (6.0, 7.0), (8.0, 12.0)] {
-            let art = RunnerBirdArt(width: width, height: height)
-            #expect(abs(art.horizontalExtent.lowerBound) < Self.epsilon)
-            #expect(abs(art.horizontalExtent.upperBound - width) < Self.epsilon)
-            #expect(abs(art.verticalExtent.upperBound - height) < Self.epsilon)
+        for (width, height) in [(4.0, 9.0), (4.0, 7.0), (4.0, 5.0), (6.0, 7.0), (8.0, 12.0)] {
+            for groundDrop in [0.0, 13.0] {
+                let art = RunnerBirdArt(width: width, height: height, groundDrop: groundDrop)
+                #expect(abs(art.horizontalExtent.lowerBound) < Self.epsilon)
+                #expect(abs(art.horizontalExtent.upperBound - width) < Self.epsilon)
+                #expect(abs(art.birdVerticalExtent.lowerBound) < Self.epsilon)
+                #expect(art.birdVerticalExtent.upperBound <= height + Self.epsilon)
+                #expect(art.verticalExtent.lowerBound >= -groundDrop - Self.epsilon)
+            }
         }
     }
 
@@ -144,14 +158,18 @@ struct BirdArtTests {
         }
     }
 
-    @Test("当たり判定そのものは変えていない（鳥の箱は 1 タイル幅 × 高さ 7）")
-    func hitboxIsUnchanged() {
-        #expect(RunnerHazardKind.bird.height == 7)
+    /// 絵を合わせる相手（帯）が、全ステージの鳥で同じ 1 タイル幅 × 13〜22 であること。
+    /// ここがステージごとに違うと `art` 1 つで張り出しを測っている意味が無くなる。
+    @Test("鳥の箱は 1 タイル幅 × 帯 13〜22")
+    func hitboxIsTheBand() {
+        #expect(RunnerHazardKind.bird.bottom == 13)
+        #expect(RunnerHazardKind.bird.height == 22)
         let birds = RunnerStage.all.flatMap { $0.hazards }.filter { $0.kind == .bird }
         #expect(!birds.isEmpty)
         for bird in birds {
             #expect(bird.length == RunnerRules.tileWidth)
-            #expect(bird.height == 7)
+            #expect(bird.bottom == 13)
+            #expect(bird.height == 22)
         }
     }
 }

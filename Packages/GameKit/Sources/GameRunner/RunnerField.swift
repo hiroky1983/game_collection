@@ -266,7 +266,7 @@ public struct RunnerField: Equatable, Sendable {
             }
         }
 
-        // 障害物は矩形どうしの重なりで見る。走者の足が上端より上にあれば飛び越えている。
+        // 障害物は矩形どうしの重なりで見る（岩は跳んで越え、鳥は接地してくぐる・#671）。
         if isHittingBlock {
             events.append(.crashed)
             return
@@ -320,12 +320,19 @@ public struct RunnerField: Equatable, Sendable {
         }
     }
 
-    /// いま障害物に当たっているか。足が上端より上にあれば飛び越えている。
+    /// いま障害物に当たっているか。
+    ///
+    /// 縦は**帯どうしの重なり**で見る（#671）。走者は足（`footY`）から頭
+    /// （`footY + playerHeight`）まで、障害は `hazard.bottom` から `hazard.height` まで。
+    /// 地面から生えている岩は `bottom` が 0 なので「頭が下端より上」は常に真になり、
+    /// 従来どおり「足が上端より上なら飛び越えている」だけの判定に一致する——挙動は 1 ビットも
+    /// 変わらない。鳥だけが下端を持ち、**接地していれば頭がつかえずくぐれる**。
     private var isHittingBlock: Bool {
         stage.hazards.contains { hazard in
             guard hazard.kind != .pit else { return false }
             guard hazard.start < playerMaxX, playerMinX < hazard.end else { return false }
             return footY < Metrics.groundY + hazard.height
+                && Metrics.groundY + hazard.bottom < footY + Metrics.playerHeight
         }
     }
 }

@@ -18,6 +18,19 @@ public enum RunnerAutoPilot {
     public static func shouldJump(field: RunnerField) -> Bool {
         guard field.isGrounded else { return false }
         guard let hazard = field.nextHazard(from: field.playerMaxX) else { return false }
+        // 鳥は**跳ばずにくぐる**障害（#671）。接地したままなら頭が帯（`bottom` 13）に届かず
+        // 素通りできるが、跳ぶと必ず当たる。ここで岩と同じ「越える」判断をすると、
+        // 鳥のある 13〜15 面が自動操縦でクリアできなくなる。
+        //
+        // 前端（`playerMaxX`）からも探し直すのは、**後端がまだ帯の下にいるあいだ**を拾うため。
+        // `nextHazard(from: playerMaxX)` は体が抜けきる前に次の障害へ移ってしまうので、
+        // そのわずかな窓で次の障害の踏み切り条件が成立すると、鳥の尾の下で踏み切って当たる。
+        // いまの 15 ステージは区画の間隔（`RunnerRules.segmentTiles`）のおかげでその窓に
+        // 踏み切り点が来ない（`RunnerStageTests.birdsNeverForceAJump` が保証）が、
+        // 間隔の設計を変えたときにここだけ穴が残らないよう、判断自体を自己完結させる。
+        guard hazard.kind != .bird, field.nextHazard(from: field.playerMinX)?.kind != .bird else {
+            return false
+        }
         return hazard.start - field.distance <= lead(for: hazard, speed: field.stage.speed)
     }
 
@@ -35,12 +48,15 @@ public enum RunnerAutoPilot {
     /// - 穴: 縁の少し手前。飛距離が穴の幅を上回ることは `RunnerStageTests` が保証する
     /// - 障害物: 当たり判定が重なり始めるまでに上端を越える高さへ上がりきる必要があるので、
     ///   その高さまでの上昇時間ぶんだけ早く踏み切る
+    /// - 鳥: 跳ばないので踏み切り位置は無い（#671）。返すのは**ここまでに前のジャンプの
+    ///   着地を終えていなければならない余白**で、間隔の成立条件（`RunnerStageTests`）が
+    ///   穴と同じ形のまま使える
     static func lead(for hazard: RunnerHazard, speed: Double) -> Double {
         let base = RunnerField.Metrics.playerHalfWidth + RunnerRules.tileWidth / 2
         switch hazard.kind {
-        case .pit:
+        case .pit, .bird:
             return base
-        case .lowBlock, .tallBlock, .bird:
+        case .lowBlock, .tallBlock:
             return base + speed * RunnerRules.riseTime(to: hazard.height + clearance)
         }
     }

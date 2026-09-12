@@ -54,7 +54,8 @@ struct RunnerStageTests {
 
     /// **押さない（最小の）ジャンプで越えられること**を全障害について確かめる。
     /// 大ジャンプは余裕を増やす上振れなので、下限で成立していれば詰みは起きない。
-    @Test("すべての障害が押さないジャンプで越えられる")
+    /// 鳥だけは跳んで越える障害ではないので、「接地したままくぐれる」を確かめる（#671）。
+    @Test("すべての障害が押さないジャンプで越えられる（鳥は接地でくぐれる）")
     func everyHazardIsClearable() {
         let halfWidth = RunnerField.Metrics.playerHalfWidth
         for stage in RunnerStage.all {
@@ -68,7 +69,7 @@ struct RunnerStageTests {
                         range > needed + RunnerRules.tileWidth,
                         "ステージ \(stage.number) の穴（長さ \(hazard.length)）が跳び越せない"
                     )
-                case .lowBlock, .tallBlock, .bird:
+                case .lowBlock, .tallBlock:
                     // 当たり判定が重なるあいだ、ずっと上端より上にいられること。
                     let window = RunnerRules.airTime(above: hazard.height + RunnerAutoPilot.clearance)
                     let overlap = (hazard.length + halfWidth * 2) / stage.speed
@@ -79,6 +80,19 @@ struct RunnerStageTests {
                     #expect(
                         hazard.height < RunnerRules.jumpApex,
                         "ステージ \(stage.number) の障害物がジャンプの頂点より高い"
+                    )
+                case .bird:
+                    // 鳥は跳んで越える障害ではなく、**接地したままくぐる**障害（#671）。
+                    // 成立条件は「越えられる高さ」ではなく「頭がつかえない下端」。
+                    #expect(
+                        hazard.bottom > RunnerField.Metrics.playerHeight,
+                        "ステージ \(stage.number) の鳥（下端 \(hazard.bottom)）は接地してもくぐれない"
+                    )
+                    // 逆に「跳べば必ず当たる」ことも障害として成立する条件。最小のジャンプの
+                    // 頂点が、頭が下端に届く高さを上回っていればよい。
+                    #expect(
+                        hazard.bottom - RunnerField.Metrics.playerHeight < RunnerRules.jumpApex,
+                        "ステージ \(stage.number) の鳥が高すぎて、跳んでも当たらない"
                     )
                 }
             }
@@ -263,8 +277,13 @@ struct RunnerPlaythroughTests {
     /// `hopWastefully` 用の判断: 次の障害の踏み切りに間に合う余地がまだあるとき、
     /// 要らないジャンプを 1 回挟んでも構わないか。**安全な間だけ**跳ぶので、
     /// 下手なりにステージはクリアできる（クラッシュするだけの操作は比較にならない）。
+    ///
+    /// 前方の障害を探す起点が**前端（`playerMinX`）**なのは、いま自分が重なっている障害を
+    /// 「もう通り過ぎたもの」として無視しないため（#671）。鳥は跳べば当たる帯なので、
+    /// 尾がまだ自分の上にあるうちに跳ぶと下手どころか必ずミスになる。前端から探せば、
+    /// 重なっているあいだは鳥自身が「次の障害」に居座り、踏み切りの余地が無いと判断される。
     private func shouldHopWastefully(field: RunnerField) -> Bool {
-        guard field.isGrounded, let hazard = field.nextHazard(from: field.playerMaxX) else { return false }
+        guard field.isGrounded, let hazard = field.nextHazard(from: field.playerMinX) else { return false }
         let jumpRange = field.stage.speed * RunnerRules.jumpAirTime
         let requiredTakeoff = hazard.start - RunnerAutoPilot.lead(for: hazard, speed: field.stage.speed)
         return field.distance + jumpRange + RunnerRules.tileWidth < requiredTakeoff
@@ -280,15 +299,17 @@ struct RunnerPlaythroughTests {
     }
 
     /// **回帰テスト**: 会長QA「進まねえ」（2026-09-11）——踏み切った直後（同フレーム）に
-    /// 離す「瞬間タップ」でも、穴・低い障害物・鳥は必ず越えられること。`jumpCutGraceTime`
+    /// 離す「瞬間タップ」でも、穴・低い障害物は必ず越えられること。`jumpCutGraceTime`
     /// による猶予が無いと、ステージ1の最初の穴（幅8）にすら届かなかった。
     ///
-    /// 高い障害物（`tallBlock`）だけは対象外——設計上「頂点近くを通す」必要があり、
+    /// 高い障害物（`tallBlock`）は対象外——設計上「頂点近くを通す」必要があり、
     /// 意図的に長押しを要求する（`RunnerRules.jumpCutGraceTime` のドキュメント参照）。
-    @Test("瞬間タップでも、高い障害物以外はすべて越えられる")
-    func instantTapClearsEveryHazardExceptTallBlocks() {
+    /// 鳥も対象外——**跳んで越える障害ではない**（#671）。跳べば当たるのが仕様で、
+    /// 接地したままくぐれることは `birdsCanBeRunUnder` が確かめる。
+    @Test("瞬間タップでも、穴と低い障害物はすべて越えられる")
+    func instantTapClearsPitsAndLowBlocks() {
         for stage in RunnerStage.all {
-            for hazard in stage.hazards where hazard.kind != .tallBlock {
+            for hazard in stage.hazards where hazard.kind != .tallBlock && hazard.kind != .bird {
                 var field = RunnerField(stage: stage)
                 while field.distance < hazard.start - RunnerAutoPilot.lead(for: hazard, speed: stage.speed) {
                     _ = field.step(dt: 1.0 / 600)
@@ -380,6 +401,125 @@ struct RunnerPlaythroughTests {
                 diff > 0.1,
                 "ステージ \(number): タイム差が小さすぎる（\(efficientSeconds)秒 → \(clumsySeconds)秒、\(diff * 100)%）"
             )
+        }
+    }
+
+    /// 鳥は**接地したまま走り抜けられる**こと（#671 の受け入れ条件1）。
+    /// 全 15 ステージの鳥を 1 羽ずつ、実際に帯の下を走らせて確かめる。
+    @Test("鳥は接地したまま全ステージで走り抜けられる")
+    func birdsCanBeRunUnder() {
+        for stage in RunnerStage.all {
+            for bird in stage.hazards where bird.kind == .bird {
+                var field = RunnerField(stage: stage)
+                field.placeForTesting(
+                    distance: bird.start - RunnerField.Metrics.playerWidth, altitude: 0, vy: 0
+                )
+                var events: [RunnerEvent] = []
+                while field.distance < bird.end + RunnerField.Metrics.playerWidth {
+                    events += field.step(dt: 1.0 / 600)
+                    if events.contains(where: { $0.isTerminal }) { break }
+                }
+                #expect(
+                    !events.contains(where: { $0.isTerminal }),
+                    "ステージ \(stage.number) の鳥（\(bird.start)）を接地でくぐれない"
+                )
+            }
+        }
+    }
+
+    /// 鳥の真下で跳ぶと**必ず当たる**こと（#671 の受け入れ条件2）。これが崩れると
+    /// 「跳ぶか跳ばないかを問う障害」ではなくなり、岩と同じ「跳べば安全」に戻る。
+    @Test("鳥の真下でジャンプすると全ステージで当たる")
+    func jumpingUnderABirdAlwaysCrashes() {
+        for stage in RunnerStage.all {
+            for bird in stage.hazards where bird.kind == .bird {
+                var field = RunnerField(stage: stage)
+                // 帯に重なり始める位置で踏み切る（早すぎると帯の手前で着地してしまう）。
+                field.placeForTesting(
+                    distance: bird.start - RunnerField.Metrics.playerHalfWidth, altitude: 0, vy: 0
+                )
+                field.jump()
+                field.endHold() // 瞬間タップ（一番低い弾道）でも当たること
+                var events: [RunnerEvent] = []
+                while field.distance < bird.end + RunnerField.Metrics.playerWidth {
+                    events += field.step(dt: 1.0 / 600)
+                    if events.contains(where: { $0.isTerminal }) { break }
+                }
+                #expect(
+                    events.contains(.crashed),
+                    "ステージ \(stage.number) の鳥（\(bird.start)）を跳んですり抜けられてしまう"
+                )
+            }
+        }
+    }
+
+    /// 帯の**上端（22）が飾りではない**こと。`RunnerHazardKind.bird` のドキュメントは
+    /// 「2 段ジャンプなら上を抜けられる高さ」と書いているので、テレポートではなく
+    /// **実際に 2 回踏み切った弾道**で通過できることを全ステージで確かめる
+    /// （敵対的検証の指摘・2026-09-12）。上端が実質到達不能なら、帯は「跳んだら必ず当たる」
+    /// だけの障害になり、上級者向けの抜け道があるという設計の前提が崩れる。
+    @Test("2 段ジャンプなら鳥の帯の上を抜けられる")
+    func doubleJumpClearsBirdsOverTheTop() {
+        // 2 段目は頂点（`jumpApex`）から踏み切るので、上端まではその差だけ稼げばいい。
+        let extra = RunnerHazardKind.bird.height - RunnerRules.jumpApex
+        let toApex = RunnerRules.jumpVelocity / RunnerRules.gravity
+        // 「上端より上にいる時間」の真ん中が鳥の真上に来るように踏み切る。
+        let midpoint = toApex + RunnerRules.riseTime(to: extra) + RunnerRules.airTime(above: extra) / 2
+        for stage in RunnerStage.all {
+            for bird in stage.hazards where bird.kind == .bird {
+                var field = RunnerField(stage: stage)
+                let center = (bird.start + bird.end) / 2
+                field.placeForTesting(distance: center - stage.speed * midpoint, altitude: 0, vy: 0)
+                field.jump()
+                var events: [RunnerEvent] = []
+                var jumps = 1
+                while field.playerMinX < bird.end {
+                    // 頂点（`vy` が下向きに変わった瞬間）で 2 段目を使う。
+                    if jumps < RunnerRules.maxJumps, field.vy <= 0 {
+                        field.jump()
+                        jumps += 1
+                    }
+                    events += field.step(dt: 1.0 / 600)
+                    if events.contains(where: { $0.isTerminal }) { break }
+                }
+                #expect(
+                    !events.contains(.crashed),
+                    "ステージ \(stage.number) の鳥（\(bird.start)）を 2 段ジャンプで越えられない"
+                )
+            }
+        }
+    }
+
+    /// 鳥の前後に「跳ばざるを得ない」障害が無いこと（#671 の受け入れ条件5）。
+    ///
+    /// 鳥は接地していないと当たるので、**前の障害を跳んだ着地が帯の手前で終わり、
+    /// 次の障害の踏み切りが帯を過ぎてから始まる**必要がある。どちらかが食い込む配置が
+    /// 生まれたら、その区画の記号を 1〜2 個直す（レイアウトは文字列なので、打ち間違いが
+    /// 静かに詰みを作る）。
+    @Test("鳥の前後に、跳ばざるを得ない障害の配置が無い")
+    func birdsNeverForceAJump() {
+        let halfWidth = RunnerField.Metrics.playerHalfWidth
+        for stage in RunnerStage.all {
+            let range = stage.speed * RunnerRules.jumpAirTime
+            for (index, bird) in stage.hazards.enumerated() where bird.kind == .bird {
+                if index > 0 {
+                    let previous = stage.hazards[index - 1]
+                    let landing = previous.start
+                        - RunnerAutoPilot.lead(for: previous, speed: stage.speed) + range
+                    #expect(
+                        landing < bird.start - halfWidth,
+                        "ステージ \(stage.number): \(previous.start) を跳んだ着地が鳥（\(bird.start)）の帯に食い込む"
+                    )
+                }
+                if index + 1 < stage.hazards.count {
+                    let next = stage.hazards[index + 1]
+                    let takeOff = next.start - RunnerAutoPilot.lead(for: next, speed: stage.speed)
+                    #expect(
+                        takeOff > bird.end + halfWidth,
+                        "ステージ \(stage.number): \(next.start) の踏み切りが鳥（\(bird.start)）の帯に食い込む"
+                    )
+                }
+            }
         }
     }
 
