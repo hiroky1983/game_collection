@@ -225,11 +225,56 @@ struct RunnerStageTests {
     }
 
     /// #672 のスコープ: **既存15ステージには床を置かない**（本番への投入は新ステージ・#674）。
-    /// #674 で 16〜18 面に床を置くときは、この期待値も一緒に見直すこと。
+    /// 床は #674 で 16〜18 面に入ったので、ここが見るのは先頭 15 面だけ
+    /// （16〜18 に床があることは `newStagesHaveBoostFloors` が別に固定する）。
     @Test("既存15ステージにはスピードアップ床を置かない")
     func existingStagesHaveNoBoostFloors() {
-        for stage in RunnerStage.all {
+        for stage in RunnerStage.all.prefix(15) {
             #expect(stage.boostFloors.isEmpty, "ステージ \(stage.number) に床がある")
+        }
+    }
+
+    /// #674 のスコープ「新ステージで台座とスピードアップ床を使う」の実体。
+    ///
+    /// 置き方の規則も一緒に縛る:
+    /// - **床の直後は素の平地**（`RunnerAutoPilot.lead` は基準速で踏み切り位置を決めており、
+    ///   床の上の倍率ぶんだけ踏み切りが遅れる。区間を出れば倍率は消えるので 1 区画で足りる）
+    /// - **床は台座の隣に置かない**（台座の前後は素の平地であることを
+    ///   `platformsHaveFlatGroundOnBothSides` が要求している）
+    @Test("新ステージ 16〜18 にはスピードアップ床があり、直後は素の平地・台座の隣ではない")
+    func newStagesHaveBoostFloors() {
+        for stage in RunnerStage.all.dropFirst(15) {
+            #expect(!stage.boostFloors.isEmpty, "ステージ \(stage.number) に床が無い")
+            let symbols = Array(stage.pattern)
+            for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.boostFloorSymbol {
+                if index < symbols.count - 1, symbols[index + 1] != RunnerStage.boostFloorSymbol {
+                    #expect(
+                        symbols[index + 1] == "-",
+                        "ステージ \(stage.number): 床の直後（区画 \(index + 1)）が素の平地でない"
+                    )
+                }
+                if index > 0 {
+                    #expect(
+                        symbols[index - 1] != RunnerStage.platformSymbol,
+                        "ステージ \(stage.number): 床が台座の直後にある（区画 \(index)）"
+                    )
+                }
+                if index < symbols.count - 1 {
+                    #expect(
+                        symbols[index + 1] != RunnerStage.platformSymbol,
+                        "ステージ \(stage.number): 床が台座の直前にある（区画 \(index)）"
+                    )
+                }
+            }
+            // 床は台座の上には架からない（台座の上は第1弾では何も置かない平らな安全地帯）。
+            for floor in stage.boostFloors {
+                for platform in stage.platforms {
+                    #expect(
+                        !(floor.start < platform.end && platform.start < floor.end),
+                        "ステージ \(stage.number): 床が台座と重なっている"
+                    )
+                }
+            }
         }
     }
 
@@ -299,7 +344,8 @@ struct RunnerStageTests {
             RunnerRules.platformHeight + RunnerAutoPilot.clearance < RunnerRules.jumpApex,
             "地面から 1 回のジャンプで乗れない高さの台座は置けない"
         )
-        // 2 段ぶん（階段状に段を飛ばす）は届かない、が設計の意図（1 段ずつ登らせる）。
+        // 2 段ぶんは届かない刻みにしてある（次弾で高さ違いの台座を足したとき、段を
+        // 飛ばして登れないようにするため。第1弾は高さ 1 種類なので段差そのものが無い）。
         #expect(RunnerRules.platformHeight * 2 > RunnerRules.jumpApex)
         for stage in RunnerStage.all {
             for platform in stage.platforms {
@@ -486,11 +532,13 @@ struct RunnerPlaythroughTests {
         for stage in RunnerStage.all {
             for hazard in stage.hazards where hazard.kind != .tallBlock {
                 var field = RunnerField(stage: stage)
-                // 踏み切り位置へ直接置く。コースの頭から跳ばずに走らせる作りだと、台座
-                // （#674）のあるステージでは手前の台座に突っ込んでから測ることになり、
-                // 「その障害を瞬間タップで越えられるか」という問いにならない。
-                // ペダルの乗りは空中の横速度に効かない（`jumpRangeIgnoresPedalBoost`）ので、
-                // ここまでの助走の有無は跳んだあとの軌道を変えない。
+                // 踏み切り位置へ直接置く。**測っているのは「踏み切ってからの弾道だけ」**で、
+                // そこまでどう走ってきたかは問いに含まれない——コースの頭から走らせる書き方は
+                // 手前の地形（台座・床・別の障害）を一緒に走ることになり、赤くなったときに
+                // 「この障害を瞬間タップで越えられないのか、手前で何かあったのか」が
+                // 切り分けられない。助走を省いても結果は変わらない: `pedalBoost` は走り出しの
+                // 1.0 に戻るが、**空中の横速度は常に `stage.speed`**（`currentSpeed`）なので、
+                // 跳んだあとの軌道は乗り具合に左右されない（`jumpRangeIgnoresPedalBoost`）。
                 field.placeForTesting(
                     distance: hazard.start - RunnerAutoPilot.lead(for: hazard, speed: stage.speed),
                     altitude: 0,
@@ -618,6 +666,46 @@ struct RunnerPlaythroughTests {
             #expect(
                 ridden.count == stage.platforms.count,
                 "ステージ \(number): 乗っていない台座がある（\(ridden.count)/\(stage.platforms.count)）"
+            )
+        }
+    }
+
+    /// **台座の上では踏み切らない**（#674）。`RunnerField.nextPlatform(from:)` が
+    /// 「左端がまだ前方にある台座だけを返す」と謳っている不変条件の、唯一の実証。
+    ///
+    /// あそこを `$0.end > x`（いま乗っている台座も返す）に緩めると、自動操縦は上面の上で
+    /// 「目の前の台座へ乗るための踏み切り」を延々と繰り返す——ステージ16 だけで 8 回の
+    /// 無駄ジャンプになり、跳ぶたびにペダルの乗りが落ちてタイムが伸びる。それでも**コースは
+    /// クリアできてしまう**ので、完走を見ている他のテストはどれも赤くならない。
+    @Test("台座の上を走っているあいだは自動操縦が踏み切らない")
+    func autoPilotNeverJumpsWhileOnAPlatform() {
+        for number in 16...RunnerRules.stageCount {
+            guard let stage = RunnerStage.stage(number: number) else {
+                Issue.record("ステージ \(number) が無い")
+                continue
+            }
+            var field = RunnerField(stage: stage)
+            var events: [RunnerEvent] = []
+            var jumpsOnPlatform = 0
+            var framesOnPlatform = 0
+            var frames = 0
+            while frames < 60 * 300, !events.contains(where: { $0.isTerminal }) {
+                frames += 1
+                let onPlatform = field.isGrounded && stage.platforms.contains {
+                    $0.start < field.distance && field.distance < $0.end
+                }
+                if onPlatform { framesOnPlatform += 1 }
+                if RunnerAutoPilot.shouldJump(field: field) {
+                    if onPlatform { jumpsOnPlatform += 1 }
+                    field.jump()
+                }
+                if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+                events += field.step(dt: 1.0 / 60)
+            }
+            #expect(framesOnPlatform > 0, "ステージ \(number): 台座の上を一度も走っていない（前提が崩れている）")
+            #expect(
+                jumpsOnPlatform == 0,
+                "ステージ \(number): 台座の上で \(jumpsOnPlatform) 回踏み切っている"
             )
         }
     }

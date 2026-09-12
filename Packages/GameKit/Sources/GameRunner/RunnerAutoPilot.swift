@@ -41,7 +41,11 @@ public enum RunnerAutoPilot {
             target = (hazard.start, lead(for: hazard, speed: speed))
         }
         if let platform = field.nextPlatform(from: field.playerMaxX) {
-            // いま立っている面からの登り幅で見る（台座から台座へ乗り継ぐ場合は差分だけ上がればよい）。
+            // いま立っている面からの登り幅で見る。**第1弾では `field.altitude` は必ず 0**
+            // ——台座は 1 種類の高さしか無く、前後は必ず地面なので、踏み切りの判断をする
+            // 時点で走者は常に地面に立っている（台座の上では `nextPlatform` が
+            // その台座を返さないので、ここへ来ない）。高さ違いの台座を足して段差から
+            // 段差へ跳ぶ日（次弾）に効く受け口として、差分で書いてある。
             let rise = RunnerRules.riseTime(to: max(0, platform.top - field.altitude) + clearance)
             let candidate = (start: platform.start, lead: baseLead + speed * rise)
             if target == nil || candidate.start < target!.start { target = candidate }

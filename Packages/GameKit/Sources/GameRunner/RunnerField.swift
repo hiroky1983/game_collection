@@ -174,8 +174,10 @@ public struct RunnerField: Equatable, Sendable {
     /// 一本化したもの。`Metrics.groundY` を直に見ている接地まわりの箇所はすべてここを通す
     /// ——そうしておかないと「地面では接地するが台座では素通りする」という食い違いが生まれる。
     ///
-    /// 覆っている台座が複数あれば**最も高い上面**を採る。第 1 弾は 1 種類の高さしか無いので
-    /// 実際には 1 つしか当たらないが、階段状に段を重ねる形（#674 の断面図）をそのまま扱える。
+    /// 覆っている台座が複数あれば**最も高い上面**を採る。**第 1 弾ではこの `max` に到達しない**
+    /// ——台座の高さは 1 種類（`RunnerRules.platformHeight`）で、連続する `P` は 1 基に
+    /// まとまるため、ある x を覆う台座は常に高々 1 つ。高さ違いの台座を足して段を重ねる日
+    /// （次弾）に効く受け口として残してある。
     public func surfaceY(at x: Double) -> Double {
         var surface = Metrics.groundY
         for platform in stage.platforms where platform.start <= x && x < platform.end {
@@ -406,7 +408,12 @@ public struct RunnerField: Equatable, Sendable {
     /// 足が上面より下へ落ちる——を「正面衝突」と取り違えて、まっとうな着地が全部ミスになる。
     /// 走者は後退しないので、中心が左端を越えた時点でその台座は「乗ったか、越えたか」の
     /// どちらかであって、もう当たるものではない。
-    private var isHittingPlatformFace: Bool {
+    ///
+    /// **`private` にしていないのは境界をテストで直接突けるようにするため**。`step` 経由だと
+    /// この判定に来る前に `distance` と `footY` が動いてしまい、「中心が左端ちょうど」
+    /// 「足が上面ちょうど」という 2 つの等号の扱いを固定できない
+    /// （`FieldTests.platformFaceIsInclusiveAtTheBoundary`）。
+    var isHittingPlatformFace: Bool {
         stage.platforms.contains { platform in
             guard distance < platform.start else { return false }
             guard platform.start < playerMaxX else { return false }

@@ -452,6 +452,33 @@ struct RunnerFieldTests {
         #expect(field.step(dt: 1.0 / 600).contains(.crashed), "上面より下なら正面衝突")
     }
 
+    /// **等号ちょうどは「乗った」側に倒す**（#674）。`isHittingPlatformFace` の 2 つの
+    /// 不等号がどちらも strict であること——「足が上面ちょうど」も「中心が左端ちょうど」も
+    /// 当たりではないこと——を、判定を直接読んで固定する。
+    ///
+    /// `step` 経由では突けない境界。判定に来る前に `distance` も `footY` も動いてしまう。
+    @Test("上面ちょうど・左端ちょうどは正面衝突にならない")
+    func platformFaceIsInclusiveAtTheBoundary() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+
+        // (1) 中心はまだ左端の手前、足がちょうど上面。`footY < 上面` を `<=` に緩めると当たる。
+        var atTop = RunnerField(stage: stage)
+        atTop.placeForTesting(distance: platform.start - 0.5, altitude: platform.top, vy: 0)
+        #expect(atTop.playerMaxX > platform.start, "爪先は台座に掛かっている")
+        #expect(atTop.altitude == platform.top)
+        #expect(!atTop.isHittingPlatformFace, "上面と同じ高さは当たりではない")
+
+        // (2) 中心が左端ちょうど＝もう乗っている側。`中心 < 左端` を `<=` に緩めると当たる。
+        var atEdge = RunnerField(stage: stage)
+        atEdge.placeForTesting(distance: platform.start, altitude: platform.top - 1, vy: 0)
+        #expect(!atEdge.isHittingPlatformFace, "中心が左端に届いていれば乗った側")
+        // 対照: 中心がわずかでも手前で、足が上面より下なら当たる（判定が死んでいない証明）。
+        var justBefore = RunnerField(stage: stage)
+        justBefore.placeForTesting(distance: platform.start - 0.5, altitude: platform.top - 1, vy: 0)
+        #expect(justBefore.isHittingPlatformFace)
+    }
+
     /// **台座の上を走り切って端から降りる瞬間は正面衝突ではない**（矩形の重なりだけで
     /// 判定すると、尻がまだ台座に重なったまま足が下がるここで誤ってミスになる）。
     @Test("台座の右端から降りてもミスにならない")
@@ -491,8 +518,13 @@ struct RunnerFieldTests {
         #expect(events.contains(.fell))
     }
 
-    /// 台座を乗り継ぐ（階段状の連続台座・#674 の受け入れ条件）。
-    /// 1 基目を降りて 2 基目へ、を自動操縦の判断だけで通せること。
+    /// 台座を乗り継ぐ（#674 の受け入れ条件「連続台座」）。1 基目を降りて地面へ着地し、
+    /// そのまま 2 基目・3 基目へ乗り直す、を自動操縦の判断だけで通せること。
+    ///
+    /// **段差（地面から 16・24 の高さ）にはならない**——第1弾の台座は高さが 1 種類
+    /// （`RunnerRules.platformHeight`）で、連続する `P` は 1 基に融合するため、
+    /// 「台座の上にもう 1 段」は原理的に作れない。段差は高さ違いの台座を足す次弾の話で、
+    /// 第1弾の受け入れ条件は**同じ高さの台座を地面を挟んで並べ、乗り継げること**（リード決裁）。
     @Test("連続して並んだ台座を順に乗り継げる")
     func ridesAcrossConsecutivePlatforms() {
         let stage = RunnerStage(number: 1, pattern: "---PP-PP-PP---", speed: 40)
