@@ -716,6 +716,110 @@ struct RunnerFieldTests {
         #expect(field.justLandingOverboost == 0, "時間切れで消えていない")
     }
 
+    /// **上乗せが乗っていても空中の横速度は基準（`stage.speed`）のまま**（#635 決裁の中核）。
+    ///
+    /// ここが崩れると「1 回のジャンプで進む距離 = `speed × jumpAirTime`」という全ステージの
+    /// 成立条件（`RunnerStageTests`）の物差しが動き、間隔・跳び越しの判定を全部作り直す
+    /// ことになる。既存の `跳んで進む距離はペダルの乗りに左右されない`（`RunnerStageTests`）は
+    /// **上乗せが 0 の状態しか通らない**ので、`currentSpeed` の空中分岐に新しい項が
+    /// 混ざったことは検出できない——だから上乗せを満タンにした状態で同じことを固定する。
+    @Test("上乗せが満タンでも跳んで進む距離は基準の速さ×滞空時間のまま")
+    func airborneTravelIgnoresJustLandingOverboost() {
+        // 穴のあとに平地が続くステージ（跳んだ先でゴールに触れないだけの長さを取る）。
+        let stage = RunnerStage(number: 1, pattern: "--1" + String(repeating: "-", count: 12), speed: 40)
+        let pit = stage.hazards[0]
+
+        /// 穴を越えて着地した直後にその場から踏み切り、着地までに進んだ距離を返す。
+        func airTravel(earningOverboost: Bool) -> Double {
+            var field = RunnerField(stage: stage)
+            // 真裏に降りれば上乗せが満タン、窓の外に降りれば 0——**同じ「着地直後の踏み切り」**
+            // で揃えて、上乗せの有無だけを違いにする。
+            land(
+                &field,
+                over: pit,
+                offset: earningOverboost ? 2 : RunnerRules.justLandingWindow + 4,
+                from: earningOverboost ? 6 : 20
+            )
+            #expect(
+                field.justLandingOverboost == (earningOverboost ? RunnerRules.justLandingOverboost : 0),
+                "上乗せの有無が狙いどおりになっていない"
+            )
+            let takeOff = field.distance
+            field.jump()   // 着地まで離さない全弾道（`jumpAirTime`）
+            while !field.isGrounded { _ = field.step(dt: 1.0 / 2400) }
+            return field.distance - takeOff
+        }
+
+        let hot = airTravel(earningOverboost: true)
+        let cold = airTravel(earningOverboost: false)
+        #expect(hot > 1, "計測できていない")
+        #expect(abs(hot - cold) < 1e-9, "上乗せで飛距離が変わっている（\(cold) → \(hot)）")
+        #expect(
+            abs(cold - stage.speed * RunnerRules.jumpAirTime) < 0.5,
+            "飛距離が speed × jumpAirTime から外れている（\(cold)）"
+        )
+
+        // 判定そのものも直接突く: 上乗せが乗っていても空中の `currentSpeed` は基準のまま。
+        var field = RunnerField(stage: stage)
+        land(&field, over: pit, offset: 2)
+        #expect(field.justLandingOverboost > 0, "上乗せが乗っていない")
+        #expect(field.currentSpeed > stage.speed, "接地中は上乗せが効く")
+        field.jump()
+        _ = field.step(dt: 1.0 / 2400)
+        #expect(!field.isGrounded)
+        #expect(field.justLandingOverboost > 0, "空中でも上乗せ自体は残っている（減衰中）")
+        #expect(field.currentSpeed == stage.speed, "空中の速さに上乗せが漏れている（\(field.currentSpeed)）")
+    }
+
+    /// 二段ジャンプ（`RunnerRules.maxJumps` = 2）で穴を 2 つまとめて越えたときは、
+    /// **最後に越えた穴**が判定の対象になる。
+    ///
+    /// 滞空の起点（`jumpStartDistance`）は一段目の踏み切り位置で、二段目では上書きしない
+    /// ——この滞空で越えたものを全部候補にしてから「最後に越えたもの」を採る、という
+    /// `applyJustLanding` の形をここで固定する。
+    ///
+    /// ステージは合成（速さ 70・隣り合う区画に穴。本編の 18 ステージにはこの配置は無い）。
+    /// 二段ジャンプでなければ 2 つ目に届かない間隔なので、一段だけでは穴に落ちる。
+    @Test("二段ジャンプで穴を 2 つ越えると、2 つ目の真裏でジャスト着地になる")
+    func doubleJumpOverTwoPitsRewardsTheSecond() {
+        let stage = RunnerStage(number: 1, pattern: "--11----", speed: 70)
+        #expect(stage.hazards.count == 2)
+        let first = stage.hazards[0]
+        let second = stage.hazards[1]
+        var field = RunnerField(stage: stage)
+        // 1 つ目の穴の少し手前の地面から踏み切る。
+        field.placeForTesting(distance: first.start - 2, altitude: 0, vy: 0)
+        #expect(field.isGrounded)
+        field.jump()
+        var events: [RunnerEvent] = []
+        var elapsed = 0.0
+        var didDoubleJump = false
+        let dt = 1.0 / 2400
+        while !field.isGrounded, elapsed < 3 {
+            events += field.step(dt: dt)
+            elapsed += dt
+            if !didDoubleJump, elapsed >= 0.2 {
+                let tookSecondJump = field.jump()
+                #expect(tookSecondJump, "二段目が踏み切れない")
+                didDoubleJump = true
+            }
+            if events.contains(where: { $0.isTerminal }) { break }
+        }
+        #expect(!events.contains(.fell), "2 つ目の穴に落ちている")
+        #expect(field.isGrounded, "着地していない")
+        #expect(field.distance > second.end, "2 つ目の穴を越えていない")
+        #expect(field.lastLandingWasJust, "2 つ目の真裏に降りたのに成立しない（\(field.distance)）")
+        #expect(field.justLandingCount == 1)
+        #expect(
+            field.distance - second.end <= RunnerRules.justLandingWindow,
+            "2 つ目の窓の内側に降りていない（\(field.distance - second.end)）"
+        )
+        #expect(
+            field.distance - first.end > RunnerRules.justLandingWindow,
+            "1 つ目の窓も内側だと、どちらが対象か区別できない"
+        )
+    }
+
     /// 鳥は対象外（#671 でくぐる障害に変わったため、跳び越えた報酬を出さない）。
     ///
     /// **帯の上を越えて真裏に降りることは物理的に起こらない**（上端 22 から地面までの

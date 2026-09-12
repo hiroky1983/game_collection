@@ -235,6 +235,15 @@ public struct RunnerField: Equatable, Sendable {
         guard jumpCount < RunnerRules.maxJumps else { return false }
         // 滞空の起点は**一段目の踏み切り**。二段目で上書きすると、一段目で越えた障害が
         // 「この滞空で越えた障害」から外れてしまう（#673）。
+        //
+        // **この `isGrounded` は意図の表明で、いまの物理では観測できない**（2026-09-13 の
+        // 敵対的検証で確認。外しても全テストが緑）。上書きすると起点が後ろへ動いて候補が
+        // 減るだけなので、選ばれる障害の右端は小さくなる方向にしか変わらない。そして
+        // 答えが変わるのは「二段目より後に越えた障害が無い」場合だけだが、二段目は `vy` を
+        // `jumpVelocity` に戻すので着地は必ず `jumpAirTime` 以上あと——最低でも
+        // 34 × 0.75 = 25.5 先で、窓（`RunnerRules.justLandingWindow` = 8）の外。
+        // つまり答えが変わる場合はどちらの実装でも加算されない。二段目の弾道を弱める
+        // （短いホップにする等）変更を入れた日にここが効き始めるので、残してある。
         if isGrounded { jumpStartDistance = distance }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
@@ -313,10 +322,19 @@ public struct RunnerField: Equatable, Sendable {
         //
         // 上限を超える上乗せ（アイテム `pickupOverboost` とジャスト着地
         // `justLandingOverboost`・#673）も足す。**`maxPedalBoost` だけで見積もると
-        // 上乗せが乗っているあいだ 1 サブステップが `Metrics.maxSubstep` を超える**
-        // （実測: ステージ15・dt = `maxStep` でアイテム取得直後、見積もり 3.94 に対し
-        // 実移動 4.45 → 2 分割で 1 サブステップ 2.22）。障害の最小寸法 4 よりは小さいので
-        // すり抜けは起きていなかったが、安全の余裕が半分に削れていた既存の見落とし。
+        // 上乗せが乗っているあいだ 1 サブステップが `Metrics.maxSubstep`（2）を超える**。
+        //
+        // 実測（dt は上限の `maxStep` = 1/20 秒。床がある 16〜18 面で起きる）:
+        // - ステージ18（速さ 54.4・床の上）の旧式の見積もりは 54.4 × 1.55 × 1.3 × 0.05 =
+        //   5.481 → 3 分割。ところが実移動は上乗せ 2 つとも乗ると
+        //   54.4 × 1.95 × 1.3 × 0.05 = 6.895 で、**1 サブステップ 2.298**
+        //   （アイテム単独の 1.75 倍でも 6.188 → 2.063）
+        // - 床が無いステージ（〜15 面）では超過しない。ステージ15 は見積もり 5.118 に対し
+        //   実移動 4.953（床の倍率ぶん見積もりが多めなので追いつかれない）
+        //
+        // 障害の最小寸法（`RunnerRules.tileWidth` = 4）よりは小さいのですり抜けは
+        // 起きていなかったが、安全の余裕が削れていた既存の見落とし。新式では同じ条件
+        // （ステージ18・全部乗り）で 6.895 → 4 分割・1 サブステップ 1.724 に収まる。
         let maxFactor = RunnerRules.maxPedalBoost
             + RunnerRules.pickupOverboost
             + RunnerRules.justLandingOverboost
