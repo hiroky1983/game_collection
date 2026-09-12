@@ -777,8 +777,8 @@ final class RunnerScene: SKScene {
     /// 「浮いている」ことが一目で分かるようにする。
     /// 翼・尾・くちばしのパスは既存のゴール旗（`addGoalMarker`）と同じ技法（#494 の
     /// 権利チェックの要点は特定作品の意匠に寄せないことで、パス自体は許容されている）。
-    /// 当たり判定は `RunnerField.isHittingBlock` が岩と同じ「地面〜`hazard.height`」の
-    /// 矩形のままで、この見た目の変更とは独立している。
+    /// 当たり判定は `RunnerField.isHittingBlock` が見る**空中の帯**
+    /// （`hazard.bottom` 〜 `hazard.height` = 13〜22・#671）で、絵はその帯の床に合わせて置く。
     ///
     /// **絵の寸法は `RunnerBirdArt` が当たり判定の矩形から導く**（#609）。かつてはここに
     /// 座標を直書きしており、「絵は矩形の内側に収まる寸法で組む」と書いていたにもかかわらず、
@@ -792,7 +792,13 @@ final class RunnerScene: SKScene {
     /// 網から外れる。パーツを増やすときは `RunnerBirdArt` に足し、`discs` / `fixedParts` /
     /// `rotatingParts` のいずれかに登録してから使う。
     private func addBird(_ hazard: RunnerHazard) {
-        let art = RunnerBirdArt(width: hazard.length, height: hazard.height)
+        // 箱は当たり判定の**帯**（#671）。原点を帯の床（地面 + `hazard.bottom`）に置き、
+        // 影だけが `groundDrop` ぶん下の地面に残る。
+        let art = RunnerBirdArt(
+            width: hazard.length,
+            height: hazard.height - hazard.bottom,
+            groundDrop: hazard.bottom
+        )
         let node = SKNode()
         // 鳥はその場に浮いている障害物で、追いかけても向かってもこない（水平移動の
         // 「動く敵」化は別件 #569 の積み残し）。走者は左から近づくので、頭・くちばしは
@@ -800,7 +806,7 @@ final class RunnerScene: SKScene {
         // 丸ごと左右反転させるだけで済む——ただし `xScale = -1` は自分のローカル原点
         // （= `hazard.start`）を軸に反転するので、そのままだと絵が当たり判定の外
         // （`hazard.start` より左）へはみ出す。原点を右へ `length` ぶんずらして帳尻を合わせる。
-        node.position = CGPoint(x: hazard.start + hazard.length, y: Metrics.groundY)
+        node.position = CGPoint(x: hazard.start + hazard.length, y: Metrics.groundY + hazard.bottom)
         node.xScale = -1
 
         // 地面に落ちる影。体との間に空いたすき間が「飛んでいる」ことの一番の手がかり。

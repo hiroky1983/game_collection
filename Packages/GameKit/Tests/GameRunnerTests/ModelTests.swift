@@ -134,6 +134,25 @@ struct RunnerModelTests {
         #expect(model.best(forStage: 3) == realBest, "ショーケースのクリアで実ステージの記録が書き換わってはいけない")
         #expect(gameCenter.scores.count == scoreCountBefore, "ショーケースのクリアでスコアを送信してはいけない")
     }
+
+    /// 撮影用シナリオ `-simulateRunner bird`（#671 の受け入れ条件「接地して走れば鳥の下を
+    /// 通り抜けられる」の画）が、**本当に鳥の下・接地・走行中で止まる**こと。
+    /// 自動操縦が鳥の手前で跳んでしまうと、ここが `.falling` や「鳥の手前」で止まる。
+    @Test("撮影用シナリオ bird は鳥の真下で接地したまま止まる")
+    func birdScenarioFreezesUnderTheBird() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("bird-capture"))
+        model.applyDebugScenario("bird")
+        guard let bird = model.field.stage.hazards.first(where: { $0.kind == .bird }) else {
+            Issue.record("ショーケースに鳥が無い")
+            return
+        }
+        #expect(model.phase == .running, "ミスせずに鳥まで到達している")
+        #expect(model.field.isGrounded, "接地したままくぐっている")
+        #expect(
+            model.field.playerMaxX > bird.start && model.field.playerMinX < bird.end,
+            "走者が鳥の真下にいる（\(model.field.distance) vs \(bird.start)〜\(bird.end)）"
+        )
+    }
 }
 
 @Suite("チャリンコおじさん: 落下演出")

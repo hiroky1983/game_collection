@@ -300,6 +300,30 @@ struct RunnerFieldTests {
         #expect(field.step(dt: 1.0 / 600).contains(.crashed))
     }
 
+    /// 鳥の帯は**接地なら安全・跳べば当たる**（#671）。岩は下端 0 のままなので、
+    /// 上の `flyingOverBlockIsSafe` と合わせて「岩の判定は変わっていない」の対照にもなる。
+    @Test("鳥の下は接地していれば通れ、少しでも跳ぶと当たる")
+    func birdBandIsSafeOnlyWhileGrounded() {
+        let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
+        guard let bird = stage.hazards.first else { Issue.record("鳥が無い"); return }
+        let center = (bird.start + bird.end) / 2
+        var field = RunnerField(stage: stage)
+
+        field.placeForTesting(distance: center, altitude: 0, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "接地していればくぐれる")
+
+        // 頭（足元 + `playerHeight`）が下端に届いた瞬間から当たる。
+        let clearance = bird.bottom - RunnerField.Metrics.playerHeight
+        field.placeForTesting(distance: center, altitude: clearance - 0.1, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "下端に頭が届く手前は安全")
+        field.placeForTesting(distance: center, altitude: clearance + 0.1, vy: 0)
+        #expect(field.step(dt: 1.0 / 600).contains(.crashed), "頭が帯に入れば当たる")
+
+        // 上端を越えれば（2 段ジャンプで届く高さ）また安全になる。
+        field.placeForTesting(distance: center, altitude: bird.height + 0.1, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "帯の上を抜ければ安全")
+    }
+
     @Test("大きな dt が来てもすり抜けない")
     func hugeStepDoesNotTunnel() {
         let stage = RunnerStage(number: 1, pattern: "--t---", speed: 40)
@@ -700,9 +724,14 @@ struct RunnerHazardLayoutTests {
         let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
         #expect(stage.hazards.count == 1)
         #expect(stage.hazards.first?.kind == .bird)
-        // 当たり判定・クリア可能性の数学は lowBlock/tallBlock と同じ（高さは両者の中間）。
-        #expect(RunnerHazardKind.lowBlock.height < RunnerHazardKind.bird.height)
-        #expect(RunnerHazardKind.bird.height < RunnerHazardKind.tallBlock.height)
-        #expect(RunnerHazardKind.bird.height < RunnerRules.jumpApex, "跳んで越えられる高さ")
+        // 鳥だけが下端を持つ「帯」の障害（#671）。岩・穴は地面から生えたまま。
+        #expect(RunnerHazardKind.pit.bottom == 0)
+        #expect(RunnerHazardKind.lowBlock.bottom == 0)
+        #expect(RunnerHazardKind.tallBlock.bottom == 0)
+        #expect(
+            RunnerHazardKind.bird.bottom > RunnerField.Metrics.playerHeight,
+            "接地したままくぐれる下端であること"
+        )
+        #expect(RunnerHazardKind.bird.bottom < RunnerHazardKind.bird.height)
     }
 }

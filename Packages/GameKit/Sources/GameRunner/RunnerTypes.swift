@@ -14,22 +14,48 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     case lowBlock
     /// 高い障害物。ジャンプの頂点近くを通さないと当たる。
     case tallBlock
-    /// 鳥。低い障害物と高い障害物の中間の高さ（会長QA「鳥とか右から車が来るとか要素はいる」）。
+    /// 鳥（会長QA「鳥とか右から車が来るとか要素はいる」）。
     ///
-    /// **当たり判定・クリア可能性の数学は `lowBlock`/`tallBlock` と完全に同じ**
-    /// （地面から生えていて、ジャンプで頂点付近を通せば越えられる、という既存モデルをそのまま使う）。
+    /// **岩と違い、地面から生えていない「帯」の障害**（#671・#635 で会長決裁 2026-09-12）。
+    /// 判定は `bottom`（13）から `height`（22）までの空中の帯で、地面との間は空いている:
+    ///
+    /// - **接地していれば安全**（走者の高さ 11 < 13 なので頭がつかえずくぐれる）
+    /// - **跳ぶと当たる**（最小のジャンプでも頂点は `RunnerRules.jumpApex` ≒ 14.06 まで上がり、
+    ///   高さ 2 を超えた時点で頭が帯へ入る）
+    ///
+    /// つまり岩・穴が「跳んで越える」障害なのに対し、鳥は**跳ばずにくぐる**障害で、
+    /// 「跳ぶか跳ばないか」の判断そのものを問う。高さ 7 の“低い岩”のままでは
+    /// 「地に足ついてるから岩と変わらない」（会長QA 2026-09-10）が再発する。
+    /// ジャンプ物理は一切変えていない（#635 決裁）ので、15 ステージの他の成立条件は
+    /// そのまま据え置ける。
     case bird
 
-    /// 地面からの高さ。穴は高さを持たない。
+    /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
-    /// 高さの上限は**ジャンプの頂点（`RunnerRules.jumpApex`）より十分低く**すること。
-    /// 越えられない高さを置くとステージが詰む。`RunnerStageTests` が全ステージで機械的に確かめる。
+    /// 0 でないのは鳥だけで、`RunnerField.isHittingBlock` はこの値のおかげで
+    /// 「岩は従来どおりの高さ判定・鳥だけ帯判定」を 1 本の式で書ける。
+    public var bottom: Double {
+        switch self {
+        case .pit, .lowBlock, .tallBlock: return 0
+        // 走者の高さ（`RunnerField.Metrics.playerHeight` = 11）より高くしないと、
+        // 接地したままでは絶対にくぐれない障害になる。
+        case .bird:                       return 13
+        }
+    }
+
+    /// 当たり判定の**上端**（地面からの高さ）。穴は高さを持たない。
+    ///
+    /// 地面から生えている障害（`bottom` が 0）の上端は**ジャンプの頂点
+    /// （`RunnerRules.jumpApex`）より十分低く**すること。越えられない高さを置くと
+    /// ステージが詰む。`RunnerStageTests` が全ステージで機械的に確かめる。
+    /// 鳥だけは「跳ばずにくぐる」障害なのでこの上限が効かず、2 段ジャンプで
+    /// 上を抜けられる高さ（22）に置いてある。
     public var height: Double {
         switch self {
         case .pit:       return 0
         case .lowBlock:  return 5
-        case .bird:      return 7
         case .tallBlock: return 9
+        case .bird:      return 22
         }
     }
 }
@@ -50,6 +76,8 @@ public struct RunnerHazard: Equatable, Sendable {
 
     /// 右端の x。
     public var end: Double { start + length }
+    /// 下端の高さ（地面からの相対値）。地面から生えている障害は 0、鳥だけ 13。
+    public var bottom: Double { kind.bottom }
     /// 上端の高さ（地面からの相対値）。穴は 0。
     public var height: Double { kind.height }
 }
