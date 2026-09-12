@@ -179,6 +179,15 @@ public final class BlackjackModel {
     /// 復活で戻るチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
     public static let reviveChips = initialChips / 2
 
+    /// いちばん安いベット額。**ベットボタンの並びと破産判定の両方がここを見る**（#656）。
+    /// 残高がこれに届かなければ、たとえ 0 枚でなくても打つ手が一つも無い＝そのセッションは
+    /// 終わりなので、`checkSessionOver()` はこの値を境にする。
+    ///
+    /// 50 枚ベットでブラックジャックを引いたときだけ 1.5 倍払いで 25 の端数が生まれるため、
+    /// 「0 枚になるまで遊べる」という前提は成り立たない（25 枚だと全ボタンが無効になり、
+    /// 破産カードも出ないのでハブに戻る以外の脱出手段が無くなっていた）。
+    public static let minimumBet = 50
+
     /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
     private var hasRevivedThisSession = false
 
@@ -470,8 +479,11 @@ public final class BlackjackModel {
     }
 
     private func checkSessionOver() {
-        if chips <= 0 {
-            chips = 0
+        // 0 枚ではなく「いちばん安いベットに届かない」で終わりにする（#656）。
+        // 残高は端数（25 枚）で止まりうるので、`chips = 0` に丸めずそのまま見せる
+        // ——チップバーの表示と食い違わせない。
+        if chips < BlackjackModel.minimumBet {
+            chips = max(0, chips)
             sessionOver = true
         }
     }

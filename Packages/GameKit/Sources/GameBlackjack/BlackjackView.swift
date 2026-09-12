@@ -9,8 +9,9 @@ public struct BlackjackView: View {
     /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var reviveRescue = RewardedRescue()
 
-    // ベット選択肢
-    private let betOptions = [50, 100, 200, 500]
+    // ベット選択肢。先頭は破産判定の境目（`BlackjackModel.minimumBet`）と必ず同じ額にする
+    // ——ここだけ動かすと「全ボタンが無効なのに破産にならない」残高が生まれる（#656）。
+    private let betOptions = [BlackjackModel.minimumBet, 100, 200, 500]
 
     public init(services: GameServices) {
         self.services = services
@@ -401,7 +402,9 @@ public struct BlackjackView: View {
                     .font(.system(size: 24))
                     .foregroundStyle(Theme.coral)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("チップがなくなりました")
+                    // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
+                    // 「なくなりました」ではなく「足りません」と言う。
+                    Text("チップが足りなくなりました")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.coral)
                     Text(sessionOverSubtitle)
