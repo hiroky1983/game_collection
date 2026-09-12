@@ -42,6 +42,34 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
+    /// 「つづき・最近」行（#660）に出す候補。順序と打ち切りの規則は `RecentGames` が持つ。
+    ///
+    /// `PlayLog` も `SnapshotStore` も監視対象ではないので、行が更新されるのはハブが描き直される
+    /// ときだけ。ゲームから戻れば `path` が変わって body が走るため、グリッドの「続きから」バッジと
+    /// 同じタイミングで揃う（新しい監視の仕組みは足さない）。
+    private var recentCandidates: [RecentGames.Candidate] {
+        let visible = settings.visibleModules(from: registry).map(\.id)
+        let resuming = visible.filter { services.snapshots.exists(for: $0) }
+        return RecentGames.candidates(
+            visibleGameIDs: visible,
+            resumingGameIDs: Set(resuming),
+            resumeUpdatedAt: resuming.reduce(into: [:]) { result, id in
+                if let date = services.snapshots.modifiedAt(for: id) { result[id] = date }
+            },
+            lastPlayedAt: services.playLog?.lastPlayedAtByGame ?? [:]
+        )
+    }
+
+    /// 差し色を引くための、ハブの並びのなかでの位置。グリッドのカードは `enumerated()` の
+    /// index で色を引くので、行側も同じ index を使わないと同じゲームが2か所で違う色になる。
+    private var paletteIndexByGame: [String: Int] {
+        var result: [String: Int] = [:]
+        for (index, module) in settings.visibleModules(from: registry).enumerated() {
+            result[module.id] = index
+        }
+        return result
+    }
+
     /// カード 1 枚に与える最小の高さ。iPad では縦を使い切るために伸び、iPhone では `nil`（＝据え置き）。
     private var cardMinHeight: CGFloat? {
         let count = settings.visibleModules(from: registry).count
@@ -67,6 +95,17 @@ struct HubView: View {
     var body: some View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
+                // 中断・記録ともゼロなら**行ごと出さない**（#660）。`RecommendationSlot` が
+                // 「提示するものが無ければ何も描かない」のと同じ流儀で、初回ユーザーのハブは
+                // 1pt も動かない。
+                let recent = recentCandidates
+                if !recent.isEmpty {
+                    HubRecentRow(
+                        candidates: recent,
+                        registry: registry,
+                        paletteIndexByGame: paletteIndexByGame
+                    )
+                }
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
