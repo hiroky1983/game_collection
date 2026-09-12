@@ -17,6 +17,21 @@ public enum RunnerRules {
     /// 区画の中で障害を置き始めるタイル位置。
     public static let hazardTileOffset = 6
 
+    /// 乗れる台座の上面の高さ（地面からの相対値・#674）。
+    ///
+    /// **高低差は地面を動かさずに台座で作る**（#635 会長決裁 2026-09-12）。地面の高さ
+    /// （`RunnerField.Metrics.groundY`）は全ステージ固定のままで、台座はその上に置く物体として
+    /// 接地面だけを差し替える（`RunnerField.surfaceY(at:)`）。
+    ///
+    /// 8 は `jumpApex`（≒ 14.06）より十分低く、**地面から 1 回のジャンプで確実に上面へ乗れる**
+    /// 高さ。**第1弾の台座はこの 1 種類だけ**なので段差は作れない（連続する `P` は 1 基に
+    /// 融合する）が、高さ違いを足して段を重ねる日（次弾）に 1 段ぶん（8）ずつなら常に
+    /// 1 回のジャンプで上がれ、2 段ぶん（16）は頂点を超えて段を飛ばせない、という
+    /// 刻みになるよう選んである。
+    /// 低い障害物（5）より高く高い障害物（9）よりわずかに低い値なので、「跳んで越える岩」と
+    /// 「跳んで乗る台座」が同じくらいの踏み切りで扱えるのも狙い。
+    public static let platformHeight: Double = 8
+
     // MARK: ジャンプ
 
     /// 重力（ワールド単位 / 秒²）。押している間も含めて常に一定
@@ -215,6 +230,8 @@ public enum RunnerRules {
 /// | `t` | 高い障害物 |
 /// | `b` | 鳥 |
 /// | `s` | スピードアップアイテム（平地 + アイテム。障害としては扱わない） |
+/// | `P` | 乗れる台座（区画まるごと。**連続する `P` は 1 つの台座にまとまる**） |
+
 /// | `=` | スピードアップ床（平地 + 加速区間。障害としては扱わない。連続すると 1 つの床になる） |
 public struct RunnerStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
@@ -233,6 +250,14 @@ public struct RunnerStage: Equatable, Sendable {
     /// 同じ配列に混ぜると「越えられるか」の成立条件チェック（`RunnerStageTests`）に
     /// アイテムまで巻き込んでしまう。
     public let pickups: [RunnerPickup]
+    /// 左から順に並んだ乗れる台座（#674）。
+    ///
+    /// **`hazards` とは別の配列**。台座は「越えるもの」ではなく「上に乗るもの」で、
+    /// 接地面そのものを差し替える（`RunnerField.surfaceY(at:)`）。障害と同じ配列に入れると
+    /// 「すべての障害が越えられる」という成立条件チェック（`RunnerStageTests`）が
+    /// 意味を成さない判定を台座にまで掛けてしまう。
+    public let platforms: [RunnerPlatform]
+
     /// 左から順に並んだスピードアップ床（#672）。
     ///
     /// `pickups` と同じ理由で **`hazards` とは別の配列**。床は障害としては平地なので、
@@ -241,6 +266,8 @@ public struct RunnerStage: Equatable, Sendable {
     /// チェックポイント（コースの中ほど）の x。
     ///
     /// **必ず平地に置く**。障害の上に置くと、再開した瞬間にまたミスになって進めない。
+    /// 台座も避ける（#674）——台座の範囲から再開すると、地面の高さに置かれた走者が
+    /// 台座の中にめり込んだ状態で始まる。
     /// 中点から右へずらしながら、障害と重ならず着地に必要な余白もある位置を探す。
     /// 走行中に毎サブステップ参照するので、初期化時に 1 度だけ求めて持つ。
     public let checkpoint: Double
@@ -266,11 +293,14 @@ public struct RunnerStage: Equatable, Sendable {
         let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
         let length = Double(pattern.count) * segmentWidth
         let hazards = Self.makeHazards(pattern: pattern)
+        let platforms = Self.makePlatforms(pattern: pattern)
         self.length = length
         self.hazards = hazards
         self.pickups = Self.makePickups(pattern: pattern)
+        self.platforms = platforms
+        self.checkpoint = Self.makeCheckpoint(length: length, hazards: hazards, platforms: platforms)
+
         self.boostFloors = Self.makeBoostFloors(pattern: pattern)
-        self.checkpoint = Self.makeCheckpoint(length: length, hazards: hazards)
     }
 
     /// 区画記号を障害の並びへ展開する。
@@ -326,6 +356,41 @@ public struct RunnerStage: Equatable, Sendable {
         return result
     }
 
+    /// 乗れる台座の区画記号（#674）。
+    ///
+    /// `=`（スピードアップ床・別 Issue）と紛れないよう大文字 1 文字にしてある。
+    static let platformSymbol: Character = "P"
+
+    /// 区画記号を台座の並びへ展開する。
+    ///
+    /// **障害と違い、台座は区画をまるごと占める**（`hazardTileOffset` を使わない）。台座は
+    /// 上を走るものなので、区画の中央に短く置くと乗った直後に降りることになって用を成さない。
+    /// **連続する `P` は 1 つの台座にまとめる**ので、`PPP` は 3 区画ぶんの長さの台座 1 つになる
+    /// ——隣り合う 2 つの台座として展開すると、継ぎ目に「端から落ちる」判定が生まれてしまう。
+    static func makePlatforms(pattern: String) -> [RunnerPlatform] {
+        let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        var result: [RunnerPlatform] = []
+        var runStart: Int?
+        for (index, symbol) in pattern.enumerated() {
+            if symbol == platformSymbol {
+                if runStart == nil { runStart = index }
+            } else if let start = runStart {
+                result.append(RunnerPlatform(
+                    start: Double(start) * segmentWidth,
+                    length: Double(index - start) * segmentWidth
+                ))
+                runStart = nil
+            }
+        }
+        if let start = runStart {
+            result.append(RunnerPlatform(
+                start: Double(start) * segmentWidth,
+                length: Double(pattern.count - start) * segmentWidth
+            ))
+        }
+        return result
+    }
+
     /// スピードアップ床の区画記号（#672）。見た目のとおり「地面が続いている区間」を表す。
     static let boostFloorSymbol: Character = "="
 
@@ -353,14 +418,22 @@ public struct RunnerStage: Equatable, Sendable {
     }
 
     /// 中点から右へずらしながら、障害と重ならず着地に必要な余白もある位置を探す。
-    static func makeCheckpoint(length: Double, hazards: [RunnerHazard]) -> Double {
+    ///
+    /// 台座（#674）も同じ扱いで避ける。再開は必ず地面の高さで始まる
+    /// （`RunnerField.init(stage:startingAt:passedCheckpoint:)`）ので、台座の範囲に置くと
+    /// 走者が台座にめり込んだ状態から走り出すことになる。
+    static func makeCheckpoint(
+        length: Double, hazards: [RunnerHazard], platforms: [RunnerPlatform]
+    ) -> Double {
         let step = RunnerRules.tileWidth
         // 走者の前後に体 1 つぶんの余白を要求する（縁ぎりぎりから再開させない）。
         let margin = RunnerField.Metrics.playerWidth
         var x = (length / 2 / step).rounded(.down) * step
         let limit = length - step * 4
         while x < limit {
-            if !hazards.contains(where: { $0.start - margin < x && x < $0.end + margin }) { return x }
+            let onHazard = hazards.contains { $0.start - margin < x && x < $0.end + margin }
+            let onPlatform = platforms.contains { $0.start - margin < x && x < $0.end + margin }
+            if !onHazard, !onPlatform { return x }
             x += step
         }
         return x
@@ -368,11 +441,14 @@ public struct RunnerStage: Equatable, Sendable {
 }
 
 public extension RunnerStage {
-    /// 全 15 ステージ。Issue #494 の受け入れ条件は「最低15ステージ」。
+    /// 全 18 ステージ。Issue #494 の受け入れ条件は「最低15ステージ」で、
+    /// 16〜18 は乗れる台座の枠として #674 で足した（既存 15 ステージは無変更）。
     ///
     /// 難度の付け方:
-    /// - 速さは 1 ステージごとに `speedStep` ずつ上がる（1 面 34 → 15 面 50.8）
-    /// - 長さも 1 区画ずつ伸びる（1 面 12 区画 → 15 面 26 区画。おおよそ 23 秒 → 33 秒）
+    /// - 速さは 1 ステージごとに `speedStep` ずつ上がる（1 面 34 → 18 面 54.4）
+    /// - 長さも 1 区画ずつ伸びる（1 面 12 区画 → 18 面 29 区画。素の `length / speed` で
+    ///   おおよそ 23 秒 → 34 秒。実際にはペダルの乗り・スピードアップ床で縮み、自動操縦の
+    ///   実測は 16〜25 秒前後になる——`stagesAreShortEnough` が確かめるのはそちらの実測値）
     /// - 障害は「穴 1 タイル → 低い障害物 → 穴 2 タイル → 高い障害物 → 穴 3 タイル」の順に出す。
     ///   後半ほど平地（`-`）の割合が減り、休む区画が少なくなる
     ///
@@ -413,6 +489,14 @@ public extension RunnerStage {
     /// （会長QA「鳥とか右から車が来るとか要素はいる」）——当たり判定は `lowBlock`/`tallBlock`
     /// と同じ数学なので、間隔・跳べる高さの成立条件は他の障害と同じく `RunnerStageTests` が確かめる。
     ///
+    /// `P`（乗れる台座・#674）と `=`（スピードアップ床・#672）はステージ 16〜18 にだけ
+    /// 置いてある。どちらも障害ではないので上の「障害の割合」には数えないが、**台座は前後
+    /// 1 区画ずつの素の平地を、床は直後 1 区画の素の平地を必ず連れて行く**（下の `patterns`
+    /// 本体のコメントに理由）ので、1 基あたり実質 2〜3 区画を使う。そのぶん 16〜18 の障害の
+    /// 数は 15 面より少ない——手応えは障害の密度ではなく、台座への乗り降りと床を活かす
+    /// 走り方で作る。既存 15 ステージのパターン文字列は 1 文字も変えていない
+    /// （`existingFifteenStagePatternsAreUnchanged` がリテラルで固定している）。
+    ///
     /// **障害を足すときは平地（`-`）を潰さず、既存の障害の記号を置き換える。**
     /// 平地はタイムに操作を反映させるための余白そのもので、ここが無くなると
     /// 「上手く走ってもタイムが変わらない」状態に戻る（`inefficientPlayCostsMeaningfulTime`
@@ -434,6 +518,26 @@ public extension RunnerStage {
         "--t2sb3t1-t2t3-btt2-n3--",  // 13: 24区画・障害16個（岩穴14+鳥2）。鳥の初出
         "--3t2st3b-t3t2t-3tb-3t2--", // 14: 25区画・障害17個（岩穴15+鳥2）
         "--3t2st3bt3t2-t3tb3-t2t3--", // 15: 26区画・障害19個（岩穴17+鳥2）。速さ 50.8・約 33 秒
+        // ここから #674 の「乗れる台座」枠。置き方の規則が 2 つある。
+        //
+        // **(1) 台座（`P`）の前後の区画は必ず素の平地（`-`）にする。**
+        // 台座の左端は正面から当たればミスなので地面から踏み切る助走が要り、右端から降りると
+        // 高さ 8 を落ちるあいだ（約 0.28 秒 ＝ 15 ワールド単位）は空中で踏み切れないため、
+        // 隣の区画に障害を置くと踏み切りが間に合わない（`platformsHaveFlatGroundOnBothSides`
+        // が機械的に確かめる。`=` も「素の平地」ではないので台座の隣には置かない）。
+        // 台座の上には障害・アイテムを置かない（第1弾の決裁どおり）。
+        //
+        // **(2) スピードアップ床（`=`・#672）の直後には障害を置かず、素の平地を 1 区画挟む。**
+        // `RunnerAutoPilot.lead` は基準速（`stage.speed`）で踏み切り位置を決めているのに、
+        // 床の上では接地中の速さが `boostFloorMultiplier` 倍まで乗る。床の上で踏み切りの
+        // 判断をさせると、1 フレームぶんに進む距離が倍近くなって踏み切りが遅れる
+        // （余裕が `tileWidth / 2` あるので詰みはしないが、設計上そこに寄りかからない）。
+        // 素の平地を 1 区画挟めば、床の倍率は区間を出た時点で消えるので基準速に戻る。
+        // 床は「障害の手前で加速して助走を稼ぐ」のではなく「平地の直線を速く走り抜ける」
+        // ご褒美として、各ステージの台座と台座のあいだに置いてある。
+        "--t2-n-PP-=-t3-PPP-n-=-t3--",   // 16: 27区画・障害8個＋台座2基＋床2区画。台座に乗る・降りるを覚える
+        "--3t-n-PP-PP-==-t3-PPP-t2n--",  // 17: 28区画・障害8個＋台座3基＋床2区画（1基）。台座を乗り継ぐ（連続台座）
+        "--3t2-b-PP-=-t3-PPP-bt-=-bn--", // 18: 29区画・障害10個（岩穴7+鳥3）＋台座2基＋床2区画。台座と鳥・岩の複合
     ]
 }
 
