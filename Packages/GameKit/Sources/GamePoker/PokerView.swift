@@ -12,6 +12,11 @@ public struct PokerView: View {
     /// 開始シートでの選択。**次の局に使う設定**であって、進行中の局はこれを見ない（#496）。
     @State private var selectedRules: PokerRuleSet
     @State private var showBonusTable = false
+    /// 初回だけ出す遊び方ヒントを出すか（#118）。**この画面では判定を自前で持つ**（#650）。
+    /// 下の `body` は `ViewThatFits` で同じ列を2回組み立てるため、init で「見せた」を消費する
+    /// `HowToPlayHint(_:playLog:)` を使うと 2 つめが false を受け取り、あとから選ばれた枝で
+    /// ヒントが消える。判定はここで 1 回だけ行い、結果を渡す。
+    @State private var showsHowToPlayHint: Bool
     /// 画面の広さ（#458）。iPad で縦の余白をどう配るかにだけ使う（#485）。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -24,34 +29,38 @@ public struct PokerView: View {
         _hasPlayedOnce  = State(initialValue: hasSnapshot)
         // 中断から戻ったときは、その局に焼き込まれていたルールを選択の初期値にする。
         _selectedRules  = State(initialValue: restored.rules)
+        _showsHowToPlayHint = State(
+            initialValue: services.playLog?.markGuideShown(for: "poker") ?? false
+        )
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
-            chipsBar
-            verticalSlack
-            cpuArea
-            verticalSlack
-            potArea
-            verticalSlack
-            playerArea
-            verticalSlack
-            actionSlack
-            HowToPlayHint(.poker, playLog: services.playLog)
-            if model.sessionOver {
-                sessionOverView
-            } else {
-                actionArea
+        // 背の高い局面（ダブルアップ・チップ切れのセッション終了）は縦が足りず、`VStack` 1 枚では
+        // 溢れたぶんが上下に切り落とされていた（#650。チップ帯がナビゲーションバーの裏へ隠れ、
+        // いちばん下のボタンが画面の下端で切れる）。
+        //
+        // **収まるあいだは今までの縦並びをそのまま使い、収まらないときだけスクロールに落とす**。
+        // `ViewThatFits` は選んだ側しか画面に置かないので、収まる局面の描画は従来と一致し、
+        // #485 / #640 で決めた位置が 1pt も動かない（iPhone 17 Pro Max・iPad Pro の
+        // 通常の対局でピクセル一致を実測）。
+        //
+        // 常にスクロールに載せる形は採らない。`ScrollView` を置くと iOS 26 のナビゲーションバーが
+        // 確保する安全域が 49pt → 64pt に広がり（プローブビルドで実測）、収まっている端末まで
+        // 15pt 下がるため。
+        ViewThatFits(in: .vertical) {
+            mainColumn
+            GeometryReader { geo in
+                ScrollView {
+                    // **幅を枠に固定する**。`ScrollView` は中身の理想幅が枠より広いとそちらを
+                    // 提案してくるため、指定しないと CPU の札5枚（固定 pt で枠に収まらない）が
+                    // 基準になって列全体が広がり、右端が切れて左へ寄る（実測）。
+                    mainColumn
+                        .frame(width: geo.size.width)
+                        // 高さの下限も枠に合わせる。入れないと `Spacer` が最小のまま畳まれ、
+                        // 数 pt 溢れただけの局面でも並びが base と食い違う。
+                        .frame(minHeight: geo.size.height, alignment: .top)
+                }
             }
-            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
-            // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
-            // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
-            if layout.isWide {
-                Color.clear.frame(height: 4)
-            } else {
-                Spacer(minLength: 4)
-            }
-            BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
         .gameChrome(title: "ポーカー", review: services.review) {
@@ -129,6 +138,38 @@ public struct PokerView: View {
             #endif
         }
         .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
+    }
+
+    /// 画面の縦並び本体。`ViewThatFits` の2つの枝で同じものを使うために切り出しただけで、
+    /// 並びは変えていない。
+    private var mainColumn: some View {
+        VStack(spacing: 10) {
+            chipsBar
+            verticalSlack
+            cpuArea
+            verticalSlack
+            potArea
+            verticalSlack
+            playerArea
+            verticalSlack
+            actionSlack
+            // 出すかどうかは `showsHowToPlayHint` が1回だけ決める（上の `body` のコメント）。
+            HowToPlayHint(.poker, isVisible: showsHowToPlayHint)
+            if model.sessionOver {
+                sessionOverView
+            } else {
+                actionArea
+            }
+            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
+            // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
+            // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
+            if layout.isWide {
+                Color.clear.frame(height: 4)
+            } else {
+                Spacer(minLength: 4)
+            }
+            BannerSlot(ads: services.ads)
+        }
     }
 
     /// iPad で余った高さを節の間に配るための可変余白（#485）。iPhone では何も置かないので
