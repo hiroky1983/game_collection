@@ -157,6 +157,46 @@ private func makeServices(
 @Suite("送信するイベントの形")
 struct AnalyticsEventShapeTests {
 
+    @Test("reward_request は reward_ad と同じ鍵だけを持つ（#659）")
+    func rewardRequestShape() {
+        let request = AnalyticsEvent.rewardRequest(gameID: "solitaire", purpose: .undo)
+        #expect(request.name == "reward_request")
+        #expect(request.parameters == ["game_id": .string("solitaire"), "purpose": .string("undo")])
+    }
+
+    @Test("game_open は game_id / source / resume と、並びを持つ導線だけ position を持つ（#659）")
+    func gameOpenShape() {
+        let hub = AnalyticsEvent.gameOpen(gameID: "shogi", source: .hub, position: 11, resume: true)
+        #expect(hub.name == "game_open")
+        #expect(hub.parameters == [
+            "game_id": .string("shogi"),
+            "source": .string("hub"),
+            "position": .int(11),
+            "resume": .int(1),
+        ])
+
+        let recent = AnalyticsEvent.gameOpen(gameID: "shogi", source: .recent, position: 2, resume: false)
+        #expect(recent.parameters["position"] == .int(2))
+        #expect(recent.parameters["resume"] == .int(0), "resume は 0 / 1 の整数")
+
+        // 1枚しか出ない導線は位置を持たない。渡されても送らない（実在しない位置を作らない）。
+        for source in [GameOpenSource.recommendation, .notification] {
+            let event = AnalyticsEvent.gameOpen(gameID: "shogi", source: source, position: 1, resume: false)
+            #expect(Set(event.parameters.keys) == ["game_id", "source", "resume"], "\(source)")
+        }
+        // 位置が取れなかった並びも鍵ごと落とす。0 以下は 1 に丸める。
+        #expect(AnalyticsEvent.gameOpen(gameID: "shogi", source: .hub, position: nil, resume: false)
+            .parameters["position"] == nil)
+        #expect(AnalyticsEvent.gameOpen(gameID: "shogi", source: .hub, position: 0, resume: false)
+            .parameters["position"] == .int(1))
+    }
+
+    @Test("source は hub / recent / recommendation / notification の4値に閉じている（#659）")
+    func openSourceIsClosed() {
+        #expect(GameOpenSource.allCases.map(\.rawValue) == ["hub", "recent", "recommendation", "notification"])
+        #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
+    }
+
     @Test("イベントは game_start / game_end / reward_ad の3種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")

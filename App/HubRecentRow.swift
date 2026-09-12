@@ -34,11 +34,15 @@ struct HubRecentRow: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HubRecentCard.spacing) {
-                    ForEach(candidates, id: \.gameID) { candidate in
+                    ForEach(Array(candidates.enumerated()), id: \.element.gameID) { offset, candidate in
                         if let module = registry.module(id: candidate.gameID) {
                             // グリッドのカードと**同じ** `NavigationLink(value:)`。遷移を自前で
                             // 組むと `gameDidLeave`（#158）の発火点が増え、1プレイの数え方が狂う。
-                            NavigationLink(value: candidate.gameID) {
+                            // 位置は行の中の 1 始まり（#659）。
+                            NavigationLink(value: HubRoute(
+                                gameID: candidate.gameID, source: .recent,
+                                position: offset + 1, resume: candidate.hasResume
+                            )) {
                                 HubRecentCard(
                                     module: module,
                                     accent: accent(for: candidate.gameID),

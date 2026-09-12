@@ -74,7 +74,7 @@ struct HubRecentRowWiringTests {
         // 1 プレイの数え方が狂う。
         #expect(
             source.range(
-                of: #"NavigationLink\(value: candidate\.gameID\) \{\s*HubRecentCard\("#,
+                of: #"NavigationLink\(value: HubRoute\(\s*gameID: candidate\.gameID, source: \.recent,[^)]*\)\) \{\s*HubRecentCard\("#,
                 options: .regularExpression
             ) != nil,
             "行のカードが NavigationLink(value:) で遷移していない"

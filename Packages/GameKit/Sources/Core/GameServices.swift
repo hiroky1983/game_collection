@@ -115,7 +115,20 @@ public struct GameServices {
         screenGeneration.advance()
     }
 
-    /// リワード広告を出し、**視聴完了したときだけ** `reward_ad` を送る（#500）。
+    /// ハブからゲーム画面を開いたときにハブから呼ぶ（#659）。`game_open` を送るだけで、
+    /// プレイの数え方にも画面の世代にも触らない。
+    ///
+    /// - Parameters:
+    ///   - position: 導線の中での位置（1 始まり）。並びを持たない導線では nil。
+    ///   - resume: 開いた時点で「続きから」だったか。**タップした時点の値**を渡す
+    ///     （開いた後に聞くと、ゲーム側の復元処理と順序が前後しうるため）。
+    @MainActor
+    public func gameDidOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
+        analytics?.recordGameOpen(gameID: gameID, source: source, position: position, resume: resume)
+    }
+
+    /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
+    /// `reward_ad` を送る（#500 / #659）。
     ///
     /// 各ゲームは `services.ads.showRewardedAd()` を直接呼ばず必ずここを通す。広告を出す判断と
     /// 計測を1か所に束ねることで、面が増えるたびに計測を付け忘れる経路を作らない。
@@ -123,6 +136,9 @@ public struct GameServices {
     /// - Returns: 視聴完了なら true。ロード失敗・途中で閉じた場合は false（`AdService` と同じ）。
     @MainActor
     public func showRewardedAd(gameID: String, purpose: RewardPurpose) async -> Bool {
+        // 要求は広告の結果を待つ前に送る。ロード失敗や途中で閉じた回こそ数えたいので、
+        // 結果を見てから送ると完了率の分母から落ちる。
+        analytics?.recordRewardRequest(gameID: gameID, purpose: purpose)
         guard await ads.showRewardedAd() else { return false }
         analytics?.recordRewardAd(gameID: gameID, purpose: purpose)
         return true
