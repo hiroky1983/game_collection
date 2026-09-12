@@ -154,7 +154,13 @@ public struct RunnerField: Equatable, Sendable {
     /// 走者の当たり判定の矩形。
     public var playerMinX: Double { distance - Metrics.playerHalfWidth }
     public var playerMaxX: Double { distance + Metrics.playerHalfWidth }
-    /// 足元の地面からの高さ。
+    /// 足元の**地面からの**高さ。
+    ///
+    /// 台座（#674）の上に立っていると `RunnerRules.platformHeight` になる——**接地面からの
+    /// 高さではなく、あくまで地面が 0 の物差し**のまま。障害の高さ（`RunnerHazard.height`）・
+    /// 描画（`RunnerScene` は `footY` をそのまま使う）・ジャンプの軌道の検証
+    /// （`FieldTests` が `jumpApex` と突き合わせる）がすべてこの物差しで書かれているので、
+    /// ここを「接地面からの高さ」に変えると台座の有無で意味が変わる値になってしまう。
     public var altitude: Double { footY - Metrics.groundY }
 
     /// `x` に穴が開いているか（点で見る）。
@@ -162,9 +168,35 @@ public struct RunnerField: Equatable, Sendable {
         stage.hazards.contains { $0.kind == .pit && $0.start <= x && x < $0.end }
     }
 
+    /// その x で**足が乗る高さ**（#674）。台座の範囲内なら台座の上面、外は地面。
+    ///
+    /// 「足が地面まで落ちたら接地」という既存の判定を、地面の代わりにこの値と比べる形へ
+    /// 一本化したもの。`Metrics.groundY` を直に見ている接地まわりの箇所はすべてここを通す
+    /// ——そうしておかないと「地面では接地するが台座では素通りする」という食い違いが生まれる。
+    ///
+    /// 覆っている台座が複数あれば**最も高い上面**を採る。**第 1 弾ではこの `max` に到達しない**
+    /// ——台座の高さは 1 種類（`RunnerRules.platformHeight`）で、連続する `P` は 1 基に
+    /// まとまるため、ある x を覆う台座は常に高々 1 つ。高さ違いの台座を足して段を重ねる日
+    /// （次弾）に効く受け口として残してある。
+    public func surfaceY(at x: Double) -> Double {
+        var surface = Metrics.groundY
+        for platform in stage.platforms where platform.start <= x && x < platform.end {
+            surface = max(surface, Metrics.groundY + platform.top)
+        }
+        return surface
+    }
+
     /// 走者の**前方**にある最も近い障害。自動操縦テストと先読みの読み上げが使う。
     public func nextHazard(from x: Double) -> RunnerHazard? {
         stage.hazards.first { $0.end > x }
+    }
+
+    /// 走者の**前方**にある最も近い台座（#674）。自動操縦が「跳んで乗る」対象に使う。
+    ///
+    /// 左端がまだ前方にあるものだけを返す。すでに上に乗っている台座（左端を通り過ぎている）を
+    /// 返してしまうと、自動操縦が台座の上で踏み切り続けることになる。
+    public func nextPlatform(from x: Double) -> RunnerPlatform? {
+        stage.platforms.first { $0.start >= x }
     }
 
     // MARK: - 操作
@@ -218,11 +250,15 @@ public struct RunnerField: Equatable, Sendable {
     }
 
     /// テスト・撮影用に走者を直接置く。製品コードからは呼ばない。
+    ///
+    /// `altitude` は `altitude` プロパティと同じ**地面からの高さ**。台座の上に置きたければ
+    /// `RunnerRules.platformHeight` を渡す（接地したかどうかは、その x の接地面
+    /// （`surfaceY(at:)`）に届いているかで決まる）。
     public mutating func placeForTesting(distance: Double, altitude: Double, vy: Double) {
         self.distance = distance
         self.footY = Metrics.groundY + altitude
         self.vy = vy
-        self.isGrounded = altitude <= 0 && vy <= 0
+        self.isGrounded = footY <= surfaceY(at: distance) && vy <= 0
         self.jumpCount = self.isGrounded ? 0 : 1
         self.isHolding = false
         self.holdElapsed = 0
@@ -273,6 +309,14 @@ public struct RunnerField: Equatable, Sendable {
         }
         distance += currentSpeed * dt
 
+        // 台座の端から出た（#674）。接地面が足の下から消えるので、そのまま落下へ移す。
+        // ここで切り替えておかないと `isGrounded && vy == 0` のまま重力が掛からず、
+        // 台座の高さのまま空中を走り続けてしまう。落ちた先が穴なら、下の接地判定で
+        // 既存の穴の判定がそのまま効く。
+        if isGrounded, footY > surfaceY(at: distance) {
+            isGrounded = false
+        }
+
         if !isGrounded || vy != 0 {
             // 重力は押している間も一定（大ジャンプの高さは `endHold()` の切り詰めだけで決まる）。
             vy -= RunnerRules.gravity * dt
@@ -290,7 +334,8 @@ public struct RunnerField: Equatable, Sendable {
         }
 
         // 障害物は矩形どうしの重なりで見る。走者の足が上端より上にあれば飛び越えている。
-        if isHittingBlock {
+        // 台座（#674）は正面（左端）に突っ込んだ場合だけ同じくミスになる。
+        if isHittingBlock || isHittingPlatformFace {
             events.append(.crashed)
             return
         }
@@ -316,14 +361,18 @@ public struct RunnerField: Equatable, Sendable {
             events.append(.collectedSpeedItem)
         }
 
-        if footY <= Metrics.groundY {
+        // 接地面は「地面 or 台座の上面」（#674）。台座の範囲内なら上面で止まる。
+        let surface = surfaceY(at: distance)
+        if footY <= surface {
             // 穴の判定は**中心の x** で行う。矩形で見ると爪先が縁を越えた瞬間に落ちてしまう。
-            if isPit(at: distance) {
+            // 台座の上に落ち着く場合は穴を見ない——穴は地面に開いた欠落なので、その上に
+            // 台座が架かっているなら渡れる（台座の端から降りれば下の穴の判定が効く）。
+            if surface <= Metrics.groundY, isPit(at: distance) {
                 events.append(.fell)
                 return
             }
             let wasAirborne = !isGrounded
-            footY = Metrics.groundY
+            footY = surface
             vy = 0
             isGrounded = true
             jumpCount = 0
@@ -349,6 +398,26 @@ public struct RunnerField: Equatable, Sendable {
             guard hazard.kind != .pit else { return false }
             guard hazard.start < playerMaxX, playerMinX < hazard.end else { return false }
             return footY < Metrics.groundY + hazard.height
+        }
+    }
+
+    /// いま台座の正面（左端）に突っ込んでいるか（#674）。高い障害物と同じくミスになる。
+    ///
+    /// **中心がまだ台座の左端より手前にある場合しか見ない**のが要点。矩形の重なりだけで
+    /// 判定すると、上面を走り切って右端から降りる瞬間——尻がまだ台座に重なったまま、
+    /// 足が上面より下へ落ちる——を「正面衝突」と取り違えて、まっとうな着地が全部ミスになる。
+    /// 走者は後退しないので、中心が左端を越えた時点でその台座は「乗ったか、越えたか」の
+    /// どちらかであって、もう当たるものではない。
+    ///
+    /// **`private` にしていないのは境界をテストで直接突けるようにするため**。`step` 経由だと
+    /// この判定に来る前に `distance` と `footY` が動いてしまい、「中心が左端ちょうど」
+    /// 「足が上面ちょうど」という 2 つの等号の扱いを固定できない
+    /// （`FieldTests.platformFaceIsInclusiveAtTheBoundary`）。
+    var isHittingPlatformFace: Bool {
+        stage.platforms.contains { platform in
+            guard distance < platform.start else { return false }
+            guard platform.start < playerMaxX else { return false }
+            return footY < Metrics.groundY + platform.top
         }
     }
 }

@@ -372,6 +372,193 @@ struct RunnerFieldTests {
 
     /// (b) 走者の当たり判定の矩形（幅 8）がピックアップの上を何フレームもまたぐあいだ、
     /// 一度取ったら 2 回目は発火しないこと。
+    // MARK: - 乗れる台座（#674）
+
+    /// 台座を 1 基だけ置いたコース。台座は前後に平地を連れて行く（`RunnerStage.patterns`）。
+    private func platformStage(speed: Double = 40) -> RunnerStage {
+        RunnerStage(number: 1, pattern: "---PP----", speed: speed)
+    }
+
+    /// 接地面の解決そのもの。台座の範囲内だけ上面へ、外は地面へ。
+    @Test("接地面は台座の範囲内だけ上面になる")
+    func surfaceFollowsPlatform() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        let field = RunnerField(stage: stage)
+        let ground = RunnerField.Metrics.groundY
+        #expect(field.surfaceY(at: platform.start - 1) == ground, "手前は地面")
+        #expect(field.surfaceY(at: platform.start) == ground + platform.top, "左端から上面")
+        #expect(field.surfaceY(at: (platform.start + platform.end) / 2) == ground + platform.top)
+        #expect(field.surfaceY(at: platform.end) == ground, "右端を出たら地面")
+    }
+
+    /// 跳んで乗り、上を走り、端から降りて地面へ着地する——台座の基本の一連。
+    @Test("台座に跳んで乗れ、上を走れ、端から降りて着地する")
+    func ridesOntoPlatformAndOffTheEnd() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        var onPlatform = false
+        var frames = 0
+        while frames < 60 * 60, !events.contains(where: { $0.isTerminal }) {
+            frames += 1
+            // 自動操縦の判断そのもので踏み切る（製品コードと同じ関数・#494 の作法）。
+            if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
+            if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+            events += field.step(dt: 1.0 / 60)
+            if field.isGrounded, field.distance > platform.start, field.distance < platform.end {
+                onPlatform = true
+                #expect(
+                    field.altitude == platform.top,
+                    "台座の上では足が上面（地面から \(platform.top)）にある"
+                )
+            }
+            if onPlatform, field.distance > platform.end + 30 { break }
+        }
+        #expect(!events.contains(.crashed), "台座に当たってはいけない")
+        #expect(onPlatform, "台座の上を走れていない")
+        #expect(field.isGrounded, "端から降りたあと地面に着地している")
+        #expect(field.altitude == 0, "降りたら地面の高さへ戻る")
+        #expect(events.filter { $0 == .landed }.count >= 2, "乗るときと降りるときで 2 回着地する")
+    }
+
+    /// 正面から突っ込めば高い障害物と同じくミス（#674 の受け入れ条件）。
+    @Test("台座に正面から突っ込むとミスになる")
+    func crashesIntoPlatformFace() {
+        let stage = platformStage()
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        // 一度も跳ばなければ台座の左端に当たる。
+        for _ in 0..<60 * 60 where !events.contains(where: { $0.isTerminal }) {
+            events += field.step(dt: 1.0 / 60)
+        }
+        #expect(events.contains(.crashed))
+        #expect(!events.contains(.reachedGoal), "当たった時点で打ち切る")
+    }
+
+    /// 上面より上を通っていれば当たらない（境界の向きを取り違えていないことの対照。
+    /// 岩の `flyingOverBlockIsSafe` と同じ形で確かめる）。
+    @Test("上面より下で台座の左端に入ると当たり、上面より上なら当たらない")
+    func platformFaceBoundary() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: platform.start - 1, altitude: platform.top + 1, vy: 0)
+        #expect(field.playerMaxX > platform.start, "爪先は台座に掛かっている")
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "上面より上なら乗れる")
+
+        field.placeForTesting(distance: platform.start - 1, altitude: platform.top - 1, vy: 0)
+        #expect(field.step(dt: 1.0 / 600).contains(.crashed), "上面より下なら正面衝突")
+    }
+
+    /// **等号ちょうどは「乗った」側に倒す**（#674）。`isHittingPlatformFace` の 2 つの
+    /// 不等号がどちらも strict であること——「足が上面ちょうど」も「中心が左端ちょうど」も
+    /// 当たりではないこと——を、判定を直接読んで固定する。
+    ///
+    /// `step` 経由では突けない境界。判定に来る前に `distance` も `footY` も動いてしまう。
+    @Test("上面ちょうど・左端ちょうどは正面衝突にならない")
+    func platformFaceIsInclusiveAtTheBoundary() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+
+        // (1) 中心はまだ左端の手前、足がちょうど上面。`footY < 上面` を `<=` に緩めると当たる。
+        var atTop = RunnerField(stage: stage)
+        atTop.placeForTesting(distance: platform.start - 0.5, altitude: platform.top, vy: 0)
+        #expect(atTop.playerMaxX > platform.start, "爪先は台座に掛かっている")
+        #expect(atTop.altitude == platform.top)
+        #expect(!atTop.isHittingPlatformFace, "上面と同じ高さは当たりではない")
+
+        // (2) 中心が左端ちょうど＝もう乗っている側。`中心 < 左端` を `<=` に緩めると当たる。
+        var atEdge = RunnerField(stage: stage)
+        atEdge.placeForTesting(distance: platform.start, altitude: platform.top - 1, vy: 0)
+        #expect(!atEdge.isHittingPlatformFace, "中心が左端に届いていれば乗った側")
+        // 対照: 中心がわずかでも手前で、足が上面より下なら当たる（判定が死んでいない証明）。
+        var justBefore = RunnerField(stage: stage)
+        justBefore.placeForTesting(distance: platform.start - 0.5, altitude: platform.top - 1, vy: 0)
+        #expect(justBefore.isHittingPlatformFace)
+    }
+
+    /// **台座の上を走り切って端から降りる瞬間は正面衝突ではない**（矩形の重なりだけで
+    /// 判定すると、尻がまだ台座に重なったまま足が下がるここで誤ってミスになる）。
+    @Test("台座の右端から降りてもミスにならない")
+    func leavingPlatformIsNotACrash() {
+        let stage = platformStage()
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        var field = RunnerField(stage: stage)
+        // 右端の 1 手前に、上面に立った状態で置く。
+        field.placeForTesting(distance: platform.end - 1, altitude: platform.top, vy: 0)
+        #expect(field.isGrounded, "上面に接地している")
+        var events: [RunnerEvent] = []
+        for _ in 0..<600 where field.distance < platform.end + 20 {
+            events += field.step(dt: 1.0 / 600)
+        }
+        #expect(!events.contains(.crashed), "降りる動きを正面衝突と取り違えている")
+        #expect(events.contains(.landed), "地面へ着地する")
+        #expect(field.altitude == 0)
+    }
+
+    /// 台座の端から出た先が穴なら、そのまま穴に落ちる（#674 の受け入れ条件）。
+    /// 落下の処理は地面のときと同じで、穴の判定（中心の x）がそのまま効く。
+    @Test("台座の端から穴に落ちる")
+    func fallsIntoPitFromPlatformEdge() {
+        // 台座の直後の区画に穴を置く（本編のステージでは作らない配置。判定の確認用）。
+        let stage = RunnerStage(number: 1, pattern: "---PP3----", speed: 40)
+        guard let platform = stage.platforms.first, let pit = stage.hazards.first else {
+            Issue.record("台座か穴が無い"); return
+        }
+        #expect(pit.kind == .pit)
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: pit.start - 1, altitude: platform.top, vy: 0)
+        #expect(field.distance > platform.end, "台座から降りて穴の手前にいる")
+        var events: [RunnerEvent] = []
+        for _ in 0..<600 where !events.contains(where: { $0.isTerminal }) {
+            events += field.step(dt: 1.0 / 600)
+        }
+        #expect(events.contains(.fell))
+    }
+
+    /// 台座を乗り継ぐ（#674 の受け入れ条件「連続台座」）。1 基目を降りて地面へ着地し、
+    /// そのまま 2 基目・3 基目へ乗り直す、を自動操縦の判断だけで通せること。
+    ///
+    /// **段差（地面から 16・24 の高さ）にはならない**——第1弾の台座は高さが 1 種類
+    /// （`RunnerRules.platformHeight`）で、連続する `P` は 1 基に融合するため、
+    /// 「台座の上にもう 1 段」は原理的に作れない。段差は高さ違いの台座を足す次弾の話で、
+    /// 第1弾の受け入れ条件は**同じ高さの台座を地面を挟んで並べ、乗り継げること**（リード決裁）。
+    @Test("連続して並んだ台座を順に乗り継げる")
+    func ridesAcrossConsecutivePlatforms() {
+        let stage = RunnerStage(number: 1, pattern: "---PP-PP-PP---", speed: 40)
+        #expect(stage.platforms.count == 3, "3 基が別々の台座として展開される")
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        // どの台座にも足が乗ったことを 1 基ずつ確かめる。
+        var ridden = Set<Int>()
+        var frames = 0
+        while frames < 60 * 120, !events.contains(where: { $0.isTerminal }) {
+            frames += 1
+            if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
+            if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+            events += field.step(dt: 1.0 / 60)
+            for (index, platform) in stage.platforms.enumerated()
+            where field.isGrounded && field.altitude == platform.top
+                && platform.start < field.distance && field.distance < platform.end {
+                ridden.insert(index)
+            }
+        }
+        #expect(!events.contains(.crashed), "乗り継ぎの途中で台座に当たっている")
+        #expect(events.contains(.reachedGoal), "ゴールまで通せていない")
+        #expect(ridden.count == 3, "乗れた台座 \(ridden.sorted())")
+    }
+
+    /// 台座が無いコースでは接地面が地面のまま——既存 15 ステージの物差しが動いていないこと。
+    @Test("台座の無いコースでは接地面が常に地面")
+    func surfaceIsGroundWithoutPlatforms() {
+        let field = RunnerField(stage: flatStage(segments: 8))
+        for x in stride(from: 0.0, through: 8 * 64, by: 8) {
+            #expect(field.surfaceY(at: x) == RunnerField.Metrics.groundY)
+        }
+    }
+
     @Test("同じピックアップは同じ走行中に一度しか取れない")
     func pickupIsCollectedOnlyOnce() {
         let stage = RunnerStage(number: 1, pattern: "--s---", speed: 40)
