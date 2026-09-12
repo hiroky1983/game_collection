@@ -197,8 +197,17 @@ struct AnalyticsEventShapeTests {
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad の3種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open の5種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
+        // 全量の列挙（#659 で2種追加）。個々の鍵は下と上の各テストで固定する。
+        #expect([
+            AnalyticsEvent.gameStart(gameID: "2048"),
+            .gameEnd(gameID: "2048", result: .win, durationSec: 0),
+            .rewardAd(gameID: "2048", purpose: .undo),
+            .rewardRequest(gameID: "2048", purpose: .undo),
+            .gameOpen(gameID: "2048", source: .hub, position: 1, resume: false),
+        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open"])
+
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
         #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")],
                 "難易度を持たないゲームでは level の鍵ごと出ない")
