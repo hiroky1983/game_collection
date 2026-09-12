@@ -594,6 +594,266 @@ struct RunnerFieldTests {
         #expect(field.collectedPickupCount == 1)
     }
 
+    // MARK: - ジャスト着地（#673）
+
+    /// 障害を越えて**狙った位置へ降りる**状況を作る。
+    ///
+    /// 踏み切りのタイミングを逆算するとテストが弾道の計算だらけになるので、
+    /// `placeForTesting`（= その地点で踏み切った扱いになる）で空中から始める。
+    /// `offset` は障害の右端から着地点（走者の中心）までの距離、`altitude` は
+    /// 落とし始める高さ——落下時間 √(2h/g) のあいだに進むぶんだけ手前へ置く。
+    private func land(
+        _ field: inout RunnerField, over hazard: RunnerHazard, offset: Double, from altitude: Double = 6
+    ) {
+        let fall = (2 * altitude / RunnerRules.gravity).squareRoot()
+        field.placeForTesting(
+            distance: hazard.end + offset - field.stage.speed * fall,
+            altitude: altitude,
+            vy: 0
+        )
+        while !field.isGrounded { _ = field.step(dt: 1.0 / 600) }
+    }
+
+    /// 穴を渡り切った直後に降りると、`maxPedalBoost` を超える一時的な上乗せが乗る。
+    @Test("障害の真裏に降りると上限を超える上乗せが乗る")
+    func justLandingAddsOverboost() {
+        let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
+        let pit = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        let plainSpeed = field.currentSpeed
+        land(&field, over: pit, offset: 2)
+        #expect(field.lastLandingWasJust, "穴の真裏に降りたのにジャスト着地にならない")
+        #expect(field.justLandingCount == 1)
+        #expect(
+            abs(field.justLandingOverboost - RunnerRules.justLandingOverboost) < 1e-9,
+            "上乗せが満タンで乗っていない（\(field.justLandingOverboost)）"
+        )
+        #expect(field.currentSpeed > plainSpeed, "上乗せが接地中の速さに効いていない")
+        #expect(
+            abs(field.currentSpeed - stage.speed * (field.pedalBoost + RunnerRules.justLandingOverboost)) < 1e-9,
+            "速さが乗り + 上乗せになっていない"
+        )
+    }
+
+    /// 窓（`justLandingWindow`）の外に降りたら何も乗せない。**早すぎ・跳びすぎの着地に
+    /// 報酬を出さない**ことがこの仕組みの本体なので、境界の外側を明示的に確かめる。
+    @Test("障害から離れて着地すると上乗せは乗らない")
+    func lateLandingEarnsNothing() {
+        let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
+        let pit = stage.hazards[0]
+        var inside = RunnerField(stage: stage)
+        land(&inside, over: pit, offset: RunnerRules.justLandingWindow - 1)
+        var outside = RunnerField(stage: stage)
+        land(&outside, over: pit, offset: RunnerRules.justLandingWindow + 4, from: 20)
+        #expect(inside.lastLandingWasJust, "窓の内側なのに成立しない")
+        #expect(!outside.lastLandingWasJust, "窓の外なのに成立してしまう")
+        #expect(outside.justLandingCount == 0)
+        #expect(outside.justLandingOverboost == 0)
+        #expect(inside.currentSpeed > outside.currentSpeed, "窓の内と外で速さに差が出ていない")
+    }
+
+    /// 跳んでいないあいだ、そして**障害を越えていないジャンプ**では何も起きない。
+    @Test("障害を越えていなければ着地しても上乗せは乗らない")
+    func landingWithoutClearingHazardEarnsNothing() {
+        var field = RunnerField(stage: flatStage(segments: 10))
+        for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
+        #expect(field.justLandingCount == 0, "走っているだけでは成立しない")
+        #expect(!field.lastLandingWasJust)
+        let before = field.pedalBoost
+        field.jump()
+        field.endHold()
+        while !field.isGrounded { _ = field.step(dt: 1.0 / 600) }
+        #expect(field.justLandingCount == 0, "何も越えていないジャンプで成立している")
+        #expect(field.justLandingOverboost == 0)
+        #expect(field.pedalBoost < before, "跳んだぶん乗りは落ちるだけ")
+    }
+
+    /// **上乗せは上限（`maxPedalBoost`）を超えて効く**（2026-09-12 会長決裁の要点）。
+    ///
+    /// `pedalBoost` に足す形だと、乗り切った状態（障害の間の平地で毎回そうなる）では
+    /// 頭打ちになって何も起きなかった——それが実質無効だったので上乗せ方式に切り替えた
+    /// （`RunnerRules.justLandingOverboost`）。乗り切った状態でも速くなることを固定する。
+    @Test("乗りが上限のときでもジャスト着地は上限を超えて効く")
+    func justLandingWorksEvenAtMaxPedalBoost() {
+        let stage = RunnerStage(number: 1, pattern: "--1---", speed: 40)
+        let pit = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        // 先に上限まで漕いでおく（`placeForTesting` は乗りを触らない）。
+        for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
+        #expect(abs(field.pedalBoost - RunnerRules.maxPedalBoost) < 1e-9, "上限まで乗せられていない")
+        let cappedSpeed = field.currentSpeed
+        land(&field, over: pit, offset: 2)
+        #expect(field.lastLandingWasJust)
+        #expect(field.pedalBoost <= RunnerRules.maxPedalBoost, "乗り自体は上限のまま")
+        #expect(
+            field.currentSpeed > cappedSpeed,
+            "上限に張り付いた状態で効いていない（\(cappedSpeed) → \(field.currentSpeed)）"
+        )
+        // 乗り（`pedalBoost`）は滞空のあいだ少し落ちるので、上限そのものとは一致しない。
+        // 確かめるのは「**上限を超えた速さ**が出ていること」と「その超過が上乗せ分ぴったり」であること。
+        #expect(
+            field.currentSpeed > stage.speed * RunnerRules.maxPedalBoost,
+            "上限を超えていない（\(field.currentSpeed)）"
+        )
+        #expect(
+            abs(field.currentSpeed - stage.speed * (field.pedalBoost + RunnerRules.justLandingOverboost)) < 1e-9,
+            "超過が上乗せ分と一致しない（\(field.currentSpeed)）"
+        )
+    }
+
+    /// 上乗せは時間で線形に減衰して消える（`pickupOverboost` と同じ形）。
+    @Test("ジャスト着地の上乗せは時間で減衰して消える")
+    func justLandingOverboostDecays() {
+        let stage = RunnerStage(number: 1, pattern: "--1---------", speed: 40)
+        let pit = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        land(&field, over: pit, offset: 2)
+        let immediately = field.justLandingOverboost
+        _ = field.step(dt: RunnerRules.justLandingOverboostDuration / 2)
+        #expect(field.justLandingOverboost < immediately, "減っていない")
+        #expect(field.justLandingOverboost > 0, "半分の時間で消えてしまっている")
+        _ = field.step(dt: RunnerRules.justLandingOverboostDuration)
+        #expect(field.justLandingOverboost == 0, "時間切れで消えていない")
+    }
+
+    /// **上乗せが乗っていても空中の横速度は基準（`stage.speed`）のまま**（#635 決裁の中核）。
+    ///
+    /// ここが崩れると「1 回のジャンプで進む距離 = `speed × jumpAirTime`」という全ステージの
+    /// 成立条件（`RunnerStageTests`）の物差しが動き、間隔・跳び越しの判定を全部作り直す
+    /// ことになる。既存の `跳んで進む距離はペダルの乗りに左右されない`（`RunnerStageTests`）は
+    /// **上乗せが 0 の状態しか通らない**ので、`currentSpeed` の空中分岐に新しい項が
+    /// 混ざったことは検出できない——だから上乗せを満タンにした状態で同じことを固定する。
+    @Test("上乗せが満タンでも跳んで進む距離は基準の速さ×滞空時間のまま")
+    func airborneTravelIgnoresJustLandingOverboost() {
+        // 穴のあとに平地が続くステージ（跳んだ先でゴールに触れないだけの長さを取る）。
+        let stage = RunnerStage(number: 1, pattern: "--1" + String(repeating: "-", count: 12), speed: 40)
+        let pit = stage.hazards[0]
+
+        /// 穴を越えて着地した直後にその場から踏み切り、着地までに進んだ距離を返す。
+        func airTravel(earningOverboost: Bool) -> Double {
+            var field = RunnerField(stage: stage)
+            // 真裏に降りれば上乗せが満タン、窓の外に降りれば 0——**同じ「着地直後の踏み切り」**
+            // で揃えて、上乗せの有無だけを違いにする。
+            land(
+                &field,
+                over: pit,
+                offset: earningOverboost ? 2 : RunnerRules.justLandingWindow + 4,
+                from: earningOverboost ? 6 : 20
+            )
+            #expect(
+                field.justLandingOverboost == (earningOverboost ? RunnerRules.justLandingOverboost : 0),
+                "上乗せの有無が狙いどおりになっていない"
+            )
+            let takeOff = field.distance
+            field.jump()   // 着地まで離さない全弾道（`jumpAirTime`）
+            while !field.isGrounded { _ = field.step(dt: 1.0 / 2400) }
+            return field.distance - takeOff
+        }
+
+        let hot = airTravel(earningOverboost: true)
+        let cold = airTravel(earningOverboost: false)
+        #expect(hot > 1, "計測できていない")
+        #expect(abs(hot - cold) < 1e-9, "上乗せで飛距離が変わっている（\(cold) → \(hot)）")
+        #expect(
+            abs(cold - stage.speed * RunnerRules.jumpAirTime) < 0.5,
+            "飛距離が speed × jumpAirTime から外れている（\(cold)）"
+        )
+
+        // 判定そのものも直接突く: 上乗せが乗っていても空中の `currentSpeed` は基準のまま。
+        var field = RunnerField(stage: stage)
+        land(&field, over: pit, offset: 2)
+        #expect(field.justLandingOverboost > 0, "上乗せが乗っていない")
+        #expect(field.currentSpeed > stage.speed, "接地中は上乗せが効く")
+        field.jump()
+        _ = field.step(dt: 1.0 / 2400)
+        #expect(!field.isGrounded)
+        #expect(field.justLandingOverboost > 0, "空中でも上乗せ自体は残っている（減衰中）")
+        #expect(field.currentSpeed == stage.speed, "空中の速さに上乗せが漏れている（\(field.currentSpeed)）")
+    }
+
+    /// 二段ジャンプ（`RunnerRules.maxJumps` = 2）で穴を 2 つまとめて越えたときは、
+    /// **最後に越えた穴**が判定の対象になる。
+    ///
+    /// 滞空の起点（`jumpStartDistance`）は一段目の踏み切り位置で、二段目では上書きしない
+    /// ——この滞空で越えたものを全部候補にしてから「最後に越えたもの」を採る、という
+    /// `applyJustLanding` の形をここで固定する。
+    ///
+    /// ステージは合成（速さ 70・隣り合う区画に穴。本編の 18 ステージにはこの配置は無い）。
+    /// 二段ジャンプでなければ 2 つ目に届かない間隔なので、一段だけでは穴に落ちる。
+    @Test("二段ジャンプで穴を 2 つ越えると、2 つ目の真裏でジャスト着地になる")
+    func doubleJumpOverTwoPitsRewardsTheSecond() {
+        let stage = RunnerStage(number: 1, pattern: "--11----", speed: 70)
+        #expect(stage.hazards.count == 2)
+        let first = stage.hazards[0]
+        let second = stage.hazards[1]
+        var field = RunnerField(stage: stage)
+        // 1 つ目の穴の少し手前の地面から踏み切る。
+        field.placeForTesting(distance: first.start - 2, altitude: 0, vy: 0)
+        #expect(field.isGrounded)
+        field.jump()
+        var events: [RunnerEvent] = []
+        var elapsed = 0.0
+        var didDoubleJump = false
+        let dt = 1.0 / 2400
+        while !field.isGrounded, elapsed < 3 {
+            events += field.step(dt: dt)
+            elapsed += dt
+            if !didDoubleJump, elapsed >= 0.2 {
+                let tookSecondJump = field.jump()
+                #expect(tookSecondJump, "二段目が踏み切れない")
+                didDoubleJump = true
+            }
+            if events.contains(where: { $0.isTerminal }) { break }
+        }
+        #expect(!events.contains(.fell), "2 つ目の穴に落ちている")
+        #expect(field.isGrounded, "着地していない")
+        #expect(field.distance > second.end, "2 つ目の穴を越えていない")
+        #expect(field.lastLandingWasJust, "2 つ目の真裏に降りたのに成立しない（\(field.distance)）")
+        #expect(field.justLandingCount == 1)
+        #expect(
+            field.distance - second.end <= RunnerRules.justLandingWindow,
+            "2 つ目の窓の内側に降りていない（\(field.distance - second.end)）"
+        )
+        #expect(
+            field.distance - first.end > RunnerRules.justLandingWindow,
+            "1 つ目の窓も内側だと、どちらが対象か区別できない"
+        )
+    }
+
+    /// 鳥は対象外（#671 でくぐる障害に変わったため、跳び越えた報酬を出さない）。
+    ///
+    /// **帯の上を越えて真裏に降りることは物理的に起こらない**（上端 22 から地面までの
+    /// 落下だけで体 5 つぶん進むので、窓 8 には絶対に入らない）。ここでは種類の除外だけを
+    /// 突くため、**帯の下をくぐる高さ（下端 13 に頭が届かない 1.9）から降ろす**——
+    /// 越えた対象としては鳥が確かに `hazards` に居て、右端も通過しているのに、
+    /// 種類の判断（`rewardsJustLanding`）だけで弾かれることを確かめる。
+    @Test("鳥をくぐって着地しても上乗せは乗らない")
+    func birdIsNotRewarded() {
+        let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
+        let bird = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        land(&field, over: bird, offset: 2, from: 1.9)
+        #expect(field.isGrounded)
+        #expect(field.distance > bird.end, "右端を通過している")
+        #expect(field.distance - bird.end <= RunnerRules.justLandingWindow, "窓の内側に降りている")
+        #expect(!field.lastLandingWasJust, "鳥でジャスト着地が成立している")
+        #expect(field.justLandingCount == 0)
+        #expect(field.justLandingOverboost == 0)
+    }
+
+    /// 直前の着地の結果は**次の着地で必ず書き換わる**（`RunnerModel` が `.landed` の
+    /// フレームだけこの値を見る前提が崩れると、土煙と触覚が出っぱなしになる）。
+    @Test("ジャストでない着地が続くとフラグは false に戻る")
+    func flagResetsOnTheNextLanding() {
+        let stage = RunnerStage(number: 1, pattern: "--1---1--", speed: 40)
+        var field = RunnerField(stage: stage)
+        land(&field, over: stage.hazards[0], offset: 2)
+        #expect(field.lastLandingWasJust)
+        land(&field, over: stage.hazards[1], offset: RunnerRules.justLandingWindow + 4, from: 20)
+        #expect(!field.lastLandingWasJust, "前の着地の結果が残っている")
+        #expect(field.justLandingCount == 1, "回数は増えたぶんだけ残る")
+    }
+
     // MARK: - スピードアップ床（#672・#635 会長決裁）
 
     /// 床は**乗っているあいだだけ**効く区間で、出た瞬間に切れる（アイテムのような減衰は無い）。

@@ -183,6 +183,9 @@ final class RunnerScene: SKScene {
     /// すでに消したピックアップの数。**走者は後退しないので、取得順は常に `pickups` の並びどおり**
     /// ——`collectedPickupCount` 件目までを毎フレーム照合すれば、どれが取得済みか特定できる。
     private var removedPickupCount = 0
+    /// すでに土煙を出したジャスト着地の数（#673）。`field.justLandingCount` が増えた
+    /// フレームだけ演出を出すための控え。`rebuildCourse` で 0 に戻す。
+    private var renderedJustLandingCount = 0
 
     /// 遠景の丘（奥・手前の2層）。`RunnerField.Metrics.groundY` から上端
     /// （`RunnerField.Metrics.height`）までの空が広く空くので、
@@ -557,6 +560,7 @@ final class RunnerScene: SKScene {
 
         pickupNodes = stage.pickups.map { addPickup($0) }
         removedPickupCount = 0
+        renderedJustLandingCount = 0
 
         addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
         addGoalMarker(at: stage.length)
@@ -1187,6 +1191,7 @@ final class RunnerScene: SKScene {
             // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
             player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
             syncPickups(field)
+            syncJustLanding(field)
         }
         lastSyncedPhase = model.phase
     }
@@ -1200,6 +1205,14 @@ final class RunnerScene: SKScene {
             removePickupNode(pickupNodes[i])
         }
         removedPickupCount = field.collectedPickupCount
+    }
+
+    /// ジャスト着地（#673）の土煙を出す。**1 回の着地につき 1 回だけ**——`field` の
+    /// 単調増加する回数と、すでに出した回数の差で判断する（`syncPickups` と同じ形）。
+    private func syncJustLanding(_ field: RunnerField) {
+        guard field.justLandingCount > renderedJustLandingCount else { return }
+        renderedJustLandingCount = field.justLandingCount
+        spawnJustLandingDust(atWorldX: field.distance)
     }
 
     /// 穴に落ちる/ぶつかった瞬間だけ流す演出（`.falling` に入った最初のフレームで 1 回発火）。
@@ -1291,12 +1304,38 @@ final class RunnerScene: SKScene {
     /// `rebuildCourse` 側での後始末は要らない。座標は画面固定（走者の前輪の先）——
     /// ミスの瞬間 `field` は凍っていてコースも流れないため、シーン直下に置いてよい。
     private func spawnCrashDust() {
-        let origin = CGPoint(x: Metrics.playerX + 5.0, y: Metrics.groundY + 2.0)
         // 弾ける方向は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
-        let specs: [(dx: Double, dy: Double, r: Double)] = [
-            (-1.5, 2.5, 1.1), (0.8, 3.2, 0.9), (2.0, 1.8, 1.2),
-            (-3.0, 1.2, 0.8), (0.2, 0.8, 1.3), (-4.5, 2.0, 0.7),
-        ]
+        spawnDust(
+            at: CGPoint(x: Metrics.playerX + 5.0, y: Metrics.groundY + 2.0),
+            specs: [
+                (-1.5, 2.5, 1.1), (0.8, 3.2, 0.9), (2.0, 1.8, 1.2),
+                (-3.0, 1.2, 0.8), (0.2, 0.8, 1.3), (-4.5, 2.0, 0.7),
+            ]
+        )
+    }
+
+    /// ジャスト着地の土煙（#673）。激突の土煙と同じ作りで、**後輪の足元から後ろへ小さく**
+    /// 散らす（越えた障害の真裏に降りた、という画にする）。ミスの演出と紛れないよう、
+    /// 粒は少なく・小さく・短くしてある。
+    ///
+    /// **こちらはコース側（`courseLayer`）に置く**——走行中はコースが流れ続けるので、
+    /// 画面固定にすると土煙が走者と一緒に前へ動いて見える。降りた地点に残して後ろへ流す。
+    private func spawnJustLandingDust(atWorldX worldX: Double) {
+        spawnDust(
+            at: CGPoint(x: worldX - 2.6, y: Metrics.groundY + 0.8),
+            specs: [(-2.2, 1.4, 0.8), (-4.0, 0.9, 0.6), (-0.6, 1.9, 0.7)],
+            duration: 0.3,
+            in: courseLayer
+        )
+    }
+
+    /// 丸だけの土煙を 1 か所から散らす。ノードは演出が終わると自分で消える。
+    private func spawnDust(
+        at origin: CGPoint,
+        specs: [(dx: Double, dy: Double, r: Double)],
+        duration: TimeInterval = 0.4,
+        in parent: SKNode? = nil
+    ) {
         for spec in specs {
             let puff = SKShapeNode(circleOfRadius: spec.r)
             puff.fillColor = RunnerPalette.color(RunnerPalette.cloud)
@@ -1304,11 +1343,15 @@ final class RunnerScene: SKScene {
             puff.alpha = 0.8
             puff.zPosition = 6
             puff.position = origin
-            addChild(puff)
-            let drift = SKAction.moveBy(x: spec.dx, y: spec.dy, duration: 0.4)
+            (parent ?? self).addChild(puff)
+            let drift = SKAction.moveBy(x: spec.dx, y: spec.dy, duration: duration)
             drift.timingMode = .easeOut
             puff.run(.sequence([
-                .group([drift, .scale(to: 1.8, duration: 0.4), .fadeOut(withDuration: 0.4)]),
+                .group([
+                    drift,
+                    .scale(to: 1.8, duration: duration),
+                    .fadeOut(withDuration: duration),
+                ]),
                 .removeFromParent(),
             ]))
         }

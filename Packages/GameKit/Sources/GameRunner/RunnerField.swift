@@ -93,6 +93,29 @@ public struct RunnerField: Equatable, Sendable {
     private var pickupOverboostRemaining: Double = 0
     /// 取得済みのスピードアップアイテムの数。まだ消していないノードを消すのに描画側が使う。
     public private(set) var collectedPickupCount: Int = 0
+    /// 直前の着地がジャスト着地だったか（#673）。
+    ///
+    /// 着地するたびに書き換わる（ジャストでなければ false に戻る）ので、`.landed` の
+    /// できごとと**同じフレームでだけ**意味を持つ。触覚の強さを変えるのに Model が使う。
+    public private(set) var lastLandingWasJust: Bool = false
+    /// この走行で決めたジャスト着地の回数。**1 回の着地につき 1 増える単調増加**。
+    ///
+    /// 描画側（`RunnerScene`）は毎フレームこの数を前フレームと比べて土煙を出す。
+    /// できごと（`RunnerEvent`）を増やさずに済ませているのは、`collectedPickupCount` と
+    /// 同じ理由——見た目だけの都合でルール層のできごとを増やすと、Model の分岐が
+    /// 演出のために太る。
+    public private(set) var justLandingCount: Int = 0
+    /// いまの滞空を始めた地点（接地中は nil）。ジャスト着地の判定で「この滞空のあいだに
+    /// 越えた障害」を絞り込むのに使う。
+    private var jumpStartDistance: Double?
+    /// ジャスト着地で乗っている、上限（`maxPedalBoost`）を超える一時的な上乗せ分（#673）。
+    ///
+    /// **`pickupOverboost` とまったく同じ仕組み**（時間で線形に減衰し、接地中だけ効く）。
+    /// `pedalBoost` に足す形では上限に張り付いた状態で何も起きず、効果が測れないほど
+    /// 小さかった（`RunnerRules.justLandingOverboost` のドキュメント参照）。
+    public private(set) var justLandingOverboost: Double = 0
+    /// `justLandingOverboost` が 0 になるまでの残り秒数。
+    private var justLandingOverboostRemaining: Double = 0
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
     private var collectedPickupIndices: Set<Int> = []
 
@@ -127,14 +150,15 @@ public struct RunnerField: Equatable, Sendable {
     /// **空中では必ず `stage.speed`**（ペダルを漕げないので乗りが効かない・#569）。
     /// この一点で「跳んで進む距離 = `speed × 滞空時間`」が乗りに左右されなくなり、
     /// ステージの成立条件（`RunnerStageTests`）を丸ごと据え置ける。`pickupOverboost` も
-    /// スピードアップ床の倍率（#672）も、同じ理由で接地中にしか効かせない。
+    /// ジャスト着地の上乗せ（#673）もスピードアップ床の倍率（#672）も、同じ理由で
+    /// 接地中にしか効かせない。
     ///
     /// 床の倍率が**掛け算**で乗る理由は `RunnerRules.boostFloorMultiplier` を参照
     /// （床は区間の性質、乗りは操作の上手さ、と別の軸なので掛け合わせる）。
     public var currentSpeed: Double {
         guard isGrounded else { return stage.speed }
         let floor = isOnBoostFloor ? RunnerRules.boostFloorMultiplier : 1
-        return stage.speed * (pedalBoost + pickupOverboost) * floor
+        return stage.speed * (pedalBoost + pickupOverboost + justLandingOverboost) * floor
     }
 
     /// いまスピードアップ床の上に乗っているか（#672）。
@@ -209,6 +233,18 @@ public struct RunnerField: Equatable, Sendable {
     @discardableResult
     public mutating func jump() -> Bool {
         guard jumpCount < RunnerRules.maxJumps else { return false }
+        // 滞空の起点は**一段目の踏み切り**。二段目で上書きすると、一段目で越えた障害が
+        // 「この滞空で越えた障害」から外れてしまう（#673）。
+        //
+        // **この `isGrounded` は意図の表明で、いまの物理では観測できない**（2026-09-13 の
+        // 敵対的検証で確認。外しても全テストが緑）。上書きすると起点が後ろへ動いて候補が
+        // 減るだけなので、選ばれる障害の右端は小さくなる方向にしか変わらない。そして
+        // 答えが変わるのは「二段目より後に越えた障害が無い」場合だけだが、二段目は `vy` を
+        // `jumpVelocity` に戻すので着地は必ず `jumpAirTime` 以上あと——最低でも
+        // 34 × 0.75 = 25.5 先で、窓（`RunnerRules.justLandingWindow` = 8）の外。
+        // つまり答えが変わる場合はどちらの実装でも加算されない。二段目の弾道を弱める
+        // （短いホップにする等）変更を入れた日にここが効き始めるので、残してある。
+        if isGrounded { jumpStartDistance = distance }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
         jumpCount += 1
@@ -263,6 +299,8 @@ public struct RunnerField: Equatable, Sendable {
         self.isHolding = false
         self.holdElapsed = 0
         self.pendingCut = false
+        // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
+        self.jumpStartDistance = self.isGrounded ? nil : distance
     }
 
     // MARK: - 進行
@@ -281,8 +319,26 @@ public struct RunnerField: Equatable, Sendable {
         // スピードアップ床（#672）に踏み込むとさらに倍率が乗るので、床の上に居るかに
         // 関わらず**常に床の倍率まで見込んで**刻む（見積もりを多めに取るぶんには
         // サブステップが細かくなるだけで、進み方も当たり判定も変わらない）。
-        let horizontal = stage.speed * RunnerRules.maxPedalBoost
-            * RunnerRules.boostFloorMultiplier * dt
+        //
+        // 上限を超える上乗せ（アイテム `pickupOverboost` とジャスト着地
+        // `justLandingOverboost`・#673）も足す。**`maxPedalBoost` だけで見積もると
+        // 上乗せが乗っているあいだ 1 サブステップが `Metrics.maxSubstep`（2）を超える**。
+        //
+        // 実測（dt は上限の `maxStep` = 1/20 秒。床がある 16〜18 面で起きる）:
+        // - ステージ18（速さ 54.4・床の上）の旧式の見積もりは 54.4 × 1.55 × 1.3 × 0.05 =
+        //   5.481 → 3 分割。ところが実移動は上乗せ 2 つとも乗ると
+        //   54.4 × 1.95 × 1.3 × 0.05 = 6.895 で、**1 サブステップ 2.298**
+        //   （アイテム単独の 1.75 倍でも 6.188 → 2.063）
+        // - 床が無いステージ（〜15 面）では超過しない。ステージ15 は見積もり 5.118 に対し
+        //   実移動 4.953（床の倍率ぶん見積もりが多めなので追いつかれない）
+        //
+        // 障害の最小寸法（`RunnerRules.tileWidth` = 4）よりは小さいのですり抜けは
+        // 起きていなかったが、安全の余裕が削れていた既存の見落とし。新式では同じ条件
+        // （ステージ18・全部乗り）で 6.895 → 4 分割・1 サブステップ 1.724 に収まる。
+        let maxFactor = RunnerRules.maxPedalBoost
+            + RunnerRules.pickupOverboost
+            + RunnerRules.justLandingOverboost
+        let horizontal = stage.speed * maxFactor * RunnerRules.boostFloorMultiplier * dt
         let vertical = abs(vy) * dt + RunnerRules.gravity * dt * dt
         let travel = max(horizontal, vertical)
         let substeps = max(1, Int((travel / Metrics.maxSubstep).rounded(.up)))
@@ -306,6 +362,14 @@ public struct RunnerField: Equatable, Sendable {
             pickupOverboostRemaining = max(0, pickupOverboostRemaining - dt)
             pickupOverboost = RunnerRules.pickupOverboost
                 * (pickupOverboostRemaining / RunnerRules.pickupOverboostDuration)
+        }
+        // ジャスト着地の上乗せ分も同じ形で減衰する（#673）。**跳んでいるあいだも減る**
+        // ——上乗せは「決めた直後の勢い」なので、空中で時間を止めて持ち越せてはいけない
+        // （`currentSpeed` が空中では効かせないのと合わせて、跳べば跳ぶほど損になる）。
+        if justLandingOverboostRemaining > 0 {
+            justLandingOverboostRemaining = max(0, justLandingOverboostRemaining - dt)
+            justLandingOverboost = RunnerRules.justLandingOverboost
+                * (justLandingOverboostRemaining / RunnerRules.justLandingOverboostDuration)
         }
         distance += currentSpeed * dt
 
@@ -378,7 +442,10 @@ public struct RunnerField: Equatable, Sendable {
             jumpCount = 0
             isHolding = false
             pendingCut = false
-            if wasAirborne { events.append(.landed) }
+            if wasAirborne {
+                applyJustLanding()
+                events.append(.landed)
+            }
         }
 
         if !passedCheckpoint, distance >= stage.checkpoint {
@@ -389,6 +456,50 @@ public struct RunnerField: Equatable, Sendable {
         if distance >= stage.length {
             distance = stage.length
             events.append(.reachedGoal)
+        }
+    }
+
+    /// 着地した瞬間に「越えた障害の真裏に降りられたか」を見て、一時的な上乗せを乗せる（#673）。
+    ///
+    /// **速さに触るのは接地中だけ**——空中の横速度（`currentSpeed`）は基準のままなので、
+    /// 「1 回のジャンプで進む距離 = `speed × jumpAirTime`」という全ステージの成立条件
+    /// （`RunnerStageTests`）の物差しは動かない（#635 決裁）。
+    ///
+    /// ギリギリで跳んで直後に降りれば上乗せが乗り続け、早すぎ・遅すぎの跳び方では
+    /// 何も乗らない。これがベストタイムに出るスキル差の実体。
+    ///
+    /// **台座（#674）は対象外**。台座は `RunnerHazard` とは別の型（`RunnerPlatform`）で、
+    /// そもそも `stage.hazards` に居ないので網羅 switch（`rewardsJustLanding`）には
+    /// 現れない——「越えた対象」は岩と穴だけ。台座は越えるものではなく乗るもので、
+    /// 上面に降りるのは「越えた直後の着地」ではないため報酬の対象にしない。
+    /// 台座から降りたあと**その先の穴を越えて**着地した場合は、越えた対象が穴なので普通に拾う。
+    private mutating func applyJustLanding() {
+        lastLandingWasJust = false
+        guard let takeOff = jumpStartDistance else { return }
+        jumpStartDistance = nil
+        // 「直前に越えた障害」= この滞空のあいだに**中心 x が右端を通過した**障害のうち最後のもの。
+        // `hazards` は左から順に並んでいるので `last` がそのまま「最後に越えたもの」になる。
+        guard let cleared = stage.hazards.last(where: {
+            Self.rewardsJustLanding($0.kind) && $0.end > takeOff && $0.end <= distance
+        }) else { return }
+        guard distance - cleared.end <= RunnerRules.justLandingWindow else { return }
+        // 上限（`maxPedalBoost`）を超える別枠に乗せる。重ねず、決め直すたびに上書きして
+        // 満タンへ戻す（`pickupOverboost` と同じ扱い）。
+        justLandingOverboost = RunnerRules.justLandingOverboost
+        justLandingOverboostRemaining = RunnerRules.justLandingOverboostDuration
+        lastLandingWasJust = true
+        justLandingCount += 1
+    }
+
+    /// ジャスト着地の対象になる障害か（#673）。
+    ///
+    /// **跳んで越えるものだけ**——「越えた直後に降りる」が判定の実体なので、跳び越える
+    /// 対象でない障害を混ぜると、越え方と関係なく上乗せが乗る。鳥はくぐる障害
+    /// （#671）なので対象外。
+    private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
+        switch kind {
+        case .pit, .lowBlock, .tallBlock: return true
+        case .bird:                       return false
         }
     }
 
