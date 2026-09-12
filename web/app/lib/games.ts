@@ -50,6 +50,7 @@ export const games: Game[] = [
   },
   {
     slug: "blockpuzzle",
+    comingSoon: true,
     name: "ブロックならべ",
     emoji: "🧩",
     tagline: "ピースを置いて行と列をそろえよう",
@@ -428,6 +429,7 @@ export const games: Game[] = [
   },
   {
     slug: "hanafuda",
+    comingSoon: true,
     name: "花札こいこい",
     emoji: "🌸",
     tagline: "CPUと役を競う。こいこいで倍を狙おう",
