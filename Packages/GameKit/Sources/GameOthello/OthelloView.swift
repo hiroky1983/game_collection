@@ -10,7 +10,6 @@ public struct OthelloView: View {
     @State private var showUndoConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -52,21 +51,7 @@ public struct OthelloView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("オセロ")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "オセロ", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { showNewGame = true } label: {
                     Label("新規対局", systemImage: "plus.circle.fill")
@@ -357,35 +342,12 @@ public struct OthelloView: View {
     // MARK: - 盤の下の操作エリア
 
     /// 対局中（投了・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
-    /// **高さは常に終局後の最大構成に揃える**（#148）。
-    ///
-    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
-    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
-    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    /// **高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            if model.gameOver {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
-            } else {
-                gameControls
-            }
-        }
-    }
-
-    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
+        GameControlArea(isFinished: model.gameOver, services: services) {
             newGameButton
-            recommendation()
+        } playing: {
+            gameControls
         }
     }
 

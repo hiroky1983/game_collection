@@ -59,7 +59,6 @@ public struct MahjongSolitaireView: View {
     /// 出ないまま終わる。牌が消えきる時間だけ切り替えを遅らせて、最後の 1 組も同じ演出で消す。
     /// 遅らせるのは**盤面の表示だけ**で、勝敗・記録・計時（`model`）は従来どおり即座に確定する。
     @State private var showsClearDisplay = false
-    @Environment(\.dismiss) private var dismiss
 
     private typealias Metrics = MahjongSolitaireBoardMetrics
 
@@ -108,21 +107,7 @@ public struct MahjongSolitaireView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("麻雀ソリティア")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "麻雀ソリティア", review: services.review) {
             ToolbarItem(placement: .primaryAction) { newGameMenu }
         }
         .howToPlay(.mahjongSolitaire) { MahjongSolitaireRuleSheet() }
@@ -537,34 +522,12 @@ public struct MahjongSolitaireView: View {
     // MARK: - 盤の下の操作エリア
 
     /// プレイ中（ヒント・並べ替え）と取り切った後（記録 + 次のゲーム + レコメンド）で
-    /// 中身が入れ替わるが、**高さは常に後者の最大構成に揃える**（#148）。
-    ///
-    /// ここが伸び縮みすると盤面（残りの高さいっぱいに牌を敷く）が帳尻合わせに縮む。
-    /// レコメンドは出るとは限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    /// 中身が入れ替わるが、**高さは常に後者の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            if model.phase == .won {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
-            } else {
-                gameControls
-            }
-        }
-    }
-
-    /// 取り切った後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
+        GameControlArea(isFinished: model.phase == .won, services: services) {
             resultControls
-            recommendation()
+        } playing: {
+            gameControls
         }
     }
 

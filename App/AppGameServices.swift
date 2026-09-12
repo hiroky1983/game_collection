@@ -17,9 +17,11 @@ import GameGo
 import GameSolitaire
 import GameChess
 import GameBlocks
-// GameFreeCell・GameBlockPuzzle・GameRunner・GameHanafuda は import しない（#629。
-// main = App Store 公開済みの集合という規約に対し、v1.1.4 開発中のこの4ゲームが
-// main 直マージで混入していたため）。
+import GameFreeCell
+import GameRunner
+// GameBlockPuzzle・GameHanafuda は import しない（#642。分析基盤の先行リリースを優先するため
+// v1.1.4のハブからブロックならべ・花札こいこいを外した。コード自体は残っているので、
+// 次版で `registry` に1行ずつ戻せば復活できる）。
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -134,6 +136,8 @@ enum AppEnvironment {
         MahjongSolitaireModule(),
         // ソリティア（クロンダイク・#397）。同じ「1人でトランプを片付ける」麻雀ソリティアの隣に置く。
         SolitaireModule(),
+        // フリーセル（#492）。同じ「1人でトランプを片付ける」ソリティアの隣に置く。
+        FreeCellModule(),
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),
@@ -143,11 +147,9 @@ enum AppEnvironment {
         // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
         // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
         BlocksModule(),
+        // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
+        RunnerModule(),
     ])
-    // BlockPuzzleModule・FreeCellModule・RunnerModule・HanafudaModuleは main では登録しない
-    // （#629。main = App Store 公開済みの集合という規約に対し、v1.1.4 開発中の4ゲームが
-    // main 直マージで registry に混入していた。v1.1.4 公開時に release/v1.1.4 → main の
-    // 取り込みで正しく復活する。それまで LP 側は `comingSoon: true` で「配信予定」表示にする）。
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
 }

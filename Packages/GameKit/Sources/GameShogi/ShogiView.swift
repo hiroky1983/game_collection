@@ -17,7 +17,6 @@ public struct ShogiView: View {
     /// 表示中の「王手」の合図の契機 ID（#377）。nil なら出していない。
     /// モデルの `checkEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var checkBannerID: Int?
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -52,21 +51,7 @@ public struct ShogiView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("将棋")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "将棋", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.phase == .playing && !model.moves.isEmpty {
@@ -257,18 +242,14 @@ public struct ShogiView: View {
                             startPoint: .top, endPoint: .bottom)
                     )
             }
-            // 角丸は**マスと木地にだけ**掛ける。ここより後ろに重ねる層は丸めない。
-            // 駒の層まで一緒に丸めると、持ち上げた駒（拡大 + 上へ 12%）が盤の上端で
-            // 切り落とされる（PR #477 の CodeRabbit 指摘。表示 0 段目の駒で実測）。
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-            // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
-            // マスに紐づけると駒の同一性がマスと一緒に変わり、移動が補間されない。
-            .overlay { pieceLayer(cell: cell) }
-            // 王手されている玉の印も駒より**上**。玉そのものを囲むので、駒の下に潜ると見えない。
-            .overlay { checkLayer(cell: cell) }
-            // 着手先の印は駒より**上**。マスの中に描いていた頃の重なり順をそのまま保つ
-            // （取れる駒に重ねる枠が駒の下に潜ると、何が取れるのか読めなくなる）。
-            .overlay { targetLayer(cell: cell) }
+            // 角丸 → 駒 → 王手 → 着手先 の重なり順はチェスと共通（#530）。
+            // 順番そのものが不具合の有無を決めるため、理由ごと `boardLayers` に置いてある。
+            .boardLayers(
+                corner: Theme.cornerSmall,
+                pieces: { pieceLayer(cell: cell) },
+                check: { checkLayer(cell: cell) },
+                targets: { targetLayer(cell: cell) }
+            )
             .padding(4)
             .background(
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
@@ -312,11 +293,8 @@ public struct ShogiView: View {
                     let isLifted = model.selectedSquare == placement.square
                     KomaView(piece: placement.piece, size: cell,
                              pointsUp: placement.piece.color == model.humanSide)
-                        .scaleEffect(isLifted ? ShogiMotion.pieceLiftScale : 1)
-                        .shadow(color: .black.opacity(isLifted ? 0.28 : 0),
-                                radius: isLifted ? cell * 0.10 : 0,
-                                y: isLifted ? cell * 0.10 : 0)
-                        .offset(y: isLifted ? -cell * ShogiMotion.pieceLiftRatio : 0)
+                        // 拡大 + 浮かせ + 落ち影はチェスと共通（#530）。
+                        .pieceLift(isLifted: isLifted, cell: cell)
                         // 持ち上げのアニメーションは**駒単位**でここに置く（層全体に置くと、
                         // 着手確定で配置と選択が同時に変わったとき pieceMove 側の指定に
                         // 上書きされて、戻りの速さが意図とずれる — verifier 検証 2026-09-06）。
@@ -535,29 +513,15 @@ public struct ShogiView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    /// 検討ナビと「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#139）。
-    /// 2 段のままだと盤の下が伸び、決着の瞬間に盤が縮む。
+    /// 検討ナビと「もう一度」の帯。実体はチェスと共通の `ReviewNavBar`（#139・#530）。
     private var reviewControls: some View {
-        HStack(spacing: 12) {
-            Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
-                .disabled(model.reviewPly <= 0)
-            Text("\(model.reviewPly)/\(model.moves.count)手")
-                .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
-            Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
-                .disabled(model.reviewPly >= model.moves.count)
-
-            Spacer(minLength: 8)
-
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 5)
-        .popCard(corner: Theme.cornerSmall)
+        ReviewNavBar(
+            ply: model.reviewPly,
+            total: model.moves.count,
+            onBack: { model.reviewStepBack() },
+            onForward: { model.reviewStepForward() },
+            onNewGame: { showNewGame = true }
+        )
     }
 }
 
@@ -609,44 +573,10 @@ struct NewGameSheet: View {
 
 /// 将棋の演出の長さ（#200・#201）。Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ。
 ///
-/// 長さは秒の定数として持ち、`Animation` はそこから組む。`Animation` からは長さを読み出せないため、
-/// 定数を経由しないと「札は駒の移動より短い」のような**長さの大小関係をテストで固定できない**。
-enum ShogiMotion {
-    /// 駒の移動にかかる時間の目安（バネの `response`）。CPU が即指しする場面や早指しでも
-    /// 次の着手に食い込まないよう短めに取る。
-    static let pieceMoveResponse: TimeInterval = 0.26
-    /// 成り確認の札の出入り。`pieceMoveResponse` より短くする。
-    static let promotionPromptDuration: TimeInterval = 0.18
-    /// 手番バッジの色替え。
-    static let turnChangeDuration: TimeInterval = 0.2
-    /// 「王手」の合図が飛び出す・引っ込むのにかかる時間（バネの `response`）。
-    static let checkBannerResponse: TimeInterval = 0.24
-    /// 「王手」の合図を出しておく時間。**駒の移動より長く取る**（`pieceMoveResponse`）。
-    /// ここが短いと、王手を掛けた駒がまだ動いている最中に文字が消えて何が起きたか読めない。
-    static let checkBannerHold: TimeInterval = 1.1
-
-    /// 駒の移動。跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
-    static let pieceMove: Animation = .spring(response: pieceMoveResponse, dampingFraction: 0.9)
-    /// 成り確認の札の出入り（#201）。**駒の移動より短く取る**。
-    /// 札が消えるのと同時に成った駒が動き出すため、ここが長いと札が駒に被ったまま残る。
-    static let promotionPrompt: Animation = .easeOut(duration: promotionPromptDuration)
-    /// 手番バッジの色替え（#201）。手番が移ったと分かる程度に留め、
-    /// タップから盤が反応するまでの体感を遅くしない。
-    static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
-    /// 「王手」の合図の出入り（#377）。危急を伝えるので、駒の移動と違って少し跳ねさせる
-    /// （札は盤の上の中空にあり、マスから外れて見える心配がない）。
-    static let checkBanner: Animation = .spring(response: checkBannerResponse, dampingFraction: 0.65)
-
-    /// 選択した駒の持ち上げにかかる時間（バネの `response`）。**駒の移動より短く取る**。
-    /// タップへの即応が命の演出なので、ここが長いと操作が重く感じる。
-    static let pieceLiftResponse: TimeInterval = 0.16
-    /// 持ち上げ量（マス幅に対する比）と拡大率。浮いたと分かる最小限に留め、隣のマスに被せない。
-    static let pieceLiftRatio: CGFloat = 0.12
-    static let pieceLiftScale: CGFloat = 1.07
-    /// 選択した駒の持ち上げ。掴んだ手応えとして少しだけ跳ねさせる
-    /// （持ち上げは駒がマスの中心から浮く演出なので、跳ねてもマスからはみ出て見えない）。
-    static let pieceLift: Animation = .spring(response: pieceLiftResponse, dampingFraction: 0.7)
-}
+/// 実体は盤ゲーム共通の `BoardGameMotion`（#530）。チェス（`ChessMotion`）とは値も理由も
+/// 同じで、片方だけ調整すると盤ゲーム間で手触りがずれるため 1 か所に置いてある。
+/// 呼び出し側の読み口は将棋の名前のまま残す（どのゲームの演出を触っているかを見失わないため）。
+typealias ShogiMotion = BoardGameMotion
 
 /// 盤の配色（明るい木目調）。#366 の会長コンペで確定した「明るい飴色 × 無地アンバー」。
 enum BoardStyle {
@@ -667,15 +597,11 @@ enum BoardStyle {
     static let komaSideBottom = Color(hex: 0x63431A)
     /// 王手の合図（#377）。玉のマスの枠と「王手」の札に使う。
     ///
-    /// 差し色（`Theme.coral` など）は**白文字を載せると WCAG AA 未達**で #220 の対象に
-    /// なっているため、ここでは使わない。この緋色は白文字との対比が 6.5:1 あり、
-    /// #220 がどの案で決着しても直す必要が無い（＝新しい違反を持ち込まない）。
+    /// 実体は盤ゲーム共通の `BoardGameCheckColor`（#530）。チェスと同じ値・同じ理由で、
+    /// 片方だけ差し替えると盤ゲーム間で危急の合図の色が食い違う。
     /// 盤の飴色（`frameTop` 0xEDC178）に対しても十分に沈んで見える。
-    ///
-    /// `Color` は生成後に成分を取り出せないため、コントラストを検証するテストが参照できるよう
-    /// 数値のまま持つ（`Theme.Hex` と同じ理由）。
-    static let checkHex: UInt32 = 0xB3261E
-    static let check = Color(hex: checkHex)
+    static let checkHex: UInt32 = BoardGameCheckColor.hex
+    static let check = BoardGameCheckColor.color
     /// 駒の輪郭・面取り・文字（#366）。
     static let komaOutline = Color(hex: 0x6B4A1C)
     static let komaChamfer = Color(hex: 0xFFEFC2)

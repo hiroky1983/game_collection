@@ -149,4 +149,14 @@ struct SudokuZoomedCellTests {
             #expect(Metrics.zoomedCellSide(availableWidth: available) >= Metrics.minimumTapTarget)
         }
     }
+
+    /// 会長QA #595-1: 盤は角丸で切り抜かれているため、外周を直線で引くと 4 隅が切り落とされる。
+    /// 直線で引くのは内側の 2 本ずつだけで、外周は切り抜きと同じ角丸の枠で描く。
+    @Test("ブロックの直線は内側だけを引く（外周は角丸の枠に任せる）")
+    func innerBlockLinesExcludeOuterEdges() {
+        #expect(Metrics.innerBlockLineIndices == [1, 2])
+        #expect(!Metrics.innerBlockLineIndices.contains(0), "外周を直線で引くと左上・右上の隅が欠ける")
+        #expect(!Metrics.innerBlockLineIndices.contains(Metrics.boardSize / 3),
+                "外周を直線で引くと左下・右下の隅が欠ける")
+    }
 }

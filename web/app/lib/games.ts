@@ -220,7 +220,6 @@ export const games: Game[] = [
   },
   {
     slug: "freecell",
-    comingSoon: true,
     name: "フリーセル",
     emoji: "♦️",
     tagline: "全部見える52枚。詰まない配札を読み切ろう",
@@ -408,7 +407,6 @@ export const games: Game[] = [
   },
   {
     slug: "runner",
-    comingSoon: true,
     name: "チャリンコおじさん",
     emoji: "🚲",
     tagline: "タップで跳んで15ステージを走りぬけよう",

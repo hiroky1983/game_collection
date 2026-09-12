@@ -19,7 +19,6 @@ public struct RunnerView: View {
     /// 一時停止ボタンが遠い」という会長QA（2026-09-10）を受け、既定は現在のステージの
     /// ベストだけを1行で見せ、15個のチップ一覧は開いたときだけ場所を取るようにした。
     @State private var showsAllBestTimes = false
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -47,21 +46,7 @@ public struct RunnerView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("チャリンコおじさん")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "チャリンコおじさん", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { model.newGame() } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
@@ -210,8 +195,8 @@ public struct RunnerView: View {
     /// 開いたときだけ表示する（会長QA「上のセクションを縮めたい」を受けた折りたたみ化）。
     /// 開けば従来どおり「どこまで進んだか」「次にどこを縮めるか」が一目で分かる。
     ///
-    /// チップ行の高さは**開閉に関わらず常に確保**する（`RecommendationCard.heightPlaceholder`
-    /// と同じ「見えないひな形で高さを固定する」手法）。以前は開いたときだけ高さが増え、
+    /// チップ行の高さは**開閉に関わらず常に確保**する（レコメンドカードのひな形と同じ
+    /// 「見えないひな形で高さを固定する」手法）。以前は開いたときだけ高さが増え、
     /// `topSummary` が伸びた分だけ `course`（`GeometryReader` + `aspectRatio(.fit)`）が
     /// 帳尻合わせに縮んでいた——「一時停止ボタンのセクションが固定になってるせいか、
     /// ベストタイムのセクションを出すとプレイ画面が縮む」という会長QA（2026-09-10）どおりの
@@ -416,16 +401,13 @@ public struct RunnerView: View {
 
     private var pausedOverlay: some View {
         panel(title: "一時停止") {
-            Toggle(isOn: Binding(
-                get: { model.isSlowMode },
-                set: { model.setSlowMode($0) }
-            )) {
-                Text("ゆっくりモード")
-                    .themeBody(15)
-                    .foregroundStyle(.white)
-            }
-            .tint(Theme.Fill.coral)
-            .padding(.horizontal, 24)
+            // ゆっくりモードの切り替えは設定画面のみに一本化した（#631）。ゲーム内の
+            // 一時停止からいつでも切り替えられると、難所の直前で止めてオンにする→通過後に
+            // オフへ戻す、を繰り返すだけでベストタイムをいくらでも作り込めてしまい、
+            // アクセシビリティの代替手段のはずが難易度調整の抜け道になっていた
+            // （会長QA「一時停止でゆっくりモードに変えれるといくらでも難易度調整できる」・
+            // 2026-09-11）。設定変更時は`GameSettings.slowModeEnabled`のdidSetで
+            // 中断データを破棄するため、この画面を経由した抜け道は無い。
 
             Button {
                 model.resume()
@@ -492,12 +474,9 @@ public struct RunnerView: View {
         return String(format: "%d:%02d", value / 60, value % 60)
     }
 
-    /// レコメンドカードの枠。**カードの有無で高さが動かない**ようひな形で確保する（#148）。
+    /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
     private var recommendationArea: some View {
-        ZStack(alignment: .top) {
-            RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: model.phase == .allCleared)
-        }
+        RecommendationArea(services: services, isFinished: model.phase == .allCleared)
     }
 
     /// 遊び方のヒントとレコメンドは、プレイ中に何度も見るものではないので

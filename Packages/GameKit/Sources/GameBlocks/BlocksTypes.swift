@@ -75,7 +75,14 @@ public enum BlocksEvent: Equatable, Sendable {
     case paddleBounce
     /// ブロックに当たった。`destroyed` が true ならこの一撃で壊れた。
     case blockHit(row: Int, column: Int, kind: BlockKind, destroyed: Bool)
-    /// 球が床へ落ちた（1 機失う）。
+    /// 落ちてきたアイテムをパドルで受け止めた（#599）。効果は `BlocksField` が自分で適用済み。
+    ///
+    /// **得点は動かない**。Model 側がこれを受けて鳴らすのは手応えだけで、
+    /// スコアに触る分岐をここから生やさないこと（順位表の値の意味が版で変わる）。
+    case itemCaught(kind: BlocksItemKind)
+    /// 盤上の球がすべて落ちた（1 機失う）。
+    ///
+    /// 球が増えているあいだ（#599）は、1 個落ちただけでは出ない。
     case ballLost
 }
 

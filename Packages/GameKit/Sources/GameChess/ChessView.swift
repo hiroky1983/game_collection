@@ -15,10 +15,13 @@ public struct ChessView: View {
     @State private var pieceLayout: ChessPieceLayout
     /// 表示中の「チェック」の合図の契機 ID。nil なら出していない。
     @State private var checkBannerID: Int?
-    @Environment(\.dismiss) private var dismiss
+    /// 駒の意匠（#598）。見た目だけの設定なので局には焼き込まず、保存値をここで持って
+    /// 盤・取られた駒・成りの札・遊び方の一覧へ配る。
+    @State private var pieceStyle: ChessPieceStyle
 
     public init(services: GameServices) {
         self.services = services
+        _pieceStyle = State(initialValue: ChessPieceStylePreference().style)
         let model = ChessGameModel(services: services)
         _model = State(initialValue: model)
         _pieceLayout = State(initialValue: ChessPieceLayout(model.displayedPosition))
@@ -38,10 +41,10 @@ public struct ChessView: View {
         // 置くことで、決着の瞬間に盤が縮まない（#139 の契約）。
         VStack(spacing: 4) {
             statusBar
-            CapturedAreaView(model: model, owner: model.humanSide.opponent)
+            CapturedAreaView(model: model, owner: model.humanSide.opponent, style: pieceStyle)
             board
                 .layoutPriority(1)
-            CapturedAreaView(model: model, owner: model.humanSide)
+            CapturedAreaView(model: model, owner: model.humanSide, style: pieceStyle)
             HowToPlayHint(.chess, playLog: services.playLog)
             controlArea
             Spacer(minLength: 0)
@@ -49,21 +52,7 @@ public struct ChessView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("チェス")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "チェス", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.phase == .playing && !model.moves.isEmpty {
@@ -77,10 +66,14 @@ public struct ChessView: View {
             }
         }
         .howToPlay(.chess) {
-            ChessRuleDetail()
+            ChessRuleDetail(style: pieceStyle)
         }
         .sheet(isPresented: $showNewGame) {
-            ChessNewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
+            ChessNewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel,
+                              initialStyle: pieceStyle) { side, level, style in
+                // 意匠は局の外の設定なので、開始と同時に保存して次回起動へ持ち越す。
+                pieceStyle = style
+                ChessPieceStylePreference().style = style
                 model.newGame(humanSide: side, aiLevel: level)
                 showNewGame = false
             } onCancel: {
@@ -174,7 +167,8 @@ public struct ChessView: View {
                                 VStack(spacing: 4) {
                                     ChessPieceView(
                                         piece: ChessPiece(type: type, color: model.humanSide),
-                                        size: 44
+                                        size: 44,
+                                        style: pieceStyle
                                     )
                                     Text(type.japaneseName)
                                         .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -240,16 +234,15 @@ public struct ChessView: View {
                     }
                 }
             }
-            // 角丸は**マスにだけ**掛ける。ここより後ろに重ねる層は丸めない。
-            // 駒の層まで一緒に丸めると、持ち上げた駒（拡大 + 上へ 12%）が盤の上端で
-            // 切り落とされる（PR #477 の CodeRabbit 指摘。将棋の表示 0 段目で実測）。
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-            // 駒はマスの中ではなく盤全体を覆う 1 枚の層に置く（#200）。
-            .overlay { pieceLayer(cell: cell) }
-            // 王手されているキングの印も駒より**上**。キングそのものを囲むので、下に潜ると見えない。
-            .overlay { checkLayer(cell: cell) }
-            // 着手先の印も駒より**上**（取れる駒に重ねる枠が駒の下に潜ると読めなくなる）。
-            .overlay { targetLayer(cell: cell) }
+            // 角丸 → 駒 → 王手 → 着手先 の重なり順は将棋と共通（#530）。
+            // 順番そのものが不具合の有無を決めるため、理由ごと `boardLayers` に置いてある。
+            .boardLayers(
+                corner: Theme.cornerSmall,
+                pieces: { pieceLayer(cell: cell) },
+                check: { checkLayer(cell: cell) },
+                targets: { targetLayer(cell: cell) }
+            )
+            // 座標の文字はチェスにしかない層なので、共通の重ね順の外に置く。
             .overlay { coordinateLayer(cell: cell) }
             .padding(4)
             .background(
@@ -285,12 +278,9 @@ public struct ChessView: View {
                     let spot = ChessSquare.displayPosition(of: placement.square, flipped: flipped)
                     // 選択した駒は少し持ち上げる（拡大 + 浮かせ + 落ち影）。将棋と同じ演出。
                     let isLifted = model.selectedSquare == placement.square
-                    ChessPieceView(piece: placement.piece, size: cell)
-                        .scaleEffect(isLifted ? ChessMotion.pieceLiftScale : 1)
-                        .shadow(color: .black.opacity(isLifted ? 0.28 : 0),
-                                radius: isLifted ? cell * 0.10 : 0,
-                                y: isLifted ? cell * 0.10 : 0)
-                        .offset(y: isLifted ? -cell * ChessMotion.pieceLiftRatio : 0)
+                    ChessPieceView(piece: placement.piece, size: cell, style: pieceStyle)
+                        // 拡大 + 浮かせ + 落ち影は将棋と共通（#530）。
+                        .pieceLift(isLifted: isLifted, cell: cell)
                         // 持ち上げのアニメーションは**駒単位**でここに置く（層全体に置くと、
                         // 着手確定で配置と選択が同時に変わったとき pieceMove 側の指定に
                         // 上書きされて、戻りの速さが意図とずれる — verifier 検証 2026-09-06）。
@@ -490,33 +480,15 @@ public struct ChessView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    /// 検討ナビと「もう一度」は 1 段にまとめ、対局中の `gameControls` と同じ高さに収める（#139）。
+    /// 検討ナビと「もう一度」の帯。実体は将棋と共通の `ReviewNavBar`（#139・#530）。
     private var reviewControls: some View {
-        HStack(spacing: 12) {
-            // 中身が記号だけのボタンは、VoiceOver が SF Symbols の名前を推測して読む。
-            // 何をするボタンかは伝わらないので、読み上げ文を明示する。
-            Button { model.reviewStepBack() } label: { Image(systemName: "backward.frame.fill") }
-                .disabled(model.reviewPly <= 0)
-                .accessibilityLabel("1手戻す")
-            Text("\(model.reviewPly)/\(model.moves.count)手")
-                .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
-                .accessibilityLabel("\(model.moves.count)手中 \(model.reviewPly)手目")
-            Button { model.reviewStepForward() } label: { Image(systemName: "forward.frame.fill") }
-                .disabled(model.reviewPly >= model.moves.count)
-                .accessibilityLabel("1手進める")
-
-            Spacer(minLength: 8)
-
-            Button { showNewGame = true } label: {
-                Label("もう一度", systemImage: "arrow.clockwise")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 5)
-        .popCard(corner: Theme.cornerSmall)
+        ReviewNavBar(
+            ply: model.reviewPly,
+            total: model.moves.count,
+            onBack: { model.reviewStepBack() },
+            onForward: { model.reviewStepForward() },
+            onNewGame: { showNewGame = true }
+        )
     }
 }
 
@@ -528,6 +500,8 @@ private struct CapturedAreaView: View {
     let model: ChessGameModel
     /// この帯が「失った駒」を並べる側。
     let owner: ChessColor
+    /// 駒の意匠（#598）。盤の上と同じ見た目で並べる。
+    let style: ChessPieceStyle
     /// 画面の広さ（#458）。盤は幅から作られるので勝手に広がるが、ここは固定 pt なので
     /// 一緒に拡大しないと iPad で盤との比率が崩れる。
     @Environment(\.adaptiveLayout) private var layout
@@ -560,7 +534,7 @@ private struct CapturedAreaView: View {
                     HStack(spacing: -layout.scaled(4)) {
                         ForEach(Array(lost.enumerated()), id: \.offset) { _, type in
                             ChessPieceView(piece: ChessPiece(type: type, color: owner),
-                                           size: layout.scaled(26))
+                                           size: layout.scaled(26), style: style)
                         }
                     }
                     .drawingGroup() // 図形とグラデーションを Metal で一括描画
@@ -578,17 +552,20 @@ private struct CapturedAreaView: View {
 
 // MARK: - 新規対局シート
 
-/// 先後・難易度を大きなボタンで選ぶ。
+/// 先後・難易度・駒の意匠を大きなボタンで選ぶ。
 struct ChessNewGameSheet: View {
     @State private var side: ChessColor
     @State private var level: Int
-    let onStart: (ChessColor, Int) -> Void
+    @State private var style: ChessPieceStyle
+    let onStart: (ChessColor, Int, ChessPieceStyle) -> Void
     let onCancel: () -> Void
 
-    init(initialSide: ChessColor, initialLevel: Int,
-         onStart: @escaping (ChessColor, Int) -> Void, onCancel: @escaping () -> Void) {
+    init(initialSide: ChessColor, initialLevel: Int, initialStyle: ChessPieceStyle,
+         onStart: @escaping (ChessColor, Int, ChessPieceStyle) -> Void,
+         onCancel: @escaping () -> Void) {
         _side = State(initialValue: initialSide)
         _level = State(initialValue: initialLevel)
+        _style = State(initialValue: initialStyle)
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -597,9 +574,11 @@ struct ChessNewGameSheet: View {
     private static let metrics = GameSetupChooser.Metrics(subtitleMinimumScale: 0.7)
 
     var body: some View {
+        // 節が 3 つあり `.medium` に収まらないので、囲碁・五目並べと同じくスクロールで開く
+        // （`GameSetupSheet` の注記。取り違えると開始ボタンがはみ出して押せなくなる）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始",
-            onStart: { onStart(side, level) }, onCancel: onCancel
+            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            onStart: { onStart(side, level, style) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの手番") {
                 HStack(spacing: 12) {
@@ -621,7 +600,53 @@ struct ChessNewGameSheet: View {
                                      accent: Theme.Fill.coral, metrics: Self.metrics) { level = 2 }
                 }
             }
+            GameSetupSection("駒の見た目") {
+                VStack(spacing: 10) {
+                    HStack(spacing: 12) {
+                        ForEach(ChessPieceStyle.allCases, id: \.rawValue) { candidate in
+                            GameSetupChooser(
+                                title: candidate.label, subtitle: candidate.subtitle,
+                                selected: style == candidate,
+                                accent: candidate == .flat ? Theme.Fill.teal : Theme.Fill.yellow,
+                                metrics: Self.metrics
+                            ) { style = candidate }
+                        }
+                    }
+                    // 名前だけでは違いが伝わらないので、選んだ意匠の駒をその場で並べて見せる。
+                    ChessPieceStylePreview(style: style)
+                }
+            }
         }
+    }
+}
+
+/// 設定シートで選んだ意匠を確かめるための見本。白黒 1 組ずつ並べる
+/// （黒駒のツヤは白駒と別の値なので、片方だけでは選んだ結果が分からない）。
+private struct ChessPieceStylePreview: View {
+    let style: ChessPieceStyle
+
+    private static let sample: [ChessPieceType] = [.king, .queen, .knight, .pawn]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(ChessColor.allCases, id: \.rawValue) { color in
+                HStack(spacing: 2) {
+                    ForEach(Self.sample, id: \.rawValue) { type in
+                        ChessPieceView(piece: ChessPiece(type: type, color: color),
+                                       size: 34, style: style)
+                            .frame(width: 34, height: 34)
+                    }
+                }
+                .padding(.horizontal, 6).padding(.vertical, 4)
+                // 白駒・黒駒それぞれが盤の上でどう見えるかを確かめる見本なので、
+                // 背景も明るいマス・暗いマスに合わせる。
+                .background(color == .white ? ChessBoardStyle.lightSquare : ChessBoardStyle.darkSquare,
+                            in: RoundedRectangle(cornerRadius: Theme.cornerSmall))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(style.label)の駒の見本")
     }
 }
 
@@ -630,6 +655,9 @@ struct ChessNewGameSheet: View {
 /// 「遊び方」シートの下に足す駒の動き・特別ルールの説明。
 /// ミニガイドは 3 行までという決まり（`HowToPlayGuide`）なので、初心者に必要な残りはここに置く。
 struct ChessRuleDetail: View {
+    /// 駒の意匠（#598）。盤に出ているものと同じ見た目で並べる。
+    var style: ChessPieceStyle = .flat
+
     private let pieces: [(ChessPieceType, String)] = [
         (.king, "たて・よこ・ななめに1マス。取られたら負け"),
         (.queen, "たて・よこ・ななめに何マスでも"),
@@ -645,7 +673,8 @@ struct ChessRuleDetail: View {
                 Text("駒の動き").themeBody(16).foregroundStyle(Theme.ink)
                 ForEach(pieces, id: \.0.rawValue) { type, movement in
                     HStack(alignment: .center, spacing: 10) {
-                        ChessPieceView(piece: ChessPiece(type: type, color: .white), size: 30)
+                        ChessPieceView(piece: ChessPiece(type: type, color: .white), size: 30,
+                                       style: style)
                             .frame(width: 30, height: 30)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(type.japaneseName)
@@ -684,39 +713,10 @@ struct ChessRuleDetail: View {
 
 /// チェスの演出の長さ。Reduce Motion への追従は `gameAnimation(_:value:)` 側が持つ（#210）。
 ///
-/// 長さは秒の定数として持ち、`Animation` はそこから組む。`Animation` からは長さを読み出せないため、
-/// 定数を経由しないと**長さの大小関係をテストで固定できない**。
-enum ChessMotion {
-    /// 駒の移動にかかる時間の目安（バネの `response`）。
-    static let pieceMoveResponse: TimeInterval = 0.26
-    /// プロモーション選択の札の出入り。`pieceMoveResponse` より短くする。
-    static let promotionPromptDuration: TimeInterval = 0.18
-    /// 手番バッジの色替え。
-    static let turnChangeDuration: TimeInterval = 0.2
-    /// 「チェック」の合図が飛び出す・引っ込むのにかかる時間（バネの `response`）。
-    static let checkBannerResponse: TimeInterval = 0.24
-    /// 「チェック」の合図を出しておく時間。**駒の移動より長く取る**。
-    /// ここが短いと、王手を掛けた駒がまだ動いている最中に文字が消えて何が起きたか読めない。
-    static let checkBannerHold: TimeInterval = 1.1
-
-    /// 駒の移動。跳ね返り（`dampingFraction` < 1）は駒がマスから外れて見えるため、ほぼ入れない。
-    static let pieceMove: Animation = .spring(response: pieceMoveResponse, dampingFraction: 0.9)
-    /// プロモーション選択の札の出入り。**駒の移動より短く取る**。
-    static let promotionPrompt: Animation = .easeOut(duration: promotionPromptDuration)
-    /// 手番バッジの色替え。
-    static let turnChange: Animation = .easeInOut(duration: turnChangeDuration)
-    /// 「チェック」の合図の出入り。危急を伝えるので少し跳ねさせる。
-    static let checkBanner: Animation = .spring(response: checkBannerResponse, dampingFraction: 0.65)
-
-    /// 選択した駒の持ち上げにかかる時間（バネの `response`）。**駒の移動より短く取る**。
-    /// タップへの即応が命の演出なので、ここが長いと操作が重く感じる。
-    static let pieceLiftResponse: TimeInterval = 0.16
-    /// 持ち上げ量（マス幅に対する比）と拡大率。浮いたと分かる最小限に留め、隣のマスに被せない。
-    static let pieceLiftRatio: CGFloat = 0.12
-    static let pieceLiftScale: CGFloat = 1.07
-    /// 選択した駒の持ち上げ。掴んだ手応えとして少しだけ跳ねさせる（将棋と同じ値）。
-    static let pieceLift: Animation = .spring(response: pieceLiftResponse, dampingFraction: 0.7)
-}
+/// 実体は盤ゲーム共通の `BoardGameMotion`（#530）。将棋（`ShogiMotion`）とは値も理由も
+/// 同じで、片方だけ調整すると盤ゲーム間で手触りがずれるため 1 か所に置いてある。
+/// 呼び出し側の読み口はチェスの名前のまま残す（どのゲームの演出を触っているかを見失わないため）。
+typealias ChessMotion = BoardGameMotion
 
 // MARK: - 盤の配色
 
@@ -740,14 +740,11 @@ enum ChessBoardStyle {
 
     /// 王手の合図。キングのマスの枠と「チェック」の札に使う。
     ///
-    /// 差し色（`Theme.coral` など）は**白文字を載せると WCAG AA 未達**で #220 の対象に
-    /// なっているため、ここでは使わない。この緋色は白文字との対比が 6.5:1 あり、
-    /// 盤の明暗どちらのマスに対しても十分に沈んで見える（将棋 `BoardStyle.check` と同じ値）。
-    ///
-    /// `Color` は生成後に成分を取り出せないため、コントラストを検証するテストが参照できるよう
-    /// 数値のまま持つ。
-    static let checkHex: UInt32 = 0xB3261E
-    static let check = Color(hex: checkHex)
+    /// 実体は盤ゲーム共通の `BoardGameCheckColor`（#530）。将棋と同じ値・同じ理由で、
+    /// 片方だけ差し替えると盤ゲーム間で危急の合図の色が食い違う。
+    /// 盤の明暗どちらのマスに対しても十分に沈んで見える。
+    static let checkHex: UInt32 = BoardGameCheckColor.hex
+    static let check = BoardGameCheckColor.color
 
     /// マスに直接書く座標の文字色。**マスの反対色**で描くので明暗どちらでも読める。
     static func coordinate(onLight: Bool) -> Color {

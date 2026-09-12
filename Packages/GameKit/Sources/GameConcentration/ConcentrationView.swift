@@ -8,7 +8,6 @@ public struct ConcentrationView: View {
     @State private var showMattaConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -27,21 +26,7 @@ public struct ConcentrationView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.purple)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("神経衰弱")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "神経衰弱", review: services.review, tint: Theme.purple) {
             ToolbarItem(placement: .primaryAction) {
                 Button { showNewGame = true } label: {
                     Label("新規", systemImage: "plus.circle.fill")
@@ -275,7 +260,31 @@ private struct CardView: View {
 
     private var isFaceUp: Bool { card.isFaceUp || card.isMatched }
 
+    /// 図案の一辺。札の短い辺に対する比で置き、盤面サイズに追従させる
+    /// （絵文字は 28pt 固定だったため、8ペアの大きい札では小さく、18ペアでは詰まって見えた）。
+    private static let figureRatio: CGFloat = 0.56
+
     var body: some View {
+        GeometryReader { geo in
+            face(side: min(geo.size.width, geo.size.height) * Self.figureRatio)
+                .frame(width: geo.size.width, height: geo.size.height)
+        }
+        // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
+        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .gameAnimation(ConcentrationMotion.cardFlip, value: isFaceUp)
+        .opacity(card.isMatched ? 0.6 : 1.0)
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityText)
+    }
+
+    /// 絵文字をやめると読み上げも消えるため、札の状態を言葉で持ち直す（#601）。
+    private var accessibilityText: String {
+        guard isFaceUp, let name = card.figure?.displayName else { return "裏向きの札" }
+        return card.isMatched ? "\(name)（獲得済み）" : name
+    }
+
+    @ViewBuilder
+    private func face(side: CGFloat) -> some View {
         ZStack {
             if isFaceUp {
                 // 表は紙の淡い縦グラデーション（CardStyle #366）。マッチ済みのティール地は維持。
@@ -291,8 +300,11 @@ private struct CardView: View {
                                 lineWidth: 2
                             )
                     )
-                Text(card.symbol)
-                    .font(.system(size: 28))
+                // 図案はどれも同じ正方形に描くので、札ごとに大きさと余白がずれない。
+                if let figure = card.figure {
+                    ConcentrationFigureView(figure: figure)
+                        .frame(width: side, height: side)
+                }
             } else {
                 // 裏は神経衰弱の顔である紫を保ちつつ、白の内枠で「カードの裏」に寄せる（#366）。
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -309,10 +321,6 @@ private struct CardView: View {
                     .foregroundStyle(.white.opacity(0.6))
             }
         }
-        // 大きさは呼び出し側（cardGrid）が画面の空きに合わせて決める
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-        .gameAnimation(ConcentrationMotion.cardFlip, value: isFaceUp)
-        .opacity(card.isMatched ? 0.6 : 1.0)
     }
 }
 

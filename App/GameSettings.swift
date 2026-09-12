@@ -1,6 +1,8 @@
 import Foundation
 import Observation
 import Core
+import GameRunner
+import GameBlocks
 
 @MainActor
 @Observable
@@ -25,10 +27,21 @@ final class GameSettings {
     /// 反射神経を使うアクション枠は VoiceOver で代替できないため、進みを遅くする手段を
     /// アクセシビリティの代替として置いている（アクション枠の基盤規約）。
     /// ブロック崩しと横スクロールランナーで**1 つの設定を共有する**。
-    /// **ゲーム内のポーズ画面からも切り替えられる**ので、設定画面を開くたびに
-    /// `refreshFromDefaults()` で保存値を読み直す（片方だけ古い表示にしない）。
+    ///
+    /// **切り替えは設定画面からのみ**（#631）。以前はゲーム内の一時停止画面からも
+    /// 切り替えられたが、難所の直前で止めてオンにする→通過後にオフへ戻す、を繰り返す
+    /// だけでベストタイムをいくらでも作り込めてしまい、アクセシビリティの代替手段の
+    /// つもりが難易度調整の抜け道になっていた（会長QA 2026-09-11）。
+    ///
+    /// 切り替えるたびに**両ゲームの中断データを破棄する**。一時停止中の状態を残したまま
+    /// 設定画面へ迂回してモードだけ変える、という間接的な抜け道も塞ぐため。
     var slowModeEnabled: Bool {
-        didSet { Self.slowMode.isEnabled = slowModeEnabled }
+        didSet {
+            guard oldValue != slowModeEnabled else { return }
+            Self.slowMode.isEnabled = slowModeEnabled
+            AppEnvironment.services.snapshots.clear(for: RunnerModel.gameID)
+            AppEnvironment.services.snapshots.clear(for: BlocksModel.gameID)
+        }
     }
     /// 解析送信のオン / オフ（#158）。既定はオン。
     /// オフのあいだ `logEvent` は呼ばれず、Firebase の自動収集イベントも止まる。
@@ -71,11 +84,9 @@ final class GameSettings {
         self.slowModeEnabled = Self.slowMode.isEnabled
     }
 
-    /// 保存されている設定を読み直す。
-    ///
-    /// ゲーム画面からも切り替えられる設定（ゆっくりモード・#463）があるため、設定画面を
-    /// 開くたびに呼ぶ。これを飛ばすと、ゲーム内で切り替えた値がアプリを再起動するまで
-    /// 設定画面に反映されない。
+    /// 保存されている設定を読み直す。設定画面を開くたびに呼ぶ（保険。#631でゆっくり
+    /// モードの変更経路を設定画面のみに一本化した後も、他の設定同様に保存値との
+    /// 食い違いが起きないことを保証しておく）。
     func refreshFromDefaults() {
         slowModeEnabled = Self.slowMode.isEnabled
     }

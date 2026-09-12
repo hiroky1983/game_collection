@@ -12,7 +12,6 @@ public struct MinesweeperView: View {
     @State private var showGiveUpConfirm = false
     /// コンティニューのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var continueRescue = RewardedRescue()
-    @Environment(\.dismiss) private var dismiss
 
     public init(services: GameServices) {
         self.services = services
@@ -34,21 +33,7 @@ public struct MinesweeperView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .popBackground()
-        .reviewRequestPrompt(services.review)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        #endif
-        .tint(Theme.coral)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
-            }
-            ToolbarItem(placement: .principal) {
-                Text("マインスイーパー")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-            }
+        .gameChrome(title: "マインスイーパー", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.gameState == .playing {
@@ -189,35 +174,15 @@ public struct MinesweeperView: View {
     // MARK: - 盤の下の操作エリア
 
     /// プレイ中（諦める）・コンティニュー中（何も出さない）・終局後（記録 + 次のゲーム + レコメンド）で
-    /// 中身が入れ替わるが、**高さは常に終局後の最大構成に揃える**（#148）。
-    ///
-    /// ここが伸び縮みすると `board`（`aspectRatio(1, .fit)` + `layoutPriority(1)`）が
-    /// 帳尻合わせに縮み、決着した瞬間に盤が一段小さくなって見える。レコメンドは出るとは
-    /// 限らず×でも閉じられるため、カードのぶんは常にひな形で高さを確保しておく。
+    /// 中身が入れ替わるが、**高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        ZStack(alignment: .top) {
-            finishedControls { RecommendationCard.heightPlaceholder }
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            if model.gameOver && !showContinue {
-                finishedControls {
-                    RecommendationSlot(services: services, isFinished: true)
-                }
-            } else if model.gameState == .playing {
+        GameControlArea(isFinished: model.gameOver && !showContinue, services: services) {
+            resultControls
+        } playing: {
+            // コンティニューの提案中は何も出さない（提案そのものが別の層に出ている）。
+            if model.gameState == .playing {
                 gameControls
             }
-        }
-    }
-
-    /// 終局後に出すもの。高さの基準（ひな形）と実物で同じ組み方を使う。
-    private func finishedControls<Recommendation: View>(
-        @ViewBuilder recommendation: () -> Recommendation
-    ) -> some View {
-        VStack(spacing: 8) {
-            resultControls
-            recommendation()
         }
     }
 
