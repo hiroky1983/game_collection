@@ -58,7 +58,8 @@ Packages/GameKit/
 - `makeBannerView(width:) -> AnyView?` — バナー広告
 - `showInterstitial() async` — インタースティシャル広告（待機付き。プロトコルには残っているが呼び出し箇所は無い）
 - `showRewardedAd() async -> Bool` — リワード広告（視聴完了で true）。`GameServices` 経由で
-  呼ぶと `game_id` / `purpose` 付きで `reward_ad` イベントも送られる（後述の解析仕様）
+  呼ぶと `game_id` / `purpose` 付きで `reward_ad` イベントも送られる（v1.1.5 からは要求時に
+  `reward_request` も。後述の解析仕様）
 
 **`SnapshotStore`**: ゲーム状態の永続化
 - `save(_:for:)` / `load(_:for:)` / `exists(for:)` / `clear(for:)`
@@ -140,9 +141,10 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 ---
 
-## 解析仕様（Analytics・#158 / #500）
+## 解析仕様（Analytics・#158 / #500 / #659）
 
-`Core/Analytics.swift` に**送信するイベントを3種だけに閉じた** `AnalyticsEvent` enum がある。
+`Core/Analytics.swift` に**送信するイベントを5種だけに閉じた** `AnalyticsEvent` enum がある
+（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に追加。v1.1.4 までの公開版は3種）。
 呼び出し側（各ゲーム）は任意のキー・値を足せず、イベントを増やすには enum にケースを足す必要がある
 （＝意図しないイベント発生や、ドキュメントと実装が知らないうちに乖離することを型で防ぐ設計）。
 
@@ -151,6 +153,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level` |
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec` |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
+| `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
+| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで
@@ -165,6 +169,13 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   「開始した」「1手指した」「やり直した」「終局した」「画面を離れた」を伝えるだけでよい
 - 設定でオン/オフした境界をまたいだプレイは `game_start`/`game_end` の対応を保証しないため、
   トグル時点で計測中の状態を丸ごと捨てる（`discardPlayState()`。#212）
+- `reward_request` と `game_open` はプレイの数え方（`game_start`/`game_end` の対応）に影響しない。
+  `reward_ad ÷ reward_request` が完了率、`game_open` の `resume = 1` が「続きから」の再開プレイ
+  （`game_start` は再開では送られないため、再開を数える唯一の手段）
+- `game_open` の導線は遷移の値そのもの（`HubRoute`）に持たせる。タップの横で別の状態に書き留めると
+  タップと path の変化の順序が保証されないため。`resume` も**タップした時点**の中断データの有無で決める。
+  `notification` は #663 のローカル通知のために予約した値で、#659 の時点では発火点が無い
+- `source` / `position` / `resume` は GA4 のカスタムディメンション登録が要る（会長操作依頼 #694）
 
 ---
 
