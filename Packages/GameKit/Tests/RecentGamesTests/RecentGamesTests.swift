@@ -178,15 +178,10 @@ struct SnapshotModifiedAtTests {
         let gameID = "recent-games-probe"
         #expect(store.modifiedAt(for: gameID) == nil, "保存前から時刻が取れている")
 
-        let before = Date()
         try store.save(Payload(value: 1), for: gameID)
-        guard let saved = store.modifiedAt(for: gameID) else {
-            Issue.record("保存したのに更新時刻が取れない")
-            return
-        }
-        // ファイル属性の秒未満の丸めがあるため、前後に 2 秒の幅を許す。
-        #expect(saved.timeIntervalSince(before) > -2)
-        #expect(saved.timeIntervalSince(before) < 2)
+        // 現在時刻との差は見ない（実行が止まると正しい実装でも落ちる）。時刻が並び順に
+        // 効いていることは下の `olderSnapshotSortsAfterNewer` で確かめる。
+        #expect(store.modifiedAt(for: gameID) != nil, "保存したのに更新時刻が取れない")
 
         store.clear(for: gameID)
         #expect(store.modifiedAt(for: gameID) == nil, "消したのに時刻が残っている")
