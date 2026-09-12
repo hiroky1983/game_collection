@@ -55,10 +55,18 @@ public final class RewardedRescue {
         // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ。
         guard !isWatching else { return }
         isWatching = true
+        // 画面の世代（#653）。`guardedBy` の局ガードは Model の中だけを見るので、**Model ごと
+        // 入れ替わる経路**（ロード中にハブへ戻って開き直す）は弾けない。ここで押さえる。
+        let generation = services.screenGeneration.current
         Task {
             if await services.showRewardedAd(gameID: gameID, purpose: purpose) {
-                // 広告を見たのに適用できなかったときは、黙って終わらせない（対価が無い状態を作らない）。
-                if !grant() {
+                if services.screenGeneration.current != generation {
+                    // ハブへ戻られている。この救済が狙っていた画面はもう無く、`grant` を呼ぶと
+                    // 捨てられた Model が `PlayLog` や中断データを新しい対局の裏で書き換える。
+                    // アラートも出さない（出す先の画面が無いので、次に開いたときに
+                    // 身に覚えのないアラートが出るだけになる）。
+                } else if !grant() {
+                    // 広告を見たのに適用できなかったときは、黙って終わらせない（対価が無い状態を作らない）。
                     // 照合を持たない面（`unchecked`）は false を返さないのが契約。返ってきたら
                     // 宣言と実装が食い違っている（照合を足したのに宣言が古い）。
                     assert(guardedBy.isChecked, "\(gameID) は照合していない宣言なのに grant が false を返した")
