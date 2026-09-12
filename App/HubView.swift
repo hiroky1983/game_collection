@@ -1,13 +1,27 @@
 import SwiftUI
 import Core
 
+/// ハブからゲーム画面への遷移先（#659）。
+///
+/// `NavigationLink(value:)` に載せる値を ID の文字列からこの型に広げ、**どの導線から入ったか**を
+/// 遷移そのものに持たせる。タップの横で別の状態に書き留める形にすると、タップと `path` の変化の
+/// 順序が保証されず、`game_open` の `source` に前の導線の値が載りうる。
+struct HubRoute: Hashable {
+    let gameID: String
+    let source: GameOpenSource
+    /// 導線の中での位置（1 始まり）。並びを持たない導線では nil。
+    let position: Int?
+    /// タップした時点で「続きから」だったか。
+    let resume: Bool
+}
+
 /// ハブ画面。登録された GameModule をカードで列挙し、選択で各ゲームを遅延ロード起動する。
 /// NavigationStack の土台はこの一覧。各ゲームは push される（→ ゲーム側の「戻る」でここに戻れる）。
 struct HubView: View {
     let registry: GameRegistry
     let services: GameServices
     let settings: GameSettings
-    @State private var path: [String]
+    @State private var path: [HubRoute]
     @State private var showSettings: Bool
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
@@ -88,7 +102,11 @@ struct HubView: View {
         self.registry = registry
         self.services = services
         self.settings = settings
-        _path = State(initialValue: initialGameID.map { [$0] } ?? [])
+        // 起動引数で直接開く経路（撮影・動作確認）。`onChange(of: path)` は初期値では走らないので
+        // `game_open` は送られない（ユーザーの導線ではないため、それで正しい）。
+        _path = State(initialValue: initialGameID.map {
+            [HubRoute(gameID: $0, source: .hub, position: nil, resume: services.snapshots.exists(for: $0))]
+        } ?? [])
         _showSettings = State(initialValue: showsSettingsInitially)
     }
 
@@ -109,12 +127,16 @@ struct HubView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
-                            NavigationLink(value: module.id) {
+                            let hasResume = services.snapshots.exists(for: module.id)
+                            // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
+                            NavigationLink(value: HubRoute(
+                                gameID: module.id, source: .hub, position: index + 1, resume: hasResume
+                            )) {
                                 GameCard(
                                     module: module,
                                     accent: Theme.palette[index % Theme.palette.count],
                                     accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
-                                    hasResume: services.snapshots.exists(for: module.id),
+                                    hasResume: hasResume,
                                     record: services.playLog?.summaryLine(gameID: module.id),
                                     minHeight: cardMinHeight
                                 )
@@ -158,27 +180,39 @@ struct HubView: View {
                     }
                 }
             }
-            .navigationDestination(for: String.self) { id in
-                if let module = registry.module(id: id) {
+            .navigationDestination(for: HubRoute.self) { route in
+                if let module = registry.module(id: route.gameID) {
                     module.makeView(services: services)
                 }
             }
-            // ゲーム画面から離れたことを解析へ伝える（#158）。次に開いたときを新しい
-            // 1 プレイとして数え直すための境界で、ここが唯一の発火点。
-            // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
             .onChange(of: path) { oldPath, newPath in
-                if !oldPath.isEmpty, newPath.isEmpty, let leftGameID = oldPath.last {
-                    services.gameDidLeave(gameID: leftGameID)
+                // ゲーム画面から離れたことを解析へ伝える（#158）。次に開いたときを新しい
+                // 1 プレイとして数え直すための境界で、ここが唯一の発火点。
+                // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
+                if !oldPath.isEmpty, newPath.isEmpty, let left = oldPath.last {
+                    services.gameDidLeave(gameID: left.gameID)
+                }
+                // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
+                // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
+                if oldPath.isEmpty, let opened = newPath.first {
+                    services.gameDidOpen(
+                        gameID: opened.gameID, source: opened.source,
+                        position: opened.position, resume: opened.resume
+                    )
                 }
             }
             // リザルトのレコメンドカードがタップされたら、そのゲームへ差し替えて遷移する。
             .onChange(of: services.recommendations?.requestedGameID) { _, requested in
                 guard let id = requested else { return }
                 services.recommendations?.requestedGameID = nil
+                let route = HubRoute(
+                    gameID: id, source: .recommendation, position: nil,
+                    resume: services.snapshots.exists(for: id)
+                )
                 // NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
                 // いったん根まで戻し、次の runloop で積み直す。
                 path = []
-                DispatchQueue.main.async { path = [id] }
+                DispatchQueue.main.async { path = [route] }
             }
             .task {
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
