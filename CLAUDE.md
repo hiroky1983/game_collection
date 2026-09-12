@@ -23,7 +23,7 @@ xcodegen generate
 ## 迷ったら
 
 - ゲーム追加の作法・ゲーム一覧: `docs/spec-app.md` の「パッケージ構成」と `App/AppGameServices.swift`
-- 解析イベント（`game_start`/`game_end`/`reward_ad`）を増減させたいとき: `docs/spec-app.md` の「解析仕様」を
+- 解析イベント（`game_start`/`game_end`/`reward_ad`、v1.1.5 から `reward_request`/`game_open`）を増減させたいとき: `docs/spec-app.md` の「解析仕様」を
   先に読む。`game_id` の一覧はドキュメントで持たず `GameRegistry` から実行時に作る設計なので、
   ドキュメント側に個々のゲーム ID を書き足さない
 - 上記だけで判断できない運営判断（マージ主体・リリース構成・issue の切り方など）は `docs/ai-company.md` /
