@@ -19,6 +19,11 @@ struct BirdArtTests {
     private static let art = RunnerBirdArt(width: width, height: height, groundDrop: groundDrop)
     private static let epsilon = 1e-9
 
+    /// 影の下端（地面に敷けているかを見る唯一の値）。
+    private static func shadowBottom(of art: RunnerBirdArt) -> Double {
+        Double(art.shadowCenter.y) - Double(art.shadowSize.height) / 2
+    }
+
     @Test("絵の水平方向の張り出しが 0（箱の幅ちょうどに収まる）")
     func horizontalExtentMatchesHitbox() {
         let extent = Self.art.horizontalExtent
@@ -35,10 +40,13 @@ struct BirdArtTests {
         let extent = Self.art.birdVerticalExtent
         #expect(abs(extent.lowerBound - 0) < Self.epsilon)
         #expect(extent.upperBound <= Self.height + Self.epsilon)
-        // 影は帯の外——地面（y = -groundDrop）に敷く。地面より下へ潜らないことだけ見る。
-        #expect(Self.art.verticalExtent.lowerBound >= -Self.groundDrop - Self.epsilon)
+        // 影は帯の外——地面（y = -groundDrop）に敷く。**影の下端そのもの**を見る:
+        // `verticalExtent` は鳥と影の合併なので、下端が負というだけなら影を地面から
+        // 大きく浮かせても通ってしまう（体とのすき間は「飛んでいる」の手がかりになる）。
+        let shadowBottom = Self.shadowBottom(of: Self.art)
+        #expect(shadowBottom >= -Self.groundDrop - Self.epsilon)
         #expect(
-            Self.art.verticalExtent.lowerBound < 0,
+            shadowBottom <= -Self.groundDrop + 0.1,
             "影が地面まで降りていない（体とのすき間が『飛んでいる』の手がかり）"
         )
     }
@@ -126,7 +134,9 @@ struct BirdArtTests {
                 #expect(abs(art.horizontalExtent.upperBound - width) < Self.epsilon)
                 #expect(abs(art.birdVerticalExtent.lowerBound) < Self.epsilon)
                 #expect(art.birdVerticalExtent.upperBound <= height + Self.epsilon)
-                #expect(art.verticalExtent.lowerBound >= -groundDrop - Self.epsilon)
+                let shadowBottom = Self.shadowBottom(of: art)
+                #expect(shadowBottom >= -groundDrop - Self.epsilon)
+                #expect(shadowBottom <= -groundDrop + 0.1)
             }
         }
     }
