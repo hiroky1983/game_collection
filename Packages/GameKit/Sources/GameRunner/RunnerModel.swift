@@ -403,6 +403,29 @@ public final class RunnerModel {
                 return field.isGrounded && field.playerMaxX > bird.start && field.playerMinX < bird.end
             })
             isFrozenForCapture = true
+        case "platform":
+            // 台座の上を走っている瞬間で止める（#674 の受け入れ条件「台座の上を走っている瞬間」の画）。
+            // 本番では台座は 16 面以降にしか出ないので、ショーケースの台座を使う。端から 8 単位
+            // 内側に入ってから止め、乗った直後・降りる直前の画にならないようにする。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                return field.isGrounded
+                    && field.stage.platforms.contains { $0.start + 8 <= field.distance && field.distance < $0.end - 8 }
+            })
+            isFrozenForCapture = true
+        case "floor":
+            // スピードアップ床の上を走っている瞬間で止める（#672 の受け入れ条件の画）。
+            // 区間に入って 20 単位進んだところで止め、矢印模様が走者の足元に見えるようにする。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                return field.isOnBoostFloor
+                    && field.stage.boostFloors.contains { $0.start + 20 <= field.distance }
+            })
+            isFrozenForCapture = true
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
