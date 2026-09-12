@@ -778,14 +778,14 @@ final class RunnerScene: SKScene {
     /// 翼・尾・くちばしのパスは既存のゴール旗（`addGoalMarker`）と同じ技法（#494 の
     /// 権利チェックの要点は特定作品の意匠に寄せないことで、パス自体は許容されている）。
     /// 当たり判定は `RunnerField.isHittingBlock` が見る**空中の帯**
-    /// （`hazard.bottom` 〜 `hazard.height` = 13〜22・#671）で、絵はその帯の床に合わせて置く。
+    /// （`hazard.bottom` 〜 `hazard.height` ≒ 13〜17.34・#671）で、絵はその帯の床に合わせて置く。
     ///
-    /// **絵の寸法は `RunnerBirdArt` が当たり判定の矩形から導く**（#609）。かつてはここに
-    /// 座標を直書きしており、「絵は矩形の内側に収まる寸法で組む」と書いていたにもかかわらず、
-    /// 実際にはくちばし・尾羽・翼が外へ出て**絵の幅が矩形の 1.5 倍**あった。今は
-    /// くちばしの先端・尾羽の先端・翼の振り切った先端が矩形の縁にちょうど一致し、
-    /// 浮遊の上端が矩形の天井に一致する。張り出しが 0 であることは `BirdArtTests` が
-    /// 寸法の計算で確かめるので、パーツを動かすとテストが落ちる。
+    /// **横は絵が矩形から導かれ、縦は帯が絵から導かれる**（#609 / #671 会長決裁 2026-09-12）。
+    /// かつてはここに座標を直書きしており、「絵は矩形の内側に収まる寸法で組む」と書いていた
+    /// にもかかわらず、実際にはくちばし・尾羽・翼が外へ出て**絵の幅が矩形の 1.5 倍**あった。
+    /// 今はくちばしの先端・尾羽の先端・翼の振り切った先端が矩形の縁にちょうど一致し、
+    /// 帯の床に絵の底、帯の天井に浮遊の上端が一致する。張り出しが 0 であることは
+    /// `BirdArtTests` が寸法の計算で確かめるので、パーツを動かすとテストが落ちる。
     ///
     /// **座標・大きさをここに直書きしないこと。** この関数は `art` が持つ値をそのまま
     /// 使うだけにしてあり、直書きしたパーツは `RunnerBirdArt` の測定（= `BirdArtTests`）の
@@ -794,11 +794,11 @@ final class RunnerScene: SKScene {
     private func addBird(_ hazard: RunnerHazard) {
         // 箱は当たり判定の**帯**（#671）。原点を帯の床（地面 + `hazard.bottom`）に置き、
         // 影だけが `groundDrop` ぶん下の地面に残る。
-        let art = RunnerBirdArt(
-            width: hazard.length,
-            height: hazard.height - hazard.bottom,
-            groundDrop: hazard.bottom
-        )
+        //
+        // 帯の高さは渡さない——**帯の上端のほうが絵に合わせて決まる**（会長決裁 2026-09-12。
+        // `RunnerHazardKind.birdBandTop` が `art.bandHeight` から導出する）。ここで
+        // `hazard.height - hazard.bottom` を渡すと、絵の寸法が絵自身から決まる循環になる。
+        let art = RunnerBirdArt(width: hazard.length, groundDrop: hazard.bottom)
         let node = SKNode()
         // 鳥はその場に浮いている障害物で、追いかけても向かってもこない（水平移動の
         // 「動く敵」化は別件 #569 の積み残し）。走者は左から近づくので、頭・くちばしは
