@@ -79,6 +79,7 @@ struct RunnerStageTests {
                 let isKnown = RunnerStage.segmentSpec(symbol) != nil
                     || symbol == RunnerStage.pickupSymbol
                     || symbol == RunnerStage.platformSymbol
+                    || symbol == RunnerStage.boostFloorSymbol
                 #expect(isKnown, "ステージ \(stage.number) に未知の記号 '\(symbol)' がある")
             }
         }
@@ -196,6 +197,58 @@ struct RunnerStageTests {
         #expect(withPickups.pickups.count == 1)
         #expect(withoutPickups.pickups.isEmpty)
     }
+
+    // MARK: - スピードアップ床（#672）
+
+    /// `=` が区間へ展開され、**連続する `=` は 1 つの床にまとまる**こと。
+    @Test("スピードアップ床の区画記号が区間に展開され、連続すると1つにまとまる")
+    func boostFloorSymbolExpandsToMergedRuns() {
+        let segment = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        let stage = RunnerStage(number: 1, pattern: "-==-=-", speed: 40)
+        #expect(stage.boostFloors == [
+            RunnerBoostFloor(start: segment, length: segment * 2),
+            RunnerBoostFloor(start: segment * 4, length: segment),
+        ])
+        #expect(stage.hazards.isEmpty, "床は障害としては平地なので障害の数に入らない")
+    }
+
+    /// ピックアップ（`pickupsDoNotAffectClearability`）と同じく、床も成立条件に混ざらないこと。
+    @Test("スピードアップ床の有無はステージのクリア可能性に影響しない")
+    func boostFloorsDoNotAffectClearability() {
+        let withFloors = RunnerStage(number: 1, pattern: "--n-=-t--", speed: 40)
+        let withoutFloors = RunnerStage(number: 1, pattern: "--n---t--", speed: 40)
+        #expect(withFloors.hazards == withoutFloors.hazards)
+        #expect(withFloors.length == withoutFloors.length)
+        #expect(withFloors.checkpoint == withoutFloors.checkpoint)
+        #expect(withFloors.boostFloors.count == 1)
+        #expect(withoutFloors.boostFloors.isEmpty)
+    }
+
+    /// #672 のスコープ: **既存15ステージには床を置かない**（本番への投入は新ステージ・#674）。
+    /// #674 で 16〜18 面に床を置くときは、この期待値も一緒に見直すこと。
+    @Test("既存15ステージにはスピードアップ床を置かない")
+    func existingStagesHaveNoBoostFloors() {
+        for stage in RunnerStage.all {
+            #expect(stage.boostFloors.isEmpty, "ステージ \(stage.number) に床がある")
+        }
+    }
+
+    #if DEBUG
+    /// 実機スクリーンショット用の置き場（#672 受け入れ条件4）。走り出してすぐ床の上を
+    /// 撮れるよう、最初の障害より手前に置いてある。
+    @Test("QA用ショーケースにスピードアップ床がある")
+    func showcaseHasBoostFloor() {
+        let showcase = RunnerStage.debugShowcase
+        #expect(showcase.boostFloors.count == 1, "連続する = は 1 つの床にまとまる")
+        guard let floor = showcase.boostFloors.first,
+              let firstHazard = showcase.hazards.first else {
+            Issue.record("ショーケースに床か障害が無い")
+            return
+        }
+        #expect(floor.length > 0)
+        #expect(floor.end <= firstHazard.start, "床は最初の障害より手前にある")
+    }
+    #endif
 
     @Test("チェックポイントはコースの中ほどの平地にある")
     func checkpointIsOnSafeGround() {

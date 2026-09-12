@@ -103,6 +103,30 @@ public struct RunnerPlatform: Equatable, Sendable {
     public var end: Double { start + length }
 }
 
+/// コース上のスピードアップ床 1 区間（#672。#635 で会長決裁）。
+///
+/// アイテム（`RunnerPickup`）が「空中で取る一過性のご褒美」なのに対し、床は
+/// **乗っているあいだだけずっと効く地面の区間**。区間から出れば即座に効果が切れるので、
+/// `RunnerField` は状態を持たず毎サブステップ位置から判定する（`isOnBoostFloor`）。
+///
+/// `RunnerHazard` とも `RunnerPickup` とも別の型にしてある。床は「触れると失敗する」
+/// 当たり判定（`isHittingBlock`/`isPit`）にも、ステージの成立条件チェック
+/// （`RunnerStageTests` の間隔・跳べる高さ）にも一切混ぜない——障害としては平地そのもの。
+public struct RunnerBoostFloor: Equatable, Sendable {
+    /// 左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 長さ。レイアウトの連続した `=` がここでまとめられる。
+    public let length: Double
+
+    public init(start: Double, length: Double) {
+        self.start = start
+        self.length = length
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
+}
+
 /// 1 サブステップで起きたできごと。Model がこれを見て進行・記録・音を動かす。
 ///
 /// `RunnerField` は状態を進めるだけで、ステージ番号もタイムも記録も知らない

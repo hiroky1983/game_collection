@@ -127,9 +127,28 @@ public struct RunnerField: Equatable, Sendable {
     /// **空中では必ず `stage.speed`**（ペダルを漕げないので乗りが効かない・#569）。
     /// この一点で「跳んで進む距離 = `speed × 滞空時間`」が乗りに左右されなくなり、
     /// ステージの成立条件（`RunnerStageTests`）を丸ごと据え置ける。`pickupOverboost` も
-    /// 同じ理由で接地中にしか効かせない。
+    /// スピードアップ床の倍率（#672）も、同じ理由で接地中にしか効かせない。
+    ///
+    /// 床の倍率が**掛け算**で乗る理由は `RunnerRules.boostFloorMultiplier` を参照
+    /// （床は区間の性質、乗りは操作の上手さ、と別の軸なので掛け合わせる）。
     public var currentSpeed: Double {
-        isGrounded ? stage.speed * (pedalBoost + pickupOverboost) : stage.speed
+        guard isGrounded else { return stage.speed }
+        let floor = isOnBoostFloor ? RunnerRules.boostFloorMultiplier : 1
+        return stage.speed * (pedalBoost + pickupOverboost) * floor
+    }
+
+    /// いまスピードアップ床の上に乗っているか（#672）。
+    ///
+    /// **状態は持たず毎回位置から判定する**ので、区間を出た瞬間に効果が切れる
+    /// （アイテムのような減衰は無い）。判定に使うのは矩形ではなく**中心の x**——穴
+    /// （`isPit`）と同じ物差しにしてある。矩形で見ると爪先が縁にかかった時点から効き始め、
+    /// 床の境目が走者の体の幅ぶんぼやけて「どこから速くなったのか」が読めない。
+    ///
+    /// 空中では常に false（跳んだ瞬間に効果が切れる）。床の真上を跳んでいる間まで速いと、
+    /// 「跳んで進む距離 = `speed × 滞空時間`」が崩れてステージの成立条件がやり直しになる。
+    public var isOnBoostFloor: Bool {
+        guard isGrounded else { return false }
+        return stage.boostFloors.contains { $0.start <= distance && distance < $0.end }
     }
 
     /// 走者の当たり判定の矩形。
@@ -257,7 +276,11 @@ public struct RunnerField: Equatable, Sendable {
         // 1 サブステップの移動量を障害の最小寸法より小さく抑える（すり抜け防止）。
         // 横は**この dt のあいだに出しうる最大の速さ**で見積もる。いまの速さで割ると、
         // 同じ dt の中でペダルが乗ったぶんだけ 1 サブステップの移動量が見積もりを超える。
-        let horizontal = stage.speed * RunnerRules.maxPedalBoost * dt
+        // スピードアップ床（#672）に踏み込むとさらに倍率が乗るので、床の上に居るかに
+        // 関わらず**常に床の倍率まで見込んで**刻む（見積もりを多めに取るぶんには
+        // サブステップが細かくなるだけで、進み方も当たり判定も変わらない）。
+        let horizontal = stage.speed * RunnerRules.maxPedalBoost
+            * RunnerRules.boostFloorMultiplier * dt
         let vertical = abs(vy) * dt + RunnerRules.gravity * dt * dt
         let travel = max(horizontal, vertical)
         let substeps = max(1, Int((travel / Metrics.maxSubstep).rounded(.up)))

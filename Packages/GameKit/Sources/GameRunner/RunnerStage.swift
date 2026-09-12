@@ -171,6 +171,23 @@ public enum RunnerRules {
     /// 上の上乗せ分が 0 まで減衰しきる秒数（線形減衰）。
     public static let pickupOverboostDuration: Double = 2.0
 
+    // MARK: スピードアップ床（#672・#635 会長決裁 2026-09-12）
+
+    /// スピードアップ床に乗っているあいだ、**接地中の速さ**に掛かる倍率。
+    ///
+    /// アイテム（`pickupOverboost`）が別枠の**足し算**なのは「乗りが上限で頭打ちでも必ず
+    /// 加速する」ためだが、床は**掛け算**にしてある。床は区間の性質（地面が速い）で、
+    /// 乗り（操作の上手さ）とは独立した軸なので、掛け合わせれば「上手く漕げている人ほど
+    /// 床の恩恵も大きい」が素直に成り立つ。足し算にすると乗り切った状態での旨味が
+    /// 相対的に薄れ、アイテムと区別が付かない効き方になる。
+    ///
+    /// 値は 1.3。ペダルの上限（`maxPedalBoost` = 1.55）と重ねると最大 2.0 倍強になり、
+    /// 「明らかに速い区間」として体感できる一方、**空中には一切乗らない**
+    /// （`RunnerField.currentSpeed`）ので、ステージの成立条件が拠って立つ
+    /// 「1 回のジャンプで進む距離 = `speed × jumpAirTime`」は変わらない。
+    /// 上げすぎると床の上で次の障害へ突っ込む速さになるため、まずは控えめのこの値から始める。
+    public static let boostFloorMultiplier: Double = 1.3
+
     /// ゆっくりモードで**時間の進み**に掛ける倍率（アクセシビリティ）。
     ///
     /// **速さではなく時間を遅くする**のが要点。走る速さだけを落とすと、ジャンプの飛距離
@@ -212,6 +229,8 @@ public enum RunnerRules {
 /// | `b` | 鳥 |
 /// | `s` | スピードアップアイテム（平地 + アイテム。障害としては扱わない） |
 /// | `P` | 乗れる台座（区画まるごと。**連続する `P` は 1 つの台座にまとまる**） |
+
+/// | `=` | スピードアップ床（平地 + 加速区間。障害としては扱わない。連続すると 1 つの床になる） |
 public struct RunnerStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -236,6 +255,12 @@ public struct RunnerStage: Equatable, Sendable {
     /// 「すべての障害が越えられる」という成立条件チェック（`RunnerStageTests`）が
     /// 意味を成さない判定を台座にまで掛けてしまう。
     public let platforms: [RunnerPlatform]
+
+    /// 左から順に並んだスピードアップ床（#672）。
+    ///
+    /// `pickups` と同じ理由で **`hazards` とは別の配列**。床は障害としては平地なので、
+    /// 成立条件チェック（`RunnerStageTests`）にも当たり判定にも巻き込まない。
+    public let boostFloors: [RunnerBoostFloor]
     /// チェックポイント（コースの中ほど）の x。
     ///
     /// **必ず平地に置く**。障害の上に置くと、再開した瞬間にまたミスになって進めない。
@@ -272,6 +297,8 @@ public struct RunnerStage: Equatable, Sendable {
         self.pickups = Self.makePickups(pattern: pattern)
         self.platforms = platforms
         self.checkpoint = Self.makeCheckpoint(length: length, hazards: hazards, platforms: platforms)
+
+        self.boostFloors = Self.makeBoostFloors(pattern: pattern)
     }
 
     /// 区画記号を障害の並びへ展開する。
@@ -298,8 +325,9 @@ public struct RunnerStage: Equatable, Sendable {
     /// 区画の並び（`hazardTileOffset`・`segmentTiles`）は変えていないので、
     /// 隣の障害までの間隔は従来どおり保たれる——広がるのは穴の幅だけ。
     ///
-    /// `pickupSymbol`（`s`）はここには含めない。**アイテムは障害ではない**ので
-    /// `makeHazards`/`RunnerStageTests` の対象から自然に外れる。
+    /// `pickupSymbol`（`s`）と `boostFloorSymbol`（`=`）はここには含めない。
+    /// **アイテムも床も障害ではない**ので `makeHazards`/`RunnerStageTests` の対象から
+    /// 自然に外れる（どちらも地形としては平地そのもの）。
     static func segmentSpec(_ symbol: Character) -> (kind: RunnerHazardKind, tiles: Int)? {
         switch symbol {
         case "1": return (.pit, 2)
@@ -357,6 +385,32 @@ public struct RunnerStage: Equatable, Sendable {
                 start: Double(start) * segmentWidth,
                 length: Double(pattern.count - start) * segmentWidth
             ))
+        }
+        return result
+    }
+
+    /// スピードアップ床の区画記号（#672）。見た目のとおり「地面が続いている区間」を表す。
+    static let boostFloorSymbol: Character = "="
+
+    /// 区画記号をスピードアップ床の並びへ展開する。
+    ///
+    /// アイテム（点で持つ `RunnerPickup`）と違い、床は**区画まるごと**を占める区間にする。
+    /// 「乗っているあいだずっと効く」ものなので、区画の中央に点で置いても踏んだ実感が出ない。
+    /// **連続する `=` は 1 つの床にまとめる**——隣り合う区画を別々の床にすると、境目で
+    /// 効果が一瞬切れる可能性を残すうえ、描画も継ぎ目が出る。
+    static func makeBoostFloors(pattern: String) -> [RunnerBoostFloor] {
+        let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        var result: [RunnerBoostFloor] = []
+        for (index, symbol) in pattern.enumerated() where symbol == boostFloorSymbol {
+            let start = Double(index) * segmentWidth
+            // 直前の床の右端にぴたりと続くなら、新しい床を作らず伸ばす。
+            if let last = result.last, last.end == start {
+                result[result.count - 1] = RunnerBoostFloor(
+                    start: last.start, length: last.length + segmentWidth
+                )
+            } else {
+                result.append(RunnerBoostFloor(start: start, length: segmentWidth))
+            }
         }
         return result
     }
@@ -470,15 +524,21 @@ public extension RunnerStage {
 
 #if DEBUG
 public extension RunnerStage {
-    /// QA用: 低い障害物・高い障害物・穴3サイズの計5種を1本で見比べられるステージ
+    /// QA用: 低い障害物・高い障害物・穴3サイズ・スピードアップ床を1本で見比べられるステージ
     /// （起動引数 `-simulateRunner showcase`）。`.all`（本番の15ステージ）には含めない
     /// ——`number` を 0 にして「実ステージではない」ことを型で示す。
     ///
     /// 間隔は他ステージよりゆったり取ってある（QA中に慌てて次の障害へ突っ込まないため）。
     /// 速さは1面と同じ `RunnerRules.baseSpeed` で固定。
+    ///
+    /// スピードアップ床（`=`・#672）は**走り出しの直後に2区画続けて**置いてある。
+    /// 既存15ステージには置かない（本番への投入は新ステージ 16〜18・#674）ので、
+    /// 実機スクリーンショットを撮れる場所はここだけ——最初の障害より手前に置くことで、
+    /// 走り出してすぐ床の上の状態を撮れる。障害としては平地なので、障害の間隔・
+    /// 跳び越しの条件は従来どおり（`makeBoostFloors` を参照）。
     static let debugShowcase = RunnerStage(
         number: 0,
-        pattern: "--n--t--1--2--3--",
+        pattern: "--==--n--t--1--2--3--",
         speed: RunnerRules.baseSpeed
     )
 }
