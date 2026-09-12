@@ -446,6 +446,17 @@ public struct HowToPlayHint: View {
         _isVisible = State(initialValue: playLog?.markGuideShown(for: guide.gameID) ?? false)
     }
 
+    /// 出すかどうかを**呼び出し側が決める**版（#650）。
+    ///
+    /// 既定の初期化子は init で `markGuideShown` を消費するため、`ViewThatFits` のように
+    /// 同じ列を複数回組み立てる画面では使えない（2 つめ以降の init が false を受け取り、
+    /// あとから選ばれた枝に初回ヒントが出ない）。そういう画面では呼び出し側が
+    /// 自分の `@State` で1回だけ判定し、その結果をここへ渡す。
+    public init(_ guide: HowToPlayGuide, isVisible: Bool) {
+        self.guide = guide
+        _isVisible = State(initialValue: isVisible)
+    }
+
     public var body: some View {
         if isVisible {
             Label(guide.hint, systemImage: guide.hintIcon)
