@@ -401,6 +401,14 @@ public final class RunnerModel {
                 return field.isGrounded && field.playerMaxX > bird.start && field.playerMinX < bird.end
             })
             isFrozenForCapture = true
+        case let name where name.hasPrefix("stage:"):
+            // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
+            // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
+            // `applyDebugStage` はヘッダーの番号と記録先を動かさないので、確認専用。
+            if let number = Int(name.dropFirst("stage:".count)),
+               let stage = RunnerStage.stage(number: number) {
+                applyDebugStage(stage)
+            }
         default:
             break
         }
