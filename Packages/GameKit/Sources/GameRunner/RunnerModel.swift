@@ -404,10 +404,13 @@ public final class RunnerModel {
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
-            // `applyDebugStage` はヘッダーの番号と記録先を動かさないので、確認専用。
+            // `applyDebugStage` ではなく `stageNumber` ごと差し替える——番号を動かさないと、
+            // ミスして「もう一度」を押した瞬間に `startStage` が 1 面目を読み直す
+            // （会長QA「ミスると元のステージに戻る」）。ヘッダーの番号も記録先もその面になる。
             if let number = Int(name.dropFirst("stage:".count)),
-               let stage = RunnerStage.stage(number: number) {
-                applyDebugStage(stage)
+               RunnerStage.stage(number: number) != nil {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
             }
         default:
             break
