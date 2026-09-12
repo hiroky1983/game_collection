@@ -35,6 +35,13 @@ struct RunnerModuleTests {
         #expect(module.title == "チャリンコおじさん", "表示名は権利チェックで採用した名前")
     }
 
+    /// ハブの一覧に出る説明文はステージ数を名指ししている。#674 で 15 → 18 に増えたように
+    /// ステージが足されたときに文言だけ取り残されると、遊ぶ前から数字が嘘になる。
+    @Test("説明文のステージ数が実際のステージ数と一致する")
+    func descriptionMatchesStageCount() {
+        #expect(RunnerModule().description.contains("\(RunnerRules.stageCount)ステージ"))
+    }
+
     @Test("遊び方ガイドがこのゲームの ID に紐づいている")
     func howToPlayGuideIsWired() {
         #expect(HowToPlayGuide.runner.gameID == RunnerModel.gameID)

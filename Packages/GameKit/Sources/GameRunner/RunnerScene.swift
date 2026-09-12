@@ -97,6 +97,17 @@ enum RunnerPalette {
     static let pickupBolt: UInt32 = 0xFFE066
     /// 稲妻の縁取り。後光と同系色の玉の上に置いても輪郭が沈まないようにする。
     static let pickupBoltOutline: UInt32 = 0xB8860B
+    /// 台座（#674）の上面＝歩く床板。**ここがいちばん明るい**——「乗れる場所」は上面なので、
+    /// 画面の中で最初に目に入るのが上面になるよう、コースのどの面よりも明るい色を当てる。
+    /// 地表のティール（`groundTop`）・岩のストーングレー・空の紺のどれとも系統が違う
+    /// 木肌寄りのクリーム。
+    static let platformDeck: UInt32 = 0xF4E3C1
+    /// 台座の骨組み（工事の足場の単管）。安全色のオレンジ。自転車の車体（`bike` = サーモン）
+    /// より明確に濃く、岩のグレー・地面の茶とも系統が違う。
+    static let platformFrame: UInt32 = 0xC2571F
+    /// 台座の骨組みの陰（支柱・筋交いの奥側）と、床板の下の影。骨組みより一段暗くして、
+    /// 輪郭線を引かずに「床板が骨組みの上に載っている」段差を出す（岩・鳥と同じ作法）。
+    static let platformShade: UInt32 = 0x7A3310
 
     static func color(_ hex: UInt32) -> SKColor {
         SKColor(
@@ -527,6 +538,10 @@ final class RunnerScene: SKScene {
             }
         }
 
+        for platform in stage.platforms {
+            addPlatform(platform)
+        }
+
         pickupNodes = stage.pickups.map { addPickup($0) }
         removedPickupCount = 0
 
@@ -539,6 +554,100 @@ final class RunnerScene: SKScene {
         player.alpha = 1
         player.xScale = 1
         player.yScale = 1
+    }
+
+    /// 乗れる台座（#674）。工事の足場に架かった歩板——街の中の「高い場所」。
+    ///
+    /// 意匠は「丸と長方形＋パス」の規約（#494 の権利チェック）の内側で、**上面がいちばん明るく、
+    /// 骨組みがその下に沈む**構成にしてある。台座は乗るものなので、遊ぶ人が最初に読み取るべきは
+    /// 「どこに足が着くか」——岩（越えるもの）とは逆に、上端の床板を主役にする。
+    ///
+    /// 左端の面には穴の縁と同じ安全色の帯（`pitEdge`）を立てる。**正面から突っ込めば
+    /// 高い障害物と同じくミス**（`RunnerField.isHittingPlatformFace`）で、
+    /// このゲームで黄色はすでに「縁に気をつけろ」の意味を持っているので色を増やさずに済む。
+    ///
+    /// 当たり判定は `RunnerField` が `platform.start`〜`.end`／上面 `platform.top` で見ており、
+    /// この見た目とは独立している——床板の上端をちょうど `top` に合わせてあるだけ。
+    private func addPlatform(_ platform: RunnerPlatform) {
+        let node = SKNode()
+        node.position = CGPoint(x: platform.start, y: Metrics.groundY)
+        let w = platform.length, top = platform.top
+
+        // 床板（歩く面）。上端を当たり判定の上面にぴったり合わせる。
+        let deckHeight = 1.6
+        let deck = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.platformDeck),
+            size: CGSize(width: w, height: deckHeight)
+        )
+        deck.anchorPoint = .zero
+        deck.position = CGPoint(x: 0, y: top - deckHeight)
+        deck.zPosition = 2
+
+        // 床板の下の影。骨組みと床板のあいだに 1 本暗い帯を挟むと、輪郭線なしでも
+        // 「板が骨組みの上に載っている」段差に見える。
+        let underShadow = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.platformShade),
+            size: CGSize(width: w, height: 0.5)
+        )
+        underShadow.anchorPoint = .zero
+        underShadow.position = CGPoint(x: 0, y: top - deckHeight - 0.5)
+        underShadow.zPosition = 1
+
+        // 骨組みの高さ（床板と影の下）。
+        let frameTop = top - deckHeight - 0.5
+
+        // 横に通す単管（中段の水平材）。
+        let rail = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.platformFrame),
+            size: CGSize(width: w, height: 0.7)
+        )
+        rail.anchorPoint = .zero
+        rail.position = CGPoint(x: 0, y: frameTop * 0.45)
+        node.addChild(rail)
+
+        // 支柱と筋交い。等間隔に立てるだけだと縞模様に見えるので、区間ごとに斜材を 1 本渡す。
+        let postSpacing = 12.0
+        let postWidth = 1.1
+        let posts = max(2, Int((w / postSpacing).rounded()) + 1)
+        for i in 0..<posts {
+            let x = w * Double(i) / Double(posts - 1) - (i == posts - 1 ? postWidth : 0)
+            let post = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.platformFrame),
+                size: CGSize(width: postWidth, height: frameTop)
+            )
+            post.anchorPoint = .zero
+            post.position = CGPoint(x: x, y: 0)
+            node.addChild(post)
+
+            // 筋交い（次の支柱へ渡す斜材）。奥にある材なので骨組みより暗い色にする。
+            guard i < posts - 1 else { continue }
+            let nextX = w * Double(i + 1) / Double(posts - 1)
+            let dx = nextX - x, dy = frameTop
+            let brace = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.platformShade),
+                size: CGSize(width: (dx * dx + dy * dy).squareRoot(), height: 0.5)
+            )
+            brace.anchorPoint = CGPoint(x: 0, y: 0.5)
+            brace.position = CGPoint(x: x, y: 0)
+            brace.zRotation = CGFloat(atan2(dy, dx))
+            brace.zPosition = -1
+            node.addChild(brace)
+        }
+
+        node.addChild(underShadow)
+        node.addChild(deck)
+
+        // 正面（左端）の警告帯。ここに足元の高さで突っ込むとミスになる面。
+        let face = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.pitEdge),
+            size: CGSize(width: 0.7, height: top)
+        )
+        face.anchorPoint = .zero
+        face.position = CGPoint(x: 0, y: 0)
+        face.zPosition = 3
+        node.addChild(face)
+
+        courseLayer.addChild(node)
     }
 
     /// 障害物（岩）。丸2枚重ね→多角形1枚→矩形の積み石、と直してきたがいずれも
