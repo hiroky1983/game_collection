@@ -546,7 +546,7 @@ public extension RunnerStage {
 #if DEBUG
 public extension RunnerStage {
     /// QA用: 低い障害物・高い障害物・鳥・穴3サイズ・スピードアップ床・台座を1本で見比べられるステージ
-    /// （起動引数 `-simulateRunner showcase`）。`.all`（本番の15ステージ）には含めない
+    /// （起動引数 `-simulateRunner showcase`）。`.all`（本番の18ステージ）には含めない
     /// ——`number` を 0 にして「実ステージではない」ことを型で示す。
     ///
     /// 鳥（`b`）を入れてあるのは、本番では 13 面以降にしか出ないので**くぐる挙動（#671）を

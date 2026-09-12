@@ -248,6 +248,17 @@ struct RunnerStageTests {
         }
     }
 
+    /// 配置規則の検査対象。**QA用ショーケース（DEBUG限定）も本番と同じ規則で縛る**
+    /// ——撮影用のコースだけ規則の外に置くと、そこで規則違反が起きても誰も気付かないまま
+    /// 「実機で確かめたはずの並び」が本番と違う状態になる。
+    private var stagesUnderLayoutRules: [RunnerStage] {
+        #if DEBUG
+        return RunnerStage.all + [.debugShowcase]
+        #else
+        return RunnerStage.all
+        #endif
+    }
+
     /// #674 のスコープ「新ステージで台座とスピードアップ床を使う」の実体。
     ///
     /// 置き方の規則も一緒に縛る:
@@ -255,9 +266,11 @@ struct RunnerStageTests {
     ///   床の上の倍率ぶんだけ踏み切りが遅れる。区間を出れば倍率は消えるので 1 区画で足りる）
     /// - **床は台座の隣に置かない**（台座の前後は素の平地であることを
     ///   `platformsHaveFlatGroundOnBothSides` が要求している）
-    @Test("新ステージ 16〜18 にはスピードアップ床があり、直後は素の平地・台座の隣ではない")
+    ///
+    /// 対象は 16 面以降と QA用ショーケース（`stagesUnderLayoutRules`）。どちらも床を持つ。
+    @Test("新ステージ 16〜18 とショーケースの床は、直後が素の平地・台座の隣ではない")
     func newStagesHaveBoostFloors() {
-        for stage in RunnerStage.all.dropFirst(15) {
+        for stage in stagesUnderLayoutRules.dropFirst(15) {
             #expect(!stage.boostFloors.isEmpty, "ステージ \(stage.number) に床が無い")
             let symbols = Array(stage.pattern)
             for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.boostFloorSymbol {
@@ -378,9 +391,11 @@ struct RunnerStageTests {
     ///
     /// どちらも「隣の区画に障害があると踏み切りが間に合わない」形になる。実際に走らせる
     /// `RunnerPlaythroughTests` でも落ちるが、原因が配置のどこにあるかはここでしか分からない。
+    ///
+    /// QA用ショーケースも対象（`stagesUnderLayoutRules`）。
     @Test("台座の前後の区画は平地になっている")
     func platformsHaveFlatGroundOnBothSides() {
-        for stage in RunnerStage.all {
+        for stage in stagesUnderLayoutRules {
             let symbols = Array(stage.pattern)
             for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.platformSymbol {
                 if index > 0, symbols[index - 1] != RunnerStage.platformSymbol {
@@ -653,7 +668,7 @@ struct RunnerPlaythroughTests {
     }
 
     /// 鳥は**接地したまま走り抜けられる**こと（#671 の受け入れ条件1）。
-    /// 全 15 ステージの鳥を 1 羽ずつ、実際に帯の下を走らせて確かめる。
+    /// 全 18 ステージの鳥を 1 羽ずつ、実際に帯の下を走らせて確かめる。
     @Test("鳥は接地したまま全ステージで走り抜けられる")
     func birdsCanBeRunUnder() {
         for stage in RunnerStage.all {
@@ -765,6 +780,18 @@ struct RunnerPlaythroughTests {
                     #expect(
                         takeOff > bird.end + halfWidth,
                         "ステージ \(stage.number): \(next.start) の踏み切りが鳥（\(bird.start)）の帯に食い込む"
+                    )
+                }
+                // 台座（#674）への踏み切りも同じ条件。台座は障害ではないので `stage.hazards` の
+                // 隣接関係には現れず、ステージ18の `b-PP`（鳥をくぐった直後に台座へ登る）は
+                // 上の 2 つの検査をすり抜ける。lead は `RunnerAutoPilot.nextTarget` が
+                // 台座に使うのと同じ計算にする。
+                for platform in stage.platforms where platform.start >= bird.end {
+                    let rise = RunnerRules.riseTime(to: platform.top + RunnerAutoPilot.clearance)
+                    let takeOff = platform.start - RunnerAutoPilot.baseLead - stage.speed * rise
+                    #expect(
+                        takeOff > bird.end + halfWidth,
+                        "ステージ \(stage.number): 台座（\(platform.start)）の踏み切りが鳥（\(bird.start)）の帯に食い込む"
                     )
                 }
             }
