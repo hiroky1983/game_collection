@@ -96,7 +96,7 @@ struct HubView: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 // 中断・記録ともゼロなら**行ごと出さない**（#660）。`RecommendationSlot` が
-                // 「提示するものが無ければ何も描かない」のと同じ流儀で、初回ユーザーのハブは
+                // 「決着前は何も描かない」のと同じ流儀で、初回ユーザーのハブは
                 // 1pt も動かない。
                 let recent = recentCandidates
                 if !recent.isEmpty {
