@@ -25,24 +25,31 @@ import Foundation
 /// 胴は以前より小さくなるが（半径 1.54 → 1.16）、これは幅 4 の箱に収まる上限であり、
 /// 翼・尾羽の長さと胴の比（1.5 倍前後）は以前の見た目から保っている。
 ///
-/// **箱は当たり判定の「帯」そのもの**（#671）。鳥の当たり判定は地面から生えた矩形ではなく
-/// 空中の帯 `[bottom, height]`（13〜22）なので、ここの `height` には**帯の高さ**
-/// （上端 − 下端）を渡し、`addBird` が帯の床の位置へ置く。`groundDrop` は帯の床から
-/// 地面までの落差で、影だけがそのぶん下（地面）へ降りる。
+/// **縦は絵が当たり判定を決める**（#671・会長決裁 2026-09-12）。鳥の当たり判定は地面から
+/// 生えた矩形ではなく空中の帯 `[bottom, height]` で、**帯の上端は `bandHeight`（この絵が
+/// 縦に占める寸法）そのもの**。`RunnerHazardKind.bird.height` がここから導出される
+/// ——横の #609 と同じ考え方を縦にも通し、絵と判定がズレる余地を型から消してある。
+///
+/// #622 D案の決裁値は帯 `[13, 22]` だったが、上端 22 は**絵より 4.66 単位上まで即死の帯**
+/// （幅 1 タイルの鳥は縦横比の都合で 4.34 しか埋められない）になっていた。これは
+/// 「見えている鳥を跳び越したのに当たる」という #609 で潰したはずの理不尽そのものなので、
+/// 会長決裁で上端を絵に合わせて下げた。**本質は下端 13**（接地でくぐれる／跳べば当たる）で、
+/// そこは 1 ミリも動いていない。2 段ジャンプで上を抜けられる余裕が広がるのは意図した結果で、
+/// 上手い人の抜け道として残す。
 ///
 /// 縦は**床合わせ**にしてある（#609 の頃は天井合わせだった）。帯の床は
 /// 「接地してくぐれる／跳ぶと当たる」の境目そのもので、ここに絵の無いすき間を残すと
-/// 「鳥の下を通ったのに当たった」になる。逆に天井側は 2 段ジャンプでしか届かない高さで、
-/// 幅 1 タイルの鳥では絵の縦横比が足りず帯の高さ（9）を埋めきれない——**埋めきれない余りは
-/// 必ず天井側に寄せる**、というのがこの合わせ方の意味。
+/// 「鳥の下を通ったのに当たった」になる。天井は絵の頂点（浮遊の上端）に一致する。
+///
+/// 大きさを決めるのは**幅だけ**。胴の半径は幅 4 の箱に収まる上限で決まっており
+/// （`Ratio.body`）、縦は各パーツを積んだ結果として決まる——縦を入力にすると
+/// 「帯の高さ ← 絵の高さ ← 帯の高さ」の循環になる。
 ///
 /// 座標系は `addBird` のローカル系と同じで、**x は 0（後端）から `width`（走者側の端）へ、
-/// y は 0（帯の床）から `height`（帯の天井）へ**。`addBird` はこれを丸ごと左右反転して置く。
+/// y は 0（帯の床）から `bandHeight`（帯の天井）へ**。`addBird` はこれを丸ごと左右反転して置く。
 struct RunnerBirdArt {
-    /// 当たり判定の矩形の幅（`RunnerHazard.length`）。
+    /// 当たり判定の矩形の幅（`RunnerHazard.length`）。**絵の大きさはこれだけで決まる**。
     let width: Double
-    /// 当たり判定の帯の高さ（`RunnerHazard.height - RunnerHazard.bottom`）。
-    let height: Double
     /// 帯の床から地面までの落差（`RunnerHazard.bottom`）。影はこのぶん下に敷く。
     let groundDrop: Double
 
@@ -109,17 +116,23 @@ struct RunnerBirdArt {
     /// 見た目の比率。箱の寸法から各パーツを導くときの係数で、**ここを動かすと
     /// `BirdArtTests` が張り出しを測り直す**。
     private enum Ratio {
-        /// 箱の高さに対する胴の半径。幅 4 の箱に収まる上限（`bodyCenter.x - bodyRadius >= 0`）は
-        /// およそ 0.216 で、翼と尾羽に胴の 1.5 倍ぶんの長さを残すとここに落ち着く。
-        static let body = 0.165
+        /// **箱の幅**に対する胴の半径。幅 4 の箱に収まる上限（`bodyCenter.x - bodyRadius >= 0`）は
+        /// およそ 0.378 で、翼と尾羽に胴の 1.5 倍ぶんの長さを残すとここに落ち着く。
+        ///
+        /// 以前は箱の高さ（帯の高さ 9）に対する 0.165 として書いていた。**帯の上端を絵に
+        /// 合わせた（#671・会長決裁 2026-09-12）ことで縦を入力に使えなくなった**ので、
+        /// 実際に大きさを縛っている幅を基準に読み替えてある（9 × 0.165 = 4 × 0.37125 = 1.485 で
+        /// 絵は 1 ミリも変わらない）。
+        static let body = 0.37125
         /// 胴の半径に対する頭の半径・付け根の位置。
         static let head = 0.66
         static let headOffsetX = 0.62
         static let headOffsetY = 0.55
         /// 頭の半径に対するくちばしの先端。遠目でも尖りが分かる長さ。
         static let beakReach = 1.55
-        /// 浮遊の振れ幅（箱の高さに対する比）。
-        static let bob = 0.064
+        /// 浮遊の振れ幅（**箱の幅**に対する比。`body` と同じ理由で幅基準に読み替えてあり、
+        /// 9 × 0.064 = 4 × 0.144 = 0.576 で振れ幅は変わらない）。
+        static let bob = 0.144
         /// 2 枚目の尾羽の長さ（1 枚目に対する比）。
         static let shortTail = 0.909
     }
@@ -140,31 +153,30 @@ struct RunnerBirdArt {
     /// 尾羽の三角形の厚み（胴の半径に対する比）。
     private static let tailThickness = 0.455
 
-    /// 帯（幅 `width` × 高さ `height`）に収まる鳥を組む。`groundDrop` は帯の床から
-    /// 地面までの落差で、影だけがそのぶん下へ降りる（#671）。
+    /// 幅 `width` の帯に収まる鳥を組む。`groundDrop` は帯の床から地面までの落差で、
+    /// 影だけがそのぶん下へ降りる（#671）。**帯の高さは入力ではなく結果**（`bandHeight`）。
     ///
     /// 胴の中心 y は**一度 0 に置いて組んだ下組みを測り、一番低いパーツが帯の床（0）に
     /// 来るだけ持ち上げて**決める。持ち上げ量を手で計算しないのは、パーツを 1 つ足したときに
     /// 計算のほうを直し忘れて絵が床から浮く（＝くぐったのに当たる帯が下に残る）のを防ぐため
     /// ——測るのは `birdVerticalExtent`、すなわち `BirdArtTests` が見るのと同じ値。
-    init(width: Double, height: Double, groundDrop: Double = 0) {
-        let probe = RunnerBirdArt(width: width, height: height, groundDrop: groundDrop, centerY: 0)
+    init(width: Double, groundDrop: Double = 0) {
+        let probe = RunnerBirdArt(width: width, groundDrop: groundDrop, centerY: 0)
         self.init(
-            width: width, height: height, groundDrop: groundDrop,
+            width: width, groundDrop: groundDrop,
             centerY: -probe.birdVerticalExtent.lowerBound
         )
     }
 
-    private init(width: Double, height: Double, groundDrop: Double, centerY: Double) {
+    private init(width: Double, groundDrop: Double, centerY: Double) {
         self.width = width
-        self.height = height
         self.groundDrop = groundDrop
 
-        let bodyRadius = height * Ratio.body
+        let bodyRadius = width * Ratio.body
         let headRadius = bodyRadius * Ratio.head
         self.bodyRadius = bodyRadius
         self.headRadius = headRadius
-        bobAmplitude = height * Ratio.bob
+        bobAmplitude = width * Ratio.bob
 
         // 胴の中心 x は「くちばしの先端が箱の走者側の端に一致する」ことから決める。
         let beakTipFromBody = bodyRadius * Ratio.headOffsetX + headRadius * Ratio.beakReach
@@ -294,6 +306,13 @@ struct RunnerBirdArt {
             bob: bobAmplitude
         )
     }
+
+    /// **当たり判定の帯の高さ**（#671・会長決裁 2026-09-12）。絵が縦に占める寸法そのもので、
+    /// `RunnerHazardKind.bird.height`（帯の上端）はこの値から導出される。
+    ///
+    /// 浮遊の振れ幅（`bobAmplitude`）を含む——鳥は一番上まで浮いた瞬間にもそこにいるので、
+    /// そこを帯の外にすると「絵に触れたのに当たらない」逆の理不尽になる。
+    var bandHeight: Double { birdVerticalExtent.upperBound }
 
     /// 影を除いた、**鳥そのもの**が占める y の範囲（#671）。影は帯の外（地面）に敷くので、
     /// 「絵が帯からはみ出していない」は影を抜いたこちらで見る。下端が 0 に一致することが
