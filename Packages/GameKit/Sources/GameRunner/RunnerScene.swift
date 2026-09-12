@@ -97,6 +97,14 @@ enum RunnerPalette {
     static let pickupBolt: UInt32 = 0xFFE066
     /// 稲妻の縁取り。後光と同系色の玉の上に置いても輪郭が沈まないようにする。
     static let pickupBoltOutline: UInt32 = 0xB8860B
+    /// スピードアップ床の路面（#672）。ふつうの地表（`groundTop` のティール）と
+    /// **一目で違う区間だ**と分かる必要があるので、アイテムの後光（`pickupAura`）と
+    /// 同じ寒色系にして「この色＝速さ」で揃える。地表より明るくして、走者の足元でも沈まない。
+    static let boostFloorTop: UInt32 = 0x3FB3D6
+    /// スピードアップ床の矢印。路面より明るい暖色にして、床の色に埋もれないようにする。
+    /// 進行方向（右）を向いた三角を並べ、「乗ると前へ押される区間」だと色以外でも伝える
+    /// （色だけに頼らない・基盤規約のアクセシビリティ要件）。
+    static let boostFloorArrow: UInt32 = 0xFFE066
 
     static func color(_ hex: UInt32) -> SKColor {
         SKColor(
@@ -519,6 +527,10 @@ final class RunnerScene: SKScene {
         }
         if x < stage.length { addGround(from: x, to: stage.length + Metrics.width) }
 
+        // スピードアップ床は地面の**上に重ねて**塗る（地面を作り直すのではなく、
+        // 同じ路面の色と模様だけを差し替える）。地面より後に足すことで手前に来る。
+        for floor in stage.boostFloors { addBoostFloor(floor) }
+
         for hazard in stage.hazards where hazard.kind != .pit {
             if hazard.kind == .bird {
                 addBird(hazard)
@@ -888,6 +900,47 @@ final class RunnerScene: SKScene {
         top.position = CGPoint(x: start, y: Metrics.groundY - 2.2)
         courseLayer.addChild(body)
         courseLayer.addChild(top)
+    }
+
+    /// スピードアップ床（#672）。**地面の路面だけを塗り替え、その上に進行方向の矢印を並べる**。
+    ///
+    /// 高さのある置物にしない理由は 2 つ。(1) 床は当たり判定を一切持たない
+    /// （`RunnerField.isOnBoostFloor` は中心の x が区間に入っているかだけを見る）ので、
+    /// 地面から生えた物として描くと岩・鳥と同じ「当たるもの」に見えてしまう。
+    /// (2) 走者は床の上を走るので、走者より手前に物を置くと足元が隠れる。
+    ///
+    /// 矢印は丸・長方形では向きが出ないので三角のパスで描く（意匠制約 #494 は
+    /// 「特定作品に寄せない」ことで、ゴール旗・稲妻と同じくパス自体は許容済み）。
+    /// 色だけでなく**形**でも「前へ押される区間」だと伝わるようにしてある。
+    private func addBoostFloor(_ floor: RunnerBoostFloor) {
+        // 路面。ふつうの地表（`addGround` の `top`）と同じ厚み・同じ高さにぴたりと重ねる。
+        let surface = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.boostFloorTop),
+            size: CGSize(width: floor.length, height: 2.2)
+        )
+        surface.anchorPoint = .zero
+        surface.position = CGPoint(x: floor.start, y: Metrics.groundY - 2.2)
+        courseLayer.addChild(surface)
+
+        // 進行方向（右）を向いた三角を等間隔に並べる。間隔は 1 区画（64）に 8 個ぶん。
+        let spacing: Double = 8
+        let arrowWidth: Double = 3.4
+        let arrowHeight: Double = 1.6
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: -arrowHeight / 2))
+        path.addLine(to: CGPoint(x: arrowWidth, y: 0))
+        path.addLine(to: CGPoint(x: 0, y: arrowHeight / 2))
+        path.closeSubpath()
+
+        var x = floor.start + (spacing - arrowWidth) / 2
+        while x + arrowWidth <= floor.end {
+            let arrow = SKShapeNode(path: path)
+            arrow.fillColor = RunnerPalette.color(RunnerPalette.boostFloorArrow)
+            arrow.strokeColor = .clear
+            arrow.position = CGPoint(x: x, y: Metrics.groundY - 1.1)
+            courseLayer.addChild(arrow)
+            x += spacing
+        }
     }
 
     /// チェックポイントの目印。丸いバッジだけでは「これが何なのか分からない」というQAを受け、

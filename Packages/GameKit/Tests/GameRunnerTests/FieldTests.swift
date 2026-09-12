@@ -382,6 +382,93 @@ struct RunnerFieldTests {
         #expect(events.filter { $0 == .collectedSpeedItem }.count == 1, "重なっている間ずっと発火してはいけない")
         #expect(field.collectedPickupCount == 1)
     }
+
+    // MARK: - スピードアップ床（#672・#635 会長決裁）
+
+    /// 床は**乗っているあいだだけ**効く区間で、出た瞬間に切れる（アイテムのような減衰は無い）。
+    @Test("床の上では接地速度が倍率ぶん上がり、出た瞬間に元へ戻る")
+    func boostFloorSpeedsUpOnlyWhileStandingOnIt() {
+        let stage = RunnerStage(number: 1, pattern: "--==--", speed: 40)
+        guard let floor = stage.boostFloors.first else { Issue.record("床が無い"); return }
+        var field = RunnerField(stage: stage)
+
+        // 床の手前。
+        field.placeForTesting(distance: floor.start - 1, altitude: 0, vy: 0)
+        #expect(!field.isOnBoostFloor)
+        let plainSpeed = field.currentSpeed
+
+        // 床の左端ちょうど（含む側）。ここを固定しないと `start <= distance` を `<` に
+        // 変えても全テストが緑のまま通ってしまう（敵対的検証の指摘）。
+        field.placeForTesting(distance: floor.start, altitude: 0, vy: 0)
+        #expect(field.isOnBoostFloor, "左端は区間に含む")
+
+        // 床の上（判定は中心の x）。
+        field.placeForTesting(distance: floor.start + 1, altitude: 0, vy: 0)
+        #expect(field.isOnBoostFloor)
+        #expect(
+            abs(field.currentSpeed - plainSpeed * RunnerRules.boostFloorMultiplier) < 1e-9,
+            "床の上の速さ \(field.currentSpeed)"
+        )
+
+        // 床を出た瞬間（右端は含まない）。
+        field.placeForTesting(distance: floor.end, altitude: 0, vy: 0)
+        #expect(!field.isOnBoostFloor, "区間から出たら即座に切れる")
+        #expect(field.currentSpeed == plainSpeed)
+    }
+
+    /// 実際に走らせても効くこと（`currentSpeed` を読むだけでなく、進んだ距離で確かめる）。
+    @Test("床の上を走ると同じ時間でふつうの地面より先へ進む")
+    func runningOnBoostFloorCoversMoreGround() {
+        func distanceRun(pattern: String) -> Double {
+            var field = RunnerField(stage: RunnerStage(number: 1, pattern: pattern, speed: 40))
+            for _ in 0..<120 { _ = field.step(dt: 1.0 / 60) }
+            return field.distance
+        }
+        let plain = distanceRun(pattern: String(repeating: "-", count: 20))
+        let boosted = distanceRun(pattern: String(repeating: "=", count: 20))
+        #expect(boosted > plain * 1.25, "床のぶん明確に速い（\(plain) → \(boosted)）")
+    }
+
+    /// **`RunnerStageTests` の成立条件を据え置くための不変条件**（#623 決裁・#672 でも維持）。
+    /// 床の真上を跳んでいるあいだも空中は基準の速さのまま——ここが乗ると
+    /// 「1 回のジャンプで進む距離 = `speed × jumpAirTime`」が崩れる。
+    @Test("床の上から踏み切っても空中の速さは stage.speed のまま")
+    func boostFloorDoesNotAffectAirborneSpeed() {
+        let stage = RunnerStage(number: 1, pattern: "--====--", speed: 40)
+        guard let floor = stage.boostFloors.first else { Issue.record("床が無い"); return }
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: floor.start + 2, altitude: 0, vy: 0)
+        #expect(field.currentSpeed > stage.speed, "前提: 接地中は床が効いている")
+
+        field.jump()
+        _ = field.step(dt: 1.0 / 240)
+        #expect(!field.isGrounded)
+        #expect(field.distance < floor.end, "前提: まだ床の真上にいる")
+        #expect(!field.isOnBoostFloor, "空中では床の上とみなさない")
+        #expect(field.currentSpeed == stage.speed, "空中は基準の速さ")
+    }
+
+    /// 床の倍率とペダルの乗りの**合成結果を固定する**（#672 受け入れ条件）。
+    /// 合成は掛け算（理由は `RunnerRules.boostFloorMultiplier`）。
+    @Test("床の倍率はペダルの乗りと掛け算で合成される")
+    func boostFloorCompoundsWithPedalBoost() {
+        // 床は十分先に置き、そこへ届く前に乗りが上限へ達するようにする。
+        let pattern = String(repeating: "-", count: 40) + "====--"
+        let stage = RunnerStage(number: 1, pattern: pattern, speed: 40)
+        guard let floor = stage.boostFloors.first else { Issue.record("床が無い"); return }
+        var field = RunnerField(stage: stage)
+        for _ in 0..<600 { _ = field.step(dt: 1.0 / 60) }
+        #expect(abs(field.pedalBoost - RunnerRules.maxPedalBoost) < 1e-9, "前提: 乗りは上限")
+        #expect(field.distance < floor.start, "前提: まだ床へ入っていない")
+
+        // `placeForTesting` は乗り（`pedalBoost`）には触らないので、上限のまま床へ移せる。
+        field.placeForTesting(distance: floor.start + 1, altitude: 0, vy: 0)
+        #expect(field.isOnBoostFloor)
+        let expected = stage.speed * RunnerRules.maxPedalBoost * RunnerRules.boostFloorMultiplier
+        #expect(abs(field.currentSpeed - expected) < 1e-9, "合成後の速さ \(field.currentSpeed)")
+        // 定数が動いたら合成結果も見直す、という意図をここで固定する（40 × 1.55 × 1.3）。
+        #expect(abs(expected - 80.6) < 1e-9, "合成結果 \(expected)")
+    }
 }
 
 @Suite("チャリンコおじさん: 障害の展開")
