@@ -21,8 +21,11 @@ public struct MahjongView: View {
     @State private var reviveRescue = RewardedRescue()
     /// 役の早見表（#501）。`MahjongModel` には触れないので、開閉しても対局の状態は動かない。
     @State private var showYakuSheet = false
-    /// 進行中の東風戦を捨てて配り直す前の確認（#638）。
+    /// 進行中の対局を捨てて配り直す前の確認（#638）。
     @State private var showConfirmNewGame = false
+    /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
+    /// 進行中の対局が見ているのは `model.gameLength`（開始時に焼き込んだ値）のほう。
+    @State private var selectedLength: MahjongGameLength
 
     public init(services: GameServices) {
         self.services = services
@@ -59,6 +62,14 @@ public struct MahjongView: View {
         _showStartSheet = State(
             initialValue: !hasSnapshot && !autoPlay && !showsYakuOnLaunch && !skipsStartSheet
         )
+        // 撮影用（DEBUG 限定）: 開始シートを一局戦を選んだ状態で出す（#639）。ピッカーの選択は
+        // タップでしか動かせず、シミュレータは自動タップができないため、この経路でしか撮れない。
+        #if DEBUG
+        let picksSingleHand = ProcessInfo.processInfo.arguments.contains("-mahjongSingleHand")
+        #else
+        let picksSingleHand = false
+        #endif
+        _selectedLength = State(initialValue: picksSingleHand ? .singleHand : .tonpuu)
     }
 
     public var body: some View {
@@ -127,7 +138,12 @@ public struct MahjongView: View {
             isPresented: $showConfirmNewGame,
             titleVisibility: .visible
         ) {
-            Button("終了して新規対局", role: .destructive) { restartGame() }
+            // 長さもここで選べるようにする（#639）。開始シートは中断データがあると出ないため、
+            // ここを「終了して新規対局」の 1 つだけにすると、対局中に一局戦へ切り替える経路が
+            // どこにも無くなる（ハブへ戻っても中断データから同じ対局が再開する）。
+            ForEach(MahjongGameLength.allCases) { option in
+                Button("終了して\(option.title)", role: .destructive) { restartGame(length: option) }
+            }
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("途中で終了すると今の持ち点と局の進行が失われます。この対局は成績に記録されません。")
@@ -136,9 +152,9 @@ public struct MahjongView: View {
         .howToPlay(.mahjong) { MahjongRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { MahjongYakuSheet() }
         .sheet(isPresented: $showStartSheet) {
-            MahjongStartSheet {
+            MahjongStartSheet(length: $selectedLength) {
                 showStartSheet = false
-                model.startGame()
+                model.startGame(length: selectedLength)
                 Task { await model.runCPUTurnsIfNeeded() }
             } onCancel: {
                 // 「覗いてみたけど今はやめる」の退路（#352）。対局は始まっていないので
@@ -162,6 +178,14 @@ public struct MahjongView: View {
             if ProcessInfo.processInfo.arguments.contains("-mahjongWinResult") {
                 showStartSheet = false
                 model.simulateWinResultForTesting()
+                return
+            }
+            // 撮影・動作確認用（DEBUG 限定）: 一局戦の終了リザルト（見出しが「一局戦終了」に
+            // 変わることの確認。#639）。最後まで打たないと到達できない画面で、シミュレータは
+            // 自動タップができないため、非対話でこの画面を出す経路が要る。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongSingleHandResult") {
+                showStartSheet = false
+                model.simulateFinalResultForTesting(length: .singleHand)
                 return
             }
             // 撮影・動作確認用（DEBUG 限定）: 役の早見表（#501）を非対話で開く。
@@ -218,10 +242,13 @@ public struct MahjongView: View {
         showConfirmNewGame = true
     }
 
-    /// 開始シートは通さない。中身は遊び方の説明だけで選ぶ項目が無く、対局中の人に
-    /// 読み物を再度出しても手数が増えるだけ（将棋の `NewGameSheet` は手番と棋力を選ぶので別）。
-    private func restartGame() {
-        model.startGame()
+    /// 開始シートは通さない。選ぶ項目は対局の長さ（#639）だけで、それは確認ダイアログの
+    /// ボタン側で選べるようにしてある（対局中の人に遊び方の読み物を再度出しても手数が増えるだけ）。
+    ///
+    /// - Parameter length: 焼き込む長さ。nil（開始前・決着後からの呼び出し）なら直前の対局と同じ。
+    private func restartGame(length: MahjongGameLength? = nil) {
+        if let length { selectedLength = length }
+        model.startGame(length: length)
         Task { await model.runCPUTurnsIfNeeded() }
     }
 
@@ -958,12 +985,13 @@ public struct MahjongView: View {
         }
     }
 
-    /// 東風戦の終わり方は3種類あり、東2局で突然終わっても理由が読めるよう見出しを分ける（#352）。
+    /// 終わり方は3種類あり、東2局で突然終わっても理由が読めるよう見出しを分ける（#352）。
+    /// 打ち切りの見出しは対局の長さで変える（#639。一局戦で「東風戦終了」と出ると嘘になる）。
     private var gameResultTitle: String {
         switch model.gameEndReason {
         case .busted:    return "トビで終了"
         case .agariYame: return "アガリやめで終了"
-        case .completedAllRounds, nil: return "東風戦終了"
+        case .completedAllRounds, nil: return "\(model.gameLength.title)終了"
         }
     }
 
@@ -1114,7 +1142,12 @@ public struct MahjongView: View {
             .popCard(corner: Theme.cornerSmall)
             .frame(minHeight: Self.actionAreaMinHeight)
         case .handResult:
-            actionButton("次の局へ", color: Theme.Fill.coral) {
+            // 一局戦（#639）はこの先に局が無いので「次の局へ」は嘘になる。東風戦の最終局・
+            // アガリやめ・トビでも同じ状況なので、押した先に合わせて文言を差し替える。
+            actionButton(
+                model.concludesAfterCurrentResult ? "結果を見る" : "次の局へ",
+                color: Theme.Fill.coral
+            ) {
                 model.advanceToNextHand()
                 Task { await model.runCPUTurnsIfNeeded() }
             }
@@ -1156,6 +1189,8 @@ public struct MahjongView: View {
 // MARK: - Start Sheet
 
 struct MahjongStartSheet: View {
+    /// 選んだ対局の長さ（#639）。ここで選んだものが `startGame(length:)` で焼き込まれる。
+    @Binding var length: MahjongGameLength
     let onStart: () -> Void
     /// キャンセル（ハブへ戻る）。12本中この1本だけ「入ったら戻れない」状態だった（#352）。
     let onCancel: () -> Void
@@ -1164,9 +1199,27 @@ struct MahjongStartSheet: View {
         NavigationStack {
             VStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("対局の長さ")
+                        .themeBody(15).foregroundStyle(Theme.inkSub)
+                    Picker("対局の長さ", selection: $length) {
+                        ForEach(MahjongGameLength.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(length.summary)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
+
+                VStack(alignment: .leading, spacing: 8) {
                     Text("ゲームの流れ")
                         .themeBody(15).foregroundStyle(Theme.inkSub)
-                    ruleRow("1", "CPU3人と東風戦（東1局〜東4局）。持ち点は25000点から")
+                    ruleRow("1", flowSummary)
                     ruleRow("2", "1枚ツモって1枚切る。4面子+雀頭で和了")
                     ruleRow("3", "聴牌したら立直できます（1000点を供託）。門前のときだけ")
                     ruleRow("4", "他の人の捨て牌はポン・チー・カンで鳴けます（鳴くと立直はできません）")
@@ -1214,6 +1267,17 @@ struct MahjongStartSheet: View {
         .presentationDetents([.large])
     }
 
+    /// 選んだ長さに合わせた 1 行目。何局打つかは遊ぶ前にいちばん知りたい情報なので、
+    /// ピッカーの説明文と流れの 1 行目の両方に出す。
+    private var flowSummary: String {
+        switch length {
+        case .tonpuu:
+            return "CPU3人と東風戦（東1局〜東4局）。持ち点は25000点から"
+        case .singleHand:
+            return "CPU3人と一局戦（東1局のみ）。持ち点は25000点から"
+        }
+    }
+
     private func ruleRow(_ num: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Text(num)
@@ -1243,6 +1307,7 @@ struct MahjongRuleSheet: View {
         ("フリテン", "自分の待ち牌を自分で捨てているとロンできません（ツモなら和了できます）"),
         ("流局", "山が尽きたら流局。聴牌していた人が3000点を分け合い、ノーテンの人が払います"),
         ("東風戦", "東1局から東4局までの4局。親が和了または聴牌で流局すると連荘して本場が増えます"),
+        ("一局戦", "東1局だけを打って順位を決める短い対局です。親が和了っても連荘はせず、その局で終わります。成績は東風戦とは別に数えます"),
         ("この版の範囲", "半荘は次の版で追加します。立直したあとのカン・食い替えの禁止・流し満貫はまだ入っていません"),
     ]
 
