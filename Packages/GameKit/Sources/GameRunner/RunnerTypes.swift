@@ -96,6 +96,65 @@ public struct RunnerPickup: Equatable, Sendable {
     }
 }
 
+/// コース上の「乗れる台座」1 つ（#674）。歩道橋・工事の足場・バスの屋根のような、
+/// 街の中の高い場所。
+///
+/// **`RunnerHazard` とは別の型・別の配列**にしてある。障害は「越えるもの」で当たり判定が
+/// 失敗に直結するが、台座は「上に乗って走るもの」で、地面と同じ**接地面**として働く
+/// （`RunnerField.surfaceY(at:)`）。同じ配列に混ぜると、既存の成立条件チェック
+/// （`RunnerStageTests` の「すべての障害が越えられる」）が台座まで「越えるべきもの」として
+/// 巻き込んでしまう——台座は越えるのではなく乗るので、その判定は意味を成さない。
+///
+/// 高低差を**地面の高さを動かさずに**作るための型（#635 会長決裁 2026-09-12）。
+/// `RunnerField.Metrics.groundY` は接地判定・障害の高さ・カメラ・自動操縦・テストの
+/// 物差しがすべて前提にしている全体でただ 1 つの定数なので、そこを可変にすると全部が
+/// 連鎖する。台座は「地面の上に置く物体」なのでその前提を一切壊さない。
+public struct RunnerPlatform: Equatable, Sendable {
+    /// 左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 長さ。レイアウトの連続した `P` がここでまとめられる。
+    public let length: Double
+    /// 上面の高さ（**地面からの相対値**。障害の `height` と同じ物差し）。
+    ///
+    /// 第 1 弾は 1 種類（`RunnerRules.platformHeight` = 8）だけ。値を型に持たせてあるのは、
+    /// 接地面の解決（`RunnerField.surfaceY(at:)`）を「覆っている台座のうち最も高い上面」で
+    /// 書けるようにするため——高さ違いの台座を足す日が来ても、重ねた段の解決はそのまま動く。
+    public let top: Double
+
+    public init(start: Double, length: Double, top: Double = RunnerRules.platformHeight) {
+        self.start = start
+        self.length = length
+        self.top = top
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
+}
+
+/// コース上のスピードアップ床 1 区間（#672。#635 で会長決裁）。
+///
+/// アイテム（`RunnerPickup`）が「空中で取る一過性のご褒美」なのに対し、床は
+/// **乗っているあいだだけずっと効く地面の区間**。区間から出れば即座に効果が切れるので、
+/// `RunnerField` は状態を持たず毎サブステップ位置から判定する（`isOnBoostFloor`）。
+///
+/// `RunnerHazard` とも `RunnerPickup` とも別の型にしてある。床は「触れると失敗する」
+/// 当たり判定（`isHittingBlock`/`isPit`）にも、ステージの成立条件チェック
+/// （`RunnerStageTests` の間隔・跳べる高さ）にも一切混ぜない——障害としては平地そのもの。
+public struct RunnerBoostFloor: Equatable, Sendable {
+    /// 左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 長さ。レイアウトの連続した `=` がここでまとめられる。
+    public let length: Double
+
+    public init(start: Double, length: Double) {
+        self.start = start
+        self.length = length
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
+}
+
 /// 1 サブステップで起きたできごと。Model がこれを見て進行・記録・音を動かす。
 ///
 /// `RunnerField` は状態を進めるだけで、ステージ番号もタイムも記録も知らない

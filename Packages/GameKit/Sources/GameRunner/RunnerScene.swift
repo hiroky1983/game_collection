@@ -97,6 +97,26 @@ enum RunnerPalette {
     static let pickupBolt: UInt32 = 0xFFE066
     /// 稲妻の縁取り。後光と同系色の玉の上に置いても輪郭が沈まないようにする。
     static let pickupBoltOutline: UInt32 = 0xB8860B
+    /// 台座（#674）の上面＝歩く床板。**ここがいちばん明るい**——「乗れる場所」は上面なので、
+    /// 画面の中で最初に目に入るのが上面になるよう、コースのどの面よりも明るい色を当てる。
+    /// 地表のティール（`groundTop`）・岩のストーングレー・空の紺のどれとも系統が違う
+    /// 木肌寄りのクリーム。
+    static let platformDeck: UInt32 = 0xF4E3C1
+    /// 台座の骨組み（工事の足場の単管）。安全色のオレンジ。自転車の車体（`bike` = サーモン）
+    /// より明確に濃く、岩のグレー・地面の茶とも系統が違う。
+    static let platformFrame: UInt32 = 0xC2571F
+    /// 台座の骨組みの陰（支柱・筋交いの奥側）と、床板の下の影。骨組みより一段暗くして、
+    /// 輪郭線を引かずに「床板が骨組みの上に載っている」段差を出す（岩・鳥と同じ作法）。
+    static let platformShade: UInt32 = 0x7A3310
+
+    /// スピードアップ床の路面（#672）。ふつうの地表（`groundTop` のティール）と
+    /// **一目で違う区間だ**と分かる必要があるので、アイテムの後光（`pickupAura`）と
+    /// 同じ寒色系にして「この色＝速さ」で揃える。地表より明るくして、走者の足元でも沈まない。
+    static let boostFloorTop: UInt32 = 0x3FB3D6
+    /// スピードアップ床の矢印。路面より明るい暖色にして、床の色に埋もれないようにする。
+    /// 進行方向（右）を向いた三角を並べ、「乗ると前へ押される区間」だと色以外でも伝える
+    /// （色だけに頼らない・基盤規約のアクセシビリティ要件）。
+    static let boostFloorArrow: UInt32 = 0xFFE066
 
     static func color(_ hex: UInt32) -> SKColor {
         SKColor(
@@ -519,12 +539,20 @@ final class RunnerScene: SKScene {
         }
         if x < stage.length { addGround(from: x, to: stage.length + Metrics.width) }
 
+        // スピードアップ床は地面の**上に重ねて**塗る（地面を作り直すのではなく、
+        // 同じ路面の色と模様だけを差し替える）。地面より後に足すことで手前に来る。
+        for floor in stage.boostFloors { addBoostFloor(floor) }
+
         for hazard in stage.hazards where hazard.kind != .pit {
             if hazard.kind == .bird {
                 addBird(hazard)
             } else {
                 addRock(hazard)
             }
+        }
+
+        for platform in stage.platforms {
+            addPlatform(platform)
         }
 
         pickupNodes = stage.pickups.map { addPickup($0) }
@@ -539,6 +567,100 @@ final class RunnerScene: SKScene {
         player.alpha = 1
         player.xScale = 1
         player.yScale = 1
+    }
+
+    /// 乗れる台座（#674）。工事の足場に架かった歩板——街の中の「高い場所」。
+    ///
+    /// 意匠は「丸と長方形＋パス」の規約（#494 の権利チェック）の内側で、**上面がいちばん明るく、
+    /// 骨組みがその下に沈む**構成にしてある。台座は乗るものなので、遊ぶ人が最初に読み取るべきは
+    /// 「どこに足が着くか」——岩（越えるもの）とは逆に、上端の床板を主役にする。
+    ///
+    /// 左端の面には穴の縁と同じ安全色の帯（`pitEdge`）を立てる。**正面から突っ込めば
+    /// 高い障害物と同じくミス**（`RunnerField.isHittingPlatformFace`）で、
+    /// このゲームで黄色はすでに「縁に気をつけろ」の意味を持っているので色を増やさずに済む。
+    ///
+    /// 当たり判定は `RunnerField` が `platform.start`〜`.end`／上面 `platform.top` で見ており、
+    /// この見た目とは独立している——床板の上端をちょうど `top` に合わせてあるだけ。
+    private func addPlatform(_ platform: RunnerPlatform) {
+        let node = SKNode()
+        node.position = CGPoint(x: platform.start, y: Metrics.groundY)
+        let w = platform.length, top = platform.top
+
+        // 床板（歩く面）。上端を当たり判定の上面にぴったり合わせる。
+        let deckHeight = 1.6
+        let deck = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.platformDeck),
+            size: CGSize(width: w, height: deckHeight)
+        )
+        deck.anchorPoint = .zero
+        deck.position = CGPoint(x: 0, y: top - deckHeight)
+        deck.zPosition = 2
+
+        // 床板の下の影。骨組みと床板のあいだに 1 本暗い帯を挟むと、輪郭線なしでも
+        // 「板が骨組みの上に載っている」段差に見える。
+        let underShadow = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.platformShade),
+            size: CGSize(width: w, height: 0.5)
+        )
+        underShadow.anchorPoint = .zero
+        underShadow.position = CGPoint(x: 0, y: top - deckHeight - 0.5)
+        underShadow.zPosition = 1
+
+        // 骨組みの高さ（床板と影の下）。
+        let frameTop = top - deckHeight - 0.5
+
+        // 横に通す単管（中段の水平材）。
+        let rail = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.platformFrame),
+            size: CGSize(width: w, height: 0.7)
+        )
+        rail.anchorPoint = .zero
+        rail.position = CGPoint(x: 0, y: frameTop * 0.45)
+        node.addChild(rail)
+
+        // 支柱と筋交い。等間隔に立てるだけだと縞模様に見えるので、区間ごとに斜材を 1 本渡す。
+        let postSpacing = 12.0
+        let postWidth = 1.1
+        let posts = max(2, Int((w / postSpacing).rounded()) + 1)
+        for i in 0..<posts {
+            let x = w * Double(i) / Double(posts - 1) - (i == posts - 1 ? postWidth : 0)
+            let post = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.platformFrame),
+                size: CGSize(width: postWidth, height: frameTop)
+            )
+            post.anchorPoint = .zero
+            post.position = CGPoint(x: x, y: 0)
+            node.addChild(post)
+
+            // 筋交い（次の支柱へ渡す斜材）。奥にある材なので骨組みより暗い色にする。
+            guard i < posts - 1 else { continue }
+            let nextX = w * Double(i + 1) / Double(posts - 1)
+            let dx = nextX - x, dy = frameTop
+            let brace = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.platformShade),
+                size: CGSize(width: (dx * dx + dy * dy).squareRoot(), height: 0.5)
+            )
+            brace.anchorPoint = CGPoint(x: 0, y: 0.5)
+            brace.position = CGPoint(x: x, y: 0)
+            brace.zRotation = CGFloat(atan2(dy, dx))
+            brace.zPosition = -1
+            node.addChild(brace)
+        }
+
+        node.addChild(underShadow)
+        node.addChild(deck)
+
+        // 正面（左端）の警告帯。ここに足元の高さで突っ込むとミスになる面。
+        let face = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.pitEdge),
+            size: CGSize(width: 0.7, height: top)
+        )
+        face.anchorPoint = .zero
+        face.position = CGPoint(x: 0, y: 0)
+        face.zPosition = 3
+        node.addChild(face)
+
+        courseLayer.addChild(node)
     }
 
     /// 障害物（岩）。丸2枚重ね→多角形1枚→矩形の積み石、と直してきたがいずれも
@@ -894,6 +1016,47 @@ final class RunnerScene: SKScene {
         top.position = CGPoint(x: start, y: Metrics.groundY - 2.2)
         courseLayer.addChild(body)
         courseLayer.addChild(top)
+    }
+
+    /// スピードアップ床（#672）。**地面の路面だけを塗り替え、その上に進行方向の矢印を並べる**。
+    ///
+    /// 高さのある置物にしない理由は 2 つ。(1) 床は当たり判定を一切持たない
+    /// （`RunnerField.isOnBoostFloor` は中心の x が区間に入っているかだけを見る）ので、
+    /// 地面から生えた物として描くと岩・鳥と同じ「当たるもの」に見えてしまう。
+    /// (2) 走者は床の上を走るので、走者より手前に物を置くと足元が隠れる。
+    ///
+    /// 矢印は丸・長方形では向きが出ないので三角のパスで描く（意匠制約 #494 は
+    /// 「特定作品に寄せない」ことで、ゴール旗・稲妻と同じくパス自体は許容済み）。
+    /// 色だけでなく**形**でも「前へ押される区間」だと伝わるようにしてある。
+    private func addBoostFloor(_ floor: RunnerBoostFloor) {
+        // 路面。ふつうの地表（`addGround` の `top`）と同じ厚み・同じ高さにぴたりと重ねる。
+        let surface = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.boostFloorTop),
+            size: CGSize(width: floor.length, height: 2.2)
+        )
+        surface.anchorPoint = .zero
+        surface.position = CGPoint(x: floor.start, y: Metrics.groundY - 2.2)
+        courseLayer.addChild(surface)
+
+        // 進行方向（右）を向いた三角を等間隔に並べる。間隔は 1 区画（64）に 8 個ぶん。
+        let spacing: Double = 8
+        let arrowWidth: Double = 3.4
+        let arrowHeight: Double = 1.6
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: -arrowHeight / 2))
+        path.addLine(to: CGPoint(x: arrowWidth, y: 0))
+        path.addLine(to: CGPoint(x: 0, y: arrowHeight / 2))
+        path.closeSubpath()
+
+        var x = floor.start + (spacing - arrowWidth) / 2
+        while x + arrowWidth <= floor.end {
+            let arrow = SKShapeNode(path: path)
+            arrow.fillColor = RunnerPalette.color(RunnerPalette.boostFloorArrow)
+            arrow.strokeColor = .clear
+            arrow.position = CGPoint(x: x, y: Metrics.groundY - 1.1)
+            courseLayer.addChild(arrow)
+            x += spacing
+        }
     }
 
     /// チェックポイントの目印。丸いバッジだけでは「これが何なのか分からない」というQAを受け、
