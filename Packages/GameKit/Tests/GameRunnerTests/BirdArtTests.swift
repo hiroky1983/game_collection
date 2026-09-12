@@ -20,6 +20,11 @@ struct BirdArtTests {
     private static let height = art.bandHeight
     private static let epsilon = 1e-9
 
+    /// 影の下端（地面に敷けているかを見る唯一の値）。
+    private static func shadowBottom(of art: RunnerBirdArt) -> Double {
+        Double(art.shadowCenter.y) - Double(art.shadowSize.height) / 2
+    }
+
     @Test("絵の水平方向の張り出しが 0（箱の幅ちょうどに収まる）")
     func horizontalExtentMatchesHitbox() {
         let extent = Self.art.horizontalExtent
@@ -42,10 +47,13 @@ struct BirdArtTests {
         // 当たり判定そのものと突き合わせる（`bandHeight` を使う側が取り違えていないこと）。
         let band = RunnerHazardKind.bird.height - RunnerHazardKind.bird.bottom
         #expect(abs(extent.upperBound - band) < Self.epsilon, "帯の上端が絵の頂点から外れている")
-        // 影は帯の外——地面（y = -groundDrop）に敷く。地面より下へ潜らないことだけ見る。
-        #expect(Self.art.verticalExtent.lowerBound >= -Self.groundDrop - Self.epsilon)
+        // 影は帯の外——地面（y = -groundDrop）に敷く。**影の下端そのもの**を見る:
+        // `verticalExtent` は鳥と影の合併なので、下端が負というだけなら影を地面から
+        // 大きく浮かせても通ってしまう（体とのすき間は「飛んでいる」の手がかりになる）。
+        let shadowBottom = Self.shadowBottom(of: Self.art)
+        #expect(shadowBottom >= -Self.groundDrop - Self.epsilon)
         #expect(
-            Self.art.verticalExtent.lowerBound < 0,
+            shadowBottom <= -Self.groundDrop + 0.1,
             "影が地面まで降りていない（体とのすき間が『飛んでいる』の手がかり）"
         )
     }
@@ -136,8 +144,10 @@ struct BirdArtTests {
                 #expect(abs(art.horizontalExtent.upperBound - width) < Self.epsilon)
                 #expect(abs(art.birdVerticalExtent.lowerBound) < Self.epsilon)
                 #expect(abs(art.birdVerticalExtent.upperBound - art.bandHeight) < Self.epsilon)
-                #expect(art.verticalExtent.lowerBound >= -groundDrop - Self.epsilon)
                 #expect(art.bandHeight > 0)
+                let shadowBottom = Self.shadowBottom(of: art)
+                #expect(shadowBottom >= -groundDrop - Self.epsilon)
+                #expect(shadowBottom <= -groundDrop + 0.1)
             }
             let band = RunnerBirdArt(width: width).bandHeight
             #expect(band > previousBand, "幅を広げたのに帯が高くならない（幅 \(width)）")

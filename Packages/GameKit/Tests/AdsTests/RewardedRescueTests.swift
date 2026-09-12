@@ -12,10 +12,13 @@ private final class NullSnapshotStore: SnapshotStore {
 }
 
 /// 視聴完了 / 未完了を指定でき、出した本数を数える広告。
+///
+/// `duringAd` を渡すと、視聴のあいだに起きたこと（ハブへ戻る等）を差し込める。
 @MainActor
 private final class CountingAdService: AdService {
     let earnsReward: Bool
     private(set) var shownCount = 0
+    var duringAd: (@MainActor () -> Void)?
 
     init(earnsReward: Bool) { self.earnsReward = earnsReward }
 
@@ -23,6 +26,7 @@ private final class CountingAdService: AdService {
     func showInterstitial() async {}
     func showRewardedAd() async -> Bool {
         shownCount += 1
+        duringAd?()
         return earnsReward
     }
 }
@@ -145,6 +149,46 @@ struct RewardedRescueTests {
         ) { true }
         await settle()
         #expect(restored == false)
+    }
+
+    // MARK: - 画面の世代（#653）
+
+    @Test("広告を見ているあいだにハブへ戻ったら報酬を適用しない")
+    func skipsTheGrantAfterLeavingTheScreen() async {
+        let (services, ads) = makeServices(earnsReward: true)
+        let rescue = RewardedRescue()
+        // 広告のロード〜視聴のあいだも画面は操作できる。ここでハブへ戻られると Model は
+        // 捨てられ、次に開いたときには別の Model が動いている。
+        ads.duringAd = { services.gameDidLeave(gameID: "solitaire") }
+        var grantedCount = 0
+        rescue.request(services, gameID: "solitaire", purpose: .undo, guardedBy: .checkedByGrant) {
+            grantedCount += 1
+            return true
+        }
+        await settle()
+
+        #expect(ads.shownCount == 1, "広告そのものは出ている（計測は従来どおり付く）")
+        #expect(grantedCount == 0, "捨てられた Model に報酬を適用している")
+        #expect(rescue.showsUnavailable == false, "もう無い画面に向けてアラートを立てている")
+        #expect(rescue.showsNotEarned == false, "視聴はできているので「見なかった」ではない")
+        #expect(rescue.isWatching == false, "連打ガードが解かれていない")
+    }
+
+    @Test("画面に留まっていれば従来どおり適用する（世代の照合が常時塞いでいない）")
+    func grantsWhileStayingOnTheScreen() async {
+        let (services, _) = makeServices(earnsReward: true)
+        let rescue = RewardedRescue()
+        // 別のゲームを離れても、この救済の世代は進む（世代は画面ごとではなく 1 本）。
+        // 先に進めてから要求する = 救済が始まったあとに動いていないので適用される。
+        services.gameDidLeave(gameID: "2048")
+        var grantedCount = 0
+        rescue.request(services, gameID: "solitaire", purpose: .undo, guardedBy: .checkedByGrant) {
+            grantedCount += 1
+            return true
+        }
+        await settle()
+
+        #expect(grantedCount == 1)
     }
 
     // MARK: - モデルが広告ごと持っている面（チップ切れ復活・トビ復活）
@@ -281,6 +325,20 @@ struct RewardGuardCallSiteTests {
             "GameMahjong/MahjongModel.swift",
             "GamePoker/PokerModel.swift",
         ], "共通 API を迂回した広告の呼び出しがある: \(callers)")
+    }
+
+    @Test("広告を自分で抱えているモデルは、画面の世代を自分で照合している")
+    func modelHeldRescuesCheckTheScreenGeneration() throws {
+        // `RewardedRescue.request` を通る 18 面は共通側が世代を照合する（#653）が、
+        // 広告をモデルの中で抱えている3面はそこを通らないので、各モデルが自分で照合する。
+        // 照合の無いモデルが増えると、捨てられたモデルが `PlayLog` や中断データを
+        // 新しい対局の裏で書き換える経路がそのぶん生まれる。
+        let missing = try Self.gameSources()
+            .filter { $0.text.contains("showRewardedAd(") }
+            .filter { !$0.text.contains("screenGeneration.current == generationBeforeAd") }
+            .map(\.path)
+            .sorted()
+        #expect(missing.isEmpty, "画面の世代を照合していないモデルがある: \(missing)")
     }
 
     @Test("視聴できなかったときの文言はゲーム側に散らばっていない")

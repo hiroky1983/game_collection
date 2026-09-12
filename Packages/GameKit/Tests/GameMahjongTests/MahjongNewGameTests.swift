@@ -278,4 +278,47 @@ struct MahjongNewGameTests {
         #expect(model.scores == Array(repeating: MahjongModel.startingScore,
                                       count: MahjongModel.playerCount))
     }
+
+    /// 上のテストが塞いだのは**同じモデルの中**で局が入れ替わる経路だけ（#638）。
+    /// 広告のロード中にハブへ戻って開き直すとモデルそのものが入れ替わり、`gameSerial` は
+    /// 古いモデルのまま動かないのでガードを素通りする（#653）。画面の世代で突き合わせる。
+    @Test("広告を見ているあいだにハブへ戻って開き直したら、古いモデルの復活は適用されない")
+    func reviveDoesNotLandAfterLeavingTheScreen() async {
+        let (playLog, defaults, name) = makeIsolatedPlayLog()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let ads = InterruptingAdService()
+        let store = MemoryStore()
+        let services = GameServices(snapshots: store, ads: ads, playLog: playLog)
+        let left = MahjongModel(services: services, cpuDelay: .zero, seed: 2026)
+        left.startGame()
+        left.configureForTesting(
+            hands: Array(repeating: junkHand(), count: MahjongModel.playerCount),
+            wall: [],
+            scores: [-1_000, 30_000, 35_000, 36_000]
+        )
+        left.exhaustWallForTesting()
+        left.advanceToNextHand()
+        #expect(left.phase == .gameResult)
+        #expect(left.canReviveAfterBust)
+        #expect(playLog.record(gameID: "mahjong4")?.losses == 1, "トビの負けは正しく記録されている")
+
+        // 広告を見ているあいだにハブへ戻り、もう一度麻雀を開く（= 別のモデルが動き出す）。
+        var reopened: MahjongModel?
+        ads.duringAd = {
+            services.gameDidLeave(gameID: "mahjong4")
+            let next = MahjongModel(services: services, cpuDelay: .zero, seed: 7)
+            next.startGame()
+            reopened = next
+        }
+        let revived = await left.reviveAfterAd()
+
+        #expect(!revived, "画面を離れたあとの対局に復活を適用している")
+        #expect(playLog.record(gameID: "mahjong4")?.losses == 1,
+                "いま遊んでいる対局の負けが cancelLoss で取り消されている")
+        #expect(playLog.record(gameID: "mahjong4")?.plays == 1,
+                "gameDidRestart で game_start だけが増えている")
+        #expect(left.phase == .gameResult, "捨てられたモデルに次の局が配られている")
+        #expect(left.scores[0] == -1_000, "捨てられたモデルの持ち点が初期値へ戻っている")
+        #expect(reopened?.phase == .playing, "開き直した対局はそのまま続く")
+    }
 }
