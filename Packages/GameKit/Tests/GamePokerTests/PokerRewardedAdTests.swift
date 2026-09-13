@@ -103,6 +103,20 @@ private func makeBustedModel(
     return (model, ads, store)
 }
 
+/// 局を始めてはフォールドし続け、アンティで手持ちを削ってチップ切れまで進める。
+/// チェックには CPU が必ずチェックで返し、交換後の 2 巡目でフォールドすれば必ず決着する
+/// （`PokerReviveLeaderboardTests.finishRound` と同じ最短の進め方）。
+@MainActor
+private func playFoldUntilBust(_ model: PokerModel, maxRounds: Int = 20) {
+    for _ in 0..<maxRounds {
+        guard model.canStartRound else { return }
+        model.startGame()
+        model.bet1Action(.check)
+        model.confirmExchange()
+        model.bet2Action(.fold)
+    }
+}
+
 // MARK: - Tests
 
 @Suite("チップ切れ復活のリワード広告（#499）")
@@ -141,6 +155,77 @@ struct PokerRewardedAdTests {
         #expect(model.playerChips == chipsBefore, "画面に無いモデルのチップが増えている")
         #expect(model.sessionOver, "セッション終了のまま")
         #expect(ads.rewardedCount == 1, "広告そのものは出ている（計測は従来どおり付く）")
+    }
+
+    /// 広告のロード中は同じ画面の「もう一度はじめる」も押せる（#728）。画面の世代（#653）は
+    /// 同じ画面の中の入れ替わりでは進まないので、セッションの通し番号で照合する。
+    @Test("広告中に restartSession したら復活を適用しない")
+    func doesNotReviveSessionRestartedDuringAd() async {
+        let (model, ads, _) = makeBustedModel()
+        ads.duringAd = { model.restartSession() }
+
+        let outcome = await model.reviveAfterAd()
+
+        #expect(outcome == .unavailable, "見終えたのに適用できなかったことを、視聴しなかったことと分けて返す")
+        #expect(model.playerChips == PokerModel.initialChips, "新しいセッションの手持ちが半分に減らされている")
+        #expect(model.cpuChips == PokerModel.initialChips)
+        #expect(!model.sessionOver)
+        #expect(model.phase == .idle, "開始シートを出したままの新しいセッション")
+        #expect(ads.rewardedCount == 1)
+
+        // 新しいセッションの復活権（= 順位表資格）が、前のセッションで見た広告で消えていない。
+        playFoldUntilBust(model)
+        #expect(model.sessionOver)
+        #expect(model.sessionWinner == .cpu)
+        #expect(model.canReviveAfterBust, "新しいセッションの復活権を消費している")
+    }
+
+    /// やり直したセッションも広告のあいだにチップが尽きると、`canReviveAfterBust` だけの照合は
+    /// 素通りする。前のセッションで見た広告を新しいセッションの復活に使わせない（#728）。
+    @Test("広告中にやり直したセッションもチップが尽きていたら、前のセッションの復活は乗せない")
+    func doesNotReviveRestartedSessionThatAlsoBustedDuringAd() async {
+        let (model, ads, _) = makeBustedModel()
+        ads.duringAd = {
+            model.restartSession()
+            playFoldUntilBust(model)
+        }
+
+        let outcome = await model.reviveAfterAd()
+
+        #expect(outcome == .unavailable)
+        #expect(model.sessionOver, "やり直したセッションのチップ切れはそのまま")
+        #expect(model.playerChips == 0)
+        #expect(model.canReviveAfterBust, "新しいセッションの復活権を、前のセッションで見た広告で消費している")
+    }
+
+    @Test("視聴しなかったときは notEarned、視聴して適用できたら granted を返す")
+    func reviveOutcomeSeparatesNotEarnedFromGranted() async {
+        let (notEarned, _, _) = makeBustedModel(rewardEarned: false)
+        #expect(await notEarned.reviveAfterAd() == .notEarned)
+        #expect(notEarned.canReviveAfterBust, "失敗した視聴で1回ぶんを失わない")
+
+        let (granted, _, _) = makeBustedModel()
+        #expect(await granted.reviveAfterAd() == .granted)
+        #expect(granted.playerChips == PokerModel.reviveChips)
+    }
+
+    /// 画面の状態はテストから操作できないので、書き方そのものを見る（#728）。
+    /// 範囲をやり直しボタンから先に絞るのは、手前の復活ボタンにも同じ `.disabled` があり、
+    /// ファイル全体を探すとそちらに当たって空振りするため。
+    @Test("視聴中は「もう一度はじめる」を押せない")
+    func restartButtonIsDisabledWhileWatching() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GamePokerTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GamePoker/PokerView.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let start = try #require(source.range(of: "                model.restartSession()\n"),
+                                 "やり直しボタンの定義が見つからない（走査が空振りしている）")
+        let end = try #require(source.range(of: "private func actionButton(", range: start.upperBound..<source.endIndex))
+        let restartButton = source[start.upperBound..<end.lowerBound]
+        #expect(restartButton.contains("\n            .disabled(reviveRescue.isWatching)"),
+                "広告のロード〜視聴中に「もう一度はじめる」が押せる")
     }
 
     @Test("視聴未完了・ロード失敗ならチップは回復しない")
