@@ -83,4 +83,17 @@ enum BlackjackMotion {
     /// （ポーカーが役名を `showdownTotalDuration` だけ遅らせているのと同じ理由）。
     static let outcomeBadge: Animation = .easeIn(duration: outcomeBadgeDuration)
         .delay(holeCardFlipDuration)
+
+    // MARK: - ディーラーの引き（#667）
+
+    /// ディーラーが次の1枚を引くまでの間（秒）。
+    ///
+    /// 伏せカードが返りきる（`holeCardFlipDuration`）より長く取り、公開 → 3枚目 → 4枚目…が
+    /// 1枚ずつ目で追えるようにする。待ちは「結果まで進める」で飛ばせる。
+    static let dealerDrawDelay: TimeInterval = 0.35
+
+    /// `dealerDrawDelay` を Model に渡す形。Model は秒ではなく `Duration` で受ける。
+    static var dealerDrawInterval: Duration {
+        .milliseconds(Int((dealerDrawDelay * 1000).rounded()))
+    }
 }
