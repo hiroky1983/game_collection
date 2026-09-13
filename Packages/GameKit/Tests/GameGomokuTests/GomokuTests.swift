@@ -257,9 +257,10 @@ struct GomokuInvalidTapTests {
 @Suite("Gomoku 強さ表示")
 struct GomokuStrengthLabelTests {
 
-    /// 実際の探索深さは 1/2/3 ではなく 3/4/5。この前提が変わったら表示も見直す。
-    @Test func engineDepthsAreThreeFourFive() {
-        #expect(SimpleGomokuEngine(level: 0).depth == 3)
+    /// 実際の探索深さは 1/4/5（「弱」は #665 で探索をやめ、1手先の形だけを見る）。
+    /// この前提が変わったら表示も見直す。
+    @Test func engineDepthsAreOneFourFive() {
+        #expect(SimpleGomokuEngine(level: 0).depth == 1)
         #expect(SimpleGomokuEngine(level: 1).depth == 4)
         #expect(SimpleGomokuEngine(level: 2).depth == 5)
     }
