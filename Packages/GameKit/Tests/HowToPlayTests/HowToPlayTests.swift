@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
 
@@ -37,6 +38,7 @@ private let registeredModules: [GameModule] = [
     MahjongSolitaireModule(),
     SolitaireModule(),
     FreeCellModule(),
+    SpiderModule(),
     BlockPuzzleModule(),
     RunnerModule(),
     HanafudaModule(),
