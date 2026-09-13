@@ -12,6 +12,10 @@ public struct SudokuView: View {
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     @State private var zoomMode = false
+    /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
+    @State private var flashingCells: Set<Int> = []
+    /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
+    @State private var holdsUnitFlash = false
 
     public init(services: GameServices) {
         self.services = services
@@ -109,7 +113,37 @@ public struct SudokuView: View {
                 showNewGame = false
                 if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
             }
+            // 撮影・動作確認用（DEBUG 限定）: 揃った行の光と、使い切った数字パッドを止めた状態で出す（#666）。
+            // `-sudokuAutoStart` と併用する。数字 5 をすべて正解で埋めてから、1 行目を最後に揃える。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuUnitFlashPreview"), model.state == .playing {
+                holdsUnitFlash = true
+                let fives = (0..<SudokuEngine.cellCount).filter { model.board[$0] == 0 && model.solution[$0] == 5 }
+                let firstRow = SudokuEngine.cells(ofUnit: 0).filter { model.board[$0] == 0 && model.solution[$0] != 5 }
+                for index in fives + firstRow {
+                    if model.selected != index { model.select(index: index) }
+                    model.enter(digit: model.solution[index])
+                }
+            }
             #endif
+        }
+        .task(id: model.unitFlash) { await flashCompletedUnits(model.unitFlash) }
+    }
+
+    /// 行・列・ブロックが揃ったマスを一瞬光らせる（#666）。
+    ///
+    /// 光は即座に出し、`unitFlashHoldDuration` 待ってからフェードで消す。Reduce Motion では
+    /// `withGameAnimation` がフェードを落とすだけで、出る・消えるの状態変化は必ず起きる。
+    /// 次の合図が来ると `.task(id:)` が前の待ちを取り消すので、古い光の消し忘れも起きない。
+    private func flashCompletedUnits(_ flash: SudokuUnitFlash?) async {
+        guard let flash else {
+            flashingCells = []
+            return
+        }
+        flashingCells = flash.cells
+        try? await Task.sleep(nanoseconds: UInt64(SudokuMetrics.unitFlashHoldDuration * 1_000_000_000))
+        guard !Task.isCancelled, !holdsUnitFlash else { return }
+        withGameAnimation(.easeOut(duration: SudokuMetrics.unitFlashFadeDuration)) {
+            flashingCells = []
         }
     }
 
@@ -235,13 +269,14 @@ public struct SudokuView: View {
         let errors = model.errorCells
         let peers = model.highlightedCells
         let sameDigits = model.sameDigitCells
+        let flashing = flashingCells
         return VStack(spacing: 0) {
             ForEach(0..<SudokuEngine.size, id: \.self) { row in
                 HStack(spacing: 0) {
                     ForEach(0..<SudokuEngine.size, id: \.self) { col in
                         cellView(
                             row: row, col: col, side: cellSide,
-                            errors: errors, peers: peers, sameDigits: sameDigits
+                            errors: errors, peers: peers, sameDigits: sameDigits, flashing: flashing
                         )
                     }
                 }
@@ -285,7 +320,7 @@ public struct SudokuView: View {
 
     private func cellView(
         row: Int, col: Int, side: CGFloat,
-        errors: Set<Int>, peers: Set<Int>, sameDigits: Set<Int>
+        errors: Set<Int>, peers: Set<Int>, sameDigits: Set<Int>, flashing: Set<Int>
     ) -> some View {
         let index = row * SudokuEngine.size + col
         let digit = model.board[index]
@@ -294,6 +329,7 @@ public struct SudokuView: View {
         let isError = errors.contains(index)
         let isHinted = model.hintedCells.contains(index)
         let noteDigits = (1...SudokuEngine.size).filter { model.hasNote($0, at: index) }
+        let shakes = model.mistakeShakes[index] ?? 0
 
         return ZStack {
             Rectangle()
@@ -303,6 +339,11 @@ public struct SudokuView: View {
                     isSameDigit: sameDigits.contains(index),
                     isError: isError
                 ))
+            // 行・列・ブロックが揃った瞬間の光（#666）。色の判定（`cellFill`）とは別の層に重ね、
+            // 選択・間違いの色を塗り替えない。
+            Rectangle()
+                .fill(Theme.yellow.opacity(0.45))
+                .opacity(flashing.contains(index) ? 1 : 0)
             if digit != 0 {
                 Text("\(digit)")
                     .font(.system(size: side * 0.58, weight: isGiven ? .black : .semibold, design: .rounded))
@@ -312,10 +353,15 @@ public struct SudokuView: View {
                 noteGrid(noteDigits: noteDigits, side: side)
             }
         }
+        // 誤答を入れたマスの中身だけを短く横に揺らす（#666。五目並べの無効タップ #202 と同じ型）。
+        .modifier(SudokuShake(animatableData: CGFloat(shakes)))
+        // 演出の修飾子は入れ子にすると内側が外側のトランザクションを打ち消す（#199）。ここでは
+        // **それを前提に**、揺れを数字の演出（下）の内側に置いている: 誤答では両方の値が同時に変わり、
+        // 内側の linear が勝つので揺れは必ず補間される（その 1 回だけ数字の出方も linear になる）。
+        // 正答では揺れの値が変わらないので、下の数字の演出が従来どおり効く。
+        .gameAnimation(.linear(duration: SudokuMetrics.mistakeShakeDuration), value: shakes)
         .frame(width: side, height: side)
         .border(Theme.inkSub.opacity(0.35), width: SudokuMetrics.cellBorderWidth)
-        // 演出の修飾子はマスに **1 つだけ** 置く。入れ子にすると内側が外側のトランザクションを
-        // 打ち消し、どちらかの演出が静かに効かなくなる（#199 で実際に踏んだ）。
         .gameAnimation(.easeOut(duration: SudokuMetrics.fillDuration), value: digit)
         .contentShape(Rectangle())
         .onTapGesture { model.select(index: index) }
@@ -456,6 +502,8 @@ public struct SudokuView: View {
         } label: {
             Text("\(digit)")
                 .font(.system(size: 20, weight: .bold, design: .rounded))
+                // 使い切った数字は文字だけを薄くする（#666）。ボタンの面は残し、並びの位置は変えない。
+                .opacity(exhausted ? SudokuMetrics.exhaustedDigitOpacity : 1)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: SudokuMetrics.padButtonMinSide)
                 .background(
@@ -635,6 +683,28 @@ public struct SudokuView: View {
         .themeBody(14)
         .padding(.horizontal, 12).padding(.vertical, 4)
         .popCard(corner: Theme.cornerSmall)
+    }
+}
+
+// MARK: - 誤答の揺れ
+
+/// 誤答を入れたマスの横揺れ（#666）。五目並べの `GomokuShake`（#202）と同じ型。
+///
+/// `animatableData` にそのマスの誤答の回数を渡す。値が 1 進むあいだに左右へ `shakes` 往復し、
+/// 整数では `sin` が 0 になるので**必ず元位置へ戻る**。Reduce Motion が ON のときは
+/// `.gameAnimation` がアニメーションを落とすため補間自体が起きず、マスは静止したままになる
+/// （触覚は Model 側から従来どおり鳴る）。
+private struct SudokuShake: GeometryEffect {
+    /// 片側の振れ幅（pt）。マスの枠の内側で収まるよう、盤全体を揺らす五目並べより小さくする。
+    var amount: CGFloat = 3
+    /// 通し番号 1 つにつき往復する回数。
+    var shakes: CGFloat = 3
+    var animatableData: CGFloat
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(
+            CGAffineTransform(translationX: amount * sin(animatableData * .pi * 2 * shakes), y: 0)
+        )
     }
 }
 

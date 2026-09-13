@@ -18,6 +18,13 @@ public enum SudokuState: Equatable, Sendable {
     case givenUp
 }
 
+/// 行・列・ブロックが揃った瞬間の合図（#666）。同じマスの組が揃い直しても別の値になるよう通し番号を持つ。
+public struct SudokuUnitFlash: Equatable, Sendable {
+    /// 光らせるマス（新しく揃ったユニットの 9 マスの和集合）。
+    public let cells: Set<Int>
+    public let serial: Int
+}
+
 /// 中断スナップショット（#115 の「続きから」）。
 ///
 /// 盤 81 + 正解 81 + メモ 81（1 マス 9 ビットの整数 1 個）+ 既出フラグ 81 の**固定長**で、
@@ -66,6 +73,14 @@ public final class SudokuModel {
     public private(set) var hintedCells: Set<Int> = []
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
+    /// 行・列・ブロックがこの局で初めて揃った瞬間の合図（#666）。View はこれを見て該当マスを一瞬光らせる。
+    /// 表示用の値なので中断データには入れない。
+    public private(set) var unitFlash: SudokuUnitFlash?
+    /// 誤答を入れた回数をマスごとに数えたもの（#666）。View はこれを通し番号にして、そのマスだけを揺らす。
+    public private(set) var mistakeShakes: [Int: Int] = [:]
+    /// この局で既に光らせたユニット（`SudokuEngine.units(of:)` の通し番号）。**一度揃ったユニットは
+    /// 消して入れ直しても光らせない**。出題の時点・中断から復元した時点で揃っているものは最初から含める。
+    private var celebratedUnits: Set<Int> = []
 
     /// 直前の1手（数字の入力・消去・メモの付け外し）の取り消し情報（#353）。
     ///
@@ -187,6 +202,8 @@ public final class SudokuModel {
                 difficulty     = snapshot.difficulty
                 hintedCells    = Set(snapshot.hintedCells.filter { (0..<SudokuEngine.cellCount).contains($0) })
                 mistakes       = snapshot.mistakes ?? 0
+                // 復元した時点で揃っているユニットは光らせ済みとして扱う（中断をまたいで光り直させない）。
+                celebratedUnits = Self.completedUnits(board: board, solution: solution)
                 // ミス上限のまま閉じていたら `failed` に戻す（コンティニューの選択からやり直せる）。
                 state          = mistakes >= Self.maxMistakes ? .failed : .playing
             } else {
@@ -233,6 +250,10 @@ public final class SudokuModel {
         mistakes        = 0
         noteMode        = false
         lastUndoStep    = nil
+        unitFlash       = nil
+        mistakeShakes   = [:]
+        // 出題の数字だけで揃っているユニットは、プレイヤーが揃えたものではないので光らせない。
+        celebratedUnits = Self.completedUnits(board: board, solution: solution)
         self.difficulty = difficulty
         state           = .playing
 
@@ -312,13 +333,18 @@ public final class SudokuModel {
             // 正解のときだけ、同じ行・列・ブロックの同じ数字のメモを消してやる。
             // 間違いのときに消すと、正しかったメモまで巻き添えで失われる。
             if digit == solution[index] { clearPeerNotes(for: index, digit: digit) }
-            services?.feedback.impact(.medium)
             if isNewWrongEntry {
                 mistakes += 1
+                mistakeShakes[index, default: 0] += 1
                 if mistakes >= Self.maxMistakes {
+                    // 触覚は fail() の error だけにする（warning と重ねると合図が濁る）。
                     fail()
                     return   // fail() が persist まで済ませる
                 }
+                // 誤答は正答（impact）と違う種類の触覚で伝える（#666）。
+                services?.feedback.notify(.warning)
+            } else {
+                services?.feedback.impact(flashNewlyCompletedUnits(at: index) ? .light : .medium)
             }
             checkCompletion()
         }
@@ -387,7 +413,7 @@ public final class SudokuModel {
         // 直後に「元に戻す」を押すとヒントが消したメモが復活し、広告の対価が一部巻き戻る。
         // `fail()` が同じ理由で履歴を捨てているのと同じ扱い。
         lastUndoStep = nil
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(flashNewlyCompletedUnits(at: index) ? .light : .medium)
         checkCompletion()
         persist()
         return true
@@ -445,6 +471,32 @@ public final class SudokuModel {
         services?.feedback.notify(.success)
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: .win, score: currentScore)
         services?.snapshots.clear(for: gameID)
+    }
+
+    /// 正解が入った `index` の行・列・ブロックのうち、この局で初めて揃ったものがあれば光らせる合図を出す（#666）。
+    ///
+    /// 盤が完成する手では光らせない（`checkCompletion()` のクリアの合図に任せる）。
+    /// - Returns: 新しく揃ったユニットがあったか。呼び出し側はこれで触覚を軽い合図（light）に切り替える。
+    private func flashNewlyCompletedUnits(at index: Int) -> Bool {
+        guard board != solution else { return false }
+        let newlyCompleted = SudokuEngine.units(of: index).filter { unit in
+            !celebratedUnits.contains(unit)
+                && SudokuEngine.cells(ofUnit: unit).allSatisfy { board[$0] == solution[$0] }
+        }
+        guard !newlyCompleted.isEmpty else { return false }
+        celebratedUnits.formUnion(newlyCompleted)
+        unitFlash = SudokuUnitFlash(
+            cells: Set(newlyCompleted.flatMap { SudokuEngine.cells(ofUnit: $0) }),
+            serial: (unitFlash?.serial ?? 0) + 1
+        )
+        return true
+    }
+
+    /// 揃っている（9 マスすべてに正解が入っている）ユニットの通し番号。
+    private static func completedUnits(board: [Int], solution: [Int]) -> Set<Int> {
+        Set((0..<SudokuEngine.unitCount).filter { unit in
+            SudokuEngine.cells(ofUnit: unit).allSatisfy { board[$0] == solution[$0] }
+        })
     }
 
     private func clearPeerNotes(for index: Int, digit: Int) {
