@@ -376,11 +376,9 @@ public struct RunnerView: View {
                 // 共通の `RecordLabel` はここでは出さない。あちらが出す「自己ベスト N」は
                 // このゲームでは**到達ステージ数**（ハブの 1 行で使う指標）で、同じ枠に
                 // 並ぶタイムと取り違えられる。この画面で意味があるのはタイムのほう。
-                Text("ベストタイム更新！")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.Fill.coral))
+                // 見た目は共通の `RecordBadge`（塗りつぶさない印。「次のステージへ」ボタンと
+                // 同じ塗りだと押せるものに見える・会長 QA 2026-09-14）。
+                RecordBadge("ベストタイム更新！")
             }
         }
     }
