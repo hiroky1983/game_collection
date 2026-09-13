@@ -493,14 +493,14 @@ public struct ShogiView: View {
                         Task { model.undoLastExchange() }
                         return
                     }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの対局に対する待ったかを
-                    // 広告を出す前に控え、ロード中に入れ替わった対局へは乗せない（#729）。
-                    let game = model.gameSerial
+                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
+                    // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
+                    let turn = model.aiTurnKey
                     undoRescue.request(
                         services, gameID: model.gameID, purpose: .undo,
                         guardedBy: .checkedByGrant
                     ) {
-                        model.undoLastExchange(forGame: game)
+                        model.undoLastExchange(forTurn: turn)
                     }
                 }
                 Button("キャンセル", role: .cancel) {}
