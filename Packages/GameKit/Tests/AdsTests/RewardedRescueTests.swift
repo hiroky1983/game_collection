@@ -304,21 +304,11 @@ struct RewardGuardCallSiteTests {
             .filter { $0.count > 0 }
             .sorted { $0.path < $1.path }
 
-        // 局の通し番号を持たない10面。#526 の共通化では挙動を変えていない
-        // （照合を足すのは各ゲームのモデルに通し番号を入れる別の作業）。
-        #expect(unchecked.map(\.path) == [
-            "Game2048/Game2048View.swift",
-            "GameBlockPuzzle/BlockPuzzleView.swift",
-            "GameChess/ChessView.swift",
-            "GameConcentration/ConcentrationView.swift",
-            "GameGo/GoView.swift",
-            "GameGomoku/GomokuView.swift",
-            "GameMinesweeper/MinesweeperView.swift",
-            "GameOthello/OthelloView.swift",
-            "GameShogi/ShogiView.swift",
-            "GameSudoku/SudokuView.swift",
-        ])
-        #expect(unchecked.reduce(0) { $0 + $1.count } == 10)
+        // #526 の共通化の時点では、局の通し番号を持たない10面が照合していなかった。
+        // #729 で全面が通し番号を控えて照合するようになり、残りは0面。
+        // 新しい救済を照合なしで足すと、ここで名指しされて赤くなる。
+        #expect(unchecked.map(\.path) == [])
+        #expect(unchecked.reduce(0) { $0 + $1.count } == 0)
     }
 
     @Test("照合すると宣言した面には、適用できなかったときのアラートが必ずある")

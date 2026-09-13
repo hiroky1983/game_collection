@@ -16,6 +16,9 @@ public final class Game2048Model {
     public private(set) var showWinPrompt: Bool = false
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に「もう一度」で局が入れ替わったら適用しない）。
+    public private(set) var gameSerial = 0
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -130,9 +133,18 @@ public final class Game2048Model {
         services?.gameDidRestart(gameID: gameID)
     }
 
+    /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「コンティニューできなかった」と知らせる。
+    @discardableResult
+    public func continueAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return continueAfterAd()
+    }
+
     /// リワード広告視聴後にコンティニュー。盤面・スコアを保持したまま再開。1回のみ使用可。
-    public func continueAfterAd() {
-        guard gameOver, !continueUsed else { return }
+    @discardableResult
+    public func continueAfterAd() -> Bool {
+        guard gameOver, !continueUsed else { return false }
         // 同じ盤面・同じスコアの続きなので、直前に記録した「負け」は無かったことにする
         // （そのままだと1回のプレイが2回分として数えられる）。到達済みのスコアは取り消さない。
         services?.playLog?.cancelLoss(gameID: gameID)
@@ -147,10 +159,12 @@ public final class Game2048Model {
         // `game_end` はもう送信済みなので、続きは次の1プレイとして数える（#158）。
         // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる。
         services?.gameDidRestart(gameID: gameID)
+        return true
     }
 
     /// 新規ゲーム。
     public func newGame() {
+        gameSerial += 1
         board = Game2048Logic.emptyBoard()
         score = 0
         gameOver = false

@@ -366,6 +366,16 @@ public final class GomokuModel {
         persist()
     }
 
+    /// 広告を出す前に控えた `gameSerial` の対局にだけ待ったを適用する（#729）。
+    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手で戻せなくなっていたら false
+    ///   （View は「待ったを使えなかった」と知らせる）。
+    @discardableResult
+    public func undoLastExchange(forGame serial: Int) -> Bool {
+        guard serial == gameSerial, canUndo else { return false }
+        undoLastExchange()
+        return true
+    }
+
     private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)]) -> GomokuBoard {
         var board = GomokuBoard()
         for move in moves {
