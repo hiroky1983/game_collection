@@ -216,7 +216,7 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 1. **機械的ゲート**: main のブランチ保護で「CI の test 必須」+「未解決スレッドがあるとマージ不可
    (required_conversation_resolution)」を有効化済み。遅れて付いた指摘も未解決のままではマージできない。
    緊急時は会長（admin）のみバイパス可。
-2. **ローカル当番の毎時巡回**: `Scripts/ai-duty.sh`（launchd・毎時）が未解決の CodeRabbit スレッドを
+2. **ローカル当番の巡回**: `Scripts/ai-duty.sh`（launchd・5分ごと）が未解決の CodeRabbit スレッドを
    検知すると当番エージェントを起動し、下記トリアージを実行する。
    ※当初はクラウド webhook 方式だったが、イベント配信が確認できなかったため廃止（2026-08-10）。
 3. **レビュー未着 PR の検知**（Issue #41・2026-08-11 追加）: 1. と 2. はどちらも「スレッドが存在すること」を
@@ -284,20 +284,33 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 
 ### 実装ループ（Phase 2・ローカル当番方式）
 
-起点は **launchd による毎時チェック**（`Scripts/ai-duty.sh`）。Mac がスリープ中は動かない（許容済み・稟議#5）。
+起点は **launchd による5分ごとのチェック**（`Scripts/ai-duty.sh`。2026-09-13 に毎時から短縮）。Mac がスリープ中は動かない（許容済み・稟議#5）。
+
+- **なぜ5分か**（2026-09-13 経営企画室の実測）: 当番のセッションは平均46分で、毎時のタイマーはセッション中に
+  空振りして実効サイクルが116分・稼働率40%だった。1件あたりの時間（PR 作成→マージ平均21分、CI 10.5分）は
+  詰まっておらず、律速は「1時間に1件しか拾えない」こと。ロック（`ai-duty.sh` の `LOCK_DIR`）で直列のまま
+  なので並列度は上がらず、仕事が無ければ claude は起動しないためトークンも増えない。
+- **ローカル資源の規律**（会長指示 2026-09-13。並列化や巡回短縮で Mac を殺さないため。当番も社長も同じ）:
+  1. メインの作業ブランチ（会長がチェックアウトしている本体）が使えないときは worktree を立てて作業する。
+  2. worktree は作業終了後に必ず掃除する（当番は `ai-duty.sh` の EXIT トラップが自動で消し、起動時にも
+     残骸を全部消す。2026-09-13 に「3日より古いものだけ消す」掃除が一度も効かず 52 個・**50GB** 溜まっていた
+     のを手で消した。フルチェックアウトは1個約1GBなので、放置は数日でディスクを圧迫する）。
+  3. 同時に起動するシミュレータは全体で2台まで。起動前に台数を数え、2台あれば起動しない。
+  4. ローカルでフルテストを回さない。`swift test` は触ったターゲットの `--filter` 付きだけ。全体は CI に
+     任せ、`gh pr checks --watch` で見届ける。
 
 1. 人間が Issue に `ai:approved` を付ける（= ハンコ。これだけでよい）。
-2. launchd が毎時 `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue・未解決 CodeRabbit スレッド・
+2. launchd が5分ごとに `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue・未解決 CodeRabbit スレッド・
    レビュー未着の PR のいずれかがあるときだけ `claude -p`（Opus・人事規程の開発部リード）を
    起動する。仕事が無ければ Claude は起動しない。
 3. 当番の手順は `Scripts/ai-duty-prompt.md` に定義: 1回1件、`ai:in-progress` 付与 → 着手宣言 →
-   実装 + ローカルテスト → PR 作成（base: 最新の release/vX.Y.Z、`risk:*` ラベル、受け入れ条件との対応表、
+   実装 + 触った領域のテスト → PR 作成（base: 最新の release/vX.Y.Z、`risk:*` ラベル、受け入れ条件との対応表、
    UI 変更はスクショ添付。運用系のみの変更は main 直可）。
 4. セッション中の Claude に「承認済み Issue を実装して」と直接頼んでもよい（当番と同じ規程で動く）。
 5. 並列実装させる場合は worktree 分離必須（同一ワークツリーでの並列編集は禁止）。
 
 セットアップ（済・再現手順）: `~/Library/LaunchAgents/com.asobiba.ai-duty.plist` が
-`Scripts/ai-duty.sh` を毎時実行。ログは `~/Library/Logs/asobiba-ai-duty.log`。
+`Scripts/ai-duty.sh` を5分ごとに実行（`StartInterval` 300）。ログは `~/Library/Logs/asobiba-ai-duty.log`。
 読み込みは `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.ai-duty.plist`。
 
 同様に `Scripts/ai-management-duty.sh`（日次・`com.asobiba.ai-management.plist`）も
