@@ -482,7 +482,7 @@ v1.1.0〜v1.1.3 を実際に TestFlight 配信 → 審査提出まで複数回�
 ## 運用ルール
 
 - アプリコードの PR のベースは **Issue のマイルストーンと同名の release ブランチ**。
-  **2026-09-11 現在、動いているのは `release/v1.1.4` の1本だけ**（`release/v1.1.0`〜`release/v1.1.3`
+  **2026-09-13 現在、動いているのは `release/v1.1.5` と `release/v1.1.6` の2本**（`release/v1.1.0`〜`release/v1.1.4`
   はいずれも公開済みで main へ取り込み・タグ付け済み。凍結済みのものは push 禁止）。
   運用系のみの変更は main 直可。
   **積む先はこの文書ではなくマイルストーン名と `git ls-remote origin 'refs/heads/release/*'` で確認する**
