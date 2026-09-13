@@ -112,6 +112,51 @@ struct MahjongTableLayoutTests {
         #expect(panel.minX - l.riverRect(seat: 3, index: 0).maxX < tile * 1.5)
     }
 
+    @Test("左右の河の同じ列は画面上で垂直に並ぶ（台形に引きずられない）", arguments: [1, 3])
+    func sideRiverColumnsAreVertical(seat: Int) {
+        let l = Self.phone
+        for row in 0..<3 {
+            let xs = (0..<6).map { l.riverSlot(seat: seat, index: row * 6 + $0).center.x }
+            #expect(xs.allSatisfy { abs($0 - xs[0]) < 0.001 }, "seat \(seat) 行 \(row) の x がずれる: \(xs)")
+        }
+    }
+
+    @Test("立直棒は 4 家とも河の牌にも中央パネルにも重ならない")
+    func riichiSticksClearRivers() {
+        let l = Self.phone
+        for seat in 0..<4 {
+            let s = l.riichiStickSlot(seat: seat)
+            let len = 46 * s.scale, thick = 4 * s.scale
+            let sideways = seat == 1 || seat == 3
+            let rect = CGRect(x: s.center.x - (sideways ? thick : len) / 2, y: s.center.y - (sideways ? len : thick) / 2,
+                              width: sideways ? thick : len, height: sideways ? len : thick)
+            #expect(!rect.intersects(l.centerPanel), "seat \(seat) の立直棒がパネルに重なる")
+            for other in 0..<4 { for i in 0..<18 {
+                #expect(!rect.intersects(l.riverRect(seat: other, index: i)), "seat \(seat) の立直棒が seat \(other) の河 \(i) に重なる")
+            } }
+        }
+    }
+
+    @Test("副露の角は 4 家で別々の角にあり、河 18 枚と重ならない")
+    func meldCornersDistinct() {
+        let l = Self.phone
+        let pts = (0..<4).map { l.meldSlot(seat: $0).center }
+        let mid = CGPoint(x: l.size.width / 2, y: l.size.height / 2)
+        // 対面=左上, 下家=右上, 上家=左下, 自分=右下
+        #expect(pts[2].x < mid.x && pts[2].y < mid.y)
+        #expect(pts[1].x > mid.x && pts[1].y < mid.y)
+        #expect(pts[3].x < mid.x && pts[3].y > mid.y)
+        #expect(pts[0].x > mid.x && pts[0].y > mid.y)
+        let tile = l.meldTileWidth
+        for seat in 0..<4 {
+            let c = pts[seat]
+            let r = CGRect(x: c.x - tile * 2, y: c.y - tile * 2, width: tile * 4, height: tile * 4)
+            for other in 0..<4 { for i in 0..<18 {
+                #expect(!r.intersects(l.riverRect(seat: other, index: i)), "seat \(seat) の副露の角が seat \(other) の河 \(i) に重なる")
+            } }
+        }
+    }
+
     @Test("多角形の内外判定")
     func polygon() {
         let sq = [CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 0), CGPoint(x: 10, y: 10), CGPoint(x: 0, y: 10)]

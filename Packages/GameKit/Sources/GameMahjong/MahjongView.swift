@@ -294,12 +294,34 @@ public struct MahjongView: View {
             .frame(width: side, height: side)
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
+            // ドラのチップは卓の左上の角に**外側から**重ねる（クリップの外なので木枠の上へはみ出せる）。
+            // 卓の中に置くと対面の副露（左上の角）と重なる（会長指摘）。
+            .overlay(alignment: .topLeading) {
+                doraChip(scale: side / 393)
+                    .offset(x: 10 * side / 393, y: -14 * side / 393)
+            }
             .frame(width: geo.size.width, height: geo.size.height)
             .onChange(of: model.discards.map(\.count)) { old, new in
                 startDiscardFlight(old: old, new: new, layout: layout)
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// ドラ表示。参考画像と同じく画面左上の HUD。牌が複数（カン）なら並べる。
+    private func doraChip(scale s: CGFloat) -> some View {
+        HStack(spacing: 5 * s) {
+            Text("ドラ")
+                .font(.system(size: 11 * s, weight: .black, design: .rounded))
+                .foregroundStyle(Theme.Fixed.ink)
+            ForEach(Array(model.doraIndicators.enumerated()), id: \.offset) { _, tile in
+                MahjongTileView(tile: tile, width: 20 * s, height: 27 * s)
+            }
+        }
+        .padding(.horizontal, 9 * s).padding(.vertical, 5 * s)
+        .background(Capsule().fill(.white).shadow(color: .black.opacity(0.18), radius: 5, y: 2))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("ドラ表示牌、" + model.doraIndicators.map { $0.displayName }.joined(separator: "、"))
     }
 
     /// 河が 1 枚増えた家を見つけて、その 1 枚を出発点から着地点へ飛ばす（#738）。
