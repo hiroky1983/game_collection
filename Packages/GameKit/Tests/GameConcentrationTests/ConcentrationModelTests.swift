@@ -673,3 +673,74 @@ struct ConcentrationModelTests {
         #expect(model.cpuScore == 1)
     }
 }
+
+// MARK: - CPU 手番のキャンセル（#725）
+
+@Suite("CPU 手番のキャンセル")
+@MainActor
+struct ConcentrationCancellationTests {
+
+    /// `ConcentrationView` は `.task(id: model.turnID) { await model.performCPUMoveIfNeeded() }` で
+    /// CPU を回しており、このタスクは**画面を離れるとキャンセルされる**。`try? await Task.sleep` は
+    /// キャンセル後は毎回即座に返るため、`doCPUTurn` が `Task.isCancelled` を見ていないと
+    /// CPU が待ち時間ゼロで取り切り、決着して1敗が記録され中断データも消える（#725）。
+    ///
+    /// 大富豪の `DaifugoCancelTests` と同じく、MainActor 上で作った Task は `await` で手放すまで
+    /// 本体が動かないので、`cancel()` は必ず本体より先に確定する（実時間に依存しない）。
+    /// 返り値は「人間がミスマッチして CPU 番に移った」直後のモデルと、それを書いた中断データの置き場。
+    private func modelAtCPUTurnThatWouldSweep() async -> (ConcentrationModel, MockSnapshotStore) {
+        let store = MockSnapshotStore()
+        let scripted = ScriptedConcentrationAI()
+        let model = ConcentrationModel(services: makeServices(store),
+                                       autoClearDelay: testAutoClearDelay,
+                                       aiFactory: { _ in scripted })
+        let (a, b) = mismatchPair(in: model.cards)
+        model.tap(index: a)
+        model.tap(index: b)
+        await awaitAutoClear(model)
+
+        // キャンセルが効かなければ、CPU はこの順に全ペアを取り切って決着まで走り抜ける
+        // （Issue の「記憶率の高い CPU が覚えた札を取り切る」を確定的に再現する）。
+        let bySymbol = Dictionary(grouping: model.cards.indices, by: { model.cards[$0].symbol })
+        scripted.choices = bySymbol.values.flatMap { $0 }
+        return (model, store)
+    }
+
+    @Test("CPU 手番中にタスクをキャンセルすると以降の札をめくらない")
+    func cancelledCPUTurnDoesNotFlip() async {
+        let (model, store) = await modelAtCPUTurnThatWouldSweep()
+        #expect(model.currentPlayer == .cpu, "CPU の手番になっていない")
+        let facesBefore = model.cards.map(\.isFaceUp)
+        let matchedBefore = model.cards.map(\.isMatched)
+
+        let task = Task { await model.performCPUMoveIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(model.cards.map(\.isFaceUp) == facesBefore, "キャンセル済みのタスクが札をめくった")
+        #expect(model.cards.map(\.isMatched) == matchedBefore, "キャンセル済みのタスクがペアを取った")
+        #expect(model.cpuScore == 0)
+        #expect(!model.isGameOver, "キャンセル済みのタスクが決着まで走り抜けた")
+        #expect(model.recordResult == nil, "決着していないので成績は記録されない")
+        #expect(store.exists(for: "concentration"), "中断データが消えていない")
+        #expect(!model.isThinking, "抜けた後に isThinking が残ると次の CPU 手番が始まらない")
+        #expect(model.currentPlayer == .cpu, "手番はそのまま")
+    }
+
+    @Test("CPU 手番中に離れても、離れた時点の盤面から再開できる")
+    func cancelledCPUTurnRestoresBoardAtLeave() async {
+        let (model, store) = await modelAtCPUTurnThatWouldSweep()
+        let task = Task { await model.performCPUMoveIfNeeded() }
+        task.cancel()
+        await task.value
+
+        // 「つづき」から開き直す = 同じ中断データから新しいモデルを作る
+        let resumed = ConcentrationModel(services: makeServices(store))
+        #expect(resumed.cards.map(\.symbol) == model.cards.map(\.symbol))
+        #expect(resumed.cards.map(\.isMatched) == model.cards.map(\.isMatched))
+        #expect(resumed.cards.allSatisfy { !$0.isFaceUp })
+        #expect(resumed.cpuScore == 0)
+        #expect(resumed.currentPlayer == .cpu, "CPU の手番から再開する")
+        #expect(resumed.turnID != 0, "CPU の手番を task(id:) が拾い直せる")
+    }
+}
