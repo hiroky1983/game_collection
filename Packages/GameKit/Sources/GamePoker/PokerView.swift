@@ -22,7 +22,11 @@ public struct PokerView: View {
 
     public init(services: GameServices) {
         self.services = services
-        let restored = PokerModel(services: services)
+        // Reduce Motion が ON なら手札は即座に表になるので、勝敗の触覚も待たせない（#667）。
+        let restored = PokerModel(
+            services: services,
+            showdownRevealDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay
+        )
         _model = State(initialValue: restored)
         let hasSnapshot = services.snapshots.exists(for: "poker")
         _showStartSheet = State(initialValue: !hasSnapshot)
@@ -274,6 +278,12 @@ public struct PokerView: View {
 
     // MARK: - Pot Area
 
+    /// ポットの数値の入れ替え方。ショーダウンで決着したときだけ、CPU の 5 枚が返り終わるまで
+    /// 動かさない（#667）。先に 0 へ転がると、めくる前に勝敗が分かってしまう。
+    private var potAnimation: Animation {
+        model.phase == .result && !model.cpuFolded ? PokerMotion.potSettle : PokerMotion.potChange
+    }
+
     private var potArea: some View {
         HStack {
             Spacer()
@@ -299,7 +309,8 @@ public struct PokerView: View {
                         // ベット・コールで増え、決着で勝者に渡って 0 に戻る。数字が瞬時に
                         // 入れ替わると増減の向きが分からないので、転がして見せる（#206）。
                         .contentTransition(.numericText(value: Double(model.pot)))
-                        .gameAnimation(PokerMotion.potChange, value: model.pot)
+                        // ショーダウンの決着だけは 5 枚が返り終わってから転がす（#667）。
+                        .gameAnimation(potAnimation, value: model.pot)
                         // 枚数が変わるのと同時に画面全体のレイアウトが動く場面（ゲーム画面へ
                         // 入りながらアンティが積まれるなど）では、この Text だけが古い位置から
                         // 滑ってきてポットの枠の外に文字が出る。実測で確認したため、

@@ -231,10 +231,19 @@ public final class BlackjackModel {
     private let services: GameServices?
     private var seed: UInt64?
 
-    /// - Parameter seed: テスト用の固定種。nil ならシステムの乱数を使う。
-    public init(services: GameServices? = nil, seed: UInt64? = nil) {
+    /// ディーラーが1枚引くごとの間（#667）。`.zero` なら従来どおりその場で引き切る。
+    private let dealerDrawInterval: Duration
+    /// 1枚ずつ引いている最中の `Task`。「結果まで進める」とセッションのやり直しで止める。
+    private(set) var dealerTask: Task<Void, Never>?
+
+    /// - Parameters:
+    ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
+    ///   - dealerDrawInterval: ディーラーの引きの間。画面は `BlackjackMotion.dealerDrawInterval` を渡す。
+    ///     既定の `.zero` は待たずに引き切る（テストの決定性のため）。
+    public init(services: GameServices? = nil, seed: UInt64? = nil, dealerDrawInterval: Duration = .zero) {
         self.services = services
         self.seed = seed
+        self.dealerDrawInterval = dealerDrawInterval
         if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: "blackjack") {
             self.dealerHand = snap.dealerHand
             self.deck       = snap.deck
@@ -261,10 +270,17 @@ public final class BlackjackModel {
                 self.checkSessionOver()
             }
         }
+        // ディーラーが引いている途中で中断していたら、その続きから引く（#667）。
+        // 賭けは確定済みなので、スタンドの前へ戻して選び直させることはしない。
+        if phase == .dealerTurn {
+            runDealer()
+        }
     }
 
     private func persist() {
-        guard phase == .playerTurn else {
+        // ディーラーが1枚ずつ引いているあいだ（#667）も保存する。保存しないと、途中で落ちたとき
+        // スタンド前の中断データが残り、ディーラーの札を見てから選び直せてしまう。
+        guard phase == .playerTurn || phase == .dealerTurn else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -449,10 +465,55 @@ public final class BlackjackModel {
     // MARK: - Dealer AI (17以上でスタンド)
 
     private func runDealer() {
+        guard dealerDrawInterval > .zero else {
+            drawDealerToStand()
+            resolveAll()
+            return
+        }
+        persist()
+        startDealerDraws()
+    }
+
+    /// ディーラーを1枚ずつ引かせる（#667）。一気に引き切ると結果だけが瞬間的に出て、勝った実感が残らない。
+    ///
+    /// 伏せカードの公開 → 間 → 1枚 → 間 → … → 間 → 精算、の順に進む。17 以上で最初から止まる手でも
+    /// 1回ぶん間を置き、公開の直後に勝敗が出ないようにする。精算（記録・順位表の送信）は従来どおり
+    /// `resolveAll()` の1か所だけで、引き終わってから1回だけ走る。
+    ///
+    /// ディーラーの引きは CPU の手番なので触覚は鳴らさない（指が触れていない間の振動を避ける規約。
+    /// `FeedbackCPUSilentTests`）。決着の notify は `resolveAll()` が従来どおり鳴らす。
+    private func startDealerDraws() {
+        let interval = dealerDrawInterval
+        dealerTask = Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: interval)
+                // 「結果まで進める」・やり直しで止められたか、画面ごと捨てられた。
+                guard !Task.isCancelled, let self, self.phase == .dealerTurn else { return }
+                guard handValue(self.dealerHand) < 17 else {
+                    self.dealerTask = nil
+                    self.resolveAll()
+                    return
+                }
+                self.dealerHand.append(self.drawCard())
+                self.persist()
+            }
+        }
+    }
+
+    /// 「結果まで進める」（#667）。ディーラーの残りを待たずに引き切って精算する。
+    /// 引く札は待った場合と同じ（山札の順に引くだけ）なので、飛ばしても結果は変わらない。
+    public func skipDealerDraws() {
+        guard phase == .dealerTurn else { return }
+        dealerTask?.cancel()
+        dealerTask = nil
+        drawDealerToStand()
+        resolveAll()
+    }
+
+    private func drawDealerToStand() {
         while handValue(dealerHand) < 17 {
             dealerHand.append(drawCard())
         }
-        resolveAll()
     }
 
     // MARK: - Result
@@ -559,6 +620,9 @@ public final class BlackjackModel {
     // MARK: - Restart
 
     public func restartSession() {
+        // ディーラーが引いている途中なら止める（#667。新しいセッションの卓に前の局の札が足されない）。
+        dealerTask?.cancel()
+        dealerTask = nil
         recordResult = nil
         sessionSerial += 1
         chips = BlackjackModel.initialChips

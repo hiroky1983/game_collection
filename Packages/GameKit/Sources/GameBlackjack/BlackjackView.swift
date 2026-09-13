@@ -15,7 +15,16 @@ public struct BlackjackView: View {
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: BlackjackModel(services: services))
+        var dealerDrawInterval = BlackjackMotion.dealerDrawInterval
+        #if DEBUG
+        // 撮影用（#667）: `-blackjackDealerDrawSeconds <秒>` でディーラーの間を延ばし、引いている途中を止めて撮る。
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-blackjackDealerDrawSeconds"), i + 1 < args.count,
+           let seconds = Double(args[i + 1]) {
+            dealerDrawInterval = .milliseconds(Int(seconds * 1000))
+        }
+        #endif
+        _model = State(initialValue: BlackjackModel(services: services, dealerDrawInterval: dealerDrawInterval))
     }
 
     public var body: some View {
@@ -313,9 +322,22 @@ public struct BlackjackView: View {
             playerActionView
         case .result:
             resultView
-        case .dealerTurn, .idle:
+        case .dealerTurn:
+            dealerTurnView
+        case .idle:
             EmptyView()
         }
+    }
+
+    /// ディーラーが1枚ずつ引いているあいだの操作欄（#667）。待ちを飛ばして結果まで進められる。
+    private var dealerTurnView: some View {
+        VStack(spacing: 8) {
+            actionButton("結果まで進める", color: Theme.fillMuted, foreground: .white) {
+                model.skipDealerDraws()
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     private var bettingView: some View {
