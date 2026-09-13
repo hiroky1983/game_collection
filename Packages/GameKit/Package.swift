@@ -83,6 +83,7 @@ let package = Package(
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
         .testTarget(name: "BoardGameChromeTests", dependencies: ["Core"]),
         .testTarget(name: "GameChromeTests",   dependencies: ["Core"]),
+        .testTarget(name: "OjisanTests",       dependencies: ["Core"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku"]),

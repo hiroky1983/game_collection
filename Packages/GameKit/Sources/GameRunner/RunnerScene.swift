@@ -32,10 +32,10 @@ enum RunnerPalette {
     static let skin: UInt32 = 0xF3C9A6
     /// 肌の陰（鼻・耳）。輪郭線を引かずに顔の起伏を出すため、肌より一段暗い色で置く。
     static let skinShade: UInt32 = 0xD9A57F
-    /// おじさんの服。
-    static let shirt: UInt32 = 0xB3A6F0
+    /// おじさんの服。黄色のポロシャツ（`OjisanPalette.shirt` と同じ値・#700）。
+    static let shirt: UInt32 = 0xF9C233
     /// 服の陰（奥の腕）。手前の胴と同じ色だと、腕が胴に溶けて1つの塊に見える。
-    static let shirtShade: UInt32 = 0x8477C9
+    static let shirtShade: UInt32 = 0xCC8F1A
     /// ズボン（手前の脚）。**空（`sky`）と近い濃い青は使えない**。脚は空を背に描かれるので、
     /// 同系の暗い色にすると漕いでいるのに脚が見えない（最初の実機確認で判明）。
     static let pants: UInt32 = 0xE0B27C

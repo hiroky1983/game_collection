@@ -16,8 +16,8 @@ public struct RunnerModule: GameModule {
     // ステージ数は #674 で 15 → 18 に増えた（乗れる台座の枠）。ハブの一覧に出る文言なので
     // `RunnerRules.stageCount` と食い違わないようにする（`RunnerModuleTests` が縛る）。
     public let description = "タップで跳んで18ステージを走りぬけよう"
-    // 自転車の絵。ハブで隣に並ぶブロック崩し（`tennisball.fill`）とも見分けが付く。
-    public var icon: Image { Image(systemName: "bicycle") }
+    // おじさんの顔（#700）。18 本のカードで唯一キャラが出る。描けない環境では自転車の記号。
+    public var icon: Image { MainActor.assumeIsolated { OjisanBitmap.hubIcon } ?? Image(systemName: "bicycle") }
 
     public init() {}
 
