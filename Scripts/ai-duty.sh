@@ -442,7 +442,19 @@ if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
   log "ロックの所有権が他プロセスに移ったためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
   exit 0
 fi
-trap 'cleanup_simulators; notify_pending; release_lock' EXIT
+# worktree の後片付け（会長指示 2026-09-13「worktree は作業終了後に必ず掃除する」）。
+# 1実行=1使い捨て worktree なので、終了時に自分の分を消す。push 済みのものは origin にあり、
+# 未 push の変更は次回の当番が拾わない（新しい worktree で始まる）ため、残しても誰も読まない。
+# 3日保持の掃除ループは、異常終了で EXIT トラップが走らなかった回の backstop として残す。
+RUN_DIR=""
+cleanup_worktree() {
+  [ -n "$RUN_DIR" ] && [ -d "$RUN_DIR" ] || return 0
+  cd / || true
+  git -C "$DUTY_DIR" worktree remove --force "$RUN_DIR" >>"$LOG" 2>&1 \
+    && log "後片付け: worktree $RUN_DIR を削除" \
+    || { rm -rf "$RUN_DIR"; git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1; log "後片付け: worktree $RUN_DIR を rm -rf で削除"; }
+}
+trap 'cleanup_simulators; cleanup_worktree; notify_pending; release_lock' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
@@ -846,11 +858,17 @@ fi
 
 # claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
 capture_sims_before
+# 同時に起動してよいシミュレータは全体で2台まで（会長指示 2026-09-13。3台以上で Mac が固まる）。
+# 実行前に何台起動しているかをプロンプトへ渡し、当番側で「あと何台起動できるか」を判断させる。
+SIMS_BOOTED_COUNT=$(printf '%s' "${SIMS_BEFORE% }" | wc -w | tr -d ' ')
+export SIMS_BOOTED_COUNT
 
 log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
-  -p "$(cat "$RUN_DIR/$PROMPT_FILE")" >>"$LOG" 2>&1
+  -p "$(cat "$RUN_DIR/$PROMPT_FILE")
+
+（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。" >>"$LOG" 2>&1
 RC=$?
 log "当番終了 (mode=$MODE, exit=$RC)"
