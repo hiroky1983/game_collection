@@ -13,6 +13,11 @@ struct OthelloSnapshot: Codable {
     let mustPass: Bool?
     let turnID: Int?
     let undoUsed: Bool?
+    /// 「待った」で戻る先（巻き戻し履歴の最上段）の盤面と手番（#732）。
+    /// 履歴がメモリ上にしか無いと、中断から再開したとき `undoUsed` だけが残り「待った」が押せなくなる。
+    /// 旧形式のデータには無いので optional。無ければ従来どおり履歴は空で始まる。
+    let undoCells: [Int?]?
+    let undoCurrentStone: Int?
 }
 
 private struct TurnState {
@@ -118,6 +123,11 @@ public final class OthelloModel {
             mustPass     = snap.mustPass ?? false
             turnID       = snap.turnID ?? 0
             undoUsed     = snap.undoUsed ?? false
+            if let cells = snap.undoCells, cells.count == othelloBoardSize * othelloBoardSize,
+               let stone = snap.undoCurrentStone.flatMap({ OthelloStone(rawValue: $0) }) {
+                undoHistory = [TurnState(cells: cells.map { $0.flatMap { OthelloStone(rawValue: $0) } },
+                                         currentStone: stone)]
+            }
         } else {
             board        = OthelloBoard()
             currentStone = .black
@@ -370,7 +380,9 @@ public final class OthelloModel {
             isDraw: isDraw,
             mustPass: mustPass ? true : nil,
             turnID: turnID,
-            undoUsed: undoUsed ? true : nil
+            undoUsed: undoUsed ? true : nil,
+            undoCells: undoHistory.last.map { $0.cells.map { $0?.rawValue } },
+            undoCurrentStone: undoHistory.last?.currentStone.rawValue
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
