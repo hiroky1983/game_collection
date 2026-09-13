@@ -83,6 +83,12 @@ struct SudokuFeedbackTests {
         #expect(spy.notices == [.warning])
         #expect(spy.impacts.isEmpty, "誤答でも impact を鳴らすと正答と区別が付かない")
 
+        // 同じ誤答の入れ直し（ミスには数えない）でも、マスは誤答のままなので正答の手応えを返さない。
+        spy.reset()
+        model.enter(digit: wrongDigit(model, at: index))
+        #expect(spy.notices == [.warning])
+        #expect(spy.impacts.isEmpty)
+
         spy.reset()
         model.enter(digit: model.solution[index])
         #expect(spy.impacts == [.medium])
@@ -117,6 +123,7 @@ struct SudokuFeedbackTests {
         #expect(model.mistakeShakes == [index: 1])
         model.enter(digit: wrong)
         #expect(model.mistakeShakes == [index: 1], "同じ数字の入れ直しはミスに数えないので揺らさない")
+        #expect(model.mistakes == 1)
         model.enter(digit: model.solution[index])
         #expect(model.mistakeShakes == [index: 1])
 
@@ -216,6 +223,13 @@ struct SudokuFeedbackTests {
         #expect(model.unitFlash == flashBefore)
         #expect(spy.impacts == [.medium])
         #expect(spy.notices == [.success])
+    }
+
+    @Test("揃ったマスの光は、光っている時間とフェードを合わせて 0.25 秒に収まる")
+    func unitFlashLastsQuarterSecond() {
+        let total = SudokuMetrics.unitFlashHoldDuration + SudokuMetrics.unitFlashFadeDuration
+        #expect(abs(total - 0.25) < 1e-9, "合計 \(total) 秒")
+        #expect(SudokuMetrics.unitFlashHoldDuration > 0, "光る前に消え始めると目に入らない")
     }
 
     @Test("数字を 9 個とも正解で埋めると、その数字は使い切りになる")

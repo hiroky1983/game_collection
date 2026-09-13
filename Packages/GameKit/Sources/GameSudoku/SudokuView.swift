@@ -124,6 +124,14 @@ public struct SudokuView: View {
                     model.enter(digit: model.solution[index])
                 }
             }
+            // 撮影・動作確認用（DEBUG 限定）: 起動 2 秒後に空きマスへ誤答を 1 つ入れ、揺れを非対話で起こす（#666）。
+            // `-sudokuAutoStart` と併用する。揺れが補間されるかの実測（連続スクショ）に使う。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuMistakePreview"), model.state == .playing,
+               let index = (0..<SudokuEngine.cellCount).first(where: { model.board[$0] == 0 }) {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if model.selected != index { model.select(index: index) }
+                model.enter(digit: model.solution[index] % SudokuEngine.size + 1)
+            }
             #endif
         }
         .task(id: model.unitFlash) { await flashCompletedUnits(model.unitFlash) }

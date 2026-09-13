@@ -343,6 +343,9 @@ public final class SudokuModel {
                 }
                 // 誤答は正答（impact）と違う種類の触覚で伝える（#666）。
                 services?.feedback.notify(.warning)
+            } else if digit != solution[index] {
+                // 同じ誤答の入れ直し。ミスには数えないが、マスは誤答のままなので正答の手応えは返さない。
+                services?.feedback.notify(.warning)
             } else {
                 services?.feedback.impact(flashNewlyCompletedUnits(at: index) ? .light : .medium)
             }
