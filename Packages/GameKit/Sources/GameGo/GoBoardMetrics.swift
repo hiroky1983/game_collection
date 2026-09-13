@@ -1,5 +1,4 @@
 import CoreGraphics
-import Core
 
 /// 碁盤の余白と交点の間隔。View（タップの座標変換・読み上げの格子）と `GoBoardCanvas`（描画）が
 /// 同じ値を使うよう、純関数としてここに置く（テストで縛れる）。
@@ -10,8 +9,8 @@ import Core
 enum GoBoardMetrics {
     /// 余白の下限（13 路以上はこちらが効く。19 路でも石は半径 9pt ほどなので十分）。
     static let minPad: CGFloat = 18
-    /// 余白 ÷ 交点の間隔。石の半径 0.47 + 落ち影（ぼかし 0.09 + ずれ 0.07）を覆い、角丸の内側にも収まる値。
-    static let padRatio: CGFloat = 0.65
+    /// 余白 ÷ 交点の間隔。石の半径 0.47 + 落ち影（ぼかし 0.09 + ずれ 0.07）= 0.63 を覆い、ぼかしの裾の分だけ余裕を持たせる。
+    static let padRatio: CGFloat = 0.7
     /// 石の半径 ÷ 交点の間隔（`GoBoardCanvas` と共有）。
     static let stoneRadiusRatio: CGFloat = 0.47
     /// 落ち影が石の外へ出る量 ÷ 交点の間隔（ぼかし半径 0.09 + 下向きのずれ 0.07）。

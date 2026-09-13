@@ -32,9 +32,10 @@ struct GoBoardMetricsTests {
         #expect(pad >= GoBoardMetrics.minPad)
     }
 
-    @Test("9 路は余白が広がり、13 路は従来の 18pt のまま（見た目を無闇に変えない）")
+    @Test("9 路は余白が広がり、13 路は従来の 18pt とほぼ同じ（見た目を無闇に変えない）")
     func onlySmallBoardsGrow() {
-        #expect(GoBoardMetrics.pad(boardWidth: 361, size: 9) > 22)
-        #expect(GoBoardMetrics.pad(boardWidth: 361, size: 13) == GoBoardMetrics.minPad)
+        #expect(GoBoardMetrics.pad(boardWidth: 361, size: 9) > 24)
+        let pad13 = GoBoardMetrics.pad(boardWidth: 361, size: 13)
+        #expect(pad13 >= GoBoardMetrics.minPad && pad13 < 19.5, "13 路の余白 \(pad13)")
     }
 }
