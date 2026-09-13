@@ -50,7 +50,8 @@ struct HubRecentRow: View {
                                     hasResume: candidate.hasResume
                                 )
                             }
-                            .buttonStyle(.plain)
+                            // グリッドのカードと同じ押下フィードバック（#716）。
+                            .buttonStyle(.pop)
                         }
                     }
                 }
