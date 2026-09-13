@@ -473,6 +473,28 @@ APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --s
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
                  and ($l | index("blocked")) == null)] | length' 2>/dev/null || echo 0)
 
+# 起動モデルの選択（会長指示 2026-09-14: デザイン系など複雑な案件は Fable 5.1 で動かす）。
+# 仕事1 の候補を ai-duty-prompt.md 2 の選定手順と同じ順（マイルストーンの小さい順 → 番号の小さい順）で
+# 1 件求め、それに `model:fable`（会長が付けるラベル）が付いていれば `--model fable` で起動し、
+# プロンプトの補足で「仕事2 ではその Issue を選ぶこと」と指定する（起動後に別の候補へ替わると
+# モデルと案件がずれるため）。付いていなければ従来どおり opus。取得に失敗したときも opus。
+NEXT_CANDIDATE=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
+  --json number,labels,milestone \
+  --jq '[.[] | ([.labels[].name]) as $l
+        | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
+                 and ($l | index("blocked")) == null)
+        | {number: .number,
+           fable: (($l | index("model:fable")) != null),
+           ver: ((.milestone.title // "v999.999.999") | ltrimstr("v") | split(".") | map(tonumber? // 999))}]
+        | sort_by(.ver, .number) | .[0] // empty' 2>/dev/null || true)
+DUTY_MODEL=opus
+DUTY_MODEL_NOTE=""
+if [ -n "$NEXT_CANDIDATE" ] && [ "$(jq -r '.fable' <<<"$NEXT_CANDIDATE" 2>/dev/null)" = "true" ]; then
+  DUTY_MODEL=fable
+  DUTY_MODEL_NOTE="今回は Fable 5.1 で起動している（\`model:fable\` の Issue はこのモデルで着手する・会長指示 2026-09-14）。仕事2 では #$(jq -r '.number' <<<"$NEXT_CANDIDATE") を選ぶこと。"
+fi
+export DUTY_MODEL
+
 # 仕事2: オープン PR 上の未解決 CodeRabbit スレッド
 # 上限 50 PR × 100 スレッド（個人リポジトリの規模では実質全件。超えたら要ページング対応）
 THREADS=$(gh api graphql -f query='
@@ -872,12 +894,12 @@ capture_sims_before
 SIMS_BOOTED_COUNT=$(printf '%s' "${SIMS_BEFORE% }" | wc -w | tr -d ' ')
 export SIMS_BOOTED_COUNT
 
-log "当番起動 (mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
-PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
+PATH="$GH_SHIM_DIR:$PATH" claude --model "$DUTY_MODEL" \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")
 
-（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。" >>"$LOG" 2>&1
+（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。${DUTY_MODEL_NOTE}" >>"$LOG" 2>&1
 RC=$?
 log "当番終了 (mode=$MODE, exit=$RC)"
