@@ -28,6 +28,9 @@ struct MahjongTableScene {
     var riichiSticks: Int
     var remainingTiles: Int
     var doraIndicators: [MahjongTile]
+    /// 飛行中で河にまだ置かない 1 枚（家, 何枚目）。`MahjongDiscardFlight` が着地したら nil。
+    var hiddenDiscardSeat: Int?
+    var hiddenDiscardIndex: Int?
 
     static let windNames = ["東", "南", "西", "北"]
 }
@@ -68,11 +71,13 @@ struct MahjongTableView: View {
     private func seatLayer(_ seat: Int) -> some View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(scene.discards[seat].enumerated()), id: \.offset) { i, tile in
-                let slot = layout.riverSlot(seat: seat, index: i)
-                let w = layout.riverTileWidth * slot.scale
-                MahjongTileView(tile: tile, width: w, height: w * MahjongTableLayout.tileAspect)
-                    .rotationEffect(.degrees(slot.rotation))
-                    .position(slot.center)
+                if !(scene.hiddenDiscardSeat == seat && scene.hiddenDiscardIndex == i) {
+                    let slot = layout.riverSlot(seat: seat, index: i)
+                    let w = layout.riverTileWidth * slot.scale
+                    MahjongTileView(tile: tile, width: w, height: w * MahjongTableLayout.tileAspect)
+                        .rotationEffect(.degrees(slot.rotation))
+                        .position(slot.center)
+                }
             }
             if !scene.melds[seat].isEmpty {
                 meldRow(seat)
@@ -247,5 +252,27 @@ struct MahjongCenterPanel: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(MahjongAccessibility.playerLabel(
             name: name, score: scene.scores[index], isRiichi: scene.riichi[index], isCurrent: isCurrent))
+    }
+}
+
+// MARK: - 牌台（#738）
+
+/// 手牌の帯の背景。以前は卓と同じフェルトだったが、卓が木枠付きの台形になったのに合わせ、
+/// 手前の牌台も木のトレイにする（モック v12）。木目画像は使わず、茶系の多段グラデーション＋
+/// 上端の照りと内側の落ち影で厚みを出す。
+struct MahjongWoodTray: View {
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Theme.corner, style: .continuous) }
+
+    var body: some View {
+        shape
+            .fill(LinearGradient(colors: [Color(hex: 0xA6703A), Color(hex: 0x8A5A2B), Color(hex: 0x4A2C12)],
+                                 startPoint: .top, endPoint: .bottom))
+            .overlay(
+                shape.inset(by: 2).strokeBorder(
+                    LinearGradient(colors: [Color.white.opacity(0.28), Color.white.opacity(0.02)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1.5)
+            )
+            .overlay(shape.strokeBorder(Color(hex: 0x3A2210).opacity(0.8), lineWidth: 2))
     }
 }

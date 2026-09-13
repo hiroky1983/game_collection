@@ -235,6 +235,16 @@ public struct MahjongTableLayout: Sendable {
         return CGRect(x: g.x - side / 2, y: g.y - side / 2, width: side, height: side)
     }
 
+    /// 打牌が飛び始める点（#738）。自分は手牌一覧の中央、CPU はその家の立て牌の列の中ほど。
+    public func discardOrigin(seat: Int) -> CGPoint {
+        switch seat {
+        case 2: return project(u: 0.5, v: 0.07).point
+        case 3: return project(u: 0.05, v: 0.50).point
+        case 1: return project(u: 0.95, v: 0.50).point
+        default: return handOverview.center
+        }
+    }
+
     /// 卓上の手牌一覧（`handOverviewOnTable`）の中心と幅。フェルトの手前の縁、左寄り。
     /// 右手前の角は自分の副露の置き場（`meldSlot(seat: 0)`）なので、そこを空けて幅 62% に収める。
     public var handOverview: (center: CGPoint, width: CGFloat) {
