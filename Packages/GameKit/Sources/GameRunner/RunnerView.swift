@@ -152,12 +152,12 @@ public struct RunnerView: View {
                     Text("走行距離")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
-                    Text(distanceText(Int(model.distance)))
+                    Text(distanceText(model.distanceMeters))
                         .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
                         .foregroundStyle(Theme.ink)
                 }
                 .accessibilityElement()
-                .accessibilityLabel(RunnerAccessibility.distanceLabel(Int(model.distance)))
+                .accessibilityLabel(RunnerAccessibility.distanceLabel(model.distanceMeters))
             }
         }
     }
@@ -384,7 +384,7 @@ public struct RunnerView: View {
         case .stages:
             return RunnerAccessibility.resultLabel(phase: model.phase, stageNumber: model.stageNumber)
         case .endless:
-            return RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: Int(model.distance))
+            return RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: model.distanceMeters)
         }
     }
 
@@ -473,7 +473,7 @@ public struct RunnerView: View {
     /// 単位が無く、走行距離であることが読み取れない。
     private var endlessDetail: some View {
         VStack(spacing: 4) {
-            Text("走行距離 \(distanceText(Int(model.distance)))")
+            Text("走行距離 \(distanceText(model.distanceMeters))")
                 .themeBody(15)
                 .foregroundStyle(.white)
             Text(model.endlessBestDistance.map { "自己ベスト \(distanceText($0))" } ?? "自己ベストはまだありません")
@@ -489,7 +489,7 @@ public struct RunnerView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            RunnerAccessibility.distanceLabel(Int(model.distance)) + "。"
+            RunnerAccessibility.distanceLabel(model.distanceMeters) + "。"
                 + RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance)
                 + (model.didSetBestDistance ? "。自己ベスト更新" : "")
         )

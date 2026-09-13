@@ -137,6 +137,10 @@ public final class RunnerModel {
     public var stage: RunnerStage { field.stage }
     /// 走行距離（ワールド単位）。エンドレス（#675）の記録はこの値の整数部。
     public var distance: Double { field.distance }
+    /// 走行距離の表示・記録用の値（m）。**1 タイル（`RunnerRules.tileWidth` 単位）＝ 1 m** と
+    /// 数える。ワールド単位のままだと 400 区画で 25,600 m・時速 140 km 超の表示になり実感と
+    /// 合わないため（社長レビュー 2026-09-14）。6,400 m を 8 分前後で走る＝時速 48 km ほど。
+    public var distanceMeters: Int { Int(field.distance / RunnerRules.tileWidth) }
     /// このステージのベストタイム（秒）。未クリアなら nil。
     public var bestSecondsForCurrentStage: Int? { best(forStage: stageNumber) }
     /// ステージ番号（1 始まり）のベストタイム。未クリアなら nil。
@@ -406,7 +410,7 @@ public final class RunnerModel {
 
     /// エンドレスの 1 回を記録する（#675）。
     ///
-    /// 記録は**走行距離**（`GameScore(metric: .points)`・ワールド単位の整数部）。区分
+    /// 記録は**走行距離**（`GameScore(metric: .points)`・`distanceMeters`。1 タイル＝1 m）。区分
     /// `RunnerMode.endless.recordVariant` で保存するので、ステージ制の到達ステージ数
     /// （区分 nil）とは別の行になり、互いを汚さない。順位表は `asobiba.runner.distance`
     /// （`GameCenterLeaderboard.runnerDistance`）。コンティニューは無いので常に送信対象。
@@ -414,7 +418,7 @@ public final class RunnerModel {
     /// ミスで終わる回は `.loss`、走り切った回は `.win`（2048 のゲームオーバーと同じ数え方。
     /// 毎回を勝ちにすると通算勝利数の実績が走るたびに進んでしまう）。
     private func finishEndlessRun(outcome: GameOutcome) {
-        let meters = Int(field.distance)
+        let meters = distanceMeters
         // 同点は更新扱いにしない（`PlayRecord.applying` と同じ規則）。
         didSetBestDistance = meters > (endlessBestDistance ?? Int.min)
         if didSetBestDistance { endlessBestDistance = meters }

@@ -362,7 +362,7 @@ struct RunnerEndlessModelTests {
         failCurrentStage(model)
         #expect(model.phase == .failed)
         #expect(model.distance > 0)
-        #expect(model.endlessBestDistance == Int(model.distance))
+        #expect(model.endlessBestDistance == model.distanceMeters)
         #expect(model.didSetBestDistance, "初回は必ず更新")
         #expect(!model.canResumeFromCheckpoint, "エンドレスに広告での再開は無い")
         let generation = model.runGeneration
@@ -392,7 +392,7 @@ struct RunnerEndlessModelTests {
 
         model.newEndlessGame(seed: 3)
         failCurrentStage(model)
-        let meters = Int(model.distance)
+        let meters = model.distanceMeters
         #expect(meters > 0)
 
         #expect(log.record(gameID: RunnerModel.gameID) == stageRecord, "ステージ制の記録が動いていない")
@@ -443,7 +443,7 @@ struct RunnerEndlessModelTests {
         #expect(model.distance == model.stage.length)
         let record = log.record(gameID: RunnerModel.gameID, variant: RunnerMode.endless.recordVariant)
         #expect(record?.wins == 1)
-        #expect(record?.bestPoints == Int(model.stage.length))
+        #expect(record?.bestPoints == Int(model.stage.length / RunnerRules.tileWidth), "1 タイル＝1 m で記録する")
         // その先は無い。「もう一度」で新しいコース。
         model.advanceToNextStage()
         #expect(model.phase == .allCleared, "エンドレスに次のステージは無い")
