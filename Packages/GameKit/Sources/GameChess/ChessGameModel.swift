@@ -484,12 +484,13 @@ public final class ChessGameModel {
         persist()
     }
 
-    /// 広告を出す前に控えた `gameSerial` の対局にだけ待ったを適用する（#729）。
-    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手で戻せなくなっていたら false
-    ///   （View は「待ったを使えなかった」と知らせる）。
+    /// 広告を出す前に控えた `aiTurnKey`（対局の通し番号 × 手数）の局面にだけ待ったを適用する（#729）。
+    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手で局面が変わっていたら false
+    ///   （View は「待ったを使えなかった」と知らせる）。対局の番号だけを照合すると、ロード中に
+    ///   1 往復指したとき、広告を出したときとは別の 1 往復が戻る。
     @discardableResult
-    public func undoLastExchange(forGame serial: Int) -> Bool {
-        guard serial == gameSerial, canUndo else { return false }
+    public func undoLastExchange(forTurn turn: AITurnKey) -> Bool {
+        guard turn == aiTurnKey, canUndo else { return false }
         undoLastExchange()
         return true
     }
