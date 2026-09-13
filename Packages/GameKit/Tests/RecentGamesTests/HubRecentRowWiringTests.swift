@@ -9,7 +9,8 @@ import Testing
 /// `contains` に当たって「実装が消えても緑」になるのを防ぐ。
 @Suite("つづき・最近の行の結線")
 struct HubRecentRowWiringTests {
-    private static func appSources() throws -> String {
+    /// 「はじめの1本」の結線（`FirstPickWiringTests`・#721）も同じ読み口を使う。
+    static func appSources() throws -> String {
         let repoRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // RecentGamesTests/
             .deletingLastPathComponent()   // Tests/
