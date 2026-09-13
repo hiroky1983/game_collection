@@ -147,6 +147,8 @@ public final class RunnerModel {
             services?.gameWillNotResume(gameID: Self.gameID)
             services?.feedback.impact(.rigid)
         case .running:
+            // 跳ぶ音（#703）。踏み切りが成立したときだけ鳴らす——二段目も同じく成立すれば鳴り、
+            // 三度目（`RunnerRules.maxJumps` 超え）や押しっぱなしでは鳴らない。
             if field.jump() { services?.feedback.impact(.light) }
         default:
             break
@@ -277,20 +279,18 @@ public final class RunnerModel {
     }
 
     private func handle(_ event: RunnerEvent) {
+        // 手応え（触覚と、それに相乗りする効果音）。対応表は `RunnerFeedbackCue` に置いてある。
+        // 演出の土煙・紙吹雪は `RunnerScene` が出す。
+        services?.feedback.play(
+            RunnerFeedbackCue.cue(for: event, lastLandingWasJust: field.lastLandingWasJust)
+        )
         switch event {
-        case .landed:
-            // ジャスト着地（#673）だけ手応えを一段強くする。上乗せが乗ったことを
-            // 数字を見ずに指で分かるようにするための差で、演出の土煙は `RunnerScene` が出す。
-            services?.feedback.impact(field.lastLandingWasJust ? .medium : .light)
-        case .passedCheckpoint:
-            services?.feedback.notify(.success)
-        case .collectedSpeedItem:
-            services?.feedback.impact(.light)
+        case .landed, .passedCheckpoint, .collectedSpeedItem:
+            break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
             phase = .falling
             fallElapsed = 0
-            services?.feedback.notify(.error)
         case .reachedGoal:
             clearStage()
         }
@@ -302,7 +302,6 @@ public final class RunnerModel {
         // 動かさない差し替えなので、ここを素通りすると**通常ステージの記録を誤って上書きする**
         // （CodeRabbit指摘）。ショーケースのクリアは記録を一切書かずに打ち切る。
         guard field.stage.number > 0 else {
-            services?.feedback.notify(.success)
             phase = .allCleared
             return
         }
@@ -316,7 +315,6 @@ public final class RunnerModel {
         if didSetBestTime {
             bestSeconds[stageNumber - 1] = seconds
         }
-        services?.feedback.notify(.success)
         phase = stageNumber < RunnerRules.stageCount ? .cleared : .allCleared
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,

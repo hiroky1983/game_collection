@@ -122,6 +122,10 @@ public struct RunnerView: View {
                 ))
                 .themeCaption(12)
                 .foregroundStyle(Theme.inkSub)
+                // 読み上げにだけ世界の名前を添える（#703）。見た目の文言はヘッダーの幅の都合で番号のまま。
+                .accessibilityLabel(RunnerAccessibility.stageLabelWithWorld(
+                    number: model.stageNumber, total: RunnerRules.stageCount
+                ))
                 progressBar
             }
         }
