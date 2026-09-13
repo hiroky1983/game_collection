@@ -19,6 +19,11 @@ public struct RunnerView: View {
     /// 一時停止ボタンが遠い」という会長QA（2026-09-10）を受け、既定は現在のステージの
     /// ベストだけを1行で見せ、15個のチップ一覧は開いたときだけ場所を取るようにした。
     @State private var showsAllBestTimes = false
+    /// 開始シート（モード選択・#675）を出しているか。
+    @State private var showStartSheet = false
+    /// 開始シートで選んでいるモード。ここは「次の走行に使う設定」で、進行中の走行が
+    /// 見ているのは `model.mode`（開始時に焼き込んだ値）のほう（麻雀の `selectedLength` と同じ分け方）。
+    @State private var selectedMode: RunnerMode = .stages
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -48,7 +53,13 @@ public struct RunnerView: View {
         .padding()
         .gameChrome(title: "チャリンコおじさん", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
-                Button { model.newGame() } label: {
+                // 「はじめから」はモードを選ぶ開始シートを経由する（#675。チェスの「新規対局」と
+                // 同じ作法）。走行中なら読んでいる間にミスしないよう止める。
+                Button {
+                    if model.phase == .running { model.pause() }
+                    selectedMode = model.mode
+                    showStartSheet = true
+                } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
             }
@@ -58,11 +69,19 @@ public struct RunnerView: View {
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
             if model.phase == .running { model.pause() }
         })
+        .sheet(isPresented: $showStartSheet) {
+            RunnerStartSheet(mode: $selectedMode) {
+                model.newGame(mode: selectedMode)
+                showStartSheet = false
+            } onCancel: {
+                showStartSheet = false
+            }
+        }
         .onAppear {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|platform|floor|stage:N>`（#494）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|platform|floor|stage:N|endless|endless-running|endless-failed>`（#494・#675）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -116,15 +135,40 @@ public struct RunnerView: View {
             .accessibilityLabel(RunnerAccessibility.timeLabel(seconds: Int(model.elapsed)))
             speedMeter
             Spacer(minLength: 0)
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(RunnerAccessibility.stageLabel(
-                    number: model.stageNumber, total: RunnerRules.stageCount
-                ))
-                .themeCaption(12)
-                .foregroundStyle(Theme.inkSub)
-                progressBar
+            switch model.mode {
+            case .stages:
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(RunnerAccessibility.stageLabel(
+                        number: model.stageNumber, total: RunnerRules.stageCount
+                    ))
+                    .themeCaption(12)
+                    .foregroundStyle(Theme.inkSub)
+                    // 読み上げにだけ世界の名前を添える（#703）。見た目の文言はヘッダーの幅の都合で番号のまま。
+                    .accessibilityLabel(RunnerAccessibility.stageLabelWithWorld(
+                        number: model.stageNumber, total: RunnerRules.stageCount
+                    ))
+                    progressBar
+                }
+            case .endless:
+                // エンドレス（#675）は「ステージ N / 18」と進み具合の代わりに走行距離を出す。
+                // 進み具合は出さない——固定長の終わりを見せると「エンドレス」の看板と食い違う。
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("走行距離")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                    Text(distanceText(model.distanceMeters))
+                        .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Theme.ink)
+                }
+                .accessibilityElement()
+                .accessibilityLabel(RunnerAccessibility.distanceLabel(model.distanceMeters))
             }
         }
+    }
+
+    /// 走行距離の表示（`1,234 m`）。単位はワールド単位だが、数字に「m」を添えて距離と分かるようにする。
+    private func distanceText(_ distance: Int) -> String {
+        "\(RecordFormat.number(max(0, distance))) m"
     }
 
     /// ペダルの乗り（#569）。
@@ -202,7 +246,39 @@ public struct RunnerView: View {
     /// ベストタイムのセクションを出すとプレイ画面が縮む」という会長QA（2026-09-10）どおりの
     /// 症状。チップ行を常時同じ高さで確保しておけば `topSummary` の高さが動かなくなり、
     /// `course` も常に同じ大きさで安定する。
+    @ViewBuilder
     private var bestTimeSection: some View {
+        switch model.mode {
+        case .stages:  stageBestTimeSection
+        case .endless: endlessBestSection
+        }
+    }
+
+    /// エンドレス（#675）の自己ベスト（走行距離）。ステージ制のチップ行は意味を持たないので
+    /// 出さないが、**高さのひな形だけは同じに保つ**（下の `stageBestTimeSection` と同じ理由。
+    /// モードを切り替えたときに `topSummary` の高さが動くと `course` が伸び縮みする）。
+    private var endlessBestSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("自己ベスト")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                Spacer(minLength: 0)
+                Text(model.endlessBestDistance.map(distanceText) ?? "–")
+                    .themeCaption(12)
+                    .foregroundStyle(Theme.inkSub)
+            }
+            .accessibilityElement()
+            .accessibilityLabel(RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance))
+            stageChipsRow
+                .hidden()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var stageBestTimeSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
                 withGameAnimation(.snappy(duration: 0.2)) { showsAllBestTimes.toggle() }
@@ -300,12 +376,20 @@ public struct RunnerView: View {
         .aspectRatio(RunnerField.Metrics.width / RunnerField.Metrics.height, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
         .accessibilityElement()
-        .accessibilityLabel(RunnerAccessibility.resultLabel(
-            phase: model.phase, stageNumber: model.stageNumber
-        ))
+        .accessibilityLabel(courseLabel)
         .accessibilityHint("ダブルタップでジャンプ")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.press(); model.release() }
+    }
+
+    /// コースの読み上げ。ステージ制はステージ番号、エンドレスは走行距離で結果を言う。
+    private var courseLabel: String {
+        switch model.mode {
+        case .stages:
+            return RunnerAccessibility.resultLabel(phase: model.phase, stageNumber: model.stageNumber)
+        case .endless:
+            return RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: model.distanceMeters)
+        }
     }
 
     /// 押している間だけ高く跳べるので、押し下げと離しの両方を拾う。
@@ -330,16 +414,18 @@ public struct RunnerView: View {
             // 落下・激突の短い演出中（`RunnerScene`）。ミスパネルはこの演出が終わってから出す。
             EmptyView()
         case .failed:
+            // ミスの表示は両モードで同じ枠（#675「既存の失敗リザルトを流用」）。エンドレスは
+            // ミスがそのまま決着なので、走行距離と自己ベストの行が加わる。
             panel(title: "ミス！") {
+                if model.mode == .endless { endlessDetail }
                 if model.canResumeFromCheckpoint { resumeButton }
-                Button {
-                    model.retryStage()
-                } label: {
-                    Label("もう一度", systemImage: "arrow.clockwise")
-                        .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Fill.coral)
+                retryButton
+            }
+        case .allCleared where model.mode == .endless:
+            // 固定長のコースを走り切った（第 1 弾は 400 区画で打ち切り・#675）。
+            panel(title: "コースを走りきった！") {
+                endlessDetail
+                retryButton
             }
         case .cleared:
             panel(title: "ステージ \(model.stageNumber) クリア！") {
@@ -376,13 +462,51 @@ public struct RunnerView: View {
                 // 共通の `RecordLabel` はここでは出さない。あちらが出す「自己ベスト N」は
                 // このゲームでは**到達ステージ数**（ハブの 1 行で使う指標）で、同じ枠に
                 // 並ぶタイムと取り違えられる。この画面で意味があるのはタイムのほう。
-                Text("ベストタイム更新！")
+                // 見た目は共通の `RecordBadge`（塗りつぶさない印。「次のステージへ」ボタンと
+                // 同じ塗りだと押せるものに見える・会長 QA 2026-09-14）。
+                RecordBadge("ベストタイム更新！")
+            }
+        }
+    }
+
+    /// エンドレスのリザルト 2 行（走行距離と自己ベスト・#675）。
+    ///
+    /// 共通の `RecordLabel` は使わない（`clearedDetail` と同じ理由）。あちらの「自己ベスト N」は
+    /// 単位が無く、走行距離であることが読み取れない。
+    private var endlessDetail: some View {
+        VStack(spacing: 4) {
+            Text("走行距離 \(distanceText(model.distanceMeters))")
+                .themeBody(15)
+                .foregroundStyle(.white)
+            Text(model.endlessBestDistance.map { "自己ベスト \(distanceText($0))" } ?? "自己ベストはまだありません")
+                .themeCaption(13)
+                .foregroundStyle(.white.opacity(0.85))
+            if model.didSetBestDistance {
+                Text("自己ベスト更新！")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(Capsule().fill(Theme.Fill.coral))
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            RunnerAccessibility.distanceLabel(model.distanceMeters) + "。"
+                + RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance)
+                + (model.didSetBestDistance ? "。自己ベスト更新" : "")
+        )
+    }
+
+    /// ミスからのやり直し。ステージ制は同じステージの頭から、エンドレスは新しいコースで。
+    private var retryButton: some View {
+        Button {
+            model.retryStage()
+        } label: {
+            Label("もう一度", systemImage: "arrow.clockwise")
+                .foregroundStyle(Theme.onAccent)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(Theme.Fill.coral)
     }
 
     /// 走り出す前。操作を邪魔しないよう**タップを透過させる**（そのまま画面を触れば走り出す）。
@@ -476,7 +600,8 @@ public struct RunnerView: View {
 
     /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
     private var recommendationArea: some View {
-        RecommendationArea(services: services, isFinished: model.phase == .allCleared)
+        // ステージ制は全クリアで、エンドレスはミス（= 1 回の決着）で「終わった」（#675）。
+        RecommendationArea(services: services, isFinished: model.isRunOver)
     }
 
     /// 遊び方のヒントとレコメンドは、プレイ中に何度も見るものではないので
@@ -487,6 +612,39 @@ public struct RunnerView: View {
         VStack(spacing: 6) {
             HowToPlayHint(.runner, playLog: services.playLog)
             recommendationArea
+        }
+    }
+}
+
+// MARK: - 開始シート（#675）
+
+/// 「はじめから」で開く、モード（ステージ制／エンドレス）を選ぶシート。
+///
+/// 枠は共通の `GameSetupSheet`、選び方は麻雀の東風戦／一局戦（`MahjongStartSheet`）と同じ
+/// セグメントのピッカー + 1 行の説明。選んだモードは `RunnerModel.newGame(mode:)` で
+/// 走行に焼き込まれ、走行中に読み替えられることはない（1局=1RuleSet）。
+struct RunnerStartSheet: View {
+    @Binding var mode: RunnerMode
+    let onStart: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        GameSetupSheet(
+            title: "はじめから", startTitle: "スタート",
+            onStart: onStart, onCancel: onCancel
+        ) {
+            GameSetupSection("モード") {
+                Picker("モード", selection: $mode) {
+                    ForEach(RunnerMode.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(mode.summary)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }

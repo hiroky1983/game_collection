@@ -16,20 +16,22 @@ struct RunnerStageTests {
         #expect(RunnerStage.all.map(\.number) == Array(1...18))
     }
 
-    /// **既存 15 ステージのパターン文字列は 1 文字も変えない**（#674 の受け入れ条件）。
+    /// **1〜15 面のパターン文字列をリテラルで固定する**。
     ///
-    /// 台座を足すために記号表・展開・接地判定へ手を入れたので、そのついでに既存の
-    /// コースが書き換わっていないことをリテラルで固定する。ここが赤くなったら、
-    /// 既に遊ばれている 15 面のベストタイムの物差しが変わっている。
-    @Test("既存 15 ステージのパターン文字列が無変更")
-    func existingFifteenStagePatternsAreUnchanged() {
+    /// 7〜15 は #674（台座）以来 1 文字も変えていない（受け入れ条件「既存 15 ステージは
+    /// 変えない」）。1〜6 は #626（序盤の難易度調整・会長決裁 2026-09-14）で調整した値。
+    /// 台座のために記号表・展開・接地判定へ手を入れた経緯があるので、コースが意図せず
+    /// 書き換わっていないことをここで押さえる。ここが赤くなったら、既に遊ばれている面の
+    /// ベストタイムの物差しが変わっている。
+    @Test("1〜15 ステージのパターン文字列が固定値どおり")
+    func firstFifteenStagePatternsArePinned() {
         let expected = [
-            "--1---1--1--",
-            "--1---n---1--",
-            "--1--n--2--n--",
-            "--1-n--t--1-n--",
-            "--ns1-t--2-n-t--",
-            "--1sn-3-t-2-n-t--",
+            "--1-1--1-1--",
+            "--1-n--1--n--",
+            "--1-n-2--n-1--",
+            "--1-n-t--n1-2--",
+            "--1sn-tb-2-n-t--",
+            "--1sn-3-tb-2n-t--",
             "--1sn-3-t2-n-t-1--",
             "--2st-1n-3-t2-n-t--",
             "--2st1-n-3t-2-nt-3--",
@@ -43,6 +45,48 @@ struct RunnerStageTests {
         #expect(RunnerStage.all.prefix(15).map(\.pattern) == expected)
         // 既存 15 ステージには台座を置かない（#674 の「既存15ステージは変えない」）。
         #expect(RunnerStage.all.prefix(15).allSatisfy { $0.platforms.isEmpty })
+    }
+
+    // MARK: - 序盤の難易度（#626）
+
+    /// 序盤（1〜6 面）の障害の総数が面番号に対して単調非減少であること。
+    /// #626 は「序盤が簡単すぎる」対応なので、面が進んで障害が減る並びを作らない。
+    @Test("1〜6 面の障害の総数は面が進んでも減らない")
+    func earlyStageHazardCountsNeverDecrease() {
+        let counts = RunnerStage.all.prefix(6).map(\.hazards.count)
+        for (previous, next) in zip(counts, counts.dropFirst()) {
+            #expect(previous <= next, "1〜6 面の障害数が減っている: \(counts)")
+        }
+    }
+
+    /// **序盤を難しくしすぎない**（#626 会長決裁: GA4 で 1 面 → 2 面の到達が 4 割しかない）。
+    /// 1〜3 面の障害数は、調整前の値（3・3・4 個）+2 以下に固定する。ここが赤くなったら、
+    /// 序盤の障害を足しすぎている——数値を緩める前に決裁を取り直す。
+    @Test("1〜3 面の障害数は #626 調整前の値 +2 以下")
+    func earlyStagesStayGentle() {
+        let before = [3, 3, 4]   // #626 調整前の 1〜3 面の障害数（`--1---1--1--` など）
+        for (index, limit) in before.enumerated() {
+            let stage = RunnerStage.all[index]
+            #expect(
+                stage.hazards.count <= limit + 2,
+                "ステージ \(stage.number) の障害が \(stage.hazards.count) 個——調整前 \(limit) 個 +2 を超えている"
+            )
+        }
+    }
+
+    /// 1〜6 面に同じ種類の障害が 3 区画連続する並び（`nnn` / `ttt` / `bbb`）が無いこと
+    /// （#626 の 2 点目「同じ障害の単調な連続を減らす」）。穴は幅ごとに記号が違い、
+    /// 幅の上限は `everyHazardIsClearable` が見るので、ここでは岩と鳥だけを縛る。
+    @Test("1〜6 面に同じ岩・鳥が 3 区画連続する並びが無い")
+    func earlyStagesAvoidMonotonousRuns() {
+        for stage in RunnerStage.all.prefix(6) {
+            for symbol in ["n", "t", "b"] {
+                #expect(
+                    !stage.pattern.contains(String(repeating: symbol, count: 3)),
+                    "ステージ \(stage.number) に '\(symbol)' が 3 連続している: \(stage.pattern)"
+                )
+            }
+        }
     }
 
     @Test("区画数と速さがステージ番号どおりに増える")
@@ -1083,7 +1127,7 @@ struct RunnerPlaythroughTests {
     /// ジャスト着地を狙わないベースラインで、これで上乗せが乗ってしまうなら窓が広すぎる
     /// （誰が走っても同じだけ乗るので、タイムにスキル差が出ない）。
     ///
-    /// 実測では全18ステージ171障害のうち 1 回だけ成立する（ステージ6・跳べる最大幅の穴を
+    /// 実測では全18ステージ177障害のうち 1 回だけ成立する（ステージ6・跳べる最大幅の穴を
     /// 全弾道でちょうど渡り切ったもので、これは実際にジャスト着地）。
     @Test("安全に跳ぶだけの自動操縦では、ジャスト着地はほとんど起きない")
     func autoPilotRarelyEarnsJustLanding() {

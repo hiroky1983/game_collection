@@ -215,6 +215,15 @@ struct RecordFormatTests {
             outcome: .loss, score: GameScore(metric: .points, points: 12340), to: nil
         ).record
         #expect(RecordFormat.hubLine([points]) == "ベスト 12,340")
+        // 区分つき（エンドレスの走行距離）が大きくても、区分なし（本編）の記録を代表にする（#675）
+        let endless = PlayRecord.applying(
+            outcome: .loss,
+            score: GameScore(metric: .points, points: 99_999, variant: "endless", variantLabel: "エンドレス"),
+            to: nil
+        ).record
+        #expect(RecordFormat.hubLine([points, endless]) == "ベスト 12,340")
+        #expect(RecordFormat.hubLine([endless, points]) == "ベスト 12,340", "並び順に依らない")
+        #expect(RecordFormat.hubLine([endless]) == "ベスト 99,999", "本編の記録が無ければ従来どおり")
 
         let moves = PlayRecord.applying(
             outcome: .win, score: GameScore(metric: .fewestMoves, moves: 24), to: nil

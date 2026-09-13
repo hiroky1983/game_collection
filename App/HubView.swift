@@ -25,6 +25,15 @@ struct HubView: View {
     @State private var showSettings: Bool
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
+    /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
+    @State private var hiddenNotice: HiddenNotice?
+
+    /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
+    /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
+    private struct HiddenNotice: Equatable {
+        let title: String
+        let id = UUID()
+    }
     /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -165,6 +174,24 @@ struct HubView: View {
                             // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
                             // 画面が出るまで間があるため、押した手応えを `.pop` で返す。
                             .buttonStyle(.pop)
+                            // 設定シートの奥にある並べ替え・非表示をハブから呼ぶ（#662）。
+                            // 同じ `GameSettings` を触るので、設定シートの並びと二重の状態にならない。
+                            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+                            .contextMenu {
+                                Button {
+                                    moveToTop(module.id)
+                                } label: {
+                                    Label("いちばん上に置く", systemImage: "arrow.up.to.line")
+                                }
+                                // 先頭かどうかは非表示も含む並びで見る。表示中の先頭でも、前に非表示のゲームが
+                                // あれば動かす余地がある（戻したときに先頭に来ない）。
+                                .disabled(settings.orderedIDs.first == module.id)
+                                Button {
+                                    hide(module)
+                                } label: {
+                                    Label("非表示にする", systemImage: "eye.slash")
+                                }
+                            }
                         }
                     }
                     .padding(Theme.pad)
@@ -182,6 +209,21 @@ struct HubView: View {
                         Color.clear
                             .task(id: usable) { viewportHeight = usable }
                     }
+                }
+                .overlay(alignment: .bottom) {
+                    Group {
+                        if let hiddenNotice {
+                            HubHiddenNotice(title: hiddenNotice.title)
+                                .transition(.opacity)
+                        }
+                    }
+                    .gameAnimation(.easeOut(duration: 0.2), value: hiddenNotice)
+                }
+                .task(id: hiddenNotice) {
+                    guard hiddenNotice != nil else { return }
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    hiddenNotice = nil
                 }
                 BannerSlot(ads: services.ads)
             }
@@ -288,6 +330,12 @@ struct HubView: View {
                 if args.contains("-simulateGameCenterEntry") {
                     openGameCenter()
                 }
+                // 撮影・動作確認用: カードの長押しメニューで「非表示にする」を選んだのと同じ経路を通す
+                // （`-simulateHubHide <gameID>`・#662）。シミュレータでは長押しを自動化できないため。
+                if let i = args.firstIndex(of: "-simulateHubHide"), i + 1 < args.count,
+                   let module = registry.module(id: args[i + 1]) {
+                    hide(module)
+                }
                 // 動作確認用: 触覚・効果音を発火条件を通さずに 1 種ずつ鳴らす（`-simulateFeedback`）。
                 // 効果音が音声セッションをどう設定したかをシミュレータで確認するために使う
                 // （ゲーム内の発火点はすべてタップ起点で、非対話の確認では叩けないため）。
@@ -321,6 +369,21 @@ struct HubView: View {
     private func openFromOutside(_ route: HubRoute) {
         path = []
         DispatchQueue.main.async { path = [route] }
+    }
+
+    /// 長押しメニューの「いちばん上に置く」（#662）。位置は表示中の並びではなく、非表示も含む
+    /// `orderedIDs` の中で数える（設定シートの `onMove` と同じ座標）。
+    private func moveToTop(_ id: String) {
+        guard let from = settings.orderedIDs.firstIndex(of: id), from > 0 else { return }
+        settings.move(from: IndexSet(integer: from), to: 0)
+    }
+
+    /// 長押しメニューの「非表示にする」（#662）。戻す場所が設定シートの奥にあるため、直後に案内を出す。
+    private func hide(_ module: GameModule) {
+        guard !settings.hiddenIDs.contains(module.id) else { return }
+        settings.toggleHidden(module.id)
+        hiddenNotice = HiddenNotice(title: module.title)
+        AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
     }
 
     /// ツールバーの「実績・ランキング」。サインイン済みなら Game Center を開き、
@@ -416,5 +479,30 @@ private struct GameCard: View {
         var parts = [module.title, record ?? module.description]
         if hasResume { parts.append("続きから") }
         return parts.joined(separator: "、")
+    }
+}
+
+/// カードを長押しメニューで非表示にした直後の案内（#662）。
+///
+/// 戻す操作は設定シートにしか無いので、その場所だけを1行で伝える。読み上げは `HubView.hide` が
+/// 同じ文言をアナウンスで流すため、ここは VoiceOver から隠す（二重に読ませない）。
+private struct HubHiddenNotice: View {
+    let title: String
+
+    static func message(title: String) -> String {
+        "「\(title)」を非表示にしました。設定から戻せます"
+    }
+
+    var body: some View {
+        Text(Self.message(title: title))
+            .themeCaption(13)
+            .foregroundStyle(Theme.ink)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Theme.pad)
+            .padding(.vertical, 10)
+            .popCard(corner: Theme.cornerSmall)
+            .padding(Theme.pad)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }

@@ -313,6 +313,13 @@ public enum RecordFormat {
             let label = best.1.map { "（\($0)）" } ?? ""
             return "最短 \(time(best.0))\(label)"
         case .points:
+            // 区分が複数あるときは**区分なし（本編）の記録を代表**にする。チャリンコおじさんは
+            // 本編＝到達ステージ数（区分なし）、エンドレス＝走行距離 m（区分あり）で桁が違い、
+            // 最大値を取るとエンドレスを 1 回走っただけで「ベスト 12」が「ベスト 3,412」に化ける（#675）。
+            // 本編の記録がまだ無ければ従来どおり最大値。
+            if let base = played.first(where: { $0.variantLabel == nil }), let points = base.bestPoints {
+                return "ベスト \(number(points))"
+            }
             guard let best = played.compactMap(\.bestPoints).max() else { return nil }
             return "ベスト \(number(best))"
         case .fewestMoves:

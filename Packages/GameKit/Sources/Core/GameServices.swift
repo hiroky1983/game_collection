@@ -74,10 +74,12 @@ public struct GameServices {
     /// 冪等なので、再描画で Model が作り直されても `game_start` は増えない。
     /// 中断スナップショットから復元したときは**呼ばない**（新しいプレイではないため）。
     ///
-    /// - Parameter level: 難易度・段階（#500）。持たないゲームは省略し、`level` の鍵ごと送らない。
+    /// - Parameters:
+    ///   - level: 難易度・段階（#500）。持たないゲームは省略し、`level` の鍵ごと送らない。
+    ///   - mode: 1 回の長さの区分（#783。四人打ち麻雀の `tonpuu` / `single_hand`）。持たないゲームは省略。
     @MainActor
-    public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil) {
-        analytics?.startPlay(gameID: gameID, level: level)
+    public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
+        analytics?.startPlay(gameID: gameID, level: level, mode: mode)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
@@ -86,8 +88,8 @@ public struct GameServices {
     ///
     /// 前のプレイが未決着のまま捨てられていれば、始め直す前に `game_end`（`quit`）が出る（#500）。
     @MainActor
-    public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil) {
-        analytics?.restartPlay(gameID: gameID, level: level)
+    public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
+        analytics?.restartPlay(gameID: gameID, level: level, mode: mode)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 

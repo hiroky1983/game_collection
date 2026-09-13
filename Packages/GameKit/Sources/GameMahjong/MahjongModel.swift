@@ -539,7 +539,7 @@ public final class MahjongModel {
         gameEndReason = nil
         gameSerial += 1
         startHand()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, mode: gameLength.analyticsMode)
     }
 
     /// 次の局へ進む（リザルトの「次の局へ」）。
@@ -1288,7 +1288,7 @@ public final class MahjongModel {
         startHand()
         // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158。
         // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, mode: gameLength.analyticsMode)
         // Game Center（#289）は送信済みのぶんを取り消さない。四人打ち麻雀はリーダーボードの
         // 対象外（勝敗しか残らない対 CPU 戦のため `GameCenterLeaderboard` に登録が無い）で、
         // 実績の進捗は勝利数と遊んだゲーム数から作られる。トビ = 負けなので勝利数は増えておらず、
