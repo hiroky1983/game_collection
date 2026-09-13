@@ -131,7 +131,7 @@ public struct GomokuView: View {
                 )
                 // 置いた石が現れる演出（#202）。`Canvas` は View が再評価されないと描き直されない
                 // ため、`GomokuBoardCanvas` を `Animatable` にして手数を補間させている。
-                .gameAnimation(.easeOut(duration: 0.18), value: model.moveCount)
+                .gameAnimation(.easeOut(duration: GomokuMotion.placementDuration), value: model.moveCount)
                 .gesture(
                     SpatialTapGesture()
                         .onEnded { val in
@@ -145,6 +145,17 @@ public struct GomokuView: View {
                 .accessibilityRepresentation {
                     accessibilityGrid(pad: pad, spacing: spacing)
                 }
+
+                // 決着した五を光らせる（#665）。盤の前面に重ねるので、タップと VoiceOver の
+                // 交点グリッドを横取りしないよう当たり判定・支援技術の両方から外す。
+                GomokuWinLineCanvas(
+                    line: model.winningLine ?? [],
+                    pad: pad,
+                    progress: model.winningLine == nil ? 0 : 1
+                )
+                .gameAnimation(GomokuMotion.winLine, value: model.winningLine)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
@@ -318,9 +329,10 @@ public struct GomokuView: View {
                 }
                 Button("キャンセル", role: .cancel) {}
             } message: {
+                // 戻るのは「自分の1手 + CPU の応手」の2手（`undoLastExchange`）。チェスと同じ文言（#665）。
                 Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
+                     : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
             .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
         }
@@ -456,6 +468,64 @@ private struct GomokuBoardCanvas: View, Animatable {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - 勝ち筋
+
+/// 五目並べの演出の尺（#665）。View の `static` は MainActor 隔離になるため、別の enum に置く。
+enum GomokuMotion {
+    /// 置いた石が現れる時間（#202）。
+    static let placementDuration: TimeInterval = 0.18
+    /// 勝ち筋が光りきるまでの時間。
+    static let winLineDuration: TimeInterval = 0.3
+    /// 決着の石が現れきってから線を引き始める。
+    static var winLine: Animation {
+        .easeOut(duration: winLineDuration).delay(placementDuration)
+    }
+}
+
+/// 決着した五を盤上で光らせる（#665）。
+///
+/// 端の石から端の石へ線を伸ばし、並んだ石をリングで囲む。`progress`（0→1）で線の長さと
+/// リングの濃さが増える。`GomokuBoardCanvas` と同じく `Animatable` にして補間させ、
+/// Reduce Motion が ON のときは `.gameAnimation` が補間を落とすので即座に光りきる。
+private struct GomokuWinLineCanvas: View, Animatable {
+    nonisolated let line: [GomokuPoint]
+    nonisolated let pad: CGFloat
+    nonisolated var progress: Double
+
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        let progress = min(max(progress, 0), 1)
+        Canvas { ctx, size in
+            guard let first = line.first, let last = line.last, progress > 0 else { return }
+            let s = (size.width - pad * 2) / CGFloat(gomokuBoardSize - 1)
+            func center(_ p: GomokuPoint) -> CGPoint {
+                CGPoint(x: pad + CGFloat(p.col) * s, y: pad + CGFloat(p.row) * s)
+            }
+
+            var layer = ctx
+            layer.opacity = progress
+            for point in line {
+                let c = center(point)
+                let r = s * 0.46 + 3
+                layer.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                             with: .color(Theme.coral), lineWidth: 3)
+            }
+
+            let start = center(first), end = center(last)
+            var path = Path()
+            path.move(to: start)
+            path.addLine(to: CGPoint(x: start.x + (end.x - start.x) * progress,
+                                     y: start.y + (end.y - start.y) * progress))
+            ctx.stroke(path, with: .color(Theme.coral.opacity(0.75)),
+                       style: StrokeStyle(lineWidth: s * 0.16, lineCap: .round))
         }
     }
 }

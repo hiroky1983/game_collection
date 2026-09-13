@@ -18,6 +18,9 @@ public struct RunnerModule: GameModule {
     public let description = "タップで跳んで18ステージを走りぬけよう"
     // 自転車の絵。ハブで隣に並ぶブロック崩し（`tennisball.fill`）とも見分けが付く。
     public var icon: Image { Image(systemName: "bicycle") }
+    // 中断データはステージ番号とベストタイムの控えで、走行は必ずステージの頭から始まる
+    // （`RunnerModel.press()` の `gameWillNotResume`）。中断のお知らせ（#663）の対象から外す。
+    public var resumesFromSnapshot: Bool { false }
 
     public init() {}
 

@@ -105,6 +105,10 @@ struct MinesweeperSnapshot: Codable {
         /// 既存の呼び出し（テストの盤面組み立てなど）がそのまま通る。
         var mark: MinesweeperMark? = nil
     }
+
+    /// この局で広告コンティニューを使ったか（#657）。再起動でコンティニュー権が復活しないよう保存する
+    /// （2048 の `continueUsed` と同じ理由）。旧形式には無いので optional で、無ければ未使用として読む。
+    var continueUsed: Bool? = nil
 }
 
 @MainActor
@@ -125,6 +129,11 @@ public final class MinesweeperModel {
     public private(set) var hitMine: (row: Int, col: Int)?
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// この局で広告コンティニューを使ったか（#657）。**1局1回まで**で、使った局のタイムは順位表に送らない。
+    ///
+    /// 以前は上限が無く、踏んだ地雷が1個ずつ確定していくため広告を見続ければ必ず解けた。
+    /// そのタイムが順位表に載ると、順位表が「広告を何回見たか」の表になる（#406 と同じ理由）。
+    public private(set) var continueUsed = false
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -169,7 +178,9 @@ public final class MinesweeperModel {
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: recordVariant,
-            variantLabel: recordVariantLabel
+            variantLabel: recordVariantLabel,
+            // コンティニューを使った局は順位表に送らない。自己ベストには残す（#657）。
+            isLeaderboardEligible: !continueUsed
         )
     }
 
@@ -196,6 +207,7 @@ public final class MinesweeperModel {
                     return cell
                 }
             }
+            self.continueUsed = snap.continueUsed ?? false
         } else {
             self.rows       = rows
             self.cols       = cols
@@ -219,6 +231,7 @@ public final class MinesweeperModel {
         self.elapsedSeconds = 0
         self.hitMine    = nil
         self.recordResult = nil
+        self.continueUsed = false
         persist()
     }
 
@@ -385,8 +398,15 @@ public final class MinesweeperModel {
 
     // MARK: - Continue
 
+    /// コンティニューを提案できるか。地雷を踏んで負けた直後で、この局でまだ使っていないときだけ（#657）。
+    /// 諦めた局（`hitMine` が nil）では出さない。
+    public var canContinue: Bool {
+        gameState == .lost && hitMine != nil && !continueUsed
+    }
+
     public func continueAfterAd() {
-        guard gameState == .lost, let hit = hitMine else { return }
+        guard canContinue, let hit = hitMine else { return }
+        continueUsed = true
         // 同じ盤面の続きなので、直前に記録した「負け」は無かったことにする
         // （そのままだと1回のプレイが2回分として数えられる）。
         services?.playLog?.cancelLoss(gameID: gameID, variant: recordVariant)
@@ -491,7 +511,8 @@ public final class MinesweeperModel {
             },
             flagCount: flagCount,
             revealedCount: revealedCount,
-            elapsedSeconds: elapsedSeconds
+            elapsedSeconds: elapsedSeconds,
+            continueUsed: continueUsed
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

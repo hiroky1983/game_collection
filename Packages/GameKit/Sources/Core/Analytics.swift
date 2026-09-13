@@ -107,8 +107,31 @@ public enum AnalyticsLevel: Equatable, Sendable {
     }
 }
 
-/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` の3種のみ**
-/// （#158 の決裁範囲 + #500 の会長決裁 2026-09-08）。
+/// `game_open` の `source`。ゲーム画面へ**どこから入ったか**（#659）。
+///
+/// ハブの中の導線を面ごとに読むための分類で、ゲーム名は含めない（それは `game_id` が持つ）。
+public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
+    /// ハブのグリッドのカード。
+    case hub
+    /// ハブ最上部の「つづき・最近」の行（#660）。
+    case recent
+    /// リザルト画面のレコメンドカード（#52）。
+    case recommendation
+    /// 中断したゲームのローカル通知（#663）。**発火点はまだ無い**（#663 の実装で使う）。
+    case notification
+
+    /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
+    /// `position` の鍵ごと送らない。
+    public var hasPosition: Bool {
+        switch self {
+        case .hub, .recent:                return true
+        case .recommendation, .notification: return false
+        }
+    }
+}
+
+/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` の5種のみ**
+/// （#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12）。
 ///
 /// パラメータは各ケースの関連値だけから組み立てるため、呼び出し側が任意のキーや値を
 /// 追加する余地が無い。イベントを増やすにはこの enum にケースを足す = 意図的な変更が要る。
@@ -120,13 +143,25 @@ public enum AnalyticsEvent: Equatable, Sendable {
     case gameEnd(gameID: String, result: AnalyticsResult, durationSec: Int)
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
+    /// リワード広告の**要求**（タップ）。視聴できたかどうかに関係なく1回出る（#659）。
+    /// パラメータは `game_id` / `purpose` のみで、`reward_ad` と同じ語彙で突き合わせられる。
+    case rewardRequest(gameID: String, purpose: RewardPurpose)
+    /// ハブからゲーム画面を開いた（#659）。パラメータは `game_id` / `source` / `resume` と、
+    /// 並びを持つ導線だけ `position`。
+    ///
+    /// - Parameters:
+    ///   - position: 導線の中での位置（**1 始まり**）。並びを持たない導線では nil で、鍵ごと送らない。
+    ///   - resume: 開いた時点で「続きから」だったか。GA4 で集計しやすいよう 0 / 1 で送る。
+    case gameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool)
 
     /// Firebase のイベント名。
     public var name: String {
         switch self {
-        case .gameStart: return "game_start"
-        case .gameEnd:   return "game_end"
-        case .rewardAd:  return "reward_ad"
+        case .gameStart:     return "game_start"
+        case .gameEnd:       return "game_end"
+        case .rewardAd:      return "reward_ad"
+        case .rewardRequest: return "reward_request"
+        case .gameOpen:      return "game_open"
         }
     }
 
@@ -147,11 +182,21 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 "result": .string(result.rawValue),
                 "duration_sec": .int(durationSec),
             ]
-        case let .rewardAd(gameID, purpose):
+        case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
                 "game_id": .string(gameID),
                 "purpose": .string(purpose.rawValue),
             ]
+        case let .gameOpen(gameID, source, position, resume):
+            var parameters: [String: AnalyticsValue] = [
+                "game_id": .string(gameID),
+                "source": .string(source.rawValue),
+                "resume": .int(resume ? 1 : 0),
+            ]
+            // 並びを持たない導線では鍵ごと送らない（`level` と同じく、実在しない位置を作らない）。
+            // 位置は 1 始まり。0 以下は並びの中に存在しないので 1 に丸める。
+            if source.hasPosition, let position { parameters["position"] = .int(max(1, position)) }
+            return parameters
         }
     }
 }
@@ -185,7 +230,8 @@ public struct GatedAnalyticsService: AnalyticsService {
     }
 }
 
-/// 1プレイの開始・終わりを対応付けて `game_start` / `game_end` / `reward_ad` を送る係。
+/// 1プレイの開始・終わりを対応付けて `game_start` / `game_end` を送り、あわせて
+/// `reward_ad` / `reward_request` / `game_open` も送る係。
 ///
 /// 各ゲームは「開始した」「1手指した」「やり直した」「終局した」を伝えるだけで、
 /// **二重発火の抑制と経過秒の計測、離脱と休憩の切り分けはここ1か所**に閉じ込める。
@@ -282,6 +328,21 @@ public final class GameAnalytics {
     public func recordRewardAd(gameID: String, purpose: RewardPurpose) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.rewardAd(gameID: gameID, purpose: purpose))
+    }
+
+    /// リワード広告を**要求した**（タップした）ときに呼ぶ（#659）。
+    /// 視聴完了の `reward_ad` と対にして、完了率（`reward_ad ÷ reward_request`）を読むためのもの。
+    /// プレイの数え方には影響しない。
+    public func recordRewardRequest(gameID: String, purpose: RewardPurpose) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.rewardRequest(gameID: gameID, purpose: purpose))
+    }
+
+    /// ハブからゲーム画面を開いたときに呼ぶ（#659）。プレイの数え方には影響しない
+    /// （1プレイの開始は各ゲームの `startPlay` が決める。開いただけで遊ばずに戻る人もいるため）。
+    public func recordGameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。

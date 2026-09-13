@@ -263,9 +263,11 @@ public struct ShogiView: View {
         // 終局後のレコメンドは盤の下端に重ねる（#139 の高さ予約の代替。会長指示 2026-09-01:
         // 予約をやめて盤の横幅をカード類と同じ内寸まで届かせる）。×で閉じられ、
         // 検討ナビで盤を見たいときに邪魔なら閉じればよい。
+        // 「ほかのあそび」（#661）は×を持たないので、検討で手を戻しているあいだは引っ込める。
         .overlay(alignment: .bottom) {
             if model.gameOver {
-                RecommendationSlot(services: services, isFinished: true)
+                RecommendationSlot(services: services, isFinished: true,
+                                   showsOtherGames: model.reviewPly == model.moves.count)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }
@@ -503,8 +505,8 @@ public struct ShogiView: View {
                 Button("キャンセル", role: .cancel) {}
             } message: {
                 Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
+                     : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
             .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
         }

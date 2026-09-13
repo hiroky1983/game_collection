@@ -98,6 +98,9 @@ public final class ChessGameModel {
         if gameOver, let record = services?.playLog?.record(gameID: gameID) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
+        // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
+        // 中断のお知らせ（#663）の対象から外す。
+        if gameOver { services?.gameDidRestoreFinished(gameID: gameID) }
         // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
         // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
         // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。

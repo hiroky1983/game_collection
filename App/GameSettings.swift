@@ -55,6 +55,16 @@ final class GameSettings {
             AppEnvironment.analytics.discardPlayState()
         }
     }
+    /// 中断したゲームのお知らせ（#663）のオン / オフ。既定はオン。
+    /// オフにした時点で予約済みのお知らせも取り消す（オフにしたのに翌日届く、を作らない）。
+    var notificationsEnabled: Bool {
+        didSet {
+            Self.notifications.isEnabled = notificationsEnabled
+            if !notificationsEnabled {
+                AppEnvironment.reminders.cancelAll()
+            }
+        }
+    }
 
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
@@ -62,6 +72,7 @@ final class GameSettings {
     private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
     // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
     private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
+    private static let notifications = FeedbackPreference(key: "resumeRemindersEnabled_v1")
     // ヒント表示はゲーム側（GameKit）も同じキーを読むため、定義は Core に置いたものを共有する。
     private static var hints: FeedbackPreference { .hints }
     // ゆっくりモード（#463・#494）も同じ理由で Core 側の定義を共有する。既定値だけがオフ。
@@ -80,6 +91,7 @@ final class GameSettings {
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
         self.analyticsEnabled = Self.analytics.isEnabled
+        self.notificationsEnabled = Self.notifications.isEnabled
         self.hintsEnabled = Self.hints.isEnabled
         self.slowModeEnabled = Self.slowMode.isEnabled
     }
