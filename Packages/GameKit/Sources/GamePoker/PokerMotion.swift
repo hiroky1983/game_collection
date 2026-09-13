@@ -40,6 +40,17 @@ enum PokerMotion {
     /// ポットの数値の入れ替え。増減がどちらの向きかは `.contentTransition(.numericText(value:))` が持つ。
     static let potChange: Animation = .easeInOut(duration: potChangeDuration)
 
+    /// ショーダウンの決着でポットが勝者へ渡る動き（#667）。
+    ///
+    /// 5 枚が返り終わる前にポットが 0 へ転がると、どちらが勝ったかを先に見せてしまう。
+    /// 役名（`showdownTotalDuration` だけ遅れて出る）と同じだけ遅らせ、公開 → 役名とポットの順を守る。
+    static let potSettle: Animation = potChange.delay(showdownTotalDuration)
+
+    /// 役名が出る瞬間（5 枚が返り終わった瞬間）。Model が役名の手応えを返す時刻に使う（#667）。
+    static var showdownRevealDelay: Duration {
+        .milliseconds(Int((showdownTotalDuration * 1000).rounded()))
+    }
+
     /// CPU の手札 `index` 枚目（0 始まり）の反転。左から順に段差をつける。
     static func showdownFlip(index: Int) -> Animation {
         .easeInOut(duration: showdownFlipDuration)

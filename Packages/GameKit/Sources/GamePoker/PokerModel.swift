@@ -321,8 +321,19 @@ public final class PokerModel {
 
     private let gameID = "poker"
 
-    public init(services: GameServices? = nil) {
+    /// ショーダウンで CPU の 5 枚が返り終わり、役名が出るまでの時間（#667）。勝敗の触覚をここまで遅らせる。
+    /// `.zero` なら従来どおり決着の瞬間に鳴らす。
+    private let showdownRevealDelay: Duration
+    /// 局の通し番号。遅らせた勝敗の触覚が、次の局に入ってから鳴らないように照合する（#667）。
+    private var roundSerial = 0
+    /// 遅らせた勝敗の触覚を待っている `Task`（#667）。
+    private(set) var outcomeNoticeTask: Task<Void, Never>?
+
+    /// - Parameter showdownRevealDelay: 勝敗の触覚を遅らせる時間。画面は `PokerMotion.showdownRevealDelay` を渡す。
+    ///   既定の `.zero` は決着の瞬間に鳴らす（テストの決定性のため）。
+    public init(services: GameServices? = nil, showdownRevealDelay: Duration = .zero) {
         self.services = services
+        self.showdownRevealDelay = showdownRevealDelay
         if let snap = services?.snapshots.load(PokerSnapshot.self, for: "poker") {
             self.playerHand      = snap.playerHand
             self.cpuHand         = snap.cpuHand
@@ -374,6 +385,7 @@ public final class PokerModel {
         // （持ち点が確定してからでないと `canStartRound` を正しく判定できない）。
         concludeRoundIfNeeded()
         guard canStartRound else { return }
+        roundSerial += 1
         if let rules { self.rules = rules }
         playerBonus = 0
         cpuBonus = 0
@@ -419,17 +431,38 @@ public final class PokerModel {
     /// ボーナスルールでプレイヤーが勝ち取ったチップはダブルアップで増減しうるので、
     /// **記録（自己ベスト・GC 送信）はダブルアップが終わってから**確定させる（`concludeRound`）。
     /// 触覚だけは勝敗が決まった瞬間に返す。
-    private func settleRound() {
-        switch winner {
-        case .player: services?.feedback.notify(.success)
-        case .cpu:    services?.feedback.notify(.error)
-        default:      services?.feedback.notify(.warning)
-        }
+    ///
+    /// - Parameter noticeDelay: 勝敗の触覚を遅らせる時間。ショーダウンでは CPU の手札が返り終わるまで待つ（#667）。
+    private func settleRound(noticeDelay: Duration = .zero) {
+        notifyOutcome(after: noticeDelay)
         if rules == .bonus, winner == .player, pendingWinnings > 0, deck.count >= 2 {
             awaitsDoubleUp = true
             return
         }
         concludeRound()
+    }
+
+    /// 勝敗の触覚を鳴らす。`delay` があれば、その間に次の局へ進んでいないことを確かめてから鳴らす（#667）。
+    ///
+    /// ショーダウンで決着の瞬間に鳴らすと、CPU の手札が裏向きのうちに勝敗が指へ伝わる。
+    /// 役名が出る瞬間まで遅らせ、公開 → 役名と勝敗の手応え、の順にする。記録の確定は遅らせない。
+    private func notifyOutcome(after delay: Duration) {
+        let notice: FeedbackNotice
+        switch winner {
+        case .player: notice = .success
+        case .cpu:    notice = .error
+        default:      notice = .warning
+        }
+        guard delay > .zero else {
+            services?.feedback.notify(notice)
+            return
+        }
+        let round = roundSerial
+        outcomeNoticeTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self, self.roundSerial == round else { return }
+            self.services?.feedback.notify(notice)
+        }
     }
 
     /// この局の記録を確定する（1 局につき 1 回だけ呼ばれる）。
@@ -681,7 +714,7 @@ public final class PokerModel {
             }
         }
         phase = .result
-        settleRound()
+        settleRound(noticeDelay: showdownRevealDelay)
     }
 
     // MARK: - End Round (fold by CPU or player)
@@ -874,6 +907,9 @@ public final class PokerModel {
     }
 
     public func restartSession() {
+        // 前の局の勝敗の触覚を待っていたら止める（#667。チップが尽きた直後にやり直すと新しいセッションで鳴る）。
+        outcomeNoticeTask?.cancel()
+        outcomeNoticeTask = nil
         recordResult  = nil
         sessionSerial += 1
         playerChips   = PokerModel.initialChips
