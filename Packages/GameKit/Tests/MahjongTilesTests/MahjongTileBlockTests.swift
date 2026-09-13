@@ -21,7 +21,9 @@ struct MahjongTileBlockTests {
     @Test("3つの向きで部品が揃う", arguments: [MahjongTileBlockFacing.viewer, .centerOnRight, .centerOnLeft])
     func partsExist(facing: MahjongTileBlockFacing) {
         let parts = MahjongTileBlockArt.parts(Self.left, facing: facing)
-        #expect(parts.count >= 3, "\(facing): 裏地・上面・照りが揃っていない")
+        // 対面は 裏地・上面・照り の3つ、左右は 裏地・断面・上面・稜線・照り の5つ。
+        // 個数で縛るのは、断面（隣の牌に隠れる面）が消えても他の検査では気づけないため（verifier 指摘）。
+        #expect(parts.count == (facing == .viewer ? 3 : 5), "\(facing): 部品が \(parts.count) 個")
         #expect(parts.contains { $0.strokeWidth == nil }, "塗りの部品が無い")
         #expect(parts.contains { $0.strokeWidth != nil }, "線の部品が無い")
     }
