@@ -117,7 +117,10 @@ public struct RunnerField: Equatable, Sendable {
     /// `justLandingOverboost` が 0 になるまでの残り秒数。
     private var justLandingOverboostRemaining: Double = 0
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
-    private var collectedPickupIndices: Set<Int> = []
+    ///
+    /// 描画側はこの添字でノードを消す。**取得は先頭から順とは限らない**——チェックポイントから
+    /// 再開すると手前のアイテムは取らないまま残る（#733）。
+    public private(set) var collectedPickupIndices: Set<Int> = []
 
     /// ステージの頭から始める。
     public init(stage: RunnerStage) {
