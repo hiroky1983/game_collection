@@ -89,6 +89,29 @@ struct MahjongTableLayoutTests {
         #expect(abs(Self.pad.centerPanel.width / 700 - Self.phone.centerPanel.width / 393) < 0.0001)
     }
 
+    @Test("左右の河は 3 行目までその家の立て牌の壁に届かず、中央パネルとの間に 1 枚ぶんの余白がある")
+    func sideRiversStayBetweenWallAndPanel() {
+        // 開始位置（u 0.30 / 0.70）を壁側へ戻す回帰を検知する（verifier 指摘）。
+        let l = Self.phone
+        let panel = l.centerPanel
+        let tile = l.riverTileWidth
+        // 右の家: 3 行目（index 12〜17）の右端 < 壁の足元の左端
+        let rightWall = l.handBlock(seat: 1, index: 6, count: 13).0
+        let rightWallFootX = rightWall.a.x
+        for i in 12..<18 {
+            #expect(l.riverRect(seat: 1, index: i).maxX < rightWallFootX - 2, "右の河 \(i) が壁に届く")
+        }
+        // 左の家: 3 行目の左端 > 壁の足元の右端
+        let leftWall = l.handBlock(seat: 3, index: 6, count: 13).0
+        let leftWallFootX = leftWall.b.x
+        for i in 12..<18 {
+            #expect(l.riverRect(seat: 3, index: i).minX > leftWallFootX + 2, "左の河 \(i) が壁に届く")
+        }
+        // 1 行目はパネルから 1 枚ぶん以内に寄っている（遠すぎても回帰）
+        #expect(l.riverRect(seat: 1, index: 0).minX - panel.maxX < tile * 1.5)
+        #expect(panel.minX - l.riverRect(seat: 3, index: 0).maxX < tile * 1.5)
+    }
+
     @Test("多角形の内外判定")
     func polygon() {
         let sq = [CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 0), CGPoint(x: 10, y: 10), CGPoint(x: 0, y: 10)]
