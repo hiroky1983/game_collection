@@ -79,6 +79,7 @@ AppEnvironment.settings  // GameSettings (並び順・表示設定)
 ## ハブ画面 (HubView)
 
 - `NavigationStack` ベース
+- 最上部: プレイ記録がゼロ（`PlayLog.playedGameIDs` が空）で「つづき・最近」の行も無い初回だけ、「はじめの1本」を1枚出す（#721。出す条件と勧めるゲームは `Core/FirstPick.swift`。`release/v1.1.5` から）
 - 登録ゲームをカード形式で 2 列グリッド表示（#119）。ゲーム数が増え、**現在は1画面に収まらず
   スクロールする**（並び順は `AppGameServices.registry` の登録順が新規インストール時の既定
   表示順。ユーザーがドラッグで並び替え・非表示にできる。2026-08-24 会長判断で検索需要の高い
@@ -172,7 +173,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec` |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
-| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
+| `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで
@@ -193,6 +194,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - `game_open` の導線は遷移の値そのもの（`HubRoute`）に持たせる。タップの横で別の状態に書き留めると
   タップと path の変化の順序が保証されないため。`resume` も**タップした時点**の中断データの有無で決める。
   `notification` は #663 のローカル通知のタップで開いたとき（`release/v1.1.5` から。上の「中断したゲームのお知らせ」を参照）
+  `first_pick` はハブ最上部の「はじめの1本」（#721。記録ゼロの初回だけ出る1枚）から開いたとき（`release/v1.1.5` から）
 - `source` / `position` / `resume` は GA4 のカスタムディメンション登録が要る（会長操作依頼 #694）
 
 ---
