@@ -11,13 +11,15 @@ import Core
 // 麻雀ソリティアと共有している `MahjongTileView` には手を入れない（#735 の受け入れ条件）。
 
 /// 裏地（背）の3色。左右の壁も対面の列も同じ値を使う（会長指示 2026-09-13「同じ色に」）。
+/// 色は**青系**。緑だとフェルトの色に被って壁が見えなかった（会長指摘 2026-09-13）。
+/// 寝かせた牌（`MahjongTileView`）の下端の背も同じ系統（`MahjongTileArt.backGreen*`）。
 public enum MahjongBackPalette {
     /// 膨らみの頂点（照り）。
-    public static let top = Color(hex: 0xC9F2DC)
+    public static let top = Color(hex: 0xC7DDFF)
     /// 中間。
-    public static let mid = Color(hex: 0x7CCBA3)
+    public static let mid = Color(hex: 0x6494E8)
     /// 縁（暗い側）。
-    public static let edge = Color(hex: 0x3F8F69)
+    public static let edge = Color(hex: 0x2B4FA3)
     /// 上面（象牙）の照り。
     public static let ivoryLight = Color(hex: 0xFFFFFB)
     /// 上面の地。
