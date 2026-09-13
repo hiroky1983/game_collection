@@ -168,8 +168,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
-| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level` |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec` |
+| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、1 回の長さが選べるゲームのみ `mode`（#783） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode` |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
@@ -179,6 +179,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   自動的に対象へ入るため、**このドキュメントに `game_id` の値そのものを列挙しない**
   （列挙すると新ゲーム追加のたびに手動同期が要り、漏れの温床になる。実際の値は各ゲームの
   `GameModule.id` を参照すること）
+- `mode` は 1 回の長さの区分。いまは四人打ち麻雀だけで `tonpuu`（東風戦）/ `single_hand`（一局戦・v1.1.5）。一局戦は 1 対局が 1 局なので `game_start` が機械的に増える。回数を比べるときは `mode` で分け、時間で比べるときは `duration_sec` を使う（#783）
 - `level`（`AnalyticsLevel`）はゲームごとの難易度呼称をゲーム横断で読める4段階
   （`beginner`/`normal`/`hard`/`expert`）か、面を進めるゲームは `stage-N` に正規化して送る。
   写像は各ゲームの `analyticsLevel` に置く
