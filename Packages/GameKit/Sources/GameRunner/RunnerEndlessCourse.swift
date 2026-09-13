@@ -21,7 +21,7 @@ public enum RunnerEndlessCourse {
     ///
     /// 「最初の数区画は毎回同じ」（会長決裁）の実体。ステージ 1 と同じ文字列であることは
     /// `RunnerEndlessCourseTests` が固定する——別の導入を書きたくなったらそこを直す。
-    public static let intro = "--1---1--1--"
+    public static let intro = "--1-1--1-1--"
     /// 末尾の平地の区画数。ステージ制の「末尾は必ず 2 区画ぶん平地」に合わせる。
     static let trailingSegments = 2
 
