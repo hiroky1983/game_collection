@@ -184,6 +184,15 @@ git -C "$AUDIT_DIR" worktree prune >>"$LOG" 2>&1
 
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$AUDIT_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
+# 終了時に worktree を必ず消す（ローカル資源の規律 2・#822）。`ai-duty.sh` の cleanup_worktree と同じ考え方で、
+# 3 日後の掃除を待たずにその回のうちに片付ける。ロックの解放より先に行う。消せなかった回は起動時の
+# 3 日掃除に任せ、ログに残す。
+cleanup_run() {
+  git -C "$AUDIT_DIR" worktree remove --force "$RUN_DIR" >>"$LOG" 2>&1 || log "worktree の削除に失敗: $RUN_DIR（起動時の掃除で回収）"
+  git -C "$AUDIT_DIR" worktree prune >>"$LOG" 2>&1
+  release_lock
+}
+trap 'cleanup_run' EXIT
 
 # 書き込み範囲を docs/ 配下に技術的に制限する（CodeRabbit指摘: プロンプトの指示だけに
 # コード変更禁止を委ねるな、というセキュリティ指摘への対応）。GitHub Issue 本文や
@@ -283,12 +292,17 @@ case "$SINCE" in
   *) SINCE=$(date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ') ;;
 esac
 NOW=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-MERGED_PRS=$(gh pr list -R hiroky1983/game_collection --state merged --limit 100 \
+# `gh` の失敗（レート制限・オフライン）と「本当に 0 件」を区別する（#822）。失敗した回は窓を進めず、
+# 次回にその期間の PR をもう一度対象にする。
+if ! MERGED_PRS=$(gh pr list -R hiroky1983/game_collection --state merged --limit 100 \
   --search "merged:>=$SINCE" --json number,title,baseRefName,mergedAt \
-  --jq 'sort_by(.mergedAt) | .[] | "#\(.number) [\(.baseRefName)] \(.title)"' 2>/dev/null || true)
+  --jq 'sort_by(.mergedAt) | .[] | "#\(.number) [\(.baseRefName)] \(.title)"' 2>>"$LOG"); then
+  log "gh pr list に失敗したため今回は見送り（窓は $SINCE のまま）"
+  exit 0
+fi
 if [ -z "$MERGED_PRS" ]; then
   log "監査対象なし（$SINCE 以降にマージされた PR が無い）。今回は起動しない"
-  echo "$NOW" >"$LAST_RUN_FILE" 2>/dev/null
+  mkdir -p "$STATE_DIR" && echo "$NOW" >"$LAST_RUN_FILE" 2>/dev/null
   exit 0
 fi
 PR_COUNT=$(printf '%s\n' "$MERGED_PRS" | wc -l | tr -d ' ')
