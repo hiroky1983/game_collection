@@ -134,6 +134,9 @@ public final class MinesweeperModel {
     /// 以前は上限が無く、踏んだ地雷が1個ずつ確定していくため広告を見続ければ必ず解けた。
     /// そのタイムが順位表に載ると、順位表が「広告を何回見たか」の表になる（#406 と同じ理由）。
     public private(set) var continueUsed = false
+    /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に局が入れ替わったらコンティニューを適用しない）。
+    public private(set) var gameSerial = 0
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -219,6 +222,7 @@ public final class MinesweeperModel {
     // MARK: - New game
 
     public func newGame(rows: Int, cols: Int, mines: Int) {
+        gameSerial += 1
         timerTask?.cancel()
         timerTask      = nil
         self.rows       = rows
@@ -404,8 +408,17 @@ public final class MinesweeperModel {
         gameState == .lost && hitMine != nil && !continueUsed
     }
 
-    public func continueAfterAd() {
-        guard canContinue, let hit = hitMine else { return }
+    /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「コンティニューできなかった」と知らせる。
+    @discardableResult
+    public func continueAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return continueAfterAd()
+    }
+
+    @discardableResult
+    public func continueAfterAd() -> Bool {
+        guard canContinue, let hit = hitMine else { return false }
         continueUsed = true
         // 同じ盤面の続きなので、直前に記録した「負け」は無かったことにする
         // （そのままだと1回のプレイが2回分として数えられる）。
@@ -446,6 +459,7 @@ public final class MinesweeperModel {
         }
 
         persist()
+        return true
     }
 
     public func toggleFlag(row: Int, col: Int) {

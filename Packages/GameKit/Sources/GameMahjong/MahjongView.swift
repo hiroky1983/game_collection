@@ -26,6 +26,8 @@ public struct MahjongView: View {
     /// 飛行中の打牌（#738）。河の本物の牌は着地まで隠す。
     @State private var discardFlight: MahjongDiscardFlight?
     @State private var discardFlightProgress: CGFloat = 0
+    /// ドラ見出し（`doraHeader`）の実幅。iPhone の基準幅 361pt に対する縮尺に使う。
+    @State private var doraHeaderWidth: CGFloat = 0
     /// 飛行の通し番号。後片付けは「自分が始めた飛行」だけを消す（内容が同じ別の飛行を誤って消さない）。
     @State private var discardFlightSerial = 0
     /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
@@ -79,30 +81,30 @@ public struct MahjongView: View {
 
     public var body: some View {
         VStack(spacing: 6) {
-            // 局数・ドラ・残り枚数は卓中央パネル（`tableCenterPanel`）が持つ。以前はここに
-            // 同じ情報の白いステータスバーを重ねて出していたが、情報が100%重複しているうえ、
-            // 画面上部の白い領域が無駄に広く見える一因になっていた（会長指摘）ため撤去した。
+            // 局数・残り枚数は卓中央パネル（`MahjongCenterPanel`）が持ち、ドラは卓の上の見出し
+            // （`doraHeader`）に出す。以前はここに同じ情報の白いステータスバーを重ねて出していたが、
+            // 情報が100%重複しているうえ、画面上部の白い領域が無駄に広く見える一因になっていた
+            // （会長指摘）ため撤去した。
             // 卓（対面・上家・下家の河 + 自分の河）は局の決着後もそのまま見えている方が自然なので、
             // 局面/リザルトの分岐の外に置く（実物の卓も清算が終わるまで牌は残ったまま）。
             // layoutPriority(1) は将棋の盤（ShogiView.board）と同じ考え方: 卓を優先して
             // 高さを確保させ、他の要素（手牌・アクション行・バナー）がそのぶん譲る。
             // これが無いと卓が伸び放題になり、画面下のバナー広告が画面外へ押し出されて
             // 見えなくなる／レイヤーが崩れて見える（会長のシミュレータ確認で発覚）。
+            // 卓（`mahjongTable`）は正方形で、画面の余った縦幅をすべて使い切るとは限らない。
+            // 余りは**卓の上**で吸収し、卓・手牌・アクション行を画面の下へ寄せて手の届く側に
+            // まとめる（会長指摘 2026-09-13: 卓とボタンの間が空く）。以前は手牌の下で吸収して
+            // いたため、卓が上に張り付き、手牌とリーチ・ツモのボタンの間に空白が出ていた。
+            Spacer(minLength: 0)
+            doraHeader
             mahjongTable
                 .layoutPriority(1)
             if model.phase == .gameResult {
                 gameResultCard.transition(.opacity)
-                Spacer(minLength: 0)
             } else if model.phase == .handResult {
                 handResultCard.transition(.opacity)
-                Spacer(minLength: 0)
             } else {
                 handOnTable.transition(.opacity)
-                // 卓（`mahjongTable`）は正方形で、画面の余った縦幅をすべて使い切るとは限らない。
-                // リザルト画面（.handResult/.gameResult）側は既に Spacer で余りを吸収していたが、
-                // 対局中のこの分岐だけ抜けていて、余った分がそのまま広告の下の空白として
-                // 出てしまっていた（会長指摘: 広告下の変な余白）。同じ形で吸収する。
-                Spacer(minLength: 0)
             }
             // 会長指摘: リザルト画面でも「切る牌をタップしよう」が出ていて、打牌できない場面なのに
             // 打牌を促す文言が残っていた。対局中だけ出す。
@@ -278,7 +280,7 @@ public struct MahjongView: View {
                     MahjongTableView(scene: tableScene, layout: layout)
                     if isInPlay {
                         let overview = layout.handOverview
-                        handOverviewOnTable(width: overview.width)
+                        handOverviewOnTable(width: overview.width, tileWidth: overview.tileWidth)
                             .position(overview.center)
                     }
                 }
@@ -294,18 +296,29 @@ public struct MahjongView: View {
             .frame(width: side, height: side)
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
-            // ドラのチップは卓の左上の角に**外側から**重ねる（クリップの外なので木枠の上へはみ出せる）。
-            // 卓の中に置くと対面の副露（左上の角）と重なる（会長指摘）。
-            .overlay(alignment: .topLeading) {
-                doraChip(scale: side / 393)
-                    .offset(x: 10 * side / 393, y: -14 * side / 393)
-            }
             .frame(width: geo.size.width, height: geo.size.height)
             .onChange(of: model.discards.map(\.count)) { old, new in
                 startDiscardFlight(old: old, new: new, layout: layout)
             }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// ドラ表示の見出し。卓のすぐ上に 1 行の HUD として置く（会長指摘 2026-09-13。以前は卓の
+    /// 左上の角に外側から重ねていたが、卓を画面下へ寄せるのに合わせて見出しに独立させた）。
+    /// iPad では卓と一緒に大きくなるよう、行の幅（＝卓の幅）から縮尺を取る。
+    private var doraHeader: some View {
+        HStack {
+            doraChip(scale: doraHeaderWidth > 0 ? doraHeaderWidth / 361 : 1)
+            Spacer(minLength: 0)
+        }
+        .background(
+            GeometryReader { g in
+                Color.clear
+                    .onAppear { doraHeaderWidth = g.size.width }
+                    .onChange(of: g.size.width) { _, w in doraHeaderWidth = w }
+            }
+        )
     }
 
     /// ドラ表示。参考画像と同じく画面左上の HUD。牌が複数（カン）なら並べる。
@@ -395,17 +408,15 @@ public struct MahjongView: View {
 
     // MARK: - 手牌一覧（卓上）
 
-    private static let handOverviewSpacing: CGFloat = 2
-    private static let handOverviewMaxTileWidth: CGFloat = 22
-    private static let handOverviewAspect: CGFloat = Self.tableHandTileHeight / Self.tableHandTileWidth
-    /// 一覧の牌は幅10〜22pt（高さでも14〜30pt）しかなく、そのままでは Apple 推奨の 44pt に届かない。
+    private static let handOverviewSpacing: CGFloat = MahjongTableLayout.handOverviewSpacing
+    /// 一覧の牌は河と同じ大きさ（iPhone で幅 18pt・高さ 25pt ほど）で、そのままでは Apple 推奨の 44pt に届かない。
     /// **レイアウトは変えずに当たり判定だけ**この高さまで縦に広げる（`handOverviewTile`）。
     private static let handOverviewMinHitHeight: CGFloat = 44
     /// 一覧で選択中の牌を持ち上げる量。下部（`tableHandLift` 側の -10pt）と同じ言語だが、
     /// 牌が小さく行の高さも詰まっているので控えめにする。
     private static let handOverviewLift: CGFloat = 3
 
-    /// 卓の上（緑の正方形の中）に置く、手牌14枚を縮小して一目で見渡せる一覧。
+    /// 卓の上（フェルトの手前の縁）に置く、手牌14枚を河の牌と同じ大きさで一目で見渡せる一覧。
     ///
     /// **この一覧からも打牌できる**（#378・会長発案）。以前はタップを卓下部の `handOnTable`
     /// （大きい牌・横スクロール）に一本化し、こちらは視認専用にしていたが、一覧で切りたい牌を
@@ -415,17 +426,18 @@ public struct MahjongView: View {
     ///
     /// 読み上げは従来どおり下部に一本化する（この一覧は `accessibilityHidden`。VoiceOver 利用時は
     /// 同じ操作が下部の `handTile` にラベル・ヒント付きで揃っている）。
-    private func handOverviewOnTable(width: CGFloat) -> some View {
+    private func handOverviewOnTable(width: CGFloat, tileWidth: CGFloat) -> some View {
         let hand = model.playerHand.tiles
         let drawn = model.playerDrawnTile
         // 切れる牌の判定は手牌の枚数ぶん走るので、1 回だけ求めて配る（`handOnTable` と同じ考え方）。
         let discardable = model.discardableTiles
         let tileCount = hand.count + (drawn != nil ? 1 : 0)
         let totalSpacing = Self.handOverviewSpacing * CGFloat(max(0, tileCount - 1))
-        let rawWidth = tileCount > 0
-            ? (width - totalSpacing) / CGFloat(tileCount) : Self.handOverviewMaxTileWidth
-        let tileWidth = max(10, min(Self.handOverviewMaxTileWidth, rawWidth))
-        let tileHeight = tileWidth * Self.handOverviewAspect
+        // 牌の幅は河の牌と同じ（`MahjongTableLayout.handOverview`。会長指摘 2026-09-13）。
+        // 幅は 14 枚が収まるように決まっているので普段は縮まないが、念のため収まる幅に丸める。
+        let rawWidth = tileCount > 0 ? (width - totalSpacing) / CGFloat(tileCount) : tileWidth
+        let tileWidth = max(10, min(tileWidth, rawWidth))
+        let tileHeight = tileWidth * MahjongTableLayout.tileAspect
         return HStack(spacing: Self.handOverviewSpacing) {
             ForEach(Array(hand.enumerated()), id: \.offset) { index, tile in
                 handOverviewTile(

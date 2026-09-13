@@ -73,6 +73,9 @@ public final class SudokuModel {
     public private(set) var hintedCells: Set<Int> = []
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
+    /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に局が入れ替わったらコンティニューを適用しない）。
+    public private(set) var gameSerial = 0
     /// 行・列・ブロックがこの局で初めて揃った瞬間の合図（#666）。View はこれを見て該当マスを一瞬光らせる。
     /// 表示用の値なので中断データには入れない。
     public private(set) var unitFlash: SudokuUnitFlash?
@@ -222,6 +225,7 @@ public final class SudokuModel {
         // 「+」の二度押しで 2 本目の生成が走ると、`gameDidRestart`（= `game_start`）が
         // 2 回飛んで「1 プレイ 1 組」の不変条件（#158）が崩れる。
         guard state != .generating else { return }
+        gameSerial    += 1
         timerTask?.cancel()
         timerTask      = nil
         state          = .generating
@@ -439,13 +443,23 @@ public final class SudokuModel {
     /// 広告を見終えたらミスを 0 に戻して続きから再開する。**視聴が済んでから** View が呼ぶ
     /// （2048 の `continueAfterAd` と同じ契約）。2048 と違い 1 局 1 回の制限は設けない:
     /// 数独は解が一意で「粘れば必ず解ける」ため、続けたい人を止める理由が無い。
-    public func continueAfterAd() {
-        guard state == .failed else { return }
+    @discardableResult
+    public func continueAfterAd() -> Bool {
+        guard state == .failed else { return false }
         mistakes = 0
         state = .playing
         startTimer()
         services?.feedback.notify(.success)
         persist()
+        return true
+    }
+
+    /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「コンティニューできなかった」と知らせる。
+    @discardableResult
+    public func continueAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return continueAfterAd()
     }
 
     /// 諦めて答えを見る。マインスイーパーの「諦める」と同じく 1 敗として記録する。

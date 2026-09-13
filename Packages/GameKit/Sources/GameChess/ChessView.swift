@@ -458,13 +458,14 @@ public struct ChessView: View {
                         Task { model.undoLastExchange() }
                         return
                     }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。
+                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
+                    // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
+                    let turn = model.aiTurnKey
                     undoRescue.request(
                         services, gameID: model.gameID, purpose: .undo,
-                        guardedBy: .unchecked(note: "対局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                        guardedBy: .checkedByGrant
                     ) {
-                        model.undoLastExchange()
-                        return true
+                        model.undoLastExchange(forTurn: turn)
                     }
                 }
                 Button("キャンセル", role: .cancel) {}
@@ -475,7 +476,14 @@ public struct ChessView: View {
                      ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
                      : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
-            .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
+            .rewardedRescueAlerts(
+                undoRescue,
+                notEarned: "待ったは使えませんでした",
+                unavailable: RewardUnavailableAlert(
+                    title: "待ったは使えませんでした",
+                    message: "広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。"
+                )
+            )
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 5)

@@ -194,6 +194,17 @@ public final class OthelloModel {
         persist()
     }
 
+    /// 広告を出す前に控えた `aiTurnKey`（対局の通し番号 × 手番の通し番号）の局面にだけ待ったを適用する（#729）。
+    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手・パスで局面が変わっていたら false
+    ///   （View は「待ったを使えなかった」と知らせる）。対局の番号だけを照合すると、ロード中に
+    ///   1 往復打ったとき、広告を出したときとは別の 1 往復が戻る。
+    @discardableResult
+    public func undoLastExchange(forTurn turn: AITurnKey) -> Bool {
+        guard turn == aiTurnKey, canUndo else { return false }
+        undoLastExchange()
+        return true
+    }
+
     public func resign() {
         guard !gameOver else { return }
         winner = humanSide.opponent

@@ -163,14 +163,74 @@ struct MahjongTableLayoutTests {
         }
     }
 
-    @Test("卓上の手牌一覧は、自分の副露（カン 4 枚）と重ならない")
-    func overviewClearsOwnMelds() {
+    @Test("卓上の手牌一覧は河の牌と同じ大きさで、14 枚がフェルトの手前の縁に収まり河と重ならない")
+    func overviewMatchesRiverTiles() {
         let l = Self.phone
-        let overview = l.handOverview
-        let overviewRight = overview.center.x + overview.width / 2
-        let meld = l.meldSlot(seat: 0)
-        let kanLeft = meld.center.x - l.meldTileWidth(seat: 0) * meld.scale * 4 - 3
-        #expect(kanLeft - overviewRight > 2, "一覧の右端 \(overviewRight) とカンの左端 \(kanLeft)")
+        let o = l.handOverview
+        // 一覧は最手前なので、河の 3 行目（縮尺が少し小さい）以上、手前の辺の基準幅以下
+        #expect(o.tileWidth >= l.riverTileWidth * l.riverSlot(seat: 0, index: 12).scale)
+        #expect(o.tileWidth <= l.riverTileWidth)
+        #expect(o.tileWidth > l.riverTileWidth * 0.95, "河の牌と同じ大きさに寄せる（会長指摘）")
+        #expect(o.width >= o.tileWidth * 14, "14 枚（手牌 13 + ツモ）が収まる幅")
+        let h = o.tileWidth * MahjongTableLayout.tileAspect
+        let rect = CGRect(x: o.center.x - o.width / 2, y: o.center.y - h / 2, width: o.width, height: h)
+        for corner in Self.corners(rect) {
+            #expect(l.feltContains(corner), "一覧の角 \(corner) がフェルトの外")
+        }
+        for seat in 0..<4 { for i in 0..<18 {
+            #expect(!rect.intersects(l.riverRect(seat: seat, index: i)), "一覧が seat \(seat) の河 \(i) に重なる")
+        } }
+    }
+
+    @Test("自分の副露は河と同じ幅で 4 組（16 枚）まで一覧の上に積み、一覧・河・下家の立て牌・パネルと重ならない")
+    func ownMeldsStackAboveOverview() {
+        let l = Self.phone
+        #expect(l.meldTileWidth(seat: 0) == l.riverTileWidth)
+        let o = l.handOverview
+        let overviewTop = o.center.y - o.tileWidth * MahjongTableLayout.tileAspect / 2
+        let region = l.meldRegion(seat: 0, tiles: 16)
+        // 一覧で選んだ牌は 3pt 持ち上がるので、その分も空ける
+        #expect(region.maxY < overviewTop - 3, "副露の下端 \(region.maxY) が一覧の上端 \(overviewTop) に近い")
+        #expect(!region.intersects(l.centerPanel))
+        for corner in Self.corners(region) {
+            #expect(l.feltContains(corner), "副露の角 \(corner) がフェルトの外")
+        }
+        for seat in 0..<4 { for i in 0..<18 {
+            #expect(!region.intersects(l.riverRect(seat: seat, index: i)), "副露が seat \(seat) の河 \(i) に重なる")
+        } }
+        for other in 1...3 {
+            #expect(!region.intersects(l.meldRegion(seat: other, tiles: 7)), "seat \(other) の副露と重なる")
+        }
+        // 下家の立て牌（ツモ番の 14 枚が最も手前まで伸びる）の占める矩形
+        for i in 0..<14 {
+            let (g, _) = l.handBlock(seat: 1, index: i, count: 14)
+            let xs = [g.a, g.b, g.c, g.d].map(\.x), ys = [g.a, g.b, g.c, g.d].map(\.y)
+            let wall = CGRect(x: xs.min()! - g.lean, y: ys.min()!,
+                              width: xs.max()! - xs.min()! + g.lean * 2, height: ys.max()! - ys.min()! + g.drop)
+            #expect(!region.intersects(wall), "下家の立て牌 \(i) と重なる")
+        }
+    }
+
+    private static func corners(_ r: CGRect) -> [CGPoint] {
+        [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
+         CGPoint(x: r.minX, y: r.maxY), CGPoint(x: r.maxX, y: r.maxY)]
+    }
+
+    @Test("副露の矩形は描画の置き方どおり: 1 組目の行の中央が slot.center（対面は下へ、自分は上へ積む）")
+    func meldRegionMatchesDrawing() {
+        let l = Self.phone
+        for seat in [0, 2] {
+            let slot = l.meldSlot(seat: seat)
+            let h = l.meldTileWidth(seat: seat) * slot.scale * 1.34
+            let one = l.meldRegion(seat: seat, tiles: 3)
+            #expect(abs(one.midY - slot.center.y) < 0.01, "seat \(seat): 1 組の縦の中央が slot.center でない")
+            #expect(abs(one.height - h) < 0.01)
+            let two = l.meldRegion(seat: seat, tiles: 7)
+            #expect(abs(two.height - (h * 2 + 1)) < 0.01, "2 行は行の高さ 2 つ + 間隔 1pt")
+            // 対面は 1 組目の下へ、自分は 1 組目の上へ増える
+            #expect((abs(two.minY - one.minY) < 0.01) == (seat == 2))
+            #expect((abs(two.maxY - one.maxY) < 0.01) == (seat == 0))
+        }
     }
 
     @Test("多角形の内外判定")

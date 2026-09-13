@@ -34,6 +34,9 @@ public final class ConcentrationModel {
     public private(set) var lastMatchedIndices: [Int] = []
     public private(set) var mismatchedIndices: [Int] = []
     public private(set) var mattaUsed: Bool = false
+    /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に局が入れ替わったら待ったを適用しない）。
+    public private(set) var gameSerial = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     ///
     /// 神経衰弱は CPU と交互にめくる**対戦もの**で、手数はプレイヤーの技量だけでは決まらない
@@ -128,14 +131,24 @@ public final class ConcentrationModel {
     }
 
     /// ミスマッチを取り消してプレイヤーのターンを継続する（ターン交代なし）
-    public func useMatta() {
-        guard canMatta else { return }
+    @discardableResult
+    public func useMatta() -> Bool {
+        guard canMatta else { return false }
         cancelAutoClear()
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
         services?.feedback.impact(.rigid)
         persist()
+        return true
+    }
+
+    /// 広告を出す前に控えた `gameSerial` の局にだけ待ったを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「待ったを使えなかった」と知らせる。
+    @discardableResult
+    public func useMatta(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return useMatta()
     }
 
     /// 「待った」の確認ダイアログを出す前に自動ターン交代を止める（#137）。
@@ -227,6 +240,7 @@ public final class ConcentrationModel {
 
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         cancelAutoClear()
+        gameSerial += 1
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
         ai = aiFactory(cpuLevel.memoryAccuracy)

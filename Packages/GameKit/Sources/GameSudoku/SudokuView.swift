@@ -88,7 +88,14 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。"
             )
         )
-        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: "コンティニューできませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "コンティニューできませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったか、この局を諦めたため、コンティニューできませんでした。"
+            )
+        )
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
@@ -645,13 +652,14 @@ public struct SudokuView: View {
                 Text("広告を見るとミスが0に戻り、続きから遊べます")
                     .themeCaption(12).foregroundStyle(.white.opacity(0.85))
                 Button {
-                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
+                    // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                    let game = model.gameSerial
                     continueRescue.request(
                         services, gameID: model.gameID, purpose: .continue,
-                        guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                        guardedBy: .checkedByGrant
                     ) {
-                        model.continueAfterAd()
-                        return true
+                        model.continueAfterAd(forGame: game)
                     }
                 } label: {
                     Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
