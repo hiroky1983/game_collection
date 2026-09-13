@@ -26,6 +26,23 @@ struct MahjongDiscardFlightTests {
         #expect(Self.flight.position(progress: 2) == Self.flight.position(progress: 1))
     }
 
+    @Test("自分の出発点は切った牌の位置（既定はツモ牌＝一覧の右端）で、一覧の範囲に収まる")
+    func ownOriginIsTilePosition() {
+        let l = MahjongTableLayout(size: CGSize(width: 393, height: 393))
+        let o = l.handOverview
+        let left = o.center.x - o.width / 2, right = o.center.x + o.width / 2
+        let first = l.handOverviewTileCenter(index: 0, count: 14)
+        let last = l.handOverviewTileCenter(index: 13, count: 14)
+        #expect(abs(first.x - (left + o.tileWidth / 2)) < 0.01)
+        #expect(abs(last.x - (right - o.tileWidth / 2)) < 0.01)
+        #expect(first.y == o.center.y && last.y == o.center.y)
+        #expect(l.discardOrigin(seat: 0) == last, "既定はツモ牌の位置")
+        // 枚数が少ないときは中央寄せ（11 枚の真ん中＝一覧の中央）
+        #expect(abs(l.handOverviewTileCenter(index: 5, count: 11).x - o.center.x) < 0.01)
+        // 範囲外の index は端に丸める
+        #expect(l.handOverviewTileCenter(index: 99, count: 14) == last)
+    }
+
     @Test("出発点は 4 家ともフェルトの内側")
     func originsInsideFelt() {
         let l = MahjongTableLayout(size: CGSize(width: 393, height: 393))

@@ -48,8 +48,8 @@ struct MahjongDiscardFlightView: View {
         let w = tileWidth * flight.scale
         MahjongTileView(tile: flight.tile, width: w, height: w * MahjongTableLayout.tileAspect)
             .rotationEffect(.degrees(flight.rotation))
-            // 頂点で少し大きく見せて「浮いている」手掛かりにする
-            .scaleEffect(1 + 0.12 * sin(progress * .pi))
+            // 大きさは変えない（一覧の牌と河の牌が同じ大きさなので、そのまま滑る。会長指摘 2026-09-13）。
+            // 浮いている手掛かりは影だけ。
             .shadow(color: .black.opacity(0.35 * Double(sin(progress * .pi))), radius: 6, y: 6)
             .position(flight.position(progress: progress))
             .allowsHitTesting(false)

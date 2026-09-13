@@ -45,11 +45,12 @@ struct HubPressFeedbackWiringTests {
     @Test("ハブからゲームへ入るカードは、すべて .pop で押下中に沈む")
     func everyGameLinkUsesPopStyle() throws {
         let source = try Self.appSources()
-        // 導線の数（グリッド・つづき/最近の行）と、`.pop` まで結線された数が一致すること。
+        // 導線の数（グリッド・つづき/最近の行・はじめの1本 #721）と、`.pop` まで結線された数が一致すること。
         // `.pop` の有無だけを contains で見ると、別のボタンに付いた `.pop` で緑になる。
+        // 導線を足したら、そのカードの型名を下の選択肢に加える（加えないと .pop を付けても赤になる）。
         let links = try Self.count(#"NavigationLink\(value: HubRoute\("#, in: source)
         let popped = try Self.count(
-            #"NavigationLink\(value: HubRoute\([^{}]*\)\) \{\s*(GameCard|HubRecentCard)\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)"#,
+            #"NavigationLink\(value: HubRoute\([^{}]*\)\) \{\s*(GameCard|HubRecentCard|HubFirstPickCard)\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)"#,
             in: source
         )
         #expect(links >= 2, "ハブの導線が見つからない（走査のパターンが壊れている可能性）")

@@ -95,39 +95,45 @@ struct MahjongTableView: View {
 
     /// 副露は各家の右手前の角に寄せる。`MahjongMeldRow` は横一列なので、角を基準に
     /// 「角から伸びる」向きへ揃えてから各家の角度に回す。
+    @ViewBuilder
     private func meldRow(_ seat: Int) -> some View {
+        if seat == 1 || seat == 3 {
+            sideMelds(seat)
+        } else {
+            stackedMelds(seat)
+        }
+    }
+
+    /// 上家・下家の副露。壁の列に沿って 1 枚ずつ置く（列は台形の縁に沿って少し斜めになるので、
+    /// `MahjongMeldRow` の直線の並びでは縁からはみ出す）。置き場は `MahjongTableLayout.sideMeldSlot`。
+    private func sideMelds(_ seat: Int) -> some View {
+        let tiles: [(group: Int, tile: MahjongTile)] = scene.melds[seat].enumerated()
+            .flatMap { gi, meld in meld.tiles.map { (group: gi, tile: $0) } }
+        return ForEach(Array(tiles.enumerated()), id: \.offset) { ordinal, item in
+            let slot = layout.sideMeldSlot(seat: seat, ordinal: ordinal, gaps: item.group)
+            let w = layout.riverTileWidth * slot.scale
+            MahjongTileView(tile: item.tile, width: w, height: w * MahjongTableLayout.tileAspect)
+                .rotationEffect(.degrees(slot.rotation))
+                .position(slot.center)
+        }
+    }
+
+    /// 対面・自分の副露。1 組ずつ行を分けて積む（4 枚＝カンで 1 行）。
+    private func stackedMelds(_ seat: Int) -> some View {
         let slot = layout.meldSlot(seat: seat)
         let w = layout.meldTileWidth(seat: seat) * slot.scale
         let frameWidth = layout.size.width * 0.42
-        // 対面と自分は 1 組ずつ行を分けて積む（4 枚＝カンで 1 行）。上家・下家は 1 列。
-        let stacks = seat == 0 || seat == 2
-        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false,
-                                 maxTilesPerRow: stacks ? 4 : nil)
+        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false, maxTilesPerRow: 4)
         let rowHeight = w * 1.34 + 1
-        let stackHeight: CGFloat? = stacks ? rowHeight * 4 : nil
-        // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える（回転は時計回りが正）。
-        // 対面・自分は `slot.center` を 1 組目の行の縦の中央に置く（`stackHeight` は打ち消し合う）。
-        // `MahjongTableLayout.meldRegion` はこの置き方を前提に矩形を出す（verifier 指摘）。
-        let alignment: Alignment
-        let center: CGPoint
-        switch seat {
-        case 2: // 左上の角。180 度回転で bottomTrailing が左上へ来て、行は下へ積まれる
-            alignment = .bottomTrailing
-            center = CGPoint(x: slot.center.x + frameWidth / 2,
-                             y: slot.center.y + (stackHeight ?? 0) / 2 - rowHeight / 2)
-        case 1: // 右上の角から下へ 1 列（-90 度で trailing が上端）
-            alignment = .trailing
-            center = CGPoint(x: slot.center.x, y: slot.center.y + frameWidth / 2)
-        case 3: // 左下の角から上へ 1 列（90 度で trailing が下端）
-            alignment = .trailing
-            center = CGPoint(x: slot.center.x, y: slot.center.y - frameWidth / 2)
-        default: // 右下（手牌一覧の上の段）。行は上へ積む
-            alignment = .bottomTrailing
-            center = CGPoint(x: slot.center.x - frameWidth / 2,
-                             y: slot.center.y - (stackHeight ?? 0) / 2 + rowHeight / 2)
-        }
+        // 4 行ぶん（4 組）の枠を取り、bottomTrailing に寄せて回す。対面は 180 度回転で bottomTrailing が
+        // 左上へ来て行は下へ、自分は右下から上へ積まれる。`slot.center` が 1 組目の行の縦の中央
+        // （`stackHeight` は打ち消し合う）。`MahjongTableLayout.meldRegion` はこの置き方を前提に矩形を出す。
+        let stackHeight = rowHeight * 4
+        let center = seat == 2
+            ? CGPoint(x: slot.center.x + frameWidth / 2, y: slot.center.y + stackHeight / 2 - rowHeight / 2)
+            : CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y - stackHeight / 2 + rowHeight / 2)
         return row
-            .frame(width: frameWidth, height: stackHeight, alignment: alignment)
+            .frame(width: frameWidth, height: stackHeight, alignment: .bottomTrailing)
             .rotationEffect(.degrees(slot.rotation))
             .position(center)
     }

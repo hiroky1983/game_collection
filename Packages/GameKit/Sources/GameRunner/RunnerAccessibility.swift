@@ -13,6 +13,12 @@ public enum RunnerAccessibility {
         "ステージ \(number) / \(total)"
     }
 
+    /// ステージ表示の読み上げ。番号に世界の名前（#703）を添える——画面では背景の色で
+    /// 分かる「どこを走っているか」を、見えない人にも番号だけでなく言葉で伝える。
+    public static func stageLabelWithWorld(number: Int, total: Int) -> String {
+        "\(stageLabel(number: number, total: total))、\(RunnerWorld.world(forStage: number).displayName)"
+    }
+
     /// 進み具合。パーセントは 5 刻みに丸める（1% ごとに読み上げが変わると耳で追えない）。
     public static func progressLabel(_ progress: Double) -> String {
         let clamped = min(1, max(0, progress))
