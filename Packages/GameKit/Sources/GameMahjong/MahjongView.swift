@@ -26,6 +26,8 @@ public struct MahjongView: View {
     /// 飛行中の打牌（#738）。河の本物の牌は着地まで隠す。
     @State private var discardFlight: MahjongDiscardFlight?
     @State private var discardFlightProgress: CGFloat = 0
+    /// 飛行の通し番号。後片付けは「自分が始めた飛行」だけを消す（内容が同じ別の飛行を誤って消さない）。
+    @State private var discardFlightSerial = 0
     /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
     /// 進行中の対局が見ているのは `model.gameLength`（開始時に焼き込んだ値）のほう。
     @State private var selectedLength: MahjongGameLength
@@ -303,6 +305,12 @@ public struct MahjongView: View {
     /// 河が 1 枚増えた家を見つけて、その 1 枚を出発点から着地点へ飛ばす（#738）。
     /// 同時に複数の家が増えることは無い（打牌は 1 手番に 1 枚）。局の開始で全員 0 に戻るときは何もしない。
     private func startDiscardFlight(old: [Int], new: [Int], layout: MahjongTableLayout) {
+        // 河が減った＝局が変わった（または中断から作り直した）。飛行中の 1 枚は捨てて、
+        // 新しい局の牌を隠したまま残さない（タイミングに頼らず構造で塞ぐ・verifier 申し送り）。
+        if zip(old, new).contains(where: { $1 < $0 }) {
+            discardFlight = nil
+            return
+        }
         guard old.count == new.count,
               let seat = new.indices.first(where: { new[$0] == old[$0] + 1 }),
               let tile = model.discards[seat].last else { return }
@@ -317,11 +325,12 @@ public struct MahjongView: View {
         withGameAnimation(.easeOut(duration: MahjongDiscardFlight.duration)) {
             discardFlightProgress = 1
         }
-        let flightID = discardFlight
+        discardFlightSerial += 1
+        let serial = discardFlightSerial
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(Int(MahjongDiscardFlight.duration * 1000) + 20))
-            // 次の打牌が先に始まっていたら、そちらが片付ける
-            if discardFlight == flightID { discardFlight = nil }
+            // 次の打牌が先に始まっていたら（通し番号が進んでいたら）、そちらが片付ける
+            if discardFlightSerial == serial { discardFlight = nil }
         }
     }
 
