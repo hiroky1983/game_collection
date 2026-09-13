@@ -51,7 +51,7 @@ struct SideBlock: View {
                 else { p.move(to: a); p.addLine(to: d); p.addLine(to: d0); p.addLine(to: a0) }
                 p.closeSubpath()
             }
-            .fill(LinearGradient(colors: [Pal.backLight, Pal.backDark], startPoint: .top, endPoint: .bottom))
+            .fill(LinearGradient(gradient: backBulge, startPoint: .top, endPoint: .bottom))
             // 手前の側面（次の牌に隠れる。最後の1枚だけ見える）
             Path { p in
                 p.move(to: d); p.addLine(to: c); p.addLine(to: c0); p.addLine(to: d0); p.closeSubpath()
@@ -72,6 +72,14 @@ struct SideBlock: View {
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1.5)
     }
 }
+
+/// 牌の背（裏地）の膨らみ。上寄りに照りを置き、縁へ向かって落とす。
+let backBulge = Gradient(stops: [
+    .init(color: Color(hex: 0x1E5C43), location: 0.0),
+    .init(color: Color(hex: 0x4FA57F), location: 0.22),
+    .init(color: Color(hex: 0x2E8060), location: 0.55),
+    .init(color: Color(hex: 0x17452F), location: 1.0),
+])
 
 enum Pal {
     static let felt = Color(hex: 0x2E7A50)
@@ -95,7 +103,7 @@ struct StandingBack: View {
                 .fill(LinearGradient(colors: [Pal.ivory, Pal.ivorySide], startPoint: .top, endPoint: .bottom))
                 .frame(width: w, height: h * 0.34)
             RoundedRectangle(cornerRadius: w * 0.1)
-                .fill(LinearGradient(colors: [Pal.backLight, Pal.backDark], startPoint: .top, endPoint: .bottom))
+                .fill(LinearGradient(gradient: backBulge, startPoint: .top, endPoint: .bottom))
                 .frame(width: w, height: h * 0.66)
                 .offset(y: -h * 0.06)
         }
