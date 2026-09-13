@@ -1,0 +1,188 @@
+import Testing
+import Foundation
+@testable import GameSpider
+
+@Suite("配札")
+struct SpiderDealerTests {
+
+    @Test("配札はスパイダーの初期配置になる", arguments: SpiderSuitCount.allCases)
+    func dealsSpiderLayout(suits: SpiderSuitCount) {
+        let board = SpiderDealer.deal(seed: 12345, suits: suits)
+        #expect(board.piles.count == 10)
+        // 10 列へ 1 枚ずつ順に 54 枚配るので、左 4 列が 6 枚・右 6 列が 5 枚。一番上だけ表向き。
+        #expect(board.piles.prefix(4).allSatisfy { $0.cards.count == 6 && $0.faceDownCount == 5 })
+        #expect(board.piles.suffix(6).allSatisfy { $0.cards.count == 5 && $0.faceDownCount == 4 })
+        #expect(board.stock.count == 5)
+        #expect(board.stock.allSatisfy { $0.count == 10 })
+        #expect(board.completed.isEmpty)
+    }
+
+    @Test("104 枚がちょうど 1 枚ずつ配られ、スートの顔ぶれが難度に合う", arguments: SpiderSuitCount.allCases)
+    func usesEveryCardOnce(suits: SpiderSuitCount) {
+        let board = SpiderDealer.deal(seed: 999, suits: suits)
+        let all = board.piles.flatMap(\.cards) + board.stock.flatMap { $0 }
+        #expect(all.count == 104)
+        #expect(Set(all.map(\.id)).count == 104)
+        #expect(Set(all.map(\.suit)) == Set(suits.suits))
+        for suit in suits.suits {
+            for rank in 1...13 {
+                #expect(all.filter { $0.suit == suit && $0.rank == rank }.count == suits.copiesPerSuit)
+            }
+        }
+    }
+
+    @Test("同じ種はいつでも同じ配札になり、スート数が違えば別の配札になる")
+    func isDeterministic() {
+        #expect(SpiderDealer.deal(seed: 7, suits: .two) == SpiderDealer.deal(seed: 7, suits: .two))
+        #expect(SpiderDealer.deal(seed: 7, suits: .two) != SpiderDealer.deal(seed: 8, suits: .two))
+        #expect(SpiderDealer.deal(seed: 7, suits: .two) != SpiderDealer.deal(seed: 7, suits: .four))
+    }
+
+    @Test("検証済みの種は十分な数があり、重複していない", arguments: SpiderSuitCount.allCases)
+    func verifiedSeedsAreUsable(suits: SpiderSuitCount) {
+        let seeds = SpiderDealer.verifiedSeeds(for: suits)
+        #expect(seeds.count >= (suits == .four ? 50 : 200))
+        #expect(Set(seeds).count == seeds.count)
+    }
+
+    /// **`SpiderVerifiedSeeds.swift` を作り直す手順**
+    ///
+    /// 種の並びは「1 から順に試して、ソルバーが上限内に勝ち筋を見つけた種を採用したもの」で、
+    /// `SpiderSolver.defaultMaxStates(for:)`・段の配分・評価関数を変えると結果も変わる。
+    /// ソルバーに手を入れたら、**必ず作り直す**。
+    ///
+    /// デバッグビルドでは 1 配札あたり数秒〜数十秒かかり、4 スートは -O でも十数秒かかるので、
+    /// `swift test` ではなく **`swiftc -O` で純ロジックのファイルだけを 1 バイナリにして回す**
+    /// （`GameSpider` の盤・配札・ソルバーは Core すら import しないのでそのまま並べられる）:
+    ///
+    /// ```
+    /// S=Packages/GameKit/Sources/GameSpider
+    /// swiftc -O -o /tmp/spider-gen $S/SpiderCard.swift $S/SpiderRules.swift $S/SpiderBoard.swift \
+    ///   $S/SpiderDealer.swift $S/SpiderSolver.swift $S/SpiderVerifiedSeeds.swift main.swift
+    /// ```
+    ///
+    /// `main.swift` は `SpiderDealer.deal(seed:suits:)` を 1 から順に `SpiderSolver.solve` へ渡し、
+    /// `isSolvable` の種と `statesExplored` を出力するだけのもの（内容はこのテストと同じ）。
+    /// 出力でファイルの配列を丸ごと置き換え、実測（採用率・平均局面数・所要時間）を冒頭に書く。
+    @Test("検証済みの種を作り直す",
+          .enabled(if: ProcessInfo.processInfo.environment["SPIDER_REGENERATE_SEEDS"] != nil))
+    func regenerateVerifiedSeeds() {
+        let target = Int(ProcessInfo.processInfo.environment["SPIDER_REGENERATE_SEEDS"] ?? "20") ?? 20
+        for suits in SpiderSuitCount.allCases {
+            var seeds: [UInt64] = []
+            var seed: UInt64 = 1
+            while seeds.count < target {
+                let result = SpiderSolver.solve(
+                    SpiderDealer.deal(seed: seed, suits: suits),
+                    maxStates: SpiderSolver.defaultMaxStates(for: suits))
+                if result.isSolvable { seeds.append(seed) }
+                seed += 1
+            }
+            print("let spiderVerifiedSeeds\(suits): [UInt64] = \(seeds)")
+        }
+    }
+
+    /// 配列の中身が本当に「クリア可能」であることを、**勝ち筋を実際に指し切って**確かめる。
+    /// ソルバーの結論をそのまま信じず、公開 API（`apply`）を通してクリアに到達することまで見る。
+    ///
+    /// 1 スートはどの種も軽い。2 スートは `SpiderVerifiedSeeds.swift` の実測で局面数の少ない種を選ぶ
+    /// （デバッグビルドは -O の 10 倍ほど遅い。CI の 180 秒制限・#676 を踏まないため）。
+    /// 4 スートはソルバーが -O でも十数秒かかるため**ここでは回さず**、`SpiderSolutionReplayTests` が
+    /// 保存した勝ち筋の再生で確かめる。
+    @Test("検証済みの種は勝ち筋を指し切ればクリアできる", arguments: [
+        (SpiderSuitCount.one, 0), (.one, 199), (.two, 0),
+    ])
+    func verifiedSeedsAreActuallyWinnable(suits: SpiderSuitCount, index: Int) {
+        let seed = SpiderDealer.verifiedSeeds(for: suits)[index]
+        var board = SpiderDealer.deal(seed: seed, suits: suits)
+        let result = SpiderSolver.solve(board, maxStates: SpiderSolver.defaultMaxStates(for: suits))
+        guard let solution = result.solution else {
+            Issue.record("種 \(seed)（\(suits)）の勝ち筋が見つからなかった（\(result.statesExplored) 局面）")
+            return
+        }
+        for move in solution {
+            let applied1 = board.apply(move)
+            #expect(applied1, "勝ち筋の手 \(move) が適用できない")
+        }
+        #expect(board.isWon)
+    }
+
+    @Test("検証済みの種を全件確かめる",
+          .enabled(if: ProcessInfo.processInfo.environment["SPIDER_VERIFY_ALL"] != nil))
+    func allVerifiedSeedsAreWinnable() {
+        for suits in SpiderSuitCount.allCases {
+            for seed in SpiderDealer.verifiedSeeds(for: suits) {
+                let board = SpiderDealer.deal(seed: seed, suits: suits)
+                #expect(SpiderSolver.solve(board, maxStates: SpiderSolver.defaultMaxStates(for: suits))
+                    .isSolvable, "種 \(seed)（\(suits)）")
+            }
+        }
+    }
+
+    @Test("出題は検証済みの種からしか選ばない", arguments: SpiderSuitCount.allCases)
+    func randomSeedComesFromTheVerifiedList(suits: SpiderSuitCount) {
+        var rng = SpiderSeededGenerator(seed: 42)
+        let verified = Set(SpiderDealer.verifiedSeeds(for: suits))
+        for _ in 0..<50 {
+            #expect(verified.contains(SpiderDealer.randomVerifiedSeed(for: suits, using: &rng)))
+        }
+    }
+}
+
+@Suite("ソルバー")
+struct SpiderSolverTests {
+
+    private func card(_ suit: SpiderSuit, _ rank: Int, id: Int) -> SpiderCard {
+        SpiderCard(id: id, suit: suit, rank: rank)
+    }
+
+    @Test("あと 1 手でクリアの局面は解ける")
+    func solvesTrivialBoard() {
+        var piles: [SpiderPile] = Array(repeating: SpiderPile(cards: []), count: 10)
+        piles[0] = SpiderPile(cards: (2...13).reversed().enumerated().map { card(.spade, $1, id: $0) })
+        piles[1] = SpiderPile(cards: [card(.spade, 1, id: 50)])
+        let board = SpiderBoard(piles: piles, completed: Array(repeating: .spade, count: 7))
+        let result = SpiderSolver.solve(board, maxStates: 100)
+        #expect(result.isSolvable)
+        #expect(result.solution == [.move(from: 1, cardIndex: 0, to: 0)])
+    }
+
+    @Test("行き止まりの盤面は「クリア不能」と言い切れる")
+    func provesDeadEndUnsolvable() {
+        let piles = (0..<10).map { SpiderPile(cards: [card(.spade, 13, id: $0)]) }
+        let result = SpiderSolver.solve(SpiderBoard(piles: piles), maxStates: 1_000)
+        #expect(!result.isSolvable)
+        #expect(!result.hitLimit)
+    }
+
+    @Test("上限に達したら「不明」に倒れる（不能とは言わない）")
+    func hitLimitIsUnknownNotUnsolvable() {
+        let result = SpiderSolver.solve(SpiderDealer.deal(seed: 1, suits: .four), maxStates: 50)
+        #expect(!result.isSolvable)
+        #expect(result.hitLimit)
+    }
+
+    @Test("取り消されたら「不明」に倒れる")
+    func cancellationIsUnknown() {
+        let result = SpiderSolver.solve(SpiderDealer.deal(seed: 1, suits: .one), maxStates: 10_000) { true }
+        #expect(!result.isSolvable)
+        #expect(result.hitLimit)
+    }
+
+    @Test("勝ち筋の手はすべて合法手として適用でき、配りを 5 回含む")
+    func solutionIsApplicable() {
+        let seed = SpiderDealer.verifiedSeeds(for: .one)[0]
+        var board = SpiderDealer.deal(seed: seed, suits: .one)
+        guard let solution = SpiderSolver.solve(board, maxStates: SpiderSolver.defaultMaxStates(for: .one))
+            .solution else {
+            Issue.record("勝ち筋が見つからなかった")
+            return
+        }
+        #expect(solution.filter { $0 == .deal }.count == 5)
+        for move in solution {
+            let applied = board.apply(move)
+            #expect(applied)
+        }
+        #expect(board.isWon)
+    }
+}

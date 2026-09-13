@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
 
@@ -97,7 +98,7 @@ private func makeHubModules() -> [GameModule] {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(),
     ]
 }
 
@@ -299,6 +300,9 @@ struct GameCenterLeaderboardTests {
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
             ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
             ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
+            ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "1suit")),
+            ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "2suit")),
+            ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "4suit")),
             ("blockpuzzle", GameScore(metric: .points, points: 1)),
             ("runner", GameScore(metric: .points, points: 1)),
             // エンドレス（#675）は区分キー "endless"（`RunnerMode.endless.recordVariant`）で走行距離の表へ。
@@ -674,6 +678,26 @@ struct GameCenterPerGameTests {
         #expect(spy.scores.isEmpty, "半分だけ走った回は送らない")
     }
 
+    @Test("スパイダーソリティア: クリアでスート数ごとの表にタイムが送られる")
+    func spiderWin() {
+        let (log, defaults, name) = makeLog(suite: "spider")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let seed = SpiderDealer.verifiedSeeds(for: .one)[0]
+        let model = SpiderModel(services: makeServices(log: log, spy: spy), seed: seed)
+        guard let solution = SpiderSolver.solve(
+            SpiderDealer.deal(seed: seed, suits: .one),
+            maxStates: SpiderSolver.defaultMaxStates(for: .one)).solution else {
+            Issue.record("種 \(seed) の勝ち筋が見つからなかった")
+            return
+        }
+        playSpiderSolution(model, solution)
+
+        #expect(model.phase == .won)
+        #expect(leaderboardID(for: "spider", in: log) == GameCenterLeaderboard.spiderTimeOneSuit)
+    }
+
     @Test("ブラックジャック: 精算後のチップが送られる")
     func blackjack() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
@@ -808,6 +832,20 @@ struct GameCenterEntryPointTests {
             }
             #expect(usages.isEmpty,
                     "\(file.lastPathComponent) が deprecated な GKGameCenterViewController を使っている: \(usages)")
+        }
+    }
+}
+
+/// スパイダーの勝ち筋をタップ操作で指す（`GameSpiderTests` と同じ翻訳）。
+@MainActor
+private func playSpiderSolution(_ model: SpiderModel, _ solution: [SpiderMove]) {
+    for move in solution {
+        switch move {
+        case .move(let from, let cardIndex, let to):
+            model.tapPile(from, cardIndex: cardIndex)
+            model.tapPile(to)
+        case .deal:
+            model.tapStock()
         }
     }
 }

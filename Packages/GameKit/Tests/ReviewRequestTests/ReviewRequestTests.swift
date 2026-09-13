@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import MahjongTiles
 
@@ -498,6 +499,15 @@ struct GameOutcomeRoutingTests {
         model.startMatch(options: HanafudaOptions(rounds: 6))
         model.resign()
         #expect(model.phase == .matchResult)
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("スパイダーソリティア: 捨てた配札は勝利にならない")
+    func spiderAbandon() {
+        let (services, service) = makeServices(suite: "route-spider")
+        let model = SpiderModel(services: services, seed: SpiderDealer.verifiedSeeds(for: .one)[0])
+        model.tapStock()
+        model.newGame()
         #expect(service.log.totalWins == 0)
     }
 
