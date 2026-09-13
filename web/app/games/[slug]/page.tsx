@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { findGame, games } from "../../lib/games";
-import { APP_SIZE_MB, APP_STORE_URL, SITE_NAME } from "../../lib/site";
+import { APP_STORE_URL, SITE_NAME } from "../../lib/site";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -93,8 +93,8 @@ export default async function GamePage({ params }: Props) {
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 text-center mb-10">
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
           {game.comingSoon
-            ? `${game.name}は、ゲームコレクションアプリ「あそびば」の次のアップデートで追加予定です（現在のアプリにはまだ含まれていません）。アプリは無料・約${APP_SIZE_MB}、オフラインで遊べて会員登録も不要です。`
-            : `${game.name}は、ゲームコレクションアプリ「あそびば」に収録されています。無料・約${APP_SIZE_MB}、オフラインで遊べて会員登録も不要です。`}
+            ? `${game.name}は、ゲームコレクションアプリ「あそびば」の次のアップデートで追加予定です（現在のアプリにはまだ含まれていません）。アプリは無料で、オフラインで遊べて会員登録も不要です。`
+            : `${game.name}は、ゲームコレクションアプリ「あそびば」に収録されています。無料で、オフラインで遊べて会員登録も不要です。`}
         </p>
         <a
           href={APP_STORE_URL}
