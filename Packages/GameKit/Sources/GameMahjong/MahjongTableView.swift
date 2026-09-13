@@ -119,7 +119,7 @@ struct MahjongTableView: View {
         case 3: // 左下の角から上へ 1 列（90 度で trailing が下端）
             alignment = .trailing
             center = CGPoint(x: slot.center.x, y: slot.center.y - frameWidth / 2)
-        default: // 右下の角。行は上へ積む
+        default: // 右下（手牌一覧の上の段）。行は上へ積む
             alignment = .bottomTrailing
             center = CGPoint(x: slot.center.x - frameWidth / 2,
                              y: slot.center.y - (stackHeight ?? 0) / 2 + rowHeight / 2)
