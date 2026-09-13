@@ -50,30 +50,25 @@ struct StandingBack: View {
     }
 }
 
-/// 横から見た立て牌（左右の CPU 用）。牌は持ち主のほうを向いて立っているので、横から見ると
-/// **持ち主側の半分が象牙（表の断面）、中央側の半分が緑（背）**に見える。上面の帯を少しのぞかせる。
+/// 左右の家の立て牌。参考の雰囲気どおり、上面が明るく光る象牙のブロックとして描く
+/// （横から見ると背の緑はほぼ見えず、上面と手前の側面だけが見える）。奥から手前へ並ぶ。
 struct StandingSide: View {
     var w: CGFloat, h: CGFloat
-    /// 持ち主が左（画面左の家）なら true。象牙を左に置く。
     var ownerOnLeft: Bool
     var body: some View {
         VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1)
-                .fill(LinearGradient(colors: [Pal.ivory, Pal.ivorySide], startPoint: .top, endPoint: .bottom))
-                .frame(width: w, height: h * 0.22)
-            HStack(spacing: 0) {
-                if ownerOnLeft {
-                    Rectangle().fill(Pal.ivorySide).frame(width: w * 0.45)
-                    Rectangle().fill(LinearGradient(colors: [Pal.backLight, Pal.backDark], startPoint: .leading, endPoint: .trailing)).frame(width: w * 0.55)
-                } else {
-                    Rectangle().fill(LinearGradient(colors: [Pal.backDark, Pal.backLight], startPoint: .leading, endPoint: .trailing)).frame(width: w * 0.55)
-                    Rectangle().fill(Pal.ivorySide).frame(width: w * 0.45)
-                }
-            }
-            .frame(width: w, height: h * 0.78)
-            .clipShape(RoundedRectangle(cornerRadius: 1))
+            // 上面（光が当たる）
+            RoundedRectangle(cornerRadius: w * 0.12)
+                .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivory], startPoint: .top, endPoint: .bottom))
+                .frame(width: w, height: h * 0.42)
+            // 手前の側面（少し落とす）。持ち主側の縁をわずかに暗くして向きを出す
+            RoundedRectangle(cornerRadius: w * 0.08)
+                .fill(LinearGradient(colors: ownerOnLeft ? [Pal.ivorySide, Color(hex: 0xEFE6D2)] : [Color(hex: 0xEFE6D2), Pal.ivorySide],
+                                     startPoint: .leading, endPoint: .trailing))
+                .frame(width: w, height: h * 0.58)
+                .offset(y: -h * 0.04)
         }
-        .shadow(color: .black.opacity(0.3), radius: 1.5, y: 1)
+        .shadow(color: .black.opacity(0.35), radius: 2, x: ownerOnLeft ? 1 : -1, y: 2)
     }
 }
 
@@ -199,10 +194,10 @@ struct Table: View {
             }
             // 左（CPU3）・右（CPU1）の手牌: 横から
             ForEach(0..<13, id: \.self) { i in
-                let v = 0.26 + CGFloat(i) * 0.036
-                let l = proj(0.035, v), r = proj(0.965, v)
-                StandingSide(w: 10 * l.s, h: 22 * l.s, ownerOnLeft: true).position(x: l.x, y: l.y)
-                StandingSide(w: 10 * r.s, h: 22 * r.s, ownerOnLeft: false).position(x: r.x, y: r.y)
+                let v = 0.20 + CGFloat(i) * 0.046
+                let l = proj(0.04, v), r = proj(0.96, v)
+                StandingSide(w: 15 * l.s, h: 30 * l.s, ownerOnLeft: true).position(x: l.x, y: l.y)
+                StandingSide(w: 15 * r.s, h: 30 * r.s, ownerOnLeft: false).position(x: r.x, y: r.y)
             }
             // 河: 対面（奥）
             ForEach(Array(river1.enumerated()), id: \.offset) { i, f in
@@ -236,15 +231,6 @@ struct Table: View {
             let m3 = proj(0.86, 0.94)
             MeldOnTable(faces: [.dragon(1), .dragon(1), .dragon(1)], sideways: 2, w: 20 * m3.s)
                 .position(x: m3.x, y: m3.y)
-            // ドラ表示: 左奥に「ドラ」の札と表示牌
-            let d = proj(0.12, 0.12)
-            HStack(spacing: 4 * d.s) {
-                Text("ドラ").font(.system(size: 11 * d.s, weight: .black))
-                    .foregroundStyle(Color(hex: 0xFFD54A))
-                    .shadow(color: .black.opacity(0.6), radius: 1, y: 1)
-                RiverTile(face: .circles(4), w: 20 * d.s)
-            }
-            .position(x: d.x, y: d.y)
             // 中央パネル
             let c = proj(0.5, 0.49)
             CenterPanel(side: 86 * c.s).position(x: c.x, y: c.y)
@@ -277,6 +263,15 @@ struct Screen: View {
             .padding(.horizontal, 16).padding(.top, 44)
 
             Table()
+
+            // ドラ表示（HUD・左上）。卓の上ではなく画面の角に固定する（参考画像の位置）
+            HStack(spacing: 6) {
+                Text("ドラ").font(.system(size: 12, weight: .black)).foregroundStyle(Color(hex: 0x3A2E2A))
+                MahjongTileView(face: .circles(4), width: 22, height: 30)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(Capsule().fill(.white).shadow(color: .black.opacity(0.18), radius: 6, y: 3))
+            .position(x: 62, y: tableTop - 2)
 
             // 自分の手牌: 手前で大きく、少し立てて上面が見える
             VStack(spacing: 0) {
