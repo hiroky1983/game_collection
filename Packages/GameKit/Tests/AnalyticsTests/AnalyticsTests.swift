@@ -1265,9 +1265,12 @@ struct StartSheetLevelTests {
         #expect(model.phase == .matchResult, "前提: 試合が決着している")
         #expect(model.options.difficulty == .normal)
 
+        let sentBeforeRestart = spy.startLevels.count
         model.restartMatch(difficulty: .hard)
 
-        #expect(spy.startLevels.last.flatMap { $0 } == .hard)
+        // 末尾だけ見ると、変更前の強さでも送ってから変更後を送る実装を見逃す。
+        #expect(Array(spy.startLevels.dropFirst(sentBeforeRestart)) == [.hard],
+                "始め直しの game_start は変更後の強さで 1 回だけ")
         #expect(model.options.difficulty == .hard)
         #expect(model.options.rounds == 6, "局数は前の試合のものを引き継ぐ")
         #expect(model.phase != .matchResult)
