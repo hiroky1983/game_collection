@@ -124,6 +124,27 @@ struct HubView: View {
                         paletteIndexByGame: paletteIndexByGame
                     )
                 }
+                // 記録がゼロの初回だけ「はじめの1本」を1枚出す（#721）。出す条件と何を出すかは
+                // `FirstPick` が持つ。置き場所は「つづき・最近」と同じくスクロール領域の外
+                // （中に入れると iPad のカード高さの割り付けが溢れる・#485）。
+                if let pick = FirstPick.gameID(
+                    playedGameIDs: services.playLog?.playedGameIDs,
+                    visibleGameIDs: settings.visibleModules(from: registry).map(\.id),
+                    showsRecentRow: !recent.isEmpty
+                ), let module = registry.module(id: pick) {
+                    NavigationLink(value: HubRoute(
+                        gameID: pick, source: .firstPick, position: nil,
+                        resume: services.snapshots.exists(for: pick)
+                    )) {
+                        HubFirstPickCard(
+                            module: module,
+                            accentFill: Theme.Fill.palette[(paletteIndexByGame[pick] ?? 0) % Theme.Fill.palette.count]
+                        )
+                    }
+                    .buttonStyle(.pop)
+                    .padding(.horizontal, Theme.pad)
+                    .padding(.top, Theme.pad)
+                }
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
