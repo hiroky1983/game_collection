@@ -25,8 +25,15 @@ struct HubView: View {
     @State private var showSettings: Bool
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
-    /// カードの長押しメニューで非表示にした直後に出す案内（#662）。非表示にしたゲーム名が入り、数秒で消える。
-    @State private var hiddenNotice: String?
+    /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
+    @State private var hiddenNotice: HiddenNotice?
+
+    /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
+    /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
+    private struct HiddenNotice: Equatable {
+        let title: String
+        let id = UUID()
+    }
     /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -204,7 +211,7 @@ struct HubView: View {
                 .overlay(alignment: .bottom) {
                     Group {
                         if let hiddenNotice {
-                            HubHiddenNotice(title: hiddenNotice)
+                            HubHiddenNotice(title: hiddenNotice.title)
                                 .transition(.opacity)
                         }
                     }
@@ -373,7 +380,7 @@ struct HubView: View {
     private func hide(_ module: GameModule) {
         guard !settings.hiddenIDs.contains(module.id) else { return }
         settings.toggleHidden(module.id)
-        hiddenNotice = module.title
+        hiddenNotice = HiddenNotice(title: module.title)
         AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
     }
 
