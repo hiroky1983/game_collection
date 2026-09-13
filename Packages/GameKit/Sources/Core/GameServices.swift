@@ -78,6 +78,7 @@ public struct GameServices {
     @MainActor
     public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil) {
         analytics?.startPlay(gameID: gameID, level: level)
+        reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
     /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。
@@ -87,6 +88,7 @@ public struct GameServices {
     @MainActor
     public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil) {
         analytics?.restartPlay(gameID: gameID, level: level)
+        reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
     /// そのプレイで**1手指した**（盤面が動いた）ときに各 Model から呼ぶ（#500）。冪等。
@@ -96,6 +98,7 @@ public struct GameServices {
     @MainActor
     public func gameDidProgress(gameID: String) {
         analytics?.recordProgress(gameID: gameID)
+        reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
     /// この局は**画面を離れたら失われる**ことを各 Model から伝える（#500）。
@@ -105,6 +108,16 @@ public struct GameServices {
     @MainActor
     public func gameWillNotResume(gameID: String) {
         analytics?.markUnresumable(gameID: gameID)
+    }
+
+    /// 決着済みの局を**見返しとして復元した**ことを各 Model から伝える（#663）。
+    ///
+    /// 将棋・チェスは終局後の検討画面を中断データに残すため、中断データが在っても続きは無い。
+    /// 復元では記録を二重に数えないよう `gameDidFinish` を呼ばないので、決着済みであることを別に伝え、
+    /// 「途中のままです」のお知らせを予約させない。
+    @MainActor
+    public func gameDidRestoreFinished(gameID: String) {
+        reminders?.gameDidFinish(gameID: gameID)
     }
 
     /// ゲーム画面から離れたときにハブから呼ぶ（#158）。次に開いたときを新しいプレイとして数え直す。
@@ -172,6 +185,9 @@ public struct GameServices {
         let result = playLog?.recordResult(gameID: gameID, outcome: outcome, score: score)
         // 解析（#158）。スコアの生値は渡さず、勝敗と経過秒だけを送る。
         analytics?.finishPlay(gameID: gameID, outcome: outcome)
+        // 決着した局には「途中のままです」を予約しない（#663）。将棋・チェスは終局後も見返しを
+        // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
+        reminders?.gameDidFinish(gameID: gameID)
         let willRequestReview = review?.gameDidFinish(outcome: outcome) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
         // Game Center（#289）は**最後**に呼ぶ。実績の進捗は `PlayLog` の通算値から作るため、

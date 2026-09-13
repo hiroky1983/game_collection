@@ -2,7 +2,9 @@ import Foundation
 import Testing
 import Core
 import Game2048
+import GameChess
 import GameRunner
+import GameShogi
 
 // MARK: - テスト用の部品
 
@@ -404,5 +406,80 @@ struct ResumeReminderIntegrationTests {
 
         services.gameDidOpen(gameID: "shogi", source: .notification, position: nil, resume: true)
         #expect(spy.reminders.isEmpty)
+    }
+
+    @Test("決着した局は、次のプレイを始めるか1手指すまで予約しない")
+    func finishedGamesAreSkippedUntilNextPlay() async {
+        let spy = SpyScheduler()
+        let service = makeService(spy, Environment(now: date(13, 12)))
+
+        service.gameDidFinish(gameID: "shogi")
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await service.pendingWork?.value
+        #expect(spy.reminders.isEmpty, "決着した局に「途中のままです」を予約した")
+
+        service.gameDidBeginPlay(gameID: "shogi")
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await service.pendingWork?.value
+        #expect(spy.reminders["shogi"] != nil, "次のプレイを始めた局に予約していない")
+    }
+
+    @Test("GameServices の決着で印が付き、やり直し・1手指すで外れる")
+    func gameServicesTracksFinishedState() async throws {
+        let spy = SpyScheduler()
+        let store = MemorySnapshotStore()
+        let reminders = makeService(spy, Environment(now: date(13, 12)))
+        let services = GameServices(snapshots: store, ads: NoopAdService(), reminders: reminders)
+        try store.save("board", for: "2048")
+
+        services.gameDidFinish(gameID: "2048", outcome: .loss)
+        services.gameDidLeave(gameID: "2048")
+        await reminders.pendingWork?.value
+        #expect(spy.reminders.isEmpty, "決着したのに予約した")
+
+        services.gameDidRestart(gameID: "2048")
+        services.gameDidLeave(gameID: "2048")
+        await reminders.pendingWork?.value
+        #expect(spy.reminders["2048"] != nil, "やり直した局に予約していない")
+
+        services.gameDidOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        services.gameDidFinish(gameID: "2048", outcome: .loss)
+        services.gameDidProgress(gameID: "2048")
+        services.gameDidLeave(gameID: "2048")
+        await reminders.pendingWork?.value
+        #expect(spy.reminders["2048"] != nil, "決着後に1手指して続けた局に予約していない")
+    }
+
+    @Test("将棋・チェスは投了して戻っても、見返しを開き直して戻っても予約しない")
+    func reviewSnapshotsAreNotReminded() async {
+        for gameID in ["shogi", "chess"] {
+            let spy = SpyScheduler()
+            let store = MemorySnapshotStore()
+            let reminders = makeService(spy, Environment(now: date(13, 12)))
+            let services = GameServices(snapshots: store, ads: NoopAdService(), reminders: reminders)
+            if gameID == "shogi" {
+                ShogiGameModel(services: services).resign()
+            } else {
+                ChessGameModel(services: services).resign()
+            }
+            #expect(store.exists(for: gameID), "前提が崩れた: \(gameID) は終局後も見返しの中断データを残すはず")
+
+            services.gameDidLeave(gameID: gameID)
+            await reminders.pendingWork?.value
+            #expect(spy.reminders.isEmpty, "\(gameID): 投了した局に予約した")
+
+            // アプリを起動し直して見返しを開いた（決着済みの印を覚えていない新しいサービス）。
+            let reopenedSpy = SpyScheduler()
+            let reopenedReminders = makeService(reopenedSpy, Environment(now: date(13, 12)))
+            let reopened = GameServices(snapshots: store, ads: NoopAdService(), reminders: reopenedReminders)
+            if gameID == "shogi" {
+                _ = ShogiGameModel(services: reopened)
+            } else {
+                _ = ChessGameModel(services: reopened)
+            }
+            reopened.gameDidLeave(gameID: gameID)
+            await reopenedReminders.pendingWork?.value
+            #expect(reopenedSpy.reminders.isEmpty, "\(gameID): 見返しを開き直して戻ったら予約した")
+        }
     }
 }

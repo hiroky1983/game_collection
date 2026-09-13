@@ -94,6 +94,8 @@ public enum ResumeReminderPolicy {
 /// - 同じゲームは 1 件、全体で `ResumeReminderPolicy.maxPending` 件まで
 /// - そのゲームを開く・中断データが消える（終局・やり直し・設定の切り替え）と取り消す
 /// - 許諾が未決定なら `.provisional` を求めてから予約する。**許可ダイアログは出さない**
+/// - 決着済みの局は、次のプレイを始めるか1手指すまで予約しない（将棋・チェスは終局後の見返しを
+///   中断データに残すため、「中断データがある」だけでは途中の局と見分けられない）
 /// - 撮影モード・DEBUG ビルドでは予約しない（`isSuppressed`）
 @MainActor
 @Observable
@@ -114,6 +116,9 @@ public final class ResumeReminderService {
     @ObservationIgnored private var epochs: [String: Int] = [:]
     /// 全体の世代。すべて取り消したときに進める。
     @ObservationIgnored private var globalEpoch = 0
+    /// 決着済みのゲーム。中断データが残っていても（将棋・チェスは終局後の見返しを保存する）
+    /// 戻った先に続きが無いので予約しない。新しいプレイを始めた・1手指したで外す。
+    @ObservationIgnored private var finishedGameIDs: Set<String> = []
     /// 最後に始めた予約の処理。予約は 1 件ずつ直列に流す（並ぶと上限の判定が古い一覧で走る）。
     @ObservationIgnored public private(set) var pendingWork: Task<Void, Never>?
 
@@ -140,7 +145,9 @@ public final class ResumeReminderService {
 
     /// ゲーム画面からハブへ戻った（`GameServices.gameDidLeave` から呼ぶ）。
     public func gameDidLeave(gameID: String, hasSnapshot: Bool) {
-        guard !isSuppressed, hasSnapshot, isEnabled(), let title = reminderTitle(gameID) else { return }
+        guard !isSuppressed, hasSnapshot, !finishedGameIDs.contains(gameID), isEnabled(),
+              let title = reminderTitle(gameID)
+        else { return }
         let token = epochs[gameID, default: 0]
         let global = globalEpoch
         let leftAt = now()
@@ -149,6 +156,17 @@ public final class ResumeReminderService {
             await previous?.value
             await self?.schedule(gameID: gameID, title: title, leftAt: leftAt, token: token, global: global)
         }
+    }
+
+    /// 決着した（`GameServices.gameDidFinish`・見返しの復元 `gameDidRestoreFinished` から呼ぶ）。
+    public func gameDidFinish(gameID: String) {
+        finishedGameIDs.insert(gameID)
+    }
+
+    /// 新しいプレイを始めた・1手指した（`GameServices.gameDidStart` / `gameDidRestart` /
+    /// `gameDidProgress` から呼ぶ）。決着後に続けて遊ぶ局（2048 の「続ける」等）もここを通る。
+    public func gameDidBeginPlay(gameID: String) {
+        finishedGameIDs.remove(gameID)
     }
 
     /// そのゲームを開いた（`GameServices.gameDidOpen` から呼ぶ）。

@@ -83,8 +83,11 @@ let package = Package(
         // 打ち切りの規則は Core の純粋関数なので、シミュレータ無しでここで固定できる。
         .testTarget(name: "RecentGamesTests", dependencies: ["Core"]),
         // 中断したゲームのお知らせ（#663）。対象外の宣言を持つチャリンコおじさんと、既定のまま使う
-        // 2048 を並べて、宣言が規則に届いていることまで確かめる。
-        .testTarget(name: "ResumeReminderTests", dependencies: ["Core", "Game2048", "GameRunner"]),
+        // 2048 を並べて、宣言が規則に届いていることまで確かめる。終局後も見返しを保存する将棋・
+        // チェスは、決着済みの局に予約しないことを Model を通して確かめる。
+        .testTarget(name: "ResumeReminderTests", dependencies: [
+            "Core", "Game2048", "GameRunner", "GameShogi", "GameChess",
+        ]),
         // 盤ゲーム（将棋・チェス）の共通の枠（#530）。値も重なり順も「両方で同じ」であることが
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
         .testTarget(name: "BoardGameChromeTests", dependencies: ["Core"]),
