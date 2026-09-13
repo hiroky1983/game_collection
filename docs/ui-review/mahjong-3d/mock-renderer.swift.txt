@@ -62,7 +62,7 @@ struct SideBlock: View {
                 p.addQuadCurve(to: outerBot.0, control: CGPoint(x: midBot.x + bulge, y: midBot.y))
                 p.closeSubpath()
             }
-            .fill(RadialGradient(colors: [Color(hex: 0xC9F2DC), Color(hex: 0x7CCBA3), Color(hex: 0x3F8F69)],
+            .fill(RadialGradient(colors: [BackColor.top, BackColor.mid, BackColor.edge],
                                  center: UnitPoint(x: facesRight ? 0.62 : 0.38, y: 0.32),
                                  startRadius: 0, endRadius: max(h * sc * 0.75, 6)))
             // 手前の側面（次の牌に隠れる。最後の1枚だけ見える）
@@ -115,6 +115,55 @@ let backBulge = Gradient(stops: [
     .init(color: Color(hex: 0x5FAF88), location: 0.75),
     .init(color: Color(hex: 0x3F8F69), location: 1.0),
 ])
+
+/// 裏地（背）の色。左右の壁も対面の列も同じ3色を使う。
+enum BackColor {
+    static let top  = Color(hex: 0xC9F2DC)
+    static let mid  = Color(hex: 0x7CCBA3)
+    static let edge = Color(hex: 0x3F8F69)
+}
+
+/// 対面の家の立て牌。左右の壁と同じ射影で、上面（奥へ細く）と手前を向いた裏地の面を描く。
+struct FrontBlock: View {
+    var u0: CGFloat, v0: CGFloat
+    var du: CGFloat   // 幅（u）
+    var tv: CGFloat   // 厚み（v）
+    var h: CGFloat
+    var body: some View {
+        let sc = proj(u0, v0).s
+        let a = proj3(u0, v0, h), b = proj3(u0 + du, v0, h)
+        let c = proj3(u0 + du, v0 + tv, h), d = proj3(u0, v0 + tv, h)
+        let c0 = proj3(u0 + du, v0 + tv, 0), d0 = proj3(u0, v0 + tv, 0)
+        let bulge: CGFloat = 2.2 * sc
+        let midX = (d.x + c.x) / 2
+        ZStack {
+            // 手前を向いた裏地。上辺を少し持ち上げた弧にして膨らみを揃える
+            Path { p in
+                p.move(to: d)
+                p.addQuadCurve(to: c, control: CGPoint(x: midX, y: d.y - bulge))
+                p.addLine(to: c0)
+                p.addQuadCurve(to: d0, control: CGPoint(x: midX, y: d0.y + bulge * 0.4))
+                p.closeSubpath()
+            }
+            .fill(RadialGradient(colors: [BackColor.top, BackColor.mid, BackColor.edge],
+                                 center: UnitPoint(x: 0.5, y: 0.3), startRadius: 0, endRadius: max(h * sc * 0.8, 6)))
+            // 上面（奥へ細い帯）
+            Path { p in
+                p.move(to: a); p.addLine(to: b)
+                p.addLine(to: c)
+                p.addQuadCurve(to: d, control: CGPoint(x: midX, y: d.y - bulge))
+                p.closeSubpath()
+            }
+            .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivory], startPoint: .top, endPoint: .bottom))
+            Path { p in
+                p.move(to: d)
+                p.addQuadCurve(to: c, control: CGPoint(x: midX, y: d.y - bulge))
+            }
+            .stroke(Color.white.opacity(0.6), lineWidth: 0.8)
+        }
+        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1.5)
+    }
+}
 
 enum Pal {
     static let felt = Color(hex: 0x2E7A50)
@@ -285,8 +334,7 @@ struct Table: View {
 
             // 対面（CPU2）の手牌: 背を向けて立つ
             ForEach(0..<13, id: \.self) { i in
-                let pt = proj(0.5 + (CGFloat(i) - 6) * 0.0433, 0.06)
-                StandingBack(w: 17 * pt.s, h: 24 * pt.s).position(x: pt.x, y: pt.y)
+                FrontBlock(u0: 0.5 + (CGFloat(i) - 6.5) * 0.0433, v0: 0.04, du: 0.0433, tv: 0.03, h: 22)
             }
             // 左（CPU3）・右（CPU1）の手牌: 横から
             // 左右の家の手牌: 奥から手前へ 13 枚。厚み 0.032（≒12pt）、幅 0.05（v）、高さ 22pt
