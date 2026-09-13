@@ -316,9 +316,26 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 `Scripts/ai-duty.sh` を5分ごとに実行（`StartInterval` 300）。ログは `~/Library/Logs/asobiba-ai-duty.log`。
 読み込みは `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.ai-duty.plist`。
 
-同様に `Scripts/ai-management-duty.sh`（日次・`com.asobiba.ai-management.plist`）も
+同様に `Scripts/ai-management-duty.sh`（6 時間ごと・`com.asobiba.ai-management.plist`）も
 launchd 常駐。ログは `~/Library/Logs/asobiba-<name>.log`、読み込みは同じ
 `launchctl bootstrap gui/501 <plist>` パターン。
+
+### 監査当番（日次・2026-09-14 会長指示）
+
+`Scripts/ai-audit-duty.sh`（`com.asobiba.ai-audit.plist`・毎日 04:30 JST・Fable 5.1）。当番が 5 分ごとに
+なって PR が 1 日 10 本を超え、**CodeRabbit がレートリミットで付かない PR が大半**になった
+（2026-09-14 実測: release/v1.1.5 にマージした 11 本のうちレビューが付いたのは 1 本）ため、マージ後に
+まとめて人間のレビュアーの代わりをする。
+
+- **コードは変更しない**（経営企画室と同じ pre-commit フックで技術的に拒否）。成果物は Issue だけ
+- 対象は前回の監査以降（`~/.asobiba-audit/last-run`。無ければ 24 時間）に release/* と main へ
+  マージされた PR。無ければ claude を起動しない
+- 観点は `Scripts/ai-audit-prompt.md` の 4 つ: バグ（敵対的検証。触ったターゲットのテストを回して裏を取る）・
+  セキュリティ・品質と規程（1局=1RuleSet、解析の語彙、docs の更新漏れ、テストの有無）・PR 本文と実装の食い違い
+- 出力: `report:audit` の Issue を 1 本（結論 3 行 → 欠陥一覧 → PR ごとの所見 → 規程への申し送り）と、
+  **確認済みで重大度 高・中の欠陥だけ** `bug` + `ai:proposed` で個別に起票（疑いは起票しない）。直すのは
+  開発当番で、会長のハンコを経る。重大度 高は結論の先頭に【要対応】
+- 正常終了した回だけ対象窓を進める（異常終了した回の PR は次回もう一度対象になる）
 
 `Scripts/ai-weekly-meeting.sh`（週次）は2026-08-24までクラウドルーティンで動いていたが、
 アプリの運営に無関係な MCP 接続（Supabase・Canva・Sentry・Notion 等）がクラウド側の設定に
