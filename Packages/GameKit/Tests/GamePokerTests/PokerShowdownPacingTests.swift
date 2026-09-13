@@ -108,6 +108,21 @@ struct PokerShowdownPacingTests {
         #expect(spy.notices.isEmpty, "次の局の配りのあとに前の局の勝敗が鳴っている")
     }
 
+    @Test("待っているあいだにセッションをやり直したら、前の局の勝敗の触覚は鳴らさない")
+    func staleNoticeIsDroppedAfterRestartingTheSession() async {
+        let (model, spy) = makeModelBeforeShowdown(showdownRevealDelay: .milliseconds(1))
+        model.bet2Action(.check)
+        let task = model.outcomeNoticeTask
+        #expect(task != nil)
+
+        model.restartSession()
+        await task?.value
+
+        #expect(model.phase == .idle)
+        #expect(model.outcomeNoticeTask == nil)
+        #expect(spy.notices.isEmpty, "やり直した新しいセッションで前の局の勝敗が鳴っている")
+    }
+
     // MARK: - 定数と結線
 
     @Test("役名が出る時刻は 5 枚の反転が終わる時刻と一致する")

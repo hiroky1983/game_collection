@@ -907,6 +907,9 @@ public final class PokerModel {
     }
 
     public func restartSession() {
+        // 前の局の勝敗の触覚を待っていたら止める（#667。チップが尽きた直後にやり直すと新しいセッションで鳴る）。
+        outcomeNoticeTask?.cancel()
+        outcomeNoticeTask = nil
         recordResult  = nil
         sessionSerial += 1
         playerChips   = PokerModel.initialChips
