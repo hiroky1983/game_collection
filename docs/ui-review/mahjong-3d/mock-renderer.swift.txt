@@ -50,17 +50,28 @@ struct StandingBack: View {
     }
 }
 
-/// 横から見た立て牌（左右の CPU 用）。細い側面だけ見える。
+/// 横から見た立て牌（左右の CPU 用）。牌は持ち主のほうを向いて立っているので、横から見ると
+/// **持ち主側の半分が象牙（表の断面）、中央側の半分が緑（背）**に見える。上面の帯を少しのぞかせる。
 struct StandingSide: View {
     var w: CGFloat, h: CGFloat
+    /// 持ち主が左（画面左の家）なら true。象牙を左に置く。
+    var ownerOnLeft: Bool
     var body: some View {
-        ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(LinearGradient(colors: [Pal.backLight, Pal.backDark], startPoint: .leading, endPoint: .trailing))
-                .frame(width: w, height: h)
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(Pal.ivory)
-                .frame(width: w, height: h * 0.32)
+        VStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(LinearGradient(colors: [Pal.ivory, Pal.ivorySide], startPoint: .top, endPoint: .bottom))
+                .frame(width: w, height: h * 0.22)
+            HStack(spacing: 0) {
+                if ownerOnLeft {
+                    Rectangle().fill(Pal.ivorySide).frame(width: w * 0.45)
+                    Rectangle().fill(LinearGradient(colors: [Pal.backLight, Pal.backDark], startPoint: .leading, endPoint: .trailing)).frame(width: w * 0.55)
+                } else {
+                    Rectangle().fill(LinearGradient(colors: [Pal.backDark, Pal.backLight], startPoint: .leading, endPoint: .trailing)).frame(width: w * 0.55)
+                    Rectangle().fill(Pal.ivorySide).frame(width: w * 0.45)
+                }
+            }
+            .frame(width: w, height: h * 0.78)
+            .clipShape(RoundedRectangle(cornerRadius: 1))
         }
         .shadow(color: .black.opacity(0.3), radius: 1.5, y: 1)
     }
@@ -183,15 +194,15 @@ struct Table: View {
 
             // 対面（CPU2）の手牌: 背を向けて立つ
             ForEach(0..<13, id: \.self) { i in
-                let pt = proj(0.5 + (CGFloat(i) - 6) * 0.055, 0.06)
+                let pt = proj(0.5 + (CGFloat(i) - 6) * 0.0433, 0.06)
                 StandingBack(w: 17 * pt.s, h: 24 * pt.s).position(x: pt.x, y: pt.y)
             }
             // 左（CPU3）・右（CPU1）の手牌: 横から
             ForEach(0..<13, id: \.self) { i in
-                let v = 0.24 + CGFloat(i) * 0.040
+                let v = 0.26 + CGFloat(i) * 0.036
                 let l = proj(0.035, v), r = proj(0.965, v)
-                StandingSide(w: 7 * l.s, h: 24 * l.s).position(x: l.x, y: l.y)
-                StandingSide(w: 7 * r.s, h: 24 * r.s).position(x: r.x, y: r.y)
+                StandingSide(w: 10 * l.s, h: 22 * l.s, ownerOnLeft: true).position(x: l.x, y: l.y)
+                StandingSide(w: 10 * r.s, h: 22 * r.s, ownerOnLeft: false).position(x: r.x, y: r.y)
             }
             // 河: 対面（奥）
             ForEach(Array(river1.enumerated()), id: \.offset) { i, f in
@@ -218,9 +229,22 @@ struct Table: View {
             MeldOnTable(faces: [.bamboos(7), .bamboos(7), .bamboos(7)], sideways: 0, w: 15 * m1.s)
                 .rotationEffect(.degrees(180)).position(x: m1.x, y: m1.y)
             // 南家（右）のチー: 右手前の角。南家の手前＝画面右下。-90 度
-            let m2 = proj(0.93, 0.88)
+            let m2 = proj(0.93, 0.76)
             MeldOnTable(faces: [.characters(4), .characters(5), .characters(6)], sideways: 2, w: 17 * m2.s)
                 .rotationEffect(.degrees(-90)).position(x: m2.x, y: m2.y)
+            // 自分のポン（發）: 卓の右手前の角。下家から鳴いたので右端を横向きに
+            let m3 = proj(0.86, 0.94)
+            MeldOnTable(faces: [.dragon(1), .dragon(1), .dragon(1)], sideways: 2, w: 20 * m3.s)
+                .position(x: m3.x, y: m3.y)
+            // ドラ表示: 左奥に「ドラ」の札と表示牌
+            let d = proj(0.12, 0.12)
+            HStack(spacing: 4 * d.s) {
+                Text("ドラ").font(.system(size: 11 * d.s, weight: .black))
+                    .foregroundStyle(Color(hex: 0xFFD54A))
+                    .shadow(color: .black.opacity(0.6), radius: 1, y: 1)
+                RiverTile(face: .circles(4), w: 20 * d.s)
+            }
+            .position(x: d.x, y: d.y)
             // 中央パネル
             let c = proj(0.5, 0.49)
             CenterPanel(side: 86 * c.s).position(x: c.x, y: c.y)
@@ -263,21 +287,17 @@ struct Screen: View {
                             // 上面
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivorySide], startPoint: .top, endPoint: .bottom))
-                                .frame(width: 23, height: 6)
-                            MahjongTileView(face: f, width: 23, height: 34, isSelected: i == 9)
+                                .frame(width: 27, height: 7)
+                            MahjongTileView(face: f, width: 27, height: 40, isSelected: i == 9)
                         }
                         .offset(y: i == 9 ? -6 : 0)
                     }
                     // ツモ牌
                     VStack(spacing: 0) {
-                        RoundedRectangle(cornerRadius: 2).fill(Pal.ivorySide).frame(width: 23, height: 6)
-                        MahjongTileView(face: .wind(1), width: 23, height: 34)
+                        RoundedRectangle(cornerRadius: 2).fill(Pal.ivorySide).frame(width: 27, height: 7)
+                        MahjongTileView(face: .wind(1), width: 27, height: 40)
                     }
                     .padding(.leading, 8)
-                    Spacer(minLength: 6)
-                    // 自分のポン（發）。下家から鳴いたので右端の牌を横向きに。手牌より一回り小さく寝かせる
-                    MeldOnTable(faces: [.dragon(1), .dragon(1), .dragon(1)], sideways: 2, w: 20)
-                        .padding(.bottom, 2)
                 }
                 .padding(.horizontal, 8).padding(.vertical, 10)
                 .background(
