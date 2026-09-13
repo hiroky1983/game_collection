@@ -189,15 +189,20 @@ public final class ConcentrationModel {
     private func doCPUTurn() async {
         isThinking = true
 
+        // 画面を離れると `.task(id:)` がキャンセルされ、`try? await Task.sleep` はキャンセル後
+        // 毎回即座に返る（`CancellationError` を `try?` が握り潰す）。状態の guard だけでは通過して
+        // しまい、残りの手番が待ち時間ゼロで走り抜けて決着・中断データの消去まで進むため、
+        // sleep の直後とループ先頭でキャンセルを見る（#725。大富豪 #287 と同形）。
         while currentPlayer == .cpu && !isGameOver {
+            guard !Task.isCancelled else { isThinking = false; return }
             try? await Task.sleep(nanoseconds: 600_000_000)
-            guard currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
+            guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let first = ai.chooseCard(cards: cards, firstFlipped: nil)
             flipCard(index: first)
 
             try? await Task.sleep(nanoseconds: 700_000_000)
-            guard currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
+            guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let second = ai.chooseCard(cards: cards, firstFlipped: first)
             flipCard(index: second)
@@ -206,6 +211,8 @@ public final class ConcentrationModel {
             if !mismatchedIndices.isEmpty {
                 isThinking = false  // clearMismatch前にfalseにして新タスクが動けるようにする
                 try? await Task.sleep(nanoseconds: 900_000_000)
+                // 離れたら伏せずに抜ける。不一致の2枚は中断データに残っており、復元側が手番を進める（#415）
+                guard !Task.isCancelled else { return }
                 clearMismatch()     // ← turnID++でtaskが再起動するが isThinking=false なので競合しない
                 return
             }
