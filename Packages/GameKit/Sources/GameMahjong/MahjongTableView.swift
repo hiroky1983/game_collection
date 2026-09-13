@@ -28,6 +28,9 @@ struct MahjongTableScene {
     var riichiSticks: Int
     var remainingTiles: Int
     var doraIndicators: [MahjongTile]
+    /// 飛行中で河にまだ置かない 1 枚（家, 何枚目）。`MahjongDiscardFlight` が着地したら nil。
+    var hiddenDiscardSeat: Int?
+    var hiddenDiscardIndex: Int?
 
     static let windNames = ["東", "南", "西", "北"]
 }
@@ -50,7 +53,6 @@ struct MahjongTableView: View {
             MahjongCenterPanel(scene: scene)
                 .frame(width: layout.centerPanel.width, height: layout.centerPanel.height)
                 .position(x: layout.centerPanel.midX, y: layout.centerPanel.midY)
-            doraChip
         }
         .frame(width: layout.size.width, height: layout.size.height)
     }
@@ -68,11 +70,13 @@ struct MahjongTableView: View {
     private func seatLayer(_ seat: Int) -> some View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(scene.discards[seat].enumerated()), id: \.offset) { i, tile in
-                let slot = layout.riverSlot(seat: seat, index: i)
-                let w = layout.riverTileWidth * slot.scale
-                MahjongTileView(tile: tile, width: w, height: w * MahjongTableLayout.tileAspect)
-                    .rotationEffect(.degrees(slot.rotation))
-                    .position(slot.center)
+                if !(scene.hiddenDiscardSeat == seat && scene.hiddenDiscardIndex == i) {
+                    let slot = layout.riverSlot(seat: seat, index: i)
+                    let w = layout.riverTileWidth * slot.scale
+                    MahjongTileView(tile: tile, width: w, height: w * MahjongTableLayout.tileAspect)
+                        .rotationEffect(.degrees(slot.rotation))
+                        .position(slot.center)
+                }
             }
             if !scene.melds[seat].isEmpty {
                 meldRow(seat)
@@ -97,13 +101,22 @@ struct MahjongTableView: View {
         let frameWidth = layout.size.width * 0.42
         let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false)
         // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える。
-        let alignment: Alignment = seat == 0 ? .trailing : .leading
+        // 回転は時計回りが正。180 度で trailing は左端へ、-90 度で trailing は上端へ、90 度で leading は上端へ。
+        let alignment: Alignment
         let center: CGPoint
         switch seat {
-        case 2: center = CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y)   // 180 度: 左寄せ→右端
-        case 1: center = CGPoint(x: slot.center.x, y: slot.center.y - frameWidth / 2)   // -90 度: 左寄せ→下端
-        case 3: center = CGPoint(x: slot.center.x, y: slot.center.y + frameWidth / 2)   //  90 度: 左寄せ→上端
-        default: center = CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y)  // 0 度: 右寄せ→右端
+        case 2: // 左上の角から右へ伸びる
+            alignment = .trailing
+            center = CGPoint(x: slot.center.x + frameWidth / 2, y: slot.center.y)
+        case 1: // 右上の角から下へ伸びる
+            alignment = .trailing
+            center = CGPoint(x: slot.center.x, y: slot.center.y + frameWidth / 2)
+        case 3: // 左下の角から上へ伸びる
+            alignment = .trailing
+            center = CGPoint(x: slot.center.x, y: slot.center.y - frameWidth / 2)
+        default: // 右下の角から左へ伸びる
+            alignment = .trailing
+            center = CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y)
         }
         return row
             .frame(width: frameWidth, alignment: alignment)
@@ -117,24 +130,6 @@ struct MahjongTableView: View {
             .frame(width: 46 * scale, height: 4 * scale)
             .overlay(Circle().fill(Color(hex: 0xFF3B2F)).frame(width: 3 * scale, height: 3 * scale))
             .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
-    }
-
-    /// ドラ表示。卓の左上の角（木枠に重なる白いチップ）。参考画像と同じ位置。
-    private var doraChip: some View {
-        let s = layout.size.width / 393
-        return HStack(spacing: 5 * s) {
-            Text("ドラ")
-                .font(.system(size: 11 * s, weight: .black, design: .rounded))
-                .foregroundStyle(Theme.Fixed.ink)
-            ForEach(Array(scene.doraIndicators.enumerated()), id: \.offset) { _, tile in
-                MahjongTileView(tile: tile, width: 20 * s, height: 27 * s)
-            }
-        }
-        .padding(.horizontal, 9 * s).padding(.vertical, 5 * s)
-        .background(Capsule().fill(.white).shadow(color: .black.opacity(0.18), radius: 5, y: 2))
-        .position(x: 58 * s, y: 24 * s)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("ドラ表示牌、" + scene.doraIndicators.map { $0.displayName }.joined(separator: "、"))
     }
 
     private func seatAccessibilityLabel(_ seat: Int) -> String {
@@ -220,9 +215,11 @@ struct MahjongCenterPanel: View {
         Text(text)
             .font(.system(size: size, weight: .bold, design: design))
             .monospacedDigit()
-            .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFF6A5C), Color(hex: 0xFF3B2F)], startPoint: .top, endPoint: .bottom))
-            .shadow(color: Color(hex: 0xFF3B2F).opacity(0.9), radius: size * 0.18)
-            .shadow(color: Color(hex: 0xFF3B2F).opacity(0.5), radius: size * 0.5)
+            // くすんで見えた（会長指摘）ので、芯を白に近い赤にして発光を強める
+            .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFC9C2), Color(hex: 0xFF5A4C)], startPoint: .top, endPoint: .bottom))
+            .shadow(color: Color(hex: 0xFF3B2F), radius: size * 0.12)
+            .shadow(color: Color(hex: 0xFF3B2F).opacity(0.8), radius: size * 0.35)
+            .shadow(color: Color(hex: 0xFF3B2F).opacity(0.5), radius: size * 0.7)
             .lineLimit(1).minimumScaleFactor(0.6)
     }
 
@@ -247,5 +244,27 @@ struct MahjongCenterPanel: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(MahjongAccessibility.playerLabel(
             name: name, score: scene.scores[index], isRiichi: scene.riichi[index], isCurrent: isCurrent))
+    }
+}
+
+// MARK: - 牌台（#738）
+
+/// 手牌の帯の背景。以前は卓と同じフェルトだったが、卓が木枠付きの台形になったのに合わせ、
+/// 手前の牌台も木のトレイにする（モック v12）。木目画像は使わず、茶系の多段グラデーション＋
+/// 上端の照りと内側の落ち影で厚みを出す。
+struct MahjongWoodTray: View {
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Theme.corner, style: .continuous) }
+
+    var body: some View {
+        shape
+            .fill(LinearGradient(colors: [Color(hex: 0xA6703A), Color(hex: 0x8A5A2B), Color(hex: 0x4A2C12)],
+                                 startPoint: .top, endPoint: .bottom))
+            .overlay(
+                shape.inset(by: 2).strokeBorder(
+                    LinearGradient(colors: [Color.white.opacity(0.28), Color.white.opacity(0.02)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1.5)
+            )
+            .overlay(shape.strokeBorder(Color(hex: 0x3A2210).opacity(0.8), lineWidth: 2))
     }
 }

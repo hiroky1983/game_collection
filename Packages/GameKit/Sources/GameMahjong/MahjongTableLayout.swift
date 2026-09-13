@@ -144,10 +144,16 @@ public struct MahjongTableLayout: Sendable {
             g = project(u: 0.5 + (5 - col - 2.5) * stepU, v: 0.30 - row * stepRowV)
             rotation = 180
         case 3: // 上家（左）: 奥から手前へ、列は右（中央側）から左へ
-            g = project(u: 0.30 - row * stepRowU, v: 0.34 + col * stepSideV)
+            // 列の x は先頭の牌（col 0）に揃える。同じ u でも台形では奥ほど中央へ寄るため、
+            // 素直に写すと列が斜めに見える（会長指摘「横並びがズレてる」）。縮尺は各牌の v で取る
+            let head = project(u: 0.30 - row * stepRowU, v: 0.34)
+            let own = project(u: 0.30 - row * stepRowU, v: 0.34 + col * stepSideV)
+            g = Projected(x: head.x, y: own.y, scale: own.scale)
             rotation = 90
         case 1: // 下家（右）: 手前から奥へ、列は左（中央側）から右へ
-            g = project(u: 0.70 + row * stepRowU, v: 0.64 - col * stepSideV)
+            let head = project(u: 0.70 + row * stepRowU, v: 0.64)
+            let own = project(u: 0.70 + row * stepRowU, v: 0.64 - col * stepSideV)
+            g = Projected(x: head.x, y: own.y, scale: own.scale)
             rotation = -90
         default: // 自分: 左から右へ、手前へ積む
             g = project(u: 0.5 + (col - 2.5) * stepU, v: 0.69 + row * stepV)
@@ -199,14 +205,16 @@ public struct MahjongTableLayout: Sendable {
 
     // MARK: 副露・立直棒・中央・ドラ
 
-    /// 副露の置き場（各家の右手前の角）。`Slot.center` はその角に寄せる基準点。
+    /// 副露の置き場。実物どおり**各家から見て右側**の角: 対面＝画面左上、下家（右）＝右上、
+    /// 上家（左）＝左下、自分＝右下。`Slot.center` はその角に寄せる基準点。
+    /// 以前は上家を左上に置いていてドラのチップと重なった（会長指摘）。
     public func meldSlot(seat: Int) -> Slot {
         let g: Projected
         let rotation: Double
         switch seat {
-        case 2: g = project(u: 0.88, v: 0.09); rotation = 180
-        case 3: g = project(u: 0.06, v: 0.10); rotation = 90
-        case 1: g = project(u: 0.945, v: 0.905); rotation = -90
+        case 2: g = project(u: 0.12, v: 0.09); rotation = 180
+        case 1: g = project(u: 0.90, v: 0.10); rotation = -90
+        case 3: g = project(u: 0.10, v: 0.90); rotation = 90
         default: g = project(u: 0.78, v: 0.955); rotation = 0
         }
         return Slot(center: g.point, scale: g.scale, rotation: rotation)
@@ -221,8 +229,9 @@ public struct MahjongTableLayout: Sendable {
         let rotation: Double
         switch seat {
         case 2: g = project(u: 0.5, v: 0.36); rotation = 0
-        case 3: g = project(u: 0.32, v: 0.49); rotation = 90
-        case 1: g = project(u: 0.68, v: 0.49); rotation = 90
+        // 左右の河の列（u 0.30 / 0.70、牌の高さぶん ±0.037）とパネル（u 0.38〜0.62）の隙間に置く
+        case 3: g = project(u: 0.355, v: 0.49); rotation = 90
+        case 1: g = project(u: 0.645, v: 0.49); rotation = 90
         default: g = project(u: 0.5, v: 0.62); rotation = 0
         }
         return Slot(center: g.point, scale: g.scale, rotation: rotation)
@@ -233,6 +242,16 @@ public struct MahjongTableLayout: Sendable {
         let g = project(u: 0.5, v: 0.49)
         let side = size.width * Self.centerPanelRatio * g.scale
         return CGRect(x: g.x - side / 2, y: g.y - side / 2, width: side, height: side)
+    }
+
+    /// 打牌が飛び始める点（#738）。自分は手牌一覧の中央、CPU はその家の立て牌の列の中ほど。
+    public func discardOrigin(seat: Int) -> CGPoint {
+        switch seat {
+        case 2: return project(u: 0.5, v: 0.07).point
+        case 3: return project(u: 0.05, v: 0.50).point
+        case 1: return project(u: 0.95, v: 0.50).point
+        default: return handOverview.center
+        }
     }
 
     /// 卓上の手牌一覧（`handOverviewOnTable`）の中心と幅。フェルトの手前の縁、左寄り。
