@@ -44,6 +44,28 @@ public enum RunnerAccessibility {
         return "ベストタイム \(timeLabel(seconds: seconds))"
     }
 
+    /// 走行距離（エンドレス・#675）。単位はワールド単位だが、画面と同じ「m」で読む。
+    public static func distanceLabel(_ distance: Int) -> String {
+        "走行距離 \(max(0, distance))メートル"
+    }
+
+    /// エンドレスの自己ベスト。まだ 1 回も走っていなければ記録が無いことを言う。
+    public static func bestDistanceLabel(_ distance: Int?) -> String {
+        guard let distance else { return "自己ベストはまだありません" }
+        return "自己ベスト \(max(0, distance))メートル"
+    }
+
+    /// エンドレスの結果。ステージ番号の代わりに走行距離を言う。
+    public static func endlessResultLabel(phase: RunnerPhase, distance: Int) -> String {
+        switch phase {
+        case .falling, .failed: return "\(max(0, distance))メートルでミスしました"
+        case .cleared, .allCleared: return "コースを走りきりました。\(distanceLabel(distance))"
+        case .paused:     return "一時停止中"
+        case .ready:      return "エンドレス。タップでスタート"
+        case .running:    return "走行中"
+        }
+    }
+
     /// ミス・クリアの結果。
     public static func resultLabel(phase: RunnerPhase, stageNumber: Int) -> String {
         switch phase {

@@ -203,6 +203,60 @@ public enum RunnerEvent: Equatable, Sendable {
     }
 }
 
+/// 遊び方のモード（#675）。**開始時に `RunnerModel` へ焼き込み、走行中に読み替えない**
+/// （`docs/ai-devops.md`「1局=1RuleSet」。麻雀の `MahjongGameLength` と同じ形）。
+///
+/// ステージ制は v1.1.4 までと 1 ビットも変わらない現行ルール。エンドレスはランダム生成の
+/// コース（`RunnerEndlessCourse`）を**ミスするまで走って距離を競う**1 回完結のモードで、
+/// チェックポイントも中断保存も持たない（会長決裁 2026-09-12）。
+public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
+    /// 18 ステージを順にクリアしていく現行ルール。
+    case stages
+    /// 走行距離を競うエンドレス（#675）。
+    case endless
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .stages:  return "ステージ"
+        case .endless: return "エンドレス"
+        }
+    }
+
+    /// 開始シートに出す 1 行の説明。
+    public var summary: String {
+        switch self {
+        case .stages:  return "ステージ 1 から 18 面を順にクリアしてベストタイムをねらう、いつもの遊び方"
+        case .endless: return "毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません"
+        }
+    }
+
+    /// 解析イベント `game_start` / `game_end` の `mode`（#783 で入った枠）。
+    ///
+    /// ステージ制は `level: .stage(n)` をそのまま持ち、`mode` で「どの遊び方か」だけを分ける。
+    public var analyticsMode: String {
+        switch self {
+        case .stages:  return "stage"
+        case .endless: return "endless"
+        }
+    }
+
+    /// 自己ベスト・通算成績を分けて数えるための区分キー（`GameScore.variant`）。
+    ///
+    /// ステージ制は **nil のまま**にする。ここに文字列を入れると記録の保存先が `runner` から
+    /// `runner#stages` に変わり、これまでの到達ステージの記録がどこからも参照されなくなる
+    /// （麻雀の `MahjongGameLength.recordVariant` と同じ理由）。
+    public var recordVariant: String? {
+        self == .stages ? nil : rawValue
+    }
+
+    /// ハブ・リザルトの記録行に添える区分名。ステージ制は従来どおり添えない。
+    public var recordVariantLabel: String? {
+        self == .stages ? nil : title
+    }
+}
+
 /// ゲームの進行状態。
 public enum RunnerPhase: Equatable, Sendable {
     /// スタート前。タップで走り出す。

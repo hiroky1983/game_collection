@@ -565,7 +565,11 @@ final class RunnerScene: SKScene {
         removedPickupIndices = []
         renderedJustLandingCount = 0
 
-        addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
+        // エンドレス（#675）にチェックポイントは無い。`RunnerStage` は中点に計算するが、
+        // 再開できない旗を立てると「ここから再開できる」という旗の意味（#494）が嘘になる。
+        if model.mode == .stages {
+            addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
+        }
         addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
         // 新しい走行の頭（もう一度・はじめから等）。前回の落下演出が沈める・フェードして
