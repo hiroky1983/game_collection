@@ -62,8 +62,10 @@ public enum SpiderSolver {
         return withoutActuallyEscaping(isCancelled) { isCancelled in
             var search = Search(table: table, maxStates: maxStates, isCancelled: isCancelled)
             let solution = search.run(from: root, prefix: [])
+            // 「不能」と言い切れるのは、どの段も予算内に掘り尽くし、候補も切り捨てなかったときだけ。
+            // 段の予算切れ・全体の上限・候補の絞り込み（`beamWidth`）のどれかで探索を狭めていれば「不明」。
             return Result(solution: solution, statesExplored: search.explored,
-                          hitLimit: solution == nil && search.exhausted)
+                          hitLimit: solution == nil && (search.exhausted || search.truncated))
         }
     }
 
@@ -74,7 +76,10 @@ public enum SpiderSolver {
         let maxStates: Int
         let isCancelled: () -> Bool
         var explored = 0
+        /// 全体の上限（`maxStates`）か取り消しで止めたか。
         var exhausted = false
+        /// 段の予算切れ・候補の切り捨てで探索を狭めたか（勝ち筋が無いことの証明にならない）。
+        var truncated = false
 
         init(table: Table, maxStates: Int, isCancelled: @escaping () -> Bool) {
             self.table = table
@@ -121,6 +126,11 @@ public enum SpiderSolver {
                     exhausted = true
                     break
                 }
+                // 1 局面の展開で予算を一気に使い切ると次の pop の前にループが抜けるので、ここでも見る。
+                defer {
+                    if explored >= maxStates { exhausted = true }
+                    if budget <= 0 { truncated = true }
+                }
                 let current = nodes[index].state
                 for move in successors(of: current, table) {
                     var child = current
@@ -147,6 +157,7 @@ public enum SpiderSolver {
                 ranked.append((heuristic(node.state, table), index))
             }
             ranked.sort { $0.score != $1.score ? $0.score < $1.score : $0.index > $1.index }
+            if ranked.count > SpiderSolver.beamWidth { truncated = true }
             let picked = ranked.prefix(SpiderSolver.beamWidth).map { entry in
                 (state: nodes[entry.index].state, path: path(to: entry.index, in: nodes))
             }

@@ -162,6 +162,22 @@ struct SpiderSolverTests {
         #expect(result.hitLimit)
     }
 
+    /// 1 局面の展開で上限を一気に超えると、次の局面を取り出す前にループが抜ける。
+    /// そこで「打ち切った」印を落とすと、解けていないだけの盤面を「不能」と言い切ってしまう
+    /// （verifier の敵対的検証で見つかった穴）。山札の無い 1 段だけの局面で再現する。
+    @Test("1 局面の展開で上限を超えても「不明」に倒れる")
+    func overshootInOneExpansionIsStillUnknown() {
+        var piles = (0..<10).map { SpiderPile(cards: [card(.spade, 5, id: $0)]) }
+        piles[0] = SpiderPile(cards: [card(.heart, 6, id: 20)])
+        piles[1] = SpiderPile(cards: [card(.spade, 6, id: 21)])
+        piles[2] = SpiderPile(cards: [card(.club, 6, id: 22)])
+        let board = SpiderBoard(piles: piles)
+        #expect(board.legalMoves.count > 2)
+        let result = SpiderSolver.solve(board, maxStates: 2)
+        #expect(!result.isSolvable)
+        #expect(result.hitLimit)
+    }
+
     @Test("取り消されたら「不明」に倒れる")
     func cancellationIsUnknown() {
         let result = SpiderSolver.solve(SpiderDealer.deal(seed: 1, suits: .one), maxStates: 10_000) { true }

@@ -11,8 +11,8 @@ public enum SpiderMetrics {
     public static let columnGap: CGFloat = 3
     /// トランプの縦横比（実物の 63×88 に近い値）。
     public static let aspectRatio: CGFloat = 1.4
-    /// 札の幅の下限・上限。下限は iPhone SE（375pt）でも 10 列が収まる値（(375 - 27) / 10 = 34.8）、
-    /// 上限は iPad で札だけが間延びしないようにするための頭打ち。
+    /// 札の幅の下限・上限。下限は iPhone SE（375pt。`Theme.pad` 16pt × 2 を引いた 343pt）でも
+    /// 10 列が収まる値（(343 - 27) / 10 = 31.6）、上限は iPad で札だけが間延びしないようにするための頭打ち。
     public static let minCardWidth: CGFloat = 28
     public static let maxCardWidth: CGFloat = 60
 

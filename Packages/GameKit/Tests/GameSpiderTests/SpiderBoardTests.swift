@@ -177,6 +177,20 @@ struct SpiderBoardTests {
         #expect(withStock.legalMoves == [.deal])
     }
 
+    @Test("空いた列への置き手は最初の 1 本だけを挙げる")
+    func legalMovesUseOnlyTheFirstEmptyPile() {
+        var piles = (0..<10).map { [card(.spade, 5, id: $0)] }
+        piles[2] = []
+        piles[6] = []
+        let b = board(piles)
+        let targets = b.legalMoves.compactMap { move -> Int? in
+            if case .move(_, _, let to) = move { return to } else { return nil }
+        }
+        #expect(targets.contains(2))
+        #expect(!targets.contains(6), "2 本目の空列は 1 本目と等価なので挙げない")
+        #expect(!targets.contains(0), "♠5 の上に ♠5 は置けない")
+    }
+
     @Test("合法手の一覧はすべて適用できる")
     func legalMovesAreApplicable() {
         let b = SpiderDealer.deal(seed: 3, suits: .two)
