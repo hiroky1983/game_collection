@@ -698,6 +698,8 @@ public struct FreeCellView: View {
             .padding(.horizontal, 28)
         }
         .accessibilityElement(children: .contain)
+        // 暗幕が背面のタップを塞ぐので、VoiceOver も告知の中だけを移動させる。
+        .accessibilityAddTraits(.isModal)
         .accessibilityLabel(FreeCellAccessibility.deadEndPromptLabel(
             canUndo: model.canUndo, remaining: model.undosRemaining))
     }
