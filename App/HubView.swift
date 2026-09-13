@@ -205,14 +205,23 @@ struct HubView: View {
             .onChange(of: services.recommendations?.requestedGameID) { _, requested in
                 guard let id = requested else { return }
                 services.recommendations?.requestedGameID = nil
-                let route = HubRoute(
+                openFromOutside(HubRoute(
                     gameID: id, source: .recommendation, position: nil,
                     resume: services.snapshots.exists(for: id)
-                )
-                // NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
-                // いったん根まで戻し、次の runloop で積み直す。
-                path = []
-                DispatchQueue.main.async { path = [route] }
+                ))
+            }
+            // 中断したゲームのお知らせ（#663）がタップされたら、そのゲームを直接開く。
+            // アプリが終了していた状態からのタップはハブが描かれる前に値が入ることがあるため、
+            // 初期値でも走らせる。
+            .onChange(of: services.reminders?.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                services.reminders?.requestedGameID = nil
+                // 設定を開いたままだと、その裏で遷移して何も起きていないように見える。
+                showSettings = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .notification, position: nil,
+                    resume: services.snapshots.exists(for: id)
+                ))
             }
             .task {
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
@@ -242,6 +251,11 @@ struct HubView: View {
                 // （`-startGame <id> -simulateReviewRequest` でそのゲームのリザルト経路に乗せる）。
                 if args.contains("-simulateReviewRequest") {
                     services.review?.simulateRequest()
+                }
+                // 動作確認用: 中断のお知らせ（#663）をタップしたのと同じ入口でゲームを開く
+                // （`-simulateNotificationTap <gameID>`）。シミュレータでは通知をタップできないため。
+                if let i = args.firstIndex(of: "-simulateNotificationTap"), i + 1 < args.count {
+                    services.reminders?.notificationTapped(gameID: args[i + 1])
                 }
                 // 動作確認用: ツールバーの「実績・ランキング」を押したのと同じ分岐を通す
                 // （`-simulateGameCenterEntry`）。シミュレータは Game Center 未サインインのため、
@@ -273,6 +287,15 @@ struct HubView: View {
         } message: {
             Text("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
         }
+    }
+
+    /// ハブの外（リザルトのレコメンド・中断のお知らせ）から求められたゲームへ遷移する。
+    ///
+    /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
+    /// いったん根まで戻し、次の runloop で積み直す。
+    private func openFromOutside(_ route: HubRoute) {
+        path = []
+        DispatchQueue.main.async { path = [route] }
     }
 
     /// ツールバーの「実績・ランキング」。サインイン済みなら Game Center を開き、

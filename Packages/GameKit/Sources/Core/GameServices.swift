@@ -43,6 +43,8 @@ public struct GameServices {
     /// ゲーム画面の世代（#653）。`GameServices` は値型だがこれは参照型なので、
     /// コピーされても同じ世代を指す（各ゲームへ渡った先で別々に進むことはない）。
     public let screenGeneration: GameScreenGeneration
+    /// 中断したゲームのお知らせ（#663）。テスト・プレビューでは nil（予約しない）。
+    public let reminders: ResumeReminderService?
 
     public init(
         snapshots: SnapshotStore,
@@ -53,7 +55,8 @@ public struct GameServices {
         playLog: PlayLog? = nil,
         analytics: GameAnalytics? = nil,
         gameCenter: GameCenterReporter? = nil,
-        screenGeneration: GameScreenGeneration = GameScreenGeneration()
+        screenGeneration: GameScreenGeneration = GameScreenGeneration(),
+        reminders: ResumeReminderService? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -64,6 +67,7 @@ public struct GameServices {
         self.analytics = analytics
         self.gameCenter = gameCenter
         self.screenGeneration = screenGeneration
+        self.reminders = reminders
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -74,6 +78,7 @@ public struct GameServices {
     @MainActor
     public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil) {
         analytics?.startPlay(gameID: gameID, level: level)
+        reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
     /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。
@@ -83,6 +88,7 @@ public struct GameServices {
     @MainActor
     public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil) {
         analytics?.restartPlay(gameID: gameID, level: level)
+        reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
     /// そのプレイで**1手指した**（盤面が動いた）ときに各 Model から呼ぶ（#500）。冪等。
@@ -92,6 +98,7 @@ public struct GameServices {
     @MainActor
     public func gameDidProgress(gameID: String) {
         analytics?.recordProgress(gameID: gameID)
+        reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
     /// この局は**画面を離れたら失われる**ことを各 Model から伝える（#500）。
@@ -103,20 +110,33 @@ public struct GameServices {
         analytics?.markUnresumable(gameID: gameID)
     }
 
+    /// 決着済みの局を**見返しとして復元した**ことを各 Model から伝える（#663）。
+    ///
+    /// 将棋・チェスは終局後の検討画面を中断データに残すため、中断データが在っても続きは無い。
+    /// 復元では記録を二重に数えないよう `gameDidFinish` を呼ばないので、決着済みであることを別に伝え、
+    /// 「途中のままです」のお知らせを予約させない。
+    @MainActor
+    public func gameDidRestoreFinished(gameID: String) {
+        reminders?.gameDidFinish(gameID: gameID)
+    }
+
     /// ゲーム画面から離れたときにハブから呼ぶ（#158）。次に開いたときを新しいプレイとして数え直す。
     ///
     /// 中断データが残っているかをここで `SnapshotStore` に聞き、**休憩（あとで続きから再開できる）**と
     /// **離脱（盤面を捨てた）**を切り分ける（#500）。呼び出し側（ハブ）は判定を持たない。
     @MainActor
     public func gameDidLeave(gameID: String) {
-        analytics?.leaveGame(gameID: gameID, isResumable: snapshots.exists(for: gameID))
+        let hasSnapshot = snapshots.exists(for: gameID)
+        analytics?.leaveGame(gameID: gameID, isResumable: hasSnapshot)
+        // 中断データを持って戻ったときだけ、1 日ほど後のお知らせを予約する（#663）。
+        reminders?.gameDidLeave(gameID: gameID, hasSnapshot: hasSnapshot)
         // 画面の世代を進める（#653）。次に開いたときは別の Model になるので、いま広告の
         // 完了を待っている救済は、視聴が終わっても適用してはいけない。
         screenGeneration.advance()
     }
 
-    /// ハブからゲーム画面を開いたときにハブから呼ぶ（#659）。`game_open` を送るだけで、
-    /// プレイの数え方にも画面の世代にも触らない。
+    /// ハブからゲーム画面を開いたときにハブから呼ぶ（#659）。`game_open` を送り、そのゲームの
+    /// 中断のお知らせを取り消す（#663）。プレイの数え方にも画面の世代にも触らない。
     ///
     /// - Parameters:
     ///   - position: 導線の中での位置（1 始まり）。並びを持たない導線では nil。
@@ -125,6 +145,7 @@ public struct GameServices {
     @MainActor
     public func gameDidOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         analytics?.recordGameOpen(gameID: gameID, source: source, position: position, resume: resume)
+        reminders?.gameDidOpen(gameID: gameID)
     }
 
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
@@ -164,6 +185,9 @@ public struct GameServices {
         let result = playLog?.recordResult(gameID: gameID, outcome: outcome, score: score)
         // 解析（#158）。スコアの生値は渡さず、勝敗と経過秒だけを送る。
         analytics?.finishPlay(gameID: gameID, outcome: outcome)
+        // 決着した局には「途中のままです」を予約しない（#663）。将棋・チェスは終局後も見返しを
+        // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
+        reminders?.gameDidFinish(gameID: gameID)
         let willRequestReview = review?.gameDidFinish(outcome: outcome) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
         // Game Center（#289）は**最後**に呼ぶ。実績の進捗は `PlayLog` の通算値から作るため、

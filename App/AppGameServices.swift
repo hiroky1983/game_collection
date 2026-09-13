@@ -29,7 +29,16 @@ import GameHanafuda
 @MainActor
 enum AppEnvironment {
     static let services = GameServices(
-        snapshots: FileSnapshotStore(),
+        // 中断データの消去（終局・やり直し・設定の切り替え）を横で捕まえ、そのゲームの
+        // お知らせを取り消す（#663）。保存形式と読み書きは `FileSnapshotStore` のまま。
+        snapshots: ClearObservingSnapshotStore(base: FileSnapshotStore()) { gameID in
+            // 消去は UI 起点の主スレッドで起きる。そうでない呼び出しだけ主スレッドへ回す。
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { reminders.snapshotDidClear(gameID: gameID) }
+            } else {
+                Task { @MainActor in reminders.snapshotDidClear(gameID: gameID) }
+            }
+        },
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
         // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
         feedback: CompositeFeedbackService([
@@ -40,7 +49,21 @@ enum AppEnvironment {
         review: review,
         playLog: playLog,
         analytics: analytics,
-        gameCenter: gameCenter
+        gameCenter: gameCenter,
+        reminders: reminders
+    )
+
+    /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
+    /// 撮影モードと DEBUG ビルドでは予約しない（撮影・開発中の動作確認の端末に溜めない）。
+    static let reminders = ResumeReminderService(
+        scheduler: UserNotificationReminderScheduler(),
+        isEnabled: { settings.notificationsEnabled },
+        isSuppressed: isScreenshotMode || isDebugBuild,
+        // 通知に出すゲーム名。中断データから局を復元しないゲーム（チャリンコおじさん）は対象外。
+        reminderTitle: { gameID in
+            guard let module = registry.module(id: gameID), module.resumesFromSnapshot else { return nil }
+            return module.title
+        }
     )
 
     /// Game Center のリーダーボード・実績（#289 段階②③）。
@@ -112,6 +135,15 @@ enum AppEnvironment {
     static var isScreenshotMode: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-screenshotMode")
+        #else
+        return false
+        #endif
+    }
+
+    /// DEBUG ビルドか。
+    static var isDebugBuild: Bool {
+        #if DEBUG
+        return true
         #else
         return false
         #endif

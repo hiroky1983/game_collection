@@ -98,6 +98,22 @@ struct SettingsView: View {
                     Text("ブロック崩しの球と、チャリンコおじさんの進みを遅くします。切り替えると、両方の進行中のデータは消えます。")
                 }
 
+                // MARK: 通知
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { settings.notificationsEnabled },
+                        set: { settings.notificationsEnabled = $0 }
+                    )) {
+                        Label("続きのお知らせ", systemImage: "bell")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
+                } header: {
+                    Text("通知")
+                } footer: {
+                    Text("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までで、ほかのお知らせは送りません。オフにすると、予約済みのお知らせも取り消します。")
+                }
+
                 // MARK: 解析
                 Section {
                     Toggle(isOn: Binding(
