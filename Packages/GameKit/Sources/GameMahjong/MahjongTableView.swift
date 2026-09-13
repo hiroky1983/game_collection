@@ -106,6 +106,8 @@ struct MahjongTableView: View {
         let rowHeight = w * 1.34 + 1
         let stackHeight: CGFloat? = stacks ? rowHeight * 4 : nil
         // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える（回転は時計回りが正）。
+        // 対面・自分は `slot.center` を 1 組目の行の縦の中央に置く（`stackHeight` は打ち消し合う）。
+        // `MahjongTableLayout.meldRegion` はこの置き方を前提に矩形を出す（verifier 指摘）。
         let alignment: Alignment
         let center: CGPoint
         switch seat {

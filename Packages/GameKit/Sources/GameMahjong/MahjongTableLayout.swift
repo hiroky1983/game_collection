@@ -221,7 +221,7 @@ public struct MahjongTableLayout: Sendable {
         case 2: g = project(u: 0.10, v: 0.10); rotation = 180
         case 1: g = project(u: 0.905, v: 0.08); rotation = -90
         case 3: g = project(u: 0.095, v: 0.92); rotation = 90
-        default: g = project(u: 0.885, v: 0.91); rotation = 0
+        default: g = project(u: 0.885, v: 0.885); rotation = 0
         }
         return Slot(center: g.point, scale: g.scale, rotation: rotation)
     }
@@ -239,24 +239,25 @@ public struct MahjongTableLayout: Sendable {
     /// 副露の牌の幅（自分の値。互換のため残す）。
     public var meldTileWidth: CGFloat { meldTileWidth(seat: 0) }
 
-    /// `count` 枚の副露が占める画面上の矩形（重なりの検査用。`MahjongMeldRow` の並びを近似:
-    /// 組の間隔は無視し、牌は密着とみなす）。
+    /// `count` 枚の副露が占める画面上の矩形（重なりの検査用。`MahjongTableView.meldRow` の置き方に
+    /// 合わせる: 対面・自分は `slot.center` が **1 組目の行の縦の中央**で、行の高さ `w × 1.34` を
+    /// 間隔 1pt で積む。上家・下家は `slot.center` が列の先端の中心。組の間隔は無視し、牌は密着とみなす）。
     public func meldRegion(seat: Int, tiles count: Int) -> CGRect {
         let slot = meldSlot(seat: seat)
         let w = meldTileWidth(seat: seat) * slot.scale
         let h = w * 1.34
         let c = slot.center
+        let rows = CGFloat((count + 3) / 4)
+        let stack = h * rows + (rows - 1)
         switch seat {
         case 2: // 左上から下へ、行あたり最大 4 枚
-            let rows = CGFloat((count + 3) / 4)
-            return CGRect(x: c.x, y: c.y, width: w * 4, height: h * rows)
+            return CGRect(x: c.x, y: c.y - h / 2, width: w * 4, height: stack)
         case 1: // 右上から下へ 1 列（牌は横向き＝画面上の高さが w）
             return CGRect(x: c.x - h / 2, y: c.y, width: h, height: w * CGFloat(count))
         case 3: // 左下から上へ 1 列
             return CGRect(x: c.x - h / 2, y: c.y - w * CGFloat(count), width: h, height: w * CGFloat(count))
         default: // 右下から上へ、行あたり最大 4 枚
-            let rows = CGFloat((count + 3) / 4)
-            return CGRect(x: c.x - w * 4, y: c.y - h * rows, width: w * 4, height: h * rows)
+            return CGRect(x: c.x - w * 4, y: c.y + h / 2 - stack, width: w * 4, height: stack)
         }
     }
 

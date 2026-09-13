@@ -182,13 +182,13 @@ struct MahjongTableLayoutTests {
         } }
     }
 
-    @Test("自分の副露は河と同じ幅で 3 組（12 枚）まで一覧の上に積み、一覧・河・下家の立て牌・パネルと重ならない")
+    @Test("自分の副露は河と同じ幅で 4 組（16 枚）まで一覧の上に積み、一覧・河・下家の立て牌・パネルと重ならない")
     func ownMeldsStackAboveOverview() {
         let l = Self.phone
         #expect(l.meldTileWidth(seat: 0) == l.riverTileWidth)
         let o = l.handOverview
         let overviewTop = o.center.y - o.tileWidth * MahjongTableLayout.tileAspect / 2
-        let region = l.meldRegion(seat: 0, tiles: 12)
+        let region = l.meldRegion(seat: 0, tiles: 16)
         // 一覧で選んだ牌は 3pt 持ち上がるので、その分も空ける
         #expect(region.maxY < overviewTop - 3, "副露の下端 \(region.maxY) が一覧の上端 \(overviewTop) に近い")
         #expect(!region.intersects(l.centerPanel))
@@ -214,6 +214,23 @@ struct MahjongTableLayoutTests {
     private static func corners(_ r: CGRect) -> [CGPoint] {
         [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
          CGPoint(x: r.minX, y: r.maxY), CGPoint(x: r.maxX, y: r.maxY)]
+    }
+
+    @Test("副露の矩形は描画の置き方どおり: 1 組目の行の中央が slot.center（対面は下へ、自分は上へ積む）")
+    func meldRegionMatchesDrawing() {
+        let l = Self.phone
+        for seat in [0, 2] {
+            let slot = l.meldSlot(seat: seat)
+            let h = l.meldTileWidth(seat: seat) * slot.scale * 1.34
+            let one = l.meldRegion(seat: seat, tiles: 3)
+            #expect(abs(one.midY - slot.center.y) < 0.01, "seat \(seat): 1 組の縦の中央が slot.center でない")
+            #expect(abs(one.height - h) < 0.01)
+            let two = l.meldRegion(seat: seat, tiles: 7)
+            #expect(abs(two.height - (h * 2 + 1)) < 0.01, "2 行は行の高さ 2 つ + 間隔 1pt")
+            // 対面は 1 組目の下へ、自分は 1 組目の上へ増える
+            #expect((abs(two.minY - one.minY) < 0.01) == (seat == 2))
+            #expect((abs(two.maxY - one.maxY) < 0.01) == (seat == 0))
+        }
     }
 
     @Test("多角形の内外判定")
