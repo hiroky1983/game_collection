@@ -157,6 +157,16 @@ struct MahjongTableLayoutTests {
         }
     }
 
+    @Test("卓上の手牌一覧は、自分の副露（カン 4 枚）と重ならない")
+    func overviewClearsOwnMelds() {
+        let l = Self.phone
+        let overview = l.handOverview
+        let overviewRight = overview.center.x + overview.width / 2
+        let meld = l.meldSlot(seat: 0)
+        let kanLeft = meld.center.x - l.meldTileWidth * meld.scale * 4 - 3
+        #expect(kanLeft - overviewRight > 2, "一覧の右端 \(overviewRight) とカンの左端 \(kanLeft)")
+    }
+
     @Test("多角形の内外判定")
     func polygon() {
         let sq = [CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 0), CGPoint(x: 10, y: 10), CGPoint(x: 0, y: 10)]

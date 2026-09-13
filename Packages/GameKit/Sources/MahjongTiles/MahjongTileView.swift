@@ -159,9 +159,10 @@ public struct MahjongTileArt: View {
     static let sideHeightRatio: CGFloat = 0.08
     /// 象牙の断面（面と背の間に挟まる層）。
     static let sideIvory = Color(hex: 0xD9CDB2)
-    /// 背の緑（実物の牌の背面樹脂）。上→下へ暗くする。
-    static let backGreenLight = Color(hex: 0x2E8060)
-    static let backGreenDark = Color(hex: 0x1E5C43)
+    /// 背の色（実物の牌の背面樹脂）。上→下へ暗くする。#738 で緑→青系に（卓の緑に被るため。
+    /// 立て牌の裏地 `MahjongBackPalette` と同じ系統）。名前は呼び出し側の差分を避けて据え置く。
+    static let backGreenLight = Color(hex: 0x6494E8)
+    static let backGreenDark = Color(hex: 0x2B4FA3)
     /// 五筒の中心・五索/七索・一索のくちばしなど、実物の牌で赤く塗られている部分。
     /// 同じ形が並ぶ数牌どうしの見分けにも効く。
     static let accentColor = Color(hex: 0xC63A2E)

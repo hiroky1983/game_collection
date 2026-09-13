@@ -99,7 +99,12 @@ struct MahjongTableView: View {
         let slot = layout.meldSlot(seat: seat)
         let w = layout.meldTileWidth * slot.scale
         let frameWidth = layout.size.width * 0.42
-        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false)
+        // 自分の副露は 1 組ずつ縦に積む（横に伸ばすと手牌一覧と接触する・会長 QA）。
+        // 4 枚（カン）で 1 行なので、幅は最大 4 枚ぶんに収まる。他家は角から 1 列に伸ばす。
+        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false,
+                                 maxTilesPerRow: seat == 0 ? 4 : nil)
+        let rowHeight = w * 1.34 + 1
+        let stackHeight: CGFloat? = seat == 0 ? rowHeight * 4 : nil
         // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える。
         // 回転は時計回りが正。180 度で trailing は左端へ、-90 度で trailing は上端へ、90 度で leading は上端へ。
         let alignment: Alignment
@@ -114,12 +119,13 @@ struct MahjongTableView: View {
         case 3: // 左下の角から上へ伸びる
             alignment = .trailing
             center = CGPoint(x: slot.center.x, y: slot.center.y - frameWidth / 2)
-        default: // 右下の角から左へ伸びる
-            alignment = .trailing
-            center = CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y)
+        default: // 右下の角。行は上へ積む
+            alignment = .bottomTrailing
+            center = CGPoint(x: slot.center.x - frameWidth / 2,
+                             y: slot.center.y - (stackHeight ?? 0) / 2 + rowHeight / 2)
         }
         return row
-            .frame(width: frameWidth, alignment: alignment)
+            .frame(width: frameWidth, height: stackHeight, alignment: alignment)
             .rotationEffect(.degrees(slot.rotation))
             .position(center)
     }
