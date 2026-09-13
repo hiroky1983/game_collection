@@ -58,4 +58,14 @@ enum SudokuMetrics {
 
     /// 数字が入る演出の長さ（秒）。Reduce Motion では `gameAnimation` が自動で止める。
     static let fillDuration: Double = 0.14
+
+    /// 行・列・ブロックが揃ったマスを光らせておく長さ（秒・#666）。このあと `unitFlashFadeDuration` で消える。
+    /// フェードと合わせて Issue の「0.25 秒ハイライト」に収める（`SudokuFeedbackTests` が縛る）。
+    static let unitFlashHoldDuration: Double = 0.1
+    /// 揃ったマスの光が消える演出の長さ（秒）。Reduce Motion では `withGameAnimation` が即時に落とす。
+    static let unitFlashFadeDuration: Double = 0.15
+    /// 誤答のマスが揺れる演出の長さ（秒・#666）。五目並べの無効タップの揺れ（#202）と同じ長さにそろえる。
+    static let mistakeShakeDuration: Double = 0.32
+    /// 使い切った数字を数字パッドで薄くするときの不透明度（#666）。灰色の文字色に重ねて、押す必要が無いことを示す。
+    static let exhaustedDigitOpacity: Double = 0.35
 }
