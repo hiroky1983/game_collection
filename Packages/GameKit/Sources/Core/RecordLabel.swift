@@ -11,7 +11,7 @@ public struct RecordLabel: View {
 
     /// - Parameters:
     ///   - result: `GameServices.gameDidFinish` の戻り値。nil なら何も出さない。
-    ///   - accent: 「自己ベスト更新！」バッジの**面色**。`Theme.Fill` 側を渡す（#220）。
+    ///   - accent: 「自己ベスト更新！」バッジの差し色。`Theme.Fill` 側を渡す（#220）。
     ///   - textColor: 記録本文の色。暗いオーバーレイの上に直接置く画面（2048・神経衰弱）は
     ///     `.white` を渡す。既定は明るい背景向けの補助文字色（オセロのように暗幕の上でも
     ///     明るいカードに乗る画面はこちらでよい）。
@@ -25,11 +25,7 @@ public struct RecordLabel: View {
         if let result, let line = RecordFormat.resultLine(result.record) {
             HStack(spacing: 8) {
                 if result.update.isNewBest {
-                    Text("自己ベスト更新！")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Capsule().fill(accent))
+                    RecordBadge("自己ベスト更新！", accent: accent)
                 }
                 Text(line)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -38,5 +34,37 @@ public struct RecordLabel: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(result.update.isNewBest ? "自己ベスト更新。\(line)" : line)
         }
+    }
+}
+
+/// 「自己ベスト更新！」「ベストタイム更新！」の**バッジ**。
+///
+/// 以前は差し色で塗りつぶしたカプセルだったが、このアプリのボタン（`actionButton` 等）も差し色の
+/// 塗りつぶしなので、リザルトで「次のステージへ」の隣に並ぶと押せるものに見えた
+/// （会長 QA 2026-09-14「ボタンと一緒だけど押せる？」）。塗らずに**細い枠線と薄い下地、星印**で
+/// 「印」として描き、ボタンと見分けが付くようにする。明るいカードでも暗いオーバーレイでも
+/// 差し色の文字で読める。
+public struct RecordBadge: View {
+    private let text: String
+    private let accent: Color
+
+    public init(_ text: String, accent: Color = Theme.Fill.coral) {
+        self.text = text
+        self.accent = accent
+    }
+
+    public var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "star.fill")
+                .font(.system(size: 10, weight: .bold))
+            Text(text)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+        }
+        .foregroundStyle(accent)
+        .padding(.horizontal, 10).padding(.vertical, 4)
+        .background(Capsule().fill(accent.opacity(0.14)))
+        .overlay(Capsule().strokeBorder(accent, lineWidth: 1.2))
+        // 押せる物ではないことを読み上げにも反映する（ボタンの特性を付けない）
+        .accessibilityElement(children: .combine)
     }
 }
