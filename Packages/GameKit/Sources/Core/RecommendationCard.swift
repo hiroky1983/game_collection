@@ -5,10 +5,11 @@ import SwiftUI
 /// **非モーダル**。操作をブロックせず、×で閉じられる。全画面ダイアログやアラートは使わない。
 public struct RecommendationCard: View {
     /// 先頭のアイコンの一辺。カードの高さはこれで決まる（文字はこれより低い）。
-    private static let iconSide: CGFloat = 36
-    private static let verticalPadding: CGFloat = 10
+    /// 同じ枠に出る `OtherGamesCard` も同じ値で組むため `fileprivate`（#661）。
+    fileprivate static let iconSide: CGFloat = 36
+    fileprivate static let verticalPadding: CGFloat = 10
     /// 見出しの基準 pt。実カードと `heightPlaceholder` で必ず同じ値を使う（高さ契約）。
-    private static let captionSize: CGFloat = 11
+    fileprivate static let captionSize: CGFloat = 11
 
     private let module: GameModule
     private let accent: Color
@@ -116,29 +117,93 @@ public struct RecommendationCard: View {
     }
 }
 
-/// 各ゲームのリザルト直下に置く枠。提示するものが無ければ**何も描かない**（余白も作らない）。
+/// 決着後にレコメンドの枠へ出す「ほかのあそび」（#661）。
+///
+/// 終局後の出口が左上の小さな戻る（`gameChrome`）しか無く、レコメンドカードは通算20終局まで
+/// 一度も出ない（`RecommendationPolicy.firstShowThreshold`・#52）。そのあいだ空いている枠に、
+/// ハブへ戻る導線を置く。
+///
+/// **`RecommendationCard` と同じ寸法・同じフォントで組む**（高さ契約）。枠のひな形
+/// （`RecommendationCard.heightPlaceholder`）は実カードに合わせてあるので、同じ組み方に
+/// しておけば、どちらが出ても下の領域の高さは 1pt も動かない。
+///
+/// 戻るのは `dismiss()` だけで、解析の `gameDidLeave` は呼ばない。発火点はハブの
+/// `onChange(of: path)` の 1 か所で、左上の戻ると同じ経路に乗る（#158）。
+public struct OtherGamesCard: View {
+    @Environment(\.dismiss) private var dismiss
+
+    public init() {}
+
+    public var body: some View {
+        Button { dismiss() } label: {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Theme.Fill.teal.gradient)
+                    .frame(width: RecommendationCard.iconSide, height: RecommendationCard.iconSide)
+                    .overlay {
+                        Image(systemName: "square.grid.2x2.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Theme.onAccent)
+                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("あそびばにもどる")
+                        .themeCaption(RecommendationCard.captionSize, weight: .semibold)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
+                    Text("ほかのあそび")
+                        .themeBody(16)
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Theme.inkSub)
+            }
+            .padding(.horizontal, 12).padding(.vertical, RecommendationCard.verticalPadding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popCard(corner: Theme.cornerSmall)
+        .accessibilityLabel("ほかのあそび")
+        .accessibilityHint("あそびばにもどって、ほかのゲームを選べます")
+    }
+}
+
+/// 各ゲームのリザルト直下に置く枠。決着していなければ**何も描かない**（余白も作らない）。
+///
+/// 決着後は、提示するレコメンドがあればそのカードを、無ければ「ほかのあそび」を出す（#661）。
+/// レコメンドのカード自体が別のゲームへの出口なので、両方は並べない（×で閉じれば入れ替わる）。
 public struct RecommendationSlot: View {
     private let services: GameServices
     private let isFinished: Bool
+    private let showsOtherGames: Bool
 
-    /// - Parameter isFinished: そのゲームがリザルトを表示している状態か。
-    ///   新しい対局を始めた時点でカードを引っ込めるために使う。
-    public init(services: GameServices, isFinished: Bool) {
+    /// - Parameters:
+    ///   - isFinished: そのゲームがリザルトを表示している状態か。
+    ///     新しい対局を始めた時点でカードを引っ込めるために使う。
+    ///   - showsOtherGames: レコメンドが無いときに「ほかのあそび」を出すか。枠を盤に重ねている
+    ///     画面（将棋・チェス）が、検討で盤を見ているあいだだけ引っ込めるためのもの。
+    public init(services: GameServices, isFinished: Bool, showsOtherGames: Bool = true) {
         self.services = services
         self.isFinished = isFinished
+        self.showsOtherGames = showsOtherGames
     }
 
     public var body: some View {
-        if isFinished,
-           let service = services.recommendations,
-           let module = service.suggestedModule {
-            RecommendationCard(
-                module: module,
-                accent: service.suggestedAccent,
-                caption: service.suggestedReason.caption,
-                onOpen: { service.accept() },
-                onDismiss: { service.dismiss() }
-            )
+        if isFinished {
+            if let service = services.recommendations,
+               let module = service.suggestedModule {
+                RecommendationCard(
+                    module: module,
+                    accent: service.suggestedAccent,
+                    caption: service.suggestedReason.caption,
+                    onOpen: { service.accept() },
+                    onDismiss: { service.dismiss() }
+                )
+            } else if showsOtherGames {
+                OtherGamesCard()
+            }
         }
     }
 }

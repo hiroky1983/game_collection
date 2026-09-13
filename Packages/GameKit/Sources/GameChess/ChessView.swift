@@ -255,9 +255,11 @@ public struct ChessView: View {
         }
         .aspectRatio(1, contentMode: .fit)
         // 終局後のレコメンドは盤の下端に重ねる（将棋と同じ。高さの予約をせずに済ませる）。
+        // 「ほかのあそび」（#661）は×を持たないので、検討で手を戻しているあいだは引っ込める。
         .overlay(alignment: .bottom) {
             if model.gameOver {
-                RecommendationSlot(services: services, isFinished: true)
+                RecommendationSlot(services: services, isFinished: true,
+                                   showsOtherGames: model.reviewPly == model.moves.count)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }

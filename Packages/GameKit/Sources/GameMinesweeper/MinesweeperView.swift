@@ -103,7 +103,8 @@ public struct MinesweeperView: View {
             #endif
         }
         .onChange(of: model.gameState) { _, state in
-            if state == .lost && model.hitMine != nil { showContinue = true }
+            // 使用済みの局では提案を出さず、そのまま終局後の表示にする（1局1回・#657）。
+            if state == .lost && model.canContinue { showContinue = true }
         }
     }
 

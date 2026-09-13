@@ -5,6 +5,8 @@ import FirebaseCore
 
 @main
 struct GameCollectionApp: App {
+    /// 中断のお知らせ（#663）のタップを、アプリが終了していた状態からでも受け取るため。
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var adsInitialized = false
 

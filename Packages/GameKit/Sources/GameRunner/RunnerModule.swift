@@ -18,6 +18,9 @@ public struct RunnerModule: GameModule {
     public let description = "タップで跳んで18ステージを走りぬけよう"
     // おじさんの顔（#700）。18 本のカードで唯一キャラが出る。描けない環境では自転車の記号。
     public var icon: Image { MainActor.assumeIsolated { OjisanBitmap.hubIcon } ?? Image(systemName: "bicycle") }
+    // 中断データはステージ番号とベストタイムの控えで、走行は必ずステージの頭から始まる
+    // （`RunnerModel.press()` の `gameWillNotResume`）。中断のお知らせ（#663）の対象から外す。
+    public var resumesFromSnapshot: Bool { false }
 
     public init() {}
 

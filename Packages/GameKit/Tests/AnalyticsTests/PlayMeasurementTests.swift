@@ -29,6 +29,13 @@ private final class SpyAnalyticsService: AnalyticsService {
             return nil
         }
     }
+    /// リワード広告の要求（#659）。
+    var requests: [(gameID: String, purpose: RewardPurpose)] {
+        events.compactMap {
+            if case let .rewardRequest(gameID, purpose) = $0 { return (gameID, purpose) }
+            return nil
+        }
+    }
     var quits: [(gameID: String, durationSec: Int)] {
         ends.filter { $0.result == .quit }.map { ($0.gameID, $0.durationSec) }
     }
@@ -294,6 +301,132 @@ struct RewardAdTrackingTests {
         let (services, spy) = makeServices()
         _ = await services.showRewardedAd(gameID: "../../etc/passwd", purpose: .hint)
         #expect(spy.rewards.isEmpty)
+        #expect(spy.requests.isEmpty, "要求も同じく捨てる（#659）")
+    }
+}
+
+// MARK: - リワード広告の要求・ハブからの遷移（#659）
+
+@Suite("広告の要求とハブからの遷移の計測（#659）")
+@MainActor
+struct OpenAndRequestTrackingTests {
+
+    @Test("reward_request は視聴の成否に関係なく、広告の結果より先に1回出る")
+    func requestIsSentBeforeTheResult() async {
+        let (earned, earnedSpy) = makeServices(earnsReward: true)
+        _ = await earned.showRewardedAd(gameID: "solitaire", purpose: .undo)
+        #expect(earnedSpy.events.map(\.name) == ["reward_request", "reward_ad"])
+
+        let (skipped, skippedSpy) = makeServices(earnsReward: false)
+        _ = await skipped.showRewardedAd(gameID: "solitaire", purpose: .hint)
+        #expect(skippedSpy.requests.map(\.purpose) == [.hint],
+                "ロード失敗・途中で閉じた回こそ完了率の分母に入れる")
+        #expect(skippedSpy.rewards.isEmpty)
+    }
+
+    @Test("game_open は導線・位置・続きからをそのまま送り、プレイの数え方に触らない")
+    func openIsSentWithoutTouchingPlayState() {
+        let (services, spy) = makeServices()
+        services.gameDidOpen(gameID: "sudoku", source: .recent, position: 1, resume: true)
+        services.gameDidStart(gameID: "sudoku")
+        services.gameDidProgress(gameID: "sudoku")
+        services.gameDidFinish(gameID: "sudoku", outcome: .win)
+
+        #expect(spy.events.first == .gameOpen(gameID: "sudoku", source: .recent, position: 1, resume: true))
+        #expect(spy.starts.count == 1, "開いたことは game_start を増やさない")
+        #expect(spy.ends.map(\.result) == [.win])
+    }
+
+    @Test("開いただけで遊ばずに戻っても、game_open だけが残り quit は出ない")
+    func openThenLeaveIsNotQuit() {
+        let (services, spy) = makeServices()
+        services.gameDidOpen(gameID: "2048", source: .hub, position: 3, resume: false)
+        services.gameDidLeave(gameID: "2048")
+        #expect(spy.events.map(\.name) == ["game_open"])
+    }
+
+    @Test("ハブに無い gameID の遷移は送らない")
+    func unknownGameIDOpenIsDropped() {
+        let (services, spy) = makeServices()
+        services.gameDidOpen(gameID: "device-1234", source: .hub, position: 1, resume: false)
+        #expect(spy.events.isEmpty)
+    }
+
+    @Test("設定で送信をオフにすると、どちらのイベントも送らない")
+    func gatedOffSendsNothing() async {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: GatedAnalyticsService(base: spy) { false },
+            allowedGameIDs: testGameIDs
+        )
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: StubAdService(earnsReward: true), analytics: analytics
+        )
+        services.gameDidOpen(gameID: "2048", source: .hub, position: 1, resume: false)
+        _ = await services.showRewardedAd(gameID: "2048", purpose: .continue)
+        #expect(spy.events.isEmpty)
+    }
+}
+
+// MARK: - ハブの遷移計測の結線（#659）
+
+/// `game_open` の発火点は App ターゲット（`HubView`）にあり GameKit のテストから import できないため、
+/// `HubRecentRowWiringTests` と同じく `App/` 一式を走査して結線を固定する。
+@Suite("ハブの遷移計測の結線（#659）")
+struct GameOpenWiringTests {
+    private static func appSources() throws -> String {
+        let appDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // AnalyticsTests/
+            .deletingLastPathComponent()   // Tests/
+            .deletingLastPathComponent()   // GameKit/
+            .deletingLastPathComponent()   // Packages/
+            .deletingLastPathComponent()   // リポジトリのルート
+            .appendingPathComponent("App")
+        let files = try FileManager.default
+            .contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+            .sorted { $0.path < $1.path }
+        #expect(!files.isEmpty, "App/ の走査に失敗している")
+        // 行コメントを落とす。説明文の言及に当たって「実装が消えても緑」になるのを防ぐ。
+        return try files
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+    }
+
+    private static func count(_ needle: String, in source: String) -> Int {
+        source.components(separatedBy: needle).count - 1
+    }
+
+    @Test("送るのは path が空 → 非空になった1か所だけ")
+    func openIsSentFromTheSinglePathTransition() throws {
+        let source = try Self.appSources()
+        #expect(Self.count("gameDidOpen(", in: source) == 1, "game_open の発火点が1か所ではない")
+        #expect(
+            source.range(
+                of: #"if oldPath\.isEmpty, let opened = newPath\.first \{\s*services\.gameDidOpen\("#,
+                options: .regularExpression
+            ) != nil,
+            "空 → 非空の遷移と gameDidOpen の結線が切れている"
+        )
+    }
+
+    @Test("ハブのすべての遷移が導線を持つ HubRoute で積まれる")
+    func everyLinkCarriesItsSource() throws {
+        let source = try Self.appSources()
+        let links = Self.count("NavigationLink(value:", in: source)
+        #expect(links >= 2, "走査のパターンが壊れている可能性")
+        #expect(Self.count("NavigationLink(value: HubRoute(", in: source) == links,
+                "導線を持たない遷移がある（game_open の source が分からない）")
+        // 導線ごとに正しい source を載せている。
+        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: index \+ 1"#,
+                             options: .regularExpression) != nil, "グリッド")
+        #expect(source.range(of: #"gameID: candidate\.gameID, source: \.recent,\s*position: offset \+ 1"#,
+                             options: .regularExpression) != nil, "つづき・最近")
+        #expect(source.range(of: #"gameID: id, source: \.recommendation, position: nil"#,
+                             options: .regularExpression) != nil, "レコメンド")
     }
 }
 
