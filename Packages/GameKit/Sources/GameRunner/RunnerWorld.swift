@@ -71,8 +71,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
 
     /// 遠景に足す飾り。丘と同じ無限ループのタイルに載せる（ノード数を増やしすぎない）。
     public enum Scenery: Equatable, Sendable {
-        /// 丘だけ。
-        case hills
+        /// 丘の手前に下町の家並み（会長 QA 2026-09-14「ステージが山なのか何なのか分からない」）。
+        case townHouses
         /// 丘の手前に川の帯、地平線に夕焼けの帯。
         case riverside
         /// 丘の手前にビルの影と窓の灯り。
@@ -81,9 +81,41 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
 
     public var scenery: Scenery {
         switch self {
-        case .morning: return .hills
+        case .morning: return .townHouses
         case .evening: return .riverside
         case .night:   return .cityLights
+        }
+    }
+
+    /// 道路の配色（会長 QA 2026-09-14「断崖絶壁から緑の上を走る世界観が違和感」）。
+    ///
+    /// 地面は「土の塊」ではなく**おじさんが走っている道路の断面**として描く: 上からアスファルト
+    /// （白い破線つき）・縁石・路肩（世界ごとに草／土手／歩道）・その下の地盤。物理の地面の高さ
+    /// （`RunnerField.Metrics.groundY`）は変えず、見た目の層だけをこの色で塗り分ける。
+    public struct Road: Equatable, Sendable {
+        /// アスファルト（路面）。
+        public let asphalt: UInt32
+        /// 路面の白線。
+        public let line: UInt32
+        /// 縁石。
+        public let curb: UInt32
+        /// 路肩（朝＝草、夕方＝土手の砂、夜＝歩道のコンクリート）。
+        public let shoulder: UInt32
+        /// 路肩の下の地盤（画面の下端まで）。
+        public let subsoil: UInt32
+    }
+
+    public var road: Road {
+        switch self {
+        case .morning:
+            // 明るいグレーの路面に緑の路肩。地盤は従来の赤茶（`palette.groundBody`）。
+            return Road(asphalt: 0x8A8F9A, line: 0xFFFFFF, curb: 0xE8E2D2, shoulder: 0x6CBF6A, subsoil: 0x8C5A3C)
+        case .evening:
+            // 夕日で暖色に寄ったグレーの路面。路肩は川の土手の砂色。
+            return Road(asphalt: 0x7A6E78, line: 0xFFE9C8, curb: 0xE7C9A0, shoulder: 0xB98A5E, subsoil: 0x7A4A3A)
+        case .night:
+            // 夜のアスファルト。白線は少し落として街灯の下の見え方に。路肩は歩道のコンクリート。
+            return Road(asphalt: 0x353A48, line: 0xD9DCE6, curb: 0x9AA0B0, shoulder: 0x4A5163, subsoil: 0x2C2A38)
         }
     }
 
