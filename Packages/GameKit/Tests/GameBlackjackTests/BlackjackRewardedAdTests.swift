@@ -204,6 +204,25 @@ struct BlackjackRewardedAdTests {
         #expect(model.canReviveAfterBust, "新しいセッションの復活権を、前のセッションで見た広告で消費している")
     }
 
+    /// 画面の状態はテストから操作できないので、書き方そのものを見る（#727）。
+    /// 範囲をやり直しボタンから先に絞るのは、手前の復活ボタンにも同じ `.disabled` があり、
+    /// ファイル全体を探すとそちらに当たって空振りするため。
+    @Test("視聴中は「最初からやり直す」を押せない")
+    func restartButtonIsDisabledWhileWatching() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameBlackjackTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameBlackjack/BlackjackView.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let start = try #require(source.range(of: "Button { model.restartSession() } label: {"),
+                                 "やり直しボタンの定義が見つからない（走査が空振りしている）")
+        let end = try #require(source.range(of: "// MARK: - Helper", range: start.upperBound..<source.endIndex))
+        let restartButton = source[start.upperBound..<end.lowerBound]
+        #expect(restartButton.contains("\n            .disabled(reviveRescue.isWatching)"),
+                "広告のロード〜視聴中に「最初からやり直す」が押せる")
+    }
+
     @Test("視聴未完了・ロード失敗ならチップは回復しない")
     func doesNotRecoverChipsWhenRewardNotEarned() async {
         let (model, ads, _) = makeBustedModel(rewardEarned: false)
