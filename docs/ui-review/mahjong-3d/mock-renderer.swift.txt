@@ -39,7 +39,7 @@ struct SideBlock: View {
         let a = proj3(u0, v0, h), b = proj3(u0 + tu, v0, h)
         let c = proj3(u0 + tu, v0 + dv, h), d = proj3(u0, v0 + dv, h)
         // 側面の足元を中央側へ少しずらす（カメラが中央寄りにある見え方。裏地の面が見える幅を出す）
-        let lean: CGFloat = (facesRight ? 1 : -1) * 6 * proj(u0, v0).s
+        let lean: CGFloat = (facesRight ? 1 : -1) * 10 * proj(u0, v0).s
         let b0 = proj3(u0 + tu, v0, 0).applying(.init(translationX: lean, y: 0))
         let c0 = proj3(u0 + tu, v0 + dv, 0).applying(.init(translationX: lean, y: 0))
         let a0 = proj3(u0, v0, 0).applying(.init(translationX: lean, y: 0))
@@ -65,9 +65,17 @@ struct SideBlock: View {
             // 稜線
             Path { p in
                 p.move(to: a); p.addLine(to: b); p.addLine(to: c); p.addLine(to: d); p.closeSubpath()
-                if facesRight { p.move(to: b0); p.addLine(to: c0) } else { p.move(to: a0); p.addLine(to: d0) }
             }
             .stroke(Color(hex: 0xC9BC9F).opacity(0.9), lineWidth: 0.6)
+            // 裏地の縁: 上辺に照りの線、下辺に影の線（丸みの縁取り）
+            Path { p in
+                if facesRight { p.move(to: b); p.addLine(to: c) } else { p.move(to: a); p.addLine(to: d) }
+            }
+            .stroke(Color.white.opacity(0.55), lineWidth: 0.8)
+            Path { p in
+                if facesRight { p.move(to: b0); p.addLine(to: c0) } else { p.move(to: a0); p.addLine(to: d0) }
+            }
+            .stroke(Color.black.opacity(0.45), lineWidth: 0.8)
         }
         .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1.5)
     }
@@ -75,10 +83,11 @@ struct SideBlock: View {
 
 /// 牌の背（裏地）の膨らみ。上寄りに照りを置き、縁へ向かって落とす。
 let backBulge = Gradient(stops: [
-    .init(color: Color(hex: 0x1E5C43), location: 0.0),
-    .init(color: Color(hex: 0x4FA57F), location: 0.22),
-    .init(color: Color(hex: 0x2E8060), location: 0.55),
-    .init(color: Color(hex: 0x17452F), location: 1.0),
+    .init(color: Color(hex: 0x1B4F3A), location: 0.0),
+    .init(color: Color(hex: 0x7FD8AC), location: 0.18),
+    .init(color: Color(hex: 0x4FA57F), location: 0.40),
+    .init(color: Color(hex: 0x2A7556), location: 0.70),
+    .init(color: Color(hex: 0x123B29), location: 1.0),
 ])
 
 enum Pal {
@@ -285,11 +294,11 @@ struct Table: View {
             MeldOnTable(faces: [.bamboos(7), .bamboos(7), .bamboos(7)], sideways: 0, w: 15 * m1.s)
                 .rotationEffect(.degrees(180)).position(x: m1.x, y: m1.y)
             // 南家（右）のチー: 右手前の角。南家の手前＝画面右下。-90 度
-            let m2 = proj(0.93, 0.76)
+            let m2 = proj(0.945, 0.905)
             MeldOnTable(faces: [.characters(4), .characters(5), .characters(6)], sideways: 2, w: 17 * m2.s)
                 .rotationEffect(.degrees(-90)).position(x: m2.x, y: m2.y)
             // 自分のポン（發）: 卓の右手前の角。下家から鳴いたので右端を横向きに
-            let m3 = proj(0.86, 0.94)
+            let m3 = proj(0.78, 0.955)
             MeldOnTable(faces: [.dragon(1), .dragon(1), .dragon(1)], sideways: 2, w: 20 * m3.s)
                 .position(x: m3.x, y: m3.y)
             // 中央パネル
