@@ -186,13 +186,30 @@ public struct MinesweeperView: View {
     /// プレイ中（諦める）・コンティニュー中（何も出さない）・終局後（記録 + 次のゲーム + レコメンド）で
     /// 中身が入れ替わるが、**高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.gameOver && !showContinue, services: services) {
+        GameControlArea(isFinished: model.gameOver && !showContinue, services: services, ladder: ladder) {
             resultControls
         } playing: {
             // コンティニューの提案中は何も出さない（提案そのものが別の層に出ている）。
             if model.gameState == .playing {
                 gameControls
             }
+        }
+    }
+
+    /// クリアが続いたら一段上の難易度を勧める（#722）。プリセットに当たらない盤では勧めない。
+    /// 始め直しの後始末は新規ゲームシートから始めたときと同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = MinesweeperDifficulty.allCases
+        let current = levels.firstIndex {
+            $0.rows == model.rows && $0.cols == model.cols && $0.mines == model.totalMines
+        }
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: current,
+                                      levelLabels: levels.map(\.label)) { level in
+            let next = levels[level]
+            model.newGame(rows: next.rows, cols: next.cols, mines: next.mines)
+            flagMode = false
+            zoomMode = false
+            showContinue = false
         }
     }
 
