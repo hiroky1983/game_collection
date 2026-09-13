@@ -62,7 +62,7 @@ struct SideBlock: View {
                 p.addQuadCurve(to: outerBot.0, control: CGPoint(x: midBot.x + bulge, y: midBot.y))
                 p.closeSubpath()
             }
-            .fill(RadialGradient(colors: [Color(hex: 0x86DDB0), Color(hex: 0x3F9A72), Color(hex: 0x123B29)],
+            .fill(RadialGradient(colors: [Color(hex: 0xC9F2DC), Color(hex: 0x7CCBA3), Color(hex: 0x3F8F69)],
                                  center: UnitPoint(x: facesRight ? 0.62 : 0.38, y: 0.32),
                                  startRadius: 0, endRadius: max(h * sc * 0.75, 6)))
             // 手前の側面（次の牌に隠れる。最後の1枚だけ見える）
@@ -109,11 +109,11 @@ struct SideBlock: View {
 
 /// 牌の背（裏地）の膨らみ（対面の立て牌用）。上寄りに照りを置き、縁へ向かって落とす。
 let backBulge = Gradient(stops: [
-    .init(color: Color(hex: 0x1B4F3A), location: 0.0),
-    .init(color: Color(hex: 0x7FD8AC), location: 0.18),
-    .init(color: Color(hex: 0x4FA57F), location: 0.40),
-    .init(color: Color(hex: 0x2A7556), location: 0.70),
-    .init(color: Color(hex: 0x123B29), location: 1.0),
+    .init(color: Color(hex: 0x4F9E78), location: 0.0),
+    .init(color: Color(hex: 0xC9F2DC), location: 0.18),
+    .init(color: Color(hex: 0x8AD3AE), location: 0.45),
+    .init(color: Color(hex: 0x5FAF88), location: 0.75),
+    .init(color: Color(hex: 0x3F8F69), location: 1.0),
 ])
 
 enum Pal {
