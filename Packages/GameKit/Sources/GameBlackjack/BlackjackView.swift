@@ -492,13 +492,16 @@ public struct BlackjackView: View {
                 // 折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                // 高さは上下の余白（10pt）任せだと約 37pt で Apple HIG の 44pt に届かない（#709）。
+                // 見た目のトーン（角丸・色）は変えず、下限だけを与えて背景ごと 44pt にする。
+                // 文字が大きくなって 44pt を超えるぶんには従来どおり伸びる。
+                .frame(maxWidth: .infinity, minHeight: BlackjackMetrics.actionButtonMinHeight)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
                 .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        .buttonStyle(.plain)
+        // `.plain` は押下フィードバックも消えるので、押している間だけ沈む `.pop` を使う（#195）。
+        .buttonStyle(.pop)
         .disabled(disabled)
     }
 }
