@@ -427,6 +427,8 @@ struct GameOpenWiringTests {
                              options: .regularExpression) != nil, "つづき・最近")
         #expect(source.range(of: #"gameID: id, source: \.recommendation, position: nil"#,
                              options: .regularExpression) != nil, "レコメンド")
+        #expect(source.range(of: #"gameID: pick, source: \.firstPick, position: nil"#,
+                             options: .regularExpression) != nil, "はじめの1本")
     }
 }
 
