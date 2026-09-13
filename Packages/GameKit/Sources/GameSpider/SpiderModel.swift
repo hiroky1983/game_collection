@@ -413,17 +413,19 @@ public final class SpiderModel {
 
     /// 撮影用（#717）: 行き止まりの告知が出た面を直接作る。
     ///
-    /// 山札を空にし、10 列すべての一番上を K にする（K の上に置ける札は無く、
-    /// 空いた列も無いので合法手がゼロになる）。
+    /// 山札を空にし、10 列の一番上を K（8 列）と A（2 列）にする。K の上に置ける札は無く、
+    /// A を置ける 2 も上に出ていない。空いた列も無いので合法手がゼロになる。
+    /// K は 8 枚しか無いので 10 列すべてを K にはできない（同じ札を 2 列に置くと id が重複して
+    /// 描画が壊れる）。
     public func applyDeadEndPreviewForTesting() {
         guard phase == .playing else { return }
         let deck = SpiderCard.makeDeck(suits: rules.suitCount)
-        let kings = deck.filter { $0.rank == 13 }
-        let others = deck.filter { $0.rank != 13 }
+        let tops = deck.filter { $0.rank == 13 } + deck.filter { $0.rank == 1 }.prefix(2)
+        let others = deck.filter { $0.rank != 13 && $0.rank != 1 }
         var piles: [SpiderPile] = []
         for pile in 0..<SpiderBoard.pileCount {
             let hidden = Array(others[(pile * 3)..<(pile * 3 + 3)])
-            piles.append(SpiderPile(cards: hidden + [kings[pile % kings.count]], faceDownCount: 3))
+            piles.append(SpiderPile(cards: hidden + [tops[pile]], faceDownCount: 3))
         }
         board = SpiderBoard(piles: piles, stock: [])
         moves = []
