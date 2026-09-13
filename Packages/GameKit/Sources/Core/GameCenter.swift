@@ -102,6 +102,11 @@ public enum GameCenterLeaderboard {
     public static let solitaireTime           = "asobiba.solitaire.time"
     /// フリーセル（#492）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
     public static let freeCellTime            = "asobiba.freecell.time"
+    /// スパイダーソリティア（#717）。スート数（1 / 2 / 4）でタイムの水準がまったく違うので表を分ける
+    /// （ナンプレの難易度別と同じ扱い）。
+    public static let spiderTimeOneSuit       = "asobiba.spider.time.1suit"
+    public static let spiderTimeTwoSuits      = "asobiba.spider.time.2suit"
+    public static let spiderTimeFourSuits     = "asobiba.spider.time.4suit"
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
@@ -110,6 +115,7 @@ public enum GameCenterLeaderboard {
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
         solitaireTime, freeCellTime,
+        spiderTimeOneSuit, spiderTimeTwoSuits, spiderTimeFourSuits,
     ]
 
     /// 決着 1 回を送るリーダーボードと値。対象外なら nil（＝何も送らない）。
@@ -218,6 +224,15 @@ public enum GameCenterLeaderboard {
             // 区分を持たないので、区分キーが付いていないときだけ送る（#492）。
             // フリーセルは救済アイテムを持たないため、ソリティアのような除外の分岐も要らない。
             return variant == nil ? freeCellTime : nil
+        case "spider":
+            // 区分キーは `SpiderSuitCount.recordVariant`（"<スート数>suit"）。Core は GameSpider に
+            // 依存できないため文字列を写し取っており、一致は `SpiderModelTests` が縛る。
+            switch variant {
+            case "1suit": return spiderTimeOneSuit
+            case "2suit": return spiderTimeTwoSuits
+            case "4suit": return spiderTimeFourSuits
+            default:      return nil
+            }
         case "sudoku":
             // 区分キーは `SudokuDifficulty` の rawValue。
             switch variant {

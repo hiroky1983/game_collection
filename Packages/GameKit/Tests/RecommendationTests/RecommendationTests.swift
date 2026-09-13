@@ -20,6 +20,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
 
@@ -35,7 +36,7 @@ import GameBlocks
 // hanafuda は #668 で戻した。
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
-    "solitaire", "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
+    "solitaire", "freecell", "spider", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
     "concentration", "blocks", "runner", "hanafuda",
 ]
 
@@ -46,7 +47,7 @@ private func makeRegistry() -> GameRegistry {
     GameRegistry([
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
-        FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
+        FreeCellModule(), SpiderModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
         HanafudaModule(),
     ])
@@ -124,7 +125,8 @@ struct RecommendationTableTests {
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
         ("go",            ["gomoku", "othello", "shogi"]),
         ("solitaire",     ["freecell", "mahjong", "concentration"]),
-        ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
+        ("freecell",      ["solitaire", "spider", "sudoku"]),
+        ("spider",        ["freecell", "solitaire", "mahjong"]),
         ("runner",        ["blocks", "2048", "concentration"]),
         ("hanafuda",      ["daifugo", "poker", "blackjack"]),
     ]
