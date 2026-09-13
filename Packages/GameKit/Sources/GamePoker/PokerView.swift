@@ -137,7 +137,14 @@ public struct PokerView: View {
             }
             #endif
         }
-        .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
+        .rewardedRescueAlerts(
+            reviveRescue,
+            notEarned: "チップは回復しませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "チップは回復しませんでした",
+                message: "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。"
+            )
+        )
     }
 
     /// 画面の縦並び本体。`ViewThatFits` の2つの枝で同じものを使うために切り出しただけで、
@@ -638,8 +645,9 @@ public struct PokerView: View {
             if model.canReviveAfterBust {
                 Button {
                     // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
-                    // `recoverChipsAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
-                    reviveRescue.requestHandledByModel { await model.recoverChipsAfterAd() }
+                    // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。見終えたのに
+                    // 適用できなかったとき（#728）は「視聴しなかった」と別のアラートを出す。
+                    reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
                 } label: {
                     // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由。
                     // 書かないと2回目を期待して押す人が出る）。数値は `Text` 補間の桁区切りを避けて
@@ -663,6 +671,8 @@ public struct PokerView: View {
                 .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            // 復活広告のロード〜視聴中にやり直すと、見終えた広告が新しいセッションに乗る（#728）。
+            .disabled(reviveRescue.isWatching)
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)

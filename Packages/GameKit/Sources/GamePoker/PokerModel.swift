@@ -290,6 +290,10 @@ public final class PokerModel {
     /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
     private var hasRevivedThisSession = false
 
+    /// セッションの通し番号。`restartSession()` で進む。広告のあいだに同じ画面の中で
+    /// セッションが入れ替わったかを照合する（#728。画面の世代は同じ画面の中では進まない）。
+    private var sessionSerial = 0
+
     /// チップ切れをリワード広告で 1 回だけ取り消せる状態か（#499）。
     ///
     /// **自分のチップが尽きて終わった**ときにだけ立てる。CPU が尽きた（＝こちらの勝ち）・
@@ -841,24 +845,37 @@ public final class PokerModel {
     ///   CPU の持ち点は勝ち取った資産ではなく卓の設定値なので、そのまま（勝ち越したぶん）残すと
     ///   50 対 250 の卓になって復活の意味が消える。半分の手持ちで対等な卓に戻る、が復活の価値。
     /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// - 広告のあいだに「もう一度はじめる」でセッションが入れ替わっていたら適用しない（#728）。
     /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
-        guard canReviveAfterBust else { return false }
+        await reviveAfterAd() == .granted
+    }
+
+    /// `recoverChipsAfterAd()` の本体。見終えたのに適用できなかったこと（`.unavailable`）を
+    /// 視聴しなかったこと（`.notEarned`）と分けて返す（#728。画面のアラートを出し分けるため）。
+    public func reviveAfterAd() async -> RewardedModelOutcome {
+        guard canReviveAfterBust else { return .unavailable }
+        let serialBeforeAd = sessionSerial
         // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
         let generationBeforeAd = services?.screenGeneration.current
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
-        guard services?.screenGeneration.current == generationBeforeAd else { return false }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
+        guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
+        // 広告のロード〜視聴のあいだも画面は操作できる。「もう一度はじめる」で新しいセッションが
+        // 始まっていたら、そこへ復活が乗って 100 → 50 枚になり、復活権と順位表資格まで消える（#728）。
+        // ブラックジャック（#727）と同じく、通し番号と救済できる状態を見直す。
+        guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisSession = true
         playerChips = PokerModel.reviveChips
         cpuChips    = PokerModel.initialChips
         sessionOver = false
         sessionWinner = nil
-        return true
+        return .granted
     }
 
     public func restartSession() {
         recordResult  = nil
+        sessionSerial += 1
         playerChips   = PokerModel.initialChips
         cpuChips      = PokerModel.initialChips
         // 新しいセッションなので復活の回数も戻る（#499）。

@@ -137,8 +137,8 @@ struct MahjongTableLayoutTests {
         }
     }
 
-    @Test("副露の角は 4 家で別々の角にあり、河 18 枚と重ならない")
-    func meldCornersDistinct() {
+    @Test("副露は 4 家とも 2 組（7 枚）まで、河 18 枚・中央パネル・他家の副露と重ならない")
+    func meldRegionsClearEverything() {
         let l = Self.phone
         let pts = (0..<4).map { l.meldSlot(seat: $0).center }
         let mid = CGPoint(x: l.size.width / 2, y: l.size.height / 2)
@@ -147,13 +147,19 @@ struct MahjongTableLayoutTests {
         #expect(pts[1].x > mid.x && pts[1].y < mid.y)
         #expect(pts[3].x < mid.x && pts[3].y > mid.y)
         #expect(pts[0].x > mid.x && pts[0].y > mid.y)
-        let tile = l.meldTileWidth
-        for seat in 0..<4 {
-            let c = pts[seat]
-            let r = CGRect(x: c.x - tile * 2, y: c.y - tile * 2, width: tile * 4, height: tile * 4)
+        let regions = (0..<4).map { l.meldRegion(seat: $0, tiles: 7) }
+        for (seat, r) in regions.enumerated() {
+            #expect(!r.intersects(l.centerPanel), "seat \(seat) の副露がパネルに重なる")
+            for corner in [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
+                           CGPoint(x: r.minX, y: r.maxY), CGPoint(x: r.maxX, y: r.maxY)] {
+                #expect(l.feltContains(corner), "seat \(seat) の副露 \(corner) がフェルトの外")
+            }
             for other in 0..<4 { for i in 0..<18 {
-                #expect(!r.intersects(l.riverRect(seat: other, index: i)), "seat \(seat) の副露の角が seat \(other) の河 \(i) に重なる")
+                #expect(!r.intersects(l.riverRect(seat: other, index: i)), "seat \(seat) の副露が seat \(other) の河 \(i) に重なる")
             } }
+            for (o, r2) in regions.enumerated() where o > seat {
+                #expect(!r.intersects(r2), "seat \(seat) と seat \(o) の副露が重なる")
+            }
         }
     }
 
@@ -163,7 +169,7 @@ struct MahjongTableLayoutTests {
         let overview = l.handOverview
         let overviewRight = overview.center.x + overview.width / 2
         let meld = l.meldSlot(seat: 0)
-        let kanLeft = meld.center.x - l.meldTileWidth * meld.scale * 4 - 3
+        let kanLeft = meld.center.x - l.meldTileWidth(seat: 0) * meld.scale * 4 - 3
         #expect(kanLeft - overviewRight > 2, "一覧の右端 \(overviewRight) とカンの左端 \(kanLeft)")
     }
 

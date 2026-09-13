@@ -97,26 +97,26 @@ struct MahjongTableView: View {
     /// 「角から伸びる」向きへ揃えてから各家の角度に回す。
     private func meldRow(_ seat: Int) -> some View {
         let slot = layout.meldSlot(seat: seat)
-        let w = layout.meldTileWidth * slot.scale
+        let w = layout.meldTileWidth(seat: seat) * slot.scale
         let frameWidth = layout.size.width * 0.42
-        // 自分の副露は 1 組ずつ縦に積む（横に伸ばすと手牌一覧と接触する・会長 QA）。
-        // 4 枚（カン）で 1 行なので、幅は最大 4 枚ぶんに収まる。他家は角から 1 列に伸ばす。
+        // 対面と自分は 1 組ずつ行を分けて積む（4 枚＝カンで 1 行）。上家・下家は 1 列。
+        let stacks = seat == 0 || seat == 2
         let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false,
-                                 maxTilesPerRow: seat == 0 ? 4 : nil)
+                                 maxTilesPerRow: stacks ? 4 : nil)
         let rowHeight = w * 1.34 + 1
-        let stackHeight: CGFloat? = seat == 0 ? rowHeight * 4 : nil
-        // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える。
-        // 回転は時計回りが正。180 度で trailing は左端へ、-90 度で trailing は上端へ、90 度で leading は上端へ。
+        let stackHeight: CGFloat? = stacks ? rowHeight * 4 : nil
+        // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える（回転は時計回りが正）。
         let alignment: Alignment
         let center: CGPoint
         switch seat {
-        case 2: // 左上の角から右へ伸びる
-            alignment = .trailing
-            center = CGPoint(x: slot.center.x + frameWidth / 2, y: slot.center.y)
-        case 1: // 右上の角から下へ伸びる
+        case 2: // 左上の角。180 度回転で bottomTrailing が左上へ来て、行は下へ積まれる
+            alignment = .bottomTrailing
+            center = CGPoint(x: slot.center.x + frameWidth / 2,
+                             y: slot.center.y + (stackHeight ?? 0) / 2 - rowHeight / 2)
+        case 1: // 右上の角から下へ 1 列（-90 度で trailing が上端）
             alignment = .trailing
             center = CGPoint(x: slot.center.x, y: slot.center.y + frameWidth / 2)
-        case 3: // 左下の角から上へ伸びる
+        case 3: // 左下の角から上へ 1 列（90 度で trailing が下端）
             alignment = .trailing
             center = CGPoint(x: slot.center.x, y: slot.center.y - frameWidth / 2)
         default: // 右下の角。行は上へ積む
