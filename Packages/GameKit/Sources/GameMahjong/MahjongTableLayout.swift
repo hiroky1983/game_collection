@@ -207,21 +207,51 @@ public struct MahjongTableLayout: Sendable {
 
     /// 副露の置き場。実物どおり**各家から見て右側**の角: 対面＝画面左上、下家（右）＝右上、
     /// 上家（左）＝左下、自分＝右下。`Slot.center` はその角に寄せる基準点。
-    /// 以前は上家を左上に置いていてドラのチップと重なった（会長指摘）。
+    ///
+    /// 置き方は家ごとに違う（会長 QA「鳴きが多くなると重なる」）:
+    /// - 対面: 左上の角から **1 組ずつ行を分けて下へ** 積む（横に伸ばすと対面の壁の下に潜る）
+    /// - 上家・下家: 壁と河の 3 行目の間の細い帯に、河より小さい牌（`meldTileScale`）で **1 列** に並べる
+    /// - 自分: 右下の角から 1 組ずつ上へ積む
     public func meldSlot(seat: Int) -> Slot {
         let g: Projected
         let rotation: Double
         switch seat {
-        case 2: g = project(u: 0.12, v: 0.09); rotation = 180
-        case 1: g = project(u: 0.90, v: 0.10); rotation = -90
-        case 3: g = project(u: 0.10, v: 0.90); rotation = 90
-        default: g = project(u: 0.82, v: 0.955); rotation = 0
+        case 2: g = project(u: 0.10, v: 0.10); rotation = 180
+        case 1: g = project(u: 0.905, v: 0.08); rotation = -90
+        case 3: g = project(u: 0.095, v: 0.92); rotation = 90
+        default: g = project(u: 0.85, v: 0.955); rotation = 0
         }
         return Slot(center: g.point, scale: g.scale, rotation: rotation)
     }
 
-    /// 副露の牌の幅（河よりわずかに小さい）。
-    public var meldTileWidth: CGFloat { riverTileWidth * 0.9 }
+    /// 副露の牌の幅（縮尺 1 のとき）。上家・下家は帯が細いので河の 0.62 倍、他は 0.9 倍。
+    public func meldTileWidth(seat: Int) -> CGFloat {
+        riverTileWidth * ((seat == 1 || seat == 3) ? 0.62 : 0.9)
+    }
+
+    /// 副露の牌の幅（自分の値。互換のため残す）。
+    public var meldTileWidth: CGFloat { meldTileWidth(seat: 0) }
+
+    /// `count` 枚の副露が占める画面上の矩形（重なりの検査用。`MahjongMeldRow` の並びを近似:
+    /// 組の間隔は無視し、牌は密着とみなす）。
+    public func meldRegion(seat: Int, tiles count: Int) -> CGRect {
+        let slot = meldSlot(seat: seat)
+        let w = meldTileWidth(seat: seat) * slot.scale
+        let h = w * 1.34
+        let c = slot.center
+        switch seat {
+        case 2: // 左上から下へ、行あたり最大 4 枚
+            let rows = CGFloat((count + 3) / 4)
+            return CGRect(x: c.x, y: c.y, width: w * 4, height: h * rows)
+        case 1: // 右上から下へ 1 列（牌は横向き＝画面上の高さが w）
+            return CGRect(x: c.x - h / 2, y: c.y, width: h, height: w * CGFloat(count))
+        case 3: // 左下から上へ 1 列
+            return CGRect(x: c.x - h / 2, y: c.y - w * CGFloat(count), width: h, height: w * CGFloat(count))
+        default: // 右下から上へ、行あたり最大 4 枚
+            let rows = CGFloat((count + 3) / 4)
+            return CGRect(x: c.x - w * 4, y: c.y - h * rows, width: w * 4, height: h * rows)
+        }
+    }
 
     /// 立直棒（各家の河の内側）。
     public func riichiStickSlot(seat: Int) -> Slot {
