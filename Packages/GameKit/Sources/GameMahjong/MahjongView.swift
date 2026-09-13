@@ -630,7 +630,12 @@ public struct MahjongView: View {
         )
         .accessibilityHint("ダブルタップでこの牌を切ります")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { model.discard(tile) }
+        .accessibilityAction {
+            // VoiceOver の打牌もタップと同じ位置から飛ばす（verifier 指摘）
+            pendingDiscardSlot = (index: MahjongHandTap.handIndex(of: id) ?? model.playerHand.tiles.count,
+                                  count: model.playerHand.tiles.count + (model.playerDrawnTile != nil ? 1 : 0))
+            model.discard(tile)
+        }
         .disabled(!model.isPlayerTurn)
     }
 

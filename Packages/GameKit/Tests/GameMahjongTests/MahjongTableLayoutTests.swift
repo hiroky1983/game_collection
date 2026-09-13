@@ -63,13 +63,13 @@ struct MahjongTableLayoutTests {
         }
     }
 
-    @Test("CPU の立て牌は 13 枚が奥から手前の順に並び、足元はフェルトの内側")
-    func handBlocks() {
+    @Test("CPU の立て牌は 13 枚（ツモ番は 14 枚）が奥から手前の順に並び、足元はフェルトの内側", arguments: [13, 14])
+    func handBlocks(count: Int) {
         let l = Self.phone
         for seat in [1, 2, 3] {
             var lastY: CGFloat = -1
-            for i in 0..<13 {
-                let (g, facing) = l.handBlock(seat: seat, index: i, count: 13)
+            for i in 0..<count {
+                let (g, facing) = l.handBlock(seat: seat, index: i, count: count)
                 #expect(g.drop > 5, "高さが無い")
                 // 上面は立っているぶん木枠に掛かってよい。足元（d を drop だけ下ろした点）が内側なら卓上にある
                 let foot = CGPoint(x: g.d.x, y: g.d.y + g.drop)

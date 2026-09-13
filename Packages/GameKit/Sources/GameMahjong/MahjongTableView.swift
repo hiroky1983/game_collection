@@ -123,33 +123,17 @@ struct MahjongTableView: View {
         let slot = layout.meldSlot(seat: seat)
         let w = layout.meldTileWidth(seat: seat) * slot.scale
         let frameWidth = layout.size.width * 0.42
-        let stacks = true
         let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false, maxTilesPerRow: 4)
         let rowHeight = w * 1.34 + 1
-        let stackHeight: CGFloat? = stacks ? rowHeight * 4 : nil
-        // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える（回転は時計回りが正）。
-        // 対面・自分は `slot.center` を 1 組目の行の縦の中央に置く（`stackHeight` は打ち消し合う）。
-        // `MahjongTableLayout.meldRegion` はこの置き方を前提に矩形を出す（verifier 指摘）。
-        let alignment: Alignment
-        let center: CGPoint
-        switch seat {
-        case 2: // 左上の角。180 度回転で bottomTrailing が左上へ来て、行は下へ積まれる
-            alignment = .bottomTrailing
-            center = CGPoint(x: slot.center.x + frameWidth / 2,
-                             y: slot.center.y + (stackHeight ?? 0) / 2 - rowHeight / 2)
-        case 1: // 右上の角から下へ 1 列（-90 度で trailing が上端）
-            alignment = .trailing
-            center = CGPoint(x: slot.center.x, y: slot.center.y + frameWidth / 2)
-        case 3: // 左下の角から上へ 1 列（90 度で trailing が下端）
-            alignment = .trailing
-            center = CGPoint(x: slot.center.x, y: slot.center.y - frameWidth / 2)
-        default: // 右下（手牌一覧の上の段）。行は上へ積む
-            alignment = .bottomTrailing
-            center = CGPoint(x: slot.center.x - frameWidth / 2,
-                             y: slot.center.y - (stackHeight ?? 0) / 2 + rowHeight / 2)
-        }
+        // 4 行ぶん（4 組）の枠を取り、bottomTrailing に寄せて回す。対面は 180 度回転で bottomTrailing が
+        // 左上へ来て行は下へ、自分は右下から上へ積まれる。`slot.center` が 1 組目の行の縦の中央
+        // （`stackHeight` は打ち消し合う）。`MahjongTableLayout.meldRegion` はこの置き方を前提に矩形を出す。
+        let stackHeight = rowHeight * 4
+        let center = seat == 2
+            ? CGPoint(x: slot.center.x + frameWidth / 2, y: slot.center.y + stackHeight / 2 - rowHeight / 2)
+            : CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y - stackHeight / 2 + rowHeight / 2)
         return row
-            .frame(width: frameWidth, height: stackHeight, alignment: alignment)
+            .frame(width: frameWidth, height: stackHeight, alignment: .bottomTrailing)
             .rotationEffect(.degrees(slot.rotation))
             .position(center)
     }
