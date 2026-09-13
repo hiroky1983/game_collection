@@ -28,6 +28,9 @@ public struct MahjongView: View {
     @State private var discardFlightProgress: CGFloat = 0
     /// ドラ見出し（`doraHeader`）の実幅。iPhone の基準幅 361pt に対する縮尺に使う。
     @State private var doraHeaderWidth: CGFloat = 0
+    /// 打牌の飛び出し位置（#738）: 直前にタップで切った牌が一覧の何枚目（何枚中）にあったか。
+    /// `startDiscardFlight` が 1 回使って捨てる。無ければツモ牌の位置（右端）から飛ぶ。
+    @State private var pendingDiscardSlot: (index: Int, count: Int)?
     /// 飛行の通し番号。後片付けは「自分が始めた飛行」だけを消す（内容が同じ別の飛行を誤って消さない）。
     @State private var discardFlightSerial = 0
     /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
@@ -91,20 +94,22 @@ public struct MahjongView: View {
             // 高さを確保させ、他の要素（手牌・アクション行・バナー）がそのぶん譲る。
             // これが無いと卓が伸び放題になり、画面下のバナー広告が画面外へ押し出されて
             // 見えなくなる／レイヤーが崩れて見える（会長のシミュレータ確認で発覚）。
-            // 卓（`mahjongTable`）は正方形で、画面の余った縦幅をすべて使い切るとは限らない。
-            // 余りは**卓の上**で吸収し、卓・手牌・アクション行を画面の下へ寄せて手の届く側に
-            // まとめる（会長指摘 2026-09-13: 卓とボタンの間が空く）。以前は手牌の下で吸収して
-            // いたため、卓が上に張り付き、手牌とリーチ・ツモのボタンの間に空白が出ていた。
-            Spacer(minLength: 0)
             doraHeader
             mahjongTable
                 .layoutPriority(1)
+            // 卓（`mahjongTable`）は正方形で、画面の余った縦幅をすべて使い切るとは限らない。
+            // 余りは手牌（またはリザルト）の下で吸収し、見出しと卓は画面上部に固定する（上寄せ）。
+            // 一度は卓の上で吸収して下寄せにしたが、リザルトへの切り替えで卓とドラの見出しが
+            // 上下に動いて見えたので戻した（会長指摘 2026-09-13）。
             if model.phase == .gameResult {
                 gameResultCard.transition(.opacity)
+                Spacer(minLength: 0)
             } else if model.phase == .handResult {
                 handResultCard.transition(.opacity)
+                Spacer(minLength: 0)
             } else {
                 handOnTable.transition(.opacity)
+                Spacer(minLength: 0)
             }
             // 会長指摘: リザルト画面でも「切る牌をタップしよう」が出ていて、打牌できない場面なのに
             // 打牌を促す文言が残っていた。対局中だけ出す。
@@ -351,9 +356,17 @@ public struct MahjongView: View {
               let tile = model.discards[seat].last else { return }
         let index = new[seat] - 1
         let slot = layout.riverSlot(seat: seat, index: index)
+        // 自分の打牌は、切った牌が一覧にあった場所から飛ぶ（会長指摘 2026-09-13「真ん中ではなく端っこから」）
+        let from: CGPoint
+        if seat == MahjongModel.humanIndex, let s = pendingDiscardSlot {
+            from = layout.handOverviewTileCenter(index: s.index, count: s.count)
+        } else {
+            from = layout.discardOrigin(seat: seat)
+        }
+        pendingDiscardSlot = nil
         discardFlight = MahjongDiscardFlight(
             seat: seat, index: index, tile: tile,
-            from: layout.discardOrigin(seat: seat), to: slot.center,
+            from: from, to: slot.center,
             rotation: slot.rotation, scale: slot.scale
         )
         discardFlightProgress = 0
@@ -640,6 +653,13 @@ public struct MahjongView: View {
         case .discard:
             // 選択解除と打牌を同じトランザクションにする。別々のフレームに分かれると
             // 「選択解除」→「手牌の入れ替え」の2段ジャンプに見えることがある（Opus指摘）。
+            // 切る前に、この牌が一覧の何枚目にあったかを控える（打牌の飛び出し位置。ツモ牌は末尾）。
+            let handCount = model.playerHand.tiles.count
+            let overviewCount = handCount + (model.playerDrawnTile != nil ? 1 : 0)
+            pendingDiscardSlot = (
+                index: MahjongHandTap.handIndex(of: id) ?? handCount,
+                count: overviewCount
+            )
             var transaction = Transaction()
             transaction.animation = nil
             transaction.disablesAnimations = true

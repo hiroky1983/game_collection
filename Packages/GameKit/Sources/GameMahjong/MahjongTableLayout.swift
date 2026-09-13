@@ -174,7 +174,10 @@ public struct MahjongTableLayout: Sendable {
 
     // MARK: 立て牌（CPU の手牌）
 
-    /// CPU の手牌 `index` 枚目（0 が奥／左端）。`count` 枚を中央寄せで並べる。
+    /// CPU の手牌 `index` 枚目（0 が奥／左端）。対面は `count` 枚を中央寄せ、上家・下家は
+    /// **下家は手前の端（v 0.88）、上家は奥の端（v 0.13）に固定**して枚数ぶん縮む
+    /// （副露で減った分だけ、その家の右側＝下家は奥・上家は手前の端が空き、そこへ河と同じ大きさの
+    /// 副露を置く。会長指摘 2026-09-13「左右の鳴き牌の大きさが直っていない」）。
     /// 描く側は **index の昇順**で渡す（奥から手前）。
     public func handBlock(seat: Int, index: Int, count: Int) -> (MahjongTileBlockGeometry, MahjongTileBlockFacing) {
         let h = Self.standingHeight
@@ -191,7 +194,8 @@ public struct MahjongTableLayout: Sendable {
             return (g, .viewer)
         default:
             let tu: CGFloat = 0.032, dv: CGFloat = 0.05
-            let v0 = 0.18 + (CGFloat(index) - (CGFloat(count) - 13) / 2) * dv
+            let start: CGFloat = seat == 1 ? 0.88 - CGFloat(count) * dv : 0.13
+            let v0 = start + CGFloat(index) * dv
             let u0: CGFloat = seat == 3 ? 0.02 : 0.948
             let sc = project(u: u0, v: v0).scale
             let g = MahjongTileBlockGeometry(
@@ -210,7 +214,9 @@ public struct MahjongTableLayout: Sendable {
     ///
     /// 置き方は家ごとに違う（会長 QA「鳴きが多くなると重なる」）:
     /// - 対面: 左上の角から **1 組ずつ行を分けて下へ** 積む（横に伸ばすと対面の壁の下に潜る）
-    /// - 上家・下家: 壁と河の 3 行目の間の細い帯に、河より小さい牌（`meldTileWidth(seat:)`）で **1 列** に並べる
+    /// - 上家・下家: 立て牌の壁と同じ列で、副露のぶん短くなった壁の空いた端（下家は奥、上家は手前）から
+    ///   **1 列** に並べる（`handBlock` が壁を片側に寄せる）。河と同じ大きさ。1 枚ずつの置き場は
+    ///   `sideMeldSlot`（台形の縁に沿うので列は少し斜め）。ここの `Slot` は列の先端。
     /// - 自分: 手牌一覧（`handOverview`）の **上の段**、右寄りに 1 組ずつ上へ積む。一覧が河と同じ
     ///   大きさになって手前の辺をほぼ使い切る（会長指摘 2026-09-13）ので、角には置けない。
     ///   右端 u 0.885 は下家の立て牌（u 0.948〜、上端が中央へ傾く）に触れない位置、左端は自分の河の右端（u 0.66）より右。
@@ -219,46 +225,89 @@ public struct MahjongTableLayout: Sendable {
         let rotation: Double
         switch seat {
         case 2: g = project(u: 0.10, v: 0.10); rotation = 180
-        case 1: g = project(u: 0.905, v: 0.08); rotation = -90
-        case 3: g = project(u: 0.095, v: 0.92); rotation = 90
+        case 1: g = project(u: Self.sideMeldU(seat: 1), v: Self.sideMeldStartV(seat: 1)); rotation = -90
+        case 3: g = project(u: Self.sideMeldU(seat: 3), v: Self.sideMeldStartV(seat: 3)); rotation = 90
         default: g = project(u: 0.885, v: 0.885); rotation = 0
         }
         return Slot(center: g.point, scale: g.scale, rotation: rotation)
     }
 
-    /// 副露の牌の幅（縮尺 1 のとき）。自分は河と同じ（会長指摘 2026-09-13）、
-    /// 上家・下家は帯が細いので河の 0.62 倍、対面は 0.9 倍。
+    /// 副露の牌の幅（縮尺 1 のとき）。自分・上家・下家は河と同じ（会長指摘 2026-09-13）、
+    /// 対面は 0.9 倍（左上の角から下へ積むぶん、上家の河の先頭に近い）。
     public func meldTileWidth(seat: Int) -> CGFloat {
-        switch seat {
-        case 1, 3: return riverTileWidth * 0.62
-        case 2: return riverTileWidth * 0.9
-        default: return riverTileWidth
+        seat == 2 ? riverTileWidth * 0.9 : riverTileWidth
+    }
+
+    /// 上家・下家の 1 列に並べた副露の、組と組の間隔（pt）。
+    public static let meldGroupSpacing: CGFloat = 3
+
+    /// 上家・下家の副露の列の u（壁の列に揃える。下家の壁は u 0.948〜、上家は 0.02〜）。
+    static func sideMeldU(seat: Int) -> CGFloat { seat == 1 ? 0.955 : 0.045 }
+    /// 列の先端の v。下家は奥の縁ぎりぎり（牌の縁がフェルトの奥の辺に掛からない最小）、
+    /// 上家は手牌一覧（v 0.955、上端はその 12pt ほど上）に触れない位置。
+    static func sideMeldStartV(seat: Int) -> CGFloat { seat == 1 ? 0.05 : 0.885 }
+
+    /// 上家・下家の副露 1 枚の置き場。`ordinal` は全組を通した通し番号（0 が列の先端）、`gaps` は
+    /// その前にある組の区切りの数。壁と同じ列（u 一定）に沿って、下家は奥から手前へ、上家は手前から奥へ、
+    /// **画面上の距離**で牌の幅ぶんずつ進める（奥ほど縮むので v の歩幅は一定にしない）。
+    public func sideMeldSlot(seat: Int, ordinal: Int, gaps: Int) -> Slot {
+        let u = Self.sideMeldU(seat: seat)
+        let dir: CGFloat = seat == 1 ? 1 : -1
+        var g = project(u: u, v: Self.sideMeldStartV(seat: seat))
+        for _ in 0..<max(0, ordinal) {
+            // 隣の牌の中心までの距離は「両方の牌の幅の平均」。次の縮尺は 1 歩先で読み直す
+            let w0 = riverTileWidth * g.scale
+            let probe = projectAt(u: u, y: g.y + dir * w0)
+            g = projectAt(u: u, y: g.y + dir * (w0 + riverTileWidth * probe.scale) / 2)
         }
+        if gaps > 0 { g = projectAt(u: u, y: g.y + dir * CGFloat(gaps) * Self.meldGroupSpacing) }
+        return Slot(center: g.point, scale: g.scale, rotation: seat == 1 ? -90 : 90)
+    }
+
+    /// 画面の y から卓上の v を戻して写す（`project(u:v:)` の逆）。
+    private func projectAt(u: CGFloat, y: CGFloat) -> Projected {
+        let vv = min(1, max(0, (y - feltTop) / feltHeight))
+        return project(u: u, v: pow(vv, 1 / Self.depthPower))
+    }
+
+    /// 上家・下家の副露 1 枚が画面上で占める矩形（横向きなので幅が牌の高さ）。
+    public func sideMeldRect(seat: Int, ordinal: Int, gaps: Int) -> CGRect {
+        let slot = sideMeldSlot(seat: seat, ordinal: ordinal, gaps: gaps)
+        let w = riverTileWidth * slot.scale
+        let h = w * Self.tileAspect
+        return CGRect(x: slot.center.x - h / 2, y: slot.center.y - w / 2, width: h, height: w)
+    }
+
+    /// `groups` 組・合計 `count` 枚の副露を、重なりの検査用に矩形の列で返す。対面・自分は `meldRegion`
+    /// 1 つ、上家・下家は 1 枚ずつ（列が斜めなので、外接矩形では縁の判定が粗すぎる）。
+    /// 組の区切りは 3 枚ごとにあるとみなす（ポンとチーは 3 枚。カンが混じると区切りは少なめに出る）。
+    public func meldTileRects(seat: Int, groups: Int, tiles count: Int) -> [CGRect] {
+        guard seat == 1 || seat == 3 else { return [meldRegion(seat: seat, groups: groups, tiles: count)] }
+        return (0..<count).map { sideMeldRect(seat: seat, ordinal: $0, gaps: min($0 / 3, max(0, groups - 1))) }
     }
 
     /// 副露の牌の幅（自分の値。互換のため残す）。
     public var meldTileWidth: CGFloat { meldTileWidth(seat: 0) }
 
-    /// `count` 枚の副露が占める画面上の矩形（重なりの検査用。`MahjongTableView.meldRow` の置き方に
-    /// 合わせる: 対面・自分は `slot.center` が **1 組目の行の縦の中央**で、行の高さ `w × 1.34` を
-    /// 間隔 1pt で積む。上家・下家は `slot.center` が列の先端の中心。組の間隔は無視し、牌は密着とみなす）。
-    public func meldRegion(seat: Int, tiles count: Int) -> CGRect {
+    /// `groups` 組・合計 `count` 枚の副露が占める画面上の矩形（重なりの検査用。`MahjongTableView.meldRow`
+    /// の置き方に合わせる: 対面・自分は `slot.center` が **1 組目の行の縦の中央**で、1 組 1 行
+    /// （`MahjongMeldRow.packRows` は 3 枚 + 3 枚を同じ行に詰めない）、行の高さ `w × 1.34` を間隔 1pt で積む。
+    /// 上家・下家は 1 枚ずつの矩形（`meldTileRects`）の外接矩形。
+    public func meldRegion(seat: Int, groups: Int, tiles count: Int) -> CGRect {
+        if seat == 1 || seat == 3 {
+            return meldTileRects(seat: seat, groups: groups, tiles: count).reduce(CGRect.null) { $0.union($1) }
+        }
         let slot = meldSlot(seat: seat)
         let w = meldTileWidth(seat: seat) * slot.scale
         let h = w * 1.34
         let c = slot.center
-        let rows = CGFloat((count + 3) / 4)
+        let rows = CGFloat(max(1, groups))
         let stack = h * rows + (rows - 1)
-        switch seat {
-        case 2: // 左上から下へ、行あたり最大 4 枚
+        if seat == 2 { // 左上から下へ、1 組 1 行
             return CGRect(x: c.x, y: c.y - h / 2, width: w * 4, height: stack)
-        case 1: // 右上から下へ 1 列（牌は横向き＝画面上の高さが w）
-            return CGRect(x: c.x - h / 2, y: c.y, width: h, height: w * CGFloat(count))
-        case 3: // 左下から上へ 1 列
-            return CGRect(x: c.x - h / 2, y: c.y - w * CGFloat(count), width: h, height: w * CGFloat(count))
-        default: // 右下から上へ、行あたり最大 4 枚
-            return CGRect(x: c.x - w * 4, y: c.y + h / 2 - stack, width: w * 4, height: stack)
         }
+        // 自分: 右下から上へ、1 組 1 行
+        return CGRect(x: c.x - w * 4, y: c.y + h / 2 - stack, width: w * 4, height: stack)
     }
 
     /// 立直棒（各家の河の内側）。
@@ -282,14 +331,27 @@ public struct MahjongTableLayout: Sendable {
         return CGRect(x: g.x - side / 2, y: g.y - side / 2, width: side, height: side)
     }
 
-    /// 打牌が飛び始める点（#738）。自分は手牌一覧の中央、CPU はその家の立て牌の列の中ほど。
+    /// 打牌が飛び始める点（#738）。CPU はその家の立て牌の列の中ほど。自分は切った牌が一覧の
+    /// どこにあったかで決める（`handOverviewTileCenter`。会長指摘 2026-09-13「真ん中ではなく端っこから」）ので、
+    /// ここは位置が分からないときの既定値＝**ツモ牌の位置（右端）**。一覧の牌は河と同じ大きさなので、
+    /// 飛ぶ間に大きさを変えなくてよい。
     public func discardOrigin(seat: Int) -> CGPoint {
         switch seat {
         case 2: return project(u: 0.5, v: 0.07).point
         case 3: return project(u: 0.05, v: 0.50).point
         case 1: return project(u: 0.95, v: 0.50).point
-        default: return handOverview.center
+        default: return handOverviewTileCenter(index: 13, count: 14)
         }
+    }
+
+    /// 手牌一覧の `count` 枚中 `index` 枚目（0 始まり。ツモ牌は末尾）の中心。一覧は中央寄せ。
+    public func handOverviewTileCenter(index: Int, count: Int) -> CGPoint {
+        let o = handOverview
+        let n = max(1, count)
+        let pitch = o.tileWidth + Self.handOverviewSpacing
+        let rowWidth = o.tileWidth * CGFloat(n) + Self.handOverviewSpacing * CGFloat(n - 1)
+        let i = CGFloat(min(max(0, index), n - 1))
+        return CGPoint(x: o.center.x - rowWidth / 2 + i * pitch + o.tileWidth / 2, y: o.center.y)
     }
 
     /// 手牌一覧の牌どうしの間隔（pt）。

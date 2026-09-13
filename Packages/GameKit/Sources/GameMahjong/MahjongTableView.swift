@@ -95,14 +95,36 @@ struct MahjongTableView: View {
 
     /// 副露は各家の右手前の角に寄せる。`MahjongMeldRow` は横一列なので、角を基準に
     /// 「角から伸びる」向きへ揃えてから各家の角度に回す。
+    @ViewBuilder
     private func meldRow(_ seat: Int) -> some View {
+        if seat == 1 || seat == 3 {
+            sideMelds(seat)
+        } else {
+            stackedMelds(seat)
+        }
+    }
+
+    /// 上家・下家の副露。壁の列に沿って 1 枚ずつ置く（列は台形の縁に沿って少し斜めになるので、
+    /// `MahjongMeldRow` の直線の並びでは縁からはみ出す）。置き場は `MahjongTableLayout.sideMeldSlot`。
+    private func sideMelds(_ seat: Int) -> some View {
+        let tiles: [(group: Int, tile: MahjongTile)] = scene.melds[seat].enumerated()
+            .flatMap { gi, meld in meld.tiles.map { (group: gi, tile: $0) } }
+        return ForEach(Array(tiles.enumerated()), id: \.offset) { ordinal, item in
+            let slot = layout.sideMeldSlot(seat: seat, ordinal: ordinal, gaps: item.group)
+            let w = layout.riverTileWidth * slot.scale
+            MahjongTileView(tile: item.tile, width: w, height: w * MahjongTableLayout.tileAspect)
+                .rotationEffect(.degrees(slot.rotation))
+                .position(slot.center)
+        }
+    }
+
+    /// 対面・自分の副露。1 組ずつ行を分けて積む（4 枚＝カンで 1 行）。
+    private func stackedMelds(_ seat: Int) -> some View {
         let slot = layout.meldSlot(seat: seat)
         let w = layout.meldTileWidth(seat: seat) * slot.scale
         let frameWidth = layout.size.width * 0.42
-        // 対面と自分は 1 組ずつ行を分けて積む（4 枚＝カンで 1 行）。上家・下家は 1 列。
-        let stacks = seat == 0 || seat == 2
-        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false,
-                                 maxTilesPerRow: stacks ? 4 : nil)
+        let stacks = true
+        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false, maxTilesPerRow: 4)
         let rowHeight = w * 1.34 + 1
         let stackHeight: CGFloat? = stacks ? rowHeight * 4 : nil
         // 回転後に牌が角側へ来るよう、回転前の寄せ方向を家ごとに変える（回転は時計回りが正）。

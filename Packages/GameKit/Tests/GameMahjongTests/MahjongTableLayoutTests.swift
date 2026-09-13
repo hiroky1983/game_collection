@@ -137,6 +137,57 @@ struct MahjongTableLayoutTests {
         }
     }
 
+    @Test("上家・下家の立て牌は下家が手前の端、上家が奥の端に固定され、副露で減った分だけ反対の端が空く")
+    func sideWallsAnchor() {
+        let l = Self.phone
+        // 下家: 最後の 1 枚は枚数によらず同じ位置（手前の端）
+        let last13 = l.handBlock(seat: 1, index: 12, count: 13).0
+        let last10 = l.handBlock(seat: 1, index: 9, count: 10).0
+        #expect(abs(last13.d.y - last10.d.y) < 0.01)
+        // 上家: 最初の 1 枚は枚数によらず同じ位置（奥の端）
+        let first13 = l.handBlock(seat: 3, index: 0, count: 13).0
+        let first10 = l.handBlock(seat: 3, index: 0, count: 10).0
+        #expect(abs(first13.a.y - first10.a.y) < 0.01)
+        // 対面は中央寄せのまま
+        let mid13 = l.handBlock(seat: 2, index: 6, count: 13).0
+        let mid7 = l.handBlock(seat: 2, index: 3, count: 7).0
+        #expect(abs(mid13.a.x - mid7.a.x) < 0.01)
+    }
+
+    @Test("上家・下家の副露は河と同じ幅で、3 組まで（ツモ番の壁とも）河・パネル・フェルトの縁と重ならない",
+          arguments: [1, 3])
+    func sideMeldsFitBesideWall(seat: Int) {
+        let l = Self.phone
+        #expect(l.meldTileWidth(seat: seat) == l.riverTileWidth)
+        for groups in 1...3 {
+            let tiles = groups * 3 + 1                // カン 1 つ + ポン／チー（全部カンは想定しない）
+            let wallCount = 13 - groups * 3 + 1       // ツモ番（1 枚多い）が最も長い
+            let rects = l.meldTileRects(seat: seat, groups: groups, tiles: tiles)
+            #expect(rects.count == tiles)
+            for (k, r) in rects.enumerated() {
+                for corner in Self.corners(r) {
+                    #expect(l.feltContains(corner), "seat \(seat) \(groups) 組 \(k) 枚目: 角 \(corner) がフェルトの外")
+                }
+                #expect(!r.intersects(l.centerPanel))
+                for other in 0..<4 { for i in 0..<18 {
+                    #expect(!r.intersects(l.riverRect(seat: other, index: i)),
+                            "seat \(seat) \(groups) 組 \(k) 枚目が seat \(other) の河 \(i) に重なる")
+                } }
+                for i in 0..<wallCount {
+                    #expect(!r.intersects(Self.wallRect(l, seat: seat, index: i, count: wallCount)),
+                            "seat \(seat) \(groups) 組 \(k) 枚目が自分の立て牌 \(i)/\(wallCount) に重なる")
+                }
+                // 隣の牌と密着し（1pt 以内）、重ならない
+                if k > 0 {
+                    let prev = rects[k - 1]
+                    let gap = seat == 1 ? r.minY - prev.maxY : prev.minY - r.maxY
+                    let expected: CGFloat = (k % 3 == 0 && k / 3 <= groups - 1) ? MahjongTableLayout.meldGroupSpacing : 0
+                    #expect(abs(gap - expected) < 1, "seat \(seat) \(k) 枚目の隙間 \(gap)")
+                }
+            }
+        }
+    }
+
     @Test("副露は 4 家とも 2 組（7 枚）まで、河 18 枚・中央パネル・他家の副露と重ならない")
     func meldRegionsClearEverything() {
         let l = Self.phone
@@ -147,18 +198,21 @@ struct MahjongTableLayoutTests {
         #expect(pts[1].x > mid.x && pts[1].y < mid.y)
         #expect(pts[3].x < mid.x && pts[3].y > mid.y)
         #expect(pts[0].x > mid.x && pts[0].y > mid.y)
-        let regions = (0..<4).map { l.meldRegion(seat: $0, tiles: 7) }
-        for (seat, r) in regions.enumerated() {
-            #expect(!r.intersects(l.centerPanel), "seat \(seat) の副露がパネルに重なる")
-            for corner in [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
-                           CGPoint(x: r.minX, y: r.maxY), CGPoint(x: r.maxX, y: r.maxY)] {
-                #expect(l.feltContains(corner), "seat \(seat) の副露 \(corner) がフェルトの外")
-            }
-            for other in 0..<4 { for i in 0..<18 {
-                #expect(!r.intersects(l.riverRect(seat: other, index: i)), "seat \(seat) の副露が seat \(other) の河 \(i) に重なる")
-            } }
-            for (o, r2) in regions.enumerated() where o > seat {
-                #expect(!r.intersects(r2), "seat \(seat) と seat \(o) の副露が重なる")
+        let regions = (0..<4).map { l.meldTileRects(seat: $0, groups: 2, tiles: 7) }
+        for (seat, rects) in regions.enumerated() {
+            for r in rects {
+                #expect(!r.intersects(l.centerPanel), "seat \(seat) の副露がパネルに重なる")
+                for corner in Self.corners(r) {
+                    #expect(l.feltContains(corner), "seat \(seat) の副露 \(corner) がフェルトの外")
+                }
+                for other in 0..<4 { for i in 0..<18 {
+                    #expect(!r.intersects(l.riverRect(seat: other, index: i)), "seat \(seat) の副露が seat \(other) の河 \(i) に重なる")
+                } }
+                for (o, rects2) in regions.enumerated() where o > seat {
+                    for r2 in rects2 {
+                        #expect(!r.intersects(r2), "seat \(seat) と seat \(o) の副露が重なる")
+                    }
+                }
             }
         }
     }
@@ -188,7 +242,7 @@ struct MahjongTableLayoutTests {
         #expect(l.meldTileWidth(seat: 0) == l.riverTileWidth)
         let o = l.handOverview
         let overviewTop = o.center.y - o.tileWidth * MahjongTableLayout.tileAspect / 2
-        let region = l.meldRegion(seat: 0, tiles: 16)
+        let region = l.meldRegion(seat: 0, groups: 4, tiles: 16)
         // 一覧で選んだ牌は 3pt 持ち上がるので、その分も空ける
         #expect(region.maxY < overviewTop - 3, "副露の下端 \(region.maxY) が一覧の上端 \(overviewTop) に近い")
         #expect(!region.intersects(l.centerPanel))
@@ -199,16 +253,20 @@ struct MahjongTableLayoutTests {
             #expect(!region.intersects(l.riverRect(seat: seat, index: i)), "副露が seat \(seat) の河 \(i) に重なる")
         } }
         for other in 1...3 {
-            #expect(!region.intersects(l.meldRegion(seat: other, tiles: 7)), "seat \(other) の副露と重なる")
+            #expect(!region.intersects(l.meldRegion(seat: other, groups: 2, tiles: 7)), "seat \(other) の副露と重なる")
         }
         // 下家の立て牌（ツモ番の 14 枚が最も手前まで伸びる）の占める矩形
         for i in 0..<14 {
-            let (g, _) = l.handBlock(seat: 1, index: i, count: 14)
-            let xs = [g.a, g.b, g.c, g.d].map(\.x), ys = [g.a, g.b, g.c, g.d].map(\.y)
-            let wall = CGRect(x: xs.min()! - g.lean, y: ys.min()!,
-                              width: xs.max()! - xs.min()! + g.lean * 2, height: ys.max()! - ys.min()! + g.drop)
-            #expect(!region.intersects(wall), "下家の立て牌 \(i) と重なる")
+            #expect(!region.intersects(Self.wallRect(l, seat: 1, index: i, count: 14)), "下家の立て牌 \(i) と重なる")
         }
+    }
+
+    /// 立て牌 1 枚が画面上で占める矩形（上面の 4 点 + 傾き + 高さぶんの落ち）。
+    private static func wallRect(_ l: MahjongTableLayout, seat: Int, index: Int, count: Int) -> CGRect {
+        let (g, _) = l.handBlock(seat: seat, index: index, count: count)
+        let xs = [g.a, g.b, g.c, g.d].map(\.x), ys = [g.a, g.b, g.c, g.d].map(\.y)
+        return CGRect(x: xs.min()! - g.lean, y: ys.min()!,
+                      width: xs.max()! - xs.min()! + g.lean * 2, height: ys.max()! - ys.min()! + g.drop)
     }
 
     private static func corners(_ r: CGRect) -> [CGPoint] {
@@ -222,10 +280,10 @@ struct MahjongTableLayoutTests {
         for seat in [0, 2] {
             let slot = l.meldSlot(seat: seat)
             let h = l.meldTileWidth(seat: seat) * slot.scale * 1.34
-            let one = l.meldRegion(seat: seat, tiles: 3)
+            let one = l.meldRegion(seat: seat, groups: 1, tiles: 3)
             #expect(abs(one.midY - slot.center.y) < 0.01, "seat \(seat): 1 組の縦の中央が slot.center でない")
             #expect(abs(one.height - h) < 0.01)
-            let two = l.meldRegion(seat: seat, tiles: 7)
+            let two = l.meldRegion(seat: seat, groups: 2, tiles: 7)
             #expect(abs(two.height - (h * 2 + 1)) < 0.01, "2 行は行の高さ 2 つ + 間隔 1pt")
             // 対面は 1 組目の下へ、自分は 1 組目の上へ増える
             #expect((abs(two.minY - one.minY) < 0.01) == (seat == 2))
