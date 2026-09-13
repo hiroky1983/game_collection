@@ -233,7 +233,9 @@ private func othelloSnapshot(
         isDraw: false,
         mustPass: mustPass ? true : nil,
         turnID: 20,
-        undoUsed: nil
+        undoUsed: nil,
+        undoCells: nil,
+        undoCurrentStone: nil
     )
 }
 
@@ -412,7 +414,7 @@ struct OthelloPreviewMidgameTests {
         let legacy = OthelloSnapshot(
             cells: saved.cells, currentStone: saved.currentStone, humanSide: saved.humanSide,
             aiLevel: saved.aiLevel, startedAt: saved.startedAt, winner: nil, isDraw: false,
-            mustPass: nil, turnID: nil, undoUsed: nil)
+            mustPass: nil, turnID: nil, undoUsed: nil, undoCells: nil, undoCurrentStone: nil)
         try store.save(legacy, for: "othello")
 
         let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
@@ -609,5 +611,65 @@ struct OthelloEmptyCellBonusTests {
         return regex.numberOfMatches(
             in: source, range: NSRange(source.startIndex..., in: source)
         )
+    }
+}
+
+// MARK: - 中断からの待った（#732）
+
+@MainActor
+@Suite("オセロ 中断からの待った")
+struct OthelloSnapshotTests {
+
+    /// 中断から再開しても、直前のやり取り（自分の着手 + CPU の応手）を「待った」で戻せる。
+    /// 修正前は巻き戻し履歴がメモリ上にしか無く、復元後は `canUndo` が false で押せなかった。
+    @Test func restoredGameCanUndoLastExchange() async throws {
+        let store = MockSnapshotStore()
+        let first = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        let move = try #require(first.board.validMoves(for: .black).first)
+        first.tap(row: move.0, col: move.1)
+        await first.performAIMoveIfNeeded()
+        try #require(first.isAITurn == false, "前提: CPU が応手して人間の手番に戻ること")
+        try #require(first.canUndo, "前提: 中断前は「待った」が押せること")
+
+        // ハブへ戻って開き直す = 同じ保存先から作り直す
+        let resumed = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(resumed.board == first.board)
+        #expect(resumed.canUndo)
+
+        resumed.undoLastExchange()
+        #expect(resumed.board == OthelloBoard())
+        #expect(resumed.currentStone == .black)
+        #expect(resumed.undoUsed)
+
+        // 戻し切ったあとの中断では戻る先が残らない（同じ手を二度戻せない）
+        let again = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(again.board == OthelloBoard())
+        #expect(again.canUndo == false)
+    }
+
+    /// 戻る先を持たない旧形式の中断データも読め、盤面は復元され「待った」は従来どおり押せない。
+    @Test func legacySnapshotWithoutUndoKeysStillLoads() throws {
+        let legacy: [String: Any] = [
+            "cells": OthelloBoard().cells.map { $0?.rawValue ?? NSNull() as Any },
+            "currentStone": OthelloStone.black.rawValue,
+            "humanSide": OthelloStone.black.rawValue,
+            "aiLevel": 2,
+            "startedAt": 0,
+            "isDraw": false,
+            "turnID": 4,
+            "undoUsed": true,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: legacy)
+        let snap = try JSONDecoder().decode(OthelloSnapshot.self, from: data)
+        #expect(snap.undoCells == nil)
+        #expect(snap.undoCurrentStone == nil)
+
+        let store = MockSnapshotStore()
+        try store.save(snap, for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(model.aiLevel == 2)
+        #expect(model.turnID == 4)
+        #expect(model.undoUsed)
+        #expect(model.canUndo == false)
     }
 }
