@@ -1,4 +1,5 @@
 import CoreGraphics
+import Core
 
 /// 数独の寸法。**状態を持たない純粋な定数・関数**として View から切り出す
 /// （マインスイーパー `MinesweeperMetrics`・麻雀ソリティア `MahjongSolitaireBoardMetrics` と同じ理由）。
@@ -12,6 +13,19 @@ enum SudokuMetrics {
 
     /// 数字パッド・操作ボタンの一辺の下限。
     static let padButtonMinSide: CGFloat = minimumTapTarget
+
+    /// 帯の拡大トグルの一辺。実寸は共通の `BoardToggleButton`（Core・#641）が持つので、
+    /// 帯の高さの見積りがそこからずれないよう同じ値を参照する。
+    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
+
+    /// 帯の拡大トグルに「拡大／全体」の文字を出せる帯の幅の下限。iPhone SE（帯 343pt）では
+    /// 文字を付けると左の「残り」「ミス」が潰れ、iPhone 17 Pro Max（361pt）では収まる（実測 2026-09-13）。
+    static let zoomTitleMinStatusBarWidth: CGFloat = 350
+
+    /// 帯の幅 `statusBarWidth` で拡大トグルに文字を出すか。未計測（0）は出す側に倒す。
+    static func showsZoomTitle(statusBarWidth: CGFloat) -> Bool {
+        statusBarWidth <= 0 || statusBarWidth >= zoomTitleMinStatusBarWidth
+    }
 
     /// 拡大モードでの 1 マスの一辺。
     ///

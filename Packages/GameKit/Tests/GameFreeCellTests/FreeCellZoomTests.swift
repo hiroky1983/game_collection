@@ -141,7 +141,7 @@ struct FreeCellZoomTests {
             branches == Self.expectedZoomBranches,
             """
             拡大の分岐が \(branches) か所ある（想定 \(Self.expectedZoomBranches) か所: \
-            札の幅・スクロール方向・トグルの記号/塗り/文字色・読み上げのラベルとヒント）。\
+            札の幅・スクロール方向・トグルの記号/文字・読み上げのラベルとヒント）。\
             寸法の分岐を各所に撒くと、拡大したのに当たり判定だけ等倍のまま、という形のズレが生まれる
             """
         )
@@ -150,8 +150,9 @@ struct FreeCellZoomTests {
         #expect(width.contains("zoomedCardWidth"), "取り違え防止")
     }
 
-    /// 札の幅・スクロール方向・トグルの記号/塗り/文字色・読み上げのラベルとヒント。
-    private static let expectedZoomBranches = 7
+    /// 札の幅・スクロール方向・トグルの記号/文字・読み上げのラベルとヒント
+    /// （塗り・文字色の分岐は共通の `BoardToggleButton`（Core・#641）へ移った）。
+    private static let expectedZoomBranches = 6
 
     @Test("盤は 1 つの札幅から作った metrics を上段と場札へ配る")
     func theBoardFeedsOneMetricsToBothRows() throws {

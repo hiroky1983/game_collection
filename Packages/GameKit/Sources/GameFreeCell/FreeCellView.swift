@@ -120,23 +120,18 @@ public struct FreeCellView: View {
         HStack(spacing: 8) {
             statusReadout
 
-            // 拡大トグル（#604）。ナンプレ（#262）・マインスイーパー（#203）と同じ位置・同じ 44pt の矩形。
-            Button { zoomMode.toggle() } label: {
-                Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
-                    .font(.system(size: 13, weight: .bold))
-                    .frame(
-                        minWidth: FreeCellMetrics.toggleButtonMinSide,
-                        minHeight: FreeCellMetrics.toggleButtonMinSide
-                    )
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
-                    )
-                    .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
-                    // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
-                    .contentShape(Rectangle())
+            // 拡大トグル（#604）。麻雀ソリティア・マインスイーパー・ナンプレと共通の `BoardToggleButton`
+            // （Core・#641）。以前は素のアイコンを手書きしていて見た目が揃っていなかった（会長 QA 2026-09-13）。
+            BoardToggleButton(
+                isOn: zoomMode,
+                systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
+                title: zoomMode ? "全体" : "拡大",
+                fill: Theme.Fill.teal,
+                accent: Theme.teal,
+                label: zoomMode ? "盤全体を表示" : "札を拡大"
+            ) {
+                zoomMode.toggle()
             }
-            .accessibilityLabel(zoomMode ? "盤全体を表示" : "札を拡大")
             // ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
             // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
             .accessibilityHint(zoomMode
