@@ -113,6 +113,41 @@ public extension RewardedRescue {
             }
         }
     }
+
+    /// `requestHandledByModel(_:whenGranted:)` のうち、**見終えたのに適用できなかった**ことを
+    /// 視聴しなかったことと分けて知らせる形（#727）。
+    ///
+    /// `Bool` の形では、広告のあいだに局が入れ替わって適用しなかったときも
+    /// 「広告を最後まで視聴しなかったか…」のアラートが出てしまう。`.unavailable` は
+    /// `showsUnavailable` を立てるので、この形を呼ぶ面は `rewardedRescueAlerts(unavailable:)` を
+    /// 必ず渡す（`RewardGuardCallSiteTests` がファイル単位で数を突き合わせる）。
+    func requestHandledByModel(
+        withOutcome perform: @escaping @MainActor () async -> RewardedModelOutcome,
+        whenGranted: (@MainActor () async -> Void)? = nil
+    ) {
+        guard !isWatching else { return }
+        isWatching = true
+        Task {
+            let outcome = await perform()
+            isWatching = false
+            switch outcome {
+            case .granted:     await whenGranted?()
+            case .notEarned:   showsNotEarned = true
+            case .unavailable: showsUnavailable = true
+            }
+        }
+    }
+}
+
+/// 広告ごと抱えているモデルの救済が、どう終わったか（#727）。
+public enum RewardedModelOutcome: Sendable, Equatable {
+    /// 視聴を完了し、報酬を適用した。
+    case granted
+    /// 視聴しなかった・読み込めなかった（→ `showsNotEarned`）。
+    case notEarned
+    /// 救済できる状態ではなかった、または視聴のあいだに局が入れ替わって適用しなかった
+    /// （→ `showsUnavailable`）。
+    case unavailable
 }
 
 /// 広告の前後で局が入れ替わっていないことを、どうやって確かめるか（#526）。
