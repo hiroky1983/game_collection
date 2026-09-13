@@ -117,6 +117,8 @@ public struct GameServices {
     /// 将棋・チェスは終局後の検討画面を中断データに残すため、中断データが在っても続きは無い。
     /// 復元では記録を二重に数えないよう `gameDidFinish` を呼ばないので、決着済みであることを別に伝え、
     /// 「途中のままです」のお知らせを予約させない。
+    /// 麻雀は、その先が終局になる局のリザルト（記録は「結果を見る」で付ける）に入ったときと、
+    /// そこから復元したときにも呼ぶ（#811）。
     @MainActor
     public func gameDidRestoreFinished(gameID: String) {
         reminders?.gameDidFinish(gameID: gameID)

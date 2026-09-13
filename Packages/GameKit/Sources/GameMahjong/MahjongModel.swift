@@ -337,6 +337,8 @@ public final class MahjongModel {
             endsAfterThisHand = snap.endsAfterThisHand ?? false
             gameLength = snap.gameLength ?? .tonpuu
             phase = snap.handResult != nil ? .handResult : .playing
+            // 終局の手前のリザルトから再開した局も決着済み（#811。`finishHand` の末尾と同じ判定）。
+            if concludesAfterCurrentResult { services?.gameDidRestoreFinished(gameID: gameID) }
         }
     }
 
@@ -1160,6 +1162,10 @@ public final class MahjongModel {
         // 親・本場・局数の繰り上げが終わった後に保存するので、再開後の「次の局へ」は
         // 中断が無かったときと同じ条件で次局を始められる。
         persist()
+        // その先が終局（一局戦・最終局・アガリやめ・トビ）のリザルトは、中断データが残っていても
+        // 続けて打つ局が無い。「結果を見る」を押さずに戻っても中断のお知らせ（#663）を予約させない（#811）。
+        // 記録は「結果を見る」の `concludeGame` で付けるので、ここでは `gameDidFinish` を呼ばない。
+        if concludesAfterCurrentResult { services?.gameDidRestoreFinished(gameID: gameID) }
     }
 
     /// 対局が終わったか。最終局を終えた（= その次の局に入る）か、アガリやめか、誰かが飛んだとき。
