@@ -13,4 +13,13 @@ public protocol GameModule {
     var icon: Image { get }
     /// 横断サービスを注入してゲーム画面を生成する。
     @MainActor func makeView(services: GameServices) -> AnyView
+    /// 中断データから局を**そのまま復元する**か（#663）。既定は true。
+    ///
+    /// 中断データを記録の控えとして使い、局そのものは必ず頭から始めるゲームは false を返す。
+    /// 戻っても続きが無いゲームに「途中のままです」のお知らせを送らないため。
+    var resumesFromSnapshot: Bool { get }
+}
+
+public extension GameModule {
+    var resumesFromSnapshot: Bool { true }
 }

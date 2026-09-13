@@ -69,3 +69,38 @@ public struct FileSnapshotStore: SnapshotStore {
         return attributes?[.modificationDate] as? Date
     }
 }
+
+/// `clear(for:)` を横から知らせる `SnapshotStore`（#663）。読み書きも保存形式もそのまま下へ渡す。
+///
+/// 中断データは各ゲームが終局・やり直し・設定の切り替えなど 40 か所以上で消しており、
+/// それぞれに「中断のお知らせを取り消す」を書き足すと付け忘れが必ず出る。消す側を 1 か所で捕まえる。
+public struct ClearObservingSnapshotStore: SnapshotStore {
+    private let base: SnapshotStore
+    private let onClear: @Sendable (String) -> Void
+
+    public init(base: SnapshotStore, onClear: @escaping @Sendable (String) -> Void) {
+        self.base = base
+        self.onClear = onClear
+    }
+
+    public func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
+        try base.save(snapshot, for: gameID)
+    }
+
+    public func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
+        base.load(type, for: gameID)
+    }
+
+    public func clear(for gameID: String) {
+        base.clear(for: gameID)
+        onClear(gameID)
+    }
+
+    public func exists(for gameID: String) -> Bool {
+        base.exists(for: gameID)
+    }
+
+    public func modifiedAt(for gameID: String) -> Date? {
+        base.modifiedAt(for: gameID)
+    }
+}

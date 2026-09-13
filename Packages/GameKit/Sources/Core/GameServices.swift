@@ -43,6 +43,8 @@ public struct GameServices {
     /// ゲーム画面の世代（#653）。`GameServices` は値型だがこれは参照型なので、
     /// コピーされても同じ世代を指す（各ゲームへ渡った先で別々に進むことはない）。
     public let screenGeneration: GameScreenGeneration
+    /// 中断したゲームのお知らせ（#663）。テスト・プレビューでは nil（予約しない）。
+    public let reminders: ResumeReminderService?
 
     public init(
         snapshots: SnapshotStore,
@@ -53,7 +55,8 @@ public struct GameServices {
         playLog: PlayLog? = nil,
         analytics: GameAnalytics? = nil,
         gameCenter: GameCenterReporter? = nil,
-        screenGeneration: GameScreenGeneration = GameScreenGeneration()
+        screenGeneration: GameScreenGeneration = GameScreenGeneration(),
+        reminders: ResumeReminderService? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -64,6 +67,7 @@ public struct GameServices {
         self.analytics = analytics
         self.gameCenter = gameCenter
         self.screenGeneration = screenGeneration
+        self.reminders = reminders
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -109,14 +113,17 @@ public struct GameServices {
     /// **離脱（盤面を捨てた）**を切り分ける（#500）。呼び出し側（ハブ）は判定を持たない。
     @MainActor
     public func gameDidLeave(gameID: String) {
-        analytics?.leaveGame(gameID: gameID, isResumable: snapshots.exists(for: gameID))
+        let hasSnapshot = snapshots.exists(for: gameID)
+        analytics?.leaveGame(gameID: gameID, isResumable: hasSnapshot)
+        // 中断データを持って戻ったときだけ、1 日ほど後のお知らせを予約する（#663）。
+        reminders?.gameDidLeave(gameID: gameID, hasSnapshot: hasSnapshot)
         // 画面の世代を進める（#653）。次に開いたときは別の Model になるので、いま広告の
         // 完了を待っている救済は、視聴が終わっても適用してはいけない。
         screenGeneration.advance()
     }
 
-    /// ハブからゲーム画面を開いたときにハブから呼ぶ（#659）。`game_open` を送るだけで、
-    /// プレイの数え方にも画面の世代にも触らない。
+    /// ハブからゲーム画面を開いたときにハブから呼ぶ（#659）。`game_open` を送り、そのゲームの
+    /// 中断のお知らせを取り消す（#663）。プレイの数え方にも画面の世代にも触らない。
     ///
     /// - Parameters:
     ///   - position: 導線の中での位置（1 始まり）。並びを持たない導線では nil。
@@ -125,6 +132,7 @@ public struct GameServices {
     @MainActor
     public func gameDidOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         analytics?.recordGameOpen(gameID: gameID, source: source, position: position, resume: resume)
+        reminders?.gameDidOpen(gameID: gameID)
     }
 
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
