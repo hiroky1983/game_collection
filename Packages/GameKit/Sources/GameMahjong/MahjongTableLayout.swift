@@ -235,9 +235,10 @@ public struct MahjongTableLayout: Sendable {
         return CGRect(x: g.x - side / 2, y: g.y - side / 2, width: side, height: side)
     }
 
-    /// 卓上の手牌一覧（`handOverviewOnTable`）の中心と幅。フェルトの手前の縁。
+    /// 卓上の手牌一覧（`handOverviewOnTable`）の中心と幅。フェルトの手前の縁、左寄り。
+    /// 右手前の角は自分の副露の置き場（`meldSlot(seat: 0)`）なので、そこを空けて幅 62% に収める。
     public var handOverview: (center: CGPoint, width: CGFloat) {
-        let g = project(u: 0.5, v: 0.985)
-        return (g.point, bottomWidth - 24)
+        let g = project(u: 0.40, v: 0.955)
+        return (g.point, bottomWidth * 0.62)
     }
 }
