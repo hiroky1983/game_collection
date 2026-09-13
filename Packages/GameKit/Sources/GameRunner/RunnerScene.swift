@@ -72,9 +72,14 @@ enum RunnerPalette {
     static let building: UInt32 = 0x16223A
     /// ビルの窓の灯り。暖色の小さな矩形で、夜の空と影に対して唯一の明るい点になる。
     static let buildingWindow: UInt32 = 0xFFD98A
+    /// 朝の下町の家（`RunnerWorld.Scenery.townHouses`）。壁はクリーム、屋根は瓦の赤茶、窓は空より濃い水色。
+    static let houseWall: UInt32 = 0xFFF1DC
+    static let houseRoof: UInt32 = 0xC9624A
+    static let houseWindow: UInt32 = 0x5FA8D6
     /// 穴の縁の警告帯。地面と同系色だと縁が分からず、落ちるかどうかの判断がつかない
-    /// というQAを受けて追加（会長QA）。
+    /// というQAを受けて追加（会長QA）。工事の柵らしく黒（`pitEdgeDark`）と交互に塗る。
     static let pitEdge: UInt32 = 0xFFD447
+    static let pitEdgeDark: UInt32 = 0x2B2B33
     /// 穴の中身（奈落）。縁の帯だけでは「穴の中はただの空」に見え、幅の実感が湧かない
     /// というQAを受けて追加（会長QA）。地面の断面よりさらに暗い色で、地面と穴を塗り分ける。
     static let pitVoid: UInt32 = 0x141824
@@ -134,7 +139,9 @@ enum RunnerPalette {
     /// スピードアップ床の路面（#672）。ふつうの地表（`groundTop` のティール）と
     /// **一目で違う区間だ**と分かる必要があるので、アイテムの後光（`pickupAura`）と
     /// 同じ寒色系にして「この色＝速さ」で揃える。地表より明るくして、走者の足元でも沈まない。
-    static let boostFloorTop: UInt32 = 0x3FB3D6
+    static let boostFloorTop: UInt32 = 0x2FC4E6
+    /// スピードアップ床の縁取り（路面より暗い青）。帯の上下に引いて「路面に貼られた加速帯」に見せる。
+    static let boostFloorEdge: UInt32 = 0x1B7FA3
     /// スピードアップ床の矢印。路面より明るい暖色にして、床の色に埋もれないようにする。
     /// 進行方向（右）を向いた三角を並べ、「乗ると前へ押される区間」だと色以外でも伝える
     /// （色だけに頼らない・基盤規約のアクセシビリティ要件）。
@@ -568,7 +575,7 @@ final class RunnerScene: SKScene {
             // 手前の丘（背が低く、色が濃い＝近い）。奥の丘に重ねて奥行きを出す。
             addHillBump(to: tile, color: palette.hillNear, width: 34, height: 19, dx: 22)
             switch world.scenery {
-            case .hills:      break
+            case .townHouses: addTownHouses(to: tile)
             case .riverside:  addRiver(to: tile)
             case .cityLights: addCityLights(to: tile)
             }
@@ -623,6 +630,40 @@ final class RunnerScene: SKScene {
             glint.alpha = 0.8
             glint.position = CGPoint(x: dx, y: Metrics.groundY + dy)
             tile.addChild(glint)
+        }
+    }
+
+    /// 朝の下町の家並み（`RunnerWorld.Scenery.townHouses`）。近景の丘の手前に 3 軒。
+    /// 壁は矩形、屋根は三角のパス、窓は小さな矩形（#494 の意匠制約の内側）。丘のループに載せる。
+    private func addTownHouses(to tile: SKNode) {
+        let houses: [(dx: Double, width: Double, height: Double)] = [
+            (2, 10, 7), (27, 8, 6), (44, 11, 8),
+        ]
+        for house in houses {
+            let wall = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.houseWall),
+                size: CGSize(width: house.width, height: house.height)
+            )
+            wall.anchorPoint = .zero
+            wall.position = CGPoint(x: house.dx, y: Metrics.groundY)
+            tile.addChild(wall)
+            let roof = CGMutablePath()
+            roof.move(to: CGPoint(x: -0.8, y: 0))
+            roof.addLine(to: CGPoint(x: house.width / 2, y: house.height * 0.45))
+            roof.addLine(to: CGPoint(x: house.width + 0.8, y: 0))
+            roof.closeSubpath()
+            let roofNode = SKShapeNode(path: roof)
+            roofNode.fillColor = RunnerPalette.color(RunnerPalette.houseRoof)
+            roofNode.strokeColor = .clear
+            roofNode.position = CGPoint(x: house.dx, y: Metrics.groundY + house.height)
+            tile.addChild(roofNode)
+            let window = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.houseWindow),
+                size: CGSize(width: 1.8, height: 1.8)
+            )
+            window.anchorPoint = .zero
+            window.position = CGPoint(x: house.dx + house.width * 0.55, y: Metrics.groundY + house.height * 0.45)
+            tile.addChild(window)
         }
     }
 
@@ -681,7 +722,9 @@ final class RunnerScene: SKScene {
 
         // 地面は「穴でないところ」を並べて描く。穴の場所には何も置かないので、
         // そこが空いていることが見た目でも当たり判定でも同じ意味になる。
-        var x: Double = 0
+        // スタートの手前（x < 0）にも道路を敷く。空けたままだと開始時の画面左が崖に見える
+        // （会長 QA 2026-09-14「断崖絶壁から走り出す」）。
+        var x: Double = -Metrics.width
         for pit in stage.hazards where pit.kind == .pit {
             if pit.start > x { addGround(from: x, to: pit.start) }
             addPitVoid(pit)
@@ -1146,32 +1189,62 @@ final class RunnerScene: SKScene {
     /// 穴の縁の警告帯。地面と同系色の穴だけでは切れ目が分かりづらいというQAを受けて追加。
     /// 当たり判定には影響しない、純粋な見た目の追加。
     private func addPitEdgeMarkers(_ pit: RunnerHazard) {
+        // 黄と黒の 3 段（工事の柵）。道路の穴＝工事中の切れ目、という読みに揃える（会長 QA 2026-09-14）。
         for edgeX in [pit.start, pit.end] {
-            let strip = SKSpriteNode(
-                color: RunnerPalette.color(RunnerPalette.pitEdge),
-                size: CGSize(width: 0.6, height: 2.6)
-            )
-            strip.anchorPoint = CGPoint(x: 0.5, y: 1)
-            strip.position = CGPoint(x: edgeX, y: Metrics.groundY)
-            courseLayer.addChild(strip)
+            for (i, hex) in [RunnerPalette.pitEdge, RunnerPalette.pitEdgeDark, RunnerPalette.pitEdge].enumerated() {
+                let strip = SKSpriteNode(
+                    color: RunnerPalette.color(hex),
+                    size: CGSize(width: 0.8, height: 1.0)
+                )
+                strip.anchorPoint = CGPoint(x: 0.5, y: 1)
+                strip.position = CGPoint(x: edgeX, y: Metrics.groundY - Double(i) * 1.0)
+                courseLayer.addChild(strip)
+            }
         }
     }
 
+    /// 道路の断面（会長 QA 2026-09-14）。上からアスファルト・白い破線・縁石・路肩・地盤。
+    /// 色は `RunnerWorld.road`。高さは物理（`Metrics.groundY`）に合わせ、路面の上端が地面。
+    /// 破線は 1 本の `SKShapeNode` にまとめる（エンドレスは 6,400 m あるので、1 本ずつ
+    /// ノードにすると数千個になる）。
+    private static let roadHeight: Double = 5.0
+    private static let curbHeight: Double = 1.0
+    private static let shoulderHeight: Double = 4.0
+
     private func addGround(from start: Double, to end: Double) {
-        let body = SKSpriteNode(
-            color: RunnerPalette.color(world.palette.groundBody),
-            size: CGSize(width: end - start, height: Metrics.groundY)
-        )
-        body.anchorPoint = .zero
-        body.position = CGPoint(x: start, y: 0)
-        let top = SKSpriteNode(
-            color: RunnerPalette.color(world.palette.groundTop),
-            size: CGSize(width: end - start, height: 2.2)
-        )
-        top.anchorPoint = .zero
-        top.position = CGPoint(x: start, y: Metrics.groundY - 2.2)
-        courseLayer.addChild(body)
-        courseLayer.addChild(top)
+        let road = world.road
+        let width = end - start
+        func band(_ hex: UInt32, y: Double, height: Double) {
+            let node = SKSpriteNode(color: RunnerPalette.color(hex), size: CGSize(width: width, height: height))
+            node.anchorPoint = .zero
+            node.position = CGPoint(x: start, y: y)
+            courseLayer.addChild(node)
+        }
+        let roadBottom = Metrics.groundY - Self.roadHeight
+        let curbBottom = roadBottom - Self.curbHeight
+        let shoulderBottom = curbBottom - Self.shoulderHeight
+        band(road.subsoil, y: 0, height: shoulderBottom)
+        band(road.shoulder, y: shoulderBottom, height: Self.shoulderHeight)
+        band(road.curb, y: curbBottom, height: Self.curbHeight)
+        band(road.asphalt, y: roadBottom, height: Self.roadHeight)
+
+        // 中央の破線。長さ 4・間隔 4 で、区画の始点（64 の倍数）に位相を揃えて継ぎ目を目立たせない。
+        let dashes = CGMutablePath()
+        let dashLength = 4.0, dashGap = 4.0, dashHeight = 0.7
+        var dx = (start / (dashLength + dashGap)).rounded(.down) * (dashLength + dashGap)
+        while dx < end {
+            let x0 = max(dx, start), x1 = min(dx + dashLength, end)
+            if x1 > x0 {
+                dashes.addRect(CGRect(x: x0, y: roadBottom + Self.roadHeight / 2 - dashHeight / 2,
+                                      width: x1 - x0, height: dashHeight))
+            }
+            dx += dashLength + dashGap
+        }
+        let line = SKShapeNode(path: dashes)
+        line.fillColor = RunnerPalette.color(road.line)
+        line.strokeColor = .clear
+        line.alpha = world == .night ? 0.75 : 0.9
+        courseLayer.addChild(line)
     }
 
     /// スピードアップ床（#672）。**地面の路面だけを塗り替え、その上に進行方向の矢印を並べる**。
@@ -1185,34 +1258,62 @@ final class RunnerScene: SKScene {
     /// 「特定作品に寄せない」ことで、ゴール旗・稲妻と同じくパス自体は許容済み）。
     /// 色だけでなく**形**でも「前へ押される区間」だと伝わるようにしてある。
     private func addBoostFloor(_ floor: RunnerBoostFloor) {
-        // 路面。ふつうの地表（`addGround` の `top`）と同じ厚み・同じ高さにぴたりと重ねる。
+        // 路面全体（アスファルトの厚み）を加速帯の色で塗り替え、上下を暗い青で縁取る。
+        // 以前は 2.2 の薄い帯に小さな三角で、走者の足元では気づけなかった（会長 QA 2026-09-14）。
+        let height = Self.roadHeight
+        let bottom = Metrics.groundY - height
         let surface = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.boostFloorTop),
-            size: CGSize(width: floor.length, height: 2.2)
+            size: CGSize(width: floor.length, height: height)
         )
         surface.anchorPoint = .zero
-        surface.position = CGPoint(x: floor.start, y: Metrics.groundY - 2.2)
+        surface.position = CGPoint(x: floor.start, y: bottom)
         courseLayer.addChild(surface)
-
-        // 進行方向（右）を向いた三角を等間隔に並べる。間隔は 1 区画（64）に 8 個ぶん。
-        let spacing: Double = 8
-        let arrowWidth: Double = 3.4
-        let arrowHeight: Double = 1.6
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 0, y: -arrowHeight / 2))
-        path.addLine(to: CGPoint(x: arrowWidth, y: 0))
-        path.addLine(to: CGPoint(x: 0, y: arrowHeight / 2))
-        path.closeSubpath()
-
-        var x = floor.start + (spacing - arrowWidth) / 2
-        while x + arrowWidth <= floor.end {
-            let arrow = SKShapeNode(path: path)
-            arrow.fillColor = RunnerPalette.color(RunnerPalette.boostFloorArrow)
-            arrow.strokeColor = .clear
-            arrow.position = CGPoint(x: x, y: Metrics.groundY - 1.1)
-            courseLayer.addChild(arrow)
-            x += spacing
+        for edgeY in [bottom, Metrics.groundY - 0.6] {
+            let edge = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.boostFloorEdge),
+                size: CGSize(width: floor.length, height: 0.6)
+            )
+            edge.anchorPoint = .zero
+            edge.position = CGPoint(x: floor.start, y: edgeY)
+            courseLayer.addChild(edge)
         }
+
+        // 山形の矢印（シェブロン）を路面いっぱいの高さで並べ、右へ流して「前へ押される」ことを
+        // 動きでも伝える。矢印はまとめて 1 本のパスにし、帯の内側だけ見えるようマスクで切る。
+        let spacing: Double = 6
+        let chevronWidth: Double = 3.2
+        let inset: Double = 0.9
+        let path = CGMutablePath()
+        let count = Int(floor.length / spacing) + 2
+        for i in 0..<count {
+            let x = Double(i) * spacing
+            path.move(to: CGPoint(x: x, y: bottom + inset))
+            path.addLine(to: CGPoint(x: x + chevronWidth * 0.55, y: bottom + inset))
+            path.addLine(to: CGPoint(x: x + chevronWidth, y: bottom + height / 2))
+            path.addLine(to: CGPoint(x: x + chevronWidth * 0.55, y: Metrics.groundY - inset))
+            path.addLine(to: CGPoint(x: x, y: Metrics.groundY - inset))
+            path.addLine(to: CGPoint(x: x + chevronWidth * 0.45, y: bottom + height / 2))
+            path.closeSubpath()
+        }
+        let chevrons = SKShapeNode(path: path)
+        chevrons.fillColor = RunnerPalette.color(RunnerPalette.boostFloorArrow)
+        chevrons.strokeColor = .clear
+        chevrons.position = CGPoint(x: -spacing, y: 0)
+        // 1 周期ぶん右へ流して戻す。周期パターンなので継ぎ目なく流れて見える。
+        chevrons.run(.repeatForever(.sequence([
+            .moveBy(x: spacing, y: 0, duration: 0.35),
+            .moveBy(x: -spacing, y: 0, duration: 0),
+        ])))
+        let crop = SKCropNode()
+        let mask = SKSpriteNode(color: .white, size: CGSize(width: floor.length, height: height))
+        mask.anchorPoint = .zero
+        crop.maskNode = mask
+        crop.position = CGPoint(x: floor.start, y: 0)
+        // マスクは crop の座標系（x = 0 が床の始点）なので、矢印パスも床の始点基準に置く。
+        mask.position = CGPoint(x: 0, y: bottom)
+        crop.addChild(chevrons)
+        courseLayer.addChild(crop)
     }
 
     /// チェックポイントの目印。丸いバッジだけでは「これが何なのか分からない」というQAを受け、

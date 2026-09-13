@@ -92,9 +92,25 @@ struct RunnerWorldTests {
         }
     }
 
+    @Test("道路の配色は世界ごとに違い、路面と白線・路肩の明度差がある")
+    func roadPalettes() {
+        let roads = [RunnerWorld.morning, .evening, .night].map(\.road)
+        #expect(Set(roads.map(\.asphalt)).count == 3)
+        for road in roads {
+            // 白線は路面より明るい（読める）、路肩は路面と違う色（縁石で区切れる）
+            #expect(luma(road.line) > luma(road.asphalt) + 60, "白線が路面に埋もれる: \(road)")
+            #expect(road.shoulder != road.asphalt)
+        }
+    }
+
+    private func luma(_ hex: UInt32) -> Double {
+        let r = Double((hex >> 16) & 0xFF), g = Double((hex >> 8) & 0xFF), b = Double(hex & 0xFF)
+        return 0.299 * r + 0.587 * g + 0.114 * b
+    }
+
     @Test("遠景の飾りは世界ごとに決まっている")
     func scenery() {
-        #expect(RunnerWorld.morning.scenery == .hills)
+        #expect(RunnerWorld.morning.scenery == .townHouses)
         #expect(RunnerWorld.evening.scenery == .riverside)
         #expect(RunnerWorld.night.scenery == .cityLights)
     }
