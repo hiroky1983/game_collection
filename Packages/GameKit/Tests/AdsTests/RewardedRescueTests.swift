@@ -227,6 +227,33 @@ struct RewardedRescueTests {
         await settle()
         #expect(performed == 1)
     }
+
+    @Test("モデルが「見終えたが適用できなかった」と返したら、視聴しなかったアラートではなく適用できないアラートを出す")
+    func modelHandledOutcomeSeparatesUnavailableFromNotEarned() async {
+        let unavailable = RewardedRescue()
+        var followUpAfterUnavailable = false
+        unavailable.requestHandledByModel(withOutcome: { .unavailable },
+                                          whenGranted: { followUpAfterUnavailable = true })
+        await settle()
+        #expect(unavailable.showsUnavailable, "適用できなかったのに知らせていない")
+        #expect(!unavailable.showsNotEarned, "見終えたのに「最後まで視聴しなかった」と知らせている")
+        #expect(!followUpAfterUnavailable, "適用できていないのに続きを走らせている")
+        #expect(!unavailable.isWatching)
+
+        let notEarned = RewardedRescue()
+        notEarned.requestHandledByModel(withOutcome: { .notEarned })
+        await settle()
+        #expect(notEarned.showsNotEarned)
+        #expect(!notEarned.showsUnavailable)
+
+        let granted = RewardedRescue()
+        var followUpAfterGrant = false
+        granted.requestHandledByModel(withOutcome: { .granted }, whenGranted: { followUpAfterGrant = true })
+        await settle()
+        #expect(followUpAfterGrant)
+        #expect(!granted.showsNotEarned)
+        #expect(!granted.showsUnavailable)
+    }
 }
 
 /// 局ガードの宣言（`RewardGuard`）をソース走査で固定する（#526）。
@@ -300,14 +327,17 @@ struct RewardGuardCallSiteTests {
         // `rewardedRescueAlerts(unavailable:)` を渡し忘れると失敗が**完全に無言**になる
         // （`showsUnavailable` は立つが、渡していない側は `.constant(false)` で出ない）。
         // 対価だけ払って何も起きない状態は広告の契約違反なので、ファイル単位で数を突き合わせる。
+        // モデルが結果を返す形（`requestHandledByModel(withOutcome:)`・#727）も `.unavailable` で
+        // `showsUnavailable` を立てるので、同じく照合する側として数える。
         let mismatched = try Self.gameSources()
             .map { (
                 path: $0.path,
-                checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text),
+                checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text)
+                    + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $0.text),
                 alerts: Self.occurrences(of: "unavailable: RewardUnavailableAlert(", in: $0.text)
             ) }
             .filter { $0.checked != $0.alerts }
-            .map { "\($0.path): checkedByGrant \($0.checked) 件に対しアラート \($0.alerts) 件" }
+            .map { "\($0.path): 照合する宣言 \($0.checked) 件に対しアラート \($0.alerts) 件" }
         #expect(mismatched.isEmpty, "\(mismatched)")
     }
 
