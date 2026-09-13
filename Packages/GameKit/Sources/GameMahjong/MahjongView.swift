@@ -375,9 +375,9 @@ public struct MahjongView: View {
     /// 対局中（決着していない）か。「切る牌をタップしよう」のヒントや手牌一覧など、
     /// 打牌操作に関わる要素はリザルト画面では意味を持たないのでここで隠す。
     ///
-    /// 会長指摘（2026-08-25）: 名前チップは以前ここでリザルト中だけ隠していたが、CPUも含めて
-    /// 「常に固定で出ていてほしい」とのことなので、チップの表示・非表示にはもう使わない
-    /// （`opponentRow`/`opponentColumn`/`playerDiscardOnTable` は常時 `opponentNameChip` を出す）。
+    /// 会長指摘（2026-08-25）: 名前・点数は以前リザルト中だけ隠していたが、CPUも含めて
+    /// 「常に固定で出ていてほしい」とのことなので、表示・非表示にはもう使わない
+    /// （#736 以降は中央パネル `MahjongCenterPanel` が常時 4 家の風・点数を出す）。
     private var isInPlay: Bool {
         model.phase == .playing || model.phase == .ronOffer || model.phase == .callOffer
     }
@@ -466,7 +466,7 @@ public struct MahjongView: View {
 
     /// 会長指摘「持ち牌もグリーンの卓の上に一列に並べて見てほしい」「横スクロールは維持して」への対応。
     /// 以前の 7列×2段の白カードをやめ、卓と同じ緑フェルトの帯に単列（横スクロール）で並べる。
-    /// 名前・風・点数は自分の河側（`playerDiscardOnTable`）のチップに一本化したので、ここでは持たない。
+    /// 名前・風・点数は卓の中央パネル（`MahjongCenterPanel`・#737）に一本化したので、ここでは持たない。
     ///
     /// **「ルーレット現象」の正体**（Fable・Opus の並行調査で特定）: アニメーションでも
     /// ScrollView でもなく、**CPU のツモ牌が自分の手牌14枚目として表示されるデータバグ**だった。
@@ -548,7 +548,7 @@ public struct MahjongView: View {
                     overviewScrollTarget = nil
                 }
             }
-            // 副露は「卓の上においてほしい」（会長指摘）ため `playerDiscardOnTable` 側に移した。
+            // 副露は「卓の上においてほしい」（会長指摘）ため卓の右手前の角（`MahjongTableView.meldRow`）に置く。
             // ここ（操作用のスクロール行）には置かない。
             hintLine(waits: waits)
         }
