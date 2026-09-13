@@ -216,7 +216,7 @@ PR に付いた CodeRabbit の指摘は、**全スレッドを消化してから
 1. **機械的ゲート**: main のブランチ保護で「CI の test 必須」+「未解決スレッドがあるとマージ不可
    (required_conversation_resolution)」を有効化済み。遅れて付いた指摘も未解決のままではマージできない。
    緊急時は会長（admin）のみバイパス可。
-2. **ローカル当番の巡回**: `Scripts/ai-duty.sh`（launchd・5分ごと）が未解決の CodeRabbit スレッドを
+2. **ローカル当番の巡回**: `Scripts/ai-duty.sh`（launchd・3分ごと）が未解決の CodeRabbit スレッドを
    検知すると当番エージェントを起動し、下記トリアージを実行する。
    ※当初はクラウド webhook 方式だったが、イベント配信が確認できなかったため廃止（2026-08-10）。
 3. **レビュー未着 PR の検知**（Issue #41・2026-08-11 追加）: 1. と 2. はどちらも「スレッドが存在すること」を
@@ -287,9 +287,9 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 
 ### 実装ループ（Phase 2・ローカル当番方式）
 
-起点は **launchd による5分ごとのチェック**（`Scripts/ai-duty.sh`。2026-09-13 に毎時から短縮）。Mac がスリープ中は動かない（許容済み・稟議#5）。
+起点は **launchd による3分ごとのチェック**（`Scripts/ai-duty.sh`。2026-09-13 に毎時から短縮）。Mac がスリープ中は動かない（許容済み・稟議#5）。
 
-- **なぜ5分か**（2026-09-13 経営企画室の実測）: 当番のセッションは平均46分で、毎時のタイマーはセッション中に
+- **なぜ3分か**（2026-09-14 会長指示で 5 分 → 3 分。以下は 5 分化のときの根拠）（2026-09-13 経営企画室の実測）: 当番のセッションは平均46分で、毎時のタイマーはセッション中に
   空振りして実効サイクルが116分・稼働率40%だった。1件あたりの時間（PR 作成→マージ平均21分、CI 10.5分）は
   詰まっておらず、律速は「1時間に1件しか拾えない」こと。ロック（`ai-duty.sh` の `LOCK_DIR`）で直列のまま
   なので並列度は上がらず、仕事が無ければ claude は起動しないためトークンも増えない。
@@ -303,7 +303,7 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
      任せ、`gh pr checks --watch` で見届ける。
 
 1. 人間が Issue に `ai:approved` を付ける（= ハンコ。これだけでよい）。
-2. launchd が5分ごとに `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue・未解決 CodeRabbit スレッド・
+2. launchd が3分ごとに `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue・未解決 CodeRabbit スレッド・
    レビュー未着の PR のいずれかがあるときだけ `claude -p`（Opus・人事規程の開発部リード）を
    起動する。仕事が無ければ Claude は起動しない。
 3. 当番の手順は `Scripts/ai-duty-prompt.md` に定義: 1回1件、`ai:in-progress` 付与 → 着手宣言 →
@@ -313,7 +313,7 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 5. 並列実装させる場合は worktree 分離必須（同一ワークツリーでの並列編集は禁止）。
 
 セットアップ（済・再現手順）: `~/Library/LaunchAgents/com.asobiba.ai-duty.plist` が
-`Scripts/ai-duty.sh` を5分ごとに実行（`StartInterval` 300）。ログは `~/Library/Logs/asobiba-ai-duty.log`。
+`Scripts/ai-duty.sh` を3分ごとに実行（`StartInterval` 180）。ログは `~/Library/Logs/asobiba-ai-duty.log`。
 読み込みは `launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.asobiba.ai-duty.plist`。
 
 同様に `Scripts/ai-management-duty.sh`（6 時間ごと・`com.asobiba.ai-management.plist`）も
@@ -322,7 +322,7 @@ launchd 常駐。ログは `~/Library/Logs/asobiba-<name>.log`、読み込みは
 
 ### 監査当番（日次・2026-09-14 会長指示）
 
-`Scripts/ai-audit-duty.sh`（`com.asobiba.ai-audit.plist`・毎日 04:30 JST・Fable 5.1）。当番が 5 分ごとに
+`Scripts/ai-audit-duty.sh`（`com.asobiba.ai-audit.plist`・毎日 05:00 JST・Fable 5.1）。当番が 5 分ごとに
 なって PR が 1 日 10 本を超え、**CodeRabbit がレートリミットで付かない PR が大半**になった
 （2026-09-14 実測: release/v1.1.5 にマージした 11 本のうちレビューが付いたのは 1 本）ため、マージ後に
 まとめて人間のレビュアーの代わりをする。

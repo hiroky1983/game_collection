@@ -1,8 +1,8 @@
 #!/bin/bash
 # 監査当番（品質・セキュリティ・バグ・敵対的検証）の日次発火。launchd から1日1回呼ばれる
-# （設定は会長の Mac の ~/Library/LaunchAgents/com.asobiba.ai-audit.plist・StartCalendarInterval 04:30。
+# （設定は会長の Mac の ~/Library/LaunchAgents/com.asobiba.ai-audit.plist・StartCalendarInterval 05:00。
 #  ai-duty.sh の plist と同じくローカル環境の設定のためリポジトリには含めない）。
-# 開発当番（ai-duty.sh、5分ごと）・監査当番（ai-audit-duty.sh、6時間ごと）とは役割が異なり、
+# 開発当番（ai-duty.sh、3分ごと）・監査当番（ai-audit-duty.sh、6時間ごと）とは役割が異なり、
 # **コードは一切変更せず**、前回の監査以降に release/* と main へマージされた PR の差分をまとめて読み、
 #   1) バグ（境界条件・競合・中断データ・計測の欠落）を敵対的に探し、テストを実際に回して裏を取る
 #   2) セキュリティ（秘密情報・権限・外部通信・第三者入力の扱い）
