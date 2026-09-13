@@ -211,23 +211,19 @@ public struct SudokuView: View {
                     // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                     .opacity(model.hasPuzzle ? 1 : 0)
 
-                // 拡大トグル。マインスイーパー（#203）と同じ 44pt の矩形で受ける。
-                Button { zoomMode.toggle() } label: {
-                    Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(
-                            minWidth: SudokuMetrics.padButtonMinSide,
-                            minHeight: SudokuMetrics.padButtonMinSide
-                        )
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
-                        )
-                        .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
-                        // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
-                        .contentShape(Rectangle())
+                // 拡大トグル。麻雀ソリティア・マインスイーパーと共通の `BoardToggleButton`（Core・#641）。
+                // 以前は素のアイコン（13pt・枠なし・`Theme.surface`）を手書きしていて、他のゲームと
+                // 見た目が揃っていなかった（会長 QA 2026-09-13）。
+                BoardToggleButton(
+                    isOn: zoomMode,
+                    systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
+                    title: zoomMode ? "全体" : "拡大",
+                    fill: Theme.Fill.teal,
+                    accent: Theme.teal,
+                    label: zoomMode ? "盤全体を表示" : "盤を拡大"
+                ) {
+                    zoomMode.toggle()
                 }
-                .accessibilityLabel(zoomMode ? "盤全体を表示" : "盤を拡大")
             }
             .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .trailing)

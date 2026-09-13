@@ -1,4 +1,5 @@
 import Testing
+import Core
 import CoreGraphics
 import Foundation
 @testable import GameSudoku
@@ -63,12 +64,19 @@ struct SudokuMetricsTests {
     // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
     // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する。
 
+    @Test("帯の拡大トグルの一辺は共通枠の実寸と同じ")
+    func toggleMatchesSharedFrame() {
+        #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide)
+        #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
+    }
+
     @Test("View がタップ標的の定数を実際に使っている")
     func viewIsWiredToMetrics() throws {
         let source = try Self.viewSource()
         for expected in [
             #"minHeight:\s*SudokuMetrics\.padButtonMinSide"#,
-            #"minWidth:\s*SudokuMetrics\.padButtonMinSide"#,
+            // 帯の拡大トグルは共通の `BoardToggleButton`（Core・#641）が 44pt の frame を持つ
+            #"BoardToggleButton\("#,
             #"cellSide:\s*SudokuMetrics\.zoomedCellSide"#,
             #"\.padding\(\.vertical,\s*SudokuMetrics\.statusBarVerticalPadding\)"#,
         ] {

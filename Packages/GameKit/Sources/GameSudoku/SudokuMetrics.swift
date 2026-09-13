@@ -1,4 +1,5 @@
 import CoreGraphics
+import Core
 
 /// 数独の寸法。**状態を持たない純粋な定数・関数**として View から切り出す
 /// （マインスイーパー `MinesweeperMetrics`・麻雀ソリティア `MahjongSolitaireBoardMetrics` と同じ理由）。
@@ -12,6 +13,10 @@ enum SudokuMetrics {
 
     /// 数字パッド・操作ボタンの一辺の下限。
     static let padButtonMinSide: CGFloat = minimumTapTarget
+
+    /// 帯の拡大トグルの一辺。実寸は共通の `BoardToggleButton`（Core・#641）が持つので、
+    /// 帯の高さの見積りがそこからずれないよう同じ値を参照する。
+    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
 
     /// 拡大モードでの 1 マスの一辺。
     ///
