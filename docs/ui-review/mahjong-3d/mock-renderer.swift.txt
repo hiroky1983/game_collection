@@ -20,6 +20,55 @@ func proj(_ u: CGFloat, _ v: CGFloat) -> P {
     return P(x: W / 2 + (u - 0.5) * w, y: tableTop + vv * tableH, s: w / wBottom)
 }
 
+/// 高さ z（pt 相当）を持つ点の射影。上へ持ち上げる量は奥行きの縮尺に比例させる。
+func proj3(_ u: CGFloat, _ v: CGFloat, _ z: CGFloat) -> CGPoint {
+    let g = proj(u, v)
+    return CGPoint(x: g.x, y: g.y - z * g.s)
+}
+
+/// 左右の家の立て牌。卓上の footprint（u 方向に厚み、v 方向に幅）と高さから
+/// **上面**と**中央を向いた側面**と**手前の側面**を遠近に沿った四角形で描く。
+/// 奥から手前の順に描けば、手前の牌が奥の牌の手前面を隠して「壁」になる。
+struct SideBlock: View {
+    var u0: CGFloat, v0: CGFloat
+    var tu: CGFloat   // 厚み（u）
+    var dv: CGFloat   // 幅（v）
+    var h: CGFloat    // 高さ（pt）
+    var facesRight: Bool  // 中央が右にある（左の家）なら true
+    var body: some View {
+        let a = proj3(u0, v0, h), b = proj3(u0 + tu, v0, h)
+        let c = proj3(u0 + tu, v0 + dv, h), d = proj3(u0, v0 + dv, h)
+        let b0 = proj3(u0 + tu, v0, 0), c0 = proj3(u0 + tu, v0 + dv, 0)
+        let a0 = proj3(u0, v0, 0), d0 = proj3(u0, v0 + dv, 0)
+        ZStack {
+            // 中央を向いた側面（左の家なら右面、右の家なら左面）
+            Path { p in
+                if facesRight { p.move(to: b); p.addLine(to: c); p.addLine(to: c0); p.addLine(to: b0) }
+                else { p.move(to: a); p.addLine(to: d); p.addLine(to: d0); p.addLine(to: a0) }
+                p.closeSubpath()
+            }
+            .fill(LinearGradient(colors: [Color(hex: 0xF3ECDA), Pal.ivorySide], startPoint: .top, endPoint: .bottom))
+            // 手前の側面（次の牌に隠れる。最後の1枚だけ見える）
+            Path { p in
+                p.move(to: d); p.addLine(to: c); p.addLine(to: c0); p.addLine(to: d0); p.closeSubpath()
+            }
+            .fill(Color(hex: 0xE6DCC6))
+            // 上面（光が当たる）
+            Path { p in
+                p.move(to: a); p.addLine(to: b); p.addLine(to: c); p.addLine(to: d); p.closeSubpath()
+            }
+            .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivory], startPoint: .top, endPoint: .bottom))
+            // 稜線
+            Path { p in
+                p.move(to: a); p.addLine(to: b); p.addLine(to: c); p.addLine(to: d); p.closeSubpath()
+                if facesRight { p.move(to: b0); p.addLine(to: c0) } else { p.move(to: a0); p.addLine(to: d0) }
+            }
+            .stroke(Color(hex: 0xC9BC9F).opacity(0.9), lineWidth: 0.6)
+        }
+        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1.5)
+    }
+}
+
 enum Pal {
     static let felt = Color(hex: 0x2E7A50)
     static let feltDark = Color(hex: 0x14432C)
@@ -193,11 +242,11 @@ struct Table: View {
                 StandingBack(w: 17 * pt.s, h: 24 * pt.s).position(x: pt.x, y: pt.y)
             }
             // 左（CPU3）・右（CPU1）の手牌: 横から
+            // 左右の家の手牌: 奥から手前へ 13 枚。厚み 0.032（≒12pt）、幅 0.05（v）、高さ 22pt
             ForEach(0..<13, id: \.self) { i in
-                let v = 0.20 + CGFloat(i) * 0.046
-                let l = proj(0.04, v), r = proj(0.96, v)
-                StandingSide(w: 15 * l.s, h: 30 * l.s, ownerOnLeft: true).position(x: l.x, y: l.y)
-                StandingSide(w: 15 * r.s, h: 30 * r.s, ownerOnLeft: false).position(x: r.x, y: r.y)
+                let v = 0.18 + CGFloat(i) * 0.05
+                SideBlock(u0: 0.02, v0: v, tu: 0.032, dv: 0.05, h: 22, facesRight: true)
+                SideBlock(u0: 0.948, v0: v, tu: 0.032, dv: 0.05, h: 22, facesRight: false)
             }
             // 河: 対面（奥）
             ForEach(Array(river1.enumerated()), id: \.offset) { i, f in
