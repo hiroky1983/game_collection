@@ -183,7 +183,9 @@ struct HubView: View {
                                 } label: {
                                     Label("いちばん上に置く", systemImage: "arrow.up.to.line")
                                 }
-                                .disabled(index == 0)
+                                // 先頭かどうかは非表示も含む並びで見る。表示中の先頭でも、前に非表示のゲームが
+                                // あれば動かす余地がある（戻したときに先頭に来ない）。
+                                .disabled(settings.orderedIDs.first == module.id)
                                 Button {
                                     hide(module)
                                 } label: {
