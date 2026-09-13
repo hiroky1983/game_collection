@@ -550,3 +550,99 @@ struct HanafudaModelTests {
         }
     }
 }
+
+// MARK: - CPU 手番のキャンセル（#726）
+
+@MainActor
+@Suite("花札: CPU 手番のキャンセル")
+struct HanafudaCPUTurnTests {
+
+    /// `HanafudaView` は `.task(id: model.aiTurnKey) { await model.runCPUTurnIfNeeded() }` で CPU を回しており、
+    /// このタスクは**画面を離れるとキャンセルされる**。`try? await Task.sleep` はキャンセル後は即座に返るため、
+    /// ループが `Task.isCancelled` を見ていないと、離れた後に CPU が待ち時間ゼロで打ち、
+    /// その結果が中断データに残る（#726）。
+    ///
+    /// 大富豪の `DaifugoCancelTests` と同じく、MainActor 上で作った Task は `await` で手放すまで
+    /// 本体が動かないので、`cancel()` は必ず本体より先に確定する（実時間に依存しない）。
+    /// 親が CPU になる種を探し、試合開始直後 = CPU の手番の局面を返す。
+    private func modelAtCPUTurn(cpuDelay: Duration) throws -> (HanafudaModel, MemorySnapshotStore) {
+        for seed: UInt64 in 101..<200 {
+            // 置き場を試行ごとに作り直す（前の試行の中断データを init が復元しないように）。
+            let store = MemorySnapshotStore()
+            let model = HanafudaModel(services: makeServices(store: store), cpuDelay: cpuDelay, seed: seed)
+            model.startMatch(options: HanafudaOptions())
+            if model.dealer == .cpu { return (model, store) }
+        }
+        try #require(Bool(false), "親が CPU になる種が見つからなかった")
+        fatalError()
+    }
+
+    @Test("キャンセル後は残りの手番を進めない")
+    func cancelledTurnDoesNotAdvance() async throws {
+        // キャンセルが効かなければ、この長さを無視して CPU が打ってしまう。
+        let (model, store) = try modelAtCPUTurn(cpuDelay: .seconds(60))
+        #expect(model.phase == .playing)
+        #expect(model.turn == .cpu, "CPU の手番になっていない")
+        let cpuHandBefore = model.cpuHand
+        let fieldBefore = model.field
+        let keyBefore = model.aiTurnKey
+
+        let task = Task { await model.runCPUTurnIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(model.cpuHand == cpuHandBefore, "キャンセル済みのタスクが cpuDelay を無視して CPU に打たせた")
+        #expect(model.field == fieldBefore, "キャンセル済みのタスクが場を動かした")
+        #expect(model.turn == .cpu, "手番はそのまま")
+        #expect(model.aiTurnKey == keyBefore, "キーが進むと戻ったときに CPU が起動しない")
+        #expect(!model.isRunningCPUTurn, "門番が残ると次の CPU 手番が始まらない")
+        let saved = try #require(store.load(HanafudaSnapshot.self, for: HanafudaModel.gameID))
+        #expect(saved.hands[1] == cpuHandBefore, "離れた後の CPU の手が中断データに焼き付いた")
+    }
+
+    @Test("離れた時点の局面から再開すると CPU の手番から続く")
+    func resumedAfterCancelContinuesFromCPUTurn() async throws {
+        let (model, store) = try modelAtCPUTurn(cpuDelay: .seconds(60))
+        let cpuHandBefore = model.cpuHand
+        let task = Task { await model.runCPUTurnIfNeeded() }
+        task.cancel()
+        await task.value
+
+        // 「つづき」から開き直す = 同じ中断データから新しいモデルを作る
+        let resumed = HanafudaModel(services: makeServices(store: store), cpuDelay: .zero, seed: 999)
+        #expect(resumed.phase == .playing)
+        #expect(resumed.turn == .cpu, "CPU の手番から再開する")
+        #expect(resumed.cpuHand == cpuHandBefore)
+        #expect(resumed.humanHand == model.humanHand)
+        #expect(resumed.field == model.field)
+        await resumed.runCPUTurnIfNeeded()
+        #expect(resumed.cpuHand.count == cpuHandBefore.count - 1, "再開後に CPU が1手打つ")
+        #expect(resumed.turn == .human || resumed.phase != .playing)
+    }
+
+    /// 先行タスクが `isRunningCPUTurn` を握ったまま sleep している間に `aiTurnKey` が変わって新タスクが走ると、
+    /// 「新タスクが即リターン → 先行タスクがキャンセルで抜ける」の順で走者が誰もいなくなり、
+    /// CPU の手番で止まる（大富豪 #287・麻雀 #311 と同じレース）。新タスクは先行タスクの終了を待って引き継ぐこと。
+    ///
+    /// 先行タスクは実際に走らせず、門番を直接立てて「握ったまま待っている」状態を作る。本物のタスクを
+    /// `cpuDelay` の sleep に入れて使うと、並列実行で MainActor が詰まったときにその待ちが先に切れて
+    /// 先行タスクが普通に打ち、即リターン型のままでも緑になった（変異テストで実測）。
+    @Test("先行タスクの終了を待って引き継ぐ")
+    func replacementTaskTakesOverAfterPredecessorExits() async throws {
+        let (model, _) = try modelAtCPUTurn(cpuDelay: .zero)
+        let cpuHandBefore = model.cpuHand.count
+
+        model.isRunningCPUTurn = true
+        let taskB = Task { @MainActor in await model.runCPUTurnIfNeeded() }
+        // B の後ろに積んだ空のジョブを待つ = B は最初の判定（門番）まで走り終えている。
+        await Task { @MainActor in }.value
+        #expect(model.cpuHand.count == cpuHandBefore, "先行タスクが門番を握っている間は打たない")
+        // 先行タスクがキャンセルで抜けた（`defer` で門番を下ろした）状態にする。
+        model.isRunningCPUTurn = false
+        await taskB.value
+
+        #expect(model.cpuHand.count == cpuHandBefore - 1, "走者不在で CPU の手番が止まった")
+        #expect(model.turn == .human || model.phase != .playing)
+        #expect(!model.isRunningCPUTurn)
+    }
+}
