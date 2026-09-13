@@ -219,5 +219,11 @@ public final class ResumeReminderService {
             title: content.title,
             body: content.body
         )
+        // 追加の完了を待つ間に開き直された・中断データが消えた・設定を切られたなら、入った予約を取り消す。
+        // 取り消しが追加より先に処理されると、取り消したはずの予約が残るため（PR #697 の CodeRabbit 指摘）。
+        guard epochs[gameID, default: 0] == token, globalEpoch == global, isEnabled() else {
+            scheduler.cancel(gameIDs: [gameID])
+            return
+        }
     }
 }

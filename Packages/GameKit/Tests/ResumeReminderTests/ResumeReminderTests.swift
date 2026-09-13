@@ -60,7 +60,24 @@ private final class SpyScheduler: ResumeReminderScheduler {
         return snapshot
     }
 
+    /// true のあいだ `schedule` が予約を書き込む前に止まる（追加の完了待ちの間の競合を作るため）。
+    /// 止まっている間の取り消しは、まだ入っていない予約には効かない（本物の通知センターで
+    /// 取り消しが追加より先に処理された場合と同じ）。
+    var holdsSchedule = false
+    private var heldSchedules: [CheckedContinuation<Void, Never>] = []
+    var heldScheduleCount: Int { heldSchedules.count }
+
+    func releaseSchedule() {
+        holdsSchedule = false
+        let waiting = heldSchedules
+        heldSchedules.removeAll()
+        waiting.forEach { $0.resume() }
+    }
+
     func schedule(_ reminder: ResumeReminder, title: String, body: String) async {
+        if holdsSchedule {
+            await withCheckedContinuation { heldSchedules.append($0) }
+        }
         if yieldsOnEveryCall { await Task.yield() }
         reminders[reminder.gameID] = reminder
         contents[reminder.gameID] = (title, body)
@@ -291,6 +308,37 @@ struct ResumeReminderServiceTests {
             await service.pendingWork?.value
 
             #expect(spy.reminders.isEmpty, "\(change) の後に古い予約が入った")
+        }
+    }
+
+    @Test("予約の完了を待つ間に開き直された・中断が消えた・設定を切られたなら、入った予約を取り消す")
+    func stateChangesDuringScheduleWin() async throws {
+        for change in ["open", "clear", "disable"] {
+            let spy = SpyScheduler()
+            let env = Environment(now: date(13, 12))
+            let service = makeService(spy, env)
+            spy.holdsSchedule = true
+
+            service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+            // 予約の処理が追加の完了待ちで止まるところまで進める（実時間では待たない）。
+            var spins = 0
+            while spy.heldScheduleCount == 0 {
+                await Task.yield()
+                spins += 1
+                try #require(spins < 10_000, "予約の処理が追加に到達しない")
+            }
+
+            switch change {
+            case "open":  service.gameDidOpen(gameID: "shogi")
+            case "clear": service.snapshotDidClear(gameID: "shogi")
+            default:
+                env.enabled = false
+                service.cancelAll()
+            }
+            spy.releaseSchedule()
+            await service.pendingWork?.value
+
+            #expect(spy.reminders.isEmpty, "\(change) の後に、取り消したはずの予約が残った")
         }
     }
 
