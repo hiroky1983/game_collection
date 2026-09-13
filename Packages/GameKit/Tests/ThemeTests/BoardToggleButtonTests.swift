@@ -15,6 +15,8 @@ struct BoardToggleButtonTests {
     private static let adopters = [
         "GameMahjongSolitaire/MahjongSolitaireView.swift",
         "GameMinesweeper/MinesweeperView.swift",
+        "GameSudoku/SudokuView.swift",
+        "GameFreeCell/FreeCellView.swift",
     ]
 
     @Test("帯のトグルを持つゲームは共通枠から組んでいる")
@@ -25,7 +27,24 @@ struct BoardToggleButtonTests {
         }
     }
 
-    /// 寸法の急所。**2 ゲームの見た目がこの 1 組の値で決まる**ので、触ると両方が一斉に変わる。
+    /// 拡大トグルは 4 ゲームで **ON（差し色の面）＝拡大中・アイコンは minus・文字は「全体」** に揃える。
+    /// 以前は麻雀ソリティアだけ全体表示を ON にしていて、開始直後にそこだけ塗りつぶしで出て
+    /// 別物に見えた（会長 QA 2026-09-13）。`isOn:` の式と `systemImage:` の条件が同じ式であること
+    /// （＝同じ状態で minus になること）と、文字が付いていることをソースの形で固定する。
+    @Test("拡大トグルは 4 ゲームとも ON＝拡大中で、「拡大／全体」の文字付き")
+    func zoomTogglesShareOrientationAndTitle() throws {
+        // ナンプレは帯の幅が足りないときだけ文字を省く（`ViewThatFits`）ので、
+        // `title:` は「<状態> ? "全体" : "拡大"」を含んでいればよい（前に `zoomTitle ? (` が付いてもよい）
+        let pattern = #"isOn:\s*([^,\n]+),\s*\n\s*systemImage:\s*\1\s*\?\s*"minus\.magnifyingglass"\s*:\s*"plus\.magnifyingglass",\s*\n\s*title:[^\n]*\1\s*\?\s*"全体"\s*:\s*"拡大""#
+        let regex = try NSRegularExpression(pattern: pattern)
+        for path in Self.adopters {
+            let source = try Self.read(path)
+            let hit = regex.firstMatch(in: source, range: NSRange(source.startIndex..., in: source))
+            #expect(hit != nil, "\(path) の拡大トグルが「ON＝拡大中・minus・全体」の形になっていない")
+        }
+    }
+
+    /// 寸法の急所。**4 ゲームの見た目がこの 1 組の値で決まる**ので、触ると全部が一斉に変わる。
     @Test("寸法は タップ標的44・角丸10・アイコン15")
     func metricsAreUnchanged() {
         #expect(BoardToggleMetrics.minSide == 44, "Apple HIG の最小タップ標的を割っている")

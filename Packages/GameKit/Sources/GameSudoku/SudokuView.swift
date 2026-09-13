@@ -12,6 +12,8 @@ public struct SudokuView: View {
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     @State private var zoomMode = false
+    /// 帯の実幅（拡大トグルに文字を出すかの判定に使う。0 は未計測＝出す）。
+    @State private var statusBarWidth: CGFloat = 0
     /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
     @State private var flashingCells: Set<Int> = []
     /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
@@ -164,7 +166,23 @@ public struct SudokuView: View {
 
     // MARK: - Status Bar
 
+    /// 帯は要素が多い（残り・ミス・難易度・時計・拡大）ので、拡大トグルの文字「拡大／全体」は
+    /// **入る幅のときだけ**出す（`SudokuMetrics.showsZoomTitle`）。iPhone SE（帯の幅 343pt）では
+    /// 文字を付けると「残り49」「ミス 0/3」が「残…」「ミ…」に潰れた（実測）。
+    /// `ViewThatFits` は文字の縮小（`minimumScaleFactor`）を見込まず iPhone 17 Pro Max でも文字を
+    /// 落としてしまったので、帯の実幅で判定する。
     private var statusBar: some View {
+        statusBarRow(zoomTitle: SudokuMetrics.showsZoomTitle(statusBarWidth: statusBarWidth))
+            .background(
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { statusBarWidth = g.size.width }
+                        .onChange(of: g.size.width) { _, w in statusBarWidth = w }
+                }
+            )
+    }
+
+    private func statusBarRow(zoomTitle: Bool) -> some View {
         HStack(spacing: 8) {
             Group {
                 if model.isFinished {
@@ -211,23 +229,19 @@ public struct SudokuView: View {
                     // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                     .opacity(model.hasPuzzle ? 1 : 0)
 
-                // 拡大トグル。マインスイーパー（#203）と同じ 44pt の矩形で受ける。
-                Button { zoomMode.toggle() } label: {
-                    Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(
-                            minWidth: SudokuMetrics.padButtonMinSide,
-                            minHeight: SudokuMetrics.padButtonMinSide
-                        )
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
-                        )
-                        .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
-                        // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
-                        .contentShape(Rectangle())
+                // 拡大トグル。麻雀ソリティア・マインスイーパーと共通の `BoardToggleButton`（Core・#641）。
+                // 以前は素のアイコン（13pt・枠なし・`Theme.surface`）を手書きしていて、他のゲームと
+                // 見た目が揃っていなかった（会長 QA 2026-09-13）。
+                BoardToggleButton(
+                    isOn: zoomMode,
+                    systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
+                    title: zoomTitle ? (zoomMode ? "全体" : "拡大") : nil,
+                    fill: Theme.Fill.teal,
+                    accent: Theme.teal,
+                    label: zoomMode ? "盤全体を表示" : "盤を拡大"
+                ) {
+                    zoomMode.toggle()
                 }
-                .accessibilityLabel(zoomMode ? "盤全体を表示" : "盤を拡大")
             }
             .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .trailing)

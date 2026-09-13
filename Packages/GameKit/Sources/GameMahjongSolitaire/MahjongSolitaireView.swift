@@ -263,12 +263,15 @@ public struct MahjongSolitaireView: View {
     ///   拡大・全体表示という機能の存在自体が初回プレイで気づかれない。常時出す短い文字で補う
     ///   （一度きりのヒントと違い、初回でも 2 回目以降でも同じように読める）。
     ///
-    /// 見た目そのものはマインスイーパーの旗・拡大と共通の `BoardToggleButton`（Core・#641）が持つ。
+    /// 見た目そのものはマインスイーパー・ナンプレ・フリーセルの拡大と共通の `BoardToggleButton`
+    /// （Core・#641）が持つ。**ON（差し色の面）＝拡大中**の向きも 4 ゲームで揃える。以前はここだけ
+    /// 全体表示を ON にしていたため、開始直後にソリティアだけ塗りつぶしで出て別物に見えていた
+    /// （会長 QA 2026-09-13「ボタンが同じ見た目になっていない」）。
     private var displayToggle: some View {
         BoardToggleButton(
-            isOn: showsWholeBoard,
-            systemImage: showsWholeBoard ? "plus.magnifyingglass" : "minus.magnifyingglass",
-            title: showsWholeBoard ? "拡大" : "全体",
+            isOn: !showsWholeBoard,
+            systemImage: !showsWholeBoard ? "minus.magnifyingglass" : "plus.magnifyingglass",
+            title: !showsWholeBoard ? "全体" : "拡大",
             fill: Theme.Fill.teal,
             accent: Theme.teal,
             label: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"

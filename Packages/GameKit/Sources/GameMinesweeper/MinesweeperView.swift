@@ -267,14 +267,13 @@ public struct MinesweeperView: View {
                 // 枠線なしと面の作りは一回り小さいままだった。同じ形を 2 ヶ所に手書きしていたのが
                 // 原因なので、共通の `BoardToggleButton`（Core）へ寄せて揃える（#641）。
                 //
-                // 文字ラベル（麻雀ソリティアの「拡大」「全体」に当たるもの）は付けない。幅は足りる
-                // （iPhone SE で両方に文字を付けた対照ビルドを実測。帯の余りは 81.5pt → 49.5pt に
-                // 減るだけで収まる）が、旗モードには「拡大 ⇄ 全体」のような 2 状態の言い分けが無く、
-                // 片方だけ文字付きにすると同じ行のトグルが不揃いになる。文字を出すかどうかは
-                // #641 の受け入れ条件（寸法を揃える）の外なので、必要になったら別途決める。
+                // 文字ラベルも麻雀ソリティアと同じく付ける（会長 QA 2026-09-13「同じ見た目になっていない」。
+                // #641 では寸法だけ揃えて文字は見送っていた）。幅は iPhone SE でも足りる（両方に文字を
+                // 付けても帯の余りは 49.5pt 残る・#641 で実測）。旗は 2 状態の言い分けが無いので「旗」固定。
                 BoardToggleButton(
                     isOn: flagMode,
                     systemImage: "flag.fill",
+                    title: "旗",
                     fill: Theme.Fill.coral,
                     accent: Theme.coral,
                     label: flagMode ? "旗を立てるのをやめる" : "旗を立てるモードにする"
@@ -284,6 +283,7 @@ public struct MinesweeperView: View {
                 BoardToggleButton(
                     isOn: zoomMode,
                     systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
+                    title: zoomMode ? "全体" : "拡大",
                     fill: Theme.Fill.teal,
                     accent: Theme.teal,
                     label: zoomMode ? "盤面全体を表示" : "マスを大きくする"
