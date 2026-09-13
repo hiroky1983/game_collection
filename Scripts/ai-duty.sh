@@ -789,13 +789,22 @@ git -C "$DUTY_DIR" fetch origin --prune >>"$LOG" 2>&1
 # 1実行 = 1使い捨て worktree。前回の残骸（異常終了時の未コミット変更等）と物理的に隔離する
 RUNS_DIR="$HOME/.asobiba-duty/runs"
 mkdir -p "$RUNS_DIR"
-# 3日より古い実行用 worktree を掃除
-find "$RUNS_DIR" -maxdepth 1 -type d -name 'run-*' -mtime +3 | while read -r d; do
-  case "$d" in
-    "$RUNS_DIR"/run-*) git -C "$DUTY_DIR" worktree remove --force "$d" >>"$LOG" 2>&1 || rm -rf "$d" ;;
-  esac
+# 前回までの実行用 worktree を**すべて**掃除する（会長指示 2026-09-13）。
+# 以前は「3日より古いもの」だけを消していたが、実際には一度も消えず 9/9〜9/13 の5日で
+# 52 個・50GB が溜まっていた（フルチェックアウト1個≈1GB）。ロックで直列に動いているので、
+# この時点で残っている run-* は全部が終了済みの残骸であり、年齢を見ずに消してよい。
+# 終了時の cleanup_worktree（EXIT トラップ）が本線で、ここは異常終了で残った回の backstop。
+STALE_COUNT=0
+for d in "$RUNS_DIR"/run-*; do
+  [ -d "$d" ] || continue
+  if git -C "$DUTY_DIR" worktree remove --force "$d" >>"$LOG" 2>&1; then
+    STALE_COUNT=$((STALE_COUNT + 1))
+  else
+    log "掃除: worktree $d を git worktree remove で消せなかった（手で確認すること）"
+  fi
 done
 git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
+[ "$STALE_COUNT" -gt 0 ] && log "掃除: 前回までの worktree を $STALE_COUNT 個削除（runs=$(du -sh "$RUNS_DIR" 2>/dev/null | cut -f1)）"
 
 RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
