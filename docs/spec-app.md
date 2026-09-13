@@ -99,10 +99,28 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | アプリ | バージョン表示 |
 | あそび | ゲームの並び替え (ドラッグ) + 表示/非表示トグル |
 | 規約 | 利用規約 / プライバシーポリシー（外部 URL を `SFSafariViewController` の sheet で表示） |
+| 通知 | 続きのお知らせのオン / オフ（#663。既定オン・キー `resumeRemindersEnabled_v1`） |
 | その他 | アプリを評価する / アプリをシェア |
 
 - 並び順・非表示設定は `UserDefaults` に保存 (キー: `gameOrder_v1`, `hiddenGames_v1`)
 - 新ゲーム追加時は末尾に自動追記
+
+---
+
+## 中断したゲームのお知らせ（#663・v1.1.5）
+
+中断データを持ってハブへ戻った人にだけ、1 日ほど後に「「将棋」が途中のままです」をローカル通知で 1 件届ける。
+汎用の「遊びに来てね」・デイリー通知・リモートプッシュは送らない。
+
+- **規則は Core の `ResumeReminderService` / `ResumeReminderPolicy`**、OS へ渡す部分は App の
+  `UserNotificationReminderScheduler`（`UNUserNotificationCenter`）。予約済みの一覧は OS が持ち、アプリ側に保存先を増やさない
+- **予約**: `GameServices.gameDidLeave` で中断データがあるとき。知らせるのは 24 時間後で、それが 21 時〜9 時に
+  当たるなら次の 9 時へずらす（最大 36 時間後）。同じゲームは 1 件に置き換え、全体で 3 件まで（あふれたら古い中断から外す）
+- **取り消し**: そのゲームを開いた（`gameDidOpen`）・中断データが消えた（`ClearObservingSnapshotStore` が `clear` を捕まえる）・設定でオフにした
+- **許諾**: 起動時には求めない。初めて予約するときに `.provisional` で求める（許可ダイアログは出ず、通知センターに静かに届く。#663 の決裁 (a)）。拒否されていれば何もしない
+- **対象外**: `GameModule.resumesFromSnapshot == false` のゲーム（中断データから局を復元しないチャリンコおじさん）
+- **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "notification"}` の導線でそのゲームを開く
+- **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「通知」トグル。動作確認は `-simulateNotificationTap <gameID>`（DEBUG のみ）
 
 ---
 
@@ -174,7 +192,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   （`game_start` は再開では送られないため、再開を数える唯一の手段）
 - `game_open` の導線は遷移の値そのもの（`HubRoute`）に持たせる。タップの横で別の状態に書き留めると
   タップと path の変化の順序が保証されないため。`resume` も**タップした時点**の中断データの有無で決める。
-  `notification` は #663 のローカル通知のために予約した値で、#659 の時点では発火点が無い
+  `notification` は #663 のローカル通知のタップで開いたとき（`release/v1.1.5` から。上の「中断したゲームのお知らせ」を参照）
 - `source` / `position` / `resume` は GA4 のカスタムディメンション登録が要る（会長操作依頼 #694）
 
 ---
