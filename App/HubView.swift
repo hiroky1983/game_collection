@@ -141,7 +141,9 @@ struct HubView: View {
                                     minHeight: cardMinHeight
                                 )
                             }
-                            .buttonStyle(.plain)
+                            // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
+                            // 画面が出るまで間があるため、押した手応えを `.pop` で返す。
+                            .buttonStyle(.pop)
                         }
                     }
                     .padding(Theme.pad)
@@ -178,6 +180,8 @@ struct HubView: View {
                         Image(systemName: "gearshape.fill")
                             .font(.system(size: 18, weight: .semibold))
                     }
+                    // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
+                    .accessibilityLabel("設定")
                 }
             }
             .navigationDestination(for: HubRoute.self) { route in
