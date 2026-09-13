@@ -62,7 +62,14 @@ public struct BlackjackView: View {
             }
             #endif
         }
-        .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
+        .rewardedRescueAlerts(
+            reviveRescue,
+            notEarned: "チップは回復しませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "チップは回復しませんでした",
+                message: "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。"
+            )
+        )
     }
 
     // MARK: - Chips Bar
@@ -423,8 +430,9 @@ public struct BlackjackView: View {
             if model.canReviveAfterBust {
                 Button {
                     // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
-                    // `recoverChipsAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
-                    reviveRescue.requestHandledByModel { await model.recoverChipsAfterAd() }
+                    // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。見終えたのに
+                    // 適用できなかったときは「視聴しなかった」ではなく適用できない旨を出す（#727）。
+                    reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
                 } label: {
                     // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
                     Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
@@ -441,6 +449,9 @@ public struct BlackjackView: View {
                 .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            // 広告のロード〜視聴中にやり直すと、見終えた復活が新しいセッションへ乗りかける（#727）。
+            // モデル側でも照合しているが、押せる窓そのものを塞ぐ。
+            .disabled(reviveRescue.isWatching)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)

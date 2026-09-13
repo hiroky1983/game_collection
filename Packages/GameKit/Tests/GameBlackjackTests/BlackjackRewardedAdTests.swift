@@ -166,6 +166,44 @@ struct BlackjackRewardedAdTests {
         #expect(ads.rewardedCount == 1, "広告そのものは出ている（計測は従来どおり付く）")
     }
 
+    /// 広告のロード中は同じ画面の「最初からやり直す」も押せる（#727）。画面の世代（#653）は
+    /// 同じ画面の中の入れ替わりでは進まないので、セッションの通し番号で照合する。
+    @Test("広告中にセッションを作り直したら復活を適用しない")
+    func doesNotReviveSessionRestartedDuringAd() async {
+        let (model, ads, _) = makeBustedModel()
+        ads.duringAd = { model.restartSession() }
+
+        let outcome = await model.reviveAfterAd()
+
+        #expect(outcome == .unavailable, "見終えたのに適用できなかったことを、視聴しなかったことと分けて返す")
+        #expect(model.chips == BlackjackModel.initialChips, "新しいセッションの残高が半分に減らされている")
+        #expect(!model.sessionOver)
+        #expect(model.phase == .betting)
+        #expect(ads.rewardedCount == 1)
+
+        // 新しいセッションの復活権（= 順位表資格）が、前のセッションで見た広告で消えていない。
+        playAllInUntilBust(model)
+        #expect(model.sessionOver)
+        #expect(model.canReviveAfterBust, "新しいセッションの復活権を消費している")
+    }
+
+    /// やり直したセッションも広告のあいだにチップが尽きると、`canReviveAfterBust` だけの照合は
+    /// 素通りする。前のセッションで見た広告を新しいセッションの復活に使わせない（#727）。
+    @Test("広告中にやり直したセッションもチップが尽きていたら、前のセッションの復活は乗せない")
+    func doesNotReviveRestartedSessionThatAlsoBustedDuringAd() async {
+        let (model, ads, _) = makeBustedModel()
+        ads.duringAd = {
+            model.restartSession()
+            playAllInUntilBust(model)
+        }
+
+        let outcome = await model.reviveAfterAd()
+
+        #expect(outcome == .unavailable)
+        #expect(model.sessionOver, "やり直したセッションのチップ切れはそのまま")
+        #expect(model.canReviveAfterBust, "新しいセッションの復活権を、前のセッションで見た広告で消費している")
+    }
+
     @Test("視聴未完了・ロード失敗ならチップは回復しない")
     func doesNotRecoverChipsWhenRewardNotEarned() async {
         let (model, ads, _) = makeBustedModel(rewardEarned: false)

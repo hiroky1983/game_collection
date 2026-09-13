@@ -191,6 +191,11 @@ public final class BlackjackModel {
     /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
     private var hasRevivedThisSession = false
 
+    /// セッションの通し番号。`restartSession()` で進む（#727）。
+    /// 広告のロード中に「最初からやり直す」を押されると、同じ画面の中でセッションが入れ替わる。
+    /// 画面の世代（#653）はハブへ戻ったときしか進まないので、こちらで照合する。
+    private var sessionSerial = 0
+
     /// チップ切れをリワード広告で 1 回だけ取り消せる状態か（#499）。
     /// 麻雀のトビ復活（#338）と同じで、1 セッション 1 回まで。
     public var canReviveAfterBust: Bool { sessionOver && !hasRevivedThisSession }
@@ -521,14 +526,26 @@ public final class BlackjackModel {
     /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
     ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
     /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// - 広告のあいだに「最初からやり直す」でセッションが入れ替わっていたら適用しない（#727）。
     /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
-        guard canReviveAfterBust else { return false }
+        await reviveAfterAd() == .granted
+    }
+
+    /// `recoverChipsAfterAd()` の本体。見終えたのに適用できなかったこと（`.unavailable`）を
+    /// 視聴しなかったこと（`.notEarned`）と分けて返す（#727。画面のアラートを出し分けるため）。
+    public func reviveAfterAd() async -> RewardedModelOutcome {
+        guard canReviveAfterBust else { return .unavailable }
+        let serialBeforeAd = sessionSerial
         // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
         let generationBeforeAd = services?.screenGeneration.current
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
-        guard services?.screenGeneration.current == generationBeforeAd else { return false }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
+        guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
+        // 広告のロード〜視聴のあいだも画面は操作できる。「最初からやり直す」で新しいセッションが
+        // 始まっていたら、そこへ復活が乗って残高 1000 → 500 になり、復活権と順位表資格まで消える（#727）。
+        // 麻雀のトビ復活（`MahjongModel.reviveAfterAd`）と同じく、通し番号と救済できる状態を見直す。
+        guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisSession = true
         chips = BlackjackModel.reviveChips
         sessionOver = false
@@ -536,13 +553,14 @@ public final class BlackjackModel {
         clearHands()
         dealerHand = []
         phase = .betting
-        return true
+        return .granted
     }
 
     // MARK: - Restart
 
     public func restartSession() {
         recordResult = nil
+        sessionSerial += 1
         chips = BlackjackModel.initialChips
         // 新しいセッションなので復活の回数も戻る（#499）。
         hasRevivedThisSession = false
