@@ -13,6 +13,12 @@ public enum RunnerAccessibility {
         "ステージ \(number) / \(total)"
     }
 
+    /// ステージ表示の読み上げ。番号に世界の名前（#703）を添える——画面では背景の色で
+    /// 分かる「どこを走っているか」を、見えない人にも番号だけでなく言葉で伝える。
+    public static func stageLabelWithWorld(number: Int, total: Int) -> String {
+        "\(stageLabel(number: number, total: total))、\(RunnerWorld.world(forStage: number).displayName)"
+    }
+
     /// 進み具合。パーセントは 5 刻みに丸める（1% ごとに読み上げが変わると耳で追えない）。
     public static func progressLabel(_ progress: Double) -> String {
         let clamped = min(1, max(0, progress))
@@ -42,6 +48,28 @@ public enum RunnerAccessibility {
     public static func bestLabel(seconds: Int?) -> String {
         guard let seconds else { return "ベストタイムはまだありません" }
         return "ベストタイム \(timeLabel(seconds: seconds))"
+    }
+
+    /// 走行距離（エンドレス・#675）。単位はワールド単位だが、画面と同じ「m」で読む。
+    public static func distanceLabel(_ distance: Int) -> String {
+        "走行距離 \(max(0, distance))メートル"
+    }
+
+    /// エンドレスの自己ベスト。まだ 1 回も走っていなければ記録が無いことを言う。
+    public static func bestDistanceLabel(_ distance: Int?) -> String {
+        guard let distance else { return "自己ベストはまだありません" }
+        return "自己ベスト \(max(0, distance))メートル"
+    }
+
+    /// エンドレスの結果。ステージ番号の代わりに走行距離を言う。
+    public static func endlessResultLabel(phase: RunnerPhase, distance: Int) -> String {
+        switch phase {
+        case .falling, .failed: return "\(max(0, distance))メートルでミスしました"
+        case .cleared, .allCleared: return "コースを走りきりました。\(distanceLabel(distance))"
+        case .paused:     return "一時停止中"
+        case .ready:      return "エンドレス。タップでスタート"
+        case .running:    return "走行中"
+        }
     }
 
     /// ミス・クリアの結果。

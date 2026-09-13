@@ -31,7 +31,7 @@ private final class SpyAnalyticsService: AnalyticsService {
     }
     var quits: Int {
         events.filter {
-            if case let .gameEnd(_, result, _) = $0 { return result == .quit } else { return false }
+            if case let .gameEnd(_, result, _, _) = $0 { return result == .quit } else { return false }
         }.count
     }
 }
@@ -203,6 +203,21 @@ struct MahjongNewGameTests {
         #expect(restored.roundNumber == 1, "残っているのは新しい配牌のほうだけ")
         #expect(restored.scores == Array(repeating: MahjongModel.startingScore,
                                          count: MahjongModel.playerCount))
+    }
+
+    @Test("game_start / game_end には対局形式（東風戦 tonpuu ／ 一局戦 single_hand）が mode として付く（#783）")
+    func analyticsCarriesGameLength() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["mahjong4"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let model = makeModel(analytics: analytics)
+        model.startGame(length: .tonpuu)
+        model.startGame(length: .singleHand)
+        let modes = spy.events.compactMap { event -> String? in
+            if case let .gameStart(_, _, mode) = event { return mode } else { return nil }
+        }
+        #expect(modes == ["tonpuu", "single_hand"])
     }
 
     @Test("1枚でも切っていれば離脱として game_end(quit) を付けてから次の game_start を送る")

@@ -6,6 +6,11 @@ import SpriteKit
 /// **SpriteKit の面は SwiftUI の `Theme` に追従しない**（`SKColor` はライト / ダークの動的色を
 /// 持てる形で使えず、シーンの背景も自前で塗る）。盤・駒・牌と同じ「モードによらず固定の面」
 /// として扱う（基盤規約 §4。値はブロック崩しの `BlocksPalette` と揃えてある）。
+///
+/// 空・雲・丘・地面・岩は**世界（`RunnerWorld`）ごとに差し替わる**（#703）。ここにある
+/// `sky` 〜 `rockDark` は 13〜18 面の夜の値であり、描画側は `RunnerWorld.palette` を読む。
+/// 定数を残してあるのは、ここに書かれた「なぜこの色か」の注記（脚と空の被り・岩の茶系 NG）が
+/// 世界ごとの配色を選ぶときの物差しになるため。
 enum RunnerPalette {
     /// 空。ブロック崩しの地（`0x1E2233`）より明るくして、屋外の昼に見せる。
     static let sky: UInt32 = 0x2E4066
@@ -50,9 +55,31 @@ enum RunnerPalette {
     static let metal: UInt32 = 0x8A93A6
     /// ゴールの旗。
     static let goal: UInt32 = 0xFF8FB1
+    /// ゴールの旗の陰（奥側の 1 枚）。チェックポイントの旗と同じ厚みの出し方（#703）。
+    static let goalShade: UInt32 = 0xD9678F
+    /// ゴールの旗の文字。チェックポイントの旗（`checkpointText`）と同じく、旗より十分暗い色で
+    /// コントラストを取る（白抜きは実機で読めなかった教訓）。
+    static let goalText: UInt32 = 0x4A1730
+    /// 夕方の川（`RunnerWorld.Scenery.riverside`）の水面。丘の紫より暗い群青にして、
+    /// 走者の下半身（サーモンの車体・黄土の脚）がこの上でいちばん映えるようにする。
+    static let riverWater: UInt32 = 0x3E3E7E
+    /// 川面の照り返し（細い帯）。夕日の色を水面に落として「川」だと読めるようにする。
+    static let riverGlint: UInt32 = 0xF2B08A
+    /// 夕方の地平線の帯。空の桃色（`RunnerWorld.evening`）に対して橙を足し、
+    /// 「橙〜桃色の空」を 2 色で作る。丘の後ろに置くので走者とは重ならない。
+    static let sunsetGlow: UInt32 = 0xF0955C
+    /// 夜のビルの影（`RunnerWorld.Scenery.cityLights`）。近景の丘（`hillNear`）よりさらに暗い紺。
+    static let building: UInt32 = 0x16223A
+    /// ビルの窓の灯り。暖色の小さな矩形で、夜の空と影に対して唯一の明るい点になる。
+    static let buildingWindow: UInt32 = 0xFFD98A
+    /// 朝の下町の家（`RunnerWorld.Scenery.townHouses`）。壁はクリーム、屋根は瓦の赤茶、窓は空より濃い水色。
+    static let houseWall: UInt32 = 0xFFF1DC
+    static let houseRoof: UInt32 = 0xC9624A
+    static let houseWindow: UInt32 = 0x5FA8D6
     /// 穴の縁の警告帯。地面と同系色だと縁が分からず、落ちるかどうかの判断がつかない
-    /// というQAを受けて追加（会長QA）。
+    /// というQAを受けて追加（会長QA）。工事の柵らしく黒（`pitEdgeDark`）と交互に塗る。
     static let pitEdge: UInt32 = 0xFFD447
+    static let pitEdgeDark: UInt32 = 0x2B2B33
     /// 穴の中身（奈落）。縁の帯だけでは「穴の中はただの空」に見え、幅の実感が湧かない
     /// というQAを受けて追加（会長QA）。地面の断面よりさらに暗い色で、地面と穴を塗り分ける。
     static let pitVoid: UInt32 = 0x141824
@@ -112,7 +139,9 @@ enum RunnerPalette {
     /// スピードアップ床の路面（#672）。ふつうの地表（`groundTop` のティール）と
     /// **一目で違う区間だ**と分かる必要があるので、アイテムの後光（`pickupAura`）と
     /// 同じ寒色系にして「この色＝速さ」で揃える。地表より明るくして、走者の足元でも沈まない。
-    static let boostFloorTop: UInt32 = 0x3FB3D6
+    static let boostFloorTop: UInt32 = 0x2FC4E6
+    /// スピードアップ床の縁取り（路面より暗い青）。帯の上下に引いて「路面に貼られた加速帯」に見せる。
+    static let boostFloorEdge: UInt32 = 0x1B7FA3
     /// スピードアップ床の矢印。路面より明るい暖色にして、床の色に埋もれないようにする。
     /// 進行方向（右）を向いた三角を並べ、「乗ると前へ押される区間」だと色以外でも伝える
     /// （色だけに頼らない・基盤規約のアクセシビリティ要件）。
@@ -148,6 +177,11 @@ final class RunnerScene: SKScene {
     /// 直前の `sync()` で見た `phase`。`.falling` に入った最初のフレームだけ落下演出を
     /// 発火させるための「前回反映した世代」パターン（`renderedGeneration` と同じ考え方）。
     private var lastSyncedPhase: RunnerPhase = .ready
+    /// いま描いている世界（#703）。空・雲・丘・地面・岩の色と遠景の飾りはここから引く。
+    private var world: RunnerWorld
+    /// 雲・丘・遠景を組み立てた時点の世界。`rebuildCourse` がステージの世界と比べ、
+    /// 変わったときだけ背景を作り直す（6 面に 1 度。毎ステージ作り直さないのは従来どおり）。
+    private var renderedWorld: RunnerWorld?
 
     /// コース（地面・障害物・ゴール）。走者は動かさず、こちらを左へ流す。
     private let courseLayer = SKNode()
@@ -173,8 +207,11 @@ final class RunnerScene: SKScene {
     /// コースより遅い速度で流す（視差）ので、コースとは別レイヤーに持つ。
     private let cloudLayer = SKNode()
     /// 雲を並べる間隔（ワールド単位）。地面を作り直しても雲は作り直さないので、
-    /// ステージが変わっても同じ雲がそのまま流れ続ける。
+    /// ステージが変わっても同じ雲がそのまま流れ続ける（世界が変わるときだけ作り直す）。
     private static let cloudSpacing: Double = 46
+    /// 動かない遠景（夕方の地平線の帯）。雲より手前・丘より奥に置く。
+    /// 画面幅いっぱいの 1 枚なので流さない（流すと端が見える）。
+    private let backdropLayer = SKNode()
     /// コースに対する雲の流れる速さの比率（視差）。1 未満で遠くに見える。
     private static let cloudParallax: Double = 0.3
     /// このコースのスピードアップアイテムのノード（`stage.pickups` と同じ並び）。
@@ -203,12 +240,13 @@ final class RunnerScene: SKScene {
 
     init(model: RunnerModel) {
         self.model = model
+        self.world = model.field.stage.number == 0 ? .morning : RunnerWorld.world(forStage: model.field.stage.number)
         super.init(size: CGSize(
             width: RunnerField.Metrics.width,
             height: RunnerField.Metrics.height
         ))
         scaleMode = .aspectFit
-        backgroundColor = RunnerPalette.color(RunnerPalette.sky)
+        backgroundColor = RunnerPalette.color(world.palette.sky)
         anchorPoint = .zero
     }
 
@@ -219,10 +257,10 @@ final class RunnerScene: SKScene {
 
     override func didMove(to view: SKView) {
         guard courseLayer.parent == nil else { return }
+        // 奥から順に。雲・遠景・丘の中身は `rebuildCourse` が世界に合わせて組む（`applyWorld`）。
         addChild(cloudLayer)
-        buildClouds()
+        addChild(backdropLayer)
         addChild(hillLayer)
-        buildHills()
         addChild(courseLayer)
         buildPlayer()
         addChild(player)
@@ -466,7 +504,28 @@ final class RunnerScene: SKScene {
     /// ステージがどれだけ長くても雲を作り直さずに無限スクロールへ流せる。
     private var cloudBaseX: [Double] = []
 
-    /// 空を流れる雲。ステージをまたいでも作り直さない（`rebuildCourse` の対象外）。
+    /// 世界が変わったときに、空の色と雲・遠景・丘を作り直す（#703）。
+    ///
+    /// 呼ぶのは `rebuildCourse` だけ。ステージごとには呼ばれない（同じ世界のあいだは
+    /// 雲も丘も同じものが流れ続ける——従来の「ステージをまたいでも作り直さない」を保つ）。
+    private func applyWorld(_ next: RunnerWorld) {
+        world = next
+        renderedWorld = next
+        backgroundColor = RunnerPalette.color(next.palette.sky)
+        cloudLayer.removeAllChildren()
+        clouds.removeAll()
+        cloudBaseX.removeAll()
+        backdropLayer.removeAllChildren()
+        hillLayer.removeAllChildren()
+        hillTiles.removeAll()
+        hillBaseX.removeAll()
+        buildClouds()
+        buildBackdrop()
+        buildHills()
+    }
+
+    /// 空を流れる雲。ステージをまたいでも作り直さない（`rebuildCourse` の対象外。
+    /// 世界が変わるときだけ `applyWorld` が作り直す）。
     private func buildClouds() {
         let count = 8
         for i in 0..<count {
@@ -476,8 +535,8 @@ final class RunnerScene: SKScene {
             ]
             for puff in puffs {
                 let shape = SKShapeNode(circleOfRadius: puff.r)
-                shape.fillColor = RunnerPalette.color(RunnerPalette.cloud)
-                shape.alpha = 0.55
+                shape.fillColor = RunnerPalette.color(world.palette.cloud)
+                shape.alpha = world.palette.cloudAlpha
                 shape.strokeColor = .clear
                 shape.position = CGPoint(x: puff.dx, y: puff.dy)
                 cloud.addChild(shape)
@@ -504,19 +563,141 @@ final class RunnerScene: SKScene {
     /// （`RunnerField.Metrics.height`）までの帯が広く空くぶん、
     /// 何も無い空の帯にせず奥・手前 2 段の丘で埋める（2026-09-10 会長QA「縦を活かす」対応）。
     /// ステージをまたいでも作り直さない（`rebuildCourse` の対象外）——雲と同じ理由。
+    /// 世界ごとの遠景の飾り（川・ビル）も同じタイルに載せて一緒に流す（#703）。
     private func buildHills() {
         let count = 6
+        let palette = world.palette
         for i in 0..<count {
             let tile = SKNode()
             // 奥の丘（背が高く、色が薄い＝遠い）。
-            addHillBump(to: tile, color: RunnerPalette.hillFar, width: 42, height: 34, dx: 8)
-            addHillBump(to: tile, color: RunnerPalette.hillFar, width: 36, height: 27, dx: 42)
+            addHillBump(to: tile, color: palette.hillFar, width: 42, height: 34, dx: 8)
+            addHillBump(to: tile, color: palette.hillFar, width: 36, height: 27, dx: 42)
             // 手前の丘（背が低く、色が濃い＝近い）。奥の丘に重ねて奥行きを出す。
-            addHillBump(to: tile, color: RunnerPalette.hillNear, width: 34, height: 19, dx: 22)
+            addHillBump(to: tile, color: palette.hillNear, width: 34, height: 19, dx: 22)
+            switch world.scenery {
+            case .townHouses: addTownHouses(to: tile)
+            case .riverside:  addRiver(to: tile)
+            case .cityLights: addCityLights(to: tile)
+            }
             tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
             hillLayer.addChild(tile)
             hillTiles.append(tile)
             hillBaseX.append(Double(i) * Self.hillSpacing)
+        }
+    }
+
+    /// 動かない遠景。夕方だけ、地平線に橙の帯を敷いて「橙〜桃色の空」にする。
+    /// 丘の後ろ（`backdropLayer`）に置くので、丘の切れ目からだけ覗く。
+    private func buildBackdrop() {
+        guard world.scenery == .riverside else { return }
+        let glow = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.sunsetGlow),
+            size: CGSize(width: Metrics.width, height: 30)
+        )
+        glow.anchorPoint = .zero
+        glow.position = CGPoint(x: 0, y: Metrics.groundY)
+        backdropLayer.addChild(glow)
+        // 帯の上端をぼかす代わりに、半透明の 1 枚を重ねて 2 段にする（テクスチャを使わない）。
+        let haze = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.sunsetGlow),
+            size: CGSize(width: Metrics.width, height: 14)
+        )
+        haze.anchorPoint = .zero
+        haze.alpha = 0.45
+        haze.position = CGPoint(x: 0, y: Metrics.groundY + 30)
+        backdropLayer.addChild(haze)
+    }
+
+    /// 夕方の川（`RunnerWorld.Scenery.riverside`）。丘の手前・地面のすぐ上に横長の帯を敷く。
+    /// 丘と同じタイルに載せるので、丘と同じ視差で流れる（川は道のすぐ向こうにある）。
+    /// 走者の下半身はこの帯を背に描かれる——`RunnerPalette.riverWater` の注記を参照。
+    private func addRiver(to tile: SKNode) {
+        let height = 7.0
+        let water = SKSpriteNode(
+            color: RunnerPalette.color(RunnerPalette.riverWater),
+            size: CGSize(width: Self.hillSpacing, height: height)
+        )
+        water.anchorPoint = .zero
+        water.position = CGPoint(x: 0, y: Metrics.groundY)
+        tile.addChild(water)
+        // 照り返し。長さ・位置をずらした細い帯を 3 本置き、タイルの継ぎ目で揃わないようにする。
+        for (dx, width, dy) in [(6.0, 14.0, 2.2), (28.0, 9.0, 4.6), (44.0, 11.0, 1.4)] {
+            let glint = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.riverGlint),
+                size: CGSize(width: width, height: 0.6)
+            )
+            glint.anchorPoint = .zero
+            glint.alpha = 0.8
+            glint.position = CGPoint(x: dx, y: Metrics.groundY + dy)
+            tile.addChild(glint)
+        }
+    }
+
+    /// 朝の下町の家並み（`RunnerWorld.Scenery.townHouses`）。近景の丘の手前に 3 軒。
+    /// 壁は矩形、屋根は三角のパス、窓は小さな矩形（#494 の意匠制約の内側）。丘のループに載せる。
+    private func addTownHouses(to tile: SKNode) {
+        let houses: [(dx: Double, width: Double, height: Double)] = [
+            (2, 10, 7), (27, 8, 6), (44, 11, 8),
+        ]
+        for house in houses {
+            let wall = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.houseWall),
+                size: CGSize(width: house.width, height: house.height)
+            )
+            wall.anchorPoint = .zero
+            wall.position = CGPoint(x: house.dx, y: Metrics.groundY)
+            tile.addChild(wall)
+            let roof = CGMutablePath()
+            roof.move(to: CGPoint(x: -0.8, y: 0))
+            roof.addLine(to: CGPoint(x: house.width / 2, y: house.height * 0.45))
+            roof.addLine(to: CGPoint(x: house.width + 0.8, y: 0))
+            roof.closeSubpath()
+            let roofNode = SKShapeNode(path: roof)
+            roofNode.fillColor = RunnerPalette.color(RunnerPalette.houseRoof)
+            roofNode.strokeColor = .clear
+            roofNode.position = CGPoint(x: house.dx, y: Metrics.groundY + house.height)
+            tile.addChild(roofNode)
+            let window = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.houseWindow),
+                size: CGSize(width: 1.8, height: 1.8)
+            )
+            window.anchorPoint = .zero
+            window.position = CGPoint(x: house.dx + house.width * 0.55, y: Metrics.groundY + house.height * 0.45)
+            tile.addChild(window)
+        }
+    }
+
+    /// 夜のビル（`RunnerWorld.Scenery.cityLights`）。近景の丘の手前に影を 3 棟と窓の灯りを置く。
+    /// 矩形だけの単純な影（#494 の意匠制約の内側）。1 タイルあたり 3 棟＋窓 12 枚で、
+    /// 丘のループに載せるので画面に出るノードは常にこの 6 倍まで。
+    private func addCityLights(to tile: SKNode) {
+        let buildings: [(dx: Double, width: Double, height: Double)] = [
+            (3, 9, 12), (30, 7, 15), (47, 10, 10),
+        ]
+        for building in buildings {
+            let body = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.building),
+                size: CGSize(width: building.width, height: building.height)
+            )
+            body.anchorPoint = .zero
+            body.position = CGPoint(x: building.dx, y: Metrics.groundY)
+            tile.addChild(body)
+            // 窓は 2 列 × 2 段。すべて点けるとのっぺりするので、決まった 1 枚だけ消しておく
+            // （乱数は使わない。撮影・QAで毎回同じ画になるように）。
+            for row in 0..<2 {
+                for column in 0..<2 where !(row == 1 && column == 1 && building.width < 8) {
+                    let window = SKSpriteNode(
+                        color: RunnerPalette.color(RunnerPalette.buildingWindow),
+                        size: CGSize(width: 1.3, height: 1.6)
+                    )
+                    window.anchorPoint = .zero
+                    window.position = CGPoint(
+                        x: building.dx + 1.6 + Double(column) * (building.width - 4.5),
+                        y: Metrics.groundY + 2.4 + Double(row) * 4.2
+                    )
+                    tile.addChild(window)
+                }
+            }
         }
     }
 
@@ -533,10 +714,17 @@ final class RunnerScene: SKScene {
     private func rebuildCourse() {
         courseLayer.removeAllChildren()
         let stage = model.field.stage
+        // 世界はステージ番号で決まる（#703）。変わったときだけ背景を作り直す。
+        // エンドレス（#675・`number == 0`）は朝の下町で走る。距離で世界を変える案は第 2 弾（真の無限）と
+        // 一緒に扱う（走行中に配色を差し替えると `applyWorld` の組み直しでコマ落ちしうるため、今は固定）。
+        let nextWorld = stage.number == 0 ? RunnerWorld.morning : RunnerWorld.world(forStage: stage.number)
+        if renderedWorld != nextWorld { applyWorld(nextWorld) }
 
         // 地面は「穴でないところ」を並べて描く。穴の場所には何も置かないので、
         // そこが空いていることが見た目でも当たり判定でも同じ意味になる。
-        var x: Double = 0
+        // スタートの手前（x < 0）にも道路を敷く。空けたままだと開始時の画面左が崖に見える
+        // （会長 QA 2026-09-14「断崖絶壁から走り出す」）。
+        var x: Double = -Metrics.width
         for pit in stage.hazards where pit.kind == .pit {
             if pit.start > x { addGround(from: x, to: pit.start) }
             addPitVoid(pit)
@@ -565,7 +753,11 @@ final class RunnerScene: SKScene {
         removedPickupIndices = []
         renderedJustLandingCount = 0
 
-        addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
+        // エンドレス（#675）にチェックポイントは無い。`RunnerStage` は中点に計算するが、
+        // 再開できない旗を立てると「ここから再開できる」という旗の意味（#494）が嘘になる。
+        if model.mode == .stages {
+            addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
+        }
         addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
         // 新しい走行の頭（もう一度・はじめから等）。前回の落下演出が沈める・フェードして
@@ -690,7 +882,7 @@ final class RunnerScene: SKScene {
 
         // 接地の陰。岩の重みで地面に沈んでいるように、幅いっぱいの平たい楕円を敷く。
         let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 1.05, height: h * 0.14))
-        shadow.fillColor = RunnerPalette.color(RunnerPalette.rockDark)
+        shadow.fillColor = RunnerPalette.color(world.palette.rockDark)
         shadow.strokeColor = .clear
         shadow.position = CGPoint(x: w / 2, y: 0)
         node.addChild(shadow)
@@ -743,7 +935,7 @@ final class RunnerScene: SKScene {
         bodyPath.addLine(to: pt(0.46, 0))
         bodyPath.closeSubpath()
         let body = SKShapeNode(path: bodyPath)
-        body.fillColor = RunnerPalette.color(RunnerPalette.rockBody)
+        body.fillColor = RunnerPalette.color(world.palette.rockBody)
         body.strokeColor = .clear
         boulder.addChild(body)
 
@@ -756,7 +948,7 @@ final class RunnerScene: SKScene {
         topPath.addLine(to: pt(-0.16, 0.56))
         topPath.closeSubpath()
         let top = SKShapeNode(path: topPath)
-        top.fillColor = RunnerPalette.color(RunnerPalette.rockLight)
+        top.fillColor = RunnerPalette.color(world.palette.rockLight)
         top.strokeColor = .clear
         boulder.addChild(top)
 
@@ -768,7 +960,7 @@ final class RunnerScene: SKScene {
         shadePath.addLine(to: pt(0.2, 0.34))
         shadePath.closeSubpath()
         let shade = SKShapeNode(path: shadePath)
-        shade.fillColor = RunnerPalette.color(RunnerPalette.rockDark)
+        shade.fillColor = RunnerPalette.color(world.palette.rockDark)
         shade.strokeColor = .clear
         boulder.addChild(shade)
 
@@ -997,32 +1189,62 @@ final class RunnerScene: SKScene {
     /// 穴の縁の警告帯。地面と同系色の穴だけでは切れ目が分かりづらいというQAを受けて追加。
     /// 当たり判定には影響しない、純粋な見た目の追加。
     private func addPitEdgeMarkers(_ pit: RunnerHazard) {
+        // 黄と黒の 3 段（工事の柵）。道路の穴＝工事中の切れ目、という読みに揃える（会長 QA 2026-09-14）。
         for edgeX in [pit.start, pit.end] {
-            let strip = SKSpriteNode(
-                color: RunnerPalette.color(RunnerPalette.pitEdge),
-                size: CGSize(width: 0.6, height: 2.6)
-            )
-            strip.anchorPoint = CGPoint(x: 0.5, y: 1)
-            strip.position = CGPoint(x: edgeX, y: Metrics.groundY)
-            courseLayer.addChild(strip)
+            for (i, hex) in [RunnerPalette.pitEdge, RunnerPalette.pitEdgeDark, RunnerPalette.pitEdge].enumerated() {
+                let strip = SKSpriteNode(
+                    color: RunnerPalette.color(hex),
+                    size: CGSize(width: 0.8, height: 1.0)
+                )
+                strip.anchorPoint = CGPoint(x: 0.5, y: 1)
+                strip.position = CGPoint(x: edgeX, y: Metrics.groundY - Double(i) * 1.0)
+                courseLayer.addChild(strip)
+            }
         }
     }
 
+    /// 道路の断面（会長 QA 2026-09-14）。上からアスファルト・白い破線・縁石・路肩・地盤。
+    /// 色は `RunnerWorld.road`。高さは物理（`Metrics.groundY`）に合わせ、路面の上端が地面。
+    /// 破線は 1 本の `SKShapeNode` にまとめる（エンドレスは 6,400 m あるので、1 本ずつ
+    /// ノードにすると数千個になる）。
+    private static let roadHeight: Double = 5.0
+    private static let curbHeight: Double = 1.0
+    private static let shoulderHeight: Double = 4.0
+
     private func addGround(from start: Double, to end: Double) {
-        let body = SKSpriteNode(
-            color: RunnerPalette.color(RunnerPalette.groundBody),
-            size: CGSize(width: end - start, height: Metrics.groundY)
-        )
-        body.anchorPoint = .zero
-        body.position = CGPoint(x: start, y: 0)
-        let top = SKSpriteNode(
-            color: RunnerPalette.color(RunnerPalette.groundTop),
-            size: CGSize(width: end - start, height: 2.2)
-        )
-        top.anchorPoint = .zero
-        top.position = CGPoint(x: start, y: Metrics.groundY - 2.2)
-        courseLayer.addChild(body)
-        courseLayer.addChild(top)
+        let road = world.road
+        let width = end - start
+        func band(_ hex: UInt32, y: Double, height: Double) {
+            let node = SKSpriteNode(color: RunnerPalette.color(hex), size: CGSize(width: width, height: height))
+            node.anchorPoint = .zero
+            node.position = CGPoint(x: start, y: y)
+            courseLayer.addChild(node)
+        }
+        let roadBottom = Metrics.groundY - Self.roadHeight
+        let curbBottom = roadBottom - Self.curbHeight
+        let shoulderBottom = curbBottom - Self.shoulderHeight
+        band(road.subsoil, y: 0, height: shoulderBottom)
+        band(road.shoulder, y: shoulderBottom, height: Self.shoulderHeight)
+        band(road.curb, y: curbBottom, height: Self.curbHeight)
+        band(road.asphalt, y: roadBottom, height: Self.roadHeight)
+
+        // 中央の破線。長さ 4・間隔 4 で、区画の始点（64 の倍数）に位相を揃えて継ぎ目を目立たせない。
+        let dashes = CGMutablePath()
+        let dashLength = 4.0, dashGap = 4.0, dashHeight = 0.7
+        var dx = (start / (dashLength + dashGap)).rounded(.down) * (dashLength + dashGap)
+        while dx < end {
+            let x0 = max(dx, start), x1 = min(dx + dashLength, end)
+            if x1 > x0 {
+                dashes.addRect(CGRect(x: x0, y: roadBottom + Self.roadHeight / 2 - dashHeight / 2,
+                                      width: x1 - x0, height: dashHeight))
+            }
+            dx += dashLength + dashGap
+        }
+        let line = SKShapeNode(path: dashes)
+        line.fillColor = RunnerPalette.color(road.line)
+        line.strokeColor = .clear
+        line.alpha = world == .night ? 0.75 : 0.9
+        courseLayer.addChild(line)
     }
 
     /// スピードアップ床（#672）。**地面の路面だけを塗り替え、その上に進行方向の矢印を並べる**。
@@ -1036,34 +1258,62 @@ final class RunnerScene: SKScene {
     /// 「特定作品に寄せない」ことで、ゴール旗・稲妻と同じくパス自体は許容済み）。
     /// 色だけでなく**形**でも「前へ押される区間」だと伝わるようにしてある。
     private func addBoostFloor(_ floor: RunnerBoostFloor) {
-        // 路面。ふつうの地表（`addGround` の `top`）と同じ厚み・同じ高さにぴたりと重ねる。
+        // 路面全体（アスファルトの厚み）を加速帯の色で塗り替え、上下を暗い青で縁取る。
+        // 以前は 2.2 の薄い帯に小さな三角で、走者の足元では気づけなかった（会長 QA 2026-09-14）。
+        let height = Self.roadHeight
+        let bottom = Metrics.groundY - height
         let surface = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.boostFloorTop),
-            size: CGSize(width: floor.length, height: 2.2)
+            size: CGSize(width: floor.length, height: height)
         )
         surface.anchorPoint = .zero
-        surface.position = CGPoint(x: floor.start, y: Metrics.groundY - 2.2)
+        surface.position = CGPoint(x: floor.start, y: bottom)
         courseLayer.addChild(surface)
-
-        // 進行方向（右）を向いた三角を等間隔に並べる。間隔は 1 区画（64）に 8 個ぶん。
-        let spacing: Double = 8
-        let arrowWidth: Double = 3.4
-        let arrowHeight: Double = 1.6
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 0, y: -arrowHeight / 2))
-        path.addLine(to: CGPoint(x: arrowWidth, y: 0))
-        path.addLine(to: CGPoint(x: 0, y: arrowHeight / 2))
-        path.closeSubpath()
-
-        var x = floor.start + (spacing - arrowWidth) / 2
-        while x + arrowWidth <= floor.end {
-            let arrow = SKShapeNode(path: path)
-            arrow.fillColor = RunnerPalette.color(RunnerPalette.boostFloorArrow)
-            arrow.strokeColor = .clear
-            arrow.position = CGPoint(x: x, y: Metrics.groundY - 1.1)
-            courseLayer.addChild(arrow)
-            x += spacing
+        for edgeY in [bottom, Metrics.groundY - 0.6] {
+            let edge = SKSpriteNode(
+                color: RunnerPalette.color(RunnerPalette.boostFloorEdge),
+                size: CGSize(width: floor.length, height: 0.6)
+            )
+            edge.anchorPoint = .zero
+            edge.position = CGPoint(x: floor.start, y: edgeY)
+            courseLayer.addChild(edge)
         }
+
+        // 山形の矢印（シェブロン）を路面いっぱいの高さで並べ、右へ流して「前へ押される」ことを
+        // 動きでも伝える。矢印はまとめて 1 本のパスにし、帯の内側だけ見えるようマスクで切る。
+        let spacing: Double = 6
+        let chevronWidth: Double = 3.2
+        let inset: Double = 0.9
+        let path = CGMutablePath()
+        let count = Int(floor.length / spacing) + 2
+        for i in 0..<count {
+            let x = Double(i) * spacing
+            path.move(to: CGPoint(x: x, y: bottom + inset))
+            path.addLine(to: CGPoint(x: x + chevronWidth * 0.55, y: bottom + inset))
+            path.addLine(to: CGPoint(x: x + chevronWidth, y: bottom + height / 2))
+            path.addLine(to: CGPoint(x: x + chevronWidth * 0.55, y: Metrics.groundY - inset))
+            path.addLine(to: CGPoint(x: x, y: Metrics.groundY - inset))
+            path.addLine(to: CGPoint(x: x + chevronWidth * 0.45, y: bottom + height / 2))
+            path.closeSubpath()
+        }
+        let chevrons = SKShapeNode(path: path)
+        chevrons.fillColor = RunnerPalette.color(RunnerPalette.boostFloorArrow)
+        chevrons.strokeColor = .clear
+        chevrons.position = CGPoint(x: -spacing, y: 0)
+        // 1 周期ぶん右へ流して戻す。周期パターンなので継ぎ目なく流れて見える。
+        chevrons.run(.repeatForever(.sequence([
+            .moveBy(x: spacing, y: 0, duration: 0.35),
+            .moveBy(x: -spacing, y: 0, duration: 0),
+        ])))
+        let crop = SKCropNode()
+        let mask = SKSpriteNode(color: .white, size: CGSize(width: floor.length, height: height))
+        mask.anchorPoint = .zero
+        crop.maskNode = mask
+        crop.position = CGPoint(x: floor.start, y: 0)
+        // マスクは crop の座標系（x = 0 が床の始点）なので、矢印パスも床の始点基準に置く。
+        mask.position = CGPoint(x: 0, y: bottom)
+        crop.addChild(chevrons)
+        courseLayer.addChild(crop)
     }
 
     /// チェックポイントの目印。丸いバッジだけでは「これが何なのか分からない」というQAを受け、
@@ -1132,22 +1382,65 @@ final class RunnerScene: SKScene {
 
     /// ゴールの目印（旗）。細い柱だけでは「何のオブジェクトか分からない」というQAを受け、
     /// 三角の旗を足して一目でゴールと分かる形にした。
+    ///
+    /// 「着いた感」が薄い（#703 の要素分解）ので、旗をチェックポイントの旗と同じ寸法級まで
+    /// 広げ、奥に陰の 1 枚を重ねて厚みを出し、「ゴール」と書く。**文字はこの旗の意味そのもの**
+    /// なので、チェックポイントの到達率と同じく「SpriteKit の中に文字は描かない」
+    /// （`RunnerAccessibility`）の例外にあたる。先端を尖らせた矢羽根型にしてあるのは、
+    /// 先端に切れ込みのあるつばめ尾のチェックポイントと形で見分けるため（文字が三角の
+    /// 細い先端に収まらないので、純粋な三角は捨てた）。旗は横にゆっくり伸び縮みさせて、
+    /// 風にはためいて見せる（1 ノードの `SKAction` だけで、コースの他のノードには影響しない）。
+    /// 到達した瞬間の音・触覚は `RunnerModel` が `feedback.notify(.success)` で鳴らす
+    /// （`RunnerFeedbackCue`）。
     private func addGoalMarker(at x: Double) {
-        let pole = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.wheel), size: CGSize(width: 1, height: 16))
+        let poleHeight = 21.0
+        let pole = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.wheel), size: CGSize(width: 1.4, height: poleHeight))
         pole.anchorPoint = CGPoint(x: 0.5, y: 0)
         pole.position = CGPoint(x: x, y: Metrics.groundY)
         courseLayer.addChild(pole)
 
+        // 矢羽根型の旗。左辺を柱に付け、無地の矩形部分（x: 0〜12）の先を尖らせる。
+        let flagHalfHeight = 4.4
         let flagPath = CGMutablePath()
-        flagPath.move(to: .zero)
-        flagPath.addLine(to: CGPoint(x: 4.4, y: -1.3))
-        flagPath.addLine(to: CGPoint(x: 0, y: -2.6))
+        flagPath.move(to: CGPoint(x: 0, y: flagHalfHeight))
+        flagPath.addLine(to: CGPoint(x: 12, y: flagHalfHeight))
+        flagPath.addLine(to: CGPoint(x: 15.5, y: 0))
+        flagPath.addLine(to: CGPoint(x: 12, y: -flagHalfHeight))
+        flagPath.addLine(to: CGPoint(x: 0, y: -flagHalfHeight))
         flagPath.closeSubpath()
-        let flag = SKShapeNode(path: flagPath)
-        flag.fillColor = RunnerPalette.color(RunnerPalette.goal)
-        flag.strokeColor = .clear
-        flag.position = CGPoint(x: x + 0.5, y: Metrics.groundY + 14.5)
+
+        // はためき。柱側（x=0）を軸に横だけ伸縮させる。旗・陰・文字をまとめて動かす。
+        let flag = SKNode()
+        flag.position = CGPoint(x: x + 0.7, y: Metrics.groundY + poleHeight - flagHalfHeight - 0.6)
+        let wave = SKAction.sequence([
+            .scaleX(to: 0.9, duration: 0.55),
+            .scaleX(to: 1.0, duration: 0.55),
+        ])
+        wave.timingMode = .easeInEaseOut
+        flag.run(.repeatForever(wave))
         courseLayer.addChild(flag)
+
+        let shade = SKShapeNode(path: flagPath)
+        shade.fillColor = RunnerPalette.color(RunnerPalette.goalShade)
+        shade.strokeColor = .clear
+        shade.position = CGPoint(x: 0.6, y: -0.6)
+        flag.addChild(shade)
+
+        let cloth = SKShapeNode(path: flagPath)
+        cloth.fillColor = RunnerPalette.color(RunnerPalette.goal)
+        cloth.strokeColor = .clear
+        flag.addChild(cloth)
+
+        // 「ゴール」。無地の矩形部分（x: 0〜12）の真ん中に置く（3 文字 × 3.6 ≒ 10.8 幅）。
+        let label = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
+        label.text = "ゴール"
+        label.fontSize = 3.6
+        label.fontColor = RunnerPalette.color(RunnerPalette.goalText)
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        label.position = CGPoint(x: 6, y: 0)
+        label.zPosition = 1
+        flag.addChild(label)
     }
 
     // MARK: - 反映
@@ -1195,8 +1488,32 @@ final class RunnerScene: SKScene {
             player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
             syncPickups(field)
             syncJustLanding(field)
+            // ゴールに着いた最初のフレームだけ紙吹雪を散らす（#703「着いた感」）。
+            // `.falling` の落下演出と同じ「前回反映した phase」との比較で 1 回に絞る。
+            if model.phase == .cleared || model.phase == .allCleared,
+               lastSyncedPhase != .cleared, lastSyncedPhase != .allCleared {
+                spawnGoalConfetti()
+            }
         }
         lastSyncedPhase = model.phase
+    }
+
+    /// ゴール到達の紙吹雪。土煙と同じ丸だけの部品（#494）で、旗の色と白を交互に散らす。
+    /// 座標は画面固定（走者の頭上）——クリアした瞬間 `field` は止まりコースも流れない。
+    /// ノードは演出が終わると自分で消えるので、次の走行（`rebuildCourse`）に後始末は要らない。
+    private func spawnGoalConfetti() {
+        let origin = CGPoint(x: Metrics.playerX, y: Metrics.groundY + Metrics.playerHeight + 3)
+        // 弾ける方向は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
+        let specs: [(dx: Double, dy: Double, r: Double)] = [
+            (-7, 9, 1.0), (-3, 12, 0.8), (2, 13, 1.1), (6, 11, 0.9), (9, 7, 0.8),
+            (-9, 4, 0.7), (-1, 8, 0.7), (4, 6, 0.9), (11, 3, 0.7), (-5, 6, 0.8),
+        ]
+        for (i, spec) in specs.enumerated() {
+            spawnDust(
+                at: origin, specs: [spec], duration: 0.7,
+                color: i.isMultiple(of: 2) ? RunnerPalette.goal : RunnerPalette.cloud
+            )
+        }
     }
 
     /// 取得済みのピックアップのノードを消す（`removedPickupIndices` の宣言を参照）。
@@ -1348,11 +1665,12 @@ final class RunnerScene: SKScene {
         at origin: CGPoint,
         specs: [(dx: Double, dy: Double, r: Double)],
         duration: TimeInterval = 0.4,
-        in parent: SKNode? = nil
+        in parent: SKNode? = nil,
+        color: UInt32 = RunnerPalette.cloud
     ) {
         for spec in specs {
             let puff = SKShapeNode(circleOfRadius: spec.r)
-            puff.fillColor = RunnerPalette.color(RunnerPalette.cloud)
+            puff.fillColor = RunnerPalette.color(color)
             puff.strokeColor = .clear
             puff.alpha = 0.8
             puff.zPosition = 6

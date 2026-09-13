@@ -262,6 +262,27 @@ public enum RunnerRules {
 
     /// 総ステージ数。
     public static var stageCount: Int { RunnerStage.all.count }
+
+    // MARK: エンドレス（#675・会長決裁 2026-09-12）
+
+    /// エンドレスのコースの区画数（第 1 弾は固定長）。
+    ///
+    /// 400 区画 = 25,600 ワールド単位で、下の速さの上がり方なら 8 分前後。`RunnerField` の
+    /// 障害配列は線形走査なので、真の無限（先読み窓）は第 2 弾に送る（Issue #675 の設計）。
+    public static let endlessSegments = 400
+    /// エンドレスで速さが `speedStep` ぶん上がるのに要する距離（ワールド単位）。
+    ///
+    /// ステージ制の「1 ステージ進むごとに `speedStep`」を距離に写したもの。1,024 = 16 区画は
+    /// ステージ 5 前後の長さで、18 面まで通した累計（約 370 区画で 34 → 54.4）とほぼ同じ傾きになる。
+    public static let endlessSpeedStepDistance: Double = 1024
+    /// エンドレスの速さの上限。
+    ///
+    /// **隣り合う区画に障害が並んでも着地して踏み切り直せる速さの範囲**で頭打ちにする。
+    /// 区画の間隔は 64 で、いちばん厳しい「高い障害物が隣に来る」場合に要る間隔は
+    /// `speed × jumpAirTime + baseLead + speed × riseTime(9.5)` ≒ 0.911 × speed + 6 なので、
+    /// 63.6 を超えると成立しなくなる。60 は 18 面（54.4）より 1 割速く、その手前で止まる値。
+    /// 画面に見える先読み（`RunnerField.Metrics.width`）は 74 単位 = 60 / 秒で約 1.2 秒。
+    public static let endlessMaxSpeed: Double = 60
 }
 
 /// 1 ステージぶんのコースと速さ（#494）。
@@ -286,8 +307,18 @@ public struct RunnerStage: Equatable, Sendable {
     public let number: Int
     /// 区画記号の並び。
     public let pattern: String
-    /// 走る速さ（ワールド単位 / 秒）。
+    /// 走る速さ（ワールド単位 / 秒）。**コース先頭での値**。
+    ///
+    /// ステージ制ではコース全体で一定。エンドレス（#675）は距離に応じて上がるので、
+    /// 走行中の基準速は `speed(at:)` で引く。
     public let speed: Double
+    /// 1 ワールド単位進むごとに基準速が上がる量（#675）。ステージ制は 0（一定）。
+    public let speedGain: Double
+    /// 基準速の上限。`speedGain` が 0 なら `speed` と同じ。
+    ///
+    /// `RunnerField.step` はこの値で 1 サブステップの移動量を見積もる（速くなる余地を
+    /// 最初から見込んでおくので、加速してもすり抜けは起きない）。
+    public let speedCap: Double
     /// コースの全長。
     public let length: Double
     /// 左から順に並んだ障害。
@@ -334,10 +365,18 @@ public struct RunnerStage: Equatable, Sendable {
         return Int((checkpoint / length * 100).rounded())
     }
 
-    public init(number: Int, pattern: String, speed: Double) {
+    /// - Parameters:
+    ///   - speedGain: 距離あたりの加速（#675）。既定の 0 で従来どおり一定の速さ。
+    ///   - speedCap: 加速の上限。省略すると `speed`（= 加速しない）。
+    public init(
+        number: Int, pattern: String, speed: Double,
+        speedGain: Double = 0, speedCap: Double? = nil
+    ) {
         self.number = number
         self.pattern = pattern
         self.speed = speed
+        self.speedGain = speedGain
+        self.speedCap = max(speed, speedCap ?? speed)
         let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
         let length = Double(pattern.count) * segmentWidth
         let hazards = Self.makeHazards(pattern: pattern)
@@ -349,6 +388,18 @@ public struct RunnerStage: Equatable, Sendable {
         self.checkpoint = Self.makeCheckpoint(length: length, hazards: hazards, platforms: platforms)
 
         self.boostFloors = Self.makeBoostFloors(pattern: pattern)
+    }
+
+    /// その地点での基準速（#675）。`speed` から `speedGain` の傾きで上がり、`speedCap` で頭打ち。
+    ///
+    /// ステージ制（`speedGain` = 0）では常に `speed` を返す。**空中の横速度もこの値**
+    /// （`RunnerField.currentSpeed`）なので、跳んでいるあいだに進んだぶんだけごくわずかに
+    /// 速くなる——1 回のジャンプ（45 単位）で 0.05 程度で、踏み切りの余裕（`RunnerAutoPilot.baseLead`
+    /// の半タイル = 2）に比べて無視できる。生成器はこの差も見込み、成立条件を区画の手前の
+    /// 速さ（越えられるか）と先の速さ（間隔）の両方で判定する（`RunnerEndlessCourse`）。
+    public func speed(at distance: Double) -> Double {
+        guard speedGain > 0 else { return speed }
+        return min(speedCap, speed + speedGain * max(0, distance))
     }
 
     /// 区画記号を障害の並びへ展開する。
@@ -533,32 +584,40 @@ public extension RunnerStage {
     /// `collectingPickupAtMaxBoostStillSpeedsUp`）、それだけでは「取っても代わり映えしない」
     /// という印象が残る（会長QA「取るタイミング大体MAXスピードのときで全く意味がない」・
     /// 2026-09-11）。ステージ13〜15は新設時から先頭寄りに置けていたので変更していない。
-    /// `b`（鳥）はステージ 13〜15 にだけ混ぜてある
+    /// `b`（鳥）はステージ 5〜6 と 13〜15 に混ぜてある
     /// （会長QA「鳥とか右から車が来るとか要素はいる」）——**跳ばずにくぐる障害**（#671）で、
     /// 接地したままなら安全・跳ぶと当たる。「くぐれる下端」「跳べば当たる」「前後に跳ばざるを
     /// 得ない配置が無い」ことは `RunnerStageTests` が全ステージで確かめる。
+    /// 5〜6 面の鳥は #626 で足したもの——高い岩を跳んだ直後（`tb`）に置き、「跳ぶ／くぐる」の
+    /// 判断を序盤から出す（7〜12 面に鳥が無いのは #626 のスコープが 1〜6 面だったため）。
     ///
     /// `P`（乗れる台座・#674）と `=`（スピードアップ床・#672）はステージ 16〜18 にだけ
     /// 置いてある。どちらも障害ではないので上の「障害の割合」には数えないが、**台座は前後
     /// 1 区画ずつの素の平地を、床は直後 1 区画の素の平地を必ず連れて行く**（下の `patterns`
     /// 本体のコメントに理由）ので、1 基あたり実質 2〜3 区画を使う。そのぶん 16〜18 の障害の
     /// 数は 15 面より少ない——手応えは障害の密度ではなく、台座への乗り降りと床を活かす
-    /// 走り方で作る。既存 15 ステージのパターン文字列は 1 文字も変えていない
-    /// （`existingFifteenStagePatternsAreUnchanged` がリテラルで固定している）。
+    /// 走り方で作る。1〜15 面のパターン文字列は `firstFifteenStagePatternsArePinned` が
+    /// リテラルで固定している（7〜15 は #674 以来無変更。1〜6 は #626 で調整した値）。
     ///
-    /// **障害を足すときは平地（`-`）を潰さず、既存の障害の記号を置き換える。**
+    /// **後半の面で障害を足すときは平地（`-`）を潰さず、既存の障害の記号を置き換える。**
     /// 平地はタイムに操作を反映させるための余白そのもので、ここが無くなると
     /// 「上手く走ってもタイムが変わらない」状態に戻る（`inefficientPlayCostsMeaningfulTime`
-    /// が最終面で 5.3% まで落ちて実際に落ちた）。鳥はこの規則に従い、平地ではなく
-    /// 既存の `n`（低い障害物）を置き換えて配置してある。
+    /// が最終面で 5.3% まで落ちて実際に落ちた）。13〜15 面の鳥はこの規則に従い、平地ではなく
+    /// 既存の `n`（低い障害物）を置き換えて配置してある。1〜6 面は平地が多く余白に困らない
+    /// ので、#626 では平地を潰して障害を足した（1 面のタイム差は 10% を保ったまま——
+    /// `inefficientPlayCostsMeaningfulTime`）。
     private static let patterns: [String] = [
-        "--1---1--1--",              // 1: 12区画・障害3個。1 タイルの穴だけで間合いを覚える
-        "--1---n---1--",             // 2: 13区画・障害3個。低い障害物の初出
-        "--1--n--2--n--",            // 3: 14区画・障害4個。2 タイルの穴の初出
-        "--1-n--t--1-n--",           // 4: 15区画・障害5個。高い障害物の初出
-        "--ns1-t--2-n-t--",          // 5: 16区画・障害6個。スピードアップアイテムの初出
-        "--1sn-3-t-2-n-t--",         // 6: 17区画・障害7個。3 タイル（跳べる最大幅）の穴の初出
-        "--1sn-3-t2-n-t-1--",        // 7: 18区画・障害8個。障害が隣り合う区画が出始める
+        // 1〜6 面は #626（会長決裁 2026-09-14）で障害を 1 面あたり 1 個ずつ足した。
+        // GA4 で 1 面 → 2 面の到達が 4 割しかないので 1〜3 面は +1 に留め（`earlyStagesStayGentle`
+        // が上限を固定）、4〜6 面は数に加えて**障害が隣り合う区画**で間合いを詰める。
+        // 鳥は 5 面から、高い岩を跳んだ直後（`tb`）に置いて「跳ぶ／くぐる」の判断を出す。
+        "--1-1--1-1--",              // 1: 12区画・障害4個。1 タイルの穴だけで間合いを覚える（間隔は 2・3・2 区画と崩す）
+        "--1-n--1--n--",             // 2: 13区画・障害4個。低い障害物の初出
+        "--1-n-2--n-1--",            // 3: 14区画・障害5個。2 タイルの穴の初出
+        "--1-n-t--n1-2--",           // 4: 15区画・障害6個。高い障害物の初出。障害が隣り合う区画の初出（低い岩→穴）
+        "--1sn-tb-2-n-t--",          // 5: 16区画・障害7個（岩穴6+鳥1）。スピードアップアイテムと鳥の初出
+        "--1sn-3-tb-2n-t--",         // 6: 17区画・障害8個（岩穴7+鳥1）。3 タイル（跳べる最大幅）の穴の初出
+        "--1sn-3-t2-n-t-1--",        // 7: 18区画・障害8個。高い岩の直後に穴（隣り合う区画の難しい組）が出始める
         "--2st-1n-3-t2-n-t--",       // 8: 19区画・障害9個
         "--2st1-n-3t-2-nt-3--",      // 9: 20区画・障害10個
         "--2st1-n3-t-2n-t3-2--",     // 10: 21区画・障害11個

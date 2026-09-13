@@ -27,7 +27,7 @@ private final class SpyAnalyticsService: AnalyticsService {
         events.filter { if case .gameStart = $0 { return true } else { return false } }.count
     }
     var outcomes: [AnalyticsResult] {
-        events.compactMap { if case let .gameEnd(_, result, _) = $0 { return result } else { return nil } }
+        events.compactMap { if case let .gameEnd(_, result, _, _) = $0 { return result } else { return nil } }
     }
 }
 

@@ -17,6 +17,11 @@ public struct BlocksView: View {
     /// 確認ダイアログを出すために**自分で**止めたか（#515）。
     /// 元から一時停止中だった場合まで再開してしまわないよう区別する。
     @State private var pausedForNewGameConfirm = false
+    /// ドラッグ開始時の指の x とパドルの x（相対操作の基準・会長 QA 2026-09-14）。
+    @State private var dragAnchor: (fingerX: CGFloat, paddleX: Double)?
+    /// 指の移動量に対するパドルの移動量の倍率。1 より大きくして指の移動を小さく済ませる
+    /// （指がパドルに追いついて重なりにくい）。大きすぎると細かい位置合わせができない。
+    private static let paddleSensitivity: Double = 1.5
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -32,7 +37,9 @@ public struct BlocksView: View {
             playfield
             HowToPlayHint(.blocks, playLog: services.playLog)
             controlRow
-            Spacer(minLength: 0)
+            // 余った縦幅は**操作面**にする。盤の下の何もない場所に指を置いて横に動かせば
+            // パドルが動くので、盤の上に指を置いて自分の指でパドルを隠さなくて済む（会長 QA 2026-09-14）。
+            touchPad
             BannerSlot(ads: services.ads)
         }
         .padding()
@@ -242,24 +249,41 @@ public struct BlocksView: View {
         scene.view?.isPaused = !model.phase.needsAnimationFrames
     }
 
+    /// 盤の下の操作面。高さは余りぶん（機種によっては無い）。見た目は出さず、`HowToPlayHint` で案内する。
+    private var touchPad: some View {
+        GeometryReader { geo in
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(paddleGesture(width: geo.size.width))
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    /// パドルは**指の移動量**で動かす（相対操作）。指の位置にパドルを合わせる絶対操作だと、
+    /// 指を盤の下端に置くしかなく、指がパドルに重なって見えない（会長 QA 2026-09-14
+    /// 「操作性が最悪」）。相対なら盤のどこに指を置いても、下の操作面に置いてもよい。
     private func paddleGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                movePaddle(toViewX: value.location.x, width: width)
+                movePaddle(fingerX: value.location.x, startX: value.startLocation.x, width: width)
             }
             .onEnded { value in
-                movePaddle(toViewX: value.location.x, width: width)
-                // タップ（= 距離 0 のドラッグ）でも発射できる。
-                model.launch()
+                movePaddle(fingerX: value.location.x, startX: value.startLocation.x, width: width)
+                // タップ（ほぼ動かさない指の上げ下げ）で発射。動かしたドラッグの終わりでは発射しない
+                // （相対操作にしたので、発射したいときだけ意図して触れる）。
+                if abs(value.translation.width) < 6, abs(value.translation.height) < 6 {
+                    model.launch()
+                }
+                dragAnchor = nil
             }
     }
 
-    private func movePaddle(toViewX x: CGFloat, width: CGFloat) {
+    private func movePaddle(fingerX: CGFloat, startX: CGFloat, width: CGFloat) {
         guard width > 0 else { return }
-        model.movePaddle(to: BlocksField.Metrics.fieldX(
-            viewX: Double(x),
-            viewWidth: Double(width)
-        ))
+        let anchor = dragAnchor ?? (fingerX: startX, paddleX: model.field.paddleX)
+        if dragAnchor == nil { dragAnchor = anchor }
+        let delta = Double(fingerX - anchor.fingerX) / Double(width) * BlocksField.Metrics.width
+        model.movePaddle(to: min(BlocksField.Metrics.width, max(0, anchor.paddleX + delta * Self.paddleSensitivity)))
     }
 
     // MARK: - オーバーレイ

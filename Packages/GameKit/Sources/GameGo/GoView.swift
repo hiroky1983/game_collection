@@ -191,9 +191,9 @@ public struct GoView: View {
     private var board: some View {
         GeometryReader { geo in
             let size = model.board.size
-            let pad: CGFloat = 18
-            let inner = geo.size.width - pad * 2
-            let spacing = inner / CGFloat(size - 1)
+            // 余白は間隔に比例させる（9 路で縁の石が角丸からはみ出していた・`GoBoardMetrics`）。
+            let pad = GoBoardMetrics.pad(boardWidth: geo.size.width, size: size)
+            let spacing = GoBoardMetrics.spacing(boardWidth: geo.size.width, size: size)
 
             ZStack {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
@@ -559,7 +559,7 @@ private struct GoBoardCanvas: View, Animatable {
 
                     let cx = pad + CGFloat(col) * s
                     let cy = pad + CGFloat(row) * s
-                    let r = s * 0.47 * (0.55 + 0.45 * appear)
+                    let r = s * GoBoardMetrics.stoneRadiusRatio * (0.55 + 0.45 * appear)
                     let rect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
                     let path = Path(ellipseIn: rect)
 
