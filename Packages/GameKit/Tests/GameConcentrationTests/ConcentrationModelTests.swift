@@ -338,20 +338,57 @@ struct ConcentrationModelTests {
 
     // MARK: Bug 2: 復元時の宙吊りカード問題
 
-    @Test("復元時: 途中でめくれていたカードは裏返される")
-    func restore_flipsDanglingFaceUpCard() async {
+    @Test("復元時: 1枚めくった状態を復元しても覗き見にならない（#731）")
+    func restore_keepsFirstFlipSoPeekingCostsTheTurn() async {
         let store = MockSnapshotStore()
-        let model1 = ConcentrationModel(services: makeServices(store))
+        let model1 = ConcentrationModel(services: makeServices(store),
+                                        autoClearDelay: testAutoClearDelay)
+        let (a, b) = mismatchPair(in: model1.cards)
 
-        // 1枚だけめくってページ離脱（firstFlippedIndexが設定された状態を保存）
-        model1.tap(index: 0)
-        #expect(model1.cards[0].isFaceUp)
+        // 1枚だけめくってハブへ戻る → 開き直す（2回繰り返しても同じ）
+        model1.tap(index: a)
+        _ = ConcentrationModel(services: makeServices(store), autoClearDelay: testAutoClearDelay)
+        let model2 = ConcentrationModel(services: makeServices(store), autoClearDelay: testAutoClearDelay)
 
-        // 新しいモデルで復元（ページ戻りをシミュレート）
-        let model2 = ConcentrationModel(services: makeServices(store))
+        #expect(model2.cards[a].isFaceUp, "めくった1枚目は表のまま再開する")
+        #expect(model2.firstFlippedIndex == a)
+        #expect(model2.currentPlayer == .human)
 
-        #expect(!model2.cards[0].isFaceUp, "宙吊りカードは裏返される")
-        #expect(model2.firstFlippedIndex == nil)
+        // 続きの2枚目で外せば、覗き見した分も含めて手番を失う
+        model2.tap(index: b)
+        #expect(model2.mismatchedIndices == [a, b])
+        await awaitAutoClear(model2)
+        #expect(model2.currentPlayer == .cpu, "1枚目を見た手番は離脱しても消えない")
+    }
+
+    @Test("復元時: 1枚目の欄が無い旧い中断データでも、表向きの1枚を1枚目として戻す（#731）")
+    func restore_legacySnapshotKeepsFirstFlip() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.isFaceUp[4] = true  // mismatchedIndices は nil = 鍵そのものが無い旧形式
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == stub.symbols.count, "旧形式も復元できる（新しい盤へ倒れない）")
+        #expect(model.cards[4].isFaceUp)
+        #expect(model.firstFlippedIndex == 4)
+        #expect(model.currentPlayer == .human)
+    }
+
+    @Test("復元時: 1枚目の形にならない宙吊りカードは従来どおり裏返される")
+    func restore_flipsDanglingFaceUpCardThatIsNotAFirstFlip() {
+        // 表向き・未獲得が2枚（不一致の記録なし）
+        var twoFaceUp = StubConcentrationSnapshot.healthy()
+        twoFaceUp.isFaceUp[0] = true
+        twoFaceUp.isFaceUp[2] = true
+        // CPU の手番で1枚だけ表向き（CPU は2枚目の後にしか保存しないので起きえない）
+        var cpuTurn = StubConcentrationSnapshot.healthy()
+        cpuTurn.isFaceUp[0] = true
+        cpuTurn.currentPlayer = 1
+
+        for stub in [twoFaceUp, cpuTurn] {
+            let model = restored(from: stub)
+            #expect(model.cards.allSatisfy { !$0.isFaceUp }, "宙吊りカードは裏返される")
+            #expect(model.firstFlippedIndex == nil)
+        }
     }
 
     @Test("復元時: ミスマッチカードは裏返され、手番も CPU へ進む（#415）")

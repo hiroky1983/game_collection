@@ -296,9 +296,15 @@ public final class ConcentrationModel {
             )
         }
 
-        // 途中でめくれていたカード（非マッチ・フェイスアップ）を裏返す。
-        // firstFlippedIndex は復元しないため、宙吊りカードが残るとゲームが詰まる。
-        for i in cards.indices where cards[i].isFaceUp && !cards[i].isMatched {
+        // 人間が1枚目だけめくって中断していたら、その札を表のまま1枚目として戻す（#731）。
+        // 伏せて戻すと手番を消費せずに札を覗き見でき、離脱を繰り返すだけで全札を覚えられた。
+        // 表向き・未獲得の札が1枚だけ残る中断データは人間の1枚目しか作らない（CPU は2枚目の後にしか
+        // 保存しない）ので、鍵を足さずに盤面から読み取る。鍵の無い旧い中断データにも効く。
+        firstFlippedIndex = Self.validatedFirstFlip(of: snap)
+
+        // それ以外でめくれていたカード（非マッチ・フェイスアップ）を裏返す。
+        // 1枚目として戻さなかった札が表のまま残るとゲームが詰まる。
+        for i in cards.indices where cards[i].isFaceUp && !cards[i].isMatched && i != firstFlippedIndex {
             cards[i].isFaceUp = false
         }
 
@@ -330,6 +336,17 @@ public final class ConcentrationModel {
               indices.allSatisfy({ snap.isFaceUp[$0] && !snap.isMatched[$0] }),
               symbols[indices[0]] != symbols[indices[1]] else { return nil }
         return indices
+    }
+
+    /// 中断データに残った「人間がめくった1枚目」を取り出す（#731）。
+    ///
+    /// `tap` の直後の保存が作る形（人間の手番・不一致の2枚なし・表向きかつ未獲得の札がちょうど1枚）
+    /// だけを認める。それ以外の宙吊りは従来どおり伏せる。
+    /// 呼び出しは `validatedSetting(of:)` を通った後に限る（配列長の一致が前提）。
+    private static func validatedFirstFlip(of snap: ConcentrationSnapshot) -> Int? {
+        guard snap.currentPlayer == 0, (snap.mismatchedIndices ?? []).isEmpty else { return nil }
+        let dangling = snap.isFaceUp.indices.filter { snap.isFaceUp[$0] && !snap.isMatched[$0] }
+        return dangling.count == 1 ? dangling[0] : nil
     }
 
     /// 中断データが「最後まで遊べる盤面」かを検証し、復元に使う設定を取り出す（#218）。
