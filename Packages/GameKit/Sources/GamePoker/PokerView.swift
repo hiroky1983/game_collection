@@ -278,8 +278,9 @@ public struct PokerView: View {
 
     // MARK: - Pot Area
 
-    /// ポットの数値の入れ替え方。ショーダウンで決着したときだけ、CPU の 5 枚が返り終わるまで
-    /// 動かさない（#667）。先に 0 へ転がると、めくる前に勝敗が分かってしまう。
+    /// ポットの数値の入れ替え方。CPU の 5 枚を返す決着（ショーダウン・プレイヤーのフォールド）では、
+    /// 返り終わるまで動かさない（#667）。先に 0 へ転がると、めくる前に勝敗が分かってしまう。
+    /// CPU のフォールドは相手が降りた時点で勝ちが見えているので従来どおりすぐ動かす。
     private var potAnimation: Animation {
         model.phase == .result && !model.cpuFolded ? PokerMotion.potSettle : PokerMotion.potChange
     }
