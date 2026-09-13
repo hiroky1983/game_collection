@@ -535,7 +535,11 @@ public final class HanafudaModel {
     }
 
     /// 試合の決着後に「もう一度」。設定は前回のものを引き継ぐ。
-    public func restartMatch() {
+    ///
+    /// - Parameter difficulty: CPU の強さだけ変えて始め直すとき（リザルトの「階段」#722）に渡す。
+    ///   試合の開始時に焼き込む設定の一部なので、`game_start` より前に差し替える。
+    public func restartMatch(difficulty: HanafudaDifficulty? = nil) {
+        if let difficulty { options.difficulty = difficulty }
         services?.gameDidRestart(gameID: Self.gameID, level: options.difficulty.analyticsLevel)
         let options = self.options
         humanTotal = 0

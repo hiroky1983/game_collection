@@ -29,7 +29,7 @@ public struct HanafudaView: View {
             }
             HowToPlayHint(.hanafuda, playLog: services.playLog)
             actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .matchResult)
+            RecommendationSlot(services: services, isFinished: model.phase == .matchResult, ladder: ladder)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -350,6 +350,15 @@ public struct HanafudaView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(16)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。局数と酒役は今の試合のものを引き継ぐ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = HanafudaDifficulty.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.options.difficulty),
+                                      levelLabels: levels.map(\.label)) { level in
+            model.restartMatch(difficulty: levels[level])
+        }
     }
 
     private var matchTitle: String {

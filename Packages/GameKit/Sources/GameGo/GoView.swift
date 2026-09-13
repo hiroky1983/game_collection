@@ -234,10 +234,19 @@ public struct GoView: View {
         // 終局後のレコメンドは盤の下端に重ねる（常時高さ予約の代替。将棋 #405 と同じ）。
         .overlay(alignment: .bottom) {
             if model.phase == .finished {
-                RecommendationSlot(services: services, isFinished: true)
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。石の色と置き石は今の対局のものを引き継ぐ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = GoLevel.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.aiLevel),
+                                      levelLabels: levels.map(\.label)) { level in
+            model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap)
         }
     }
 

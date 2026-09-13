@@ -142,22 +142,26 @@ private struct NavigationBarBackgroundMatch: ViewModifier {
 public struct GameControlArea<Result: View, Playing: View>: View {
     private let isFinished: Bool
     private let services: GameServices
+    private let ladder: DifficultyLadderPrompt?
     private let result: () -> Result
     private let playing: () -> Playing
 
     /// - Parameters:
     ///   - isFinished: 決着してリザルトを出している状態か。
     ///   - services: レコメンドの取得元。
+    ///   - ladder: 難易度の「階段」の提案（#722）。レコメンドと同じ枠に出る。
     ///   - result: 終局後に出す操作列（「もう一度」など）。高さのひな形にも同じものを使う。
     ///   - playing: 対局中に出す操作列。出すものが無い局面では空でよい。
     public init(
         isFinished: Bool,
         services: GameServices,
+        ladder: DifficultyLadderPrompt? = nil,
         @ViewBuilder result: @escaping () -> Result,
         @ViewBuilder playing: @escaping () -> Playing
     ) {
         self.isFinished = isFinished
         self.services = services
+        self.ladder = ladder
         self.result = result
         self.playing = playing
     }
@@ -171,7 +175,7 @@ public struct GameControlArea<Result: View, Playing: View>: View {
 
             if isFinished {
                 finished {
-                    RecommendationSlot(services: services, isFinished: true)
+                    RecommendationSlot(services: services, isFinished: true, ladder: ladder)
                 }
             } else {
                 playing()

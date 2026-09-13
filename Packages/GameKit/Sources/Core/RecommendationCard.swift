@@ -5,11 +5,12 @@ import SwiftUI
 /// **非モーダル**。操作をブロックせず、×で閉じられる。全画面ダイアログやアラートは使わない。
 public struct RecommendationCard: View {
     /// 先頭のアイコンの一辺。カードの高さはこれで決まる（文字はこれより低い）。
-    /// 同じ枠に出る `OtherGamesCard` も同じ値で組むため `fileprivate`（#661）。
-    fileprivate static let iconSide: CGFloat = 36
-    fileprivate static let verticalPadding: CGFloat = 10
+    /// 同じ枠に出る `OtherGamesCard`（#661）・`DifficultyLadderCard`（#722）も同じ値で組むため
+    /// モジュール内に公開する。
+    static let iconSide: CGFloat = 36
+    static let verticalPadding: CGFloat = 10
     /// 見出しの基準 pt。実カードと `heightPlaceholder` で必ず同じ値を使う（高さ契約）。
-    fileprivate static let captionSize: CGFloat = 11
+    static let captionSize: CGFloat = 11
 
     private let module: GameModule
     private let accent: Color
@@ -172,22 +173,35 @@ public struct OtherGamesCard: View {
 
 /// 各ゲームのリザルト直下に置く枠。決着していなければ**何も描かない**（余白も作らない）。
 ///
-/// 決着後は、提示するレコメンドがあればそのカードを、無ければ「ほかのあそび」を出す（#661）。
+/// 決着後は、提示するレコメンドがあればそのカードを、無ければ難易度の「階段」（#722）を、
+/// どちらも無ければ「ほかのあそび」を出す（#661）。
 /// レコメンドのカード自体が別のゲームへの出口なので、両方は並べない（×で閉じれば入れ替わる）。
+/// レコメンドを階段より優先するのは、レコメンドは決着の時点で提示済みとして数えられている
+/// （`PlayLog.markShown`）ため、隠すと「見せていないのに無視された」回が積み上がるから。
 public struct RecommendationSlot: View {
     private let services: GameServices
     private let isFinished: Bool
     private let showsOtherGames: Bool
+    private let ladder: DifficultyLadderPrompt?
+    /// ×で閉じた階段の提案。次の決着の提案は `plays` が変わるので、閉じたままにはならない。
+    @State private var dismissedLadder: DifficultyLadderOffer?
 
     /// - Parameters:
     ///   - isFinished: そのゲームがリザルトを表示している状態か。
     ///     新しい対局を始めた時点でカードを引っ込めるために使う。
     ///   - showsOtherGames: レコメンドが無いときに「ほかのあそび」を出すか。枠を盤に重ねている
     ///     画面（将棋・チェス）が、検討で盤を見ているあいだだけ引っ込めるためのもの。
-    public init(services: GameServices, isFinished: Bool, showsOtherGames: Bool = true) {
+    ///   - ladder: 難易度を持つゲームが渡す「一段上」の提案（#722）。勧めないときは nil。
+    public init(
+        services: GameServices,
+        isFinished: Bool,
+        showsOtherGames: Bool = true,
+        ladder: DifficultyLadderPrompt? = nil
+    ) {
         self.services = services
         self.isFinished = isFinished
         self.showsOtherGames = showsOtherGames
+        self.ladder = ladder
     }
 
     public var body: some View {
@@ -200,6 +214,12 @@ public struct RecommendationSlot: View {
                     caption: service.suggestedReason.caption,
                     onOpen: { service.accept() },
                     onDismiss: { service.dismiss() }
+                )
+            } else if let ladder, ladder.offer != dismissedLadder {
+                DifficultyLadderCard(
+                    offer: ladder.offer,
+                    onClimb: ladder.climb,
+                    onDismiss: { dismissedLadder = ladder.offer }
                 )
             } else if showsOtherGames {
                 OtherGamesCard()
