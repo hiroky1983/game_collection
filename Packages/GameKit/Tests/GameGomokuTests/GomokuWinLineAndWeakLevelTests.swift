@@ -223,6 +223,53 @@ struct GomokuWeakLevelTests {
     }
 }
 
+// MARK: - 候補手の並び（#812）
+
+@Suite("五目並べ 候補手の並びが全順序")
+struct GomokuCandidateOrderTests {
+
+    /// 中心からの距離 → 行 → 列の順に厳密に増える（同点を Set の走査順に任せない）。
+    /// 修正前は距離だけで並べていたので、同じ距離の升の順序がプロセスごとに入れ替わっていた。
+    @Test func candidatesAreSortedByDistanceThenCoordinate() {
+        let center = gomokuBoardSize / 2
+        let boards = [
+            makeBoard(black: [(7, 7)]),
+            makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)], white: [(3, 10), (4, 10), (5, 10), (6, 10)]),
+            makeBoard(black: [(0, 0), (14, 14)], white: [(0, 14), (14, 0)]),
+        ]
+        for board in boards {
+            let moves = SimpleGomokuEngine(level: 0).candidateMoves(board: board)
+            #expect(moves.count > 1)
+            for (a, b) in zip(moves, moves.dropFirst()) {
+                let da = abs(a.0 - center) + abs(a.1 - center)
+                let db = abs(b.0 - center) + abs(b.1 - center)
+                #expect((da, a.0, a.1) < (db, b.0, b.1), "\(a) と \(b) の並びが全順序になっていない")
+            }
+        }
+    }
+
+    /// 中心から等距離の防ぎ点が2つあるとき、防ぐなら行の小さい方を選ぶ（起動ごとに変わらない）。
+    @Test func tiedBlocksAreChosenByCoordinate() async {
+        let board = makeBoard(black: [(2, 3), (2, 4), (2, 5), (2, 6), (12, 3), (12, 4), (12, 5), (12, 6)],
+                              white: [(2, 2), (12, 2)])
+        for i in 0..<20 {
+            let move = await SimpleGomokuEngine(level: 0, seed: spreadSeed(i), weakBlockRate: 1)
+                .bestMove(board: board, stone: .white)
+            #expect(move?.row == 2 && move?.col == 7)
+        }
+    }
+
+    /// 中心から等距離の即勝ちが2つあるとき、行の小さい方を取る。
+    @Test func tiedWinsAreChosenByCoordinate() async {
+        let board = makeBoard(black: [(2, 2), (12, 2)],
+                              white: [(2, 3), (2, 4), (2, 5), (2, 6), (12, 3), (12, 4), (12, 5), (12, 6)])
+        for i in 0..<20 {
+            let move = await SimpleGomokuEngine(level: 0, seed: spreadSeed(i)).bestMove(board: board, stone: .white)
+            #expect(move?.row == 2 && move?.col == 7)
+        }
+    }
+}
+
 // MARK: - 「弱」の勝率（#665）
 
 private enum TestPlayer {
