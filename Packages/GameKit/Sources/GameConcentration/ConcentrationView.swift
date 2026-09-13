@@ -65,14 +65,20 @@ public struct ConcentrationView: View {
                     Task { model.useMatta() }
                     return
                 }
-                // 視聴完了（報酬獲得）したときだけ待ったを許可する
+                // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局に対する待ったかを
+                // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                let game = model.gameSerial
                 undoRescue.request(
                     services, gameID: model.gameID, purpose: .undo,
-                    guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）"),
+                    guardedBy: .checkedByGrant,
                     // 待ったの確認中は自動めくりを止めてあるので、見なかったときは再開させる。
                     whenNotEarned: { model.resumeAutoTurn() }
                 ) {
-                    model.useMatta()
+                    guard model.useMatta(forGame: game) else {
+                        // 戻せなかったときも、止めてあった自動めくりは再開させる（再開すべき状況が無ければ何もしない）。
+                        model.resumeAutoTurn()
+                        return false
+                    }
                     return true
                 }
             }
@@ -82,7 +88,14 @@ public struct ConcentrationView: View {
                  ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                  : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
         }
-        .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
+        .rewardedRescueAlerts(
+            undoRescue,
+            notEarned: "待ったは使えませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "待ったは使えませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったか、手番が変わったため、戻せませんでした。"
+            )
+        )
         .task(id: model.turnID) {
             await model.performCPUMoveIfNeeded()
         }

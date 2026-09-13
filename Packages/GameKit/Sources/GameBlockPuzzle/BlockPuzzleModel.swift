@@ -29,6 +29,9 @@ public final class BlockPuzzleModel {
     public private(set) var clearEventID: Int = 0
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
+    /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に「もう一度」で局が入れ替わったら適用しない）。
+    public private(set) var gameSerial = 0
 
     private let services: GameServices?
     private var rng: BlockPuzzleRandom
@@ -146,8 +149,9 @@ public final class BlockPuzzleModel {
     }
 
     /// リワード広告視聴後のコンティニュー。盤の中央を空けて、同じスコアのまま続ける。1 局 1 回のみ。
-    public func continueAfterAd() {
-        guard gameOver, !continueUsed else { return }
+    @discardableResult
+    public func continueAfterAd() -> Bool {
+        guard gameOver, !continueUsed else { return false }
         // 同じ局の続きなので、直前に記録した「負け」は無かったことにする
         // （そのままだと 1 回のプレイが 2 回分として数えられる）。
         services?.playLog?.cancelLoss(gameID: Self.gameID)
@@ -161,10 +165,20 @@ public final class BlockPuzzleModel {
         persist()
         // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158）。
         services?.gameDidRestart(gameID: Self.gameID)
+        return true
+    }
+
+    /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「コンティニューできなかった」と知らせる。
+    @discardableResult
+    public func continueAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return continueAfterAd()
     }
 
     /// 新規ゲーム。
     public func newGame() {
+        gameSerial += 1
         board = BlockPuzzleBoard.emptyBoard()
         hand = BlockPuzzleBoard.makeHand(board: board, using: &rng).map { Optional($0) }
         score = 0

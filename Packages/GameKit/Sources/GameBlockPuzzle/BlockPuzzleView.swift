@@ -54,7 +54,14 @@ public struct BlockPuzzleView: View {
             }
         }
         .howToPlay(.blockPuzzle)
-        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: "コンティニューできませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "コンティニューできませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+            )
+        )
     }
 
     // MARK: - スコア
@@ -241,13 +248,14 @@ public struct BlockPuzzleView: View {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
                     Button {
-                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
+                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
+                        // 広告を出す前に控え、ロード中に「もう一度」で入れ替わった局へは乗せない（#729）。
+                        let game = model.gameSerial
                         continueRescue.request(
                             services, gameID: BlockPuzzleModel.gameID, purpose: .continue,
-                            guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
+                            guardedBy: .checkedByGrant
                         ) {
-                            withGameAnimation { model.continueAfterAd() }
-                            return true
+                            withGameAnimation { model.continueAfterAd(forGame: game) }
                         }
                     } label: {
                         Label("広告を見て中央を空ける", systemImage: "play.rectangle.fill")
