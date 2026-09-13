@@ -1,0 +1,106 @@
+import Testing
+import CoreGraphics
+import Foundation
+@testable import GameBlackjack
+
+/// ブラックジャックの操作ボタンのタップ標的と押下フィードバック（#709）。
+/// 本文 14pt + 上下 10pt の余白しか無く高さは約 37pt で Apple HIG の 44pt を下回り、
+/// `.buttonStyle(.plain)` のため押しても沈まなかった。定数と View 側の結線の両方を見る
+/// （ポーカーの `PokerMetricsTests`・#207 と同じやり方）。
+@Suite("ブラックジャックの操作まわりの寸法")
+struct BlackjackMetricsTests {
+
+    typealias Metrics = BlackjackMetrics
+
+    @Test("操作ボタンの高さの下限は 44pt 以上")
+    func actionButtonMeetsTapTarget() {
+        #expect(Metrics.actionButtonMinHeight >= 44)
+        #expect(Metrics.minimumTapTarget >= 44)
+    }
+
+    @Test("操作ボタンが実際に下限の定数で組まれている")
+    func actionButtonIsWiredToTheMetric() throws {
+        // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する。
+        let button = Self.actionButtonSource(try Self.viewSource())
+        #expect(!button.isEmpty, "actionButton の定義が見つからない")
+        #expect(
+            Self.matchCount(of: #"minHeight:\s*BlackjackMetrics\.actionButtonMinHeight"#, in: button) == 1,
+            "actionButton が BlackjackMetrics.actionButtonMinHeight を使っていない"
+        )
+
+        // 高さを決めていた元の `.padding(.vertical, 10)` が残っていると、下限を外しても
+        // 見た目が 37pt で保たれてしまい上の検証が空振りしうるので、消えていることも見る。
+        #expect(
+            Self.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: button) == 0,
+            "actionButton に高さを決める .padding(.vertical, 10) が残っている"
+        )
+        #expect(
+            Self.matchCount(of: #"\.buttonStyle\(\.pop\)"#, in: button) == 1,
+            "actionButton が押下フィードバック付きの .pop になっていない"
+        )
+    }
+
+    @Test("画面に .buttonStyle(.plain) が残っていない")
+    func noPlainButtonStyle() throws {
+        // `.plain` は押下フィードバックが消える（`Core/Theme.swift` の `PopButtonStyle` の注記）。
+        // 行頭のコメントは数えない（説明のために `.plain` と書くことはあるため）。
+        let code = try Self.viewSource()
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        #expect(
+            Self.matchCount(of: #"\.buttonStyle\(\.plain\)"#, in: code) == 0,
+            "BlackjackView に .buttonStyle(.plain) が残っている"
+        )
+    }
+
+    /// ベット・ヒット・スタンド・ダブルダウン・スプリット・次のゲーム・結果まで進めるが
+    /// 同じ `actionButton` を通ることを固定する。個別に組み直されると 44pt を外れるため。
+    @Test("主要な操作はすべて actionButton を経由している")
+    func allActionsGoThroughActionButton() throws {
+        let source = try Self.viewSource()
+        // 件数だけだと、1 箇所が外れても別の呼び出しが増えれば保たれてしまう（PR #267 の指摘）。
+        // どの操作が経由しているかをラベルで個別に見る。ラベルは呼び出しと同じ行に書かれている。
+        for label in [
+            "\"\\(amount)枚\"",
+            "\"スタンド\"",
+            "\"ヒット\"",
+            "\"ダブルダウン\"",
+            "\"スプリット\"",
+            "\"次のゲーム\"",
+            "\"結果まで進める\"",
+        ] {
+            let pattern = #"actionButton\(\s*"# + NSRegularExpression.escapedPattern(for: label)
+            #expect(
+                Self.matchCount(of: pattern, in: source) >= 1,
+                "\(label) の操作が actionButton を経由していない（個別に組み直されると 44pt を外れる）"
+            )
+        }
+    }
+
+    // MARK: - ヘルパー
+
+    private static func viewSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameBlackjackTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameBlackjack/BlackjackView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// `actionButton` の定義本文だけを切り出す（他の場所の `.padding(.vertical, 10)` を拾わないため）。
+    private static func actionButtonSource(_ source: String) -> String {
+        guard let start = source.range(of: "private func actionButton(") else { return "" }
+        let rest = source[start.lowerBound...]
+        guard let end = rest.range(of: "\n    }\n") else { return String(rest) }
+        return String(rest[..<end.upperBound])
+    }
+
+    private static func matchCount(of pattern: String, in source: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        return regex.numberOfMatches(
+            in: source, range: NSRange(source.startIndex..., in: source)
+        )
+    }
+}

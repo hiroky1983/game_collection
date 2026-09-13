@@ -482,11 +482,9 @@ public struct RunnerView: View {
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.85))
             if model.didSetBestDistance {
-                Text("自己ベスト更新！")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.Fill.coral))
+                // 全ゲーム共通の印（#794）。塗りつぶしだと隣の「もう一度」ボタンと同色で押せるものに見える
+                // （監査 #808 → #819。#794 の 22 分後にマージされた #795 が旧来の書き方を持ち込んでいた）。
+                RecordBadge("自己ベスト更新！")
             }
         }
         .accessibilityElement(children: .combine)
