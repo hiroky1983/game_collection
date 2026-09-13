@@ -47,15 +47,15 @@ private final class SpyAnalyticsService: AnalyticsService {
     func log(_ event: AnalyticsEvent) { events.append(event) }
 
     var starts: [String] {
-        events.compactMap { if case let .gameStart(gameID, _) = $0 { return gameID } else { return nil } }
+        events.compactMap { if case let .gameStart(gameID, _, _) = $0 { return gameID } else { return nil } }
     }
     /// `game_start` に載った難易度（#500）。載せていないゲームは nil。
     var startLevels: [AnalyticsLevel?] {
-        events.compactMap { if case let .gameStart(_, level) = $0 { return .some(level) } else { return nil } }
+        events.compactMap { if case let .gameStart(_, level, _) = $0 { return .some(level) } else { return nil } }
     }
     var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec) = $0 {
+            if case let .gameEnd(gameID, result, durationSec, _) = $0 {
                 return (gameID, result, durationSec)
             }
             return nil
@@ -224,6 +224,13 @@ struct AnalyticsEventShapeTests {
         ])
         #expect(Set(end.parameters.keys) == ["game_id", "result", "duration_sec"],
                 "受け入れ条件どおり3鍵のみ。スコアや端末識別子の鍵は存在しない")
+
+        // `mode`（#783）: 付けたときだけ鍵が出る。開始と終わりで同じ値
+        let moded = AnalyticsEvent.gameStart(gameID: "mahjong4", mode: "single_hand")
+        #expect(moded.parameters == ["game_id": .string("mahjong4"), "mode": .string("single_hand")])
+        let modedEnd = AnalyticsEvent.gameEnd(gameID: "mahjong4", result: .loss, durationSec: 90, mode: "tonpuu")
+        #expect(modedEnd.parameters["mode"] == .string("tonpuu"))
+        #expect(Set(modedEnd.parameters.keys) == ["game_id", "result", "duration_sec", "mode"])
 
         let reward = AnalyticsEvent.rewardAd(gameID: "solitaire", purpose: .undo)
         #expect(reward.name == "reward_ad")

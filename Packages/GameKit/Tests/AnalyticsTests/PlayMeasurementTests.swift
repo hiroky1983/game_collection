@@ -13,13 +13,13 @@ private final class SpyAnalyticsService: AnalyticsService {
 
     var starts: [(gameID: String, level: AnalyticsLevel?)] {
         events.compactMap {
-            if case let .gameStart(gameID, level) = $0 { return (gameID, level) }
+            if case let .gameStart(gameID, level, _) = $0 { return (gameID, level) }
             return nil
         }
     }
     var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec) = $0 { return (gameID, result, durationSec) }
+            if case let .gameEnd(gameID, result, durationSec, _) = $0 { return (gameID, result, durationSec) }
             return nil
         }
     }

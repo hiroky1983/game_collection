@@ -136,11 +136,13 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
 /// パラメータは各ケースの関連値だけから組み立てるため、呼び出し側が任意のキーや値を
 /// 追加する余地が無い。イベントを増やすにはこの enum にケースを足す = 意図的な変更が要る。
 public enum AnalyticsEvent: Equatable, Sendable {
-    /// 1プレイの開始。パラメータは `game_id` と、難易度を持つゲームだけ `level`。
-    case gameStart(gameID: String, level: AnalyticsLevel? = nil)
-    /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` のみ。
+    /// 1プレイの開始。パラメータは `game_id` と、難易度を持つゲームだけ `level`、
+    /// 1 回の長さが選べるゲームだけ `mode`（#783。四人打ち麻雀の東風戦／一局戦）。
+    case gameStart(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil)
+    /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` と、開始時に `mode` を
+    /// 付けたプレイだけ `mode`（開始と終わりを同じ鍵で突き合わせるため）。
     /// 決着（win / loss / draw）と途中離脱（quit）の両方がこのイベントで出る。
-    case gameEnd(gameID: String, result: AnalyticsResult, durationSec: Int)
+    case gameEnd(gameID: String, result: AnalyticsResult, durationSec: Int, mode: String? = nil)
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
     /// リワード広告の**要求**（タップ）。視聴できたかどうかに関係なく1回出る（#659）。
@@ -168,20 +170,23 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 送信するパラメータ。キーも値もこの1か所でしか組み立てない。
     public var parameters: [String: AnalyticsValue] {
         switch self {
-        case let .gameStart(gameID, level):
+        case let .gameStart(gameID, level, mode):
             var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
             // 難易度を持たないゲームでは鍵ごと送らない（GA4 で "none" のような
-            // 実在しない段階を作らないため）。
+            // 実在しない段階を作らないため）。`mode` も同じ扱い。
             if let level { parameters["level"] = .string(level.parameterValue) }
+            if let mode { parameters["mode"] = .string(mode) }
             return parameters
-        case let .gameEnd(gameID, result, durationSec):
-            return [
+        case let .gameEnd(gameID, result, durationSec, mode):
+            var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
                 // 「クリア」「ゲームオーバー」は各ゲームが決着判定の時点で正規化済み。
                 "result": .string(result.rawValue),
                 "duration_sec": .int(durationSec),
             ]
+            if let mode { parameters["mode"] = .string(mode) }
+            return parameters
         case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
                 "game_id": .string(gameID),
@@ -255,6 +260,9 @@ public final class GameAnalytics {
     /// 現在時刻。テストが実時間で待たずに経過秒を検証できるよう差し替え可能にする。
     private let now: () -> Date
     private var plays: [String: PlayState] = [:]
+    /// 進行中のプレイの `mode`（#783）。開始で覚え、終わりの `game_end` に同じ値を載せる。
+    /// `mode` を持たないゲームは鍵が無い。
+    private var modes: [String: String] = [:]
 
     public init(
         service: AnalyticsService,
@@ -271,9 +279,9 @@ public final class GameAnalytics {
     /// SwiftUI は親の再描画のたびに `State(initialValue:)` の式を評価するため、Model の
     /// `init` は1回の表示で何度も走りうる。ここで冪等にしておくことで、再描画・
     /// バックグラウンド復帰で `game_start` が増えない。
-    public func startPlay(gameID: String, level: AnalyticsLevel? = nil) {
+    public func startPlay(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
         guard allowedGameIDs.contains(gameID), plays[gameID] == nil else { return }
-        beginPlay(gameID: gameID, level: level)
+        beginPlay(gameID: gameID, level: level, mode: mode)
     }
 
     /// 「新しいゲーム」「次のラウンド」など、明示的に次のプレイを始めたときに呼ぶ。
@@ -282,10 +290,10 @@ public final class GameAnalytics {
     /// - Note: 前のプレイが未決着で、かつ**1手でも指していた**場合は、始め直す前に
     ///   `game_end`（`result = quit`）を送る（#500）。1手も指していない配り直しは
     ///   捨てた盤面が無いので送らない（ソリティア #397 の敗北記録と同じ境目）。
-    public func restartPlay(gameID: String, level: AnalyticsLevel? = nil) {
+    public func restartPlay(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
         guard allowedGameIDs.contains(gameID) else { return }
         endPlayAsQuitIfProgressed(gameID: gameID)
-        beginPlay(gameID: gameID, level: level)
+        beginPlay(gameID: gameID, level: level, mode: mode)
     }
 
     /// そのプレイで1手指した（盤面が動いた）ときに呼ぶ。**冪等**で、何度呼んでも状態は変わらない。
@@ -392,11 +400,12 @@ public final class GameAnalytics {
     private func sendEnd(gameID: String, result: AnalyticsResult, startedAt: Date) {
         // 時計が巻き戻っても負の秒数を送らない。
         let seconds = max(0, Int(now().timeIntervalSince(startedAt)))
-        service.log(.gameEnd(gameID: gameID, result: result, durationSec: seconds))
+        service.log(.gameEnd(gameID: gameID, result: result, durationSec: seconds, mode: modes[gameID]))
     }
 
-    private func beginPlay(gameID: String, level: AnalyticsLevel?) {
+    private func beginPlay(gameID: String, level: AnalyticsLevel?, mode: String?) {
         plays[gameID] = .inFlight(startedAt: now(), didProgress: false, canResume: true)
-        service.log(.gameStart(gameID: gameID, level: level))
+        modes[gameID] = mode
+        service.log(.gameStart(gameID: gameID, level: level, mode: mode))
     }
 }
