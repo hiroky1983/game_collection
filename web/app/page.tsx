@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { games } from "./lib/games";
 import {
-  APP_SIZE_MB,
   APP_STORE_URL,
   MIN_IOS_VERSION,
   SITE_NAME,
@@ -19,7 +18,7 @@ const gameNames = releasedGames.map((g) => g.name).join("・");
 const points = [
   { icon: "✈️", title: "オフラインで遊べる", desc: `通信不要。電波の無い場所でも${gameCount}本すべて動きます` },
   { icon: "🔓", title: "登録もログインも不要", desc: "入れてすぐ遊べます。アカウント作成はありません" },
-  { icon: "🪶", title: `約${APP_SIZE_MB}と軽い`, desc: "ダウンロードもインストールもすぐ終わります" },
+  { icon: "🧺", title: `${gameCount}本がアプリ1つに`, desc: "ゲームごとに探して入れる手間はありません。ホーム画面もアプリ1つぶんです" },
   {
     icon: "🤫",
     title: "広告は控えめ",
@@ -64,7 +63,7 @@ export default function Home() {
           <strong className="font-semibold text-gray-700 dark:text-gray-200">
             すべてオフラインで遊べて、通信も会員登録も不要
           </strong>
-          。広告は控えめ、アプリは約{APP_SIZE_MB}と軽量です。
+          。広告は控えめです。
         </p>
         <a
           href={APP_STORE_URL}
