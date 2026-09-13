@@ -33,7 +33,9 @@ struct BoardToggleButtonTests {
     /// （＝同じ状態で minus になること）と、文字が付いていることをソースの形で固定する。
     @Test("拡大トグルは 4 ゲームとも ON＝拡大中で、「拡大／全体」の文字付き")
     func zoomTogglesShareOrientationAndTitle() throws {
-        let pattern = #"isOn:\s*([^,\n]+),\s*\n\s*systemImage:\s*\1\s*\?\s*"minus\.magnifyingglass"\s*:\s*"plus\.magnifyingglass",\s*\n\s*title:\s*\1\s*\?\s*"全体"\s*:\s*"拡大""#
+        // ナンプレは帯の幅が足りないときだけ文字を省く（`ViewThatFits`）ので、
+        // `title:` は「<状態> ? "全体" : "拡大"」を含んでいればよい（前に `zoomTitle ? (` が付いてもよい）
+        let pattern = #"isOn:\s*([^,\n]+),\s*\n\s*systemImage:\s*\1\s*\?\s*"minus\.magnifyingglass"\s*:\s*"plus\.magnifyingglass",\s*\n\s*title:[^\n]*\1\s*\?\s*"全体"\s*:\s*"拡大""#
         let regex = try NSRegularExpression(pattern: pattern)
         for path in Self.adopters {
             let source = try Self.read(path)

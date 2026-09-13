@@ -18,6 +18,15 @@ enum SudokuMetrics {
     /// 帯の高さの見積りがそこからずれないよう同じ値を参照する。
     static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
 
+    /// 帯の拡大トグルに「拡大／全体」の文字を出せる帯の幅の下限。iPhone SE（帯 343pt）では
+    /// 文字を付けると左の「残り」「ミス」が潰れ、iPhone 17 Pro Max（361pt）では収まる（実測 2026-09-13）。
+    static let zoomTitleMinStatusBarWidth: CGFloat = 350
+
+    /// 帯の幅 `statusBarWidth` で拡大トグルに文字を出すか。未計測（0）は出す側に倒す。
+    static func showsZoomTitle(statusBarWidth: CGFloat) -> Bool {
+        statusBarWidth <= 0 || statusBarWidth >= zoomTitleMinStatusBarWidth
+    }
+
     /// 拡大モードでの 1 マスの一辺。
     ///
     /// **9 列 × 44pt = 396pt は、iPhone SE (3rd gen) の画面幅 375pt にも

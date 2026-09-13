@@ -64,6 +64,14 @@ struct SudokuMetricsTests {
     // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
     // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する。
 
+    @Test("拡大トグルの文字は iPhone SE の帯では省き、iPhone 17 Pro Max 以上では出す")
+    func zoomTitleFollowsStatusBarWidth() {
+        #expect(!Metrics.showsZoomTitle(statusBarWidth: Self.contentWidth(screenWidth: Self.iPhoneSE)))
+        #expect(Metrics.showsZoomTitle(statusBarWidth: 393 - 32))
+        #expect(Metrics.showsZoomTitle(statusBarWidth: 700))
+        #expect(Metrics.showsZoomTitle(statusBarWidth: 0), "未計測の初回描画は文字付き")
+    }
+
     @Test("帯の拡大トグルの一辺は共通枠の実寸と同じ")
     func toggleMatchesSharedFrame() {
         #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide)
