@@ -104,6 +104,12 @@ public struct SimpleGomokuEngine: GomokuEngine {
                                       forbiddenMoves: forbiddenMoves)
         return ctx.search(board: board, stone: stone)
     }
+
+    /// 探索が読む候補手の並び。テストが全順序になっていることを確かめる窓口（#812）。
+    func candidateMoves(board: GomokuBoard) -> [(Int, Int)] {
+        GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit, forbiddenMoves: forbiddenMoves,
+                            transpositionTableSize: 0).candidateMoves(board: board)
+    }
 }
 
 // MARK: - SearchContext
@@ -430,9 +436,13 @@ private struct GomokuSearchContext {
             }
         }
         let center = gomokuBoardSize / 2
+        // Set の走査順は呼び出し・プロセスごとに変わるので、距離が同じ升は座標で並べて全順序にする（#812）。
+        // 同点を残すと即勝ち・防ぎ点の選び方が揺れ、種を固定しても CPU の手が再現しない。
         return seen.map { ($0 / gomokuBoardSize, $0 % gomokuBoardSize) }
             .sorted { a, b in
-                abs(a.0 - center) + abs(a.1 - center) < abs(b.0 - center) + abs(b.1 - center)
+                let da = abs(a.0 - center) + abs(a.1 - center)
+                let db = abs(b.0 - center) + abs(b.1 - center)
+                return (da, a.0, a.1) < (db, b.0, b.1)
             }
     }
 }
