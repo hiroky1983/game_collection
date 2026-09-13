@@ -291,7 +291,7 @@ struct RewardGuardCallSiteTests {
 
         let requests = sources.reduce(0) { $0 + Self.occurrences(of: "Rescue.request(", in: $1.text) }
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
-        #expect(requests == 18, "救済の入口は18面（`requestHandledByModel` の3面を除く）")
+        #expect(requests == 19, "救済の入口は19面（`requestHandledByModel` の3面を除く）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }

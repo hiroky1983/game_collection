@@ -237,6 +237,18 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.grid.1x2.fill"
     )
 
+    static let spider = HowToPlayGuide(
+        gameID: "spider",
+        title: "スパイダーソリティアの遊び方",
+        lines: [
+            "動かす札をタップして選び、置きたい列をタップします。置けるのは、ひとつ上の札より1つ小さい札（スートは問いません）か、空いた列です。",
+            "まとめて動かせるのは、同じスートで降順に揃った並びだけです。動かせる手が無くなったら左上の山札をタップして各列に1枚ずつ配ります（空いた列があると配れません）。",
+            "同じスートで K から A まで13枚揃うと自動で取り除かれます。8組すべて取り除いたらクリアです。",
+        ],
+        hint: "札をタップ → 置き先をタップ",
+        hintIcon: "rectangle.portrait.on.rectangle.portrait.angled.fill"
+    )
+
     static let blockPuzzle = HowToPlayGuide(
         gameID: "blockpuzzle",
         title: "ブロックならべの遊び方",
@@ -292,7 +304,7 @@ public extension HowToPlayGuide {
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda,
+        .hanafuda, .spider,
     ]
 }
 

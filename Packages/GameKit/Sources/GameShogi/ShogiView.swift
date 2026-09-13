@@ -267,10 +267,19 @@ public struct ShogiView: View {
         .overlay(alignment: .bottom) {
             if model.gameOver {
                 RecommendationSlot(services: services, isFinished: true,
-                                   showsOtherGames: model.reviewPly == model.moves.count)
+                                   showsOtherGames: model.reviewPly == model.moves.count,
+                                   ladder: ladder)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
+                               levelLabels: ["弱", "普通", "強"]) { level in
+            model.newGame(humanSide: model.humanSide, aiLevel: level)
         }
     }
 

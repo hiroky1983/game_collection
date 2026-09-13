@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import MahjongTiles
 
@@ -964,6 +965,28 @@ struct GameRecordingTests {
         #expect(record?.plays == 1, "1 試合で 1 プレイ（局ごとには数えない）")
         // 勝敗は指標に選ばなくても記録される。
         #expect((record?.wins ?? 0) + (record?.losses ?? 0) + (record?.draws ?? 0) == 1)
+    }
+
+    @Test("スパイダーソリティア: 最短タイムをスート数の区分で見出しにし、捨てた配札は敗北として残る")
+    func spiderRecordsTimePerSuitCount() {
+        let (log, defaults, name) = makeLog(suite: "spider")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = SpiderModel(services: makeServices(log: log),
+                                seed: SpiderDealer.verifiedSeeds(for: .two)[0],
+                                rules: SpiderRuleSet(suitCount: .two))
+        model.tapStock()
+        model.newGame()
+        #expect(model.recordResult == nil, "配り直した直後のリザルトは持ち越さない")
+        let record = log.record(gameID: "spider", variant: "2suit")
+        #expect(record?.metric == .shortestTime)
+        #expect(record?.losses == 1)
+        #expect(record?.bestSeconds == nil, "クリアしていない局のタイムは自己ベストに入れない")
+        #expect(log.record(gameID: "spider", variant: "1suit") == nil, "他のスート数の行には混ざらない")
+
+        // 1 手も指していない配札の捨て直しは記録しない。
+        model.newGame()
+        #expect(log.record(gameID: "spider", variant: "2suit")?.plays == 1)
     }
 
     @Test("囲碁: 対 CPU 戦なので勝敗を記録する")

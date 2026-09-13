@@ -20,6 +20,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -204,6 +205,17 @@ private func playFreeCell(_ services: GameServices) {
     model.tapPile(0)   // 持ち上げ
     model.tapCell(0)   // 成立（セルへ退避）
     model.newGame()    // 決着（指した配札を捨てた = 敗北）
+}
+
+/// スパイダーソリティア（#717）。フリーセルと同じく**捨てた配札が敗北として決着する**経路を使う。
+@MainActor
+private func playSpider(_ services: GameServices) {
+    let model = SpiderModel(services: services, seed: SpiderDealer.verifiedSeeds(for: .one)[0])
+    model.tapPile(0, cardIndex: 0)   // 拒否（伏せ札を持ち上げようとした）
+    model.tapPile(0)                 // 持ち上げ
+    model.tapPile(0)                 // 選択解除
+    model.tapStock()                 // 成立（配る）
+    model.newGame()                  // 決着（指した配札を捨てた = 敗北）
 }
 
 /// ソリティア（#397）。決着まで指し切るにはソルバーが要る（`GameSolitaireTests` で通しを検証済み）ため、
@@ -510,6 +522,7 @@ struct FeedbackEnabledTests {
         let (services, spy) = makeServices(hapticsEnabled: true)
         playSolitaire(services)
         playFreeCell(services)
+        playSpider(services)
         #expect(spy.impacts.contains(.light), "山めくりで発火する")
         #expect(spy.impacts.contains(.rigid), "札の持ち上げで発火する")
         #expect(spy.notices(of: .warning) > 0, "空の捨て札のタップは拒否として発火する")
@@ -804,6 +817,7 @@ struct SoundFeedbackTests {
         await check("麻雀ソリティア") { _ = playMahjong($0) }
         await check("ソリティア") { playSolitaire($0) }
         await check("フリーセル") { playFreeCell($0) }
+        await check("スパイダーソリティア") { playSpider($0) }
         await check("ブロック崩し") { playBlocks($0) }
         await check("ブロックならべ") { playBlockPuzzle($0) }
         await check("チャリンコおじさん") { playRunner($0) }

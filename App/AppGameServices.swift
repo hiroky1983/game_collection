@@ -20,6 +20,7 @@ import GameBlocks
 import GameFreeCell
 import GameRunner
 import GameHanafuda
+import GameSpider
 // GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
 // 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
 // `registry` に1行足せば復活できる）。
@@ -171,6 +172,8 @@ enum AppEnvironment {
         SolitaireModule(),
         // フリーセル（#492）。同じ「1人でトランプを片付ける」ソリティアの隣に置く。
         FreeCellModule(),
+        // スパイダーソリティア（#717）。ソリティア御三家の残る 1 本なので、その隣に置く。
+        SpiderModule(),
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),

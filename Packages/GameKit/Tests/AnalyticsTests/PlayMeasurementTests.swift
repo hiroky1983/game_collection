@@ -487,7 +487,7 @@ struct RewardAdCallSiteTests {
 
         // 呼び出しの総数 = すべての面の数。面を増やしたらここも動くので、
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
-        #expect(counts.values.reduce(0, +) == 21, "リワード広告の面は21箇所")
+        #expect(counts.values.reduce(0, +) == 22, "リワード広告の面は22箇所")
     }
 }
 
@@ -519,7 +519,7 @@ struct PlayMeasurementCallSiteTests {
         return joined
     }
 
-    /// プレイを数えているモジュール（= ハブに並ぶ 20 本のゲーム）。
+    /// プレイを数えているモジュール（= ハブに並ぶ 21 本のゲーム）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -529,7 +529,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 20, "ハブに並ぶゲームは20本")
+        #expect(games.count == 21, "ハブに並ぶゲームは21本")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -554,6 +554,7 @@ struct PlayMeasurementCallSiteTests {
             "GameOthello",       // CPU の強さ 3 段階
             "GameRunner",        // 面番号 1〜15
             "GameShogi",         // CPU の強さ 3 段階
+            "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
         ])
     }

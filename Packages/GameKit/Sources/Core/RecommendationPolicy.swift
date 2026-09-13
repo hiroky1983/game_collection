@@ -106,7 +106,10 @@ public enum RecommendationPolicy {
         "solitaire":     ["freecell", "mahjong", "concentration"],
         // フリーセル（#492）。同じトランプ1人遊びのソリティアが最も近く、次いで
         // 「全部見えている情報を読み切る」手触りが同じナンプレ・マインスイーパー。
-        "freecell":      ["solitaire", "sudoku", "minesweeper"],
+        "freecell":      ["solitaire", "spider", "sudoku"],
+        // スパイダーソリティア（#717）。同じトランプ 1 人遊びのフリーセル・ソリティアが最も近く、
+        // 次いで「1 人で盤面を片付ける」麻雀ソリティア。
+        "spider":        ["freecell", "solitaire", "mahjong"],
         // チャリンコおじさん（#494・アクション枠の2本目）。同じ反射で遊ぶブロック崩しが
         // 最も近く、次いで1人でスコアを伸ばす 2048、手軽に終わる神経衰弱。
         "runner":        ["blocks", "2048", "concentration"],

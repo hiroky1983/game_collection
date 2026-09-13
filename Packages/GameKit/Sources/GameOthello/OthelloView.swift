@@ -352,10 +352,18 @@ public struct OthelloView: View {
     /// 対局中（投了・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// **高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.gameOver, services: services) {
+        GameControlArea(isFinished: model.gameOver, services: services, ladder: ladder) {
             newGameButton
         } playing: {
             gameControls
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
+                               levelLabels: ["弱", "普通", "強"]) { level in
+            model.newGame(humanSide: model.humanSide, aiLevel: level)
         }
     }
 

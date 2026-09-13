@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
 import MahjongTiles
@@ -107,7 +108,7 @@ private func makeHubGameIDs() -> Set<String> {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -394,7 +395,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 20, "ハブに並ぶゲームは20本")
+        #expect(hubGameIDs.count == 21, "ハブに並ぶゲームは21本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -843,6 +844,23 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.isEmpty, "1 局の決着では終局しない（試合が終わるまで数えない）")
     }
 
+    @Test("スパイダーソリティア: 開いた時点で開始（level 付き）・配り直しで終局（loss）")
+    func spider() {
+        let (services, spy) = makeServices()
+        let model = SpiderModel(services: services, seed: SpiderDealer.verifiedSeeds(for: .two)[0],
+                                rules: SpiderRuleSet(suitCount: .two))
+        model.tapStock()
+        model.newGame(rules: SpiderRuleSet(suitCount: .four))
+        #expect(spy.ends.map(\.gameID) == ["spider"])
+        #expect(spy.ends.first?.result == .loss)
+        // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。スート数は `level` に載る。
+        #expect(spy.starts == ["spider", "spider"])
+        let levels = spy.events.compactMap { event -> AnalyticsLevel? in
+            if case let .gameStart(_, level, _) = event { return level } else { return nil }
+        }
+        #expect(levels == [.normal, .hard], "2 スート = normal・4 スート = hard")
+    }
+
     @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
     func blocks() {
         let (services, spy) = makeServices()
@@ -1236,6 +1254,23 @@ struct StartSheetLevelTests {
         let othello = OthelloModel(services: othelloServices)
         othello.newGame(aiLevel: 0)
         #expect(othelloSpy.startLevels == [nil, .beginner])
+    }
+
+    /// リザルトの「階段」（#722）は花札だけ開始シートを通らず `restartMatch` で始め直す。
+    /// 強さを差し替える前に `game_start` を送ると、上げる前の段で数えてしまう。
+    @Test("花札の階段は勧めた強さで始め直し、その強さを game_start に載せる")
+    func hanafudaLadderRestartCarriesNewLevel() {
+        let (services, spy) = makeServices()
+        let model = playHanafudaMatch(services)
+        #expect(model.phase == .matchResult, "前提: 試合が決着している")
+        #expect(model.options.difficulty == .normal)
+
+        model.restartMatch(difficulty: .hard)
+
+        #expect(spy.startLevels.last.flatMap { $0 } == .hard)
+        #expect(model.options.difficulty == .hard)
+        #expect(model.options.rounds == 6, "局数は前の試合のものを引き継ぐ")
+        #expect(model.phase != .matchResult)
     }
 }
 
