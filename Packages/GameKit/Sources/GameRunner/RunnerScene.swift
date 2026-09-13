@@ -233,7 +233,7 @@ final class RunnerScene: SKScene {
 
     init(model: RunnerModel) {
         self.model = model
-        self.world = RunnerWorld.world(forStage: model.field.stage.number)
+        self.world = model.field.stage.number == 0 ? .morning : RunnerWorld.world(forStage: model.field.stage.number)
         super.init(size: CGSize(
             width: RunnerField.Metrics.width,
             height: RunnerField.Metrics.height
@@ -674,7 +674,9 @@ final class RunnerScene: SKScene {
         courseLayer.removeAllChildren()
         let stage = model.field.stage
         // 世界はステージ番号で決まる（#703）。変わったときだけ背景を作り直す。
-        let nextWorld = RunnerWorld.world(forStage: stage.number)
+        // エンドレス（#675・`number == 0`）は朝の下町で走る。距離で世界を変える案は第 2 弾（真の無限）と
+        // 一緒に扱う（走行中に配色を差し替えると `applyWorld` の組み直しでコマ落ちしうるため、今は固定）。
+        let nextWorld = stage.number == 0 ? RunnerWorld.morning : RunnerWorld.world(forStage: stage.number)
         if renderedWorld != nextWorld { applyWorld(nextWorld) }
 
         // 地面は「穴でないところ」を並べて描く。穴の場所には何も置かないので、
@@ -708,7 +710,11 @@ final class RunnerScene: SKScene {
         removedPickupIndices = []
         renderedJustLandingCount = 0
 
-        addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
+        // エンドレス（#675）にチェックポイントは無い。`RunnerStage` は中点に計算するが、
+        // 再開できない旗を立てると「ここから再開できる」という旗の意味（#494）が嘘になる。
+        if model.mode == .stages {
+            addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
+        }
         addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
         // 新しい走行の頭（もう一度・はじめから等）。前回の落下演出が沈める・フェードして

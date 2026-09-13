@@ -262,6 +262,27 @@ public enum RunnerRules {
 
     /// 総ステージ数。
     public static var stageCount: Int { RunnerStage.all.count }
+
+    // MARK: エンドレス（#675・会長決裁 2026-09-12）
+
+    /// エンドレスのコースの区画数（第 1 弾は固定長）。
+    ///
+    /// 400 区画 = 25,600 ワールド単位で、下の速さの上がり方なら 8 分前後。`RunnerField` の
+    /// 障害配列は線形走査なので、真の無限（先読み窓）は第 2 弾に送る（Issue #675 の設計）。
+    public static let endlessSegments = 400
+    /// エンドレスで速さが `speedStep` ぶん上がるのに要する距離（ワールド単位）。
+    ///
+    /// ステージ制の「1 ステージ進むごとに `speedStep`」を距離に写したもの。1,024 = 16 区画は
+    /// ステージ 5 前後の長さで、18 面まで通した累計（約 370 区画で 34 → 54.4）とほぼ同じ傾きになる。
+    public static let endlessSpeedStepDistance: Double = 1024
+    /// エンドレスの速さの上限。
+    ///
+    /// **隣り合う区画に障害が並んでも着地して踏み切り直せる速さの範囲**で頭打ちにする。
+    /// 区画の間隔は 64 で、いちばん厳しい「高い障害物が隣に来る」場合に要る間隔は
+    /// `speed × jumpAirTime + baseLead + speed × riseTime(9.5)` ≒ 0.911 × speed + 6 なので、
+    /// 63.6 を超えると成立しなくなる。60 は 18 面（54.4）より 1 割速く、その手前で止まる値。
+    /// 画面に見える先読み（`RunnerField.Metrics.width`）は 74 単位 = 60 / 秒で約 1.2 秒。
+    public static let endlessMaxSpeed: Double = 60
 }
 
 /// 1 ステージぶんのコースと速さ（#494）。
@@ -286,8 +307,18 @@ public struct RunnerStage: Equatable, Sendable {
     public let number: Int
     /// 区画記号の並び。
     public let pattern: String
-    /// 走る速さ（ワールド単位 / 秒）。
+    /// 走る速さ（ワールド単位 / 秒）。**コース先頭での値**。
+    ///
+    /// ステージ制ではコース全体で一定。エンドレス（#675）は距離に応じて上がるので、
+    /// 走行中の基準速は `speed(at:)` で引く。
     public let speed: Double
+    /// 1 ワールド単位進むごとに基準速が上がる量（#675）。ステージ制は 0（一定）。
+    public let speedGain: Double
+    /// 基準速の上限。`speedGain` が 0 なら `speed` と同じ。
+    ///
+    /// `RunnerField.step` はこの値で 1 サブステップの移動量を見積もる（速くなる余地を
+    /// 最初から見込んでおくので、加速してもすり抜けは起きない）。
+    public let speedCap: Double
     /// コースの全長。
     public let length: Double
     /// 左から順に並んだ障害。
@@ -334,10 +365,18 @@ public struct RunnerStage: Equatable, Sendable {
         return Int((checkpoint / length * 100).rounded())
     }
 
-    public init(number: Int, pattern: String, speed: Double) {
+    /// - Parameters:
+    ///   - speedGain: 距離あたりの加速（#675）。既定の 0 で従来どおり一定の速さ。
+    ///   - speedCap: 加速の上限。省略すると `speed`（= 加速しない）。
+    public init(
+        number: Int, pattern: String, speed: Double,
+        speedGain: Double = 0, speedCap: Double? = nil
+    ) {
         self.number = number
         self.pattern = pattern
         self.speed = speed
+        self.speedGain = speedGain
+        self.speedCap = max(speed, speedCap ?? speed)
         let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
         let length = Double(pattern.count) * segmentWidth
         let hazards = Self.makeHazards(pattern: pattern)
@@ -349,6 +388,18 @@ public struct RunnerStage: Equatable, Sendable {
         self.checkpoint = Self.makeCheckpoint(length: length, hazards: hazards, platforms: platforms)
 
         self.boostFloors = Self.makeBoostFloors(pattern: pattern)
+    }
+
+    /// その地点での基準速（#675）。`speed` から `speedGain` の傾きで上がり、`speedCap` で頭打ち。
+    ///
+    /// ステージ制（`speedGain` = 0）では常に `speed` を返す。**空中の横速度もこの値**
+    /// （`RunnerField.currentSpeed`）なので、跳んでいるあいだに進んだぶんだけごくわずかに
+    /// 速くなる——1 回のジャンプ（45 単位）で 0.05 程度で、踏み切りの余裕（`RunnerAutoPilot.baseLead`
+    /// の半タイル = 2）に比べて無視できる。生成器はこの差も見込み、成立条件を区画の手前の
+    /// 速さ（越えられるか）と先の速さ（間隔）の両方で判定する（`RunnerEndlessCourse`）。
+    public func speed(at distance: Double) -> Double {
+        guard speedGain > 0 else { return speed }
+        return min(speedCap, speed + speedGain * max(0, distance))
     }
 
     /// 区画記号を障害の並びへ展開する。

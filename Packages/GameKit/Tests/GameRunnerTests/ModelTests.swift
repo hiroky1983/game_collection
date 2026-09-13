@@ -454,6 +454,15 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.bestLabel(seconds: 30) == "ベストタイム 30秒")
     }
 
+    @Test("エンドレスの走行距離と自己ベストを読む")
+    func distance() {
+        #expect(RunnerAccessibility.distanceLabel(1234) == "走行距離 1234メートル")
+        #expect(RunnerAccessibility.bestDistanceLabel(nil) == "自己ベストはまだありません")
+        #expect(RunnerAccessibility.bestDistanceLabel(500) == "自己ベスト 500メートル")
+        #expect(RunnerAccessibility.endlessResultLabel(phase: .failed, distance: 800) == "800メートルでミスしました")
+        #expect(RunnerAccessibility.endlessResultLabel(phase: .ready, distance: 0) == "エンドレス。タップでスタート")
+    }
+
     @Test("状態ごとの結果を読む")
     func result() {
         #expect(RunnerAccessibility.resultLabel(phase: .falling, stageNumber: 2) == "ステージ 2 でミスしました")

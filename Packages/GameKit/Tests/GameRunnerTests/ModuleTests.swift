@@ -58,4 +58,24 @@ struct RunnerModuleTests {
         #expect(entry == GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerStage, value: 7))
         #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.runnerStage))
     }
+
+    /// エンドレス（#675）は走行距離を**別の表**へ送る。Core は GameRunner に依存できないため
+    /// 区分キー "endless" を文字列で写し取っており、`RunnerMode.endless.recordVariant` との一致を
+    /// ここで縛る（食い違うと「どれだけ走っても順位表に載らない」静かな故障になる）。
+    @Test("エンドレスの走行距離は asobiba.runner.distance に紐づき、ステージ制の表には混ざらない")
+    func endlessLeaderboardIsWired() {
+        let entry = GameCenterLeaderboard.score(
+            gameID: RunnerModel.gameID,
+            outcome: .loss,
+            score: GameScore(
+                metric: .points, points: 1_234,
+                variant: RunnerMode.endless.recordVariant,
+                variantLabel: RunnerMode.endless.recordVariantLabel
+            )
+        )
+        #expect(entry == GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerDistance, value: 1_234))
+        #expect(GameCenterLeaderboard.runnerDistance == "asobiba.runner.distance")
+        #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.runnerDistance))
+        #expect(RunnerMode.stages.recordVariant == nil, "ステージ制の記録の保存先を動かさない")
+    }
 }

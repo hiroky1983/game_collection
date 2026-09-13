@@ -81,6 +81,10 @@ public enum GameCenterLeaderboard {
     /// チャリンコおじさん（#494）。送るのは**到達ステージ数**（High to Low）。
     /// コースは全員共通で、同じ地形を同じ速さで走るため比べられる。
     public static let runnerStage   = "asobiba.runner.stage"
+    /// チャリンコおじさんのエンドレス（#675）。送るのは**走行距離**（High to Low）。
+    /// コースは毎回ランダムだが、冒頭は固定で難易度の上がり方（速さ・密度）は距離で決まる
+    /// ため、同じ物差しで比べられる。到達ステージ数（`runnerStage`）とは別の表。
+    public static let runnerDistance = "asobiba.runner.distance"
     /// 花札こいこい（#495）。送るのは**1 試合で稼いだ合計文数**（High to Low）。
     /// 局数は 6 / 12 から選べるが、区分は分けない（12 局のほうが伸びるのは
     /// 「長く打った」ぶんで、同じ土俵の上位を狙う指標として成り立つ）。
@@ -102,7 +106,7 @@ public enum GameCenterLeaderboard {
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blackjackChips, blocksScore, blockPuzzleScore, runnerStage,
-        hanafudaPoints,
+        runnerDistance, hanafudaPoints,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
         solitaireTime, freeCellTime,
@@ -124,7 +128,7 @@ public enum GameCenterLeaderboard {
         switch score.metric {
         case .points:
             guard let points = score.points, points >= 0 else { return nil }
-            guard let id = pointsLeaderboardID(gameID: gameID) else { return nil }
+            guard let id = pointsLeaderboardID(gameID: gameID, variant: score.variant) else { return nil }
             return GameCenterScore(leaderboardID: id, value: points)
 
         case .shortestTime:
@@ -142,7 +146,9 @@ public enum GameCenterLeaderboard {
         }
     }
 
-    private static func pointsLeaderboardID(gameID: String) -> String? {
+    /// - Parameter variant: 区分キー（`GameScore.variant`）。得点系で区分を持つのは
+    ///   チャリンコおじさんのエンドレス（#675）だけで、他のゲームは nil のまま。
+    private static func pointsLeaderboardID(gameID: String, variant: String?) -> String? {
         switch gameID {
         case "2048":      return game2048Score
         case "poker":     return pokerChips
@@ -155,7 +161,15 @@ public enum GameCenterLeaderboard {
         case "blockpuzzle": return blockPuzzleScore
         // チャリンコおじさん（#494）。チェックポイント再開（リワード広告）を使ったステージは
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
-        case "runner":    return runnerStage
+        // 区分キーは `RunnerMode.recordVariant`（#675）。ステージ制は nil のまま到達ステージ数、
+        // エンドレス（"endless"）は走行距離を別の表へ送る。Core は GameRunner に依存できない
+        // （依存の向きが逆）ため文字列を写し取っており、一致は `RunnerModuleTests` が縛る。
+        case "runner":
+            switch variant {
+            case nil:        return runnerStage
+            case "endless":  return runnerDistance
+            default:         return nil
+            }
         // 花札こいこい（#495）。試合の合計文数を送る。
         case "hanafuda":  return hanafudaPoints
         default:          return nil

@@ -44,7 +44,10 @@ public enum RunnerAutoPilot {
            under.kind == .bird, under.start <= field.playerMaxX {
             return nil
         }
-        let speed = field.stage.speed
+        // 踏み切りの見積もりは**いまの地点の基準速**で行う（#675 のエンドレスは距離で速くなる。
+        // ステージ制では `stage.speed` そのもの）。跳んでいるあいだの加速は 1 回のジャンプで
+        // 0.05 程度（`RunnerStage.speed(at:)`）で、`baseLead` の半タイルの余裕に収まる。
+        let speed = field.stage.speed(at: field.distance)
         let nextHazard = field.nextHazard(from: field.playerMaxX)
         var target: (start: Double, lead: Double)?
         // 鳥そのものは踏み切りの対象にしない。鳥の先の障害は `nextHazard` が鳥を返す

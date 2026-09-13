@@ -301,6 +301,8 @@ struct GameCenterLeaderboardTests {
             ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
             ("blockpuzzle", GameScore(metric: .points, points: 1)),
             ("runner", GameScore(metric: .points, points: 1)),
+            // エンドレス（#675）は区分キー "endless"（`RunnerMode.endless.recordVariant`）で走行距離の表へ。
+            ("runner", GameScore(metric: .points, points: 1, variant: "endless")),
             ("hanafuda", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {

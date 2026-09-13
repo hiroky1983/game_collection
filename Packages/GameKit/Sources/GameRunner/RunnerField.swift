@@ -159,9 +159,11 @@ public struct RunnerField: Equatable, Sendable {
     /// 床の倍率が**掛け算**で乗る理由は `RunnerRules.boostFloorMultiplier` を参照
     /// （床は区間の性質、乗りは操作の上手さ、と別の軸なので掛け合わせる）。
     public var currentSpeed: Double {
-        guard isGrounded else { return stage.speed }
+        // 基準速はその地点の値（#675）。ステージ制では `stage.speed` そのもの。
+        let base = stage.speed(at: distance)
+        guard isGrounded else { return base }
         let floor = isOnBoostFloor ? RunnerRules.boostFloorMultiplier : 1
-        return stage.speed * (pedalBoost + pickupOverboost + justLandingOverboost) * floor
+        return base * (pedalBoost + pickupOverboost + justLandingOverboost) * floor
     }
 
     /// いまスピードアップ床の上に乗っているか（#672）。
@@ -341,7 +343,8 @@ public struct RunnerField: Equatable, Sendable {
         let maxFactor = RunnerRules.maxPedalBoost
             + RunnerRules.pickupOverboost
             + RunnerRules.justLandingOverboost
-        let horizontal = stage.speed * maxFactor * RunnerRules.boostFloorMultiplier * dt
+        // 基準速は上限（`speedCap`。ステージ制では `speed` と同じ）で見積もる（#675）。
+        let horizontal = stage.speedCap * maxFactor * RunnerRules.boostFloorMultiplier * dt
         let vertical = abs(vy) * dt + RunnerRules.gravity * dt * dt
         let travel = max(horizontal, vertical)
         let substeps = max(1, Int((travel / Metrics.maxSubstep).rounded(.up)))
