@@ -14,6 +14,15 @@ public struct ConcentrationView: View {
         _model = State(initialValue: ConcentrationModel(services: services))
     }
 
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。枚数は今の対局のものを引き継ぐ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = ConcentrationCPULevel.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.cpuLevel),
+                                      levelLabels: levels.map(\.displayName)) { level in
+            model.newGame(pairCount: model.pairCount, cpuLevel: levels[level])
+        }
+    }
+
     public var body: some View {
         VStack(spacing: 10) {
             statusBar
@@ -22,7 +31,7 @@ public struct ConcentrationView: View {
             if !model.isGameOver {
                 mattaControls
             }
-            RecommendationSlot(services: services, isFinished: model.isGameOver)
+            RecommendationSlot(services: services, isFinished: model.isGameOver, ladder: ladder)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)

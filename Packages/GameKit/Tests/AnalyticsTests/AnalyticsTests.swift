@@ -1237,6 +1237,23 @@ struct StartSheetLevelTests {
         othello.newGame(aiLevel: 0)
         #expect(othelloSpy.startLevels == [nil, .beginner])
     }
+
+    /// リザルトの「階段」（#722）は花札だけ開始シートを通らず `restartMatch` で始め直す。
+    /// 強さを差し替える前に `game_start` を送ると、上げる前の段で数えてしまう。
+    @Test("花札の階段は勧めた強さで始め直し、その強さを game_start に載せる")
+    func hanafudaLadderRestartCarriesNewLevel() {
+        let (services, spy) = makeServices()
+        let model = playHanafudaMatch(services)
+        #expect(model.phase == .matchResult, "前提: 試合が決着している")
+        #expect(model.options.difficulty == .normal)
+
+        model.restartMatch(difficulty: .hard)
+
+        #expect(spy.startLevels.last.flatMap { $0 } == .hard)
+        #expect(model.options.difficulty == .hard)
+        #expect(model.options.rounds == 6, "局数は前の試合のものを引き継ぐ")
+        #expect(model.phase != .matchResult)
+    }
 }
 
 // MARK: - チャリンコおじさんの離脱（#500 / PR #572 の CodeRabbit 指摘）

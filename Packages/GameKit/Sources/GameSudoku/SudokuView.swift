@@ -122,6 +122,14 @@ public struct SudokuView: View {
                 showNewGame = false
                 if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
             }
+            // 撮影・動作確認用（DEBUG 限定）: 空きマスをすべて正解で埋めてクリアさせる（#722 の階段の撮影）。
+            // `-sudokuAutoStart` と併用する。記録・リザルトは本物の決着の経路をそのまま通る。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuAutoSolve"), model.state == .playing {
+                for index in 0..<SudokuEngine.cellCount where model.board[index] == 0 {
+                    if model.selected != index { model.select(index: index) }
+                    model.enter(digit: model.solution[index])
+                }
+            }
             // 撮影・動作確認用（DEBUG 限定）: 揃った行の光と、使い切った数字パッドを止めた状態で出す（#666）。
             // `-sudokuAutoStart` と併用する。数字 5 をすべて正解で埋めてから、1 行目を最後に揃える。
             if ProcessInfo.processInfo.arguments.contains("-sudokuUnitFlashPreview"), model.state == .playing {
@@ -459,7 +467,7 @@ public struct SudokuView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
-            GameControlArea(isFinished: model.isFinished, services: services) {
+            GameControlArea(isFinished: model.isFinished, services: services, ladder: ladder) {
                 resultControls
             } playing: {
                 if model.state == .playing {
@@ -689,6 +697,16 @@ public struct SudokuView: View {
             .padding(16)
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// クリアが続いたら一段上の難易度を勧める（#722）。始め直しの後始末は新規ゲームシートと同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = SudokuDifficulty.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.difficulty),
+                                      levelLabels: levels.map(\.label)) { level in
+            zoomMode = false
+            Task { await model.newGame(difficulty: levels[level]) }
+        }
     }
 
     // MARK: - Result Controls
