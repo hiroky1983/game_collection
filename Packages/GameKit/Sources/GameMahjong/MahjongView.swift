@@ -23,6 +23,11 @@ public struct MahjongView: View {
     @State private var showYakuSheet = false
     /// 進行中の対局を捨てて配り直す前の確認（#638）。
     @State private var showConfirmNewGame = false
+    /// 飛行中の打牌（#738）。河の本物の牌は着地まで隠す。
+    @State private var discardFlight: MahjongDiscardFlight?
+    @State private var discardFlightProgress: CGFloat = 0
+    /// 飛行の通し番号。後片付けは「自分が始めた飛行」だけを消す（内容が同じ別の飛行を誤って消さない）。
+    @State private var discardFlightSerial = 0
     /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
     /// 進行中の対局が見ているのは `model.gameLength`（開始時に焼き込んだ値）のほう。
     @State private var selectedLength: MahjongGameLength
@@ -254,66 +259,6 @@ public struct MahjongView: View {
 
     // MARK: - 雀卓
 
-    /// 雀卓のフェルト面。正方形の卓（`mahjongTable`）と手牌の帯（`handOnTable`）で共有する。
-    ///
-    /// #598（チェス駒）・#367（オセロ盤）と同じ「立体感・ツヤ感の底上げ」路線（#637）。
-    /// 上下に振るだけの 1 枚のグラデーションは、実物のフェルトのように見える手がかりが
-    /// 「上が明るい」しかなく、面が起きているのか平らな紙なのか読めなかった。次の3つを重ねる:
-    ///
-    /// 1. **中央の照り** — 卓上の照明が当たっている側。牌が集まる中央がいちばん明るい
-    /// 2. **外周の落ち込み** — 縁へ向かって沈ませる。1 と対になって初めて面の丸みが出る
-    /// 3. **縁の内側の細い照り** — 暗い縁（`0x123726`）が「枠」として立ち上がって見える
-    ///
-    /// `EllipticalGradient` は自分の矩形に対する**割合**で効くので、正方形の卓でも横長の帯でも
-    /// 同じ記述で同じ見え方になる（`RadialGradient` だと半径を実寸で与える必要があり、
-    /// 帯側では円がはみ出して中央の照りが帯全体を覆ってしまう）。
-    private struct MahjongFelt: View {
-        private var shape: RoundedRectangle {
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-        }
-
-        var body: some View {
-            shape
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: 0x2E7A50), Color(hex: 0x1D5638)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    shape.fill(
-                        EllipticalGradient(
-                            colors: [Color.white.opacity(0.11), Color.white.opacity(0)],
-                            center: UnitPoint(x: 0.5, y: 0.42),
-                            startRadiusFraction: 0, endRadiusFraction: 0.62
-                        )
-                    )
-                )
-                .overlay(
-                    shape.fill(
-                        EllipticalGradient(
-                            stops: [
-                                .init(color: Color.black.opacity(0), location: 0.45),
-                                .init(color: Color.black.opacity(0.26), location: 1),
-                            ],
-                            center: .center,
-                            startRadiusFraction: 0, endRadiusFraction: 0.78
-                        )
-                    )
-                )
-                .overlay(shape.strokeBorder(Color(hex: 0x123726), lineWidth: 3))
-                .overlay(
-                    shape.inset(by: 3).strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.22), Color.white.opacity(0.03)],
-                            startPoint: .top, endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
-                )
-        }
-    }
-
     /// 斜め上から見る雀卓（麻雀刷新 #736 / #737）。
     ///
     /// 幾何は `MahjongTableLayout`（純関数・`MahjongTableLayoutTests` で重なりと収まりを検査）、
@@ -329,22 +274,86 @@ public struct MahjongView: View {
             let side = min(geo.size.width, geo.size.height)
             let layout = MahjongTableLayout(size: CGSize(width: side, height: side))
             ZStack(alignment: .topLeading) {
-                MahjongTableView(scene: tableScene, layout: layout)
-                if isInPlay {
-                    let overview = layout.handOverview
-                    handOverviewOnTable(width: overview.width)
-                        .position(overview.center)
+                Group {
+                    MahjongTableView(scene: tableScene, layout: layout)
+                    if isInPlay {
+                        let overview = layout.handOverview
+                        handOverviewOnTable(width: overview.width)
+                            .position(overview.center)
+                    }
+                }
+                // 河のアニメーションが止まらないという指摘のため、卓の中身への暗黙アニメーションを
+                // 一切禁止する（実物の牌もアニメーションはしない）。打牌の動き（#738）はこの外側の
+                // 飛行レイヤーだけが持つ。
+                .transaction { $0.animation = nil }
+                if let flight = discardFlight {
+                    MahjongDiscardFlightView(flight: flight, progress: discardFlightProgress,
+                                             tileWidth: layout.riverTileWidth)
                 }
             }
             .frame(width: side, height: side)
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
+            // ドラのチップは卓の左上の角に**外側から**重ねる（クリップの外なので木枠の上へはみ出せる）。
+            // 卓の中に置くと対面の副露（左上の角）と重なる（会長指摘）。
+            .overlay(alignment: .topLeading) {
+                doraChip(scale: side / 393)
+                    .offset(x: 10 * side / 393, y: -14 * side / 393)
+            }
             .frame(width: geo.size.width, height: geo.size.height)
-            // 河のアニメーションが止まらないという指摘のため、卓の中身への暗黙アニメーションを
-            // 一切禁止する（実物の牌もアニメーションはしない）。
-            .transaction { $0.animation = nil }
+            .onChange(of: model.discards.map(\.count)) { old, new in
+                startDiscardFlight(old: old, new: new, layout: layout)
+            }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// ドラ表示。参考画像と同じく画面左上の HUD。牌が複数（カン）なら並べる。
+    private func doraChip(scale s: CGFloat) -> some View {
+        HStack(spacing: 5 * s) {
+            Text("ドラ")
+                .font(.system(size: 11 * s, weight: .black, design: .rounded))
+                .foregroundStyle(Theme.Fixed.ink)
+            ForEach(Array(model.doraIndicators.enumerated()), id: \.offset) { _, tile in
+                MahjongTileView(tile: tile, width: 20 * s, height: 27 * s)
+            }
+        }
+        .padding(.horizontal, 9 * s).padding(.vertical, 5 * s)
+        .background(Capsule().fill(.white).shadow(color: .black.opacity(0.18), radius: 5, y: 2))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("ドラ表示牌、" + model.doraIndicators.map { $0.displayName }.joined(separator: "、"))
+    }
+
+    /// 河が 1 枚増えた家を見つけて、その 1 枚を出発点から着地点へ飛ばす（#738）。
+    /// 同時に複数の家が増えることは無い（打牌は 1 手番に 1 枚）。局の開始で全員 0 に戻るときは何もしない。
+    private func startDiscardFlight(old: [Int], new: [Int], layout: MahjongTableLayout) {
+        // 河が減った＝局が変わった（または中断から作り直した）。飛行中の 1 枚は捨てて、
+        // 新しい局の牌を隠したまま残さない（タイミングに頼らず構造で塞ぐ・verifier 申し送り）。
+        if zip(old, new).contains(where: { $1 < $0 }) {
+            discardFlight = nil
+            return
+        }
+        guard old.count == new.count,
+              let seat = new.indices.first(where: { new[$0] == old[$0] + 1 }),
+              let tile = model.discards[seat].last else { return }
+        let index = new[seat] - 1
+        let slot = layout.riverSlot(seat: seat, index: index)
+        discardFlight = MahjongDiscardFlight(
+            seat: seat, index: index, tile: tile,
+            from: layout.discardOrigin(seat: seat), to: slot.center,
+            rotation: slot.rotation, scale: slot.scale
+        )
+        discardFlightProgress = 0
+        withGameAnimation(.easeOut(duration: MahjongDiscardFlight.duration)) {
+            discardFlightProgress = 1
+        }
+        discardFlightSerial += 1
+        let serial = discardFlightSerial
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(Int(MahjongDiscardFlight.duration * 1000) + 20))
+            // 次の打牌が先に始まっていたら（通し番号が進んでいたら）、そちらが片付ける
+            if discardFlightSerial == serial { discardFlight = nil }
+        }
     }
 
     /// 卓に描く値を `MahjongModel` から切り出す。CPU の手牌は枚数だけ（絵柄は伏せる）。
@@ -368,7 +377,9 @@ public struct MahjongView: View {
             honba: model.displayedHonba,
             riichiSticks: model.riichiSticks,
             remainingTiles: model.remainingTiles,
-            doraIndicators: model.doraIndicators
+            doraIndicators: model.doraIndicators,
+            hiddenDiscardSeat: discardFlight?.seat,
+            hiddenDiscardIndex: discardFlight?.index
         )
     }
 
@@ -553,10 +564,9 @@ public struct MahjongView: View {
             hintLine(waits: waits)
         }
         .padding(.horizontal, 6).padding(.vertical, 6)
-        // 卓と同じフェルト（`MahjongFelt`）。以前はここに卓の指定を写していたため、
-        // 片方だけ磨くと2つの緑が食い違う形になっていた。
-        // 影はフェルト自身に付ける（外側に付けると手牌の1枚1枚にまで影が落ちる）。
-        .background(MahjongFelt().shadow(color: .black.opacity(0.22), radius: 6, y: 3))
+        // 木の牌台（#738）。卓が木枠付きになったのに合わせる。
+        // 影は台自身に付ける（外側に付けると手牌の1枚1枚にまで影が落ちる）。
+        .background(MahjongWoodTray().shadow(color: .black.opacity(0.22), radius: 6, y: 3))
     }
 
     /// 会長指摘「誤タップ防止のため1タップでフォーカス、2タップ目で捨てる」への対応。
