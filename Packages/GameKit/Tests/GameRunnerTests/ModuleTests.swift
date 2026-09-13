@@ -1,4 +1,5 @@
 import Core
+import Foundation
 import Testing
 @testable import GameRunner
 
@@ -40,6 +41,20 @@ struct RunnerModuleTests {
     @Test("説明文のステージ数が実際のステージ数と一致する")
     func descriptionMatchesStageCount() {
         #expect(RunnerModule().description.contains("\(RunnerRules.stageCount)ステージ"))
+    }
+
+    /// `GameModule.icon` は非隔離の要件。おじさんの顔は `@MainActor` の `OjisanBitmap` から作るので、
+    /// メイン外から読まれたときにトラップせず自転車の記号へ倒れることを縛る（PR #704 の CodeRabbit 指摘）。
+    @Test("アイコンはメインスレッド外から読んでも落ちない")
+    func iconIsReadableOffMainThread() async {
+        let offMain = await Task.detached { Self.readIconReportingOffMain() }.value
+        #expect(offMain, "検証の前提: detached タスクはメインスレッド外で走る")
+    }
+
+    // `Thread.isMainThread` は async の文脈から直接呼べないので同期関数に出す。
+    private static func readIconReportingOffMain() -> Bool {
+        _ = RunnerModule().icon
+        return !Thread.isMainThread
     }
 
     @Test("遊び方ガイドがこのゲームの ID に紐づいている")
