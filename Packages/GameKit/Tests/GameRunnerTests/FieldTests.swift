@@ -594,6 +594,33 @@ struct RunnerFieldTests {
         #expect(field.collectedPickupCount == 1)
     }
 
+    /// #733: 1 ステージに 2 個以上のアイテムがチェックポイントを挟んで並ぶと、再開後は手前の
+    /// アイテムを取らないまま先のアイテムを取る。件数で「先頭から N 個」を消すと手前（未取得）の
+    /// ノードが消え、取ったアイテムが画面に残る。
+    @Test("チェックポイントから再開して先のアイテムを取ると、消すのはそのアイテムのノードだけ")
+    func pickupAfterCheckpointRemovesItsOwnNode() {
+        let stage = RunnerStage(number: 1, pattern: "--s------s--", speed: 40)
+        #expect(stage.pickups.count == 2)
+        #expect(stage.pickups[0].start < stage.checkpoint && stage.checkpoint < stage.pickups[1].start,
+                "チェックポイントがアイテム 2 個のあいだにある")
+        var field = RunnerField(stage: stage, startingAt: stage.checkpoint, passedCheckpoint: true)
+        for _ in 0..<600 where field.collectedPickupIndices.isEmpty { _ = field.step(dt: 1.0 / 60) }
+        #expect(field.collectedPickupIndices == [1], "再開地点より手前のアイテムは取らない")
+        #expect(RunnerScene.pickupIndicesToRemove(
+            collected: field.collectedPickupIndices, removed: [], nodeCount: stage.pickups.count
+        ) == [1])
+    }
+
+    @Test("消すノードの添字は、取得済み・未削除・ノードの範囲内のものだけ")
+    func pickupIndicesToRemoveStayInRange() {
+        #expect(RunnerScene.pickupIndicesToRemove(collected: [], removed: [], nodeCount: 1).isEmpty)
+        #expect(RunnerScene.pickupIndicesToRemove(collected: [0], removed: [], nodeCount: 1) == [0])
+        #expect(RunnerScene.pickupIndicesToRemove(collected: [0], removed: [0], nodeCount: 1).isEmpty,
+                "消し終えたノードを二度消さない")
+        #expect(RunnerScene.pickupIndicesToRemove(collected: [0, 1, 2], removed: [0], nodeCount: 2) == [1],
+                "取得数がノード数を超えても範囲外を返さない")
+    }
+
     // MARK: - ジャスト着地（#673）
 
     /// 障害を越えて**狙った位置へ降りる**状況を作る。

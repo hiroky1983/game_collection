@@ -178,11 +178,14 @@ final class RunnerScene: SKScene {
     /// コースに対する雲の流れる速さの比率（視差）。1 未満で遠くに見える。
     private static let cloudParallax: Double = 0.3
     /// このコースのスピードアップアイテムのノード（`stage.pickups` と同じ並び）。
-    /// `rebuildCourse` で作り直し、`sync` が `field.collectedPickupCount` を見て順に消す。
+    /// `rebuildCourse` で作り直し、`sync` が `field.collectedPickupIndices` を見て消す。
     private var pickupNodes: [SKNode] = []
-    /// すでに消したピックアップの数。**走者は後退しないので、取得順は常に `pickups` の並びどおり**
-    /// ——`collectedPickupCount` 件目までを毎フレーム照合すれば、どれが取得済みか特定できる。
-    private var removedPickupCount = 0
+    /// すでに消したピックアップの添字（`pickupNodes` の並び）。
+    ///
+    /// **件数ではなく添字で持つ**（#733）。チェックポイントから再開すると手前のアイテムは
+    /// 取らないまま残るので、「取得数 = 先頭からの件数」とみなすと、先のアイテムを取った
+    /// ときに手前（未取得）のノードを消してしまう。
+    private var removedPickupIndices: Set<Int> = []
     /// すでに土煙を出したジャスト着地の数（#673）。`field.justLandingCount` が増えた
     /// フレームだけ演出を出すための控え。`rebuildCourse` で 0 に戻す。
     private var renderedJustLandingCount = 0
@@ -559,7 +562,7 @@ final class RunnerScene: SKScene {
         }
 
         pickupNodes = stage.pickups.map { addPickup($0) }
-        removedPickupCount = 0
+        removedPickupIndices = []
         renderedJustLandingCount = 0
 
         addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
@@ -1196,15 +1199,26 @@ final class RunnerScene: SKScene {
         lastSyncedPhase = model.phase
     }
 
-    /// 取得済みのピックアップのノードを消す。走者は後退しないので、`collectedPickupCount` は
-    /// 常に `pickups` の並びの先頭からの件数と一致する（`pickupNodes` の宣言を参照）。
+    /// 取得済みのピックアップのノードを消す（`removedPickupIndices` の宣言を参照）。
     private func syncPickups(_ field: RunnerField) {
-        guard field.collectedPickupCount > removedPickupCount else { return }
-        let upper = min(field.collectedPickupCount, pickupNodes.count)
-        for i in removedPickupCount..<upper {
+        guard !field.collectedPickupIndices.isSubset(of: removedPickupIndices) else { return }
+        let indices = Self.pickupIndicesToRemove(
+            collected: field.collectedPickupIndices,
+            removed: removedPickupIndices,
+            nodeCount: pickupNodes.count
+        )
+        for i in indices {
             removePickupNode(pickupNodes[i])
+            removedPickupIndices.insert(i)
         }
-        removedPickupCount = field.collectedPickupCount
+    }
+
+    /// 取得済みなのにまだ消していないピックアップの添字（昇順）。ノードの範囲外の添字は返さない
+    /// ——ノードとステージの取り違えがあっても配列の範囲外を引いて落ちないようにするため（#733）。
+    nonisolated static func pickupIndicesToRemove(
+        collected: Set<Int>, removed: Set<Int>, nodeCount: Int
+    ) -> [Int] {
+        collected.subtracting(removed).filter { $0 >= 0 && $0 < nodeCount }.sorted()
     }
 
     /// ジャスト着地（#673）の土煙を出す。**1 回の着地につき 1 回だけ**——`field` の
