@@ -215,7 +215,7 @@ public struct MahjongTableLayout: Sendable {
         case 2: g = project(u: 0.12, v: 0.09); rotation = 180
         case 1: g = project(u: 0.90, v: 0.10); rotation = -90
         case 3: g = project(u: 0.10, v: 0.90); rotation = 90
-        default: g = project(u: 0.78, v: 0.955); rotation = 0
+        default: g = project(u: 0.82, v: 0.955); rotation = 0
         }
         return Slot(center: g.point, scale: g.scale, rotation: rotation)
     }
@@ -257,7 +257,7 @@ public struct MahjongTableLayout: Sendable {
     /// 卓上の手牌一覧（`handOverviewOnTable`）の中心と幅。フェルトの手前の縁、左寄り。
     /// 右手前の角は自分の副露の置き場（`meldSlot(seat: 0)`）なので、そこを空けて幅 62% に収める。
     public var handOverview: (center: CGPoint, width: CGFloat) {
-        let g = project(u: 0.365, v: 0.955)
-        return (g.point, bottomWidth * 0.55)
+        let g = project(u: 0.35, v: 0.955)
+        return (g.point, bottomWidth * 0.50)
     }
 }
