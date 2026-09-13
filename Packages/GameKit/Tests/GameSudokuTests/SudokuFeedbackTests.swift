@@ -105,10 +105,12 @@ struct SudokuFeedbackTests {
         model.enter(digit: wrongDigit(model, at: index, offset: 1))
         model.enter(digit: wrongDigit(model, at: index, offset: 2))
         spy.reset()
+        #expect(model.mistakeShakes == [index: 2])
         model.enter(digit: wrongDigit(model, at: index, offset: 3))
         #expect(model.state == .failed)
         #expect(spy.notices == [.error])
         #expect(spy.impacts.isEmpty)
+        #expect(model.mistakeShakes == [index: 2], "失敗の表示の下でマスを揺らさない")
     }
 
     @Test("誤答はそのマスの揺れの回数だけを進め、同じ誤答の入れ直しや正答では進めない")

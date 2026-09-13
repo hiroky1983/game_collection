@@ -335,12 +335,12 @@ public final class SudokuModel {
             if digit == solution[index] { clearPeerNotes(for: index, digit: digit) }
             if isNewWrongEntry {
                 mistakes += 1
-                mistakeShakes[index, default: 0] += 1
                 if mistakes >= Self.maxMistakes {
-                    // 触覚は fail() の error だけにする（warning と重ねると合図が濁る）。
+                    // 合図は fail() の error と失敗の表示だけにする（warning や揺れと重ねると合図が濁る）。
                     fail()
                     return   // fail() が persist まで済ませる
                 }
+                mistakeShakes[index, default: 0] += 1
                 // 誤答は正答（impact）と違う種類の触覚で伝える（#666）。
                 services?.feedback.notify(.warning)
             } else if digit != solution[index] {
