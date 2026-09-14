@@ -57,7 +57,9 @@ public struct SudokuView: View {
                     Label("新規ゲーム", systemImage: "plus.circle.fill")
                 }
                 // 生成中の二度押しで 2 本目の生成が走らないようにする（Model 側でも再入を弾く）。
-                .disabled(model.isGenerating)
+                // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
+                // 「広告を見たのに入らなかった」を起こさないための緩和）。
+                .disabled(model.isGenerating || hintRescue.isWatching)
             }
         }
         .howToPlay(.sudoku)
@@ -665,12 +667,14 @@ public struct SudokuView: View {
     /// 入れる先を選択状態から切り離しておく。
     private func requestHint() {
         guard !hintRescue.isWatching, let target = model.selected, model.canHint(at: target) else { return }
+        // どの局に対するヒントかを広告を出す前に控え、ロード中に始めた新しい局へは入れない（#815）。
+        let game = model.gameSerial
         hintRescue.request(
             services, gameID: model.gameID, purpose: .hint,
             guardedBy: .checkedByGrant
         ) {
             // 広告を見たのに入らなかったら黙って終わらせない（対価が無い状態を作らない）。
-            model.applyHint(at: target)
+            model.applyHint(forGame: game, at: target)
         }
     }
 
