@@ -25,7 +25,10 @@ public struct PreloadedAdSlot<Ad> {
     /// まだ使える広告を預かっているか。先読みを始めるかどうかの判断に使う。
     public func hasFreshAd(now: Date) -> Bool {
         guard let stored else { return false }
-        return now.timeIntervalSince(stored.loadedAt) < lifetime
+        // 端末の時刻が読み込み時より前に戻っていると経過時間が負になり、実時間で失効した広告も
+        // 「まだ使える」に見える。どれだけ経ったか分からないので失効として扱う。
+        let age = now.timeIntervalSince(stored.loadedAt)
+        return age >= 0 && age < lifetime
     }
 
     /// 使える広告を取り出す。取り出したら空になる（同じ広告は 2 回出せない）。
