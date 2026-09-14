@@ -582,7 +582,7 @@ public final class HanafudaModel: AITurnGuarded {
         // 先行タスクの終了を待ってから引き継ぐ。待機中に自分もキャンセルされたら譲って抜ける（#726。#531 で共通化）。
         await withAITurnRunner(running: \.isRunningCPUTurn) {
             while phase == .playing, turn == .cpu, !cpuHand.isEmpty {
-                // `cpuDelay` が 0 だと下の sleep 後の判定を通らない経路があるので、ループ先頭でも見る。
+                // キャンセル済みなら無駄な sleep をしない（止めるのは下の sleep 後の判定で、ここは近道）。
                 guard !Task.isCancelled else { return }
                 // 画面を離れると `.task(id:)` がキャンセルされる。状態の guard だけでは通過してしまい、
                 // 離れた後に CPU が待ち時間ゼロで打ち、その結果（役・あがり）が中断データに残る（#726）。
