@@ -1,0 +1,58 @@
+name: PR の risk ラベル検証
+
+# アプリコード（App/ Packages/ project.yml）を触る PR に risk:* ラベルが無ければ落とす（Issue #823）。
+#
+# 規程（docs/ai-devops.md「マージ規則」）は risk:* を「分類として必ず付ける」と定めているが、
+# 2026-09-13 に 6 本がラベル無しでマージされた（監査レポート #808 の欠陥 15）。
+#
+# アプリコードの PR は release/vX.Y.Z 向けで、pull_request のワークフローは base 側の定義で動くため、
+# このファイルは main だけでなく動いている release ブランチにも置く必要がある。
+#
+# ブランチ保護の必須チェックには加えない（ラベルは分類でマージ可否ではない・規程どおり）。
+# ジョブ ID を `test` にすると必須チェックの `test`（ci.yml）と名前で突き合わされるので避ける。
+#
+# 判定ロジックは Scripts/check-pr-risk-label.sh に置き、Scripts/tests/test-check-pr-risk-label.sh で検証する。
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main, 'release/**']
+
+concurrency:
+  group: pr-risk-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  risk-label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 判定ロジックの自己検証
+        run: bash Scripts/tests/test-check-pr-risk-label.sh
+
+      - name: アプリコードの変更に risk ラベルがあるかを見る
+        env:
+          # ブランチ名は PR 作成者が決められるので、シェルへ直接展開せず環境変数で受ける。
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # ラベルはイベントの payload ではなく API から取る。失敗したジョブを「Re-run」すると
+          # payload は古いまま再生されるため、ラベルを付けた後の再実行でも赤のまま残ってしまう。
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" \
+            --jq '.[].name' > "${RUNNER_TEMP}/pr-labels.txt"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
+            --jq '.[].filename' > "${RUNNER_TEMP}/pr-files.txt"
+          echo "ラベル: $(tr '\n' ' ' < "${RUNNER_TEMP}/pr-labels.txt")"
+          echo "変更ファイル $(wc -l < "${RUNNER_TEMP}/pr-files.txt") 件"
+          bash Scripts/check-pr-risk-label.sh "$BASE_REF" "$HEAD_REF" \
+            "${RUNNER_TEMP}/pr-labels.txt" "${RUNNER_TEMP}/pr-files.txt"
