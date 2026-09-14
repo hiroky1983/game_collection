@@ -31,7 +31,8 @@ public struct ConcentrationView: View {
             if !model.isGameOver {
                 mattaControls
             }
-            RecommendationSlot(services: services, isFinished: model.isGameOver, ladder: ladder)
+            // レコメンド・階段の枠は結果の暗幕の中に置く（`resultOverlay`）。ここに置くと
+            // 決着後は暗幕の下になり、透けて見えるのに押せない（#847）。
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -221,55 +222,64 @@ public struct ConcentrationView: View {
     private var resultOverlay: some View {
         ZStack {
             Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 16) {
-                Group {
-                    if let winner = model.winner {
-                        let isWin = winner == .human
-                        Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                            .font(.system(size: 52))
-                            .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
-                        Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
-                            .font(.system(size: 26, weight: .black, design: .rounded))
-                            .foregroundStyle(isWin ? Theme.teal : Theme.coral)
-                    } else {
-                        Image(systemName: "equal.circle.fill")
-                            .font(.system(size: 52))
-                            .foregroundStyle(Theme.inkSub)
-                        Text("引き分け")
-                            .font(.system(size: 26, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                }
-
-                HStack(spacing: 20) {
-                    VStack {
-                        Text("あなた").themeBody(13).foregroundStyle(Theme.inkSub)
-                        Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.teal)
-                    }
-                    Text("–").themeTitle(24).foregroundStyle(Theme.inkSub)
-                    VStack {
-                        Text("CPU").themeBody(13).foregroundStyle(Theme.inkSub)
-                        Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coral)
-                    }
-                }
-
-                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-
-                Button { showNewGame = true } label: {
-                    Text("もう一度")
-                        .themeBody(16)
-                        .frame(maxWidth: .infinity)
-                        .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(Theme.Fill.purple)
-                .padding(.horizontal, 24)
+            // 結果カードの直下にレコメンド・階段の枠を並べ、暗幕の前面で押せるようにする（#847）。
+            // カードの内側に入れると内寸が狭く（SE で約 255pt）段名が切れるので、外に並べて幅を揃える。
+            VStack(spacing: 12) {
+                resultCard
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
             }
-            .padding(28)
-            .popCard()
             .padding(.horizontal, 32)
         }
+    }
+
+    private var resultCard: some View {
+        VStack(spacing: 16) {
+            Group {
+                if let winner = model.winner {
+                    let isWin = winner == .human
+                    Image(systemName: isWin ? "trophy.fill" : "flag.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(isWin ? Theme.yellow : Theme.coral)
+                    Text(isWin ? "あなたの勝ち！" : "CPUの勝ち")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .foregroundStyle(isWin ? Theme.teal : Theme.coral)
+                } else {
+                    Image(systemName: "equal.circle.fill")
+                        .font(.system(size: 52))
+                        .foregroundStyle(Theme.inkSub)
+                    Text("引き分け")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.inkSub)
+                }
+            }
+
+            HStack(spacing: 20) {
+                VStack {
+                    Text("あなた").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.teal)
+                }
+                Text("–").themeTitle(24).foregroundStyle(Theme.inkSub)
+                VStack {
+                    Text("CPU").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coral)
+                }
+            }
+
+            RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+
+            Button { showNewGame = true } label: {
+                Text("もう一度")
+                    .themeBody(16)
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.onAccent)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(Theme.Fill.purple)
+            .padding(.horizontal, 24)
+        }
+        .padding(28)
+        .popCard()
     }
 }
 
