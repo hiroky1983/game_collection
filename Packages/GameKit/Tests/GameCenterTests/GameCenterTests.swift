@@ -771,24 +771,52 @@ struct GameCenterEntryPointTests {
         )
     }
 
-    @Test("ハブのツールバーから実績・ランキングを開ける")
-    func hubHasGameCenterEntryPoint() throws {
+    @Test("ハブのツールバーのトロフィーから「きろく」を開ける（#669）")
+    func hubToolbarOpensRecords() throws {
         let source = try appSource("HubView.swift")
-        // 「トロフィーのボタンを押すと `openGameCenter()` が走る」という**結線**まで見る。
+        // 「トロフィーのボタンを押すと きろく のシートが出る」という**結線**まで見る。
         // 部品の有無を個別に contains で確かめるだけだと、ボタンの中身を空にしても
-        // `openGameCenter()` の定義側が文字列として残るため緑のまま素通りする（QA 指摘）。
+        // 定義側が文字列として残るため緑のまま素通りする（QA 指摘）。
         #expect(
             source.range(
-                of: #"Button \{ openGameCenter\(\) \} label: \{\s*Image\(systemName: "trophy\.fill"\)"#,
+                of: #"Button \{ showRecords = true \} label: \{\s*Image\(systemName: "trophy\.fill"\)"#,
                 options: .regularExpression
             ) != nil,
-            "トロフィーのボタンと openGameCenter() の結線が切れている"
+            "トロフィーのボタンと きろく のシートの結線が切れている"
         )
-        #expect(source.contains("GameCenterEntry.open()"),
-                "ハブから GameCenterEntry を呼ぶ導線が消えている")
+        #expect(
+            source.range(
+                of: #"\.sheet\(isPresented: \$showRecords, onDismiss: \{[\s\S]{0,200}?openGameCenter\(\)\s*\}\) \{\s*RecordsView\("#,
+                options: .regularExpression
+            ) != nil,
+            "きろく のシートが RecordsView を出していない、または閉じたあとに Game Center を開く結線が無い"
+        )
         // アイコンだけのボタンは VoiceOver がシンボル名を読むため、明示のラベルが要る。
-        #expect(source.contains(#"accessibilityLabel("実績・ランキング")"#),
+        #expect(source.contains(#"accessibilityLabel("きろく")"#),
                 "アイコンボタンの読み上げラベルが消えている")
+    }
+
+    @Test("「きろく」の中から実績・ランキングを開ける（#334 の導線を引き継ぐ）")
+    func recordsHasGameCenterEntryPoint() throws {
+        let records = try appSource("RecordsView.swift")
+        #expect(
+            records.range(
+                of: #"Button \{ onOpenGameCenter\(\) \} label: \{\s*Label\("Game Center で実績・ランキングを見る""#,
+                options: .regularExpression
+            ) != nil,
+            "きろく の Game Center ボタンの結線が切れている"
+        )
+        // 実際に開くのは閉じ切ったあとのハブ。ハブ側の結線（印を立ててシートを閉じる）まで見る。
+        let hub = try appSource("HubView.swift")
+        #expect(
+            hub.range(
+                of: #"RecordsView\([^)]*\) \{\s*opensGameCenterAfterRecords = true\s*showRecords = false"#,
+                options: .regularExpression
+            ) != nil,
+            "きろく から Game Center を求めたときにシートを閉じる結線が切れている"
+        )
+        #expect(hub.contains("GameCenterEntry.open()"),
+                "ハブから GameCenterEntry を呼ぶ導線が消えている")
     }
 
     @Test("未サインインのときは Game Center を開かず、案内に落ちる")
