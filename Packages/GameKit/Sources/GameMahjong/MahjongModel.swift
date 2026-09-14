@@ -651,7 +651,10 @@ public final class MahjongModel: AITurnGuarded {
             return
         }
         services?.feedback.impact(.light)
-        if isDeclaringRiichi { commitRiichi(for: Self.humanIndex) }
+        if isDeclaringRiichi {
+            commitRiichi(for: Self.humanIndex)
+            services?.feedback.notify(.success)
+        }
         performDiscard(tile, by: Self.humanIndex)
     }
 
@@ -667,7 +670,9 @@ public final class MahjongModel: AITurnGuarded {
 
     /// 立直の宣言を取り消す。
     public func cancelRiichiDeclaration() {
+        guard isDeclaringRiichi else { return }
         isDeclaringRiichi = false
+        services?.feedback.impact(.light)
     }
 
     /// ツモ和了を宣言する。
@@ -718,12 +723,12 @@ public final class MahjongModel: AITurnGuarded {
     /// 立直を宣言した状態にする。**1000 点の支払いはここでは行わない**（#375）。
     /// 宣言牌をロンされた立直は不成立で点棒も出ないため、支払いは宣言牌が通った時点
     /// （`settlePendingRiichi`）まで保留する。
+    /// 合図は鳴らさない。人間の立直と CPU の立直は意味が逆なので、呼び出し元で出し分ける（#714）。
     private func commitRiichi(for player: Int) {
         isDeclaringRiichi = false
         riichi[player] = true
         riichiTurn[player] = turnCount
         pendingRiichi = player
-        services?.feedback.notify(.success)
     }
 
     /// 宣言牌が誰にもロンされなかったので立直を成立させ、1000 点を供託に出す。
@@ -1401,6 +1406,8 @@ public final class MahjongModel: AITurnGuarded {
            MahjongAI.shouldDeclareRiichi(hand: full.removing(choice.tile)),
            scores[player] >= 1000, remainingTiles >= Self.playerCount {
             commitRiichi(for: player)
+            // 相手が脅威を作った合図。和了と同じ「成功」を鳴らすと意味が逆になる（#714）。
+            services?.feedback.impact(.rigid)
         }
         performDiscard(choice.tile, by: player)
     }
