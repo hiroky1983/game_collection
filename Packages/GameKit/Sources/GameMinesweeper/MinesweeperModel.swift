@@ -214,7 +214,10 @@ public final class MinesweeperModel {
                     return cell
                 }
             }
-            self.continueUsed = snap.continueUsed ?? false
+            // 鍵の無い旧形式でも、コンティニューで確定した爆弾マスが盤に残っていれば使用済み（#816）。
+            // 未使用に倒すと、v1.1.4 で使った局に2回目のコンティニューと順位表送信が通る。
+            self.continueUsed = snap.continueUsed
+                ?? snap.cells.contains { $0.contains(where: \.isContinuedMine) }
         } else {
             self.rows       = rows
             self.cols       = cols
