@@ -103,6 +103,11 @@ public struct Game2048View: View {
                 }
                 .padding(spacing)
             }
+            // 支援技術にだけ 16 マスを見せる（#712）。勝敗の幕（下の overlay）より手前に付けるので、
+            // 幕の「続ける」「もう一度」などのボタンは置き換わらずそのまま読める。
+            .accessibilityRepresentation {
+                accessibilityGrid(tileSize: tileSize, spacing: spacing)
+            }
             .overlay {
                 if model.gameOver {
                     gameOverOverlay
@@ -192,10 +197,51 @@ public struct Game2048View: View {
                 let direction: Direction = abs(dx) > abs(dy)
                     ? (dx > 0 ? .right : .left)
                     : (dy > 0 ? .down : .up)
-                withGameAnimation(.easeInOut(duration: 0.12)) {
-                    model.move(direction)
+                slide(direction)
+            }
+    }
+
+    /// スワイプと VoiceOver のアクションが共通で通る 1 手。
+    private func slide(_ direction: Direction) {
+        withGameAnimation(.easeInOut(duration: 0.12)) {
+            model.move(direction)
+        }
+    }
+
+    /// VoiceOver 用のマス目グリッド（#712）。
+    ///
+    /// 盤はスワイプでしか動かせず、VoiceOver 有効時はスワイプが支援技術に吸われるため、
+    /// 各マスに上下左右へ動かすアクションを持たせる（どのマスにフォーカスしていても盤全体が動く）。
+    /// `accessibilityRepresentation` は**描画も当たり判定もされず、支援技術に見せる姿としてだけ使われる**
+    /// ので、見た目・アニメーション・指でのスワイプは一切変わらない。
+    /// 勝敗の幕が出ているあいだは `model.move(_:)` が何もしないので、アクション自体を出さない。
+    private func accessibilityGrid(tileSize: CGFloat, spacing: CGFloat) -> some View {
+        let n = Game2048Logic.size
+        let canMove = !model.gameOver && !model.showWinPrompt
+        return VStack(spacing: spacing) {
+            ForEach(0..<n, id: \.self) { r in
+                HStack(spacing: spacing) {
+                    ForEach(0..<n, id: \.self) { c in
+                        Color.clear
+                            .frame(width: tileSize, height: tileSize)
+                            .accessibilityElement()
+                            .accessibilityLabel(Game2048Accessibility.tileLabel(
+                                row: r, col: c, value: model.board[r][c]
+                            ))
+                            .accessibilityActions {
+                                if canMove {
+                                    ForEach(Direction.allCases, id: \.self) { direction in
+                                        Button(Game2048Accessibility.moveActionName(direction)) {
+                                            slide(direction)
+                                        }
+                                    }
+                                }
+                            }
+                    }
                 }
             }
+        }
+        .padding(spacing)
     }
 }
 

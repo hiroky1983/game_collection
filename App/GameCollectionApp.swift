@@ -40,6 +40,8 @@ struct GameCollectionApp: App {
                 adsInitialized = true
                 Task {
                     await initializeAds()
+                    // リワード広告を 1 本先読みしておく（#658）。表示はタップ時だけ。
+                    (AppEnvironment.services.ads as? AdMobAdService)?.enableRewardedPreload()
                 }
                 // Game Center 認証（#289 段階①）。iOS 26「ゲーム」アプリの推薦面に載る資格を
                 // 得るためのもので、失敗してもゲームには一切影響しない。撮影モードでは

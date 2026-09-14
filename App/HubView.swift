@@ -266,6 +266,9 @@ struct HubView: View {
                         gameID: opened.gameID, source: opened.source,
                         position: opened.position, resume: opened.resume
                     )
+                    // 先読みしたリワード広告が失効・未取得なら、ゲームを開いたこの時点で読み直す（#658）。
+                    // 救済の広告はゲーム画面の中でしか出ないので、ここで読んでおけばタップに間に合う。
+                    (services.ads as? AdMobAdService)?.preloadRewardedAd()
                 }
             }
             // リザルトのレコメンドカードがタップされたら、そのゲームへ差し替えて遷移する。

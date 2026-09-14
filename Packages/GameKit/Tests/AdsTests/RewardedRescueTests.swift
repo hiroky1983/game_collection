@@ -331,6 +331,23 @@ struct RewardGuardCallSiteTests {
         #expect(mismatched.isEmpty, "\(mismatched)")
     }
 
+    @Test("モデルが広告ごと持つ救済は、見終えたのに適用できなかったことを分けて返す")
+    func modelHeldRescuesAlwaysReportTheOutcome() throws {
+        // `Bool` 版の `requestHandledByModel` は、広告のあいだに局が入れ替わって適用しなかったときも
+        // 「広告を最後まで視聴しなかったか…」を出してしまう（#727）。麻雀のトビ復活だけが `Bool` 版の
+        // まま残り、上の突き合わせは `withOutcome:` しか数えないので 0 対 0 で緑のまま通っていた（#814）。
+        // `Bool` 版はトレイリングクロージャ（`requestHandledByModel {`）で書けて括弧が付かないので、
+        // 名前だけで数えて `withOutcome:` の数と突き合わせる。
+        let sources = try Self.gameSources()
+        let all = sources.reduce(0) { $0 + Self.occurrences(of: "requestHandledByModel", in: $1.text) }
+        let withOutcome = sources.reduce(0) {
+            $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
+        }
+        #expect(withOutcome == 3, "広告をモデルで抱えている3面（ブラックジャック・ポーカー・麻雀）")
+        #expect(all == withOutcome,
+                "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
+    }
+
     @Test("救済は共通 API を迂回して広告を出さない")
     func nobodyBypassesTheSharedEntryPoint() throws {
         // `RewardedRescue` を通さずに `services.showRewardedAd(...)` を直に呼ぶと、

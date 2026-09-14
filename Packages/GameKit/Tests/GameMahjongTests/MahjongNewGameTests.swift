@@ -284,9 +284,10 @@ struct MahjongNewGameTests {
 
         // 広告を見ているあいだに「新規対局」で配り直す。
         ads.duringAd = { model.startGame() }
-        let revived = await model.reviveAfterAd()
+        let outcome = await model.reviveAfterAd()
 
-        #expect(!revived, "入れ替わったあとの対局には復活を適用しない")
+        // 見終えたのに適用しなかったので「視聴しなかった」（.notEarned）ではない（#814）。
+        #expect(outcome == .unavailable, "入れ替わったあとの対局には復活を適用しない")
         #expect(playLog.record(gameID: "mahjong4")?.losses == lossesAfterBust,
                 "記録済みの前局の負けが取り消されない")
         #expect(model.roundNumber == 1, "新しく始めた対局はそのまま続く")
@@ -325,9 +326,9 @@ struct MahjongNewGameTests {
             next.startGame()
             reopened = next
         }
-        let revived = await left.reviveAfterAd()
+        let outcome = await left.reviveAfterAd()
 
-        #expect(!revived, "画面を離れたあとの対局に復活を適用している")
+        #expect(outcome == .unavailable, "画面を離れたあとの対局に復活を適用している")
         #expect(playLog.record(gameID: "mahjong4")?.losses == 1,
                 "いま遊んでいる対局の負けが cancelLoss で取り消されている")
         #expect(playLog.record(gameID: "mahjong4")?.plays == 1,
