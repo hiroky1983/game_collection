@@ -137,6 +137,10 @@ public final class MinesweeperModel {
     /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
     /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に局が入れ替わったらコンティニューを適用しない）。
     public private(set) var gameSerial = 0
+    /// 旗モード（タップで開く代わりに旗・? を切り替える）。以前は View の `@State` で、
+    /// Model を通らないため切り替えの手応えが鳴らなかった（#761）。ナンプレの `noteMode` と同じ形。
+    /// 中断データには書かない（再開時はオフ）。
+    public private(set) var flagMode = false
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -236,7 +240,14 @@ public final class MinesweeperModel {
         self.hitMine    = nil
         self.recordResult = nil
         self.continueUsed = false
+        self.flagMode   = false
         persist()
+    }
+
+    /// 旗モードを切り替える。モード切り替えの手応えは他ゲームと揃えて `.rigid`（#761）。
+    public func toggleFlagMode() {
+        flagMode.toggle()
+        services?.feedback.impact(.rigid)
     }
 
     // MARK: - Timer resume (call from onAppear when restoring saved game)
