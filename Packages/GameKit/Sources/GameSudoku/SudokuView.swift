@@ -180,7 +180,8 @@ public struct SudokuView: View {
     /// `ViewThatFits` は文字の縮小（`minimumScaleFactor`）を見込まず iPhone 17 Pro Max でも文字を
     /// 落としてしまったので、帯の実幅で判定する。
     private var statusBar: some View {
-        statusBarRow(zoomTitle: SudokuMetrics.showsZoomTitle(statusBarWidth: statusBarWidth))
+        statusBarRow(zoomTitle: SudokuMetrics.showsZoomTitle(statusBarWidth: statusBarWidth),
+                     statusIcons: SudokuMetrics.showsStatusIcons(statusBarWidth: statusBarWidth))
             .background(
                 GeometryReader { g in
                     Color.clear
@@ -190,7 +191,7 @@ public struct SudokuView: View {
             )
     }
 
-    private func statusBarRow(zoomTitle: Bool) -> some View {
+    private func statusBarRow(zoomTitle: Bool, statusIcons: Bool) -> some View {
         HStack(spacing: 8) {
             Group {
                 if model.isFinished {
@@ -202,12 +203,13 @@ public struct SudokuView: View {
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(cleared ? Theme.teal : Theme.coral)
                 } else if model.hasPuzzle {
-                    Label("残り\(model.remainingCount)", systemImage: "square.grid.3x3")
+                    statusLabel("残り\(model.remainingCount)", systemImage: "square.grid.3x3", showsIcon: statusIcons)
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.coral)
                     // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
-                    Label("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle")
+                    statusLabel("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle",
+                                showsIcon: statusIcons)
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
@@ -258,6 +260,16 @@ public struct SudokuView: View {
         .popCard(corner: Theme.cornerSmall)
         // 3 つを別々に読ませるとスワイプ回数が増えるだけなので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .contain)
+    }
+
+    /// 帯の「残り」「ミス」。狭い帯ではアイコンを省いて文字に幅を渡す（#775・`SudokuMetrics.showsStatusIcons`）。
+    @ViewBuilder
+    private func statusLabel(_ title: String, systemImage: String, showsIcon: Bool) -> some View {
+        if showsIcon {
+            Label(title, systemImage: systemImage)
+        } else {
+            Text(title)
+        }
     }
 
     private var difficultyAccent: Color {
