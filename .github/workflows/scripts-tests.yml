@@ -13,7 +13,8 @@ name: Scripts のテスト
 # 本番の実行環境（会長の Mac の launchd）とも揃う。
 #
 # ブランチ保護の必須チェックには加えない（paths 条件付きのジョブを必須にすると、
-# 該当しない PR がマージ不能になるため）。
+# 該当しない PR がマージ不能になるため）。ジョブ ID を `test` にすると、必須チェックの
+# `test`（ci.yml）と名前で突き合わされて必須に相乗りするので、他の paths 付きと同じく `check` にする。
 on:
   pull_request:
     paths:
@@ -33,7 +34,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  check:
     runs-on: macos-latest
     timeout-minutes: 15
     steps:
