@@ -36,6 +36,17 @@ struct PreloadedAdSlotTests {
         #expect(slot.take(now: t0) == nil)
     }
 
+    /// 経過時間が負だと常に寿命未満になり、実時間で失効した広告を出して表示に失敗する。
+    @Test("時計が読み込み時より前に戻っていたら失効として捨てる")
+    func clockMovedBackwardIsTreatedAsExpired() {
+        var slot = PreloadedAdSlot<String>(lifetime: 60)
+        slot.store("ad", loadedAt: t0)
+        #expect(!slot.hasFreshAd(now: t0.addingTimeInterval(-1)))
+        #expect(slot.take(now: t0.addingTimeInterval(-1)) == nil)
+        // 取り出しに失敗した時点で捨てているので、時計が戻り直しても出てこない。
+        #expect(slot.take(now: t0) == nil)
+    }
+
     @Test("預け直すと古いほうは捨てて新しいほうを使う")
     func storeReplacesPreviousAd() {
         var slot = PreloadedAdSlot<String>(lifetime: 60)
