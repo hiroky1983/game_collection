@@ -54,9 +54,12 @@ struct MinesweeperContinueLimitTests {
         let services: GameServices
     }
 
-    private static func makeFixture(suite: String) -> Fixture {
+    /// - Parameter continuedMineAt: 指定すると、そのマスを「コンティニューで確定した爆弾」（旗 + `isContinuedMine`）
+    ///   にした盤を作る。`continueUsed` の鍵は書かないので、v1.1.4 で使った局の旧形式の中断データになる（#816）。
+    private static func makeFixture(suite: String, continuedMineAt continued: (row: Int, col: Int)? = nil) -> Fixture {
         let rows = 9, cols = 9
         let mineSet = Set(mines.map { $0.row * cols + $0.col })
+        let isContinued = { (r: Int, c: Int) in continued.map { $0.row == r && $0.col == c } ?? false }
         let cells = (0..<rows).map { r in
             (0..<cols).map { c -> MinesweeperSnapshot.CellData in
                 var adjacent = 0
@@ -70,16 +73,16 @@ struct MinesweeperContinueLimitTests {
                 }
                 return MinesweeperSnapshot.CellData(
                     isRevealed: false,
-                    isFlagged: false,
+                    isFlagged: isContinued(r, c),
                     isMine: mineSet.contains(r * cols + c),
                     adjacentMines: adjacent,
-                    isContinuedMine: false
+                    isContinuedMine: isContinued(r, c)
                 )
             }
         }
         let snapshot = MinesweeperSnapshot(
             rows: rows, cols: cols, totalMines: mines.count, cells: cells,
-            flagCount: 0, revealedCount: 0, elapsedSeconds: elapsed
+            flagCount: continued == nil ? 0 : 1, revealedCount: 0, elapsedSeconds: elapsed
         )
         let store = MemorySnapshotStore()
         try? store.save(snapshot, for: "minesweeper")
@@ -169,6 +172,31 @@ struct MinesweeperContinueLimitTests {
 
         #expect(f.model.gameState == .playing, "キーが増えても既存の中断データを失わせない")
         #expect(!f.model.continueUsed, "欠けていたら『まだ使っていない』として読む")
+    }
+
+    @Test("鍵の無い旧形式でも、確定爆弾のマスが残っていれば使用済みとして読み、2回目を提案しない（#816）")
+    func legacySnapshotWithContinuedMineReadsAsUsed() throws {
+        let f = Self.makeFixture(suite: "legacy-continued", continuedMineAt: (0, 0))
+        let data = try #require(f.store.storage["minesweeper"])
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(!json.contains("continueUsed"), "前提: v1.1.4 と同じく鍵が無い中断データ")
+        #expect(f.model.cells[0][0].isContinuedMine, "前提: 確定爆弾のマスが復元されている")
+
+        #expect(f.model.continueUsed, "盤に残った確定爆弾はコンティニューを使った証拠")
+        f.model.tap(row: 0, col: 1)
+        #expect(f.model.gameState == .lost, "前提: 2つ目の地雷を踏んでいる")
+        #expect(!f.model.canContinue, "旧形式の中断データをはさんでも2回目は提案しない")
+    }
+
+    @Test("鍵の無い旧形式で確定爆弾のマスが残っている局のクリアは順位表に送らない（#816）")
+    func legacySnapshotWithContinuedMineIsNotSubmitted() {
+        let f = Self.makeFixture(suite: "legacy-continued-clear", continuedMineAt: (0, 0))
+        f.model.tap(row: 8, col: 8)
+
+        #expect(f.model.gameState == .won, "前提: 復元した局をクリアしている")
+        #expect(f.spy.scores.isEmpty, "v1.1.4 でコンティニューした局のタイムを順位表に混ぜない")
+        #expect(f.log.record(gameID: "minesweeper", variant: "9x9-10")?.bestSeconds == Self.elapsed,
+                "自己ベストは使用有無を問わず残す")
     }
 
     // MARK: - 受け入れ条件3: コンティニューした局は順位表に送らない（自己ベストは残す）

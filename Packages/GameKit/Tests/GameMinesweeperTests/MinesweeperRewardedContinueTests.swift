@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import GameMinesweeper
 
 /// 広告のコンティニューを、広告を出す前に控えた局にだけ適用する（#729）。
@@ -31,5 +32,24 @@ struct MinesweeperRewardedContinueTests {
         #expect(!model.continueUsed)
         #expect(model.continueAfterAd(forGame: model.gameSerial), "今の局に対する広告なら適用できる")
         #expect(model.gameState == .playing)
+    }
+
+    /// 画面の状態はテストから操作できないので、書き方そのものを見る（#816。BJ・ポーカーの #727 と同じ形）。
+    /// 範囲を「あきらめる」ボタンから先に絞るのは、手前のコンティニューボタンにも同じ `.disabled` があり、
+    /// ファイル全体を探すとそちらに当たって空振りするため。
+    @Test("視聴中は「あきらめる」を押せない")
+    func giveUpButtonIsDisabledWhileWatching() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameMinesweeperTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameMinesweeper/MinesweeperView.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let start = try #require(source.range(of: "Button { showContinue = false } label: {"),
+                                 "「あきらめる」ボタンの定義が見つからない（走査が空振りしている）")
+        let end = try #require(source.range(of: "// MARK: - 盤の下の操作エリア", range: start.upperBound..<source.endIndex))
+        let giveUpButton = source[start.upperBound..<end.lowerBound]
+        #expect(giveUpButton.contains("\n                .disabled(continueRescue.isWatching)"),
+                "広告のロード〜視聴中に「あきらめる」が押せる")
     }
 }
