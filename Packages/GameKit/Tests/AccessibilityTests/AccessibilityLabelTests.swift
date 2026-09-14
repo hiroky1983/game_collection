@@ -199,6 +199,21 @@ struct MinesweeperAccessibilityTests {
                 == "ダブルタップで開きます")
     }
 
+    /// 旗モードはマスのタップ結果を左右するので、ボタンから「いまどちらか」が分かること（#761）。
+    @Test("旗モードの切り替えはオン/オフを読む") func flagToggle() {
+        #expect(MinesweeperAccessibility.flagToggleLabel(isOn: true) == "旗モード、オン")
+        #expect(MinesweeperAccessibility.flagToggleLabel(isOn: false) == "旗モード、オフ")
+    }
+
+    /// 拡大はラベルもヒントも状態で切り替える（フリーセル #604 と同じ形・#761）。
+    @Test("拡大の切り替えはラベルとヒントが状態で変わる") func zoomToggle() {
+        #expect(MinesweeperAccessibility.zoomToggleLabel(isZoomed: true) == "盤全体を表示")
+        #expect(MinesweeperAccessibility.zoomToggleLabel(isZoomed: false) == "盤を拡大")
+        #expect(MinesweeperAccessibility.zoomToggleHint(isZoomed: true) == "等倍に戻して盤全体を画面に収めます")
+        #expect(MinesweeperAccessibility.zoomToggleHint(isZoomed: false)
+                == "マスを大きくして指で押しやすくします。はみ出した部分は縦横にスクロールします")
+    }
+
     @Test("実行できない操作はヒントで案内しない") func hintSuppressedWhenUnavailable() {
         // 開き済みのマス: 開けないし旗も置けない
         #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: false, canToggleFlag: false,

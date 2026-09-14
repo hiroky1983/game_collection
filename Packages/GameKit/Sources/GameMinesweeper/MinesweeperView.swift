@@ -5,7 +5,6 @@ public struct MinesweeperView: View {
     @State private var model: MinesweeperModel
     private let services: GameServices
     @State private var showNewGame = true
-    @State private var flagMode = false
     @State private var zoomMode = false
     @State private var showContinue = false
     @State private var showConfirmNewGame = false
@@ -49,8 +48,8 @@ public struct MinesweeperView: View {
         .howToPlay(.minesweeper)
         .sheet(isPresented: $showNewGame) {
             MinesweeperNewGameSheet { rows, cols, mines in
+                // 旗モードは `newGame` がオフに戻す（#761）。
                 model.newGame(rows: rows, cols: cols, mines: mines)
-                flagMode = false
                 zoomMode = false
                 showContinue = false
                 showNewGame = false
@@ -207,7 +206,6 @@ public struct MinesweeperView: View {
                                       levelLabels: levels.map(\.label)) { level in
             let next = levels[level]
             model.newGame(rows: next.rows, cols: next.cols, mines: next.mines)
-            flagMode = false
             zoomMode = false
             showContinue = false
         }
@@ -287,15 +285,18 @@ public struct MinesweeperView: View {
                 // 文字ラベルも麻雀ソリティアと同じく付ける（会長 QA 2026-09-13「同じ見た目になっていない」。
                 // #641 では寸法だけ揃えて文字は見送っていた）。幅は iPhone SE でも足りる（両方に文字を
                 // 付けても帯の余りは 49.5pt 残る・#641 で実測）。旗は 2 状態の言い分けが無いので「旗」固定。
+                //
+                // 読み上げ文は `MinesweeperAccessibility` に置く（#761）。旗はマスのタップ結果を
+                // 左右するので状態込み（オン/オフ）で読み、拡大はフリーセルと同じくヒントも状態で切り替える。
                 BoardToggleButton(
-                    isOn: flagMode,
+                    isOn: model.flagMode,
                     systemImage: "flag.fill",
                     title: "旗",
                     fill: Theme.Fill.coral,
                     accent: Theme.coral,
-                    label: flagMode ? "旗を立てるのをやめる" : "旗を立てるモードにする"
+                    label: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
                 ) {
-                    flagMode.toggle()
+                    model.toggleFlagMode()
                 }
                 BoardToggleButton(
                     isOn: zoomMode,
@@ -303,10 +304,11 @@ public struct MinesweeperView: View {
                     title: zoomMode ? "全体" : "拡大",
                     fill: Theme.Fill.teal,
                     accent: Theme.teal,
-                    label: zoomMode ? "盤面全体を表示" : "マスを大きくする"
+                    label: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode)
                 ) {
                     zoomMode.toggle()
                 }
+                .accessibilityHint(MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode))
             }
             .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -409,7 +411,7 @@ public struct MinesweeperView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            if flagMode {
+            if model.flagMode {
                 model.toggleFlag(row: row, col: col)
             } else {
                 model.tap(row: row, col: col)
@@ -425,14 +427,14 @@ public struct MinesweeperView: View {
             row: row, col: col, cell: cell, isHit: isHit, gameOver: model.gameOver
         ))
         .accessibilityHint(MinesweeperAccessibility.cellHint(
-            flagMode: flagMode,
+            flagMode: model.flagMode,
             canReveal: model.canReveal(row: row, col: col),
             canToggleFlag: model.canToggleFlag(row: row, col: col),
             canChord: model.canChord(row: row, col: col)
         ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
-            if flagMode {
+            if model.flagMode {
                 model.toggleFlag(row: row, col: col)
             } else {
                 model.tap(row: row, col: col)
@@ -441,7 +443,7 @@ public struct MinesweeperView: View {
         // 旗モードでないときの近道。実際に旗を置けるマスにだけ出す
         // （出しても何も起きない操作を VoiceOver に読み上げさせない）。
         .accessibilityActions {
-            if !flagMode, model.canToggleFlag(row: row, col: col) {
+            if !model.flagMode, model.canToggleFlag(row: row, col: col) {
                 Button("旗を切り替える") { model.toggleFlag(row: row, col: col) }
             }
         }

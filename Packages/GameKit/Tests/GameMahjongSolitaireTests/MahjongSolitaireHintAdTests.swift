@@ -89,6 +89,41 @@ struct MahjongSolitaireHintGateTests {
     }
 }
 
+// MARK: - 局ガード（広告のあいだに配り直された盤面へ乗せない・#815）
+
+@Suite("麻雀ソリティアのヒント・並べ替えは広告を出す前の盤面にだけ乗る（#815）")
+@MainActor
+struct MahjongSolitaireRewardDealGuardTests {
+
+    @Test("広告のあいだに配り直したら、前の盤面のヒントは新しい盤面で光らず回数も減らない")
+    func hintForReplacedDealIsRejected() {
+        let model = MahjongSolitaireModel(services: makeServices(), seed: 21)
+        let deal = model.dealSerial
+        model.newGame()
+        #expect(model.canHint, "前提: 新しい盤面にも取れる組がある（状態の確認だけでは弾けない形）")
+
+        #expect(!model.showHint(forDeal: deal), "配り直された盤面へヒントを出している")
+        #expect(model.hintPair.isEmpty)
+        #expect(model.hintCount == 0)
+        #expect(model.showHint(forDeal: model.dealSerial), "今の盤面に対する広告なら出せる")
+        #expect(model.hintCount == 1)
+    }
+
+    @Test("広告のあいだに配り直したら、前の盤面の並べ替えは新しい盤面を並べ替えない")
+    func shuffleForReplacedDealIsRejected() {
+        let model = MahjongSolitaireModel(services: makeServices(), seed: 21)
+        let deal = model.dealSerial
+        model.giveUpAndRestart()
+        let dealtFaces = model.faces
+
+        #expect(!model.shuffleRemaining(forDeal: deal), "配り直された盤面を並べ替えている")
+        #expect(model.faces == dealtFaces)
+        #expect(model.shuffleCount == 0)
+        #expect(model.shuffleRemaining(forDeal: model.dealSerial), "今の盤面に対する広告なら並べ替えられる")
+        #expect(model.shuffleCount == 1)
+    }
+}
+
 // MARK: - View 側の契約（ヒントが広告視聴後にのみ発動する）
 
 /// ヒントの発動経路がリワード広告を経ていることを、View のソースを読んで確かめる（#336）。
@@ -122,12 +157,13 @@ struct MahjongSolitaireHintAdContractTests {
 
     private enum HintContractError: Error { case functionNotFound(String) }
 
-    @Test("model.showHint() を呼ぶのは requestHint() の中だけ（ボタンから直接は呼ばない）")
+    @Test("model.showHint を呼ぶのは requestHint() の中だけ（ボタンから直接は呼ばない）")
     func hintIsOnlyTriggeredFromRequestHint() throws {
         let source = try Self.viewSource()
-        let total = Self.occurrences(of: "model.showHint()", in: source)
+        // `(` までで数え、控えた盤面を渡す `showHint(forDeal:)`（#815）も素の `showHint()` も拾う。
+        let total = Self.occurrences(of: "model.showHint(", in: source)
         let inRequestHint = Self.occurrences(
-            of: "model.showHint()", in: try Self.functionBody("requestHint", in: source)
+            of: "model.showHint(", in: try Self.functionBody("requestHint", in: source)
         )
         #expect(total == 1, "showHint() の呼び出しが \(total) 箇所ある。広告を経ない経路が増えていないか確認する")
         #expect(inRequestHint == 1, "requestHint() の中から showHint() が呼ばれていない")
@@ -147,7 +183,7 @@ struct MahjongSolitaireHintAdContractTests {
                 "局ガードを宣言していない（視聴中に手詰まりになった盤面へヒントが乗る）")
         // 視聴未完了・出せなかったときのアラートは共通 modifier が持つ。
         #expect(source.contains(#"notEarned: "ヒントを表示できませんでした""#), "視聴未完了のときのアラートが無い")
-        #expect(source.contains(#"title: "取れる組がありません""#), "広告を見たのに出せなかったときのアラートが無い")
+        #expect(source.contains(#"title: "ヒントを出せませんでした""#), "広告を見たのに出せなかったときのアラートが無い")
     }
 
     @Test("ヒントボタンは確認ダイアログを開くだけで、押した直後に広告を出さない")
