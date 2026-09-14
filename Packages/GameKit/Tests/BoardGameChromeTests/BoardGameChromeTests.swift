@@ -67,6 +67,8 @@ struct BoardGameControlCapsuleStyleTests {
 
     /// 枠が 44pt になっても、操作列の余白を詰めて外寸を据え置く（盤の大きさを変えない・#148）。
     /// 比べる相手は #711 以前の操作列（手書きのカプセル + 上下 8pt）。
+    /// **一致するのはこの描画（macOS）のフォントの高さでの話**。iPhone SE のスクショでは従来のカプセルが 28.5pt で、
+    /// 操作カードは 44.5pt → 46pt と下端が 1.5pt 伸びる（#711 実測。上端と盤の位置は変わらない）。
     @Test("操作列の外寸は従来と同じ")
     func rowHeightMatchesLegacyRow() throws {
         let legacy = try Self.render(

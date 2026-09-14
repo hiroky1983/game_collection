@@ -124,9 +124,10 @@ public enum BoardGameControlMetrics {
     public static let minTapTarget: CGFloat = 44
     /// このボタンを並べた操作列の上下の余白。
     ///
-    /// ボタンの枠が 44pt になったぶん、従来の余白 8pt を詰めて**操作列の外寸を据え置く**
-    /// （既定の文字サイズで、従来のカプセル 30pt + 8pt × 2 = 46pt = 44pt + 1pt × 2）。
-    /// 操作列が高くなると、そのぶん盤が縮む（#148）。
+    /// ボタンの枠が 44pt になったぶん、従来の余白 8pt を詰めて**操作列の外寸をほぼ据え置く**
+    /// （既定の文字サイズで 44pt + 1pt × 2 = 46pt。従来のカプセルは macOS の描画で 30pt なので 30 + 8 × 2 = 46pt で一致、
+    /// iPhone SE のスクショでは 28.5pt で従来の操作カードが 44.5pt だったため、iOS では下端が 1.5pt 伸びる・#711 実測）。
+    /// 盤の大きさは `GameControlArea` が終局後のひな形（既定で 118pt）で決めるので、この差では変わらない（#148）。
     public static let rowVerticalPadding: CGFloat = 1
 }
 
