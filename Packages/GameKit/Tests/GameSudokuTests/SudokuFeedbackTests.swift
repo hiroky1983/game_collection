@@ -250,6 +250,36 @@ struct SudokuFeedbackTests {
         }
         #expect(model.isDigitExhausted(digit))
     }
+
+    @Test("誤答の同じ数字は使い切りに数えず、消せば戻り、9 個目の正解で初めて使い切りになる（#813）")
+    func wrongEntryDoesNotExhaustDigit() async throws {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let emptyCount = { (digit: Int) in
+            (0..<SudokuEngine.cellCount).filter { model.board[$0] == 0 && model.solution[$0] == digit }.count
+        }
+        let digit = try #require((1...SudokuEngine.size).max { emptyCount($0) < emptyCount($1) })
+        let targets = (0..<SudokuEngine.cellCount).filter { model.board[$0] == 0 && model.solution[$0] == digit }
+        let last = try #require(targets.last)
+        for index in targets.dropLast() { place(model, digit, at: index) }
+        #expect(!model.isDigitExhausted(digit))
+
+        // 正解 8 個＋別のマスに誤答 1 個で、盤上のこの数字は 9 個になる。
+        let wrongCell = try #require((0..<SudokuEngine.cellCount).first {
+            model.board[$0] == 0 && model.solution[$0] != digit
+        })
+        place(model, digit, at: wrongCell)
+        #expect(model.state == .playing)
+        #expect(model.board.filter { $0 == digit }.count == SudokuEngine.size)
+        #expect(!model.isDigitExhausted(digit))
+
+        model.erase()
+        #expect(model.board[wrongCell] == 0)
+        #expect(!model.isDigitExhausted(digit))
+
+        place(model, digit, at: last)
+        #expect(model.isDigitExhausted(digit))
+    }
 }
 
 @Suite("数独のユニット（行・列・ブロックの通し番号 #666）")
