@@ -188,7 +188,7 @@ git -C "$AUDIT_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 |
 # 3 日後の掃除を待たずにその回のうちに片付ける。ロックの解放より先に行う。消せなかった回は起動時の
 # 3 日掃除に任せ、ログに残す。
 cleanup_run() {
-  git -C "$AUDIT_DIR" worktree remove --force "$RUN_DIR" >>"$LOG" 2>&1 || log "worktree の削除に失敗: $RUN_DIR（起動時の掃除で回収）"
+  git -C "$AUDIT_DIR" worktree remove --force "$RUN_DIR" >>"$LOG" 2>&1 || log "worktree の削除に失敗: ${RUN_DIR}（起動時の掃除で回収）"
   git -C "$AUDIT_DIR" worktree prune >>"$LOG" 2>&1
   release_lock
 }
@@ -263,7 +263,7 @@ PROBE
     case "$probe" in
       *DUTY-SHIM-LEAK*)
         rm -f "$stub" "$json"
-        log "入力フィルタ: 第三者の本文が素通しした（gh $args）"
+        log "入力フィルタ: 第三者の本文が素通しした（gh ${args}）"
         return 1 ;;
     esac
   done
@@ -314,7 +314,7 @@ PATH="$GH_SHIM_DIR:$PATH" claude --model "${AUDIT_MODEL:-fable}" \
   --allowedTools "Bash,Read,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-audit-prompt.md")
 
-（今回の監査対象）$SINCE 〜 $NOW（UTC）にマージされた PR ${PR_COUNT} 本:
+（今回の監査対象）${SINCE} 〜 ${NOW}（UTC）にマージされた PR ${PR_COUNT} 本:
 $MERGED_PRS" >>"$LOG" 2>&1
 RC=$?
 # 正常終了したときだけ窓を進める（異常終了した回の PR は次回もう一度対象にする）

@@ -71,7 +71,9 @@ check "PID を奪う版を生成できた" "1" "$(grep -c "^echo $DEAD_PID >\"\$
 check "確認後に PID を奪う版を生成できた" "1" "$(grep -c "^echo $DEAD_PID >\"\$PID_FILE\"$" "$E2E_STOLEN_LATE")"
 check "ロックを消しておく版を生成できた" "1" "$(grep -c '^rmdir "\$LOCK_DIR"$' "$E2E_VANISHED")"
 check "release_lock が EXIT トラップから呼ばれる" "1" "$(grep -c '^trap .*release_lock.* EXIT$' "$TARGET")"
-check "cleanup_simulators / notify_pending は所有権と無関係に走る" "1" "$(grep -c '^trap .cleanup_simulators; notify_pending; release_lock. EXIT$' "$TARGET")"
+# 行の完全一致にすると後片付けを1つ足すたびに落ちる（#762: cleanup_worktree の追加で実際に落ちていた）。
+# 見たいのは「後片付けと通知が release_lock より前に並び、所有権の確認を経ずに走る」ことだけ
+check "cleanup_simulators / notify_pending は所有権と無関係に走る" "1" "$(grep -c '^trap .cleanup_simulators;.* notify_pending; release_lock. EXIT$' "$TARGET")"
 # 所有権の確認を回収経路だけに絞ると二重当選が実在する（新規取得したプロセスのロックが、
 # 回収経路のプロセスの `rm -rf` で消される経路。テスト6-b で挙動として押さえる）
 check "所有権の確認が経路で条件分岐していない" "0" "$(grep -c 'RECLAIMED' "$TARGET")"
@@ -82,6 +84,14 @@ run "$E2E"
 check "終了コード 0" "0" "$?"
 check "終了時にロックが解放される" "no" "$(lock_exists)"
 check "スキップのログは出ない" "0" "$(logged 'のためスキップ')"
+
+echo "== 1-b. 呼び出し元の DUTY_SCRATCH_DIR を後片付けで消さない（#762）=="
+# 当番セッションの中でこのテストを回すと、環境変数が引き継がれ、実行中の当番の scratch が消えていた
+reset
+INHERITED_SCRATCH="$TEST_HOME/inherited-scratch"
+mkdir -p "$INHERITED_SCRATCH"
+run "$E2E" DUTY_SCRATCH_DIR="$INHERITED_SCRATCH"
+check "引き継いだ scratch は残る" "yes" "$(if [ -d "$INHERITED_SCRATCH" ]; then echo yes; else echo no; fi)"
 
 echo "== 2. 実行中はスキップ（生きた PID のロックは奪わない）=="
 reset
