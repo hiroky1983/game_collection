@@ -2,6 +2,7 @@ import Testing
 import Core
 import CoreGraphics
 import Foundation
+import GameKitTestSupport
 @testable import GameSudoku
 
 /// タップ標的（#262 の受け入れ条件「数字パッド・グリッドセルとも 44pt 以上」）を、
@@ -107,12 +108,7 @@ struct SudokuMetricsTests {
     }
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameSudokuTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameSudoku/SudokuView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/GameSudoku/SudokuView.swift")
     }
 }
 

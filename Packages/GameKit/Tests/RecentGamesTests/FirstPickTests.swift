@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 @testable import Core
 
 /// 記録がゼロの初回だけ出す「はじめの1本」（#721）。カードは App ターゲットにあるので、
@@ -67,7 +68,7 @@ struct FirstPickTests {
 }
 
 /// 「はじめの1本」の**結線**（#721）。カードは App ターゲットにあるため、ソースを走査して固定する
-/// （読み口は `HubRecentRowWiringTests.appSources()` と同じ `App/` 一式・行コメント除去済み）。
+/// （読み口は `SourceScan.appSources()` の `App/` 一式・行コメント除去済み）。
 @Suite("はじめの1本の結線")
 struct FirstPickWiringTests {
     /// アニメーションを付ける書き方。どれか1つでも入ると Reduce Motion 下で位置が動きうる。
@@ -82,7 +83,7 @@ struct FirstPickWiringTests {
 
     @Test("出す条件は Core の規則（FirstPick）に、記録・表示中の並び・行の有無を渡して決めている")
     func conditionComesFromCore() throws {
-        let body = try Self.hubViewBody(HubRecentRowWiringTests.appSources())
+        let body = try Self.hubViewBody(SourceScan.appSources())
         #expect(
             body.range(
                 of: #"if let pick = FirstPick\.gameID\(\s*playedGameIDs: services\.playLog\?\.playedGameIDs,\s*visibleGameIDs: settings\.visibleModules\(from: registry\)\.map\(\\\.id\),\s*showsRecentRow: !recent\.isEmpty\s*\)"#,
@@ -94,7 +95,7 @@ struct FirstPickWiringTests {
 
     @Test("カードはグリッドと同じ NavigationLink(value:) で、導線 first_pick として遷移する")
     func cardUsesNavigationLinkWithFirstPickSource() throws {
-        let body = try Self.hubViewBody(HubRecentRowWiringTests.appSources())
+        let body = try Self.hubViewBody(SourceScan.appSources())
         #expect(
             body.range(
                 of: #"NavigationLink\(value: HubRoute\(\s*gameID: pick, source: \.firstPick, position: nil,\s*resume: [^\n]*\n\s*\)\) \{\s*HubFirstPickCard\("#,
@@ -106,7 +107,7 @@ struct FirstPickWiringTests {
 
     @Test("カードはグリッドのスクロール領域の外（上）に置く")
     func cardIsOutsideGridScrollView() throws {
-        let body = try Self.hubViewBody(HubRecentRowWiringTests.appSources())
+        let body = try Self.hubViewBody(SourceScan.appSources())
         let card = try #require(body.range(of: "HubFirstPickCard("), "はじめの1本がハブに置かれていない")
         let grid = try #require(body.range(of: "ScrollView {"), "グリッドの ScrollView が見つからない")
         #expect(card.lowerBound < grid.lowerBound,
@@ -115,7 +116,7 @@ struct FirstPickWiringTests {
 
     @Test("カードの出し入れにも中身にもアニメーションを付けない（Reduce Motion 下で位置が変わらない）")
     func noMotionOnCard() throws {
-        let source = try HubRecentRowWiringTests.appSources()
+        let source = try SourceScan.appSources()
         let body = try Self.hubViewBody(source)
         let wiringStart = try #require(body.range(of: "if let pick = FirstPick.gameID("))
         let wiringEnd = try #require(body.range(of: "ScrollView {", range: wiringStart.upperBound..<body.endIndex))
