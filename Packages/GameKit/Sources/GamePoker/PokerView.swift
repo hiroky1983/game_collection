@@ -361,6 +361,18 @@ public struct PokerView: View {
                                 model.toggleCardSelection(card)
                             }
                         }
+                        // カードは `onTapGesture` で組んでいるため、ボタン trait も読み上げ文も
+                        // 自動では付かない（#710。大富豪の #188 と同じ形）。
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            PokerAccessibility.handCardLabel(card: card, isSelected: isSelected, phase: model.phase)
+                        )
+                        .accessibilityHint(PokerAccessibility.handCardHint(phase: model.phase))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { model.toggleCardSelection(card) }
+                        // 交換フェーズ以外では `toggleCardSelection` が何もしないので、
+                        // 操作可能として案内しない（描画は素の図形なので見た目は変わらない）。
+                        .disabled(!PokerAccessibility.acceptsSelection(phase: model.phase))
                         .offset(y: isSelected ? 10 : 0)
                         .gameAnimation(PokerMotion.handSelection, value: isSelected)
                 }
