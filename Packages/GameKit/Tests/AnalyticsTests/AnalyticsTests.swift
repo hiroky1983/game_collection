@@ -229,9 +229,9 @@ struct AnalyticsEventShapeTests {
                 "受け入れ条件どおり3鍵のみ。スコアや端末識別子の鍵は存在しない")
 
         // `mode`（#783）: 付けたときだけ鍵が出る。開始と終わりで同じ値
-        let moded = AnalyticsEvent.gameStart(gameID: "mahjong4", mode: "single_hand")
+        let moded = AnalyticsEvent.gameStart(gameID: "mahjong4", mode: .singleHand)
         #expect(moded.parameters == ["game_id": .string("mahjong4"), "mode": .string("single_hand")])
-        let modedEnd = AnalyticsEvent.gameEnd(gameID: "mahjong4", result: .loss, durationSec: 90, mode: "tonpuu")
+        let modedEnd = AnalyticsEvent.gameEnd(gameID: "mahjong4", result: .loss, durationSec: 90, mode: .tonpuu)
         #expect(modedEnd.parameters["mode"] == .string("tonpuu"))
         #expect(Set(modedEnd.parameters.keys) == ["game_id", "result", "duration_sec", "mode"])
 
@@ -256,6 +256,21 @@ struct AnalyticsEventShapeTests {
 
         // 決着の3値は `GameOutcome` からの写像だけで作られ、`quit` は決着から作れない。
         #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
+    }
+
+    @Test("mode は tonpuu / single_hand / stage / endless の4値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
+    func modeIsClosed() {
+        #expect(AnalyticsMode.allCases.map(\.rawValue) == ["tonpuu", "single_hand", "stage", "endless"])
+        // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
+        for mode in AnalyticsMode.allCases {
+            #expect(AnalyticsEvent.gameStart(gameID: "runner", mode: mode).parameters["mode"] == .string(mode.rawValue))
+            #expect(AnalyticsEvent.gameEnd(gameID: "runner", result: .win, durationSec: 0, mode: mode)
+                .parameters["mode"] == .string(mode.rawValue))
+        }
+        // 遊び方を持つゲームの型から写した値の集合 = 全量。使われない値を定義していない。
+        let used = MahjongGameLength.allCases.map(\.analyticsMode) + RunnerMode.allCases.map(\.analyticsMode)
+        #expect(used.count == Set(used).count, "別のゲームの遊び方が同じ値に潰れている")
+        #expect(Set(used) == Set(AnalyticsMode.allCases))
     }
 
     @Test("purpose の全量は7種で、reward_ad 以外には載らない（#500）")

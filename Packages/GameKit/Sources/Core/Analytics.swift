@@ -107,6 +107,22 @@ public enum AnalyticsLevel: Equatable, Sendable {
     }
 }
 
+/// `game_start` / `game_end` の `mode`。1 回の**遊び方**の区分（#783・#820）。
+///
+/// `level`（難易度・段階）とは別の軸で、同じゲームの中で 1 回の長さや終わり方が変わる遊び方を分ける。
+/// ゲームごとの型（`MahjongGameLength` / `RunnerMode`）はそれぞれの `analyticsMode` でここへ写す
+/// （Core は個々のゲームの型を知らない）。遊び方を選べないゲームは `nil` で、`mode` の鍵ごと送らない。
+public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
+    /// 四人打ち麻雀の東風戦。
+    case tonpuu
+    /// 四人打ち麻雀の一局戦（v1.1.5）。1 対局が 1 局なので `game_start` が機械的に増える。
+    case singleHand = "single_hand"
+    /// チャリンコおじさんのステージ制。面番号は `level` の `stage-N` が持つ。
+    case stage
+    /// チャリンコおじさんのエンドレス。面が無いので `level` を送らない。
+    case endless
+}
+
 /// `game_open` の `source`。ゲーム画面へ**どこから入ったか**（#659）。
 ///
 /// ハブの中の導線を面ごとに読むための分類で、ゲーム名は含めない（それは `game_id` が持つ）。
@@ -139,12 +155,12 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
 /// 追加する余地が無い。イベントを増やすにはこの enum にケースを足す = 意図的な変更が要る。
 public enum AnalyticsEvent: Equatable, Sendable {
     /// 1プレイの開始。パラメータは `game_id` と、難易度を持つゲームだけ `level`、
-    /// 1 回の長さが選べるゲームだけ `mode`（#783。四人打ち麻雀の東風戦／一局戦）。
-    case gameStart(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil)
+    /// 遊び方を選べるゲームだけ `mode`（#783・#820。値の全量は `AnalyticsMode`）。
+    case gameStart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil)
     /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` と、開始時に `mode` を
     /// 付けたプレイだけ `mode`（開始と終わりを同じ鍵で突き合わせるため）。
     /// 決着（win / loss / draw）と途中離脱（quit）の両方がこのイベントで出る。
-    case gameEnd(gameID: String, result: AnalyticsResult, durationSec: Int, mode: String? = nil)
+    case gameEnd(gameID: String, result: AnalyticsResult, durationSec: Int, mode: AnalyticsMode? = nil)
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
     /// リワード広告の**要求**（タップ）。視聴できたかどうかに関係なく1回出る（#659）。
@@ -177,7 +193,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
             // 難易度を持たないゲームでは鍵ごと送らない（GA4 で "none" のような
             // 実在しない段階を作らないため）。`mode` も同じ扱い。
             if let level { parameters["level"] = .string(level.parameterValue) }
-            if let mode { parameters["mode"] = .string(mode) }
+            if let mode { parameters["mode"] = .string(mode.rawValue) }
             return parameters
         case let .gameEnd(gameID, result, durationSec, mode):
             var parameters: [String: AnalyticsValue] = [
@@ -187,7 +203,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 "result": .string(result.rawValue),
                 "duration_sec": .int(durationSec),
             ]
-            if let mode { parameters["mode"] = .string(mode) }
+            if let mode { parameters["mode"] = .string(mode.rawValue) }
             return parameters
         case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
@@ -264,7 +280,7 @@ public final class GameAnalytics {
     private var plays: [String: PlayState] = [:]
     /// 進行中のプレイの `mode`（#783）。開始で覚え、終わりの `game_end` に同じ値を載せる。
     /// `mode` を持たないゲームは鍵が無い。
-    private var modes: [String: String] = [:]
+    private var modes: [String: AnalyticsMode] = [:]
 
     public init(
         service: AnalyticsService,
@@ -281,7 +297,7 @@ public final class GameAnalytics {
     /// SwiftUI は親の再描画のたびに `State(initialValue:)` の式を評価するため、Model の
     /// `init` は1回の表示で何度も走りうる。ここで冪等にしておくことで、再描画・
     /// バックグラウンド復帰で `game_start` が増えない。
-    public func startPlay(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
+    public func startPlay(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
         guard allowedGameIDs.contains(gameID), plays[gameID] == nil else { return }
         beginPlay(gameID: gameID, level: level, mode: mode)
     }
@@ -292,7 +308,7 @@ public final class GameAnalytics {
     /// - Note: 前のプレイが未決着で、かつ**1手でも指していた**場合は、始め直す前に
     ///   `game_end`（`result = quit`）を送る（#500）。1手も指していない配り直しは
     ///   捨てた盤面が無いので送らない（ソリティア #397 の敗北記録と同じ境目）。
-    public func restartPlay(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
+    public func restartPlay(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
         guard allowedGameIDs.contains(gameID) else { return }
         endPlayAsQuitIfProgressed(gameID: gameID)
         beginPlay(gameID: gameID, level: level, mode: mode)
@@ -405,7 +421,7 @@ public final class GameAnalytics {
         service.log(.gameEnd(gameID: gameID, result: result, durationSec: seconds, mode: modes[gameID]))
     }
 
-    private func beginPlay(gameID: String, level: AnalyticsLevel?, mode: String?) {
+    private func beginPlay(gameID: String, level: AnalyticsLevel?, mode: AnalyticsMode?) {
         plays[gameID] = .inFlight(startedAt: now(), didProgress: false, canResume: true)
         modes[gameID] = mode
         service.log(.gameStart(gameID: gameID, level: level, mode: mode))
