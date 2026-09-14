@@ -83,6 +83,15 @@ struct HubView: View {
         )
     }
 
+    /// 更新で増えたゲームのうち、まだ開いていないもの（#723）。起動して最初にハブを組み立てた時点で決まり、
+    /// 開いたゲームから外していく。保存はしない（次の起動では `PlayLog` が「既知」として返さない）。
+    @State private var newGameIDs: Set<String>
+
+    /// NEW 印と1行の対象。非表示にしたゲームは数えない。
+    private var visibleNewGameIDs: Set<String> {
+        newGameIDs.intersection(settings.visibleModules(from: registry).map(\.id))
+    }
+
     /// 差し色を引くための、ハブの並びのなかでの位置。グリッドのカードは `enumerated()` の
     /// index で色を引くので、行側も同じ index を使わないと同じゲームが2か所で違う色になる。
     private var paletteIndexByGame: [String: Int] {
@@ -117,11 +126,22 @@ struct HubView: View {
             [HubRoute(gameID: $0, source: .hub, position: nil, resume: services.snapshots.exists(for: $0))]
         } ?? [])
         _showSettings = State(initialValue: showsSettingsInitially)
+        // `init` は描き直しのたびに走るが、`PlayLog` が起動中は同じ値を返すので保存は1回きり。
+        _newGameIDs = State(initialValue: services.playLog?.newGameIDs(
+            registeredIDs: registry.modules.map(\.id)
+        ) ?? [])
     }
 
     var body: some View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
+                // 更新で増えたゲームがあるときだけ、その回の起動で1行出す（#723）。数え方は `NewGames` が持つ。
+                // 置き場所は「つづき・最近」と同じくスクロール領域の外（#485）。
+                if let notice = NewGames.notice(count: visibleNewGameIDs.count) {
+                    HubNewGamesNotice(message: notice)
+                        .padding(.horizontal, Theme.pad)
+                        .padding(.top, Theme.pad)
+                }
                 // 中断・記録ともゼロなら**行ごと出さない**（#660）。`RecommendationSlot` が
                 // 「決着前は何も描かない」のと同じ流儀で、初回ユーザーのハブは
                 // 1pt も動かない。
@@ -167,6 +187,7 @@ struct HubView: View {
                                     accent: Theme.palette[index % Theme.palette.count],
                                     accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
                                     hasResume: hasResume,
+                                    isNew: newGameIDs.contains(module.id),
                                     record: services.playLog?.summaryLine(gameID: module.id),
                                     minHeight: cardMinHeight
                                 )
@@ -266,6 +287,8 @@ struct HubView: View {
                         gameID: opened.gameID, source: opened.source,
                         position: opened.position, resume: opened.resume
                     )
+                    // 開いたゲームは「見た」ので NEW 印を外す（#723）。導線を問わずここ1か所で外す。
+                    newGameIDs.remove(opened.gameID)
                     // 先読みしたリワード広告が失効・未取得なら、ゲームを開いたこの時点で読み直す（#658）。
                     // 救済の広告はゲーム画面の中でしか出ないので、ここで読んでおけばタップに間に合う。
                     (services.ads as? AdMobAdService)?.preloadRewardedAd()
@@ -410,6 +433,8 @@ private struct GameCard: View {
     /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
     let accentFill: Color
     let hasResume: Bool
+    /// 更新で増えたゲームか（#723）。「続きから」と同じ位置に NEW を出す（両方のときは「続きから」を優先）。
+    let isNew: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
     /// iPad で縦を使い切るための最小の高さ（#485）。iPhone では nil ＝中身が決める高さのまま。
@@ -437,6 +462,15 @@ private struct GameCard: View {
 
                 if hasResume {
                     Text("続きから")
+                        .themeCaption(layout.scaled(11))
+                        .foregroundStyle(accent)
+                        .padding(.horizontal, layout.scaled(8))
+                        .padding(.vertical, layout.scaled(3))
+                        .background(Capsule().fill(accent.opacity(0.15)))
+                        .fixedSize()
+                } else if isNew {
+                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
+                    Text("NEW")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
@@ -481,7 +515,27 @@ private struct GameCard: View {
     private var accessibilityLabel: String {
         var parts = [module.title, record ?? module.description]
         if hasResume { parts.append("続きから") }
+        if isNew { parts.append("新着") }
         return parts.joined(separator: "、")
+    }
+}
+
+/// 更新で増えたゲームがあるときだけハブ上部に出す1行（#723）。
+///
+/// 閉じるボタンは置かない。この起動のあいだだけ出て、次の起動では `PlayLog` が同じゲームを
+/// 「増えた」と返さないので自然に消える。
+private struct HubNewGamesNotice: View {
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "sparkles")
+            .themeCaption(13)
+            .foregroundStyle(Theme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.pad)
+            .padding(.vertical, 10)
+            .popCard(corner: Theme.cornerSmall)
+            .accessibilityElement(children: .combine)
     }
 }
 
