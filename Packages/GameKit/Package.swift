@@ -90,7 +90,8 @@ let package = Package(
         // 2048 を並べて、宣言が規則に届いていることまで確かめる。終局後も見返しを保存する将棋・
         // チェスは、決着済みの局に予約しないことを Model を通して確かめる。
         .testTarget(name: "ResumeReminderTests", dependencies: [
-            "Core", "Game2048", "GameRunner", "GameShogi", "GameChess",
+            "Core", "Game2048", "GameRunner", "GameShogi", "GameChess", "GameMahjong",
+            "MahjongTiles",
         ]),
         // 盤ゲーム（将棋・チェス）の共通の枠（#530）。値も重なり順も「両方で同じ」であることが
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
