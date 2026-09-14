@@ -301,6 +301,12 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
   3. 同時に起動するシミュレータは全体で2台まで。起動前に台数を数え、2台あれば起動しない。
   4. ローカルでフルテストを回さない。`swift test` は触ったターゲットの `--filter` 付きだけ。全体は CI に
      任せ、`gh pr checks --watch` で見届ける。
+  5. アプリのビルドの派生データは 1 か所を使い回す（会長指示 2026-09-14）。当番は `ai-duty.sh` が渡す
+     `$DUTY_DERIVED_DATA`（`~/.asobiba-duty/derived-data`。比較用は `-base` の 1 個だけ）、社長は
+     scratchpad の 1 か所。撮影物・ビルドログ・一時スクリプトは当番なら `$DUTY_SCRATCH_DIR`（実行ごとに
+     `ai-duty.sh` が消す）、社長なら scratchpad。**/tmp に作らない**（2026-09-14 に `/tmp/dd-<issue>` 等が
+     125 個・約 150GB 残っていたのを社長が消した）。`ai-duty.sh` は起動時に 14 日使われていない派生データ、
+     前回の scratch、/tmp に残った派生データ（1 日以上前）を消す。
 
 1. 人間が Issue に `ai:approved` を付ける（= ハンコ。これだけでよい）。
 2. launchd が3分ごとに `Scripts/ai-duty.sh` を実行。承認済み未着手 Issue・未解決 CodeRabbit スレッド・
