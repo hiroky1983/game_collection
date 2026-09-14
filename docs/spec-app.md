@@ -109,8 +109,24 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
   次の起動では出ない。判定は `Core/NewGames.swift`、保存は `PlayLog` の1キー（`playLog_knownGameIDs_v1` = 前回ハブを出した
   時点の登録ゲーム ID の配列。端末内の `UserDefaults` のみ・上限は登録ゲーム数・「プレイ記録を消去」で消える）。
   新規インストールでは出さない（保存値もプレイの痕跡も無い端末は新規とみなす）
-- 右上: ⚙️ 設定ボタン → `SettingsView` (sheet)
+- 右上: 🏆 きろくボタン → `RecordsView` (sheet・#669。`release/v1.1.5` から。それまでは Game Center を直接開いていた・#334) /
+  ⚙️ 設定ボタン → `SettingsView` (sheet)
 - 下部: AdMob バナー
+
+---
+
+## きろく画面 (RecordsView)
+
+#669。`release/v1.1.5` から。ハブのトロフィーから開く Sheet。Game Center 未サインインでも見られる。
+
+- 上から「全部あそぶ N/登録ゲーム数」の進捗バーと「遊んだ種類・通算勝利・最高連勝」、節目、あそびごとの一覧、
+  「Game Center で実績・ランキングを見る」ボタン
+- 節目: Game Center の実績 4 個（`GameCenterAchievements`）と同じ定義・同じ式。一覧の各行にはゲームごとの
+  「初勝利（勝敗以外は初クリア）」「10回あそんだ」を添える
+- 一覧は設定シートと同じ並びで、非表示にしたゲームも載せる。未プレイは「まだ遊んでいない」
+- 数字・文言・読み上げは `Core/RecordsSummary.swift`（純粋関数）が `PlayLog` の既存の値から開くたびに組み立てる。
+  **保存項目は増やさない**ため、「プレイ記録を消去」のあとは全部が未プレイに戻る
+- Game Center ボタンはシートを閉じ切ってからハブの `openGameCenter()` を呼ぶ（未サインインの案内もハブ側）
 
 ---
 
