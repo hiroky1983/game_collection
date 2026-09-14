@@ -465,8 +465,11 @@ const comingSoonSentence = "通信不要・登録不要、無料の iPhone ア�
 /// 配信済みの文面のまま持つので、リリース時は `comingSoon` を外すだけで元の文に戻る。
 export function pageDescription(game: Game): string {
   if (!game.comingSoon) return game.description;
+  // 末尾の言い回しが想定外だと差し替えが空振りして配信済みの文が残るので、ビルドごと止める
+  if (!releasedSentence.test(game.description)) {
+    throw new Error(`games.ts: 配信予定の ${game.slug} の description の末尾が想定外です。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
+  }
   const text = game.description.replace(releasedSentence, comingSoonSentence);
-  // 末尾の言い回しが想定外だと差し替えが空振りして「収録」が残るので、ビルドごと止める
   if (text.includes("収録")) {
     throw new Error(`games.ts: 配信予定の ${game.slug} の description が「収録」と言っています。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
   }
