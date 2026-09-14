@@ -1249,32 +1249,33 @@ public final class MahjongModel: AITurnGuarded {
     }
 
     /// リワード広告を表示し、**視聴完了したときだけ**トビ終了から復活して対局を続ける（#338）。
-    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// 視聴中断・ロード失敗時は何も変更せず `.notEarned` を返す（呼び出し側でユーザーに通知する）。
+    /// 見終えたのに適用できなかったとき（救済できる状態でない・広告のあいだに対局が入れ替わった）は
+    /// `.unavailable` を返し、視聴しなかったことと分ける（#814。ブラックジャック・ポーカーの #727 と同じ形）。
     /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり復活させる。
     ///
     /// 復活はマイナスの持ち点を初期値（25,000 点）へ戻すだけなので、点棒の合計は 100,000 点を
     /// 超える。救済措置なので合計の保存より「そのまま続けられること」を優先する。
     /// `concludeGame` でトップが回収した供託も戻さない（回収済みとして続ける）。
-    @discardableResult
-    public func reviveAfterAd() async -> Bool {
-        guard canReviveAfterBust else { return false }
+    public func reviveAfterAd() async -> RewardedModelOutcome {
+        guard canReviveAfterBust else { return .unavailable }
         let serialBeforeAd = gameSerial
         // 画面の世代（#653）。`gameSerial` は**このモデルの中**の通し番号なので、ハブへ戻って
         // 開き直し、別の `MahjongModel` が動き出した場合には何も変わらない（下のガードを
         // 素通りする）。モデルより長生きする世代で突き合わせる。
         let generationBeforeAd = services?.screenGeneration.current
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
         // ハブへ戻られていたら、この復活が乗るべき対局はもう画面に無い。適用すると、捨てられた
         // このモデルが `cancelLoss` で**いま遊んでいる対局の負け**を取り消し、`gameDidRestart` で
         // `game_start` / `game_end` の対応（#158）も崩す。
-        guard services?.screenGeneration.current == generationBeforeAd else { return false }
+        guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
         // 広告のロード〜視聴のあいだも画面は操作できる。そこで「新規対局」（#638）や
         // リザルトの「もう一度」を押されていたら、**入れ替わったあとの対局**に復活が乗る
         // （`RewardedRescue` が「#480 → #509 → #511 と 3 回続けて空いた穴」と呼んでいるもの）。
         // 乗ると、始めたばかりの対局の手牌が配り直され、正しく記録済みの前局の負けまで
         // `cancelLoss` で取り消される。通し番号で照合して、入れ替わっていたら適用しない
-        // （`requestHandledByModel` の「`perform` が false を返す形で局ガードを効かせる」契約）。
-        guard gameSerial == serialBeforeAd, canReviveAfterBust else { return false }
+        // （`.unavailable` を返して、視聴しなかったときとは別のアラートを出させる。#814）。
+        guard gameSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisGame = true
         canReviveAfterBust = false
         // 同じ半荘の続きなので、直前に記録した「負け」は無かったことにする（2048・マインスイーパーの
@@ -1299,7 +1300,7 @@ public final class MahjongModel: AITurnGuarded {
         // 対象外（勝敗しか残らない対 CPU 戦のため `GameCenterLeaderboard` に登録が無い）で、
         // 実績の進捗は勝利数と遊んだゲーム数から作られる。トビ = 負けなので勝利数は増えておらず、
         // 「麻雀を遊んだ」という事実も復活で変わらないため、巻き戻す対象がそもそも無い。
-        return true
+        return .granted
     }
 
     // MARK: - CPU
