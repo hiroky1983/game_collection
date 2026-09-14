@@ -18,8 +18,10 @@ struct RunnerStageTests {
 
     /// **1〜15 面のパターン文字列をリテラルで固定する**。
     ///
-    /// 7〜15 は #674（台座）以来 1 文字も変えていない（受け入れ条件「既存 15 ステージは
-    /// 変えない」）。1〜6 は #626（序盤の難易度調整・会長決裁 2026-09-14）で調整した値。
+    /// 7〜15 は #674（台座）以来、障害の並びを 1 文字も変えていない（受け入れ条件「既存 15
+    /// ステージは変えない」）。1〜6 は #626（序盤の難易度調整・会長決裁 2026-09-14）で調整した値。
+    /// 4〜15 面は #797 で平地 1 区画を `k`（たこ焼き）に置き換えたが、`k` は障害ではないので
+    /// 障害の並び・間隔・チェックポイント・速さは動いていない（`takoyakiDoesNotAffectClearability`）。
     /// 台座のために記号表・展開・接地判定へ手を入れた経緯があるので、コースが意図せず
     /// 書き換わっていないことをここで押さえる。ここが赤くなったら、既に遊ばれている面の
     /// ベストタイムの物差しが変わっている。
@@ -29,20 +31,23 @@ struct RunnerStageTests {
             "--1-1--1-1--",
             "--1-n--1--n--",
             "--1-n-2--n-1--",
-            "--1-n-t--n1-2--",
-            "--1sn-tb-2-n-t--",
-            "--1sn-3-tb-2n-t--",
-            "--1sn-3-t2-n-t-1--",
-            "--2st-1n-3-t2-n-t--",
-            "--2st1-n-3t-2-nt-3--",
-            "--2st1-n3-t-2n-t3-2--",
-            "--t2sn3-t1t-2t-3n-tt--",
-            "--t2sn3-t1t-2t3-nt-t2--",
-            "--t2sb3t1-t2t3-btt2-n3--",
-            "--3t2st3b-t3t2t-3tb-3t2--",
-            "--3t2st3bt3t2-t3tb3-t2t3--",
+            "--1-n-t-kn1-2--",
+            "--1sn-tb-2kn-t--",
+            "--1sn-3-tbk2n-t--",
+            "--1sn-3-t2-nkt-1--",
+            "--2st-1n-3kt2-n-t--",
+            "--2st1-n-3t-2knt-3--",
+            "--2st1-n3-t-2nkt3-2--",
+            "--t2sn3-t1t-2tk3n-tt--",
+            "--t2sn3-t1t-2t3knt-t2--",
+            "--t2sb3t1-t2t3kbtt2-n3--",
+            "--3t2st3b-t3t2tk3tb-3t2--",
+            "--3t2st3bt3t2kt3tb3-t2t3--",
         ]
         #expect(RunnerStage.all.prefix(15).map(\.pattern) == expected)
+        // #797 以前の並び（`k` を平地に戻したもの）と障害が 1 つも違わないこと。
+        let hazardsBefore797 = expected.map { RunnerStage.makeHazards(pattern: $0.replacingOccurrences(of: "k", with: "-")) }
+        #expect(RunnerStage.all.prefix(15).map(\.hazards) == hazardsBefore797)
         // 既存 15 ステージには台座を置かない（#674 の「既存15ステージは変えない」）。
         #expect(RunnerStage.all.prefix(15).allSatisfy { $0.platforms.isEmpty })
     }
@@ -122,6 +127,7 @@ struct RunnerStageTests {
             for symbol in stage.pattern where symbol != "-" {
                 let isKnown = RunnerStage.segmentSpec(symbol) != nil
                     || symbol == RunnerStage.pickupSymbol
+                    || symbol == RunnerStage.takoyakiSymbol
                     || symbol == RunnerStage.platformSymbol
                     || symbol == RunnerStage.boostFloorSymbol
                 #expect(isKnown, "ステージ \(stage.number) に未知の記号 '\(symbol)' がある")
@@ -253,8 +259,55 @@ struct RunnerStageTests {
         #expect(withPickups.length == withoutPickups.length)
         #expect(withPickups.checkpoint == withoutPickups.checkpoint)
         #expect(withPickups.pickups.count == 1)
+        #expect(withPickups.pickups.first?.kind == .speed)
         #expect(withoutPickups.pickups.isEmpty)
     }
+
+    // MARK: - たこ焼き（#797）
+
+    /// スピードアップ（`pickupsDoNotAffectClearability`）と同じく、たこ焼きも障害ではない
+    /// ——障害の並び・長さ・チェックポイントのどれにも影響しない。
+    @Test("たこ焼きの有無はステージのクリア可能性に影響しない")
+    func takoyakiDoesNotAffectClearability() {
+        let withTakoyaki = RunnerStage(number: 1, pattern: "--n-k-t--", speed: 40)
+        let without = RunnerStage(number: 1, pattern: "--n---t--", speed: 40)
+        #expect(withTakoyaki.hazards == without.hazards)
+        #expect(withTakoyaki.length == without.length)
+        #expect(withTakoyaki.checkpoint == without.checkpoint)
+        #expect(withTakoyaki.pickups.count == 1)
+        #expect(withTakoyaki.pickups.first?.kind == .invincible)
+        #expect(RunnerStage.segmentSpec(RunnerStage.takoyakiSymbol) == nil, "たこ焼きは障害の記号表に無い")
+    }
+
+    /// Issue #797「出現は 4 面以降」。1〜3 面は初見の人が間合いを覚える面なので置かない。
+    @Test("たこ焼きは 4 面以降にだけ置かれている")
+    func takoyakiAppearsOnlyFromStageFour() {
+        for stage in RunnerStage.all {
+            let takoyakis = stage.pickups.filter { $0.kind == .invincible }
+            if stage.number >= 4 {
+                #expect(!takoyakis.isEmpty, "ステージ \(stage.number) にたこ焼きが無い")
+            } else {
+                #expect(takoyakis.isEmpty, "ステージ \(stage.number) にたこ焼きがある")
+            }
+        }
+    }
+
+    #if DEBUG
+    /// 実機スクリーンショット用の置き場（#797 受け入れ条件「実機スクショ」）。
+    /// 最初の岩の直前に置き、取った直後に岩を無敵で突っ切る画を撮れるようにする。
+    @Test("QA用ショーケースにたこ焼きが最初の岩の手前にある")
+    func showcaseHasTakoyakiBeforeTheFirstRock() {
+        let showcase = RunnerStage.debugShowcase
+        guard let takoyaki = showcase.pickups.first(where: { $0.kind == .invincible }),
+              let firstRock = showcase.hazards.first(where: { $0.kind != .pit }) else {
+            Issue.record("ショーケースにたこ焼きか岩が無い")
+            return
+        }
+        #expect(takoyaki.start < firstRock.start, "たこ焼きは最初の岩より手前にある")
+        // 取ってから岩に着くまでに無敵が切れない（区画 1 つぶん = 64 は 3 秒で進む距離より短い）。
+        #expect(firstRock.start - takoyaki.start < RunnerRules.baseSpeed * RunnerRules.invincibleDuration)
+    }
+    #endif
 
     // MARK: - スピードアップ床（#672）
 

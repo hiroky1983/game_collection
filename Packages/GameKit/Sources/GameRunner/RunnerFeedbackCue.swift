@@ -27,7 +27,10 @@ public enum RunnerFeedbackCue: Equatable, Sendable {
         switch event {
         case .landed:             return .impact(lastLandingWasJust ? .medium : .light)
         case .passedCheckpoint:   return .notice(.success)
-        case .collectedSpeedItem: return .impact(.light)
+        // たこ焼き（#797）も「取る」の 1 音に相乗りさせる（4 音の対応表を増やさない。
+        // 取ったのがたこ焼きかは走者の点滅と残り時間の表示で分かる）。
+        case .collectedSpeedItem, .collectedInvincibleItem:
+                                  return .impact(.light)
         case .fell, .crashed:     return .notice(.error)
         case .reachedGoal:        return .notice(.success)
         }

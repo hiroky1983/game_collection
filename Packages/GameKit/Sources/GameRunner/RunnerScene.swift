@@ -124,6 +124,16 @@ enum RunnerPalette {
     static let pickupBolt: UInt32 = 0xFFE066
     /// 稲妻の縁取り。後光と同系色の玉の上に置いても輪郭が沈まないようにする。
     static let pickupBoltOutline: UInt32 = 0xB8860B
+    /// たこ焼き（#797）の舟皿。経木の薄い生成りで、台座の床板（`platformDeck`）よりやや黄み。
+    static let takoyakiTray: UInt32 = 0xF3E2BE
+    /// たこ焼きの玉（焼き色）。岩のグレー・地面の茶・鳥の緑のどれとも系統が違う、食べ物の狐色。
+    static let takoyakiBall: UInt32 = 0xD98C3F
+    /// たこ焼きに掛かったソース。玉の上に載る濃い茶で、玉との明暗差だけで丸みを出す（輪郭線は引かない）。
+    static let takoyakiSauce: UInt32 = 0x6E3A16
+    /// 青のり（小さな緑の点）。
+    static let takoyakiAonori: UInt32 = 0x3F8F4C
+    /// 紅しょうが（小さな赤い点）。
+    static let takoyakiBenishoga: UInt32 = 0xE9536B
     /// 台座（#674）の上面＝歩く床板。**ここがいちばん明るい**——「乗れる場所」は上面なので、
     /// 画面の中で最初に目に入るのが上面になるよう、コースのどの面よりも明るい色を当てる。
     /// 地表のティール（`groundTop`）・岩のストーングレー・空の紺のどれとも系統が違う
@@ -226,6 +236,12 @@ final class RunnerScene: SKScene {
     /// すでに土煙を出したジャスト着地の数（#673）。`field.justLandingCount` が増えた
     /// フレームだけ演出を出すための控え。`rebuildCourse` で 0 に戻す。
     private var renderedJustLandingCount = 0
+    /// 走者に無敵の点滅（#797）を掛けているか。`field.isInvincible` と食い違ったフレームで
+    /// 掛ける／外す（`syncInvincibility`）。`rebuildCourse` と落下演出の頭で false に戻す。
+    private var isBlinkingInvincible = false
+    /// 無敵の点滅の `SKAction` のキー。落下演出（`playFallAnimation`）は `removeAllActions` で
+    /// まとめて消すが、無敵が切れたときはこのキーの action だけを外す。
+    private static let invincibleBlinkKey = "invincibleBlink"
 
     /// 遠景の丘（奥・手前の2層）。`RunnerField.Metrics.groundY` から上端
     /// （`RunnerField.Metrics.height`）までの空が広く空くので、
@@ -749,9 +765,15 @@ final class RunnerScene: SKScene {
             addPlatform(platform)
         }
 
-        pickupNodes = stage.pickups.map { addPickup($0) }
+        pickupNodes = stage.pickups.map { pickup in
+            switch pickup.kind {
+            case .speed:      return addPickup(pickup)
+            case .invincible: return addTakoyaki(pickup)
+            }
+        }
         removedPickupIndices = []
         renderedJustLandingCount = 0
+        isBlinkingInvincible = false
 
         // エンドレス（#675）にチェックポイントは無い。`RunnerStage` は中点に計算するが、
         // 再開できない旗を立てると「ここから再開できる」という旗の意味（#494）が嘘になる。
@@ -1160,6 +1182,75 @@ final class RunnerScene: SKScene {
         return node
     }
 
+    /// たこ焼き（`RunnerPickupKind.invincible`・#797）。舟皿に 3 個、ソースの上に青のりと
+    /// 紅しょうがの色点——縁日の屋台で買うあの形で、**特定のキャラクター・作品には寄せない**
+    /// （#494 の権利チェック）。岩・鳥と同じく丸と長方形とパスだけで組み、輪郭線は引かない。
+    /// スピードアップ（稲妻）は「脈動」、たこ焼きは「上下にふわふわ浮く」で動きも変え、
+    /// 色だけに頼らず見分けられるようにする。当たり判定は `RunnerField` 側の横の重なりだけで、
+    /// この絵の寸法とは独立している（`addPickup` と同じ）。
+    @discardableResult
+    private func addTakoyaki(_ pickup: RunnerPickup) -> SKNode {
+        let node = SKNode()
+        node.position = CGPoint(x: pickup.start, y: Metrics.groundY + 2.4)
+
+        // 舟皿（経木）。上が広く底が狭い台形を 1 枚。
+        let trayPath = CGMutablePath()
+        trayPath.move(to: CGPoint(x: -3.8, y: 0.5))
+        trayPath.addLine(to: CGPoint(x: -3.0, y: -1.0))
+        trayPath.addLine(to: CGPoint(x: 3.0, y: -1.0))
+        trayPath.addLine(to: CGPoint(x: 3.8, y: 0.5))
+        trayPath.closeSubpath()
+        let tray = SKShapeNode(path: trayPath)
+        tray.fillColor = RunnerPalette.color(RunnerPalette.takoyakiTray)
+        tray.strokeColor = .clear
+        node.addChild(tray)
+
+        // 玉 3 個。ソースは玉の上半分に被せた小さめの丸で、明暗の差だけで丸みを出す。
+        let ballRadius = 1.05
+        for (i, x) in [-2.1, 0.0, 2.1].enumerated() {
+            let ball = SKShapeNode(circleOfRadius: ballRadius)
+            ball.fillColor = RunnerPalette.color(RunnerPalette.takoyakiBall)
+            ball.strokeColor = .clear
+            ball.position = CGPoint(x: x, y: 0.75)
+            ball.zPosition = 1
+            node.addChild(ball)
+
+            let sauce = SKShapeNode(ellipseOf: CGSize(width: 1.5, height: 0.8))
+            sauce.fillColor = RunnerPalette.color(RunnerPalette.takoyakiSauce)
+            sauce.strokeColor = .clear
+            sauce.position = CGPoint(x: x, y: 1.05)
+            sauce.zPosition = 2
+            node.addChild(sauce)
+
+            // 青のり（緑）を各玉に 1 点、紅しょうが（赤）は左右の玉にだけ 1 点。
+            // 点の位置は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
+            let aonori = SKShapeNode(circleOfRadius: 0.17)
+            aonori.fillColor = RunnerPalette.color(RunnerPalette.takoyakiAonori)
+            aonori.strokeColor = .clear
+            aonori.position = CGPoint(x: x - 0.35, y: 1.15)
+            aonori.zPosition = 3
+            node.addChild(aonori)
+            if i != 1 {
+                let benishoga = SKShapeNode(circleOfRadius: 0.18)
+                benishoga.fillColor = RunnerPalette.color(RunnerPalette.takoyakiBenishoga)
+                benishoga.strokeColor = .clear
+                benishoga.position = CGPoint(x: x + 0.4, y: 0.95)
+                benishoga.zPosition = 3
+                node.addChild(benishoga)
+            }
+        }
+
+        // ふわふわ浮く（見た目だけ。当たり判定は `RunnerField` 側の横の重なりのまま）。
+        let rise = SKAction.moveBy(x: 0, y: 0.7, duration: 0.55)
+        rise.timingMode = .easeInEaseOut
+        let sink = SKAction.moveBy(x: 0, y: -0.7, duration: 0.55)
+        sink.timingMode = .easeInEaseOut
+        node.run(.repeatForever(.sequence([rise, sink])))
+
+        courseLayer.addChild(node)
+        return node
+    }
+
     /// 取得済みのピックアップをフェードアウト＋縮小で消す。
     private func removePickupNode(_ node: SKNode) {
         guard node.parent != nil else { return }
@@ -1475,6 +1566,9 @@ final class RunnerScene: SKScene {
             if lastSyncedPhase != .falling {
                 player.position = CGPoint(x: Metrics.playerX, y: field.footY)
                 player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
+                // 無敵のまま穴に落ちた（#797）場合、点滅の途中の薄さで落下演出に入らないよう
+                // 先に戻す（`playFallAnimation` の `removeAllActions` で点滅そのものは止まる）。
+                stopInvincibleBlink()
                 playFallAnimation()
             }
         } else {
@@ -1488,6 +1582,7 @@ final class RunnerScene: SKScene {
             player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
             syncPickups(field)
             syncJustLanding(field)
+            syncInvincibility(field)
             // ゴールに着いた最初のフレームだけ紙吹雪を散らす（#703「着いた感」）。
             // `.falling` の落下演出と同じ「前回反映した phase」との比較で 1 回に絞る。
             if model.phase == .cleared || model.phase == .allCleared,
@@ -1544,6 +1639,37 @@ final class RunnerScene: SKScene {
         guard field.justLandingCount > renderedJustLandingCount else { return }
         renderedJustLandingCount = field.justLandingCount
         spawnJustLandingDust(atWorldX: field.distance)
+    }
+
+    /// 無敵（たこ焼き・#797）の点滅を、`field.isInvincible` と食い違ったフレームだけ掛ける／外す。
+    ///
+    /// 点滅は走者ノード全体の `alpha` を `SKAction` で往復させる。周期は 0.36 秒（約 2.8 Hz）
+    /// ——毎秒 3 回を超える明滅は光過敏の目安（WCAG 2.3.1）に掛かるので、その手前に留める。
+    /// 位置・回転は `sync` が毎フレーム上書きするが `alpha` には触らないので、action と
+    /// ぶつからない。
+    private func syncInvincibility(_ field: RunnerField) {
+        // ミス後（`.failed`）は `field` が無敵のまま凍るが、倒れた走者を点滅させない。
+        // 一時停止中は掛けたままにする（止めるたびに外すと再開の瞬間にちらつく）。
+        let shouldBlink = field.isInvincible && (model.phase == .running || model.phase == .paused)
+        guard shouldBlink != isBlinkingInvincible else { return }
+        if shouldBlink {
+            isBlinkingInvincible = true
+            let blink = SKAction.sequence([
+                .fadeAlpha(to: 0.35, duration: 0.18),
+                .fadeAlpha(to: 1.0, duration: 0.18),
+            ])
+            player.run(.repeatForever(blink), withKey: Self.invincibleBlinkKey)
+        } else {
+            stopInvincibleBlink()
+        }
+    }
+
+    /// 無敵の点滅を外し、走者を不透明に戻す。無敵でないときに呼んでも何もしない。
+    private func stopInvincibleBlink() {
+        guard isBlinkingInvincible else { return }
+        isBlinkingInvincible = false
+        player.removeAction(forKey: Self.invincibleBlinkKey)
+        player.alpha = 1
     }
 
     /// 穴に落ちる/ぶつかった瞬間だけ流す演出（`.falling` に入った最初のフレームで 1 回発火）。
