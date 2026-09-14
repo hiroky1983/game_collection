@@ -73,6 +73,15 @@ struct SudokuMetricsTests {
         #expect(Metrics.showsZoomTitle(statusBarWidth: 0), "未計測の初回描画は文字付き")
     }
 
+    @Test("「残り」「ミス」のアイコンは iPhone SE の帯では省き、それより広い帯では付ける（#775）")
+    func statusIconsFollowStatusBarWidth() {
+        #expect(!Metrics.showsStatusIcons(statusBarWidth: Self.contentWidth(screenWidth: Self.iPhoneSE)))
+        #expect(Metrics.showsStatusIcons(statusBarWidth: 393 - 32))
+        #expect(Metrics.showsStatusIcons(statusBarWidth: Self.contentWidth(screenWidth: Self.iPhone17Pro)))
+        #expect(Metrics.showsStatusIcons(statusBarWidth: 700))
+        #expect(Metrics.showsStatusIcons(statusBarWidth: 0), "未計測の初回描画はアイコン付き")
+    }
+
     @Test("帯の拡大トグルの一辺は共通枠の実寸と同じ")
     func toggleMatchesSharedFrame() {
         #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide)
@@ -88,6 +97,8 @@ struct SudokuMetricsTests {
             #"BoardToggleButton\("#,
             #"cellSide:\s*SudokuMetrics\.zoomedCellSide"#,
             #"\.padding\(\.vertical,\s*SudokuMetrics\.statusBarVerticalPadding\)"#,
+            // 帯の「残り」「ミス」のアイコンは帯の実幅で出し分ける（#775）
+            #"SudokuMetrics\.showsStatusIcons\(statusBarWidth:\s*statusBarWidth\)"#,
         ] {
             #expect(
                 source.range(of: expected, options: .regularExpression) != nil,
