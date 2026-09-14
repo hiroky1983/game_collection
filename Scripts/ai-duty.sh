@@ -447,6 +447,10 @@ fi
 # 未 push の変更は次回の当番が拾わない（新しい worktree で始まる）ため、残しても誰も読まない。
 # 3日保持の掃除ループは、異常終了で EXIT トラップが走らなかった回の backstop として残す。
 RUN_DIR=""
+# 呼び出し元の環境から来た値は自分の置き場ではない。当番セッション内でテスト（test-ai-duty-lock.sh）が
+# このスクリプトを走らせると、下で自分の置き場を決める前に EXIT した回の後片付けが、
+# 実行中の当番の scratch を消していた（#762 の作業中に実測）。
+DUTY_SCRATCH_DIR=""
 cleanup_worktree() {
   # 撮影物・ビルドログ・一時スクリプトの置き場（実行ごと）。派生データは残す（次回の差分ビルド用）。
   if [ -n "${DUTY_SCRATCH_DIR:-}" ] && [ -d "$DUTY_SCRATCH_DIR" ]; then
@@ -902,7 +906,7 @@ PROBE
     case "$probe" in
       *DUTY-SHIM-LEAK*)
         rm -f "$stub" "$json"
-        log "入力フィルタ: 第三者の本文が素通しした（gh $args）"
+        log "入力フィルタ: 第三者の本文が素通しした（gh ${args}）"
         return 1 ;;
     esac
   done

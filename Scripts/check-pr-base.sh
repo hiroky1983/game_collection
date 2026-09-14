@@ -61,7 +61,7 @@ case "$HEAD_REF" in
 esac
 
 if [ -n "$TAKEOVER" ]; then
-  echo "check-pr-base: head が [$HEAD_REF]（$TAKEOVER）で release の取り込み経路のため検証しません"
+  echo "check-pr-base: head が [${HEAD_REF}]（${TAKEOVER}）で release の取り込み経路のため検証しません"
   exit 0
 fi
 
