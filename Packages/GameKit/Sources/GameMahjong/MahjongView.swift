@@ -6,6 +6,8 @@ public struct MahjongView: View {
     @State private var model: MahjongModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
+    /// 卓の下の手牌の行を iPad で広げるため（#715。`MahjongHandRowMetrics`）。
+    @Environment(\.adaptiveLayout) private var adaptiveLayout
     @State private var showStartSheet = true
     /// 誤タップ防止: 1タップ目は選択（浮かせる演出）だけ、同じ牌をもう1回タップしたら実際に切る。
     /// 複数枚ある牌を区別できるよう `stableHandIDs` の合成ID（牌の値＋出現順）で管理する。
@@ -520,10 +522,9 @@ public struct MahjongView: View {
     /// = nil }` でも identity 安定化でも ScrollView の有無でも止まらなかった
     /// （過去の対策が軒並み効かなかった理由）。`MahjongModel.playerDrawnTile` で自分の手番以外は
     /// nil を返すようにして解消した。
-    private static let tableHandTileWidth: CGFloat = 34
-    private static let tableHandTileHeight: CGFloat = 46
-    private static let tableHandSpacing: CGFloat = 3
-    private static let tableHandDrawnGap: CGFloat = 8
+    ///
+    /// 牌・間隔・ツモ牌の隙間は `MahjongHandRowMetrics`（iPhone は 34×46pt 固定、iPad は捨て牌より小さくならないよう相似に広げる・#715）。
+    private var handRowMetrics: MahjongHandRowMetrics { .make(layout: adaptiveLayout) }
     /// 選択時に牌を -10pt 持ち上げる演出が ScrollView の上端で切れないための余白。
     private static let tableHandLift: CGFloat = 12
 
@@ -535,12 +536,13 @@ public struct MahjongView: View {
         // 挟んでいたが、末尾に追加するだけだとソート順が崩れて「並び替えが効かない」不具合になった。
         let hand = model.playerHand.tiles
         let drawn = model.playerDrawnTile
+        let metrics = handRowMetrics
         return VStack(spacing: 6) {
             // 卓上の一覧（`handOverviewOnTable`）から選んだ牌はこの行の表示範囲外にあることが
             // 多いので、そこまで送れるように `ScrollViewReader` で包む（#378）。
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Self.tableHandSpacing) {
+                    HStack(spacing: metrics.spacing) {
                         // identity は **配列の位置**（`\.offset`）にする。牌の値を identity にすると、
                         // 途中の1枚が抜けて別の牌が別の位置に挿さったとき「生き残った牌が別スロットへ
                         // 移動した」と SwiftUI に解釈され、横滑りを補間できる状態になってしまう
@@ -553,7 +555,7 @@ public struct MahjongView: View {
                             handTile(tile, id: id, isDrawn: false, discardable: discardable)
                                 .id(id)
                         }
-                        Spacer().frame(width: Self.tableHandDrawnGap)
+                        Spacer().frame(width: metrics.drawnGap)
                         // ツモ牌が無い間も同じ幅の透明プレースホルダーを置き、コンテンツの総幅を
                         // 常に一定に保つ。ツモ牌の出入りで ScrollView の contentSize が変わると
                         // UIScrollView 側がスクロール位置を自前で補正することがあるため、幅そのものを
@@ -567,7 +569,7 @@ public struct MahjongView: View {
                                 )
                             }
                         }
-                        .frame(width: Self.tableHandTileWidth, height: Self.tableHandTileHeight)
+                        .frame(width: metrics.tileWidth, height: metrics.tileHeight)
                         // ツモ牌が無い間もこの枠は残るので、スクロールの宛先は常に解決できる。
                         .id(MahjongHandTap.drawnTileID)
                     }
@@ -577,7 +579,7 @@ public struct MahjongView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
                 .defaultScrollAnchor(.leading)
-                .frame(height: Self.tableHandTileHeight + Self.tableHandLift + 6)
+                .frame(height: metrics.tileHeight + Self.tableHandLift + 6)
                 // 並び替え・出し入れは瞬時に反映するだけにする（雀卓側と同じ考え方）。
                 // 選択（浮き上がり）演出は handTile 側で個別に `.animation` を付け直しているので、
                 // ここで止めても影響しない。
@@ -611,8 +613,8 @@ public struct MahjongView: View {
         let isSelected = selectedTileID == id
         return MahjongTileView(
             tile: tile,
-            width: Self.tableHandTileWidth,
-            height: Self.tableHandTileHeight,
+            width: handRowMetrics.tileWidth,
+            height: handRowMetrics.tileHeight,
             isBlocked: model.isPlayerTurn && !canDiscard,
             isHinted: isDrawn
         )
