@@ -6,7 +6,7 @@ import Core
 /// ルールは `ChessPosition` に委譲し、ここは UI 操作と永続化を担う（将棋の `ShogiGameModel` と同じ分担）。
 @MainActor
 @Observable
-public final class ChessGameModel {
+public final class ChessGameModel: AITurnGuarded {
     public let initialFEN: String
     public private(set) var moves: [ChessMove]
     public private(set) var position: ChessPosition
@@ -406,22 +406,19 @@ public final class ChessGameModel {
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
         // 計算中に新規対局が始まると、旧局面で選んだ手が新しい局面に指されうる。
-        // 開始時のトリガー（対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する。
-        let key = aiTurnKey
-        let serial = gameSerial
-        isThinking = true
-        defer { if gameSerial == serial { isThinking = false } }
-
-        let level = aiLevel
-        let fen = position.toFEN()
-        await thinkingGate?()
-        let uci = await Task.detached(priority: .userInitiated) {
-            await SimpleChessEngine(level: level).bestMove(fen: fen)
-        }.value
-
-        guard aiTurnKey == key, isAITurn, let uci, let move = ChessMove.fromUCI(uci),
-              legalMovesCache.contains(move) else { return }
-        apply(move)
+        // 開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let level = aiLevel
+            let fen = position.toFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleChessEngine(level: level).bestMove(fen: fen)
+            }.value
+        } commit: { uci in
+            guard isAITurn, let uci, let move = ChessMove.fromUCI(uci),
+                  legalMovesCache.contains(move) else { return }
+            apply(move)
+        }
     }
 
     // MARK: - 検討（終局後に手を戻す／進める）

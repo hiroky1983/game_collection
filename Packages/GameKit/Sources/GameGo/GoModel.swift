@@ -50,7 +50,7 @@ struct GoSnapshot: Codable {
 
 @MainActor
 @Observable
-public final class GoModel {
+public final class GoModel: AITurnGuarded {
     public private(set) var state: GoState
     public private(set) var ruleset: GoRuleset
     public private(set) var humanSide: GoStone
@@ -405,26 +405,23 @@ public final class GoModel {
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
         // 計算中に新規対局が始まると、旧盤面で選んだ手が新しい盤面に着手されてしまう。
-        // 計算開始時のトリガー（対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する。
-        let key = aiTurnKey
-        let serial = gameSerial
-        isThinking = true
-        defer { if gameSerial == serial { isThinking = false } }
-
-        let snapshot = state
-        let ruleset = ruleset
-        let level = aiLevel
-        // 同じ局面でも対局・手数が違えば別の読みになるよう種をずらす。
-        let seed = UInt64(gameSerial &* 1_000_003 &+ moves.count) &* 0x9E37_79B9 &+ 0xA50_B1BA
-        let move = await Task.detached(priority: .userInitiated) {
-            GoEngine(
-                config: .level(level, seed: seed),
-                ruleset: ruleset
-            ).bestMove(state: snapshot)
-        }.value
-
-        guard aiTurnKey == key, isAITurn else { return }
-        apply(move)
+        // 計算開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let snapshot = state
+            let ruleset = ruleset
+            let level = aiLevel
+            // 同じ局面でも対局・手数が違えば別の読みになるよう種をずらす。
+            let seed = UInt64(gameSerial &* 1_000_003 &+ moves.count) &* 0x9E37_79B9 &+ 0xA50_B1BA
+            return await Task.detached(priority: .userInitiated) {
+                GoEngine(
+                    config: .level(level, seed: seed),
+                    ruleset: ruleset
+                ).bestMove(state: snapshot)
+            }.value
+        } commit: { move in
+            guard isAITurn else { return }
+            apply(move)
+        }
     }
 
     // MARK: - 永続化
