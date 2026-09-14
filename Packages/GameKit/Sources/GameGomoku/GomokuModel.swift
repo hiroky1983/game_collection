@@ -42,7 +42,7 @@ struct GomokuSnapshot: Codable {
 
 @MainActor
 @Observable
-public final class GomokuModel {
+public final class GomokuModel: AITurnGuarded {
     public private(set) var board: GomokuBoard
     public private(set) var currentStone: GomokuStone
     public private(set) var humanSide: GomokuStone
@@ -272,25 +272,21 @@ public final class GomokuModel {
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
         // 計算中に新規対局が始まると、旧盤面で選んだ手が新しい盤面に着手されてしまう。
-        // 計算開始時のトリガー（対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する。
-        let key = aiTurnKey
-        let serial = gameSerial
-        isThinking = true
-        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
-        defer { if gameSerial == serial { isThinking = false } }
+        // 計算開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let b = board
+            let s = currentStone
+            let level = aiLevel
 
-        let b = board
-        let s = currentStone
-        let level = aiLevel
+            let renju = forbiddenMovesEnabled
 
-        let renju = forbiddenMovesEnabled
-
-        let move = await Task.detached(priority: .userInitiated) {
-            await SimpleGomokuEngine(level: level, forbiddenMoves: renju).bestMove(board: b, stone: s)
-        }.value
-
-        guard aiTurnKey == key, isAITurn, let (r, c) = move, board[r, c] == nil else { return }
-        place(row: r, col: c)
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleGomokuEngine(level: level, forbiddenMoves: renju).bestMove(board: b, stone: s)
+            }.value
+        } commit: { move in
+            guard isAITurn, let (r, c) = move, board[r, c] == nil else { return }
+            place(row: r, col: c)
+        }
     }
 
     public func newGame(humanSide: GomokuStone = .black, aiLevel: Int = 1, forbiddenMoves: Bool = false) {

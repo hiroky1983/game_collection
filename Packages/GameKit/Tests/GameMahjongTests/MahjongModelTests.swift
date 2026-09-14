@@ -990,6 +990,36 @@ struct MahjongCancelTests {
         )
     }
 
+    /// 間合いが 0 だと sleep 後の判定を一度も通らない。走者を取る前（`withAITurnRunner`）にもループ先頭にも
+    /// キャンセル確認が無いと、画面を離れたあとも手番と中断データが進む（PR #859 の CodeRabbit 指摘）。
+    /// 固定しているのは「どちらかで止まる」ことまで。ループ先頭の確認は大富豪 #287・花札 #726 とそろえた二重化で、
+    /// 間合い 0 のループには suspend が無いため、単独では MainActor の外からキャンセルされたときにしか効かない。
+    @Test("間合いが 0 でもキャンセルされたら打牌を進めない")
+    func cancelledLoopWithoutDelayDoesNotAdvance() async {
+        let model = MahjongModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()),
+            cpuDelay: .zero,
+            seed: 2026
+        )
+        model.startGame()
+        if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+            model.discard(drawn)
+        }
+        try? #require(model.phase == .playing)
+        #expect(model.currentPlayer != MahjongModel.humanIndex, "CPU の手番になっていない")
+
+        let before = model.discards.reduce(0) { $0 + $1.count }
+        // 上のテストと同じく、MainActor 上なので cancel() は本体の実行より先に確定する。
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.discards.reduce(0) { $0 + $1.count } == before,
+            "キャンセル済みのタスクが間合い 0 の手番を進めた"
+        )
+    }
+
     /// `.task(id:)` の差し替えでは「新タスクの起動」と「旧タスクのキャンセル検知」の順序が
     /// 保証されない。新タスクが先に走ると、旧タスクがまだ `isRunningCPUTurns` を握っているため
     /// 多重起動ガードで即リターンし、直後に旧タスクもキャンセルで抜けて**走者が誰もいなくなる**。

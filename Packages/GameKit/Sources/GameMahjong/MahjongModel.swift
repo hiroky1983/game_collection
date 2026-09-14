@@ -163,7 +163,7 @@ struct MahjongSnapshot: Codable {
 /// （`MahjongShanten` / `MahjongScoring` / `MahjongAI`）に寄せ、この型は**進行・永続化・演出**だけを持つ。
 @MainActor
 @Observable
-public final class MahjongModel {
+public final class MahjongModel: AITurnGuarded {
     /// 人間プレイヤーの番号。
     public static let humanIndex = 0
     /// 参加人数。
@@ -1316,34 +1316,28 @@ public final class MahjongModel {
         // 直後に先行タスクがキャンセルで抜ける」の順になったとき走者が誰もいなくなり、
         // `turnKey` はもう変わらないので再起動も掛からず手番が止まる（レース）。
         // 先行タスクの終了を待ってから引き継ぐ。待機中に自分がキャンセルされたら
-        // （さらに次のタスクへ差し替えられたら）そちらに譲って抜ける。
-        while isRunningCPUTurns {
-            guard !Task.isCancelled else { return }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        isRunningCPUTurns = true
-        defer { isRunningCPUTurns = false }
-
-        while true {
-            while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
-                if cpuDelay > .zero {
-                    try? await Task.sleep(for: cpuDelay)
-                    // `try?` がキャンセルのエラーを握り潰すため、キャンセル後は
-                    // `Task.sleep` が即座に返る。ここで抜けないと、`.task(id:)` に
-                    // 差し替えられた古いタスクが `cpuDelay` を一切待たずに残りの手番を
-                    // 走り抜けてしまう（CodeRabbit 指摘）。
+        // （さらに次のタスクへ差し替えられたら）そちらに譲って抜ける（#531 で共通化）。
+        await withAITurnRunner(running: \.isRunningCPUTurns) {
+            while true {
+                while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
+                    // 間合いが 0 だと下の sleep 後の判定を通らないので、ループ先頭でも見る（大富豪 #287・花札 #726 と同じ）。
                     guard !Task.isCancelled else { return }
-                    guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
+                    if cpuDelay > .zero {
+                        // キャンセル後に抜けないと、`.task(id:)` に差し替えられた古いタスクが
+                        // `cpuDelay` を一切待たずに残りの手番を走り抜けてしまう（CodeRabbit 指摘）。
+                        guard await pauseCPUTurn(for: cpuDelay) else { return }
+                        guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
+                    }
+                    advanceAutomaticTurn()
                 }
-                advanceAutomaticTurn()
-            }
-            guard autoPlayEnabled, phase == .handResult else { return }
-            if cpuDelay > .zero {
-                try? await Task.sleep(for: cpuDelay)
-                guard !Task.isCancelled else { return }
                 guard autoPlayEnabled, phase == .handResult else { return }
+                guard !Task.isCancelled else { return }
+                if cpuDelay > .zero {
+                    guard await pauseCPUTurn(for: cpuDelay) else { return }
+                    guard autoPlayEnabled, phase == .handResult else { return }
+                }
+                advanceToNextHand()
             }
-            advanceToNextHand()
         }
     }
 

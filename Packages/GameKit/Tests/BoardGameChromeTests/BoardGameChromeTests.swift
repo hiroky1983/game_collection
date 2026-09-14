@@ -44,6 +44,132 @@ struct BoardGameMotionTests {
     }
 }
 
+/// 盤の下の操作列のカプセル（オセロ・五目並べの「投了」「待った」・#711）。
+@MainActor
+@Suite("操作列のカプセルボタン")
+struct BoardGameControlCapsuleStyleTests {
+
+    @Test("当たり判定の下限は 44pt")
+    func minTapTargetMeetsHIG() {
+        #expect(BoardGameControlMetrics.minTapTarget >= 44)
+    }
+
+    /// 44pt は**ボタン自身の枠**に入れる。枠の外へはみ出させた当たり判定は、macOS のプローブで
+    /// Button のクリックが反応しないと実測した（#711。verifier の指摘を受けて overlay 方式から変更）。
+    @Test("ボタンの枠は縦横 44pt 以上")
+    func buttonFrameMeetsTapTarget() throws {
+        let styled = try Self.render(Self.styledButton(enabled: true))
+        #expect(CGFloat(styled.height) >= BoardGameControlMetrics.minTapTarget)
+        #expect(CGFloat(styled.width) >= BoardGameControlMetrics.minTapTarget)
+        // 既定の文字サイズではカプセル自体は 44pt に届かない（届くなら枠を広げる根拠が無い）。
+        #expect(CGFloat(try Self.render(Self.legacyCapsule).height) < BoardGameControlMetrics.minTapTarget)
+    }
+
+    /// 枠が 44pt になっても、操作列の余白を詰めて外寸を据え置く（盤の大きさを変えない・#148）。
+    /// 比べる相手は #711 以前の操作列（手書きのカプセル + 上下 8pt）。
+    /// **一致するのはこの描画（macOS）のフォントの高さでの話**。iPhone SE のスクショでは従来のカプセルが 28.5pt で、
+    /// 操作カードは 44.5pt → 46pt と下端が 1.5pt 伸びる（#711 実測。上端と盤の位置は変わらない）。
+    @Test("操作列の外寸は従来と同じ")
+    func rowHeightMatchesLegacyRow() throws {
+        let legacy = try Self.render(
+            HStack(spacing: 12) { Self.legacyCapsule }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+        )
+        let styled = try Self.render(
+            HStack(spacing: 12) { Self.styledButton(enabled: true) }
+                .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
+        )
+        #expect(styled.height == legacy.height)
+    }
+
+    @Test("押せないときは面の色が変わる")
+    func disabledChangesFill() throws {
+        let enabled = try Self.render(Self.styledButton(enabled: true))
+        let disabled = try Self.render(Self.styledButton(enabled: false))
+        let capsule = try Self.render(Self.legacyCapsule)
+        // カプセルは 44pt の枠の縦の中央に描かれる。その上端の余白（6pt）の中央は文字に掛からず面の色だけが出る。
+        let x = enabled.width / 2, y = (enabled.height - capsule.height) / 2 + 3
+        #expect(Self.pixel(enabled, x: x, y: y) == Self.rgb(Theme.Hex.Fill.teal),
+                "押せるときの面が teal ではない")
+        #expect(Self.pixel(disabled, x: x, y: y) == Self.rgb(Theme.Hex.fillMuted.light),
+                "押せないときの面が fillMuted ではない（.disabled が見た目に出ない）")
+    }
+
+    /// 枠の透明な部分で受けるには `contentShape` が要り、カプセルを小さく描くには背景が枠より前に要る。
+    /// どちらも描画の大きさには出ないので、並びをソースで固定する。
+    @Test("カプセル → 44pt の枠 → 矩形で受ける、の順に組む")
+    func hitAreaIsTheWidenedFrame() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        guard let start = source.range(of: "public struct BoardGameControlCapsuleStyle"),
+              let end = source.range(of: "\n}\n", range: start.upperBound..<source.endIndex) else {
+            Issue.record("走査の前提が壊れている: BoardGameControlCapsuleStyle が見つからない")
+            return
+        }
+        let body = source[start.lowerBound..<end.upperBound]
+            .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.hasPrefix("//") }
+        guard let capsule = body.firstIndex(where: { $0.hasPrefix(".background(Capsule()") }),
+              let frame = body.firstIndex(of: ".frame(minWidth: BoardGameControlMetrics.minTapTarget,"),
+              let shape = body.firstIndex(of: ".contentShape(Rectangle())") else {
+            Issue.record("カプセル / 44pt の枠 / contentShape が見つからない:\n\(body.joined(separator: "\n"))")
+            return
+        }
+        // 枠より後に背景を置くと、カプセルが 44pt の高さに膨らむ。
+        #expect(capsule < frame)
+        // 形を取るのは枠を広げた後。前に置くと元のカプセルの大きさでしか受けない。
+        #expect(frame < shape)
+        // 枠の外へはみ出させる方法には戻さない（Button では反応しないと実測済み）。
+        #expect(!body.contains(".overlay {"))
+        #expect(!body.contains { $0.contains(".padding(.vertical, -") })
+    }
+
+    // MARK: - ヘルパー
+
+    /// #711 以前に「投了」へ手書きしていたカプセル。
+    private static var legacyCapsule: some View {
+        Label("待った", systemImage: "arrow.uturn.backward")
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(Theme.Fill.teal))
+            .themeBody(14)
+    }
+
+    private static func styledButton(enabled: Bool) -> some View {
+        Button {} label: {
+            Label("待った", systemImage: "arrow.uturn.backward")
+        }
+        .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
+        .disabled(!enabled)
+        .themeBody(14)
+        .environment(\.colorScheme, .light)
+    }
+
+    private static func render(_ view: some View) throws -> CGImage {
+        let renderer = ImageRenderer(content: view.environment(\.colorScheme, .light))
+        renderer.scale = 1
+        return try #require(renderer.cgImage, "描画できなかった")
+    }
+
+    private static func pixel(_ image: CGImage, x: Int, y: Int) -> [Int] {
+        var data = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &data, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        // 1×1 の文脈に、読みたい画素が原点へ来るようにずらして描く（CGContext は左下原点）。
+        context.draw(image, in: CGRect(x: -x, y: y - image.height + 1, width: image.width, height: image.height))
+        return data.prefix(3).map(Int.init)
+    }
+
+    private static func rgb(_ hex: UInt32) -> [Int] {
+        [Int(hex >> 16 & 0xFF), Int(hex >> 8 & 0xFF), Int(hex & 0xFF)]
+    }
+}
+
 /// 修飾子の**置き場所**で決まる性質。値としては検証できないのでソース走査で固定する
 /// （将棋 `ShogiPieceLayerSourceTests` と同じ流儀）。
 @Suite("盤ゲームの共通の枠の組み方")

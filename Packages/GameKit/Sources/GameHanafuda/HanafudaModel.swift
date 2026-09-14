@@ -104,7 +104,7 @@ struct HanafudaSnapshot: Codable {
 /// 寄せ、この型は**進行・永続化・演出**だけを持つ。
 @MainActor
 @Observable
-public final class HanafudaModel {
+public final class HanafudaModel: AITurnGuarded {
 
     // MARK: 公開状態
 
@@ -579,22 +579,16 @@ public final class HanafudaModel {
         // 多重起動防止。「先行タスクがいたら即リターン」にすると、下のキャンセル検知と
         // 組み合わさったとき「新タスクが即リターン → 先行タスクがキャンセルで抜ける」の順で
         // 走者不在になり CPU の手番で止まるため、大富豪（#287）・麻雀（#311）と同じく
-        // 先行タスクの終了を待ってから引き継ぐ。待機中に自分もキャンセルされたら譲って抜ける（#726）。
-        while isRunningCPUTurn {
-            guard !Task.isCancelled else { return }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        isRunningCPUTurn = true
-        defer { isRunningCPUTurn = false }
-        while phase == .playing, turn == .cpu, !cpuHand.isEmpty {
-            // `cpuDelay` が 0 だと下の sleep 後の判定を通らない経路があるので、ループ先頭でも見る。
-            guard !Task.isCancelled else { return }
-            try? await Task.sleep(for: cpuDelay)
-            // 画面を離れると `.task(id:)` がキャンセルされ、`try? await Task.sleep` は即座に返る
-            // （`CancellationError` を `try?` が握り潰す）。状態の guard だけでは通過してしまい、
-            // 離れた後に CPU が待ち時間ゼロで打ち、その結果（役・あがり）が中断データに残る（#726）。
-            guard !Task.isCancelled, phase == .playing, turn == .cpu else { return }
-            stepCPU()
+        // 先行タスクの終了を待ってから引き継ぐ。待機中に自分もキャンセルされたら譲って抜ける（#726。#531 で共通化）。
+        await withAITurnRunner(running: \.isRunningCPUTurn) {
+            while phase == .playing, turn == .cpu, !cpuHand.isEmpty {
+                // `cpuDelay` が 0 だと下の sleep 後の判定を通らない経路があるので、ループ先頭でも見る。
+                guard !Task.isCancelled else { return }
+                // 画面を離れると `.task(id:)` がキャンセルされる。状態の guard だけでは通過してしまい、
+                // 離れた後に CPU が待ち時間ゼロで打ち、その結果（役・あがり）が中断データに残る（#726）。
+                guard await pauseCPUTurn(for: cpuDelay), phase == .playing, turn == .cpu else { return }
+                stepCPU()
+            }
         }
     }
 

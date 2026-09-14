@@ -27,7 +27,7 @@ private struct TurnState {
 
 @MainActor
 @Observable
-public final class OthelloModel {
+public final class OthelloModel: AITurnGuarded {
     public private(set) var board: OthelloBoard
     public private(set) var currentStone: OthelloStone
     public private(set) var humanSide: OthelloStone
@@ -216,36 +216,35 @@ public final class OthelloModel {
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking, !gameOver else { return }
         // 待ちの最中に新規対局が始まると、旧盤面での判断（パス・着手）が新しい盤面に
-        // 適用されてしまう。開始時のトリガー（対局の通し番号 × turnID）を控え、
-        // 完了時に一致する場合だけ進める。
-        let key = aiTurnKey
-        let serial = gameSerial
-
+        // 適用されてしまう。開始時の `aiTurnKey`（対局の通し番号 × turnID）と
+        // 一致する場合だけ進める（#531 で共通化）。
         if mustPass {
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            guard aiTurnKey == key, isAITurn, mustPass else { return }
-            confirmPass()
+            await withAITurnGuard(key: \.aiTurnKey) {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+            } commit: { _ in
+                guard isAITurn, mustPass else { return }
+                confirmPass()
+            }
             return
         }
 
-        isThinking = true
-        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
-        defer { if gameSerial == serial { isThinking = false } }
-
-        let b = board, s = currentStone, lvl = aiLevel
-        // 直前の着手の反転演出を見せてから打つための締切（#204）。読みを始める前に取り、
-        // 読みが終わったあとに「残り」だけ待つので、読みが長ければ待ちはゼロになる。
-        let settleDeadline = ContinuousClock.now + flipSettleDelay
-        await thinkingGate?()
-        let move = await Task.detached(priority: .userInitiated) {
-            await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
-        }.value
-        try? await Task.sleep(until: settleDeadline, clock: .continuous)
-
-        guard aiTurnKey == key, isAITurn, !gameOver else { return }
-        // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
-        if let (r, c) = move, board.isValid(row: r, col: c, stone: currentStone) {
-            place(row: r, col: c)
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let b = board, s = currentStone, lvl = aiLevel
+            // 直前の着手の反転演出を見せてから打つための締切（#204）。読みを始める前に取り、
+            // 読みが終わったあとに「残り」だけ待つので、読みが長ければ待ちはゼロになる。
+            let settleDeadline = ContinuousClock.now + flipSettleDelay
+            await thinkingGate?()
+            let move = await Task.detached(priority: .userInitiated) {
+                await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
+            }.value
+            try? await Task.sleep(until: settleDeadline, clock: .continuous)
+            return move
+        } commit: { move in
+            guard isAITurn, !gameOver else { return }
+            // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
+            if let (r, c) = move, board.isValid(row: r, col: c, stone: currentStone) {
+                place(row: r, col: c)
+            }
         }
     }
 

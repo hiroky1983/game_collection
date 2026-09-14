@@ -163,9 +163,11 @@ public final class SudokuModel {
         return Set((0..<SudokuEngine.cellCount).filter { board[$0] == digit })
     }
 
-    /// その数字がもう 9 個すべて盤に入っているか（数字パッドを薄く落とす判定）。
+    /// その数字がもう 9 個すべて**正解の位置に**入っているか（数字パッドを薄く落とす判定）。
+    /// 盤上の個数で数えると誤答まで数え、まだ置く必要がある数字を使い切り扱いにする（#813）。
     public func isDigitExhausted(_ digit: Int) -> Bool {
-        board.filter { $0 == digit }.count >= SudokuEngine.size
+        (0..<SudokuEngine.cellCount).filter { board[$0] == digit && solution[$0] == digit }.count
+            == SudokuEngine.size
     }
 
     /// `index` のマスに `digit` のメモが付いているか。
