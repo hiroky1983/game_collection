@@ -28,6 +28,8 @@ public enum RunnerFeedbackCue: Equatable, Sendable {
         case .landed:             return .impact(lastLandingWasJust ? .medium : .light)
         case .passedCheckpoint:   return .notice(.success)
         case .collectedSpeedItem: return .impact(.light)
+        // イノシシの予告「ドドド」（#801）。着地（light / medium）より硬く、決着（notice）ではない。
+        case .boarCharging:       return .impact(.rigid)
         case .fell, .crashed:     return .notice(.error)
         case .reachedGoal:        return .notice(.success)
         }

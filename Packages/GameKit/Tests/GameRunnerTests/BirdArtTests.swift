@@ -182,25 +182,35 @@ struct BirdArtTests {
         }
     }
 
-    /// 絵を合わせる相手（帯）が、全ステージの鳥で同じ 1 タイル幅 × 13〜絵の頂点であること。
+    /// 絵を合わせる相手（帯）が、全ステージの鳥で同じ 1 タイル幅 × 絵の高さであること。
     /// ここがステージごとに違うと `art` 1 つで張り出しを測っている意味が無くなる
-    /// ——帯の上端は**幅 1 タイルの絵**から導いているので、幅の違う鳥が混ざると
+    /// ——帯の厚みは**幅 1 タイルの絵**から導いているので、幅の違う鳥が混ざると
     /// その鳥だけ絵と帯がズレる。
-    @Test("鳥の箱は 1 タイル幅 × 帯 13〜絵の頂点")
+    ///
+    /// #796 で鳥は飛び立つ障害になり、帯は走者の進みで上下する（`RunnerHazard.frame`）。
+    /// 変わらないのは**帯の厚み = 絵の高さ**で、低く飛ぶあいだの上端は低い岩と同じ 5、
+    /// 上がりきった下端は #622 D案の 13。
+    @Test("鳥の箱は 1 タイル幅 × 絵の高さの帯（低いときの上端 5・上がったときの下端 13）")
     func hitboxIsTheBand() {
-        #expect(RunnerHazardKind.bird.bottom == 13, "くぐれる側の縁（本質）は #622 D案の決裁値のまま")
+        #expect(RunnerHazardKind.bird.height == RunnerHazardKind.lowBlock.height, "低く飛ぶあいだは低い岩と同じ上端")
         #expect(
-            RunnerHazardKind.bird.height == 13 + Self.art.bandHeight,
-            "帯の上端が絵の頂点から外れている"
+            abs(RunnerHazardKind.bird.height - RunnerHazardKind.bird.bottom - Self.art.bandHeight) < Self.epsilon,
+            "帯の厚みが絵の高さから外れている"
         )
-        // 単発ジャンプでは足が上端を越えられない＝跳べば必ず当たる（帯を下げても崩れない条件）。
-        #expect(RunnerRules.jumpApex < RunnerHazardKind.bird.height)
+        #expect(RunnerHazardKind.birdHighBottom == 13, "上がりきった下端は #622 D案の決裁値のまま")
+        #expect(RunnerHazardKind.birdHighBottom > RunnerField.Metrics.playerHeight, "上がりきれば接地した頭はつかえない")
         let birds = RunnerStage.all.flatMap { $0.hazards }.filter { $0.kind == .bird }
         #expect(!birds.isEmpty)
         for bird in birds {
             #expect(bird.length == RunnerRules.tileWidth)
-            #expect(bird.bottom == 13)
             #expect(bird.height == RunnerHazardKind.bird.height)
+            // 上がりきった帯（`frame`）も同じ厚み。
+            let far = bird.birdTakeoffDistance
+                + (RunnerRules.birdLowDistance + RunnerRules.birdClimbDistance) / RunnerRules.birdAdvance
+            if let frame = bird.frame(atRunnerDistance: far) {
+                #expect(abs(frame.bottom - RunnerHazardKind.birdHighBottom) < Self.epsilon)
+                #expect(abs(frame.top - frame.bottom - Self.art.bandHeight) < Self.epsilon)
+            }
         }
     }
 }

@@ -31,7 +31,7 @@ private final class SpyAnalyticsService: AnalyticsService {
     }
     var quits: Int {
         events.filter {
-            if case let .gameEnd(_, result, _, _) = $0 { return result == .quit } else { return false }
+            if case let .gameEnd(_, result, _, _, _) = $0 { return result == .quit } else { return false }
         }.count
     }
 }

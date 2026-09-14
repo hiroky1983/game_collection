@@ -3,6 +3,12 @@ import Foundation
 
 /// 鳥（`RunnerHazardKind.bird`）の絵の寸法（#609）。
 ///
+/// #796 で鳥は「近づくと飛び立つ障害」になったが、絵は #671 の飛ぶ鳥をそのまま流用する。
+/// 帯は走者の進みで上下する（`RunnerHazard.frame(atRunnerDistance:)`）ので、以下で「帯の床 13」と
+/// あるのは**上がりきったとき**の値（`RunnerHazardKind.birdHighBottom`）。変わらないのは
+/// **帯の厚み = この絵の高さ**（`bandHeight` → `RunnerHazardKind.birdBandHeight`）で、
+/// `BirdArtTests` が固定するのはそこ。
+///
 /// `RunnerScene.addBird` の中に直書きしていた座標をここへ出してある。狙いは
 /// **絵が当たり判定の矩形（幅 `width` × 高さ `height`）からはみ出していないことを
 /// 数値で検証できるようにする**こと——SpriteKit のノードを作らずに済むので、
