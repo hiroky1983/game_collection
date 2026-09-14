@@ -64,7 +64,7 @@ struct CardTableTests {
     @Test("追従表示は指の位置を読む（読まなければ札が指について来ない）")
     func theDragLayerReadsTheFingerPosition() throws {
         let source = SourceScan.strippingComments(try Self.baseSource())
-        let layer = try #require(Self.declaration(of: "public struct CardDragLayer", in: source))
+        let layer = try #require(SourceScan.declaration(of: "public struct CardDragLayer", in: source))
 
         #expect(
             layer.contains("location.point"),
@@ -173,22 +173,5 @@ struct CardTableTests {
             .deletingLastPathComponent()   // Tests
             .deletingLastPathComponent()   // GameKit
             .appendingPathComponent(path)
-    }
-
-    /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
-    private static func declaration(of header: String, in source: String) -> String? {
-        guard let start = source.range(of: header) else { return nil }
-        guard let open = source[start.upperBound...].firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var index = open
-        while index < source.endIndex {
-            if source[index] == "{" { depth += 1 }
-            if source[index] == "}" {
-                depth -= 1
-                if depth == 0 { return String(source[open...index]) }
-            }
-            index = source.index(after: index)
-        }
-        return nil
     }
 }

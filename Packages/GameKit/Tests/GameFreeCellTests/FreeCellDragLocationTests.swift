@@ -21,7 +21,7 @@ struct FreeCellDragLocationTests {
     @Test("ドラッグ状態は指の位置を持たない（持つと @State の更新になり盤が作り直される）")
     func dragStateDoesNotCarryTheFingerPosition() throws {
         let source = try Self.viewSource()
-        let block = try #require(Self.declaration(of: "struct FreeCellDragState", in: source))
+        let block = try #require(SourceScan.declaration(of: "struct FreeCellDragState", in: source))
 
         #expect(
             !block.contains("location"),
@@ -49,22 +49,5 @@ struct FreeCellDragLocationTests {
 
     private static func viewSource() throws -> String {
         try SourceScan.packageSource("Sources/GameFreeCell/FreeCellView.swift")
-    }
-
-    /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
-    private static func declaration(of header: String, in source: String) -> String? {
-        guard let start = source.range(of: header) else { return nil }
-        guard let open = source[start.upperBound...].firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var index = open
-        while index < source.endIndex {
-            if source[index] == "{" { depth += 1 }
-            if source[index] == "}" {
-                depth -= 1
-                if depth == 0 { return String(source[open...index]) }
-            }
-            index = source.index(after: index)
-        }
-        return nil
     }
 }

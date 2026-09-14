@@ -22,7 +22,7 @@ struct BlackjackMetricsTests {
     @Test("操作ボタンが実際に下限の定数で組まれている")
     func actionButtonIsWiredToTheMetric() throws {
         // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する。
-        let button = Self.actionButtonSource(try Self.viewSource())
+        let button = SourceScan.functionSource(startingWith: "private func actionButton(", in: try Self.viewSource())
         #expect(!button.isEmpty, "actionButton の定義が見つからない")
         #expect(
             SourceScan.matchCount(of: #"minHeight:\s*BlackjackMetrics\.actionButtonMinHeight"#, in: button) == 1,
@@ -83,13 +83,5 @@ struct BlackjackMetricsTests {
 
     private static func viewSource() throws -> String {
         try SourceScan.packageSource("Sources/GameBlackjack/BlackjackView.swift")
-    }
-
-    /// `actionButton` の定義本文だけを切り出す（他の場所の `.padding(.vertical, 10)` を拾わないため）。
-    private static func actionButtonSource(_ source: String) -> String {
-        guard let start = source.range(of: "private func actionButton(") else { return "" }
-        let rest = source[start.lowerBound...]
-        guard let end = rest.range(of: "\n    }\n") else { return String(rest) }
-        return String(rest[..<end.upperBound])
     }
 }

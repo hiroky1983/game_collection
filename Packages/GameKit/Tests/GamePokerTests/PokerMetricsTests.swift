@@ -31,7 +31,7 @@ struct PokerMetricsTests {
         // 高さを決めていた元の `.padding(.vertical, 10)` が残っていると、下限を外しても
         // 見た目が 37pt で保たれてしまい上の検証が空振りしうるので、消えていることも見る。
         #expect(
-            SourceScan.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: Self.actionButtonSource(source)) == 0,
+            SourceScan.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: SourceScan.functionSource(startingWith: "private func actionButton(", in: source)) == 0,
             "actionButton に高さを決める .padding(.vertical, 10) が残っている"
         )
     }
@@ -70,13 +70,5 @@ struct PokerMetricsTests {
 
     private static func viewSource() throws -> String {
         try SourceScan.packageSource("Sources/GamePoker/PokerView.swift")
-    }
-
-    /// `actionButton` の定義本文だけを切り出す（他の場所の `.padding(.vertical, 10)` を拾わないため）。
-    private static func actionButtonSource(_ source: String) -> String {
-        guard let start = source.range(of: "private func actionButton(") else { return "" }
-        let rest = source[start.lowerBound...]
-        guard let end = rest.range(of: "\n    }\n") else { return String(rest) }
-        return String(rest[..<end.upperBound])
     }
 }

@@ -60,6 +60,32 @@ public enum SourceScan {
         }.joined(separator: "\n")
     }
 
+    /// `header` で始まる宣言の本体（`header` の後の最初の `{` から対応する閉じ括弧まで）を取り出す。見つからなければ nil。
+    public static func declaration(of header: String, in source: String) -> String? {
+        guard let start = source.range(of: header) else { return nil }
+        guard let open = source[start.upperBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var index = open
+        while index < source.endIndex {
+            if source[index] == "{" { depth += 1 }
+            if source[index] == "}" {
+                depth -= 1
+                if depth == 0 { return String(source[open...index]) }
+            }
+            index = source.index(after: index)
+        }
+        return nil
+    }
+
+    /// `header`（例 `private func actionButton(`）から、インデント 4 の閉じ括弧の行までを取り出す。
+    /// `header` が無ければ空文字、閉じ括弧の行が無ければ末尾まで。
+    public static func functionSource(startingWith header: String, in source: String) -> String {
+        guard let start = source.range(of: header) else { return "" }
+        let rest = source[start.lowerBound...]
+        guard let end = rest.range(of: "\n    }\n") else { return String(rest) }
+        return String(rest[..<end.upperBound])
+    }
+
     /// 正規表現 `pattern` が `source` に重ならずに現れる回数。パターンが不正なら 0。
     public static func matchCount(of pattern: String, in source: String) -> Int {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }

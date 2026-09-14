@@ -146,7 +146,7 @@ struct FreeCellZoomTests {
             寸法の分岐を各所に撒くと、拡大したのに当たり判定だけ等倍のまま、という形のズレが生まれる
             """
         )
-        let width = try #require(Self.declaration(of: "private func cardWidth", in: source))
+        let width = try #require(SourceScan.declaration(of: "private func cardWidth", in: source))
         #expect(SourceScan.strippingComments(width).contains("zoomMode"), "札の幅の分岐がここから消えている")
         #expect(width.contains("zoomedCardWidth"), "取り違え防止")
     }
@@ -158,7 +158,7 @@ struct FreeCellZoomTests {
     @Test("盤は 1 つの札幅から作った metrics を上段と場札へ配る")
     func theBoardFeedsOneMetricsToBothRows() throws {
         let source = try Self.viewSource()
-        let block = try #require(Self.declaration(of: "private var board:", in: source))
+        let block = try #require(SourceScan.declaration(of: "private var board:", in: source))
         let body = SourceScan.strippingComments(block)
         #expect(SourceScan.matchCount(of: #"let metrics = "#, in: body) == 1, "metrics が複数ある")
         #expect(body.contains("topRow(metrics: metrics)"))
@@ -172,36 +172,19 @@ struct FreeCellZoomTests {
     @Test("拡大トグルは読み上げを畳んだ要素の外にある")
     func theToggleIsOutsideTheCollapsedAccessibilityElement() throws {
         let source = try Self.viewSource()
-        let readout = try #require(Self.declaration(of: "private var statusReadout:", in: source))
+        let readout = try #require(SourceScan.declaration(of: "private var statusReadout:", in: source))
         #expect(readout.contains("children: .ignore"), "取り違え防止。畳んでいるのはこちら")
         #expect(!readout.contains("zoomMode"), "トグルが畳んだ要素の中にある。VoiceOver から押せない")
 
-        let bar = try #require(Self.declaration(of: "private var statusBar:", in: source))
+        let bar = try #require(SourceScan.declaration(of: "private var statusBar:", in: source))
         #expect(bar.contains("zoomMode.toggle()"), "トグルが帯から消えている")
         #expect(!SourceScan.strippingComments(bar).contains("children: .ignore"),
                 "帯ごと畳むとトグルが読み上げから消える")
     }
 
-    // MARK: - ヘルパー（`FreeCellTopRowTests` と同じもの）
+    // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
         try SourceScan.packageSource("Sources/GameFreeCell/FreeCellView.swift")
-    }
-
-    /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
-    private static func declaration(of header: String, in source: String) -> String? {
-        guard let start = source.range(of: header) else { return nil }
-        guard let open = source[start.upperBound...].firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var index = open
-        while index < source.endIndex {
-            if source[index] == "{" { depth += 1 }
-            if source[index] == "}" {
-                depth -= 1
-                if depth == 0 { return String(source[open...index]) }
-            }
-            index = source.index(after: index)
-        }
-        return nil
     }
 }
