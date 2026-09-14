@@ -9,6 +9,38 @@ struct MahjongTableLayoutTests {
     static let phone = MahjongTableLayout(size: CGSize(width: 393, height: 393))
     static let pad = MahjongTableLayout(size: CGSize(width: 700, height: 700))
 
+    @Test("大きさ 0 の卓でも NaN を作らない（SwiftUI の最初のレイアウトは 0 で来る。開発版 v1.1.5 のクラッシュ）")
+    func zeroSizeProducesFiniteValues() {
+        let layout = MahjongTableLayout(size: .zero)
+        var values: [CGFloat] = [layout.riverTileWidth, layout.handOverview.width, layout.handOverview.tileWidth,
+                                 layout.handOverview.center.x, layout.handOverview.center.y]
+        for seat in 0..<4 {
+            for index in 0..<18 {
+                let slot = layout.riverSlot(seat: seat, index: index)
+                values += [slot.center.x, slot.center.y, slot.scale]
+                let (block, _) = layout.handBlock(seat: seat, index: index % 13, count: 13)
+                values += [block.a.x, block.a.y, block.c.x, block.c.y, block.drop, block.lean, block.bulge]
+            }
+            let meld = layout.meldSlot(seat: seat)
+            values += [meld.center.x, meld.center.y, meld.scale, layout.meldTileWidth(seat: seat)]
+            let stick = layout.riichiStickSlot(seat: seat)
+            values += [stick.center.x, stick.center.y, stick.scale]
+            values += [layout.discardOrigin(seat: seat).x, layout.discardOrigin(seat: seat).y]
+            values += layout.meldTileRects(seat: seat, groups: 2, tiles: 6)
+                .flatMap { [$0.minX, $0.minY, $0.width, $0.height] }
+        }
+        values += [layout.centerPanel.minX, layout.centerPanel.minY, layout.centerPanel.width, layout.centerPanel.height]
+        let nonFinite = values.filter { !$0.isFinite }
+        #expect(nonFinite.isEmpty, "0 ÷ 0 の NaN が混ざっている: \(nonFinite.count) 件")
+        // 寸法（幅・高さ・縮尺）は負にならない。座標は原点まわりの引き算で -1 程度になってよい
+        let sizes = [layout.riverTileWidth, layout.handOverview.width, layout.handOverview.tileWidth,
+                     layout.centerPanel.width, layout.centerPanel.height]
+            + (0..<4).flatMap { seat in layout.meldTileRects(seat: seat, groups: 2, tiles: 6).flatMap { [$0.width, $0.height] } }
+            + (0..<4).flatMap { seat in (0..<18).map { layout.riverSlot(seat: seat, index: $0).scale } }
+        let negative = sizes.filter { $0 < 0 }
+        #expect(negative.isEmpty, "負の寸法が混ざっている: \(negative)")
+    }
+
     @Test("奥ほど小さく、手前ほど大きい。中央線は幅の中央")
     func projection() {
         let l = Self.phone
