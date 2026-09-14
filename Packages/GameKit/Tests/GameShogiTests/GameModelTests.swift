@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GameShogi
 
 @MainActor
@@ -172,42 +173,6 @@ struct ShogiAITurnKeyTests {
 
 // MARK: - 思考中の新規対局（#145: 旧タスクの思考フラグで新しい対局の CPU が止まる）
 
-/// 思考タスクを探索の開始直前で止めておくためのゲート（#172。オセロ側と同じ仕組み）。
-///
-/// 以前は「思考タスクを積んだ直後に空タスクを積む」という MainActor のジョブ順序で待ち合わせて
-/// いたが、これは「空タスクが走る時点で探索がまだ終わっていない」ことまでは保証できない。
-/// 将棋は探索が重いぶん実際には落ちていなかったが、穴はオセロ（#172 で顕在化）と同じであるため
-/// 同じ方式へ揃える。`Task.sleep` でフラグを見張る形に戻さないこと（#145 / #152）。
-@MainActor
-final class ThinkingGate {
-    private var hasArrived = false
-    private var isReleased = false
-    private var onArrival: CheckedContinuation<Void, Never>?
-    private var onRelease: CheckedContinuation<Void, Never>?
-
-    /// 思考タスク側。ゲートへの到達を知らせ、`release()` まで停止する。
-    func wait() async {
-        hasArrived = true
-        onArrival?.resume()
-        onArrival = nil
-        guard !isReleased else { return }
-        await withCheckedContinuation { onRelease = $0 }
-    }
-
-    /// テスト側。思考タスクがゲートに到達するまで待つ。
-    func waitUntilArrived() async {
-        guard !hasArrived else { return }
-        await withCheckedContinuation { onArrival = $0 }
-    }
-
-    /// テスト側。止めていた思考タスクを探索へ進ませる。
-    func release() {
-        isReleased = true
-        onRelease?.resume()
-        onRelease = nil
-    }
-}
-
 @MainActor
 @Suite("将棋 思考中の新規対局")
 struct ShogiNewGameDuringThinkingTests {
@@ -215,8 +180,8 @@ struct ShogiNewGameDuringThinkingTests {
     ///
     /// ゲートは一度到達したら外す（`thinkingGate = nil`）。停止中の旧タスクはすでにゲートの中に
     /// いるため影響を受けず、以降に始まる新しい対局の思考は素通りする。
-    private func startThinking(_ model: ShogiGameModel) async throws -> (task: Task<Void, Never>, gate: ThinkingGate) {
-        let gate = ThinkingGate()
+    private func startThinking(_ model: ShogiGameModel) async throws -> (task: Task<Void, Never>, gate: TaskGate) {
+        let gate = TaskGate()
         model.thinkingGate = { await gate.wait() }
         let task = Task { await model.performAIMoveIfNeeded() }
         await gate.waitUntilArrived()

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 
 /// ハブのカードの押下フィードバックと、ツールバーの読み上げ（#716）。
 ///
@@ -8,28 +9,6 @@ import Testing
 /// （View をファイルへ割っただけで空振りする形・説明文の言及に当たって緑になる形を避けるため）。
 @Suite("ハブの押下フィードバックと読み上げ")
 struct HubPressFeedbackWiringTests {
-    private static func appSources() throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // LayoutTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .deletingLastPathComponent()   // Packages/
-            .deletingLastPathComponent()   // リポジトリのルート
-        let appDir = repoRoot.appendingPathComponent("App")
-        let files = try FileManager.default
-            .contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "swift" }
-            .sorted { $0.path < $1.path }
-        #expect(!files.isEmpty, "App/ の走査に失敗している")
-        let joined = try files
-            .map { try String(contentsOf: $0, encoding: .utf8) }
-            .joined(separator: "\n")
-        return joined
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-    }
-
     private static func count(_ pattern: String, in source: String) throws -> Int {
         let regex = try NSRegularExpression(pattern: pattern)
         return regex.numberOfMatches(in: source, range: NSRange(source.startIndex..., in: source))
@@ -37,14 +16,14 @@ struct HubPressFeedbackWiringTests {
 
     @Test("App/ に押下フィードバックを消す .plain が残っていない")
     func noPlainButtonStyle() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         #expect(!source.contains("buttonStyle(.plain)"),
                 "`.plain` は押下中の縮みも消す。自前で背景を描くボタンは `.pop` を使う（#195）")
     }
 
     @Test("ハブからゲームへ入るカードは、すべて .pop で押下中に沈む")
     func everyGameLinkUsesPopStyle() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         // 導線の数（グリッド・つづき/最近の行・はじめの1本 #721）と、`.pop` まで結線された数が一致すること。
         // `.pop` の有無だけを contains で見ると、別のボタンに付いた `.pop` で緑になる。
         // 導線を足したら、そのカードの型名を下の選択肢に加える（加えないと .pop を付けても赤になる）。
@@ -59,7 +38,7 @@ struct HubPressFeedbackWiringTests {
 
     @Test("設定の歯車ボタンが VoiceOver で「設定」と読まれる")
     func settingsButtonHasAccessibilityLabel() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         // アイコンだけのボタンは VoiceOver がシンボル名を読む。ボタンとラベルの**結線**まで見る。
         #expect(
             source.range(

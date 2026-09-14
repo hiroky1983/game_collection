@@ -3,6 +3,7 @@ import Foundation
 import CoreGraphics
 import Observation
 import Core
+import GameKitTestSupport
 
 /// 「札を場に並べて動かす」共通基盤（#524）を固定する。
 ///
@@ -62,8 +63,8 @@ struct CardTableTests {
 
     @Test("追従表示は指の位置を読む（読まなければ札が指について来ない）")
     func theDragLayerReadsTheFingerPosition() throws {
-        let source = Self.strippingComments(try Self.baseSource())
-        let layer = try #require(Self.declaration(of: "public struct CardDragLayer", in: source))
+        let source = SourceScan.strippingComments(try Self.baseSource())
+        let layer = try #require(SourceScan.declaration(of: "public struct CardDragLayer", in: source))
 
         #expect(
             layer.contains("location.point"),
@@ -125,7 +126,7 @@ struct CardTableTests {
         "Sources/GameFreeCell",
     ])
     func bothGamesGoThroughTheSharedBase(path: String) throws {
-        let source = Self.strippingComments(try Self.readDirectory(path))
+        let source = SourceScan.strippingComments(try Self.readDirectory(path))
 
         for symbol in ["CardSlot(", "cardDropTarget(", "CardDragLayer(", "CardDealtView(",
                        "CardMotionID(", "CardDragLocation("] {
@@ -172,37 +173,5 @@ struct CardTableTests {
             .deletingLastPathComponent()   // Tests
             .deletingLastPathComponent()   // GameKit
             .appendingPathComponent(path)
-    }
-
-    /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
-    private static func declaration(of header: String, in source: String) -> String? {
-        guard let start = source.range(of: header) else { return nil }
-        guard let open = source[start.upperBound...].firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var index = open
-        while index < source.endIndex {
-            if source[index] == "{" { depth += 1 }
-            if source[index] == "}" {
-                depth -= 1
-                if depth == 0 { return String(source[open...index]) }
-            }
-            index = source.index(after: index)
-        }
-        return nil
-    }
-
-    /// 行コメント（`//` 以降）を落とす。URL の `://` は落とさない。
-    /// 説明の文中に書かれた型名を「使っている」と数えないための前処理。
-    private static func strippingComments(_ source: String) -> String {
-        source.split(separator: "\n", omittingEmptySubsequences: false).map { line -> Substring in
-            var search = line.startIndex
-            while let slashes = line.range(of: "//", range: search..<line.endIndex) {
-                let precedesURL = slashes.lowerBound > line.startIndex
-                    && line[line.index(before: slashes.lowerBound)] == ":"
-                if !precedesURL { return line[line.startIndex..<slashes.lowerBound] }
-                search = slashes.upperBound
-            }
-            return line[...]
-        }.joined(separator: "\n")
     }
 }

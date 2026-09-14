@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GameBlackjack
 
 /// 伏せカードの公開・配布・勝敗バッジの演出（#209）。
@@ -99,55 +100,55 @@ struct BlackjackMotionTests {
 
         // 1. 伏せカードが反転ビュー経由で描かれていること（定義 1 + 呼び出し 1）。
         #expect(
-            Self.matchCount(of: #"BJFlipCardView"#, in: source) >= 2,
+            SourceScan.matchCount(of: #"BJFlipCardView"#, in: source) >= 2,
             "ディーラーの手札が BJFlipCardView を経由していない"
         )
         #expect(
-            Self.matchCount(of: #"BlackjackMotion\.holeCardFlip"#, in: source) == 1,
+            SourceScan.matchCount(of: #"BlackjackMotion\.holeCardFlip"#, in: source) == 1,
             "伏せカードの公開にアニメーションが掛かっていない"
         )
         // 旧実装（素の BJCardView を faceUp フラグで切り替えるだけ）へ戻っていないことも見る。
         // 戻ると上の件数が保たれたまま演出だけ消えうる。
         #expect(
-            Self.matchCount(of: #"BJCardView\(card: card, faceUp: !hidden\)"#, in: source) == 0,
+            SourceScan.matchCount(of: #"BJCardView\(card: card, faceUp: !hidden\)"#, in: source) == 0,
             "ディーラーの手札が素の BJCardView に戻っている"
         )
 
         // 2. 両者の手札が配布の演出を通っていること（定義 1 + ディーラー 1 + あなた 1）。
         #expect(
-            Self.matchCount(of: #"BJDealtCardView"#, in: source) >= 3,
+            SourceScan.matchCount(of: #"BJDealtCardView"#, in: source) >= 3,
             "ディーラー・あなたの手札が BJDealtCardView を経由していない"
         )
         #expect(
-            Self.matchCount(of: #"BlackjackMotion\.dealAppear\(index:"#, in: source) == 1,
+            SourceScan.matchCount(of: #"BlackjackMotion\.dealAppear\(index:"#, in: source) == 1,
             "配布に段差付きのアニメーションが掛かっていない"
         )
         // プレイヤー側は通常の手札とスプリット後の各手（#439）で複数箇所から呼ぶため
         // 件数は固定しない。ディーラー側は 1 箇所のままであることを見る。
         #expect(
-            Self.matchCount(of: #"isDealer: true"#, in: source) == 1
-                && Self.matchCount(of: #"isDealer: false"#, in: source) >= 1,
+            SourceScan.matchCount(of: #"isDealer: true"#, in: source) == 1
+                && SourceScan.matchCount(of: #"isDealer: false"#, in: source) >= 1,
             "配る順（あなた → ディーラー）の指定が View 側で失われている"
         )
 
         // 3. 勝敗バッジのトランジション。
         #expect(
-            Self.matchCount(of: #"BlackjackMotion\.outcomeBadge"#, in: source) == 1,
+            SourceScan.matchCount(of: #"BlackjackMotion\.outcomeBadge"#, in: source) == 1,
             "勝敗バッジがフェードで出ていない"
         )
         #expect(
-            Self.matchCount(of: #"\.transition\(\.opacity"#, in: source) == 1,
+            SourceScan.matchCount(of: #"\.transition\(\.opacity"#, in: source) == 1,
             "勝敗バッジに .transition が付いていない"
         )
 
         // Reduce Motion に追従しない素の `.animation(` / `withAnimation(` が
         // 紛れ込んでいないこと（#210）。
         #expect(
-            Self.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
+            SourceScan.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
             "Reduce Motion に追従しない .animation( が使われている"
         )
         #expect(
-            Self.matchCount(of: #"[^e]withAnimation\("#, in: source) == 0,
+            SourceScan.matchCount(of: #"[^e]withAnimation\("#, in: source) == 0,
             "Reduce Motion に追従しない withAnimation( が使われている"
         )
     }
@@ -155,18 +156,6 @@ struct BlackjackMotionTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameBlackjackTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameBlackjack/BlackjackView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GameBlackjack/BlackjackView.swift")
     }
 }

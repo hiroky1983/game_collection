@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GameOthello
 
 @Suite("OthelloBoard")
@@ -100,45 +101,6 @@ struct OthelloAITurnKeyTests {
 
 // MARK: - 思考中の新規対局（#140 のレビュー指摘: 旧盤面で選んだ手が新盤面に着手される）
 
-/// 思考タスクを探索の開始直前で止めておくためのゲート（#172）。
-///
-/// 以前は「思考タスクを積んだ直後に空タスクを積む」という MainActor のジョブ順序で待ち合わせて
-/// いたが、これは「空タスクが走る時点で探索がまだ終わっていない」ことまでは保証できない。
-/// オセロは初期盤面の合法手が4手しかなく探索が軽いため、CI の巡り合わせによっては前提の
-/// `#require(model.isThinking)` のほうが落ちて、無関係な PR のマージを止めていた。
-///
-/// ここではモデル側の待ち合わせ点（`thinkingGate`）で思考を明示的に止め、テストが `release()` を
-/// 呼ぶまで探索に入らせない。到達も解放もテストが制御するため、探索の所要時間に依存しない。
-@MainActor
-final class ThinkingGate {
-    private var hasArrived = false
-    private var isReleased = false
-    private var onArrival: CheckedContinuation<Void, Never>?
-    private var onRelease: CheckedContinuation<Void, Never>?
-
-    /// 思考タスク側。ゲートへの到達を知らせ、`release()` まで停止する。
-    func wait() async {
-        hasArrived = true
-        onArrival?.resume()
-        onArrival = nil
-        guard !isReleased else { return }
-        await withCheckedContinuation { onRelease = $0 }
-    }
-
-    /// テスト側。思考タスクがゲートに到達するまで待つ。
-    func waitUntilArrived() async {
-        guard !hasArrived else { return }
-        await withCheckedContinuation { onArrival = $0 }
-    }
-
-    /// テスト側。止めていた思考タスクを探索へ進ませる。
-    func release() {
-        isReleased = true
-        onRelease?.resume()
-        onRelease = nil
-    }
-}
-
 @MainActor
 @Suite("オセロ 思考中の新規対局")
 struct OthelloNewGameDuringThinkingTests {
@@ -146,8 +108,8 @@ struct OthelloNewGameDuringThinkingTests {
     ///
     /// ゲートは一度到達したら外す（`thinkingGate = nil`）。停止中の旧タスクはすでにゲートの中に
     /// いるため影響を受けず、以降に始まる新しい対局の思考は素通りする。
-    private func startThinking(_ model: OthelloModel) async throws -> (task: Task<Void, Never>, gate: ThinkingGate) {
-        let gate = ThinkingGate()
+    private func startThinking(_ model: OthelloModel) async throws -> (task: Task<Void, Never>, gate: TaskGate) {
+        let gate = TaskGate()
         model.thinkingGate = { await gate.wait() }
         let task = Task { await model.performAIMoveIfNeeded() }
         await gate.waitUntilArrived()
@@ -350,12 +312,12 @@ struct OthelloPassDeadlockTests {
     @Test func viewShowsPassAlertOnRestore() throws {
         let source = try Self.viewSource()
         #expect(
-            Self.matchCount(of: #"\.onChange\(of: model\.mustPass, initial: true\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"\.onChange\(of: model\.mustPass, initial: true\)"#, in: source) == 1,
             "パスの案内が initial: true で結線されていない（復元直後に案内が出ない）"
         )
         // パスの手段が案内の「OK」1箇所だけである、という上のテストの前提を固定する。
         #expect(
-            Self.matchCount(of: #"model\.confirmPass\(\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"model\.confirmPass\(\)"#, in: source) == 1,
             "confirmPass() の呼び出し箇所が変わっている（パスの導線の前提が崩れている）"
         )
     }
@@ -363,19 +325,7 @@ struct OthelloPassDeadlockTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameOthelloTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameOthello/OthelloView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GameOthello/OthelloView.swift")
     }
 }
 
@@ -435,7 +385,7 @@ struct OthelloPreviewMidgameTests {
         model.newGame(humanSide: .white, aiLevel: 2)   // CPU=黒(先手) → 起動直後から CPU の手番
         try #require(model.isAITurn)
 
-        let gate = ThinkingGate()
+        let gate = TaskGate()
         model.thinkingGate = { await gate.wait() }
         let thinking = Task { await model.performAIMoveIfNeeded() }
         await gate.waitUntilArrived()
@@ -587,10 +537,10 @@ struct OthelloEmptyCellBonusTests {
     /// モデルが正しくても実石数を読んだままだと、リザルトの合計が 64 にならず狙いが画面に出ない。
     @Test func viewReadsBonusAppliedScore() throws {
         let source = try Self.viewSource()
-        #expect(Self.matchCount(of: #"model\.blackScore"#, in: source) == 2)
-        #expect(Self.matchCount(of: #"model\.whiteScore"#, in: source) == 2)
+        #expect(SourceScan.matchCount(of: #"model\.blackScore"#, in: source) == 2)
+        #expect(SourceScan.matchCount(of: #"model\.whiteScore"#, in: source) == 2)
         #expect(
-            Self.matchCount(of: #"model\.(black|white)Count"#, in: source) == 0,
+            SourceScan.matchCount(of: #"model\.(black|white)Count"#, in: source) == 0,
             "スコアの表示に実石数（blackCount / whiteCount）が残っている"
         )
     }
@@ -598,19 +548,7 @@ struct OthelloEmptyCellBonusTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameOthelloTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameOthello/OthelloView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GameOthello/OthelloView.swift")
     }
 }
 
