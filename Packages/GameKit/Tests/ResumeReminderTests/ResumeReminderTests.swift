@@ -3,8 +3,10 @@ import Testing
 import Core
 import Game2048
 import GameChess
+@testable import GameMahjong
 import GameRunner
 import GameShogi
+import MahjongTiles
 
 // MARK: - テスト用の部品
 
@@ -112,7 +114,9 @@ private func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
     tokyo.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
 }
 
-private let titles = ["shogi": "将棋", "2048": "2048", "sudoku": "ナンプレ", "go": "囲碁", "chess": "チェス"]
+private let titles = [
+    "shogi": "将棋", "2048": "2048", "sudoku": "ナンプレ", "go": "囲碁", "chess": "チェス", "mahjong4": "麻雀（四人打ち）",
+]
 
 @MainActor
 private func makeService(
@@ -529,5 +533,81 @@ struct ResumeReminderIntegrationTests {
             await reopenedReminders.pendingWork?.value
             #expect(reopenedSpy.reminders.isEmpty, "\(gameID): 見返しを開き直して戻ったら予約した")
         }
+    }
+
+    /// 麻雀の局を流局させてリザルト（`.handResult`）で止める。「次の局へ」「結果を見る」は押さない。
+    private func finishMahjongHand(_ model: MahjongModel, scores: [Int]? = nil, roundNumber: Int = 1) {
+        // 何を切っても和了に絡まない手（147m258p369s + 東南西北）。全員ノーテンで流局し、点棒は動かない。
+        let junk = MahjongHand(tiles: [
+            .characters(1), .characters(4), .characters(7), .circles(2), .circles(5), .circles(8),
+            .bamboos(3), .bamboos(6), .bamboos(9), .wind(1), .wind(2), .wind(3), .wind(4),
+        ])
+        model.configureForTesting(
+            hands: Array(repeating: junk, count: MahjongModel.playerCount),
+            wall: [],
+            dealer: 0,
+            scores: scores,
+            roundNumber: roundNumber
+        )
+        model.exhaustWallForTesting()
+    }
+
+    @Test("麻雀: その先が終局になるリザルトから戻っても、開き直して戻っても予約しない（#811）",
+          arguments: [
+            ("一局戦", MahjongGameLength.singleHand, [Int]?.none, 1),
+            ("東風戦の最終局", MahjongGameLength.tonpuu, [Int]?.none, 4),
+            ("東風戦のトビ", MahjongGameLength.tonpuu, [Int]?.some([-1000, 34000, 34000, 33000]), 1),
+          ])
+    func mahjongConcludingResultIsNotReminded(label: String, length: MahjongGameLength, scores: [Int]?, round: Int) async throws {
+        let spy = SpyScheduler()
+        let store = MemorySnapshotStore()
+        let reminders = makeService(spy, Environment(now: date(13, 12)))
+        let services = GameServices(snapshots: store, ads: NoopAdService(), reminders: reminders)
+        let model = MahjongModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame(length: length)
+        finishMahjongHand(model, scores: scores, roundNumber: round)
+        try #require(model.phase == .handResult, "\(label): 前提が崩れた（リザルトで止まっていない）")
+        try #require(model.concludesAfterCurrentResult, "\(label): 前提が崩れた（この局の先が終局ではない）")
+        #expect(store.exists(for: "mahjong4"), "\(label): 前提が崩れた（リザルトは中断データに残るはず・#350）")
+
+        services.gameDidLeave(gameID: "mahjong4")
+        await reminders.pendingWork?.value
+        #expect(spy.reminders.isEmpty, "\(label): 対局が終わっているリザルトから戻ったら予約した")
+
+        // アプリを起動し直してリザルトを開いた（決着済みの印を覚えていない新しいサービス）。
+        let reopenedSpy = SpyScheduler()
+        let reopenedReminders = makeService(reopenedSpy, Environment(now: date(13, 12)))
+        let reopened = GameServices(snapshots: store, ads: NoopAdService(), reminders: reopenedReminders)
+        let restored = MahjongModel(services: reopened, cpuDelay: .zero, seed: 2026)
+        try #require(restored.phase == .handResult, "\(label): 前提が崩れた（リザルトから復元していない）")
+        reopened.gameDidLeave(gameID: "mahjong4")
+        await reopenedReminders.pendingWork?.value
+        #expect(reopenedSpy.reminders.isEmpty, "\(label): リザルトを開き直して戻ったら予約した")
+    }
+
+    @Test("麻雀: 東風戦の途中の局のリザルトから戻ったら、従来どおり予約する（#811）")
+    func mahjongMidGameResultIsReminded() async throws {
+        let spy = SpyScheduler()
+        let store = MemorySnapshotStore()
+        let reminders = makeService(spy, Environment(now: date(13, 12)))
+        let services = GameServices(snapshots: store, ads: NoopAdService(), reminders: reminders)
+        let model = MahjongModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame(length: .tonpuu)
+        finishMahjongHand(model)
+        try #require(model.phase == .handResult)
+        try #require(!model.concludesAfterCurrentResult, "前提が崩れた（東1局の先にはまだ局がある）")
+
+        services.gameDidLeave(gameID: "mahjong4")
+        await reminders.pendingWork?.value
+        #expect(spy.reminders["mahjong4"] != nil, "続きの局があるリザルトから戻ったのに予約していない")
+
+        let reopenedSpy = SpyScheduler()
+        let reopenedReminders = makeService(reopenedSpy, Environment(now: date(13, 12)))
+        let reopened = GameServices(snapshots: store, ads: NoopAdService(), reminders: reopenedReminders)
+        let restored = MahjongModel(services: reopened, cpuDelay: .zero, seed: 2026)
+        try #require(restored.phase == .handResult)
+        reopened.gameDidLeave(gameID: "mahjong4")
+        await reopenedReminders.pendingWork?.value
+        #expect(reopenedSpy.reminders["mahjong4"] != nil, "続きの局があるリザルトを開き直して戻ったのに予約していない")
     }
 }
