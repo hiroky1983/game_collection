@@ -297,16 +297,28 @@ public struct RunnerHazard: Equatable, Sendable {
     }
 }
 
-/// コース上のスピードアップアイテム 1 つ（会長QA「スピードアップアイテムor床とかあったほうがいい」）。
+/// 取ると得するアイテムの種類（#797 で 2 種類目を足した）。
+public enum RunnerPickupKind: String, Codable, Equatable, Sendable, CaseIterable {
+    /// スピードアップ（稲妻・区画記号 `s`）。取った瞬間から一定時間、上限を超えて加速する。
+    case speed
+    /// たこ焼き（区画記号 `k`・#797）。取ってから `RunnerRules.invincibleDuration` 秒のあいだ
+    /// **岩・鳥・台座の正面に当たってもミスにならない**。穴は従来どおり落ちる——無敵は
+    /// 「ぶつかっても平気」であって「飛べる」ではない。
+    case invincible
+}
+
+/// コース上のアイテム 1 つ（会長QA「スピードアップアイテムor床とかあったほうがいい」・#797）。
 ///
 /// **`RunnerHazard` とは別の型**にしてある。穴・障害物は「触れると失敗する」当たり判定
 /// （`isHittingBlock`/`isPit`）の対象だが、ピックアップは「触れると得する」だけで
-/// 失敗ロジックには一切混ぜない。位置だけを持つ軽量な値。
+/// 失敗ロジックには一切混ぜない。種類と位置だけを持つ軽量な値。
 public struct RunnerPickup: Equatable, Sendable {
+    public let kind: RunnerPickupKind
     /// 中心の x（コース先頭からのワールド座標）。
     public let start: Double
 
-    public init(start: Double) {
+    public init(kind: RunnerPickupKind, start: Double) {
+        self.kind = kind
         self.start = start
     }
 }
@@ -387,14 +399,18 @@ public enum RunnerEvent: Equatable, Sendable {
     case reachedGoal
     /// スピードアップアイテムを取った。決着ではないので `isTerminal` は false。
     case collectedSpeedItem
+    /// たこ焼き（#797）を取った。以後 `RunnerField.isInvincible` が一定時間 true になる。
+    case collectedInvincibleItem
     /// イノシシの突進が始まった（#801）。土煙と「ドドド」の手応えの発火点。決着ではない。
     case boarCharging
 
     /// このできごとでコースが終わるか（ミスかゴール）。
     public var isTerminal: Bool {
         switch self {
-        case .fell, .crashed, .reachedGoal:                                 return true
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .boarCharging: return false
+        case .fell, .crashed, .reachedGoal:
+            return true
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
+            return false
         }
     }
 }

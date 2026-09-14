@@ -92,8 +92,14 @@ public struct RunnerField: Equatable, Sendable {
     public private(set) var pickupOverboost: Double = 0
     /// `pickupOverboost` が 0 になるまでの残り秒数。
     private var pickupOverboostRemaining: Double = 0
-    /// 取得済みのスピードアップアイテムの数。まだ消していないノードを消すのに描画側が使う。
+    /// 取得済みのアイテムの数（スピードアップ・たこ焼きを問わない）。
     public private(set) var collectedPickupCount: Int = 0
+    /// たこ焼き（#797）の無敵の残り秒数。0 なら無敵ではない。
+    ///
+    /// 取り直すと満タンに戻す（重ねない。`pickupOverboost` と同じ扱い）。空中でも減る
+    /// ——「取ってから何秒」の物差しで、跳んで時間を止めて持ち越せてはいけない。
+    /// 画面の残り時間表示（`RunnerView`）はこの値をそのまま読む。
+    public private(set) var invincibleRemaining: Double = 0
     /// 直前の着地がジャスト着地だったか（#673）。
     ///
     /// 着地するたびに書き換わる（ジャストでなければ false に戻る）ので、`.landed` の
@@ -183,6 +189,10 @@ public struct RunnerField: Equatable, Sendable {
         guard isGrounded else { return false }
         return stage.boostFloors.contains { $0.start <= distance && distance < $0.end }
     }
+
+    /// いま無敵か（たこ焼き・#797）。true のあいだは岩・鳥・台座の正面に当たっても
+    /// `.crashed` を出さない。**穴は落ちる**（`advance` の接地判定はこの値を見ない）。
+    public var isInvincible: Bool { invincibleRemaining > 0 }
 
     /// 走者の当たり判定の矩形。
     public var playerMinX: Double { distance - Metrics.playerHalfWidth }
@@ -400,6 +410,10 @@ public struct RunnerField: Equatable, Sendable {
             justLandingOverboost = RunnerRules.justLandingOverboost
                 * (justLandingOverboostRemaining / RunnerRules.justLandingOverboostDuration)
         }
+        // 無敵（たこ焼き・#797）も同じ物差しで減る。速さには一切効かない。
+        if invincibleRemaining > 0 {
+            invincibleRemaining = max(0, invincibleRemaining - dt)
+        }
         let previousDistance = distance
         distance += currentSpeed * dt
 
@@ -437,36 +451,49 @@ public struct RunnerField: Equatable, Sendable {
 
         // 障害物は矩形どうしの重なりで見る（岩・低く飛ぶ鳥・犬・イノシシは跳んで越える）。
         // 台座（#674）は正面（左端）に突っ込んだ場合だけ同じくミスになる。
-        if let hit = hittingHazard {
-            lastMissCause = hit.kind.missCause
-            events.append(.crashed)
-            return
-        }
-        if isHittingPlatformFace {
-            lastMissCause = .rock
-            events.append(.crashed)
-            return
+        // 無敵（たこ焼き・#797）のあいだはこの判定だけを通さない——動く障害（飛び立つ鳥・犬・
+        // イノシシ・#796）も岩と同じく素通りする。穴は下の接地判定で従来どおり落ちる。
+        // 台座の正面に突っ込んだ場合は当たり判定を素通りして上面に乗る
+        // （`surfaceY(at:)` が台座の範囲で上面を返すので、次の接地判定で足が上面に止まる）。
+        if !isInvincible {
+            if let hit = hittingHazard {
+                lastMissCause = hit.kind.missCause
+                events.append(.crashed)
+                return
+            }
+            if isHittingPlatformFace {
+                lastMissCause = .rock
+                events.append(.crashed)
+                return
+            }
         }
 
-        // スピードアップアイテム。「触れると得する」だけなので、穴・障害物と違って
+        // アイテム。「触れると得する」だけなので、穴・障害物と違って
         // 高さは問わず横方向の重なりだけで見る。`currentSpeed` の「空中では必ず基準速度」
         // という不変条件には触れない（接地しているあいだしか乗りは効かないので、
         // 跳んで取ってもその場では速くならない）。
         //
-        // 効果は2つ: (1) `pedalBoost` を即座に上限へ引き上げる（乗れていない状態で取った
-        // 場合の底上げ）、(2) それとは別枠の `pickupOverboost` を一時的に乗せる（会長QA
-        // 「取るタイミングが大体もうMAX速度で意味がない」2026-09-10 への対応。`pedalBoost`
-        // 自体はどの道 `maxPedalBoost` で頭打ちなので、上限に張り付いた状態で取っても
-        // (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
+        // スピードアップの効果は2つ: (1) `pedalBoost` を即座に上限へ引き上げる（乗れていない
+        // 状態で取った場合の底上げ）、(2) それとは別枠の `pickupOverboost` を一時的に乗せる
+        // （会長QA「取るタイミングが大体もうMAX速度で意味がない」2026-09-10 への対応。
+        // `pedalBoost` 自体はどの道 `maxPedalBoost` で頭打ちなので、上限に張り付いた状態で
+        // 取っても (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
         // 乗り具合に関わらず必ず体感できる加速にする）。
+        // たこ焼き（#797）は速さに触らず、無敵の残り時間を満タンにするだけ。
         for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
             guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { continue }
             collectedPickupIndices.insert(index)
             collectedPickupCount += 1
-            pedalBoost = RunnerRules.maxPedalBoost
-            pickupOverboost = RunnerRules.pickupOverboost
-            pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
-            events.append(.collectedSpeedItem)
+            switch pickup.kind {
+            case .speed:
+                pedalBoost = RunnerRules.maxPedalBoost
+                pickupOverboost = RunnerRules.pickupOverboost
+                pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
+                events.append(.collectedSpeedItem)
+            case .invincible:
+                invincibleRemaining = RunnerRules.invincibleDuration
+                events.append(.collectedInvincibleItem)
+            }
         }
 
         // 接地面は「地面 or 台座の上面」（#674）。台座の範囲内なら上面で止まる。

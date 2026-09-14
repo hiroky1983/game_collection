@@ -103,6 +103,17 @@ public enum RunnerEndlessCourse {
 
     /// 平地の区画にスピードアップアイテムを置く割合（1/6）。
     private static let pickupOdds = 6
+    /// たこ焼き（#797）を置き始める距離。**全 400 区画のちょうど半分（200 区画）**で、
+    /// Issue の「エンドレスでは中盤から」の実体。台座・床（160 区画）より後ろにしてあるので、
+    /// 部品が出揃ってから無敵のご褒美が混ざる順序になる。
+    ///
+    /// この距離より手前では乱数を 1 つも余分に引かない（下の `pattern(using:)`）ので、
+    /// 同じ種の前半のコースは #797 より前とまったく同じ並びのまま。
+    static let takoyakiUnlockDistance: Double = 12_800
+    /// 解禁後、スピードアップアイテムを置かなかった平地の区画にたこ焼きを置く割合（1/16）。
+    /// 後半 200 区画の平地は 60〜70 区画ほどなので 1 本あたり 4 個前後——3 秒の無敵
+    /// （最高速で約 4 区画ぶん）が後半の 1 割弱を占める程度に留める。
+    private static let takoyakiOdds = 16
 
     // MARK: - 生成
 
@@ -132,7 +143,15 @@ public enum RunnerEndlessCourse {
             guard roll < hazardDensity(atDistance: distance) else {
                 // 平地。ときどきスピードアップアイテムを置く（障害ではないので条件は問わない）。
                 let pickup = Int.random(in: 0..<pickupOdds, using: &generator) == 0
-                symbols.append(pickup ? RunnerStage.pickupSymbol : "-")
+                if pickup {
+                    symbols.append(RunnerStage.pickupSymbol)
+                    continue
+                }
+                // 中盤（`takoyakiUnlockDistance`）からは、残りの平地にときどきたこ焼き（#797）を置く。
+                // 解禁前は乱数を引かない（手前のコースの並びを変えないため）。
+                let takoyaki = distance >= takoyakiUnlockDistance
+                    && Int.random(in: 0..<takoyakiOdds, using: &generator) == 0
+                symbols.append(takoyaki ? RunnerStage.takoyakiSymbol : "-")
                 continue
             }
             let symbol = pick(atDistance: distance, using: &generator)

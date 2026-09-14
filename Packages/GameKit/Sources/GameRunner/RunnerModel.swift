@@ -387,7 +387,7 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .boarCharging:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
@@ -611,6 +611,23 @@ public final class RunnerModel {
                 return field.isOnBoostFloor
                     && field.stage.boostFloors.contains { $0.start + 20 <= field.distance }
             })
+            isFrozenForCapture = true
+        case "invincible":
+            // たこ焼き（#797）を取って無敵のまま最初の岩に重なっている瞬間で止める
+            // （受け入れ条件「無敵中に岩へ当たっても crashed が出ない」「残り時間が画面で分かる」の画）。
+            // 本番では 4 面以降にしか出ないので、ショーケースの `k`（最初の岩の直前）を使う。
+            // 自動操縦は無敵でも岩の手前で跳んでしまうので、**跳ばずに**走らせて岩の中に
+            // 居る瞬間（接地したまま岩と重なっている＝無敵でなければミスの位置）で止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            var frames = 0
+            while phase.isRunning, frames < 60 * 30 {
+                let field = self.field
+                guard let rock = field.stage.hazards.first(where: { $0.kind != .pit }) else { break }
+                if field.isInvincible, field.playerMaxX > rock.start, field.playerMinX < rock.end { break }
+                frames += 1
+                tick(dt: 1.0 / 60)
+            }
             isFrozenForCapture = true
         case "endless":
             // エンドレス（#675）の走り出す前の画。上部セクションが「走行距離」表示に変わる。

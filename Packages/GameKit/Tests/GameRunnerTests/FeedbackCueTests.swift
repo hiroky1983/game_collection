@@ -38,6 +38,8 @@ struct RunnerFeedbackCueTests {
     @Test("できごとごとの手応えと、相乗りする効果音の対応")
     func cueTable() {
         #expect(RunnerFeedbackCue.cue(for: .collectedSpeedItem, lastLandingWasJust: false) == .impact(.light))
+        // たこ焼き（#797）も「取る」の音に相乗り（4 音の表を増やさない）。
+        #expect(RunnerFeedbackCue.cue(for: .collectedInvincibleItem, lastLandingWasJust: false) == .impact(.light))
         #expect(RunnerFeedbackCue.cue(for: .fell, lastLandingWasJust: false) == .notice(.error))
         #expect(RunnerFeedbackCue.cue(for: .crashed, lastLandingWasJust: false) == .notice(.error))
         #expect(RunnerFeedbackCue.cue(for: .reachedGoal, lastLandingWasJust: false) == .notice(.success))

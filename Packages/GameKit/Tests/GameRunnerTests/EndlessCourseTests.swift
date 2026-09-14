@@ -53,15 +53,35 @@ struct RunnerEndlessCourseTests {
         }
     }
 
-    /// 部品は岩・穴・鳥・犬・イノシシ・アイテム・台座・床のすべて（Issue #675「部品」、#800/#801 で
-    /// 動物を追加）。解禁距離があるので 1 本の中に全部出るとは限らないが、100 種も回せば全種類が出る。
-    @Test("岩・穴・鳥・犬・イノシシ・アイテム・台座・床のすべてが生成に使われる")
+    /// 部品は岩・穴・鳥・犬・イノシシ・アイテム・たこ焼き・台座・床のすべて（Issue #675「部品」、
+    /// #800/#801 で動物・#797 でたこ焼きを追加）。解禁距離があるので 1 本の中に全部出るとは
+    /// 限らないが、100 種も回せば全種類が出る。
+    @Test("岩・穴・鳥・犬・イノシシ・アイテム・たこ焼き・台座・床のすべてが生成に使われる")
     func allPartsAppear() {
         var seen: Set<Character> = []
         for seed in 1...100 as ClosedRange<UInt64> {
             seen.formUnion(RunnerEndlessCourse.pattern(seed: seed))
         }
-        #expect(seen == ["-", "1", "2", "3", "n", "t", "b", "d", "i", "s", "P", "="], "出ていない記号がある: \(seen)")
+        #expect(seen == ["-", "1", "2", "3", "n", "t", "b", "d", "i", "s", "k", "P", "="], "出ていない記号がある: \(seen)")
+    }
+
+    /// Issue #797「エンドレスでは中盤から」。解禁距離（全長の半分）より手前にたこ焼きが 1 つも
+    /// 無く、以降には出ること。手前の乱数を余分に消費しないので、解禁前の並びは #797 以前と同じ。
+    @Test("たこ焼きは中盤（解禁距離）より手前には出ない")
+    func takoyakiAppearsOnlyFromTheMiddle() {
+        var seenAfterUnlock = 0
+        for seed in 1...100 as ClosedRange<UInt64> {
+            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed))
+            for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.takoyakiSymbol {
+                let distance = Double(index) * Self.segmentWidth
+                #expect(
+                    distance >= RunnerEndlessCourse.takoyakiUnlockDistance,
+                    "種 \(seed): 区画 \(index)（\(distance)）にたこ焼きが早すぎる"
+                )
+                seenAfterUnlock += 1
+            }
+        }
+        #expect(seenAfterUnlock > 0, "解禁後にたこ焼きが 1 つも出ない")
     }
 
     // MARK: - 難易度カーブ
@@ -166,6 +186,7 @@ struct RunnerEndlessCourseTests {
         for symbol in symbols where symbol != "-" {
             let isKnown = RunnerStage.segmentSpec(symbol) != nil
                 || symbol == RunnerStage.pickupSymbol
+                || symbol == RunnerStage.takoyakiSymbol
                 || symbol == RunnerStage.platformSymbol
                 || symbol == RunnerStage.boostFloorSymbol
             #expect(isKnown, "種 \(seed): 未知の記号 '\(symbol)'")

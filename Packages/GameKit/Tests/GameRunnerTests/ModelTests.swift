@@ -181,6 +181,26 @@ struct RunnerModelTests {
             #expect(frame.start - boar.field.distance < RunnerField.Metrics.width - RunnerField.Metrics.playerX, "画面の中にいる")
         }
     }
+
+    /// 撮影用シナリオ `-simulateRunner invincible`（#797 の受け入れ条件「実機スクショ」の画）が、
+    /// **無敵のまま岩の中に居て、走行中のまま**（ミスしていない）で止まること。
+    /// 無敵が効いていなければ、この位置は `.crashed` → `.falling` になっている。
+    @Test("撮影用シナリオ invincible は無敵のまま岩の中で止まる")
+    func invincibleScenarioFreezesInsideTheRock() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("invincible-capture"))
+        model.applyDebugScenario("invincible")
+        guard let rock = model.field.stage.hazards.first(where: { $0.kind != .pit }) else {
+            Issue.record("ショーケースに岩が無い")
+            return
+        }
+        #expect(model.phase == .running, "無敵なので岩に重なってもミスにならない")
+        #expect(model.field.isInvincible)
+        #expect(model.field.isGrounded, "跳ばずに突っ切っている")
+        #expect(
+            model.field.playerMaxX > rock.start && model.field.playerMinX < rock.end,
+            "走者が岩の中にいる（\(model.field.distance) vs \(rock.start)〜\(rock.end)）"
+        )
+    }
 }
 
 @Suite("チャリンコおじさん: 落下演出")
@@ -472,6 +492,14 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.speedLabel(ratio: 0.53) == "スピード 50パーセント")
         #expect(RunnerAccessibility.speedLabel(ratio: 1.5) == "スピード 100パーセント")
         #expect(RunnerAccessibility.speedLabel(ratio: -1) == "スピード 0パーセント")
+    }
+
+    @Test("無敵の残り時間は秒を切り上げて読む")
+    func invincible() {
+        #expect(RunnerAccessibility.invincibleLabel(remaining: 3.0) == "無敵 あと3秒")
+        #expect(RunnerAccessibility.invincibleLabel(remaining: 2.2) == "無敵 あと3秒")
+        #expect(RunnerAccessibility.invincibleLabel(remaining: 0.3) == "無敵 あと1秒", "残りわずかを 0 秒と読まない")
+        #expect(RunnerAccessibility.invincibleLabel(remaining: -1) == "無敵 あと0秒")
     }
 
     @Test("タイムは分と秒に分けて読む")

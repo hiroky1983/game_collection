@@ -601,6 +601,124 @@ struct RunnerFieldTests {
         #expect(field.collectedPickupCount == 1)
     }
 
+    // MARK: - たこ焼き（無敵・#797）
+
+    /// 跳ばずに走らせ、決着するか `goal` を越えるまでのできごとを集める。
+    private func runWithoutJumping(_ field: inout RunnerField, until goal: Double) -> [RunnerEvent] {
+        var events: [RunnerEvent] = []
+        while field.distance < goal, !events.contains(where: { $0.isTerminal }) {
+            events += field.step(dt: 1.0 / 600)
+        }
+        return events
+    }
+
+    /// 受け入れ条件「無敵中に岩へ当たっても `crashed` が出ない」。たこ焼きの 1 区画先（64）の
+    /// 岩は、速さ 40 なら 1〜2 秒で着く——3 秒の無敵の内側。跳ばずに岩の中を走り抜ける。
+    @Test("たこ焼きを取ると無敵になり、岩に当たっても crashed が出ない")
+    func takoyakiLetsTheRunnerPassThroughRocks() {
+        let stage = RunnerStage(number: 1, pattern: "--k-t---", speed: 40)
+        guard let rock = stage.hazards.first else { Issue.record("岩が無い"); return }
+        var field = RunnerField(stage: stage)
+        let events = runWithoutJumping(&field, until: rock.end + RunnerField.Metrics.playerWidth)
+        #expect(events.contains(.collectedInvincibleItem))
+        #expect(!events.contains(.crashed), "無敵中に岩へ当たっても crashed が出ない")
+        #expect(field.distance > rock.end, "岩の向こう側まで走り抜けている")
+        #expect(field.isGrounded, "跳んで越えたのではなく、接地したまま突っ切った")
+        #expect(field.isInvincible, "岩を抜けた時点でもまだ無敵")
+    }
+
+    /// 同じく鳥（#671・跳べば当たる帯）。無敵中に鳥の帯の中へ跳び込んでも `crashed` が出ない。
+    @Test("無敵中は鳥の真下で跳んでも crashed が出ない")
+    func takoyakiLetsTheRunnerJumpThroughBirds() {
+        let stage = RunnerStage(number: 1, pattern: "--k-b---", speed: 40)
+        guard let bird = stage.hazards.first else { Issue.record("鳥が無い"); return }
+        var field = RunnerField(stage: stage)
+        // 帯に重なり始める位置まで走ってから踏み切る（`jumpingUnderABirdAlwaysCrashes` と同じ位置）。
+        var events = runWithoutJumping(&field, until: bird.start - RunnerField.Metrics.playerHalfWidth)
+        #expect(events.contains(.collectedInvincibleItem))
+        #expect(field.isInvincible, "鳥に着いた時点で無敵")
+        field.jump()
+        field.endHold()
+        var enteredBand = false
+        while field.distance < bird.end + RunnerField.Metrics.playerWidth {
+            events += field.step(dt: 1.0 / 600)
+            if field.footY + RunnerField.Metrics.playerHeight > RunnerField.Metrics.groundY + bird.bottom { enteredBand = true }
+            if events.contains(where: { $0.isTerminal }) { break }
+        }
+        #expect(enteredBand, "前提: 頭が鳥の帯に入っている")
+        #expect(!events.contains(.crashed), "無敵中に鳥の帯へ入っても crashed が出ない")
+    }
+
+    /// 無敵は「ぶつかっても平気」であって「飛べる」ではない（Issue #797「穴は落ちる」）。
+    @Test("無敵中でも穴には落ちる")
+    func takoyakiDoesNotSaveFromPits() {
+        let stage = RunnerStage(number: 1, pattern: "--k-1---", speed: 40)
+        var field = RunnerField(stage: stage)
+        let events = runWithoutJumping(&field, until: stage.length)
+        #expect(events.contains(.collectedInvincibleItem))
+        #expect(field.isInvincible, "落ちた時点でまだ無敵（無敵が切れて落ちたのではない）")
+        #expect(events.contains(.fell), "無敵でも穴には落ちる")
+        #expect(!events.contains(.crashed))
+    }
+
+    /// 台座（#674）の正面も岩と同じ扱い——無敵中はミスにならず、上面に乗る。
+    @Test("無敵中に台座の正面へ突っ込んでもミスにならず、上面に乗る")
+    func takoyakiLetsTheRunnerClimbPlatformFaces() {
+        let stage = RunnerStage(number: 1, pattern: "--k-P---", speed: 40)
+        guard let platform = stage.platforms.first else { Issue.record("台座が無い"); return }
+        var field = RunnerField(stage: stage)
+        let events = runWithoutJumping(&field, until: platform.start + RunnerField.Metrics.playerWidth)
+        #expect(!events.contains(.crashed))
+        #expect(field.isGrounded)
+        #expect(field.altitude == platform.top, "正面を素通りして上面に乗っている")
+    }
+
+    /// 無敵は `RunnerRules.invincibleDuration` 秒で切れ、切れたあとは従来どおり岩でミスになる。
+    @Test("無敵は一定時間で切れ、切れたあとは岩でミスになる")
+    func invincibilityExpires() {
+        // たこ焼き（区画 2）から岩（区画 12）まで 640 単位。速さ 40 × 乗り 1.55 でも 10 秒かかり、3 秒の無敵は切れている。
+        let stage = RunnerStage(number: 1, pattern: "--k---------t---", speed: 40)
+        guard let takoyaki = stage.pickups.first, let rock = stage.hazards.first else {
+            Issue.record("たこ焼きか岩が無い"); return
+        }
+        var field = RunnerField(stage: stage)
+        // 取った瞬間（そのできごとが出た `step`）で止める。
+        var events: [RunnerEvent] = []
+        while !events.contains(.collectedInvincibleItem), field.distance < takoyaki.start + RunnerField.Metrics.playerWidth {
+            events += field.step(dt: 1.0 / 600)
+        }
+        #expect(events.contains(.collectedInvincibleItem))
+        #expect(abs(field.invincibleRemaining - RunnerRules.invincibleDuration) < 0.01, "取った直後は満タン")
+        // ちょうど無敵の秒数ぶん進めると切れる（速さには一切効かない）。
+        let speedWhileInvincible = field.currentSpeed
+        for _ in 0..<Int(RunnerRules.invincibleDuration * 60) + 1 { events += field.step(dt: 1.0 / 60) }
+        #expect(!field.isInvincible)
+        #expect(field.invincibleRemaining == 0)
+        #expect(!events.contains(where: { $0.isTerminal }))
+        // 無敵の前後で速さの式は変わらない（乗りは上限に達している前提で比べる）。
+        #expect(field.pedalBoost == RunnerRules.maxPedalBoost)
+        #expect(abs(field.currentSpeed - speedWhileInvincible) < 0.5, "無敵は速さに触らない")
+        events += runWithoutJumping(&field, until: rock.end + RunnerField.Metrics.playerWidth)
+        #expect(events.contains(.crashed), "無敵が切れたあとは従来どおり岩でミスになる")
+    }
+
+    /// 同じ走行中に同じたこ焼きは一度しか取れず、取り直しは残り時間を満タンへ戻す（重ねない）。
+    @Test("たこ焼きは一度しか取れず、2 個目は残り時間を満タンへ戻すだけで重ねない")
+    func takoyakiIsCollectedOnceAndRefillsRatherThanStacks() {
+        let stage = RunnerStage(number: 1, pattern: "--kk--", speed: 40)
+        #expect(stage.pickups.count == 2)
+        var field = RunnerField(stage: stage)
+        var events: [RunnerEvent] = []
+        var maxRemaining: Double = 0
+        for _ in 0..<600 {
+            events += field.step(dt: 1.0 / 60)
+            maxRemaining = max(maxRemaining, field.invincibleRemaining)
+        }
+        #expect(events.filter { $0 == .collectedInvincibleItem }.count == 2, "重なっている間ずっと発火してはいけない")
+        #expect(field.collectedPickupCount == 2)
+        #expect(maxRemaining <= RunnerRules.invincibleDuration, "2 個目で残り時間が上限を超えて重ならない")
+    }
+
     /// #733: 1 ステージに 2 個以上のアイテムがチェックポイントを挟んで並ぶと、再開後は手前の
     /// アイテムを取らないまま先のアイテムを取る。件数で「先頭から N 個」を消すと手前（未取得）の
     /// ノードが消え、取ったアイテムが画面に残る。
