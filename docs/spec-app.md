@@ -213,7 +213,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode` |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
@@ -228,7 +228,15 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   写像は各ゲームの `analyticsMode`（`MahjongGameLength` / `RunnerMode`）に置く。一局戦は 1 対局が 1 局なので
   `game_start` が機械的に増える。回数を比べるときは `mode` で分け、時間で比べるときは `duration_sec` を使う。
   `game_end` の `mode` は開始時に焼き込んだ値で、途中で遊び方を替えて始め直したときも捨てたプレイの側の値が載る（#783・#785・#820）
-- パラメータの値（`result` / `level` / `purpose` / `source` / `mode`）は `CaseIterable` な enum で定義し、
+- `cause`（`AnalyticsEndCause`・#796・`release/v1.1.5` から）は**そのプレイで最後にミスした原因**。
+  ミスのたびにイベントは出さず（イベントの種類は増やさない）、各ゲームが `gameDidMiss` で原因を
+  伝えると `GameAnalytics` が覚えておき、そのプレイの `game_end` に載せる。ミスの無いプレイ・ミスの
+  概念が無いゲームは鍵ごと送らない。語彙は `pit`（穴）/ `rock`（岩・台座の正面）/ `bird`（鳥）/
+  `animal`（犬・イノシシ）の4値に閉じ、障害の種類を足しても enum を増やさない限り値は増えない。
+  いまはチャリンコおじさんだけが送る。ステージ制ではミスは決着ではなく `game_end` はクリア（win）か
+  途中離脱（quit）でしか出ないので、「何にやられて諦めたか」＝離脱直前の死因として読む。
+  GA4 のカスタムディメンション登録が要る（会長操作）
+- パラメータの値（`result` / `level` / `purpose` / `source` / `mode` / `cause`）は `CaseIterable` な enum で定義し、
   `AnalyticsTests` に全量のテストを置く。文字列の引数で値を足せる口を作らない（#820。`mode` だけ `String?` だったため、
   文書に無い値が 23 分後に流れ込んだ）
 - `level`（`AnalyticsLevel`）はゲームごとの難易度呼称をゲーム横断で読める4段階
