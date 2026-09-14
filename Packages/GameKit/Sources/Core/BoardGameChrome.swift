@@ -114,6 +114,51 @@ public extension View {
     }
 }
 
+// MARK: - 操作列のカプセルボタン
+
+/// 盤の下の操作列（投了・待った）のボタンの寸法（#711）。
+///
+/// View の `static let` は MainActor に隔離されるので、テストや他の定数から参照できるよう View の外に置く。
+public enum BoardGameControlMetrics {
+    /// 当たり判定の縦横の下限（Apple HIG）。
+    public static let minTapTarget: CGFloat = 44
+}
+
+/// 盤の下の操作列に置くカプセルのボタン（オセロ・五目並べの「投了」「待った」・#711）。
+///
+/// 以前は「投了」だけがカプセルで、「待った」は枠の無い素の文字（行高ぶん約 17pt）だった。
+/// 同じ行の一方だけがボタンに見えず、指の腹より小さいので「壊れている」と受け取られる。
+///
+/// - **見た目の外寸は従来のカプセル（上下 6pt・左右 12pt の余白）のまま**。操作列の高さを
+///   変えると決着の瞬間に盤が伸び縮みする（#148）。
+/// - **当たり判定だけ 44pt に広げる**。レイアウトに参加しない `overlay` に下限つきの透明な面を
+///   重ねるので、文字サイズ設定でカプセルが大きくなっても余白を計算し直す必要が無い。
+/// - **押せないときは面を `fillMuted` に替える**。差し色の面に文字色を載せたままだと、
+///   `.disabled` が付いても見た目が変わらない。
+public struct BoardGameControlCapsuleStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    private let fill: Color
+
+    public init(fill: Color) {
+        self.fill = fill
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            // `fillMuted` は白文字を載せる面色（`Theme.Hex.fillMuted`）。
+            .foregroundStyle(isEnabled ? Theme.onAccent : Color.white)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(isEnabled ? fill : Theme.fillMuted))
+            .overlay {
+                Color.clear
+                    .frame(minWidth: BoardGameControlMetrics.minTapTarget,
+                           minHeight: BoardGameControlMetrics.minTapTarget)
+                    .contentShape(Rectangle())
+            }
+            .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
 // MARK: - 検討ナビ
 
 /// 終局後の検討ナビ（1手戻す / 手数 / 1手進める）と「もう一度」を 1 段にまとめた帯（#139・#530）。

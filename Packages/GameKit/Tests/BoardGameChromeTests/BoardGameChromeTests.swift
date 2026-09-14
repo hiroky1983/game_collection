@@ -44,6 +44,107 @@ struct BoardGameMotionTests {
     }
 }
 
+/// 盤の下の操作列のカプセル（オセロ・五目並べの「投了」「待った」・#711）。
+@MainActor
+@Suite("操作列のカプセルボタン")
+struct BoardGameControlCapsuleStyleTests {
+
+    @Test("当たり判定の下限は 44pt")
+    func minTapTargetMeetsHIG() {
+        #expect(BoardGameControlMetrics.minTapTarget >= 44)
+    }
+
+    /// 当たり判定を広げても操作列が高くならないこと（決着の瞬間に盤が伸び縮みしない・#148）。
+    /// 比べる相手は #711 以前に「投了」へ手書きしていたカプセル。
+    @Test("外寸は従来の手書きのカプセルと同じで、44pt はレイアウトに入らない")
+    func layoutSizeMatchesLegacyCapsule() throws {
+        let styled = try Self.render(Self.styledButton(enabled: true))
+        let legacy = try Self.render(
+            Label("待った", systemImage: "arrow.uturn.backward")
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(Theme.Fill.teal))
+                .themeBody(14)
+        )
+        #expect(styled.width == legacy.width)
+        #expect(styled.height == legacy.height)
+        // 既定の文字サイズではカプセル自体は 44pt に届かない（届くなら当たり判定を広げる根拠が無い）。
+        #expect(CGFloat(styled.height) < BoardGameControlMetrics.minTapTarget)
+    }
+
+    @Test("押せないときは面の色が変わる")
+    func disabledChangesFill() throws {
+        let enabled = try Self.render(Self.styledButton(enabled: true))
+        let disabled = try Self.render(Self.styledButton(enabled: false))
+        // 上端の余白（6pt）の中央は文字に掛からず面の色だけが出る。
+        let x = enabled.width / 2, y = 3
+        #expect(Self.pixel(enabled, x: x, y: y) == Self.rgb(Theme.Hex.Fill.teal),
+                "押せるときの面が teal ではない")
+        #expect(Self.pixel(disabled, x: x, y: y) == Self.rgb(Theme.Hex.fillMuted.light),
+                "押せないときの面が fillMuted ではない（.disabled が見た目に出ない）")
+    }
+
+    /// 44pt の当たり判定は `overlay` の中にあり描画にもレイアウトにも出ないので、置き方をソースで固定する。
+    @Test("当たり判定は下限つきの透明な面を overlay で重ねて取る")
+    func hitAreaIsOverlaidWithMinimumFrame() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        guard let start = source.range(of: "public struct BoardGameControlCapsuleStyle"),
+              let end = source.range(of: "\n}\n", range: start.upperBound..<source.endIndex) else {
+            Issue.record("走査の前提が壊れている: BoardGameControlCapsuleStyle が見つからない")
+            return
+        }
+        let body = source[start.lowerBound..<end.upperBound]
+            .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.hasPrefix("//") }
+        guard let overlay = body.firstIndex(of: ".overlay {"),
+              let minHeight = body.firstIndex(of: "minHeight: BoardGameControlMetrics.minTapTarget)"),
+              let shape = body.firstIndex(of: ".contentShape(Rectangle())") else {
+            Issue.record("overlay / 44pt の下限 / contentShape が見つからない:\n\(body.joined(separator: "\n"))")
+            return
+        }
+        #expect(overlay < minHeight)
+        // 形を取るのは下限を付けた後。前に置くと元のカプセルの大きさでしか受けない。
+        #expect(minHeight < shape)
+    }
+
+    // MARK: - ヘルパー
+
+    private static func styledButton(enabled: Bool) -> some View {
+        Button {} label: {
+            Label("待った", systemImage: "arrow.uturn.backward")
+        }
+        .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
+        .disabled(!enabled)
+        .themeBody(14)
+        .environment(\.colorScheme, .light)
+    }
+
+    private static func render(_ view: some View) throws -> CGImage {
+        let renderer = ImageRenderer(content: view.environment(\.colorScheme, .light))
+        renderer.scale = 1
+        return try #require(renderer.cgImage, "描画できなかった")
+    }
+
+    private static func pixel(_ image: CGImage, x: Int, y: Int) -> [Int] {
+        var data = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &data, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        // 1×1 の文脈に、読みたい画素が原点へ来るようにずらして描く（CGContext は左下原点）。
+        context.draw(image, in: CGRect(x: -x, y: y - image.height + 1, width: image.width, height: image.height))
+        return data.prefix(3).map(Int.init)
+    }
+
+    private static func rgb(_ hex: UInt32) -> [Int] {
+        [Int(hex >> 16 & 0xFF), Int(hex >> 8 & 0xFF), Int(hex & 0xFF)]
+    }
+}
+
 /// 修飾子の**置き場所**で決まる性質。値としては検証できないのでソース走査で固定する
 /// （将棋 `ShogiPieceLayerSourceTests` と同じ流儀）。
 @Suite("盤ゲームの共通の枠の組み方")
