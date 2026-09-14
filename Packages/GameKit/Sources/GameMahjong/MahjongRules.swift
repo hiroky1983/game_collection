@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 /// 対局の長さ（#639・`docs/ai-devops.md`「1局=1RuleSet」の規約）。
 ///
@@ -55,10 +56,10 @@ public enum MahjongGameLength: String, Codable, Sendable, CaseIterable, Identifi
     /// 解析イベント（`game_start` / `game_end`）の `mode`（#783）。一局戦（v1.1.5）で 1 対局が短くなり
     /// `game_start` が機械的に増えるため、GA4 で東風戦と分けて読めるようにする。
     /// `recordVariant` と違い東風戦にも値を入れる（記録の保存先には使わないので互換の問題が無い）。
-    public var analyticsMode: String {
+    public var analyticsMode: AnalyticsMode {
         switch self {
-        case .tonpuu:     return "tonpuu"
-        case .singleHand: return "single_hand"
+        case .tonpuu:     return .tonpuu
+        case .singleHand: return .singleHand
         }
     }
 

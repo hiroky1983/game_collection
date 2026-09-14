@@ -31,7 +31,7 @@ private final class SpyAnalyticsService: AnalyticsService {
     }
     var quits: Int {
         events.filter {
-            if case let .gameEnd(_, result, _, _) = $0 { return result == .quit } else { return false }
+            if case let .gameEnd(_, result, _, _, _) = $0 { return result == .quit } else { return false }
         }.count
     }
 }
@@ -215,7 +215,7 @@ struct MahjongNewGameTests {
         model.startGame(length: .tonpuu)
         model.startGame(length: .singleHand)
         let modes = spy.events.compactMap { event -> String? in
-            if case let .gameStart(_, _, mode) = event { return mode } else { return nil }
+            if case let .gameStart(_, _, mode) = event { return mode?.rawValue } else { return nil }
         }
         #expect(modes == ["tonpuu", "single_hand"])
     }

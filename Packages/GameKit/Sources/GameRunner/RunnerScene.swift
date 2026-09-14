@@ -116,6 +116,24 @@ enum RunnerPalette {
     static let birdBelly: UInt32 = 0xE8F5E0
     /// 鳥の目（小さな黒丸）。生き物だと分かる最小限の要素。
     static let birdEye: UInt32 = 0x1F2B22
+    /// 犬（#800）の体。柴犬のような明るい茶。岩のグレー・地面の暖色（テラコッタ・砂色）より
+    /// 彩度が高く、朝・夕方の路面でも輪郭が読める。
+    static let dogBody: UInt32 = 0xD9944A
+    /// 犬の耳・鼻・目と、脚の陰。
+    static let dogDark: UInt32 = 0x5A3418
+    /// 犬の腹・口元の差し色。
+    static let dogBelly: UInt32 = 0xF6E7CF
+    /// 犬の吠え声（口元の白い吹き出し）。
+    static let dogBark: UInt32 = 0xFFFFFF
+    /// イノシシ（#801）の体。犬より暗く赤みの少ない焦げ茶。夕方の紫の丘・夜の紺の空のどちらを
+    /// 背にしても沈まない明度にしてある。
+    static let boarBody: UInt32 = 0x6B4226
+    /// イノシシの背中のたてがみ・脚。
+    static let boarDark: UInt32 = 0x3E2414
+    /// イノシシの鼻先。
+    static let boarSnout: UInt32 = 0xB88A6A
+    /// イノシシの牙・目の白。
+    static let boarTusk: UInt32 = 0xF4EFE6
     /// スピードアップアイテムの後光（丸）。「電気を帯びた玉」に見えるよう寒色にする。
     static let pickupAura: UInt32 = 0x5CE1E6
     /// スピードアップアイテムの稲妻（本体）。後光との対比を出すため明るい暖色にする。
@@ -233,6 +251,9 @@ final class RunnerScene: SKScene {
     /// 取らないまま残るので、「取得数 = 先頭からの件数」とみなすと、先のアイテムを取った
     /// ときに手前（未取得）のノードを消してしまう。
     private var removedPickupIndices: Set<Int> = []
+    /// 動く障害（#796 飛び立つ鳥・#800 犬・#801 イノシシ）のノード。`rebuildCourse` で作り直し、
+    /// `sync` が毎フレーム `RunnerHazard.frame(atRunnerDistance:)` の位置へ置き直す。
+    private var movingHazards: [MovingHazardView] = []
     /// すでに土煙を出したジャスト着地の数（#673）。`field.justLandingCount` が増えた
     /// フレームだけ演出を出すための控え。`rebuildCourse` で 0 に戻す。
     private var renderedJustLandingCount = 0
@@ -753,11 +774,14 @@ final class RunnerScene: SKScene {
         // 同じ路面の色と模様だけを差し替える）。地面より後に足すことで手前に来る。
         for floor in stage.boostFloors { addBoostFloor(floor) }
 
+        movingHazards = []
         for hazard in stage.hazards where hazard.kind != .pit {
-            if hazard.kind == .bird {
-                addBird(hazard)
-            } else {
-                addRock(hazard)
+            switch hazard.kind {
+            case .bird:                    movingHazards.append(addBird(hazard))
+            case .dog:                     movingHazards.append(addDog(hazard))
+            case .boar:                    movingHazards.append(addBoar(hazard))
+            case .lowBlock, .tallBlock:    addRock(hazard)
+            case .pit:                     break
             }
         }
 
@@ -989,17 +1013,76 @@ final class RunnerScene: SKScene {
         node.addChild(boulder)
     }
 
+    /// 動く障害（#796 飛び立つ鳥・#800 犬・#801 イノシシ）のノード一式。
+    ///
+    /// 位置は毎フレーム `RunnerHazard.frame(atRunnerDistance:)` から写す（`syncMovingHazards`）。
+    /// ここには状態遷移のルールは無く、**止まっているか・動いているか**を `frame.advance` と
+    /// 距離から読んで、部品のアニメーションを止める・回すだけ。
+    private final class MovingHazardView {
+        enum State: Equatable {
+            /// まだ動き出していない（止まった鳥・立っている犬）。
+            case waiting
+            /// 飛び立つ前の羽ばたき（鳥だけ）。
+            case fluttering
+            /// 動いている。
+            case moving
+            /// 動き終えて止まっている（吠える犬・岩で止まったイノシシ）。
+            case stopped
+        }
+
+        let hazard: RunnerHazard
+        let node: SKNode
+        /// 地面に敷く影（鳥）。体が上がっても地面に残すので、`sync` が高さのぶん下げる。
+        let shadow: SKNode?
+        /// 影の、帯の床から見た y（`RunnerBirdArt.shadowCenter.y`）。
+        let shadowBaseY: Double
+        /// 動いているあいだだけ回す部品（翼・浮遊・脚）。止まっているあいだは `isPaused`。
+        let animated: [SKNode]
+        /// 止まっているあいだだけ見せる部品（犬の吠え声）。
+        let stoppedOnly: SKNode?
+        /// 動いているあいだだけ見せる部品（イノシシの土煙）。
+        let movingOnly: SKNode?
+        var state: State?
+        /// 前のフレームで現れていたか。イノシシは突進が始まるまで nil（現れていない）。
+        var wasPresent = false
+
+        init(
+            hazard: RunnerHazard, node: SKNode, shadow: SKNode? = nil, shadowBaseY: Double = 0,
+            animated: [SKNode], stoppedOnly: SKNode? = nil, movingOnly: SKNode? = nil
+        ) {
+            self.hazard = hazard
+            self.node = node
+            self.shadow = shadow
+            self.shadowBaseY = shadowBaseY
+            self.animated = animated
+            self.stoppedOnly = stoppedOnly
+            self.movingOnly = movingOnly
+        }
+
+        /// 状態に合わせて部品を止める・回す。変わったフレームだけ触る（毎フレーム
+        /// `isPaused` を書き直しても壊れはしないが、意図が読めるように）。
+        func apply(_ next: State) {
+            guard next != state else { return }
+            state = next
+            for part in animated {
+                part.isPaused = next == .waiting || next == .stopped
+                // 羽ばたきの予備動作は飛んでいるときより速く小刻みに。
+                part.speed = next == .fluttering ? 2.5 : 1
+            }
+            stoppedOnly?.isHidden = next != .stopped
+            movingOnly?.isHidden = next != .moving
+        }
+    }
+
     /// 鳥（`RunnerHazardKind.bird`）。「棒と穴しかない」というQAを受けて追加した敵の1つ
-    /// （会長QA「鳥とか右から車が来るとか要素はいる」）。丸1つ+矩形2枚 →「とまった小鳥」
-    /// と直してきたが、接地させた途端「地に足ついてるから岩と変わらない。空にいないと
-    /// 意味なくない？」という再QA（2026-09-10）を受けた。そこで**宙に浮いて飛んでいる鳥**
-    /// に描き直す：足は体に引き込み（飛行中の鳥の姿勢）、左右2枚の翼を大きく羽ばたかせ、
-    /// 体全体をゆっくり上下に浮遊させる。地面には楕円の影を落とし、体と影のすき間で
-    /// 「浮いている」ことが一目で分かるようにする。
+    /// （会長QA「鳥とか右から車が来るとか要素はいる」）。丸1つ+矩形2枚 →「とまった小鳥」→
+    /// 宙に浮いて飛ぶ鳥（#671）と直してきて、#796 で**地面に止まっていて近づくと飛び立つ鳥**になった。
+    /// 絵は #671 の飛ぶ鳥（`RunnerBirdArt`）をそのまま流用し、止まっているあいだは翼と浮遊を
+    /// 止め、飛び立つ直前に速く羽ばたく予備動作を入れる（`MovingHazardView.apply`）。
     /// 翼・尾・くちばしのパスは既存のゴール旗（`addGoalMarker`）と同じ技法（#494 の
     /// 権利チェックの要点は特定作品の意匠に寄せないことで、パス自体は許容されている）。
-    /// 当たり判定は `RunnerField.isHittingBlock` が見る**空中の帯**
-    /// （`hazard.bottom` 〜 `hazard.height` ≒ 13〜17.34・#671）で、絵はその帯の床に合わせて置く。
+    /// 当たり判定は `RunnerField` が `RunnerHazard.frame(atRunnerDistance:)` の**帯**で見ており、
+    /// 絵はその帯の床に合わせて置く（`syncMovingHazards` が毎フレーム帯の位置へ動かす）。
     ///
     /// **横は絵が矩形から導かれ、縦は帯が絵から導かれる**（#609 / #671 会長決裁 2026-09-12）。
     /// かつてはここに座標を直書きしており、「絵は矩形の内側に収まる寸法で組む」と書いていた
@@ -1012,22 +1095,19 @@ final class RunnerScene: SKScene {
     /// 使うだけにしてあり、直書きしたパーツは `RunnerBirdArt` の測定（= `BirdArtTests`）の
     /// 網から外れる。パーツを増やすときは `RunnerBirdArt` に足し、`discs` / `fixedParts` /
     /// `rotatingParts` のいずれかに登録してから使う。
-    private func addBird(_ hazard: RunnerHazard) {
-        // 箱は当たり判定の**帯**（#671）。原点を帯の床（地面 + `hazard.bottom`）に置き、
-        // 影だけが `groundDrop` ぶん下の地面に残る。
+    private func addBird(_ hazard: RunnerHazard) -> MovingHazardView {
+        // 箱は当たり判定の**帯**（#671）。原点を帯の床に置く。影は地面に敷きたいので、
+        // 帯が上がるぶんだけ `syncMovingHazards` が影を下げる（`groundDrop` は 0 で組む）。
         //
-        // 帯の高さは渡さない——**帯の上端のほうが絵に合わせて決まる**（会長決裁 2026-09-12。
-        // `RunnerHazardKind.birdBandTop` が `art.bandHeight` から導出する）。ここで
-        // `hazard.height - hazard.bottom` を渡すと、絵の寸法が絵自身から決まる循環になる。
-        let art = RunnerBirdArt(width: hazard.length, groundDrop: hazard.bottom)
+        // 帯の高さは渡さない——**帯の厚みのほうが絵に合わせて決まる**（会長決裁 2026-09-12。
+        // `RunnerHazardKind.birdBandHeight` が `art.bandHeight` から導出する）。
+        let art = RunnerBirdArt(width: hazard.length, groundDrop: 0)
         let node = SKNode()
-        // 鳥はその場に浮いている障害物で、追いかけても向かってもこない（水平移動の
-        // 「動く敵」化は別件 #569 の積み残し）。走者は左から近づくので、頭・くちばしは
-        // **走者側（-x）**を向かせる。`RunnerBirdArt` は +x 側を頭にして組んであるので、
-        // 丸ごと左右反転させるだけで済む——ただし `xScale = -1` は自分のローカル原点
-        // （= `hazard.start`）を軸に反転するので、そのままだと絵が当たり判定の外
-        // （`hazard.start` より左）へはみ出す。原点を右へ `length` ぶんずらして帳尻を合わせる。
-        node.position = CGPoint(x: hazard.start + hazard.length, y: Metrics.groundY + hazard.bottom)
+        // 走者は左から近づくので、頭・くちばしは**走者側（-x）**を向かせる。`RunnerBirdArt` は
+        // +x 側を頭にして組んであるので、丸ごと左右反転させるだけで済む——ただし `xScale = -1` は
+        // 自分のローカル原点を軸に反転するので、そのままだと絵が当たり判定の外（帯の左）へ
+        // はみ出す。原点を帯の右端に置いて帳尻を合わせる（`syncMovingHazards` も `frame.end` に置く）。
+        node.position = CGPoint(x: hazard.end, y: Metrics.groundY + hazard.bottom)
         node.xScale = -1
 
         // 地面に落ちる影。体との間に空いたすき間が「飛んでいる」ことの一番の手がかり。
@@ -1064,8 +1144,9 @@ final class RunnerScene: SKScene {
         }
 
         // 翼。肩を軸に回すので、パスは肩（原点）から後方へ伸びる形で書く。
-        // 手前・奥の2枚を逆位相で大きく振り、横からでも「羽ばたいている」と読めるようにする
-        // （とまった小鳥時代の「畳んだ翼の小さな揺れ」からの置き換え）。
+        // 手前・奥の2枚を逆位相で大きく振り、横からでも「羽ばたいている」と読めるようにする。
+        // 止まっているあいだは `MovingHazardView.apply` が回転を止める（畳んだ姿勢＝振り下ろした端）。
+        var wings: [SKNode] = []
         func addWing(
             _ spec: RunnerBirdArt.RotatingPart, color: UInt32, z: CGFloat, startsLow: Bool
         ) {
@@ -1086,6 +1167,7 @@ final class RunnerScene: SKScene {
             flap.timingMode = .easeInEaseOut
             wing.run(.repeatForever(.sequence([flap, flap.reversed()])))
             bobber.addChild(wing)
+            wings.append(wing)
         }
 
         func addDisc(_ disc: RunnerBirdArt.Disc, color: UInt32) {
@@ -1133,6 +1215,307 @@ final class RunnerScene: SKScene {
         addDisc(art.pupil, color: RunnerPalette.birdEye)
 
         courseLayer.addChild(node)
+        return MovingHazardView(
+            hazard: hazard, node: node, shadow: shadow, shadowBaseY: Double(art.shadowCenter.y),
+            animated: wings + [bobber]
+        )
+    }
+
+    /// 走る 4 本脚（犬・イノシシ共通）。付け根を軸に前後へ振る。原点は箱の左下、`facing` は
+    /// 進行方向（+1 で右・-1 で左）。戻り値は脚のノード（動いているあいだだけ回す）。
+    private func addRunningLegs(
+        to node: SKNode, xs: [Double], hipY: Double, length: Double, thickness: Double,
+        color: UInt32, z: CGFloat
+    ) -> [SKNode] {
+        var legs: [SKNode] = []
+        for (index, x) in xs.enumerated() {
+            let leg = SKSpriteNode(color: RunnerPalette.color(color), size: CGSize(width: thickness, height: length))
+            // 付け根（上端）を軸に振る。
+            leg.anchorPoint = CGPoint(x: 0.5, y: 1)
+            leg.position = CGPoint(x: x, y: hipY)
+            leg.zPosition = z
+            // 前後の脚を逆位相に。
+            let phase = index.isMultiple(of: 2) ? 1.0 : -1.0
+            leg.zRotation = CGFloat(0.45 * phase)
+            let swing = SKAction.rotate(byAngle: CGFloat(-0.9 * phase), duration: 0.14)
+            swing.timingMode = .easeInEaseOut
+            leg.run(.repeatForever(.sequence([swing, swing.reversed()])))
+            node.addChild(leg)
+            legs.append(leg)
+        }
+        return legs
+    }
+
+    /// 犬（`RunnerHazardKind.dog`・#800）。おじさんと同じ向き（右）に走り、追いつかれる直前に
+    /// 立ち止まって吠える。丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。
+    ///
+    /// 当たり判定は `RunnerField` が `frame(atRunnerDistance:)` の矩形（1 タイル × 高さ 5）で
+    /// 見ており、絵はその箱の中に収まる寸法。原点は箱の左下。吠え声の吹き出しだけは
+    /// 箱の外（頭の前）に出るが、見た目だけで当たり判定には関わらない。
+    private func addDog(_ hazard: RunnerHazard) -> MovingHazardView {
+        let node = SKNode()
+        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        let w = hazard.length, h = hazard.height
+
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 0.95, height: 0.5))
+        shadow.fillColor = RunnerPalette.color(RunnerPalette.pitVoid)
+        shadow.strokeColor = .clear
+        shadow.alpha = 0.35
+        shadow.position = CGPoint(x: w / 2, y: 0.25)
+        node.addChild(shadow)
+
+        // 脚（4 本）。体より奥に置く。
+        let legs = addRunningLegs(
+            to: node, xs: [w * 0.28, w * 0.4, w * 0.62, w * 0.74], hipY: h * 0.5,
+            length: h * 0.5, thickness: w * 0.11, color: RunnerPalette.dogDark, z: 0
+        )
+
+        // 胴（横長の楕円）と腹の差し色。
+        let body = SKShapeNode(ellipseOf: CGSize(width: w * 0.7, height: h * 0.34))
+        body.fillColor = RunnerPalette.color(RunnerPalette.dogBody)
+        body.strokeColor = .clear
+        body.position = CGPoint(x: w * 0.5, y: h * 0.52)
+        body.zPosition = 1
+        node.addChild(body)
+        let belly = SKShapeNode(ellipseOf: CGSize(width: w * 0.42, height: h * 0.14))
+        belly.fillColor = RunnerPalette.color(RunnerPalette.dogBelly)
+        belly.strokeColor = .clear
+        belly.position = CGPoint(x: w * 0.52, y: h * 0.44)
+        belly.zPosition = 2
+        node.addChild(belly)
+
+        // 尻尾（後ろ上に立てた短い棒）。
+        let tail = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.dogBody), size: CGSize(width: w * 0.1, height: h * 0.3))
+        tail.anchorPoint = CGPoint(x: 0.5, y: 0)
+        tail.position = CGPoint(x: w * 0.16, y: h * 0.56)
+        tail.zRotation = -0.6
+        tail.zPosition = 1
+        node.addChild(tail)
+
+        // 頭（丸）と、立った耳・鼻・目。頭は進行方向（右）の上。
+        let head = SKShapeNode(circleOfRadius: w * 0.2)
+        head.fillColor = RunnerPalette.color(RunnerPalette.dogBody)
+        head.strokeColor = .clear
+        head.position = CGPoint(x: w * 0.8, y: h * 0.74)
+        head.zPosition = 3
+        node.addChild(head)
+        let earPath = CGMutablePath()
+        earPath.addLines(between: [
+            CGPoint(x: -w * 0.16, y: h * 0.08), CGPoint(x: -w * 0.06, y: h * 0.3), CGPoint(x: 0, y: h * 0.1),
+        ])
+        earPath.closeSubpath()
+        let ear = SKShapeNode(path: earPath)
+        ear.fillColor = RunnerPalette.color(RunnerPalette.dogDark)
+        ear.strokeColor = .clear
+        ear.position = head.position
+        ear.zPosition = 2
+        node.addChild(ear)
+        let muzzle = SKShapeNode(ellipseOf: CGSize(width: w * 0.2, height: h * 0.12))
+        muzzle.fillColor = RunnerPalette.color(RunnerPalette.dogBelly)
+        muzzle.strokeColor = .clear
+        muzzle.position = CGPoint(x: w * 0.94, y: h * 0.7)
+        muzzle.zPosition = 4
+        node.addChild(muzzle)
+        let nose = SKShapeNode(circleOfRadius: w * 0.04)
+        nose.fillColor = RunnerPalette.color(RunnerPalette.dogDark)
+        nose.strokeColor = .clear
+        nose.position = CGPoint(x: w * 1.0, y: h * 0.72)
+        nose.zPosition = 5
+        node.addChild(nose)
+        let eye = SKShapeNode(circleOfRadius: w * 0.035)
+        eye.fillColor = RunnerPalette.color(RunnerPalette.dogDark)
+        eye.strokeColor = .clear
+        eye.position = CGPoint(x: w * 0.86, y: h * 0.8)
+        eye.zPosition = 5
+        node.addChild(eye)
+
+        // 吠え声。頭の前に小さな白い吹き出し（丸 3 つ）を出し、止まっているあいだだけ見せて
+        // 脈打たせる。文字は描かない（SpriteKit の中に文字は置かない・基盤規約）。
+        let bark = SKNode()
+        for (index, spec) in [(0.0, 0.0, 0.42), (0.5, 0.35, 0.3), (0.95, 0.75, 0.2)].enumerated() {
+            let puff = SKShapeNode(circleOfRadius: spec.2)
+            puff.fillColor = RunnerPalette.color(RunnerPalette.dogBark)
+            puff.strokeColor = .clear
+            puff.position = CGPoint(x: spec.0, y: spec.1)
+            puff.zPosition = CGFloat(6 - index)
+            bark.addChild(puff)
+        }
+        bark.position = CGPoint(x: w * 1.2, y: h * 0.86)
+        bark.isHidden = true
+        let pulse = SKAction.scale(to: 1.25, duration: 0.18)
+        bark.run(.repeatForever(.sequence([pulse, pulse.reversed()])))
+        node.addChild(bark)
+
+        courseLayer.addChild(node)
+        return MovingHazardView(hazard: hazard, node: node, animated: legs, stoppedOnly: bark)
+    }
+
+    /// イノシシ（`RunnerHazardKind.boar`・#801）。右から左へ突進してくるので、頭は左向き。
+    /// 丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。原点は箱の左下（頭側）。
+    ///
+    /// 走っているあいだは後ろ（右）に土煙を引く。岩で止まると脚と土煙が止まり、
+    /// 低い岩と同じ置物として岩の右側に並ぶ。
+    private func addBoar(_ hazard: RunnerHazard) -> MovingHazardView {
+        let node = SKNode()
+        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        let w = hazard.length, h = hazard.height
+
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 1.0, height: 0.55))
+        shadow.fillColor = RunnerPalette.color(RunnerPalette.pitVoid)
+        shadow.strokeColor = .clear
+        shadow.alpha = 0.35
+        shadow.position = CGPoint(x: w / 2, y: 0.25)
+        node.addChild(shadow)
+
+        let legs = addRunningLegs(
+            to: node, xs: [w * 0.3, w * 0.42, w * 0.66, w * 0.78], hipY: h * 0.46,
+            length: h * 0.46, thickness: w * 0.13, color: RunnerPalette.boarDark, z: 0
+        )
+
+        // 胴（犬より太い楕円）と、背中のたてがみ（暗い帯）。
+        let body = SKShapeNode(ellipseOf: CGSize(width: w * 0.86, height: h * 0.46))
+        body.fillColor = RunnerPalette.color(RunnerPalette.boarBody)
+        body.strokeColor = .clear
+        body.position = CGPoint(x: w * 0.54, y: h * 0.56)
+        body.zPosition = 1
+        node.addChild(body)
+        let mane = SKShapeNode(ellipseOf: CGSize(width: w * 0.6, height: h * 0.14))
+        mane.fillColor = RunnerPalette.color(RunnerPalette.boarDark)
+        mane.strokeColor = .clear
+        mane.position = CGPoint(x: w * 0.5, y: h * 0.76)
+        mane.zPosition = 2
+        node.addChild(mane)
+
+        // 頭（左）。鼻先を前へ突き出し、牙を白で 1 本。
+        let head = SKShapeNode(circleOfRadius: w * 0.22)
+        head.fillColor = RunnerPalette.color(RunnerPalette.boarBody)
+        head.strokeColor = .clear
+        head.position = CGPoint(x: w * 0.2, y: h * 0.58)
+        head.zPosition = 3
+        node.addChild(head)
+        let snout = SKShapeNode(ellipseOf: CGSize(width: w * 0.22, height: h * 0.14))
+        snout.fillColor = RunnerPalette.color(RunnerPalette.boarSnout)
+        snout.strokeColor = .clear
+        snout.position = CGPoint(x: w * 0.06, y: h * 0.52)
+        snout.zPosition = 4
+        node.addChild(snout)
+        let tuskPath = CGMutablePath()
+        tuskPath.addLines(between: [
+            CGPoint(x: 0, y: 0), CGPoint(x: -w * 0.08, y: h * 0.12), CGPoint(x: w * 0.06, y: h * 0.02),
+        ])
+        tuskPath.closeSubpath()
+        let tusk = SKShapeNode(path: tuskPath)
+        tusk.fillColor = RunnerPalette.color(RunnerPalette.boarTusk)
+        tusk.strokeColor = .clear
+        tusk.position = CGPoint(x: w * 0.1, y: h * 0.42)
+        tusk.zPosition = 5
+        node.addChild(tusk)
+        let earPath = CGMutablePath()
+        earPath.addLines(between: [
+            CGPoint(x: 0, y: 0), CGPoint(x: w * 0.06, y: h * 0.2), CGPoint(x: w * 0.16, y: h * 0.04),
+        ])
+        earPath.closeSubpath()
+        let ear = SKShapeNode(path: earPath)
+        ear.fillColor = RunnerPalette.color(RunnerPalette.boarDark)
+        ear.strokeColor = .clear
+        ear.position = CGPoint(x: w * 0.22, y: h * 0.72)
+        ear.zPosition = 2
+        node.addChild(ear)
+        let eye = SKShapeNode(circleOfRadius: w * 0.04)
+        eye.fillColor = RunnerPalette.color(RunnerPalette.boarTusk)
+        eye.strokeColor = .clear
+        eye.position = CGPoint(x: w * 0.14, y: h * 0.66)
+        eye.zPosition = 5
+        node.addChild(eye)
+
+        // 後ろに引く土煙。走っているあいだだけ見せ、膨らんで消えるを繰り返す。
+        let dust = SKNode()
+        for (index, spec) in [(1.1, 0.5, 0.7), (1.35, 1.1, 0.5)].enumerated() {
+            let puff = SKShapeNode(circleOfRadius: spec.2)
+            puff.fillColor = RunnerPalette.color(RunnerPalette.cloud)
+            puff.strokeColor = .clear
+            puff.alpha = 0.6
+            puff.position = CGPoint(x: w * spec.0, y: h * spec.1 * 0.3)
+            puff.zPosition = -1
+            let grow = SKAction.group([.scale(to: 1.6, duration: 0.3), .fadeAlpha(to: 0, duration: 0.3)])
+            let reset = SKAction.group([.scale(to: 0.6, duration: 0), .fadeAlpha(to: 0.6, duration: 0)])
+            puff.run(.repeatForever(.sequence([.wait(forDuration: 0.1 * Double(index)), grow, reset])))
+            dust.addChild(puff)
+        }
+        dust.isHidden = true
+        node.addChild(dust)
+
+        courseLayer.addChild(node)
+        return MovingHazardView(hazard: hazard, node: node, animated: legs, movingOnly: dust)
+    }
+
+    /// 動く障害を、いまの当たり判定の位置へ置き直し、状態に合わせて部品を止める・回す（#796）。
+    ///
+    /// **位置はルール層の `frame` をそのまま写す**（描画側で独自に動かさない）。当たり判定と
+    /// 絵がズレる余地を作らないため。
+    private func syncMovingHazards(_ field: RunnerField) {
+        for view in movingHazards {
+            let hazard = view.hazard
+            guard let frame = hazard.frame(atRunnerDistance: field.distance) else {
+                view.node.isHidden = true
+                view.wasPresent = false
+                continue
+            }
+            view.node.isHidden = false
+            if !view.wasPresent {
+                view.wasPresent = true
+                // 突進が始まった瞬間（#801）。出現点はまだ画面の外なので、画面の右端に土煙を
+                // 立てて「何か来る」を見せる。手応え（ドドド）は Model が同じ瞬間に鳴らす。
+                if hazard.kind == .boar, field.distance > hazard.boarChargeStartDistance - 1 {
+                    spawnChargeDust(atWorldX: field.distance + Metrics.width - Metrics.playerX - 4)
+                }
+            }
+            switch hazard.kind {
+            case .bird:
+                // 原点は帯の右端（左右反転しているため）。影は帯が上がっても地面に残す。
+                view.node.position = CGPoint(x: frame.end, y: Metrics.groundY + frame.bottom)
+                view.shadow?.position.y = CGFloat(view.shadowBaseY - frame.bottom)
+                let state: MovingHazardView.State
+                if frame.advance > 0 {
+                    state = .moving
+                } else if field.distance >= hazard.birdTakeoffDistance - RunnerRules.birdFlutterDistance {
+                    state = .fluttering
+                } else {
+                    state = .waiting
+                }
+                view.apply(state)
+            case .dog:
+                view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)
+                let state: MovingHazardView.State
+                if frame.advance > 0 {
+                    state = .moving
+                } else if field.distance >= hazard.dogStopDistance {
+                    state = .stopped
+                } else {
+                    state = .waiting
+                }
+                view.apply(state)
+            case .boar:
+                view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)
+                view.apply(frame.advance < 0 ? .moving : .stopped)
+            case .pit, .lowBlock, .tallBlock:
+                break
+            }
+        }
+    }
+
+    /// イノシシの予告の土煙（#801）。画面の右端の地面に、激突の土煙より大きく長く立てる。
+    /// コース側（`courseLayer`）に置くので、走るにつれて左へ流れていく。
+    private func spawnChargeDust(atWorldX worldX: Double) {
+        spawnDust(
+            at: CGPoint(x: worldX, y: Metrics.groundY + 1.5),
+            specs: [
+                (-2.0, 3.5, 1.6), (1.5, 4.5, 1.3), (-4.5, 2.0, 1.2),
+                (3.5, 2.5, 1.0), (0.0, 6.0, 1.1), (-1.0, 1.0, 1.8),
+            ],
+            duration: 0.8,
+            in: courseLayer
+        )
     }
 
     /// スピードアップアイテム。最初の実装は細い矩形2枚で稲妻を表していたが小さすぎて
@@ -1582,6 +1965,9 @@ final class RunnerScene: SKScene {
             player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
             syncPickups(field)
             syncJustLanding(field)
+            syncMovingHazards(field)
+            // 無敵の点滅（#797）は走者ノードの alpha だけを触る。動く障害（#796）の同期は
+            // 障害側のノードしか動かさないので、順序に依存も干渉もしない。
             syncInvincibility(field)
             // ゴールに着いた最初のフレームだけ紙吹雪を散らす（#703「着いた感」）。
             // `.falling` の落下演出と同じ「前回反映した phase」との比較で 1 回に絞る。

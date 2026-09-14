@@ -85,8 +85,9 @@ public enum RunnerRules {
     /// 値は全15ステージ・全145障害を「瞬間タップ相当（＝この猶予ぶんだけ自然に上昇させてから
     /// `jumpCutVelocity` まで切り詰める）」で機械的に検証し、**穴・低い障害物はすべて
     /// 瞬間タップだけで越えられ、高い障害物（`tallBlock`、頂点近くを通す必要がある設計）だけ
-    /// 長押しが要る**、という境目になるよう選んだ（0.13 秒。鳥は #671 で「跳ばずにくぐる」
-    /// 障害になったので、この境目の対象外）。会長の要望どおり「軽いタップは
+    /// 長押しが要る**、という境目になるよう選んだ（0.13 秒。飛び立つ鳥（#796）は逃げる相手で
+    /// 重なりが岩より長いぶん、いちばん遅い 5 面では 0.15 秒のタップが要る——
+    /// `RunnerPlaythroughTests.shortTapClearsBirds`）。会長の要望どおり「軽いタップは
     /// 本当に小ジャンプ」の感触は残しつつ（頂点は `jumpApex` の約73%に留まる）、
     /// 実際の操作でゲームが進まなくなる事故を防ぐ。
     public static let jumpCutGraceTime: Double = 0.13
@@ -274,6 +275,60 @@ public enum RunnerRules {
     /// 総ステージ数。
     public static var stageCount: Int { RunnerStage.all.count }
 
+    // MARK: 動く障害（#796 飛び立つ鳥 / #800 犬 / #801 イノシシ・会長決裁 2026-09-14）
+    //
+    // どれも**走者の距離**で動く（時計では動かない）。ゆっくりモード・一時停止・ペダルの乗りに
+    // 関わらず、同じ地点では同じ場所にいる——だから自動操縦のテストで軌道ごと固定できる。
+    // 「走者が 1 進むあいだに動く量」（`advance`）で書いてあるので、走者の基準速に対する
+    // 倍率がそのまま見た目の速さになる。
+
+    /// 鳥が飛び立つ間合い。走者の**前端**がこの距離まで近づいた瞬間に飛び立つ（仕様「手前 6 タイル」）。
+    public static let birdTriggerDistance: Double = 6 * tileWidth
+    /// 鳥の横の速さ（走者 1 に対して）。
+    ///
+    /// **小さいほど「岩」に近く、大きいほど出会う地点が先へずれる。** 走者から見た鳥の等価な
+    /// 静止区間（`RunnerHazard.encounter`）は `start + k·G/(1−k)` から `(4 + 8)/(1−k) − 8` の長さ
+    /// ——0.2 なら区画中央の 6 先から長さ 7。既存の面の `bt`（鳥の次の区画に高い岩）でも
+    /// 着地して踏み切り直す余白が最速の 18 面で 2 単位以上残る値（0.25 だと 0.4 まで削れる）。
+    /// 跳んで越えるあいだの重なりは 15 単位 = 1 面の速さで 0.44 秒で、上端 5.5 を越えている
+    /// 時間（`airTime(above:)` ≒ 0.585 秒）に収まる。
+    public static let birdAdvance: Double = 0.2
+    /// 飛び立ってから低く飛ぶ距離（鳥自身の移動量・仕様「最初の 3 タイル」）。
+    /// 走者との出会いはこの区間の中で終わる（`RunnerHazard.encounter`）。
+    public static let birdLowDistance: Double = 3 * tileWidth
+    /// 低く飛ぶ区間を過ぎてから、帯の下端が 13（`RunnerHazardKind.birdHighBottom`）に届くまでの
+    /// 鳥の移動量（3 タイル）。そこから先も同じ傾きで上がり続けて画面外へ抜ける。
+    public static let birdClimbDistance: Double = 3 * tileWidth
+    /// 上がる傾き（鳥が 1 進むごとに上がる高さ）。
+    static var birdClimbSlope: Double {
+        (RunnerHazardKind.birdHighBottom - RunnerHazardKind.bird.bottom) / birdClimbDistance
+    }
+    /// 飛び立つ前に羽ばたく予備動作を始める、走者の距離の手前（見た目だけ・当たり判定は変えない）。
+    public static let birdFlutterDistance: Double = 2 * tileWidth
+
+    /// 犬が走り出す間合い（走者の前端から）。画面の先読み（`RunnerField.Metrics.width` − `playerX`
+    /// = 74）とほぼ同じで、**見えた時にはもう走っている**（仕様「前方に走る姿が先に見えている」）。
+    public static let dogTriggerDistance: Double = 16 * tileWidth
+    /// 犬の速さ（走者 1 に対して）。走者より遅いので追いつく。
+    public static let dogAdvance: Double = 0.5
+    /// 犬が立ち止まって吠える間合い（走者の前端から）。踏み切りの余裕（`RunnerAutoPilot.lead` ≒ 9〜11）
+    /// より外で止まるので、跳ぶ判断は止まった犬＝低い岩に対して行える。
+    public static let dogStopGap: Double = 4 * tileWidth
+    /// 犬が走っているあいだの走者の進み。間合いが `dogTriggerDistance` から `dogStopGap` へ
+    /// 相対速度 `1 − dogAdvance` で縮む距離。
+    static var dogRunDistance: Double { (dogTriggerDistance - dogStopGap) / (1 - dogAdvance) }
+
+    /// イノシシの予告から出会いまでの走者の進み（仕様「1 秒ほど」）。
+    ///
+    /// 出会いの地点の手前この距離で「ドドド」と土煙が出て、同じ距離だけ向こうから走者と同じ
+    /// 速さで向かってくる。7 面の基準速 41 で 1.75 秒、ペダルが乗った実際の速さ（1.3〜1.5 倍）で
+    /// 1.2〜1.35 秒。出現点（`start + 72`）は次の区画の岩（`start + 64`〜`68`）より先なので、
+    /// 岩の手前に置いた（`it`）イノシシはその岩で止まる。予告の瞬間、出現点は画面の外
+    /// （前端から 148 先・見えるのは 74 まで）で、見えてから出会うまでは約 35 単位。
+    public static let boarChargeDistance: Double = 18 * tileWidth
+    /// イノシシの速さ（走者 1 に対して）。走者と同じなので相対速度は 2 倍。
+    public static let boarAdvance: Double = 1
+
     // MARK: エンドレス（#675・会長決裁 2026-09-12）
 
     /// エンドレスのコースの区画数（第 1 弾は固定長）。
@@ -293,6 +348,9 @@ public enum RunnerRules {
     /// `speed × jumpAirTime + baseLead + speed × riseTime(9.5)` ≒ 0.911 × speed + 6 なので、
     /// 63.6 を超えると成立しなくなる。60 は 18 面（54.4）より 1 割速く、その手前で止まる値。
     /// 画面に見える先読み（`RunnerField.Metrics.width`）は 74 単位 = 60 / 秒で約 1.2 秒。
+    /// 唯一の例外は**飛び立つ鳥の直後の高い岩**（#796。鳥は出会う地点が区画中央より 6 先へ
+    /// ずれるため、この速さでは 2.7 足りない）。生成器はこの並びを `canPlace` で弾いて平地に倒す
+    /// （`RunnerEndlessCourseTests.maxSpeedKeepsAdjacentHazardsPassable` が固定）。
     public static let endlessMaxSpeed: Double = 60
 }
 
@@ -308,7 +366,9 @@ public enum RunnerRules {
 /// | `1` `2` `3` | 穴（1〜3 タイル） |
 /// | `n` | 低い障害物 |
 /// | `t` | 高い障害物 |
-/// | `b` | 鳥 |
+/// | `b` | 飛び立つ鳥（#796） |
+/// | `d` | 犬（#800） |
+/// | `i` | イノシシ（#801） |
 /// | `s` | スピードアップアイテム（平地 + アイテム。障害としては扱わない） |
 /// | `k` | たこ焼き（平地 + 一定時間無敵になるアイテム。障害としては扱わない・#797） |
 /// | `P` | 乗れる台座（区画まるごと。**連続する `P` は 1 つの台座にまとまる**） |
@@ -417,6 +477,9 @@ public struct RunnerStage: Equatable, Sendable {
     }
 
     /// 区画記号を障害の並びへ展開する。
+    ///
+    /// イノシシ（#801）は展開後に岩の並びを見て「どこで止まるか」（`stopAt`）を焼き込む。
+    /// 走行中に毎サブステップ岩を探さないため。
     static func makeHazards(pattern: String) -> [RunnerHazard] {
         let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
         let offset = Double(RunnerRules.hazardTileOffset) * RunnerRules.tileWidth
@@ -429,7 +492,25 @@ public struct RunnerStage: Equatable, Sendable {
                 length: Double(spec.tiles) * RunnerRules.tileWidth
             ))
         }
-        return result
+        return result.map { hazard in
+            guard hazard.kind == .boar else { return hazard }
+            return RunnerHazard(
+                kind: .boar, start: hazard.start, length: hazard.length,
+                stopAt: boarStop(for: hazard, among: result)
+            )
+        }
+    }
+
+    /// イノシシが止まる x（#801）。出会いの地点（`start`）と出現点（`boarSpawn`）のあいだにある
+    /// 岩のうち、**出現点にいちばん近い岩の右端**。走者に出会うより先にぶつかる岩が無ければ nil。
+    ///
+    /// 出会いの地点より手前の岩は数えない——イノシシはそこへ着く前に走者と出会っている
+    /// （出会った時点で跳ばれたか当たったかのどちらかで、その先の動きは見た目にしか関わらない）。
+    static func boarStop(for boar: RunnerHazard, among hazards: [RunnerHazard]) -> Double? {
+        hazards
+            .filter { $0.kind.isRock && $0.end > boar.start && $0.end <= boar.boarSpawn }
+            .map(\.end)
+            .max()
     }
 
     /// 区画記号 1 文字の中身。`-`（平地）と未知の文字は nil。
@@ -451,6 +532,8 @@ public struct RunnerStage: Equatable, Sendable {
         case "n": return (.lowBlock, 1)
         case "t": return (.tallBlock, 1)
         case "b": return (.bird, 1)
+        case "d": return (.dog, 1)
+        case "i": return (.boar, 1)
         default:  return nil
         }
     }
@@ -543,6 +626,8 @@ public struct RunnerStage: Equatable, Sendable {
     /// 台座（#674）も同じ扱いで避ける。再開は必ず地面の高さで始まる
     /// （`RunnerField.init(stage:startingAt:passedCheckpoint:)`）ので、台座の範囲に置くと
     /// 走者が台座にめり込んだ状態から走り出すことになる。
+    /// 動く障害（#796）は当たり判定の位置ではなく**関わる距離の範囲**（`RunnerHazard.activeRange`）
+    /// を避ける——飛び立つ最中の鳥・突進の予告中のイノシシの目の前から走り出させない。
     static func makeCheckpoint(
         length: Double, hazards: [RunnerHazard], platforms: [RunnerPlatform]
     ) -> Double {
@@ -552,7 +637,9 @@ public struct RunnerStage: Equatable, Sendable {
         var x = (length / 2 / step).rounded(.down) * step
         let limit = length - step * 4
         while x < limit {
-            let onHazard = hazards.contains { $0.start - margin < x && x < $0.end + margin }
+            let onHazard = hazards.contains {
+                $0.activeRange.lowerBound - margin < x && x < $0.activeRange.upperBound + margin
+            }
             let onPlatform = platforms.contains { $0.start - margin < x && x < $0.end + margin }
             if !onHazard, !onPlatform { return x }
             x += step
@@ -608,17 +695,27 @@ public extension RunnerStage {
     /// 2026-09-11）。ステージ13〜15は新設時から先頭寄りに置けていたので変更していない。
     /// `k`（たこ焼き・#797）は**ステージ 4 以降**の平地区間に 1 個ずつ混ぜてある（Issue の
     /// 「出現は 4 面以降」）。`s` と違って乗りの底上げが無いので先頭寄りに置く理由が無く、
-    /// **障害が隣り合う組の直前**（4 面の `n1`、13 面の `btt2` など）に置いて「ここで取れば
+    /// **障害が隣り合う組の直前**（4 面の `d1`、13 面の `btt2` など）に置いて「ここで取れば
     /// 難所を突っ切れる」という置き方にしてある。台座の前後と床の直後は素の平地でなければ
     /// ならない（下記 (1)(2)）ので、16〜18 面は空いている平地から選んでいる。障害ではないので
     /// 障害の割合・間隔・チェックポイントの位置・速さのどれにも影響しない
     /// （`takoyakiDoesNotAffectClearability`）——1〜15 面のベストタイムの物差しは動かない。
-    /// `b`（鳥）はステージ 5〜6 と 13〜15 に混ぜてある
-    /// （会長QA「鳥とか右から車が来るとか要素はいる」）——**跳ばずにくぐる障害**（#671）で、
-    /// 接地したままなら安全・跳ぶと当たる。「くぐれる下端」「跳べば当たる」「前後に跳ばざるを
-    /// 得ない配置が無い」ことは `RunnerStageTests` が全ステージで確かめる。
-    /// 5〜6 面の鳥は #626 で足したもの——高い岩を跳んだ直後（`tb`）に置き、「跳ぶ／くぐる」の
-    /// 判断を序盤から出す（7〜12 面に鳥が無いのは #626 のスコープが 1〜6 面だったため）。
+    /// 動物（`d`・`i`）は下の規則どおり既存の `n` を置き換えたもので、`k` が潰した平地とは
+    /// 別の区画なので、#797 と #800/#801 の置き換えは互いに独立している。
+    /// `b`（鳥）はステージ 5〜6 と 13〜15・18 に混ぜてある
+    /// （会長QA「鳥とか右から車が来るとか要素はいる」）。#796 で**置物から「飛び立つ鳥」**になり、
+    /// 手前 6 タイルで飛び立って低く飛ぶところを跳んで越える（何もしなければ当たる）。
+    /// 走者から見た等価な静止区間は区画中央より少し先（`RunnerHazard.encounter`）なので、
+    /// 隣の障害との間隔は `RunnerStageTests` がその区間で確かめる。
+    /// 5〜6 面の鳥は #626 で足したもの（高い岩を跳んだ直後 `tb`）。
+    ///
+    /// `d`（犬・#800）と `i`（イノシシ・#801）は v1.1.5 で足した地面を走る動物。**平地は潰さず、
+    /// 既存の `n`（低い岩）を置き換えて**ある（下の規則）——犬は止まれば低い岩そのもの、
+    /// イノシシは出会う地点が区画中央で重なりは岩より短いので、成立条件は `n` のまま据え置ける。
+    /// 犬は朝の下町（4〜6 面）と夕方の川沿い、イノシシは夕方の川沿い（7 面〜）から出し、夜は
+    /// 鳥と混ぜる（会長決裁 2026-09-14）。`it`（イノシシの次の区画が岩）は「岩で止まる」読みが
+    /// できる並び（9・12 面）。イノシシが止まる岩は `makeHazards` が障害の並びだけから決めるので、
+    /// あいだに `k` が挟まっても（7 面 `ikt`・9 面 `kit`）止まる／止まらないは変わらない。
     ///
     /// `P`（乗れる台座・#674）と `=`（スピードアップ床・#672）はステージ 16〜18 にだけ
     /// 置いてある。どちらも障害ではないので上の「障害の割合」には数えないが、**台座は前後
@@ -638,22 +735,24 @@ public extension RunnerStage {
     /// `inefficientPlayCostsMeaningfulTime`）。
     private static let patterns: [String] = [
         // 1〜6 面は #626（会長決裁 2026-09-14）で障害を 1 面あたり 1 個ずつ足した。
+        // 4〜13 面・17〜18 面は #800/#801（同日決裁）で `n` の一部を犬 `d`・イノシシ `i` に置き換えた
+        // （障害の数・位置は変えていない）。
         // GA4 で 1 面 → 2 面の到達が 4 割しかないので 1〜3 面は +1 に留め（`earlyStagesStayGentle`
         // が上限を固定）、4〜6 面は数に加えて**障害が隣り合う区画**で間合いを詰める。
         // 鳥は 5 面から、高い岩を跳んだ直後（`tb`）に置いて「跳ぶ／くぐる」の判断を出す。
         "--1-1--1-1--",              // 1: 12区画・障害4個。1 タイルの穴だけで間合いを覚える（間隔は 2・3・2 区画と崩す）
         "--1-n--1--n--",             // 2: 13区画・障害4個。低い障害物の初出
         "--1-n-2--n-1--",            // 3: 14区画・障害5個。2 タイルの穴の初出
-        "--1-n-t-kn1-2--",           // 4: 15区画・障害6個。高い障害物の初出。障害が隣り合う区画の初出（低い岩→穴）。たこ焼きの初出
-        "--1sn-tb-2kn-t--",          // 5: 16区画・障害7個（岩穴6+鳥1）。スピードアップアイテムと鳥の初出
-        "--1sn-3-tbk2n-t--",         // 6: 17区画・障害8個（岩穴7+鳥1）。3 タイル（跳べる最大幅）の穴の初出
-        "--1sn-3-t2-nkt-1--",        // 7: 18区画・障害8個。高い岩の直後に穴（隣り合う区画の難しい組）が出始める
-        "--2st-1n-3kt2-n-t--",       // 8: 19区画・障害9個
-        "--2st1-n-3t-2knt-3--",      // 9: 20区画・障害10個
-        "--2st1-n3-t-2nkt3-2--",     // 10: 21区画・障害11個
-        "--t2sn3-t1t-2tk3n-tt--",    // 11: 22区画・障害13個
-        "--t2sn3-t1t-2t3knt-t2--",   // 12: 23区画・障害14個
-        "--t2sb3t1-t2t3kbtt2-n3--",  // 13: 24区画・障害16個（岩穴14+鳥2）。鳥の初出
+        "--1-n-t-kd1-2--",           // 4: 15区画・障害6個（岩穴5+犬1）。高い障害物と犬の初出。障害が隣り合う区画の初出（犬→穴）。たこ焼きの初出
+        "--1sn-tb-2kd-t--",          // 5: 16区画・障害7個（岩穴5+鳥1+犬1）。スピードアップアイテムと飛び立つ鳥の初出
+        "--1sn-3-tbk2d-t--",         // 6: 17区画・障害8個（岩穴6+鳥1+犬1）。3 タイル（跳べる最大幅）の穴の初出
+        "--1sn-3-t2-ikt-1--",        // 7: 18区画・障害8個（岩穴7+イノシシ1）。イノシシの初出。高い岩の直後に穴（隣り合う区画の難しい組）が出始める
+        "--2st-1d-3kt2-n-t--",       // 8: 19区画・障害9個（岩穴8+犬1）
+        "--2st1-n-3t-2kit-3--",      // 9: 20区画・障害10個（岩穴9+イノシシ1）。岩の手前のイノシシ（岩で止まる）の初出
+        "--2st1-n3-t-2dkt3-2--",     // 10: 21区画・障害11個（岩穴10+犬1）
+        "--t2sn3-t1t-2tk3i-tt--",    // 11: 22区画・障害13個（岩穴12+イノシシ1）。平地を挟んだ次が岩なので止まらない（出現点が岩の手前）
+        "--t2sn3-t1t-2t3kit-t2--",   // 12: 23区画・障害14個（岩穴13+イノシシ1）。岩で止まる
+        "--t2sb3t1-t2t3kbtt2-i3--",  // 13: 24区画・障害16個（岩穴13+鳥2+イノシシ1）。夜は鳥とイノシシを混ぜる
         "--3t2st3b-t3t2tk3tb-3t2--", // 14: 25区画・障害17個（岩穴15+鳥2）
         "--3t2st3bt3t2kt3tb3-t2t3--", // 15: 26区画・障害19個（岩穴17+鳥2）。速さ 50.8・約 33 秒
         // ここから #674 の「乗れる台座」枠。置き方の規則が 2 つある。
@@ -678,20 +777,20 @@ public extension RunnerStage {
         // **素の平地**が要るので、16 面は 2 つ目の床の直前、17 面は最初の岩の直後、18 面は
         // 2 つ目の床の直前（`btk=`）に置いてある。
         "--t2-n-PP-=-t3-PPP-nk=-t3--",   // 16: 27区画・障害8個＋台座2基＋床2区画。台座に乗る・降りるを覚える
-        "--3tkn-PP-PP-==-t3-PPP-t2n--",  // 17: 28区画・障害8個＋台座3基＋床2区画（1基）。台座を乗り継ぐ（連続台座）
-        "--3t2-b-PP-=-t3-PPP-btk=-bn--", // 18: 29区画・障害10個（岩穴7+鳥3）＋台座2基＋床2区画。台座と鳥・岩の複合
+        "--3tkn-PP-PP-==-t3-PPP-t2d--",  // 17: 28区画・障害8個（岩穴7+犬1）＋台座3基＋床2区画（1基）。台座を乗り継ぐ（連続台座）
+        "--3t2-b-PP-=-t3-PPP-btk=-bd--", // 18: 29区画・障害10個（岩穴6+鳥3+犬1）＋台座2基＋床2区画。台座と鳥・岩・犬の複合
     ]
 }
 
 #if DEBUG
 public extension RunnerStage {
-    /// QA用: 低い障害物・高い障害物・鳥・穴3サイズ・スピードアップ床・台座を1本で見比べられるステージ
+    /// QA用: 低い障害物・高い障害物・鳥・犬・イノシシ・穴3サイズ・スピードアップ床・台座を1本で見比べられるステージ
     /// （起動引数 `-simulateRunner showcase`）。`.all`（本番の18ステージ）には含めない
     /// ——`number` を 0 にして「実ステージではない」ことを型で示す。
     ///
-    /// 鳥（`b`）を入れてあるのは、本番では 13 面以降にしか出ないので**くぐる挙動（#671）を
-    /// 確かめるのに 13 面まで遊ぶ必要がある**ため。跳ばずに走り抜けるところは
-    /// `-simulateRunner bird` が 1 枚で撮れる。
+    /// 鳥（`b`）・犬（`d`）・イノシシ（`i`）を入れてあるのは、飛び立つ・追いついて止まる・
+    /// 突進してくる（#796/#800/#801）を本番の面まで遊ばずに確かめるため。狙った瞬間は
+    /// `-simulateRunner bird` / `bird-low` / `bird-up` / `dog` / `boar` が 1 枚ずつ撮れる。
     ///
     /// 間隔は他ステージよりゆったり取ってある（QA中に慌てて次の障害へ突っ込まないため）。
     /// 速さは1面と同じ `RunnerRules.baseSpeed` で固定。
@@ -706,7 +805,7 @@ public extension RunnerStage {
     /// 取った直後に岩・高い岩を無敵で突っ切る画が `-simulateRunner invincible` で撮れる。
     static let debugShowcase = RunnerStage(
         number: 0,
-        pattern: "--==-kn--t--b--PP--1--2--3--",
+        pattern: "--==-kn--t--b--d--i--PP--1--2--3--",
         speed: RunnerRules.baseSpeed
     )
 }

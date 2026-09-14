@@ -135,23 +135,51 @@ struct RunnerModelTests {
         #expect(gameCenter.scores.count == scoreCountBefore, "ショーケースのクリアでスコアを送信してはいけない")
     }
 
-    /// 撮影用シナリオ `-simulateRunner bird`（#671 の受け入れ条件「接地して走れば鳥の下を
-    /// 通り抜けられる」の画）が、**本当に鳥の下・接地・走行中で止まる**こと。
-    /// 自動操縦が鳥の手前で跳んでしまうと、ここが `.falling` や「鳥の手前」で止まる。
-    @Test("撮影用シナリオ bird は鳥の真下で接地したまま止まる")
-    func birdScenarioFreezesUnderTheBird() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("bird-capture"))
-        model.applyDebugScenario("bird")
-        guard let bird = model.field.stage.hazards.first(where: { $0.kind == .bird }) else {
-            Issue.record("ショーケースに鳥が無い")
-            return
+    /// 撮影用シナリオ `-simulateRunner bird` / `bird-low` / `bird-up`（#796 の受け入れ条件
+    /// 「飛び立つ前・低く飛ぶ瞬間・上がった後」の画）と `dog`（#800）・`boar`（#801）が、
+    /// **本当に狙った状態・走行中で止まる**こと。自動操縦が途中でミスすると `.falling` で止まる。
+    @Test("撮影用シナリオ bird / bird-low / bird-up / dog / boar は狙った状態で止まる")
+    func animalScenariosFreezeWhereIntended() {
+        func make(_ name: String) -> RunnerModel {
+            let model = RunnerModel(startingAt: 1, preference: makePreference("capture-\(name)"))
+            model.applyDebugScenario(name)
+            #expect(model.phase == .running, "\(name): ミスせずに到達している（\(model.phase)）")
+            return model
         }
-        #expect(model.phase == .running, "ミスせずに鳥まで到達している")
-        #expect(model.field.isGrounded, "接地したままくぐっている")
-        #expect(
-            model.field.playerMaxX > bird.start && model.field.playerMinX < bird.end,
-            "走者が鳥の真下にいる（\(model.field.distance) vs \(bird.start)〜\(bird.end)）"
-        )
+        let perched = make("bird")
+        if let bird = perched.field.stage.hazards.first(where: { $0.kind == .bird }) {
+            #expect(bird.birdTravel(atRunnerDistance: perched.field.distance) == 0, "まだ飛び立っていない")
+            #expect(perched.field.distance >= bird.birdTakeoffDistance - RunnerRules.birdFlutterDistance, "羽ばたきの予備動作中")
+        } else { Issue.record("ショーケースに鳥が無い") }
+
+        let low = make("bird-low")
+        if let bird = low.field.stage.hazards.first(where: { $0.kind == .bird }),
+           let frame = bird.frame(atRunnerDistance: low.field.distance) {
+            #expect(!low.field.isGrounded, "跳んでいる最中")
+            #expect(frame.top == RunnerHazardKind.birdLowTop, "鳥は低く飛んでいる")
+            #expect(low.field.playerMaxX > frame.start && low.field.playerMinX < frame.end, "鳥の真上")
+        }
+
+        let up = make("bird-up")
+        if let bird = up.field.stage.hazards.first(where: { $0.kind == .bird }),
+           let frame = bird.frame(atRunnerDistance: up.field.distance) {
+            #expect(frame.bottom >= RunnerHazardKind.birdHighBottom, "鳥は上がっている")
+            #expect(up.field.isGrounded)
+        }
+
+        let dog = make("dog")
+        if let hazard = dog.field.stage.hazards.first(where: { $0.kind == .dog }),
+           let frame = hazard.frame(atRunnerDistance: dog.field.distance) {
+            #expect(frame.advance == 0 && frame.start == hazard.start, "犬は止まって吠えている")
+            #expect(dog.field.isGrounded && dog.field.distance < hazard.start, "踏み切る前")
+        }
+
+        let boar = make("boar")
+        if let hazard = boar.field.stage.hazards.first(where: { $0.kind == .boar }),
+           let frame = hazard.frame(atRunnerDistance: boar.field.distance) {
+            #expect(frame.advance < 0, "イノシシは突進中")
+            #expect(frame.start - boar.field.distance < RunnerField.Metrics.width - RunnerField.Metrics.playerX, "画面の中にいる")
+        }
     }
 
     /// 撮影用シナリオ `-simulateRunner invincible`（#797 の受け入れ条件「実機スクショ」の画）が、
