@@ -454,3 +454,24 @@ export const games: Game[] = [
 export function findGame(slug: string): Game | undefined {
   return games.find((g) => g.slug === slug);
 }
+
+/// 配信済みゲームの `description` の末尾にある「収録」の一文（言い回しの揺れを含む）。
+const releasedSentence = /通信不要・登録不要[、で]*iPhone アプリ「あそびば」に無料で収録(しています)?。$/;
+const comingSoonSentence = "通信不要・登録不要、無料の iPhone アプリ「あそびば」に次のアップデートで追加予定。";
+
+/// ゲーム別ページの本文と meta description に使う説明文。`comingSoon` のときだけ末尾の
+/// 「収録」の一文を配信予定の文に差し替える（#682。meta description は検索結果のスニペットに
+/// そのまま出るため、「配信予定」バッジの無いところで「収録」と言わない）。`description` 自体は
+/// 配信済みの文面のまま持つので、リリース時は `comingSoon` を外すだけで元の文に戻る。
+export function pageDescription(game: Game): string {
+  if (!game.comingSoon) return game.description;
+  // 末尾の言い回しが想定外だと差し替えが空振りして配信済みの文が残るので、ビルドごと止める
+  if (!releasedSentence.test(game.description)) {
+    throw new Error(`games.ts: 配信予定の ${game.slug} の description の末尾が想定外です。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
+  }
+  const text = game.description.replace(releasedSentence, comingSoonSentence);
+  if (text.includes("収録")) {
+    throw new Error(`games.ts: 配信予定の ${game.slug} の description が「収録」と言っています。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
+  }
+  return text;
+}
