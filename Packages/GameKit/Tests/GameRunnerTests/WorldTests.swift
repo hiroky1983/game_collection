@@ -83,7 +83,7 @@ struct RunnerWorldTests {
         let stageWorlds = Set(RunnerStage.all
             .filter { stage in stage.hazards.contains { $0.kind == .bird } }
             .map { RunnerWorld.world(forStage: $0.number) })
-        // 空振り防止: 5・6 面（朝）と 13〜15 面（夜）の鳥を拾えていること。
+        // 空振り防止: 5・6 面（朝）と 13〜15・18 面（夜）の鳥を拾えていること。
         #expect(stageWorlds.isSuperset(of: [.morning, .night]))
         for world in stageWorlds.union([.morning]) {
             for hill in [world.palette.hillFar, world.palette.hillNear] {

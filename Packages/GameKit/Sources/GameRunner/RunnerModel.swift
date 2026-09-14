@@ -535,7 +535,7 @@ public final class RunnerModel {
             applyDebugStage(.debugShowcase)
         case "bird":
             // 鳥の下をくぐっている瞬間で止める（#671 の受け入れ条件「接地して走れば鳥の下を
-            // 通り抜けられる」の画）。本番のステージでは鳥は 5・6 面と 13〜15 面にしか出ないので、
+            // 通り抜けられる」の画）。本番のステージでは鳥は 5・6 面と 13〜15・18 面にしか出ないので、
             // ショーケース（`RunnerStage.debugShowcase`）の鳥を使う。
             applyDebugStage(.debugShowcase)
             press(); release()
