@@ -764,6 +764,33 @@ struct ConcentrationCancellationTests {
         #expect(model.currentPlayer == .cpu, "手番はそのまま")
     }
 
+    /// 上のテストは本体の開始前にキャンセルするので、踏むのはループ先頭の判定だけになる。
+    /// 実際に画面を離れるのは CPU が間合いの sleep に入っている最中で、そのとき効くのは sleep 直後の
+    /// 判定のほう（#817）。`await Task { @MainActor in }.value` で本体を最初の sleep まで走らせてから
+    /// キャンセルし、sleep が即座に返った直後に抜けることを固定する（実時間に依存しない）。
+    @Test("CPU が間合いの sleep に入った後にキャンセルすると、起きた直後に抜けて札をめくらない")
+    func cancelledDuringCPUPauseDoesNotFlip() async {
+        let (model, store) = await modelAtCPUTurnThatWouldSweep()
+        #expect(model.currentPlayer == .cpu, "CPU の手番になっていない")
+        let facesBefore = model.cards.map(\.isFaceUp)
+        let matchedBefore = model.cards.map(\.isMatched)
+
+        let task = Task { await model.performCPUMoveIfNeeded() }
+        // task の後ろに積んだ空のジョブを待つ = task は最初の sleep に入って MainActor を手放している。
+        await Task { @MainActor in }.value
+        #expect(model.isThinking, "CPU の手番が sleep に入っていない（ループ先頭の判定しか踏まない）")
+        task.cancel()
+        await task.value
+
+        #expect(model.cards.map(\.isFaceUp) == facesBefore, "sleep 中にキャンセルされたのに札をめくった")
+        #expect(model.cards.map(\.isMatched) == matchedBefore, "sleep 中にキャンセルされたのにペアを取った")
+        #expect(model.cpuScore == 0)
+        #expect(!model.isGameOver)
+        #expect(store.exists(for: "concentration"), "中断データが消えていない")
+        #expect(!model.isThinking, "抜けた後に isThinking が残ると次の CPU 手番が始まらない")
+        #expect(model.currentPlayer == .cpu, "手番はそのまま")
+    }
+
     @Test("CPU 手番中に離れても、離れた時点の盤面から再開できる")
     func cancelledCPUTurnRestoresBoardAtLeave() async {
         let (model, store) = await modelAtCPUTurnThatWouldSweep()

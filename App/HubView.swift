@@ -23,6 +23,11 @@ struct HubView: View {
     let settings: GameSettings
     @State private var path: [HubRoute]
     @State private var showSettings: Bool
+    /// アプリ内「きろく」画面（#669）。ツールバーのトロフィーから開く。
+    @State private var showRecords: Bool
+    /// 「きろく」の中から Game Center を求められた。シートが閉じ切ってから開くための印
+    /// （シートを出したまま Game Center のオーバーレイやサインイン画面を重ねない）。
+    @State private var opensGameCenterAfterRecords = false
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
     /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
@@ -115,7 +120,8 @@ struct HubView: View {
         services: GameServices,
         settings: GameSettings,
         initialGameID: String? = nil,
-        showsSettingsInitially: Bool = false
+        showsSettingsInitially: Bool = false,
+        showsRecordsInitially: Bool = false
     ) {
         self.registry = registry
         self.services = services
@@ -126,6 +132,7 @@ struct HubView: View {
             [HubRoute(gameID: $0, source: .hub, position: nil, resume: services.snapshots.exists(for: $0))]
         } ?? [])
         _showSettings = State(initialValue: showsSettingsInitially)
+        _showRecords = State(initialValue: showsRecordsInitially)
         // `init` は描き直しのたびに走るが、`PlayLog` が起動中は同じ値を返すので保存は1回きり。
         _newGameIDs = State(initialValue: services.playLog?.newGameIDs(
             registeredIDs: registry.modules.map(\.id)
@@ -251,13 +258,15 @@ struct HubView: View {
             .popBackground()
             .navigationTitle("あそびば")
             .toolbar {
-                // 実績・ランキング（#334）。歯車より左に置き、既存の設定ボタンの位置は動かさない。
+                // きろく（#669）。以前は Game Center を直接開いていた（#334）が、未サインインだと案内で
+                // 終わって手元の記録を見る場所が無かったため、アプリ内の画面に付け替えた。
+                // Game Center はその画面の中のボタンから開く。歯車より左の位置は変えない。
                 ToolbarItem(placement: .primaryAction) {
-                    Button { openGameCenter() } label: {
+                    Button { showRecords = true } label: {
                         Image(systemName: "trophy.fill")
                             .font(.system(size: 18, weight: .semibold))
                     }
-                    .accessibilityLabel("実績・ランキング")
+                    .accessibilityLabel("きろく")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSettings = true } label: {
@@ -311,6 +320,7 @@ struct HubView: View {
                 services.reminders?.requestedGameID = nil
                 // 設定を開いたままだと、その裏で遷移して何も起きていないように見える。
                 showSettings = false
+                showRecords = false
                 openFromOutside(HubRoute(
                     gameID: id, source: .notification, position: nil,
                     resume: services.snapshots.exists(for: id)
@@ -381,6 +391,17 @@ struct HubView: View {
             SettingsView(registry: registry, settings: settings, playLog: services.playLog)
                 .presentationDetents([.large])
         }
+        .sheet(isPresented: $showRecords, onDismiss: {
+            guard opensGameCenterAfterRecords else { return }
+            opensGameCenterAfterRecords = false
+            openGameCenter()
+        }) {
+            RecordsView(registry: registry, settings: settings, playLog: services.playLog) {
+                opensGameCenterAfterRecords = true
+                showRecords = false
+            }
+            .presentationDetents([.large])
+        }
         .alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -412,7 +433,8 @@ struct HubView: View {
         AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
     }
 
-    /// ツールバーの「実績・ランキング」。サインイン済みなら Game Center を開き、
+    /// 「きろく」の中の「Game Center で実績・ランキングを見る」（#669。以前はツールバーから直接・#334）。
+    /// サインイン済みなら Game Center を開き、
     /// 未サインインのときだけサインインを促す（#334 の受け入れ条件）。
     private func openGameCenter() {
         if GameCenterEntry.open() == .needsSignInGuidance {

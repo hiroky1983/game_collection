@@ -76,9 +76,9 @@ public struct GameServices {
     ///
     /// - Parameters:
     ///   - level: 難易度・段階（#500）。持たないゲームは省略し、`level` の鍵ごと送らない。
-    ///   - mode: 1 回の長さの区分（#783。四人打ち麻雀の `tonpuu` / `single_hand`）。持たないゲームは省略。
+    ///   - mode: 遊び方の区分（#783・#820。値の全量は `AnalyticsMode`）。持たないゲームは省略。
     @MainActor
-    public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
+    public func gameDidStart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
         analytics?.startPlay(gameID: gameID, level: level, mode: mode)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
@@ -88,7 +88,7 @@ public struct GameServices {
     ///
     /// 前のプレイが未決着のまま捨てられていれば、始め直す前に `game_end`（`quit`）が出る（#500）。
     @MainActor
-    public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil, mode: String? = nil) {
+    public func gameDidRestart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
         analytics?.restartPlay(gameID: gameID, level: level, mode: mode)
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
@@ -167,6 +167,15 @@ public struct GameServices {
         guard await ads.showRewardedAd() else { return false }
         analytics?.recordRewardAd(gameID: gameID, purpose: purpose)
         return true
+    }
+
+    /// ゲームでミスした（穴に落ちた・ぶつかった）ときに各 Model から呼ぶ（#796）。
+    ///
+    /// 決着ではない（`gameDidFinish` は呼ばない）。解析が原因を覚えておき、そのプレイの
+    /// `game_end` に「最後のミスの原因」（`cause`）として載せる。イベントの種類は増やさない。
+    @MainActor
+    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause) {
+        analytics?.recordMissCause(gameID: gameID, cause: cause)
     }
 
     /// ゲームが決着したときに各 Model から呼ぶ唯一の入口。

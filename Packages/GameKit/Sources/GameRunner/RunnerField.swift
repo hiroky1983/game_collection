@@ -1,3 +1,4 @@
+import Core
 import Foundation
 
 /// 横スクロールランナーのコースそのもの（#494）。
@@ -91,8 +92,14 @@ public struct RunnerField: Equatable, Sendable {
     public private(set) var pickupOverboost: Double = 0
     /// `pickupOverboost` が 0 になるまでの残り秒数。
     private var pickupOverboostRemaining: Double = 0
-    /// 取得済みのスピードアップアイテムの数。まだ消していないノードを消すのに描画側が使う。
+    /// 取得済みのアイテムの数（スピードアップ・たこ焼きを問わない）。
     public private(set) var collectedPickupCount: Int = 0
+    /// たこ焼き（#797）の無敵の残り秒数。0 なら無敵ではない。
+    ///
+    /// 取り直すと満タンに戻す（重ねない。`pickupOverboost` と同じ扱い）。空中でも減る
+    /// ——「取ってから何秒」の物差しで、跳んで時間を止めて持ち越せてはいけない。
+    /// 画面の残り時間表示（`RunnerView`）はこの値をそのまま読む。
+    public private(set) var invincibleRemaining: Double = 0
     /// 直前の着地がジャスト着地だったか（#673）。
     ///
     /// 着地するたびに書き換わる（ジャストでなければ false に戻る）ので、`.landed` の
@@ -116,6 +123,9 @@ public struct RunnerField: Equatable, Sendable {
     public private(set) var justLandingOverboost: Double = 0
     /// `justLandingOverboost` が 0 になるまでの残り秒数。
     private var justLandingOverboostRemaining: Double = 0
+    /// 直近のミスの原因（#796）。`.fell` / `.crashed` を返した瞬間に決まり、解析の `game_end` の
+    /// `cause` に載る。台座の正面（`isHittingPlatformFace`）は岩と同じ扱い。ミスするまで nil。
+    public private(set) var lastMissCause: AnalyticsEndCause?
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
     ///
     /// 描画側はこの添字でノードを消す。**取得は先頭から順とは限らない**——チェックポイントから
@@ -180,6 +190,10 @@ public struct RunnerField: Equatable, Sendable {
         return stage.boostFloors.contains { $0.start <= distance && distance < $0.end }
     }
 
+    /// いま無敵か（たこ焼き・#797）。true のあいだは岩・鳥・台座の正面に当たっても
+    /// `.crashed` を出さない。**穴は落ちる**（`advance` の接地判定はこの値を見ない）。
+    public var isInvincible: Bool { invincibleRemaining > 0 }
+
     /// 走者の当たり判定の矩形。
     public var playerMinX: Double { distance - Metrics.playerHalfWidth }
     public var playerMaxX: Double { distance + Metrics.playerHalfWidth }
@@ -216,8 +230,26 @@ public struct RunnerField: Equatable, Sendable {
     }
 
     /// 走者の**前方**にある最も近い障害。自動操縦テストと先読みの読み上げが使う。
+    ///
+    /// 動く障害（#796）は**いまの位置**（`frame(atRunnerDistance:)`）で見る。配列の並び
+    /// （置いた位置の順）と現在の並びは食い違いうる——岩の右側で止まったイノシシは、置いた
+    /// 位置では岩の手前の区画でも、いまは岩の向こう側にいる。まだ現れていない障害（突進前の
+    /// イノシシ）と、上がりきって接地した走者の頭より高い鳥は対象にしない（跳ぶ相手ではない）。
     public func nextHazard(from x: Double) -> RunnerHazard? {
-        stage.hazards.first { $0.end > x }
+        var best: (hazard: RunnerHazard, start: Double)?
+        for hazard in stage.hazards {
+            guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { continue }
+            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { continue }
+            if best == nil || frame.start < best!.start { best = (hazard, frame.start) }
+        }
+        return best?.hazard
+    }
+
+    /// `nextHazard` と同じ規則で、その障害の**いまの当たり判定**を返す。
+    public func nextHazardFrame(from x: Double) -> (hazard: RunnerHazard, frame: RunnerHazardFrame)? {
+        guard let hazard = nextHazard(from: x),
+              let frame = hazard.frame(atRunnerDistance: distance) else { return nil }
+        return (hazard, frame)
     }
 
     /// 走者の**前方**にある最も近い台座（#674）。自動操縦が「跳んで乗る」対象に使う。
@@ -306,6 +338,7 @@ public struct RunnerField: Equatable, Sendable {
         self.pendingCut = false
         // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
         self.jumpStartDistance = self.isGrounded ? nil : distance
+        self.lastMissCause = nil
     }
 
     // MARK: - 進行
@@ -377,7 +410,20 @@ public struct RunnerField: Equatable, Sendable {
             justLandingOverboost = RunnerRules.justLandingOverboost
                 * (justLandingOverboostRemaining / RunnerRules.justLandingOverboostDuration)
         }
+        // 無敵（たこ焼き・#797）も同じ物差しで減る。速さには一切効かない。
+        if invincibleRemaining > 0 {
+            invincibleRemaining = max(0, invincibleRemaining - dt)
+        }
+        let previousDistance = distance
         distance += currentSpeed * dt
+
+        // イノシシの突進が始まる地点をこのサブステップでまたいだ（#801）。手応え・土煙の発火点で、
+        // 当たり判定には関わらない（位置は `frame(atRunnerDistance:)` が距離から引く）。
+        // チェックポイント再開でこの地点より先から走り出した場合は鳴らない（予告する相手がいない）。
+        for hazard in stage.hazards where hazard.kind == .boar {
+            let charge = hazard.boarChargeStartDistance
+            if previousDistance < charge, charge <= distance { events.append(.boarCharging) }
+        }
 
         // 台座の端から出た（#674）。接地面が足の下から消えるので、そのまま落下へ移す。
         // ここで切り替えておかないと `isGrounded && vy == 0` のまま重力が掛からず、
@@ -403,32 +449,51 @@ public struct RunnerField: Equatable, Sendable {
             }
         }
 
-        // 障害物は矩形どうしの重なりで見る（岩は跳んで越え、鳥は接地してくぐる・#671）。
+        // 障害物は矩形どうしの重なりで見る（岩・低く飛ぶ鳥・犬・イノシシは跳んで越える）。
         // 台座（#674）は正面（左端）に突っ込んだ場合だけ同じくミスになる。
-        if isHittingBlock || isHittingPlatformFace {
-            events.append(.crashed)
-            return
+        // 無敵（たこ焼き・#797）のあいだはこの判定だけを通さない——動く障害（飛び立つ鳥・犬・
+        // イノシシ・#796）も岩と同じく素通りする。穴は下の接地判定で従来どおり落ちる。
+        // 台座の正面に突っ込んだ場合は当たり判定を素通りして上面に乗る
+        // （`surfaceY(at:)` が台座の範囲で上面を返すので、次の接地判定で足が上面に止まる）。
+        if !isInvincible {
+            if let hit = hittingHazard {
+                lastMissCause = hit.kind.missCause
+                events.append(.crashed)
+                return
+            }
+            if isHittingPlatformFace {
+                lastMissCause = .rock
+                events.append(.crashed)
+                return
+            }
         }
 
-        // スピードアップアイテム。「触れると得する」だけなので、穴・障害物と違って
+        // アイテム。「触れると得する」だけなので、穴・障害物と違って
         // 高さは問わず横方向の重なりだけで見る。`currentSpeed` の「空中では必ず基準速度」
         // という不変条件には触れない（接地しているあいだしか乗りは効かないので、
         // 跳んで取ってもその場では速くならない）。
         //
-        // 効果は2つ: (1) `pedalBoost` を即座に上限へ引き上げる（乗れていない状態で取った
-        // 場合の底上げ）、(2) それとは別枠の `pickupOverboost` を一時的に乗せる（会長QA
-        // 「取るタイミングが大体もうMAX速度で意味がない」2026-09-10 への対応。`pedalBoost`
-        // 自体はどの道 `maxPedalBoost` で頭打ちなので、上限に張り付いた状態で取っても
-        // (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
+        // スピードアップの効果は2つ: (1) `pedalBoost` を即座に上限へ引き上げる（乗れていない
+        // 状態で取った場合の底上げ）、(2) それとは別枠の `pickupOverboost` を一時的に乗せる
+        // （会長QA「取るタイミングが大体もうMAX速度で意味がない」2026-09-10 への対応。
+        // `pedalBoost` 自体はどの道 `maxPedalBoost` で頭打ちなので、上限に張り付いた状態で
+        // 取っても (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
         // 乗り具合に関わらず必ず体感できる加速にする）。
+        // たこ焼き（#797）は速さに触らず、無敵の残り時間を満タンにするだけ。
         for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
             guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { continue }
             collectedPickupIndices.insert(index)
             collectedPickupCount += 1
-            pedalBoost = RunnerRules.maxPedalBoost
-            pickupOverboost = RunnerRules.pickupOverboost
-            pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
-            events.append(.collectedSpeedItem)
+            switch pickup.kind {
+            case .speed:
+                pedalBoost = RunnerRules.maxPedalBoost
+                pickupOverboost = RunnerRules.pickupOverboost
+                pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
+                events.append(.collectedSpeedItem)
+            case .invincible:
+                invincibleRemaining = RunnerRules.invincibleDuration
+                events.append(.collectedInvincibleItem)
+            }
         }
 
         // 接地面は「地面 or 台座の上面」（#674）。台座の範囲内なら上面で止まる。
@@ -438,6 +503,7 @@ public struct RunnerField: Equatable, Sendable {
             // 台座の上に落ち着く場合は穴を見ない——穴は地面に開いた欠落なので、その上に
             // 台座が架かっているなら渡れる（台座の端から降りれば下の穴の判定が効く）。
             if surface <= Metrics.groundY, isPit(at: distance) {
+                lastMissCause = .pit
                 events.append(.fell)
                 return
             }
@@ -499,29 +565,33 @@ public struct RunnerField: Equatable, Sendable {
 
     /// ジャスト着地の対象になる障害か（#673）。
     ///
-    /// **跳んで越えるものだけ**——「越えた直後に降りる」が判定の実体なので、跳び越える
-    /// 対象でない障害を混ぜると、越え方と関係なく上乗せが乗る。鳥はくぐる障害
-    /// （#671）なので対象外。
+    /// **跳んで越え、置いた位置（`RunnerHazard.end`）がそのまま「真裏」になるものだけ**
+    /// ——「越えた直後に降りる」が判定の実体なので、跳び越える対象でない障害を混ぜると、
+    /// 越え方と関係なく上乗せが乗る。止まった犬は低い岩そのもの（#800）なので対象。
+    /// 鳥は飛んで動いている相手で「真裏」が置いた位置にない（#796）、イノシシは向かってきて
+    /// 走者の体の中を通り抜ける（#801）ので、どちらも対象外。
     private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
         switch kind {
-        case .pit, .lowBlock, .tallBlock: return true
-        case .bird:                       return false
+        case .pit, .lowBlock, .tallBlock, .dog: return true
+        case .bird, .boar:                      return false
         }
     }
 
-    /// いま障害物に当たっているか。
+    /// いま当たっている障害物（無ければ nil）。ミスの原因（`lastMissCause`）を決めるのに種類が要る。
     ///
     /// 縦は**帯どうしの重なり**で見る（#671）。走者は足（`footY`）から頭
-    /// （`footY + playerHeight`）まで、障害は `hazard.bottom` から `hazard.height` まで。
-    /// 地面から生えている岩は `bottom` が 0 なので「頭が下端より上」は常に真になり、
-    /// 従来どおり「足が上端より上なら飛び越えている」だけの判定に一致する——挙動は 1 ビットも
-    /// 変わらない。鳥だけが下端を持ち、**接地していれば頭がつかえずくぐれる**。
-    private var isHittingBlock: Bool {
-        stage.hazards.contains { hazard in
-            guard hazard.kind != .pit else { return false }
-            guard hazard.start < playerMaxX, playerMinX < hazard.end else { return false }
-            return footY < Metrics.groundY + hazard.height
-                && Metrics.groundY + hazard.bottom < footY + Metrics.playerHeight
+    /// （`footY + playerHeight`）まで、障害は帯の下端から上端まで。地面から生えている岩は
+    /// 下端が 0 なので「頭が下端より上」は常に真になり、従来どおり「足が上端より上なら
+    /// 飛び越えている」だけの判定に一致する。位置と帯は**いまの走者の距離で引く**
+    /// （`RunnerHazard.frame(atRunnerDistance:)`・#796）——上がりきった鳥は帯が頭より上に
+    /// 抜けるので、同じ式のまま自然に当たらなくなる。
+    private var hittingHazard: RunnerHazard? {
+        stage.hazards.first { hazard in
+            guard hazard.kind != .pit,
+                  let frame = hazard.frame(atRunnerDistance: distance) else { return false }
+            guard frame.start < playerMaxX, playerMinX < frame.end else { return false }
+            return footY < Metrics.groundY + frame.top
+                && Metrics.groundY + frame.bottom < footY + Metrics.playerHeight
         }
     }
 

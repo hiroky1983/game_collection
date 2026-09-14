@@ -36,6 +36,11 @@ public enum RunnerAccessibility {
         return "スピード \(percent)パーセント"
     }
 
+    /// たこ焼き（#797）の無敵の残り時間。秒は切り上げる（残り 0.3 秒を「0秒」と読まない）。
+    public static func invincibleLabel(remaining: Double) -> String {
+        "無敵 あと\(Int(max(0, remaining).rounded(.up)))秒"
+    }
+
     /// タイム。分と秒に分けて読む（`1:05` は「いちころごー」と読まれてしまう）。
     public static func timeLabel(seconds: Int) -> String {
         let value = max(0, seconds)

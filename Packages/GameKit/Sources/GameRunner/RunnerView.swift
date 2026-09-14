@@ -81,7 +81,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|platform|floor|stage:N|endless|endless-running|endless-failed>`（#494・#675）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -368,6 +368,13 @@ public struct RunnerView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(jumpGesture)
+                // 無敵の残り時間（#797）はコースの上端に重ねる（ヘッダーは幅が詰まっていて、
+                // 出たり消えたりする要素を足すと他の欄が動く）。
+                VStack {
+                    invincibleBadge
+                    Spacer(minLength: 0)
+                }
+                .allowsHitTesting(false)
                 overlay
             }
         }
@@ -383,12 +390,46 @@ public struct RunnerView: View {
     }
 
     /// コースの読み上げ。ステージ制はステージ番号、エンドレスは走行距離で結果を言う。
+    /// 無敵中（#797）は残り時間を添える——コースは 1 つの要素にまとめてあるので、
+    /// 上に重ねた `invincibleBadge` のラベルは単独では読まれない。
     private var courseLabel: String {
+        let base: String
         switch model.mode {
         case .stages:
-            return RunnerAccessibility.resultLabel(phase: model.phase, stageNumber: model.stageNumber)
+            base = RunnerAccessibility.resultLabel(phase: model.phase, stageNumber: model.stageNumber)
         case .endless:
-            return RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: model.distanceMeters)
+            base = RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: model.distanceMeters)
+        }
+        guard model.phase == .running, model.field.isInvincible else { return base }
+        return base + "、" + RunnerAccessibility.invincibleLabel(remaining: model.field.invincibleRemaining)
+    }
+
+    /// たこ焼き（#797）の無敵の残り時間。縮むゲージと秒数の両方で見せる（受け入れ条件
+    /// 「無敵の残り時間が画面で分かる」）。無敵でないあいだは何も出さない。ミス後は
+    /// `field` が無敵のまま凍るので、走行中と一時停止中にだけ出す（`RunnerScene` の点滅と同じ条件）。
+    @ViewBuilder
+    private var invincibleBadge: some View {
+        if model.field.isInvincible, model.phase == .running || model.phase == .paused {
+            let remaining = model.field.invincibleRemaining
+            let ratio = min(1, max(0, remaining / RunnerRules.invincibleDuration))
+            HStack(spacing: 8) {
+                Text("無敵")
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.onAccent.opacity(0.25))
+                        Capsule().fill(Theme.onAccent)
+                            .frame(width: geo.size.width * ratio)
+                    }
+                }
+                .frame(width: 72, height: 6)
+                Text(String(format: "%.1f", remaining))
+                    .font(.system(size: 13, weight: .heavy, design: .rounded).monospacedDigit())
+            }
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(Theme.Fill.yellow))
+            .padding(.top, 8)
         }
     }
 
