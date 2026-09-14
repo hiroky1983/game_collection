@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 /// コースに置く障害の種類（#494）。
 ///
@@ -235,10 +236,10 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
     /// 解析イベント `game_start` / `game_end` の `mode`（#783 で入った枠）。
     ///
     /// ステージ制は `level: .stage(n)` をそのまま持ち、`mode` で「どの遊び方か」だけを分ける。
-    public var analyticsMode: String {
+    public var analyticsMode: AnalyticsMode {
         switch self {
-        case .stages:  return "stage"
-        case .endless: return "endless"
+        case .stages:  return .stage
+        case .endless: return .endless
         }
     }
 

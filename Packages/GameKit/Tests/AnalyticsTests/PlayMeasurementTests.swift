@@ -114,6 +114,44 @@ struct QuitTrackingTests {
         #expect(spy.starts.count == 2, "捨てたぶんと新しいぶんで game_start は2回")
     }
 
+    @Test("別の mode で始め直したとき、捨てたプレイの quit に載るのは前の mode（#820）")
+    func quitCarriesThePreviousMode() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.restartPlay(gameID: "solitaire", mode: .stage)
+        analytics.recordProgress(gameID: "solitaire")
+        analytics.restartPlay(gameID: "solitaire", mode: .endless)
+
+        let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
+            if case let .gameEnd(_, result, _, mode) = event { return (result, mode) } else { return nil }
+        }
+        #expect(ends.count == 1)
+        #expect(ends.first?.result == .quit)
+        #expect(ends.first?.mode == .stage, "開始時に焼き込んだ値。始め直した後の mode ではない")
+    }
+
+    @Test("決着の game_end の mode は直前の game_start と同じ（#820）")
+    func finishCarriesTheStartMode() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "solitaire", mode: .singleHand)
+        analytics.finishPlay(gameID: "solitaire", outcome: .win)
+        analytics.restartPlay(gameID: "solitaire", mode: .tonpuu)
+        analytics.finishPlay(gameID: "solitaire", outcome: .loss)
+        analytics.restartPlay(gameID: "solitaire")
+        analytics.recordProgress(gameID: "solitaire")
+        analytics.finishPlay(gameID: "solitaire", outcome: .draw)
+
+        let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
+            switch event {
+            case let .gameStart(_, _, mode):     return ("start", mode)
+            case let .gameEnd(_, _, _, mode):    return ("end", mode)
+            default:                             return nil
+            }
+        }
+        #expect(modes.map(\.name) == ["start", "end", "start", "end", "start", "end"])
+        #expect(modes.map(\.mode) == [.singleHand, .singleHand, .tonpuu, .tonpuu, nil, nil],
+                "mode を付けずに始めたプレイの game_end に前のプレイの mode を持ち越さない")
+    }
+
     @Test("1手も指していない配り直しでは quit を出さない")
     func restartWithoutProgressSendsNothing() {
         let (analytics, spy) = makeAnalytics()

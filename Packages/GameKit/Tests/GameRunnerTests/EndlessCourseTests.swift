@@ -497,9 +497,31 @@ struct RunnerEndlessModelTests {
         model.newEndlessGame(seed: 1)
         model.newGame(mode: .stages)
         let starts = spy.events.compactMap { event -> (level: String?, mode: String?)? in
-            if case let .gameStart(_, level, mode) = event { return (level?.parameterValue, mode) } else { return nil }
+            if case let .gameStart(_, level, mode) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
         }
         #expect(starts.map(\.mode) == ["stage", "endless", "stage"])
         #expect(starts.map(\.level) == ["stage-3", nil, "stage-1"])
+    }
+
+    /// `game_end` にも開始時の `mode` が焼き込まれて載る（#785 の中核。#820）。
+    @Test("エンドレスのミスで game_end(mode: endless) が 1 回だけ出る")
+    func endlessMissSendsOneGameEndWithMode() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        let model = RunnerModel(services: services, startingAt: 1, preference: makePreference("endless-analytics-end"))
+        model.newEndlessGame(seed: 1)
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        // 「もう一度」は新しい 1 回の開始で、ミスした回の game_end を重ねない。
+        model.retryStage()
+        let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
+            if case let .gameEnd(_, result, _, mode) = event { return (result, mode) } else { return nil }
+        }
+        #expect(ends.count == 1)
+        #expect(ends.first?.mode == .endless)
+        #expect(ends.first?.result == .loss)
     }
 }
