@@ -42,6 +42,9 @@ struct SudokuSnapshot: Codable {
     let hintedCells: [Int]
     /// ミス回数。**古い中断データを読めなくしないため任意**にする（麻雀の `melds` と同じ判断）。
     let mistakes: Int?
+    /// この局で広告のコンティニューを使ったか（#730）。再起動で順位表の資格が復活しないよう保存する
+    /// （マインスイーパーの `continueUsed` と同じ理由）。旧形式には無いので optional で、無ければ未使用として読む。
+    var continueUsed: Bool? = nil
 }
 
 @MainActor
@@ -68,6 +71,9 @@ public final class SudokuModel {
     public private(set) var hintsUsed: Int = 0
     /// 誤答の確定入力の回数。`maxMistakes` で `failed`。
     public private(set) var mistakes: Int = 0
+    /// この局で広告のコンティニューを使ったか（#730）。使った局のクリアタイムは順位表へ送らない
+    /// （誤答の待ち時間と広告の視聴中は計時が止まるため、当てずっぽうのほうが速いタイムを出せる）。
+    public private(set) var continueUsed = false
     public private(set) var noteMode: Bool = false
     /// ヒントで埋まったマス。プレイヤーが自力で入れたマスと見分けて色を変える。
     public private(set) var hintedCells: Set<Int> = []
@@ -181,7 +187,10 @@ public final class SudokuModel {
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: difficulty.rawValue,
-            variantLabel: difficulty.label
+            variantLabel: difficulty.label,
+            // 広告コンティニューを使った局は順位表へ送らない（#730・`Core/GameCenter.swift` の #406 の方針）。
+            // 自己ベスト（端末内）には従来どおり残す。
+            isLeaderboardEligible: !continueUsed
         )
     }
 
@@ -207,6 +216,7 @@ public final class SudokuModel {
                 difficulty     = snapshot.difficulty
                 hintedCells    = Set(snapshot.hintedCells.filter { (0..<SudokuEngine.cellCount).contains($0) })
                 mistakes       = snapshot.mistakes ?? 0
+                continueUsed   = snapshot.continueUsed ?? false
                 // 復元した時点で揃っているユニットは光らせ済みとして扱う（中断をまたいで光り直させない）。
                 celebratedUnits = Self.completedUnits(board: board, solution: solution)
                 // ミス上限のまま閉じていたら `failed` に戻す（コンティニューの選択からやり直せる）。
@@ -254,6 +264,7 @@ public final class SudokuModel {
         hintsUsed       = 0
         hintedCells     = []
         mistakes        = 0
+        continueUsed    = false
         noteMode        = false
         lastUndoStep    = nil
         unitFlash       = nil
@@ -428,6 +439,15 @@ public final class SudokuModel {
         return true
     }
 
+    /// 広告を出す前に控えた `gameSerial` の局にだけヒントを入れる（#815。コンティニューの #729 と同じ形）。
+    /// 広告のロード中に新規ゲームを始めると、新しい盤の同じマスへ入ってヒントの回数まで減るため。
+    /// - Returns: 入れられたか。false のとき View は「入れられなかった」と伝える。
+    @discardableResult
+    public func applyHint(forGame serial: Int, at index: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return applyHint(at: index)
+    }
+
     /// ミスが上限に達した。負けの記録はまだ付けない（コンティニューで続けられるため）。
     /// スナップショットは**消さずに**残す: ここでアプリを閉じても、次に開いたとき
     /// `failed` のまま復元され、コンティニューか諦めるかを選び直せる。
@@ -445,9 +465,11 @@ public final class SudokuModel {
     /// 広告を見終えたらミスを 0 に戻して続きから再開する。**視聴が済んでから** View が呼ぶ
     /// （2048 の `continueAfterAd` と同じ契約）。2048 と違い 1 局 1 回の制限は設けない:
     /// 数独は解が一意で「粘れば必ず解ける」ため、続けたい人を止める理由が無い。
+    /// 代わりに使った局は `continueUsed` を立て、クリアタイムを順位表へ送らない（#730）。
     @discardableResult
     public func continueAfterAd() -> Bool {
         guard state == .failed else { return false }
+        continueUsed = true
         mistakes = 0
         state = .playing
         startTimer()
@@ -566,7 +588,8 @@ public final class SudokuModel {
             hintsUsed: hintsUsed,
             difficulty: difficulty,
             hintedCells: Array(hintedCells),
-            mistakes: mistakes
+            mistakes: mistakes,
+            continueUsed: continueUsed
         )
         try? services?.snapshots.save(snapshot, for: gameID)
     }

@@ -19,6 +19,9 @@ public final class Game2048Model {
     /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
     /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に「もう一度」で局が入れ替わったら適用しない）。
     public private(set) var gameSerial = 0
+    /// 直前の終局を「負け」として記録したか（#764）。2048 を作った手で詰んだ局は勝ちで記録するので、
+    /// コンティニューで巻き戻してよいのはこれが true のときだけ。終局後の中断・復元経路は無いので中断データには書かない。
+    private var lastFinishWasLoss = false
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -93,6 +96,7 @@ public final class Game2048Model {
 
         if Game2048Logic.isGameOver(board) {
             gameOver = true
+            lastFinishWasLoss = !justWon
             services?.feedback.notify(.error)
             let highestTile: Int? = board.flatMap { $0 }.max()
             // 2048 を作った手がそのまま盤を埋め切った場合だけ、終局でも勝ちとして記録する
@@ -147,7 +151,11 @@ public final class Game2048Model {
         guard gameOver, !continueUsed else { return false }
         // 同じ盤面・同じスコアの続きなので、直前に記録した「負け」は無かったことにする
         // （そのままだと1回のプレイが2回分として数えられる）。到達済みのスコアは取り消さない。
-        services?.playLog?.cancelLoss(gameID: gameID)
+        // 勝ちで終局した局では巻き戻すものが無い。呼ぶとこの局と無関係な過去の負けが消える（#764）。
+        if lastFinishWasLoss {
+            services?.playLog?.cancelLoss(gameID: gameID)
+        }
+        lastFinishWasLoss = false
         recordResult = nil
         gameOver = false
         continueUsed = true
@@ -172,6 +180,7 @@ public final class Game2048Model {
         hasWon = false
         showWinPrompt = false
         recordResult = nil
+        lastFinishWasLoss = false
         Self.spawn(into: &board)
         Self.spawn(into: &board)
         persist()

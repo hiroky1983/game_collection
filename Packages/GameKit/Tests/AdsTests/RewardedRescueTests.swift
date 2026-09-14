@@ -331,6 +331,25 @@ struct RewardGuardCallSiteTests {
         #expect(mismatched.isEmpty, "\(mismatched)")
     }
 
+    @Test("照合すると宣言した面は、広告の前に控えた値を渡して適用している（#815）")
+    func checkedSitesPassTheCapturedSerial() throws {
+        // `checkedByGrant` は宣言でしかなく、`grant` が局を識別する値を渡さなければ照合は起きない。
+        // ナンプレのヒントと麻雀ソリティアのヒント／並べ替えは宣言だけで照合が無く、広告中に始めた
+        // 新しい局へ報酬が乗っていた（#815）。上の「残りは0面」はこの3面を数えていなかった。
+        // 局の通し番号を受ける `model.xxx(forGame:` / `forDeal:` / `forTurn:` / `forRun:` の呼び出しを
+        // ファイル単位で数え、宣言の数と突き合わせる。
+        let serialCall = try Regex(#"model\.\w+\(for(Game|Deal|Turn|Run):"#)
+        let mismatched = try Self.gameSources()
+            .map { (
+                path: $0.path,
+                checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text),
+                serialCalls: $0.text.matches(of: serialCall).count
+            ) }
+            .filter { $0.checked != $0.serialCalls }
+            .map { "\($0.path): 照合する宣言 \($0.checked) 件に対し通し番号を渡す呼び出し \($0.serialCalls) 件" }
+        #expect(mismatched.isEmpty, "\(mismatched)")
+    }
+
     @Test("モデルが広告ごと持つ救済は、見終えたのに適用できなかったことを分けて返す")
     func modelHeldRescuesAlwaysReportTheOutcome() throws {
         // `Bool` 版の `requestHandledByModel` は、広告のあいだに局が入れ替わって適用しなかったときも

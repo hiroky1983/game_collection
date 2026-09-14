@@ -27,6 +27,16 @@ enum SudokuMetrics {
         statusBarWidth <= 0 || statusBarWidth >= zoomTitleMinStatusBarWidth
     }
 
+    /// 帯の幅 `statusBarWidth` で「残り」「ミス」にアイコンを付けるか（#775）。未計測（0）は付ける側に倒す。
+    ///
+    /// iPhone SE（帯 343pt）では拡大トグルの文字を省いても、時計が「11:05」と 2 桁分になると
+    /// 「残り…」「ミス…」に潰れた（`minimumScaleFactor(0.7)` は文字しか縮めず、アイコンと間隔は残る）。
+    /// 右の時計・トグルは既に中身の幅しか取っていないので、左に幅を返せるのはアイコンだけ。
+    /// 境目は拡大トグルの文字と同じ（文字を省く幅ではアイコンも省く）。
+    static func showsStatusIcons(statusBarWidth: CGFloat) -> Bool {
+        showsZoomTitle(statusBarWidth: statusBarWidth)
+    }
+
     /// 拡大モードでの 1 マスの一辺。
     ///
     /// **9 列 × 44pt = 396pt は、iPhone SE (3rd gen) の画面幅 375pt にも
