@@ -57,7 +57,8 @@ struct GameCollectionApp: App {
             services: AppEnvironment.services,
             settings: AppEnvironment.settings,
             initialGameID: startGameID,
-            showsSettingsInitially: showSettingsOnLaunch
+            showsSettingsInitially: showSettingsOnLaunch,
+            showsRecordsInitially: showRecordsOnLaunch
         )
         // iPad の広い画面へ追従するための適応レイヤ（#458）。ウインドウの幅をここで一度だけ測り、
         // `\.adaptiveLayout` として全画面へ配る。各画面はこの値を読むだけで、
@@ -75,5 +76,11 @@ struct GameCollectionApp: App {
     private var showSettingsOnLaunch: Bool {
         AppEnvironment.isScreenshotMode
             && ProcessInfo.processInfo.arguments.contains("-showSettings")
+    }
+
+    /// 撮影モードで「きろく」画面（#669）を撮るための起動引数（`-screenshotMode -showRecords`）。
+    private var showRecordsOnLaunch: Bool {
+        AppEnvironment.isScreenshotMode
+            && ProcessInfo.processInfo.arguments.contains("-showRecords")
     }
 }

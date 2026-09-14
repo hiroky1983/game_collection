@@ -53,15 +53,35 @@ struct RunnerEndlessCourseTests {
         }
     }
 
-    /// 部品は岩・穴・鳥・アイテム・台座・床のすべて（Issue #675「部品」）。解禁距離があるので
-    /// 1 本の中に全部出るとは限らないが、100 種も回せば全種類が出る。
-    @Test("岩・穴・鳥・アイテム・台座・床のすべてが生成に使われる")
+    /// 部品は岩・穴・鳥・犬・イノシシ・アイテム・たこ焼き・台座・床のすべて（Issue #675「部品」、
+    /// #800/#801 で動物・#797 でたこ焼きを追加）。解禁距離があるので 1 本の中に全部出るとは
+    /// 限らないが、100 種も回せば全種類が出る。
+    @Test("岩・穴・鳥・犬・イノシシ・アイテム・たこ焼き・台座・床のすべてが生成に使われる")
     func allPartsAppear() {
         var seen: Set<Character> = []
         for seed in 1...100 as ClosedRange<UInt64> {
             seen.formUnion(RunnerEndlessCourse.pattern(seed: seed))
         }
-        #expect(seen == ["-", "1", "2", "3", "n", "t", "b", "s", "P", "="], "出ていない記号がある: \(seen)")
+        #expect(seen == ["-", "1", "2", "3", "n", "t", "b", "d", "i", "s", "k", "P", "="], "出ていない記号がある: \(seen)")
+    }
+
+    /// Issue #797「エンドレスでは中盤から」。解禁距離（全長の半分）より手前にたこ焼きが 1 つも
+    /// 無く、以降には出ること。手前の乱数を余分に消費しないので、解禁前の並びは #797 以前と同じ。
+    @Test("たこ焼きは中盤（解禁距離）より手前には出ない")
+    func takoyakiAppearsOnlyFromTheMiddle() {
+        var seenAfterUnlock = 0
+        for seed in 1...100 as ClosedRange<UInt64> {
+            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed))
+            for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.takoyakiSymbol {
+                let distance = Double(index) * Self.segmentWidth
+                #expect(
+                    distance >= RunnerEndlessCourse.takoyakiUnlockDistance,
+                    "種 \(seed): 区画 \(index)（\(distance)）にたこ焼きが早すぎる"
+                )
+                seenAfterUnlock += 1
+            }
+        }
+        #expect(seenAfterUnlock > 0, "解禁後にたこ焼きが 1 つも出ない")
     }
 
     // MARK: - 難易度カーブ
@@ -105,22 +125,29 @@ struct RunnerEndlessCourseTests {
 
     /// 速さの上限そのものが成立条件の内側にあること（`RunnerRules.endlessMaxSpeed` のドキュメント）。
     /// 隣り合う区画に**どの組み合わせで**障害が並んでも、着地して踏み切り直せる。
-    @Test("速さの上限でも、隣り合う区画に並んだ障害の間に着地の余白がある")
+    ///
+    /// 唯一の例外は**飛び立つ鳥の直後の高い岩**（`bt`）。鳥は出会う地点が区画中央より 6 先へ
+    /// ずれる（`RunnerHazard.encounter`）ので、上限の速さでは高い岩への踏み切りに 2.7 足りない。
+    /// 生成器はこの並びを `canPlace` で弾いて平地に倒す（置けないことをここで固定する）。
+    /// ステージ制の `bt`（13・15・18 面）は速さ 54.4 以下で余白が残る（`RunnerStageTests`）。
+    @Test("速さの上限でも、隣り合う区画に並んだ障害の間に着地の余白がある（鳥→高い岩だけ弾く）")
     func maxSpeedKeepsAdjacentHazardsPassable() {
         let speed = RunnerRules.endlessMaxSpeed
         let offset = Double(RunnerRules.hazardTileOffset) * RunnerRules.tileWidth
-        for previous in ["1", "2", "3", "n", "t", "b"] {
-            for next in ["1", "2", "3", "n", "t", "b"] {
+        for previous in ["1", "2", "3", "n", "t", "b", "d", "i"] {
+            for next in ["1", "2", "3", "n", "t", "b", "d", "i"] {
                 guard let a = RunnerStage.segmentSpec(Character(previous)),
                       let b = RunnerStage.segmentSpec(Character(next)) else { continue }
                 let first = RunnerHazard(kind: a.kind, start: offset, length: Double(a.tiles) * RunnerRules.tileWidth)
                 let second = RunnerHazard(
                     kind: b.kind, start: Self.segmentWidth + offset, length: Double(b.tiles) * RunnerRules.tileWidth
                 )
-                #expect(
-                    RunnerEndlessCourse.canPlace(second, after: first, speedBefore: speed, speedAfter: speed),
-                    "\(previous) の隣に \(next) を置けない"
-                )
+                let placeable = RunnerEndlessCourse.canPlace(second, after: first, speedBefore: speed, speedAfter: speed)
+                if previous == "b", next == "t" {
+                    #expect(!placeable, "鳥の直後の高い岩は上限の速さでは置けない（置けるようになったら doc を直す）")
+                } else {
+                    #expect(placeable, "\(previous) の隣に \(next) を置けない")
+                }
             }
         }
     }
@@ -159,14 +186,16 @@ struct RunnerEndlessCourseTests {
         for symbol in symbols where symbol != "-" {
             let isKnown = RunnerStage.segmentSpec(symbol) != nil
                 || symbol == RunnerStage.pickupSymbol
+                || symbol == RunnerStage.takoyakiSymbol
                 || symbol == RunnerStage.platformSymbol
                 || symbol == RunnerStage.boostFloorSymbol
             #expect(isKnown, "種 \(seed): 未知の記号 '\(symbol)'")
         }
 
-        // 障害 1 つずつ: 押さないジャンプで越えられる（鳥は接地でくぐれる）。穴は最大 3 タイル表記（4 タイル幅）。
+        // 障害 1 つずつ: 押さないジャンプで越えられる（動く障害は等価な静止区間で）。穴は最大 3 タイル表記（4 タイル幅）。
         for hazard in stage.hazards {
             let speed = low(hazard)
+            let encounter = hazard.encounter
             switch hazard.kind {
             case .pit:
                 #expect(hazard.length <= 4 * RunnerRules.tileWidth, "種 \(seed): 穴が広すぎる（\(hazard.length)）")
@@ -180,48 +209,54 @@ struct RunnerEndlessCourseTests {
                     speed * Self.tapAirTime > hazard.length + halfWidth + RunnerRules.tileWidth,
                     "種 \(seed): \(hazard.start) の穴（\(hazard.length)）を瞬間タップで渡れない（速さ \(speed)）"
                 )
-            case .lowBlock, .tallBlock:
-                let overlap = (hazard.length + halfWidth * 2) / speed
+            case .lowBlock, .tallBlock, .bird, .dog, .boar:
+                let overlap = (encounter.length + halfWidth * 2) / speed
                 #expect(
-                    RunnerRules.airTime(above: hazard.height + RunnerAutoPilot.clearance) > overlap,
-                    "種 \(seed): \(hazard.start) の障害物（高さ \(hazard.height)）を越えきれない"
+                    RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance) > overlap,
+                    "種 \(seed): \(hazard.start) の \(hazard.kind)（高さ \(encounter.height)）を越えきれない"
                 )
-                #expect(hazard.height < RunnerRules.jumpApex)
-                if hazard.kind == .lowBlock {
+                #expect(encounter.height < RunnerRules.jumpApex)
+                if hazard.kind != .tallBlock, !(hazard.kind == .boar && hazard.stopAt != nil) {
                     #expect(
-                        Self.tapTime(above: hazard.height + RunnerAutoPilot.clearance) > overlap,
-                        "種 \(seed): \(hazard.start) の低い障害物を瞬間タップで越えられない"
+                        Self.tapTime(above: encounter.height + RunnerAutoPilot.clearance) > overlap,
+                        "種 \(seed): \(hazard.start) の \(hazard.kind) を瞬間タップで越えられない"
                     )
                 }
-            case .bird:
-                #expect(hazard.bottom > RunnerField.Metrics.playerHeight)
-                #expect(hazard.bottom - RunnerField.Metrics.playerHeight < RunnerRules.jumpApex)
+                // 岩の右側で止まったイノシシ（#801）は岩と一続き。岩の高さのまま両方を越えきれること。
+                if hazard.kind == .boar, let stopAt = hazard.stopAt {
+                    let rock = stage.hazards.first { $0.kind.isRock && $0.end == stopAt }
+                    #expect(rock != nil, "種 \(seed): イノシシ \(hazard.start) が止まる岩が無い")
+                    if let rock {
+                        #expect(
+                            RunnerEndlessCourse.isClearableWithBoarBehind(rock, speed: low(rock)),
+                            "種 \(seed): 岩 \(rock.start) と止まったイノシシを越えきれない"
+                        )
+                    }
+                }
             }
         }
 
-        // 隣り合う障害の間隔と、鳥の前後。
-        for (previous, next) in zip(stage.hazards, stage.hazards.dropFirst()) {
+        // 隣り合う障害の間隔（動く障害は等価な静止区間の並びで）。岩と、その右側で止まった
+        // イノシシは一続きなので間隔を問わない。
+        let ordered = stage.hazards.sorted { $0.encounter.start < $1.encounter.start }
+        for (previous, next) in zip(ordered, ordered.dropFirst()) {
+            if next.kind == .boar, next.stopAt == previous.end, previous.kind.isRock { continue }
             let speed = high(next)
             let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.lead(for: next, speed: speed)
-            #expect(next.start - previous.start > needed, "種 \(seed): \(previous.start) と \(next.start) が近すぎる")
-            if next.kind == .bird {
-                let landing = previous.start - RunnerAutoPilot.lead(for: previous, speed: speed)
-                    + speed * RunnerRules.jumpAirTime
-                #expect(landing < next.start - halfWidth, "種 \(seed): \(previous.start) の着地が鳥 \(next.start) に食い込む")
-            }
-            if previous.kind == .bird {
-                let takeOff = next.start - RunnerAutoPilot.lead(for: next, speed: speed)
-                #expect(takeOff > previous.end + halfWidth, "種 \(seed): \(next.start) の踏み切りが鳥 \(previous.start) に食い込む")
-            }
+            #expect(
+                next.encounter.start - previous.encounter.start > needed,
+                "種 \(seed): \(previous.start)（\(previous.kind)）と \(next.start)（\(next.kind)）が近すぎる"
+            )
         }
-        // 鳥のあとの台座への踏み切りも帯の外（`RunnerStageTests.birdsNeverForceAJump` と同じ）。
-        for bird in stage.hazards where bird.kind == .bird {
-            for platform in stage.platforms where platform.start >= bird.end {
-                let speed = stage.speed(at: platform.start + Self.segmentWidth)
-                let rise = RunnerRules.riseTime(to: platform.top + RunnerAutoPilot.clearance)
-                let takeOff = platform.start - RunnerAutoPilot.baseLead - speed * rise
-                #expect(takeOff > bird.end + halfWidth, "種 \(seed): 台座 \(platform.start) の踏み切りが鳥 \(bird.start) に食い込む")
-            }
+        // 障害のあとの台座への踏み切り（`RunnerEndlessCourse.canPlacePlatform` と同じ式）。
+        for platform in stage.platforms {
+            guard let previous = ordered.last(where: { $0.encounter.start < platform.start }) else { continue }
+            let speed = stage.speed(at: platform.start + Self.segmentWidth)
+            let rise = RunnerRules.riseTime(to: platform.top + RunnerAutoPilot.clearance)
+            let takeOff = platform.start - RunnerAutoPilot.baseLead - speed * rise
+            let landing = previous.encounter.start - RunnerAutoPilot.lead(for: previous, speed: speed)
+                + speed * RunnerRules.jumpAirTime
+            #expect(landing < takeOff, "種 \(seed): \(previous.start) の着地が台座 \(platform.start) の踏み切りに食い込む")
         }
 
         // 台座の前後は素の平地、床の直後は素の平地で台座の隣ではない（`RunnerStage.patterns` の配置規則）。
@@ -497,9 +532,31 @@ struct RunnerEndlessModelTests {
         model.newEndlessGame(seed: 1)
         model.newGame(mode: .stages)
         let starts = spy.events.compactMap { event -> (level: String?, mode: String?)? in
-            if case let .gameStart(_, level, mode) = event { return (level?.parameterValue, mode) } else { return nil }
+            if case let .gameStart(_, level, mode) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
         }
         #expect(starts.map(\.mode) == ["stage", "endless", "stage"])
         #expect(starts.map(\.level) == ["stage-3", nil, "stage-1"])
+    }
+
+    /// `game_end` にも開始時の `mode` が焼き込まれて載る（#785 の中核。#820）。
+    @Test("エンドレスのミスで game_end(mode: endless) が 1 回だけ出る")
+    func endlessMissSendsOneGameEndWithMode() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        let model = RunnerModel(services: services, startingAt: 1, preference: makePreference("endless-analytics-end"))
+        model.newEndlessGame(seed: 1)
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        // 「もう一度」は新しい 1 回の開始で、ミスした回の game_end を重ねない。
+        model.retryStage()
+        let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
+            if case let .gameEnd(_, result, _, mode, _) = event { return (result, mode) } else { return nil }
+        }
+        #expect(ends.count == 1)
+        #expect(ends.first?.mode == .endless)
+        #expect(ends.first?.result == .loss)
     }
 }
