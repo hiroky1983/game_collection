@@ -439,6 +439,15 @@ public final class SudokuModel {
         return true
     }
 
+    /// 広告を出す前に控えた `gameSerial` の局にだけヒントを入れる（#815。コンティニューの #729 と同じ形）。
+    /// 広告のロード中に新規ゲームを始めると、新しい盤の同じマスへ入ってヒントの回数まで減るため。
+    /// - Returns: 入れられたか。false のとき View は「入れられなかった」と伝える。
+    @discardableResult
+    public func applyHint(forGame serial: Int, at index: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return applyHint(at: index)
+    }
+
     /// ミスが上限に達した。負けの記録はまだ付けない（コンティニューで続けられるため）。
     /// スナップショットは**消さずに**残す: ここでアプリを閉じても、次に開いたとき
     /// `failed` のまま復元され、コンティニューか諦めるかを選び直せる。

@@ -129,9 +129,11 @@ public struct MahjongSolitaireView: View {
         .rewardedRescueAlerts(
             shuffleRescue,
             notEarned: "並べ替えできませんでした",
+            // 広告のあいだも「最初から」（手詰まりの覆い）や「次のゲーム」で配り直せるので、
+            // 取り切れない残り方だけを理由にしない（#815）。
             unavailable: RewardUnavailableAlert(
-                title: "この盤面は並べ替えられません",
-                message: "残った牌が重なっていて取り切れません。「最初から」で新しい盤面を配ってください。"
+                title: "並べ替えられませんでした",
+                message: "広告を見ているあいだに新しい盤面が配られたか、残った牌が重なっていて取り切れません。取り切れないときは「最初から」で新しい盤面を配ってください。"
             )
         )
         // ヒントもリワード広告制（#336）。確認ダイアログは `HintAlerts` にまとめてある
@@ -141,8 +143,8 @@ public struct MahjongSolitaireView: View {
             hintRescue,
             notEarned: "ヒントを表示できませんでした",
             unavailable: RewardUnavailableAlert(
-                title: "取れる組がありません",
-                message: "光らせられる組が無くなりました。「並べ替え」で残りを配置し直してください。"
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに新しい盤面が配られたか、光らせられる組が無くなりました。組が無いときは「並べ替え」で残りを配置し直してください。"
             )
         )
         .overlay {
@@ -201,6 +203,9 @@ public struct MahjongSolitaireView: View {
             Label("新規ゲーム", systemImage: "plus.circle.fill")
         }
         .accessibilityLabel("新規ゲーム（盤面のかたちを選ぶ）")
+        // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
+        // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
+        .disabled(isWatchingRewardAd)
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。
@@ -543,12 +548,14 @@ public struct MahjongSolitaireView: View {
     /// 視聴中の連打で2本目の広告が失敗して誤アラートが出るのは共通側が塞ぐ（#526）。
     private func requestShuffle() {
         guard !isWatchingRewardAd else { return }
+        // どの盤面に対する並べ替えかを広告を出す前に控え、ロード中に配り直された盤面へは乗せない（#815）。
+        let deal = model.dealSerial
         shuffleRescue.request(
             services, gameID: model.gameID, purpose: .shuffle,
             guardedBy: .checkedByGrant
         ) {
             // 広告を見たのに並べ替わらない盤面（取り切れない残り方）は黙って終わらせない。
-            model.shuffleRemaining()
+            model.shuffleRemaining(forDeal: deal)
         }
     }
 
@@ -558,12 +565,14 @@ public struct MahjongSolitaireView: View {
     /// `requestShuffle()` と同じく、視聴中の連打のガードは共通側が持つ（#526）。
     private func requestHint() {
         guard !isWatchingRewardAd else { return }
+        // 並べ替えと同じく、ロード中に配り直された盤面へは乗せない（#815）。
+        let deal = model.dealSerial
         hintRescue.request(
             services, gameID: model.gameID, purpose: .hint,
             guardedBy: .checkedByGrant
         ) {
             // 広告を見たのに光らない（視聴中に手詰まりになった）経路は黙って終わらせない。
-            model.showHint()
+            model.showHint(forDeal: deal)
         }
     }
 
