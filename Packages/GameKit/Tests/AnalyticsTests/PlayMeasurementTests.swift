@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import SwiftUI
 import Core
+import GameKitTestSupport
 
 // MARK: - Mocks
 
@@ -99,7 +100,6 @@ private func makeServices(
 @Suite("途中離脱の記録（#500）")
 @MainActor
 struct QuitTrackingTests {
-
     @Test("1手でも指した盤面を「新しいゲーム」で捨てると quit が出る")
     func restartAfterProgressSendsQuit() {
         let clock = TestClock()
@@ -273,7 +273,6 @@ struct QuitTrackingTests {
 @Suite("リワード広告の計測（#500）")
 @MainActor
 struct RewardAdTrackingTests {
-
     @Test("視聴完了したときだけ reward_ad を送る")
     func onlyCompletedViewsAreSent() async {
         let (earned, earnedSpy) = makeServices(earnsReward: true)
@@ -310,7 +309,6 @@ struct RewardAdTrackingTests {
 @Suite("広告の要求とハブからの遷移の計測（#659）")
 @MainActor
 struct OpenAndRequestTrackingTests {
-
     @Test("reward_request は視聴の成否に関係なく、広告の結果より先に1回出る")
     func requestIsSentBeforeTheResult() async {
         let (earned, earnedSpy) = makeServices(earnsReward: true)
@@ -374,35 +372,13 @@ struct OpenAndRequestTrackingTests {
 /// `HubRecentRowWiringTests` と同じく `App/` 一式を走査して結線を固定する。
 @Suite("ハブの遷移計測の結線（#659）")
 struct GameOpenWiringTests {
-    private static func appSources() throws -> String {
-        let appDir = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // AnalyticsTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .deletingLastPathComponent()   // Packages/
-            .deletingLastPathComponent()   // リポジトリのルート
-            .appendingPathComponent("App")
-        let files = try FileManager.default
-            .contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "swift" }
-            .sorted { $0.path < $1.path }
-        #expect(!files.isEmpty, "App/ の走査に失敗している")
-        // 行コメントを落とす。説明文の言及に当たって「実装が消えても緑」になるのを防ぐ。
-        return try files
-            .map { try String(contentsOf: $0, encoding: .utf8) }
-            .joined(separator: "\n")
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-    }
-
     private static func count(_ needle: String, in source: String) -> Int {
         source.components(separatedBy: needle).count - 1
     }
 
     @Test("送るのは path が空 → 非空になった1か所だけ")
     func openIsSentFromTheSinglePathTransition() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         #expect(Self.count("gameDidOpen(", in: source) == 1, "game_open の発火点が1か所ではない")
         #expect(
             source.range(
@@ -415,7 +391,7 @@ struct GameOpenWiringTests {
 
     @Test("ハブのすべての遷移が導線を持つ HubRoute で積まれる")
     func everyLinkCarriesItsSource() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         let links = Self.count("NavigationLink(value:", in: source)
         #expect(links >= 2, "走査のパターンが壊れている可能性")
         #expect(Self.count("NavigationLink(value: HubRoute(", in: source) == links,
@@ -441,7 +417,6 @@ struct GameOpenWiringTests {
 /// 呼び出しの形そのものを検査対象にする（`MotionTests` の走査と同じ考え方）。
 @Suite("リワード広告の発火箇所（#500）")
 struct RewardAdCallSiteTests {
-
     private static let sourcesRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()   // AnalyticsTests
         .deletingLastPathComponent()   // Tests
@@ -499,7 +474,6 @@ struct RewardAdCallSiteTests {
 /// 各ゲームの操作を通しで再現できないため、呼び出しの存在そのものを検査対象にする。
 @Suite("プレイ計測の付け忘れ（#500）")
 struct PlayMeasurementCallSiteTests {
-
     private static let sourcesRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()   // AnalyticsTests
         .deletingLastPathComponent()   // Tests

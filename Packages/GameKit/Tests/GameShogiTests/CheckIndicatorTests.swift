@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import SwiftUI
 import Core
+import GameKitTestSupport
 @testable import GameShogi
 
 // MARK: - 共通の道具
@@ -80,7 +81,6 @@ private func playIntoCheck(_ model: ShogiGameModel) {
 @MainActor
 @Suite("王手の表示（#377）")
 struct ShogiCheckIndicatorTests {
-
     @Test("王手でない間は玉の印を出さない")
     func noMarkerWhileNotInCheck() {
         let model = ShogiGameModel(services: nil)
@@ -169,7 +169,6 @@ struct ShogiCheckIndicatorTests {
 @MainActor
 @Suite("王手の札を畳む契機（#519）")
 struct ShogiCheckBannerDismissTests {
-
     @Test("待ったで札を畳む契機が進む")
     func undoDismissesTheBanner() {
         let model = ShogiGameModel(services: nil)
@@ -245,7 +244,6 @@ struct ShogiCheckBannerDismissTests {
 @MainActor
 @Suite("王手の触覚フィードバック（#377）")
 struct ShogiCheckFeedbackTests {
-
     @Test("王手を掛けた手では warning が鳴り、着手の impact は鳴らさない")
     func checkNotifiesWarningInsteadOfImpact() {
         let spy = SpyFeedback()
@@ -301,7 +299,6 @@ struct ShogiCheckFeedbackTests {
 
 @Suite("王手の読み上げ（#377）")
 struct ShogiCheckAccessibilityTests {
-
     @Test("王手されている玉のマスは、そのことを駒名のすぐ後に読む")
     func checkedKingSquareIsAnnounced() {
         let label = ShogiAccessibility.squareLabel(
@@ -339,31 +336,16 @@ struct ShogiCheckAccessibilityTests {
 /// 先に基準を満たしておく。
 @Suite("王手の配色（#377）")
 struct ShogiCheckColorTests {
-    private static func relativeLuminance(_ hex: UInt32) -> Double {
-        func channel(_ raw: UInt32) -> Double {
-            let v = Double(raw) / 255
-            return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
-        }
-        return 0.2126 * channel((hex >> 16) & 0xFF)
-            + 0.7152 * channel((hex >> 8) & 0xFF)
-            + 0.0722 * channel(hex & 0xFF)
-    }
-
-    private static func contrast(_ a: UInt32, _ b: UInt32) -> Double {
-        let la = relativeLuminance(a), lb = relativeLuminance(b)
-        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
-    }
-
     @Test("「王手」の札は白文字で WCAG AA(4.5:1) を満たす")
     func bannerMeetsAA() {
-        let ratio = Self.contrast(BoardStyle.checkHex, 0xFFFFFF)
+        let ratio = WCAG.contrast(BoardStyle.checkHex, 0xFFFFFF)
         #expect(ratio >= 4.5, "白文字とのコントラストが \(ratio):1 しかない")
     }
 
     @Test("玉のマスの枠は盤地に対して 3:1 以上（非テキストの図形・WCAG 1.4.11）")
     func kingMarkerMeetsNonTextMinimum() {
         // 盤の地は上→下のグラデーション。明るいほうの端（`frameTop`）で見ておけば下端は必ず上振れする。
-        let ratio = Self.contrast(BoardStyle.checkHex, 0xEDC178)
+        let ratio = WCAG.contrast(BoardStyle.checkHex, 0xEDC178)
         #expect(ratio >= 3.0, "盤地とのコントラストが \(ratio):1 しかない")
     }
 }

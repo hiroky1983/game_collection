@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GamePoker
 
 /// ショーダウン（CPU 手札の公開）とポット表示の演出（#206）。
@@ -65,38 +66,38 @@ struct PokerMotionTests {
 
         // CPU の手札が反転ビュー経由で描かれていること（定義 1 + 呼び出し 1）。
         #expect(
-            Self.matchCount(of: #"FlipRevealCardView"#, in: source) >= 2,
+            SourceScan.matchCount(of: #"FlipRevealCardView"#, in: source) >= 2,
             "CPU の手札が FlipRevealCardView を経由していない"
         )
         #expect(
-            Self.matchCount(of: #"PokerMotion\.showdownFlip\(index:"#, in: source) == 1,
+            SourceScan.matchCount(of: #"PokerMotion\.showdownFlip\(index:"#, in: source) == 1,
             "反転に段差付きのアニメーションが掛かっていない"
         )
         // 反転の前に、旧実装（素の CardView を faceUp フラグで切り替えるだけ）へ
         // 戻っていないことも見る。戻ると上の件数が保たれたまま演出だけ消えうる。
         #expect(
-            Self.matchCount(of: #"CardView\(card: card, faceUp: revealCPU"#, in: source) == 0,
+            SourceScan.matchCount(of: #"CardView\(card: card, faceUp: revealCPU"#, in: source) == 0,
             "CPU の手札が素の CardView に戻っている"
         )
 
         // ポットの数値遷移。
         #expect(
-            Self.matchCount(of: #"\.contentTransition\(\.numericText\(value:"#, in: source) == 1,
+            SourceScan.matchCount(of: #"\.contentTransition\(\.numericText\(value:"#, in: source) == 1,
             "ポットの枚数に数値トランジションが掛かっていない"
         )
         #expect(
-            Self.matchCount(of: #"PokerMotion\.potChange"#, in: source) >= 1,
+            SourceScan.matchCount(of: #"PokerMotion\.potChange"#, in: source) >= 1,
             "ポットの枚数変化が PokerMotion.potChange で animate されていない"
         )
         // 位置まで animate されると、画面が動く場面で数字だけがポットの枠の外へ滑る（実測）。
         #expect(
-            Self.matchCount(of: #"\.geometryGroup\(\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"\.geometryGroup\(\)"#, in: source) == 1,
             "ポットの枚数に .geometryGroup() が付いていない（数字が枠外へ滑る）"
         )
 
         // Reduce Motion に追従しない素の `.animation(` が紛れ込んでいないこと（#210）。
         #expect(
-            Self.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
+            SourceScan.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
             "Reduce Motion に追従しない .animation( が使われている"
         )
     }
@@ -110,17 +111,17 @@ struct PokerMotionTests {
         // `.gameAnimation(_:value:)` に比較対象の前値が無く、遅延フェードも段差付きの反転も
         // 一度も走らない（= 役名がカードより先に出る・#383）。
         #expect(
-            Self.matchCount(of: #"cpuRevealed: Bool \{ revealCPU \}"#, in: source) == 1,
+            SourceScan.matchCount(of: #"cpuRevealed: Bool \{ revealCPU \}"#, in: source) == 1,
             "cpuRevealed が revealCPU 単独になっていない"
         )
         // 合図を立てるのは phase の変化を見る onChange の1か所だけ。
         #expect(
-            Self.matchCount(of: #"if phase == \.result \{ revealCPU = true \}"#, in: source) == 1,
+            SourceScan.matchCount(of: #"if phase == \.result \{ revealCPU = true \}"#, in: source) == 1,
             "公開の合図が onChange から立っていない"
         )
         // 役名は「返り終わってから」出す遅延付き。定数ごと外れていないか見る。
         #expect(
-            Self.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"\.delay\(PokerMotion\.showdownTotalDuration\)"#, in: source) == 1,
             "役名のフェードから、カードが返り終わるまでの遅延が外れている"
         )
     }
@@ -128,18 +129,6 @@ struct PokerMotionTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GamePokerTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GamePoker/PokerView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GamePoker/PokerView.swift")
     }
 }

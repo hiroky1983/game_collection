@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 import Core
 import MahjongTiles
+import GameKitTestSupport
 @testable import GameMahjong
 
 /// 役早見表（#501）の受け入れ条件。
@@ -215,7 +216,7 @@ struct MahjongYakuSheetTests {
     @Test("早見表は対局のモデルを一切参照しない（開いても状態を動かしようがない）")
     func sheetDoesNotTouchTheModel() throws {
         // コメントには「モデルに触らない」という説明そのものが書いてあるので、コードだけを見る。
-        let source = try Self.strippingComments(Self.sheetSource())
+        let source = try SourceScan.strippingComments(Self.sheetSource())
         for forbidden in ["MahjongModel", "GameServices", "snapshots", "services"] {
             #expect(
                 !source.contains(forbidden),
@@ -318,22 +319,8 @@ struct MahjongYakuSheetTests {
         ]
     }
 
-    /// 行コメント（`//` 以降）を落とす。文言の説明とコードを混同しないため。
-    private static func strippingComments(_ source: String) -> String {
-        source.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { line -> Substring in
-                guard let range = line.range(of: "//") else { return line }
-                return line[line.startIndex..<range.lowerBound]
-            }
-            .joined(separator: "\n")
-    }
-
     private static func source(_ relativePath: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameMahjongTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
+        try SourceScan.packageSource(relativePath)
     }
 
     private static func scoringSource() throws -> String {
