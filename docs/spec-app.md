@@ -138,6 +138,10 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - `DEBUG` ビルドでは自動的に Google 公式テスト広告 ID に切り替わる
 - ATT 許可ダイアログ → AdMob 初期化 の順序を保証 (`ATTPermission.swift`)
 - 許可・拒否どちらでも広告表示（拒否時は非パーソナライズ広告）
+- リワード広告は **1 本だけ先読み**して保持し、タップ時は読み込みを待たずに出す（v1.1.5 から・#658）。
+  先読みするのは SDK 初期化の直後・広告を出し終えた後・ハブからゲームを開いたときで、表示はタップ起点の
+  `showRewardedAd()` だけ。保持分が失効（読み込みから 55 分）していた・表示に失敗した回だけ、その場で読み込む。
+  失効判定は `Core/PreloadedAdSlot`（`AdsTests` で検証）、実体は `App/AdMobAdService.swift`
 
 ### リワード救済（`RewardedRescue`・#526）
 
