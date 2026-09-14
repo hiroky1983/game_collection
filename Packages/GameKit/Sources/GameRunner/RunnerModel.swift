@@ -30,6 +30,10 @@ public final class RunnerModel {
     public private(set) var didSetBestDistance = false
     /// 1 始まりのステージ番号。エンドレス中も**そのまま保持する**（戻ってきたときの続き）。
     public private(set) var stageNumber: Int
+    /// 到達した最大のステージ番号（1 始まり・#798）。ワールドマップで選べる面の上限で、
+    /// 常に `stageNumber` 以上。クリアで次の面が到達済みになり、面を選んで遊んでも巻き戻らない。
+    /// 中断データ（`RunnerSnapshot.reachedStage`）に残す。
+    public private(set) var reachedStage: Int
     public private(set) var phase: RunnerPhase
     /// このステージに挑み始めてからの経過秒。
     public private(set) var elapsed: Double
@@ -74,6 +78,7 @@ public final class RunnerModel {
             preference: preference,
             stage: restored?.stage ?? 1,
             bestSeconds: restored?.bestSeconds ?? Array(repeating: 0, count: RunnerRules.stageCount),
+            reachedStage: restored?.reachedStage ?? 1,
             isFreshStart: restored == nil
         )
     }
@@ -94,6 +99,8 @@ public final class RunnerModel {
             preference: preference,
             stage: stage,
             bestSeconds: bestSeconds ?? Array(repeating: 0, count: RunnerRules.stageCount),
+            // 狙った局面から始めるので、その面までは到達済みとみなす。
+            reachedStage: stage,
             isFreshStart: true
         )
     }
@@ -107,12 +114,15 @@ public final class RunnerModel {
         preference: FeedbackPreference,
         stage: Int,
         bestSeconds: [Int],
+        reachedStage: Int,
         isFreshStart: Bool
     ) {
         self.services = services
         self.preference = preference
         let number = min(max(1, stage), RunnerRules.stageCount)
         self.stageNumber = number
+        // 到達点は再開面より前にはならない（`RunnerSnapshot.validated()` と同じ丸め）。
+        self.reachedStage = min(max(number, reachedStage), RunnerRules.stageCount)
         self.bestSeconds = bestSeconds
         self.checkpointUsed = false
         self.elapsed = 0
@@ -148,6 +158,11 @@ public final class RunnerModel {
         guard number >= 1, number <= bestSeconds.count else { return nil }
         let value = bestSeconds[number - 1]
         return value > 0 ? value : nil
+    }
+    /// ステージ番号（1 始まり）が到達済み（ワールドマップで選べる）か（#798）。
+    /// 1 面は常に到達済み。範囲外は false。
+    public func isStageReached(_ number: Int) -> Bool {
+        number >= 1 && number <= min(reachedStage, RunnerRules.stageCount)
     }
     /// チェックポイント再開を出せる状態か（通過済み・未使用・ミスした直後）。
     public var canResumeFromCheckpoint: Bool {
@@ -296,18 +311,40 @@ public final class RunnerModel {
     /// コースを作る。どちらも走行中のプレイを捨てて数え直す（`gameDidRestart` が、捨てた
     /// プレイに 1 手でも動きがあれば `game_end`（quit）を先に送る・#500）。
     public func newGame(mode newMode: RunnerMode) {
-        mode = newMode
         switch newMode {
         case .stages:
-            stageNumber = 1
-            checkpointUsed = false
-            startStage(from: 0, passedCheckpoint: false)
-            services?.gameDidRestart(
-                gameID: Self.gameID, level: .stage(stageNumber), mode: newMode.analyticsMode
-            )
+            startStages(at: 1)
         case .endless:
             newEndlessGame(seed: Self.randomSeed())
         }
+    }
+
+    /// ワールドマップで選んだ面からステージ制をはじめから（#798）。
+    ///
+    /// **到達済みの面しか受け付けない**（`isStageReached`）。未到達なら何もせず false を返す
+    /// ——画面側は未到達の面を押せなくしてあるが、二重に守る。1 面を渡せば
+    /// `newGame(mode: .stages)` と同じ。到達点（`reachedStage`）は下の面を選んでも動かないので、
+    /// 選んで遊んだあとに開き直しても先の面が選べなくなることはない。
+    @discardableResult
+    public func newGame(startingAtStage number: Int) -> Bool {
+        guard isStageReached(number) else { return false }
+        startStages(at: number)
+        return true
+    }
+
+    /// ステージ制を `number` 面の頭から始め直す。`newGame(mode:)` / `newGame(startingAtStage:)` の実体。
+    ///
+    /// 走行中のプレイを捨てて数え直す（`gameDidRestart` が、捨てたプレイに 1 手でも動きがあれば
+    /// `game_end`（quit）を先に送る・#500）。解析の `level` は選んだ面の番号（1 面から順に
+    /// 進んだときの `advanceToNextStage` と同じ形）。
+    private func startStages(at number: Int) {
+        mode = .stages
+        stageNumber = number
+        checkpointUsed = false
+        startStage(from: 0, passedCheckpoint: false)
+        services?.gameDidRestart(
+            gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode
+        )
     }
 
     /// 種を指定してエンドレスをはじめから（#675）。
@@ -342,6 +379,9 @@ public final class RunnerModel {
     /// 現在のステージのコースを作り直し、走り出す前の状態にする。
     private func startStage(from distance: Double, passedCheckpoint: Bool) {
         let stage = RunnerStage.all[stageNumber - 1]
+        // 挑み始めた面は到達済み（#798）。次の面へ進んだとき・QA 用の `stage:N` で飛んだときも
+        // ここを通るので、到達点の更新はこの 1 か所と `clearStage`（次の面を開ける）だけ。
+        reachedStage = max(reachedStage, stageNumber)
         resetRun(RunnerField(stage: stage, startingAt: distance, passedCheckpoint: passedCheckpoint))
         persist()
     }
@@ -459,6 +499,9 @@ public final class RunnerModel {
             bestSeconds[stageNumber - 1] = seconds
         }
         phase = stageNumber < RunnerRules.stageCount ? .cleared : .allCleared
+        // クリアした面の次がワールドマップで選べるようになる（#798）。下の面を選んで
+        // クリアしても `max` なので到達点は戻らない。
+        reachedStage = max(reachedStage, min(stageNumber + 1, RunnerRules.stageCount))
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .win,
@@ -489,7 +532,7 @@ public final class RunnerModel {
         default:          resume = stageNumber
         }
         try? services?.snapshots.save(
-            RunnerSnapshot(stage: resume, bestSeconds: bestSeconds),
+            RunnerSnapshot(stage: resume, bestSeconds: bestSeconds, reachedStage: reachedStage),
             for: Self.gameID
         )
     }
@@ -662,6 +705,12 @@ public final class RunnerModel {
                     return field.isGrounded && (8...45).contains(bird.start - field.distance)
                 })
                 isFrozenForCapture = true
+            }
+        case let name where name.hasPrefix("map:"):
+            // 撮影用: ワールドマップ（#798）の到達面を作る（例 `-simulateRunner map:8` で 8 面まで到達済み）。
+            // 開始シートは `RunnerView` が `-showRunnerStartSheet` で開く。
+            if let number = Int(name.dropFirst("map:".count)) {
+                reachedStage = min(max(number, 1), RunnerRules.stageCount)
             }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
