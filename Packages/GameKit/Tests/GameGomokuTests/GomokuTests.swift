@@ -289,7 +289,7 @@ struct GomokuStrengthLabelTests {
         }
     }
 
-    /// 「投了」「待った」が両方とも共通のカプセル（当たり判定 44pt・`BoardGameControlCapsuleStyle`）を通る（#711）。
+    /// 「投了」「待った」が両方とも共通のカプセル（枠 44pt・`BoardGameControlCapsuleStyle`）を通り、操作列の余白を詰めている（#711）。
     /// 以前は「待った」だけが枠の無い素の文字で、当たり判定が約 17pt しかなかった。
     @Test func gameControlsUseCapsuleStyleForBothButtons() throws {
         let controls = SourceScan.strippingComments(
@@ -312,6 +312,12 @@ struct GomokuStrengthLabelTests {
         )
         // 手書きのカプセルが残っていると、そちらの外寸・当たり判定が効いてしまう。
         #expect(SourceScan.matchCount(of: #"\.background\(Capsule\(\)"#, in: controls) == 0)
+        // ボタンの枠が 44pt になったぶん操作列の余白を詰めていないと、操作列が 14pt 高くなり盤が縮む（#148）。
+        #expect(
+            SourceScan.matchCount(of: #"\.padding\(\.vertical, BoardGameControlMetrics\.rowVerticalPadding\)"#, in: controls) == 1,
+            "操作列の上下の余白が BoardGameControlMetrics.rowVerticalPadding になっていない"
+        )
+        #expect(SourceScan.matchCount(of: #"\.padding\(\.vertical, 8\)"#, in: controls) == 0)
     }
 
     // MARK: - ヘルパー

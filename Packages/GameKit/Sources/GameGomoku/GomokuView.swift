@@ -355,7 +355,8 @@ public struct GomokuView: View {
             )
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
+        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 }

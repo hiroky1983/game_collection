@@ -54,39 +54,49 @@ struct BoardGameControlCapsuleStyleTests {
         #expect(BoardGameControlMetrics.minTapTarget >= 44)
     }
 
-    /// 当たり判定を広げても操作列が高くならないこと（決着の瞬間に盤が伸び縮みしない・#148）。
-    /// 比べる相手は #711 以前に「投了」へ手書きしていたカプセル。
-    @Test("外寸は従来の手書きのカプセルと同じで、44pt はレイアウトに入らない")
-    func layoutSizeMatchesLegacyCapsule() throws {
+    /// 44pt は**ボタン自身の枠**に入れる。枠の外へはみ出させた当たり判定は、macOS のプローブで
+    /// Button のクリックが反応しないと実測した（#711。verifier の指摘を受けて overlay 方式から変更）。
+    @Test("ボタンの枠は縦横 44pt 以上")
+    func buttonFrameMeetsTapTarget() throws {
         let styled = try Self.render(Self.styledButton(enabled: true))
+        #expect(CGFloat(styled.height) >= BoardGameControlMetrics.minTapTarget)
+        #expect(CGFloat(styled.width) >= BoardGameControlMetrics.minTapTarget)
+        // 既定の文字サイズではカプセル自体は 44pt に届かない（届くなら枠を広げる根拠が無い）。
+        #expect(CGFloat(try Self.render(Self.legacyCapsule).height) < BoardGameControlMetrics.minTapTarget)
+    }
+
+    /// 枠が 44pt になっても、操作列の余白を詰めて外寸を据え置く（盤の大きさを変えない・#148）。
+    /// 比べる相手は #711 以前の操作列（手書きのカプセル + 上下 8pt）。
+    @Test("操作列の外寸は従来と同じ")
+    func rowHeightMatchesLegacyRow() throws {
         let legacy = try Self.render(
-            Label("待った", systemImage: "arrow.uturn.backward")
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Capsule().fill(Theme.Fill.teal))
-                .themeBody(14)
+            HStack(spacing: 12) { Self.legacyCapsule }
+                .padding(.horizontal, 16).padding(.vertical, 8)
         )
-        #expect(styled.width == legacy.width)
+        let styled = try Self.render(
+            HStack(spacing: 12) { Self.styledButton(enabled: true) }
+                .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
+        )
         #expect(styled.height == legacy.height)
-        // 既定の文字サイズではカプセル自体は 44pt に届かない（届くなら当たり判定を広げる根拠が無い）。
-        #expect(CGFloat(styled.height) < BoardGameControlMetrics.minTapTarget)
     }
 
     @Test("押せないときは面の色が変わる")
     func disabledChangesFill() throws {
         let enabled = try Self.render(Self.styledButton(enabled: true))
         let disabled = try Self.render(Self.styledButton(enabled: false))
-        // 上端の余白（6pt）の中央は文字に掛からず面の色だけが出る。
-        let x = enabled.width / 2, y = 3
+        let capsule = try Self.render(Self.legacyCapsule)
+        // カプセルは 44pt の枠の縦の中央に描かれる。その上端の余白（6pt）の中央は文字に掛からず面の色だけが出る。
+        let x = enabled.width / 2, y = (enabled.height - capsule.height) / 2 + 3
         #expect(Self.pixel(enabled, x: x, y: y) == Self.rgb(Theme.Hex.Fill.teal),
                 "押せるときの面が teal ではない")
         #expect(Self.pixel(disabled, x: x, y: y) == Self.rgb(Theme.Hex.fillMuted.light),
                 "押せないときの面が fillMuted ではない（.disabled が見た目に出ない）")
     }
 
-    /// 44pt の当たり判定は `overlay` の中にあり描画にもレイアウトにも出ないので、置き方をソースで固定する。
-    @Test("当たり判定は下限つきの透明な面を overlay で重ねて取る")
-    func hitAreaIsOverlaidWithMinimumFrame() throws {
+    /// 枠の透明な部分で受けるには `contentShape` が要り、カプセルを小さく描くには背景が枠より前に要る。
+    /// どちらも描画の大きさには出ないので、並びをソースで固定する。
+    @Test("カプセル → 44pt の枠 → 矩形で受ける、の順に組む")
+    func hitAreaIsTheWidenedFrame() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
@@ -99,18 +109,31 @@ struct BoardGameControlCapsuleStyleTests {
         let body = source[start.lowerBound..<end.upperBound]
             .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.hasPrefix("//") }
-        guard let overlay = body.firstIndex(of: ".overlay {"),
-              let minHeight = body.firstIndex(of: "minHeight: BoardGameControlMetrics.minTapTarget)"),
+        guard let capsule = body.firstIndex(where: { $0.hasPrefix(".background(Capsule()") }),
+              let frame = body.firstIndex(of: ".frame(minWidth: BoardGameControlMetrics.minTapTarget,"),
               let shape = body.firstIndex(of: ".contentShape(Rectangle())") else {
-            Issue.record("overlay / 44pt の下限 / contentShape が見つからない:\n\(body.joined(separator: "\n"))")
+            Issue.record("カプセル / 44pt の枠 / contentShape が見つからない:\n\(body.joined(separator: "\n"))")
             return
         }
-        #expect(overlay < minHeight)
-        // 形を取るのは下限を付けた後。前に置くと元のカプセルの大きさでしか受けない。
-        #expect(minHeight < shape)
+        // 枠より後に背景を置くと、カプセルが 44pt の高さに膨らむ。
+        #expect(capsule < frame)
+        // 形を取るのは枠を広げた後。前に置くと元のカプセルの大きさでしか受けない。
+        #expect(frame < shape)
+        // 枠の外へはみ出させる方法には戻さない（Button では反応しないと実測済み）。
+        #expect(!body.contains(".overlay {"))
+        #expect(!body.contains { $0.contains(".padding(.vertical, -") })
     }
 
     // MARK: - ヘルパー
+
+    /// #711 以前に「投了」へ手書きしていたカプセル。
+    private static var legacyCapsule: some View {
+        Label("待った", systemImage: "arrow.uturn.backward")
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(Theme.Fill.teal))
+            .themeBody(14)
+    }
 
     private static func styledButton(enabled: Bool) -> some View {
         Button {} label: {
