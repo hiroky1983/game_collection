@@ -300,12 +300,11 @@ public struct GomokuView: View {
 
     private var gameControls: some View {
         HStack(spacing: 12) {
+            // 2 つとも同じカプセルに揃え、当たり判定を 44pt にする（#711）。
             Button { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
             }
+            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.coral))
             .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button("投了する", role: .destructive) { model.resign() }
                 Button("キャンセル", role: .cancel) {}
@@ -318,6 +317,7 @@ public struct GomokuView: View {
             Button { showUndoConfirm = true } label: {
                 Label("待った", systemImage: "arrow.uturn.backward")
             }
+            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
             .disabled(!model.canUndo)
             .alert("待った確認", isPresented: $showUndoConfirm) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
@@ -355,7 +355,8 @@ public struct GomokuView: View {
             )
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
+        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 }
