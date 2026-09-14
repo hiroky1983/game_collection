@@ -114,6 +114,57 @@ public extension View {
     }
 }
 
+// MARK: - 操作列のカプセルボタン
+
+/// 盤の下の操作列（投了・待った）のボタンの寸法（#711）。
+///
+/// View の `static let` は MainActor に隔離されるので、テストや他の定数から参照できるよう View の外に置く。
+public enum BoardGameControlMetrics {
+    /// 当たり判定の縦横の下限（Apple HIG）。
+    public static let minTapTarget: CGFloat = 44
+    /// このボタンを並べた操作列の上下の余白。
+    ///
+    /// ボタンの枠が 44pt になったぶん、従来の余白 8pt を詰めて**操作列の外寸をほぼ据え置く**
+    /// （既定の文字サイズで 44pt + 1pt × 2 = 46pt。従来のカプセルは macOS の描画で 30pt なので 30 + 8 × 2 = 46pt で一致、
+    /// iPhone SE のスクショでは 28.5pt で従来の操作カードが 44.5pt だったため、iOS では下端が 1.5pt 伸びる・#711 実測）。
+    /// 盤の大きさは `GameControlArea` が終局後のひな形（既定で 118pt）で決めるので、この差では変わらない（#148）。
+    public static let rowVerticalPadding: CGFloat = 1
+}
+
+/// 盤の下の操作列に置くカプセルのボタン（オセロ・五目並べの「投了」「待った」・#711）。
+///
+/// 以前は「投了」だけがカプセルで、「待った」は枠の無い素の文字（行高ぶん約 17pt）だった。
+/// 同じ行の一方だけがボタンに見えず、指の腹より小さいので「壊れている」と受け取られる。
+///
+/// - **カプセルの見た目は従来どおり**（上下 6pt・左右 12pt の余白）。
+/// - **44pt はボタン自身の枠に入れる**。カプセルを描いてから枠を広げ、その矩形全体で受ける。
+///   枠の外へ当たり判定をはみ出させる方法（`overlay` に大きい透明な面を重ねる・負の `padding`）は、
+///   macOS のプローブで Button のクリックが枠の外では反応しないと実測したため採らない（#711）。
+/// - 並べる側は操作列の上下の余白を `BoardGameControlMetrics.rowVerticalPadding` に詰めて外寸を保つ。
+/// - **押せないときは面を `fillMuted` に替える**。差し色の面に文字色を載せたままだと、
+///   `.disabled` が付いても見た目が変わらない。
+public struct BoardGameControlCapsuleStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    private let fill: Color
+
+    public init(fill: Color) {
+        self.fill = fill
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            // `fillMuted` は白文字を載せる面色（`Theme.Hex.fillMuted`）。
+            .foregroundStyle(isEnabled ? Theme.onAccent : Color.white)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(isEnabled ? fill : Theme.fillMuted))
+            .frame(minWidth: BoardGameControlMetrics.minTapTarget,
+                   minHeight: BoardGameControlMetrics.minTapTarget)
+            // 広げた枠の透明な部分でも受ける（既定は描いた中身のぶんしか受けない）。
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
 // MARK: - 検討ナビ
 
 /// 終局後の検討ナビ（1手戻す / 手数 / 1手進める）と「もう一度」を 1 段にまとめた帯（#139・#530）。
