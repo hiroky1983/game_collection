@@ -706,6 +706,12 @@ public final class RunnerModel {
                 })
                 isFrozenForCapture = true
             }
+        case let name where name.hasPrefix("map:"):
+            // 撮影用: ワールドマップ（#798）の到達面を作る（例 `-simulateRunner map:8` で 8 面まで到達済み）。
+            // 開始シートは `RunnerView` が `-showRunnerStartSheet` で開く。
+            if let number = Int(name.dropFirst("map:".count)) {
+                reachedStage = min(max(number, 1), RunnerRules.stageCount)
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
