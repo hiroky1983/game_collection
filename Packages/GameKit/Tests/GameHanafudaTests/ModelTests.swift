@@ -600,6 +600,34 @@ struct HanafudaCPUTurnTests {
         #expect(saved.hands[1] == cpuHandBefore, "離れた後の CPU の手が中断データに焼き付いた")
     }
 
+    /// 上のテストは本体の開始前にキャンセルするので、踏むのはループ先頭の判定だけになる。
+    /// 実際に画面を離れるのは CPU が `cpuDelay` の sleep に入っている最中で、そのとき効くのは
+    /// sleep 直後の判定（`pauseCPUTurn` の戻り値）のほう（#817）。引き継ぎテストと同じく
+    /// `await Task { @MainActor in }.value` で本体を sleep まで走らせてからキャンセルする。
+    @Test("cpuDelay の sleep に入った後にキャンセルすると、起きた直後に抜けて打たない")
+    func cancelledDuringCPUDelayDoesNotAdvance() async throws {
+        let (model, store) = try modelAtCPUTurn(cpuDelay: .seconds(60))
+        #expect(model.turn == .cpu, "CPU の手番になっていない")
+        let cpuHandBefore = model.cpuHand
+        let fieldBefore = model.field
+        let keyBefore = model.aiTurnKey
+
+        let task = Task { await model.runCPUTurnIfNeeded() }
+        // task の後ろに積んだ空のジョブを待つ = task は門番を取って cpuDelay の sleep に入っている。
+        await Task { @MainActor in }.value
+        #expect(model.isRunningCPUTurn, "CPU の手番が sleep に入っていない（ループ先頭の判定しか踏まない）")
+        task.cancel()
+        await task.value
+
+        #expect(model.cpuHand == cpuHandBefore, "sleep 中にキャンセルされたのに CPU が打った")
+        #expect(model.field == fieldBefore, "sleep 中にキャンセルされたのに場が動いた")
+        #expect(model.turn == .cpu, "手番はそのまま")
+        #expect(model.aiTurnKey == keyBefore, "キーが進むと戻ったときに CPU が起動しない")
+        #expect(!model.isRunningCPUTurn, "門番が残ると次の CPU 手番が始まらない")
+        let saved = try #require(store.load(HanafudaSnapshot.self, for: HanafudaModel.gameID))
+        #expect(saved.hands[1] == cpuHandBefore, "離れた後の CPU の手が中断データに焼き付いた")
+    }
+
     @Test("離れた時点の局面から再開すると CPU の手番から続く")
     func resumedAfterCancelContinuesFromCPUTurn() async throws {
         let (model, store) = try modelAtCPUTurn(cpuDelay: .seconds(60))
