@@ -83,6 +83,20 @@ struct RecordsSummaryTests {
         #expect(summary.milestones[1].accessibilityLabel == "通算10勝、1/10")
     }
 
+    @Test("勝敗以外のゲームは「初クリア」と読み、数字の無い記録は「記録なし」と出す")
+    func nonWinLossAndRecordWithoutNumbers() {
+        let log = makeLog(suite: "nonwinloss")
+        finish(log, "minesweeper", .win,
+               GameScore(metric: .shortestTime, seconds: 83, variant: "9x9-10", variantLabel: "初級"))
+        // スコアを申告しない終わり方だけ（見出しの数字が作れない）。
+        finish(log, "2048", .loss, GameScore(metric: .points))
+        let summary = log.recordsSummary(games: Self.games)
+        #expect(summary.rows[1].accessibilityLabel == "マインスイーパー、最短 1:23（初級）、1回あそんだ、初クリア")
+        #expect(summary.rows[2].isPlayed)
+        #expect(summary.rows[2].detailText == "記録なし")
+        #expect(summary.rows[2].accessibilityLabel == "2048、記録なし、1回あそんだ")
+    }
+
     @Test("プレイ記録を消去すると、次に開いたときは全部が未プレイに戻る")
     func clearingThePlayLogResetsTheSummary() {
         let log = makeLog(suite: "clear")

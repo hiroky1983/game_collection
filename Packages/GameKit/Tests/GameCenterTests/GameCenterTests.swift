@@ -786,7 +786,8 @@ struct GameCenterEntryPointTests {
         )
         #expect(
             source.range(
-                of: #"\.sheet\(isPresented: \$showRecords, onDismiss: \{[\s\S]{0,200}?openGameCenter\(\)\s*\}\) \{\s*RecordsView\("#,
+                // 印の確認（guard）まで縛る。guard が消えると「完了」で閉じるたびに Game Center が開く。
+                of: #"\.sheet\(isPresented: \$showRecords, onDismiss: \{\s*guard opensGameCenterAfterRecords else \{ return \}\s*opensGameCenterAfterRecords = false\s*openGameCenter\(\)\s*\}\) \{\s*RecordsView\("#,
                 options: .regularExpression
             ) != nil,
             "きろく のシートが RecordsView を出していない、または閉じたあとに Game Center を開く結線が無い"
