@@ -196,7 +196,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
-| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、1 回の長さが選べるゲームのみ `mode`（#783） |
+| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820） |
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode` |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
@@ -207,7 +207,14 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   自動的に対象へ入るため、**このドキュメントに `game_id` の値そのものを列挙しない**
   （列挙すると新ゲーム追加のたびに手動同期が要り、漏れの温床になる。実際の値は各ゲームの
   `GameModule.id` を参照すること）
-- `mode` は 1 回の長さの区分。いまは四人打ち麻雀だけで `tonpuu`（東風戦）/ `single_hand`（一局戦・v1.1.5）。一局戦は 1 対局が 1 局なので `game_start` が機械的に増える。回数を比べるときは `mode` で分け、時間で比べるときは `duration_sec` を使う（#783）
+- `mode`（`AnalyticsMode`）は遊び方の区分（v1.1.5）。四人打ち麻雀は `tonpuu`（東風戦）/ `single_hand`（一局戦）、
+  チャリンコおじさんは `stage`（ステージ制。面番号は `level` の `stage-N`）/ `endless`（エンドレス。`level` を送らない）。
+  写像は各ゲームの `analyticsMode`（`MahjongGameLength` / `RunnerMode`）に置く。一局戦は 1 対局が 1 局なので
+  `game_start` が機械的に増える。回数を比べるときは `mode` で分け、時間で比べるときは `duration_sec` を使う。
+  `game_end` の `mode` は開始時に焼き込んだ値で、途中で遊び方を替えて始め直したときも捨てたプレイの側の値が載る（#783・#785・#820）
+- パラメータの値（`result` / `level` / `purpose` / `source` / `mode`）は `CaseIterable` な enum で定義し、
+  `AnalyticsTests` に全量のテストを置く。文字列の引数で値を足せる口を作らない（#820。`mode` だけ `String?` だったため、
+  文書に無い値が 23 分後に流れ込んだ）
 - `level`（`AnalyticsLevel`）はゲームごとの難易度呼称をゲーム横断で読める4段階
   （`beginner`/`normal`/`hard`/`expert`）か、面を進めるゲームは `stage-N` に正規化して送る。
   写像は各ゲームの `analyticsLevel` に置く
