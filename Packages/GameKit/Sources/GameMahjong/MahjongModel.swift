@@ -1320,6 +1320,8 @@ public final class MahjongModel: AITurnGuarded {
         await withAITurnRunner(running: \.isRunningCPUTurns) {
             while true {
                 while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
+                    // 間合いが 0 だと下の sleep 後の判定を通らないので、ループ先頭でも見る（大富豪 #287・花札 #726 と同じ）。
+                    guard !Task.isCancelled else { return }
                     if cpuDelay > .zero {
                         // キャンセル後に抜けないと、`.task(id:)` に差し替えられた古いタスクが
                         // `cpuDelay` を一切待たずに残りの手番を走り抜けてしまう（CodeRabbit 指摘）。
@@ -1329,6 +1331,7 @@ public final class MahjongModel: AITurnGuarded {
                     advanceAutomaticTurn()
                 }
                 guard autoPlayEnabled, phase == .handResult else { return }
+                guard !Task.isCancelled else { return }
                 if cpuDelay > .zero {
                     guard await pauseCPUTurn(for: cpuDelay) else { return }
                     guard autoPlayEnabled, phase == .handResult else { return }

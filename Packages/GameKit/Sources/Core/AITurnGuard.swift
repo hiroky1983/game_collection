@@ -49,6 +49,9 @@ extension AITurnGuarded {
             guard !Task.isCancelled else { return }
             try? await Task.sleep(for: .milliseconds(10))
         }
+        // 待っている sleep がキャンセルで起きたのと同時に先行タスクが抜けると、上のループは
+        // キャンセルを見ずに終わる。そのまま走者を取ると、譲るべきタスクが手番を進めてしまう。
+        guard !Task.isCancelled else { return }
         self[keyPath: flag] = true
         defer { self[keyPath: flag] = false }
         await body()
