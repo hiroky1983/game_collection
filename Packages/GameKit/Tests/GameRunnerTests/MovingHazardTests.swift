@@ -208,6 +208,88 @@ struct RunnerHazardMotionTests {
         #expect(events.contains(.landed))
     }
 
+    // MARK: - イノシシ（#801）
+
+    @Test("イノシシは予告から出会いまでの走者の進みが一定（18 タイル）で、予告は 1 回だけ")
+    func boarGraceIsConstant() {
+        for speed in [41.2, 54.4] {
+            let stage = RunnerStage(number: 1, pattern: "----i---", speed: speed)
+            let boar = stage.hazards[0]
+            #expect(boar.frame(atRunnerDistance: boar.boarChargeStartDistance - 0.01) == nil, "予告の前は現れていない")
+            var field = RunnerField(stage: stage)
+            field.placeForTesting(distance: boar.boarChargeStartDistance - 30, altitude: 0, vy: 0)
+            var events: [RunnerEvent] = []
+            var cueAt: Double?
+            while field.distance < boar.start + 50, !events.contains(where: { $0.isTerminal }) {
+                let step = field.step(dt: 1.0 / 600)
+                if step.contains(.boarCharging) { cueAt = field.distance }
+                events += step
+            }
+            #expect(events.filter { $0 == .boarCharging }.count == 1, "予告は 1 回")
+            #expect(abs((cueAt ?? 0) - boar.boarChargeStartDistance) < 0.2, "予告は前端が 18 タイル手前に入った瞬間")
+            #expect(events.contains(.crashed) && field.lastMissCause == .animal)
+            // 予告から出会い（前端が触れる）までの走者の進みは速さに依らず 72。
+            #expect(abs(field.distance - (boar.boarChargeStartDistance + RunnerRules.boarChargeDistance)) < 0.5, "速さ \(speed): 出会いの地点 \(field.distance)")
+        }
+    }
+
+    @Test("イノシシは跳べば越えられ、跳んだ先で着地できる")
+    func boarCanBeJumped() {
+        let stage = RunnerStage(number: 1, pattern: "----i---", speed: 41.2)
+        let boar = stage.hazards[0]
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: boar.boarChargeStartDistance - 30, altitude: 0, vy: 0)
+        var events: [RunnerEvent] = []
+        while field.distance < boar.start + 50, !events.contains(where: { $0.isTerminal }) {
+            if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
+            if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+            events += field.step(dt: 1.0 / 60)
+        }
+        #expect(!events.contains(.crashed))
+        #expect(events.contains(.landed))
+    }
+
+    @Test("岩の手前に置いたイノシシは岩で止まり、岩と一緒に跳び越せる")
+    func boarStopsAtTheRock() {
+        let stage = RunnerStage(number: 1, pattern: "---it---", speed: 41.2)
+        let boar = stage.hazards[0], rock = stage.hazards[1]
+        #expect(boar.kind == .boar && rock.kind == .tallBlock)
+        #expect(boar.stopAt == rock.end, "次の区画の岩の右端で止まる")
+        #expect(boar.boarSpawn > rock.end, "出現点は岩より先（だから岩にぶつかる）")
+        // 突進してすぐ岩にぶつかり、以後は動かない。
+        let far = boar.boarChargeStartDistance + 20
+        let stopped = boar.frame(atRunnerDistance: far)
+        #expect(stopped?.start == rock.end && stopped?.advance == 0)
+        #expect(boar.frame(atRunnerDistance: far + 100)?.start == rock.end)
+
+        // 岩の手前で跳ばなければ岩に当たる（死因は岩）。跳べば岩ごと越えられる。
+        var idle = RunnerField(stage: stage)
+        idle.placeForTesting(distance: boar.boarChargeStartDistance - 10, altitude: 0, vy: 0)
+        var events: [RunnerEvent] = []
+        while idle.distance < rock.end + 30, !events.contains(where: { $0.isTerminal }) {
+            events += idle.step(dt: 1.0 / 600)
+        }
+        #expect(events.contains(.crashed) && idle.lastMissCause == .rock)
+
+        var piloted = RunnerField(stage: stage)
+        piloted.placeForTesting(distance: boar.boarChargeStartDistance - 10, altitude: 0, vy: 0)
+        events = []
+        while piloted.distance < rock.end + 30, !events.contains(where: { $0.isTerminal }) {
+            if RunnerAutoPilot.shouldJump(field: piloted) { piloted.jump() }
+            if RunnerAutoPilot.shouldRelease(field: piloted) { piloted.endHold() }
+            events += piloted.step(dt: 1.0 / 60)
+        }
+        #expect(!events.contains(.crashed), "岩と止まったイノシシを一緒に越えられない")
+        #expect(RunnerEndlessCourse.isClearableWithBoarBehind(rock, speed: stage.speed))
+    }
+
+    @Test("出会いの地点より手前の岩ではイノシシは止まらない")
+    func boarIgnoresRocksBehindTheMeetingPoint() {
+        let stage = RunnerStage(number: 1, pattern: "---ti---", speed: 41.2)
+        let boar = stage.hazards[1]
+        #expect(boar.kind == .boar && boar.stopAt == nil)
+    }
+
     // MARK: - 死因（#796 `game_end` の `cause`）
 
     @Test("ミスの原因は、穴・岩・台座の正面・鳥・動物で分かれる")
@@ -232,5 +314,39 @@ struct RunnerHazardMotionTests {
         #expect(RunnerHazardKind.dog.missCause == .animal)
         #expect(RunnerHazardKind.boar.missCause == .animal)
         #expect(AnalyticsEndCause.allCases.count == 4)
+    }
+
+    // MARK: - 手応え
+
+    /// `services.feedback` に届いた呼び出しを記録するスパイ。
+    @MainActor
+    private final class SpyFeedback: FeedbackService {
+        private(set) var impacts: [FeedbackImpact] = []
+        func impact(_ style: FeedbackImpact) { impacts.append(style) }
+        func notify(_ type: FeedbackNotice) {}
+    }
+
+    @MainActor
+    @Test("イノシシの予告で「ドドド」（rigid）が 1 回鳴る")
+    func boarChargeFeedback() {
+        let spy = SpyFeedback()
+        let model = RunnerModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy),
+            startingAt: 7, preference: makePreference("boar-cue")
+        )
+        guard let boar = model.stage.hazards.first(where: { $0.kind == .boar }) else {
+            Issue.record("7 面にイノシシが無い"); return
+        }
+        model.press(); model.release()   // スタート（rigid）
+        let startCues = spy.impacts.filter { $0 == .rigid }.count
+        var frames = 0
+        while model.phase.isRunning, model.distance < boar.boarChargeStartDistance + 10, frames < 60 * 60 {
+            frames += 1
+            if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+            if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
+            model.tick(dt: 1.0 / 60)
+        }
+        #expect(model.phase.isRunning, "予告の地点まで走れている")
+        #expect(spy.impacts.filter { $0 == .rigid }.count == startCues + 1)
     }
 }

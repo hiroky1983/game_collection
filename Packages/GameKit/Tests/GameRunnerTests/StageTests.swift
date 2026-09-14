@@ -827,6 +827,31 @@ struct RunnerPlaythroughTests {
         }
     }
 
+    /// 岩の手前に置いたイノシシ（`it`・#801）は、置いたステージで**必ず岩で止まる**こと。
+    /// 「岩で止まる」読みができる並びとして 9・11・12 面に置いてあるので、その並びが
+    /// 意図どおり止まる配置（出現点が岩より先）になっていることを固定する。
+    @Test("岩の手前に置いたイノシシは、その岩の右側で止まる")
+    func boarsBeforeRocksStopAtTheRock() {
+        var stopped = 0
+        for stage in RunnerStage.all {
+            let symbols = Array(stage.pattern)
+            for (index, symbol) in symbols.enumerated() where symbol == "i" && index + 1 < symbols.count {
+                let nextIsRock = symbols[index + 1] == "n" || symbols[index + 1] == "t"
+                guard let boar = stage.hazards.first(where: {
+                    $0.kind == .boar && Int($0.start / 64) == index
+                }) else { Issue.record("ステージ \(stage.number): 区画 \(index) のイノシシが無い"); continue }
+                if nextIsRock {
+                    let rock = stage.hazards.first { $0.kind.isRock && Int($0.start / 64) == index + 1 }
+                    #expect(boar.stopAt == rock?.end, "ステージ \(stage.number): 区画 \(index) のイノシシが次の岩で止まらない")
+                    stopped += 1
+                } else {
+                    #expect(boar.stopAt == nil, "ステージ \(stage.number): 区画 \(index) のイノシシが岩でないもので止まる")
+                }
+            }
+        }
+        #expect(stopped >= 2, "岩で止まるイノシシが 9・12 面に置いてある")
+    }
+
     /// **台座がコースとして機能していること**の実証（#674）。
     ///
     /// 「クリアできる」だけなら、台座に一度も乗らずに済むコース——例えば台座が短くて
