@@ -378,4 +378,76 @@ struct Game2048WinTests {
         #expect(harness.analytics.outcomes == [.win], "決着の通知は 1 回で、内容は勝ち")
         #expect(harness.log.record(gameID: "2048")?.wins == 1)
     }
+
+    // MARK: - 勝ちで終局した局のコンティニュー（#764）
+
+    @Test("2048 を作った手で詰んだ局をコンティニューしても、過去の負けは消えない（#764）")
+    func continuingAWinningGameOverKeepsPastLosses() {
+        let harness = makeHarness(suite: "continue-after-winning-game-over")
+        // この局と無関係な過去の負けを 1 件置く。
+        harness.log.recordResult(gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 100))
+        let model = makeModel(harness, board: Self.winningMoveEndsTheGame)
+
+        model.move(.left)
+        #expect(model.gameOver, "前提: この手で終局する")
+        let recordAtGameOver = harness.log.record(gameID: "2048")
+        #expect(recordAtGameOver?.plays == 2, "前提: 過去の負け 1 + この局の勝ち 1")
+        #expect(recordAtGameOver?.wins == 1)
+        #expect(recordAtGameOver?.losses == 1)
+
+        #expect(model.continueAfterAd())
+
+        let recordAfterContinue = harness.log.record(gameID: "2048")
+        #expect(recordAfterContinue?.plays == 2, "過去の負けを巻き戻してプレイ数が減っている")
+        #expect(recordAfterContinue?.wins == 1, "この局の勝ちはそのまま残る")
+        #expect(recordAfterContinue?.losses == 1, "この局と無関係な過去の負けが消えている")
+    }
+
+    @Test("2048 到達 →「続ける」→ 詰んだ局は負けとして記録し、コンティニューで巻き戻す（#764）")
+    func continuingAfterWinThenLosingCancelsTheLoss() {
+        let harness = makeHarness(suite: "continue-after-win-then-lose")
+        let model = makeModel(harness, board: Self.oneMoveFromWin)
+        model.move(.left)
+        #expect(model.hasWon, "前提: 到達済み")
+        model.continueAfterWin()
+
+        while !model.gameOver {
+            guard let direction = Direction.allCases.first(where: {
+                Game2048Logic.slide(model.board, $0).moved
+            }) else { break }
+            model.move(direction)
+        }
+        #expect(model.gameOver, "前提: 続行ぶんを詰むまで遊んだ")
+        #expect(harness.log.record(gameID: "2048")?.losses == 1, "前提: 到達済みでも、続行後の終局は負け")
+
+        #expect(model.continueAfterAd())
+
+        let record = harness.log.record(gameID: "2048")
+        #expect(record?.losses == 0, "直前の負けが巻き戻っていない（`hasWon` で分岐すると壊れる）")
+        #expect(record?.plays == 1, "到達時の勝ち 1 件だけが残る")
+        #expect(record?.wins == 1)
+    }
+
+    @Test("勝ちで終局した局のコンティニュー後、次の局の負けは従来どおり巻き戻る（#764）")
+    func lossFlagDoesNotLeakIntoTheNextGame() {
+        let harness = makeHarness(suite: "continue-flag-reset")
+        let model = makeModel(harness, board: Self.winningMoveEndsTheGame)
+        model.move(.left)
+        #expect(model.continueAfterAd(), "前提: 勝ちで終局した局をコンティニューする")
+
+        // 「もう一度」で次の局を始め、負けで終局させる。
+        model.newGame()
+        while !model.gameOver {
+            guard let direction = Direction.allCases.first(where: {
+                Game2048Logic.slide(model.board, $0).moved
+            }) else { break }
+            model.move(direction)
+        }
+        #expect(model.gameOver)
+        let lossesAtGameOver = harness.log.record(gameID: "2048")?.losses ?? 0
+        #expect(lossesAtGameOver >= 1, "前提: 次の局は負けで記録されている")
+
+        #expect(model.continueAfterAd())
+        #expect(harness.log.record(gameID: "2048")?.losses == lossesAtGameOver - 1, "次の局の負けが巻き戻っていない")
+    }
 }
