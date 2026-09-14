@@ -535,7 +535,7 @@ public final class RunnerModel {
             applyDebugStage(.debugShowcase)
         case "bird":
             // 鳥の下をくぐっている瞬間で止める（#671 の受け入れ条件「接地して走れば鳥の下を
-            // 通り抜けられる」の画）。本番のステージでは鳥は 13 面以降にしか出ないので、
+            // 通り抜けられる」の画）。本番のステージでは鳥は 5・6 面と 13〜15 面にしか出ないので、
             // ショーケース（`RunnerStage.debugShowcase`）の鳥を使う。
             applyDebugStage(.debugShowcase)
             press(); release()
@@ -586,6 +586,22 @@ public final class RunnerModel {
             press(); release()
             autoPlayForDebug(until: { $0.field.distance > 700 })
             advanceFramesForDebug(seconds: 60)
+        case let name where name.hasPrefix("bird:"):
+            // 本番ステージの鳥を、その面の世界の背景の上で撮る（例 `-simulateRunner bird:5`）。
+            // `bird` はショーケースで走るので、面ごとの世界の配色で鳥が見分けられるか（#818）は
+            // こちらで確かめる。最初の鳥が走者の少し前方（画面の中央付近）に来た接地中の瞬間で止める。
+            if let number = Int(name.dropFirst("bird:".count)),
+               RunnerStage.stage(number: number)?.hazards.contains(where: { $0.kind == .bird }) == true {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }) else { return true }
+                    return field.isGrounded && (8...45).contains(bird.start - field.distance)
+                })
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。

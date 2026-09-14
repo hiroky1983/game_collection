@@ -65,23 +65,6 @@ struct RunnerWorldTests {
     /// 同じ色にならないことを、色相の差で機械的に確かめる（同じ系統の濃淡は使わない）。
     @Test("どの世界の空も乗り手の色（脚・車体・服）と色相が離れている")
     func skiesAreFarFromRiderHues() {
-        func hue(_ hex: UInt32) -> Double {
-            let r = Double((hex >> 16) & 0xFF) / 255
-            let g = Double((hex >> 8) & 0xFF) / 255
-            let b = Double(hex & 0xFF) / 255
-            let maxC = max(r, g, b), minC = min(r, g, b), delta = maxC - minC
-            guard delta > 0 else { return 0 }
-            var h: Double
-            if maxC == r { h = (g - b) / delta }
-            else if maxC == g { h = 2 + (b - r) / delta }
-            else { h = 4 + (r - g) / delta }
-            h *= 60
-            return h < 0 ? h + 360 : h
-        }
-        func hueDistance(_ a: UInt32, _ b: UInt32) -> Double {
-            let d = abs(hue(a) - hue(b))
-            return min(d, 360 - d)
-        }
         for world in RunnerWorld.allCases {
             for rider in [RunnerPalette.pants, RunnerPalette.bike] {
                 #expect(
@@ -90,6 +73,46 @@ struct RunnerWorldTests {
                 )
             }
         }
+    }
+
+    /// 鳥は丘を背に飛ぶ（鳥の帯は地面から 13〜17、丘は 19・34 まで届く）。鳥が出る面の世界と、
+    /// 鳥が出るエンドレス（`number == 0` は朝の下町で描く・#675）の世界で、丘と鳥の胴が
+    /// 色相か明るさで離れていることを確かめる（#818: 5・6 面の緑の鳥が朝の緑の丘に紛れた）。
+    @Test("鳥が飛ぶ世界の丘は、鳥の胴と色相が 40° 以上か明るさが 0.3 以上離れている")
+    func hillsAreFarFromBird() {
+        let stageWorlds = Set(RunnerStage.all
+            .filter { stage in stage.hazards.contains { $0.kind == .bird } }
+            .map { RunnerWorld.world(forStage: $0.number) })
+        // 空振り防止: 5・6 面（朝）と 13〜15 面（夜）の鳥を拾えていること。
+        #expect(stageWorlds.isSuperset(of: [.morning, .night]))
+        for world in stageWorlds.union([.morning]) {
+            for hill in [world.palette.hillFar, world.palette.hillNear] {
+                let lumaGap = abs(luma(hill) - luma(RunnerPalette.birdBody)) / 255
+                #expect(
+                    hueDistance(hill, RunnerPalette.birdBody) >= 40 || lumaGap >= 0.3,
+                    "\(world) の丘 \(String(hill, radix: 16)) と鳥 \(String(RunnerPalette.birdBody, radix: 16))"
+                )
+            }
+        }
+    }
+
+    private func hue(_ hex: UInt32) -> Double {
+        let r = Double((hex >> 16) & 0xFF) / 255
+        let g = Double((hex >> 8) & 0xFF) / 255
+        let b = Double(hex & 0xFF) / 255
+        let maxC = max(r, g, b), minC = min(r, g, b), delta = maxC - minC
+        guard delta > 0 else { return 0 }
+        var h: Double
+        if maxC == r { h = (g - b) / delta }
+        else if maxC == g { h = 2 + (b - r) / delta }
+        else { h = 4 + (r - g) / delta }
+        h *= 60
+        return h < 0 ? h + 360 : h
+    }
+
+    private func hueDistance(_ a: UInt32, _ b: UInt32) -> Double {
+        let d = abs(hue(a) - hue(b))
+        return min(d, 360 - d)
     }
 
     @Test("道路の配色は世界ごとに違い、路面と白線・路肩の明度差がある")
