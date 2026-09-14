@@ -235,7 +235,14 @@ public struct MahjongView: View {
         .onChange(of: model.currentPlayer) {
             selectedTileID = nil
         }
-        .rewardedRescueAlerts(reviveRescue, notEarned: "復活できませんでした")
+        .rewardedRescueAlerts(
+            reviveRescue,
+            notEarned: "復活できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "復活できませんでした",
+                message: "広告を見ているあいだに対局が変わったため、復活は適用していません。復活の回数は減っていません。"
+            )
+        )
     }
 
     // MARK: - 新規対局（#638）
@@ -857,11 +864,13 @@ public struct MahjongView: View {
         Button {
             // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と復活は
             // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
-            reviveRescue.requestHandledByModel {
+            // 見終えたのに対局が入れ替わって適用しなかったときは「視聴しなかった」ではなく
+            // `unavailable:` のアラートを出す（#814。ブラックジャック・ポーカーの #727 と同じ形）。
+            reviveRescue.requestHandledByModel(withOutcome: {
                 await model.reviveAfterAd()
-            } whenGranted: {
+            }, whenGranted: {
                 await model.runCPUTurnsIfNeeded()
-            }
+            })
         } label: {
             // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
             // 書かないと2回目を期待して押す人が出る）。
