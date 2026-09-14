@@ -24,6 +24,11 @@ public struct RunnerView: View {
     /// 開始シートで選んでいるモード。ここは「次の走行に使う設定」で、進行中の走行が
     /// 見ているのは `model.mode`（開始時に焼き込んだ値）のほう（麻雀の `selectedLength` と同じ分け方）。
     @State private var selectedMode: RunnerMode = .stages
+    /// 開始シートのワールドマップ（#798）で選んでいる面。`selectedMode` と同じく「次の走行に
+    /// 使う設定」で、開始時に `RunnerModel.newGame(startingAtStage:)` で焼き込む。
+    /// シートを開くたび 1 面に戻す——「はじめから」の既定は従来どおり 1 面からで、
+    /// 別の面から始めたいときだけ格子で選ぶ。
+    @State private var selectedStage = 1
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -58,6 +63,7 @@ public struct RunnerView: View {
                 Button {
                     if model.phase == .running { model.pause() }
                     selectedMode = model.mode
+                    selectedStage = 1
                     showStartSheet = true
                 } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
@@ -70,8 +76,13 @@ public struct RunnerView: View {
             if model.phase == .running { model.pause() }
         })
         .sheet(isPresented: $showStartSheet) {
-            RunnerStartSheet(mode: $selectedMode) {
-                model.newGame(mode: selectedMode)
+            RunnerStartSheet(
+                mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage
+            ) {
+                switch selectedMode {
+                case .stages:  model.newGame(startingAtStage: selectedStage)
+                case .endless: model.newGame(mode: .endless)
+                }
                 showStartSheet = false
             } onCancel: {
                 showStartSheet = false
@@ -81,10 +92,16 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
+            }
+            // 撮影用: 開始シート（ワールドマップ #798）を開いた状態にする（`-showRunnerStartSheet`）。
+            if args.contains("-showRunnerStartSheet") {
+                selectedMode = model.mode
+                selectedStage = 1
+                showStartSheet = true
             }
             #endif
         }
@@ -657,19 +674,29 @@ public struct RunnerView: View {
 
 // MARK: - 開始シート（#675）
 
-/// 「はじめから」で開く、モード（ステージ制／エンドレス）を選ぶシート。
+/// 「はじめから」で開く、モード（ステージ制／エンドレス）と始める面を選ぶシート。
 ///
-/// 枠は共通の `GameSetupSheet`、選び方は麻雀の東風戦／一局戦（`MahjongStartSheet`）と同じ
-/// セグメントのピッカー + 1 行の説明。選んだモードは `RunnerModel.newGame(mode:)` で
+/// 枠は共通の `GameSetupSheet`、モードの選び方は麻雀の東風戦／一局戦（`MahjongStartSheet`）と
+/// 同じセグメントのピッカー + 1 行の説明。ステージ制のときだけ下にワールドマップ（#798）が
+/// 付く。選んだモードと面は `RunnerModel.newGame(startingAtStage:)` / `newGame(mode:)` で
 /// 走行に焼き込まれ、走行中に読み替えられることはない（1局=1RuleSet）。
+///
+/// 並べ方は `.scrolling`（常に `.large`）。3 世界 × 6 面の格子は 3 列 × 2 段を 3 つ積むので、
+/// モードの節と合わせると `.medium` には収まらない（`GameSetupSheet` の注意書きどおり、
+/// 収まらない中身を `pinnedStart` にすると開始ボタンが押せなくなる）。エンドレスを選んで
+/// 格子が消えても高さは変えない——シートの高さが開いている最中に動くのを避ける。
 struct RunnerStartSheet: View {
     @Binding var mode: RunnerMode
+    /// ワールドマップで選んでいる面（1 始まり）。
+    @Binding var selectedStage: Int
+    /// 到達した最大の面。これより先は鍵付きで押せない（`RunnerModel.reachedStage`）。
+    let reachedStage: Int
     let onStart: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
         GameSetupSheet(
-            title: "はじめから", startTitle: "スタート",
+            title: "はじめから", startTitle: "スタート", layout: .scrolling,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection("モード") {
@@ -684,6 +711,109 @@ struct RunnerStartSheet: View {
                     .foregroundStyle(Theme.inkSub)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            if mode == .stages {
+                GameSetupSection("ステージを選ぶ") {
+                    RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
+                }
+            }
         }
+    }
+}
+
+// MARK: - ワールドマップ（#798）
+
+/// 開始シートに載せる 3 世界 × 6 面の格子。到達済みの面だけ選べる。
+///
+/// **世界ごとに 3 列 × 2 段**にしてある。6 列 1 段だと iPhone SE（幅 375pt・シートの余白を
+/// 引いて 343pt）では 1 マスが 50pt 前後になり、「商店街のあさ」のような 6〜8 文字の名前が
+/// 1 行に入らない。3 列なら 1 マス 105pt 前後で 8 文字（`RunnerWorld.maxStageNameLength`）が
+/// 11pt の文字で収まる。
+///
+/// 世界の色（`RunnerWorld.mapColor`）は**見出しの丸・マスの上端の帯・マスの薄い色味**にだけ
+/// 使い、文字はその上に載せない（世界の空の色は文字とのコントラストが世界ごとにばらつくため。
+/// 面と文字の組み合わせは `Theme` のまま）。選択中は他の設定シート（`GameSetupChooser`）と
+/// 同じ「差し色で塗って `onAccent` の文字」にして、選んでいることの見え方をアプリ全体で揃える。
+/// 未到達は鍵の絵と薄い文字で、押せない（`disabled`）。
+struct RunnerWorldMap: View {
+    @Binding var selectedStage: Int
+    let reachedStage: Int
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(RunnerWorld.allCases, id: \.self) { world in
+                VStack(alignment: .leading, spacing: 8) {
+                    worldHeader(world)
+                    LazyVGrid(columns: columns, spacing: 8) {
+                        ForEach(world.stageRange, id: \.self) { number in
+                            stageCell(number, world: world)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func worldHeader(_ world: RunnerWorld) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Color(hex: world.mapColor))
+                .frame(width: 10, height: 10)
+            Text("ワールド \(world.number)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            Text(world.displayName)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.ink)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func stageCell(_ number: Int, world: RunnerWorld) -> some View {
+        let reached = number <= reachedStage
+        let selected = reached && number == selectedStage
+        let tint = Color(hex: world.mapColor)
+        return Button {
+            selectedStage = number
+        } label: {
+            VStack(spacing: 3) {
+                HStack(spacing: 4) {
+                    // 数値の桁区切りが入らないよう verbatim で出す。
+                    Text(verbatim: RunnerWorld.code(forStage: number))
+                        .font(.system(size: 12, weight: .heavy, design: .rounded).monospacedDigit())
+                    if !reached {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                }
+                .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))
+                Text(RunnerWorld.stageName(forStage: number) ?? "")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 4)
+            .background(
+                ZStack(alignment: .top) {
+                    RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                        .fill(selected ? Theme.Fill.coral : (reached ? tint.opacity(0.16) : Theme.surface))
+                    // 世界の色の帯。未到達は薄くして「まだ塗られていない」ことを見せる。
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(tint.opacity(reached ? 1 : 0.35))
+                        .frame(height: 4)
+                        .padding(.horizontal, 10)
+                        .padding(.top, 3)
+                }
+                .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
+            )
+        }
+        .buttonStyle(.pop)
+        .disabled(!reached)
+        .accessibilityLabel(RunnerAccessibility.stageMapLabel(number: number, reached: reached))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
