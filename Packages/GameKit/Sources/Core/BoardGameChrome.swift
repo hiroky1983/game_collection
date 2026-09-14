@@ -129,6 +129,11 @@ public enum BoardGameControlMetrics {
     /// iPhone SE のスクショでは 28.5pt で従来の操作カードが 44.5pt だったため、iOS では下端が 1.5pt 伸びる・#711 実測）。
     /// 盤の大きさは `GameControlArea` が終局後のひな形（既定で 118pt）で決めるので、この差では変わらない（#148）。
     public static let rowVerticalPadding: CGFloat = 1
+    /// 検討ナビの記号ボタン（◀ ▶）の 44pt の枠を、帯のレイアウト上だけ上下それぞれこの量ぶん小さく数える（#713）。
+    ///
+    /// 44 − 8 × 2 = 28pt は「もう一度」のカプセル（macOS の描画で 30pt・iPhone SE で 28.5pt）より低いので、
+    /// 帯の高さはこれまでどおりカプセルで決まり、決着の瞬間に盤が縮まない（#139）。
+    public static let reviewNavLayoutInset: CGFloat = 8
 }
 
 /// 盤の下の操作列に置くカプセルのボタン（オセロ・五目並べの「投了」「待った」・#711）。
@@ -174,6 +179,15 @@ public struct BoardGameControlCapsuleStyle: ButtonStyle {
 /// 記号だけのボタンは VoiceOver が SF Symbols の名前を推測して読み、何をするボタンかが
 /// 伝わらない。読み上げ文はこの共通実装に持たせる——**将棋側の実装にはこの指定が無く、
 /// チェス側にだけ入っていた**（#530 が防ごうとしている「片方だけ直した」状態そのもの）。
+///
+/// ◀ ▶ は記号だけだと約 17pt 四方で、終局後に棋譜を 1 手ずつ送る連打の的にならない（#713）。
+/// - **44pt の枠と `contentShape` はボタンの中（`navSymbol`）に入れる**。帯の高さへの影響は
+///   ボタンの**外**の負の余白（`BoardGameControlMetrics.reviewNavLayoutInset`）で打ち消す。
+///   枠や形を取ってから中で余白を詰める方法は、macOS のプローブで詰めた外側が反応しなかった
+///   （`BoardGameControlCapsuleStyle` の注記と同じ現象）。外で詰める方法は、帯からはみ出した
+///   上下 22pt まで反応し、25pt では反応しないと実測した（#713）。
+/// - はみ出した部分は、**後ろに並ぶ当たり判定を持つビューに取られる**（同じプローブで、帯の直後に
+///   色の面を置くと下側が反応しなかった）。将棋・チェスは帯の直後が `Spacer` なので取られない。
 public struct ReviewNavBar: View {
     /// 表示中の手数（0 = 初期局面）。
     public let ply: Int
@@ -199,15 +213,20 @@ public struct ReviewNavBar: View {
 
     public var body: some View {
         HStack(spacing: 12) {
-            Button(action: onBack) { Image(systemName: "backward.frame.fill") }
-                .disabled(ply <= 0)
-                .accessibilityLabel("1手戻す")
-            Text("\(ply)/\(total)手")
-                .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
-                .accessibilityLabel("\(total)手中 \(ply)手目")
-            Button(action: onForward) { Image(systemName: "forward.frame.fill") }
-                .disabled(ply >= total)
-                .accessibilityLabel("1手進める")
+            // 44pt の枠の透明な部分が記号と手数の間を空けるので、この 3 つは間隔 0 で並べる。
+            HStack(spacing: 0) {
+                Button(action: onBack) { Self.navSymbol("backward.frame.fill") }
+                    .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
+                    .disabled(ply <= 0)
+                    .accessibilityLabel("1手戻す")
+                Text("\(ply)/\(total)手")
+                    .themeBody(14).monospacedDigit().foregroundStyle(Theme.ink)
+                    .accessibilityLabel("\(total)手中 \(ply)手目")
+                Button(action: onForward) { Self.navSymbol("forward.frame.fill") }
+                    .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
+                    .disabled(ply >= total)
+                    .accessibilityLabel("1手進める")
+            }
 
             Spacer(minLength: 8)
 
@@ -221,5 +240,13 @@ public struct ReviewNavBar: View {
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// ◀ ▶ の中身。記号を 44pt の枠の中央に置き、枠の透明な部分でも受ける。
+    private static func navSymbol(_ name: String) -> some View {
+        Image(systemName: name)
+            .frame(minWidth: BoardGameControlMetrics.minTapTarget,
+                   minHeight: BoardGameControlMetrics.minTapTarget)
+            .contentShape(Rectangle())
     }
 }

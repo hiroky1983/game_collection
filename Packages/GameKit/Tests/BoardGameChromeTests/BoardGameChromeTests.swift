@@ -250,4 +250,84 @@ struct BoardGameChromeSourceTests {
         #expect(source.contains(".accessibilityLabel(\"\\(total)手中 \\(ply)手目\")"),
                 "手数表示の読み上げ文が無い")
     }
+
+    /// 枠や形を取ってから**中で**余白を詰めると、詰めた外側が反応しない（#713 のプローブで実測）。
+    /// 描画の大きさには出ないので、置き場所をソースで固定する。
+    @Test("検討ナビの ◀ ▶ は 44pt の枠と形をボタンの中に入れ、外で詰める")
+    func reviewNavSymbolsWidenHitAreaInsideButton() throws {
+        let symbol = try Self.lines(ofFunction: "private static func navSymbol(_ name: String) -> some View {")
+        guard let frame = symbol.firstIndex(of: ".frame(minWidth: BoardGameControlMetrics.minTapTarget,"),
+              let shape = symbol.firstIndex(of: ".contentShape(Rectangle())") else {
+            Issue.record("44pt の枠 / contentShape が見つからない:\n\(symbol.joined(separator: "\n"))")
+            return
+        }
+        #expect(frame < shape)
+        #expect(!symbol.contains { $0.contains(".padding(") }, "navSymbol の中で余白を詰めている")
+
+        let body = try Self.lines(ofFunction: "public var body: some View {")
+        let inset = ".padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)"
+        for name in ["backward.frame.fill", "forward.frame.fill"] {
+            guard let button = body.firstIndex(where: { $0.contains("Self.navSymbol(\"\(name)\")") }) else {
+                Issue.record("\(name) が navSymbol を通っていない:\n\(body.joined(separator: "\n"))")
+                continue
+            }
+            #expect(body.count > button + 1 && body[button + 1] == inset, "\(name) の直後で詰めていない")
+        }
+    }
+}
+
+/// 検討ナビの ◀ ▶ の当たり判定（#713）。
+@MainActor
+@Suite("検討ナビの記号ボタン")
+struct ReviewNavBarTapTargetTests {
+
+    /// 44pt の枠を入れても、帯の高さは「もう一度」のカプセルで決まったまま（決着で盤が縮まない・#139）。
+    @Test("帯の高さは従来と同じ")
+    func barHeightMatchesLegacyBar() throws {
+        let legacy = try Self.render(Self.legacyBar)
+        let bar = try Self.render(
+            ReviewNavBar(ply: 3, total: 10, onBack: {}, onForward: {}, onNewGame: {})
+        )
+        #expect(bar.height == legacy.height)
+    }
+
+    @Test("詰めたあとの ◀ ▶ はカプセルより低く、44pt の枠は残る")
+    func layoutInsetKeepsCapsuleAsTallest() throws {
+        let inset = BoardGameControlMetrics.reviewNavLayoutInset
+        #expect(inset >= 0)
+        let capsule = try Self.render(Self.legacyCapsule)
+        #expect(BoardGameControlMetrics.minTapTarget - inset * 2 <= CGFloat(capsule.height))
+    }
+
+    // MARK: - ヘルパー
+
+    /// #713 以前の帯（記号は素の Image）。
+    private static var legacyBar: some View {
+        HStack(spacing: 12) {
+            Button {} label: { Image(systemName: "backward.frame.fill") }
+            Text("3/10手").themeBody(14).monospacedDigit()
+            Button {} label: { Image(systemName: "forward.frame.fill") }
+            Spacer(minLength: 8)
+            Button {} label: { legacyCapsule }
+        }
+        .themeBody(14)
+        .padding(.horizontal, 16).padding(.vertical, 5)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private static var legacyCapsule: some View {
+        Label("もう一度", systemImage: "arrow.clockwise")
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Capsule().fill(Theme.Fill.coral))
+            .themeBody(14)
+    }
+
+    /// macOS の既定のボタン（枠付き）は iOS と高さが違うので、iOS の既定に近い枠無しで比べる。
+    private static func render(_ view: some View) throws -> CGImage {
+        let renderer = ImageRenderer(
+            content: view.buttonStyle(.borderless).environment(\.colorScheme, .light)
+        )
+        renderer.scale = 1
+        return try #require(renderer.cgImage, "描画できなかった")
+    }
 }
