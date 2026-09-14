@@ -166,12 +166,15 @@ public struct MinesweeperView: View {
                 .buttonStyle(.plain)
                 .disabled(continueRescue.isWatching)
 
+                // 広告のロード〜視聴中は押せない。押せると幕だけ閉じてモデルは負けのまま残り、
+                // 見終えたときに諦めたはずの局へコンティニューが乗る（#816）。
                 Button { showContinue = false } label: {
                     Text("あきらめる")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                 }
                 .buttonStyle(.plain)
+                .disabled(continueRescue.isWatching)
             }
             .padding(28)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
