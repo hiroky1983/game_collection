@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 
 /// 「つづき・最近」の行（#660）の**結線**。行は App ターゲットにあり GameKit のテストから
 /// import できないため、`GameCenterEntryPointTests`（#334）と同じくソースを走査して固定する。
@@ -9,37 +10,9 @@ import Testing
 /// `contains` に当たって「実装が消えても緑」になるのを防ぐ。
 @Suite("つづき・最近の行の結線")
 struct HubRecentRowWiringTests {
-    /// 「はじめの1本」の結線（`FirstPickWiringTests`・#721）も同じ読み口を使う。
-    static func appSources() throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // RecentGamesTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .deletingLastPathComponent()   // Packages/
-            .deletingLastPathComponent()   // リポジトリのルート
-        let appDir = repoRoot.appendingPathComponent("App")
-        let files = try FileManager.default
-            .contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "swift" }
-            .sorted { $0.path < $1.path }
-        #expect(!files.isEmpty, "App/ の走査に失敗している")
-        let joined = try files
-            .map { try String(contentsOf: $0, encoding: .utf8) }
-            .joined(separator: "\n")
-        return stripLineComments(joined)
-    }
-
-    /// 行頭から始まる `//` の行を落とす。文字列リテラル内の `//` は本アプリの App/ には無い。
-    private static func stripLineComments(_ source: String) -> String {
-        source
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-    }
-
     @Test("候補は Core の規則（RecentGames）から来ていて、ハブが自前で並べていない")
     func candidatesComeFromCore() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         #expect(source.contains("RecentGames.candidates("),
                 "ハブが RecentGames を使わずに候補を組んでいる（並び順がテストで固定されなくなる）")
         // 非表示にしたゲームを行から外す担保は「visibleModules を通してから渡す」の1点。
@@ -56,7 +29,7 @@ struct HubRecentRowWiringTests {
 
     @Test("候補が無ければ行そのものを描かない")
     func rowIsNotDrawnWhenEmpty() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         // 「空でないときだけ `HubRecentRow` を置く」という**結線**まで見る。片方だけの
         // contains だと、条件を外して常に描く形にしても緑のまま素通りする。
         #expect(
@@ -70,7 +43,7 @@ struct HubRecentRowWiringTests {
 
     @Test("行のカードはグリッドと同じ NavigationLink(value:) で遷移する")
     func rowUsesSameNavigationLink() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         // 自前で path を書き換える形にすると `gameDidLeave`（#158）の発火点が増え、
         // 1 プレイの数え方が狂う。
         #expect(
@@ -84,7 +57,7 @@ struct HubRecentRowWiringTests {
 
     @Test("行の見出しが VoiceOver で見出しとして読まれる")
     func headingIsExposedToVoiceOver() throws {
-        let source = try Self.appSources()
+        let source = try SourceScan.appSources()
         guard let heading = source.range(of: #"Text("つづき・最近")"#) else {
             Issue.record("行の見出しが見つからない（走査のパターンが壊れている可能性）")
             return

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 @testable import GameGomoku
 
 @Suite("GomokuBoard")
@@ -270,7 +271,7 @@ struct GomokuStrengthLabelTests {
     @Test func viewDoesNotClaimAPlyCount() throws {
         let source = try Self.viewSource()
         #expect(
-            Self.matchCount(of: #"\d+\s*手読み"#, in: source) == 0,
+            SourceScan.matchCount(of: #"\d+\s*手読み"#, in: source) == 0,
             "「N手読み」という表示が復活している（実際の探索深さは 3/4/5 で、しかも時間制限で上限に届かないことがある）"
         )
     }
@@ -282,7 +283,7 @@ struct GomokuStrengthLabelTests {
         #expect(source.contains(#"GameSetupSection("CPUの強さ")"#))
         for wording in ["浅い読み", "標準", "深い読み"] {
             #expect(
-                Self.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,
+                SourceScan.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,
                 "「\(wording)」が1箇所でない（強さ選択の文言が変わっている）"
             )
         }
@@ -291,18 +292,6 @@ struct GomokuStrengthLabelTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameGomokuTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameGomoku/GomokuView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GameGomoku/GomokuView.swift")
     }
 }

@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CoreGraphics
+import GameKitTestSupport
 @testable import GameFreeCell
 
 /// 拡大モード（会長QA #595 の項目10 = #604）。
@@ -135,8 +136,8 @@ struct FreeCellZoomTests {
 
     @Test("等倍と拡大の分岐は札の幅を決める 1 か所だけにある")
     func theZoomBranchLivesInExactlyOnePlace() throws {
-        let source = Self.strippingComments(try Self.viewSource())
-        let branches = Self.matchCount(of: #"zoomMode\s*\?"#, in: source)
+        let source = SourceScan.strippingComments(try Self.viewSource())
+        let branches = SourceScan.matchCount(of: #"zoomMode\s*\?"#, in: source)
         #expect(
             branches == Self.expectedZoomBranches,
             """
@@ -146,7 +147,7 @@ struct FreeCellZoomTests {
             """
         )
         let width = try #require(Self.declaration(of: "private func cardWidth", in: source))
-        #expect(Self.strippingComments(width).contains("zoomMode"), "札の幅の分岐がここから消えている")
+        #expect(SourceScan.strippingComments(width).contains("zoomMode"), "札の幅の分岐がここから消えている")
         #expect(width.contains("zoomedCardWidth"), "取り違え防止")
     }
 
@@ -158,8 +159,8 @@ struct FreeCellZoomTests {
     func theBoardFeedsOneMetricsToBothRows() throws {
         let source = try Self.viewSource()
         let block = try #require(Self.declaration(of: "private var board:", in: source))
-        let body = Self.strippingComments(block)
-        #expect(Self.matchCount(of: #"let metrics = "#, in: body) == 1, "metrics が複数ある")
+        let body = SourceScan.strippingComments(block)
+        #expect(SourceScan.matchCount(of: #"let metrics = "#, in: body) == 1, "metrics が複数ある")
         #expect(body.contains("topRow(metrics: metrics)"))
         #expect(body.contains("tableau(metrics: metrics)"))
         #expect(!body.contains("FreeCellMetrics.cardWidth("),
@@ -177,19 +178,14 @@ struct FreeCellZoomTests {
 
         let bar = try #require(Self.declaration(of: "private var statusBar:", in: source))
         #expect(bar.contains("zoomMode.toggle()"), "トグルが帯から消えている")
-        #expect(!Self.strippingComments(bar).contains("children: .ignore"),
+        #expect(!SourceScan.strippingComments(bar).contains("children: .ignore"),
                 "帯ごと畳むとトグルが読み上げから消える")
     }
 
     // MARK: - ヘルパー（`FreeCellTopRowTests` と同じもの）
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameFreeCellTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameFreeCell/FreeCellView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/GameFreeCell/FreeCellView.swift")
     }
 
     /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
@@ -207,20 +203,5 @@ struct FreeCellZoomTests {
             index = source.index(after: index)
         }
         return nil
-    }
-
-    /// 行コメント（`//` 以降）を落とす。禁じ手を説明した注記まで「使っている」と数えないため。
-    private static func strippingComments(_ source: String) -> String {
-        source.split(separator: "\n", omittingEmptySubsequences: false).map { line -> Substring in
-            if let slashes = line.range(of: "//") { return line[line.startIndex..<slashes.lowerBound] }
-            return line[...]
-        }.joined(separator: "\n")
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
     }
 }

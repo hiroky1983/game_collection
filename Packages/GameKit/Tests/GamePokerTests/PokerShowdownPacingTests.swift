@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GamePoker
 
 // MARK: - Mocks
@@ -147,11 +148,6 @@ struct PokerShowdownPacingTests {
     }
 
     private static func source(_ file: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GamePokerTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GamePoker/\(file)")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/GamePoker/\(file)")
     }
 }

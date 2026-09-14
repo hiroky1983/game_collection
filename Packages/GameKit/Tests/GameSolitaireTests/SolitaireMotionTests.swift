@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import CoreGraphics
 import Core
+import GameKitTestSupport
 @testable import GameSolitaire
 
 /// 配札・めくり・移動の演出（#421）。
@@ -141,64 +142,64 @@ struct SolitaireMotionTests {
 
         // 1. 配札: 伏せ札と表向き札の両方が配りの演出を通っていること（定義 1 + 呼び出し 2）。
         #expect(
-            Self.matchCount(of: #"SolitaireDealtCardView"#, in: source) >= 3,
+            SourceScan.matchCount(of: #"SolitaireDealtCardView"#, in: source) >= 3,
             "場札が SolitaireDealtCardView を経由していない"
         )
         #expect(
-            Self.matchCount(of: #"SolitaireMotion\.dealAppear\(pile:"#, in: source) == 1,
+            SourceScan.matchCount(of: #"SolitaireMotion\.dealAppear\(pile:"#, in: source) == 1,
             "配札に段差付きのアニメーションが掛かっていない"
         )
         #expect(
-            Self.matchCount(of: #"SolitaireMotion\.dealStartOffset\(pile:"#, in: source) == 1,
+            SourceScan.matchCount(of: #"SolitaireMotion\.dealStartOffset\(pile:"#, in: source) == 1,
             "配札の開始位置が山札の方向になっていない"
         )
         #expect(
-            Self.matchCount(of: #"dealing: model\.isFreshDeal"#, in: source) == 2,
+            SourceScan.matchCount(of: #"dealing: model\.isFreshDeal"#, in: source) == 2,
             "配札の演出が「配ったばかりの盤面」以外でも走る/走らない状態になっている"
         )
 
         // 2. めくり: 捨て札と伏せ札からの露出が反転ビューを通っていること（定義 1 + 呼び出し 2）。
         #expect(
-            Self.matchCount(of: #"SolitaireRevealCardView"#, in: source) >= 3,
+            SourceScan.matchCount(of: #"SolitaireRevealCardView"#, in: source) >= 3,
             "捨て札・伏せ札の露出が SolitaireRevealCardView を経由していない"
         )
         #expect(
-            Self.matchCount(of: #"SolitaireFlipCardView"#, in: source) >= 2,
+            SourceScan.matchCount(of: #"SolitaireFlipCardView"#, in: source) >= 2,
             "反転そのものを描く Animatable なビューが失われている"
         )
         #expect(
-            Self.matchCount(of: #"withGameAnimation\(SolitaireMotion\.flip\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"withGameAnimation\(SolitaireMotion\.flip\)"#, in: source) == 1,
             "めくりにアニメーションが掛かっていない"
         )
         #expect(
-            Self.matchCount(of: #"SolitaireMotion\.flipDegrees\(progress:"#, in: source) == 1,
+            SourceScan.matchCount(of: #"SolitaireMotion\.flipDegrees\(progress:"#, in: source) == 1,
             "進捗から回転角への翻訳が View に直書きされている"
         )
         // 3 枚めくり（#498）では 1 回のめくりで最大 3 枚が同時に返るので、条件は
         // 「直前の手が山めくりか」ではなく「その札が今めくれた札か」でなければならない。
         #expect(
-            Self.matchCount(of: #"flips: model\.drawnCardIDs\.contains\(card\.id\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"flips: model\.drawnCardIDs\.contains\(card\.id\)"#, in: source) == 1,
             "山めくりで出た札だけを返す条件が View 側で失われている"
         )
         #expect(
-            Self.matchCount(of: #"flips: model\.revealedCardIDs\.contains\(card\.id\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"flips: model\.revealedCardIDs\.contains\(card\.id\)"#, in: source) == 1,
             "伏せ札から出た札だけを返す条件が View 側で失われている"
         )
 
         // 3. 移動: 札の同一性が位置ではなく札に付いていること。
         //    `id: \.offset` に戻ると、動いた札は消えて生まれる扱いになり補間が効かなくなる。
         #expect(
-            Self.matchCount(of: #"ForEach\(Array\(column\.(faceDown|faceUp)\.enumerated\(\)\), id: \\\.element\.id\)"#,
+            SourceScan.matchCount(of: #"ForEach\(Array\(column\.(faceDown|faceUp)\.enumerated\(\)\), id: \\\.element\.id\)"#,
                             in: source) == 2,
             "場札の ForEach が札の id ではなく添字で並んでいる"
         )
         #expect(
-            Self.matchCount(of: #"id: \\\.offset"#, in: source) == 0,
+            SourceScan.matchCount(of: #"id: \\\.offset"#, in: source) == 0,
             "添字を identity にした ForEach が残っている（移動が補間されない）"
         )
         // 場札（伏せ・表）・捨て札・組札の 4 か所が同じ名前空間で繋がっていること。
         #expect(
-            Self.matchCount(of: #"\.matchedGeometryEffect\(id: motionID\(.+\), in: cardMotion\)"#, in: source) == 4,
+            SourceScan.matchCount(of: #"\.matchedGeometryEffect\(id: motionID\(.+\), in: cardMotion\)"#, in: source) == 4,
             "札の移動を繋ぐ matchedGeometryEffect が欠けている"
         )
 
@@ -206,32 +207,32 @@ struct SolitaireMotionTests {
         //    SwiftUI は**ビューの同一性が保たれている限り `@State` を初期化し直さない**ので、
         //    identity を切らないと 2 回目以降のめくり・配り直しの配札が黙って出なくなる。
         #expect(
-            Self.matchCount(of: #"\.id\(card\.id\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"\.id\(card\.id\)"#, in: source) == 1,
             "捨て札のビューが札ごとに作り直されない（2 回目以降のめくりが出ない）"
         )
         #expect(
-            Self.matchCount(of: #"\.id\(model\.dealSerial\)"#, in: source) == 2,
+            SourceScan.matchCount(of: #"\.id\(model\.dealSerial\)"#, in: source) == 2,
             "配り直しで場札のビューが作り直されない（同じ列に残った札の配札演出が出ない）"
         )
         #expect(
-            Self.matchCount(of: #"SolitaireMotion\.move"#, in: source) == 1,
+            SourceScan.matchCount(of: #"SolitaireMotion\.move"#, in: source) == 1,
             "盤面の移動にアニメーションが掛かっていない"
         )
         // 段差を `.offset` に戻すとレイアウト上の位置が変わらず、移動の補間が
         // 「札の位置」ではなく「列の上端」どうしを結んでしまう。
         #expect(
-            Self.matchCount(of: #"\.padding\(\.top, restY\)"#, in: source) == 2,
+            SourceScan.matchCount(of: #"\.padding\(\.top, restY\)"#, in: source) == 2,
             "場札の段差が余白ではなく offset に戻っている"
         )
 
         // Reduce Motion に追従しない素の `.animation(` / `withAnimation(` が
         // 紛れ込んでいないこと（#210）。
         #expect(
-            Self.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
+            SourceScan.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
             "Reduce Motion に追従しない .animation( が使われている"
         )
         #expect(
-            Self.matchCount(of: #"[^e]withAnimation\("#, in: source) == 0,
+            SourceScan.matchCount(of: #"[^e]withAnimation\("#, in: source) == 0,
             "Reduce Motion に追従しない withAnimation( が使われている"
         )
     }
@@ -240,13 +241,6 @@ struct SolitaireMotionTests {
 
     private static func viewSource() throws -> String {
         try SolitaireSources.joined()
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
     }
 }
 

@@ -1,6 +1,7 @@
 import Testing
 import CoreGraphics
 import Foundation
+import GameKitTestSupport
 @testable import GamePoker
 
 /// ポーカーのアクションボタンのタップ標的（#207）。
@@ -22,7 +23,7 @@ struct PokerMetricsTests {
         // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する
         // （麻雀ソリティアの `gameControlButtonsMeetTapTarget` と同じやり方）。
         let source = try Self.viewSource()
-        let wired = Self.matchCount(
+        let wired = SourceScan.matchCount(
             of: #"minHeight:\s*PokerMetrics\.actionButtonMinHeight"#, in: source
         )
         #expect(wired == 1, "actionButton が PokerMetrics.actionButtonMinHeight を使っていない（実測 \(wired) 箇所）")
@@ -30,7 +31,7 @@ struct PokerMetricsTests {
         // 高さを決めていた元の `.padding(.vertical, 10)` が残っていると、下限を外しても
         // 見た目が 37pt で保たれてしまい上の検証が空振りしうるので、消えていることも見る。
         #expect(
-            Self.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: Self.actionButtonSource(source)) == 0,
+            SourceScan.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: Self.actionButtonSource(source)) == 0,
             "actionButton に高さを決める .padding(.vertical, 10) が残っている"
         )
     }
@@ -40,7 +41,7 @@ struct PokerMetricsTests {
     @Test("主要な操作はすべて actionButton を経由している")
     func allActionsGoThroughActionButton() throws {
         let source = try Self.viewSource()
-        let calls = Self.matchCount(of: #"\bactionButton\("#, in: source)
+        let calls = SourceScan.matchCount(of: #"\bactionButton\("#, in: source)
         // 定義 1 箇所 + 呼び出し 9 箇所。
         #expect(calls >= 10, "actionButton の定義・呼び出しが想定より少ない（実測 \(calls) 箇所）")
 
@@ -59,7 +60,7 @@ struct PokerMetricsTests {
         ] {
             let pattern = #"actionButton\([^\n]*"# + NSRegularExpression.escapedPattern(for: label)
             #expect(
-                Self.matchCount(of: pattern, in: source) >= 1,
+                SourceScan.matchCount(of: pattern, in: source) >= 1,
                 "\(label) の操作が actionButton を経由していない（個別に組み直されると 44pt を外れる）"
             )
         }
@@ -68,12 +69,7 @@ struct PokerMetricsTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GamePokerTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GamePoker/PokerView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/GamePoker/PokerView.swift")
     }
 
     /// `actionButton` の定義本文だけを切り出す（他の場所の `.padding(.vertical, 10)` を拾わないため）。
@@ -82,12 +78,5 @@ struct PokerMetricsTests {
         let rest = source[start.lowerBound...]
         guard let end = rest.range(of: "\n    }\n") else { return String(rest) }
         return String(rest[..<end.upperBound])
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
     }
 }

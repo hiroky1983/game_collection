@@ -1,6 +1,7 @@
 import Testing
 import CoreGraphics
 import Foundation
+import GameKitTestSupport
 @testable import GameBlackjack
 
 /// ブラックジャックの操作ボタンのタップ標的と押下フィードバック（#709）。
@@ -24,18 +25,18 @@ struct BlackjackMetricsTests {
         let button = Self.actionButtonSource(try Self.viewSource())
         #expect(!button.isEmpty, "actionButton の定義が見つからない")
         #expect(
-            Self.matchCount(of: #"minHeight:\s*BlackjackMetrics\.actionButtonMinHeight"#, in: button) == 1,
+            SourceScan.matchCount(of: #"minHeight:\s*BlackjackMetrics\.actionButtonMinHeight"#, in: button) == 1,
             "actionButton が BlackjackMetrics.actionButtonMinHeight を使っていない"
         )
 
         // 高さを決めていた元の `.padding(.vertical, 10)` が残っていると、下限を外しても
         // 見た目が 37pt で保たれてしまい上の検証が空振りしうるので、消えていることも見る。
         #expect(
-            Self.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: button) == 0,
+            SourceScan.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: button) == 0,
             "actionButton に高さを決める .padding(.vertical, 10) が残っている"
         )
         #expect(
-            Self.matchCount(of: #"\.buttonStyle\(\.pop\)"#, in: button) == 1,
+            SourceScan.matchCount(of: #"\.buttonStyle\(\.pop\)"#, in: button) == 1,
             "actionButton が押下フィードバック付きの .pop になっていない"
         )
     }
@@ -49,7 +50,7 @@ struct BlackjackMetricsTests {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
         #expect(
-            Self.matchCount(of: #"\.buttonStyle\(\.plain\)"#, in: code) == 0,
+            SourceScan.matchCount(of: #"\.buttonStyle\(\.plain\)"#, in: code) == 0,
             "BlackjackView に .buttonStyle(.plain) が残っている"
         )
     }
@@ -72,7 +73,7 @@ struct BlackjackMetricsTests {
         ] {
             let pattern = #"actionButton\(\s*"# + NSRegularExpression.escapedPattern(for: label)
             #expect(
-                Self.matchCount(of: pattern, in: source) >= 1,
+                SourceScan.matchCount(of: pattern, in: source) >= 1,
                 "\(label) の操作が actionButton を経由していない（個別に組み直されると 44pt を外れる）"
             )
         }
@@ -81,12 +82,7 @@ struct BlackjackMetricsTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameBlackjackTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameBlackjack/BlackjackView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/GameBlackjack/BlackjackView.swift")
     }
 
     /// `actionButton` の定義本文だけを切り出す（他の場所の `.padding(.vertical, 10)` を拾わないため）。
@@ -95,12 +91,5 @@ struct BlackjackMetricsTests {
         let rest = source[start.lowerBound...]
         guard let end = rest.range(of: "\n    }\n") else { return String(rest) }
         return String(rest[..<end.upperBound])
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
     }
 }
