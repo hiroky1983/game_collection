@@ -387,12 +387,16 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .boarCharging:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
             phase = .falling
             fallElapsed = 0
+            // 死因を解析に覚えさせる（#796）。イベントは出ず、このプレイの `game_end` に載る。
+            if let cause = field.lastMissCause {
+                services?.gameDidMiss(gameID: Self.gameID, cause: cause)
+            }
             // エンドレスはミスした時点で 1 回が決着する（#675）。記録は演出を待たずに確定させ、
             // 演出明けの `.failed` のリザルトに出す。
             if mode == .endless { finishEndlessRun(outcome: .loss) }
@@ -534,15 +538,55 @@ public final class RunnerModel {
             // `.ready` のまま渡すので、実機・シミュレータで普通にタップして遊べる。
             applyDebugStage(.debugShowcase)
         case "bird":
-            // 鳥の下をくぐっている瞬間で止める（#671 の受け入れ条件「接地して走れば鳥の下を
-            // 通り抜けられる」の画）。本番のステージでは鳥は 5・6 面と 13〜15・18 面にしか出ないので、
+            // 飛び立つ前（羽ばたきの予備動作中）で止める（#796 の受け入れ条件の画 1/3）。
             // ショーケース（`RunnerStage.debugShowcase`）の鳥を使う。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
+                guard let bird = model.field.stage.hazards.first(where: { $0.kind == .bird }) else { return true }
+                return model.field.distance >= bird.birdTakeoffDistance - RunnerRules.birdFlutterDistance / 2
+            })
+            isFrozenForCapture = true
+        case "bird-low":
+            // 低く飛ぶ鳥を跳び越している瞬間（画 2/3）。空中で鳥の真上に来たところで止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
                 let field = model.field
-                guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }) else { return true }
-                return field.isGrounded && field.playerMaxX > bird.start && field.playerMinX < bird.end
+                guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
+                      let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
+                return !field.isGrounded && field.playerMaxX > frame.start && field.playerMinX < frame.end
+            })
+            isFrozenForCapture = true
+        case "bird-up":
+            // 跳び越したあと、鳥が上がっていく画（3/3）。帯の下端が 13 に届いたところで止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
+                      let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
+                return field.isGrounded && frame.bottom >= RunnerHazardKind.birdHighBottom
+            })
+            isFrozenForCapture = true
+        case "dog":
+            // 犬が立ち止まって吠えている瞬間（#800）。止まった直後・踏み切る前で止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                guard let dog = model.field.stage.hazards.first(where: { $0.kind == .dog }) else { return true }
+                return model.field.isGrounded && model.field.distance >= dog.dogStopDistance + 1
+            })
+            isFrozenForCapture = true
+        case "boar":
+            // イノシシが画面に入って突進している瞬間（#801）。出会う手前で止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard let boar = field.stage.hazards.first(where: { $0.kind == .boar }),
+                      let frame = boar.frame(atRunnerDistance: field.distance) else { return false }
+                return field.isGrounded && frame.start - field.distance < 40
             })
             isFrozenForCapture = true
         case "platform":

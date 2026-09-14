@@ -78,8 +78,9 @@ public enum RunnerEndlessCourse {
 
     /// 生成に使う部品と、その重み・解禁距離。
     ///
-    /// **解禁距離はステージ制の初出に合わせてある**（穴 2 タイルは 3 面、高い障害物は 4 面、
-    /// 鳥は 13 面、台座と床は 16 面）。初めて遊ぶ人が導入で一通り見てから難しい部品に会う、
+    /// **解禁距離はステージ制の初出に合わせてある**（穴 2 タイルは 3 面、高い障害物・犬は 4 面、
+    /// 鳥は 5 面だが「中盤」の決裁（#796）で 8 区画ぶん後ろ、イノシシは「後半」（#801）で
+    /// 台座・床より後、台座と床は 16 面）。初めて遊ぶ人が導入で一通り見てから難しい部品に会う、
     /// という順序をランダムでも保つため。
     ///
     /// 3 タイルの穴（`3`）だけは距離ではなく**速さ**で解禁する。跳べる幅は `speed × jumpAirTime`
@@ -92,10 +93,12 @@ public enum RunnerEndlessCourse {
         ("n", 3, 0),
         ("2", 2, 1_024),
         ("t", 2, 2_048),
+        ("d", 2, 2_048),
         ("3", 2, 6_144),
         ("b", 2, 8_192),
         (RunnerStage.platformSymbol, 1, 10_240),
         (RunnerStage.boostFloorSymbol, 1, 10_240),
+        ("i", 2, 12_288),
     ]
 
     /// 平地の区画にスピードアップアイテムを置く割合（1/6）。
@@ -161,12 +164,24 @@ public enum RunnerEndlessCourse {
                     length: Double(spec.tiles) * RunnerRules.tileWidth
                 )
                 // 越えられるかは区画の手前の（遅い）速さで、間隔は先の（速い）速さで判定する
-                // （`RunnerStage.speed(at:)` のドキュメント参照）。
+                // （`RunnerStage.speed(at:)` のドキュメント参照）。先の速さは**障害の右端から
+                // 2 区画先**で取る——`RunnerEndlessCourseTests` が検め直すのと同じ地点。区画の
+                // 左端から 2 区画先で取ると 0.05 ほど遅い速さで判定することになり、飛び立つ鳥
+                // （#796）の直後の高い岩のように余白が 0.01 単位まで削れる並びで、生成は通るのに
+                // 検算で落ちる。
                 let before = speed(atDistance: distance)
-                let after = speed(atDistance: distance + segmentWidth * 2)
+                let after = speed(atDistance: candidate.end + segmentWidth * 2)
                 if canPlace(candidate, after: lastHazard, speedBefore: before, speedAfter: after) {
                     symbols.append(symbol)
-                    lastHazard = candidate
+                    // イノシシの次の区画に岩を置くと、イノシシは岩の右側で止まって岩と一続きになる
+                    // （#801・`RunnerStage.boarStop`）。次の障害との間隔は**止まったイノシシの右端**から
+                    // 測らないと、岩から測った 64 のうち 4 が埋まっているぶん足りなくなる。
+                    if let boar = lastHazard, boar.kind == .boar, candidate.kind.isRock,
+                       candidate.end <= boar.boarSpawn {
+                        lastHazard = RunnerHazard(kind: .boar, start: boar.start, length: boar.length, stopAt: candidate.end)
+                    } else {
+                        lastHazard = candidate
+                    }
                 } else {
                     symbols.append("-")
                 }
@@ -194,73 +209,72 @@ public enum RunnerEndlessCourse {
 
     /// `hazard` を `previous` の次に置いてよいか。
     ///
-    /// `RunnerStageTests` の `everyHazardIsClearable` / `hazardsAreFarEnoughApart` /
-    /// `birdsNeverForceAJump` と同じ式。速さは 2 つ受け取る——越えられるかは遅いほど厳しく、
-    /// 間隔は速いほど厳しいので、それぞれ厳しい側で判定する。
+    /// `RunnerStageTests` の `everyHazardIsClearable` / `hazardsAreFarEnoughApart` と同じ式で、
+    /// 動く障害（#796〜#801）は**走者から見て等価な静止区間**（`RunnerHazard.encounter`）で見る。
+    /// 速さは 2 つ受け取る——越えられるかは遅いほど厳しく、間隔は速いほど厳しいので、
+    /// それぞれ厳しい側で判定する。
+    ///
+    /// イノシシの次の区画に岩を置くと、イノシシはその岩の右側で止まって**岩と一続きの障害**になる
+    /// （`RunnerStage.boarStop`）。その場合は間隔ではなく「岩の高さを保ったまま岩＋イノシシを
+    /// 越えきれるか」で判定する（`isClearableWithBoarBehind`）。
     static func canPlace(
         _ hazard: RunnerHazard, after previous: RunnerHazard?,
         speedBefore: Double, speedAfter: Double
     ) -> Bool {
         guard isClearable(hazard, speed: speedBefore) else { return false }
         guard let previous else { return true }
-        guard hasLandingGap(from: previous, to: hazard, speed: speedAfter) else { return false }
-        let halfWidth = RunnerField.Metrics.playerHalfWidth
-        if hazard.kind == .bird {
-            // 前の障害を跳んだ着地が、鳥の帯の手前で終わること（接地したままくぐる）。
-            let landing = previous.start
-                - RunnerAutoPilot.lead(for: previous, speed: speedAfter)
-                + speedAfter * RunnerRules.jumpAirTime
-            guard landing < hazard.start - halfWidth else { return false }
+        if let previous = previous.kind == .boar ? previous : nil,
+           hazard.kind.isRock, hazard.end <= previous.boarSpawn {
+            return isClearableWithBoarBehind(hazard, speed: speedBefore)
         }
-        if previous.kind == .bird {
-            // この障害の踏み切りが、鳥の帯を過ぎてから始まること。
-            let takeOff = hazard.start - RunnerAutoPilot.lead(for: hazard, speed: speedAfter)
-            guard takeOff > previous.end + halfWidth else { return false }
-        }
-        return true
+        return hasLandingGap(from: previous, to: hazard, speed: speedAfter)
+    }
+
+    /// 岩の右側で止まったイノシシ（#801）ごと、1 回のジャンプで越えられるか。
+    ///
+    /// 岩の上端を越える高さのまま、岩＋イノシシ（1 タイル）＋走者の幅を通り抜けられれば
+    /// 確実に越えられる（イノシシは岩より低いので、これは十分条件）。
+    static func isClearableWithBoarBehind(_ rock: RunnerHazard, speed: Double) -> Bool {
+        let window = RunnerRules.airTime(above: rock.height + RunnerAutoPilot.clearance)
+        let overlap = (rock.length + RunnerRules.tileWidth + RunnerField.Metrics.playerWidth) / speed
+        return window > overlap
     }
 
     /// 左端が `start` の台座を `previous` の次に置いてよいか。
     ///
     /// 手前を素の平地にする規則だけでも実際には常に足りる（区画 1 つ = 64 に対して要る余白は
     /// 十数単位）が、暗黙の余裕に寄りかからず、障害と同じ形で明示的に判定する:
-    /// 前の障害を跳んだ着地が台座への踏み切り位置より手前で終わり、前が鳥ならその踏み切りが
-    /// 帯の外にあること（`RunnerStageTests.birdsNeverForceAJump` の台座の条項と同じ式）。
+    /// 前の障害（動く障害は等価な静止区間）を跳んだ着地が台座への踏み切り位置より手前で終わること。
     static func canPlacePlatform(at start: Double, after previous: RunnerHazard?, speed: Double) -> Bool {
         guard let previous else { return true }
         let rise = RunnerRules.riseTime(to: RunnerRules.platformHeight + RunnerAutoPilot.clearance)
         let takeOff = start - RunnerAutoPilot.baseLead - speed * rise
-        let landing = previous.start
+        let landing = previous.encounter.start
             - RunnerAutoPilot.lead(for: previous, speed: speed)
             + speed * RunnerRules.jumpAirTime
-        guard landing < takeOff else { return false }
-        if previous.kind == .bird {
-            guard takeOff > previous.end + RunnerField.Metrics.playerHalfWidth else { return false }
-        }
-        return true
+        return landing < takeOff
     }
 
-    /// 押さない（最小の）ジャンプで越えられるか。鳥は「接地でくぐれて、跳べば当たる」か。
+    /// 押さない（最小の）ジャンプで越えられるか。動く障害は等価な静止区間（`encounter`）で見る。
     static func isClearable(_ hazard: RunnerHazard, speed: Double) -> Bool {
+        let encounter = hazard.encounter
         switch hazard.kind {
         case .pit:
             let range = speed * RunnerRules.jumpAirTime
             let needed = RunnerAutoPilot.lead(for: hazard, speed: speed) + hazard.length
             return range > needed + RunnerRules.tileWidth
-        case .lowBlock, .tallBlock:
-            let window = RunnerRules.airTime(above: hazard.height + RunnerAutoPilot.clearance)
-            let overlap = (hazard.length + RunnerField.Metrics.playerWidth) / speed
-            return window > overlap && hazard.height < RunnerRules.jumpApex
-        case .bird:
-            let clearance = hazard.bottom - RunnerField.Metrics.playerHeight
-            return clearance > 0 && clearance < RunnerRules.jumpApex
+        case .lowBlock, .tallBlock, .bird, .dog, .boar:
+            let window = RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance)
+            let overlap = (encounter.length + RunnerField.Metrics.playerWidth) / speed
+            return window > overlap && encounter.height < RunnerRules.jumpApex
         }
     }
 
     /// 前の障害を跳んで着地してから、次の踏み切りに入れるだけの間隔があるか。
+    /// 動く障害は等価な静止区間（`encounter`）で見る。
     static func hasLandingGap(from previous: RunnerHazard, to next: RunnerHazard, speed: Double) -> Bool {
         let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.lead(for: next, speed: speed)
-        return next.start - previous.start > needed
+        return next.encounter.start - previous.encounter.start > needed
     }
 }
 

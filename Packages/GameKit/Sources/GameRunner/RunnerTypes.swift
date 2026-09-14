@@ -1,10 +1,15 @@
-import Foundation
 import Core
+import Foundation
 
 /// コースに置く障害の種類（#494）。
 ///
 /// アクション枠の 2 本目。ブロック崩し（#463）と同じく **`SKPhysicsBody` は使わず**、
 /// 当たり判定は純粋な値型で書く（`docs/action-game-foundation.md`）。
+///
+/// 岩・穴は置いた場所から動かない。鳥（#796）・犬（#800）・イノシシ（#801）は
+/// **位置が走者の進み（距離）で決まる「動く障害」**で、いまの当たり判定は
+/// `RunnerHazard.frame(atRunnerDistance:)` が返す（時計ではなく距離で決まるので、
+/// 同じ操作からは常に同じ軌道になり、自動操縦のテストにそのまま乗る）。
 public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable {
     /// 穴。**中心が穴の上にある状態で足が地面まで落ちる**とミスになる。
     ///
@@ -15,93 +20,281 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     case lowBlock
     /// 高い障害物。ジャンプの頂点近くを通さないと当たる。
     case tallBlock
-    /// 鳥（会長QA「鳥とか右から車が来るとか要素はいる」）。
+    /// 飛び立つ鳥（#796・会長決裁 2026-09-14「置物からどれかにしたい」）。
     ///
-    /// **岩と違い、地面から生えていない「帯」の障害**（#671・#635 で会長決裁 2026-09-12）。
-    /// 判定は `bottom`（13）から `height`（≒ 17.34 = 絵の頂点・`birdBandTop`）までの
-    /// 空中の帯で、地面との間は空いている:
+    /// #671 までは帯 13〜絵の頂点に浮いている置物で、走っていれば当たらず何もしなければ
+    /// 安全——障害として機能していなかった。いまは**地面に止まっていて、おじさんが手前
+    /// `RunnerRules.birdTriggerDistance`（6 タイル）に入ると右上へ飛び立つ**:
     ///
-    /// - **接地していれば安全**（走者の高さ 11 < 13 なので頭がつかえずくぐれる）
-    /// - **跳ぶと当たる**（最小のジャンプでも頂点は `RunnerRules.jumpApex` ≒ 14.06 まで上がり、
-    ///   高さ 2 を超えた時点で頭が帯へ入る。単発では足が上端を越えられないので抜けられない）
-    /// - **2 段ジャンプなら上を抜けられる**（足が上端より上にいるあいだは安全）
+    /// - 飛び立ってから `RunnerRules.birdLowDistance`（3 タイル）は**低い岩と同じ高さ**
+    ///   （上端 `birdLowTop` = 5）を飛ぶ。ここで走者と出会うので、**何もしなければ当たり、
+    ///   普通のジャンプで跳び越せる**（岩と同じ成立条件が使える）
+    /// - そこから帯 `birdHighBottom`（13）〜その上 `birdBandHeight` まで上がり、画面外へ抜ける
+    /// - 早く跳びすぎて降りてくるところに鳥がいても、**2 段ジャンプで上を抜けられる**
     ///
-    /// つまり岩・穴が「跳んで越える」障害なのに対し、鳥は**跳ばずにくぐる**障害で、
-    /// 「跳ぶか跳ばないか」の判断そのものを問う。高さ 7 の“低い岩”のままでは
-    /// 「地に足ついてるから岩と変わらない」（会長QA 2026-09-10）が再発する。
-    /// ジャンプ物理は一切変えていない（#635 決裁）ので、15 ステージの他の成立条件は
-    /// そのまま据え置ける。
+    /// 動きは走者の距離で決まる（`RunnerHazard.frame(atRunnerDistance:)`）。距離で決まる以上、
+    /// 走者と鳥の相対軌道は 1 通りしか無く、選べるのは踏み切る時機だけ——「遅れた跳び」を
+    /// 2 段目で救うことは物理上できない（2 段目は上昇を速めない）ので、2 段ジャンプの必然は
+    /// 「早すぎた 1 段目」の救済として出る。
     case bird
+    /// 犬（#800）。おじさんと**同じ向きに走り**、遅いので追いつく。
+    ///
+    /// 追いつく直前（手前 `RunnerRules.dogStopGap`）に**立ち止まって吠える**。止まった犬は低い岩
+    /// （高さ 5）と同じで、跳ぶだけ。止まる位置が区画の中央（`RunnerHazard.start`）なので、
+    /// 隣の障害との間隔は低い岩と同じ物差しで成立する。走っているあいだは追いつけない
+    /// （間隔は `dogTriggerDistance` から `dogStopGap` へ縮むだけで 0 にならない）ので、
+    /// 当たり判定として効くのは止まってから。
+    case dog
+    /// イノシシ（#801）。**右から突進**してくる（犬の難しい版）。
+    ///
+    /// 走者の手前 `RunnerRules.boarChargeDistance` で「ドドド」の手応え（`RunnerEvent.boarCharging`）
+    /// と土煙を出し、同じ距離だけ向こうから走者と同じ速さで向かってくる——相対速度は足し算で
+    /// 2 倍、出会う地点は区画の中央（`RunnerHazard.start`）。高さは低い岩と同じ 5 で、跳べば越えられる。
+    /// **岩にぶつかると止まる**（`RunnerHazard.stopAt`）: 出会う地点と出現点のあいだに岩があれば、
+    /// その岩の右側で止まって低い岩と同じ置物になる（「岩の手前に置くと岩で止まる」読み）。
+    case boar
 
     /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
-    /// 0 でないのは鳥だけで、`RunnerField.isHittingBlock` はこの値のおかげで
-    /// 「岩は従来どおりの高さ判定・鳥だけ帯判定」を 1 本の式で書ける。
+    /// 鳥は「低く飛んでいるあいだ」の値（帯の厚みは絵の縦の寸法 `birdBandHeight`）。
+    /// 走者の高さ 11 より低いので、低い鳥の下はくぐれない——岩と同じく跳んで越える。
     public var bottom: Double {
         switch self {
-        case .pit, .lowBlock, .tallBlock: return 0
-        // 走者の高さ（`RunnerField.Metrics.playerHeight` = 11）より高くしないと、
-        // 接地したままでは絶対にくぐれない障害になる。
-        case .bird:                       return 13
+        case .pit, .lowBlock, .tallBlock, .dog, .boar: return 0
+        case .bird:                                    return Self.birdLowTop - Self.birdBandHeight
         }
     }
 
     /// 当たり判定の**上端**（地面からの高さ）。穴は高さを持たない。
     ///
-    /// 地面から生えている障害（`bottom` が 0）の上端は**ジャンプの頂点
-    /// （`RunnerRules.jumpApex`）より十分低く**すること。越えられない高さを置くと
+    /// **ジャンプの頂点（`RunnerRules.jumpApex`）より十分低く**すること。越えられない高さを置くと
     /// ステージが詰む。`RunnerStageTests` が全ステージで機械的に確かめる。
-    /// 鳥だけは「跳ばずにくぐる」障害なのでこの上限が効かず、**絵の頂点**（`birdBandTop`）に
-    /// 合わせてある。
+    /// 動く障害（鳥・犬・イノシシ）は**走者と出会うときの上端**——鳥は低く飛んでいるあいだの
+    /// 上端で、上がってからの帯（`birdHighBottom` から上）は走者が通り過ぎたあとの見た目。
     public var height: Double {
         switch self {
-        case .pit:       return 0
-        case .lowBlock:  return 5
-        case .tallBlock: return 9
-        case .bird:      return Self.birdBandTop
+        case .pit:               return 0
+        case .lowBlock:          return 5
+        case .tallBlock:         return 9
+        case .bird, .dog, .boar: return Self.birdLowTop
         }
     }
 
-    /// 鳥の帯の上端。**絵（`RunnerBirdArt`）が縦に占める寸法に合わせて導出する**
-    /// （#671・会長決裁 2026-09-12）。
-    ///
-    /// #622 D案の決裁値は 22 だったが、幅 1 タイルの鳥は縦横比の都合で 4.34 しか埋められず、
-    /// **絵より 4.66 単位上まで見えない即死の帯**が残っていた。「見えている鳥を跳び越したのに
-    /// 当たる」は #609 で潰したはずの理不尽なので、上端を絵に合わせて下げた。
-    ///
-    /// **本質は下端（`bottom` = 13）**——接地ならくぐれる／跳べば当たる、という #622 D案の
-    /// 設計はそこで決まっており、1 ミリも動かしていない（単発ジャンプの頂点 14.06 では
-    /// 足が上端を越えられないので、跳べば必ず当たる）。2 段ジャンプで上を抜けられる余裕が
-    /// 広がるのは意図した結果で、上手い人の抜け道として残す。
+    /// 地面を走る動物か（犬・イノシシ）。解析の死因（`missCause`）と絵の置き場の分岐に使う。
+    public var isAnimal: Bool { self == .dog || self == .boar }
+
+    /// 岩か（イノシシが止まる相手・#801）。
+    public var isRock: Bool { self == .lowBlock || self == .tallBlock }
+
+    /// この障害にやられたときの死因（`game_end` の `cause`・#796）。語彙は Core の enum に閉じる。
+    public var missCause: AnalyticsEndCause {
+        switch self {
+        case .pit:                  return .pit
+        case .lowBlock, .tallBlock: return .rock
+        case .bird:                 return .bird
+        case .dog, .boar:           return .animal
+        }
+    }
+
+    /// 鳥が低く飛ぶあいだの帯の上端。**低い岩と同じ**（#796 の仕様「低い岩と同じ高さ（5）」）。
+    public static var birdLowTop: Double { lowBlock.height }
+    /// 鳥が上がりきったときの帯の下端（#622 D案の 13）。ここまで上がれば接地した走者の頭
+    /// （`RunnerField.Metrics.playerHeight` = 11）はつかえない。
+    public static let birdHighBottom: Double = 13
+    /// 鳥の帯の厚み。**絵（`RunnerBirdArt`）が縦に占める寸法に合わせて導出する**（#671）。
     ///
     /// 値を書き写さず計算させているのは、絵を描き替えたときに帯だけ古い値で取り残されるのを
-    /// 防ぐため。**この一致は `BirdArtTests` が「絵の上端 == 帯の上端」で固定する**。
-    /// 1 度だけ評価する `static let` にしてあるのは、`isHittingBlock` が毎サブステップ
-    /// 障害ごとに `height` を読むため（絵を組み直すコストをそこに持ち込まない）。
-    static let birdBandTop: Double = bird.bottom
-        + RunnerBirdArt(width: RunnerRules.tileWidth).bandHeight
+    /// 防ぐため。**この一致は `BirdArtTests` が「絵の高さ == 帯の厚み」で固定する**。
+    /// 1 度だけ評価する `static let` にしてあるのは、`frame(atRunnerDistance:)` が毎サブステップ
+    /// 障害ごとに読むため（絵を組み直すコストをそこに持ち込まない）。
+    static let birdBandHeight: Double = RunnerBirdArt(width: RunnerRules.tileWidth).bandHeight
+}
+
+/// 動く障害の**いまの当たり判定**（#796）。座標はワールド座標、高さは地面からの相対値。
+public struct RunnerHazardFrame: Equatable, Sendable {
+    /// 左端の x。
+    public let start: Double
+    /// 右端の x。
+    public let end: Double
+    /// 帯の下端。
+    public let bottom: Double
+    /// 帯の上端。
+    public let top: Double
+    /// 走者が 1 進むあいだにこの障害が動く量（右が正・静止は 0）。自動操縦が踏み切りの
+    /// 余裕を「相対速度」で見積もるのに使う（`RunnerAutoPilot.lead`）。
+    public let advance: Double
+
+    public init(start: Double, end: Double, bottom: Double, top: Double, advance: Double) {
+        self.start = start
+        self.end = end
+        self.bottom = bottom
+        self.top = top
+        self.advance = advance
+    }
+}
+
+/// 動く障害を、**走者から見て等価な静止した障害**に読み替えたもの（#796）。
+///
+/// 相対軌道が距離で一意に決まるので、「走者の前端が初めて触れる地点」と「後端が抜ける地点」は
+/// 静止した岩と同じく 1 つの区間 `[start, start + length]` に写せる（長さは負にもなる——
+/// 向かってくるイノシシは走者の体の中を通り抜けるので、重なっている距離は体より短い）。
+/// ステージの成立条件（`RunnerStageTests`）とエンドレスの生成（`RunnerEndlessCourse.canPlace`）は
+/// この換算で岩と同じ式を使う。**実際の当たり判定（`frame`）と一致することは
+/// `RunnerHazardMotionTests` が走査で確かめる。**
+public struct RunnerHazardEncounter: Equatable, Sendable {
+    public let start: Double
+    public let length: Double
+    /// 出会うときの上端。
+    public let height: Double
+
+    public var end: Double { start + length }
 }
 
 /// コース上の障害 1 つ。座標はステージ先頭からのワールド座標（左が 0）。
 public struct RunnerHazard: Equatable, Sendable {
     public let kind: RunnerHazardKind
-    /// 左端の x。
+    /// 左端の x。動く障害では**走者と出会う地点**（鳥は止まっている位置、犬は立ち止まる位置、
+    /// イノシシは出現点と対称な出会いの地点）。区画の中央に置かれる（`RunnerStage.makeHazards`）。
     public let start: Double
     /// 長さ。レイアウトの連続した同じ文字がここでまとめられる。
     public let length: Double
+    /// イノシシが止まる x（ぶつかる岩の右端・#801）。岩が無ければ nil。
+    /// `RunnerStage.makeHazards` が岩の並びから決める（`RunnerStage.boarStop(for:among:)`）。
+    public let stopAt: Double?
 
-    public init(kind: RunnerHazardKind, start: Double, length: Double) {
+    public init(kind: RunnerHazardKind, start: Double, length: Double, stopAt: Double? = nil) {
         self.kind = kind
         self.start = start
         self.length = length
+        self.stopAt = stopAt
     }
 
     /// 右端の x。
     public var end: Double { start + length }
-    /// 下端の高さ（地面からの相対値）。地面から生えている障害は 0、鳥だけ 13。
+    /// 下端の高さ（地面からの相対値）。地面から生えている障害は 0。
     public var bottom: Double { kind.bottom }
     /// 上端の高さ（地面からの相対値）。穴は 0。
     public var height: Double { kind.height }
+
+    // MARK: 動く障害（#796 / #800 / #801）
+
+    /// 鳥が飛び立つ瞬間の走者の距離（中心 x）。**前端**（`playerMaxX`）が手前 6 タイルに入った瞬間。
+    public var birdTakeoffDistance: Double {
+        start - RunnerRules.birdTriggerDistance - RunnerField.Metrics.playerHalfWidth
+    }
+
+    /// 鳥の飛行距離（飛び立ってから右へ進んだ量）。飛び立つ前は 0。
+    public func birdTravel(atRunnerDistance distance: Double) -> Double {
+        max(0, RunnerRules.birdAdvance * (distance - birdTakeoffDistance))
+    }
+
+    /// 犬が走り出す前に立っている x。止まる位置（`start`）から走る分だけ手前。
+    public var dogOrigin: Double {
+        start - RunnerRules.dogAdvance * RunnerRules.dogRunDistance
+    }
+    /// 犬が走り出す瞬間の走者の距離（前端が `dogTriggerDistance` に入った瞬間）。
+    public var dogStartDistance: Double {
+        dogOrigin - RunnerRules.dogTriggerDistance - RunnerField.Metrics.playerHalfWidth
+    }
+    /// 犬が立ち止まって吠える瞬間の走者の距離。
+    public var dogStopDistance: Double { dogStartDistance + RunnerRules.dogRunDistance }
+
+    /// イノシシの予告（手応え・土煙）が出て突進が始まる走者の距離。
+    /// 前端が出会いの地点 `start` の `boarChargeDistance` 手前に入った瞬間。
+    public var boarChargeStartDistance: Double {
+        start - RunnerRules.boarChargeDistance - RunnerField.Metrics.playerHalfWidth
+    }
+    /// イノシシの出現点。出会いの地点と対称。
+    public var boarSpawn: Double { start + RunnerRules.boarChargeDistance }
+
+    /// 走者の中心が `distance` にあるときの当たり判定。**まだ現れていない**障害（突進前の
+    /// イノシシ）は nil。岩・穴は常に置いた場所そのもの。
+    public func frame(atRunnerDistance distance: Double) -> RunnerHazardFrame? {
+        switch kind {
+        case .pit, .lowBlock, .tallBlock:
+            return RunnerHazardFrame(start: start, end: end, bottom: bottom, top: height, advance: 0)
+        case .bird:
+            let travel = birdTravel(atRunnerDistance: distance)
+            // 低く飛ぶ区間を過ぎたぶんだけ、帯の下端を 13 へ向けて一定の傾きで上げる。
+            // 13 に達しても止めない（そのまま画面外へ抜ける）。
+            let climb = max(0, travel - RunnerRules.birdLowDistance) * RunnerRules.birdClimbSlope
+            let bandBottom = bottom + climb
+            return RunnerHazardFrame(
+                start: start + travel, end: end + travel,
+                bottom: bandBottom, top: bandBottom + RunnerHazardKind.birdBandHeight,
+                advance: travel > 0 ? RunnerRules.birdAdvance : 0
+            )
+        case .dog:
+            let progress = min(RunnerRules.dogRunDistance, max(0, distance - dogStartDistance))
+            let x = dogOrigin + RunnerRules.dogAdvance * progress
+            let running = progress > 0 && progress < RunnerRules.dogRunDistance
+            return RunnerHazardFrame(
+                start: x, end: x + length, bottom: 0, top: height,
+                advance: running ? RunnerRules.dogAdvance : 0
+            )
+        case .boar:
+            guard distance >= boarChargeStartDistance else { return nil }
+            let charging = boarSpawn - RunnerRules.boarAdvance * (distance - boarChargeStartDistance)
+            // 岩にぶつかったらそこで止まる（岩の右側に並ぶ）。
+            if let stopAt, charging <= stopAt {
+                return RunnerHazardFrame(start: stopAt, end: stopAt + length, bottom: 0, top: height, advance: 0)
+            }
+            return RunnerHazardFrame(
+                start: charging, end: charging + length, bottom: 0, top: height,
+                advance: -RunnerRules.boarAdvance
+            )
+        }
+    }
+
+    /// 走者から見て等価な静止した障害（`RunnerHazardEncounter` を参照）。
+    ///
+    /// 走者の前端が動く障害に初めて触れる地点を `start`、後端が抜ける地点から逆算した長さを
+    /// `length` にする。速さ `a`（右が正）で動く幅 `w` の障害と幅 `p` の走者が重なっている
+    /// 走者の進みは `(w + p) / (1 - a)` なので、等価な静止した長さは `(w + p) / (1 - a) - p`。
+    public var encounter: RunnerHazardEncounter {
+        let playerWidth = RunnerField.Metrics.playerWidth
+        switch kind {
+        case .pit, .lowBlock, .tallBlock, .dog:
+            return RunnerHazardEncounter(start: start, length: length, height: height)
+        case .bird:
+            // 前端が触れるとき、鳥は飛び立ってから `k·G/(1−k)` だけ進んでいる（`birdTakeoffDistance` で
+            // 前端は `start − G` にあり、そこから相対速度 `1 − k` で `G` を詰める）。
+            let k = RunnerRules.birdAdvance
+            let shift = k * RunnerRules.birdTriggerDistance / (1 - k)
+            return RunnerHazardEncounter(
+                start: start + shift,
+                length: (length + playerWidth) / (1 - k) - playerWidth,
+                height: height
+            )
+        case .boar:
+            if let stopAt {
+                return RunnerHazardEncounter(start: stopAt, length: length, height: height)
+            }
+            let k = RunnerRules.boarAdvance
+            return RunnerHazardEncounter(
+                start: start,
+                length: (length + playerWidth) / (1 + k) - playerWidth,
+                height: height
+            )
+        }
+    }
+
+    /// この障害が走者に関わる距離の範囲（走者の中心 x）。チェックポイントはこの外に置く
+    /// （#796: 動く障害の途中——飛び立つ最中・突進の予告中——から再開させない）。
+    public var activeRange: ClosedRange<Double> {
+        let half = RunnerField.Metrics.playerHalfWidth
+        switch kind {
+        case .pit, .lowBlock, .tallBlock:
+            return (start - half)...(end + half)
+        case .bird:
+            // 羽ばたきの予備動作から、後端が抜けるまで。
+            return (birdTakeoffDistance - RunnerRules.birdFlutterDistance)...(encounter.end + half)
+        case .dog:
+            return dogStartDistance...(end + half)
+        case .boar:
+            return boarChargeStartDistance...(max(encounter.end, boarSpawn) + half)
+        }
+    }
 }
 
 /// コース上のスピードアップアイテム 1 つ（会長QA「スピードアップアイテムor床とかあったほうがいい」）。
@@ -194,12 +387,14 @@ public enum RunnerEvent: Equatable, Sendable {
     case reachedGoal
     /// スピードアップアイテムを取った。決着ではないので `isTerminal` は false。
     case collectedSpeedItem
+    /// イノシシの突進が始まった（#801）。土煙と「ドドド」の手応えの発火点。決着ではない。
+    case boarCharging
 
     /// このできごとでコースが終わるか（ミスかゴール）。
     public var isTerminal: Bool {
         switch self {
-        case .fell, .crashed, .reachedGoal:                  return true
-        case .landed, .passedCheckpoint, .collectedSpeedItem: return false
+        case .fell, .crashed, .reachedGoal:                                 return true
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .boarCharging: return false
         }
     }
 }

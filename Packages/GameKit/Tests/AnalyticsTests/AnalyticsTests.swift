@@ -56,7 +56,7 @@ private final class SpyAnalyticsService: AnalyticsService {
     }
     var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec, _) = $0 {
+            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 {
                 return (gameID, result, durationSec)
             }
             return nil
@@ -228,6 +228,11 @@ struct AnalyticsEventShapeTests {
         #expect(Set(end.parameters.keys) == ["game_id", "result", "duration_sec"],
                 "受け入れ条件どおり3鍵のみ。スコアや端末識別子の鍵は存在しない")
 
+        // `cause`（#796）: ミスしたプレイだけ鍵が出る。
+        let caused = AnalyticsEvent.gameEnd(gameID: "runner", result: .quit, durationSec: 12, cause: .bird)
+        #expect(caused.parameters["cause"] == .string("bird"))
+        #expect(Set(caused.parameters.keys) == ["game_id", "result", "duration_sec", "cause"])
+
         // `mode`（#783）: 付けたときだけ鍵が出る。開始と終わりで同じ値
         let moded = AnalyticsEvent.gameStart(gameID: "mahjong4", mode: .singleHand)
         #expect(moded.parameters == ["game_id": .string("mahjong4"), "mode": .string("single_hand")])
@@ -240,6 +245,18 @@ struct AnalyticsEventShapeTests {
         #expect(reward.parameters == ["game_id": .string("solitaire"), "purpose": .string("undo")])
         #expect(Set(reward.parameters.keys) == ["game_id", "purpose"],
                 "広告の単価・報酬額など収益の生値は載せない")
+    }
+
+    @Test("cause は pit / rock / bird / animal の4値に閉じている（#796）")
+    func causeIsClosed() {
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal"])
+        let sent = AnalyticsEndCause.allCases.map { cause -> String in
+            guard case let .string(text)? = AnalyticsEvent
+                .gameEnd(gameID: "runner", result: .loss, durationSec: 0, cause: cause)
+                .parameters["cause"] else { return "" }
+            return text
+        }
+        #expect(sent == ["pit", "rock", "bird", "animal"])
     }
 
     @Test("result は win / loss / draw / quit の4値に閉じている（#500）")
@@ -1313,6 +1330,39 @@ struct RunnerQuitTests {
 
         #expect(spy.ends.map(\.result) == [.quit])
         #expect(spy.quits(of: RunnerModel.gameID) == 1)
+    }
+
+    /// #796: ミスは `game_end` を出さないが原因を覚えておき、離脱（quit）に「最後のミスの原因」として載る。
+    /// 1 面の最初の障害は穴なので、跳ばずに走ればミスの原因は `pit`。
+    @Test("ミスしてから画面を離れると quit に cause（最後のミスの原因）が付く")
+    func leavingAfterAMissCarriesTheCause() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services)
+        failRunnerStage(model)
+        #expect(model.phase == .failed)
+        #expect(spy.ends.isEmpty, "ミスでは終局しない")
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        let end = spy.events.last
+        guard case let .gameEnd(_, result, _, _, cause)? = end else { Issue.record("game_end が無い"); return }
+        #expect(result == .quit)
+        #expect(cause == .pit)
+    }
+
+    @Test("ミスせずクリアすると game_end に cause は付かない")
+    func clearingWithoutAMissHasNoCause() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        clearRunnerStage(model)
+        guard case let .gameEnd(_, result, _, _, cause)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        #expect(result == .win)
+        #expect(cause == nil)
+        // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
+        model.advanceToNextStage()
+        failRunnerStage(model)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        guard case let .gameEnd(_, result2, _, _, cause2)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        #expect(result2 == .quit)
+        #expect(cause2 == .pit)
     }
 
     @Test("走り出す前に離れても quit は出ない")

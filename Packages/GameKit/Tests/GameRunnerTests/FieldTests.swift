@@ -300,28 +300,35 @@ struct RunnerFieldTests {
         #expect(field.step(dt: 1.0 / 600).contains(.crashed))
     }
 
-    /// 鳥の帯は**接地なら安全・跳べば当たる**（#671）。岩は下端 0 のままなので、
-    /// 上の `flyingOverBlockIsSafe` と合わせて「岩の判定は変わっていない」の対照にもなる。
-    @Test("鳥の下は接地していれば通れ、少しでも跳ぶと当たる")
-    func birdBandIsSafeOnlyWhileGrounded() {
+    /// 鳥の帯は**いまの位置で見る**（#796）。飛び立つ前は地面すれすれの帯（低い岩と同じ上端 5）で、
+    /// 接地していれば当たり、上端より上なら当たらない——岩と同じ判定。飛び立って上がったあとは
+    /// 帯が頭より上に抜けるので、接地していれば当たらない。
+    @Test("鳥は低いうちは接地で当たり上を越えれば安全、上がったあとは接地で安全")
+    func birdBandFollowsTheFlight() {
         let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
         guard let bird = stage.hazards.first else { Issue.record("鳥が無い"); return }
-        let center = (bird.start + bird.end) / 2
         var field = RunnerField(stage: stage)
 
-        field.placeForTesting(distance: center, altitude: 0, vy: 0)
-        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "接地していればくぐれる")
+        // 飛び立つ前（`placeForTesting` で真下に置く。飛び立ちは前端が 6 タイルに入った瞬間なので、
+        // ここでは既に飛び立っているが、進みは 0 なのでまだ止まった位置にいる）。
+        field.placeForTesting(distance: bird.birdTakeoffDistance, altitude: 0, vy: 0)
+        #expect(field.frameOfFirstBird?.start == bird.start, "飛び立つ瞬間はまだ置いた位置")
+        field.placeForTesting(distance: (bird.start + bird.end) / 2, altitude: 0, vy: 0)
+        guard let low = field.frameOfFirstBird else { Issue.record("帯が無い"); return }
+        #expect(low.top == RunnerHazardKind.birdLowTop, "低く飛ぶあいだの上端は低い岩と同じ")
+        field.placeForTesting(distance: (low.start + low.end) / 2, altitude: 0, vy: 0)
+        #expect(field.step(dt: 1.0 / 600).contains(.crashed), "接地したままでは当たる")
+        #expect(field.lastMissCause == .bird)
+        field.placeForTesting(distance: (low.start + low.end) / 2, altitude: low.top + 0.1, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "上端より上なら当たらない")
 
-        // 頭（足元 + `playerHeight`）が下端に届いた瞬間から当たる。
-        let clearance = bird.bottom - RunnerField.Metrics.playerHeight
-        field.placeForTesting(distance: center, altitude: clearance - 0.1, vy: 0)
-        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "下端に頭が届く手前は安全")
-        field.placeForTesting(distance: center, altitude: clearance + 0.1, vy: 0)
-        #expect(field.step(dt: 1.0 / 600).contains(.crashed), "頭が帯に入れば当たる")
-
-        // 上端を越えれば（2 段ジャンプで届く高さ）また安全になる。
-        field.placeForTesting(distance: center, altitude: bird.height + 0.1, vy: 0)
-        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "帯の上を抜ければ安全")
+        // 上がりきったあと（帯の下端が頭より上）。
+        let far = bird.birdTakeoffDistance + (RunnerRules.birdLowDistance + RunnerRules.birdClimbDistance) / RunnerRules.birdAdvance + 20
+        field.placeForTesting(distance: far, altitude: 0, vy: 0)
+        guard let high = field.frameOfFirstBird else { Issue.record("帯が無い"); return }
+        #expect(high.bottom > RunnerHazardKind.birdHighBottom, "上がりきっている")
+        field.placeForTesting(distance: (high.start + high.end) / 2, altitude: 0, vy: 0)
+        #expect(!field.step(dt: 1.0 / 600).contains(.crashed), "上がった鳥の下は接地で通れる")
     }
 
     @Test("大きな dt が来てもすり抜けない")
@@ -847,25 +854,24 @@ struct RunnerFieldTests {
         )
     }
 
-    /// 鳥は対象外（#671 でくぐる障害に変わったため、跳び越えた報酬を出さない）。
+    /// 鳥は対象外（#796 で飛んで動く相手になり、「真裏」が置いた位置に無い）。
     ///
-    /// **帯の上を越えて真裏に降りることは物理的に起こらない**（上端 22 から地面までの
-    /// 落下だけで体 5 つぶん進むので、窓 8 には絶対に入らない）。ここでは種類の除外だけを
-    /// 突くため、**帯の下をくぐる高さ（下端 13 に頭が届かない 1.9）から降ろす**——
-    /// 越えた対象としては鳥が確かに `hazards` に居て、右端も通過しているのに、
-    /// 種類の判断（`rewardsJustLanding`）だけで弾かれることを確かめる。
-    @Test("鳥をくぐって着地しても上乗せは乗らない")
+    /// 除外そのものは観測できない——走者から見た鳥の等価な静止区間（`encounter`）は置いた
+    /// 位置の右端（`end`）をまたいでいるので、`end` の真裏（窓 8 の内側）に接地した瞬間は
+    /// まだ低く飛ぶ鳥と重なっていて必ず当たる。ここではその幾何を固定し、除外が「念のため」で
+    /// あって挙動を変えるものではないことを記録しておく。
+    @Test("鳥の置いた位置の真裏は、まだ低く飛ぶ鳥と重なっていて降りられない")
     func birdIsNotRewarded() {
         let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
         let bird = stage.hazards[0]
+        let encounter = bird.encounter
+        // 接地して当たる走者の中心の範囲は `[encounter.start − 4, encounter.end + 4]`。窓はその内側。
+        let half = RunnerField.Metrics.playerHalfWidth
+        #expect(encounter.start - half <= bird.end)
+        #expect(bird.end + RunnerRules.justLandingWindow <= encounter.end + half)
         var field = RunnerField(stage: stage)
-        land(&field, over: bird, offset: 2, from: 1.9)
-        #expect(field.isGrounded)
-        #expect(field.distance > bird.end, "右端を通過している")
-        #expect(field.distance - bird.end <= RunnerRules.justLandingWindow, "窓の内側に降りている")
-        #expect(!field.lastLandingWasJust, "鳥でジャスト着地が成立している")
-        #expect(field.justLandingCount == 0)
-        #expect(field.justLandingOverboost == 0)
+        field.placeForTesting(distance: bird.end + RunnerRules.justLandingWindow / 2, altitude: 0, vy: 0)
+        #expect(field.step(dt: 1.0 / 600).contains(.crashed), "真裏に降りた瞬間は鳥と重なっている")
     }
 
     /// 直前の着地の結果は**次の着地で必ず書き換わる**（`RunnerModel` が `.landed` の
@@ -1000,6 +1006,12 @@ struct RunnerHazardLayoutTests {
         #expect(RunnerHazardKind.pit.height == 0)
         #expect(RunnerHazardKind.lowBlock.height < RunnerHazardKind.tallBlock.height)
         #expect(RunnerHazardKind.tallBlock.height < RunnerRules.jumpApex, "跳んで越えられる高さ")
+        // 動く障害（#796〜#801）は出会うときの高さが低い岩と同じ。
+        #expect(RunnerStage.segmentSpec("d")?.kind == .dog)
+        #expect(RunnerStage.segmentSpec("i")?.kind == .boar)
+        #expect(RunnerHazardKind.dog.height == RunnerHazardKind.lowBlock.height)
+        #expect(RunnerHazardKind.boar.height == RunnerHazardKind.lowBlock.height)
+        #expect(RunnerHazardKind.bird.height == RunnerHazardKind.lowBlock.height)
     }
 
     /// 鳥（`b`）の区画記号が正しく `RunnerHazardKind.bird` に展開されること
@@ -1011,14 +1023,25 @@ struct RunnerHazardLayoutTests {
         let stage = RunnerStage(number: 1, pattern: "--b---", speed: 40)
         #expect(stage.hazards.count == 1)
         #expect(stage.hazards.first?.kind == .bird)
-        // 鳥だけが下端を持つ「帯」の障害（#671）。岩・穴は地面から生えたまま。
+        // 鳥だけが下端を持つ「帯」の障害。岩・穴・犬・イノシシは地面から生えたまま。
         #expect(RunnerHazardKind.pit.bottom == 0)
         #expect(RunnerHazardKind.lowBlock.bottom == 0)
         #expect(RunnerHazardKind.tallBlock.bottom == 0)
-        #expect(
-            RunnerHazardKind.bird.bottom > RunnerField.Metrics.playerHeight,
-            "接地したままくぐれる下端であること"
-        )
+        #expect(RunnerHazardKind.dog.bottom == 0)
+        #expect(RunnerHazardKind.boar.bottom == 0)
+        // 低く飛ぶ鳥（#796）の帯は地面すれすれで、接地したままではくぐれない（跳んで越える）。
+        #expect(RunnerHazardKind.bird.bottom < RunnerField.Metrics.playerHeight)
         #expect(RunnerHazardKind.bird.bottom < RunnerHazardKind.bird.height)
+        #expect(
+            abs(RunnerHazardKind.bird.height - RunnerHazardKind.bird.bottom - RunnerHazardKind.birdBandHeight) < 1e-9,
+            "帯の厚みは絵の高さ"
+        )
+    }
+}
+
+private extension RunnerField {
+    /// コースの最初の鳥の、いまの当たり判定（#796）。
+    var frameOfFirstBird: RunnerHazardFrame? {
+        stage.hazards.first { $0.kind == .bird }?.frame(atRunnerDistance: distance)
     }
 }
