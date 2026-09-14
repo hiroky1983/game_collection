@@ -350,6 +350,143 @@ struct RunnerSnapshotTests {
     }
 }
 
+/// ワールドマップ（面選択・#798）。到達済みの面だけ選べ、選んで遊んでも記録が巻き戻らない。
+@Suite("チャリンコおじさん: ワールドマップ（面選択）")
+@MainActor
+struct RunnerStageSelectTests {
+
+    /// 使い捨ての `PlayLog`（`UserDefaults.standard` を汚さない）。
+    private func makePlayLog(_ suite: String) -> PlayLog {
+        let name = "asobiba.runner.tests.playlog.select.\(suite)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return PlayLog(defaults: defaults)
+    }
+
+    @Test("1 面は最初から到達済み。クリアすると次の面が到達済みになる")
+    func clearingUnlocksNextStage() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("select-unlock"))
+        #expect(model.reachedStage == 1)
+        #expect(model.isStageReached(1))
+        #expect(!model.isStageReached(2))
+        #expect(!model.isStageReached(0))
+        #expect(!model.isStageReached(RunnerRules.stageCount + 1))
+
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(model.reachedStage == 2, "クリアした面の次が選べるようになる")
+        #expect(model.isStageReached(2))
+        #expect(!model.isStageReached(3))
+        // ミスしても到達点は動かない。
+        model.advanceToNextStage()
+        failCurrentStage(model)
+        #expect(model.reachedStage == 2)
+    }
+
+    @Test("未到達の面は選べず、到達済みの面はその頭から始まる")
+    func onlyReachedStagesCanBeSelected() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("select-guard"))
+        autoPlayCurrentStage(model)                      // 1 面クリア → 2 面まで到達
+        let generation = model.runGeneration
+
+        #expect(!model.newGame(startingAtStage: 3), "未到達の面は拒む")
+        #expect(model.phase == .cleared, "拒んだときは何も起きない")
+        #expect(model.runGeneration == generation)
+        #expect(!model.newGame(startingAtStage: 0))
+
+        #expect(model.newGame(startingAtStage: 2))
+        #expect(model.stageNumber == 2)
+        #expect(model.mode == .stages)
+        #expect(model.phase == .ready)
+        #expect(model.field.distance == 0, "選んだ面の頭から")
+        #expect(model.field.stage.number == 2)
+        #expect(model.runGeneration == generation + 1)
+        #expect(model.reachedStage == 2)
+
+        // エンドレスから戻るときもステージ制に焼き直る。
+        model.newEndlessGame(seed: 1)
+        #expect(model.mode == .endless)
+        #expect(model.newGame(startingAtStage: 1))
+        #expect(model.mode == .stages)
+        #expect(model.stageNumber == 1)
+    }
+
+    /// 受け入れ条件「面を選んでクリアしても `stageNumber` の記録が巻き戻らない」。
+    /// 到達ステージ・ローカルの自己ベスト（`PlayLog`）・Game Center へ送る値・中断データの
+    /// 4 つを見る。順位表は最大値が残る（送る値そのものは選んだ面の番号でよい）。
+    @Test("面を選んでクリアしても到達ステージと自己ベストが巻き戻らない")
+    func replayingLowerStageDoesNotRollBackRecords() {
+        let store = MemorySnapshotStore()
+        let log = makePlayLog("rollback")
+        let spy = SpyGameCenterService()
+        let model = RunnerModel(
+            services: makeServices(store: store, log: log, gameCenter: spy),
+            startingAt: 1, preference: makePreference("select-rollback")
+        )
+        // 1〜3 面を順にクリア → 4 面まで到達。
+        for expected in 1...3 {
+            autoPlayCurrentStage(model)
+            #expect(model.phase == .cleared, "\(expected) 面")
+            if expected < 3 { model.advanceToNextStage() }
+        }
+        #expect(model.reachedStage == 4)
+        #expect(log.record(gameID: RunnerModel.gameID)?.bestPoints == 3)
+        let bestOf3 = model.best(forStage: 3)
+        #expect(bestOf3 != nil)
+
+        // 1 面を選んでクリア。
+        #expect(model.newGame(startingAtStage: 1))
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(model.stageNumber == 1)
+
+        #expect(model.reachedStage == 4, "到達点は巻き戻らない")
+        #expect(model.isStageReached(4))
+        #expect(log.record(gameID: RunnerModel.gameID)?.bestPoints == 3, "自己ベスト（到達ステージ数）は最大値のまま")
+        #expect(model.best(forStage: 3) == bestOf3, "他の面のベストタイムは残る")
+        #expect(model.best(forStage: 1) != nil, "選んで遊んだ回もベストタイムに載る")
+        // Game Center へは毎回クリアした面の番号を送る（順位表側で最大値が残る）。
+        #expect(spy.scores.map(\.value) == [1, 2, 3, 1])
+
+        // 中断データにも到達点が残り、開き直しても 4 面まで選べる。
+        let saved = store.load(RunnerSnapshot.self, for: RunnerModel.gameID)
+        #expect(saved?.reachedStage == 4)
+        #expect(saved?.stage == 2, "再開位置はいま遊んでいる面の次")
+        let reopened = RunnerModel(services: makeServices(store: store),
+                                   preference: makePreference("select-rollback-b"))
+        #expect(reopened.stageNumber == 2)
+        #expect(reopened.reachedStage == 4)
+        #expect(reopened.isStageReached(4))
+        #expect(!reopened.isStageReached(5))
+    }
+
+    @Test("到達点の無い旧い中断データは再開面を到達点として読む")
+    func legacySnapshotFallsBackToResumeStage() {
+        let store = MemorySnapshotStore()
+        store.inject(Data(#"{"stage":5,"bestSeconds":[10,11,12,13]}"#.utf8), for: "runner")
+        let model = RunnerModel(services: makeServices(store: store),
+                                preference: makePreference("select-legacy"))
+        #expect(model.stageNumber == 5)
+        #expect(model.reachedStage == 5)
+        #expect(model.isStageReached(5))
+        #expect(!model.isStageReached(6))
+
+        // 到達点が再開面より前・上限超えの壊れた値は丸める。
+        #expect(RunnerSnapshot(stage: 5, bestSeconds: [], reachedStage: 2).validated()?.reachedStage == 5)
+        #expect(RunnerSnapshot(stage: 5, bestSeconds: [], reachedStage: 99).validated()?.reachedStage == RunnerRules.stageCount)
+        #expect(RunnerSnapshot(stage: 5, bestSeconds: [], reachedStage: 9).validated()?.reachedStage == 9)
+    }
+
+    @Test("最終面をクリアしても到達点は 18 のまま（19 にはならない）")
+    func reachedStageIsCappedAtLastStage() {
+        let model = RunnerModel(startingAt: RunnerRules.stageCount, preference: makePreference("select-cap"))
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .allCleared)
+        #expect(model.reachedStage == RunnerRules.stageCount)
+        #expect(!model.isStageReached(RunnerRules.stageCount + 1))
+    }
+}
+
 @Suite("チャリンコおじさん: 一時停止とゆっくりモード")
 @MainActor
 struct RunnerPauseTests {

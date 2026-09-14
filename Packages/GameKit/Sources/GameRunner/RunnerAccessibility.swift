@@ -19,6 +19,13 @@ public enum RunnerAccessibility {
         "\(stageLabel(number: number, total: total))、\(RunnerWorld.world(forStage: number).displayName)"
     }
 
+    /// ワールドマップ（#798）の面のボタン。「1-1 商店街のあさ、到達済み」の形で、
+    /// 表記・名前・選べるかどうかを 1 文で言う（鍵の絵だけでは読み上げに出ない）。
+    public static func stageMapLabel(number: Int, reached: Bool) -> String {
+        let name = RunnerWorld.stageName(forStage: number) ?? stageLabel(number: number, total: RunnerRules.stageCount)
+        return "\(RunnerWorld.code(forStage: number)) \(name)、\(reached ? "到達済み" : "未到達")"
+    }
+
     /// 進み具合。パーセントは 5 刻みに丸める（1% ごとに読み上げが変わると耳で追えない）。
     public static func progressLabel(_ progress: Double) -> String {
         let clamped = min(1, max(0, progress))
