@@ -288,31 +288,36 @@ public struct MahjongView: View {
     private var mahjongTable: some View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
-            let layout = MahjongTableLayout(size: CGSize(width: side, height: side))
-            ZStack(alignment: .topLeading) {
-                Group {
-                    MahjongTableView(scene: tableScene, layout: layout)
-                    if isInPlay {
-                        let overview = layout.handOverview
-                        handOverviewOnTable(width: overview.width, tileWidth: overview.tileWidth)
-                            .position(overview.center)
+            // SwiftUI は最初のレイアウトで大きさ 0 を渡してくる。その 1 回で `MahjongTableLayout` が
+            // 0 ÷ 0 の NaN を作り、牌の幅・位置に広がって幅 393pt 以下の端末で落ちていた
+            // （v1.1.5 開発版。会長の実機と当番の iPhone SE で再現）。一辺が 0 以下なら何も描かない。
+            if side > 0 {
+                let layout = MahjongTableLayout(size: CGSize(width: side, height: side))
+                ZStack(alignment: .topLeading) {
+                    Group {
+                        MahjongTableView(scene: tableScene, layout: layout)
+                        if isInPlay {
+                            let overview = layout.handOverview
+                            handOverviewOnTable(width: overview.width, tileWidth: overview.tileWidth)
+                                .position(overview.center)
+                        }
+                    }
+                    // 河のアニメーションが止まらないという指摘のため、卓の中身への暗黙アニメーションを
+                    // 一切禁止する（実物の牌もアニメーションはしない）。打牌の動き（#738）はこの外側の
+                    // 飛行レイヤーだけが持つ。
+                    .transaction { $0.animation = nil }
+                    if let flight = discardFlight {
+                        MahjongDiscardFlightView(flight: flight, progress: discardFlightProgress,
+                                                 tileWidth: layout.riverTileWidth)
                     }
                 }
-                // 河のアニメーションが止まらないという指摘のため、卓の中身への暗黙アニメーションを
-                // 一切禁止する（実物の牌もアニメーションはしない）。打牌の動き（#738）はこの外側の
-                // 飛行レイヤーだけが持つ。
-                .transaction { $0.animation = nil }
-                if let flight = discardFlight {
-                    MahjongDiscardFlightView(flight: flight, progress: discardFlightProgress,
-                                             tileWidth: layout.riverTileWidth)
+                .frame(width: side, height: side)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+                .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
+                .frame(width: geo.size.width, height: geo.size.height)
+                .onChange(of: model.discards.map(\.count)) { old, new in
+                    startDiscardFlight(old: old, new: new, layout: layout)
                 }
-            }
-            .frame(width: side, height: side)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
-            .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
-            .frame(width: geo.size.width, height: geo.size.height)
-            .onChange(of: model.discards.map(\.count)) { old, new in
-                startDiscardFlight(old: old, new: new, layout: layout)
             }
         }
         .aspectRatio(1, contentMode: .fit)
