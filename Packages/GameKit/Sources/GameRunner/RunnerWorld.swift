@@ -183,3 +183,75 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         }
     }
 }
+
+// MARK: - ワールドマップ（#798）
+
+public extension RunnerWorld {
+    /// 世界の番号（1 始まり）。ワールドマップの「1-1」の左側。
+    var number: Int {
+        (RunnerWorld.allCases.firstIndex(of: self) ?? 0) + 1
+    }
+
+    /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18。
+    var stageRange: ClosedRange<Int> {
+        let first = (number - 1) * RunnerWorld.stagesPerWorld + 1
+        return first...(first + RunnerWorld.stagesPerWorld - 1)
+    }
+
+    /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
+    ///
+    /// 範囲外（0 以下・19 以上）でも落ちないよう剰余で畳むだけなので、
+    /// 呼び出し側で番号の妥当性を確かめてから使う（`stageName(forStage:)` は nil を返す）。
+    static func index(ofStage number: Int) -> Int {
+        ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
+    }
+
+    /// ワールドマップの短い表記「1-1」…「3-6」。
+    static func code(forStage number: Int) -> String {
+        "\(world(forStage: number).number)-\(index(ofStage: number))"
+    }
+
+    /// 面の名前の上限（文字数）。iPhone SE（幅 375pt）で 3 列の格子に 1 行で収めるため
+    /// （`WorldTests` が全 18 面について固定する）。
+    static let maxStageNameLength = 8
+
+    /// この世界の 6 面の名前（面の順）。
+    ///
+    /// 「ステージ N / 18」の数字だけでは次に何が来るかの期待が作れない（#798）ので、
+    /// 世界の景色に合う短い名前を付ける。遠景の飾り（`scenery`）と同じ景色を言葉にしてあり、
+    /// 実在の店名・地名は使わない。長さは `maxStageNameLength` 以内。
+    var stageNames: [String] {
+        switch self {
+        case .morning:
+            // 朝の下町。家並み（`townHouses`）の前を走る、目覚めたばかりの町。
+            return ["商店街のあさ", "とうふ屋のかど", "こうえんの前", "ふみきり待ち", "さかみちの上", "銭湯のえんとつ"]
+        case .evening:
+            // 夕方の川沿い。川の帯と夕焼け（`riverside`）の土手道。
+            return ["土手のゆうひ", "鉄橋のした", "つり人のいる岸", "すすきの原", "川風のカーブ", "夕焼けの大橋"]
+        case .night:
+            // 夜の繁華街。ビルの窓の灯り（`cityLights`）。最終面だけ夜明けが近い名前にして
+            // 18 面で 1 日が終わる形にする。
+            return ["ネオンの入口", "やたいの通り", "ちょうちん横丁", "歩道橋のうえ", "終電のガード下", "夜あけの大通り"]
+        }
+    }
+
+    /// ステージ番号（1 始まり）の名前。範囲外は nil。
+    static func stageName(forStage number: Int) -> String? {
+        guard number >= 1, number <= stagesPerWorld * allCases.count else { return nil }
+        return world(forStage: number).stageNames[index(ofStage: number) - 1]
+    }
+
+    /// ワールドマップで世界を塗り分ける色（`0xRRGGBB`）。
+    ///
+    /// 朝と夕方は空の色（`palette.sky`）そのまま。夜だけは空（0x2E4066）がダークモードの
+    /// カード面（`Theme.surface` の暗色）に溶けて見えないので、同じ青紫の系統で明るめの値にする。
+    /// **文字はこの色の上に載せない**（薄い色味の面・上端の帯・見出しの丸にだけ使う）ので、
+    /// 文字とのコントラストは `Theme` の面と文字の組み合わせがそのまま効く。
+    var mapColor: UInt32 {
+        switch self {
+        case .morning: return palette.sky
+        case .evening: return palette.sky
+        case .night:   return 0x6B7FC2
+        }
+    }
+}
