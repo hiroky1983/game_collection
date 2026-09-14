@@ -60,10 +60,17 @@ public struct MahjongTableLayout: Sendable {
     private var topWidth: CGFloat { size.width * Self.topWidthRatio }
 
     /// 卓上の (u, v) を画面へ。
+    ///
+    /// 大きさ 0 の卓（SwiftUI が最初のレイアウトで渡してくる）では `w / bottomWidth` が 0 ÷ 0 で NaN になり、
+    /// それが牌の幅・位置すべてに広がって「Invalid frame dimension」の連発と、幅 393pt 以下の端末での
+    /// クラッシュを起こしていた（v1.1.5 の開発版で会長が実機・当番が iPhone SE で再現）。
+    /// 縮尺は「0 の卓では 0」とし、NaN を作らない。描画側は `MahjongView.mahjongTable` が一辺 0 以下では
+    /// 中身を作らないので、ここは二重の守り。
     public func project(u: CGFloat, v: CGFloat) -> Projected {
         let vv = pow(max(0, v), Self.depthPower)
         let w = topWidth + (bottomWidth - topWidth) * vv
-        return Projected(x: size.width / 2 + (u - 0.5) * w, y: feltTop + vv * feltHeight, scale: w / bottomWidth)
+        let scale = bottomWidth > 0 ? w / bottomWidth : 0
+        return Projected(x: size.width / 2 + (u - 0.5) * w, y: feltTop + vv * feltHeight, scale: scale)
     }
 
     /// 高さ z（pt。縮尺前）を持つ点。上へ持ち上げる量は縮尺に比例。
