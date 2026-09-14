@@ -273,7 +273,8 @@ public struct MahjongTableLayout: Sendable {
 
     /// 画面の y から卓上の v を戻して写す（`project(u:v:)` の逆）。
     private func projectAt(u: CGFloat, y: CGFloat) -> Projected {
-        let vv = min(1, max(0, (y - feltTop) / feltHeight))
+        // 卓の大きさ 0 では feltHeight も 0。0 ÷ 0 の NaN を `max` の引数順に頼って消さず、明示的に 0 にする。
+        let vv = feltHeight > 0 ? min(1, max(0, (y - feltTop) / feltHeight)) : 0
         return project(u: u, v: pow(vv, 1 / Self.depthPower))
     }
 
