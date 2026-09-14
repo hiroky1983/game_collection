@@ -11,7 +11,7 @@ import Foundation
 /// `RunnerPalette` の固定値のままで、当たり判定・速さ・ジャンプ（`RunnerRules`）にも触れない。
 /// SpriteKit に依存しない値型なので、境界と配色は `WorldTests` がそのまま固定できる。
 public enum RunnerWorld: CaseIterable, Equatable, Sendable {
-    /// 1〜6 面。明るい水色の空・緑の丘・暖色の地面。
+    /// 1〜6 面。明るい水色の空・若草色の丘・暖色の地面。
     case morning
     /// 7〜12 面。橙〜桃色の空・紫がかった丘・遠景に川。
     case evening
@@ -126,7 +126,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .morning:
             // 朝の下町。空は明るい水色（寒色）——脚の黄土・車体のサーモン・服の薄紫のどれとも
             // 系統が違い、白い雲だけが空に溶けかけるので雲の不透明度を上げる。
-            // 丘は緑 2 階調。鳥（`birdBody` = 緑）は 13 面以降にしか出ないので同系でも紛れない。
+            // 丘は若草色（黄緑）2 階調。鳥（`birdBody` = 緑・色相 141°）は 5・6 面にも出て丘を背に飛ぶので、
+            // 丘の色相を 80° 台まで黄色側へ寄せて鳥から 55° 以上離す（#818。以前の緑 130° だと紛れた）。
             // 地面は「暖色の地面」——上面をテラコッタ、断面をそれより暗い赤茶にして、
             // 穴の縁の黄（`pitEdge`）・台座の橙（`platformFrame`）とは明度と色相で分ける。
             // 岩は夜と同じストーングレー——水色・緑・テラコッタのどれとも系統が違うので、
@@ -135,8 +136,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 sky: 0x6FC3EE,
                 cloud: 0xFFFFFF,
                 cloudAlpha: 0.9,
-                hillFar: 0x86CF8C,
-                hillNear: 0x4E9E5C,
+                hillFar: 0xBEE07E,
+                hillNear: 0x94C24A,
                 groundTop: 0xD98B4F,
                 groundBody: 0x8C5A3C,
                 rockLight: 0xC2C8D2,
