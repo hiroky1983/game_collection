@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { findGame, games } from "../../lib/games";
+import { findGame, games, pageDescription } from "../../lib/games";
 import { APP_STORE_URL, SITE_NAME } from "../../lib/site";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -16,9 +16,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!game) return {};
 
   const url = `/games/${game.slug}`;
+  const description = pageDescription(game);
   return {
     title: game.pageTitle,
-    description: game.description,
+    description,
     alternates: { canonical: url },
     openGraph: {
       type: "article",
@@ -26,13 +27,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       locale: "ja_JP",
       url,
       title: `${game.pageTitle} | ${SITE_NAME}`,
-      description: game.description,
+      description,
       images: [{ url: `/og/${game.slug}.png`, width: 1200, height: 630, alt: `${game.name}（${SITE_NAME}）` }],
     },
     twitter: {
       card: "summary_large_image",
       title: `${game.pageTitle} | ${SITE_NAME}`,
-      description: game.description,
+      description,
       images: [`/og/${game.slug}.png`],
     },
   };
@@ -66,7 +67,7 @@ export default async function GamePage({ params }: Props) {
         <p className="text-gray-500 dark:text-gray-400">{game.tagline}</p>
       </div>
 
-      <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-8">{game.description}</p>
+      <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-8">{pageDescription(game)}</p>
 
       <section className="mb-10">
         <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
