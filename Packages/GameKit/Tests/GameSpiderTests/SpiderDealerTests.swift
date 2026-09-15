@@ -53,12 +53,16 @@ struct SpiderDealerTests {
     ///
     /// デバッグビルドでは 1 配札あたり数秒〜数十秒かかり、4 スートは -O でも十数秒かかるので、
     /// `swift test` ではなく **`swiftc -O` で純ロジックのファイルだけを 1 バイナリにして回す**
-    /// （`GameSpider` の盤・配札・ソルバーは Core すら import しないのでそのまま並べられる）:
+    /// （`GameSpider` の盤・配札・ソルバーは Core すら import しないのでそのまま並べられる。
+    /// 乱数と待ち行列は CoreEngine の共通部品（#916）なので、その 2 ファイルも並べる。
+    /// `import CoreEngine` は `#if canImport` で囲ってあり、1 バイナリにまとめたときは飛ばされる）:
     ///
     /// ```
     /// S=Packages/GameKit/Sources/GameSpider
+    /// E=Packages/GameKit/Sources/CoreEngine
     /// swiftc -O -o /tmp/spider-gen $S/SpiderCard.swift $S/SpiderRules.swift $S/SpiderBoard.swift \
-    ///   $S/SpiderDealer.swift $S/SpiderSolver.swift $S/SpiderVerifiedSeeds.swift main.swift
+    ///   $S/SpiderDealer.swift $S/SpiderSolver.swift $S/SpiderVerifiedSeeds.swift \
+    ///   $E/SplitMix64.swift $E/BestFirstQueue.swift main.swift
     /// ```
     ///
     /// `main.swift` は `SpiderDealer.deal(seed:suits:)` を 1 から順に `SpiderSolver.solve` へ渡し、
@@ -224,5 +228,19 @@ struct SpiderSolverTests {
             #expect(applied)
         }
         #expect(board.isWon)
+    }
+
+    /// 待ち行列を共通部品（`BestFirstQueue`）へ寄せたとき（#916）に、**探索順が 1 手も変わっていない**ことの固定。
+    /// スパイダーは同点なら後から生まれた局面を先に見る（`.laterFirst`）。向きを取り違えると局面数が変わる。
+    /// 値は共通化の前のソルバーで実測したもの。ソルバーに手を入れて変わったら、種の作り直しと合わせて更新する。
+    @Test("同じ配札なら探索した局面数と勝ち筋の長さが変わらない", arguments: [
+        (SpiderSuitCount.one, 25_221, 1_410), (.two, 63_109, 458),
+    ])
+    func searchOrderIsPinned(suits: SpiderSuitCount, states: Int, moves: Int) {
+        let seed = SpiderDealer.verifiedSeeds(for: suits)[0]
+        let result = SpiderSolver.solve(SpiderDealer.deal(seed: seed, suits: suits),
+                                        maxStates: SpiderSolver.defaultMaxStates(for: suits))
+        #expect(result.statesExplored == states, "\(suits)")
+        #expect(result.solution?.count == moves, "\(suits)")
     }
 }

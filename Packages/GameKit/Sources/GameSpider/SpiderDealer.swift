@@ -1,4 +1,8 @@
 import Foundation
+// 種の事前計算で CoreEngine のファイルごと 1 バイナリにまとめるときは飛ばす（`SpiderDealerTests` の手順）。
+#if canImport(CoreEngine)
+import CoreEngine
+#endif
 
 /// 配札（#717）。種とスート数から決定的に作るので、同じ組み合わせはいつでも同じ盤面を再現する。
 ///
@@ -63,16 +67,5 @@ public enum SpiderDealer {
 }
 
 /// 決定的な乱数生成器（SplitMix64）。配札は種から再現できる必要があるので system の乱数は使わない。
-public struct SpiderSeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    public init(seed: UInt64) { self.state = seed }
-
-    public mutating func next() -> UInt64 {
-        state &+= 0x9E3779B97F4A7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
-        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
-        return z ^ (z >> 31)
-    }
-}
+/// 実体は CoreEngine の `SplitMix64`（#916 で 5 ゲームぶんのコピーを 1 本に寄せた）。
+public typealias SpiderSeededGenerator = SplitMix64

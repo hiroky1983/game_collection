@@ -88,6 +88,19 @@ struct FreeCellDealerTests {
         #expect(board.isWon, "種 \(seed) は勝ち筋を指し切ってもクリアにならなかった")
     }
 
+    /// 待ち行列を共通部品（`BestFirstQueue`）へ寄せたとき（#916）に、**探索順が 1 手も変わっていない**ことの固定。
+    /// フリーセルは同点なら先に生まれた局面を先に見る（`.earlierFirst`）。向きを取り違えると局面数が変わる。
+    /// 値は共通化の前のソルバーで実測したもの。ソルバーに手を入れて変わったら、種の作り直しと合わせて更新する。
+    @Test("同じ配札なら探索した局面数と勝ち筋の長さが変わらない", arguments: [
+        (0, 2_529, 105), (137, 797, 84),
+    ])
+    func searchOrderIsPinned(index: Int, states: Int, moves: Int) {
+        let seed = FreeCellDealer.verifiedSeeds[index]
+        let result = FreeCellSolver.solve(FreeCellDealer.deal(seed: seed))
+        #expect(result.statesExplored == states, "種 \(seed)")
+        #expect(result.solution?.count == moves, "種 \(seed)")
+    }
+
     /// 全件の検証は時間がかかるので、既定では走らせない。
     @Test("検証済みの種を全件確かめる",
           .enabled(if: ProcessInfo.processInfo.environment["FREECELL_VERIFY_ALL_SEEDS"] != nil))
