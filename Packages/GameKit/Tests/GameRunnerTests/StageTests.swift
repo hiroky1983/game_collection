@@ -26,10 +26,14 @@ struct RunnerStageTests {
     /// 台座のために記号表・展開・接地判定へ手を入れた経緯があるので、コースが意図せず
     /// 書き換わっていないことをここで押さえる。ここが赤くなったら、既に遊ばれている面の
     /// ベストタイムの物差しが変わっている。
+    /// 1 面は #967（会長 QA 2026-09-15「落とし穴しかない」）で 3 つ目の穴を低い障害物に置き換えた
+    /// （`--1-1--1-1--` → `--1-1--n-1--`）。障害の数・位置・区画数は据え置きで、種類だけ増やしてある
+    /// ——#626 の「序盤を難しくしすぎない」（`earlyStagesStayGentle`）と 2 面以降の単調非減少
+    /// （`earlyStageHazardCountsNeverDecrease`）の中に収まる案。
     @Test("1〜15 ステージのパターン文字列が固定値どおり")
     func firstFifteenStagePatternsArePinned() {
         let expected = [
-            "--1-1--1-1--",
+            "--1-1--n-1--",
             "--1-n--1--n--",
             "--1-n-2--n-1--",
             "--1-n-t--d1k2--",
@@ -93,6 +97,30 @@ struct RunnerStageTests {
                 )
             }
         }
+    }
+
+    /// 1 面に穴以外の障害があること（#967 会長 QA「最初のステージが落とし穴しかない」）。
+    /// 低い障害物の初出は 2 面から 1 面へ前倒し。
+    @Test("1 面は穴だけではなく、低い障害物が 1 つある")
+    func firstStageIsNotPitsOnly() {
+        let first = RunnerStage.all[0]
+        let kinds = Set(first.hazards.map(\.kind))
+        #expect(kinds.contains(.lowBlock), "1 面の障害が穴だけ: \(first.pattern)")
+        #expect(kinds == [.pit, .lowBlock], "1 面に穴と低い障害物以外を置かない（高い岩・動く障害は 4 面以降）: \(kinds)")
+        #expect(first.hazards.count == 4, "1 面の障害数は据え置き（#626 の上限 5 と 2 面の 4 の内側）")
+    }
+
+    /// 面を増やしても速さの上限（隣り合う区画が成立する 63.6・`RunnerRules.endlessMaxSpeed` を参照）を
+    /// 超えない上げ幅であること（#968 会長 QA「1.2 ずつだとステージを増やしたときに破綻する」）。
+    /// 33 面まではエンドレスの上限 60 の内側、38 面で 63.6 に届く。`speedStep` を上げるとここが赤くなる。
+    @Test("速さの上げ幅は、33 面まで増やしてもエンドレスの上限 60 を超えない")
+    func stagesLeaveHeadroomForMoreStages() {
+        let room = 33
+        let last = RunnerRules.baseSpeed + Double(room - 1) * RunnerRules.speedStep
+        #expect(last < RunnerRules.endlessMaxSpeed, "\(room) 面の速さ \(last) が上限 \(RunnerRules.endlessMaxSpeed) を超える")
+        #expect(RunnerStage.all.count <= room)
+        let current = RunnerStage.all.map(\.speed).max() ?? 0
+        #expect(abs(current - 47.6) < 1e-9, "18 面の速さは 47.6（#968）。変えたら doc の直値も直す")
     }
 
     @Test("区画数と速さがステージ番号どおりに増える")
@@ -1161,12 +1189,22 @@ struct RunnerPlaythroughTests {
     ///
     /// `pedalBoost` への加算では 1.4〜3.0% しか出なかった（上限 1.55 に張り付いて効かない）。
     /// 上限を超える上乗せへ切り替えた経緯は `RunnerRules.justLandingOverboost` を参照。
+    ///
+    /// **#968（`speedStep` 1.2 → 0.8）で 8 面だけ 2% に下げた。** 8 面は 42.4 → 39.6 になり、
+    /// 3 タイルの穴を全弾道で渡ると右端の 7.7 先（窓 8 の内側）に降りるため、安全に跳ぶだけの
+    /// 走りにもジャスト着地が 1 回ただで乗る——狙った走りとの差がそのぶん縮んで実測 2.45%
+    /// （22.28 秒 → 21.75 秒）。上げ幅の候補ごとの 8 面の差は 0.8: 2.45% / 0.9: 1.94% /
+    /// 1.0: 2.44% / 1.1: 3% 超で、1.1 では上げ幅を減らした意味が無い（28 面で上限 63.6 を超える）。
+    /// 差そのものは 0.5 秒あって「狙えば速い」は保たれるので、しきい値を測定値に合わせた。
+    /// 8 面の並びを変えて 3% を取り戻す案（`3` を別の面へ）は公開済みの面の物差しが変わるので
+    /// 別途決裁。1・15 面は 3% のまま通る。
     @Test("ジャスト着地を狙うと、安全に跳ぶだけの走りよりクリアタイムが縮む")
     func aimingAtJustLandingBeatsSafePlay() {
-        // 岩と穴だけのステージ（1〜15）。
-        for number in [1, 8, 15] {
+        // 岩と穴だけのステージ（1〜15）。8 面は上の理由で 2%。
+        for number in [1, 15] {
             expectJustLandingPaysOff(stage: number, atLeast: 0.03)
         }
+        expectJustLandingPaysOff(stage: 8, atLeast: 0.02)
         // 台座（#674）とスピードアップ床（#672）の入ったステージ（16〜）。
         for number in [16, 17, RunnerRules.stageCount] {
             expectJustLandingPaysOff(stage: number, atLeast: 0.015)
@@ -1202,8 +1240,12 @@ struct RunnerPlaythroughTests {
     /// ジャスト着地を狙わないベースラインで、これで上乗せが乗ってしまうなら窓が広すぎる
     /// （誰が走っても同じだけ乗るので、タイムにスキル差が出ない）。
     ///
-    /// 実測では全18ステージ177障害のうち 1 回だけ成立する（ステージ6・跳べる最大幅の穴を
-    /// 全弾道でちょうど渡り切ったもので、これは実際にジャスト着地）。
+    /// 実測では全18ステージ177障害のうち、`speedStep` = 1.2 のとき 1 回だけ成立した（ステージ6・
+    /// 跳べる最大幅の穴を全弾道でちょうど渡り切ったもので、これは実際にジャスト着地）。
+    /// **#968 で `speedStep` を 0.8 に下げてからは 3 回**（6・7・8 面の 3 タイルの穴。全弾道の
+    /// 着地は右端から `0.75 × 速さ − 22` 先で、38.0 / 38.8 / 39.6 では 6.5 / 7.1 / 7.7 と窓 8 の内側。
+    /// 9 面の 40.4 から先は 8.3 以上で外れる）。どれも「最大幅の穴を全弾道でちょうど渡り切る」
+    /// 同じ形で、177 障害中 3 回なら窓が広すぎるとは言えないので上限を 3 に置く。
     @Test("安全に跳ぶだけの自動操縦では、ジャスト着地はほとんど起きない")
     func autoPilotRarelyEarnsJustLanding() {
         var total = 0
@@ -1212,6 +1254,6 @@ struct RunnerPlaythroughTests {
             total += result.just
             #expect(result.just <= 1, "ステージ \(number): 決め打ちの走りで \(result.just) 回も成立している")
         }
-        #expect(total <= 2, "全ステージ合計 \(total) 回——窓が広すぎる")
+        #expect(total <= 3, "全ステージ合計 \(total) 回——窓が広すぎる")
     }
 }
