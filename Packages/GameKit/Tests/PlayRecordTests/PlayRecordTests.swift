@@ -225,6 +225,19 @@ struct RecordFormatTests {
         #expect(RecordFormat.hubLine([points, endless]) == "ベスト 12,340")
         #expect(RecordFormat.hubLine([endless, points]) == "ベスト 12,340", "並び順に依らない")
         #expect(RecordFormat.hubLine([endless]) == "ベスト 99,999", "本編の記録が無ければ従来どおり")
+        // チャリンコおじさん（ID を渡したとき）の本編は「到達した面」で言う（#931。秒数は廃止し、
+        // 記録はクリアした面の番号のまま）。他のゲームの表記は変わらない。
+        let cleared = PlayRecord.applying(
+            outcome: .win, score: GameScore(metric: .points, points: 3), to: nil
+        ).record
+        #expect(RecordFormat.hubLine([cleared], gameID: "runner") == "1-4 まで到達")
+        #expect(RecordFormat.hubLine([endless, cleared], gameID: "runner") == "1-4 まで到達", "エンドレスが混ざっても本編が代表")
+        #expect(RecordFormat.hubLine([endless], gameID: "runner") == "ベスト 99,999", "本編の記録が無ければ走行距離")
+        #expect(RecordFormat.hubLine([cleared], gameID: "2048") == "ベスト 3", "他のゲームは従来どおり")
+        #expect(RecordFormat.hubLine([cleared]) == "ベスト 3")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 6) == "2-1 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 17) == "3-6 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 18) == "全 18 面クリア")
 
         let moves = PlayRecord.applying(
             outcome: .win, score: GameScore(metric: .fewestMoves, moves: 24), to: nil

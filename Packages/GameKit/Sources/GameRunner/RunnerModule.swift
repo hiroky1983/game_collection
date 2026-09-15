@@ -19,7 +19,7 @@ public struct RunnerModule: GameModule {
     // おじさんの正面顔（ドット絵、#700）。18 本の中で唯一キャラが出るカードにする。
     // 顔の定義は `Core` の `OjisanPixel`（おじさんシリーズの 2 本目以降でも同じ顔を使う）。
     public var icon: Image { OjisanPixel.mascotIcon }
-    // 中断データはステージ番号とベストタイムの控えで、走行は必ずステージの頭から始まる
+    // 中断データは再開する面と到達点の控えで、走行は必ずステージの頭から始まる
     // （`RunnerModel.press()` の `gameWillNotResume`）。中断のお知らせ（#663）の対象から外す。
     public var resumesFromSnapshot: Bool { false }
 
