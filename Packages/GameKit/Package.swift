@@ -35,7 +35,11 @@ let package = Package(
         .library(name: "MahjongTiles",     targets: ["MahjongTiles"]),
     ],
     targets: [
-        .target(name: "Core"),
+        // 純ロジックの層（#834 Step 0）。import は Foundation（と Observation）だけに限り、SwiftUI や
+        // Apple 固有のフレームワークを持ち込まない。Core が `@_exported import CoreEngine` するので、
+        // 各ゲーム・App の `import Core` はそのまま CoreEngine の型も見える。
+        .target(name: "CoreEngine"),
+        .target(name: "Core",               dependencies: ["CoreEngine"]),
         .target(name: "Game2048",           dependencies: ["Core"]),
         .target(name: "GameShogi",          dependencies: ["Core"]),
         .target(name: "GameGomoku",         dependencies: ["Core"]),
