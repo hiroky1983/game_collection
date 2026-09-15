@@ -634,25 +634,30 @@ public final class RunnerModel {
             })
             isFrozenForCapture = true
         case "bird-low":
-            // 低く飛ぶ鳥を跳び越している瞬間（画 2/3）。空中で鳥の真上に来たところで止める。
+            // 飛び立った直後、まだ頭より低いところを上がっている途中（画 2/3・#945）。
+            // 帯の下端が止まっていた上端（5）を越え、頭（11）にはまだ届いていないところで止める
+            // ——おじさんはまだ手前を走っている。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
                 let field = model.field
                 guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
                       let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
-                return !field.isGrounded && field.playerMaxX > frame.start && field.playerMinX < frame.end
+                return frame.bottom >= RunnerHazardKind.birdLowTop
+                    && frame.bottom < RunnerField.Metrics.playerHeight
             })
             isFrozenForCapture = true
         case "bird-up":
-            // 跳び越したあと、鳥が上がっていく画（3/3）。帯の下端が 13 に届いたところで止める。
+            // 上がりきった鳥の真下を走ったまま抜けている瞬間（画 3/3・#945 の受け入れ条件そのもの）。
+            // 接地したまま帯と横に重なったところで止める——帯の下端は頭の 3 上（`birdMeetBottom`）。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
                 let field = model.field
                 guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
                       let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
-                return field.isGrounded && frame.bottom >= RunnerHazardKind.birdHighBottom
+                return field.isGrounded && frame.bottom >= RunnerHazardKind.birdMeetBottom
+                    && field.playerMaxX > frame.start && field.playerMinX < frame.end
             })
             isFrozenForCapture = true
         case "dog":

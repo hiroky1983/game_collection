@@ -302,27 +302,26 @@ struct BirdArtTests {
     /// その鳥だけ絵と帯がズレる。
     ///
     /// #796 で鳥は飛び立つ障害になり、帯は走者の進みで上下する（`RunnerHazard.frame`）。
-    /// 変わらないのは**帯の厚み = 絵の高さ**で、低く飛ぶあいだの上端は低い岩と同じ 5、
-    /// 上がりきった下端は #622 D案の 13。
-    @Test("鳥の箱は 1 タイル幅 × 絵の高さの帯（低いときの上端 5・上がったときの下端 13）")
+    /// 変わらないのは**帯の厚み = 絵の高さ**で、止まっているあいだの上端は低い岩と同じ 5、
+    /// 上がりきった（走者と出会う）下端は普通のジャンプの頂点（#945・`birdMeetBottom`）。
+    @Test("鳥の箱は 1 タイル幅 × 絵の高さの帯（止まっているときの上端 5・上がったときの下端は頂点）")
     func hitboxIsTheBand() {
-        #expect(RunnerHazardKind.bird.height == RunnerHazardKind.lowBlock.height, "低く飛ぶあいだは低い岩と同じ上端")
+        #expect(RunnerHazardKind.bird.height == RunnerHazardKind.lowBlock.height, "止まっているあいだは低い岩と同じ上端")
         #expect(
             abs(RunnerHazardKind.bird.height - RunnerHazardKind.bird.bottom - Self.height) < Self.epsilon,
             "帯の厚みが絵の高さから外れている"
         )
-        #expect(RunnerHazardKind.birdHighBottom == 13, "上がりきった下端は #622 D案の決裁値のまま")
-        #expect(RunnerHazardKind.birdHighBottom > RunnerField.Metrics.playerHeight, "上がりきれば接地した頭はつかえない")
+        #expect(RunnerHazardKind.birdMeetBottom == RunnerRules.jumpApex, "上がりきった下端は普通のジャンプの頂点（#945）")
+        #expect(RunnerHazardKind.birdMeetBottom > RunnerField.Metrics.playerHeight, "上がりきれば接地した頭はつかえない")
         let birds = RunnerStage.all.flatMap { $0.hazards }.filter { $0.kind == .bird }
         #expect(!birds.isEmpty)
         for bird in birds {
             #expect(bird.length == RunnerRules.tileWidth)
             #expect(bird.height == RunnerHazardKind.bird.height)
             // 上がりきった帯（`frame`）も同じ厚み。
-            let far = bird.birdTakeoffDistance
-                + (RunnerRules.birdLowDistance + RunnerRules.birdClimbDistance) / RunnerRules.birdAdvance
+            let far = bird.birdTakeoffDistance + RunnerRules.birdClimbDistance / RunnerRules.birdAdvance
             if let frame = bird.frame(atRunnerDistance: far) {
-                #expect(abs(frame.bottom - RunnerHazardKind.birdHighBottom) < Self.epsilon)
+                #expect(abs(frame.bottom - RunnerHazardKind.birdMeetBottom) < Self.epsilon)
                 #expect(abs(frame.top - frame.bottom - Self.height) < Self.epsilon)
             }
         }

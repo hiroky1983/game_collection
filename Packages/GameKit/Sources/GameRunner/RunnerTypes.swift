@@ -23,19 +23,24 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 飛び立つ鳥（#796・会長決裁 2026-09-14「置物からどれかにしたい」）。
     ///
     /// #671 までは帯 13〜絵の頂点に浮いている置物で、走っていれば当たらず何もしなければ
-    /// 安全——障害として機能していなかった。いまは**地面に止まっていて、おじさんが手前
-    /// `RunnerRules.birdTriggerDistance`（6 タイル）に入ると右上へ飛び立つ**:
+    /// 安全——障害として機能していなかった。#796 で「地面に止まっていて、近づくと飛び立つ」
+    /// 動く障害にしたが、飛び立ってからしばらく低い岩の高さを飛ぶ形だったため「跳ぶだけで
+    /// 躱せる岩」と変わらなかった（#945 会長QA 2026-09-15）。いまは**跳んだ先にいる障害**:
     ///
-    /// - 飛び立ってから `RunnerRules.birdLowDistance`（3 タイル）は**低い岩と同じ高さ**
-    ///   （上端 `birdLowTop` = 5）を飛ぶ。ここで走者と出会うので、**何もしなければ当たり、
-    ///   普通のジャンプで跳び越せる**（岩と同じ成立条件が使える）
-    /// - そこから帯 `birdHighBottom`（13）〜その上 `birdBandHeight` まで上がり、画面外へ抜ける
-    /// - 早く跳びすぎて降りてくるところに鳥がいても、**2 段ジャンプで上を抜けられる**
+    /// - 地面に止まっていて（帯の上端 `birdLowTop` = 5）、おじさんの前端が手前
+    ///   `RunnerRules.birdTriggerDistance`（6 タイル）に入ると右上へ飛び立つ
+    /// - 飛び立ってから `RunnerRules.birdClimbDistance`（1 タイル）進むあいだに、帯の下端が
+    ///   **普通のジャンプの頂点**（`birdMeetBottom` = `RunnerRules.jumpApex` ≒ 14）まで
+    ///   上がりきり、そのままの高さで飛び続ける。**走者が着く前に上がりきっている**
+    ///   （上がりきるのは走者の前端が帯の 8 手前に来た時点）
+    /// - 走者は**走ったまま下を抜ける**（接地した頭 11 の上に 3 の余裕）。**着いてから跳ぶと
+    ///   頭が帯に入って当たる**——反射で跳ぶ人を罰する障害で、岩の逆
+    /// - 早く跳びすぎると、速い面では降りてくるところに鳥がいて当たる（跳んだ先にいる）
     ///
-    /// 動きは走者の距離で決まる（`RunnerHazard.frame(atRunnerDistance:)`）。距離で決まる以上、
-    /// 走者と鳥の相対軌道は 1 通りしか無く、選べるのは踏み切る時機だけ——「遅れた跳び」を
-    /// 2 段目で救うことは物理上できない（2 段目は上昇を速めない）ので、2 段ジャンプの必然は
-    /// 「早すぎた 1 段目」の救済として出る。
+    /// 動きは走者の距離で決まる（`RunnerHazard.frame(atRunnerDistance:)`）ので、走者と鳥の
+    /// 相対軌道は 1 通りしか無く、同じ操作からは常に同じ結果になる（自動操縦のテストに乗る）。
+    /// 「上を越える」は帯の上端（14 + `birdBandHeight`）が 1 段の頂点より高いので 1 段では
+    /// できない。下を抜けるのが正解で、隣の障害との成立条件（`encounter`）もそれで書いてある。
     case bird
     /// 犬（#800 → #944）。**画面の左（走者の後ろ）から現れ、おじさんより速く右へ走り抜けて**
     /// 画面の外へ消える。
@@ -62,8 +67,9 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
 
     /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
-    /// 鳥は「低く飛んでいるあいだ」の値（帯の厚みは絵の縦の寸法 `birdBandHeight`）。
-    /// 走者の高さ 11 より低いので、低い鳥の下はくぐれない——岩と同じく跳んで越える。
+    /// 鳥は「地面に止まっているあいだ」の値（帯の厚みは絵の縦の寸法 `birdBandHeight`）。
+    /// 走者の高さ 11 より低いが、走者が着く前に飛び立って上がりきる（`birdMeetBottom`）ので、
+    /// 止まった鳥に触れることは無い。
     public var bottom: Double {
         switch self {
         case .pit, .lowBlock, .tallBlock, .dog, .boar: return 0
@@ -75,8 +81,12 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     ///
     /// **ジャンプの頂点（`RunnerRules.jumpApex`）より十分低く**すること。越えられない高さを置くと
     /// ステージが詰む。`RunnerStageTests` が全ステージで機械的に確かめる。
-    /// 動く障害（鳥・犬・イノシシ）は**走者と出会うときの上端**——鳥は低く飛んでいるあいだの
-    /// 上端で、上がってからの帯（`birdHighBottom` から上）は走者が通り過ぎたあとの見た目。
+    /// 動く障害（犬・イノシシ）は**走者と出会うときの上端**。鳥だけは例外で、これは**止まっている
+    /// あいだの上端**（低い岩と同じ 5）——走者と出会うときの帯は頭より上（`birdMeetBottom` から
+    /// 上）にあり、跳んで越える相手ではなく下を抜ける相手なので「越える高さ」は無い。
+    /// 自動操縦の踏み切りの余裕（`RunnerAutoPilot.lead`）と隣の障害との間隔（`encounter`）は
+    /// この値を「岩と同じ物差し」として使う（上がりきった鳥に自動操縦が踏み切ることは無い——
+    /// `RunnerField.nextHazard` が頭より上の帯を対象から外す）。
     public var height: Double {
         switch self {
         case .pit:               return 0
@@ -102,11 +112,15 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
         }
     }
 
-    /// 鳥が低く飛ぶあいだの帯の上端。**低い岩と同じ**（#796 の仕様「低い岩と同じ高さ（5）」）。
+    /// 鳥が地面に止まっているあいだの帯の上端。**低い岩と同じ**（#796 の仕様「低い岩と同じ高さ（5）」）。
     public static var birdLowTop: Double { lowBlock.height }
-    /// 鳥が上がりきったときの帯の下端（#622 D案の 13）。ここまで上がれば接地した走者の頭
-    /// （`RunnerField.Metrics.playerHeight` = 11）はつかえない。
-    public static let birdHighBottom: Double = 13
+    /// 走者と出会うときの帯の下端 = **普通のジャンプの頂点**（`RunnerRules.jumpApex` ≒ 14.06・#945）。
+    ///
+    /// 「跳んだ先にいる」をそのまま数にしたもの。接地した走者の頭（`RunnerField.Metrics.playerHeight`
+    /// = 11）より 3 ほど上なので走ったまま下を抜けられ、着いてから跳ぶと頭が 0.05 秒で帯に入る。
+    /// 帯の上端（+ `birdBandHeight`）は頂点より上なので、1 段のジャンプで上を越えることはできない。
+    /// 鳥は飛び立ってから `RunnerRules.birdClimbDistance` でここまで上がり、以後はこの高さで飛ぶ。
+    public static var birdMeetBottom: Double { RunnerRules.jumpApex }
     /// 鳥の帯の厚み。**絵（`RunnerBirdArt`）が縦に占める寸法に合わせて導出する**（#671）。
     ///
     /// 値を書き写さず計算させているのは、絵を描き替えたときに帯だけ古い値で取り残されるのを
@@ -236,9 +250,10 @@ public struct RunnerHazard: Equatable, Sendable {
             return RunnerHazardFrame(start: start, end: end, bottom: bottom, top: height, advance: 0)
         case .bird:
             let travel = birdTravel(atRunnerDistance: distance)
-            // 低く飛ぶ区間を過ぎたぶんだけ、帯の下端を 13 へ向けて一定の傾きで上げる。
-            // 13 に達しても止めない（そのまま画面外へ抜ける）。
-            let climb = max(0, travel - RunnerRules.birdLowDistance) * RunnerRules.birdClimbSlope
+            // 飛び立った瞬間から一定の傾きで上がり、`birdClimbDistance` 進んだところで帯の下端が
+            // 跳んだ先の高さ（`birdMeetBottom`）に届く。そこから先は同じ高さで飛び続ける
+            // （走者が下を抜けて追い越すので、鳥は後ろへ置き去りになって画面の左へ消える・#945）。
+            let climb = min(travel, RunnerRules.birdClimbDistance) * RunnerRules.birdClimbSlope
             let bandBottom = bottom + climb
             return RunnerHazardFrame(
                 start: start + travel, end: end + travel,
@@ -272,6 +287,13 @@ public struct RunnerHazard: Equatable, Sendable {
     /// 走者の前端が動く障害に初めて触れる地点を `start`、後端が抜ける地点から逆算した長さを
     /// `length` にする。速さ `a`（右が正）で動く幅 `w` の障害と幅 `p` の走者が重なっている
     /// 走者の進みは `(w + p) / (1 - a)` なので、等価な静止した長さは `(w + p) / (1 - a) - p`。
+    ///
+    /// 鳥（#945）は**横に重なる区間**そのもの。帯は頭より上（`RunnerHazardKind.birdMeetBottom`）
+    /// にあるので接地していれば当たらず、跳んでいるあいだだけ当たる——つまりこの区間は
+    /// 「跳んでいてはいけない区間」で、隣の障害を跳んだ着地がこの手前で終わり、次の踏み切りが
+    /// この先で始まることを、岩と同じ間隔の式（`RunnerStageTests.hazardsAreFarEnoughApart` /
+    /// `RunnerEndlessCourse.hasLandingGap`）がそのまま保証する。`height` は止まっている
+    /// あいだの 5（`RunnerHazardKind.height` を参照）。
     public var encounter: RunnerHazardEncounter {
         let playerWidth = RunnerField.Metrics.playerWidth
         switch kind {
