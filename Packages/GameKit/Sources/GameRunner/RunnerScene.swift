@@ -1941,20 +1941,17 @@ final class RunnerScene: SKScene {
         let field = model.field
         // 雲はコースより遅く流す（視差）。`cloudLayer` 自体は動かさず、
         // 雲1つ1つを「全雲の帯の幅」でラップする座標に置き直す（無限スクロール）。
-        let totalWidth = Self.cloudSpacing * Double(clouds.count)
+        // 折り返しは `RunnerParallax`（#921: 左端に周期的な空白が出ないよう 2 間隔ぶん左へずらす）。
         for (i, cloud) in clouds.enumerated() {
-            let raw = (cloudBaseX[i] - field.distance * Self.cloudParallax)
-                .truncatingRemainder(dividingBy: totalWidth)
-            let wrapped = raw < 0 ? raw + totalWidth : raw
-            cloud.position.x = wrapped
+            cloud.position.x = RunnerParallax.wrappedX(
+                base: cloudBaseX[i], distance: field.distance, parallax: Self.cloudParallax,
+                spacing: Self.cloudSpacing, count: clouds.count)
         }
         // 丘は雲より近く（速く）、コースより遠く（遅く）流す。仕組みは雲と同じ無限スクロール。
-        let hillTotalWidth = Self.hillSpacing * Double(hillTiles.count)
         for (i, tile) in hillTiles.enumerated() {
-            let raw = (hillBaseX[i] - field.distance * Self.hillParallax)
-                .truncatingRemainder(dividingBy: hillTotalWidth)
-            let wrapped = raw < 0 ? raw + hillTotalWidth : raw
-            tile.position.x = wrapped
+            tile.position.x = RunnerParallax.wrappedX(
+                base: hillBaseX[i], distance: field.distance, parallax: Self.hillParallax,
+                spacing: Self.hillSpacing, count: hillTiles.count)
         }
         // 走者の画面上の x は動かさず、コースのほうを左へ流す。
         courseLayer.position = CGPoint(x: Metrics.playerX - field.distance, y: 0)
