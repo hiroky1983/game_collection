@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import SwiftUI
 
 // MARK: - おじさん（ドット絵）
 
@@ -72,6 +74,19 @@ public enum OjisanPixel {
         case .cheer: return PixelSprite(rows: cheerRows, palette: palette)
         case .frown: return PixelSprite(rows: frownRows, palette: palette)
         }
+    }
+
+    // MARK: ハブ・リザルト用の正面顔
+
+    /// 正面顔（笑顔）のビットマップ。1 ドット = 2pt（32×30pt）で、起動後 1 回だけ作る
+    /// （#700 の受け入れ条件: 毎表示でビットマップ化しない）。
+    nonisolated(unsafe) public static let mascotFaceImage: CGImage? = face(.smile).cgImage(scale: 2)
+
+    /// ハブのカード・おすすめ・設定などで `GameModule.icon` として出す正面顔。
+    /// 画面の倍率（2x/3x）にはそのまま整数倍で拡大され、`interpolation(.none)` でにじまない。
+    public static var mascotIcon: Image {
+        guard let cg = mascotFaceImage else { return Image(systemName: "bicycle") }
+        return Image(decorative: cg, scale: 1).interpolation(.none)
     }
 
     // MARK: 格子（手で直すときは行の長さを揃えること。PixelArtTests が検査する）
