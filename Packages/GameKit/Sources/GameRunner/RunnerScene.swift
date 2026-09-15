@@ -916,9 +916,6 @@ final class RunnerScene: SKScene {
         /// 動いているあいだだけ見せる部品（イノシシの土煙）。
         let movingOnly: SKNode?
         var state: State?
-        /// 前のフレームで現れていたか。イノシシは突進が始まるまで、犬は画面の右に現れるまで
-        /// nil（現れていない）。
-        var wasPresent = false
 
         init(
             hazard: RunnerHazard, node: SKNode, shadow: SKNode? = nil, shadowBaseY: Double = 0,
@@ -959,8 +956,11 @@ final class RunnerScene: SKScene {
     /// **横は絵が矩形から導かれ、縦は帯が絵から導かれる**（#609 / #671 会長決裁 2026-09-12）。
     /// かつてはここに座標を直書きしており、「絵は矩形の内側に収まる寸法で組む」と書いていた
     /// にもかかわらず、実際にはくちばし・尾羽・翼が外へ出て**絵の幅が矩形の 1.5 倍**あった。
-    /// 今はくちばしの先端・尾羽の先端・翼の振り切った先端が矩形の縁にちょうど一致し、
-    /// 帯の床に絵の底、帯の天井に浮遊の上端が一致する。張り出しが 0 であることは
+    /// 今はくちばしの先端・尾羽の先端・翼の振り切った先端が**絵の箱**の縁にちょうど一致し、
+    /// 帯の床に絵の底が一致する。絵の箱は当たり判定を `RunnerBirdArt.visualScale`（2.5）倍に
+    /// 広げて中央を揃えたもの（#943・会長QA 2026-09-15「鳥が小さすぎて見えない」）で、絵は
+    /// 前後と上へ張り出す——**当たり判定が絵から出ることは無い**（張り出しは走者に甘い側だけ）。
+    /// 当たり判定の帯は倍率 1 の絵から導いたままなので、遊びは変わらない。この関係は
     /// `BirdArtTests` が寸法の計算で確かめるので、パーツを動かすとテストが落ちる。
     ///
     /// **座標・大きさをここに直書きしないこと。** この関数は `art` が持つ値をそのまま
@@ -973,6 +973,8 @@ final class RunnerScene: SKScene {
         //
         // 帯の高さは渡さない——**帯の厚みのほうが絵に合わせて決まる**（会長決裁 2026-09-12。
         // `RunnerHazardKind.birdBandHeight` が `art.bandHeight` から導出する）。
+        // 見た目の倍率（#943）は `RunnerBirdArt` の既定値に任せる。座標系の約束（x=0 が帯の
+        // 後端・y=0 が帯の床）は倍率で変わらないので、ここは値を写すだけでよい。
         let art = RunnerBirdArt(width: hazard.length, groundDrop: 0)
         // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・翼・尾羽・くちばしには暗い縁取りを引く
         // （腹・目・足は差し色なので引かない）。縁取りは輪郭の上に中心線で描かれ、当たり判定・
@@ -1132,13 +1134,13 @@ final class RunnerScene: SKScene {
     /// 対して中央合わせにしておけば反転で張り出しが左右入れ替わるだけで、位置は変わらない。
     ///
     /// 当たり判定は `RunnerField` が `frame(atRunnerDistance:)` の矩形（1 タイル × 高さ 5）で
-    /// 見ており、絵はその箱の中に収まる寸法。立ち止まって吠える挙動は #944 で無くなったので
-    /// 吹き出しは持たない。
+    /// 見ており、絵はその箱を `animalVisualScale` 倍に広げた箱（`addAnimalArtBox`・#943）の中に
+    /// 収まる寸法。立ち止まって吠える挙動は #944 で無くなったので吹き出しは持たない。
     private func addDog(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
         node.position = CGPoint(x: hazard.end, y: Metrics.groundY)
         node.xScale = -1
-        let w = hazard.length, h = hazard.height
+        let (art, w, h) = addAnimalArtBox(to: node, hazard: hazard, leadingEdge: nil)
         // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・耳・口元・尻尾・脚に暗い縁取りを
         // 引き、朝のパステルの背景でも輪郭が立つようにする（鼻・目・腹は差し色なので引かない）。
         let colors = world.creatures
@@ -1148,11 +1150,11 @@ final class RunnerScene: SKScene {
         shadow.strokeColor = .clear
         shadow.alpha = 0.35
         shadow.position = CGPoint(x: w / 2, y: 0.25)
-        node.addChild(shadow)
+        art.addChild(shadow)
 
         // 脚（4 本）。体より奥に置く。
         let legs = addRunningLegs(
-            to: node, xs: [w * 0.28, w * 0.4, w * 0.62, w * 0.74], hipY: h * 0.5,
+            to: art, xs: [w * 0.28, w * 0.4, w * 0.62, w * 0.74], hipY: h * 0.5,
             length: h * 0.5, thickness: w * 0.11, color: colors.dogDark, z: 0
         )
 
@@ -1162,13 +1164,13 @@ final class RunnerScene: SKScene {
         outline(body)
         body.position = CGPoint(x: w * 0.5, y: h * 0.52)
         body.zPosition = 1
-        node.addChild(body)
+        art.addChild(body)
         let belly = SKShapeNode(ellipseOf: CGSize(width: w * 0.42, height: h * 0.14))
         belly.fillColor = RunnerPalette.color(colors.dogBelly)
         belly.strokeColor = .clear
         belly.position = CGPoint(x: w * 0.52, y: h * 0.44)
         belly.zPosition = 2
-        node.addChild(belly)
+        art.addChild(belly)
 
         // 尻尾（後ろ上に立てた短い棒）。
         let tail = outlinedRect(
@@ -1177,7 +1179,7 @@ final class RunnerScene: SKScene {
         tail.position = CGPoint(x: w * 0.16, y: h * 0.56)
         tail.zRotation = -0.6
         tail.zPosition = 1
-        node.addChild(tail)
+        art.addChild(tail)
 
         // 頭（丸）と、立った耳・鼻・目。頭は箱の右上（反転後は進行方向の左）。
         let head = SKShapeNode(circleOfRadius: w * 0.2)
@@ -1185,7 +1187,7 @@ final class RunnerScene: SKScene {
         outline(head)
         head.position = CGPoint(x: w * 0.8, y: h * 0.74)
         head.zPosition = 3
-        node.addChild(head)
+        art.addChild(head)
         let earPath = CGMutablePath()
         earPath.addLines(between: [
             CGPoint(x: -w * 0.16, y: h * 0.08), CGPoint(x: -w * 0.06, y: h * 0.3), CGPoint(x: 0, y: h * 0.1),
@@ -1196,39 +1198,89 @@ final class RunnerScene: SKScene {
         outline(ear)
         ear.position = head.position
         ear.zPosition = 2
-        node.addChild(ear)
+        art.addChild(ear)
         let muzzle = SKShapeNode(ellipseOf: CGSize(width: w * 0.2, height: h * 0.12))
         muzzle.fillColor = RunnerPalette.color(colors.dogBelly)
         outline(muzzle)
         muzzle.position = CGPoint(x: w * 0.94, y: h * 0.7)
         muzzle.zPosition = 4
-        node.addChild(muzzle)
+        art.addChild(muzzle)
         let nose = SKShapeNode(circleOfRadius: w * 0.04)
         nose.fillColor = RunnerPalette.color(colors.dogDark)
         nose.strokeColor = .clear
         nose.position = CGPoint(x: w * 1.0, y: h * 0.72)
         nose.zPosition = 5
-        node.addChild(nose)
+        art.addChild(nose)
         let eye = SKShapeNode(circleOfRadius: w * 0.035)
         eye.fillColor = RunnerPalette.color(colors.dogDark)
         eye.strokeColor = .clear
         eye.position = CGPoint(x: w * 0.86, y: h * 0.8)
         eye.zPosition = 5
-        node.addChild(eye)
+        art.addChild(eye)
 
         courseLayer.addChild(node)
         return MovingHazardView(hazard: hazard, node: node, animated: legs)
     }
 
-    /// イノシシ（`RunnerHazardKind.boar`・#801）。右から左へ突進してくるので、頭は左向き。
-    /// 丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。原点は箱の左下（頭側）。
+    /// 地面を走る動物（犬・イノシシ）の絵の倍率（#943・会長QA 2026-09-15「鳥、犬、イノシシ全体的に
+    /// 敵のオブジェクトが小さい。おじさんと同じ位の大きさはいるかと」）。
     ///
-    /// 走っているあいだは後ろ（右）に土煙を引く。岩で止まると脚と土煙が止まり、
+    /// 当たり判定（1 タイル幅 × 高さ 5 = 低い岩と同じ）とジャンプ物理はそのまま、**絵だけ**を
+    /// この倍率で描く。基準にした走者の絵（`buildPlayer`。当たり判定は 8 × 11）は、帽子の天辺
+    /// （`buildFace` の crown 11.0 + 0.9）まで**全高 11.9**、車輪の外径で全幅およそ 11。
+    /// これに対して倍率 2 で **犬 8 × 10.4**（耳の先まで）・**イノシシ 8 × 9.2**（耳の先まで）になり、
+    /// 走者と同じ位。**鳥は `RunnerBirdArt.defaultVisualScale`（2.5）で 10 × 10.8**（帯 4 × 4.34 の
+    /// 絵を倍率で大きく描く。当たり判定の帯は不変）。
+    ///
+    /// 絵が当たり判定より大きい方向のズレは「触れて見えるのに当たらない」（走者に甘い）だけで、
+    /// #609 で潰した「見えていないのに当たる」は起きない。箱の置き方は `addAnimalArtBox`。
+    static let animalVisualScale = 2.0
+
+    /// 動物の絵を組む箱（#943）。当たり判定（`hazard.length` × `hazard.height`）を
+    /// `animalVisualScale` 倍に広げ、**縦は地面合わせ**で `node`（原点 = 当たり判定の左下）の下に
+    /// 置く。戻り値は絵を足すノードと箱の幅・高さで、`addDog` / `addBoar` は箱の中の座標を
+    /// すべて `w` / `h` の比で書く。
+    ///
+    /// 横の合わせ方は `leadingEdge` で選ぶ:
+    /// - `nil`（犬）: 当たり判定に**中央合わせ**。前後に等しく張り出す
+    /// - 値あり（イノシシ）: 絵の一番左の点（箱ローカル x を箱の幅に対する比で。イノシシなら
+    ///   鼻先の楕円の左端 `boarSnout`）を当たり判定の左端にぴったり合わせ、張り出しを**すべて
+    ///   後ろ（右）へ回す**。イノシシは岩にぶつかると当たり判定の左端を岩の右端に密着させて
+    ///   止まる（`RunnerHazard.stopAt` = 岩の `end`）ので、中央合わせだと頭が岩に 2 めり込んで
+    ///   見える（PR の敵対的検証で指摘）。鼻先を合わせれば岩に触れた形で止まり、走者が出会う側
+    ///   （頭）は見た目と当たり判定が一致する。縁取り（#929）は輪郭の上に中心線で乗る線なので、
+    ///   鳥（`RunnerBirdArt`）と同じく張り出しには数えない
+    private func addAnimalArtBox(
+        to node: SKNode, hazard: RunnerHazard, leadingEdge: Double?
+    ) -> (art: SKNode, w: Double, h: Double) {
+        let w = hazard.length * Self.animalVisualScale
+        let h = hazard.height * Self.animalVisualScale
+        let art = SKNode()
+        let x = leadingEdge.map { -w * $0 } ?? (hazard.length - w) / 2
+        art.position = CGPoint(x: x, y: 0)
+        node.addChild(art)
+        return (art, w, h)
+    }
+
+    /// イノシシの鼻先の楕円（`addBoar`）の中心 x と半幅（箱の幅に対する比）。絵の一番左（頭側の
+    /// 先端）で、`addAnimalArtBox` が当たり判定の左端に合わせるのはこの左端。頭の丸（中心 0.2・
+    /// 半径 0.22 → 左端 -0.02）より左に出ている。
+    private static let boarSnout = (centerX: 0.06, halfWidth: 0.11)
+
+    /// イノシシ（`RunnerHazardKind.boar`・#801）。右から左へ突進してくるので、頭は左向き。
+    /// 丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。原点は絵の箱の左下（頭側）。
+    /// 絵の箱は当たり判定を `animalVisualScale` 倍に広げたもの（`addAnimalArtBox`・#943）で、
+    /// **鼻先（`boarSnout` の左端）を当たり判定の左端に合わせ、張り出しはすべて後ろ（右）**
+    /// ——岩で止まったとき鼻先が岩に触れた形になり、頭が岩にめり込まない。
+    ///
+    /// 走っているあいだは後ろ脚の足元に土煙を立てる。岩で止まると脚と土煙が止まり、
     /// 低い岩と同じ置物として岩の右側に並ぶ。
     private func addBoar(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
-        let w = hazard.length, h = hazard.height
+        let (art, w, h) = addAnimalArtBox(
+            to: node, hazard: hazard, leadingEdge: Self.boarSnout.centerX - Self.boarSnout.halfWidth
+        )
         // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・鼻先・牙・耳・脚に暗い縁取りを引く
         // （たてがみは胴の内側、目は差し色なので引かない）。
         let colors = world.creatures
@@ -1238,10 +1290,11 @@ final class RunnerScene: SKScene {
         shadow.strokeColor = .clear
         shadow.alpha = 0.35
         shadow.position = CGPoint(x: w / 2, y: 0.25)
-        node.addChild(shadow)
+        art.addChild(shadow)
 
+        let legXs = [w * 0.3, w * 0.42, w * 0.66, w * 0.78]
         let legs = addRunningLegs(
-            to: node, xs: [w * 0.3, w * 0.42, w * 0.66, w * 0.78], hipY: h * 0.46,
+            to: art, xs: legXs, hipY: h * 0.46,
             length: h * 0.46, thickness: w * 0.13, color: colors.boarDark, z: 0
         )
 
@@ -1251,13 +1304,13 @@ final class RunnerScene: SKScene {
         outline(body)
         body.position = CGPoint(x: w * 0.54, y: h * 0.56)
         body.zPosition = 1
-        node.addChild(body)
+        art.addChild(body)
         let mane = SKShapeNode(ellipseOf: CGSize(width: w * 0.6, height: h * 0.14))
         mane.fillColor = RunnerPalette.color(colors.boarDark)
         mane.strokeColor = .clear
         mane.position = CGPoint(x: w * 0.5, y: h * 0.76)
         mane.zPosition = 2
-        node.addChild(mane)
+        art.addChild(mane)
 
         // 頭（左）。鼻先を前へ突き出し、牙を白で 1 本。
         let head = SKShapeNode(circleOfRadius: w * 0.22)
@@ -1265,13 +1318,14 @@ final class RunnerScene: SKScene {
         outline(head)
         head.position = CGPoint(x: w * 0.2, y: h * 0.58)
         head.zPosition = 3
-        node.addChild(head)
-        let snout = SKShapeNode(ellipseOf: CGSize(width: w * 0.22, height: h * 0.14))
+        art.addChild(head)
+        // 鼻先。絵の一番左で、`addAnimalArtBox` がここを当たり判定の左端に合わせる（`boarSnout`）。
+        let snout = SKShapeNode(ellipseOf: CGSize(width: w * Self.boarSnout.halfWidth * 2, height: h * 0.14))
         snout.fillColor = RunnerPalette.color(colors.boarSnout)
         outline(snout)
-        snout.position = CGPoint(x: w * 0.06, y: h * 0.52)
+        snout.position = CGPoint(x: w * Self.boarSnout.centerX, y: h * 0.52)
         snout.zPosition = 4
-        node.addChild(snout)
+        art.addChild(snout)
         let tuskPath = CGMutablePath()
         tuskPath.addLines(between: [
             CGPoint(x: 0, y: 0), CGPoint(x: -w * 0.08, y: h * 0.12), CGPoint(x: w * 0.06, y: h * 0.02),
@@ -1282,7 +1336,7 @@ final class RunnerScene: SKScene {
         outline(tusk)
         tusk.position = CGPoint(x: w * 0.1, y: h * 0.42)
         tusk.zPosition = 5
-        node.addChild(tusk)
+        art.addChild(tusk)
         let earPath = CGMutablePath()
         earPath.addLines(between: [
             CGPoint(x: 0, y: 0), CGPoint(x: w * 0.06, y: h * 0.2), CGPoint(x: w * 0.16, y: h * 0.04),
@@ -1293,22 +1347,28 @@ final class RunnerScene: SKScene {
         outline(ear)
         ear.position = CGPoint(x: w * 0.22, y: h * 0.72)
         ear.zPosition = 2
-        node.addChild(ear)
+        art.addChild(ear)
         let eye = SKShapeNode(circleOfRadius: w * 0.04)
         eye.fillColor = RunnerPalette.color(RunnerPalette.boarTusk)
         eye.strokeColor = .clear
         eye.position = CGPoint(x: w * 0.14, y: h * 0.66)
         eye.zPosition = 5
-        node.addChild(eye)
+        art.addChild(eye)
 
-        // 後ろに引く土煙。走っているあいだだけ見せ、膨らんで消えるを繰り返す。
+        // 土煙。**後ろ脚の足元（地面の高さ）**に立て、走っているあいだだけ見せて膨らんで消えるを
+        // 繰り返す。位置と大きさは本体の寸法から導く（#943 の倍率で本体と一緒に大きくなる）。
+        // かつては箱の外の後方（x = 1.1〜1.35 w・地面より上）に置いていたが、会長QA（2026-09-15）で
+        // 「地面のよくわからんところからおならみたいなのが出る」と見えた。本体の右（後ろ）に
+        // ぶら下がる構造上、右から入ってくる本体より土煙が先に画面へ出ることはなく、本体が
+        // 画面内にいるときだけ見える。
         let dust = SKNode()
-        for (index, spec) in [(1.1, 0.5, 0.7), (1.35, 1.1, 0.5)].enumerated() {
-            let puff = SKShapeNode(circleOfRadius: spec.2)
+        let rearFoot = legXs[3]
+        for (index, spec) in [(0.0, 0.05, 0.14), (0.14, 0.12, 0.1)].enumerated() {
+            let puff = SKShapeNode(circleOfRadius: h * spec.2)
             puff.fillColor = RunnerPalette.color(RunnerPalette.cloud)
             puff.strokeColor = .clear
             puff.alpha = 0.6
-            puff.position = CGPoint(x: w * spec.0, y: h * spec.1 * 0.3)
+            puff.position = CGPoint(x: rearFoot + w * spec.0, y: h * spec.1)
             puff.zPosition = -1
             let grow = SKAction.group([.scale(to: 1.6, duration: 0.3), .fadeAlpha(to: 0, duration: 0.3)])
             let reset = SKAction.group([.scale(to: 0.6, duration: 0), .fadeAlpha(to: 0.6, duration: 0)])
@@ -1316,7 +1376,7 @@ final class RunnerScene: SKScene {
             dust.addChild(puff)
         }
         dust.isHidden = true
-        node.addChild(dust)
+        art.addChild(dust)
 
         courseLayer.addChild(node)
         return MovingHazardView(hazard: hazard, node: node, animated: legs, movingOnly: dust)
@@ -1331,19 +1391,15 @@ final class RunnerScene: SKScene {
             let hazard = view.hazard
             guard let frame = hazard.frame(atRunnerDistance: field.distance) else {
                 view.node.isHidden = true
-                view.wasPresent = false
                 continue
             }
             view.node.isHidden = false
-            if !view.wasPresent {
-                view.wasPresent = true
-                // 突進が始まった瞬間（#801）。出現点はまだ画面の外なので、画面の右端に土煙を
-                // 立てて「何か来る」を見せる。手応え（ドドド）は Model が同じ瞬間に鳴らす。
-                if hazard.kind == .boar, field.distance > hazard.boarChargeStartDistance - 1 {
-                    spawnChargeDust(atWorldX: field.distance + Metrics.width - Metrics.playerX - 4)
-                }
-                // 犬（#955）は予告なしに画面の右の外に現れて歩いて入って来るだけ。土煙も鳴らさない。
-            }
+            // 現れた瞬間の予告の土煙は立てない。イノシシの突進（#801）の予告は**手応え（ドドド）だけ**
+            // （Model が鳴らす）。かつては画面の右端の地面に土煙を立てていたが、イノシシはまだ 148 先
+            // （画面は 74 先まで）で本体が見えず、「地面のよくわからんところからおならみたいなのが
+            // 出る」と会長QAで指摘された（#943・2026-09-15）。土煙はイノシシの後ろ脚の足元に
+            // 付けてあり（`addBoar`）、本体と一緒に画面へ入ってくる。
+            // 犬（#955）は予告なしに画面の右の外に現れて歩いて入って来るだけ。土煙も鳴らさない。
             switch hazard.kind {
             case .bird:
                 // 原点は帯の右端（左右反転しているため）。影は帯が上がっても地面に残す。
@@ -1370,20 +1426,6 @@ final class RunnerScene: SKScene {
                 break
             }
         }
-    }
-
-    /// イノシシの予告の土煙（#801）。画面の右端の地面に、激突の土煙より大きく長く立てる。
-    /// コース側（`courseLayer`）に置くので、走るにつれて左へ流れていく。
-    private func spawnChargeDust(atWorldX worldX: Double) {
-        spawnDust(
-            at: CGPoint(x: worldX, y: Metrics.groundY + 1.5),
-            specs: [
-                (-2.0, 3.5, 1.6), (1.5, 4.5, 1.3), (-4.5, 2.0, 1.2),
-                (3.5, 2.5, 1.0), (0.0, 6.0, 1.1), (-1.0, 1.0, 1.8),
-            ],
-            duration: 0.8,
-            in: courseLayer
-        )
     }
 
     /// スピードアップアイテム。最初の実装は細い矩形2枚で稲妻を表していたが小さすぎて
