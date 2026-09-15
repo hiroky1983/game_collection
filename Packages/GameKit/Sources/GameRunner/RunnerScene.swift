@@ -258,9 +258,38 @@ final class RunnerScene: SKScene {
         fatalError("RunnerScene はコードからのみ生成する")
     }
 
+    /// 層の `zPosition`（#942）。SpriteKit は木全体で `zPosition` を合算して並べ、同値のときだけ
+    /// 追加順になる。層が全部 0 だと、丘の中の家の屋根（子の z = 1・#929）が走者の車輪（0 / −1）や
+    /// チェックポイントの旗の棒（0）より**前**に描かれ、跳んで屋根の高さに達したとき・旗が家と
+    /// 重なるときに屋根が手前へ出た（会長 QA 2026-09-15）。層ごとに部品の相対 z（最大 7）より
+    /// 十分離れた値を持たせ、層をまたいだ逆転を起こさない（`SceneLayerTests` が間隔を固定）。
+    enum LayerZ {
+        static let clouds: CGFloat = 0
+        static let backdrop: CGFloat = 100
+        static let hills: CGFloat = 200
+        static let course: CGFloat = 300
+        static let player: CGFloat = 400
+        /// 奥から手前の順。
+        static let ordered: [CGFloat] = [clouds, backdrop, hills, course, player]
+        /// 部品（車輪・屋根・煙など）が層の中で使う相対 z の上限。これより層の間隔を広くとる。
+        static let partMax: CGFloat = 10
+    }
+
+    /// 家並みの部品の相対 z（`hillLayer` の中）。丘の山は 0 なので、壁から先はその前。
+    enum HouseZ {
+        static let wall: CGFloat = 2
+        static let roof: CGFloat = 3
+        static let fixtures: CGFloat = 4
+    }
+
     override func didMove(to view: SKView) {
         guard courseLayer.parent == nil else { return }
         // 奥から順に。雲・遠景・丘の中身は `rebuildCourse` が世界に合わせて組む（`applyWorld`）。
+        cloudLayer.zPosition = LayerZ.clouds
+        backdropLayer.zPosition = LayerZ.backdrop
+        hillLayer.zPosition = LayerZ.hills
+        courseLayer.zPosition = LayerZ.course
+        player.zPosition = LayerZ.player
         addChild(cloudLayer)
         addChild(backdropLayer)
         addChild(hillLayer)
@@ -649,6 +678,9 @@ final class RunnerScene: SKScene {
     /// 壁は矩形、屋根は低い寄棟（台形のパス）、窓と戸は小さな矩形（#494 の意匠制約の内側）。
     /// 丘のループに載せる。以前の「幅より高い壁に急な三角屋根」は細長い建物に見えて
     /// 下品（会長 QA 2026-09-15）だったので、横に広い家に低い屋根を載せる形へ変えた。
+    ///
+    /// 家の部品はすべて丘の山（z 0）より前の z に置く（`HouseZ`）。屋根だけ z 1 で壁が 0 だと、
+    /// 隣のタイルの山（追加順が後）が壁を隠して屋根だけ浮いて見える（会長 QA 2026-09-15、#942）。
     private func addTownHouses(to tile: SKNode) {
         typealias HousePalette = RunnerWorld.TownHouse.Palette
         for house in RunnerWorld.townHouses {
@@ -659,6 +691,7 @@ final class RunnerScene: SKScene {
             )
             wall.anchorPoint = .zero
             wall.position = base
+            wall.zPosition = HouseZ.wall
             tile.addChild(wall)
 
             // 屋根。軒を壁より 0.8 ずつ張り出し、棟は幅の中央 44% を平らにした寄棟。
@@ -673,7 +706,7 @@ final class RunnerScene: SKScene {
             roofNode.fillColor = RunnerPalette.color(house.roof)
             roofNode.strokeColor = .clear
             roofNode.position = CGPoint(x: base.x, y: base.y + house.wallHeight)
-            roofNode.zPosition = 1
+            roofNode.zPosition = HouseZ.roof
             tile.addChild(roofNode)
 
             // 玄関の戸（1 階の左寄り）と窓（各階 2〜3 枚）。
@@ -684,6 +717,7 @@ final class RunnerScene: SKScene {
             )
             door.anchorPoint = .zero
             door.position = CGPoint(x: base.x + house.width * 0.12, y: base.y)
+            door.zPosition = HouseZ.fixtures
             tile.addChild(door)
             for floor in 0..<house.floors {
                 // 1 階は戸の右に 2 枚、2 階以上は戸の上にも 1 枚。
@@ -698,6 +732,7 @@ final class RunnerScene: SKScene {
                         x: base.x + house.width * column,
                         y: base.y + floorHeight * Double(floor) + floorHeight * 0.42
                     )
+                    window.zPosition = HouseZ.fixtures
                     tile.addChild(window)
                 }
             }
