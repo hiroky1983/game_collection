@@ -4,6 +4,7 @@ import SwiftUI
 import Core
 @testable import GameBlackjack
 import CoreTestSupport
+import GameKitTestSupport
 
 // MARK: - Mocks
 
@@ -193,12 +194,7 @@ struct BlackjackRewardedAdTests {
     /// ファイル全体を探すとそちらに当たって空振りするため。
     @Test("視聴中は「最初からやり直す」を押せない")
     func restartButtonIsDisabledWhileWatching() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameBlackjackTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameBlackjack/BlackjackView.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try SourceScan.packageSource("Sources/GameBlackjack/BlackjackView.swift")
         let start = try #require(source.range(of: "Button { model.restartSession() } label: {"),
                                  "やり直しボタンの定義が見つからない（走査が空振りしている）")
         let end = try #require(source.range(of: "// MARK: - Helper", range: start.upperBound..<source.endIndex))

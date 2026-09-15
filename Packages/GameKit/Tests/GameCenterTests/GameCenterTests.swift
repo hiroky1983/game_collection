@@ -23,6 +23,7 @@ import GameSpider
 import GameChess
 import GameBlocks
 import CoreTestSupport
+import GameKitTestSupport
 
 // MARK: - モック
 
@@ -748,14 +749,8 @@ struct GameCenterPerGameTests {
 @Suite("実績・ランキングの導線")
 struct GameCenterEntryPointTests {
     private func appSource(_ fileName: String) throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameCenterTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .deletingLastPathComponent()   // Packages/
-            .deletingLastPathComponent()   // リポジトリのルート
-        return try String(
-            contentsOf: repoRoot.appendingPathComponent("App/\(fileName)"), encoding: .utf8
+        try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/\(fileName)"), encoding: .utf8
         )
     }
 
@@ -829,11 +824,7 @@ struct GameCenterEntryPointTests {
     func doesNotUseDeprecatedGameCenterViewController() throws {
         // 置き換え先は GKAccessPoint（SDK ヘッダの API_DEPRECATED_WITH_REPLACEMENT が明示）。
         // 導線を触るときに「昔の作法」へ戻してしまわないよう、App/ 全体で禁止する。
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let appDir = repoRoot.appendingPathComponent("App")
+        let appDir = SourceScan.repositoryRoot.appendingPathComponent("App")
         let swiftFiles = try FileManager.default
             .contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" }

@@ -3,6 +3,7 @@ import SwiftUI
 import Testing
 import Core
 import CoreTestSupport
+import GameKitTestSupport
 
 /// リザルトの「階段」（#722）がレコメンドの枠に正しく相乗りしていることを見る。
 @Suite("難易度の階段の枠")
@@ -58,11 +59,7 @@ struct DifficultyLadderSlotTests {
     /// 走査は**ゲームごとのディレクトリ一式**を読み、コメント行は除く（言及に当たって空振りしないため）。
     @Test("難易度を選べるゲームはすべて階段を枠へ渡している")
     func everyLeveledGameWiresLadder() {
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameChromeTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources")
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
         let leveled = [
             "GameChess", "GameConcentration", "GameGo", "GameGomoku", "GameHanafuda",
             "GameMinesweeper", "GameOthello", "GameShogi", "GameSudoku",

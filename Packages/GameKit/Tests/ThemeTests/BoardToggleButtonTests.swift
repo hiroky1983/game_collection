@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 @testable import Core
 
 /// 帯の上の ON/OFF トグル（拡大切り替え・旗モード）が Core の共通枠から組まれていること（#641）。
@@ -108,11 +109,7 @@ struct BoardToggleButtonTests {
     // MARK: - ヘルパー
 
     private static var sourcesDirectory: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // ThemeTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources")
+        SourceScan.packageRoot.appendingPathComponent("Sources")
     }
 
     private static func read(_ path: String) throws -> String {

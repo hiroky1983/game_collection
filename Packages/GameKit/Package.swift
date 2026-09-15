@@ -92,7 +92,7 @@ let package = Package(
         .testTarget(name: "ThemeTests",       dependencies: ["Core", "GameKitTestSupport"]),
         .testTarget(name: "PixelArtTests",    dependencies: ["Core"]),
         // 広告枠（バナー）の生成判断。実際の GADBannerView は端末側なので、判断だけを純粋関数で検証する。
-        .testTarget(name: "AdsTests",         dependencies: ["Core"]),
+        .testTarget(name: "AdsTests",         dependencies: ["Core", "GameKitTestSupport"]),
         // 画面の広さに応じた適応レイヤ（#458 の iPad 対応）。判定と数値を Core に集約しているため、
         // レイアウトの正しさはシミュレータを起動しなくてもここで検証できる。
         .testTarget(name: "LayoutTests",      dependencies: ["Core", "GameKitTestSupport"]),
@@ -113,15 +113,15 @@ let package = Package(
         ]),
         // 盤ゲーム（将棋・チェス）の共通の枠（#530）。値も重なり順も「両方で同じ」であることが
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
-        .testTarget(name: "BoardGameChromeTests", dependencies: ["Core"]),
-        .testTarget(name: "GameChromeTests",   dependencies: ["Core", "CoreTestSupport"]),
+        .testTarget(name: "BoardGameChromeTests", dependencies: ["Core", "GameKitTestSupport"]),
+        .testTarget(name: "GameChromeTests",   dependencies: ["Core", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "OjisanTests",       dependencies: ["Core"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048", "CoreTestSupport"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameGoTests",      dependencies: ["GameGo", "CoreTestSupport"]),
-        .testTarget(name: "GameChessTests",   dependencies: ["GameChess", "CoreTestSupport"]),
-        .testTarget(name: "GameMinesweeperTests", dependencies: ["GameMinesweeper", "CoreTestSupport"]),
+        .testTarget(name: "GameChessTests",   dependencies: ["GameChess", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameMinesweeperTests", dependencies: ["GameMinesweeper", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "GameKitTestSupport", "CoreTestSupport"]),
@@ -152,7 +152,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
@@ -184,7 +184,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
@@ -193,7 +193,7 @@ let package = Package(
             "Core", "GameShogi", "GameGomoku", "GameMinesweeper", "GameOthello",
             "GameDaifugo", "GameMahjongSolitaire", "GameMahjong", "MahjongTiles", "GameSudoku",
             "GameGo", "GameSolitaire", "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle",
-            "GameHanafuda", "GameSpider",
+            "GameHanafuda", "GameSpider", "GameKitTestSupport",
         ]),
         // 評価リクエストも全ゲーム横断（勝敗の振り分けを全 Model で検証する）。
         .testTarget(name: "ReviewRequestTests", dependencies: [

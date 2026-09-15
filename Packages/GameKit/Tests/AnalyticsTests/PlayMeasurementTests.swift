@@ -442,11 +442,7 @@ struct GameOpenWiringTests {
 /// 呼び出しの形そのものを検査対象にする（`MotionTests` の走査と同じ考え方）。
 @Suite("リワード広告の発火箇所（#500）")
 struct RewardAdCallSiteTests {
-    private static let sourcesRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // AnalyticsTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // GameKit
-        .appendingPathComponent("Sources")
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
 
     /// `Sources/` 配下の Swift ファイル（Core を除く）を読み込む。
     private static func gameSources() throws -> [(path: String, text: String)] {
@@ -501,11 +497,7 @@ struct RewardAdCallSiteTests {
 /// 各ゲームの操作を通しで再現できないため、呼び出しの存在そのものを検査対象にする。
 @Suite("プレイ計測の付け忘れ（#500）")
 struct PlayMeasurementCallSiteTests {
-    private static let sourcesRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // AnalyticsTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // GameKit
-        .appendingPathComponent("Sources")
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
 
     /// モジュール名 → そのモジュールの全ソースを連結した文字列。
     private static func modules() throws -> [String: String] {

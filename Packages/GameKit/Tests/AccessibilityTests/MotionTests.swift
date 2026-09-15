@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import SwiftUI
+import GameKitTestSupport
 @testable import Core
 
 /// Reduce Motion 追従（#210）の共通レイヤー。
@@ -66,11 +67,7 @@ struct MotionTests {
     /// 守られないので、ソースを走査して固定する。
     @Test("アニメーションは Core のヘルパー経由でのみ書かれている")
     func noRawAnimationOutsideCore() throws {
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // AccessibilityTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources")
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
 
         let files = try FileManager.default
             .subpathsOfDirectory(atPath: sources.path)

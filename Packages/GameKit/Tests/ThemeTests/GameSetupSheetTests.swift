@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 @testable import Core
 
 /// 開始前の設定シートが Core の共通枠（`GameSetupSheet`）から組まれていること（#527）。
@@ -89,11 +90,7 @@ struct GameSetupSheetSourceTests {
     // MARK: - ヘルパー
 
     private static var sourcesDirectory: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // ThemeTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources")
+        SourceScan.packageRoot.appendingPathComponent("Sources")
     }
 
     private static func read(_ path: String) throws -> String {

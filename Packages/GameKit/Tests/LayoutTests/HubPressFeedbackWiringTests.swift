@@ -9,11 +9,6 @@ import GameKitTestSupport
 /// （View をファイルへ割っただけで空振りする形・説明文の言及に当たって緑になる形を避けるため）。
 @Suite("ハブの押下フィードバックと読み上げ")
 struct HubPressFeedbackWiringTests {
-    private static func count(_ pattern: String, in source: String) throws -> Int {
-        let regex = try NSRegularExpression(pattern: pattern)
-        return regex.numberOfMatches(in: source, range: NSRange(source.startIndex..., in: source))
-    }
-
     @Test("App/ に押下フィードバックを消す .plain が残っていない")
     func noPlainButtonStyle() throws {
         let source = try SourceScan.appSources()
@@ -27,9 +22,9 @@ struct HubPressFeedbackWiringTests {
         // 導線の数（グリッド・つづき/最近の行・はじめの1本 #721）と、`.pop` まで結線された数が一致すること。
         // `.pop` の有無だけを contains で見ると、別のボタンに付いた `.pop` で緑になる。
         // 導線を足したら、そのカードの型名を下の選択肢に加える（加えないと .pop を付けても赤になる）。
-        let links = try Self.count(#"NavigationLink\(value: HubRoute\("#, in: source)
-        let popped = try Self.count(
-            #"NavigationLink\(value: HubRoute\([^{}]*\)\) \{\s*(GameCard|HubRecentCard|HubFirstPickCard)\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)"#,
+        let links = SourceScan.matchCount(of: #"NavigationLink\(value: HubRoute\("#, in: source)
+        let popped = SourceScan.matchCount(
+            of: #"NavigationLink\(value: HubRoute\([^{}]*\)\) \{\s*(GameCard|HubRecentCard|HubFirstPickCard)\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)"#,
             in: source
         )
         #expect(links >= 2, "ハブの導線が見つからない（走査のパターンが壊れている可能性）")
