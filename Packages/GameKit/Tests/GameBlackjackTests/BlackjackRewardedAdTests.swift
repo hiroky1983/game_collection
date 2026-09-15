@@ -3,25 +3,9 @@ import Foundation
 import SwiftUI
 import Core
 @testable import GameBlackjack
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MockSnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-
-    /// 旧バージョンが書いた JSON をそのまま流し込む（鍵を1つ落とした形を作るのに使う）。
-    func saveRaw(_ json: Data, for gameID: String) { store[gameID] = json }
-}
 
 /// `BlackjackSnapshot` を符号化してから指定の鍵を落とし、旧バージョンが書いた JSON を作る。
 private func encodingWithoutKey(_ snapshot: BlackjackSnapshot, key: String) throws -> Data {
@@ -76,12 +60,12 @@ private func makeBustedModel(
     rewardEarned: Bool = true,
     chips: Int = 100,
     hasRevived: Bool = false,
-    store: MockSnapshotStore = MockSnapshotStore(),
+    store: MemorySnapshotStore = MemorySnapshotStore(),
     gameCenter: GameCenterReporter? = nil,
     playLog: PlayLog? = nil,
     seed: UInt64 = 20260909,
     screenGeneration: GameScreenGeneration = GameScreenGeneration()
-) -> (BlackjackModel, StubAdService, MockSnapshotStore) {
+) -> (BlackjackModel, StubAdService, MemorySnapshotStore) {
     var nextID = 0
     func make(_ ranks: [Int]) -> [BlackjackCard] {
         ranks.map { rank in
@@ -250,7 +234,7 @@ struct BlackjackRewardedAdTests {
     @Test("チップが残っているうちは復活できず、広告も出さない")
     func doesNotShowAdWhileChipsRemain() async {
         let ads = StubAdService(rewardEarned: true)
-        let model = BlackjackModel(services: GameServices(snapshots: MockSnapshotStore(), ads: ads))
+        let model = BlackjackModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: ads))
         #expect(!model.sessionOver)
         #expect(!model.canReviveAfterBust)
 
@@ -276,7 +260,7 @@ struct BlackjackRewardedAdTests {
 
     @Test("中断から戻っても復活の回数は戻らない")
     func reviveBudgetSurvivesSuspend() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let (model, _, _) = makeBustedModel(store: store)
         #expect(await model.recoverChipsAfterAd())
 
@@ -348,8 +332,8 @@ struct BlackjackRewardedAdTests {
             activeHandIndex: 0,
             hasRevivedThisSession: nil
         )
-        let store = MockSnapshotStore()
-        store.saveRaw(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "blackjack")
+        let store = MemorySnapshotStore()
+        store.inject(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "blackjack")
 
         let model = BlackjackModel(
             services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))

@@ -23,22 +23,9 @@ import GameSpider
 import GameChess
 import GameBlocks
 import MahjongTiles
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 送信されたイベントをそのまま溜めるスパイ。Firebase もネットワークも使わない。
 @MainActor

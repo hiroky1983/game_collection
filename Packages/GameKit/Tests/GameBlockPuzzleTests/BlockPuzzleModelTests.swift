@@ -2,23 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameBlockPuzzle
-
-/// 再起動をまたぐ挙動を、ファイルを触らずに再現するための中断データ置き場。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-    /// 壊れた中断データを流し込むための入口。
-    func inject(_ data: Data, for gameID: String) { store[gameID] = data }
-    func raw(for gameID: String) -> Data? { store[gameID] }
-}
+import CoreTestSupport
 
 private func makeServices(_ store: MemorySnapshotStore = MemorySnapshotStore()) -> (GameServices, MemorySnapshotStore) {
     (GameServices(snapshots: store, ads: NoopAdService()), store)

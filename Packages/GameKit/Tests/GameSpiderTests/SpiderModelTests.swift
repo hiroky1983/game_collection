@@ -2,26 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameSpider
-
-/// 中断データの保存先。書いた中身をそのまま読み返せる最小の実装。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        storage[gameID] = try JSONEncoder().encode(snapshot)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = storage[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for gameID: String) { storage.removeValue(forKey: gameID) }
-
-    func exists(for gameID: String) -> Bool { storage[gameID] != nil }
-
-    var isEmpty: Bool { storage.isEmpty }
-}
+import CoreTestSupport
 
 @MainActor
 private func makeServices(store: SnapshotStore = MemorySnapshotStore()) -> GameServices {

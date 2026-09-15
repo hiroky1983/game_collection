@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Core
 @testable import GameGomoku
+import CoreTestSupport
 
 // MARK: - ヘルパー
 
@@ -27,20 +28,6 @@ private func makeBoard(black: [(Int, Int)] = [], white: [(Int, Int)] = []) -> Go
     for (row, col) in black { board[row, col] = .black }
     for (row, col) in white { board[row, col] = .white }
     return board
-}
-
-private final class WinLineSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 /// 黒（人間）が横に四つ並べ、(7,7) に打てば五になる局面を中断データとして作る。
@@ -127,7 +114,7 @@ struct GomokuWinningLineTests {
 struct GomokuWinningLineModelTests {
 
     @Test func winningMoveSetsLineAndNewGameClearsIt() throws {
-        let store = WinLineSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(blackFourSnapshot(), for: "gomoku")
         let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         #expect(model.winningLine == nil)
@@ -142,7 +129,7 @@ struct GomokuWinningLineModelTests {
 
     /// 投了は盤上に五が無いので光らせない。
     @Test func resignHasNoLine() throws {
-        let store = WinLineSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(blackFourSnapshot(), for: "gomoku")
         let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         model.resign()
@@ -152,13 +139,13 @@ struct GomokuWinningLineModelTests {
 
     /// 決着を書いた中断データからでも、直前手から勝ち筋を引き直す（撮影・復元の経路）。
     @Test func restoredWinnerRedrawsLine() throws {
-        let store = WinLineSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(blackFourSnapshot(winner: .black), for: "gomoku")
         let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         #expect(model.winner == .black)
         #expect(model.winningLine?.count == 5)
 
-        let resignedStore = WinLineSnapshotStore()
+        let resignedStore = MemorySnapshotStore()
         try resignedStore.save(blackFourSnapshot(winner: .white, resigned: true), for: "gomoku")
         let resigned = GomokuModel(services: GameServices(snapshots: resignedStore, ads: NoopAdService()))
         #expect(resigned.winner == .white)

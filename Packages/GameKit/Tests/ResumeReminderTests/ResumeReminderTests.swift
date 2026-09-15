@@ -7,6 +7,7 @@ import GameChess
 import GameRunner
 import GameShogi
 import MahjongTiles
+import CoreTestSupport
 
 // MARK: - テスト用の部品
 
@@ -400,16 +401,6 @@ struct ResumeReminderPolicyTests {
 }
 
 // MARK: - 周辺の結線
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var data: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws { data[gameID] = try JSONEncoder().encode(snapshot) }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        data[gameID].flatMap { try? JSONDecoder().decode(type, from: $0) }
-    }
-    func clear(for gameID: String) { data[gameID] = nil }
-    func exists(for gameID: String) -> Bool { data[gameID] != nil }
-}
 
 private final class ClearRecorder: @unchecked Sendable {
     var gameIDs: [String] = []

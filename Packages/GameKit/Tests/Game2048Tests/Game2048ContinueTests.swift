@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 import Core
 @testable import Game2048
+import CoreTestSupport
 
 /// 視聴のあいだに起きること（「もう一度」を押す等）を差し込める広告。常に視聴完了で返す。
 @MainActor
@@ -17,20 +18,6 @@ private final class DuringAdService: AdService {
         duringAd?()
         return true
     }
-}
-
-/// 再起動をまたぐ挙動を、ファイルを触らずに再現するための中断データ置き場。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 /// #122: 広告視聴後のコンティニューが「盤面を動かせないまま戻される」不具合の回帰テスト。

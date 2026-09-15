@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameRunner
+import CoreTestSupport
 
 @Suite("チャリンコおじさん: 進行と操作")
 @MainActor

@@ -4,22 +4,9 @@ import Foundation
 
 // MARK: - Mock
 
-private final class MockSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
 import Core
-private func makeServices(_ store: MockSnapshotStore) -> GameServices {
+import CoreTestSupport
+private func makeServices(_ store: MemorySnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
@@ -340,7 +327,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: 1枚めくった状態を復元しても覗き見にならない（#731）")
     func restore_keepsFirstFlipSoPeekingCostsTheTurn() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store),
                                         autoClearDelay: testAutoClearDelay)
         let (a, b) = mismatchPair(in: model1.cards)
@@ -393,7 +380,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: ミスマッチカードは裏返され、手番も CPU へ進む（#415）")
     func restore_flipsBackMismatchedCards() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         let (a, b) = mismatchPair(in: model1.cards)
@@ -413,7 +400,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: 人間のミスマッチ中の離脱を繰り返しても手番は CPU のまま（#415）")
     func restore_mismatchTurnAdvanceIsIdempotent() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         let (a, b) = mismatchPair(in: model1.cards)
@@ -431,7 +418,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: CPU がミスマッチしたまま離脱すると人間の手番から再開する（#415）")
     func restore_cpuMismatchAdvancesTurnToHuman() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let ai = ScriptedConcentrationAI()
         let model1 = ConcentrationModel(services: makeServices(store),
                                         autoClearDelay: testAutoClearDelay,
@@ -468,7 +455,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: 待ったでミスマッチを取り消していれば手番は人間のまま（#415）")
     func restore_keepsHumanTurnAfterMatta() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store),
                                         autoClearDelay: testAutoClearDelay)
         let (a, b) = mismatchPair(in: model1.cards)
@@ -501,7 +488,7 @@ struct ConcentrationModelTests {
 
     @Test("復元後: マッチ済みカードは保持される")
     func restore_preservesMatchedCards() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         let (a, b) = matchPair(in: model1.cards)
@@ -518,7 +505,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: CPUターンのturnIDは非ゼロ（task(id:) が再起動される）")
     func restore_cpuTurnHasNonZeroTurnID() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         // 人間がミスマッチ → 次へ → CPUターンで保存
@@ -535,7 +522,7 @@ struct ConcentrationModelTests {
 
     @Test("復元後: 人間ターンでカードをめくれる")
     func restore_humanCanTapAfterRestore() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
         // ペアをマッチして保存（スコアがある状態）
         let (a, b) = matchPair(in: model1.cards)
@@ -554,7 +541,7 @@ struct ConcentrationModelTests {
 
     /// スタブの中断データを置いて復元させ、できあがったモデルを返す。
     private func restored(from stub: StubConcentrationSnapshot) -> ConcentrationModel {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(stub, for: "concentration")
         return ConcentrationModel(services: makeServices(store))
     }
@@ -627,7 +614,7 @@ struct ConcentrationModelTests {
     @Test("新しい盤の絵柄はすべて自前の図案の識別子で、絵文字が残っていない")
     func newBoardUsesFigureIdentifiers() {
         for pairs in ConcentrationPairCount.allCases {
-            let model = ConcentrationModel(services: makeServices(MockSnapshotStore()))
+            let model = ConcentrationModel(services: makeServices(MemorySnapshotStore()))
             model.newGame(pairCount: pairs, cpuLevel: .normal)
 
             for card in model.cards {
@@ -661,7 +648,7 @@ struct ConcentrationModelTests {
     func restore_normalizesLegacyEmojiOnSave() {
         var stub = StubConcentrationSnapshot.healthy()
         stub.symbols = stub.symbols.map { ConcentrationFigure.decode($0)!.legacyEmoji }
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(stub, for: "concentration")
 
         let model = ConcentrationModel(services: makeServices(store))
@@ -725,8 +712,8 @@ struct ConcentrationCancellationTests {
     /// 大富豪の `DaifugoCancelTests` と同じく、MainActor 上で作った Task は `await` で手放すまで
     /// 本体が動かないので、`cancel()` は必ず本体より先に確定する（実時間に依存しない）。
     /// 返り値は「人間がミスマッチして CPU 番に移った」直後のモデルと、それを書いた中断データの置き場。
-    private func modelAtCPUTurnThatWouldSweep() async -> (ConcentrationModel, MockSnapshotStore) {
-        let store = MockSnapshotStore()
+    private func modelAtCPUTurnThatWouldSweep() async -> (ConcentrationModel, MemorySnapshotStore) {
+        let store = MemorySnapshotStore()
         let scripted = ScriptedConcentrationAI()
         let model = ConcentrationModel(services: makeServices(store),
                                        autoClearDelay: testAutoClearDelay,

@@ -2,23 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameSudoku
-
-/// テスト専用の中断データ置き場（ファイルに書かず、プロセス内だけで完結させる）。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private(set) var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ value: T, for key: String) throws {
-        storage[key] = try JSONEncoder().encode(value)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for key: String) -> T? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for key: String) { storage[key] = nil }
-    func exists(for key: String) -> Bool { storage[key] != nil }
-}
+import CoreTestSupport
 
 /// 送信内容をそのまま溜めるスパイ。Apple の GameKit にもネットワークにも触れない。
 @MainActor
@@ -189,7 +173,7 @@ struct SudokuSnapshotTests {
         var snapshot = try #require(f.store.load(SudokuSnapshot.self, for: "sudoku"))
         snapshot.continueUsed = nil
         try f.store.save(snapshot, for: "sudoku")
-        let legacyData = try #require(f.store.storage["sudoku"])
+        let legacyData = try #require(f.store.rawData(for: "sudoku"))
         let legacy = try #require(String(data: legacyData, encoding: .utf8))
         #expect(!legacy.contains("continueUsed"), "前提: 旧形式と同じく鍵が無い中断データ")
 

@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameRunner
+import CoreTestSupport
 
 /// エンドレスモードのコース生成（#675）。
 ///
