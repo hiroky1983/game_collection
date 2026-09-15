@@ -1124,7 +1124,7 @@ final class RunnerScene: SKScene {
         /// 動いているあいだだけ見せる部品（イノシシの土煙）。
         let movingOnly: SKNode?
         var state: State?
-        /// 前のフレームで現れていたか。犬・イノシシは動き出すまで nil（現れていない）。
+        /// 前のフレームで現れていたか。犬・イノシシは動き出すまで false（現れていない）。
         var wasPresent = false
 
         init(
