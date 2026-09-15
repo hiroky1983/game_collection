@@ -145,35 +145,17 @@ public struct Game2048View: View {
     }
 
     private var gameOverOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text("ゲームオーバー").font(.title2.bold()).foregroundStyle(.white)
-                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                if !model.continueUsed {
-                    Button {
-                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
-                        // 広告を出す前に控え、ロード中に「もう一度」で入れ替わった局へは乗せない（#729）。
-                        let game = model.gameSerial
-                        continueRescue.request(
-                            services, gameID: model.gameID, purpose: .continue,
-                            guardedBy: .checkedByGrant
-                        ) {
-                            withGameAnimation { model.continueAfterAd(forGame: game) }
-                        }
-                    } label: {
-                        Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
-                        .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Fill.coral)
-                    .disabled(continueRescue.isWatching)
-                }
-                Button("もう一度") { withGameAnimation { model.newGame() } }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-            }
-        }
+        RewardedContinueOverlay(
+            title: "ゲームオーバー",
+            detail: RecordLabel(model.recordResult, textColor: .white.opacity(0.85)),
+            rescueLabel: "広告を見てコンティニュー",
+            canContinue: !model.continueUsed,
+            rescue: continueRescue, services: services, gameID: model.gameID,
+            serial: model.gameSerial,
+            grant: { game in withGameAnimation { model.continueAfterAd(forGame: game) } },
+            secondaryTitle: "もう一度",
+            secondaryAction: { withGameAnimation { model.newGame() } }
+        )
     }
 
     #if DEBUG
