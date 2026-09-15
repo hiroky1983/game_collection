@@ -109,8 +109,26 @@ struct RunnerTutorialWiringTests {
     @Test("出すかどうかは RunnerTutorial.shouldShow が決める（撮影モードの除外を迂回しない）")
     func gateGoesThroughShouldShow() throws {
         let source = try Self.source()
+        // 判定は 1 か所・1 回だけ。`shouldShow` は「見せた」の記録も兼ねるので、
+        // 2 回呼ぶと 2 つめが必ず false になる。
+        #expect(SourceScan.matchCount(of: #"RunnerTutorial\.shouldShow\("#, in: source) == 1)
         #expect(source.contains("RunnerTutorial.shouldShow(playLog: services.playLog)"))
-        #expect(SourceScan.matchCount(of: #"showsTutorial\s*=\s*State"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"_showsTutorial\s*=\s*State"#, in: source) == 1)
+    }
+
+    /// 1 行ヒント（`HowToPlayHint(.runner)`）はガイドを出した回には出さない。
+    ///
+    /// `showsTutorial`（いま出しているか）で分岐すると、「はじめる」で閉じた直後の再描画で
+    /// ヒントが組み立てられ、同じプレイの中で「タップでジャンプ」を二度言うことになる。
+    @Test("ガイドを出した回は 1 行ヒントを出さない（閉じた直後も）")
+    func hintIsSuppressedForTheWholeFirstPlay() throws {
+        let source = try Self.source()
+        let secondary = try #require(SourceScan.declaration(of: "private var secondaryInfo", in: source))
+        #expect(secondary.contains("if !tutorialShownOnOpen"))
+        #expect(!secondary.contains("if !showsTutorial"))
+        #expect(secondary.contains("HowToPlayHint(.runner"))
+        // 「閉じた」で false になるのは `showsTutorial` だけ（ヒントの判断は動かさない）。
+        #expect(SourceScan.matchCount(of: #"tutorialShownOnOpen\s*=\s*false"#, in: source) == 0)
     }
 
     @Test("`?` の「くわしいルール」から開き直せる")

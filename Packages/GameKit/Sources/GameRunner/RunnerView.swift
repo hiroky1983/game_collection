@@ -22,9 +22,14 @@ public struct RunnerView: View {
     /// 使う設定」で、開始時に `RunnerModel.newGame(startingAtStage:)` で焼き込む。
     /// ツールバーの「はじめから」は 1 面、スタート画面の「マップ」はいまの面を選んだ状態で開く。
     @State private var selectedStage = 1
-    /// 初回プレイの操作ガイド（#988）を出しているか。判定と「見せた」の記録は `init` で
-    /// 1 回だけ済ませる（`HowToPlayHint` と同じ作法）。
+    /// 初回プレイの操作ガイド（#988）をいま出しているか。判定と「見せた」の記録は `init` で
+    /// 1 回だけ済ませる（`HowToPlayHint` と同じ作法）。「はじめる」で false になる。
     @State private var showsTutorial: Bool
+    /// この画面を開いたときにガイドを出したか。**閉じたあとも true のまま**で、
+    /// 1 行ヒント（`secondaryInfo`）を出すかの判断に使う。`showsTutorial` で判断すると、
+    /// 「はじめる」で閉じた直後の再描画でヒントが組み立てられ、同じプレイの中で
+    /// 同じ文言（「タップでジャンプ」）をもう一度出してしまう。
+    @State private var tutorialShownOnOpen: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -32,7 +37,10 @@ public struct RunnerView: View {
         let model = RunnerModel(services: services)
         _model = State(initialValue: model)
         _scene = State(initialValue: RunnerScene(model: model))
-        _showsTutorial = State(initialValue: RunnerTutorial.shouldShow(playLog: services.playLog))
+        // 判定は 1 回だけ（`shouldShow` が「見せた」の記録も兼ねるので二度呼ばない）。
+        let showsTutorial = RunnerTutorial.shouldShow(playLog: services.playLog)
+        _showsTutorial = State(initialValue: showsTutorial)
+        _tutorialShownOnOpen = State(initialValue: showsTutorial)
     }
 
     public var body: some View {
@@ -797,11 +805,13 @@ public struct RunnerView: View {
     /// 固定の小さなプレースホルダなので、スクロールにしなくても場所を圧迫しない。
     private var secondaryInfo: some View {
         VStack(spacing: 6) {
-            // 初回の操作ガイド（#988）が出ている間は出さない。ガイドの 1 行目と同じ
-            // 「タップでジャンプ」を同じ画面で二度言うことになる（`HowToPlayHint` は
-            // 組み立てた時点で印を消費するので、ここを通らない回は消費もしない
-            // ＝ ガイドを閉じた次のプレイで 1 行ヒントとして出る）。
-            if !showsTutorial {
+            // 初回の操作ガイド（#988）を出した回は出さない。ガイドの 1 行目と同じ
+            // 「タップでジャンプ」を同じ画面で二度言うことになる。見るのは
+            // `showsTutorial`（いま出しているか）ではなく `tutorialShownOnOpen`
+            // （この画面で出したか）——「はじめる」で閉じた直後の再描画でヒントが
+            // 組み立てられてしまうため。`HowToPlayHint` は組み立てた時点で印を消費するので、
+            // ここを通らない回は消費もしない ＝ 次にこの画面を開いたときに 1 行ヒントとして出る。
+            if !tutorialShownOnOpen {
                 HowToPlayHint(.runner, playLog: services.playLog)
             }
             recommendationArea
