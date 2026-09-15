@@ -291,9 +291,26 @@ struct RewardGuardCallSiteTests {
 
         let requests = sources.reduce(0) { $0 + Self.occurrences(of: "Rescue.request(", in: $1.text) }
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
-        #expect(requests == 19, "救済の入口は19面（`requestHandledByModel` の3面を除く）")
+        // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
+        #expect(requests == 14, "救済の入口は14面（`requestHandledByModel` の3面と、Core に寄せた盤ゲームの待ったを除く）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
+    }
+
+    @Test("Core に寄せた盤ゲームの待ったも、局ガードを宣言して控えた局面を渡している（#828）")
+    func sharedBoardUndoDeclaresItsGuard() throws {
+        // 上の走査は Core を対象外にしているので、盤ゲーム 5 本の待ったを寄せた部品はここで名指しで見る。
+        // 行コメントの言及で数がずれないよう、`//` で始まる行を落としてから数える。
+        let text = try String(
+            contentsOf: Self.sourcesRoot.appendingPathComponent("Core/BoardGameChrome.swift"), encoding: .utf8
+        )
+        .split(separator: "\n", omittingEmptySubsequences: false)
+        .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+        .joined(separator: "\n")
+        #expect(Self.occurrences(of: "Rescue.request(", in: text) == 1)
+        #expect(Self.occurrences(of: "guardedBy: .checkedByGrant", in: text) == 1)
+        #expect(Self.occurrences(of: "unavailable: RewardUnavailableAlert(", in: text) == 1)
+        #expect(text.matches(of: try Regex(#"model\.\w+\(forTurn:"#)).count == 1)
     }
 
     @Test("照合していない面は名指しで固定する")

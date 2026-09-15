@@ -42,7 +42,7 @@ struct GomokuSnapshot: Codable {
 
 @MainActor
 @Observable
-public final class GomokuModel: AITurnGuarded {
+public final class GomokuModel: AITurnGuarded, BoardUndoModel {
     public private(set) var board: GomokuBoard
     public private(set) var currentStone: GomokuStone
     public private(set) var humanSide: GomokuStone
@@ -72,7 +72,7 @@ public final class GomokuModel: AITurnGuarded {
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "gomoku"
+    public let gameID = "gomoku"
     private var startedAt: Date
     private var moves: [(row: Int, col: Int, stone: GomokuStone)]
 

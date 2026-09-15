@@ -500,7 +500,8 @@ struct RewardAdCallSiteTests {
 
         // 呼び出しの総数 = すべての面の数。面を増やしたらここも動くので、
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
-        #expect(counts.values.reduce(0, +) == 22, "リワード広告の面は22箇所")
+        // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
+        #expect(counts.values.reduce(0, +) == 17, "リワード広告の面は17箇所（Core に寄せた盤ゲームの待ったを除く）")
     }
 }
 
