@@ -127,6 +127,30 @@ struct SpiderDealerTests {
             #expect(verified.contains(SpiderDealer.randomVerifiedSeed(for: suits, using: &rng)))
         }
     }
+
+    /// 種を固定した乱数なので結果は毎回同じ。回数は種 400 個の 1・2 スートでも、除外を外せば
+    /// 必ずどこかで直前と重なる数にしてある（500 回だと 1・2 スートは緑のまま通り抜けた。#914 の変異テストで実測）。
+    @Test("出題は直前の種を除いて選ぶ（#914）", arguments: SpiderSuitCount.allCases)
+    func randomSeedExcludesPrevious(suits: SpiderSuitCount) {
+        var rng = SpiderSeededGenerator(seed: 42)
+        let verified = Set(SpiderDealer.verifiedSeeds(for: suits))
+        var previous = SpiderDealer.verifiedSeeds(for: suits)[0]
+        for _ in 0..<20_000 {
+            let next = SpiderDealer.randomVerifiedSeed(for: suits, excluding: previous, using: &rng)
+            #expect(next != previous)
+            #expect(verified.contains(next))
+            previous = next
+        }
+    }
+
+    @Test("ほかに候補が無いときだけ直前と同じ種を返す")
+    func pickFallsBackWhenOnlyPreviousRemains() {
+        var rng = SpiderSeededGenerator(seed: 1)
+        #expect(SpiderDealer.pick(from: [7], excluding: 7, using: &rng) == 7)
+        for _ in 0..<20 {
+            #expect(SpiderDealer.pick(from: [7, 8], excluding: 7, using: &rng) == 8)
+        }
+    }
 }
 
 @Suite("ソルバー")
