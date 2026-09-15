@@ -544,3 +544,38 @@ public enum RunnerPhase: Equatable, Sendable {
     /// 走っていて `tick` を進めるべき状態か。
     public var isRunning: Bool { self == .running }
 }
+
+/// リザルト・スタート画面に出すおじさんの表情（#702）。
+///
+/// 顔のドットは `Core` の `OjisanPixel` にあり、GameRunner は「どの局面でどの顔か」だけを決める。
+/// 表情の選び方を純関数にしてテストで固定する（View の `switch` に埋めると検証できない）。
+public enum RunnerResultFace {
+    /// 局面に応じた表情。顔を出さない局面（走行中・一時停止・落下演出中）は nil。
+    ///
+    /// - ready: 笑顔（スタート画面の主ボタンの左に小さく）
+    /// - cleared / allCleared: ガッツポーズ（エンドレスの「走りきった」も含む）
+    /// - failed: しかめ面。ただしエンドレスで自己ベストを更新した回はガッツポーズ
+    ///   （ミスで終わる決着なので、記録が伸びたことのほうを喜ばせる）
+    public static func face(for phase: RunnerPhase, isNewBest: Bool = false) -> OjisanPixel.Face? {
+        switch phase {
+        case .ready: return .smile
+        case .running, .paused, .falling: return nil
+        case .failed: return isNewBest ? .cheer : .frown
+        case .cleared, .allCleared: return .cheer
+        }
+    }
+
+    /// リザルトの顔の倍率（1 ドット = 何 pt か）。整数倍にしてドットの縁を立たせる。
+    ///
+    /// カードはコースの中に重ねるので（縦の配分は変えない・#931）、顔の一辺（16 ドット × 倍率）を
+    /// コースの高さの 2 割までに抑える。iPhone 15 級（コース高 320pt 以上）で 4 倍 = 64pt、
+    /// SE 級（240〜319pt）で 3 倍 = 48pt、それより低くても 2 倍 = 32pt は確保する。
+    /// `GeometryReader` が最初に渡す 0 でも落ちない（2 倍を返す）。
+    public static func dotScale(forCourseHeight height: Double) -> Int {
+        let budget = Int(height * 0.2) / OjisanPixel.faceDotSize.width
+        return min(4, max(2, budget))
+    }
+
+    /// スタート画面の笑顔の倍率（2 倍 = 32pt。主ボタンの脇に小さく添える）。
+    public static let startDotScale = 2
+}

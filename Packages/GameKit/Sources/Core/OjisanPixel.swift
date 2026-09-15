@@ -11,7 +11,7 @@ import SwiftUI
 /// 設定: 大阪に住む 65 歳。薄い頭に白髪まじりの側頭部、太い眉、鼻の下のヒゲ（メガネは無し・会長
 /// 指示 2026-09-15）、笑顔、黄色のポロシャツ、紺のズボン、前かご付きの赤いママチャリ。
 ///
-/// 走者のコマは 40×36 ドット（右向き）。1 ドット = 整数 pt で描く（`PixelSprite.cgImage(scale:)`）。
+/// 走者のコマは 40×37 ドット（右向き）。1 ドット = 整数 pt で描く（`PixelSprite.cgImage(scale:)`）。
 /// 正面顔は 16×15 ドット（ハブのカード・リザルト・LP）。
 public enum OjisanPixel {
     /// 共通パレット（SFC 風に彩度をやや落とし、暗い輪郭で締める）。
@@ -96,10 +96,34 @@ public enum OjisanPixel {
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
     }
 
+    // MARK: リザルト・スタート画面用の正面顔（#702）
+
+    /// 正面顔のドット数（幅 16 × 高さ 15）。表示側はこの比率で枠を切る（`faceImage` の doc）。
+    public static let faceDotSize: (width: Int, height: Int) = (width: 16, height: 15)
+
+    /// 3 表情のビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
+    /// 1 度だけ評価される）。1 ドット = 4px で持ち、表示側で整数倍の pt に縮尺する。
+    public static let faceImages: [Face: CGImage] = {
+        var out: [Face: CGImage] = [:]
+        for face in Face.allCases { out[face] = Self.face(face).cgImage(scale: 4) }
+        return out
+    }()
+
+    /// リザルト（クリア・ミス）とスタート画面に出す正面顔（#702）。
+    ///
+    /// 装飾（`Image(decorative:)`）なので VoiceOver は読まない。`resizable` + `interpolation(.none)` で
+    /// にじませない。呼び出し側は `faceDotSize` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt）。
+    /// 比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
+    public static func faceImage(_ face: Face) -> Image {
+        guard let cg = faceImages[face] else { return Image(systemName: "bicycle") }
+        return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
+    }
+
     // MARK: 格子（手で直すときは行の長さを揃えること。PixelArtTests が検査する）
 
-    // ride0 40x36
+    // ride0 40x37
     static let ride0Rows: [String] = [
+        "........................................",
         ".....................KKKKKK.............",
         "...................KKHHSSSSKK...........",
         "..................KHHhSSSSSSSK..........",
@@ -137,8 +161,9 @@ public enum OjisanPixel {
         ".....KKTTTTTKK...........KKTTTTTKK......",
         ".......KKKKK...............KKKKK........",
     ]
-    // ride1 40x36
+    // ride1 40x37
     static let ride1Rows: [String] = [
+        "........................................",
         ".....................KKKKKK.............",
         "...................KKHHSSSSKK...........",
         "..................KHHhSSSSSSSK..........",
@@ -176,8 +201,9 @@ public enum OjisanPixel {
         ".....KKTTTTTKK...........KKTTTTTKK......",
         ".......KKKKK...............KKKKK........",
     ]
-    // jump 40x36
+    // jump 40x37
     static let jumpRows: [String] = [
+        "...................KKKKKK...............",
         ".................KKHHSSSSKK.............",
         "................KHHhSSSSSSSK............",
         "................KHhSSSSSSSSK............",
@@ -215,8 +241,9 @@ public enum OjisanPixel {
         "...KKTtttttTKK..........................",
         "....KKTTTTTKK...........................",
     ]
-    // tumble 40x36
+    // tumble 40x37
     static let tumbleRows: [String] = [
+        "........................................",
         "........................................",
         "........................................",
         "........................................",
@@ -254,8 +281,9 @@ public enum OjisanPixel {
         "...KKTtttttTKK.......KKTtttttTKK........",
         "....KKTTTTTKK.........KKTTTTTKK.........",
     ]
-    // dizzy 40x36
+    // dizzy 40x37
     static let dizzyRows: [String] = [
+        "........................................",
         "........................................",
         "................................YY......",
         "...................KKKKKK......Y..Y.....",
