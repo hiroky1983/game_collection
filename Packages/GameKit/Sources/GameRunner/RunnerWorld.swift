@@ -218,20 +218,21 @@ public extension RunnerWorld {
     /// 夜は背景が暗いので明るい主色、夕方は中間なので明るい側へ振る。当たり判定・寸法は
     /// 色と無関係（`RunnerHazardKind`）。
     struct Creatures: Equatable, Sendable {
-        /// 手前の物に共通の縁取り。`RunnerScene` が犬・イノシシ・鳥・たこ焼き・台座の床板・旗の
-        /// 輪郭に 0.4 単位（iPhone で 1.5pt 相当）で引く。岩の縁取りは `Palette.rockDark`。
+        /// 手前の物に共通の縁取り。`RunnerScene` が鳥・台座の床板・旗の輪郭に 0.4 単位（iPhone で
+        /// 1.5pt 相当）で引き、犬・イノシシのドット絵（#975）では縁取りの文字 `K` の色になる。
+        /// 岩の縁取りは `Palette.rockDark`。
         public let outline: UInt32
-        /// 犬の体（主色）。
+        /// 犬の体（主色）。ドット絵の `O`（`RunnerPixelArt.creaturePalette`）。
         public let dogBody: UInt32
-        /// 犬の耳・鼻・目と脚。体より暗い。
+        /// 犬の耳の内側と奥の脚。体より暗い（ドット絵の `o`）。
         public let dogDark: UInt32
-        /// 犬の腹・口元の差し色。
+        /// 犬の腹・胸・頬・口元・巻き尾の内側の差し色（ドット絵の `W`）。
         public let dogBelly: UInt32
-        /// イノシシの体（主色）。
+        /// イノシシの体（主色）。ドット絵の `B`。
         public let boarBody: UInt32
-        /// イノシシのたてがみ・脚・耳。体より暗い。
+        /// イノシシのたてがみ・奥の脚・蹄・耳。体より暗い（ドット絵の `b`）。
         public let boarDark: UInt32
-        /// イノシシの鼻先。
+        /// イノシシの鼻先（ドット絵の `S`）。
         public let boarSnout: UInt32
         /// 鳥の胴・頭（主色）。
         public let birdBody: UInt32

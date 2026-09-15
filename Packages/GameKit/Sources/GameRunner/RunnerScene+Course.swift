@@ -239,19 +239,6 @@ extension RunnerScene {
         shape.lineJoin = .round
     }
 
-    /// 塗りのある矩形（縁取り付き）。`SKSpriteNode` は輪郭線を持てないので、縁取りが要る矩形は
-    /// これで作る。原点は `anchor`（`SKSpriteNode.anchorPoint` と同じ意味）。
-    func outlinedRect(size: CGSize, anchor: CGPoint, color: UInt32) -> SKShapeNode {
-        let rect = CGRect(
-            x: -Double(size.width) * Double(anchor.x), y: -Double(size.height) * Double(anchor.y),
-            width: Double(size.width), height: Double(size.height)
-        )
-        let node = SKShapeNode(rect: rect)
-        node.fillColor = RunnerPalette.color(color)
-        outline(node)
-        return node
-    }
-
     /// 岩塊（ボルダー）1個。底が平らで頂がやや左に寄った角ばった多角形に、
     /// 日の当たる頂の面（明）と足元の陰の面（暗）を重ね、最後に暗い縁取り（`rockDark`）で
     /// 輪郭を締める（#920: 朝の下町など明るい世界では面の色だけだと背景に溶ける）。
