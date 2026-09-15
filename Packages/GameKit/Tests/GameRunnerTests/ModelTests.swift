@@ -315,16 +315,24 @@ struct RunnerCheckpointTests {
         #expect(after.canResumeFromCheckpoint)
     }
 
-    @Test("再開はステージごとに 1 回だけ")
-    func onlyOncePerStage() {
+    @Test("再開は 1 回の走行につき 1 回。「もう一度」で頭から走り直せば戻る（#958）")
+    func oncePerRunAndBackAfterRetry() {
         let model = RunnerModel(startingAt: 1, preference: makePreference("cp-once"))
         failAfterCheckpoint(model)
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
         #expect(model.field.distance == model.stage.checkpoint)
 
         failAfterCheckpoint(model)
-        #expect(!model.canResumeFromCheckpoint, "2 回目は出せない")
+        #expect(!model.canResumeFromCheckpoint, "同じ走行の 2 回目は出せない")
         #expect(!model.resumeFromCheckpoint(forRun: model.runGeneration))
+
+        // 再開 → ミス → もう一度 → チェックポイント通過 → ミス、でまた出る（会長決裁 2026-09-15）。
+        model.retryStage()
+        #expect(model.phase == .running && model.field.distance == 0)
+        #expect(!model.checkpointUsed)
+        failAfterCheckpoint(model)
+        #expect(model.canResumeFromCheckpoint, "頭から走り直した走行では再開できる")
+        #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
     }
 
     /// ソリティアの補充（#509）と同じ契約。広告のロード中にコースが作り直されたら適用しない。
