@@ -93,9 +93,9 @@ public enum RunnerEndlessCourse {
     /// イノシシ 12,288 → 8,192。犬（2,048）とたこ焼き（`takoyakiUnlockDistance`）は据え置き。
     ///
     /// 3 タイルの穴（`3`）だけは距離ではなく**速さ**で解禁する。跳べる幅は `speed × jumpAirTime`
-    /// で、速さ 34 の走り出しでは足りない（必要 26 に対して 25.5）。ステージ制でも 6 面
-    /// （速さ 40）が初出で、そこでは瞬間タップ（`jumpCutGraceTime`）の飛距離 24.04 で
-    /// 幅 24 をぎりぎり渡る。ここでは速さ 41.2（= 6,144 進んだ地点）以上に置き、タップでも
+    /// で、速さ 34 の走り出しでは足りない（必要 26 に対して 25.5）。ステージ制でも 6 面（速さ 38.0。
+    /// #968 までは 40）が初出で、そこでは瞬間タップ（`jumpCutGraceTime`）の飛距離 22.85（40 なら 24.04）で
+    /// 越えるのに要る 22 をぎりぎり渡る。ここでは速さ 41.2（= 6,144 進んだ地点）以上に置き、タップでも
     /// 余裕を残す（`RunnerEndlessCourseTests.instantTapClearsPitsAndLowBlocks`）。
     private static let parts: [(symbol: Character, weight: Int, unlockDistance: Double)] = [
         ("1", 3, 0),

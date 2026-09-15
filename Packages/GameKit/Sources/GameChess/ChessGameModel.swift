@@ -6,7 +6,7 @@ import Core
 /// ルールは `ChessPosition` に委譲し、ここは UI 操作と永続化を担う（将棋の `ShogiGameModel` と同じ分担）。
 @MainActor
 @Observable
-public final class ChessGameModel: AITurnGuarded {
+public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
     public let initialFEN: String
     public private(set) var moves: [ChessMove]
     public private(set) var position: ChessPosition
@@ -34,7 +34,7 @@ public final class ChessGameModel: AITurnGuarded {
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "chess"
+    public let gameID = "chess"
     private var startedAt: Date
 
     public init(services: GameServices? = nil) {

@@ -355,7 +355,9 @@ struct GomokuWeakWinRateTests {
 @Suite("待ったの確認文言が2手戻しと一致する")
 struct UndoWordingMatchesTwoPlyUndoTests {
 
-    /// 4 ゲームとも `undoLastExchange` で「自分の1手 + CPU の応手」を戻す。チェスは #665 以前から正しい文言（対照）。
+    /// 5 ゲームとも `undoLastExchange` で「自分の1手 + CPU の応手」を戻す。
+    /// 文言は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、各ゲームは部品を通っていることと、
+    /// 1手だけ戻るような文言を持ち直していないことを見る。
     @Test(arguments: [
         "GameGomoku/GomokuView.swift",
         "GameShogi/ShogiView.swift",
@@ -364,14 +366,25 @@ struct UndoWordingMatchesTwoPlyUndoTests {
         "GameChess/ChessView.swift",
     ])
     func undoMessageMentionsTheCPUReply(path: String) throws {
+        let source = try Self.source(path)
+        #expect(!source.contains("\"直前の1手を取り消します。"), "\(path) に1手だけ戻るような文言が残っている")
+        #expect(!source.contains("広告を視聴すると1手戻せます。"), "\(path) に1手だけ戻るような文言が残っている")
+        #expect(source.contains("BoardUndoButton("), "\(path) が共通の「待った」を通っていない")
+    }
+
+    @Test func sharedUndoButtonMentionsTheCPUReply() throws {
+        let source = try Self.source("Core/BoardGameChrome.swift")
+        #expect(!source.contains("\"直前の1手を取り消します。"), "共通の「待った」に1手だけ戻るような文言がある")
+        #expect(!source.contains("広告を視聴すると1手戻せます。"), "共通の「待った」に1手だけ戻るような文言がある")
+        #expect(source.contains("あなたの直前の1手を、CPU の応手ごと取り消します。"))
+    }
+
+    private static func source(_ path: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // GameGomokuTests
             .deletingLastPathComponent()   // Tests
             .deletingLastPathComponent()   // GameKit
             .appendingPathComponent("Sources").appendingPathComponent(path)
-        let source = try String(contentsOf: url, encoding: .utf8)
-        #expect(!source.contains("\"直前の1手を取り消します。"), "\(path) に1手だけ戻るような文言が残っている")
-        #expect(!source.contains("広告を視聴すると1手戻せます。"), "\(path) に1手だけ戻るような文言が残っている")
-        #expect(source.contains("あなたの直前の1手を、CPU の応手ごと取り消します。"))
+        return try String(contentsOf: url, encoding: .utf8)
     }
 }

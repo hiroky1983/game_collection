@@ -1,3 +1,4 @@
+import Core
 import Foundation
 import SpriteKit
 
@@ -29,30 +30,9 @@ enum RunnerPalette {
     static let rockBody: UInt32 = 0x939AA8
     /// 障害物（岩）の陰（陰の面・接地陰）。
     static let rockDark: UInt32 = 0x565D6B
-    /// 自転車の車体。`Theme.Fill.coral` と同じ値。
-    static let bike: UInt32 = 0xFF8A7E
-    /// 車輪。
+    /// 生成りの白（旗の棒）。走者が図形だった頃の車輪の色で、名前はその名残。
+    /// 走者の色はドット絵のパレット（`OjisanPixel.palette`・#701）が持ち、ここには置かない。
     static let wheel: UInt32 = 0xFFF6EC
-    /// おじさんの肌。
-    static let skin: UInt32 = 0xF3C9A6
-    /// 肌の陰（鼻・耳）。輪郭線を引かずに顔の起伏を出すため、肌より一段暗い色で置く。
-    static let skinShade: UInt32 = 0xD9A57F
-    /// おじさんの服。
-    static let shirt: UInt32 = 0xB3A6F0
-    /// 服の陰（奥の腕）。手前の胴と同じ色だと、腕が胴に溶けて1つの塊に見える。
-    static let shirtShade: UInt32 = 0x8477C9
-    /// ズボン（手前の脚）。**空（`sky`）と近い濃い青は使えない**。脚は空を背に描かれるので、
-    /// 同系の暗い色にすると漕いでいるのに脚が見えない（最初の実機確認で判明）。
-    static let pants: UInt32 = 0xE0B27C
-    /// ズボンの陰（奥の脚）。左右の脚が重なる位相でも前後が分かるようにする。
-    static let pantsShade: UInt32 = 0xAD8351
-    /// 髪・口ひげ。「おじさん」と分かる要素はここだけなので、肌とはっきり差を付ける。
-    static let hair: UInt32 = 0x4A3B33
-    /// 靴。
-    static let shoe: UInt32 = 0x2B2B33
-    /// 金具（サドル・クランク・握り）。**空より明るい灰色**にする。暗い灰色にすると
-    /// サドルだけが黒い塊として浮き、自転車の一部に見えない。
-    static let metal: UInt32 = 0x8A93A6
     /// ゴールの旗。
     static let goal: UInt32 = 0xFF8FB1
     /// ゴールの旗の陰（奥側の 1 枚）。チェックポイントの旗と同じ厚みの出し方（#703）。
@@ -91,13 +71,8 @@ enum RunnerPalette {
     static let birdBeak: UInt32 = 0xFFB648
     /// 鳥の目（小さな黒丸）。生き物だと分かる最小限の要素。
     static let birdEye: UInt32 = 0x1F2B22
-    /// 犬の吠え声（口元の白い吹き出し）。
-    static let dogBark: UInt32 = 0xFFFFFF
     /// イノシシの牙・目の白。
     static let boarTusk: UInt32 = 0xF4EFE6
-    /// 走者の車輪の縁（タイヤ）。白い車輪（`wheel`）は朝のパステルの空・路面に溶けるので、
-    /// 白い輪の外側に暗い輪を重ねる（#929）。走者は世界をまたいでも作り直さないので固定色。
-    static let wheelRim: UInt32 = 0x2B2B33
     /// スピードアップアイテムの後光（丸）。「電気を帯びた玉」に見えるよう寒色にする。
     static let pickupAura: UInt32 = 0x5CE1E6
     /// スピードアップアイテムの稲妻（本体）。後光との対比を出すため明るい暖色にする。
@@ -106,16 +81,7 @@ enum RunnerPalette {
     static let pickupBolt: UInt32 = 0xFFE066
     /// 稲妻の縁取り。後光と同系色の玉の上に置いても輪郭が沈まないようにする。
     static let pickupBoltOutline: UInt32 = 0xB8860B
-    /// たこ焼き（#797）の舟皿。経木の薄い生成りで、台座の床板（`platformDeck`）よりやや黄み。
-    static let takoyakiTray: UInt32 = 0xF3E2BE
-    /// たこ焼きの玉（焼き色）。岩のグレー・地面の茶・鳥の緑のどれとも系統が違う、食べ物の狐色。
-    static let takoyakiBall: UInt32 = 0xD98C3F
-    /// たこ焼きに掛かったソース。玉の上に載る濃い茶で、玉との明暗差だけで丸みを出す（輪郭線は引かない）。
-    static let takoyakiSauce: UInt32 = 0x6E3A16
-    /// 青のり（小さな緑の点）。
-    static let takoyakiAonori: UInt32 = 0x3F8F4C
-    /// 紅しょうが（小さな赤い点）。
-    static let takoyakiBenishoga: UInt32 = 0xE9536B
+    /// たこ焼き（#797）の色はドット絵のパレット（`RunnerPixelArt.palette`・#956）が持ち、ここには置かない。
     /// 台座（#674）の上面＝歩く床板。**ここがいちばん明るい**——「乗れる場所」は上面なので、
     /// 画面の中で最初に目に入るのが上面になるよう、コースのどの面よりも明るい色を当てる。
     /// 地表のティール（`groundTop`）・岩のストーングレー・空の紺のどれとも系統が違う
@@ -180,20 +146,19 @@ final class RunnerScene: SKScene {
     /// コース（地面・障害物・ゴール）。走者は動かさず、こちらを左へ流す。
     private let courseLayer = SKNode()
     private let player = SKNode()
-    private let frontWheel = SKShapeNode(circleOfRadius: 2.6)
-    private let rearWheel = SKShapeNode(circleOfRadius: 2.6)
-    /// 漕ぐ脚（奥・手前）と、それに合わせて回るクランクの腕（#569）。
-    /// 形は毎フレーム `RunnerRider` が返す座標で置き直す（寸法をここに書かない）。
-    private let farThigh = SKSpriteNode()
-    private let farShin = SKSpriteNode()
-    private let farKnee = SKShapeNode(circleOfRadius: 0.55)
-    private let farShoe = SKSpriteNode()
-    private let nearThigh = SKSpriteNode()
-    private let nearShin = SKSpriteNode()
-    private let nearKnee = SKShapeNode(circleOfRadius: 0.55)
-    private let nearShoe = SKSpriteNode()
-    private let crankArm = SKSpriteNode()
-    /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。
+    /// 走者の絵（#701）。`player` の唯一の子で、コマはテクスチャの差し替えで切り替える
+    /// （`applyRiderFrame`）。落下・激突の演出（`playFallAnimation`）と無敵の点滅は親の
+    /// `player` に掛けるので、ここには `SKAction` を掛けない。
+    private let riderSprite = SKSpriteNode()
+    /// 走者のコマのテクスチャ（起動時に 1 回だけ作る。`makeRiderTextures`）。
+    private let riderTextures = RunnerScene.makeRiderTextures()
+    /// たこ焼き（#956）のテクスチャ。走者と同じく起動時に 1 回だけ作り、面ごとの `addTakoyaki` は
+    /// これを貼るだけ（毎面 `CGImage` を起こさない）。
+    private let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")
+    /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
+    private var renderedRiderFrame: OjisanPixel.RiderFrame?
+    /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが
+    /// 入れ替わる（`RunnerRider.pedalFrame`）。
     private var pedalPhase: Double = 0
     /// 前のフレームの `distance`（進んだぶんを出すため）。
     private var lastRenderedDistance: Double?
@@ -310,231 +275,55 @@ final class RunnerScene: SKScene {
 
     // MARK: - 組み立て
 
-    /// 自転車に乗ったおじさん。**既存作品の意匠には寄せず**、丸と長方形だけで組む（#494 の権利チェック）。
-    ///
-    /// 「棒人間レベル」というQAを受けた底上げ（#569 決裁A）。**輪郭線は引かず**、色の差だけで
-    /// 面を分ける（1 単位が数 pt にしか描かれないので、線を足すと潰れて滲む）。増やしたのは
-    /// ①漕ぐ脚 ②ハンドルを握る腕 ③顔（目・鼻・口ひげ）とつばのある帽子 ④スポーク——
-    /// いずれも当たり判定には関わらない見た目だけの追加で、走者の占める寸法
-    /// （`Metrics.playerWidth` / `.playerHeight`）は変えていない。
+    /// 自転車に乗ったおじさん（#701）。`Core` の `OjisanPixel` のドット絵（40×36 ドット・右向き）を
+    /// 1 枚のスプライトに貼り、コマ（漕ぐ 2 枚・跳ぶ・コケる・目を回す）はテクスチャの差し替えで
+    /// 切り替える（`applyRiderFrame`）。**絵の寸法はここに書かない**——1 ドットの大きさと原点は
+    /// `RunnerRider.placement` が基準のコマから決める（不透明部分の高さ = 図形時代の帽子の天辺、
+    /// 原点 = 両輪の接地点の中央・車輪の底）。当たり判定（`Metrics.playerWidth` / `.playerHeight`）と
+    /// ジャンプ物理は変えていない（絵は当たり判定より少し大きい。図形の頃と同じ）。
     private func buildPlayer() {
-        buildBike()
-        buildLegs()
-        buildRiderBody()
-        buildFace()
+        let placement = Self.riderPlacement
+        let sprite = OjisanPixel.rider(.ride0)
+        riderSprite.anchorPoint = CGPoint(x: placement.anchorX, y: placement.anchorY)
+        riderSprite.size = CGSize(
+            width: Double(sprite.width) * placement.unit,
+            height: Double(sprite.height) * placement.unit
+        )
+        applyRiderFrame(.ride0)
+        player.addChild(riderSprite)
         player.position = CGPoint(x: Metrics.playerX, y: Metrics.groundY)
     }
 
-    /// 自転車（車輪・スポーク・車体・サドル・クランク）。
-    private func buildBike() {
-        for wheel in [frontWheel, rearWheel] {
-            wheel.fillColor = .clear
-            wheel.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
-            wheel.lineWidth = 0.7
-            // タイヤ。白い輪の外側だけに出る暗い輪（幅は白い輪 + 縁取り 2 本ぶん）で、
-            // 朝のパステルの空・路面でも車輪の丸が読める（#929）。
-            let rim = SKShapeNode(circleOfRadius: 2.6)
-            rim.fillColor = .clear
-            rim.strokeColor = RunnerPalette.color(RunnerPalette.wheelRim)
-            rim.lineWidth = 0.7 + Self.outlineWidth * 2
-            rim.zPosition = -1
-            wheel.addChild(rim)
-            // スポーク。無地の円は回しても回転が見えず、止まっているように見えていた。
-            // 車輪の子にしておけば `zRotation` にそのまま追従する。
-            for i in 0..<3 {
-                let spoke = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.wheel),
-                                         size: CGSize(width: 5.0, height: 0.35))
-                spoke.zRotation = CGFloat(Double(i) * .pi / 3)
-                wheel.addChild(spoke)
-            }
-            player.addChild(wheel)
+    /// 走者の絵の置き方（`RunnerRider.placement` を参照）。全コマ共通。
+    private static let riderPlacement = RunnerRider.placement(for: OjisanPixel.rider(.ride0))
+
+    /// 走者のコマのテクスチャ。**起動時に 5 枚を 1 回だけ作る**（`sync` は差し替えるだけで、
+    /// 毎フレーム `CGImage` を起こさない）。等倍のビットマップを `SKSpriteNode.size` で拡大するので、
+    /// にじまないよう `.nearest` にする（`PixelSprite` の注記）。
+    private static func makeRiderTextures() -> [OjisanPixel.RiderFrame: SKTexture] {
+        var textures: [OjisanPixel.RiderFrame: SKTexture] = [:]
+        for frame in OjisanPixel.RiderFrame.allCases {
+            textures[frame] = makeTexture(OjisanPixel.rider(frame), name: "走者のコマ \(frame)")
         }
-        frontWheel.position = CGPoint(x: 2.6, y: 2.6)
-        rearWheel.position = CGPoint(x: -2.6, y: 2.6)
-
-        // 車体。**太い1本の棒ではなく細い管を組む**。棒1枚だとクランクとペダルが棒に
-        // 埋まって漕いでいるのが見えず、自転車の形にも見えなかった（最初の実機確認で判明）。
-        addTube(from: RunnerRider.rearHub, to: RunnerRider.crank)     // チェーンステー
-        addTube(from: RunnerRider.crank, to: RunnerRider.seatBase)    // シートチューブ
-        addTube(from: RunnerRider.seatBase, to: RunnerRider.rearHub)  // シートステー
-        addTube(from: RunnerRider.crank, to: RunnerRider.headTop)     // ダウンチューブ
-        addTube(from: RunnerRider.seatBase, to: RunnerRider.headTop)  // トップチューブ
-        addTube(from: RunnerRider.headTop, to: RunnerRider.frontHub)  // フォーク
-        addTube(from: RunnerRider.headTop, to: RunnerRider.grip)      // ステム
-
-        // 握りとサドル。手と腰の行き先を絵の上でも示す（腕と脚の付け根が浮かないようにする）。
-        let grip = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.metal),
-                                size: CGSize(width: 1.4, height: 0.5))
-        grip.position = CGPoint(x: RunnerRider.grip.x, y: RunnerRider.grip.y)
-        let saddle = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.metal),
-                                  size: CGSize(width: 2.2, height: 0.6))
-        saddle.position = CGPoint(x: RunnerRider.seatBase.x, y: RunnerRider.seatBase.y + 0.3)
-        for node in [grip, saddle] { player.addChild(node) }
-
-        // クランク（ペダルの回転中心と、回る腕）。
-        let chainring = SKShapeNode(circleOfRadius: 0.8)
-        chainring.fillColor = .clear
-        chainring.strokeColor = RunnerPalette.color(RunnerPalette.metal)
-        chainring.lineWidth = 0.4
-        chainring.position = CGPoint(x: RunnerRider.crank.x, y: RunnerRider.crank.y)
-        player.addChild(chainring)
-
-        crankArm.color = RunnerPalette.color(RunnerPalette.metal)
-        crankArm.size = CGSize(width: RunnerRider.crankRadius, height: 0.45)
-        crankArm.anchorPoint = CGPoint(x: 0, y: 0.5)
-        crankArm.position = CGPoint(x: RunnerRider.crank.x, y: RunnerRider.crank.y)
-        crankArm.zPosition = 1
-        player.addChild(crankArm)
+        return textures
     }
 
-    /// 車体の管を1本。2点を結ぶ細い矩形を、始点で回して置く。
-    private func addTube(from start: RunnerPoint, to end: RunnerPoint) {
-        let dx = end.x - start.x, dy = end.y - start.y
-        let tube = SKSpriteNode(
-            color: RunnerPalette.color(RunnerPalette.bike),
-            size: CGSize(width: (dx * dx + dy * dy).squareRoot(), height: 0.55)
-        )
-        tube.anchorPoint = CGPoint(x: 0, y: 0.5)
-        tube.position = CGPoint(x: start.x, y: start.y)
-        tube.zRotation = CGFloat(atan2(dy, dx))
-        player.addChild(tube)
-    }
-
-    /// 漕ぐ脚。奥の脚は車体より後ろ、手前の脚は胴より前に置く（重なる位相でも前後が分かる）。
-    private func buildLegs() {
-        configureLeg(thigh: farThigh, shin: farShin, knee: farKnee, shoe: farShoe,
-                     color: RunnerPalette.pantsShade, z: -1)
-        configureLeg(thigh: nearThigh, shin: nearShin, knee: nearKnee, shoe: nearShoe,
-                     color: RunnerPalette.pants, z: 3)
-    }
-
-    private func configureLeg(
-        thigh: SKSpriteNode, shin: SKSpriteNode, knee: SKShapeNode, shoe: SKSpriteNode,
-        color: UInt32, z: CGFloat
-    ) {
-        thigh.color = RunnerPalette.color(color)
-        thigh.size = CGSize(width: RunnerRider.thigh, height: 1.15)
-        shin.color = RunnerPalette.color(color)
-        shin.size = CGSize(width: RunnerRider.shin, height: 0.9)
-        for segment in [thigh, shin] {
-            // 関節を軸に回すので、左端の中央を基準にする。
-            segment.anchorPoint = CGPoint(x: 0, y: 0.5)
-            segment.zPosition = z
-            player.addChild(segment)
+    /// ドット絵 1 枚を等倍のテクスチャにする。走者・たこ焼き（今後の背景・障害物も）共通で、
+    /// 呼ぶのは起動時の 1 回だけ。`name` は作れなかったときの表示用。
+    private static func makeTexture(_ sprite: PixelSprite, name: String) -> SKTexture {
+        guard let image = sprite.cgImage(scale: 1) else {
+            preconditionFailure("\(name) のビットマップが作れない")
         }
-        knee.fillColor = RunnerPalette.color(color)
-        knee.strokeColor = .clear
-        knee.zPosition = z
-        player.addChild(knee)
-        // 付け根。腿が胴からいきなり生えて見えるのを防ぐ（動かないので子ノードで置くだけ）。
-        let joint = SKShapeNode(circleOfRadius: 0.7)
-        joint.fillColor = RunnerPalette.color(color)
-        joint.strokeColor = .clear
-        joint.position = CGPoint(x: RunnerRider.hip.x, y: RunnerRider.hip.y)
-        joint.zPosition = z
-        player.addChild(joint)
-        shoe.color = RunnerPalette.color(RunnerPalette.shoe)
-        shoe.size = CGSize(width: 1.2, height: 0.5)
-        shoe.zPosition = z
-        player.addChild(shoe)
+        let texture = SKTexture(cgImage: image)
+        texture.filteringMode = .nearest
+        return texture
     }
 
-    /// おじさんの胴・腹・腕・首。
-    private func buildRiderBody() {
-        // 前かがみの胴。楕円1枚を傾けて置く（矩形だと肩と腰の丸みが出ない）。
-        let torso = SKShapeNode(ellipseOf: CGSize(width: 4.2, height: 3.4))
-        torso.fillColor = RunnerPalette.color(RunnerPalette.shirt)
-        torso.strokeColor = .clear
-        torso.zRotation = 0.72
-        torso.position = CGPoint(x: -0.3, y: 7.4)
-        torso.zPosition = 2
-        player.addChild(torso)
-
-        // 腹。「おじさん」の体型はこの丸みだけで伝える（顔だけでは年齢が読めない）。
-        let belly = SKShapeNode(circleOfRadius: 1.45)
-        belly.fillColor = RunnerPalette.color(RunnerPalette.shirt)
-        belly.strokeColor = .clear
-        belly.position = CGPoint(x: 0.85, y: 6.9)
-        belly.zPosition = 2
-        player.addChild(belly)
-
-        // ハンドルへ伸びる腕（肩から握りまで1本の棒）と手。
-        let arm = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.shirtShade),
-                               size: CGSize(width: armLength, height: 0.95))
-        arm.anchorPoint = CGPoint(x: 0, y: 0.5)
-        arm.position = CGPoint(x: RunnerRider.shoulder.x, y: RunnerRider.shoulder.y)
-        arm.zRotation = CGFloat(atan2(
-            RunnerRider.grip.y - RunnerRider.shoulder.y,
-            RunnerRider.grip.x - RunnerRider.shoulder.x
-        ))
-        arm.zPosition = 4
-        player.addChild(arm)
-
-        let hand = SKShapeNode(circleOfRadius: 0.55)
-        hand.fillColor = RunnerPalette.color(RunnerPalette.skin)
-        hand.strokeColor = .clear
-        hand.position = CGPoint(x: RunnerRider.grip.x, y: RunnerRider.grip.y + 0.3)
-        hand.zPosition = 4
-        player.addChild(hand)
-    }
-
-    /// 肩から握りまでの長さ。
-    private var armLength: Double {
-        let dx = RunnerRider.grip.x - RunnerRider.shoulder.x
-        let dy = RunnerRider.grip.y - RunnerRider.shoulder.y
-        return (dx * dx + dy * dy).squareRoot()
-    }
-
-    /// 顔と帽子。**「おじさん」と分かるのはここだけ**なので、目・鼻・口ひげを省かない。
-    private func buildFace() {
-        let head = SKShapeNode(circleOfRadius: 1.5)
-        head.fillColor = RunnerPalette.color(RunnerPalette.skin)
-        head.strokeColor = .clear
-        head.position = CGPoint(x: 1.0, y: 9.9)
-        head.zPosition = 5
-        player.addChild(head)
-
-        // 後頭部の髪（帽子とうなじの間）。
-        let hair = SKShapeNode(circleOfRadius: 0.85)
-        hair.fillColor = RunnerPalette.color(RunnerPalette.hair)
-        hair.strokeColor = .clear
-        hair.position = CGPoint(x: -0.1, y: 9.6)
-        hair.zPosition = 5
-        player.addChild(hair)
-
-        // 帽子（山とつば）。つばを前に出すことで、向いている方向が一目で分かる。
-        let crown = SKShapeNode(ellipseOf: CGSize(width: 3.2, height: 1.8))
-        crown.fillColor = RunnerPalette.color(RunnerPalette.bike)
-        crown.strokeColor = .clear
-        crown.position = CGPoint(x: 0.9, y: 11.0)
-        crown.zPosition = 6
-        player.addChild(crown)
-
-        let brim = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.bike),
-                                size: CGSize(width: 1.9, height: 0.45))
-        brim.position = CGPoint(x: 2.7, y: 10.7)
-        brim.zPosition = 6
-        player.addChild(brim)
-
-        let eye = SKShapeNode(circleOfRadius: 0.3)
-        eye.fillColor = RunnerPalette.color(RunnerPalette.hair)
-        eye.strokeColor = .clear
-        eye.position = CGPoint(x: 1.85, y: 10.15)
-        eye.zPosition = 7
-        player.addChild(eye)
-
-        let nose = SKShapeNode(circleOfRadius: 0.45)
-        nose.fillColor = RunnerPalette.color(RunnerPalette.skinShade)
-        nose.strokeColor = .clear
-        nose.position = CGPoint(x: 2.4, y: 9.7)
-        nose.zPosition = 7
-        player.addChild(nose)
-
-        let mustache = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.hair),
-                                    size: CGSize(width: 1.3, height: 0.45))
-        mustache.position = CGPoint(x: 1.95, y: 9.2)
-        mustache.zPosition = 7
-        player.addChild(mustache)
+    /// 走者のコマを差し替える。同じコマなら何もしない。
+    private func applyRiderFrame(_ frame: OjisanPixel.RiderFrame) {
+        guard frame != renderedRiderFrame else { return }
+        renderedRiderFrame = frame
+        riderSprite.texture = riderTextures[frame]
     }
 
     /// 雲ノードそのもの（`cloudBaseX` と対で、`sync` が毎フレーム位置を計算し直す）。
@@ -847,6 +636,12 @@ final class RunnerScene: SKScene {
         player.alpha = 1
         player.xScale = 1
         player.yScale = 1
+        // 漕ぐ位相も走行の頭で 0 に戻す（#701）。コマは半回転ごとの二値なので、前の走行の位相を
+        // 持ち越すと「もう一度」の最初のフレームだけ左ペダル前（`ride1`）で走り出しうる。
+        // 距離の控えも消して、次の反映で「それまでに進んだ距離」をまとめて足し直す
+        // （チェックポイント再開・撮影は接地距離だけでコマが決まる）。
+        pedalPhase = 0
+        lastRenderedDistance = nil
     }
 
     /// 乗れる台座（#674）。工事の足場に架かった歩板——街の中の「高い場所」。
@@ -1118,25 +913,19 @@ final class RunnerScene: SKScene {
         let shadowBaseY: Double
         /// 動いているあいだだけ回す部品（翼・浮遊・脚）。止まっているあいだは `isPaused`。
         let animated: [SKNode]
-        /// 止まっているあいだだけ見せる部品（犬の吠え声の吹き出し。#944 で犬は止まらなく
-        /// なったので、いまは常に隠れている）。
-        let stoppedOnly: SKNode?
         /// 動いているあいだだけ見せる部品（イノシシの土煙）。
         let movingOnly: SKNode?
         var state: State?
-        /// 前のフレームで現れていたか。犬・イノシシは動き出すまで false（現れていない）。
-        var wasPresent = false
 
         init(
             hazard: RunnerHazard, node: SKNode, shadow: SKNode? = nil, shadowBaseY: Double = 0,
-            animated: [SKNode], stoppedOnly: SKNode? = nil, movingOnly: SKNode? = nil
+            animated: [SKNode], movingOnly: SKNode? = nil
         ) {
             self.hazard = hazard
             self.node = node
             self.shadow = shadow
             self.shadowBaseY = shadowBaseY
             self.animated = animated
-            self.stoppedOnly = stoppedOnly
             self.movingOnly = movingOnly
         }
 
@@ -1150,7 +939,6 @@ final class RunnerScene: SKScene {
                 // 羽ばたきの予備動作は飛んでいるときより速く小刻みに。
                 part.speed = next == .fluttering ? 2.5 : 1
             }
-            stoppedOnly?.isHidden = next != .stopped
             movingOnly?.isHidden = next != .moving
         }
     }
@@ -1335,18 +1123,24 @@ final class RunnerScene: SKScene {
         return legs
     }
 
-    /// 犬（`RunnerHazardKind.dog`・#800）。おじさんと同じ向き（右）に走り、追いつかれる直前に
-    /// 立ち止まって吠える。丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。
+    /// 犬（`RunnerHazardKind.dog`・#800 → #955）。画面の右（前方）から走者の方へ**左向きに**
+    /// トコトコ歩いて来てすれ違う。丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。
+    ///
+    /// 部品は #800 の右向きの絵のまま（頭が x の大きい側）で、**ノード全体を `xScale = -1` で
+    /// 左右反転**して左向きにする。反転すると箱のローカル x `[0, w]` は `[-w, 0]` に写るので、
+    /// 原点は**当たり判定の右端**（`syncMovingHazards` が `frame.end` に置く。左右反転した鳥と
+    /// 同じ作法）——箱はそのまま `[frame.start, frame.end]` に重なり、当たり判定の外へずれない。
+    /// 絵を当たり判定より大きく描く（#943・PR #950 の `addAnimalArtBox`）ときも、箱を当たり判定に
+    /// 対して中央合わせにしておけば反転で張り出しが左右入れ替わるだけで、位置は変わらない。
     ///
     /// 当たり判定は `RunnerField` が `frame(atRunnerDistance:)` の矩形（1 タイル × 高さ 5）で
     /// 見ており、絵はその箱を `animalVisualScale` 倍に広げた箱（`addAnimalArtBox`・#943）の中に
-    /// 収まる寸法。原点は絵の箱の左下。吠え声の吹き出しだけは箱の外（頭の前）に出るが、
-    /// 見た目だけで当たり判定には関わらない。
+    /// 収まる寸法。立ち止まって吠える挙動は #944 で無くなったので吹き出しは持たない。
     private func addDog(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
-        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        node.position = CGPoint(x: hazard.end, y: Metrics.groundY)
+        node.xScale = -1
         let (art, w, h) = addAnimalArtBox(to: node, hazard: hazard, leadingEdge: nil)
-        let s = Self.animalVisualScale
         // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・耳・口元・尻尾・脚に暗い縁取りを
         // 引き、朝のパステルの背景でも輪郭が立つようにする（鼻・目・腹は差し色なので引かない）。
         let colors = world.creatures
@@ -1387,7 +1181,7 @@ final class RunnerScene: SKScene {
         tail.zPosition = 1
         art.addChild(tail)
 
-        // 頭（丸）と、立った耳・鼻・目。頭は進行方向（右）の上。
+        // 頭（丸）と、立った耳・鼻・目。頭は箱の右上（反転後は進行方向の左）。
         let head = SKShapeNode(circleOfRadius: w * 0.2)
         head.fillColor = RunnerPalette.color(colors.dogBody)
         outline(head)
@@ -1424,26 +1218,8 @@ final class RunnerScene: SKScene {
         eye.zPosition = 5
         art.addChild(eye)
 
-        // 吠え声。頭の前に小さな白い吹き出し（丸 3 つ）を出し、止まっているあいだだけ見せて
-        // 脈打たせる。文字は描かない（SpriteKit の中に文字は置かない・基盤規約）。
-        // 丸の寸法は絵の倍率に合わせる（#943。犬だけ大きくして吹き出しが豆粒のままにならないように）。
-        let bark = SKNode()
-        for (index, spec) in [(0.0, 0.0, 0.42), (0.5, 0.35, 0.3), (0.95, 0.75, 0.2)].enumerated() {
-            let puff = SKShapeNode(circleOfRadius: spec.2 * s)
-            puff.fillColor = RunnerPalette.color(RunnerPalette.dogBark)
-            puff.strokeColor = .clear
-            puff.position = CGPoint(x: spec.0 * s, y: spec.1 * s)
-            puff.zPosition = CGFloat(6 - index)
-            bark.addChild(puff)
-        }
-        bark.position = CGPoint(x: w * 1.2, y: h * 0.86)
-        bark.isHidden = true
-        let pulse = SKAction.scale(to: 1.25, duration: 0.18)
-        bark.run(.repeatForever(.sequence([pulse, pulse.reversed()])))
-        art.addChild(bark)
-
         courseLayer.addChild(node)
-        return MovingHazardView(hazard: hazard, node: node, animated: legs, stoppedOnly: bark)
+        return MovingHazardView(hazard: hazard, node: node, animated: legs)
     }
 
     /// 地面を走る動物（犬・イノシシ）の絵の倍率（#943・会長QA 2026-09-15「鳥、犬、イノシシ全体的に
@@ -1615,25 +1391,15 @@ final class RunnerScene: SKScene {
             let hazard = view.hazard
             guard let frame = hazard.frame(atRunnerDistance: field.distance) else {
                 view.node.isHidden = true
-                view.wasPresent = false
                 continue
             }
             view.node.isHidden = false
-            if !view.wasPresent {
-                view.wasPresent = true
-                // イノシシの突進が始まった瞬間（#801）の予告は**手応え（ドドド）だけ**（Model が鳴らす）。
-                // かつてはここで画面の右端の地面に土煙を立てていたが、イノシシはまだ 148 先
-                // （画面は 74 先まで）で本体が見えず、「地面のよくわからんところからおならみたいなのが
-                // 出る」と会長QAで指摘された（#943・2026-09-15）。土煙はイノシシの後ろ脚の足元に
-                // 付けてあり（`addBoar`）、本体と一緒に画面へ入ってくる。
-                //
-                // 犬が後ろに現れた瞬間（#944）。まだ画面の外なので、画面の左端に土煙を立てて
-                // 「後ろから何か来る」を見せる。手応え（吠え声）は Model が同じ瞬間に鳴らす。
-                // 追い越されたあと（チェックポイントから走り直したとき）は立てない。
-                if hazard.kind == .dog, field.distance < hazard.dogContactDistance {
-                    spawnChargeDust(atWorldX: field.distance - Metrics.playerX + 4)
-                }
-            }
+            // 現れた瞬間の予告の土煙は立てない。イノシシの突進（#801）の予告は**手応え（ドドド）だけ**
+            // （Model が鳴らす）。かつては画面の右端の地面に土煙を立てていたが、イノシシはまだ 148 先
+            // （画面は 74 先まで）で本体が見えず、「地面のよくわからんところからおならみたいなのが
+            // 出る」と会長QAで指摘された（#943・2026-09-15）。土煙はイノシシの後ろ脚の足元に
+            // 付けてあり（`addBoar`）、本体と一緒に画面へ入ってくる。
+            // 犬（#955）は予告なしに画面の右の外に現れて歩いて入って来るだけ。土煙も鳴らさない。
             switch hazard.kind {
             case .bird:
                 // 原点は帯の右端（左右反転しているため）。影は帯が上がっても地面に残す。
@@ -1649,9 +1415,9 @@ final class RunnerScene: SKScene {
                 }
                 view.apply(state)
             case .dog:
-                // 現れてから消えるまで走り続ける（#944）。立ち止まって吠える状態は無いので
-                // 吹き出し（`stoppedOnly`）は出ない。
-                view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)
+                // 左向きに反転しているので原点は当たり判定の右端（`addDog`）。現れてから画面の左へ
+                // 消えるまで歩き続ける（#955）。
+                view.node.position = CGPoint(x: frame.end, y: Metrics.groundY)
                 view.apply(.moving)
             case .boar:
                 view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)
@@ -1660,21 +1426,6 @@ final class RunnerScene: SKScene {
                 break
             }
         }
-    }
-
-    /// 犬の予告の土煙（#944）。画面の左端の地面に、激突の土煙より大きく長く立てる。
-    /// コース側（`courseLayer`）に置くので、走るにつれて左へ流れていく。
-    /// （イノシシの右端の予告には使わない——本体が見えないうちの土煙は #943 で廃止。）
-    private func spawnChargeDust(atWorldX worldX: Double) {
-        spawnDust(
-            at: CGPoint(x: worldX, y: Metrics.groundY + 1.5),
-            specs: [
-                (-2.0, 3.5, 1.6), (1.5, 4.5, 1.3), (-4.5, 2.0, 1.2),
-                (3.5, 2.5, 1.0), (0.0, 6.0, 1.1), (-1.0, 1.0, 1.8),
-            ],
-            duration: 0.8,
-            in: courseLayer
-        )
     }
 
     /// スピードアップアイテム。最初の実装は細い矩形2枚で稲妻を表していたが小さすぎて
@@ -1724,64 +1475,26 @@ final class RunnerScene: SKScene {
         return node
     }
 
-    /// たこ焼き（`RunnerPickupKind.invincible`・#797）。舟皿に 3 個、ソースの上に青のりと
-    /// 紅しょうがの色点——縁日の屋台で買うあの形で、**特定のキャラクター・作品には寄せない**
-    /// （#494 の権利チェック）。岩・鳥と同じく丸と長方形とパスだけで組み、輪郭線は引かない。
+    /// たこ焼き（`RunnerPickupKind.invincible`・#797 → #956）。舟皿に 3 個を並べた図形は小さくて
+    /// 「何か分からない」（会長 QA 2026-09-15）ので、走者と同じ SFC 級のドット絵で **1 個を大きく**
+    /// 描く（`RunnerPixelArt.takoyaki`・15×18 ドット）。1 ドットは走者と同じ単位
+    /// （`riderPlacement.unit` ≒ 0.33）で、高さ ≒ 6 単位＝走者の頭くらい。縁取りは絵に焼き込んである
+    /// （#929 の「手前の物は縁取る」。世界ごとの `outline(_:)` は `SKSpriteNode` に掛けられない）。
     /// スピードアップ（稲妻）は「脈動」、たこ焼きは「上下にふわふわ浮く」で動きも変え、
-    /// 色だけに頼らず見分けられるようにする。当たり判定は `RunnerField` 側の横の重なりだけで、
-    /// この絵の寸法とは独立している（`addPickup` と同じ）。
+    /// 色だけに頼らず見分けられるようにする。
+    ///
+    /// 原点は絵の底の中央（`anchorPoint = (0.5, 0)`。格子に余白が無いことは `RunnerPixelArtTests`
+    /// が固定）。x は `pickup.start`（当たり判定の中心）、y は図形だった頃の舟皿の底と同じ高さ。
+    /// 当たり判定は `RunnerField` 側の横の重なりだけで、この絵の寸法とは独立している
+    /// （`addPickup` と同じ）。
     @discardableResult
     private func addTakoyaki(_ pickup: RunnerPickup) -> SKNode {
-        let node = SKNode()
-        node.position = CGPoint(x: pickup.start, y: Metrics.groundY + 2.4)
-
-        // 舟皿（経木）。上が広く底が狭い台形を 1 枚。
-        let trayPath = CGMutablePath()
-        trayPath.move(to: CGPoint(x: -3.8, y: 0.5))
-        trayPath.addLine(to: CGPoint(x: -3.0, y: -1.0))
-        trayPath.addLine(to: CGPoint(x: 3.0, y: -1.0))
-        trayPath.addLine(to: CGPoint(x: 3.8, y: 0.5))
-        trayPath.closeSubpath()
-        let tray = SKShapeNode(path: trayPath)
-        tray.fillColor = RunnerPalette.color(RunnerPalette.takoyakiTray)
-        // 舟皿と玉には暗い縁取り（#929）。生成りの皿・狐色の玉は朝のパステルの丘・壁に溶ける。
-        outline(tray)
-        node.addChild(tray)
-
-        // 玉 3 個。ソースは玉の上半分に被せた小さめの丸で、明暗の差だけで丸みを出す。
-        let ballRadius = 1.05
-        for (i, x) in [-2.1, 0.0, 2.1].enumerated() {
-            let ball = SKShapeNode(circleOfRadius: ballRadius)
-            ball.fillColor = RunnerPalette.color(RunnerPalette.takoyakiBall)
-            outline(ball)
-            ball.position = CGPoint(x: x, y: 0.75)
-            ball.zPosition = 1
-            node.addChild(ball)
-
-            let sauce = SKShapeNode(ellipseOf: CGSize(width: 1.5, height: 0.8))
-            sauce.fillColor = RunnerPalette.color(RunnerPalette.takoyakiSauce)
-            sauce.strokeColor = .clear
-            sauce.position = CGPoint(x: x, y: 1.05)
-            sauce.zPosition = 2
-            node.addChild(sauce)
-
-            // 青のり（緑）を各玉に 1 点、紅しょうが（赤）は左右の玉にだけ 1 点。
-            // 点の位置は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
-            let aonori = SKShapeNode(circleOfRadius: 0.17)
-            aonori.fillColor = RunnerPalette.color(RunnerPalette.takoyakiAonori)
-            aonori.strokeColor = .clear
-            aonori.position = CGPoint(x: x - 0.35, y: 1.15)
-            aonori.zPosition = 3
-            node.addChild(aonori)
-            if i != 1 {
-                let benishoga = SKShapeNode(circleOfRadius: 0.18)
-                benishoga.fillColor = RunnerPalette.color(RunnerPalette.takoyakiBenishoga)
-                benishoga.strokeColor = .clear
-                benishoga.position = CGPoint(x: x + 0.4, y: 0.95)
-                benishoga.zPosition = 3
-                node.addChild(benishoga)
-            }
-        }
+        let sprite = RunnerPixelArt.takoyaki()
+        let unit = Self.riderPlacement.unit
+        let node = SKSpriteNode(texture: takoyakiTexture)
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.size = CGSize(width: Double(sprite.width) * unit, height: Double(sprite.height) * unit)
+        node.position = CGPoint(x: pickup.start, y: Metrics.groundY + 1.4)
 
         // ふわふわ浮く（見た目だけ。当たり判定は `RunnerField` 側の横の重なりのまま）。
         let rise = SKAction.moveBy(x: 0, y: 0.7, duration: 0.55)
@@ -2115,12 +1828,9 @@ final class RunnerScene: SKScene {
             }
         } else {
             player.position = CGPoint(x: Metrics.playerX, y: field.footY)
-            // 車輪は進んだ距離ぶんだけ回す（半径 2.6 の円周で 1 回転）。
-            let angle = -field.distance / 2.6
-            frontWheel.zRotation = CGFloat(angle)
-            rearWheel.zRotation = CGFloat(angle)
-            syncPedaling(field)
-            // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため。
+            advancePedaling(field)
+            // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため
+            // （コマは `jump` の 1 枚だが、傾きで勢いが出る）。
             player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
             syncPickups(field)
             syncJustLanding(field)
@@ -2135,6 +1845,12 @@ final class RunnerScene: SKScene {
                 spawnGoalConfetti()
             }
         }
+        // コマは局面・接地・位相の純関数（`RunnerRider.frame`）。`.falling` に入った最初の
+        // フレームで `tumble`、演出明けの `.failed` で `dizzy`、空中は `jump`、接地は漕ぐ 2 枚。
+        // 撮影の凍結（`isFrozenForCapture`）中は状態が動かないので、コマもそのまま止まる。
+        applyRiderFrame(RunnerRider.frame(
+            phase: model.phase, isGrounded: field.isGrounded, pedalPhase: pedalPhase
+        ))
         lastSyncedPhase = model.phase
     }
 
@@ -2219,9 +1935,10 @@ final class RunnerScene: SKScene {
 
     /// 穴に落ちる/ぶつかった瞬間だけ流す演出（`.falling` に入った最初のフレームで 1 回発火）。
     ///
-    /// 新規アセットは作らず、既存の丸と長方形だけの走者ノード（`player`）をそのまま
-    /// 沈める・回す・フェードする。当たり判定・進行のタイミングは `RunnerModel` 側の
-    /// `RunnerRules.fallDuration` が決めており、ここは見た目だけを作る。
+    /// 走者ノード（`player`）をそのまま沈める・回す・フェードする。コマは `sync` が `.falling` で
+    /// `tumble`（自転車が横倒しで前へ投げ出された絵）に差し替えるので、ここで掛ける回転は
+    /// **絵の中の転倒に上乗せする勢い**に留める（#701）。当たり判定・進行のタイミングは
+    /// `RunnerModel` 側の `RunnerRules.fallDuration` が決めており、ここは見た目だけを作る。
     private func playFallAnimation() {
         player.removeAllActions()
         let duration = RunnerRules.fallDuration
@@ -2236,7 +1953,11 @@ final class RunnerScene: SKScene {
         // 見え方になっていた。負の回転なら前輪側（進行方向）が先に沈み、後輪が後から
         // 持ち上がって前転するように見える。走者は左から近づき、穴・障害物は前方にあるので、
         // 前輪から落ちる/突っ込むほうが物理的に自然。
-        let topple = SKAction.rotate(byAngle: -.pi * 0.85, duration: duration)
+        //
+        // 回転量は図形の頃（-0.85π）から弱めてある。`tumble` のコマ自体がすでに倒れた絵なので、
+        // 同じだけ回すと転倒が二重になって穴の中で逆さまに止まる（#701）。前のめりに落ちる
+        // 分だけ傾ける。
+        let topple = SKAction.rotate(byAngle: -.pi * 0.35, duration: duration)
         topple.timingMode = .easeOut
 
         if model.field.isPit(at: model.field.distance) {
@@ -2259,7 +1980,12 @@ final class RunnerScene: SKScene {
             //   見えるうえ、終端で直立に戻るので、直後の `.failed` で `sync` が
             //   `zRotation = 0` へ戻すときの画の飛びも出ない。
             // - 体は岩に弾き返されて後方へ山なりに飛び、着地で小さくバウンドして止まる。
-            // - 車輪は惰性で空転させ、激突点には土煙を散らす（丸のみ・#494 の範囲内）。
+            // - 激突点には土煙を散らす（丸のみ・#494 の範囲内）。
+            // - コマは `tumble`（#701）。絵の中ですでに転んでいるが、1 回転は絵ごと転げる
+            //   宙返りとして読めるので回転量は変えない（穴の `topple` とは違い、終端で直立に
+            //   戻る前提の値なので弱めると `.failed` で画が飛ぶ）。以前あった終盤のフェード
+            //   （0.35 まで）は外した——演出明けの `.failed` は `dizzy`（座り込んで目を回す絵）を
+            //   見せる局面で、薄いままだと絵が読めない。
             //
             // moveBy + rotate の合成ではなく custom action で毎フレーム姿勢を計算する。
             // `player` の原点は足元にあり、rotate だけだと足元を軸に回って回転の途中で
@@ -2287,17 +2013,7 @@ final class RunnerScene: SKScene {
                     y: baseY + CGFloat(dy + compY)
                 )
             }
-            let fade = SKAction.sequence([
-                .wait(forDuration: duration * 0.6),
-                .fadeAlpha(to: 0.35, duration: duration * 0.4),
-            ])
-            player.run(.group([crash, fade]))
-            // 空転。走行中の回転は `sync` が距離から出すが、`.falling` の間は触らない
-            // （このメソッド参照）ので、ここで惰性ぶんを回し切る。有限時間の action
-            // なので次の走行開始（`rebuildCourse`）までに勝手に終わる。
-            for wheel in [frontWheel, rearWheel] {
-                wheel.run(.rotate(byAngle: -12, duration: duration))
-            }
+            player.run(crash)
             spawnCrashDust()
         }
     }
@@ -2360,39 +2076,20 @@ final class RunnerScene: SKScene {
         }
     }
 
-    /// 漕ぐ脚を進める（#569）。
+    /// 漕ぐ位相を進める（#569 → #701 でコマの切り替えに流用）。
     ///
     /// 位相は**接地して進んだ距離**から出す。時計で回すと、ゆっくりモードや一時停止のあいだも
     /// 脚だけが動いてしまう。速く走れば漕ぐのも速くなる（`pedalBoost` が距離に乗るため、
-    /// ケイデンスはここで何もしなくても乗りに追従する）。
-    private func syncPedaling(_ field: RunnerField) {
+    /// ケイデンスはここで何もしなくても乗りに追従する）。コマへの反映は `sync` の末尾
+    /// （`RunnerRider.frame`）。
+    private func advancePedaling(_ field: RunnerField) {
         // 初回は 0 から数える。`field.distance` を初期値にすると、シーンが出るより前に
-        // 進んでいた場合（撮影用の `-simulateRunner`）にその区間だけ漕いでいない扱いになる。
+        // 進んでいた場合（撮影用の `-simulateRunner`）にその区間だけ漕いでいない扱いになる
+        // （`RunnerRider.phase(forGroundedDistance:)` はこの前提で撮影の画を狙う）。
         let delta = field.distance - (lastRenderedDistance ?? 0)
         lastRenderedDistance = field.distance
         pedalPhase = RunnerRider.advance(
             phase: pedalPhase, by: delta, isPedaling: field.isGrounded
         )
-        place(thigh: farThigh, shin: farShin, knee: farKnee, shoe: farShoe,
-              leg: RunnerRider.leg(phase: pedalPhase, isFar: true))
-        let near = RunnerRider.leg(phase: pedalPhase, isFar: false)
-        place(thigh: nearThigh, shin: nearShin, knee: nearKnee, shoe: nearShoe, leg: near)
-        crankArm.zRotation = CGFloat(atan2(
-            near.pedal.y - RunnerRider.crank.y, near.pedal.x - RunnerRider.crank.x
-        ))
-    }
-
-    /// 片脚のノードを、求めた形（腰 → 膝 → ペダル）へ置き直す。
-    private func place(
-        thigh: SKSpriteNode, shin: SKSpriteNode, knee: SKShapeNode, shoe: SKSpriteNode,
-        leg: RunnerRider.Leg
-    ) {
-        thigh.position = CGPoint(x: leg.hip.x, y: leg.hip.y)
-        thigh.zRotation = CGFloat(atan2(leg.knee.y - leg.hip.y, leg.knee.x - leg.hip.x))
-        shin.position = CGPoint(x: leg.knee.x, y: leg.knee.y)
-        shin.zRotation = CGFloat(atan2(leg.pedal.y - leg.knee.y, leg.pedal.x - leg.knee.x))
-        knee.position = CGPoint(x: leg.knee.x, y: leg.knee.y)
-        // 靴はペダルに乗っているので水平のまま（回すと足首が回転して見える）。
-        shoe.position = CGPoint(x: leg.pedal.x, y: leg.pedal.y + 0.15)
     }
 }

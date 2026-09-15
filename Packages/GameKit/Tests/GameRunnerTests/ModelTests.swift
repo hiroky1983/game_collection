@@ -152,7 +152,7 @@ struct RunnerModelTests {
 
     /// 撮影用シナリオ `-simulateRunner bird` / `bird-low` / `bird-up`（#945 の
     /// 「飛び立つ前・上がっている途中・上がりきった鳥の下を走ったまま抜ける」の画）と
-    /// `dog`（#944・真横を抜ける瞬間）・`boar`（#801）が、**本当に狙った状態・走行中で止まる**こと。
+    /// `dog`（#955・画面の中央で向かい合う瞬間）・`boar`（#801）が、**本当に狙った状態・走行中で止まる**こと。
     /// 自動操縦が途中でミスすると `.falling` で止まる。
     @Test("撮影用シナリオ bird / bird-low / bird-up / dog / boar は狙った状態で止まる")
     func animalScenariosFreezeWhereIntended() {
@@ -187,9 +187,11 @@ struct RunnerModelTests {
         let dog = make("dog")
         if let hazard = dog.field.stage.hazards.first(where: { $0.kind == .dog }),
            let frame = hazard.frame(atRunnerDistance: dog.field.distance) {
-            #expect(frame.advance > 1, "犬は走者より速く走っている（#944）")
-            #expect(!dog.field.isGrounded, "走者は跳んでいる最中")
-            #expect(frame.start >= dog.field.distance && frame.start < dog.field.playerMaxX, "犬は走者の真横〜少し前")
+            let center = RunnerField.Metrics.width / 2 - RunnerField.Metrics.playerX
+            #expect(frame.advance < 0 && frame.advance == -RunnerRules.dogAdvance, "犬は左向きに歩いている（#955）")
+            #expect(dog.field.isGrounded, "走者はまだ接地して向かい合っている")
+            #expect(frame.start > dog.field.playerMaxX, "犬は走者の前")
+            #expect(abs(frame.start - dog.field.distance - center) < 2, "犬の鼻先は画面の中央（走者の \(center) 先）")
         } else { Issue.record("ショーケースの犬が現れていない") }
 
         let boar = make("boar")
@@ -218,6 +220,20 @@ struct RunnerModelTests {
             model.field.playerMaxX > rock.start && model.field.playerMinX < rock.end,
             "走者が岩の中にいる（\(model.field.distance) vs \(rock.start)〜\(rock.end)）"
         )
+    }
+
+    /// 撮影用シナリオ `-simulateRunner pedaling` が、**接地したまま左ペダルが前のコマ（`ride1`）**
+    /// で止まること（#701）。`ride0` は走り出す前と同じ絵なので、そこで止まると漕ぐ画にならない。
+    /// シーンは最初の反映で接地距離をまとめて位相に足すので、コマは接地距離だけで決まる。
+    @Test("撮影用シナリオ pedaling は接地したまま ride1 のコマで止まる")
+    func pedalingScenarioFreezesOnRide1() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("pedaling-capture"))
+        model.applyDebugScenario("pedaling")
+        #expect(model.phase == .running)
+        #expect(model.field.isGrounded, "空中では jump のコマになる")
+        #expect(model.field.distance > 34)
+        let phase = RunnerRider.phase(forGroundedDistance: model.field.distance)
+        #expect(RunnerRider.frame(phase: model.phase, isGrounded: model.field.isGrounded, pedalPhase: phase) == .ride1)
     }
 }
 
@@ -301,16 +317,24 @@ struct RunnerCheckpointTests {
         #expect(after.canResumeFromCheckpoint)
     }
 
-    @Test("再開はステージごとに 1 回だけ")
-    func onlyOncePerStage() {
+    @Test("再開は 1 回の走行につき 1 回。「もう一度」で頭から走り直せば戻る（#958）")
+    func oncePerRunAndBackAfterRetry() {
         let model = RunnerModel(startingAt: 1, preference: makePreference("cp-once"))
         failAfterCheckpoint(model)
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
         #expect(model.field.distance == model.stage.checkpoint)
 
         failAfterCheckpoint(model)
-        #expect(!model.canResumeFromCheckpoint, "2 回目は出せない")
+        #expect(!model.canResumeFromCheckpoint, "同じ走行の 2 回目は出せない")
         #expect(!model.resumeFromCheckpoint(forRun: model.runGeneration))
+
+        // 再開 → ミス → もう一度 → チェックポイント通過 → ミス、でまた出る（会長決裁 2026-09-15）。
+        model.retryStage()
+        #expect(model.phase == .running && model.field.distance == 0)
+        #expect(!model.checkpointUsed)
+        failAfterCheckpoint(model)
+        #expect(model.canResumeFromCheckpoint, "頭から走り直した走行では再開できる")
+        #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
     }
 
     /// ソリティアの補充（#509）と同じ契約。広告のロード中にコースが作り直されたら適用しない。

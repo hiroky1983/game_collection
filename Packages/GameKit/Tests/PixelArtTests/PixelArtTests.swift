@@ -10,11 +10,11 @@ import UniformTypeIdentifiers
 /// 「拡大は整数倍で、色が混ざらない」の 3 点。
 @Suite("ドット絵")
 struct PixelArtTests {
-    @Test("走者のコマは 40×36、正面顔は 16×15 で、行の長さが揃いパレットに無い文字が無い")
+    @Test("走者のコマは 40×37、正面顔は 16×15 で、行の長さが揃いパレットに無い文字が無い")
     func spritesAreWellFormed() {
         for frame in OjisanPixel.RiderFrame.allCases {
             let s = OjisanPixel.rider(frame)
-            #expect(s.width == 40 && s.height == 36, "\(frame): \(s.width)×\(s.height)")
+            #expect(s.width == 40 && s.height == 37, "\(frame): \(s.width)×\(s.height)")
             #expect(s.undefinedKeys.isEmpty, "\(frame): パレットに無い文字 \(s.undefinedKeys)")
             #expect(s.opaqueBounds != nil)
         }
@@ -61,6 +61,20 @@ struct PixelArtTests {
         #expect(OjisanPixel.mascotFaceImage?.width == 96)
     }
 
+    /// リザルト用の顔（#702）は 3 表情ぶんを起動後 1 回だけビットマップ化する。
+    @Test("リザルト用の正面顔は 3 表情が 1 ドット = 4px で 1 回だけ作られ、比率 16:15 を保つ")
+    func faceImagesAreCachedOnce() throws {
+        #expect(OjisanPixel.faceDotSize.width == 16 && OjisanPixel.faceDotSize.height == 15)
+        #expect(OjisanPixel.faceImages.count == OjisanPixel.Face.allCases.count)
+        for face in OjisanPixel.Face.allCases {
+            let img = try #require(OjisanPixel.faceImages[face], "\(face)")
+            #expect(img.width == 64 && img.height == 60, "\(face): \(img.width)×\(img.height)")
+            // `static let` なので 2 度引いても同じビットマップ（作り直していない）。
+            #expect(OjisanPixel.faceImages[face] === img, "\(face)")
+        }
+        #expect(OjisanPixel.faceImages[.smile] !== OjisanPixel.faceImages[.frown], "表情ごとに別のビットマップ")
+    }
+
     /// レビュー用: OJISAN_PIXEL_OUT にディレクトリを渡すと、全コマを 5 倍で並べた PNG を書き出す。
     @Test("レビュー用のシートを書き出す（環境変数があるときだけ）")
     func writeReviewSheet() throws {
@@ -69,7 +83,7 @@ struct PixelArtTests {
         let frames = OjisanPixel.RiderFrame.allCases.map { OjisanPixel.rider($0) }
         let faces = OjisanPixel.Face.allCases.map { OjisanPixel.face($0) }
         let w = (40 * scale + 10) * frames.count + 10
-        let h = 36 * scale + 15 * scale + 40
+        let h = 37 * scale + 15 * scale + 40
         let ctx = try #require(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
                                           space: CGColorSpaceCreateDeviceRGB(),
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))

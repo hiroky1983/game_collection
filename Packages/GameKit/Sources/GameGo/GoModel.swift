@@ -50,7 +50,7 @@ struct GoSnapshot: Codable {
 
 @MainActor
 @Observable
-public final class GoModel: AITurnGuarded {
+public final class GoModel: AITurnGuarded, BoardUndoModel {
     public private(set) var state: GoState
     public private(set) var ruleset: GoRuleset
     public private(set) var humanSide: GoStone
@@ -89,7 +89,7 @@ public final class GoModel: AITurnGuarded {
     private var moves: [GoMove]
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "go"
+    public let gameID = "go"
     private var startedAt: Date
 
     public var board: GoBoard { state.board }

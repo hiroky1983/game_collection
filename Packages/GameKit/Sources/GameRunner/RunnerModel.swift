@@ -35,7 +35,9 @@ public final class RunnerModel {
     /// 中断データ（`RunnerSnapshot.reachedStage`）に残す。
     public private(set) var reachedStage: Int
     public private(set) var phase: RunnerPhase
-    /// このステージでチェックポイント再開（リワード広告）を使ったか。1 ステージ 1 回まで。
+    /// いまの走行でチェックポイント再開（リワード広告）を使ったか。**1 回の走行につき 1 回まで**。
+    /// 「もう一度」で頭から走り直せば戻る（会長決裁 2026-09-15・#958。以前は 1 ステージ 1 回で、
+    /// クリアできない面で 2 回目以降が頭からだけになり離脱につながるとの判断）。
     public private(set) var checkpointUsed: Bool
     /// 直前のクリアで**初めて次の面に到達した**か（`reachedStage` が伸びた）。クリア表示の
     /// 「新しい面に到達！」のバッジに使う（#931。秒数の廃止で「ベストタイム更新！」の代わり）。
@@ -281,6 +283,8 @@ public final class RunnerModel {
         switch mode {
         case .stages:
             guard phase == .failed else { return }
+            // 頭からの走り直しは新しい走行。再開権（広告）も戻す（#958）。
+            checkpointUsed = false
             startStage(from: 0, passedCheckpoint: false)
             beginRun()
         case .endless:
@@ -403,7 +407,7 @@ public final class RunnerModel {
         return true
     }
 
-    /// リワード広告の視聴後にチェックポイントから再開する。1 ステージ 1 回まで。
+    /// リワード広告の視聴後にチェックポイントから再開する。1 回の走行につき 1 回まで（「もう一度」で戻る・#958）。
     ///
     /// ここは走り出さず `.ready` に置く（#941 の対象外）——広告から戻った直後に不意に走り出さない
     /// よう、スタート画面の「つづきから」1 つを押してもらう。
@@ -475,7 +479,7 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .dogBarking:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
@@ -605,8 +609,16 @@ public final class RunnerModel {
             isFrozenForCapture = true
         case "pedaling":
             press(); release()
-            // 漕いでいる脚を撮る。`running` は空中で止めるので、そちらでは脚が止まる（#569）。
-            autoPlayForDebug(until: { $0.field.isGrounded && $0.field.distance > 34 })
+            // 漕いでいる画を撮る。`running` は空中で止めるので、そちらは `jump` のコマになる（#569）。
+            // 漕ぐコマは 2 枚（#701）で、`ride0` は走り出す前と同じ絵なので、**左ペダルが前の
+            // `ride1` が出る瞬間**で止める。シーンは最初の反映で「それまでに進んだ距離」を
+            // まとめて位相に足すので、凍らせた画のコマは接地距離だけで決まる。
+            autoPlayForDebug(until: {
+                $0.field.isGrounded && $0.field.distance > 34
+                    && RunnerRider.pedalFrame(
+                        phase: RunnerRider.phase(forGroundedDistance: $0.field.distance)
+                    ) == .ride1
+            })
             isFrozenForCapture = true
         case "paused":
             press(); release()
@@ -661,15 +673,18 @@ public final class RunnerModel {
             })
             isFrozenForCapture = true
         case "dog":
-            // 犬が走者の真横〜少し前を抜ける瞬間（#944）。跳んでいる走者の中心を犬の左端が
-            // 越えた最初のフレーム（犬の箱が走者の右半分に重なり、足の下を抜けていく画）で止める。
+            // 犬が走者の少し前（画面の中央）で向かい合っている瞬間（#955）。左向きに歩いて来る
+            // 犬の鼻先が画面の中央（走者の中心の `width / 2 − playerX` = 24 先）に入った最初の
+            // フレームで止める——自動操縦の踏み切り（間合い 10 前後）より手前なので、走者は
+            // まだ接地して向かい合っている。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
                 let field = model.field
                 guard let dog = field.stage.hazards.first(where: { $0.kind == .dog }),
                       let frame = dog.frame(atRunnerDistance: field.distance) else { return false }
-                return !field.isGrounded && frame.start >= field.distance
+                let center = RunnerField.Metrics.width / 2 - RunnerField.Metrics.playerX
+                return field.isGrounded && frame.start - field.distance <= center
             })
             isFrozenForCapture = true
         case "boar":

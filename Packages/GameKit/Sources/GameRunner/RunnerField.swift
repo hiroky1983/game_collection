@@ -16,7 +16,7 @@ public struct RunnerField: Equatable, Sendable {
         /// 画面に見える横幅。
         ///
         /// 縦持ちの画面に載る帯の横幅なので、**広くしすぎない**。広げるほど 1 単位が
-        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（50.8 / 秒）でも
+        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（18 面の 47.6 / 秒）でも
         /// 走者の前に 74 単位 = 約 1.5 秒ぶんの地形が見えるので、初見でも反応できる。
         public static let width: Double = 100
         /// 画面に見える縦幅。
@@ -234,24 +234,22 @@ public struct RunnerField: Equatable, Sendable {
     /// 動く障害（#796）は**いまの位置**（`frame(atRunnerDistance:)`）で見る。配列の並び
     /// （置いた位置の順）と現在の並びは食い違いうる——岩の右側で止まったイノシシは、置いた
     /// 位置では岩の手前の区画でも、いまは岩の向こう側にいる。まだ現れていない障害（突進前の
-    /// イノシシ）と、上がりきって接地した走者の頭より高い鳥は対象にしない（跳ぶ相手ではない）。
-    /// 後ろから追い越す犬（#944）は、いまの位置ではなく**走者から見て等価な静止区間**
-    /// （`RunnerHazard.targetFrame(atRunnerDistance:)`）で前方に置いて見る。
+    /// イノシシ・現れる前の犬）と、上がりきって接地した走者の頭より高い鳥は対象にしない
+    /// （跳ぶ相手ではない）。
     public func nextHazard(from x: Double) -> RunnerHazard? {
         var best: (hazard: RunnerHazard, start: Double)?
         for hazard in stage.hazards {
-            guard let frame = hazard.targetFrame(atRunnerDistance: distance), frame.end > x else { continue }
+            guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { continue }
             guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { continue }
             if best == nil || frame.start < best!.start { best = (hazard, frame.start) }
         }
         return best?.hazard
     }
 
-    /// `nextHazard` と同じ規則で、その障害の**踏み切りの相手として見る当たり判定**を返す
-    /// （犬以外はいまの当たり判定そのもの）。
+    /// `nextHazard` と同じ規則で、その障害の**いまの当たり判定**を返す。
     public func nextHazardFrame(from x: Double) -> (hazard: RunnerHazard, frame: RunnerHazardFrame)? {
         guard let hazard = nextHazard(from: x),
-              let frame = hazard.targetFrame(atRunnerDistance: distance) else { return nil }
+              let frame = hazard.frame(atRunnerDistance: distance) else { return nil }
         return (hazard, frame)
     }
 
@@ -365,7 +363,8 @@ public struct RunnerField: Equatable, Sendable {
         // `justLandingOverboost`・#673）も足す。**`maxPedalBoost` だけで見積もると
         // 上乗せが乗っているあいだ 1 サブステップが `Metrics.maxSubstep`（2）を超える**。
         //
-        // 実測（dt は上限の `maxStep` = 1/20 秒。床がある 16〜18 面で起きる）:
+        // 実測（dt は上限の `maxStep` = 1/20 秒。床がある 16〜18 面で起きる。数字は #968 で
+        // 18 面が 47.6 に下がる前の 54.4 のもので、速い側の見積もりとして残してある）:
         // - ステージ18（速さ 54.4・床の上）の旧式の見積もりは 54.4 × 1.55 × 1.3 × 0.05 =
         //   5.481 → 3 分割。ところが実移動は上乗せ 2 つとも乗ると
         //   54.4 × 1.95 × 1.3 × 0.05 = 6.895 で、**1 サブステップ 2.298**
@@ -420,10 +419,10 @@ public struct RunnerField: Equatable, Sendable {
         let previousDistance = distance
         distance += currentSpeed * dt
 
-        // 動く障害の予告の地点をこのサブステップでまたいだ（#801 イノシシの突進・#944 犬の吠え声）。
-        // 手応え・土煙の発火点で、当たり判定には関わらない（位置は `frame(atRunnerDistance:)` が
-        // 距離から引く）。チェックポイント再開でこの地点より先から走り出した場合は鳴らない
-        // （予告する相手がいない）。
+        // 動く障害の予告の地点をこのサブステップでまたいだ（#801 イノシシの突進。犬は #955 で
+        // 前から歩いて来るようになり予告を持たない）。手応え・土煙の発火点で、当たり判定には
+        // 関わらない（位置は `frame(atRunnerDistance:)` が距離から引く）。チェックポイント再開で
+        // この地点より先から走り出した場合は鳴らない（予告する相手がいない）。
         for hazard in stage.hazards {
             guard let cue = hazard.cue else { continue }
             if previousDistance < cue.distance, cue.distance <= distance { events.append(cue.event) }
@@ -572,9 +571,8 @@ public struct RunnerField: Equatable, Sendable {
     /// **跳んで越え、置いた位置（`RunnerHazard.end`）がそのまま「真裏」になるものだけ**
     /// ——「越えた直後に降りる」が判定の実体なので、跳び越える対象でない障害を混ぜると、
     /// 越え方と関係なく上乗せが乗る。
-    /// 鳥は飛んで動いている相手で「真裏」が置いた位置にない（#796）、イノシシは向かってきて
-    /// 走者の体の中を通り抜ける（#801）、犬は後ろから走者の体の中を追い越していく（#944）ので、
-    /// どれも対象外。
+    /// 鳥は飛んで動いている相手で「真裏」が置いた位置にない（#796）、イノシシ（#801）と犬（#955）は
+    /// 向かってきて走者の体の中を通り抜けるので、どれも対象外。
     private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
         switch kind {
         case .pit, .lowBlock, .tallBlock: return true
