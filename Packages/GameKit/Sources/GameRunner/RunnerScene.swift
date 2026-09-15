@@ -71,8 +71,6 @@ enum RunnerPalette {
     static let birdBeak: UInt32 = 0xFFB648
     /// 鳥の目（小さな黒丸）。生き物だと分かる最小限の要素。
     static let birdEye: UInt32 = 0x1F2B22
-    /// 犬の吠え声（口元の白い吹き出し）。
-    static let dogBark: UInt32 = 0xFFFFFF
     /// イノシシの牙・目の白。
     static let boarTusk: UInt32 = 0xF4EFE6
     /// スピードアップアイテムの後光（丸）。「電気を帯びた玉」に見えるよう寒色にする。
@@ -915,25 +913,22 @@ final class RunnerScene: SKScene {
         let shadowBaseY: Double
         /// 動いているあいだだけ回す部品（翼・浮遊・脚）。止まっているあいだは `isPaused`。
         let animated: [SKNode]
-        /// 止まっているあいだだけ見せる部品（犬の吠え声の吹き出し。#944 で犬は止まらなく
-        /// なったので、いまは常に隠れている）。
-        let stoppedOnly: SKNode?
         /// 動いているあいだだけ見せる部品（イノシシの土煙）。
         let movingOnly: SKNode?
         var state: State?
-        /// 前のフレームで現れていたか。イノシシは突進が始まるまで nil（現れていない）。
+        /// 前のフレームで現れていたか。イノシシは突進が始まるまで、犬は画面の右に現れるまで
+        /// nil（現れていない）。
         var wasPresent = false
 
         init(
             hazard: RunnerHazard, node: SKNode, shadow: SKNode? = nil, shadowBaseY: Double = 0,
-            animated: [SKNode], stoppedOnly: SKNode? = nil, movingOnly: SKNode? = nil
+            animated: [SKNode], movingOnly: SKNode? = nil
         ) {
             self.hazard = hazard
             self.node = node
             self.shadow = shadow
             self.shadowBaseY = shadowBaseY
             self.animated = animated
-            self.stoppedOnly = stoppedOnly
             self.movingOnly = movingOnly
         }
 
@@ -947,7 +942,6 @@ final class RunnerScene: SKScene {
                 // 羽ばたきの予備動作は飛んでいるときより速く小刻みに。
                 part.speed = next == .fluttering ? 2.5 : 1
             }
-            stoppedOnly?.isHidden = next != .stopped
             movingOnly?.isHidden = next != .moving
         }
     }
@@ -1127,15 +1121,23 @@ final class RunnerScene: SKScene {
         return legs
     }
 
-    /// 犬（`RunnerHazardKind.dog`・#800）。おじさんと同じ向き（右）に走り、追いつかれる直前に
-    /// 立ち止まって吠える。丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。
+    /// 犬（`RunnerHazardKind.dog`・#800 → #955）。画面の右（前方）から走者の方へ**左向きに**
+    /// トコトコ歩いて来てすれ違う。丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。
+    ///
+    /// 部品は #800 の右向きの絵のまま（頭が x の大きい側）で、**ノード全体を `xScale = -1` で
+    /// 左右反転**して左向きにする。反転すると箱のローカル x `[0, w]` は `[-w, 0]` に写るので、
+    /// 原点は**当たり判定の右端**（`syncMovingHazards` が `frame.end` に置く。左右反転した鳥と
+    /// 同じ作法）——箱はそのまま `[frame.start, frame.end]` に重なり、当たり判定の外へずれない。
+    /// 絵を当たり判定より大きく描く（#943・PR #950 の `addAnimalArtBox`）ときも、箱を当たり判定に
+    /// 対して中央合わせにしておけば反転で張り出しが左右入れ替わるだけで、位置は変わらない。
     ///
     /// 当たり判定は `RunnerField` が `frame(atRunnerDistance:)` の矩形（1 タイル × 高さ 5）で
-    /// 見ており、絵はその箱の中に収まる寸法。原点は箱の左下。吠え声の吹き出しだけは
-    /// 箱の外（頭の前）に出るが、見た目だけで当たり判定には関わらない。
+    /// 見ており、絵はその箱の中に収まる寸法。立ち止まって吠える挙動は #944 で無くなったので
+    /// 吹き出しは持たない。
     private func addDog(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
-        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        node.position = CGPoint(x: hazard.end, y: Metrics.groundY)
+        node.xScale = -1
         let w = hazard.length, h = hazard.height
         // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・耳・口元・尻尾・脚に暗い縁取りを
         // 引き、朝のパステルの背景でも輪郭が立つようにする（鼻・目・腹は差し色なので引かない）。
@@ -1177,7 +1179,7 @@ final class RunnerScene: SKScene {
         tail.zPosition = 1
         node.addChild(tail)
 
-        // 頭（丸）と、立った耳・鼻・目。頭は進行方向（右）の上。
+        // 頭（丸）と、立った耳・鼻・目。頭は箱の右上（反転後は進行方向の左）。
         let head = SKShapeNode(circleOfRadius: w * 0.2)
         head.fillColor = RunnerPalette.color(colors.dogBody)
         outline(head)
@@ -1214,25 +1216,8 @@ final class RunnerScene: SKScene {
         eye.zPosition = 5
         node.addChild(eye)
 
-        // 吠え声。頭の前に小さな白い吹き出し（丸 3 つ）を出し、止まっているあいだだけ見せて
-        // 脈打たせる。文字は描かない（SpriteKit の中に文字は置かない・基盤規約）。
-        let bark = SKNode()
-        for (index, spec) in [(0.0, 0.0, 0.42), (0.5, 0.35, 0.3), (0.95, 0.75, 0.2)].enumerated() {
-            let puff = SKShapeNode(circleOfRadius: spec.2)
-            puff.fillColor = RunnerPalette.color(RunnerPalette.dogBark)
-            puff.strokeColor = .clear
-            puff.position = CGPoint(x: spec.0, y: spec.1)
-            puff.zPosition = CGFloat(6 - index)
-            bark.addChild(puff)
-        }
-        bark.position = CGPoint(x: w * 1.2, y: h * 0.86)
-        bark.isHidden = true
-        let pulse = SKAction.scale(to: 1.25, duration: 0.18)
-        bark.run(.repeatForever(.sequence([pulse, pulse.reversed()])))
-        node.addChild(bark)
-
         courseLayer.addChild(node)
-        return MovingHazardView(hazard: hazard, node: node, animated: legs, stoppedOnly: bark)
+        return MovingHazardView(hazard: hazard, node: node, animated: legs)
     }
 
     /// イノシシ（`RunnerHazardKind.boar`・#801）。右から左へ突進してくるので、頭は左向き。
@@ -1357,12 +1342,7 @@ final class RunnerScene: SKScene {
                 if hazard.kind == .boar, field.distance > hazard.boarChargeStartDistance - 1 {
                     spawnChargeDust(atWorldX: field.distance + Metrics.width - Metrics.playerX - 4)
                 }
-                // 犬が後ろに現れた瞬間（#944）。まだ画面の外なので、画面の左端に同じ土煙を立てて
-                // 「後ろから何か来る」を見せる。手応え（吠え声）は Model が同じ瞬間に鳴らす。
-                // 追い越されたあと（チェックポイントから走り直したとき）は立てない。
-                if hazard.kind == .dog, field.distance < hazard.dogContactDistance {
-                    spawnChargeDust(atWorldX: field.distance - Metrics.playerX + 4)
-                }
+                // 犬（#955）は予告なしに画面の右の外に現れて歩いて入って来るだけ。土煙も鳴らさない。
             }
             switch hazard.kind {
             case .bird:
@@ -1379,9 +1359,9 @@ final class RunnerScene: SKScene {
                 }
                 view.apply(state)
             case .dog:
-                // 現れてから消えるまで走り続ける（#944）。立ち止まって吠える状態は無いので
-                // 吹き出し（`stoppedOnly`）は出ない。
-                view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)
+                // 左向きに反転しているので原点は当たり判定の右端（`addDog`）。現れてから画面の左へ
+                // 消えるまで歩き続ける（#955）。
+                view.node.position = CGPoint(x: frame.end, y: Metrics.groundY)
                 view.apply(.moving)
             case .boar:
                 view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)

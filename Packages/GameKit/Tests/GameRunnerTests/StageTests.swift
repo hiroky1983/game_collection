@@ -140,7 +140,7 @@ struct RunnerStageTests {
     /// 大ジャンプは余裕を増やす上振れなので、下限で成立していれば詰みは起きない。
     /// 動く障害（#796〜#801）は走者から見て等価な静止区間（`RunnerHazard.encounter`）で見る
     /// ——飛び立つ鳥は区画中央より少し先の長さ 7、向かってくるイノシシは長さ −2（体の中を
-    /// 通り抜ける）、後ろから追い越す犬は速さ 2 なので置いた位置の低い岩そのもの（#944）。
+    /// 通り抜ける）、前から歩いて来る犬は区画中央の長さ 0.9（#955・幅の無い低い岩）。
     /// 岩で止まったイノシシは岩と一続きなので、岩の高さのまま両方を越えきれることを見る。
     @Test("すべての障害が押さないジャンプで越えられる（動く障害は等価な静止区間で）")
     func everyHazardIsClearable() {
@@ -643,7 +643,8 @@ struct RunnerPlaythroughTests {
     /// 下手なりにステージはクリアできる（クラッシュするだけの操作は比較にならない）。
     ///
     /// 前方にあるもの（障害でも台座でも）は `RunnerAutoPilot.nextTarget` でまとめて見る。
-    /// 犬・イノシシ（#800/#801）も `nextTarget` がいまの位置で見るので、ここで別扱いする必要は無い。
+    /// 向かって来る犬・イノシシ（#955/#801）は**跳んでいるあいだも近づいてくる**ので、着地する頃の
+    /// 位置で見る（いまの位置で見ると、着地した先が踏み切りの余裕の中で、次の跳びが間に合わない）。
     /// 台座（#674）を見落とすと、台座の直前の平地で跳んでしまって正面に突っ込む
     /// ——「下手だがクリアはできる操作」という、この比較実験の前提が壊れる。
     ///
@@ -654,9 +655,14 @@ struct RunnerPlaythroughTests {
     private func shouldHopWastefully(field: RunnerField) -> Bool {
         guard field.isGrounded, let target = RunnerAutoPilot.nextTarget(field: field) else { return false }
         let jumpRange = field.stage.speed * RunnerRules.jumpAirTime
+        let hop = jumpRange + RunnerRules.tileWidth
+        // 相手が障害なら、跳んでいるあいだに動く量（`advance` × 進み）を間合いに織り込む
+        // （向かって来る相手は `advance` が負で、間合いは `1 − advance` 倍の速さで縮む）。台座は動かない。
+        let ahead = field.nextHazardFrame(from: field.playerMaxX)
+        let advance = ahead?.frame.start == target.start ? (ahead?.frame.advance ?? 0) : 0
         let requiredTakeoff = target.start - target.lead
-        guard field.distance + jumpRange + RunnerRules.tileWidth < requiredTakeoff else { return false }
-        let landing = field.distance + jumpRange + RunnerRules.tileWidth
+        guard field.distance + (1 - advance) * hop < requiredTakeoff else { return false }
+        let landing = field.distance + hop
         let half = RunnerField.Metrics.playerHalfWidth
         return !field.stage.hazards.contains { bird in
             bird.kind == .bird && landing > bird.encounter.start - half && field.distance < bird.encounter.end + half
@@ -866,11 +872,10 @@ struct RunnerPlaythroughTests {
                 var frames = 0
                 while field.distance < hazard.activeRange.upperBound + 8, frames < 60 * 120 {
                     frames += 1
-                    // 踏み切りの相手がこの障害（自動操縦が見る位置。後ろから来る犬は等価な静止区間・#944）
-                    // でなければ、自動操縦どおり跳ぶ。
+                    // 踏み切りの相手がこの障害（いまの位置）でなければ、自動操縦どおり跳ぶ。
                     if RunnerAutoPilot.shouldJump(field: field) {
                         let target = RunnerAutoPilot.nextTarget(field: field)?.start
-                        let own = hazard.targetFrame(atRunnerDistance: field.distance)?.start
+                        let own = hazard.frame(atRunnerDistance: field.distance)?.start
                         if target != own { field.jump() }
                     }
                     if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
@@ -1079,7 +1084,7 @@ struct RunnerPlaythroughTests {
             latest = hazard.start - half - speed * rise
             earliest = latest - speed * max(0, above - overlap) + RunnerRules.tileWidth / 2
         case .bird, .dog, .boar:
-            // 動いている相手（#796/#944/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
+            // 動いている相手（#796/#955/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
             return (safeTakeOff, false)
         }
         guard distance <= latest else { return (safeTakeOff, false) }
@@ -1091,7 +1096,7 @@ struct RunnerPlaythroughTests {
     /// 土台は**自動操縦とまったく同じ判断**（`RunnerAutoPilot.nextTarget`）で、そこから
     /// **岩と穴に対してだけ**「最小のジャンプで右端の真裏へ降りる」踏み切りに差し替える。
     ///
-    /// 鳥・犬・イノシシ（#796/#944/#801）と台座（#674）は自動操縦に任せる——動いている相手は
+    /// 鳥・犬・イノシシ（#796/#955/#801）と台座（#674）は自動操縦に任せる——動いている相手は
     /// 「越えた直後に降りる」対象ではなく、台座は越えるのではなく乗るものでジャスト着地の
     /// 対象でもない（`RunnerField.applyJustLanding`）。
     /// **台座の上に立っているあいだも狙わない**（`altitude == 0` の条件）: 上面（高さ 8）から
