@@ -27,7 +27,7 @@ private struct TurnState {
 
 @MainActor
 @Observable
-public final class OthelloModel: AITurnGuarded {
+public final class OthelloModel: AITurnGuarded, BoardUndoModel {
     public private(set) var board: OthelloBoard
     public private(set) var currentStone: OthelloStone
     public private(set) var humanSide: OthelloStone
@@ -57,7 +57,7 @@ public final class OthelloModel: AITurnGuarded {
     /// 探索の所要時間に依存せず決定論的に作れる（#172）。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "othello"
+    public let gameID = "othello"
     /// CPU が着手する前に、直前の反転演出へ最低限あける間合い（#204）。
     /// **読みと並行に測るので、読みが長い局面（強レベル）ではここによる追加の待ちは発生しない**。
     /// テストは `.zero` を渡して実時間の待ちを消す（大富豪・麻雀の `cpuDelay` と同じ運用）。

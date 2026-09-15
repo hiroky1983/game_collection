@@ -175,7 +175,10 @@ struct BoardGameControlCapsuleStyleTests {
 @Suite("盤ゲームの共通の枠の組み方")
 struct BoardGameChromeSourceTests {
 
-    private static func lines(ofFunction declaration: String) throws -> [String] {
+    /// - Parameter owner: 宣言を探し始める型の宣言行の書き出し（例 `public struct ReviewNavBar`）。
+    ///   `public var body: some View {` のようにファイル内に何度も現れる宣言は、これで持ち主を絞る
+    ///   （絞らないと、前に足した別の View の宣言にすり替わる・#828）。
+    private static func lines(ofFunction declaration: String, inside owner: String? = nil) throws -> [String] {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // BoardGameChromeTests
             .deletingLastPathComponent()   // Tests
@@ -183,7 +186,15 @@ struct BoardGameChromeSourceTests {
             .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
         let all = try String(contentsOf: url, encoding: .utf8)
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        guard let start = all.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == declaration }) else {
+        var from = all.startIndex
+        if let owner {
+            guard let ownerLine = all.firstIndex(where: { $0.hasPrefix(owner) }) else {
+                Issue.record("走査の前提が壊れている: \(owner) が見つからない")
+                return []
+            }
+            from = ownerLine
+        }
+        guard let start = all[from...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == declaration }) else {
             Issue.record("走査の前提が壊れている: \(declaration) が見つからない")
             return []
         }
@@ -264,7 +275,7 @@ struct BoardGameChromeSourceTests {
         #expect(frame < shape)
         #expect(!symbol.contains { $0.contains(".padding(") }, "navSymbol の中で余白を詰めている")
 
-        let body = try Self.lines(ofFunction: "public var body: some View {")
+        let body = try Self.lines(ofFunction: "public var body: some View {", inside: "public struct ReviewNavBar")
         let inset = ".padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)"
         for name in ["backward.frame.fill", "forward.frame.fill"] {
             guard let button = body.firstIndex(where: { $0.contains("Self.navSymbol(\"\(name)\")") }) else {
@@ -330,4 +341,131 @@ struct ReviewNavBarTapTargetTests {
         renderer.scale = 1
         return try #require(renderer.cgImage, "描画できなかった")
     }
+}
+
+/// 操作列の「投了」「待った」を Core の部品に寄せても、見た目は各ゲームに手書きしていたときと同じ（#828）。
+///
+/// 比べる相手は #828 以前に各ゲームの `gameControls` に書かれていたボタン（ヘルパーに写してある）。
+/// macOS の ImageRenderer での一致なので端末のフォントの高さまでは言えないが、組み方が同じなら同じ画素になる。
+@MainActor
+@Suite("操作列の投了・待ったの部品")
+struct BoardGameControlButtonsTests {
+
+    @Test("投了: 手書きのカプセル（将棋・チェスは左右 12pt、囲碁は 10pt）", arguments: [CGFloat(12), 10])
+    func handDrawnResignMatchesLegacy(horizontalPadding: CGFloat) throws {
+        let legacy = Button {} label: {
+            Label("投了", systemImage: "flag.fill")
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, horizontalPadding).padding(.vertical, 6)
+                .background(Capsule().fill(Theme.Fill.coral))
+        }
+        #expect(try Self.samePixels(
+            legacy, BoardResignButton(look: .handDrawnCapsule(horizontalPadding: horizontalPadding)) {}
+        ))
+    }
+
+    @Test("投了: 枠 44pt の共通カプセル（オセロ・五目並べ）")
+    func tapTargetResignMatchesLegacy() throws {
+        let legacy = Button {} label: {
+            Label("投了", systemImage: "flag.fill")
+        }
+        .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.coral))
+        #expect(try Self.samePixels(legacy, BoardResignButton(look: .tapTargetCapsule) {}))
+    }
+
+    /// 押せない状態（`canUndo` が false）の見た目も含めて比べる。結線が外れると押せるときの色のまま描かれる。
+    @Test("待った: 素の文字（将棋・チェス・囲碁）", arguments: [true, false])
+    func plainUndoMatchesLegacy(canUndo: Bool) throws {
+        let legacy = Button {} label: {
+            Label("待った", systemImage: "arrow.uturn.backward")
+        }
+        .disabled(!canUndo)
+        #expect(try Self.samePixels(legacy, Self.undoButton(canUndo: canUndo, usesTapTargetCapsule: false)))
+    }
+
+    @Test("待った: 枠 44pt の共通カプセル（オセロ・五目並べ）", arguments: [true, false])
+    func tapTargetUndoMatchesLegacy(canUndo: Bool) throws {
+        let legacy = Button {} label: {
+            Label("待った", systemImage: "arrow.uturn.backward")
+        }
+        .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
+        .disabled(!canUndo)
+        #expect(try Self.samePixels(legacy, Self.undoButton(canUndo: canUndo, usesTapTargetCapsule: true)))
+    }
+
+    /// 上の比較が空振りしていない（どう組んでも同じ画素になる描き方ではない）ことの対照。
+    @Test("見た目の違う組み方は別の画素になる")
+    func comparisonDetectsDifferences() throws {
+        #expect(try !Self.samePixels(
+            Self.undoButton(canUndo: true, usesTapTargetCapsule: false),
+            Self.undoButton(canUndo: true, usesTapTargetCapsule: true)
+        ))
+        #expect(try !Self.samePixels(
+            Self.undoButton(canUndo: true, usesTapTargetCapsule: true),
+            Self.undoButton(canUndo: false, usesTapTargetCapsule: true)
+        ))
+        #expect(try !Self.samePixels(
+            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) {},
+            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 10)) {}
+        ))
+    }
+
+    // MARK: - ヘルパー
+
+    private static func undoButton(canUndo: Bool, usesTapTargetCapsule: Bool) -> some View {
+        BoardUndoButton(
+            model: StubUndoModel(canUndo: canUndo),
+            services: GameServices(snapshots: NullSnapshotStore(), ads: NoopAdService()),
+            rescue: RewardedRescue(),
+            usesTapTargetCapsule: usesTapTargetCapsule
+        )
+    }
+
+    /// 操作列と同じ文字の大きさ（`themeBody(14)`）で描き、大きさと RGBA の画素がすべて一致するか。
+    private static func samePixels(_ lhs: some View, _ rhs: some View) throws -> Bool {
+        let left = try render(lhs), right = try render(rhs)
+        return left.width == right.width && left.height == right.height && rgba(left) == rgba(right)
+    }
+
+    private static func render(_ view: some View) throws -> CGImage {
+        let renderer = ImageRenderer(content: view.themeBody(14).environment(\.colorScheme, .light))
+        renderer.scale = 1
+        return try #require(renderer.cgImage, "描画できなかった")
+    }
+
+    private static func rgba(_ image: CGImage) -> [UInt8] {
+        var data = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        data.withUnsafeMutableBytes { buffer in
+            let context = CGContext(
+                data: buffer.baseAddress, width: image.width, height: image.height,
+                bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )!
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        }
+        return data
+    }
+}
+
+/// `BoardUndoButton` を描くためだけの Model。
+@MainActor
+private final class StubUndoModel: BoardUndoModel {
+    let gameID = "stub"
+    let canUndo: Bool
+    let undoUsed = false
+    let aiTurnKey = AITurnKey(gameSerial: 0, ply: 0)
+
+    init(canUndo: Bool) { self.canUndo = canUndo }
+
+    func undoLastExchange() {}
+    func undoLastExchange(forTurn turn: AITurnKey) -> Bool { false }
+}
+
+/// 何も残さない中断データ置き場。`GameServices` を組み立てるためだけに使う。
+private final class NullSnapshotStore: SnapshotStore {
+    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {}
+    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? { nil }
+    func clear(for gameID: String) {}
+    func exists(for gameID: String) -> Bool { false }
 }

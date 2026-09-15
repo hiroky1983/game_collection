@@ -324,24 +324,20 @@ struct OthelloPassDeadlockTests {
 
     /// 「投了」「待った」が両方とも共通のカプセル（枠 44pt・`BoardGameControlCapsuleStyle`）を通り、操作列の余白を詰めている（#711）。
     /// 以前は「待った」だけが枠の無い素の文字で、当たり判定が約 17pt しかなかった。
+    /// ボタンの中身は Core の `BoardResignButton` / `BoardUndoButton` に寄せた（#828）ので、ここでは見た目の選び方を見る。
+    /// 選んだ見た目が共通のカプセルを通り、押せない状態が結線されていることは `BoardGameChromeTests` が固定する。
     @Test func gameControlsUseCapsuleStyleForBothButtons() throws {
         let controls = SourceScan.strippingComments(
             SourceScan.functionSource(startingWith: "private var gameControls: some View {", in: try Self.viewSource())
         )
         try #require(!controls.isEmpty, "走査の前提が壊れている: gameControls が見つからない")
         #expect(
-            SourceScan.matchCount(
-                of: #"Label\("投了", systemImage: "flag\.fill"\)\s*\}\s*\.buttonStyle\(BoardGameControlCapsuleStyle\(fill: Theme\.Fill\.coral\)\)"#,
-                in: controls
-            ) == 1,
+            SourceScan.matchCount(of: #"BoardResignButton\(look: \.tapTargetCapsule\)"#, in: controls) == 1,
             "「投了」が共通のカプセルを通っていない"
         )
         #expect(
-            SourceScan.matchCount(
-                of: #"Label\("待った", systemImage: "arrow\.uturn\.backward"\)\s*\}\s*\.buttonStyle\(BoardGameControlCapsuleStyle\(fill: Theme\.Fill\.teal\)\)\s*\.disabled\(!model\.canUndo\)"#,
-                in: controls
-            ) == 1,
-            "「待った」が共通のカプセルを通っていない（または押せない状態の結線が外れている）"
+            SourceScan.matchCount(of: #"BoardUndoButton\([^)]*usesTapTargetCapsule: true\)"#, in: controls) == 1,
+            "「待った」が共通のカプセルを通っていない"
         )
         // 手書きのカプセルが残っていると、そちらの外寸・当たり判定が効いてしまう。
         #expect(SourceScan.matchCount(of: #"\.background\(Capsule\(\)"#, in: controls) == 0)
