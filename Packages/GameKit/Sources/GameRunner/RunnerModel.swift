@@ -164,6 +164,19 @@ public final class RunnerModel {
     public func isStageReached(_ number: Int) -> Bool {
         number >= 1 && number <= min(reachedStage, RunnerRules.stageCount)
     }
+    /// 走り出す前の画面で、モードや面を選び直せる状態か（#919）。
+    ///
+    /// `.ready` でも**チェックポイント再開の直後は除く**——広告を見て手に入れた途中からの
+    /// 再開を、モードの切り替えの誤タップで捨てさせない。純関数版は `canChooseMode(phase:passedCheckpoint:)`。
+    public var canChooseMode: Bool {
+        Self.canChooseMode(phase: phase, passedCheckpoint: field.passedCheckpoint)
+    }
+
+    /// `canChooseMode` の実体。走り出す前（`.ready`）で、コースの頭にいるときだけ真。
+    public static func canChooseMode(phase: RunnerPhase, passedCheckpoint: Bool) -> Bool {
+        phase == .ready && !passedCheckpoint
+    }
+
     /// チェックポイント再開を出せる状態か（通過済み・未使用・ミスした直後）。
     public var canResumeFromCheckpoint: Bool {
         // エンドレスにチェックポイントは無い（1 回完結・#675）。
@@ -356,6 +369,26 @@ public final class RunnerModel {
         mode = .endless
         startEndless(seed: seed)
         services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
+    }
+
+    /// 走り出す前の画面のモード切り替え（#919）。開始シートを経ずにモードを変える入口。
+    ///
+    /// **走り出す前（`canChooseMode`）だけ効き**、走行中・一時停止中・リザルトでは何もしない。
+    /// 同じモードを選び直しても作り直さない（誤タップで種やタイムが変わらない）。
+    /// ステージ制へ戻るときは**「つづき」の面（`stageNumber`）**から——エンドレス中も
+    /// `stageNumber` は保持してあるので、ハブから開いたときと同じ面に戻る。1 面や到達点
+    /// （`reachedStage`）に飛ばないのは、開始シートの「はじめから」と区別するため。
+    /// エンドレスへは新しい種で（`newGame(mode: .endless)` と同じ）。
+    ///
+    /// - Returns: 切り替えたか。
+    @discardableResult
+    public func switchMode(to newMode: RunnerMode) -> Bool {
+        guard canChooseMode, newMode != mode else { return false }
+        switch newMode {
+        case .stages:  startStages(at: stageNumber)
+        case .endless: newEndlessGame(seed: Self.randomSeed())
+        }
+        return true
     }
 
     /// リワード広告の視聴後にチェックポイントから再開する。1 ステージ 1 回まで。

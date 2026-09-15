@@ -5,8 +5,7 @@ import SwiftUI
 /// **非モーダル**。操作をブロックせず、×で閉じられる。全画面ダイアログやアラートは使わない。
 public struct RecommendationCard: View {
     /// 先頭のアイコンの一辺。カードの高さはこれで決まる（文字はこれより低い）。
-    /// 同じ枠に出る `OtherGamesCard`（#661）・`DifficultyLadderCard`（#722）も同じ値で組むため
-    /// モジュール内に公開する。
+    /// 同じ枠に出る `DifficultyLadderCard`（#722）も同じ値で組むためモジュール内に公開する。
     static let iconSide: CGFloat = 36
     static let verticalPadding: CGFloat = 10
     /// 見出しの基準 pt。実カードと `heightPlaceholder` で必ず同じ値を使う（高さ契約）。
@@ -118,70 +117,19 @@ public struct RecommendationCard: View {
     }
 }
 
-/// 決着後にレコメンドの枠へ出す「ほかのあそび」（#661）。
-///
-/// 終局後の出口が左上の小さな戻る（`gameChrome`）しか無く、レコメンドカードは通算20終局まで
-/// 一度も出ない（`RecommendationPolicy.firstShowThreshold`・#52）。そのあいだ空いている枠に、
-/// ハブへ戻る導線を置く。
-///
-/// **`RecommendationCard` と同じ寸法・同じフォントで組む**（高さ契約）。枠のひな形
-/// （`RecommendationCard.heightPlaceholder`）は実カードに合わせてあるので、同じ組み方に
-/// しておけば、どちらが出ても下の領域の高さは 1pt も動かない。
-///
-/// 戻るのは `dismiss()` だけで、解析の `gameDidLeave` は呼ばない。発火点はハブの
-/// `onChange(of: path)` の 1 か所で、左上の戻ると同じ経路に乗る（#158）。
-public struct OtherGamesCard: View {
-    @Environment(\.dismiss) private var dismiss
-
-    public init() {}
-
-    public var body: some View {
-        Button { dismiss() } label: {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Theme.Fill.teal.gradient)
-                    .frame(width: RecommendationCard.iconSide, height: RecommendationCard.iconSide)
-                    .overlay {
-                        Image(systemName: "square.grid.2x2.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("あそびばにもどる")
-                        .themeCaption(RecommendationCard.captionSize, weight: .semibold)
-                        .foregroundStyle(Theme.inkSub)
-                        .lineLimit(1)
-                    Text("ほかのあそび")
-                        .themeBody(16)
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Theme.inkSub)
-            }
-            .padding(.horizontal, 12).padding(.vertical, RecommendationCard.verticalPadding)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .popCard(corner: Theme.cornerSmall)
-        .accessibilityLabel("ほかのあそび")
-        .accessibilityHint("あそびばにもどって、ほかのゲームを選べます")
-    }
-}
-
 /// 各ゲームのリザルト直下に置く枠。決着していなければ**何も描かない**（余白も作らない）。
 ///
-/// 決着後は、提示するレコメンドがあればそのカードを、無ければ難易度の「階段」（#722）を、
-/// どちらも無ければ「ほかのあそび」を出す（#661）。
+/// 決着後は、提示するレコメンドがあればそのカードを、無ければ難易度の「階段」（#722）を出す。
+/// **どちらも無ければ何も出さない**（#917）。以前はここに「ほかのあそび」（ハブへ戻るだけの
+/// ボタン・#661）を出していたが、左上の戻ると同じ出口で押す価値が無く「これなら出ないほうが
+/// いい」（会長 QA 2026-09-15）ため取り下げた。枠の高さはひな形（`heightPlaceholder`）が
+/// 確保しているので、何も出なくても周りの寸法は動かない。
 /// レコメンドのカード自体が別のゲームへの出口なので、両方は並べない（×で閉じれば入れ替わる）。
 /// レコメンドを階段より優先するのは、レコメンドは決着の時点で提示済みとして数えられている
 /// （`PlayLog.markShown`）ため、隠すと「見せていないのに無視された」回が積み上がるから。
 public struct RecommendationSlot: View {
     private let services: GameServices
     private let isFinished: Bool
-    private let showsOtherGames: Bool
     private let ladder: DifficultyLadderPrompt?
     /// ×で閉じた階段の提案。次の決着の提案は `plays` が変わるので、閉じたままにはならない。
     @State private var dismissedLadder: DifficultyLadderOffer?
@@ -189,18 +137,14 @@ public struct RecommendationSlot: View {
     /// - Parameters:
     ///   - isFinished: そのゲームがリザルトを表示している状態か。
     ///     新しい対局を始めた時点でカードを引っ込めるために使う。
-    ///   - showsOtherGames: レコメンドが無いときに「ほかのあそび」を出すか。枠を盤に重ねている
-    ///     画面（将棋・チェス）が、検討で盤を見ているあいだだけ引っ込めるためのもの。
     ///   - ladder: 難易度を持つゲームが渡す「一段上」の提案（#722）。勧めないときは nil。
     public init(
         services: GameServices,
         isFinished: Bool,
-        showsOtherGames: Bool = true,
         ladder: DifficultyLadderPrompt? = nil
     ) {
         self.services = services
         self.isFinished = isFinished
-        self.showsOtherGames = showsOtherGames
         self.ladder = ladder
     }
 
@@ -221,8 +165,6 @@ public struct RecommendationSlot: View {
                     onClimb: ladder.climb,
                     onDismiss: { dismissedLadder = ladder.offer }
                 )
-            } else if showsOtherGames {
-                OtherGamesCard()
             }
         }
     }
