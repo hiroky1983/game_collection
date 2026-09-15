@@ -130,8 +130,10 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
             // 丘の色相を 80° 台まで黄色側へ寄せて鳥から 55° 以上離す（#818。以前の緑 130° だと紛れた）。
             // 地面は「暖色の地面」——上面をテラコッタ、断面をそれより暗い赤茶にして、
             // 穴の縁の黄（`pitEdge`）・台座の橙（`platformFrame`）とは明度と色相で分ける。
-            // 岩は夜と同じストーングレー——水色・緑・テラコッタのどれとも系統が違うので、
-            // 岩が「何なのか分からない」（会長 2026-09-10）を再発させない。
+            // 岩はストーングレーのまま**夜より 2 段暗く**する（#920）。夜と同じ 0x939AA8 だと
+            // 明るい若草色の丘・灰色の路面（`road.asphalt` = 0x8A8F9A）と明度が並んで輪郭が立たず、
+            // 「色味が明るいと岩がみえにくい」（会長 QA 2026-09-15）。本体は丘 2 色・空と 3:1 以上
+            // （`RunnerWorldTests` が固定）、縁取り（`rockDark`）は路面と 4:1 以上。
             return Palette(
                 sky: 0x6FC3EE,
                 cloud: 0xFFFFFF,
@@ -140,9 +142,9 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 hillNear: 0x94C24A,
                 groundTop: 0xD98B4F,
                 groundBody: 0x8C5A3C,
-                rockLight: 0xC2C8D2,
-                rockBody: 0x939AA8,
-                rockDark: 0x565D6B
+                rockLight: 0x9CA4B2,
+                rockBody: 0x585E6E,
+                rockDark: 0x23272F
             )
         case .evening:
             // 夕方の川沿い。空は桃色寄りの茜——**サーモン（`bike`）と近い橙は使えない**。
@@ -151,7 +153,11 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
             // 「橙〜桃色」のグラデーションに見せる。丘は紫 2 階調、川は丘より暗い群青
             // （`RunnerPalette.riverWater`）——走者の下半身はこの川を背にするので、
             // サーモンの車体がいちばん映える組み合わせ。地面は夕日に染まった砂色。
-            // 岩はわずかに桃を帯びたグレー（夕日の反射。ストーングレーの明度は変えない）。
+            // 岩は夕日を受けた**明るい桃灰**にする（#920）。紫の丘 2 色と暖色グレーの路面
+            // （`road.asphalt` = 0x7A6E78）はどれも中〜暗の明度なので、中間グレー（旧 0xA08F9E）では
+            // 奥の丘（0x7C5FA3）と 1.7:1 しか差が付かなかった。暗くして離す道は無い（近景の丘が
+            // 0x4E3B7A と暗く、黒に近づけないと 3:1 に届かない）ので明るい側へ振り、本体を丘 2 色・
+            // 路面と 3:1 以上にする（`RunnerWorldTests` が固定）。縁取りは暗い葡萄色。
             return Palette(
                 sky: 0xBE6AA0,
                 cloud: 0xFFD9C2,
@@ -160,14 +166,16 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 hillNear: 0x4E3B7A,
                 groundTop: 0xE0A868,
                 groundBody: 0x7A4A3A,
-                rockLight: 0xD2C4CC,
-                rockBody: 0xA08F9E,
-                rockDark: 0x5E4F5C
+                rockLight: 0xFBF8FA,
+                rockBody: 0xD8CCD4,
+                rockDark: 0x2A2230
             )
         case .night:
             // 夜の繁華街。**現行の配色そのもの**（`RunnerPalette` の定数と同じ値）。
             // 値をここに書き写してあるのは、`WorldTests` が「夜 = 従来の見た目」をリテラルで
             // 固定するため——定数参照にすると、定数を変えたときにテストが黙って追随する。
+            // 岩は紺の丘・暗い路面（`road.asphalt` = 0x353A48）に対して本体だけで 4:1 以上あるので
+            // #920 でも触らない（縁取りは全世界共通で入る）。
             return Palette(
                 sky: 0x2E4066,
                 cloud: 0xFFFFFF,

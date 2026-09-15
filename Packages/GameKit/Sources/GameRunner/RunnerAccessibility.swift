@@ -26,6 +26,12 @@ public enum RunnerAccessibility {
         return "\(RunnerWorld.code(forStage: number)) \(name)、\(reached ? "到達済み" : "未到達")"
     }
 
+    /// 走り出す前の画面のモード切り替え（#919）の 1 区画。「モード、ステージ」の形で、
+    /// 何の切り替えかとモード名を 1 文で言う（選択中かどうかは `.isSelected` の特性で添える）。
+    public static func modeLabel(_ mode: RunnerMode) -> String {
+        "モード、\(mode.title)"
+    }
+
     /// 進み具合。パーセントは 5 刻みに丸める（1% ごとに読み上げが変わると耳で追えない）。
     public static func progressLabel(_ progress: Double) -> String {
         let clamped = min(1, max(0, progress))

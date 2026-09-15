@@ -55,9 +55,8 @@ struct DifficultyLadderSlotTests {
     func matchesPlaceholderHeight(size: DynamicTypeSize) throws {
         let ladder = try #require(makeLadder())
         let placeholder = height(RecommendationCard.heightPlaceholder, size)
-        // 「ほかのあそび」を切っておけば、描かれた高さは階段のカードのものだけになる。
-        let slot = RecommendationSlot(services: makeServices(), isFinished: true,
-                                      showsOtherGames: false, ladder: ladder)
+        // レコメンドは無い（`services.recommendations` が nil）ので、描かれた高さは階段のカードのものだけ。
+        let slot = RecommendationSlot(services: makeServices(), isFinished: true, ladder: ladder)
         #expect(height(slot, size) == placeholder)
     }
 

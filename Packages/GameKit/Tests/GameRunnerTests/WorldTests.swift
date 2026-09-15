@@ -1,3 +1,4 @@
+import GameKitTestSupport
 import Testing
 @testable import GameRunner
 
@@ -129,6 +130,57 @@ struct RunnerWorldTests {
     private func luma(_ hex: UInt32) -> Double {
         let r = Double((hex >> 16) & 0xFF), g = Double((hex >> 8) & 0xFF), b = Double(hex & 0xFF)
         return 0.299 * r + 0.587 * g + 0.114 * b
+    }
+
+    /// 岩は地面（`road.asphalt` の上端）から生え、背後には丘 2 段が見える。本体の色が丘と
+    /// 明度で並ぶと輪郭が立たない（#920「色味が明るいと岩がみえにくい」）。
+    /// WCAG 2.1 の相対輝度でコントラスト比を出し、どの世界でも本体と丘 2 色が 3:1 以上あることを
+    /// 固定する（`RunnerScene.addBoulder` が縁取りを足していても、面の色そのものが背景と離れて
+    /// いなければ遠目には溶ける）。
+    @Test("どの世界でも岩の本体は丘 2 色と 3:1 以上のコントラストがある")
+    func rockBodyStandsOutFromHills() {
+        for world in RunnerWorld.allCases {
+            let palette = world.palette
+            for hill in [palette.hillFar, palette.hillNear] {
+                let ratio = WCAG.contrast(palette.rockBody, hill)
+                #expect(
+                    ratio >= 3.0,
+                    "\(world) の岩 \(String(palette.rockBody, radix: 16)) と丘 \(String(hill, radix: 16)): \(ratio)"
+                )
+            }
+        }
+    }
+
+    /// 岩の足元は路面（`road.asphalt`。`palette.groundTop` は道路化（会長 QA 2026-09-14）以降は
+    /// 描かれていない）に接する。朝の路面は明るい灰で、本体を 3:1 まで暗くすると黒に近くなる
+    /// （#920 の目安 0x6E7585 前後から大きく外れる）ので、**本体か縁取りのどちらか**が路面と
+    /// 3:1 以上あれば輪郭が読めるとみなす。縁取りは `RunnerScene.addBoulder` が `rockDark` で
+    /// 全世界共通に引く。
+    @Test("どの世界でも岩の本体か縁取りが路面と 3:1 以上のコントラストがある")
+    func rockEdgeStandsOutFromRoad() {
+        for world in RunnerWorld.allCases {
+            let palette = world.palette, asphalt = world.road.asphalt
+            let body = WCAG.contrast(palette.rockBody, asphalt)
+            let outline = WCAG.contrast(palette.rockDark, asphalt)
+            #expect(
+                max(body, outline) >= 3.0,
+                "\(world) の岩 本体 \(body) / 縁取り \(outline) と路面 \(String(asphalt, radix: 16))"
+            )
+        }
+    }
+
+    /// 3 階調が同じ向きに並んでいないと、頂の面（`rockLight`）と陰の面・縁取り（`rockDark`）が
+    /// 本体に溶けて立体に見えない。明るい岩（夕方）でも暗い岩（朝）でも順序は同じ。
+    @Test("岩の 3 階調は 明 > 本体 > 陰 の順に並び、縁取りは本体から離れている")
+    func rockShadesAreOrdered() {
+        for world in RunnerWorld.allCases {
+            let palette = world.palette
+            let light = WCAG.relativeLuminance(palette.rockLight)
+            let body = WCAG.relativeLuminance(palette.rockBody)
+            let dark = WCAG.relativeLuminance(palette.rockDark)
+            #expect(light > body && body > dark, "\(world) の岩の階調が並んでいない")
+            #expect(WCAG.contrast(palette.rockBody, palette.rockDark) >= 2.0, "\(world) の縁取りが本体に溶ける")
+        }
     }
 
     @Test("遠景の飾りは世界ごとに決まっている")
