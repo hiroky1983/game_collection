@@ -150,7 +150,7 @@ public struct RunnerView: View {
             Text(RunnerAccessibility.stageLabel(number: model.stageNumber, total: RunnerRules.stageCount))
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
-            Text(RunnerAccessibility.stageHeadline(number: model.stageNumber))
+            Text(stageHeadlineText)
                 .font(.system(size: 17, weight: .heavy, design: .rounded))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
@@ -161,7 +161,7 @@ public struct RunnerView: View {
         // 「どこを走っているか」を、見えない人にも言葉で伝える。
         .accessibilityLabel(
             RunnerAccessibility.stageLabelWithWorld(number: model.stageNumber, total: RunnerRules.stageCount)
-                + "、" + RunnerAccessibility.stageHeadline(number: model.stageNumber)
+                + "、" + stageHeadlineText
         )
     }
 
@@ -423,7 +423,7 @@ public struct RunnerView: View {
             // 主役は「次の面へ」（#931）。秒数の表示・ベストタイム更新の印は廃止し、
             // 到達点が伸びた回だけ「新しい面に到達！」の印を出す。
             panel(
-                title: "\(RunnerAccessibility.stageHeadline(number: model.stageNumber)) クリア！",
+                title: "\(stageHeadlineText) クリア！",
                 face: resultFace, faceScale: faceScale
             ) {
                 clearedDetail
@@ -564,6 +564,14 @@ public struct RunnerView: View {
     /// 変わらない濃い茶**にする。白は朝の水色（0x6FC3EE）で 2:1 を切り、`Theme.ink` は夜（0x6B7FC2）で
     /// 3:1 を切るが、この色なら朝 9:1・夕方 5:1・夜 4.7:1 で 3 世界とも 4.5:1 以上。
     private static let onWorld = Color(hex: 0x1A1410)
+
+    /// 画面に出す面の見出し。QA 用のショーケース（DEBUG）を走っているあいだは面の番号を
+    /// 名乗らない——コースが本番の面と違うのに「3-3」と出ると取り違える（2026-09-15）。
+    private var stageHeadlineText: String {
+        model.isRunningDebugStage
+            ? "ショーケース"
+            : RunnerAccessibility.stageHeadline(number: model.stageNumber)
+    }
 
     /// 主ボタン。次に遊ぶ面（`stageNumber`）をその世界の色で。
     private var startMainButton: some View {

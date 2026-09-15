@@ -35,6 +35,9 @@ public final class RunnerModel {
     /// 中断データ（`RunnerSnapshot.reachedStage`）に残す。
     public private(set) var reachedStage: Int
     public private(set) var phase: RunnerPhase
+    /// QA 用に差し替えたコース（`-simulateRunner showcase` 等・DEBUG 専用）。
+    /// 入っているあいだは `startStage` がここのコースを使い、「もう一度」でも本番の面に戻らない。
+    private var debugStageOverride: RunnerStage?
     /// いまの走行でチェックポイント再開（リワード広告）を使ったか。**1 回の走行につき 1 回まで**。
     /// 「もう一度」で頭から走り直せば戻る（会長決裁 2026-09-15・#958。以前は 1 ステージ 1 回で、
     /// クリアできない面で 2 回目以降が頭からだけになり離脱につながるとの判断）。
@@ -163,6 +166,10 @@ public final class RunnerModel {
     public static func canChooseMode(phase: RunnerPhase, passedCheckpoint: Bool) -> Bool {
         phase == .ready && !passedCheckpoint
     }
+
+    /// QA 用のショーケースを走っているか（DEBUG 専用）。画面の見出しを面の番号ではなく
+    /// 「ショーケース」にするために見る。
+    public var isRunningDebugStage: Bool { debugStageOverride != nil }
 
     /// チェックポイント再開を出せる状態か（通過済み・未使用・ミスした直後）。
     public var canResumeFromCheckpoint: Bool {
@@ -356,6 +363,7 @@ public final class RunnerModel {
     /// `game_end`（quit）を先に送る・#500）。解析の `level` は選んだ面の番号（1 面から順に
     /// 進んだときの `advanceToNextStage` と同じ形）。
     private func startStages(at number: Int) {
+        debugStageOverride = nil
         mode = .stages
         stageNumber = number
         checkpointUsed = false
@@ -431,7 +439,10 @@ public final class RunnerModel {
     /// （`init`）・「はじめから」・マップで面を選んだとき（`startStages`）・チェックポイント再開は
     /// スタート画面を出し、面をまたぐ導線（#941）は続けて `beginRun()` を呼ぶ。
     private func startStage(from distance: Double, passedCheckpoint: Bool) {
-        let stage = RunnerStage.all[stageNumber - 1]
+        // QA 用のショーケース（`-simulateRunner showcase` 等）は、ミスして「もう一度」を押しても
+        // 本番の面に戻らない（2026-09-15。戻ると 1 回ミスしただけで見比べが終わってしまう）。
+        // 面を選び直す入口（`startStages` / `newGame`）では解除する。
+        let stage = debugStageOverride ?? RunnerStage.all[stageNumber - 1]
         // 挑み始めた面は到達済み（#798）。次の面へ進んだとき・QA 用の `stage:N` で飛んだときも
         // ここを通るので、到達点の更新はこの 1 か所と `clearStage`（次の面を開ける）だけ。
         reachedStage = max(reachedStage, stageNumber)
@@ -800,6 +811,7 @@ public final class RunnerModel {
     /// 動かさない。「もう一度」「はじめから」を押すと `startStage` が `RunnerStage.all` から
     /// 引き直すので、ショーケースからは抜ける——QA専用の一時的な差し替えとして割り切る。
     private func applyDebugStage(_ customStage: RunnerStage) {
+        debugStageOverride = customStage
         resetRun(RunnerField(stage: customStage))
     }
 
