@@ -37,6 +37,20 @@ public struct PixelSprite: Sendable, Equatable {
         PixelSprite(rows: rows.map { String($0.reversed()) }, palette: palette)
     }
 
+    /// 透明な余白を足して `width`×`height` の格子にする（中央寄せ）。元より小さい寸法は元のまま。
+    /// アイコンのように「枠いっぱいに伸ばしても絵の周りに余白が残る」形にしたいときに使う。
+    public func padded(width: Int, height: Int) -> PixelSprite {
+        let w = max(width, self.width), h = max(height, self.height)
+        let left = (w - self.width) / 2, top = (h - self.height) / 2
+        let blank = String(repeating: ".", count: w)
+        var out = [String](repeating: blank, count: top)
+        let leftPad = String(repeating: ".", count: left)
+        let rightPad = String(repeating: ".", count: w - left - self.width)
+        out += rows.map { leftPad + $0 + rightPad }
+        out += [String](repeating: blank, count: h - top - self.height)
+        return PixelSprite(rows: out, palette: palette)
+    }
+
     /// 不透明なドットの外接矩形（左上原点・ドット単位）。空なら nil。
     public var opaqueBounds: (x: Int, y: Int, width: Int, height: Int)? {
         var minX = Int.max, minY = Int.max, maxX = -1, maxY = -1

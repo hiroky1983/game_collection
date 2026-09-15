@@ -78,15 +78,22 @@ public enum OjisanPixel {
 
     // MARK: ハブ・リザルト用の正面顔
 
-    /// 正面顔（笑顔）のビットマップ。1 ドット = 2pt（32×30pt）で、起動後 1 回だけ作る
-    /// （#700 の受け入れ条件: 毎表示でビットマップ化しない）。
-    nonisolated(unsafe) public static let mascotFaceImage: CGImage? = face(.smile).cgImage(scale: 2)
+    /// アイコン用キャンバスの一辺（ドット）。16×15 の顔を 24×24 の中央に置き、周りの余白で
+    /// 他ゲームの SF Symbol（枠の 5〜6 割の大きさ）と見た目の比率を揃える。
+    public static let iconCanvasDots = 24
+
+    /// 正面顔（笑顔）のビットマップ。起動後 1 回だけ作る（#700 の受け入れ条件: 毎表示でビットマップ化しない）。
+    /// 1 ドット = 4px で持ち、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
+    public static let mascotFaceImage: CGImage? =
+        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 4)
 
     /// ハブのカード・おすすめ・設定などで `GameModule.icon` として出す正面顔。
-    /// 画面の倍率（2x/3x）にはそのまま整数倍で拡大され、`interpolation(.none)` でにじまない。
+    /// 呼び出し側は SF Symbol と同じく `.font(...)` で大きさを決めているが、ビットマップには効かないので
+    /// `resizable` で枠（44pt・36pt・32pt、iPad では `layout.scaled` で拡大）に追従させる。
+    /// `interpolation(.none)` でにじませない（枠 44pt ならちょうど 1 ドット = 2pt になる）。
     public static var mascotIcon: Image {
         guard let cg = mascotFaceImage else { return Image(systemName: "bicycle") }
-        return Image(decorative: cg, scale: 1).interpolation(.none)
+        return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
     }
 
     // MARK: 格子（手で直すときは行の長さを揃えること。PixelArtTests が検査する）

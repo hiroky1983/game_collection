@@ -49,6 +49,18 @@ struct PixelArtTests {
         #expect(f.flippedHorizontally() == s)
     }
 
+    @Test("余白付けは中央に寄せ、元の絵を変えない")
+    func paddingCentersSprite() {
+        let s = PixelSprite(rows: ["KY", "YK"], palette: ["K": 0x102030, "Y": 0xF0C030])
+        let p = s.padded(width: 6, height: 4)
+        #expect(p.width == 6 && p.height == 4)
+        #expect(p.rows == ["......", "..KY..", "..YK..", "......"])
+        #expect(s.padded(width: 1, height: 1) == s, "小さい寸法なら元のまま")
+        let icon = OjisanPixel.face(.smile).padded(width: OjisanPixel.iconCanvasDots, height: OjisanPixel.iconCanvasDots)
+        #expect(icon.width == 24 && icon.height == 24)
+        #expect(OjisanPixel.mascotFaceImage?.width == 96)
+    }
+
     /// レビュー用: OJISAN_PIXEL_OUT にディレクトリを渡すと、全コマを 5 倍で並べた PNG を書き出す。
     @Test("レビュー用のシートを書き出す（環境変数があるときだけ）")
     func writeReviewSheet() throws {
