@@ -1307,7 +1307,7 @@ final class RunnerScene: SKScene {
     private func addDog(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
-        let (art, w, h) = addAnimalArtBox(to: node, hazard: hazard, headAtHitboxStart: false)
+        let (art, w, h) = addAnimalArtBox(to: node, hazard: hazard, leadingEdge: nil)
         let s = Self.animalVisualScale
         // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・耳・口元・尻尾・脚に暗い縁取りを
         // 引き、朝のパステルの背景でも輪郭が立つようにする（鼻・目・腹は差し色なので引かない）。
@@ -1427,36 +1427,46 @@ final class RunnerScene: SKScene {
     /// 置く。戻り値は絵を足すノードと箱の幅・高さで、`addDog` / `addBoar` は箱の中の座標を
     /// すべて `w` / `h` の比で書く。
     ///
-    /// 横の合わせ方は `headAtHitboxStart` で選ぶ:
-    /// - `false`（犬）: 当たり判定に**中央合わせ**。前後に等しく張り出す
-    /// - `true`（イノシシ）: 箱の左端（頭側）を当たり判定の左端に合わせ、張り出しを**すべて後ろ
-    ///   （右）へ回す**。イノシシは岩にぶつかると当たり判定の左端を岩の右端に密着させて止まる
-    ///   （`RunnerHazard.stopAt` = 岩の `end`）ので、中央合わせだと頭が岩に 2 めり込んで見える
-    ///   （PR の敵対的検証で指摘）。頭側を合わせれば鼻先が岩に触れた形で止まり、走者が出会う側
-    ///   （頭）は見た目と当たり判定が一致する
+    /// 横の合わせ方は `leadingEdge` で選ぶ:
+    /// - `nil`（犬）: 当たり判定に**中央合わせ**。前後に等しく張り出す
+    /// - 値あり（イノシシ）: 絵の一番左の点（箱ローカル x を箱の幅に対する比で。イノシシなら
+    ///   鼻先の楕円の左端 `boarSnout`）を当たり判定の左端にぴったり合わせ、張り出しを**すべて
+    ///   後ろ（右）へ回す**。イノシシは岩にぶつかると当たり判定の左端を岩の右端に密着させて
+    ///   止まる（`RunnerHazard.stopAt` = 岩の `end`）ので、中央合わせだと頭が岩に 2 めり込んで
+    ///   見える（PR の敵対的検証で指摘）。鼻先を合わせれば岩に触れた形で止まり、走者が出会う側
+    ///   （頭）は見た目と当たり判定が一致する。縁取り（#929）は輪郭の上に中心線で乗る線なので、
+    ///   鳥（`RunnerBirdArt`）と同じく張り出しには数えない
     private func addAnimalArtBox(
-        to node: SKNode, hazard: RunnerHazard, headAtHitboxStart: Bool
+        to node: SKNode, hazard: RunnerHazard, leadingEdge: Double?
     ) -> (art: SKNode, w: Double, h: Double) {
         let w = hazard.length * Self.animalVisualScale
         let h = hazard.height * Self.animalVisualScale
         let art = SKNode()
-        art.position = CGPoint(x: headAtHitboxStart ? 0 : (hazard.length - w) / 2, y: 0)
+        let x = leadingEdge.map { -w * $0 } ?? (hazard.length - w) / 2
+        art.position = CGPoint(x: x, y: 0)
         node.addChild(art)
         return (art, w, h)
     }
 
+    /// イノシシの鼻先の楕円（`addBoar`）の中心 x と半幅（箱の幅に対する比）。絵の一番左（頭側の
+    /// 先端）で、`addAnimalArtBox` が当たり判定の左端に合わせるのはこの左端。頭の丸（中心 0.2・
+    /// 半径 0.22 → 左端 -0.02）より左に出ている。
+    private static let boarSnout = (centerX: 0.06, halfWidth: 0.11)
+
     /// イノシシ（`RunnerHazardKind.boar`・#801）。右から左へ突進してくるので、頭は左向き。
     /// 丸と長方形＋三角のパスだけで組む（#494 の権利チェック）。原点は絵の箱の左下（頭側）。
     /// 絵の箱は当たり判定を `animalVisualScale` 倍に広げたもの（`addAnimalArtBox`・#943）で、
-    /// **頭側を当たり判定の左端に合わせ、張り出しはすべて後ろ（右）**——岩で止まったとき
-    /// 鼻先が岩に触れた形になり、頭が岩にめり込まない。
+    /// **鼻先（`boarSnout` の左端）を当たり判定の左端に合わせ、張り出しはすべて後ろ（右）**
+    /// ——岩で止まったとき鼻先が岩に触れた形になり、頭が岩にめり込まない。
     ///
     /// 走っているあいだは後ろ脚の足元に土煙を立てる。岩で止まると脚と土煙が止まり、
     /// 低い岩と同じ置物として岩の右側に並ぶ。
     private func addBoar(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
-        let (art, w, h) = addAnimalArtBox(to: node, hazard: hazard, headAtHitboxStart: true)
+        let (art, w, h) = addAnimalArtBox(
+            to: node, hazard: hazard, leadingEdge: Self.boarSnout.centerX - Self.boarSnout.halfWidth
+        )
         // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・鼻先・牙・耳・脚に暗い縁取りを引く
         // （たてがみは胴の内側、目は差し色なので引かない）。
         let colors = world.creatures
@@ -1495,10 +1505,11 @@ final class RunnerScene: SKScene {
         head.position = CGPoint(x: w * 0.2, y: h * 0.58)
         head.zPosition = 3
         art.addChild(head)
-        let snout = SKShapeNode(ellipseOf: CGSize(width: w * 0.22, height: h * 0.14))
+        // 鼻先。絵の一番左で、`addAnimalArtBox` がここを当たり判定の左端に合わせる（`boarSnout`）。
+        let snout = SKShapeNode(ellipseOf: CGSize(width: w * Self.boarSnout.halfWidth * 2, height: h * 0.14))
         snout.fillColor = RunnerPalette.color(colors.boarSnout)
         outline(snout)
-        snout.position = CGPoint(x: w * 0.06, y: h * 0.52)
+        snout.position = CGPoint(x: w * Self.boarSnout.centerX, y: h * 0.52)
         snout.zPosition = 4
         art.addChild(snout)
         let tuskPath = CGMutablePath()
