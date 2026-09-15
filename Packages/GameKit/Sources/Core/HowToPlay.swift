@@ -473,11 +473,15 @@ public extension View {
     }
 
     /// 詳細ページ付きの `?` ボタン（ポーカーの役一覧・大富豪のルール）。
+    ///
+    /// `onPresent` は詳細ページを持たない版と同じ意味（開く直前に呼ぶ。リアルタイム進行の
+    /// ゲームはここで一時停止する）。
     func howToPlay<Extra: View>(
         _ guide: HowToPlayGuide,
+        onPresent: (() -> Void)? = nil,
         @ViewBuilder extra: @escaping () -> Extra
     ) -> some View {
-        modifier(HowToPlayToolbar(guide: guide, extra: extra))
+        modifier(HowToPlayToolbar(guide: guide, extra: extra, onPresent: onPresent))
     }
 }
 

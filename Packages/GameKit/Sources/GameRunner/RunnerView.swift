@@ -22,6 +22,9 @@ public struct RunnerView: View {
     /// 使う設定」で、開始時に `RunnerModel.newGame(startingAtStage:)` で焼き込む。
     /// ツールバーの「はじめから」は 1 面、スタート画面の「マップ」はいまの面を選んだ状態で開く。
     @State private var selectedStage = 1
+    /// 初回プレイの操作ガイド（#988）を出しているか。判定と「見せた」の記録は `init` で
+    /// 1 回だけ済ませる（`HowToPlayHint` と同じ作法）。
+    @State private var showsTutorial: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -29,6 +32,7 @@ public struct RunnerView: View {
         let model = RunnerModel(services: services)
         _model = State(initialValue: model)
         _scene = State(initialValue: RunnerScene(model: model))
+        _showsTutorial = State(initialValue: RunnerTutorial.shouldShow(playLog: services.playLog))
     }
 
     public var body: some View {
@@ -64,11 +68,15 @@ public struct RunnerView: View {
                 }
             }
         }
-        .howToPlay(.runner, onPresent: {
+        .howToPlay(.runner) {
             // 読んでいる間にミスしないよう止める。走り出す前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
             if model.phase == .running { model.pause() }
-        })
+        } extra: {
+            // 初回プレイの操作ガイド（#988）をいつでも開き直せる場所。「くわしいルール」の
+            // 見出しは共通部品（`HowToPlaySheet`）が持つ。
+            RunnerTutorialPage()
+        }
         .sheet(isPresented: $showStartSheet) {
             RunnerStartSheet(
                 mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage
@@ -529,21 +537,28 @@ public struct RunnerView: View {
     private var startScreen: some View {
         ZStack {
             // 薄い幕でカードを立たせる。タップは透過（コースで走り出せる）。
+            // 初回の操作ガイド（#988）が出ている間だけは幕でタップを受け止める——読んでいる
+            // 途中の指が当たって走り出すのを防ぐだけで、ガイド自体は対話型にしない
+            // （「はじめる」を押せば閉じてそのまま走り出す）。
             Rectangle()
-                .fill(.black.opacity(0.3))
-                .allowsHitTesting(false)
+                .fill(.black.opacity(showsTutorial ? 0.45 : 0.3))
+                .allowsHitTesting(showsTutorial)
             VStack(spacing: 10) {
-                // 主ボタンの左におじさんの笑顔を小さく添える（#702・2 倍 = 32×30pt）。
-                // 顔は装飾なので VoiceOver には出ず、主ボタンの読み上げはこれまでどおり。
-                HStack(spacing: 10) {
-                    if let face = RunnerResultFace.face(for: .ready) {
-                        ojisanFace(face, scale: RunnerResultFace.startDotScale)
+                if showsTutorial {
+                    tutorialCard
+                } else {
+                    // 主ボタンの左におじさんの笑顔を小さく添える（#702・2 倍 = 32×30pt）。
+                    // 顔は装飾なので VoiceOver には出ず、主ボタンの読み上げはこれまでどおり。
+                    HStack(spacing: 10) {
+                        if let face = RunnerResultFace.face(for: .ready) {
+                            ojisanFace(face, scale: RunnerResultFace.startDotScale)
+                        }
+                        startMainButton
                     }
-                    startMainButton
-                }
-                if model.canChooseMode {
-                    startEndlessButton
-                    mapLink
+                    if model.canChooseMode {
+                        startEndlessButton
+                        mapLink
+                    }
                 }
             }
             .padding(14)
@@ -554,6 +569,41 @@ public struct RunnerView: View {
                     .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
             )
             .padding(.horizontal, 20)
+        }
+    }
+
+    /// 初回プレイだけスタート画面に出す操作ガイド（#988）。
+    ///
+    /// 覚えてほしい 3 つ（`RunnerTutorial.steps`）を短い文と小さな絵で 1 画面に。頭の絵は
+    /// 走者の「跳ぶ」コマ（`OjisanPixel.RiderFrame.jump`）で、新しいドット絵は描き起こさない。
+    /// **コースの中に重ねる**ので盤・カード・広告帯の縦の配分は変わらない（スタート画面と同じ枠）。
+    /// 「はじめる」で閉じ、そのままステージ制で走り出す（印は `init` で残してあるので次からは出ない）。
+    private var tutorialCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                RunnerTutorial.riderJump(height: 40)
+                Text("そうさのしかた")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Spacer(minLength: 0)
+            }
+            RunnerTutorialSteps()
+            Button {
+                showsTutorial = false
+                model.start(.stages)
+            } label: {
+                Label("はじめる", systemImage: "play.fill")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                            .fill(Theme.Fill.coral)
+                    )
+            }
+            .buttonStyle(.pop)
+            .accessibilityLabel("はじめる")
         }
     }
 
@@ -747,7 +797,13 @@ public struct RunnerView: View {
     /// 固定の小さなプレースホルダなので、スクロールにしなくても場所を圧迫しない。
     private var secondaryInfo: some View {
         VStack(spacing: 6) {
-            HowToPlayHint(.runner, playLog: services.playLog)
+            // 初回の操作ガイド（#988）が出ている間は出さない。ガイドの 1 行目と同じ
+            // 「タップでジャンプ」を同じ画面で二度言うことになる（`HowToPlayHint` は
+            // 組み立てた時点で印を消費するので、ここを通らない回は消費もしない
+            // ＝ ガイドを閉じた次のプレイで 1 行ヒントとして出る）。
+            if !showsTutorial {
+                HowToPlayHint(.runner, playLog: services.playLog)
+            }
             recommendationArea
         }
     }
