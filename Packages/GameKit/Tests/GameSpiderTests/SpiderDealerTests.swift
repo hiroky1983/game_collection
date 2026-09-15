@@ -123,6 +123,23 @@ struct SpiderDealerTests {
         }
     }
 
+    /// 共通の乱数（CoreEngine の `SplitMix64`。`SpiderSeededGenerator` はその別名）の出力列そのものの固定（#916）。
+    /// 同じ種の 2 インスタンスを比べるだけでは、定数を取り違えた変更を見逃す。出力が 1 ビットでも変わると
+    /// 5 ゲームの検証済みの種と保存した勝ち筋がすべて無効になるので、既知の値と突き合わせる。
+    /// 期待値は共通化の前の実装（`FreeCellSeededGenerator`）で出したもので、種 0 は SplitMix64 の参照実装の出力と同じ。
+    @Test("共通の乱数は既知の出力列を返す")
+    func splitMix64GoldenVectors() {
+        let expected: [(seed: UInt64, outputs: [UInt64])] = [
+            (0, [0xE220_A839_7B1D_CDAF, 0x6E78_9E6A_A1B9_65F4, 0x06C4_5D18_8009_454F]),
+            (42, [0xBDD7_3226_2FEB_6E95, 0x28EF_E333_B266_F103, 0x4752_6757_130F_9F52]),
+        ]
+        for (seed, outputs) in expected {
+            var rng = SpiderSeededGenerator(seed: seed)
+            let actual = outputs.indices.map { _ in rng.next() }
+            #expect(actual == outputs, "種 \(seed)")
+        }
+    }
+
     @Test("出題は検証済みの種からしか選ばない", arguments: SpiderSuitCount.allCases)
     func randomSeedComesFromTheVerifiedList(suits: SpiderSuitCount) {
         var rng = SpiderSeededGenerator(seed: 42)
