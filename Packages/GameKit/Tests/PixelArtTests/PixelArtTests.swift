@@ -10,11 +10,11 @@ import UniformTypeIdentifiers
 /// 「拡大は整数倍で、色が混ざらない」の 3 点。
 @Suite("ドット絵")
 struct PixelArtTests {
-    @Test("走者のコマは 40×36、正面顔は 16×15 で、行の長さが揃いパレットに無い文字が無い")
+    @Test("走者のコマは 40×37、正面顔は 16×15 で、行の長さが揃いパレットに無い文字が無い")
     func spritesAreWellFormed() {
         for frame in OjisanPixel.RiderFrame.allCases {
             let s = OjisanPixel.rider(frame)
-            #expect(s.width == 40 && s.height == 36, "\(frame): \(s.width)×\(s.height)")
+            #expect(s.width == 40 && s.height == 37, "\(frame): \(s.width)×\(s.height)")
             #expect(s.undefinedKeys.isEmpty, "\(frame): パレットに無い文字 \(s.undefinedKeys)")
             #expect(s.opaqueBounds != nil)
         }
@@ -83,7 +83,7 @@ struct PixelArtTests {
         let frames = OjisanPixel.RiderFrame.allCases.map { OjisanPixel.rider($0) }
         let faces = OjisanPixel.Face.allCases.map { OjisanPixel.face($0) }
         let w = (40 * scale + 10) * frames.count + 10
-        let h = 36 * scale + 15 * scale + 40
+        let h = 37 * scale + 15 * scale + 40
         let ctx = try #require(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
                                           space: CGColorSpaceCreateDeviceRGB(),
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))

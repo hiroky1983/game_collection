@@ -90,7 +90,7 @@ struct RunnerRiderTests {
         let opaqueHeight = Double(sprite.opaqueBounds?.height ?? 0)
         #expect(opaqueHeight > 0)
         #expect(abs(placement.unit * opaqueHeight - RunnerRider.visualHeight) < 1e-9)
-        // 1 ドット ≈ 0.33 単位（40×36 のコマで走者が幅 13・高さ 12 ほどに描かれる）。
+        // 1 ドット ≈ 0.33 単位（40×37 のコマで走者が幅 13・高さ 12 ほどに描かれる）。
         #expect(placement.unit > 0.3 && placement.unit < 0.36)
     }
 
