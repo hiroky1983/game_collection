@@ -2,7 +2,7 @@
 # 監査当番（品質・セキュリティ・バグ・敵対的検証）の日次発火。launchd から1日1回呼ばれる
 # （設定は会長の Mac の ~/Library/LaunchAgents/com.asobiba.ai-audit.plist・StartCalendarInterval 05:00。
 #  ai-duty.sh の plist と同じくローカル環境の設定のためリポジトリには含めない）。
-# 開発当番（ai-duty.sh、3分ごと）・監査当番（ai-audit-duty.sh、6時間ごと）とは役割が異なり、
+# 開発当番（ai-duty.sh、3分ごと）・経営企画室とは役割が異なり、
 # **コードは一切変更せず**、前回の監査以降に release/* と main へマージされた PR の差分をまとめて読み、
 #   1) バグ（境界条件・競合・中断データ・計測の欠落）を敵対的に探し、テストを実際に回して裏を取る
 #   2) セキュリティ（秘密情報・権限・外部通信・第三者入力の扱い）
@@ -84,9 +84,9 @@ self_update() {
   [ -n "$oid" ] || return 0
   cache="$HOME/.asobiba-audit/bin"
   mkdir -p "$cache" && chmod 700 "$cache" || return 0
-  find "$cache" -maxdepth 1 -type f -name 'ai-management-*.sh' -mtime +7 -delete 2>/dev/null
-  fresh="$cache/ai-management-${oid}.sh"
-  tmp=$(mktemp "$cache/ai-management-XXXXXX") || return 0
+  find "$cache" -maxdepth 1 -type f -name 'ai-audit-*.sh' -mtime +7 -delete 2>/dev/null
+  fresh="$cache/ai-audit-${oid}.sh"
+  tmp=$(mktemp "$cache/ai-audit-XXXXXX") || return 0
   if ! git -C "$AUDIT_DIR" show "origin/main:Scripts/ai-audit-duty.sh" >"$tmp" 2>/dev/null || [ ! -s "$tmp" ]; then
     rm -f "$tmp"; return 0
   fi
