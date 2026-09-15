@@ -292,7 +292,7 @@ public struct RunnerView: View {
     /// スタート画面・一時停止・リザルトのボタンは別の要素として残す（`ZStack` 全体を 1 要素に
     /// すると、重ねたボタンが VoiceOver から消える）。
     private var course: some View {
-        GeometryReader { _ in
+        GeometryReader { geo in
             ZStack {
                 playfield
                 // 無敵の残り時間（#797）はコースの上端に重ねる（ヘッダーは幅が詰まっていて、
@@ -304,7 +304,10 @@ public struct RunnerView: View {
                 }
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-                overlay
+                // リザルトの顔（#702）はコースの高さから倍率を決める（SE では 3 倍に落として
+                // カードをコースの中に収める）。`geo` は最初に 0 を渡すことがあるが、
+                // `RunnerResultFace.dotScale` は 0 でも最小の 2 倍を返す。
+                overlay(faceScale: RunnerResultFace.dotScale(forCourseHeight: geo.size.height))
             }
         }
         // シーンは `.aspectFit` なので、枠の縦横比をコースと必ず一致させる。
@@ -384,8 +387,14 @@ public struct RunnerView: View {
 
     // MARK: - オーバーレイ
 
+    /// いまの局面で出すおじさんの顔（#702）。選び方は `RunnerResultFace.face(for:isNewBest:)` で固定。
+    private var resultFace: OjisanPixel.Face? {
+        RunnerResultFace.face(for: model.phase, isNewBest: model.didSetBestDistance)
+    }
+
+    /// - Parameter faceScale: リザルトの顔の倍率（1 ドット = 何 pt か）。コースの高さから決める。
     @ViewBuilder
-    private var overlay: some View {
+    private func overlay(faceScale: Int) -> some View {
         switch model.phase {
         case .ready:
             startScreen
@@ -399,21 +408,24 @@ public struct RunnerView: View {
         case .failed:
             // ミスの表示は両モードで同じ枠（#675「既存の失敗リザルトを流用」）。エンドレスは
             // ミスがそのまま決着なので、走行距離と自己ベストの行が加わる。
-            panel(title: "ミス！") {
+            panel(title: "ミス！", face: resultFace, faceScale: faceScale) {
                 if model.mode == .endless { endlessDetail }
                 if model.canResumeFromCheckpoint { resumeButton }
                 retryButton
             }
         case .allCleared where model.mode == .endless:
             // 固定長のコースを走り切った（第 1 弾は 400 区画で打ち切り・#675）。
-            panel(title: "コースを走りきった！") {
+            panel(title: "コースを走りきった！", face: resultFace, faceScale: faceScale) {
                 endlessDetail
                 retryButton
             }
         case .cleared:
             // 主役は「次の面へ」（#931）。秒数の表示・ベストタイム更新の印は廃止し、
             // 到達点が伸びた回だけ「新しい面に到達！」の印を出す。
-            panel(title: "\(RunnerAccessibility.stageHeadline(number: model.stageNumber)) クリア！") {
+            panel(
+                title: "\(RunnerAccessibility.stageHeadline(number: model.stageNumber)) クリア！",
+                face: resultFace, faceScale: faceScale
+            ) {
                 clearedDetail
                 Button {
                     model.advanceToNextStage()
@@ -426,11 +438,19 @@ public struct RunnerView: View {
                 replayButton
             }
         case .allCleared:
-            panel(title: "全ステージクリア！") {
+            panel(title: "全ステージクリア！", face: resultFace, faceScale: faceScale) {
                 replayButton
                 restartButton
             }
         }
+    }
+
+    /// おじさんの顔をドット絵の比率（16×15）のまま整数倍で置く（#702）。
+    /// `Core` の `OjisanPixel.faceImage` は装飾画像なので VoiceOver には出ない。
+    private func ojisanFace(_ face: OjisanPixel.Face, scale: Int) -> some View {
+        let dots = OjisanPixel.faceDotSize
+        return OjisanPixel.faceImage(face)
+            .frame(width: CGFloat(dots.width * scale), height: CGFloat(dots.height * scale))
     }
 
     /// クリア表示の添え書き。初到達の印と、次に走る面の番号（「つぎは 2-4」・#946）。
@@ -513,7 +533,14 @@ public struct RunnerView: View {
                 .fill(.black.opacity(0.3))
                 .allowsHitTesting(false)
             VStack(spacing: 10) {
-                startMainButton
+                // 主ボタンの左におじさんの笑顔を小さく添える（#702・2 倍 = 32×30pt）。
+                // 顔は装飾なので VoiceOver には出ず、主ボタンの読み上げはこれまでどおり。
+                HStack(spacing: 10) {
+                    if let face = RunnerResultFace.face(for: .ready) {
+                        ojisanFace(face, scale: RunnerResultFace.startDotScale)
+                    }
+                    startMainButton
+                }
                 if model.canChooseMode {
                     startEndlessButton
                     mapLink
@@ -679,13 +706,20 @@ public struct RunnerView: View {
             .tint(.white)
     }
 
+    /// リザルト・一時停止の幕。`face` を渡すと見出しの上におじさんの顔を出す（#702。一時停止は nil）。
+    /// 幕はコースの中に重ねるので、顔を足しても盤・カード・広告帯の縦の配分は変わらない。
     private func panel<Content: View>(
         title: String,
+        face: OjisanPixel.Face? = nil,
+        faceScale: Int = 4,
         @ViewBuilder content: () -> Content
     ) -> some View {
         ZStack {
             Rectangle().fill(.black.opacity(0.6))
             VStack(spacing: 12) {
+                if let face {
+                    ojisanFace(face, scale: faceScale)
+                }
                 Text(title).font(.title3.bold()).foregroundStyle(.white)
                 content()
             }

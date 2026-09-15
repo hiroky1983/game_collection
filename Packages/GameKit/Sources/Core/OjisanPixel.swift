@@ -96,6 +96,29 @@ public enum OjisanPixel {
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
     }
 
+    // MARK: リザルト・スタート画面用の正面顔（#702）
+
+    /// 正面顔のドット数（幅 16 × 高さ 15）。表示側はこの比率で枠を切る（`faceImage` の doc）。
+    public static let faceDotSize: (width: Int, height: Int) = (width: 16, height: 15)
+
+    /// 3 表情のビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
+    /// 1 度だけ評価される）。1 ドット = 4px で持ち、表示側で整数倍の pt に縮尺する。
+    public static let faceImages: [Face: CGImage] = {
+        var out: [Face: CGImage] = [:]
+        for face in Face.allCases { out[face] = Self.face(face).cgImage(scale: 4) }
+        return out
+    }()
+
+    /// リザルト（クリア・ミス）とスタート画面に出す正面顔（#702）。
+    ///
+    /// 装飾（`Image(decorative:)`）なので VoiceOver は読まない。`resizable` + `interpolation(.none)` で
+    /// にじませない。呼び出し側は `faceDotSize` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt）。
+    /// 比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
+    public static func faceImage(_ face: Face) -> Image {
+        guard let cg = faceImages[face] else { return Image(systemName: "bicycle") }
+        return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
+    }
+
     // MARK: 格子（手で直すときは行の長さを揃えること。PixelArtTests が検査する）
 
     // ride0 40x36
