@@ -328,6 +328,10 @@ struct RewardGuardCallSiteTests {
         #expect(Self.occurrences(of: "guardedBy: .checkedByGrant", in: text) == 1)
         #expect(Self.occurrences(of: "let game = serial()", in: text) == 1, "広告の前に通し番号を控えていない")
         #expect(Self.occurrences(of: "grant(game)", in: text) == 1, "控えた通し番号を grant に渡していない")
+        // 控えるのは広告の**前**。`request` の完了クロージャの中で読むと、広告のあいだに始めた局の番号になる（#729）。
+        let captured = try #require(text.range(of: "let game = serial()"))
+        let requested = try #require(text.range(of: "Rescue.request("))
+        #expect(captured.lowerBound < requested.lowerBound, "通し番号を広告の後に読んでいる")
 
         let callers = try Self.gameSources()
             .filter { $0.text.contains("RewardedContinueOverlay(") }
