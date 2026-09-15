@@ -175,7 +175,10 @@ struct BoardGameControlCapsuleStyleTests {
 @Suite("盤ゲームの共通の枠の組み方")
 struct BoardGameChromeSourceTests {
 
-    private static func lines(ofFunction declaration: String) throws -> [String] {
+    /// - Parameter owner: 宣言を探し始める型の宣言行の書き出し（例 `public struct ReviewNavBar`）。
+    ///   `public var body: some View {` のようにファイル内に何度も現れる宣言は、これで持ち主を絞る
+    ///   （絞らないと、前に足した別の View の宣言にすり替わる・#828）。
+    private static func lines(ofFunction declaration: String, inside owner: String? = nil) throws -> [String] {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // BoardGameChromeTests
             .deletingLastPathComponent()   // Tests
@@ -183,7 +186,15 @@ struct BoardGameChromeSourceTests {
             .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
         let all = try String(contentsOf: url, encoding: .utf8)
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        guard let start = all.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == declaration }) else {
+        var from = all.startIndex
+        if let owner {
+            guard let ownerLine = all.firstIndex(where: { $0.hasPrefix(owner) }) else {
+                Issue.record("走査の前提が壊れている: \(owner) が見つからない")
+                return []
+            }
+            from = ownerLine
+        }
+        guard let start = all[from...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == declaration }) else {
             Issue.record("走査の前提が壊れている: \(declaration) が見つからない")
             return []
         }
@@ -264,7 +275,7 @@ struct BoardGameChromeSourceTests {
         #expect(frame < shape)
         #expect(!symbol.contains { $0.contains(".padding(") }, "navSymbol の中で余白を詰めている")
 
-        let body = try Self.lines(ofFunction: "public var body: some View {")
+        let body = try Self.lines(ofFunction: "public var body: some View {", inside: "public struct ReviewNavBar")
         let inset = ".padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)"
         for name in ["backward.frame.fill", "forward.frame.fill"] {
             guard let button = body.firstIndex(where: { $0.contains("Self.navSymbol(\"\(name)\")") }) else {
@@ -329,5 +340,61 @@ struct ReviewNavBarTapTargetTests {
         )
         renderer.scale = 1
         return try #require(renderer.cgImage, "描画できなかった")
+    }
+}
+
+/// 操作列の「投了」「待った」の部品（#828）。View 側の走査は「どの見た目を選んだか」だけを見るので、
+/// 選んだ見た目の中身（#711 のカプセルの色・押せない状態の結線・手書きカプセルの余白）はここで固定する。
+///
+/// 手書きのボタンとの画素比較も試したが、他のテストと並行して走らせると ImageRenderer の描画が揺れて
+/// 約 8% の確率で食い違った（verifier 実測）。見た目の一致はシミュレータの撮影比較で確かめた（PR #965）。
+extension BoardGameChromeSourceTests {
+
+    @Test("待ったは修飾子の前に何も挟まず、押せない状態 → 確認 → 失敗のアラートの順に付ける")
+    func undoButtonWiresDisabledBeforeAlerts() throws {
+        let body = try Self.lines(ofFunction: "public var body: some View {", inside: "public struct BoardUndoButton")
+        guard body.count > 1,
+              let disabled = body.firstIndex(of: ".disabled(!model.canUndo)"),
+              let confirm = body.firstIndex(where: { $0.hasPrefix(".alert(\"待った確認\"") }),
+              let failure = body.firstIndex(of: ".rewardedRescueAlerts(") else {
+            Issue.record("押せない状態 / 確認 / 失敗のアラートが見つからない:\n\(body.joined(separator: "\n"))")
+            return
+        }
+        #expect(body[1] == "button", "ボタンと修飾子のあいだに別の指定が入っている")
+        #expect(disabled < confirm)
+        #expect(confirm < failure)
+    }
+
+    @Test("待ったの共通カプセルは teal で、素の文字の枝にはスタイルを付けない")
+    func undoButtonKeepsBothLooks() throws {
+        let button = try Self.lines(
+            ofFunction: "@ViewBuilder private var button: some View {", inside: "public struct BoardUndoButton"
+        )
+        guard let capsule = button.firstIndex(of: "if usesTapTargetCapsule {"),
+              let plain = button.firstIndex(of: "} else {") else {
+            Issue.record("見た目の分岐が見つからない:\n\(button.joined(separator: "\n"))")
+            return
+        }
+        let style = ".buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))"
+        #expect(button[capsule..<plain].contains(style))
+        #expect(!button[plain...].contains { $0.hasPrefix(".buttonStyle(") })
+        #expect(button.filter { $0 == "Label(\"待った\", systemImage: \"arrow.uturn.backward\")" }.count == 2)
+    }
+
+    @Test("投了の手書きカプセルは渡された左右の余白で coral に塗り、共通カプセルは coral のスタイルを通す")
+    func resignButtonKeepsBothLooks() throws {
+        let body = try Self.lines(ofFunction: "public var body: some View {", inside: "public struct BoardResignButton")
+        guard let handDrawn = body.firstIndex(of: "case .handDrawnCapsule(let horizontalPadding):"),
+              let tapTarget = body.firstIndex(of: "case .tapTargetCapsule:") else {
+            Issue.record("見た目の分岐が見つからない:\n\(body.joined(separator: "\n"))")
+            return
+        }
+        let handDrawnBranch = body[handDrawn..<tapTarget], tapTargetBranch = body[tapTarget...]
+        #expect(handDrawnBranch.contains(".foregroundStyle(Theme.onAccent)"))
+        #expect(handDrawnBranch.contains(".padding(.horizontal, horizontalPadding).padding(.vertical, 6)"))
+        #expect(handDrawnBranch.contains(".background(Capsule().fill(Theme.Fill.coral))"))
+        #expect(!handDrawnBranch.contains { $0.hasPrefix(".buttonStyle(") })
+        #expect(tapTargetBranch.contains(".buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.coral))"))
+        #expect(!tapTargetBranch.contains { $0.hasPrefix(".background(") })
     }
 }

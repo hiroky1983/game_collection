@@ -2,27 +2,9 @@ import Testing
 import Foundation
 import Core
 @testable import GameSolitaire
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var raw: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        raw[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = raw[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { raw.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { raw[gameID] != nil }
-
-    /// 旧形式・壊れた形式の中断データを外から差し込む。
-    func put<T: Encodable>(_ snapshot: T, for gameID: String) throws {
-        raw[gameID] = try JSONEncoder().encode(snapshot)
-    }
-}
 
 /// ジョーカーが存在しなかった版の中断データ（`jokerGrants` を持たない）。
 private struct LegacySnapshot: Encodable {
@@ -750,5 +732,12 @@ struct SolitaireJokerAccessibilityTests {
         )
         #expect(status.hasPrefix("進める手がありません"))
         #expect(deadEnd.hasPrefix("進める手がありません"))
+    }
+}
+
+private extension MemorySnapshotStore {
+    /// 旧形式・壊れた形式の中断データを外から差し込む（`Codable` でない型も書けるよう `Encodable` で受ける）。
+    func put<T: Encodable>(_ snapshot: T, for gameID: String) throws {
+        inject(try JSONEncoder().encode(snapshot), for: gameID)
     }
 }

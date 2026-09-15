@@ -79,8 +79,14 @@ let package = Package(
         // テストの共通部品（#529。ソース走査の読み口・非同期タスクのゲート）。製品には含めず、
         // テストターゲットからだけ依存する。
         .target(name: "GameKitTestSupport", path: "Tests/GameKitTestSupport"),
+        // テスト用の Core の差し替え部品（#841。メモリ上の中断データ置き場・触覚フィードバックのスパイ）。
+        // GameKitTestSupport と違って Core に依存するので別ターゲットにする。製品には含めない。
+        .target(name: "CoreTestSupport",    dependencies: ["Core"]),
+        // 上の部品を製品コードが import していないことと、テスト側に同じ実装が再び増えていないことの走査。
+        .testTarget(name: "CoreTestSupportTests", dependencies: ["CoreTestSupport", "GameKitTestSupport"]),
         // 配色（#187 のダークモード対応）はゲーム横断の共有資産なので Core 単体で検証する。
         .testTarget(name: "ThemeTests",       dependencies: ["Core", "GameKitTestSupport"]),
+        .testTarget(name: "PixelArtTests",    dependencies: ["Core"]),
         // 広告枠（バナー）の生成判断。実際の GADBannerView は端末側なので、判断だけを純粋関数で検証する。
         .testTarget(name: "AdsTests",         dependencies: ["Core"]),
         // 画面の広さに応じた適応レイヤ（#458 の iPad 対応）。判定と数値を Core に集約しているため、
@@ -88,40 +94,45 @@ let package = Package(
         .testTarget(name: "LayoutTests",      dependencies: ["Core", "GameKitTestSupport"]),
         // ハブ最上部の「つづき・最近」行（#660）。行は App ターゲットにあるが、並び順と
         // 打ち切りの規則は Core の純粋関数なので、シミュレータ無しでここで固定できる。
-        .testTarget(name: "RecentGamesTests", dependencies: ["Core", "GameKitTestSupport"]),
+        // 「続きから」の判定（#809）は、対象外の宣言を持つチャリンコおじさんと、終局後も見返しを
+        // 残す将棋・チェスを Model で決着させて確かめる。
+        .testTarget(name: "RecentGamesTests", dependencies: [
+            "Core", "Game2048", "GameRunner", "GameShogi", "GameChess",
+            "GameKitTestSupport", "CoreTestSupport",
+        ]),
         // 中断したゲームのお知らせ（#663）。対象外の宣言を持つチャリンコおじさんと、既定のまま使う
         // 2048 を並べて、宣言が規則に届いていることまで確かめる。終局後も見返しを保存する将棋・
         // チェスは、決着済みの局に予約しないことを Model を通して確かめる。
         .testTarget(name: "ResumeReminderTests", dependencies: [
             "Core", "Game2048", "GameRunner", "GameShogi", "GameChess", "GameMahjong",
-            "MahjongTiles", "GameKitTestSupport",
+            "MahjongTiles", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // 盤ゲーム（将棋・チェス）の共通の枠（#530）。値も重なり順も「両方で同じ」であることが
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
         .testTarget(name: "BoardGameChromeTests", dependencies: ["Core"]),
-        .testTarget(name: "GameChromeTests",   dependencies: ["Core"]),
+        .testTarget(name: "GameChromeTests",   dependencies: ["Core", "CoreTestSupport"]),
         .testTarget(name: "OjisanTests",       dependencies: ["Core"]),
-        .testTarget(name: "Game2048Tests",    dependencies: ["Game2048"]),
-        .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi", "GameKitTestSupport"]),
-        .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku", "GameKitTestSupport"]),
-        .testTarget(name: "GameGoTests",      dependencies: ["GameGo"]),
-        .testTarget(name: "GameChessTests",   dependencies: ["GameChess"]),
-        .testTarget(name: "GameMinesweeperTests", dependencies: ["GameMinesweeper"]),
-        .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello", "GameKitTestSupport"]),
-        .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport"]),
-        .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "GameKitTestSupport"]),
-        .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack", "GameKitTestSupport"]),
-        .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo"]),
-        .testTarget(name: "GameSudokuTests",          dependencies: ["GameSudoku", "GameKitTestSupport"]),
-        .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire", "GameKitTestSupport"]),
-        .testTarget(name: "GameBlocksTests",         dependencies: ["GameBlocks"]),
-        .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "GameKitTestSupport"]),
-        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider"]),
-        .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle"]),
-        .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameKitTestSupport"]),
-        .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda"]),
-        .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport"]),
-        .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport"]),
+        .testTarget(name: "Game2048Tests",    dependencies: ["Game2048", "CoreTestSupport"]),
+        .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameGoTests",      dependencies: ["GameGo", "CoreTestSupport"]),
+        .testTarget(name: "GameChessTests",   dependencies: ["GameChess", "CoreTestSupport"]),
+        .testTarget(name: "GameMinesweeperTests", dependencies: ["GameMinesweeper", "CoreTestSupport"]),
+        .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo", "CoreTestSupport"]),
+        .testTarget(name: "GameSudokuTests",          dependencies: ["GameSudoku", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameBlocksTests",         dependencies: ["GameBlocks", "CoreTestSupport"]),
+        .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "CoreTestSupport"]),
+        .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
+        .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
+        .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),
         // 触覚フィードバックは全ゲーム横断のため 1 ターゲットにまとめる（スパイ実装の重複を避ける）。
         .testTarget(name: "FeedbackTests", dependencies: [
@@ -129,7 +140,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider",
+            "GameHanafuda", "GameSpider", "CoreTestSupport",
         ]),
         // ゲーム間レコメンドも全ゲーム横断（決着の数え上げを全 Model で検証する）。
         .testTarget(name: "RecommendationTests", dependencies: [
@@ -137,7 +148,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider",
+            "GameHanafuda", "GameSpider", "CoreTestSupport",
         ]),
         // プレイ記録（#115）も全ゲーム横断（どのゲームがどの指標を記録するかを全 Model で検証する）。
         .testTarget(name: "PlayRecordTests", dependencies: [
@@ -145,7 +156,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider",
+            "GameHanafuda", "GameSpider", "CoreTestSupport",
         ]),
         // 遊び方ガイド（#118）も全ゲーム横断（全ゲームぶんの文言と初回フラグの永続化を検証する）。
         .testTarget(name: "HowToPlayTests", dependencies: [
@@ -161,7 +172,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameKitTestSupport",
+            "GameHanafuda", "GameSpider", "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -169,7 +180,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider",
+            "GameHanafuda", "GameSpider", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
@@ -186,7 +197,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider",
+            "GameHanafuda", "GameSpider", "CoreTestSupport",
         ]),
     ]
 )

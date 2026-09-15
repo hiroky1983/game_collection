@@ -2,72 +2,6 @@ import Foundation
 import Observation
 import Core
 
-public enum SolitairePhase: String, Codable, Sendable, Equatable {
-    /// 取り進めている最中。
-    case playing
-    /// 52 枚すべてを組札に積んだ。
-    case won
-}
-
-/// 「戻す」の回数制（#476）。無料の初期回数とリワード広告での補充量を 1 か所に持つ。
-///
-/// **`SolitaireModel` の外に置く**のは、モデルが `@MainActor` なのに対し読み上げ文
-/// （`SolitaireAccessibility`）が非隔離の純関数だから。中に静的定数として持つと、
-/// 読み上げ側から回数を参照できず文言と実装が二重管理になる。
-///
-/// 値そのものは `Core.RewardedUndoBudget` が持つ（#492 でフリーセルと共有するため Core へ上げた）。
-/// ここは呼び出し側の表記をソリティアの文脈に残すための転送で、**両ゲームの経済は常に一致する**。
-public enum SolitaireUndoBudget {
-    /// 1 局につき無料で戻せる回数。配り直し・新規ゲームでここまで戻る。
-    public static let free = RewardedUndoBudget.free
-    /// リワード広告 1 本の視聴完了で補充する回数。
-    public static let refill = RewardedUndoBudget.refill
-}
-
-/// いま持ち上げている札。
-///
-/// 場札は「その位置から上を丸ごと」動かすため、列と `faceUp` の添字の組で表す。
-public enum SolitaireSelection: Equatable, Sendable {
-    case waste
-    case tableau(pile: Int, cardIndex: Int)
-}
-
-/// 中断スナップショット。
-///
-/// **配札は種から決定的に再現できる**（`SolitaireDealer.deal`）ので、盤面そのものは保存せず
-/// 「種 + 指した手順」だけを持つ。undo も同じ手順の再生で実現しているため、保存と巻き戻しの
-/// 経路が 1 本にまとまる。
-struct SolitaireSnapshot: Codable {
-    let seed: UInt64
-    let moves: [SolitaireMove]
-    let elapsedSeconds: Int
-    /// この局で受け取ったジョーカーの累計枚数（初期 1 枚 + リワード広告での補充・#406）。
-    ///
-    /// **所持は手順から導出できない**（広告を見た事実が `moves` に残らない）ので、ここだけは
-    /// 別に持つ。所持枚数そのものではなく「累計で何枚もらったか」を持つのは、undo で
-    /// 置いた手を戻したときに所持へ自然に返す（#397 吟味2）ため — 所持は
-    /// 「もらった枚数 − 置いた枚数」として毎回導出する。
-    ///
-    /// **省略可**。ジョーカーが存在しなかった版の中断データには入っていないので、欠けていたら
-    /// 初期 1 枚だけもらった扱いにする（旧データを再開しても救済が使える）。
-    let jokerGrants: Int?
-    /// 「戻す」の残り回数（#476）。
-    ///
-    /// **手順から導出できない**（消費も広告での補充も `moves` に残らない）ので、ジョーカーと
-    /// 同じくここだけは別に持つ。ジョーカーが「累計でもらった枚数」なのに対しこちらが残数
-    /// そのものなのは、undo の消費が単調で「戻すの undo」が存在しないため。
-    ///
-    /// **省略可**。回数制が無かった版の中断データには入っていないので、欠けていたら
-    /// 無料枠が丸ごと残っている扱いにする（再開した局が理不尽に戻せなくならない）。
-    let undosRemaining: Int?
-    /// この局に焼き込んだめくり枚数（#498。`SolitaireDrawMode.rawValue`）。
-    ///
-    /// **省略可**。分岐が無かった版の中断データには入っていないので、欠けていたら
-    /// 1 枚めくり（分岐が存在しなかった頃のルール）に倒す。非 optional にすると
-    /// 旧データのデコードが丸ごと失敗し、中断が黙って消える（`docs/ai-devops.md` 規約2）。
-    let drawMode: String?
-}
-
 @MainActor
 @Observable
 public final class SolitaireModel {
@@ -677,26 +611,6 @@ public final class SolitaireModel {
 
     // MARK: - 敗北確定の検知（#406 の詰み検知（b））
 
-    /// 現在の盤面から勝ち筋が残っているかを、**ジョーカーを使わずに**探索する。
-    ///
-    /// - Returns: `true` = もう勝てない（探索を尽くして勝ち筋が無かった）/ `false` = まだ勝てる /
-    ///   `nil` = 判定不能（探索上限に達した）。**nil を「負け」に倒さない**のが要で、
-    ///   打ち切っただけの局面で「もう勝てません」と宣告すると誤報になる。
-    /// - Note: `nonisolated` にしてあるのは、この探索を **MainActor の外**（`Task.detached`）で
-    ///   回すため。型が `@MainActor` なので、付けないと static メソッドまで MainActor に載る。
-    nonisolated static func hopelessVerdict(
-        for board: SolitaireBoard,
-        maxStates: Int = SolitaireSolver.defaultMaxStates,
-        isCancelled: () -> Bool = { false }
-    ) -> Bool? {
-        let result = SolitaireSolver.solve(
-            board, allowJoker: false, maxStates: maxStates, isCancelled: isCancelled
-        )
-        if result.isSolvable { return false }
-        // 取り消されたときも `hitLimit` が立つので、ここで自動的に「分からない」に倒れる。
-        return result.hitLimit ? nil : true
-    }
-
     /// 盤面が動いたあとに敗北確定の探索を仕込む。
     ///
     /// 探索は 1 局面で最悪 1 秒近くかかる（#406 の実測）ので **MainActor では回さない**。
@@ -761,42 +675,6 @@ public final class SolitaireModel {
         guard phase == .playing, board.stateKey == key else { return }
         isLost = true
         services?.feedback.notify(.warning)
-    }
-
-    /// 組札へ送る手（詰まったら山めくり）だけで勝ち切れる手順。勝ち切れなければ nil。
-    ///
-    /// 場札を積み替える手は一切使わない。ここで返せるのは「あとは積むだけ」の局面だけで、
-    /// 積み替えが要る局面をプレイヤーの代わりに解いてしまわない。
-    static func autoFinishPlan(from board: SolitaireBoard) -> [SolitaireMove]? {
-        var board = board
-        guard !board.isWon else { return nil }
-        var plan: [SolitaireMove] = []
-        /// 何も送れないまま山をめくった回数。山 + 捨て札を 1 周しても送れなければ諦める。
-        var idleDraws = 0
-
-        while !board.isWon {
-            var sent = false
-            for pile in board.tableau.indices where board.isLegal(.tableauToFoundation(pile: pile)) {
-                board.apply(.tableauToFoundation(pile: pile))
-                plan.append(.tableauToFoundation(pile: pile))
-                sent = true
-            }
-            if board.isLegal(.wasteToFoundation) {
-                board.apply(.wasteToFoundation)
-                plan.append(.wasteToFoundation)
-                sent = true
-            }
-            if sent {
-                idleDraws = 0
-                continue
-            }
-            let cycle = board.stock.count + board.waste.count
-            guard cycle > 0, idleDraws < cycle, board.isLegal(.draw) else { return nil }
-            board.apply(.draw)
-            plan.append(.draw)
-            idleDraws += 1
-        }
-        return plan
     }
 
     /// 今の局の成績。タイムと手数は勝ったときだけ自己ベストに取り込まれる（`PlayRecord.applying`）。
@@ -885,40 +763,6 @@ public final class SolitaireModel {
             moves.append(move)
         }
         refreshDerivedState()
-    }
-
-    /// 撮影用（#406）: 救済の告知が出ている状態を作る。
-    ///
-    /// 敗北確定はソルバーが「もう勝てない」と確定させたときにしか出ず、実測で 300 局中 140 局
-    /// （しかも局の終盤）でしか起きないため、シミュレータで自然に到達させる手段が無い
-    /// （自動タップもできない）。`applyPreviewProgressForTesting` と同じ位置づけの撮影専用の口。
-    ///
-    /// - Parameter spendJoker: true なら所持を使い切ってから告知を出す（＝広告での補充を促す面）。
-    public func applyRescuePreviewForTesting(spendJoker: Bool) {
-        guard phase == .playing else { return }
-        if spendJoker {
-            for pile in board.tableau.indices where board.canPlaceJoker(onPile: pile) {
-                placeJoker(onPile: pile)
-                break
-            }
-        }
-        applyLostVerdict(true, for: board.stateKey)
-    }
-
-    /// 撮影用（#406）: ジョーカーの置き先を選んでいる最中の状態を作る。
-    public func applyPlacingJokerPreviewForTesting() {
-        beginPlacingJoker()
-    }
-
-    /// 撮影用（#498）: 3 枚めくりの局を作り、捨て札が 3 枚重なった状態まで進める。
-    ///
-    /// 3 枚めくりは開始シートで選ぶものなので、シミュレータ（自動タップができない）では
-    /// この口を通さないと扇の表示に到達できない。最後にもう一度めくるのは、
-    /// 勝ち筋の途中では捨て札が 1〜2 枚しか残っていないことがあるため。
-    public func applyDrawThreePreviewForTesting() {
-        newGame(rules: SolitaireRuleSet(drawMode: .three))
-        applyPreviewProgressForTesting()
-        if board.isLegal(.draw) { tapStock() }
     }
     #endif
 }

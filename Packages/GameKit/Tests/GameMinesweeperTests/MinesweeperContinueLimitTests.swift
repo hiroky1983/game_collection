@@ -2,23 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameMinesweeper
-
-/// テスト専用の中断データ置き場（ファイルに書かず、プロセス内だけで完結させる）。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private(set) var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ value: T, for key: String) throws {
-        storage[key] = try JSONEncoder().encode(value)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for key: String) -> T? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for key: String) { storage[key] = nil }
-    func exists(for key: String) -> Bool { storage[key] != nil }
-}
+import CoreTestSupport
 
 /// 送信内容をそのまま溜めるスパイ。Apple の GameKit にもネットワークにも触れない。
 @MainActor
@@ -166,7 +150,7 @@ struct MinesweeperContinueLimitTests {
     @Test("使用済みの鍵を持たない旧形式の中断データも読め、未使用として扱う")
     func legacySnapshotReadsAsUnused() throws {
         let f = Self.makeFixture(suite: "legacy")
-        let data = try #require(f.store.storage["minesweeper"])
+        let data = try #require(f.store.rawData(for: "minesweeper"))
         let json = try #require(String(data: data, encoding: .utf8))
         #expect(!json.contains("continueUsed"), "前提: 旧形式と同じく鍵が無い中断データ")
 
@@ -177,7 +161,7 @@ struct MinesweeperContinueLimitTests {
     @Test("鍵の無い旧形式でも、確定爆弾のマスが残っていれば使用済みとして読み、2回目を提案しない（#816）")
     func legacySnapshotWithContinuedMineReadsAsUsed() throws {
         let f = Self.makeFixture(suite: "legacy-continued", continuedMineAt: (0, 0))
-        let data = try #require(f.store.storage["minesweeper"])
+        let data = try #require(f.store.rawData(for: "minesweeper"))
         let json = try #require(String(data: data, encoding: .utf8))
         #expect(!json.contains("continueUsed"), "前提: v1.1.4 と同じく鍵が無い中断データ")
         #expect(f.model.cells[0][0].isContinuedMine, "前提: 確定爆弾のマスが復元されている")

@@ -51,9 +51,10 @@ public struct MahjongHandRowMetrics: Equatable, Sendable {
     ///   幅 700pt 以上では、頭打ちの倍率でも河の牌の幅を下回らない（`MahjongHandRowMetricsTests` で検査）。
     public static func make(layout: AdaptiveLayout) -> MahjongHandRowMetrics {
         guard layout.isWide else { return phone }
-        // 卓（`MahjongView.mahjongTable`）は画面の内幅（左右 `Theme.pad`）を一辺の上限にする正方形
+        // 卓（`MahjongView.mahjongTable`）は画面の内幅（左右 `Theme.pad`）を幅の上限にする縦長の長方形
+        // （#927）。河の牌の幅は卓の幅だけで決まる
         let tableWidth = layout.width - Theme.pad * 2
-        let river = MahjongTableLayout(size: CGSize(width: tableWidth, height: tableWidth)).riverTileWidth
+        let river = MahjongTableLayout(size: CGSize(width: tableWidth, height: tableWidth * MahjongTableLayout.aspect)).riverTileWidth
         let fit = (tableWidth - horizontalInsets) / phone.rowContentWidth
         let scale = min(max(layout.elementScale, river / phone.tileWidth), fit)
         return phone.scaled(by: scale)

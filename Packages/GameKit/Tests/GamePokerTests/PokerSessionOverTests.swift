@@ -3,22 +3,9 @@ import Foundation
 import SwiftUI
 import Core
 @testable import GamePoker
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MockSnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 private final class NoopAdService: AdService, @unchecked Sendable {
     @MainActor func makeBannerView(width: CGFloat) -> AnyView? { nil }
@@ -35,7 +22,7 @@ private func makeModelInBetting2(
     pot: Int,
     currentBet: Int
 ) -> PokerModel {
-    let store = MockSnapshotStore()
+    let store = MemorySnapshotStore()
     // 役の強さは判定に影響しない（フォールドは無条件に CPU の勝ち）ため、重複しない札を機械的に配る。
     let playerHand = (0..<5).map { PokerCard(id: $0, suit: .spades, rank: $0 + 2) }
     let cpuHand = (0..<5).map { PokerCard(id: $0 + 13, suit: .hearts, rank: $0 + 7) }

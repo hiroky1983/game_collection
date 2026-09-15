@@ -2,19 +2,7 @@ import Foundation
 import SwiftUI
 import Testing
 import Core
-
-private final class LadderMemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
+import CoreTestSupport
 
 /// リザルトの「階段」（#722）がレコメンドの枠に正しく相乗りしていることを見る。
 @Suite("難易度の階段の枠")
@@ -32,7 +20,7 @@ struct DifficultyLadderSlotTests {
     }
 
     private func makeServices() -> GameServices {
-        GameServices(snapshots: LadderMemorySnapshotStore(), ads: NoopAdService())
+        GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
     }
 
     /// 勧める条件を満たした提案（最長の段名「むずかしい」で幅の厳しい側を見る）。

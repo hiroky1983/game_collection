@@ -300,8 +300,11 @@ public enum RecordFormat {
 
     /// ハブのゲームカードに出す 1 行。記録がまだ無ければ nil（＝何も出さない）。
     ///
-    /// - Parameter records: そのゲームの全区分の記録（マインスイーパーなら難易度 3 件）。
-    public static func hubLine(_ records: [PlayRecord]) -> String? {
+    /// - Parameters:
+    ///   - records: そのゲームの全区分の記録（マインスイーパーなら難易度 3 件）。
+    ///   - gameID: そのゲームの ID。**チャリンコおじさん（`runner`）だけ**、本編の記録を
+    ///     「2-3 まで到達」の形にする（#931）。他のゲームは指標だけで表記が決まるので省略できる。
+    public static func hubLine(_ records: [PlayRecord], gameID: String? = nil) -> String? {
         let played = records.filter(\.hasAnyRecord)
         guard let metric = played.first?.metric else { return nil }
 
@@ -318,6 +321,8 @@ public enum RecordFormat {
             // 最大値を取るとエンドレスを 1 回走っただけで「ベスト 12」が「ベスト 3,412」に化ける（#675）。
             // 本編の記録がまだ無ければ従来どおり最大値。
             if let base = played.first(where: { $0.variantLabel == nil }), let points = base.bestPoints {
+                // チャリンコおじさんの本編は「どこまで到達したか」が記録の主役（#931。秒数は廃止）。
+                if gameID == runnerGameID { return runnerStageLine(clearedStage: points) }
                 return "ベスト \(number(points))"
             }
             guard let best = played.compactMap(\.bestPoints).max() else { return nil }
@@ -330,6 +335,29 @@ public enum RecordFormat {
             let base = winLossText(played)
             return streak >= 2 ? "\(base)・\(streak)連勝中" : base
         }
+    }
+
+    /// チャリンコおじさんの ID（`RunnerModel.gameID`）。Core からは GameRunner を参照できないので
+    /// 文字列で持つ（`GameCenterLeaderboard.leaderboardID(gameID:variant:)` と同じ扱い）。
+    static let runnerGameID = "runner"
+    /// チャリンコおじさんのステージ数と、1 つの世界が受け持つ面数（`RunnerRules.stageCount` /
+    /// `RunnerWorld.stagesPerWorld` の写し）。食い違わないことは `GameRunnerTests` が突き合わせる。
+    static let runnerStageCount = 18
+    static let runnerStagesPerWorld = 6
+
+    /// チャリンコおじさんの本編の 1 行（#931）。
+    ///
+    /// 記録の `bestPoints` は**クリアした面の番号**（`RunnerModel.clearStage` が送る値。順位表
+    /// `asobiba.runner.stage` と同じ）で、画面に出すのはその次＝到達した面「2-3 まで到達」。
+    /// 最終面をクリアしていれば「全 18 面クリア」。面の表記「世界-面」は
+    /// `RunnerWorld.code(forStage:)` と同じ割り方（6 面ずつ 3 世界）。
+    public static func runnerStageLine(clearedStage: Int) -> String {
+        let cleared = max(0, clearedStage)
+        guard cleared < runnerStageCount else { return "全 \(runnerStageCount) 面クリア" }
+        let reached = cleared + 1
+        let world = (reached - 1) / runnerStagesPerWorld + 1
+        let index = (reached - 1) % runnerStagesPerWorld + 1
+        return "\(world)-\(index) まで到達"
     }
 
     /// 「3勝5敗」「1勝2敗1分」の表記。引き分けは 0 のときだけ省く。

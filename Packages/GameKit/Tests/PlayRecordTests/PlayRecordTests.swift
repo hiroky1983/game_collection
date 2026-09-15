@@ -22,6 +22,7 @@ import GameHanafuda
 import GameSpider
 import GameChess
 import MahjongTiles
+import CoreTestSupport
 
 // MARK: - 共通のヘルパー
 
@@ -32,19 +33,6 @@ private func makeLog(suite: String) -> (PlayLog, UserDefaults, String) {
     let defaults = UserDefaults(suiteName: name)!
     defaults.removePersistentDomain(forName: name)
     return (PlayLog(defaults: defaults), defaults, name)
-}
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 @MainActor
@@ -225,6 +213,19 @@ struct RecordFormatTests {
         #expect(RecordFormat.hubLine([points, endless]) == "ベスト 12,340")
         #expect(RecordFormat.hubLine([endless, points]) == "ベスト 12,340", "並び順に依らない")
         #expect(RecordFormat.hubLine([endless]) == "ベスト 99,999", "本編の記録が無ければ従来どおり")
+        // チャリンコおじさん（ID を渡したとき）の本編は「到達した面」で言う（#931。秒数は廃止し、
+        // 記録はクリアした面の番号のまま）。他のゲームの表記は変わらない。
+        let cleared = PlayRecord.applying(
+            outcome: .win, score: GameScore(metric: .points, points: 3), to: nil
+        ).record
+        #expect(RecordFormat.hubLine([cleared], gameID: "runner") == "1-4 まで到達")
+        #expect(RecordFormat.hubLine([endless, cleared], gameID: "runner") == "1-4 まで到達", "エンドレスが混ざっても本編が代表")
+        #expect(RecordFormat.hubLine([endless], gameID: "runner") == "ベスト 99,999", "本編の記録が無ければ走行距離")
+        #expect(RecordFormat.hubLine([cleared], gameID: "2048") == "ベスト 3", "他のゲームは従来どおり")
+        #expect(RecordFormat.hubLine([cleared]) == "ベスト 3")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 6) == "2-1 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 17) == "3-6 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 18) == "全 18 面クリア")
 
         let moves = PlayRecord.applying(
             outcome: .win, score: GameScore(metric: .fewestMoves, moves: 24), to: nil

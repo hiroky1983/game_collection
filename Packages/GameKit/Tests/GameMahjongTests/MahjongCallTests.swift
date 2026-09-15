@@ -3,21 +3,9 @@ import Foundation
 import Core
 import MahjongTiles
 @testable import GameMahjong
+import CoreTestSupport
 
 // MARK: - ヘルパー
-
-private final class MemoryStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 鳴きにも和了にも絡まない手牌（`MahjongModelTests` と同じ考え方）。
 /// 同じ牌が 2 枚無いのでポンできず、連番も無いのでチーもできない。
@@ -25,7 +13,7 @@ private final class MemoryStore: SnapshotStore, @unchecked Sendable {
 private func junkHand() -> MahjongHand { MahjongNotation.hand("147m258p369s1234z") }
 
 @MainActor
-private func makeModel(store: SnapshotStore = MemoryStore()) -> MahjongModel {
+private func makeModel(store: SnapshotStore = MemorySnapshotStore()) -> MahjongModel {
     MahjongModel(
         services: GameServices(snapshots: store, ads: NoopAdService()),
         cpuDelay: .zero,
@@ -386,7 +374,7 @@ struct MahjongCallFormationTests {
 
     @Test("鳴きを含む局面を中断して再開しても副露が残る")
     func snapshotKeepsMelds() {
-        let store = MemoryStore()
+        let store = MemorySnapshotStore()
         let model = makeModel(store: store)
         model.startGame()
         model.configureForTesting(

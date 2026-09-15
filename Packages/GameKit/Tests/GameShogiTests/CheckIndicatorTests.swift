@@ -4,37 +4,15 @@ import SwiftUI
 import Core
 import GameKitTestSupport
 @testable import GameShogi
+import CoreTestSupport
 
 // MARK: - 共通の道具
-
-private final class MemoryStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
-@MainActor
-private final class SpyFeedback: FeedbackService {
-    private(set) var impacts: [FeedbackImpact] = []
-    private(set) var notices: [FeedbackNotice] = []
-
-    func impact(_ style: FeedbackImpact) { impacts.append(style) }
-    func notify(_ type: FeedbackNotice) { notices.append(type) }
-}
 
 /// 任意の局面から始まるモデルを作る。`ShogiGameModel` は開始局面をスナップショット経由でしか
 /// 受け取らないため、保存済みの中断データを先に置いてから読み込ませる。
 @MainActor
 private func makeModel(sfen: String, feedback: FeedbackService? = nil) -> ShogiGameModel {
-    let store = MemoryStore()
+    let store = MemorySnapshotStore()
     try? store.save(
         ShogiSnapshot(
             initialSfen: sfen,
@@ -136,7 +114,7 @@ struct ShogiCheckIndicatorTests {
 
     @Test("中断復元で王手局面に戻ると印は出るが、文字は飛び出さない")
     func resumeRestoresMarkerButNotTheBanner() {
-        let store = MemoryStore()
+        let store = MemorySnapshotStore()
         let first = ShogiGameModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         playIntoCheck(first)
         #expect(first.checkedKingSquare == Sq.fromUSI("5a")!)
@@ -246,9 +224,9 @@ struct ShogiCheckBannerDismissTests {
 struct ShogiCheckFeedbackTests {
     @Test("王手を掛けた手では warning が鳴り、着手の impact は鳴らさない")
     func checkNotifiesWarningInsteadOfImpact() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = ShogiGameModel(
-            services: GameServices(snapshots: MemoryStore(), ads: NoopAdService(), feedback: spy)
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
         )
         playIntoCheck(model)
         // 手順のうち王手になるのは 3 手目だけ。1 手目（人間）は impact、2 手目（後手）は無音。
@@ -261,7 +239,7 @@ struct ShogiCheckFeedbackTests {
     /// 鳴らしているのと同じ扱いにする。
     @Test("CPU が掛けてきた王手でも合図は鳴る（impact は鳴らさない）")
     func cpuCheckAlsoNotifies() async {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         // 後手（CPU）の合法手は 5b5c の 1 手だけで、それが先手（人間）玉への王手になる局面。
         // 後手玉 1a は 1c・3b の金に逃げ場を塞がれていて動けず、王手も掛かっていない。
         let model = makeModel(sfen: "8k/4p1G2/8G/4K4/9/9/9/9/9 w - 1", feedback: spy)
@@ -281,7 +259,7 @@ struct ShogiCheckFeedbackTests {
     /// ここを分けておかないと、投了・詰みの瞬間に王手の警告音まで重なる。
     @Test("詰みでは王手ではなく決着の合図を鳴らし、文字の契機も増やさない")
     func mateNotifiesTheResultNotTheCheck() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         // 頭金の一手詰め: 後手玉 5一・先手金 5三・先手の持ち駒に金。5二へ打つと、
         // 逃げ場（4一/6一/4二/6二）はすべて金の利きにあり、5二の金は 5三の金が支えていて取れない。
         let model = makeModel(sfen: "4k4/9/4G4/9/9/9/9/9/8K b G 1", feedback: spy)

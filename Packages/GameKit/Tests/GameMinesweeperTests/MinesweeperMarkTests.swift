@@ -2,34 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameMinesweeper
-
-/// テスト専用の中断データ置き場（`MinesweeperChordTests` と同じ手口。ファイルに書かない）。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ value: T, for key: String) throws {
-        storage[key] = try JSONEncoder().encode(value)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for key: String) -> T? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for key: String) { storage[key] = nil }
-    func exists(for key: String) -> Bool { storage[key] != nil }
-
-    /// 保存済みの生の JSON。**旧形式の互換フィールドが書かれ続けているか**を確かめるために覗く。
-    func rawJSON(for key: String) -> [String: Any]? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    }
-
-    /// 任意の JSON をそのまま置く（旧形式の中断データを注入するため）。
-    func inject(_ object: Any, for key: String) {
-        storage[key] = try? JSONSerialization.data(withJSONObject: object)
-    }
-}
+import CoreTestSupport
 
 /// 旗の「?」状態（#444）。
 ///
@@ -500,5 +473,19 @@ struct MinesweeperGameCenterVariantTests {
 
         let oldAdvanced = MinesweeperModel(rows: 15, cols: 15, mines: 40)
         #expect(oldAdvanced.recordVariantLabel == "15×15・地雷40")
+    }
+}
+
+private extension MemorySnapshotStore {
+    /// 保存済みの生の JSON。**旧形式の互換フィールドが書かれ続けているか**を確かめるために覗く。
+    func rawJSON(for key: String) -> [String: Any]? {
+        guard let data = rawData(for: key) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    /// 任意の JSON をそのまま置く（旧形式の中断データを注入するため）。
+    func inject(_ object: [String: Any], for key: String) {
+        guard let data = try? JSONSerialization.data(withJSONObject: object) else { return clear(for: key) }
+        inject(data, for: key)
     }
 }

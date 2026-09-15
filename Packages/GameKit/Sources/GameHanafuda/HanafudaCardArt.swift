@@ -105,10 +105,6 @@ public enum HanafudaCardArt {
         }
     }
 
-    public static func kindColor(for card: HanafudaCard) -> Color {
-        Color(hex: kindHex(for: card))
-    }
-
     public static let redRibbonBandHex: UInt32 = 0xC63A3A
     public static let blueRibbonBandHex: UInt32 = 0x3E6FB0
 

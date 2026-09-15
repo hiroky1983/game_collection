@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Core
 @testable import GameGomoku
+import CoreTestSupport
 
 // MARK: - ヘルパー
 
@@ -27,20 +28,6 @@ private func makeBoard(black: [(Int, Int)] = [], white: [(Int, Int)] = []) -> Go
     for (row, col) in black { board[row, col] = .black }
     for (row, col) in white { board[row, col] = .white }
     return board
-}
-
-private final class WinLineSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 /// 黒（人間）が横に四つ並べ、(7,7) に打てば五になる局面を中断データとして作る。
@@ -127,7 +114,7 @@ struct GomokuWinningLineTests {
 struct GomokuWinningLineModelTests {
 
     @Test func winningMoveSetsLineAndNewGameClearsIt() throws {
-        let store = WinLineSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(blackFourSnapshot(), for: "gomoku")
         let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         #expect(model.winningLine == nil)
@@ -142,7 +129,7 @@ struct GomokuWinningLineModelTests {
 
     /// 投了は盤上に五が無いので光らせない。
     @Test func resignHasNoLine() throws {
-        let store = WinLineSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(blackFourSnapshot(), for: "gomoku")
         let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         model.resign()
@@ -152,13 +139,13 @@ struct GomokuWinningLineModelTests {
 
     /// 決着を書いた中断データからでも、直前手から勝ち筋を引き直す（撮影・復元の経路）。
     @Test func restoredWinnerRedrawsLine() throws {
-        let store = WinLineSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(blackFourSnapshot(winner: .black), for: "gomoku")
         let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         #expect(model.winner == .black)
         #expect(model.winningLine?.count == 5)
 
-        let resignedStore = WinLineSnapshotStore()
+        let resignedStore = MemorySnapshotStore()
         try resignedStore.save(blackFourSnapshot(winner: .white, resigned: true), for: "gomoku")
         let resigned = GomokuModel(services: GameServices(snapshots: resignedStore, ads: NoopAdService()))
         #expect(resigned.winner == .white)
@@ -355,7 +342,9 @@ struct GomokuWeakWinRateTests {
 @Suite("待ったの確認文言が2手戻しと一致する")
 struct UndoWordingMatchesTwoPlyUndoTests {
 
-    /// 4 ゲームとも `undoLastExchange` で「自分の1手 + CPU の応手」を戻す。チェスは #665 以前から正しい文言（対照）。
+    /// 5 ゲームとも `undoLastExchange` で「自分の1手 + CPU の応手」を戻す。
+    /// 文言は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、各ゲームは部品を通っていることと、
+    /// 1手だけ戻るような文言を持ち直していないことを見る。
     @Test(arguments: [
         "GameGomoku/GomokuView.swift",
         "GameShogi/ShogiView.swift",
@@ -364,14 +353,25 @@ struct UndoWordingMatchesTwoPlyUndoTests {
         "GameChess/ChessView.swift",
     ])
     func undoMessageMentionsTheCPUReply(path: String) throws {
+        let source = try Self.source(path)
+        #expect(!source.contains("\"直前の1手を取り消します。"), "\(path) に1手だけ戻るような文言が残っている")
+        #expect(!source.contains("広告を視聴すると1手戻せます。"), "\(path) に1手だけ戻るような文言が残っている")
+        #expect(source.contains("BoardUndoButton("), "\(path) が共通の「待った」を通っていない")
+    }
+
+    @Test func sharedUndoButtonMentionsTheCPUReply() throws {
+        let source = try Self.source("Core/BoardGameChrome.swift")
+        #expect(!source.contains("\"直前の1手を取り消します。"), "共通の「待った」に1手だけ戻るような文言がある")
+        #expect(!source.contains("広告を視聴すると1手戻せます。"), "共通の「待った」に1手だけ戻るような文言がある")
+        #expect(source.contains("あなたの直前の1手を、CPU の応手ごと取り消します。"))
+    }
+
+    private static func source(_ path: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // GameGomokuTests
             .deletingLastPathComponent()   // Tests
             .deletingLastPathComponent()   // GameKit
             .appendingPathComponent("Sources").appendingPathComponent(path)
-        let source = try String(contentsOf: url, encoding: .utf8)
-        #expect(!source.contains("\"直前の1手を取り消します。"), "\(path) に1手だけ戻るような文言が残っている")
-        #expect(!source.contains("広告を視聴すると1手戻せます。"), "\(path) に1手だけ戻るような文言が残っている")
-        #expect(source.contains("あなたの直前の1手を、CPU の応手ごと取り消します。"))
+        return try String(contentsOf: url, encoding: .utf8)
     }
 }

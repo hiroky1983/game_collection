@@ -2,36 +2,11 @@ import Testing
 import Foundation
 import Core
 @testable import GameSudoku
-
-private final class FeedbackMemoryStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
+import CoreTestSupport
 
 @MainActor
-private final class SpyFeedback: FeedbackService {
-    private(set) var impacts: [FeedbackImpact] = []
-    private(set) var notices: [FeedbackNotice] = []
-
-    func impact(_ style: FeedbackImpact) { impacts.append(style) }
-    func notify(_ type: FeedbackNotice) { notices.append(type) }
-    func reset() {
-        impacts = []
-        notices = []
-    }
-}
-
-@MainActor
-private func makeModel(store: FeedbackMemoryStore = FeedbackMemoryStore()) -> (SudokuModel, SpyFeedback) {
-    let spy = SpyFeedback()
+private func makeModel(store: MemorySnapshotStore = MemorySnapshotStore()) -> (SudokuModel, SpyFeedbackService) {
+    let spy = SpyFeedbackService()
     let services = GameServices(snapshots: store, ads: NoopAdService(), feedback: spy)
     return (SudokuModel(services: services, seed: 2026), spy)
 }
@@ -174,7 +149,7 @@ struct SudokuFeedbackTests {
 
     @Test("中断から復元した時点で揃っているユニットは、入れ直しても光らない")
     func restoredCompletedUnitsDoNotFlashAgain() async throws {
-        let store = FeedbackMemoryStore()
+        let store = MemorySnapshotStore()
         let (model, _) = makeModel(store: store)
         await model.newGame(difficulty: .easy)
         let row = try #require(rowWithSeveralEmptyCells(model))

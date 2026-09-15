@@ -53,11 +53,46 @@ import Foundation
 ///
 /// 座標系は `addBird` のローカル系と同じで、**x は 0（後端）から `width`（走者側の端）へ、
 /// y は 0（帯の床）から `bandHeight`（帯の天井）へ**。`addBird` はこれを丸ごと左右反転して置く。
+///
+/// **見た目の倍率**（#943・会長QA 2026-09-15「鳥が小さすぎて見えない」）。上の「箱いっぱい」で
+/// 組むと幅 1 タイルの鳥は胴の半径が 1.5 弱にしかならず、実機では豆粒だった。当たり判定
+/// （帯の床 13・厚み・横幅 1 タイル）とジャンプ物理は会長決裁（2026-09-12）のまま動かさず、
+/// **絵だけ `visualScale` 倍に描く**。つまり絵は当たり判定より大きく、
+///
+/// - **横は帯に中央合わせ**: 前後に `width × (visualScale − 1) / 2` ずつ張り出す
+/// - **縦は床合わせのまま**: 絵の底は帯の床に一致し、頂点だけ帯の天井より上へ出る
+///
+/// 「絵が当たり判定より大きい」方向のズレは、**触れて見えるのに当たらない**（走者に甘い）
+/// だけで、#609 で潰した「見えていないのに当たる」理不尽は起きない。床を合わせたままに
+/// するのは、帯の床 13 が「接地でくぐれる」の境目で、そこに絵を下ろすと接地した頭（11）と
+/// 見た目で触れそうになるから。帯の厚み（`bandHeight`）は**倍率 1 で組んだ絵**から測るので、
+/// 倍率を動かしても当たり判定は 1 ミリも変わらない（`BirdArtTests` が固定する）。
 struct RunnerBirdArt {
-    /// 当たり判定の矩形の幅（`RunnerHazard.length`）。**絵の大きさはこれだけで決まる**。
+    /// 見た目の倍率の既定値（#943）。最初は「胴・翼が今の 1.4〜1.6 倍」で 1.5 にしたが、
+    /// 会長の基準は「おじさんと同じ位」（走者の絵は 11 × 11.9）なので **2.5**（幅 4 の帯で
+    /// 絵は 10 × 10.8）に上げた（2026-09-15）。
+    /// **当たり判定にはいっさい効かない**（`bandHeight` は倍率 1 で測る）。1 未満にすると
+    /// 絵より当たり判定が大きくなる（#609 の理不尽）ので、`BirdArtTests` が 1 以上を固定する。
+    static let defaultVisualScale = 2.5
+
+    /// 当たり判定の矩形の幅（`RunnerHazard.length`）。**帯の厚みはこれだけで決まる**。
     let width: Double
     /// 帯の床から地面までの落差（`RunnerHazard.bottom`）。影はこのぶん下に敷く。
     let groundDrop: Double
+    /// 見た目の倍率（#943）。絵は幅 `width × visualScale` の箱いっぱいに組む。
+    let visualScale: Double
+    /// 絵を組む箱の x 範囲。幅 `width × visualScale` で当たり判定 `0...width` に中央合わせ。
+    /// 倍率 1 なら `0...width` そのもの。
+    let drawnRange: ClosedRange<Double>
+    /// **当たり判定の帯の高さ**（#671・会長決裁 2026-09-12）。**倍率 1 で組んだ絵**が縦に占める
+    /// 寸法で、`RunnerHazardKind.bird.height`（帯の上端）はこの値から導出される。
+    ///
+    /// 浮遊の振れ幅（`bobAmplitude`）を含む——鳥は一番上まで浮いた瞬間にもそこにいるので、
+    /// そこを帯の外にすると「絵に触れたのに当たらない」逆の理不尽になる。
+    ///
+    /// `visualScale` には**依存しない**（#943）。絵を大きく描いても帯は倍率 1 の寸法のままで、
+    /// 描いた絵の頂点（`birdVerticalExtent.upperBound`）はこの値の `visualScale` 倍になる。
+    let bandHeight: Double
 
     /// 羽ばたき・尾羽のように回転するパーツ。`points` は `pivot` を原点とした座標で、
     /// `rotation` の範囲いっぱいに回る（羽ばたきの両端）。
@@ -120,7 +155,8 @@ struct RunnerBirdArt {
     let shadowCenter: CGPoint
 
     /// 見た目の比率。箱の寸法から各パーツを導くときの係数で、**ここを動かすと
-    /// `BirdArtTests` が張り出しを測り直す**。
+    /// `BirdArtTests` が張り出しを測り直す**。「箱」は絵を組む箱（`drawnRange`。倍率 1 なら
+    /// 当たり判定そのもの、#943 以降は当たり判定の `visualScale` 倍）。
     private enum Ratio {
         /// **箱の幅**に対する胴の半径。幅 4 の箱に収まる上限（`bodyCenter.x - bodyRadius >= 0`）は
         /// およそ 0.378 で、翼と尾羽に胴の 1.5 倍ぶんの長さを残すとここに落ち着く。
@@ -159,37 +195,60 @@ struct RunnerBirdArt {
     /// 尾羽の三角形の厚み（胴の半径に対する比）。
     private static let tailThickness = 0.455
 
-    /// 幅 `width` の帯に収まる鳥を組む。`groundDrop` は帯の床から地面までの落差で、
+    /// 幅 `width` の帯に合わせた鳥を組む。`groundDrop` は帯の床から地面までの落差で、
     /// 影だけがそのぶん下へ降りる（#671）。**帯の高さは入力ではなく結果**（`bandHeight`）。
+    /// `visualScale` は見た目の倍率（#943）で、絵だけを大きくし帯の高さには効かない。
     ///
     /// 胴の中心 y は**一度 0 に置いて組んだ下組みを測り、一番低いパーツが帯の床（0）に
     /// 来るだけ持ち上げて**決める。持ち上げ量を手で計算しないのは、パーツを 1 つ足したときに
     /// 計算のほうを直し忘れて絵が床から浮く（＝くぐったのに当たる帯が下に残る）のを防ぐため
     /// ——測るのは `birdVerticalExtent`、すなわち `BirdArtTests` が見るのと同じ値。
-    init(width: Double, groundDrop: Double = 0) {
-        let probe = RunnerBirdArt(width: width, groundDrop: groundDrop, centerY: 0)
+    ///
+    /// 帯の厚みも同じ手順で、ただし**倍率 1 の下組み**を測って決める。各パーツの寸法は幅に
+    /// 比例するので「倍率 1 の高さ = 描いた高さ ÷ 倍率」でも同じ値になるが、その比例関係を
+    /// 前提にせず実際に倍率 1 で組んで測る——固定寸法のパーツを足したときに帯が黙って
+    /// 動くのを防ぐため。
+    init(width: Double, groundDrop: Double = 0, visualScale: Double = Self.defaultVisualScale) {
+        let unit = RunnerBirdArt(
+            width: width, groundDrop: groundDrop, visualScale: 1, centerY: 0, bandHeight: 0
+        )
+        let unitExtent = unit.birdVerticalExtent
+        let bandHeight = unitExtent.upperBound - unitExtent.lowerBound
+        let drawn = RunnerBirdArt(
+            width: width, groundDrop: groundDrop, visualScale: visualScale, centerY: 0, bandHeight: 0
+        )
         self.init(
-            width: width, groundDrop: groundDrop,
-            centerY: -probe.birdVerticalExtent.lowerBound
+            width: width, groundDrop: groundDrop, visualScale: visualScale,
+            centerY: -drawn.birdVerticalExtent.lowerBound, bandHeight: bandHeight
         )
     }
 
-    private init(width: Double, groundDrop: Double, centerY: Double) {
+    private init(
+        width: Double, groundDrop: Double, visualScale: Double, centerY: Double, bandHeight: Double
+    ) {
         self.width = width
         self.groundDrop = groundDrop
+        self.visualScale = visualScale
+        self.bandHeight = bandHeight
 
-        let bodyRadius = width * Ratio.body
+        // 絵を組む箱（#943）。当たり判定 `0...width` を `visualScale` 倍に広げ、中央を揃える。
+        // 以下の「箱の後端／走者側の端」はすべてこの箱の縁を指す。
+        let drawnWidth = width * visualScale
+        let rear = (width - drawnWidth) / 2
+        drawnRange = rear...(rear + drawnWidth)
+
+        let bodyRadius = drawnWidth * Ratio.body
         let headRadius = bodyRadius * Ratio.head
         self.bodyRadius = bodyRadius
         self.headRadius = headRadius
-        bobAmplitude = width * Ratio.bob
+        bobAmplitude = drawnWidth * Ratio.bob
 
         // 胴の中心 x は「くちばしの先端が箱の走者側の端に一致する」ことから決める。
         let beakTipFromBody = bodyRadius * Ratio.headOffsetX + headRadius * Ratio.beakReach
-        let centerX = width - beakTipFromBody
+        let centerX = rear + drawnWidth - beakTipFromBody
 
         // 尾羽の長さは「長いほうの先端が箱の後端に一致する」ことから決める。
-        let longTailLength = centerX + bodyRadius * Self.tailSpecs[0].dx - bodyRadius * 0.5
+        let longTailLength = (centerX - rear) + bodyRadius * Self.tailSpecs[0].dx - bodyRadius * 0.5
         let tailLengths = [longTailLength, longTailLength * Ratio.shortTail]
 
         // 翼の倍率は「奥の翼が羽ばたきの端まで振れたとき、その先端が箱の後端に一致する」
@@ -197,7 +256,7 @@ struct RunnerBirdArt {
         let farPivotX = centerX - bodyRadius * 0.35
         let farRotation = -0.2...0.7
         let wingReach = -Self.rotatedXRange(Self.wingShape, farRotation).lowerBound
-        let wingScale = wingReach > 0 ? farPivotX / wingReach : 0
+        let wingScale = wingReach > 0 ? (farPivotX - rear) / wingReach : 0
         let wingShape = Self.wingShape.map { CGPoint(x: $0.x * wingScale, y: $0.y * wingScale) }
 
         let nearRotation = -0.55...0.55
@@ -255,7 +314,9 @@ struct RunnerBirdArt {
 
         // 影は帯の床ではなく**地面**に敷く（#671）。体とのすき間がそのまま
         // 「この高さを飛んでいる」の手がかりになるので、帯が地面から離れているぶんだけ下げる。
-        shadowSize = CGSize(width: width * 0.95, height: 0.55)
+        // 幅は絵（`drawnWidth`）に合わせる（#943。体だけ大きくして影が小さいままだと浮いて見えない）。
+        // 中心は当たり判定の中央＝絵の中央なので倍率で動かない。
+        shadowSize = CGSize(width: drawnWidth * 0.95, height: 0.55)
         shadowCenter = CGPoint(x: width * 0.5, y: -groundDrop + 0.3)
     }
 
@@ -290,8 +351,10 @@ struct RunnerBirdArt {
     /// 回る多角形の全量（翼・足）。
     var rotatingParts: [RotatingPart] { [farWing, nearWing, foot] }
 
-    /// 絵が占める x の範囲（羽ばたき・浮遊の端まで含む）。当たり判定は `0...width` なので、
-    /// **この値が `0...width` に一致していること**が「見た目と判定のズレが無い」の定義。
+    /// 絵が占める x の範囲（羽ばたき・浮遊の端まで含む）。絵は `drawnRange` の箱いっぱいに
+    /// 組むので**この値が `drawnRange` に一致する**。当たり判定は `0...width` で、倍率 1 なら
+    /// 両者は同じ（#609 の「見た目と判定のズレが無い」）。倍率が 1 を超えると絵のほうが
+    /// 当たり判定を包む（#943。**逆に当たり判定が絵から出ることは無い**）。
     var horizontalExtent: ClosedRange<Double> {
         extent(
             axis: { Double($0.x) },
@@ -313,16 +376,11 @@ struct RunnerBirdArt {
         )
     }
 
-    /// **当たり判定の帯の高さ**（#671・会長決裁 2026-09-12）。絵が縦に占める寸法そのもので、
-    /// `RunnerHazardKind.bird.height`（帯の上端）はこの値から導出される。
-    ///
-    /// 浮遊の振れ幅（`bobAmplitude`）を含む——鳥は一番上まで浮いた瞬間にもそこにいるので、
-    /// そこを帯の外にすると「絵に触れたのに当たらない」逆の理不尽になる。
-    var bandHeight: Double { birdVerticalExtent.upperBound }
-
     /// 影を除いた、**鳥そのもの**が占める y の範囲（#671）。影は帯の外（地面）に敷くので、
-    /// 「絵が帯からはみ出していない」は影を抜いたこちらで見る。下端が 0 に一致することが
+    /// 「絵が帯の床から浮いていない」は影を抜いたこちらで見る。下端が 0 に一致することが
     /// 「くぐれる側の縁と絵が合っている」の定義（`init` の持ち上げ量もこれで決めている）。
+    /// 上端は倍率 1 なら `bandHeight` に一致し、倍率ぶん大きく描くとその倍率だけ帯の天井より
+    /// 上へ出る（#943）。
     var birdVerticalExtent: ClosedRange<Double> {
         extent(
             axis: { Double($0.y) },

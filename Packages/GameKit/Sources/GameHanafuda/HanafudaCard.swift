@@ -88,12 +88,6 @@ public struct HanafudaCard: Identifiable, Codable, Equatable, Hashable, Sendable
     /// 菊に盃。月見酒・花見酒の相方で、タネ札でもある。
     public var isSakeCup: Bool { id == Self.sakeCupID }
 
-    /// 芒に月。
-    public var isMoon: Bool { id == Self.moonID }
-
-    /// 桜に幕。
-    public var isCurtain: Bool { id == Self.curtainID }
-
     // MARK: - 役の相方になる特定の札
 
     /// 柳に小野道風。

@@ -16,15 +16,10 @@ public struct RunnerModule: GameModule {
     // ステージ数は #674 で 15 → 18 に増えた（乗れる台座の枠）。ハブの一覧に出る文言なので
     // `RunnerRules.stageCount` と食い違わないようにする（`RunnerModuleTests` が縛る）。
     public let description = "タップで跳んで18ステージを走りぬけよう"
-    // おじさんの顔（#700）。18 本のカードで唯一キャラが出る。描けない環境では自転車の記号。
-    // おじさんの顔（#700）。18 本のカードで唯一キャラが出る。描けない環境では自転車の記号。
-    // `GameModule.icon` は非隔離の要件で、メイン外で `MainActor.assumeIsolated` を呼ぶとトラップするため、
-    // メインスレッド以外から読まれたときも自転車の記号に倒す（PR #704 の CodeRabbit 指摘）。
-    public var icon: Image {
-        guard Thread.isMainThread else { return Image(systemName: "bicycle") }
-        return MainActor.assumeIsolated { OjisanBitmap.hubIcon } ?? Image(systemName: "bicycle")
-    }
-    // 中断データはステージ番号とベストタイムの控えで、走行は必ずステージの頭から始まる
+    // おじさんの正面顔（ドット絵、#700）。18 本の中で唯一キャラが出るカードにする。
+    // 顔の定義は `Core` の `OjisanPixel`（おじさんシリーズの 2 本目以降でも同じ顔を使う）。
+    public var icon: Image { OjisanPixel.mascotIcon }
+    // 中断データは再開する面と到達点の控えで、走行は必ずステージの頭から始まる
     // （`RunnerModel.press()` の `gameWillNotResume`）。中断のお知らせ（#663）の対象から外す。
     public var resumesFromSnapshot: Bool { false }
 

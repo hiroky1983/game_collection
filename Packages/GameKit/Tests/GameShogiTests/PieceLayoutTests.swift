@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GameShogi
 
 /// 駒の移動アニメーション（#200）の土台。
@@ -172,15 +173,9 @@ struct ShogiDisplayPositionTests {
 @Suite("駒の層の組み方")
 struct ShogiPieceLayerSourceTests {
 
+    /// モジュール一式を読む（#831 で駒の見た目を `ShogiPieceViews.swift` へ割った）。
     private static var viewSource: String {
-        get throws {
-            let url = URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()   // GameShogiTests
-                .deletingLastPathComponent()   // Tests
-                .deletingLastPathComponent()   // GameKit
-                .appendingPathComponent("Sources/GameShogi/ShogiView.swift")
-            return try String(contentsOf: url, encoding: .utf8)
-        }
+        get throws { try SourceScan.moduleSources("GameShogi") }
     }
 
     @Test("ShogiCell は駒を描かない（盤全体を覆う層と二重に描くと移動が補間されない）")

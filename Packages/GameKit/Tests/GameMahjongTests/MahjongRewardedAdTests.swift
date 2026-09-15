@@ -4,21 +4,9 @@ import SwiftUI
 import Core
 import MahjongTiles
 @testable import GameMahjong
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MemoryStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 視聴完了・未完了を制御できる広告スタブ（ポーカーの `PokerRewardedAdTests` と同じ形）。
 private final class StubAdService: AdService, @unchecked Sendable {
@@ -67,7 +55,7 @@ private func concludeGame(
 
 @MainActor
 private func makeModel(
-    rewardEarned: Bool, playLog: PlayLog? = nil, store: SnapshotStore = MemoryStore()
+    rewardEarned: Bool, playLog: PlayLog? = nil, store: SnapshotStore = MemorySnapshotStore()
 ) -> (MahjongModel, StubAdService) {
     let ads = StubAdService(rewardEarned: rewardEarned)
     let model = MahjongModel(
@@ -183,7 +171,7 @@ struct MahjongRewardedAdTests {
 
     @Test("中断から復元しても、使い切った復活枠は戻らない")
     func reviveBudgetSurvivesRestore() async {
-        let store = MemoryStore()
+        let store = MemorySnapshotStore()
         let (model, _) = makeModel(rewardEarned: true, store: store)
         concludeGame(model, scores: [-1_000, 30_000, 35_000, 36_000])
         #expect(await model.reviveAfterAd() == .granted)

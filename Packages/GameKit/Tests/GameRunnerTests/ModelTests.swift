@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameRunner
+import CoreTestSupport
 
 @Suite("チャリンコおじさん: 進行と操作")
 @MainActor
@@ -47,7 +48,7 @@ struct RunnerModelTests {
             #expect(model.phase == .failed)
             let generation = model.runGeneration
             model.retryStage()
-            #expect(model.phase == .ready)
+            #expect(model.phase == .running, "スタート画面を挟まずその場で走り出す（#941）")
             #expect(model.field.distance == 0, "コースの頭に戻る")
             #expect(model.runGeneration == generation + 1)
         }
@@ -61,7 +62,7 @@ struct RunnerModelTests {
         #expect(model.phase == .cleared)
         model.advanceToNextStage()
         #expect(model.stageNumber == 2)
-        #expect(model.phase == .ready)
+        #expect(model.phase == .running, "スタート画面を挟まずその場で走り出す（#941）")
         #expect(model.field.stage.number == 2)
     }
 
@@ -83,33 +84,47 @@ struct RunnerModelTests {
         #expect(model.phase == .cleared)
         model.replayCurrentStage()
         #expect(model.stageNumber == 3, "同じステージのまま")
-        #expect(model.phase == .ready)
+        #expect(model.phase == .running, "スタート画面を挟まずその場で走り出す（#941）")
         #expect(model.field.distance == 0)
     }
 
-    @Test("ベストタイムはステージごとに残り、縮んだときだけ更新される")
-    func keepsBestTimePerStage() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("best"))
+    /// 秒数は廃止した（#931・会長決裁）。クリアで残るのは到達点だけで、印は初到達のときだけ。
+    @Test("クリアで秒数の記録は起きず、初めて次の面に到達したときだけ印が立つ")
+    func clearingMarksNewStageOnlyOnce() {
+        let log = makePlayLog("new-stage")
+        let model = RunnerModel(
+            services: makeServices(log: log), startingAt: 1, preference: makePreference("new-stage")
+        )
         autoPlayCurrentStage(model)
-        guard let first = model.best(forStage: 1) else { Issue.record("記録されていない"); return }
-        #expect(model.best(forStage: 2) == nil, "遊んでいないステージには記録が無い")
+        #expect(model.phase == .cleared)
+        #expect(model.didReachNewStage, "初クリアで 2 面に初到達")
+        #expect(model.reachedStage == 2)
+        #expect(log.record(gameID: RunnerModel.gameID)?.bestSeconds == nil, "秒数はどこにも記録しない")
+        #expect(log.record(gameID: RunnerModel.gameID)?.bestPoints == 1, "記録はクリアした面の番号")
 
-        #expect(model.didSetBestTime, "初クリアは必ず更新")
-
-        // ゆっくりモードで走ると同じ操作でも実時間は伸びる。遅いタイムで上書きされないこと。
+        // 同じ面をもう一度クリアしても到達点は伸びないので印は出ない。
         model.replayCurrentStage()
+        #expect(!model.didReachNewStage, "コースを作り直したら印は消える")
         model.setSlowMode(true)
         autoPlayCurrentStage(model)
-        #expect(model.best(forStage: 1) == first, "遅いタイムでは更新しない")
-        #expect(!model.didSetBestTime, "更新していないのにバッジを出さない")
+        #expect(model.phase == .cleared)
+        #expect(!model.didReachNewStage, "到達済みの面では印を出さない")
+        #expect(model.reachedStage == 2)
+
+        // 次の面へ進んでクリアすれば、また初到達。
+        model.advanceToNextStage()
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(model.didReachNewStage)
+        #expect(model.reachedStage == 3)
     }
 
-    /// 画面の「0:22」と記録の「23秒」が食い違わないこと（最初の実機確認で見つかった不整合）。
-    @Test("ベストタイムは画面のタイム表示と同じ切り捨てで記録する")
-    func bestTimeMatchesDisplayedTime() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("best-round"))
-        autoPlayCurrentStage(model)
-        #expect(model.best(forStage: 1) == max(1, Int(model.elapsed)))
+    /// 使い捨ての `PlayLog`（`UserDefaults.standard` を汚さない）。
+    private func makePlayLog(_ suite: String) -> PlayLog {
+        let name = "asobiba.runner.tests.playlog.model.\(suite)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return PlayLog(defaults: defaults)
     }
 
     /// QA用ショーケース（`-simulateRunner showcase`）は `stageNumber` を動かさない差し替えなので、
@@ -124,20 +139,22 @@ struct RunnerModelTests {
         )
         autoPlayCurrentStage(model)
         model.replayCurrentStage()
-        guard let realBest = model.best(forStage: 3) else { Issue.record("記録されていない"); return }
+        #expect(model.reachedStage == 4)
         let scoreCountBefore = gameCenter.scores.count
 
         model.applyDebugScenario("showcase")
         autoPlayCurrentStage(model)
 
         #expect(model.phase == .allCleared, "ショーケースのクリアは全クリア扱いで打ち切る")
-        #expect(model.best(forStage: 3) == realBest, "ショーケースのクリアで実ステージの記録が書き換わってはいけない")
+        #expect(model.reachedStage == 4, "ショーケースのクリアで到達点が動いてはいけない")
+        #expect(!model.didReachNewStage)
         #expect(gameCenter.scores.count == scoreCountBefore, "ショーケースのクリアでスコアを送信してはいけない")
     }
 
-    /// 撮影用シナリオ `-simulateRunner bird` / `bird-low` / `bird-up`（#796 の受け入れ条件
-    /// 「飛び立つ前・低く飛ぶ瞬間・上がった後」の画）と `dog`（#800）・`boar`（#801）が、
-    /// **本当に狙った状態・走行中で止まる**こと。自動操縦が途中でミスすると `.falling` で止まる。
+    /// 撮影用シナリオ `-simulateRunner bird` / `bird-low` / `bird-up`（#945 の
+    /// 「飛び立つ前・上がっている途中・上がりきった鳥の下を走ったまま抜ける」の画）と
+    /// `dog`（#955・画面の中央で向かい合う瞬間）・`boar`（#801）が、**本当に狙った状態・走行中で止まる**こと。
+    /// 自動操縦が途中でミスすると `.falling` で止まる。
     @Test("撮影用シナリオ bird / bird-low / bird-up / dog / boar は狙った状態で止まる")
     func animalScenariosFreezeWhereIntended() {
         func make(_ name: String) -> RunnerModel {
@@ -155,24 +172,28 @@ struct RunnerModelTests {
         let low = make("bird-low")
         if let bird = low.field.stage.hazards.first(where: { $0.kind == .bird }),
            let frame = bird.frame(atRunnerDistance: low.field.distance) {
-            #expect(!low.field.isGrounded, "跳んでいる最中")
-            #expect(frame.top == RunnerHazardKind.birdLowTop, "鳥は低く飛んでいる")
-            #expect(low.field.playerMaxX > frame.start && low.field.playerMinX < frame.end, "鳥の真上")
-        }
+            #expect(frame.advance > 0, "飛び立っている")
+            #expect(frame.bottom >= RunnerHazardKind.birdLowTop && frame.bottom < RunnerField.Metrics.playerHeight, "まだ頭より低いところを上がっている途中")
+            #expect(low.field.isGrounded && low.field.playerMaxX < frame.start, "おじさんはまだ手前を走っている")
+        } else { Issue.record("bird-low: ショーケースに鳥が無い") }
 
         let up = make("bird-up")
         if let bird = up.field.stage.hazards.first(where: { $0.kind == .bird }),
            let frame = bird.frame(atRunnerDistance: up.field.distance) {
-            #expect(frame.bottom >= RunnerHazardKind.birdHighBottom, "鳥は上がっている")
-            #expect(up.field.isGrounded)
-        }
+            #expect(frame.bottom >= RunnerHazardKind.birdMeetBottom, "鳥は跳んだ先の高さまで上がりきっている")
+            #expect(up.field.isGrounded, "走ったまま")
+            #expect(up.field.playerMaxX > frame.start && up.field.playerMinX < frame.end, "鳥の真下")
+        } else { Issue.record("bird-up: ショーケースに鳥が無い") }
 
         let dog = make("dog")
         if let hazard = dog.field.stage.hazards.first(where: { $0.kind == .dog }),
            let frame = hazard.frame(atRunnerDistance: dog.field.distance) {
-            #expect(frame.advance == 0 && frame.start == hazard.start, "犬は止まって吠えている")
-            #expect(dog.field.isGrounded && dog.field.distance < hazard.start, "踏み切る前")
-        }
+            let center = RunnerField.Metrics.width / 2 - RunnerField.Metrics.playerX
+            #expect(frame.advance < 0 && frame.advance == -RunnerRules.dogAdvance, "犬は左向きに歩いている（#955）")
+            #expect(dog.field.isGrounded, "走者はまだ接地して向かい合っている")
+            #expect(frame.start > dog.field.playerMaxX, "犬は走者の前")
+            #expect(abs(frame.start - dog.field.distance - center) < 2, "犬の鼻先は画面の中央（走者の \(center) 先）")
+        } else { Issue.record("ショーケースの犬が現れていない") }
 
         let boar = make("boar")
         if let hazard = boar.field.stage.hazards.first(where: { $0.kind == .boar }),
@@ -200,6 +221,20 @@ struct RunnerModelTests {
             model.field.playerMaxX > rock.start && model.field.playerMinX < rock.end,
             "走者が岩の中にいる（\(model.field.distance) vs \(rock.start)〜\(rock.end)）"
         )
+    }
+
+    /// 撮影用シナリオ `-simulateRunner pedaling` が、**接地したまま左ペダルが前のコマ（`ride1`）**
+    /// で止まること（#701）。`ride0` は走り出す前と同じ絵なので、そこで止まると漕ぐ画にならない。
+    /// シーンは最初の反映で接地距離をまとめて位相に足すので、コマは接地距離だけで決まる。
+    @Test("撮影用シナリオ pedaling は接地したまま ride1 のコマで止まる")
+    func pedalingScenarioFreezesOnRide1() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("pedaling-capture"))
+        model.applyDebugScenario("pedaling")
+        #expect(model.phase == .running)
+        #expect(model.field.isGrounded, "空中では jump のコマになる")
+        #expect(model.field.distance > 34)
+        let phase = RunnerRider.phase(forGroundedDistance: model.field.distance)
+        #expect(RunnerRider.frame(phase: model.phase, isGrounded: model.field.isGrounded, pedalPhase: phase) == .ride1)
     }
 }
 
@@ -283,16 +318,43 @@ struct RunnerCheckpointTests {
         #expect(after.canResumeFromCheckpoint)
     }
 
-    @Test("再開はステージごとに 1 回だけ")
-    func onlyOncePerStage() {
+    @Test("再開は 1 回の走行につき 1 回。「もう一度」で頭から走り直せば戻る（#958）")
+    func oncePerRunAndBackAfterRetry() {
         let model = RunnerModel(startingAt: 1, preference: makePreference("cp-once"))
         failAfterCheckpoint(model)
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
         #expect(model.field.distance == model.stage.checkpoint)
 
         failAfterCheckpoint(model)
-        #expect(!model.canResumeFromCheckpoint, "2 回目は出せない")
+        #expect(!model.canResumeFromCheckpoint, "同じ走行の 2 回目は出せない")
         #expect(!model.resumeFromCheckpoint(forRun: model.runGeneration))
+
+        // 再開 → ミス → もう一度 → チェックポイント通過 → ミス、でまた出る（会長決裁 2026-09-15）。
+        model.retryStage()
+        #expect(model.phase == .running && model.field.distance == 0)
+        #expect(!model.checkpointUsed)
+        failAfterCheckpoint(model)
+        #expect(model.canResumeFromCheckpoint, "頭から走り直した走行では再開できる")
+        #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
+    }
+
+    @Test("QA 用のショーケースは「もう一度」でも本番の面に戻らない（面を選び直せば解除される）")
+    func debugShowcaseSurvivesRetry() {
+        let model = RunnerModel(startingAt: 15, preference: makePreference("showcase-retry"))
+        model.applyDebugScenario("showcase")
+        #expect(model.isRunningDebugStage)
+        let showcase = model.field.stage.pattern
+        #expect(showcase == RunnerStage.debugShowcase.pattern)
+
+        failCurrentStage(model)
+        model.retryStage()
+        #expect(model.isRunningDebugStage, "もう一度でショーケースが消えない")
+        #expect(model.field.stage.pattern == showcase)
+
+        // 面を選び直したら本番の面へ戻る。
+        model.newGame(mode: .stages)
+        #expect(!model.isRunningDebugStage)
+        #expect(model.field.stage.pattern != showcase)
     }
 
     /// ソリティアの補充（#509）と同じ契約。広告のロード中にコースが作り直されたら適用しない。
@@ -305,19 +367,17 @@ struct RunnerCheckpointTests {
         #expect(!model.resumeFromCheckpoint(forRun: stale))
     }
 
-    @Test("再開したステージのクリアはベストタイムに残さない")
-    func resumedClearIsNotRecorded() {
+    @Test("再開したステージをクリアしても次の面には到達する")
+    func resumedClearStillReachesNextStage() {
         let model = RunnerModel(startingAt: 1, preference: makePreference("cp-record"))
         failAfterCheckpoint(model)
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
+        #expect(model.phase == .ready)
+        #expect(!model.canChooseMode, "再開の直後はスタート画面が「つづきから」だけになる")
         autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
-        #expect(model.best(forStage: 1) == nil, "半分だけ走った回はベストにしない")
-
-        // 通しで走れば記録される。
-        model.replayCurrentStage()
-        autoPlayCurrentStage(model)
-        #expect(model.best(forStage: 1) != nil)
+        #expect(model.reachedStage == 2, "半分だけ走った回でも先へは進める（順位表に送らないだけ・#406）")
+        #expect(model.didReachNewStage)
     }
 
     @Test("次のステージへ進むと再開権が戻る")
@@ -352,20 +412,20 @@ struct RunnerSnapshotTests {
         #expect(second.field.distance == 0, "フレーム単位では保存しない")
     }
 
-    @Test("ベストタイムは決着しても消えない")
-    func bestTimesSurviveFinish() {
+    @Test("到達点は決着しても消えない")
+    func reachedStageSurvivesFinish() {
         let store = MemorySnapshotStore()
         let first = RunnerModel(services: makeServices(store: store),
                                 startingAt: RunnerRules.stageCount,
                                 preference: makePreference("snap-2"))
         autoPlayCurrentStage(first)
         #expect(first.phase == .allCleared)
-        let best = first.best(forStage: RunnerRules.stageCount)
-        #expect(best != nil)
+        #expect(first.reachedStage == RunnerRules.stageCount)
 
         let second = RunnerModel(services: makeServices(store: store),
                                  preference: makePreference("snap-2b"))
-        #expect(second.best(forStage: RunnerRules.stageCount) == best)
+        #expect(second.reachedStage == RunnerRules.stageCount)
+        #expect(second.stageNumber == RunnerRules.stageCount)
     }
 
     @Test("壊れた中断データは捨てて新規開始に倒す")
@@ -382,19 +442,43 @@ struct RunnerSnapshotTests {
         }
     }
 
-    @Test("ベストタイムの長さと値は復元時に整えられる")
-    func normalizesBestSeconds() {
-        // 短すぎる配列は 0 で埋め、到達しえない値（負・上限超え）は未クリアに倒す。
-        let snapshot = RunnerSnapshot(stage: 2, bestSeconds: [30, -1, 99_999_999])
-        guard let restored = snapshot.validated() else { Issue.record("復元できない"); return }
-        #expect(restored.bestSeconds.count == RunnerRules.stageCount)
-        #expect(restored.bestSeconds[0] == 30)
-        #expect(restored.bestSeconds[1] == 0, "負のタイムは二度と更新できない自己ベストになる")
-        #expect(restored.bestSeconds[2] == 0)
+    /// 秒数の廃止（#931）で `bestSeconds` は読み捨てるが、**旧形式のデータは形を問わず読める**こと。
+    /// v1.1.4 までの中断データは 18 個のタイムを必ず持っている。長さ・値がどうであれ落ちない。
+    @Test("旧形式（ベストタイム入り）の中断データを読んでも落ちず、値は無視する")
+    func legacyBestTimesAreIgnored() {
+        for legacy in [
+            #"{"stage":2,"bestSeconds":[30,-1,99999999],"reachedStage":4}"#,
+            #"{"stage":2,"bestSeconds":[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],"reachedStage":4}"#,
+            #"{"stage":2,"bestSeconds":[],"reachedStage":4}"#,
+        ] {
+            let store = MemorySnapshotStore()
+            store.inject(Data(legacy.utf8), for: "runner")
+            let model = RunnerModel(services: makeServices(store: store),
+                                    preference: makePreference("snap-legacy"))
+            #expect(model.stageNumber == 2, Comment(rawValue: legacy))
+            #expect(model.reachedStage == 4, Comment(rawValue: legacy))
+            #expect(model.phase == .ready)
+        }
+        #expect(RunnerSnapshot(stage: 2, bestSeconds: [30, -1]).validated()?.stage == 2)
+    }
 
-        // 長すぎる配列は切り詰める。
-        let long = RunnerSnapshot(stage: 1, bestSeconds: Array(repeating: 5, count: 100))
-        #expect(long.validated()?.bestSeconds.count == RunnerRules.stageCount)
+    /// 新しい形式は鍵を減らさない（旧版のアプリが読んでも落ちない）。`bestSeconds` は空で書く。
+    @Test("保存する中断データは旧形式の鍵を残し、ベストタイムは空で書く")
+    func savedSnapshotKeepsLegacyKeys() throws {
+        let store = MemorySnapshotStore()
+        let model = RunnerModel(services: makeServices(store: store), startingAt: 3,
+                                preference: makePreference("snap-keys"))
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        let saved = try #require(store.load(RunnerSnapshot.self, for: RunnerModel.gameID))
+        #expect(saved.stage == 4)
+        #expect(saved.reachedStage == 4)
+        #expect(saved.bestSeconds.isEmpty)
+        // JSON の鍵そのものを見る（`Codable` の合成に任せているので、鍵が消えれば旧版が落ちる）。
+        let json = try #require(store.rawData(for: RunnerModel.gameID))
+        let object = try #require(JSONSerialization.jsonObject(with: json) as? [String: Any])
+        #expect(object["bestSeconds"] as? [Int] == [])
+        #expect(object["stage"] as? Int == 4)
     }
 }
 
@@ -479,8 +563,7 @@ struct RunnerStageSelectTests {
         }
         #expect(model.reachedStage == 4)
         #expect(log.record(gameID: RunnerModel.gameID)?.bestPoints == 3)
-        let bestOf3 = model.best(forStage: 3)
-        #expect(bestOf3 != nil)
+        #expect(log.summaryLine(gameID: RunnerModel.gameID) == "1-4 まで到達", "ハブの 1 行は到達した面（#931）")
 
         // 1 面を選んでクリア。
         #expect(model.newGame(startingAtStage: 1))
@@ -491,8 +574,8 @@ struct RunnerStageSelectTests {
         #expect(model.reachedStage == 4, "到達点は巻き戻らない")
         #expect(model.isStageReached(4))
         #expect(log.record(gameID: RunnerModel.gameID)?.bestPoints == 3, "自己ベスト（到達ステージ数）は最大値のまま")
-        #expect(model.best(forStage: 3) == bestOf3, "他の面のベストタイムは残る")
-        #expect(model.best(forStage: 1) != nil, "選んで遊んだ回もベストタイムに載る")
+        #expect(log.summaryLine(gameID: RunnerModel.gameID) == "1-4 まで到達")
+        #expect(!model.didReachNewStage, "到達済みの面のクリアに印は付かない")
         // Game Center へは毎回クリアした面の番号を送る（順位表側で最大値が残る）。
         #expect(spy.scores.map(\.value) == [1, 2, 3, 1])
 
@@ -535,42 +618,65 @@ struct RunnerStageSelectTests {
     }
 }
 
-@Suite("チャリンコおじさん: 走り出す前のモード切り替え（#919）")
+/// スタート画面（#931）。走り出す前のカードのボタン（次の面・エンドレス・つづきから）の遷移。
+@Suite("チャリンコおじさん: スタート画面（#931）")
 @MainActor
-struct RunnerModeSwitchTests {
+struct RunnerStartScreenTests {
 
-    @Test("切り替えられるのは走り出す前で、コースの頭にいるときだけ")
+    @Test("モードや面を選べるのは走り出す前で、コースの頭にいるときだけ")
     func availabilityIsPureFunctionOfPhase() {
         #expect(RunnerModel.canChooseMode(phase: .ready, passedCheckpoint: false))
-        #expect(!RunnerModel.canChooseMode(phase: .ready, passedCheckpoint: true), "チェックポイント再開の直後は捨てさせない")
+        #expect(!RunnerModel.canChooseMode(phase: .ready, passedCheckpoint: true), "チェックポイント再開の直後は「つづきから」だけ")
         for phase: RunnerPhase in [.running, .paused, .falling, .failed, .cleared, .allCleared] {
             #expect(!RunnerModel.canChooseMode(phase: phase, passedCheckpoint: false), "\(phase)")
         }
     }
 
-    @Test("走り出す前ならタップ 1 回でエンドレスの新しいコースになる")
-    func switchingToEndlessStartsNewCourse() {
-        let model = RunnerModel(startingAt: 3, preference: makePreference("switch-endless"))
+    @Test("主ボタンは作ってあるコースをそのまま走り出す")
+    func mainButtonRunsCurrentCourse() {
+        let model = RunnerModel(startingAt: 3, preference: makePreference("start-main"))
         #expect(model.canChooseMode)
         let generation = model.runGeneration
-        #expect(model.switchMode(to: .endless))
+        #expect(model.start(.stages))
+        #expect(model.phase == .running, "ボタン 1 タップで走り出す")
+        #expect(model.mode == .stages)
+        #expect(model.stageNumber == 3)
+        #expect(model.runGeneration == generation, "同じモードならコースを作り直さない")
+
+        // ボタンからの開始は押下を持ち込まない——直後のタップで普通に跳べる。
+        model.press()
+        #expect(!model.field.isGrounded, "走り出した直後のタップは踏み切りになる")
+        model.release()
+    }
+
+    @Test("エンドレスのボタンはタップ 1 回で新しいコースを走り出す")
+    func endlessButtonStartsNewCourse() {
+        let model = RunnerModel(startingAt: 3, preference: makePreference("start-endless"))
+        let generation = model.runGeneration
+        #expect(model.start(.endless))
         #expect(model.mode == .endless)
-        #expect(model.phase == .ready, "切り替えただけでは走り出さない")
+        #expect(model.phase == .running)
         #expect(model.endlessSeed != nil)
         #expect(model.runGeneration == generation + 1)
         #expect(model.stageNumber == 3, "ステージ制のつづきは保持する")
 
-        // 同じモードを選び直しても作り直さない（誤タップで種が変わらない）。
+        // ミス→「もう一度」で作った新しいコースは、エンドレスのボタンで二重に作り直さない。
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        model.retryStage()
+        #expect(model.phase == .ready)
         let seed = model.endlessSeed
-        #expect(!model.switchMode(to: .endless))
+        let retried = model.runGeneration
+        #expect(model.start(.endless))
+        #expect(model.phase == .running)
         #expect(model.endlessSeed == seed)
-        #expect(model.runGeneration == generation + 1)
+        #expect(model.runGeneration == retried)
     }
 
-    @Test("ステージ制へ戻ると 1 面や到達点ではなく「つづき」の面から")
-    func switchingBackResumesContinuationStage() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("switch-back"))
-        // 1〜2 面をクリアして 3 面へ、さらに 1 面を選び直して「つづき = 1 面・到達点 = 3 面」にする。
+    @Test("エンドレスから主ボタンで戻ると 1 面や到達点ではなく「つづき」の面から走り出す")
+    func mainButtonFromEndlessResumesContinuationStage() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("start-back"))
+        // 1〜2 面をクリアして 3 面へ、さらに 1 面を選び直して「つづき = 2 面・到達点 = 3 面」にする。
         for _ in 1...2 {
             autoPlayCurrentStage(model)
             #expect(model.phase == .cleared)
@@ -580,58 +686,235 @@ struct RunnerModeSwitchTests {
         #expect(model.newGame(startingAtStage: 2))
         #expect(model.reachedStage == 3)
 
-        #expect(model.switchMode(to: .endless))
+        model.newEndlessGame(seed: 1)
         let generation = model.runGeneration
-        #expect(model.switchMode(to: .stages))
+        #expect(model.start(.stages))
         #expect(model.mode == .stages)
-        #expect(model.phase == .ready)
+        #expect(model.phase == .running)
         #expect(model.stageNumber == 2, "つづきの面（到達点の 3 面でも 1 面でもない）")
         #expect(model.field.stage.number == 2)
-        #expect(model.field.distance == 0, "面の頭から")
         #expect(model.reachedStage == 3, "到達点は動かない")
         #expect(model.runGeneration == generation + 1)
     }
 
     @Test("走行中・一時停止中・ミス・クリアでは無視する")
     func ignoredWhileNotReady() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("switch-ignore"))
+        let model = RunnerModel(startingAt: 1, preference: makePreference("start-ignore"))
         model.press(); model.release()
         #expect(model.phase == .running)
         #expect(!model.canChooseMode)
         let generation = model.runGeneration
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
+        #expect(!model.start(.stages))
         #expect(model.mode == .stages)
         #expect(model.runGeneration == generation)
 
         model.pause()
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
         #expect(model.phase == .paused)
         model.resume()
 
         failCurrentStage(model)
         #expect(model.phase == .failed)
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
         #expect(model.mode == .stages)
 
         model.retryStage()
         autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
         #expect(model.mode == .stages)
         #expect(model.phase == .cleared)
     }
 
-    @Test("チェックポイント再開の直後は切り替えを出さない")
-    func hiddenRightAfterCheckpointResume() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("switch-checkpoint"))
+    @Test("チェックポイント再開の直後はモードを変えられないが、「つづきから」は走り出せる")
+    func onlyContinueRightAfterCheckpointResume() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("start-checkpoint"))
         failCurrentStage(model, stopAfterCheckpoint: true)
         #expect(model.phase == .failed)
         #expect(model.canResumeFromCheckpoint)
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
         #expect(model.phase == .ready)
         #expect(!model.canChooseMode, "広告で得た途中からの再開を誤タップで捨てさせない")
-        #expect(!model.switchMode(to: .endless))
-        #expect(model.field.passedCheckpoint)
+        #expect(!model.start(.endless))
+        #expect(model.mode == .stages)
+        #expect(model.phase == .ready)
+
+        let generation = model.runGeneration
+        #expect(model.start(.stages))
+        #expect(model.phase == .running)
+        #expect(model.field.passedCheckpoint, "途中からの再開のまま走り出す")
+        #expect(model.field.distance == model.stage.checkpoint)
+        #expect(model.runGeneration == generation)
+    }
+}
+
+/// 面をまたぐ導線はスタート画面（`.ready`）を挟まない（#941・会長指示 2026-09-15）。
+/// スタート画面が出るのはハブから入った直後・「はじめから」・マップで面を選んだとき・
+/// チェックポイント再開だけ。
+@Suite("チャリンコおじさん: 面をまたぐときはスタート画面を挟まない（#941）")
+@MainActor
+struct RunnerStageFlowTests {
+
+    /// 送信されたイベントをそのまま溜めるスパイ（`EndlessCourseTests` と同じ形）。
+    @MainActor
+    private final class SpyAnalyticsService: AnalyticsService {
+        private(set) var events: [AnalyticsEvent] = []
+        func log(_ event: AnalyticsEvent) { events.append(event) }
+    }
+
+    @Test("「次の面へ」「もう一度」「このステージをもう一度」の直後は走行中で、直後のタップは踏み切り")
+    func stageTransitionsRunImmediately() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("flow-run"))
+
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        model.advanceToNextStage()
+        #expect(model.phase == .running)
+        #expect(model.stageNumber == 2)
+        #expect(model.field.distance == 0, "面の頭から")
+        #expect(!model.canChooseMode, "走行中なのでスタート画面の部品は出ない")
+        // ボタンからの開始は押下を持ち込まない——直後のタップで普通に跳べる。
+        model.press()
+        #expect(!model.field.isGrounded, "走り出した直後のタップは踏み切りになる")
+        model.release()
+
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        model.retryStage()
+        #expect(model.phase == .running)
+        #expect(model.stageNumber == 2, "ミスの「もう一度」は同じ面")
+        #expect(model.field.distance == 0)
+
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        model.replayCurrentStage()
+        #expect(model.phase == .running)
+        #expect(model.stageNumber == 2)
+        #expect(model.field.distance == 0)
+    }
+
+    @Test("全ステージクリアからの「このステージをもう一度」もその場で走り出す")
+    func replayAfterAllClearedRunsImmediately() {
+        let model = RunnerModel(startingAt: RunnerRules.stageCount, preference: makePreference("flow-all"))
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .allCleared)
+        model.replayCurrentStage()
+        #expect(model.phase == .running)
+        #expect(model.stageNumber == RunnerRules.stageCount)
+    }
+
+    @Test("ハブから入った直後・はじめから・マップで選んだ面・チェックポイント再開はスタート画面のまま")
+    func startScreenStaysForEntryPoints() {
+        let store = MemorySnapshotStore()
+        let fresh = RunnerModel(services: makeServices(store: store), startingAt: 1,
+                                preference: makePreference("flow-entry"))
+        #expect(fresh.phase == .ready, "ハブから入った直後")
+        #expect(fresh.canChooseMode)
+
+        autoPlayCurrentStage(fresh)
+        fresh.advanceToNextStage()
+        #expect(fresh.phase == .running)
+        let restored = RunnerModel(services: makeServices(store: store), preference: makePreference("flow-restore"))
+        #expect(restored.stageNumber == 2)
+        #expect(restored.phase == .ready, "中断からの復元もスタート画面")
+
+        #expect(fresh.newGame(startingAtStage: 1))
+        #expect(fresh.phase == .ready, "マップで面を選んだとき")
+        #expect(fresh.canChooseMode)
+
+        fresh.press(); fresh.release()
+        #expect(fresh.phase == .running)
+        fresh.newGame()
+        #expect(fresh.phase == .ready, "「はじめから」")
+
+        failCurrentStage(fresh, stopAfterCheckpoint: true)
+        #expect(fresh.resumeFromCheckpoint(forRun: fresh.runGeneration))
+        #expect(fresh.phase == .ready, "広告からの再開は「つづきから」を押してもらう")
+        #expect(!fresh.canChooseMode)
+    }
+
+    @Test("エンドレスの「もう一度」は対象外で、これまでどおりスタート画面に戻る")
+    func endlessRetryKeepsStartScreen() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("flow-endless"))
+        model.newEndlessGame(seed: 1)
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        model.retryStage()
+        #expect(model.phase == .ready)
+        #expect(model.canChooseMode)
+    }
+
+    /// 受け入れ条件「1 ステージ = 1 プレイの `game_start` の回数は変えない」。走り出しを
+    /// `gameDidRestart` の**後**に置いてあるので、次の面を途中で捨てれば `game_end`（quit）が
+    /// 出る（逆順だと「1 手指した」印が前のプレイに付き、離脱が記録されなくなる）。
+    @Test("解析: 次の面へ進むたびに game_start が 1 回、途中で捨てれば game_end(quit) が出る")
+    func analyticsCountsOnePlayPerStage() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        let model = RunnerModel(services: services, startingAt: 1, preference: makePreference("flow-analytics"))
+
+        func starts() -> [String] {
+            spy.events.compactMap { event -> String? in
+                if case let .gameStart(_, level, _) = event { return level?.parameterValue ?? "-" } else { return nil }
+            }
+        }
+        func ends() -> [AnalyticsResult] {
+            spy.events.compactMap { event -> AnalyticsResult? in
+                if case let .gameEnd(_, result, _, _, _) = event { return result } else { return nil }
+            }
+        }
+
+        #expect(starts() == ["stage-1"], "ハブから入った直後の 1 回")
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(ends().count == 1, "クリアで 1 回")
+
+        model.advanceToNextStage()
+        #expect(model.phase == .running)
+        #expect(starts() == ["stage-1", "stage-2"], "次の面で 1 回だけ増える")
+        #expect(ends().count == 1, "走り出しただけでは game_end は出ない")
+
+        // ミス→「もう一度」は同じプレイの続き（増えない）。
+        failCurrentStage(model)
+        model.retryStage()
+        #expect(model.phase == .running)
+        #expect(starts() == ["stage-1", "stage-2"])
+        #expect(ends().count == 1)
+
+        // 走行中に「はじめから」で捨てると、2 面のプレイが途中離脱として閉じる。
+        model.newGame()
+        #expect(starts() == ["stage-1", "stage-2", "stage-1"])
+        #expect(ends().count == 2)
+        #expect(ends().last == .quit, "走り出した面を捨てたので途中離脱")
+    }
+}
+
+/// ハブの記録行（#931）。Core の表記（`RecordFormat.runnerStageLine`）は世界の割り方を写して
+/// いるので、`RunnerWorld` とずれていないことをここで突き合わせる（Core からは参照できない）。
+@Suite("チャリンコおじさん: ハブの記録行（到達した面）")
+struct RunnerHubLineTests {
+
+    @Test("クリアした面の次を「世界-面 まで到達」で言い、最終面のクリアは全面クリア")
+    func hubLineMatchesWorldCodes() {
+        for cleared in 1..<RunnerRules.stageCount {
+            #expect(
+                RecordFormat.runnerStageLine(clearedStage: cleared)
+                    == "\(RunnerWorld.code(forStage: cleared + 1)) まで到達",
+                "\(cleared) 面クリア"
+            )
+        }
+        #expect(RecordFormat.runnerStageLine(clearedStage: RunnerRules.stageCount) == "全 \(RunnerRules.stageCount) 面クリア")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 1) == "1-2 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 6) == "2-1 まで到達")
+
+        let record = PlayRecord.applying(
+            outcome: .win, score: GameScore(metric: .points, points: 8), to: nil
+        ).record
+        #expect(RecordFormat.hubLine([record], gameID: RunnerModel.gameID) == "2-3 まで到達")
     }
 }
 
@@ -739,14 +1022,6 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.invincibleLabel(remaining: -1) == "無敵 あと0秒")
     }
 
-    @Test("タイムは分と秒に分けて読む")
-    func time() {
-        #expect(RunnerAccessibility.timeLabel(seconds: 42) == "42秒")
-        #expect(RunnerAccessibility.timeLabel(seconds: 65) == "1分5秒")
-        #expect(RunnerAccessibility.bestLabel(seconds: nil) == "ベストタイムはまだありません")
-        #expect(RunnerAccessibility.bestLabel(seconds: 30) == "ベストタイム 30秒")
-    }
-
     @Test("エンドレスの走行距離と自己ベストを読む")
     func distance() {
         #expect(RunnerAccessibility.distanceLabel(1234) == "走行距離 1234メートル")
@@ -756,10 +1031,16 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.endlessResultLabel(phase: .ready, distance: 0) == "エンドレス。タップでスタート")
     }
 
-    @Test("モード切り替えの区画は何の切り替えかとモード名を言う（#919）")
-    func modeSwitch() {
-        #expect(RunnerAccessibility.modeLabel(.stages) == "モード、ステージ")
-        #expect(RunnerAccessibility.modeLabel(.endless) == "モード、エンドレス")
+    @Test("面の見出しは「世界-面」の番号だけで、スタート画面のボタンはそれに添える（#931 #946）")
+    func startScreen() {
+        #expect(RunnerAccessibility.stageHeadline(number: 2) == "1-2")
+        #expect(RunnerAccessibility.stageHeadline(number: 9) == "2-3")
+        #expect(RunnerAccessibility.stageHeadline(number: 18) == "3-6")
+        #expect(RunnerAccessibility.stageHeadline(number: 0) == "ステージ 0", "3 世界に収まらない番号は「ステージ N」")
+        #expect(RunnerAccessibility.stageHeadline(number: 19) == "ステージ 19")
+        #expect(RunnerAccessibility.startStageLabel(number: 2) == "1-2 から走る")
+        #expect(RunnerAccessibility.startEndlessLabel(bestDistance: 1234) == "エンドレス、自己ベスト 1,234 メートル")
+        #expect(RunnerAccessibility.startEndlessLabel(bestDistance: nil) == "エンドレス、まだ記録なし")
     }
 
     @Test("状態ごとの結果を読む")

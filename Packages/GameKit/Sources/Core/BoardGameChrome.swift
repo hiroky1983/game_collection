@@ -170,6 +170,153 @@ public struct BoardGameControlCapsuleStyle: ButtonStyle {
     }
 }
 
+// MARK: - 操作列の「投了」「待った」
+
+/// 「待った」を持つ盤ゲームの Model（将棋・チェス・オセロ・五目並べ・囲碁・#828）。
+///
+/// 5 本とも同じ名前・同じ意味で持っていたものを、`BoardUndoButton` が読む分だけ要求する。
+@MainActor
+public protocol BoardUndoModel: AnyObject {
+    /// 計測（`reward_ad`）に載せるゲームの ID。
+    var gameID: String { get }
+    /// 「待った」が押せるか。
+    var canUndo: Bool { get }
+    /// 無料の「待った」を使い切ったか。使い切ったあとは広告を見て戻す。
+    var undoUsed: Bool { get }
+    /// 対局の通し番号 × 手数。広告を出す前に控え、戻す先の局面を照合する（#729）。
+    var aiTurnKey: AITurnKey { get }
+    /// 自分の直前の 1 手を、CPU の応手ごと戻す（無料の待った）。
+    func undoLastExchange()
+    /// 控えた局面のままのときだけ戻す。戻せなければ false（広告の待った）。
+    func undoLastExchange(forTurn turn: AITurnKey) -> Bool
+}
+
+/// 操作列の「投了」ボタン（#828）。
+///
+/// 確認ダイアログは `boardResignConfirmation(isPresented:onResign:)` で別に取り付ける。
+/// オセロだけ画面全体に付けていて、iOS 26 ではダイアログがアンカー付きのポップオーバーになるため、
+/// ボタンに抱き合わせると出る位置が変わってしまう。
+public struct BoardResignButton: View {
+    /// 見た目。#711 で当たり判定を 44pt にしたのはオセロ・五目並べだけなので、共通化では組み方を変えない。
+    public enum Look: Sendable {
+        /// 手書きのカプセル（将棋・チェスは左右 12pt、3 つ並べる囲碁は 10pt）。
+        case handDrawnCapsule(horizontalPadding: CGFloat)
+        /// 枠 44pt の共通カプセル（`BoardGameControlCapsuleStyle`・オセロ・五目並べ）。
+        case tapTargetCapsule
+    }
+
+    private let look: Look
+    private let action: () -> Void
+
+    public init(look: Look, action: @escaping () -> Void) {
+        self.look = look
+        self.action = action
+    }
+
+    public var body: some View {
+        switch look {
+        case .handDrawnCapsule(let horizontalPadding):
+            Button(action: action) {
+                Label("投了", systemImage: "flag.fill")
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, horizontalPadding).padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.Fill.coral))
+            }
+        case .tapTargetCapsule:
+            Button(action: action) {
+                Label("投了", systemImage: "flag.fill")
+            }
+            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.coral))
+        }
+    }
+}
+
+public extension View {
+    /// 投了の確認ダイアログ（#828）。文言を盤ゲーム 5 本で 1 か所にする。
+    func boardResignConfirmation(isPresented: Binding<Bool>, onResign: @escaping () -> Void) -> some View {
+        confirmationDialog("投了しますか？", isPresented: isPresented, titleVisibility: .visible) {
+            Button("投了する", role: .destructive) { onResign() }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("現在の対局を終了します。CPUの勝ちになります。")
+        }
+    }
+}
+
+/// 操作列の「待った」ボタン。確認アラート・広告の待った・失敗のアラートまでを持つ（#526・#729・#828）。
+///
+/// - **救済（`RewardedRescue`）は呼び出し側の `@State` から受け取る**。操作列は決着すると検討ナビに
+///   入れ替わって消えるので、ここで持つと広告のロード中の連打ガードが操作列ごと捨てられる。
+/// - 見た目は `usesTapTargetCapsule` で選ぶ（true = 枠 44pt の共通カプセル・オセロ・五目並べ、
+///   false = 素の文字・将棋・チェス・囲碁）。
+public struct BoardUndoButton<Model: BoardUndoModel>: View {
+    private let model: Model
+    private let services: GameServices
+    private let undoRescue: RewardedRescue
+    private let usesTapTargetCapsule: Bool
+    @State private var showUndoConfirm = false
+
+    public init(model: Model, services: GameServices, rescue: RewardedRescue, usesTapTargetCapsule: Bool) {
+        self.model = model
+        self.services = services
+        self.undoRescue = rescue
+        self.usesTapTargetCapsule = usesTapTargetCapsule
+    }
+
+    public var body: some View {
+        button
+            .disabled(!model.canUndo)
+            .alert("待った確認", isPresented: $showUndoConfirm) {
+                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
+                    guard model.undoUsed else {
+                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
+                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
+                        // アラートの終了アニメーションに巻き込まれる）。
+                        Task { model.undoLastExchange() }
+                        return
+                    }
+                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
+                    // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
+                    let turn = model.aiTurnKey
+                    undoRescue.request(
+                        services, gameID: model.gameID, purpose: .undo,
+                        guardedBy: .checkedByGrant
+                    ) {
+                        model.undoLastExchange(forTurn: turn)
+                    }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                // 戻るのは「自分の1手 + CPU の応手」の2手（`undoLastExchange`）。
+                // 「直前の1手」とだけ書くと、盤が2手ぶん戻ることが伝わらない（#665）。
+                Text(model.undoUsed
+                     ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
+                     : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
+            }
+            .rewardedRescueAlerts(
+                undoRescue,
+                notEarned: "待ったは使えませんでした",
+                unavailable: RewardUnavailableAlert(
+                    title: "待ったは使えませんでした",
+                    message: "広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。"
+                )
+            )
+    }
+
+    @ViewBuilder private var button: some View {
+        if usesTapTargetCapsule {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
+        } else {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+        }
+    }
+}
+
 // MARK: - 検討ナビ
 
 /// 終局後の検討ナビ（1手戻す / 手数 / 1手進める）と「もう一度」を 1 段にまとめた帯（#139・#530）。

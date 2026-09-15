@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameRunner
+import CoreTestSupport
 
 /// 効果音 4 音（#703: 跳ぶ・取る・やられる・クリア）。
 ///
@@ -9,16 +10,6 @@ import Testing
 /// （`RunnerFeedbackCue` の doc）。だから確かめるのは「できごと → 触覚」の対応表と、
 /// その触覚が `SoundEffect` のどの音になるか、そして `RunnerModel` が実際にその触覚を
 /// `services.feedback` へ渡すこと。
-
-/// `services.feedback` に届いた呼び出しを記録するスパイ。
-@MainActor
-private final class SpyFeedback: FeedbackService {
-    private(set) var impacts: [FeedbackImpact] = []
-    private(set) var notices: [FeedbackNotice] = []
-    func impact(_ style: FeedbackImpact) { impacts.append(style) }
-    func notify(_ type: FeedbackNotice) { notices.append(type) }
-    func reset() { impacts = []; notices = [] }
-}
 
 @MainActor
 private func makeModel(_ feedback: FeedbackService, stage: Int, suite: String) -> RunnerModel {
@@ -60,7 +51,7 @@ struct RunnerFeedbackCueTests {
 
     @Test("跳ぶ音は踏み切りが成立したときだけ。二段目は鳴り、三度目と押しっぱなしでは鳴らない")
     func jumpSoundOnlyWhenJumpSucceeds() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, stage: 1, suite: "cue-jump")
         model.press(); model.release()   // スタート（rigid）。跳ぶ音ではない。
         spy.reset()
@@ -80,7 +71,7 @@ struct RunnerFeedbackCueTests {
 
     @Test("穴に落ちる／岩にぶつかると error が 1 回だけ鳴る")
     func missPlaysErrorOnce() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, stage: 1, suite: "cue-miss")
         failCurrentStage(model)
         #expect(model.phase == .failed)
@@ -90,7 +81,7 @@ struct RunnerFeedbackCueTests {
 
     @Test("ゴールに着くと success が鳴る（チェックポイント通過の success とは別に 1 回）")
     func goalPlaysSuccess() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, stage: 1, suite: "cue-goal")
         autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
@@ -101,7 +92,7 @@ struct RunnerFeedbackCueTests {
     @Test("スピードアップアイテムを取ると light が鳴る")
     func pickupPlaysLight() {
         // 5 面が最初にアイテムを置いている面（`RunnerStage.patterns` の `s`）。
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, stage: 5, suite: "cue-pickup")
         #expect(!model.stage.pickups.isEmpty)
         model.press(); model.release()

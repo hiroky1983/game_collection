@@ -681,37 +681,20 @@ public struct SudokuView: View {
     // MARK: - ミス上限（広告コンティニュー・2048 と同型）
 
     private var failedOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                .fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text("ミスが\(SudokuModel.maxMistakes)回になりました")
-                    .font(.title3.bold()).foregroundStyle(.white)
-                Text("広告を見るとミスが0に戻り、続きから遊べます")
-                    .themeCaption(12).foregroundStyle(.white.opacity(0.85))
-                Button {
-                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
-                    // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
-                    let game = model.gameSerial
-                    continueRescue.request(
-                        services, gameID: model.gameID, purpose: .continue,
-                        guardedBy: .checkedByGrant
-                    ) {
-                        model.continueAfterAd(forGame: game)
-                    }
-                } label: {
-                    Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Fill.coral)
-                .disabled(continueRescue.isWatching)
-                Button("諦めて答えを見る") { model.giveUp() }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-            }
-            .padding(16)
-        }
+        RewardedContinueOverlay(
+            title: "ミスが\(SudokuModel.maxMistakes)回になりました",
+            titleFont: .title3.bold(),
+            cornerRadius: Theme.cornerSmall,
+            contentPadding: 16,
+            detail: Text("広告を見るとミスが0に戻り、続きから遊べます")
+                .themeCaption(12).foregroundStyle(.white.opacity(0.85)),
+            rescueLabel: "広告を見てコンティニュー",
+            rescue: continueRescue, services: services, gameID: model.gameID,
+            serial: model.gameSerial,
+            grant: { game in model.continueAfterAd(forGame: game) },
+            secondaryTitle: "諦めて答えを見る",
+            secondaryAction: { model.giveUp() }
+        )
         .accessibilityElement(children: .contain)
     }
 

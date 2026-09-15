@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameRunner
+import CoreTestSupport
 
 /// エンドレスモードのコース生成（#675）。
 ///
@@ -23,11 +24,11 @@ struct RunnerEndlessCourseTests {
         #expect(patterns.count == 20, "種が違えばコースも違う（冒頭だけ同じ）")
     }
 
-    /// 「最初の数区画は毎回同じ」（会長決裁）。導入はステージ 1 と同じ並びで、
-    /// 別の導入を書きたくなったらここを直す。
-    @Test("冒頭はステージ 1 と同じ固定パターンで、以降がランダム")
+    /// 「最初の数区画は毎回同じ」（会長決裁）。導入はステージ 1 の出だし（最初の穴まで）と
+    /// 同じ並びで、別の導入を書きたくなったらここを直す。
+    @Test("冒頭はステージ 1 の出だしと同じ固定パターンで、以降がランダム")
     func introIsFixedAndMatchesStageOne() {
-        #expect(RunnerEndlessCourse.intro == RunnerStage.all[0].pattern)
+        #expect(RunnerStage.all[0].pattern.hasPrefix(RunnerEndlessCourse.intro))
         for seed in 1...Self.seedCount {
             let pattern = RunnerEndlessCourse.pattern(seed: seed)
             #expect(pattern.hasPrefix(RunnerEndlessCourse.intro), "種 \(seed) の冒頭が固定パターンでない")
@@ -123,13 +124,125 @@ struct RunnerEndlessCourseTests {
         #expect(Double(late) > Double(early) * 1.5, "冒頭 \(early) 個 / 終盤 \(late) 個")
     }
 
+    // MARK: - 難易度曲線（#930・会長 QA「何もない時間が長過ぎる」）
+
+    /// 区画の記号が「何もない」（素の平地・アイテム・たこ焼き）か。障害・台座・床は「何かある」。
+    private static func isEmpty(_ symbol: Character) -> Bool {
+        RunnerStage.segmentSpec(symbol) == nil
+            && symbol != RunnerStage.platformSymbol
+            && symbol != RunnerStage.boostFloorSymbol
+    }
+
+    /// 距離 `range` に入る区画の並び（区画の左端の距離で見る）。末尾の平地 2 区画は含めない。
+    private static func body(of symbols: [Character], in range: Range<Double>) -> ArraySlice<Character> {
+        let bodyEnd = RunnerRules.endlessSegments - RunnerEndlessCourse.trailingSegments
+        let lower = Int((range.lowerBound / segmentWidth).rounded(.up))
+        let upper = range.upperBound.isFinite
+            ? min(bodyEnd, Int((range.upperBound / segmentWidth).rounded(.up)))
+            : bodyEnd
+        return symbols[lower..<upper]
+    }
+
+    /// 1,000 種の平均で、`range` の区画 1 つあたりの障害（岩・穴・動物）の数。
+    private static func meanHazardDensity(in range: Range<Double>) -> Double {
+        var hazards = 0
+        var segments = 0
+        for seed in 1...seedCount {
+            let slice = body(of: Array(RunnerEndlessCourse.pattern(seed: seed)), in: range)
+            hazards += slice.filter { RunnerStage.segmentSpec($0) != nil }.count
+            segments += slice.count
+        }
+        return Double(hazards) / Double(segments)
+    }
+
+    /// 冒頭の固定区間は 1 画面ぶん（`--1-`）。以前の `--1-1--1-1--`（12 区画）は
+    /// 「何もない時間」の大半を占めていた（#930）。
+    @Test("冒頭の固定区間は最初の穴までの 4 区画")
+    func introIsShort() {
+        #expect(RunnerEndlessCourse.intro == "--1-")
+    }
+
+    /// 最初の 2,000 単位（32 区画・約 1 分）に障害が平均 6 個以上ある（Issue #930 の下限）。
+    /// 測定値: #930 で直す前は 10.67 個だが、うち 4 個は冒頭 12 区画の固定区間で、ランダム部分
+    /// 20 区画には 6.7 個（密度 0.33）しか無かった。直した後は 12.50 個（固定 1 個＋28 区画に 11.5 個）。
+    @Test("最初の 2,000 単位に障害が平均 6 個以上ある")
+    func openingHasEnoughHazards() {
+        var total = 0
+        for seed in 1...Self.seedCount {
+            let slice = Self.body(of: Array(RunnerEndlessCourse.pattern(seed: seed)), in: 0..<2_000)
+            total += slice.filter { RunnerStage.segmentSpec($0) != nil }.count
+        }
+        let mean = Double(total) / Double(Self.seedCount)
+        #expect(mean >= 6, "最初の 2,000 単位の障害は平均 \(mean) 個")
+    }
+
+    /// 平地（何もない区画）の連続に上限がある: 序盤は最大 3 区画、4,000 単位以降は最大 2 区画。
+    /// 末尾の平地 2 区画（`trailingSegments`）は見ない。
+    /// 測定値: #930 で直す前は 1,000 種すべてが両方に落ちた（序盤の最長は 4〜23 区画、
+    /// 4,000 以降の最長は 4〜18 区画。速さ 34 で 1 区画 ≒ 1.9 秒なので、8 区画 = 15 秒の空白が普通だった）。
+    @Test("平地の連続は序盤 3 区画・4,000 単位以降 2 区画まで")
+    func flatRunsAreCapped() {
+        let bodyEnd = RunnerRules.endlessSegments - RunnerEndlessCourse.trailingSegments
+        let lateStart = Int((RunnerEndlessCourse.flatRunTightenDistance / Self.segmentWidth).rounded(.up))
+        for seed in 1...Self.seedCount {
+            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed))
+            var run = 0
+            var longestEarly = 0
+            var longestLate = 0
+            for index in 0..<bodyEnd {
+                run = Self.isEmpty(symbols[index]) ? run + 1 : 0
+                if index < lateStart {
+                    longestEarly = max(longestEarly, run)
+                } else if run >= 3 {
+                    // 4,000 単位以降だけで 3 区画続いた（またぎは序盤の上限で見る）。
+                    longestLate = max(longestLate, min(run, index - lateStart + 1))
+                }
+            }
+            #expect(longestEarly <= 3, "種 \(seed): 序盤に平地が \(longestEarly) 区画続く")
+            #expect(longestLate < 3, "種 \(seed): 4,000 単位以降に平地が \(longestLate) 区画続く")
+        }
+    }
+
+    /// 距離 0〜2,000 / 2,000〜8,000 / 8,000〜 の障害密度（区画あたりの障害の数）が単調に増える。
+    /// 測定値: #930 で直す前は 0.333 / 0.423 / 0.605（全体 0.540）、直した後は 0.391 / 0.468 / 0.677（全体 0.605）。
+    @Test("障害密度は 0〜2,000 / 2,000〜8,000 / 8,000〜 の順に増える")
+    func hazardDensityRisesByDistance() {
+        let opening = Self.meanHazardDensity(in: 0..<2_000)
+        let middle = Self.meanHazardDensity(in: 2_000..<8_000)
+        let late = Self.meanHazardDensity(in: 8_000..<Double.infinity)
+        #expect(opening < middle && middle < late, "密度 \(opening) / \(middle) / \(late)")
+    }
+
+    /// 解禁距離（#930 で前倒し）: 犬 2,048・鳥 4,096・台座と床 4,096・イノシシ 8,192・たこ焼き 12,800。
+    /// 手前に 1 つも出ず、解禁後には出ること。
+    @Test("鳥・犬・イノシシ・台座・床は解禁距離より手前に出ない")
+    func partsUnlockAtTheirDistances() {
+        let unlocks: [(symbol: Character, distance: Double)] = [
+            ("d", 2_048), ("b", 4_096),
+            (RunnerStage.platformSymbol, 4_096), (RunnerStage.boostFloorSymbol, 4_096),
+            ("i", 8_192),
+        ]
+        var earliest: [Character: Double] = [:]
+        for seed in 1...Self.seedCount {
+            for (index, symbol) in RunnerEndlessCourse.pattern(seed: seed).enumerated() {
+                let distance = Double(index) * Self.segmentWidth
+                earliest[symbol] = min(earliest[symbol] ?? .infinity, distance)
+            }
+        }
+        for unlock in unlocks {
+            let first = earliest[unlock.symbol] ?? .infinity
+            #expect(first >= unlock.distance, "'\(unlock.symbol)' が \(first) に出る（解禁は \(unlock.distance)）")
+            #expect(first < unlock.distance + 2_048, "'\(unlock.symbol)' が解禁後すぐには出ない（初出 \(first)）")
+        }
+    }
+
     /// 速さの上限そのものが成立条件の内側にあること（`RunnerRules.endlessMaxSpeed` のドキュメント）。
     /// 隣り合う区画に**どの組み合わせで**障害が並んでも、着地して踏み切り直せる。
     ///
     /// 唯一の例外は**飛び立つ鳥の直後の高い岩**（`bt`）。鳥は出会う地点が区画中央より 6 先へ
     /// ずれる（`RunnerHazard.encounter`）ので、上限の速さでは高い岩への踏み切りに 2.7 足りない。
     /// 生成器はこの並びを `canPlace` で弾いて平地に倒す（置けないことをここで固定する）。
-    /// ステージ制の `bt`（13・15・18 面）は速さ 54.4 以下で余白が残る（`RunnerStageTests`）。
+    /// ステージ制の `bt`（13・15・18 面）は速さ 47.6 以下（#968 までは 54.4）で余白が残る（`RunnerStageTests`）。
     @Test("速さの上限でも、隣り合う区画に並んだ障害の間に着地の余白がある（鳥→高い岩だけ弾く）")
     func maxSpeedKeepsAdjacentHazardsPassable() {
         let speed = RunnerRules.endlessMaxSpeed
@@ -290,6 +403,71 @@ struct RunnerEndlessCourseTests {
                 #expect(!(floor.start < platform.end && platform.start < floor.end), "種 \(seed): 床が台座と重なる")
             }
         }
+    }
+
+    // MARK: - 成立条件の判定そのもの（#833）
+    //
+    // 上の 1,000 種の検算は生成したコースしか見ないので、判定の境界は固定されない。ここで直接縛る。
+
+    @Test("isClearable: 3 タイルの穴は走り出しの速さでは越えられず、速くなれば越えられる")
+    func isClearableDependsOnSpeed() {
+        let widest = RunnerStage.makeHazards(pattern: "3")[0]
+        // 必要な飛距離 = 踏み切りの余裕 6 + 穴 16 + 1 タイル 4 = 26。飛距離は 速さ × 0.75。
+        #expect(!RunnerEndlessCourse.isClearable(widest, speed: RunnerRules.baseSpeed), "34 × 0.75 = 25.5 < 26")
+        #expect(RunnerEndlessCourse.isClearable(widest, speed: 35), "35 × 0.75 = 26.25 > 26")
+        // 最高速の飛距離 45 に対して、必要 6 + 36 + 4 = 46 の穴は越えられず、6 + 34 + 4 = 44 なら越えられる。
+        let maxSpeed = RunnerRules.endlessMaxSpeed
+        #expect(!RunnerEndlessCourse.isClearable(RunnerHazard(kind: .pit, start: 0, length: 36), speed: maxSpeed))
+        #expect(RunnerEndlessCourse.isClearable(RunnerHazard(kind: .pit, start: 0, length: 34), speed: maxSpeed))
+        // 長すぎる岩は、上端を越えている時間のうちに通り抜けられない。
+        #expect(RunnerEndlessCourse.isClearable(RunnerHazard(kind: .lowBlock, start: 0, length: 4), speed: RunnerRules.baseSpeed))
+        #expect(!RunnerEndlessCourse.isClearable(RunnerHazard(kind: .lowBlock, start: 0, length: 100), speed: RunnerRules.baseSpeed))
+    }
+
+    @Test("hasLandingGap: 最高速で、着地して踏み切り直す間隔がちょうどしか無い並びは通さない")
+    func hasLandingGapBoundaryAtMaxSpeed() {
+        let speed = RunnerRules.endlessMaxSpeed
+        let previous = RunnerHazard(kind: .pit, start: 24, length: 8)
+        // 必要な間隔（左端どうし）= 跳んで進む 60 × 0.75 = 45 + 次の穴への踏み切りの余裕 6。
+        let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.baseLead
+        #expect(needed == 51)
+        let tight = RunnerHazard(kind: .pit, start: previous.start + needed, length: 8)
+        let enough = RunnerHazard(kind: .pit, start: previous.start + needed + 0.5, length: 8)
+        #expect(!RunnerEndlessCourse.hasLandingGap(from: previous, to: tight, speed: speed), "ちょうどでは足りない")
+        #expect(RunnerEndlessCourse.hasLandingGap(from: previous, to: enough, speed: speed))
+        #expect(RunnerEndlessCourse.hasLandingGap(from: previous, to: tight, speed: RunnerRules.baseSpeed), "遅ければ同じ間隔で足りる")
+        // 隣り合う区画（64 離れる）なら最高速でも足りる。
+        let adjacent = RunnerStage.makeHazards(pattern: "11")
+        #expect(RunnerEndlessCourse.hasLandingGap(from: adjacent[0], to: adjacent[1], speed: speed))
+    }
+
+    @Test("hasLandingGap: 動く障害は置いた位置ではなく出会う地点（encounter）から測る")
+    func hasLandingGapMeasuresFromEncounter() {
+        let speed = RunnerRules.endlessMaxSpeed
+        let bird = RunnerHazard(kind: .bird, start: 24, length: RunnerRules.tileWidth)
+        let shift = bird.encounter.start - bird.start
+        #expect(shift > 0, "鳥は飛び立って前へ進んだ地点で出会う")
+        let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.baseLead
+        // 置いた位置から測れば足りるが、出会う地点から測ると足りない間隔。
+        let next = RunnerHazard(kind: .pit, start: bird.start + needed + shift / 2, length: 8)
+        #expect(next.start - bird.start > needed, "対照: 置いた位置から測れば足りる")
+        #expect(!RunnerEndlessCourse.hasLandingGap(from: bird, to: next, speed: speed))
+    }
+
+    @Test("canPlacePlatform: 前の障害を跳んだ着地が、台座への踏み切りより手前で終わるときだけ置ける")
+    func canPlacePlatformNeedsLandingBeforeTakeOff() {
+        let speed = RunnerRules.baseSpeed
+        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: nil, speed: speed), "前に障害が無ければ置ける")
+        // 台座 64 への踏み切り = 64 − 6 − 34 × (高さ 8.5 までの上昇時間 ≒ 0.1392) ≒ 53.27。
+        // 穴を跳んだ着地 = 穴の左端 − 6 + 34 × 0.75 = 左端 + 19.5。
+        let previousSegment = RunnerHazard(kind: .pit, start: 24, length: 8)  // 着地 43.5
+        let tooClose = RunnerHazard(kind: .pit, start: 40, length: 8)  // 着地 59.5
+        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: previousSegment, speed: speed))
+        #expect(!RunnerEndlessCourse.canPlacePlatform(at: 64, after: tooClose, speed: speed))
+        // 踏み切り 53.27 をはさむ着地 53.0 / 53.5。上昇にかかる距離（34 × 0.1392 ≒ 4.73）を見込まないと
+        // 踏み切りが 58 になり、53.5 の側も置けてしまう。
+        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: RunnerHazard(kind: .pit, start: 33.5, length: 8), speed: speed))
+        #expect(!RunnerEndlessCourse.canPlacePlatform(at: 64, after: RunnerHazard(kind: .pit, start: 34, length: 8), speed: speed))
     }
 }
 

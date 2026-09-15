@@ -281,7 +281,7 @@ public final class PlayLog {
 
     /// ハブのカードに出す 1 行。記録がまだ無ければ nil。
     public func summaryLine(gameID: String) -> String? {
-        RecordFormat.hubLine(records(gameID: gameID))
+        RecordFormat.hubLine(records(gameID: gameID), gameID: gameID)
     }
 
     /// ゲームごとの最終プレイ日時（#335）。区分があるゲームは最も新しいものを代表にする。
