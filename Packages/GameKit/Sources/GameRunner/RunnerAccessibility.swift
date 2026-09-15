@@ -20,23 +20,21 @@ public enum RunnerAccessibility {
         "\(stageLabel(number: number, total: total))、\(RunnerWorld.world(forStage: number).displayName)"
     }
 
-    /// ワールドマップ（#798）の面のボタン。「1-1 商店街のあさ、到達済み」の形で、
-    /// 表記・名前・選べるかどうかを 1 文で言う（鍵の絵だけでは読み上げに出ない）。
+    /// ワールドマップ（#798）の面のボタン。「1-1、到達済み」の形で、表記と選べるかどうかを
+    /// 1 文で言う（鍵の絵だけでは読み上げに出ない）。面の名前は #946 で外した。
     public static func stageMapLabel(number: Int, reached: Bool) -> String {
-        let name = RunnerWorld.stageName(forStage: number) ?? stageLabel(number: number, total: RunnerRules.stageCount)
-        return "\(RunnerWorld.code(forStage: number)) \(name)、\(reached ? "到達済み" : "未到達")"
+        "\(stageHeadline(number: number))、\(reached ? "到達済み" : "未到達")"
     }
 
-    /// 面の見出し「2-3 とうふ屋のかど」（#931）。走行中の HUD・スタート画面の主ボタン・
-    /// クリア表示の「つぎは」で同じ形を使う。名前の無い番号（範囲外）は「ステージ N」に倒す。
+    /// 面の見出し「2-3」（#931。名前は #946 で外し番号だけ）。走行中の HUD・スタート画面の
+    /// 主ボタン・クリア表示の「つぎは」・ワールドマップで同じ形を使う。3 世界に収まらない番号
+    /// （範囲外）は「ステージ N」に倒す。
     public static func stageHeadline(number: Int) -> String {
-        guard let name = RunnerWorld.stageName(forStage: number) else {
-            return "ステージ \(number)"
-        }
-        return "\(RunnerWorld.code(forStage: number)) \(name)"
+        guard RunnerWorld.contains(stage: number) else { return "ステージ \(number)" }
+        return RunnerWorld.code(forStage: number)
     }
 
-    /// スタート画面（#931）の主ボタン。「2-3 とうふ屋のかど から走る」。
+    /// スタート画面（#931）の主ボタン。「2-3 から走る」。
     public static func startStageLabel(number: Int) -> String {
         "\(stageHeadline(number: number)) から走る"
     }
