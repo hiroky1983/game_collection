@@ -101,6 +101,8 @@ private final class SpyScheduler: ResumeReminderScheduler {
 @MainActor
 private final class Environment {
     var enabled = true
+    /// 設定で非表示にしたゲーム。App の `reminderTitle` と同じく、ここに入ったゲームは対象外になる（#810）。
+    var hidden: Set<String> = []
     var now: Date
     init(now: Date) { self.now = now }
 }
@@ -129,7 +131,7 @@ private func makeService(
         scheduler: spy,
         isEnabled: { env.enabled },
         isSuppressed: suppressed,
-        reminderTitle: { titles[$0] },
+        reminderTitle: { env.hidden.contains($0) ? nil : titles[$0] },
         now: { env.now },
         calendar: tokyo
     )
@@ -217,6 +219,25 @@ struct ResumeReminderServiceTests {
         #expect(spy.reminders.isEmpty)
     }
 
+    @Test("非表示にしたゲームには予約せず、非表示にした時点で予約済みも取り消す（#810）")
+    func hiddenGamesAreNotReminded() async {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(13, 12))
+        let service = makeService(spy, env)
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        service.gameDidLeave(gameID: "2048", hasSnapshot: true)
+        await service.pendingWork?.value
+
+        env.hidden.insert("shogi")
+        service.gameDidHide(gameID: "shogi")
+        #expect(Set(spy.reminders.keys) == ["2048"], "非表示にしたのに予約済みのお知らせが残った")
+        #expect(spy.cancelled == ["shogi"], "非表示にしていないゲームまで取り消した")
+
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await service.pendingWork?.value
+        #expect(spy.reminders["shogi"] == nil, "非表示のゲームに予約した")
+    }
+
     @Test("許諾が未決定なら、ダイアログの出ない provisional を求めてから予約する")
     func requestsProvisionalWhenNotDetermined() async {
         let spy = SpyScheduler(status: .notDetermined, statusAfterRequest: .provisional)
@@ -285,9 +306,9 @@ struct ResumeReminderServiceTests {
         #expect(spy.reminders.isEmpty)
     }
 
-    @Test("許諾の問い合わせを待つ間に開き直された・設定を切られたなら予約しない")
+    @Test("許諾の問い合わせを待つ間に開き直された・非表示にされた・設定を切られたなら予約しない")
     func stateChangesDuringQueryWin() async throws {
-        for change in ["open", "clear", "disable"] {
+        for change in ["open", "clear", "hide", "disable"] {
             let spy = SpyScheduler()
             let env = Environment(now: date(13, 12))
             let service = makeService(spy, env)
@@ -305,6 +326,9 @@ struct ResumeReminderServiceTests {
             switch change {
             case "open":  service.gameDidOpen(gameID: "shogi")
             case "clear": service.snapshotDidClear(gameID: "shogi")
+            case "hide":
+                env.hidden.insert("shogi")
+                service.gameDidHide(gameID: "shogi")
             default:
                 env.enabled = false
                 service.cancelAll()
@@ -316,9 +340,9 @@ struct ResumeReminderServiceTests {
         }
     }
 
-    @Test("予約の完了を待つ間に開き直された・中断が消えた・設定を切られたなら、入った予約を取り消す")
+    @Test("予約の完了を待つ間に開き直された・中断が消えた・非表示にされた・設定を切られたなら、入った予約を取り消す")
     func stateChangesDuringScheduleWin() async throws {
-        for change in ["open", "clear", "disable"] {
+        for change in ["open", "clear", "hide", "disable"] {
             let spy = SpyScheduler()
             let env = Environment(now: date(13, 12))
             let service = makeService(spy, env)
@@ -336,6 +360,9 @@ struct ResumeReminderServiceTests {
             switch change {
             case "open":  service.gameDidOpen(gameID: "shogi")
             case "clear": service.snapshotDidClear(gameID: "shogi")
+            case "hide":
+                env.hidden.insert("shogi")
+                service.gameDidHide(gameID: "shogi")
             default:
                 env.enabled = false
                 service.cancelAll()
@@ -349,10 +376,16 @@ struct ResumeReminderServiceTests {
 
     @Test("通知のタップは対象のゲームだけを開くよう求める")
     func tapRequestsOnlyEligibleGames() {
-        let service = makeService(SpyScheduler(), Environment(now: date(13, 12)))
+        let env = Environment(now: date(13, 12))
+        env.hidden = ["2048"]
+        let service = makeService(SpyScheduler(), env)
 
         service.notificationTapped(gameID: "runner")
         #expect(service.requestedGameID == nil)
+
+        // 予約した後に非表示にされ、取り消しが間に合わず届いた通知のタップ（#810）。
+        service.notificationTapped(gameID: "2048")
+        #expect(service.requestedGameID == nil, "非表示にしたゲームを通知から開いた")
 
         service.notificationTapped(gameID: "shogi")
         #expect(service.requestedGameID == "shogi")

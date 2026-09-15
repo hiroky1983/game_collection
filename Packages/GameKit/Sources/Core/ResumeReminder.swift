@@ -125,7 +125,7 @@ public final class ResumeReminderService {
     /// - Parameters:
     ///   - isEnabled: 設定の「続きのお知らせ」。
     ///   - isSuppressed: 撮影モード・DEBUG ビルド。true なら予約も許諾の要求もしない。
-    ///   - reminderTitle: 通知に出すゲーム名。対象外のゲーム（登録外・中断データから局を
+    ///   - reminderTitle: 通知に出すゲーム名。対象外のゲーム（登録外・設定で非表示・中断データから局を
     ///     復元しない `GameModule.resumesFromSnapshot == false`）は nil を返す。
     public init(
         scheduler: ResumeReminderScheduler,
@@ -176,6 +176,12 @@ public final class ResumeReminderService {
 
     /// そのゲームの中断データが消えた（終局・やり直し・設定の切り替え）。
     public func snapshotDidClear(gameID: String) {
+        withdraw(gameID)
+    }
+
+    /// そのゲームを設定で非表示にした（#810）。非表示のゲームには知らせないので、予約済みも取り消す。
+    /// 予約の処理が問い合わせを待っている最中でも、世代が進むので入りかけの予約は捨てられる。
+    public func gameDidHide(gameID: String) {
         withdraw(gameID)
     }
 
