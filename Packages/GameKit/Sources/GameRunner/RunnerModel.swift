@@ -35,7 +35,9 @@ public final class RunnerModel {
     /// 中断データ（`RunnerSnapshot.reachedStage`）に残す。
     public private(set) var reachedStage: Int
     public private(set) var phase: RunnerPhase
-    /// このステージでチェックポイント再開（リワード広告）を使ったか。1 ステージ 1 回まで。
+    /// いまの走行でチェックポイント再開（リワード広告）を使ったか。**1 回の走行につき 1 回まで**。
+    /// 「もう一度」で頭から走り直せば戻る（会長決裁 2026-09-15・#958。以前は 1 ステージ 1 回で、
+    /// クリアできない面で 2 回目以降が頭からだけになり離脱につながるとの判断）。
     public private(set) var checkpointUsed: Bool
     /// 直前のクリアで**初めて次の面に到達した**か（`reachedStage` が伸びた）。クリア表示の
     /// 「新しい面に到達！」のバッジに使う（#931。秒数の廃止で「ベストタイム更新！」の代わり）。
@@ -281,6 +283,8 @@ public final class RunnerModel {
         switch mode {
         case .stages:
             guard phase == .failed else { return }
+            // 頭からの走り直しは新しい走行。再開権（広告）も戻す（#958）。
+            checkpointUsed = false
             startStage(from: 0, passedCheckpoint: false)
             beginRun()
         case .endless:
@@ -403,7 +407,7 @@ public final class RunnerModel {
         return true
     }
 
-    /// リワード広告の視聴後にチェックポイントから再開する。1 ステージ 1 回まで。
+    /// リワード広告の視聴後にチェックポイントから再開する。1 回の走行につき 1 回まで（「もう一度」で戻る・#958）。
     ///
     /// ここは走り出さず `.ready` に置く（#941 の対象外）——広告から戻った直後に不意に走り出さない
     /// よう、スタート画面の「つづきから」1 つを押してもらう。
