@@ -427,8 +427,13 @@ struct BoardGameControlButtonsTests {
         return left.width == right.width && left.height == right.height && rgba(left) == rgba(right)
     }
 
+    /// macOS の既定のボタン（枠付き）は描画が揺れ、素の文字の比較が約 2 割の確率で食い違った（verifier 実測）。
+    /// iOS の既定に近い枠無しで描く（`ReviewNavBarTapTargetTests` と同じ）。共通カプセルは内側の
+    /// `buttonStyle` が優先されるので、ここで掛けても比べる見た目は変わらない。
     private static func render(_ view: some View) throws -> CGImage {
-        let renderer = ImageRenderer(content: view.themeBody(14).environment(\.colorScheme, .light))
+        let renderer = ImageRenderer(
+            content: view.buttonStyle(.borderless).themeBody(14).environment(\.colorScheme, .light)
+        )
         renderer.scale = 1
         return try #require(renderer.cgImage, "描画できなかった")
     }
