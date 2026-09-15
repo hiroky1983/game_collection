@@ -63,7 +63,7 @@ App Store Connect → あそびば → 「Game Center」→ リーダーボー�
 | `asobiba.solitaire.time` | ソリティア（クロンダイク・#397）。配札は検証済みの種から選ぶだけで難度の区分を持たないため表は1つ | #411 |
 | `asobiba.blocks.score` | ブロック崩し（#463）。ステージ構成が全員共通で同じ条件で比べられるため対象にした | #466 |
 
-ID の全量は `Packages/GameKit/Sources/Core/GameCenter.swift` の `GameCenterLeaderboard.allIDs`
+ID の全量は `Packages/GameKit/Sources/Core/GameCenter.swift`（`release/v1.1.6` からは `Sources/CoreEngine/GameCenter.swift`）の `GameCenterLeaderboard.allIDs`
 （`release/v1.1.3` で12件）が正で、本表はそれと一致していること。
 
 ## 2. 実績（4件）

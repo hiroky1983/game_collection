@@ -18,7 +18,8 @@
 App/                    ← iOS アプリ本体（GameRegistry・AppEnvironment 等）
 Packages/GameKit/
   Sources/
-    Core/               ← 共通基盤 (Protocol, Theme, AdService, Analytics, SnapshotStore, RewardedRescue)
+    CoreEngine/         ← 共通基盤のうち純ロジック (Analytics, SnapshotStore, PlayLog, PlayRecord, GameCenter 等。release/v1.1.6 から)
+    Core/               ← 共通基盤 (Protocol, Theme, AdService, RewardedRescue。`@_exported import CoreEngine` で再公開)
     Game2048/           ← 2048
     GameBlockPuzzle/    ← ブロックならべ（未リリース。2026-09-10 時点）
     GameShogi/          ← 将棋
@@ -46,6 +47,13 @@ Packages/GameKit/
 「未リリース」は App Store 配信中のバイナリにまだ含まれていないという意味で、コード上は
 他のゲームと同格に動く（`GameRegistry` はストア配信状態を持たない）。配信中かどうかは
 別途 ASO ドキュメント（`docs/aso/`）やリリースノートで確認すること。
+
+`CoreEngine` は `import Foundation`（と Observation）だけで書かれたファイルの置き場で、将来 Linux で純ロジックの
+テストを回すための層（#834）。SwiftUI・StoreKit・CoreGraphics などに触れるファイルは `Core` に置く。`Core` が
+`@_exported import CoreEngine` で再公開するので、ゲームと App は `import Core` のままでよい。
+**`release/v1.1.6` から**、AITurnGuard・FirstPick・NewGames・RecordsSummary・Analytics・GameCenter・PlayLog など
+20 本と `PlayingCardSuit` / `PlayingCardFigure` が `CoreEngine/` に移っている。本文中のこれらの `Core/…swift` は、
+v1.1.6 以降は `CoreEngine/…swift` と読み替えること。
 
 ### 主要プロトコル
 
