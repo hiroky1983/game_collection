@@ -419,44 +419,22 @@ public extension RunnerWorld {
     /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
     ///
     /// 範囲外（0 以下・19 以上）でも落ちないよう剰余で畳むだけなので、
-    /// 呼び出し側で番号の妥当性を確かめてから使う（`stageName(forStage:)` は nil を返す）。
+    /// 呼び出し側で番号の妥当性（`contains(stage:)`）を確かめてから使う。
     static func index(ofStage number: Int) -> Int {
         ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
     }
 
     /// ワールドマップの短い表記「1-1」…「3-6」。
+    ///
+    /// 面に付けていた名前（「商店街のあさ」等）は #946 で外した（会長指示「ステージの名前は
+    /// いらない。1-1 とか 3-1 とかだけでいい」）。画面・読み上げともこの表記だけを使う。
     static func code(forStage number: Int) -> String {
         "\(world(forStage: number).number)-\(index(ofStage: number))"
     }
 
-    /// 面の名前の上限（文字数）。iPhone SE（幅 375pt）で 3 列の格子に 1 行で収めるため
-    /// （`WorldTests` が全 18 面について固定する）。
-    static let maxStageNameLength = 8
-
-    /// この世界の 6 面の名前（面の順）。
-    ///
-    /// 「ステージ N / 18」の数字だけでは次に何が来るかの期待が作れない（#798）ので、
-    /// 世界の景色に合う短い名前を付ける。遠景の飾り（`scenery`）と同じ景色を言葉にしてあり、
-    /// 実在の店名・地名は使わない。長さは `maxStageNameLength` 以内。
-    var stageNames: [String] {
-        switch self {
-        case .morning:
-            // 朝の下町。家並み（`townHouses`）の前を走る、目覚めたばかりの町。
-            return ["商店街のあさ", "とうふ屋のかど", "こうえんの前", "ふみきり待ち", "さかみちの上", "銭湯のえんとつ"]
-        case .evening:
-            // 夕方の川沿い。川の帯と夕焼け（`riverside`）の土手道。
-            return ["土手のゆうひ", "鉄橋のした", "つり人のいる岸", "すすきの原", "川風のカーブ", "夕焼けの大橋"]
-        case .night:
-            // 夜の繁華街。ビルの窓の灯り（`cityLights`）。最終面だけ夜明けが近い名前にして
-            // 18 面で 1 日が終わる形にする。
-            return ["ネオンの入口", "やたいの通り", "ちょうちん横丁", "歩道橋のうえ", "終電のガード下", "夜あけの大通り"]
-        }
-    }
-
-    /// ステージ番号（1 始まり）の名前。範囲外は nil。
-    static func stageName(forStage number: Int) -> String? {
-        guard number >= 1, number <= stagesPerWorld * allCases.count else { return nil }
-        return world(forStage: number).stageNames[index(ofStage: number) - 1]
+    /// ステージ番号（1 始まり）が 3 世界のどこかに収まるか（1…18）。
+    static func contains(stage number: Int) -> Bool {
+        number >= 1 && number <= stagesPerWorld * allCases.count
     }
 
     /// ワールドマップで世界を塗り分ける色（`0xRRGGBB`）。

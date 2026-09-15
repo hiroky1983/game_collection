@@ -140,7 +140,7 @@ struct RunnerStageTests {
     /// 大ジャンプは余裕を増やす上振れなので、下限で成立していれば詰みは起きない。
     /// 動く障害（#796〜#801）は走者から見て等価な静止区間（`RunnerHazard.encounter`）で見る
     /// ——飛び立つ鳥は区画中央より少し先の長さ 7、向かってくるイノシシは長さ −2（体の中を
-    /// 通り抜ける）、止まった犬は低い岩そのもの。
+    /// 通り抜ける）、後ろから追い越す犬は速さ 2 なので置いた位置の低い岩そのもの（#944）。
     /// 岩で止まったイノシシは岩と一続きなので、岩の高さのまま両方を越えきれることを見る。
     @Test("すべての障害が押さないジャンプで越えられる（動く障害は等価な静止区間で）")
     func everyHazardIsClearable() {
@@ -866,10 +866,11 @@ struct RunnerPlaythroughTests {
                 var frames = 0
                 while field.distance < hazard.activeRange.upperBound + 8, frames < 60 * 120 {
                     frames += 1
-                    // 踏み切りの相手がこの障害（いまの位置）でなければ、自動操縦どおり跳ぶ。
+                    // 踏み切りの相手がこの障害（自動操縦が見る位置。後ろから来る犬は等価な静止区間・#944）
+                    // でなければ、自動操縦どおり跳ぶ。
                     if RunnerAutoPilot.shouldJump(field: field) {
                         let target = RunnerAutoPilot.nextTarget(field: field)?.start
-                        let own = hazard.frame(atRunnerDistance: field.distance)?.start
+                        let own = hazard.targetFrame(atRunnerDistance: field.distance)?.start
                         if target != own { field.jump() }
                     }
                     if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
@@ -1071,15 +1072,14 @@ struct RunnerPlaythroughTests {
             // 早すぎると向こう岸に届かず穴へ落ちる。遅すぎると縁で踏み切れない。
             earliest = hazard.end - range + RunnerRules.tileWidth / 2
             latest = hazard.start - half
-        case .lowBlock, .tallBlock, .dog:
+        case .lowBlock, .tallBlock:
             // 上端を越える高さに上がりきってから当たり判定へ入り、抜け切るまで落ちないこと。
-            // 止まった犬（#800）は低い岩そのもの。
             let rise = tap ? Self.tapRiseTime(to: clearHeight) : RunnerRules.riseTime(to: clearHeight)
             let above = tap ? Self.tapTime(above: clearHeight) : RunnerRules.airTime(above: clearHeight)
             latest = hazard.start - half - speed * rise
             earliest = latest - speed * max(0, above - overlap) + RunnerRules.tileWidth / 2
-        case .bird, .boar:
-            // 動いている相手（#796/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
+        case .bird, .dog, .boar:
+            // 動いている相手（#796/#944/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
             return (safeTakeOff, false)
         }
         guard distance <= latest else { return (safeTakeOff, false) }
@@ -1091,7 +1091,7 @@ struct RunnerPlaythroughTests {
     /// 土台は**自動操縦とまったく同じ判断**（`RunnerAutoPilot.nextTarget`）で、そこから
     /// **岩と穴に対してだけ**「最小のジャンプで右端の真裏へ降りる」踏み切りに差し替える。
     ///
-    /// 鳥・イノシシ（#796/#801）と台座（#674）は自動操縦に任せる——動いている相手は
+    /// 鳥・犬・イノシシ（#796/#944/#801）と台座（#674）は自動操縦に任せる——動いている相手は
     /// 「越えた直後に降りる」対象ではなく、台座は越えるのではなく乗るものでジャスト着地の
     /// 対象でもない（`RunnerField.applyJustLanding`）。
     /// **台座の上に立っているあいだも狙わない**（`altitude == 0` の条件）: 上面（高さ 8）から
@@ -1110,7 +1110,7 @@ struct RunnerPlaythroughTests {
                 var plan = (x: target.start - target.lead, tap: false)
                 if field.altitude == 0,
                    let hazard = field.nextHazard(from: field.playerMaxX),
-                   hazard.kind != .bird, hazard.kind != .boar,
+                   hazard.kind == .pit || hazard.kind.isRock,
                    abs(hazard.start - target.start) < 1e-9 {
                     plan = justLandingTakeOff(
                         for: hazard,

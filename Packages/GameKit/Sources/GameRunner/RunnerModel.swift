@@ -196,8 +196,9 @@ public final class RunnerModel {
         }
     }
 
-    /// 走り出す前（`.ready`）から走行中へ。フィールドのタップ（`press`）とスタート画面の
-    /// ボタン（`start(_:)`）の共通の実体。
+    /// 走り出す前（`.ready`）から走行中へ。フィールドのタップ（`press`）・スタート画面の
+    /// ボタン（`start(_:)`）・面をまたぐ導線（`retryStage` / `advanceToNextStage` /
+    /// `replayCurrentStage`・#941）の共通の実体。
     private func beginRun() {
         phase = .running
         // 走り出した = 捨てたら途中離脱として数える走行（#500）。
@@ -269,15 +270,19 @@ public final class RunnerModel {
 
     /// ミスしたステージを頭からやり直す（無料・無制限）。
     ///
+    /// ステージ制は**その場で走り出す**（#941。面をまたぐたびにスタート画面を挟んで
+    /// もう 1 タップさせない、会長指示 2026-09-15）。
     /// エンドレス（#675）では**新しい種でもう 1 回**走る（コースを走り切った後も同じ）。
     /// 同じコースを走り直す導線は出さない——「冒頭は同じ・以降は毎回違う」が決裁の形で、
     /// 同じ並びを覚えて距離を伸ばすモードにはしない。ミスの時点で 1 回が決着しているので、
     /// 次の 1 回は新しいプレイとして数え直す（ステージ制のやり直しは同じプレイの続き）。
+    /// エンドレスの「もう一度」はこれまでどおりスタート画面（`.ready`）に戻す（#941 の対象外）。
     public func retryStage() {
         switch mode {
         case .stages:
             guard phase == .failed else { return }
             startStage(from: 0, passedCheckpoint: false)
+            beginRun()
         case .endless:
             guard isRunOver else { return }
             startEndless(seed: Self.randomSeed())
@@ -285,7 +290,11 @@ public final class RunnerModel {
         }
     }
 
-    /// ステージクリアの表示から次のステージへ。
+    /// ステージクリアの表示から次のステージへ。スタート画面を挟まず**その場で走り出す**（#941）。
+    ///
+    /// 解析の順序は `gameDidRestart`（新しいプレイの `game_start`）→ `beginRun`（そのプレイの
+    /// `gameDidProgress`）。逆にすると「1 手指した」印が終わった前のプレイに付き、新しいプレイを
+    /// 途中で捨てても `game_end`（quit）が出なくなる。
     public func advanceToNextStage() {
         guard mode == .stages, phase == .cleared, stageNumber < RunnerRules.stageCount else { return }
         stageNumber += 1
@@ -293,14 +302,16 @@ public final class RunnerModel {
         startStage(from: 0, passedCheckpoint: false)
         // 1 ステージ = 1 プレイとして数え直す（#158。前のステージの `game_end` は送信済み）。
         services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        beginRun()
     }
 
-    /// クリア済みのステージをもう一度走る。
+    /// クリア済みのステージをもう一度走る。`advanceToNextStage` と同じくその場で走り出す（#941）。
     public func replayCurrentStage() {
         guard mode == .stages, phase == .cleared || phase == .allCleared else { return }
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
         services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        beginRun()
     }
 
     /// いまのモードではじめから。ステージ制はステージ 1 から、エンドレスは新しい種で。
@@ -394,6 +405,9 @@ public final class RunnerModel {
 
     /// リワード広告の視聴後にチェックポイントから再開する。1 ステージ 1 回まで。
     ///
+    /// ここは走り出さず `.ready` に置く（#941 の対象外）——広告から戻った直後に不意に走り出さない
+    /// よう、スタート画面の「つづきから」1 つを押してもらう。
+    ///
     /// - Parameter generation: 広告を出す前に控えた `runGeneration`。**広告のロード〜視聴の間に
     ///   「はじめから」等でコースが作り直されたら適用しない**（ソリティアの `grantUndos(forDeal:)` と
     ///   同じ契約。#509）。
@@ -408,6 +422,10 @@ public final class RunnerModel {
     // MARK: - 内部
 
     /// 現在のステージのコースを作り直し、走り出す前の状態にする。
+    ///
+    /// `.ready` に置くだけで走り出さない。走り出すかは呼び出し側が決める——ハブから入った直後
+    /// （`init`）・「はじめから」・マップで面を選んだとき（`startStages`）・チェックポイント再開は
+    /// スタート画面を出し、面をまたぐ導線（#941）は続けて `beginRun()` を呼ぶ。
     private func startStage(from distance: Double, passedCheckpoint: Bool) {
         let stage = RunnerStage.all[stageNumber - 1]
         // 挑み始めた面は到達済み（#798）。次の面へ進んだとき・QA 用の `stage:N` で飛んだときも
@@ -457,7 +475,7 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .dogBarking:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
@@ -643,12 +661,15 @@ public final class RunnerModel {
             })
             isFrozenForCapture = true
         case "dog":
-            // 犬が立ち止まって吠えている瞬間（#800）。止まった直後・踏み切る前で止める。
+            // 犬が走者の真横〜少し前を抜ける瞬間（#944）。跳んでいる走者の中心を犬の左端が
+            // 越えた最初のフレーム（犬の箱が走者の右半分に重なり、足の下を抜けていく画）で止める。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
-                guard let dog = model.field.stage.hazards.first(where: { $0.kind == .dog }) else { return true }
-                return model.field.isGrounded && model.field.distance >= dog.dogStopDistance + 1
+                let field = model.field
+                guard let dog = field.stage.hazards.first(where: { $0.kind == .dog }),
+                      let frame = dog.frame(atRunnerDistance: field.distance) else { return false }
+                return !field.isGrounded && frame.start >= field.distance
             })
             isFrozenForCapture = true
         case "boar":

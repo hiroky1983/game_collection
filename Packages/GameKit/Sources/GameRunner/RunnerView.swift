@@ -143,8 +143,8 @@ public struct RunnerView: View {
         }
     }
 
-    /// ステージ制の見出し。「ステージ 9 / 18」の小さな行の下に「2-3 とうふ屋のかど」（#931）。
-    /// 幅が足りない機種では名前のほうを縮める（`minimumScaleFactor`）。
+    /// ステージ制の見出し。「ステージ 9 / 18」の小さな行の下に「2-3」（#931。面の名前は #946 で
+    /// 外し、番号だけ）。
     private var stageHeadline: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(RunnerAccessibility.stageLabel(number: model.stageNumber, total: RunnerRules.stageCount))
@@ -157,7 +157,7 @@ public struct RunnerView: View {
                 .minimumScaleFactor(0.7)
         }
         .accessibilityElement()
-        // 番号に世界の名前（#703）と面の名前を添える——画面では背景の色で分かる
+        // 番号に世界の名前（#703）と「世界-面」の表記を添える——画面では背景の色で分かる
         // 「どこを走っているか」を、見えない人にも言葉で伝える。
         .accessibilityLabel(
             RunnerAccessibility.stageLabelWithWorld(number: model.stageNumber, total: RunnerRules.stageCount)
@@ -433,7 +433,7 @@ public struct RunnerView: View {
         }
     }
 
-    /// クリア表示の添え書き。初到達の印と、次に走る面の名前。
+    /// クリア表示の添え書き。初到達の印と、次に走る面の番号（「つぎは 2-4」・#946）。
     private var clearedDetail: some View {
         VStack(spacing: 6) {
             if model.didReachNewStage {
@@ -493,7 +493,7 @@ public struct RunnerView: View {
     /// 「エンドレスはどこから選べる？」（会長 QA 2026-09-15）に #919 は一時停止ボタンの行へ
     /// 小さな切り替えを相乗りさせて応えたが、「発想が貧弱」とやり直しになった。ここでは
     /// **走り出す前の画面そのものをスタート画面**にする。上から、
-    /// 1. 主ボタン「▶ 2-3 とうふ屋のかど」——次に遊ぶ面の番号と名前を世界の色で。押せばその面で走り出す
+    /// 1. 主ボタン「▶ 2-3」——次に遊ぶ面の番号（名前は #946 で外した）を世界の色で。押せばその面で走り出す
     /// 2. 「∞ エンドレス」——自己ベストを添えて。押せば新しい種で走り出す
     /// 3. 「マップ」——ワールドマップ（開始シート #798）を開く
     ///
@@ -502,6 +502,10 @@ public struct RunnerView: View {
     /// いまのコースをそのまま走り出す（主ボタンと同じ）。
     /// チェックポイント再開の直後（`!canChooseMode`）は、広告で得た途中からの再開を捨てさせないよう
     /// 「▶ つづきから」の主ボタン 1 つだけにする。
+    ///
+    /// 出るのは**ハブから入った直後・「はじめから」・マップで面を選んだとき・チェックポイント再開**だけ。
+    /// 「次の面へ」「もう一度」「このステージをもう一度」は `.ready` を挟まずその場で走り出す
+    /// （#941。面をまたぐたびにここでもう 1 タップさせない）。
     private var startScreen: some View {
         ZStack {
             // 薄い幕でカードを立たせる。タップは透過（コースで走り出せる）。
@@ -759,10 +763,10 @@ struct RunnerStartSheet: View {
 
 /// 開始シートに載せる 3 世界 × 6 面の格子。到達済みの面だけ選べる。
 ///
-/// **世界ごとに 3 列 × 2 段**にしてある。6 列 1 段だと iPhone SE（幅 375pt・シートの余白を
-/// 引いて 343pt）では 1 マスが 50pt 前後になり、「商店街のあさ」のような 6〜8 文字の名前が
-/// 1 行に入らない。3 列なら 1 マス 105pt 前後で 8 文字（`RunnerWorld.maxStageNameLength`）が
-/// 11pt の文字で収まる。
+/// **世界ごとに 3 列 × 2 段**にしてある。マスに出すのは「1-1」の表記だけ（面の名前は #946 で
+/// 外した）。6 列 1 段だと iPhone SE（幅 375pt・シートの余白を引いて 343pt）では 1 マスが
+/// 50pt 前後になり鍵の絵と並べると窮屈なので、3 列のままにしてある。
+/// マスの高さは名前の行が無くなっても 44pt を割らないよう `minHeight` で担保する。
 ///
 /// 世界の色（`RunnerWorld.mapColor`）は**見出しの丸・マスの上端の帯・マスの薄い色味**にだけ
 /// 使い、文字はその上に載せない（世界の空の色は文字とのコントラストが世界ごとにばらつくため。
@@ -812,24 +816,18 @@ struct RunnerWorldMap: View {
         return Button {
             selectedStage = number
         } label: {
-            VStack(spacing: 3) {
-                HStack(spacing: 4) {
-                    // 数値の桁区切りが入らないよう verbatim で出す。
-                    Text(verbatim: RunnerWorld.code(forStage: number))
-                        .font(.system(size: 12, weight: .heavy, design: .rounded).monospacedDigit())
-                    if !reached {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 10, weight: .bold))
-                    }
+            HStack(spacing: 4) {
+                // 数値の桁区切りが入らないよう verbatim で出す。
+                Text(verbatim: RunnerWorld.code(forStage: number))
+                    .font(.system(size: 14, weight: .heavy, design: .rounded).monospacedDigit())
+                if !reached {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 11, weight: .bold))
                 }
-                .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))
-                Text(RunnerWorld.stageName(forStage: number) ?? "")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity)
+            .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))
+            // 上下の余白 10pt と合わせて 44pt（iOS の最小のタップ寸）。
+            .frame(maxWidth: .infinity, minHeight: 24)
             .padding(.vertical, 10)
             .padding(.horizontal, 4)
             .background(

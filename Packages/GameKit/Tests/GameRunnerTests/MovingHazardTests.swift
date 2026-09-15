@@ -3,10 +3,10 @@ import Foundation
 import Testing
 @testable import GameRunner
 
-/// 動く障害（#796 飛び立つ鳥・#800 犬・#801 イノシシ）の軌道と当たり判定。
+/// 動く障害（#796 飛び立つ鳥・#944 追い越す犬・#801 イノシシ）の軌道と当たり判定。
 ///
 /// どれも**走者の距離で決まる決定論**（`RunnerHazard.frame(atRunnerDistance:)`）なので、
-/// シミュレータ抜きで「出現・飛び立ち・追いつき・予告」の地点を数値で固定できる。
+/// シミュレータ抜きで「出現・飛び立ち・追い越し・予告」の地点を数値で固定できる。
 /// ステージの成立条件が使う等価な静止区間（`RunnerHazard.encounter`）が実際の当たり判定と
 /// 一致することも、ここで走査して確かめる。
 @Suite("チャリンコおじさん: 動く障害")
@@ -213,53 +213,102 @@ struct RunnerHazardMotionTests {
         #expect(early.field.lastMissCause == .bird)
     }
 
-    // MARK: - 犬（#800）
+    // MARK: - 犬（#944）
 
-    @Test("犬は前端が手前 16 タイルに入ると走り出し、手前 4 タイルまで詰まると止まる")
-    func dogRunsThenStops() {
+    @Test("犬は予告の瞬間に画面の左（走者の後ろ）の外に現れ、走者を追い越して右へ消える")
+    func dogOvertakesFromBehind() {
         let dog = Self.hazard(.dog)
-        let start = dog.dogStartDistance
-        let stop = dog.dogStopDistance
-        #expect(dog.dogOrigin < dog.start, "止まる位置（区画中央）より手前に立っている")
-        #expect(start + Self.half == dog.dogOrigin - RunnerRules.dogTriggerDistance)
-        #expect(dog.frame(atRunnerDistance: start - 1)?.start == dog.dogOrigin, "走り出す前は立ったまま")
-        // 走っているあいだ、前端との間合いは 64 から 16 へ縮み、0 にはならない（追いつけない）。
-        for d in stride(from: start, through: stop, by: 2) {
-            guard let frame = dog.frame(atRunnerDistance: d) else { Issue.record("犬が居ない"); return }
-            let gap = frame.start - (d + Self.half)
-            #expect(gap >= RunnerRules.dogStopGap - 1e-9, "走っている犬に追いついてしまう（\(d): \(gap)）")
-            #expect(gap <= RunnerRules.dogTriggerDistance + 1e-9)
+        let bark = dog.dogBarkDistance
+        let contact = dog.dogContactDistance
+        let behind = RunnerField.Metrics.playerX
+        let ahead = RunnerField.Metrics.width - RunnerField.Metrics.playerX
+        #expect(dog.frame(atRunnerDistance: bark - 0.01) == nil, "予告の前は現れていない")
+        #expect(abs(contact - bark - RunnerRules.dogChaseDistance) < 1e-9, "予告から触れるまでは 12 タイル")
+        guard let spawned = dog.frame(atRunnerDistance: bark) else { Issue.record("予告の瞬間に現れない"); return }
+        #expect(spawned.end < bark - behind, "現れた瞬間は画面の左の外（後端 \(spawned.end) vs 画面の左端 \(bark - behind)）")
+        #expect(spawned.advance == RunnerRules.dogAdvance && spawned.advance > 1, "現れた瞬間から走者より速く走っている")
+        #expect(spawned.top == RunnerHazardKind.lowBlock.height && spawned.bottom == 0, "当たり判定は低い岩と同じ高さの矩形")
+
+        // 触れるまでは背中の後ろ、触れる瞬間に鼻先が背中に届き、そこからは前へ抜けていく。
+        var previous = spawned.start
+        for d in stride(from: bark + 1, through: contact + 60, by: 1) {
+            guard let frame = dog.frame(atRunnerDistance: d) else { Issue.record("犬が消えた（\(d)）"); return }
+            #expect(frame.start > previous, "止まらず右へ走り続ける（\(d)）")
+            #expect(frame.end - frame.start == dog.length && frame.top == 5, "矩形は犬と一緒に動く")
+            if d < contact { #expect(frame.end < d - Self.half, "触れる前は背中の後ろ（\(d)）") }
+            previous = frame.start
         }
-        let stopped = dog.frame(atRunnerDistance: stop)
-        #expect(stopped?.start == dog.start && stopped?.advance == 0, "区画中央で止まる")
-        #expect(abs((stopped?.start ?? 0) - (stop + Self.half) - RunnerRules.dogStopGap) < 1e-9, "止まる間合いは 4 タイル")
-        #expect(dog.frame(atRunnerDistance: stop + 100)?.start == dog.start, "止まったら動かない")
-        #expect(dog.encounter == RunnerHazardEncounter(start: dog.start, length: dog.length, height: 5), "止まった犬は低い岩そのもの")
+        guard let touching = dog.frame(atRunnerDistance: contact) else { Issue.record("犬が居ない"); return }
+        #expect(abs(touching.end - (contact - Self.half)) < 1e-9, "触れる瞬間、鼻先が走者の背中に届く")
+        #expect(abs(contact + Self.half - dog.start) < 1e-9, "そのとき走者の前端は置いた位置（区画中央）")
+        let passed = dog.frame(atRunnerDistance: dog.encounter.end + Self.half)
+        #expect((passed?.start ?? 0) >= dog.encounter.end + Self.half * 2 - 1e-9, "後端が抜けた瞬間、犬は走者の前")
+        // 相対速度は走者の速さそのものなので、触れてから画面 1 つぶん（100）進めば前方 74 の先へ抜けている。
+        let later = contact + RunnerField.Metrics.width
+        let gone = dog.frame(atRunnerDistance: later)
+        #expect((gone?.start ?? 0) > later + ahead, "走者が画面 1 つぶん進むまでに画面の右へ消えている（\(gone?.start ?? 0)）")
+
+        // 走者から見た等価な静止区間。速さ 2 なら置いた位置の低い岩そのもの。
+        let k = RunnerRules.dogAdvance
+        let width = RunnerField.Metrics.playerWidth
+        #expect(dog.encounter.start == dog.start)
+        #expect(abs(dog.encounter.length - ((dog.length + width) / (k - 1) - width)) < 1e-9)
+        #expect(dog.encounter == RunnerHazardEncounter(start: dog.start, length: dog.length, height: 5), "速さ 2 の犬は置いた位置の低い岩と同じ")
+        #expect(dog.activeRange.lowerBound == bark && dog.activeRange.upperBound == dog.encounter.end + Self.half)
     }
 
-    @Test("犬に追いついた時点で跳ばないと当たり、跳べば越えられる")
-    func dogMustBeJumped() {
+    @Test("自動操縦は後ろから来る犬を、置いた位置の低い岩として前方に見る")
+    func autoPilotSeesTheDogAsItsEquivalentBlock() {
         let stage = RunnerStage(number: 1, pattern: "---d---", speed: 40)
         let dog = stage.hazards[0]
-        var idle = RunnerField(stage: stage)
-        idle.placeForTesting(distance: dog.dogStartDistance - 10, altitude: 0, vy: 0)
-        var events: [RunnerEvent] = []
-        while idle.distance < dog.end + 20, !events.contains(where: { $0.isTerminal }) {
-            events += idle.step(dt: 1.0 / 600)
-        }
-        #expect(events.contains(.crashed) && idle.lastMissCause == .animal)
-        #expect(idle.distance > dog.dogStopDistance, "止まってから当たる（走っている犬には追いつけない）")
+        var field = RunnerField(stage: stage)
+        field.placeForTesting(distance: dog.dogBarkDistance - 1, altitude: 0, vy: 0)
+        #expect(field.nextHazard(from: field.playerMaxX) == nil, "予告の前は踏み切りの相手がいない")
+        field.placeForTesting(distance: dog.dogBarkDistance + 1, altitude: 0, vy: 0)
+        let seen = field.nextHazardFrame(from: field.playerMaxX)
+        #expect(seen?.hazard == dog)
+        #expect(seen?.frame == RunnerHazardFrame(start: dog.start, end: dog.end, bottom: 0, top: 5, advance: 0), "等価な静止区間を静止した岩の形で")
+        #expect((dog.frame(atRunnerDistance: field.distance)?.end ?? 0) < field.playerMinX, "実際の犬はまだ後ろ")
+        // 追い越されたあとは相手ではない（前を走り去るだけで追いつけない）。
+        field.placeForTesting(distance: dog.encounter.end + Self.half + 1, altitude: 0, vy: 0)
+        #expect(field.nextHazard(from: field.playerMaxX) == nil, "抜けたあとの犬は踏み切りの相手ではない")
+        #expect((dog.frame(atRunnerDistance: field.distance)?.start ?? 0) > field.playerMaxX, "実際の犬は前を走っている")
+    }
 
-        var piloted = RunnerField(stage: stage)
-        piloted.placeForTesting(distance: dog.dogStartDistance - 10, altitude: 0, vy: 0)
-        events = []
-        while piloted.distance < dog.end + 20, !events.contains(where: { $0.isTerminal }) {
-            if RunnerAutoPilot.shouldJump(field: piloted) { piloted.jump() }
-            if RunnerAutoPilot.shouldRelease(field: piloted) { piloted.endHold() }
-            events += piloted.step(dt: 1.0 / 60)
+    @Test("犬は追い越す前に予告が 1 回出て、跳ばないと当たり、跳べば越えられる")
+    func dogBarksOnceThenMustBeJumped() {
+        for speed in [41.2, 54.4] {
+            let stage = RunnerStage(number: 1, pattern: "---d---", speed: speed)
+            let dog = stage.hazards[0]
+            var idle = RunnerField(stage: stage)
+            idle.placeForTesting(distance: dog.dogBarkDistance - 30, altitude: 0, vy: 0)
+            var events: [RunnerEvent] = []
+            var cueAt: Double?
+            var crashedAt: Double?
+            while idle.distance < dog.end + 40, !events.contains(where: { $0.isTerminal }) {
+                let step = idle.step(dt: 1.0 / 600)
+                if step.contains(.dogBarking) { cueAt = idle.distance }
+                if step.contains(.crashed) { crashedAt = idle.distance }
+                events += step
+            }
+            #expect(events.filter { $0 == .dogBarking }.count == 1, "速さ \(speed): 予告は 1 回")
+            #expect(abs((cueAt ?? 0) - dog.dogBarkDistance) < 0.2, "速さ \(speed): 予告は触れる 12 タイル手前")
+            #expect(events.contains(.crashed) && idle.lastMissCause == .animal, "速さ \(speed): 跳ばなければ犬に当たる")
+            #expect((cueAt ?? .infinity) < (crashedAt ?? 0), "速さ \(speed): 予告は追い越される前")
+            #expect(abs((crashedAt ?? 0) - dog.dogContactDistance) < 0.5, "速さ \(speed): 当たるのは鼻先が背中に触れる瞬間（\(crashedAt ?? 0)）")
+
+            var piloted = RunnerField(stage: stage)
+            piloted.placeForTesting(distance: dog.dogBarkDistance - 30, altitude: 0, vy: 0)
+            events = []
+            while piloted.distance < dog.end + 40, !events.contains(where: { $0.isTerminal }) {
+                if RunnerAutoPilot.shouldJump(field: piloted) { piloted.jump() }
+                if RunnerAutoPilot.shouldRelease(field: piloted) { piloted.endHold() }
+                events += piloted.step(dt: 1.0 / 60)
+            }
+            #expect(!events.contains(.crashed), "速さ \(speed): 普通のジャンプで越えられない")
+            #expect(events.contains(.landed))
+            #expect(events.filter { $0 == .dogBarking }.count == 1, "速さ \(speed): 跳んでも予告は 1 回")
         }
-        #expect(!events.contains(.crashed))
-        #expect(events.contains(.landed))
     }
 
     // MARK: - イノシシ（#801）

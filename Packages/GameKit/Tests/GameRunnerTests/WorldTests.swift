@@ -356,26 +356,22 @@ struct RunnerWorldTests {
     }
 }
 
-/// ワールドマップ（#798）の純データ: 面の名前・「1-1」表記・世界との対応。
-@Suite("チャリンコおじさん: ワールドマップの面の名前")
-struct RunnerStageNameTests {
+/// ワールドマップ（#798）の純データ: 「1-1」表記と世界との対応。面の名前（「商店街のあさ」等）は
+/// #946 で外し、画面・読み上げとも番号だけにした。
+@Suite("チャリンコおじさん: ワールドマップの面の表記")
+struct RunnerStageCodeTests {
 
-    @Test("18 面すべてに名前があり、重複せず、格子に収まる長さ")
-    func everyStageHasAUniqueShortName() {
-        let names = RunnerStage.all.compactMap { RunnerWorld.stageName(forStage: $0.number) }
-        #expect(names.count == RunnerRules.stageCount, "名前の無い面がある")
-        #expect(Set(names).count == names.count, "重複した名前がある: \(names)")
-        for name in names {
-            #expect(!name.isEmpty)
-            #expect(
-                name.count <= RunnerWorld.maxStageNameLength,
-                "「\(name)」は \(RunnerWorld.maxStageNameLength) 文字を超える（iPhone SE の 3 列で 1 行に入らない）"
-            )
+    @Test("18 面の表記は重複せず、3 世界に収まる番号だけが有効")
+    func everyStageHasAUniqueCode() {
+        let codes = RunnerStage.all.map { RunnerWorld.code(forStage: $0.number) }
+        #expect(codes.count == RunnerRules.stageCount)
+        #expect(Set(codes).count == codes.count, "重複した表記がある: \(codes)")
+        for stage in RunnerStage.all {
+            #expect(RunnerWorld.contains(stage: stage.number), "\(stage.number)")
         }
-        // 各世界がちょうど 6 面ぶん持つ。
-        for world in RunnerWorld.allCases {
-            #expect(world.stageNames.count == RunnerWorld.stagesPerWorld, "\(world)")
-        }
+        #expect(!RunnerWorld.contains(stage: 0))
+        #expect(!RunnerWorld.contains(stage: RunnerRules.stageCount + 1))
+        #expect(!RunnerWorld.contains(stage: -1))
     }
 
     @Test("世界と面番号の対応: 1-1 は 1 面、2-1 は 7 面、3-6 は 18 面")
@@ -399,28 +395,16 @@ struct RunnerStageNameTests {
         #expect(covered == Array(1...RunnerRules.stageCount))
     }
 
-    @Test("名前は世界の配列の順に引かれ、範囲外は nil")
-    func namesFollowWorldOrder() {
-        #expect(RunnerWorld.stageName(forStage: 1) == RunnerWorld.morning.stageNames[0])
-        #expect(RunnerWorld.stageName(forStage: 1) == "商店街のあさ")
-        #expect(RunnerWorld.stageName(forStage: 6) == RunnerWorld.morning.stageNames[5])
-        #expect(RunnerWorld.stageName(forStage: 7) == RunnerWorld.evening.stageNames[0])
-        #expect(RunnerWorld.stageName(forStage: 18) == RunnerWorld.night.stageNames[5])
-        #expect(RunnerWorld.stageName(forStage: 0) == nil)
-        #expect(RunnerWorld.stageName(forStage: 19) == nil)
-        #expect(RunnerWorld.stageName(forStage: -1) == nil)
-    }
-
     @Test("世界を塗り分ける色は 3 つとも違う")
     func mapColorsDiffer() {
         let colors = RunnerWorld.allCases.map(\.mapColor)
         #expect(Set(colors).count == RunnerWorld.allCases.count)
     }
 
-    @Test("面のボタンの読み上げは「1-1 商店街のあさ、到達済み／未到達」")
+    @Test("面のボタンの読み上げは「1-1、到達済み／未到達」（名前は付けない・#946）")
     func stageMapLabel() {
-        #expect(RunnerAccessibility.stageMapLabel(number: 1, reached: true) == "1-1 商店街のあさ、到達済み")
-        #expect(RunnerAccessibility.stageMapLabel(number: 7, reached: false) == "2-1 土手のゆうひ、未到達")
-        #expect(RunnerAccessibility.stageMapLabel(number: 18, reached: false) == "3-6 夜あけの大通り、未到達")
+        #expect(RunnerAccessibility.stageMapLabel(number: 1, reached: true) == "1-1、到達済み")
+        #expect(RunnerAccessibility.stageMapLabel(number: 7, reached: false) == "2-1、未到達")
+        #expect(RunnerAccessibility.stageMapLabel(number: 18, reached: false) == "3-6、未到達")
     }
 }

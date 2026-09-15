@@ -16,8 +16,9 @@ public struct RunnerModule: GameModule {
     // ステージ数は #674 で 15 → 18 に増えた（乗れる台座の枠）。ハブの一覧に出る文言なので
     // `RunnerRules.stageCount` と食い違わないようにする（`RunnerModuleTests` が縛る）。
     public let description = "タップで跳んで18ステージを走りぬけよう"
-    // 自転車の絵。ハブで隣に並ぶブロック崩し（`tennisball.fill`）とも見分けが付く。
-    public var icon: Image { Image(systemName: "bicycle") }
+    // おじさんの正面顔（ドット絵、#700）。18 本の中で唯一キャラが出るカードにする。
+    // 顔の定義は `Core` の `OjisanPixel`（おじさんシリーズの 2 本目以降でも同じ顔を使う）。
+    public var icon: Image { OjisanPixel.mascotIcon }
     // 中断データは再開する面と到達点の控えで、走行は必ずステージの頭から始まる
     // （`RunnerModel.press()` の `gameWillNotResume`）。中断のお知らせ（#663）の対象から外す。
     public var resumesFromSnapshot: Bool { false }
