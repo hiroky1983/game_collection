@@ -176,7 +176,8 @@ public enum GameCenterLeaderboard {
             case "endless":  return runnerDistance
             default:         return nil
             }
-        // 花札こいこい（#495）。試合の合計文数を送る。
+        // 花札こいこい（#495）。試合の合計文数を送る。既定ルール（6 局・酒の役あり・普通）以外の試合は
+        // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる（#827）。
         case "hanafuda":  return hanafudaPoints
         default:          return nil
         }
