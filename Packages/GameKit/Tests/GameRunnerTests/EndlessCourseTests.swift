@@ -241,7 +241,7 @@ struct RunnerEndlessCourseTests {
     /// 唯一の例外は**飛び立つ鳥の直後の高い岩**（`bt`）。鳥は出会う地点が区画中央より 6 先へ
     /// ずれる（`RunnerHazard.encounter`）ので、上限の速さでは高い岩への踏み切りに 2.7 足りない。
     /// 生成器はこの並びを `canPlace` で弾いて平地に倒す（置けないことをここで固定する）。
-    /// ステージ制の `bt`（13・15・18 面）は速さ 54.4 以下で余白が残る（`RunnerStageTests`）。
+    /// ステージ制の `bt`（13・15・18 面）は速さ 47.6 以下（#968 までは 54.4）で余白が残る（`RunnerStageTests`）。
     @Test("速さの上限でも、隣り合う区画に並んだ障害の間に着地の余白がある（鳥→高い岩だけ弾く）")
     func maxSpeedKeepsAdjacentHazardsPassable() {
         let speed = RunnerRules.endlessMaxSpeed
