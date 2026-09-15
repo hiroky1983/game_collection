@@ -321,8 +321,12 @@ check "保護設定が取れず gh がエラーの JSON を返しても凍結と
   "$(is_ship_target '{"message":"Branch not protected","status":"404"}false' "3"; echo $?)"
 check "停止条件の一段目: lock_branch が掛かっていれば対象外（タグの打ち漏れがあっても）" "1" \
   "$(is_ship_target "true" "375"; echo $?)"
-check "main より先行していなければ対象外" "1" "$(is_ship_target "false" "0"; echo $?)"
-check "先行量が取れなければ対象外" "1" "$(is_ship_target "false" ""; echo $?)"
+check "main より先行していない（ahead_by=0 と正常に取れた）なら次の候補へ" "1" "$(is_ship_target "false" "0"; echo $?)"
+# 検証指摘: 取得失敗を「次の候補へ」にすると v1.1.5 を飛ばして v1.1.6 を対象にしてしまう
+check "先行量が空（取得失敗）なら打ち切る" "2" "$(is_ship_target "false" ""; echo $?)"
+check "先行量がエラーの JSON（5xx・レート制限）なら打ち切る" "2" \
+  "$(is_ship_target "false" '{"message":"Server Error","status":"502"}'; echo $?)"
+check "lock が掛かっていれば先行量を見ずに次の候補へ" "1" "$(is_ship_target "true" ""; echo $?)"
 
 echo "== 16. 仕事13: 出荷準備を始めてよいか =="
 check "PR 0本・残作業 0件・未依頼なら発火する" "0" "$(is_ship_ready "0" "0" "false"; echo $?)"
@@ -331,14 +335,17 @@ check "残作業が残っていれば発火しない" "1" "$(is_ship_ready "0" "
 check "停止条件の二段目: 実機確認を依頼済みなら発火しない" "1" "$(is_ship_ready "0" "0" "true"; echo $?)"
 check "PR の本数が取れなければ発火しない" "1" "$(is_ship_ready "" "0" "false"; echo $?)"
 check "マイルストーンが取れなければ発火しない" "1" "$(is_ship_ready "0" "" ""; echo $?)"
+check "オープン Issue の取得が打ち切られていたら発火しない" "1" "$(is_ship_ready "0" "truncated" "false"; echo $?)"
 
 # GraphQL 応答と同じ形のマイルストーンを組み立てる。
-# 引数: $1 マイルストーン名、以降 "open=ラベル(カンマ区切り)" と "req=author=本文"（ops:chairman Issue のコメント）
+# 引数: $1 マイルストーン名、以降 "open=ラベル(カンマ区切り)" と "req=author=本文"（ops:chairman Issue のコメント）、
+#       "hasnext"（オープン Issue に次のページがある）
 ms_node() {
   local title="$1"; shift
-  local opens='[]' comments='[]' e labels
+  local opens='[]' comments='[]' e labels next=false
   for e in "$@"; do
     case "$e" in
+      hasnext) next=true ;;
       open=*)
         labels=$(printf '%s' "${e#open=}" | tr ',' '\n' | jq -R '{name: .}' | jq -sc .)
         opens=$(printf '%s' "$opens" | jq -c --argjson l "$labels" '. + [{number: 1, labels: {nodes: $l}}]') ;;
@@ -348,9 +355,15 @@ ms_node() {
           | jq -c --arg a "${e%%=*}" --arg b "${e#*=}" '. + [{author: {login: $a}, body: $b}]') ;;
     esac
   done
-  jq -nc --arg t "$title" --argjson o "$opens" --argjson c "$comments" \
-    '{data: {repository: {milestones: {nodes: [{title: $t, openIssues: {nodes: $o},
+  jq -nc --arg t "$title" --argjson o "$opens" --argjson c "$comments" --argjson n "$next" \
+    '{data: {repository: {milestones: {nodes: [{title: $t, openIssues: {pageInfo: {hasNextPage: $n}, nodes: $o},
        requestIssues: {nodes: [{number: 2, comments: {nodes: $c}}]}}]}}}}'
+}
+# オープン Issue を N件（全部 blocked）持つマイルストーン。pageInfo は付けない（取れなかったときの備え）
+ms_many() {
+  jq -nc --argjson n "$1" '{data: {repository: {milestones: {nodes: [{title: "v1.1.5",
+    openIssues: {nodes: [range($n) | {number: ., labels: {nodes: [{name: "blocked"}]}}]},
+    requestIssues: {nodes: []}}]}}}}'
 }
 # ai-duty.sh 仕事13 の呼び出しと同じ式。出力は "残作業の件数 依頼済みか"
 SHA="662a161abcdef0123456789"
@@ -399,6 +412,105 @@ check "仕事8 が「出荷準備…」で発火しない" "false" \
   "$(proposed "$(node "ai:proposed" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
 check "仕事11 が「出荷準備…」で発火しない" "false" \
   "$(blocked "$(node "blocked" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
+
+# 検証指摘: 先頭 100件が除外対象ばかりだと、101件目以降の承認済み Issue を見落として誤発火する
+echo "== 17-b. 仕事13: オープン Issue の取得が打ち切られていたら件数を返さない =="
+check "次のページがあれば truncated（鳴らさない）" "truncated false" \
+  "$(ship_state "$(ms_node v1.1.5 hasnext "open=blocked")" 1.1.5)"
+check "pageInfo が取れなくても 100件に達していれば truncated" "truncated false" \
+  "$(ship_state "$(ms_many 100)" 1.1.5)"
+check "99件で次のページが無ければ件数を返す（対照）" "0 false" \
+  "$(ship_state "$(ms_many 99)" 1.1.5)"
+
+# 検証指摘: 純粋関数のテストだけでは呼び出し側の配線（is_ship_ready への引数・候補ループの break・
+# SHIP_STATE の分け方・gh pr list の --base）を壊しても緑のまま通った。ai-duty.sh の仕事13 ブロックを
+# そのまま切り出し、gh と curl だけをスタブに差し替えて実行する（テスト用の写しを持たない）。
+echo "== 20. 仕事13 の呼び出し側（本物のブロックをスタブの gh で実行）=="
+SHIP_BLOCK=$(awk '/^# 仕事13: 出荷準備の検知/ { f = 1 } /^# 実行モード決定/ { f = 0 } f' "$TARGET")
+check "仕事13 のブロックを切り出せた" "1" "$(printf '%s\n' "$SHIP_BLOCK" | grep -c '^SHIP_READY=0$')"
+
+STUB_LOCK=""; STUB_AHEAD=""; STUB_PRS=""; STUB_GRAPHQL=""
+# "キー=値" の並び（空白区切り）から値を引く
+stub_lookup() {
+  local e
+  for e in $2; do
+    if [ "${e%%=*}" = "$1" ]; then printf '%s' "${e#*=}"; return 0; fi
+  done
+  return 1
+}
+# 実物の gh は --jq を適用した結果を出し、HTTP エラーではエラーの JSON を出して非0で終わる。それに合わせる
+gh() {
+  local v a prev="" base=""
+  case "$1 $2" in
+    "api repos/hiroky1983/game_collection/git/matching-refs/heads/release/v")
+      for v in 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4 1.1.5 1.1.6; do
+        if [ "$v" = "1.1.5" ]; then printf 'release/v%s\t%s\n' "$v" "$SHA"
+        else printf 'release/v%s\t0000000%s\n' "$v" "${v//./}"; fi
+      done ;;
+    "api repos/hiroky1983/game_collection/git/matching-refs/tags/v")
+      printf '%s\n' "$REAL_TAGS" ;;
+    "api repos/hiroky1983/game_collection/branches/"*)
+      v="${2#*release%2Fv}"; v="${v%/protection}"
+      stub_lookup "$v" "$STUB_LOCK" || { printf '{"message":"Branch not protected","status":"404"}'; return 1; } ;;
+    "api repos/hiroky1983/game_collection/compare/"*)
+      v="${2##*release/v}"
+      a=$(stub_lookup "$v" "$STUB_AHEAD") || a=0
+      if [ "$a" = "FAIL" ]; then printf '{"message":"Server Error","status":"502"}'; return 1; fi
+      printf '%s\n' "$a" ;;
+    "api graphql")
+      printf '%s' "$STUB_GRAPHQL" ;;
+    "pr list")
+      for a in "$@"; do
+        [ "$prev" = "--base" ] && base="$a"
+        prev="$a"
+      done
+      # --base が無ければ main 向けを含む全オープン PR の本数を返す（2026-09-16 時点で 6本）
+      if [ -n "$base" ]; then stub_lookup "$base" "$STUB_PRS" || echo 0; else echo 6; fi ;;
+    *) return 1 ;;
+  esac
+}
+curl() { printf '{"results":[{"version":"1.1.4"}]}'; }
+# 引数: lock の並び / ahead_by の並び（FAIL で取得失敗）/ base 別の PR 本数の並び / GraphQL 応答
+# 出力: "対象の版 SHIP_READY"
+run_ship_block() {
+  STUB_LOCK="$1"; STUB_AHEAD="$2"; STUB_PRS="$3"; STUB_GRAPHQL="$4"
+  (
+    DUTY_TRUSTED_ACTORS="$ACTORS"
+    DUTY_APP_ID=0
+    eval "$SHIP_BLOCK" >/dev/null 2>&1
+    printf '%s %s' "${SHIP_VER:-なし}" "$SHIP_READY"
+  )
+}
+AHEAD_OK="1.1.5=375 1.1.6=447"
+PRS_NONE="release/v1.1.5=0 release/v1.1.6=0"
+MS_READY=$(ms_node v1.1.5 "open=blocked" "open=ai:proposed")
+MS_REQUESTED=$(ms_node v1.1.5 "open=blocked" "req=hiroky1983=出荷準備: v1.1.5 @662a161 実機確認をお願いします")
+MS_WORK=$(ms_node v1.1.5 "open=ai:approved")
+MS_TRUNC=$(ms_node v1.1.5 hasnext "open=blocked")
+
+check "条件が揃えば v1.1.5 で発火する（main 向けの PR 6本は数えない）" "1.1.5 1" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
+check "依頼マーカーが現在の HEAD にあれば発火しない（is_ship_ready に依頼の有無が届いている）" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_REQUESTED")"
+check "release/v1.1.5 向けの PR が残っていれば発火しない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "release/v1.1.5=1" "$MS_READY")"
+check "残作業が残っていれば発火しない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_WORK")"
+check "オープン Issue の取得が打ち切られていれば発火しない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_TRUNC")"
+check "v1.1.5 の ahead_by が取得失敗なら v1.1.6 へ進まず対象なし（検証指摘1）" "なし 0" \
+  "$(run_ship_block "" "1.1.5=FAIL 1.1.6=447" "$PRS_NONE" "$MS_READY")"
+check "v1.1.5 が空（ahead_by=0）なら次の v1.1.6 を対象にする" "1.1.6 0" \
+  "$(run_ship_block "" "1.1.5=0 1.1.6=447" "$PRS_NONE" "$MS_READY")"
+check "v1.1.5 が凍結済みなら次の v1.1.6 を対象にする" "1.1.6 0" \
+  "$(run_ship_block "1.1.5=true" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
+
+# 合算判定は仕事13 のブロックの外にあるため走査で見る。コメント行は除き（言及にすり替わらないように）、
+# 「仕事なし」でログを出して終わる if の行そのものに絞る（別の箇所の SHIP_READY で空振りしないように）
+NO_WORK_IF=$(grep -v '^[[:space:]]*#' "$TARGET" | grep -B1 'log "仕事なし' | grep '^if ')
+check "「仕事なし」の合算判定は1行だけ" "1" "$(printf '%s\n' "$NO_WORK_IF" | grep -c '^if ')"
+check "「仕事なし」の合算判定に SHIP_READY が入っている" "1" \
+  "$(printf '%s\n' "$NO_WORK_IF" | grep -cF '[ "${SHIP_READY:-0}" -eq 0 ]')"
 
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")

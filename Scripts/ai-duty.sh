@@ -367,13 +367,19 @@ def is_ringi_stamp($actors):
 #     当たることもない。第三者のコメントで検知を握り潰せないよう author を信頼アカウントに絞る（PR #446）
 #   - マイルストーンの取得は title の部分一致検索なので、ここで完全一致に絞る。見つからなければ空文字を
 #     返し、呼び出し側は「鳴らさない」に倒す
+#   - オープン Issue の取得が打ち切られている（次のページがある・100件に達している）ときは件数の代わりに
+#     `truncated` を返す（呼び出し側は数値でないので鳴らさない）。先頭 100件が除外対象ばかりだと、
+#     101件目以降の承認済み Issue を見落として誤発火するため
 def ship_remaining_issues:
-  [.openIssues.nodes[]
-   | ([.labels.nodes[].name]) as $l
-   | select(($l | index("ai:approved")) != null
-            and ($l | index("blocked")) == null
-            and ($l | index("ringi:pending")) == null
-            and ($l | index("ops:chairman")) == null)] | length;
+  if (.openIssues.pageInfo.hasNextPage // false) or ((.openIssues.nodes | length) >= 100) then "truncated"
+  else
+    [.openIssues.nodes[]
+     | ([.labels.nodes[].name]) as $l
+     | select(($l | index("ai:approved")) != null
+              and ($l | index("blocked")) == null
+              and ($l | index("ringi:pending")) == null
+              and ($l | index("ops:chairman")) == null)] | length
+  end;
 
 def ship_request_posted($actors; $ver; $sha):
   ("出荷準備: v" + $ver + " @" + $sha[0:7]) as $marker
@@ -432,17 +438,19 @@ ship_candidate_versions() {
       done
 }
 
-# is_ship_target: 候補の版が出荷準備の対象か（先頭から順に当て、最初に 0 を返した版に決める）。
-#   - lock_branch が掛かっている = 提出済み（タグの打ち漏れがあっても止まる。停止条件の一段目）
-#   - main より先行していない = 出すものが無い（作ったばかりの空の release ブランチ）
+# is_ship_target: 候補の版が出荷準備の対象か（古い順に当て、0 なら対象に決め、1 なら次の候補へ、2 なら打ち切る）。
+#   - lock_branch が掛かっている = 提出済み（タグの打ち漏れがあっても止まる。停止条件の一段目）→ 次へ
+#   - main より先行していない（ahead_by が 0 と正常に取れた）= 出すものが無い空の release ブランチ → 次へ
+#   - ahead_by が取れなかった（空・数値でない。5xx やレート制限で gh がエラーの JSON を出す）→ **打ち切り**。
+#     次へ進むと、出荷の順番が来ている版（v1.1.5）を飛ばして次版（v1.1.6）を対象にしてしまう
 #   lock は "true" だけを凍結とみなす。保護設定が無いと gh api はエラーの JSON を出すため、
 #   それを「凍結済み」と読むと未凍結の版を黙って飛ばす
-# 引数: $1 = lock_branch.enabled の値 / $2 = main...release の ahead_by
-# 戻り値: 0 = 対象 / 1 = 対象外
+# 引数: $1 = lock_branch.enabled の値 / $2 = main...release の ahead_by（lock が true なら見ない）
+# 戻り値: 0 = 対象 / 1 = 対象外（次の候補へ）/ 2 = 判定不能（対象なしで打ち切る）
 is_ship_target() {
   local lock_enabled="$1" ahead="$2"
   [ "$lock_enabled" = "true" ] && return 1
-  case "$ahead" in ''|*[!0-9]*) return 1 ;; esac
+  case "$ahead" in ''|*[!0-9]*) return 2 ;; esac
   [ "$ahead" -gt 0 ] || return 1
   return 0
 }
@@ -928,14 +936,16 @@ if [ -n "$SHIP_REFS" ]; then
   for V in $(ship_candidate_versions "$(printf '%s\n' "$SHIP_REFS" | cut -f1)" "$SHIP_TAGS" "${SHIP_STORE_VER:-}"); do
     SHIP_LOCK=$(gh api "repos/hiroky1983/game_collection/branches/release%2Fv${V}/protection" \
       --jq '.lock_branch.enabled' 2>/dev/null || echo "false")
-    SHIP_AHEAD=0
+    SHIP_AHEAD=""
     if [ "$SHIP_LOCK" != "true" ]; then
-      SHIP_AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null || echo 0)
+      # 失敗を 0 に丸めない（丸めると「空のブランチ」と区別できず次の版へ進んでしまう）
+      SHIP_AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null || true)
     fi
-    if is_ship_target "$SHIP_LOCK" "$SHIP_AHEAD"; then
-      SHIP_VER="$V"
-      break
-    fi
+    is_ship_target "$SHIP_LOCK" "$SHIP_AHEAD"
+    case $? in
+      0) SHIP_VER="$V"; break ;;
+      2) break ;;
+    esac
   done
 fi
 if [ -n "$SHIP_VER" ]; then
@@ -946,14 +956,18 @@ if [ -n "$SHIP_VER" ]; then
   SHIP_REQUESTED=""
   if [ "${SHIP_PRS:-}" = "0" ]; then
     # オープン Issue は 100件、ops:chairman の Issue は 50件・各コメント直近 50件まで見る。
-    # オープン Issue が 100件を超える版は残作業が 0 になりえないので、打ち切りは判定を変えない
+    # オープン Issue が打ち切られていたら ship_remaining_issues が件数を返さず、鳴らさない側に倒れる。
+    # マイルストーンの検索は部分一致で、v1.1.1 は v1.1.10〜19 にも当たるので枠を 50 に広げてある
     SHIP_STATE=$(gh api graphql -f title="v${SHIP_VER}" -f query='
 query($title: String!) {
   repository(owner: "hiroky1983", name: "game_collection") {
-    milestones(first: 10, query: $title, states: [OPEN, CLOSED]) {
+    milestones(first: 50, query: $title, states: [OPEN, CLOSED]) {
       nodes {
         title
-        openIssues: issues(states: OPEN, first: 100) { nodes { number labels(first: 20) { nodes { name } } } }
+        openIssues: issues(states: OPEN, first: 100) {
+          pageInfo { hasNextPage }
+          nodes { number labels(first: 20) { nodes { name } } }
+        }
         requestIssues: issues(labels: ["ops:chairman"], states: [OPEN, CLOSED], first: 50) {
           nodes { number comments(last: 50) { nodes { body author { login } } } }
         }

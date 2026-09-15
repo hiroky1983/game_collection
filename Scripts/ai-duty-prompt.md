@@ -231,8 +231,15 @@ main より先行している / その release ブランチを base にするオ
    gh pr list --state open --base "release/v$V" --json number,title
    gh issue list --milestone "v$V" --state open --limit 100 --json number,title,labels \
      --jq '.[] | "\(.number) [\([.labels[].name] | join(","))] \(.title)"'
+   # 残作業の件数（検知と同じ定義: ai:approved 付きで blocked・ringi:pending・ops:chairman の無いオープン Issue）
+   gh issue list --milestone "v$V" --state open --limit 500 --json number,labels \
+     --jq '[.[] | ([.labels[].name]) as $l
+            | select(($l | index("ai:approved")) != null and ($l | index("blocked")) == null
+                     and ($l | index("ringi:pending")) == null and ($l | index("ops:chairman")) == null)
+            | .number] | "残作業 \(length) 件: \(map("#\(.)") | join(" "))"'
    ```
-   PR や残作業が残っていたら何もしない（それぞれ通常のフロー＝セクション1・2が片付け、片付けば再び検知される）。
+   オープン PR が 1本でもある、または残作業が 1件以上なら何もしない（それぞれ通常のフロー＝セクション1・2が片付け、
+   片付けば再び検知される）。上の一覧の残りの Issue（未承認・blocked・ringi:pending・ops:chairman）は残作業ではなく、2. で扱う。
 2. **残 Issue と入稿物の充足を確認する**。残作業の集計から外れているオープン Issue（未承認の `ai:proposed`・
    `blocked`・`ringi:pending`・`ops:chairman`）を全部列挙し、それぞれ「この版の出荷を止めるものか」を1行で判断する
    （例: 新ゲームのリーダーボード登録や GA4 のカスタムディメンション登録のように、公開前に済んでいないと
