@@ -1156,29 +1156,6 @@ struct MahjongRuleSheet: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(rules, id: \.0) { rule in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(rule.0)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.coral)
-                        Text(rule.1)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-                }
-            }
-            .padding(Theme.pad)
-        }
-        .popBackground()
-        .navigationTitle("ルールと役")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
+        RuleListSheet(title: "ルールと役", rules: rules)
     }
 }

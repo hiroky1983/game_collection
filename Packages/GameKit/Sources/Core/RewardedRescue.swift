@@ -170,6 +170,105 @@ public enum RewardGuard: Sendable {
     }
 }
 
+// MARK: - 広告コンティニューの幕
+
+/// 決着した盤に被せる「広告を見て続ける」の幕（#829）。
+///
+/// 2048・ブロックならべ・ナンプレに、黒の幕・見出し・救済ボタン・二次ボタンという同じ組み方が
+/// 写しで置かれていた（#729 の局ガードのコメントごと）。救済ボタンは**局ガード付きの `request` を
+/// ここで必ず通す**ので、寄せた面では照合の書き忘れが構造的に起きない（`RewardGuardCallSiteTests`）。
+///
+/// ゲームごとに違う見た目（見出しの大きさ・幕の角丸・見出しの下の一行・内側の余白）だけを引数で受ける。
+/// 失敗のアラート（`rewardedRescueAlerts`）は画面全体に付くものなので、呼び出し側に残す。
+public struct RewardedContinueOverlay<Detail: View>: View {
+    private let title: LocalizedStringKey
+    private let titleFont: Font
+    private let cornerRadius: CGFloat
+    private let contentPadding: CGFloat
+    private let detail: Detail
+    private let rescueLabel: LocalizedStringKey
+    private let canContinue: Bool
+    private let continueRescue: RewardedRescue
+    private let services: GameServices
+    private let gameID: String
+    private let serial: () -> Int
+    private let grant: (Int) -> Bool
+    private let secondaryTitle: LocalizedStringKey
+    private let secondaryAction: () -> Void
+
+    /// - Parameters:
+    ///   - detail: 見出しの下の一行（記録の表示や、広告で何が戻るかの説明）。
+    ///   - canContinue: 救済ボタンを出すか。1 局 1 回のゲームは使ったら false にする。
+    ///   - serial: 局の通し番号。**タップした瞬間に**読んで控え、広告の後に `grant` へ渡す。
+    ///   - grant: 控えた通し番号の局へコンティニューを適用する。局が入れ替わっていたら false を返す。
+    ///   - secondaryTitle: 救済を選ばないときのボタン（「もう一度」「諦めて答えを見る」）。
+    public init(
+        title: LocalizedStringKey,
+        titleFont: Font = .title2.bold(),
+        cornerRadius: CGFloat = 8,
+        contentPadding: CGFloat = 0,
+        detail: Detail,
+        rescueLabel: LocalizedStringKey,
+        canContinue: Bool = true,
+        rescue: RewardedRescue,
+        services: GameServices,
+        gameID: String,
+        serial: @autoclosure @escaping () -> Int,
+        grant: @escaping (Int) -> Bool,
+        secondaryTitle: LocalizedStringKey,
+        secondaryAction: @escaping () -> Void
+    ) {
+        self.title = title
+        self.titleFont = titleFont
+        self.cornerRadius = cornerRadius
+        self.contentPadding = contentPadding
+        self.detail = detail
+        self.rescueLabel = rescueLabel
+        self.canContinue = canContinue
+        self.continueRescue = rescue
+        self.services = services
+        self.gameID = gameID
+        self.serial = serial
+        self.grant = grant
+        self.secondaryTitle = secondaryTitle
+        self.secondaryAction = secondaryAction
+    }
+
+    public var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.black.opacity(0.55))
+            VStack(spacing: 12) {
+                Text(title).font(titleFont).foregroundStyle(.white)
+                detail
+                if canContinue {
+                    Button {
+                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
+                        // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                        let game = serial()
+                        continueRescue.request(
+                            services, gameID: gameID, purpose: .continue,
+                            guardedBy: .checkedByGrant
+                        ) {
+                            grant(game)
+                        }
+                    } label: {
+                        Label(rescueLabel, systemImage: "play.rectangle.fill")
+                            .foregroundStyle(Theme.onAccent)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.Fill.coral)
+                    .disabled(continueRescue.isWatching)
+                }
+                Button(secondaryTitle) { secondaryAction() }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+            }
+            .padding(contentPadding)
+        }
+    }
+}
+
 /// 視聴は完了したのに適用できなかったときのアラート（#526）。
 ///
 /// 本文が「見ているあいだに何が起きたか」「手持ちはどうなったか」をゲームごとに説明するため、

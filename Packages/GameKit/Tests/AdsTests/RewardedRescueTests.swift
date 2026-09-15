@@ -292,7 +292,8 @@ struct RewardGuardCallSiteTests {
         let requests = sources.reduce(0) { $0 + Self.occurrences(of: "Rescue.request(", in: $1.text) }
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
-        #expect(requests == 14, "救済の入口は14面（`requestHandledByModel` の3面と、Core に寄せた盤ゲームの待ったを除く）")
+        // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
+        #expect(requests == 11, "救済の入口は11面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }
@@ -311,6 +312,36 @@ struct RewardGuardCallSiteTests {
         #expect(Self.occurrences(of: "guardedBy: .checkedByGrant", in: text) == 1)
         #expect(Self.occurrences(of: "unavailable: RewardUnavailableAlert(", in: text) == 1)
         #expect(text.matches(of: try Regex(#"model\.\w+\(forTurn:"#)).count == 1)
+    }
+
+    @Test("Core に寄せた広告コンティニューの幕も、局ガードを宣言して控えた通し番号を渡している（#829）")
+    func sharedContinueOverlayDeclaresItsGuard() throws {
+        // 走査は Core を対象外にしているので、2048・ブロックならべ・ナンプレの幕を寄せた部品はここで名指しで見る。
+        // 各ゲーム側は `RewardedContinueOverlay(` の呼び出しを照合する宣言として数える（下の 2 つの突き合わせ）。
+        let text = try String(
+            contentsOf: Self.sourcesRoot.appendingPathComponent("Core/RewardedRescue.swift"), encoding: .utf8
+        )
+        .split(separator: "\n", omittingEmptySubsequences: false)
+        .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+        .joined(separator: "\n")
+        #expect(Self.occurrences(of: "Rescue.request(", in: text) == 1)
+        #expect(Self.occurrences(of: "guardedBy: .checkedByGrant", in: text) == 1)
+        #expect(Self.occurrences(of: "let game = serial()", in: text) == 1, "広告の前に通し番号を控えていない")
+        #expect(Self.occurrences(of: "grant(game)", in: text) == 1, "控えた通し番号を grant に渡していない")
+        // 控えるのは広告の**前**。`request` の完了クロージャの中で読むと、広告のあいだに始めた局の番号になる（#729）。
+        let captured = try #require(text.range(of: "let game = serial()"))
+        let requested = try #require(text.range(of: "Rescue.request("))
+        #expect(captured.lowerBound < requested.lowerBound, "通し番号を広告の後に読んでいる")
+
+        let callers = try Self.gameSources()
+            .filter { $0.text.contains("RewardedContinueOverlay(") }
+            .map(\.path)
+            .sorted()
+        #expect(callers == [
+            "Game2048/Game2048View.swift",
+            "GameBlockPuzzle/BlockPuzzleView.swift",
+            "GameSudoku/SudokuView.swift",
+        ])
     }
 
     @Test("照合していない面は名指しで固定する")
@@ -340,7 +371,9 @@ struct RewardGuardCallSiteTests {
             .map { (
                 path: $0.path,
                 checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text)
-                    + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $0.text),
+                    + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $0.text)
+                    // Core の幕（#829）は中で `checkedByGrant` を宣言しているので、呼び出しを 1 件と数える。
+                    + Self.occurrences(of: "RewardedContinueOverlay(", in: $0.text),
                 alerts: Self.occurrences(of: "unavailable: RewardUnavailableAlert(", in: $0.text)
             ) }
             .filter { $0.checked != $0.alerts }
@@ -359,7 +392,8 @@ struct RewardGuardCallSiteTests {
         let mismatched = try Self.gameSources()
             .map { (
                 path: $0.path,
-                checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text),
+                checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text)
+                    + Self.occurrences(of: "RewardedContinueOverlay(", in: $0.text),
                 serialCalls: $0.text.matches(of: serialCall).count
             ) }
             .filter { $0.checked != $0.serialCalls }
