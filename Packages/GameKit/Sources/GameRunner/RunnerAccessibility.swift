@@ -1,9 +1,10 @@
+import Core
 import Foundation
 
 /// 画面の状態を読み上げる文（#494）。
 ///
 /// アクション枠は**盤面を読み上げても遊べるようにはならない**（基盤規約 §3）。代わりに
-/// 進行に関わる情報（ステージ・進み具合・タイム）を SwiftUI 側のヘッダーへ置き、
+/// 進行に関わる情報（ステージ・進み具合・スピード）を SwiftUI 側のヘッダーへ置き、
 /// ここで作った文を `accessibilityLabel` に付ける。SpriteKit の中に文字は描かない。
 ///
 /// 純関数なので、View を組まずに `AccessibilityTests` で文面を固定できる。
@@ -26,10 +27,25 @@ public enum RunnerAccessibility {
         return "\(RunnerWorld.code(forStage: number)) \(name)、\(reached ? "到達済み" : "未到達")"
     }
 
-    /// 走り出す前の画面のモード切り替え（#919）の 1 区画。「モード、ステージ」の形で、
-    /// 何の切り替えかとモード名を 1 文で言う（選択中かどうかは `.isSelected` の特性で添える）。
-    public static func modeLabel(_ mode: RunnerMode) -> String {
-        "モード、\(mode.title)"
+    /// 面の見出し「2-3 とうふ屋のかど」（#931）。走行中の HUD・スタート画面の主ボタン・
+    /// クリア表示の「つぎは」で同じ形を使う。名前の無い番号（範囲外）は「ステージ N」に倒す。
+    public static func stageHeadline(number: Int) -> String {
+        guard let name = RunnerWorld.stageName(forStage: number) else {
+            return "ステージ \(number)"
+        }
+        return "\(RunnerWorld.code(forStage: number)) \(name)"
+    }
+
+    /// スタート画面（#931）の主ボタン。「2-3 とうふ屋のかど から走る」。
+    public static func startStageLabel(number: Int) -> String {
+        "\(stageHeadline(number: number)) から走る"
+    }
+
+    /// スタート画面（#931）のエンドレスのボタン。自己ベストを添えて
+    /// 「エンドレス、自己ベスト 1,234 メートル」。まだ走っていなければ「まだ記録なし」。
+    public static func startEndlessLabel(bestDistance: Int?) -> String {
+        guard let bestDistance else { return "エンドレス、まだ記録なし" }
+        return "エンドレス、自己ベスト \(RecordFormat.number(max(0, bestDistance))) メートル"
     }
 
     /// 進み具合。パーセントは 5 刻みに丸める（1% ごとに読み上げが変わると耳で追えない）。
@@ -52,20 +68,6 @@ public enum RunnerAccessibility {
     /// たこ焼き（#797）の無敵の残り時間。秒は切り上げる（残り 0.3 秒を「0秒」と読まない）。
     public static func invincibleLabel(remaining: Double) -> String {
         "無敵 あと\(Int(max(0, remaining).rounded(.up)))秒"
-    }
-
-    /// タイム。分と秒に分けて読む（`1:05` は「いちころごー」と読まれてしまう）。
-    public static func timeLabel(seconds: Int) -> String {
-        let value = max(0, seconds)
-        let minutes = value / 60
-        let rest = value % 60
-        return minutes > 0 ? "\(minutes)分\(rest)秒" : "\(rest)秒"
-    }
-
-    /// ベストタイム。未クリアのステージは記録が無いことを言う。
-    public static func bestLabel(seconds: Int?) -> String {
-        guard let seconds else { return "ベストタイムはまだありません" }
-        return "ベストタイム \(timeLabel(seconds: seconds))"
     }
 
     /// 走行距離（エンドレス・#675）。単位はワールド単位だが、画面と同じ「m」で読む。

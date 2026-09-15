@@ -18,6 +18,8 @@ final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
     func exists(for gameID: String) -> Bool { store[gameID] != nil }
     /// 壊れたデータを流し込む（復元の検め方を試すため）。
     func inject(_ data: Data, for gameID: String) { store[gameID] = data }
+    /// 保存された JSON そのもの（鍵の有無を検めるため）。
+    func rawData(for gameID: String) -> Data? { store[gameID] }
 }
 
 /// 既定オフ・使い捨ての設定。`UserDefaults.standard` を汚さない。
