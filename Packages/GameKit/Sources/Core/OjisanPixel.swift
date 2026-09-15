@@ -90,7 +90,7 @@ public enum OjisanPixel {
     /// ハブのカード・おすすめ・設定などで `GameModule.icon` として出す正面顔。
     /// 呼び出し側は SF Symbol と同じく `.font(...)` で大きさを決めているが、ビットマップには効かないので
     /// `resizable` で枠（44pt・36pt・32pt、iPad では `layout.scaled` で拡大）に追従させる。
-    /// `interpolation(.none)` でにじませない（枠 44pt ならちょうど 1 ドット = 2pt になる）。
+    /// `interpolation(.none)` でにじませない（枠 44pt で 1 ドット ≒ 1.8pt。整数倍でなくてもドットの縁は立つ）。
     public static var mascotIcon: Image {
         guard let cg = mascotFaceImage else { return Image(systemName: "bicycle") }
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
