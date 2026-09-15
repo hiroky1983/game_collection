@@ -6,6 +6,8 @@ export type Game = {
   slug: string;
   name: string;
   emoji: string;
+  /// 絵文字の代わりに出す絵（`public/` からのパス）。ドット絵なので `GameMark` が整数倍で拡大する
+  icon?: { src: string; width: number; height: number };
   /// 一覧カードに出す1行紹介（アプリ内の GameModule.description に合わせる）
   tagline: string;
   /// ゲーム別ページの <title> に使う語（検索されるであろう表記を含める）
@@ -409,6 +411,8 @@ export const games: Game[] = [
     slug: "runner",
     name: "チャリンコおじさん",
     emoji: "🚲",
+    // おじさんの正面顔（アプリの Core/OjisanPixel と同じ 16×15 ドットを 8 倍で書き出したもの、#700）
+    icon: { src: "/games/ojisan-face.png", width: 16, height: 15 },
     tagline: "タップで跳んで15ステージを走りぬけよう",
     pageTitle: "チャリンコおじさん - 無料で遊べるワンタップ横スクロールランナー",
     description:

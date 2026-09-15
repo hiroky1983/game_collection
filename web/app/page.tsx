@@ -6,6 +6,7 @@ import {
   SITE_NAME,
   SITE_URL,
 } from "./lib/site";
+import GameMark from "./components/GameMark";
 
 /// 収録本数とゲーム名の列挙は `games` から導出する（本数をベタ書きすると追加のたびに直し漏れる）。
 /// 「収録」と言えるのは配信済み（`comingSoon` 無し）のものだけ。配信予定のゲームは別枠で見せる
@@ -96,7 +97,7 @@ export default function Home() {
             href={`/games/${g.slug}`}
             className="bg-white dark:bg-gray-800 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
           >
-            <span className="text-3xl">{g.emoji}</span>
+            <GameMark game={g} scale={3} className="text-3xl" />
             <div>
               <p className="font-bold text-gray-900 dark:text-white">{g.name}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{g.tagline}</p>
@@ -118,7 +119,7 @@ export default function Home() {
                 href={`/games/${g.slug}`}
                 className="bg-white dark:bg-gray-800 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
               >
-                <span className="text-3xl">{g.emoji}</span>
+                <GameMark game={g} scale={3} className="text-3xl" />
                 <div>
                   <p className="font-bold text-gray-900 dark:text-white">
                     {g.name}
