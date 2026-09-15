@@ -87,8 +87,17 @@ cleanup_simulators() {
 #   - 対象が0件なら何もしない（空振り時は無音）
 #   - osascript に渡すのは **Issue 番号だけ**にする。タイトルを埋め込むと AppleScript の文字列を
 #     壊すうえ、このリポジトリは PUBLIC で第三者も Issue を立てられるため注入の経路になる
+#
+# 3つ目の集合: 会長操作依頼（`ops:chairman`、Issue #556）。会長操作依頼は「本文冒頭に
+# 【会長操作依頼】と明記し ai:proposed を付けない」規約（乱造ガード対象から外すため）のため、
+# 規約どおりに運用すると上の2集合のどちらにも入らず通知から完全に漏れる（#171 が21日間
+# 通知なしで滞留した実例）。`ops:chairman` は会長のコンソール操作でしか進まない印なので、
+# **ai:approved / blocked の有無で除外しない**（#171 は ai:approved + blocked のまま沈んでいた）。
+# 停止条件は Issue のクローズのみ: --state open で拾うため、会長が操作を終えてクローズすれば
+# 次回の収集から自然に落ちて鳴り止む
 NOTIFY_RINGI=""
 NOTIFY_APPROVAL=""
+NOTIFY_CHAIRMAN=""
 NOTIFY_READY=0
 
 # 通知対象の収集。gh が失敗したときは NOTIFY_READY を立てないので通知しない（黙って0件扱いにすると
@@ -96,7 +105,7 @@ NOTIFY_READY=0
 collect_notify_targets() {
   # --limit を省略すると 30 件で打ち切られ、超えた分が**黙って**通知から漏れる（PR #142 の
   # CodeRabbit 指摘）。滞留が増えたときほど漏れるという最悪の壊れ方をするので上限を明示する
-  local ringi approval
+  local ringi approval chairman
   ringi=$(gh issue list -R hiroky1983/game_collection --label "ringi:pending" --state open --limit 200 \
     --json number --jq '[.[].number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
   # 承認待ち = ai:proposed のうち会長のハンコがまだ無いもの。着手済み・外部イベント待ち（blocked）と、
@@ -107,8 +116,12 @@ collect_notify_targets() {
           | select(($l | index("ai:approved")) == null and ($l | index("ai:in-progress")) == null
                    and ($l | index("blocked")) == null and ($l | index("ringi:pending")) == null)
           | .number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
+  # 会長操作依頼 = ops:chairman（Issue #556）。ai:approved / blocked で除外しない（上記コメント参照）
+  chairman=$(gh issue list -R hiroky1983/game_collection --label "ops:chairman" --state open --limit 200 \
+    --json number --jq '[.[].number] | map(tostring) | join(" ")' 2>/dev/null) || return 0
   NOTIFY_RINGI="$ringi"
   NOTIFY_APPROVAL="$approval"
+  NOTIFY_CHAIRMAN="$chairman"
   NOTIFY_READY=1
 }
 
@@ -125,14 +138,35 @@ sanitize_numbers() {
   printf '%s' "$1" | tr '\n\t' '  ' | tr -cd '0-9 ' | tr -s ' ' | sed 's/^ //; s/ $//'
 }
 
+# $1 の番号から $2 に含まれる番号を落とす。同じ Issue が 2 つの集合に入ると、通知の本文に
+# 二度並び、件数も二重に数えられる（PR #999 の CodeRabbit 指摘）。決裁待ちと承認待ちは
+# jq 側のラベル条件で重ならないようにしてあるが、`ops:chairman` はラベルの組み合わせを
+# 制限していない（会長操作依頼に `ai:proposed` や `ringi:pending` が付くことはありうる）ので、
+# ここで落とす。
+exclude_numbers() {
+  local n m out="" skip
+  for n in $1; do
+    skip=0
+    for m in $2; do
+      if [ "$n" = "$m" ]; then skip=1; break; fi
+    done
+    if [ "$skip" -eq 0 ]; then out="$out $n"; fi
+  done
+  printf '%s' "${out# }"
+}
+
 notify_pending() {
   [ "$NOTIFY_READY" -eq 1 ] || return 0
-  local ringi approval key now last_key last_at body count
+  local ringi approval chairman key now last_key last_at body count
   ringi=$(sanitize_numbers "$NOTIFY_RINGI")
   approval=$(sanitize_numbers "$NOTIFY_APPROVAL")
-  [ -n "$ringi$approval" ] || return 0
+  chairman=$(sanitize_numbers "$NOTIFY_CHAIRMAN")
+  # 先に出る集合を優先して重複を落とす（決裁待ち → 承認待ち → 会長操作待ち）
+  approval=$(exclude_numbers "$approval" "$ringi")
+  chairman=$(exclude_numbers "$chairman" "$ringi $approval")
+  [ -n "$ringi$approval$chairman" ] || return 0
 
-  key="ringi=$ringi;approval=$approval"
+  key="ringi=$ringi;approval=$approval;chairman=$chairman"
   now=$(date +%s)
   if [ -f "$DUTY_NOTIFY_STATE" ]; then
     last_key=$(sed -n '1p' "$DUTY_NOTIFY_STATE" 2>/dev/null)
@@ -153,6 +187,11 @@ notify_pending() {
     count=$((count + $(printf '%s' "$approval" | wc -w)))
     [ -n "$body" ] && body="$body / "
     body="${body}承認待ち(ai:approved を付けるだけ): $(hash_numbers "$approval")"
+  fi
+  if [ -n "$chairman" ]; then
+    count=$((count + $(printf '%s' "$chairman" | wc -w)))
+    [ -n "$body" ] && body="$body / "
+    body="${body}会長操作待ち(ops:chairman): $(hash_numbers "$chairman")"
   fi
 
   # 以降のログの `${body}` は必ずブレースで囲む（#175）。UTF-8 ロケールの bash は 0x80 以上のバイトを
