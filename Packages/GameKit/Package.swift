@@ -81,6 +81,7 @@ let package = Package(
         .target(name: "GameKitTestSupport", path: "Tests/GameKitTestSupport"),
         // 配色（#187 のダークモード対応）はゲーム横断の共有資産なので Core 単体で検証する。
         .testTarget(name: "ThemeTests",       dependencies: ["Core", "GameKitTestSupport"]),
+        .testTarget(name: "PixelArtTests",    dependencies: ["Core"]),
         // 広告枠（バナー）の生成判断。実際の GADBannerView は端末側なので、判断だけを純粋関数で検証する。
         .testTarget(name: "AdsTests",         dependencies: ["Core"]),
         // 画面の広さに応じた適応レイヤ（#458 の iPad 対応）。判定と数値を Core に集約しているため、
