@@ -42,11 +42,6 @@ public struct MahjongMeld: Equatable, Sendable {
     public var containsTerminalOrHonor: Bool {
         tiles.contains { MahjongTileOrder.isTerminalOrHonor(MahjongTileOrder.index(of: $0)) }
     }
-
-    /// すべて中張牌（2〜8）か（断幺九の判定に使う）。
-    public var isAllSimples: Bool {
-        tiles.allSatisfy { !MahjongTileOrder.isTerminalOrHonor(MahjongTileOrder.index(of: $0)) }
-    }
 }
 
 /// 和了形を 4 面子 + 雀頭に分けた 1 通りの解釈。

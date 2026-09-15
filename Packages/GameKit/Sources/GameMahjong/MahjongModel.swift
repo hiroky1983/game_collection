@@ -677,11 +677,6 @@ public final class MahjongModel: AITurnGuarded {
     }
     #endif
 
-    /// テスト専用: 自分の手番でのカン（暗槓・加槓）を経由させる。
-    func declareKanForTesting(_ call: MahjongCall, by player: Int) {
-        performSelfKan(call, by: player)
-    }
-
     /// テスト専用: 人間以外の手番を 1 つだけ進める。
     func stepCPUForTesting() {
         guard phase == .playing, currentPlayer != Self.humanIndex else { return }

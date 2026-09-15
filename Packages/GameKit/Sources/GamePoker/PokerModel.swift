@@ -9,7 +9,7 @@ public enum PokerPhase: String, Equatable, Sendable, Codable {
 }
 
 public enum PokerBetAction: Sendable {
-    case check, bet(Int), call, raise(Int), fold
+    case check, bet(Int), fold
 }
 
 public enum PokerWinner: String, Sendable, Codable {
@@ -322,7 +322,8 @@ public final class PokerModel {
             playerBetInRound = amount
             services?.feedback.impact(.medium)
             cpuBet1Response(playerBet: amount)
-        default: break
+        case .fold:
+            break // 交換前はフォールドできない
         }
     }
 
@@ -426,7 +427,6 @@ public final class PokerModel {
             phase = .result
             settleRound()
             persist()
-        default: break
         }
     }
 
