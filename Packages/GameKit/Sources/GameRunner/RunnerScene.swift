@@ -1100,13 +1100,13 @@ final class RunnerScene: SKScene {
     /// 距離から読んで、部品のアニメーションを止める・回すだけ。
     private final class MovingHazardView {
         enum State: Equatable {
-            /// まだ動き出していない（止まった鳥・立っている犬）。
+            /// まだ動き出していない（止まった鳥）。
             case waiting
             /// 飛び立つ前の羽ばたき（鳥だけ）。
             case fluttering
             /// 動いている。
             case moving
-            /// 動き終えて止まっている（吠える犬・岩で止まったイノシシ）。
+            /// 動き終えて止まっている（岩で止まったイノシシ）。
             case stopped
         }
 
@@ -1118,7 +1118,8 @@ final class RunnerScene: SKScene {
         let shadowBaseY: Double
         /// 動いているあいだだけ回す部品（翼・浮遊・脚）。止まっているあいだは `isPaused`。
         let animated: [SKNode]
-        /// 止まっているあいだだけ見せる部品（犬の吠え声）。
+        /// 止まっているあいだだけ見せる部品（犬の吠え声の吹き出し。#944 で犬は止まらなく
+        /// なったので、いまは常に隠れている）。
         let stoppedOnly: SKNode?
         /// 動いているあいだだけ見せる部品（イノシシの土煙）。
         let movingOnly: SKNode?
@@ -1559,6 +1560,12 @@ final class RunnerScene: SKScene {
                 if hazard.kind == .boar, field.distance > hazard.boarChargeStartDistance - 1 {
                     spawnChargeDust(atWorldX: field.distance + Metrics.width - Metrics.playerX - 4)
                 }
+                // 犬が後ろに現れた瞬間（#944）。まだ画面の外なので、画面の左端に同じ土煙を立てて
+                // 「後ろから何か来る」を見せる。手応え（吠え声）は Model が同じ瞬間に鳴らす。
+                // 追い越されたあと（チェックポイントから走り直したとき）は立てない。
+                if hazard.kind == .dog, field.distance < hazard.dogContactDistance {
+                    spawnChargeDust(atWorldX: field.distance - Metrics.playerX + 4)
+                }
             }
             switch hazard.kind {
             case .bird:
@@ -1575,16 +1582,10 @@ final class RunnerScene: SKScene {
                 }
                 view.apply(state)
             case .dog:
+                // 現れてから消えるまで走り続ける（#944）。立ち止まって吠える状態は無いので
+                // 吹き出し（`stoppedOnly`）は出ない。
                 view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)
-                let state: MovingHazardView.State
-                if frame.advance > 0 {
-                    state = .moving
-                } else if field.distance >= hazard.dogStopDistance {
-                    state = .stopped
-                } else {
-                    state = .waiting
-                }
-                view.apply(state)
+                view.apply(.moving)
             case .boar:
                 view.node.position = CGPoint(x: frame.start, y: Metrics.groundY)
                 view.apply(frame.advance < 0 ? .moving : .stopped)

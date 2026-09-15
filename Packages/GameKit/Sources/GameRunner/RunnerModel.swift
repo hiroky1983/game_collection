@@ -475,7 +475,7 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .dogBarking:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
@@ -656,12 +656,15 @@ public final class RunnerModel {
             })
             isFrozenForCapture = true
         case "dog":
-            // 犬が立ち止まって吠えている瞬間（#800）。止まった直後・踏み切る前で止める。
+            // 犬が走者の真横〜少し前を抜ける瞬間（#944）。跳んでいる走者の中心を犬の左端が
+            // 越えた最初のフレーム（犬の箱が走者の右半分に重なり、足の下を抜けていく画）で止める。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
-                guard let dog = model.field.stage.hazards.first(where: { $0.kind == .dog }) else { return true }
-                return model.field.isGrounded && model.field.distance >= dog.dogStopDistance + 1
+                let field = model.field
+                guard let dog = field.stage.hazards.first(where: { $0.kind == .dog }),
+                      let frame = dog.frame(atRunnerDistance: field.distance) else { return false }
+                return !field.isGrounded && frame.start >= field.distance
             })
             isFrozenForCapture = true
         case "boar":

@@ -46,6 +46,8 @@ struct RunnerFeedbackCueTests {
         #expect(RunnerFeedbackCue.cue(for: .passedCheckpoint, lastLandingWasJust: false) == .notice(.success))
         // イノシシの予告「ドドド」（#801）は硬い手応えで、決着（notice）ではない。
         #expect(RunnerFeedbackCue.cue(for: .boarCharging, lastLandingWasJust: false) == .impact(.rigid))
+        // 犬の吠え声（#944）も同じ「何か来る」の合図。
+        #expect(RunnerFeedbackCue.cue(for: .dogBarking, lastLandingWasJust: false) == .impact(.rigid))
         // 着地はジャスト着地（#673）だけ一段強い。
         #expect(RunnerFeedbackCue.cue(for: .landed, lastLandingWasJust: false) == .impact(.light))
         #expect(RunnerFeedbackCue.cue(for: .landed, lastLandingWasJust: true) == .impact(.medium))
