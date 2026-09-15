@@ -338,6 +338,25 @@ struct RunnerCheckpointTests {
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
     }
 
+    @Test("QA 用のショーケースは「もう一度」でも本番の面に戻らない（面を選び直せば解除される）")
+    func debugShowcaseSurvivesRetry() {
+        let model = RunnerModel(startingAt: 15, preference: makePreference("showcase-retry"))
+        model.applyDebugScenario("showcase")
+        #expect(model.isRunningDebugStage)
+        let showcase = model.field.stage.pattern
+        #expect(showcase == RunnerStage.debugShowcase.pattern)
+
+        failCurrentStage(model)
+        model.retryStage()
+        #expect(model.isRunningDebugStage, "もう一度でショーケースが消えない")
+        #expect(model.field.stage.pattern == showcase)
+
+        // 面を選び直したら本番の面へ戻る。
+        model.newGame(mode: .stages)
+        #expect(!model.isRunningDebugStage)
+        #expect(model.field.stage.pattern != showcase)
+    }
+
     /// ソリティアの補充（#509）と同じ契約。広告のロード中にコースが作り直されたら適用しない。
     @Test("広告のあいだに別のコースが始まっていたら適用しない")
     func rejectsStaleRun() {
