@@ -128,7 +128,9 @@ struct PokerMotionTests {
 
     // MARK: - ヘルパー
 
+    /// モジュール一式を読む（#831）。コメントを落とすのは、`PokerMotion` の説明文にある
+    /// `.contentTransition(.numericText(value:))` への言及が「1 か所」の件数に混ざるため。
     private static func viewSource() throws -> String {
-        try SourceScan.packageSource("Sources/GamePoker/PokerView.swift")
+        SourceScan.strippingComments(try SourceScan.moduleSources("GamePoker"))
     }
 }

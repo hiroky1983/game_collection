@@ -137,7 +137,7 @@ struct PokerShowdownPacingTests {
         let motion = try Self.source("PokerMotion.swift")
         #expect(motion.contains("static let potSettle: Animation = potChange.delay(showdownTotalDuration)"))
 
-        let view = try Self.source("PokerView.swift")
+        let view = try SourceScan.moduleSources("GamePoker")
         #expect(view.contains(".gameAnimation(potAnimation, value: model.pot)"))
         #expect(view.contains(
             "model.phase == .result && !model.cpuFolded ? PokerMotion.potSettle : PokerMotion.potChange"

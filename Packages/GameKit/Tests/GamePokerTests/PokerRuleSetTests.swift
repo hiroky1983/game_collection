@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import SwiftUI
 import Core
+import GameKitTestSupport
 @testable import GamePoker
 
 // MARK: - Mocks
@@ -169,14 +170,10 @@ struct PokerRuleSetBakingTests {
 
     @Test("Model はグローバル設定を一切読まない（読むと局中に足元が変わる）")
     func modelReadsNoGlobalSettings() throws {
-        let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()   // GamePokerTests
-                .deletingLastPathComponent()   // Tests
-                .deletingLastPathComponent()   // GameKit
-                .appendingPathComponent("Sources/GamePoker/PokerModel.swift"),
-            encoding: .utf8
-        )
+        // Model 側のファイル一式（#831 で札と役判定を別ファイルへ割った）。View は設定を読んでよいので含めない。
+        let source = try ["PokerModel.swift", "PokerCard.swift", "PokerHandEvaluator.swift"]
+            .map { try SourceScan.packageSource("Sources/GamePoker/\($0)") }
+            .joined(separator: "\n")
         #expect(!source.contains("UserDefaults"))
         #expect(!source.contains("AppStorage"))
     }

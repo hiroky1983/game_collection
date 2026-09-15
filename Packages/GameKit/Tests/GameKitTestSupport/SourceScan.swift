@@ -25,6 +25,23 @@ public enum SourceScan {
         try String(contentsOf: packageRoot.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
+    /// `Sources/<module>`（例 `GamePoker`）の Swift ソース一式を名前順に連結して返す。
+    ///
+    /// 1 ファイルを名指しで読むと、型やシートを別ファイルへ割っただけで走査が空振りする（#831）。
+    /// 件数を数える検査があるので順序は名前順に固定する。コメントは落とさない（要るなら呼び出し側で落とす）。
+    public static func moduleSources(_ module: String) throws -> String {
+        let dir = packageRoot.appendingPathComponent("Sources").appendingPathComponent(module)
+        let files = try FileManager.default
+            .contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        // 空振り防止。パスの導出が外れて 0 件になると、「含まない」を見る検査が素通りしてしまう。
+        guard !files.isEmpty else { throw SourceScanError.noSources(dir.path) }
+        return try files
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+    }
+
     /// `App/` の Swift ソース一式を名前順に連結し、行頭が `//` の行を落として返す。
     ///
     /// 読み口を単一ファイルではなくディレクトリ一式にするのは、View をファイルへ割っただけで
