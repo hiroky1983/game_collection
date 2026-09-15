@@ -479,7 +479,7 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .dogBarking:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。
@@ -673,15 +673,18 @@ public final class RunnerModel {
             })
             isFrozenForCapture = true
         case "dog":
-            // 犬が走者の真横〜少し前を抜ける瞬間（#944）。跳んでいる走者の中心を犬の左端が
-            // 越えた最初のフレーム（犬の箱が走者の右半分に重なり、足の下を抜けていく画）で止める。
+            // 犬が走者の少し前（画面の中央）で向かい合っている瞬間（#955）。左向きに歩いて来る
+            // 犬の鼻先が画面の中央（走者の中心の `width / 2 − playerX` = 24 先）に入った最初の
+            // フレームで止める——自動操縦の踏み切り（間合い 10 前後）より手前なので、走者は
+            // まだ接地して向かい合っている。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
                 let field = model.field
                 guard let dog = field.stage.hazards.first(where: { $0.kind == .dog }),
                       let frame = dog.frame(atRunnerDistance: field.distance) else { return false }
-                return !field.isGrounded && frame.start >= field.distance
+                let center = RunnerField.Metrics.width / 2 - RunnerField.Metrics.playerX
+                return field.isGrounded && frame.start - field.distance <= center
             })
             isFrozenForCapture = true
         case "boar":

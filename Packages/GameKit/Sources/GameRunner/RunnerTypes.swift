@@ -42,19 +42,21 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 「上を越える」は帯の上端（14 + `birdBandHeight`）が 1 段の頂点より高いので 1 段では
     /// できない。下を抜けるのが正解で、隣の障害との成立条件（`encounter`）もそれで書いてある。
     case bird
-    /// 犬（#800 → #944）。**画面の左（走者の後ろ）から現れ、おじさんより速く右へ走り抜けて**
-    /// 画面の外へ消える。
+    /// 犬（#800 → #944 → #955）。**画面の右（前方）の外から現れ、走者の方へトコトコ歩いて来て**
+    /// すれ違い、画面の左へ消える。
     ///
-    /// 走者の手前 `RunnerRules.dogChaseDistance` で吠え声の手応え（`RunnerEvent.dogBarking`）を
-    /// 出し、その瞬間に画面の外（後ろ）に現れて走者の `dogAdvance` 倍の速さで追ってくる
-    /// （イノシシの「ドドド」と同じ作法で、向きが逆）。鼻先が走者の背中に触れる地点は区画の中央
-    /// （`RunnerHazard.start`）で、高さは低い岩と同じ 5——跳べば足の下を抜けていく。
-    /// `dogAdvance` = 2 なら相対速度は走者の速さそのもので、走者から見た等価な静止区間
-    /// （`RunnerHazard.encounter`）は**置いた位置の低い岩と 1 単位も違わない**。だから
-    /// 隣の障害との間隔は低い岩と同じ物差しで成立する。
+    /// 走者の前端が出会いの地点の `RunnerRules.dogApproachDistance` 手前に入った瞬間に画面の外
+    /// （右）に現れ、走者の `dogAdvance`（0.35）倍の速さで左へ歩く。相対速度は 1 + 0.35 で、
+    /// 鼻先が走者の前端に触れる地点は区画の中央（`RunnerHazard.start`。イノシシと同じ）、高さは
+    /// 低い岩と同じ 5——跳べば足の下を抜けていく。**静止した低い岩より重なっている時間が短い**
+    /// （走者から見た等価な静止区間 `RunnerHazard.encounter` は長さ 0.9 ≒ 幅の無い低い岩）ので、
+    /// 普通のジャンプで跳び越せる。イノシシ（#801・右から突進）との違いは**速さと予告の有無**
+    /// ——遠くから歩いて来るのが見えるので予告（手応え）は出さない。
     ///
-    /// 立ち止まって吠える挙動（#800 の `dogStopGap`）は「前を走る犬がいつ止まるか」を読む
-    /// 必要があって難しかったので廃止した（会長 QA 2026-09-15）。
+    /// #944 の「後ろから 2 倍速で追い越す」は、走者の後ろが 22 単位しか見えず予告が手応え 1 つ
+    /// だけで反応できなかった（会長 QA 2026-09-15「検知がむずすぎる」）。速さを落とすと相対速度が
+    /// 下がって重なる時間が伸び、跳んで越えられなくなるので、後ろからの設計は捨てて前からにした。
+    /// #800 の「立ち止まって吠える」も「前を走る犬がいつ止まるか」を読む必要があって難しかった。
     case dog
     /// イノシシ（#801）。**右から突進**してくる（犬の難しい版）。
     ///
@@ -173,9 +175,8 @@ public struct RunnerHazardEncounter: Equatable, Sendable {
 /// コース上の障害 1 つ。座標はステージ先頭からのワールド座標（左が 0）。
 public struct RunnerHazard: Equatable, Sendable {
     public let kind: RunnerHazardKind
-    /// 左端の x。動く障害では**走者と出会う地点**（鳥は止まっている位置、犬は鼻先が走者の背中に
-    /// 触れる瞬間の走者の前端、イノシシは出現点と対称な出会いの地点）。区画の中央に置かれる
-    /// （`RunnerStage.makeHazards`）。
+    /// 左端の x。動く障害では**走者と出会う地点**（鳥は止まっている位置、犬・イノシシは鼻先が
+    /// 走者の前端に触れる瞬間の鼻先の位置）。区画の中央に置かれる（`RunnerStage.makeHazards`）。
     public let start: Double
     /// 長さ。レイアウトの連続した同じ文字がここでまとめられる。
     public let length: Double
@@ -209,24 +210,22 @@ public struct RunnerHazard: Equatable, Sendable {
         max(0, RunnerRules.birdAdvance * (distance - birdTakeoffDistance))
     }
 
-    /// 犬の鼻先が走者の背中に触れる瞬間の走者の距離（#944）。走者の前端が `start` に入る瞬間で、
-    /// 置いた位置の低い岩に前端が触れる瞬間と同じ。
+    /// 犬の鼻先（左端）が走者の前端に触れる瞬間の走者の距離（#955）。走者の前端が `start` に
+    /// 入る瞬間で、置いた位置の低い岩に前端が触れる瞬間と同じ。
     public var dogContactDistance: Double { start - RunnerField.Metrics.playerHalfWidth }
-    /// 吠え声の予告（`RunnerEvent.dogBarking`）が出て犬が後ろに現れる走者の距離。
-    /// 触れる瞬間の `RunnerRules.dogChaseDistance` 手前。
-    public var dogBarkDistance: Double { dogContactDistance - RunnerRules.dogChaseDistance }
-    /// 予告の瞬間に犬が現れる x（走者の後ろ・画面の外）。触れる瞬間に鼻先が走者の背中
-    /// （`start − playerWidth`）に届くよう、走る量 `dogAdvance × dogChaseDistance` だけ手前。
-    public var dogSpawn: Double {
-        start - RunnerField.Metrics.playerWidth - length - RunnerRules.dogAdvance * RunnerRules.dogChaseDistance
-    }
+    /// 犬が右（前方・画面の外）に現れる走者の距離。触れる瞬間の `RunnerRules.dogApproachDistance` 手前。
+    public var dogAppearDistance: Double { dogContactDistance - RunnerRules.dogApproachDistance }
+    /// 現れる瞬間の犬の x（鼻先 = 左端）。触れる瞬間に `start` へ着くよう、歩く量
+    /// `dogAdvance × dogApproachDistance` だけ先。走者の前端からは `(1 + dogAdvance) × dogApproachDistance`
+    /// 先で、画面の先読み（`RunnerField.Metrics.width − playerX`）の外にある。
+    public var dogSpawn: Double { start + RunnerRules.dogAdvance * RunnerRules.dogApproachDistance }
 
-    /// 予告の手応え（#801 イノシシ・#944 犬）。現れる瞬間の走者の距離と、そのとき出すできごと。
-    /// 予告の無い障害は nil。`RunnerField.step` がこの距離をまたいだサブステップで 1 回だけ出す。
+    /// 予告の手応え（#801 イノシシ）。現れる瞬間の走者の距離と、そのとき出すできごと。
+    /// 予告の無い障害は nil（犬は前から歩いて来るのが見えるので予告しない・#955）。
+    /// `RunnerField.step` がこの距離をまたいだサブステップで 1 回だけ出す。
     public var cue: (distance: Double, event: RunnerEvent)? {
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .bird: return nil
-        case .dog:  return (dogBarkDistance, .dogBarking)
+        case .pit, .lowBlock, .tallBlock, .bird, .dog: return nil
         case .boar: return (boarChargeStartDistance, .boarCharging)
         }
     }
@@ -240,7 +239,7 @@ public struct RunnerHazard: Equatable, Sendable {
     public var boarSpawn: Double { start + RunnerRules.boarChargeDistance }
 
     /// 走者の中心が `distance` にあるときの当たり判定。**まだ現れていない**障害（突進前の
-    /// イノシシ）は nil。岩・穴は常に置いた場所そのもの。
+    /// イノシシ・画面の右に現れる前の犬）は nil。岩・穴は常に置いた場所そのもの。
     public func frame(atRunnerDistance distance: Double) -> RunnerHazardFrame? {
         switch kind {
         case .pit, .lowBlock, .tallBlock:
@@ -258,12 +257,12 @@ public struct RunnerHazard: Equatable, Sendable {
                 advance: travel > 0 ? RunnerRules.birdAdvance : 0
             )
         case .dog:
-            // 予告の瞬間に後ろに現れ、以後は止まらず右へ走り続ける（画面の外へ抜けても消さない
-            // ——走者より速いので二度と追いつけず、当たり判定として効くことはない）。
-            guard distance >= dogBarkDistance else { return nil }
-            let x = dogSpawn + RunnerRules.dogAdvance * (distance - dogBarkDistance)
+            // 画面の右の外に現れ、以後は止まらず左へ歩き続ける（すれ違って画面の左へ抜けても
+            // 消さない——走者の後ろへ離れていくだけで、当たり判定として効くことはない）。
+            guard distance >= dogAppearDistance else { return nil }
+            let x = dogSpawn - RunnerRules.dogAdvance * (distance - dogAppearDistance)
             return RunnerHazardFrame(
-                start: x, end: x + length, bottom: 0, top: height, advance: RunnerRules.dogAdvance
+                start: x, end: x + length, bottom: 0, top: height, advance: -RunnerRules.dogAdvance
             )
         case .boar:
             guard distance >= boarChargeStartDistance else { return nil }
@@ -297,13 +296,14 @@ public struct RunnerHazard: Equatable, Sendable {
         case .pit, .lowBlock, .tallBlock:
             return RunnerHazardEncounter(start: start, length: length, height: height)
         case .dog:
-            // 後ろから `k` (> 1) で追い越す相手（#944）。鼻先が背中に触れるのは前端が `start` に
-            // 入る瞬間（`dogContactDistance`）で、そこから相対速度 `k − 1` で体を通り抜ける。
-            // `k` = 2 なら `(4 + 8) / 1 − 8` = 4 で、置いた位置の低い岩と同じ区間になる。
+            // 前から `k` で向かって来る相手（#955。イノシシと同じ式で `k` が小さいだけ）。鼻先が
+            // 前端に触れるのは前端が `start` に入る瞬間（`dogContactDistance`）で、そこから相対速度
+            // `1 + k` で体を通り抜ける。`k` = 0.35 なら `(4 + 8) / 1.35 − 8` ≒ 0.9 で、置いた位置の
+            // 幅の無い低い岩——静止した低い岩（長さ 4）より短い。
             let k = RunnerRules.dogAdvance
             return RunnerHazardEncounter(
                 start: start,
-                length: (length + playerWidth) / (k - 1) - playerWidth,
+                length: (length + playerWidth) / (1 + k) - playerWidth,
                 height: height
             )
         case .bird:
@@ -340,28 +340,12 @@ public struct RunnerHazard: Equatable, Sendable {
             // 羽ばたきの予備動作から、後端が抜けるまで。
             return (birdTakeoffDistance - RunnerRules.birdFlutterDistance)...(encounter.end + half)
         case .dog:
-            // 予告から、追い越されて後端が抜けるまで。抜けたあとの犬は前方を走り去るだけで
-            // 追いつけないので、その先から再開しても差し支えない。
-            return dogBarkDistance...(encounter.end + half)
+            // 現れてから、すれ違って後端が抜けるまで。抜けたあとの犬は後ろへ歩き去るだけで
+            // 二度と重ならないので、その先から再開しても差し支えない。
+            return dogAppearDistance...(encounter.end + half)
         case .boar:
             return boarChargeStartDistance...(max(encounter.end, boarSpawn) + half)
         }
-    }
-
-    /// 自動操縦が**前方の踏み切りの相手**として見る当たり判定（`RunnerField.nextHazard`）。
-    ///
-    /// 後ろから追い越す犬（#944）だけは `frame(atRunnerDistance:)` と違う。いまの位置が走者の
-    /// 後ろにあって「前方の間合い」では測れないが、相対軌道は距離で一意なので、走者から見れば
-    /// 置いた位置に静止した低い岩（`encounter`）と同じ——その静止した区間を前方の相手として返す。
-    /// 踏み切り地点は相対速度で見積もった場合と同じになる（`RunnerHazardMotionTests`）。
-    /// 現れる前（予告の前）は nil。ほかの障害はいまの当たり判定そのもの。
-    public func targetFrame(atRunnerDistance distance: Double) -> RunnerHazardFrame? {
-        guard let frame = frame(atRunnerDistance: distance) else { return nil }
-        guard kind == .dog else { return frame }
-        let encounter = encounter
-        return RunnerHazardFrame(
-            start: encounter.start, end: encounter.end, bottom: bottom, top: encounter.height, advance: 0
-        )
     }
 }
 
@@ -470,17 +454,15 @@ public enum RunnerEvent: Equatable, Sendable {
     /// たこ焼き（#797）を取った。以後 `RunnerField.isInvincible` が一定時間 true になる。
     case collectedInvincibleItem
     /// イノシシの突進が始まった（#801）。土煙と「ドドド」の手応えの発火点。決着ではない。
+    /// 犬（#955）は前から歩いて来るのが見えるので予告のできごとを持たない。
     case boarCharging
-    /// 犬が後ろで吠えた（#944）。左（走者の後ろ）から追い越しにくる予告の手応えの発火点。
-    /// 決着ではない。
-    case dogBarking
 
     /// このできごとでコースが終わるか（ミスかゴール）。
     public var isTerminal: Bool {
         switch self {
         case .fell, .crashed, .reachedGoal:
             return true
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .dogBarking:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
             return false
         }
     }

@@ -40,10 +40,8 @@ public enum RunnerAutoPilot {
         // 0.05 程度（`RunnerStage.speed(at:)`）で、`baseLead` の半タイルの余裕に収まる。
         let speed = field.stage.speed(at: field.distance)
         var target: (start: Double, lead: Double)?
-        // 障害は**いまの位置**で見る（#796。飛び立った鳥・突進するイノシシは置いた位置から
-        // 動いている）。踏み切りの余裕は相対速度で伸び縮みする（`lead(for:frame:speed:)`）。
-        // 後ろから追い越す犬（#944）だけは前方に無いので、走者から見て等価な静止区間
-        // （置いた位置の低い岩）で見る（`RunnerHazard.targetFrame(atRunnerDistance:)`）。
+        // 障害は**いまの位置**で見る（#796。飛び立った鳥・歩いて来る犬・突進するイノシシは
+        // 置いた位置から動いている）。踏み切りの余裕は相対速度で伸び縮みする（`lead(for:frame:speed:)`）。
         if let next = field.nextHazardFrame(from: field.playerMaxX) {
             target = (next.frame.start, lead(for: next.hazard, frame: next.frame, speed: speed))
         }
@@ -75,9 +73,7 @@ public enum RunnerAutoPilot {
     ///   その高さまでの上昇時間ぶんだけ早く踏み切る
     /// - 動く障害（鳥・犬・イノシシ）: **等価な静止区間**（`RunnerHazard.encounter`）に対する
     ///   余裕なので岩と同じ式。走っている最中の判断は相対速度で見る `lead(for:frame:speed:)` で、
-    ///   両者は同じ踏み切り地点を指す（`RunnerHazardMotionTests` が確かめる）。後ろから追い越す
-    ///   犬（#944）は走っている最中も等価な静止区間で見る（`RunnerHazard.targetFrame`）ので、
-    ///   常にこの静的な版
+    ///   両者は同じ踏み切り地点を指す（`RunnerHazardMotionTests` が確かめる）
     static func lead(for hazard: RunnerHazard, speed: Double) -> Double {
         lead(for: hazard, advance: 0, speed: speed)
     }

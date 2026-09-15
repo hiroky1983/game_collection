@@ -14,7 +14,8 @@ struct MahjongTableScene {
     /// 手番順（0=自分, 1=下家(右), 2=対面, 3=上家(左)）。`MahjongTableLayout` の seat と同じ。
     var discards: [[MahjongTile]]
     var melds: [[MahjongCall]]
-    /// CPU の手牌の枚数（ツモ牌を含む）。自分（0）は使わない。
+    /// 各家の手牌の枚数（ツモ牌を含む）。CPU は立て牌の本数、自分（0）は副露の置き場（手牌一覧の右隣。#960）
+    /// を決めるのに使う。
     var handCounts: [Int]
     var riichi: [Bool]
     var scores: [Int]
@@ -94,14 +95,13 @@ struct MahjongTableView: View {
         .accessibilityLabel(seatAccessibilityLabel(seat))
     }
 
-    /// 副露は各家の右手前の角に寄せる。`MahjongMeldRow` は横一列なので、角を基準に
-    /// 「角から伸びる」向きへ揃えてから各家の角度に回す。
+    /// 副露。上家・下家は壁の列に沿って 1 枚ずつ、自分・対面は手牌の行の横に 1 行（#960）。
     @ViewBuilder
     private func meldRow(_ seat: Int) -> some View {
         if seat == 1 || seat == 3 {
             sideMelds(seat)
         } else {
-            stackedMelds(seat)
+            inlineMelds(seat)
         }
     }
 
@@ -119,24 +119,19 @@ struct MahjongTableView: View {
         }
     }
 
-    /// 対面・自分の副露。1 組ずつ行を分けて積む（4 枚＝カンで 1 行）。
-    private func stackedMelds(_ seat: Int) -> some View {
-        let slot = layout.meldSlot(seat: seat)
-        let w = layout.meldTileWidth(seat: seat) * slot.scale
-        let frameWidth = layout.size.width * 0.42
-        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false, maxTilesPerRow: 4)
-        let rowHeight = w * 1.34 + 1
-        // 4 行ぶん（4 組）の枠を取り、bottomTrailing に寄せて回す。対面は 180 度回転で bottomTrailing が
-        // 左上へ来て行は下へ、自分は右下から上へ積まれる。`slot.center` が 1 組目の行の縦の中央
-        // （`stackHeight` は打ち消し合う）。`MahjongTableLayout.meldRegion` はこの置き方を前提に矩形を出す。
-        let stackHeight = rowHeight * 4
-        let center = seat == 2
-            ? CGPoint(x: slot.center.x + frameWidth / 2, y: slot.center.y + stackHeight / 2 - rowHeight / 2)
-            : CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y - stackHeight / 2 + rowHeight / 2)
-        return row
-            .frame(width: frameWidth, height: stackHeight, alignment: .bottomTrailing)
-            .rotationEffect(.degrees(slot.rotation))
-            .position(center)
+    /// 自分・対面の副露。手牌の行の横（自分は右、対面は画面の左）に 1 行で並べる（#960。置き場と牌の幅は
+    /// `MahjongTableLayout.inlineMelds`。行に収まらないときは牌が縮む）。`MahjongMeldRow` の 1 行を
+    /// 行の矩形ちょうどの枠に入れて各家の向きに回す（対面は 180 度で、0 組目が壁側＝右に来る）。
+    /// 自分の副露は手牌一覧（`MahjongView.handOverviewOnTable`）の隣なので、当たり判定を持たせない。
+    private func inlineMelds(_ seat: Int) -> some View {
+        let melds = scene.melds[seat]
+        let row = layout.inlineMelds(seat: seat, handCount: scene.handCounts[seat], meldSizes: melds.map { $0.tiles.count })
+        return MahjongMeldRow(melds: melds, tileWidth: row.tileWidth, showsBadge: false,
+                              groupSpacing: MahjongTableLayout.meldGroupSpacing)
+            .frame(width: row.frame.width, height: row.frame.height)
+            .rotationEffect(.degrees(row.rotation))
+            .position(x: row.frame.midX, y: row.frame.midY)
+            .allowsHitTesting(false)
     }
 
     private func riichiStick(scale: CGFloat) -> some View {

@@ -37,8 +37,8 @@ struct MahjongDiscardFlightTests {
         #expect(abs(last.x - (right - o.tileWidth / 2)) < 0.01)
         #expect(first.y == o.center.y && last.y == o.center.y)
         #expect(l.discardOrigin(seat: 0) == last, "既定はツモ牌の位置")
-        // 枚数が少ないときは中央寄せ（11 枚の真ん中＝一覧の中央）
-        #expect(abs(l.handOverviewTileCenter(index: 5, count: 11).x - o.center.x) < 0.01)
+        // 枚数が少ないときは左詰め（#960。11 枚でも 1 枚目は 14 枚のときと同じ位置）
+        #expect(abs(l.handOverviewTileCenter(index: 0, count: 11).x - first.x) < 0.01)
         // 範囲外の index は端に丸める
         #expect(l.handOverviewTileCenter(index: 99, count: 14) == last)
     }
