@@ -28,8 +28,21 @@ public enum FreeCellDealer {
     public static let verifiedSeeds: [UInt64] = freeCellVerifiedSeeds
 
     /// 出題用に1つ選ぶ。
-    public static func randomVerifiedSeed<G: RandomNumberGenerator>(using rng: inout G) -> UInt64 {
-        verifiedSeeds.randomElement(using: &rng) ?? verifiedSeeds[0]
+    ///
+    /// - Parameter previous: 直前に配った種。これを除いて選ぶので、「新しいゲーム」で同じ配札が
+    ///   続けて出ない（#914）。
+    public static func randomVerifiedSeed<G: RandomNumberGenerator>(
+        excluding previous: UInt64? = nil, using rng: inout G
+    ) -> UInt64 {
+        pick(from: verifiedSeeds, excluding: previous, using: &rng)
+    }
+
+    /// `seeds` から `previous` 以外を 1 つ選ぶ。ほかに候補が無いときだけ同じ種を返す。
+    static func pick<G: RandomNumberGenerator>(
+        from seeds: [UInt64], excluding previous: UInt64?, using rng: inout G
+    ) -> UInt64 {
+        let candidates = seeds.filter { $0 != previous }
+        return candidates.randomElement(using: &rng) ?? seeds[0]
     }
 }
 

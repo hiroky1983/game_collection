@@ -182,6 +182,18 @@ struct SpiderModelTests {
         #expect(SpiderDealer.verifiedSeeds(for: .four).contains(model.dealNumber))
     }
 
+    /// 4 スートは種が 59 個しか無い。除かなかった場合に 1000 回すべて直前と違う確率は約 4×10⁻⁸ なので、
+    /// 除外を外すと確実に赤くなる（200 回だと約 3% の確率で緑のまま通り抜ける。#914）。
+    @Test("「新しいゲーム」を 1000 回押しても直前と同じ配札が出ない（4 スート）")
+    func newGameNeverRepeatsPreviousDeal() {
+        let model = SpiderModel(services: makeServices(), seed: firstSeed(.four), rules: SpiderRuleSet(suitCount: .four))
+        for _ in 0..<1000 {
+            let previous = model.dealNumber
+            model.newGame()
+            #expect(model.dealNumber != previous)
+        }
+    }
+
     @Test("記録はスート数ごとの区分で残り、順位表の対応表と一致する")
     func recordVariantsMatchLeaderboards() {
         for suits in SpiderSuitCount.allCases {
