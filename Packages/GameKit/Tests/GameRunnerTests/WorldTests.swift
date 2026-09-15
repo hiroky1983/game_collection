@@ -258,7 +258,8 @@ struct RunnerWorldTests {
             let outline = world.outline
             let items: [(String, main: UInt32, outline: UInt32)] = [
                 ("岩", world.palette.rockBody, world.palette.rockDark),
-                ("たこ焼き", RunnerPalette.takoyakiBall, outline),
+                // たこ焼きはドット絵（#956）。縁取りは世界によらず絵のパレットの `K`。
+                ("たこ焼き", RunnerPixelArt.takoyakiDough, RunnerPixelArt.outline),
                 ("台座の床板", RunnerPalette.platformDeck, outline),
                 ("ゴールの旗", RunnerPalette.goal, outline),
                 ("チェックポイントの旗", RunnerPalette.checkpoint, outline),
