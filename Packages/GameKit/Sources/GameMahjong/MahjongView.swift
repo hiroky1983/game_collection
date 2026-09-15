@@ -399,6 +399,8 @@ public struct MahjongView: View {
     }
 
     /// 卓に描く値を `MahjongModel` から切り出す。CPU の手牌は枚数だけ（絵柄は伏せる）。
+    /// 自分の枚数は手牌一覧（`handOverviewOnTable`）と同じ数え方（ツモ牌は `playerDrawnTile`）にする。
+    /// 副露の置き場（一覧の右隣。#960）がこの枚数から決まるので、ずれると副露が手牌に重なる。
     private var tableScene: MahjongTableScene {
         let n = MahjongModel.playerCount
         var counts = [Int](repeating: 0, count: n)
@@ -406,6 +408,7 @@ public struct MahjongView: View {
             counts[i] = model.hands[i].tiles.count
                 + (model.currentPlayer == i && model.drawnTile != nil && model.phase == .playing ? 1 : 0)
         }
+        counts[MahjongModel.humanIndex] = model.playerHand.tiles.count + (model.playerDrawnTile != nil ? 1 : 0)
         return MahjongTableScene(
             discards: model.discards,
             melds: model.melds,
@@ -481,7 +484,9 @@ public struct MahjongView: View {
                 )
             }
         }
-        .frame(width: width, alignment: .center)
+        // 左詰め（#960）: 1 枚目の位置がツモの有無で動かず、鳴いて減った右側に副露（`MahjongTableView.inlineMelds`）
+        // が入る。牌の中心は `MahjongTableLayout.handOverviewTileCenter` と同じ計算。
+        .frame(width: width, alignment: .leading)
         .transaction { $0.animation = nil }
         .accessibilityHidden(true)
     }
@@ -600,8 +605,8 @@ public struct MahjongView: View {
                     overviewScrollTarget = nil
                 }
             }
-            // 副露は「卓の上においてほしい」（会長指摘）ため卓の右手前の角（`MahjongTableView.meldRow`）に置く。
-            // ここ（操作用のスクロール行）には置かない。
+            // 副露は「卓の上においてほしい」（会長指摘）ため卓上の手牌一覧の右隣（`MahjongTableView.inlineMelds`。#960）
+            // に置く。ここ（操作用のスクロール行）には置かない。
             hintLine(waits: waits)
         }
         .padding(.horizontal, 6).padding(.vertical, 6)

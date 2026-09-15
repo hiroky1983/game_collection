@@ -16,6 +16,8 @@ struct MahjongMeldRow: View {
     /// 河のグリッド（2列）の幅を超えてはみ出し、隣の要素と重なって見えていた（会長指摘）。
     /// 河と同じ列数で折り返せば、幅が河のグリッドを超えることが構造的に無くなる。
     var maxTilesPerRow: Int?
+    /// 横一列（`maxTilesPerRow` 無し）のときの組と組の間隔。卓上の 1 行（#960）は `MahjongTableLayout.meldGroupSpacing`。
+    var groupSpacing: CGFloat = 6
 
     var body: some View {
         // 中央寄せ（河のグリッドが中央寄せなので、左寄せだと副露だけズレて散らかって見える）。
@@ -39,7 +41,7 @@ struct MahjongMeldRow: View {
                     }
                 }
             } else {
-                HStack(spacing: 6) {
+                HStack(spacing: groupSpacing) {
                     ForEach(Array(melds.enumerated()), id: \.offset) { _, meld in
                         singleRowMeld(meld)
                     }
@@ -70,9 +72,10 @@ struct MahjongMeldRow: View {
 
     private func singleRowMeld(_ meld: MahjongCall) -> some View {
         VStack(spacing: 1) {
-            HStack(spacing: 1) {
+            // 牌の間隔と高さは `MahjongTableLayout.inlineMelds` が同じ値で行の幅を出す（#960）
+            HStack(spacing: MahjongTableLayout.meldTileSpacing) {
                 ForEach(Array(meld.tiles.enumerated()), id: \.offset) { _, tile in
-                    MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.34)
+                    MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * MahjongTableLayout.meldTileAspect)
                 }
             }
             if showsBadge {
