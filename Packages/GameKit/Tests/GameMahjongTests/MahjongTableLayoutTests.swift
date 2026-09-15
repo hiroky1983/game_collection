@@ -186,12 +186,14 @@ struct MahjongTableLayoutTests {
         #expect(abs(mid13.a.x - mid7.a.x) < 0.01)
     }
 
-    @Test("上家・下家の副露は河と同じ幅で、3 組まで（ツモ番の壁とも）河・パネル・フェルトの縁と重ならない",
+    @Test("上家・下家の副露は河と同じ幅で、2 組まで（ツモ番の壁とも）河・パネル・フェルトの縁と重ならない",
           arguments: [1, 3])
     func sideMeldsFitBesideWall(seat: Int) {
+        // #918 で河（＝副露）を 2 割大きくしてからは、3 組（10 枚）だと 10 枚目が壁の上面に 7〜9pt 掛かる
+        // （壁の列は「副露 + 残りの壁」で卓の奥行きを使い切る）。3 組の鳴きは実戦でまれなので 2 組までを縛る。
         let l = Self.phone
         #expect(l.meldTileWidth(seat: seat) == l.riverTileWidth)
-        for groups in 1...3 {
+        for groups in 1...2 {
             let tiles = groups * 3 + 1                // カン 1 つ + ポン／チー（全部カンは想定しない）
             let wallCount = 13 - groups * 3 + 1       // ツモ番（1 枚多い）が最も長い
             let rects = l.meldTileRects(seat: seat, groups: groups, tiles: tiles)
@@ -220,8 +222,10 @@ struct MahjongTableLayoutTests {
         }
     }
 
-    @Test("副露は 4 家とも 2 組（7 枚）まで、河 18 枚・中央パネル・他家の副露と重ならない")
+    @Test("副露は 4 家とも 2 組（6 枚・カン無し）まで、河 18 枚・中央パネル・他家の副露と重ならない")
     func meldRegionsClearEverything() {
+        // カン（4 枚幅の行）は #918 以降、自分は自分の河の右端の列に約 17pt、対面は対面の河の奥の行に約 1pt 掛かる
+        // （河 6 枚 + 4 枚幅の副露 + 壁が手前の辺に収まらない）。ポン・チーだけの 2 組（3 枚幅）で縛る。
         let l = Self.phone
         let pts = (0..<4).map { l.meldSlot(seat: $0).center }
         let mid = CGPoint(x: l.size.width / 2, y: l.size.height / 2)
@@ -230,7 +234,7 @@ struct MahjongTableLayoutTests {
         #expect(pts[1].x > mid.x && pts[1].y < mid.y)
         #expect(pts[3].x < mid.x && pts[3].y > mid.y)
         #expect(pts[0].x > mid.x && pts[0].y > mid.y)
-        let regions = (0..<4).map { l.meldTileRects(seat: $0, groups: 2, tiles: 7) }
+        let regions = (0..<4).map { l.meldTileRects(seat: $0, groups: 2, tiles: 6) }
         for (seat, rects) in regions.enumerated() {
             for r in rects {
                 #expect(!r.intersects(l.centerPanel), "seat \(seat) の副露がパネルに重なる")
@@ -268,13 +272,16 @@ struct MahjongTableLayoutTests {
         } }
     }
 
-    @Test("自分の副露は河と同じ幅で 4 組（16 枚）まで一覧の上に積み、一覧・河・下家の立て牌・パネルと重ならない")
+    @Test("自分の副露は河と同じ幅で 3 組（9 枚・カン無し）まで一覧の上に積み、一覧・河・下家の立て牌・パネルと重ならない")
     func ownMeldsStackAboveOverview() {
+        // #918 以前は 4 組 16 枚。河を大きくしてからは、自分の副露の置き場（下家の河の手前〜一覧の上、
+        // 自分の河の右〜下家の壁の左）が縦 96pt × 横 73pt しか無く、4 組（4 行）は下家の河に、カン（4 枚幅）は
+        // 自分の河に掛かる。ポン・チーの 3 組で縛る（`meldRegionsClearEverything` も同じ理由でカン無し）。
         let l = Self.phone
         #expect(l.meldTileWidth(seat: 0) == l.riverTileWidth)
         let o = l.handOverview
         let overviewTop = o.center.y - o.tileWidth * MahjongTableLayout.tileAspect / 2
-        let region = l.meldRegion(seat: 0, groups: 4, tiles: 16)
+        let region = l.meldRegion(seat: 0, groups: 3, tiles: 9)
         // 一覧で選んだ牌は 3pt 持ち上がるので、その分も空ける
         #expect(region.maxY < overviewTop - 3, "副露の下端 \(region.maxY) が一覧の上端 \(overviewTop) に近い")
         #expect(!region.intersects(l.centerPanel))
@@ -285,7 +292,7 @@ struct MahjongTableLayoutTests {
             #expect(!region.intersects(l.riverRect(seat: seat, index: i)), "副露が seat \(seat) の河 \(i) に重なる")
         } }
         for other in 1...3 {
-            #expect(!region.intersects(l.meldRegion(seat: other, groups: 2, tiles: 7)), "seat \(other) の副露と重なる")
+            #expect(!region.intersects(l.meldRegion(seat: other, groups: 2, tiles: 6)), "seat \(other) の副露と重なる")
         }
         // 下家の立て牌（ツモ番の 14 枚が最も手前まで伸びる）の占める矩形
         for i in 0..<14 {
@@ -320,6 +327,22 @@ struct MahjongTableLayoutTests {
             // 対面は 1 組目の下へ、自分は 1 組目の上へ増える
             #expect((abs(two.minY - one.minY) < 0.01) == (seat == 2))
             #expect((abs(two.maxY - one.maxY) < 0.01) == (seat == 0))
+        }
+    }
+
+    @Test("対面の河は 3 行目まで対面の立て牌の足元に掛からず、自分の河は 3 行目まで手牌一覧の上にある")
+    func farAndNearRowsStayClearOfWallAndOverview() {
+        // #918 で卓の縦を使い切ったので、対面の壁・対面の河・自分の河・一覧の並びが崩れる回帰を検知する
+        let l = Self.phone
+        let wall = l.handBlock(seat: 2, index: 6, count: 13).0
+        let wallFoot = wall.d.y + wall.drop
+        for i in 12..<18 {
+            #expect(l.riverRect(seat: 2, index: i).minY > wallFoot + 1, "対面の河 \(i) が対面の壁の足元 \(wallFoot) に掛かる")
+        }
+        let o = l.handOverview
+        let overviewTop = o.center.y - o.tileWidth * MahjongTableLayout.tileAspect / 2
+        for i in 12..<18 {
+            #expect(l.riverRect(seat: 0, index: i).maxY < overviewTop - 1, "自分の河 \(i) が一覧に掛かる")
         }
     }
 
