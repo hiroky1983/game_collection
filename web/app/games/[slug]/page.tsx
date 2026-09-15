@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { findGame, games, pageDescription } from "../../lib/games";
 import { APP_STORE_URL, SITE_NAME } from "../../lib/site";
+import GameMark from "../../components/GameMark";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -55,7 +56,7 @@ export default async function GamePage({ params }: Props) {
       </nav>
 
       <div className="mb-8">
-        <div className="text-5xl mb-3">{game.emoji}</div>
+        <div className="text-5xl mb-3"><GameMark game={game} scale={4} /></div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           {game.name}
           {game.comingSoon && (
@@ -114,7 +115,7 @@ export default async function GamePage({ params }: Props) {
               href={`/games/${g.slug}`}
               className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
             >
-              <span className="mr-1">{g.emoji}</span>
+              <GameMark game={g} scale={1} className="mr-1" />
               {g.name}
               {g.comingSoon && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">（配信予定）</span>}
             </Link>
