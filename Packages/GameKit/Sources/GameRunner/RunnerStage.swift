@@ -306,17 +306,22 @@ public enum RunnerRules {
     /// 飛び立つ前に羽ばたく予備動作を始める、走者の距離の手前（見た目だけ・当たり判定は変えない）。
     public static let birdFlutterDistance: Double = 2 * tileWidth
 
-    /// 犬が走り出す間合い（走者の前端から）。画面の先読み（`RunnerField.Metrics.width` − `playerX`
-    /// = 74）とほぼ同じで、**見えた時にはもう走っている**（仕様「前方に走る姿が先に見えている」）。
-    public static let dogTriggerDistance: Double = 16 * tileWidth
-    /// 犬の速さ（走者 1 に対して）。走者より遅いので追いつく。
-    public static let dogAdvance: Double = 0.5
-    /// 犬が立ち止まって吠える間合い（走者の前端から）。踏み切りの余裕（`RunnerAutoPilot.lead` ≒ 9〜11）
-    /// より外で止まるので、跳ぶ判断は止まった犬＝低い岩に対して行える。
-    public static let dogStopGap: Double = 4 * tileWidth
-    /// 犬が走っているあいだの走者の進み。間合いが `dogTriggerDistance` から `dogStopGap` へ
-    /// 相対速度 `1 − dogAdvance` で縮む距離。
-    static var dogRunDistance: Double { (dogTriggerDistance - dogStopGap) / (1 - dogAdvance) }
+    /// 犬の予告（吠え声）から、鼻先が走者の背中に触れるまでの走者の進み（#944）。
+    ///
+    /// 予告の瞬間、犬は画面の外（走者の後ろ）に現れて追ってくる。走者の後ろに見えるのは
+    /// `playerX` − 半身 = 22 単位なので、`dogAdvance` = 2 では**触れる 22 単位手前で画面に入る**
+    /// （1 面の速さで約 0.65 秒、18 面で約 0.4 秒）。予告はその 26 単位前（約 0.5〜0.75 秒前）
+    /// ——「気配 → 左から現れる → 跳ぶ」の間が空きすぎず詰まりすぎない長さ。イノシシの 18 タイル
+    /// より短いのは、イノシシが画面の先読み 74 ぶん見えてから出会うのに対し、犬は見える範囲が
+    /// 後ろの 22 しか無く、予告から出現までを長くしても待たされるだけになるため。
+    public static let dogChaseDistance: Double = 12 * tileWidth
+    /// 犬の速さ（走者 1 に対して）。走者より速いので追い越す。
+    ///
+    /// **2 なら相対速度が走者の速さそのもの**で、走者から見た等価な静止区間（`RunnerHazard.encounter`）
+    /// は置いた位置の低い岩と一致する——重なっている時間 `(4 + 8) / speed` も、跳ぶ判断の
+    /// 踏み切り地点も低い岩と同じ。1.5 だと重なりが 24 / speed に伸びて 1 面の速さで上端 5.5 を
+    /// 越えている時間（≒ 0.585 秒）に収まらず、3 だと見えてから触れるまで 11 単位（0.2 秒）しか無い。
+    public static let dogAdvance: Double = 2
 
     /// イノシシの予告から出会いまでの走者の進み（仕様「1 秒ほど」）。
     ///
@@ -798,8 +803,8 @@ public extension RunnerStage {
     /// （起動引数 `-simulateRunner showcase`）。`.all`（本番の18ステージ）には含めない
     /// ——`number` を 0 にして「実ステージではない」ことを型で示す。
     ///
-    /// 鳥（`b`）・犬（`d`）・イノシシ（`i`）を入れてあるのは、飛び立つ・追いついて止まる・
-    /// 突進してくる（#796/#800/#801）を本番の面まで遊ばずに確かめるため。狙った瞬間は
+    /// 鳥（`b`）・犬（`d`）・イノシシ（`i`）を入れてあるのは、飛び立つ・後ろから追い越す・
+    /// 突進してくる（#796/#944/#801）を本番の面まで遊ばずに確かめるため。狙った瞬間は
     /// `-simulateRunner bird` / `bird-low` / `bird-up` / `dog` / `boar` が 1 枚ずつ撮れる。
     ///
     /// 間隔は他ステージよりゆったり取ってある（QA中に慌てて次の障害へ突っ込まないため）。

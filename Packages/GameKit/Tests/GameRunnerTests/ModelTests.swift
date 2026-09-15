@@ -151,7 +151,7 @@ struct RunnerModelTests {
     }
 
     /// 撮影用シナリオ `-simulateRunner bird` / `bird-low` / `bird-up`（#796 の受け入れ条件
-    /// 「飛び立つ前・低く飛ぶ瞬間・上がった後」の画）と `dog`（#800）・`boar`（#801）が、
+    /// 「飛び立つ前・低く飛ぶ瞬間・上がった後」の画）と `dog`（#944・真横を抜ける瞬間）・`boar`（#801）が、
     /// **本当に狙った状態・走行中で止まる**こと。自動操縦が途中でミスすると `.falling` で止まる。
     @Test("撮影用シナリオ bird / bird-low / bird-up / dog / boar は狙った状態で止まる")
     func animalScenariosFreezeWhereIntended() {
@@ -185,9 +185,10 @@ struct RunnerModelTests {
         let dog = make("dog")
         if let hazard = dog.field.stage.hazards.first(where: { $0.kind == .dog }),
            let frame = hazard.frame(atRunnerDistance: dog.field.distance) {
-            #expect(frame.advance == 0 && frame.start == hazard.start, "犬は止まって吠えている")
-            #expect(dog.field.isGrounded && dog.field.distance < hazard.start, "踏み切る前")
-        }
+            #expect(frame.advance > 1, "犬は走者より速く走っている（#944）")
+            #expect(!dog.field.isGrounded, "走者は跳んでいる最中")
+            #expect(frame.start >= dog.field.distance && frame.start < dog.field.playerMaxX, "犬は走者の真横〜少し前")
+        } else { Issue.record("ショーケースの犬が現れていない") }
 
         let boar = make("boar")
         if let hazard = boar.field.stage.hazards.first(where: { $0.kind == .boar }),
