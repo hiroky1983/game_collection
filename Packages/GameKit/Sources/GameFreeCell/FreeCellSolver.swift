@@ -47,7 +47,7 @@ public enum FreeCellSolver {
         }
         var nodes: [Node] = [Node(board: root, parent: -1, movesFromParent: rootMoves)]
         var visited: Set<Data> = [root.stateKey]
-        var frontier = Heap()
+        var frontier = BestFirstQueue(tieBreak: .earlierFirst)
         frontier.push(priority: heuristic(root), order: 0, node: 0)
         var order = 0
 
@@ -126,45 +126,6 @@ public enum FreeCellSolver {
         }
         score -= board.emptyPileCount * 2
         return score
-    }
-
-    /// 最良優先の待ち行列。同じ評価値なら**先に生まれたほうを先に見る**（`order` で安定させる）。
-    private struct Heap {
-        private var items: [(priority: Int, order: Int, node: Int)] = []
-
-        mutating func push(priority: Int, order: Int, node: Int) {
-            items.append((priority, order, node))
-            var child = items.count - 1
-            while child > 0 {
-                let parent = (child - 1) / 2
-                guard isHigher(items[child], than: items[parent]) else { break }
-                items.swapAt(child, parent)
-                child = parent
-            }
-        }
-
-        mutating func pop() -> Int? {
-            guard let first = items.first else { return nil }
-            items.swapAt(0, items.count - 1)
-            items.removeLast()
-            var parent = 0
-            while true {
-                let left = parent * 2 + 1
-                let right = left + 1
-                var best = parent
-                if left < items.count, isHigher(items[left], than: items[best]) { best = left }
-                if right < items.count, isHigher(items[right], than: items[best]) { best = right }
-                if best == parent { break }
-                items.swapAt(parent, best)
-                parent = best
-            }
-            return first.node
-        }
-
-        private func isHigher(_ lhs: (priority: Int, order: Int, node: Int),
-                              than rhs: (priority: Int, order: Int, node: Int)) -> Bool {
-            lhs.priority != rhs.priority ? lhs.priority < rhs.priority : lhs.order < rhs.order
-        }
     }
 
     /// 生成した手が非合法だったときの保険。ここに来るのは実装の破綻なので探索を止める。

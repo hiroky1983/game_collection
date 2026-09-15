@@ -54,21 +54,23 @@ let package = Package(
         .target(name: "GameBlackjack",      dependencies: ["Core"]),
         .target(name: "GameDaifugo",        dependencies: ["Core"]),
         // 数独（#262・元 #5）。生成アルゴリズムは純粋ロジックなので Core だけに依存する。
-        .target(name: "GameSudoku",         dependencies: ["Core"]),
+        // 乱数（`SplitMix64`）・探索の待ち行列（`BestFirstQueue`）は純ロジックのファイルから CoreEngine を
+        // 直接 import するので、使うターゲットは CoreEngine への依存も明示する（#916）。
+        .target(name: "GameSudoku",         dependencies: ["Core", "CoreEngine"]),
         // ソリティア（クロンダイク・#397）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameSolitaire",      dependencies: ["Core"]),
+        .target(name: "GameSolitaire",      dependencies: ["Core", "CoreEngine"]),
         // ブロック崩し（#463）。アクション枠の 1 本目で、**唯一 SpriteKit に依存するターゲット**。
         // ルール・当たり判定・得点は SpriteKit 非依存の純粋ロジックに分けてあるため、
         // 検証はこれまでどおりシミュレータ抜きの `swift test` で足りる。
         .target(name: "GameBlocks",         dependencies: ["Core"]),
         // フリーセル（#492）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameFreeCell",       dependencies: ["Core"]),
+        .target(name: "GameFreeCell",       dependencies: ["Core", "CoreEngine"]),
         // スパイダーソリティア（#717）。盤・配札・ソルバーは Core すら import しない純粋ロジックで、
         // 種の事前計算は `swiftc -O` で単体バイナリにして回す（`SpiderDealerTests` に手順）。
-        .target(name: "GameSpider",         dependencies: ["Core"]),
+        .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine"]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
-        .target(name: "GameBlockPuzzle",    dependencies: ["Core"]),
+        .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
         // チャリンコおじさん（#494）。アクション枠の2本目。地形・ジャンプ・当たり判定は
         // SpriteKit に依存しない純粋ロジックなので Core だけに依存する。
         .target(name: "GameRunner",         dependencies: ["Core"]),

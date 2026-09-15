@@ -71,6 +71,19 @@ struct SolitaireSolverTests {
         #expect(result.hitLimit)
     }
 
+    /// 待ち行列を共通部品（`BestFirstQueue`）へ寄せたとき（#916）に、**探索順が 1 手も変わっていない**ことの固定。
+    /// クロンダイクは同点なら先に生まれた局面を先に見る（`.earlierFirst`）。向きを取り違えると局面数が変わる。
+    /// 値は共通化の前のソルバーで実測したもの。ソルバーに手を入れて変わったら、種の作り直しと合わせて更新する。
+    @Test("同じ配札なら探索した局面数と勝ち筋の長さが変わらない", arguments: [
+        (0, 1_049, 200), (1, 438, 172),
+    ])
+    func searchOrderIsPinned(index: Int, states: Int, moves: Int) {
+        let seed = SolitaireDealer.verifiedSeeds[index]
+        let result = SolitaireSolver.solve(SolitaireDealer.deal(seed: seed))
+        #expect(result.statesExplored == states, "種 \(seed)")
+        #expect(result.solution?.count == moves, "種 \(seed)")
+    }
+
     @Test("安全な組札送りだけを分岐させずに実行する")
     func autoplaysOnlySafeCards() {
         // ♦2 は安全（A・2 は常に安全）。♠5 は反対色の組札が足りないので送らない。
