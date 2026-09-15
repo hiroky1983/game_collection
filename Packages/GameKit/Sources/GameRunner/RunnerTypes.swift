@@ -439,7 +439,7 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
     /// 開始シートに出す 1 行の説明。
     public var summary: String {
         switch self {
-        case .stages:  return "ステージ 1 から 18 面を順にクリアしてベストタイムをねらう、いつもの遊び方"
+        case .stages:  return "ステージ 1 から 18 面を順にクリアして、3 つの世界を先へ進む、いつもの遊び方"
         case .endless: return "毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません"
         }
     }

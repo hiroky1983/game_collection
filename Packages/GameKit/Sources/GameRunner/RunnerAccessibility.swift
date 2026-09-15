@@ -4,7 +4,7 @@ import Foundation
 /// 画面の状態を読み上げる文（#494）。
 ///
 /// アクション枠は**盤面を読み上げても遊べるようにはならない**（基盤規約 §3）。代わりに
-/// 進行に関わる情報（ステージ・進み具合・タイム）を SwiftUI 側のヘッダーへ置き、
+/// 進行に関わる情報（ステージ・進み具合・スピード）を SwiftUI 側のヘッダーへ置き、
 /// ここで作った文を `accessibilityLabel` に付ける。SpriteKit の中に文字は描かない。
 ///
 /// 純関数なので、View を組まずに `AccessibilityTests` で文面を固定できる。
@@ -68,20 +68,6 @@ public enum RunnerAccessibility {
     /// たこ焼き（#797）の無敵の残り時間。秒は切り上げる（残り 0.3 秒を「0秒」と読まない）。
     public static func invincibleLabel(remaining: Double) -> String {
         "無敵 あと\(Int(max(0, remaining).rounded(.up)))秒"
-    }
-
-    /// タイム。分と秒に分けて読む（`1:05` は「いちころごー」と読まれてしまう）。
-    public static func timeLabel(seconds: Int) -> String {
-        let value = max(0, seconds)
-        let minutes = value / 60
-        let rest = value % 60
-        return minutes > 0 ? "\(minutes)分\(rest)秒" : "\(rest)秒"
-    }
-
-    /// ベストタイム。未クリアのステージは記録が無いことを言う。
-    public static func bestLabel(seconds: Int?) -> String {
-        guard let seconds else { return "ベストタイムはまだありません" }
-        return "ベストタイム \(timeLabel(seconds: seconds))"
     }
 
     /// 走行距離（エンドレス・#675）。単位はワールド単位だが、画面と同じ「m」で読む。

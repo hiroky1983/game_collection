@@ -143,7 +143,7 @@ public struct RecordsSummary: Equatable, Sendable {
                 // `playedGameIDs` だけを見ると、コンティニューで負けを取り消した回などと食い違うことが
                 // あるため、記録が残っていれば遊んだとみなす（どちらか一方で十分）。
                 isPlayed: playedGameIDs.contains(game.id) || !played.isEmpty,
-                recordLine: RecordFormat.hubLine(played),
+                recordLine: RecordFormat.hubLine(played, gameID: game.id),
                 plays: plays,
                 isWinLoss: played.first?.metric == .winLoss,
                 milestones: milestones

@@ -5,7 +5,7 @@ import Observation
 /// 横スクロールランナーの進行（#494）。
 ///
 /// コースそのもの（走者・地形・当たり判定）は `RunnerField` が持ち、ここは
-/// **ステージ進行・タイム・チェックポイント・記録・横断サービスへの通知**だけを担う。
+/// **ステージ進行・到達面・チェックポイント・記録・横断サービスへの通知**だけを担う。
 /// SpriteKit には一切依存しないので、1 ステージ丸ごとをユニットテストで走らせられる。
 @MainActor
 @Observable
@@ -35,14 +35,12 @@ public final class RunnerModel {
     /// 中断データ（`RunnerSnapshot.reachedStage`）に残す。
     public private(set) var reachedStage: Int
     public private(set) var phase: RunnerPhase
-    /// このステージに挑み始めてからの経過秒。
-    public private(set) var elapsed: Double
-    /// ステージごとのベストタイム（秒）。0 は未クリア。
-    public private(set) var bestSeconds: [Int]
     /// このステージでチェックポイント再開（リワード広告）を使ったか。1 ステージ 1 回まで。
     public private(set) var checkpointUsed: Bool
-    /// 直前のクリアでベストタイムを更新したか。クリア表示のバッジに使う。
-    public private(set) var didSetBestTime = false
+    /// 直前のクリアで**初めて次の面に到達した**か（`reachedStage` が伸びた）。クリア表示の
+    /// 「新しい面に到達！」のバッジに使う（#931。秒数の廃止で「ベストタイム更新！」の代わり）。
+    /// 到達済みの面を選び直してクリアしても立たない。
+    public private(set) var didReachNewStage = false
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
     /// ゆっくりモード（アクセシビリティ）。切り替えると即座に効く。
@@ -77,7 +75,6 @@ public final class RunnerModel {
             services: services,
             preference: preference,
             stage: restored?.stage ?? 1,
-            bestSeconds: restored?.bestSeconds ?? Array(repeating: 0, count: RunnerRules.stageCount),
             reachedStage: restored?.reachedStage ?? 1,
             isFreshStart: restored == nil
         )
@@ -91,14 +88,12 @@ public final class RunnerModel {
     public convenience init(
         services: GameServices? = nil,
         startingAt stage: Int,
-        bestSeconds: [Int]? = nil,
         preference: FeedbackPreference = .actionSlowMode
     ) {
         self.init(
             services: services,
             preference: preference,
             stage: stage,
-            bestSeconds: bestSeconds ?? Array(repeating: 0, count: RunnerRules.stageCount),
             // 狙った局面から始めるので、その面までは到達済みとみなす。
             reachedStage: stage,
             isFreshStart: true
@@ -113,7 +108,6 @@ public final class RunnerModel {
         services: GameServices?,
         preference: FeedbackPreference,
         stage: Int,
-        bestSeconds: [Int],
         reachedStage: Int,
         isFreshStart: Bool
     ) {
@@ -123,9 +117,7 @@ public final class RunnerModel {
         self.stageNumber = number
         // 到達点は再開面より前にはならない（`RunnerSnapshot.validated()` と同じ丸め）。
         self.reachedStage = min(max(number, reachedStage), RunnerRules.stageCount)
-        self.bestSeconds = bestSeconds
         self.checkpointUsed = false
-        self.elapsed = 0
         self.phase = .ready
         self.isSlowMode = preference.isEnabled
         self.field = RunnerField(stage: RunnerStage.all[number - 1])
@@ -151,14 +143,6 @@ public final class RunnerModel {
     /// 数える。ワールド単位のままだと 400 区画で 25,600 m・時速 140 km 超の表示になり実感と
     /// 合わないため（社長レビュー 2026-09-14）。6,400 m を 8 分前後で走る＝時速 48 km ほど。
     public var distanceMeters: Int { Int(field.distance / RunnerRules.tileWidth) }
-    /// このステージのベストタイム（秒）。未クリアなら nil。
-    public var bestSecondsForCurrentStage: Int? { best(forStage: stageNumber) }
-    /// ステージ番号（1 始まり）のベストタイム。未クリアなら nil。
-    public func best(forStage number: Int) -> Int? {
-        guard number >= 1, number <= bestSeconds.count else { return nil }
-        let value = bestSeconds[number - 1]
-        return value > 0 ? value : nil
-    }
     /// ステージ番号（1 始まり）が到達済み（ワールドマップで選べる）か（#798）。
     /// 1 面は常に到達済み。範囲外は false。
     public func isStageReached(_ number: Int) -> Bool {
@@ -218,8 +202,8 @@ public final class RunnerModel {
         phase = .running
         // 走り出した = 捨てたら途中離脱として数える走行（#500）。
         services?.gameDidProgress(gameID: Self.gameID)
-        // このゲームの中断データはステージ番号とベストタイムの控えで、決着後も消さない
-        // （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
+        // このゲームの中断データは再開する面と到達点の控えで、決着後も消さない
+        // （消すと到達点が失われる）。走行そのものは復元せず必ずステージの頭から
         // 始まるので、「中断データが在る = 続きから戻れる」の既定を打ち消す（PR #572 の指摘）。
         services?.gameWillNotResume(gameID: Self.gameID)
         services?.feedback.impact(.rigid)
@@ -277,7 +261,6 @@ public final class RunnerModel {
         if isFrozenForCapture { return }
         #endif
         let step = min(dt, RunnerRules.maxStep) * (isSlowMode ? RunnerRules.slowFactor : 1)
-        elapsed += step
         for event in field.step(dt: step) {
             guard phase.isRunning else { break }
             handle(event)
@@ -312,7 +295,7 @@ public final class RunnerModel {
         services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
     }
 
-    /// クリア済みのステージをもう一度走る（タイムアタック周回）。
+    /// クリア済みのステージをもう一度走る。
     public func replayCurrentStage() {
         guard mode == .stages, phase == .cleared || phase == .allCleared else { return }
         checkpointUsed = false
@@ -418,10 +401,7 @@ public final class RunnerModel {
     public func resumeFromCheckpoint(forRun generation: Int) -> Bool {
         guard canResumeFromCheckpoint, generation == runGeneration else { return false }
         checkpointUsed = true
-        // タイムは続きから測る（ステージの頭に戻さないので経過秒も戻さない）。
-        let resumedElapsed = elapsed
         startStage(from: stage.checkpoint, passedCheckpoint: true)
-        elapsed = resumedElapsed
         return true
     }
 
@@ -453,10 +433,9 @@ public final class RunnerModel {
         runGeneration += 1
         phase = .ready
         isPressed = false
-        elapsed = 0
         fallElapsed = 0
         recordResult = nil
-        didSetBestTime = false
+        didReachNewStage = false
         didSetBestDistance = false
     }
 
@@ -540,19 +519,13 @@ public final class RunnerModel {
             return
         }
         #endif
-        // **表示と同じ切り捨て**にする。四捨五入すると、画面の「0:22」に対して記録が
-        // 「23秒」になって食い違う（最初の実機確認で判明）。
-        let seconds = max(1, Int(elapsed))
-        // チェックポイント再開を使った回はベストタイムに残さない。ステージの半分しか
-        // 走っていない回と通しで走った回を同じ表に混ぜない（#406 と同じ考え方）。
-        didSetBestTime = !checkpointUsed && (best(forStage: stageNumber).map { seconds < $0 } ?? true)
-        if didSetBestTime {
-            bestSeconds[stageNumber - 1] = seconds
-        }
         phase = stageNumber < RunnerRules.stageCount ? .cleared : .allCleared
         // クリアした面の次がワールドマップで選べるようになる（#798）。下の面を選んで
-        // クリアしても `max` なので到達点は戻らない。
-        reachedStage = max(reachedStage, min(stageNumber + 1, RunnerRules.stageCount))
+        // クリアしても `max` なので到達点は戻らない。到達点が伸びた回だけ
+        // 「新しい面に到達！」（#931。秒数の廃止で記録の主役は到達面）。
+        let nextReached = max(reachedStage, min(stageNumber + 1, RunnerRules.stageCount))
+        didReachNewStage = nextReached > reachedStage
+        reachedStage = nextReached
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .win,
@@ -569,11 +542,12 @@ public final class RunnerModel {
 
     /// 区切りの状態だけを保存する（規約どおりフレーム単位では保存しない）。
     ///
-    /// **決着してもファイルは消さない**。ここにはステージごとのベストタイムが入っており、
-    /// 消すと全ステージの記録がまとめて失われる。代わりに「次に開いたときどこから始めるか」を
+    /// **決着してもファイルは消さない**。ここには到達点（`reachedStage`）が入っており、
+    /// 消すとワールドマップで選べる面が 1 面に戻る。代わりに「次に開いたときどこから始めるか」を
     /// 書き換える（クリア表示中なら次のステージ、それ以外は今のステージ）。
+    /// 旧形式のベストタイム（`RunnerSnapshot.bestSeconds`）は空で書く（#931）。
     private func persist() {
-        // エンドレスは保存しない（1 回完結・#675）。書くべき値（ステージ番号・ベストタイム）は
+        // エンドレスは保存しない（1 回完結・#675）。書くべき値（ステージ番号・到達点）は
         // エンドレス中に変わらないので、書いても壊れはしないが、意図として呼ばない。
         guard mode == .stages else { return }
         let resume: Int
@@ -583,7 +557,7 @@ public final class RunnerModel {
         default:          resume = stageNumber
         }
         try? services?.snapshots.save(
-            RunnerSnapshot(stage: resume, bestSeconds: bestSeconds, reachedStage: reachedStage),
+            RunnerSnapshot(stage: resume, reachedStage: reachedStage),
             for: Self.gameID
         )
     }
@@ -781,7 +755,7 @@ public final class RunnerModel {
 
     /// `RunnerStage.all` を経由せず、任意のステージ定義で走らせ直す（QA用）。
     ///
-    /// `stageNumber`（ヘッダーの「ステージ N/15」表示・ベストタイムの記録先）はそのまま
+    /// `stageNumber`（ヘッダーの「ステージ N/18」表示・到達点の記録先）はそのまま
     /// 動かさない。「もう一度」「はじめから」を押すと `startStage` が `RunnerStage.all` から
     /// 引き直すので、ショーケースからは抜ける——QA専用の一時的な差し替えとして割り切る。
     private func applyDebugStage(_ customStage: RunnerStage) {

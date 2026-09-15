@@ -13,12 +13,6 @@ public struct RunnerView: View {
     @State private var scene: RunnerScene
     /// チェックポイント再開のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var resumeRescue = RewardedRescue()
-    /// 15 ステージぶんのベストタイム一覧を開いているか（既定は閉じて省スペースに、#583系）。
-    ///
-    /// 「ステージとベストタイムは上のセクションでいい。まだゲーム画面が真ん中にあって
-    /// 一時停止ボタンが遠い」という会長QA（2026-09-10）を受け、既定は現在のステージの
-    /// ベストだけを1行で見せ、15個のチップ一覧は開いたときだけ場所を取るようにした。
-    @State private var showsAllBestTimes = false
     /// 開始シート（モード選択・#675）を出しているか。
     @State private var showStartSheet = false
     /// 開始シートで選んでいるモード。ここは「次の走行に使う設定」で、進行中の走行が
@@ -120,65 +114,96 @@ public struct RunnerView: View {
 
     // MARK: - ヘッダー
 
-    /// タイム・スピード・ステージ番号・記録を1枚にまとめた画面上部のセクション。
+    /// 面の見出し・スピード・進み具合を 1 行にまとめた画面上部のセクション。
     ///
-    /// 元は「タイム等」のカードと「ベストタイム一覧」のカードが縦に2枚並んでいたが、
-    /// 「ステージとベストタイムは上のセクションでいい。まだゲーム画面が真ん中にあって
-    /// 一時停止ボタンが遠い」という会長QA（2026-09-10）を受け、1枚に統合して縦の
-    /// 占有を減らした——浮いた分だけ `course` が画面の下まで伸び、右下の一時停止ボタンが
-    /// 自然と親指の届く位置に来る。
+    /// #931 で**秒数（タイム・ベストタイム）を外した**（会長決裁「ステージのタイムは要らない」。
+    /// ステージ制は難しい横スクロールを攻略して先へ進むのが主役で、秒を縮める遊びではない）。
+    /// 代わりに「いまどの面を走っているか」（`RunnerAccessibility.stageHeadline`）を主役にする。
+    /// ベストタイムのチップ一覧も無くなったので 1 行だけになり、浮いた縦幅は `course` が取る。
+    /// **モードを切り替えても高さが変わらない**よう、ステージ制とエンドレスで同じ 3 区画の並び
+    /// （左: 見出し / 中: スピード / 右: 進み具合か自己ベスト）にしてある。
     private var topSummary: some View {
-        VStack(spacing: 8) {
-            header
-            bestTimeSection
-        }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        .popCard(corner: Theme.cornerSmall)
+        header
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .popCard(corner: Theme.cornerSmall)
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("タイム")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                Text(timeText(model.elapsed))
-                    .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
-                    .foregroundStyle(Theme.ink)
+            switch model.mode {
+            case .stages:  stageHeadline
+            case .endless: distanceReadout
             }
-            .accessibilityElement()
-            .accessibilityLabel(RunnerAccessibility.timeLabel(seconds: Int(model.elapsed)))
             speedMeter
             Spacer(minLength: 0)
             switch model.mode {
-            case .stages:
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(RunnerAccessibility.stageLabel(
-                        number: model.stageNumber, total: RunnerRules.stageCount
-                    ))
-                    .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
-                    // 読み上げにだけ世界の名前を添える（#703）。見た目の文言はヘッダーの幅の都合で番号のまま。
-                    .accessibilityLabel(RunnerAccessibility.stageLabelWithWorld(
-                        number: model.stageNumber, total: RunnerRules.stageCount
-                    ))
-                    progressBar
-                }
-            case .endless:
-                // エンドレス（#675）は「ステージ N / 18」と進み具合の代わりに走行距離を出す。
-                // 進み具合は出さない——固定長の終わりを見せると「エンドレス」の看板と食い違う。
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("走行距離")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                    Text(distanceText(model.distanceMeters))
-                        .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
-                        .foregroundStyle(Theme.ink)
-                }
-                .accessibilityElement()
-                .accessibilityLabel(RunnerAccessibility.distanceLabel(model.distanceMeters))
+            case .stages:  progressReadout
+            case .endless: endlessBestReadout
             }
         }
+    }
+
+    /// ステージ制の見出し。「ステージ 9 / 18」の小さな行の下に「2-3 とうふ屋のかど」（#931）。
+    /// 幅が足りない機種では名前のほうを縮める（`minimumScaleFactor`）。
+    private var stageHeadline: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(RunnerAccessibility.stageLabel(number: model.stageNumber, total: RunnerRules.stageCount))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            Text(RunnerAccessibility.stageHeadline(number: model.stageNumber))
+                .font(.system(size: 17, weight: .heavy, design: .rounded))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .accessibilityElement()
+        // 番号に世界の名前（#703）と面の名前を添える——画面では背景の色で分かる
+        // 「どこを走っているか」を、見えない人にも言葉で伝える。
+        .accessibilityLabel(
+            RunnerAccessibility.stageLabelWithWorld(number: model.stageNumber, total: RunnerRules.stageCount)
+                + "、" + RunnerAccessibility.stageHeadline(number: model.stageNumber)
+        )
+    }
+
+    /// ステージ制の進み具合。ゲージだけでは何のゲージか分からないので「ゴールまで」の見出しを添える。
+    private var progressReadout: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            Text("ゴールまで")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            progressBar
+        }
+        .accessibilityElement()
+        .accessibilityLabel(RunnerAccessibility.progressLabel(model.field.progress))
+    }
+
+    /// エンドレス（#675）は「ステージ N / 18」と進み具合の代わりに走行距離を出す。
+    /// 進み具合は出さない——固定長の終わりを見せると「エンドレス」の看板と食い違う。
+    private var distanceReadout: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("走行距離")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            Text(distanceText(model.distanceMeters))
+                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
+                .foregroundStyle(Theme.ink)
+        }
+        .accessibilityElement()
+        .accessibilityLabel(RunnerAccessibility.distanceLabel(model.distanceMeters))
+    }
+
+    /// エンドレスの自己ベスト（走行距離）。走りながら「あとどれだけで更新か」を読めるように残す。
+    private var endlessBestReadout: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            Text("自己ベスト")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.inkSub)
+            Text(model.endlessBestDistance.map(distanceText) ?? "–")
+                .font(.system(size: 15, weight: .heavy, design: .rounded).monospacedDigit())
+                .foregroundStyle(Theme.ink)
+        }
+        .accessibilityElement()
+        .accessibilityLabel(RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance))
     }
 
     /// 走行距離の表示（`1,234 m`）。単位はワールド単位だが、数字に「m」を添えて距離と分かるようにする。
@@ -188,8 +213,8 @@ public struct RunnerView: View {
 
     /// ペダルの乗り（#569）。
     ///
-    /// タイムが操作で動くようになったので、**いま速いのか遅いのか**を走りながら読めるようにする。
-    /// 倍率の数字は走行中に読めないので、進み具合と同じ形のゲージにして伸び縮みだけで伝える。
+    /// **いま速いのか遅いのか**を走りながら読めるようにする。倍率の数字は走行中に読めないので、
+    /// 進み具合と同じ形のゲージにして伸び縮みだけで伝える。
     private var speedMeter: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("スピード")
@@ -202,9 +227,9 @@ public struct RunnerView: View {
                         .frame(width: geo.size.width * speedRatio)
                 }
             }
-            .frame(width: 72, height: 6)
+            .frame(width: 64, height: 6)
         }
-        .padding(.leading, 14)
+        .padding(.leading, 8)
         .accessibilityElement()
         .accessibilityLabel(RunnerAccessibility.speedLabel(ratio: speedRatio))
     }
@@ -224,9 +249,7 @@ public struct RunnerView: View {
                     .frame(width: geo.size.width * model.field.progress)
             }
         }
-        .frame(width: 96, height: 6)
-        .accessibilityElement()
-        .accessibilityLabel(RunnerAccessibility.progressLabel(model.field.progress))
+        .frame(width: 88, height: 6)
     }
 
     private var pauseButton: some View {
@@ -254,123 +277,6 @@ public struct RunnerView: View {
         selectedMode = mode
         selectedStage = stage
         showStartSheet = true
-    }
-
-    /// ステージごとのベストタイム（#494 の「記録」）。
-    ///
-    /// 既定では現在のステージのベストだけを1行で見せ、15個のチップ一覧はタップして
-    /// 開いたときだけ表示する（会長QA「上のセクションを縮めたい」を受けた折りたたみ化）。
-    /// 開けば従来どおり「どこまで進んだか」「次にどこを縮めるか」が一目で分かる。
-    ///
-    /// チップ行の高さは**開閉に関わらず常に確保**する（レコメンドカードのひな形と同じ
-    /// 「見えないひな形で高さを固定する」手法）。以前は開いたときだけ高さが増え、
-    /// `topSummary` が伸びた分だけ `course`（`GeometryReader` + `aspectRatio(.fit)`）が
-    /// 帳尻合わせに縮んでいた——「一時停止ボタンのセクションが固定になってるせいか、
-    /// ベストタイムのセクションを出すとプレイ画面が縮む」という会長QA（2026-09-10）どおりの
-    /// 症状。チップ行を常時同じ高さで確保しておけば `topSummary` の高さが動かなくなり、
-    /// `course` も常に同じ大きさで安定する。
-    @ViewBuilder
-    private var bestTimeSection: some View {
-        switch model.mode {
-        case .stages:  stageBestTimeSection
-        case .endless: endlessBestSection
-        }
-    }
-
-    /// エンドレス（#675）の自己ベスト（走行距離）。ステージ制のチップ行は意味を持たないので
-    /// 出さないが、**高さのひな形だけは同じに保つ**（下の `stageBestTimeSection` と同じ理由。
-    /// モードを切り替えたときに `topSummary` の高さが動くと `course` が伸び縮みする）。
-    private var endlessBestSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("自己ベスト")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                Spacer(minLength: 0)
-                Text(model.endlessBestDistance.map(distanceText) ?? "–")
-                    .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
-            }
-            .accessibilityElement()
-            .accessibilityLabel(RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance))
-            stageChipsRow
-                .hidden()
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var stageBestTimeSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                withGameAnimation(.snappy(duration: 0.2)) { showsAllBestTimes.toggle() }
-            } label: {
-                HStack {
-                    Text("ベストタイム")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                    Spacer(minLength: 0)
-                    Text(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
-                        .themeCaption(12)
-                        .foregroundStyle(Theme.inkSub)
-                    Image(systemName: showsAllBestTimes ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                showsAllBestTimes ? "全ステージの記録をとじる" : "全ステージの記録を見る"
-            )
-            .accessibilityValue(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
-
-            ZStack(alignment: .topLeading) {
-                // 高さのひな形。常に同じレイアウトで場所を占め続け、当たり判定・読み上げには関わらない。
-                stageChipsRow
-                    .hidden()
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                if showsAllBestTimes {
-                    stageChipsRow
-                        .accessibilityElement(children: .combine)
-                        .transition(.opacity)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var stageChipsRow: some View {
-        HStack(spacing: 4) {
-            ForEach(1...RunnerRules.stageCount, id: \.self) { number in
-                stageChip(number)
-            }
-        }
-    }
-
-    private func stageChip(_ number: Int) -> some View {
-        let best = model.best(forStage: number)
-        let isCurrent = number == model.stageNumber
-        return VStack(spacing: 1) {
-            // 数値の桁区切りが入らないよう verbatim で出す（#494 時点の既知の落とし穴）。
-            Text(verbatim: "\(number)")
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(isCurrent ? Theme.onAccent : Theme.inkSub)
-            Text(best.map { "\($0)" } ?? "–")
-                .font(.system(size: 10, weight: .semibold, design: .rounded).monospacedDigit())
-                .foregroundStyle(isCurrent ? Theme.onAccent : Theme.ink)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isCurrent ? Theme.Fill.coral : Theme.Fill.coral.opacity(0.12))
-        )
-        .accessibilityLabel(
-            "ステージ \(number) " + RunnerAccessibility.bestLabel(seconds: best)
-        )
     }
 
     // MARK: - コース
@@ -505,12 +411,14 @@ public struct RunnerView: View {
                 retryButton
             }
         case .cleared:
-            panel(title: "ステージ \(model.stageNumber) クリア！") {
+            // 主役は「次の面へ」（#931）。秒数の表示・ベストタイム更新の印は廃止し、
+            // 到達点が伸びた回だけ「新しい面に到達！」の印を出す。
+            panel(title: "\(RunnerAccessibility.stageHeadline(number: model.stageNumber)) クリア！") {
                 clearedDetail
                 Button {
                     model.advanceToNextStage()
                 } label: {
-                    Label("次のステージへ", systemImage: "arrow.forward.circle.fill")
+                    Label("次の面へ", systemImage: "arrow.forward.circle.fill")
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent)
@@ -519,37 +427,31 @@ public struct RunnerView: View {
             }
         case .allCleared:
             panel(title: "全ステージクリア！") {
-                clearedDetail
                 replayButton
                 restartButton
             }
         }
     }
 
-    /// クリア表示のタイム 2 行（今回とベスト）。
+    /// クリア表示の添え書き。初到達の印と、次に走る面の名前。
     private var clearedDetail: some View {
-        VStack(spacing: 4) {
-            Text("タイム \(timeText(model.elapsed))")
-                .themeBody(15)
-                .foregroundStyle(.white)
-            Text(RunnerAccessibility.bestLabel(seconds: model.bestSecondsForCurrentStage))
+        VStack(spacing: 6) {
+            if model.didReachNewStage {
+                // 見た目は共通の `RecordBadge`（塗りつぶさない印。「次の面へ」ボタンと
+                // 同じ塗りだと押せるものに見える・会長 QA 2026-09-14）。
+                RecordBadge("新しい面に到達！")
+            }
+            Text("つぎは \(RunnerAccessibility.stageHeadline(number: model.stageNumber + 1))")
                 .themeCaption(13)
                 .foregroundStyle(.white.opacity(0.85))
-            if model.didSetBestTime {
-                // 共通の `RecordLabel` はここでは出さない。あちらが出す「自己ベスト N」は
-                // このゲームでは**到達ステージ数**（ハブの 1 行で使う指標）で、同じ枠に
-                // 並ぶタイムと取り違えられる。この画面で意味があるのはタイムのほう。
-                // 見た目は共通の `RecordBadge`（塗りつぶさない印。「次のステージへ」ボタンと
-                // 同じ塗りだと押せるものに見える・会長 QA 2026-09-14）。
-                RecordBadge("ベストタイム更新！")
-            }
         }
+        .accessibilityElement(children: .combine)
     }
 
     /// エンドレスのリザルト 2 行（走行距離と自己ベスト・#675）。
     ///
-    /// 共通の `RecordLabel` は使わない（`clearedDetail` と同じ理由）。あちらの「自己ベスト N」は
-    /// 単位が無く、走行距離であることが読み取れない。
+    /// 共通の `RecordLabel` は使わない。あちらの「自己ベスト N」は単位が無く、
+    /// 走行距離であることが読み取れない。
     private var endlessDetail: some View {
         VStack(spacing: 4) {
             Text("走行距離 \(distanceText(model.distanceMeters))")
@@ -722,8 +624,8 @@ public struct RunnerView: View {
         panel(title: "一時停止") {
             // ゆっくりモードの切り替えは設定画面のみに一本化した（#631）。ゲーム内の
             // 一時停止からいつでも切り替えられると、難所の直前で止めてオンにする→通過後に
-            // オフへ戻す、を繰り返すだけでベストタイムをいくらでも作り込めてしまい、
-            // アクセシビリティの代替手段のはずが難易度調整の抜け道になっていた
+            // オフへ戻す、を繰り返すだけで難易度をいくらでも調整できてしまい、
+            // アクセシビリティの代替手段のはずが抜け道になっていた
             // （会長QA「一時停止でゆっくりモードに変えれるといくらでも難易度調整できる」・
             // 2026-09-11）。設定変更時は`GameSettings.slowModeEnabled`のdidSetで
             // 中断データを破棄するため、この画面を経由した抜け道は無い。
@@ -785,12 +687,6 @@ public struct RunnerView: View {
             }
             .padding(20)
         }
-    }
-
-    /// `0:00` 形式。**秒だけの表示にしない**（ステージによっては 1 分を超える）。
-    private func timeText(_ seconds: Double) -> String {
-        let value = max(0, Int(seconds))
-        return String(format: "%d:%02d", value / 60, value % 60)
     }
 
     /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
