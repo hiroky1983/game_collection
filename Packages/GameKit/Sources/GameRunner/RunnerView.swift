@@ -47,8 +47,15 @@ public struct RunnerView: View {
             // 一時停止はコース（ゲーム画面）の**外**に出す（会長QA「一時停止ボタンは画面外に出したい」
             // ・2026-09-10）。以前はコースの右下に重ねていたが、ゲームの絵の一部に見えてしまう・
             // 誤タップで盤面が隠れる、という指摘を受けた。右寄せの専用の行として独立させる。
-            HStack {
-                Spacer(minLength: 0)
+            // 走り出す前だけ、同じ行の左側にモードの切り替えと「ステージをえらぶ」を出す（#919）。
+            // 一時停止ボタンの行（高さ 34pt）に相乗りさせるので縦幅は増えず、iPhone SE でも
+            // 盤・ヒント・広告帯の配分は変わらない。
+            HStack(spacing: 8) {
+                if model.canChooseMode {
+                    modeSwitch
+                    stageSelectButton
+                }
+                Spacer(minLength: 4)
                 pauseButton
             }
             secondaryInfo
@@ -62,9 +69,7 @@ public struct RunnerView: View {
                 // 同じ作法）。走行中なら読んでいる間にミスしないよう止める。
                 Button {
                     if model.phase == .running { model.pause() }
-                    selectedMode = model.mode
-                    selectedStage = 1
-                    showStartSheet = true
+                    openStartSheet(mode: model.mode, stage: 1)
                 } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
@@ -99,9 +104,7 @@ public struct RunnerView: View {
             }
             // 撮影用: 開始シート（ワールドマップ #798）を開いた状態にする（`-showRunnerStartSheet`）。
             if args.contains("-showRunnerStartSheet") {
-                selectedMode = model.mode
-                selectedStage = 1
-                showStartSheet = true
+                openStartSheet(mode: model.mode, stage: 1)
             }
             #endif
         }
@@ -248,6 +251,75 @@ public struct RunnerView: View {
             model.phase == .falling || model.phase == .failed
                 || model.phase == .cleared || model.phase == .allCleared
         )
+    }
+
+    /// 開始シート（`RunnerStartSheet`）を、選んでおくモードと面を決めて開く。
+    /// ツールバーの「はじめから」と、走り出す前の画面の「ステージをえらぶ」（#919）の共通の経路。
+    private func openStartSheet(mode: RunnerMode, stage: Int) {
+        selectedMode = mode
+        selectedStage = stage
+        showStartSheet = true
+    }
+
+    // MARK: - 走り出す前のモード切り替え（#919）
+
+    /// 「ステージ」「エンドレス」の 2 択セグメント。走り出す前（`RunnerModel.canChooseMode`）だけ出す。
+    ///
+    /// 会長 QA「エンドレスモードはどこから選べる？？」（2026-09-15）。それまでエンドレスの入口は
+    /// ツールバーの「はじめから」→ 開始シートの中にしか無く、ハブから開いた画面では見つからなかった。
+    /// ここに置けば**タップ 1 回**でエンドレスに入れる。
+    ///
+    /// 標準の `.segmented` ピッカーではなく自前の 2 ボタンにしてあるのは、読み上げを
+    /// 「モード、ステージ／エンドレス、選択中」の形に固定するため（標準のピッカーは
+    /// 区画ごとの読み上げにピッカーの題名が乗らない）。見た目の約束はワールドマップの
+    /// マス（`RunnerWorldMap.stageCell`）と同じ「選択中は差し色で塗って `onAccent` の文字」。
+    /// 高さは一時停止ボタン（34pt）に合わせて 32pt に抑える。
+    private var modeSwitch: some View {
+        HStack(spacing: 2) {
+            ForEach(RunnerMode.allCases) { option in
+                let selected = option == model.mode
+                Button {
+                    model.switchMode(to: option)
+                } label: {
+                    Text(option.title)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .foregroundStyle(selected ? Theme.onAccent : Theme.ink)
+                        .padding(.horizontal, 8)
+                        .frame(height: 28)
+                        .background(
+                            Capsule().fill(selected ? Theme.Fill.coral : .clear)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(RunnerAccessibility.modeLabel(option))
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(Theme.Fill.coral.opacity(0.12)))
+        .fixedSize()
+    }
+
+    /// ワールドマップ（#798）へ。開始シートをステージ制・いまの面を選んだ状態で開く。
+    /// ツールバーの「はじめから」（1 面から）と違い、「どの面から走るか」を選びに行くボタンなので
+    /// つづきの面を選んでおく。
+    private var stageSelectButton: some View {
+        Button {
+            openStartSheet(mode: .stages, stage: model.stageNumber)
+        } label: {
+            Label("ステージをえらぶ", systemImage: "map.fill")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 8)
+                .frame(height: 32)
+                .background(Capsule().fill(Theme.Fill.coral.opacity(0.12)))
+        }
+        .buttonStyle(.pop)
+        .fixedSize()
     }
 
     /// ステージごとのベストタイム（#494 の「記録」）。
