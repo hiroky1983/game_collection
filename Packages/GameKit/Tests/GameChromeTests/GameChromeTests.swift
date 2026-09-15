@@ -72,26 +72,14 @@ struct GameChromeSourceTests {
         }
     }
 
-    /// 「ほかのあそび」（#661）はレコメンドの枠に相乗りしている。枠を持たない終局画面が 1 本でも
-    /// あると、そのゲームだけ終局後の出口が左上の小さな戻るに戻る。
+    /// レコメンドのカード（#52）と難易度の階段（#722）はレコメンドの枠に相乗りしている。
+    /// 枠を持たない終局画面が 1 本でもあると、そのゲームだけレコメンドも階段も出ない。
     @Test("どのゲームの終局画面にもレコメンドの枠がある")
     func everyGameHasRecommendationSlot() {
         let entries = ["RecommendationSlot(", "RecommendationArea(", "GameControlArea("]
         for game in Self.gameDirectories {
             let hit = game.files.contains { file in entries.contains { file.contains($0) } }
-            #expect(hit, "\(game.name) の終局画面にレコメンドの枠が無い（ほかのあそびが出ない）")
-        }
-    }
-
-    /// 引っ込める指定は、枠を盤に重ねていて検討で盤を見返す画面（将棋・チェス）だけに許す。
-    /// 他のゲームで使うと、そのゲームだけ終局後の出口が消える。
-    @Test("ほかのあそびを引っ込める指定は検討のある盤ゲームだけ")
-    func onlyReviewBoardsHideOtherGames() {
-        let allowed: Set<String> = ["GameShogi", "GameChess"]
-        for game in Self.gameDirectories {
-            let hit = game.files.contains { $0.contains("showsOtherGames:") }
-            #expect(hit == allowed.contains(game.name),
-                    "\(game.name) の showsOtherGames 指定の有無が想定と違う")
+            #expect(hit, "\(game.name) の終局画面にレコメンドの枠が無い（レコメンドも階段も出ない）")
         }
     }
 }

@@ -117,7 +117,7 @@ let package = Package(
         .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "GameKitTestSupport"]),
         .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider"]),
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle"]),
-        .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner"]),
+        .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameKitTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport"]),
