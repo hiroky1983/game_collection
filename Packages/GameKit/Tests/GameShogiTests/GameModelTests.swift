@@ -3,6 +3,7 @@ import Foundation
 import Core
 import GameKitTestSupport
 @testable import GameShogi
+import CoreTestSupport
 
 @MainActor
 @Suite("対局モデル（人間→CPU の流れ）")
@@ -68,7 +69,7 @@ struct ShogiGameModelTests {
 
     @Test("成り・不成の選択をやめると着手されず、駒の選択も解ける")
     func promotionCanBeCancelled() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         // 先手歩が 5d から 5c（成り可否が両方合法な、強制成りでないマス）へ進める局面。
         try store.save(
             ShogiSnapshot(
@@ -96,21 +97,7 @@ struct ShogiGameModelTests {
 
 // MARK: - CPU 起動トリガー（#82: 後手を選ぶと CPU が初手を指さない）
 
-private final class MockSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
-private func makeServices(_ store: MockSnapshotStore) -> GameServices {
+private func makeServices(_ store: MemorySnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
@@ -160,7 +147,7 @@ struct ShogiAITurnKeyTests {
 
     /// 「続きから」再開時も手番の判定が保存内容どおりに復元される。
     @Test func resumedGameRestoresSides() {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let first = ShogiGameModel(services: makeServices(store))
         first.newGame(humanSide: .white)
 
@@ -258,7 +245,7 @@ struct ShogiRepetitionTests {
     }
 
     @MainActor
-    private func humanVsHumanModel(_ store: MockSnapshotStore) -> ShogiGameModel {
+    private func humanVsHumanModel(_ store: MemorySnapshotStore) -> ShogiGameModel {
         let model = ShogiGameModel(services: makeServices(store))
         model.sente = .human
         model.gote = .human
@@ -267,7 +254,7 @@ struct ShogiRepetitionTests {
 
     @Test("同一局面が 2 回・3 回では終局しない")
     func doesNotEndBeforeFourthOccurrence() {
-        let model = humanVsHumanModel(MockSnapshotStore())
+        let model = humanVsHumanModel(MemorySnapshotStore())
         playCycles(2, on: model)   // 初期局面の出現は 0・4・8 手目の 3 回
         #expect(model.moves.count == 8)
         #expect(model.gameOver == false)
@@ -276,7 +263,7 @@ struct ShogiRepetitionTests {
 
     @Test("同一局面が 4 回現れたら千日手で引き分けになる")
     func fourfoldRepetitionEndsAsDraw() {
-        let model = humanVsHumanModel(MockSnapshotStore())
+        let model = humanVsHumanModel(MemorySnapshotStore())
         playCycles(3, on: model)   // 0・4・8・12 手目で 4 回目
         #expect(model.moves.count == 12)
         #expect(model.gameOver)
@@ -286,7 +273,7 @@ struct ShogiRepetitionTests {
 
     @Test("千日手はアプリを再起動しても引き分けのまま復元される")
     func repetitionSurvivesRestart() {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model = humanVsHumanModel(store)
         playCycles(3, on: model)
         #expect(model.resultText == "引き分け（千日手）")
@@ -299,7 +286,7 @@ struct ShogiRepetitionTests {
 
     @Test("詰みで終わった対局を再起動しても勝敗表示が残る（#375）")
     func checkmateResultSurvivesRestart() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         // 先手: 6c/5c/4c 金 + 1i 玉、後手: 5a 玉のみ。▲5c5b で 5a 玉は詰み。
         try store.save(
             ShogiSnapshot(

@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameRunner
+import CoreTestSupport
 
 /// 動く障害（#796 飛び立つ鳥・#955 前から歩いて来る犬・#801 イノシシ）の軌道と当たり判定。
 ///
@@ -429,18 +430,10 @@ struct RunnerHazardMotionTests {
 
     // MARK: - 手応え
 
-    /// `services.feedback` に届いた呼び出しを記録するスパイ。
-    @MainActor
-    private final class SpyFeedback: FeedbackService {
-        private(set) var impacts: [FeedbackImpact] = []
-        func impact(_ style: FeedbackImpact) { impacts.append(style) }
-        func notify(_ type: FeedbackNotice) {}
-    }
-
     @MainActor
     @Test("イノシシの予告で「ドドド」（rigid）が 1 回鳴る")
     func boarChargeFeedback() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = RunnerModel(
             services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy),
             startingAt: 7, preference: makePreference("boar-cue")

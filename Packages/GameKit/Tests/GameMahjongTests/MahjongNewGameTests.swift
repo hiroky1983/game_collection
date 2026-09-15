@@ -4,21 +4,9 @@ import Core
 import SwiftUI
 import MahjongTiles
 @testable import GameMahjong
+import CoreTestSupport
 
 // MARK: - ヘルパー
-
-private final class MemoryStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 送信されたイベントをそのまま溜めるスパイ（`AnalyticsTests` の同名の型と同じ形）。
 @MainActor
@@ -42,7 +30,7 @@ private func junkHand() -> MahjongHand { MahjongNotation.hand("147m258p369s1234z
 
 @MainActor
 private func makeModel(
-    store: SnapshotStore = MemoryStore(),
+    store: SnapshotStore = MemorySnapshotStore(),
     playLog: PlayLog? = nil,
     analytics: GameAnalytics? = nil
 ) -> MahjongModel {
@@ -184,7 +172,7 @@ struct MahjongNewGameTests {
 
     @Test("破棄した局面は中断データから復元できない")
     func abandonedSnapshotIsOverwritten() {
-        let store = MemoryStore()
+        let store = MemorySnapshotStore()
         let model = makeModel(store: store)
         model.startGame()
         model.configureForTesting(
@@ -264,7 +252,7 @@ struct MahjongNewGameTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let ads = InterruptingAdService()
         let model = MahjongModel(
-            services: GameServices(snapshots: MemoryStore(), ads: ads, playLog: playLog),
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: ads, playLog: playLog),
             cpuDelay: .zero,
             seed: 2026
         )
@@ -303,7 +291,7 @@ struct MahjongNewGameTests {
         let (playLog, defaults, name) = makeIsolatedPlayLog()
         defer { defaults.removePersistentDomain(forName: name) }
         let ads = InterruptingAdService()
-        let store = MemoryStore()
+        let store = MemorySnapshotStore()
         let services = GameServices(snapshots: store, ads: ads, playLog: playLog)
         let left = MahjongModel(services: services, cpuDelay: .zero, seed: 2026)
         left.startGame()

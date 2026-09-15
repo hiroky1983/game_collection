@@ -4,24 +4,9 @@ import SwiftUI
 import Core
 import GameKitTestSupport
 @testable import GamePoker
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MockSnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-    /// 旧バージョンが書いた JSON（`rules` の鍵が無いもの）を流し込む。
-    func inject(_ data: Data, for gameID: String) { store[gameID] = data }
-}
 
 private final class NoopAdService: AdService, @unchecked Sendable {
     @MainActor func makeBannerView(width: CGFloat) -> AnyView? { nil }
@@ -90,7 +75,7 @@ private func makeModelBeforeShowdown(
     gameCenter: SpyGameCenterService? = nil,
     log: PlayLog? = nil
 ) -> PokerModel {
-    let store = MockSnapshotStore()
+    let store = MemorySnapshotStore()
     let snap = PokerSnapshot(
         playerHand: playerHand, cpuHand: cpuHand, deck: deck,
         playerChips: playerChips, cpuChips: cpuChips, pot: pot,
@@ -142,7 +127,7 @@ struct PokerRuleSetBakingTests {
 
     @Test("中断から復元した局は、保存されていたルールで再開する")
     func restoredRoundKeepsBakedRules() {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let snap = PokerSnapshot(
             playerHand: hand(for: .twoPair), cpuHand: weakCPUHand, deck: [],
             playerChips: 100, cpuChips: 100, pot: 40, phase: .betting2, currentBet: 0,
@@ -155,7 +140,7 @@ struct PokerRuleSetBakingTests {
 
     @Test("ルールを持たない旧データはスタンダードとして復元する")
     func legacySnapshotFallsBackToStandard() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         // `rules` の鍵ごと無い JSON（v1.1.3 までが書いていた形）。
         let legacy = """
         {"playerHand":[],"cpuHand":[],"deck":[],"playerChips":100,"cpuChips":100,"pot":40,

@@ -2,32 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameMinesweeper
-
-/// テスト専用の中断データ置き場（`MinesweeperModelTests` と同じ手口。ファイルに書かない）。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ value: T, for key: String) throws {
-        storage[key] = try JSONEncoder().encode(value)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for key: String) -> T? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for key: String) { storage[key] = nil }
-    func exists(for key: String) -> Bool { storage[key] != nil }
-}
-
-@MainActor
-private final class SpyFeedback: FeedbackService {
-    private(set) var impacts: [FeedbackImpact] = []
-    private(set) var notices: [FeedbackNotice] = []
-
-    func impact(_ style: FeedbackImpact) { impacts.append(style) }
-    func notify(_ type: FeedbackNotice) { notices.append(type) }
-}
+import CoreTestSupport
 
 /// 旗モードの切り替え（#761）。以前は View の `@State` で Model を通らず、手応えが鳴らなかった。
 @Suite("マインスイーパー 旗モードの切り替え")
@@ -36,7 +11,7 @@ struct MinesweeperFlagModeTests {
 
     @Test("切り替えるたびに rigid が1回だけ鳴り、盤面には触れない")
     func toggleFiresRigidOnce() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
         let model = MinesweeperModel(services: services, rows: 9, cols: 9, mines: 10)
         #expect(!model.flagMode)

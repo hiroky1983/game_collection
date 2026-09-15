@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameHanafuda
+import CoreTestSupport
 
 /// ルール分岐の記録区分（#827・1局=1RuleSet 規約 2〜4）。
 ///

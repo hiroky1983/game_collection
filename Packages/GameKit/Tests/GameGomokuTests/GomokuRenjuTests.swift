@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Core
 @testable import GameGomoku
+import CoreTestSupport
 
 // MARK: - ヘルパー
 
@@ -103,21 +104,7 @@ struct GomokuRenjuRuleTests {
 
 // MARK: - Model への接続（#441）
 
-private final class MockSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
-private func makeServices(_ store: MockSnapshotStore) -> GameServices {
+private func makeServices(_ store: MemorySnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
@@ -184,7 +171,7 @@ struct GomokuRenjuModelTests {
 
     /// オフのときは従来どおり三三に打てる（既定の手触りを変えない）。
     @Test func offAllowsDoubleThree() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(doubleThreeSnapshot(toMove: .black, forbiddenMoves: nil), for: "gomoku")
         let model = GomokuModel(services: makeServices(store))
         #expect(model.forbiddenMovesEnabled == false)
@@ -196,7 +183,7 @@ struct GomokuRenjuModelTests {
 
     /// オンのとき、黒は三三へ打てず理由まで区別できる。盤は動かない。
     @Test func onRejectsBlackDoubleThree() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(doubleThreeSnapshot(toMove: .black, forbiddenMoves: true), for: "gomoku")
         let model = GomokuModel(services: makeServices(store))
         #expect(model.forbiddenMovesEnabled)
@@ -211,7 +198,7 @@ struct GomokuRenjuModelTests {
 
     /// 白（後手）には禁じ手が無い。同じ形でも白なら打てる。
     @Test func onDoesNotRestrictWhite() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(doubleThreeSnapshot(toMove: .white, forbiddenMoves: true), for: "gomoku")
         let model = GomokuModel(services: makeServices(store))
         #expect(model.forbiddenMovesEnabled)
@@ -224,7 +211,7 @@ struct GomokuRenjuModelTests {
 
     /// 禁じ手で断られた表示は、次に打てた時点で消える（View の帯がこの値で出ている）。
     @Test func rejectionClearsOnceALegalMoveIsPlayed() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(doubleThreeSnapshot(toMove: .black, forbiddenMoves: true), for: "gomoku")
         let model = GomokuModel(services: makeServices(store))
 
@@ -239,7 +226,7 @@ struct GomokuRenjuModelTests {
     /// 待ったで盤が 2 手戻ったら、古い理由の帯を残さない（#518）。
     /// 戻した後の盤では三三が成立していないので、出したままだと嘘の表示になる。
     @Test func rejectionClearsOnUndo() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(doubleThreeSnapshotWithHistory(), for: "gomoku")
         let model = GomokuModel(services: makeServices(store))
 
@@ -254,7 +241,7 @@ struct GomokuRenjuModelTests {
 
     /// 投了で対局が終わったら、禁じ手の帯も一緒に片付ける（#518）。
     @Test func rejectionClearsOnResign() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(doubleThreeSnapshot(toMove: .black, forbiddenMoves: true), for: "gomoku")
         let model = GomokuModel(services: makeServices(store))
 
@@ -268,7 +255,7 @@ struct GomokuRenjuModelTests {
 
     /// トグルの状態が中断復元をまたいで一貫すること。
     @Test func settingSurvivesSuspendAndRestore() {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let first = GomokuModel(services: makeServices(store))
         first.newGame(humanSide: .black, aiLevel: 2, forbiddenMoves: true)
         first.tap(row: 7, col: 7)
@@ -294,7 +281,7 @@ struct GomokuRenjuModelTests {
 
     /// 新規対局で明示的にオフへ戻せること（前の対局の設定が残らない）。
     @Test func newGameCanTurnItBackOff() {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model = GomokuModel(services: makeServices(store))
         model.newGame(humanSide: .black, aiLevel: 1, forbiddenMoves: true)
         #expect(model.forbiddenMovesEnabled)
