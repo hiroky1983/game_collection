@@ -60,22 +60,8 @@ enum RunnerPalette {
     /// ゴールの旗の文字。チェックポイントの旗（`checkpointText`）と同じく、旗より十分暗い色で
     /// コントラストを取る（白抜きは実機で読めなかった教訓）。
     static let goalText: UInt32 = 0x4A1730
-    /// 夕方の川（`RunnerWorld.Scenery.riverside`）の水面。丘の紫より暗い群青にして、
-    /// 走者の下半身（サーモンの車体・黄土の脚）がこの上でいちばん映えるようにする。
-    static let riverWater: UInt32 = 0x3E3E7E
-    /// 川面の照り返し（細い帯）。夕日の色を水面に落として「川」だと読めるようにする。
-    static let riverGlint: UInt32 = 0xF2B08A
-    /// 夕方の地平線の帯。空の桃色（`RunnerWorld.evening`）に対して橙を足し、
-    /// 「橙〜桃色の空」を 2 色で作る。丘の後ろに置くので走者とは重ならない。
-    static let sunsetGlow: UInt32 = 0xF0955C
-    /// 夜のビルの影（`RunnerWorld.Scenery.cityLights`）。近景の丘（`hillNear`）よりさらに暗い紺。
-    static let building: UInt32 = 0x16223A
-    /// ビルの窓の灯り。暖色の小さな矩形で、夜の空と影に対して唯一の明るい点になる。
-    static let buildingWindow: UInt32 = 0xFFD98A
-    /// 朝の下町の家（`RunnerWorld.Scenery.townHouses`）。壁はクリーム、屋根は瓦の赤茶、窓は空より濃い水色。
-    static let houseWall: UInt32 = 0xFFF1DC
-    static let houseRoof: UInt32 = 0xC9624A
-    static let houseWindow: UInt32 = 0x5FA8D6
+    /// 遠景の飾り（川・夕焼けの帯・ビル・家並み）の色は世界ごとの純データに置いてある
+    /// （`RunnerWorld.SceneryPalette` / `RunnerWorld.TownHouse.Palette`・#929）。
     /// 穴の縁の警告帯。地面と同系色だと縁が分からず、落ちるかどうかの判断がつかない
     /// というQAを受けて追加（会長QA）。工事の柵らしく黒（`pitEdgeDark`）と交互に塗る。
     static let pitEdge: UInt32 = 0xFFD447
@@ -98,42 +84,20 @@ enum RunnerPalette {
     /// 読めなかった（会長QA「旗の文字もいまだに見えない」）。旗より十分暗い紺で
     /// コントラストを取る。
     static let checkpointText: UInt32 = 0x14284A
-    /// 鳥（`RunnerHazardKind.bird`）の胴体。岩の茶系・空の寒色とは別系統の色にして、
-    /// 地を這う障害物と空を飛ぶ障害物を見分けられるようにする（会長QA）。
-    static let birdBody: UInt32 = 0x4FAE71
-    /// 鳥の翼・尾羽の奥の1枚。旧版は胴体より明るい緑だったが、明るい腹・白目と
-    /// 差し色が渋滞して面の切れ目が読めなかった。胴体より一段**濃い**緑にして、
-    /// 畳んだ翼と尾羽の重なりが遠目でも影として見えるようにする（会長QA 2026-09-10
-    /// 「鳥もデザイン改善して欲しい」）。
-    static let birdWing: UInt32 = 0x2F7D4E
+    /// 鳥（`RunnerHazardKind.bird`）・犬（#800）・イノシシ（#801）の胴・翼・脚の色は世界ごとに
+    /// 変わる（`RunnerWorld.creatures`・#929。朝は暗く、夜は明るく）。ここに残すのは世界に
+    /// よらない差し色だけ。
     /// 鳥のくちばし・畳んだ足。胴体と対比が付く暖色にする（「何の生き物か分からない」対策）。
     static let birdBeak: UInt32 = 0xFFB648
-    /// 鳥の奥の翼。手前の翼（`birdWing`）よりさらに暗くして、羽ばたきで手前・奥の
-    /// 2枚が重なる瞬間でも別の翼だと分かるようにする（飛行化・2026-09-10 会長QA）。
-    static let birdWingFar: UInt32 = 0x1F5C38
-    /// 鳥の腹（明るい差し色）。胴体の丸だけだと単色の玉に見えるため、腹だけ明るくして
-    /// 立体感と「鳥らしさ」を出す。
-    static let birdBelly: UInt32 = 0xE8F5E0
     /// 鳥の目（小さな黒丸）。生き物だと分かる最小限の要素。
     static let birdEye: UInt32 = 0x1F2B22
-    /// 犬（#800）の体。柴犬のような明るい茶。岩のグレー・地面の暖色（テラコッタ・砂色）より
-    /// 彩度が高く、朝・夕方の路面でも輪郭が読める。
-    static let dogBody: UInt32 = 0xD9944A
-    /// 犬の耳・鼻・目と、脚の陰。
-    static let dogDark: UInt32 = 0x5A3418
-    /// 犬の腹・口元の差し色。
-    static let dogBelly: UInt32 = 0xF6E7CF
     /// 犬の吠え声（口元の白い吹き出し）。
     static let dogBark: UInt32 = 0xFFFFFF
-    /// イノシシ（#801）の体。犬より暗く赤みの少ない焦げ茶。夕方の紫の丘・夜の紺の空のどちらを
-    /// 背にしても沈まない明度にしてある。
-    static let boarBody: UInt32 = 0x6B4226
-    /// イノシシの背中のたてがみ・脚。
-    static let boarDark: UInt32 = 0x3E2414
-    /// イノシシの鼻先。
-    static let boarSnout: UInt32 = 0xB88A6A
     /// イノシシの牙・目の白。
     static let boarTusk: UInt32 = 0xF4EFE6
+    /// 走者の車輪の縁（タイヤ）。白い車輪（`wheel`）は朝のパステルの空・路面に溶けるので、
+    /// 白い輪の外側に暗い輪を重ねる（#929）。走者は世界をまたいでも作り直さないので固定色。
+    static let wheelRim: UInt32 = 0x2B2B33
     /// スピードアップアイテムの後光（丸）。「電気を帯びた玉」に見えるよう寒色にする。
     static let pickupAura: UInt32 = 0x5CE1E6
     /// スピードアップアイテムの稲妻（本体）。後光との対比を出すため明るい暖色にする。
@@ -169,7 +133,9 @@ enum RunnerPalette {
     /// 同じ寒色系にして「この色＝速さ」で揃える。地表より明るくして、走者の足元でも沈まない。
     static let boostFloorTop: UInt32 = 0x2FC4E6
     /// スピードアップ床の縁取り（路面より暗い青）。帯の上下に引いて「路面に貼られた加速帯」に見せる。
-    static let boostFloorEdge: UInt32 = 0x1B7FA3
+    /// 旧 0x1B7FA3 は朝の淡い路面（0xB8BCC4）と 2.4:1、夕方の路面と 1.9:1 しかなく、帯の色
+    /// そのものも路面と明度が並ぶので、縁だけで 3:1 以上になる暗い青緑にする（#929・`WorldTests`）。
+    static let boostFloorEdge: UInt32 = 0x061E2A
     /// スピードアップ床の矢印。路面より明るい暖色にして、床の色に埋もれないようにする。
     /// 進行方向（右）を向いた三角を並べ、「乗ると前へ押される区間」だと色以外でも伝える
     /// （色だけに頼らない・基盤規約のアクセシビリティ要件）。
@@ -269,8 +235,8 @@ final class RunnerScene: SKScene {
     /// 何も無い帯にせず地平線側を丘の稜線で埋める（2026-09-10 会長QA「縦を活かす」対応）。
     /// 雲と同じく無限スクロールにするので、コースとは別レイヤーに持つ。
     private let hillLayer = SKNode()
-    /// 丘の稜線を並べる間隔（ワールド単位）。
-    private static let hillSpacing: Double = 60
+    /// 丘の稜線を並べる間隔（ワールド単位）。家並み（`RunnerWorld.townHouses`）の位置はこの幅の中で決まる。
+    private static let hillSpacing: Double = RunnerWorld.sceneryTileWidth
     /// コースに対する丘の流れる速さの比率（視差）。雲より近い＝雲より速いが、
     /// コースそのもの（1.0）よりは遅い。
     private static let hillParallax: Double = 0.55
@@ -336,6 +302,14 @@ final class RunnerScene: SKScene {
             wheel.fillColor = .clear
             wheel.strokeColor = RunnerPalette.color(RunnerPalette.wheel)
             wheel.lineWidth = 0.7
+            // タイヤ。白い輪の外側だけに出る暗い輪（幅は白い輪 + 縁取り 2 本ぶん）で、
+            // 朝のパステルの空・路面でも車輪の丸が読める（#929）。
+            let rim = SKShapeNode(circleOfRadius: 2.6)
+            rim.fillColor = .clear
+            rim.strokeColor = RunnerPalette.color(RunnerPalette.wheelRim)
+            rim.lineWidth = 0.7 + Self.outlineWidth * 2
+            rim.zPosition = -1
+            wheel.addChild(rim)
             // スポーク。無地の円は回しても回転が見えず、止まっているように見えていた。
             // 車輪の子にしておけば `zRotation` にそのまま追従する。
             for i in 0..<3 {
@@ -628,7 +602,7 @@ final class RunnerScene: SKScene {
     private func buildBackdrop() {
         guard world.scenery == .riverside else { return }
         let glow = SKSpriteNode(
-            color: RunnerPalette.color(RunnerPalette.sunsetGlow),
+            color: RunnerPalette.color(RunnerWorld.SceneryPalette.sunsetGlow),
             size: CGSize(width: Metrics.width, height: 30)
         )
         glow.anchorPoint = .zero
@@ -636,7 +610,7 @@ final class RunnerScene: SKScene {
         backdropLayer.addChild(glow)
         // 帯の上端をぼかす代わりに、半透明の 1 枚を重ねて 2 段にする（テクスチャを使わない）。
         let haze = SKSpriteNode(
-            color: RunnerPalette.color(RunnerPalette.sunsetGlow),
+            color: RunnerPalette.color(RunnerWorld.SceneryPalette.sunsetGlow),
             size: CGSize(width: Metrics.width, height: 14)
         )
         haze.anchorPoint = .zero
@@ -647,11 +621,11 @@ final class RunnerScene: SKScene {
 
     /// 夕方の川（`RunnerWorld.Scenery.riverside`）。丘の手前・地面のすぐ上に横長の帯を敷く。
     /// 丘と同じタイルに載せるので、丘と同じ視差で流れる（川は道のすぐ向こうにある）。
-    /// 走者の下半身はこの帯を背に描かれる——`RunnerPalette.riverWater` の注記を参照。
+    /// 走者の下半身はこの帯を背に描かれる——`RunnerWorld.SceneryPalette.riverWater` の注記を参照。
     private func addRiver(to tile: SKNode) {
         let height = 7.0
         let water = SKSpriteNode(
-            color: RunnerPalette.color(RunnerPalette.riverWater),
+            color: RunnerPalette.color(RunnerWorld.SceneryPalette.riverWater),
             size: CGSize(width: Self.hillSpacing, height: height)
         )
         water.anchorPoint = .zero
@@ -660,7 +634,7 @@ final class RunnerScene: SKScene {
         // 照り返し。長さ・位置をずらした細い帯を 3 本置き、タイルの継ぎ目で揃わないようにする。
         for (dx, width, dy) in [(6.0, 14.0, 2.2), (28.0, 9.0, 4.6), (44.0, 11.0, 1.4)] {
             let glint = SKSpriteNode(
-                color: RunnerPalette.color(RunnerPalette.riverGlint),
+                color: RunnerPalette.color(RunnerWorld.SceneryPalette.riverGlint),
                 size: CGSize(width: width, height: 0.6)
             )
             glint.anchorPoint = .zero
@@ -670,37 +644,63 @@ final class RunnerScene: SKScene {
         }
     }
 
-    /// 朝の下町の家並み（`RunnerWorld.Scenery.townHouses`）。近景の丘の手前に 3 軒。
-    /// 壁は矩形、屋根は三角のパス、窓は小さな矩形（#494 の意匠制約の内側）。丘のループに載せる。
+    /// 朝の下町の家並み（`RunnerWorld.Scenery.townHouses`）。近景の丘の手前・道路の奥の帯に
+    /// 1 段で 3 軒（寸法と色は `RunnerWorld.townHouses` / `TownHouse.Palette` の純データ・#929）。
+    /// 壁は矩形、屋根は低い寄棟（台形のパス）、窓と戸は小さな矩形（#494 の意匠制約の内側）。
+    /// 丘のループに載せる。以前の「幅より高い壁に急な三角屋根」は細長い建物に見えて
+    /// 下品（会長 QA 2026-09-15）だったので、横に広い家に低い屋根を載せる形へ変えた。
     private func addTownHouses(to tile: SKNode) {
-        let houses: [(dx: Double, width: Double, height: Double)] = [
-            (2, 10, 7), (27, 8, 6), (44, 11, 8),
-        ]
-        for house in houses {
+        typealias HousePalette = RunnerWorld.TownHouse.Palette
+        for house in RunnerWorld.townHouses {
+            let base = CGPoint(x: house.dx, y: Metrics.groundY)
             let wall = SKSpriteNode(
-                color: RunnerPalette.color(RunnerPalette.houseWall),
-                size: CGSize(width: house.width, height: house.height)
+                color: RunnerPalette.color(HousePalette.wall),
+                size: CGSize(width: house.width, height: house.wallHeight)
             )
             wall.anchorPoint = .zero
-            wall.position = CGPoint(x: house.dx, y: Metrics.groundY)
+            wall.position = base
             tile.addChild(wall)
+
+            // 屋根。軒を壁より 0.8 ずつ張り出し、棟は幅の中央 44% を平らにした寄棟。
+            let eave = 0.8
             let roof = CGMutablePath()
-            roof.move(to: CGPoint(x: -0.8, y: 0))
-            roof.addLine(to: CGPoint(x: house.width / 2, y: house.height * 0.45))
-            roof.addLine(to: CGPoint(x: house.width + 0.8, y: 0))
+            roof.move(to: CGPoint(x: -eave, y: 0))
+            roof.addLine(to: CGPoint(x: house.width * 0.28, y: house.roofHeight))
+            roof.addLine(to: CGPoint(x: house.width * 0.72, y: house.roofHeight))
+            roof.addLine(to: CGPoint(x: house.width + eave, y: 0))
             roof.closeSubpath()
             let roofNode = SKShapeNode(path: roof)
-            roofNode.fillColor = RunnerPalette.color(RunnerPalette.houseRoof)
+            roofNode.fillColor = RunnerPalette.color(house.roof)
             roofNode.strokeColor = .clear
-            roofNode.position = CGPoint(x: house.dx, y: Metrics.groundY + house.height)
+            roofNode.position = CGPoint(x: base.x, y: base.y + house.wallHeight)
+            roofNode.zPosition = 1
             tile.addChild(roofNode)
-            let window = SKSpriteNode(
-                color: RunnerPalette.color(RunnerPalette.houseWindow),
-                size: CGSize(width: 1.8, height: 1.8)
+
+            // 玄関の戸（1 階の左寄り）と窓（各階 2〜3 枚）。
+            let floorHeight = house.wallHeight / Double(house.floors)
+            let door = SKSpriteNode(
+                color: RunnerPalette.color(HousePalette.door),
+                size: CGSize(width: 2.0, height: min(3.2, floorHeight * 0.65))
             )
-            window.anchorPoint = .zero
-            window.position = CGPoint(x: house.dx + house.width * 0.55, y: Metrics.groundY + house.height * 0.45)
-            tile.addChild(window)
+            door.anchorPoint = .zero
+            door.position = CGPoint(x: base.x + house.width * 0.12, y: base.y)
+            tile.addChild(door)
+            for floor in 0..<house.floors {
+                // 1 階は戸の右に 2 枚、2 階以上は戸の上にも 1 枚。
+                let columns = floor == 0 ? [0.45, 0.72] : [0.15, 0.45, 0.72]
+                for column in columns {
+                    let window = SKSpriteNode(
+                        color: RunnerPalette.color(HousePalette.window),
+                        size: CGSize(width: 2.0, height: 1.6)
+                    )
+                    window.anchorPoint = .zero
+                    window.position = CGPoint(
+                        x: base.x + house.width * column,
+                        y: base.y + floorHeight * Double(floor) + floorHeight * 0.42
+                    )
+                    tile.addChild(window)
+                }
+            }
         }
     }
 
@@ -713,7 +713,7 @@ final class RunnerScene: SKScene {
         ]
         for building in buildings {
             let body = SKSpriteNode(
-                color: RunnerPalette.color(RunnerPalette.building),
+                color: RunnerPalette.color(RunnerWorld.SceneryPalette.building),
                 size: CGSize(width: building.width, height: building.height)
             )
             body.anchorPoint = .zero
@@ -724,7 +724,7 @@ final class RunnerScene: SKScene {
             for row in 0..<2 {
                 for column in 0..<2 where !(row == 1 && column == 1 && building.width < 8) {
                     let window = SKSpriteNode(
-                        color: RunnerPalette.color(RunnerPalette.buildingWindow),
+                        color: RunnerPalette.color(RunnerWorld.SceneryPalette.buildingWindow),
                         size: CGSize(width: 1.3, height: 1.6)
                     )
                     window.anchorPoint = .zero
@@ -894,6 +894,12 @@ final class RunnerScene: SKScene {
 
         node.addChild(underShadow)
         node.addChild(deck)
+        // 床板の縁取り。クリームの床板は朝のパステルの空・壁と明度が並ぶので、輪郭で浮かせる（#929）。
+        let deckOutline = SKShapeNode(rect: CGRect(x: 0, y: top - deckHeight, width: w, height: deckHeight))
+        deckOutline.fillColor = .clear
+        outline(deckOutline)
+        deckOutline.zPosition = 2.5
+        node.addChild(deckOutline)
 
         // 正面（左端）の警告帯。ここに足元の高さで突っ込むとミスになる面。
         let face = SKSpriteNode(
@@ -956,11 +962,33 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(node)
     }
 
-    /// 岩の縁取りの太さ（コースの単位）。シーンは幅 `Metrics.width`（100）を画面幅へ
-    /// `aspectFit` で広げるので、iPhone（幅 390pt 前後）では 1 単位 ≒ 3.9pt、0.4 単位 ≒ 1.5pt。
-    /// 縁取りは輪郭の上に**中心線で**描かれるので、外へはみ出すのはこの半分（≒ 0.75pt）だけ。
-    /// 当たり判定（`RunnerField`）は見た目と独立なので、縁取りで判定は変わらない。
-    private static let rockOutlineWidth: CGFloat = 0.4
+    /// 手前の物（岩・犬・イノシシ・鳥・たこ焼き・台座・旗）の縁取りの太さ（コースの単位）。
+    /// シーンは幅 `Metrics.width`（100）を画面幅へ `aspectFit` で広げるので、iPhone（幅 390pt 前後）
+    /// では 1 単位 ≒ 3.9pt、0.4 単位 ≒ 1.5pt。縁取りは輪郭の上に**中心線で**描かれるので、
+    /// 外へはみ出すのはこの半分（≒ 0.75pt）だけ。当たり判定（`RunnerField`）は見た目と独立なので、
+    /// 縁取りで判定は変わらない（#920 の岩から #929 で動く障害・アイテムへ広げた）。
+    private static let outlineWidth: CGFloat = 0.4
+
+    /// 塗りのある形に、いまの世界の縁取り（`RunnerWorld.outline`）を引く。
+    /// 面の色だけだと背景に溶ける明るさの世界（朝のパステル）で輪郭を立てるため（#929）。
+    private func outline(_ shape: SKShapeNode) {
+        shape.strokeColor = RunnerPalette.color(world.outline)
+        shape.lineWidth = Self.outlineWidth
+        shape.lineJoin = .round
+    }
+
+    /// 塗りのある矩形（縁取り付き）。`SKSpriteNode` は輪郭線を持てないので、縁取りが要る矩形は
+    /// これで作る。原点は `anchor`（`SKSpriteNode.anchorPoint` と同じ意味）。
+    private func outlinedRect(size: CGSize, anchor: CGPoint, color: UInt32) -> SKShapeNode {
+        let rect = CGRect(
+            x: -Double(size.width) * Double(anchor.x), y: -Double(size.height) * Double(anchor.y),
+            width: Double(size.width), height: Double(size.height)
+        )
+        let node = SKShapeNode(rect: rect)
+        node.fillColor = RunnerPalette.color(color)
+        outline(node)
+        return node
+    }
 
     /// 岩塊（ボルダー）1個。底が平らで頂がやや左に寄った角ばった多角形に、
     /// 日の当たる頂の面（明）と足元の陰の面（暗）を重ね、最後に暗い縁取り（`rockDark`）で
@@ -1022,7 +1050,7 @@ final class RunnerScene: SKScene {
         let outline = SKShapeNode(path: bodyPath)
         outline.fillColor = .clear
         outline.strokeColor = RunnerPalette.color(world.palette.rockDark)
-        outline.lineWidth = Self.rockOutlineWidth
+        outline.lineWidth = Self.outlineWidth
         outline.lineJoin = .round
         outline.zPosition = 1
         boulder.addChild(outline)
@@ -1119,6 +1147,10 @@ final class RunnerScene: SKScene {
         // 帯の高さは渡さない——**帯の厚みのほうが絵に合わせて決まる**（会長決裁 2026-09-12。
         // `RunnerHazardKind.birdBandHeight` が `art.bandHeight` から導出する）。
         let art = RunnerBirdArt(width: hazard.length, groundDrop: 0)
+        // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・翼・尾羽・くちばしには暗い縁取りを引く
+        // （腹・目・足は差し色なので引かない）。縁取りは輪郭の上に中心線で描かれ、当たり判定・
+        // `RunnerBirdArt` の張り出し（`BirdArtTests`）には関わらない。
+        let colors = world.creatures
         let node = SKNode()
         // 走者は左から近づくので、頭・くちばしは**走者側（-x）**を向かせる。`RunnerBirdArt` は
         // +x 側を頭にして組んであるので、丸ごと左右反転させるだけで済む——ただし `xScale = -1` は
@@ -1152,10 +1184,8 @@ final class RunnerScene: SKScene {
             tailPath.addLines(between: spec.points)
             tailPath.closeSubpath()
             let tail = SKShapeNode(path: tailPath)
-            tail.fillColor = RunnerPalette.color(
-                index == 0 ? RunnerPalette.birdWingFar : RunnerPalette.birdBody
-            )
-            tail.strokeColor = .clear
+            tail.fillColor = RunnerPalette.color(index == 0 ? colors.birdWingFar : colors.birdBody)
+            outline(tail)
             tail.position = spec.anchor
             bobber.addChild(tail)
         }
@@ -1172,7 +1202,7 @@ final class RunnerScene: SKScene {
             wingPath.closeSubpath()
             let wing = SKShapeNode(path: wingPath)
             wing.fillColor = RunnerPalette.color(color)
-            wing.strokeColor = .clear
+            outline(wing)
             wing.position = spec.pivot
             wing.zPosition = z
             // 羽ばたきは `spec.rotation` の両端を往復する。ここを外れる角度で振ると、
@@ -1187,22 +1217,22 @@ final class RunnerScene: SKScene {
             wings.append(wing)
         }
 
-        func addDisc(_ disc: RunnerBirdArt.Disc, color: UInt32) {
+        func addDisc(_ disc: RunnerBirdArt.Disc, color: UInt32, outlined: Bool = false) {
             let node = SKShapeNode(circleOfRadius: disc.radius)
             node.fillColor = RunnerPalette.color(color)
-            node.strokeColor = .clear
+            if outlined { outline(node) } else { node.strokeColor = .clear }
             node.position = disc.center
             bobber.addChild(node)
         }
 
         // 奥の翼（胴の向こう側）。濃色+背面に置き、手前の翼と逆位相で振る。
-        addWing(art.farWing, color: RunnerPalette.birdWingFar, z: -1, startsLow: true)
+        addWing(art.farWing, color: colors.birdWingFar, z: -1, startsLow: true)
 
         // 胴体（大きい丸）。頭は別の丸を上前方に重ね、ひとつながりの丸いシルエットにする。
         // 腹は単色の玉に見えないための明るい差し色。
-        addDisc(art.bodyDisc, color: RunnerPalette.birdBody)
-        addDisc(art.headDisc, color: RunnerPalette.birdBody)
-        addDisc(art.belly, color: RunnerPalette.birdBelly)
+        addDisc(art.bodyDisc, color: colors.birdBody, outlined: true)
+        addDisc(art.headDisc, color: colors.birdBody, outlined: true)
+        addDisc(art.belly, color: colors.birdBelly)
 
         // 畳んだ足。飛行中の鳥は足を体へ引き込むので、ぶら下げず腹の後ろ寄りに
         // 小さく畳んで添える（接地時代の「立つ2本足」の置き換え）。
@@ -1214,7 +1244,7 @@ final class RunnerScene: SKScene {
         bobber.addChild(foot)
 
         // 手前の翼。奥の翼と逆位相・大振り。
-        addWing(art.nearWing, color: RunnerPalette.birdWing, z: 3, startsLow: false)
+        addWing(art.nearWing, color: colors.birdWing, z: 3, startsLow: false)
 
         // くちばし（進行方向側の三角）。先端が当たり判定の走者側の端にちょうど届く長さ。
         let beakPath = CGMutablePath()
@@ -1222,13 +1252,13 @@ final class RunnerScene: SKScene {
         beakPath.closeSubpath()
         let beak = SKShapeNode(path: beakPath)
         beak.fillColor = RunnerPalette.color(RunnerPalette.birdBeak)
-        beak.strokeColor = .clear
+        outline(beak)
         beak.position = art.beak.anchor
         bobber.addChild(beak)
 
         // 目。白目の上に、進行方向（走者側）へ寄せた黒目を重ねる
         // （暗緑に暗色の点では見えない、の教訓）。
-        addDisc(art.eyeWhite, color: RunnerPalette.birdBelly)
+        addDisc(art.eyeWhite, color: colors.birdBelly)
         addDisc(art.pupil, color: RunnerPalette.birdEye)
 
         courseLayer.addChild(node)
@@ -1246,9 +1276,10 @@ final class RunnerScene: SKScene {
     ) -> [SKNode] {
         var legs: [SKNode] = []
         for (index, x) in xs.enumerated() {
-            let leg = SKSpriteNode(color: RunnerPalette.color(color), size: CGSize(width: thickness, height: length))
-            // 付け根（上端）を軸に振る。
-            leg.anchorPoint = CGPoint(x: 0.5, y: 1)
+            // 付け根（上端）を軸に振る。縁取り付きの矩形（#929）。
+            let leg = outlinedRect(
+                size: CGSize(width: thickness, height: length), anchor: CGPoint(x: 0.5, y: 1), color: color
+            )
             leg.position = CGPoint(x: x, y: hipY)
             leg.zPosition = z
             // 前後の脚を逆位相に。
@@ -1273,6 +1304,9 @@ final class RunnerScene: SKScene {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
         let w = hazard.length, h = hazard.height
+        // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・耳・口元・尻尾・脚に暗い縁取りを
+        // 引き、朝のパステルの背景でも輪郭が立つようにする（鼻・目・腹は差し色なので引かない）。
+        let colors = world.creatures
 
         let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 0.95, height: 0.5))
         shadow.fillColor = RunnerPalette.color(RunnerPalette.pitVoid)
@@ -1284,26 +1318,27 @@ final class RunnerScene: SKScene {
         // 脚（4 本）。体より奥に置く。
         let legs = addRunningLegs(
             to: node, xs: [w * 0.28, w * 0.4, w * 0.62, w * 0.74], hipY: h * 0.5,
-            length: h * 0.5, thickness: w * 0.11, color: RunnerPalette.dogDark, z: 0
+            length: h * 0.5, thickness: w * 0.11, color: colors.dogDark, z: 0
         )
 
         // 胴（横長の楕円）と腹の差し色。
         let body = SKShapeNode(ellipseOf: CGSize(width: w * 0.7, height: h * 0.34))
-        body.fillColor = RunnerPalette.color(RunnerPalette.dogBody)
-        body.strokeColor = .clear
+        body.fillColor = RunnerPalette.color(colors.dogBody)
+        outline(body)
         body.position = CGPoint(x: w * 0.5, y: h * 0.52)
         body.zPosition = 1
         node.addChild(body)
         let belly = SKShapeNode(ellipseOf: CGSize(width: w * 0.42, height: h * 0.14))
-        belly.fillColor = RunnerPalette.color(RunnerPalette.dogBelly)
+        belly.fillColor = RunnerPalette.color(colors.dogBelly)
         belly.strokeColor = .clear
         belly.position = CGPoint(x: w * 0.52, y: h * 0.44)
         belly.zPosition = 2
         node.addChild(belly)
 
         // 尻尾（後ろ上に立てた短い棒）。
-        let tail = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.dogBody), size: CGSize(width: w * 0.1, height: h * 0.3))
-        tail.anchorPoint = CGPoint(x: 0.5, y: 0)
+        let tail = outlinedRect(
+            size: CGSize(width: w * 0.1, height: h * 0.3), anchor: CGPoint(x: 0.5, y: 0), color: colors.dogBody
+        )
         tail.position = CGPoint(x: w * 0.16, y: h * 0.56)
         tail.zRotation = -0.6
         tail.zPosition = 1
@@ -1311,8 +1346,8 @@ final class RunnerScene: SKScene {
 
         // 頭（丸）と、立った耳・鼻・目。頭は進行方向（右）の上。
         let head = SKShapeNode(circleOfRadius: w * 0.2)
-        head.fillColor = RunnerPalette.color(RunnerPalette.dogBody)
-        head.strokeColor = .clear
+        head.fillColor = RunnerPalette.color(colors.dogBody)
+        outline(head)
         head.position = CGPoint(x: w * 0.8, y: h * 0.74)
         head.zPosition = 3
         node.addChild(head)
@@ -1322,25 +1357,25 @@ final class RunnerScene: SKScene {
         ])
         earPath.closeSubpath()
         let ear = SKShapeNode(path: earPath)
-        ear.fillColor = RunnerPalette.color(RunnerPalette.dogDark)
-        ear.strokeColor = .clear
+        ear.fillColor = RunnerPalette.color(colors.dogDark)
+        outline(ear)
         ear.position = head.position
         ear.zPosition = 2
         node.addChild(ear)
         let muzzle = SKShapeNode(ellipseOf: CGSize(width: w * 0.2, height: h * 0.12))
-        muzzle.fillColor = RunnerPalette.color(RunnerPalette.dogBelly)
-        muzzle.strokeColor = .clear
+        muzzle.fillColor = RunnerPalette.color(colors.dogBelly)
+        outline(muzzle)
         muzzle.position = CGPoint(x: w * 0.94, y: h * 0.7)
         muzzle.zPosition = 4
         node.addChild(muzzle)
         let nose = SKShapeNode(circleOfRadius: w * 0.04)
-        nose.fillColor = RunnerPalette.color(RunnerPalette.dogDark)
+        nose.fillColor = RunnerPalette.color(colors.dogDark)
         nose.strokeColor = .clear
         nose.position = CGPoint(x: w * 1.0, y: h * 0.72)
         nose.zPosition = 5
         node.addChild(nose)
         let eye = SKShapeNode(circleOfRadius: w * 0.035)
-        eye.fillColor = RunnerPalette.color(RunnerPalette.dogDark)
+        eye.fillColor = RunnerPalette.color(colors.dogDark)
         eye.strokeColor = .clear
         eye.position = CGPoint(x: w * 0.86, y: h * 0.8)
         eye.zPosition = 5
@@ -1376,6 +1411,9 @@ final class RunnerScene: SKScene {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
         let w = hazard.length, h = hazard.height
+        // 色は世界ごと（`RunnerWorld.creatures`・#929）。胴・頭・鼻先・牙・耳・脚に暗い縁取りを引く
+        // （たてがみは胴の内側、目は差し色なので引かない）。
+        let colors = world.creatures
 
         let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 1.0, height: 0.55))
         shadow.fillColor = RunnerPalette.color(RunnerPalette.pitVoid)
@@ -1386,18 +1424,18 @@ final class RunnerScene: SKScene {
 
         let legs = addRunningLegs(
             to: node, xs: [w * 0.3, w * 0.42, w * 0.66, w * 0.78], hipY: h * 0.46,
-            length: h * 0.46, thickness: w * 0.13, color: RunnerPalette.boarDark, z: 0
+            length: h * 0.46, thickness: w * 0.13, color: colors.boarDark, z: 0
         )
 
         // 胴（犬より太い楕円）と、背中のたてがみ（暗い帯）。
         let body = SKShapeNode(ellipseOf: CGSize(width: w * 0.86, height: h * 0.46))
-        body.fillColor = RunnerPalette.color(RunnerPalette.boarBody)
-        body.strokeColor = .clear
+        body.fillColor = RunnerPalette.color(colors.boarBody)
+        outline(body)
         body.position = CGPoint(x: w * 0.54, y: h * 0.56)
         body.zPosition = 1
         node.addChild(body)
         let mane = SKShapeNode(ellipseOf: CGSize(width: w * 0.6, height: h * 0.14))
-        mane.fillColor = RunnerPalette.color(RunnerPalette.boarDark)
+        mane.fillColor = RunnerPalette.color(colors.boarDark)
         mane.strokeColor = .clear
         mane.position = CGPoint(x: w * 0.5, y: h * 0.76)
         mane.zPosition = 2
@@ -1405,14 +1443,14 @@ final class RunnerScene: SKScene {
 
         // 頭（左）。鼻先を前へ突き出し、牙を白で 1 本。
         let head = SKShapeNode(circleOfRadius: w * 0.22)
-        head.fillColor = RunnerPalette.color(RunnerPalette.boarBody)
-        head.strokeColor = .clear
+        head.fillColor = RunnerPalette.color(colors.boarBody)
+        outline(head)
         head.position = CGPoint(x: w * 0.2, y: h * 0.58)
         head.zPosition = 3
         node.addChild(head)
         let snout = SKShapeNode(ellipseOf: CGSize(width: w * 0.22, height: h * 0.14))
-        snout.fillColor = RunnerPalette.color(RunnerPalette.boarSnout)
-        snout.strokeColor = .clear
+        snout.fillColor = RunnerPalette.color(colors.boarSnout)
+        outline(snout)
         snout.position = CGPoint(x: w * 0.06, y: h * 0.52)
         snout.zPosition = 4
         node.addChild(snout)
@@ -1423,7 +1461,7 @@ final class RunnerScene: SKScene {
         tuskPath.closeSubpath()
         let tusk = SKShapeNode(path: tuskPath)
         tusk.fillColor = RunnerPalette.color(RunnerPalette.boarTusk)
-        tusk.strokeColor = .clear
+        outline(tusk)
         tusk.position = CGPoint(x: w * 0.1, y: h * 0.42)
         tusk.zPosition = 5
         node.addChild(tusk)
@@ -1433,8 +1471,8 @@ final class RunnerScene: SKScene {
         ])
         earPath.closeSubpath()
         let ear = SKShapeNode(path: earPath)
-        ear.fillColor = RunnerPalette.color(RunnerPalette.boarDark)
-        ear.strokeColor = .clear
+        ear.fillColor = RunnerPalette.color(colors.boarDark)
+        outline(ear)
         ear.position = CGPoint(x: w * 0.22, y: h * 0.72)
         ear.zPosition = 2
         node.addChild(ear)
@@ -1602,7 +1640,8 @@ final class RunnerScene: SKScene {
         trayPath.closeSubpath()
         let tray = SKShapeNode(path: trayPath)
         tray.fillColor = RunnerPalette.color(RunnerPalette.takoyakiTray)
-        tray.strokeColor = .clear
+        // 舟皿と玉には暗い縁取り（#929）。生成りの皿・狐色の玉は朝のパステルの丘・壁に溶ける。
+        outline(tray)
         node.addChild(tray)
 
         // 玉 3 個。ソースは玉の上半分に被せた小さめの丸で、明暗の差だけで丸みを出す。
@@ -1610,7 +1649,7 @@ final class RunnerScene: SKScene {
         for (i, x) in [-2.1, 0.0, 2.1].enumerated() {
             let ball = SKShapeNode(circleOfRadius: ballRadius)
             ball.fillColor = RunnerPalette.color(RunnerPalette.takoyakiBall)
-            ball.strokeColor = .clear
+            outline(ball)
             ball.position = CGPoint(x: x, y: 0.75)
             ball.zPosition = 1
             node.addChild(ball)
@@ -1854,7 +1893,8 @@ final class RunnerScene: SKScene {
 
         let flag = SKShapeNode(path: flagPath)
         flag.fillColor = RunnerPalette.color(RunnerPalette.checkpoint)
-        flag.strokeColor = .clear
+        // 旗には暗い縁取り（#929）。水色の旗は朝のパステルの空と明度が並ぶ。
+        outline(flag)
         flag.position = flagCenter
         courseLayer.addChild(flag)
 
@@ -1919,7 +1959,8 @@ final class RunnerScene: SKScene {
 
         let cloth = SKShapeNode(path: flagPath)
         cloth.fillColor = RunnerPalette.color(RunnerPalette.goal)
-        cloth.strokeColor = .clear
+        // 旗には暗い縁取り（#929）。桃色の旗は朝のパステルの空・屋根と明度が並ぶ。
+        outline(cloth)
         flag.addChild(cloth)
 
         // 「ゴール」。無地の矩形部分（x: 0〜12）の真ん中に置く（3 文字 × 3.6 ≒ 10.8 幅）。
