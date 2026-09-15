@@ -99,7 +99,7 @@ public struct MahjongView: View {
             doraHeader
             mahjongTable
                 .layoutPriority(1)
-            // 卓（`mahjongTable`）は正方形で、画面の余った縦幅をすべて使い切るとは限らない。
+            // 卓（`mahjongTable`）は縦長の長方形（#927）で、画面の余った縦幅をすべて使い切るとは限らない。
             // 余りは手牌（またはリザルト）の下で吸収し、見出しと卓は画面上部に固定する（上寄せ）。
             // 一度は卓の上で吸収して下寄せにしたが、リザルトへの切り替えで卓とドラの見出しが
             // 上下に動いて見えたので戻した（会長指摘 2026-09-13）。
@@ -284,15 +284,17 @@ public struct MahjongView: View {
     ///
     /// **自分の手牌一覧（タップ対象）だけはここで重ねる**。写像で位置を決めるが、牌の寸法と
     /// 当たり判定（44pt）は従来の `handOverviewOnTable` のまま（#378・#736 受け入れ条件）。
-    /// `GeometryReader` + `aspectRatio(1, contentMode: .fit)` は将棋の盤と同じ手法。
+    /// `GeometryReader` + `aspectRatio(_:contentMode: .fit)` は将棋の盤と同じ手法。卓は縦長
+    /// （幅 : 高さ = 1 : `MahjongTableLayout.aspect`。#927 で正方形から変えた）。
     private var mahjongTable: some View {
         GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
+            let width = min(geo.size.width, geo.size.height / MahjongTableLayout.aspect)
+            let height = width * MahjongTableLayout.aspect
             // SwiftUI は最初のレイアウトで大きさ 0 を渡してくる。その 1 回で `MahjongTableLayout` が
             // 0 ÷ 0 の NaN を作り、牌の幅・位置に広がって幅 393pt 以下の端末で落ちていた
             // （v1.1.5 開発版。会長の実機と当番の iPhone SE で再現）。一辺が 0 以下なら何も描かない。
-            if side > 0 {
-                let layout = MahjongTableLayout(size: CGSize(width: side, height: side))
+            if width > 0 {
+                let layout = MahjongTableLayout(size: CGSize(width: width, height: height))
                 ZStack(alignment: .topLeading) {
                     Group {
                         MahjongTableView(scene: tableScene, layout: layout)
@@ -311,7 +313,7 @@ public struct MahjongView: View {
                                                  tileWidth: layout.riverTileWidth)
                     }
                 }
-                .frame(width: side, height: side)
+                .frame(width: width, height: height)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
                 .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
                 .frame(width: geo.size.width, height: geo.size.height)
@@ -320,7 +322,7 @@ public struct MahjongView: View {
                 }
             }
         }
-        .aspectRatio(1, contentMode: .fit)
+        .aspectRatio(1 / MahjongTableLayout.aspect, contentMode: .fit)
     }
 
     /// ドラ表示の見出し。卓のすぐ上に 1 行の HUD として置く（会長指摘 2026-09-13。以前は卓の

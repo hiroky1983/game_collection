@@ -3,11 +3,13 @@ import Foundation
 import CoreGraphics
 @testable import GameMahjong
 
-/// 卓の遠近レイアウト（#736）。絵は測れないので、重なり・密着・収まりだけを機械的に縛る。
-@Suite("卓の遠近レイアウト")
+/// 卓のレイアウト（#736、長方形 #927）。絵は測れないので、重なり・密着・収まりだけを機械的に縛る。
+@Suite("卓のレイアウト")
 struct MahjongTableLayoutTests {
-    static let phone = MahjongTableLayout(size: CGSize(width: 393, height: 393))
-    static let pad = MahjongTableLayout(size: CGSize(width: 700, height: 700))
+    static let phone = MahjongTableLayout(size: CGSize(width: 393, height: 393 * MahjongTableLayout.aspect))
+    static let pad = MahjongTableLayout(size: CGSize(width: 700, height: 700 * MahjongTableLayout.aspect))
+    /// iPhone 17 の卓幅（画面 393 − 左右の余白 16 × 2）。
+    static let phone17 = MahjongTableLayout(size: CGSize(width: 361, height: 361 * MahjongTableLayout.aspect))
 
     @Test("大きさ 0 の卓でも NaN を作らない（SwiftUI の最初のレイアウトは 0 で来る。開発版 v1.1.5 のクラッシュ）")
     func zeroSizeProducesFiniteValues() {
@@ -41,14 +43,54 @@ struct MahjongTableLayoutTests {
         #expect(negative.isEmpty, "負の寸法が混ざっている: \(negative)")
     }
 
-    @Test("奥ほど小さく、手前ほど大きい。中央線は幅の中央")
+    @Test("平行投影: 縮尺は全域 1、v は奥から手前へ y が増え、中央線は幅の中央")
     func projection() {
         let l = Self.phone
         let far = l.project(u: 0.5, v: 0.1), near = l.project(u: 0.5, v: 0.9)
-        #expect(far.scale < near.scale)
+        #expect(far.scale == 1 && near.scale == 1)
         #expect(far.y < near.y)
         #expect(abs(far.x - 393 / 2) < 0.001 && abs(near.x - 393 / 2) < 0.001)
-        #expect(l.project(u: 1, v: 1).scale == 1)
+        // 同じ u は奥でも手前でも同じ x（台形の名残が無い）
+        #expect(abs(l.project(u: 0.2, v: 0).x - l.project(u: 0.2, v: 1).x) < 0.001)
+    }
+
+    @Test("卓は縦長の長方形: 木枠・フェルトの 4 辺が画面に平行で、高さは幅の 1.2 倍（#927）")
+    func tableIsUprightRectangle() {
+        for l in [Self.phone, Self.pad, Self.phone17] {
+            #expect(abs(l.size.height / l.size.width - 1.2) < 0.001)
+            for poly in [l.felt, l.woodFrame] {
+                #expect(poly.count == 4)
+                #expect(abs(poly[0].y - poly[1].y) < 0.001 && abs(poly[2].y - poly[3].y) < 0.001, "上下の辺が水平でない")
+                #expect(abs(poly[1].x - poly[2].x) < 0.001 && abs(poly[3].x - poly[0].x) < 0.001, "左右の辺が垂直でない")
+                #expect(poly[1].x > poly[0].x && poly[2].y > poly[1].y)
+            }
+            let f = l.felt
+            #expect(f[2].y - f[0].y > f[1].x - f[0].x, "フェルトが縦長でない")
+        }
+    }
+
+    @Test("河の牌は 4 家・全 3 行とも同じ大きさで、#918 の基準（iPhone 17 で 21.6pt）を下回らない")
+    func riverTilesAreUniformAndNotSmaller() {
+        let l = Self.phone17
+        let base = l.riverTileWidth
+        #expect(base >= 21.5, "iPhone 17 の河の牌 \(base)pt")
+        for seat in 0..<4 { for i in 0..<18 {
+            let r = l.riverRect(seat: seat, index: i)
+            let w = seat == 1 || seat == 3 ? r.height : r.width
+            #expect(abs(w - base) < 0.001, "seat \(seat) 牌 \(i) の幅 \(w) が基準 \(base) と違う")
+        } }
+        #expect(abs(l.handOverview.tileWidth - base) < 0.001)
+    }
+
+    @Test("中央パネルは 90×108/393 以上で、iPhone 17 では幅 82pt 以上（局・点数の文字が 11pt 以上になる幅）")
+    func centerPanelIsLarge() {
+        let p = Self.phone17.centerPanel
+        #expect(p.width >= 82, "パネルの幅 \(p.width)")
+        #expect(p.height >= p.width * 1.15, "パネルが縦長でない: \(p.size)")
+        // #918 の 70/393（iPhone 17 で 64pt）より確実に広い
+        #expect(p.width > 361 * 70 / 393 * 1.25)
+        // 幅の中央にある
+        #expect(abs(p.midX - 361 / 2) < 0.001)
     }
 
     @Test("河の牌は 4 家とも 18 枚（3 行）までフェルトの内側に収まる", arguments: [0, 1, 2, 3])
