@@ -48,7 +48,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// イノシシ（#801）。**右から突進**してくる（犬の難しい版）。
     ///
     /// 走者の手前 `RunnerRules.boarChargeDistance` で「ドドド」の手応え（`RunnerEvent.boarCharging`）
-    /// と土煙を出し、同じ距離だけ向こうから走者と同じ速さで向かってくる——相対速度は足し算で
+    /// を出し、同じ距離だけ向こうから走者と同じ速さで向かってくる——相対速度は足し算で
     /// 2 倍、出会う地点は区画の中央（`RunnerHazard.start`）。高さは低い岩と同じ 5 で、跳べば越えられる。
     /// **岩にぶつかると止まる**（`RunnerHazard.stopAt`）: 出会う地点と出現点のあいだに岩があれば、
     /// その岩の右側で止まって低い岩と同じ置物になる（「岩の手前に置くと岩で止まる」読み）。
@@ -107,6 +107,8 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 防ぐため。**この一致は `BirdArtTests` が「絵の高さ == 帯の厚み」で固定する**。
     /// 1 度だけ評価する `static let` にしてあるのは、`frame(atRunnerDistance:)` が毎サブステップ
     /// 障害ごとに読むため（絵を組み直すコストをそこに持ち込まない）。
+    /// 絵の見た目の倍率（`RunnerBirdArt.visualScale`・#943）はこの値に効かない——描く絵は
+    /// 帯より大きいが、帯の厚みは倍率 1 の絵の寸法のまま。
     static let birdBandHeight: Double = RunnerBirdArt(width: RunnerRules.tileWidth).bandHeight
 }
 
@@ -199,7 +201,8 @@ public struct RunnerHazard: Equatable, Sendable {
     /// 犬が立ち止まって吠える瞬間の走者の距離。
     public var dogStopDistance: Double { dogStartDistance + RunnerRules.dogRunDistance }
 
-    /// イノシシの予告（手応え・土煙）が出て突進が始まる走者の距離。
+    /// イノシシの予告（手応え）が出て突進が始まる走者の距離。土煙は本体の足元に付いており
+    /// （`RunnerScene.addBoar`・#943）、予告としては出ない——本体はまだ画面の外にいる。
     /// 前端が出会いの地点 `start` の `boarChargeDistance` 手前に入った瞬間。
     public var boarChargeStartDistance: Double {
         start - RunnerRules.boarChargeDistance - RunnerField.Metrics.playerHalfWidth
