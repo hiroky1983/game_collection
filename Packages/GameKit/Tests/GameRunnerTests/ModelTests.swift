@@ -150,9 +150,10 @@ struct RunnerModelTests {
         #expect(gameCenter.scores.count == scoreCountBefore, "ショーケースのクリアでスコアを送信してはいけない")
     }
 
-    /// 撮影用シナリオ `-simulateRunner bird` / `bird-low` / `bird-up`（#796 の受け入れ条件
-    /// 「飛び立つ前・低く飛ぶ瞬間・上がった後」の画）と `dog`（#944・真横を抜ける瞬間）・`boar`（#801）が、
-    /// **本当に狙った状態・走行中で止まる**こと。自動操縦が途中でミスすると `.falling` で止まる。
+    /// 撮影用シナリオ `-simulateRunner bird` / `bird-low` / `bird-up`（#945 の
+    /// 「飛び立つ前・上がっている途中・上がりきった鳥の下を走ったまま抜ける」の画）と
+    /// `dog`（#944・真横を抜ける瞬間）・`boar`（#801）が、**本当に狙った状態・走行中で止まる**こと。
+    /// 自動操縦が途中でミスすると `.falling` で止まる。
     @Test("撮影用シナリオ bird / bird-low / bird-up / dog / boar は狙った状態で止まる")
     func animalScenariosFreezeWhereIntended() {
         func make(_ name: String) -> RunnerModel {
@@ -170,17 +171,18 @@ struct RunnerModelTests {
         let low = make("bird-low")
         if let bird = low.field.stage.hazards.first(where: { $0.kind == .bird }),
            let frame = bird.frame(atRunnerDistance: low.field.distance) {
-            #expect(!low.field.isGrounded, "跳んでいる最中")
-            #expect(frame.top == RunnerHazardKind.birdLowTop, "鳥は低く飛んでいる")
-            #expect(low.field.playerMaxX > frame.start && low.field.playerMinX < frame.end, "鳥の真上")
-        }
+            #expect(frame.advance > 0, "飛び立っている")
+            #expect(frame.bottom >= RunnerHazardKind.birdLowTop && frame.bottom < RunnerField.Metrics.playerHeight, "まだ頭より低いところを上がっている途中")
+            #expect(low.field.isGrounded && low.field.playerMaxX < frame.start, "おじさんはまだ手前を走っている")
+        } else { Issue.record("bird-low: ショーケースに鳥が無い") }
 
         let up = make("bird-up")
         if let bird = up.field.stage.hazards.first(where: { $0.kind == .bird }),
            let frame = bird.frame(atRunnerDistance: up.field.distance) {
-            #expect(frame.bottom >= RunnerHazardKind.birdHighBottom, "鳥は上がっている")
-            #expect(up.field.isGrounded)
-        }
+            #expect(frame.bottom >= RunnerHazardKind.birdMeetBottom, "鳥は跳んだ先の高さまで上がりきっている")
+            #expect(up.field.isGrounded, "走ったまま")
+            #expect(up.field.playerMaxX > frame.start && up.field.playerMinX < frame.end, "鳥の真下")
+        } else { Issue.record("bird-up: ショーケースに鳥が無い") }
 
         let dog = make("dog")
         if let hazard = dog.field.stage.hazards.first(where: { $0.kind == .dog }),

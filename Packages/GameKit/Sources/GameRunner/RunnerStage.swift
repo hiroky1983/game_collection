@@ -85,9 +85,9 @@ public enum RunnerRules {
     /// 値は全15ステージ・全145障害を「瞬間タップ相当（＝この猶予ぶんだけ自然に上昇させてから
     /// `jumpCutVelocity` まで切り詰める）」で機械的に検証し、**穴・低い障害物はすべて
     /// 瞬間タップだけで越えられ、高い障害物（`tallBlock`、頂点近くを通す必要がある設計）だけ
-    /// 長押しが要る**、という境目になるよう選んだ（0.13 秒。飛び立つ鳥（#796）は逃げる相手で
-    /// 重なりが岩より長いぶん、いちばん遅い 5 面では 0.15 秒のタップが要る——
-    /// `RunnerPlaythroughTests.shortTapClearsBirds`）。会長の要望どおり「軽いタップは
+    /// 長押しが要る**、という境目になるよう選んだ（0.13 秒。飛び立つ鳥（#796/#945）は跳ぶ相手
+    /// ではなく**走ったまま下を抜ける**相手なので、この境目には関わらない——
+    /// `RunnerPlaythroughTests.runningUnderClearsBirds`）。会長の要望どおり「軽いタップは
     /// 本当に小ジャンプ」の感触は残しつつ（頂点は `jumpApex` の約73%に留まる）、
     /// 実際の操作でゲームが進まなくなる事故を防ぐ。
     public static let jumpCutGraceTime: Double = 0.13
@@ -283,25 +283,37 @@ public enum RunnerRules {
     // 倍率がそのまま見た目の速さになる。
 
     /// 鳥が飛び立つ間合い。走者の**前端**がこの距離まで近づいた瞬間に飛び立つ（仕様「手前 6 タイル」）。
+    ///
+    /// 飛び立ってから走者の前端が帯に触れるまでの走者の進みは `G/(1−k)`（= 30）。1 面の速さで
+    /// 0.88 秒、18 面で 0.55 秒——このあいだに鳥は跳んだ先の高さ（`birdClimbDistance` 参照）
+    /// まで上がりきる。
     public static let birdTriggerDistance: Double = 6 * tileWidth
     /// 鳥の横の速さ（走者 1 に対して）。
     ///
-    /// **小さいほど「岩」に近く、大きいほど出会う地点が先へずれる。** 走者から見た鳥の等価な
-    /// 静止区間（`RunnerHazard.encounter`）は `start + k·G/(1−k)` から `(4 + 8)/(1−k) − 8` の長さ
+    /// **大きいほど出会う地点が先へずれる。** 走者から見た鳥の等価な静止区間
+    /// （`RunnerHazard.encounter`）は `start + k·G/(1−k)` から `(4 + 8)/(1−k) − 8` の長さ
     /// ——0.2 なら区画中央の 6 先から長さ 7。既存の面の `bt`（鳥の次の区画に高い岩）でも
     /// 着地して踏み切り直す余白が最速の 18 面で 2 単位以上残る値（0.25 だと 0.4 まで削れる）。
-    /// 跳んで越えるあいだの重なりは 15 単位 = 1 面の速さで 0.44 秒で、上端 5.5 を越えている
-    /// 時間（`airTime(above:)` ≒ 0.585 秒）に収まる。
+    /// 走者が鳥の下を抜けるあいだ（帯と横に重なる 15 単位）鳥は 3 だけ進み、抜けたあとは
+    /// 走者の後ろへ置き去りになる。
     public static let birdAdvance: Double = 0.2
-    /// 飛び立ってから低く飛ぶ距離（鳥自身の移動量・仕様「最初の 3 タイル」）。
-    /// 走者との出会いはこの区間の中で終わる（`RunnerHazard.encounter`）。
-    public static let birdLowDistance: Double = 3 * tileWidth
-    /// 低く飛ぶ区間を過ぎてから、帯の下端が 13（`RunnerHazardKind.birdHighBottom`）に届くまでの
-    /// 鳥の移動量（3 タイル）。そこから先も同じ傾きで上がり続けて画面外へ抜ける。
-    public static let birdClimbDistance: Double = 3 * tileWidth
-    /// 上がる傾き（鳥が 1 進むごとに上がる高さ）。
+    /// 飛び立ってから、帯の下端が跳んだ先の高さ（`RunnerHazardKind.birdMeetBottom`）に届くまでの
+    /// 鳥の移動量（1 タイル・#945）。そこから先は同じ高さのまま飛び続ける。
+    ///
+    /// **走者の前端が帯に触れる（`birdTravel` = `k·G/(1−k)` = 6）より手前で上がりきる**のが要点
+    /// （#945 会長QA「飛び立つのが遅く、跳ぶだけで躱せる」）。鳥が 1 タイル進むあいだに走者は
+    /// 20 進むので、上がりきるのは走者の前端が帯の 8 手前に来た時点。帯の下端が走者の頭
+    /// （`RunnerField.Metrics.playerHeight` = 11）を越えるのはさらに手前（走者の進み 15、
+    /// 帯までの間合い 16）で、自動操縦が岩と見なして踏み切る間合い（`RunnerAutoPilot.lead`・
+    /// 上限の速さで 9.5）より十分外側——自動操縦は鳥を「跳ぶ相手」として見ずに済む
+    /// （`RunnerHazardMotionTests.birdRisesAboveTheHeadBeforeTheTakeOffWindow`）。
+    /// 上限は 1.5 タイル（= 6。触れる瞬間にちょうど上がりきる）で、そこまで延ばすと頭を越えるのが
+    /// 間合いと同じ 9.5 手前になり、自動操縦が跳んで鳥に当たる。
+    public static let birdClimbDistance: Double = 1 * tileWidth
+    /// 上がる傾き（鳥が 1 進むごとに上がる高さ）。止まっている帯の下端から跳んだ先の高さまで、
+    /// `birdClimbDistance` で一定に上がる。
     static var birdClimbSlope: Double {
-        (RunnerHazardKind.birdHighBottom - RunnerHazardKind.bird.bottom) / birdClimbDistance
+        (RunnerHazardKind.birdMeetBottom - RunnerHazardKind.bird.bottom) / birdClimbDistance
     }
     /// 飛び立つ前に羽ばたく予備動作を始める、走者の距離の手前（見た目だけ・当たり判定は変えない）。
     public static let birdFlutterDistance: Double = 2 * tileWidth

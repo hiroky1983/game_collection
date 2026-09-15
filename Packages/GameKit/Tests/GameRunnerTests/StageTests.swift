@@ -643,14 +643,24 @@ struct RunnerPlaythroughTests {
     /// 下手なりにステージはクリアできる（クラッシュするだけの操作は比較にならない）。
     ///
     /// 前方にあるもの（障害でも台座でも）は `RunnerAutoPilot.nextTarget` でまとめて見る。
-    /// 動く障害（#796）も `nextTarget` がいまの位置で見るので、ここで別扱いする必要は無い。
+    /// 犬・イノシシ（#800/#801）も `nextTarget` がいまの位置で見るので、ここで別扱いする必要は無い。
     /// 台座（#674）を見落とすと、台座の直前の平地で跳んでしまって正面に突っ込む
     /// ——「下手だがクリアはできる操作」という、この比較実験の前提が壊れる。
+    ///
+    /// 鳥（#945）だけは別に見る。上がりきった鳥は頭より上を飛ぶので `nextTarget` の対象から
+    /// 外れる（跳ぶ相手ではない）が、**その真下で跳ぶと当たる**のが鳥の本質。下手な操作でも
+    /// 「跳んだ先に鳥がいる」ところでは跳ばない——鳥と横に重なる区間（`encounter`）に
+    /// 空中のまま入る跳びは挟まない。
     private func shouldHopWastefully(field: RunnerField) -> Bool {
         guard field.isGrounded, let target = RunnerAutoPilot.nextTarget(field: field) else { return false }
         let jumpRange = field.stage.speed * RunnerRules.jumpAirTime
         let requiredTakeoff = target.start - target.lead
-        return field.distance + jumpRange + RunnerRules.tileWidth < requiredTakeoff
+        guard field.distance + jumpRange + RunnerRules.tileWidth < requiredTakeoff else { return false }
+        let landing = field.distance + jumpRange + RunnerRules.tileWidth
+        let half = RunnerField.Metrics.playerHalfWidth
+        return !field.stage.hazards.contains { bird in
+            bird.kind == .bird && landing > bird.encounter.start - half && field.distance < bird.encounter.end + half
+        }
     }
 
     @Test("全ステージを最初から最後まで走り切れる")
@@ -671,9 +681,8 @@ struct RunnerPlaythroughTests {
     /// 岩の右側で止まったイノシシ（#801）も対象外——岩と一続きで、岩の高さで越える。
     /// 犬・向かってくるイノシシは低い岩と同じ高さ 5 なので対象（踏み切り位置は等価な静止区間
     /// `encounter` から取る。動く相手でも、踏み切ってからの弾道は同じ）。
-    /// 飛び立つ鳥（#796）は逃げる相手で重なりが岩より長い（等価な長さ 7）ため、いちばん遅い
-    /// 5 面では瞬間タップの窓（上端 5.5 を越えている 0.42 秒）に 0.03 秒足りない。鳥は
-    /// 「普通のジャンプ」（0.15 秒のタップ）で越える障害として `shortTapClearsBirds` が別に固定する。
+    /// 飛び立つ鳥（#796/#945）は跳んで越える相手ではなく**走ったまま下を抜ける**相手なので対象外
+    /// ——`runningUnderClearsBirds` / `birdsPunishJumpingOnArrival` が別に固定する。
     @Test("瞬間タップでも、穴と低い障害物（犬・イノシシを含む）はすべて越えられる")
     func instantTapClearsPitsAndLowBlocks() {
         for stage in RunnerStage.all {
@@ -711,12 +720,11 @@ struct RunnerPlaythroughTests {
         }
     }
 
-    /// 飛び立つ鳥（#796）は**0.15 秒のタップ**（瞬間タップより少しだけ長い「普通のジャンプ」）で
-    /// 全ステージ越えられること。`instantTapClearsPitsAndLowBlocks` から外した理由の裏取り
-    /// ——長押しでしか越えられない障害ではない。
-    @Test("0.15 秒のタップで、鳥は全ステージで越えられる")
-    func shortTapClearsBirds() {
-        let hold = 0.15
+    /// 飛び立つ鳥（#796/#945）は**走ったまま下を抜けられる**こと（#945 の受け入れ条件「何もしなければ
+    /// 下を抜けられる」）。全ステージの鳥 1 羽ずつ、岩なら踏み切る地点（等価な静止区間に対する
+    /// 岩と同じ余裕）に置いて、跳ばずに帯の後端が抜けるまで走らせる。
+    @Test("鳥は全ステージで、走ったまま下を抜けられる")
+    func runningUnderClearsBirds() {
         for stage in RunnerStage.all {
             for bird in stage.hazards where bird.kind == .bird {
                 var field = RunnerField(stage: stage)
@@ -726,20 +734,41 @@ struct RunnerPlaythroughTests {
                     altitude: 0,
                     vy: 0
                 )
-                field.jump()
                 var events: [RunnerEvent] = []
-                var elapsed = 0.0
-                var released = false
-                while elapsed < 5 {
-                    elapsed += 1.0 / 600
-                    if !released, elapsed >= hold { field.endHold(); released = true }
+                var frames = 0
+                while frames < 3000, field.distance <= encounter.end + RunnerField.Metrics.playerHalfWidth {
+                    frames += 1
                     events += field.step(dt: 1.0 / 600)
-                    if events.contains(where: { $0 == .fell || $0 == .crashed }) { break }
-                    if field.isGrounded, field.distance > encounter.end { break }
+                    if events.contains(where: { $0.isTerminal }) { break }
                 }
                 #expect(
-                    !events.contains(where: { $0 == .fell || $0 == .crashed }),
-                    "ステージ \(stage.number) の鳥（\(bird.start)）を 0.15 秒のタップで越えられない"
+                    !events.contains(where: { $0.isTerminal }) && field.isGrounded,
+                    "ステージ \(stage.number) の鳥（\(bird.start)）の下を走ったまま抜けられない"
+                )
+            }
+        }
+    }
+
+    /// 同じ鳥に**着いてから跳ぶと当たる**こと（#945 の受け入れ条件「着いてから跳ぶは当たる」）。
+    /// 前端が帯に触れた瞬間に踏み切って押し続けると、頭が帯（跳んだ先の高さ）に入って鳥でミスになる。
+    @Test("鳥は全ステージで、着いてから跳ぶと当たる")
+    func birdsPunishJumpingOnArrival() {
+        for stage in RunnerStage.all {
+            for bird in stage.hazards where bird.kind == .bird {
+                var field = RunnerField(stage: stage)
+                let encounter = bird.encounter
+                field.placeForTesting(distance: encounter.start - RunnerField.Metrics.playerHalfWidth, altitude: 0, vy: 0)
+                field.jump()
+                var events: [RunnerEvent] = []
+                var frames = 0
+                while frames < 3000, field.distance <= encounter.end + RunnerField.Metrics.playerHalfWidth {
+                    frames += 1
+                    events += field.step(dt: 1.0 / 600)
+                    if events.contains(where: { $0.isTerminal }) { break }
+                }
+                #expect(
+                    events.contains(.crashed) && field.lastMissCause == .bird,
+                    "ステージ \(stage.number) の鳥（\(bird.start)）は着いてから跳んでも当たらない"
                 )
             }
         }
@@ -817,20 +846,21 @@ struct RunnerPlaythroughTests {
         }
     }
 
-    /// 動く障害（#796 鳥・#800 犬・#801 イノシシ）は**何もしなければ当たる**こと。全ステージの
+    /// 地面を走る動く障害（#800 犬・#801 イノシシ）は**何もしなければ当たる**こと。全ステージの
     /// 動く障害 1 つずつについて、その障害にだけ踏み切らずに走らせ（他の障害・台座は自動操縦で
-    /// 越える）、その障害でミスになる（死因もその障害）ことを確かめる。置物だった鳥（#671）は
-    /// 走っていれば当たらなかったので、これが「置物から障害になった」ことの実証。
+    /// 越える）、その障害でミスになる（死因もその障害）ことを確かめる。
     /// 岩の右側で止まったイノシシは岩と一続きで、岩を跳べば一緒に越えるので対象外。
+    /// 鳥（#945）は逆に「跳ばなければ抜けられ、着いてから跳ぶと当たる」障害なので、
+    /// `runningUnderClearsBirds` / `birdsPunishJumpingOnArrival` で見る。
     ///
     /// たこ焼き（`k`・#797）は跳んでも取れてしまい、取ってから 3 秒は動く障害にも当たらない。
     /// 本来のパターン（`k` あり）のまま走らせることで、「取って 3 秒以内に動く障害へ着く並び」が
     /// 無いこと（#900 との統合時の決裁 2026-09-15）も同時に押さえる。
-    @Test("動く障害は全ステージで、跳ばなければその障害に当たる")
+    @Test("犬・イノシシは全ステージで、跳ばなければその障害に当たる")
     func movingHazardsHitWhenIgnored() {
         for stage in RunnerStage.all {
             for hazard in stage.hazards
-            where (hazard.kind == .bird || hazard.kind.isAnimal) && hazard.stopAt == nil {
+            where hazard.kind.isAnimal && hazard.stopAt == nil {
                 var field = RunnerField(stage: stage)
                 var events: [RunnerEvent] = []
                 var frames = 0
@@ -850,42 +880,6 @@ struct RunnerPlaythroughTests {
                 #expect(
                     events.contains(.crashed) && field.lastMissCause == hazard.kind.missCause,
                     "ステージ \(stage.number) の \(hazard.kind)（\(hazard.start)）は跳ばなくても当たらない（\(events.last.map { "\($0)" } ?? "-")・死因 \(String(describing: field.lastMissCause))）"
-                )
-            }
-        }
-    }
-
-    /// 飛び立つ鳥は**早すぎた踏み切りを 2 段目で救える**こと（#796 の受け入れ条件「遅れても
-    /// 2 段ジャンプで抜けられる」の、距離決定論の下で成り立つ形——`RunnerHazardKind.bird` の doc）。
-    /// 飛び立った瞬間に跳ぶと、降りてくるところに低く飛ぶ鳥がいて当たる。頂点で 2 段目を
-    /// 使えば上を抜けられる。全ステージの鳥 1 羽ずつで、両方を実際に走らせて確かめる。
-    @Test("飛び立った瞬間に跳ぶと当たるが、頂点で 2 段目を使えば全ステージで抜けられる")
-    func doubleJumpRescuesAnEarlyJumpOverBirds() {
-        for stage in RunnerStage.all {
-            for bird in stage.hazards where bird.kind == .bird {
-                func run(doubleJump: Bool) -> [RunnerEvent] {
-                    var field = RunnerField(stage: stage)
-                    field.placeForTesting(distance: bird.birdTakeoffDistance, altitude: 0, vy: 0)
-                    field.jump()
-                    var events: [RunnerEvent] = []
-                    var jumps = 1
-                    while field.distance < bird.encounter.end + RunnerField.Metrics.playerWidth {
-                        if doubleJump, jumps < RunnerRules.maxJumps, field.vy <= 0 {
-                            field.jump()
-                            jumps += 1
-                        }
-                        events += field.step(dt: 1.0 / 600)
-                        if events.contains(where: { $0.isTerminal }) { break }
-                    }
-                    return events
-                }
-                #expect(
-                    run(doubleJump: false).contains(.crashed),
-                    "ステージ \(stage.number) の鳥（\(bird.start)）: 早すぎる 1 段だけで越えられてしまう（2 段目の必然が無い）"
-                )
-                #expect(
-                    !run(doubleJump: true).contains(.crashed),
-                    "ステージ \(stage.number) の鳥（\(bird.start)）を 2 段ジャンプで越えられない"
                 )
             }
         }
