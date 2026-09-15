@@ -23,6 +23,16 @@ struct RunnerBestDistanceTests {
         #expect(RunnerModel.isNewBestDistance(121, over: 120))
         #expect(!RunnerModel.isNewBestDistance(0, over: 0))
     }
+
+    /// 上の純関数を迂回して `finishEndlessRun` に判定を書き戻すと、0 m の回はモデル経由で作れないため
+    /// どのテストにも拾われない。結線をソースの形で固定する。
+    @Test("エンドレスの決着はこの判定で自己ベスト更新を決める")
+    func finishEndlessRunUsesTheRule() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
+        let body = try #require(SourceScan.declaration(of: "private func finishEndlessRun", in: source))
+        #expect(body.contains("didSetBestDistance = Self.isNewBestDistance(meters, over: endlessBestDistance)"))
+        #expect(!body.contains("Int.min"))
+    }
 }
 
 /// リザルトの記録更新の印が共通の `RecordBadge` であること（#794 → #795 → #819 の統一漏れを止める・#839）。

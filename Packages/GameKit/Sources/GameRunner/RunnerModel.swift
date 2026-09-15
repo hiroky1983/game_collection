@@ -516,8 +516,8 @@ public final class RunnerModel {
         }
     }
 
-    /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（`PlayRecord.applying` と同じ規則）。
-    /// 記録が無いときは 0 m と比べる。`Int.min` と比べていたため、0 m で終わった初回まで
+    /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（ここは `PlayRecord.applying` と同じ）。
+    /// 記録が無いときは 0 m と比べる（`PlayRecord.applying` は記録の保存側なので 0 m も書く。表示の印だけを抑える）。`Int.min` と比べていたため、0 m で終わった初回まで
     /// 「自己ベスト更新！」になっていた（#839）。
     nonisolated static func isNewBestDistance(_ meters: Int, over best: Int?) -> Bool {
         meters > (best ?? 0)
