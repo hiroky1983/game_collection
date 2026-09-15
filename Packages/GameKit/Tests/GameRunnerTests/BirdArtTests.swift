@@ -296,6 +296,43 @@ struct BirdArtTests {
         }
     }
 
+    @Test("回転の y の端を求める計算が、刻んで探した値と一致する（#833）")
+    func rotatedYRangeMatchesSampling() {
+        let points = [
+            CGPoint(x: 0, y: 0.35), CGPoint(x: -1.1, y: 0.65),
+            CGPoint(x: -2.8, y: 0.3), CGPoint(x: -0.9, y: -0.45),
+        ]
+        for rotation in [-0.2...0.7, -0.55...0.55, 0.0...(2 * Double.pi), -3.0...3.0] {
+            let computed = RunnerBirdArt.rotatedYRange(points, rotation)
+            var sampledLow = Double.infinity, sampledHigh = -Double.infinity
+            let steps = 20000
+            for step in 0...steps {
+                let ratio = Double(step) / Double(steps)
+                let angle = rotation.lowerBound
+                    + (rotation.upperBound - rotation.lowerBound) * ratio
+                for point in points {
+                    let y = Double(point.x) * sin(angle) + Double(point.y) * cos(angle)
+                    sampledLow = min(sampledLow, y)
+                    sampledHigh = max(sampledHigh, y)
+                }
+            }
+            #expect(computed.lowerBound <= sampledLow + 1e-6)
+            #expect(computed.upperBound >= sampledHigh - 1e-6)
+            #expect(abs(computed.lowerBound - sampledLow) < 1e-3)
+            #expect(abs(computed.upperBound - sampledHigh) < 1e-3)
+            // y(θ) = x(θ − 90°) なので、回転の範囲を 90° 戻した x の範囲と一致する。
+            let shifted = RunnerBirdArt.rotatedXRange(
+                points, (rotation.lowerBound - Double.pi / 2)...(rotation.upperBound - Double.pi / 2)
+            )
+            #expect(abs(computed.lowerBound - shifted.lowerBound) < 1e-6)
+            #expect(abs(computed.upperBound - shifted.upperBound) < 1e-6)
+        }
+        // (1, 0) を 0〜90° 回すと y は 0〜1。
+        let quarter = RunnerBirdArt.rotatedYRange([CGPoint(x: 1, y: 0)], 0...(Double.pi / 2))
+        #expect(abs(quarter.lowerBound) < 1e-9)
+        #expect(abs(quarter.upperBound - 1) < 1e-9)
+    }
+
     /// 絵を合わせる相手（帯）が、全ステージの鳥で同じ 1 タイル幅 × 絵の高さであること。
     /// ここがステージごとに違うと `art` 1 つで張り出しを測っている意味が無くなる
     /// ——帯の厚みは**幅 1 タイルの絵**から導いているので、幅の違う鳥が混ざると

@@ -494,4 +494,46 @@ struct MahjongTableLayoutTests {
         #expect(MahjongTableLayout.contains(polygon: sq, point: CGPoint(x: 5, y: 5)))
         #expect(!MahjongTableLayout.contains(polygon: sq, point: CGPoint(x: 11, y: 5)))
     }
+
+    @Test("木枠は 4 隅ともフェルトを外側から囲む（奥左・奥右・手前右・手前左の順・#833）")
+    func woodFrameEnclosesFelt() {
+        for l in [Self.phone, Self.pad, Self.phone17] {
+            let frame = l.woodFrame
+            #expect(frame.count == 4)
+            for corner in l.felt {
+                #expect(MahjongTableLayout.contains(polygon: frame, point: corner), "フェルトの角 \(corner) が木枠の外")
+            }
+            let feltXs = l.felt.map(\.x), feltYs = l.felt.map(\.y)
+            let left = feltXs.min() ?? 0, right = feltXs.max() ?? 0
+            let top = feltYs.min() ?? 0, bottom = feltYs.max() ?? 0
+            #expect(frame[0].x < left && frame[0].y < top, "奥左")
+            #expect(frame[1].x > right && frame[1].y < top, "奥右")
+            #expect(frame[2].x > right && frame[2].y > bottom, "手前右")
+            #expect(frame[3].x < left && frame[3].y > bottom, "手前左")
+        }
+    }
+
+    @Test("上家・下家の副露 1 枚の矩形: 下家は手前へ・上家は奥へ牌の幅ずつ進み、組の区切りで間隔ぶん進む（#833）")
+    func sideMeldRectAdvancesAlongColumn() {
+        for l in [Self.phone, Self.pad] {
+            let step = l.riverTileWidth
+            for seat in [1, 3] {
+                let dir: CGFloat = seat == 1 ? 1 : -1
+                let head = l.sideMeldRect(seat: seat, ordinal: 0, gaps: 0)
+                // 横向きなので、幅が牌の高さ・高さが牌の幅。
+                #expect(abs(head.width - step * MahjongTableLayout.tileAspect) < 1e-9)
+                #expect(abs(head.height - step) < 1e-9)
+                var previous = head
+                for ordinal in 1..<6 {
+                    let rect = l.sideMeldRect(seat: seat, ordinal: ordinal, gaps: 0)
+                    #expect(abs((rect.midY - previous.midY) - dir * step) < 1e-9, "席 \(seat) の \(ordinal) 枚目")
+                    #expect(abs(rect.midX - head.midX) < 1e-9, "列（u）は一定")
+                    previous = rect
+                }
+                let gapped = l.sideMeldRect(seat: seat, ordinal: 3, gaps: 1)
+                let plain = l.sideMeldRect(seat: seat, ordinal: 3, gaps: 0)
+                #expect(abs((gapped.midY - plain.midY) - dir * MahjongTableLayout.meldGroupSpacing) < 1e-9)
+            }
+        }
+    }
 }
