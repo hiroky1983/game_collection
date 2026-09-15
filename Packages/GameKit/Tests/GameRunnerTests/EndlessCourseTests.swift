@@ -403,6 +403,71 @@ struct RunnerEndlessCourseTests {
             }
         }
     }
+
+    // MARK: - 成立条件の判定そのもの（#833）
+    //
+    // 上の 1,000 種の検算は生成したコースしか見ないので、判定の境界は固定されない。ここで直接縛る。
+
+    @Test("isClearable: 3 タイルの穴は走り出しの速さでは越えられず、速くなれば越えられる")
+    func isClearableDependsOnSpeed() {
+        let widest = RunnerStage.makeHazards(pattern: "3")[0]
+        // 必要な飛距離 = 踏み切りの余裕 6 + 穴 16 + 1 タイル 4 = 26。飛距離は 速さ × 0.75。
+        #expect(!RunnerEndlessCourse.isClearable(widest, speed: RunnerRules.baseSpeed), "34 × 0.75 = 25.5 < 26")
+        #expect(RunnerEndlessCourse.isClearable(widest, speed: 35), "35 × 0.75 = 26.25 > 26")
+        // 最高速の飛距離 45 に対して、必要 6 + 36 + 4 = 46 の穴は越えられず、6 + 34 + 4 = 44 なら越えられる。
+        let maxSpeed = RunnerRules.endlessMaxSpeed
+        #expect(!RunnerEndlessCourse.isClearable(RunnerHazard(kind: .pit, start: 0, length: 36), speed: maxSpeed))
+        #expect(RunnerEndlessCourse.isClearable(RunnerHazard(kind: .pit, start: 0, length: 34), speed: maxSpeed))
+        // 長すぎる岩は、上端を越えている時間のうちに通り抜けられない。
+        #expect(RunnerEndlessCourse.isClearable(RunnerHazard(kind: .lowBlock, start: 0, length: 4), speed: RunnerRules.baseSpeed))
+        #expect(!RunnerEndlessCourse.isClearable(RunnerHazard(kind: .lowBlock, start: 0, length: 100), speed: RunnerRules.baseSpeed))
+    }
+
+    @Test("hasLandingGap: 最高速で、着地して踏み切り直す間隔がちょうどしか無い並びは通さない")
+    func hasLandingGapBoundaryAtMaxSpeed() {
+        let speed = RunnerRules.endlessMaxSpeed
+        let previous = RunnerHazard(kind: .pit, start: 24, length: 8)
+        // 必要な間隔（左端どうし）= 跳んで進む 60 × 0.75 = 45 + 次の穴への踏み切りの余裕 6。
+        let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.baseLead
+        #expect(needed == 51)
+        let tight = RunnerHazard(kind: .pit, start: previous.start + needed, length: 8)
+        let enough = RunnerHazard(kind: .pit, start: previous.start + needed + 0.5, length: 8)
+        #expect(!RunnerEndlessCourse.hasLandingGap(from: previous, to: tight, speed: speed), "ちょうどでは足りない")
+        #expect(RunnerEndlessCourse.hasLandingGap(from: previous, to: enough, speed: speed))
+        #expect(RunnerEndlessCourse.hasLandingGap(from: previous, to: tight, speed: RunnerRules.baseSpeed), "遅ければ同じ間隔で足りる")
+        // 隣り合う区画（64 離れる）なら最高速でも足りる。
+        let adjacent = RunnerStage.makeHazards(pattern: "11")
+        #expect(RunnerEndlessCourse.hasLandingGap(from: adjacent[0], to: adjacent[1], speed: speed))
+    }
+
+    @Test("hasLandingGap: 動く障害は置いた位置ではなく出会う地点（encounter）から測る")
+    func hasLandingGapMeasuresFromEncounter() {
+        let speed = RunnerRules.endlessMaxSpeed
+        let bird = RunnerHazard(kind: .bird, start: 24, length: RunnerRules.tileWidth)
+        let shift = bird.encounter.start - bird.start
+        #expect(shift > 0, "鳥は飛び立って前へ進んだ地点で出会う")
+        let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.baseLead
+        // 置いた位置から測れば足りるが、出会う地点から測ると足りない間隔。
+        let next = RunnerHazard(kind: .pit, start: bird.start + needed + shift / 2, length: 8)
+        #expect(next.start - bird.start > needed, "対照: 置いた位置から測れば足りる")
+        #expect(!RunnerEndlessCourse.hasLandingGap(from: bird, to: next, speed: speed))
+    }
+
+    @Test("canPlacePlatform: 前の障害を跳んだ着地が、台座への踏み切りより手前で終わるときだけ置ける")
+    func canPlacePlatformNeedsLandingBeforeTakeOff() {
+        let speed = RunnerRules.baseSpeed
+        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: nil, speed: speed), "前に障害が無ければ置ける")
+        // 台座 64 への踏み切り = 64 − 6 − 34 × (高さ 8.5 までの上昇時間 ≒ 0.1392) ≒ 53.27。
+        // 穴を跳んだ着地 = 穴の左端 − 6 + 34 × 0.75 = 左端 + 19.5。
+        let previousSegment = RunnerHazard(kind: .pit, start: 24, length: 8)  // 着地 43.5
+        let tooClose = RunnerHazard(kind: .pit, start: 40, length: 8)  // 着地 59.5
+        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: previousSegment, speed: speed))
+        #expect(!RunnerEndlessCourse.canPlacePlatform(at: 64, after: tooClose, speed: speed))
+        // 踏み切り 53.27 をはさむ着地 53.0 / 53.5。上昇にかかる距離（34 × 0.1392 ≒ 4.73）を見込まないと
+        // 踏み切りが 58 になり、53.5 の側も置けてしまう。
+        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: RunnerHazard(kind: .pit, start: 33.5, length: 8), speed: speed))
+        #expect(!RunnerEndlessCourse.canPlacePlatform(at: 64, after: RunnerHazard(kind: .pit, start: 34, length: 8), speed: speed))
+    }
 }
 
 /// エンドレスのコースを実際に走り切れることの実証（`RunnerPlaythroughTests` と同じ自動操縦）。
@@ -670,65 +735,5 @@ struct RunnerEndlessModelTests {
         #expect(ends.count == 1)
         #expect(ends.first?.mode == .endless)
         #expect(ends.first?.result == .loss)
-    }
-
-    // MARK: - 成立条件の判定そのもの（#833）
-    //
-    // 上の 1,000 種の検算は生成したコースしか見ないので、判定の境界は固定されない。ここで直接縛る。
-
-    @Test("isClearable: 3 タイルの穴は走り出しの速さでは越えられず、速くなれば越えられる")
-    func isClearableDependsOnSpeed() {
-        let widest = RunnerStage.makeHazards(pattern: "3")[0]
-        // 必要な飛距離 = 踏み切りの余裕 6 + 穴 16 + 1 タイル 4 = 26。飛距離は 速さ × 0.75。
-        #expect(!RunnerEndlessCourse.isClearable(widest, speed: RunnerRules.baseSpeed), "34 × 0.75 = 25.5 < 26")
-        #expect(RunnerEndlessCourse.isClearable(widest, speed: 35), "35 × 0.75 = 26.25 > 26")
-        // 最高速の飛距離 45 に対して、必要 6 + 36 + 4 = 46 の穴は越えられず、6 + 34 + 4 = 44 なら越えられる。
-        let maxSpeed = RunnerRules.endlessMaxSpeed
-        #expect(!RunnerEndlessCourse.isClearable(RunnerHazard(kind: .pit, start: 0, length: 36), speed: maxSpeed))
-        #expect(RunnerEndlessCourse.isClearable(RunnerHazard(kind: .pit, start: 0, length: 34), speed: maxSpeed))
-        // 長すぎる岩は、上端を越えている時間のうちに通り抜けられない。
-        #expect(RunnerEndlessCourse.isClearable(RunnerHazard(kind: .lowBlock, start: 0, length: 4), speed: RunnerRules.baseSpeed))
-        #expect(!RunnerEndlessCourse.isClearable(RunnerHazard(kind: .lowBlock, start: 0, length: 100), speed: RunnerRules.baseSpeed))
-    }
-
-    @Test("hasLandingGap: 最高速で、着地して踏み切り直す間隔がちょうどしか無い並びは通さない")
-    func hasLandingGapBoundaryAtMaxSpeed() {
-        let speed = RunnerRules.endlessMaxSpeed
-        let previous = RunnerHazard(kind: .pit, start: 24, length: 8)
-        // 必要な間隔（左端どうし）= 跳んで進む 60 × 0.75 = 45 + 次の穴への踏み切りの余裕 6。
-        let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.baseLead
-        #expect(needed == 51)
-        let tight = RunnerHazard(kind: .pit, start: previous.start + needed, length: 8)
-        let enough = RunnerHazard(kind: .pit, start: previous.start + needed + 0.5, length: 8)
-        #expect(!RunnerEndlessCourse.hasLandingGap(from: previous, to: tight, speed: speed), "ちょうどでは足りない")
-        #expect(RunnerEndlessCourse.hasLandingGap(from: previous, to: enough, speed: speed))
-        #expect(RunnerEndlessCourse.hasLandingGap(from: previous, to: tight, speed: RunnerRules.baseSpeed), "遅ければ同じ間隔で足りる")
-        // 隣り合う区画（64 離れる）なら最高速でも足りる。
-        let adjacent = RunnerStage.makeHazards(pattern: "11")
-        #expect(RunnerEndlessCourse.hasLandingGap(from: adjacent[0], to: adjacent[1], speed: speed))
-    }
-
-    @Test("hasLandingGap: 動く障害は置いた位置ではなく出会う地点（encounter）から測る")
-    func hasLandingGapMeasuresFromEncounter() {
-        let speed = RunnerRules.endlessMaxSpeed
-        let bird = RunnerHazard(kind: .bird, start: 24, length: RunnerRules.tileWidth)
-        let shift = bird.encounter.start - bird.start
-        #expect(shift > 0, "鳥は飛び立って前へ進んだ地点で出会う")
-        let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.baseLead
-        // 置いた位置から測れば足りるが、出会う地点から測ると足りない間隔。
-        let next = RunnerHazard(kind: .pit, start: bird.start + needed + shift / 2, length: 8)
-        #expect(!RunnerEndlessCourse.hasLandingGap(from: bird, to: next, speed: speed))
-    }
-
-    @Test("canPlacePlatform: 前の障害を跳んだ着地が、台座への踏み切りより手前で終わるときだけ置ける")
-    func canPlacePlatformNeedsLandingBeforeTakeOff() {
-        let speed = RunnerRules.baseSpeed
-        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: nil, speed: speed), "前に障害が無ければ置ける")
-        // 台座 64 への踏み切り = 64 − 6 − 34 × (高さ 8.5 までの上昇時間 ≒ 0.139) ≒ 53.3。
-        // 穴を跳んだ着地 = 穴の左端 − 6 + 34 × 0.75 = 左端 + 19.5。
-        let previousSegment = RunnerHazard(kind: .pit, start: 24, length: 8)  // 着地 43.5
-        let tooClose = RunnerHazard(kind: .pit, start: 40, length: 8)  // 着地 59.5
-        #expect(RunnerEndlessCourse.canPlacePlatform(at: 64, after: previousSegment, speed: speed))
-        #expect(!RunnerEndlessCourse.canPlacePlatform(at: 64, after: tooClose, speed: speed))
     }
 }

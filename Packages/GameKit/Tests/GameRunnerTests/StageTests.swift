@@ -612,6 +612,71 @@ struct RunnerStageTests {
         #expect(stage.length == 0)
         #expect(stage.checkpointPercent == 0)
     }
+
+    // MARK: - 区画記号の展開（#833）
+    //
+    // 上のテストは 18 ステージの生成物をまとめて検めるので、展開そのものの境界（置く位置・まとめ方・
+    // 無視する記号）は固定されない。1 区画 = 64、区画の中央のずれ = 24 で、関数ごとに直接縛る。
+
+    @Test("区画記号 → 障害: 区画の中央に置き、穴は表記 + 1 タイル。障害でない記号は無視する")
+    func makeHazardsPlacesSegmentCenters() {
+        #expect(RunnerStage.makeHazards(pattern: "-1n?sPk=") == [
+            RunnerHazard(kind: .pit, start: 64 + 24, length: 8),
+            RunnerHazard(kind: .lowBlock, start: 128 + 24, length: 4),
+        ])
+    }
+
+    @Test("区画記号 → 障害: イノシシは出現点までの岩の右端で止まり、ぶつかる岩が無ければ nil")
+    func makeHazardsBakesBoarStop() {
+        // イノシシは 24（出現点は 24 + 72 = 96）。次の区画の高い岩は 88〜92。
+        let withRock = RunnerStage.makeHazards(pattern: "it")
+        #expect(withRock.first?.kind == .boar)
+        #expect(withRock.first?.stopAt == 92)
+        #expect(RunnerStage.makeHazards(pattern: "i-").first?.stopAt == nil)
+        #expect(RunnerStage.makeHazards(pattern: "i-t").first?.stopAt == nil, "出現点より先の岩にはぶつからない")
+    }
+
+    @Test("区画記号 → アイテム: s はスピードアップ、k はたこ焼きで、どちらも区画の中央")
+    func makePickupsPlacesKindsAtSegmentCenters() {
+        #expect(RunnerStage.makePickups(pattern: "s-k1P=") == [
+            RunnerPickup(kind: .speed, start: 24),
+            RunnerPickup(kind: .invincible, start: 128 + 24),
+        ])
+        #expect(RunnerStage.makePickups(pattern: "--1n").isEmpty)
+    }
+
+    @Test("区画記号 → 台座: 連続する P は 1 基にまとまり、末尾で終わる並びも閉じる")
+    func makePlatformsMergesRuns() {
+        #expect(RunnerStage.makePlatforms(pattern: "-PP-P") == [
+            RunnerPlatform(start: 64, length: 128),
+            RunnerPlatform(start: 256, length: 64),
+        ])
+        #expect(RunnerStage.makePlatforms(pattern: "-=-").isEmpty, "床は台座ではない")
+    }
+
+    @Test("区画記号 → スピードアップ床: 連続する = は 1 本にまとまり、幅は区画数どおり")
+    func makeBoostFloorsMergesRuns() {
+        #expect(RunnerStage.makeBoostFloors(pattern: "-==-=-") == [
+            RunnerBoostFloor(start: 64, length: 128),
+            RunnerBoostFloor(start: 256, length: 64),
+        ])
+        #expect(RunnerStage.makeBoostFloors(pattern: "-P-").isEmpty, "台座は床ではない")
+    }
+
+    @Test("チェックポイント: 中点が空いていれば中点、穴・台座に掛かれば余白ぶん右へずれる")
+    func makeCheckpointAvoidsHazardsAndPlatforms() {
+        let length = 640.0  // 10 区画。中点は 320。
+        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [], platforms: []) == 320)
+        // 穴 312〜320 の関わる範囲は 308〜324。体 1 つ（8）の余白を足すと 300 < x < 332 には置けない。
+        let pit = RunnerHazard(kind: .pit, start: 312, length: 8)
+        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [pit], platforms: []) == 332)
+        // 台座 320〜384 は余白込みで 312 < x < 392。
+        let platform = RunnerPlatform(start: 320, length: 64)
+        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [], platforms: [platform]) == 392)
+        // 置ける場所が無ければ末尾の 4 タイル手前で探すのをやめる。
+        let whole = RunnerPlatform(start: 0, length: length)
+        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [], platforms: [whole]) == length - 16)
+    }
 }
 
 /// 全ステージを実際に走り切れることの実証（#494 の受け入れ条件1）。
@@ -1255,70 +1320,5 @@ struct RunnerPlaythroughTests {
             #expect(result.just <= 1, "ステージ \(number): 決め打ちの走りで \(result.just) 回も成立している")
         }
         #expect(total <= 3, "全ステージ合計 \(total) 回——窓が広すぎる")
-    }
-
-    // MARK: - 区画記号の展開（#833）
-    //
-    // 上のテストは 18 ステージの生成物をまとめて検めるので、展開そのものの境界（置く位置・まとめ方・
-    // 無視する記号）は固定されない。1 区画 = 64、区画の中央のずれ = 24 で、関数ごとに直接縛る。
-
-    @Test("区画記号 → 障害: 区画の中央に置き、穴は表記 + 1 タイル。障害でない記号は無視する")
-    func makeHazardsPlacesSegmentCenters() {
-        #expect(RunnerStage.makeHazards(pattern: "-1n?sPk=") == [
-            RunnerHazard(kind: .pit, start: 64 + 24, length: 8),
-            RunnerHazard(kind: .lowBlock, start: 128 + 24, length: 4),
-        ])
-    }
-
-    @Test("区画記号 → 障害: イノシシは出現点までの岩の右端で止まり、ぶつかる岩が無ければ nil")
-    func makeHazardsBakesBoarStop() {
-        // イノシシは 24（出現点は 24 + 72 = 96）。次の区画の高い岩は 88〜92。
-        let withRock = RunnerStage.makeHazards(pattern: "it")
-        #expect(withRock.first?.kind == .boar)
-        #expect(withRock.first?.stopAt == 92)
-        #expect(RunnerStage.makeHazards(pattern: "i-").first?.stopAt == nil)
-        #expect(RunnerStage.makeHazards(pattern: "i-t").first?.stopAt == nil, "出現点より先の岩にはぶつからない")
-    }
-
-    @Test("区画記号 → アイテム: s はスピードアップ、k はたこ焼きで、どちらも区画の中央")
-    func makePickupsPlacesKindsAtSegmentCenters() {
-        #expect(RunnerStage.makePickups(pattern: "s-k1P=") == [
-            RunnerPickup(kind: .speed, start: 24),
-            RunnerPickup(kind: .invincible, start: 128 + 24),
-        ])
-        #expect(RunnerStage.makePickups(pattern: "--1n").isEmpty)
-    }
-
-    @Test("区画記号 → 台座: 連続する P は 1 基にまとまり、末尾で終わる並びも閉じる")
-    func makePlatformsMergesRuns() {
-        #expect(RunnerStage.makePlatforms(pattern: "-PP-P") == [
-            RunnerPlatform(start: 64, length: 128),
-            RunnerPlatform(start: 256, length: 64),
-        ])
-        #expect(RunnerStage.makePlatforms(pattern: "-=-").isEmpty, "床は台座ではない")
-    }
-
-    @Test("区画記号 → スピードアップ床: 連続する = は 1 本にまとまり、幅は区画数どおり")
-    func makeBoostFloorsMergesRuns() {
-        #expect(RunnerStage.makeBoostFloors(pattern: "-==-=-") == [
-            RunnerBoostFloor(start: 64, length: 128),
-            RunnerBoostFloor(start: 256, length: 64),
-        ])
-        #expect(RunnerStage.makeBoostFloors(pattern: "-P-").isEmpty, "台座は床ではない")
-    }
-
-    @Test("チェックポイント: 中点が空いていれば中点、穴・台座に掛かれば余白ぶん右へずれる")
-    func makeCheckpointAvoidsHazardsAndPlatforms() {
-        let length = 640.0  // 10 区画。中点は 320。
-        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [], platforms: []) == 320)
-        // 穴 312〜320 の関わる範囲は 308〜324。体 1 つ（8）の余白を足すと 300 < x < 332 には置けない。
-        let pit = RunnerHazard(kind: .pit, start: 312, length: 8)
-        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [pit], platforms: []) == 332)
-        // 台座 320〜384 は余白込みで 312 < x < 392。
-        let platform = RunnerPlatform(start: 320, length: 64)
-        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [], platforms: [platform]) == 392)
-        // 置ける場所が無ければ末尾の 4 タイル手前で探すのをやめる。
-        let whole = RunnerPlatform(start: 0, length: length)
-        #expect(RunnerStage.makeCheckpoint(length: length, hazards: [], platforms: [whole]) == length - 16)
     }
 }
