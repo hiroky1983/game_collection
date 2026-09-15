@@ -1,3 +1,4 @@
+import Core
 import Foundation
 
 /// 画面の状態を読み上げる文（#494）。
@@ -26,10 +27,25 @@ public enum RunnerAccessibility {
         return "\(RunnerWorld.code(forStage: number)) \(name)、\(reached ? "到達済み" : "未到達")"
     }
 
-    /// 走り出す前の画面のモード切り替え（#919）の 1 区画。「モード、ステージ」の形で、
-    /// 何の切り替えかとモード名を 1 文で言う（選択中かどうかは `.isSelected` の特性で添える）。
-    public static func modeLabel(_ mode: RunnerMode) -> String {
-        "モード、\(mode.title)"
+    /// 面の見出し「2-3 とうふ屋のかど」（#931）。走行中の HUD・スタート画面の主ボタン・
+    /// クリア表示の「つぎは」で同じ形を使う。名前の無い番号（範囲外）は「ステージ N」に倒す。
+    public static func stageHeadline(number: Int) -> String {
+        guard let name = RunnerWorld.stageName(forStage: number) else {
+            return "ステージ \(number)"
+        }
+        return "\(RunnerWorld.code(forStage: number)) \(name)"
+    }
+
+    /// スタート画面（#931）の主ボタン。「2-3 とうふ屋のかど から走る」。
+    public static func startStageLabel(number: Int) -> String {
+        "\(stageHeadline(number: number)) から走る"
+    }
+
+    /// スタート画面（#931）のエンドレスのボタン。自己ベストを添えて
+    /// 「エンドレス、自己ベスト 1,234 メートル」。まだ走っていなければ「まだ記録なし」。
+    public static func startEndlessLabel(bestDistance: Int?) -> String {
+        guard let bestDistance else { return "エンドレス、まだ記録なし" }
+        return "エンドレス、自己ベスト \(RecordFormat.number(max(0, bestDistance))) メートル"
     }
 
     /// 進み具合。パーセントは 5 刻みに丸める（1% ごとに読み上げが変わると耳で追えない）。

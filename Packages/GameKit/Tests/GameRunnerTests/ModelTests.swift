@@ -535,42 +535,65 @@ struct RunnerStageSelectTests {
     }
 }
 
-@Suite("チャリンコおじさん: 走り出す前のモード切り替え（#919）")
+/// スタート画面（#931）。走り出す前のカードのボタン（次の面・エンドレス・つづきから）の遷移。
+@Suite("チャリンコおじさん: スタート画面（#931）")
 @MainActor
-struct RunnerModeSwitchTests {
+struct RunnerStartScreenTests {
 
-    @Test("切り替えられるのは走り出す前で、コースの頭にいるときだけ")
+    @Test("モードや面を選べるのは走り出す前で、コースの頭にいるときだけ")
     func availabilityIsPureFunctionOfPhase() {
         #expect(RunnerModel.canChooseMode(phase: .ready, passedCheckpoint: false))
-        #expect(!RunnerModel.canChooseMode(phase: .ready, passedCheckpoint: true), "チェックポイント再開の直後は捨てさせない")
+        #expect(!RunnerModel.canChooseMode(phase: .ready, passedCheckpoint: true), "チェックポイント再開の直後は「つづきから」だけ")
         for phase: RunnerPhase in [.running, .paused, .falling, .failed, .cleared, .allCleared] {
             #expect(!RunnerModel.canChooseMode(phase: phase, passedCheckpoint: false), "\(phase)")
         }
     }
 
-    @Test("走り出す前ならタップ 1 回でエンドレスの新しいコースになる")
-    func switchingToEndlessStartsNewCourse() {
-        let model = RunnerModel(startingAt: 3, preference: makePreference("switch-endless"))
+    @Test("主ボタンは作ってあるコースをそのまま走り出す")
+    func mainButtonRunsCurrentCourse() {
+        let model = RunnerModel(startingAt: 3, preference: makePreference("start-main"))
         #expect(model.canChooseMode)
         let generation = model.runGeneration
-        #expect(model.switchMode(to: .endless))
+        #expect(model.start(.stages))
+        #expect(model.phase == .running, "ボタン 1 タップで走り出す")
+        #expect(model.mode == .stages)
+        #expect(model.stageNumber == 3)
+        #expect(model.runGeneration == generation, "同じモードならコースを作り直さない")
+
+        // ボタンからの開始は押下を持ち込まない——直後のタップで普通に跳べる。
+        model.press()
+        #expect(!model.field.isGrounded, "走り出した直後のタップは踏み切りになる")
+        model.release()
+    }
+
+    @Test("エンドレスのボタンはタップ 1 回で新しいコースを走り出す")
+    func endlessButtonStartsNewCourse() {
+        let model = RunnerModel(startingAt: 3, preference: makePreference("start-endless"))
+        let generation = model.runGeneration
+        #expect(model.start(.endless))
         #expect(model.mode == .endless)
-        #expect(model.phase == .ready, "切り替えただけでは走り出さない")
+        #expect(model.phase == .running)
         #expect(model.endlessSeed != nil)
         #expect(model.runGeneration == generation + 1)
         #expect(model.stageNumber == 3, "ステージ制のつづきは保持する")
 
-        // 同じモードを選び直しても作り直さない（誤タップで種が変わらない）。
+        // ミス→「もう一度」で作った新しいコースは、エンドレスのボタンで二重に作り直さない。
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        model.retryStage()
+        #expect(model.phase == .ready)
         let seed = model.endlessSeed
-        #expect(!model.switchMode(to: .endless))
+        let retried = model.runGeneration
+        #expect(model.start(.endless))
+        #expect(model.phase == .running)
         #expect(model.endlessSeed == seed)
-        #expect(model.runGeneration == generation + 1)
+        #expect(model.runGeneration == retried)
     }
 
-    @Test("ステージ制へ戻ると 1 面や到達点ではなく「つづき」の面から")
-    func switchingBackResumesContinuationStage() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("switch-back"))
-        // 1〜2 面をクリアして 3 面へ、さらに 1 面を選び直して「つづき = 1 面・到達点 = 3 面」にする。
+    @Test("エンドレスから主ボタンで戻ると 1 面や到達点ではなく「つづき」の面から走り出す")
+    func mainButtonFromEndlessResumesContinuationStage() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("start-back"))
+        // 1〜2 面をクリアして 3 面へ、さらに 1 面を選び直して「つづき = 2 面・到達点 = 3 面」にする。
         for _ in 1...2 {
             autoPlayCurrentStage(model)
             #expect(model.phase == .cleared)
@@ -580,58 +603,66 @@ struct RunnerModeSwitchTests {
         #expect(model.newGame(startingAtStage: 2))
         #expect(model.reachedStage == 3)
 
-        #expect(model.switchMode(to: .endless))
+        model.newEndlessGame(seed: 1)
         let generation = model.runGeneration
-        #expect(model.switchMode(to: .stages))
+        #expect(model.start(.stages))
         #expect(model.mode == .stages)
-        #expect(model.phase == .ready)
+        #expect(model.phase == .running)
         #expect(model.stageNumber == 2, "つづきの面（到達点の 3 面でも 1 面でもない）")
         #expect(model.field.stage.number == 2)
-        #expect(model.field.distance == 0, "面の頭から")
         #expect(model.reachedStage == 3, "到達点は動かない")
         #expect(model.runGeneration == generation + 1)
     }
 
     @Test("走行中・一時停止中・ミス・クリアでは無視する")
     func ignoredWhileNotReady() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("switch-ignore"))
+        let model = RunnerModel(startingAt: 1, preference: makePreference("start-ignore"))
         model.press(); model.release()
         #expect(model.phase == .running)
         #expect(!model.canChooseMode)
         let generation = model.runGeneration
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
+        #expect(!model.start(.stages))
         #expect(model.mode == .stages)
         #expect(model.runGeneration == generation)
 
         model.pause()
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
         #expect(model.phase == .paused)
         model.resume()
 
         failCurrentStage(model)
         #expect(model.phase == .failed)
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
         #expect(model.mode == .stages)
 
         model.retryStage()
         autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
-        #expect(!model.switchMode(to: .endless))
+        #expect(!model.start(.endless))
         #expect(model.mode == .stages)
         #expect(model.phase == .cleared)
     }
 
-    @Test("チェックポイント再開の直後は切り替えを出さない")
-    func hiddenRightAfterCheckpointResume() {
-        let model = RunnerModel(startingAt: 1, preference: makePreference("switch-checkpoint"))
+    @Test("チェックポイント再開の直後はモードを変えられないが、「つづきから」は走り出せる")
+    func onlyContinueRightAfterCheckpointResume() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("start-checkpoint"))
         failCurrentStage(model, stopAfterCheckpoint: true)
         #expect(model.phase == .failed)
         #expect(model.canResumeFromCheckpoint)
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
         #expect(model.phase == .ready)
         #expect(!model.canChooseMode, "広告で得た途中からの再開を誤タップで捨てさせない")
-        #expect(!model.switchMode(to: .endless))
-        #expect(model.field.passedCheckpoint)
+        #expect(!model.start(.endless))
+        #expect(model.mode == .stages)
+        #expect(model.phase == .ready)
+
+        let generation = model.runGeneration
+        #expect(model.start(.stages))
+        #expect(model.phase == .running)
+        #expect(model.field.passedCheckpoint, "途中からの再開のまま走り出す")
+        #expect(model.field.distance == model.stage.checkpoint)
+        #expect(model.runGeneration == generation)
     }
 }
 
@@ -756,10 +787,14 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.endlessResultLabel(phase: .ready, distance: 0) == "エンドレス。タップでスタート")
     }
 
-    @Test("モード切り替えの区画は何の切り替えかとモード名を言う（#919）")
-    func modeSwitch() {
-        #expect(RunnerAccessibility.modeLabel(.stages) == "モード、ステージ")
-        #expect(RunnerAccessibility.modeLabel(.endless) == "モード、エンドレス")
+    @Test("面の見出しは「世界-面 名前」で、スタート画面のボタンはそれに添える（#931）")
+    func startScreen() {
+        #expect(RunnerAccessibility.stageHeadline(number: 2) == "1-2 とうふ屋のかど")
+        #expect(RunnerAccessibility.stageHeadline(number: 9) == "2-3 つり人のいる岸")
+        #expect(RunnerAccessibility.stageHeadline(number: 0) == "ステージ 0", "名前の無い番号は番号だけ")
+        #expect(RunnerAccessibility.startStageLabel(number: 2) == "1-2 とうふ屋のかど から走る")
+        #expect(RunnerAccessibility.startEndlessLabel(bestDistance: 1234) == "エンドレス、自己ベスト 1,234 メートル")
+        #expect(RunnerAccessibility.startEndlessLabel(bestDistance: nil) == "エンドレス、まだ記録なし")
     }
 
     @Test("状態ごとの結果を読む")

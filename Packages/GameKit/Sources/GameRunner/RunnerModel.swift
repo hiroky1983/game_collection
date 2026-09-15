@@ -164,10 +164,11 @@ public final class RunnerModel {
     public func isStageReached(_ number: Int) -> Bool {
         number >= 1 && number <= min(reachedStage, RunnerRules.stageCount)
     }
-    /// 走り出す前の画面で、モードや面を選び直せる状態か（#919）。
+    /// スタート画面（#931）で、モードや面を選び直せる状態か。
     ///
-    /// `.ready` でも**チェックポイント再開の直後は除く**——広告を見て手に入れた途中からの
-    /// 再開を、モードの切り替えの誤タップで捨てさせない。純関数版は `canChooseMode(phase:passedCheckpoint:)`。
+    /// 真ならスタート画面に「次の面」「エンドレス」「マップ」の 3 つを出し、偽の `.ready`
+    /// （チェックポイント再開の直後）は「つづきから」の 1 つだけにする——広告を見て手に入れた
+    /// 途中からの再開を、誤タップで捨てさせない。純関数版は `canChooseMode(phase:passedCheckpoint:)`。
     public var canChooseMode: Bool {
         Self.canChooseMode(phase: phase, passedCheckpoint: field.passedCheckpoint)
     }
@@ -201,14 +202,7 @@ public final class RunnerModel {
         isPressed = true
         switch phase {
         case .ready:
-            phase = .running
-            // 走り出した = 捨てたら途中離脱として数える走行（#500）。
-            services?.gameDidProgress(gameID: Self.gameID)
-            // このゲームの中断データはステージ番号とベストタイムの控えで、決着後も消さない
-            // （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
-            // 始まるので、「中断データが在る = 続きから戻れる」の既定を打ち消す（PR #572 の指摘）。
-            services?.gameWillNotResume(gameID: Self.gameID)
-            services?.feedback.impact(.rigid)
+            beginRun()
         case .running:
             // 跳ぶ音（#703）。踏み切りが成立したときだけ鳴らす——二段目も同じく成立すれば鳴り、
             // 三度目（`RunnerRules.maxJumps` 超え）や押しっぱなしでは鳴らない。
@@ -216,6 +210,19 @@ public final class RunnerModel {
         default:
             break
         }
+    }
+
+    /// 走り出す前（`.ready`）から走行中へ。フィールドのタップ（`press`）とスタート画面の
+    /// ボタン（`start(_:)`）の共通の実体。
+    private func beginRun() {
+        phase = .running
+        // 走り出した = 捨てたら途中離脱として数える走行（#500）。
+        services?.gameDidProgress(gameID: Self.gameID)
+        // このゲームの中断データはステージ番号とベストタイムの控えで、決着後も消さない
+        // （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
+        // 始まるので、「中断データが在る = 続きから戻れる」の既定を打ち消す（PR #572 の指摘）。
+        services?.gameWillNotResume(gameID: Self.gameID)
+        services?.feedback.impact(.rigid)
     }
 
     /// ボタンを離した。これ以降このジャンプでは高さが伸びない。
@@ -371,23 +378,34 @@ public final class RunnerModel {
         services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
     }
 
-    /// 走り出す前の画面のモード切り替え（#919）。開始シートを経ずにモードを変える入口。
+    /// スタート画面（#931）のボタンで走り出す。開始シートを経ずにモードを選んで**その場で走り出す**入口。
     ///
-    /// **走り出す前（`canChooseMode`）だけ効き**、走行中・一時停止中・リザルトでは何もしない。
-    /// 同じモードを選び直しても作り直さない（誤タップで種やタイムが変わらない）。
-    /// ステージ制へ戻るときは**「つづき」の面（`stageNumber`）**から——エンドレス中も
-    /// `stageNumber` は保持してあるので、ハブから開いたときと同じ面に戻る。1 面や到達点
-    /// （`reachedStage`）に飛ばないのは、開始シートの「はじめから」と区別するため。
-    /// エンドレスへは新しい種で（`newGame(mode: .endless)` と同じ）。
+    /// **走り出す前（`.ready`）だけ効き**、走行中・一時停止中・リザルトでは何もしない。
+    /// いまのモードと同じなら、作ってあるコースをそのまま走り出す（`press()` と同じ。エンドレスの
+    /// 種はそのまま——「もう一度」で作った新しいコースを二重に作り直さない）。
+    /// モードが違えば作り直してから走り出す:
+    /// - ステージ制へは**「つづき」の面（`stageNumber`）**から。エンドレス中も `stageNumber` は
+    ///   保持してあるので、ハブから開いたときと同じ面に戻る。1 面や到達点（`reachedStage`）に
+    ///   飛ばないのは、開始シートの「はじめから」と区別するため。
+    /// - エンドレスへは新しい種で（`newGame(mode: .endless)` と同じ）。
     ///
-    /// - Returns: 切り替えたか。
+    /// モードの切り替えは `canChooseMode` のときだけ——チェックポイント再開の直後は、広告で得た
+    /// 途中からの再開を捨てさせない（画面側はそのとき「つづきから」しか出さないが、二重に守る）。
+    ///
+    /// - Returns: 走り出したか。
     @discardableResult
-    public func switchMode(to newMode: RunnerMode) -> Bool {
-        guard canChooseMode, newMode != mode else { return false }
-        switch newMode {
-        case .stages:  startStages(at: stageNumber)
-        case .endless: newEndlessGame(seed: Self.randomSeed())
+    public func start(_ newMode: RunnerMode) -> Bool {
+        guard phase == .ready else { return false }
+        if newMode != mode {
+            guard canChooseMode else { return false }
+            switch newMode {
+            case .stages:  startStages(at: stageNumber)
+            case .endless: newEndlessGame(seed: Self.randomSeed())
+            }
         }
+        // ボタンからの開始なので押下の状態は持ち込まない（押しっぱなしのジャンプにしない）。
+        isPressed = false
+        beginRun()
         return true
     }
 
