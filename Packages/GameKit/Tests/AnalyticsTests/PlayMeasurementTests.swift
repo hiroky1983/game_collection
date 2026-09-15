@@ -41,14 +41,23 @@ private final class SpyAnalyticsService: AnalyticsService {
     var quits: [(gameID: String, durationSec: Int)] {
         ends.filter { $0.result == .quit }.map { ($0.gameID, $0.durationSec) }
     }
+    /// リワード広告の提示（#780）。
+    var offers: [(gameID: String, purpose: RewardPurpose, result: RewardOfferResult)] {
+        events.compactMap {
+            if case let .rewardOffer(gameID, purpose, result) = $0 { return (gameID, purpose, result) }
+            return nil
+        }
+    }
 }
 
-/// 視聴完了 / 未完了を指定できる広告。
+/// 視聴完了 / 未完了と、先読み済みかを指定できる広告。
 private struct StubAdService: AdService {
     let earnsReward: Bool
+    var isReady = true
     @MainActor func makeBannerView(width: CGFloat) -> AnyView? { nil }
     @MainActor func showInterstitial() async {}
     @MainActor func showRewardedAd() async -> Bool { earnsReward }
+    @MainActor var isRewardedAdReady: Bool { isReady }
 }
 
 /// 進む時計。**実時間を待たない**（実時間の待ち合わせは並列実行で落ちるため）。
@@ -70,13 +79,14 @@ private func makeAnalytics(clock: TestClock = TestClock()) -> (GameAnalytics, Sp
 @MainActor
 private func makeServices(
     earnsReward: Bool = true,
+    isAdReady: Bool = true,
     snapshots: SnapshotStore = MemorySnapshotStore(),
     clock: TestClock = TestClock()
 ) -> (GameServices, SpyAnalyticsService) {
     let (analytics, spy) = makeAnalytics(clock: clock)
     let services = GameServices(
         snapshots: snapshots,
-        ads: StubAdService(earnsReward: earnsReward),
+        ads: StubAdService(earnsReward: earnsReward, isReady: isAdReady),
         analytics: analytics
     )
     return (services, spy)
@@ -388,6 +398,189 @@ struct OpenAndRequestTrackingTests {
         services.gameDidOpen(gameID: "2048", source: .hub, position: 1, resume: false)
         _ = await services.showRewardedAd(gameID: "2048", purpose: .continue)
         #expect(spy.events.isEmpty)
+    }
+}
+
+// MARK: - リワード広告の提示（#780）
+
+/// 救済の中で立つ `Task` が終わるまで待つ。実時間は待たない（スタブの広告は中断点を持たない）。
+@MainActor
+private func settle() async {
+    for _ in 0..<10 { await Task.yield() }
+}
+
+@Suite("リワード広告の提示の計測（#780）")
+@MainActor
+struct RewardOfferTrackingTests {
+    @Test("提示中に広告ボタンを押すと、広告を出す前に accepted を1回だけ送る")
+    func acceptedIsSentOnceBeforeTheAd() async {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "2048", purpose: .continue)
+        rescue.request(services, gameID: "2048", purpose: .continue, guardedBy: .checkedByGrant) { true }
+        rescue.offerDidClose()   // 報酬を受け取って幕が閉じた
+        await settle()
+
+        #expect(spy.offers.map(\.result) == [.accepted])
+        #expect(spy.offers.first?.gameID == "2048")
+        #expect(spy.offers.first?.purpose == .continue)
+        #expect(spy.events.map(\.name) == ["reward_offer", "reward_request", "reward_ad"],
+                "先読みの有無は広告を出す前に読む")
+    }
+
+    @Test("先読みの広告が無いときに押すと not_ready")
+    func notReadyWhenNoPreloadedAd() async {
+        let (services, spy) = makeServices(isAdReady: false)
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "solitaire", purpose: .revival)
+        rescue.requestHandledByModel(withOutcome: { .granted })
+        await settle()
+
+        #expect(spy.offers.map(\.result) == [.notReady])
+    }
+
+    @Test("押さずに閉じると declined を1回だけ送る（重ねて閉じても増えない）")
+    func declinedWhenClosedWithoutTapping() {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "solitaire", purpose: .undo)
+        rescue.offerDidShow(services, gameID: "solitaire", purpose: .undo)   // 再描画で重ねて呼ばれても1回の提示
+        rescue.offerDidClose()
+        rescue.offerDidClose()
+
+        #expect(spy.offers.map(\.result) == [.declined])
+        #expect(spy.requests.isEmpty)
+    }
+
+    @Test("見なかった後にもう一度押しても、同じ提示を2回目として数えない")
+    func retryWithinTheSameOfferIsNotAnotherOffer() async {
+        let (services, spy) = makeServices(earnsReward: false)
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "2048", purpose: .continue)
+        rescue.request(services, gameID: "2048", purpose: .continue, guardedBy: .checkedByGrant) { true }
+        await settle()
+        rescue.request(services, gameID: "2048", purpose: .continue, guardedBy: .checkedByGrant) { true }
+        await settle()
+        rescue.offerDidClose()   // 結局あきらめて閉じた
+
+        #expect(spy.offers.map(\.result) == [.accepted], "提示は1回")
+        #expect(spy.requests.count == 2, "タップの数は reward_request が持つ")
+    }
+
+    @Test("提示が無い押し方（常設のボタン）は reward_offer を送らない")
+    func noOfferWithoutPresentation() async {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        rescue.request(services, gameID: "sudoku", purpose: .hint, guardedBy: .checkedByGrant) { true }
+        await settle()
+
+        #expect(spy.offers.isEmpty)
+        #expect(spy.requests.count == 1)
+    }
+
+    @Test("閉じたあとにまた出たら、次の1回の提示として数える")
+    func nextPresentationIsCountedAgain() {
+        let (services, spy) = makeServices()
+        let rescue = RewardedRescue()
+        for _ in 0..<3 {
+            rescue.offerDidShow(services, gameID: "sudoku", purpose: .continue)
+            rescue.offerDidClose()
+        }
+        #expect(spy.offers.map(\.result) == [.declined, .declined, .declined])
+    }
+
+    @Test("提示はプレイの数え方に影響せず、ハブに無い gameID・送信オフでは送らない")
+    func offerDoesNotTouchPlayStateAndRespectsGates() {
+        let (services, spy) = makeServices()
+        services.gameDidStart(gameID: "2048")
+        let rescue = RewardedRescue()
+        rescue.offerDidShow(services, gameID: "2048", purpose: .continue)
+        rescue.offerDidClose()
+        services.gameDidFinish(gameID: "2048", outcome: .loss)
+        #expect(spy.starts.count == 1)
+        #expect(spy.ends.map(\.result) == [.loss])
+
+        let unknown = RewardedRescue()
+        unknown.offerDidShow(services, gameID: "device-1234", purpose: .continue)
+        unknown.offerDidClose()
+        #expect(spy.offers.count == 1, "登録されていない gameID は捨てる")
+
+        let gatedSpy = SpyAnalyticsService()
+        let gated = GameServices(
+            snapshots: MemorySnapshotStore(), ads: StubAdService(earnsReward: true),
+            analytics: GameAnalytics(service: GatedAnalyticsService(base: gatedSpy) { false },
+                                     allowedGameIDs: testGameIDs)
+        )
+        let off = RewardedRescue()
+        off.offerDidShow(gated, gameID: "2048", purpose: .continue)
+        off.offerDidClose()
+        #expect(gatedSpy.events.isEmpty)
+    }
+}
+
+/// 提示の計測は各画面の View が「出ているか」を渡さないと出ない。View はテストから動かせないので、
+/// `RewardGuardCallSiteTests` と同じくソースを走査して、救済ごとに提示の結線があることを固定する（#780）。
+@Suite("リワード広告の提示の結線（#780）")
+struct RewardOfferWiringTests {
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
+
+    /// モジュール名 → そのモジュールの全ソースを連結した文字列。
+    private static func modules() throws -> [String: String] {
+        var joined: [String: String] = [:]
+        for path in try FileManager.default.subpathsOfDirectory(atPath: sourcesRoot.path)
+        where path.hasSuffix(".swift") {
+            let module = String(path.prefix(while: { $0 != "/" }))
+            joined[module, default: ""] += try String(contentsOf: sourcesRoot.appendingPathComponent(path), encoding: .utf8)
+        }
+        return joined
+    }
+
+    /// 提示の瞬間が無いので数えない救済（モジュール名.変数名）。常設の「ヒント」ボタンで、
+    /// 押すと確認を挟まずに広告へ進む（`reward_request ÷ game_start` で読む）。
+    private static let unpresentedRescues: Set<String> = ["GameSudoku.hintRescue"]
+
+    @Test("各ゲームの救済は、提示の結線を持つか Core の部品（待った・コンティニューの幕）へ渡している")
+    func everyRescueIsWiredToAnOffer() throws {
+        let modules = try Self.modules()
+        let declaration = try NSRegularExpression(pattern: #"var (\w+) = RewardedRescue\(\)"#)
+        var declared: [String] = []
+        var unwired: [String] = []
+        for (module, text) in modules where module != "Core" {
+            let range = NSRange(text.startIndex..., in: text)
+            for match in declaration.matches(in: text, range: range) {
+                guard let nameRange = Range(match.range(at: 1), in: text) else { continue }
+                let name = String(text[nameRange])
+                let key = "\(module).\(name)"
+                declared.append(key)
+                let wired = text.contains(".rewardOffer(\(name),") || text.contains("rescue: \(name)")
+                if !wired && !Self.unpresentedRescues.contains(key) { unwired.append(key) }
+            }
+        }
+        #expect(declared.count >= 20, "走査のパターンが壊れている可能性（宣言 \(declared.count) 件）")
+        #expect(unwired.isEmpty, "提示を数えていない救済がある: \(unwired.sorted())")
+        // 除外は実在して、かつ本当に結線していないものだけ（直したら除外から外す）。
+        for key in Self.unpresentedRescues {
+            #expect(declared.contains(key), "除外リストの \(key) が見つからない")
+            let parts = key.split(separator: ".")
+            #expect(modules[String(parts[0])]?.contains(".rewardOffer(\(parts[1]),") == false,
+                    "\(key) は結線済みなので除外から外す")
+        }
+    }
+
+    @Test("Core の待ったとコンティニューの幕は、自分で提示を数えている")
+    func coreComponentsTrackTheirOffers() throws {
+        let core = try #require(try Self.modules()["Core"])
+        #expect(core.contains(".rewardOffer(undoRescue, for: .undo, isPresented: showUndoConfirm && model.undoUsed"),
+                "盤ゲームの待った（無料の確認は数えない）")
+        #expect(core.contains(".rewardOffer(continueRescue, for: .continue, isPresented: canContinue"),
+                "コンティニューの幕")
+    }
+
+    @Test("救済の3つの入口は、広告を出す前に提示を受諾として閉じる")
+    func everyEntryResolvesTheOfferFirst() throws {
+        let core = try #require(try Self.modules()["Core"])
+        let entries = core.components(separatedBy: "isWatching = true\n        offerDidAccept()").count - 1
+        #expect(entries == 3, "request・requestHandledByModel 2種のどれかで受諾を閉じていない（\(entries) 件）")
     }
 }
 

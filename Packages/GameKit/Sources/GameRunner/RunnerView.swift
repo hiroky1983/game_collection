@@ -64,6 +64,8 @@ public struct RunnerView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
+        .rewardOffer(resumeRescue, for: .checkpoint, isPresented: model.canResumeFromCheckpoint,
+                     services: services, gameID: RunnerModel.gameID)
         .gameChrome(title: "チャリンコおじさん", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 // 「はじめから」はモードを選ぶ開始シートを経由する（#675。チェスの「新規対局」と

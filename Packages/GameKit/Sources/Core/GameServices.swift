@@ -169,6 +169,18 @@ public struct GameServices {
         return true
     }
 
+    /// リワード広告の提示が終わったときに `RewardedRescue` から呼ぶ（#780）。`reward_offer` を送る。
+    ///
+    /// - Parameter accepted: 広告ボタンを押して終わったか。押したときは**広告を出す前に**呼ぶこと
+    ///   （出したあとだと先読みの広告が使われて、`not_ready` と区別できなくなる）。
+    @MainActor
+    public func rewardOfferDidEnd(gameID: String, purpose: RewardPurpose, accepted: Bool) {
+        let result: RewardOfferResult = accepted
+            ? (ads.isRewardedAdReady ? .accepted : .notReady)
+            : .declined
+        analytics?.recordRewardOffer(gameID: gameID, purpose: purpose, result: result)
+    }
+
     /// ゲームでミスした（穴に落ちた・ぶつかった）ときに各 Model から呼ぶ（#796）。
     ///
     /// 決着ではない（`gameDidFinish` は呼ばない）。解析が原因を覚えておき、そのプレイの

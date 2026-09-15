@@ -80,6 +80,11 @@ public struct SolitaireView: View {
         } message: {
             Text("広告を最後まで視聴すると「戻す」を\(SolitaireUndoBudget.refill)回ぶん補充します。\n盤面はそのままです。")
         }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: model.gameID)
+        // 手持ちのジョーカーがあるうちの幕は、広告ではなく「使う」を出している（#780）。
+        .rewardOffer(jokerRescue, for: .joker, isPresented: model.showsRescuePrompt && !model.hasJoker,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
             notEarned: "「戻す」を補充できませんでした",

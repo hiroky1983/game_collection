@@ -187,16 +187,40 @@ struct AnalyticsEventShapeTests {
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open の5種だけで、パラメータも決まった鍵しか持たない")
+    @Test("reward_offer は game_id / purpose / result の3鍵だけを持つ（#780）")
+    func rewardOfferShape() {
+        let offer = AnalyticsEvent.rewardOffer(gameID: "blackjack", purpose: .revival, result: .notReady)
+        #expect(offer.name == "reward_offer")
+        #expect(offer.parameters == [
+            "game_id": .string("blackjack"),
+            "purpose": .string("revival"),
+            "result": .string("not_ready"),
+        ])
+    }
+
+    @Test("reward_offer の result は accepted / declined / not_ready の3値に閉じている（#780）")
+    func rewardOfferResultIsClosed() {
+        #expect(RewardOfferResult.allCases.map(\.rawValue) == ["accepted", "declined", "not_ready"])
+        let sent = RewardOfferResult.allCases.map { result -> String in
+            guard case let .string(text)? = AnalyticsEvent
+                .rewardOffer(gameID: "2048", purpose: .continue, result: result)
+                .parameters["result"] else { return "" }
+            return text
+        }
+        #expect(sent == ["accepted", "declined", "not_ready"])
+    }
+
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer の6種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
-        // 全量の列挙（#659 で2種追加）。個々の鍵は下と上の各テストで固定する。
+        // 全量の列挙（#659 で2種・#780 で1種追加）。個々の鍵は下と上の各テストで固定する。
         #expect([
             AnalyticsEvent.gameStart(gameID: "2048"),
             .gameEnd(gameID: "2048", result: .win, durationSec: 0),
             .rewardAd(gameID: "2048", purpose: .undo),
             .rewardRequest(gameID: "2048", purpose: .undo),
             .gameOpen(gameID: "2048", source: .hub, position: 1, resume: false),
-        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open"])
+            .rewardOffer(gameID: "2048", purpose: .undo, result: .declined),
+        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open", "reward_offer"])
 
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
         #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")],

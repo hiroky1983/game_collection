@@ -34,7 +34,32 @@ public final class RewardedRescue {
     /// 視聴は完了したが、局面が変わっていて適用できなかった。
     public var showsUnavailable = false
 
+    /// 開いている提示（#780）。`reward_offer` を送るまでの控えで、画面の描画には使わない。
+    @ObservationIgnored private var openOffer: (services: GameServices, gameID: String, purpose: RewardPurpose)?
+
     public init() {}
+
+    /// 広告を見るかどうかを選ばせる画面が出た（#780）。すでに開いていれば何もしない。
+    ///
+    /// 各画面は直接呼ばず `rewardOffer(_:for:isPresented:services:gameID:)` 修飾子を使う。
+    public func offerDidShow(_ services: GameServices, gameID: String, purpose: RewardPurpose) {
+        guard openOffer == nil else { return }
+        openOffer = (services, gameID, purpose)
+    }
+
+    /// 選ばせる画面が閉じた（#780）。広告ボタンを押さずに閉じたときだけ `declined` を送る。
+    public func offerDidClose() {
+        guard let offer = openOffer else { return }
+        openOffer = nil
+        offer.services.rewardOfferDidEnd(gameID: offer.gameID, purpose: offer.purpose, accepted: false)
+    }
+
+    /// 広告ボタンが押された。**広告を出す前に**呼ぶ（先読みの有無を広告が使う前に読むため）。
+    private func offerDidAccept() {
+        guard let offer = openOffer else { return }
+        openOffer = nil
+        offer.services.rewardOfferDidEnd(gameID: offer.gameID, purpose: offer.purpose, accepted: true)
+    }
 
     /// 広告を出し、視聴完了したときだけ `grant` を呼ぶ。
     ///
@@ -55,6 +80,7 @@ public final class RewardedRescue {
         // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ。
         guard !isWatching else { return }
         isWatching = true
+        offerDidAccept()
         // 画面の世代（#653）。`guardedBy` の局ガードは Model の中だけを見るので、**Model ごと
         // 入れ替わる経路**（ロード中にハブへ戻って開き直す）は弾けない。ここで押さえる。
         let generation = services.screenGeneration.current
@@ -103,6 +129,7 @@ public extension RewardedRescue {
     ) {
         guard !isWatching else { return }
         isWatching = true
+        offerDidAccept()
         Task {
             let applied = await perform()
             isWatching = false
@@ -127,6 +154,7 @@ public extension RewardedRescue {
     ) {
         guard !isWatching else { return }
         isWatching = true
+        offerDidAccept()
         Task {
             let outcome = await perform()
             isWatching = false
@@ -269,6 +297,9 @@ public struct RewardedContinueOverlay<Detail: View>: View {
             }
             .padding(contentPadding)
         }
+        // 幕が出ている間が提示。使い切った局（`canContinue` が false）の幕は広告を選ばせていない（#780）。
+        .rewardOffer(continueRescue, for: .continue, isPresented: canContinue,
+                     services: services, gameID: gameID)
     }
 }
 
@@ -287,6 +318,26 @@ public struct RewardUnavailableAlert {
 }
 
 public extension View {
+    /// リワード広告の**提示**を `reward_offer` として数える（#780）。
+    ///
+    /// `isPresented` が true の間を 1 回の提示とし、そのあいだに救済の広告ボタンが押されたら
+    /// `accepted` / `not_ready`、押されずに false へ戻った・画面を離れたら `declined` を 1 回送る。
+    /// 押したかどうかは `RewardedRescue` の要求が知っているので、呼び出し側は出ているかどうかだけを渡す。
+    ///
+    /// - Parameter isPresented: 広告を見るかどうかを選ばせる画面が出ているか。無料で済む確認
+    ///   （無料の待った等）は含めない。
+    func rewardOffer(
+        _ rescue: RewardedRescue,
+        for purpose: RewardPurpose,
+        isPresented: Bool,
+        services: GameServices,
+        gameID: String
+    ) -> some View {
+        modifier(RewardOfferTracking(
+            rescue: rescue, purpose: purpose, isPresented: isPresented, services: services, gameID: gameID
+        ))
+    }
+
     /// リワード広告の失敗を伝えるアラートを取り付ける（#526）。
     ///
     /// - Parameters:
@@ -299,6 +350,34 @@ public extension View {
         unavailable: RewardUnavailableAlert? = nil
     ) -> some View {
         modifier(RewardedRescueAlerts(rescue: rescue, notEarned: notEarned, unavailable: unavailable))
+    }
+}
+
+private struct RewardOfferTracking: ViewModifier {
+    let rescue: RewardedRescue
+    let purpose: RewardPurpose
+    let isPresented: Bool
+    let services: GameServices
+    let gameID: String
+    /// 最初の表示だけを数える。広告の全画面表示などで消えて戻ってきたときに、
+    /// 同じ提示を 2 回目として開き直さないため。
+    @State private var hasAppeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                guard !hasAppeared else { return }
+                hasAppeared = true
+                if isPresented { rescue.offerDidShow(services, gameID: gameID, purpose: purpose) }
+            }
+            .onChange(of: isPresented) { _, presented in
+                if presented {
+                    rescue.offerDidShow(services, gameID: gameID, purpose: purpose)
+                } else {
+                    rescue.offerDidClose()
+                }
+            }
+            .onDisappear { rescue.offerDidClose() }
     }
 }
 

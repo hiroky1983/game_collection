@@ -72,6 +72,8 @@ public struct MinesweeperView: View {
         .overlay {
             if showContinue { continueOverlay }
         }
+        .rewardOffer(continueRescue, for: .continue, isPresented: showContinue,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             continueRescue,
             notEarned: "コンティニューできませんでした",

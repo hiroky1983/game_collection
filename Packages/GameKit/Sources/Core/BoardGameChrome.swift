@@ -293,6 +293,9 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
                      ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
                      : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
+            // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
+            .rewardOffer(undoRescue, for: .undo, isPresented: showUndoConfirm && model.undoUsed,
+                         services: services, gameID: model.gameID)
             .rewardedRescueAlerts(
                 undoRescue,
                 notEarned: "待ったは使えませんでした",

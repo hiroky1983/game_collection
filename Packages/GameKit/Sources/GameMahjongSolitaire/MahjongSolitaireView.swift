@@ -139,6 +139,11 @@ public struct MahjongSolitaireView: View {
         // ヒントもリワード広告制（#336）。確認ダイアログは `HintAlerts` にまとめてある
         // （ここへ直接ぶら下げると body の型チェックが破綻してコンパイルが通らない）。
         .modifier(HintAlerts(showConfirm: $showHintConfirm, onWatchAd: requestHint))
+        // 並べ替えは確認アラートと手詰まりの覆い（確認を経ずに広告へ進む）の 2 か所で選ばせている（#780）。
+        .rewardOffer(shuffleRescue, for: .shuffle, isPresented: showShuffleConfirm || model.isDeadlocked,
+                     services: services, gameID: model.gameID)
+        .rewardOffer(hintRescue, for: .hint, isPresented: showHintConfirm,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             hintRescue,
             notEarned: "ヒントを表示できませんでした",

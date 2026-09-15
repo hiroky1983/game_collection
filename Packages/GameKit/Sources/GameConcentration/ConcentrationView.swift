@@ -98,6 +98,9 @@ public struct ConcentrationView: View {
                  ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
                  : "ミスマッチを取り消してもう一度選べます。\n無料で使えるのは1回だけです。")
         }
+        // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
+        .rewardOffer(undoRescue, for: .undo, isPresented: showMattaConfirm && model.mattaUsed,
+                     services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
             undoRescue,
             notEarned: "待ったは使えませんでした",
