@@ -309,15 +309,19 @@ import re, pathlib
 body = pathlib.Path("docs/aso/metadata-v1.1.5.md").read_text()
 blocks = re.findall(r"```text\n(.*?)```", body, re.S)
 ng = ["リバーシ", "Reversi", "数独", "Sudoku", "上海", "Breakout", "ブレイクアウト",
-      "アルカノイド", "Arkanoid", "テトリス", "Tetris", "チャリ走"]
+      "アルカノイド", "Arkanoid", "テトリス", "Tetris", "1010!", "Blockudoku",
+      "Block Blast", "チャリ走", "Temple Run", "チャリヒーロー", "チャリの達人"]
 for i, b in enumerate(blocks):
     hit = [w for w in ng if w in b]
+    if re.search(r"チャリンコ(?!おじさん)", b):  # 「チャリンコおじさん」の一語以外での単独使用
+        hit.append("チャリンコ(単独)")
     print(i, len(b.rstrip("\n")), "字", "抵触:", hit or "なし")
 PY
 ```
 
 **2026-09-16 実行: 全ブロックで「抵触: なし」**。`チャリンコ` は**単独では使わず**
-「チャリンコおじさん」の一語としてのみ現れる（#494 の条件）ことも目視で確認した。
+「チャリンコおじさん」の一語としてのみ現れる（#494 の条件）ことも、上の正規表現で機械的に確認した
+（`ng` は正典の全18語。単独の `チャリンコ` を含むブロックを与えると抵触として出ることも確かめてある）。
 
 ## 8. 入稿手順（会長・App Store Connect / v1.1.3 パックからの差分のみ）
 
