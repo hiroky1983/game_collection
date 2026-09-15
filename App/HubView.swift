@@ -77,7 +77,7 @@ struct HubView: View {
     /// 同じタイミングで揃う（新しい監視の仕組みは足さない）。
     private var recentCandidates: [RecentGames.Candidate] {
         let visible = settings.visibleModules(from: registry).map(\.id)
-        let resuming = visible.filter { services.snapshots.exists(for: $0) }
+        let resuming = visible.filter { isResumable($0) }
         return RecentGames.candidates(
             visibleGameIDs: visible,
             resumingGameIDs: Set(resuming),
@@ -86,6 +86,13 @@ struct HubView: View {
             },
             lastPlayedAt: services.playLog?.lastPlayedAtByGame ?? [:]
         )
+    }
+
+    /// 「続きから」で戻れる途中の局があるか（#809）。行・グリッドのバッジ・`game_open` の `resume` は
+    /// すべてここを通す。中断データの有無だけで決めると、局を復元しないチャリンコおじさんと、
+    /// 終局後も見返しを残す将棋・チェスが「つづきから」として先頭を占め続ける。
+    private func isResumable(_ gameID: String) -> Bool {
+        registry.hasResumableSnapshot(gameID: gameID, in: services.snapshots)
     }
 
     /// 更新で増えたゲームのうち、まだ開いていないもの（#723）。起動して最初にハブを組み立てた時点で決まり、
@@ -129,7 +136,10 @@ struct HubView: View {
         // 起動引数で直接開く経路（撮影・動作確認）。`onChange(of: path)` は初期値では走らないので
         // `game_open` は送られない（ユーザーの導線ではないため、それで正しい）。
         _path = State(initialValue: initialGameID.map {
-            [HubRoute(gameID: $0, source: .hub, position: nil, resume: services.snapshots.exists(for: $0))]
+            [HubRoute(
+                gameID: $0, source: .hub, position: nil,
+                resume: registry.hasResumableSnapshot(gameID: $0, in: services.snapshots)
+            )]
         } ?? [])
         _showSettings = State(initialValue: showsSettingsInitially)
         _showRecords = State(initialValue: showsRecordsInitially)
@@ -170,7 +180,7 @@ struct HubView: View {
                 ), let module = registry.module(id: pick) {
                     NavigationLink(value: HubRoute(
                         gameID: pick, source: .firstPick, position: nil,
-                        resume: services.snapshots.exists(for: pick)
+                        resume: isResumable(pick)
                     )) {
                         HubFirstPickCard(
                             module: module,
@@ -184,7 +194,7 @@ struct HubView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
-                            let hasResume = services.snapshots.exists(for: module.id)
+                            let hasResume = isResumable(module.id)
                             // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
                             NavigationLink(value: HubRoute(
                                 gameID: module.id, source: .hub, position: index + 1, resume: hasResume
@@ -309,7 +319,7 @@ struct HubView: View {
                 services.recommendations?.requestedGameID = nil
                 openFromOutside(HubRoute(
                     gameID: id, source: .recommendation, position: nil,
-                    resume: services.snapshots.exists(for: id)
+                    resume: isResumable(id)
                 ))
             }
             // 中断したゲームのお知らせ（#663）がタップされたら、そのゲームを直接開く。
@@ -323,7 +333,7 @@ struct HubView: View {
                 showRecords = false
                 openFromOutside(HubRoute(
                     gameID: id, source: .notification, position: nil,
-                    resume: services.snapshots.exists(for: id)
+                    resume: isResumable(id)
                 ))
             }
             .task {

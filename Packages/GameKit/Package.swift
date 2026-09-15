@@ -94,7 +94,12 @@ let package = Package(
         .testTarget(name: "LayoutTests",      dependencies: ["Core", "GameKitTestSupport"]),
         // ハブ最上部の「つづき・最近」行（#660）。行は App ターゲットにあるが、並び順と
         // 打ち切りの規則は Core の純粋関数なので、シミュレータ無しでここで固定できる。
-        .testTarget(name: "RecentGamesTests", dependencies: ["Core", "GameKitTestSupport"]),
+        // 「続きから」の判定（#809）は、対象外の宣言を持つチャリンコおじさんと、終局後も見返しを
+        // 残す将棋・チェスを Model で決着させて確かめる。
+        .testTarget(name: "RecentGamesTests", dependencies: [
+            "Core", "Game2048", "GameRunner", "GameShogi", "GameChess",
+            "GameKitTestSupport", "CoreTestSupport",
+        ]),
         // 中断したゲームのお知らせ（#663）。対象外の宣言を持つチャリンコおじさんと、既定のまま使う
         // 2048 を並べて、宣言が規則に届いていることまで確かめる。終局後も見返しを保存する将棋・
         // チェスは、決着済みの局に予約しないことを Model を通して確かめる。
