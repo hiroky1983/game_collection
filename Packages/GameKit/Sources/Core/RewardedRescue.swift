@@ -260,9 +260,12 @@ public struct RewardedContinueOverlay<Detail: View>: View {
                     .tint(Theme.Fill.coral)
                     .disabled(continueRescue.isWatching)
                 }
+                // 視聴中に「もう一度」「諦めて答えを見る」を押すと局が入れ替わり、見終えた広告が
+                // `grant` の局照合で弾かれて見損になる（#911。マインスイーパーの #816 と同型）。
                 Button(secondaryTitle) { secondaryAction() }
                     .buttonStyle(.bordered)
                     .tint(.white)
+                    .disabled(continueRescue.isWatching)
             }
             .padding(contentPadding)
         }
