@@ -69,6 +69,9 @@ v1.1.6 以降は `CoreEngine/…swift` と読み替えること。
 - `showRewardedAd() async -> Bool` — リワード広告（視聴完了で true）。`GameServices` 経由で
   呼ぶと `game_id` / `purpose` 付きで `reward_ad` イベントも送られる（v1.1.5 からは要求時に
   `reward_request` も。後述の解析仕様）
+- `isRewardedAdReady: Bool` — いまタップされたら読み込みを待たずに出せるか（先読み済みか・#658）。
+  `reward_offer` の `accepted` / `not_ready` の判定にだけ使う（`release/v1.1.7` から・#780）。
+  先読みを持たない実装は既定で true
 
 **`SnapshotStore`**: ゲーム状態の永続化
 - `save(_:for:)` / `load(_:for:)` / `exists(for:)` / `clear(for:)`
@@ -309,10 +312,11 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 ---
 
-## 解析仕様（Analytics・#158 / #500 / #659）
+## 解析仕様（Analytics・#158 / #500 / #659 / #780）
 
-`Core/Analytics.swift` に**送信するイベントを5種だけに閉じた** `AnalyticsEvent` enum がある
-（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に追加。v1.1.4 までの公開版は3種）。
+`CoreEngine/Analytics.swift` に**送信するイベントを6種だけに閉じた** `AnalyticsEvent` enum がある
+（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`reward_offer` は #780 で `release/v1.1.7` に追加。
+v1.1.4 までの公開版は3種）。
 呼び出し側（各ゲーム）は任意のキー・値を足せず、イベントを増やすには enum にケースを足す必要がある
 （＝意図しないイベント発生や、ドキュメントと実装が知らないうちに乖離することを型で防ぐ設計）。
 
@@ -323,6 +327,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
+| `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の7値） / `result`(accepted\|declined\|not_ready) |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで
@@ -361,6 +366,19 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   `notification` は #663 のローカル通知のタップで開いたとき（`release/v1.1.5` から。上の「中断したゲームのお知らせ」を参照）
   `first_pick` はハブ最上部の「はじめの1本」（#721。記録ゼロの初回だけ出る1枚）から開いたとき（`release/v1.1.5` から）
 - `source` / `position` / `resume` は GA4 のカスタムディメンション登録が要る（会長操作依頼 #694）
+- `reward_offer`（`RewardOfferResult`・#780・`release/v1.1.7` から）の**提示**は、広告を見るかどうかを選ばせる画面
+  （確認アラート・コンティニューの幕・リザルトの復活ボタン）が出たこと。無料で済む確認（無料の待った）は含めない。
+  各画面は `rewardOffer(_:for:isPresented:services:gameID:)` 修飾子で「出ているか」だけを渡し、押したかどうかは
+  `RewardedRescue` の要求が知っている。`result` は、広告ボタンを押して先読み済みの広告があれば `accepted`、
+  無ければ `not_ready`（その場で読み込む。#658 の先読みで減る値）、押さずに閉じた・画面を離れたら `declined`。
+  見なかった後に同じ画面でもう一度押しても提示は 1 回のまま（タップの数は `reward_request` が持つ）
+  - **提示の瞬間が無い面は数えない**: ナンプレのヒント（常設のボタンで、確認を挟まずに広告へ進む）。
+    この面は `reward_request ÷ game_start` で読む。対象の一覧は `AnalyticsTests` の `RewardOfferWiringTests` が固定する
+  - 読み方（週次会議）: **受諾率** = (`accepted` + `not_ready`) ÷ `reward_offer`、**先読み不足率** = `not_ready` ÷
+    (`accepted` + `not_ready`)、**提示率** = `reward_offer` ÷ 該当場面の発生（コンティニュー・復活は `game_end` の `loss`、
+    待った・戻す・並べ替えは `game_start`）。いずれも `purpose` × `game_id` で分けて読む。`reward_ad ÷ reward_request` の完了率と合わせると、
+    提示 → 受諾 → 視聴完了の漏斗になる
+  - `result` は `game_end` と同じパラメータ名で、値の集合が別（イベント名で分けて読む）。GA4 の登録は #1002（会長操作）
 
 ---
 
