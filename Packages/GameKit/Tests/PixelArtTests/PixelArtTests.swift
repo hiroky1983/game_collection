@@ -61,6 +61,20 @@ struct PixelArtTests {
         #expect(OjisanPixel.mascotFaceImage?.width == 96)
     }
 
+    /// リザルト用の顔（#702）は 3 表情ぶんを起動後 1 回だけビットマップ化する。
+    @Test("リザルト用の正面顔は 3 表情が 1 ドット = 4px で 1 回だけ作られ、比率 16:15 を保つ")
+    func faceImagesAreCachedOnce() throws {
+        #expect(OjisanPixel.faceDotSize.width == 16 && OjisanPixel.faceDotSize.height == 15)
+        #expect(OjisanPixel.faceImages.count == OjisanPixel.Face.allCases.count)
+        for face in OjisanPixel.Face.allCases {
+            let img = try #require(OjisanPixel.faceImages[face], "\(face)")
+            #expect(img.width == 64 && img.height == 60, "\(face): \(img.width)×\(img.height)")
+            // `static let` なので 2 度引いても同じビットマップ（作り直していない）。
+            #expect(OjisanPixel.faceImages[face] === img, "\(face)")
+        }
+        #expect(OjisanPixel.faceImages[.smile] !== OjisanPixel.faceImages[.frown], "表情ごとに別のビットマップ")
+    }
+
     /// レビュー用: OJISAN_PIXEL_OUT にディレクトリを渡すと、全コマを 5 倍で並べた PNG を書き出す。
     @Test("レビュー用のシートを書き出す（環境変数があるときだけ）")
     func writeReviewSheet() throws {
