@@ -5,7 +5,7 @@ import SpriteKit
 extension RunnerScene {
     // MARK: - 反映
 
-    private func sync() {
+    func sync() {
         if renderedGeneration != model.runGeneration { rebuildCourse() }
         let field = model.field
         // 雲はコースより遅く流す（視差）。`cloudLayer` 自体は動かさず、
