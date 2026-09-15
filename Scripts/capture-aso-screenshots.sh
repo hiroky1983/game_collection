@@ -69,8 +69,9 @@ SHOTS=(
   #
   # ⚠️ **`bird` `dog` `boar` `platform` `floor` `invincible` は入稿に使えない**。これらは
   # QA 用のショーケース（`RunnerStage.debugShowcase`）を走らせる指定で、画面の見出しが
-  # **「ショーケース」**になる（製品に無い面の名前が商品ページに写る）。本番の面で撮れる
-  # 指定は `running`（1-1）・`bird:N`（N 面の鳥）・`endless-running`・`cleared` だけ。
+  # **「ショーケース」**になる（製品に無い面の名前が商品ページに写る）。ショーケースを通らない
+  # のは `running` `pedaling` `paused` `failed` `cleared` `bird:N` `stage:N` `map:N`
+  # `endless` `endless-running` `endless-failed` の方（`RunnerModel.applyDebugScenario`）。
   "05-runner|runner|-startGame runner -simulateRunner bird:5"
   "06-2048|2048|-startGame 2048"
   # 07〜10 はハブの1枚目に名前が写らない本（スクロールしないと出てこない）。
