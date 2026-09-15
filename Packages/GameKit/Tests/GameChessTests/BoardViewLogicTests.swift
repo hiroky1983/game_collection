@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import GameChess
+import CoreTestSupport
 
 private func sq(_ name: String) -> Int { ChessSquare.fromName(Substring(name))! }
 
@@ -85,7 +86,7 @@ struct ChessLastMoveTests {
         #expect(model.capturedPieces(of: .black).isEmpty)
 
         // 黒がクイーンとポーンを失った局面を作る。
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(ChessSnapshot(
             initialFen: "rnb1kbnr/1ppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
             moves: [], phase: .playing, reviewPly: nil,

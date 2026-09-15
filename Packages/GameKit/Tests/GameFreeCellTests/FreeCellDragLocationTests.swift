@@ -32,7 +32,7 @@ struct FreeCellDragLocationTests {
 
     @Test("盤本体は指の位置を書くだけで読まない")
     func theBoardWritesTheFingerPositionButNeverReadsIt() throws {
-        // 追従表示（`CardDragLayer`）は Core にあるので、このファイルは丸ごと「盤本体」になる。
+        // 追従表示（`CardDragLayer`）は Core にあるので、このモジュールは丸ごと「盤本体」になる。
         // コメントは落とす。**この規約そのものを説明した注記まで「読んでいる」と数える**ため。
         let board = SourceScan.strippingComments(try Self.viewSource())
 
@@ -48,6 +48,6 @@ struct FreeCellDragLocationTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        try SourceScan.packageSource("Sources/GameFreeCell/FreeCellView.swift")
+        try SourceScan.moduleSources("GameFreeCell")
     }
 }

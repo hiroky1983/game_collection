@@ -14,7 +14,8 @@ struct MahjongTableScene {
     /// 手番順（0=自分, 1=下家(右), 2=対面, 3=上家(左)）。`MahjongTableLayout` の seat と同じ。
     var discards: [[MahjongTile]]
     var melds: [[MahjongCall]]
-    /// CPU の手牌の枚数（ツモ牌を含む）。自分（0）は使わない。
+    /// 各家の手牌の枚数（ツモ牌を含む）。CPU は立て牌の本数、自分（0）は副露の置き場（手牌一覧の右隣。#960）
+    /// を決めるのに使う。
     var handCounts: [Int]
     var riichi: [Bool]
     var scores: [Int]
@@ -35,7 +36,8 @@ struct MahjongTableScene {
     static let windNames = ["東", "南", "西", "北"]
 }
 
-/// 斜め上から見た雀卓。木枠・フェルト・CPU の立て牌・4 家の河と副露・立直棒・中央パネル・ドラ。
+/// 真上から見た縦長の雀卓（#927。以前は斜め上から見た台形）。木枠・フェルト・CPU の立て牌・4 家の河と副露・
+/// 立直棒・中央パネル・ドラ。
 /// 自分の手牌一覧（タップ対象）は `MahjongView` がこの上に重ねる。
 struct MahjongTableView: View {
     let scene: MahjongTableScene
@@ -93,19 +95,18 @@ struct MahjongTableView: View {
         .accessibilityLabel(seatAccessibilityLabel(seat))
     }
 
-    /// 副露は各家の右手前の角に寄せる。`MahjongMeldRow` は横一列なので、角を基準に
-    /// 「角から伸びる」向きへ揃えてから各家の角度に回す。
+    /// 副露。上家・下家は壁の列に沿って 1 枚ずつ、自分・対面は手牌の行の横に 1 行（#960）。
     @ViewBuilder
     private func meldRow(_ seat: Int) -> some View {
         if seat == 1 || seat == 3 {
             sideMelds(seat)
         } else {
-            stackedMelds(seat)
+            inlineMelds(seat)
         }
     }
 
-    /// 上家・下家の副露。壁の列に沿って 1 枚ずつ置く（列は台形の縁に沿って少し斜めになるので、
-    /// `MahjongMeldRow` の直線の並びでは縁からはみ出す）。置き場は `MahjongTableLayout.sideMeldSlot`。
+    /// 上家・下家の副露。壁の列に沿って 1 枚ずつ置く（置き場は `MahjongTableLayout.sideMeldSlot`。
+    /// 台形だった頃は列が斜めになるので 1 枚ずつ置いた。長方形でも組の間隔をそこで持てるので変えていない）。
     private func sideMelds(_ seat: Int) -> some View {
         let tiles: [(group: Int, tile: MahjongTile)] = scene.melds[seat].enumerated()
             .flatMap { gi, meld in meld.tiles.map { (group: gi, tile: $0) } }
@@ -118,24 +119,19 @@ struct MahjongTableView: View {
         }
     }
 
-    /// 対面・自分の副露。1 組ずつ行を分けて積む（4 枚＝カンで 1 行）。
-    private func stackedMelds(_ seat: Int) -> some View {
-        let slot = layout.meldSlot(seat: seat)
-        let w = layout.meldTileWidth(seat: seat) * slot.scale
-        let frameWidth = layout.size.width * 0.42
-        let row = MahjongMeldRow(melds: scene.melds[seat], tileWidth: w, showsBadge: false, maxTilesPerRow: 4)
-        let rowHeight = w * 1.34 + 1
-        // 4 行ぶん（4 組）の枠を取り、bottomTrailing に寄せて回す。対面は 180 度回転で bottomTrailing が
-        // 左上へ来て行は下へ、自分は右下から上へ積まれる。`slot.center` が 1 組目の行の縦の中央
-        // （`stackHeight` は打ち消し合う）。`MahjongTableLayout.meldRegion` はこの置き方を前提に矩形を出す。
-        let stackHeight = rowHeight * 4
-        let center = seat == 2
-            ? CGPoint(x: slot.center.x + frameWidth / 2, y: slot.center.y + stackHeight / 2 - rowHeight / 2)
-            : CGPoint(x: slot.center.x - frameWidth / 2, y: slot.center.y - stackHeight / 2 + rowHeight / 2)
-        return row
-            .frame(width: frameWidth, height: stackHeight, alignment: .bottomTrailing)
-            .rotationEffect(.degrees(slot.rotation))
-            .position(center)
+    /// 自分・対面の副露。手牌の行の横（自分は右、対面は画面の左）に 1 行で並べる（#960。置き場と牌の幅は
+    /// `MahjongTableLayout.inlineMelds`。行に収まらないときは牌が縮む）。`MahjongMeldRow` の 1 行を
+    /// 行の矩形ちょうどの枠に入れて各家の向きに回す（対面は 180 度で、0 組目が壁側＝右に来る）。
+    /// 自分の副露は手牌一覧（`MahjongView.handOverviewOnTable`）の隣なので、当たり判定を持たせない。
+    private func inlineMelds(_ seat: Int) -> some View {
+        let melds = scene.melds[seat]
+        let row = layout.inlineMelds(seat: seat, handCount: scene.handCounts[seat], meldSizes: melds.map { $0.tiles.count })
+        return MahjongMeldRow(melds: melds, tileWidth: row.tileWidth, showsBadge: false,
+                              groupSpacing: MahjongTableLayout.meldGroupSpacing)
+            .frame(width: row.frame.width, height: row.frame.height)
+            .rotationEffect(.degrees(row.rotation))
+            .position(x: row.frame.midX, y: row.frame.midY)
+            .allowsHitTesting(false)
     }
 
     private func riichiStick(scale: CGFloat) -> some View {
@@ -159,7 +155,7 @@ struct MahjongTableView: View {
 
 // MARK: - 卓の面
 
-/// 木枠とフェルト。台形の卓を `Canvas` 1 枚に描く（照明の照りと縁の落ち影を含む）。
+/// 木枠とフェルト。長方形の卓（#927。以前は台形）を `Canvas` 1 枚に描く（照明の照りと縁の落ち影を含む）。
 struct MahjongTableSurface: View {
     let layout: MahjongTableLayout
 
@@ -176,10 +172,10 @@ struct MahjongTableSurface: View {
                 let f = layout.felt
                 p.move(to: f[0]); p.addLine(to: f[1]); p.addLine(to: f[2]); p.addLine(to: f[3]); p.closeSubpath()
             }
-            let center = layout.project(u: 0.5, v: 0.55).point
+            let center = layout.project(u: 0.5, v: 0.5).point
             ctx.fill(felt, with: .radialGradient(
                 Gradient(colors: [Color(hex: 0x2E7A50), Color(hex: 0x2E7A50), Color(hex: 0x14432C)]),
-                center: center, startRadius: layout.size.width * 0.1, endRadius: layout.size.width * 0.82))
+                center: center, startRadius: layout.size.width * 0.1, endRadius: layout.size.height * 0.78))
             // 木枠の内側の落ち影（フェルトに切り抜いたぼかし線）
             var shadow = ctx
             shadow.clip(to: felt)
@@ -195,32 +191,38 @@ struct MahjongTableSurface: View {
 
 /// 黒い盤に、局・本場・供託・残り枚数と、4 家の風・点数・立直を各家の向きで LED 風に出す。
 /// フォント資産は足さず、等幅数字と発光のグローで作る。
+///
+/// 盤は縦長の長方形（`MahjongTableLayout.centerPanel`。#927 で 70×70 → 90×108/393）。文字の大きさは
+/// **幅**から取る（iPhone 17 の卓幅 361pt で盤の幅 82.7pt。局・風・点数が 11pt 以上になる比にしてある。
+/// 会長 QA「真ん中のセクションが見えん」）。本場・供託だけは左右の家の行に挟まれた幅に収めるため 8pt 台。
 struct MahjongCenterPanel: View {
     let scene: MahjongTableScene
 
     var body: some View {
         GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
+            let w = geo.size.width, h = geo.size.height
             ZStack {
-                RoundedRectangle(cornerRadius: side * 0.08, style: .continuous)
+                RoundedRectangle(cornerRadius: w * 0.08, style: .continuous)
                     .fill(LinearGradient(colors: [Color(hex: 0x1A1A1E), Color(hex: 0x050506)], startPoint: .top, endPoint: .bottom))
-                    .overlay(RoundedRectangle(cornerRadius: side * 0.08, style: .continuous)
-                        .strokeBorder(Color(hex: 0x3A3A40), lineWidth: max(1, side * 0.02)))
-                    .shadow(color: .black.opacity(0.6), radius: side * 0.07, y: side * 0.045)
-                VStack(spacing: side * 0.015) {
-                    led("東\(scene.roundNumber)局", size: side * 0.12, design: .rounded)
-                    led("\(scene.remainingTiles)", size: side * 0.28)
-                    led("本場 \(scene.honba)  供託 \(scene.riichiSticks)", size: side * 0.075, design: .rounded)
+                    .overlay(RoundedRectangle(cornerRadius: w * 0.08, style: .continuous)
+                        .strokeBorder(Color(hex: 0x3A3A40), lineWidth: max(1, w * 0.02)))
+                    .shadow(color: .black.opacity(0.6), radius: w * 0.07, y: w * 0.045)
+                VStack(spacing: w * 0.02) {
+                    led("東\(scene.roundNumber)局", size: w * 0.14, design: .rounded)
+                    led("\(scene.remainingTiles)", size: w * 0.24)
+                    led("本場\(scene.honba) 供託\(scene.riichiSticks)", size: w * 0.095, design: .rounded)
+                        // 左右の家の行（盤の縁から w × 0.40 に置く）の内側に収める
+                        .frame(maxWidth: w * 0.58)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(MahjongAccessibility.roundLabel(
                     roundNumber: scene.roundNumber, honba: scene.honba, remainingTiles: scene.remainingTiles))
-                seat(2, angle: 180, offset: CGSize(width: 0, height: -side * 0.40), side: side)
-                seat(1, angle: -90, offset: CGSize(width: side * 0.40, height: 0), side: side)
-                seat(3, angle: 90, offset: CGSize(width: -side * 0.40, height: 0), side: side)
-                seat(0, angle: 0, offset: CGSize(width: 0, height: side * 0.40), side: side)
+                seat(2, angle: 180, offset: CGSize(width: 0, height: -h * 0.40), unit: w)
+                seat(1, angle: -90, offset: CGSize(width: w * 0.40, height: 0), unit: w)
+                seat(3, angle: 90, offset: CGSize(width: -w * 0.40, height: 0), unit: w)
+                seat(0, angle: 0, offset: CGSize(width: 0, height: h * 0.40), unit: w)
             }
-            .frame(width: side, height: side)
+            .frame(width: w, height: h)
         }
         .accessibilityElement(children: .contain)
     }
@@ -237,19 +239,20 @@ struct MahjongCenterPanel: View {
             .lineLimit(1).minimumScaleFactor(0.6)
     }
 
-    private func seat(_ index: Int, angle: Double, offset: CGSize, side: CGFloat) -> some View {
+    /// 1 家の行（風・点数・立直）。`unit` は盤の幅（文字の大きさの基準）。
+    private func seat(_ index: Int, angle: Double, offset: CGSize, unit: CGFloat) -> some View {
         let isCurrent = scene.currentPlayer == index
         let wind = MahjongTableScene.windNames[scene.seatWinds[index]]
         let name = index == 0 ? "あなた" : scene.names[index]
-        return HStack(spacing: side * 0.04) {
+        return HStack(spacing: unit * 0.04) {
             Text(wind)
-                .font(.system(size: side * 0.09, weight: .black, design: .rounded))
+                .font(.system(size: unit * 0.14, weight: .black, design: .rounded))
                 .foregroundStyle(isCurrent ? Color(hex: 0xFFD54A) : Color(hex: 0xB8B8C0))
-                .shadow(color: isCurrent ? Color(hex: 0xFFD54A).opacity(0.8) : .clear, radius: side * 0.04)
-            led("\(scene.scores[index])", size: side * 0.085)
+                .shadow(color: isCurrent ? Color(hex: 0xFFD54A).opacity(0.8) : .clear, radius: unit * 0.04)
+            led("\(scene.scores[index])", size: unit * 0.135)
             if scene.riichi[index] {
                 Text("立直")
-                    .font(.system(size: side * 0.06, weight: .black, design: .rounded))
+                    .font(.system(size: unit * 0.09, weight: .black, design: .rounded))
                     .foregroundStyle(Color(hex: 0xFF6A5C))
             }
         }

@@ -279,7 +279,7 @@ public extension HowToPlayGuide {
         title: "チャリンコおじさんの遊び方",
         lines: [
             "画面をタップするとおじさんが走り出します。あとは自動で右へ進みます。",
-            "タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ってタイムが縮みます。",
+            "タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗って先へ進めます。",
             "ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。",
         ],
         hint: "タップでジャンプ",
@@ -386,6 +386,49 @@ public struct HowToPlaySheet<Extra: View>: View {
         }
         // 3 行だけのときは半分の高さで開き、盤を隠しすぎない。詳細を持つゲームは最初から全画面。
         .presentationDetents(hasExtra ? [.large] : [.medium, .large])
+    }
+}
+
+// MARK: - くわしいルール
+
+/// `HowToPlaySheet` の `extra` から開く「くわしいルール」ページ。見出しと本文の組をカードで縦に並べる（#829）。
+///
+/// ソリティア・フリーセル・スパイダー・大富豪・麻雀ソリティア・麻雀が同じ body を写しで持っていたので、
+/// 組み方はここに 1 つだけ置く。**文言は各ゲームの `rules` に残す**（テストが文言そのものを検証するため）。
+public struct RuleListSheet: View {
+    private let title: LocalizedStringKey
+    private let rules: [(String, String)]
+
+    public init(title: LocalizedStringKey, rules: [(String, String)]) {
+        self.title = title
+        self.rules = rules
+    }
+
+    public var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                ForEach(rules, id: \.0) { rule in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(rule.0)
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .foregroundStyle(Theme.coral)
+                        Text(rule.1)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
+                }
+            }
+            .padding(Theme.pad)
+        }
+        .popBackground()
+        .navigationTitle(title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 

@@ -3,6 +3,7 @@ import Foundation
 import SpriteKit
 import Testing
 @testable import GameBlocks
+import CoreTestSupport
 
 /// 描画ループ（`BlocksScene.update`）の計時だけを見るテスト（#522）。
 ///
@@ -63,17 +64,4 @@ struct SceneTests {
         scene.update(110 + 1.0 / 60)
         #expect(abs(model.field.ball.y - (beforePause + 60.0 / 60)) < 0.001)
     }
-}
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }

@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 import Core
 import GameKitTestSupport
+import CoreTestSupport
 
 // MARK: - Mocks
 
@@ -40,20 +41,6 @@ private final class SpyAnalyticsService: AnalyticsService {
     var quits: [(gameID: String, durationSec: Int)] {
         ends.filter { $0.result == .quit }.map { ($0.gameID, $0.durationSec) }
     }
-}
-
-/// 中断データの有無だけを持つ最小の保存先。`exists` が「続きから」の可否を表す。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 /// 視聴完了 / 未完了を指定できる広告。
@@ -500,7 +487,9 @@ struct RewardAdCallSiteTests {
 
         // 呼び出しの総数 = すべての面の数。面を増やしたらここも動くので、
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
-        #expect(counts.values.reduce(0, +) == 22, "リワード広告の面は22箇所")
+        // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
+        // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
+        #expect(counts.values.reduce(0, +) == 14, "リワード広告の面は14箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 

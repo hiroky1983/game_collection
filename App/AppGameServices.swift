@@ -61,8 +61,11 @@ enum AppEnvironment {
         isEnabled: { settings.notificationsEnabled },
         isSuppressed: isScreenshotMode || isDebugBuild,
         // 通知に出すゲーム名。中断データから局を復元しないゲーム（チャリンコおじさん）は対象外。
+        // 設定で非表示にしたゲームも、ハブの他の導線（レコメンド・最近遊んだ）と同じく対象外（#810）。
+        // タップ時もここで弾くので、非表示のゲームへは遷移しない。
         reminderTitle: { gameID in
             guard let module = registry.module(id: gameID), module.resumesFromSnapshot else { return nil }
+            guard !settings.hiddenIDs.contains(gameID) else { return nil }
             return module.title
         }
     )

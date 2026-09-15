@@ -5,6 +5,7 @@ import Core
 import MahjongTiles
 import GameKitTestSupport
 @testable import GameMahjong
+import CoreTestSupport
 
 /// 役早見表（#501）の受け入れ条件。
 ///
@@ -230,7 +231,7 @@ struct MahjongYakuSheetTests {
     @Test("早見表を描画しても中断データと局面は 1 ビットも変わらない")
     @MainActor
     func renderingTheSheetLeavesTheGameUntouched() {
-        let store = YakuSheetMemorySnapshotStore()
+        let store = MemorySnapshotStore()
         let model = MahjongModel(
             services: GameServices(snapshots: store, ads: NoopAdService()),
             cpuDelay: .zero,
@@ -334,24 +335,4 @@ struct MahjongYakuSheetTests {
     private static func viewSource() throws -> String {
         try source("Sources/GameMahjong/MahjongView.swift")
     }
-}
-
-/// 早見表の契約テスト専用のインメモリ保存先（生 JSON をそのまま比較したいので独自に持つ）。
-private final class YakuSheetMemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        storage[gameID] = try JSONEncoder().encode(snapshot)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = storage[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for gameID: String) { storage[gameID] = nil }
-
-    func exists(for gameID: String) -> Bool { storage[gameID] != nil }
-
-    func rawData(for gameID: String) -> Data? { storage[gameID] }
 }

@@ -127,7 +127,6 @@ public final class SudokuModel {
     public var hasPuzzle: Bool { state != .idle && state != .generating }
     public var isFinished: Bool { state == .cleared || state == .givenUp }
     public var remainingHints: Int { max(0, Self.maxHints - hintsUsed) }
-    public var remainingMistakes: Int { max(0, Self.maxMistakes - mistakes) }
 
     /// まだ埋まっていないマスの数。ステータスバーに出す。
     public var remainingCount: Int { board.filter { $0 == 0 }.count }

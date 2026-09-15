@@ -6,7 +6,7 @@ import Core
 /// ルールは `Position` に委譲し、ここは UI 操作と永続化を担う。
 @MainActor
 @Observable
-public final class ShogiGameModel: AITurnGuarded {
+public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
     public let initialSFEN: String
     public private(set) var moves: [Move]
     public private(set) var position: Position
@@ -35,7 +35,7 @@ public final class ShogiGameModel: AITurnGuarded {
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "shogi"
+    public let gameID = "shogi"
     private var startedAt: Date
 
     public init(services: GameServices? = nil) {

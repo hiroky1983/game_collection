@@ -40,6 +40,15 @@ struct ResumeReminderWiringTests {
                 "resumesFromSnapshot を見ずに通知の対象を決めている")
     }
 
+    @Test("設定で非表示にしたゲームは対象外で、非表示にした時点で予約済みも取り消す（#810）")
+    func hiddenGamesAreExcluded() throws {
+        let source = try SourceScan.appSources()
+        #expect(Self.matches(#"module\.resumesFromSnapshot else \{ return nil \}\s*guard !settings\.hiddenIDs\.contains\(gameID\) else \{ return nil \}\s*return module\.title"#, in: source),
+                "通知の対象（予約とタップの両方）が設定の非表示を見ていない")
+        #expect(Self.matches(#"hiddenIDs\.insert\(id\)\s*AppEnvironment\.reminders\.gameDidHide\(gameID: id\)"#, in: source),
+                "非表示にしても予約済みのお知らせが取り消されない")
+    }
+
     @Test("許可はダイアログの出ない provisional でだけ求める")
     func authorizationIsProvisionalOnly() throws {
         let source = try SourceScan.appSources()

@@ -3,21 +3,21 @@ import Core
 import MahjongTiles
 
 public struct MahjongView: View {
-    @State private var model: MahjongModel
+    @State var model: MahjongModel
     private let services: GameServices
     @Environment(\.dismiss) private var dismiss
     /// 卓の下の手牌の行を iPad で広げるため（#715。`MahjongHandRowMetrics`）。
-    @Environment(\.adaptiveLayout) private var adaptiveLayout
+    @Environment(\.adaptiveLayout) var adaptiveLayout
     @State private var showStartSheet = true
     /// 誤タップ防止: 1タップ目は選択（浮かせる演出）だけ、同じ牌をもう1回タップしたら実際に切る。
     /// 複数枚ある牌を区別できるよう `stableHandIDs` の合成ID（牌の値＋出現順）で管理する。
     /// ID は `MahjongHandTap.handTileID(index:)` / `.drawnTileID` で作り、卓上の一覧と
     /// 卓下の操作行で共有する（どちらでタップしても選択が同期する・#378）。
-    @State private var selectedTileID: String?
+    @State var selectedTileID: String?
     /// 卓上の一覧（`handOverviewOnTable`）から選んだ牌を、卓下の横スクロール側でも
     /// 見える位置まで送るための合図（#378）。下部を直接タップしたときは指の下の行が動くと
     /// 邪魔になるので、一覧経由のときだけ立てる。送り終えたら nil に戻す。
-    @State private var overviewScrollTarget: String?
+    @State var overviewScrollTarget: String?
     /// トビ復活（#338）。ポーカー・ブラックジャックの「広告を見てチップ回復」と同じ持ち方。
     /// トビ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var reviveRescue = RewardedRescue()
@@ -32,7 +32,7 @@ public struct MahjongView: View {
     @State private var doraHeaderWidth: CGFloat = 0
     /// 打牌の飛び出し位置（#738）: 直前にタップで切った牌が一覧の何枚目（何枚中）にあったか。
     /// `startDiscardFlight` が 1 回使って捨てる。無ければツモ牌の位置（右端）から飛ぶ。
-    @State private var pendingDiscardSlot: (index: Int, count: Int)?
+    @State var pendingDiscardSlot: (index: Int, count: Int)?
     /// 飛行の通し番号。後片付けは「自分が始めた飛行」だけを消す（内容が同じ別の飛行を誤って消さない）。
     @State private var discardFlightSerial = 0
     /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
@@ -99,7 +99,7 @@ public struct MahjongView: View {
             doraHeader
             mahjongTable
                 .layoutPriority(1)
-            // 卓（`mahjongTable`）は正方形で、画面の余った縦幅をすべて使い切るとは限らない。
+            // 卓（`mahjongTable`）は縦長の長方形（#927）で、画面の余った縦幅をすべて使い切るとは限らない。
             // 余りは手牌（またはリザルト）の下で吸収し、見出しと卓は画面上部に固定する（上寄せ）。
             // 一度は卓の上で吸収して下寄せにしたが、リザルトへの切り替えで卓とドラの見出しが
             // 上下に動いて見えたので戻した（会長指摘 2026-09-13）。
@@ -284,15 +284,17 @@ public struct MahjongView: View {
     ///
     /// **自分の手牌一覧（タップ対象）だけはここで重ねる**。写像で位置を決めるが、牌の寸法と
     /// 当たり判定（44pt）は従来の `handOverviewOnTable` のまま（#378・#736 受け入れ条件）。
-    /// `GeometryReader` + `aspectRatio(1, contentMode: .fit)` は将棋の盤と同じ手法。
+    /// `GeometryReader` + `aspectRatio(_:contentMode: .fit)` は将棋の盤と同じ手法。卓は縦長
+    /// （幅 : 高さ = 1 : `MahjongTableLayout.aspect`。#927 で正方形から変えた）。
     private var mahjongTable: some View {
         GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
+            let width = min(geo.size.width, geo.size.height / MahjongTableLayout.aspect)
+            let height = width * MahjongTableLayout.aspect
             // SwiftUI は最初のレイアウトで大きさ 0 を渡してくる。その 1 回で `MahjongTableLayout` が
             // 0 ÷ 0 の NaN を作り、牌の幅・位置に広がって幅 393pt 以下の端末で落ちていた
             // （v1.1.5 開発版。会長の実機と当番の iPhone SE で再現）。一辺が 0 以下なら何も描かない。
-            if side > 0 {
-                let layout = MahjongTableLayout(size: CGSize(width: side, height: side))
+            if width > 0 {
+                let layout = MahjongTableLayout(size: CGSize(width: width, height: height))
                 ZStack(alignment: .topLeading) {
                     Group {
                         MahjongTableView(scene: tableScene, layout: layout)
@@ -311,7 +313,7 @@ public struct MahjongView: View {
                                                  tileWidth: layout.riverTileWidth)
                     }
                 }
-                .frame(width: side, height: side)
+                .frame(width: width, height: height)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
                 .shadow(color: .black.opacity(0.22), radius: 8, y: 4)
                 .frame(width: geo.size.width, height: geo.size.height)
@@ -320,7 +322,7 @@ public struct MahjongView: View {
                 }
             }
         }
-        .aspectRatio(1, contentMode: .fit)
+        .aspectRatio(1 / MahjongTableLayout.aspect, contentMode: .fit)
     }
 
     /// ドラ表示の見出し。卓のすぐ上に 1 行の HUD として置く（会長指摘 2026-09-13。以前は卓の
@@ -397,6 +399,8 @@ public struct MahjongView: View {
     }
 
     /// 卓に描く値を `MahjongModel` から切り出す。CPU の手牌は枚数だけ（絵柄は伏せる）。
+    /// 自分の枚数は手牌一覧（`handOverviewOnTable`）と同じ数え方（ツモ牌は `playerDrawnTile`）にする。
+    /// 副露の置き場（一覧の右隣。#960）がこの枚数から決まるので、ずれると副露が手牌に重なる。
     private var tableScene: MahjongTableScene {
         let n = MahjongModel.playerCount
         var counts = [Int](repeating: 0, count: n)
@@ -404,6 +408,7 @@ public struct MahjongView: View {
             counts[i] = model.hands[i].tiles.count
                 + (model.currentPlayer == i && model.drawnTile != nil && model.phase == .playing ? 1 : 0)
         }
+        counts[MahjongModel.humanIndex] = model.playerHand.tiles.count + (model.playerDrawnTile != nil ? 1 : 0)
         return MahjongTableScene(
             discards: model.discards,
             melds: model.melds,
@@ -433,441 +438,12 @@ public struct MahjongView: View {
         model.phase == .playing || model.phase == .ronOffer || model.phase == .callOffer
     }
 
-    // MARK: - 手牌一覧（卓上）
-
-    private static let handOverviewSpacing: CGFloat = MahjongTableLayout.handOverviewSpacing
-    /// 一覧の牌は河と同じ大きさ（iPhone で幅 18pt・高さ 25pt ほど）で、そのままでは Apple 推奨の 44pt に届かない。
-    /// **レイアウトは変えずに当たり判定だけ**この高さまで縦に広げる（`handOverviewTile`）。
-    private static let handOverviewMinHitHeight: CGFloat = 44
-    /// 一覧で選択中の牌を持ち上げる量。下部（`tableHandLift` 側の -10pt）と同じ言語だが、
-    /// 牌が小さく行の高さも詰まっているので控えめにする。
-    private static let handOverviewLift: CGFloat = 3
-
-    /// 卓の上（フェルトの手前の縁）に置く、手牌14枚を河の牌と同じ大きさで一目で見渡せる一覧。
-    ///
-    /// **この一覧からも打牌できる**（#378・会長発案）。以前はタップを卓下部の `handOnTable`
-    /// （大きい牌・横スクロール）に一本化し、こちらは視認専用にしていたが、一覧で切りたい牌を
-    /// 見つけても下部までスクロールして探し直さないと切れず二度手間だった。牌の ID を下部と
-    /// 共有する（`MahjongHandTap.handTileID(index:)`）ので、**どちらの面でタップしても選択は同じ**で、
-    /// 2タップ目の確定もどちらの面からでも成立する。
-    ///
-    /// 読み上げは従来どおり下部に一本化する（この一覧は `accessibilityHidden`。VoiceOver 利用時は
-    /// 同じ操作が下部の `handTile` にラベル・ヒント付きで揃っている）。
-    private func handOverviewOnTable(width: CGFloat, tileWidth: CGFloat) -> some View {
-        let hand = model.playerHand.tiles
-        let drawn = model.playerDrawnTile
-        // 切れる牌の判定は手牌の枚数ぶん走るので、1 回だけ求めて配る（`handOnTable` と同じ考え方）。
-        let discardable = model.discardableTiles
-        let tileCount = hand.count + (drawn != nil ? 1 : 0)
-        let totalSpacing = Self.handOverviewSpacing * CGFloat(max(0, tileCount - 1))
-        // 牌の幅は河の牌と同じ（`MahjongTableLayout.handOverview`。会長指摘 2026-09-13）。
-        // 幅は 14 枚が収まるように決まっているので普段は縮まないが、念のため収まる幅に丸める。
-        let rawWidth = tileCount > 0 ? (width - totalSpacing) / CGFloat(tileCount) : tileWidth
-        let tileWidth = max(10, min(tileWidth, rawWidth))
-        let tileHeight = tileWidth * MahjongTableLayout.tileAspect
-        return HStack(spacing: Self.handOverviewSpacing) {
-            ForEach(Array(hand.enumerated()), id: \.offset) { index, tile in
-                handOverviewTile(
-                    tile, id: MahjongHandTap.handTileID(index: index),
-                    width: tileWidth, height: tileHeight, isDrawn: false, discardable: discardable
-                )
-            }
-            if let drawn {
-                handOverviewTile(
-                    drawn, id: MahjongHandTap.drawnTileID,
-                    width: tileWidth, height: tileHeight, isDrawn: true, discardable: discardable
-                )
-            }
-        }
-        .frame(width: width, alignment: .center)
-        .transaction { $0.animation = nil }
-        .accessibilityHidden(true)
-    }
-
-    /// 一覧の 1 枚。打牌の判定は下部の `handTile` と同じ `MahjongHandTap` を通す。
-    private func handOverviewTile(
-        _ tile: MahjongTile, id: String, width: CGFloat, height: CGFloat,
-        isDrawn: Bool, discardable: Set<MahjongTile>
-    ) -> some View {
-        let canDiscard = discardable.contains(tile)
-        let isSelected = selectedTileID == id
-        // 当たり判定だけを縦へ伸ばす: 余白を足してから `contentShape` を取り、同じ量を負の余白で
-        // 引き戻す。牌そのものの大きさも行の高さも変わらないまま、指の当たる範囲だけが広がる。
-        let hitPadding = max(0, (Self.handOverviewMinHitHeight - height) / 2)
-        return MahjongTileView(
-            tile: tile, width: width, height: height,
-            // 立直中に切れない牌は下部と同じく暗く落とす。ここで見分けが付かないと
-            // 「一覧をタップしても反応しない牌がある」という理由の分からない挙動になる。
-            isBlocked: model.isPlayerTurn && !canDiscard,
-            isSelected: isSelected,
-            isHinted: isDrawn
-        )
-        .offset(y: isSelected ? -Self.handOverviewLift : 0)
-        .padding(.vertical, hitPadding)
-        .contentShape(Rectangle())
-        .padding(.vertical, -hitPadding)
-        .onTapGesture {
-            handleHandTap(tile, id: id, canDiscard: canDiscard, scrollsBottomHand: true)
-        }
-        .disabled(!model.isPlayerTurn)
-    }
-
-    // MARK: - 手牌
-
-    /// 会長指摘「持ち牌もグリーンの卓の上に一列に並べて見てほしい」「横スクロールは維持して」への対応。
-    /// 以前の 7列×2段の白カードをやめ、卓と同じ緑フェルトの帯に単列（横スクロール）で並べる。
-    /// 名前・風・点数は卓の中央パネル（`MahjongCenterPanel`・#737）に一本化したので、ここでは持たない。
-    ///
-    /// **「ルーレット現象」の正体**（Fable・Opus の並行調査で特定）: アニメーションでも
-    /// ScrollView でもなく、**CPU のツモ牌が自分の手牌14枚目として表示されるデータバグ**だった。
-    /// `model.drawnTile` は全員共有のプロパティ（`draw(for:)` が誰の手番でも同じ変数へ書く）で、
-    /// CPU の手番中（1人あたり `cpuDelay` ≒520ms）も値が入れ替わり続ける。ここを手番の判定なしに
-    /// 描いていたため、自分が1枚切るたびに右端の枠が CPU1→CPU2→CPU3 のツモ牌へパタパタと
-    /// 4回連続で切り替わって見えていた。これは本物のデータ変化なので、`transaction { animation
-    /// = nil }` でも identity 安定化でも ScrollView の有無でも止まらなかった
-    /// （過去の対策が軒並み効かなかった理由）。`MahjongModel.playerDrawnTile` で自分の手番以外は
-    /// nil を返すようにして解消した。
-    ///
-    /// 牌・間隔・ツモ牌の隙間は `MahjongHandRowMetrics`（iPhone は 34×46pt 固定、iPad は捨て牌より小さくならないよう相似に広げる・#715）。
-    private var handRowMetrics: MahjongHandRowMetrics { .make(layout: adaptiveLayout) }
-    /// 選択時に牌を -10pt 持ち上げる演出が ScrollView の上端で切れないための余白。
-    private static let tableHandLift: CGFloat = 12
-
-    private var handOnTable: some View {
-        // 切れる牌の判定は手牌の枚数ぶん走るので、1 回だけ求めて配る（#190 と同じ考え方）。
-        let discardable = model.discardableTiles
-        let waits = model.playerWaits
-        // model.playerHand.tiles を直接使う（常にソート済み）。以前は差分適用のローカル state を
-        // 挟んでいたが、末尾に追加するだけだとソート順が崩れて「並び替えが効かない」不具合になった。
-        let hand = model.playerHand.tiles
-        let drawn = model.playerDrawnTile
-        let metrics = handRowMetrics
-        return VStack(spacing: 6) {
-            // 卓上の一覧（`handOverviewOnTable`）から選んだ牌はこの行の表示範囲外にあることが
-            // 多いので、そこまで送れるように `ScrollViewReader` で包む（#378）。
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: metrics.spacing) {
-                        // identity は **配列の位置**（`\.offset`）にする。牌の値を identity にすると、
-                        // 途中の1枚が抜けて別の牌が別の位置に挿さったとき「生き残った牌が別スロットへ
-                        // 移動した」と SwiftUI に解釈され、横滑りを補間できる状態になってしまう
-                        // （Opus 指摘）。手牌は毎回ゼロから並べ直す配列なので、位置 identity にすれば
-                        // 各スロットは「同じ View の中身が差し替わるだけ」になり、動きようがない。
-                        // `.id` に渡す値も同じ位置由来なので、スクロールの宛先を足しても
-                        // identity は動かない（値が変われば identity が切れる点に注意）。
-                        ForEach(Array(hand.enumerated()), id: \.offset) { index, tile in
-                            let id = MahjongHandTap.handTileID(index: index)
-                            handTile(tile, id: id, isDrawn: false, discardable: discardable)
-                                .id(id)
-                        }
-                        Spacer().frame(width: metrics.drawnGap)
-                        // ツモ牌が無い間も同じ幅の透明プレースホルダーを置き、コンテンツの総幅を
-                        // 常に一定に保つ。ツモ牌の出入りで ScrollView の contentSize が変わると
-                        // UIScrollView 側がスクロール位置を自前で補正することがあるため、幅そのものを
-                        // 固定してその発火条件自体を無くす。
-                        ZStack {
-                            Color.clear
-                            if let drawn {
-                                handTile(
-                                    drawn, id: MahjongHandTap.drawnTileID,
-                                    isDrawn: true, discardable: discardable
-                                )
-                            }
-                        }
-                        .frame(width: metrics.tileWidth, height: metrics.tileHeight)
-                        // ツモ牌が無い間もこの枠は残るので、スクロールの宛先は常に解決できる。
-                        .id(MahjongHandTap.drawnTileID)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.top, Self.tableHandLift)
-                    .padding(.bottom, 6)
-                }
-                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                .defaultScrollAnchor(.leading)
-                .frame(height: metrics.tileHeight + Self.tableHandLift + 6)
-                // 並び替え・出し入れは瞬時に反映するだけにする（雀卓側と同じ考え方）。
-                // 選択（浮き上がり）演出は handTile 側で個別に `.animation` を付け直しているので、
-                // ここで止めても影響しない。
-                .transaction { $0.animation = nil; $0.disablesAnimations = true }
-                .onChange(of: overviewScrollTarget) {
-                    guard let target = overviewScrollTarget else { return }
-                    // アニメーションは付けない。この行は「ルーレット現象」（上のコメント参照）の
-                    // 反省で徹底して動きを止めてある場所で、ここだけ横滑りを足すと同じ見え方に
-                    // 逆戻りする。瞬時に位置が変わるだけなら Reduce Motion とも整合する。
-                    proxy.scrollTo(target, anchor: .center)
-                    overviewScrollTarget = nil
-                }
-            }
-            // 副露は「卓の上においてほしい」（会長指摘）ため卓の右手前の角（`MahjongTableView.meldRow`）に置く。
-            // ここ（操作用のスクロール行）には置かない。
-            hintLine(waits: waits)
-        }
-        .padding(.horizontal, 6).padding(.vertical, 6)
-        // 木の牌台（#738）。卓が木枠付きになったのに合わせる。
-        // 影は台自身に付ける（外側に付けると手牌の1枚1枚にまで影が落ちる）。
-        .background(MahjongWoodTray().shadow(color: .black.opacity(0.22), radius: 6, y: 3))
-    }
-
-    /// 会長指摘「誤タップ防止のため1タップでフォーカス、2タップ目で捨てる」への対応。
-    /// 1回目のタップは選択（アウトライン＋浮き上がり）だけ。同じ牌をもう一度タップしたときだけ
-    /// 実際に `model.discard` を呼ぶ。別の牌をタップした場合は選択を切り替えるだけで切らない。
-    private func handTile(
-        _ tile: MahjongTile, id: String, isDrawn: Bool, discardable: Set<MahjongTile>
-    ) -> some View {
-        let canDiscard = discardable.contains(tile)
-        let isSelected = selectedTileID == id
-        return MahjongTileView(
-            tile: tile,
-            width: handRowMetrics.tileWidth,
-            height: handRowMetrics.tileHeight,
-            isBlocked: model.isPlayerTurn && !canDiscard,
-            isHinted: isDrawn
-        )
-        // 牌の絵柄そのものは、外側の選択アニメーションの影響を受けないようここで打ち切る
-        // （無いと、選択解除と絵柄の差し替えが重なったときにクロスフェードして見える）。
-        .transaction { $0.animation = nil }
-        .overlay(
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(Theme.coral, lineWidth: isSelected ? 2.5 : 0)
-        )
-        .shadow(color: isSelected ? .black.opacity(0.3) : .clear, radius: isSelected ? 5 : 0, y: 3)
-        .offset(y: isSelected ? -10 : 0)
-        .gameAnimation(.spring(response: 0.22, dampingFraction: 0.7), value: isSelected)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            // 下部をタップしたときは指の下でこの行が動くと邪魔なのでスクロールは追従させない。
-            handleHandTap(tile, id: id, canDiscard: canDiscard, scrollsBottomHand: false)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            MahjongAccessibility.handTileLabel(tile, isDrawn: isDrawn, isDiscardable: canDiscard)
-        )
-        .accessibilityHint("ダブルタップでこの牌を切ります")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-            // VoiceOver の打牌もタップと同じ位置から飛ばす（verifier 指摘）
-            pendingDiscardSlot = (index: MahjongHandTap.handIndex(of: id) ?? model.playerHand.tiles.count,
-                                  count: model.playerHand.tiles.count + (model.playerDrawnTile != nil ? 1 : 0))
-            model.discard(tile)
-        }
-        .disabled(!model.isPlayerTurn)
-    }
-
-    /// 卓上の一覧と卓下の操作行に共通の打牌タップ処理（#378）。判定そのものは `MahjongHandTap`
-    /// に置いてあり、どちらの面から来ても同じ2段階（1タップ目=選択・2タップ目=打牌）を通る。
-    ///
-    /// `scrollsBottomHand` は「選んだ牌が下部の表示範囲外かもしれない」一覧側でだけ true にする。
-    private func handleHandTap(
-        _ tile: MahjongTile, id: String, canDiscard: Bool, scrollsBottomHand: Bool
-    ) {
-        switch MahjongHandTap.outcome(
-            tappedID: id, selectedID: selectedTileID,
-            isPlayerTurn: model.isPlayerTurn, isDiscardable: canDiscard
-        ) {
-        case .ignored:
-            return
-        case .select(let selected):
-            selectedTileID = selected
-            if scrollsBottomHand { overviewScrollTarget = selected }
-        case .discard:
-            // 選択解除と打牌を同じトランザクションにする。別々のフレームに分かれると
-            // 「選択解除」→「手牌の入れ替え」の2段ジャンプに見えることがある（Opus指摘）。
-            // 切る前に、この牌が一覧の何枚目にあったかを控える（打牌の飛び出し位置。ツモ牌は末尾）。
-            let handCount = model.playerHand.tiles.count
-            let overviewCount = handCount + (model.playerDrawnTile != nil ? 1 : 0)
-            pendingDiscardSlot = (
-                index: MahjongHandTap.handIndex(of: id) ?? handCount,
-                count: overviewCount
-            )
-            var transaction = Transaction()
-            transaction.animation = nil
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                selectedTileID = nil
-                model.discard(tile)
-            }
-        }
-    }
-
-    /// 手牌の下に出す 1 行の案内（#190 の設定に従う）。
-    @ViewBuilder
-    private func hintLine(waits: [MahjongTile]) -> some View {
-        let message: String? = {
-            if model.isDeclaringRiichi { return "立直します。切る牌を選んでください" }
-            if model.isPlayerFuriten && !waits.isEmpty { return "フリテンです（ツモでのみ和了できます）" }
-            if !waits.isEmpty {
-                // ツモ牌を除いた 13 枚の待ちなので、条件つきの言い方にする（`playerWaits` を参照）。
-                return "ツモ切りすると " + waits.map(\.displayName).joined(separator: "・") + " 待ち"
-            }
-            return nil
-        }()
-        if let message {
-            HStack(spacing: 4) {
-                Image(systemName: "info.circle.fill")
-                    .font(.system(size: 11, weight: .bold))
-                Text(message)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .lineLimit(1).minimumScaleFactor(0.6)
-            }
-            .foregroundStyle(model.isPlayerFuriten ? Theme.inkSub : Theme.coral)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-        }
-    }
-
-    // MARK: - リザルト
-
-    private var handResultCard: some View {
-        VStack(spacing: 8) {
-            Text(handResultTitle)
-                .font(.system(size: 20, weight: .black, design: .rounded))
-                .foregroundStyle(Theme.coral)
-            if let result = model.handResult, result.kind != .exhaustiveDraw {
-                Text("\(result.han)飜 \(result.fu > 0 ? "\(result.fu)符 " : "")\(result.limitName ?? "")")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                VStack(spacing: 3) {
-                    ForEach(Array(result.yaku.enumerated()), id: \.offset) { _, name in
-                        Text(name)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                }
-                Text("\(result.gainedPoints)点")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.teal)
-                // 和了者の手を開く（#351）。何に振り込んだか・どんな手だったかを学べるようにする。
-                if let tiles = result.winningHand, let winTile = result.winningTile {
-                    winningHandRow(
-                        tiles: tiles, melds: result.winningMelds ?? [], winningTile: winTile
-                    )
-                }
-                if let ura = result.uraDoraIndicators, !ura.isEmpty {
-                    uraDoraRow(ura)
-                }
-            } else if let result = model.handResult {
-                Text(
-                    result.tenpaiPlayers.isEmpty
-                        ? "全員ノーテンです"
-                        : "聴牌: " + result.tenpaiPlayers.map { model.playerName($0) }.joined(separator: "・")
-                )
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            }
-            scoreTable
-        }
-        .frame(maxWidth: .infinity)
-        .padding(16)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    /// 和了者の手（門前 + 副露 + 和了牌）。「なぜ負けたか」を学べるようにリザルトで開く（#351）。
-    /// 和了牌は `isHinted` のハイライトで半歩離して並べ、どれで和了ったかをひと目で分かるようにする。
-    private func winningHandRow(
-        tiles: [MahjongTile], melds: [MahjongCall], winningTile: MahjongTile
-    ) -> some View {
-        let sorted = tiles.sorted { MahjongTileOrder.index(of: $0) < MahjongTileOrder.index(of: $1) }
-        // 門前13枚 + 和了牌でもカード幅（約300pt）に収まる小ささ。副露があるぶん門前は減るので
-        // これより横に伸びることはない。
-        let tileWidth: CGFloat = 17
-        let tileHeight: CGFloat = 23
-        return HStack(spacing: 6) {
-            HStack(spacing: 2) {
-                ForEach(Array(sorted.enumerated()), id: \.offset) { _, tile in
-                    MahjongTileView(tile: tile, width: tileWidth, height: tileHeight)
-                }
-            }
-            if !melds.isEmpty {
-                MahjongMeldRow(melds: melds, tileWidth: tileWidth, showsBadge: false)
-            }
-            MahjongTileView(tile: winningTile, width: tileWidth, height: tileHeight, isHinted: true)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "和了した手: "
-                + sorted.map(\.displayName).joined(separator: "、")
-                + "、和了牌は \(winningTile.displayName)"
-        )
-    }
-
-    /// 立直で和了ったときだけ開示する裏ドラ表示牌（#351）。卓中央のドラ表示と同じ牌サイズ。
-    private func uraDoraRow(_ tiles: [MahjongTile]) -> some View {
-        HStack(spacing: 4) {
-            Text("裏ドラ")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
-                MahjongTileView(tile: tile, width: 14, height: 19)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("裏ドラ表示牌: " + tiles.map(\.displayName).joined(separator: "、"))
-    }
-
-    /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。ロンは放銃した人が
-    /// 一意に決まるので、タイトルに「{放銃した人} → {和了した人}」を添える。ツモは複数人が
-    /// 別々の額を払うため、単一の矢印では表せない。下の `scoreTable` 側で全員の点数の動きを
-    /// 一覧できるようにして補う。
-    private var handResultTitle: String {
-        guard let result = model.handResult else { return "" }
-        let winnerName = model.playerName(result.winner ?? 0)
-        switch result.kind {
-        case .exhaustiveDraw: return "流局"
-        case .tsumo:  return "\(winnerName)のツモ"
-        case .ron:
-            guard let loser = result.loser else { return "\(winnerName)のロン" }
-            return "\(model.playerName(loser)) → \(winnerName)のロン"
-        }
-    }
-
-    /// 終わり方は3種類あり、東2局で突然終わっても理由が読めるよう見出しを分ける（#352）。
-    /// 打ち切りの見出しは対局の長さで変える（#639。一局戦で「東風戦終了」と出ると嘘になる）。
-    private var gameResultTitle: String {
-        switch model.gameEndReason {
-        case .busted:    return "トビで終了"
-        case .agariYame: return "アガリやめで終了"
-        case .completedAllRounds, nil: return "\(model.gameLength.title)終了"
-        }
-    }
-
-    private var gameResultCard: some View {
-        VStack(spacing: 10) {
-            Text(gameResultTitle)
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundStyle(Theme.coral)
-            if let place = model.playerPlace {
-                Text("あなたは \(place + 1)位")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-            }
-            VStack(spacing: 4) {
-                ForEach(Array(model.ranking.enumerated()), id: \.offset) { place, player in
-                    HStack {
-                        Text("\(place + 1)位")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.coral)
-                            .frame(width: 36, alignment: .leading)
-                        Text(model.playerName(player))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                        Spacer()
-                        Text("\(model.scores[player])点")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                }
-            }
-            RecordLabel(model.recordResult)
-            if model.canReviveAfterBust { reviveButton }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(16)
-        .popCard(corner: Theme.cornerSmall)
-    }
+    // MARK: - 復活導線
+    // 失敗アラート（`body`）と同じファイルに置く。`AdsTests` がファイル単位で宣言とアラートの数を突き合わせる。
 
     /// トビで終わったときだけ出る復活導線（#338）。ポーカー・ブラックジャックの
     /// 「広告を見てチップ回復」と同じ形（リザルト内のボタン・視聴完了時のみ効果・失敗は #64 統一アラート）。
-    private var reviveButton: some View {
+    var reviveButton: some View {
         Button {
             // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と復活は
             // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
@@ -889,32 +465,6 @@ public struct MahjongView: View {
         .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
         .disabled(reviveRescue.isWatching)
         .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
-    }
-
-    /// 会長指摘「誰が誰に点を振り込んだかわかるようにしてほしい」への対応。`pointChanges` で
-    /// 全員ぶんの増減を出す。ツモのように払う人が複数いるケースも、タイトルの矢印1本では
-    /// 表せないのでここで一覧にして補う。
-    private var scoreTable: some View {
-        VStack(spacing: 4) {
-            ForEach(0..<MahjongModel.playerCount, id: \.self) { player in
-                HStack {
-                    Text(model.playerName(player))
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                    Spacer()
-                    if let change = model.handResult?.pointChanges[player], change != 0 {
-                        Text(change > 0 ? "+\(change)" : "\(change)")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(change > 0 ? Theme.teal : Theme.coral)
-                    }
-                    Text("\(model.scores[player])点")
-                        .font(.system(size: 12, weight: .black, design: .rounded))
-                        .foregroundStyle(model.scores[player] < 0 ? Theme.coral : Theme.ink)
-                        .frame(width: 66, alignment: .trailing)
-                }
-            }
-        }
-        .padding(.top, 4)
     }
 
     // MARK: - 操作
@@ -1021,157 +571,4 @@ public struct MahjongView: View {
 
     static let windNames = ["東", "南", "西", "北"]
 
-}
-
-// MARK: - Start Sheet
-
-struct MahjongStartSheet: View {
-    /// 選んだ対局の長さ（#639）。ここで選んだものが `startGame(length:)` で焼き込まれる。
-    @Binding var length: MahjongGameLength
-    let onStart: () -> Void
-    /// キャンセル（ハブへ戻る）。12本中この1本だけ「入ったら戻れない」状態だった（#352）。
-    let onCancel: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("対局の長さ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    Picker("対局の長さ", selection: $length) {
-                        ForEach(MahjongGameLength.allCases) { option in
-                            Text(option.title).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    Text(length.summary)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ゲームの流れ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    ruleRow("1", flowSummary)
-                    ruleRow("2", "1枚ツモって1枚切る。4面子+雀頭で和了")
-                    ruleRow("3", "聴牌したら立直できます（1000点を供託）。門前のときだけ")
-                    ruleRow("4", "他の人の捨て牌はポン・チー・カンで鳴けます（鳴くと立直はできません）")
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                NavigationLink {
-                    MahjongRuleSheet()
-                } label: {
-                    HStack {
-                        Image(systemName: "list.bullet.rectangle")
-                        Text("ルールと役を見る")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                    .foregroundStyle(Theme.coral)
-                    .padding(16)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                }
-
-                Spacer()
-                Button {
-                    onStart()
-                } label: {
-                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("麻雀")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
-                }
-            }
-        }
-        .presentationDetents([.large])
-    }
-
-    /// 選んだ長さに合わせた 1 行目。何局打つかは遊ぶ前にいちばん知りたい情報なので、
-    /// ピッカーの説明文と流れの 1 行目の両方に出す。
-    private var flowSummary: String {
-        switch length {
-        case .tonpuu:
-            return "CPU3人と東風戦（東1局〜東4局）。持ち点は25000点から"
-        case .singleHand:
-            return "CPU3人と一局戦（東1局のみ）。持ち点は25000点から"
-        }
-    }
-
-    private func ruleRow(_ num: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(num)
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(Theme.onAccent)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.Fill.coral))
-            Text(text)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(Theme.ink)
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Rule Sheet
-
-struct MahjongRuleSheet: View {
-    private let rules: [(String, String)] = [
-        ("和了の形", "同じ牌3枚（刻子）か連番3枚（順子）を4組と、同じ牌2枚（雀頭）を1組そろえると和了です。ほかに七対子（対子7組）と国士無双もあります"),
-        ("ツモとロン", "自分で引いた牌で和了すればツモ、他の人が切った牌で和了すればロンです"),
-        ("役が要ります", "和了の形になっても、役が1つも無いと和了できません。立直・断幺九・役牌などが役です"),
-        ("立直", "聴牌したら1000点を供託して宣言できます。以後は引いてきた牌をそのまま切ります（手牌は変えられません）。鳴いた手では宣言できません"),
-        ("ポン・チー", "同じ牌が2枚あれば誰の捨て牌でもポン、連番であと2枚そろうときは上家（左の人）の捨て牌をチーできます。鳴くとその牌を含む面子を手牌の外に晒し、そのまま自分の番になって1枚切ります"),
-        ("カン", "同じ牌4枚でカンできます。手の内の4枚なら暗槓、他の人の捨て牌でそろえば明槓、ポン済みの牌に4枚目を足せば加槓です。カンすると新しいドラがめくれ、王牌から1枚（嶺上牌）を引きます"),
-        ("鳴くと何が変わるか", "立直・門前清自摸和・平和・一盃口・七対子は付かなくなり、三色同順・一気通貫・チャンタ・混一色などは1飜下がります。役牌のように鳴いても付く役をねらいます。暗槓だけは門前のままです"),
-        ("フリテン", "自分の待ち牌を自分で捨てているとロンできません（ツモなら和了できます）"),
-        ("流局", "山が尽きたら流局。聴牌していた人が3000点を分け合い、ノーテンの人が払います"),
-        ("東風戦", "東1局から東4局までの4局。親が和了または聴牌で流局すると連荘して本場が増えます"),
-        ("一局戦", "東1局だけを打って順位を決める短い対局です。親が和了っても連荘はせず、その局で終わります。成績は東風戦とは別に数えます"),
-        ("この版の範囲", "半荘は次の版で追加します。立直したあとのカン・食い替えの禁止・流し満貫はまだ入っていません"),
-    ]
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(rules, id: \.0) { rule in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(rule.0)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.coral)
-                        Text(rule.1)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-                }
-            }
-            .padding(Theme.pad)
-        }
-        .popBackground()
-        .navigationTitle("ルールと役")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-    }
 }

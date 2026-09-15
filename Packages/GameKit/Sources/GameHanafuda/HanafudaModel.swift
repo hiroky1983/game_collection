@@ -77,7 +77,9 @@ public struct HanafudaRoundResult: Equatable, Sendable, Codable {
 // MARK: - スナップショット
 
 struct HanafudaSnapshot: Codable {
-    let options: HanafudaOptions
+    /// 焼き込んだルール。鍵が無いデータは既定（`HanafudaOptions()`）に倒すので optional
+    /// （1局=1RuleSet 規約 2・#827。非 optional だと鍵の欠けたデータのデコードが丸ごと失敗し、中断が黙って消える）。
+    let options: HanafudaOptions?
     let round: Int
     let dealer: HanafudaPlayer
     let turn: HanafudaPlayer
@@ -186,7 +188,7 @@ public final class HanafudaModel: AITurnGuarded {
               Set(all.map(\.id)).count == HanafudaCard.deckSize,
               all.allSatisfy({ (0..<HanafudaCard.deckSize).contains($0.id) })
         else { return nil }
-        guard snap.round >= 1, snap.round <= snap.options.rounds,
+        guard snap.round >= 1, snap.round <= (snap.options ?? HanafudaOptions()).rounds,
               snap.claimed.allSatisfy({ $0 >= 0 }),
               snap.koiKoiCounts.allSatisfy({ $0 >= 0 }),
               snap.totals.allSatisfy({ $0 >= 0 })
@@ -211,7 +213,7 @@ public final class HanafudaModel: AITurnGuarded {
     }
 
     private func apply(_ snap: HanafudaSnapshot) {
-        options = snap.options
+        options = snap.options ?? HanafudaOptions()
         round = snap.round
         dealer = snap.dealer
         turn = snap.turn
@@ -528,7 +530,7 @@ public final class HanafudaModel: AITurnGuarded {
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: outcome,
-            score: GameScore(metric: .points, points: humanTotal)
+            score: matchScore
         )
         services?.feedback.notify(outcome == .win ? .success : (outcome == .loss ? .error : .warning))
         services?.snapshots.clear(for: Self.gameID)
@@ -562,7 +564,7 @@ public final class HanafudaModel: AITurnGuarded {
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .loss,
-            score: GameScore(metric: .points, points: humanTotal)
+            score: matchScore
         )
         services?.feedback.notify(.error)
         services?.snapshots.clear(for: Self.gameID)
@@ -570,6 +572,18 @@ public final class HanafudaModel: AITurnGuarded {
 
     public var canResign: Bool {
         phase == .playing || phase == .koiKoiPrompt || phase == .roundResult
+    }
+
+    /// 決着・投了で記録する成績。既定ルールは区分なし・順位表の対象のまま、分岐は別枠にする
+    /// （1局=1RuleSet 規約 3・4・#827）。
+    private var matchScore: GameScore {
+        GameScore(
+            metric: .points,
+            points: humanTotal,
+            variant: options.recordVariant,
+            variantLabel: options.recordVariantLabel,
+            isLeaderboardEligible: options.isLeaderboardEligible
+        )
     }
 
     // MARK: - CPU

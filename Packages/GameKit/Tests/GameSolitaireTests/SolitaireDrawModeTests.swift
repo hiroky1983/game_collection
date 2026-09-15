@@ -3,24 +3,9 @@ import Foundation
 import Core
 import GameKitTestSupport
 @testable import GameSolitaire
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-    /// 旧版の中断データ（`drawMode` の鍵が無い JSON）を直接ねじ込む口。
-    func inject(raw: Data, for gameID: String) { store[gameID] = raw }
-}
 
 @MainActor
 private func makeServices(store: SnapshotStore = MemorySnapshotStore()) -> GameServices {
@@ -385,7 +370,7 @@ struct SolitaireRuleSetBakingTests {
         {"seed":\(SolitaireDealer.verifiedSeeds[0]),"moves":[{"draw":{}}],\
         "elapsedSeconds":12,"jokerGrants":1,"undosRemaining":3}
         """
-        store.inject(raw: Data(legacy.utf8), for: "solitaire")
+        store.inject(Data(legacy.utf8), for: "solitaire")
 
         let model = SolitaireModel(services: makeServices(store: store))
         #expect(model.rules.drawMode == .one, "旧データが3枚めくりに化けた")

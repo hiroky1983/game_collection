@@ -87,9 +87,6 @@ public final class MahjongSolitaireModel {
     /// 1 手戻せるか。取った直後だけ true。
     public var canUndo: Bool { phase == .playing && lastTake != nil }
 
-    /// 残りの組数（表示用）。
-    public var remainingPairCount: Int { remainingCount / 2 }
-
     /// - Parameters:
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
     ///   - faces: テスト用に盤面を直接与える経路（本番では使わない）。

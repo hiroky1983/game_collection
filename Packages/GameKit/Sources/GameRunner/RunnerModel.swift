@@ -5,7 +5,7 @@ import Observation
 /// 横スクロールランナーの進行（#494）。
 ///
 /// コースそのもの（走者・地形・当たり判定）は `RunnerField` が持ち、ここは
-/// **ステージ進行・タイム・チェックポイント・記録・横断サービスへの通知**だけを担う。
+/// **ステージ進行・到達面・チェックポイント・記録・横断サービスへの通知**だけを担う。
 /// SpriteKit には一切依存しないので、1 ステージ丸ごとをユニットテストで走らせられる。
 @MainActor
 @Observable
@@ -35,14 +35,17 @@ public final class RunnerModel {
     /// 中断データ（`RunnerSnapshot.reachedStage`）に残す。
     public private(set) var reachedStage: Int
     public private(set) var phase: RunnerPhase
-    /// このステージに挑み始めてからの経過秒。
-    public private(set) var elapsed: Double
-    /// ステージごとのベストタイム（秒）。0 は未クリア。
-    public private(set) var bestSeconds: [Int]
-    /// このステージでチェックポイント再開（リワード広告）を使ったか。1 ステージ 1 回まで。
+    /// QA 用に差し替えたコース（`-simulateRunner showcase` 等・DEBUG 専用）。
+    /// 入っているあいだは `startStage` がここのコースを使い、「もう一度」でも本番の面に戻らない。
+    private var debugStageOverride: RunnerStage?
+    /// いまの走行でチェックポイント再開（リワード広告）を使ったか。**1 回の走行につき 1 回まで**。
+    /// 「もう一度」で頭から走り直せば戻る（会長決裁 2026-09-15・#958。以前は 1 ステージ 1 回で、
+    /// クリアできない面で 2 回目以降が頭からだけになり離脱につながるとの判断）。
     public private(set) var checkpointUsed: Bool
-    /// 直前のクリアでベストタイムを更新したか。クリア表示のバッジに使う。
-    public private(set) var didSetBestTime = false
+    /// 直前のクリアで**初めて次の面に到達した**か（`reachedStage` が伸びた）。クリア表示の
+    /// 「新しい面に到達！」のバッジに使う（#931。秒数の廃止で「ベストタイム更新！」の代わり）。
+    /// 到達済みの面を選び直してクリアしても立たない。
+    public private(set) var didReachNewStage = false
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
     /// ゆっくりモード（アクセシビリティ）。切り替えると即座に効く。
@@ -77,7 +80,6 @@ public final class RunnerModel {
             services: services,
             preference: preference,
             stage: restored?.stage ?? 1,
-            bestSeconds: restored?.bestSeconds ?? Array(repeating: 0, count: RunnerRules.stageCount),
             reachedStage: restored?.reachedStage ?? 1,
             isFreshStart: restored == nil
         )
@@ -91,14 +93,12 @@ public final class RunnerModel {
     public convenience init(
         services: GameServices? = nil,
         startingAt stage: Int,
-        bestSeconds: [Int]? = nil,
         preference: FeedbackPreference = .actionSlowMode
     ) {
         self.init(
             services: services,
             preference: preference,
             stage: stage,
-            bestSeconds: bestSeconds ?? Array(repeating: 0, count: RunnerRules.stageCount),
             // 狙った局面から始めるので、その面までは到達済みとみなす。
             reachedStage: stage,
             isFreshStart: true
@@ -113,7 +113,6 @@ public final class RunnerModel {
         services: GameServices?,
         preference: FeedbackPreference,
         stage: Int,
-        bestSeconds: [Int],
         reachedStage: Int,
         isFreshStart: Bool
     ) {
@@ -123,9 +122,7 @@ public final class RunnerModel {
         self.stageNumber = number
         // 到達点は再開面より前にはならない（`RunnerSnapshot.validated()` と同じ丸め）。
         self.reachedStage = min(max(number, reachedStage), RunnerRules.stageCount)
-        self.bestSeconds = bestSeconds
         self.checkpointUsed = false
-        self.elapsed = 0
         self.phase = .ready
         self.isSlowMode = preference.isEnabled
         self.field = RunnerField(stage: RunnerStage.all[number - 1])
@@ -151,23 +148,16 @@ public final class RunnerModel {
     /// 数える。ワールド単位のままだと 400 区画で 25,600 m・時速 140 km 超の表示になり実感と
     /// 合わないため（社長レビュー 2026-09-14）。6,400 m を 8 分前後で走る＝時速 48 km ほど。
     public var distanceMeters: Int { Int(field.distance / RunnerRules.tileWidth) }
-    /// このステージのベストタイム（秒）。未クリアなら nil。
-    public var bestSecondsForCurrentStage: Int? { best(forStage: stageNumber) }
-    /// ステージ番号（1 始まり）のベストタイム。未クリアなら nil。
-    public func best(forStage number: Int) -> Int? {
-        guard number >= 1, number <= bestSeconds.count else { return nil }
-        let value = bestSeconds[number - 1]
-        return value > 0 ? value : nil
-    }
     /// ステージ番号（1 始まり）が到達済み（ワールドマップで選べる）か（#798）。
     /// 1 面は常に到達済み。範囲外は false。
     public func isStageReached(_ number: Int) -> Bool {
         number >= 1 && number <= min(reachedStage, RunnerRules.stageCount)
     }
-    /// 走り出す前の画面で、モードや面を選び直せる状態か（#919）。
+    /// スタート画面（#931）で、モードや面を選び直せる状態か。
     ///
-    /// `.ready` でも**チェックポイント再開の直後は除く**——広告を見て手に入れた途中からの
-    /// 再開を、モードの切り替えの誤タップで捨てさせない。純関数版は `canChooseMode(phase:passedCheckpoint:)`。
+    /// 真ならスタート画面に「次の面」「エンドレス」「マップ」の 3 つを出し、偽の `.ready`
+    /// （チェックポイント再開の直後）は「つづきから」の 1 つだけにする——広告を見て手に入れた
+    /// 途中からの再開を、誤タップで捨てさせない。純関数版は `canChooseMode(phase:passedCheckpoint:)`。
     public var canChooseMode: Bool {
         Self.canChooseMode(phase: phase, passedCheckpoint: field.passedCheckpoint)
     }
@@ -176,6 +166,10 @@ public final class RunnerModel {
     public static func canChooseMode(phase: RunnerPhase, passedCheckpoint: Bool) -> Bool {
         phase == .ready && !passedCheckpoint
     }
+
+    /// QA 用のショーケースを走っているか（DEBUG 専用）。画面の見出しを面の番号ではなく
+    /// 「ショーケース」にするために見る。
+    public var isRunningDebugStage: Bool { debugStageOverride != nil }
 
     /// チェックポイント再開を出せる状態か（通過済み・未使用・ミスした直後）。
     public var canResumeFromCheckpoint: Bool {
@@ -201,14 +195,7 @@ public final class RunnerModel {
         isPressed = true
         switch phase {
         case .ready:
-            phase = .running
-            // 走り出した = 捨てたら途中離脱として数える走行（#500）。
-            services?.gameDidProgress(gameID: Self.gameID)
-            // このゲームの中断データはステージ番号とベストタイムの控えで、決着後も消さない
-            // （消すと全ステージの記録が失われる）。走行そのものは復元せず必ずステージの頭から
-            // 始まるので、「中断データが在る = 続きから戻れる」の既定を打ち消す（PR #572 の指摘）。
-            services?.gameWillNotResume(gameID: Self.gameID)
-            services?.feedback.impact(.rigid)
+            beginRun()
         case .running:
             // 跳ぶ音（#703）。踏み切りが成立したときだけ鳴らす——二段目も同じく成立すれば鳴り、
             // 三度目（`RunnerRules.maxJumps` 超え）や押しっぱなしでは鳴らない。
@@ -216,6 +203,20 @@ public final class RunnerModel {
         default:
             break
         }
+    }
+
+    /// 走り出す前（`.ready`）から走行中へ。フィールドのタップ（`press`）・スタート画面の
+    /// ボタン（`start(_:)`）・面をまたぐ導線（`retryStage` / `advanceToNextStage` /
+    /// `replayCurrentStage`・#941）の共通の実体。
+    private func beginRun() {
+        phase = .running
+        // 走り出した = 捨てたら途中離脱として数える走行（#500）。
+        services?.gameDidProgress(gameID: Self.gameID)
+        // このゲームの中断データは再開する面と到達点の控えで、決着後も消さない
+        // （消すと到達点が失われる）。走行そのものは復元せず必ずステージの頭から
+        // 始まるので、「中断データが在る = 続きから戻れる」の既定を打ち消す（PR #572 の指摘）。
+        services?.gameWillNotResume(gameID: Self.gameID)
+        services?.feedback.impact(.rigid)
     }
 
     /// ボタンを離した。これ以降このジャンプでは高さが伸びない。
@@ -270,7 +271,6 @@ public final class RunnerModel {
         if isFrozenForCapture { return }
         #endif
         let step = min(dt, RunnerRules.maxStep) * (isSlowMode ? RunnerRules.slowFactor : 1)
-        elapsed += step
         for event in field.step(dt: step) {
             guard phase.isRunning else { break }
             handle(event)
@@ -279,15 +279,21 @@ public final class RunnerModel {
 
     /// ミスしたステージを頭からやり直す（無料・無制限）。
     ///
+    /// ステージ制は**その場で走り出す**（#941。面をまたぐたびにスタート画面を挟んで
+    /// もう 1 タップさせない、会長指示 2026-09-15）。
     /// エンドレス（#675）では**新しい種でもう 1 回**走る（コースを走り切った後も同じ）。
     /// 同じコースを走り直す導線は出さない——「冒頭は同じ・以降は毎回違う」が決裁の形で、
     /// 同じ並びを覚えて距離を伸ばすモードにはしない。ミスの時点で 1 回が決着しているので、
     /// 次の 1 回は新しいプレイとして数え直す（ステージ制のやり直しは同じプレイの続き）。
+    /// エンドレスの「もう一度」はこれまでどおりスタート画面（`.ready`）に戻す（#941 の対象外）。
     public func retryStage() {
         switch mode {
         case .stages:
             guard phase == .failed else { return }
+            // 頭からの走り直しは新しい走行。再開権（広告）も戻す（#958）。
+            checkpointUsed = false
             startStage(from: 0, passedCheckpoint: false)
+            beginRun()
         case .endless:
             guard isRunOver else { return }
             startEndless(seed: Self.randomSeed())
@@ -295,7 +301,11 @@ public final class RunnerModel {
         }
     }
 
-    /// ステージクリアの表示から次のステージへ。
+    /// ステージクリアの表示から次のステージへ。スタート画面を挟まず**その場で走り出す**（#941）。
+    ///
+    /// 解析の順序は `gameDidRestart`（新しいプレイの `game_start`）→ `beginRun`（そのプレイの
+    /// `gameDidProgress`）。逆にすると「1 手指した」印が終わった前のプレイに付き、新しいプレイを
+    /// 途中で捨てても `game_end`（quit）が出なくなる。
     public func advanceToNextStage() {
         guard mode == .stages, phase == .cleared, stageNumber < RunnerRules.stageCount else { return }
         stageNumber += 1
@@ -303,14 +313,16 @@ public final class RunnerModel {
         startStage(from: 0, passedCheckpoint: false)
         // 1 ステージ = 1 プレイとして数え直す（#158。前のステージの `game_end` は送信済み）。
         services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        beginRun()
     }
 
-    /// クリア済みのステージをもう一度走る（タイムアタック周回）。
+    /// クリア済みのステージをもう一度走る。`advanceToNextStage` と同じくその場で走り出す（#941）。
     public func replayCurrentStage() {
         guard mode == .stages, phase == .cleared || phase == .allCleared else { return }
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
         services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        beginRun()
     }
 
     /// いまのモードではじめから。ステージ制はステージ 1 から、エンドレスは新しい種で。
@@ -351,6 +363,7 @@ public final class RunnerModel {
     /// `game_end`（quit）を先に送る・#500）。解析の `level` は選んだ面の番号（1 面から順に
     /// 進んだときの `advanceToNextStage` と同じ形）。
     private func startStages(at number: Int) {
+        debugStageOverride = nil
         mode = .stages
         stageNumber = number
         checkpointUsed = false
@@ -371,27 +384,41 @@ public final class RunnerModel {
         services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
     }
 
-    /// 走り出す前の画面のモード切り替え（#919）。開始シートを経ずにモードを変える入口。
+    /// スタート画面（#931）のボタンで走り出す。開始シートを経ずにモードを選んで**その場で走り出す**入口。
     ///
-    /// **走り出す前（`canChooseMode`）だけ効き**、走行中・一時停止中・リザルトでは何もしない。
-    /// 同じモードを選び直しても作り直さない（誤タップで種やタイムが変わらない）。
-    /// ステージ制へ戻るときは**「つづき」の面（`stageNumber`）**から——エンドレス中も
-    /// `stageNumber` は保持してあるので、ハブから開いたときと同じ面に戻る。1 面や到達点
-    /// （`reachedStage`）に飛ばないのは、開始シートの「はじめから」と区別するため。
-    /// エンドレスへは新しい種で（`newGame(mode: .endless)` と同じ）。
+    /// **走り出す前（`.ready`）だけ効き**、走行中・一時停止中・リザルトでは何もしない。
+    /// いまのモードと同じなら、作ってあるコースをそのまま走り出す（`press()` と同じ。エンドレスの
+    /// 種はそのまま——「もう一度」で作った新しいコースを二重に作り直さない）。
+    /// モードが違えば作り直してから走り出す:
+    /// - ステージ制へは**「つづき」の面（`stageNumber`）**から。エンドレス中も `stageNumber` は
+    ///   保持してあるので、ハブから開いたときと同じ面に戻る。1 面や到達点（`reachedStage`）に
+    ///   飛ばないのは、開始シートの「はじめから」と区別するため。
+    /// - エンドレスへは新しい種で（`newGame(mode: .endless)` と同じ）。
     ///
-    /// - Returns: 切り替えたか。
+    /// モードの切り替えは `canChooseMode` のときだけ——チェックポイント再開の直後は、広告で得た
+    /// 途中からの再開を捨てさせない（画面側はそのとき「つづきから」しか出さないが、二重に守る）。
+    ///
+    /// - Returns: 走り出したか。
     @discardableResult
-    public func switchMode(to newMode: RunnerMode) -> Bool {
-        guard canChooseMode, newMode != mode else { return false }
-        switch newMode {
-        case .stages:  startStages(at: stageNumber)
-        case .endless: newEndlessGame(seed: Self.randomSeed())
+    public func start(_ newMode: RunnerMode) -> Bool {
+        guard phase == .ready else { return false }
+        if newMode != mode {
+            guard canChooseMode else { return false }
+            switch newMode {
+            case .stages:  startStages(at: stageNumber)
+            case .endless: newEndlessGame(seed: Self.randomSeed())
+            }
         }
+        // ボタンからの開始なので押下の状態は持ち込まない（押しっぱなしのジャンプにしない）。
+        isPressed = false
+        beginRun()
         return true
     }
 
-    /// リワード広告の視聴後にチェックポイントから再開する。1 ステージ 1 回まで。
+    /// リワード広告の視聴後にチェックポイントから再開する。1 回の走行につき 1 回まで（「もう一度」で戻る・#958）。
+    ///
+    /// ここは走り出さず `.ready` に置く（#941 の対象外）——広告から戻った直後に不意に走り出さない
+    /// よう、スタート画面の「つづきから」1 つを押してもらう。
     ///
     /// - Parameter generation: 広告を出す前に控えた `runGeneration`。**広告のロード〜視聴の間に
     ///   「はじめから」等でコースが作り直されたら適用しない**（ソリティアの `grantUndos(forDeal:)` と
@@ -400,18 +427,22 @@ public final class RunnerModel {
     public func resumeFromCheckpoint(forRun generation: Int) -> Bool {
         guard canResumeFromCheckpoint, generation == runGeneration else { return false }
         checkpointUsed = true
-        // タイムは続きから測る（ステージの頭に戻さないので経過秒も戻さない）。
-        let resumedElapsed = elapsed
         startStage(from: stage.checkpoint, passedCheckpoint: true)
-        elapsed = resumedElapsed
         return true
     }
 
     // MARK: - 内部
 
     /// 現在のステージのコースを作り直し、走り出す前の状態にする。
+    ///
+    /// `.ready` に置くだけで走り出さない。走り出すかは呼び出し側が決める——ハブから入った直後
+    /// （`init`）・「はじめから」・マップで面を選んだとき（`startStages`）・チェックポイント再開は
+    /// スタート画面を出し、面をまたぐ導線（#941）は続けて `beginRun()` を呼ぶ。
     private func startStage(from distance: Double, passedCheckpoint: Bool) {
-        let stage = RunnerStage.all[stageNumber - 1]
+        // QA 用のショーケース（`-simulateRunner showcase` 等）は、ミスして「もう一度」を押しても
+        // 本番の面に戻らない（2026-09-15。戻ると 1 回ミスしただけで見比べが終わってしまう）。
+        // 面を選び直す入口（`startStages` / `newGame`）では解除する。
+        let stage = debugStageOverride ?? RunnerStage.all[stageNumber - 1]
         // 挑み始めた面は到達済み（#798）。次の面へ進んだとき・QA 用の `stage:N` で飛んだときも
         // ここを通るので、到達点の更新はこの 1 か所と `clearStage`（次の面を開ける）だけ。
         reachedStage = max(reachedStage, stageNumber)
@@ -435,10 +466,9 @@ public final class RunnerModel {
         runGeneration += 1
         phase = .ready
         isPressed = false
-        elapsed = 0
         fallElapsed = 0
         recordResult = nil
-        didSetBestTime = false
+        didReachNewStage = false
         didSetBestDistance = false
     }
 
@@ -486,6 +516,13 @@ public final class RunnerModel {
         }
     }
 
+    /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（ここは `PlayRecord.applying` と同じ）。
+    /// 記録が無いときは 0 m と比べる（`PlayRecord.applying` は記録の保存側なので 0 m も書く。表示の印だけを抑える）。`Int.min` と比べていたため、0 m で終わった初回まで
+    /// 「自己ベスト更新！」になっていた（#839）。
+    nonisolated static func isNewBestDistance(_ meters: Int, over best: Int?) -> Bool {
+        meters > (best ?? 0)
+    }
+
     /// エンドレスの 1 回を記録する（#675）。
     ///
     /// 記録は**走行距離**（`GameScore(metric: .points)`・`distanceMeters`。1 タイル＝1 m）。区分
@@ -497,8 +534,7 @@ public final class RunnerModel {
     /// 毎回を勝ちにすると通算勝利数の実績が走るたびに進んでしまう）。
     private func finishEndlessRun(outcome: GameOutcome) {
         let meters = distanceMeters
-        // 同点は更新扱いにしない（`PlayRecord.applying` と同じ規則）。
-        didSetBestDistance = meters > (endlessBestDistance ?? Int.min)
+        didSetBestDistance = Self.isNewBestDistance(meters, over: endlessBestDistance)
         if didSetBestDistance { endlessBestDistance = meters }
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
@@ -522,19 +558,13 @@ public final class RunnerModel {
             return
         }
         #endif
-        // **表示と同じ切り捨て**にする。四捨五入すると、画面の「0:22」に対して記録が
-        // 「23秒」になって食い違う（最初の実機確認で判明）。
-        let seconds = max(1, Int(elapsed))
-        // チェックポイント再開を使った回はベストタイムに残さない。ステージの半分しか
-        // 走っていない回と通しで走った回を同じ表に混ぜない（#406 と同じ考え方）。
-        didSetBestTime = !checkpointUsed && (best(forStage: stageNumber).map { seconds < $0 } ?? true)
-        if didSetBestTime {
-            bestSeconds[stageNumber - 1] = seconds
-        }
         phase = stageNumber < RunnerRules.stageCount ? .cleared : .allCleared
         // クリアした面の次がワールドマップで選べるようになる（#798）。下の面を選んで
-        // クリアしても `max` なので到達点は戻らない。
-        reachedStage = max(reachedStage, min(stageNumber + 1, RunnerRules.stageCount))
+        // クリアしても `max` なので到達点は戻らない。到達点が伸びた回だけ
+        // 「新しい面に到達！」（#931。秒数の廃止で記録の主役は到達面）。
+        let nextReached = max(reachedStage, min(stageNumber + 1, RunnerRules.stageCount))
+        didReachNewStage = nextReached > reachedStage
+        reachedStage = nextReached
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .win,
@@ -551,11 +581,12 @@ public final class RunnerModel {
 
     /// 区切りの状態だけを保存する（規約どおりフレーム単位では保存しない）。
     ///
-    /// **決着してもファイルは消さない**。ここにはステージごとのベストタイムが入っており、
-    /// 消すと全ステージの記録がまとめて失われる。代わりに「次に開いたときどこから始めるか」を
+    /// **決着してもファイルは消さない**。ここには到達点（`reachedStage`）が入っており、
+    /// 消すとワールドマップで選べる面が 1 面に戻る。代わりに「次に開いたときどこから始めるか」を
     /// 書き換える（クリア表示中なら次のステージ、それ以外は今のステージ）。
+    /// 旧形式のベストタイム（`RunnerSnapshot.bestSeconds`）は空で書く（#931）。
     private func persist() {
-        // エンドレスは保存しない（1 回完結・#675）。書くべき値（ステージ番号・ベストタイム）は
+        // エンドレスは保存しない（1 回完結・#675）。書くべき値（ステージ番号・到達点）は
         // エンドレス中に変わらないので、書いても壊れはしないが、意図として呼ばない。
         guard mode == .stages else { return }
         let resume: Int
@@ -565,7 +596,7 @@ public final class RunnerModel {
         default:          resume = stageNumber
         }
         try? services?.snapshots.save(
-            RunnerSnapshot(stage: resume, bestSeconds: bestSeconds, reachedStage: reachedStage),
+            RunnerSnapshot(stage: resume, reachedStage: reachedStage),
             for: Self.gameID
         )
     }
@@ -595,8 +626,16 @@ public final class RunnerModel {
             isFrozenForCapture = true
         case "pedaling":
             press(); release()
-            // 漕いでいる脚を撮る。`running` は空中で止めるので、そちらでは脚が止まる（#569）。
-            autoPlayForDebug(until: { $0.field.isGrounded && $0.field.distance > 34 })
+            // 漕いでいる画を撮る。`running` は空中で止めるので、そちらは `jump` のコマになる（#569）。
+            // 漕ぐコマは 2 枚（#701）で、`ride0` は走り出す前と同じ絵なので、**左ペダルが前の
+            // `ride1` が出る瞬間**で止める。シーンは最初の反映で「それまでに進んだ距離」を
+            // まとめて位相に足すので、凍らせた画のコマは接地距離だけで決まる。
+            autoPlayForDebug(until: {
+                $0.field.isGrounded && $0.field.distance > 34
+                    && RunnerRider.pedalFrame(
+                        phase: RunnerRider.phase(forGroundedDistance: $0.field.distance)
+                    ) == .ride1
+            })
             isFrozenForCapture = true
         case "paused":
             press(); release()
@@ -624,34 +663,45 @@ public final class RunnerModel {
             })
             isFrozenForCapture = true
         case "bird-low":
-            // 低く飛ぶ鳥を跳び越している瞬間（画 2/3）。空中で鳥の真上に来たところで止める。
+            // 飛び立った直後、まだ頭より低いところを上がっている途中（画 2/3・#945）。
+            // 帯の下端が止まっていた上端（5）を越え、頭（11）にはまだ届いていないところで止める
+            // ——おじさんはまだ手前を走っている。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
                 let field = model.field
                 guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
                       let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
-                return !field.isGrounded && field.playerMaxX > frame.start && field.playerMinX < frame.end
+                return frame.bottom >= RunnerHazardKind.birdLowTop
+                    && frame.bottom < RunnerField.Metrics.playerHeight
             })
             isFrozenForCapture = true
         case "bird-up":
-            // 跳び越したあと、鳥が上がっていく画（3/3）。帯の下端が 13 に届いたところで止める。
+            // 上がりきった鳥の真下を走ったまま抜けている瞬間（画 3/3・#945 の受け入れ条件そのもの）。
+            // 接地したまま帯と横に重なったところで止める——帯の下端は頭の 3 上（`birdMeetBottom`）。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
                 let field = model.field
                 guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
                       let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
-                return field.isGrounded && frame.bottom >= RunnerHazardKind.birdHighBottom
+                return field.isGrounded && frame.bottom >= RunnerHazardKind.birdMeetBottom
+                    && field.playerMaxX > frame.start && field.playerMinX < frame.end
             })
             isFrozenForCapture = true
         case "dog":
-            // 犬が立ち止まって吠えている瞬間（#800）。止まった直後・踏み切る前で止める。
+            // 犬が走者の少し前（画面の中央）で向かい合っている瞬間（#955）。左向きに歩いて来る
+            // 犬の鼻先が画面の中央（走者の中心の `width / 2 − playerX` = 24 先）に入った最初の
+            // フレームで止める——自動操縦の踏み切り（間合い 10 前後）より手前なので、走者は
+            // まだ接地して向かい合っている。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in
-                guard let dog = model.field.stage.hazards.first(where: { $0.kind == .dog }) else { return true }
-                return model.field.isGrounded && model.field.distance >= dog.dogStopDistance + 1
+                let field = model.field
+                guard let dog = field.stage.hazards.first(where: { $0.kind == .dog }),
+                      let frame = dog.frame(atRunnerDistance: field.distance) else { return false }
+                let center = RunnerField.Metrics.width / 2 - RunnerField.Metrics.playerX
+                return field.isGrounded && frame.start - field.distance <= center
             })
             isFrozenForCapture = true
         case "boar":
@@ -710,8 +760,8 @@ public final class RunnerModel {
             // 種を固定して毎回同じコースを撮る。
             newEndlessGame(seed: Self.captureSeed)
         case "endless-running":
-            // エンドレスの走行中（距離が伸びている画）。冒頭の固定区画を抜けて 3 つ目の穴を
-            // 跳んでいる最中で止める（ランダム部分に入る直前の、確実に成立する画）。
+            // エンドレスの走行中（距離が伸びている画）。冒頭の固定区画（#930 で 4 区画に短縮）を
+            // 抜けたランダム区画で、跳んでいる最中の瞬間で止める（距離 600 超・跳躍の 6 割以上）。
             newEndlessGame(seed: Self.captureSeed)
             press(); release()
             autoPlayForDebug(until: { $0.field.distance > 600 && $0.field.altitude > RunnerRules.jumpApex * 0.6 })
@@ -763,10 +813,11 @@ public final class RunnerModel {
 
     /// `RunnerStage.all` を経由せず、任意のステージ定義で走らせ直す（QA用）。
     ///
-    /// `stageNumber`（ヘッダーの「ステージ N/15」表示・ベストタイムの記録先）はそのまま
+    /// `stageNumber`（ヘッダーの「ステージ N/18」表示・到達点の記録先）はそのまま
     /// 動かさない。「もう一度」「はじめから」を押すと `startStage` が `RunnerStage.all` から
     /// 引き直すので、ショーケースからは抜ける——QA専用の一時的な差し替えとして割り切る。
     private func applyDebugStage(_ customStage: RunnerStage) {
+        debugStageOverride = customStage
         resetRun(RunnerField(stage: customStage))
     }
 

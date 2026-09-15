@@ -3,39 +3,12 @@ import Foundation
 import Core
 import MahjongTiles
 @testable import GameMahjong
+import CoreTestSupport
 
 /// 立直の合図（#714）。
 ///
 /// 人間の立直成立は「成功」、CPU の立直は相手が脅威を作った合図で意味が逆になる。
 /// 同じ `notify(.success)` を鳴らすと音と振動では区別できないため、出し分けをここで固定する。
-
-private final class MemoryStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ value: T, for key: String) throws {
-        storage[key] = try JSONEncoder().encode(value)
-    }
-    func load<T: Codable>(_ type: T.Type, for key: String) -> T? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for key: String) { storage[key] = nil }
-    func exists(for key: String) -> Bool { storage[key] != nil }
-}
-
-@MainActor
-private final class SpyFeedback: FeedbackService {
-    private(set) var impacts: [FeedbackImpact] = []
-    private(set) var notices: [FeedbackNotice] = []
-
-    func impact(_ style: FeedbackImpact) { impacts.append(style) }
-    func notify(_ type: FeedbackNotice) { notices.append(type) }
-
-    func reset() {
-        impacts = []
-        notices = []
-    }
-}
 
 /// 5s / 8s 待ちの聴牌。東（1z）を切れば聴牌のまま立直できる。
 @MainActor
@@ -47,9 +20,9 @@ private func junkHand() -> MahjongHand { MahjongNotation.hand("147m258p369s1234z
 
 /// `riichiPlayer` だけが聴牌して東をツモっている局面。
 @MainActor
-private func makeModel(_ spy: SpyFeedback, riichiPlayer: Int) -> MahjongModel {
+private func makeModel(_ spy: SpyFeedbackService, riichiPlayer: Int) -> MahjongModel {
     let model = MahjongModel(
-        services: GameServices(snapshots: MemoryStore(), ads: NoopAdService(), feedback: spy),
+        services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy),
         cpuDelay: .zero,
         seed: 2026
     )
@@ -73,7 +46,7 @@ struct MahjongRiichiFeedbackTests {
 
     @Test("CPU の立直では「成功」を鳴らさず、硬い触覚を 1 回だけ鳴らす")
     func cpuRiichiDoesNotSoundSuccess() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, riichiPlayer: 1)
 
         model.stepCPUForTesting()
@@ -85,7 +58,7 @@ struct MahjongRiichiFeedbackTests {
 
     @Test("人間の立直成立では従来どおり「成功」を 1 回鳴らす")
     func humanRiichiSoundsSuccess() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, riichiPlayer: MahjongModel.humanIndex)
 
         model.declareRiichi()
@@ -98,7 +71,7 @@ struct MahjongRiichiFeedbackTests {
 
     @Test("立直の宣言を取り消すと軽い触覚を 1 回鳴らす")
     func cancelRiichiDeclarationSoundsOnce() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, riichiPlayer: MahjongModel.humanIndex)
         model.declareRiichi()
         spy.reset()
@@ -112,7 +85,7 @@ struct MahjongRiichiFeedbackTests {
 
     @Test("宣言していないときの取り消しは何も鳴らさない")
     func cancelWithoutDeclarationIsSilent() {
-        let spy = SpyFeedback()
+        let spy = SpyFeedbackService()
         let model = makeModel(spy, riichiPlayer: MahjongModel.humanIndex)
 
         model.cancelRiichiDeclaration()

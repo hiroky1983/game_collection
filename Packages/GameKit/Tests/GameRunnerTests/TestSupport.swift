@@ -1,24 +1,7 @@
 import Core
 import Foundation
 @testable import GameRunner
-
-/// テスト用の使い捨てスナップショット置き場。
-final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private(set) var saveCount = 0
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        saveCount += 1
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-    /// 壊れたデータを流し込む（復元の検め方を試すため）。
-    func inject(_ data: Data, for gameID: String) { store[gameID] = data }
-}
+import CoreTestSupport
 
 /// 既定オフ・使い捨ての設定。`UserDefaults.standard` を汚さない。
 func makePreference(_ suite: String) -> FeedbackPreference {

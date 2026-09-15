@@ -12,12 +12,6 @@ func initializeAds() async {
     await GADMobileAds.sharedInstance().start()
 }
 
-/// ATT の許可状態がまだ未決定か（＝これから許可を聞ける状態か）。
-@MainActor
-var isTrackingAuthorizationUndetermined: Bool {
-    ATTrackingManager.trackingAuthorizationStatus == .notDetermined
-}
-
 /// ATT 許可ダイアログを表示する。許可・拒否どちらでも広告は表示される（拒否時は非パーソナライズ広告）。
 @MainActor
 func requestTrackingAuthorization() async {

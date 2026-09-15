@@ -1,6 +1,5 @@
 /// AdMob のユニット ID。本番申請前にテスト ID から差し替える。
 enum AdConfig {
-    static let appID          = "ca-app-pub-1869410932032409~4823987816"
     static let bannerID       = "ca-app-pub-1869410932032409/5642245468"
     static let interstitialID = "ca-app-pub-1869410932032409/6461337269"
     static let rewardedID     = "ca-app-pub-1869410932032409/8789412276"

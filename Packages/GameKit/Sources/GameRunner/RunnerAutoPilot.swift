@@ -40,8 +40,8 @@ public enum RunnerAutoPilot {
         // 0.05 程度（`RunnerStage.speed(at:)`）で、`baseLead` の半タイルの余裕に収まる。
         let speed = field.stage.speed(at: field.distance)
         var target: (start: Double, lead: Double)?
-        // 障害は**いまの位置**で見る（#796。飛び立った鳥・走る犬・突進するイノシシは置いた
-        // 位置から動いている）。踏み切りの余裕は相対速度で伸び縮みする（`lead(for:frame:speed:)`）。
+        // 障害は**いまの位置**で見る（#796。飛び立った鳥・歩いて来る犬・突進するイノシシは
+        // 置いた位置から動いている）。踏み切りの余裕は相対速度で伸び縮みする（`lead(for:frame:speed:)`）。
         if let next = field.nextHazardFrame(from: field.playerMaxX) {
             target = (next.frame.start, lead(for: next.hazard, frame: next.frame, speed: speed))
         }

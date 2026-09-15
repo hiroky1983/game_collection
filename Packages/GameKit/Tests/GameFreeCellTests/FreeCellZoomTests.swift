@@ -185,6 +185,6 @@ struct FreeCellZoomTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        try SourceScan.packageSource("Sources/GameFreeCell/FreeCellView.swift")
+        try SourceScan.moduleSources("GameFreeCell")
     }
 }

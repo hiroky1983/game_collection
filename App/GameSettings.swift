@@ -118,7 +118,9 @@ final class GameSettings {
         if hiddenIDs.contains(id) {
             hiddenIDs.remove(id)
         } else {
+            // 非表示にしたゲームのお知らせは届けない。予約済みもこの時点で取り消す（#810）。
             hiddenIDs.insert(id)
+            AppEnvironment.reminders.gameDidHide(gameID: id)
         }
         save()
     }

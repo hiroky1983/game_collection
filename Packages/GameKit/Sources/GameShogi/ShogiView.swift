@@ -7,7 +7,6 @@ public struct ShogiView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -471,58 +470,13 @@ public struct ShogiView: View {
 
     private var gameControls: some View {
         HStack(spacing: 12) {
-            Button { showResignConfirm = true } label: {
-                Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-                Button("投了する", role: .destructive) { model.resign() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("現在の対局を終了します。CPUの勝ちになります。")
-            }
+            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。
+            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) { showResignConfirm = true }
+                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
 
             Spacer()
 
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
-                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    guard model.undoUsed else {
-                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
-                        // アラートの終了アニメーションに巻き込まれる）。
-                        Task { model.undoLastExchange() }
-                        return
-                    }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
-                    // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
-                    let turn = model.aiTurnKey
-                    undoRescue.request(
-                        services, gameID: model.gameID, purpose: .undo,
-                        guardedBy: .checkedByGrant
-                    ) {
-                        model.undoLastExchange(forTurn: turn)
-                    }
-                }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
-                     : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
-            }
-            .rewardedRescueAlerts(
-                undoRescue,
-                notEarned: "待ったは使えませんでした",
-                unavailable: RewardUnavailableAlert(
-                    title: "待ったは使えませんでした",
-                    message: "広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。"
-                )
-            )
+            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 5)
@@ -594,36 +548,6 @@ struct NewGameSheet: View {
 /// 呼び出し側の読み口は将棋の名前のまま残す（どのゲームの演出を触っているかを見失わないため）。
 typealias ShogiMotion = BoardGameMotion
 
-/// 盤の配色（明るい木目調）。#366 の会長コンペで確定した「明るい飴色 × 無地アンバー」。
-enum BoardStyle {
-    static let frame = Color(hex: 0xE7B96A)
-    /// 盤地と枠。単色をやめて上→下の木のグラデーションにする（#366）。
-    /// マスは透明なハイライト層になったので、この2色が盤全体の地の色でもある。
-    static let frameTop = Color(hex: 0xEDC178)
-    static let frameBottom = Color(hex: 0xD3A04D)
-    static let cell = Color(hex: 0xFBE6B6)
-    static let line = Color(hex: 0xCDA15B)
-    /// 駒は実物と同じくツゲ材（黄楊）のような単色。先手・後手は色ではなく向き（180度回転）で見分ける。
-    static let komaWoodLight = Color(hex: 0xF3DFAE)
-    /// 駒の面（#366）: 明るい飴色の縦グラデーション。
-    static let komaFaceTop = Color(hex: 0xEFC98A)
-    static let komaFaceBottom = Color(hex: 0xD9A85C)
-    /// 駒の側面（#366）: 本体を下へずらした同じ駒形をこの色で敷き、木駒の厚みを見せる。
-    static let komaSideTop = Color(hex: 0x9A6F33)
-    static let komaSideBottom = Color(hex: 0x63431A)
-    /// 王手の合図（#377）。玉のマスの枠と「王手」の札に使う。
-    ///
-    /// 実体は盤ゲーム共通の `BoardGameCheckColor`（#530）。チェスと同じ値・同じ理由で、
-    /// 片方だけ差し替えると盤ゲーム間で危急の合図の色が食い違う。
-    /// 盤の飴色（`frameTop` 0xEDC178）に対しても十分に沈んで見える。
-    static let checkHex: UInt32 = BoardGameCheckColor.hex
-    static let check = BoardGameCheckColor.color
-    /// 駒の輪郭・面取り・文字（#366）。
-    static let komaOutline = Color(hex: 0x6B4A1C)
-    static let komaChamfer = Color(hex: 0xFFEFC2)
-    static let komaText = Color(hex: 0x241708)
-}
-
 /// 1 マス。マスの色だけを描く。
 ///
 /// 駒と着手先の印は描かない（#200）。移動を補間するため、駒は盤全体を覆う 1 枚の層
@@ -646,121 +570,6 @@ struct ShogiCell: View {
         }
         .frame(width: size, height: size)
         .contentShape(Rectangle())
-    }
-}
-
-/// 将棋の駒（木製の実物に寄せた見た目・五角形）。先手・後手は色ではなく
-/// 向き（pointsUp=false＝相手の駒は180度回転）だけで見分ける（実物と同じ規則）。
-///
-/// 見た目は #366 の会長コンペで確定した「明るい飴色 × なめらかな面」:
-/// 木目の筋は**描かない**（試したが小さい駒ではノイズにしかならず不採用）。
-/// 立体感は「厚い側面 + 稜線 + 面取り + 落ち影」で出す。
-struct KomaView: View {
-    let piece: Piece
-    let size: CGFloat
-    let pointsUp: Bool
-
-    var body: some View {
-        ZStack {
-            // 側面: 本体を下へずらした同じ駒形を濃い木色で敷き、木駒の厚みを見せる。
-            // 落ち影はいちばん下のこの層に掛ける（本体に掛けると影が自分の側面に落ちて濁る）。
-            //
-            // 向きの回転はこの層と本体に**別々に**掛ける。外側の ZStack ごと回すと
-            // 下方向のオフセットまで回って、後手の駒だけ厚みが上端に出てしまう
-            // （厚みと影は駒の向きに関係なく、机に置かれた実物として常に下端が正しい）。
-            // 回転 → オフセットの順なので、ずれは常に画面座標の下向きになる。
-            KomaShape()
-                .fill(
-                    LinearGradient(
-                        colors: [BoardStyle.komaSideTop, BoardStyle.komaSideBottom],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .rotationEffect(.degrees(pointsUp ? 0 : 180))
-                .offset(y: size * 0.075)
-                .shadow(color: .black.opacity(0.30), radius: 2.5, y: 2)
-            // 木地: 上が明るく下がやや濃い縦グラデーション + 控えめな照りで、
-            // 削り出した木の丸みを表現。
-            ZStack {
-                KomaShape()
-                    .fill(
-                        LinearGradient(
-                            colors: [BoardStyle.komaFaceTop, BoardStyle.komaFaceBottom],
-                            startPoint: .top, endPoint: .bottom)
-                    )
-                    .overlay(
-                        KomaShape().fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.10),
-                                         .clear,
-                                         Color.black.opacity(0.10)],
-                                startPoint: .top, endPoint: .bottom))
-                    )
-                    .overlay(KomaShape().stroke(
-                        BoardStyle.komaOutline.opacity(0.75), lineWidth: 1))
-                    // 面取り: 縁の内側に明→暗のグラデーション線を重ね、断面の厚みを疑似表現。
-                    // 上辺は真っ白だと灰色に沈むため、木の明色で照らす。
-                    .overlay(
-                        KomaShape()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [BoardStyle.komaChamfer.opacity(0.9),
-                                             .clear,
-                                             Color.black.opacity(0.25)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: max(1, size * 0.05)
-                            )
-                    )
-                    // 稜線: 面と側面の境目に1本のエッジを立て、五角柱の折り目に見せる。
-                    .overlay(
-                        KomaBaseEdgeShape()
-                            .stroke(BoardStyle.komaSideBottom.opacity(0.55),
-                                    lineWidth: max(1, size * 0.02))
-                    )
-                Text(Glyph.kanji(for: piece))
-                    .font(.system(size: size * 0.46, weight: .black, design: .serif))
-                    .foregroundStyle(piece.promoted ? Theme.coral : BoardStyle.komaText)
-                    // 彫り込まれた文字に見えるよう、上に淡いハイライト・下に淡い影を重ねる。
-                    .shadow(color: .white.opacity(0.4), radius: 0, x: 0, y: -0.5)
-                    .shadow(color: .black.opacity(0.3), radius: 0.5, x: 0, y: 0.8)
-            }
-            .rotationEffect(.degrees(pointsUp ? 0 : 180))
-        }
-        .frame(width: size * 0.86, height: size * 0.86)
-    }
-}
-
-/// 将棋の駒形（五角形）。上が尖り、下が平ら。
-///
-/// 会長フィードバック（#366）: 尖りすぎ → 実物の駒と同じく**天（てっぺん）に短い平らな辺**を
-/// 持たせ、肩も少し上げて先端の角度を鈍くした。
-struct KomaShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let shoulder = h * 0.30
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.455, y: h * 0.045))
-        p.addLine(to: CGPoint(x: w * 0.545, y: h * 0.045))
-        p.addLine(to: CGPoint(x: w * 0.845, y: shoulder))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.96))
-        p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.96))
-        p.addLine(to: CGPoint(x: w * 0.155, y: shoulder))
-        p.closeSubpath()
-        return p
-    }
-}
-
-/// 面と側面の境目（駒の底辺）。エッジを1本立てて五角柱の稜線に見せる（#366）。
-struct KomaBaseEdgeShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.10, y: h * 0.96))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.96))
-        return p
     }
 }
 
@@ -832,32 +641,5 @@ private struct HandAreaView: View {
         // 駒の大きさ（＝タップ目標）は変えずに余白から捻出している（#139・会長指示 2026-09-01）。
         .padding(.horizontal, 12).padding(.vertical, 2)
         .popCard(corner: Theme.cornerSmall)
-    }
-}
-
-/// 駒の漢字表記。
-enum Glyph {
-    static func kanji(for p: Piece) -> String {
-        if p.promoted {
-            switch p.type {
-            case .pawn: return "と"
-            case .lance: return "杏"
-            case .knight: return "圭"
-            case .silver: return "全"
-            case .bishop: return "馬"
-            case .rook: return "龍"
-            default: break
-            }
-        }
-        switch p.type {
-        case .pawn: return "歩"
-        case .lance: return "香"
-        case .knight: return "桂"
-        case .silver: return "銀"
-        case .gold: return "金"
-        case .bishop: return "角"
-        case .rook: return "飛"
-        case .king: return p.color == .black ? "玉" : "王"
-        }
     }
 }

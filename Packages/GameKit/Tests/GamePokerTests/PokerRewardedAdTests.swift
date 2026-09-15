@@ -2,26 +2,11 @@ import Testing
 import Foundation
 import SwiftUI
 import Core
+import GameKitTestSupport
 @testable import GamePoker
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MockSnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-
-    /// 旧バージョンが書いた JSON をそのまま流し込む（鍵を1つ落とした形を作るのに使う）。
-    func saveRaw(_ json: Data, for gameID: String) { store[gameID] = json }
-}
 
 /// `PokerSnapshot` を符号化してから指定の鍵を落とし、旧バージョンが書いた JSON を作る。
 private func encodingWithoutKey(_ snapshot: PokerSnapshot, key: String) throws -> Data {
@@ -75,8 +60,8 @@ private func makeBustedModel(
     gameCenter: GameCenterReporter? = nil,
     playLog: PlayLog? = nil,
     screenGeneration: GameScreenGeneration = GameScreenGeneration()
-) -> (PokerModel, StubAdService, MockSnapshotStore) {
-    let store = MockSnapshotStore()
+) -> (PokerModel, StubAdService, MemorySnapshotStore) {
+    let store = MemorySnapshotStore()
     // 役の強さは判定に影響しない（フォールドは無条件に CPU の勝ち）ため、重複しない札を機械的に配る。
     let playerHand = (0..<5).map { PokerCard(id: $0, suit: .spades, rank: $0 + 2) }
     let cpuHand = (0..<5).map { PokerCard(id: $0 + 13, suit: .hearts, rank: $0 + 7) }
@@ -214,12 +199,7 @@ struct PokerRewardedAdTests {
     /// ファイル全体を探すとそちらに当たって空振りするため。
     @Test("視聴中は「もう一度はじめる」を押せない")
     func restartButtonIsDisabledWhileWatching() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GamePokerTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GamePoker/PokerView.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try SourceScan.moduleSources("GamePoker")
         let start = try #require(source.range(of: "                model.restartSession()\n"),
                                  "やり直しボタンの定義が見つからない（走査が空振りしている）")
         let end = try #require(source.range(of: "private func actionButton(", range: start.upperBound..<source.endIndex))
@@ -258,7 +238,7 @@ struct PokerRewardedAdTests {
     @Test("チップが残っているうちは復活できず、広告も出さない")
     func doesNotShowAdWhileChipsRemain() async {
         let ads = StubAdService(rewardEarned: true)
-        let model = PokerModel(services: GameServices(snapshots: MockSnapshotStore(), ads: ads))
+        let model = PokerModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: ads))
         model.startGame()
         #expect(!model.sessionOver)
         #expect(!model.canReviveAfterBust)
@@ -274,7 +254,7 @@ struct PokerRewardedAdTests {
     func doesNotOfferReviveWhenPlayerWonTheSession() async {
         // CPU 側がアンティ未満で終わる局面。プレイヤーには十分な残高がある。
         // ポットを 0 にしてあるので、フォールドで CPU が回収しても 0 のままセッションが終わる。
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let playerHand = (0..<5).map { PokerCard(id: $0, suit: .spades, rank: $0 + 2) }
         let cpuHand = (0..<5).map { PokerCard(id: $0 + 13, suit: .hearts, rank: $0 + 7) }
         let deck = (0..<10).map { PokerCard(id: $0 + 26, suit: .clubs, rank: $0 % 13 + 2) }
@@ -392,8 +372,8 @@ struct PokerRewardedAdTests {
             cpuFolded: false, cpuAction: "",
             hasRevivedThisSession: nil
         )
-        let store = MockSnapshotStore()
-        store.saveRaw(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "poker")
+        let store = MemorySnapshotStore()
+        store.inject(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "poker")
 
         let model = PokerModel(
             services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))

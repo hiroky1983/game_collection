@@ -2,6 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameHanafuda
+import CoreTestSupport
 
 @MainActor
 @Suite("花札: 対局の進行")
