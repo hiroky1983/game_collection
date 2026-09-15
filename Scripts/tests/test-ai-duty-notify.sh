@@ -101,6 +101,24 @@ collect_notify_targets
 check "ops:chairman + ai:approved + blocked でも対象に残る" "171" "$NOTIFY_CHAIRMAN"
 unset MOCK_GH_RINGI MOCK_GH_PROPOSED MOCK_GH_CHAIRMAN
 
+echo "== 2c. 同じ Issue が 2 つの集合に入っても通知は 1 回だけ数える（PR #999 の指摘）=="
+# 会長操作依頼にラベルの組み合わせの制限は無く、`ops:chairman` と `ai:proposed` や
+# `ringi:pending` が同居しうる。二重に並べず二重に数えないことを確かめる
+NOTIFY_READY=1; NOTIFY_RINGI="128"; NOTIFY_APPROVAL="79 171"; NOTIFY_CHAIRMAN="128 171 543"
+reset_log; rm -f "$STATE"
+notify_pending
+check "重複していても 1 回だけ通知する" "1" "$(notified)"
+DEDUP_BODY=$(cat "$MOCK_OSASCRIPT_LOG")
+for N in 128 79 171 543; do
+  COUNT=$(printf '%s' "$DEDUP_BODY" | grep -o "#$N\\b" | wc -l | tr -d ' ')
+  check "本文に #$N が 1 回だけ出る" "1" "$COUNT"
+done
+case "$DEDUP_BODY" in
+  *"4件"*) ok "件数が重複を除いた 4 件になる" ;;
+  *) ng "件数が重複を除いていない ($DEDUP_BODY)" ;;
+esac
+rm -f "$STATE"
+
 echo "== 3. gh 失敗時は通知しない（無音で握り潰さない）=="
 # 注: bash では `VAR=x 関数` の前置代入が関数から戻ったあとも残る（コマンドと違って消えない）。
 # 以降のテストを汚さないよう、モックの切り替えは export / unset で明示的に行う

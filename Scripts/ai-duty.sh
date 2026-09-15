@@ -138,12 +138,32 @@ sanitize_numbers() {
   printf '%s' "$1" | tr '\n\t' '  ' | tr -cd '0-9 ' | tr -s ' ' | sed 's/^ //; s/ $//'
 }
 
+# $1 の番号から $2 に含まれる番号を落とす。同じ Issue が 2 つの集合に入ると、通知の本文に
+# 二度並び、件数も二重に数えられる（PR #999 の CodeRabbit 指摘）。決裁待ちと承認待ちは
+# jq 側のラベル条件で重ならないようにしてあるが、`ops:chairman` はラベルの組み合わせを
+# 制限していない（会長操作依頼に `ai:proposed` や `ringi:pending` が付くことはありうる）ので、
+# ここで落とす。
+exclude_numbers() {
+  local n m out="" skip
+  for n in $1; do
+    skip=0
+    for m in $2; do
+      if [ "$n" = "$m" ]; then skip=1; break; fi
+    done
+    if [ "$skip" -eq 0 ]; then out="$out $n"; fi
+  done
+  printf '%s' "${out# }"
+}
+
 notify_pending() {
   [ "$NOTIFY_READY" -eq 1 ] || return 0
   local ringi approval chairman key now last_key last_at body count
   ringi=$(sanitize_numbers "$NOTIFY_RINGI")
   approval=$(sanitize_numbers "$NOTIFY_APPROVAL")
   chairman=$(sanitize_numbers "$NOTIFY_CHAIRMAN")
+  # 先に出る集合を優先して重複を落とす（決裁待ち → 承認待ち → 会長操作待ち）
+  approval=$(exclude_numbers "$approval" "$ringi")
+  chairman=$(exclude_numbers "$chairman" "$ringi $approval")
   [ -n "$ringi$approval$chairman" ] || return 0
 
   key="ringi=$ringi;approval=$approval;chairman=$chairman"
