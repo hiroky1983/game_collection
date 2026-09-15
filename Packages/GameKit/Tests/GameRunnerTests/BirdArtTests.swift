@@ -40,11 +40,12 @@ struct BirdArtTests {
         Double(art.shadowCenter.y) - Double(art.shadowSize.height) / 2
     }
 
-    /// 見た目の倍率は会長QA（2026-09-15「鳥が小さすぎて見えない」・#943）の目安
-    /// 「胴・翼が 1.4〜1.6 倍」の中央。1 未満は当たり判定が絵から出る（#609 の理不尽）ので禁止。
-    @Test("見た目の倍率は 1.5（#943）で、当たり判定より小さく描くことは無い")
+    /// 見た目の倍率は会長QA（2026-09-15「鳥が小さすぎて見えない」「おじさんと同じ位の大きさ」・#943）
+    /// から 2.5（絵は 10 × 10.8 で走者の絵 11 × 11.9 と同じ位）。1 未満は当たり判定が絵から出る
+    /// （#609 の理不尽）ので禁止。
+    @Test("見た目の倍率は 2.5（#943）で、当たり判定より小さく描くことは無い")
     func visualScaleIsTheDecidedValue() {
-        #expect(RunnerBirdArt.defaultVisualScale == 1.5)
+        #expect(RunnerBirdArt.defaultVisualScale == 2.5)
         #expect(RunnerBirdArt.defaultVisualScale >= 1)
         #expect(Self.drawnArt.visualScale == RunnerBirdArt.defaultVisualScale)
         #expect(Self.hitboxArt.visualScale == 1)
@@ -217,8 +218,9 @@ struct BirdArtTests {
         }
     }
 
-    /// 会長の目安「胴・翼が今の 1.4〜1.6 倍」（#943）が、比率ではなく実際の寸法で満たされていること。
-    @Test("描く絵の胴・翼は倍率 1 の絵の倍率倍（#943）")
+    /// 倍率が比率ではなく実際の寸法（胴・翼）に効いていること、絵の高さが走者の絵（11.9）と同じ位
+    /// （#943 会長「おじさんと同じ位の大きさ」）であること。
+    @Test("描く絵の胴・翼は倍率 1 の絵の倍率倍で、走者と同じ位の高さ（#943）")
     func drawnPartsAreScaledUp() {
         let unit = Self.hitboxArt, drawn = Self.drawnArt
         let scale = RunnerBirdArt.defaultVisualScale
@@ -229,7 +231,10 @@ struct BirdArtTests {
         let unitSpan = unitWing.upperBound - unitWing.lowerBound
         let drawnSpan = drawnWing.upperBound - drawnWing.lowerBound
         #expect(abs(drawnSpan - unitSpan * scale) < Self.epsilon, "翼")
-        #expect((1.4...1.6).contains(drawn.bodyRadius / unit.bodyRadius), "会長の目安 1.4〜1.6 倍")
+        // 走者の絵の全高 11.9（`RunnerScene.buildFace` の帽子の天辺）と同じ位——上下 2 の幅で見る。
+        let riderArtHeight = 11.9
+        let birdArtHeight = drawn.birdVerticalExtent.upperBound
+        #expect(abs(birdArtHeight - riderArtHeight) < 2, "鳥の絵の高さ \(birdArtHeight) が走者 \(riderArtHeight) と同じ位でない")
     }
 
     /// 箱の幅を変えても、倍率 1 の絵は幅ちょうどいっぱい・帯の床合わせのまま（比率で組んである）。
