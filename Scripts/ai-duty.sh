@@ -299,6 +299,8 @@ self_update() {
 #     `ai:proposed` + `blocked` の Issue に規程 1-e どおり「企画議論」で応答すると
 #     応答済みなのに毎時鳴り続けた。#184 で実際に発生。1-e と 2-b が要求する接頭辞が
 #     競合しうる以上、どちらを選んでも止まるよう集合を揃えるほかない）。
+#     仕事13 の停止マーカー `出荷準備:` も同じ集合に入れる（#483。会長操作依頼の Issue に blocked や
+#     ai:proposed が付いていても、依頼コメントを置いた瞬間に仕事5・8・11 が鳴らないようにするため）。
 #     `last_owner_body` 側の除外には**入れない**。あちらは「経営企画室のコメントを飛ばして
 #     手前の会長コメントを見る」ためのもので、当番マーカーを入れると自分の応答を飛ばして
 #     応答済みの古い会長コメントを拾い、かえって鳴り止まなくなる。
@@ -319,7 +321,8 @@ def is_duty_reply($b):
   or ($b | startswith("解除確認"))
   or ($b | startswith("着手見送り:"))
   or ($b | startswith("## 【要決裁】"))
-  or ($b | startswith("決裁反映:"));
+  or ($b | startswith("決裁反映:"))
+  or ($b | startswith("出荷準備:"));
 
 def is_ringi_reply($actors):
   last_owner_body($actors) as $b
@@ -387,6 +390,47 @@ def is_ringi_stamp($actors):
     and (ai_approved_at($actors) as $stamp
          | last_ringi_record_at($actors) as $record
          | if $stamp != "" then $stamp > $record else $record == "" end);
+
+# 仕事13（出荷準備の検知・#483）用。入力は ai-duty.sh 仕事13 の GraphQL 応答（マイルストーン単位）。
+#   - 残作業として数えるのは「会長のハンコ済み（ai:approved）で、blocked・ringi:pending・ops:chairman の
+#     どれも付いていない」オープン Issue だけ。未承認の ai:proposed は会長のハンコ待ちで AI の残作業では
+#     ない（2026-09-08 経営企画室の検算: v1.1.3 は未承認の #79 が1件紛れただけで検知全体が沈黙した。
+#     #106 が未承認3件のガードで6日放置されたのと同型）。ops:chairman（【会長操作依頼】）も同じ理由で除く
+#     （#79 は承認済みのまま会長作業で1か月以上開いており、数えると永久に鳴らない）。除いた Issue は
+#     当番が実機確認の依頼に列挙して会長に見せる（ai-duty-prompt.md 2.5）
+#   - 停止マーカー（二段目）は、マイルストーンの ops:chairman Issue に信頼アカウントが置いた
+#     `出荷準備: vX.Y.Z @<release ブランチ HEAD の SHA 先頭7桁>` で始まるコメント。**SHA まで一致した
+#     ときだけ**止まる。依頼の後に release ブランチが動いたら（= 会長が確認するビルドの中身が変わった）
+#     再び鳴らして依頼を出し直させるため。版だけで止めると、依頼後に積まれた修正が確認されないまま出る
+#   - 判定は先頭一致（PR #387 と同じ理由）。版の直後に ` @` を要求するので v1.1.5 のマーカーが v1.1.50 に
+#     当たることもない。第三者のコメントで検知を握り潰せないよう author を信頼アカウントに絞る（PR #446）
+#   - マイルストーンの取得は title の部分一致検索なので、ここで完全一致に絞る。見つからなければ空文字を
+#     返し、呼び出し側は「鳴らさない」に倒す
+#   - オープン Issue の取得が打ち切られている（次のページがある・100件に達している）ときは件数の代わりに
+#     `truncated` を返す（呼び出し側は数値でないので鳴らさない）。先頭 100件が除外対象ばかりだと、
+#     101件目以降の承認済み Issue を見落として誤発火するため
+def ship_remaining_issues:
+  if (.openIssues.pageInfo.hasNextPage // false) or ((.openIssues.nodes | length) >= 100) then "truncated"
+  else
+    [.openIssues.nodes[]
+     | ([.labels.nodes[].name]) as $l
+     | select(($l | index("ai:approved")) != null
+              and ($l | index("blocked")) == null
+              and ($l | index("ringi:pending")) == null
+              and ($l | index("ops:chairman")) == null)] | length
+  end;
+
+def ship_request_posted($actors; $ver; $sha):
+  ("出荷準備: v" + $ver + " @" + $sha[0:7]) as $marker
+  | [.requestIssues.nodes[].comments.nodes[]
+     | select((.author.login // "") as $a | ($actors | index($a)) != null)
+     | select((.body // "") | startswith($marker))] | length > 0;
+
+def ship_milestone_state($actors; $ver; $sha):
+  [.data.repository.milestones.nodes[]? | select(.title == ("v" + $ver))] | .[0]
+  | if . == null then ""
+    else "\(ship_remaining_issues) \(ship_request_posted($actors; $ver; $sha))"
+    end;
 '
 
 # 仕事7の凍結判定（#580）を純粋関数に切り出す。gh/git の呼び出し結果（タグの有無・
@@ -401,6 +445,71 @@ is_submission_unfrozen() {
     return 0
   fi
   return 1
+}
+
+# 仕事13（出荷準備の検知・#483）の判定を純粋関数に切り出す（is_submission_unfrozen と同じ理由）。
+# 対象の release ブランチを選ぶ段と、その版が出荷準備に入れるかを決める段に分けてある。
+#
+# ship_candidate_versions: 出荷準備の対象になりうる版を**古い順**に1行ずつ出す。
+#   仕事7 のように最大の版（`sort -V | tail -1`）を選ぶと、次版（v1.1.6）を見て、出荷の順番が来ている版
+#   （v1.1.5）を永久に見ない。次に出るのは常に「まだ出していない版のうち最も古いもの」なので古い順に並べ、
+#   呼び出し側が先頭から凍結・先行量を確かめて1本に決める。
+#   次の版はここで落とす:
+#     - `vX.Y.Z-submitted` タグがある = 提出済み（停止条件の一段目。提出したら鳴り止む）
+#     - App Store の公開バージョン以下 = 公開済み（main への取り込みと凍結漏れは仕事7 の担当）
+#     - `release/vX.Y.Z` の形でない名前（過去の `release/v1.1.0-submitted` 複製ブランチ等）
+# 引数: $1 = release ブランチ名の一覧（改行区切り）
+#       $2 = タグの一覧（改行区切り。各行の最後の欄を ref とみなすので `git ls-remote` の出力も渡せる）
+#       $3 = App Store の公開バージョン（取れなければ空。そのときは公開済みの除外をしない）
+ship_candidate_versions() {
+  local branches="$1" tags="$2" store="$3" v
+  printf '%s\n' "$branches" \
+    | sed -n 's#^release/v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$#\1#p' \
+    | sort -V \
+    | while read -r v; do
+        # 注釈付きタグの `^{}` 行も同じタグとして扱う。部分一致にすると v1.1.1 のタグで v1.1.10 が落ちる
+        printf '%s\n' "$tags" | awk -v t="refs/tags/v${v}-submitted" \
+          '{ r = $NF; sub(/\^\{\}$/, "", r) } r == t { f = 1 } END { exit !f }' && continue
+        if [ -n "$store" ] && [ "$(printf '%s\n%s\n' "$v" "$store" | sort -V | tail -1)" = "$store" ]; then
+          continue
+        fi
+        echo "$v"
+      done
+}
+
+# is_ship_target: 候補の版が出荷準備の対象か（古い順に当て、0 なら対象に決め、1 なら次の候補へ、2 なら打ち切る）。
+#   - lock_branch が掛かっている = 提出済み（タグの打ち漏れがあっても止まる。停止条件の一段目）→ 次へ
+#   - main より先行していない（ahead_by が 0 と正常に取れた）= 出すものが無い空の release ブランチ → 次へ
+#   - ahead_by が取れなかった（空・数値でない。5xx やレート制限で gh がエラーの JSON を出す）→ **打ち切り**。
+#     次へ進むと、出荷の順番が来ている版（v1.1.5）を飛ばして次版（v1.1.6）を対象にしてしまう
+#   lock は "true" だけを凍結とみなす。保護設定が無いと gh api はエラーの JSON を出すため、
+#   それを「凍結済み」と読むと未凍結の版を黙って飛ばす
+# 引数: $1 = lock_branch.enabled の値 / $2 = main...release の ahead_by（lock が true なら見ない）
+# 戻り値: 0 = 対象 / 1 = 対象外（次の候補へ）/ 2 = 判定不能（対象なしで打ち切る）
+is_ship_target() {
+  local lock_enabled="$1" ahead="$2"
+  [ "$lock_enabled" = "true" ] && return 1
+  case "$ahead" in ''|*[!0-9]*) return 2 ;; esac
+  [ "$ahead" -gt 0 ] || return 1
+  return 0
+}
+
+# is_ship_ready: 対象の版の出荷準備を始めてよいか。
+#   - その release ブランチを base にするオープン PR が 0本（main 直の docs PR 等は数えない。数えると
+#     運用系の PR が常に何本か開いている現状では永久に鳴らない）。当番の出す版数更新 PR もここで止まる
+#   - そのマイルストーンの残作業（ship_remaining_issues）が 0件
+#   - 実機確認の依頼（停止マーカー）が現在の HEAD に対してまだ無い（停止条件の二段目。提出まで数日
+#     かかる間ずっと鳴り続けるのを防ぐ）
+#   取得に失敗した値（空文字・数値でない）は「鳴らさない」に倒す。1回の取りこぼしは次の巡回で拾えるが、
+#   誤発火は claude の起動1回分を毎回無駄にする
+# 引数: $1 = オープン PR の本数 / $2 = 残作業の件数 / $3 = 依頼済みか（"true" / "false"）
+# 戻り値: 0 = 仕事あり / 1 = 仕事なし
+is_ship_ready() {
+  local open_prs="$1" remaining="$2" requested="$3"
+  [ "$open_prs" = "0" ] || return 1
+  [ "$remaining" = "0" ] || return 1
+  [ "$requested" = "false" ] || return 1
+  return 0
 }
 
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
@@ -837,13 +946,92 @@ query {
   | [.data.repository.issues.nodes[]
   | select(is_ringi_stamp($actors))] | length' 2>/dev/null || echo 0)
 
+# 仕事13: 出荷準備の検知（Issue #483）
+# release ブランチに内容が溜まったことを検知して出荷工程を起こす経路が無かった。仕事7 は公開**後**の
+# 取り込みしか見ておらず、提出**前**を見る検知が1つも無かったため、v1.1.3 は main より135コミット先行した
+# まま、社長セッションの手動起動まで誰にも起こされなかった（v1.1.3 の出荷も結局は手動で回った）。
+# 「未提出の最も古い release ブランチに内容があり、その版の PR も残作業も無く、実機確認をまだ依頼していない」
+# ときに当番を起こし、ai-duty-prompt.md 2.5 の前段（版数の確認・更新 PR・会長への実機確認の依頼）を行わせる。
+# fastlane beta と App Store Connect への提出は会長の職掌なので当番はやらない。
+# 停止条件は二段で、判定と経緯は上の純粋関数（ship_candidate_versions / is_ship_target / is_ship_ready）と
+# DUTY_JQ_COMMENT_LIB の ship_* を参照:
+#   一段目 = 提出（`vX.Y.Z-submitted` タグ か lock_branch）。版が対象から外れ、二度と鳴らない
+#   二段目 = 当番の実機確認依頼（`出荷準備: vX.Y.Z @<SHA>`）。提出まで数日かかる間の空振り起動を止める
+# 呼び出しは安い順に並べ、条件が崩れた時点でそれ以降は取りに行かない（数分おきに回るため）。
+SHIP_READY=0
+SHIP_VER=""
+SHIP_SHA=""
+SHIP_REFS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
+  --jq '.[] | "\(.ref | sub("^refs/heads/";""))\t\(.object.sha)"' 2>/dev/null || true)
+if [ -n "$SHIP_REFS" ]; then
+  # 公開バージョンは仕事7 が取れていればそれを使う（仕事7 は最大の版が先行していないと取りに行かない）
+  SHIP_STORE_VER="${STORE_VER:-}"
+  if [ -z "$SHIP_STORE_VER" ]; then
+    SHIP_STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp" 2>/dev/null \
+      | jq -r '.results[0].version // empty' 2>/dev/null)
+  fi
+  SHIP_TAGS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/tags/v" \
+    --jq '.[].ref | select(endswith("-submitted"))' 2>/dev/null || true)
+  for V in $(ship_candidate_versions "$(printf '%s\n' "$SHIP_REFS" | cut -f1)" "$SHIP_TAGS" "${SHIP_STORE_VER:-}"); do
+    SHIP_LOCK=$(gh api "repos/hiroky1983/game_collection/branches/release%2Fv${V}/protection" \
+      --jq '.lock_branch.enabled' 2>/dev/null || echo "false")
+    SHIP_AHEAD=""
+    if [ "$SHIP_LOCK" != "true" ]; then
+      # 失敗を 0 に丸めない（丸めると「空のブランチ」と区別できず次の版へ進んでしまう）
+      SHIP_AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null || true)
+    fi
+    is_ship_target "$SHIP_LOCK" "$SHIP_AHEAD"
+    case $? in
+      0) SHIP_VER="$V"; break ;;
+      2) break ;;
+    esac
+  done
+fi
+if [ -n "$SHIP_VER" ]; then
+  SHIP_SHA=$(printf '%s\n' "$SHIP_REFS" | awk -F'\t' -v b="release/v${SHIP_VER}" '$1 == b { print $2 }')
+  SHIP_PRS=$(gh pr list -R hiroky1983/game_collection --state open --base "release/v${SHIP_VER}" --limit 200 \
+    --json number --jq 'length' 2>/dev/null || true)
+  SHIP_REMAINING=""
+  SHIP_REQUESTED=""
+  if [ "${SHIP_PRS:-}" = "0" ]; then
+    # オープン Issue は 100件、ops:chairman の Issue は 50件・各コメント直近 50件まで見る。
+    # オープン Issue が打ち切られていたら ship_remaining_issues が件数を返さず、鳴らさない側に倒れる。
+    # マイルストーンの検索は部分一致で、v1.1.1 は v1.1.10〜19 にも当たるので枠を 50 に広げてある
+    SHIP_STATE=$(gh api graphql -f title="v${SHIP_VER}" -f query='
+query($title: String!) {
+  repository(owner: "hiroky1983", name: "game_collection") {
+    milestones(first: 50, query: $title, states: [OPEN, CLOSED]) {
+      nodes {
+        title
+        openIssues: issues(states: OPEN, first: 100) {
+          pageInfo { hasNextPage }
+          nodes { number labels(first: 20) { nodes { name } } }
+        }
+        requestIssues: issues(labels: ["ops:chairman"], states: [OPEN, CLOSED], first: 50) {
+          nodes { number comments(last: 50) { nodes { body author { login } } } }
+        }
+      }
+    }
+  }
+}' 2>/dev/null | jq -r --arg trusted "$DUTY_TRUSTED_ACTORS" --arg ver "$SHIP_VER" --arg sha "$SHIP_SHA" \
+      "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors | ship_milestone_state($actors; $ver; $sha)' 2>/dev/null || true)
+    if [ -n "${SHIP_STATE:-}" ]; then
+      SHIP_REMAINING="${SHIP_STATE% *}"
+      SHIP_REQUESTED="${SHIP_STATE#* }"
+    fi
+  fi
+  if is_ship_ready "${SHIP_PRS:-}" "$SHIP_REMAINING" "$SHIP_REQUESTED"; then
+    SHIP_READY=1
+  fi
+fi
+
 # 実行モード決定。仕事が無ければ何もしない。
 # 2026-08-19: 以前はここで「枯渇駆動の企画モード」（分析なしで機械的に2〜3件起票するだけ）に
 # 切り替えていたが、その乱造ガード自体が「未承認3件で永久停止」という別の詰まりを生んでいた
 # （#106 が6日間放置）。経営企画室の責務は Scripts/ai-management-duty.sh（日次）へ全面移管した。
 MODE="duty"
 PROMPT_FILE="Scripts/ai-duty-prompt.md"
-if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${SUBMISSION_UNFROZEN:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ] && [ "${RINGI_STAMPS:-0}" -eq 0 ]; then
+if [ "${APPROVED:-0}" -eq 0 ] && [ "${THREADS:-0}" -eq 0 ] && [ "${PENDING_REVIEW:-0}" -eq 0 ] && [ "${CONFLICTS:-0}" -eq 0 ] && [ "${RINGI_REPLIES:-0}" -eq 0 ] && [ "${STALLED:-0}" -eq 0 ] && [ "${RELEASED:-0}" -eq 0 ] && [ "${SUBMISSION_UNFROZEN:-0}" -eq 0 ] && [ "${PROPOSED_REPLIES:-0}" -eq 0 ] && [ "${ORPHANS:-0}" -eq 0 ] && [ "${ORPHAN_COMMITS:-0}" -eq 0 ] && [ "${BLOCKED_UPDATES:-0}" -eq 0 ] && [ "${RINGI_STAMPS:-0}" -eq 0 ] && [ "${SHIP_READY:-0}" -eq 0 ]; then
   log "仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）"
   exit 0
 fi
@@ -970,13 +1158,18 @@ capture_sims_before
 # 実行前に何台起動しているかをプロンプトへ渡し、当番側で「あと何台起動できるか」を判断させる。
 SIMS_BOOTED_COUNT=$(printf '%s' "${SIMS_BEFORE% }" | wc -w | tr -d ' ')
 export SIMS_BOOTED_COUNT
+# 仕事13 で起動したときは、対象の版と停止マーカーに書く SHA を補足で渡す（当番が別の版を選ばないため）
+DUTY_SHIP_NOTE=""
+if [ "$SHIP_READY" -eq 1 ]; then
+  DUTY_SHIP_NOTE="仕事13（出荷準備）: release/v${SHIP_VER}（HEAD ${SHIP_SHA:0:7}）が出荷準備の条件を満たした。セクション 2.5 の手順を行うこと。"
+fi
 
-log "当番起動 (model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, ship_ready=$SHIP_READY, ship_target=${SHIP_VER:-なし}, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 PATH="$GH_SHIM_DIR:$PATH" claude --model "$DUTY_MODEL" \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")
 
-（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。xcodebuild の派生データは必ず \`-derivedDataPath ${DUTY_DERIVED_DATA}\`（比較用のベースは \`${DUTY_DERIVED_DATA}-base\`）を使い、撮影物・ビルドログ・一時スクリプトは \`${DUTY_SCRATCH_DIR}\` に置くこと（/tmp に新しいディレクトリを作らない。この 2 つは環境変数 DUTY_DERIVED_DATA / DUTY_SCRATCH_DIR でも参照できる）。${DUTY_MODEL_NOTE}" >>"$LOG" 2>&1
+（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。xcodebuild の派生データは必ず \`-derivedDataPath ${DUTY_DERIVED_DATA}\`（比較用のベースは \`${DUTY_DERIVED_DATA}-base\`）を使い、撮影物・ビルドログ・一時スクリプトは \`${DUTY_SCRATCH_DIR}\` に置くこと（/tmp に新しいディレクトリを作らない。この 2 つは環境変数 DUTY_DERIVED_DATA / DUTY_SCRATCH_DIR でも参照できる）。${DUTY_MODEL_NOTE}${DUTY_SHIP_NOTE}" >>"$LOG" 2>&1
 RC=$?
 log "当番終了 (mode=$MODE, exit=$RC)"
