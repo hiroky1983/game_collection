@@ -98,6 +98,11 @@
   （2026-08-28 追加・会長指示。スマホの Issue 一覧ではマイルストーンが見えないため、タイトルだけで対象
   バージョンが分かるようにする）。マイルストーンを変更したらプレフィックスも揃えて直す。
   バージョン非依存の Issue（運用系など、マイルストーン無し）にはプレフィックスを付けない。
+  **検査の実施主体**（#619・2026-09-16 追加）: `Scripts/check-issue-milestone-prefix.sh` が判定ロジックを持ち、
+  経営企画室（`Scripts/ai-management-duty.sh`、6時間毎）がオープン Issue 全件に対して毎回実行する
+  （`Scripts/ai-management-prompt.md` 2-b 節）。ズレを見つけても**タイトルは自動で書き換えず**、
+  未報告の Issue にだけコメントで報告して会長の判断に委ねる（`<!-- ai-management-prefix-guard -->`
+  マーカーで二重報告を防ぐ）。判定ロジック単体のテストは `Scripts/tests/test-check-issue-milestone-prefix.sh`。
 - **PR のベースは「Issue のマイルストーンと同名の release ブランチ」でなければならない**（2026-08-13 追加）。
   「存在する release ブランチのうち最大バージョン」を選ぶのは**禁止**。マイルストーンが v1.1.2 の Issue は
   `release/v1.1.2` にのみ積む。**対応するブランチが無ければ、直近の release ブランチの HEAD から自分で作成する**
