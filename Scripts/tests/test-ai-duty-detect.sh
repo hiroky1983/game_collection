@@ -1,6 +1,6 @@
 #!/bin/bash
 # ai-duty.sh の「会長の書き込み」検知（仕事5: 決裁着信 / 仕事8: 企画議論着信 / 仕事11: blocked 解除確認 /
-# 仕事12: ハンコによる決裁）の検証。
+# 仕事12: ハンコによる決裁）と、純粋関数に切り出した判定（仕事7: 凍結漏れ / 仕事13: 出荷準備）の検証。
 #
 # 当番(AI)・経営企画室・会長はすべて同じ hiroky1983 トークンで投稿するため、この3者を分けるのは
 # 本文のマーカーだけである。マーカーの取りこぼしはそのまま毎時の空振り起動になる（#120・#168）ので、
@@ -290,9 +290,121 @@ echo "== 13. 仕事7: 発火してはいけないケース =="
 check "タグ・lock が両方揃っていれば発火しない" "1" \
   "$(is_submission_unfrozen "abc123	refs/tags/v1.1.3-submitted" "true"; echo $?)"
 
+# 仕事13（出荷準備の検知・#483）。発火条件の設計を誤ると空振り起動が恒久化する（#120・#168・#386）一方、
+# 除外が足りないと検知全体が静かに沈黙する（2026-09-08 経営企画室の検算: v1.1.3 は未承認の #79 で鳴らなかった）。
+# 両方向の失敗をここで固定する。
+# 2026-09-16 時点の実データ: release/v1.1.0〜v1.1.6、-submitted タグは v1.1.0〜v1.1.4、公開は 1.1.4
+REAL_BRANCHES=$(printf 'release/v%s\n' 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4 1.1.5 1.1.6)
+REAL_TAGS=$(printf 'refs/tags/v%s-submitted\n' 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4)
+cands() { ship_candidate_versions "$1" "$2" "$3" | tr '\n' ' ' | sed 's/ $//'; }
+
+echo "== 14. 仕事13 の対象選び（未提出の最も古い版）=="
+check "最大の版ではなく未提出の最も古い版が先頭に来る（v1.1.6 より v1.1.5）" "1.1.5 1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$REAL_TAGS" "1.1.4")"
+check "停止条件の一段目: -submitted タグを打った版は対象から外れる" "1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$REAL_TAGS
+refs/tags/v1.1.5-submitted" "1.1.4")"
+check "公開済みの版はタグが無くても外れる（凍結漏れは仕事7 の担当）" "1.1.5 1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$(printf 'refs/tags/v%s-submitted\n' 1.1.0 1.1.1 1.1.2 1.1.3)" "1.1.4")"
+check "公開バージョンが取れなければ公開済みの除外はしない（タグだけで絞る）" "1.1.5 1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$REAL_TAGS" "")"
+check "git ls-remote 形式・注釈付きタグの ^{} 行も提出済みとして読む" "1.1.6" \
+  "$(cands "$REAL_BRANCHES" "abc	refs/tags/v1.1.5-submitted^{}" "1.1.4")"
+check "v1.1.1 のタグで v1.1.10 は外れない（部分一致しない）" "1.1.9 1.1.10" \
+  "$(cands "$(printf 'release/v%s\n' 1.1.1 1.1.9 1.1.10)" "refs/tags/v1.1.1-submitted" "")"
+check "release/vX.Y.Z の形でない名前は無視する" "1.1.5" \
+  "$(cands "$(printf 'release/v1.1.0-submitted\nrelease/vnext\nrelease/v1.2\nrelease/v1.1.5\n')" "" "")"
+
+echo "== 15. 仕事13: 凍結・先行量で対象を決める =="
+check "未凍結で main より先行していれば対象" "0" "$(is_ship_target "false" "375"; echo $?)"
+check "保護設定が取れず gh がエラーの JSON を返しても凍結とは読まない" "0" \
+  "$(is_ship_target '{"message":"Branch not protected","status":"404"}false' "3"; echo $?)"
+check "停止条件の一段目: lock_branch が掛かっていれば対象外（タグの打ち漏れがあっても）" "1" \
+  "$(is_ship_target "true" "375"; echo $?)"
+check "main より先行していなければ対象外" "1" "$(is_ship_target "false" "0"; echo $?)"
+check "先行量が取れなければ対象外" "1" "$(is_ship_target "false" ""; echo $?)"
+
+echo "== 16. 仕事13: 出荷準備を始めてよいか =="
+check "PR 0本・残作業 0件・未依頼なら発火する" "0" "$(is_ship_ready "0" "0" "false"; echo $?)"
+check "その版を base にするオープン PR が残っていれば発火しない" "1" "$(is_ship_ready "1" "0" "false"; echo $?)"
+check "残作業が残っていれば発火しない" "1" "$(is_ship_ready "0" "1" "false"; echo $?)"
+check "停止条件の二段目: 実機確認を依頼済みなら発火しない" "1" "$(is_ship_ready "0" "0" "true"; echo $?)"
+check "PR の本数が取れなければ発火しない" "1" "$(is_ship_ready "" "0" "false"; echo $?)"
+check "マイルストーンが取れなければ発火しない" "1" "$(is_ship_ready "0" "" ""; echo $?)"
+
+# GraphQL 応答と同じ形のマイルストーンを組み立てる。
+# 引数: $1 マイルストーン名、以降 "open=ラベル(カンマ区切り)" と "req=author=本文"（ops:chairman Issue のコメント）
+ms_node() {
+  local title="$1"; shift
+  local opens='[]' comments='[]' e labels
+  for e in "$@"; do
+    case "$e" in
+      open=*)
+        labels=$(printf '%s' "${e#open=}" | tr ',' '\n' | jq -R '{name: .}' | jq -sc .)
+        opens=$(printf '%s' "$opens" | jq -c --argjson l "$labels" '. + [{number: 1, labels: {nodes: $l}}]') ;;
+      req=*)
+        e="${e#req=}"
+        comments=$(printf '%s' "$comments" \
+          | jq -c --arg a "${e%%=*}" --arg b "${e#*=}" '. + [{author: {login: $a}, body: $b}]') ;;
+    esac
+  done
+  jq -nc --arg t "$title" --argjson o "$opens" --argjson c "$comments" \
+    '{data: {repository: {milestones: {nodes: [{title: $t, openIssues: {nodes: $o},
+       requestIssues: {nodes: [{number: 2, comments: {nodes: $c}}]}}]}}}}'
+}
+# ai-duty.sh 仕事13 の呼び出しと同じ式。出力は "残作業の件数 依頼済みか"
+SHA="662a161abcdef0123456789"
+ship_state() { printf '%s' "$1" | jq -r --arg trusted "$ACTORS" --arg ver "$2" --arg sha "$SHA" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors | ship_milestone_state($actors; $ver; $sha)'; }
+
+echo "== 17. 仕事13: 残作業の数え方（沈黙する方向の失敗を防ぐ）=="
+# 2026-09-08 経営企画室の検算そのもの: #171・#54 が blocked、#79 が未承認 ai:proposed のみ
+check "blocked 2件と未承認 ai:proposed 1件だけなら残作業 0（#483 の検算・v1.1.3）" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=blocked" "open=blocked" "open=ai:proposed")" 1.1.5)"
+check "ringi:pending・ops:chairman（承認済みでも）・ラベル無しは残作業に数えない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:proposed,ai:approved,ringi:pending" "open=ai:proposed,ai:approved,risk:sensitive,ops:chairman" "open=")" 1.1.5)"
+check "承認済み（ai:approved）の未着手は残作業に数える" "1 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:proposed,ai:approved" "open=blocked")" 1.1.5)"
+check "承認済みで着手中（ai:in-progress）も残作業に数える" "2 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:proposed,ai:approved,ai:in-progress" "open=ai:approved,risk:ui")" 1.1.5)"
+check "承認済みでも blocked なら数えない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:approved,blocked")" 1.1.5)"
+check "マイルストーン名は完全一致で選ぶ（v1.1.50 を v1.1.5 と読まない）" "" \
+  "$(ship_state "$(ms_node v1.1.50 "open=ai:approved")" 1.1.5)"
+
+echo "== 18. 仕事13: 停止条件の二段目（実機確認の依頼マーカー）=="
+check "現在の HEAD の SHA 付きで依頼済みなら止まる" "0 true" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.5 @662a161 実機確認をお願いします")" 1.1.5)"
+check "SHA を長く書いても止まる" "0 true" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.5 @662a161abcdef 実機確認をお願いします")" 1.1.5)"
+check "依頼の後に release ブランチが動いた（古い SHA）なら再び鳴る" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.5 @0123456 実機確認をお願いします")" 1.1.5)"
+check "別の版の依頼では止まらない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.4 @662a161 実機確認をお願いします")" 1.1.5)"
+check "v1.1.50 の依頼で v1.1.5 は止まらない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.50 @662a161")" 1.1.5)"
+check "第三者のコメントでは検知を握り潰せない（PR #446 と同じ）" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=attacker=出荷準備: v1.1.5 @662a161 実機確認をお願いします")" 1.1.5)"
+check "会長が語を引用しただけでは止まらない（先頭一致・PR #387 と同じ）" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=前回の 出荷準備: v1.1.5 @662a161 は確認した")" 1.1.5)"
+check "依頼コメントが無ければ止まらない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=着手見送り: 条件未達")" 1.1.5)"
+
+# 停止マーカーを置いた Issue に blocked・ringi:pending・ai:proposed が付いていても、仕事5・8・11 が
+# 「会長の新規コメント」と誤認して鳴らないこと（is_duty_reply の集合に揃っている）
+echo "== 19. 仕事13 の停止マーカーが当番マーカーの集合に入っている（#386 と同じ揃え方）=="
+SHIP_MARKER="出荷準備: v1.1.5 @662a161 実機確認をお願いします"
+check "仕事5 が「出荷準備…」で発火しない" "false" \
+  "$(ringi "$(node "ringi:pending" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
+check "仕事8 が「出荷準備…」で発火しない" "false" \
+  "$(proposed "$(node "ai:proposed" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
+check "仕事11 が「出荷準備…」で発火しない" "false" \
+  "$(blocked "$(node "blocked" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
+
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
-check "仕事5・仕事8・仕事11・仕事12 の4箇所が DUTY_JQ_COMMENT_LIB を渡している" "4" "$USES"
+check "仕事5・仕事8・仕事11・仕事12・仕事13 の5箇所が DUTY_JQ_COMMENT_LIB を渡している" "5" "$USES"
+check "仕事13 の呼び出し側が純粋関数を通している" "3" \
+  "$(grep -cE '(ship_candidate_versions|is_ship_target|is_ship_ready) "' "$TARGET")"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"

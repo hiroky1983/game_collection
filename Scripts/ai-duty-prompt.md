@@ -211,6 +211,74 @@ Issue 本文が「◯◯の2週間後」のような**当番の努力では満�
 4. 回収したら必ず「復旧: 当番の異常終了により `ai:in-progress` が残留していたため解除しました（最終更新 <日時>・残存ブランチ/PR: <有無>）」を Issue にコメントで記録する。
 5. 回収して着手可能に戻った Issue は、そのままこの実行でセクション2の選択対象に含めてよい（`ai:approved` が付いていれば1件だけ着手する）。
 
+## 2.5. 出荷準備（未提出の release ブランチ・`ai-duty.sh` 仕事13）
+
+`ai-duty.sh` の仕事13 は、**未提出（`vX.Y.Z-submitted` タグも `lock_branch` も無い）で App Store 未公開の
+release ブランチのうち最も古い版**が、次をすべて満たしたときに当番を起こす（#483。それまで出荷工程は
+会長・社長セッションの手動起動に依存し、v1.1.3 は135コミット積んだまま誰にも起こされなかった）:
+main より先行している / その release ブランチを base にするオープン PR が 0本 / マイルストーンの残作業
+（`ai:approved` 付きで `blocked`・`ringi:pending`・`ops:chairman` のどれも付いていないオープン Issue）が 0件 /
+現在の HEAD に対する実機確認の依頼（下の停止マーカー）がまだ無い。起動時の「実行環境の補足」に対象の版と HEAD が書かれる。
+
+**やるのは AI 側で完結する前段まで**。`fastlane beta` の実行と App Store Connect への提出・入稿は会長の職掌なので
+実施しない（#307「実装と会長の手作業が両方必要な案件は Issue を分ける」）。
+
+1. **条件を自分でも確かめる**（検知から起動までに状況が変わっていることがある）:
+   ```bash
+   V=X.Y.Z
+   gh api "repos/hiroky1983/game_collection/compare/main...release/v$V" --jq '.ahead_by'
+   gh pr list --state open --base "release/v$V" --json number,title
+   gh issue list --milestone "v$V" --state open --limit 100 --json number,title,labels \
+     --jq '.[] | "\(.number) [\([.labels[].name] | join(","))] \(.title)"'
+   ```
+   PR や残作業が残っていたら何もしない（それぞれ通常のフロー＝セクション1・2が片付け、片付けば再び検知される）。
+2. **残 Issue と入稿物の充足を確認する**。残作業の集計から外れているオープン Issue（未承認の `ai:proposed`・
+   `blocked`・`ringi:pending`・`ops:chairman`）を全部列挙し、それぞれ「この版の出荷を止めるものか」を1行で判断する
+   （例: 新ゲームのリーダーボード登録や GA4 のカスタムディメンション登録のように、公開前に済んでいないと
+   困る会長操作は止めるもの。Featuring 応募のように版と無関係なものは止めない）。あわせて、その版で増えた
+   ゲーム・機能に対して App Store の入稿物（説明文・新機能欄の文言・スクリーンショット）の Issue が
+   マイルストーンにあり close 済みかを確かめる（v1.1.3 の #471・#472・#473 が前例）。足りなければ依頼に書く。
+3. **版数を確認し、必要なら更新 PR を出す**:
+   ```bash
+   git show "origin/release/v$V:project.yml" | grep -nE 'MARKETING_VERSION|CURRENT_PROJECT_VERSION'
+   PREV=$(git tag -l 'v*-submitted' | sed 's/^v//; s/-submitted$//' | sort -V | tail -1)
+   git show "v${PREV}-submitted:project.yml" | grep -n 'CURRENT_PROJECT_VERSION'   # 直前に提出したビルド番号
+   ```
+   `MARKETING_VERSION` が `X.Y.Z` でない、または `CURRENT_PROJECT_VERSION` が直前に提出した版の値より大きくない
+   （fastlane はビルド番号を自動採番しない）なら、`origin/release/vX.Y.Z` からブランチを切って `project.yml` の
+   2行だけを更新し、**base を `release/vX.Y.Z`** にした PR（`risk:logic`）を出して通常のフロー（1-b・1-b-2）で
+   マージまで進める。PR が開いている間は仕事13 が鳴り止み、マージされると HEAD が変わって再び鳴るので、
+   このセッションでマージしきれなければ次回の起動で 4. から続ければよい。既に両方とも正しければ PR は不要。
+4. **`Scripts/check-marketing-version.sh` が通ることを確かめる**（release ブランチの最新の `project.yml` で）:
+   ```bash
+   git fetch origin "release/v$V"
+   git show "origin/release/v$V:project.yml" >"$DUTY_SCRATCH_DIR/project.yml"
+   bash Scripts/check-marketing-version.sh "release/v$V" "$DUTY_SCRATCH_DIR/project.yml"   # 終了コード 0 であること
+   ```
+   通らなければ 3. に戻る（依頼は出さない）。
+5. **会長に実機確認を依頼する**。マイルストーン `vX.Y.Z` に `ops:chairman` ラベルの
+   `[vX.Y.Z]【会長操作依頼】vX.Y.Z の実機確認と審査提出` Issue を1本作り（同名の Issue が既にあれば新しく作らず
+   それを使う）、そこへ次の形式のコメントを投稿する。**このコメントが仕事13 の停止マーカー**:
+   ```
+   出荷準備: vX.Y.Z @<release/vX.Y.Z の HEAD の SHA 先頭7桁> 実機確認をお願いします
+   - 対象: release/vX.Y.Z（main より N コミット先行）/ MARKETING_VERSION X.Y.Z・build B（check-marketing-version.sh 通過）
+   - 重点的に見てほしい変更: risk:ui / risk:sensitive の PR（番号の列挙）
+   - 残っている会長操作・未承認などの Issue と、出荷を止めるかの判断（2. の結果）
+   - 入稿物の充足状況（2. の結果）
+   - この後の会長作業: 実機確認 → fastlane beta → App Store Connect で提出（提出したら規程どおり
+     `vX.Y.Z-submitted` タグと lock_branch で凍結する。凍結漏れは公開後に仕事7 が拾う）
+   ```
+   - SHA は**投稿の直前に取り直す**（`gh api repos/hiroky1983/game_collection/git/ref/heads/release/vX.Y.Z --jq '.object.sha[0:7]'`）。
+     補足に書かれた HEAD から変わっていたら、変わった中身を確認してから新しい方を書く。
+   - 先頭は必ず `出荷準備: vX.Y.Z @<SHA7>` にする（ほかの文字を前に置かない）。検知は信頼アカウントの、
+     マイルストーン内の `ops:chairman` Issue に置かれたコメントの**先頭一致**で見る。別の Issue に書いたり
+     SHA を省いたりすると鳴り止まない。
+   - 依頼の後に release ブランチへコミットが積まれると SHA が一致しなくなり、**仕事13 は再び鳴る**（会長が
+     確認するビルドの中身が変わったため）。そのときは増えた変更を要約して同じ Issue に新しい SHA で依頼を出し直す。
+
+停止条件のまとめ: 依頼コメント（二段目・HEAD が動くまで）/ 提出による `vX.Y.Z-submitted` タグか `lock_branch`
+（一段目・恒久）/ App Store での公開（対象から外れ、以後は仕事7 が担当）。PR が開いている・残作業がある間も鳴らない。
+
 ## 3. 公開済み release ブランチの main への取り込み
 
 App Store で公開されたバージョンが `release/vX.Y.Z` に追いついているのに main へ未マージなら、規程
