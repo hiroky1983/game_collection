@@ -326,11 +326,15 @@ PY
   > 入稿パックは main、実装は release ブランチにあるため、release ブランチ上ではパックが見つからず
   > 「入稿パックがまだありません」で exit 0 になる）。**上のコマンドを手で実行することが唯一の機械検証**。
 
-- [ ] **`project.yml` の `MARKETING_VERSION` が `1.1.5` になっている**。
-      **2026-09-16 時点では `release/v1.1.5` の値が `1.1.3` のまま**（main は `1.1.4`）で、
-      `bash Scripts/check-marketing-version.sh release/v1.1.5 <project.yml>` は落ちる。
-      **`release/v1.1.5` 向けの別 PR で `MARKETING_VERSION: "1.1.5"` と `CURRENT_PROJECT_VERSION` の更新が要る**
-      （本ファイルは `docs/` のみなので main 直・規程どおり PR を分けている）。
+- [x] **`project.yml` の `MARKETING_VERSION` が `1.1.5` になっている** —
+      **2026-09-16 に PR #992 で更新された**（`MARKETING_VERSION: "1.1.5"` / `CURRENT_PROJECT_VERSION: "9"`）。
+      本パックを書き始めた時点では `1.1.3` のままだったので、提出直前にもう一度見ること:
+
+      ```bash
+      git fetch origin release/v1.1.5
+      git show origin/release/v1.1.5:project.yml > /tmp/project-v115.yml
+      bash Scripts/check-marketing-version.sh release/v1.1.5 /tmp/project-v115.yml
+      ```
 - [ ] **【会長操作】Game Center の順位表を ASC に登録した**:
       `asobiba.runner.distance`（チャリンコおじさん エンドレス・**#792**）と
       スパイダーソリティアの最短タイム 1・2・4 スート（**#842**）。
@@ -485,7 +489,14 @@ PATH=/usr/bin:$PATH bash /tmp/v115/Scripts/capture-aso-screenshots.sh "$PWD/docs
   この枠を入稿10枚へ上げるときは先に `aso-demo-snapshots.py` に花札のデモ局面を足すこと。**
 - `22-settings` は v1.1.0 パック §9 の「⚠️ 入稿しない」の判断を引き継ぐ。
 
-### 撮影条件（2026-09-16・`release/v1.1.5` の `8bfd0e7`）
+### 撮影条件（2026-09-16・`release/v1.1.5`）
+
+- **21枚は `8bfd0e7`**（`Merge pull request #990`）で撮った。
+- **`05-runner.png` だけ `a606d9a`**（`Merge pull request #993` = **#991「全18面の障害を増やす」**）で撮り直した。
+  撮影中に release ブランチが進み、**ステージ定義（`RunnerStage.swift` の `patterns`）が変わった**ため
+  ——チャリンコおじさんの絵だけはこの変更の影響を受ける。他の19本と設定画面は触られていないので撮り直していない。
+- ⚠️ **release ブランチはまだ動いている**。提出直前に `git log origin/main..origin/release/v1.1.5` を見て、
+  **UI・ステージ定義に変更が入っていたら該当ゲームだけ撮り直す**こと。
 
 `docs/aso/screenshots/` の22枚は **iPhone 17 Pro Max（6.9インチ）= 1320×2868 px**、
 Debug ビルドを `-screenshotMode`（広告なし・ATT なし）で起動し、ステータスバーは 9:41 固定で撮影した。
