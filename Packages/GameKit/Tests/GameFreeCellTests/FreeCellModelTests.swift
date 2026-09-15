@@ -147,6 +147,18 @@ struct FreeCellModelTests {
         #expect(model.moveCount == 0)
     }
 
+    /// 種は 1200 個。除かなかった場合に 10000 回すべて直前と違う確率は約 0.02% なので、
+    /// 除外を外すとほぼ確実に赤くなる（2000 回だと約 19% の確率で緑のまま通り抜けた。#914 の変異テストで実測）。
+    @Test("「新しいゲーム」を 10000 回押しても直前と同じ配札が出ない")
+    func newGameNeverRepeatsPreviousDeal() {
+        let model = FreeCellModel(services: makeServices(), seed: firstSeed())
+        for _ in 0..<10_000 {
+            let previous = model.dealNumber
+            model.newGame()
+            #expect(model.dealNumber != previous)
+        }
+    }
+
     // MARK: - 中断復元（契約: 種 + 手順）
 
     @Test("中断データは種と手順で復元される")

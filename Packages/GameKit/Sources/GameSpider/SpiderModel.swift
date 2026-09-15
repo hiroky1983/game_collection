@@ -151,9 +151,9 @@ public final class SpiderModel {
         }
     }
 
-    private static func pickSeed(for suits: SpiderSuitCount) -> UInt64 {
+    private static func pickSeed(for suits: SpiderSuitCount, excluding previous: UInt64? = nil) -> UInt64 {
         var system = SystemRandomNumberGenerator()
-        return SpiderDealer.randomVerifiedSeed(for: suits, using: &system)
+        return SpiderDealer.randomVerifiedSeed(for: suits, excluding: previous, using: &system)
     }
 
     /// 種から配り直して手順を再生する。undo も新規配札もこの 1 本を通る。
@@ -252,7 +252,8 @@ public final class SpiderModel {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         self.rules = rules ?? self.rules
-        dealNumber = Self.pickSeed(for: self.rules.suitCount)
+        // 直前の配札は除く（#914）。スート数を変えたときも番号の見た目が同じにならないよう一律に除く。
+        dealNumber = Self.pickSeed(for: self.rules.suitCount, excluding: dealNumber)
         moves = []
         undosRemaining = SpiderUndoBudget.free
         board = Self.replay(moves, seed: dealNumber, rules: self.rules).board

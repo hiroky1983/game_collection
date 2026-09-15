@@ -44,11 +44,21 @@ public enum SpiderDealer {
     }
 
     /// 出題用に 1 つ選ぶ。
+    ///
+    /// - Parameter previous: 直前に配った種。これを除いて選ぶので、「新しいゲーム」で同じ配札が
+    ///   続けて出ない（#914。4 スートは種が 59 個しか無く、除かないと 1 回あたり 1/59 で起きる）。
     public static func randomVerifiedSeed<G: RandomNumberGenerator>(
-        for suits: SpiderSuitCount, using rng: inout G
+        for suits: SpiderSuitCount, excluding previous: UInt64? = nil, using rng: inout G
     ) -> UInt64 {
-        let seeds = verifiedSeeds(for: suits)
-        return seeds.randomElement(using: &rng) ?? seeds[0]
+        pick(from: verifiedSeeds(for: suits), excluding: previous, using: &rng)
+    }
+
+    /// `seeds` から `previous` 以外を 1 つ選ぶ。ほかに候補が無いときだけ同じ種を返す。
+    static func pick<G: RandomNumberGenerator>(
+        from seeds: [UInt64], excluding previous: UInt64?, using rng: inout G
+    ) -> UInt64 {
+        let candidates = seeds.filter { $0 != previous }
+        return candidates.randomElement(using: &rng) ?? seeds[0]
     }
 }
 
