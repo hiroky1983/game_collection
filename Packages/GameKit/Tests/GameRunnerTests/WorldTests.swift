@@ -1,3 +1,4 @@
+import Core
 import GameKitTestSupport
 import Testing
 @testable import GameRunner
@@ -62,12 +63,15 @@ struct RunnerWorldTests {
         #expect(RunnerPalette.hillNear == night.hillNear)
     }
 
-    /// 乗り手は空を背に描かれる（`RunnerPalette.pants` の注記）。どの世界の空も、脚・車体・服と
-    /// 同じ色にならないことを、色相の差で機械的に確かめる（同じ系統の濃淡は使わない）。
-    @Test("どの世界の空も乗り手の色（脚・車体・服）と色相が離れている")
+    /// 乗り手は空を背に描かれる。どの世界の空も、走者のドット絵（`OjisanPixel`・#701）で面積の
+    /// 大きい服（`Y`）と車体（`R`）と同じ色にならないことを、色相の差で機械的に確かめる
+    /// （同じ系統の濃淡は使わない）。ズボン（`B`・紺）は夜空と同系だが、ドット絵は全部品を
+    /// 暗い輪郭（`K`）で締めているので、輪郭のなかった図形の頃とは違い空に溶けない。
+    @Test("どの世界の空も乗り手の色（服・車体）と色相が離れている")
     func skiesAreFarFromRiderHues() {
+        let shirt = OjisanPixel.palette["Y"]!, bike = OjisanPixel.palette["R"]!
         for world in RunnerWorld.allCases {
-            for rider in [RunnerPalette.pants, RunnerPalette.bike] {
+            for rider in [shirt, bike] {
                 #expect(
                     hueDistance(world.palette.sky, rider) >= 40,
                     "\(world) の空 \(String(world.palette.sky, radix: 16)) と乗り手 \(String(rider, radix: 16))"

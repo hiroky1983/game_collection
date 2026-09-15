@@ -1,59 +1,19 @@
+import Core
 import Foundation
 
-/// 走者ノードのローカル座標の点（原点 = 接地点）。
-struct RunnerPoint: Equatable, Sendable {
-    var x: Double
-    var y: Double
-}
-
-/// 自転車に乗ったおじさんの体の寸法と、漕ぐ脚の形（#569 決裁A「絵の底上げ」）。
+/// 走者のコマの選び方と絵の置き方（#701）。
 ///
-/// **SpriteKit に依存しない純粋な幾何**にしてある。脚は腰・膝・ペダルの2リンクで組むので、
-/// 位相によっては「膝が伸びきる」「関節が裏返る」といった破綻が起きうるが、その検証を
-/// シミュレータ抜きで回せる（地形・当たり判定を値型に寄せてあるのと同じ分け方）。
-/// `RunnerScene` はここで出た座標をノードへ写すだけで、寸法を自前で持たない。
+/// **SpriteKit に依存しない純粋な計算**にしてある。コマそのもの（40×36 ドット・右向き）は
+/// `Core` の `OjisanPixel` が持ち、`RunnerScene` はここで決めたコマのテクスチャを 1 枚の
+/// スプライトに差し替えるだけ（寸法・位相の規則をシーンに書かない）。
 enum RunnerRider {
-    // MARK: - 寸法
+    // MARK: - 漕ぐ位相
 
-    /// 腰（脚の付け根）。サドルの少し上・前。
-    static let hip = RunnerPoint(x: -1.2, y: 6.4)
-    /// 肩（腕の付け根）。
-    static let shoulder = RunnerPoint(x: 0.55, y: 8.5)
-    /// ハンドルの握り（腕の先）。
-    static let grip = RunnerPoint(x: 2.95, y: 6.7)
-    /// クランクの軸（ペダルの回転中心）。車体の下端。
-    ///
-    /// **腰との高低差が脚の見え方を決める**。腰に近づけると腿が水平に張り出して
-    /// 「脚を前へ突き出して座っている」形になり、漕いでいるように見えない
-    /// （最初の実機確認で判明）。走者の寸法は変えられないので、軸を下げて差を稼ぐ。
-    static let crank = RunnerPoint(x: 0.2, y: 3.6)
-    /// 後輪・前輪の軸。
-    static let rearHub = RunnerPoint(x: -2.6, y: 2.6)
-    static let frontHub = RunnerPoint(x: 2.6, y: 2.6)
-    /// ハンドルの付け根（フォークの上端）。
-    static let headTop = RunnerPoint(x: 2.5, y: 6.3)
-    /// サドルの付け根（シートチューブの上端）。
-    static let seatBase = RunnerPoint(x: -2.0, y: 6.1)
-    /// クランクの腕の長さ。
-    static let crankRadius: Double = 1.1
-    /// 腿の長さ。
-    static let thigh: Double = 2.2
-    /// すねの長さ。
-    static let shin: Double = 2.3
     /// クランク 1 回転で進む距離（ワールド単位）。
     ///
     /// 実車のギア比の代わりに、ケイデンスがそれらしく見える値を置く。小さくすると脚が
     /// 高速で回りすぎ、大きくすると走っているのに漕いでいないように見える。
     static let crankTravel: Double = 13
-
-    // MARK: - 脚
-
-    /// 片脚の形。
-    struct Leg: Equatable, Sendable {
-        var hip: RunnerPoint
-        var knee: RunnerPoint
-        var pedal: RunnerPoint
-    }
 
     /// クランクの位相（ラジアン）を、接地して進んだ距離から進める。
     ///
@@ -65,37 +25,71 @@ enum RunnerRider {
         return phase + distanceDelta / crankTravel * 2 * .pi
     }
 
-    /// ペダルの位置。`isFar` の脚は半回転ずらす（左右の脚は常に反対側を踏む）。
+    /// 走り出しからずっと接地して `distance` だけ進んだときの位相。
     ///
-    /// **位相を負の向きへ写す**。走者は +x を向いているので前進で車輪は時計回りに回り
-    /// （`RunnerScene` は `-distance` で回す）、クランクが逆向きだとペダルだけが
-    /// 後ろ漕ぎに見える。位相そのものは `advance` の契約どおり前進で増える。
-    static func pedal(phase: Double, isFar: Bool) -> RunnerPoint {
-        let angle = -phase + (isFar ? .pi : 0)
-        return RunnerPoint(
-            x: crank.x + crankRadius * cos(angle),
-            y: crank.y + crankRadius * sin(angle)
+    /// `RunnerScene` は最初の反映で「それまでに進んだ距離」をまとめて位相に足すので、撮影
+    /// （`-simulateRunner pedaling`）のように接地した瞬間で凍らせた画のコマはこの位相で決まる。
+    static func phase(forGroundedDistance distance: Double) -> Double {
+        advance(phase: 0, by: distance, isPedaling: true)
+    }
+
+    /// 漕ぐコマ。半回転（π）ごとに右ペダル前（`ride0`）と左ペダル前（`ride1`）を切り替える。
+    ///
+    /// 位相は前進で増える一方（`advance`）なので、速く走るほど速く切り替わる。
+    static func pedalFrame(phase: Double) -> OjisanPixel.RiderFrame {
+        let halfTurns = Int((phase / .pi).rounded(.down))
+        return halfTurns.isMultiple(of: 2) ? .ride0 : .ride1
+    }
+
+    // MARK: - コマの選択
+
+    /// 局面と接地からコマを決める。
+    ///
+    /// - `.falling`（落下・激突の演出中）は `tumble`、演出明けの `.failed` は `dizzy`。
+    /// - 空中は `jump`（前のめりの傾きはシーンが `zRotation` で足す）。
+    /// - 接地していれば位相で `ride0` / `ride1`。走り出す前（`.ready`・位相 0）は `ride0`。
+    static func frame(phase: RunnerPhase, isGrounded: Bool, pedalPhase: Double) -> OjisanPixel.RiderFrame {
+        switch phase {
+        case .falling: return .tumble
+        case .failed: return .dizzy
+        default: return isGrounded ? pedalFrame(phase: pedalPhase) : .jump
+        }
+    }
+
+    // MARK: - 絵の置き方
+
+    /// 図形で組んでいた頃の走者の見た目の高さ（帽子の天辺まで。当たり判定の 11 より少し上）。
+    /// コマの不透明部分の高さをここに合わせて、置き換え前後で走者の大きさを変えない。
+    static let visualHeight: Double = 11.9
+
+    /// コマの格子をシーンの単位へ写す寸法。
+    struct Placement: Equatable {
+        /// 1 ドットの大きさ（ワールド単位）。
+        var unit: Double
+        /// スプライトの `anchorPoint`（0〜1）。x は前後の車輪の接地点の中央、y は車輪の底の行。
+        var anchorX: Double
+        var anchorY: Double
+    }
+
+    /// 基準のコマ（`ride0`）から置き方を決める。全コマは同じ格子で、車輪の底が同じ行にある
+    /// （`RunnerRiderTests` が固定）ので、他のコマにもそのまま使う。
+    ///
+    /// - 1 ドット = `visualHeight` ÷ 不透明部分の高さ。
+    /// - x の原点は**最下行の不透明な範囲の中央**（両輪の接地点の中間）。当たり判定の中心
+    ///   （`RunnerField.Metrics.playerX`）と、図形時代の原点（前輪と後輪の中間）に合わせる。
+    /// - y の原点は不透明部分の下端（車輪の底）。`player` の原点 = 足元（`field.footY`）に乗る。
+    static func placement(for sprite: PixelSprite) -> Placement {
+        guard let bounds = sprite.opaqueBounds, bounds.height > 0, sprite.width > 0
+        else { return Placement(unit: visualHeight / 36, anchorX: 0.5, anchorY: 0) }
+        // 不透明部分の最下行（車輪の底）。その行で色の付いた範囲が両輪の接地点。
+        let bottom = sprite.rows[bounds.y + bounds.height - 1]
+        let opaqueColumns = bottom.enumerated().filter { $0.element != "." }.map(\.offset)
+        let left = Double(opaqueColumns.min() ?? bounds.x)
+        let right = Double(opaqueColumns.max() ?? (bounds.x + bounds.width - 1)) + 1
+        return Placement(
+            unit: visualHeight / Double(bounds.height),
+            anchorX: (left + right) / 2 / Double(sprite.width),
+            anchorY: Double(sprite.height - (bounds.y + bounds.height)) / Double(sprite.height)
         )
-    }
-
-    /// 腰とペダルから膝を求める（2リンクの逆運動学）。
-    ///
-    /// 解は2つあるが、**膝が前（+x）へ出るほう**を採る。もう一方は膝が後ろへ折れた
-    /// 自転車の乗り方にならない姿勢になる。
-    static func knee(hip: RunnerPoint, pedal: RunnerPoint) -> RunnerPoint {
-        let dx = pedal.x - hip.x
-        let dy = pedal.y - hip.y
-        let reach = (dx * dx + dy * dy).squareRoot()
-        // 伸びきり・折り畳みでは余弦定理の値が定義域を外れる。届く範囲へ丸めてから解く。
-        let distance = min(thigh + shin, max(abs(thigh - shin) + 0.001, reach))
-        let cosine = (distance * distance + thigh * thigh - shin * shin) / (2 * distance * thigh)
-        let angle = atan2(dy, dx) + acos(min(1, max(-1, cosine)))
-        return RunnerPoint(x: hip.x + thigh * cos(angle), y: hip.y + thigh * sin(angle))
-    }
-
-    /// 片脚の形をまとめて求める。
-    static func leg(phase: Double, isFar: Bool) -> Leg {
-        let pedal = pedal(phase: phase, isFar: isFar)
-        return Leg(hip: hip, knee: knee(hip: hip, pedal: pedal), pedal: pedal)
     }
 }

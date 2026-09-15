@@ -1,19 +1,16 @@
+import Core
 import Foundation
 import Testing
 @testable import GameRunner
 
-/// 漕ぐおじさんの脚の形の検証（#569 決裁A）。
+/// 走者のコマの選び方と絵の置き方の検証（#701）。
 ///
-/// 見た目の追加なので当たり判定は動かないが、**2リンクの逆運動学は位相によって破綻しうる**
-/// （膝が伸びきる・関節が裏返る・足が地面にめり込む）。`RunnerScene` を作らずに全周を
-/// 走査して、どの位相でも成立していることを機械的に押さえる。
-@Suite("チャリンコおじさん: 漕ぐ脚")
+/// 見た目の置き換えなので当たり判定は動かないが、**コマの切り替えと原点の決め方は純粋な値の
+/// 計算**なので、`RunnerScene` を作らずに固定する（漕ぐ脚が 2 リンクだった頃の `RiderTests` の後継）。
+@Suite("チャリンコおじさん: 走者のコマ")
 struct RunnerRiderTests {
 
-    /// 1 回転を 360 分割して全周を見る。
-    private var wholeTurn: [Double] {
-        (0..<360).map { Double($0) / 360 * 2 * .pi }
-    }
+    // MARK: 位相
 
     @Test("接地して進んだぶんだけクランクが回る")
     func advancesWhileGrounded() {
@@ -31,96 +28,100 @@ struct RunnerRiderTests {
         #expect(RunnerRider.advance(phase: 1.5, by: -120, isPedaling: true) == 1.5)
     }
 
-    @Test("走り出す前の脚の形が寸法どおりに決まる")
-    func poseAtRest() {
-        // 長さや向きの検証は「実装の定数」を期待値に使うため、**定数そのものの書き換えは
-        // 検知できない**（腿を伸ばす・クランクを動かす等）。ここだけは座標を直に固定して、
-        // 寸法を触ったら必ず気付くようにする（絵の作り直しなら、この期待値も一緒に直す）。
-        let near = RunnerRider.leg(phase: 0, isFar: false)
-        #expect(abs(near.pedal.x - 1.3) < 0.001)
-        #expect(abs(near.pedal.y - 3.6) < 0.001)
-        #expect(abs(near.knee.x - 0.9354) < 0.001)
-        #expect(abs(near.knee.y - 5.8709) < 0.001)
-        let far = RunnerRider.leg(phase: 0, isFar: true)
-        #expect(abs(far.pedal.x - (-0.9)) < 0.001)
-        #expect(abs(far.pedal.y - 3.6) < 0.001)
-        #expect(abs(far.knee.x - 0.6854) < 0.001)
-        #expect(abs(far.knee.y - 5.2663) < 0.001)
+    @Test("走り出しから接地したままの位相は距離だけで決まる")
+    func phaseFromGroundedDistance() {
+        let phase = RunnerRider.phase(forGroundedDistance: RunnerRider.crankTravel * 1.5)
+        #expect(abs(phase - 3 * .pi) < 1e-12)
     }
 
-    @Test("クランクは車輪と同じ向き（前進で時計回り）に回る")
-    func turnsWithTheWheels() {
-        // 走者は +x を向いており、`RunnerScene` は車輪を `-distance` で回す = 時計回り。
-        // ペダルも時計回りでなければ後ろ漕ぎに見えるので、外積の符号で向きを固定する。
-        for phase in wholeTurn {
-            for isFar in [false, true] {
-                let before = RunnerRider.pedal(phase: phase, isFar: isFar)
-                let after = RunnerRider.pedal(phase: phase + 0.01, isFar: isFar)
-                let ax = before.x - RunnerRider.crank.x, ay = before.y - RunnerRider.crank.y
-                let bx = after.x - RunnerRider.crank.x, by = after.y - RunnerRider.crank.y
-                #expect(ax * by - ay * bx < 0)
+    // MARK: 漕ぐコマ
+
+    @Test("半回転ごとに右ペダル前と左ペダル前が入れ替わる")
+    func alternatesEveryHalfTurn() {
+        #expect(RunnerRider.pedalFrame(phase: 0) == .ride0)
+        #expect(RunnerRider.pedalFrame(phase: .pi - 0.01) == .ride0)
+        #expect(RunnerRider.pedalFrame(phase: .pi) == .ride1)
+        #expect(RunnerRider.pedalFrame(phase: 2 * .pi - 0.01) == .ride1)
+        #expect(RunnerRider.pedalFrame(phase: 2 * .pi) == .ride0)
+        // 何周しても周期は変わらない。
+        #expect(RunnerRider.pedalFrame(phase: 7 * .pi + 0.1) == .ride1)
+    }
+
+    @Test("クランク 1 回転（crankTravel）で漕ぐコマがちょうど 2 回入れ替わる")
+    func twoSwapsPerTurn() {
+        var swaps = 0
+        var last = RunnerRider.pedalFrame(phase: 0)
+        for step in 1...260 {
+            let distance = RunnerRider.crankTravel * Double(step) / 260
+            let frame = RunnerRider.pedalFrame(phase: RunnerRider.phase(forGroundedDistance: distance))
+            if frame != last { swaps += 1; last = frame }
+        }
+        #expect(swaps == 2)
+    }
+
+    // MARK: 局面ごとのコマ
+
+    @Test("走り出す前は ride0、接地して走行中は位相のコマ、空中は jump")
+    func framesWhileAlive() {
+        #expect(RunnerRider.frame(phase: .ready, isGrounded: true, pedalPhase: 0) == .ride0)
+        #expect(RunnerRider.frame(phase: .running, isGrounded: true, pedalPhase: 0.5) == .ride0)
+        #expect(RunnerRider.frame(phase: .running, isGrounded: true, pedalPhase: .pi + 0.5) == .ride1)
+        #expect(RunnerRider.frame(phase: .paused, isGrounded: true, pedalPhase: .pi + 0.5) == .ride1)
+        #expect(RunnerRider.frame(phase: .running, isGrounded: false, pedalPhase: .pi + 0.5) == .jump)
+        #expect(RunnerRider.frame(phase: .cleared, isGrounded: true, pedalPhase: 0) == .ride0)
+    }
+
+    @Test("落下・激突の演出中は tumble、演出明けの失敗は dizzy（接地・位相によらない）")
+    func framesWhenFailing() {
+        for grounded in [true, false] {
+            for pedalPhase in [0.0, .pi + 0.5] {
+                #expect(RunnerRider.frame(phase: .falling, isGrounded: grounded, pedalPhase: pedalPhase) == .tumble)
+                #expect(RunnerRider.frame(phase: .failed, isGrounded: grounded, pedalPhase: pedalPhase) == .dizzy)
             }
         }
     }
 
-    @Test("左右の脚は常に反対側のペダルを踏む")
-    func pedalsAreOpposite() {
-        for phase in wholeTurn {
-            let near = RunnerRider.pedal(phase: phase, isFar: false)
-            let far = RunnerRider.pedal(phase: phase, isFar: true)
-            // クランクの軸を挟んで点対称。
-            #expect(abs((near.x + far.x) / 2 - RunnerRider.crank.x) < 1e-12)
-            #expect(abs((near.y + far.y) / 2 - RunnerRider.crank.y) < 1e-12)
-        }
+    // MARK: 置き方
+
+    @Test("1 ドットは図形時代の見た目の高さをコマの不透明部分の高さで割った大きさ")
+    func unitMatchesLegacyHeight() {
+        let sprite = OjisanPixel.rider(.ride0)
+        let placement = RunnerRider.placement(for: sprite)
+        let opaqueHeight = Double(sprite.opaqueBounds?.height ?? 0)
+        #expect(opaqueHeight > 0)
+        #expect(abs(placement.unit * opaqueHeight - RunnerRider.visualHeight) < 1e-9)
+        // 1 ドット ≈ 0.33 単位（40×36 のコマで走者が幅 13・高さ 12 ほどに描かれる）。
+        #expect(placement.unit > 0.3 && placement.unit < 0.36)
     }
 
-    @Test("どの位相でも腿とすねの長さが保たれる（伸びきり・縮みが起きない）")
-    func keepsSegmentLengths() {
-        for phase in wholeTurn {
-            for isFar in [false, true] {
-                let leg = RunnerRider.leg(phase: phase, isFar: isFar)
-                #expect(abs(distance(leg.hip, leg.knee) - RunnerRider.thigh) < 1e-9)
-                #expect(abs(distance(leg.knee, leg.pedal) - RunnerRider.shin) < 1e-9)
-            }
-        }
+    @Test("原点は車輪の底の行・両輪の接地点の中央（player の原点 = 足元に乗る）")
+    func anchorSitsBetweenWheelsOnTheGround() {
+        let sprite = OjisanPixel.rider(.ride0)
+        let placement = RunnerRider.placement(for: sprite)
+        // 車輪の底はコマの最下行なので、y の原点はスプライトの下端。
+        #expect(placement.anchorY == 0)
+        // 最下行で色の付いた範囲（後輪の接地点〜前輪の接地点）の中央。
+        let bottom = sprite.rows[sprite.rows.count - 1]
+        let columns = bottom.enumerated().filter { $0.element != "." }.map(\.offset)
+        let expected = (Double(columns.min()!) + Double(columns.max()!) + 1) / 2 / Double(sprite.width)
+        #expect(abs(placement.anchorX - expected) < 1e-12)
+        // 後輪と前輪の間（画の左右の中央付近）にある。
+        #expect(placement.anchorX > 0.4 && placement.anchorX < 0.6)
     }
 
-    @Test("どの位相でもペダルが脚の届く範囲に余裕を持って収まる")
-    func pedalStaysInReach() {
-        let maxReach = RunnerRider.thigh + RunnerRider.shin
-        let minReach = abs(RunnerRider.thigh - RunnerRider.shin)
-        for phase in wholeTurn {
-            for isFar in [false, true] {
-                let leg = RunnerRider.leg(phase: phase, isFar: isFar)
-                let reach = distance(leg.hip, leg.pedal)
-                // 端に張り付くと丸めが働いて長さが崩れるので、両端から離れていることまで見る。
-                #expect(reach < maxReach - 0.2)
-                #expect(reach > minReach + 0.2)
-            }
+    @Test("全コマの車輪の底は同じ行にある（1 つの原点を全コマに使える）")
+    func allFramesShareTheGroundRow() {
+        let base = OjisanPixel.rider(.ride0)
+        guard let baseBounds = base.opaqueBounds else {
+            Issue.record("ride0 が空")
+            return
         }
-    }
-
-    @Test("膝は常に腰より前に出る（後ろへ折れた姿勢にならない）")
-    func kneeBendsForward() {
-        for phase in wholeTurn {
-            for isFar in [false, true] {
-                let leg = RunnerRider.leg(phase: phase, isFar: isFar)
-                #expect(leg.knee.x > leg.hip.x)
-            }
+        let groundRow = baseBounds.y + baseBounds.height
+        for frame in OjisanPixel.RiderFrame.allCases {
+            let sprite = OjisanPixel.rider(frame)
+            #expect(sprite.width == base.width && sprite.height == base.height, "\(frame) の格子が違う")
+            #expect((sprite.opaqueBounds?.y ?? -1) + (sprite.opaqueBounds?.height ?? 0) == groundRow,
+                    "\(frame) の車輪の底が ride0 と違う行にある")
         }
-    }
-
-    @Test("足は地面より上にある（靴が地面にめり込まない）")
-    func feetStayAboveGround() {
-        for phase in wholeTurn {
-            for isFar in [false, true] {
-                // 走者ノードのローカル座標では y = 0 が接地点。
-                #expect(RunnerRider.pedal(phase: phase, isFar: isFar).y > 1.0)
-            }
-        }
-    }
-
-    private func distance(_ a: RunnerPoint, _ b: RunnerPoint) -> Double {
-        ((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)).squareRoot()
     }
 }
