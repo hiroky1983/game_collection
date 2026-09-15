@@ -33,8 +33,6 @@ public enum RunnerFeedbackCue: Equatable, Sendable {
                                   return .impact(.light)
         // イノシシの予告「ドドド」（#801）。着地（light / medium）より硬く、決着（notice）ではない。
         case .boarCharging:       return .impact(.rigid)
-        // 犬の吠え声（#944）も同じ「何か来る」の合図。向きが逆なだけで作法は揃える。
-        case .dogBarking:         return .impact(.rigid)
         case .fell, .crashed:     return .notice(.error)
         case .reachedGoal:        return .notice(.success)
         }
