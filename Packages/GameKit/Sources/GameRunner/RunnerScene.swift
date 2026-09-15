@@ -956,8 +956,15 @@ final class RunnerScene: SKScene {
         courseLayer.addChild(node)
     }
 
+    /// 岩の縁取りの太さ（コースの単位）。シーンは幅 `Metrics.width`（100）を画面幅へ
+    /// `aspectFit` で広げるので、iPhone（幅 390pt 前後）では 1 単位 ≒ 3.9pt、0.4 単位 ≒ 1.5pt。
+    /// 縁取りは輪郭の上に**中心線で**描かれるので、外へはみ出すのはこの半分（≒ 0.75pt）だけ。
+    /// 当たり判定（`RunnerField`）は見た目と独立なので、縁取りで判定は変わらない。
+    private static let rockOutlineWidth: CGFloat = 0.4
+
     /// 岩塊（ボルダー）1個。底が平らで頂がやや左に寄った角ばった多角形に、
-    /// 日の当たる頂の面（明）と足元の陰の面（暗）を重ね、輪郭線なしで立体に見せる。
+    /// 日の当たる頂の面（明）と足元の陰の面（暗）を重ね、最後に暗い縁取り（`rockDark`）で
+    /// 輪郭を締める（#920: 朝の下町など明るい世界では面の色だけだと背景に溶ける）。
     private func addBoulder(
         to node: SKNode, centerX: Double, baseY: Double,
         width: Double, height: Double
@@ -1009,6 +1016,16 @@ final class RunnerScene: SKScene {
         shade.fillColor = RunnerPalette.color(world.palette.rockDark)
         shade.strokeColor = .clear
         boulder.addChild(shade)
+
+        // 縁取り。本体と同じ輪郭を、塗り無しの線だけで**面の上に**重ねる（本体の `strokeColor` に
+        // すると、頂の面・陰の面が線の内側半分を覆って輪郭が途切れる）。
+        let outline = SKShapeNode(path: bodyPath)
+        outline.fillColor = .clear
+        outline.strokeColor = RunnerPalette.color(world.palette.rockDark)
+        outline.lineWidth = Self.rockOutlineWidth
+        outline.lineJoin = .round
+        outline.zPosition = 1
+        boulder.addChild(outline)
 
         node.addChild(boulder)
     }
