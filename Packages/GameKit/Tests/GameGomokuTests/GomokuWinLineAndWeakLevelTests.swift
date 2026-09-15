@@ -3,6 +3,7 @@ import Testing
 import Core
 @testable import GameGomoku
 import CoreTestSupport
+import GameKitTestSupport
 
 // MARK: - ヘルパー
 
@@ -367,11 +368,6 @@ struct UndoWordingMatchesTwoPlyUndoTests {
     }
 
     private static func source(_ path: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameGomokuTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources").appendingPathComponent(path)
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/\(path)")
     }
 }

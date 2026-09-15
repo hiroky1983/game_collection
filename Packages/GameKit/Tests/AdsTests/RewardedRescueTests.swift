@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
+import GameKitTestSupport
 @testable import Core
 
 /// 何も残さない中断データ置き場。`GameServices` を組み立てるためだけに使う。
@@ -265,11 +266,7 @@ struct RewardedRescueTests {
 @Suite("局ガードの宣言（#526）")
 struct RewardGuardCallSiteTests {
 
-    private static let sourcesRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // AdsTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // GameKit
-        .appendingPathComponent("Sources")
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
 
     private static func gameSources() throws -> [(path: String, text: String)] {
         try FileManager.default

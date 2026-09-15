@@ -2,6 +2,7 @@ import Testing
 import CoreGraphics
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GameMinesweeper
 
 /// 連鎖開放の演出（#203）。
@@ -178,12 +179,7 @@ struct MinesweeperRevealTests {
         containing declaration: String,
         inSourceFile path: String
     ) throws -> [String] {
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameMinesweeperTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources")
-        let text = try String(contentsOf: sources.appendingPathComponent(path), encoding: .utf8)
+        let text = try SourceScan.packageSource("Sources/\(path)")
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
         let starts = lines.indices.filter { lines[$0].contains(declaration) }

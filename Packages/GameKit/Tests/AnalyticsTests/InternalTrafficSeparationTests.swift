@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 
 // MARK: - 内部トラフィックの分別（#347 → #382）
 
@@ -15,13 +16,7 @@ import Foundation
 @Suite("内部トラフィックの分別")
 struct InternalTrafficSeparationTests {
     private static var appDirectory: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // AnalyticsTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .deletingLastPathComponent()   // Packages/
-            .deletingLastPathComponent()   // リポジトリのルート
-            .appendingPathComponent("App")
+        SourceScan.repositoryRoot.appendingPathComponent("App")
     }
 
     private func appSource(_ fileName: String) throws -> String {
@@ -61,8 +56,7 @@ struct InternalTrafficSeparationTests {
         // 出荷するバイナリに届く前に丸ごと再生成されて消える（#388 の取りこぼし）。
         // 上の plist のテストは緑のまま素通しするので、正典である project.yml をここで固定する。
         let spec = try String(
-            contentsOf: Self.appDirectory.deletingLastPathComponent()
-                .appendingPathComponent("project.yml"),
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("project.yml"),
             encoding: .utf8
         )
         // コメント行にヒットして緑になることがないよう、行として突き合わせる。

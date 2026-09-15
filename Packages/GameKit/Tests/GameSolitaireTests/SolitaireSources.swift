@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 
 /// ソース走査テストの読み口（#525）。
 ///
@@ -14,11 +15,7 @@ import Testing
 enum SolitaireSources {
     /// `Sources/GameSolitaire` のパス。
     static var directory: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameSolitaireTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameSolitaire")
+        SourceScan.packageRoot.appendingPathComponent("Sources/GameSolitaire")
     }
 
     /// ソースを名前順に連結して返す。件数を数える検査があるので順序は固定する。

@@ -168,10 +168,6 @@ struct CardTableTests {
     }
 
     private static func url(_ path: String) -> URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // ThemeTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent(path)
+        SourceScan.packageRoot.appendingPathComponent(path)
     }
 }

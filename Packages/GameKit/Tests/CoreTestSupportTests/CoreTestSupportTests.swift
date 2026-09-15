@@ -50,6 +50,22 @@ struct CoreTestSupportBoundaryTests {
         }
         #expect(offenders.isEmpty, "CoreTestSupport の部品を使わずに定義し直している: \(offenders)")
     }
+
+    /// `#filePath` から親ディレクトリを辿ってパスを作るのは `SourceScan` だけにする（#915）。
+    /// テスト関数の中へインラインで書き直されると、`Tests/` や `Sources/` の階層を変えたときに
+    /// 散らばった全箇所を個別に直すことになる。コンパイラは止めないので走査で固定する。
+    @Test("パスの導出は SourceScan にだけある")
+    func pathDerivationLivesOnlyInSourceScan() throws {
+        let tests = try Self.swiftFiles(under: SourceScan.packageRoot.appendingPathComponent("Tests"))
+        #expect(tests.count > 100, "Tests が読めていない（\(tests.count) 件）")
+
+        // このファイル自身に当たらないよう、語を分けて組み立てる。
+        let needle = "deletingLast" + "PathComponent"
+        let owners = tests.filter { $0.text.contains(needle) }.map(\.path)
+        // 検出できていることの確認を兼ねて、SourceScan 自身は必ず含まれる。
+        #expect(owners == ["GameKitTestSupport/SourceScan.swift"],
+                "SourceScan 以外でパスを導出している（SourceScan.packageSource / packageRoot を使う）: \(owners)")
+    }
 }
 
 @Suite("MemorySnapshotStore")

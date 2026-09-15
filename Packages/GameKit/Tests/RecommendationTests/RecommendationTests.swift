@@ -24,6 +24,7 @@ import GameSpider
 import GameChess
 import GameBlocks
 import CoreTestSupport
+import GameKitTestSupport
 
 // MARK: - 共通のヘルパー
 
@@ -189,14 +190,8 @@ struct RecommendationTableTests {
     /// GameKit のテストから App ターゲットは import できないので、ソースを走査して突き合わせる。
     @Test("テスト用のレジストリが AppEnvironment.registry と同じ構成である")
     func testRegistryMatchesAppRegistry() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // RecommendationTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .deletingLastPathComponent()   // Packages/
-            .deletingLastPathComponent()   // リポジトリのルート
         let source = try String(
-            contentsOf: repoRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8
         )
         guard let block = source.range(
             of: #"static let registry = GameRegistry\(\[[^\]]*\]\)"#, options: .regularExpression

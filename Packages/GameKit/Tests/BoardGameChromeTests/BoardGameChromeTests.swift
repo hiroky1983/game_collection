@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
+import GameKitTestSupport
 @testable import Core
 
 /// 盤ゲーム（将棋・チェス）の共通の枠（#530）。
@@ -99,10 +100,7 @@ struct BoardGameControlCapsuleStyleTests {
     /// どちらも描画の大きさには出ないので、並びをソースで固定する。
     @Test("カプセル → 44pt の枠 → 矩形で受ける、の順に組む")
     func hitAreaIsTheWidenedFrame() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try SourceScan.packageSource("Sources/Core/BoardGameChrome.swift")
         guard let start = source.range(of: "public struct BoardGameControlCapsuleStyle"),
               let end = source.range(of: "\n}\n", range: start.upperBound..<source.endIndex) else {
             Issue.record("走査の前提が壊れている: BoardGameControlCapsuleStyle が見つからない")
@@ -179,12 +177,7 @@ struct BoardGameChromeSourceTests {
     ///   `public var body: some View {` のようにファイル内に何度も現れる宣言は、これで持ち主を絞る
     ///   （絞らないと、前に足した別の View の宣言にすり替わる・#828）。
     private static func lines(ofFunction declaration: String, inside owner: String? = nil) throws -> [String] {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // BoardGameChromeTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
-        let all = try String(contentsOf: url, encoding: .utf8)
+        let all = try SourceScan.packageSource("Sources/Core/BoardGameChrome.swift")
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var from = all.startIndex
         if let owner {
@@ -251,10 +244,7 @@ struct BoardGameChromeSourceTests {
     /// **将棋側にはこの指定が無く、チェス側にだけ入っていた**（#530 が防ぐ「片方だけ直した」状態）。
     @Test("検討ナビの記号ボタンには読み上げ文が付く")
     func reviewNavBarLabelsEverySymbolButton() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/Core/BoardGameChrome.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try SourceScan.packageSource("Sources/Core/BoardGameChrome.swift")
         for label in ["1手戻す", "1手進める"] {
             #expect(source.contains(".accessibilityLabel(\"\(label)\")"), "\(label) の読み上げ文が無い")
         }

@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 
 // MARK: - デバッグ経路が Release ビルドに残っていないこと（#514）
 
@@ -17,11 +18,7 @@ import Foundation
 @Suite("デバッグ経路の Release 残存")
 struct DebugOnlyPathTests {
     private static var sourcesDirectory: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameCenterTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .appendingPathComponent("Sources")
+        SourceScan.packageRoot.appendingPathComponent("Sources")
     }
 
     private func sourceText(_ relativePath: String) throws -> String {

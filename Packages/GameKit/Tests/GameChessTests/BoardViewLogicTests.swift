@@ -2,6 +2,7 @@ import Testing
 import Foundation
 @testable import GameChess
 import CoreTestSupport
+import GameKitTestSupport
 
 private func sq(_ name: String) -> Int { ChessSquare.fromName(Substring(name))! }
 
@@ -159,12 +160,7 @@ struct ChessBoardViewSourceTests {
 
     /// 宣言行から、インデントが戻るまでを 1 つのまとまりとして切り出す（前後の空白は落とす）。
     private static func lines(ofFunction declaration: String) throws -> [String] {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameChessTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameChess/ChessView.swift")
-        let all = try String(contentsOf: url, encoding: .utf8)
+        let all = try SourceScan.packageSource("Sources/GameChess/ChessView.swift")
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         guard let start = all.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == declaration }) else {
             Issue.record("走査の前提が壊れている: \(declaration) が見つからない")
