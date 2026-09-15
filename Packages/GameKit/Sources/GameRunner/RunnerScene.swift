@@ -83,16 +83,7 @@ enum RunnerPalette {
     static let pickupBolt: UInt32 = 0xFFE066
     /// 稲妻の縁取り。後光と同系色の玉の上に置いても輪郭が沈まないようにする。
     static let pickupBoltOutline: UInt32 = 0xB8860B
-    /// たこ焼き（#797）の舟皿。経木の薄い生成りで、台座の床板（`platformDeck`）よりやや黄み。
-    static let takoyakiTray: UInt32 = 0xF3E2BE
-    /// たこ焼きの玉（焼き色）。岩のグレー・地面の茶・鳥の緑のどれとも系統が違う、食べ物の狐色。
-    static let takoyakiBall: UInt32 = 0xD98C3F
-    /// たこ焼きに掛かったソース。玉の上に載る濃い茶で、玉との明暗差だけで丸みを出す（輪郭線は引かない）。
-    static let takoyakiSauce: UInt32 = 0x6E3A16
-    /// 青のり（小さな緑の点）。
-    static let takoyakiAonori: UInt32 = 0x3F8F4C
-    /// 紅しょうが（小さな赤い点）。
-    static let takoyakiBenishoga: UInt32 = 0xE9536B
+    /// たこ焼き（#797）の色はドット絵のパレット（`RunnerPixelArt.palette`・#956）が持ち、ここには置かない。
     /// 台座（#674）の上面＝歩く床板。**ここがいちばん明るい**——「乗れる場所」は上面なので、
     /// 画面の中で最初に目に入るのが上面になるよう、コースのどの面よりも明るい色を当てる。
     /// 地表のティール（`groundTop`）・岩のストーングレー・空の紺のどれとも系統が違う
@@ -163,6 +154,9 @@ final class RunnerScene: SKScene {
     private let riderSprite = SKSpriteNode()
     /// 走者のコマのテクスチャ（起動時に 1 回だけ作る。`makeRiderTextures`）。
     private let riderTextures = RunnerScene.makeRiderTextures()
+    /// たこ焼き（#956）のテクスチャ。走者と同じく起動時に 1 回だけ作り、面ごとの `addTakoyaki` は
+    /// これを貼るだけ（毎面 `CGImage` を起こさない）。
+    private let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")
     /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
     private var renderedRiderFrame: OjisanPixel.RiderFrame?
     /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが
@@ -311,14 +305,20 @@ final class RunnerScene: SKScene {
     private static func makeRiderTextures() -> [OjisanPixel.RiderFrame: SKTexture] {
         var textures: [OjisanPixel.RiderFrame: SKTexture] = [:]
         for frame in OjisanPixel.RiderFrame.allCases {
-            guard let image = OjisanPixel.rider(frame).cgImage(scale: 1) else {
-                preconditionFailure("走者のコマ \(frame) のビットマップが作れない")
-            }
-            let texture = SKTexture(cgImage: image)
-            texture.filteringMode = .nearest
-            textures[frame] = texture
+            textures[frame] = makeTexture(OjisanPixel.rider(frame), name: "走者のコマ \(frame)")
         }
         return textures
+    }
+
+    /// ドット絵 1 枚を等倍のテクスチャにする。走者・たこ焼き（今後の背景・障害物も）共通で、
+    /// 呼ぶのは起動時の 1 回だけ。`name` は作れなかったときの表示用。
+    private static func makeTexture(_ sprite: PixelSprite, name: String) -> SKTexture {
+        guard let image = sprite.cgImage(scale: 1) else {
+            preconditionFailure("\(name) のビットマップが作れない")
+        }
+        let texture = SKTexture(cgImage: image)
+        texture.filteringMode = .nearest
+        return texture
     }
 
     /// 走者のコマを差し替える。同じコマなら何もしない。
@@ -1453,64 +1453,26 @@ final class RunnerScene: SKScene {
         return node
     }
 
-    /// たこ焼き（`RunnerPickupKind.invincible`・#797）。舟皿に 3 個、ソースの上に青のりと
-    /// 紅しょうがの色点——縁日の屋台で買うあの形で、**特定のキャラクター・作品には寄せない**
-    /// （#494 の権利チェック）。岩・鳥と同じく丸と長方形とパスだけで組み、輪郭線は引かない。
+    /// たこ焼き（`RunnerPickupKind.invincible`・#797 → #956）。舟皿に 3 個を並べた図形は小さくて
+    /// 「何か分からない」（会長 QA 2026-09-15）ので、走者と同じ SFC 級のドット絵で **1 個を大きく**
+    /// 描く（`RunnerPixelArt.takoyaki`・15×18 ドット）。1 ドットは走者と同じ単位
+    /// （`riderPlacement.unit` ≒ 0.33）で、高さ ≒ 6 単位＝走者の頭くらい。縁取りは絵に焼き込んである
+    /// （#929 の「手前の物は縁取る」。世界ごとの `outline(_:)` は `SKSpriteNode` に掛けられない）。
     /// スピードアップ（稲妻）は「脈動」、たこ焼きは「上下にふわふわ浮く」で動きも変え、
-    /// 色だけに頼らず見分けられるようにする。当たり判定は `RunnerField` 側の横の重なりだけで、
-    /// この絵の寸法とは独立している（`addPickup` と同じ）。
+    /// 色だけに頼らず見分けられるようにする。
+    ///
+    /// 原点は絵の底の中央（`anchorPoint = (0.5, 0)`。格子に余白が無いことは `RunnerPixelArtTests`
+    /// が固定）。x は `pickup.start`（当たり判定の中心）、y は図形だった頃の舟皿の底と同じ高さ。
+    /// 当たり判定は `RunnerField` 側の横の重なりだけで、この絵の寸法とは独立している
+    /// （`addPickup` と同じ）。
     @discardableResult
     private func addTakoyaki(_ pickup: RunnerPickup) -> SKNode {
-        let node = SKNode()
-        node.position = CGPoint(x: pickup.start, y: Metrics.groundY + 2.4)
-
-        // 舟皿（経木）。上が広く底が狭い台形を 1 枚。
-        let trayPath = CGMutablePath()
-        trayPath.move(to: CGPoint(x: -3.8, y: 0.5))
-        trayPath.addLine(to: CGPoint(x: -3.0, y: -1.0))
-        trayPath.addLine(to: CGPoint(x: 3.0, y: -1.0))
-        trayPath.addLine(to: CGPoint(x: 3.8, y: 0.5))
-        trayPath.closeSubpath()
-        let tray = SKShapeNode(path: trayPath)
-        tray.fillColor = RunnerPalette.color(RunnerPalette.takoyakiTray)
-        // 舟皿と玉には暗い縁取り（#929）。生成りの皿・狐色の玉は朝のパステルの丘・壁に溶ける。
-        outline(tray)
-        node.addChild(tray)
-
-        // 玉 3 個。ソースは玉の上半分に被せた小さめの丸で、明暗の差だけで丸みを出す。
-        let ballRadius = 1.05
-        for (i, x) in [-2.1, 0.0, 2.1].enumerated() {
-            let ball = SKShapeNode(circleOfRadius: ballRadius)
-            ball.fillColor = RunnerPalette.color(RunnerPalette.takoyakiBall)
-            outline(ball)
-            ball.position = CGPoint(x: x, y: 0.75)
-            ball.zPosition = 1
-            node.addChild(ball)
-
-            let sauce = SKShapeNode(ellipseOf: CGSize(width: 1.5, height: 0.8))
-            sauce.fillColor = RunnerPalette.color(RunnerPalette.takoyakiSauce)
-            sauce.strokeColor = .clear
-            sauce.position = CGPoint(x: x, y: 1.05)
-            sauce.zPosition = 2
-            node.addChild(sauce)
-
-            // 青のり（緑）を各玉に 1 点、紅しょうが（赤）は左右の玉にだけ 1 点。
-            // 点の位置は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
-            let aonori = SKShapeNode(circleOfRadius: 0.17)
-            aonori.fillColor = RunnerPalette.color(RunnerPalette.takoyakiAonori)
-            aonori.strokeColor = .clear
-            aonori.position = CGPoint(x: x - 0.35, y: 1.15)
-            aonori.zPosition = 3
-            node.addChild(aonori)
-            if i != 1 {
-                let benishoga = SKShapeNode(circleOfRadius: 0.18)
-                benishoga.fillColor = RunnerPalette.color(RunnerPalette.takoyakiBenishoga)
-                benishoga.strokeColor = .clear
-                benishoga.position = CGPoint(x: x + 0.4, y: 0.95)
-                benishoga.zPosition = 3
-                node.addChild(benishoga)
-            }
-        }
+        let sprite = RunnerPixelArt.takoyaki()
+        let unit = Self.riderPlacement.unit
+        let node = SKSpriteNode(texture: takoyakiTexture)
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.size = CGSize(width: Double(sprite.width) * unit, height: Double(sprite.height) * unit)
+        node.position = CGPoint(x: pickup.start, y: Metrics.groundY + 1.4)
 
         // ふわふわ浮く（見た目だけ。当たり判定は `RunnerField` 側の横の重なりのまま）。
         let rise = SKAction.moveBy(x: 0, y: 0.7, duration: 0.55)

@@ -552,7 +552,7 @@ public enum RunnerPhase: Equatable, Sendable {
     ///
     /// タップ・一時停止は効かず、`RunnerRules.fallDuration` 秒で自動的に `.failed` へ移る。
     case falling
-    /// ミスした。リトライ（無料・無制限）か、チェックポイント再開（リワード広告・1 ステージ 1 回）を選ぶ。
+    /// ミスした。リトライ（無料・無制限）か、チェックポイント再開（リワード広告・1 回の走行につき 1 回）を選ぶ。
     case failed
     /// ステージクリア（まだ次のステージが残っている）。
     case cleared
