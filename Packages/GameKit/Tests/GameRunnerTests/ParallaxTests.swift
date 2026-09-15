@@ -34,6 +34,27 @@ struct ParallaxTests {
         #expect(gapSeen)
     }
 
+    /// 雲は隙間を埋める帯ではなく点在するので「覆う」検査は当たらない。代わりに、`buildClouds` と同じ
+    /// 8 個・間隔 46・視差 0.3 で、どの距離でも「画面の左の外に 1 つ以上・右端を越えて 1 つ以上」
+    /// あること（雲の列が画面を跨いで途切れない）を固定する。
+    @Test("雲の列はどの距離でも画面を跨いで途切れない（左の外と右の外に必ず 1 つずつ）")
+    func cloudsSpanTheScreenAtEveryDistance() {
+        let width = RunnerField.Metrics.width
+        let spacing = 46.0, count = 8
+        for step in 0..<4000 {
+            let distance = Double(step) * 5.0
+            let xs = (0..<count).map {
+                RunnerParallax.wrappedX(base: Double($0) * spacing, distance: distance, parallax: 0.3,
+                                        spacing: spacing, count: count)
+            }
+            #expect(xs.min()! < 0, "距離 \(distance) で左の外に雲が無い")
+            #expect(xs.max()! >= width, "距離 \(distance) で右端を越える雲が無い")
+            // 隣どうしは 1 間隔（列が崩れていない）
+            let sorted = xs.sorted()
+            for i in 1..<sorted.count { #expect(abs((sorted[i] - sorted[i - 1]) - spacing) < 0.001) }
+        }
+    }
+
     @Test("折り返した x は [−2 間隔, 全幅 − 2 間隔) に収まる")
     func wrappedRange() {
         for step in 0..<2000 {
