@@ -219,6 +219,20 @@ struct RunnerModelTests {
             "走者が岩の中にいる（\(model.field.distance) vs \(rock.start)〜\(rock.end)）"
         )
     }
+
+    /// 撮影用シナリオ `-simulateRunner pedaling` が、**接地したまま左ペダルが前のコマ（`ride1`）**
+    /// で止まること（#701）。`ride0` は走り出す前と同じ絵なので、そこで止まると漕ぐ画にならない。
+    /// シーンは最初の反映で接地距離をまとめて位相に足すので、コマは接地距離だけで決まる。
+    @Test("撮影用シナリオ pedaling は接地したまま ride1 のコマで止まる")
+    func pedalingScenarioFreezesOnRide1() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("pedaling-capture"))
+        model.applyDebugScenario("pedaling")
+        #expect(model.phase == .running)
+        #expect(model.field.isGrounded, "空中では jump のコマになる")
+        #expect(model.field.distance > 34)
+        let phase = RunnerRider.phase(forGroundedDistance: model.field.distance)
+        #expect(RunnerRider.frame(phase: model.phase, isGrounded: model.field.isGrounded, pedalPhase: phase) == .ride1)
+    }
 }
 
 @Suite("チャリンコおじさん: 落下演出")
