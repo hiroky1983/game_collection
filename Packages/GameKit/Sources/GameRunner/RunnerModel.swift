@@ -605,8 +605,16 @@ public final class RunnerModel {
             isFrozenForCapture = true
         case "pedaling":
             press(); release()
-            // 漕いでいる脚を撮る。`running` は空中で止めるので、そちらでは脚が止まる（#569）。
-            autoPlayForDebug(until: { $0.field.isGrounded && $0.field.distance > 34 })
+            // 漕いでいる画を撮る。`running` は空中で止めるので、そちらは `jump` のコマになる（#569）。
+            // 漕ぐコマは 2 枚（#701）で、`ride0` は走り出す前と同じ絵なので、**左ペダルが前の
+            // `ride1` が出る瞬間**で止める。シーンは最初の反映で「それまでに進んだ距離」を
+            // まとめて位相に足すので、凍らせた画のコマは接地距離だけで決まる。
+            autoPlayForDebug(until: {
+                $0.field.isGrounded && $0.field.distance > 34
+                    && RunnerRider.pedalFrame(
+                        phase: RunnerRider.phase(forGroundedDistance: $0.field.distance)
+                    ) == .ride1
+            })
             isFrozenForCapture = true
         case "paused":
             press(); release()
