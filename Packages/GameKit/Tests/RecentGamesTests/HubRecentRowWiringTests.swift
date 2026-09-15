@@ -27,6 +27,35 @@ struct HubRecentRowWiringTests {
                 "visibleModules 由来の並びが RecentGames へ渡っていない")
     }
 
+    @Test("「続きから」の判定は GameModule に聞き、中断データの有無を直接見ない（#809）")
+    func resumeJudgementGoesThroughModule() throws {
+        let source = try SourceScan.appSources()
+        // 行・グリッドのバッジ・`game_open` の `resume` のどれか 1 か所でも `exists` に戻ると、
+        // チャリンコおじさん・終局した将棋とチェスが「つづきから」に戻り、`resume = 1` で送られる。
+        #expect(!source.contains("snapshots.exists("),
+                "ハブが中断データの有無だけで「続きから」を決めている箇所がある")
+        #expect(
+            source.range(
+                of: #"func isResumable\(_ gameID: String\) -> Bool \{\s*registry\.hasResumableSnapshot\(gameID: gameID, in: services\.snapshots\)"#,
+                options: .regularExpression
+            ) != nil,
+            "ハブの判定が GameModule.hasResumableSnapshot を通っていない"
+        )
+        #expect(source.contains("let resuming = visible.filter { isResumable($0) }"),
+                "「つづき・最近」の行の中断判定が isResumable を通っていない")
+        #expect(source.contains("let hasResume = isResumable(module.id)"),
+                "グリッドの「続きから」バッジが isResumable を通っていない")
+        // 起動引数で直接開く経路は init の中なので、インスタンスメソッドを呼べずレジストリへ直接聞く。
+        #expect(source.contains("resume: registry.hasResumableSnapshot(gameID: $0, in: services.snapshots)"),
+                "起動引数で開く経路の resume が同じ判定を通っていない")
+        let routes = source.components(separatedBy: "HubRoute(").count - 1
+        let judged = source.components(separatedBy: "resume: isResumable(").count - 1
+        // HubRoute を作る箇所: 起動引数・はじめの1本・グリッド・行・レコメンド・通知と、型の定義。
+        // グリッドは hasResume、行は candidate.hasResume、起動引数はレジストリを経由するので、
+        // isResumable を直接渡すのは、はじめの1本・レコメンド・通知の 3 か所。
+        #expect(judged == 3, "resume: isResumable( が \(judged) か所（HubRoute は \(routes) か所）")
+    }
+
     @Test("候補が無ければ行そのものを描かない")
     func rowIsNotDrawnWhenEmpty() throws {
         let source = try SourceScan.appSources()

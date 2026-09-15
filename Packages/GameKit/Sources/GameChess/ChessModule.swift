@@ -14,4 +14,10 @@ public struct ChessModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(ChessView(services: services))
     }
+
+    /// 将棋と同じく終局後の見返しも中断データに残る（`ChessGameModel.persist`）。検討に入った局には
+    /// 続きが無い（#809）。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.load(ChessSnapshot.self, for: id)?.phase == .playing
+    }
 }
