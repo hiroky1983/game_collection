@@ -702,8 +702,8 @@ public final class RunnerModel {
             // 種を固定して毎回同じコースを撮る。
             newEndlessGame(seed: Self.captureSeed)
         case "endless-running":
-            // エンドレスの走行中（距離が伸びている画）。冒頭の固定区画を抜けて 3 つ目の穴を
-            // 跳んでいる最中で止める（ランダム部分に入る直前の、確実に成立する画）。
+            // エンドレスの走行中（距離が伸びている画）。冒頭の固定区画（#930 で 4 区画に短縮）を
+            // 抜けたランダム区画で、跳んでいる最中の瞬間で止める（距離 600 超・跳躍の 6 割以上）。
             newEndlessGame(seed: Self.captureSeed)
             press(); release()
             autoPlayForDebug(until: { $0.field.distance > 600 && $0.field.altitude > RunnerRules.jumpApex * 0.6 })
