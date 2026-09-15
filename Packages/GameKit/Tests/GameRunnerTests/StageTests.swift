@@ -30,12 +30,15 @@ struct RunnerStageTests {
     /// （`--1-1--1-1--` → `--1-1--n-1--`）。障害の数・位置・区画数は据え置きで、種類だけ増やしてある
     /// ——#626 の「序盤を難しくしすぎない」（`earlyStagesStayGentle`）と 2 面以降の単調非減少
     /// （`earlyStageHazardCountsNeverDecrease`）の中に収まる案。
+    /// 1〜3 面は #987（会長指示 2026-09-15「1-1 からもうちょっと障害物増やしたいかな」）で障害を
+    /// +2 個ずつ足した（4・4・5 → 6・6・7 個）。区画数は `rampsUp` が固定しているので平地を潰して
+    /// 入れてあり、使った記号は穴（`1`/`2`）と低い岩（`n`）だけ——種類の初出の順は動いていない。
     @Test("1〜15 ステージのパターン文字列が固定値どおり")
     func firstFifteenStagePatternsArePinned() {
         let expected = [
-            "--1-1--n-1--",
-            "--1-n--1--n--",
-            "--1-n-2--n-1--",
+            "--1-1n-n1n--",
+            "--1-n1-n-1n--",
+            "--1n-2n-n1-2--",
             "--1-n-t--d1k2--",
             "--1sn-tb-2-dkt--",
             "--1sn-3-tb-2dkt--",
@@ -61,25 +64,38 @@ struct RunnerStageTests {
 
     /// 序盤（1〜6 面）の障害の総数が面番号に対して単調非減少であること。
     /// #626 は「序盤が簡単すぎる」対応なので、面が進んで障害が減る並びを作らない。
-    @Test("1〜6 面の障害の総数は面が進んでも減らない")
+    ///
+    /// **3 面 → 4 面だけは例外**（#987 会長指示 2026-09-15 で 1〜3 面を 6・6・7 個へ引き上げ、
+    /// 4 面は触らない決裁だったため 7 → 6 と下がる）。4〜6 面が 1〜3 面より難しいのは数ではなく
+    /// 種類（高い岩・鳥・犬の初出）と動く障害の側で、数の逆転はこの 1 か所だけ。
+    /// 1〜3 の中と 4〜6 の中では従来どおり減らさないことを見る。
+    @Test("1〜3 面・4〜6 面の障害の総数は面が進んでも減らない")
     func earlyStageHazardCountsNeverDecrease() {
         let counts = RunnerStage.all.prefix(6).map(\.hazards.count)
-        for (previous, next) in zip(counts, counts.dropFirst()) {
-            #expect(previous <= next, "1〜6 面の障害数が減っている: \(counts)")
+        for group in [Array(counts.prefix(3)), Array(counts.suffix(3))] {
+            for (previous, next) in zip(group, group.dropFirst()) {
+                #expect(previous <= next, "序盤の障害数が減っている: \(counts)")
+            }
         }
     }
 
     /// **序盤を難しくしすぎない**（#626 会長決裁: GA4 で 1 面 → 2 面の到達が 4 割しかない）。
-    /// 1〜3 面の障害数は、調整前の値（3・3・4 個）+2 以下に固定する。ここが赤くなったら、
+    /// 1〜3 面の障害数は、#626 調整前の値（3・3・4 個）からの増分に上限を置く。ここが赤くなったら、
     /// 序盤の障害を足しすぎている——数値を緩める前に決裁を取り直す。
-    @Test("1〜3 面の障害数は #626 調整前の値 +2 以下")
+    ///
+    /// **上限は +2 → +3（会長指示 2026-09-15・#987「1-1 からもうちょっと障害物増やしたいかな」）。**
+    /// #626 の GA4 の根拠（1 面 → 2 面の到達が 4 割）は取り消されていない——その上で「序盤が
+    /// 物足りない」という会長の実機 QA を受けて上限だけを 1 段上げた決裁なので、根拠ごと
+    /// 消さずに残してある。今の値は 1〜3 面が 6・6・7 個でちょうど +3。
+    @Test("1〜3 面の障害数は #626 調整前の値 +3 以下（#987 で +2 から引き上げ）")
     func earlyStagesStayGentle() {
         let before = [3, 3, 4]   // #626 調整前の 1〜3 面の障害数（`--1---1--1--` など）
+        let allowance = 3        // #987（会長指示 2026-09-15）で +2 から引き上げ
         for (index, limit) in before.enumerated() {
             let stage = RunnerStage.all[index]
             #expect(
-                stage.hazards.count <= limit + 2,
-                "ステージ \(stage.number) の障害が \(stage.hazards.count) 個——調整前 \(limit) 個 +2 を超えている"
+                stage.hazards.count <= limit + allowance,
+                "ステージ \(stage.number) の障害が \(stage.hazards.count) 個——調整前 \(limit) 個 +\(allowance) を超えている"
             )
         }
     }
@@ -107,7 +123,7 @@ struct RunnerStageTests {
         let kinds = Set(first.hazards.map(\.kind))
         #expect(kinds.contains(.lowBlock), "1 面の障害が穴だけ: \(first.pattern)")
         #expect(kinds == [.pit, .lowBlock], "1 面に穴と低い障害物以外を置かない（高い岩・動く障害は 4 面以降）: \(kinds)")
-        #expect(first.hazards.count == 4, "1 面の障害数は据え置き（#626 の上限 5 と 2 面の 4 の内側）")
+        #expect(first.hazards.count == 6, "1 面の障害数（#987 で 4 → 6。`earlyStagesStayGentle` の上限 6 ちょうど）")
     }
 
     /// 面を増やしても速さの上限（隣り合う区画が成立する 63.6・`RunnerRules.endlessMaxSpeed` を参照）を
