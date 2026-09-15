@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import SwiftUI
 import Core
+import GameKitTestSupport
 @testable import GamePoker
 
 // MARK: - Mocks
@@ -214,12 +215,7 @@ struct PokerRewardedAdTests {
     /// ファイル全体を探すとそちらに当たって空振りするため。
     @Test("視聴中は「もう一度はじめる」を押せない")
     func restartButtonIsDisabledWhileWatching() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GamePokerTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GamePoker/PokerView.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try SourceScan.moduleSources("GamePoker")
         let start = try #require(source.range(of: "                model.restartSession()\n"),
                                  "やり直しボタンの定義が見つからない（走査が空振りしている）")
         let end = try #require(source.range(of: "private func actionButton(", range: start.upperBound..<source.endIndex))

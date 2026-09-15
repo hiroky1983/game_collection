@@ -69,6 +69,6 @@ struct PokerMetricsTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        try SourceScan.packageSource("Sources/GamePoker/PokerView.swift")
+        try SourceScan.moduleSources("GamePoker")
     }
 }
