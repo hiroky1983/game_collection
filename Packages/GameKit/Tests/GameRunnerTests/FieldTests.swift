@@ -1161,6 +1161,17 @@ struct RunnerHazardLayoutTests {
             "帯の厚みは絵の高さ"
         )
     }
+
+    @Test("isPit: 穴は左端を含み右端を含まない半開区間で、岩の上は穴ではない（#833）")
+    func isPitIsHalfOpen() {
+        // 穴は 88〜96（2 区画目の中央・表記 1 = 2 タイル幅）、低い障害物は 152〜156。
+        let field = RunnerField(stage: RunnerStage(number: 1, pattern: "-1n-", speed: 40))
+        #expect(!field.isPit(at: 87.99))
+        #expect(field.isPit(at: 88))
+        #expect(field.isPit(at: 95.99))
+        #expect(!field.isPit(at: 96))
+        #expect(!field.isPit(at: 154), "岩の上は穴ではない")
+    }
 }
 
 private extension RunnerField {
