@@ -455,26 +455,3 @@ public struct HanafudaCardFace: View {
                  at: CGPoint(x: band.maxX - inset, y: band.midY), anchor: .trailing)
     }
 }
-
-/// 裏面（相手の手札・山札）。
-public struct HanafudaCardBack: View {
-    public init() {}
-
-    public var body: some View {
-        GeometryReader { geo in
-            let corner = geo.size.width * 0.12
-            ZStack {
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Color(hex: 0x8E2C33), Color(hex: 0x5E1B21)],
-                        startPoint: .top, endPoint: .bottom
-                    ))
-                RoundedRectangle(cornerRadius: max(corner - 3, 2), style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.30), lineWidth: 1)
-                    .padding(3)
-            }
-        }
-        .aspectRatio(1 / HanafudaCardArt.aspectRatio, contentMode: .fit)
-        .accessibilityHidden(true)
-    }
-}

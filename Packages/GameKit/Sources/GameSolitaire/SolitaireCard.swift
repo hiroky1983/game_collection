@@ -6,16 +6,6 @@ public enum SolitaireSuit: Int, CaseIterable, Codable, Sendable, Hashable {
 
     public var isRed: Bool { self == .heart || self == .diamond }
 
-    /// 同じ色のもう一方のスート。
-    public var sameColorPartner: SolitaireSuit {
-        switch self {
-        case .spade:   return .club
-        case .club:    return .spade
-        case .heart:   return .diamond
-        case .diamond: return .heart
-        }
-    }
-
     /// 反対色の2スート。組札の「安全な自動送り」の判定に使う。
     public var opposites: [SolitaireSuit] {
         isRed ? [.spade, .club] : [.heart, .diamond]

@@ -293,7 +293,7 @@ public struct MahjongTableLayout: Sendable {
 
     /// 自分・対面の副露の行。
     public struct InlineMelds: Sendable, Equatable {
-        /// 副露の牌の幅。基準は河と同じ（`meldTileWidth`）で、行に収まらないときだけ縮む（手牌は縮めない）。
+        /// 副露の牌の幅。基準は河と同じ（`meldTileWidth(seat:)`）で、行に収まらないときだけ縮む（手牌は縮めない）。
         public var tileWidth: CGFloat
         /// 組ごとの矩形。`meldSizes` と同じ順（0 組目が手牌に最も近い）。
         public var groupRects: [CGRect]
@@ -410,9 +410,6 @@ public struct MahjongTableLayout: Sendable {
         for i in 0..<g where extra > 0 { sizes[i] = 4; extra -= 1 }
         return sizes
     }
-
-    /// 副露の牌の幅（自分の値。互換のため残す）。
-    public var meldTileWidth: CGFloat { meldTileWidth(seat: 0) }
 
     /// `groups` 組・合計 `count` 枚の副露が占める画面上の矩形（重なりの検査用）。上家・下家は 1 枚ずつの矩形
     /// （`meldTileRects`）の外接矩形、自分・対面は行全体（`inlineMelds.frame`）。
