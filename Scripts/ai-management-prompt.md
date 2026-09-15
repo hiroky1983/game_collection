@@ -111,7 +111,7 @@ LAST=$(cat "$STATE" 2>/dev/null || echo 0)
   着手せず、承認済みでも在庫として眠る（2026-09-15 に 10 件がその状態で見つかった）。docs / Scripts / web だけの
   Issue（main 直）は対象外
 - **Issue は依存させず、独立した1 Issue で管理する**（会長指示 2026-09-02）。「その Issue 単体で着手〜完了まで閉じるか」で切り、親子・依存・「〜の消化後に着手」の構造や、将来のリマインダー用の Issue を作らない（やるときは会長が指示する）。詳細は `ai-duty-prompt.md` 共通ルールの同項
-- 会長操作依頼（App Store Connectの操作等、AIが実装できない類のもの）は `ai:proposed` を付けず、代わりに本文冒頭に【会長操作依頼】と明記する（ai:proposedの乱造ガード対象から外すため）
+- 会長操作依頼（App Store Connectの操作等、AIが実装できない類のもの）は `ai:proposed` を付けず、代わりに本文冒頭に【会長操作依頼】と明記し、ラベル `ops:chairman` を付ける（`ai:proposed` の乱造ガード対象から外しつつ、`ai-duty.sh` の会長通知（#132・#556）の集合に乗せるため。`ai:approved` / `blocked` を併用しても通知からは外れない）。承認判断そのものを含む起票（例: Featuring 応募の可否）は `ai:proposed` を残したまま `ops:chairman` を併記する
 
 ## 5. データ分析部・マーケティング部の業務（あなた自身が直接行う）
 

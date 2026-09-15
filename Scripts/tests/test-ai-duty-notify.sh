@@ -47,6 +47,7 @@ done
 case "$label" in
   ringi:pending) data="${MOCK_GH_RINGI:-[]}" ;;
   ai:proposed)   data="${MOCK_GH_PROPOSED:-[]}" ;;
+  ops:chairman)  data="${MOCK_GH_CHAIRMAN:-[]}" ;;
   *)             data="[]" ;;
 esac
 printf '%s' "$data" | jq -r "$filter"
@@ -78,15 +79,32 @@ export MOCK_GH_PROPOSED='[
   {"number":141,"labels":[{"name":"ai:proposed"},{"name":"ai:approved"}]},
   {"number":200,"labels":[{"name":"ai:proposed"},{"name":"ai:in-progress"}]}
 ]'
+# ops:chairman（会長操作依頼、#556）は ai:approved / blocked が付いていても対象に残ることを
+# 確認するため、#171 の実例（ai:approved + blocked のまま沈んでいた）を模した Issue を含める
+export MOCK_GH_CHAIRMAN='[
+  {"number":543},
+  {"number":171}
+]'
 collect_notify_targets
 check "決裁待ちの番号を集める" "128 106" "$NOTIFY_RINGI"
 check "承認待ちは未承認の ai:proposed だけ（承認済み・着手中・blocked・決裁待ちは除く）" "79" "$NOTIFY_APPROVAL"
+check "ops:chairman だけが付いた Issue が通知対象に入る" "543 171" "$NOTIFY_CHAIRMAN"
 check "収集できたら NOTIFY_READY=1" "1" "$NOTIFY_READY"
+
+echo "== 2b. ops:chairman は ai:approved + blocked が付いていても対象から除外されない =="
+# collect_notify_targets は ops:chairman を state:open のみで拾い、他ラベルの有無で絞らない。
+# ここでは gh issue list --label ops:chairman が返す JSON 自体に ai:approved / blocked が
+# 混ざっていても（実物の Issue はラベルを複数持つ）番号がそのまま拾われることを確認する
+export MOCK_GH_CHAIRMAN='[{"number":171,"labels":[{"name":"ops:chairman"},{"name":"ai:approved"},{"name":"blocked"}]}]'
+NOTIFY_READY=0; NOTIFY_RINGI=""; NOTIFY_APPROVAL=""; NOTIFY_CHAIRMAN=""
+collect_notify_targets
+check "ops:chairman + ai:approved + blocked でも対象に残る" "171" "$NOTIFY_CHAIRMAN"
+unset MOCK_GH_RINGI MOCK_GH_PROPOSED MOCK_GH_CHAIRMAN
 
 echo "== 3. gh 失敗時は通知しない（無音で握り潰さない）=="
 # 注: bash では `VAR=x 関数` の前置代入が関数から戻ったあとも残る（コマンドと違って消えない）。
 # 以降のテストを汚さないよう、モックの切り替えは export / unset で明示的に行う
-NOTIFY_READY=0; NOTIFY_RINGI=""; NOTIFY_APPROVAL=""
+NOTIFY_READY=0; NOTIFY_RINGI=""; NOTIFY_APPROVAL=""; NOTIFY_CHAIRMAN=""
 export MOCK_GH_FAIL=1
 collect_notify_targets
 unset MOCK_GH_FAIL
@@ -96,24 +114,25 @@ notify_pending
 check "NOTIFY_READY=0 なら通知しない" "0" "$(notified)"
 
 echo "== 4. 対象0件なら無音 =="
-NOTIFY_READY=1; NOTIFY_RINGI=""; NOTIFY_APPROVAL=""
+NOTIFY_READY=1; NOTIFY_RINGI=""; NOTIFY_APPROVAL=""; NOTIFY_CHAIRMAN=""
 reset_log; rm -f "$STATE"
 notify_pending
 check "対象0件では osascript を呼ばない" "0" "$(notified)"
 if [ -f "$STATE" ]; then ng "対象0件で状態ファイルを作ってしまった"; else ok "対象0件では状態ファイルを作らない"; fi
 
-echo "== 5. 対象ありなら通知し、本文に Issue 番号が入る =="
-NOTIFY_RINGI="128 106"; NOTIFY_APPROVAL="79"
+echo "== 5. 対象ありなら通知し、本文に Issue 番号が入る（ops:chairman 込み）=="
+NOTIFY_RINGI="128 106"; NOTIFY_APPROVAL="79"; NOTIFY_CHAIRMAN="171"
 reset_log; rm -f "$STATE"
 notify_pending
 check "1回通知する" "1" "$(notified)"
 BODY=$(cat "$MOCK_OSASCRIPT_LOG")
-for N in 128 106 79; do
+for N in 128 106 79 171; do
   case "$BODY" in *"#$N"*) ok "本文に #$N が含まれる" ;; *) ng "本文に #$N が無い ($BODY)" ;; esac
 done
 case "$BODY" in *"決裁待ち"*) ok "何を見ればよいか（決裁待ち）が本文に出る" ;; *) ng "決裁待ちの表示が無い" ;; esac
 case "$BODY" in *"承認待ち"*) ok "何を見ればよいか（承認待ち）が本文に出る" ;; *) ng "承認待ちの表示が無い" ;; esac
-case "$BODY" in *"3件"*) ok "件数がタイトルに出る" ;; *) ng "件数が出ていない ($BODY)" ;; esac
+case "$BODY" in *"会長操作待ち"*) ok "何を見ればよいか（会長操作待ち）が本文に出る" ;; *) ng "会長操作待ちの表示が無い" ;; esac
+case "$BODY" in *"4件"*) ok "件数がタイトルに出る（ops:chairman 込みで4件）" ;; *) ng "件数が出ていない ($BODY)" ;; esac
 
 echo "== 6. 連投防止: 同じ対象は1日に1回まで =="
 reset_log
@@ -135,13 +154,25 @@ echo "== 8. 24時間経過したら同じ対象でも再通知 =="
 reset_log
 # キーは直前のテストの状態ファイルから読まず明示的に組み立てる（テストの前後関係に依存させない）
 if [ -f "$STATE" ]; then ok "テスト8の前提となる状態ファイルがある"; else ng "テスト8の前提となる状態ファイルが無い"; fi
-printf '%s\n%s\n' "ringi=128 106 999;approval=79" "$(( $(date +%s) - 86401 ))" >"$STATE"
+printf '%s\n%s\n' "ringi=128 106 999;approval=79;chairman=171" "$(( $(date +%s) - 86401 ))" >"$STATE"
 notify_pending
 check "前回から24時間超なら再通知する" "1" "$(notified)"
 
+echo "== 8b. 会長操作依頼が Issue クローズで集合から消えたら鳴り止む =="
+# ops:chairman は --state open だけで拾うため、会長がクローズすれば次回の collect_notify_targets で
+# 対象から自然に落ちる。ここでは「対象集合の変化」として即時に鳴り止まないこと（連投防止の対象では
+# ないので次の巡回で反映される）ではなく、クローズ後の収集結果を模して対象から消えることを確認する
+NOTIFY_CHAIRMAN=""
+reset_log
+notify_pending
+check "ops:chairman がクローズで集合から消えると対象集合の変化として扱われる" "1" "$(notified)"
+reset_log
+notify_pending
+check "消えた後の対象（ringi+approval のみ）で連投防止が再び効く" "0" "$(notified)"
+
 echo "== 9. 通知に失敗したら状態を更新しない（次回に持ち越す）=="
 reset_log; rm -f "$STATE"
-NOTIFY_RINGI="128"; NOTIFY_APPROVAL=""
+NOTIFY_RINGI="128"; NOTIFY_APPROVAL=""; NOTIFY_CHAIRMAN=""
 export MOCK_OSASCRIPT_FAIL=1
 notify_pending
 unset MOCK_OSASCRIPT_FAIL
@@ -182,7 +213,7 @@ echo "== 11. gh issue list の取得上限が明示されている =="
 # --limit を省略すると 30 件で打ち切られ、超えた分が黙って通知から漏れる（PR #142 の CodeRabbit 指摘）。
 # 偽 gh では件数の打ち切りを再現できないため、呼び出し側に上限が書かれていることを検査する
 LIMITS=$(sed -n '/^collect_notify_targets() {/,/^}/p' "$TARGET" | grep -cE -- '--limit [0-9]+')
-check "収集の gh issue list 2本すべてに --limit がある" "2" "$LIMITS"
+check "収集の gh issue list 3本（ringi:pending / ai:proposed / ops:chairman）すべてに --limit がある" "3" "$LIMITS"
 
 echo "== 12. UTF-8 ロケールでも通し実行が落ちない（#175 の回帰検出）=="
 # このテスト自体は C ロケールで走ることが多く（launchd も C）、本体のロケール依存バグを踏まない。
