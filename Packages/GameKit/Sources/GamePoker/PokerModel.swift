@@ -131,7 +131,7 @@ public final class PokerModel {
     private let betAmount = 20
     private let services: GameServices?
 
-    private let gameID = "poker"
+    let gameID = "poker"
 
     /// ショーダウンで CPU の 5 枚が返り終わり、役名が出るまでの時間（#667）。勝敗の触覚をここまで遅らせる。
     /// `.zero` なら従来どおり決着の瞬間に鳴らす。

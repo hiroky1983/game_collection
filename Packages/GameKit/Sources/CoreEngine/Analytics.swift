@@ -56,6 +56,19 @@ public enum RewardPurpose: String, Equatable, Sendable, CaseIterable {
     case shuffle
 }
 
+/// `reward_offer` の `result`。リワード広告を**提示した 1 回がどう終わったか**（#780）。
+///
+/// 提示 = 広告を見るかどうかを選ばせる画面（確認アラート・コンティニューの幕・リザルトの復活ボタン）が
+/// 出たこと。常に出ている操作ボタン（ナンプレのヒント）は提示の瞬間が無いので数えない。
+public enum RewardOfferResult: String, Equatable, Sendable, CaseIterable {
+    /// 広告ボタンを押し、その時点で先読み済みの広告があった。
+    case accepted
+    /// 広告を選ばずに閉じた（キャンセル・「もう一度」・画面を離れた）。
+    case declined
+    /// 広告ボタンを押したが、先読み済みの広告が無かった（その場で読み込む。#658 の先読みで減る値）。
+    case notReady = "not_ready"
+}
+
 /// `game_end` の `cause`。**そのプレイで最後にミスした原因**（#796）。
 ///
 /// チャリンコおじさんの「鳥を置物から障害にしたら、鳥にやられる割合が変わったか」を数字で
@@ -169,8 +182,9 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     }
 }
 
-/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` の5種のみ**
-/// （#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12）。
+/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
+/// `reward_offer` の6種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// #780 の会長決裁 2026-09-16）。
 ///
 /// パラメータは各ケースの関連値だけから組み立てるため、呼び出し側が任意のキーや値を
 /// 追加する余地が無い。イベントを増やすにはこの enum にケースを足す = 意図的な変更が要る。
@@ -198,6 +212,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
     ///   - position: 導線の中での位置（**1 始まり**）。並びを持たない導線では nil で、鍵ごと送らない。
     ///   - resume: 開いた時点で「続きから」だったか。GA4 で集計しやすいよう 0 / 1 で送る。
     case gameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool)
+    /// リワード広告の**提示**が終わった（#780）。1 回の提示につき 1 回。パラメータは
+    /// `game_id` / `purpose` / `result` のみで、`purpose` は `reward_ad` と同じ語彙。
+    case rewardOffer(gameID: String, purpose: RewardPurpose, result: RewardOfferResult)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -207,6 +224,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .rewardAd:      return "reward_ad"
         case .rewardRequest: return "reward_request"
         case .gameOpen:      return "game_open"
+        case .rewardOffer:   return "reward_offer"
         }
     }
 
@@ -247,6 +265,12 @@ public enum AnalyticsEvent: Equatable, Sendable {
             // 位置は 1 始まり。0 以下は並びの中に存在しないので 1 に丸める。
             if source.hasPosition, let position { parameters["position"] = .int(max(1, position)) }
             return parameters
+        case let .rewardOffer(gameID, purpose, result):
+            return [
+                "game_id": .string(gameID),
+                "purpose": .string(purpose.rawValue),
+                "result": .string(result.rawValue),
+            ]
         }
     }
 }
@@ -402,6 +426,13 @@ public final class GameAnalytics {
     public func recordRewardRequest(gameID: String, purpose: RewardPurpose) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.rewardRequest(gameID: gameID, purpose: purpose))
+    }
+
+    /// リワード広告の**提示が終わった**ときに呼ぶ（#780）。`reward_request` がタップの数なのに対し、
+    /// こちらは「出したのに断られた」まで数える。プレイの数え方には影響しない。
+    public func recordRewardOffer(gameID: String, purpose: RewardPurpose, result: RewardOfferResult) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.rewardOffer(gameID: gameID, purpose: purpose, result: result))
     }
 
     /// ハブからゲーム画面を開いたときに呼ぶ（#659）。プレイの数え方には影響しない

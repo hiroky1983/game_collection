@@ -67,6 +67,8 @@ public struct PokerView: View {
             }
         }
         .padding(Theme.pad)
+        .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
+                     services: services, gameID: model.gameID)
         .gameChrome(title: "ポーカー", review: services.review) {
             // 配当表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
             if model.rules == .bonus {

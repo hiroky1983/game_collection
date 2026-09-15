@@ -227,7 +227,7 @@ public final class BlackjackModel {
     }
 
     private var deck: [BlackjackCard] = []
-    private let gameID = "blackjack"
+    let gameID = "blackjack"
     private let services: GameServices?
     private var seed: UInt64?
 

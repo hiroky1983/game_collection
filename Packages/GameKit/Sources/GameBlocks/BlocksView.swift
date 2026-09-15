@@ -43,6 +43,8 @@ public struct BlocksView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
+        .rewardOffer(continueRescue, for: .continue, isPresented: model.phase == .gameOver && !model.continueUsed,
+                     services: services, gameID: BlocksModel.gameID)
         .gameChrome(title: "ブロック崩し", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { startNewGame() } label: {

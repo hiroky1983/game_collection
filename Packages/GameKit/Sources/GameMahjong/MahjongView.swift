@@ -127,6 +127,9 @@ public struct MahjongView: View {
         .padding(Theme.pad)
         // ナビバーの既定の白背景がコンテンツのクリーム背景と食い違い、画面上部だけ白い帯に
         // 見えていた（会長指摘）。背景色を揃えて帯の境目を消す。
+        // 復活ボタンは終局のリザルトにだけ出る（#780）。
+        .rewardOffer(reviveRescue, for: .revival, isPresented: model.phase == .gameResult && model.canReviveAfterBust,
+                     services: services, gameID: model.gameID)
         .gameChrome(title: "麻雀", review: services.review, matchesNavigationBarBackground: true) {
             // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
             // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける

@@ -51,6 +51,8 @@ public struct BlackjackView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
+        .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
+                     services: services, gameID: model.gameID)
         .gameChrome(title: "ブラックジャック", review: services.review)
         .howToPlay(.blackjack)
         .onAppear {
