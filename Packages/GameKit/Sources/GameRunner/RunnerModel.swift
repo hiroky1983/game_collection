@@ -516,6 +516,13 @@ public final class RunnerModel {
         }
     }
 
+    /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（`PlayRecord.applying` と同じ規則）。
+    /// 記録が無いときは 0 m と比べる。`Int.min` と比べていたため、0 m で終わった初回まで
+    /// 「自己ベスト更新！」になっていた（#839）。
+    nonisolated static func isNewBestDistance(_ meters: Int, over best: Int?) -> Bool {
+        meters > (best ?? 0)
+    }
+
     /// エンドレスの 1 回を記録する（#675）。
     ///
     /// 記録は**走行距離**（`GameScore(metric: .points)`・`distanceMeters`。1 タイル＝1 m）。区分
@@ -527,8 +534,7 @@ public final class RunnerModel {
     /// 毎回を勝ちにすると通算勝利数の実績が走るたびに進んでしまう）。
     private func finishEndlessRun(outcome: GameOutcome) {
         let meters = distanceMeters
-        // 同点は更新扱いにしない（`PlayRecord.applying` と同じ規則）。
-        didSetBestDistance = meters > (endlessBestDistance ?? Int.min)
+        didSetBestDistance = Self.isNewBestDistance(meters, over: endlessBestDistance)
         if didSetBestDistance { endlessBestDistance = meters }
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
