@@ -60,6 +60,21 @@ struct RecordShareButtonTests {
         #expect(combine.lowerBound < button.lowerBound, "共有ボタンが結合した読み上げ要素の中に入っている")
         #expect(source.contains(#".accessibilityLabel("記録をシェア")"#))
     }
+
+    /// `swift test` ではボタンを実際に押せない（SwiftUI の操作もアクセシビリティツリーも届かない）ため、
+    /// 押したときの結線をソースで固定する（PR #1057 の CodeRabbit 指摘）。
+    @Test("押したら配られた didTap を呼び、共有するのは配られた URL と記録の文言")
+    func buttonWiresTapAndSharedItems() throws {
+        let source = try SourceScan.packageSource("Sources/Core/RecordLabel.swift")
+        let code = source.split(separator: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        #expect(code.components(separatedBy: "context.didTap()").count - 1 == 1, "didTap の呼び出しが1か所ではない")
+        #expect(code.contains(".simultaneousGesture(TapGesture().onEnded { context.didTap() })"),
+                "共有ボタンのタップで didTap を呼んでいない")
+        #expect(code.contains("ShareLink(item: context.url,"), "配られた URL を共有していない")
+        #expect(code.contains("message: Text(verbatim: message)"), "記録の文言を共有していない")
+    }
 }
 
 /// 共有ボタンの結線（#1043）。配り口は App ターゲット（`HubView`）にあり GameKit のテストから
