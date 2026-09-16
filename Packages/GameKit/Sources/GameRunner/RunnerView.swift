@@ -341,10 +341,10 @@ public struct RunnerView: View {
     /// 「このステージをもう一度」（#941）はここを経由しない。面をまたぐたびに合図を挟むと、
     /// 会長決裁済みの「その場で走り出す」が崩れる。
     private func beginWithStartFlash(_ start: @escaping () -> Void) {
-        withAnimation(.easeOut(duration: 0.15)) { isShowingStartFlash = true }
+        withGameAnimation(.easeOut(duration: 0.15)) { isShowingStartFlash = true }
         services.feedback.impact(.light)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.startFlashDuration) {
-            withAnimation(.easeIn(duration: 0.15)) { isShowingStartFlash = false }
+            withGameAnimation(.easeIn(duration: 0.15)) { isShowingStartFlash = false }
             start()
         }
     }
