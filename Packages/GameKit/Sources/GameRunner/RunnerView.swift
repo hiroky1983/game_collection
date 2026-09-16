@@ -66,14 +66,17 @@ public struct RunnerView: View {
         .padding()
         .gameChrome(title: "チャリンコおじさん", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
-                // 「はじめから」はモードを選ぶ開始シートを経由する（#675。チェスの「新規対局」と
-                // 同じ作法）。走行中なら読んでいる間にミスしないよう止める。
+                // モードを変える唯一の導線（#1027）。開始シートを経由する（#675。チェスの
+                // 「新規対局」と同じ作法）。走行中なら読んでいる間にミスしないよう止める。
+                // アイコンを一回り大きくして見つけやすくする（会長指摘「トグルボタンが小さい」・
+                // 2026-09-16）。
                 Button {
                     if model.phase == .running { model.pause() }
                     openStartSheet(mode: model.mode, stage: 1)
                 } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
+                .imageScale(.large)
             }
         }
         .howToPlay(.runner) {
@@ -89,10 +92,16 @@ public struct RunnerView: View {
             RunnerStartSheet(
                 mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage
             ) {
+                // 「スタート」1 タップで選んだ設定のまま走り出す（#1027）。以前は `newGame` で
+                // 焼き込むだけで `.ready` に戻り、閉じたシートの裏でもう一度カードのボタンを
+                // 押させていた（会長QA「はじめからモーダルからセレクトしてもう一回モード選択が
+                // 挟まるのでうざい」・2026-09-16）。`start(_:)` はモードが同じなら作り直さず
+                // その場で `beginRun()` するだけなので、二重にコースを作ることはない。
                 switch selectedMode {
                 case .stages:  model.newGame(startingAtStage: selectedStage)
                 case .endless: model.newGame(mode: .endless)
                 }
+                model.start(selectedMode)
                 showStartSheet = false
             } onCancel: {
                 showStartSheet = false
@@ -101,6 +110,7 @@ public struct RunnerView: View {
         .onAppear {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
+            presentStartSheetIfNeeded()
             #if DEBUG
             // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
             let args = ProcessInfo.processInfo.arguments
@@ -112,6 +122,15 @@ public struct RunnerView: View {
                 openStartSheet(mode: model.mode, stage: 1)
             }
             #endif
+        }
+        .onChange(of: model.phase) { _, phase in
+            // ハブから開いた直後・全ステージクリア後の「はじめから」など、モードを選び直せる
+            // `.ready` に着地するたびにモーダルを出す（#1027）。以前はコースの上に軽量カード
+            // （次の面／エンドレス／マップ）を常に重ねていたが、会長QA「カード要らない」・
+            // 「1のモーダルを遷移時に表示してステージセレクトしてスタート」で、カードそのものを
+            // 廃止しシートに一本化した。チェックポイント再開直後（`canChooseMode == false`）は
+            // 出さない——広告で得た途中からの再開を、モード選びの画面で誤って手放させない。
+            if phase == .ready { presentStartSheetIfNeeded() }
         }
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
@@ -288,11 +307,24 @@ public struct RunnerView: View {
     }
 
     /// 開始シート（`RunnerStartSheet`）を、選んでおくモードと面を決めて開く。
-    /// ツールバーの「はじめから」と、スタート画面の「マップ」（#931）の共通の経路。
+    /// ツールバーの「はじめから」の経路（#1027。「マップ」導線はカードごと廃止した）。
     private func openStartSheet(mode: RunnerMode, stage: Int) {
         selectedMode = mode
         selectedStage = stage
         showStartSheet = true
+    }
+
+    /// モードを選び直せる `.ready`（#1027）に着地したら、開始シートを自動で出す。
+    ///
+    /// 対象はハブから開いた直後・全ステージクリア後の「はじめから」——`canChooseMode` が
+    /// 真のときだけ。チェックポイント再開直後（`canChooseMode == false`）は `startScreen` の
+    /// 「つづきから」1 ボタンのままで、シートは出さない（広告で得た再開を誤って手放させない）。
+    /// 初回の操作ガイドを読んでいる間（`showsTutorial`）も出さない——ガイドの「はじめる」が
+    /// 直接ステージ制で走り出すので、シートを挟む必要が無い。
+    /// 既にシートが開いていれば何もしない（多重表示を防ぐ）。
+    private func presentStartSheetIfNeeded() {
+        guard model.phase == .ready, model.canChooseMode, !showsTutorial, !showStartSheet else { return }
+        openStartSheet(mode: model.mode, stage: model.stageNumber)
     }
 
     // MARK: - コース
@@ -522,62 +554,70 @@ public struct RunnerView: View {
         .tint(Theme.Fill.coral)
     }
 
-    // MARK: - スタート画面（#931）
+    // MARK: - スタート画面（#931 → #1027 でカードを縮小）
 
     /// 走り出す前（`.ready`）にコースの上へ重ねるカード。
     ///
-    /// 「エンドレスはどこから選べる？」（会長 QA 2026-09-15）に #919 は一時停止ボタンの行へ
-    /// 小さな切り替えを相乗りさせて応えたが、「発想が貧弱」とやり直しになった。ここでは
-    /// **走り出す前の画面そのものをスタート画面**にする。上から、
-    /// 1. 主ボタン「▶ 2-3」——次に遊ぶ面の番号（名前は #946 で外した）を世界の色で。押せばその面で走り出す
-    /// 2. 「∞ エンドレス」——自己ベストを添えて。押せば新しい種で走り出す
-    /// 3. 「マップ」——ワールドマップ（開始シート #798）を開く
+    /// #931 では「▶ 次の面」「∞ エンドレス」「マップ」の 3 段カードをここへ毎回自動で出していたが、
+    /// 「マップ」を押す→別シートで選ぶ→**このカードに戻ってもう一度スタートを押す**、という
+    /// 二度打ちが起きていた（会長QA「はじめからモーダルからセレクトしてもう一回モード選択が
+    /// 挟まるのでうざい」・2026-09-16）。#1027 でモード・面選びは開始シート（`RunnerStartSheet`）
+    /// 1 本に統一し（`presentStartSheetIfNeeded`）、**このカードはチェックポイント再開と
+    /// 初回ガイドの 2 パターンだけ**になった。
+    ///
+    /// - チェックポイント再開の直後（`!canChooseMode`）: 広告で得た途中からの再開を
+    ///   シートのモード選びで誤って手放させないよう、「▶ つづきから」の主ボタン 1 つだけを出す
+    /// - 初回プレイの操作ガイド（`showsTutorial`）: `tutorialCard`
+    /// - どちらでもない（`canChooseMode == true`）: 何も出さない——開始シートが自動で開く
     ///
     /// カードは**コースの中に重ねる**（コースの外に行を足さない）ので、iPhone SE でも盤・カード・
-    /// 広告帯の縦の配分は変わらない。カードの外側のタップはこれまでどおりコースに届き、
-    /// いまのコースをそのまま走り出す（主ボタンと同じ）。
-    /// チェックポイント再開の直後（`!canChooseMode`）は、広告で得た途中からの再開を捨てさせないよう
-    /// 「▶ つづきから」の主ボタン 1 つだけにする。
+    /// 広告帯の縦の配分は変わらない。
     ///
-    /// 出るのは**ハブから入った直後・「はじめから」・マップで面を選んだとき・チェックポイント再開**だけ。
-    /// 「次の面へ」「もう一度」「このステージをもう一度」は `.ready` を挟まずその場で走り出す
+    /// 出るのは**チェックポイント再開の直後・初回ガイド中**だけ。「次の面へ」「もう一度」
+    /// 「このステージをもう一度」は `.ready` を挟まずその場で走り出す
     /// （#941。面をまたぐたびにここでもう 1 タップさせない）。
+    @ViewBuilder
     private var startScreen: some View {
-        ZStack {
-            // 薄い幕でカードを立たせる。タップは透過（コースで走り出せる）。
-            // 初回の操作ガイド（#988）が出ている間だけは幕でタップを受け止める——読んでいる
-            // 途中の指が当たって走り出すのを防ぐだけで、ガイド自体は対話型にしない
-            // （「はじめる」を押せば閉じてそのまま走り出す）。
-            Rectangle()
-                .fill(.black.opacity(showsTutorial ? 0.45 : 0.3))
-                .allowsHitTesting(showsTutorial)
-            VStack(spacing: 10) {
-                if showsTutorial {
-                    tutorialCard
-                } else {
-                    // 主ボタンの左におじさんの笑顔を小さく添える（#702・2 倍 = 32×30pt）。
-                    // 顔は装飾なので VoiceOver には出ず、主ボタンの読み上げはこれまでどおり。
-                    HStack(spacing: 10) {
-                        if let face = RunnerResultFace.face(for: .ready) {
-                            ojisanFace(face, scale: RunnerResultFace.startDotScale)
-                        }
-                        startMainButton
-                    }
-                    if model.canChooseMode {
-                        startEndlessButton
-                        mapLink
-                    }
-                }
+        if showsTutorial {
+            ZStack {
+                // 初回の操作ガイド（#988）を読んでいる間だけ幕でタップを受け止める——読んでいる
+                // 途中の指が当たって走り出すのを防ぐだけで、ガイド自体は対話型にしない
+                // （「はじめる」を押せば閉じてそのまま走り出す）。
+                Rectangle().fill(.black.opacity(0.45)).allowsHitTesting(true)
+                tutorialCard
+                    .padding(14)
+                    .frame(maxWidth: 300)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                            .fill(Theme.surface)
+                            .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                    )
+                    .padding(.horizontal, 20)
             }
-            .padding(14)
-            .frame(maxWidth: 300)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-            )
-            .padding(.horizontal, 20)
+        } else if !model.canChooseMode {
+            ZStack {
+                // 薄い幕でカードを立たせる。タップは透過（コースで走り出せる）。
+                Rectangle().fill(.black.opacity(0.3)).allowsHitTesting(false)
+                // 主ボタンの左におじさんの笑顔を小さく添える（#702・2 倍 = 32×30pt）。
+                // 顔は装飾なので VoiceOver には出ず、主ボタンの読み上げはこれまでどおり。
+                HStack(spacing: 10) {
+                    if let face = RunnerResultFace.face(for: .ready) {
+                        ojisanFace(face, scale: RunnerResultFace.startDotScale)
+                    }
+                    startMainButton
+                }
+                .padding(14)
+                .frame(maxWidth: 300)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                        .fill(Theme.surface)
+                        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+                )
+                .padding(.horizontal, 20)
+            }
         }
+        // else: canChooseMode == true → 開始シートが自動で開くので何も重ねない
+        // （`presentStartSheetIfNeeded`）。
     }
 
     /// 初回プレイだけスタート画面に出す操作ガイド（#988）。
@@ -670,51 +710,6 @@ public struct RunnerView: View {
         .accessibilityLabel(
             resumingFromCheckpoint ? "つづきから走る" : RunnerAccessibility.startStageLabel(number: number)
         )
-    }
-
-    /// エンドレス（#675）。自己ベストを添える（無ければ「まだ記録なし」）。
-    private var startEndlessButton: some View {
-        Button {
-            model.start(.endless)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "infinity")
-                    .font(.system(size: 18, weight: .heavy))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("エンドレス")
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    Text(model.endlessBestDistance.map { "自己ベスト \(distanceText($0))" } ?? "まだ記録なし")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(Theme.inkSub)
-                }
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(Theme.ink)
-            .padding(.horizontal, 16).padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                    .fill(Theme.Fill.coral.opacity(0.12))
-            )
-        }
-        .buttonStyle(.pop)
-        .accessibilityLabel(RunnerAccessibility.startEndlessLabel(bestDistance: model.endlessBestDistance))
-    }
-
-    /// ワールドマップ（#798）へ。開始シートをステージ制・いまの面を選んだ状態で開く。
-    /// ツールバーの「はじめから」（1 面から）と違い、「どの面から走るか」を選びに行く導線なので
-    /// つづきの面を選んでおく。
-    private var mapLink: some View {
-        Button {
-            openStartSheet(mode: .stages, stage: model.stageNumber)
-        } label: {
-            Label("マップ", systemImage: "map.fill")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-                .padding(.horizontal, 8).padding(.vertical, 4)
-        }
-        .buttonStyle(.pop)
-        .accessibilityHint("ワールドマップを開いて面を選ぶ")
     }
 
     private var pausedOverlay: some View {
