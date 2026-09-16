@@ -5,6 +5,8 @@ public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
     @State private var showResignConfirm = false
+    /// 大貧民の献上を広告で免除する救済（#1048）。
+    @State private var waiveRescue = RewardedRescue()
     /// 画面の広さ（#458）。場の空き枠を札と同じ倍率で拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -61,6 +63,14 @@ public struct DaifugoView: View {
         } message: {
             Text("今のゲームを打ち切ります。あなたは大貧民になり、負けとして記録されます。")
         }
+        .rewardedRescueAlerts(
+            waiveRescue,
+            notEarned: "カード交換を免除できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "カード交換を免除できませんでした",
+                message: "広告を見ているあいだに次のゲームが始まったため、免除できませんでした。"
+            )
+        )
         .task {
             // 開幕の全画面モーダルは廃止したので、盤を見せたまま既定値で配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -308,13 +318,46 @@ public struct DaifugoView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton("次のゲーム", color: Theme.Fill.coral) {
-                model.startGame()
-                Task { await model.runCPUTurnsIfNeeded() }
+            VStack(spacing: 8) {
+                if model.canWaiveExchange {
+                    waiveExchangeButton
+                }
+                // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
+                actionButton("次のゲーム", color: Theme.Fill.coral, disabled: waiveRescue.isWatching) {
+                    model.startGame()
+                    Task { await model.runCPUTurnsIfNeeded() }
+                }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         }
+    }
+
+    /// 大貧民のリザルトにだけ出す「広告を見て献上を免除」（#1048）。
+    private var waiveExchangeButton: some View {
+        Button {
+            // 視聴完了（報酬獲得）したときだけ免除する。どのゲームの決着に対するものかを広告の前に控え、
+            // 視聴中に次のゲームが始まっていたら乗せない（#729）。
+            let game = model.gameNumber
+            waiveRescue.request(
+                services, gameID: model.gameID, purpose: .revival,
+                guardedBy: .checkedByGrant
+            ) {
+                model.waiveExchangeAfterAd(forGame: game)
+            }
+        } label: {
+            Label("広告を見て次のカード交換を免除", systemImage: "play.rectangle.fill")
+                .themeBody(14)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(waiveRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
+                            in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(waiveRescue.isWatching ? Theme.inkSub : Theme.onAccent)
+        }
+        .buttonStyle(.pop)
+        .disabled(waiveRescue.isWatching)
     }
 
     private var playButtonTitle: String {
@@ -383,7 +426,7 @@ public struct DaifugoView: View {
             Spacer(minLength: 8)
             RecordLabel(model.recordResult)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）")
+            Text(exchangeNote)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -392,6 +435,13 @@ public struct DaifugoView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 次のゲームのカード交換の案内。広告で献上を免除したら、免除したことを伝える（#1048）。
+    private var exchangeNote: String {
+        model.isExchangeWaived
+            ? "次のゲームは大富豪⇔大貧民のカード交換を免除します（富豪⇔貧民は1枚ずつ交換します）"
+            : "次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）"
     }
 
     /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
