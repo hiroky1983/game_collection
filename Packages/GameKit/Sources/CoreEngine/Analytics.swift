@@ -169,8 +169,9 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     }
 }
 
-/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` の5種のみ**
-/// （#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12）。
+/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
+/// `share_tap` の6種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// #1043 の会長決裁 2026-09-16）。
 ///
 /// パラメータは各ケースの関連値だけから組み立てるため、呼び出し側が任意のキーや値を
 /// 追加する余地が無い。イベントを増やすにはこの enum にケースを足す = 意図的な変更が要る。
@@ -198,6 +199,11 @@ public enum AnalyticsEvent: Equatable, Sendable {
     ///   - position: 導線の中での位置（**1 始まり**）。並びを持たない導線では nil で、鍵ごと送らない。
     ///   - resume: 開いた時点で「続きから」だったか。GA4 で集計しやすいよう 0 / 1 で送る。
     case gameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool)
+    /// リザルトの共有ボタン（自己ベストを更新した回だけ出る）を押した（#1043）。パラメータは `game_id` のみ。
+    ///
+    /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
+    /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
+    case shareTap(gameID: String)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -207,6 +213,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .rewardAd:      return "reward_ad"
         case .rewardRequest: return "reward_request"
         case .gameOpen:      return "game_open"
+        case .shareTap:      return "share_tap"
         }
     }
 
@@ -247,6 +254,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
             // 位置は 1 始まり。0 以下は並びの中に存在しないので 1 に丸める。
             if source.hasPosition, let position { parameters["position"] = .int(max(1, position)) }
             return parameters
+        case let .shareTap(gameID):
+            return ["game_id": .string(gameID)]
         }
     }
 }
@@ -281,7 +290,7 @@ public struct GatedAnalyticsService: AnalyticsService {
 }
 
 /// 1プレイの開始・終わりを対応付けて `game_start` / `game_end` を送り、あわせて
-/// `reward_ad` / `reward_request` / `game_open` も送る係。
+/// `reward_ad` / `reward_request` / `game_open` / `share_tap` も送る係。
 ///
 /// 各ゲームは「開始した」「1手指した」「やり直した」「終局した」を伝えるだけで、
 /// **二重発火の抑制と経過秒の計測、離脱と休憩の切り分けはここ1か所**に閉じ込める。
@@ -409,6 +418,12 @@ public final class GameAnalytics {
     public func recordGameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
+    }
+
+    /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。プレイの数え方には影響しない。
+    public func recordShareTap(gameID: String) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.shareTap(gameID: gameID))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。

@@ -127,6 +127,10 @@ enum AppEnvironment {
     /// バージョンごとに1回までのため、`CFBundleShortVersionString` を判定に使う。
     static let review = ReviewRequestService(log: playLog, appVersion: shortVersion)
 
+    /// App Store の商品ページ。設定の「アプリをシェア」と、リザルトの記録の共有（#1043）が添える URL。
+    /// キャンペーンのパラメータは付けない（付けるには ASC の Campaign Link の設定が要る・#1043）。
+    static let appStoreURL = URL(string: "https://apps.apple.com/jp/app/id6781719499")!
+
     /// 表示用のバージョン番号（例 "1.1.1"）。取れなければ判定を止めないよう "0" を使う。
     static var shortVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"

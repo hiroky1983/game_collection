@@ -179,6 +179,13 @@ struct AnalyticsEventShapeTests {
             .parameters["position"] == .int(1))
     }
 
+    @Test("share_tap は game_id だけを持ち、スコアの生値や共有先を載せない（#1043）")
+    func shareTapShape() {
+        let tap = AnalyticsEvent.shareTap(gameID: "2048")
+        #expect(tap.name == "share_tap")
+        #expect(tap.parameters == ["game_id": .string("2048")])
+    }
+
     @Test("source は hub / recent / recommendation / notification / first_pick の5値に閉じている（#659・#721）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
@@ -187,16 +194,17 @@ struct AnalyticsEventShapeTests {
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open の5種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / share_tap の6種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
-        // 全量の列挙（#659 で2種追加）。個々の鍵は下と上の各テストで固定する。
+        // 全量の列挙（#659 で2種・#1043 で1種追加）。個々の鍵は下と上の各テストで固定する。
         #expect([
             AnalyticsEvent.gameStart(gameID: "2048"),
             .gameEnd(gameID: "2048", result: .win, durationSec: 0),
             .rewardAd(gameID: "2048", purpose: .undo),
             .rewardRequest(gameID: "2048", purpose: .undo),
             .gameOpen(gameID: "2048", source: .hub, position: 1, resume: false),
-        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open"])
+            .shareTap(gameID: "2048"),
+        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open", "share_tap"])
 
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
         #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")],

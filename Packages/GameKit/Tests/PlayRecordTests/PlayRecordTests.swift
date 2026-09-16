@@ -315,6 +315,27 @@ struct RecordFormatTests {
         ).record
         #expect(RecordFormat.resultLine(notCleared) == "クリア記録なし（1回挑戦）")
     }
+
+    @Test("共有の文言は記録を前面に出し、リザルトの1行と同じ表記を使う（#1043）")
+    func shareMessages() {
+        let points = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 12340, highestValue: 1024), to: nil
+        ).record
+        #expect(RecordFormat.shareMessage(title: "2048", record: points)
+            == "あそびばの「2048」で記録更新！\n自己ベスト 12,340（最大 1,024）")
+
+        // 区分で記録を分けるゲームは、どの区分の記録かを添える。
+        let easy = PlayRecord.applying(
+            outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 83, variant: "easy", variantLabel: "初級"),
+            to: nil
+        ).record
+        #expect(RecordFormat.shareMessage(title: "マインスイーパー", record: easy)
+            == "あそびばの「マインスイーパー」（初級）で記録更新！\n最短タイム 1:23・1回クリア")
+
+        // リザルトに行が出ない記録（まだ何も無い）では文言も作らない。
+        #expect(RecordFormat.shareMessage(title: "2048", record: PlayRecord()) == nil)
+    }
 }
 
 // MARK: - 永続化
