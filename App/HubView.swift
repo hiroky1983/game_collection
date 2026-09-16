@@ -289,7 +289,16 @@ struct HubView: View {
             }
             .navigationDestination(for: HubRoute.self) { route in
                 if let module = registry.module(id: route.gameID) {
+                    // 自己ベスト更新のリザルトに出す共有ボタンの情報（#1043）。20 本の `RecordLabel` の
+                    // 呼び出しを直さずに済むよう、ゲーム画面を作るここ 1 か所から配る。
+                    let gameID = module.id
+                    let services = services
                     module.makeView(services: services)
+                        .environment(\.recordShare, RecordShareContext(
+                            gameTitle: module.title,
+                            url: AppEnvironment.appStoreURL,
+                            didTap: { services.gameDidTapShare(gameID: gameID) }
+                        ))
                 }
             }
             .onChange(of: path) { oldPath, newPath in

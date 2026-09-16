@@ -8,9 +8,20 @@ import Foundation
 public enum BlockPuzzleAccessibility {
 
     /// 盤の 1 マス（例: "3行5列、ブロック" / "3行5列、空きマス"）。
-    public static func cellLabel(row: Int, col: Int, value: Int) -> String {
-        "\(row + 1)行\(col + 1)列、\(value == 0 ? "空きマス" : "ブロック")"
+    ///
+    /// 手元を選んでいるときは `canPlaceSelected` に「このマスを左上にして置けるか」を渡し、
+    /// 末尾に読み足す（例: "3行5列、空きマス、置けます"。#1044）。
+    public static func cellLabel(row: Int, col: Int, value: Int, canPlaceSelected: Bool? = nil) -> String {
+        let base = "\(row + 1)行\(col + 1)列、\(value == 0 ? "空きマス" : "ブロック")"
+        guard let canPlaceSelected else { return base }
+        return base + (canPlaceSelected ? "、置けます" : "、置けません")
     }
+
+    /// 手元を選んでいるときの盤のマスのヒント（#1044）。L 字は左上が空きのことがあるので基準を明示する。
+    public static let cellHint = "ダブルタップで、選んだ形をこのマスを左上にして置きます"
+
+    /// 手元のスロットのヒント（#1044）。
+    public static let handHint = "ダブルタップで選び、盤のマスを選んで置きます"
 
     /// ピースの形の呼び名（例: "横4マスの棒" / "3×3の四角" / "L字5マス"）。
     ///
@@ -27,10 +38,11 @@ public enum BlockPuzzleAccessibility {
         }
     }
 
-    /// 手元のピース（例: "手元2つ目、L字5マス、置けます"）。
-    public static func handLabel(index: Int, piece: BlockPuzzlePiece?, canPlace: Bool) -> String {
+    /// 手元のピース（例: "手元2つ目、L字5マス、置けます" / "手元2つ目、L字5マス、置けます、選択中"）。
+    public static func handLabel(index: Int, piece: BlockPuzzlePiece?, canPlace: Bool, isSelected: Bool = false) -> String {
         guard let piece else { return "手元\(index + 1)つ目、使用済み" }
-        return "手元\(index + 1)つ目、\(shapeLabel(piece))、\(canPlace ? "置けます" : "置ける場所がありません")"
+        let base = "手元\(index + 1)つ目、\(shapeLabel(piece))、\(canPlace ? "置けます" : "置ける場所がありません")"
+        return isSelected ? base + "、選択中" : base
     }
 
     /// スコアと連鎖の読み上げ（例: "スコア120、2連鎖中"）。

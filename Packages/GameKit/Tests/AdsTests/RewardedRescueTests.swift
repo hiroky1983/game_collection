@@ -290,7 +290,7 @@ struct RewardGuardCallSiteTests {
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(requests == 11, "救済の入口は11面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く）")
+        #expect(requests == 13, "救済の入口は13面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }

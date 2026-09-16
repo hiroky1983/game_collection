@@ -9,6 +9,8 @@ public struct HanafudaView: View {
     @Environment(\.adaptiveLayout) private var layout
     @State private var showResignConfirm = false
     @State private var showYakuSheet = false
+    /// 最終局で負けているときに広告で 1 局延長する救済（#1049）。
+    @State private var extendRescue = RewardedRescue()
     /// 開始前の設定（局数・酒の役・強さ）。局が始まったら焼き込まれる（1 局 = 1 RuleSet）。
     @State private var draft = HanafudaOptions()
 
@@ -57,6 +59,17 @@ public struct HanafudaView: View {
         } message: {
             Text("この試合を打ち切ります。負けとして記録されます。")
         }
+        // 1 局延長の提示（#780 × #1049）。最終局で負けている局の結果でボタンが出ているあいだを 1 回の提示として数える。
+        .rewardOffer(extendRescue, for: .continue, isPresented: model.canExtendMatch,
+                     services: services, gameID: HanafudaModel.gameID)
+        .rewardedRescueAlerts(
+            extendRescue,
+            notEarned: "延長できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "延長できませんでした",
+                message: "広告を見ているあいだに試合が終わったため、延長できませんでした。"
+            )
+        )
         .task(id: model.aiTurnKey) {
             await model.runCPUTurnIfNeeded()
         }
@@ -80,7 +93,7 @@ public struct HanafudaView: View {
                 scoreChip(title: "あなた", value: model.humanTotal, fill: Theme.Fill.teal)
                 Spacer(minLength: 8)
                 if model.phase != .matchResult {
-                    Text("\(model.round) / \(model.options.rounds)局")
+                    Text(model.round > model.options.rounds ? "延長戦" : "\(model.round) / \(model.options.rounds)局")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                     Spacer(minLength: 8)
@@ -278,9 +291,14 @@ public struct HanafudaView: View {
         case .roundResult:
             VStack(spacing: 8) {
                 roundResultCard
+                if model.canExtendMatch {
+                    extendMatchButton
+                }
+                // 視聴中に試合の結果へ進むと、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(
-                    model.round >= model.options.rounds ? "試合の結果へ" : "次の局へ",
-                    color: Theme.Fill.coral
+                    model.round >= model.totalRounds ? "試合の結果へ" : "次の局へ",
+                    color: Theme.Fill.coral,
+                    disabled: extendRescue.isWatching
                 ) { model.advanceAfterRound() }
             }
         case .matchResult:
@@ -304,6 +322,33 @@ public struct HanafudaView: View {
             .padding(.horizontal, 12).padding(.vertical, 10)
             .popCard(corner: Theme.cornerSmall)
         }
+    }
+
+    /// 最終局で負けているときにだけ出す「広告を見て1局延長」（#1049）。
+    private var extendMatchButton: some View {
+        Button {
+            // 視聴完了（報酬獲得）したときだけ延長する。どの局の決着に対するものかを広告の前に控え、
+            // 視聴中に試合が決着・入れ替わっていたら乗せない（#729）。
+            let serial = model.gameSerial
+            extendRescue.request(
+                services, gameID: HanafudaModel.gameID, purpose: .continue,
+                guardedBy: .checkedByGrant
+            ) {
+                model.extendMatchAfterAd(forGame: serial)
+            }
+        } label: {
+            Label("広告を見て1局延長（1試合に1回）", systemImage: "play.rectangle.fill")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(extendRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
+                            in: RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+                .foregroundStyle(extendRescue.isWatching ? Theme.inkSub : Theme.onAccent)
+        }
+        .buttonStyle(.plain)
+        .disabled(extendRescue.isWatching)
     }
 
     private var roundResultCard: some View {
