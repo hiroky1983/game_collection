@@ -129,7 +129,10 @@ public struct BlockPuzzleView: View {
     }
 
     private func cells(cell: CGFloat) -> some View {
-        ForEach(0..<BlockPuzzleBoard.size, id: \.self) { row in
+        // VoiceOver で選んでいる形（#1044）。選んでいる間だけマスが「置く」ボタンになる。
+        let selected = model.selectedPiece.flatMap { model.hand.indices.contains($0) ? model.hand[$0] : nil }
+        let hint: String = selected == nil ? "" : BlockPuzzleAccessibility.cellHint
+        return ForEach(0..<BlockPuzzleBoard.size, id: \.self) { row in
             ForEach(0..<BlockPuzzleBoard.size, id: \.self) { col in
                 let value = model.board[row][col]
                 RoundedRectangle(cornerRadius: cell * 0.22, style: .continuous)
@@ -138,7 +141,17 @@ public struct BlockPuzzleView: View {
                     .offset(x: Self.boardInset + CGFloat(col) * cell + 1,
                             y: Self.boardInset + CGFloat(row) * cell + 1)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(BlockPuzzleAccessibility.cellLabel(row: row, col: col, value: value))
+                    .accessibilityLabel(BlockPuzzleAccessibility.cellLabel(
+                        row: row, col: col, value: value,
+                        canPlaceSelected: selected.map { BlockPuzzleBoard.canPlace(model.board, $0, row: row, col: col) }
+                    ))
+                    .accessibilityHint(hint)
+                    .accessibilityAddTraits(selected == nil ? [] : .isButton)
+                    .accessibilityAction {
+                        withGameAnimation(.easeInOut(duration: 0.15)) {
+                            _ = model.placeSelected(row: row, col: col)
+                        }
+                    }
             }
         }
     }
@@ -196,7 +209,14 @@ public struct BlockPuzzleView: View {
         .contentShape(Rectangle())
         .gesture(dragGesture(index: index))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(BlockPuzzleAccessibility.handLabel(index: index, piece: piece, canPlace: placeable))
+        .accessibilityLabel(BlockPuzzleAccessibility.handLabel(
+            index: index, piece: piece, canPlace: placeable, isSelected: model.selectedPiece == index
+        ))
+        // 選べない（使用済み・終局後）スロットには操作を案内しない。
+        .accessibilityHint(piece == nil || model.gameOver ? "" : BlockPuzzleAccessibility.handHint)
+        .accessibilityAddTraits(piece == nil || model.gameOver ? [] : .isButton)
+        // ドラッグできない VoiceOver 向けの代替（#1044）。選んでから盤のマスで置く。
+        .accessibilityAction { model.selectPiece(index) }
     }
 
     private func dragGesture(index: Int) -> some Gesture {
