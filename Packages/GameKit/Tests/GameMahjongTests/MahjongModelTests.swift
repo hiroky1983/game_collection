@@ -894,10 +894,13 @@ struct MahjongGameEndReasonTests {
 @MainActor
 struct MahjongFullGameTests {
 
-    // `.timeLimit` は無限ループを止める保険。フルスイートの並列実行では CPU を取り合って
-    // 1 分を超えることがあるため（#263 で鳴きありの通しが増えて顕在化）、上限を緩める。
-    // 進行が詰まらないことの保証は下の `guardCount` の上限が担っている。
-    @Test("CPU だけで東風戦が最後まで進み、順位が出る", .timeLimit(.minutes(3)))
+    // `.timeLimit` は無限ループを止める保険。進行が詰まらないことの保証は下の `guardCount` の上限が担っている。
+    // 上限は**このテストの所要時間ではなく、フルスイート全体の所要時間**に対して取る（#676）。
+    // フルスイートでは全テストが同時に始まり、`await` のたびに他の MainActor テストの後ろへ並び直すため、
+    // 経過時間の大半は MainActor の待ち行列になる。単独なら数秒のこのテストが CI では 145〜217 秒かかり、
+    // 中身がほぼ無い広告のテストでも約 156 秒かかっていた（2026-09-16 の CI 実測。スイート全体は 245〜367 秒）。
+    // 3 分ではこの待ちで落ちていたので、CI ジョブのタイムアウト（40 分）より十分短く、スイート全体より長く取る。
+    @Test("CPU だけで東風戦が最後まで進み、順位が出る", .timeLimit(.minutes(15)))
     func playsThroughEastRound() async {
         let model = makeModel(seed: 4649)
         model.startGame()
