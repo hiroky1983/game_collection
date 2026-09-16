@@ -72,7 +72,9 @@ public struct RunnerView: View {
                 // モードを変える唯一の導線（#1027）。開始シートを経由する（#675。チェスの
                 // 「新規対局」と同じ作法）。走行中なら読んでいる間にミスしないよう止める。
                 // アイコンを一回り大きくして見つけやすくする（会長指摘「トグルボタンが小さい」・
-                // 2026-09-16）。
+                // 2026-09-16）。「スタート！」の合図中は押せなくする——合図の裏でもう一度開始
+                // シートを開いて「スタート」を押すと、2 つの走り出しが競合する（CodeRabbit 指摘。
+                // `beginWithStartFlash` 側にも再入ガードがあるが、ボタンごと塞ぐほうが分かりやすい）。
                 Button {
                     if model.phase == .running { model.pause() }
                     openStartSheet(mode: model.mode, stage: 1)
@@ -80,6 +82,7 @@ public struct RunnerView: View {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
                 .imageScale(.large)
+                .disabled(isShowingStartFlash)
             }
         }
         .howToPlay(.runner) {
@@ -340,16 +343,31 @@ public struct RunnerView: View {
     /// 合図の裏で走者がこっそり進んでしまうことはない。「次の面へ」「もう一度」
     /// 「このステージをもう一度」（#941）はここを経由しない。面をまたぐたびに合図を挟むと、
     /// 会長決裁済みの「その場で走り出す」が崩れる。
+    ///
+    /// - 合図が出ている間は再入を防ぐ（CodeRabbit 指摘）。合図の 0.45 秒の間にツールバーの
+    ///   「はじめから」から開始シートをもう一度開いて「スタート」を押せてしまい、2 つの遅延
+    ///   クロージャが登録されると片方の `newGame` がもう片方の走行を割り込んで壊す。
+    /// - `isShowingStartFlash` を `false` にしたあとも `start` は呼ばず、フェードアウトの尺
+    ///   （`startFlashFadeDuration`）だけさらに待ってから呼ぶ（同じく CodeRabbit 指摘）。
+    ///   `withGameAnimation` は状態を変えるだけで、実際にアニメーションが終わるまで待たない
+    ///   ため、待たずに `start()` を呼ぶと `.ready` → `.running` の切り替えで `startFlash` が
+    ///   フェードの途中でちぎれて消え、合図が消える前に走り出して見える。
     private func beginWithStartFlash(_ start: @escaping () -> Void) {
-        withGameAnimation(.easeOut(duration: 0.15)) { isShowingStartFlash = true }
+        guard !isShowingStartFlash else { return }
+        withGameAnimation(.easeOut(duration: Self.startFlashFadeDuration)) { isShowingStartFlash = true }
         services.feedback.impact(.light)
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.startFlashDuration) {
-            withGameAnimation(.easeIn(duration: 0.15)) { isShowingStartFlash = false }
-            start()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.startFlashHoldDuration) {
+            withGameAnimation(.easeIn(duration: Self.startFlashFadeDuration)) { isShowingStartFlash = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.startFlashFadeDuration) {
+                start()
+            }
         }
     }
 
-    private static let startFlashDuration: TimeInterval = 0.45
+    /// 合図をはっきり出しておく尺。
+    private static let startFlashHoldDuration: TimeInterval = 0.45
+    /// フェードイン・フェードアウトの尺。`start()` はこのぶんも待ってから呼ぶ。
+    private static let startFlashFadeDuration: TimeInterval = 0.15
 
     // MARK: - コース
 
