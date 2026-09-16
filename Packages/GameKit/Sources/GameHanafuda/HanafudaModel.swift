@@ -193,8 +193,13 @@ public final class HanafudaModel: AITurnGuarded {
               Set(all.map(\.id)).count == HanafudaCard.deckSize,
               all.allSatisfy({ (0..<HanafudaCard.deckSize).contains($0.id) })
         else { return nil }
-        let extraRounds = (snap.hasExtendedMatch ?? false) ? Self.extensionRounds : 0
-        guard snap.round >= 1, snap.round <= (snap.options ?? HanafudaOptions()).rounds + extraRounds,
+        // 延長の印が立つのは延長戦を配った後だけ（`extendMatchAfterAd` は印と配りを同時に行う）。
+        // 印があるのに局が本来の局数以内だと、復元後の「試合の結果へ」が広告なしで延長戦を配ってしまう。
+        let rounds = (snap.options ?? HanafudaOptions()).rounds
+        let allowedRounds = (snap.hasExtendedMatch ?? false)
+            ? (rounds + 1)...(rounds + Self.extensionRounds)
+            : 1...rounds
+        guard allowedRounds.contains(snap.round),
               snap.claimed.allSatisfy({ $0 >= 0 }),
               snap.koiKoiCounts.allSatisfy({ $0 >= 0 }),
               snap.totals.allSatisfy({ $0 >= 0 })

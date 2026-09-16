@@ -219,8 +219,8 @@ struct HanafudaExtendMatchTests {
         #expect(resumed.round == 7)
     }
 
-    @Test("延長していないのに局数を超えた中断データは弾く")
-    func roundBeyondTheMatchWithoutExtensionIsRejected() throws {
+    @Test("延長の印と局番号が食い違う中断データは弾く")
+    func extensionFlagAndRoundMismatchIsRejected() throws {
         let store = MemorySnapshotStore()
         _ = try modelAtRoundResult(round: 6, humanTotal: 0, cpuTotal: 100, store: store)
         let snap = try #require(store.load(HanafudaSnapshot.self, for: HanafudaModel.gameID))
@@ -237,6 +237,10 @@ struct HanafudaExtendMatchTests {
         #expect(HanafudaModel.validate(with(round: 7, extended: false)) == nil)
         #expect(HanafudaModel.validate(with(round: 7, extended: true)) != nil)
         #expect(HanafudaModel.validate(with(round: 8, extended: true)) == nil)
+        // 延長の印があるのに局が本来の局数以内（延長戦を配る前）は、広告なしで延長戦へ進めてしまうので弾く。
+        #expect(HanafudaModel.validate(with(round: 6, extended: true)) == nil)
+        #expect(HanafudaModel.validate(with(round: 1, extended: true)) == nil)
+        #expect(HanafudaModel.validate(with(round: 6, extended: false)) != nil)
     }
 
     @Test("延長の鍵が無い旧データは、未使用として復元する")
