@@ -96,6 +96,9 @@ struct HanafudaSnapshot: Codable {
     let roundResult: HanafudaRoundResult?
     /// 直近の出来事（画面の 1 行メッセージ）。旧データには無いので optional。
     let message: String?
+    /// この試合で広告の延長（#1049）を使ったか。旧データには無いので optional（nil = 未使用）。
+    /// 持ち回らないと、延長戦の途中で中断 → 再開したときに延長の権利が戻る。
+    var hasExtendedMatch: Bool? = nil
 }
 
 // MARK: - Model
@@ -141,6 +144,8 @@ public final class HanafudaModel: AITurnGuarded {
     public private(set) var message = ""
     /// 直近の決着で確定した自己ベスト（#115）。
     public private(set) var recordResult: RecordResult?
+    /// この試合で広告の延長（#1049）を使ったか。1 試合 1 回までの制限と、順位表から外す判定に使う。
+    public private(set) var hasExtendedMatch = false
 
     // MARK: 内部
 
@@ -188,7 +193,8 @@ public final class HanafudaModel: AITurnGuarded {
               Set(all.map(\.id)).count == HanafudaCard.deckSize,
               all.allSatisfy({ (0..<HanafudaCard.deckSize).contains($0.id) })
         else { return nil }
-        guard snap.round >= 1, snap.round <= (snap.options ?? HanafudaOptions()).rounds,
+        let extraRounds = (snap.hasExtendedMatch ?? false) ? Self.extensionRounds : 0
+        guard snap.round >= 1, snap.round <= (snap.options ?? HanafudaOptions()).rounds + extraRounds,
               snap.claimed.allSatisfy({ $0 >= 0 }),
               snap.koiKoiCounts.allSatisfy({ $0 >= 0 }),
               snap.totals.allSatisfy({ $0 >= 0 })
@@ -234,6 +240,7 @@ public final class HanafudaModel: AITurnGuarded {
         drawnCard = snap.drawnCard
         roundResult = snap.roundResult
         message = snap.message ?? ""
+        hasExtendedMatch = snap.hasExtendedMatch ?? false
     }
 
     private func save() {
@@ -246,7 +253,8 @@ public final class HanafudaModel: AITurnGuarded {
             koiKoiCounts: [humanKoiKoiCount, cpuKoiKoiCount],
             totals: [humanTotal, cpuTotal],
             phase: phase, selection: selection, drawnCard: drawnCard,
-            roundResult: roundResult, message: message
+            roundResult: roundResult, message: message,
+            hasExtendedMatch: hasExtendedMatch
         )
         try? services?.snapshots.save(snap, for: Self.gameID)
     }
@@ -258,6 +266,7 @@ public final class HanafudaModel: AITurnGuarded {
         self.options = options
         humanTotal = 0
         cpuTotal = 0
+        hasExtendedMatch = false
         // 親決め。実物は札を引き合うが、結果は五分なのでそのまま乱数で決める。
         dealer = (rng.next() % 2 == 0) ? .human : .cpu
         round = 0
@@ -293,7 +302,9 @@ public final class HanafudaModel: AITurnGuarded {
         turnCount = 0
         turn = dealer
         phase = .playing
-        message = "\(round)局目・親は\(dealer.label)"
+        message = round > options.rounds
+            ? "延長戦・親は\(dealer.label)"
+            : "\(round)局目・親は\(dealer.label)"
         services?.feedback.impact(.medium)
         save()
     }
@@ -502,11 +513,44 @@ public final class HanafudaModel: AITurnGuarded {
     /// 次の局へ進む（局結果の画面から呼ぶ）。全局終わっていれば試合の決着へ。
     public func advanceAfterRound() {
         guard phase == .roundResult else { return }
-        if round >= options.rounds {
+        if round >= totalRounds {
             finishMatch()
         } else {
             startRound()
         }
+    }
+
+    // MARK: - 広告で延長（#1049）
+
+    /// 延長で足す局数。
+    static let extensionRounds = 1
+
+    /// この試合の局数。延長を使ったら 1 局増える。
+    public var totalRounds: Int {
+        options.rounds + (hasExtendedMatch ? Self.extensionRounds : 0)
+    }
+
+    /// 最終局の決着で自分が負けていて、広告を見て 1 局延長できるか（#1049）。
+    ///
+    /// 試合の決着（`finishMatch`）の**前**、最終局の結果画面でだけ出す。決着後に出すと
+    /// 勝敗の記録と `game_end` が済んだ試合を巻き戻すことになる。勝っている・引き分けでは出さない
+    /// （続ける動機が無い）。1 試合 1 回まで。
+    public var canExtendMatch: Bool {
+        phase == .roundResult && round >= totalRounds
+            && humanTotal < cpuTotal && !hasExtendedMatch
+    }
+
+    /// 広告を見終えたあと、試合を 1 局延長して延長戦を配る（#1049）。
+    ///
+    /// - Parameter serial: 広告を出す**前**に控えた `gameSerial`。広告のあいだに「試合の結果へ」「投了」で
+    ///   試合が決着していたり、別の局に入れ替わっていたら延長を乗せずに false を返す（#729 の局ガード）。
+    /// - Returns: 延長したか。
+    public func extendMatchAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameSerial, canExtendMatch else { return false }
+        hasExtendedMatch = true
+        services?.feedback.notify(.success)
+        startRound()
+        return true
     }
 
     private func finishMatch() {
@@ -546,6 +590,8 @@ public final class HanafudaModel: AITurnGuarded {
         let options = self.options
         humanTotal = 0
         cpuTotal = 0
+        // 新しい試合なので延長の権利も戻る（#1049）。
+        hasExtendedMatch = false
         round = 0
         dealer = (rng.next() % 2 == 0) ? .human : .cpu
         self.options = options
@@ -576,13 +622,14 @@ public final class HanafudaModel: AITurnGuarded {
 
     /// 決着・投了で記録する成績。既定ルールは区分なし・順位表の対象のまま、分岐は別枠にする
     /// （1局=1RuleSet 規約 3・4・#827）。
+    /// 広告で延長した試合は、ほかの救済（ポーカー・ブラックジャックの復活など）と同じく順位表へ送らない（#1049）。
     private var matchScore: GameScore {
         GameScore(
             metric: .points,
             points: humanTotal,
             variant: options.recordVariant,
             variantLabel: options.recordVariantLabel,
-            isLeaderboardEligible: options.isLeaderboardEligible
+            isLeaderboardEligible: options.isLeaderboardEligible && !hasExtendedMatch
         )
     }
 
