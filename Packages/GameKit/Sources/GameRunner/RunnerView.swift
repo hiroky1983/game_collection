@@ -823,10 +823,14 @@ public struct RunnerView: View {
 /// 付く。選んだモードと面は `RunnerModel.newGame(startingAtStage:)` / `newGame(mode:)` で
 /// 走行に焼き込まれ、走行中に読み替えられることはない（1局=1RuleSet）。
 ///
-/// 並べ方は `.scrolling`（常に `.large`）。3 世界 × 6 面の格子は 3 列 × 2 段を 3 つ積むので、
-/// モードの節と合わせると `.medium` には収まらない（`GameSetupSheet` の注意書きどおり、
-/// 収まらない中身を `pinnedStart` にすると開始ボタンが押せなくなる）。エンドレスを選んで
-/// 格子が消えても高さは変えない——シートの高さが開いている最中に動くのを避ける。
+/// 並べ方はモードで変える（#1027 のフォローアップ）。ステージ制は `.scrolling`（常に `.large`）
+/// ——3 世界 × 6 面の格子は 3 列 × 2 段を 3 つ積むので、モードの節と合わせると `.medium` には
+/// 収まらない（`GameSetupSheet` の注意書きどおり、収まらない中身を `pinnedStart` にすると
+/// 開始ボタンが押せなくなる）。エンドレスは格子が無く中身がモードの節だけなので `.pinnedStart`
+/// にして、開始ボタンを画面の下端へ離す。**`.scrolling` のまま格子だけ消すと、開始ボタンが
+/// モードのピッカーのすぐ下まで詰めてきて、ピッカーで「エンドレス」を選んだ直後の指の位置に
+/// 開始ボタンが重なり、選んだそばから走り出してしまっていた**（会長QA「エンドレスがいきなり
+/// 始まる」・2026-09-16）。
 struct RunnerStartSheet: View {
     @Binding var mode: RunnerMode
     /// ワールドマップで選んでいる面（1 始まり）。
@@ -838,7 +842,8 @@ struct RunnerStartSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "はじめから", startTitle: "スタート", layout: .scrolling,
+            title: "はじめから", startTitle: "スタート",
+            layout: mode == .stages ? .scrolling : .pinnedStart,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection("モード") {
@@ -943,6 +948,14 @@ struct RunnerWorldMap: View {
                         .frame(height: 4)
                         .padding(.horizontal, 10)
                         .padding(.top, 3)
+                    if !reached {
+                        // 未到達はさらに幕をかけてグレーに沈める（麻雀牌の `isBlocked` と同じ濃さ）。
+                        // 面色の帯だけでは薄く、シートの地（`Theme.surface`）と同化して押せない
+                        // マスだと分かりにくかった（会長指摘「アンロックなステージは背景グレーに」・
+                        // 2026-09-16）。
+                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                            .fill(Theme.ink.opacity(0.16))
+                    }
                 }
                 .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
             )
