@@ -94,8 +94,9 @@ struct RecordShareButton: View {
     let context: RecordShareContext
     let accent: Color
 
-    /// 見た目の円の直径。「自己ベスト更新！」バッジ（12pt の文字 + 上下 4pt）とほぼ同じ高さ。
-    static let symbolSide: CGFloat = 24
+    /// 見た目の円の直径。「自己ベスト更新！」バッジ（12pt の文字 + 上下 4pt・約 22〜23pt）を超えない高さにする
+    /// （24pt にすると行が 1〜2pt 伸びた。PR #1057 の検証）。
+    static let symbolSide: CGFloat = 22
     /// 当たり判定の枠。
     static let tapTarget: CGFloat = 44
 

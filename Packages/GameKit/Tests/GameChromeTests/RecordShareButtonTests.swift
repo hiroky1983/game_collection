@@ -49,7 +49,7 @@ struct RecordShareButtonTests {
         let plain = try size(RecordLabel(result(isNewBest: true)))
         let shared = try size(RecordLabel(result(isNewBest: true)).environment(\.recordShare, Self.context))
         // 当たり判定の 44pt はボタンの外の負の余白で打ち消す。消し忘れると 44pt の行になる。
-        #expect(shared.height <= plain.height + 1, "共有ボタンで行が伸びた: \(plain.height) → \(shared.height)")
+        #expect(shared.height <= plain.height, "共有ボタンで行が伸びた: \(plain.height) → \(shared.height)")
     }
 
     @Test("読み上げの結合の外に置き、共有ボタンとして読める")
