@@ -877,9 +877,19 @@ struct DaifugoExchangeWaiverTests {
         let game = model.gameNumber
 
         model.startGame()   // 視聴中に「次のゲーム」が押された
+        #expect(model.waiveExchangeAfterAd(forGame: game) == false, "始まったゲームには乗らない")
 
-        #expect(model.waiveExchangeAfterAd(forGame: game) == false)
-        #expect(model.isExchangeWaived == false, "始まったゲームにも、その次のゲームにも乗らない")
+        // 広告が長引き、始まったゲームもまた大貧民で決着した（免除を出せる状態）。
+        // 状態だけ見ると通ってしまうので、控えた番号の照合で弾かれることを固定する。
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            gameNumber: model.gameNumber
+        )
+        model.resign()
+        #expect(model.canWaiveExchange)
+        #expect(model.waiveExchangeAfterAd(forGame: game) == false, "前の決着で見た広告は今の決着に乗らない")
+        #expect(model.isExchangeWaived == false)
+        #expect(model.waiveExchangeAfterAd(forGame: model.gameNumber), "今の決着の番号なら免除できる")
     }
 }
 
