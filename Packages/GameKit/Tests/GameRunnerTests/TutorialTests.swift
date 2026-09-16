@@ -86,24 +86,31 @@ struct RunnerTutorialWiringTests {
         SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
     }
 
-    @Test("ガイドはスタート画面のカードの中に出す（コースの外に行を足さない）")
-    func tutorialLivesInTheStartScreen() throws {
+    @Test("ガイドはモーダルで出す（プレイ画面の中に置かない）")
+    func tutorialIsPresentedAsASheet() throws {
         let source = try Self.source()
-        let startScreen = try #require(SourceScan.declaration(of: "private var startScreen", in: source))
-        #expect(startScreen.contains("if showsTutorial"))
-        #expect(startScreen.contains("tutorialCard"))
-        // コースの外（`body` の VStack）には足さない。
+        // 会長指摘（2026-09-16）: コースの上のカードで出すと、その「はじめる」が
+        // ステージ制で走り出すため初回だけモードを選べない。モーダルに出し、
+        // 閉じたら開始シート（モード選択）へ送る。
         let body = try #require(SourceScan.declaration(of: "public var body", in: source))
-        #expect(!body.contains("tutorialCard"))
+        #expect(body.contains("sheet(isPresented: $showsTutorial"))
+        #expect(body.contains("RunnerTutorialSheet"))
+        #expect(body.contains("onDismiss: { presentStartSheetIfNeeded() }"))
+        // プレイ画面側（スタート画面）には置かない。
+        let startScreen = try #require(SourceScan.declaration(of: "private var startScreen", in: source))
+        #expect(!startScreen.contains("showsTutorial"))
+        #expect(!source.contains("private var tutorialCard"))
     }
 
-    @Test("「はじめる」で閉じてそのまま走り出す")
-    func startButtonClosesAndRuns() throws {
+    @Test("「はじめる」は閉じるだけで、モードはそのあと開始シートで選ぶ")
+    func startButtonOnlyCloses() throws {
         let source = try Self.source()
-        let card = try #require(SourceScan.declaration(of: "private var tutorialCard", in: source))
-        #expect(card.contains("showsTutorial = false"))
-        #expect(card.contains("model.start(.stages)"))
-        #expect(card.contains(#"Label("はじめる""#))
+        let sheet = try #require(SourceScan.declaration(of: "struct RunnerTutorialSheet", in: source))
+        #expect(sheet.contains("onClose"))
+        #expect(sheet.contains(#"Text("はじめる")"#))
+        // ガイドからモードを焼き込まない（ここで .stages に倒すと初回だけエンドレスを選べない）。
+        #expect(!sheet.contains("model.start"))
+        #expect(!sheet.contains(".stages"))
     }
 
     @Test("出すかどうかは RunnerTutorial.shouldShow が決める（撮影モードの除外を迂回しない）")
@@ -116,19 +123,19 @@ struct RunnerTutorialWiringTests {
         #expect(SourceScan.matchCount(of: #"_showsTutorial\s*=\s*State"#, in: source) == 1)
     }
 
-    /// 1 行ヒント（`HowToPlayHint(.runner)`）はガイドを出した回には出さない。
+    /// 1 行ヒント（`HowToPlayHint(.runner)`）は**走行中ずっと出す**。
     ///
-    /// `showsTutorial`（いま出しているか）で分岐すると、「はじめる」で閉じた直後の再描画で
-    /// ヒントが組み立てられ、同じプレイの中で「タップでジャンプ」を二度言うことになる。
-    @Test("ガイドを出した回は 1 行ヒントを出さない（閉じた直後も）")
-    func hintIsSuppressedForTheWholeFirstPlay() throws {
+    /// 会長指摘（2026-09-16）「タップしてジャンプはゲーム中に常時出てほしいセクションなのに
+    /// なんでゲーム中に消えんの」。共通部品の既定は「初回だけ」で、印を消費した次の再描画で
+    /// 消えるため、遊んでいる最中に行ごと消えて画面が動いていた。
+    @Test("1 行ヒントは常時出す（印を消費して消える既定を使わない）")
+    func hintIsAlwaysVisible() throws {
         let source = try Self.source()
         let secondary = try #require(SourceScan.declaration(of: "private var secondaryInfo", in: source))
-        #expect(secondary.contains("if !tutorialShownOnOpen"))
-        #expect(!secondary.contains("if !showsTutorial"))
-        #expect(secondary.contains("HowToPlayHint(.runner"))
-        // 「閉じた」で false になるのは `showsTutorial` だけ（ヒントの判断は動かさない）。
-        #expect(SourceScan.matchCount(of: #"tutorialShownOnOpen\s*=\s*false"#, in: source) == 0)
+        #expect(secondary.contains("HowToPlayHint(.runner, isVisible: true)"))
+        // 「初回だけ」の既定（playLog を渡す初期化子）は使わない。
+        #expect(!secondary.contains("playLog:"))
+        #expect(!secondary.contains("tutorialShownOnOpen"))
     }
 
     @Test("`?` の「くわしいルール」から開き直せる")

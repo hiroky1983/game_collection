@@ -22,17 +22,9 @@ public struct RunnerView: View {
     /// 使う設定」で、開始時に `RunnerModel.newGame(startingAtStage:)` で焼き込む。
     /// ツールバーの「はじめから」は 1 面、スタート画面の「マップ」はいまの面を選んだ状態で開く。
     @State private var selectedStage = 1
-    /// 「スタート！」の合図を出している間か（#1027 のフォローアップ）。真の間はコースを
-    /// 一切進めず、合図が消えたあとで実際に走り出す。
-    @State private var isShowingStartFlash = false
     /// 初回プレイの操作ガイド（#988）をいま出しているか。判定と「見せた」の記録は `init` で
     /// 1 回だけ済ませる（`HowToPlayHint` と同じ作法）。「はじめる」で false になる。
     @State private var showsTutorial: Bool
-    /// この画面を開いたときにガイドを出したか。**閉じたあとも true のまま**で、
-    /// 1 行ヒント（`secondaryInfo`）を出すかの判断に使う。`showsTutorial` で判断すると、
-    /// 「はじめる」で閉じた直後の再描画でヒントが組み立てられ、同じプレイの中で
-    /// 同じ文言（「タップでジャンプ」）をもう一度出してしまう。
-    @State private var tutorialShownOnOpen: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -43,7 +35,6 @@ public struct RunnerView: View {
         // 判定は 1 回だけ（`shouldShow` が「見せた」の記録も兼ねるので二度呼ばない）。
         let showsTutorial = RunnerTutorial.shouldShow(playLog: services.playLog)
         _showsTutorial = State(initialValue: showsTutorial)
-        _tutorialShownOnOpen = State(initialValue: showsTutorial)
     }
 
     public var body: some View {
@@ -72,9 +63,7 @@ public struct RunnerView: View {
                 // モードを変える唯一の導線（#1027）。開始シートを経由する（#675。チェスの
                 // 「新規対局」と同じ作法）。走行中なら読んでいる間にミスしないよう止める。
                 // アイコンを一回り大きくして見つけやすくする（会長指摘「トグルボタンが小さい」・
-                // 2026-09-16）。「スタート！」の合図中は押せなくする——合図の裏でもう一度開始
-                // シートを開いて「スタート」を押すと、2 つの走り出しが競合する（CodeRabbit 指摘。
-                // `beginWithStartFlash` 側にも再入ガードがあるが、ボタンごと塞ぐほうが分かりやすい）。
+                // 2026-09-16）。
                 Button {
                     if model.phase == .running { model.pause() }
                     openStartSheet(mode: model.mode, stage: 1)
@@ -82,7 +71,6 @@ public struct RunnerView: View {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
                 .imageScale(.large)
-                .disabled(isShowingStartFlash)
             }
         }
         .howToPlay(.runner) {
@@ -94,23 +82,27 @@ public struct RunnerView: View {
             // 見出しは共通部品（`HowToPlaySheet`）が持つ。
             RunnerTutorialPage()
         }
+        // 初回プレイの操作ガイド（#988）は**モーダル**で出す（会長指摘 2026-09-16）。
+        // 以前はコースの上のカードで出していたが、その「はじめる」がステージ制で走り出す
+        // 作りだったため、初回だけモードを選べず・右上からエンドレスを選んでもガードの
+        // 「はじめる」がステージ制で上書きしてしまっていた。閉じたら（`onDismiss`）
+        // そのまま開始シートへ送り、初回も 2 回目以降と同じ導線にする。
+        .sheet(isPresented: $showsTutorial, onDismiss: { presentStartSheetIfNeeded() }) {
+            RunnerTutorialSheet { showsTutorial = false }
+        }
         .sheet(isPresented: $showStartSheet) {
             RunnerStartSheet(
                 mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage
             ) {
-                // 「スタート」1 タップで選んだ設定のまま走り出す（#1027）。以前は `newGame` で
-                // 焼き込むだけで `.ready` に戻り、閉じたシートの裏でもう一度カードのボタンを
-                // 押させていた（会長QA「はじめからモーダルからセレクトしてもう一回モード選択が
-                // 挟まるのでうざい」・2026-09-16）。無音でいきなり走り出すと今度は「エンドレスが
-                // いきなり始まる」となったため（同日）、閉じた直後に「スタート！」の合図を短く
-                // 挟んでから実際に走り出す（`beginWithStartFlash`）。
+                // 選んだモード・面でコースを作るところまで。**走り出しはしない**——シートを
+                // 閉じるとコースの上に「タップでスタート」（`tapToStartHint`）が出て、
+                // 画面のどこかを 1 回タップした瞬間に走り出す（会長指示「一回タップしたら
+                // スタートさせる形にしてほしい」・2026-09-16）。
+                // 遅延で勝手に走り出す合図（0.45 秒のフラッシュ）は同じ指示で撤去した。
                 showStartSheet = false
-                beginWithStartFlash {
-                    switch selectedMode {
-                    case .stages:  model.newGame(startingAtStage: selectedStage)
-                    case .endless: model.newGame(mode: .endless)
-                    }
-                    model.start(selectedMode)
+                switch selectedMode {
+                case .stages:  model.newGame(startingAtStage: selectedStage)
+                case .endless: model.newGame(mode: .endless)
                 }
             } onCancel: {
                 showStartSheet = false
@@ -131,15 +123,6 @@ public struct RunnerView: View {
                 openStartSheet(mode: model.mode, stage: 1)
             }
             #endif
-        }
-        .onChange(of: model.phase) { _, phase in
-            // ハブから開いた直後・全ステージクリア後の「はじめから」など、モードを選び直せる
-            // `.ready` に着地するたびにモーダルを出す（#1027）。以前はコースの上に軽量カード
-            // （次の面／エンドレス／マップ）を常に重ねていたが、会長QA「カード要らない」・
-            // 「1のモーダルを遷移時に表示してステージセレクトしてスタート」で、カードそのものを
-            // 廃止しシートに一本化した。チェックポイント再開直後（`canChooseMode == false`）は
-            // 出さない——広告で得た途中からの再開を、モード選びの画面で誤って手放させない。
-            if phase == .ready { presentStartSheetIfNeeded() }
         }
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
@@ -323,51 +306,19 @@ public struct RunnerView: View {
         showStartSheet = true
     }
 
-    /// モードを選び直せる `.ready`（#1027）に着地したら、開始シートを自動で出す。
+    /// **ハブから画面を開いた直後だけ**、モード・面を選ぶ開始シートを自動で出す（#1027）。
     ///
-    /// 対象はハブから開いた直後・全ステージクリア後の「はじめから」——`canChooseMode` が
-    /// 真のときだけ。チェックポイント再開直後（`canChooseMode == false`）は `startScreen` の
-    /// 「つづきから」1 ボタンのままで、シートは出さない（広告で得た再開を誤って手放させない）。
-    /// 初回の操作ガイドを読んでいる間（`showsTutorial`）も出さない——ガイドの「はじめる」が
-    /// 直接ステージ制で走り出すので、シートを挟む必要が無い。
-    /// 既にシートが開いていれば何もしない（多重表示を防ぐ）。
+    /// `.ready` に着地するたびに出してはいけない（会長QA「失敗したときにもう一度を押すと
+    /// モーダルが出てくる。同じゲームをもう一回続けるだけでOK」・2026-09-16）。エンドレスの
+    /// 「もう一度」は `.ready` に戻るので、局面の変化を見て出す作りだとミスのたびに
+    /// モード選びが挟まっていた。呼び出しは `onAppear` の 1 か所だけにしてある。
+    ///
+    /// チェックポイント再開直後（`canChooseMode == false`）は出さない——広告で得た再開を
+    /// 誤って手放させない。初回の操作ガイド中（`showsTutorial`）も出さない。
     private func presentStartSheetIfNeeded() {
         guard model.phase == .ready, model.canChooseMode, !showsTutorial, !showStartSheet else { return }
         openStartSheet(mode: model.mode, stage: model.stageNumber)
     }
-
-    /// 「スタート！」の合図をコースの上へ短く出してから `start` を呼ぶ（#1027 のフォローアップ）。
-    ///
-    /// 開始シートの「スタート」・チェックポイント再開の「つづきから」の 2 か所で使う。
-    /// 合図が出ている間はコースをまったく進めない——`start` 自体をこの遅延の後まで呼ばないので、
-    /// 合図の裏で走者がこっそり進んでしまうことはない。「次の面へ」「もう一度」
-    /// 「このステージをもう一度」（#941）はここを経由しない。面をまたぐたびに合図を挟むと、
-    /// 会長決裁済みの「その場で走り出す」が崩れる。
-    ///
-    /// - 合図が出ている間は再入を防ぐ（CodeRabbit 指摘）。合図の 0.45 秒の間にツールバーの
-    ///   「はじめから」から開始シートをもう一度開いて「スタート」を押せてしまい、2 つの遅延
-    ///   クロージャが登録されると片方の `newGame` がもう片方の走行を割り込んで壊す。
-    /// - `isShowingStartFlash` を `false` にしたあとも `start` は呼ばず、フェードアウトの尺
-    ///   （`startFlashFadeDuration`）だけさらに待ってから呼ぶ（同じく CodeRabbit 指摘）。
-    ///   `withGameAnimation` は状態を変えるだけで、実際にアニメーションが終わるまで待たない
-    ///   ため、待たずに `start()` を呼ぶと `.ready` → `.running` の切り替えで `startFlash` が
-    ///   フェードの途中でちぎれて消え、合図が消える前に走り出して見える。
-    private func beginWithStartFlash(_ start: @escaping () -> Void) {
-        guard !isShowingStartFlash else { return }
-        withGameAnimation(.easeOut(duration: Self.startFlashFadeDuration)) { isShowingStartFlash = true }
-        services.feedback.impact(.light)
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.startFlashHoldDuration) {
-            withGameAnimation(.easeIn(duration: Self.startFlashFadeDuration)) { isShowingStartFlash = false }
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.startFlashFadeDuration) {
-                start()
-            }
-        }
-    }
-
-    /// 合図をはっきり出しておく尺。
-    private static let startFlashHoldDuration: TimeInterval = 0.45
-    /// フェードイン・フェードアウトの尺。`start()` はこのぶんも待ってから呼ぶ。
-    private static let startFlashFadeDuration: TimeInterval = 0.15
 
     // MARK: - コース
 
@@ -608,38 +559,19 @@ public struct RunnerView: View {
     /// 初回ガイドの 2 パターンだけ**になった。
     ///
     /// - チェックポイント再開の直後（`!canChooseMode`）: 広告で得た途中からの再開を
-    ///   シートのモード選びで誤って手放させないよう、「▶ つづきから」の主ボタン 1 つだけを出す
-    /// - 初回プレイの操作ガイド（`showsTutorial`）: `tutorialCard`
-    /// - 「スタート！」の合図中（`isShowingStartFlash`）: `startFlash`
-    /// - どれでもない（`canChooseMode == true`）: 何も出さない——開始シートが自動で開く
+    ///   誤タップで手放させないよう、「▶ つづきから」の主ボタン 1 つだけを出す
+    /// - どちらでもない（`canChooseMode == true`）: 「タップでスタート」（`tapToStartHint`）
     ///
     /// カードは**コースの中に重ねる**（コースの外に行を足さない）ので、iPhone SE でも盤・カード・
     /// 広告帯の縦の配分は変わらない。
     ///
-    /// 出るのは**チェックポイント再開の直後・初回ガイド中・合図中**だけ。「次の面へ」「もう一度」
-    /// 「このステージをもう一度」は `.ready` を挟まずその場で走り出す
-    /// （#941。面をまたぐたびにここでもう 1 タップさせない）。
+    /// 「次の面へ」「もう一度（ステージ制）」「このステージをもう一度」は `.ready` を挟まず
+    /// その場で走り出す（#941。面をまたぐたびにここでもう 1 タップさせない）。
     @ViewBuilder
     private var startScreen: some View {
-        if showsTutorial {
-            ZStack {
-                // 初回の操作ガイド（#988）を読んでいる間だけ幕でタップを受け止める——読んでいる
-                // 途中の指が当たって走り出すのを防ぐだけで、ガイド自体は対話型にしない
-                // （「はじめる」を押せば閉じてそのまま走り出す）。
-                Rectangle().fill(.black.opacity(0.45)).allowsHitTesting(true)
-                tutorialCard
-                    .padding(14)
-                    .frame(maxWidth: 300)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                            .fill(Theme.surface)
-                            .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-                    )
-                    .padding(.horizontal, 20)
-            }
-        } else if isShowingStartFlash {
-            startFlash
-        } else if !model.canChooseMode {
+        if model.canChooseMode {
+            tapToStartHint
+        } else {
             ZStack {
                 // 薄い幕でカードを立たせる。タップは透過（コースで走り出せる）。
                 Rectangle().fill(.black.opacity(0.3)).allowsHitTesting(false)
@@ -661,66 +593,34 @@ public struct RunnerView: View {
                 .padding(.horizontal, 20)
             }
         }
-        // else: canChooseMode == true → 開始シートが自動で開くので何も重ねない
-        // （`presentStartSheetIfNeeded`）。
     }
 
-    /// 「スタート！」の合図（#1027 のフォローアップ）。
+    /// 走り出す前（`.ready`）にコースへ重ねる「タップでスタート」（#1027）。
     ///
-    /// 開始シートの「スタート」・「つづきから」を押した直後、実際に走り出す前に短く出す。
-    /// 押した瞬間に無音でいきなり走り出すと「エンドレスがいきなり始まる」（会長QA・
-    /// 2026-09-16）になっていたため、合図を挟んでから `beginRun()` を呼ぶ（`beginWithStartFlash`）。
-    private var startFlash: some View {
-        ZStack {
-            Rectangle().fill(.black.opacity(0.35))
-            Text("スタート！")
-                .font(.system(size: 28, weight: .heavy, design: .rounded))
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 28).padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                        .fill(Theme.Fill.coral)
-                )
+    /// 会長指示「一回タップしたらスタートさせる形にしてほしい（UIも追加）」（2026-09-16）。
+    /// **押すボタンではない**——`allowsHitTesting(false)` でタップを素通りさせ、コースのどこを
+    /// タップしても `playfield` のジェスチャー（`RunnerModel.press()`）が拾って走り出す。
+    /// 「スタート」を押した 0.45 秒後に勝手に走り出す合図は、同じ指示で撤去した。
+    private var tapToStartHint: some View {
+        VStack(spacing: 12) {
+            if let face = RunnerResultFace.face(for: .ready) {
+                ojisanFace(face, scale: RunnerResultFace.startDotScale)
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "hand.tap.fill")
+                    .font(.system(size: 17, weight: .heavy))
+                Text("タップでスタート")
+                    .font(.system(size: 19, weight: .heavy, design: .rounded))
+            }
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 22).padding(.vertical, 12)
+            .background(Capsule().fill(Theme.Fill.coral))
+            .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
         }
-        .transition(.opacity)
-        // 純粋に時間で消える演出で、押すものは無い。読み上げは走り出す前後のラベルで足りるので
-        // ここだけ独立した要素にはしない。
+        .allowsHitTesting(false)
+        // 読み上げはコース側（`courseLabel` / `accessibilityHint`「ダブルタップでジャンプ」）が
+        // 受け持つ。ここを独立した要素にすると同じ案内が二重に読まれる。
         .accessibilityHidden(true)
-    }
-
-    /// 初回プレイだけスタート画面に出す操作ガイド（#988）。
-    ///
-    /// 覚えてほしい 3 つ（`RunnerTutorial.steps`）を短い文と小さな絵で 1 画面に。頭の絵は
-    /// 走者の「跳ぶ」コマ（`OjisanPixel.RiderFrame.jump`）で、新しいドット絵は描き起こさない。
-    /// **コースの中に重ねる**ので盤・カード・広告帯の縦の配分は変わらない（スタート画面と同じ枠）。
-    /// 「はじめる」で閉じ、そのままステージ制で走り出す（印は `init` で残してあるので次からは出ない）。
-    private var tutorialCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                RunnerTutorial.riderJump(height: 40)
-                Text("そうさのしかた")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Spacer(minLength: 0)
-            }
-            RunnerTutorialSteps()
-            Button {
-                showsTutorial = false
-                model.start(.stages)
-            } label: {
-                Label("はじめる", systemImage: "play.fill")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                            .fill(Theme.Fill.coral)
-                    )
-            }
-            .buttonStyle(.pop)
-            .accessibilityLabel("はじめる")
-        }
     }
 
     /// 世界の色の上に載せる文字色。
@@ -745,7 +645,7 @@ public struct RunnerView: View {
         let world = RunnerWorld.world(forStage: number)
         let resumingFromCheckpoint = !model.canChooseMode
         return Button {
-            beginWithStartFlash { model.start(.stages) }
+            model.start(.stages)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "play.fill")
@@ -829,8 +729,11 @@ public struct RunnerView: View {
             .tint(.white)
     }
 
+    /// 一時停止・全ステージクリアから「はじめから」。ツールバーの同名ボタンと同じく
+    /// 開始シートを経由する（#1027。`.ready` に着地しただけではシートを出さなくなったので、
+    /// モードや面を選び直したいこの導線だけは自分で開く）。
     private var restartButton: some View {
-        Button("はじめから") { model.newGame() }
+        Button("はじめから") { openStartSheet(mode: model.mode, stage: 1) }
             .buttonStyle(.bordered)
             .tint(.white)
     }
@@ -868,15 +771,12 @@ public struct RunnerView: View {
     /// 固定の小さなプレースホルダなので、スクロールにしなくても場所を圧迫しない。
     private var secondaryInfo: some View {
         VStack(spacing: 6) {
-            // 初回の操作ガイド（#988）を出した回は出さない。ガイドの 1 行目と同じ
-            // 「タップでジャンプ」を同じ画面で二度言うことになる。見るのは
-            // `showsTutorial`（いま出しているか）ではなく `tutorialShownOnOpen`
-            // （この画面で出したか）——「はじめる」で閉じた直後の再描画でヒントが
-            // 組み立てられてしまうため。`HowToPlayHint` は組み立てた時点で印を消費するので、
-            // ここを通らない回は消費もしない ＝ 次にこの画面を開いたときに 1 行ヒントとして出る。
-            if !tutorialShownOnOpen {
-                HowToPlayHint(.runner, playLog: services.playLog)
-            }
+            // 操作の 1 行は**走行中ずっと出す**（会長指摘「タップしてジャンプはゲーム中に常時
+            // 出てほしいセクションなのになんでゲーム中に消えんの」・2026-09-16）。
+            // 共通部品の既定（`HowToPlayHint(_:playLog:)`）は「初回だけ」で、印を消費した
+            // 次の再描画から消えるため、遊んでいる最中に行ごと消えて画面が動いていた。
+            // 出すかを呼び出し側が決める初期化子（#650）に true を固定で渡し、消さない。
+            HowToPlayHint(.runner, isVisible: true)
             recommendationArea
         }
     }
@@ -1030,5 +930,36 @@ struct RunnerWorldMap: View {
         .disabled(!reached)
         .accessibilityLabel(RunnerAccessibility.stageMapLabel(number: number, reached: reached))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+// MARK: - 初回の操作ガイド（#988 → #1027 でモーダルへ）
+
+/// 初回プレイだけ出す操作ガイドのモーダル。
+///
+/// #988 ではコースの上のカードで出していたが、カードの「はじめる」がステージ制で走り出す
+/// 作りだったため、**初回だけモードを選べない**（右上からエンドレスを選んでも、ガードの
+/// 「はじめる」がステージ制で上書きする）という穴があった（会長指摘 2026-09-16）。
+/// モーダルにして「読む」だけに徹し、閉じたら開始シートへ送る。
+///
+/// 中身は「？」から開くページ（`RunnerTutorialPage`）と同じものを使う——同じ内容を 2 通りの
+/// 見た目で持たない（基盤規約「同じ役割の UI は同じ見た目に」）。
+struct RunnerTutorialSheet: View {
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                RunnerTutorialPage()
+                Button(action: onClose) {
+                    Text("はじめる").themeBody(18).frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+                .padding(Theme.pad)
+            }
+            .popBackground()
+        }
+        .presentationDetents([.large])
     }
 }
