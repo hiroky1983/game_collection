@@ -794,6 +794,95 @@ struct DaifugoResignTests {
     }
 }
 
+// MARK: - 献上の免除（#1048）
+
+@Suite("大貧民の献上を広告で免除する（#1048）")
+@MainActor
+struct DaifugoExchangeWaiverTests {
+
+    /// 自分が大貧民（投了）で決着したリザルトを作る。
+    private func lastPlaceResult() -> DaifugoModel {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            currentPlayer: 0
+        )
+        model.resign()
+        return model
+    }
+
+    @Test("自分が大貧民で決着したときだけ免除を出せる")
+    func offeredOnlyToLastPlace() {
+        let loser = lastPlaceResult()
+        #expect(loser.ranking.last == DaifugoModel.humanIndex)
+        #expect(loser.canWaiveExchange)
+
+        let (winner, _) = makeModel()
+        winner.configureForTesting(
+            hands: [[card(3)], [card(4), card(5)], [card(6), card(7)], [card(9), card(10)]]
+        )
+        #expect(winner.canWaiveExchange == false, "対局中は出さない")
+        winner.toggleSelection(card(3))
+        winner.playSelected()
+        winner.skipToResult()
+        #expect(winner.canWaiveExchange == false, "上がった後の対局中も出さない")
+    }
+
+    @Test("大貧民以外の階級で決着したら出さない")
+    func notOfferedToOtherPlaces() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [[card(3)], [card(4), card(5)], [card(6), card(7)], [card(9), card(10)]]
+        )
+        model.toggleSelection(card(3))
+        model.playSelected()
+        await model.runCPUTurnsIfNeeded()
+
+        #expect(model.phase == .result)
+        #expect(model.playerPlace == 0, "1着で上がって大富豪")
+        #expect(model.canWaiveExchange == false)
+        #expect(model.waiveExchangeAfterAd(forGame: model.gameNumber) == false, "広告を見終えても大富豪には乗らない")
+    }
+
+    @Test("免除すると次のゲームで自分は札を渡さず、その次のゲームには持ち越さない")
+    func waiverAppliesToNextGameOnly() {
+        let model = lastPlaceResult()
+        let game = model.gameNumber
+
+        #expect(model.waiveExchangeAfterAd(forGame: game))
+        #expect(model.isExchangeWaived)
+        #expect(model.canWaiveExchange == false, "1回の決着につき1回まで")
+        #expect(model.waiveExchangeAfterAd(forGame: game) == false, "2本目の広告では重ねて免除しない")
+
+        model.startGame()
+        #expect(!model.lastTransfers.contains { $0.from == DaifugoModel.humanIndex || $0.to == DaifugoModel.humanIndex },
+                "免除したゲームでは大貧民の交換が起きない")
+        #expect(model.lastTransfers.count == 2, "富豪⇔貧民の1枚交換は残る")
+        #expect(model.isExchangeWaived == false, "使ったら戻す")
+
+        // 次も大貧民で決着し、今度は免除しない（= 広告を見なかった・失敗した）とき。
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            gameNumber: model.gameNumber
+        )
+        model.resign()
+        model.startGame()
+        #expect(model.lastTransfers.contains { $0.from == DaifugoModel.humanIndex && $0.cards.count == 2 },
+                "免除しなければ従来どおり強い2枚を差し出す")
+    }
+
+    @Test("広告のあいだに次のゲームが始まっていたら免除を乗せない（#729 の局ガード）")
+    func rejectsWhenNextGameStartedDuringAd() {
+        let model = lastPlaceResult()
+        let game = model.gameNumber
+
+        model.startGame()   // 視聴中に「次のゲーム」が押された
+
+        #expect(model.waiveExchangeAfterAd(forGame: game) == false)
+        #expect(model.isExchangeWaived == false, "始まったゲームにも、その次のゲームにも乗らない")
+    }
+}
+
 // MARK: - CPU 進行のキャンセル
 
 @Suite("CPU 進行のキャンセル")

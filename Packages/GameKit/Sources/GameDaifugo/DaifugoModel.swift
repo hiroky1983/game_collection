@@ -69,6 +69,11 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var lastRanking: [Int] = []
     /// 直前に行ったカード交換の内訳（リザルト直後の説明に使う）。
     public private(set) var lastTransfers: [DaifugoTransfer] = []
+    /// 次のゲームの大富豪⇔大貧民の交換を、広告で免除済みか（#1048）。`startGame()` で使って戻す。
+    ///
+    /// 中断データには書かない。免除できるのはリザルト画面だけで、決着時に中断データは消えており、
+    /// 画面を離れて開き直すと `lastRanking` ごと無くなって交換そのものが起きないため。
+    public private(set) var isExchangeWaived = false
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
     /// 各プレイヤーの直近の動き（「パス」「8切り！」など）。画面のバッジ表示用。
@@ -77,7 +82,7 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var selected: Set<Int> = []
 
     private let services: GameServices?
-    private let gameID = "daifugo"
+    let gameID = "daifugo"
     private let cpuDelay: Duration
     private var seed: UInt64?
     /// ヒント表示のオン / オフ（#190）。設定画面はハブ側にしか無く**対局中には変わらない**ため、
@@ -152,6 +157,13 @@ public final class DaifugoModel: AITurnGuarded {
         playerPlace.map { DaifugoRules.title(forPlace: $0) } ?? ""
     }
 
+    /// 広告を見て、次のゲームの献上（大貧民 → 大富豪の強い2枚）を免除できるか（#1048）。
+    /// 自分が大貧民で決着したリザルトで、まだ免除していないときだけ。
+    public var canWaiveExchange: Bool {
+        phase == .result && ranking.count == Self.playerCount
+            && ranking.last == Self.humanIndex && !isExchangeWaived
+    }
+
     /// 選択中のカードを今の場に出せるか。
     public var canPlaySelection: Bool {
         guard isPlayerTurn, !selected.isEmpty else { return false }
@@ -224,10 +236,13 @@ public final class DaifugoModel: AITurnGuarded {
 
         lastTransfers = []
         if lastRanking.count == Self.playerCount {
-            let exchanged = DaifugoRules.applyExchange(hands: dealt, ranking: lastRanking)
+            let exchanged = DaifugoRules.applyExchange(
+                hands: dealt, ranking: lastRanking, waivingTopPair: isExchangeWaived
+            )
             dealt = exchanged.hands
             lastTransfers = exchanged.transfers
         }
+        isExchangeWaived = false   // 免除は直後の1ゲームだけ（#1048）
 
         hands = dealt
         field = []
@@ -337,6 +352,18 @@ public final class DaifugoModel: AITurnGuarded {
         resigned.insert(Self.humanIndex)
         lastActions[Self.humanIndex] = "投了"
         concludeGame()
+    }
+
+    /// 広告を見終えたあと、次のゲームの献上を免除する（#1048）。
+    ///
+    /// - Parameter serial: 広告を出す**前**に控えた `gameNumber`。広告のあいだに「次のゲーム」が
+    ///   始まっていたら免除を乗せずに false を返す（#729 の局ガード）。
+    /// - Returns: 免除したか。
+    public func waiveExchangeAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameNumber, canWaiveExchange else { return false }
+        isExchangeWaived = true
+        services?.feedback.notify(.success)
+        return true
     }
 
     // MARK: - 進行
