@@ -324,6 +324,93 @@ struct BlockPuzzleSnapshotTests {
     }
 }
 
+@Suite("ブロックならべ: VoiceOver の選んで置く操作（#1044）")
+@MainActor
+struct BlockPuzzleSelectPlacementTests {
+
+    @Test("手元を選んでからマスを選ぶと、そのマスを左上にして置ける")
+    func selectThenPlace() {
+        let (services, _) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: BlockPuzzleBoard.emptyBoard(),
+                                     hand: [Catalog.single, Catalog.square2, Catalog.single])
+        #expect(model.selectPiece(1))
+        #expect(model.selectedPiece == 1)
+        #expect(model.placeSelected(row: 3, col: 4))
+        #expect(model.hand[1] == nil)
+        #expect(model.score == 4)
+        #expect(model.board[3][4] != 0 && model.board[4][5] != 0)
+        #expect(model.board[2][4] == 0 && model.board[3][3] == 0, "左上が指定のマスに来る")
+        #expect(model.selectedPiece == nil, "置けたら選択は解ける")
+    }
+
+    @Test("何も選んでいなければ置けず、盤は動かない")
+    func placeWithoutSelectionIsRejected() {
+        let spy = SpyFeedbackService()
+        let model = BlockPuzzleModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy),
+                                     board: BlockPuzzleBoard.emptyBoard(),
+                                     hand: [Catalog.single, nil, nil])
+        #expect(!model.placeSelected(row: 0, col: 0))
+        #expect(model.board == BlockPuzzleBoard.emptyBoard())
+        #expect(spy.notices == [.warning])
+    }
+
+    @Test("置けないマスでは選択を残し、別のマスで続けて置ける")
+    func rejectedPlacementKeepsSelection() {
+        let (services, _) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: BlockPuzzleBoard.emptyBoard(),
+                                     hand: [Catalog.bar3, Catalog.single, nil])
+        #expect(model.selectPiece(0))
+        #expect(!model.placeSelected(row: 0, col: BlockPuzzleBoard.size - 2), "右へはみ出す")
+        #expect(model.selectedPiece == 0)
+        #expect(model.placeSelected(row: 0, col: BlockPuzzleBoard.size - 3))
+        #expect(model.hand[0] == nil)
+    }
+
+    @Test("同じ手元をもう一度選ぶと解除し、別の手元を選ぶと切り替わる")
+    func toggleAndSwitch() {
+        let (services, _) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: BlockPuzzleBoard.emptyBoard(),
+                                     hand: [Catalog.single, Catalog.square2, Catalog.single])
+        #expect(model.selectPiece(0))
+        #expect(model.selectPiece(0))
+        #expect(model.selectedPiece == nil)
+        #expect(model.selectPiece(0))
+        #expect(model.selectPiece(2))
+        #expect(model.selectedPiece == 2)
+    }
+
+    @Test("使用済みのスロットは選べない")
+    func cannotSelectEmptySlot() {
+        let (services, _) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: BlockPuzzleBoard.emptyBoard(),
+                                     hand: [Catalog.single, nil, Catalog.single])
+        #expect(!model.selectPiece(1))
+        #expect(!model.selectPiece(5))
+        #expect(model.selectedPiece == nil)
+    }
+
+    @Test("3 つ置いて配り直しても、古い選択が新しい形を指さない")
+    func refillClearsSelection() {
+        let (services, _) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: BlockPuzzleBoard.emptyBoard(),
+                                     hand: [Catalog.single, nil, nil])
+        #expect(model.selectPiece(0))
+        #expect(model.placeSelected(row: 0, col: 0))
+        #expect(model.hand.compactMap { $0 }.count == 3, "配り直されている")
+        #expect(model.selectedPiece == nil)
+    }
+
+    @Test("新規ゲームで選択は解ける")
+    func newGameClearsSelection() {
+        let (services, _) = makeServices()
+        let model = BlockPuzzleModel(services: services, board: BlockPuzzleBoard.emptyBoard(),
+                                     hand: [Catalog.single, Catalog.single, Catalog.single])
+        #expect(model.selectPiece(1))
+        model.newGame()
+        #expect(model.selectedPiece == nil)
+    }
+}
+
 @Suite("ブロックならべ: 読み上げ文")
 struct BlockPuzzleAccessibilityTests {
 
@@ -331,6 +418,20 @@ struct BlockPuzzleAccessibilityTests {
     func cell() {
         #expect(BlockPuzzleAccessibility.cellLabel(row: 2, col: 4, value: 0) == "3行5列、空きマス")
         #expect(BlockPuzzleAccessibility.cellLabel(row: 0, col: 0, value: 3) == "1行1列、ブロック")
+    }
+
+    @Test("手元を選んでいるときだけ、そのマスに置けるかを読み足す")
+    func cellWithSelection() {
+        #expect(BlockPuzzleAccessibility.cellLabel(row: 2, col: 4, value: 0, canPlaceSelected: true)
+                == "3行5列、空きマス、置けます")
+        #expect(BlockPuzzleAccessibility.cellLabel(row: 0, col: 0, value: 3, canPlaceSelected: false)
+                == "1行1列、ブロック、置けません")
+    }
+
+    @Test("選んでいる手元は選択中と読む")
+    func handSelected() {
+        #expect(BlockPuzzleAccessibility.handLabel(index: 0, piece: BlockPuzzlePiece.catalog[0], canPlace: true, isSelected: true)
+                == "手元1つ目、1マス、置けます、選択中")
     }
 
     @Test("形は外接矩形とマス数から呼び名を作る")

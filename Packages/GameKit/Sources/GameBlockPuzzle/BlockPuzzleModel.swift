@@ -32,6 +32,12 @@ public final class BlockPuzzleModel {
     /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
     /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に「もう一度」で局が入れ替わったら適用しない）。
     public private(set) var gameSerial = 0
+    /// VoiceOver の操作で選んでいる手元の番号（#1044）。
+    ///
+    /// ドラッグできない VoiceOver では「手元を選ぶ → 盤のマスを選んで置く」の 2 手に分ける
+    /// （ソリティア・フリーセル・スパイダーと同じ作法）。ドラッグ操作はこの状態を使わない。
+    /// 一時的な操作状態なので中断データには書かない。
+    public private(set) var selectedPiece: Int?
 
     private let services: GameServices?
     private var rng: BlockPuzzleRandom
@@ -119,6 +125,8 @@ public final class BlockPuzzleModel {
 
         score += BlockPuzzleScoring.placementPoints(piece)
         hand[index] = nil
+        // 配り直しで番号の指す形が入れ替わりうるので、置けたら選択は必ず解く。
+        selectedPiece = nil
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: Self.gameID)
 
@@ -148,6 +156,32 @@ public final class BlockPuzzleModel {
         return true
     }
 
+    /// 手元 `index` を選ぶ（VoiceOver 用・#1044）。選択中のものをもう一度選ぶと解除する。
+    ///
+    /// - Returns: 選べた（または解除できた）ら true。使用済みスロット・終局後は false（拒否として鳴らす）。
+    @discardableResult
+    public func selectPiece(_ index: Int) -> Bool {
+        guard !gameOver, hand.indices.contains(index), hand[index] != nil else {
+            services?.feedback.notify(.warning)
+            return false
+        }
+        selectedPiece = selectedPiece == index ? nil : index
+        services?.feedback.impact(.light)
+        return true
+    }
+
+    /// 選んでいる手元を、左上が (row, col) に来るように置く（VoiceOver 用・#1044）。
+    ///
+    /// 置けなかったときは選択を残し、別のマスで続けて試せるようにする。
+    @discardableResult
+    public func placeSelected(row: Int, col: Int) -> Bool {
+        guard let selectedPiece else {
+            services?.feedback.notify(.warning)
+            return false
+        }
+        return place(pieceIndex: selectedPiece, row: row, col: col)
+    }
+
     /// リワード広告視聴後のコンティニュー。盤の中央を空けて、同じスコアのまま続ける。1 局 1 回のみ。
     @discardableResult
     public func continueAfterAd() -> Bool {
@@ -162,6 +196,7 @@ public final class BlockPuzzleModel {
         board = BlockPuzzleBoard.revive(board)
         combo = 0
         lastClearedLines = 0
+        selectedPiece = nil
         persist()
         // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158）。
         services?.gameDidRestart(gameID: Self.gameID)
@@ -187,6 +222,7 @@ public final class BlockPuzzleModel {
         gameOver = false
         continueUsed = false
         recordResult = nil
+        selectedPiece = nil
         persist()
         services?.gameDidRestart(gameID: Self.gameID)
     }
