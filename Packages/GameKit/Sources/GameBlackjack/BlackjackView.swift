@@ -146,6 +146,9 @@ public struct BlackjackView: View {
                     Text("\(model.dealerVisibleValue) + ?")
                         .font(.system(size: 14, weight: .black, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
+                        .accessibilityLabel(BlackjackAccessibility.dealerPartialValueLabel(
+                            visibleValue: model.dealerVisibleValue
+                        ))
                 }
             }
 
@@ -604,6 +607,10 @@ struct BJCardView: View {
             }
         }
         .frame(width: scaled.width, height: scaled.height)
+        // 表裏とも 1 枚 1 要素にまとめる（#1044）。裏のスート印を読ませず、伏せ札は中身を漏らさない。
+        // ディーラー・プレイヤー・スプリットの各手はすべてこの View を通る。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(BlackjackAccessibility.cardLabel(card: card, faceUp: faceUp))
     }
 }
 

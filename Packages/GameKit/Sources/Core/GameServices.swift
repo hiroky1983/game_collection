@@ -152,6 +152,13 @@ public struct GameServices {
         reminders?.gameDidOpen(gameID: gameID)
     }
 
+    /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。`share_tap` を送るだけで、プレイの数え方にも
+    /// 画面の世代にも触らない。呼ぶのは `RecordLabel` の共有ボタンの 1 か所（ハブが `RecordShareContext` で配る）。
+    @MainActor
+    public func gameDidTapShare(gameID: String) {
+        analytics?.recordShareTap(gameID: gameID)
+    }
+
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
     /// `reward_ad` を送る（#500 / #659）。
     ///
