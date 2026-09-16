@@ -371,6 +371,14 @@ public final class BlocksModel {
     /// 起動引数から状態を作る。DEBUG ビルド限定で、製品には入らない。
     public func applyDebugScenario(_ name: String) {
         switch name {
+        case let name where name.hasPrefix("stage:"):
+            // 狙った面をその場で遊ぶ（`-simulateBlocks stage:12`）。チャリンコおじさんの
+            // `-simulateRunner stage:N` と同じ作法。面の難度は最後の数面ほど実際に遊ばないと
+            // 分からないが、そこへ辿り着くには 11 面クリアが要る（会長 QA 2026-09-16）。
+            // 盤を作り直すだけで、球は止めない（撮影用の凍結とは違い、そのまま遊べる）。
+            let number = Int(name.dropFirst("stage:".count)) ?? 1
+            stageNumber = min(max(1, number), BlocksRules.stageCount)
+            startStage()
         case "playing":
             launch()
             breakBlocksForDebug(limit: 14)
