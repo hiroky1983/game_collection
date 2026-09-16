@@ -212,8 +212,9 @@ public struct BlockPuzzleView: View {
         .accessibilityLabel(BlockPuzzleAccessibility.handLabel(
             index: index, piece: piece, canPlace: placeable, isSelected: model.selectedPiece == index
         ))
-        .accessibilityHint(piece == nil ? "" : BlockPuzzleAccessibility.handHint)
-        .accessibilityAddTraits(piece == nil ? [] : .isButton)
+        // 選べない（使用済み・終局後）スロットには操作を案内しない。
+        .accessibilityHint(piece == nil || model.gameOver ? "" : BlockPuzzleAccessibility.handHint)
+        .accessibilityAddTraits(piece == nil || model.gameOver ? [] : .isButton)
         // ドラッグできない VoiceOver 向けの代替（#1044）。選んでから盤のマスで置く。
         .accessibilityAction { model.selectPiece(index) }
     }

@@ -389,6 +389,17 @@ struct BlockPuzzleSelectPlacementTests {
         #expect(model.selectedPiece == nil)
     }
 
+    @Test("終局後は手元を選べない")
+    func cannotSelectAfterGameOver() {
+        let (services, _) = makeServices()
+        let full = Array(repeating: Array(repeating: 1, count: BlockPuzzleBoard.size), count: BlockPuzzleBoard.size)
+        let model = BlockPuzzleModel(services: services, board: full,
+                                     hand: [Catalog.square3, Catalog.square3, Catalog.square3])
+        #expect(model.gameOver, "前提: 埋まった盤では詰んでいる")
+        #expect(!model.selectPiece(0))
+        #expect(model.selectedPiece == nil)
+    }
+
     @Test("3 つ置いて配り直しても、古い選択が新しい形を指さない")
     func refillClearsSelection() {
         let (services, _) = makeServices()
