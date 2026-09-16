@@ -25,11 +25,6 @@ public struct RunnerView: View {
     /// 初回プレイの操作ガイド（#988）をいま出しているか。判定と「見せた」の記録は `init` で
     /// 1 回だけ済ませる（`HowToPlayHint` と同じ作法）。「はじめる」で false になる。
     @State private var showsTutorial: Bool
-    /// この画面を開いたときにガイドを出したか。**閉じたあとも true のまま**で、
-    /// 1 行ヒント（`secondaryInfo`）を出すかの判断に使う。`showsTutorial` で判断すると、
-    /// 「はじめる」で閉じた直後の再描画でヒントが組み立てられ、同じプレイの中で
-    /// 同じ文言（「タップでジャンプ」）をもう一度出してしまう。
-    @State private var tutorialShownOnOpen: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -40,7 +35,6 @@ public struct RunnerView: View {
         // 判定は 1 回だけ（`shouldShow` が「見せた」の記録も兼ねるので二度呼ばない）。
         let showsTutorial = RunnerTutorial.shouldShow(playLog: services.playLog)
         _showsTutorial = State(initialValue: showsTutorial)
-        _tutorialShownOnOpen = State(initialValue: showsTutorial)
     }
 
     public var body: some View {
@@ -87,6 +81,14 @@ public struct RunnerView: View {
             // 初回プレイの操作ガイド（#988）をいつでも開き直せる場所。「くわしいルール」の
             // 見出しは共通部品（`HowToPlaySheet`）が持つ。
             RunnerTutorialPage()
+        }
+        // 初回プレイの操作ガイド（#988）は**モーダル**で出す（会長指摘 2026-09-16）。
+        // 以前はコースの上のカードで出していたが、その「はじめる」がステージ制で走り出す
+        // 作りだったため、初回だけモードを選べず・右上からエンドレスを選んでもガードの
+        // 「はじめる」がステージ制で上書きしてしまっていた。閉じたら（`onDismiss`）
+        // そのまま開始シートへ送り、初回も 2 回目以降と同じ導線にする。
+        .sheet(isPresented: $showsTutorial, onDismiss: { presentStartSheetIfNeeded() }) {
+            RunnerTutorialSheet { showsTutorial = false }
         }
         .sheet(isPresented: $showStartSheet) {
             RunnerStartSheet(
@@ -558,7 +560,6 @@ public struct RunnerView: View {
     ///
     /// - チェックポイント再開の直後（`!canChooseMode`）: 広告で得た途中からの再開を
     ///   誤タップで手放させないよう、「▶ つづきから」の主ボタン 1 つだけを出す
-    /// - 初回プレイの操作ガイド（`showsTutorial`）: `tutorialCard`
     /// - どちらでもない（`canChooseMode == true`）: 「タップでスタート」（`tapToStartHint`）
     ///
     /// カードは**コースの中に重ねる**（コースの外に行を足さない）ので、iPhone SE でも盤・カード・
@@ -568,23 +569,7 @@ public struct RunnerView: View {
     /// その場で走り出す（#941。面をまたぐたびにここでもう 1 タップさせない）。
     @ViewBuilder
     private var startScreen: some View {
-        if showsTutorial {
-            ZStack {
-                // 初回の操作ガイド（#988）を読んでいる間だけ幕でタップを受け止める——読んでいる
-                // 途中の指が当たって走り出すのを防ぐだけで、ガイド自体は対話型にしない
-                // （「はじめる」を押せば閉じてそのまま走り出す）。
-                Rectangle().fill(.black.opacity(0.45)).allowsHitTesting(true)
-                tutorialCard
-                    .padding(14)
-                    .frame(maxWidth: 300)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                            .fill(Theme.surface)
-                            .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
-                    )
-                    .padding(.horizontal, 20)
-            }
-        } else if model.canChooseMode {
+        if model.canChooseMode {
             tapToStartHint
         } else {
             ZStack {
@@ -636,41 +621,6 @@ public struct RunnerView: View {
         // 読み上げはコース側（`courseLabel` / `accessibilityHint`「ダブルタップでジャンプ」）が
         // 受け持つ。ここを独立した要素にすると同じ案内が二重に読まれる。
         .accessibilityHidden(true)
-    }
-
-    /// 初回プレイだけスタート画面に出す操作ガイド（#988）。
-    ///
-    /// 覚えてほしい 3 つ（`RunnerTutorial.steps`）を短い文と小さな絵で 1 画面に。頭の絵は
-    /// 走者の「跳ぶ」コマ（`OjisanPixel.RiderFrame.jump`）で、新しいドット絵は描き起こさない。
-    /// **コースの中に重ねる**ので盤・カード・広告帯の縦の配分は変わらない（スタート画面と同じ枠）。
-    /// 「はじめる」で閉じ、そのままステージ制で走り出す（印は `init` で残してあるので次からは出ない）。
-    private var tutorialCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                RunnerTutorial.riderJump(height: 40)
-                Text("そうさのしかた")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Spacer(minLength: 0)
-            }
-            RunnerTutorialSteps()
-            Button {
-                showsTutorial = false
-                model.start(.stages)
-            } label: {
-                Label("はじめる", systemImage: "play.fill")
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                            .fill(Theme.Fill.coral)
-                    )
-            }
-            .buttonStyle(.pop)
-            .accessibilityLabel("はじめる")
-        }
     }
 
     /// 世界の色の上に載せる文字色。
@@ -821,15 +771,12 @@ public struct RunnerView: View {
     /// 固定の小さなプレースホルダなので、スクロールにしなくても場所を圧迫しない。
     private var secondaryInfo: some View {
         VStack(spacing: 6) {
-            // 初回の操作ガイド（#988）を出した回は出さない。ガイドの 1 行目と同じ
-            // 「タップでジャンプ」を同じ画面で二度言うことになる。見るのは
-            // `showsTutorial`（いま出しているか）ではなく `tutorialShownOnOpen`
-            // （この画面で出したか）——「はじめる」で閉じた直後の再描画でヒントが
-            // 組み立てられてしまうため。`HowToPlayHint` は組み立てた時点で印を消費するので、
-            // ここを通らない回は消費もしない ＝ 次にこの画面を開いたときに 1 行ヒントとして出る。
-            if !tutorialShownOnOpen {
-                HowToPlayHint(.runner, playLog: services.playLog)
-            }
+            // 操作の 1 行は**走行中ずっと出す**（会長指摘「タップしてジャンプはゲーム中に常時
+            // 出てほしいセクションなのになんでゲーム中に消えんの」・2026-09-16）。
+            // 共通部品の既定（`HowToPlayHint(_:playLog:)`）は「初回だけ」で、印を消費した
+            // 次の再描画から消えるため、遊んでいる最中に行ごと消えて画面が動いていた。
+            // 出すかを呼び出し側が決める初期化子（#650）に true を固定で渡し、消さない。
+            HowToPlayHint(.runner, isVisible: true)
             recommendationArea
         }
     }
@@ -983,5 +930,36 @@ struct RunnerWorldMap: View {
         .disabled(!reached)
         .accessibilityLabel(RunnerAccessibility.stageMapLabel(number: number, reached: reached))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+// MARK: - 初回の操作ガイド（#988 → #1027 でモーダルへ）
+
+/// 初回プレイだけ出す操作ガイドのモーダル。
+///
+/// #988 ではコースの上のカードで出していたが、カードの「はじめる」がステージ制で走り出す
+/// 作りだったため、**初回だけモードを選べない**（右上からエンドレスを選んでも、ガードの
+/// 「はじめる」がステージ制で上書きする）という穴があった（会長指摘 2026-09-16）。
+/// モーダルにして「読む」だけに徹し、閉じたら開始シートへ送る。
+///
+/// 中身は「？」から開くページ（`RunnerTutorialPage`）と同じものを使う——同じ内容を 2 通りの
+/// 見た目で持たない（基盤規約「同じ役割の UI は同じ見た目に」）。
+struct RunnerTutorialSheet: View {
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                RunnerTutorialPage()
+                Button(action: onClose) {
+                    Text("はじめる").themeBody(18).frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+                .padding(Theme.pad)
+            }
+            .popBackground()
+        }
+        .presentationDetents([.large])
     }
 }
