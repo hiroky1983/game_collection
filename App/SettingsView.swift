@@ -181,7 +181,7 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.ink)
 
                     ShareLink(
-                        item: URL(string: "https://apps.apple.com/jp/app/id6781719499")!,
+                        item: AppEnvironment.appStoreURL,
                         subject: Text("あそびばアプリ"),
                         message: Text("このゲームアプリ面白いよ！")
                     ) {

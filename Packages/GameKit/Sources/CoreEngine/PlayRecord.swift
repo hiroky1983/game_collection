@@ -397,4 +397,19 @@ public enum RecordFormat {
             return record.bestStreak >= 2 ? "\(base)・最高\(record.bestStreak)連勝" : base
         }
     }
+
+    /// 自己ベストを更新したリザルトから共有するときの文言（#1043）。記録が無ければ nil。
+    ///
+    /// **記録を前面に出す**（#1043 の決裁）。アプリ名だけの文言は設定画面の「アプリをシェア」が
+    /// 既に持っていて、受け手に「何点取れるか試したい」という理由を渡せないため。
+    /// 2 行目はリザルトの 1 行（`resultLine`）と同じ表記にし、画面で見た記録がそのまま届くようにする。
+    /// App Store の URL は文言に含めない（共有シート側が別の項目として添える）。
+    ///
+    /// - Parameter title: ハブに出しているゲームの表示名（`GameModule.title`）。
+    public static func shareMessage(title: String, record: PlayRecord) -> String? {
+        guard let line = resultLine(record) else { return nil }
+        // 区分ごとに記録を分けているゲーム（マインスイーパーの難易度）は、どの区分の記録かを添える。
+        let label = record.variantLabel.map { "（\($0)）" } ?? ""
+        return "あそびばの「\(title)」\(label)で記録更新！\n\(line)"
+    }
 }

@@ -375,6 +375,28 @@ struct OpenAndRequestTrackingTests {
         #expect(spy.events.isEmpty)
     }
 
+    @Test("共有ボタンを押すと share_tap だけが出て、プレイの数え方に触らない（#1043）")
+    func shareTapIsSentWithoutTouchingPlayState() {
+        let (services, spy) = makeServices()
+        services.gameDidStart(gameID: "2048")
+        services.gameDidProgress(gameID: "2048")
+        services.gameDidFinish(gameID: "2048", outcome: .loss)
+        services.gameDidTapShare(gameID: "2048")
+        services.gameDidTapShare(gameID: "2048")
+        services.gameDidLeave(gameID: "2048")
+
+        #expect(spy.events.map(\.name) == ["game_start", "game_end", "share_tap", "share_tap"],
+                "押した回数だけ出る。終局済みのプレイに quit は足されない")
+        #expect(spy.events.last == .shareTap(gameID: "2048"))
+    }
+
+    @Test("ハブに無い gameID の共有は送らない（#1043）")
+    func unknownGameIDShareIsDropped() {
+        let (services, spy) = makeServices()
+        services.gameDidTapShare(gameID: "device-1234")
+        #expect(spy.events.isEmpty)
+    }
+
     @Test("設定で送信をオフにすると、どちらのイベントも送らない")
     func gatedOffSendsNothing() async {
         let spy = SpyAnalyticsService()
@@ -387,6 +409,7 @@ struct OpenAndRequestTrackingTests {
         )
         services.gameDidOpen(gameID: "2048", source: .hub, position: 1, resume: false)
         _ = await services.showRewardedAd(gameID: "2048", purpose: .continue)
+        services.gameDidTapShare(gameID: "2048")
         #expect(spy.events.isEmpty)
     }
 }
