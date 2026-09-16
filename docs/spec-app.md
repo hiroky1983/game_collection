@@ -314,10 +314,10 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 ---
 
-## 解析仕様（Analytics・#158 / #500 / #659 / #780）
+## 解析仕様（Analytics・#158 / #500 / #659 / #780 / #1043）
 
-`CoreEngine/Analytics.swift` に**送信するイベントを6種だけに閉じた** `AnalyticsEvent` enum がある
-（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`reward_offer` は #780 で `release/v1.1.7` に追加。
+`CoreEngine/Analytics.swift` に**送信するイベントを7種だけに閉じた** `AnalyticsEvent` enum がある
+（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`share_tap` は #1043 で `release/v1.1.6` に、`reward_offer` は #780 で `release/v1.1.7` に追加。
 v1.1.4 までの公開版は3種）。
 呼び出し側（各ゲーム）は任意のキー・値を足せず、イベントを増やすには enum にケースを足す必要がある
 （＝意図しないイベント発生や、ドキュメントと実装が知らないうちに乖離することを型で防ぐ設計）。
@@ -330,6 +330,7 @@ v1.1.4 までの公開版は3種）。
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の7値） / `result`(accepted\|declined\|not_ready) |
+| `share_tap` | 自己ベストを更新したリザルトの**共有ボタンを押した**（`RecordLabel` の共有ボタン。共有シートで実際に送ったかは問わない） | `game_id` のみ |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで
@@ -368,6 +369,13 @@ v1.1.4 までの公開版は3種）。
   `notification` は #663 のローカル通知のタップで開いたとき（`release/v1.1.5` から。上の「中断したゲームのお知らせ」を参照）
   `first_pick` はハブ最上部の「はじめの1本」（#721。記録ゼロの初回だけ出る1枚）から開いたとき（`release/v1.1.5` から）
 - `source` / `position` / `resume` は GA4 のカスタムディメンション登録が要る（会長操作依頼 #694）
+- `share_tap`（#1043・`release/v1.1.6` から）は、「自己ベスト更新！」バッジが出た回だけ記録の行の末尾に出る共有ボタンを
+  押した回数。20 本の `RecordLabel` の呼び出しは変えず、ハブの `navigationDestination` がゲーム画面ごとに
+  `RecordShareContext`（ゲーム名・App Store の URL・押したときの処理）を環境値で配る（配られないテスト・プレビューでは出ない）。
+  共有の文言は記録を前面に出し（`RecordFormat.shareMessage`。「あそびばの「2048」で記録更新！」＋リザルトの 1 行）、
+  URL にキャンペーンのパラメータは付けない。載せるのは `game_id` だけなので GA4 の新しい登録は要らない。
+  `ShareLink` は完了を知らせないため「送った数」ではなく「押した数」として読む。チャリンコおじさんは `RecordLabel` を
+  使わないので対象外
 - `reward_offer`（`RewardOfferResult`・#780・`release/v1.1.7` から）の**提示**は、広告を見るかどうかを選ばせる画面
   （確認アラート・コンティニューの幕・リザルトの復活ボタン）が出たこと。無料で済む確認（無料の待った）は含めない。
   各画面は `rewardOffer(_:for:isPresented:services:gameID:)` 修飾子で「出ているか」だけを渡し、押したかどうかは
