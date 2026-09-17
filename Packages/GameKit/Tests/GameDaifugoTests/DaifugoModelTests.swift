@@ -893,6 +893,98 @@ struct DaifugoExchangeWaiverTests {
     }
 }
 
+// MARK: - 決着した階級の持ち越し（#1066）
+
+@Suite("決着した階級を開き直しても持ち越す（#1066）")
+@MainActor
+struct DaifugoCarryOverTests {
+
+    /// 自分が大貧民（投了）で決着したリザルトと、それを支える置き場を返す。
+    private func lastPlaceResult() -> (DaifugoModel, GameServices, MemorySnapshotStore) {
+        let store = MemorySnapshotStore()
+        let (model, services) = makeModel(store: store)
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            currentPlayer: 0
+        )
+        model.resign()
+        return (model, services, store)
+    }
+
+    /// 「次のゲーム」を押さずにハブへ戻り、開き直した Model。
+    private func reopen(_ services: GameServices) -> DaifugoModel {
+        DaifugoModel(services: services, cpuDelay: .zero, seed: 42)
+    }
+
+    @Test("リザルトから画面を離れて開き直しても、次のゲームで交換が起きる（無料の抜け道を塞ぐ）")
+    func rankingSurvivesReopening() {
+        let (model, services, store) = lastPlaceResult()
+        #expect(model.ranking.last == DaifugoModel.humanIndex, "前提: 自分が大貧民")
+        #expect(!store.exists(for: "daifugo"), "前提: 決着で中断データは消えている")
+
+        let reopened = reopen(services)
+        #expect(reopened.phase == .idle, "持ち越しは「続きから」にはならない")
+        #expect(reopened.lastRanking == model.ranking, "階級だけを引き継ぐ")
+
+        reopened.startGame()
+        #expect(reopened.lastTransfers.count == 4, "大富豪⇔大貧民の2枚 + 富豪⇔貧民の1枚")
+        #expect(reopened.lastTransfers.contains { $0.from == DaifugoModel.humanIndex && $0.cards.count == 2 },
+                "広告を見ていないので、大貧民として強い2枚を差し出す")
+    }
+
+    @Test("持ち越した階級は次の1ゲームで使い切る")
+    func carryOverIsSpentByTheNextGame() {
+        let (_, services, _) = lastPlaceResult()
+
+        let reopened = reopen(services)
+        reopened.startGame()
+        #expect(reopened.lastTransfers.isEmpty == false, "前提: 持ち越した階級で交換が起きた")
+
+        // 配り直した直後にまたハブへ戻り、開き直す（この局はまだ決着していない）。
+        let again = reopen(services)
+        #expect(again.lastRanking.isEmpty, "使い切った階級は残らない")
+        again.startGame()
+        #expect(again.lastTransfers.isEmpty, "決着していない階級で交換は起きない")
+    }
+
+    @Test("広告の免除も開き直しをまたいで効き、次の1ゲームで消える")
+    func waiverSurvivesReopening() {
+        let (model, services, _) = lastPlaceResult()
+        #expect(model.waiveExchangeAfterAd(forGame: model.gameNumber), "前提: 広告を見て免除した")
+
+        let reopened = reopen(services)
+        #expect(reopened.isExchangeWaived, "広告を見た人が開き直しで損をしない")
+
+        reopened.startGame()
+        #expect(!reopened.lastTransfers.contains { $0.from == DaifugoModel.humanIndex || $0.to == DaifugoModel.humanIndex },
+                "免除したゲームでは大貧民の交換が起きない")
+        #expect(reopened.lastTransfers.count == 2, "富豪⇔貧民の1枚交換は残る")
+        #expect(reopened.isExchangeWaived == false, "使ったら戻す")
+        #expect(reopen(services).isExchangeWaived == false, "開き直しても免除は戻ってこない")
+    }
+
+    @Test("中断中の対局があるときは、中断データの階級が持ち越しより優先される")
+    func snapshotWinsOverCarryOver() {
+        let store = MemorySnapshotStore()
+        let (model, services) = makeModel(store: store)
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            currentPlayer: 0
+        )
+        #expect(store.exists(for: "daifugo"), "前提: 中断データがある")
+        // 消し忘れた持ち越しが残っていても、進行中の対局の階級を上書きしないことを固定する。
+        try? store.save(
+            DaifugoCarryOver(lastRanking: [3, 2, 1, 0], isExchangeWaived: true),
+            for: "daifugo-carryover"
+        )
+
+        let resumed = reopen(services)
+        #expect(resumed.phase == .playing, "続きから戻る")
+        #expect(resumed.lastRanking.isEmpty, "中断データが持っている階級（この局は初回なので空）を使う")
+        #expect(resumed.isExchangeWaived == false, "免除も持ち込まない")
+    }
+}
+
 // MARK: - CPU 進行のキャンセル
 
 @Suite("CPU 進行のキャンセル")
