@@ -77,7 +77,20 @@ final class RunnerScene: SKScene {
     var removedPickupIndices: Set<Int> = []
     /// 動く障害（#796 飛び立つ鳥・#800 犬・#801 イノシシ）のノード。`rebuildCourse` で作り直し、
     /// `sync` が毎フレーム `RunnerHazard.frame(atRunnerDistance:)` の位置へ置き直す。
+    /// エンドレス（#1086）では使わない（動く障害も `endless` の部品として使い回す）。
     var movingHazards: [MovingHazardView] = []
+    /// コース層（`courseLayer`）の x = 0 が指すワールド x（#1086）。
+    ///
+    /// エンドレスは距離が数百万単位まで伸びる。ノードをワールド座標のまま置くと、SpriteKit の
+    /// 描画に使う単精度（Float・有効桁 7 桁弱）では 1 単位の 1/10 すら表せなくなり、長く走るほど
+    /// 絵がガタつく。そこでノードは「ワールド x − この値」に置き、走者が
+    /// `EndlessRenderer.rebaseSpan` 進むごとにこの値を区画の左端へ動かして、ノードを
+    /// 同じだけ左へ戻す（`applyRenderOrigin`）。画面上の位置は
+    /// `courseLayer.position.x + ノードの x = playerX − distance + ワールド x` で、この値に依らない。
+    /// ステージ制は常に 0（従来どおりワールド座標そのまま）。
+    var renderOrigin: Double = 0
+    /// エンドレスの描画（部品の使い回しと、いま描いている区画・#1086）。ステージ制では nil のまま。
+    var endless: EndlessRenderer?
     /// すでに土煙を出したジャスト着地の数（#673）。`field.justLandingCount` が増えた
     /// フレームだけ演出を出すための控え。`rebuildCourse` で 0 に戻す。
     var renderedJustLandingCount = 0
