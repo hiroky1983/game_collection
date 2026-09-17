@@ -478,7 +478,7 @@ public enum RunnerEvent: Equatable, Sendable {
 /// コース（`RunnerEndlessCourse`）を**ミスするまで走って距離を競う**1 回完結のモードで、
 /// チェックポイントも中断保存も持たない（会長決裁 2026-09-12）。
 public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
-    /// 18 ステージを順にクリアしていく現行ルール。
+    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界）。
     case stages
     /// 走行距離を競うエンドレス（#675）。
     case endless
@@ -495,7 +495,8 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
     /// 開始シートに出す 1 行の説明。
     public var summary: String {
         switch self {
-        case .stages:  return "ステージ 1 から 18 面を順にクリアして、3 つの世界を先へ進む、いつもの遊び方"
+        case .stages:
+            return "ステージ 1 から \(RunnerRules.stageCount) 面を順にクリアして、\(RunnerWorld.allCases.count) つの世界を先へ進む、いつもの遊び方"
         case .endless: return "毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません"
         }
     }

@@ -76,11 +76,14 @@ public final class RunnerModel {
         let restored = services?.snapshots
             .load(RunnerSnapshot.self, for: RunnerModel.gameID)?
             .validated()
+        let clearedStage = services?.playLog?
+            .record(gameID: Self.gameID, variant: RunnerMode.stages.recordVariant)?
+            .bestPoints
         self.init(
             services: services,
             preference: preference,
             stage: restored?.stage ?? 1,
-            reachedStage: restored?.reachedStage ?? 1,
+            reachedStage: max(restored?.reachedStage ?? 1, Self.reachedStage(afterClearing: clearedStage)),
             // **ハブから開いただけでは 1 プレイと数えない**（#1064）。この時点ではどのモード・
             // どの面を走るかが決まっておらず（開始シート #1027 で選ぶ）、ここで数えると
             // 「シートの『スタート』で数え直して 2 本目」（初回起動）と
@@ -142,6 +145,18 @@ public final class RunnerModel {
                 gameID: Self.gameID, level: .stage(stageNumber), mode: RunnerMode.stages.analyticsMode
             )
         }
+    }
+
+    /// クリアした面の記録（本編の `PlayRecord.bestPoints`＝クリアした面の番号の最大）から見た到達点（#1009）。
+    ///
+    /// **面を足した版へ更新した人のため**にある。中断データの到達点（`RunnerSnapshot.reachedStage`）は
+    /// 保存した版の最終面で頭打ちになっている（18 面クリア済みでも 18 のまま）ので、それだけでは
+    /// 「最終面まで来た人」と「最終面をクリアした人」を区別できず、足した 19 面が選べない。
+    /// 記録はクリアした番号そのもの（v1.1.4 から同じ値）なので、その次の面までは到達済みとみなす。
+    /// 記録が無い・壊れた値なら 1 面。上限は最終面。
+    nonisolated static func reachedStage(afterClearing clearedStage: Int?) -> Int {
+        guard let clearedStage, clearedStage >= 1 else { return 1 }
+        return min(clearedStage + 1, RunnerRules.stageCount)
     }
 
     // MARK: - 問い合わせ

@@ -3,8 +3,10 @@ import Foundation
 /// ステージが属する世界（#703。#627 の時間帯バリエーションはここに吸収）。
 ///
 /// 18 面が全部同じ場所に見える——「世界（ワールド）の概念が無い」（#703 の要素分解）——
-/// を、ステージ番号で固定に切り替える 3 つの景色で埋める（会長決裁 2026-09-14）:
+/// を、ステージ番号で固定に切り替える景色で埋める（会長決裁 2026-09-14）:
 /// 1〜6 面は朝の下町、7〜12 面は夕方の川沿い、13〜18 面は夜の繁華街。
+/// #1009（会長決裁 2026-09-17〜18）で 30 面に増やし、19〜24 面の里山と 25〜30 面の港町を足した
+/// （どちらも現実にある場所。竜宮城のようなファンタジーはやらない）。
 /// ランダムや周回で変えない（同じ面はいつ遊んでも同じ景色。撮影・QA で毎回同じ画になる）。
 ///
 /// **変えるのは背景・地面・岩・動く障害（犬・イノシシ・鳥）の色だけ**。乗り手・自転車・台座・床・
@@ -25,21 +27,28 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// 13〜18 面。**現行の配色をそのまま夜として使う**（既に遊ばれている後半の配色は変えない。
     /// 足すのは遠景のビルの窓だけ）。
     case night
+    /// 19〜24 面。田んぼ・竹林・農道（#1009）。
+    ///
+    /// **配色は仮置き**（#1009 本文 J「面と世界の追加」と「絵」を別 PR に分ける）。朝の下町と同じ
+    /// 「淡い背景に暗い手前」の組み立てで、空・丘・路面だけを里山らしい値にずらしてある。
+    /// 背景の飾り（田んぼ・竹林）と障害の着せ替え（用水路・切り株・カラス…）は絵の PR で描く。
+    case satoyama
+    /// 25〜30 面。岸壁・桟橋・コンテナ・貨物船（#1009）。配色は `satoyama` と同じく仮置き。
+    case harbor
 
-    /// 1 つの世界が受け持つ面数。18 面を 3 等分。
+    /// 1 つの世界が受け持つ面数。30 面を 5 等分。
     public static let stagesPerWorld = 6
 
-    /// ステージ番号（1 始まり）が属する世界。
+    /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
+    /// 19〜24 面は里山、25〜30 面は港町。
     ///
-    /// 範囲外（0 以下・19 以上）は `.night`——QA 用ショーケース（`RunnerStage.debugShowcase`、
-    /// `number == 0`）は従来どおりの見た目で出したいのと、ステージを足したときに
-    /// 「新しい面だけ配色が無い」状態にならないようにするため。
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 31 以上）は `.night`——QA 用ショーケース
+    /// （`RunnerStage.debugShowcase`、`number == 0`）は従来どおりの見た目で出したいのと、
+    /// 面を足して世界を足し忘れたときに落ちずに描けるようにするため（どの世界にも収まらない面を
+    /// 本編に入れないことは `WorldTests.everyStageHasAWorld` が固定する）。
     public static func world(forStage number: Int) -> RunnerWorld {
-        switch number {
-        case 1...stagesPerWorld:                       return .morning
-        case (stagesPerWorld + 1)...(stagesPerWorld * 2): return .evening
-        default:                                       return .night
-        }
+        guard contains(stage: number) else { return .night }
+        return allCases[(number - 1) / stagesPerWorld]
     }
 
     /// 読み上げ・見出しに使う名前。
@@ -48,6 +57,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .morning: return "朝の下町"
         case .evening: return "夕方の川沿い"
         case .night:   return "夜の繁華街"
+        case .satoyama: return "里山"
+        case .harbor:  return "港町"
         }
     }
 
@@ -84,13 +95,19 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case riverside
         /// 丘の手前にビルの影と窓の灯り。
         case cityLights
+        /// 里山（田んぼ・竹林）。**まだ何も描かない**——絵は #1009 の絵の PR で足す。
+        case satoyama
+        /// 港町（岸壁・コンテナ・貨物船）。**まだ何も描かない**——絵は #1009 の絵の PR で足す。
+        case harbor
     }
 
     public var scenery: Scenery {
         switch self {
-        case .morning: return .townHouses
-        case .evening: return .riverside
-        case .night:   return .cityLights
+        case .morning:  return .townHouses
+        case .evening:  return .riverside
+        case .night:    return .cityLights
+        case .satoyama: return .satoyama
+        case .harbor:   return .harbor
         }
     }
 
@@ -106,7 +123,7 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         public let line: UInt32
         /// 縁石。
         public let curb: UInt32
-        /// 路肩（朝＝草、夕方＝土手の砂、夜＝歩道のコンクリート）。
+        /// 路肩（朝＝草、夕方＝土手の砂、夜＝歩道のコンクリート、里山＝あぜ道の草、港町＝岸壁のコンクリート）。
         public let shoulder: UInt32
         /// 路肩の下の地盤（画面の下端まで）。
         public let subsoil: UInt32
@@ -126,6 +143,13 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .night:
             // 夜のアスファルト。白線は少し落として街灯の下の見え方に。路肩は歩道のコンクリート。
             return Road(asphalt: 0x353A48, line: 0xD9DCE6, curb: 0x9AA0B0, shoulder: 0x4A5163, subsoil: 0x2C2A38)
+        case .satoyama:
+            // 仮置き（#1009）。舗装された農道の淡い土色がかった灰。明るさは朝の路面と同じ帯に置き、
+            // 暗い縁取りの手前の物が 3:1 以上で乗るようにする（`WorldTests`）。
+            return Road(asphalt: 0xC2B8A6, line: 0xFFFFFF, curb: 0xE3DCC8, shoulder: 0x9FCB8C, subsoil: 0xB89A7A)
+        case .harbor:
+            // 仮置き（#1009）。岸壁のコンクリートの淡い灰。
+            return Road(asphalt: 0xB9BDBD, line: 0xFFFFFF, curb: 0xE2E4E2, shoulder: 0xC9CDCB, subsoil: 0x8E9AA2)
         }
     }
 
@@ -203,6 +227,36 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 rockBody: 0x939AA8,
                 rockDark: 0x565D6B
             )
+        case .satoyama:
+            // 仮置き（#1009）。朝の下町と同じく**背景は淡く沈め、手前は暗く**する組み立てで、
+            // 空はわずかに緑に寄せた淡い水色、丘は朝より緑の濃い 2 階調（田んぼと林の遠景のつもり）。
+            // 岩は朝と同じストーングレー。空の色相（寒色）は服の黄・車体の赤から離れている。
+            return Palette(
+                sky: 0xD3EBEC,
+                cloud: 0xFFFFFF,
+                cloudAlpha: 0.9,
+                hillFar: 0xBCD9A6,
+                hillNear: 0xA8CC90,
+                groundTop: 0xDCC8A8,
+                groundBody: 0xB89A7A,
+                rockLight: 0x9CA4B2,
+                rockBody: 0x585E6E,
+                rockDark: 0x23272F
+            )
+        case .harbor:
+            // 仮置き（#1009）。空は海辺の淡い空色、丘は遠くの岬と海の青灰 2 階調。岩は朝と同じ。
+            return Palette(
+                sky: 0xCAE3F0,
+                cloud: 0xFFFFFF,
+                cloudAlpha: 0.9,
+                hillFar: 0xB6CFDA,
+                hillNear: 0xA4C1CE,
+                groundTop: 0xD2D6D4,
+                groundBody: 0x8E9AA2,
+                rockLight: 0x9CA4B2,
+                rockBody: 0x585E6E,
+                rockDark: 0x23272F
+            )
         }
     }
 }
@@ -278,6 +332,10 @@ public extension RunnerWorld {
                 boarBody: 0xB08060, boarDark: 0x3E2414, boarSnout: 0xD8B098,
                 birdBody: 0x4FAE71, birdWing: 0x2F7D4E, birdWingFar: 0x1F5C38, birdBelly: 0xE8F5E0
             )
+        case .satoyama, .harbor:
+            // 仮置き（#1009）。背景を朝と同じ明るさの帯に置いたので、手前の色も朝の値をそのまま使う
+            // （田舎の犬・カラス、野良猫・カモメ・フォークリフトの色は絵の PR で決める）。
+            return RunnerWorld.morning.creatures
         }
     }
 
@@ -335,6 +393,11 @@ public extension RunnerWorld {
                 "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
                 "building": SceneryPalette.building,
             ]
+        case .satoyama, .harbor:
+            // 遠景の飾りはまだ無い（絵の PR で足すときにここへ加える）。
+            return [
+                "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
+            ]
         }
     }
 
@@ -342,9 +405,11 @@ public extension RunnerWorld {
     /// 切れ目でこれらを背にする。
     var skyBackdrops: KeyValuePairs<String, UInt32> {
         switch self {
-        case .morning: return ["sky": palette.sky]
-        case .evening: return ["sky": palette.sky, "sunsetGlow": SceneryPalette.sunsetGlow]
-        case .night:   return ["sky": palette.sky]
+        case .morning:  return ["sky": palette.sky]
+        case .evening:  return ["sky": palette.sky, "sunsetGlow": SceneryPalette.sunsetGlow]
+        case .night:    return ["sky": palette.sky]
+        case .satoyama: return ["sky": palette.sky]
+        case .harbor:   return ["sky": palette.sky]
         }
     }
 }
@@ -411,7 +476,7 @@ public extension RunnerWorld {
         (RunnerWorld.allCases.firstIndex(of: self) ?? 0) + 1
     }
 
-    /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18。
+    /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30。
     var stageRange: ClosedRange<Int> {
         let first = (number - 1) * RunnerWorld.stagesPerWorld + 1
         return first...(first + RunnerWorld.stagesPerWorld - 1)
@@ -419,13 +484,13 @@ public extension RunnerWorld {
 
     /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
     ///
-    /// 範囲外（0 以下・19 以上）でも落ちないよう剰余で畳むだけなので、
+    /// 範囲外（0 以下・31 以上）でも落ちないよう剰余で畳むだけなので、
     /// 呼び出し側で番号の妥当性（`contains(stage:)`）を確かめてから使う。
     static func index(ofStage number: Int) -> Int {
         ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
     }
 
-    /// ワールドマップの短い表記「1-1」…「3-6」。
+    /// ワールドマップの短い表記「1-1」…「5-6」。
     ///
     /// 面に付けていた名前（「商店街のあさ」等）は #946 で外した（会長指示「ステージの名前は
     /// いらない。1-1 とか 3-1 とかだけでいい」）。画面・読み上げともこの表記だけを使う。
@@ -433,22 +498,24 @@ public extension RunnerWorld {
         "\(world(forStage: number).number)-\(index(ofStage: number))"
     }
 
-    /// ステージ番号（1 始まり）が 3 世界のどこかに収まるか（1…18）。
+    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…30）。
     static func contains(stage number: Int) -> Bool {
         number >= 1 && number <= stagesPerWorld * allCases.count
     }
 
     /// ワールドマップで世界を塗り分ける色（`0xRRGGBB`）。
     ///
-    /// 朝と夕方は空の色（`palette.sky`）そのまま。夜だけは空（0x2E4066）がダークモードの
+    /// 夜以外は空の色（`palette.sky`）そのまま。夜だけは空（0x2E4066）がダークモードの
     /// カード面（`Theme.surface` の暗色）に溶けて見えないので、同じ青紫の系統で明るめの値にする。
     /// **文字はこの色の上に載せない**（薄い色味の面・上端の帯・見出しの丸にだけ使う）ので、
     /// 文字とのコントラストは `Theme` の面と文字の組み合わせがそのまま効く。
     var mapColor: UInt32 {
         switch self {
-        case .morning: return palette.sky
-        case .evening: return palette.sky
-        case .night:   return 0x6B7FC2
+        case .morning:  return palette.sky
+        case .evening:  return palette.sky
+        case .night:    return 0x6B7FC2
+        case .satoyama: return palette.sky
+        case .harbor:   return palette.sky
         }
     }
 }

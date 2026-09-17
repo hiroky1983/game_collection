@@ -9,7 +9,7 @@ import Testing
 @Suite("走者以外のドット絵（#956）")
 struct RunnerPixelArtTests {
     /// ここに集めた絵をすべて走査する。絵を足したらこの表にも足す。犬・イノシシは色が世界ごと
-    /// （`RunnerPixelArt.creaturePalette`）なので 3 世界ぶん並べる。
+    /// （`RunnerPixelArt.creaturePalette`）なので全世界ぶん並べる。
     private static let sprites: [(name: String, sprite: PixelSprite)] =
         [("たこ焼き", RunnerPixelArt.takoyaki())] + RunnerWorld.allCases.flatMap { world in
             RunnerPixelArt.WalkFrame.allCases.flatMap { frame in
@@ -177,7 +177,7 @@ struct RunnerPixelArtTests {
 
     /// 世界ごとの色（#929）がそのまま絵に写る: 体の主色は `RunnerWorld.creatures` の値で、
     /// 縁取りは世界の `outline`。`WorldTests` が主色と背景の 3:1 を固定しているので、
-    /// この写しが正しければ 3 世界での見え方も保証される。
+    /// この写しが正しければ全世界での見え方も保証される。
     @Test("犬・イノシシの主色と縁取りは世界の Creatures をそのまま使う")
     func creaturePaletteMirrorsTheWorld() {
         for world in RunnerWorld.allCases {
