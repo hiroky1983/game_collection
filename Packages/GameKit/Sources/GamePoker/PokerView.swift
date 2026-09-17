@@ -622,6 +622,11 @@ public struct PokerView: View {
         "広告を見て\(PokerModel.reviveChips)枚で復活（1セッションに1回）"
     }
 
+    /// やり直しの文言。復活の枚数と並べて読めるように、こちらにも枚数を出す（#523・ブラックジャックと揃える）。
+    private var restartButtonTitle: String {
+        "もう一度はじめる (\(PokerModel.initialChips)枚)"
+    }
+
     /// セッション終了の見出し下の説明。**自分が負けた回だけ**、復活を使い切ったことを書き添える
     /// （#499・ブラックジャックの `sessionOverSubtitle` と揃える）。書かないとボタンが消えるだけになり、
     /// なぜ選べないのかが画面から読み取れない。
@@ -630,8 +635,9 @@ public struct PokerView: View {
         case .player: return "CPUのチップが尽きました"
         case .tie:    return "お互いのチップが尽きました"
         default:
+            // 復活のほうがチップは多い（#523）ぶん、順位表に載らないことも選ぶ前に読める場所へ書く。
             return model.canReviveAfterBust
-                ? "あなたのチップが尽きました"
+                ? "あなたのチップが尽きました。\(PokerModel.reviveChips)枚で復活すると順位表に載りません"
                 : "あなたのチップが尽きました。復活はこのセッションで使いました"
         }
     }
@@ -678,7 +684,9 @@ public struct PokerView: View {
                     // 文字列を先に組む（#484）。
                     Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
                         .themeBody(16).frame(maxWidth: .infinity)
-                        .minimumScaleFactor(0.8)
+                        // 0.8 では SE で末尾が切れる（#523。ブラックジャックの撮影で実測）。
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
@@ -691,7 +699,7 @@ public struct PokerView: View {
                 model.restartSession()
                 showStartSheet = true
             } label: {
-                Text("もう一度はじめる").themeBody(16).frame(maxWidth: .infinity)
+                Text(restartButtonTitle).themeBody(16).frame(maxWidth: .infinity)
                 .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
