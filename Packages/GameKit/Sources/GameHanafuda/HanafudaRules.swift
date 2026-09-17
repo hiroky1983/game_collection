@@ -1,22 +1,19 @@
 import Foundation
+import CoreEngine
 
 /// 種から決まる擬似乱数（SplitMix64）。配札とCPUの選択を再現可能にするために使う。
 ///
-/// 実装は囲碁の `GoRandom` と同じ式。共有せずに持つのは、`GameHanafuda` が `Core` 以外に
-/// 依存しない構成（`Package.swift` の方針）を崩さないため。
+/// 囲碁の `GoRandom` と同じく、種を前混合して CoreEngine の共通部品に渡す（#1074）。
+/// 花札は囲碁に依存しないので、前混合の 1 行だけをそれぞれが持つ。
 public struct HanafudaRandom: RandomNumberGenerator, Sendable {
-    private var state: UInt64
+    private var base: SplitMix64
 
     public init(seed: UInt64) {
-        self.state = seed &+ 0x9E37_79B9_7F4A_7C15
+        self.base = SplitMix64(seed: seed &+ SplitMix64.goldenGamma)
     }
 
     public mutating func next() -> UInt64 {
-        state = state &+ 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
+        base.next()
     }
 }
 

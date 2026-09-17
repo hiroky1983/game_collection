@@ -538,6 +538,9 @@ public struct RunnerView: View {
     }
 
     /// ミスからのやり直し。ステージ制は同じステージの頭から、エンドレスは新しいコースで。
+    ///
+    /// 広告のロード〜視聴中は押せない（#1068）。押すと `runGeneration` が進み、見終えた広告が
+    /// `resumeFromCheckpoint(forRun:)` の世代照合で弾かれて視聴が無駄になる（#816 / #911 と同型）。
     private var retryButton: some View {
         Button {
             model.retryStage()
@@ -547,6 +550,7 @@ public struct RunnerView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(Theme.Fill.coral)
+        .disabled(resumeRescue.isWatching)
     }
 
     // MARK: - スタート画面（#931 → #1027 でカードを縮小）
