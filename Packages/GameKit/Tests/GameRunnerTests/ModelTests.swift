@@ -608,7 +608,71 @@ struct RunnerStageSelectTests {
         #expect(RunnerSnapshot(stage: 5, bestSeconds: [], reachedStage: 9).validated()?.reachedStage == 9)
     }
 
-    @Test("最終面をクリアしても到達点は 18 のまま（19 にはならない）")
+    /// #1009 の受け入れ条件 F: **v1.1.5 で全 18 面をクリアした人は、30 面の版で 19 面を選べる**。
+    /// v1.1.5 の中断データの到達点は最終面の 18 で頭打ちなので、到達点だけでは足した面が開かない。
+    /// 記録（本編の `bestPoints` = クリアした面の番号）を根拠に次の面まで開ける。
+    @Test("v1.1.5 で 18 面をクリアしていた人は、中断データが 18 のままでも 19 面を選べる")
+    func clearedLastStageOfOlderVersionUnlocksTheNextStage() {
+        let store = MemorySnapshotStore()
+        store.inject(Data(#"{"stage":18,"bestSeconds":[],"reachedStage":18}"#.utf8), for: "runner")
+        let log = makePlayLog("cleared-18")
+        log.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 18))
+        let model = RunnerModel(services: makeServices(store: store, log: log),
+                                preference: makePreference("select-cleared-18"))
+        #expect(model.stageNumber == 18, "再開する面は中断データのまま")
+        #expect(model.reachedStage == 19)
+        #expect(model.isStageReached(19))
+        #expect(!model.isStageReached(20))
+
+        // 開けた到達点はその場で保存し直す（次に開いたときは中断データだけで 19 まで選べる）。
+        let saved = store.load(RunnerSnapshot.self, for: "runner")
+        #expect(saved?.reachedStage == 19)
+
+        // 対照: 18 面に着いただけでクリアしていない人（記録は 17 面まで）は 19 面を選べない。
+        let reachedOnly = MemorySnapshotStore()
+        reachedOnly.inject(Data(#"{"stage":18,"bestSeconds":[],"reachedStage":18}"#.utf8), for: "runner")
+        let log17 = makePlayLog("cleared-17")
+        log17.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 17))
+        let notYet = RunnerModel(services: makeServices(store: reachedOnly, log: log17),
+                                 preference: makePreference("select-cleared-17"))
+        #expect(notYet.reachedStage == 18)
+        #expect(!notYet.isStageReached(19))
+    }
+
+    /// 同じく F: **v1.1.4 の「全 15 面クリア」**（到達点の鍵が無く、ステージごとのタイムを持つ旧形式）も
+    /// 記録から次の面を開ける。エンドレスの記録（区分 `endless`）は面の番号ではないので根拠にしない。
+    @Test("v1.1.4 で全 15 面をクリアしていた人は 16 面を選べ、エンドレスの記録では開かない")
+    func clearedAllStagesOfV114UnlocksStageSixteen() {
+        let store = MemorySnapshotStore()
+        let times = Array(repeating: 20, count: 15).map(String.init).joined(separator: ",")
+        store.inject(Data(#"{"stage":15,"bestSeconds":[\#(times)]}"#.utf8), for: "runner")
+        let log = makePlayLog("cleared-15")
+        log.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 15))
+        let model = RunnerModel(services: makeServices(store: store, log: log),
+                                preference: makePreference("select-cleared-15"))
+        #expect(model.stageNumber == 15)
+        #expect(model.reachedStage == 16)
+        #expect(model.isStageReached(16))
+
+        let endlessOnly = makePlayLog("endless-only")
+        endlessOnly.recordResult(
+            gameID: RunnerModel.gameID, outcome: .loss,
+            score: GameScore(metric: .points, points: 5000, variant: RunnerMode.endless.recordVariant)
+        )
+        let fresh = RunnerModel(services: makeServices(log: endlessOnly), preference: makePreference("select-endless-only"))
+        #expect(fresh.reachedStage == 1, "エンドレスの走行距離で面は開かない")
+
+        // 記録の値から見た到達点の境界（無い・壊れた値は 1 面、最終面を超えない）。
+        #expect(RunnerModel.reachedStage(afterClearing: nil) == 1)
+        #expect(RunnerModel.reachedStage(afterClearing: 0) == 1)
+        #expect(RunnerModel.reachedStage(afterClearing: -3) == 1)
+        #expect(RunnerModel.reachedStage(afterClearing: 18) == 19)
+        #expect(RunnerModel.reachedStage(afterClearing: RunnerRules.stageCount) == RunnerRules.stageCount)
+        #expect(RunnerModel.reachedStage(afterClearing: 999) == RunnerRules.stageCount)
+        #expect(RunnerModel.reachedStage(afterClearing: Int.max) == RunnerRules.stageCount, "溢れて落ちない")
+    }
+
+    @Test("最終面をクリアしても到達点は最終面のまま（その次にはならない）")
     func reachedStageIsCappedAtLastStage() {
         let model = RunnerModel(startingAt: RunnerRules.stageCount, preference: makePreference("select-cap"))
         autoPlayCurrentStage(model)
@@ -1172,8 +1236,10 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.stageHeadline(number: 2) == "1-2")
         #expect(RunnerAccessibility.stageHeadline(number: 9) == "2-3")
         #expect(RunnerAccessibility.stageHeadline(number: 18) == "3-6")
-        #expect(RunnerAccessibility.stageHeadline(number: 0) == "ステージ 0", "3 世界に収まらない番号は「ステージ N」")
-        #expect(RunnerAccessibility.stageHeadline(number: 19) == "ステージ 19")
+        #expect(RunnerAccessibility.stageHeadline(number: 19) == "4-1")
+        #expect(RunnerAccessibility.stageHeadline(number: 30) == "5-6")
+        #expect(RunnerAccessibility.stageHeadline(number: 0) == "ステージ 0", "どの世界にも収まらない番号は「ステージ N」")
+        #expect(RunnerAccessibility.stageHeadline(number: 31) == "ステージ 31")
         #expect(RunnerAccessibility.startStageLabel(number: 2) == "1-2 から走る")
         #expect(RunnerAccessibility.startEndlessLabel(bestDistance: 1234) == "エンドレス、自己ベスト 1,234 メートル")
         #expect(RunnerAccessibility.startEndlessLabel(bestDistance: nil) == "エンドレス、まだ記録なし")

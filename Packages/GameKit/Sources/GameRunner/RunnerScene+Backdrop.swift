@@ -72,6 +72,8 @@ extension RunnerScene {
             case .townHouses: addTownHouses(to: tile)
             case .riverside:  addRiver(to: tile)
             case .cityLights: addCityLights(to: tile)
+            // 里山・港町（#1009）の遠景はまだ無い。丘だけで描き、飾りは絵の PR で足す。
+            case .satoyama, .harbor: break
             }
             tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
             hillLayer.addChild(tile)

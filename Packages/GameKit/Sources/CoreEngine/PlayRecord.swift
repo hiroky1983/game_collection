@@ -343,16 +343,17 @@ public enum RecordFormat {
     /// 文字列で持つ（`GameCenterLeaderboard.leaderboardID(gameID:variant:)` と同じ扱い）。
     static let runnerGameID = "runner"
     /// チャリンコおじさんのステージ数と、1 つの世界が受け持つ面数（`RunnerRules.stageCount` /
-    /// `RunnerWorld.stagesPerWorld` の写し）。食い違わないことは `GameRunnerTests` が突き合わせる。
-    static let runnerStageCount = 18
+    /// `RunnerWorld.stagesPerWorld` の写し。Core からは GameRunner を参照できないので値で持つ）。
+    /// 食い違わないことは `GameRunnerTests`（`RunnerHubLineTests`）が全面について突き合わせる。
+    static let runnerStageCount = 30
     static let runnerStagesPerWorld = 6
 
     /// チャリンコおじさんの本編の 1 行（#931）。
     ///
     /// 記録の `bestPoints` は**クリアした面の番号**（`RunnerModel.clearStage` が送る値。順位表
     /// `asobiba.runner.stage` と同じ）で、画面に出すのはその次＝到達した面「2-3 まで到達」。
-    /// 最終面をクリアしていれば「全 18 面クリア」。面の表記「世界-面」は
-    /// `RunnerWorld.code(forStage:)` と同じ割り方（6 面ずつ 3 世界）。
+    /// 最終面をクリアしていれば「全 N 面クリア」（N は `runnerStageCount`）。面の表記「世界-面」は
+    /// `RunnerWorld.code(forStage:)` と同じ割り方（`runnerStagesPerWorld` 面ずつ）。
     public static func runnerStageLine(clearedStage: Int) -> String {
         let cleared = max(0, clearedStage)
         guard cleared < runnerStageCount else { return "全 \(runnerStageCount) 面クリア" }

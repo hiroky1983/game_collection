@@ -44,7 +44,7 @@ final class RunnerScene: SKScene {
     /// これを貼るだけ（毎面 `CGImage` を起こさない）。
     let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")
     /// 犬・イノシシの歩きのコマのテクスチャ（#975）。色が世界ごと（`RunnerWorld.creatures`）なので
-    /// 3 世界 × 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
+    /// 全世界（#1009 で 5 つ）× 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
     /// 貼るだけ（毎面 `CGImage` を起こさない）。
     let dogTextures = RunnerScene.makeWalkTextures(name: "犬") { RunnerPixelArt.dog($0, colors: $1) }
     let boarTextures = RunnerScene.makeWalkTextures(name: "イノシシ") { RunnerPixelArt.boar($0, colors: $1) }
