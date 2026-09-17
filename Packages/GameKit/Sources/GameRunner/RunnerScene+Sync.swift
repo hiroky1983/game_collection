@@ -163,6 +163,19 @@ extension RunnerScene {
     /// `tumble`（自転車が横倒しで前へ投げ出された絵）に差し替えるので、ここで掛ける回転は
     /// **絵の中の転倒に上乗せする勢い**に留める（#701）。当たり判定・進行のタイミングは
     /// `RunnerModel` 側の `RunnerRules.fallDuration` が決めており、ここは見た目だけを作る。
+    /// その死因は「**下へ沈んで消える**」側か、「ぶつかって転げる」側か。
+    ///
+    /// 穴（`.pit`）と沈む床（`.sink`・#1089）が沈む側。**位置ではなく死因で見る**のが要点で、
+    /// 以前は `isPit(at: distance)` で分けていたため、溺れた走者は穴の上に居らず
+    /// 「岩に弾き返されて転げる」演出に落ちていた（PR #1110 の指摘）。溺れた相手に弾き返す物は無い。
+    /// ミスの原因が分からない（nil）ときは、当たった側の演出に倒す（その場に残るほうが安全）。
+    nonisolated static func sinksOutOfSight(cause: AnalyticsEndCause?) -> Bool {
+        switch cause {
+        case .pit, .sink:                  return true
+        case .rock, .bird, .animal, .none: return false
+        }
+    }
+
     private func playFallAnimation() {
         player.removeAllActions()
         let duration = RunnerRules.fallDuration
@@ -184,7 +197,7 @@ extension RunnerScene {
         let topple = SKAction.rotate(byAngle: -.pi * 0.35, duration: duration)
         topple.timingMode = .easeOut
 
-        if model.field.isPit(at: model.field.distance) {
+        if Self.sinksOutOfSight(cause: model.field.lastMissCause) {
             // 穴の奈落は `Metrics.groundY` の深さまである（`addPitVoid`）。以前の沈み幅
             // （-3.5）はその1割ほどしかなく、穴の底へ落ちる前に演出が終わって
             // 「穴の横で止まっている」ように見えていた。奈落の深さに合わせて沈める。

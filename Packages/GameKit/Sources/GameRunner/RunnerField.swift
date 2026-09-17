@@ -346,6 +346,11 @@ public struct RunnerField: Equatable, Sendable {
         if isGrounded { jumpStartDistance = distance }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
+        // 沈み（#1089）は「接地していなければ 0」が不変条件だが、**次の `advance` を待たずに
+        // ここで戻す**。描画（`RunnerScene.sync`）は `tick` と独立に毎フレーム走るので、
+        // 踏み切った直後に一時停止すると `advance` が呼ばれないまま、空中の走者が沈んだ位置で
+        // 描かれ続ける（PR #1110 の指摘）。
+        sinkProgress = 0
         jumpCount += 1
         isHolding = true
         holdElapsed = 0

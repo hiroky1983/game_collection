@@ -158,6 +158,35 @@ struct RunnerSinkFloorTests {
         #expect(field.sinkDepth == 0)
     }
 
+    /// **踏み切ったその場で** 0 に戻る（次の `advance` を待たない）。描画は `tick` と独立に
+    /// 毎フレーム走るので、跳んだ直後に一時停止すると空中の走者が沈んだまま描かれてしまう
+    /// （PR #1110 の指摘）。
+    @Test("跳んだ瞬間に沈みが 0 になる（1 サブステップも待たない）")
+    func jumpResetsTheSinkImmediately() {
+        let stage = RunnerStage(number: 1, pattern: "--~~----", speed: 50)
+        var field = RunnerField(stage: stage)
+        while field.distance < stage.sinkFloors[0].start + 4 { _ = field.step(dt: 1.0 / 60) }
+        for _ in 0..<12 { _ = field.step(dt: 1.0 / 60) }
+        #expect(field.sinkProgress > 0, "床の上で沈みが溜まらない")
+        // `#expect` の中では mutating を呼べない（`$0 is immutable`）ので let に分ける。
+        let jumped = field.jump()
+        #expect(jumped)
+        #expect(field.sinkProgress == 0, "踏み切った時点で沈みが残っている")
+        #expect(field.sinkDepth == 0)
+    }
+
+    /// 溺れたときの演出は**穴に落ちたときと同じ「沈んで消える」**（#1089）。
+    /// 位置で分けると、溺れた走者は穴の上に居ないので「岩に弾き返されて転げる」側に落ちる。
+    @Test("落下演出は死因で分け、穴と沈む床だけが沈んで消える")
+    func drowningUsesTheFallAnimation() {
+        #expect(RunnerScene.sinksOutOfSight(cause: .sink))
+        #expect(RunnerScene.sinksOutOfSight(cause: .pit))
+        for cause in [AnalyticsEndCause.rock, .bird, .animal] {
+            #expect(!RunnerScene.sinksOutOfSight(cause: cause), "\(cause)")
+        }
+        #expect(!RunnerScene.sinksOutOfSight(cause: nil))
+    }
+
     @Test("床を出ると沈みは 0 に戻る")
     func leavingTheFloorResetsTheSink() {
         let stage = RunnerStage(number: 1, pattern: "--~-----", speed: 50)
