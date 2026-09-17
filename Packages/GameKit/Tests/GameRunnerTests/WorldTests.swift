@@ -368,23 +368,25 @@ struct RunnerWorldTests {
         for world in [RunnerWorld.morning, .evening, .night] {
             #expect(world.dressing == RunnerWorld.originalDressing, "\(world)")
         }
+        // 突き上げ（#1010）は 19 面以降にしか出ないので、1〜18 面の `shoot` は使われない
+        // （QA 用ショーケースが夜の世界で走るので竹の子を入れてある）。
         #expect(RunnerWorld.originalDressing == D(
             pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .scaffold, boostFloor: .boostBand
+            platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot
         ))
         #expect(RunnerWorld.satoyama.dressing == D(
             pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .strawStack, boostFloor: .pavedFarmRoad
+            platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot
         ))
         #expect(RunnerWorld.harbor.dressing == D(
             pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
-            platform: .crateStack, boostFloor: .conveyor
+            platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray
         ))
-        // 岩の枠の引き方。岩でない種類は nil。
+        // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
         #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
         #expect(RunnerWorld.satoyama.dressing.block(for: .tallBlock) == .boulder)
-        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar] {
+        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar, .shoot] {
             #expect(RunnerWorld.harbor.dressing.block(for: kind) == nil, "\(kind)")
         }
     }
@@ -406,6 +408,12 @@ struct RunnerWorldTests {
             (.harbor, "木箱", P.crateWood, RunnerWorld.harbor.outline),
             (.harbor, "木箱の上面", P.crateTop, RunnerWorld.harbor.outline),
             (.harbor, "防舷材", P.fender, RunnerPalette.pitEdge),
+            // 突き上げ（#1010）。竹の子の主色は皮の生成り `T`、波しぶきは泡の水色 `C`。
+            // 予告（土の塚 `S` / 泡 `C`）も同じ物差しで見る。
+            (.satoyama, "竹の子", art["T"]!, RunnerPixelArt.outline),
+            (.satoyama, "土の盛り上がり", art["S"]!, RunnerPixelArt.outline),
+            (.harbor, "波しぶき", art["C"]!, RunnerPixelArt.outline),
+            (.harbor, "泡", art["C"]!, RunnerPixelArt.outline),
         ]
         for item in items {
             for (name, backdrop) in item.0.groundBackdrops {

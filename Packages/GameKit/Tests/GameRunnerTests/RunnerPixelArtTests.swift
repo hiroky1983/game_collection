@@ -17,6 +17,11 @@ struct RunnerPixelArtTests {
             ("切り株", RunnerPixelArt.stump()),
             ("ロープの束", RunnerPixelArt.ropeCoil()),
             ("ドラム缶", RunnerPixelArt.drum()),
+            // 突き上げ（#1010）。色は世界によらず、着せ替え（竹の子・波しぶき）で絵ごと替わる。
+            ("竹の子", RunnerPixelArt.shoot(world: .satoyama)),
+            ("波しぶき", RunnerPixelArt.shoot(world: .harbor)),
+            ("土の盛り上がり", RunnerPixelArt.shootCue(world: .satoyama)),
+            ("泡", RunnerPixelArt.shootCue(world: .harbor)),
         ] + RunnerWorld.allCases.flatMap { world in
             RunnerPixelArt.WalkFrame.allCases.flatMap { frame in
                 [
@@ -303,5 +308,53 @@ struct RunnerPixelArtTests {
             let b = try #require(sprite.opaqueBounds)
             #expect(b.x == 0 && b.y == 0 && b.width == sprite.width && b.height == sprite.height, "\(name) の余白: \(b)")
         }
+    }
+
+    // MARK: 突き上げ（#1010）
+
+    /// 突き上げ（竹の子・波しぶき）も**当たり判定の箱いっぱい**（4×9 = 高い岩と同じ）に貼るので、
+    /// 格子の縦横比が箱と同じで余白が無いこと。予告（土の塚・泡）は 2 つの世界で**同じ格子**
+    /// （動きと置き方を 1 つにしてあることの裏取り）。
+    @Test("竹の子・波しぶきは 4:9 の格子で余白が無く、予告は 2 世界で同じ格子")
+    func shootsFitTheTallHitBox() throws {
+        let height = RunnerHazardKind.shoot.height
+        for (name, sprite) in [
+            ("竹の子", RunnerPixelArt.shoot(world: .satoyama)),
+            ("波しぶき", RunnerPixelArt.shoot(world: .harbor)),
+        ] {
+            #expect(
+                Double(sprite.width) * height == Double(sprite.height) * RunnerRules.tileWidth,
+                "\(name): \(sprite.width)×\(sprite.height) は 4×\(height) の比でない"
+            )
+            #expect(sprite.width >= 12, "\(name): 1 ドットが走者より大きい")
+            let b = try #require(sprite.opaqueBounds)
+            #expect(b.x == 0 && b.y == 0 && b.width == sprite.width && b.height == sprite.height, "\(name) の余白: \(b)")
+        }
+        let mound = RunnerPixelArt.shootCue(world: .satoyama)
+        let foam = RunnerPixelArt.shootCue(world: .harbor)
+        #expect(mound.width == foam.width && mound.height == foam.height, "予告の格子が世界で違う")
+        #expect(mound.width == RunnerPixelArt.shoot(world: .satoyama).width, "予告と本体の幅が違う")
+        // 予告は地面に置く低い塚（本体の 1/3 以下の高さ）。
+        #expect(mound.height * 3 <= RunnerPixelArt.shoot(world: .satoyama).height, "予告が高すぎる: \(mound.height)")
+    }
+
+    /// 突き上げは**切り株（低い岩）と明確に見分けられる**こと（#1010 の受け入れ条件）:
+    /// 竹の子は切り株の 1.5 倍以上の高さ（箱が 4×9 対 4×5）で、主色が切り株の樹皮と 2:1 以上離れ、
+    /// **穂先に切り株には無い緑がある**。
+    @Test("竹の子は切り株より高く、主色が離れていて、穂先が緑")
+    func bambooShootLooksNothingLikeAStump() {
+        let art = RunnerPixelArt.palette
+        let shoot = RunnerPixelArt.shoot(world: .satoyama)
+        let stump = RunnerPixelArt.stump()
+        #expect(
+            Double(RunnerHazardKind.shoot.height) >= Double(RunnerHazardKind.lowBlock.height) * 1.5,
+            "竹の子の箱が切り株の 1.5 倍に届かない"
+        )
+        #expect(WCAG.contrast(art["T"]!, art["S"]!) >= 2.0, "竹の子の皮と切り株の樹皮が同じ明るさ")
+        // 穂先（上から 1/3）に緑のドットがあり、切り株の同じ帯には無い。
+        let tipRows = shoot.rows.prefix(shoot.height / 3).joined()
+        #expect(tipRows.contains("a") || tipRows.contains("A"), "穂先に緑が無い")
+        let stumpTop = stump.rows.prefix(stump.height / 3).joined()
+        #expect(!stumpTop.contains("a"), "切り株の上に濃い緑がある（見分けが付かない）")
     }
 }

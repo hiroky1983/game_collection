@@ -65,6 +65,55 @@ struct RunnerWorldSceneTests {
         #expect(model.phase.isRunning, "\(number) 面で 10 秒以内にミスした")
     }
 
+    /// 突き上げ（#1010）の描画経路。**絵の位置が当たり判定の上端から出ている**ことを、
+    /// 実際に走らせて `sync` した結果で確かめる——ここがずれると「見えている高さと当たる高さが
+    /// 違う」という理不尽な当たりになる。予告の揺れは伸び切ったら止める（`.stopped`）。
+    @Test("19 面の突き上げは本数ぶん組まれ、絵が当たり判定の伸びた高さに追従する")
+    func shootsFollowTheHitBox() throws {
+        let (model, scene) = makeScene(stage: 19, suite: "shoot")
+        let stage = model.field.stage
+        let shoots = stage.hazards.filter { $0.kind == .shoot }
+        #expect(shoots.count == 3, "19 面の突き上げが \(shoots.count) 本（空振り防止）")
+        let views = scene.movingHazards.filter { $0.hazard.kind == .shoot }
+        #expect(views.count == shoots.count, "突き上げのノードが本数ぶん無い")
+        // 貼られている絵は、その世界の着せ替え（里山＝竹の子）。
+        let expected = try #require(scene.shootTextures[.bambooShoot])
+        for view in views {
+            #expect(spriteCount(in: view.node, texture: expected) == 1, "竹の子の絵が貼られていない")
+            #expect(view.riserHeight == RunnerHazardKind.shootTop)
+        }
+
+        // 伸びかけ・伸び切りの両方で、絵の底が「伸びた高さ − 箱の高さ」に置かれている。
+        //
+        // **走者を直接置いて反映する**（`placeForTesting` + `syncMovingHazard`）。自動操縦で
+        // 区画 8 まで走らせても同じ経路を通るが、700 フレームぶんの `tick` + `sync` はこの
+        // スイートだけで 20 秒以上増える（CI を延ばさない・#1039）。走らせて落ちないことは
+        // 同じ 19 面を 10 秒走る `dressedStagesBuild` が見ている。
+        let target = try #require(views.first)
+        let full = RunnerHazardKind.shootTop
+        var field = RunnerField(stage: stage)
+        var rising = 0, risen = 0, worstOffset = 0.0
+        var shownBeforeCue = false, hiddenAfterCue = false, wrongState = 0
+        for step in stride(from: -8.0, through: RunnerRules.shootRiseDistance + 8, by: 1.0) {
+            field.placeForTesting(distance: target.hazard.shootCueDistance + step, altitude: 0, vy: 0)
+            scene.syncMovingHazard(target, field: field)
+            guard let frame = target.hazard.frame(atRunnerDistance: field.distance) else {
+                if !target.node.isHidden { shownBeforeCue = true }
+                continue
+            }
+            if target.node.isHidden { hiddenAfterCue = true }
+            worstOffset = max(worstOffset, abs(Double(target.riser?.position.y ?? 0) - (frame.top - full)))
+            if target.state != (frame.top < full ? .moving : .stopped) { wrongState += 1 }
+            if frame.top < full { rising += 1 } else { risen += 1 }
+        }
+        #expect(!shownBeforeCue, "予告の前なのに絵が見えている")
+        #expect(!hiddenAfterCue, "予告の後なのに絵が隠れている")
+        #expect(wrongState == 0, "予告の揺れの止め方が \(wrongState) 地点で違う")
+        // SpriteKit は `position` を単精度で持つので、丸めのぶん（この大きさでは 1e-6 以下）を見込む。
+        #expect(worstOffset < 1e-4, "絵の位置と当たり判定の上端のずれが最大 \(worstOffset)")
+        #expect(rising > 10 && risen > 5, "伸びかけ \(rising) / 伸び切り \(risen) 地点しか見ていない")
+    }
+
     @Test("1 面（朝）では着せ替えのテクスチャは 1 枚も貼られず、岩は元の岩塊のまま")
     func originalWorldsUseTheOriginalParts() {
         let (model, scene) = makeScene(stage: 1, suite: "morning")

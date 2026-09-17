@@ -31,6 +31,11 @@ enum RunnerPixelArt {
         "N": 0x2A5480,
         "n": 0x1B3A5C,
         "L": 0x5A86B4,
+        // 突き上げ（#1010）。竹の子は穂先の濃い緑 `a` と既にある苔の緑 `A`、皮は `T`（淡い生成り・
+        // 主色）と `H`/`h`（皮の重なりの線）、斑点は `s`。波しぶきは泡の淡い水色 `C` と白 `M`、
+        // 水柱の陰は `L`/`N`（ドラム缶と同じ青の階調）。
+        "a": 0x27663A,
+        "C": 0xBFE4F2,
     ]
 
     /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
@@ -190,6 +195,24 @@ enum RunnerPixelArt {
 
     /// ドラム缶（`RunnerWorld.Dressing.Block.drum`）。
     static func drum() -> PixelSprite { PixelSprite(rows: drumRows, palette: palette) }
+
+    // MARK: 突き上げ（`RunnerHazardKind.shoot`・#1010）
+
+    /// 伸び切った突き上げ（世界の着せ替えで竹の子か波しぶき）。
+    static func shoot(world: RunnerWorld) -> PixelSprite {
+        switch world.dressing.shoot {
+        case .bambooShoot: return PixelSprite(rows: bambooShootRows, palette: palette)
+        case .seaSpray:    return PixelSprite(rows: seaSprayRows, palette: palette)
+        }
+    }
+
+    /// 突き上げの予告（土が盛り上がる／泡が立つ）。
+    static func shootCue(world: RunnerWorld) -> PixelSprite {
+        switch world.dressing.shoot {
+        case .bambooShoot: return PixelSprite(rows: soilMoundRows, palette: palette)
+        case .seaSpray:    return PixelSprite(rows: foamRows, palette: palette)
+        }
+    }
 
     /// 歩きのコマを、**自分が進んだ距離**（ワールド単位・0 以上）から選ぶ。`stride` ごとに
     /// `walk0` / `walk1` を入れ替える（走者の `RunnerRider.pedalFrame` と同じ作法。位相ではなく
@@ -473,6 +496,101 @@ enum RunnerPixelArt {
         "KLLNNNNNNnnK",
         "KLLNNNNNNnnK",
         "KnnnnnnnnnnK",
+        "KKKKKKKKKKKK",
+    ]
+
+    // MARK: 突き上げの絵（#1010）
+
+    /// 竹の子（里山の突き上げ）。当たり判定は高い岩と同じ 4×9 なので格子は 12×27
+    /// （`RunnerPixelArtTests.shootsFitTheTallHitBox` が縦横比と余白なしを固定）。
+    ///
+    /// **切り株（低い岩）と明確に見分けられる形と色**（決裁）にしてある: 切り株は 4×5 の
+    /// 平たい円筒で側面が濃い樹皮（`S`）だが、竹の子は**高さが 2 倍近い円錐**で、主色は
+    /// 淡い生成りの皮（`T`）、穂先だけ濃い緑（`a`/`A`）。皮の重なりを `H`/`h` の山形の線で
+    /// 3 段入れ、斑点（`s`）を散らしてある。
+    static let bambooShootRows: [String] = [
+        ".....KK.....",
+        ".....KK.....",
+        "....KaaK....",
+        "....KaaK....",
+        "....KaaK....",
+        "...KaaaaK...",
+        "...KaAAaK...",
+        "...KAAAAK...",
+        "..KaAAAAaK..",
+        "..KAAAAAAK..",
+        "..KAAAAAAK..",
+        "..KhTTTThK..",
+        ".KThHTTHhTK.",
+        ".KTTHTTHTTK.",
+        ".KTTTTTTTTK.",
+        ".KhTTTTTThK.",
+        "KTThHTTHhTTK",
+        "KTTTHTTHTTTK",
+        "KTTTTTTTTTTK",
+        "KTTsTTTTsTTK",
+        "KhTTTTTTTThK",
+        "KTThHTTHhTTK",
+        "KTTTHTTHTTTK",
+        "KTTTTTTTTTTK",
+        "KTTsTTTTTsTK",
+        "KhTTTTTTTThK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 波しぶき（港町の突き上げ）。竹の子とまったく同じ格子・同じシルエットで、色だけが水
+    /// ——泡の淡い水色（`C`・主色）に白い泡（`M`）、右側が水柱の陰（`L`/`N`）。
+    /// **動きと当たり判定は竹の子と 1 つ**（`RunnerHazardKind.shoot`）で、替わるのは絵だけ。
+    static let seaSprayRows: [String] = [
+        ".....KK.....",
+        ".....KK.....",
+        "....KMMK....",
+        "....KMMK....",
+        "....KMCK....",
+        "...KMMCCK...",
+        "...KMCCCK...",
+        "...KCCCCK...",
+        "..KMCCCCLK..",
+        "..KCCCCCLK..",
+        "..KCCCCCLK..",
+        "..KMCCCCLK..",
+        ".KMCCCCCCLK.",
+        ".KCCMCCCCLK.",
+        ".KCCCMCCLLK.",
+        ".KMCCCCCLLK.",
+        "KMCCCCCCCLLK",
+        "KCCMCCCCCLLK",
+        "KCCCMCCCLLNK",
+        "KMCCCCCCLLNK",
+        "KCCCMCCCLLNK",
+        "KCCCCMCCLLNK",
+        "KMCCCCCCLLNK",
+        "KCCCMCCCLLNK",
+        "KCCCCCCCLLNK",
+        "KMCCCCCLLNNK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 予告（里山）: 土が盛り上がる。地面に置く低い塚で、12×7 ドット（`shootCueVisualScale` 倍に
+    /// 広げて貼るので画面では当たり判定より横に張り出す——読ませたい予告なので大きく出す）。
+    static let soilMoundRows: [String] = [
+        ".....KK.....",
+        "...KKSSKK...",
+        "..KSSsSSSK..",
+        ".KSSsSSsSSK.",
+        "KSSsSSSSsSSK",
+        "KSSSsSSSSSSK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 予告（港町）: 岸壁の縁に泡が立つ。塚とまったく同じ格子で、色だけが泡。
+    static let foamRows: [String] = [
+        ".....KK.....",
+        "...KKCCKK...",
+        "..KCCMCCCK..",
+        ".KCCMCCMCCK.",
+        "KCCMCCCCMCCK",
+        "KCCCMCCCCCCK",
         "KKKKKKKKKKKK",
     ]
 }

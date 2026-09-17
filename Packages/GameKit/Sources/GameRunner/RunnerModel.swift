@@ -759,6 +759,31 @@ public final class RunnerModel {
                 return field.isGrounded && frame.start - field.distance < 40
             })
             isFrozenForCapture = true
+        case "shoot":
+            // 突き上げ（#1010）が伸びかけている瞬間（予告の塚から穂先が出たところ）。
+            // ショーケースの `^` を使い、伸びた高さが箱の 3〜7 割のあいだで止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard let shoot = field.stage.hazards.first(where: { $0.kind == .shoot }) else { return true }
+                let rise = shoot.shootRise(atRunnerDistance: field.distance)
+                return rise >= RunnerHazardKind.shootTop * 0.3 && rise <= RunnerHazardKind.shootTop * 0.7
+            })
+            isFrozenForCapture = true
+        case "shoot-up":
+            // 伸び切った突き上げに走者が近づいている瞬間（#1010 の受け入れ条件「伸び切った高さは
+            // 高い岩と同じ」の画）。踏み切る前——接地したまま、間合いが 20 を切ったところで止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard let shoot = field.stage.hazards.first(where: { $0.kind == .shoot }),
+                      let frame = shoot.frame(atRunnerDistance: field.distance) else { return false }
+                return field.isGrounded && frame.top >= RunnerHazardKind.shootTop
+                    && frame.start - field.distance < 20
+            })
+            isFrozenForCapture = true
         case "platform":
             // 台座の上を走っている瞬間で止める（#674 の受け入れ条件「台座の上を走っている瞬間」の画）。
             // 本番では台座は 16 面以降にしか出ないので、ショーケースの台座を使う。端から 8 単位

@@ -191,6 +191,125 @@ struct RunnerStageTests {
         }
     }
 
+    // MARK: 突き上げの置き方（#1010）
+
+    /// 突き上げ（`^`）は**里山・港町（19 面以降）にだけ**置く。1〜18 面は公開済みの物差しを
+    /// 変えないための決裁（#1009「1〜18 面は変えない」）で、エンドレスの生成器にも教えていない
+    /// （`RunnerEndlessCourse.parts` に居ないことは `EndlessCourseTests` 側で担保される）。
+    @Test("突き上げは 19 面以降にだけ置かれていて、里山・港町の各世界に必ずある")
+    func shootsOnlyAppearInTheNewWorlds() {
+        for stage in RunnerStage.all.prefix(18) {
+            #expect(!stage.pattern.contains("^"), "ステージ \(stage.number) に突き上げがある: \(stage.pattern)")
+        }
+        for (world, range) in [(RunnerWorld.satoyama, 19...24), (.harbor, 25...30)] {
+            let count = RunnerStage.all
+                .filter { range.contains($0.number) }
+                .reduce(0) { $0 + $1.hazards.filter { $0.kind == .shoot }.count }
+            #expect(count >= 2, "\(world) に突き上げが \(count) 個しかない")
+        }
+        // 決裁の表の個数（里山 19 本・港町 10 本）。置き換えたらここも直す。
+        let total = RunnerStage.all.flatMap(\.hazards).filter { $0.kind == .shoot }.count
+        #expect(total == 29, "突き上げの総数が \(total) 個（決裁の表は 29 本）")
+    }
+
+    /// **新しい仕組みは初めて出す面で前後を平地にして単独で見せる**（#1009 C2）。
+    /// 竹の子は 19 面、波しぶきは 26 面が初出で、その最初の 1 本の前後の区画は素の平地。
+    @Test("突き上げの初出（19 面・26 面）の 1 本目は前後が素の平地")
+    func firstShootOfEachWorldStandsAlone() {
+        for number in [19, 26] {
+            let pattern = Array(RunnerStage.all[number - 1].pattern)
+            guard let index = pattern.firstIndex(of: "^") else {
+                Issue.record("ステージ \(number) に突き上げが無い")
+                continue
+            }
+            #expect(index > 0 && pattern[index - 1] == "-", "ステージ \(number): 1 本目の手前が平地でない")
+            #expect(
+                index + 1 < pattern.count && pattern[index + 1] == "-",
+                "ステージ \(number): 1 本目の直後が平地でない"
+            )
+        }
+    }
+
+    /// **#1009 の「入れない組み合わせ」の 1 つ目**: 鳥のすぐ隣に突き上げを置かない。
+    ///
+    /// 鳥は「跳ぶと当たる」（帯が頭の上を飛ぶので走ったまま下を抜ける相手）、突き上げは
+    /// 「高く跳ばないと当たる」相手なので、**両方が同時に要求される区間**ができると
+    /// どう操作してもミスになる。
+    ///
+    /// **実測すると、その「両方が要求される区間」は 1 区画（64）より短い。** いちばん厳しい
+    /// 30 面（速さ 57.2）で、突き上げを越える滞空は踏み切り `start − 15.2` から `+42.9` まで
+    /// ——隣の区画に置いた鳥のくぐる区間（区画中央 + 6 から長さ 7）までなお 38 以上余る。
+    /// つまり**「区画の中央に 1 つだけ置く」という元々の規則だけで、決裁の禁止事項は物理的には
+    /// 満たされている**。それでも隣に置かないのは読みやすさの決裁なので、ここでは
+    ///
+    /// - **字面のとおり**「鳥の隣の区画に突き上げが無い」（今の並びは最短でも 2 区画離れている）
+    /// - **物理のとおり**「滞空が鳥のくぐる区間と重ならず、余裕が 1 タイル以上ある」
+    ///   （速さ・伸びの定数を触った日にここが効く）
+    ///
+    /// の両方を固定する。
+    @Test("突き上げは鳥の隣の区画に置かず、越える滞空も鳥のくぐる区間と重ならない")
+    func shootsAreNeverAdjacentToBirds() {
+        let half = RunnerField.Metrics.playerHalfWidth
+        var tightest = Double.infinity
+        var checked = 0
+        for stage in RunnerStage.all {
+            let symbols = Array(stage.pattern)
+            for (index, symbol) in symbols.enumerated() where symbol == "^" {
+                for neighbour in [index - 1, index + 1] where symbols.indices.contains(neighbour) {
+                    #expect(symbols[neighbour] != "b", "ステージ \(stage.number): 区画 \(index) の突き上げが鳥の隣")
+                }
+            }
+            let shoots = stage.hazards.filter { $0.kind == .shoot }
+            let birds = stage.hazards.filter { $0.kind == .bird }
+            guard !shoots.isEmpty, !birds.isEmpty else { continue }
+            for shoot in shoots {
+                // 突き上げは高い岩と同じ全弾道で越える（タップでは越えられない高さ）。
+                let takeOff = shoot.start - RunnerAutoPilot.lead(for: shoot, speed: stage.speed)
+                let landing = takeOff + stage.speed * RunnerRules.jumpAirTime
+                for bird in birds {
+                    checked += 1
+                    let mustRun = (bird.encounter.start - half)...(bird.encounter.end + half)
+                    let clearance = landing < mustRun.lowerBound
+                        ? mustRun.lowerBound - landing
+                        : takeOff - mustRun.upperBound
+                    #expect(
+                        clearance > RunnerRules.tileWidth,
+                        """
+                        ステージ \(stage.number): 突き上げ（\(shoot.start)）の滞空 \
+                        \(takeOff)〜\(landing) と鳥（\(bird.start)）のくぐる区間 \(mustRun) の余裕が \(clearance)
+                        """
+                    )
+                    tightest = min(tightest, clearance)
+                }
+            }
+        }
+        #expect(checked > 0, "突き上げと鳥が同じ面に無い（この検査が空振りしている）")
+        #expect(tightest.isFinite && tightest > RunnerRules.tileWidth, "いちばん厳しい余裕が \(tightest)")
+    }
+
+    /// 突き上げの手前の区画にイノシシを置かないこと（#1009 の「入れない組み合わせ」）。
+    ///
+    /// イノシシは出現点（`boarSpawn` = 出会いの 18 タイル先）までの**岩**で止まる
+    /// （`RunnerStage.boarStop`）が、突き上げはイノシシが通り抜ける時点でまだ地面の中なので
+    /// 止める物にならない。「岩の手前に置くと岩で止まる」という読みが崩れる並びなので置かない。
+    @Test("突き上げの手前の区画にイノシシが無い")
+    func noBoarRightBeforeAShoot() {
+        for stage in RunnerStage.all {
+            let pattern = Array(stage.pattern)
+            for (index, symbol) in pattern.enumerated() where symbol == "^" && index > 0 {
+                #expect(pattern[index - 1] != "i", "ステージ \(stage.number): 区画 \(index) の突き上げの手前がイノシシ")
+            }
+        }
+        // 置いた突き上げが、どのイノシシの「止まる岩」にも選ばれていないこと（実装側の裏取り）。
+        for stage in RunnerStage.all {
+            let shootEnds = Set(stage.hazards.filter { $0.kind == .shoot }.map(\.end))
+            for boar in stage.hazards where boar.kind == .boar {
+                guard let stopAt = boar.stopAt else { continue }
+                #expect(!shootEnds.contains(stopAt), "ステージ \(stage.number): イノシシが突き上げで止まっている")
+            }
+        }
+    }
+
     /// 1 面に穴以外の障害があること（#967 会長 QA「最初のステージが落とし穴しかない」）。
     /// 低い障害物の初出は 2 面から 1 面へ前倒し。
     @Test("1 面は穴だけではなく、低い障害物が 1 つある")
@@ -277,7 +396,8 @@ struct RunnerStageTests {
                         range > needed + RunnerRules.tileWidth,
                         "ステージ \(stage.number) の穴（長さ \(hazard.length)）が跳び越せない"
                     )
-                case .lowBlock, .tallBlock, .bird, .dog, .boar:
+                case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot:
+                    // 突き上げ（#1010）は走者が着く前に伸び切っているので、高い岩とまったく同じ式。
                     // 当たり判定が重なるあいだ、ずっと上端より上にいられること。
                     let window = RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance)
                     let overlap = (encounter.length + halfWidth * 2) / stage.speed
@@ -874,11 +994,15 @@ struct RunnerPlaythroughTests {
     /// `encounter` から取る。動く相手でも、踏み切ってからの弾道は同じ）。
     /// 飛び立つ鳥（#796/#945）は跳んで越える相手ではなく**走ったまま下を抜ける**相手なので対象外
     /// ——`runningUnderClearsBirds` / `birdsPunishJumpingOnArrival` が別に固定する。
+    /// 突き上げ（#1010）は伸び切った高さが高い岩と同じなので、高い岩と同じ理由で対象外
+    /// ——**「予告を読んで高く跳ぶ」を求める仕組み**そのもので、瞬間タップで越えられては困る
+    /// （越えられることは `RunnerHazardMotionTests.shootsAreClearedByJumpingHigh` が全弾道で固定する）。
     @Test("瞬間タップでも、穴と低い障害物（犬・イノシシを含む）はすべて越えられる")
     func instantTapClearsPitsAndLowBlocks() {
         for stage in RunnerStage.all {
             for hazard in stage.hazards
-            where hazard.kind != .tallBlock && hazard.kind != .bird && !(hazard.kind == .boar && hazard.stopAt != nil) {
+            where hazard.kind != .tallBlock && hazard.kind != .bird && hazard.kind != .shoot
+                && !(hazard.kind == .boar && hazard.stopAt != nil) {
                 var field = RunnerField(stage: stage)
                 // 踏み切り位置へ直接置く。**測っているのは「踏み切ってからの弾道だけ」**で、
                 // そこまでどう走ってきたかは問いに含まれない——コースの頭から走らせる書き方は
@@ -1262,7 +1386,8 @@ struct RunnerPlaythroughTests {
             // 早すぎると向こう岸に届かず穴へ落ちる。遅すぎると縁で踏み切れない。
             earliest = hazard.end - range + RunnerRules.tileWidth / 2
             latest = hazard.start - half
-        case .lowBlock, .tallBlock:
+        case .lowBlock, .tallBlock, .shoot:
+            // 突き上げ（#1010）は走者が着く前に伸び切っているので、置いた位置の高い岩と同じ計算。
             // 上端を越える高さに上がりきってから当たり判定へ入り、抜け切るまで落ちないこと。
             let rise = tap ? Self.tapRiseTime(to: clearHeight) : RunnerRules.riseTime(to: clearHeight)
             let above = tap ? Self.tapTime(above: clearHeight) : RunnerRules.airTime(above: clearHeight)
@@ -1300,7 +1425,7 @@ struct RunnerPlaythroughTests {
                 var plan = (x: target.start - target.lead, tap: false)
                 if field.altitude == 0,
                    let hazard = field.nextHazard(from: field.playerMaxX),
-                   hazard.kind == .pit || hazard.kind.isRock,
+                   hazard.kind == .pit || hazard.kind.isRock || hazard.kind == .shoot,
                    abs(hazard.start - target.start) < 1e-9 {
                     plan = justLandingTakeOff(
                         for: hazard,

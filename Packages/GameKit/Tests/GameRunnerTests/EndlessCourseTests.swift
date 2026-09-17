@@ -400,6 +400,10 @@ struct RunnerEndlessCourseTests {
                     speed * Self.tapAirTime > hazard.length + halfWidth + RunnerRules.tileWidth,
                     "種 \(seed): \(hazard.start) の穴（\(hazard.length)）を瞬間タップで渡れない（速さ \(speed)）"
                 )
+            case .shoot:
+                // 突き上げ（#1010）は生成器に教えていない（決裁「生成器に教えるのは別の版」）。
+                // 出てきたら生成の不具合なので、ここで落とす。
+                check(false, "種 \(seed): エンドレスに突き上げが出た（\(hazard.start)）")
             case .lowBlock, .tallBlock, .bird, .dog, .boar:
                 let overlap = (encounter.length + halfWidth * 2) / speed
                 check(

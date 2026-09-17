@@ -56,6 +56,18 @@ final class RunnerScene: SKScene {
         .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),
         .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),
     ]
+    /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
+    /// 着せ替えは 2 種類しかないので、両方とも起動時に 1 枚ずつ作って世界で引く
+    /// （面ごとの `addShoot` は貼るだけ。`RunnerWorld.Dressing.Shoot` は世界から決まるので
+    /// `RunnerPixelArt.shoot(world:)` の結果は 2 通りしか無い）。
+    let shootTextures: [RunnerWorld.Dressing.Shoot: SKTexture] = [
+        .bambooShoot: RunnerScene.makeTexture(RunnerPixelArt.shoot(world: .satoyama), name: "竹の子"),
+        .seaSpray: RunnerScene.makeTexture(RunnerPixelArt.shoot(world: .harbor), name: "波しぶき"),
+    ]
+    let shootCueTextures: [RunnerWorld.Dressing.Shoot: SKTexture] = [
+        .bambooShoot: RunnerScene.makeTexture(RunnerPixelArt.shootCue(world: .satoyama), name: "土の盛り上がり"),
+        .seaSpray: RunnerScene.makeTexture(RunnerPixelArt.shootCue(world: .harbor), name: "泡"),
+    ]
     /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
     private var renderedRiderFrame: OjisanPixel.RiderFrame?
     /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが
