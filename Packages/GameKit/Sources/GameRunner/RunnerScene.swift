@@ -43,11 +43,19 @@ final class RunnerScene: SKScene {
     /// たこ焼き（#956）のテクスチャ。走者と同じく起動時に 1 回だけ作り、面ごとの `addTakoyaki` は
     /// これを貼るだけ（毎面 `CGImage` を起こさない）。
     let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")
-    /// 犬・イノシシの歩きのコマのテクスチャ（#975）。色が世界ごと（`RunnerWorld.creatures`）なので
-    /// 全世界（#1009 で 5 つ）× 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
+    /// 犬・イノシシの歩きのコマのテクスチャ（#975）。色が世界ごと（`RunnerWorld.creatures`）で、
+    /// 港町では絵ごと猫・フォークリフトに着せ替わる（`RunnerWorld.Dressing`・#1009）ので、
+    /// 全世界（5 つ）× 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
     /// 貼るだけ（毎面 `CGImage` を起こさない）。
-    let dogTextures = RunnerScene.makeWalkTextures(name: "犬") { RunnerPixelArt.dog($0, colors: $1) }
-    let boarTextures = RunnerScene.makeWalkTextures(name: "イノシシ") { RunnerPixelArt.boar($0, colors: $1) }
+    let dogTextures = RunnerScene.makeWalkTextures(name: "犬") { RunnerPixelArt.walker($0, world: $1) }
+    let boarTextures = RunnerScene.makeWalkTextures(name: "イノシシ") { RunnerPixelArt.charger($0, world: $1) }
+    /// 岩の枠の着せ替え（切り株・ロープの束・ドラム缶・#1009）のテクスチャ。色は世界によらないので
+    /// 1 枚ずつ起動時に作る。岩塊（`makeRock`）は図形のままなのでテクスチャは無い。
+    let blockTextures: [RunnerWorld.Dressing.Block: SKTexture] = [
+        .stump: RunnerScene.makeTexture(RunnerPixelArt.stump(), name: "切り株"),
+        .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),
+        .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),
+    ]
     /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
     private var renderedRiderFrame: OjisanPixel.RiderFrame?
     /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが
@@ -218,14 +226,15 @@ final class RunnerScene: SKScene {
     }
 
     /// 犬・イノシシの歩きのコマを、世界ごと（`RunnerWorld.allCases`）に `RunnerPixelArt.WalkFrame` の
-    /// `rawValue` 順で作る。`sprite` にコマと世界の色を渡すと絵が返る（`RunnerPixelArt.dog` / `boar`）。
+    /// `rawValue` 順で作る。`sprite` にコマと世界を渡すと、その世界の着せ替えと色の絵が返る
+    /// （`RunnerPixelArt.walker` / `charger`。朝・夕方・夜は従来どおり `dog` / `boar` の色違い）。
     private static func makeWalkTextures(
-        name: String, sprite: (RunnerPixelArt.WalkFrame, RunnerWorld.Creatures) -> PixelSprite
+        name: String, sprite: (RunnerPixelArt.WalkFrame, RunnerWorld) -> PixelSprite
     ) -> [RunnerWorld: [SKTexture]] {
         var textures: [RunnerWorld: [SKTexture]] = [:]
         for world in RunnerWorld.allCases {
             textures[world] = RunnerPixelArt.WalkFrame.allCases.map { frame in
-                makeTexture(sprite(frame, world.creatures), name: "\(name)のコマ \(frame)（\(world)）")
+                makeTexture(sprite(frame, world), name: "\(name)のコマ \(frame)（\(world)）")
             }
         }
         return textures

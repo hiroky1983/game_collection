@@ -867,10 +867,18 @@ public final class RunnerModel {
             // `applyDebugStage` ではなく `stageNumber` ごと差し替える——番号を動かさないと、
             // ミスして「もう一度」を押した瞬間に `startStage` が 1 面目を読み直す
             // （会長QA「ミスると元のステージに戻る」）。ヘッダーの番号も記録先もその面になる。
-            if let number = Int(name.dropFirst("stage:".count)),
+            // `stage:19@640` のように `@距離` を添えると、その面を自動操縦でその距離まで走らせて
+            // 接地した瞬間で止める（#1009: 里山・港町の着せ替えを、本番の面の狙った区画で撮る用）。
+            let spec = name.dropFirst("stage:".count).split(separator: "@", maxSplits: 1)
+            if let first = spec.first, let number = Int(first),
                RunnerStage.stage(number: number) != nil {
                 stageNumber = number
                 startStage(from: 0, passedCheckpoint: false)
+                if spec.count == 2, let target = Double(spec[1]) {
+                    press(); release()
+                    autoPlayForDebug(until: { $0.field.isGrounded && $0.field.distance >= target })
+                    isFrozenForCapture = true
+                }
             }
         default:
             break
