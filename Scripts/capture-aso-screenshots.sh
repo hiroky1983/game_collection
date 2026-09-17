@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # App Store 用スクリーンショットをシミュレータから撮り直す。
 #
-#   bash Scripts/capture-aso-screenshots.sh [出力ディレクトリ] [シミュレータ名]
+#   bash Scripts/capture-aso-screenshots.sh [出力ディレクトリ] [シミュレータ名 または UDID]
 #
 # 既定: docs/aso/screenshots / "iPhone 17 Pro Max"（6.9インチ = App Store Connect の必須サイズ）
 #
@@ -98,16 +98,31 @@ SHOTS=(
   "22-settings||-showSettings"
 )
 
+# 端末は名前でも UDID でも指せる。UDID を渡したときはそのまま使う（**同名の端末が増えても
+# 確実に狙った1台へ入る**唯一の指し方）。
+#
+# 名前で指したときに**同名が2台以上あったら止める**（2026-09-17）。以前は「新しい iOS を優先」で
+# 黙って1台選んでいたが、Xcode 27 の導入で iOS 26.4 の端末一式が 26.5 側に丸ごと複製され、
+# `iPhone 17` `iPhone 17 Pro Max` など 11 名前が重複した。この状態で「新しい方」を選ぶと、
+# **前回まで撮っていたのとは別の端末**で黙って撮り直してしまう（会長が画面で見ている端末と、
+# インストール先が食い違う事故が実際に起きた）。撮り直しは入稿物を差し替える操作なので、
+# 曖昧なら選ばずに落とす。重複は `xcrun simctl rename` で名前を分ければ解消できる。
 echo "==> シミュレータ「${DEVICE_NAME}」を探す"
 UDID=$(xcrun simctl list devices available -j | python3 -c "
 import json, sys
 want = sys.argv[1]
 data = json.load(sys.stdin)['devices']
-for runtime in sorted(data, reverse=True):  # 新しい iOS を優先
-    for dev in data[runtime]:
-        if dev['name'] == want:
-            print(dev['udid']); sys.exit(0)
-sys.exit('シミュレータが見つかりません: ' + want)
+hits = [(runtime, dev) for runtime in data for dev in data[runtime]
+        if dev['name'] == want or dev['udid'] == want]
+if not hits:
+    sys.exit('シミュレータが見つかりません: ' + want)
+if len(hits) > 1:
+    lines = ['  %s  %s  (%s)' % (dev['udid'], dev['name'], runtime.split('.')[-1])
+             for runtime, dev in sorted(hits)]
+    sys.exit('同じ名前のシミュレータが %d 台あります: %s\\n%s\\n'
+             'どれで撮るかを UDID で指定するか、xcrun simctl rename で名前を分けてください。'
+             % (len(hits), want, '\\n'.join(lines)))
+print(hits[0][1]['udid'])
 " "$DEVICE_NAME")
 echo "    udid=$UDID"
 

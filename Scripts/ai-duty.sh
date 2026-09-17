@@ -68,10 +68,14 @@ cleanup_simulators() {
     esac
     xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown"
   done
-  # Simulator.app 自体は終了しない。実行前のシミュレータがゼロでも、当番の実行中（最大1時間）に
-  # 会長が Simulator.app を開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
+  # 画面を映すアプリ自体は終了しない。実行前のシミュレータがゼロでも、当番の実行中（最大1時間）に
+  # 会長がそれを開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
   # CodeRabbit 指摘・Major）。会長の訴え（PC が重い）の原因は起動中のシミュレータであって
-  # デバイスを持たない Simulator.app ではないため、落とす必要も無い
+  # デバイスを持たないアプリ側ではないため、落とす必要も無い
+  #
+  # アプリの名前は Xcode 27 で変わった（2026-09-17）。`Simulator.app` は**消滅**し、
+  # `Xcode.app/Contents/Applications/DeviceHub.app` が画面を映す側になっている
+  # （`open -a Simulator` はもう通らない）。この関数は `simctl` しか使わないので挙動は変わらない。
 }
 
 # 会長への通知（Issue #132）。稟議（ringi:pending）と承認待ち（未承認の ai:proposed）はどちらも
