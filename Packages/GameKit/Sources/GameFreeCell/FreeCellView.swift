@@ -42,15 +42,23 @@ public struct FreeCellView: View {
     }
 
     public var body: some View {
+        // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
+        // 帯・ヒント・ボタン・バナーは従来どおり `Theme.pad`（16pt）。
         VStack(spacing: 8) {
             statusBar
-            board.layoutPriority(1)
+                .padding(.horizontal, Theme.pad)
+            board
+                .padding(.horizontal, FreeCellMetrics.boardSideInset)
+                .layoutPriority(1)
             HowToPlayHint(.freecell, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
             controlArea
+                .padding(.horizontal, Theme.pad)
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
+                .padding(.horizontal, Theme.pad)
         }
-        .padding(Theme.pad)
+        .padding(.vertical, Theme.pad)
         .gameChrome(title: "フリーセル", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { startNewGame() } label: {
@@ -208,15 +216,20 @@ public struct FreeCellView: View {
         GeometryReader { geo in
             let width = cardWidth(availableWidth: geo.size.width)
             let metrics = FreeCellMetrics.faceMetrics(width: width)
+            // 段差は盤の縦の余りに合わせて広げ、全列で同じ値を使う。拡大中も同じ計算
+            // （札が大きくなるぶん余りが減り、収まらなければ下限の段差で縦スクロールになる）。
+            let stack = FreeCellMetrics.stackLayout(
+                cardWidth: metrics.width, cardHeight: metrics.height,
+                boardHeight: geo.size.height, pileCounts: model.board.tableau.map(\.count))
             ScrollView(zoomMode ? [.horizontal, .vertical] : [.vertical], showsIndicators: false) {
                 VStack(spacing: FreeCellMotion.topRowSpacing) {
                     topRow(metrics: metrics)
-                    tableau(metrics: metrics)
+                    tableau(metrics: metrics, stack: stack)
                 }
                 // 上段（4 セル + 4 組札）と下段（8 列）はどちらもちょうど 8 枠ぶんなので、
                 // 同じ幅に揃えて中央に置けば iPad でも縦に揃う（#458）。
                 .frame(width: FreeCellMetrics.boardWidth(cardWidth: width))
-                .padding(.top, 2)
+                .padding(.top, FreeCellMetrics.boardTopPadding)
                 // 盤が画面より狭いとき（等倍・iPad の拡大）は従来どおり中央に置く。
                 // 広いとき（拡大モード）は `minWidth` が効かず、はみ出した分が横スクロールになる。
                 // **`maxWidth: .infinity` は使えない**: 横スクロール側では幅の提案が無限大になり、
@@ -230,7 +243,7 @@ public struct FreeCellView: View {
             }
             .coordinateSpace(name: Self.boardSpace)
             .onPreferenceChange(CardDropFramesKey<FreeCellDropTarget>.self) { dropFrames = $0 }
-            .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics) }
+            .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics, stack: stack) }
             .gameAnimation(FreeCellMotion.move, value: boardAnimationKey)
         }
     }
@@ -274,16 +287,17 @@ public struct FreeCellView: View {
     /// **位置を読むのはここではなく `CardDragLayer` の中**（#521・#524）。この関数は
     /// `FreeCellView.body` の一部として評価されるので、ここで `dragLocation.point` を
     /// 読むと盤本体が指の動きを購読してしまい、逃がした意味が無くなる。
-    @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics) -> some View {
+    @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics, stack: CardStackLayout) -> some View {
         if let drag {
             CardDragLayer(
                 cards: drag.cards,
                 grab: drag.grab,
                 location: dragLocation,
-                step: FreeCellMetrics.step(cardHeight: metrics.height)
+                step: stack.faceUpStep
             ) { index, card in
                 FreeCellCardBody(card: card, isSelected: false,
-                                 isCovered: index < drag.cards.count - 1, metrics: metrics)
+                                 coveredIndex: index < drag.cards.count - 1 ? stack.index : nil,
+                                 metrics: metrics)
             }
         }
     }
@@ -416,7 +430,7 @@ public struct FreeCellView: View {
         let isSelected = model.selection == .cell(cell)
         return Group {
             if let card {
-                FreeCellCardBody(card: card, isSelected: isSelected, isCovered: false, metrics: metrics)
+                FreeCellCardBody(card: card, isSelected: isSelected, coveredIndex: nil, metrics: metrics)
                     .matchedGeometryEffect(id: motionID(card), in: cardMotion)
                     .opacity(drag?.source == .cell(cell) ? 0.35 : 1)
             } else {
@@ -440,7 +454,7 @@ public struct FreeCellView: View {
             if rank > 0 {
                 // 送られてきた札と同じ id を与えて、場札・セルからここまで滑らせる（#421）。
                 FreeCellCardBody(card: FreeCellCard(suit, rank), isSelected: false,
-                                 isCovered: false, metrics: metrics)
+                                 coveredIndex: nil, metrics: metrics)
                     .matchedGeometryEffect(id: motionID(FreeCellCard(suit, rank)), in: cardMotion)
             } else {
                 // 空の組札にはスート記号を薄く置く。どこに何を積むのかが最初から分かるようにする。
@@ -458,18 +472,18 @@ public struct FreeCellView: View {
 
     // MARK: - 場札
 
-    private func tableau(metrics: PlayingCardMetrics) -> some View {
+    private func tableau(metrics: PlayingCardMetrics, stack: CardStackLayout) -> some View {
         HStack(alignment: .top, spacing: FreeCellMetrics.columnGap) {
             ForEach(0..<FreeCellBoard.pileCount, id: \.self) { pile in
-                pileView(pile: pile, metrics: metrics)
+                pileView(pile: pile, metrics: metrics, stack: stack)
             }
         }
     }
 
-    private func pileView(pile: Int, metrics: PlayingCardMetrics) -> some View {
+    private func pileView(pile: Int, metrics: PlayingCardMetrics, stack: CardStackLayout) -> some View {
         let column = model.board.tableau[pile]
-        let step = FreeCellMetrics.step(cardHeight: metrics.height)
-        let height = FreeCellMetrics.pileHeight(cardCount: column.count, cardHeight: metrics.height)
+        let step = stack.faceUpStep
+        let height = FreeCellMetrics.pileHeight(cardCount: column.count, cardHeight: metrics.height, step: step)
 
         return ZStack(alignment: .top) {
             // 列全体を「置く先」として受ける下敷き。札の無いところをタップしても列に置ける。
@@ -489,16 +503,29 @@ public struct FreeCellView: View {
             ForEach(Array(column.enumerated()), id: \.element.id) { index, card in
                 let restY = CGFloat(index) * step
                 tableauCard(pile: pile, index: index, card: card, column: column,
-                            restY: restY, metrics: metrics)
+                            restY: restY, metrics: metrics, stack: stack)
                     // 段差は `.offset` ではなく余白で作る。`.offset` はレイアウト上の位置を
                     // 変えないため、移動の補間が「札の位置」ではなく「列の上端」どうしを結ぶ。
                     .padding(.top, restY)
             }
         }
-        .frame(width: metrics.width, height: height, alignment: .top)
+        // 押せる範囲（ドロップ枠を含む）は**盤の下端まで**伸ばす。札の無い下の空きを押しても
+        // この列を押したことになり、小さい札を狙わなくてよい。
+        .frame(width: metrics.width, height: max(height, stack.reachHeight), alignment: .top)
         .cardDropTarget(FreeCellDropTarget.pile(pile), in: Self.boardSpace)
         .contentShape(Rectangle())
-        .onTapGesture { model.tapPile(pile) }
+        .onTapGesture { tapBelowPile(pile) }
+    }
+
+    /// 列の下の空き（札の無いところ）を押したとき。**一番下の札を押したのと同じ**にする
+    /// （空の列なら空の列を押したのと同じ）。ドラッグは札にだけ付いているので、ここからは始まらない。
+    private func tapBelowPile(_ pile: Int) {
+        let count = model.board.tableau[pile].count
+        if count == 0 {
+            model.tapPile(pile)
+        } else {
+            model.tapPile(pile, cardIndex: count - 1)
+        }
     }
 
     private func tableauCard(
@@ -507,7 +534,8 @@ public struct FreeCellView: View {
         card: FreeCellCard,
         column: [FreeCellCard],
         restY: CGFloat,
-        metrics: PlayingCardMetrics
+        metrics: PlayingCardMetrics,
+        stack: CardStackLayout
     ) -> some View {
         let isSelected = model.selection == .tableau(pile: pile, cardIndex: index)
         let isMovable = model.board.isOrderedRun(pile: pile, from: index)
@@ -520,7 +548,7 @@ public struct FreeCellView: View {
                 isSelected: isSelected,
                 // いちばん上の 1 枚だけが札の全体を出す。下に重なった札は段差ぶんの帯しか
                 // 見えないため、中央寄せの面を出すと数字が隠れて何の札か読めなくなる。
-                isCovered: index < column.count - 1,
+                coveredIndex: index < column.count - 1 ? stack.index : nil,
                 metrics: metrics
             )
         }

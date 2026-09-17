@@ -7,7 +7,8 @@ import Core
 struct FreeCellCardBody: View {
     let card: FreeCellCard
     let isSelected: Bool
-    let isCovered: Bool
+    /// 下に重なって帯だけ見えている札なら、その見出しの寸法（`nil` = 全体が見えている札）。
+    let coveredIndex: CardStackIndexMetrics?
     let metrics: PlayingCardMetrics
 
     var body: some View {
@@ -19,33 +20,16 @@ struct FreeCellCardBody: View {
                 border: isSelected ? Theme.coral : Color.gray.opacity(0.2),
                 borderWidth: isSelected ? 2.5 : 0.5
             )
-            if isCovered {
-                // 下に重なった札は段差ぶんの帯しか見えないので、左上に小さく出す。
-                FreeCellCardIndex(card: card, metrics: metrics)
+            if let coveredIndex {
+                // 下に重なった札は段差ぶんの帯しか見えないので、左上に帯の高さいっぱいで出す
+                // （スパイダーと共通の `CardStackIndex`）。
+                CardStackIndex(rankLabel: card.rankLabel, suit: card.suit, metrics: coveredIndex)
             } else {
                 PlayingCardFace(figure: card.figure, metrics: metrics)
                     .frame(width: metrics.width, height: metrics.height)
             }
         }
         .frame(width: metrics.width, height: metrics.height)
-    }
-}
-
-/// 重なって隠れた札の見出し（ランク + スートを左上に小さく）。
-struct FreeCellCardIndex: View {
-    let card: FreeCellCard
-    let metrics: PlayingCardMetrics
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Text(card.rankLabel)
-                .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded))
-            Text(card.suit.symbol)
-                .font(.system(size: metrics.suitFont * 0.72))
-        }
-        .foregroundStyle(PlayingCardInk.color(for: card.suit))
-        .padding(.leading, metrics.cornerRadius * 0.7)
-        .padding(.top, metrics.cornerRadius * 0.4)
     }
 }
 
