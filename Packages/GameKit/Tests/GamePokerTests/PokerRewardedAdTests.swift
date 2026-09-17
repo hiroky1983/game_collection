@@ -108,20 +108,37 @@ private func playFoldUntilBust(_ model: PokerModel, maxRounds: Int = 20) {
 @MainActor
 struct PokerRewardedAdTests {
 
-    @Test("視聴完了なら初期チップの半分で復活する")
+    @Test("視聴完了なら自分 150 枚・CPU 100 枚で復活する（#523）")
     func recoversChipsWhenRewardEarned() async {
         let (model, ads, _) = makeBustedModel()
 
         let recovered = await model.recoverChipsAfterAd()
 
         #expect(recovered)
-        #expect(model.playerChips == 50, "初期チップ 100 の半分")
-        #expect(model.playerChips == PokerModel.initialChips / 2)
-        #expect(model.cpuChips == PokerModel.initialChips, "CPU は卓の設定値へ戻す（対等な卓に戻す）")
+        #expect(model.playerChips == 150, "会長決裁 C 案の枚数（#523）")
+        #expect(model.playerChips == PokerModel.reviveChips)
+        #expect(model.cpuChips == 100, "CPU は卓の設定値へ戻す（勝ち越したぶんを残さない）")
+        #expect(model.cpuChips == PokerModel.initialChips)
         #expect(!model.sessionOver)
         #expect(model.sessionWinner == nil)
         #expect(model.canStartRound, "復活後は次の局を始められる")
         #expect(ads.rewardedCount == 1)
+    }
+
+    /// 広告を見る理由を「チップが増える」で作る（#523）。将来どちらかの定数を触っても逆転させない。
+    @Test("復活のチップは、無料でもう一度はじめるより必ず多い")
+    func reviveGivesMoreChipsThanFreeRestart() async {
+        #expect(PokerModel.reviveChips > PokerModel.initialChips)
+
+        // 定数の比較だけでなく、実際の 2 つの導線を通した結果でも比べる。
+        let (revived, _, _) = makeBustedModel()
+        #expect(await revived.recoverChipsAfterAd())
+        let (restarted, _, _) = makeBustedModel()
+        restarted.restartSession()
+        #expect(restarted.playerChips == PokerModel.initialChips, "無料のやり直しは満額のまま")
+        #expect(restarted.cpuChips == PokerModel.initialChips)
+        #expect(revived.playerChips > restarted.playerChips)
+        #expect(revived.cpuChips == restarted.cpuChips, "CPU 側はどちらの導線でも同じ")
     }
 
     /// 広告のロード中はハブへ戻れる。戻ると Model は捨てられ、次に開くと別の Model が動くが、
@@ -152,7 +169,7 @@ struct PokerRewardedAdTests {
         let outcome = await model.reviveAfterAd()
 
         #expect(outcome == .unavailable, "見終えたのに適用できなかったことを、視聴しなかったことと分けて返す")
-        #expect(model.playerChips == PokerModel.initialChips, "新しいセッションの手持ちが半分に減らされている")
+        #expect(model.playerChips == PokerModel.initialChips, "新しいセッションの手持ちが復活の枚数に書き換えられている")
         #expect(model.cpuChips == PokerModel.initialChips)
         #expect(!model.sessionOver)
         #expect(model.phase == .idle, "開始シートを出したままの新しいセッション")
@@ -383,6 +400,99 @@ struct PokerRewardedAdTests {
         #expect(model.sessionOver)
         #expect(model.sessionWinner == .cpu)
         #expect(model.canReviveAfterBust, "旧データは「まだ使っていない」に倒す")
+    }
+}
+
+// MARK: - 片側だけ多い卓（#523）
+
+@Suite("復活後の 150 対 100 の卓でもルールが破綻しない（#523）")
+@MainActor
+struct PokerReviveUnevenTableTests {
+
+    /// 配りは乱数なので勝敗は決めず、どの局でも成り立つべき不変条件だけを見る。
+    /// 賭けは毎回できる限り 20 枚ずつ入れ、手持ちの差が効く経路（CPU の `min` での受け、
+    /// CPU のベットへのコール）を通す。
+    @Test("局を重ねてもチップの総量が保たれ、どちらも負にならない")
+    func chipsStayConsistentAcrossRounds() async {
+        let (model, _, _) = makeBustedModel()
+        #expect(await model.recoverChipsAfterAd())
+        let total = PokerModel.reviveChips + PokerModel.initialChips
+        #expect(model.playerChips + model.cpuChips == total)
+
+        var rounds = 0
+        while model.canStartRound, rounds < 60 {
+            rounds += 1
+            model.startGame()
+            #expect(model.phase == .betting1)
+            #expect(model.playerChips + model.cpuChips + model.pot == total, "アンティで総量が変わった")
+
+            model.bet1Action(model.playerChips >= 20 ? .bet(20) : .check)
+            if model.phase == .exchange { model.confirmExchange() }
+            if model.phase == .betting2 {
+                model.bet2Action(model.playerChips >= 20 ? .bet(20) : .check)
+            }
+            // こちらのチェックに CPU がベットで返したら受ける（手持ちが足りなければ持っている分だけ）。
+            if model.phase == .betting2, model.currentBet > 0 { model.callCPUBet() }
+
+            #expect(model.phase == .result, "\(rounds) 局目が決着していない")
+            #expect(model.pot == 0)
+            #expect(model.playerChips >= 0 && model.cpuChips >= 0)
+            #expect(model.playerChips + model.cpuChips == total, "\(rounds) 局目でチップが増減した")
+        }
+
+        #expect(rounds > 0, "復活直後に 1 局も始められない")
+        if model.sessionOver {
+            // どちらが尽きても、復活はもう使えない（1 セッション 1 回）。
+            #expect(!model.canReviveAfterBust)
+            switch model.sessionWinner {
+            case .cpu:    #expect(model.playerChips < 10)
+            case .player: #expect(model.cpuChips < 10)
+            default:      Issue.record("片側だけ尽きるはずの卓で相打ちになった")
+            }
+        }
+    }
+
+    @Test("復活したセッションで自分が勝ち切っても、決着・記録・次のセッションは今と同じ")
+    func revivedSessionWonByPlayerConcludesAsBefore() async {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: ["poker"])
+        let suiteName = "asobiba.poker.revive.uneven.win"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        // 復活を使ったセッションで、CPU がアンティ未満まで減った局面（中断データの旗は使用済み）。
+        let store = MemorySnapshotStore()
+        let playerHand = (0..<5).map { PokerCard(id: $0, suit: .spades, rank: $0 + 2) }
+        let cpuHand = (0..<5).map { PokerCard(id: $0 + 13, suit: .hearts, rank: $0 + 7) }
+        let deck = (0..<10).map { PokerCard(id: $0 + 26, suit: .clubs, rank: $0 % 13 + 2) }
+        let snap = PokerSnapshot(
+            playerHand: playerHand, cpuHand: cpuHand, deck: deck,
+            playerChips: 250, cpuChips: 0, pot: 0,
+            phase: .betting2, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "",
+            hasRevivedThisSession: true
+        )
+        try? store.save(snap, for: "poker")
+        let model = PokerModel(services: GameServices(
+            snapshots: store, ads: StubAdService(rewardEarned: true),
+            playLog: PlayLog(defaults: defaults), gameCenter: reporter
+        ))
+        model.bet2Action(.fold)
+
+        #expect(model.sessionOver)
+        #expect(model.sessionWinner == .player)
+        #expect(!model.canReviveAfterBust, "勝ち切った回に復活は出さない")
+        #expect(model.recordResult != nil, "ローカルの記録は残す")
+        #expect(spy.scores.isEmpty, "復活したセッションは順位表へ送らない")
+
+        model.restartSession()
+        #expect(model.playerChips == PokerModel.initialChips)
+        #expect(model.cpuChips == PokerModel.initialChips)
+        #expect(model.canStartRound)
+        model.startGame()
+        let saved = store.load(PokerSnapshot.self, for: "poker")
+        #expect(saved?.hasRevivedThisSession == false, "次のセッションは復活も順位表の資格も戻る")
     }
 }
 

@@ -412,9 +412,13 @@ public struct BlackjackView: View {
 
     /// チップ切れの見出し下の説明。復活を使い切ったら選べる手を書き換える（#499）。
     /// 数値は `Text` 補間の桁区切り（#484）を避けて文字列を先に組む。
+    ///
+    /// 復活できるあいだは、枚数の比較をボタン 2 つに任せて**順位表に載らないこと**を書く（#523）。
+    /// 復活のほうがチップは多いので、失うものも選ぶ前に読めるようにする。SE は縦に余裕が無く、
+    /// 2 行にすると画面の上端がナビゲーションバーに潜るため 1 行に収まる長さにしている。
     private var sessionOverSubtitle: String {
         model.canReviveAfterBust
-            ? "広告を見て\(BlackjackModel.reviveChips)枚で復活するか、最初からやり直せます"
+            ? "復活したセッションは順位表に載りません"
             : "復活はこのセッションで使いました。最初からやり直せます"
     }
 
@@ -442,6 +446,8 @@ public struct BlackjackView: View {
                     Text(sessionOverSubtitle)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
+                        // SE では縦が詰まり、2 行の文言が 1 行目の途中で切られていた（#523 の撮影で発覚）。
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
             }
@@ -462,7 +468,9 @@ public struct BlackjackView: View {
                     // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
                     Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
                         .themeBody(16).frame(maxWidth: .infinity)
-                        .minimumScaleFactor(0.8)
+                        // 0.8 では SE で 2000 枚の文言が末尾で切れる（#523 の撮影で実測）。
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
                         .foregroundStyle(Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
