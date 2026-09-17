@@ -42,6 +42,10 @@ extension RunnerScene {
         let riser: SKNode?
         /// 伸び切ったときの絵の高さ（`RunnerHazardKind.shootTop`）。`riser` の y の起点に使う。
         let riserHeight: Double
+        /// 揺れる予告（突き上げの土の塚・泡）。**揺れを止めるときは地面へ戻す**——`isPaused` は
+        /// いまの位置で止めるだけなので、上がりきった瞬間に止めると塚が浮いたまま固まる
+        /// （#1010 で CodeRabbit が指摘）。
+        let cue: SKNode?
         var state: State?
         /// いま貼っている歩きのコマ。同じコマの貼り直しを省く控え（走者の `renderedRiderFrame` と同じ）。
         private var renderedWalkFrame: RunnerPixelArt.WalkFrame?
@@ -50,7 +54,7 @@ extension RunnerScene {
             hazard: RunnerHazard, node: SKNode, shadow: SKNode? = nil, shadowBaseY: Double = 0,
             animated: [SKNode], movingOnly: SKNode? = nil,
             walkSprite: SKSpriteNode? = nil, walkTextures: [SKTexture] = [], walkStride: Double = 1,
-            riser: SKNode? = nil, riserHeight: Double = 0
+            riser: SKNode? = nil, riserHeight: Double = 0, cue: SKNode? = nil
         ) {
             self.hazard = hazard
             self.node = node
@@ -63,6 +67,7 @@ extension RunnerScene {
             self.walkStride = walkStride
             self.riser = riser
             self.riserHeight = riserHeight
+            self.cue = cue
         }
 
         /// 使い回す前に、前の区画で進めた状態（止まる・動く・歩きのコマ）を作った直後に戻す（#1086）。
@@ -72,6 +77,7 @@ extension RunnerScene {
             renderedWalkFrame = nil
             walkSprite?.texture = walkTextures.first
             riser?.position.y = CGFloat(-riserHeight)
+            cue?.position.y = 0
         }
 
         /// 歩きのコマを、自分が進んだ距離に合わせて貼り替える（`RunnerPixelArt.walkFrame`）。
@@ -397,7 +403,7 @@ extension RunnerScene {
 
         courseLayer.addChild(node)
         return MovingHazardView(
-            hazard: hazard, node: node, animated: [cue], riser: riser, riserHeight: h
+            hazard: hazard, node: node, animated: [cue], riser: riser, riserHeight: h, cue: cue
         )
     }
 
@@ -482,7 +488,11 @@ extension RunnerScene {
             // 当たり判定（`frame.top`）と同じ値を絵の位置に使うので、見た目と判定は構造的にずれない。
             view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
             view.riser?.position.y = CGFloat(frame.top - view.riserHeight)
-            view.apply(frame.top < view.riserHeight ? .moving : .stopped)
+            let rising = frame.top < view.riserHeight
+            view.apply(rising ? .moving : .stopped)
+            // 揺れを止めたら塚・泡を地面へ戻す。`isPaused` はいまの位置で止めるだけなので、
+            // 揺れの上端で止まると予告が浮いたまま固まる（#1010 で CodeRabbit が指摘）。
+            if !rising { view.cue?.position.y = 0 }
         case .pit, .lowBlock, .tallBlock:
             break
         }

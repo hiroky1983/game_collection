@@ -137,10 +137,13 @@ struct RunnerWorldSceneTests {
         let target = try #require(views.first)
         let full = RunnerHazardKind.shootTop
         var field = RunnerField(stage: stage)
-        var rising = 0, risen = 0, worstOffset = 0.0
+        var rising = 0, risen = 0, worstOffset = 0.0, floatingCue = 0.0
         var shownBeforeCue = false, hiddenAfterCue = false, wrongState = 0
         for step in stride(from: -8.0, through: RunnerRules.shootRiseDistance + 8, by: 1.0) {
             field.placeForTesting(distance: target.hazard.shootCueDistance + step, altitude: 0, vy: 0)
+            // 揺れの `SKAction` はシーンを回さないと進まないので、**揺れの上端に居る状態を手で作る**
+            // ——そのうえで反映したとき、伸び切っていれば地面へ戻ることを見る。
+            target.cue?.position.y = 0.35
             scene.syncMovingHazard(target, field: field)
             guard let frame = target.hazard.frame(atRunnerDistance: field.distance) else {
                 if !target.node.isHidden { shownBeforeCue = true }
@@ -149,13 +152,20 @@ struct RunnerWorldSceneTests {
             if target.node.isHidden { hiddenAfterCue = true }
             worstOffset = max(worstOffset, abs(Double(target.riser?.position.y ?? 0) - (frame.top - full)))
             if target.state != (frame.top < full ? .moving : .stopped) { wrongState += 1 }
-            if frame.top < full { rising += 1 } else { risen += 1 }
+            if frame.top < full {
+                rising += 1
+            } else {
+                risen += 1
+                // 伸び切ったら予告の揺れを止め、**塚・泡を地面へ戻す**（浮いたまま固まらせない）。
+                floatingCue = max(floatingCue, abs(Double(target.cue?.position.y ?? 0)))
+            }
         }
         #expect(!shownBeforeCue, "予告の前なのに絵が見えている")
         #expect(!hiddenAfterCue, "予告の後なのに絵が隠れている")
         #expect(wrongState == 0, "予告の揺れの止め方が \(wrongState) 地点で違う")
         // SpriteKit は `position` を単精度で持つので、丸めのぶん（この大きさでは 1e-6 以下）を見込む。
         #expect(worstOffset < 1e-4, "絵の位置と当たり判定の上端のずれが最大 \(worstOffset)")
+        #expect(floatingCue < 1e-4, "伸び切ったあとも予告が浮いている（y = \(floatingCue)）")
         #expect(rising > 10 && risen > 5, "伸びかけ \(rising) / 伸び切り \(risen) 地点しか見ていない")
     }
 
