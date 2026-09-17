@@ -238,38 +238,82 @@ struct MahjongTableLayoutTests {
         #expect(abs(first14.a.x - l.project(u: 0.15, v: 0).x) < 0.01)
     }
 
-    @Test("上家・下家の副露は河と同じ幅で、2 組まで（ツモ番の壁とも）河・パネル・フェルトの縁と重ならない",
+    @Test("上家・下家の副露は 4 組まで（ツモ番の壁とも）河・パネル・フェルトの縁と重ならない。2 組までは河と同じ幅",
           arguments: [1, 3])
     func sideMeldsFitBesideWall(seat: Int) {
-        // #918 で河（＝副露）を 2 割大きくしてからは、3 組（10 枚）だと 10 枚目が壁の上面に 7〜9pt 掛かる
-        // （壁の列は「副露 + 残りの壁」で卓の奥行きを使い切る）。3 組の鳴きは実戦でまれなので 2 組までを縛る。
-        let l = Self.phone
-        #expect(l.meldTileWidth(seat: seat) == l.riverTileWidth)
-        for groups in 1...2 {
-            let tiles = groups * 3 + 1                // カン 1 つ + ポン／チー（全部カンは想定しない）
-            let wallCount = 13 - groups * 3 + 1       // ツモ番（1 枚多い）が最も長い
-            let rects = l.meldTileRects(seat: seat, groups: groups, tiles: tiles)
-            #expect(rects.count == tiles)
+        // #918 で河（＝副露）を 2 割大きくしてからは、河と同じ幅のままだと 3 組（10 枚）の 10 枚目が壁の上面に
+        // 7〜9pt 掛かる（壁の列は「副露 + 残りの壁」で卓の奥行きを使い切る）。3 組以上は `sideMeldTileWidth` が
+        // 牌を縮めて列に収める（#1065。4 組は鳴けるだけ鳴く東風戦の通しテストで届く上限）。
+        for l in [Self.phone, Self.phone17, Self.pad] {
+            #expect(l.meldTileWidth(seat: seat) == l.riverTileWidth)
+            for groups in 1...4 {
+                let tiles = groups * 3 + 1                // カン 1 つ + ポン／チー（全部カンは想定しない）
+                let wallCount = 13 - groups * 3 + 1       // ツモ番（1 枚多い）が最も長い
+                let rects = l.meldTileRects(seat: seat, groups: groups, tiles: tiles)
+                #expect(rects.count == tiles)
+                let width = l.sideMeldTileWidth(seat: seat, meldSizes: MahjongTableLayout.meldSizes(groups: groups, tiles: tiles))
+                if groups <= 2 {
+                    #expect(width == l.riverTileWidth, "seat \(seat) \(groups) 組は縮めない")
+                }
+                // 縮めても河の 6 割は残す（牌の絵柄が読める大きさ）
+                #expect(width >= l.riverTileWidth * 0.6, "seat \(seat) \(groups) 組の牌の幅 \(width)")
+                for (k, r) in rects.enumerated() {
+                    for corner in Self.corners(r) {
+                        #expect(l.feltContains(corner), "seat \(seat) \(groups) 組 \(k) 枚目: 角 \(corner) がフェルトの外")
+                    }
+                    #expect(!r.intersects(l.centerPanel))
+                    for other in 0..<4 { for i in 0..<18 {
+                        #expect(!r.intersects(l.riverRect(seat: other, index: i)),
+                                "seat \(seat) \(groups) 組 \(k) 枚目が seat \(other) の河 \(i) に重なる")
+                    } }
+                    for i in 0..<wallCount {
+                        #expect(!r.intersects(Self.wallRect(l, seat: seat, index: i, count: wallCount)),
+                                "seat \(seat) \(groups) 組 \(k) 枚目が自分の立て牌 \(i)/\(wallCount) に重なる")
+                    }
+                    // 隣の牌と密着し（1pt 以内）、重ならない
+                    if k > 0 {
+                        let prev = rects[k - 1]
+                        let gap = seat == 1 ? r.minY - prev.maxY : prev.minY - r.maxY
+                        let expected: CGFloat = (k % 3 == 0 && k / 3 <= groups - 1) ? MahjongTableLayout.meldGroupSpacing : 0
+                        #expect(abs(gap - expected) < 1, "seat \(seat) \(k) 枚目の隙間 \(gap)")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("上家・下家の副露は 4 組すべてカン（16 枚）でも、描画と同じ置き方で壁・河・フェルトの縁と重ならず、列の先端の縁は動かない（#1065）",
+          arguments: [1, 3])
+    func sideMeldsFitWithFourKans(seat: Int) {
+        for l in [Self.phone, Self.phone17, Self.pad] {
+            let sizes = [4, 4, 4, 4]
+            let width = l.sideMeldTileWidth(seat: seat, meldSizes: sizes)
+            #expect(width < l.riverTileWidth, "seat \(seat) 16 枚は縮む")
+            #expect(width >= l.riverTileWidth * 0.6, "seat \(seat) 16 枚の牌の幅 \(width)")
+            // `MahjongTableView.sideMelds` と同じ: 通し番号と、その牌が属する組の番号（＝前にある区切りの数）
+            let groupOfTile = sizes.enumerated().flatMap { gi, n in Array(repeating: gi, count: n) }
+            let rects = groupOfTile.enumerated().map { ordinal, gi in
+                l.sideMeldRect(seat: seat, ordinal: ordinal, gaps: gi, tileWidth: width)
+            }
+            let wallCount = 14 - 3 * sizes.count
             for (k, r) in rects.enumerated() {
                 for corner in Self.corners(r) {
-                    #expect(l.feltContains(corner), "seat \(seat) \(groups) 組 \(k) 枚目: 角 \(corner) がフェルトの外")
+                    #expect(l.feltContains(corner), "seat \(seat) \(k) 枚目: 角 \(corner) がフェルトの外")
                 }
-                #expect(!r.intersects(l.centerPanel))
                 for other in 0..<4 { for i in 0..<18 {
-                    #expect(!r.intersects(l.riverRect(seat: other, index: i)),
-                            "seat \(seat) \(groups) 組 \(k) 枚目が seat \(other) の河 \(i) に重なる")
+                    #expect(!r.intersects(l.riverRect(seat: other, index: i)), "seat \(seat) \(k) 枚目が seat \(other) の河 \(i) に重なる")
                 } }
                 for i in 0..<wallCount {
                     #expect(!r.intersects(Self.wallRect(l, seat: seat, index: i, count: wallCount)),
-                            "seat \(seat) \(groups) 組 \(k) 枚目が自分の立て牌 \(i)/\(wallCount) に重なる")
+                            "seat \(seat) \(k) 枚目が自分の立て牌 \(i)/\(wallCount) に重なる")
                 }
-                // 隣の牌と密着し（1pt 以内）、重ならない
-                if k > 0 {
-                    let prev = rects[k - 1]
-                    let gap = seat == 1 ? r.minY - prev.maxY : prev.minY - r.maxY
-                    let expected: CGFloat = (k % 3 == 0 && k / 3 <= groups - 1) ? MahjongTableLayout.meldGroupSpacing : 0
-                    #expect(abs(gap - expected) < 1, "seat \(seat) \(k) 枚目の隙間 \(gap)")
-                }
+            }
+            // 縮めても先端の縁（下家は奥、上家は手前）は河と同じ幅のときと同じ位置
+            let unscaled = l.sideMeldRect(seat: seat, ordinal: 0, gaps: 0)
+            if seat == 1 {
+                #expect(abs(rects[0].minY - unscaled.minY) < 1e-9)
+            } else {
+                #expect(abs(rects[0].maxY - unscaled.maxY) < 1e-9)
             }
         }
     }
