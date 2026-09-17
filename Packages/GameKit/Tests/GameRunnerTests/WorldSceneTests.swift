@@ -78,4 +78,100 @@ struct RunnerWorldSceneTests {
         #expect(viaBlock.children.count == viaRock.children.count)
         #expect(viaBlock.children.allSatisfy { !($0 is SKSpriteNode) })
     }
+
+    /// 着せ替えだけが使う色（着せ替えの部品を通ったことの目印）。白や黒のような共通の色は
+    /// 入れない——路面の白線や縁取りに使われていて、元の部品でも出てくる。
+    private static let dressingSignatureColors: [String: UInt32] = [
+        "ditchWater": RunnerWorld.DressingPalette.ditchWater,
+        "gapSea": RunnerWorld.DressingPalette.gapSea,
+        "ditchWall": RunnerWorld.DressingPalette.ditchWall,
+        "fender": RunnerWorld.DressingPalette.fender,
+        "strawBody": RunnerWorld.DressingPalette.strawBody,
+        "strawTop": RunnerWorld.DressingPalette.strawTop,
+        "crateWood": RunnerWorld.DressingPalette.crateWood,
+        "crateTop": RunnerWorld.DressingPalette.crateTop,
+        "pavedAsphalt": RunnerWorld.DressingPalette.pavedAsphalt,
+        "conveyorBelt": RunnerWorld.DressingPalette.conveyorBelt,
+    ]
+
+    /// 子孫まで含めて、その色で塗られたノード（スプライトの色・図形の塗り）を数える。
+    ///
+    /// 色は `SKColor` どうしの `==` では比べない——同じ値でも色空間が違うと一致せず、
+    /// **何も数えないまま緑になる**（最初にこの形で書いて対照が 0 件になった）。sRGB の成分に
+    /// 直して 1/255 の幅で見る。
+    private func fillCount(in node: SKNode, color hex: UInt32) -> Int {
+        node.children.reduce(0) { total, child in
+            var own = 0
+            if let sprite = child as? SKSpriteNode, sprite.texture == nil, isSame(sprite.color, hex) { own = 1 }
+            if let shape = child as? SKShapeNode, isSame(shape.fillColor, hex) { own = 1 }
+            return total + own + fillCount(in: child, color: hex)
+        }
+    }
+
+    private func isSame(_ color: SKColor, _ hex: UInt32) -> Bool {
+        guard let lhs = rgb(color), let rhs = rgb(RunnerPalette.color(hex)) else { return false }
+        return abs(lhs.0 - rhs.0) < 0.004 && abs(lhs.1 - rhs.1) < 0.004 && abs(lhs.2 - rhs.2) < 0.004
+    }
+
+    private func rgb(_ color: SKColor) -> (Double, Double, Double)? {
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let converted = color.cgColor.converted(to: space, intent: .defaultIntent, options: nil),
+              let c = converted.components, c.count >= 3 else { return nil }
+        return (Double(c[0]), Double(c[1]), Double(c[2]))
+    }
+
+    /// 穴・台座・加速床は、旧世界（朝・夕方・夜）では**着せ替えの部品を一切通らない**。
+    ///
+    /// `makeBlock` 側は `originalWorldsUseTheOriginalParts` が部品の構成で見ているが、
+    /// 穴・台座・床は分岐を旧世界側へ倒しても 353 件が全部緑だった（#1100 の敵対的検証）。
+    /// 分岐そのものを縛るため、元の部品が返すノードに着せ替え専用の色が 1 つも無いことを固定する。
+    /// その世界の面から、穴・台座・加速床を 1 つずつ拾って元の部品で組んだノード。
+    /// 3 つが同じ面に揃うとは限らない（朝・夕方には揃う面が無い）ので、面をまたいで集める。
+    private func partsOfWorld(_ world: RunnerWorld, suite: String) -> (node: SKNode, found: Set<String>) {
+        let node = SKNode()
+        var found: Set<String> = []
+        for number in world.stageRange {
+            let (model, scene) = makeScene(stage: number, suite: "\(suite)-\(number)")
+            let stage = model.field.stage
+            if !found.contains("pit"), let pit = stage.hazards.first(where: { $0.kind == .pit }) {
+                scene.addPitVoid(pit, into: node)
+                scene.addPitEdgeMarkers(pit, into: node)
+                found.insert("pit")
+            }
+            if !found.contains("platform"), let platform = stage.platforms.first {
+                node.addChild(scene.makePlatform(platform))
+                found.insert("platform")
+            }
+            if !found.contains("floor"), let floor = stage.boostFloors.first {
+                node.addChild(scene.makeBoostFloor(floor))
+                found.insert("floor")
+            }
+            if found.count == 3 { break }
+        }
+        return (node, found)
+    }
+
+    @Test("朝・夕方・夜の穴・台座・加速床には着せ替えの色が 1 つも出ない")
+    func originalWorldsDrawPitsPlatformsAndFloorsThemselves() {
+        let oldWorlds: [RunnerWorld] = [.morning, .evening, .night]
+        var covered: Set<String> = []
+        for world in oldWorlds {
+            #expect(world.dressing == RunnerWorld.originalDressing)
+            let (sample, found) = partsOfWorld(world, suite: "original-\(world)")
+            covered.formUnion(found)
+            for (name, hex) in Self.dressingSignatureColors {
+                #expect(fillCount(in: sample, color: hex) == 0, "\(world) の穴・台座・床に \(name) が出ている")
+            }
+        }
+        // 台座（`P`）と加速床（`=`）は 16 面から登場するので、朝・夕方の面には構造上載っていない
+        // （`RunnerStage.patterns`）。3 つとも一度は通したことを世界をまたいで確かめる（空振り防止）。
+        #expect(covered == ["pit", "platform", "floor"], "旧世界で穴・台座・床を全部は通していない")
+
+        // 対照: 同じ数え方で、着せ替えの世界（里山）ではちゃんと色が出る（数え方の空振り防止）。
+        let (control, controlFound) = partsOfWorld(.satoyama, suite: "control")
+        #expect(controlFound == ["pit", "platform", "floor"])
+        #expect(fillCount(in: control, color: RunnerWorld.DressingPalette.ditchWater) > 0)
+        #expect(fillCount(in: control, color: RunnerWorld.DressingPalette.strawTop) > 0)
+        #expect(fillCount(in: control, color: RunnerWorld.DressingPalette.pavedAsphalt) > 0)
+    }
 }

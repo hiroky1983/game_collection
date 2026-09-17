@@ -540,10 +540,24 @@ struct RunnerStageCodeTests {
             for b in worlds.dropFirst(i + 1) {
                 let hueGap = hueDistance(a.mapColor, b.mapColor)
                 let ratio = WCAG.contrast(a.mapColor, b.mapColor)
-                #expect(hueGap >= 20 || ratio >= 1.5, "\(a) と \(b): 色相差 \(hueGap)° / 明度比 \(ratio)")
+                // **色相差を根拠にしてよいのは、両方に彩度があるときだけ**（#1100 の敵対的検証）。
+                // 里山を空の色（0xD6ECE4・彩度 9%）に戻しても、朝（0xCFE6F5）との色相差が 45° 付いて
+                // このテストが緑のままだった——淡すぎる色の色相は目では読めないのに、式の上では離れる。
+                // 彩度は HSV の S（最大値に対する幅）で見る。朝の空 0xCFE6F5 で 16%、夜のマップ色で 45%。
+                let hueCounts = min(saturation(a.mapColor), saturation(b.mapColor)) >= 0.12
+                #expect((hueGap >= 20 && hueCounts) || ratio >= 1.5,
+                        "\(a) と \(b): 色相差 \(hueGap)° / 明度比 \(ratio) / 彩度 \(saturation(a.mapColor))・\(saturation(b.mapColor))")
             }
             #expect(WCAG.contrast(a.mapColor, 0x1A1410) >= 4.5, "\(a) の色の上で文字が読めない")
         }
+    }
+
+    /// HSV の S（0…1）。0 に近いほど灰色に寄り、色相が目では読めなくなる。
+    private func saturation(_ hex: UInt32) -> Double {
+        let r = Double((hex >> 16) & 0xFF), g = Double((hex >> 8) & 0xFF), b = Double(hex & 0xFF)
+        let maxC = max(r, g, b), minC = min(r, g, b)
+        guard maxC > 0 else { return 0 }
+        return (maxC - minC) / maxC
     }
 
     private func hue(_ hex: UInt32) -> Double {
