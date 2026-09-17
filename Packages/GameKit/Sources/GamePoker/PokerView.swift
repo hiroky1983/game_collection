@@ -637,7 +637,7 @@ public struct PokerView: View {
         default:
             // 復活のほうがチップは多い（#523）ぶん、順位表に載らないことも選ぶ前に読める場所へ書く。
             return model.canReviveAfterBust
-                ? "あなたのチップが尽きました。復活したセッションは順位表に載りません"
+                ? "あなたのチップが尽きました。\(PokerModel.reviveChips)枚で復活すると順位表に載りません"
                 : "あなたのチップが尽きました。復活はこのセッションで使いました"
         }
     }

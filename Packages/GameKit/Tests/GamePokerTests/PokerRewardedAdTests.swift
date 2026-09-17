@@ -452,6 +452,70 @@ struct PokerReviveUnevenTableTests {
         }
     }
 
+    /// ボーナスルールのダブルアップは手持ちから賭け金を引く（`startDoubleUp`）ので、片側だけ多い卓でも
+    /// 引きすぎないことを見る。配りは乱数で勝ちを狙って作れないため、復活直後に 1 局目のアンティを
+    /// 払った状態（150 - 10 = 140 対 90）を中断データで作り、札を決め打ちする。
+    @Test("ボーナスルールのダブルアップも、復活後の手持ちで計算が崩れない")
+    func doubleUpWorksOnRevivedTable() async {
+        let spy = SpyGameCenterService()
+        let reporter = GameCenterReporter(service: spy, allowedGameIDs: ["poker"])
+        let suiteName = "asobiba.poker.revive.uneven.doubleup"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = MemorySnapshotStore()
+        // 自分はツーペア（K・9）、CPU はハイカード。CPU はツーペア未満なのでチェックに返し、ショーダウンで自分が勝つ。
+        let playerHand = [
+            PokerCard(id: 11, suit: .spades, rank: 13), PokerCard(id: 24, suit: .hearts, rank: 13),
+            PokerCard(id: 33, suit: .diamonds, rank: 9), PokerCard(id: 46, suit: .clubs, rank: 9),
+            PokerCard(id: 3, suit: .spades, rank: 5),
+        ]
+        let cpuHand = [
+            PokerCard(id: 27, suit: .diamonds, rank: 3), PokerCard(id: 15, suit: .hearts, rank: 4),
+            PokerCard(id: 4, suit: .spades, rank: 6), PokerCard(id: 34, suit: .diamonds, rank: 10),
+            PokerCard(id: 22, suit: .hearts, rank: 11),
+        ]
+        // 見せ札 5 → めくり札 10（ハイで当たり）。
+        let deck = [PokerCard(id: 16, suit: .hearts, rank: 5), PokerCard(id: 8, suit: .spades, rank: 10)]
+        let snap = PokerSnapshot(
+            playerHand: playerHand, cpuHand: cpuHand, deck: deck,
+            playerChips: PokerModel.reviveChips - 10, cpuChips: PokerModel.initialChips - 10, pot: 20,
+            phase: .betting2, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "",
+            rules: .bonus,
+            hasRevivedThisSession: true
+        )
+        try? store.save(snap, for: "poker")
+        let model = PokerModel(services: GameServices(
+            snapshots: store, ads: StubAdService(rewardEarned: true),
+            playLog: PlayLog(defaults: defaults), gameCenter: reporter
+        ))
+
+        model.bet2Action(.check)
+        #expect(model.winner == .player)
+        let bonus = PokerBonusTable.chips(for: .twoPair)
+        let winnings = 20 + bonus
+        #expect(model.pendingWinnings == winnings)
+        #expect(model.canStartDoubleUp, "ダブルアップの提示まで進んでいる")
+
+        let beforeDoubleUp = model.playerChips
+        model.startDoubleUp()
+        #expect(model.playerChips == beforeDoubleUp - winnings, "賭けるのはこの局で得た分だけ")
+        #expect(model.playerChips == PokerModel.reviveChips - 10, "復活後の手持ちには手を付けない")
+
+        model.guessDoubleUp(.high)
+        #expect(model.doubleUp?.result == .success)
+        model.takeDoubleUpWinnings()
+
+        #expect(model.playerChips == PokerModel.reviveChips - 10 + winnings * 2)
+        #expect(model.cpuChips == PokerModel.initialChips - 10, "CPU 側の手持ちは動かない")
+        #expect(!model.sessionOver)
+        #expect(model.canStartRound, "次の局へ進める")
+        #expect(model.recordResult != nil, "ダブルアップの後に記録を確定する")
+        #expect(spy.scores.isEmpty, "復活したセッションは、ボーナスルールでも順位表へ送らない")
+    }
+
     @Test("復活したセッションで自分が勝ち切っても、決着・記録・次のセッションは今と同じ")
     func revivedSessionWonByPlayerConcludesAsBefore() async {
         let spy = SpyGameCenterService()
