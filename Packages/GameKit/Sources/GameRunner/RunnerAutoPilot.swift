@@ -17,8 +17,48 @@ public enum RunnerAutoPilot {
     /// 踏み切るべきか。接地していないときは常に false。
     public static func shouldJump(field: RunnerField) -> Bool {
         guard field.isGrounded else { return false }
+        // 沈む床（#1089）の上では、**沈む前に跳ぶ。ただし跳んだ先が次の障害の踏み切り地点を
+        // 越えてしまうなら、その 1 回だけ我慢する**。
+        //
+        // 床の上で無条件に跳び続けると、床を出る最後の 1 跳びが「次の障害の踏み切り地点」を
+        // 飛び越してしまい、着地した時点でもう間に合わない——実測で 24・29・30 面が
+        // 床の直後の穴・イノシシで詰んだ（2026-09-18）。人はそこで 1 拍待って岸で踏み切り直す
+        // ので、自動操縦も同じ判断をさせる。待てるのは沈み切るまでなので、
+        // **`sinkPatience` を超えたら我慢をやめて必ず跳ぶ**（待ち続けて溺れるより、
+        // 跳んで次の障害に当たるほうがステージの不成立として検知できる）。
+        if field.isOnSinkFloor {
+            guard field.sinkProgress < sinkPatience,
+                  let takeOff = nextStaticTakeOff(field: field) else { return true }
+            let landing = field.distance + field.stage.speed(at: field.distance) * RunnerRules.jumpAirTime
+            return landing <= takeOff
+        }
         guard let target = nextTarget(field: field) else { return false }
         return target.start - field.distance <= target.lead
+    }
+
+    /// 沈む床の上で「いま跳ぶと次の障害に間に合わない」ときに我慢できる沈みの上限（0…1）。
+    ///
+    /// 半分。残り半分（`RunnerRules.sinkDuration` の 0.4 秒ぶん）あれば、床の残りを歩いて
+    /// 抜けてから踏み切り直す余地がある——いちばん速い 30 面でも歩いて 21 進める。
+    static let sinkPatience: Double = 0.5
+
+    /// 前方にある次の踏み切り地点を、**置いた位置**（等価な静止区間 `RunnerHazard.encounter`）から見る。
+    ///
+    /// 走行中の判断に使う `RunnerField.nextHazard` は**いま現れている**障害しか返さない
+    /// ——突進前のイノシシ・現れる前の犬は対象外なので、床の上から「この先に間に合わない相手が
+    /// いるか」を読むことができない（実測で 24・30 面のイノシシがこれで見落とされた）。
+    /// 沈む床の我慢の判断だけがこの静的な見方を使う。台座（#674）は沈む床の隣には置けない
+    /// （台座の前後は素の平地）ので見なくてよい。
+    static func nextStaticTakeOff(field: RunnerField) -> Double? {
+        let speed = field.stage.speed(at: field.distance)
+        var best: Double?
+        for hazard in field.stage.hazards {
+            let encounter = hazard.encounter
+            guard encounter.start > field.playerMaxX else { continue }
+            let takeOff = encounter.start - lead(for: hazard, speed: speed)
+            if best == nil || takeOff < best! { best = takeOff }
+        }
+        return best
     }
 
     /// 次に踏み切りの対象になるもの——前方の障害、または台座の左端（#674）——の

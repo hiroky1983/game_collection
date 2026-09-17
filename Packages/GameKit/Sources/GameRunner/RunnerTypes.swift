@@ -506,6 +506,45 @@ public struct RunnerBoostFloor: Equatable, Sendable {
     public var end: Double { start + length }
 }
 
+/// コース上の「跳び続けないと沈む床」1 つ（#1089・里山＝田んぼ・港町＝干潟）。
+///
+/// **`RunnerHazard` とは別の型・別の配列**にしてあるのは `RunnerBoostFloor` と同じ理由
+/// ——床は「越えるもの」ではなく「乗ると効果が掛かる区間」で、地形としては平地そのもの。
+/// 障害の配列に混ぜると「すべての障害が押さないジャンプで越えられる」という成立条件
+/// （`RunnerStageTests.everyHazardIsClearable`）が、越える相手ではないものまで巻き込む。
+///
+/// 加速床と違うのは 2 点だけ:
+///
+/// - 掛かる倍率が 1 未満（`RunnerRules.sinkFloorMultiplier`）で、接地中の速さが**落ちる**
+/// - 接地したままでいると沈み（`RunnerField.sinkProgress`）が溜まり、溜まり切ると溺れてミス
+///   （`AnalyticsEndCause.sink`）。足が離れれば 0 に戻る
+///
+/// 区間は**区画まるごとではなく、両端に岸（`RunnerRules.sinkFloorBankTiles`）を残した水面**。
+/// 1 区画ぶんでも二段ジャンプで跳び越せる長さに収めるため（決裁「短い床は二段で跳び越せる」）。
+public struct RunnerSinkFloor: Equatable, Sendable {
+    /// 水面の左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 水面の長さ。レイアウトの連続した `~` がここでまとめられる（岸のぶんは含まない）。
+    public let length: Double
+    /// 元になった区画の数。**長さではなく区画数で「短い床／長い床」を見分ける**ための値
+    /// （長さは岸を引いた実効値なので、1 区画ぶんかどうかを長さから割り戻すと岸の定数に依存する）。
+    public let segments: Int
+
+    public init(start: Double, length: Double, segments: Int) {
+        self.start = start
+        self.length = length
+        self.segments = segments
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
+
+    /// 速さ `speed` の面で、二段ジャンプで跳び越せる床か（`RunnerRules.doubleJumpRange(at:)`）。
+    public func isClearableByDoubleJump(at speed: Double) -> Bool {
+        length < RunnerRules.doubleJumpRange(at: speed)
+    }
+}
+
 /// 1 サブステップで起きたできごと。Model がこれを見て進行・記録・音を動かす。
 ///
 /// `RunnerField` は状態を進めるだけで、ステージ番号もタイムも記録も知らない

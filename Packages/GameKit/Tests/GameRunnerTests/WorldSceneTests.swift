@@ -278,4 +278,45 @@ struct RunnerWorldSceneTests {
         #expect(fillCount(in: control, color: RunnerWorld.DressingPalette.strawTop) > 0)
         #expect(fillCount(in: control, color: RunnerWorld.DressingPalette.pavedAsphalt) > 0)
     }
+
+    /// 沈む床（#1089）の描画経路。**里山と港町で別の絵になっている**ことを、
+    /// 相手側の色が 1 つも出ないところまで見る——片方の分岐を落としても、
+    /// 自分側の色を数えるだけなら緑のまま通る（`shootsFollowTheHitBox` と同じ空振りの形）。
+    @Test("沈む床は世界ごとに別の絵で組まれ、相手の世界の色は出ない", arguments: [
+        (21, RunnerWorld.satoyama), (29, RunnerWorld.harbor),
+    ])
+    func sinkFloorsAreDressedPerWorld(number: Int, world: RunnerWorld) throws {
+        typealias P = RunnerWorld.DressingPalette
+        let (model, scene) = makeScene(stage: number, suite: "sink-\(number)")
+        #expect(scene.world == world)
+        let floors = model.field.stage.sinkFloors
+        #expect(!floors.isEmpty, "\(number) 面に沈む床が無い（空振り防止）")
+
+        let paddy = world == .satoyama
+        let node = scene.makeSinkFloor(try #require(floors.first))
+        let container = SKNode()
+        container.addChild(node)
+        for (name, hex) in [("水面／泥", paddy ? P.paddyWater : P.tidelandMud),
+                            ("底", paddy ? P.paddyDeep : P.tidelandDeep),
+                            ("目印", paddy ? P.paddySeedling : P.tidelandHole)] {
+            #expect(fillCount(in: container, color: hex) > 0, "\(world) の沈む床に\(name)が無い")
+        }
+        for (name, hex) in [("水面／泥", paddy ? P.tidelandMud : P.paddyWater),
+                            ("底", paddy ? P.tidelandDeep : P.paddyDeep),
+                            ("目印", paddy ? P.tidelandHole : P.paddySeedling)] {
+            #expect(fillCount(in: container, color: hex) == 0, "\(world) の沈む床に別の世界の\(name)が出ている")
+        }
+
+        // コース層にも床の本数ぶん組まれていて、走らせても落ちない（沈み → 溺れの経路を通る）。
+        #expect(fillCount(in: scene.courseLayer, color: paddy ? P.paddyWater : P.tidelandMud) >= floors.count)
+        model.press()
+        model.release()
+        for _ in 0..<900 {
+            if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+            if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
+            model.tick(dt: 1.0 / 60)
+            scene.sync()
+        }
+        #expect(model.phase.isRunning || model.phase == .cleared, "\(number) 面で 15 秒以内にミスした")
+    }
 }

@@ -33,7 +33,7 @@ extension RunnerScene {
             // 演出を始める（以後 `player.position` / `.zRotation` はここでは触らず、演出の
             // `SKAction` に専有させる。毎フレーム上書きすると動きが打ち消される）。
             if lastSyncedPhase != .falling {
-                player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+                player.position = CGPoint(x: Metrics.playerX, y: field.footY - field.sinkDepth)
                 player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
                 // 無敵のまま穴に落ちた（#797）場合、点滅の途中の薄さで落下演出に入らないよう
                 // 先に戻す（`playFallAnimation` の `removeAllActions` で点滅そのものは止まる）。
@@ -41,7 +41,9 @@ extension RunnerScene {
                 playFallAnimation()
             }
         } else {
-            player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+            // 沈む床（#1089）では**絵だけ**を沈みぶん下げる（`field.sinkDepth`）。当たり判定の
+            // `footY` は動かないので、ジャンプの軌道も成立条件も沈みに左右されない。
+            player.position = CGPoint(x: Metrics.playerX, y: field.footY - field.sinkDepth)
             advancePedaling(field)
             // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため
             // （コマは `jump` の 1 枚だが、傾きで勢いが出る）。
