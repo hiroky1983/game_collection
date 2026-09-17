@@ -75,6 +75,42 @@ struct PlayRecordApplyTests {
         #expect(better.update.points)
     }
 
+    @Test("初回の 0 点は記録に残すが、自己ベスト更新とは言わない（#1067）")
+    func firstZeroPointsIsNotNewBest() {
+        let zero = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 0), to: nil
+        )
+        #expect(zero.record.bestPoints == 0)
+        #expect(!zero.update.points)
+        #expect(!zero.update.isNewBest)
+
+        let one = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 1), to: nil
+        )
+        #expect(one.record.bestPoints == 1)
+        #expect(one.update.points)
+
+        // 記録 0 のあとの 0 点は同点なので更新ではない。
+        let zeroAgain = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 0), to: zero.record
+        )
+        #expect(zeroAgain.record.bestPoints == 0)
+        #expect(!zeroAgain.update.points)
+
+        // 記録 0 を上回れば更新。
+        let afterZero = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 1), to: zero.record
+        )
+        #expect(afterZero.update.points)
+
+        // 到達した最大値も同じ物差し。
+        let zeroHighest = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, highestValue: 0), to: nil
+        )
+        #expect(zeroHighest.record.highestValue == 0)
+        #expect(!zeroHighest.update.highestValue)
+    }
+
     @Test("タイムは短いほうが自己ベスト。同タイムは更新扱いにしない")
     func secondsStrictlyLess() {
         let first = PlayRecord.applying(
