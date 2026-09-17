@@ -903,6 +903,20 @@ public final class RunnerModel {
             if let number = Int(name.dropFirst("map:".count)) {
                 reachedStage = min(max(number, 1), RunnerRules.stageCount)
             }
+        case let name where name.hasPrefix("sink:"):
+            // 本番ステージの沈む床を、その面の世界の背景の上で撮る（例 `-simulateRunner sink:21`）。
+            // `sink` はショーケース（朝の下町）で走るので、里山の田んぼ・港町の干潟の見え方は
+            // こちらで確かめる（`bird:` と同じ理由）。床の手前まで自動操縦で行き、そこから跳ぶのを
+            // やめて沈みが 5〜8 割のところで止める。
+            if let number = Int(name.dropFirst("sink:".count)),
+               RunnerStage.stage(number: number)?.sinkFloors.isEmpty == false {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                runUpToSinkFloorForDebug()
+                advanceUntilForDebug { (0.5...0.8).contains($0.field.sinkProgress) }
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
