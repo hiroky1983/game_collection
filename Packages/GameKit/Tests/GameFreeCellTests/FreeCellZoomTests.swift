@@ -18,15 +18,19 @@ struct FreeCellZoomTests {
 
     typealias Metrics = FreeCellMetrics
 
-    /// 画面幅から `Theme.pad`（16pt）を左右に引いた、盤に使える幅。
-    private static func contentWidth(screenWidth: CGFloat) -> CGFloat { screenWidth - 16 * 2 }
+    /// 画面幅から盤の左右の余白（`boardSideInset` 4pt。以前は `Theme.pad` 16pt）を引いた、盤に使える幅。
+    private static func contentWidth(screenWidth: CGFloat) -> CGFloat {
+        screenWidth - Metrics.boardSideInset * 2
+    }
 
     /// 対象にしている iPhone の論理幅。いちばん狭いのが iPhone SE の 375pt。
     private static let phoneWidths: [CGFloat] = [375, 393, 402, 430, 440]
 
-    /// 等倍では 44pt に届かない幅。**Issue 本文の「iPhone では届かない」は全機種の話ではない**
-    /// （実測: 412pt で等倍がちょうど 44pt になるので、Plus / Max の 430・440pt は等倍で足りている）。
-    private static let narrowPhoneWidths: [CGFloat] = [375, 393, 402]
+    /// 等倍では 44pt に届かない幅。**Issue 本文の「iPhone では届かない」は全機種の話ではない**。
+    /// 盤の左右の余白を 16pt → 4pt・列の間隔を 4pt → 3pt に詰めてから（札が小さすぎる問題の試作）は、
+    /// 381pt で等倍がちょうど 44pt になり、届かないのは iPhone SE（375pt）だけになった
+    /// （以前の境目は 412pt）。
+    private static let narrowPhoneWidths: [CGFloat] = [375]
 
     // MARK: - 寸法
 
@@ -39,11 +43,11 @@ struct FreeCellZoomTests {
     }
 
     /// 「届かない」の境目を数値で固定する。ここがずれると `narrowPhoneWidths` の分け方も変わる。
-    @Test("等倍が 44pt に届く境目は画面幅 412pt")
-    func theFittedWidthReachesTheTapTargetAt412() {
-        #expect(Metrics.cardWidth(availableWidth: Self.contentWidth(screenWidth: 412))
+    @Test("等倍が 44pt に届く境目は画面幅 381pt")
+    func theFittedWidthReachesTheTapTargetAt381() {
+        #expect(Metrics.cardWidth(availableWidth: Self.contentWidth(screenWidth: 381))
                 == Metrics.minimumTapTarget)
-        #expect(Metrics.cardWidth(availableWidth: Self.contentWidth(screenWidth: 411))
+        #expect(Metrics.cardWidth(availableWidth: Self.contentWidth(screenWidth: 380))
                 < Metrics.minimumTapTarget)
     }
 
@@ -65,10 +69,11 @@ struct FreeCellZoomTests {
         #expect(zoomed / fitted >= 1.3, "拡大率が \(zoomed / fitted) 倍しかない")
     }
 
-    /// 画面幅・等倍・拡大の実測値。iPhone SE と iPhone 17 Pro（Issue 本文が挙げた 42.75pt）。
+    /// 画面幅・等倍・拡大の実測値。iPhone SE と iPhone 17 Pro（Issue 本文の時点では 42.75pt だった）。
+    /// 盤の余白 4pt × 2・列の間隔 3pt での値。
     static let measured: [(screen: CGFloat, fitted: CGFloat, zoomed: CGFloat)] = [
-        (375, 39.375, 323.0 / 6),
-        (402, 42.75, 350.0 / 6),
+        (375, 43.25, 352.0 / 6),
+        (402, 46.625, 379.0 / 6),
     ]
 
     @Test("狭い画面ぴったりの実測値", arguments: measured)
@@ -162,7 +167,8 @@ struct FreeCellZoomTests {
         let body = SourceScan.strippingComments(block)
         #expect(SourceScan.matchCount(of: #"let metrics = "#, in: body) == 1, "metrics が複数ある")
         #expect(body.contains("topRow(metrics: metrics)"))
-        #expect(body.contains("tableau(metrics: metrics)"))
+        // 場札には段差（`stack`）も渡すが、札の寸法は上段と同じ `metrics`。
+        #expect(body.contains("tableau(metrics: metrics, stack: stack)"))
         #expect(!body.contains("FreeCellMetrics.cardWidth("),
                 "盤が等倍の幅を直接呼んでいる。拡大しても当たり判定が等倍のまま残る")
     }

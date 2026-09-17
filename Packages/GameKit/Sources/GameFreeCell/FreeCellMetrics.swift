@@ -10,7 +10,12 @@ import Core
 /// （ソリティアの `SolitaireMetrics` と同じ設計）。
 public enum FreeCellMetrics {
     /// 列と列の間隔。8 列なのでソリティア（7 列・5pt）より詰める。
-    public static let columnGap: CGFloat = 4
+    /// 札を 1pt でも広く取るため 4pt → 3pt に詰めた（スパイダーは 2pt）。
+    public static let columnGap: CGFloat = 3
+    /// 盤の左右の余白。帯・ボタンの `Theme.pad`（16pt）より詰めて、札の幅に回す（スパイダーと共通）。
+    public static let boardSideInset: CGFloat = CardStackLayout.boardSideInset
+    /// 盤の上端の余白（View の `.padding(.top, _)` と同じ値）。
+    public static let boardTopPadding: CGFloat = 2
     /// トランプの縦横比（実物の 63×88 に近い値）。
     public static let aspectRatio: CGFloat = 1.4
     /// 札の幅の下限・上限。下限は iPhone SE（375pt）でも 8 列が収まる値、
@@ -71,13 +76,31 @@ public enum FreeCellMetrics {
 
     public static func cardHeight(width: CGFloat) -> CGFloat { (width * aspectRatio).rounded() }
 
-    /// 札を重ねる段差。フリーセルは**全札が表向き**で、最長 13 枚を超える列も普通に出るため、
+    /// 札を重ねる段差の下限。フリーセルは**全札が表向き**で、最長 13 枚を超える列も普通に出るため、
     /// クロンダイクの表向き段差（0.30）より詰めないと 1 列が画面から溢れる。
-    public static func step(cardHeight: CGFloat) -> CGFloat { (cardHeight * 0.24).rounded() }
+    /// 実際の段差は盤の縦の余りに合わせて広げる（`stackLayout`）。ここはその下限。
+    public static func step(cardHeight: CGFloat) -> CGFloat { CardStackLayout.minFaceUpStep(cardHeight: cardHeight) }
+
+    /// 盤の高さから、場札に使える高さ（上段の下から盤の下端まで）。
+    public static func tableauHeight(boardHeight: CGFloat, cardHeight: CGFloat) -> CGFloat {
+        max(0, boardHeight - boardTopPadding - cardHeight - FreeCellMotion.topRowSpacing)
+    }
+
+    /// 段差・列の押せる範囲・見出しの寸法。**いちばん長い列**が盤の下端に収まる範囲で段差を広げ、
+    /// 全列で同じ値を使う（スパイダーと同じ計算 `CardStackLayout`）。
+    public static func stackLayout(cardWidth: CGFloat, cardHeight: CGFloat, boardHeight: CGFloat,
+                                   pileCounts: [Int]) -> CardStackLayout {
+        CardStackLayout.make(
+            cardWidth: cardWidth,
+            cardHeight: cardHeight,
+            tableauHeight: tableauHeight(boardHeight: boardHeight, cardHeight: cardHeight),
+            columns: pileCounts.map { CardStackLayout.Column(faceUp: $0) }
+        )
+    }
 
     /// 列 1 本の高さ（いちばん上の札の全体が見える高さまで）。
-    public static func pileHeight(cardCount: Int, cardHeight: CGFloat) -> CGFloat {
-        CGFloat(max(0, cardCount - 1)) * step(cardHeight: cardHeight) + cardHeight
+    public static func pileHeight(cardCount: Int, cardHeight: CGFloat, step: CGFloat) -> CGFloat {
+        CGFloat(max(0, cardCount - 1)) * step + cardHeight
     }
 
     /// 札 1 枚ぶんの面の寸法。既存の「小さい札」（大富豪の 42×60）を基準に相似で伸縮させる。

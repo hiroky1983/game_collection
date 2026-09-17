@@ -8,7 +8,8 @@ struct SpiderCardBody: View {
     let card: SpiderCard
     let faceUp: Bool
     let isSelected: Bool
-    let isCovered: Bool
+    /// 下に重なって帯だけ見えている表向きの札なら、その見出しの寸法（`nil` = 全体が見えている札）。
+    let coveredIndex: CardStackIndexMetrics?
     let metrics: PlayingCardMetrics
 
     var body: some View {
@@ -22,32 +23,16 @@ struct SpiderCardBody: View {
             if !faceUp {
                 PlayingCardBack(metrics: metrics)
                     .frame(width: metrics.width, height: metrics.height)
-            } else if isCovered {
-                SpiderCardIndex(card: card, metrics: metrics)
+            } else if let coveredIndex {
+                // フリーセルと共通の `CardStackIndex`（帯の高さいっぱいの数字 + マーク）。
+                CardStackIndex(rankLabel: card.rankLabel, suit: card.suit.playingCardSuit,
+                               metrics: coveredIndex)
             } else {
                 PlayingCardFace(figure: card.figure, metrics: metrics)
                     .frame(width: metrics.width, height: metrics.height)
             }
         }
         .frame(width: metrics.width, height: metrics.height)
-    }
-}
-
-/// 重なって隠れた札の見出し（ランク + スートを左上に小さく）。
-struct SpiderCardIndex: View {
-    let card: SpiderCard
-    let metrics: PlayingCardMetrics
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Text(card.rankLabel)
-                .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded))
-            Text(card.suit.symbol)
-                .font(.system(size: metrics.suitFont * 0.72))
-        }
-        .foregroundStyle(PlayingCardInk.color(for: card.suit.playingCardSuit))
-        .padding(.leading, metrics.cornerRadius * 0.7)
-        .padding(.top, metrics.cornerRadius * 0.4)
     }
 }
 
