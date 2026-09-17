@@ -156,7 +156,9 @@ public final class RunnerModel {
     /// 記録が無い・壊れた値なら 1 面。上限は最終面。
     nonisolated static func reachedStage(afterClearing clearedStage: Int?) -> Int {
         guard let clearedStage, clearedStage >= 1 else { return 1 }
-        return min(clearedStage + 1, RunnerRules.stageCount)
+        // 先に上限で打ち切る（壊れた記録が `Int.max` だと `+ 1` で溢れて落ちる・PR #1096 の CodeRabbit 指摘）。
+        guard clearedStage < RunnerRules.stageCount else { return RunnerRules.stageCount }
+        return clearedStage + 1
     }
 
     // MARK: - 問い合わせ

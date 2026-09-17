@@ -669,6 +669,7 @@ struct RunnerStageSelectTests {
         #expect(RunnerModel.reachedStage(afterClearing: 18) == 19)
         #expect(RunnerModel.reachedStage(afterClearing: RunnerRules.stageCount) == RunnerRules.stageCount)
         #expect(RunnerModel.reachedStage(afterClearing: 999) == RunnerRules.stageCount)
+        #expect(RunnerModel.reachedStage(afterClearing: Int.max) == RunnerRules.stageCount, "溢れて落ちない")
     }
 
     @Test("最終面をクリアしても到達点は最終面のまま（その次にはならない）")
