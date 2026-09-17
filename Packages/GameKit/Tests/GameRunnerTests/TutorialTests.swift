@@ -73,6 +73,19 @@ struct RunnerTutorialTests {
         defaults.removePersistentDomain(forName: name)
     }
 
+    @Test("QA・撮影用の起動（-simulateRunner）でも出さず、印も消費しない")
+    func hiddenForDebugScenarios() {
+        let (defaults, name) = makeDefaults("simulate")
+        let log = PlayLog(defaults: defaults)
+
+        // `-screenshotMode` を付けずに `showcase` を初回起動すると、見たい画にガイドが被っていた（#1063）。
+        #expect(!RunnerTutorial.shouldShow(playLog: log, arguments: ["app", "-simulateRunner", "showcase"]))
+        #expect(!log.hasShownGuide(for: RunnerTutorial.seenKey), "QA の起動で印を消費してはいけない")
+        #expect(RunnerTutorial.shouldShow(playLog: log, arguments: []), "普通に開けば初回として出る")
+
+        defaults.removePersistentDomain(forName: name)
+    }
+
     @Test("PlayLog を持たない構成（プレビュー・テスト）では出さない")
     func hiddenWithoutPlayLog() {
         #expect(!RunnerTutorial.shouldShow(playLog: nil, arguments: []))

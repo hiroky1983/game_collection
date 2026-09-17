@@ -81,7 +81,11 @@ public final class RunnerModel {
             preference: preference,
             stage: restored?.stage ?? 1,
             reachedStage: restored?.reachedStage ?? 1,
-            isFreshStart: restored == nil
+            // **ハブから開いただけでは 1 プレイと数えない**（#1064）。この時点ではどのモード・
+            // どの面を走るかが決まっておらず（開始シート #1027 で選ぶ）、ここで数えると
+            // 「シートの『スタート』で数え直して 2 本目」（初回起動）と
+            // 「シートを閉じてコースをタップしただけなら 0 本」（2 回目以降）に転ぶ。
+            countsPlayStart: false
         )
     }
 
@@ -101,20 +105,22 @@ public final class RunnerModel {
             stage: stage,
             // 狙った局面から始めるので、その面までは到達済みとみなす。
             reachedStage: stage,
-            isFreshStart: true
+            // 面を選んで始める入口なので、`newGame(startingAtStage:)` と同じく 1 プレイとして数える。
+            countsPlayStart: true
         )
     }
 
     /// 唯一の指定イニシャライザ。
     ///
-    /// `isFreshStart` は解析（#158）の数え方だけに効く。中断からの復元は「新しいプレイ」では
-    /// ないので `game_start` を送らない。
+    /// `countsPlayStart` は解析（#158）の数え方だけに効く。**面を選んで始める入口だけ真**で、
+    /// ハブから開くだけの入口（中断からの復元を含む）は偽（#1064）。偽で作った局は走り出し
+    /// （`beginRun`）で数える。
     private init(
         services: GameServices?,
         preference: FeedbackPreference,
         stage: Int,
         reachedStage: Int,
-        isFreshStart: Bool
+        countsPlayStart: Bool
     ) {
         self.services = services
         self.preference = preference
@@ -131,7 +137,7 @@ public final class RunnerModel {
             .bestPoints
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart {
+        if countsPlayStart {
             services?.gameDidStart(
                 gameID: Self.gameID, level: .stage(stageNumber), mode: RunnerMode.stages.analyticsMode
             )
@@ -210,6 +216,16 @@ public final class RunnerModel {
     /// `replayCurrentStage`・#941）の共通の実体。
     private func beginRun() {
         phase = .running
+        // **走り出した = ここからが 1 プレイ**（#1064）。`gameDidStart` は冪等なので、面を選んで
+        // 始めた走行（`startStages` / `newEndlessGame` の `gameDidRestart`）では増えない。
+        // ここで数えるのは、ハブから開いてそのままコースをタップした走行——開始シートを
+        // キャンセルした 2 回目以降の起動がこれで、以前は `game_start` も `game_end` も
+        // 出ていなかった。エンドレスに `level` は付けない（`newEndlessGame` と同じ形）。
+        services?.gameDidStart(
+            gameID: Self.gameID,
+            level: mode == .stages ? .stage(stageNumber) : nil,
+            mode: mode.analyticsMode
+        )
         // 走り出した = 捨てたら途中離脱として数える走行（#500）。
         services?.gameDidProgress(gameID: Self.gameID)
         // このゲームの中断データは再開する面と到達点の控えで、決着後も消さない
