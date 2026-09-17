@@ -376,7 +376,7 @@ public struct MahjongTableLayout: Sendable {
     static let sideMeldWallClearance: CGFloat = 1
 
     /// 上家・下家の副露の牌の幅。基準は河と同じ（`meldTileWidth(seat:)`）で、`meldSizes` の全組が列の先端から
-    /// 壁の手前までに収まらないときだけ縮める（#1065。河を 2 割大きくした #918 以降、3 組で壁の上面に 7〜9pt 掛かっていた）。
+    /// 壁の手前までに収まらないときだけ縮める（#1065。河と同じ幅のままだと、4 組 13 枚で上家の最後の牌が壁に 4〜5pt 掛かり、全部カンなら両家ともはみ出す）。
     /// 壁は組数から決まるツモ番の枚数（`14 − 3 × 組数`。最も長い）で取るので、手番ごとに大きさが揺れない。
     /// 大きさ 0 の卓では 0（#874）。
     public func sideMeldTileWidth(seat: Int, meldSizes: [Int]) -> CGFloat {

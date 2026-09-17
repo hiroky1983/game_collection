@@ -241,9 +241,10 @@ struct MahjongTableLayoutTests {
     @Test("上家・下家の副露は 4 組まで（ツモ番の壁とも）河・パネル・フェルトの縁と重ならない。2 組までは河と同じ幅",
           arguments: [1, 3])
     func sideMeldsFitBesideWall(seat: Int) {
-        // #918 で河（＝副露）を 2 割大きくしてからは、河と同じ幅のままだと 3 組（10 枚）の 10 枚目が壁の上面に
-        // 7〜9pt 掛かる（壁の列は「副露 + 残りの壁」で卓の奥行きを使い切る）。3 組以上は `sideMeldTileWidth` が
-        // 牌を縮めて列に収める（#1065。4 組は鳴けるだけ鳴く東風戦の通しテストで届く上限）。
+        // 壁の列は「副露 + 残りの壁」で卓の奥行きを使い切る。河（＝副露）と同じ幅のままだと、4 組（13 枚）で
+        // 上家の 12 枚目がツモ番の壁に 4〜5pt 掛かる（#926 の頃は 3 組で掛かり、ここを 2 組までに緩めていた）。
+        // 収まらないときは `sideMeldTileWidth` が牌を縮めて列に収める（#1065。4 組は鳴けるだけ鳴く東風戦の
+        // 通しテストで届く上限）。
         for l in [Self.phone, Self.phone17, Self.pad] {
             #expect(l.meldTileWidth(seat: seat) == l.riverTileWidth)
             for groups in 1...4 {
