@@ -55,7 +55,9 @@ enum RunnerTutorial {
     ) -> Bool {
         // 撮影モード（`-screenshotMode`）では出さない——App Store 用のスクリーンショットに
         // 写り込む。印も消費しないので、撮影のあとに実機で遊べば初回として出る。
-        guard !arguments.contains("-screenshotMode") else { return false }
+        // QA・撮影用の画面（`-simulateRunner`）でも同じ（#1063）——`-screenshotMode` を付けずに
+        // `showcase` 等を初回起動すると、見たい画にガイドのモーダルが被っていた。
+        guard !arguments.contains("-screenshotMode"), !arguments.contains("-simulateRunner") else { return false }
         return playLog?.markGuideShown(for: seenKey) ?? false
     }
 

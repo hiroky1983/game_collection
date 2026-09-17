@@ -174,10 +174,15 @@ public final class BlackjackModel {
 
     // MARK: チップ切れ復活（#499）
 
-    /// セッション開始時の持ちチップ。復活はこの**半分**から再開する。
+    /// セッション開始時の持ちチップ。無料の「最初からやり直す」もこの額に戻す。
     static let initialChips = 1000
     /// 復活で戻るチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
-    public static let reviveChips = initialChips / 2
+    ///
+    /// **無料のやり直し（`initialChips`）より必ず多くする**（#523 会長決裁 C 案）。以前は半分の 500 枚で、
+    /// 復活は順位表にも載らないため無料のやり直しの完全な下位互換になり、`revival` が 0 件だった。
+    /// 広告を見る理由を「チップが増える」で作り、順位表の扱い（復活したセッションは送らない）は変えない。
+    /// ディーラー相手でチップの多さが勝敗を左右しないので、倍の 2000 枚にしている。
+    public static let reviveChips = 2000
 
     /// いちばん安いベット額。**ベットボタンの並びと破産判定の両方がここを見る**（#656）。
     /// 残高がこれに届かなければ、たとえ 0 枚でなくても打つ手が一つも無い＝そのセッションは
@@ -604,7 +609,7 @@ public final class BlackjackModel {
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
         guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
         // 広告のロード〜視聴のあいだも画面は操作できる。「最初からやり直す」で新しいセッションが
-        // 始まっていたら、そこへ復活が乗って残高 1000 → 500 になり、復活権と順位表資格まで消える（#727）。
+        // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#727）。
         // 麻雀のトビ復活（`MahjongModel.reviveAfterAd`）と同じく、通し番号と救済できる状態を見直す。
         guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisSession = true

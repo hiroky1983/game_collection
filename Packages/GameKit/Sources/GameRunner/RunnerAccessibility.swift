@@ -27,7 +27,7 @@ public enum RunnerAccessibility {
     }
 
     /// 面の見出し「2-3」（#931。名前は #946 で外し番号だけ）。走行中の HUD・スタート画面の
-    /// 主ボタン・クリア表示の「つぎは」・ワールドマップで同じ形を使う。3 世界に収まらない番号
+    /// 主ボタン・クリア表示の「つぎは」・ワールドマップで同じ形を使う。どの世界にも収まらない番号
     /// （範囲外）は「ステージ N」に倒す。
     public static func stageHeadline(number: Int) -> String {
         guard RunnerWorld.contains(stage: number) else { return "ステージ \(number)" }
@@ -80,10 +80,13 @@ public enum RunnerAccessibility {
     }
 
     /// エンドレスの結果。ステージ番号の代わりに走行距離を言う。
+    ///
+    /// エンドレスにゴールは無い（#1086）ので `.cleared` / `.allCleared` にはならない。switch を
+    /// 網羅するために、万一来ても走行距離だけを言う（「走りきった」とは言わない）。
     public static func endlessResultLabel(phase: RunnerPhase, distance: Int) -> String {
         switch phase {
         case .falling, .failed: return "\(max(0, distance))メートルでミスしました"
-        case .cleared, .allCleared: return "コースを走りきりました。\(distanceLabel(distance))"
+        case .cleared, .allCleared: return distanceLabel(distance)
         case .paused:     return "一時停止中"
         case .ready:      return "エンドレス。タップでスタート"
         case .running:    return "走行中"

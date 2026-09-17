@@ -8,15 +8,19 @@ import CoreEngine
 /// 導入）で、そこから先が毎回違う。
 ///
 /// **ランダムでも詰まないことは生成時に保証する。** 置く前に、ステージ制の成立条件
-/// （`RunnerStageTests` が 18 ステージについて確かめている「押さないジャンプで越えられる」
+/// （`RunnerStageTests` が全ステージについて確かめている「押さないジャンプで越えられる」
 /// 「隣接障害の間に着地して踏み切り直す余白がある」「鳥の前後に跳ばざるを得ない配置が無い」
 /// 「台座の前後・床の直後は素の平地」）を `canPlace` で判定し、通らない候補は平地に倒す。
 /// 判定式はテストと同じ物差し（`RunnerRules` の弾道と `RunnerAutoPilot.lead`）で書いてあり、
 /// テスト側は生成したコースを**独立に**同じ条件で検め直す（`RunnerEndlessCourseTests`）。
 ///
-/// 乱数は**種を注入できる生成器**（`RandomNumberGenerator`）を引数に取る。同じ種なら同じ
+/// 乱数は**種を注入できる生成器**（`RandomNumberGenerator`）を使う。同じ種なら同じ
 /// コースになるので、テストは決定論的に再現でき、不具合報告も種 1 つで再現できる。
 /// 実プレイの種は `RunnerModel` が `SystemRandomNumberGenerator` から毎回引く。
+///
+/// **コースに終わりは無い**（#1086・会長決裁 2026-09-17）。#675 の第 1 弾は走り出す瞬間に
+/// 400 区画ぶんを一括で作っていたが、いまは走りながら 1 区画ずつ作る（`RunnerEndlessGenerator`）。
+/// 作った区画は決まった数の枠（`RunnerEndlessTrack`）に入れて使い回す。
 public enum RunnerEndlessCourse {
     /// 冒頭の固定区画。**ステージ 1 の出だし 4 区画**（走り出しの余白 2 つと 1 タイルの穴 1 つ）。
     ///
@@ -25,25 +29,32 @@ public enum RunnerEndlessCourse {
     /// 最初の穴までに切り詰めた。ステージ 1 の出だしと同じであることは `RunnerEndlessCourseTests`
     /// が固定する——別の導入を書きたくなったらそこを直す。
     public static let intro = "--1-"
-    /// 末尾の平地の区画数。ステージ制の「末尾は必ず 2 区画ぶん平地」に合わせる。
-    static let trailingSegments = 2
+    /// `intro` の区画記号。生成のたびに `Array(intro)` を作らないよう 1 度だけ展開しておく。
+    static let introSymbols: [Character] = Array(intro)
 
-    /// 種からコースを作る。`number` は 0（本番のステージではないことを型で示す。
-    /// `RunnerStage.debugShowcase` と同じ扱い）。
-    public static func makeStage(seed: UInt64) -> RunnerStage {
-        RunnerStage(
-            number: 0,
-            pattern: pattern(seed: seed),
-            speed: RunnerRules.baseSpeed,
-            speedGain: speedGain,
-            speedCap: RunnerRules.endlessMaxSpeed
-        )
-    }
+    /// エンドレスの走行に使う `RunnerStage`（#1086）。**速さの式だけを持つ空のコース**で、
+    /// 障害・台座・アイテムは持たない（中身は `RunnerField.track` が走りながら作る）。
+    ///
+    /// `number` は 0（本番のステージではないことを型で示す。`RunnerStage.debugShowcase` と同じ扱い）。
+    /// `length` が 0 なのでゴール・チェックポイントの判定には使えない——`RunnerField` は
+    /// エンドレスではどちらも判定しない。
+    public static let stage = RunnerStage(
+        number: 0,
+        pattern: "",
+        speed: RunnerRules.baseSpeed,
+        speedGain: speedGain,
+        speedCap: RunnerRules.endlessMaxSpeed
+    )
 
-    /// 種から区画記号の並びを作る。
-    public static func pattern(seed: UInt64) -> String {
-        var generator = RunnerSeededGenerator(seed: seed)
-        return pattern(using: &generator)
+    /// 種から、先頭 `count` 区画の区画記号を並べる（テスト・不具合の再現用）。
+    ///
+    /// 走行中と同じ `RunnerEndlessGenerator` を回すので、ここで見える並びがそのまま走るコース。
+    public static func pattern(seed: UInt64, count: Int) -> String {
+        var generator = RunnerEndlessGenerator(seed: seed)
+        var symbols = ""
+        symbols.reserveCapacity(count)
+        for _ in 0..<max(0, count) { symbols.append(generator.next().symbol) }
+        return symbols
     }
 
     // MARK: - 難易度カーブ
@@ -54,8 +65,8 @@ public enum RunnerEndlessCourse {
 
     /// その距離での基準速。`RunnerRules.baseSpeed` から上がり、`RunnerRules.endlessMaxSpeed` で頭打ち。
     ///
-    /// `makeStage` が作る `RunnerStage.speed(at:)` と同じ式。生成の途中（まだ `RunnerStage` が
-    /// 無い時点）で成立条件を判定するために、静的関数としても持つ。
+    /// `stage` の `RunnerStage.speed(at:)` と同じ式。生成器（`RunnerEndlessGenerator`）が成立条件を
+    /// 判定するときに `RunnerStage` を介さず引けるよう、静的関数としても持つ。
     public static func speed(atDistance distance: Double) -> Double {
         min(RunnerRules.endlessMaxSpeed, RunnerRules.baseSpeed + speedGain * max(0, distance))
     }
@@ -98,7 +109,7 @@ public enum RunnerEndlessCourse {
     /// #968 までは 40）が初出で、そこでは瞬間タップ（`jumpCutGraceTime`）の飛距離 22.85（40 なら 24.04）で
     /// 越えるのに要る 22 をぎりぎり渡る。ここでは速さ 41.2（= 6,144 進んだ地点）以上に置き、タップでも
     /// 余裕を残す（`RunnerEndlessCourseTests.instantTapClearsPitsAndLowBlocks`）。
-    private static let parts: [(symbol: Character, weight: Int, unlockDistance: Double)] = [
+    static let parts: [(symbol: Character, weight: Int, unlockDistance: Double)] = [
         ("1", 3, 0),
         ("n", 3, 0),
         ("2", 2, 1_024),
@@ -112,131 +123,17 @@ public enum RunnerEndlessCourse {
     ]
 
     /// 平地の区画にスピードアップアイテムを置く割合（1/6）。
-    private static let pickupOdds = 6
-    /// たこ焼き（#797）を置き始める距離。**全 400 区画のちょうど半分（200 区画）**で、
-    /// Issue の「エンドレスでは中盤から」の実体。いちばん後ろのイノシシ（128 区画）より後ろに
-    /// してあるので、部品が出揃ってから無敵のご褒美が混ざる順序になる。
+    static let pickupOdds = 6
+    /// たこ焼き（#797）を置き始める距離（200 区画目・走行距離 3,200 m）。Issue の「エンドレスでは
+    /// 中盤から」の実体で、#675 の固定長（400 区画）の半分にあたる。いちばん後ろのイノシシ
+    /// （128 区画）より後ろにしてあるので、部品が出揃ってから無敵のご褒美が混ざる順序になる。
     ///
-    /// この距離より手前では乱数を 1 つも余分に引かない（下の `pattern(using:)`）。
+    /// この距離より手前では乱数を 1 つも余分に引かない（`RunnerEndlessGenerator.decide(at:)`）。
     static let takoyakiUnlockDistance: Double = 12_800
     /// 解禁後、スピードアップアイテムを置かなかった平地の区画にたこ焼きを置く割合（1/16）。
-    /// 後半 200 区画の平地は 60〜70 区画ほどなので 1 本あたり 4 個前後——3 秒の無敵
-    /// （最高速で約 4 区画ぶん）が後半の 1 割弱を占める程度に留める。
-    private static let takoyakiOdds = 16
-
-    // MARK: - 生成
-
-    /// 区画記号の並びを作る。長さは常に `RunnerRules.endlessSegments`。
-    ///
-    /// 区画ごとに「障害を置くか」を密度で決め、置くなら解禁済みの部品から重みで 1 つ選ぶ。
-    /// 成立条件（`canPlace`）を満たさない候補は **`redrawLimit` 回まで引き直し**、それでも
-    /// 置けなければ平地に倒す（#930。以前は引き直さず即座に平地に倒していたため、条件が厳しい
-    /// 並び——障害の直後の台座・床、鳥の直後の高い岩——ほど平地に化けて「何もない時間」が伸びた）。
-    ///
-    /// **平地（障害も台座も床も無い区画）の連続には上限がある**（`flatRunLimit(atDistance:)`）。
-    /// 上限に達した区画は密度の抽選を飛ばして必ず障害を置きにいき、引き直しも尽きたら
-    /// 最小の穴（`1`）を試す——隣り合う区画にどの障害が並んでも置ける部品
-    /// （`RunnerEndlessCourseTests.maxSpeedKeepsAdjacentHazardsPassable`）。
-    public static func pattern<G: RandomNumberGenerator>(using generator: inout G) -> String {
-        let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
-        let bodyEnd = RunnerRules.endlessSegments - trailingSegments
-        var symbols = Array(intro)
-        var lastHazard = RunnerStage.makeHazards(pattern: intro).last
-        /// 台座・床の直後は素の平地にする（`RunnerStage.patterns` の配置規則 (1)(2)）。
-        var forcePlain = false
-        /// いま何区画続けて平地（障害・台座・床が無い区画）か。
-        var flatRun = intro.reversed().prefix { $0 == "-" }.count
-
-        while symbols.count < bodyEnd {
-            let index = symbols.count
-            let distance = Double(index) * segmentWidth
-            if forcePlain {
-                symbols.append("-")
-                flatRun += 1
-                forcePlain = false
-                continue
-            }
-            let mustPlace = flatRun >= flatRunLimit(atDistance: distance)
-            if !mustPlace {
-                let roll = Double.random(in: 0..<1, using: &generator)
-                if roll >= hazardDensity(atDistance: distance) {
-                    // 平地。ときどきスピードアップアイテムを置く（障害ではないので条件は問わない）。
-                    let pickup = Int.random(in: 0..<pickupOdds, using: &generator) == 0
-                    // 中盤（`takoyakiUnlockDistance`）からは、残りの平地にときどきたこ焼き（#797）を置く。
-                    let takoyaki = !pickup && distance >= takoyakiUnlockDistance
-                        && Int.random(in: 0..<takoyakiOdds, using: &generator) == 0
-                    symbols.append(pickup ? RunnerStage.pickupSymbol : takoyaki ? RunnerStage.takoyakiSymbol : "-")
-                    flatRun += 1
-                    continue
-                }
-            }
-
-            /// `symbol` をこの区画に置けるなら置いて true。台座・床は連続で 1 基置く。
-            func place(_ symbol: Character) -> Bool {
-                switch symbol {
-                case RunnerStage.platformSymbol, RunnerStage.boostFloorSymbol:
-                    // 台座は 2〜3 区画、床は 1〜2 区画の連続で 1 基。台座の手前は素の平地でないと
-                    // 助走が無い（配置規則 (1)）。床の手前も同じ平地を要求しておく——手前が
-                    // 障害だと、跳んだ着地が床に入って基準速の踏み切り計算からずれる。
-                    let run = symbol == RunnerStage.platformSymbol
-                        ? Int.random(in: 2...3, using: &generator)
-                        : Int.random(in: 1...2, using: &generator)
-                    guard symbols.last == "-", index + run < bodyEnd,
-                          symbol != RunnerStage.platformSymbol
-                            || canPlacePlatform(at: distance, after: lastHazard, speed: speed(atDistance: distance))
-                    else { return false }
-                    symbols += Array(repeating: symbol, count: run)
-                    forcePlain = true
-                    return true
-                default:
-                    guard let spec = RunnerStage.segmentSpec(symbol) else { return false }
-                    let candidate = RunnerHazard(
-                        kind: spec.kind,
-                        start: distance + Double(RunnerRules.hazardTileOffset) * RunnerRules.tileWidth,
-                        length: Double(spec.tiles) * RunnerRules.tileWidth
-                    )
-                    // 越えられるかは区画の手前の（遅い）速さで、間隔は先の（速い）速さで判定する
-                    // （`RunnerStage.speed(at:)` のドキュメント参照）。先の速さは**障害の右端から
-                    // 2 区画先**で取る——`RunnerEndlessCourseTests` が検め直すのと同じ地点。区画の
-                    // 左端から 2 区画先で取ると 0.05 ほど遅い速さで判定することになり、飛び立つ鳥
-                    // （#796）の直後の高い岩のように余白が 0.01 単位まで削れる並びで、生成は通るのに
-                    // 検算で落ちる。
-                    let before = speed(atDistance: distance)
-                    let after = speed(atDistance: candidate.end + segmentWidth * 2)
-                    guard canPlace(candidate, after: lastHazard, speedBefore: before, speedAfter: after) else {
-                        return false
-                    }
-                    symbols.append(symbol)
-                    // イノシシの次の区画に岩を置くと、イノシシは岩の右側で止まって岩と一続きになる
-                    // （#801・`RunnerStage.boarStop`）。次の障害との間隔は**止まったイノシシの右端**から
-                    // 測らないと、岩から測った 64 のうち 4 が埋まっているぶん足りなくなる。
-                    if let boar = lastHazard, boar.kind == .boar, candidate.kind.isRock,
-                       candidate.end <= boar.boarSpawn {
-                        lastHazard = RunnerHazard(kind: .boar, start: boar.start, length: boar.length, stopAt: candidate.end)
-                    } else {
-                        lastHazard = candidate
-                    }
-                    return true
-                }
-            }
-
-            var placed = false
-            for _ in 0...redrawLimit where !placed {
-                placed = place(pick(atDistance: distance, using: &generator))
-            }
-            if !placed, mustPlace {
-                placed = place("1")
-            }
-            if placed {
-                flatRun = 0
-            } else {
-                symbols.append("-")
-                flatRun += 1
-            }
-        }
-        symbols += Array(repeating: "-", count: RunnerRules.endlessSegments - symbols.count)
-        return String(symbols)
-    }
+    /// 解禁後の平地は 100 区画あたり 30〜35 区画ほどなので、100 区画あたり 2 個弱——3 秒の無敵
+    /// （最高速で約 4 区画ぶん）が走行の 1 割弱を占める程度に留める。
+    static let takoyakiOdds = 16
 
     /// 置けない候補を引き直す回数の上限（最初の 1 回に加えて）。
     ///
@@ -254,17 +151,22 @@ public enum RunnerEndlessCourse {
     }
 
     /// 解禁済みの部品から重みで 1 つ選ぶ。
-    private static func pick<G: RandomNumberGenerator>(
+    ///
+    /// 解禁済みの部品を配列に絞り込まずに 2 回なめる（走行中に 1 区画ごとに呼ばれるので、
+    /// 呼ぶたびに配列を作らない）。乱数の引き方は絞り込んでから選ぶ形と同じ 1 回だけ。
+    static func pick<G: RandomNumberGenerator>(
         atDistance distance: Double, using generator: inout G
     ) -> Character {
-        let unlocked = parts.filter { $0.unlockDistance <= distance }
-        let total = unlocked.reduce(0) { $0 + $1.weight }
+        var total = 0
+        for part in parts where part.unlockDistance <= distance { total += part.weight }
         var roll = Int.random(in: 0..<total, using: &generator)
-        for part in unlocked {
+        var last = parts[0].symbol
+        for part in parts where part.unlockDistance <= distance {
             roll -= part.weight
             if roll < 0 { return part.symbol }
+            last = part.symbol
         }
-        return unlocked[unlocked.count - 1].symbol
+        return last
     }
 
     // MARK: - 成立条件

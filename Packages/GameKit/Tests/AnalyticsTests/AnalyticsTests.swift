@@ -1391,6 +1391,8 @@ struct RunnerQuitTests {
         services.gameDidLeave(gameID: RunnerModel.gameID)
 
         #expect(spy.ends.isEmpty, "1 歩も走っていない走行は捨てても離脱にならない")
-        #expect(spy.starts == [RunnerModel.gameID])
+        // ハブから画面を開いただけでは `game_start` も出ない（#1064）。数えるのは面を選んで
+        // 始めたとき（`newGame*`）と走り出したとき（`beginRun`）で、開いて戻るだけなら 0 本 0 本。
+        #expect(spy.starts.isEmpty)
     }
 }

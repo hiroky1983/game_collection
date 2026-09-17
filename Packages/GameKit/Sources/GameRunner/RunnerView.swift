@@ -113,9 +113,8 @@ public struct RunnerView: View {
         .onAppear {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
-            presentStartSheetIfNeeded()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -125,6 +124,9 @@ public struct RunnerView: View {
                 openStartSheet(mode: model.mode, stage: 1)
             }
             #endif
+            // 自動表示の判断は**起動引数を適用したあと**（#1063）。先に判断すると、その時点では
+            // まだ `.ready` なので撮影・QA の画面（`-simulateRunner`）にもシートが被る。
+            presentStartSheetIfNeeded()
         }
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
@@ -207,15 +209,13 @@ public struct RunnerView: View {
     }
 
     /// エンドレス（#675）は「ステージ N / 18」と進み具合の代わりに走行距離を出す。
-    /// 進み具合は出さない——固定長の終わりを見せると「エンドレス」の看板と食い違う。
+    /// コースに終わりは無い（#1086）ので、進み具合という物差しそのものが無い。
     private var distanceReadout: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("走行距離")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
-            Text(distanceText(model.distanceMeters))
-                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.ink)
+            shrinkingNumber(distanceText(model.distanceMeters), size: 22)
         }
         .accessibilityElement()
         .accessibilityLabel(RunnerAccessibility.distanceLabel(model.distanceMeters))
@@ -227,12 +227,27 @@ public struct RunnerView: View {
             Text("自己ベスト")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
-            Text(model.endlessBestDistance.map(distanceText) ?? "–")
-                .font(.system(size: 15, weight: .heavy, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.ink)
+            shrinkingNumber(model.endlessBestDistance.map(distanceText) ?? "–", size: 15, alignment: .trailing)
         }
         .accessibilityElement()
         .accessibilityLabel(RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance))
+    }
+
+    /// ヘッダーの数字。入りきらない幅では切らずに縮める（#1086）。
+    ///
+    /// コースに終わりが無いので走行距離は 7 桁以上になる。SE の幅で走行距離と自己ベストが両方 7 桁のとき、
+    /// 縮めずにいると「2,500,…」と切れた（実測）。縮めるとその行が低くなりヘッダーの高さ＝コースの大きさが
+    /// 桁の増えた瞬間に変わるので、**縮める前の 1 行の高さを隠した型で取っておく**。
+    private func shrinkingNumber(_ text: String, size: CGFloat, alignment: Alignment = .leading) -> some View {
+        let font = Font.system(size: size, weight: .heavy, design: .rounded).monospacedDigit()
+        return ZStack(alignment: alignment) {
+            Text(verbatim: "0").font(font).hidden()
+            Text(text)
+                .font(font)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        }
     }
 
     /// 走行距離の表示（`1,234 m`）。単位はワールド単位だが、数字に「m」を添えて距離と分かるようにする。
@@ -318,8 +333,32 @@ public struct RunnerView: View {
     /// チェックポイント再開直後（`canChooseMode == false`）は出さない——広告で得た再開を
     /// 誤って手放させない。初回の操作ガイド中（`showsTutorial`）も出さない。
     private func presentStartSheetIfNeeded() {
-        guard model.phase == .ready, model.canChooseMode, !showsTutorial, !showStartSheet else { return }
+        guard Self.shouldPresentStartSheet(
+            phase: model.phase, canChooseMode: model.canChooseMode,
+            showsTutorial: showsTutorial, showStartSheet: showStartSheet
+        ) else { return }
         openStartSheet(mode: model.mode, stage: model.stageNumber)
+    }
+
+    /// `presentStartSheetIfNeeded` の実体（純関数・#1063）。
+    ///
+    /// 撮影モード（`-screenshotMode`）と QA・撮影用の画面（`-simulateRunner`）では出さない——
+    /// 走行中の画を撮る指定にシートが被ると、ASO のスクリーンショット
+    /// （`Scripts/capture-aso-screenshots.sh` の `05-runner`）がシートごと写る。開始シートそのものを
+    /// 撮る `-showRunnerStartSheet` は別の経路（`openStartSheet`）で開くので、ここで塞いでよい。
+    /// `-simulateRunner` が効くのは DEBUG だけだが、判定は構成で分けない——リリース構成に
+    /// 撮影用の引数が渡ることは無く、渡っても開始シートが出ないだけで済む。
+    ///
+    /// - Parameter arguments: 起動引数。既定は実プロセスのもので、テストが撮影・QA の起動を固定するために差し替える。
+    static func shouldPresentStartSheet(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        phase: RunnerPhase,
+        canChooseMode: Bool,
+        showsTutorial: Bool,
+        showStartSheet: Bool
+    ) -> Bool {
+        guard !arguments.contains("-screenshotMode"), !arguments.contains("-simulateRunner") else { return false }
+        return phase == .ready && canChooseMode && !showsTutorial && !showStartSheet
     }
 
     // MARK: - コース
@@ -454,12 +493,6 @@ public struct RunnerView: View {
             panel(title: "ミス！", face: resultFace, faceScale: faceScale) {
                 if model.mode == .endless { endlessDetail }
                 if model.canResumeFromCheckpoint { resumeButton }
-                retryButton
-            }
-        case .allCleared where model.mode == .endless:
-            // 固定長のコースを走り切った（第 1 弾は 400 区画で打ち切り・#675）。
-            panel(title: "コースを走りきった！", face: resultFace, faceScale: faceScale) {
-                endlessDetail
                 retryButton
             }
         case .cleared:
@@ -634,7 +667,8 @@ public struct RunnerView: View {
     /// `RunnerWorld.mapColor` は文字を載せる前提の色ではない（ワールドマップでは帯と薄い色味にだけ
     /// 使っている）。主ボタンは面いっぱいに塗るので、どの世界でも読めるよう**ライト / ダークで
     /// 変わらない濃い茶**にする。白は朝の水色（0x6FC3EE）で 2:1 を切り、`Theme.ink` は夜（0x6B7FC2）で
-    /// 3:1 を切るが、この色なら朝 9:1・夕方 5:1・夜 4.7:1 で 3 世界とも 4.5:1 以上。
+    /// 3:1 を切るが、この色なら朝 9:1・夕方 5:1・夜 4.7:1 で 4.5:1 以上（里山・港町の仮置きの空は
+    /// 朝と同じ淡い帯なので同じく届く・#1009）。
     private static let onWorld = Color(hex: 0x1A1410)
 
     /// 画面に出す面の見出し。QA 用のショーケース（DEBUG）を走っているあいだは面の番号を
@@ -797,7 +831,7 @@ public struct RunnerView: View {
 /// 付く。選んだモードと面は `RunnerModel.newGame(startingAtStage:)` / `newGame(mode:)` で
 /// 走行に焼き込まれ、走行中に読み替えられることはない（1局=1RuleSet）。
 ///
-/// 並べ方は `.scrolling`（常に `.large`）。3 世界 × 6 面の格子は 3 列 × 2 段を 3 つ積むので、
+/// 並べ方は `.scrolling`（常に `.large`）。5 世界 × 6 面の格子は 3 列 × 2 段を 5 つ積むので、
 /// モードの節と合わせると `.medium` には収まらない（`GameSetupSheet` の注意書きどおり、
 /// 収まらない中身を `pinnedStart` にすると開始ボタンが押せなくなる）。エンドレスを選んで
 /// 格子が消えても**シートの高さは変えない**——`pinnedStart` にして開始ボタンを下端へ離す案を
@@ -841,7 +875,7 @@ struct RunnerStartSheet: View {
 
 // MARK: - ワールドマップ（#798）
 
-/// 開始シートに載せる 3 世界 × 6 面の格子。到達済みの面だけ選べる。
+/// 開始シートに載せる 5 世界 × 6 面の格子（世界の数は `RunnerWorld.allCases` から作る）。到達済みの面だけ選べる。
 ///
 /// **世界ごとに 3 列 × 2 段**にしてある。マスに出すのは「1-1」の表記だけ（面の名前は #946 で
 /// 外した）。6 列 1 段だと iPhone SE（幅 375pt・シートの余白を引いて 343pt）では 1 マスが

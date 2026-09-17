@@ -19,8 +19,10 @@ struct FreeCellTopRowTests {
 
     typealias Metrics = FreeCellMetrics
 
-    /// 画面幅から `Theme.pad`（16pt）を左右に引いた、盤に使える幅。
-    private static func contentWidth(screenWidth: CGFloat) -> CGFloat { screenWidth - 16 * 2 }
+    /// 画面幅から盤の左右の余白（`boardSideInset` 4pt）を引いた、盤に使える幅。
+    private static func contentWidth(screenWidth: CGFloat) -> CGFloat {
+        screenWidth - Metrics.boardSideInset * 2
+    }
 
     @Test("8 枠 + 隙間 7 つが盤の幅と一致する（余りが無い）",
           arguments: [CGFloat(375), 393, 402, 430, 440])
@@ -42,7 +44,8 @@ struct FreeCellTopRowTests {
         #expect(withSpacer > board)
         #expect(withSpacer - board == Metrics.columnGap, "はみ出しは隙間 1 つぶん = \(Metrics.columnGap)pt")
         // 中央寄せなので左右に半分ずつ切り落とされ、破線（1.5pt）が丸ごと消える幅になる。
-        #expect((withSpacer - board) / 2 > 1.5)
+        // 列の間隔を 3pt に詰めてからは、切り落とし（1.5pt）が破線の太さとちょうど同じになる。
+        #expect((withSpacer - board) / 2 >= 1.5)
     }
 
     @Test("上段に Spacer を置いていない")
