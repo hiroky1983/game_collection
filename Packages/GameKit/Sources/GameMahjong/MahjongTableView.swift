@@ -107,12 +107,14 @@ struct MahjongTableView: View {
 
     /// 上家・下家の副露。壁の列に沿って 1 枚ずつ置く（置き場は `MahjongTableLayout.sideMeldSlot`。
     /// 台形だった頃は列が斜めになるので 1 枚ずつ置いた。長方形でも組の間隔をそこで持てるので変えていない）。
+    /// 列に収まらないときは牌が縮む（`sideMeldTileWidth`。#1065）。
     private func sideMelds(_ seat: Int) -> some View {
         let tiles: [(group: Int, tile: MahjongTile)] = scene.melds[seat].enumerated()
             .flatMap { gi, meld in meld.tiles.map { (group: gi, tile: $0) } }
+        let tileWidth = layout.sideMeldTileWidth(seat: seat, meldSizes: scene.melds[seat].map { $0.tiles.count })
         return ForEach(Array(tiles.enumerated()), id: \.offset) { ordinal, item in
-            let slot = layout.sideMeldSlot(seat: seat, ordinal: ordinal, gaps: item.group)
-            let w = layout.riverTileWidth * slot.scale
+            let slot = layout.sideMeldSlot(seat: seat, ordinal: ordinal, gaps: item.group, tileWidth: tileWidth)
+            let w = tileWidth * slot.scale
             MahjongTileView(tile: item.tile, width: w, height: w * MahjongTableLayout.tileAspect)
                 .rotationEffect(.degrees(slot.rotation))
                 .position(slot.center)

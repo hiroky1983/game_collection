@@ -44,6 +44,23 @@ struct RecordShareButtonTests {
         #expect(notBestShared.width == notBest.width, "更新していない回に共有ボタンが出ている")
     }
 
+    @Test("記録の無い端末で 0 点に終わった回はボタンが出ない（#1067）")
+    func buttonHiddenOnFirstZeroPoints() throws {
+        func label(points: Int) -> RecordLabel {
+            RecordLabel(PlayRecord.applying(
+                outcome: .loss, score: GameScore(metric: .points, points: points), to: nil
+            ))
+        }
+        let zero = try size(label(points: 0))
+        let zeroShared = try size(label(points: 0).environment(\.recordShare, Self.context))
+        #expect(zeroShared.width == zero.width, "初回 0 点で「自己ベスト 0」の共有ボタンが出ている")
+
+        // 対照: 初回でも 1 点なら出る（上の比較が空振りしていないことの確認）。
+        let one = try size(label(points: 1))
+        let oneShared = try size(label(points: 1).environment(\.recordShare, Self.context))
+        #expect(oneShared.width > one.width, "初回 1 点で共有ボタンが出ていない")
+    }
+
     @Test("ボタンを足しても記録の行の高さは「自己ベスト更新！」バッジの行から伸びない（#139・#148）")
     func buttonDoesNotGrowTheRow() throws {
         let plain = try size(RecordLabel(result(isNewBest: true)))

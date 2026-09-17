@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// チェス AI の境界（UCI 風）。将棋の `ShogiEngine` と同じ形にしてある。
 public protocol ChessEngine: Sendable {
@@ -109,7 +110,8 @@ private struct ChessLCG {
 private enum ChessZobrist {
     // [pieceType 0-5][color 0-1][square 0-63]
     static let piece: [[[UInt64]]] = {
-        var rng = ChessLCG(state: 0x9E37_79B9_7F4A_7C15)
+        // 種は SplitMix64 の増分と同じ値（#1074 で定数の書き写しをやめて参照に変えた。表の値は変わらない）。
+        var rng = ChessLCG(state: SplitMix64.goldenGamma)
         var t = [[[UInt64]]](
             repeating: [[UInt64]](repeating: [UInt64](repeating: 0, count: 64), count: 2),
             count: 6)
