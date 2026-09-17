@@ -345,9 +345,9 @@ public struct RunnerView: View {
                 }
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-                // リザルトの顔（#702）はコースの高さから倍率を決める（SE では 3 倍に落として
+                // リザルトの顔（#702）はコースの高さから倍率を決める（SE では 1.5 倍 = 48pt に落として
                 // カードをコースの中に収める）。`geo` は最初に 0 を渡すことがあるが、
-                // `RunnerResultFace.dotScale` は 0 でも最小の 2 倍を返す。
+                // `RunnerResultFace.dotScale` は 0 でも最小の 1 倍 = 32pt を返す。
                 overlay(faceScale: RunnerResultFace.dotScale(forCourseHeight: geo.size.height))
             }
         }
@@ -435,7 +435,7 @@ public struct RunnerView: View {
 
     /// - Parameter faceScale: リザルトの顔の倍率（1 ドット = 何 pt か）。コースの高さから決める。
     @ViewBuilder
-    private func overlay(faceScale: Int) -> some View {
+    private func overlay(faceScale: Double) -> some View {
         switch model.phase {
         case .ready:
             startScreen
@@ -486,12 +486,13 @@ public struct RunnerView: View {
         }
     }
 
-    /// おじさんの顔をドット絵の比率（16×15）のまま整数倍で置く（#702）。
+    /// おじさんの顔をドット絵の比率（32×30）のまま同じ倍率で置く（#702）。倍率は `RunnerResultFace` が
+    /// 1・1.5・2 に限って返す（1 ドットが Retina の整数ピクセルになる値）。
     /// `Core` の `OjisanPixel.faceImage` は装飾画像なので VoiceOver には出ない。
-    private func ojisanFace(_ face: OjisanPixel.Face, scale: Int) -> some View {
+    private func ojisanFace(_ face: OjisanPixel.Face, scale: Double) -> some View {
         let dots = OjisanPixel.faceDotSize
         return OjisanPixel.faceImage(face)
-            .frame(width: CGFloat(dots.width * scale), height: CGFloat(dots.height * scale))
+            .frame(width: CGFloat(dots.width) * scale, height: CGFloat(dots.height) * scale)
     }
 
     /// クリア表示の添え書き。初到達の印と、次に走る面の番号（「つぎは 2-4」・#946）。
@@ -743,7 +744,7 @@ public struct RunnerView: View {
     private func panel<Content: View>(
         title: String,
         face: OjisanPixel.Face? = nil,
-        faceScale: Int = 4,
+        faceScale: Double = 2,
         @ViewBuilder content: () -> Content
     ) -> some View {
         ZStack {

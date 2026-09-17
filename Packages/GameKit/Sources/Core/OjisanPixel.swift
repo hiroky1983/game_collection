@@ -12,7 +12,8 @@ import SwiftUI
 /// 指示 2026-09-15）、笑顔、黄色のポロシャツ、紺のズボン、前かご付きの赤いママチャリ。
 ///
 /// 走者のコマは 40×37 ドット（右向き）。1 ドット = 整数 pt で描く（`PixelSprite.cgImage(scale:)`）。
-/// 正面顔は 16×15 ドット（ハブのカード・リザルト・LP）。
+/// 正面顔は 32×30 ドット（ハブのカード・リザルト・LP）。走者の頭（8 ドット幅）より細かく、
+/// 大きく表示しても目・眉・ヒゲが 1 ドットに潰れない（会長指摘 2026-09-17）。
 public enum OjisanPixel {
     /// 共通パレット（SFC 風に彩度をやや落とし、暗い輪郭で締める）。
     public static let palette: [Character: UInt32] = [
@@ -37,6 +38,13 @@ public enum OjisanPixel {
         "M": 0x96282C,
         "Q": 0xFAF6EC,
         "X": 0x3C2828,
+        // 正面顔 32×30 用の中間色（2026-09-17）。走者のコマは使っていない。
+        "L": 0xFBE0BE,
+        "p": 0xE8B88E,
+        "d": 0xB57A52,
+        "I": 0xC8C8D2,
+        "m": 0x5E1418,
+        "a": 0x6CB8E8,
     ]
 
     /// 走者のコマ。
@@ -78,19 +86,20 @@ public enum OjisanPixel {
 
     // MARK: ハブ・リザルト用の正面顔
 
-    /// アイコン用キャンバスの一辺（ドット）。16×15 の顔を 24×24 の中央に置き、周りの余白で
-    /// 他ゲームの SF Symbol（枠の 5〜6 割の大きさ）と見た目の比率を揃える。
-    public static let iconCanvasDots = 24
+    /// アイコン用キャンバスの一辺（ドット）。32×30 の顔を 48×48 の中央に置き、周りの余白で
+    /// 他ゲームの SF Symbol（枠の 5〜6 割の大きさ）と見た目の比率を揃える（顔 : 枠 = 2 : 3）。
+    public static let iconCanvasDots = 48
 
     /// 正面顔（笑顔）のビットマップ。起動後 1 回だけ作る（#700 の受け入れ条件: 毎表示でビットマップ化しない）。
-    /// 1 ドット = 4px で持ち、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
+    /// 1 ドット = 2px で持ち（96×96px。16×15 時代の 4px と同じ寸法・同じメモリ）、表示側で枠の大きさに
+    /// 合わせて縮尺する（`mascotIcon`）。
     public static let mascotFaceImage: CGImage? =
-        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 4)
+        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 2)
 
     /// ハブのカード・おすすめ・設定などで `GameModule.icon` として出す正面顔。
     /// 呼び出し側は SF Symbol と同じく `.font(...)` で大きさを決めているが、ビットマップには効かないので
     /// `resizable` で枠（44pt・36pt・32pt、iPad では `layout.scaled` で拡大）に追従させる。
-    /// `interpolation(.none)` でにじませない（枠 44pt で 1 ドット ≒ 1.8pt。整数倍でなくてもドットの縁は立つ）。
+    /// `interpolation(.none)` でにじませない（枠 44pt で 1 ドット ≒ 0.9pt。整数倍でなくてもドットの縁は立つ）。
     public static var mascotIcon: Image {
         guard let cg = mascotFaceImage else { return Image(systemName: "bicycle") }
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
@@ -98,22 +107,24 @@ public enum OjisanPixel {
 
     // MARK: リザルト・スタート画面用の正面顔（#702）
 
-    /// 正面顔のドット数（幅 16 × 高さ 15）。表示側はこの比率で枠を切る（`faceImage` の doc）。
-    public static let faceDotSize: (width: Int, height: Int) = (width: 16, height: 15)
+    /// 正面顔のドット数（幅 32 × 高さ 30）。表示側はこの比率で枠を切る（`faceImage` の doc）。
+    public static let faceDotSize: (width: Int, height: Int) = (width: 32, height: 30)
 
     /// 3 表情のビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
-    /// 1 度だけ評価される）。1 ドット = 4px で持ち、表示側で整数倍の pt に縮尺する。
+    /// 1 度だけ評価される）。1 ドット = 2px で持ち（64×60px。16×15 時代の 4px と同じ寸法・同じメモリ）、
+    /// 表示側で pt に縮尺する。
     public static let faceImages: [Face: CGImage] = {
         var out: [Face: CGImage] = [:]
-        for face in Face.allCases { out[face] = Self.face(face).cgImage(scale: 4) }
+        for face in Face.allCases { out[face] = Self.face(face).cgImage(scale: 2) }
         return out
     }()
 
     /// リザルト（クリア・ミス）とスタート画面に出す正面顔（#702）。
     ///
     /// 装飾（`Image(decorative:)`）なので VoiceOver は読まない。`resizable` + `interpolation(.none)` で
-    /// にじませない。呼び出し側は `faceDotSize` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt）。
-    /// 比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
+    /// にじませない。呼び出し側は `faceDotSize` × 倍率の `frame` を切る（例: 2 倍 = 64×60pt、1.5 倍 = 48×45pt）。
+    /// 倍率は 1 ドットが Retina の整数ピクセルになる値（1・1.5・2）に限る。比率を崩すと 1 ドットが縦横で
+    /// 違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
     public static func faceImage(_ face: Face) -> Image {
         guard let cg = faceImages[face] else { return Image(systemName: "bicycle") }
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
@@ -321,58 +332,103 @@ public enum OjisanPixel {
         "..KKTtttttTKK.......KKTtttttTKK.........",
         "...KKTTTTTKK.........KKTTTTTKK..........",
     ]
-    // smile 16x15
+    // smile 32x30
     static let smileRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhShhSSSShhSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShMMMMhSsK.",
-        "..KKsSSQQQQSsKK.",
-        "....KsSSSSSsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
+        "...........KKKKKKKKKK...........",
+        ".........KKpppppppppsKK.........",
+        "........KppSSSLLLLSSSpsK........",
+        ".......KIHhSLLLLLLLLSSHIK.......",
+        "......KIHhSSLLLLLLLLLShHIK......",
+        ".....KIHHhSSSLLLLLLLSShHHIK.....",
+        "....KIIHhSSSSSLLLLLSSSSHHIIK....",
+        "....KIHHhSSSSSSLLLSSSSShHHIK....",
+        "...KHIhSSShhhhSSSShhhhSSShHHK...",
+        "...KIHhSSHhhhSSSSSShhhHSShHIK...",
+        "...KHHhSSSKKKKSLLSKKKKSSShIHK...",
+        "..KIHhSSSSQtEQSLLSQtEQSSSShHIK..",
+        "..KIhSSSSSQEEQSLLSQEEQSSSSShHK..",
+        ".KphSSSSSSpppppLLpppppSSSSSphsK.",
+        ".KsSSSSCCSppppSLSpppppSCCSSpSdK.",
+        ".KdSSSCCCSSSSspSSpsSSSSCCCSpSdK.",
+        ".KsdSSSSpSSSSdssssdSSSSpSSSpddK.",
+        ".KdKpSSSSShhHHHHHHHHhhSSSSpsKdK.",
+        "..KKpSSSSSSSShHHHHhSSSSSSSpsKK..",
+        "...KdSSSSSSSSSSSSSSSSSSSSSpdK...",
+        "....KppSSSSMQQQQQQQQMSSSSpsK....",
+        "....KdpSSSSSMQQQQQQMSSSSSpdK....",
+        ".....KdppSSSdMMMMMMdSSSppdK.....",
+        "......KdppSSSSLLLLSSSSppdK......",
+        ".......KdppSSSSLLSSSSppdK.......",
+        "........KKsppppppppppsKK........",
+        "..........KKsppppppsKK..........",
+        "............KssssssK............",
+        ".............KKKKKK.............",
+        "................................",
     ]
-    // cheer 16x15
+    // cheer 32x30
     static let cheerRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhShhSSSShhSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShMMMMhSsK.",
-        "..KKsMMMMMMMsKK.",
-        "....KsQQQQQsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
+        "...........KKKKKKKKKK...........",
+        ".........KKpppppppppsKK.........",
+        "........KppSSSLLLLSSSpsK........",
+        ".......KIHhSLLLLLLLLSSHIK.......",
+        "......KIHhSSLLLLLLLLLShHIK......",
+        ".....KIHHhSSSLLLLLLLSShHHIK.....",
+        "....KIIHhSSSSSLLLLLSSSSHHIIK....",
+        "....KIHHhShhhSSLLLShhhShHHIK....",
+        "...KHIhSSHhhhhSSSShhhhHSShHHK...",
+        "...KIHhSSSSSSSSSSSSSSSSSShHIK...",
+        "...KHHhSSSKKKKSLLSKKKKSSShIHK...",
+        "..KIHhSSSSQtEQSLLSQtEQSSSShHIK..",
+        "..KIhSSSSSQEEQSLLSQEEQSSSSShHK..",
+        ".KphSSSSSSpppppLLpppppSSSSSphsK.",
+        ".KsSSSSCCSppppSLSpppppSCCSSpSdK.",
+        ".KdSSSCCCSSSSspSSpsSSSSCCCSpSdK.",
+        ".KsdSSSSpSSSSdssssdSSSSpSSSpddK.",
+        ".KdKpSSSSShhHHHHHHHHhhSSSSpsKdK.",
+        "..KKpSSSSSSSShHHHHhSSSSSSSpsKK..",
+        "...KdSSSSSSSSSSSSSSSSSSSSSpdK...",
+        "....KppSSSSMQQQQQQQQMSSSSpsK....",
+        "....KdpSSSMmmmmmmmmmmMSSSpdK....",
+        ".....KdppSMmmRRRRRRmmMSppdK.....",
+        "......KdppdMMMMMMMMMMdppdK......",
+        ".......KdppSSSSLLSSSSppdK.......",
+        "........KKsppppppppppsKK........",
+        "..........KKsppppppsKK..........",
+        "............KssssssK............",
+        ".............KKKKKK.............",
+        "................................",
     ]
-    // frown 16x15
+    // frown 32x30
     static let frownRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhSSShhShhSSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShhhhhhSsK.",
-        "..KKsSMMMMMSsKK.",
-        "....KsSSSSSsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
+        "...........KKKKKKKKKK...........",
+        ".........KKpppppppppsKK.........",
+        "........KppSSSLLLLSSSpsK........",
+        ".......KIHhSLLLLLLLLSSHIK.......",
+        "......KIHhSSLLLLLLLLLShHIK......",
+        ".....KIHHhSSSLLLLLLLSShHHIK.....",
+        "....KIIHhSSSSSLLLLLSSSSHHIIK....",
+        "....KIHHhSSSSSSLLLSSSSShHHIK.K..",
+        "...KHIhSSSSShhSSSShhSSSSShHHKaK.",
+        "...KIHhSSShhhSSddSShhhSSShHIKWaK",
+        "...KHHhShhKKSSSLLSSSKKhhShIHKKK.",
+        "..KIHhSSSSSSKKSLLSKKSSSSSShHIK..",
+        "..KIhSSSSSKKSSSLLSSSKKSSSSShHK..",
+        ".KphSSSSSSpppppLLpppppSSSSSphsK.",
+        ".KsSSSSSSSppppSLSpppppSSSSSpSdK.",
+        ".KdSSSSSSSSSSspSSpsSSSSSSSSpSdK.",
+        ".KsdSSSSpSSSSdssssdSSSSpSSSpddK.",
+        ".KdKpSSSSShhHHHHHHHHhhSSSSpsKdK.",
+        "..KKpSSSShhSShHHHHhSShhSSSpsKK..",
+        "...KdSSSSSSSSSSSSSSSSSSSSSpdK...",
+        "....KppSSSSMMMMMMMMMMSSSSpsK....",
+        "....KdpSSSSMQQMQQMQQMSSSSpdK....",
+        ".....KdppSSMMMMMMMMMMSSppdK.....",
+        "......KdppSSSSLLLLSSSSppdK......",
+        ".......KdppSSSSLLSSSSppdK.......",
+        "........KKsppppppppppsKK........",
+        "..........KKsppppppsKK..........",
+        "............KssssssK............",
+        ".............KKKKKK.............",
+        "................................",
     ]
 }

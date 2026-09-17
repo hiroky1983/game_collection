@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 /// 「拡大は整数倍で、色が混ざらない」の 3 点。
 @Suite("ドット絵")
 struct PixelArtTests {
-    @Test("走者のコマは 40×37、正面顔は 16×15 で、行の長さが揃いパレットに無い文字が無い")
+    @Test("走者のコマは 40×37、正面顔は 32×30 で、行の長さが揃いパレットに無い文字が無い")
     func spritesAreWellFormed() {
         for frame in OjisanPixel.RiderFrame.allCases {
             let s = OjisanPixel.rider(frame)
@@ -20,7 +20,7 @@ struct PixelArtTests {
         }
         for face in OjisanPixel.Face.allCases {
             let s = OjisanPixel.face(face)
-            #expect(s.width == 16 && s.height == 15, "\(face): \(s.width)×\(s.height)")
+            #expect(s.width == 32 && s.height == 30, "\(face): \(s.width)×\(s.height)")
             #expect(s.undefinedKeys.isEmpty, "\(face): パレットに無い文字 \(s.undefinedKeys)")
         }
     }
@@ -57,17 +57,19 @@ struct PixelArtTests {
         #expect(p.rows == ["......", "..KY..", "..YK..", "......"])
         #expect(s.padded(width: 1, height: 1) == s, "小さい寸法なら元のまま")
         let icon = OjisanPixel.face(.smile).padded(width: OjisanPixel.iconCanvasDots, height: OjisanPixel.iconCanvasDots)
-        #expect(icon.width == 24 && icon.height == 24)
+        #expect(icon.width == 48 && icon.height == 48)
+        // 1 ドット = 2px。16×15 時代（24 ドット × 4px）と同じ 96px に保つ（メモリを増やさない）。
         #expect(OjisanPixel.mascotFaceImage?.width == 96)
     }
 
     /// リザルト用の顔（#702）は 3 表情ぶんを起動後 1 回だけビットマップ化する。
-    @Test("リザルト用の正面顔は 3 表情が 1 ドット = 4px で 1 回だけ作られ、比率 16:15 を保つ")
+    @Test("リザルト用の正面顔は 3 表情が 1 ドット = 2px で 1 回だけ作られ、比率 16:15 を保つ")
     func faceImagesAreCachedOnce() throws {
-        #expect(OjisanPixel.faceDotSize.width == 16 && OjisanPixel.faceDotSize.height == 15)
+        #expect(OjisanPixel.faceDotSize.width == 32 && OjisanPixel.faceDotSize.height == 30)
         #expect(OjisanPixel.faceImages.count == OjisanPixel.Face.allCases.count)
         for face in OjisanPixel.Face.allCases {
             let img = try #require(OjisanPixel.faceImages[face], "\(face)")
+            // 16×15 時代（4px）と同じ 64×60px。解像度を上げてもビットマップの寸法・メモリは増やさない。
             #expect(img.width == 64 && img.height == 60, "\(face): \(img.width)×\(img.height)")
             // `static let` なので 2 度引いても同じビットマップ（作り直していない）。
             #expect(OjisanPixel.faceImages[face] === img, "\(face)")
@@ -83,7 +85,7 @@ struct PixelArtTests {
         let frames = OjisanPixel.RiderFrame.allCases.map { OjisanPixel.rider($0) }
         let faces = OjisanPixel.Face.allCases.map { OjisanPixel.face($0) }
         let w = (40 * scale + 10) * frames.count + 10
-        let h = 37 * scale + 15 * scale + 40
+        let h = 37 * scale + 30 * scale + 40
         let ctx = try #require(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
                                           space: CGColorSpaceCreateDeviceRGB(),
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
@@ -99,7 +101,7 @@ struct PixelArtTests {
         for f in faces {
             let img = try #require(f.cgImage(scale: scale))
             ctx.draw(img, in: CGRect(x: x, y: 10, width: img.width, height: img.height))
-            x += 16 * scale + 20
+            x += 32 * scale + 20
         }
         let image = try #require(ctx.makeImage())
         let url = URL(fileURLWithPath: out).appendingPathComponent("ojisan-pixel-sheet.png")

@@ -31,23 +31,29 @@ struct RunnerResultFaceTests {
         #expect(RunnerResultFace.face(for: .allCleared, isNewBest: false) == .cheer)
     }
 
-    @Test("顔の倍率は整数で、コースの高さの 2 割に収まる最大の倍率（2〜4 倍）")
+    @Test("顔の倍率は 1・1.5・2 のどれかで、コースの高さの 2 割に収まる最大の倍率（画面上は 32〜64pt）")
     func dotScaleFollowsCourseHeight() {
-        // iPhone 15 級（コース高 320pt 以上）は 4 倍 = 64pt。
-        #expect(RunnerResultFace.dotScale(forCourseHeight: 320) == 4)
-        #expect(RunnerResultFace.dotScale(forCourseHeight: 394) == 4)
-        #expect(RunnerResultFace.dotScale(forCourseHeight: 1000) == 4, "iPad でも 4 倍で止める")
-        // iPhone SE 級（240〜319pt）は 3 倍 = 48pt。
-        #expect(RunnerResultFace.dotScale(forCourseHeight: 319) == 3)
-        #expect(RunnerResultFace.dotScale(forCourseHeight: 240) == 3)
-        // それより低くても 2 倍 = 32pt は確保する。`GeometryReader` が最初に渡す 0 でも落ちない。
-        #expect(RunnerResultFace.dotScale(forCourseHeight: 239) == 2)
-        #expect(RunnerResultFace.dotScale(forCourseHeight: 0) == 2)
-        // 顔の一辺（16 ドット × 倍率）はコースの高さの 2 割を超えない（2 倍の下限を除く）。
+        // iPhone 15 級（コース高 320pt 以上）は 2 倍 = 64pt。
+        #expect(RunnerResultFace.dotScale(forCourseHeight: 320) == 2)
+        #expect(RunnerResultFace.dotScale(forCourseHeight: 394) == 2)
+        #expect(RunnerResultFace.dotScale(forCourseHeight: 1000) == 2, "iPad でも 2 倍で止める")
+        // iPhone SE 級（240〜319pt）は 1.5 倍 = 48pt。
+        #expect(RunnerResultFace.dotScale(forCourseHeight: 319) == 1.5)
+        #expect(RunnerResultFace.dotScale(forCourseHeight: 240) == 1.5)
+        // それより低くても 1 倍 = 32pt は確保する。`GeometryReader` が最初に渡す 0 でも落ちない。
+        #expect(RunnerResultFace.dotScale(forCourseHeight: 239) == 1)
+        #expect(RunnerResultFace.dotScale(forCourseHeight: 0) == 1)
+        // 顔の一辺（32 ドット × 倍率）はコースの高さの 2 割を超えない（1 倍の下限を除く）。
+        // 倍率は 1 ドットが Retina の整数ピクセルになる 1・1.5・2 に限る。
         for height in stride(from: 240.0, through: 600.0, by: 7) {
             let scale = RunnerResultFace.dotScale(forCourseHeight: height)
-            #expect(Double(OjisanPixel.faceDotSize.width * scale) <= height * 0.2, "高さ \(height)")
+            #expect([1, 1.5, 2].contains(scale), "高さ \(height): \(scale)")
+            #expect(Double(OjisanPixel.faceDotSize.width) * scale <= height * 0.2, "高さ \(height)")
         }
-        #expect(RunnerResultFace.startDotScale == 2, "スタート画面の笑顔は 2 倍 = 32pt")
+        // 16×15 時代の pt 数（64 / 48 / 32）を保つ（顔を細かくしても画面上の大きさは変えない）。
+        #expect(Double(OjisanPixel.faceDotSize.width) * RunnerResultFace.dotScale(forCourseHeight: 320) == 64)
+        #expect(Double(OjisanPixel.faceDotSize.width) * RunnerResultFace.dotScale(forCourseHeight: 300) == 48)
+        #expect(Double(OjisanPixel.faceDotSize.width) * RunnerResultFace.dotScale(forCourseHeight: 200) == 32)
+        #expect(RunnerResultFace.startDotScale == 1, "スタート画面の笑顔は 1 倍 = 32pt")
     }
 }

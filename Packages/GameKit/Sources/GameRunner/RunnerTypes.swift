@@ -568,17 +568,20 @@ public enum RunnerResultFace {
         }
     }
 
-    /// リザルトの顔の倍率（1 ドット = 何 pt か）。整数倍にしてドットの縁を立たせる。
+    /// リザルトの顔の倍率（1 ドット = 何 pt か）。1 ドットが Retina の整数ピクセルになる値（1・1.5・2）に
+    /// 限ってドットの縁を立たせる（1.5 は SE 級 = 2x 画面でだけ使われ、3px/ドットになる）。
     ///
-    /// カードはコースの中に重ねるので（縦の配分は変えない・#931）、顔の一辺（16 ドット × 倍率）を
-    /// コースの高さの 2 割までに抑える。iPhone 15 級（コース高 320pt 以上）で 4 倍 = 64pt、
-    /// SE 級（240〜319pt）で 3 倍 = 48pt、それより低くても 2 倍 = 32pt は確保する。
-    /// `GeometryReader` が最初に渡す 0 でも落ちない（2 倍を返す）。
-    public static func dotScale(forCourseHeight height: Double) -> Int {
-        let budget = Int(height * 0.2) / OjisanPixel.faceDotSize.width
-        return min(4, max(2, budget))
+    /// カードはコースの中に重ねるので（縦の配分は変えない・#931）、顔の一辺（32 ドット × 倍率）を
+    /// コースの高さの 2 割までに抑える。iPhone 15 級（コース高 320pt 以上）で 2 倍 = 64pt、
+    /// SE 級（240〜319pt）で 1.5 倍 = 48pt、それより低くても 1 倍 = 32pt は確保する
+    /// （顔を 16×15 → 32×30 に細かくした 2026-09-17 以降も画面上の大きさは同じ）。
+    /// `GeometryReader` が最初に渡す 0 でも落ちない（1 倍を返す）。
+    public static func dotScale(forCourseHeight height: Double) -> Double {
+        // 半ドット単位で予算を切り、1.5 を許す。
+        let halfDots = Int(height * 0.2 * 2) / OjisanPixel.faceDotSize.width
+        return Double(min(4, max(2, halfDots))) / 2
     }
 
-    /// スタート画面の笑顔の倍率（2 倍 = 32pt。主ボタンの脇に小さく添える）。
-    public static let startDotScale = 2
+    /// スタート画面の笑顔の倍率（1 倍 = 32pt。主ボタンの脇に小さく添える）。
+    public static let startDotScale: Double = 1
 }
