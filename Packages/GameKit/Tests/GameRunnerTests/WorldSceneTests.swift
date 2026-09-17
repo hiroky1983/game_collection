@@ -212,6 +212,13 @@ struct RunnerWorldSceneTests {
         }
     }
 
+    /// 子孫まで含めた `SKShapeNode` の一覧。
+    private func shapes(in node: SKNode) -> [SKShapeNode] {
+        node.children.flatMap { child -> [SKShapeNode] in
+            ((child as? SKShapeNode).map { [$0] } ?? []) + shapes(in: child)
+        }
+    }
+
     private func isSame(_ color: SKColor, _ hex: UInt32) -> Bool {
         guard let lhs = rgb(color), let rhs = rgb(RunnerPalette.color(hex)) else { return false }
         return abs(lhs.0 - rhs.0) < 0.004 && abs(lhs.1 - rhs.1) < 0.004 && abs(lhs.2 - rhs.2) < 0.004
@@ -306,6 +313,19 @@ struct RunnerWorldSceneTests {
                             ("目印", paddy ? P.tidelandHole : P.paddySeedling)] {
             #expect(fillCount(in: container, color: hex) == 0, "\(world) の沈む床に別の世界の\(name)が出ている")
         }
+
+        // **踏み込む前に読める目印**（苗・泡）が地面の線より上へ出ている（#1089 の受け入れ条件
+        // 「入る前に沈む床だと分かる見た目」）。照り（`addGlint`）は水面のマスクで切られて上へ
+        // 出られないので、この役目を担えるのは目印だけ——干潟は穴しか無いと目印が水面より下に
+        // 全部隠れる（PR #1110 の指摘で実際にそうなっていた）。
+        let markColor = paddy ? P.paddySeedling : P.tidelandHole
+        let marks = shapes(in: container).filter { isSame($0.fillColor, markColor) }
+        #expect(marks.count == 1, "\(world) の目印のノードが 1 本のパスにまとまっていない")
+        let top = marks.first?.path?.boundingBox.maxY ?? 0
+        #expect(
+            top > RunnerField.Metrics.groundY + 1,
+            "\(world) の目印が地面の線（\(RunnerField.Metrics.groundY)）より上へ出ていない（上端 \(top)）"
+        )
 
         // コース層にも床の本数ぶん組まれていて、走らせても落ちない（沈み → 溺れの経路を通る）。
         #expect(fillCount(in: scene.courseLayer, color: paddy ? P.paddyWater : P.tidelandMud) >= floors.count)

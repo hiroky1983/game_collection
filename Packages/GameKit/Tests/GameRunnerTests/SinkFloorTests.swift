@@ -326,8 +326,7 @@ struct RunnerSinkFloorTests {
     func sinkFloorsAvoidBirdsPlatformsAndShoots() {
         for stage in RunnerStage.all where !stage.sinkFloors.isEmpty {
             let pattern = Array(stage.pattern)
-            for (index, symbol) in pattern.enumerated() where symbol == "~" {
-                #expect(symbol != "P" && symbol != "^", "ステージ \(stage.number): 床の区画に台座・突き上げ")
+            for (index, _) in pattern.enumerated() where pattern[index] == "~" {
                 if index + 1 < pattern.count {
                     #expect(
                         pattern[index + 1] != "b",
@@ -352,6 +351,23 @@ struct RunnerSinkFloorTests {
                     #expect(
                         !(platform.start < floor.end && floor.start < platform.end),
                         "ステージ \(stage.number): 台座が床と重なっている"
+                    )
+                }
+                // 突き上げ（#1010）。字面で「`~` の区画に `^` が無い」を見ても**常に真**
+                // （区画記号は 1 区画に 1 文字）なので、当たり判定の位置で見る（PR #1110 の指摘）。
+                // 重ならないことに加え、**床を出てから踏み切り直す余地**（自動操縦の踏み切りの
+                // 余裕ぶん）が要る——突き上げは高く跳ばないと越えられないので、水から出た勢いの
+                // まま突っ込む並びにはできない。
+                for shoot in stage.hazards where shoot.kind == .shoot {
+                    #expect(
+                        !(shoot.start < floor.end && floor.start < shoot.end),
+                        "ステージ \(stage.number): 突き上げが床と重なっている"
+                    )
+                    guard shoot.start > floor.end else { continue }
+                    let lead = RunnerAutoPilot.lead(for: shoot, speed: stage.speed)
+                    #expect(
+                        shoot.start - floor.end > lead,
+                        "ステージ \(stage.number): 床を出てから突き上げまで \(shoot.start - floor.end) しかない（要 \(lead)）"
                     )
                 }
             }
