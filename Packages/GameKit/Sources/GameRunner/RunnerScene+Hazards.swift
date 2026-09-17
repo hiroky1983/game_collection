@@ -367,7 +367,7 @@ extension RunnerScene {
         // 大きさは本体と揃う（縦は格子の比率どおりに従わせる——引き伸ばさない）。
         let cueRows = RunnerPixelArt.shootCue(world: world)
         let cueWidth = w * RunnerPixelArt.shootCueVisualScale
-        let cue = SKSpriteNode(texture: shootCueTextures[style])
+        let cue = SKSpriteNode(texture: shootCueTexture(style))
         cue.anchorPoint = CGPoint(x: 0.5, y: 0)
         cue.size = CGSize(
             width: cueWidth,
@@ -382,7 +382,7 @@ extension RunnerScene {
         node.addChild(cue)
 
         // 伸び上がる絵と、その切り抜きの窓。
-        let riser = SKSpriteNode(texture: shootTextures[style])
+        let riser = SKSpriteNode(texture: shootTexture(style))
         riser.anchorPoint = CGPoint(x: 0.5, y: 0)
         riser.size = CGSize(width: w, height: h)
         riser.position = CGPoint(x: 0, y: -h)

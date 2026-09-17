@@ -1,3 +1,4 @@
+import Core
 import Foundation
 import SpriteKit
 import Testing
@@ -17,6 +18,24 @@ struct RunnerWorldSceneTests {
         scene.rebuildCourse()
         scene.sync()
         return (model, scene)
+    }
+
+    /// テクスチャ／ドット絵のドットを RGBA のバイト列として読み出す（絵が同じかを比べる用）。
+    /// `SKTexture.cgImage()` は貼ってある画像をそのまま返すので、画面に出さずに比べられる。
+    private static func pixels(of texture: SKTexture) -> [UInt8]? { bytes(of: texture.cgImage()) }
+    private static func pixels(of sprite: PixelSprite) -> [UInt8]? { bytes(of: sprite.cgImage(scale: 1)) }
+
+    private static func bytes(of image: CGImage?) -> [UInt8]? {
+        guard let image else { return nil }
+        let w = image.width, h = image.height
+        var data = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(
+            data: &data, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return data
     }
 
     /// 子孫まで含めて、`texture` を貼ったスプライトの数。
@@ -68,18 +87,44 @@ struct RunnerWorldSceneTests {
     /// 突き上げ（#1010）の描画経路。**絵の位置が当たり判定の上端から出ている**ことを、
     /// 実際に走らせて `sync` した結果で確かめる——ここがずれると「見えている高さと当たる高さが
     /// 違う」という理不尽な当たりになる。予告の揺れは伸び切ったら止める（`.stopped`）。
-    @Test("19 面の突き上げは本数ぶん組まれ、絵が当たり判定の伸びた高さに追従する")
-    func shootsFollowTheHitBox() throws {
-        let (model, scene) = makeScene(stage: 19, suite: "shoot")
+    ///
+    /// **里山（19 面・竹の子）と港町（26 面・波しぶき）の両方で回す。** 片方だけだと、もう片方の
+    /// テクスチャを取り違えても／作り忘れても緑のまま通る——`SKSpriteNode(texture:)` は nil を
+    /// 受け取れるので、「絵の無い（＝見えない）突き上げ」が出荷されうる（2026-09-18 の敵対的検証で、
+    /// 19 面だけ見ていたときに港町のテクスチャを消しても 368 件緑だったのを実測）。
+    @Test("突き上げは本数ぶん組まれ、その世界の絵が貼られ、絵が当たり判定の伸びた高さに追従する", arguments: [
+        (19, RunnerWorld.Dressing.Shoot.bambooShoot, 3),
+        (26, RunnerWorld.Dressing.Shoot.seaSpray, 2),
+    ])
+    func shootsFollowTheHitBox(number: Int, style: RunnerWorld.Dressing.Shoot, count: Int) throws {
+        let (model, scene) = makeScene(stage: number, suite: "shoot-\(number)")
         let stage = model.field.stage
         let shoots = stage.hazards.filter { $0.kind == .shoot }
-        #expect(shoots.count == 3, "19 面の突き上げが \(shoots.count) 本（空振り防止）")
+        #expect(shoots.count == count, "\(number) 面の突き上げが \(shoots.count) 本（空振り防止）")
+        #expect(scene.world.dressing.shoot == style)
         let views = scene.movingHazards.filter { $0.hazard.kind == .shoot }
         #expect(views.count == shoots.count, "突き上げのノードが本数ぶん無い")
-        // 貼られている絵は、その世界の着せ替え（里山＝竹の子）。
-        let expected = try #require(scene.shootTextures[.bambooShoot])
+        // 貼られている絵は、その世界の着せ替えのもの。**その世界のぶんしかテクスチャを作らない**
+        // （#1010 の受け入れ条件「世界に入ったときに作ってキャッシュ」）。
+        #expect(scene.cachedShootStyles == [style], "作ったテクスチャ: \(scene.cachedShootStyles)")
+        let expected = scene.shootTexture(style)
+        let other: RunnerWorld.Dressing.Shoot = style == .bambooShoot ? .seaSpray : .bambooShoot
+        // **2 つの着せ替えのテクスチャが「絵として」違うこと**を先に言う。同じ画を 2 枚焼いても
+        // インスタンスは別物になるので、`!==` では足りない——**ドットを読んで比べる**
+        // （2026-09-18 の敵対的検証で、`shootTexture` が着せ替えを無視して 1 枚だけ焼く実装でも
+        // 緑のまま通ったのを実測）。格子は 12×27 なので読み出しは軽い。
+        #expect(
+            Self.pixels(of: expected) != Self.pixels(of: scene.shootTexture(other)),
+            "2 つの世界で同じ絵を貼っている"
+        )
+        // 貼った絵が `RunnerPixelArt` の着せ替えのものと一致する（焼き直したものと同じドット）。
+        #expect(
+            Self.pixels(of: expected) == Self.pixels(of: RunnerPixelArt.shootArt(for: style)),
+            "貼られている絵が \(style) のドット絵と違う"
+        )
         for view in views {
-            #expect(spriteCount(in: view.node, texture: expected) == 1, "竹の子の絵が貼られていない")
+            #expect(spriteCount(in: view.node, texture: expected) == 1, "\(style) の絵が貼られていない")
+            #expect(spriteCount(in: view.node, texture: scene.shootTexture(other)) == 0, "別の世界の絵が貼られている")
             #expect(view.riserHeight == RunnerHazardKind.shootTop)
         }
 

@@ -308,6 +308,15 @@ struct RunnerStageTests {
                 #expect(!shootEnds.contains(stopAt), "ステージ \(stage.number): イノシシが突き上げで止まっている")
             }
         }
+        // **上の 2 つは今の並びに `i^` が無いので常に真**（2026-09-18 の敵対的検証で、`isRock` に
+        // 突き上げを含めても 368 件緑だったのを実測）。決定そのものを直接固定する:
+        // 突き上げは岩に数えないので、`i^` を並べてもイノシシは止まらない。
+        #expect(!RunnerHazardKind.shoot.isRock, "突き上げが岩に数えられている")
+        let synthetic = RunnerStage(number: 0, pattern: "---i^-----", speed: 40)
+        let boar = synthetic.hazards.first { $0.kind == .boar }
+        #expect(boar != nil, "合成ステージにイノシシが無い（空振り防止）")
+        #expect(boar?.stopAt == nil, "イノシシが次の区画の突き上げで止まっている（\(String(describing: boar?.stopAt))）")
+        #expect(synthetic.hazards.contains { $0.kind == .shoot }, "合成ステージに突き上げが無い（空振り防止）")
     }
 
     /// 1 面に穴以外の障害があること（#967 会長 QA「最初のステージが落とし穴しかない」）。

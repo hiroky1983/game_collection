@@ -344,9 +344,59 @@ struct RunnerPixelArtTests {
         #expect(mound.height * 3 <= body.height, "予告が高すぎる: \(mound.height)")
     }
 
+    /// **里山と港町で絵が別物**であること（#1010「里山版と港町版の 2 種類の見た目を持つ」）。
+    ///
+    /// `RunnerPixelArt.shoot(world:)` が両方とも竹の子を返しても、着せ替えの列挙
+    /// （`RunnerWorld.Dressing.Shoot`）だけを見ていると気付けない（2026-09-18 の敵対的検証で
+    /// 368 件緑だったのを実測）。**絵そのものの色で別物だと言い切る**。
+    @Test("里山は竹の子（緑の穂先）・港町は波しぶき（水色と青の陰）で、色が混ざらない")
+    func shootArtDiffersBetweenWorlds() {
+        // **着せ替え → 絵の対応**（`RunnerScene.shootTexture` が通る唯一の経路）を直接固定する。
+        #expect(RunnerPixelArt.shootArt(for: .bambooShoot).rows == RunnerPixelArt.bambooShootRows)
+        #expect(RunnerPixelArt.shootArt(for: .seaSpray).rows == RunnerPixelArt.seaSprayRows)
+        #expect(RunnerPixelArt.shootCueArt(for: .bambooShoot).rows == RunnerPixelArt.soilMoundRows)
+        #expect(RunnerPixelArt.shootCueArt(for: .seaSpray).rows == RunnerPixelArt.foamRows)
+        // 世界から引く版は着せ替え経由で同じものになる。
+        #expect(RunnerPixelArt.shoot(world: .satoyama).rows == RunnerPixelArt.bambooShootRows)
+        #expect(RunnerPixelArt.shoot(world: .harbor).rows == RunnerPixelArt.seaSprayRows)
+
+        let bamboo = RunnerPixelArt.shoot(world: .satoyama).rows.joined()
+        let spray = RunnerPixelArt.shoot(world: .harbor).rows.joined()
+        #expect(bamboo != spray, "里山と港町の絵が同じ")
+        // 竹の子: 緑（`a`/`A`）があり、水の色（`C`/`L`/`N`）は無い。
+        #expect(bamboo.contains("a") && bamboo.contains("A"), "竹の子に緑が無い")
+        for water in ["C", "L", "N"] {
+            #expect(!bamboo.contains(water), "竹の子に水の色 \(water) が混ざっている")
+        }
+        // 波しぶき: 水色（`C`）と**陰の 2 階調**（`L`/`N`）があり、緑は無い。
+        #expect(spray.contains("C") && spray.contains("L") && spray.contains("N"), "波しぶきに水の濃淡が無い")
+        #expect(!spray.contains("a") && !spray.contains("A"), "波しぶきに緑が混ざっている")
+        // 濃淡は「淡い青の背景で形が立つ」ための要（36df5c6）。**柱が全幅になる行では、
+        // 右端（縁取りの 1 つ内側）が必ず陰**であること——ここを潰すと平たい三角に戻る。
+        // 面の中の明暗（白い泡 `M` と陰 `N`）も 3:1 以上離しておく（背景に依らず形が読める）。
+        let sprayRows = RunnerPixelArt.shoot(world: .harbor).rows
+        var shadedEdges = 0
+        for row in sprayRows.dropLast() where !row.contains(".") {
+            let chars = Array(row)
+            let rightInner = chars[chars.count - 2]
+            #expect("LN".contains(rightInner), "波しぶきの右端が陰でない: \(row)")
+            shadedEdges += 1
+        }
+        #expect(shadedEdges >= 10, "全幅の行が \(shadedEdges) しか無い（空振り防止）")
+        let art = RunnerPixelArt.palette
+        #expect(WCAG.contrast(art["M"]!, art["N"]!) >= 3.0, "波しぶきの面の中の明暗が足りない")
+        // 予告も同じ（土の塚は茶・泡は水色）。
+        let mound = RunnerPixelArt.shootCue(world: .satoyama).rows.joined()
+        let foam = RunnerPixelArt.shootCue(world: .harbor).rows.joined()
+        #expect(mound != foam, "土の塚と泡の絵が同じ")
+        #expect(mound.contains("S") && !mound.contains("C"), "土の塚が土の色でない")
+        #expect(foam.contains("C") && !foam.contains("S"), "泡が水の色でない")
+    }
+
     /// 突き上げは**切り株（低い岩）と明確に見分けられる**こと（#1010 の受け入れ条件）:
     /// 竹の子は切り株の 1.5 倍以上の高さ（箱が 4×9 対 4×5）で、主色が切り株の樹皮と 2:1 以上離れ、
-    /// **穂先に切り株には無い緑がある**。
+    /// **穂先に切り株には無い緑がある**。港町側は波しぶき（水）とロープの束（麻）で、
+    /// 上の `shootArtDiffersBetweenWorlds` が色の系統の違いを固定する。
     @Test("竹の子は切り株より高く、主色が離れていて、穂先が緑")
     func bambooShootLooksNothingLikeAStump() {
         let art = RunnerPixelArt.palette

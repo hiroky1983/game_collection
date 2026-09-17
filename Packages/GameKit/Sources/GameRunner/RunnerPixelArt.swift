@@ -198,21 +198,30 @@ enum RunnerPixelArt {
 
     // MARK: 突き上げ（`RunnerHazardKind.shoot`・#1010）
 
-    /// 伸び切った突き上げ（世界の着せ替えで竹の子か波しぶき）。
-    static func shoot(world: RunnerWorld) -> PixelSprite {
-        switch world.dressing.shoot {
+    /// 伸び切った突き上げの絵（着せ替えから直接引く）。
+    ///
+    /// **着せ替え → 絵の対応はここ 1 か所だけ**。`RunnerScene` は世界から着せ替えを引いて
+    /// この関数に渡すだけで、世界と絵の対応を自分では持たない（かつては
+    /// 「着せ替え → 世界 → 着せ替え → 絵」と 2 度写していて、途中で取り違えても
+    /// テストで気付けなかった）。
+    static func shootArt(for style: RunnerWorld.Dressing.Shoot) -> PixelSprite {
+        switch style {
         case .bambooShoot: return PixelSprite(rows: bambooShootRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: seaSprayRows, palette: palette)
         }
     }
 
-    /// 突き上げの予告（土が盛り上がる／泡が立つ）。
-    static func shootCue(world: RunnerWorld) -> PixelSprite {
-        switch world.dressing.shoot {
+    /// 突き上げの予告の絵（土が盛り上がる／泡が立つ）。対応は `shootArt(for:)` と同じ作法。
+    static func shootCueArt(for style: RunnerWorld.Dressing.Shoot) -> PixelSprite {
+        switch style {
         case .bambooShoot: return PixelSprite(rows: soilMoundRows, palette: palette)
         case .seaSpray:    return PixelSprite(rows: foamRows, palette: palette)
         }
     }
+
+    /// 世界から引く版（テスト・寸法の測り方で使う）。
+    static func shoot(world: RunnerWorld) -> PixelSprite { shootArt(for: world.dressing.shoot) }
+    static func shootCue(world: RunnerWorld) -> PixelSprite { shootCueArt(for: world.dressing.shoot) }
 
     /// 歩きのコマを、**自分が進んだ距離**（ワールド単位・0 以上）から選ぶ。`stride` ごとに
     /// `walk0` / `walk1` を入れ替える（走者の `RunnerRider.pedalFrame` と同じ作法。位相ではなく

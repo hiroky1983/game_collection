@@ -369,7 +369,7 @@ struct RunnerWorldTests {
             #expect(world.dressing == RunnerWorld.originalDressing, "\(world)")
         }
         // 突き上げ（#1010）は 19 面以降にしか出ないので、1〜18 面の `shoot` は使われない
-        // （QA 用ショーケースが夜の世界で走るので竹の子を入れてある）。
+        // （QA 用ショーケースは `rebuildCourse` が朝の下町で走らせるので竹の子を入れてある）。
         #expect(RunnerWorld.originalDressing == D(
             pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
             platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot
@@ -408,11 +408,13 @@ struct RunnerWorldTests {
             (.harbor, "木箱", P.crateWood, RunnerWorld.harbor.outline),
             (.harbor, "木箱の上面", P.crateTop, RunnerWorld.harbor.outline),
             (.harbor, "防舷材", P.fender, RunnerPalette.pitEdge),
-            // 突き上げ（#1010）。竹の子の主色は皮の生成り `T`、波しぶきは泡の水色 `C`。
-            // 予告（土の塚 `S` / 泡 `C`）も同じ物差しで見る。
-            (.satoyama, "竹の子", art["T"]!, RunnerPixelArt.outline),
+            // 突き上げ（#1010）。淡い皮（`T`）・淡い泡（`C`）はどちらも背景と 1.0〜1.4:1 しか無いので、
+            // **3:1 を担っているのは縁取りと、面の中の濃い側**（竹の子は樹皮の `S`、波しぶきは
+            // 水の陰の `N`）。主色にその濃い側を置いて、縁取りだけで通る空振りにしない
+            // （2026-09-18 の敵対的検証で、`C` を港町の背景色そのものにしても緑だったのを実測）。
+            (.satoyama, "竹の子", art["S"]!, RunnerPixelArt.outline),
             (.satoyama, "土の盛り上がり", art["S"]!, RunnerPixelArt.outline),
-            (.harbor, "波しぶき", art["C"]!, RunnerPixelArt.outline),
+            (.harbor, "波しぶき", art["N"]!, RunnerPixelArt.outline),
             (.harbor, "泡", art["C"]!, RunnerPixelArt.outline),
         ]
         for item in items {
