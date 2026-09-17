@@ -27,6 +27,21 @@ struct HanafudaRulesTests {
         #expect(HanafudaRules.deal(using: &a) == HanafudaRules.deal(using: &b))
     }
 
+    /// 乱数を CoreEngine の `SplitMix64` に寄せたとき（#1074）に、出力列が 1 ビットも変わっていないことの固定。
+    /// 同じ種の 2 つを比べるだけでは、前混合を落とした変更を見逃す。期待値は寄せる前の実装で出したもの。
+    @Test("乱数は既知の出力列を返す")
+    func randomGoldenVectors() {
+        let expected: [(seed: UInt64, outputs: [UInt64])] = [
+            (0, [0x6E78_9E6A_A1B9_65F4, 0x06C4_5D18_8009_454F, 0xF88B_B8A8_724C_81EC]),
+            (42, [0x28EF_E333_B266_F103, 0x4752_6757_130F_9F52, 0x581C_E1FF_0E4A_E394]),
+        ]
+        for (seed, outputs) in expected {
+            var rng = HanafudaRandom(seed: seed)
+            let actual = outputs.indices.map { _ in rng.next() }
+            #expect(actual == outputs, "種 \(seed)")
+        }
+    }
+
     @Test("場に同月4枚が出る配りは配り直される")
     func dealAvoidsFourOfAMonthOnTheField() {
         for seed in UInt64(0)..<50 {

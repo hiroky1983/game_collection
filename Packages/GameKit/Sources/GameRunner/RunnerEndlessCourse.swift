@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// エンドレスモードのコース生成（#675・会長決裁 2026-09-12）。
 ///
@@ -343,18 +344,5 @@ public enum RunnerEndlessCourse {
 ///
 /// `SystemRandomNumberGenerator` は種を持てないので、コースの再現に使えない。
 /// 64 ビットの種 1 つで同じ並びが出ることだけが要件で、暗号学的な強さは要らない。
-struct RunnerSeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) {
-        state = seed
-    }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
+/// 実装は CoreEngine の共通部品（#1074）。
+typealias RunnerSeededGenerator = SplitMix64

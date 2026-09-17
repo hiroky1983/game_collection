@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GameSpider
 
 @Suite("配札")
@@ -138,6 +139,27 @@ struct SpiderDealerTests {
             let actual = outputs.indices.map { _ in rng.next() }
             #expect(actual == outputs, "種 \(seed)")
         }
+    }
+
+    /// SplitMix64 の実装が CoreEngine の 1 本だけであることの固定（#1074）。
+    /// #916 の確認は `0x9E3779B97F4A7C15` の書式しか見ておらず、`0x9E37_79B9_7F4A_7C15` と書いた
+    /// 同じ実装が 8 ファイルに残っていた。区切りの `_` と大文字小文字、10 進表記まで揃えて数える。
+    @Test("SplitMix64 の増分定数は CoreEngine の共通部品にしか現れない")
+    func splitMix64HasSingleImplementation() throws {
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        // 空振り防止。パスの導出が外れて 0 件になると「1 ファイルだけ」を見る検査が崩れる。
+        #expect(files.count > 100)
+        let hits = try files.filter { file in
+            let text = try String(contentsOf: file, encoding: .utf8)
+                .replacingOccurrences(of: "_", with: "")
+                .lowercased()
+            return text.contains("9e3779b97f4a7c15") || text.contains("11400714819323198485")
+        }
+        .map { $0.path.replacingOccurrences(of: sources.path + "/", with: "") }
+        #expect(hits == ["CoreEngine/SplitMix64.swift"])
     }
 
     @Test("出題は検証済みの種からしか選ばない", arguments: SpiderSuitCount.allCases)

@@ -44,9 +44,9 @@ let package = Package(
         .target(name: "GameShogi",          dependencies: ["Core"]),
         .target(name: "GameGomoku",         dependencies: ["Core"]),
         // 囲碁（#398）。ルール・終局計算・MCTS はすべて純粋ロジックなので Core だけに依存する。
-        .target(name: "GameGo",             dependencies: ["Core"]),
+        .target(name: "GameGo",             dependencies: ["Core", "CoreEngine"]),
         // チェス（#462）。ルール・探索は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameChess",          dependencies: ["Core"]),
+        .target(name: "GameChess",          dependencies: ["Core", "CoreEngine"]),
         .target(name: "GameMinesweeper",    dependencies: ["Core"]),
         .target(name: "GameOthello",        dependencies: ["Core"]),
         .target(name: "GamePoker",          dependencies: ["Core"]),
@@ -73,13 +73,13 @@ let package = Package(
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
         // チャリンコおじさん（#494）。アクション枠の2本目。地形・ジャンプ・当たり判定は
         // SpriteKit に依存しない純粋ロジックなので Core だけに依存する。
-        .target(name: "GameRunner",         dependencies: ["Core"]),
+        .target(name: "GameRunner",         dependencies: ["Core", "CoreEngine"]),
         // 花札こいこい（#495）。札の絵柄・役の判定・CPU はすべて純粋ロジックなので
         // Core だけに依存する。麻雀牌のような共有描画基盤は持たない（花札は他ゲームと札を共有しない）。
-        .target(name: "GameHanafuda",       dependencies: ["Core"]),
+        .target(name: "GameHanafuda",       dependencies: ["Core", "CoreEngine"]),
         // 牌の絵柄と描画。麻雀ソリティアと四人打ち麻雀(#106)で共有するのでゲームの外に置く。
         .target(name: "MahjongTiles",       dependencies: ["Core"]),
-        .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles"]),
+        .target(name: "GameMahjongSolitaire", dependencies: ["Core", "MahjongTiles", "CoreEngine"]),
         // 四人打ち麻雀（#106）。牌の描画は上の共有部品を使い、独自に描き直さない。
         .target(name: "GameMahjong",        dependencies: ["Core", "MahjongTiles"]),
         // テストの共通部品（#529。ソース走査の読み口・非同期タスクのゲート）。製品には含めず、
@@ -133,7 +133,7 @@ let package = Package(
         .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlocksTests",         dependencies: ["GameBlocks", "CoreTestSupport"]),
         .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "CoreTestSupport"]),
+        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
