@@ -618,6 +618,62 @@ struct RunnerStageSelectTests {
     }
 }
 
+/// 開始シート（#1027）を `onAppear` で自動で出すかどうかの判定（#1063）。
+///
+/// 局面（`.ready`）だけを見る作りだと、QA・撮影用の起動（`-simulateRunner`）で作った画にも
+/// シートが被る——`showcase` のように `.ready` のまま止まるシナリオがあるうえ、判定が
+/// 起動引数の適用より前に走っていた。引数を見る純関数に切り出してここで固定する。
+@Suite("チャリンコおじさん: 開始シートの自動表示（#1063）")
+@MainActor
+struct RunnerStartSheetGateTests {
+
+    private func shouldPresent(_ arguments: [String], phase: RunnerPhase = .ready) -> Bool {
+        RunnerView.shouldPresentStartSheet(
+            arguments: arguments, phase: phase, canChooseMode: true,
+            showsTutorial: false, showStartSheet: false
+        )
+    }
+
+    @Test("ハブから開いた直後（走り出す前）は出す")
+    func presentsWhenOpenedFromHub() {
+        #expect(shouldPresent(["app"]))
+    }
+
+    @Test("QA・撮影用の起動（-simulateRunner）では出さない")
+    func hiddenForDebugScenarios() {
+        // ASO 撮影（`Scripts/capture-aso-screenshots.sh` の `05-runner`）と QA の見比べ。
+        #expect(!shouldPresent(["app", "-simulateRunner", "bird:5"]))
+        // `.ready` のまま止まるシナリオも被らない（局面だけでは判別できない）。
+        #expect(!shouldPresent(["app", "-simulateRunner", "showcase"]))
+        // 開始シートそのものを撮る `-showRunnerStartSheet` だけが開く（経路は `openStartSheet`）。
+        #expect(!shouldPresent(["app", "-simulateRunner", "running", "-showRunnerStartSheet"]))
+    }
+
+    @Test("撮影モード（-screenshotMode）では出さない")
+    func hiddenInScreenshotMode() {
+        #expect(!shouldPresent(["app", "-screenshotMode"]))
+    }
+
+    @Test("走り出したあと・チェックポイント再開の直後・ガイドやシートを出している間は出さない")
+    func hiddenWhileBusy() {
+        for phase: RunnerPhase in [.running, .paused, .falling, .failed, .cleared, .allCleared] {
+            #expect(!shouldPresent(["app"], phase: phase))
+        }
+        #expect(!RunnerView.shouldPresentStartSheet(
+            arguments: ["app"], phase: .ready, canChooseMode: false,
+            showsTutorial: false, showStartSheet: false
+        ), "広告で得た再開を誤って手放させない")
+        #expect(!RunnerView.shouldPresentStartSheet(
+            arguments: ["app"], phase: .ready, canChooseMode: true,
+            showsTutorial: true, showStartSheet: false
+        ), "初回の操作ガイドの上に重ねない")
+        #expect(!RunnerView.shouldPresentStartSheet(
+            arguments: ["app"], phase: .ready, canChooseMode: true,
+            showsTutorial: false, showStartSheet: true
+        ), "すでに出ている")
+    }
+}
+
 /// スタート画面（#931）。走り出す前のカードのボタン（次の面・エンドレス・つづきから）の遷移。
 @Suite("チャリンコおじさん: スタート画面（#931）")
 @MainActor
@@ -890,6 +946,86 @@ struct RunnerStageFlowTests {
         #expect(starts() == ["stage-1", "stage-2", "stage-1"])
         #expect(ends().count == 2)
         #expect(ends().last == .quit, "走り出した面を捨てたので途中離脱")
+    }
+}
+
+/// 1 回の走行に `game_start` 1 本・`game_end` 1 本（#1064）。
+///
+/// PR #1028 以降、初回起動（中断データ無し）は「画面を開いた `init` で 1 本 → 開始シートの
+/// 『スタート』（`newGame`）で 2 本目」になっていた。逆に 2 回目以降はシートを閉じて
+/// コースをタップしても `init` も `newGame` も通らず 0 本だった。数えるのは**面を選んで
+/// 始めたとき**（`newGame*` / `advanceToNextStage`）と**走り出したとき**（`beginRun`・冪等）だけ。
+@Suite("チャリンコおじさん: 1 走行 = game_start 1 本（#1064）")
+@MainActor
+struct RunnerPlayCountTests {
+
+    @MainActor
+    private final class SpyAnalyticsService: AnalyticsService {
+        private(set) var events: [AnalyticsEvent] = []
+        func log(_ event: AnalyticsEvent) { events.append(event) }
+    }
+
+    private func makeAnalytics(_ spy: SpyAnalyticsService) -> GameServices {
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+        )
+        return GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+    }
+
+    private func starts(_ spy: SpyAnalyticsService) -> [String] {
+        spy.events.compactMap { event -> String? in
+            if case let .gameStart(_, level, _) = event { return level?.parameterValue ?? "-" } else { return nil }
+        }
+    }
+
+    private func ends(_ spy: SpyAnalyticsService) -> [AnalyticsResult] {
+        spy.events.compactMap { event -> AnalyticsResult? in
+            if case let .gameEnd(_, result, _, _, _) = event { return result } else { return nil }
+        }
+    }
+
+    @Test("中断データ無し: 開いて「スタート」で 1 面を走ると game_start 1 本・game_end 1 本")
+    func freshStartSendsOneStart() {
+        let spy = SpyAnalyticsService()
+        // 本番の入口（ハブから開く）。中断データが無いので 1 面のスタート画面に着く。
+        let model = RunnerModel(services: makeAnalytics(spy), preference: makePreference("count-fresh"))
+        #expect(starts(spy).isEmpty, "画面を開いただけでは数えない（まだモードも面も選んでいない）")
+
+        // 開始シートの「スタート」（ステージ制・1 面）。
+        #expect(model.newGame(startingAtStage: 1))
+        #expect(starts(spy) == ["stage-1"])
+
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(starts(spy) == ["stage-1"], "走り出しでは増えない（`gameDidStart` は冪等）")
+        #expect(ends(spy).count == 1)
+    }
+
+    @Test("中断データ有り: 開始シートを閉じてコースをタップした走行も game_start 1 本・game_end 1 本")
+    func tapToStartSendsOneStart() {
+        let store = MemorySnapshotStore()
+        // 2 面まで進んで閉じたあと（中断データ = 走る面と到達点の控え）。解析は付けずに作る。
+        _ = RunnerModel(services: makeServices(store: store), startingAt: 2, preference: makePreference("count-seed"))
+
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let services = GameServices(snapshots: store, ads: NoopAdService(), analytics: analytics)
+        let model = RunnerModel(services: services, preference: makePreference("count-resume"))
+        #expect(model.stageNumber == 2, "中断データから 2 面に戻る")
+        #expect(starts(spy).isEmpty, "復元しただけでは数えない")
+
+        // シートをキャンセルしてコースをタップした（`press`）＝走り出し。
+        model.press()
+        model.release()
+        #expect(model.phase == .running)
+        #expect(starts(spy) == ["stage-2"], "走り出しで 1 本")
+
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(starts(spy) == ["stage-2"])
+        #expect(ends(spy).count == 1)
     }
 }
 

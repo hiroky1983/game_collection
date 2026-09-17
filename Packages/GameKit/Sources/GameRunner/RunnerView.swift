@@ -111,7 +111,6 @@ public struct RunnerView: View {
         .onAppear {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
-            presentStartSheetIfNeeded()
             #if DEBUG
             // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
             let args = ProcessInfo.processInfo.arguments
@@ -123,6 +122,9 @@ public struct RunnerView: View {
                 openStartSheet(mode: model.mode, stage: 1)
             }
             #endif
+            // 自動表示の判断は**起動引数を適用したあと**（#1063）。先に判断すると、その時点では
+            // まだ `.ready` なので撮影・QA の画面（`-simulateRunner`）にもシートが被る。
+            presentStartSheetIfNeeded()
         }
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
@@ -316,8 +318,32 @@ public struct RunnerView: View {
     /// チェックポイント再開直後（`canChooseMode == false`）は出さない——広告で得た再開を
     /// 誤って手放させない。初回の操作ガイド中（`showsTutorial`）も出さない。
     private func presentStartSheetIfNeeded() {
-        guard model.phase == .ready, model.canChooseMode, !showsTutorial, !showStartSheet else { return }
+        guard Self.shouldPresentStartSheet(
+            phase: model.phase, canChooseMode: model.canChooseMode,
+            showsTutorial: showsTutorial, showStartSheet: showStartSheet
+        ) else { return }
         openStartSheet(mode: model.mode, stage: model.stageNumber)
+    }
+
+    /// `presentStartSheetIfNeeded` の実体（純関数・#1063）。
+    ///
+    /// 撮影モード（`-screenshotMode`）と QA・撮影用の画面（`-simulateRunner`）では出さない——
+    /// 走行中の画を撮る指定にシートが被ると、ASO のスクリーンショット
+    /// （`Scripts/capture-aso-screenshots.sh` の `05-runner`）がシートごと写る。開始シートそのものを
+    /// 撮る `-showRunnerStartSheet` は別の経路（`openStartSheet`）で開くので、ここで塞いでよい。
+    /// `-simulateRunner` が効くのは DEBUG だけだが、判定は構成で分けない——リリース構成に
+    /// 撮影用の引数が渡ることは無く、渡っても開始シートが出ないだけで済む。
+    ///
+    /// - Parameter arguments: 起動引数。既定は実プロセスのもので、テストが撮影・QA の起動を固定するために差し替える。
+    static func shouldPresentStartSheet(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        phase: RunnerPhase,
+        canChooseMode: Bool,
+        showsTutorial: Bool,
+        showStartSheet: Bool
+    ) -> Bool {
+        guard !arguments.contains("-screenshotMode"), !arguments.contains("-simulateRunner") else { return false }
+        return phase == .ready && canChooseMode && !showsTutorial && !showStartSheet
     }
 
     // MARK: - コース
