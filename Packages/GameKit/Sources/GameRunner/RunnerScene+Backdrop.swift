@@ -72,8 +72,9 @@ extension RunnerScene {
             case .townHouses: addTownHouses(to: tile)
             case .riverside:  addRiver(to: tile)
             case .cityLights: addCityLights(to: tile)
-            // 里山・港町（#1009）の遠景はまだ無い。丘だけで描き、飾りは絵の PR で足す。
-            case .satoyama, .harbor: break
+            // 里山・港町（#1009）はタイルの番号で中身を変える（竹林・貨物船を毎タイルに置くと林と船団になる）。
+            case .satoyama:   addSatoyama(to: tile, index: i)
+            case .harbor:     addHarbor(to: tile, index: i)
             }
             tile.position = CGPoint(x: Double(i) * Self.hillSpacing, y: 0)
             hillLayer.addChild(tile)
@@ -227,6 +228,171 @@ extension RunnerScene {
                 }
             }
         }
+    }
+
+    /// 里山（`RunnerWorld.Scenery.satoyama`・#1009）。道路の奥にあぜ道と田んぼの帯（水面に苗の列）、
+    /// 偶数番のタイルだけ近景の丘の手前に竹林を立てる（全タイルに置くと林が続きすぎて
+    /// 「里」に見えない）。苗・竹の幹・節と葉はそれぞれ 1 本のパスにまとめ、1 タイルあたり
+    /// 最大 6 ノード。色は `RunnerWorld.SceneryPalette`（どれも空と 2:1 未満で沈む・`WorldTests`）。
+    private func addSatoyama(to tile: SKNode, index: Int) {
+        typealias P = RunnerWorld.SceneryPalette
+        let width = Self.hillSpacing
+        let base = Metrics.groundY
+
+        // 竹林。偶数タイルに 5 本。幹は細長い矩形、節は幹より濃い細い帯、葉は先端の三角 3 枚。
+        if index.isMultiple(of: 2) {
+            let stalks = CGMutablePath(), nodes = CGMutablePath(), leaves = CGMutablePath()
+            for (i, stalk) in [(30.0, 17.0), (34.5, 20.0), (39.0, 15.5), (43.5, 19.0), (48.0, 16.5)].enumerated() {
+                let (dx, height) = stalk
+                let stalkWidth = 1.0
+                stalks.addRect(CGRect(x: dx, y: base + 2, width: stalkWidth, height: height))
+                var y = base + 5.5 + Double(i % 2) * 1.5
+                while y < base + height - 1 {
+                    nodes.addRect(CGRect(x: dx - 0.15, y: y, width: stalkWidth + 0.3, height: 0.45))
+                    y += 4.0
+                }
+                let tipX = dx + stalkWidth / 2, tipY = base + 2 + height
+                for (ox, oy) in [(-3.2, -1.2), (2.8, -0.6), (-0.6, 1.4)] {
+                    leaves.move(to: CGPoint(x: tipX, y: tipY - 1.5))
+                    leaves.addLine(to: CGPoint(x: tipX + ox, y: tipY + oy))
+                    leaves.addLine(to: CGPoint(x: tipX + ox * 0.55, y: tipY + oy * 0.55 + 0.9))
+                    leaves.closeSubpath()
+                }
+            }
+            for (path, color) in [(stalks, P.bambooStalk), (nodes, P.bambooLeaf), (leaves, P.bambooLeaf)] {
+                let shape = SKShapeNode(path: path)
+                shape.fillColor = RunnerPalette.color(color)
+                shape.strokeColor = .clear
+                shape.zPosition = SceneryZ.back
+                tile.addChild(shape)
+            }
+        }
+
+        // 田んぼ。水面の帯にまっすぐな苗の列を 2 段。あぜ道の帯を手前（下）に敷く。
+        let water = SKSpriteNode(color: RunnerPalette.color(P.paddyWater), size: CGSize(width: width, height: 5.0))
+        water.anchorPoint = .zero
+        water.position = CGPoint(x: 0, y: base + 1.2)
+        water.zPosition = SceneryZ.middle
+        tile.addChild(water)
+        let seedlings = CGMutablePath()
+        for (row, dy) in [2.0, 4.1].enumerated() {
+            var x = 0.8 + Double(row) * 1.2
+            while x < width - 0.5 {
+                seedlings.addRect(CGRect(x: x, y: base + dy, width: 0.5, height: 1.1))
+                x += 2.4
+            }
+        }
+        let seedlingNode = SKShapeNode(path: seedlings)
+        seedlingNode.fillColor = RunnerPalette.color(P.paddySeedling)
+        seedlingNode.strokeColor = .clear
+        seedlingNode.zPosition = SceneryZ.front
+        tile.addChild(seedlingNode)
+        let path = SKSpriteNode(color: RunnerPalette.color(P.fieldPath), size: CGSize(width: width, height: 1.2))
+        path.anchorPoint = .zero
+        path.position = CGPoint(x: 0, y: base)
+        path.zPosition = SceneryZ.front
+        tile.addChild(path)
+    }
+
+    /// 港町（`RunnerWorld.Scenery.harbor`・#1009）。道路の奥に海の帯、奇数番のタイルに桟橋、
+    /// 偶数番のタイルに岸壁のコンテナの山、3 で割り切れるタイルに沖の貨物船。
+    /// 波・杭・波板の筋はそれぞれ 1 本のパスにまとめ、1 タイルあたり最大 10 ノード。
+    private func addHarbor(to tile: SKNode, index: Int) {
+        typealias P = RunnerWorld.SceneryPalette
+        let width = Self.hillSpacing
+        let base = Metrics.groundY
+
+        // 海。丘（岬）の手前・道路の奥。
+        let sea = SKSpriteNode(color: RunnerPalette.color(P.seaWater), size: CGSize(width: width, height: 7.0))
+        sea.anchorPoint = .zero
+        sea.position = CGPoint(x: 0, y: base)
+        sea.zPosition = SceneryZ.back
+        tile.addChild(sea)
+        let glints = CGMutablePath()
+        for (dx, length, dy) in [(4.0, 10.0, 2.0), (26.0, 7.0, 4.4), (44.0, 9.0, 1.2)] {
+            glints.addRect(CGRect(x: dx, y: base + dy, width: length, height: 0.5))
+        }
+        let glintNode = SKShapeNode(path: glints)
+        glintNode.fillColor = RunnerPalette.color(P.seaGlint)
+        glintNode.strokeColor = .clear
+        glintNode.alpha = 0.8
+        glintNode.zPosition = SceneryZ.back
+        tile.addChild(glintNode)
+
+        // 貨物船（沖）。船体は台形、喫水線に錆色の帯、右寄りに船橋と煙突。
+        if index.isMultiple(of: 3) {
+            let hullPath = CGMutablePath()
+            hullPath.addLines(between: [
+                CGPoint(x: 14, y: base + 3.5), CGPoint(x: 52, y: base + 3.5),
+                CGPoint(x: 55, y: base + 7.5), CGPoint(x: 12, y: base + 7.5),
+            ])
+            hullPath.closeSubpath()
+            let hull = SKShapeNode(path: hullPath)
+            hull.fillColor = RunnerPalette.color(P.shipHull)
+            hull.strokeColor = .clear
+            hull.zPosition = SceneryZ.middle
+            tile.addChild(hull)
+            let waterline = SKSpriteNode(color: RunnerPalette.color(P.shipWaterline), size: CGSize(width: 37, height: 0.7))
+            waterline.anchorPoint = .zero
+            waterline.position = CGPoint(x: 14.5, y: base + 3.5)
+            waterline.zPosition = SceneryZ.middle
+            tile.addChild(waterline)
+            let bridge = SKSpriteNode(color: RunnerPalette.color(P.shipBridge), size: CGSize(width: 8, height: 4.2))
+            bridge.anchorPoint = .zero
+            bridge.position = CGPoint(x: 43, y: base + 7.5)
+            bridge.zPosition = SceneryZ.middle
+            tile.addChild(bridge)
+            let funnel = SKSpriteNode(color: RunnerPalette.color(P.shipFunnel), size: CGSize(width: 2.4, height: 2.6))
+            funnel.anchorPoint = .zero
+            funnel.position = CGPoint(x: 45.5, y: base + 11.7)
+            funnel.zPosition = SceneryZ.middle
+            tile.addChild(funnel)
+        }
+
+        if index.isMultiple(of: 2) {
+            // 岸壁のコンテナ。下段 2 つ・上段 1 つ。波板の筋は明るい縦線で 1 本のパス。
+            let ribs = CGMutablePath()
+            for (dx, dy, color) in [(4.0, 0.0, P.containerRust), (19.0, 0.0, P.containerBlue), (10.0, 5.0, P.containerGreen)] {
+                let box = SKSpriteNode(color: RunnerPalette.color(color), size: CGSize(width: 14, height: 5))
+                box.anchorPoint = .zero
+                box.position = CGPoint(x: dx, y: base + dy)
+                box.zPosition = SceneryZ.front
+                tile.addChild(box)
+                var x = dx + 1.2
+                while x < dx + 14 - 0.8 {
+                    ribs.addRect(CGRect(x: x, y: base + dy + 0.6, width: 0.35, height: 3.8))
+                    x += 1.6
+                }
+            }
+            let ribNode = SKShapeNode(path: ribs)
+            ribNode.fillColor = RunnerPalette.color(P.containerRib)
+            ribNode.strokeColor = .clear
+            ribNode.zPosition = SceneryZ.front
+            tile.addChild(ribNode)
+        } else {
+            // 桟橋。海に突き出た板と、海に立つ杭。
+            let planks = SKSpriteNode(color: RunnerPalette.color(P.pierPlank), size: CGSize(width: 30, height: 1.1))
+            planks.anchorPoint = .zero
+            planks.position = CGPoint(x: 8, y: base + 2.6)
+            planks.zPosition = SceneryZ.front
+            tile.addChild(planks)
+            let posts = CGMutablePath()
+            for dx in [9.5, 17.0, 24.5, 32.0] {
+                posts.addRect(CGRect(x: dx, y: base, width: 0.9, height: 3.4))
+            }
+            let postNode = SKShapeNode(path: posts)
+            postNode.fillColor = RunnerPalette.color(P.pierPost)
+            postNode.strokeColor = .clear
+            postNode.zPosition = SceneryZ.front
+            tile.addChild(postNode)
+        }
+    }
+
+    /// 里山・港町の遠景の部品の相対 z（`hillLayer` の中。丘の山は 0）。家並みの `HouseZ` と同じ考え方。
+    private enum SceneryZ {
+        static let back: CGFloat = 1
+        static let middle: CGFloat = 2
+        static let front: CGFloat = 3
     }
 
     /// 丘の山ひとつ。半分だけ地面から顔を出す楕円（下半分は `courseLayer` の地面に隠れる）。

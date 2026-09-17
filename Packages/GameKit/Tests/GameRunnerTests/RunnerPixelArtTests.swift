@@ -11,11 +11,20 @@ struct RunnerPixelArtTests {
     /// ここに集めた絵をすべて走査する。絵を足したらこの表にも足す。犬・イノシシは色が世界ごと
     /// （`RunnerPixelArt.creaturePalette`）なので全世界ぶん並べる。
     private static let sprites: [(name: String, sprite: PixelSprite)] =
-        [("たこ焼き", RunnerPixelArt.takoyaki())] + RunnerWorld.allCases.flatMap { world in
+        [
+            ("たこ焼き", RunnerPixelArt.takoyaki()),
+            // 岩の枠の着せ替え（#1009）。色は世界によらない。
+            ("切り株", RunnerPixelArt.stump()),
+            ("ロープの束", RunnerPixelArt.ropeCoil()),
+            ("ドラム缶", RunnerPixelArt.drum()),
+        ] + RunnerWorld.allCases.flatMap { world in
             RunnerPixelArt.WalkFrame.allCases.flatMap { frame in
                 [
                     ("犬 \(frame)（\(world)）", RunnerPixelArt.dog(frame, colors: world.creatures)),
                     ("イノシシ \(frame)（\(world)）", RunnerPixelArt.boar(frame, colors: world.creatures)),
+                    // 世界の着せ替え（#1009）で実際に貼られる絵（港町は猫・フォークリフト）。
+                    ("犬の枠 \(frame)（\(world)）", RunnerPixelArt.walker(frame, world: world)),
+                    ("イノシシの枠 \(frame)（\(world)）", RunnerPixelArt.charger(frame, world: world)),
                 ]
             }
         }
@@ -86,9 +95,11 @@ struct RunnerPixelArtTests {
     }
 
     /// 会長 QA（2026-09-15）「犬とイノシシ、足長い」→ 受け入れ条件: 脚の高さは全体の 1/4 以下。
-    @Test("犬・イノシシの脚の高さは全体の 1/4 以下", arguments: [
+    @Test("犬・イノシシ（猫・フォークリフトの車輪も）の脚の高さは全体の 1/4 以下", arguments: [
         ("犬 walk0", RunnerPixelArt.dogWalk0Rows), ("犬 walk1", RunnerPixelArt.dogWalk1Rows),
         ("イノシシ walk0", RunnerPixelArt.boarWalk0Rows), ("イノシシ walk1", RunnerPixelArt.boarWalk1Rows),
+        ("猫 walk0", RunnerPixelArt.catWalk0Rows), ("猫 walk1", RunnerPixelArt.catWalk1Rows),
+        ("フォークリフト walk0", RunnerPixelArt.forkliftDrive0Rows), ("フォークリフト walk1", RunnerPixelArt.forkliftDrive1Rows),
     ])
     func animalLegsAreShort(name: String, rows: [String]) {
         let legs = Self.legHeight(of: rows)
@@ -121,6 +132,8 @@ struct RunnerPixelArtTests {
         for (name, walk0, walk1) in [
             ("犬", RunnerPixelArt.dogWalk0Rows, RunnerPixelArt.dogWalk1Rows),
             ("イノシシ", RunnerPixelArt.boarWalk0Rows, RunnerPixelArt.boarWalk1Rows),
+            ("猫", RunnerPixelArt.catWalk0Rows, RunnerPixelArt.catWalk1Rows),
+            ("フォークリフト", RunnerPixelArt.forkliftDrive0Rows, RunnerPixelArt.forkliftDrive1Rows),
         ] {
             #expect(walk0.count == walk1.count && walk0[0].count == walk1[0].count, "\(name): 寸法が違う")
             let legs = max(Self.legHeight(of: walk0), Self.legHeight(of: walk1))
@@ -185,12 +198,110 @@ struct RunnerPixelArtTests {
             let p = RunnerPixelArt.creaturePalette(c)
             #expect(p["K"] == c.outline && p["O"] == c.dogBody && p["B"] == c.boarBody, "\(world)")
             #expect(p["W"] == c.dogBelly && p["o"] == c.dogDark && p["b"] == c.boarDark && p["S"] == c.boarSnout, "\(world)")
+            // 猫・フォークリフト（#1009）も同じ文字で世界の色を写す。
+            let cat = RunnerPixelArt.catPalette(c), forklift = RunnerPixelArt.forkliftPalette(c)
+            #expect(cat["K"] == c.outline && cat["O"] == c.dogBody && cat["o"] == c.dogDark && cat["W"] == c.dogBelly, "\(world)")
+            #expect(forklift["K"] == c.outline && forklift["B"] == c.boarBody && forklift["b"] == c.boarDark && forklift["S"] == c.boarSnout, "\(world)")
             // 主色が絵の中でいちばん多い色（遠目にはこの色で見分ける）。
-            for (name, rows, key) in [("犬", RunnerPixelArt.dogWalk0Rows, "O"), ("イノシシ", RunnerPixelArt.boarWalk0Rows, "B")] {
+            for (name, rows, key) in [
+                ("犬", RunnerPixelArt.dogWalk0Rows, "O"), ("イノシシ", RunnerPixelArt.boarWalk0Rows, "B"),
+                ("猫", RunnerPixelArt.catWalk0Rows, "O"),
+            ] {
                 var counts: [Character: Int] = [:]
                 for row in rows { for ch in row where ch != "." { counts[ch, default: 0] += 1 } }
                 #expect(counts.max { $0.value < $1.value }?.key == Character(key), "\(name): 主色が \(key) でない \(counts)")
             }
+        }
+    }
+
+    // MARK: 着せ替え（`RunnerWorld.Dressing`・#1009）
+
+    /// 世界の着せ替えで貼られる絵: 港町の犬の枠は猫、イノシシの枠はフォークリフト。それ以外の
+    /// 4 世界（里山の田舎の犬・イノシシを含む）は犬・イノシシの格子そのもの（色だけ世界の値）。
+    @Test("犬の枠・イノシシの枠の絵は世界の着せ替えに従う")
+    func dressedWalkersFollowTheWorld() {
+        for frame in RunnerPixelArt.WalkFrame.allCases {
+            for world in [RunnerWorld.morning, .evening, .night, .satoyama] {
+                #expect(RunnerPixelArt.walker(frame, world: world) == RunnerPixelArt.dog(frame, colors: world.creatures), "\(world) \(frame)")
+                #expect(RunnerPixelArt.charger(frame, world: world) == RunnerPixelArt.boar(frame, colors: world.creatures), "\(world) \(frame)")
+                #expect(RunnerPixelArt.walkerRows(world: world) == RunnerPixelArt.dogWalk0Rows)
+                #expect(RunnerPixelArt.chargerRows(world: world) == RunnerPixelArt.boarWalk0Rows)
+                #expect(RunnerPixelArt.chargerRearFootX(world: world) == RunnerPixelArt.boarRearFootX)
+            }
+            #expect(RunnerPixelArt.walker(frame, world: .harbor) == RunnerPixelArt.cat(frame, colors: RunnerWorld.harbor.creatures))
+            #expect(RunnerPixelArt.charger(frame, world: .harbor) == RunnerPixelArt.forklift(frame, colors: RunnerWorld.harbor.creatures))
+        }
+        #expect(RunnerPixelArt.walkerRows(world: .harbor) == RunnerPixelArt.catWalk0Rows)
+        #expect(RunnerPixelArt.chargerRows(world: .harbor) == RunnerPixelArt.forkliftDrive0Rows)
+        #expect(RunnerPixelArt.chargerRearFootX(world: .harbor) == RunnerPixelArt.forkliftRearWheelX)
+        // 里山の田舎の犬は朝の柴と色で見分けが付く（絵は同じ）。
+        #expect(RunnerWorld.satoyama.creatures.dogBody != RunnerWorld.morning.creatures.dogBody)
+    }
+
+    /// 猫は犬と同じ格子（`addDog` が同じ置き方で貼る）で、頭が左・耳が頭の上に 2 つ・尾が背中の上の
+    /// 右端に立ち、首輪（`R`）が無い。犬から「猫らしさ」として外した要素（#975）がこちらにある。
+    @Test("猫は犬と同じ 30×21 で頭は左、立ち耳 2 つ・立った尾・首輪なし")
+    func catLooksLikeACat() throws {
+        for frame in RunnerPixelArt.WalkFrame.allCases {
+            let cat = RunnerPixelArt.cat(frame, colors: RunnerWorld.harbor.creatures)
+            let dog = RunnerPixelArt.dog(frame, colors: RunnerWorld.harbor.creatures)
+            #expect(cat.width == dog.width && cat.height == dog.height, "猫 \(frame): \(cat.width)×\(cat.height)")
+            let b = try #require(cat.opaqueBounds)
+            #expect(b.x == 0 && b.y == 0 && b.width == cat.width && b.height == cat.height, "余白: \(b)")
+            let rows = cat.rows.map(Array.init)
+            // 鼻（縁取り）が左端にあり、口元の薄い色 `W` がその右に続く。
+            #expect(rows.contains { $0[0] == "K" && $0[1] == "W" }, "猫 \(frame): 左端にマズルが無い")
+            // 耳: 上から 3 行目までに、左半分で不透明な範囲が 2 つに割れている行がある（三角の耳 2 つ）。
+            let ears = rows.prefix(3).contains { row in
+                var runs = 0, inRun = false
+                for ch in row.prefix(cat.width / 2) {
+                    if ch != "." { if !inRun { runs += 1; inRun = true } } else { inRun = false }
+                }
+                return runs == 2
+            }
+            #expect(ears, "猫 \(frame): 頭の上に耳が 2 つ無い")
+            // 尾: 最上段の不透明なドットは右半分（背中の上に立つ）。
+            #expect(rows[0].prefix(cat.width / 2).allSatisfy { $0 == "." } && rows[0].contains { $0 != "." }, "猫 \(frame): 尾が立っていない")
+            #expect(!cat.rows.joined().contains("R"), "猫 \(frame): 首輪がある")
+        }
+    }
+
+    /// フォークリフトはイノシシと同じ格子で、フォークの先が左端の列（鼻先と同じ約束）。
+    /// 土煙（排気）の列 `forkliftRearWheelX` は 2 コマとも底の行で後輪の上にある。
+    @Test("フォークリフトはイノシシと同じ 33×23 で、フォークが左端・排気の列は後輪の下")
+    func forkliftForksAtTheLeftEdge() throws {
+        let x = RunnerPixelArt.forkliftRearWheelX
+        for frame in RunnerPixelArt.WalkFrame.allCases {
+            let lift = RunnerPixelArt.forklift(frame, colors: RunnerWorld.harbor.creatures)
+            let boar = RunnerPixelArt.boar(frame, colors: RunnerWorld.harbor.creatures)
+            #expect(lift.width == boar.width && lift.height == boar.height, "フォークリフト \(frame): \(lift.width)×\(lift.height)")
+            let b = try #require(lift.opaqueBounds)
+            #expect(b.x == 0 && b.y == 0 && b.width == lift.width && b.height == lift.height, "余白: \(b)")
+            let rows = lift.rows.map(Array.init)
+            // フォーク: 下の 3 行に、左端が縁取りで鋼（`S`）が横に長く続く行がある。
+            let fork = rows.suffix(3).contains { row in row[0] == "K" && row[1...8].allSatisfy { $0 == "S" } }
+            #expect(fork, "フォークリフト \(frame): 左端にフォークが無い")
+            let bottom = rows[lift.height - 1]
+            let left = Int(x.rounded(.down)), right = Int(x.rounded(.up))
+            #expect(bottom[left] != "." && bottom[right] != ".", "底の行の列 \(x) が車輪でない")
+            #expect(x > Double(lift.width) / 2, "後輪（右半分）でない: \(x)")
+        }
+    }
+
+    /// 岩の枠の置物は当たり判定の箱いっぱいに貼る（`RunnerScene.makeBlock`）ので、格子の縦横比が
+    /// 箱と同じ（低い岩 4×5、高い岩 4×9）で余白が無いこと。伸びて貼られると 1 ドットが走者と違う大きさになる。
+    @Test("切り株・ロープの束は 4:5、ドラム缶は 4:9 の格子で余白が無い")
+    func blocksFitTheHitBoxes() throws {
+        let low = RunnerHazardKind.lowBlock, tall = RunnerHazardKind.tallBlock
+        for (name, sprite, kind) in [
+            ("切り株", RunnerPixelArt.stump(), low), ("ロープの束", RunnerPixelArt.ropeCoil(), low),
+            ("ドラム缶", RunnerPixelArt.drum(), tall),
+        ] {
+            let width = RunnerRules.tileWidth, height = kind.height
+            #expect(Double(sprite.width) * height == Double(sprite.height) * width, "\(name): \(sprite.width)×\(sprite.height) は \(width)×\(height) の比でない")
+            #expect(sprite.width >= 12, "\(name): 1 ドットが走者より大きい")
+            let b = try #require(sprite.opaqueBounds)
+            #expect(b.x == 0 && b.y == 0 && b.width == sprite.width && b.height == sprite.height, "\(name) の余白: \(b)")
         }
     }
 }
