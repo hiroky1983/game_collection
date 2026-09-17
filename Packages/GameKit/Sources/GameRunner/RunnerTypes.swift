@@ -556,7 +556,7 @@ public enum RunnerResultFace {
     /// 局面に応じた表情。顔を出さない局面（走行中・一時停止・落下演出中）は nil。
     ///
     /// - ready: 笑顔（スタート画面の主ボタンの左に小さく）
-    /// - cleared / allCleared: ガッツポーズ（エンドレスの「走りきった」も含む）
+    /// - cleared / allCleared: ガッツポーズ（ステージ制のクリア。エンドレスはこの局面にならない・#1086）
     /// - failed: しかめ面。ただしエンドレスで自己ベストを更新した回はガッツポーズ
     ///   （ミスで終わる決着なので、記録が伸びたことのほうを喜ばせる）
     public static func face(for phase: RunnerPhase, isNewBest: Bool = false) -> OjisanPixel.Face? {

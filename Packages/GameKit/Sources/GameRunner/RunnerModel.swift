@@ -151,8 +151,9 @@ public final class RunnerModel {
     /// 走行距離（ワールド単位）。エンドレス（#675）の記録はこの値の整数部。
     public var distance: Double { field.distance }
     /// 走行距離の表示・記録用の値（m）。**1 タイル（`RunnerRules.tileWidth` 単位）＝ 1 m** と
-    /// 数える。ワールド単位のままだと 400 区画で 25,600 m・時速 140 km 超の表示になり実感と
-    /// 合わないため（社長レビュー 2026-09-14）。6,400 m を 8 分前後で走る＝時速 48 km ほど。
+    /// 数える。ワールド単位のままだと 1 区画 64 m・最高速で時速 200 km 超の表示になり実感と
+    /// 合わないため（社長レビュー 2026-09-14）。1 区画 16 m、最高速（基準 60 × ペダル 1.55）で
+    /// 秒速 23 m ＝時速 84 km ほど。
     public var distanceMeters: Int { Int(field.distance / RunnerRules.tileWidth) }
     /// ステージ番号（1 始まり）が到達済み（ワールドマップで選べる）か（#798）。
     /// 1 面は常に到達済み。範囲外は false。
@@ -185,11 +186,11 @@ public final class RunnerModel {
     /// 1 回の走行が終わって、リザルトを出している状態か。
     ///
     /// ステージ制は全ステージクリアだけが「終わり」で、ミスは何度でもやり直せる途中。
-    /// エンドレスはミスした時点で 1 回が終わり、コースを走り切った場合も同じ扱い。
+    /// エンドレスはミスした時点で 1 回が終わる（コースに終わりは無いので、ミス以外の終わり方は無い・#1086）。
     public var isRunOver: Bool {
         switch mode {
         case .stages:  return phase == .allCleared
-        case .endless: return phase == .failed || phase == .allCleared
+        case .endless: return phase == .failed
         }
     }
 
@@ -287,6 +288,12 @@ public final class RunnerModel {
         if isFrozenForCapture { return }
         #endif
         let step = min(dt, RunnerRules.maxStep) * (isSlowMode ? RunnerRules.slowFactor : 1)
+        #if DEBUG
+        if isAutoPilotForDebug {
+            advanceWithAutoPilotForDebug(by: step)
+            return
+        }
+        #endif
         for event in field.step(dt: step) {
             guard phase.isRunning else { break }
             handle(event)
@@ -297,7 +304,7 @@ public final class RunnerModel {
     ///
     /// ステージ制は**その場で走り出す**（#941。面をまたぐたびにスタート画面を挟んで
     /// もう 1 タップさせない、会長指示 2026-09-15）。
-    /// エンドレス（#675）では**新しい種でもう 1 回**走る（コースを走り切った後も同じ）。
+    /// エンドレス（#675）では**新しい種でもう 1 回**走る。
     /// 同じコースを走り直す導線は出さない——「冒頭は同じ・以降は毎回違う」が決裁の形で、
     /// 同じ並びを覚えて距離を伸ばすモードにはしない。ミスの時点で 1 回が決着しているので、
     /// 次の 1 回は新しいプレイとして数え直す（ステージ制のやり直しは同じプレイの続き）。
@@ -473,7 +480,8 @@ public final class RunnerModel {
     /// アプリを閉じたら消える（会長決裁）。ステージ制の続き（`stageNumber`）はそのまま残る。
     private func startEndless(seed: UInt64) {
         endlessSeed = seed
-        resetRun(RunnerField(stage: RunnerEndlessCourse.makeStage(seed: seed)))
+        // コースは走りながら作る（#1086）。ここで作るのは走り出す地点のまわりの数区画だけ。
+        resetRun(RunnerField(endlessSeed: seed))
     }
 
     /// 新しいコースで走り出す前の状態に戻す。ステージ制・エンドレス・QA用の差し替えで共通。
@@ -518,17 +526,11 @@ public final class RunnerModel {
             }
             // エンドレスはミスした時点で 1 回が決着する（#675）。記録は演出を待たずに確定させ、
             // 演出明けの `.failed` のリザルトに出す。
-            if mode == .endless { finishEndlessRun(outcome: .loss) }
+            if mode == .endless { finishEndlessRun() }
         case .reachedGoal:
-            switch mode {
-            case .stages:
-                clearStage()
-            case .endless:
-                // 固定長（`RunnerRules.endlessSegments`）を走り切った。第 1 弾はここで打ち切り、
-                // 走った距離をそのまま記録する（真の無限は第 2 弾・Issue #675）。
-                phase = .allCleared
-                finishEndlessRun(outcome: .win)
-            }
+            // エンドレスにゴールは無い（#1086）——`RunnerField` はエンドレスでこのできごとを出さない。
+            guard mode == .stages else { return }
+            clearStage()
         }
     }
 
@@ -546,15 +548,15 @@ public final class RunnerModel {
     /// （区分 nil）とは別の行になり、互いを汚さない。順位表は `asobiba.runner.distance`
     /// （`GameCenterLeaderboard.runnerDistance`）。コンティニューは無いので常に送信対象。
     ///
-    /// ミスで終わる回は `.loss`、走り切った回は `.win`（2048 のゲームオーバーと同じ数え方。
-    /// 毎回を勝ちにすると通算勝利数の実績が走るたびに進んでしまう）。
-    private func finishEndlessRun(outcome: GameOutcome) {
+    /// 決着は必ずミスなので `.loss`（2048 のゲームオーバーと同じ数え方。毎回を勝ちにすると
+    /// 通算勝利数の実績が走るたびに進んでしまう）。コースに終わりが無いので勝ちで終わる回は無い（#1086）。
+    private func finishEndlessRun() {
         let meters = distanceMeters
         didSetBestDistance = Self.isNewBestDistance(meters, over: endlessBestDistance)
         if didSetBestDistance { endlessBestDistance = meters }
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
-            outcome: outcome,
+            outcome: .loss,
             score: GameScore(
                 metric: .points,
                 points: meters,
@@ -625,8 +627,13 @@ public final class RunnerModel {
     /// ミスの画になった）。止まったブロック崩しと違い、狙った画を撮るには時間ごと
     /// 止める必要がある。DEBUG ビルド限定で、製品には入らない。
     private var isFrozenForCapture = false
+    /// 自動操縦で走り続けているか（`-simulateRunner endless-autopilot`・#1086）。
+    private var isAutoPilotForDebug = false
     /// 撮影用のエンドレスの種（#675）。毎回同じコースを撮るための固定値で、意味は無い。
     private static let captureSeed: UInt64 = 675
+    /// 7 桁の走行距離を撮るときの地点（#1086）。10,000,000 単位 ＝ 2,500,000 m。区画の左端
+    /// （64 の倍数）なので、置いた瞬間に障害の上にはいない。
+    static let farCaptureDistance: Double = 10_000_000
 
     /// 撮影・動作確認用に狙った画面まで進める（起動引数 `-simulateRunner <名前>`）。
     ///
@@ -782,6 +789,21 @@ public final class RunnerModel {
             press(); release()
             autoPlayForDebug(until: { $0.field.distance > 600 && $0.field.altitude > RunnerRules.jumpApex * 0.6 })
             isFrozenForCapture = true
+        case "endless-far":
+            // 7 桁の走行距離で走っている画（#1086。距離表示が崩れないか・遠くでも絵がガタつかないか）。
+            // 遠くまで一気に進めてから自動操縦で少し走り、跳んでいる最中で止める。
+            newEndlessGame(seed: Self.captureSeed)
+            press(); release()
+            fastForwardEndlessForDebug(to: Self.farCaptureDistance)
+            autoPlayForDebug(until: {
+                $0.field.distance > Self.farCaptureDistance + 400 && $0.field.altitude > RunnerRules.jumpApex * 0.6
+            })
+            isFrozenForCapture = true
+        case "endless-autopilot":
+            // 自動操縦で走り続ける（#1086。メモリが横ばいかの長時間の実測・録画用）。止めない。
+            newEndlessGame(seed: Self.captureSeed)
+            isAutoPilotForDebug = true
+            press(); release()
         case "endless-failed":
             // エンドレスのリザルト（走行距離・自己ベスト）。冒頭を自動操縦で抜けてから
             // 跳ぶのをやめ、ランダム区画の最初の障害でミスさせる。
@@ -825,6 +847,33 @@ public final class RunnerModel {
         default:
             break
         }
+    }
+
+    /// 自動操縦で `step` 秒ぶん進める（`-simulateRunner endless-autopilot`・#1086）。
+    ///
+    /// 自動操縦の判断は**1/60 秒以下の刻みごと**にする。実機のフレームは描画の重さ（計測中の Instruments など）で
+    /// 伸び、1 フレームに 1 回の判断だと踏み切りが最大 1/20 秒遅れて、テスト（1/60 秒刻み）では越えられる
+    /// 障害に当たる。刻みを揃えて、長時間の実測をテストと同じ走り方にする。
+    private func advanceWithAutoPilotForDebug(by step: Double) {
+        var remaining = step
+        while remaining > 0, phase.isRunning {
+            let chunk = min(remaining, 1.0 / 60)
+            remaining -= chunk
+            if RunnerAutoPilot.shouldJump(field: field) { press() }
+            if RunnerAutoPilot.shouldRelease(field: field) { release() }
+            for event in field.step(dt: chunk) {
+                guard phase.isRunning else { break }
+                handle(event)
+            }
+        }
+    }
+
+    /// エンドレスの走者を `distance` まで一気に進める（撮影・テスト用・#1086）。ステージ制では何もしない。
+    ///
+    /// コースは生成器が頭から順に作る（区画の中身は種と通し番号だけで決まる）ので、遠いほど時間が掛かる。
+    func fastForwardEndlessForDebug(to distance: Double) {
+        guard mode == .endless else { return }
+        field.placeForTesting(distance: distance, altitude: 0, vy: 0)
     }
 
     /// `RunnerStage.all` を経由せず、任意のステージ定義で走らせ直す（QA用）。

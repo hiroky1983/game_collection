@@ -112,7 +112,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-far|endless-autopilot|endless-failed>`（#494・#675・#797・#1086）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -207,7 +207,7 @@ public struct RunnerView: View {
     }
 
     /// エンドレス（#675）は「ステージ N / 18」と進み具合の代わりに走行距離を出す。
-    /// 進み具合は出さない——固定長の終わりを見せると「エンドレス」の看板と食い違う。
+    /// コースに終わりは無い（#1086）ので、進み具合という物差しそのものが無い。
     private var distanceReadout: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("走行距離")
@@ -478,12 +478,6 @@ public struct RunnerView: View {
             panel(title: "ミス！", face: resultFace, faceScale: faceScale) {
                 if model.mode == .endless { endlessDetail }
                 if model.canResumeFromCheckpoint { resumeButton }
-                retryButton
-            }
-        case .allCleared where model.mode == .endless:
-            // 固定長のコースを走り切った（第 1 弾は 400 区画で打ち切り・#675）。
-            panel(title: "コースを走りきった！", face: resultFace, faceScale: faceScale) {
-                endlessDetail
                 retryButton
             }
         case .cleared:

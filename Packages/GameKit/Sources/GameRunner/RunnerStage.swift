@@ -363,12 +363,9 @@ public enum RunnerRules {
     public static let boarAdvance: Double = 1
 
     // MARK: エンドレス（#675・会長決裁 2026-09-12）
+    //
+    // コースに終わりは無い（#1086・会長決裁 2026-09-17）。区画は走りながら作る（`RunnerEndlessTrack`）。
 
-    /// エンドレスのコースの区画数（第 1 弾は固定長）。
-    ///
-    /// 400 区画 = 25,600 ワールド単位で、下の速さの上がり方なら 8 分前後。`RunnerField` の
-    /// 障害配列は線形走査なので、真の無限（先読み窓）は第 2 弾に送る（Issue #675 の設計）。
-    public static let endlessSegments = 400
     /// エンドレスで速さが `speedStep` ぶん上がるのに要する距離（ワールド単位）。
     ///
     /// ステージ制の「1 ステージ進むごとに `speedStep`」を距離に写したもの。導入時（`speedStep` = 1.2）

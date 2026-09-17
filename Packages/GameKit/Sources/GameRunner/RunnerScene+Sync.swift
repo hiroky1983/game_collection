@@ -22,8 +22,11 @@ extension RunnerScene {
                 base: hillBaseX[i], distance: field.distance, parallax: Self.hillParallax,
                 spacing: Self.hillSpacing, count: hillTiles.count)
         }
-        // 走者の画面上の x は動かさず、コースのほうを左へ流す。
-        courseLayer.position = CGPoint(x: Metrics.playerX - field.distance, y: 0)
+        // エンドレス（#1086）は枠に入った区画だけを置き、遠くへ進んだらコース層の原点を動かす。
+        if field.track != nil { syncEndlessCourse(field) }
+        // 走者の画面上の x は動かさず、コースのほうを左へ流す。ノードは原点（`renderOrigin`）からの
+        // 位置に置いてあるので、画面上の位置は原点に依らない（ステージ制の原点は常に 0）。
+        courseLayer.position = CGPoint(x: Self.courseLayerX(distance: field.distance, origin: renderOrigin), y: 0)
         if model.phase == .falling {
             // ミスした瞬間に `field` は凍る（`RunnerModel.tick` が `field.step` を呼ばなくなる）ので
             // 値は変わらない。最初のフレームだけ、ミスした瞬間の位置・向きへきっちり合わせてから
@@ -43,9 +46,12 @@ extension RunnerScene {
             // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため
             // （コマは `jump` の 1 枚だが、傾きで勢いが出る）。
             player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
-            syncPickups(field)
+            // エンドレスのアイテム・動く障害は `syncEndlessCourse` が区画ごとに扱う。
+            if field.track == nil {
+                syncPickups(field)
+                syncMovingHazards(field)
+            }
             syncJustLanding(field)
-            syncMovingHazards(field)
             // 無敵の点滅（#797）は走者ノードの alpha だけを触る。動く障害（#796）の同期は
             // 障害側のノードしか動かさないので、順序に依存も干渉もしない。
             syncInvincibility(field)
@@ -110,7 +116,12 @@ extension RunnerScene {
     private func syncJustLanding(_ field: RunnerField) {
         guard field.justLandingCount > renderedJustLandingCount else { return }
         renderedJustLandingCount = field.justLandingCount
-        spawnJustLandingDust(atWorldX: field.distance)
+        spawnJustLandingDust(atCourseX: field.distance - renderOrigin)
+    }
+
+    /// コース層の x。走者の画面上の x（`playerX`）に、原点から見た走者の位置を引き当てる（#1086）。
+    nonisolated static func courseLayerX(distance: Double, origin: Double) -> Double {
+        Metrics.playerX - (distance - origin)
     }
 
     /// 無敵（たこ焼き・#797）の点滅を、`field.isInvincible` と食い違ったフレームだけ掛ける／外す。
@@ -250,14 +261,19 @@ extension RunnerScene {
     ///
     /// **こちらはコース側（`courseLayer`）に置く**——走行中はコースが流れ続けるので、
     /// 画面固定にすると土煙が走者と一緒に前へ動いて見える。降りた地点に残して後ろへ流す。
-    private func spawnJustLandingDust(atWorldX worldX: Double) {
+    /// `courseX` はコース層の座標（ワールド x − `renderOrigin`・#1086）。
+    private func spawnJustLandingDust(atCourseX courseX: Double) {
         spawnDust(
-            at: CGPoint(x: worldX - 2.6, y: Metrics.groundY + 0.8),
+            at: CGPoint(x: courseX - 2.6, y: Metrics.groundY + 0.8),
             specs: [(-2.2, 1.4, 0.8), (-4.0, 0.9, 0.6), (-0.6, 1.9, 0.7)],
             duration: 0.3,
             in: courseLayer
         )
     }
+
+    /// 土煙・紙吹雪の粒の名前。演出が終わると自分で消える一時的なノードで、部品の数
+    /// （エンドレスのノード数の上限・#1086）を数えるテストはこの名前のノードを除く。
+    static let dustNodeName = "dust"
 
     /// 丸だけの土煙を 1 か所から散らす。ノードは演出が終わると自分で消える。
     ///
@@ -272,6 +288,7 @@ extension RunnerScene {
     ) {
         for spec in specs {
             let puff = SKShapeNode(circleOfRadius: spec.r)
+            puff.name = Self.dustNodeName
             puff.fillColor = RunnerPalette.color(color)
             puff.strokeColor = .clear
             puff.alpha = 0.8
