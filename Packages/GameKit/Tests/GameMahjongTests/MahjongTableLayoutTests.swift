@@ -252,7 +252,11 @@ struct MahjongTableLayoutTests {
                 let wallCount = 13 - groups * 3 + 1       // ツモ番（1 枚多い）が最も長い
                 let rects = l.meldTileRects(seat: seat, groups: groups, tiles: tiles)
                 #expect(rects.count == tiles)
-                let width = l.sideMeldTileWidth(seat: seat, meldSizes: MahjongTableLayout.meldSizes(groups: groups, tiles: tiles))
+                let sizes = MahjongTableLayout.meldSizes(groups: groups, tiles: tiles)
+                let width = l.sideMeldTileWidth(seat: seat, meldSizes: sizes)
+                // 牌ごとの組の番号をテストの側で数え直す（実装の `groupOfTile` を使うと同じ誤りを見逃す）
+                let groupOfTile = sizes.enumerated().flatMap { gi, n in Array(repeating: gi, count: n) }
+                #expect(groupOfTile.count == tiles)
                 if groups <= 2 {
                     #expect(width == l.riverTileWidth, "seat \(seat) \(groups) 組は縮めない")
                 }
@@ -275,7 +279,8 @@ struct MahjongTableLayoutTests {
                     if k > 0 {
                         let prev = rects[k - 1]
                         let gap = seat == 1 ? r.minY - prev.maxY : prev.minY - r.maxY
-                        let expected: CGFloat = (k % 3 == 0 && k / 3 <= groups - 1) ? MahjongTableLayout.meldGroupSpacing : 0
+                        // 区切りは組の境目（カンが先頭の組なので 4 枚目の後。`MahjongTableView.sideMelds` と同じ）
+                        let expected: CGFloat = groupOfTile[k] != groupOfTile[k - 1] ? MahjongTableLayout.meldGroupSpacing : 0
                         #expect(abs(gap - expected) < 1, "seat \(seat) \(k) 枚目の隙間 \(gap)")
                     }
                 }

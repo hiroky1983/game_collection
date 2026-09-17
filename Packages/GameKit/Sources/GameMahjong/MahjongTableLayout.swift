@@ -427,13 +427,23 @@ public struct MahjongTableLayout: Sendable {
 
     /// `groups` 組・合計 `count` 枚の副露を、重なりの検査用に矩形の列で返す。上家・下家は 1 枚ずつ、
     /// 自分・対面は 1 組ずつ（`inlineMelds`。手牌はツモ番の `14 − 3 × groups` 枚として最も長い場合を取る）。
-    /// 組の区切りは 3 枚ごとにあるとみなし、余った枚数はカンとして先頭の組から 1 枚ずつ足す。
+    /// 組は `meldSizes` で配り（3 枚ずつ、余った枚数はカンとして先頭の組から 1 枚ずつ足す）、上家・下家の区切りは
+    /// 描画（`MahjongTableView.sideMelds`）と同じくその組の境目に置く。
     public func meldTileRects(seat: Int, groups: Int, tiles count: Int) -> [CGRect] {
+        let sizes = Self.meldSizes(groups: groups, tiles: count)
         guard seat == 1 || seat == 3 else {
-            return inlineMelds(seat: seat, handCount: 14 - 3 * groups, meldSizes: Self.meldSizes(groups: groups, tiles: count)).groupRects
+            return inlineMelds(seat: seat, handCount: 14 - 3 * groups, meldSizes: sizes).groupRects
         }
-        let w = sideMeldTileWidth(seat: seat, meldSizes: Self.meldSizes(groups: groups, tiles: count))
-        return (0..<count).map { sideMeldRect(seat: seat, ordinal: $0, gaps: min($0 / 3, max(0, groups - 1)), tileWidth: w) }
+        let w = sideMeldTileWidth(seat: seat, meldSizes: sizes)
+        let groupOfTile = Self.groupOfTile(sizes)
+        return (0..<count).map { k in
+            sideMeldRect(seat: seat, ordinal: k, gaps: k < groupOfTile.count ? groupOfTile[k] : max(0, groups - 1), tileWidth: w)
+        }
+    }
+
+    /// 牌ごとの組の番号（`[4, 3]` → `[0, 0, 0, 0, 1, 1, 1]`）。上家・下家では、その牌の前にある組の区切りの数。
+    static func groupOfTile(_ meldSizes: [Int]) -> [Int] {
+        meldSizes.enumerated().flatMap { gi, n in Array(repeating: gi, count: max(0, n)) }
     }
 
     /// `groups` 組に `count` 枚を配る（3 枚ずつ、余りは先頭からカンに）。
