@@ -363,10 +363,16 @@ extension RunnerScene {
 
         // 予告（地面に残る塚・泡）。当たり判定より手前（`zPosition` が大きい）に置き、
         // 伸びてくる絵の根元を隠して「ここから出てきた」ように見せる。
-        let cueWidth = w * Self.shootCueVisualScale
+        // 幅は当たり判定の `shootCueVisualScale` 倍で、格子の幅もその倍率なので 1 ドットの
+        // 大きさは本体と揃う（縦は格子の比率どおりに従わせる——引き伸ばさない）。
+        let cueRows = RunnerPixelArt.shootCue(world: world)
+        let cueWidth = w * RunnerPixelArt.shootCueVisualScale
         let cue = SKSpriteNode(texture: shootCueTextures[style])
         cue.anchorPoint = CGPoint(x: 0.5, y: 0)
-        cue.size = CGSize(width: cueWidth, height: cueWidth * Self.shootCueAspect)
+        cue.size = CGSize(
+            width: cueWidth,
+            height: cueWidth * Double(cueRows.height) / Double(cueRows.width)
+        )
         cue.position = CGPoint(x: w / 2, y: 0)
         cue.zPosition = 2
         // 小刻みな揺れ。地面が揺れていることが予告の合図なので、横ではなく上下に短く震わせる。
@@ -394,11 +400,6 @@ extension RunnerScene {
             hazard: hazard, node: node, animated: [cue], riser: riser, riserHeight: h
         )
     }
-
-    /// 予告（塚・泡）を当たり判定の幅の何倍で描くか。読ませたい予告なので箱より広く出す。
-    private static let shootCueVisualScale: Double = 1.5
-    /// 予告の絵の縦横比（`RunnerPixelArt.soilMoundRows` は 12×7 ドット）。
-    private static let shootCueAspect: Double = 7.0 / 12.0
 
     /// 動物の歩きのコマを貼るスプライトを `node` に足す（犬・イノシシ共通）。1 ドットは走者と同じ
     /// 単位（`riderPlacement.unit`）で、`rows` は寸法を測るためだけに使う（全コマ同じ格子・

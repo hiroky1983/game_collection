@@ -942,8 +942,9 @@ public extension RunnerStage {
     /// たこ焼き（`k`・#797）は床の直後の素の平地を 1 区画挟んだ次、最初の岩の直前に置いてある。
     /// 取った直後に岩・高い岩を無敵で突っ切る画が `-simulateRunner invincible` で撮れる。
     /// 突き上げ（`^`・#1010）はイノシシの次に置いてある。`-simulateRunner shoot` / `shoot-up` で
-    /// 「伸びかけ」と「伸び切り」が 1 枚ずつ撮れる（絵は世界の着せ替え——ショーケースは夜の
-    /// 世界で走るので、`RunnerWorld.originalDressing` の竹の子が出る）。
+    /// 「伸びかけ」と「伸び切り」が 1 枚ずつ撮れる（絵は世界の着せ替え——ショーケースは
+    /// **朝の下町**で走る（`RunnerScene.rebuildCourse` が `number == 0` を朝に倒す）ので、
+    /// `RunnerWorld.originalDressing` の竹の子が出る）。
     static let debugShowcase = RunnerStage(
         number: 0,
         pattern: "--==-kn--t--b--d--i--^--PP--1--2--3--",

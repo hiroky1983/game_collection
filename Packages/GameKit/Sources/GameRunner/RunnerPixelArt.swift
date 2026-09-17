@@ -521,76 +521,89 @@ enum RunnerPixelArt {
         "..KAAAAAAK..",
         "..KAAAAAAK..",
         "..KhTTTThK..",
-        ".KThHTTHhTK.",
-        ".KTTHTTHTTK.",
+        ".KTThTThTTK.",
+        ".KTTTTTTTTK.",
         ".KTTTTTTTTK.",
         ".KhTTTTTThK.",
-        "KTThHTTHhTTK",
-        "KTTTHTTHTTTK",
+        "KTTThTTThTTK",
+        "KTTTTTTTTTTK",
         "KTTTTTTTTTTK",
         "KTTsTTTTsTTK",
         "KhTTTTTTTThK",
-        "KTThHTTHhTTK",
-        "KTTTHTTHTTTK",
+        "KTTThTTThTTK",
+        "KTTTTTTTTTTK",
         "KTTTTTTTTTTK",
         "KTTsTTTTTsTK",
         "KhTTTTTTTThK",
         "KKKKKKKKKKKK",
     ]
 
-    /// 波しぶき（港町の突き上げ）。竹の子とまったく同じ格子・同じシルエットで、色だけが水
-    /// ——泡の淡い水色（`C`・主色）に白い泡（`M`）、右側が水柱の陰（`L`/`N`）。
+    /// 波しぶき（港町の突き上げ）。竹の子とまったく同じ格子・同じシルエットで、色だけが水。
     /// **動きと当たり判定は竹の子と 1 つ**（`RunnerHazardKind.shoot`）で、替わるのは絵だけ。
+    ///
+    /// 港町の背景（海 0x9FC0D4・岬 0xA4C1CE・岸壁 0xB9BDBD）は水と同じ淡い青の帯なので、
+    /// **柱の中で左（白い泡 `M`）から右（水の陰 `L`→`N`）へ濃淡を付けて形を立てる**。
+    /// 縁取りだけに頼ると、背景に溶けた平たい三角に見える（最初にそう描いて撮って分かった）。
     static let seaSprayRows: [String] = [
         ".....KK.....",
         ".....KK.....",
         "....KMMK....",
         "....KMMK....",
         "....KMCK....",
-        "...KMMCCK...",
-        "...KMCCCK...",
-        "...KCCCCK...",
-        "..KMCCCCLK..",
-        "..KCCCCCLK..",
-        "..KCCCCCLK..",
-        "..KMCCCCLK..",
-        ".KMCCCCCCLK.",
-        ".KCCMCCCCLK.",
-        ".KCCCMCCLLK.",
-        ".KMCCCCCLLK.",
-        "KMCCCCCCCLLK",
-        "KCCMCCCCCLLK",
-        "KCCCMCCCLLNK",
-        "KMCCCCCCLLNK",
-        "KCCCMCCCLLNK",
-        "KCCCCMCCLLNK",
-        "KMCCCCCCLLNK",
-        "KCCCMCCCLLNK",
-        "KCCCCCCCLLNK",
+        "...KMMCLK...",
+        "...KMCCLK...",
+        "...KMCCLK...",
+        "..KMMCCLLK..",
+        "..KMCCCLLK..",
+        "..KMCCCLNK..",
+        "..KMCCCLNK..",
+        ".KMMCCCLLNK.",
+        ".KMCCMCLLNK.",
+        ".KMCCCCLLNK.",
+        ".KMMCCCLLNK.",
+        "KMMCCCCLLNNK",
+        "KMCCMCCLLNNK",
         "KMCCCCCLLNNK",
+        "KMMCCCCLLNNK",
+        "KMCCMCCLLNNK",
+        "KMCCCCCLLNNK",
+        "KMMCCCCLLNNK",
+        "KMCCMCCLLNNK",
+        "KMCCCCCLLNNK",
+        "KMMCCCLLNNNK",
         "KKKKKKKKKKKK",
     ]
 
-    /// 予告（里山）: 土が盛り上がる。地面に置く低い塚で、12×7 ドット（`shootCueVisualScale` 倍に
-    /// 広げて貼るので画面では当たり判定より横に張り出す——読ませたい予告なので大きく出す）。
+    /// 予告（里山）: 土が盛り上がる。地面に置く**低くて横に広い**塚（18×7 ドット）。
+    ///
+    /// 横に広げてあるのは読ませたい予告だから——当たり判定（1 タイル = 12 ドット）の
+    /// `shootCueVisualScale` 倍（= 18 ドット）の幅で貼るので、**1 ドットの大きさは本体の
+    /// 竹の子と同じ**（`RunnerPixelArtTests.shootsFitTheTallHitBox` が固定）。
+    /// 高さは 7 ドット = 本体の 1/4 弱で、伸びてくる竹の子の根元だけを隠す。
     static let soilMoundRows: [String] = [
-        ".....KK.....",
-        "...KKSSKK...",
-        "..KSSsSSSK..",
-        ".KSSsSSsSSK.",
-        "KSSsSSSSsSSK",
-        "KSSSsSSSSSSK",
-        "KKKKKKKKKKKK",
+        ".......KKKK.......",
+        ".....KKSSSSKK.....",
+        "...KKSSsSSSsSKK...",
+        "..KSSsSSSSsSSSSK..",
+        ".KSSSsSSSSSSsSSSK.",
+        "KSSsSSSSSSSSsSSSSK",
+        "KKKKKKKKKKKKKKKKKK",
     ]
 
     /// 予告（港町）: 岸壁の縁に泡が立つ。塚とまったく同じ格子で、色だけが泡。
     static let foamRows: [String] = [
-        ".....KK.....",
-        "...KKCCKK...",
-        "..KCCMCCCK..",
-        ".KCCMCCMCCK.",
-        "KCCMCCCCMCCK",
-        "KCCCMCCCCCCK",
-        "KKKKKKKKKKKK",
+        ".......KKKK.......",
+        ".....KKCCCCKK.....",
+        "...KKCCMCCCMCKK...",
+        "..KCCMCCCCMCCCCK..",
+        ".KCCCMCCCCCCMCCCK.",
+        "KCCMCCCCCCCCMCCCCK",
+        "KKKKKKKKKKKKKKKKKK",
     ]
+
+    /// 予告（塚・泡）を当たり判定の幅の何倍で描くか（`RunnerScene.addShoot`）。
+    ///
+    /// **格子の幅がこの倍率そのもの**（18 ドット / 本体 12 ドット = 1.5）なので、この倍率で
+    /// 貼ると 1 ドットの大きさが本体と揃う。倍率を変えるなら格子の幅も一緒に変える。
+    static let shootCueVisualScale: Double = 1.5
 }

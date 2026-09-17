@@ -330,12 +330,18 @@ struct RunnerPixelArtTests {
             let b = try #require(sprite.opaqueBounds)
             #expect(b.x == 0 && b.y == 0 && b.width == sprite.width && b.height == sprite.height, "\(name) の余白: \(b)")
         }
+        let body = RunnerPixelArt.shoot(world: .satoyama)
         let mound = RunnerPixelArt.shootCue(world: .satoyama)
         let foam = RunnerPixelArt.shootCue(world: .harbor)
         #expect(mound.width == foam.width && mound.height == foam.height, "予告の格子が世界で違う")
-        #expect(mound.width == RunnerPixelArt.shoot(world: .satoyama).width, "予告と本体の幅が違う")
+        // 予告は当たり判定の `shootCueVisualScale` 倍の幅で貼る（`RunnerScene.addShoot`）。
+        // 格子の幅がその倍率どおりなら、1 ドットの大きさが本体と揃う（引き伸ばされない）。
+        #expect(
+            Double(mound.width) / Double(body.width) == RunnerPixelArt.shootCueVisualScale,
+            "予告の格子 \(mound.width) が倍率 \(RunnerPixelArt.shootCueVisualScale) と合わない（本体 \(body.width)）"
+        )
         // 予告は地面に置く低い塚（本体の 1/3 以下の高さ）。
-        #expect(mound.height * 3 <= RunnerPixelArt.shoot(world: .satoyama).height, "予告が高すぎる: \(mound.height)")
+        #expect(mound.height * 3 <= body.height, "予告が高すぎる: \(mound.height)")
     }
 
     /// 突き上げは**切り株（低い岩）と明確に見分けられる**こと（#1010 の受け入れ条件）:
