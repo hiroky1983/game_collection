@@ -512,6 +512,24 @@ is_ship_ready() {
   return 0
 }
 
+# 仕事9（孤児化した ai:in-progress の回収・#83）の集計を純粋関数に切り出す（is_submission_unfrozen と同じ理由）。
+#   - ai:approved が付いていない Issue は数えない（#1075）。回収の目的は「承認済み Issue を着手候補に戻す」ことで、
+#     未承認の企画 Issue は外しても候補にならない。社長セッションが試作に入るときに付けた目印を壊すだけなので
+#     当番は毎回見送り、それでも30分ごとに鳴り続けた（#1016 で 01:47〜06:23 JST に8回空振り）
+#   - 最終更新から $2 秒以上経っているものだけ
+#   - オープン PR に紐づいている（closingIssuesReferences）ものは除く
+# 引数: $1 = `gh issue list --json number,updatedAt,labels` の出力 / $2 = 無更新とみなす秒数
+#       $3 = オープン PR に紐づく Issue 番号の JSON 配列
+# 出力: 件数（jq に失敗したら 0）
+count_orphans() {
+  printf '%s' "$1" \
+    | jq --argjson age "$2" --argjson linked "$3" \
+       '[.[] | . as $i
+             | select(([$i.labels[]?.name] | index("ai:approved")) != null)
+             | select(($i.updatedAt | fromdateiso8601) < (now - $age))
+             | select(($linked | index($i.number)) == null)] | length' 2>/dev/null || echo 0
+}
+
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
 # （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
 if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
@@ -834,6 +852,7 @@ query {
 #      実装が PR まで到達していれば孤児ではなく、ラベルは PR のマージ（= Issue の close）で
 #      自然に片付く。除外しないと、当番が「PR があるのでラベルは残す」と正しく判断するたびに
 #      次の毎時起動でまた同じ Issue を拾い、マージされるまで空振りが続く。
+#   4) 承認 — ai:approved の無い Issue は除外する（#1075。理由は count_orphans の説明）。
 DUTY_ORPHAN_MIN_AGE="${DUTY_ORPHAN_MIN_AGE:-1800}"  # 孤児とみなす無更新の秒数（テストから短縮できるよう外出し）
 LINKED_ISSUES=$(gh api graphql -f query='
 query {
@@ -846,12 +865,8 @@ query {
 # 取得に失敗したら「全部が紐づいている」とみなすのではなく空集合に倒すが、その場合でも
 # 経過時間ガードが効くため、当番が起きて状況を確認するだけで実害は無い
 LINKED_ISSUES="${LINKED_ISSUES:-[]}"
-ORPHANS=$(gh issue list -R hiroky1983/game_collection --label "ai:in-progress" --state open \
-  --json number,updatedAt 2>/dev/null \
-  | jq --argjson age "$DUTY_ORPHAN_MIN_AGE" --argjson linked "$LINKED_ISSUES" \
-     '[.[] | . as $i
-           | select(($i.updatedAt | fromdateiso8601) < (now - $age))
-           | select(($linked | index($i.number)) == null)] | length' 2>/dev/null || echo 0)
+ORPHANS=$(count_orphans "$(gh issue list -R hiroky1983/game_collection --label "ai:in-progress" --state open \
+  --json number,updatedAt,labels 2>/dev/null)" "$DUTY_ORPHAN_MIN_AGE" "$LINKED_ISSUES")
 ORPHANS="${ORPHANS:-0}"
 
 # 仕事10: マージ済み PR のブランチに取り残されたコミット（Issue #100）

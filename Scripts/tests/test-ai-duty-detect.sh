@@ -512,6 +512,62 @@ check "「仕事なし」の合算判定は1行だけ" "1" "$(printf '%s\n' "$NO
 check "「仕事なし」の合算判定に SHIP_READY が入っている" "1" \
   "$(printf '%s\n' "$NO_WORK_IF" | grep -cF '[ "${SHIP_READY:-0}" -eq 0 ]')"
 
+# #1075: 未承認の企画 Issue に社長セッションが付けた ai:in-progress で、仕事9 が30分ごとに空振り起動していた
+echo "== 21. 仕事9（孤児の集計）=="
+OLD="2026-01-01T00:00:00Z"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# 引数: "番号|ラベル(カンマ区切り)|updatedAt" の並び
+orphan_issues() {
+  local e n l u out='[]'
+  for e in "$@"; do
+    IFS='|' read -r n l u <<<"$e"
+    out=$(printf '%s' "$out" | jq -c --argjson n "$n" --arg l "$l" --arg u "$u" \
+      '. + [{number: $n, updatedAt: $u, labels: ($l | split(",") | map({name: .}))}]')
+  done
+  printf '%s' "$out"
+}
+check "承認済みで30分以上無更新なら数える" "1" \
+  "$(count_orphans "$(orphan_issues "1|ai:approved,ai:in-progress|$OLD")" 1800 '[]')"
+check "未承認（ai:approved なし）は無更新でも数えない（#1075）" "0" \
+  "$(count_orphans "$(orphan_issues "1016|ai:proposed,ai:in-progress,risk:sensitive|$OLD")" 1800 '[]')"
+check "未承認と承認済みが混ざっていれば承認済みだけ数える（#1016 と #83 の形）" "1" \
+  "$(count_orphans "$(orphan_issues "1016|ai:proposed,ai:in-progress|$OLD" "80|ai:approved,ai:in-progress|$OLD")" 1800 '[]')"
+check "承認済みでも更新が新しければ数えない" "0" \
+  "$(count_orphans "$(orphan_issues "1|ai:approved,ai:in-progress|$NOW")" 1800 '[]')"
+check "承認済みでもオープン PR に紐づいていれば数えない" "0" \
+  "$(count_orphans "$(orphan_issues "7|ai:approved,ai:in-progress|$OLD")" 1800 '[7]')"
+check "取得に失敗して空なら件数を出さない（呼び出し側が 0 に倒す）" "" \
+  "$(count_orphans "" 1800 '[]')"
+
+# 呼び出し側の配線（--json に labels を足し忘れると、純粋関数のテストは緑のまま全件が未承認扱いになる）。
+# 仕事9 のブロックをそのまま切り出し、gh だけをスタブに差し替える。スタブは実物と同じく --json で頼んだ欄しか返さない
+ORPHAN_BLOCK=$(awk '/^# 仕事9: 孤児化した ai:in-progress の回収/ { f = 1 } /^# 仕事10:/ { f = 0 } f' "$TARGET")
+check "仕事9 のブロックを切り出せた" "1" "$(printf '%s\n' "$ORPHAN_BLOCK" | grep -c '^ORPHANS="${ORPHANS:-0}"$')"
+run_orphan_block() {
+  STUB_ISSUES="$1"
+  (
+    gh() {
+      local a prev="" fields=""
+      case "$1 $2" in
+        "api graphql") printf '[]' ;;
+        "issue list")
+          for a in "$@"; do
+            [ "$prev" = "--json" ] && fields="$a"
+            prev="$a"
+          done
+          printf '%s' "$STUB_ISSUES" | jq -c --arg f "$fields" '[.[] | with_entries(select(.key as $k | $f | split(",") | index($k)))]' ;;
+        *) return 1 ;;
+      esac
+    }
+    eval "$ORPHAN_BLOCK" >/dev/null 2>&1
+    printf '%s' "$ORPHANS"
+  )
+}
+check "呼び出し側: 承認済みの孤児を数える" "1" \
+  "$(run_orphan_block "$(orphan_issues "1016|ai:proposed,ai:in-progress|$OLD" "80|ai:approved,ai:in-progress|$OLD")")"
+check "呼び出し側: 未承認だけなら 0（#1075）" "0" \
+  "$(run_orphan_block "$(orphan_issues "1016|ai:proposed,ai:in-progress|$OLD")")"
+
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
 check "仕事5・仕事8・仕事11・仕事12・仕事13 の5箇所が DUTY_JQ_COMMENT_LIB を渡している" "5" "$USES"
