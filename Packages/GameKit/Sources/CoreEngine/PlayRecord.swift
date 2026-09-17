@@ -250,13 +250,15 @@ public extension PlayRecord {
             record.currentStreak = 0
         }
 
+        // 初回は記録として残すが、0 点では「更新」と言わない（#1067）。言うと共有ボタン（#1043）が
+        // 「自己ベスト 0」を外へ出す。チャリンコおじさんの `isNewBestDistance`（#983）と同じ物差し。
         if let points = score.points, points > (record.bestPoints ?? Int.min) {
+            update.points = record.bestPoints != nil || points > 0
             record.bestPoints = points
-            update.points = true
         }
         if let highest = score.highestValue, highest > (record.highestValue ?? Int.min) {
+            update.highestValue = record.highestValue != nil || highest > 0
             record.highestValue = highest
-            update.highestValue = true
         }
         if outcome == .win {
             if let seconds = score.seconds, seconds < (record.bestSeconds ?? Int.max) {
