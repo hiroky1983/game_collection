@@ -59,6 +59,22 @@ struct GoEngineBasicTests {
         }
     }
 
+    /// 乱数を CoreEngine の `SplitMix64` に寄せたとき（#1074）に、出力列が 1 ビットも変わっていないことの固定。
+    /// 期待値は寄せる前の `GoRandom`（定数を自前で持っていた実装）で出したもの。種を前混合するので
+    /// `SplitMix64` を同じ種で回した列の 2 つ目からと一致する。
+    @Test("乱数は既知の出力列を返す")
+    func randomGoldenVectors() {
+        let expected: [(seed: UInt64, outputs: [UInt64])] = [
+            (0, [0x6E78_9E6A_A1B9_65F4, 0x06C4_5D18_8009_454F, 0xF88B_B8A8_724C_81EC]),
+            (42, [0x28EF_E333_B266_F103, 0x4752_6757_130F_9F52, 0x581C_E1FF_0E4A_E394]),
+        ]
+        for (seed, outputs) in expected {
+            var random = GoRandom(seed: seed)
+            let actual = outputs.indices.map { _ in random.next() }
+            #expect(actual == outputs, "種 \(seed)")
+        }
+    }
+
     @Test("種が違えば別の手も選びうる（探索が乱数に効いている）")
     func differentSeedsCanDiverge() {
         let state = GoState.initial(ruleset: ruleset)
