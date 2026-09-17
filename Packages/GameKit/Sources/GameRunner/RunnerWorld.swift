@@ -44,10 +44,12 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
     /// 19〜24 面は里山、25〜30 面は港町。
     ///
-    /// 範囲外（0 以下と、最後の世界の後ろ＝ 31 以上）は `.night`——QA 用ショーケース
-    /// （`RunnerStage.debugShowcase`、`number == 0`）は従来どおりの見た目で出したいのと、
-    /// 面を足して世界を足し忘れたときに落ちずに描けるようにするため（どの世界にも収まらない面を
-    /// 本編に入れないことは `WorldTests.everyStageHasAWorld` が固定する）。
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 31 以上）は `.night`。面を足して世界を足し忘れた
+    /// ときに落ちずに描けるようにするため（どの世界にも収まらない面を本編に入れないことは
+    /// `WorldTests.everyStageHasAWorld` が固定する）。
+    ///
+    /// **QA 用ショーケース（`RunnerStage.debugShowcase`・`number == 0`）はここを通らない**
+    /// ——`RunnerScene.rebuildCourse` が 0 番を朝の下町へ倒す（#1010 で CodeRabbit が指摘）。
     public static func world(forStage number: Int) -> RunnerWorld {
         guard contains(stage: number) else { return .night }
         return allCases[(number - 1) / stagesPerWorld]
@@ -670,6 +672,13 @@ public extension RunnerWorld {
             /// 木箱の山。
             case crateStack
         }
+        /// 下から突き上げる障害（#1010）。**動き・当たり判定・寸法は 1 つ**で、絵だけを替える。
+        public enum Shoot: Equatable, Sendable {
+            /// 竹の子（里山）。土が盛り上がる予告 → 竹の子がにょきっと伸びる。
+            case bambooShoot
+            /// 波しぶき（港町）。岸壁の縁に泡が立つ予告 → 水柱が上がる。
+            case seaSpray
+        }
         /// 加速床。
         public enum BoostFloor: Equatable, Sendable {
             /// 青い加速帯（`RunnerScene.makeBoostFloor`）。
@@ -687,21 +696,27 @@ public extension RunnerWorld {
         public let boar: Charger
         public let platform: Platform
         public let boostFloor: BoostFloor
+        public let shoot: Shoot
 
         /// 岩の枠の着せ替え。岩でない種類は nil。
         public func block(for kind: RunnerHazardKind) -> Block? {
             switch kind {
-            case .lowBlock:                     return lowBlock
-            case .tallBlock:                    return tallBlock
-            case .pit, .bird, .dog, .boar:      return nil
+            case .lowBlock:                        return lowBlock
+            case .tallBlock:                       return tallBlock
+            // 突き上げ（#1010）は岩の枠ではなく自分の着せ替え（`shoot`）を持つ。
+            case .pit, .bird, .dog, .boar, .shoot: return nil
             }
         }
     }
 
     /// 元の絵。1〜18 面はこれ（#1009 より前と同じ）。
+    ///
+    /// 突き上げ（#1010）は 19 面以降にしか置かないので、ここの `shoot` が本編で使われることは
+    /// 無い。竹の子にしてあるのは **QA 用ショーケース**（`RunnerStage.debugShowcase` は
+    /// `number == 0` なので `RunnerScene.rebuildCourse` が朝の下町で走らせる）で撮れるようにするため。
     static let originalDressing = Dressing(
         pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
-        platform: .scaffold, boostFloor: .boostBand
+        platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot
     )
 
     var dressing: Dressing {
@@ -710,17 +725,17 @@ public extension RunnerWorld {
             return RunnerWorld.originalDressing
         case .satoyama:
             // 穴＝用水路・低い岩＝切り株・高い岩＝大きな石（岩塊のまま）・犬＝田舎の犬（色違い）・
-            // イノシシ＝イノシシ・台座＝わら積み・加速床＝舗装された農道。
+            // イノシシ＝イノシシ・台座＝わら積み・加速床＝舗装された農道・突き上げ＝竹の子（#1010）。
             return Dressing(
                 pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
-                platform: .strawStack, boostFloor: .pavedFarmRoad
+                platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot
             )
         case .harbor:
             // 穴＝岸壁の切れ目・低い岩＝ロープの束・高い岩＝ドラム缶・犬＝野良猫・イノシシ＝
-            // フォークリフト・台座＝木箱の山・加速床＝ベルトコンベア。
+            // フォークリフト・台座＝木箱の山・加速床＝ベルトコンベア・突き上げ＝波しぶき（#1010）。
             return Dressing(
                 pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
-                platform: .crateStack, boostFloor: .conveyor
+                platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray
             )
         }
     }

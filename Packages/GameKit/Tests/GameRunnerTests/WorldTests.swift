@@ -368,23 +368,25 @@ struct RunnerWorldTests {
         for world in [RunnerWorld.morning, .evening, .night] {
             #expect(world.dressing == RunnerWorld.originalDressing, "\(world)")
         }
+        // 突き上げ（#1010）は 19 面以降にしか出ないので、1〜18 面の `shoot` は使われない
+        // （QA 用ショーケースは `rebuildCourse` が朝の下町で走らせるので竹の子を入れてある）。
         #expect(RunnerWorld.originalDressing == D(
             pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .scaffold, boostFloor: .boostBand
+            platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot
         ))
         #expect(RunnerWorld.satoyama.dressing == D(
             pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .strawStack, boostFloor: .pavedFarmRoad
+            platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot
         ))
         #expect(RunnerWorld.harbor.dressing == D(
             pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
-            platform: .crateStack, boostFloor: .conveyor
+            platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray
         ))
-        // 岩の枠の引き方。岩でない種類は nil。
+        // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
         #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
         #expect(RunnerWorld.satoyama.dressing.block(for: .tallBlock) == .boulder)
-        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar] {
+        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar, .shoot] {
             #expect(RunnerWorld.harbor.dressing.block(for: kind) == nil, "\(kind)")
         }
     }
@@ -406,6 +408,14 @@ struct RunnerWorldTests {
             (.harbor, "木箱", P.crateWood, RunnerWorld.harbor.outline),
             (.harbor, "木箱の上面", P.crateTop, RunnerWorld.harbor.outline),
             (.harbor, "防舷材", P.fender, RunnerPalette.pitEdge),
+            // 突き上げ（#1010）。淡い皮（`T`）・淡い泡（`C`）はどちらも背景と 1.0〜1.4:1 しか無いので、
+            // **3:1 を担っているのは縁取りと、面の中の濃い側**（竹の子は樹皮の `S`、波しぶきは
+            // 水の陰の `N`）。主色にその濃い側を置いて、縁取りだけで通る空振りにしない
+            // （2026-09-18 の敵対的検証で、`C` を港町の背景色そのものにしても緑だったのを実測）。
+            (.satoyama, "竹の子", art["S"]!, RunnerPixelArt.outline),
+            (.satoyama, "土の盛り上がり", art["S"]!, RunnerPixelArt.outline),
+            (.harbor, "波しぶき", art["N"]!, RunnerPixelArt.outline),
+            (.harbor, "泡", art["C"]!, RunnerPixelArt.outline),
         ]
         for item in items {
             for (name, backdrop) in item.0.groundBackdrops {

@@ -227,7 +227,9 @@ public enum RunnerEndlessCourse {
             let range = speed * RunnerRules.jumpAirTime
             let needed = RunnerAutoPilot.lead(for: hazard, speed: speed) + hazard.length
             return range > needed + RunnerRules.tileWidth
-        case .lowBlock, .tallBlock, .bird, .dog, .boar:
+        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot:
+            // 突き上げ（#1010）はエンドレスの生成器には置かない（決裁「生成器に教えるのは別の版」。
+            // `parts` に居ないので実際には来ないが、式は高い岩と同じなので網羅の分岐に混ぜてある）。
             let window = RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance)
             let overlap = (encounter.length + RunnerField.Metrics.playerWidth) / speed
             return window > overlap && encounter.height < RunnerRules.jumpApex

@@ -635,10 +635,13 @@ public struct RunnerField: Equatable, Sendable {
     /// 越え方と関係なく上乗せが乗る。
     /// 鳥は飛んで動いている相手で「真裏」が置いた位置にない（#796）、イノシシ（#801）と犬（#955）は
     /// 向かってきて走者の体の中を通り抜けるので、どれも対象外。
+    /// 突き上げ（#1010）は横に動かず、走者が着く前に伸び切って置いた位置の高い岩そのものになる
+    /// ので岩と同じ扱い（実際には高さ 9 を落ちるあいだに体 4 つぶん進むため、岩と同じく窓に
+    /// 入ることは無い。判断を 1 か所に閉じるために対象からは外さない）。
     private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
         switch kind {
-        case .pit, .lowBlock, .tallBlock: return true
-        case .bird, .dog, .boar:          return false
+        case .pit, .lowBlock, .tallBlock, .shoot: return true
+        case .bird, .dog, .boar:                  return false
         }
     }
 
