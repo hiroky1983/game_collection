@@ -56,6 +56,36 @@ final class RunnerScene: SKScene {
         .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),
         .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),
     ]
+    /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
+    ///
+    /// **起動時には作らず、その世界に入って最初に使うときに作ってキャッシュする**
+    /// （#1010 の受け入れ条件）。突き上げが出るのは 19 面以降なので、1〜18 面しか遊ばない人の
+    /// ぶんは 1 枚も起こさない。面ごとの `addShoot` は 2 回目以降キャッシュを貼るだけ。
+    private var shootTextureCache: [RunnerWorld.Dressing.Shoot: SKTexture] = [:]
+    private var shootCueTextureCache: [RunnerWorld.Dressing.Shoot: SKTexture] = [:]
+
+    /// 伸び切った突き上げの絵。初回だけ作る。**絵の選び方は持たない**
+    /// ——`RunnerPixelArt.shootArt(for:)` に着せ替えをそのまま渡すだけ。
+    func shootTexture(_ style: RunnerWorld.Dressing.Shoot) -> SKTexture {
+        if let cached = shootTextureCache[style] { return cached }
+        let texture = Self.makeTexture(RunnerPixelArt.shootArt(for: style), name: "突き上げ \(style)")
+        shootTextureCache[style] = texture
+        return texture
+    }
+
+    /// 突き上げの予告（土の塚・泡）の絵。初回だけ作る。
+    func shootCueTexture(_ style: RunnerWorld.Dressing.Shoot) -> SKTexture {
+        if let cached = shootCueTextureCache[style] { return cached }
+        let texture = Self.makeTexture(RunnerPixelArt.shootCueArt(for: style), name: "突き上げの予告 \(style)")
+        shootCueTextureCache[style] = texture
+        return texture
+    }
+
+    /// テスト用: いま作ってキャッシュしてある突き上げのテクスチャの種類
+    /// （`RunnerWorldSceneTests` が「その世界のぶんしか作らない」を確かめる）。
+    var cachedShootStyles: Set<RunnerWorld.Dressing.Shoot> {
+        Set(shootTextureCache.keys).union(shootCueTextureCache.keys)
+    }
     /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
     private var renderedRiderFrame: OjisanPixel.RiderFrame?
     /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが
