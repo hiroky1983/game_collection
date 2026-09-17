@@ -66,7 +66,7 @@ extension RunnerScene {
             case .bird:                    movingHazards.append(addBird(hazard))
             case .dog:                     movingHazards.append(addDog(hazard))
             case .boar:                    movingHazards.append(addBoar(hazard))
-            case .lowBlock, .tallBlock:    courseLayer.addChild(makeRock(hazard))
+            case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
             case .pit:                     break
             }
         }
@@ -102,6 +102,12 @@ extension RunnerScene {
     /// 作ったノードは左端 `platform.start` に置いて返す（コース層へ足すのは呼び出し側。エンドレスは
     /// 同じ長さの台座を使い回す・#1086）。
     func makePlatform(_ platform: RunnerPlatform) -> SKNode {
+        // 里山・港町の着せ替え（#1009）。足場の描画はそのまま残し、別の物はここで分岐する。
+        switch world.dressing.platform {
+        case .scaffold:   break
+        case .strawStack: return makeStrawStack(platform)
+        case .crateStack: return makeCrateStack(platform)
+        }
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)
         let w = platform.length, top = platform.top

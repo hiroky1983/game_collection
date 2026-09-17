@@ -114,7 +114,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|stage:N@距離|map:N|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -667,8 +667,8 @@ public struct RunnerView: View {
     /// `RunnerWorld.mapColor` は文字を載せる前提の色ではない（ワールドマップでは帯と薄い色味にだけ
     /// 使っている）。主ボタンは面いっぱいに塗るので、どの世界でも読めるよう**ライト / ダークで
     /// 変わらない濃い茶**にする。白は朝の水色（0x6FC3EE）で 2:1 を切り、`Theme.ink` は夜（0x6B7FC2）で
-    /// 3:1 を切るが、この色なら朝 9:1・夕方 5:1・夜 4.7:1 で 4.5:1 以上（里山・港町の仮置きの空は
-    /// 朝と同じ淡い帯なので同じく届く・#1009）。
+    /// 3:1 を切るが、この色なら朝 9:1・夕方 5:1・夜 4.7:1・里山（田の緑）9:1・港町（海の青）7.7:1 で
+    /// 4.5:1 以上（`RunnerStageCodeTests.mapColorsAreDistinguishable` が固定・#1009）。
     private static let onWorld = Color(hex: 0x1A1410)
 
     /// 画面に出す面の見出し。QA 用のショーケース（DEBUG）を走っているあいだは面の番号を

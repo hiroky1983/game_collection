@@ -204,14 +204,16 @@ extension RunnerScene {
         addWing(art.farWing, color: colors.birdWingFar, z: -1, startsLow: true)
 
         // 胴体（大きい丸）。頭は別の丸を上前方に重ね、ひとつながりの丸いシルエットにする。
-        // 腹は単色の玉に見えないための明るい差し色。
+        // 腹は単色の玉に見えないための明るい差し色。頭の色は港町のカモメだけ胴と違う
+        // （`Creatures.birdHead`・#1009。他の世界は胴と同じ値）。
         addDisc(art.bodyDisc, color: colors.birdBody, outlined: true)
-        addDisc(art.headDisc, color: colors.birdBody, outlined: true)
+        addDisc(art.headDisc, color: colors.birdHead, outlined: true)
         addDisc(art.belly, color: colors.birdBelly)
 
         // 畳んだ足。飛行中の鳥は足を体へ引き込むので、ぶら下げず腹の後ろ寄りに
-        // 小さく畳んで添える（接地時代の「立つ2本足」の置き換え）。
-        let foot = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.birdBeak),
+        // 小さく畳んで添える（接地時代の「立つ2本足」の置き換え）。色はくちばしと同じ
+        // （`Creatures.birdBeak`。里山のカラスだけ炭色、他は `RunnerPalette.birdBeak` の橙）。
+        let foot = SKSpriteNode(color: RunnerPalette.color(colors.birdBeak),
                                 size: art.footSize)
         foot.position = art.foot.pivot
         foot.zRotation = art.foot.rotation.lowerBound
@@ -226,7 +228,7 @@ extension RunnerScene {
         beakPath.addLines(between: art.beak.points)
         beakPath.closeSubpath()
         let beak = SKShapeNode(path: beakPath)
-        beak.fillColor = RunnerPalette.color(RunnerPalette.birdBeak)
+        beak.fillColor = RunnerPalette.color(colors.birdBeak)
         outline(beak)
         beak.position = art.beak.anchor
         bobber.addChild(beak)
@@ -254,12 +256,15 @@ extension RunnerScene {
     /// 「触れて見えるのに当たらない」走者に甘い側だけ・#943）。原点は当たり判定の左下で、
     /// `syncMovingHazards` が `frame.start` に置く。歩きの 2 コマは進んだ距離で交互
     /// （`MovingHazardView.applyWalkFrame`）。立ち止まって吠える挙動は #944 で無くなったので吹き出しは持たない。
+    ///
+    /// 港町では絵が野良猫（`RunnerPixelArt.catWalk0Rows`・同じ 30×21 の格子）に着せ替わる
+    /// （`RunnerWorld.Dressing.dog`・#1009）。置き方・当たり判定・歩幅は犬と同じ。
     func addDog(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
         let textures = dogTextures[world] ?? []
         let (sprite, w, _) = addWalkSprite(
-            to: node, rows: RunnerPixelArt.dogWalk0Rows, textures: textures,
+            to: node, rows: RunnerPixelArt.walkerRows(world: world), textures: textures,
             anchor: CGPoint(x: 0.5, y: 0), x: hazard.length / 2
         )
         addGroundShadow(to: node, centerX: hazard.length / 2, width: w * 0.9)
@@ -281,12 +286,16 @@ extension RunnerScene {
     ///
     /// 走っているあいだは後ろ脚の足元（`RunnerPixelArt.boarRearFootX`）に土煙を立てる。岩で止まると
     /// コマと土煙が止まり、低い岩と同じ置物として岩の右側に並ぶ。
+    ///
+    /// 港町では絵がフォークリフト（`RunnerPixelArt.forkliftDrive0Rows`・同じ 33×23 の格子）に
+    /// 着せ替わる（`RunnerWorld.Dressing.boar`・#1009）。フォークの先が絵の左端で、鼻先と同じ約束。
+    /// 土煙（排気）は後輪の列（`forkliftRearWheelX`）に立てる。
     func addBoar(_ hazard: RunnerHazard) -> MovingHazardView {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
         let textures = boarTextures[world] ?? []
         let (sprite, w, h) = addWalkSprite(
-            to: node, rows: RunnerPixelArt.boarWalk0Rows, textures: textures,
+            to: node, rows: RunnerPixelArt.chargerRows(world: world), textures: textures,
             anchor: CGPoint(x: 0, y: 0), x: 0
         )
         addGroundShadow(to: node, centerX: w / 2, width: w * 0.95)
@@ -297,7 +306,7 @@ extension RunnerScene {
         // 右（後ろ）にぶら下がる構造上、右から入ってくる本体より土煙が先に画面へ出ることはなく、
         // 本体が画面内にいるときだけ見える。
         let dust = SKNode()
-        let rearFoot = RunnerPixelArt.boarRearFootX * Self.riderPlacement.unit
+        let rearFoot = RunnerPixelArt.chargerRearFootX(world: world) * Self.riderPlacement.unit
         for (index, spec) in [(0.0, 0.05, 0.14), (0.10, 0.12, 0.10)].enumerated() {
             let puff = SKShapeNode(circleOfRadius: h * spec.2)
             puff.fillColor = RunnerPalette.color(RunnerPalette.cloud)

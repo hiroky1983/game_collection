@@ -357,6 +357,114 @@ struct RunnerWorldTests {
         #expect(WCAG.contrast(P.wall, RunnerPalette.cloud) > 1.1, "壁が雲と同じ色")
     }
 
+    // MARK: 里山・港町の着せ替え（#1009）
+
+    /// 会長決裁の表（#1009 本文「今ある障害の着せ替え」）そのもの。1〜18 面は元の絵のまま
+    /// ——朝・夕方・夜が `originalDressing` であることが「描画経路を変えていない」の根拠の 1 つ
+    /// （`RunnerScene` は `.construction` / `.boulder` / `.scaffold` / `.boostBand` のとき元の関数を通る）。
+    @Test("着せ替えは決裁の表どおりで、1〜18 面の世界は元の絵のまま")
+    func dressings() {
+        typealias D = RunnerWorld.Dressing
+        for world in [RunnerWorld.morning, .evening, .night] {
+            #expect(world.dressing == RunnerWorld.originalDressing, "\(world)")
+        }
+        #expect(RunnerWorld.originalDressing == D(
+            pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
+            platform: .scaffold, boostFloor: .boostBand
+        ))
+        #expect(RunnerWorld.satoyama.dressing == D(
+            pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
+            platform: .strawStack, boostFloor: .pavedFarmRoad
+        ))
+        #expect(RunnerWorld.harbor.dressing == D(
+            pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
+            platform: .crateStack, boostFloor: .conveyor
+        ))
+        // 岩の枠の引き方。岩でない種類は nil。
+        #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
+        #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
+        #expect(RunnerWorld.satoyama.dressing.block(for: .tallBlock) == .boulder)
+        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar] {
+            #expect(RunnerWorld.harbor.dressing.block(for: kind) == nil, "\(kind)")
+        }
+    }
+
+    /// 着せ替えた手前の物（切り株・ロープ・ドラム缶・わら積み・木箱・舗装・コンベア・防舷材）も
+    /// #929 の規則どおり、主色か縁取りがその世界の背景の全部と 3:1 以上。ドット絵の縁取りは
+    /// `RunnerPixelArt.outline`、図形の縁取りは世界の `outline`。
+    @Test("里山・港町の着せ替えた手前の物は主色か縁取りが背景と 3:1 以上")
+    func dressedForegroundStandsOutFromBackdrops() {
+        typealias P = RunnerWorld.DressingPalette
+        let art = RunnerPixelArt.palette
+        let items: [(RunnerWorld, String, main: UInt32, outline: UInt32)] = [
+            (.satoyama, "切り株", art["S"]!, RunnerPixelArt.outline),
+            (.satoyama, "わら積み", P.strawBody, RunnerWorld.satoyama.outline),
+            (.satoyama, "わら積みの上面", P.strawTop, RunnerWorld.satoyama.outline),
+            (.satoyama, "用水路の壁", P.ditchWall, P.ditchWater),
+            (.harbor, "ロープの束", art["H"]!, RunnerPixelArt.outline),
+            (.harbor, "ドラム缶", art["N"]!, RunnerPixelArt.outline),
+            (.harbor, "木箱", P.crateWood, RunnerWorld.harbor.outline),
+            (.harbor, "木箱の上面", P.crateTop, RunnerWorld.harbor.outline),
+            (.harbor, "防舷材", P.fender, RunnerPalette.pitEdge),
+        ]
+        for item in items {
+            for (name, backdrop) in item.0.groundBackdrops {
+                let main = WCAG.contrast(item.main, backdrop)
+                let edge = WCAG.contrast(item.outline, backdrop)
+                #expect(
+                    max(main, edge) >= 3.0,
+                    "\(item.0) の\(item.1) 主色 \(main) / 縁取り \(edge) と \(name) \(String(backdrop, radix: 16))"
+                )
+            }
+        }
+        // 加速床は路面の中に描かれるので路面とだけ比べる（`foregroundStandsOutFromBackdrops` と同じ）。
+        #expect(WCAG.contrast(P.pavedAsphalt, RunnerWorld.satoyama.road.asphalt) >= 3.0, "舗装が砂利道に溶ける")
+        #expect(WCAG.contrast(P.pavedArrow, P.pavedAsphalt) >= 3.0, "舗装の矢印が読めない")
+        #expect(WCAG.contrast(P.conveyorBelt, RunnerWorld.harbor.road.asphalt) >= 3.0, "ベルトが岸壁に溶ける")
+        #expect(WCAG.contrast(P.conveyorArrow, P.conveyorBelt) >= 3.0, "ベルトの矢印が読めない")
+        // ドラム缶・切り株の主色は縁取り無しでも路面・丘と 3:1 以上（岩塊の本体と同じ物差し）。
+        for hill in [RunnerWorld.harbor.palette.hillFar, RunnerWorld.harbor.palette.hillNear, RunnerWorld.harbor.road.asphalt] {
+            #expect(WCAG.contrast(art["N"]!, hill) >= 3.0, "ドラム缶が \(String(hill, radix: 16)) に溶ける")
+        }
+        for hill in [RunnerWorld.satoyama.palette.hillFar, RunnerWorld.satoyama.palette.hillNear, RunnerWorld.satoyama.road.asphalt] {
+            #expect(WCAG.contrast(art["S"]!, hill) >= 3.0, "切り株が \(String(hill, radix: 16)) に溶ける")
+        }
+    }
+
+    /// 穴に水を張っても「穴」だと分かること: 深い水は路面と 3:1 以上、水面の帯は深い水より明るく、
+    /// 用水路の壁は路面より明るい（切れ目の縁が立つ）。
+    @Test("用水路・岸壁の切れ目の水は路面と 3:1 以上で、水面は深い水より明るい")
+    func waterPitsReadAsHoles() {
+        typealias P = RunnerWorld.DressingPalette
+        #expect(WCAG.contrast(P.ditchWater, RunnerWorld.satoyama.road.asphalt) >= 3.0)
+        #expect(WCAG.contrast(P.gapSea, RunnerWorld.harbor.road.asphalt) >= 3.0)
+        #expect(WCAG.relativeLuminance(P.ditchSurface) > WCAG.relativeLuminance(P.ditchWater))
+        #expect(WCAG.relativeLuminance(P.gapSurface) > WCAG.relativeLuminance(P.gapSea))
+        #expect(WCAG.relativeLuminance(P.ditchWall) > WCAG.relativeLuminance(RunnerWorld.satoyama.road.asphalt))
+        // 奈落（1〜18 面）の色は変えていない。
+        #expect(RunnerPalette.pitVoid == 0x141824)
+    }
+
+    /// 鳥の頭とくちばしの色は #1009 で `Creatures` に入れた。朝・夕方・夜は**それまでと同じ値**
+    /// （頭は胴と同じ、くちばしは `RunnerPalette.birdBeak`）で、1〜18 面の鳥の見た目は変わらない。
+    /// 里山のカラスだけくちばしが炭色、港町のカモメだけ頭が白。
+    @Test("鳥の頭・くちばしの色は 1〜18 面では従来どおりで、カラスは炭のくちばし・カモメは白い頭")
+    func birdHeadAndBeakFollowTheWorld() {
+        for world in [RunnerWorld.morning, .evening, .night] {
+            #expect(world.creatures.birdHead == world.creatures.birdBody, "\(world)")
+            #expect(world.creatures.birdBeak == RunnerPalette.birdBeak, "\(world)")
+        }
+        #expect(RunnerPalette.birdBeak == 0xFFB648)
+        let crow = RunnerWorld.satoyama.creatures, gull = RunnerWorld.harbor.creatures
+        #expect(crow.birdHead == crow.birdBody)
+        #expect(WCAG.relativeLuminance(crow.birdBeak) < 0.1, "カラスのくちばしが橙のまま")
+        #expect(WCAG.relativeLuminance(crow.birdBeak) > WCAG.relativeLuminance(crow.outline), "くちばしが縁取りに溶ける")
+        #expect(WCAG.relativeLuminance(gull.birdHead) > 0.8, "カモメの頭が白くない")
+        #expect(gull.birdBeak == RunnerPalette.birdBeak)
+        // 白目は腹の色。カラスの腹は胴より明るい灰で、黒目（`RunnerPalette.birdEye`）が読める。
+        #expect(WCAG.contrast(crow.birdBelly, RunnerPalette.birdEye) >= 3.0, "カラスの目が読めない")
+    }
+
     @Test("読み上げにはステージ番号に世界の名前が添えられる")
     func accessibilityLabelIncludesWorld() {
         #expect(RunnerAccessibility.stageLabelWithWorld(number: 3, total: 18) == "ステージ 3 / 18、朝の下町")
@@ -420,6 +528,55 @@ struct RunnerStageCodeTests {
     func mapColorsDiffer() {
         let colors = RunnerWorld.allCases.map(\.mapColor)
         #expect(Set(colors).count == RunnerWorld.allCases.count)
+    }
+
+    /// 「違う値」だけでは足りない——里山・港町の空は朝と同じ淡い帯で、空のままだと 3 つが同じ色に
+    /// 見えた（#1009）。どの 2 世界も色相が 20° 以上か明度（コントラスト比）が 1.5:1 以上離れていること。
+    /// あわせて、開始シートの主ボタンの文字（`RunnerView.onWorld` = 0x1A1410）がどの世界の色の上でも 4.5:1 以上。
+    @Test("世界を塗り分ける色は色相か明度で見分けられ、濃い茶の文字が載る")
+    func mapColorsAreDistinguishable() {
+        let worlds = RunnerWorld.allCases
+        for (i, a) in worlds.enumerated() {
+            for b in worlds.dropFirst(i + 1) {
+                let hueGap = hueDistance(a.mapColor, b.mapColor)
+                let ratio = WCAG.contrast(a.mapColor, b.mapColor)
+                // **色相差を根拠にしてよいのは、両方に彩度があるときだけ**（#1100 の敵対的検証）。
+                // 里山を空の色（0xD6ECE4・彩度 9%）に戻しても、朝（0xCFE6F5）との色相差が 45° 付いて
+                // このテストが緑のままだった——淡すぎる色の色相は目では読めないのに、式の上では離れる。
+                // 彩度は HSV の S（最大値に対する幅）で見る。朝の空 0xCFE6F5 で 16%、夜のマップ色で 45%。
+                let hueCounts = min(saturation(a.mapColor), saturation(b.mapColor)) >= 0.12
+                #expect((hueGap >= 20 && hueCounts) || ratio >= 1.5,
+                        "\(a) と \(b): 色相差 \(hueGap)° / 明度比 \(ratio) / 彩度 \(saturation(a.mapColor))・\(saturation(b.mapColor))")
+            }
+            #expect(WCAG.contrast(a.mapColor, 0x1A1410) >= 4.5, "\(a) の色の上で文字が読めない")
+        }
+    }
+
+    /// HSV の S（0…1）。0 に近いほど灰色に寄り、色相が目では読めなくなる。
+    private func saturation(_ hex: UInt32) -> Double {
+        let r = Double((hex >> 16) & 0xFF), g = Double((hex >> 8) & 0xFF), b = Double(hex & 0xFF)
+        let maxC = max(r, g, b), minC = min(r, g, b)
+        guard maxC > 0 else { return 0 }
+        return (maxC - minC) / maxC
+    }
+
+    private func hue(_ hex: UInt32) -> Double {
+        let r = Double((hex >> 16) & 0xFF) / 255
+        let g = Double((hex >> 8) & 0xFF) / 255
+        let b = Double(hex & 0xFF) / 255
+        let maxC = max(r, g, b), minC = min(r, g, b), delta = maxC - minC
+        guard delta > 0 else { return 0 }
+        var h: Double
+        if maxC == r { h = (g - b) / delta }
+        else if maxC == g { h = 2 + (b - r) / delta }
+        else { h = 4 + (r - g) / delta }
+        h *= 60
+        return h < 0 ? h + 360 : h
+    }
+
+    private func hueDistance(_ a: UInt32, _ b: UInt32) -> Double {
+        let d = abs(hue(a) - hue(b))
+        return min(d, 360 - d)
     }
 
     @Test("面のボタンの読み上げは「1-1、到達済み／未到達」（名前は付けない・#946）")
