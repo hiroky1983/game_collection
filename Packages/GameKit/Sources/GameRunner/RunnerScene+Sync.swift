@@ -77,7 +77,7 @@ extension RunnerScene {
         ]
         for (i, spec) in specs.enumerated() {
             spawnDust(
-                at: origin, specs: [spec], duration: 0.7,
+                at: origin, specs: [spec], duration: 0.7, in: effectLayer,
                 color: i.isMultiple(of: 2) ? RunnerPalette.goal : RunnerPalette.cloud
             )
         }
@@ -231,7 +231,7 @@ extension RunnerScene {
 
     /// 激突点の土煙。丸だけで組む（#494）。ノードは演出が終わると自分で消えるので、
     /// `rebuildCourse` 側での後始末は要らない。座標は画面固定（走者の前輪の先）——
-    /// ミスの瞬間 `field` は凍っていてコースも流れないため、シーン直下に置いてよい。
+    /// ミスの瞬間 `field` は凍っていてコースも流れないため、画面固定の `effectLayer` に置いてよい。
     private func spawnCrashDust() {
         // 弾ける方向は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
         spawnDust(
@@ -239,7 +239,8 @@ extension RunnerScene {
             specs: [
                 (-1.5, 2.5, 1.1), (0.8, 3.2, 0.9), (2.0, 1.8, 1.2),
                 (-3.0, 1.2, 0.8), (0.2, 0.8, 1.3), (-4.5, 2.0, 0.7),
-            ]
+            ],
+            in: effectLayer
         )
     }
 
@@ -259,11 +260,14 @@ extension RunnerScene {
     }
 
     /// 丸だけの土煙を 1 か所から散らす。ノードは演出が終わると自分で消える。
+    ///
+    /// 置く層（`parent`）は省略させない。シーン直下に置くと層の z（#942）より奥になり、
+    /// 背景の後ろに隠れる（#1069）。`zPosition` は層の中の相対値。
     private func spawnDust(
         at origin: CGPoint,
         specs: [(dx: Double, dy: Double, r: Double)],
         duration: TimeInterval = 0.4,
-        in parent: SKNode? = nil,
+        in parent: SKNode,
         color: UInt32 = RunnerPalette.cloud
     ) {
         for spec in specs {
@@ -273,7 +277,7 @@ extension RunnerScene {
             puff.alpha = 0.8
             puff.zPosition = 6
             puff.position = origin
-            (parent ?? self).addChild(puff)
+            parent.addChild(puff)
             let drift = SKAction.moveBy(x: spec.dx, y: spec.dy, duration: duration)
             drift.timingMode = .easeOut
             puff.run(.sequence([

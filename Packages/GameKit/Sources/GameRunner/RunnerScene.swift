@@ -31,6 +31,9 @@ final class RunnerScene: SKScene {
     /// コース（地面・障害物・ゴール）。走者は動かさず、こちらを左へ流す。
     let courseLayer = SKNode()
     let player = SKNode()
+    /// 画面に固定して走者より手前に出す演出（ゴールの紙吹雪・激突の土煙）。以前はシーン直下に
+    /// z = 6 で置いていたが、層に z が入った（#942）あとは遠景（100）より奥になって見えなかった（#1069）。
+    let effectLayer = SKNode()
     /// 走者の絵（#701）。`player` の唯一の子で、コマはテクスチャの差し替えで切り替える
     /// （`applyRiderFrame`）。落下・激突の演出（`playFallAnimation`）と無敵の点滅は親の
     /// `player` に掛けるので、ここには `SKAction` を掛けない。
@@ -124,8 +127,9 @@ final class RunnerScene: SKScene {
         static let hills: CGFloat = 200
         static let course: CGFloat = 300
         static let player: CGFloat = 400
+        static let effects: CGFloat = 500
         /// 奥から手前の順。
-        static let ordered: [CGFloat] = [clouds, backdrop, hills, course, player]
+        static let ordered: [CGFloat] = [clouds, backdrop, hills, course, player, effects]
         /// 部品（車輪・屋根・煙など）が層の中で使う相対 z の上限。これより層の間隔を広くとる。
         static let partMax: CGFloat = 10
     }
@@ -145,12 +149,14 @@ final class RunnerScene: SKScene {
         hillLayer.zPosition = LayerZ.hills
         courseLayer.zPosition = LayerZ.course
         player.zPosition = LayerZ.player
+        effectLayer.zPosition = LayerZ.effects
         addChild(cloudLayer)
         addChild(backdropLayer)
         addChild(hillLayer)
         addChild(courseLayer)
         buildPlayer()
         addChild(player)
+        addChild(effectLayer)
         rebuildCourse()
         sync()
     }
