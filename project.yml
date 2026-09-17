@@ -79,6 +79,8 @@ targets:
       - package: GameKit
         product: GameSpider
       - package: GameKit
+        product: GameOjisanPuzzle
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

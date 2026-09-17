@@ -21,6 +21,10 @@ import GameFreeCell
 import GameRunner
 import GameHanafuda
 import GameSpider
+#if DEBUG
+// 腰痛おじさんパズル（試作）。DEBUG ビルドのハブにだけ並べるので、import も DEBUG に閉じる。
+import GameOjisanPuzzle
+#endif
 // GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
 // 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
 // `registry` に1行足せば復活できる）。
@@ -153,6 +157,23 @@ enum AppEnvironment {
         #endif
     }
 
+    /// **試作中**のゲーム。DEBUG ビルドのハブにだけ並べ、製品版（Release）には出さない。
+    /// 横断サービス（記録・解析・Game Center・中断復元）の結線が済んで会長の決裁が出たら、
+    /// 下の `registry` の配列本体へ移す。
+    ///
+    /// 登録は `GameRegistry([...])` の**配列の外**（`adding`）で足す。配列の中に書くと、
+    /// 公開する顔ぶれを機械的に見張っている検査（`RecommendationTests` の突き合わせ・
+    /// `Scripts/check-lp-game-list.sh` の LP 照合）が試作まで「公開するゲーム」と読んでしまう。
+    /// 置き場所を `registry` の**前**にしているのも同じ理由（LP 照合は `GameRegistry([` から
+    /// `])` までの `XxxModule()` を拾う）。
+    private static var debugModules: [GameModule] {
+        #if DEBUG
+        [OjisanPuzzleModule()]
+        #else
+        []
+        #endif
+    }
+
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
     /// 並び順 = 新規インストール時の既定表示順（会長判断・2026-08-24）。ゲーム数が増えて
     /// 1画面で全ては見渡せなくなったため、五目並べ・神経衰弱を下へ、麻雀（4人打ち）を上へ寄せた。
@@ -191,7 +212,14 @@ enum AppEnvironment {
         // 花札こいこい（#495）。和風の看板として末尾に置く（初期表示順のみ。既にアプリを
         // 使っている人の並びには影響しない）。#642 で v1.1.4 から持ち越したぶんを #668 で戻した。
         HanafudaModule(),
-    ])
+    ]).adding(debugModules)
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
+}
+
+private extension GameRegistry {
+    /// 末尾にゲームを足した複製を返す。試作（`AppEnvironment.debugModules`）の登録にだけ使う。
+    func adding(_ extra: [GameModule]) -> GameRegistry {
+        extra.isEmpty ? self : GameRegistry(modules + extra)
+    }
 }
