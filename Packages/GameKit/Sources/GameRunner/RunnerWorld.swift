@@ -44,10 +44,12 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
     /// 19〜24 面は里山、25〜30 面は港町。
     ///
-    /// 範囲外（0 以下と、最後の世界の後ろ＝ 31 以上）は `.night`——QA 用ショーケース
-    /// （`RunnerStage.debugShowcase`、`number == 0`）は従来どおりの見た目で出したいのと、
-    /// 面を足して世界を足し忘れたときに落ちずに描けるようにするため（どの世界にも収まらない面を
-    /// 本編に入れないことは `WorldTests.everyStageHasAWorld` が固定する）。
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 31 以上）は `.night`。面を足して世界を足し忘れた
+    /// ときに落ちずに描けるようにするため（どの世界にも収まらない面を本編に入れないことは
+    /// `WorldTests.everyStageHasAWorld` が固定する）。
+    ///
+    /// **QA 用ショーケース（`RunnerStage.debugShowcase`・`number == 0`）はここを通らない**
+    /// ——`RunnerScene.rebuildCourse` が 0 番を朝の下町へ倒す（#1010 で CodeRabbit が指摘）。
     public static func world(forStage number: Int) -> RunnerWorld {
         guard contains(stage: number) else { return .night }
         return allCases[(number - 1) / stagesPerWorld]
@@ -711,7 +713,7 @@ public extension RunnerWorld {
     ///
     /// 突き上げ（#1010）は 19 面以降にしか置かないので、ここの `shoot` が本編で使われることは
     /// 無い。竹の子にしてあるのは **QA 用ショーケース**（`RunnerStage.debugShowcase` は
-    /// `number == 0` なので夜の世界で走る）で撮れるようにするため。
+    /// `number == 0` なので `RunnerScene.rebuildCourse` が朝の下町で走らせる）で撮れるようにするため。
     static let originalDressing = Dressing(
         pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
         platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot
