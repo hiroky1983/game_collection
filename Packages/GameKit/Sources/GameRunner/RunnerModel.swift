@@ -486,6 +486,10 @@ public final class RunnerModel {
 
     /// 新しいコースで走り出す前の状態に戻す。ステージ制・エンドレス・QA用の差し替えで共通。
     private func resetRun(_ newField: RunnerField) {
+        #if DEBUG
+        // 長時間の実測用の自動操縦（`endless-autopilot`）は、そのシナリオで作ったコースの 1 回だけ。
+        isAutoPilotForDebug = false
+        #endif
         field = newField
         runGeneration += 1
         phase = .ready
@@ -799,6 +803,13 @@ public final class RunnerModel {
                 $0.field.distance > Self.farCaptureDistance + 400 && $0.field.altitude > RunnerRules.jumpApex * 0.6
             })
             isFrozenForCapture = true
+        case "endless-far-failed":
+            // 7 桁の走行距離でミスしたリザルト（#1086。自己ベストも 7 桁になるので、続けて `endless-far` を
+            // 撮るとヘッダーの走行距離と自己ベストが両方 7 桁の画になる）。
+            newEndlessGame(seed: Self.captureSeed)
+            press(); release()
+            fastForwardEndlessForDebug(to: Self.farCaptureDistance)
+            advanceFramesForDebug(seconds: 60)
         case "endless-autopilot":
             // 自動操縦で走り続ける（#1086。メモリが横ばいかの長時間の実測・録画用）。止めない。
             newEndlessGame(seed: Self.captureSeed)

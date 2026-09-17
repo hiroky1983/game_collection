@@ -112,7 +112,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-far|endless-autopilot|endless-failed>`（#494・#675・#797・#1086）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -213,9 +213,7 @@ public struct RunnerView: View {
             Text("走行距離")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
-            Text(distanceText(model.distanceMeters))
-                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.ink)
+            shrinkingNumber(distanceText(model.distanceMeters), size: 22)
         }
         .accessibilityElement()
         .accessibilityLabel(RunnerAccessibility.distanceLabel(model.distanceMeters))
@@ -227,12 +225,27 @@ public struct RunnerView: View {
             Text("自己ベスト")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
-            Text(model.endlessBestDistance.map(distanceText) ?? "–")
-                .font(.system(size: 15, weight: .heavy, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.ink)
+            shrinkingNumber(model.endlessBestDistance.map(distanceText) ?? "–", size: 15, alignment: .trailing)
         }
         .accessibilityElement()
         .accessibilityLabel(RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance))
+    }
+
+    /// ヘッダーの数字。入りきらない幅では切らずに縮める（#1086）。
+    ///
+    /// コースに終わりが無いので走行距離は 7 桁以上になる。SE の幅で走行距離と自己ベストが両方 7 桁のとき、
+    /// 縮めずにいると「2,500,…」と切れた（実測）。縮めるとその行が低くなりヘッダーの高さ＝コースの大きさが
+    /// 桁の増えた瞬間に変わるので、**縮める前の 1 行の高さを隠した型で取っておく**。
+    private func shrinkingNumber(_ text: String, size: CGFloat, alignment: Alignment = .leading) -> some View {
+        let font = Font.system(size: size, weight: .heavy, design: .rounded).monospacedDigit()
+        return ZStack(alignment: alignment) {
+            Text(verbatim: "0").font(font).hidden()
+            Text(text)
+                .font(font)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        }
     }
 
     /// 走行距離の表示（`1,234 m`）。単位はワールド単位だが、数字に「m」を添えて距離と分かるようにする。

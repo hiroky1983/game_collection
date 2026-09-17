@@ -55,6 +55,11 @@ struct RunnerEndlessSceneTests {
             let track = try #require(model.field.track)
             let rendered = endless.rendered.compactMap { $0?.index }.sorted()
             #expect(rendered == Array(track.firstIndex..<track.endIndex), "距離 \(distance): 描く区画 \(rendered)")
+            // 画面の左端（走者の `playerX` 後ろ）まで地面の区画を描いている（後ろに残す区画が足りないと左端が欠ける）。
+            let leftEdge = distance - RunnerField.Metrics.playerX - RunnerField.Metrics.playerWidth
+            if leftEdge > 0, let first = rendered.first {
+                #expect(Double(first) * RunnerEndlessSegment.width <= leftEdge, "距離 \(distance): 画面の左端の地面が無い")
+            }
             if Int(distance) % 1_000 < 13 {
                 #expect(partNodeCount(scene.courseLayer, excluding: endless.leadIn) == initial, "距離 \(distance) でノードが増減した")
             }
@@ -90,7 +95,11 @@ struct RunnerEndlessSceneTests {
                 let collected = model.field.collectedPickupIndices.contains(rendered.index)
                 #expect(rendered.isPickupRemoved == collected, "区画 \(rendered.index): 描画 \(rendered.isPickupRemoved) / 取った印 \(collected)")
                 if !collected { #expect(!item.node.isHidden, "取っていないアイテム（区画 \(rendered.index)）が見えない") }
-                if collected { checkedCollected += 1 }
+                if collected {
+                    // 消す動き（`hidePickupNode`）を掛けたか、すでに隠れている。画面に出していないので動きは進まない。
+                    #expect(item.node.hasActions() || item.node.isHidden, "取ったアイテム（区画 \(rendered.index)）を消していない")
+                    checkedCollected += 1
+                }
             }
         }
         #expect(model.distance >= 16_000, "\(model.distance) で \(model.phase)")

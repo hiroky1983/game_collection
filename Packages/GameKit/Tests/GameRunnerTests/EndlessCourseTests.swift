@@ -725,6 +725,11 @@ struct RunnerEndlessPlaythroughTests {
         let goal = 70_000.0
         var field = RunnerField(endlessSeed: UInt64(seed))
         let address = field.track?.storageAddress
+        // 同じ並びをステージ制の式で一括に展開したコース。足元の接地面・床・穴をこれと突き合わせ、
+        // 枠から後ろの区画を早く捨てすぎていない（乗っている台座が消えない）ことを走りながら確かめる。
+        let reference = RunnerField(stage: RunnerStage(
+            number: 0, pattern: RunnerEndlessCourse.pattern(seed: UInt64(seed), count: 1_200), speed: RunnerRules.baseSpeed
+        ))
         var frames = 0
         var collectedEver = Set<Int>()
         var pickupsPassed = Set<Int>()
@@ -741,6 +746,10 @@ struct RunnerEndlessPlaythroughTests {
             guard let track = field.track else { Issue.record("枠が無い"); return }
             if track.count > 7 || track.storageAddress != address {
                 Issue.record("種 \(seed): 距離 \(field.distance) で枠 \(track.count)・配列の再確保")
+            }
+            for x in [field.playerMinX, field.distance, field.playerMaxX]
+            where field.surfaceY(at: x) != reference.surfaceY(at: x) || field.isPit(at: x) != reference.isPit(at: x) {
+                Issue.record("種 \(seed): 距離 \(field.distance) の足元（x \(x)）が一括展開と違う")
             }
             if track.generatedEnd - field.distance < RunnerEndlessTrack.aheadDistance {
                 Issue.record("種 \(seed): 距離 \(field.distance) で生成が追いついていない")
@@ -1056,7 +1065,7 @@ struct RunnerEndlessModelTests {
     }
 
     /// 撮影用シナリオ（`-simulateRunner endless-*`）が狙った画で止まること。種は固定なので決定論的。
-    @Test("撮影用シナリオ endless / endless-running / endless-failed / endless-far は狙った状態で止まる")
+    @Test("撮影用シナリオ endless / endless-running / endless-failed / endless-far / endless-far-failed は狙った状態で止まる")
     func captureScenariosLandWhereIntended() {
         let ready = RunnerModel(startingAt: 1, preference: makePreference("endless-capture-ready"))
         ready.applyDebugScenario("endless")
@@ -1080,6 +1089,11 @@ struct RunnerEndlessModelTests {
         let distance = far.distance
         far.tick(dt: 1.0 / 60)
         #expect(far.distance == distance, "撮影のために止めてある")
+
+        let farFailed = RunnerModel(startingAt: 1, preference: makePreference("endless-capture-far-failed"))
+        farFailed.applyDebugScenario("endless-far-failed")
+        #expect(farFailed.mode == .endless && farFailed.phase == .failed)
+        #expect(farFailed.distanceMeters >= 2_500_000 && farFailed.endlessBestDistance == farFailed.distanceMeters)
     }
 
     /// 長時間の実測用の `-simulateRunner endless-autopilot` は、フレームが伸びても（1/20 秒）自動操縦の判断を
