@@ -24,6 +24,13 @@ enum RunnerPixelArt {
         "M": 0xFAF6EC,
         "A": 0x3F8F4C,
         "T": 0xE6C98C,
+        // 港町の置物（#1009）。`H`/`h` はロープの麻色 2 階調、`N`/`n`/`L` はドラム缶の青 3 階調
+        // （本体・陰・照り）。切り株は上の木肌 `T`・年輪 `d`・樹皮 `S`/`s`・苔 `A` で描ける。
+        "H": 0xC9A064,
+        "h": 0x8E6A3A,
+        "N": 0x2A5480,
+        "n": 0x1B3A5C,
+        "L": 0x5A86B4,
     ]
 
     /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
@@ -105,6 +112,84 @@ enum RunnerPixelArt {
     static func boar(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
         PixelSprite(rows: frame == .walk0 ? boarWalk0Rows : boarWalk1Rows, palette: creaturePalette(colors))
     }
+
+    // MARK: 着せ替え（`RunnerWorld.Dressing`・#1009）
+
+    /// 犬の枠の絵（世界の着せ替えで犬か猫）。色は世界の `Creatures` から写す。
+    static func walker(_ frame: WalkFrame, world: RunnerWorld) -> PixelSprite {
+        switch world.dressing.dog {
+        case .dog: return dog(frame, colors: world.creatures)
+        case .cat: return cat(frame, colors: world.creatures)
+        }
+    }
+
+    /// イノシシの枠の絵（世界の着せ替えでイノシシかフォークリフト）。
+    static func charger(_ frame: WalkFrame, world: RunnerWorld) -> PixelSprite {
+        switch world.dressing.boar {
+        case .boar:     return boar(frame, colors: world.creatures)
+        case .forklift: return forklift(frame, colors: world.creatures)
+        }
+    }
+
+    /// 犬の枠の格子（寸法を測る用。`RunnerScene.addDog`）。
+    static func walkerRows(world: RunnerWorld) -> [String] {
+        switch world.dressing.dog {
+        case .dog: return dogWalk0Rows
+        case .cat: return catWalk0Rows
+        }
+    }
+
+    /// イノシシの枠の格子（寸法を測る用。`RunnerScene.addBoar`）。
+    static func chargerRows(world: RunnerWorld) -> [String] {
+        switch world.dressing.boar {
+        case .boar:     return boarWalk0Rows
+        case .forklift: return forkliftDrive0Rows
+        }
+    }
+
+    /// イノシシの枠の土煙を立てる列（`boarRearFootX` / `forkliftRearWheelX`）。
+    static func chargerRearFootX(world: RunnerWorld) -> Double {
+        switch world.dressing.boar {
+        case .boar:     return boarRearFootX
+        case .forklift: return forkliftRearWheelX
+        }
+    }
+
+    /// 猫のパレット。犬と同じ文字（`O` 体・`o` 縞と暗部・`W` 胸と口元）に目の `E` を足す。
+    /// 首輪 `R` は使わない（野良）。
+    static func catPalette(_ c: RunnerWorld.Creatures) -> [Character: UInt32] {
+        creaturePalette(c).merging(["E": catEye]) { _, new in new }
+    }
+
+    /// 猫の目（黄）。世界によらない。
+    static let catEye: UInt32 = 0xE8C84A
+
+    static func cat(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? catWalk0Rows : catWalk1Rows, palette: catPalette(colors))
+    }
+
+    /// フォークリフトのパレット。イノシシの文字を機械に読み替える: `B` 車体（錆橙・主色）/ `b` タイヤ・
+    /// マスト・ヘッドガード / `S` 鋼のフォークとマストのレール・ホイール / `T` ヘッドライト。
+    /// 回転灯と後ろの警告帯の黄 `Y` は世界によらない。
+    static func forkliftPalette(_ c: RunnerWorld.Creatures) -> [Character: UInt32] {
+        creaturePalette(c).merging(["Y": warningYellow]) { _, new in new }
+    }
+
+    /// フォークリフトの回転灯・警告帯の黄。穴の柵（`RunnerPalette.pitEdge`）より少し落とした黄。
+    static let warningYellow: UInt32 = 0xF2C14E
+
+    static func forklift(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? forkliftDrive0Rows : forkliftDrive1Rows, palette: forkliftPalette(colors))
+    }
+
+    /// 切り株（`RunnerWorld.Dressing.Block.stump`）。
+    static func stump() -> PixelSprite { PixelSprite(rows: stumpRows, palette: palette) }
+
+    /// ロープの束（`RunnerWorld.Dressing.Block.ropeCoil`）。
+    static func ropeCoil() -> PixelSprite { PixelSprite(rows: ropeCoilRows, palette: palette) }
+
+    /// ドラム缶（`RunnerWorld.Dressing.Block.drum`）。
+    static func drum() -> PixelSprite { PixelSprite(rows: drumRows, palette: palette) }
 
     /// 歩きのコマを、**自分が進んだ距離**（ワールド単位・0 以上）から選ぶ。`stride` ごとに
     /// `walk0` / `walk1` を入れ替える（走者の `RunnerRider.pedalFrame` と同じ作法。位相ではなく
@@ -218,5 +303,176 @@ enum RunnerPixelArt {
         "....KTKBBBBBBBBBBBBBBBBBBBBBBBBK.",
         ".....KKBBBBBBBBBBBBBBBBBBBBBBBK..",
         "......KBBBBBBBBBBBBBBBBBBBBBBK...",
+    ]
+
+    // MARK: 野良猫（港町の犬の枠・#1009）
+
+    /// 野良猫（左向き）30×21 ドット。犬と同じ格子・同じ脚の段（下の 6 行、うち脚は 5 行）で、
+    /// `RunnerScene.addDog` が犬と同じ置き方で貼れる（当たり判定・寸法は犬のまま）。
+    ///
+    /// 犬との見分けは**三角の立ち耳が頭の上に 2 つ・短い顔・細く立ち上がって先が前に曲がる尾・
+    /// 背中の縞（`o`）・胸と口元の薄い色（`W`）・黄色い目（`E`）・首輪なし**。#975 で犬から
+    /// 意図的に外した「猫らしさ」をこちらに集めてある。頭は左（右から左へ歩いて来る向き）。
+    static let catWalk0Rows: [String] = catBodyRows + [
+        ".....KOOKKKooKKKKooKKKOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KKKK.KKKK..KKKK.KKKK.....",
+    ]
+
+    static let catWalk1Rows: [String] = catBodyRows + [
+        ".....KooKKKOOKKKKOOKKKooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KKKK.KKKK..KKKK.KKKK.....",
+    ]
+
+    /// 猫の頭・胴・尾（脚より上の 15 行）。2 コマで共通。
+    private static let catBodyRows: [String] = [
+        "...........................KK.",
+        "..........................KOOK",
+        "..KK....KK...............KOoOK",
+        "..KOK..KOK..............KOOKK.",
+        "..KOoKKoOK.............KOoK...",
+        "..KOOOOOOK.............KOOK...",
+        ".KOOOOOOOOK...........KOoOK...",
+        ".KOEKOOOOOOK..........KOOK....",
+        "KWOOOOOOOOOKKKKKKKKKKKOoK.....",
+        "KWWKOOOOOOOOOOoOOOOoOOOOK.....",
+        ".KWWWOOOOOOOOOOoOOOOoOOOK.....",
+        "..KKOOOOOOOOOOOOoOOOOoOOK.....",
+        "...KWWWOOOOOOOOOOOOOOOOOK.....",
+        "...KWWWWWWWWOOOOOOOOOOOOK.....",
+        "....KWWWWWWWWWWWWWWWWWOOK.....",
+    ]
+
+    // MARK: フォークリフト（港町のイノシシの枠・#1009）
+
+    /// フォークリフト（左向き）33×23 ドット。イノシシと同じ格子で、`RunnerScene.addBoar` が
+    /// イノシシと同じ置き方（左端＝当たり判定の左端）で貼れる。**フォークの先が絵の左端（列 0）**
+    /// ——イノシシの鼻先と同じ約束で、ドラム缶にぶつかって止まるとフォークが缶に触れた形になる。
+    ///
+    /// 左からフォーク 2 本（`S`・地面の高さ）・マスト（`S` のレール 2 本に `b` の芯）・ヘッドガード
+    /// （`b` の枠に回転灯 `Y`）・錆橙の車体（`B`）にヘッドライト（`T`）・後ろのカウンターウェイトに
+    /// 黄黒の警告帯・タイヤ 2 つ（`b`・ホイール `S`）。運転席は空で誰も乗せない（おじさんシリーズの
+    /// 顔を機械に付けない）。2 コマの違いはホイールの向きだけ（走っていると分かる程度）。
+    static let forkliftDrive0Rows: [String] = forkliftBodyRows + [
+        "........KbbbKKbbbbK....KbbbbK....",
+        "........KKKKKKbSSbK....KbSSbK....",
+        "KKKKKKKKKKKK.KbSSbK....KbSSbK....",
+        "KSSSSSSSSSSK.KbbbbK....KbbbbK....",
+        "KKKKKKKKKKKK..KKKK......KKKK.....",
+    ]
+
+    static let forkliftDrive1Rows: [String] = forkliftBodyRows + [
+        "........KbbbKKbbbbK....KbbbbK....",
+        "........KKKKKKbbSbK....KbbSbK....",
+        "KKKKKKKKKKKK.KbSbbK....KbSbbK....",
+        "KSSSSSSSSSSK.KbbbbK....KbbbbK....",
+        "KKKKKKKKKKKK..KKKK......KKKK.....",
+    ]
+
+    /// フォークリフトの後輪の中心の列（絵の左端からのドット数）。土煙（排気）はここに立てる。
+    static let forkliftRearWheelX: Double = 25.5
+
+    /// フォークリフトのマスト・ヘッドガード・車体（タイヤより上の 18 行）。2 コマで共通。
+    private static let forkliftBodyRows: [String] = [
+        "...................KKKKK.........",
+        "..............KKKKKKYYYKKKKKKK...",
+        "..............KbbbbbbbbbbbbbbK...",
+        "........KKKKK.KbbKKKKKKKKKKbbK...",
+        "........KSbSK.KbbK........KbbK...",
+        "........KSbSK.KbbK.......KKbbK...",
+        "........KSbSK.KbbK.......KbbbK...",
+        "........KSbSK.KbbK.......KbbbK...",
+        "........KSbSKKKbbK.......KbbbK...",
+        "........KSbSKBBBBBKKKKKKKBBBBKKK.",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKTBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKBBBBBBBBBBBBBBBKYKYK",
+        "........KSbSKBBBBBBBBBBBBBBBKYKYK",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKKKKKKKKKKKKKKKKKKKKK",
+    ]
+
+    // MARK: 切り株・ロープの束・ドラム缶（岩の枠・#1009）
+
+    /// 岩の枠の置物は**当たり判定の箱いっぱい**に描く（岩塊 `RunnerScene.makeRock` と同じ）。
+    /// 低い岩は幅 4 × 高さ 5、高い岩は 4 × 9 なので、格子は 12×15 と 12×27（1 ドット ≒ 0.33 単位
+    /// ＝走者と同じ）。縦横比が箱と一致することは `RunnerPixelArtTests` が固定する。
+    ///
+    /// 切り株（里山の低い岩）: 上面は木肌（`T`）に年輪（`d`）、側面は樹皮の縦の筋（`S`/`s`）と苔（`A`）。
+    static let stumpRows: [String] = [
+        "...KKKKKK...",
+        ".KKTTTTTTKK.",
+        "KTTTddddTTTK",
+        "KTTdTTTTdTTK",
+        "KTTTddddTTTK",
+        "KsTTTTTTTTsK",
+        "KSsSSsSSSsSK",
+        "KSsSSsSSSsSK",
+        "KSsSSsSSSsSK",
+        "KSsSAsSSSsSK",
+        "KSsSAAsSSsSK",
+        "KSsSSsSSSsSK",
+        "KSSSSsSSSSSK",
+        "KSSSSSSSSSSK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// ロープの束（港町の低い岩）: 上面は渦巻きに巻いた麻縄（`H`/`h`）、側面は横の縄の段。
+    static let ropeCoilRows: [String] = [
+        "...KKKKKK...",
+        ".KKHHHHHHKK.",
+        "KHHhhhhhhHHK",
+        "KHhHHHHHHhHK",
+        "KHhHhhhhHhHK",
+        "KHhHhHHhHhHK",
+        "KHhHHHHhHhHK",
+        "KHhhhhhhhhHK",
+        "KHHHHHHHHHHK",
+        "KhHHHHHHHHhK",
+        "KHhhhhhhhhHK",
+        "KHHHHHHHHHHK",
+        "KHhhhhhhhhHK",
+        "KHHHHHHHHHHK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// ドラム缶（港町の高い岩）: 青い缶（`N`）に左の照り（`L`）と右の陰（`n`）、上の蓋と 2 本のリブ。
+    static let drumRows: [String] = [
+        "..KKKKKKKK..",
+        ".KLLNNNNNNK.",
+        "KLLNNNNNNnnK",
+        "KnnnnnnnnnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLLLLLLLLnK",
+        "KnnnnnnnnnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLLLLLLLLnK",
+        "KnnnnnnnnnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KnnnnnnnnnnK",
+        "KKKKKKKKKKKK",
     ]
 }

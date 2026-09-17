@@ -106,6 +106,12 @@ extension RunnerScene {
     /// 地面と同じ矩形をそのまま塗り替えるだけなので、幅は `pit.start`〜`.end` の実寸そのもの
     /// ——当たり判定（`RunnerField.isPit`）が見ている境界と完全に一致する。
     func addPitVoid(_ pit: RunnerHazard, into parent: SKNode? = nil) {
+        // 里山・港町の着せ替え（#1009）。奈落の描画はそのまま残し、水の入った穴はここで分岐する。
+        switch world.dressing.pit {
+        case .construction:    break
+        case .irrigationDitch: return addDitchWater(pit, into: parent ?? courseLayer)
+        case .quayGap:         return addGapSea(pit, into: parent ?? courseLayer)
+        }
         let void = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.pitVoid),
             size: CGSize(width: pit.length, height: Metrics.groundY)
@@ -118,6 +124,12 @@ extension RunnerScene {
     /// 穴の縁の警告帯。地面と同系色の穴だけでは切れ目が分かりづらいというQAを受けて追加。
     /// 当たり判定には影響しない、純粋な見た目の追加。
     func addPitEdgeMarkers(_ pit: RunnerHazard, into parent: SKNode? = nil) {
+        // 里山・港町の着せ替え（#1009）。柵の描画はそのまま残し、壁・防舷材はここで分岐する。
+        switch world.dressing.pit {
+        case .construction:    break
+        case .irrigationDitch: return addDitchWalls(pit, into: parent ?? courseLayer)
+        case .quayGap:         return addQuayFenders(pit, into: parent ?? courseLayer)
+        }
         // 黄と黒の 3 段（工事の柵）。道路の穴＝工事中の切れ目、という読みに揃える（会長 QA 2026-09-14）。
         for edgeX in [pit.start, pit.end] {
             for (i, hex) in [RunnerPalette.pitEdge, RunnerPalette.pitEdgeDark, RunnerPalette.pitEdge].enumerated() {
@@ -141,7 +153,8 @@ extension RunnerScene {
     ///   - bandStart: 帯（アスファルト〜地盤）だけを `start` より手前から塗る x。破線の位相は `start` で
     ///     決める。エンドレスの区画ごとの地面が、隣の区画との継ぎ目に細い隙間を見せないよう重ねるのに使う。
     ///   - parent: 足す先。省略するとコース層。
-    private static let roadHeight: Double = 5.0
+    /// 路面（アスファルト）の厚み。加速床の着せ替え（`RunnerScene+Dressing`・#1009）も同じ厚みを塗り替える。
+    static let roadHeight: Double = 5.0
     private static let curbHeight: Double = 1.0
     private static let shoulderHeight: Double = 4.0
 
@@ -197,6 +210,12 @@ extension RunnerScene {
     /// 部品は 1 つのノードにまとめ、左端 `floor.start` に置いて返す（コース層へ足すのは呼び出し側。
     /// エンドレスは同じ長さの床を使い回す・#1086）。
     func makeBoostFloor(_ floor: RunnerBoostFloor) -> SKNode {
+        // 里山・港町の着せ替え（#1009）。青い加速帯の描画はそのまま残し、別の物はここで分岐する。
+        switch world.dressing.boostFloor {
+        case .boostBand:     break
+        case .pavedFarmRoad: return makePavedFarmRoad(floor)
+        case .conveyor:      return makeConveyor(floor)
+        }
         // 路面全体（アスファルトの厚み）を加速帯の色で塗り替え、上下を暗い青で縁取る。
         // 以前は 2.2 の薄い帯に小さな三角で、走者の足元では気づけなかった（会長 QA 2026-09-14）。
         let node = SKNode()
