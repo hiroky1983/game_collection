@@ -37,6 +37,15 @@ extension RunnerScene {
         let walkTextures: [SKTexture]
         /// 1 歩の距離（`RunnerPixelArt.dogWalkStride` / `boarWalkStride`）。
         let walkStride: Double
+        /// 下から伸び上がる絵（突き上げ・#1010）。切り抜きの窓の中を上へすべらせるので、
+        /// `sync` が伸びた高さから y を出す。伸びない障害は nil。
+        let riser: SKNode?
+        /// 伸び切ったときの絵の高さ（`RunnerHazardKind.shootTop`）。`riser` の y の起点に使う。
+        let riserHeight: Double
+        /// 揺れる予告（突き上げの土の塚・泡）。**揺れを止めるときは地面へ戻す**——`isPaused` は
+        /// いまの位置で止めるだけなので、上がりきった瞬間に止めると塚が浮いたまま固まる
+        /// （#1010 で CodeRabbit が指摘）。
+        let cue: SKNode?
         var state: State?
         /// いま貼っている歩きのコマ。同じコマの貼り直しを省く控え（走者の `renderedRiderFrame` と同じ）。
         private var renderedWalkFrame: RunnerPixelArt.WalkFrame?
@@ -44,7 +53,8 @@ extension RunnerScene {
         init(
             hazard: RunnerHazard, node: SKNode, shadow: SKNode? = nil, shadowBaseY: Double = 0,
             animated: [SKNode], movingOnly: SKNode? = nil,
-            walkSprite: SKSpriteNode? = nil, walkTextures: [SKTexture] = [], walkStride: Double = 1
+            walkSprite: SKSpriteNode? = nil, walkTextures: [SKTexture] = [], walkStride: Double = 1,
+            riser: SKNode? = nil, riserHeight: Double = 0, cue: SKNode? = nil
         ) {
             self.hazard = hazard
             self.node = node
@@ -55,6 +65,9 @@ extension RunnerScene {
             self.walkSprite = walkSprite
             self.walkTextures = walkTextures
             self.walkStride = walkStride
+            self.riser = riser
+            self.riserHeight = riserHeight
+            self.cue = cue
         }
 
         /// 使い回す前に、前の区画で進めた状態（止まる・動く・歩きのコマ）を作った直後に戻す（#1086）。
@@ -63,6 +76,8 @@ extension RunnerScene {
             state = nil
             renderedWalkFrame = nil
             walkSprite?.texture = walkTextures.first
+            riser?.position.y = CGFloat(-riserHeight)
+            cue?.position.y = 0
         }
 
         /// 歩きのコマを、自分が進んだ距離に合わせて貼り替える（`RunnerPixelArt.walkFrame`）。
@@ -332,6 +347,66 @@ extension RunnerScene {
         )
     }
 
+    /// 突き上げ（`RunnerHazardKind.shoot`・#1010）。里山では竹の子、港町では波しぶき。
+    ///
+    /// **地面の中から伸び上がるので、絵は「切り抜きの窓」の中を上へすべらせる**——伸び切った姿の
+    /// ドット絵（`RunnerPixelArt.shoot`・当たり判定の箱 4×9 いっぱい）を丸ごと持ち、窓を地面から
+    /// 箱の高さぶんに切っておいて、絵の底を `伸びた高さ − 箱の高さ` に置く。伸びた高さが 0 なら
+    /// 絵は丸ごと地面の下に隠れ、伸び切ると箱にぴたりと収まる。**縮尺は変えない**ので、
+    /// にょきっと出てくるあいだも穂先のドットが潰れない。
+    ///
+    /// 予告（土が盛り上がる／泡が立つ）は地面に置く別のドット絵で、**当たり判定の外へ横に
+    /// 広げて貼る**（`shootCueVisualScale`）——読ませるための予告なので、当たり判定の幅
+    /// （1 タイル）より目立たせる。張り出しは見た目だけで、当たり判定は `RunnerField` が
+    /// `RunnerHazard.frame(atRunnerDistance:)` の帯だけを見る。
+    /// 伸びているあいだは予告を小刻みに揺らし（`animated`）、伸び切ったら止める
+    /// （`MovingHazardView.apply(.stopped)`）。
+    func addShoot(_ hazard: RunnerHazard) -> MovingHazardView {
+        let style = world.dressing.shoot
+        let node = SKNode()
+        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        let w = hazard.length, h = hazard.height
+
+        // 予告（地面に残る塚・泡）。当たり判定より手前（`zPosition` が大きい）に置き、
+        // 伸びてくる絵の根元を隠して「ここから出てきた」ように見せる。
+        // 幅は当たり判定の `shootCueVisualScale` 倍で、格子の幅もその倍率なので 1 ドットの
+        // 大きさは本体と揃う（縦は格子の比率どおりに従わせる——引き伸ばさない）。
+        let cueRows = RunnerPixelArt.shootCue(world: world)
+        let cueWidth = w * RunnerPixelArt.shootCueVisualScale
+        let cue = SKSpriteNode(texture: shootCueTexture(style))
+        cue.anchorPoint = CGPoint(x: 0.5, y: 0)
+        cue.size = CGSize(
+            width: cueWidth,
+            height: cueWidth * Double(cueRows.height) / Double(cueRows.width)
+        )
+        cue.position = CGPoint(x: w / 2, y: 0)
+        cue.zPosition = 2
+        // 小刻みな揺れ。地面が揺れていることが予告の合図なので、横ではなく上下に短く震わせる。
+        let shake = SKAction.moveBy(x: 0, y: 0.35, duration: 0.09)
+        shake.timingMode = .easeInEaseOut
+        cue.run(.repeatForever(.sequence([shake, shake.reversed()])), withKey: Self.loopActionKey)
+        node.addChild(cue)
+
+        // 伸び上がる絵と、その切り抜きの窓。
+        let riser = SKSpriteNode(texture: shootTexture(style))
+        riser.anchorPoint = CGPoint(x: 0.5, y: 0)
+        riser.size = CGSize(width: w, height: h)
+        riser.position = CGPoint(x: 0, y: -h)
+        let crop = SKCropNode()
+        let mask = SKSpriteNode(color: .white, size: CGSize(width: w, height: h))
+        mask.anchorPoint = CGPoint(x: 0.5, y: 0)
+        crop.maskNode = mask
+        crop.position = CGPoint(x: w / 2, y: 0)
+        crop.zPosition = 1
+        crop.addChild(riser)
+        node.addChild(crop)
+
+        courseLayer.addChild(node)
+        return MovingHazardView(
+            hazard: hazard, node: node, animated: [cue], riser: riser, riserHeight: h, cue: cue
+        )
+    }
+
     /// 動物の歩きのコマを貼るスプライトを `node` に足す（犬・イノシシ共通）。1 ドットは走者と同じ
     /// 単位（`riderPlacement.unit`）で、`rows` は寸法を測るためだけに使う（全コマ同じ格子・
     /// `RunnerPixelArtTests` が固定）。`anchor` と `x` で絵の底のどこを原点に合わせるかを選ぶ。
@@ -408,6 +483,16 @@ extension RunnerScene {
             view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
             view.apply(frame.advance < 0 ? .moving : .stopped)
             view.applyWalkFrame(travel: hazard.boarSpawn - frame.start)
+        case .shoot:
+            // 原点は当たり判定の左下。位置は動かず、**伸びた高さだけ**が距離で決まる（#1010）。
+            // 当たり判定（`frame.top`）と同じ値を絵の位置に使うので、見た目と判定は構造的にずれない。
+            view.node.position = CGPoint(x: frame.start - renderOrigin, y: Metrics.groundY)
+            view.riser?.position.y = CGFloat(frame.top - view.riserHeight)
+            let rising = frame.top < view.riserHeight
+            view.apply(rising ? .moving : .stopped)
+            // 揺れを止めたら塚・泡を地面へ戻す。`isPaused` はいまの位置で止めるだけなので、
+            // 揺れの上端で止まると予告が浮いたまま固まる（#1010 で CodeRabbit が指摘）。
+            if !rising { view.cue?.position.y = 0 }
         case .pit, .lowBlock, .tallBlock:
             break
         }

@@ -66,6 +66,23 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// **岩にぶつかると止まる**（`RunnerHazard.stopAt`）: 出会う地点と出現点のあいだに岩があれば、
     /// その岩の右側で止まって低い岩と同じ置物になる（「岩の手前に置くと岩で止まる」読み）。
     case boar
+    /// 下から突き上げてくる障害（#1010・区画記号 `^`）。里山では**竹の子**、港町では**波しぶき**。
+    /// 30 面化（#1009）の新しい仕組み 4 つのうちの 1 つで、19〜30 面にだけ置く。
+    ///
+    /// - 地面の中にいるあいだは**当たり判定を持たない**（`frame(atRunnerDistance:)` が nil）
+    /// - 走者の前端が `RunnerRules.shootTriggerDistance`（= その区画が画面の右端に入る間合い）まで
+    ///   近づいた瞬間に予告（土が盛り上がる／泡が立つ）が出て、そこから走者が
+    ///   `RunnerRules.shootRiseDistance` 進むあいだに**高い岩と同じ高さ**（`shootTop`）まで伸び切る
+    /// - **踏み切るべき地点に走者が来るより手前で伸び切る**（`RunnerHazardMotionTests` が固定）。
+    ///   踏切のように「運で死ぬ瞬間」は無く、伸び切った状態なら高い岩とまったく同じように跳び越せる
+    /// - 伸びている途中の当たり判定は**見た目の高さと一致**する（`frame.top` がそのまま伸びた高さ）
+    /// - **低い岩（切り株）と見分けるのは予告**。予告が出る前の地面は何も無い地面と同じに見えてよく、
+    ///   予告を読んで「低く跳ぶか高く跳ぶか」を決めるのがこの仕組みの遊び（新しい操作は足さない）
+    ///
+    /// 横には動かない（`advance` は常に 0）ので、走者から見て等価な静止区間（`encounter`）は
+    /// **高い岩とまったく同じ**——ステージの成立条件（`RunnerStageTests` の間隔・跳び越し）は
+    /// 高い岩 `t` を置いたときと 1 単位も変わらない。
+    case shoot
 
     /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
@@ -74,8 +91,8 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 止まった鳥に触れることは無い。
     public var bottom: Double {
         switch self {
-        case .pit, .lowBlock, .tallBlock, .dog, .boar: return 0
-        case .bird:                                    return Self.birdLowTop - Self.birdBandHeight
+        case .pit, .lowBlock, .tallBlock, .dog, .boar, .shoot: return 0
+        case .bird:                                            return Self.birdLowTop - Self.birdBandHeight
         }
     }
 
@@ -95,6 +112,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
         case .lowBlock:          return 5
         case .tallBlock:         return 9
         case .bird, .dog, .boar: return Self.birdLowTop
+        case .shoot:             return Self.shootTop
         }
     }
 
@@ -102,15 +120,22 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     public var isAnimal: Bool { self == .dog || self == .boar }
 
     /// 岩か（イノシシが止まる相手・#801）。
+    ///
+    /// **突き上げ（#1010）は岩に数えない。** イノシシが突進して通り抜ける時点で突き上げはまだ
+    /// 地面の中（予告はイノシシが通り過ぎたあとに出る）なので、ぶつかる物が無い。
+    /// 突き上げの手前にイノシシを置かないことは `RunnerStageTests` が機械的に弾く（#1009 の
+    /// 「入れない組み合わせ」）。
     public var isRock: Bool { self == .lowBlock || self == .tallBlock }
 
     /// この障害にやられたときの死因（`game_end` の `cause`・#796）。語彙は Core の enum に閉じる。
+    ///
+    /// 突き上げ（#1010）は**跳び越し損ねた岩と同じ `rock`**（決裁どおり `AnalyticsEndCause` は増やさない）。
     public var missCause: AnalyticsEndCause {
         switch self {
-        case .pit:                  return .pit
-        case .lowBlock, .tallBlock: return .rock
-        case .bird:                 return .bird
-        case .dog, .boar:           return .animal
+        case .pit:                         return .pit
+        case .lowBlock, .tallBlock, .shoot: return .rock
+        case .bird:                        return .bird
+        case .dog, .boar:                  return .animal
         }
     }
 
@@ -132,6 +157,14 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 絵の見た目の倍率（`RunnerBirdArt.visualScale`・#943）はこの値に効かない——描く絵は
     /// 帯より大きいが、帯の厚みは倍率 1 の絵の寸法のまま。
     static let birdBandHeight: Double = RunnerBirdArt(width: RunnerRules.tileWidth).bandHeight
+
+    /// 突き上げ（#1010）が伸び切った高さ。**高い岩とまったく同じ**（決裁「伸び切った高さは
+    /// 高い岩（9）と同じ。それより高くしない」）。
+    ///
+    /// 値を書き写さず `tallBlock.height` から導いているのは、岩の高さを触った日に片方だけ
+    /// 古い値で取り残されるのを防ぐため（鳥の `birdLowTop` が `lowBlock.height` から
+    /// 導いているのと同じ作法）。この一致は `RunnerHazardMotionTests` が固定する。
+    public static var shootTop: Double { tallBlock.height }
 }
 
 /// 動く障害の**いまの当たり判定**（#796）。座標はワールド座標、高さは地面からの相対値。
@@ -225,11 +258,34 @@ public struct RunnerHazard: Equatable, Sendable {
     /// 予告の手応え（#801 イノシシ）。現れる瞬間の走者の距離と、そのとき出すできごと。
     /// 予告の無い障害は nil（犬は前から歩いて来るのが見えるので予告しない・#955）。
     /// `RunnerField.step` がこの距離をまたいだサブステップで 1 回だけ出す。
+    /// 突き上げ（#1010）は手応えを持たない——予告は**見て読むもの**（土が盛り上がる／泡が立つ）で、
+    /// 「予告で見分けて跳ぶ高さを変える」が遊びの芯だから（`RunnerScene.addShoot` が
+    /// `shootRise(atRunnerDistance:)` から描く）。
     public var cue: (distance: Double, event: RunnerEvent)? {
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .bird, .dog: return nil
+        case .pit, .lowBlock, .tallBlock, .bird, .dog, .shoot: return nil
         case .boar: return (boarChargeStartDistance, .boarCharging)
         }
+    }
+
+    // MARK: 突き上げ（#1010 竹の子・波しぶき）
+
+    /// 突き上げの予告が出て伸び始める走者の距離（中心 x）。**前端**が
+    /// `RunnerRules.shootTriggerDistance` まで近づいた瞬間で、鳥の `birdTakeoffDistance`・
+    /// イノシシの `boarChargeStartDistance` と同じ作法。
+    public var shootCueDistance: Double {
+        start - RunnerRules.shootTriggerDistance - RunnerField.Metrics.playerHalfWidth
+    }
+
+    /// いま伸びている高さ（地面から。予告の前は 0、伸び切ると `RunnerHazardKind.shootTop`）。
+    ///
+    /// 当たり判定（`frame`）と見た目（`RunnerScene.syncMovingHazard`）は**両方ここを読む**ので、
+    /// 「見た目の高さと当たり判定が一致する」（決裁）が構造的に守られる。
+    public func shootRise(atRunnerDistance distance: Double) -> Double {
+        let travel = distance - shootCueDistance
+        guard travel > 0 else { return 0 }
+        let full = RunnerHazardKind.shootTop
+        return min(full, full * travel / RunnerRules.shootRiseDistance)
     }
 
     /// イノシシの予告（手応え）が出て突進が始まる走者の距離。土煙は本体の足元に付いており
@@ -278,6 +334,12 @@ public struct RunnerHazard: Equatable, Sendable {
                 start: charging, end: charging + length, bottom: 0, top: height,
                 advance: -RunnerRules.boarAdvance
             )
+        case .shoot:
+            // 予告が出る前は地面の中——当たり判定を持たない（`RunnerField.nextHazard` の
+            // 対象からも自然に外れるので、自動操縦が見えない相手に踏み切ることも無い）。
+            let top = shootRise(atRunnerDistance: distance)
+            guard top > 0 else { return nil }
+            return RunnerHazardFrame(start: start, end: end, bottom: 0, top: top, advance: 0)
         }
     }
 
@@ -296,7 +358,9 @@ public struct RunnerHazard: Equatable, Sendable {
     public var encounter: RunnerHazardEncounter {
         let playerWidth = RunnerField.Metrics.playerWidth
         switch kind {
-        case .pit, .lowBlock, .tallBlock:
+        case .pit, .lowBlock, .tallBlock, .shoot:
+            // 突き上げ（#1010）は横に動かず、走者が着くより手前で伸び切っている——
+            // 走者から見れば置いた位置の高い岩そのもの。
             return RunnerHazardEncounter(start: start, length: length, height: height)
         case .dog:
             // 前から `k` で向かって来る相手（#955。イノシシと同じ式で `k` が小さいだけ）。鼻先が
@@ -348,6 +412,11 @@ public struct RunnerHazard: Equatable, Sendable {
             return dogAppearDistance...(encounter.end + half)
         case .boar:
             return boarChargeStartDistance...(max(encounter.end, boarSpawn) + half)
+        case .shoot:
+            // 予告が出て伸び始めてから、後端が抜けるまで（#1010）。チェックポイントをこの外に
+            // 置くことで、伸びかけの真ん前から再開させない（決裁「一時停止・復帰で状態がずれない」
+            // と同じ趣旨——伸びは距離で決まるので、再開地点がこの外なら必ず 0 か伸び切りのどちらか）。
+            return shootCueDistance...(end + half)
         }
     }
 }

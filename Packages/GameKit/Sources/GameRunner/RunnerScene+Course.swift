@@ -66,6 +66,9 @@ extension RunnerScene {
             case .bird:                    movingHazards.append(addBird(hazard))
             case .dog:                     movingHazards.append(addDog(hazard))
             case .boar:                    movingHazards.append(addBoar(hazard))
+            // 突き上げ（#1010）は位置は動かないが**伸びた高さが距離で決まる**ので、毎フレーム
+            // `frame` を写す仲間（`movingHazards`）に入れる。
+            case .shoot:                   movingHazards.append(addShoot(hazard))
             case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
             case .pit:                     break
             }

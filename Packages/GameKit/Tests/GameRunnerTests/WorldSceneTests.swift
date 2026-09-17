@@ -1,3 +1,4 @@
+import Core
 import Foundation
 import SpriteKit
 import Testing
@@ -17,6 +18,24 @@ struct RunnerWorldSceneTests {
         scene.rebuildCourse()
         scene.sync()
         return (model, scene)
+    }
+
+    /// テクスチャ／ドット絵のドットを RGBA のバイト列として読み出す（絵が同じかを比べる用）。
+    /// `SKTexture.cgImage()` は貼ってある画像をそのまま返すので、画面に出さずに比べられる。
+    private static func pixels(of texture: SKTexture) -> [UInt8]? { bytes(of: texture.cgImage()) }
+    private static func pixels(of sprite: PixelSprite) -> [UInt8]? { bytes(of: sprite.cgImage(scale: 1)) }
+
+    private static func bytes(of image: CGImage?) -> [UInt8]? {
+        guard let image else { return nil }
+        let w = image.width, h = image.height
+        var data = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(
+            data: &data, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return data
     }
 
     /// 子孫まで含めて、`texture` を貼ったスプライトの数。
@@ -63,6 +82,91 @@ struct RunnerWorldSceneTests {
             scene.sync()
         }
         #expect(model.phase.isRunning, "\(number) 面で 10 秒以内にミスした")
+    }
+
+    /// 突き上げ（#1010）の描画経路。**絵の位置が当たり判定の上端から出ている**ことを、
+    /// 実際に走らせて `sync` した結果で確かめる——ここがずれると「見えている高さと当たる高さが
+    /// 違う」という理不尽な当たりになる。予告の揺れは伸び切ったら止める（`.stopped`）。
+    ///
+    /// **里山（19 面・竹の子）と港町（26 面・波しぶき）の両方で回す。** 片方だけだと、もう片方の
+    /// テクスチャを取り違えても／作り忘れても緑のまま通る——`SKSpriteNode(texture:)` は nil を
+    /// 受け取れるので、「絵の無い（＝見えない）突き上げ」が出荷されうる（2026-09-18 の敵対的検証で、
+    /// 19 面だけ見ていたときに港町のテクスチャを消しても 368 件緑だったのを実測）。
+    @Test("突き上げは本数ぶん組まれ、その世界の絵が貼られ、絵が当たり判定の伸びた高さに追従する", arguments: [
+        (19, RunnerWorld.Dressing.Shoot.bambooShoot, 3),
+        (26, RunnerWorld.Dressing.Shoot.seaSpray, 2),
+    ])
+    func shootsFollowTheHitBox(number: Int, style: RunnerWorld.Dressing.Shoot, count: Int) throws {
+        let (model, scene) = makeScene(stage: number, suite: "shoot-\(number)")
+        let stage = model.field.stage
+        let shoots = stage.hazards.filter { $0.kind == .shoot }
+        #expect(shoots.count == count, "\(number) 面の突き上げが \(shoots.count) 本（空振り防止）")
+        #expect(scene.world.dressing.shoot == style)
+        let views = scene.movingHazards.filter { $0.hazard.kind == .shoot }
+        #expect(views.count == shoots.count, "突き上げのノードが本数ぶん無い")
+        // 貼られている絵は、その世界の着せ替えのもの。**その世界のぶんしかテクスチャを作らない**
+        // （#1010 の受け入れ条件「世界に入ったときに作ってキャッシュ」）。
+        #expect(scene.cachedShootStyles == [style], "作ったテクスチャ: \(scene.cachedShootStyles)")
+        let expected = scene.shootTexture(style)
+        let other: RunnerWorld.Dressing.Shoot = style == .bambooShoot ? .seaSpray : .bambooShoot
+        // **2 つの着せ替えのテクスチャが「絵として」違うこと**を先に言う。同じ画を 2 枚焼いても
+        // インスタンスは別物になるので、`!==` では足りない——**ドットを読んで比べる**
+        // （2026-09-18 の敵対的検証で、`shootTexture` が着せ替えを無視して 1 枚だけ焼く実装でも
+        // 緑のまま通ったのを実測）。格子は 12×27 なので読み出しは軽い。
+        #expect(
+            Self.pixels(of: expected) != Self.pixels(of: scene.shootTexture(other)),
+            "2 つの世界で同じ絵を貼っている"
+        )
+        // 貼った絵が `RunnerPixelArt` の着せ替えのものと一致する（焼き直したものと同じドット）。
+        #expect(
+            Self.pixels(of: expected) == Self.pixels(of: RunnerPixelArt.shootArt(for: style)),
+            "貼られている絵が \(style) のドット絵と違う"
+        )
+        for view in views {
+            #expect(spriteCount(in: view.node, texture: expected) == 1, "\(style) の絵が貼られていない")
+            #expect(spriteCount(in: view.node, texture: scene.shootTexture(other)) == 0, "別の世界の絵が貼られている")
+            #expect(view.riserHeight == RunnerHazardKind.shootTop)
+        }
+
+        // 伸びかけ・伸び切りの両方で、絵の底が「伸びた高さ − 箱の高さ」に置かれている。
+        //
+        // **走者を直接置いて反映する**（`placeForTesting` + `syncMovingHazard`）。自動操縦で
+        // 区画 8 まで走らせても同じ経路を通るが、700 フレームぶんの `tick` + `sync` はこの
+        // スイートだけで 20 秒以上増える（CI を延ばさない・#1039）。走らせて落ちないことは
+        // 同じ 19 面を 10 秒走る `dressedStagesBuild` が見ている。
+        let target = try #require(views.first)
+        let full = RunnerHazardKind.shootTop
+        var field = RunnerField(stage: stage)
+        var rising = 0, risen = 0, worstOffset = 0.0, floatingCue = 0.0
+        var shownBeforeCue = false, hiddenAfterCue = false, wrongState = 0
+        for step in stride(from: -8.0, through: RunnerRules.shootRiseDistance + 8, by: 1.0) {
+            field.placeForTesting(distance: target.hazard.shootCueDistance + step, altitude: 0, vy: 0)
+            // 揺れの `SKAction` はシーンを回さないと進まないので、**揺れの上端に居る状態を手で作る**
+            // ——そのうえで反映したとき、伸び切っていれば地面へ戻ることを見る。
+            target.cue?.position.y = 0.35
+            scene.syncMovingHazard(target, field: field)
+            guard let frame = target.hazard.frame(atRunnerDistance: field.distance) else {
+                if !target.node.isHidden { shownBeforeCue = true }
+                continue
+            }
+            if target.node.isHidden { hiddenAfterCue = true }
+            worstOffset = max(worstOffset, abs(Double(target.riser?.position.y ?? 0) - (frame.top - full)))
+            if target.state != (frame.top < full ? .moving : .stopped) { wrongState += 1 }
+            if frame.top < full {
+                rising += 1
+            } else {
+                risen += 1
+                // 伸び切ったら予告の揺れを止め、**塚・泡を地面へ戻す**（浮いたまま固まらせない）。
+                floatingCue = max(floatingCue, abs(Double(target.cue?.position.y ?? 0)))
+            }
+        }
+        #expect(!shownBeforeCue, "予告の前なのに絵が見えている")
+        #expect(!hiddenAfterCue, "予告の後なのに絵が隠れている")
+        #expect(wrongState == 0, "予告の揺れの止め方が \(wrongState) 地点で違う")
+        // SpriteKit は `position` を単精度で持つので、丸めのぶん（この大きさでは 1e-6 以下）を見込む。
+        #expect(worstOffset < 1e-4, "絵の位置と当たり判定の上端のずれが最大 \(worstOffset)")
+        #expect(floatingCue < 1e-4, "伸び切ったあとも予告が浮いている（y = \(floatingCue)）")
+        #expect(rising > 10 && risen > 5, "伸びかけ \(rising) / 伸び切り \(risen) 地点しか見ていない")
     }
 
     @Test("1 面（朝）では着せ替えのテクスチャは 1 枚も貼られず、岩は元の岩塊のまま")

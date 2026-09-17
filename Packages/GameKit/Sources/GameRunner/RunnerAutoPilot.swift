@@ -92,7 +92,11 @@ public enum RunnerAutoPilot {
         switch hazard.kind {
         case .pit:
             return baseLead
-        case .lowBlock, .tallBlock, .bird, .dog, .boar:
+        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot:
+            // 突き上げ（#1010）は**伸び切った高さ**（`hazard.height`）で見る——伸びかけの低い
+            // 帯に合わせて踏み切ると、越えている最中に伸びてきて当たる。伸び切るのは踏み切り
+            // 地点より手前なので、この見積もりで実際に越えられる
+            // （`RunnerHazardMotionTests.shootFinishesRisingBeforeTheTakeOffPoint`）。
             let rise = RunnerRules.riseTime(to: hazard.height + clearance)
             return RunnerField.Metrics.playerHalfWidth
                 + (1 - advance) * (RunnerRules.tileWidth / 2 + speed * rise)
