@@ -7,12 +7,16 @@ import Core
 /// 札は小さくなる。数値を View に撒くと「iPhone SE で 10 列目がはみ出す」類の破綻が各所に散るため、
 /// 寸法はここに集約して純粋関数にし、View を組まずに検証できるようにする。
 public enum SpiderMetrics {
-    /// 列と列の間隔。10 列なのでフリーセル（8 列・4pt）よりさらに詰める。
-    public static let columnGap: CGFloat = 3
+    /// 列と列の間隔。10 列なのでフリーセル（8 列・3pt）よりさらに詰める。
+    public static let columnGap: CGFloat = 2
+    /// 盤の左右の余白。帯・ボタンの `Theme.pad`（16pt）より詰めて、札の幅に回す（フリーセルと共通）。
+    public static let boardSideInset: CGFloat = CardStackLayout.boardSideInset
+    /// 盤の上端の余白（View の `.padding(.top, _)` と同じ値）。
+    public static let boardTopPadding: CGFloat = 2
     /// トランプの縦横比（実物の 63×88 に近い値）。
     public static let aspectRatio: CGFloat = 1.4
-    /// 札の幅の下限・上限。下限は iPhone SE（375pt。`Theme.pad` 16pt × 2 を引いた 343pt）でも
-    /// 10 列が収まる値（(343 - 27) / 10 = 31.6）、上限は iPad で札だけが間延びしないようにするための頭打ち。
+    /// 札の幅の下限・上限。下限は iPhone SE（375pt。盤の余白 4pt × 2 を引いた 367pt）でも
+    /// 10 列が収まる値（(367 - 18) / 10 = 34.9）、上限は iPad で札だけが間延びしないようにするための頭打ち。
     public static let minCardWidth: CGFloat = 28
     public static let maxCardWidth: CGFloat = 60
 
@@ -49,18 +53,37 @@ public enum SpiderMetrics {
 
     public static func cardHeight(width: CGFloat) -> CGFloat { (width * aspectRatio).rounded() }
 
-    /// 伏せ札を重ねる段差。伏せ札は枚数が見えれば十分なので詰める（クロンダイクと同じ比）。
-    public static func faceDownStep(cardHeight: CGFloat) -> CGFloat { (cardHeight * 0.13).rounded() }
+    /// 伏せ札を重ねる段差の下限。伏せ札は枚数が見えれば十分なので詰める（クロンダイクと同じ比）。
+    /// 実際の段差は盤の縦の余りに合わせて広げる（`stackLayout`）。ここはその下限。
+    public static func faceDownStep(cardHeight: CGFloat) -> CGFloat { CardStackLayout.minFaceDownStep(cardHeight: cardHeight) }
 
-    /// 表向き札を重ねる段差。配りを重ねると 1 列が 20 枚を超えることも普通にあるため、
+    /// 表向き札を重ねる段差の下限。配りを重ねると 1 列が 20 枚を超えることも普通にあるため、
     /// フリーセル（0.24）と同じく詰める。
-    public static func faceUpStep(cardHeight: CGFloat) -> CGFloat { (cardHeight * 0.24).rounded() }
+    public static func faceUpStep(cardHeight: CGFloat) -> CGFloat { CardStackLayout.minFaceUpStep(cardHeight: cardHeight) }
+
+    /// 盤の高さから、場札に使える高さ（上段の下から盤の下端まで）。
+    public static func tableauHeight(boardHeight: CGFloat, cardHeight: CGFloat) -> CGFloat {
+        max(0, boardHeight - boardTopPadding - cardHeight - SpiderMotion.topRowSpacing)
+    }
+
+    /// 段差・列の押せる範囲・見出しの寸法。**いちばん長い列**が盤の下端に収まる範囲で段差を広げ、
+    /// 全列で同じ値を使う（フリーセルと同じ計算 `CardStackLayout`）。
+    public static func stackLayout(cardWidth: CGFloat, cardHeight: CGFloat, boardHeight: CGFloat,
+                                   piles: [SpiderPile]) -> CardStackLayout {
+        CardStackLayout.make(
+            cardWidth: cardWidth,
+            cardHeight: cardHeight,
+            tableauHeight: tableauHeight(boardHeight: boardHeight, cardHeight: cardHeight),
+            columns: piles.map { CardStackLayout.Column(faceDown: $0.faceDownCount, faceUp: $0.faceUpCount) }
+        )
+    }
 
     /// 列 1 本の高さ（いちばん上の札の全体が見える高さまで）。
-    public static func pileHeight(faceDownCount: Int, faceUpCount: Int, cardHeight: CGFloat) -> CGFloat {
-        let down = CGFloat(max(0, faceDownCount)) * faceDownStep(cardHeight: cardHeight)
-        let up = CGFloat(max(0, faceUpCount - 1)) * faceUpStep(cardHeight: cardHeight)
-        return down + up + cardHeight
+    public static func pileHeight(faceDownCount: Int, faceUpCount: Int, cardHeight: CGFloat,
+                                  faceDownStep: CGFloat, faceUpStep: CGFloat) -> CGFloat {
+        CardStackLayout.columnHeight(
+            CardStackLayout.Column(faceDown: faceDownCount, faceUp: faceUpCount),
+            faceUpStep: faceUpStep, faceDownStep: faceDownStep, cardHeight: cardHeight)
     }
 
     /// 札 1 枚ぶんの面の寸法。既存の「小さい札」（大富豪の 42×60）を基準に相似で伸縮させる。

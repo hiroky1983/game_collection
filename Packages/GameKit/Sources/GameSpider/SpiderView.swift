@@ -43,15 +43,23 @@ public struct SpiderView: View {
     }
 
     public var body: some View {
+        // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
+        // 帯・ヒント・ボタン・バナーは従来どおり `Theme.pad`（16pt）。フリーセルと同じ。
         VStack(spacing: 8) {
             statusBar
-            board.layoutPriority(1)
+                .padding(.horizontal, Theme.pad)
+            board
+                .padding(.horizontal, SpiderMetrics.boardSideInset)
+                .layoutPriority(1)
             HowToPlayHint(.spider, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
             controlArea
+                .padding(.horizontal, Theme.pad)
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
+                .padding(.horizontal, Theme.pad)
         }
-        .padding(Theme.pad)
+        .padding(.vertical, Theme.pad)
         .gameChrome(title: "スパイダーソリティア", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button { openSetup() } label: {
@@ -204,19 +212,23 @@ public struct SpiderView: View {
         GeometryReader { geo in
             let width = cardWidth(availableWidth: geo.size.width)
             let metrics = SpiderMetrics.faceMetrics(width: width)
+            // 段差は盤の縦の余りに合わせて広げ、全列で同じ値を使う（フリーセルと同じ計算）。
+            let stack = SpiderMetrics.stackLayout(
+                cardWidth: metrics.width, cardHeight: metrics.height,
+                boardHeight: geo.size.height, piles: model.board.piles)
             ScrollView(zoomMode ? [.horizontal, .vertical] : [.vertical], showsIndicators: false) {
                 VStack(spacing: SpiderMotion.topRowSpacing) {
                     topRow(metrics: metrics)
-                    tableau(metrics: metrics)
+                    tableau(metrics: metrics, stack: stack)
                 }
                 .frame(width: SpiderMetrics.boardWidth(cardWidth: width))
-                .padding(.top, 2)
+                .padding(.top, SpiderMetrics.boardTopPadding)
                 // 盤が画面より狭いときは中央、広いとき（拡大）は横スクロール。縦の浮き上がり止めは #604 の実測。
                 .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .top)
             }
             .coordinateSpace(name: Self.boardSpace)
             .onPreferenceChange(CardDropFramesKey<SpiderDropTarget>.self) { dropFrames = $0 }
-            .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics) }
+            .overlay(alignment: .topLeading) { dragOverlay(metrics: metrics, stack: stack) }
             .gameAnimation(SpiderMotion.move, value: boardAnimationKey)
         }
     }
@@ -248,16 +260,17 @@ public struct SpiderView: View {
 
     // MARK: - ドラッグ&ドロップ
 
-    @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics) -> some View {
+    @ViewBuilder private func dragOverlay(metrics: PlayingCardMetrics, stack: CardStackLayout) -> some View {
         if let drag {
             CardDragLayer(
                 cards: drag.cards,
                 grab: drag.grab,
                 location: dragLocation,
-                step: SpiderMetrics.faceUpStep(cardHeight: metrics.height)
+                step: stack.faceUpStep
             ) { index, card in
                 SpiderCardBody(card: card, faceUp: true, isSelected: false,
-                               isCovered: index < drag.cards.count - 1, metrics: metrics)
+                               coveredIndex: index < drag.cards.count - 1 ? stack.index : nil,
+                               metrics: metrics)
             }
         }
     }
@@ -387,20 +400,21 @@ public struct SpiderView: View {
 
     // MARK: - 場札
 
-    private func tableau(metrics: PlayingCardMetrics) -> some View {
+    private func tableau(metrics: PlayingCardMetrics, stack: CardStackLayout) -> some View {
         HStack(alignment: .top, spacing: SpiderMetrics.columnGap) {
             ForEach(0..<SpiderBoard.pileCount, id: \.self) { pile in
-                pileView(pile: pile, metrics: metrics)
+                pileView(pile: pile, metrics: metrics, stack: stack)
             }
         }
     }
 
-    private func pileView(pile: Int, metrics: PlayingCardMetrics) -> some View {
+    private func pileView(pile: Int, metrics: PlayingCardMetrics, stack: CardStackLayout) -> some View {
         let column = model.board.piles[pile]
-        let downStep = SpiderMetrics.faceDownStep(cardHeight: metrics.height)
-        let upStep = SpiderMetrics.faceUpStep(cardHeight: metrics.height)
+        let downStep = stack.faceDownStep
+        let upStep = stack.faceUpStep
         let height = SpiderMetrics.pileHeight(
-            faceDownCount: column.faceDownCount, faceUpCount: column.faceUpCount, cardHeight: metrics.height)
+            faceDownCount: column.faceDownCount, faceUpCount: column.faceUpCount, cardHeight: metrics.height,
+            faceDownStep: downStep, faceUpStep: upStep)
 
         return ZStack(alignment: .top) {
             if column.isEmpty {
@@ -421,7 +435,7 @@ public struct SpiderView: View {
                 Group {
                     if faceUp {
                         faceUpCard(pile: pile, index: index, card: card, column: column,
-                                   restY: restY, metrics: metrics)
+                                   restY: restY, metrics: metrics, stack: stack)
                     } else {
                         faceDownCard(pile: pile, index: index, card: card, column: column,
                                      restY: restY, metrics: metrics)
@@ -431,10 +445,22 @@ public struct SpiderView: View {
                 .padding(.top, restY)
             }
         }
-        .frame(width: metrics.width, height: height, alignment: .top)
+        // 押せる範囲（ドロップ枠を含む）は**盤の下端まで**伸ばす（フリーセルと同じ）。
+        .frame(width: metrics.width, height: max(height, stack.reachHeight), alignment: .top)
         .cardDropTarget(SpiderDropTarget.pile(pile), in: Self.boardSpace)
         .contentShape(Rectangle())
-        .onTapGesture { model.tapPile(pile) }
+        .onTapGesture { tapBelowPile(pile) }
+    }
+
+    /// 列の下の空き（札の無いところ）を押したとき。**一番下の札を押したのと同じ**にする
+    /// （空の列なら空の列を押したのと同じ）。ドラッグは札にだけ付いているので、ここからは始まらない。
+    private func tapBelowPile(_ pile: Int) {
+        let count = model.board.piles[pile].cards.count
+        if count == 0 {
+            model.tapPile(pile)
+        } else {
+            model.tapPile(pile, cardIndex: count - 1)
+        }
     }
 
     private func faceDownCard(
@@ -445,7 +471,7 @@ public struct SpiderView: View {
             pile: pile, depth: index, restY: restY, metrics: metrics,
             dealing: model.isFreshDeal, fromStock: false
         ) {
-            SpiderCardBody(card: card, faceUp: false, isSelected: false, isCovered: false, metrics: metrics)
+            SpiderCardBody(card: card, faceUp: false, isSelected: false, coveredIndex: nil, metrics: metrics)
         }
         .id(model.dealSerial)
         .matchedGeometryEffect(id: motionID(card), in: cardMotion)
@@ -457,7 +483,7 @@ public struct SpiderView: View {
 
     private func faceUpCard(
         pile: Int, index: Int, card: SpiderCard, column: SpiderPile,
-        restY: CGFloat, metrics: PlayingCardMetrics
+        restY: CGFloat, metrics: PlayingCardMetrics, stack: CardStackLayout
     ) -> some View {
         let isSelected = model.selection == SpiderSelection(pile: pile, cardIndex: index)
         let isMovable = model.board.isMovableRun(pile: pile, from: index)
@@ -469,7 +495,7 @@ public struct SpiderView: View {
             SpiderCardBody(
                 card: card, faceUp: true, isSelected: isSelected,
                 // いちばん上の 1 枚だけが札の全体を出す（下に重なった札は左上の見出しだけ）。
-                isCovered: index < column.cards.count - 1,
+                coveredIndex: index < column.cards.count - 1 ? stack.index : nil,
                 metrics: metrics
             )
         }

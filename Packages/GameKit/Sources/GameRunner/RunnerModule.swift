@@ -13,9 +13,9 @@ public struct RunnerModule: GameModule {
     // `RunnerModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "runner"
     public let title = "チャリンコおじさん"
-    // ステージ数は #674 で 15 → 18 に増えた（乗れる台座の枠）。ハブの一覧に出る文言なので
+    // ステージ数は #674 で 15 → 18、#1009 で 18 → 30 に増えた。ハブの一覧に出る文言なので
     // `RunnerRules.stageCount` と食い違わないようにする（`RunnerModuleTests` が縛る）。
-    public let description = "タップで跳んで18ステージを走りぬけよう"
+    public let description = "タップで跳んで30ステージを走りぬけよう"
     // ハブのアイコンは自転車（会長指示 2026-09-16）。おじさんの顔（`OjisanPixel.mascotIcon`）は
     // おじさんシリーズを増やしたときに全部同じ顔になって見分けが付かなくなるので使わない。
     // ゲームごとの中身（この本なら自転車）で表す、他 19 本と同じ作法に揃える。

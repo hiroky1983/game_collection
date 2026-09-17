@@ -16,8 +16,8 @@ public struct RunnerField: Equatable, Sendable {
         /// 画面に見える横幅。
         ///
         /// 縦持ちの画面に載る帯の横幅なので、**広くしすぎない**。広げるほど 1 単位が
-        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（18 面の 47.6 / 秒）でも
-        /// 走者の前に 74 単位 = 約 1.5 秒ぶんの地形が見えるので、初見でも反応できる。
+        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（30 面の 57.2 / 秒・#1009）でも
+        /// 走者の前に 74 単位 = 約 1.3 秒ぶんの地形が見えるので、初見でも反応できる。
         public static let width: Double = 100
         /// 画面に見える縦幅。
         ///
@@ -55,7 +55,16 @@ public struct RunnerField: Equatable, Sendable {
         public static let maxSubstep: Double = 2
     }
 
+    /// 走っているコース。エンドレス（#1086）では速さの式だけを持つ空のコース
+    /// （`RunnerEndlessCourse.stage`）で、中身は `track` が持つ。
     public let stage: RunnerStage
+    /// エンドレスのコースの、いま走者のまわりにある区画（#1086）。ステージ制では nil。
+    ///
+    /// 障害・アイテム・台座・床の問い合わせは、ステージ制なら `stage` の配列を、エンドレスなら
+    /// この枠を見る（下の「コースの中身」）。枠は `advance(dt:into:)` が 1 サブステップごとに
+    /// 走者へ追いつかせる。**エンドレスにゴールとチェックポイントは無い**（`reachedGoal` /
+    /// `passedCheckpoint` を出さない）。
+    public private(set) var track: RunnerEndlessTrack?
     /// 走者の中心のワールド x。ステージ先頭が 0、`stage.length` でゴール。
     public private(set) var distance: Double
     /// 足元の高さ。`Metrics.groundY` が接地。
@@ -130,7 +139,13 @@ public struct RunnerField: Equatable, Sendable {
     ///
     /// 描画側はこの添字でノードを消す。**取得は先頭から順とは限らない**——チェックポイントから
     /// 再開すると手前のアイテムは取らないまま残る（#733）。
+    ///
+    /// エンドレス（#1086）では**区画の通し番号**（`RunnerEndlessSegment.index`）で覚える。枠の中の
+    /// 位置で覚えると、枠を回した瞬間に取っていないアイテムが消える／取ったアイテムが復活する。
+    /// 枠から捨てた区画の番号はここからも消す（距離に比例して増えない）。
     public private(set) var collectedPickupIndices: Set<Int> = []
+    /// エンドレスで、`collectedPickupIndices` からこの番号より手前の区画を消し終えている（#1086）。
+    private var collectedPickupsPrunedBelow = 0
 
     /// ステージの頭から始める。
     public init(stage: RunnerStage) {
@@ -150,9 +165,22 @@ public struct RunnerField: Equatable, Sendable {
         self.pedalBoost = 1
     }
 
+    /// エンドレスのコースを頭から走る（#1086）。コースは走りながら種 `seed` から作る。
+    public init(endlessSeed seed: UInt64) {
+        self.init(endless: RunnerEndlessTrack(seed: seed))
+    }
+
+    /// 枠の数などを変えた `track` で走る（テスト用）。
+    init(endless track: RunnerEndlessTrack) {
+        self.init(stage: RunnerEndlessCourse.stage)
+        self.track = track
+        // 取ったアイテムの番号は枠にある区画のぶんしか持たないので、枠の数だけ先に取っておく。
+        collectedPickupIndices.reserveCapacity(track.capacity)
+    }
+
     // MARK: - 問い合わせ
 
-    /// ゴールまでの進み具合（0〜1）。
+    /// ゴールまでの進み具合（0〜1）。エンドレス（#1086）にゴールは無く、常に 1（画面には出さない）。
     public var progress: Double {
         guard stage.length > 0 else { return 1 }
         return min(1, max(0, distance / stage.length))
@@ -187,7 +215,7 @@ public struct RunnerField: Equatable, Sendable {
     /// 「跳んで進む距離 = `speed × 滞空時間`」が崩れてステージの成立条件がやり直しになる。
     public var isOnBoostFloor: Bool {
         guard isGrounded else { return false }
-        return stage.boostFloors.contains { $0.start <= distance && distance < $0.end }
+        return firstBoostFloor { $0.start <= distance && distance < $0.end } != nil
     }
 
     /// いま無敵か（たこ焼き・#797）。true のあいだは岩・鳥・台座の正面に当たっても
@@ -208,7 +236,7 @@ public struct RunnerField: Equatable, Sendable {
 
     /// `x` に穴が開いているか（点で見る）。
     public func isPit(at x: Double) -> Bool {
-        stage.hazards.contains { $0.kind == .pit && $0.start <= x && x < $0.end }
+        firstHazard { $0.kind == .pit && $0.start <= x && x < $0.end } != nil
     }
 
     /// その x で**足が乗る高さ**（#674）。台座の範囲内なら台座の上面、外は地面。
@@ -223,7 +251,8 @@ public struct RunnerField: Equatable, Sendable {
     /// （次弾）に効く受け口として残してある。
     public func surfaceY(at x: Double) -> Double {
         var surface = Metrics.groundY
-        for platform in stage.platforms where platform.start <= x && x < platform.end {
+        forEachPlatform { platform in
+            guard platform.start <= x && x < platform.end else { return }
             surface = max(surface, Metrics.groundY + platform.top)
         }
         return surface
@@ -238,9 +267,9 @@ public struct RunnerField: Equatable, Sendable {
     /// （跳ぶ相手ではない）。
     public func nextHazard(from x: Double) -> RunnerHazard? {
         var best: (hazard: RunnerHazard, start: Double)?
-        for hazard in stage.hazards {
-            guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { continue }
-            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { continue }
+        forEachHazard { hazard in
+            guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { return }
+            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { return }
             if best == nil || frame.start < best!.start { best = (hazard, frame.start) }
         }
         return best?.hazard
@@ -258,7 +287,7 @@ public struct RunnerField: Equatable, Sendable {
     /// 左端がまだ前方にあるものだけを返す。すでに上に乗っている台座（左端を通り過ぎている）を
     /// 返してしまうと、自動操縦が台座の上で踏み切り続けることになる。
     public func nextPlatform(from x: Double) -> RunnerPlatform? {
-        stage.platforms.first { $0.start >= x }
+        firstPlatform { $0.start >= x }
     }
 
     // MARK: - 操作
@@ -340,6 +369,7 @@ public struct RunnerField: Equatable, Sendable {
         // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
         self.jumpStartDistance = self.isGrounded ? nil : distance
         self.lastMissCause = nil
+        advanceTrack()
     }
 
     // MARK: - 進行
@@ -418,13 +448,15 @@ public struct RunnerField: Equatable, Sendable {
         }
         let previousDistance = distance
         distance += currentSpeed * dt
+        // エンドレス（#1086）は、進んだぶんだけ前の区画を作って後ろの区画を捨てる。
+        advanceTrack()
 
         // 動く障害の予告の地点をこのサブステップでまたいだ（#801 イノシシの突進。犬は #955 で
         // 前から歩いて来るようになり予告を持たない）。手応え・土煙の発火点で、当たり判定には
         // 関わらない（位置は `frame(atRunnerDistance:)` が距離から引く）。チェックポイント再開で
         // この地点より先から走り出した場合は鳴らない（予告する相手がいない）。
-        for hazard in stage.hazards {
-            guard let cue = hazard.cue else { continue }
+        forEachHazard { hazard in
+            guard let cue = hazard.cue else { return }
             if previousDistance < cue.distance, cue.distance <= distance { events.append(cue.event) }
         }
 
@@ -483,19 +515,16 @@ public struct RunnerField: Equatable, Sendable {
         // 取っても (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
         // 乗り具合に関わらず必ず体感できる加速にする）。
         // たこ焼き（#797）は速さに触らず、無敵の残り時間を満タンにするだけ。
-        for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
-            guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { continue }
-            collectedPickupIndices.insert(index)
-            collectedPickupCount += 1
-            switch pickup.kind {
-            case .speed:
-                pedalBoost = RunnerRules.maxPedalBoost
-                pickupOverboost = RunnerRules.pickupOverboost
-                pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
-                events.append(.collectedSpeedItem)
-            case .invincible:
-                invincibleRemaining = RunnerRules.invincibleDuration
-                events.append(.collectedInvincibleItem)
+        if let track {
+            // エンドレス（#1086）は区画の通し番号で覚える（`collectedPickupIndices` を参照）。
+            for position in 0..<track.count {
+                let segment = track[position]
+                guard let pickup = segment.pickup, !collectedPickupIndices.contains(segment.index) else { continue }
+                collect(pickup, index: segment.index, into: &events)
+            }
+        } else {
+            for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
+                collect(pickup, index: index, into: &events)
             }
         }
 
@@ -523,6 +552,9 @@ public struct RunnerField: Equatable, Sendable {
             }
         }
 
+        // エンドレス（#1086）にチェックポイントとゴールは無い。
+        guard track == nil else { return }
+
         if !passedCheckpoint, distance >= stage.checkpoint {
             passedCheckpoint = true
             events.append(.passedCheckpoint)
@@ -531,6 +563,34 @@ public struct RunnerField: Equatable, Sendable {
         if distance >= stage.length {
             distance = stage.length
             events.append(.reachedGoal)
+        }
+    }
+
+    /// 走者の体に触れていればアイテムを取る。`index` は取得済みとして覚える番号（`collectedPickupIndices`）。
+    private mutating func collect(_ pickup: RunnerPickup, index: Int, into events: inout [RunnerEvent]) {
+        guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { return }
+        collectedPickupIndices.insert(index)
+        collectedPickupCount += 1
+        switch pickup.kind {
+        case .speed:
+            pedalBoost = RunnerRules.maxPedalBoost
+            pickupOverboost = RunnerRules.pickupOverboost
+            pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
+            events.append(.collectedSpeedItem)
+        case .invincible:
+            invincibleRemaining = RunnerRules.invincibleDuration
+            events.append(.collectedInvincibleItem)
+        }
+    }
+
+    /// エンドレスの枠を走者の位置に追いつかせ、枠から捨てた区画の取得済みの印を消す（#1086）。
+    private mutating func advanceTrack() {
+        guard track != nil else { return }
+        track!.advance(to: distance)
+        let firstIndex = track!.firstIndex
+        while collectedPickupsPrunedBelow < firstIndex {
+            collectedPickupIndices.remove(collectedPickupsPrunedBelow)
+            collectedPickupsPrunedBelow += 1
         }
     }
 
@@ -554,9 +614,11 @@ public struct RunnerField: Equatable, Sendable {
         jumpStartDistance = nil
         // 「直前に越えた障害」= この滞空のあいだに**中心 x が右端を通過した**障害のうち最後のもの。
         // `hazards` は左から順に並んでいるので `last` がそのまま「最後に越えたもの」になる。
-        guard let cleared = stage.hazards.last(where: {
-            Self.rewardsJustLanding($0.kind) && $0.end > takeOff && $0.end <= distance
-        }) else { return }
+        var cleared: RunnerHazard?
+        forEachHazard { hazard in
+            if Self.rewardsJustLanding(hazard.kind), hazard.end > takeOff, hazard.end <= distance { cleared = hazard }
+        }
+        guard let cleared else { return }
         guard distance - cleared.end <= RunnerRules.justLandingWindow else { return }
         // 上限（`maxPedalBoost`）を超える別枠に乗せる。重ねず、決め直すたびに上書きして
         // 満タンへ戻す（`pickupOverboost` と同じ扱い）。
@@ -589,7 +651,7 @@ public struct RunnerField: Equatable, Sendable {
     /// （`RunnerHazard.frame(atRunnerDistance:)`・#796）——上がりきった鳥は帯が頭より上に
     /// 抜けるので、同じ式のまま自然に当たらなくなる。
     private var hittingHazard: RunnerHazard? {
-        stage.hazards.first { hazard in
+        firstHazard { hazard in
             guard hazard.kind != .pit,
                   let frame = hazard.frame(atRunnerDistance: distance) else { return false }
             guard frame.start < playerMaxX, playerMinX < frame.end else { return false }
@@ -611,10 +673,58 @@ public struct RunnerField: Equatable, Sendable {
     /// 「足が上面ちょうど」という 2 つの等号の扱いを固定できない
     /// （`FieldTests.platformFaceIsInclusiveAtTheBoundary`）。
     var isHittingPlatformFace: Bool {
-        stage.platforms.contains { platform in
+        firstPlatform { platform in
             guard distance < platform.start else { return false }
             guard platform.start < playerMaxX else { return false }
             return footY < Metrics.groundY + platform.top
+        } != nil
+    }
+
+    // MARK: - コースの中身（#1086）
+    //
+    // ステージ制は `stage` の配列、エンドレスは `track` の枠を、どちらも**左から順に**見る。
+    // 当たり判定・接地・先読みはすべてここを通す（片方だけ直して食い違わないように）。
+
+    /// 障害を左から順に見て、`predicate` を満たす最初のもの。
+    private func firstHazard(where predicate: (RunnerHazard) -> Bool) -> RunnerHazard? {
+        guard let track else { return stage.hazards.first(where: predicate) }
+        for position in 0..<track.count {
+            if let hazard = track[position].hazard, predicate(hazard) { return hazard }
         }
+        return nil
+    }
+
+    /// 障害を左から順にすべて見る。
+    private func forEachHazard(_ body: (RunnerHazard) -> Void) {
+        guard let track else { return stage.hazards.forEach(body) }
+        for position in 0..<track.count {
+            if let hazard = track[position].hazard { body(hazard) }
+        }
+    }
+
+    /// 台座を左から順に見て、`predicate` を満たす最初のもの。
+    private func firstPlatform(where predicate: (RunnerPlatform) -> Bool) -> RunnerPlatform? {
+        guard let track else { return stage.platforms.first(where: predicate) }
+        for position in 0..<track.count {
+            if let platform = track[position].platform, predicate(platform) { return platform }
+        }
+        return nil
+    }
+
+    /// 台座を左から順にすべて見る。
+    private func forEachPlatform(_ body: (RunnerPlatform) -> Void) {
+        guard let track else { return stage.platforms.forEach(body) }
+        for position in 0..<track.count {
+            if let platform = track[position].platform { body(platform) }
+        }
+    }
+
+    /// スピードアップ床を左から順に見て、`predicate` を満たす最初のもの。
+    private func firstBoostFloor(where predicate: (RunnerBoostFloor) -> Bool) -> RunnerBoostFloor? {
+        guard let track else { return stage.boostFloors.first(where: predicate) }
+        for position in 0..<track.count {
+            if let floor = track[position].boostFloor, predicate(floor) { return floor }
+        }
+        return nil
     }
 }

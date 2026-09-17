@@ -120,18 +120,32 @@ private func playAllInUntilBust(_ model: BlackjackModel, maxRounds: Int = 40) {
 @MainActor
 struct BlackjackRewardedAdTests {
 
-    @Test("視聴完了なら初期チップの半分で復活する")
+    @Test("視聴完了なら 2000 枚で復活する（#523）")
     func recoversChipsWhenRewardEarned() async {
         let (model, ads, _) = makeBustedModel()
 
         let recovered = await model.recoverChipsAfterAd()
 
         #expect(recovered)
-        #expect(model.chips == 500, "初期チップ 1000 の半分")
-        #expect(model.chips == BlackjackModel.initialChips / 2)
+        #expect(model.chips == 2000, "会長決裁 C 案の枚数（#523）")
+        #expect(model.chips == BlackjackModel.reviveChips)
         #expect(!model.sessionOver)
         #expect(model.phase == .betting)
         #expect(ads.rewardedCount == 1)
+    }
+
+    /// 広告を見る理由を「チップが増える」で作る（#523）。将来どちらかの定数を触っても逆転させない。
+    @Test("復活のチップは、無料で最初からやり直すより必ず多い")
+    func reviveGivesMoreChipsThanFreeRestart() async {
+        #expect(BlackjackModel.reviveChips > BlackjackModel.initialChips)
+
+        // 定数の比較だけでなく、実際の 2 つの導線を通した結果でも比べる。
+        let (revived, _, _) = makeBustedModel()
+        #expect(await revived.recoverChipsAfterAd())
+        let (restarted, _, _) = makeBustedModel()
+        restarted.restartSession()
+        #expect(restarted.chips == BlackjackModel.initialChips, "無料のやり直しは満額のまま")
+        #expect(revived.chips > restarted.chips)
     }
 
     /// 広告のロード中はハブへ戻れる。戻ると Model は捨てられ、次に開くと別の Model が動くが、
@@ -161,7 +175,7 @@ struct BlackjackRewardedAdTests {
         let outcome = await model.reviveAfterAd()
 
         #expect(outcome == .unavailable, "見終えたのに適用できなかったことを、視聴しなかったことと分けて返す")
-        #expect(model.chips == BlackjackModel.initialChips, "新しいセッションの残高が半分に減らされている")
+        #expect(model.chips == BlackjackModel.initialChips, "新しいセッションの残高が復活の枚数に書き換えられている")
         #expect(!model.sessionOver)
         #expect(model.phase == .betting)
         #expect(ads.rewardedCount == 1)

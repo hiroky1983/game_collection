@@ -478,7 +478,7 @@ public enum RunnerEvent: Equatable, Sendable {
 /// コース（`RunnerEndlessCourse`）を**ミスするまで走って距離を競う**1 回完結のモードで、
 /// チェックポイントも中断保存も持たない（会長決裁 2026-09-12）。
 public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
-    /// 18 ステージを順にクリアしていく現行ルール。
+    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界）。
     case stages
     /// 走行距離を競うエンドレス（#675）。
     case endless
@@ -495,7 +495,8 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
     /// 開始シートに出す 1 行の説明。
     public var summary: String {
         switch self {
-        case .stages:  return "ステージ 1 から 18 面を順にクリアして、3 つの世界を先へ進む、いつもの遊び方"
+        case .stages:
+            return "ステージ 1 から \(RunnerRules.stageCount) 面を順にクリアして、\(RunnerWorld.allCases.count) つの世界を先へ進む、いつもの遊び方"
         case .endless: return "毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません"
         }
     }
@@ -556,7 +557,7 @@ public enum RunnerResultFace {
     /// 局面に応じた表情。顔を出さない局面（走行中・一時停止・落下演出中）は nil。
     ///
     /// - ready: 笑顔（スタート画面の主ボタンの左に小さく）
-    /// - cleared / allCleared: ガッツポーズ（エンドレスの「走りきった」も含む）
+    /// - cleared / allCleared: ガッツポーズ（ステージ制のクリア。エンドレスはこの局面にならない・#1086）
     /// - failed: しかめ面。ただしエンドレスで自己ベストを更新した回はガッツポーズ
     ///   （ミスで終わる決着なので、記録が伸びたことのほうを喜ばせる）
     public static func face(for phase: RunnerPhase, isNewBest: Bool = false) -> OjisanPixel.Face? {

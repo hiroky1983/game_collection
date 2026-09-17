@@ -95,9 +95,13 @@ public final class PokerModel {
 
     // MARK: チップ切れ復活（#499）
 
-    /// 復活で戻るプレイヤーのチップ。初期チップの**半分**。導線の文言もこの値から作る
-    /// （数え違いを1か所に閉じる）。
-    public static let reviveChips = PokerModel.initialChips / 2
+    /// 復活で戻るプレイヤーのチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
+    ///
+    /// **無料の「もう一度はじめる」（`initialChips`）より必ず多くする**（#523 会長決裁 C 案）。以前は半分の
+    /// 50 枚で、復活は順位表にも載らないため無料のやり直しの完全な下位互換になり、`revival` が 0 件だった。
+    /// CPU との 1 対 1 ではチップの多さがそのまま勝ちやすさになるので、ブラックジャック（倍）より控えめの
+    /// 1.5 倍にしている。CPU 側は復活でも `initialChips` のまま。
+    public static let reviveChips = 150
 
     /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
     private var hasRevivedThisSession = false
@@ -686,9 +690,9 @@ public final class PokerModel {
     ///   いつでも押せる増量ボタンではない）。
     /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
     ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
-    /// - 戻すのは**プレイヤーだけ初期チップの半分**で、CPU は初期チップに戻す。
+    /// - プレイヤーは `reviveChips`（初期チップより多い）、CPU は初期チップに戻す（#523）。
     ///   CPU の持ち点は勝ち取った資産ではなく卓の設定値なので、そのまま（勝ち越したぶん）残すと
-    ///   50 対 250 の卓になって復活の意味が消える。半分の手持ちで対等な卓に戻る、が復活の価値。
+    ///   150 対 250 の卓になって復活の意味が消える。初期より多い手持ちで卓に戻る、が復活の価値。
     /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
     /// - 広告のあいだに「もう一度はじめる」でセッションが入れ替わっていたら適用しない（#728）。
     /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
@@ -707,7 +711,7 @@ public final class PokerModel {
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
         guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
         // 広告のロード〜視聴のあいだも画面は操作できる。「もう一度はじめる」で新しいセッションが
-        // 始まっていたら、そこへ復活が乗って 100 → 50 枚になり、復活権と順位表資格まで消える（#728）。
+        // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#728）。
         // ブラックジャック（#727）と同じく、通し番号と救済できる状態を見直す。
         guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisSession = true

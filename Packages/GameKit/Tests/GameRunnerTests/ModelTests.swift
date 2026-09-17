@@ -608,13 +608,133 @@ struct RunnerStageSelectTests {
         #expect(RunnerSnapshot(stage: 5, bestSeconds: [], reachedStage: 9).validated()?.reachedStage == 9)
     }
 
-    @Test("最終面をクリアしても到達点は 18 のまま（19 にはならない）")
+    /// #1009 の受け入れ条件 F: **v1.1.5 で全 18 面をクリアした人は、30 面の版で 19 面を選べる**。
+    /// v1.1.5 の中断データの到達点は最終面の 18 で頭打ちなので、到達点だけでは足した面が開かない。
+    /// 記録（本編の `bestPoints` = クリアした面の番号）を根拠に次の面まで開ける。
+    @Test("v1.1.5 で 18 面をクリアしていた人は、中断データが 18 のままでも 19 面を選べる")
+    func clearedLastStageOfOlderVersionUnlocksTheNextStage() {
+        let store = MemorySnapshotStore()
+        store.inject(Data(#"{"stage":18,"bestSeconds":[],"reachedStage":18}"#.utf8), for: "runner")
+        let log = makePlayLog("cleared-18")
+        log.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 18))
+        let model = RunnerModel(services: makeServices(store: store, log: log),
+                                preference: makePreference("select-cleared-18"))
+        #expect(model.stageNumber == 18, "再開する面は中断データのまま")
+        #expect(model.reachedStage == 19)
+        #expect(model.isStageReached(19))
+        #expect(!model.isStageReached(20))
+
+        // 開けた到達点はその場で保存し直す（次に開いたときは中断データだけで 19 まで選べる）。
+        let saved = store.load(RunnerSnapshot.self, for: "runner")
+        #expect(saved?.reachedStage == 19)
+
+        // 対照: 18 面に着いただけでクリアしていない人（記録は 17 面まで）は 19 面を選べない。
+        let reachedOnly = MemorySnapshotStore()
+        reachedOnly.inject(Data(#"{"stage":18,"bestSeconds":[],"reachedStage":18}"#.utf8), for: "runner")
+        let log17 = makePlayLog("cleared-17")
+        log17.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 17))
+        let notYet = RunnerModel(services: makeServices(store: reachedOnly, log: log17),
+                                 preference: makePreference("select-cleared-17"))
+        #expect(notYet.reachedStage == 18)
+        #expect(!notYet.isStageReached(19))
+    }
+
+    /// 同じく F: **v1.1.4 の「全 15 面クリア」**（到達点の鍵が無く、ステージごとのタイムを持つ旧形式）も
+    /// 記録から次の面を開ける。エンドレスの記録（区分 `endless`）は面の番号ではないので根拠にしない。
+    @Test("v1.1.4 で全 15 面をクリアしていた人は 16 面を選べ、エンドレスの記録では開かない")
+    func clearedAllStagesOfV114UnlocksStageSixteen() {
+        let store = MemorySnapshotStore()
+        let times = Array(repeating: 20, count: 15).map(String.init).joined(separator: ",")
+        store.inject(Data(#"{"stage":15,"bestSeconds":[\#(times)]}"#.utf8), for: "runner")
+        let log = makePlayLog("cleared-15")
+        log.recordResult(gameID: RunnerModel.gameID, outcome: .win, score: GameScore(metric: .points, points: 15))
+        let model = RunnerModel(services: makeServices(store: store, log: log),
+                                preference: makePreference("select-cleared-15"))
+        #expect(model.stageNumber == 15)
+        #expect(model.reachedStage == 16)
+        #expect(model.isStageReached(16))
+
+        let endlessOnly = makePlayLog("endless-only")
+        endlessOnly.recordResult(
+            gameID: RunnerModel.gameID, outcome: .loss,
+            score: GameScore(metric: .points, points: 5000, variant: RunnerMode.endless.recordVariant)
+        )
+        let fresh = RunnerModel(services: makeServices(log: endlessOnly), preference: makePreference("select-endless-only"))
+        #expect(fresh.reachedStage == 1, "エンドレスの走行距離で面は開かない")
+
+        // 記録の値から見た到達点の境界（無い・壊れた値は 1 面、最終面を超えない）。
+        #expect(RunnerModel.reachedStage(afterClearing: nil) == 1)
+        #expect(RunnerModel.reachedStage(afterClearing: 0) == 1)
+        #expect(RunnerModel.reachedStage(afterClearing: -3) == 1)
+        #expect(RunnerModel.reachedStage(afterClearing: 18) == 19)
+        #expect(RunnerModel.reachedStage(afterClearing: RunnerRules.stageCount) == RunnerRules.stageCount)
+        #expect(RunnerModel.reachedStage(afterClearing: 999) == RunnerRules.stageCount)
+        #expect(RunnerModel.reachedStage(afterClearing: Int.max) == RunnerRules.stageCount, "溢れて落ちない")
+    }
+
+    @Test("最終面をクリアしても到達点は最終面のまま（その次にはならない）")
     func reachedStageIsCappedAtLastStage() {
         let model = RunnerModel(startingAt: RunnerRules.stageCount, preference: makePreference("select-cap"))
         autoPlayCurrentStage(model)
         #expect(model.phase == .allCleared)
         #expect(model.reachedStage == RunnerRules.stageCount)
         #expect(!model.isStageReached(RunnerRules.stageCount + 1))
+    }
+}
+
+/// 開始シート（#1027）を `onAppear` で自動で出すかどうかの判定（#1063）。
+///
+/// 局面（`.ready`）だけを見る作りだと、QA・撮影用の起動（`-simulateRunner`）で作った画にも
+/// シートが被る——`showcase` のように `.ready` のまま止まるシナリオがあるうえ、判定が
+/// 起動引数の適用より前に走っていた。引数を見る純関数に切り出してここで固定する。
+@Suite("チャリンコおじさん: 開始シートの自動表示（#1063）")
+@MainActor
+struct RunnerStartSheetGateTests {
+
+    private func shouldPresent(_ arguments: [String], phase: RunnerPhase = .ready) -> Bool {
+        RunnerView.shouldPresentStartSheet(
+            arguments: arguments, phase: phase, canChooseMode: true,
+            showsTutorial: false, showStartSheet: false
+        )
+    }
+
+    @Test("ハブから開いた直後（走り出す前）は出す")
+    func presentsWhenOpenedFromHub() {
+        #expect(shouldPresent(["app"]))
+    }
+
+    @Test("QA・撮影用の起動（-simulateRunner）では出さない")
+    func hiddenForDebugScenarios() {
+        // ASO 撮影（`Scripts/capture-aso-screenshots.sh` の `05-runner`）と QA の見比べ。
+        #expect(!shouldPresent(["app", "-simulateRunner", "bird:5"]))
+        // `.ready` のまま止まるシナリオも被らない（局面だけでは判別できない）。
+        #expect(!shouldPresent(["app", "-simulateRunner", "showcase"]))
+        // 開始シートそのものを撮る `-showRunnerStartSheet` だけが開く（経路は `openStartSheet`）。
+        #expect(!shouldPresent(["app", "-simulateRunner", "running", "-showRunnerStartSheet"]))
+    }
+
+    @Test("撮影モード（-screenshotMode）では出さない")
+    func hiddenInScreenshotMode() {
+        #expect(!shouldPresent(["app", "-screenshotMode"]))
+    }
+
+    @Test("走り出したあと・チェックポイント再開の直後・ガイドやシートを出している間は出さない")
+    func hiddenWhileBusy() {
+        for phase: RunnerPhase in [.running, .paused, .falling, .failed, .cleared, .allCleared] {
+            #expect(!shouldPresent(["app"], phase: phase))
+        }
+        #expect(!RunnerView.shouldPresentStartSheet(
+            arguments: ["app"], phase: .ready, canChooseMode: false,
+            showsTutorial: false, showStartSheet: false
+        ), "広告で得た再開を誤って手放させない")
+        #expect(!RunnerView.shouldPresentStartSheet(
+            arguments: ["app"], phase: .ready, canChooseMode: true,
+            showsTutorial: true, showStartSheet: false
+        ), "初回の操作ガイドの上に重ねない")
+        #expect(!RunnerView.shouldPresentStartSheet(
+            arguments: ["app"], phase: .ready, canChooseMode: true,
+            showsTutorial: false, showStartSheet: true
+        ), "すでに出ている")
     }
 }
 
@@ -893,6 +1013,86 @@ struct RunnerStageFlowTests {
     }
 }
 
+/// 1 回の走行に `game_start` 1 本・`game_end` 1 本（#1064）。
+///
+/// PR #1028 以降、初回起動（中断データ無し）は「画面を開いた `init` で 1 本 → 開始シートの
+/// 『スタート』（`newGame`）で 2 本目」になっていた。逆に 2 回目以降はシートを閉じて
+/// コースをタップしても `init` も `newGame` も通らず 0 本だった。数えるのは**面を選んで
+/// 始めたとき**（`newGame*` / `advanceToNextStage`）と**走り出したとき**（`beginRun`・冪等）だけ。
+@Suite("チャリンコおじさん: 1 走行 = game_start 1 本（#1064）")
+@MainActor
+struct RunnerPlayCountTests {
+
+    @MainActor
+    private final class SpyAnalyticsService: AnalyticsService {
+        private(set) var events: [AnalyticsEvent] = []
+        func log(_ event: AnalyticsEvent) { events.append(event) }
+    }
+
+    private func makeAnalytics(_ spy: SpyAnalyticsService) -> GameServices {
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+        )
+        return GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+    }
+
+    private func starts(_ spy: SpyAnalyticsService) -> [String] {
+        spy.events.compactMap { event -> String? in
+            if case let .gameStart(_, level, _) = event { return level?.parameterValue ?? "-" } else { return nil }
+        }
+    }
+
+    private func ends(_ spy: SpyAnalyticsService) -> [AnalyticsResult] {
+        spy.events.compactMap { event -> AnalyticsResult? in
+            if case let .gameEnd(_, result, _, _, _) = event { return result } else { return nil }
+        }
+    }
+
+    @Test("中断データ無し: 開いて「スタート」で 1 面を走ると game_start 1 本・game_end 1 本")
+    func freshStartSendsOneStart() {
+        let spy = SpyAnalyticsService()
+        // 本番の入口（ハブから開く）。中断データが無いので 1 面のスタート画面に着く。
+        let model = RunnerModel(services: makeAnalytics(spy), preference: makePreference("count-fresh"))
+        #expect(starts(spy).isEmpty, "画面を開いただけでは数えない（まだモードも面も選んでいない）")
+
+        // 開始シートの「スタート」（ステージ制・1 面）。
+        #expect(model.newGame(startingAtStage: 1))
+        #expect(starts(spy) == ["stage-1"])
+
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(starts(spy) == ["stage-1"], "走り出しでは増えない（`gameDidStart` は冪等）")
+        #expect(ends(spy).count == 1)
+    }
+
+    @Test("中断データ有り: 開始シートを閉じてコースをタップした走行も game_start 1 本・game_end 1 本")
+    func tapToStartSendsOneStart() {
+        let store = MemorySnapshotStore()
+        // 2 面まで進んで閉じたあと（中断データ = 走る面と到達点の控え）。解析は付けずに作る。
+        _ = RunnerModel(services: makeServices(store: store), startingAt: 2, preference: makePreference("count-seed"))
+
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let services = GameServices(snapshots: store, ads: NoopAdService(), analytics: analytics)
+        let model = RunnerModel(services: services, preference: makePreference("count-resume"))
+        #expect(model.stageNumber == 2, "中断データから 2 面に戻る")
+        #expect(starts(spy).isEmpty, "復元しただけでは数えない")
+
+        // シートをキャンセルしてコースをタップした（`press`）＝走り出し。
+        model.press()
+        model.release()
+        #expect(model.phase == .running)
+        #expect(starts(spy) == ["stage-2"], "走り出しで 1 本")
+
+        autoPlayCurrentStage(model)
+        #expect(model.phase == .cleared)
+        #expect(starts(spy) == ["stage-2"])
+        #expect(ends(spy).count == 1)
+    }
+}
+
 /// ハブの記録行（#931）。Core の表記（`RecordFormat.runnerStageLine`）は世界の割り方を写して
 /// いるので、`RunnerWorld` とずれていないことをここで突き合わせる（Core からは参照できない）。
 @Suite("チャリンコおじさん: ハブの記録行（到達した面）")
@@ -1036,8 +1236,10 @@ struct RunnerAccessibilityTests {
         #expect(RunnerAccessibility.stageHeadline(number: 2) == "1-2")
         #expect(RunnerAccessibility.stageHeadline(number: 9) == "2-3")
         #expect(RunnerAccessibility.stageHeadline(number: 18) == "3-6")
-        #expect(RunnerAccessibility.stageHeadline(number: 0) == "ステージ 0", "3 世界に収まらない番号は「ステージ N」")
-        #expect(RunnerAccessibility.stageHeadline(number: 19) == "ステージ 19")
+        #expect(RunnerAccessibility.stageHeadline(number: 19) == "4-1")
+        #expect(RunnerAccessibility.stageHeadline(number: 30) == "5-6")
+        #expect(RunnerAccessibility.stageHeadline(number: 0) == "ステージ 0", "どの世界にも収まらない番号は「ステージ N」")
+        #expect(RunnerAccessibility.stageHeadline(number: 31) == "ステージ 31")
         #expect(RunnerAccessibility.startStageLabel(number: 2) == "1-2 から走る")
         #expect(RunnerAccessibility.startEndlessLabel(bestDistance: 1234) == "エンドレス、自己ベスト 1,234 メートル")
         #expect(RunnerAccessibility.startEndlessLabel(bestDistance: nil) == "エンドレス、まだ記録なし")

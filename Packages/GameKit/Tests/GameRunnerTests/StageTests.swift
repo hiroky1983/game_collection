@@ -9,11 +9,23 @@ import Testing
 @Suite("チャリンコおじさん: ステージ定義")
 struct RunnerStageTests {
 
-    @Test("受け入れ条件どおり 18 ステージある")
+    @Test("受け入れ条件どおり 30 ステージある")
     func stageCount() {
-        // #494 の受け入れ条件は「最低15ステージ」。16〜18 は乗れる台座の枠（#674）。
-        #expect(RunnerRules.stageCount == 18)
-        #expect(RunnerStage.all.map(\.number) == Array(1...18))
+        // #494 の受け入れ条件は「最低15ステージ」。16〜18 は乗れる台座の枠（#674）、
+        // 19〜30 は里山・港町の 2 世界（#1009）。
+        #expect(RunnerRules.stageCount == 30)
+        #expect(RunnerStage.all.map(\.number) == Array(1...30))
+    }
+
+    /// **16〜18 面のパターン文字列もリテラルで固定する**（#1009 の受け入れ条件「1〜18 面のパターンは
+    /// 1 文字も変えない」）。19 面以降を足すときに既に遊ばれている面を巻き込んでいないことを押さえる。
+    @Test("16〜18 ステージのパターン文字列が固定値どおり")
+    func platformStagePatternsArePinned() {
+        #expect(RunnerStage.all[15..<18].map(\.pattern) == [
+            "--t2nt-PP-=-t3nbdk12t-PPP--",
+            "--PP-PP-t3ndkt2n==-tb1it2---",
+            "--PP-t3bn2td1n-PPP-==-tb2tb--",
+        ])
     }
 
     /// **1〜15 面のパターン文字列をリテラルで固定する**。
@@ -81,10 +93,47 @@ struct RunnerStageTests {
     @Test("障害の総数は面が進んでも減らない（1〜15 面と、台座枠の 16〜18 面それぞれで）")
     func hazardCountsNeverDecrease() {
         let counts = RunnerStage.all.map(\.hazards.count)
-        for group in [Array(counts.prefix(15)), Array(counts.suffix(3))] {
+        for group in [Array(counts[0..<15]), Array(counts[15..<18])] {
             for (previous, next) in zip(group, group.dropFirst()) {
                 #expect(previous <= next, "障害数が減っている: \(counts)")
             }
+        }
+    }
+
+    /// **里山・港町（#1009）の難易度の筋**。
+    ///
+    /// - 世界の中では障害の数（新しい仕組みの仮置きを含む）が面番号に対して減らない
+    ///   （#1009 は「おおむね増える」で厳密な単調増加は求めていないが、手で組んだ 12 面は減らない並びに
+    ///   してあるので、崩したときに気付けるよう固定する）
+    /// - 19 面は 18 面以上（新しい世界に入って急に易しくならない）
+    /// - 各世界の最初の面（19・25）は、直前の世界の最後の面（18・24）より極端に難しくならない
+    ///   （目安として +3 個まで。世界が変わった直後は新しい仕組みを覚える面なので数で押さない）
+    @Test("里山・港町の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
+    func newWorldHazardCountsNeverDecrease() {
+        let counts = RunnerStage.all.map(\.hazards.count)
+        #expect(counts.count == 30)
+        for range in [18..<24, 24..<30] {
+            let group = Array(counts[range])
+            for (previous, next) in zip(group, group.dropFirst()) {
+                #expect(previous <= next, "世界の中で障害数が減っている: \(group)")
+            }
+        }
+        #expect(counts[18] >= counts[17], "19 面（\(counts[18]) 個）が 18 面（\(counts[17]) 個）より少ない")
+        for (last, first) in [(17, 18), (23, 24)] {
+            #expect(
+                counts[first] <= counts[last] + 3,
+                "\(first + 1) 面（\(counts[first]) 個）が \(last + 1) 面（\(counts[last]) 個）より極端に多い"
+            )
+        }
+    }
+
+    /// 同じ世界の中で同じ並びが 2 面続かないこと（#1009 C2「ザル」で飽きられない最低線）。
+    /// 区画数が面ごとに違うので今は構造的に起きないが、`rampsUp` を崩したときの保険として持つ。
+    @Test("同じ世界の中で同じパターン文字列が 2 面続かない")
+    func consecutiveStagesInAWorldDiffer() {
+        for (previous, next) in zip(RunnerStage.all, RunnerStage.all.dropFirst())
+        where RunnerWorld.world(forStage: previous.number) == RunnerWorld.world(forStage: next.number) {
+            #expect(previous.pattern != next.pattern, "ステージ \(previous.number) と \(next.number) が同じ並び")
         }
     }
 
@@ -163,7 +212,7 @@ struct RunnerStageTests {
         #expect(last < RunnerRules.endlessMaxSpeed, "\(room) 面の速さ \(last) が上限 \(RunnerRules.endlessMaxSpeed) を超える")
         #expect(RunnerStage.all.count <= room)
         let current = RunnerStage.all.map(\.speed).max() ?? 0
-        #expect(abs(current - 47.6) < 1e-9, "18 面の速さは 47.6（#968）。変えたら doc の直値も直す")
+        #expect(abs(current - 57.2) < 1e-9, "30 面の速さは 57.2（#1009）。変えたら doc の直値も直す")
     }
 
     @Test("区画数と速さがステージ番号どおりに増える")
@@ -420,7 +469,7 @@ struct RunnerStageTests {
 
     /// #672 のスコープ: **既存15ステージには床を置かない**（本番への投入は新ステージ・#674）。
     /// 床は #674 で 16〜18 面に入ったので、ここが見るのは先頭 15 面だけ
-    /// （16〜18 に床があることは `newStagesHaveBoostFloors` が別に固定する）。
+    /// （16 面以降に床があることは `newStagesHaveBoostFloors` が別に固定する）。
     @Test("既存15ステージにはスピードアップ床を置かない")
     func existingStagesHaveNoBoostFloors() {
         for stage in RunnerStage.all.prefix(15) {
@@ -448,7 +497,7 @@ struct RunnerStageTests {
     ///   `platformsHaveFlatGroundOnBothSides` が要求している）
     ///
     /// 対象は 16 面以降と QA用ショーケース（`stagesUnderLayoutRules`）。どちらも床を持つ。
-    @Test("新ステージ 16〜18 とショーケースの床は、直後が素の平地・台座の隣ではない")
+    @Test("16 面以降とショーケースの床は、直後が素の平地・台座の隣ではない")
     func newStagesHaveBoostFloors() {
         for stage in stagesUnderLayoutRules.dropFirst(15) {
             #expect(!stage.boostFloors.isEmpty, "ステージ \(stage.number) に床が無い")
@@ -617,8 +666,8 @@ struct RunnerStageTests {
         }
     }
 
-    /// 台座は 16〜18 にだけ置く（既存 15 面の物差しを動かさない・#674）。
-    @Test("台座はステージ 16〜18 にだけ置かれている")
+    /// 台座は 16 面以降にだけ置く（既存 15 面の物差しを動かさない・#674。19〜30 面は #1009 でわら積み・木箱として置く）。
+    @Test("台座はステージ 16 以降にだけ置かれている")
     func platformsOnlyAppearInTheNewStages() {
         for stage in RunnerStage.all {
             if stage.number >= 16 {
@@ -658,7 +707,7 @@ struct RunnerStageTests {
 
     // MARK: - 区画記号の展開（#833）
     //
-    // 上のテストは 18 ステージの生成物をまとめて検めるので、展開そのものの境界（置く位置・まとめ方・
+    // 上のテストは全ステージの生成物をまとめて検めるので、展開そのものの境界（置く位置・まとめ方・
     // 無視する記号）は固定されない。1 区画 = 64、区画の中央のずれ = 24 で、関数ごとに直接縛る。
 
     @Test("区画記号 → 障害: 区画の中央に置き、穴は表記 + 1 タイル。障害でない記号は無視する")
@@ -1056,7 +1105,7 @@ struct RunnerPlaythroughTests {
     /// 「クリアできる」だけなら、台座に一度も乗らずに済むコース——例えば台座が短くて
     /// 跳び越せてしまう配置——でも通ってしまう。新ステージのすべての台座について、
     /// 自動操縦が実際に上面へ足を乗せて走ったことを確かめる。
-    @Test("新ステージ 16〜18 では、置いたすべての台座の上を実際に走る")
+    @Test("16 面以降では、置いたすべての台座の上を実際に走る")
     func newStagesActuallyUsePlatforms() {
         for number in 16...RunnerRules.stageCount {
             guard let stage = RunnerStage.stage(number: number) else {

@@ -26,7 +26,7 @@ enum RunnerPixelArt {
         "T": 0xE6C98C,
     ]
 
-    /// 縁取り（焦げ茶寄りの黒）。3 世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
+    /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
     /// 濃さで、朝のパステルの丘・壁、夕方の手前の丘（0x6E5A96・いちばん厳しい）の上でも輪郭が立つ
     /// （`WorldTests` が 3:1 を固定。朝の値 0x241A14 は夕方の丘に 2.9 で届かないので一段暗い）。
     static let outline: UInt32 = 0x1A120E
@@ -80,7 +80,7 @@ enum RunnerPixelArt {
     }
 
     /// 犬・イノシシのパレットは**世界ごと**（`RunnerWorld.creatures`・#929「朝は暗く、夜は明るく」）。
-    /// たこ焼きのように 1 つの色で 3 世界を通すことはできない——イノシシらしい暗い茶は夜の路面
+    /// たこ焼きのように 1 つの色で全世界を通すことはできない——イノシシらしい暗い茶は夜の路面
     /// （0x353A48）と 2:1 に届かず、縁取りも暗いので夜には沈む（`WorldTests` の
     /// `creatureBodiesStandOutFromBackdrops` が主色だけで 3:1 を求める）。そこで文字は固定し、
     /// 色だけを世界の `Creatures` から写す。`K` は世界の縁取り（`creatures.outline`）。
