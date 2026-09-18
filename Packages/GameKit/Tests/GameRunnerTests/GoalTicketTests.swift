@@ -263,6 +263,61 @@ struct RunnerGoalTicketTests {
         #expect(scene.player.position.x > RunnerField.Metrics.width, "走者が画面内に残っている")
     }
 
+    /// 演出が明けたら走者は画面の中央へ戻らない（半透明のリザルトの裏で瞬間移動して見えるため）。
+    /// 飛ばした場合も同じ画にする——飛ばす経路は `sync` を 1 度も通らないことがある
+    /// （撮影シナリオ `-simulateRunner cleared`）ので、`RunnerModel.didFinishGoalChase` で判断する。
+    @Test("演出のあとのリザルトでは、走者も宝くじも走り去った先に残る（飛ばしても同じ）", arguments: [false, true])
+    func theResultKeepsTheRiderOffScreen(skipped: Bool) throws {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("goal-after-\(skipped)"))
+        let scene = RunnerScene(model: model)
+        scene.reduceMotionOverride = false
+        scene.rebuildCourse()
+        #expect(runToGoal(model))
+
+        if skipped {
+            // 1 フレームも `sync` を通さずに飛ばす（撮影シナリオと同じ道）。
+            model.skipGoalChase()
+        } else {
+            model.tick(dt: RunnerRules.goalChaseDuration)
+        }
+        #expect(model.phase == .cleared)
+        #expect(model.didFinishGoalChase)
+
+        scene.sync()
+        #expect(scene.player.position.x > RunnerField.Metrics.width, "走者が画面の中央へ戻っている")
+        let ticket = try #require(scene.goalTicket)
+        #expect(ticket.position.x > scene.goalTicketBase.x, "宝くじがゴールの位置に残っている")
+        #expect(ticket.action(forKey: RunnerScene.loopActionKey) == nil, "飛んだあとも揺れ続けている")
+
+        // 次の面・やり直しでは元に戻る。
+        model.replayCurrentStage()
+        #expect(!model.didFinishGoalChase)
+        scene.sync()
+        #expect(abs(scene.player.position.x - RunnerField.Metrics.playerX) < 0.001)
+    }
+
+    @Test("空中でゴールしても、走者は地面へ降りて漕ぐコマで走り去る")
+    func theRiderLandsBeforeRunningAway() {
+        // コマの選び方は純関数で固定する（空中＝`isGrounded == false` でも `jump` にしない）。
+        #expect(RunnerRider.frame(phase: .chasing, isGrounded: false, pedalPhase: 0) == .ride0)
+        #expect(RunnerRider.frame(phase: .chasing, isGrounded: false, pedalPhase: .pi) == .ride1)
+        // 比較対象: 走行中の空中は今までどおり `jump`。
+        #expect(RunnerRider.frame(phase: .running, isGrounded: false, pedalPhase: 0) == .jump)
+
+        // 足元の高さは純関数で固定する（空中でゴールする局面は自動操縦では狙って作れない）。
+        let ground = RunnerField.Metrics.groundY
+        let air = ground + 12
+        #expect(RunnerScene.goalChaseRiderY(startY: air, progress: 0) == air, "演出の頭は着いた高さのまま")
+        let mid = RunnerScene.goalChaseRiderY(startY: air, progress: RunnerScene.goalChaseLandingRatio / 2)
+        #expect(mid > ground && mid < air, "降りている途中でない（\(mid)）")
+        #expect(RunnerScene.goalChaseRiderY(startY: air, progress: RunnerScene.goalChaseLandingRatio) == ground)
+        #expect(RunnerScene.goalChaseRiderY(startY: air, progress: 1) == ground, "降りたあとに浮き直している")
+        // 接地したままゴールしたふつうの場合は、最初から最後まで地面のまま。
+        for p in [0.0, 0.2, 0.5, 1.0] {
+            #expect(RunnerScene.goalChaseRiderY(startY: ground, progress: p) == ground)
+        }
+    }
+
     // MARK: Reduce Motion
 
     /// **`Motion.override`（プロセス全体）ではなくシーンごとの注入口を使う。**

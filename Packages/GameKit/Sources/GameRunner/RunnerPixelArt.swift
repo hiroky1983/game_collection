@@ -21,7 +21,7 @@ enum RunnerPixelArt {
         "d": 0xB8682A,
         "S": 0x5C2C10,
         "s": 0x8E4A1E,
-        "M": 0xFAF6EC,
+        "M": paperWhite,
         "A": 0x3F8F4C,
         "T": 0xE6C98C,
         // 港町の置物（#1009）。`H`/`h` はロープの麻色 2 階調、`N`/`n`/`L` はドラム缶の青 3 階調
@@ -47,8 +47,8 @@ enum RunnerPixelArt {
         "O": 0xC85B45,
         // 宝くじ（#1092）。`Y` は券面の上帯（金）、`P` はそこに刷られた赤い文字・罫線。
         // 紙そのものは既にある `M`（生成りの白）と `T`（淡いクリーム＝切り取り線の側）を使う。
-        "Y": 0xE4B23C,
-        "P": 0xC6314C,
+        "Y": lotteryBand,
+        "P": lotteryPrint,
     ]
 
     /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
@@ -58,6 +58,14 @@ enum RunnerPixelArt {
 
     /// たこ焼きの生地の主色（きつね色）。岩のグレー・地面の茶・鳥の緑のどれとも系統が違う食べ物の色。
     static let takoyakiDough: UInt32 = 0xE8A860
+
+    /// 生成りの白（`M`）。たこ焼きのマヨと、宝くじの券面（#1092）の主色を兼ねる。
+    /// **宝くじが背景から浮くかの検査（`WorldTests.foregroundStandsOutFromBackdrops`）はこの色を見る。**
+    static let paperWhite: UInt32 = 0xFAF6EC
+    /// 宝くじの上帯（金）。
+    static let lotteryBand: UInt32 = 0xE4B23C
+    /// 宝くじに刷られた赤い文字・罫線。
+    static let lotteryPrint: UInt32 = 0xC6314C
 
     // MARK: たこ焼き（`RunnerPickupKind.invincible`・#797 → #956）
 

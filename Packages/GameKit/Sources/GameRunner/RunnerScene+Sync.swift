@@ -52,6 +52,13 @@ extension RunnerScene {
                 goalTicket?.removeAction(forKey: Self.loopActionKey)
             }
             syncGoalChase(field, progress: model.goalChaseProgress)
+        } else if model.didFinishGoalChase {
+            // 演出が明けたあと（リザルトを出しているあいだ）。**走り去った先に置いたまま**にする。
+            // 下の `else` に落とすと走者が 1 フレームで画面の中央へ戻り、半透明のリザルトの裏で
+            // 瞬間移動して見える。演出を飛ばした場合（`sync` を 1 度も通っていない撮影シナリオ
+            // `-simulateRunner cleared` を含む）もここを通るので、飛ばしても見終えても同じ画になる。
+            if lastSyncedPhase != .chasing { goalTicket?.removeAction(forKey: Self.loopActionKey) }
+            syncGoalChase(field, progress: 1)
         } else {
             // 沈む床（#1089）では**絵だけ**を沈みぶん下げる（`field.sinkDepth`）。当たり判定の
             // `footY` は動かないので、ジャンプの軌道も成立条件も沈みに左右されない。
@@ -106,10 +113,16 @@ extension RunnerScene {
                 ticket.alpha = 1 - p * 0.35
             }
         }
-        // おじさんは画面の右端の外まで走り去る。足元（`footY`）は着いたときのまま。
+        // おじさんは画面の右端の外まで走り去る。
         let chaseX = Metrics.playerX + p * (Metrics.width + Self.goalChaseExitMargin - Metrics.playerX)
         let previousX = player.position.x
-        player.position = CGPoint(x: chaseX, y: field.footY - field.sinkDepth)
+        // **空中でゴールしたら、まず地面へ降ろす**（`goalChaseLandingRatio` ぶんで着地しきる）。
+        // 着いたときの高度のまま水平に滑らせると、跳んだままのコマ（`jump`）で横へ流れていき、
+        // 「追いかけて走り去る」の絵にならない。
+        player.position = CGPoint(
+            x: chaseX,
+            y: Self.goalChaseRiderY(startY: field.footY - field.sinkDepth, progress: p)
+        )
         player.zRotation = 0
         // 走り去るあいだも脚は回す。位相は**画面上で進んだぶん**で進めるので、
         // 止めれば脚も止まる（`advancePedaling` が距離で回すのと同じ考え方）。
@@ -124,6 +137,16 @@ extension RunnerScene {
     static let goalTicketFlyY: Double = 46
     /// 走り去った走者が画面の外に消えるまでの余白。
     static let goalChaseExitMargin: Double = 24
+    /// 空中でゴールした走者が地面まで降りきる、演出全体に対する割合。
+    /// 純関数（`goalChaseRiderY`）から引くので `nonisolated`。
+    nonisolated static let goalChaseLandingRatio: Double = 0.3
+
+    /// 演出中の走者の足元の y。**空中でゴールしたら `goalChaseLandingRatio` ぶんで地面まで降ろす**。
+    /// 接地したままゴールした（`startY == groundY`）ふつうの場合は最初から最後まで地面のまま。
+    nonisolated static func goalChaseRiderY(startY: Double, progress: Double) -> Double {
+        let landed = min(1, max(0, progress) / goalChaseLandingRatio)
+        return startY + (RunnerField.Metrics.groundY - startY) * landed
+    }
 
     /// 取得済みのピックアップのノードを消す（`removedPickupIndices` の宣言を参照）。
     private func syncPickups(_ field: RunnerField) {

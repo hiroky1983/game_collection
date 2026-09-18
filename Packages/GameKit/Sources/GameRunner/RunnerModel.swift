@@ -68,6 +68,11 @@ public final class RunnerModel {
     /// 演出が明けたら移る先。ゴールに着いた瞬間に `clearStage()` が決めた `.cleared` / `.allCleared`
     /// をそのまま控える（演出は結果を変えない）。
     private var phaseAfterChase: RunnerPhase = .cleared
+    /// この走行でゴールの演出（#1092）が済んだか。**リザルトを出しているあいだの絵**に使う
+    /// ——済んでいれば、宝くじは飛んでいった先・おじさんは画面の外に置いたままにする
+    /// （`RunnerScene.sync`）。演出を飛ばしたときも真になるので、飛ばした場合と
+    /// 見終えた場合でリザルトの画が食い違わない。
+    public private(set) var didFinishGoalChase = false
     /// 一時停止する前の状態。`resume()` で戻す。
     private var phaseBeforePause: RunnerPhase = .ready
     private let services: GameServices?
@@ -533,6 +538,7 @@ public final class RunnerModel {
         fallElapsed = 0
         chaseElapsed = 0
         phaseAfterChase = .cleared
+        didFinishGoalChase = false
         recordResult = nil
         didReachNewStage = false
         didSetBestDistance = false
@@ -598,6 +604,7 @@ public final class RunnerModel {
         guard phase == .cleared || phase == .allCleared else { return }
         phaseAfterChase = phase
         chaseElapsed = 0
+        didFinishGoalChase = false
         phase = .chasing
     }
 
@@ -606,6 +613,7 @@ public final class RunnerModel {
     /// 記録はすでに確定しているので、ここでやることは局面を進めることだけ。
     public func skipGoalChase() {
         guard phase == .chasing else { return }
+        didFinishGoalChase = true
         phase = phaseAfterChase
     }
 
