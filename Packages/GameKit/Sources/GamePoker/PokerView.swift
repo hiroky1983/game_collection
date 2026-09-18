@@ -29,7 +29,10 @@ public struct PokerView: View {
         )
         _model = State(initialValue: restored)
         let hasSnapshot = services.snapshots.exists(for: "poker")
-        _showStartSheet = State(initialValue: !hasSnapshot)
+        // 復活したのに次の局を始める前で離れた中断データ（#1104）は局を持たない（`.idle`）。
+        // そのまま開くと操作欄が空のまま固まるので、開始シートから次の局に入ってもらう。
+        let waitsForNextRound = restored.phase == .idle
+        _showStartSheet = State(initialValue: !hasSnapshot || waitsForNextRound)
         _hasPlayedOnce  = State(initialValue: hasSnapshot)
         // 中断から戻ったときは、その局に焼き込まれていたルールを選択の初期値にする。
         _selectedRules  = State(initialValue: restored.rules)
