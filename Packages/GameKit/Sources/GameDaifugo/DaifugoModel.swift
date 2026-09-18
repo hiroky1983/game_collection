@@ -270,9 +270,12 @@ public final class DaifugoModel: AITurnGuarded {
             lastTransfers = exchanged.transfers
         }
         isExchangeWaived = false   // 免除は直後の1ゲームだけ（#1048）
-        // 持ち越しは**この配りで使い切る**（#1066）。残したままにすると、何日も経ってから開いた
-        // 対局にまで古い順位の交換が乗り続ける。次の決着で書き直されるので取りこぼしはない。
-        services?.snapshots.clear(for: carryOverID)
+        // 持ち越しを消すのは**この局の1手目が着手された時点**（`persist()`）で、配った時点では消さない（#1103）。
+        // 配ったばかりの局は中断データも保存されない（`isUntouchedDeal`・#240）ため、ここで消すと
+        // 「開いて・1手も出さずに閉じて・開き直す」だけで交換ゼロの配りが手に入り、#1066 が塞いだはずの
+        // 「広告を見るよりハブへ戻るほうが得」がタップ1回ぶん増えただけで残る。
+        // 免除（`isExchangeWaived`）はこの配りで使い切ったので、順位だけを残して書き直す（#1048）。
+        persistCarryOver()
 
         hands = dealt
         field = []
@@ -641,17 +644,27 @@ public final class DaifugoModel: AITurnGuarded {
             lastActions: lastActions
         )
         try? services?.snapshots.save(snap, for: gameID)
+        // 1 手目が保存された = 持ち越しを使った局が動き出した（#1103）。以降はこの中断データが
+        // `lastRanking` を自分で持つ（`init` でも中断データが持ち越しより優先される）ので、
+        // 持ち越しはここで使い切る。残したままにすると、何日も経ってから開いた対局にまで
+        // 古い順位の交換が乗り続ける。
+        services?.snapshots.clear(for: carryOverID)
     }
 
     /// 次のゲームへの持ち越し（順位・免除）を保存する（#1066）。
     ///
-    /// 消えるのは `startGame()` で**交換に使ったとき**の 1 か所だけ（1 ゲーム限り）。決着のたびに
-    /// 上書きするので、1 度の階級が何ゲームも効き続けることはない。「使ったら消す」にしているのは、
-    /// 大貧民で決着した何日も後に開いた対局へ、身に覚えのない献上が乗るのを避けるため。
+    /// 呼ぶのは決着時（`concludeGame()`）・広告の免除時（`waiveExchangeAfterAd()`）・次の配り
+    /// （`startGame()` で免除だけ使い切って書き直す）の3か所。消えるのは**その局の1手目が
+    /// 保存されたとき**の1か所だけ（`persist()`・#1103）。決着のたびに上書きするので、
+    /// 1 度の階級が何ゲームも効き続けることはない。
     private func persistCarryOver() {
         // 順位が揃っていない決着（起こらないはずだが）は持ち越さない。中途半端な順位を残すと
-        // 次の `startGame()` の交換が壊れるので、交換が起きない側に倒す。
-        guard lastRanking.count == Self.playerCount else { return }
+        // 次の `startGame()` の交換が壊れるので、交換が起きない側に倒して消す
+        // （`startGame()` からも呼ぶため、`return` で済ませると古い持ち越しが残りうる）。
+        guard lastRanking.count == Self.playerCount else {
+            services?.snapshots.clear(for: carryOverID)
+            return
+        }
         let carry = DaifugoCarryOver(lastRanking: lastRanking, isExchangeWaived: isExchangeWaived)
         try? services?.snapshots.save(carry, for: carryOverID)
     }

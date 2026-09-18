@@ -916,6 +916,14 @@ struct DaifugoCarryOverTests {
         DaifugoModel(services: services, cpuDelay: .zero, seed: 42)
     }
 
+    /// 配られた手札から1枚だけ出す（= その局の1手目を着手する）。
+    /// 場が空のときは単独のカードなら必ず出せるので、配りの中身に依存しない。
+    private func playOneCard(_ model: DaifugoModel) {
+        guard let first = model.playerHand.first else { return }
+        model.toggleSelection(first)
+        model.playSelected()
+    }
+
     @Test("リザルトから画面を離れて開き直しても、次のゲームで交換が起きる（無料の抜け道を塞ぐ）")
     func rankingSurvivesReopening() {
         let (model, services, store) = lastPlaceResult()
@@ -932,19 +940,56 @@ struct DaifugoCarryOverTests {
                 "広告を見ていないので、大貧民として強い2枚を差し出す")
     }
 
-    @Test("持ち越した階級は次の1ゲームで使い切る")
-    func carryOverIsSpentByTheNextGame() {
-        let (_, services, _) = lastPlaceResult()
+    @Test("持ち越した階級は、配った局の1手目を出した時点で使い切る")
+    func carryOverIsSpentByTheFirstMove() {
+        let (_, services, store) = lastPlaceResult()
 
         let reopened = reopen(services)
         reopened.startGame()
         #expect(reopened.lastTransfers.isEmpty == false, "前提: 持ち越した階級で交換が起きた")
+        // 自分が大貧民だったので親は自分（`openingPlayer()` = 前回の最下位）。1手出す。
+        #expect(reopened.isPlayerTurn, "前提: 自分の手番から始まる")
+        playOneCard(reopened)
+        #expect(store.exists(for: "daifugo"), "前提: 1手目で中断データが保存された")
 
-        // 配り直した直後にまたハブへ戻り、開き直す（この局はまだ決着していない）。
+        // 1手出したあとにハブへ戻り、開き直す（この局はまだ決着していない）。
         let again = reopen(services)
-        #expect(again.lastRanking.isEmpty, "使い切った階級は残らない")
+        #expect(again.phase == .playing, "続きから戻る")
+        #expect(!store.exists(for: "daifugo-carryover"), "使い切った階級は残らない")
+    }
+
+    @Test("配っただけで1手も出さずに離れたら、開き直しても同じ階級で交換が起きる（無料の抜け道を塞ぐ・#1103）")
+    func carryOverSurvivesUntouchedDeal() {
+        let (model, services, store) = lastPlaceResult()
+
+        let reopened = reopen(services)
+        reopened.startGame()
+        #expect(reopened.lastTransfers.count == 4, "前提: 持ち越した階級で交換が起きた")
+        #expect(!store.exists(for: "daifugo"), "前提: 配ったばかりの局は中断データを保存しない（#240）")
+
+        // 1手も出さずにハブへ戻り、開き直す。ここで持ち越しまで消えていると交換ゼロで配られる。
+        let again = reopen(services)
+        #expect(again.lastRanking == model.ranking, "階級は1手目まで残る")
         again.startGame()
-        #expect(again.lastTransfers.isEmpty, "決着していない階級で交換は起きない")
+        #expect(again.lastTransfers.count == 4, "大富豪⇔大貧民の2枚 + 富豪⇔貧民の1枚")
+        #expect(again.lastTransfers.contains { $0.from == DaifugoModel.humanIndex && $0.cards.count == 2 },
+                "大貧民として強い2枚を差し出す（開き直しで献上を逃げられない）")
+    }
+
+    @Test("広告の免除は未着手で離れても次の1ゲーム限り（二重には効かない・#1048）")
+    func waiverIsNotReusedByUntouchedDeal() {
+        let (model, services, _) = lastPlaceResult()
+        #expect(model.waiveExchangeAfterAd(forGame: model.gameNumber), "前提: 広告を見て免除した")
+
+        let reopened = reopen(services)
+        reopened.startGame()
+        #expect(reopened.lastTransfers.count == 2, "前提: 免除が効いて富豪⇔貧民だけ交換された")
+
+        // 1手も出さずに離れる。階級は残るが、免除はこの配りで使い切っている。
+        let again = reopen(services)
+        #expect(again.isExchangeWaived == false, "免除は繰り越さない")
+        again.startGame()
+        #expect(again.lastTransfers.count == 4, "2回目の配りでは献上が戻る")
     }
 
     @Test("広告の免除も開き直しをまたいで効き、次の1ゲームで消える")
