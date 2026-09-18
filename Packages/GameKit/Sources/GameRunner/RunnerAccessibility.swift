@@ -93,6 +93,14 @@ public enum RunnerAccessibility {
         }
     }
 
+    /// コースを二本指ダブルタップしたとき何が起きるか。
+    ///
+    /// ゴールの演出中（`.chasing`・#1092）だけは**ジャンプではなく演出を飛ばす**操作になるので、
+    /// ヒントの文言も入れ替える（`RunnerModel.press` の分岐と 1:1）。
+    public static func courseHint(phase: RunnerPhase) -> String {
+        phase == .chasing ? "ダブルタップで演出をスキップ" : "ダブルタップでジャンプ"
+    }
+
     /// ミス・クリアの結果。
     public static func resultLabel(phase: RunnerPhase, stageNumber: Int) -> String {
         switch phase {

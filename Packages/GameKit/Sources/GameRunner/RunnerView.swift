@@ -409,7 +409,7 @@ public struct RunnerView: View {
         }
         .accessibilityElement()
         .accessibilityLabel(courseLabel)
-        .accessibilityHint("ダブルタップでジャンプ")
+        .accessibilityHint(RunnerAccessibility.courseHint(phase: model.phase))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.press(); model.release() }
     }

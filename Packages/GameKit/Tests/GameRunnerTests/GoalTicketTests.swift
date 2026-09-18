@@ -318,6 +318,17 @@ struct RunnerGoalTicketTests {
         }
     }
 
+    /// VoiceOver のヒント（`RunnerView` のコース）。演出中のダブルタップはジャンプではなく
+    /// **演出を飛ばす**操作なので、`RunnerModel.press` の分岐と 1:1 で文言も入れ替える
+    /// （CodeRabbit の指摘・PR #1121）。
+    @Test("演出中のダブルタップのヒントは「演出をスキップ」に入れ替わる")
+    func theHintSwitchesDuringTheCutscene() {
+        #expect(RunnerAccessibility.courseHint(phase: .chasing) == "ダブルタップで演出をスキップ")
+        for phase in [RunnerPhase.ready, .running, .paused, .falling, .failed, .cleared, .allCleared] {
+            #expect(RunnerAccessibility.courseHint(phase: phase) == "ダブルタップでジャンプ", "\(phase)")
+        }
+    }
+
     // MARK: Reduce Motion
 
     /// **`Motion.override`（プロセス全体）ではなくシーンごとの注入口を使う。**
