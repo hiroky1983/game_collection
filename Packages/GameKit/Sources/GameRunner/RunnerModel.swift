@@ -944,6 +944,27 @@ public final class RunnerModel {
                 advanceUntilForDebug { (0.5...0.8).contains($0.field.sinkProgress) }
                 isFrozenForCapture = true
             }
+        case let name where name.hasPrefix("crumble-fallen:"):
+            // 本番ステージの足場が**抜け落ちている最中**（里山＝川・港町＝海が板の下に見える）を撮る
+            // （例 `-simulateRunner crumble-fallen:24`）。ショーケースは朝の下町で谷が黒い空隙
+            // なので、「崩れた後に下の景色が見える」はこちらで確かめる。
+            //
+            // **崩れ切るまで待てない**のがこの面の事情。走者は板を渡り切ってからも基準速で進むので、
+            // 崩れ切る頃（乗ってから 1.6 秒）には足場の右端が 50 以上後ろ——画面に映る後方は
+            // `Metrics.playerX`（26）ぶんしかないので、足場ごと画面の外へ出る。板が画面に残る
+            // いちばん遅い瞬間（右端から 20 まで離れたところ）で止める。
+            if let number = Int(name.dropFirst("crumble-fallen:".count)),
+               let platform = RunnerStage.stage(number: number)?.crumblingPlatforms.first {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                runOntoCrumblingPlatformForDebug()
+                advanceUntilForDebug(jumping: true) { model in
+                    if model.crumbleProgressForDebug.map({ $0 >= 1 }) == true { return true }
+                    return model.field.distance > platform.end + 20
+                }
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("crumble:"):
             // 本番ステージの崩れる足場を、その面の世界の背景の上で撮る（例 `-simulateRunner crumble:24`）。
             // `crumble` はショーケース（朝の下町）で走るので、里山の古い吊り橋・港町の古い木の桟橋は

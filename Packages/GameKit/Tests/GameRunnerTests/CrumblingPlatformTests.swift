@@ -12,9 +12,34 @@ import Testing
 struct RunnerCrumblingPlatformTests {
     private static let segment = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
     private static let bank = Double(RunnerRules.crumbleBankTiles) * RunnerRules.tileWidth
-    /// 本編で崩れる足場が置かれる面の基準速。遅い面ほど渡るのに時間がかかる＝不利。
+    /// 崩れる足場が置いてある面の基準速。遅い面ほど渡るのに時間がかかる＝不利なので、
+    /// 実走の検証はこの最小値で行う。
+    ///
+    /// **QA 用ショーケース（速さ 34）も数える。** 本編の最遅は 24 面の 52.4 だが、
+    /// 足場が実際に置いてあるいちばん遅いコースはショーケースで、猶予（1.6 秒）と
+    /// 二段ジャンプの飛距離（58.0）の根拠もそちらの数字で書いてある
+    /// ——ここを本編だけにすると、根拠に挙げた下限が実走で 1 度も踏まれない
+    /// （2026-09-18 の敵対的検証の指摘）。
     private static var crumbleStageSpeeds: [Double] {
-        RunnerStage.all.filter { !$0.crumblingPlatforms.isEmpty }.map(\.speed)
+        var speeds = RunnerStage.all.filter { !$0.crumblingPlatforms.isEmpty }.map(\.speed)
+        #if DEBUG
+        if !RunnerStage.debugShowcase.crumblingPlatforms.isEmpty {
+            speeds.append(RunnerStage.debugShowcase.speed)
+        }
+        #endif
+        return speeds
+    }
+
+    /// 本編（`RunnerStage.all`）で崩れる足場が置かれる面のうち、いちばん遅い基準速。
+    ///
+    /// **「乗らずに跳び越せる」はこちらで見る。** 台座は正面が壁なので、左端に届く前に
+    /// 上面より高く上がっておく助走（`riseTime(to:) × speed`）が要り、その助走ぶんは
+    /// 速さに比例しない——**速い面ほど跳び越しやすい**。ショーケース（34）では
+    /// 助走 12.4 ＋ 板張り 48 = 60.4 が二段ジャンプの飛距離 58.0 を上回って越えられないが、
+    /// 本編で置いてあるのは 24 面（52.4）以降で、そこでは 62.8 < 89.5 で越えられる。
+    private static var slowestStoryCrumbleSpeed: Double {
+        RunnerStage.all.filter { !$0.crumblingPlatforms.isEmpty }.map(\.speed).min()
+            ?? RunnerRules.baseSpeed
     }
 
     /// `pattern` の足場の上に走者を立たせた `RunnerField`。
@@ -196,9 +221,12 @@ struct RunnerCrumblingPlatformTests {
 
     /// **乗らなければ崩れない**。岸で踏み切って二段目を頂点で踏めば、板に足を着けずに越えられる
     /// （`RunnerRules.crumbleBankTiles` が板張りを二段ジャンプの飛距離の内側に収めている）。
+    ///
+    /// 速さは**本編で足場を置いてある面のいちばん遅い側**（`slowestStoryCrumbleSpeed`）。
+    /// ショーケースの 34 では助走ぶん届かない——その理由は同プロパティの doc にある。
     @Test("乗らずに二段ジャンプで跳び越せば足場は崩れない")
     func jumpingOverTheDeckLeavesItIntact() {
-        let speed = Self.crumbleStageSpeeds.min() ?? RunnerRules.baseSpeed
+        let speed = Self.slowestStoryCrumbleSpeed
         let stage = RunnerStage(number: 1, pattern: "--C----", speed: speed)
         let platform = stage.crumblingPlatforms[0]
         var field = RunnerField(stage: stage)
@@ -339,6 +367,12 @@ struct RunnerCrumblingPlatformTests {
     /// （鳥の下は走ったまま抜けるしかないのに、足場が崩れると逃げ場が無い）。
     /// **崩れる足場の上に沈む床を置かない**（区画記号は 1 文字なので同じ区画には作れないが、
     /// 隣り合わせても水の上で踏み切り直すことになるので弾く）。
+    ///
+    /// 「手前」は**直後の 1 区画**と読む（沈む床の `sinkFloorsAvoidBirdsPlatformsAndShoots` と
+    /// 同じ距離）。台座の規則で足場の前後は必ず素の平地なので、鳥が居られるのは 2 区画以上
+    /// 先——そこまで来れば足場は背後にあり、地面を走ったまま鳥の下を抜けられる。
+    /// 併せて**鳥の等価な静止区間（`RunnerHazard.encounter`）が板張りに重なっていない**ことも
+    /// 座標で見る（記号の隣接だけだと、飛び立つ鳥が手前へ伸びる分を見落とす）。
     @Test("崩れる足場の隣に鳥・沈む床を置かない")
     func crumblingPlatformsAvoidBirdsAndSinkFloors() {
         var stages = RunnerStage.all
@@ -355,6 +389,16 @@ struct RunnerCrumblingPlatformTests {
                     #expect(
                         s != RunnerStage.sinkFloorSymbol,
                         "ステージ \(stage.number): 区画 \(index) の足場の隣が沈む床"
+                    )
+                }
+            }
+            // 鳥の「関わる区間」が板張りに重なっていないこと（座標で見る）。
+            for platform in stage.crumblingPlatforms {
+                for bird in stage.hazards where bird.kind == .bird {
+                    let range = bird.activeRange
+                    #expect(
+                        !(range.lowerBound < platform.end && platform.start < range.upperBound),
+                        "ステージ \(stage.number): 鳥の区間が崩れる足場に重なっている"
                     )
                 }
             }

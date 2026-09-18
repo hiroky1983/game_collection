@@ -768,21 +768,24 @@ struct RunnerStageTests {
     /// `RunnerPlaythroughTests` でも落ちるが、原因が配置のどこにあるかはここでしか分からない。
     ///
     /// QA用ショーケースも対象（`stagesUnderLayoutRules`）。
-    @Test("台座の前後の区画は平地になっている")
+    ///
+    /// **崩れる足場（`C`・#1090）も台座なので同じ規則を掛ける。** 記号で分岐せず
+    /// `RunnerStage.platformKind(_:)`（＝展開して台座になる記号か）で見るのは、
+    /// 台座の種類を増やしたときに**足し忘れても静かに素通りする**のを防ぐため
+    /// （2026-09-18 の敵対的検証で、`platformSymbol` だけを見ていたせいで
+    /// 26 面の足場の直前に高い岩を置いても全件緑だったのを実測）。
+    @Test("台座（崩れる足場を含む）の前後の区画は平地になっている")
     func platformsHaveFlatGroundOnBothSides() {
         for stage in stagesUnderLayoutRules {
             let symbols = Array(stage.pattern)
-            for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.platformSymbol {
-                if index > 0, symbols[index - 1] != RunnerStage.platformSymbol {
+            for (index, symbol) in symbols.enumerated() {
+                guard let kind = RunnerStage.platformKind(symbol) else { continue }
+                for neighbor in [index - 1, index + 1] where symbols.indices.contains(neighbor) {
+                    // 同じ種類の台座が続いているだけなら 1 基にまとまるので見なくてよい。
+                    guard RunnerStage.platformKind(symbols[neighbor]) != kind else { continue }
                     #expect(
-                        symbols[index - 1] == "-",
-                        "ステージ \(stage.number): 台座の手前（区画 \(index - 1)）が平地でない"
-                    )
-                }
-                if index < symbols.count - 1, symbols[index + 1] != RunnerStage.platformSymbol {
-                    #expect(
-                        symbols[index + 1] == "-",
-                        "ステージ \(stage.number): 台座の直後（区画 \(index + 1)）が平地でない"
+                        symbols[neighbor] == "-",
+                        "ステージ \(stage.number): 台座 \(symbol)（区画 \(index)）の隣（区画 \(neighbor)）が平地でない"
                     )
                 }
             }

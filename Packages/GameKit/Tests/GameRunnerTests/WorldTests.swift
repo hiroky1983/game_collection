@@ -430,6 +430,35 @@ struct RunnerWorldTests {
                 )
             }
         }
+        // 崩れる足場（#1090）は**縁取りのノードを持たない**（板 1 枚ずつに `SKShapeNode` を足すと
+        // 1 基で 20 個増える）。したがって上の `items` の形（主色か縁取りのどちらかが通ればよい）に
+        // 混ぜてはいけない——混ぜると縁取りの色だけで通ってしまい、板を背景と同じ色にしても緑になる
+        // （2026-09-18 の敵対的検証で実測）。**主色だけで 3:1 を要求する**。
+        //
+        // 3:1 を担うのは板の木目（`crumbleDeckSeam`。板 1 枚ごとに下端へ入るので、抜け落ちていく
+        // 途中でも残った板の輪郭が読める）と、崩れても残る柱・杭（`crumblePost`）。板の面
+        // （`crumbleDeck`）は乗る面なのでいちばん明るく、淡い背景とは 1.0〜1.5:1 しか無い
+        // ——竹の子・波しぶきとまったく同じ「濃い側が担う」形。
+        for world in [RunnerWorld.satoyama, RunnerWorld.harbor] {
+            for (part, color) in [("板の木目", P.crumbleDeckSeam), ("柱・杭", P.crumblePost)] {
+                for (name, backdrop) in world.groundBackdrops {
+                    #expect(
+                        WCAG.contrast(color, backdrop) >= 3.0,
+                        "\(world) の崩れる足場の\(part)が \(name) (\(String(backdrop, radix: 16))) に溶ける"
+                    )
+                }
+            }
+        }
+        // 縄は板の**上**（空・丘を背に）に張るので、模様ではなく手前の物として背景と比べる。
+        for (name, backdrop) in RunnerWorld.satoyama.groundBackdrops {
+            #expect(
+                WCAG.contrast(P.crumbleRope, backdrop) >= 3.0,
+                "吊り橋の縄が \(name) (\(String(backdrop, radix: 16))) に溶ける"
+            )
+        }
+        // ひびは板の面の上に描く模様なので、板とだけ比べる（矢印を床と比べるのと同じ扱い）。
+        #expect(WCAG.contrast(P.crumbleCrack, P.crumbleDeck) >= 3.0, "崩れる予告のひびが板に溶ける")
+
         // 加速床は路面の中に描かれるので路面とだけ比べる（`foregroundStandsOutFromBackdrops` と同じ）。
         #expect(WCAG.contrast(P.pavedAsphalt, RunnerWorld.satoyama.road.asphalt) >= 3.0, "舗装が砂利道に溶ける")
         #expect(WCAG.contrast(P.pavedArrow, P.pavedAsphalt) >= 3.0, "舗装の矢印が読めない")
