@@ -88,6 +88,42 @@ private func makeBustedModel(
     return (model, ads, store)
 }
 
+/// 復活を使い切ったセッションで、ボーナスルールの勝ち（＝ダブルアップの提示）まで進めた局面（#1104）。
+///
+/// - Parameter deckRanks: ダブルアップで使う山札のランク。先頭が見せ札、次がめくり札になる。
+@MainActor
+private func makeRevivedWinAwaitingDoubleUp(
+    deckRanks: [Int]
+) -> (PokerModel, MemorySnapshotStore) {
+    var nextID = 0
+    func card(_ rank: Int, _ suit: PokerSuit) -> PokerCard {
+        defer { nextID += 1 }
+        return PokerCard(id: nextID, suit: suit, rank: rank)
+    }
+    // プレイヤーはツーペア（役ボーナス +10）、CPU は役なし。CPU は役が無ければチェックで受ける。
+    let playerHand = [card(5, .spades), card(5, .hearts),
+                      card(9, .clubs), card(9, .diamonds), card(2, .spades)]
+    let cpuHand = [card(3, .clubs), card(4, .diamonds), card(6, .hearts),
+                   card(8, .spades), card(12, .clubs)]
+    let deck = deckRanks.map { card($0, .diamonds) }
+    let store = MemorySnapshotStore()
+    let snap = PokerSnapshot(
+        playerHand: playerHand, cpuHand: cpuHand, deck: deck,
+        playerChips: 100, cpuChips: 100, pot: 40,
+        phase: .betting2, currentBet: 0,
+        playerBetInRound: 0, cpuBetInRound: 0,
+        cpuFolded: false, cpuAction: "", rules: .bonus,
+        hasRevivedThisSession: true
+    )
+    try? store.save(snap, for: "poker")
+    let model = PokerModel(
+        services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+    )
+    model.bet2Action(.check)
+    #expect(model.awaitsDoubleUp, "勝ってダブルアップの提示に入っている")
+    return (model, store)
+}
+
 /// 局を始めてはフォールドし続け、アンティで手持ちを削ってチップ切れまで進める。
 /// チェックには CPU が必ずチェックで返し、交換後の 2 巡目でフォールドすれば必ず決着する
 /// （`PokerReviveLeaderboardTests.finishRound` と同じ最短の進め方）。
@@ -392,6 +428,57 @@ struct PokerRewardedAdTests {
         #expect(!reopened.canReviveAfterBust)
     }
 
+    /// 復活したセッションが**もう一度**チップ切れになったら、中断データは残さない（#1104）。
+    /// 残すと、次に開いたとき遊べない残高の死んだセッションが復元される。
+    @Test("復活したセッションが再度チップ切れになったら中断データは消える（#1104）")
+    func clearsSnapshotWhenRevivedSessionBustsAgain() async {
+        let (model, _, store) = makeBustedModel()
+        #expect(await model.recoverChipsAfterAd())
+        #expect(store.exists(for: "poker"))
+
+        playFoldUntilBust(model)
+        #expect(model.sessionOver)
+        #expect(!store.exists(for: "poker"), "遊べない残高のセッションが中断データに残っている")
+    }
+
+    /// ダブルアップ（#496）の各操作は `persist()` を呼ばない。復活したセッションでは
+    /// ショーダウン直後の残高が中断データに残るため、局を閉じるところで書き直す（#1104）。
+    @Test("復活したセッションのダブルアップの結果が中断データに乗る（#1104）")
+    func persistsDoubleUpSettlement() {
+        // 外したとき: 賭け金は戻らない。その残高が保存されている。
+        let (lost, lostStore) = makeRevivedWinAwaitingDoubleUp(deckRanks: [13, 3])
+        let beforeLoss = lost.playerChips
+        lost.startDoubleUp()
+        lost.guessDoubleUp(.high)          // K より上を予想して 3 が出る＝失敗
+        #expect(lost.doubleUp?.result == .failure)
+        #expect(lost.playerChips < beforeLoss)
+        #expect(lostStore.load(PokerSnapshot.self, for: "poker")?.playerChips == lost.playerChips,
+                "外した賭け金が中断データでは戻っている")
+
+        // 受け取ったとき: 倍になった賭け金を含む残高が保存されている。
+        let (won, wonStore) = makeRevivedWinAwaitingDoubleUp(deckRanks: [5, 13])
+        won.startDoubleUp()
+        won.guessDoubleUp(.high)           // 5 より上を予想して K が出る＝成功
+        won.takeDoubleUpWinnings()
+        #expect(!won.awaitsDoubleUp)
+        #expect(wonStore.load(PokerSnapshot.self, for: "poker")?.playerChips == won.playerChips,
+                "受け取った勝ち分が中断データに乗っていない")
+    }
+
+    /// 挑戦の経過は中断データに持たないので、途中で離れたら賭ける前の残高で戻す（#1104）。
+    @Test("ダブルアップに挑戦中に離れたら、賭け金は預けたままにならない（#1104）")
+    func returnsStakeWhenLeavingDuringDoubleUp() {
+        let (model, store) = makeRevivedWinAwaitingDoubleUp(deckRanks: [5, 13])
+        let beforeChallenge = model.playerChips
+        model.startDoubleUp()
+        #expect(model.playerChips < beforeChallenge, "賭け金は手持ちから引かれている")
+
+        let reopened = PokerModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+        )
+        #expect(reopened.playerChips == beforeChallenge, "預けた賭け金が消えている")
+    }
+
     /// 復活の中断データ（#1104）が「もう一度はじめる」の初期化を邪魔しないこと。
     @Test("復活したあと最初からやり直すと、中断データは消えて初期額に戻る（#1104）")
     func restartClearsRevivedSnapshot() async {
@@ -686,5 +773,52 @@ struct PokerReviveLeaderboardTests {
         )
         #expect(spy.scores.isEmpty, "順位表へは送っていない")
         #expect(model.recordResult != nil, "順位表から外すだけで、手元の記録は残す（#397）")
+    }
+}
+
+// MARK: - 局を持たない中断データの扱い（#1104）
+
+@Suite("復活のチップだけを持つ中断データ（#1104）")
+@MainActor
+struct PokerRevivedSnapshotTests {
+
+    /// 画面の状態はテストから操作できないので、書き方そのものを見る（`PokerRewardedAdTests`
+    /// の「視聴中は「もう一度はじめる」を押せない」と同型）。この分岐が消えると、復活の
+    /// 中断データから開いた画面は `.idle` のまま操作欄が `EmptyView` で固まる。
+    @Test("局を持たない中断データから開いたら開始シートを出す")
+    func showsStartSheetForRoundWaitingSnapshot() throws {
+        let source = try SourceScan.moduleSources("GamePoker")
+        #expect(source.contains("let waitsForNextRound = restored.phase == .idle"),
+                "復元した局面が .idle かを見ていない")
+        #expect(source.contains("State(initialValue: !hasSnapshot || waitsForNextRound)"),
+                "開始シートの初期値が .idle の中断データを考えていない")
+    }
+
+    @Test("ハブの「続きから」には数えない")
+    func roundWaitingSnapshotIsNotResumable() throws {
+        let store = MemorySnapshotStore()
+        let module = PokerModule()
+        #expect(!module.hasResumableSnapshot(in: store), "中断データが無い")
+
+        let waiting = PokerSnapshot(
+            playerHand: [], cpuHand: [], deck: [],
+            playerChips: 150, cpuChips: 100, pot: 0,
+            phase: .idle, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "", rules: .standard,
+            hasRevivedThisSession: true
+        )
+        try store.save(waiting, for: "poker")
+        #expect(!module.hasResumableSnapshot(in: store), "戻った先は次の局の開始シートで続きではない")
+
+        let inRound = PokerSnapshot(
+            playerHand: [], cpuHand: [], deck: [],
+            playerChips: 90, cpuChips: 90, pot: 20,
+            phase: .betting1, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "", rules: .standard
+        )
+        try store.save(inRound, for: "poker")
+        #expect(module.hasResumableSnapshot(in: store), "進行中の局が続きから外れている")
     }
 }

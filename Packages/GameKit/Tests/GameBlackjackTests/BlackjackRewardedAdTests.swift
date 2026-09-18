@@ -357,6 +357,20 @@ struct BlackjackRewardedAdTests {
         #expect(reopened.canReviveAfterBust, "新しいセッションの復活権が消えている")
     }
 
+    /// 復活したセッションが**もう一度**破産したら、中断データは残さない（#1104）。
+    /// 残すと、次に開いたとき遊べない残高の死んだセッションが復元される。
+    @Test("復活したセッションが再度破産したら中断データは消える（#1104）")
+    func clearsSnapshotWhenRevivedSessionBustsAgain() async {
+        let store = MemorySnapshotStore()
+        let (model, _, _) = makeBustedModel(store: store)
+        #expect(await model.recoverChipsAfterAd())
+        #expect(store.exists(for: "blackjack"))
+
+        playAllInUntilBust(model)
+        #expect(model.sessionOver)
+        #expect(!store.exists(for: "blackjack"), "遊べない残高のセッションが中断データに残っている")
+    }
+
     @Test("最初からやり直すと復活の回数も戻る")
     func restartRestoresReviveBudget() async {
         let (model, _, _) = makeBustedModel()
@@ -479,5 +493,46 @@ struct BlackjackReviveLeaderboardTests {
         )
         #expect(spy.scores.isEmpty, "順位表へは送っていない")
         #expect(model.recordResult != nil, "順位表から外すだけで、手元の記録は残す（#397）")
+    }
+}
+
+// MARK: - 局を持たない中断データの扱い（#1104）
+
+@Suite("復活のチップだけを持つ中断データ（#1104）")
+@MainActor
+struct BlackjackRevivedSnapshotTests {
+
+    @Test("ハブの「続きから」には数えない")
+    func betWaitingSnapshotIsNotResumable() throws {
+        let store = MemorySnapshotStore()
+        let module = BlackjackModule()
+        #expect(!module.hasResumableSnapshot(in: store), "中断データが無い")
+
+        let waiting = BlackjackSnapshot(
+            playerHand: [], dealerHand: [], deck: [],
+            chips: 2000, bet: 0, phase: .betting,
+            hands: [], activeHandIndex: 0, hasRevivedThisSession: true
+        )
+        try store.save(waiting, for: "blackjack")
+        #expect(!module.hasResumableSnapshot(in: store), "戻った先は賭け待ちで続きではない")
+
+        let cards = [BlackjackCard(id: 0, suit: .spades, rank: 10),
+                     BlackjackCard(id: 1, suit: .hearts, rank: 5)]
+        let inRound = BlackjackSnapshot(
+            playerHand: cards, dealerHand: cards, deck: [],
+            chips: 900, bet: 100, phase: .playerTurn,
+            hands: [BlackjackHand(id: 0, cards: cards, bet: 100)], activeHandIndex: 0
+        )
+        try store.save(inRound, for: "blackjack")
+        #expect(module.hasResumableSnapshot(in: store), "進行中の手が続きから外れている")
+
+        // 旧形式（#439 以前・`hands` が無い）も続きとして扱う。
+        let legacy = BlackjackSnapshot(
+            playerHand: cards, dealerHand: cards, deck: [],
+            chips: 900, bet: 100, phase: .playerTurn,
+            hands: nil, activeHandIndex: nil
+        )
+        try store.save(legacy, for: "blackjack")
+        #expect(module.hasResumableSnapshot(in: store), "旧形式の中断が続きから外れている")
     }
 }
