@@ -75,6 +75,11 @@ public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
     case bird
     /// 地面を走る動物（犬・イノシシ）。
     case animal
+    /// 沈む床（チャリンコおじさんの田んぼ・干潟）で跳び続けられず沈んで溺れた（#1089）。
+    ///
+    /// 穴（`pit`）と分けてあるのは、**落ちた理由が違う**から——穴は「跳び越せなかった」、
+    /// こちらは「跳び続けられなかった」で、直す先（床の長さか、置いた位置か）も別になる。
+    case sink
 }
 
 /// `game_start` の `level`。難易度・段階を**ゲーム横断で読める語彙**へ正規化する（#500）。

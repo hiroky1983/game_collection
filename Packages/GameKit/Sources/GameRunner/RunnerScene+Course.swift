@@ -59,6 +59,10 @@ extension RunnerScene {
         // スピードアップ床は地面の**上に重ねて**塗る（地面を作り直すのではなく、
         // 同じ路面の色と模様だけを差し替える）。地面より後に足すことで手前に来る。
         for floor in stage.boostFloors { courseLayer.addChild(makeBoostFloor(floor)) }
+        // 沈む床（#1089）も同じく地面の上に重ねる。走者より**奥**（`zPosition` は既定の 0 のまま）
+        // なので、沈んだ走者は水面の手前に描かれる——腰まで浸かって見せるのは走者ノードを
+        // 下げること（`RunnerField.sinkDepth`）だけで足りる。
+        for floor in stage.sinkFloors { courseLayer.addChild(makeSinkFloor(floor)) }
 
         movingHazards = []
         for hazard in stage.hazards where hazard.kind != .pit {
