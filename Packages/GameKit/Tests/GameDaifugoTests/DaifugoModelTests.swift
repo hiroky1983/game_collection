@@ -942,7 +942,7 @@ struct DaifugoCarryOverTests {
 
     @Test("持ち越した階級は、配った局の1手目を出した時点で使い切る")
     func carryOverIsSpentByTheFirstMove() {
-        let (_, services, store) = lastPlaceResult()
+        let (model, services, store) = lastPlaceResult()
 
         let reopened = reopen(services)
         reopened.startGame()
@@ -956,6 +956,47 @@ struct DaifugoCarryOverTests {
         let again = reopen(services)
         #expect(again.phase == .playing, "続きから戻る")
         #expect(!store.exists(for: "daifugo-carryover"), "使い切った階級は残らない")
+        // 持ち越しを消してよい根拠は「以降は中断データが階級を自分で持つ」こと。ここを固定しないと、
+        // 中断データから `lastRanking` が落ちる退行に気付けない（この局を捨てて「新しいゲーム」を
+        // 押したときに交換ゼロで配られる）。
+        #expect(again.lastRanking == model.ranking, "階級は中断データ側が引き継いでいる")
+    }
+
+    @Test("1手目の保存に失敗したときは持ち越しを消さない（中断データも階級も無い状態を作らない・#1103）")
+    func carryOverIsKeptWhenSavingFails() {
+        /// `save` が必ず失敗する置き場。ディスクが一杯などで書き込めない状況を作る。
+        final class FailingSnapshotStore: SnapshotStore, @unchecked Sendable {
+            struct Failure: Error {}
+            let inner = MemorySnapshotStore()
+            /// 持ち越し（`-carryover`）だけは書けるようにする。ここも失敗させると前提が作れない。
+            func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
+                guard gameID.hasSuffix("-carryover") else { throw Failure() }
+                try inner.save(snapshot, for: gameID)
+            }
+            func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? { inner.load(type, for: gameID) }
+            func clear(for gameID: String) { inner.clear(for: gameID) }
+            func exists(for gameID: String) -> Bool { inner.exists(for: gameID) }
+        }
+
+        let store = FailingSnapshotStore()
+        let (model, services) = makeModel(store: store)
+        model.configureForTesting(
+            hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
+            currentPlayer: 0
+        )
+        model.resign()
+        #expect(store.exists(for: "daifugo-carryover"), "前提: 決着の階級は持ち越せている")
+
+        let reopened = reopen(services)
+        reopened.startGame()
+        playOneCard(reopened)
+        #expect(!store.exists(for: "daifugo"), "前提: 中断データの保存は失敗している")
+        #expect(store.exists(for: "daifugo-carryover"),
+                "保存できなかったのだから持ち越しも残す（両方消えると交換ゼロで配り直せる）")
+
+        let again = reopen(services)
+        again.startGame()
+        #expect(again.lastTransfers.count == 4, "階級が残っているので献上は逃げられない")
     }
 
     @Test("配っただけで1手も出さずに離れたら、開き直しても同じ階級で交換が起きる（無料の抜け道を塞ぐ・#1103）")

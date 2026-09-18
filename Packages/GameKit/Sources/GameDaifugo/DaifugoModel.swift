@@ -643,12 +643,17 @@ public final class DaifugoModel: AITurnGuarded {
             lastRanking: lastRanking,
             lastActions: lastActions
         )
-        try? services?.snapshots.save(snap, for: gameID)
-        // 1 手目が保存された = 持ち越しを使った局が動き出した（#1103）。以降はこの中断データが
-        // `lastRanking` を自分で持つ（`init` でも中断データが持ち越しより優先される）ので、
-        // 持ち越しはここで使い切る。残したままにすると、何日も経ってから開いた対局にまで
-        // 古い順位の交換が乗り続ける。
-        services?.snapshots.clear(for: carryOverID)
+        do {
+            try services?.snapshots.save(snap, for: gameID)
+            // 1 手目が保存された = 持ち越しを使った局が動き出した（#1103）。以降はこの中断データが
+            // `lastRanking` を自分で持つ（`init` でも中断データが持ち越しより優先される）ので、
+            // 持ち越しはここで使い切る。残したままにすると、何日も経ってから開いた対局にまで
+            // 古い順位の交換が乗り続ける。
+            services?.snapshots.clear(for: carryOverID)
+        } catch {
+            // 保存に失敗したときは持ち越しを**残す**。ここで消すと中断データも持ち越しも無い状態になり、
+            // #1103 で塞いだ「交換ゼロで配り直せる」経路が書き込みエラーのときだけ再発する。
+        }
     }
 
     /// 次のゲームへの持ち越し（順位・免除）を保存する（#1066）。
