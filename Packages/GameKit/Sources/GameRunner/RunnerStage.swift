@@ -441,12 +441,24 @@ public enum RunnerRules {
     /// `airTime(above:)` の二段版。**塀と横に重なっているあいだ、ずっと上端より上にいられるか**を
     /// `RunnerStageTests.everyHazardIsClearable` がこれで確かめる（一段の式をそのまま当てると、
     /// 塀は「越えられない障害」として弾かれてしまう）。
+    ///
+    /// **一段目の頂点より低い高さでも、二段ジャンプ全体で上にいる時間を返す**（PR #1115 で
+    /// CodeRabbit が指摘）。塀（18）はこの分岐を通らないが、`airTime(above:)` を返す旧実装は
+    /// 「一段目で上を通る時間」しか数えず、`height == jumpApex` では 0 という**式の名前と
+    /// 食い違う値**になっていた。低い側は「一段目で `height` を越えてから頂点まで」＋
+    /// 「頂点で踏み直して `height` まで降りてくるまで」の和で、`height` を 0 にすれば
+    /// `doubleJumpAirTime` に、`jumpApex` に近づければ上の分岐に連続する。
     public static func doubleJumpAirTime(above height: Double) -> Double {
-        guard height > jumpApex else { return airTime(above: height) }
-        let remaining = height - jumpApex
-        let discriminant = jumpVelocity * jumpVelocity - 2 * gravity * remaining
-        guard discriminant > 0 else { return 0 }
-        return discriminant.squareRoot() / gravity * 2
+        guard height > 0 else { return doubleJumpAirTime }
+        if height > jumpApex {
+            let remaining = height - jumpApex
+            let discriminant = jumpVelocity * jumpVelocity - 2 * gravity * remaining
+            guard discriminant > 0 else { return 0 }
+            return discriminant.squareRoot() / gravity * 2
+        }
+        let ascent = jumpVelocity / gravity - riseTime(to: height)
+        let fall = (jumpVelocity * jumpVelocity + 2 * gravity * (jumpApex - height)).squareRoot()
+        return ascent + (jumpVelocity + fall) / gravity
     }
 
     /// その障害を越えるジャンプの滞空時間。**高い塀（#1091）だけが二段ぶん**で、ほかは一段。

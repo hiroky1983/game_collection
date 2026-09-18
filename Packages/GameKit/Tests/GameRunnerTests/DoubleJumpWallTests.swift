@@ -94,6 +94,31 @@ struct RunnerDoubleJumpWallTests {
         #expect(!RunnerHazardKind.wall.isRock, "塀が岩に数えられている（イノシシが止まってしまう）")
     }
 
+    /// `doubleJumpAirTime(above:)` が**高さの全域で**「二段ジャンプでその高さ以上にいる時間」を
+    /// 返すこと（PR #1115 の CodeRabbit 指摘）。塀（18）は上の分岐しか通らないが、低い側を
+    /// 一段の式で返すと `height == jumpApex` で 0 になり、式の名前と食い違う。
+    @Test("二段ジャンプの滞空時間は、高さ 0 で全体・頂点より下でも二段ぶん・上では短くなる")
+    func doubleJumpAirTimeIsContinuousAcrossHeights() {
+        let apex = RunnerRules.jumpApex
+        #expect(RunnerRules.doubleJumpAirTime(above: 0) == RunnerRules.doubleJumpAirTime)
+        // 一段目の頂点ちょうどでは、そこで踏み直した二段目まるごと（= 一段のジャンプ 1 回ぶん）。
+        #expect(
+            abs(RunnerRules.doubleJumpAirTime(above: apex) - RunnerRules.jumpAirTime) < 1e-9,
+            "頂点での滞空が \(RunnerRules.doubleJumpAirTime(above: apex))"
+        )
+        // 高さに対して単調に短くなり、境目（頂点）で跳ばない。
+        var previous = Double.infinity
+        for height in stride(from: 0.0, through: RunnerRules.doubleJumpApex + 2, by: 0.25) {
+            let value = RunnerRules.doubleJumpAirTime(above: height)
+            #expect(value <= previous + 1e-9, "高さ \(height) で滞空が増えた（\(previous) → \(value)）")
+            previous = value
+        }
+        // 二段でも届かない高さは 0。
+        #expect(RunnerRules.doubleJumpAirTime(above: RunnerRules.doubleJumpApex + 1) == 0)
+        // 一段の式より必ず長い（二段目のぶん）。
+        #expect(RunnerRules.doubleJumpAirTime(above: 5) > RunnerRules.airTime(above: 5))
+    }
+
     @Test("区画記号 w が幅 1 タイルの塀に展開される")
     func wallSymbolExpandsToASingleTileHazard() {
         let stage = RunnerStage(number: 1, pattern: "--w--", speed: 40)
