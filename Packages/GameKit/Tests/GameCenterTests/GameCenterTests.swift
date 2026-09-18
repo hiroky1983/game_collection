@@ -908,9 +908,9 @@ private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
 private func clearRunnerStage(_ model: RunnerModel) {
     if model.phase == .ready { model.press(); model.release() }
     var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を効かせない
     // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
         frames += 1
         // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
         // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
@@ -926,9 +926,9 @@ private func clearRunnerStage(_ model: RunnerModel) {
 private func failRunnerAfterCheckpoint(_ model: RunnerModel) {
     if model.phase == .ready { model.press(); model.release() }
     var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
+    // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を効かせない
     // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
         frames += 1
         // 着地するまで離さない（チェックポイント通過前のジャンプだけは製品コードと同じ
         // 「越えられる」保証が要る。通過後は跳ばないので、以降で必ずミスになる）。

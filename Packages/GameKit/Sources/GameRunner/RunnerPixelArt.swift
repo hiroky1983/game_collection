@@ -21,7 +21,7 @@ enum RunnerPixelArt {
         "d": 0xB8682A,
         "S": 0x5C2C10,
         "s": 0x8E4A1E,
-        "M": 0xFAF6EC,
+        "M": paperWhite,
         "A": 0x3F8F4C,
         "T": 0xE6C98C,
         // 港町の置物（#1009）。`H`/`h` はロープの麻色 2 階調、`N`/`n`/`L` はドラム缶の青 3 階調
@@ -36,6 +36,19 @@ enum RunnerPixelArt {
         // 水柱の陰は `L`/`N`（ドラム缶と同じ青の階調）。
         "a": 0x27663A,
         "C": 0xBFE4F2,
+        // 高い塀（#1091）。`G`/`g`/`W` は石垣の石・目地・笠石、`R`/`r`/`O` はコンテナの
+        // 本体・桁とリブ・左肩の照り。どちらも**濃い側**（`g` / `r`）が背景との 3:1 を担う
+        // （竹の子の `S`・波しぶきの `N` と同じ約束。`WorldTests` が固定）。
+        "G": 0x9EA294,
+        "g": 0x4A4D45,
+        "W": 0xC8CCBE,
+        "R": 0xC24A33,
+        "r": 0x6E2118,
+        "O": 0xC85B45,
+        // 宝くじ（#1092）。`Y` は券面の上帯（金）、`P` はそこに刷られた赤い文字・罫線。
+        // 紙そのものは既にある `M`（生成りの白）と `T`（淡いクリーム＝切り取り線の側）を使う。
+        "Y": lotteryBand,
+        "P": lotteryPrint,
     ]
 
     /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
@@ -45,6 +58,14 @@ enum RunnerPixelArt {
 
     /// たこ焼きの生地の主色（きつね色）。岩のグレー・地面の茶・鳥の緑のどれとも系統が違う食べ物の色。
     static let takoyakiDough: UInt32 = 0xE8A860
+
+    /// 生成りの白（`M`）。たこ焼きのマヨと、宝くじの券面（#1092）の主色を兼ねる。
+    /// **宝くじが背景から浮くかの検査（`WorldTests.foregroundStandsOutFromBackdrops`）はこの色を見る。**
+    static let paperWhite: UInt32 = 0xFAF6EC
+    /// 宝くじの上帯（金）。
+    static let lotteryBand: UInt32 = 0xE4B23C
+    /// 宝くじに刷られた赤い文字・罫線。
+    static let lotteryPrint: UInt32 = 0xC6314C
 
     // MARK: たこ焼き（`RunnerPickupKind.invincible`・#797 → #956）
 
@@ -220,6 +241,15 @@ enum RunnerPixelArt {
     }
 
     /// 世界から引く版（テスト・寸法の測り方で使う）。
+    /// 高い塀の絵（#1091）。**絵の選び方は持たない**——着せ替え（`RunnerWorld.Dressing.Wall`）を
+    /// そのまま受け取って対応する格子を返すだけ（突き上げの `shootArt(for:)` と同じ作法）。
+    static func wallArt(for style: RunnerWorld.Dressing.Wall) -> PixelSprite {
+        switch style {
+        case .stoneWall:      return PixelSprite(rows: stoneWallRows, palette: palette)
+        case .containerStack: return PixelSprite(rows: containerStackRows, palette: palette)
+        }
+    }
+
     static func shoot(world: RunnerWorld) -> PixelSprite { shootArt(for: world.dressing.shoot) }
     static func shootCue(world: RunnerWorld) -> PixelSprite { shootCueArt(for: world.dressing.shoot) }
 
@@ -508,6 +538,135 @@ enum RunnerPixelArt {
         "KKKKKKKKKKKK",
     ]
 
+    // MARK: 高い塀の絵（#1091）
+
+    /// 石垣（里山の高い塀）。当たり判定は 4×18 なので格子は 12×54
+    /// （`RunnerPixelArtTests.wallsFitTheWallHitBox` が縦横比と余白なしを固定）。
+    ///
+    /// **高い岩（大きな石）と一目で区別できる**（決裁）ようにしてある: 岩塊は 4×9 の丸い塊 1 つだが、
+    /// 石垣は**高さが 2 倍以上**あり、横一直線の目地（`g`）で 8 段に積まれた四角い石の列。
+    /// 天端の笠石（`W`）で上端が一直線に見えるのも、丸い岩との違いを作っている。
+    /// 下のほうの石には苔（`A`・切り株と同じ緑）を差して、地面に古くから在る物に見せる。
+    static let stoneWallRows: [String] = [
+        "KKKKKKKKKKKK",
+        "KWWWWWWWWWWK",
+        "KWWWWWWWWWWK",
+        "KWWWWWWWWWWK",
+        "KggggggggggK",
+        "KWWWgWWWgWWK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KggggggggggK",
+        "KWWWWWgWWWgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KggggggggggK",
+        "KWWgWWWgWWWK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KggggggggggK",
+        "KWWWWgWWWgWK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KggggggggggK",
+        "KWWWgWWWWgWK",
+        "KGGGgGGGGgGK",
+        "KGGGgGGGGgGK",
+        "KGAGgGGGGgGK",
+        "KGAGgGGGGgGK",
+        "KGGGgGGGGgGK",
+        "KggggggggggK",
+        "KWWgWWgWWWWK",
+        "KGGgGGgGGGGK",
+        "KGGgGGgGGGGK",
+        "KGGgGGgGGAGK",
+        "KGGgGGgGGAGK",
+        "KGGgGGgGGGGK",
+        "KggggggggggK",
+        "KWWWWgWWgWWK",
+        "KGGGGgGGgGGK",
+        "KGGGGgGGgGGK",
+        "KGGAGgGGgGGK",
+        "KGGAGgGGgGGK",
+        "KGGGGgGGgGGK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 積まれたコンテナ（港町の高い塀）。同じ 12×54 の格子に**海上コンテナを 2 段**積む。
+    ///
+    /// 遠景のコンテナ（`SceneryPalette.containerRust` ほか）は淡い色で奥に置いてあるので、
+    /// 手前のこれは**濃い赤**（`R`）と黒に近い桁・リブ（`r`）で描く。段の継ぎ目に桁（`r`）が
+    /// 2 本並ぶので、1 個の箱ではなく「2 つ積んである」と読める——ドラム缶（4×9 の円筒）とは
+    /// 高さも形も違う。縦のリブ（波板）は列で通してあり、走っていても縦縞として見える。
+    static let containerStackRows: [String] = [
+        "KKKKKKKKKKKK",
+        "KrrrrrrrrrrK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrMRrMRrRK",
+        "KORrMRrMRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KrrrrrrrrrrK",
+        "KKKKKKKKKKKK",
+        "KKKKKKKKKKKK",
+        "KrrrrrrrrrrK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrMRrMRrRK",
+        "KORrMRrMRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KrrrrrrrrrrK",
+        "KKKKKKKKKKKK",
+    ]
+
     // MARK: 突き上げの絵（#1010）
 
     /// 竹の子（里山の突き上げ）。当たり判定は高い岩と同じ 4×9 なので格子は 12×27
@@ -615,4 +774,36 @@ enum RunnerPixelArt {
     /// **格子の幅がこの倍率そのもの**（18 ドット / 本体 12 ドット = 1.5）なので、この倍率で
     /// 貼ると 1 ドットの大きさが本体と揃う。倍率を変えるなら格子の幅も一緒に変える。
     static let shootCueVisualScale: Double = 1.5
+
+    // MARK: 宝くじ（毎面のゴール・#1092）
+
+    /// ゴールに浮いている宝くじ（21×13 ドット）。旗を置き換える目印（会長決裁 2026-09-18）。
+    ///
+    /// おじさんが追いかけている当たり券そのものなので、**紙の券面**として読める形にする:
+    /// 上段に金の帯（`Y`）と赤い刷り（`P`）、下段は生成りの紙（`M`）に赤い罫線、右寄りの
+    /// 縦 1 列だけクリーム（`T`）で切り取り線の耳を出す。文字は書かない——この大きさ
+    /// （幅 7 単位 ≒ 走者の自転車 1 台ぶん）では読めず、`RunnerAccessibility` が
+    /// 言葉のほうを担うため。
+    ///
+    /// 格子は絵にぴったり（透明な余白の行・列が無い）。シーン側は `anchorPoint = (0.5, 0.5)` で
+    /// **絵の中心**を走者の高さに合わせる（たこ焼きの底合わせとは違う——浮いている物なので）。
+    static let lotteryTicketRows: [String] = [
+        "KKKKKKKKKKKKKKKKKKKKK",
+        "KYYYYYYYYYYYYYYYYYYYK",
+        "KYYYYPPPPPPPPPPPYYYYK",
+        "KMMMMMMMMMMMMMMMMMMMK",
+        "KMPPPMMPPPMMPPPMMMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KMPPPPPPPPPPPPPMMMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KMPPPMMMPPPMMMPPPMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KTTTTTTTTTTTTTTTTTTTK",
+        "KTTTTTTTTTTTTTTTTTTTK",
+        "KKKKKKKKKKKKKKKKKKKKK",
+    ]
+
+    static func lotteryTicket() -> PixelSprite {
+        PixelSprite(rows: lotteryTicketRows, palette: palette)
+    }
 }

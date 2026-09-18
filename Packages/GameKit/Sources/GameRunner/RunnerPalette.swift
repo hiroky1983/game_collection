@@ -33,13 +33,6 @@ enum RunnerPalette {
     /// 生成りの白（旗の棒）。走者が図形だった頃の車輪の色で、名前はその名残。
     /// 走者の色はドット絵のパレット（`OjisanPixel.palette`・#701）が持ち、ここには置かない。
     static let wheel: UInt32 = 0xFFF6EC
-    /// ゴールの旗。
-    static let goal: UInt32 = 0xFF8FB1
-    /// ゴールの旗の陰（奥側の 1 枚）。チェックポイントの旗と同じ厚みの出し方（#703）。
-    static let goalShade: UInt32 = 0xD9678F
-    /// ゴールの旗の文字。チェックポイントの旗（`checkpointText`）と同じく、旗より十分暗い色で
-    /// コントラストを取る（白抜きは実機で読めなかった教訓）。
-    static let goalText: UInt32 = 0x4A1730
     /// 遠景の飾り（川・夕焼けの帯・ビル・家並み）の色は世界ごとの純データに置いてある
     /// （`RunnerWorld.SceneryPalette` / `RunnerWorld.TownHouse.Palette`・#929）。
     /// 穴の縁の警告帯。地面と同系色だと縁が分からず、落ちるかどうかの判断がつかない
@@ -56,7 +49,8 @@ enum RunnerPalette {
     /// 近景の丘（手前）。奥の丘よりさらに暗く、地面（`groundBody`）との重なりでも
     /// 手前にあると分かるようにする。
     static let hillNear: UInt32 = 0x1F2F4C
-    /// チェックポイントの旗。ゴール（`goal`）と見分けられる別の色にする。
+    /// チェックポイントの旗。ゴールの宝くじ（`RunnerPixelArt.lotteryTicket`・#1092）とは
+    /// 形も色も別物で、こちらだけが旗として残っている。
     static let checkpoint: UInt32 = 0x5FA8FF
     /// チェックポイントの旗の陰（奥側）。ゴールの旗と同じ厚みの出し方を踏襲する。
     static let checkpointShade: UInt32 = 0x3D7BD9

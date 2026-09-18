@@ -1249,6 +1249,8 @@ struct RunnerAccessibilityTests {
     func result() {
         #expect(RunnerAccessibility.resultLabel(phase: .falling, stageNumber: 2) == "ステージ 2 でミスしました")
         #expect(RunnerAccessibility.resultLabel(phase: .failed, stageNumber: 2) == "ステージ 2 でミスしました")
+        // ゴールの演出中（#1092）も、記録はもう確定しているのでクリアと言い切る。
+        #expect(RunnerAccessibility.resultLabel(phase: .chasing, stageNumber: 2) == "ステージ 2 クリア")
         #expect(RunnerAccessibility.resultLabel(phase: .cleared, stageNumber: 2) == "ステージ 2 クリア")
         #expect(RunnerAccessibility.resultLabel(phase: .allCleared, stageNumber: 15) == "全ステージクリア")
     }

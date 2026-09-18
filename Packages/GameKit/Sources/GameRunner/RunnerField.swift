@@ -119,6 +119,22 @@ public struct RunnerField: Equatable, Sendable {
     /// `footY` も `surfaceY(at:)` も動かさないので、ジャンプの軌道と全ステージの成立条件は
     /// 沈んでいるかどうかに左右されない——沈んだ状態で踏み切っても普通のジャンプになる。
     public var sinkDepth: Double { sinkProgress * RunnerRules.sinkVisualDepth }
+    /// 崩れる足場（#1090）ごとの、**初めて乗ってからの経過秒**。`stage.platforms` の添字で引く。
+    ///
+    /// 鍵が無い＝まだ誰も乗っていない足場。**入るのは 1 度だけ**（`advance` が
+    /// `crumbleElapsed[index] == nil` のときにしか 0 を入れない）なので、跳んで着地し直しても
+    /// 時計は巻き戻らず、二重にも進まない——決裁の「着地で崩れのきっかけが二重に起きない」は
+    /// この一点で成り立つ。
+    ///
+    /// 一度動き出した時計は**乗っているかどうかに関わらず進む**。崩れ落ちるのは
+    /// 「乗った足場が耐えられなくなる」出来事で、跳んで足を離しているあいだだけ止まるのは
+    /// 不自然なうえ、渡り切る猶予が跳び方で変わってしまい公平さを計算で押さえられなくなる。
+    ///
+    /// ゆっくりモードでは `RunnerModel.tick` が `dt` を縮めるので崩れも同じ割合で遅くなり、
+    /// 一時停止・バックグラウンドのあいだは `tick` 自体が来ないので進まない（沈む床と同じ）。
+    /// **エンドレス（#1086）には崩れる足場を置かない**ので、走っているのが枠（`track`）のときは
+    /// 常に空のまま。
+    public private(set) var crumbleElapsed: [Int: Double] = [:]
     /// たこ焼き（#797）の無敵の残り秒数。0 なら無敵ではない。
     ///
     /// 取り直すと満タンに戻す（重ねない。`pickupOverboost` と同じ扱い）。空中でも減る
@@ -283,11 +299,58 @@ public struct RunnerField: Equatable, Sendable {
     /// （次弾）に効く受け口として残してある。
     public func surfaceY(at x: Double) -> Double {
         var surface = Metrics.groundY
-        forEachPlatform { platform in
+        forEachPlatform { _, platform in
             guard platform.start <= x && x < platform.end else { return }
             surface = max(surface, Metrics.groundY + platform.top)
         }
         return surface
+    }
+
+    // MARK: - 崩れる足場（#1090）
+
+    /// その足場（`stage.platforms` の添字）が崩れ切ったか。
+    ///
+    /// 崩れ切ると接地面が消え、下に架かっていた区間が**穴と同じ扱い**になる
+    /// （`isCrumbledGap(at:)`）。まだ抜け落ちている途中（`crumbleWarnDuration` 〜
+    /// `crumbleDuration`）は false ——**板が抜けきるまでは乗れる**というのが決裁への回答で、
+    /// 抜けるのは左から順なので、右へ進む走者が残った板を踏み外すことはない
+    /// （`RunnerRules.crumbleFallDuration` の説明）。
+    public func hasCrumbled(_ index: Int) -> Bool {
+        guard let elapsed = crumbleElapsed[index] else { return false }
+        return elapsed >= RunnerRules.crumbleDuration
+    }
+
+    /// その足場が崩れるまでの進み具合（0…1）。まだ誰も乗っていなければ nil。
+    ///
+    /// 描画（`RunnerScene`）が揺れと板の抜け落ちを引くのに使う。**`RunnerField` は時計を
+    /// 持つだけで、どう見せるかは知らない**（沈む床の `sinkProgress` と同じ分担）。
+    public func crumbleProgress(_ index: Int) -> Double? {
+        crumbleElapsed[index].map { min(1, $0 / RunnerRules.crumbleDuration) }
+    }
+
+    /// その x が、崩れ落ちた足場の跡（＝穴）か。
+    ///
+    /// **穴（`RunnerHazard.pit`）として持たないのが要点**。障害の配列に入れると、
+    /// 成立条件の検査（`RunnerStageTests.everyHazardIsClearable`）が「1 回のジャンプで
+    /// 跳び越せる穴か」を要求してしまう——板張り 48 はどの面でも単発では跳べないが、
+    /// **架かっているあいだは渡れる**のだから、跳び越せる必要は無い。
+    public func isCrumbledGap(at x: Double) -> Bool {
+        guard track == nil else { return false }
+        for (index, platform) in stage.platforms.enumerated()
+        where platform.kind == .crumbling && hasCrumbled(index) {
+            if platform.start <= x && x < platform.end { return true }
+        }
+        return false
+    }
+
+    /// その x を覆っている**崩れる足場**の添字（まだ崩れていないものだけ）。
+    private func crumblingPlatformIndex(at x: Double) -> Int? {
+        guard track == nil else { return nil }
+        for (index, platform) in stage.platforms.enumerated()
+        where platform.kind == .crumbling && !hasCrumbled(index) {
+            if platform.start <= x && x < platform.end { return index }
+        }
+        return nil
     }
 
     /// 走者の**前方**にある最も近い障害。自動操縦テストと先読みの読み上げが使う。
@@ -394,6 +457,11 @@ public struct RunnerField: Equatable, Sendable {
     /// `altitude` は `altitude` プロパティと同じ**地面からの高さ**。台座の上に置きたければ
     /// `RunnerRules.platformHeight` を渡す（接地したかどうかは、その x の接地面
     /// （`surfaceY(at:)`）に届いているかで決まる）。
+    ///
+    /// **崩れる足場の時計（`crumbleElapsed`）は巻き戻さない**（#1090）。沈み（`sinkProgress`）が
+    /// 走者の状態なのに対し、足場が崩れたかどうかはコースの状態で、走者を置き直したからといって
+    /// 落ちた板が戻るわけではない。撮影の hook（`-simulateRunner crumble-fallen`）はこの性質に
+    /// 頼って「崩れ切った足場」の画を作る。
     public mutating func placeForTesting(distance: Double, altitude: Double, vy: Double) {
         self.distance = distance
         self.footY = Metrics.groundY + altitude
@@ -484,6 +552,12 @@ public struct RunnerField: Equatable, Sendable {
         if invincibleRemaining > 0 {
             invincibleRemaining = max(0, invincibleRemaining - dt)
         }
+        // 崩れる足場（#1090）の時計。**動き出したものは全部進める**（乗っているかは見ない）。
+        // 進めるのを移動より先に置くのは、この dt のあいだに崩れ切る足場があるなら、
+        // その先の接地判定・正面の当たり判定を**もう無いもの**として通すため。
+        for index in crumbleElapsed.keys {
+            crumbleElapsed[index]? += dt
+        }
         let previousDistance = distance
         distance += currentSpeed * dt
         // エンドレス（#1086）は、進んだぶんだけ前の区画を作って後ろの区画を捨てる。
@@ -572,7 +646,11 @@ public struct RunnerField: Equatable, Sendable {
             // 穴の判定は**中心の x** で行う。矩形で見ると爪先が縁を越えた瞬間に落ちてしまう。
             // 台座の上に落ち着く場合は穴を見ない——穴は地面に開いた欠落なので、その上に
             // 台座が架かっているなら渡れる（台座の端から降りれば下の穴の判定が効く）。
-            if surface <= Metrics.groundY, isPit(at: distance) {
+            // 崩れ落ちた足場の跡（#1090）も同じ扱い。架かっていた区間の下は最初から
+            // 谷（川・海）で、板が無くなればそこへ落ちる。死因は穴と同じ `.pit`
+            // ——遊ぶ側から見て起きたことは「足場が無いところへ落ちた」で同じだから
+            //（決裁「解析の `cause` は `pit`（`AnalyticsEndCause` を増やさない）」）。
+            if surface <= Metrics.groundY, isPit(at: distance) || isCrumbledGap(at: distance) {
                 lastMissCause = .pit
                 events.append(.fell)
                 return
@@ -587,6 +665,11 @@ public struct RunnerField: Equatable, Sendable {
             if wasAirborne {
                 applyJustLanding()
                 events.append(.landed)
+            }
+            // 崩れる足場に**初めて乗った**瞬間だけ時計を動かし始める（#1090）。着地し直しても
+            // 鍵はすでにあるので巻き戻らない。跳び越えただけ（接地しない）なら崩れない。
+            if let index = crumblingPlatformIndex(at: distance), crumbleElapsed[index] == nil {
+                crumbleElapsed[index] = 0
             }
         }
 
@@ -693,8 +776,11 @@ public struct RunnerField: Equatable, Sendable {
     /// 入ることは無い。判断を 1 か所に閉じるために対象からは外さない）。
     private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .shoot: return true
-        case .bird, .dog, .boar:                  return false
+        // 高い塀（#1091）も横に動かない相手なので岩と同じ扱い。二段ジャンプは滞空が長く、
+        // 高さ 18 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
+        // 入ることは岩より更に無い（判断を 1 か所に閉じるために対象からは外さない）。
+        case .pit, .lowBlock, .tallBlock, .shoot, .wall: return true
+        case .bird, .dog, .boar:                         return false
         }
     }
 
@@ -758,20 +844,31 @@ public struct RunnerField: Equatable, Sendable {
         }
     }
 
-    /// 台座を左から順に見て、`predicate` を満たす最初のもの。
+    /// 台座を左から順に見て、`predicate` を満たす最初のもの。**崩れ落ちた足場は無いものとして飛ばす**。
     private func firstPlatform(where predicate: (RunnerPlatform) -> Bool) -> RunnerPlatform? {
-        guard let track else { return stage.platforms.first(where: predicate) }
-        for position in 0..<track.count {
-            if let platform = track[position].platform, predicate(platform) { return platform }
+        var found: RunnerPlatform?
+        forEachPlatform { _, platform in
+            guard found == nil, predicate(platform) else { return }
+            found = platform
         }
-        return nil
+        return found
     }
 
-    /// 台座を左から順にすべて見る。
-    private func forEachPlatform(_ body: (RunnerPlatform) -> Void) {
-        guard let track else { return stage.platforms.forEach(body) }
+    /// 台座を左から順にすべて見る。添字は `stage.platforms` のもので、エンドレス（#1086）の
+    /// 枠から来た台座は nil（枠には崩れる足場を置かないので、崩れの時計を引く必要が無い）。
+    ///
+    /// **崩れ落ちた足場（`hasCrumbled`）は渡さない**。接地面（`surfaceY(at:)`）も正面の当たり判定
+    /// （`isHittingPlatformFace`）も自動操縦の踏み切り先（`nextPlatform`）も、崩れたあとは
+    /// 「そこには何も無い」が正しい——読み口を 1 つに絞って、足し忘れる箇所を作らない。
+    private func forEachPlatform(_ body: (Int?, RunnerPlatform) -> Void) {
+        guard let track else {
+            for (index, platform) in stage.platforms.enumerated() where !hasCrumbled(index) {
+                body(index, platform)
+            }
+            return
+        }
         for position in 0..<track.count {
-            if let platform = track[position].platform { body(platform) }
+            if let platform = track[position].platform { body(nil, platform) }
         }
     }
 

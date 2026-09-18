@@ -63,6 +63,16 @@ public final class RunnerModel {
     private var isPressed = false
     /// `.falling` に入ってからの経過秒。`RunnerRules.fallDuration` に達すると `.failed` へ移る。
     private var fallElapsed: Double = 0
+    /// `.chasing`（ゴールの演出・#1092）に入ってからの経過秒。
+    private var chaseElapsed: Double = 0
+    /// 演出が明けたら移る先。ゴールに着いた瞬間に `clearStage()` が決めた `.cleared` / `.allCleared`
+    /// をそのまま控える（演出は結果を変えない）。
+    private var phaseAfterChase: RunnerPhase = .cleared
+    /// この走行でゴールの演出（#1092）が済んだか。**リザルトを出しているあいだの絵**に使う
+    /// ——済んでいれば、宝くじは飛んでいった先・おじさんは画面の外に置いたままにする
+    /// （`RunnerScene.sync`）。演出を飛ばしたときも真になるので、飛ばした場合と
+    /// 見終えた場合でリザルトの画が食い違わない。
+    public private(set) var didFinishGoalChase = false
     /// 一時停止する前の状態。`resume()` で戻す。
     private var phaseBeforePause: RunnerPhase = .ready
     private let services: GameServices?
@@ -224,6 +234,9 @@ public final class RunnerModel {
             // 跳ぶ音（#703）。踏み切りが成立したときだけ鳴らす——二段目も同じく成立すれば鳴り、
             // 三度目（`RunnerRules.maxJumps` 超え）や押しっぱなしでは鳴らない。
             if field.jump() { services?.feedback.impact(.light) }
+        case .chasing:
+            // ゴールの演出中（#1092）はジャンプにはならず、**演出を飛ばす**操作になる。
+            skipGoalChase()
         default:
             break
         }
@@ -297,6 +310,17 @@ public final class RunnerModel {
             // 無限に落ち続けてしまう（`field` はミスした瞬間の状態で凍らせたままにする）。
             fallElapsed += dt
             if fallElapsed >= RunnerRules.fallDuration { phase = .failed }
+            return
+        }
+        if phase == .chasing {
+            #if DEBUG
+            // 演出の途中を撮る（`-simulateRunner chasing`）あいだは進みも止める。見た目は
+            // `goalChaseProgress` から決まるので、ここを止めれば絵も止まる。
+            if isFrozenForCapture { return }
+            #endif
+            // `.falling` と同じで `field.step` は呼ばない（ゴールに着いた状態で凍らせる）。
+            chaseElapsed += dt
+            if chaseElapsed >= RunnerRules.goalChaseDuration { skipGoalChase() }
             return
         }
         guard phase.isRunning else { return }
@@ -512,6 +536,9 @@ public final class RunnerModel {
         phase = .ready
         isPressed = false
         fallElapsed = 0
+        chaseElapsed = 0
+        phaseAfterChase = .cleared
+        didFinishGoalChase = false
         recordResult = nil
         didReachNewStage = false
         didSetBestDistance = false
@@ -551,8 +578,43 @@ public final class RunnerModel {
         case .reachedGoal:
             // エンドレスにゴールは無い（#1086）——`RunnerField` はエンドレスでこのできごとを出さない。
             guard mode == .stages else { return }
+            // **順番が意味を持つ**: 記録・解析・順位表・中断データは `clearStage()` が
+            // ゴールに着いた瞬間に確定させ、そのあとで演出の局面を被せる（#1092）。
             clearStage()
+            beginGoalChase()
         }
+    }
+
+    // MARK: - ゴールの演出（#1092）
+
+    /// 宝くじを追いかける演出の進み（0〜1）。`.chasing` 以外では 0。
+    ///
+    /// **見た目はこの値だけから決まる**（`RunnerScene.syncGoalChase`）。`SKAction` に任せず
+    /// モデルの経過時間から引くことで、撮影で時間を止めれば絵も同じところで止まる。
+    public var goalChaseProgress: Double {
+        guard phase == .chasing else { return 0 }
+        return min(1, max(0, chaseElapsed / RunnerRules.goalChaseDuration))
+    }
+
+    /// クリアが確定したあと、リザルトの手前に演出の局面を挟む。
+    ///
+    /// `clearStage()` が `.cleared` / `.allCleared` を立てた直後にだけ呼ぶ。QA用ショーケースの
+    /// 打ち切りもここを通る（`.allCleared` なので同じく演出が入る）。
+    private func beginGoalChase() {
+        guard phase == .cleared || phase == .allCleared else { return }
+        phaseAfterChase = phase
+        chaseElapsed = 0
+        didFinishGoalChase = false
+        phase = .chasing
+    }
+
+    /// 演出を飛ばしてリザルトを出す。タップ（`press`）と、時間切れ（`tick`）の共通の出口。
+    ///
+    /// 記録はすでに確定しているので、ここでやることは局面を進めることだけ。
+    public func skipGoalChase() {
+        guard phase == .chasing else { return }
+        didFinishGoalChase = true
+        phase = phaseAfterChase
     }
 
     /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（ここは `PlayRecord.applying` と同じ）。
@@ -692,6 +754,15 @@ public final class RunnerModel {
         case "cleared":
             press(); release()
             autoPlayForDebug(until: { _ in false })
+            // ゴールの演出（#1092）は飛ばして、**リザルトの画**で止める。ASO 撮影の絵を変えない。
+            skipGoalChase()
+        case "chasing":
+            // ゴールの演出のさなか（#1092）。宝くじが飛び、おじさんがまだ画面の中にいる
+            // ところを撮りたいので、進みが 4 割ほどのところで時間ごと止める。
+            press(); release()
+            autoPlayForDebug(until: { _ in false })
+            advanceFramesForDebug(seconds: RunnerRules.goalChaseDuration * 0.4)
+            isFrozenForCapture = true
         case "showcase":
             // QA用: 低い障害物・高い障害物・鳥・穴3サイズを1本で見比べる（`RunnerStage.debugShowcase`）。
             // `.ready` のまま渡すので、実機・シミュレータで普通にタップして遊べる。
@@ -784,6 +855,30 @@ public final class RunnerModel {
                     && frame.start - field.distance < 20
             })
             isFrozenForCapture = true
+        case "wall":
+            // 高い塀（#1091）の**手前**で止める（受け入れ条件の撮影シナリオ `wall`）。
+            // ショーケースの `w` まで自動操縦で行き、接地したまま間合いが 24 を切ったところで止める
+            // ——塀の全高（18）と走者が 1 画面に収まり、「一段では届かない」高さが読める画になる。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard let wall = field.stage.hazards.first(where: { $0.kind == .wall }) else { return true }
+                return field.isGrounded && wall.start - field.distance < 24
+            })
+            isFrozenForCapture = true
+        case "wall-double":
+            // **二段目の頂点**で止める（撮影シナリオ `wall-double`）。自動操縦が一段目の頂点で
+            // 二段目を踏む（`RunnerAutoPilot.shouldTakeSecondJump`）ので、そのあと上昇が終わった
+            // 瞬間 = 二段ジャンプのいちばん高いところを撮る。塀の上端より足が上にある画になる。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard field.stage.hazards.contains(where: { $0.kind == .wall }) else { return true }
+                return field.jumpCount == 2 && field.vy <= 0
+            })
+            isFrozenForCapture = true
         case "platform":
             // 台座の上を走っている瞬間で止める（#674 の受け入れ条件「台座の上を走っている瞬間」の画）。
             // 本番では台座は 16 面以降にしか出ないので、ショーケースの台座を使う。端から 8 単位
@@ -824,6 +919,33 @@ public final class RunnerModel {
             press(); release()
             runUpToSinkFloorForDebug()
             advanceFramesForDebug(seconds: 10)
+        case "crumble":
+            // 崩れる足場（#1090）に乗って**ぎしぎし揺れている**瞬間で止める
+            // （受け入れ条件「乗って揺れている」の画）。ショーケースの `C` まで自動操縦で行き、
+            // 板の上で揺れの段（`RunnerRules.crumbleWarnDuration` 以内）に居るあいだに止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            runOntoCrumblingPlatformForDebug()
+            advanceUntilForDebug { model in
+                guard let progress = model.crumbleProgressForDebug else { return false }
+                return progress * RunnerRules.crumbleDuration >= RunnerRules.crumbleWarnDuration * 0.5
+            }
+            isFrozenForCapture = true
+        case "crumble-fallen":
+            // 板が全部抜け落ちて**谷だけが残った**瞬間で止める（受け入れ条件「崩れた後」の画）。
+            //
+            // 公平さの保証（`RunnerRules.crumbleMaxLength(at:)`）により、**走者が板の上に居る
+            // まま崩れ切ることはできない**——どんな跳び方をしても横の進みは基準速を下回らず、
+            // 板張りは必ずその速さで渡り切れる長さだから。そこで「渡り切った直後の走者の
+            // 後ろで崩れ切る」ところを撮る。跳び続けると横の進みが基準速に落ちる
+            // （空中は乗りが効かない）ので、崩れ切った跡が画面に残る。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            runOntoCrumblingPlatformForDebug()
+            advanceUntilForDebug(jumping: true) { model in
+                model.crumbleProgressForDebug.map { $0 >= 1 } ?? false
+            }
+            isFrozenForCapture = true
         case "invincible":
             // たこ焼き（#797）を取って無敵のまま最初の岩に重なっている瞬間で止める
             // （受け入れ条件「無敵中に岩へ当たっても crashed が出ない」「残り時間が画面で分かる」の画）。
@@ -917,6 +1039,64 @@ public final class RunnerModel {
                 advanceUntilForDebug { (0.5...0.8).contains($0.field.sinkProgress) }
                 isFrozenForCapture = true
             }
+        case let name where name.hasPrefix("crumble-fallen:"):
+            // 本番ステージの足場が**抜け落ちている最中**（里山＝川・港町＝海が板の下に見える）を撮る
+            // （例 `-simulateRunner crumble-fallen:24`）。ショーケースは朝の下町で谷が黒い空隙
+            // なので、「崩れた後に下の景色が見える」はこちらで確かめる。
+            //
+            // **崩れ切るまで待てない**のがこの面の事情。走者は板を渡り切ってからも基準速で進むので、
+            // 崩れ切る頃（乗ってから 1.6 秒）には足場の右端が 50 以上後ろ——画面に映る後方は
+            // `Metrics.playerX`（26）ぶんしかないので、足場ごと画面の外へ出る。板が画面に残る
+            // いちばん遅い瞬間（右端から 20 まで離れたところ）で止める。
+            if let number = Int(name.dropFirst("crumble-fallen:".count)),
+               let platform = RunnerStage.stage(number: number)?.crumblingPlatforms.first {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                runOntoCrumblingPlatformForDebug()
+                advanceUntilForDebug(jumping: true) { model in
+                    if model.crumbleProgressForDebug.map({ $0 >= 1 }) == true { return true }
+                    return model.field.distance > platform.end + 20
+                }
+                isFrozenForCapture = true
+            }
+        case let name where name.hasPrefix("crumble:"):
+            // 本番ステージの崩れる足場を、その面の世界の背景の上で撮る（例 `-simulateRunner crumble:24`）。
+            // `crumble` はショーケース（朝の下町）で走るので、里山の古い吊り橋・港町の古い木の桟橋は
+            // こちらで確かめる（`sink:` と同じ理由）。板に乗って揺れているところで止める。
+            if let number = Int(name.dropFirst("crumble:".count)),
+               RunnerStage.stage(number: number)?.crumblingPlatforms.isEmpty == false {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                runOntoCrumblingPlatformForDebug()
+                advanceUntilForDebug { model in
+                    guard let progress = model.crumbleProgressForDebug else { return false }
+                    return progress * RunnerRules.crumbleDuration >= RunnerRules.crumbleWarnDuration * 0.5
+                }
+                isFrozenForCapture = true
+            }
+        case let name where name.hasPrefix("wall:"):
+            // 本番ステージの高い塀を、その面の世界の背景の上で撮る（例 `-simulateRunner wall:24`）。
+            // `wall` はショーケース（朝の下町）で走るので、里山の石垣・港町のコンテナは
+            // こちらで確かめる（`sink:` / `crumble:` と同じ理由）。塀の手前で止める。
+            if let number = Int(name.dropFirst("wall:".count)),
+               let stage = RunnerStage.stage(number: number),
+               stage.hazards.contains(where: { $0.kind == .wall }) {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let wall = field.stage.hazards.first(where: { $0.kind == .wall }) else { return true }
+                    // **踏み切りの余裕より手前で止める。** 本編の面は速さのぶん踏み切りが早く
+                    // （19〜30 面で 30 前後）、塀のすぐ手前を狙うと条件が成立するのは空中——
+                    // 接地するのは塀を越えたあとで、撮れるのは「通り過ぎた画」になる。
+                    let lead = RunnerAutoPilot.lead(for: wall, speed: field.stage.speed)
+                    return field.isGrounded && wall.start - field.distance <= lead + 16
+                })
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
@@ -980,12 +1160,12 @@ public final class RunnerModel {
 
     /// 指定秒ぶん 60fps で進める。
     ///
-    /// `.falling` は `isRunning` に含めていないので、ミスの演出中で止まらないよう
-    /// ループの継続条件にも加える（そうしないと `-simulateRunner failed` が `.falling` で
-    /// 止まってしまい `.failed` の画が撮れない）。
+    /// 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めていないので、演出中で
+    /// 止まらないようループの継続条件にも加える（そうしないと `-simulateRunner failed` が
+    /// `.falling` で止まってしまい `.failed` の画が撮れない）。
     private func advanceFramesForDebug(seconds: Double) {
         var remaining = seconds
-        while remaining > 0, phase.isRunning || phase == .falling {
+        while remaining > 0, phase.isRunning || phase.isSettling {
             tick(dt: 1.0 / 60)
             remaining -= 1.0 / 60
         }
@@ -1004,11 +1184,28 @@ public final class RunnerModel {
         })
     }
 
-    /// 跳ばずに走らせて、条件が満たされるまで進める（沈む床の撮影用）。
-    private func advanceUntilForDebug(_ stop: (RunnerModel) -> Bool) {
+    /// 崩れる足場（#1090）の**上**まで自動操縦で行く。板に足が着いた（崩れの時計が動き出した）
+    /// 瞬間で止めるので、そこから先はこちらで走らせ方を決められる。
+    private func runOntoCrumblingPlatformForDebug() {
+        autoPlayForDebug(until: { model in
+            model.field.stage.crumblingPlatforms.isEmpty || !model.field.crumbleElapsed.isEmpty
+        })
+    }
+
+    /// 撮影用に、いま乗っている（または最後に乗った）崩れる足場の崩れ具合。
+    private var crumbleProgressForDebug: Double? {
+        field.crumbleElapsed.keys.sorted().last.flatMap { field.crumbleProgress($0) }
+    }
+
+    /// 走らせて、条件が満たされるまで進める（沈む床・崩れる足場の撮影用）。
+    ///
+    /// - Parameter jumping: true なら接地するたびに踏み切る。空中では乗り（`pedalBoost`）が
+    ///   効かず横の進みが基準速に落ちるので、**いちばんゆっくり進む走り方**になる。
+    private func advanceUntilForDebug(jumping: Bool = false, _ stop: (RunnerModel) -> Bool) {
         var frames = 0
         while phase.isRunning, !stop(self), frames < 60 * 30 {
             frames += 1
+            if jumping, field.isGrounded { press(); release() }
             tick(dt: 1.0 / 60)
         }
     }
