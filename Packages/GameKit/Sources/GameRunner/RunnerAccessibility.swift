@@ -86,7 +86,7 @@ public enum RunnerAccessibility {
     public static func endlessResultLabel(phase: RunnerPhase, distance: Int) -> String {
         switch phase {
         case .falling, .failed: return "\(max(0, distance))メートルでミスしました"
-        case .cleared, .allCleared: return distanceLabel(distance)
+        case .chasing, .cleared, .allCleared: return distanceLabel(distance)
         case .paused:     return "一時停止中"
         case .ready:      return "エンドレス。タップでスタート"
         case .running:    return "走行中"
@@ -98,6 +98,9 @@ public enum RunnerAccessibility {
         switch phase {
         case .falling:    return "ステージ \(stageNumber) でミスしました"
         case .failed:     return "ステージ \(stageNumber) でミスしました"
+        // ゴールの演出中（#1092）も、記録はもう確定しているのでクリアと言い切る
+        // ——読み上げが「走行中」のまま 1.5 秒待たされるのを避ける。
+        case .chasing:    return "ステージ \(stageNumber) クリア"
         case .cleared:    return "ステージ \(stageNumber) クリア"
         case .allCleared: return "全ステージクリア"
         case .paused:     return "一時停止中"

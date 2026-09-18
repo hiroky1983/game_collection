@@ -725,6 +725,14 @@ public enum RunnerPhase: Equatable, Sendable {
     case falling
     /// ミスした。リトライ（無料・無制限）か、チェックポイント再開（リワード広告・1 回の走行につき 1 回）を選ぶ。
     case failed
+    /// ゴールに着いた直後の短い演出中（宝くじが飛ばされ、おじさんが追いかけて走り去る・#1092）。
+    ///
+    /// `.falling` と同じ作法で、タップ・一時停止は効かず（タップは演出を飛ばす操作になる）、
+    /// `RunnerRules.goalChaseDuration` 秒で自動的に `.cleared` / `.allCleared` へ移る。
+    /// **記録・解析・Game Center はここへ入る前（ゴールに着いた瞬間）に確定している**
+    /// ——`RunnerModel.clearStage()` を丸ごと済ませてからこの局面に入るので、演出を飛ばしても
+    /// 演出中にアプリを閉じても、クリアは記録済み。
+    case chasing
     /// ステージクリア（まだ次のステージが残っている）。
     case cleared
     /// 最終ステージまでクリアした。
@@ -732,6 +740,12 @@ public enum RunnerPhase: Equatable, Sendable {
 
     /// 走っていて `tick` を進めるべき状態か。
     public var isRunning: Bool { self == .running }
+
+    /// 決着の演出中（`.falling` / `.chasing`）か。
+    ///
+    /// どちらも「`tick` は進めるがゲームは進んでいない・リザルトはまだ出ない」局面で、
+    /// 走らせ切るループ（自動操縦・撮影・テスト）は `isRunning` と併せてここも回し続ける。
+    public var isSettling: Bool { self == .falling || self == .chasing }
 }
 
 /// リザルト・スタート画面に出すおじさんの表情（#702）。
@@ -748,7 +762,7 @@ public enum RunnerResultFace {
     public static func face(for phase: RunnerPhase, isNewBest: Bool = false) -> OjisanPixel.Face? {
         switch phase {
         case .ready: return .smile
-        case .running, .paused, .falling: return nil
+        case .running, .paused, .falling, .chasing: return nil
         case .failed: return isNewBest ? .cheer : .frown
         case .cleared, .allCleared: return .cheer
         }

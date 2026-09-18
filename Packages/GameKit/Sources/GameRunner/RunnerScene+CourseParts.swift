@@ -342,67 +342,60 @@ extension RunnerScene {
         courseLayer.addChild(label)
     }
 
-    /// ゴールの目印（旗）。細い柱だけでは「何のオブジェクトか分からない」というQAを受け、
-    /// 三角の旗を足して一目でゴールと分かる形にした。
+    /// ゴールの目印（**ひらひら浮いている宝くじ**・#1092）。
     ///
-    /// 「着いた感」が薄い（#703 の要素分解）ので、旗をチェックポイントの旗と同じ寸法級まで
-    /// 広げ、奥に陰の 1 枚を重ねて厚みを出し、「ゴール」と書く。**文字はこの旗の意味そのもの**
-    /// なので、チェックポイントの到達率と同じく「SpriteKit の中に文字は描かない」
-    /// （`RunnerAccessibility`）の例外にあたる。先端を尖らせた矢羽根型にしてあるのは、
-    /// 先端に切れ込みのあるつばめ尾のチェックポイントと形で見分けるため（文字が三角の
-    /// 細い先端に収まらないので、純粋な三角は捨てた）。旗は横にゆっくり伸び縮みさせて、
-    /// 風にはためいて見せる（1 ノードの `SKAction` だけで、コースの他のノードには影響しない）。
-    /// 到達した瞬間の音・触覚は `RunnerModel` が `feedback.notify(.success)` で鳴らす
-    /// （`RunnerFeedbackCue`）。
-    func addGoalMarker(at x: Double) {
-        let poleHeight = 21.0
-        let pole = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.wheel), size: CGSize(width: 1.4, height: poleHeight))
-        pole.anchorPoint = CGPoint(x: 0.5, y: 0)
-        pole.position = CGPoint(x: x, y: Metrics.groundY)
-        courseLayer.addChild(pole)
+    /// 会長決裁 2026-09-18 でゴールは旗から宝くじに変わった——おじさんが追いかけているのは
+    /// 風に飛ばされた当たり券で、毎面のゴールはその券に**追いつきかける**場面だからである
+    /// （着いた瞬間にまた飛ばされる演出が `RunnerScene.syncGoalChase`）。「ゴール」と書いた
+    /// 矢羽根型の旗と、その柱は丸ごと廃止した。**チェックポイントの旗（`addCheckpointMarker`）は
+    /// そのまま**で、形も色も文字の有無も別物なので取り違えない。
+    ///
+    /// 高さは**走者の胴の高さ**（`goalTicketY`）。跳んで取るものだと誤解させないためで、
+    /// 着いたかの判定は今までどおり距離だけ（`RunnerField` の `distance >= stage.length`）——
+    /// 地面を走っていても跳んでいても同じ地点でゴールになる。
+    ///
+    /// ゆらゆら揺れる（`SKAction`）のは「浮いている紙」だと動きで伝えるため。**Reduce Motion が
+    /// オンなら揺らさない**（決裁の受け入れ条件）。到達した瞬間の音・触覚は `RunnerModel` が
+    /// `feedback.notify(.success)` で鳴らす（`RunnerFeedbackCue`）。
+    @discardableResult
+    func addGoalMarker(at x: Double) -> SKSpriteNode {
+        let sprite = RunnerPixelArt.lotteryTicket()
+        let unit = Self.riderPlacement.unit
+        let node = SKSpriteNode(texture: lotteryTicketTexture)
+        // 浮いている物なので**絵の中心**を置き場に合わせる（底合わせのたこ焼きとは違う）。
+        node.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        node.size = CGSize(width: Double(sprite.width) * unit, height: Double(sprite.height) * unit)
+        node.position = CGPoint(x: x, y: Self.goalTicketY)
+        courseLayer.addChild(node)
+        goalTicket = node
+        goalTicketBase = node.position
+        applyGoalTicketSway(node)
+        return node
+    }
 
-        // 矢羽根型の旗。左辺を柱に付け、無地の矩形部分（x: 0〜12）の先を尖らせる。
-        let flagHalfHeight = 4.4
-        let flagPath = CGMutablePath()
-        flagPath.move(to: CGPoint(x: 0, y: flagHalfHeight))
-        flagPath.addLine(to: CGPoint(x: 12, y: flagHalfHeight))
-        flagPath.addLine(to: CGPoint(x: 15.5, y: 0))
-        flagPath.addLine(to: CGPoint(x: 12, y: -flagHalfHeight))
-        flagPath.addLine(to: CGPoint(x: 0, y: -flagHalfHeight))
-        flagPath.closeSubpath()
+    /// ゴールの宝くじを浮かべる高さ（地面からの絶対 y）。
+    ///
+    /// 走者の見た目の高さは `RunnerRider.visualHeight`（11.9）で、その 6 割ほど＝胴のあたりに
+    /// 券の中心を置く。券の高さは 13 ドット ≒ 4.3 単位なので、下端は地面から 2 単位ほど上に
+    /// 浮き、上端は走者の頭より下に収まる——**接地したまま重なる高さ**で、跳ぶ必要は無い。
+    static let goalTicketY: Double = Metrics.groundY + RunnerRider.visualHeight * 0.6
 
-        // はためき。柱側（x=0）を軸に横だけ伸縮させる。旗・陰・文字をまとめて動かす。
-        let flag = SKNode()
-        flag.position = CGPoint(x: x + 0.7, y: Metrics.groundY + poleHeight - flagHalfHeight - 0.6)
-        let wave = SKAction.sequence([
-            .scaleX(to: 0.9, duration: 0.55),
-            .scaleX(to: 1.0, duration: 0.55),
-        ])
-        wave.timingMode = .easeInEaseOut
-        flag.run(.repeatForever(wave))
-        courseLayer.addChild(flag)
-
-        let shade = SKShapeNode(path: flagPath)
-        shade.fillColor = RunnerPalette.color(RunnerPalette.goalShade)
-        shade.strokeColor = .clear
-        shade.position = CGPoint(x: 0.6, y: -0.6)
-        flag.addChild(shade)
-
-        let cloth = SKShapeNode(path: flagPath)
-        cloth.fillColor = RunnerPalette.color(RunnerPalette.goal)
-        // 旗には暗い縁取り（#929）。桃色の旗は朝のパステルの空・屋根と明度が並ぶ。
-        outline(cloth)
-        flag.addChild(cloth)
-
-        // 「ゴール」。無地の矩形部分（x: 0〜12）の真ん中に置く（3 文字 × 3.6 ≒ 10.8 幅）。
-        let label = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
-        label.text = "ゴール"
-        label.fontSize = 3.6
-        label.fontColor = RunnerPalette.color(RunnerPalette.goalText)
-        label.verticalAlignmentMode = .center
-        label.horizontalAlignmentMode = .center
-        label.position = CGPoint(x: 6, y: 0)
-        label.zPosition = 1
-        flag.addChild(label)
+    /// ゆらゆら（上下 + わずかな傾き）。Reduce Motion がオンなら掛けない（#1092）。
+    func applyGoalTicketSway(_ node: SKNode) {
+        node.removeAction(forKey: Self.loopActionKey)
+        node.zRotation = 0
+        guard !Motion.isReduceMotionEnabled else { return }
+        let rise = SKAction.moveBy(x: 0, y: 0.9, duration: 0.7)
+        rise.timingMode = .easeInEaseOut
+        let sink = SKAction.moveBy(x: 0, y: -0.9, duration: 0.7)
+        sink.timingMode = .easeInEaseOut
+        let tiltLeft = SKAction.rotate(toAngle: 0.10, duration: 0.7)
+        tiltLeft.timingMode = .easeInEaseOut
+        let tiltRight = SKAction.rotate(toAngle: -0.10, duration: 0.7)
+        tiltRight.timingMode = .easeInEaseOut
+        node.run(.repeatForever(.group([
+            .sequence([rise, sink]),
+            .sequence([tiltLeft, tiltRight]),
+        ])), withKey: Self.loopActionKey)
     }
 }

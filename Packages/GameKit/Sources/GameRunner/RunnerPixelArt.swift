@@ -45,6 +45,10 @@ enum RunnerPixelArt {
         "R": 0xC24A33,
         "r": 0x6E2118,
         "O": 0xC85B45,
+        // 宝くじ（#1092）。`Y` は券面の上帯（金）、`P` はそこに刷られた赤い文字・罫線。
+        // 紙そのものは既にある `M`（生成りの白）と `T`（淡いクリーム＝切り取り線の側）を使う。
+        "Y": 0xE4B23C,
+        "P": 0xC6314C,
     ]
 
     /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
@@ -762,4 +766,36 @@ enum RunnerPixelArt {
     /// **格子の幅がこの倍率そのもの**（18 ドット / 本体 12 ドット = 1.5）なので、この倍率で
     /// 貼ると 1 ドットの大きさが本体と揃う。倍率を変えるなら格子の幅も一緒に変える。
     static let shootCueVisualScale: Double = 1.5
+
+    // MARK: 宝くじ（毎面のゴール・#1092）
+
+    /// ゴールに浮いている宝くじ（21×13 ドット）。旗を置き換える目印（会長決裁 2026-09-18）。
+    ///
+    /// おじさんが追いかけている当たり券そのものなので、**紙の券面**として読める形にする:
+    /// 上段に金の帯（`Y`）と赤い刷り（`P`）、下段は生成りの紙（`M`）に赤い罫線、右寄りの
+    /// 縦 1 列だけクリーム（`T`）で切り取り線の耳を出す。文字は書かない——この大きさ
+    /// （幅 7 単位 ≒ 走者の自転車 1 台ぶん）では読めず、`RunnerAccessibility` が
+    /// 言葉のほうを担うため。
+    ///
+    /// 格子は絵にぴったり（透明な余白の行・列が無い）。シーン側は `anchorPoint = (0.5, 0.5)` で
+    /// **絵の中心**を走者の高さに合わせる（たこ焼きの底合わせとは違う——浮いている物なので）。
+    static let lotteryTicketRows: [String] = [
+        "KKKKKKKKKKKKKKKKKKKKK",
+        "KYYYYYYYYYYYYYYYYYYYK",
+        "KYYYYPPPPPPPPPPPYYYYK",
+        "KMMMMMMMMMMMMMMMMMMMK",
+        "KMPPPMMPPPMMPPPMMMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KMPPPPPPPPPPPPPMMMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KMPPPMMMPPPMMMPPPMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KTTTTTTTTTTTTTTTTTTTK",
+        "KTTTTTTTTTTTTTTTTTTTK",
+        "KKKKKKKKKKKKKKKKKKKKK",
+    ]
+
+    static func lotteryTicket() -> PixelSprite {
+        PixelSprite(rows: lotteryTicketRows, palette: palette)
+    }
 }

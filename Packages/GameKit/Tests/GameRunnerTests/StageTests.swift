@@ -968,9 +968,9 @@ struct RunnerPlaythroughTests {
             model.release()
         }
         var frames = 0
-        // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を無効にする
+        // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を無効にする
         // ための設計）ので、`.failed` に落ち着くまで回し続ける。
-        while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
             frames += 1
             // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。無駄ジャンプ
             // （`hopWastefully`）も含め、自動操縦の跳躍はすべて切り詰め無しの全弾道で揃える
@@ -1358,7 +1358,7 @@ struct RunnerPlaythroughTests {
             model.press()
             model.release()
             var frames = 0
-            while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+            while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
                 frames += 1
                 model.tick(dt: 1.0 / 60)
             }
@@ -1470,7 +1470,7 @@ struct RunnerPlaythroughTests {
         model.release()
         var frames = 0
         var releaseNow = false
-        while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
             frames += 1
             let field = model.field
             if field.isOnSinkFloor {

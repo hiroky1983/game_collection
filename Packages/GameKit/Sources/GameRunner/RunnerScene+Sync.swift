@@ -43,6 +43,15 @@ extension RunnerScene {
                 stopInvincibleBlink()
                 playFallAnimation()
             }
+        } else if model.phase == .chasing {
+            // ゴールの演出（#1092）。`.falling` と同じで `field` は着いた瞬間で凍っており、
+            // 絵は `RunnerModel.goalChaseProgress` だけから決まる（`SKAction` に任せない
+            // ので、撮影で時間を止めれば絵もそこで止まる）。
+            if lastSyncedPhase != .chasing {
+                stopInvincibleBlink()
+                goalTicket?.removeAction(forKey: Self.loopActionKey)
+            }
+            syncGoalChase(field, progress: model.goalChaseProgress)
         } else {
             // 沈む床（#1089）では**絵だけ**を沈みぶん下げる（`field.sinkDepth`）。当たり判定の
             // `footY` は動かないので、ジャンプの軌道も成立条件も沈みに左右されない。
@@ -60,12 +69,6 @@ extension RunnerScene {
             // 無敵の点滅（#797）は走者ノードの alpha だけを触る。動く障害（#796）の同期は
             // 障害側のノードしか動かさないので、順序に依存も干渉もしない。
             syncInvincibility(field)
-            // ゴールに着いた最初のフレームだけ紙吹雪を散らす（#703「着いた感」）。
-            // `.falling` の落下演出と同じ「前回反映した phase」との比較で 1 回に絞る。
-            if model.phase == .cleared || model.phase == .allCleared,
-               lastSyncedPhase != .cleared, lastSyncedPhase != .allCleared {
-                spawnGoalConfetti()
-            }
         }
         // コマは局面・接地・位相の純関数（`RunnerRider.frame`）。`.falling` に入った最初の
         // フレームで `tumble`、演出明けの `.failed` で `dizzy`、空中は `jump`、接地は漕ぐ 2 枚。
@@ -76,23 +79,51 @@ extension RunnerScene {
         lastSyncedPhase = model.phase
     }
 
-    /// ゴール到達の紙吹雪。土煙と同じ丸だけの部品（#494）で、旗の色と白を交互に散らす。
-    /// 座標は画面固定（走者の頭上）——クリアした瞬間 `field` は止まりコースも流れない。
-    /// ノードは演出が終わると自分で消えるので、次の走行（`rebuildCourse`）に後始末は要らない。
-    private func spawnGoalConfetti() {
-        let origin = CGPoint(x: Metrics.playerX, y: Metrics.groundY + Metrics.playerHeight + 3)
-        // 弾ける方向は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
-        let specs: [(dx: Double, dy: Double, r: Double)] = [
-            (-7, 9, 1.0), (-3, 12, 0.8), (2, 13, 1.1), (6, 11, 0.9), (9, 7, 0.8),
-            (-9, 4, 0.7), (-1, 8, 0.7), (4, 6, 0.9), (11, 3, 0.7), (-5, 6, 0.8),
-        ]
-        for (i, spec) in specs.enumerated() {
-            spawnDust(
-                at: origin, specs: [spec], duration: 0.7, in: effectLayer,
-                color: i.isMultiple(of: 2) ? RunnerPalette.goal : RunnerPalette.cloud
-            )
+    /// ゴールの演出（#1092）: 宝くじが風に飛ばされ、おじさんが追いかけて画面の外へ走り去る。
+    ///
+    /// **`SKAction` を使わず `progress`（0〜1）から毎フレーム置き直す**。ゴールに着いた瞬間に
+    /// `field` は凍るのでコース層も流れず、ここで動かすのは宝くじと走者の 2 つだけ。
+    /// 時間の出どころは `RunnerModel` なので、撮影で時間を止めれば絵も同じところで止まる
+    /// （`-simulateRunner chasing`）。紙吹雪は廃止した——逃げられた場面で祝うのは話と合わない
+    /// （決裁 #1092）。激突の土煙（`spawnCrashDust`）はそのまま残る。
+    ///
+    /// **Reduce Motion がオンなら宝くじは動かさず、その場で消える**。走者が走り去るところは
+    /// 残す（消えると「クリアしたのに何も起きない」になるため。決裁の「おじさんが走り去る程度に」）。
+    func syncGoalChase(_ field: RunnerField, progress: Double) {
+        let p = min(1, max(0, progress))
+        if let ticket = goalTicket {
+            if Motion.isReduceMotionEnabled {
+                ticket.position = goalTicketBase
+                ticket.zRotation = 0
+                ticket.alpha = p > 0 ? 0 : 1
+            } else {
+                // 右上へ弧を描いて飛んでいく（上がり方は頭打ちにして、最後は横へ抜ける）。
+                ticket.position = CGPoint(
+                    x: goalTicketBase.x + p * Self.goalTicketFlyX,
+                    y: goalTicketBase.y + sin(p * .pi * 0.5) * Self.goalTicketFlyY
+                )
+                ticket.zRotation = CGFloat(p * 2.2)
+                ticket.alpha = 1 - p * 0.35
+            }
         }
+        // おじさんは画面の右端の外まで走り去る。足元（`footY`）は着いたときのまま。
+        let chaseX = Metrics.playerX + p * (Metrics.width + Self.goalChaseExitMargin - Metrics.playerX)
+        let previousX = player.position.x
+        player.position = CGPoint(x: chaseX, y: field.footY - field.sinkDepth)
+        player.zRotation = 0
+        // 走り去るあいだも脚は回す。位相は**画面上で進んだぶん**で進めるので、
+        // 止めれば脚も止まる（`advancePedaling` が距離で回すのと同じ考え方）。
+        pedalPhase = RunnerRider.advance(
+            phase: pedalPhase, by: Double(chaseX - previousX), isPedaling: true
+        )
     }
+
+    /// 飛ばされた宝くじが右へ進む量（画面幅 100 に対して、確実に枠の外まで出る）。
+    static let goalTicketFlyX: Double = 120
+    /// 同じく上へ上がる量。上端（`Metrics.height` = 115）へ抜ける手前で横へ流れる。
+    static let goalTicketFlyY: Double = 46
+    /// 走り去った走者が画面の外に消えるまでの余白。
+    static let goalChaseExitMargin: Double = 24
 
     /// 取得済みのピックアップのノードを消す（`removedPickupIndices` の宣言を参照）。
     private func syncPickups(_ field: RunnerField) {

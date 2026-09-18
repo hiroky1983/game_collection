@@ -43,6 +43,8 @@ final class RunnerScene: SKScene {
     /// たこ焼き（#956）のテクスチャ。走者と同じく起動時に 1 回だけ作り、面ごとの `addTakoyaki` は
     /// これを貼るだけ（毎面 `CGImage` を起こさない）。
     let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")
+    /// ゴールに浮かべる宝くじ（#1092）のテクスチャ。全ステージで同じ 1 枚。
+    let lotteryTicketTexture = RunnerScene.makeTexture(RunnerPixelArt.lotteryTicket(), name: "宝くじ")
     /// 犬・イノシシの歩きのコマのテクスチャ（#975）。色が世界ごと（`RunnerWorld.creatures`）で、
     /// 港町では絵ごと猫・フォークリフトに着せ替わる（`RunnerWorld.Dressing`・#1009）ので、
     /// 全世界（5 つ）× 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
@@ -135,6 +137,12 @@ final class RunnerScene: SKScene {
     /// `sync` が毎フレーム `RunnerHazard.frame(atRunnerDistance:)` の位置へ置き直す。
     /// エンドレス（#1086）では使わない（動く障害も `endless` の部品として使い回す）。
     var movingHazards: [MovingHazardView] = []
+    /// ゴールに浮かべた宝くじ（#1092）。`rebuildCourse` で作り直し、ゴールに着いたら
+    /// `syncGoalChase` が飛ばしていく。エンドレス（ゴールが無い）では nil のまま。
+    var goalTicket: SKSpriteNode?
+    /// 宝くじを置いた場所（揺れ・飛ばす動きの基準）。演出は `SKAction` ではなく
+    /// `RunnerModel.goalChaseProgress` からここを基準に置き直す（撮影で止められるように）。
+    var goalTicketBase: CGPoint = .zero
     /// 崩れる足場（#1090）のノード。鍵は `stage.platforms` の添字で、`RunnerField.crumbleElapsed`
     /// と同じ引き方をする。`rebuildCourse` で作り直し、`sync` が崩れの進みを毎フレーム写す。
     /// エンドレス（#1086）には置かないので常に空。
