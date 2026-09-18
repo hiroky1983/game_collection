@@ -511,6 +511,16 @@ public enum RunnerRules {
     /// 1 回だけ流す。会長QA「穴に落ちるアニメーションがある方がいいかも」を受けて追加。
     public static let fallDuration: Double = 0.5
 
+    // MARK: ゴールの演出（#1092）
+
+    /// ゴールに着いた瞬間からクリアのリザルトを出すまでの間（秒）。
+    ///
+    /// この間は `RunnerPhase.chasing` に留まり、宝くじが飛ばされておじさんが追いかけて
+    /// 画面の外へ走り去る（`RunnerScene`）。決裁（#1092）の「1.5 秒程度・タップで飛ばせる」
+    /// がそのままこの値。クリア後にその場で走り出す流れ（#941）のテンポを落とさないよう、
+    /// これ以上長くしない。
+    public static let goalChaseDuration: Double = 1.5
+
     /// 総ステージ数。
     public static var stageCount: Int { RunnerStage.all.count }
 

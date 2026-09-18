@@ -16,6 +16,10 @@ extension RunnerScene {
 
         // `courseLayer.removeAllChildren()` で消えた側の控えも落とす（エンドレスには置かない）。
         crumblingPlatformNodes = [:]
+        // ゴールの宝くじ（#1092）も消えた。やり直し・次の面では下の `buildStageCourse` が
+        // ゴールの位置へ置き直す（受け入れ条件「やり直すと宝くじがゴールの位置に戻っている」）。
+        goalTicket = nil
+        goalTicketBase = .zero
         if model.field.track != nil {
             // エンドレス（#1086）: 区画は走りながら `syncEndlessCourse` が枠に合わせて置く。
             // ここでは部品の置き場を用意するだけ（ゴールもチェックポイントも無い）。

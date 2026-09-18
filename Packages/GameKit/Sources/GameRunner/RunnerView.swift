@@ -112,7 +112,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
@@ -308,7 +308,7 @@ public struct RunnerView: View {
         .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
         // 止めるものが無い状態では押せない。
         .disabled(
-            model.phase == .falling || model.phase == .failed
+            model.phase.isSettling || model.phase == .failed
                 || model.phase == .cleared || model.phase == .allCleared
         )
     }
@@ -409,7 +409,7 @@ public struct RunnerView: View {
         }
         .accessibilityElement()
         .accessibilityLabel(courseLabel)
-        .accessibilityHint("ダブルタップでジャンプ")
+        .accessibilityHint(RunnerAccessibility.courseHint(phase: model.phase))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.press(); model.release() }
     }
@@ -484,6 +484,9 @@ public struct RunnerView: View {
             pausedOverlay
         case .falling:
             // 落下・激突の短い演出中（`RunnerScene`）。ミスパネルはこの演出が終わってから出す。
+            EmptyView()
+        case .chasing:
+            // 宝くじを追いかける短い演出中（#1092）。クリアのパネルはこの演出が終わってから出す。
             EmptyView()
         case .failed:
             // ミスの表示は両モードで同じ枠（#675「既存の失敗リザルトを流用」）。エンドレスは

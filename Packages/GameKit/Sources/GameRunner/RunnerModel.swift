@@ -63,6 +63,16 @@ public final class RunnerModel {
     private var isPressed = false
     /// `.falling` に入ってからの経過秒。`RunnerRules.fallDuration` に達すると `.failed` へ移る。
     private var fallElapsed: Double = 0
+    /// `.chasing`（ゴールの演出・#1092）に入ってからの経過秒。
+    private var chaseElapsed: Double = 0
+    /// 演出が明けたら移る先。ゴールに着いた瞬間に `clearStage()` が決めた `.cleared` / `.allCleared`
+    /// をそのまま控える（演出は結果を変えない）。
+    private var phaseAfterChase: RunnerPhase = .cleared
+    /// この走行でゴールの演出（#1092）が済んだか。**リザルトを出しているあいだの絵**に使う
+    /// ——済んでいれば、宝くじは飛んでいった先・おじさんは画面の外に置いたままにする
+    /// （`RunnerScene.sync`）。演出を飛ばしたときも真になるので、飛ばした場合と
+    /// 見終えた場合でリザルトの画が食い違わない。
+    public private(set) var didFinishGoalChase = false
     /// 一時停止する前の状態。`resume()` で戻す。
     private var phaseBeforePause: RunnerPhase = .ready
     private let services: GameServices?
@@ -224,6 +234,9 @@ public final class RunnerModel {
             // 跳ぶ音（#703）。踏み切りが成立したときだけ鳴らす——二段目も同じく成立すれば鳴り、
             // 三度目（`RunnerRules.maxJumps` 超え）や押しっぱなしでは鳴らない。
             if field.jump() { services?.feedback.impact(.light) }
+        case .chasing:
+            // ゴールの演出中（#1092）はジャンプにはならず、**演出を飛ばす**操作になる。
+            skipGoalChase()
         default:
             break
         }
@@ -297,6 +310,17 @@ public final class RunnerModel {
             // 無限に落ち続けてしまう（`field` はミスした瞬間の状態で凍らせたままにする）。
             fallElapsed += dt
             if fallElapsed >= RunnerRules.fallDuration { phase = .failed }
+            return
+        }
+        if phase == .chasing {
+            #if DEBUG
+            // 演出の途中を撮る（`-simulateRunner chasing`）あいだは進みも止める。見た目は
+            // `goalChaseProgress` から決まるので、ここを止めれば絵も止まる。
+            if isFrozenForCapture { return }
+            #endif
+            // `.falling` と同じで `field.step` は呼ばない（ゴールに着いた状態で凍らせる）。
+            chaseElapsed += dt
+            if chaseElapsed >= RunnerRules.goalChaseDuration { skipGoalChase() }
             return
         }
         guard phase.isRunning else { return }
@@ -512,6 +536,9 @@ public final class RunnerModel {
         phase = .ready
         isPressed = false
         fallElapsed = 0
+        chaseElapsed = 0
+        phaseAfterChase = .cleared
+        didFinishGoalChase = false
         recordResult = nil
         didReachNewStage = false
         didSetBestDistance = false
@@ -551,8 +578,43 @@ public final class RunnerModel {
         case .reachedGoal:
             // エンドレスにゴールは無い（#1086）——`RunnerField` はエンドレスでこのできごとを出さない。
             guard mode == .stages else { return }
+            // **順番が意味を持つ**: 記録・解析・順位表・中断データは `clearStage()` が
+            // ゴールに着いた瞬間に確定させ、そのあとで演出の局面を被せる（#1092）。
             clearStage()
+            beginGoalChase()
         }
+    }
+
+    // MARK: - ゴールの演出（#1092）
+
+    /// 宝くじを追いかける演出の進み（0〜1）。`.chasing` 以外では 0。
+    ///
+    /// **見た目はこの値だけから決まる**（`RunnerScene.syncGoalChase`）。`SKAction` に任せず
+    /// モデルの経過時間から引くことで、撮影で時間を止めれば絵も同じところで止まる。
+    public var goalChaseProgress: Double {
+        guard phase == .chasing else { return 0 }
+        return min(1, max(0, chaseElapsed / RunnerRules.goalChaseDuration))
+    }
+
+    /// クリアが確定したあと、リザルトの手前に演出の局面を挟む。
+    ///
+    /// `clearStage()` が `.cleared` / `.allCleared` を立てた直後にだけ呼ぶ。QA用ショーケースの
+    /// 打ち切りもここを通る（`.allCleared` なので同じく演出が入る）。
+    private func beginGoalChase() {
+        guard phase == .cleared || phase == .allCleared else { return }
+        phaseAfterChase = phase
+        chaseElapsed = 0
+        didFinishGoalChase = false
+        phase = .chasing
+    }
+
+    /// 演出を飛ばしてリザルトを出す。タップ（`press`）と、時間切れ（`tick`）の共通の出口。
+    ///
+    /// 記録はすでに確定しているので、ここでやることは局面を進めることだけ。
+    public func skipGoalChase() {
+        guard phase == .chasing else { return }
+        didFinishGoalChase = true
+        phase = phaseAfterChase
     }
 
     /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（ここは `PlayRecord.applying` と同じ）。
@@ -692,6 +754,15 @@ public final class RunnerModel {
         case "cleared":
             press(); release()
             autoPlayForDebug(until: { _ in false })
+            // ゴールの演出（#1092）は飛ばして、**リザルトの画**で止める。ASO 撮影の絵を変えない。
+            skipGoalChase()
+        case "chasing":
+            // ゴールの演出のさなか（#1092）。宝くじが飛び、おじさんがまだ画面の中にいる
+            // ところを撮りたいので、進みが 4 割ほどのところで時間ごと止める。
+            press(); release()
+            autoPlayForDebug(until: { _ in false })
+            advanceFramesForDebug(seconds: RunnerRules.goalChaseDuration * 0.4)
+            isFrozenForCapture = true
         case "showcase":
             // QA用: 低い障害物・高い障害物・鳥・穴3サイズを1本で見比べる（`RunnerStage.debugShowcase`）。
             // `.ready` のまま渡すので、実機・シミュレータで普通にタップして遊べる。
@@ -1089,12 +1160,12 @@ public final class RunnerModel {
 
     /// 指定秒ぶん 60fps で進める。
     ///
-    /// `.falling` は `isRunning` に含めていないので、ミスの演出中で止まらないよう
-    /// ループの継続条件にも加える（そうしないと `-simulateRunner failed` が `.falling` で
-    /// 止まってしまい `.failed` の画が撮れない）。
+    /// 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めていないので、演出中で
+    /// 止まらないようループの継続条件にも加える（そうしないと `-simulateRunner failed` が
+    /// `.falling` で止まってしまい `.failed` の画が撮れない）。
     private func advanceFramesForDebug(seconds: Double) {
         var remaining = seconds
-        while remaining > 0, phase.isRunning || phase == .falling {
+        while remaining > 0, phase.isRunning || phase.isSettling {
             tick(dt: 1.0 / 60)
             remaining -= 1.0 / 60
         }

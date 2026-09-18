@@ -47,9 +47,10 @@ func autoPlayCurrentStage(_ model: RunnerModel, maxFrames: Int = 60 * 300) -> Bo
         model.release()
     }
     var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の短い演出中はタップ・一時停止を効かせない
-    // ための設計）ので、ここで打ち切らず `.failed` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < maxFrames {
+    // 決着の演出（`.falling` / ゴールの `.chasing`・#1092）は `isRunning` に含めない（演出中は
+    // タップ・一時停止を効かせないための設計）ので、ここで打ち切らず `.failed` / `.cleared` に
+    // 落ち着くまで回し続ける。
+    while model.phase.isRunning || model.phase.isSettling, frames < maxFrames {
         frames += 1
         // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すと `vy` が
         // 切り詰められて（会長QA「軽いタップなら本当に小ジャンプ」2026-09-10）
@@ -69,8 +70,8 @@ func failCurrentStage(_ model: RunnerModel, stopAfterCheckpoint: Bool = false) {
         model.release()
     }
     var frames = 0
-    // 同上: `.falling` の演出時間ぶんも回して `.failed` まで進める。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+    // 同上: 演出時間ぶんも回して `.failed` まで進める。
+    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
         frames += 1
         // `stopAfterCheckpoint` のときだけ、チェックポイントを通過するまで自動操縦で走る。
         // それ以外は一度も跳ばないので、最初の障害で必ずミスになる。

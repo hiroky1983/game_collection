@@ -25,6 +25,8 @@ struct RunnerPixelArtTests {
             // 高い塀（#1091）。こちらも色は世界によらず、着せ替え（石垣・コンテナ）で絵ごと替わる。
             ("石垣", RunnerPixelArt.wallArt(for: .stoneWall)),
             ("積まれたコンテナ", RunnerPixelArt.wallArt(for: .containerStack)),
+            // 毎面のゴール（#1092）。色は世界によらない 1 枚。
+            ("宝くじ", RunnerPixelArt.lotteryTicket()),
         ] + RunnerWorld.allCases.flatMap { world in
             RunnerPixelArt.WalkFrame.allCases.flatMap { frame in
                 [
@@ -59,6 +61,19 @@ struct RunnerPixelArtTests {
         // 底の行の中央にドットがある（原点 = 底の中央が絵の上に乗る）。
         let bottom = Array(s.rows[s.height - 1])
         #expect(bottom[s.width / 2] != ".", "底の中央が透明")
+    }
+
+    /// 決裁（#1092）: ゴールに浮かべる宝くじ。**券面として読める大きさ**で、たこ焼き（走者の頭ほど）
+    /// より横に長い紙であること。シーン側は `anchorPoint = (0.5, 0.5)` で中心を高さに合わせるので、
+    /// たこ焼きと同じく格子に透明な余白が無いことも固定する。
+    @Test("宝くじは横長の券で、格子に余白が無い")
+    func lotteryTicketIsALandscapeSlip() throws {
+        let s = RunnerPixelArt.lotteryTicket()
+        let b = try #require(s.opaqueBounds)
+        #expect(b.x == 0 && b.y == 0 && b.width == s.width && b.height == s.height, "余白: \(b)")
+        #expect(b.width > b.height, "券が横長でない（\(b.width)×\(b.height)）")
+        // 高さは走者（36 ドット）の 1/3 前後。大きすぎるとコースの主役になってしまう。
+        #expect((10...16).contains(b.height), "高さ \(b.height) ドット")
     }
 
     /// #929 の規則: 手前の物は暗い縁取りで浮かせる。縁取り `K` はどの色より暗く、格子の外周

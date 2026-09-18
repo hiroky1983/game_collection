@@ -267,7 +267,9 @@ struct RunnerWorldTests {
                 // たこ焼きはドット絵（#956）。縁取りは世界によらず絵のパレットの `K`。
                 ("たこ焼き", RunnerPixelArt.takoyakiDough, RunnerPixelArt.outline),
                 ("台座の床板", RunnerPalette.platformDeck, outline),
-                ("ゴールの旗", RunnerPalette.goal, outline),
+                // ゴールの目印は #1092 で旗 → 宝くじのドット絵に変わった。縁取りは世界に
+                // よらず絵のパレットの `K`（たこ焼きと同じ）。
+                ("ゴールの宝くじ", RunnerPixelArt.paperWhite, RunnerPixelArt.outline),
                 ("チェックポイントの旗", RunnerPalette.checkpoint, outline),
                 ("穴の柵", RunnerPalette.pitEdge, RunnerPalette.pitEdgeDark),
             ]

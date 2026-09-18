@@ -46,12 +46,16 @@ enum RunnerRider {
     /// 局面と接地からコマを決める。
     ///
     /// - `.falling`（落下・激突の演出中）は `tumble`、演出明けの `.failed` は `dizzy`。
+    /// - `.chasing`（ゴールの演出中・#1092）は**接地に関わらず漕ぐコマ**。宝くじを追いかけて
+    ///   走り去る場面なので、空中でゴールしたときも `jump` のまま横へ滑らせない
+    ///   （シーン側も走者を地面へ降ろす。`RunnerScene.syncGoalChase`）。
     /// - 空中は `jump`（前のめりの傾きはシーンが `zRotation` で足す）。
     /// - 接地していれば位相で `ride0` / `ride1`。走り出す前（`.ready`・位相 0）は `ride0`。
     static func frame(phase: RunnerPhase, isGrounded: Bool, pedalPhase: Double) -> OjisanPixel.RiderFrame {
         switch phase {
         case .falling: return .tumble
         case .failed: return .dizzy
+        case .chasing: return pedalFrame(phase: pedalPhase)
         default: return isGrounded ? pedalFrame(phase: pedalPhase) : .jump
         }
     }

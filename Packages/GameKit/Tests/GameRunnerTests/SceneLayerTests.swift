@@ -25,11 +25,14 @@ struct SceneLayerTests {
 
     /// 紙吹雪・激突の土煙がシーン直下（z = 6）に置かれ、遠景（100）の後ろに隠れていた（#1069）。
     /// 層は実行では確かめられないので、呼び出しがすべて層を渡していることをソースの形で固定する。
-    @Test("土煙・紙吹雪は必ず層を指定して置き、画面固定の演出は走者より手前の層に出す")
+    ///
+    /// **ゴールの紙吹雪は #1092 で廃止した**（宝くじに逃げられる場面で祝うのは話と合わない）。
+    /// 残るのは激突の土煙とジャスト着地の土煙の 2 つ。
+    @Test("土煙は必ず層を指定して置き、画面固定の演出は走者より手前の層に出す")
     func dustIsPlacedInALayer() throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
-        // 宣言 1 + 呼び出し 3（紙吹雪・激突・ジャスト着地）。増えたらここで気づく。
-        #expect(SourceScan.matchCount(of: #"spawnDust\("#, in: source) == 4)
+        // 宣言 1 + 呼び出し 2（激突・ジャスト着地）。増えたらここで気づく。
+        #expect(SourceScan.matchCount(of: #"spawnDust\("#, in: source) == 3)
         // 置く層を省略できない（省略時にシーン直下へ落ちる形を残さない）。
         let dust = try #require(SourceScan.declaration(of: "private func spawnDust(", in: source))
         #expect(source.contains("in parent: SKNode,"))
@@ -37,8 +40,8 @@ struct SceneLayerTests {
         #expect(!dust.contains("?? self"))
         #expect(dust.contains("parent.addChild(puff)"))
 
-        let confetti = try #require(SourceScan.declaration(of: "private func spawnGoalConfetti()", in: source))
-        #expect(confetti.contains("in: effectLayer"))
+        // 廃止した紙吹雪が戻っていないこと（戻すなら #1092 の決裁を覆す話になる）。
+        #expect(!source.contains("spawnGoalConfetti"))
         let crash = try #require(SourceScan.declaration(of: "private func spawnCrashDust()", in: source))
         #expect(crash.contains("in: effectLayer"))
         let landing = try #require(SourceScan.declaration(of: "private func spawnJustLandingDust(", in: source))
