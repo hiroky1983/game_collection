@@ -20,9 +20,21 @@ struct RunnerStoryView: View {
     var frozenPanel: Int?
 
     @State private var index = 0
+    /// VoiceOver が動いているか。**動いているあいだは自動でコマを送らない**（#1092・CodeRabbit 指摘）。
+    ///
+    /// 1.2 秒の自動送りは目で読む前提の尺で、読み上げが終わる前に次のコマへ進んでしまう。
+    /// 最後のコマではそのまま閉じるので、台詞を聞き終える手立てが無かった。環境値なので
+    /// 途中で VoiceOver を入れ切りしても追従する。
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     private var panels: [RunnerStoryPanel] { scene.panels }
     private var panel: RunnerStoryPanel { panels[min(index, panels.count - 1)] }
+    /// 自分でコマを送る（VoiceOver 中）。最後のコマなら閉じる。
+    private var isLastPanel: Bool { index + 1 >= panels.count }
+
+    private func advance() {
+        if isLastPanel { onFinish() } else { index += 1 }
+    }
 
     var body: some View {
         ZStack {
@@ -52,17 +64,19 @@ struct RunnerStoryView: View {
                     .padding(.horizontal, 16)
                 progressDots
                 Spacer(minLength: 0)
-                Button("とばす", action: onFinish)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Capsule().fill(Color.white.opacity(0.18)))
-                    // 画面の最下部はバナー（`BannerSlot`）の帯なので、その上に置く。
-                    // 幕がタップを受け切るので広告が誤って押されることはないが、
-                    // 押すボタンを広告の真上に重ねない。
-                    .padding(.bottom, 84)
-                    .accessibilityHint("このおはなしを最後まで飛ばします")
+                HStack(spacing: 12) {
+                    // VoiceOver 中は自動で送らないので、自分で進める操作を出す。
+                    if voiceOverEnabled {
+                        capsuleButton(isLastPanel ? "おわり" : "つぎへ", action: advance)
+                            .accessibilityHint(isLastPanel ? "おはなしを閉じます" : "次のコマへ進みます")
+                    }
+                    capsuleButton("とばす", action: onFinish)
+                        .accessibilityHint("このおはなしを最後まで飛ばします")
+                }
+                // 画面の最下部はバナー（`BannerSlot`）の帯なので、その上に置く。
+                // 幕がタップを受け切るので広告が誤って押されることはないが、
+                // 押すボタンを広告の真上に重ねない。
+                .padding(.bottom, 84)
             }
             .gameAnimation(.easeInOut(duration: 0.28), value: index)
         }
@@ -82,11 +96,24 @@ struct RunnerStoryView: View {
                 index = min(max(0, frozenPanel), panels.count - 1)
                 return
             }
+            // VoiceOver 中は自動で送らない。1.2 秒は目で読む前提の尺で、読み上げの途中で
+            // 次のコマへ進む（最後のコマでは閉じてしまう）。送るのは「つぎへ」だけにする。
+            guard !voiceOverEnabled else { return }
             // 最後のコマまで来たら、その 1 枚を見せ切ってから閉じる。
             let nanos = UInt64(RunnerStory.panelDuration * 1_000_000_000)
             guard (try? await Task.sleep(nanoseconds: nanos)) != nil else { return }
-            if index + 1 < panels.count { index += 1 } else { onFinish() }
+            advance()
         }
+    }
+
+    /// 下端に並べる丸いボタンの見た目（「つぎへ」「とばす」で揃える）。
+    private func capsuleButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(Capsule().fill(Color.white.opacity(0.18)))
     }
 
     /// 撮影・QA で 1 コマに止める（`-simulateRunner story-intro:3`）。製品では渡らない。
