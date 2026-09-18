@@ -1018,7 +1018,11 @@ public final class RunnerModel {
                 autoPlayForDebug(until: { model in
                     let field = model.field
                     guard let wall = field.stage.hazards.first(where: { $0.kind == .wall }) else { return true }
-                    return field.isGrounded && wall.start - field.distance < 24
+                    // **踏み切りの余裕より手前で止める。** 本編の面は速さのぶん踏み切りが早く
+                    // （19〜30 面で 30 前後）、塀のすぐ手前を狙うと条件が成立するのは空中——
+                    // 接地するのは塀を越えたあとで、撮れるのは「通り過ぎた画」になる。
+                    let lead = RunnerAutoPilot.lead(for: wall, speed: field.stage.speed)
+                    return field.isGrounded && wall.start - field.distance <= lead + 16
                 })
                 isFrozenForCapture = true
             }
