@@ -74,91 +74,134 @@ enum RunnerStoryArt {
     static func sprite(_ panel: Panel) -> PixelSprite {
         switch panel {
         case .introDraw:
-            // 朝の下町の商店街。ガラガラを右に据え、左のおじさんが回している。
+            // 朝の下町の商店街。右にガラガラ、左でおじさんが回している。
             return backdrop(.morning)
-                .overlaying(lotteryDrum(), x: 66, y: groundY - 20)
-                .overlaying(OjisanPixel.face(.smile).scaled(2), x: 24, y: groundY - 30)
+                .overlaying(lotteryDrum().scaled(2), x: 62, y: panelHeight - 40)
+                .overlaying(bust(.smile), x: 8, y: bustY)
         case .introJoy:
-            // 当たった宝くじを掲げて大喜び。顔を 3 倍にして、この話の主役が誰かを最初に見せる。
+            // 当たった宝くじを掲げて大喜び。
             return backdrop(.morning)
-                .overlaying(OjisanPixel.face(.cheer).scaled(3), x: 20, y: groundY - 45)
-                .overlaying(RunnerPixelArt.lotteryTicket().scaled(2), x: 72, y: 8)
+                .overlaying(RunnerPixelArt.lotteryTicket().scaled(2), x: 66, y: 12)
+                .overlaying(bust(.cheer), x: 8, y: bustY)
         case .introBlownAway:
-            // 風に飛ばされる。宝くじは右上の空へ、おじさんは追いかける前のしかめ面。
+            // 風に飛ばされる。宝くじは右上の空へ。
             return backdrop(.morning)
-                .overlaying(OjisanPixel.face(.frown).scaled(2), x: 18, y: groundY - 30)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 88, y: 6)
-                .overlaying(windLines(), x: 52, y: 14)
+                .overlaying(windLines().scaled(2), x: 54, y: 16)
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 94, y: 3)
+                .overlaying(bust(.frown), x: 8, y: bustY)
         case .introChase:
             // ママチャリで追いかける。以降のゲーム画面と同じ「右へ走る」向き。
             return backdrop(.morning)
-                .overlaying(OjisanPixel.rider(.ride0), x: 20, y: groundY - 37)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 92, y: 10)
+                .overlaying(OjisanPixel.rider(.ride0), x: 14, y: groundY - 37)
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 94, y: 8)
 
         case .morningReach:  return reachPanel(.morning)
         case .morningCrow:
-            // カラスが咥えて飛んでいく。宝くじはくちばしの先に重ねる。
+            // カラスが咥えて飛んでいく。宝くじはくちばしの先（左）に重ねる。
             return backdrop(.morning)
-                .overlaying(crow(), x: 56, y: 6)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 36, y: 12)
-                .overlaying(OjisanPixel.face(.gaze).scaled(2), x: 12, y: groundY - 30)
+                .overlaying(crow().scaled(2), x: 58, y: 0)
+                // くちばしの先（カラスは左へ飛ぶ）。
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 40, y: 12)
+                .overlaying(bust(.gaze), x: 6, y: bustY)
 
         case .eveningDrop:
             // カラスが落とす。宝くじはカラスの真下、まだ空の途中。
             return backdrop(.evening)
-                .overlaying(crow(), x: 62, y: 4)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 60, y: 24)
-                .overlaying(OjisanPixel.face(.cheer).scaled(2), x: 14, y: groundY - 30)
+                .overlaying(crow().scaled(2), x: 58, y: 0)
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 72, y: 34)
+                .overlaying(bust(.cheer), x: 6, y: bustY)
         case .eveningRiver:
             // 川に落ちて流されていく。地面を川面に差し替え、宝くじを水面に浮かべる。
             return backdrop(.evening, ground: RunnerWorld.SceneryPalette.riverWater)
                 .overlaying(waterGlints(RunnerWorld.SceneryPalette.riverGlint), x: 0, y: groundY + 3)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 78, y: groundY - 4)
-                .overlaying(OjisanPixel.face(.gaze).scaled(2), x: 16, y: groundY - 32)
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 82, y: groundY - 5)
+                .overlaying(bust(.gaze), x: 6, y: bustY)
 
         case .nightReach:    return reachPanel(.night)
         case .nightTruck:
-            // 配達トラックの荷台に貼り付いて走り去る。宝くじは荷台の縁に。
+            // 配達トラックの荷台に貼り付いて走り去る。**おじさんは出さない**
+            // ——貼り付いているのは宝くじのほうなので、トラックを大きく見せる。
             return backdrop(.night)
-                .overlaying(deliveryTruck(), x: 52, y: groundY - 16)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 68, y: groundY - 22)
-                .overlaying(OjisanPixel.face(.gaze).scaled(2), x: 12, y: groundY - 30)
+                .overlaying(deliveryTruck().scaled(2), x: 16, y: groundY - 32)
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 46, y: groundY - 40)
 
         case .satoyamaReach: return reachPanel(.satoyama)
         case .satoyamaDitch:
             // 用水路に落ちて海のほうへ。地面を用水路の水に差し替える。
             return backdrop(.satoyama, ground: RunnerWorld.DressingPalette.ditchWater)
                 .overlaying(waterGlints(RunnerWorld.DressingPalette.waterGlint), x: 0, y: groundY + 3)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 80, y: groundY - 4)
-                .overlaying(OjisanPixel.face(.gaze).scaled(2), x: 16, y: groundY - 32)
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 84, y: groundY - 5)
+                .overlaying(bust(.gaze), x: 6, y: bustY)
 
         case .harborReach:   return reachPanel(.harbor)
         case .harborShip:
-            // 出航する貨物船の甲板に落ちる。海の上に船、宝くじは甲板の上。
+            // 出航する貨物船の甲板に落ちる。ここだけは船を大きく見せて「行ってしまった」を出す。
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
                 .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 4)
-                .overlaying(cargoShip(), x: 44, y: groundY - 15)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 62, y: groundY - 22)
+                .overlaying(cargoShip().scaled(2), x: 4, y: groundY - 32)
+                // 甲板（コンテナの上）に落ちたところ。空へ浮かせない。
+                .overlaying(RunnerPixelArt.lotteryTicket(), x: 40, y: groundY - 28)
         case .harborWatch:
-            // 岸壁で見送る。船は水平線の向こうへ小さく（等倍のまま右端に置く）。
+            // 岸壁で見送る。船は水平線の向こうへ（等倍のまま右に置く）。
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
                 .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 4)
-                .overlaying(cargoShip(), x: 76, y: groundY - 14)
-                .overlaying(OjisanPixel.face(.gaze).scaled(3), x: 8, y: groundY - 45)
+                .overlaying(cargoShip(), x: 62, y: groundY - 17)
+                .overlaying(bust(.gaze), x: 6, y: bustY)
         case .harborToBeContinued:
-            // 「つづく」。文字は台詞側に出すので、絵は水平線と小さくなった船だけにする。
+            // 「つづく」。文字は台詞側に出すので、絵は水平線と遠ざかる船だけにする。
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
                 .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 4)
-                .overlaying(cargoShip(), x: 92, y: groundY - 13)
+                .overlaying(cargoShip(), x: 58, y: groundY - 15)
         }
     }
+
+    /// 顔を出すコマの置き方（バストアップ）。
+    ///
+    /// 正面顔（`OjisanPixel.face`）は**顔だけ**なので、3 倍にして地面に置くと首から下が無い
+    /// 「浮いた丸い頭」に見える。ここで首と肩（黄色いポロシャツ）を継ぎ足し、下端をコマの
+    /// 下端に接地させて胸から上の絵にする。**足すのはこの話の中だけ**——顔そのものは
+    /// ハブのアイコン・リザルトと同じ `OjisanPixel` のまま（`Core` の定義は変えない）。
+    static func bust(_ face: OjisanPixel.Face) -> PixelSprite {
+        let head = OjisanPixel.face(face).scaled(3)
+        let body = PixelSprite(rows: shoulderRows, palette: OjisanPixel.palette)
+        // 肩は顎に少し重ねる（隙間を空けると首が切れて見える）。
+        return PixelSprite.blank(width: head.width, height: bustHeight)
+            .overlaying(head, x: 0, y: 0)
+            .overlaying(body, x: 0, y: head.height - 6)
+    }
+
+    /// バストアップの高さ（顔 45 + 肩 14 − 重ね 6）。
+    static let bustHeight = OjisanPixel.faceDotSize.height * 3 + 14 - 6
+
+    /// バストアップの上端（下端がコマの下端にちょうど接する位置）。
+    static var bustY: Int { panelHeight - bustHeight }
+
+    /// 首と肩（48×14）。顔を 3 倍にしたときの幅に合わせてある。色は `OjisanPixel.palette`
+    /// （`S` = 肌・`Y` = 黄色いポロシャツ・`K` = 輪郭）をそのまま使う。
+    static let shoulderRows: [String] = [
+        "....................KKKKKKKK....................",
+        "....................KSSSSSSK....................",
+        "....................KSSSSSSK....................",
+        "..............KKKKKKKSSSSSSKKKKKKK..............",
+        "..........KKKKYYYYYYYYYYYYYYYYYYYYKKKK..........",
+        "........KKKYYYYYYYYYYYYYYYYYYYYYYYYYYKKK........",
+        "......KKYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYKK......",
+        ".....KKYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYKK.....",
+        ".....KYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYK.....",
+        ".....KYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYK.....",
+        ".....KYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYK.....",
+        ".....KYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYK.....",
+        ".....KYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYK.....",
+        ".....KYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYK.....",
+    ]
 
     /// 「あと一歩で掴みかける」コマ。世界ごとに背景だけ変えて、構図は 5 回とも同じにする
     /// （毎回同じ形で外されるのがこの話の型なので、絵でもそれを繰り返す）。
     private static func reachPanel(_ world: RunnerWorld) -> PixelSprite {
         backdrop(world)
-            .overlaying(OjisanPixel.rider(.jump), x: 30, y: groundY - 42)
-            .overlaying(RunnerPixelArt.lotteryTicket(), x: 76, y: groundY - 40)
+            .overlaying(OjisanPixel.rider(.jump), x: 26, y: groundY - 40)
+            // 伸ばした手のすぐ先に置く（届きそうで届かない距離）。
+            .overlaying(RunnerPixelArt.lotteryTicket(), x: 70, y: groundY - 44)
     }
 
     // MARK: 土台
@@ -222,8 +265,14 @@ enum RunnerStoryArt {
         "W": 0xFAF6EC,                                   // 生成りの白
         "Y": 0xE4B23C,                                   // 金（宝くじの帯）
         "N": 0xC89A5E, "X": 0x5A3A1A,                    // 木（木箱の板・継ぎ目）
-        "G": 0x18181F, "B": 0x23232B, "E": 0x7A7A88,     // カラス（里山の鳥の 3 階調）
-        "y": 0x4A4A52,                                   // カラスのくちばし
+        // カラス。里山の鳥（`RunnerWorld.satoyama.creatures`）は黒に近い 3 階調だが、それは
+        // 淡い背景の前を**横切る**前提の色で、1 コマの主役に据えると翼・胴・輪郭が同じ黒の塊に
+        // なって鳥だと読めない。**階調だけ開いて**、翼を一段明るく・羽の筋をさらに明るくする
+        // （「カラス = 黒い鳥」は保つ）。
+        // 手前の翼 `G` → 羽の筋 `w` → 胴 `B` → 奥の翼 `b` の 4 階調。奥の翼をいちばん暗くすると
+        // 翼が 2 枚に見え、1 枚の三角（＝飛行機のシルエット）にならない。
+        "G": 0x44445A, "w": 0x6E6E88, "B": 0x2A2A38, "b": 0x16161E, "E": 0xF4F4F4,
+        "y": 0x8A8A96,                                   // カラスのくちばし
         "V": 0x60A040, "O": 0xE08030,                    // 野菜（緑・橙）
         "C": 0x3E4E80, "T": 0x34343C, "t": 0x787882,     // 運転席（紺）・タイヤ
         "H": 0xA3AFBC, "D": 0xD0A094, "Q": 0xD8D3C8,     // 船体・喫水線・船橋
@@ -239,10 +288,10 @@ enum RunnerStoryArt {
         "....KKRRRRRRRRRRKK......",
         "...KRRRRRRRRRRRRRRK.....",
         "..KRRRRRRRRRRRRRRRRK....",
-        "..KRRRRRRRRRRRRRRRRK.KK.",
-        "..KRRRRWWWWWWRRRRRRK.KX.",
-        "..KRRRRWWWWWWRRRRRRKKKX.",
-        "..KRRRRRRRRRRRRRRRRK.KX.",
+        "..KRrRRRRRRRRRRRRrRK.KK.",
+        "..KRrRRWWWWRRRRRRrRK.KX.",
+        "..KRrRRWWWWRRRRRRrRKKKX.",
+        "..KRrRRRRRRRRRRRRrRK.KX.",
         "...KRRRRRRRRRRRRRRK..KX.",
         "....KKRRRRRRRRRRKK.KKX..",
         "......KKKKKKKKKK........",
@@ -261,20 +310,20 @@ enum RunnerStoryArt {
 
     static let crowRows: [String] = [
         "............................",
-        "..........KKKK..............",
-        ".........KGGGGKK............",
-        "........KGGGGGGGKK..........",
-        ".......KGGGGGGGGGGKK........",
-        "..KKKKKGGGGGGGGGGGGGKKK.....",
-        ".KBBBKGGGGGGGGGGGGGGGGKK....",
-        "KBBEBKGGGGGGGGGGGGGGGGGK....",
-        "yyKBBBKGGGGGGGGGGGGGGGGK....",
-        "..KBBBBKGGGGGGGGGGGGGGK.....",
-        "...KBBBBBKKGGGGGGGGGKK......",
-        "....KBBBBBBBKKKKKKKK........",
-        ".....KBBBBBBBBBK............",
-        "......KKBBBBBKK.............",
-        "........KKKKK...............",
+        "....KK..............KK......",
+        "...KbbK............KGGK.....",
+        "..KbbbbK..........KGGGGK....",
+        "..KbbbbbK........KGGwwGK....",
+        "...KbbbbbK......KGwwwGK.....",
+        "....KbbbbbKKKKKKGGGGGK......",
+        ".....KbbbbBBBBBBBBGGGK......",
+        "...KKBBBBBBBBBBBBBBBBKKK....",
+        ".yyKBEBBBBBBBBBBBBBBBBGGK...",
+        ".yyKBBBBBBBBBBBBBBBBBBGGGK..",
+        "...KKBBBBBBBBBBBBBBBKGGGK...",
+        ".....KKKKKKKKKKKKKKKKKKK....",
+        "............................",
+        "............................",
         "............................",
     ]
 

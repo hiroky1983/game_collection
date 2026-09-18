@@ -1,6 +1,9 @@
 import Core
+import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import GameRunner
 import CoreTestSupport
 
@@ -264,6 +267,45 @@ struct RunnerStoryTests {
             let colors = Set(topRow.map { first.palette[$0] })
             #expect(colors == [world.palette.sky], "\(world): 空が \(colors)")
         }
+    }
+
+    /// レビュー用: `RUNNER_STORY_OUT` にディレクトリを渡すと、全 16 コマを並べた PNG を書き出す。
+    /// 絵の良し悪しは機械では測れないので、**人が 1 枚で見比べられる形**を用意する
+    /// （`PixelArtTests` のおじさんシートと同じ作法）。
+    @Test("レビュー用のシートを書き出す（環境変数があるときだけ）")
+    func writeReviewSheet() throws {
+        guard let out = ProcessInfo.processInfo.environment["RUNNER_STORY_OUT"] else { return }
+        let panels = RunnerStoryArt.Panel.allCases
+        let scale = 2, columns = 4, gap = 8
+        let cell = (w: RunnerStoryArt.panelWidth * scale, h: RunnerStoryArt.panelHeight * scale)
+        let rows = (panels.count + columns - 1) / columns
+        let width = columns * cell.w + (columns + 1) * gap
+        let height = rows * cell.h + (rows + 1) * gap
+        let ctx = try #require(CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        ctx.setFillColor(CGColor(red: 0.1, green: 0.1, blue: 0.12, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        ctx.interpolationQuality = .none
+        for (i, panel) in panels.enumerated() {
+            let img = try #require(RunnerStoryArt.sprite(panel).cgImage(scale: scale), "\(panel)")
+            let col = i % columns, row = i / columns
+            ctx.draw(img, in: CGRect(
+                x: gap + col * (cell.w + gap),
+                // CGContext の y は下が 0。並びを見たまま（左上から）にするため上下を返す。
+                y: height - gap - (row + 1) * cell.h - row * gap,
+                width: cell.w, height: cell.h
+            ))
+        }
+        let image = try #require(ctx.makeImage())
+        let url = URL(fileURLWithPath: out).appendingPathComponent("runner-story-sheet.png")
+        let dest = try #require(
+            CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)
+        )
+        CGImageDestinationAddImage(dest, image, nil)
+        #expect(CGImageDestinationFinalize(dest))
     }
 
     // MARK: 5. 撮影・QA の入口

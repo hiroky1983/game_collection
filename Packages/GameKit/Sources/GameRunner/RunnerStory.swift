@@ -52,8 +52,8 @@ public enum RunnerStoryScene: Equatable, Hashable, Sendable {
         switch self {
         case .intro:
             return [
-                RunnerStoryPanel(art: .introDraw, line: "商店街の福引きで大当たりや！"),
-                RunnerStoryPanel(art: .introJoy, line: "宝くじやがな。3億円かもしれん"),
+                RunnerStoryPanel(art: .introDraw, line: "商店街の福引き、回してみよか"),
+                RunnerStoryPanel(art: .introJoy, line: "大当たりや！ 宝くじ 3億円かも"),
                 RunnerStoryPanel(art: .introBlownAway, line: "あー！ 飛んでってもうた！"),
                 RunnerStoryPanel(art: .introChase, line: "待てー！ どこまでも追いかけたるわ"),
             ]

@@ -91,6 +91,14 @@ public struct PixelSprite: Sendable, Equatable {
         return PixelSprite(rows: out, palette: palette)
     }
 
+    /// 全部が透明な格子（部品を組み合わせて 1 つの絵にするときの台紙）。
+    public static func blank(width: Int, height: Int) -> PixelSprite {
+        PixelSprite(
+            rows: [String](repeating: String(repeating: ".", count: max(1, width)), count: max(1, height)),
+            palette: [:]
+        )
+    }
+
     /// 単色で塗りつぶした格子（場面の空・海・地面など、重ねる土台に使う）。
     public static func solid(width: Int, height: Int, color: UInt32) -> PixelSprite {
         PixelSprite(
