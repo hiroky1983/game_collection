@@ -92,7 +92,7 @@ extension RunnerScene {
     func syncGoalChase(_ field: RunnerField, progress: Double) {
         let p = min(1, max(0, progress))
         if let ticket = goalTicket {
-            if Motion.isReduceMotionEnabled {
+            if reducesMotion {
                 ticket.position = goalTicketBase
                 ticket.zRotation = 0
                 ticket.alpha = p > 0 ? 0 : 1

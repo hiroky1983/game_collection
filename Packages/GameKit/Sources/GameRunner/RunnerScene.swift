@@ -143,6 +143,16 @@ final class RunnerScene: SKScene {
     /// 宝くじを置いた場所（揺れ・飛ばす動きの基準）。演出は `SKAction` ではなく
     /// `RunnerModel.goalChaseProgress` からここを基準に置き直す（撮影で止められるように）。
     var goalTicketBase: CGPoint = .zero
+
+    /// いま「視差効果を減らす」が有効か（#210・#1092）。既定は OS の設定をそのつど読む。
+    ///
+    /// **テストは `reduceMotionOverride` にこのシーンぶんだけ与えること。**
+    /// `Motion.override` はプロセス全体に効くグローバルな状態で、Swift Testing が
+    /// スイートを並行実行するため、**別のスイートが立てた値をこちらが拾って揺れる**
+    /// （実際に CI のフルスイートで「宝くじが飛ばない」と誤検知した。#828 と同型）。
+    var reducesMotion: Bool { reduceMotionOverride ?? Motion.isReduceMotionEnabled }
+    /// 上記の注入口。製品コードからは触らない（nil = OS の設定に従う）。
+    var reduceMotionOverride: Bool?
     /// 崩れる足場（#1090）のノード。鍵は `stage.platforms` の添字で、`RunnerField.crumbleElapsed`
     /// と同じ引き方をする。`rebuildCourse` で作り直し、`sync` が崩れの進みを毎フレーム写す。
     /// エンドレス（#1086）には置かないので常に空。

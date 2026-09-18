@@ -384,7 +384,7 @@ extension RunnerScene {
     func applyGoalTicketSway(_ node: SKNode) {
         node.removeAction(forKey: Self.loopActionKey)
         node.zRotation = 0
-        guard !Motion.isReduceMotionEnabled else { return }
+        guard !reducesMotion else { return }
         let rise = SKAction.moveBy(x: 0, y: 0.9, duration: 0.7)
         rise.timingMode = .easeInEaseOut
         let sink = SKAction.moveBy(x: 0, y: -0.9, duration: 0.7)

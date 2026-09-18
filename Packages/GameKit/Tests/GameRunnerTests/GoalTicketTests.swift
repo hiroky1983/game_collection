@@ -1,7 +1,7 @@
 import Foundation
 import SpriteKit
 import Testing
-@testable import Core
+import Core
 @testable import GameRunner
 import CoreTestSupport
 
@@ -218,6 +218,8 @@ struct RunnerGoalTicketTests {
     func retryPutsTheTicketBack() throws {
         let model = RunnerModel(startingAt: 1, preference: makePreference("goal-retry"))
         let scene = RunnerScene(model: model)
+        // 動きを見るので Reduce Motion は明示的にオフ（既定は OS の設定で、CI では有効なことがある）。
+        scene.reduceMotionOverride = false
         scene.rebuildCourse()
         let home = try #require(scene.goalTicket).position
 
@@ -239,6 +241,7 @@ struct RunnerGoalTicketTests {
     func theCutsceneMovesTicketAndRiderOffScreen() throws {
         let model = RunnerModel(startingAt: 1, preference: makePreference("goal-motion"))
         let scene = RunnerScene(model: model)
+        scene.reduceMotionOverride = false
         scene.rebuildCourse()
         #expect(runToGoal(model))
 
@@ -262,13 +265,14 @@ struct RunnerGoalTicketTests {
 
     // MARK: Reduce Motion
 
+    /// **`Motion.override`（プロセス全体）ではなくシーンごとの注入口を使う。**
+    /// Swift Testing はスイートを並行実行するので、グローバルを立てると他のスイートの
+    /// 判断まで書き換わる（#828 と同型の揺れ。実際に CI のフルスイートで踏んだ）。
     @Test("Reduce Motion がオンなら、宝くじは揺れず、その場で消える")
     func reduceMotionStillsTheTicket() throws {
-        Motion.override = true
-        defer { Motion.override = nil }
-
         let model = RunnerModel(startingAt: 1, preference: makePreference("goal-reduce-motion"))
         let scene = RunnerScene(model: model)
+        scene.reduceMotionOverride = true
         scene.rebuildCourse()
         let ticket = try #require(scene.goalTicket)
         #expect(ticket.action(forKey: RunnerScene.loopActionKey) == nil, "揺れの動きが掛かっている")
@@ -284,11 +288,9 @@ struct RunnerGoalTicketTests {
 
     @Test("Reduce Motion がオフなら、宝くじはゆらゆら揺れる")
     func theTicketSwaysWithoutReduceMotion() throws {
-        Motion.override = false
-        defer { Motion.override = nil }
-
         let model = RunnerModel(startingAt: 1, preference: makePreference("goal-sway"))
         let scene = RunnerScene(model: model)
+        scene.reduceMotionOverride = false
         scene.rebuildCourse()
         let ticket = try #require(scene.goalTicket)
         #expect(ticket.action(forKey: RunnerScene.loopActionKey) != nil)
