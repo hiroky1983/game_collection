@@ -154,6 +154,8 @@ public final class RunnerModel {
             services?.gameDidStart(
                 gameID: Self.gameID, level: .stage(stageNumber), mode: RunnerMode.stages.analyticsMode
             )
+            // 数えたプレイには必ず「続きから戻れない」を立てる（`restartPlay` と同じ理由・#1105）。
+            services?.gameWillNotResume(gameID: Self.gameID)
         }
     }
 
@@ -363,7 +365,7 @@ public final class RunnerModel {
         case .endless:
             guard isRunOver else { return }
             startEndless(seed: Self.randomSeed())
-            services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
+            restartPlay()
         }
     }
 
@@ -378,7 +380,7 @@ public final class RunnerModel {
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
         // 1 ステージ = 1 プレイとして数え直す（#158。前のステージの `game_end` は送信済み）。
-        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        restartPlay(level: .stage(stageNumber))
         beginRun()
     }
 
@@ -387,7 +389,7 @@ public final class RunnerModel {
         guard mode == .stages, phase == .cleared || phase == .allCleared else { return }
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
-        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        restartPlay(level: .stage(stageNumber))
         beginRun()
     }
 
@@ -434,9 +436,7 @@ public final class RunnerModel {
         stageNumber = number
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
-        services?.gameDidRestart(
-            gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode
-        )
+        restartPlay(level: .stage(stageNumber))
     }
 
     /// 種を指定してエンドレスをはじめから（#675）。
@@ -447,7 +447,7 @@ public final class RunnerModel {
     public func newEndlessGame(seed: UInt64) {
         mode = .endless
         startEndless(seed: seed)
-        services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
+        restartPlay()
     }
 
     /// スタート画面（#931）のボタンで走り出す。開始シートを経ずにモードを選んで**その場で走り出す**入口。
@@ -498,6 +498,20 @@ public final class RunnerModel {
     }
 
     // MARK: - 内部
+
+    /// 新しいプレイとして数え直す（`game_start`）。面・モードを選んで始める入口の共通の実体。
+    ///
+    /// `gameDidRestart` のあとに **`gameWillNotResume` を必ず立てる**（#1105）。このゲームの
+    /// 中断データはステージ番号と到達点の控えで走行そのものを復元せず、しかも記録を守るため
+    /// 決着後も消さないので、既定の「中断データが在る = 続きから戻れる」がそのままだと
+    /// **選んで始めたのに走らずハブへ戻った走行が休憩扱いで残る**。残ると次の走行の
+    /// `gameDidStart` が（冪等なので）無視されて `game_start` が落ち、その `game_end` の
+    /// `duration_sec` がハブ滞在まで含んだ値になる。走り出し（`beginRun`）でも同じことを
+    /// するが、そこへ辿り着く前に離脱されるのがこの穴だった。
+    private func restartPlay(level: AnalyticsLevel? = nil) {
+        services?.gameDidRestart(gameID: Self.gameID, level: level, mode: mode.analyticsMode)
+        services?.gameWillNotResume(gameID: Self.gameID)
+    }
 
     /// 現在のステージのコースを作り直し、走り出す前の状態にする。
     ///
