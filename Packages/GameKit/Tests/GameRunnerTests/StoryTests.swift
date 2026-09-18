@@ -1,6 +1,7 @@
 import Core
 import CoreGraphics
 import Foundation
+import GameKitTestSupport
 import ImageIO
 import Testing
 import UniformTypeIdentifiers
@@ -247,6 +248,36 @@ struct RunnerStoryTests {
         // 他の局面の文言は変えていない（#1121 の約束）。
         #expect(RunnerAccessibility.courseHint(phase: .chasing) == "ダブルタップで演出をスキップ")
         #expect(RunnerAccessibility.courseHint(phase: .running) == "ダブルタップでジャンプ")
+    }
+
+    /// VoiceOver・提示順の結線（#1092・CodeRabbit 指摘）。
+    ///
+    /// SwiftUI の提示順と読み上げは `swift test` から観測できない（ホストした View の
+    /// アクセシビリティツリーが読めない）ので、ここは**結線の形**で固定する。
+    /// `SourceScan.strippingComments` を通しているので、コメントでの言及には当たらない。
+    @Test("VoiceOver 中は自動で送らず、自分で進める操作を出す")
+    func voiceOverStopsTheAutoAdvance() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
+        let view = try #require(SourceScan.declaration(of: "struct RunnerStoryView", in: source))
+        #expect(view.contains("@Environment(\\.accessibilityVoiceOverEnabled)"))
+        // 自動送り（`Task.sleep`）へ入る前に抜ける。
+        #expect(view.contains("guard !voiceOverEnabled else { return }"))
+        #expect(view.contains("if voiceOverEnabled {"), "自分で送る操作が出ていない")
+        #expect(view.contains("つぎへ") && view.contains("おわり") && view.contains("とばす"))
+        // 背後のコースへ回り込ませない。
+        #expect(view.contains(".accessibilityAddTraits(.isModal)"))
+    }
+
+    @Test("ストーリーが出ているあいだ「はじめから」は押せず、中断しても操作ガイドが消えない")
+    func theStoryKeepsThePresentationOrder() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
+        // ナビバーはオーバーレイの外にあるので、押せると 始まり → ガイド → 開始シートの順が崩れる。
+        #expect(source.contains(".disabled(presentedStory != nil)"))
+        // それでも中断された経路（撮影用の `-showRunnerStartSheet` など）で取り残さない。
+        let open = try #require(SourceScan.declaration(of: "private func openStartSheet", in: source))
+        #expect(open.contains("introScene = nil"))
+        // `RunnerTutorial.shouldShow` は `init` で「見せた」ことにするので、ここで拾わないと二度と出ない。
+        #expect(source.contains("isPresented: $showStartSheet, onDismiss:"))
     }
 
     // MARK: 4. 絵
