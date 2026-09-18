@@ -185,9 +185,11 @@ extension RunnerScene {
             // 揺れ。抜け落ちが始まってからは振れ幅を倍にして「もう保たない」を見せる。
             let amplitude = elapsed < warn ? 0.35 : 0.7
             view.deck.position = CGPoint(x: 0, y: sin(elapsed * 34) * amplitude)
-            view.cracks.alpha = CGFloat(min(1, elapsed / warn))
 
             let fallen = max(0, (elapsed - warn) / RunnerRules.crumbleFallDuration)
+            // ひびは板の上の模様なので、**板が抜けるのと同じ割合で消す**。濃さだけを見て
+            // 描き続けると、板が全部落ちたあとに宙へひびだけが残る。
+            view.cracks.alpha = CGFloat(min(1, elapsed / warn) * (1 - min(1, fallen)))
             for (i, plank) in view.planks.enumerated() {
                 // この板が抜け始める割合。左端が 0、右端が 1。
                 let share = Double(i) / Double(max(1, view.planks.count - 1))
