@@ -266,16 +266,18 @@ struct AnalyticsEventShapeTests {
                 "広告の単価・報酬額など収益の生値は載せない")
     }
 
-    @Test("cause は pit / rock / bird / animal の4値に閉じている（#796）")
+    /// #1089（沈む床）で `sink` を 1 つだけ足した。**足す前の 4 値の並びは変えない**
+    /// ——GA4 側の既存の集計は値の集合が増えても壊れないが、既存の値の綴りが変わると壊れる。
+    @Test("cause は pit / rock / bird / animal / sink の5値に閉じている（#796・#1089）")
     func causeIsClosed() {
-        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal"])
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal", "sink"])
         let sent = AnalyticsEndCause.allCases.map { cause -> String in
             guard case let .string(text)? = AnalyticsEvent
                 .gameEnd(gameID: "runner", result: .loss, durationSec: 0, cause: cause)
                 .parameters["cause"] else { return "" }
             return text
         }
-        #expect(sent == ["pit", "rock", "bird", "animal"])
+        #expect(sent == ["pit", "rock", "bird", "animal", "sink"])
     }
 
     @Test("result は win / loss / draw / quit の4値に閉じている（#500）")

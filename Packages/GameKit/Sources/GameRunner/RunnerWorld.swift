@@ -679,6 +679,13 @@ public extension RunnerWorld {
             /// 波しぶき（港町）。岸壁の縁に泡が立つ予告 → 水柱が上がる。
             case seaSpray
         }
+        /// 沈む床（#1089）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
+        public enum SinkFloor: Equatable, Sendable {
+            /// 田んぼ（里山）。水面に苗の列、入ると泥が跳ねる。
+            case paddy
+            /// 干潟（港町）。ぬかるんだ泥にカニの穴、入ると泥が跳ねる。
+            case tideland
+        }
         /// 加速床。
         public enum BoostFloor: Equatable, Sendable {
             /// 青い加速帯（`RunnerScene.makeBoostFloor`）。
@@ -697,6 +704,7 @@ public extension RunnerWorld {
         public let platform: Platform
         public let boostFloor: BoostFloor
         public let shoot: Shoot
+        public let sinkFloor: SinkFloor
 
         /// 岩の枠の着せ替え。岩でない種類は nil。
         public func block(for kind: RunnerHazardKind) -> Block? {
@@ -716,7 +724,7 @@ public extension RunnerWorld {
     /// `number == 0` なので `RunnerScene.rebuildCourse` が朝の下町で走らせる）で撮れるようにするため。
     static let originalDressing = Dressing(
         pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
-        platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot
+        platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy
     )
 
     var dressing: Dressing {
@@ -725,17 +733,21 @@ public extension RunnerWorld {
             return RunnerWorld.originalDressing
         case .satoyama:
             // 穴＝用水路・低い岩＝切り株・高い岩＝大きな石（岩塊のまま）・犬＝田舎の犬（色違い）・
-            // イノシシ＝イノシシ・台座＝わら積み・加速床＝舗装された農道・突き上げ＝竹の子（#1010）。
+            // イノシシ＝イノシシ・台座＝わら積み・加速床＝舗装された農道・突き上げ＝竹の子（#1010）・
+            // 沈む床＝田んぼ（#1089）。
             return Dressing(
                 pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
-                platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot
+                platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot,
+                sinkFloor: .paddy
             )
         case .harbor:
             // 穴＝岸壁の切れ目・低い岩＝ロープの束・高い岩＝ドラム缶・犬＝野良猫・イノシシ＝
-            // フォークリフト・台座＝木箱の山・加速床＝ベルトコンベア・突き上げ＝波しぶき（#1010）。
+            // フォークリフト・台座＝木箱の山・加速床＝ベルトコンベア・突き上げ＝波しぶき（#1010）・
+            // 沈む床＝干潟（#1089）。
             return Dressing(
                 pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
-                platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray
+                platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray,
+                sinkFloor: .tideland
             )
         }
     }
@@ -792,5 +804,22 @@ public extension RunnerWorld {
         public static let conveyorRoller: UInt32 = 0xB8BEC6
         /// ベルトの上の矢印（青い加速帯と同じ黄）。
         public static let conveyorArrow: UInt32 = RunnerPalette.boostFloorArrow
+        // 田んぼ（`Dressing.SinkFloor.paddy`・#1089）
+        /// 田んぼの水面。砂利の農道（0xC2B8A6）と 3:1 以上あり、「乗る前に沈む床だと分かる」
+        /// （決裁の受け入れ条件）ための色の差はここが担う。
+        public static let paddyWater: UInt32 = 0x3C6274
+        /// 水の底（沈む先の暗がり）。走者が沈むほどこの色に浸かって見える。
+        public static let paddyDeep: UInt32 = 0x22414F
+        /// 苗。水面から突き出る縦の線で、水面と 3:1 以上（模様として読める）。
+        public static let paddySeedling: UInt32 = 0x8FD46A
+        // 干潟（`Dressing.SinkFloor.tideland`・#1089）
+        /// 干潟の泥。岸壁のコンクリート（0xB9BDBD）と 3:1 以上。
+        public static let tidelandMud: UInt32 = 0x756244
+        /// 泥の深いところ（沈む先）。
+        public static let tidelandDeep: UInt32 = 0x3E3426
+        /// カニの穴。泥と 3:1 以上で、点として読める暗さ。
+        public static let tidelandHole: UInt32 = 0x171310
+        /// 潮の照り（濡れた泥の光沢）。泥と 3:1 以上。
+        public static let tidelandSheen: UInt32 = 0xDCE8EC
     }
 }

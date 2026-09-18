@@ -300,6 +300,106 @@ extension RunnerScene {
         return node
     }
 
+    // MARK: 沈む床（田んぼ・干潟・#1089）
+
+    /// 沈む床（#1089）。**路面を水面／泥に塗り替え、地面の線より上へ突き出す目印を並べる**。
+    ///
+    /// 加速床（`makeBoostFloor`）と同じく当たり判定を一切持たない区間なので、岩・鳥のような
+    /// 「地面から生えた物」には見せない。代わりに、
+    ///
+    /// - 路面の厚み（`roadHeight`）を沈む色で塗り、上 7 割を水面／泥、下を底の暗がりにする
+    ///   （段差で「深さ」が出る。走者は沈むほどこの暗がりに浸かって見える）
+    /// - **地面の線より上へ 2.2〜2.5 だけ突き出す目印**（田んぼ＝苗・干潟＝穴から出た泡）を並べる。
+    ///   走者の高さ 11 に対して十分低いので当たる物には見えないが、**踏み込む前に
+    ///   「ここから沈む」と読める**（決裁の受け入れ条件「入る前に分かる見た目」）。
+    ///   照り（下の `addGlint`）は水面のマスクで切られるので、この役目は担えない
+    /// - 照りの線を右へ流して、止まっている地面ではないことを動きでも伝える
+    ///
+    /// 両端の岸（`RunnerRules.sinkFloorBankTiles`）はここでは描かない——区間の外は路面のままで、
+    /// それがそのままあぜ道・岸に見える。
+    func makeSinkFloor(_ floor: RunnerSinkFloor) -> SKNode {
+        typealias P = RunnerWorld.DressingPalette
+        let paddy = world.dressing.sinkFloor == .paddy
+        let node = SKNode()
+        node.position = CGPoint(x: floor.start, y: 0)
+        let height = Self.roadHeight
+        let bottom = Metrics.groundY - height
+        let surfaceHeight = height * 0.7
+        addBand(to: node, color: paddy ? P.paddyDeep : P.tidelandDeep,
+                x: 0, y: bottom, width: floor.length, height: height)
+        addBand(to: node, color: paddy ? P.paddyWater : P.tidelandMud,
+                x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
+
+        // 水面（泥）の模様。田んぼは苗の列、干潟はカニの穴。どちらも 1 本のパスにまとめて
+        // 1 ノードで描く（長い床でもノード数が増えない。`makeConveyor` のローラーと同じ作法）。
+        let marks = CGMutablePath()
+        let spacing = 5.0
+        var x = spacing / 2
+        while x < floor.length - 1 {
+            if paddy {
+                // 苗: 水面から 2.5 だけ突き出す細い縦線を 2 本ずつ。
+                for dx in [-0.9, 0.9] {
+                    marks.addRect(CGRect(x: x + dx - 0.35, y: Metrics.groundY - 1.4, width: 0.7, height: 3.9))
+                }
+            } else {
+                // カニの穴: 泥の面に開いた小さな穴。
+                marks.addEllipse(in: CGRect(x: x - 0.8, y: Metrics.groundY - 2.2, width: 1.6, height: 1.1))
+                // 穴から出た泡（跳ねた泥）。**苗と同じく地面の線より上へ 2.4 突き出す**
+                // ——これが無いと干潟には「踏み込む前に読める目印」が 1 つも無い
+                // （穴も照りも地面の線より下で、照りは水面のマスクで切られる。PR #1110 の指摘）。
+                marks.addEllipse(in: CGRect(x: x - 0.6, y: Metrics.groundY + 0.2, width: 1.2, height: 1.2))
+                marks.addEllipse(in: CGRect(x: x + 0.9, y: Metrics.groundY + 1.4, width: 0.8, height: 0.8))
+            }
+            x += spacing
+        }
+        let markNode = SKShapeNode(path: marks)
+        markNode.fillColor = RunnerPalette.color(paddy ? P.paddySeedling : P.tidelandHole)
+        markNode.strokeColor = .clear
+        markNode.zPosition = 2
+        node.addChild(markNode)
+
+        // 水面（泥）の照り。**水面のマスクで切るので地面の線より上には出ない**——踏み込む前の
+        // 目印は上の `marks`（苗・泡）が担う。
+        let glints = CGMutablePath()
+        let glintSpacing = 9.0
+        var gx = 0.0
+        while gx < floor.length + glintSpacing {
+            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy)
+            gx += glintSpacing
+        }
+        let glintNode = SKShapeNode(path: glints)
+        glintNode.fillColor = RunnerPalette.color(paddy ? P.waterGlint : P.tidelandSheen)
+        glintNode.strokeColor = .clear
+        glintNode.alpha = 0.85
+        glintNode.zPosition = 1
+        // 1 周期ぶん右へ流して戻す（`addFlowingChevrons` と同じ、継ぎ目の出ない流し方）。
+        glintNode.position = CGPoint(x: -glintSpacing, y: 0)
+        glintNode.run(.repeatForever(.sequence([
+            .moveBy(x: glintSpacing, y: 0, duration: 1.6),
+            .moveBy(x: -glintSpacing, y: 0, duration: 0),
+        ])), withKey: Self.loopActionKey)
+        let crop = SKCropNode()
+        let mask = SKSpriteNode(color: .white, size: CGSize(width: floor.length, height: surfaceHeight))
+        mask.anchorPoint = .zero
+        mask.position = CGPoint(x: 0, y: Metrics.groundY - surfaceHeight)
+        crop.maskNode = mask
+        crop.zPosition = 1
+        crop.addChild(glintNode)
+        node.addChild(crop)
+        return node
+    }
+
+    /// 照り 1 つぶんの形。田んぼは水面の細い線、干潟は濡れた泥の丸い光沢＋泡。
+    private func addGlint(to path: CGMutablePath, at x: Double, groundY: Double, paddy: Bool) {
+        if paddy {
+            path.addRect(CGRect(x: x, y: groundY - 1.3, width: 4.2, height: 0.5))
+            path.addRect(CGRect(x: x + 2.0, y: groundY - 2.6, width: 2.8, height: 0.45))
+        } else {
+            path.addEllipse(in: CGRect(x: x, y: groundY - 1.5, width: 4.0, height: 0.9))
+            path.addEllipse(in: CGRect(x: x + 2.4, y: groundY - 3.0, width: 1.2, height: 1.2))
+        }
+    }
+
     private func addBand(to node: SKNode, color: UInt32, x: Double, y: Double, width: Double, height: Double) {
         let band = SKSpriteNode(color: RunnerPalette.color(color), size: CGSize(width: width, height: height))
         band.anchorPoint = .zero

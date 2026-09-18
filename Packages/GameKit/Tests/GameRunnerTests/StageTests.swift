@@ -110,7 +110,11 @@ struct RunnerStageTests {
     ///   （目安として +3 個まで。世界が変わった直後は新しい仕組みを覚える面なので数で押さない）
     @Test("里山・港町の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
     func newWorldHazardCountsNeverDecrease() {
-        let counts = RunnerStage.all.map(\.hazards.count)
+        // **沈む床（#1089）も 1 つで 1 個と数える。** `RunnerHazard` ではないが、遊ぶ側から見れば
+        // 「越えるか、連打して抜けるか」を迫られる手応えそのもので、置いた区画は障害と同じく
+        // 平地の余白を 1 つ潰している。数えないと、仮置きの穴を沈む床へ置き換えた面だけが
+        // 見かけ上やさしくなったように見えてしまう。
+        let counts = RunnerStage.all.map { $0.hazards.count + $0.sinkFloors.count }
         #expect(counts.count == 30)
         for range in [18..<24, 24..<30] {
             let group = Array(counts[range])
@@ -379,6 +383,7 @@ struct RunnerStageTests {
                     || symbol == RunnerStage.takoyakiSymbol
                     || symbol == RunnerStage.platformSymbol
                     || symbol == RunnerStage.boostFloorSymbol
+                    || symbol == RunnerStage.sinkFloorSymbol
                 #expect(isKnown, "ステージ \(stage.number) に未知の記号 '\(symbol)' がある")
             }
         }
@@ -700,6 +705,13 @@ struct RunnerStageTests {
                 #expect(
                     !(platform.start - margin < x && x < platform.end + margin),
                     "ステージ \(stage.number): チェックポイントが台座と重なっている"
+                )
+            }
+            // 沈む床（#1089）も避ける。水の上から再開すると、助走の無いまま沈みが溜まり始める。
+            for floor in stage.sinkFloors {
+                #expect(
+                    !(floor.start - margin < x && x < floor.end + margin),
+                    "ステージ \(stage.number): チェックポイントが沈む床と重なっている"
                 )
             }
         }
@@ -1429,7 +1441,11 @@ struct RunnerPlaythroughTests {
         while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
             frames += 1
             let field = model.field
-            if field.isGrounded, let target = RunnerAutoPilot.nextTarget(field: field) {
+            if field.isOnSinkFloor {
+                // 沈む床（#1089）ではジャスト着地を狙わない——狙う対象は「越えた障害の真裏」で、
+                // 床は越える相手ではない。ここだけ自動操縦と同じ判断（跳ぶか我慢するか）に任せる。
+                if RunnerAutoPilot.shouldJump(field: field) { model.press() }
+            } else if field.isGrounded, let target = RunnerAutoPilot.nextTarget(field: field) {
                 // 既定は自動操縦と同じ踏み切り（台座・鳥まわりはこの判断に任せる）。
                 var plan = (x: target.start - target.lead, tap: false)
                 if field.altitude == 0,

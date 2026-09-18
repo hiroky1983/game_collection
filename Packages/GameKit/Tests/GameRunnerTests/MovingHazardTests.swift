@@ -614,7 +614,10 @@ struct RunnerHazardMotionTests {
         #expect(RunnerHazardKind.dog.missCause == .animal)
         #expect(RunnerHazardKind.boar.missCause == .animal)
         #expect(RunnerHazardKind.shoot.missCause == .rock, "`AnalyticsEndCause` は増やさない（決裁）")
-        #expect(AnalyticsEndCause.allCases.count == 4)
+        // 沈む床（#1089）だけは `RunnerHazardKind` を持たない——床は障害ではないので、
+        // 死因は `RunnerField` が直に立てる（`sink`）。語彙はこの 1 つだけ増えた。
+        #expect(AnalyticsEndCause.allCases.count == 5)
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue).contains("sink"))
     }
 
     // MARK: - 手応え

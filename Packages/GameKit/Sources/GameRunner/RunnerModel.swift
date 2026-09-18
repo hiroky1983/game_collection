@@ -807,6 +807,23 @@ public final class RunnerModel {
                     && field.stage.boostFloors.contains { $0.start + 20 <= field.distance }
             })
             isFrozenForCapture = true
+        case "sink":
+            // 沈む床（#1089）の上で沈みかけている瞬間で止める（受け入れ条件「沈みの見た目」の画）。
+            // ショーケースの `~~`（2 区画ぶん = 長い床）まで自動操縦で行き、**そこから跳ぶのをやめて**
+            // 沈みが 5〜8 割まで溜まったところで止める（自動操縦は床の上で必ず跳ぶので、
+            // 最後まで任せると沈みかけの画が撮れない）。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            runUpToSinkFloorForDebug()
+            advanceUntilForDebug { (0.5...0.8).contains($0.field.sinkProgress) }
+            isFrozenForCapture = true
+        case "sink-failed":
+            // 沈み切って溺れた直後のリザルト（#1089）。同じく床の手前まで自動操縦で行き、
+            // 跳ぶのをやめて溺れさせ、ミスの演出（`fallDuration`）が明けるまで進める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            runUpToSinkFloorForDebug()
+            advanceFramesForDebug(seconds: 10)
         case "invincible":
             // たこ焼き（#797）を取って無敵のまま最初の岩に重なっている瞬間で止める
             // （受け入れ条件「無敵中に岩へ当たっても crashed が出ない」「残り時間が画面で分かる」の画）。
@@ -886,6 +903,20 @@ public final class RunnerModel {
             if let number = Int(name.dropFirst("map:".count)) {
                 reachedStage = min(max(number, 1), RunnerRules.stageCount)
             }
+        case let name where name.hasPrefix("sink:"):
+            // 本番ステージの沈む床を、その面の世界の背景の上で撮る（例 `-simulateRunner sink:21`）。
+            // `sink` はショーケース（朝の下町）で走るので、里山の田んぼ・港町の干潟の見え方は
+            // こちらで確かめる（`bird:` と同じ理由）。床の手前まで自動操縦で行き、そこから跳ぶのを
+            // やめて沈みが 5〜8 割のところで止める。
+            if let number = Int(name.dropFirst("sink:".count)),
+               RunnerStage.stage(number: number)?.sinkFloors.isEmpty == false {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                runUpToSinkFloorForDebug()
+                advanceUntilForDebug { (0.5...0.8).contains($0.field.sinkProgress) }
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
@@ -964,6 +995,24 @@ public final class RunnerModel {
     ///
     /// 判断は `RunnerAutoPilot` に置いてある。**テストが全ステージのクリア可能性を
     /// 確かめるのに使うのと同じ関数**なので、撮影用にだけ都合の良い操作を書き足す余地がない。
+    /// 沈む床（#1089）の**手前**まで自動操縦で行く。床の左端まで体 3 つぶんに入った接地中の
+    /// 瞬間で止めるので、そこから先は跳ばずに走るだけで水に入る。
+    private func runUpToSinkFloorForDebug() {
+        autoPlayForDebug(until: { model in
+            guard let floor = model.field.stage.sinkFloors.first else { return true }
+            return model.field.isGrounded && (0...24).contains(floor.start - model.field.distance)
+        })
+    }
+
+    /// 跳ばずに走らせて、条件が満たされるまで進める（沈む床の撮影用）。
+    private func advanceUntilForDebug(_ stop: (RunnerModel) -> Bool) {
+        var frames = 0
+        while phase.isRunning, !stop(self), frames < 60 * 30 {
+            frames += 1
+            tick(dt: 1.0 / 60)
+        }
+    }
+
     private func autoPlayForDebug(until stop: (RunnerModel) -> Bool) {
         var frames = 0
         while phase.isRunning, !stop(self), frames < 60 * 120 {
