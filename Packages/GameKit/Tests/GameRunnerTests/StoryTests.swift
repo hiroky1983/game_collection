@@ -240,6 +240,15 @@ struct RunnerStoryTests {
         #expect(model.phase == .story, "一時停止が効いてしまった")
     }
 
+    @Test("締めの最中はコースのヒントが「ジャンプ」を名乗らない")
+    func theCourseHintChangesDuringTheEnding() {
+        // ここでのダブルタップはジャンプにならない（飛ばすのはオーバーレイの「とばす」）。
+        #expect(RunnerAccessibility.courseHint(phase: .story) == "おはなしを表示中です")
+        // 他の局面の文言は変えていない（#1121 の約束）。
+        #expect(RunnerAccessibility.courseHint(phase: .chasing) == "ダブルタップで演出をスキップ")
+        #expect(RunnerAccessibility.courseHint(phase: .running) == "ダブルタップでジャンプ")
+    }
+
     // MARK: 4. 絵
 
     @Test("どのコマも 1 枚の格子に焼き込まれ、寸法が揃っていてパレットに無い文字が無い")

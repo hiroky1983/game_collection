@@ -312,8 +312,8 @@ public final class RunnerModel {
             if fallElapsed >= RunnerRules.fallDuration { phase = .failed }
             return
         }
-        // 締めの演出中（#1092）はコマ送りを View が持つので、時間では何も進めない。
-        if phase == .story { return }
+        // 締めの演出中（`.story`・#1092）は下の `guard phase.isRunning` が止める
+        // ——コマ送りは View が持つので、時間では何も進めない。
         if phase == .chasing {
             #if DEBUG
             // 演出の途中を撮る（`-simulateRunner chasing`）あいだは進みも止める。見た目は

@@ -20,7 +20,6 @@ struct RunnerStoryView: View {
     var frozenPanel: Int?
 
     @State private var index = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var panels: [RunnerStoryPanel] { scene.panels }
     private var panel: RunnerStoryPanel { panels[min(index, panels.count - 1)] }
@@ -59,7 +58,10 @@ struct RunnerStoryView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                     .background(Capsule().fill(Color.white.opacity(0.18)))
-                    .padding(.bottom, 24)
+                    // 画面の最下部はバナー（`BannerSlot`）の帯なので、その上に置く。
+                    // 幕がタップを受け切るので広告が誤って押されることはないが、
+                    // 押すボタンを広告の真上に重ねない。
+                    .padding(.bottom, 84)
                     .accessibilityHint("このおはなしを最後まで飛ばします")
             }
             .gameAnimation(.easeInOut(duration: 0.28), value: index)
@@ -67,6 +69,9 @@ struct RunnerStoryView: View {
         // 絵と台詞は装飾ではなく「今読むべきもの」なので、まとめて 1 つの読み上げにする。
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(scene.title)。\(panel.line)")
+        // 画面を覆っているあいだ、VoiceOver が背後のコース・ヘッダーへ回り込まないようにする
+        // （シートと同じ扱い。回り込めると「ダブルタップでジャンプ」など効かない操作に触れる）。
+        .accessibilityAddTraits(.isModal)
         // ボタンの外側はどこを押しても飛ばせる（ボタン自身のタップはボタンが先に取る）。
         .contentShape(Rectangle())
         .onTapGesture(perform: onFinish)

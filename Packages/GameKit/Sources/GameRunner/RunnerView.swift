@@ -361,9 +361,9 @@ public struct RunnerView: View {
         }
         .buttonStyle(.pop)
         .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
-        // 止めるものが無い状態では押せない。
+        // 止めるものが無い状態では押せない（締めの演出中 `.story` も同じ・#1092）。
         .disabled(
-            model.phase.isSettling || model.phase == .failed
+            model.phase.isSettling || model.phase == .story || model.phase == .failed
                 || model.phase == .cleared || model.phase == .allCleared
         )
     }
@@ -371,6 +371,12 @@ public struct RunnerView: View {
     /// 開始シート（`RunnerStartSheet`）を、選んでおくモードと面を決めて開く。
     /// ツールバーの「はじめから」の経路（#1027。「マップ」導線はカードごと廃止した）。
     private func openStartSheet(mode: RunnerMode, stage: Int) {
+        // 始まり（#1092）の最中でもツールバーの「はじめから」は押せる（ナビバーはオーバーレイの
+        // 外にある）。ここで畳まないと、開始シートの下に始まりが残り、シートを閉じたあとに
+        // オーバーレイが出てきて、閉じた拍子に開始シートがもう一度開く。締めを `resetRun` で
+        // 落としているのと同じ手当て。見た印は消費済みだが、開始シートの「おはなし」から
+        // いつでも見返せる。
+        introScene = nil
         selectedMode = mode
         selectedStage = stage
         showStartSheet = true
