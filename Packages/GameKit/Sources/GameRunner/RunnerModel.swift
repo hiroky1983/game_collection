@@ -312,6 +312,8 @@ public final class RunnerModel {
             if fallElapsed >= RunnerRules.fallDuration { phase = .failed }
             return
         }
+        // 締めの演出中（`.story`・#1092）は下の `guard phase.isRunning` が止める
+        // ——コマ送りは View が持つので、時間では何も進めない。
         if phase == .chasing {
             #if DEBUG
             // 演出の途中を撮る（`-simulateRunner chasing`）あいだは進みも止める。見た目は
@@ -539,6 +541,11 @@ public final class RunnerModel {
         chaseElapsed = 0
         phaseAfterChase = .cleared
         didFinishGoalChase = false
+        // 締めの場面も走行の頭で落とす（#1092・CodeRabbit 指摘）。`RunnerStoryView` はコースを
+        // 覆うがツールバーの「はじめから」はその外側にあるので、締めの最中でも新しい走行を
+        // 始められる。ここで落とさないと、`.ready` に戻ったのに `finishStory()` が
+        // `.story` 以外では効かず、オーバーレイが消せないまま被り続ける。
+        storyScene = nil
         recordResult = nil
         didReachNewStage = false
         didSetBestDistance = false
@@ -580,9 +587,38 @@ public final class RunnerModel {
             guard mode == .stages else { return }
             // **順番が意味を持つ**: 記録・解析・順位表・中断データは `clearStage()` が
             // ゴールに着いた瞬間に確定させ、そのあとで演出の局面を被せる（#1092）。
+            let cleared = stageNumber
             clearStage()
-            beginGoalChase()
+            // 世界の締め（6・12・18・24・30 面の初回クリア）は、毎面のゴールの演出の**代わり**に流す。
+            if let scene = RunnerStory.endingToPlay(clearedStage: cleared, playLog: services?.playLog) {
+                beginStory(scene)
+            } else {
+                beginGoalChase()
+            }
         }
+    }
+
+    // MARK: - 世界の締め（#1092）
+
+    /// 流している最中の場面。`.story` 以外では nil。
+    public private(set) var storyScene: RunnerStoryScene?
+
+    /// クリアが確定したあと、リザルトの手前に締めを挟む。
+    private func beginStory(_ scene: RunnerStoryScene) {
+        guard phase == .cleared || phase == .allCleared else { return }
+        phaseAfterChase = phase
+        storyScene = scene
+        // 締めを流した回も「ゴールの演出は済んだ」扱いにする。リザルトの背後の絵
+        // （宝くじは飛んでいった先・おじさんは画面の外）を、毎面の演出を見た回と揃えるため。
+        didFinishGoalChase = true
+        phase = .story
+    }
+
+    /// 締めを見終えた / 飛ばした。記録はすでに確定しているので、局面を進めるだけ。
+    public func finishStory() {
+        guard phase == .story else { return }
+        storyScene = nil
+        phase = phaseAfterChase
     }
 
     // MARK: - ゴールの演出（#1092）
@@ -763,6 +799,14 @@ public final class RunnerModel {
             autoPlayForDebug(until: { _ in false })
             advanceFramesForDebug(seconds: RunnerRules.goalChaseDuration * 0.4)
             isFrozenForCapture = true
+        case let value where RunnerStory.debugScene(for: value)?.triggerStage != nil:
+            // 世界の締め（`story-world1`〜`story-world5`・#1092）。締めは**リザルトの手前**に
+            // 出るものなので、まず普通にゴールさせて `.cleared` を作り、その上に被せる。
+            // 面はどこでもよい（締めの絵は `RunnerStoryArt` が自前の背景で描く）。
+            press(); release()
+            autoPlayForDebug(until: { _ in false })
+            skipGoalChase()
+            if let scene = RunnerStory.debugScene(for: value) { beginStory(scene) }
         case "showcase":
             // QA用: 低い障害物・高い障害物・鳥・穴3サイズを1本で見比べる（`RunnerStage.debugShowcase`）。
             // `.ready` のまま渡すので、実機・シミュレータで普通にタップして遊べる。

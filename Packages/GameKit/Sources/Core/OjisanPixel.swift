@@ -10,6 +10,13 @@ import SwiftUI
 ///
 /// 設定: 大阪に住む 65 歳。薄い頭に白髪まじりの側頭部、太い眉、鼻の下のヒゲ（メガネは無し・会長
 /// 指示 2026-09-15）、笑顔、黄色のポロシャツ、紺のズボン、前かご付きの赤いママチャリ。
+/// **思い立ったらママチャリでどこへでも行く、ちょっと変わったおじさん。**
+///
+/// ストーリー（会長決裁 2026-09-17〜18・#1092。**おじさんシリーズの他のゲームも同じ設定を使う**）:
+/// 商店街の福引きで当たった**宝くじ**が風に飛ばされ、どこまでも追いかけていく。あと一歩で掴み
+/// かけるたび、カラス・川・トラック・用水路・貨物船に邪魔されて次の土地へ飛んでいく。最後は
+/// （将来の版で）地獄の閻魔大王から取り返すが、**億だと思ったら 300 円**。
+/// なぜママチャリで海を渡れるのかは**一切説明しない**（そこがギャグ）。
 ///
 /// 走者のコマは 40×37 ドット（右向き）。1 ドット = 整数 pt で描く（`PixelSprite.cgImage(scale:)`）。
 /// 正面顔は 16×15 ドット（ハブのカード・リザルト・LP）。
@@ -56,6 +63,9 @@ public enum OjisanPixel {
     /// 正面顔の表情。
     public enum Face: String, CaseIterable, Sendable {
         case smile, cheer, frown
+        /// ぽかんと見送る（#1092 の世界の締め。宝くじに逃げられた直後・岸壁で船を見送る場面）。
+        /// 眉は八の字、口は小さく開いたまま。しかめ面（`frown`）と違って怒っても悔しがってもいない。
+        case gaze
     }
 
     public static func rider(_ frame: RiderFrame) -> PixelSprite {
@@ -73,6 +83,7 @@ public enum OjisanPixel {
         case .smile: return PixelSprite(rows: smileRows, palette: palette)
         case .cheer: return PixelSprite(rows: cheerRows, palette: palette)
         case .frown: return PixelSprite(rows: frownRows, palette: palette)
+        case .gaze: return PixelSprite(rows: gazeRows, palette: palette)
         }
     }
 
@@ -370,6 +381,25 @@ public enum OjisanPixel {
         ".KsSSShhHHhhSSsK",
         "..KsSShhhhhhSsK.",
         "..KKsSMMMMMSsKK.",
+        "....KsSSSSSsK...",
+        ".....KKssKKK....",
+        ".......KKK......",
+        "................",
+    ]
+    // gaze 16x15（#1092）。眉（`h`）を内側へ寄せて八の字にし、口（`M`）は 2×2 で小さく開けたまま。
+    // 頬（`C`）は笑顔と同じ位置に残す——血の気が引いた顔ではなく「呆けている」顔にしたいので。
+    static let gazeRows: [String] = [
+        ".....KKKKKK.....",
+        "...KKHHSSHHKK...",
+        "..KHHhSSSShHHK..",
+        "..KHhSSSSSShHK..",
+        ".KHhSShhSShhSSHK",
+        ".KHhSQESSSSQESHK",
+        ".KhSSSSSsSSSSShK",
+        ".KsSSCSSSSSSCSsK",
+        ".KsSSShhHHhhSSsK",
+        "..KsSSShMMhSSsK.",
+        "..KKsSShMMhSsKK.",
         "....KsSSSSSsK...",
         ".....KKssKKK....",
         ".......KKK......",
