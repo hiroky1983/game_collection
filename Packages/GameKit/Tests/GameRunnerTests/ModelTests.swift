@@ -1029,11 +1029,23 @@ struct RunnerPlayCountTests {
         func log(_ event: AnalyticsEvent) { events.append(event) }
     }
 
-    private func makeAnalytics(_ spy: SpyAnalyticsService) -> GameServices {
+    /// 進む時計。**実時間を待たない**（実時間の待ち合わせは並列実行で落ちるため）。
+    @MainActor
+    private final class TestClock {
+        private var seconds: TimeInterval = 0
+        var now: Date { Date(timeIntervalSince1970: seconds) }
+        func advance(_ interval: TimeInterval) { seconds += interval }
+    }
+
+    private func makeAnalytics(
+        _ spy: SpyAnalyticsService,
+        store: SnapshotStore = MemorySnapshotStore(),
+        clock: TestClock = TestClock()
+    ) -> GameServices {
         let analytics = GameAnalytics(
-            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { Date(timeIntervalSince1970: 0) }
+            service: spy, allowedGameIDs: [RunnerModel.gameID], now: { clock.now }
         )
-        return GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        return GameServices(snapshots: store, ads: NoopAdService(), analytics: analytics)
     }
 
     private func starts(_ spy: SpyAnalyticsService) -> [String] {
@@ -1045,6 +1057,12 @@ struct RunnerPlayCountTests {
     private func ends(_ spy: SpyAnalyticsService) -> [AnalyticsResult] {
         spy.events.compactMap { event -> AnalyticsResult? in
             if case let .gameEnd(_, result, _, _, _) = event { return result } else { return nil }
+        }
+    }
+
+    private func durations(_ spy: SpyAnalyticsService) -> [Int] {
+        spy.events.compactMap { event -> Int? in
+            if case let .gameEnd(_, _, seconds, _, _) = event { return seconds } else { return nil }
         }
     }
 
@@ -1090,6 +1108,40 @@ struct RunnerPlayCountTests {
         #expect(model.phase == .cleared)
         #expect(starts(spy) == ["stage-2"])
         #expect(ends(spy).count == 1)
+    }
+
+    @Test("シートで「スタート」後に走らずハブへ戻っても、次の走行が game_start 1 本・その開始からの duration_sec")
+    func leavingBeforeRunningDoesNotSwallowTheNextRun() {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let clock = TestClock()
+        let services = makeAnalytics(spy, store: store, clock: clock)
+
+        // 1. ハブから開く（中断データ無し = 開始シート）→「スタート」で 1 面を選んだ。
+        let opened = RunnerModel(services: services, preference: makePreference("count-leave-before-run"))
+        #expect(opened.newGame(startingAtStage: 1))
+        #expect(starts(spy) == ["stage-1"])
+
+        // 2. **走らずに**ハブへ戻る。中断データ（走る面と到達点の控え）は残るが、走行は復元
+        //    しないので休憩ではなく離脱。1 度も動かしていないので `game_end` は出ない。
+        clock.advance(600)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        #expect(ends(spy).isEmpty, "1 度も走っていない走行に game_end は出ない")
+
+        // 3. 開き直してコースをタップ（`press`）＝ここからが次の走行。
+        let resumed = RunnerModel(services: services, preference: makePreference("count-leave-before-run-2"))
+        #expect(resumed.stageNumber == 1)
+        resumed.press()
+        resumed.release()
+        #expect(resumed.phase == .running)
+        #expect(starts(spy) == ["stage-1", "stage-1"], "2 回目の走行にも game_start が 1 本立つ")
+
+        // 4. クリア。`duration_sec` は 2 回目の走り出し（600 秒の時点）からで、ハブ滞在を含まない。
+        clock.advance(30)
+        autoPlayCurrentStage(resumed)
+        #expect(resumed.phase == .cleared)
+        #expect(ends(spy).count == 1)
+        #expect(durations(spy) == [30], "ハブ滞在（600 秒）が混ざらない")
     }
 }
 
