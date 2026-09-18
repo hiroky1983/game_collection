@@ -135,3 +135,45 @@ struct RunnerStoryView: View {
         .accessibilityHidden(true)
     }
 }
+
+// MARK: - おはなしの見返し（#1092）
+
+/// 開始シートに置く「見たおはなしをもう一度見る」の並び。
+///
+/// 受け入れ条件「v1.1.6 に上げた時点で 6・12・18 面をクリア済みの人は締めを見ていない。
+/// **ワールドマップから、到達済みの世界の締めを見返せる**」への答え。見返せるのは
+/// もう見た世界だけで（`RunnerStory.replayableScenes`）、まだの世界は並ばない
+/// ——これから見る話を目次で先に見せない。
+struct RunnerStoryReplayList: View {
+    let playLog: PlayLog?
+    let onSelect: (RunnerStoryScene) -> Void
+
+    var body: some View {
+        let scenes = RunnerStory.replayableScenes(playLog: playLog)
+        VStack(spacing: 8) {
+            ForEach(scenes, id: \.self) { scene in
+                Button { onSelect(scene) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.rectangle.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.inkSub)
+                        Text(scene.title)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.ink)
+                        Spacer(minLength: 0)
+                    }
+                    // 上下の余白と合わせて 44pt（iOS の最小のタップ寸）。
+                    .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                            .fill(Theme.surface)
+                    )
+                }
+                .buttonStyle(.pop)
+                .accessibilityLabel("\(scene.title)をもう一度見る")
+            }
+        }
+    }
+}
