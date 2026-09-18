@@ -99,6 +99,10 @@ public struct RunnerView: View {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
                 .imageScale(.large)
+                // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
+                // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
+                // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「とばす」で抜けられる。
+                .disabled(presentedStory != nil)
             }
         }
         .howToPlay(.runner) {
@@ -133,7 +137,15 @@ public struct RunnerView: View {
                 .frozenStoryPanel(frozenStoryPanel)
             }
         }
-        .sheet(isPresented: $showStartSheet) {
+        .sheet(isPresented: $showStartSheet, onDismiss: {
+            // 始まり（#1092）を中断してここへ来た場合、操作ガイドがまだ出ていない
+            // （`RunnerTutorial.shouldShow` は `init` で「見せた」ことにしてしまうので、
+            // ここで出さないと二度と出ない）。ふつうの経路では既に出し終えているので何も起きない。
+            if pendingTutorial {
+                pendingTutorial = false
+                showsTutorial = true
+            }
+        }) {
             RunnerStartSheet(
                 mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage,
                 playLog: services.playLog
@@ -373,11 +385,10 @@ public struct RunnerView: View {
     /// 開始シート（`RunnerStartSheet`）を、選んでおくモードと面を決めて開く。
     /// ツールバーの「はじめから」の経路（#1027。「マップ」導線はカードごと廃止した）。
     private func openStartSheet(mode: RunnerMode, stage: Int) {
-        // 始まり（#1092）の最中でもツールバーの「はじめから」は押せる（ナビバーはオーバーレイの
-        // 外にある）。ここで畳まないと、開始シートの下に始まりが残り、シートを閉じたあとに
-        // オーバーレイが出てきて、閉じた拍子に開始シートがもう一度開く。締めを `resetRun` で
-        // 落としているのと同じ手当て。見た印は消費済みだが、開始シートの「おはなし」から
-        // いつでも見返せる。
+        // 始まり（#1092）が出ているあいだツールバーは押せないようにしてあるが、撮影用の
+        // `-showRunnerStartSheet` など他の経路から来ても取り残しを作らないよう畳んでおく。
+        // 畳まないと開始シートの下に始まりが残り、閉じた拍子に開始シートがもう一度開く。
+        // 出していない操作ガイドは開始シートの `onDismiss` が引き取る。
         introScene = nil
         selectedMode = mode
         selectedStage = stage
