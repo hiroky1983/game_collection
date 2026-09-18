@@ -286,6 +286,13 @@ public final class BlackjackModel {
         // ディーラーが1枚ずつ引いているあいだ（#667）も保存する。保存しないと、途中で落ちたとき
         // スタンド前の中断データが残り、ディーラーの札を見てから選び直せてしまう。
         guard phase == .playerTurn || phase == .dealerTurn else {
+            // 局は進んでいないが、復活（#499）で戻した残高と「使い切った」印だけは残す（#1104）。
+            // 捨てると、広告を見た直後に賭ける前で離れた人が報酬を丸ごと失い（#523 で復活の枚数を
+            // 初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。
+            if hasRevivedThisSession && !sessionOver {
+                persistRevivedBetWaiting()
+                return
+            }
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -301,6 +308,32 @@ public final class BlackjackModel {
             hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
+    }
+
+    /// 局を持たない「賭け待ち」の中断データ（#1104）。復活したセッションの残高と
+    /// 「復活を使い切った」印だけを持ち回る。
+    ///
+    /// 決着の画（`outcome` は中断データに持っていない）を復元しても読めないので、局は書かずに
+    /// 賭ける前へ戻す。復元側は「手が無ければ賭け待ちに戻す」既存の経路（`init`）がそのまま使える。
+    private func persistRevivedBetWaiting() {
+        let snap = BlackjackSnapshot(
+            playerHand: [],
+            dealerHand: [],
+            deck: [],
+            chips: chips,
+            bet: 0,
+            phase: .betting,
+            hands: [],
+            activeHandIndex: 0,
+            hasRevivedThisSession: hasRevivedThisSession
+        )
+        try? services?.snapshots.save(snap, for: gameID)
+        // 局を持たない中断データは「続きから戻れる」ではない（#1104。CodeRabbit の指摘）。
+        // `GameServices.gameDidLeave` は中断データの有無だけで判定するため、伝えないと
+        // 離脱が休憩として数えられ、続きの無い局に「途中のままです」のお知らせが予約される。
+        // どちらも次のラウンドを配った時点（`gameDidRestart` → `gameDidBeginPlay`）で元へ戻る。
+        services?.gameWillNotResume(gameID: gameID)
+        services?.gameDidRestoreFinished(gameID: gameID)
     }
 
     // MARK: - Betting
@@ -553,7 +586,9 @@ public final class BlackjackModel {
         }
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: currentScore)
         checkSessionOver()
-        services?.snapshots.clear(for: gameID)
+        // 決着した局は保存しない。ただし復活（#499）を使ったセッションは、残高と「使い切った」印を
+        // 賭け待ちの形で残す（#1104）。`persist()` に寄せて、捨てる／残すの判断を1か所に置く。
+        persist()
     }
 
     private func checkSessionOver() {
@@ -619,6 +654,8 @@ public final class BlackjackModel {
         clearHands()
         dealerHand = []
         phase = .betting
+        // 賭ける前にハブへ戻られても報酬が消えないように、この時点で書き出す（#1104）。
+        persist()
         return .granted
     }
 
