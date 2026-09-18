@@ -103,6 +103,22 @@ public struct RunnerField: Equatable, Sendable {
     private var pickupOverboostRemaining: Double = 0
     /// 取得済みのアイテムの数（スピードアップ・たこ焼きを問わない）。
     public private(set) var collectedPickupCount: Int = 0
+    /// 沈む床（#1089）にどれだけ沈んでいるか（0…1）。1 で溺れてミス。
+    ///
+    /// **接地して沈む床の上にいるあいだだけ増える**（`RunnerRules.sinkDuration` 秒で 1 に届く）。
+    /// 足が離れた瞬間——跳んでも、床を出ても——**0 に戻す**。「跳ぶと沈みが戻る」を
+    /// 状態遷移ではなく「接地していなければ 0」という不変条件で書いてあるので、
+    /// 一時停止・バックグラウンド復帰・チェックポイント再開のどこにも取りこぼす経路が無い。
+    ///
+    /// ゆっくりモードでは `RunnerModel.tick` が `dt` そのものを縮めるので、沈む速さも
+    /// 同じ割合で遅くなる（この型は時計を知らない）。
+    public private(set) var sinkProgress: Double = 0
+    /// 沈みに応じて走者の**絵**を下げる量（ワールド単位）。`RunnerScene` が走者ノードの y から引く。
+    ///
+    /// **当たり判定には一切効かない**（決裁「当たり判定の地面の高さは変えない」）。
+    /// `footY` も `surfaceY(at:)` も動かさないので、ジャンプの軌道と全ステージの成立条件は
+    /// 沈んでいるかどうかに左右されない——沈んだ状態で踏み切っても普通のジャンプになる。
+    public var sinkDepth: Double { sinkProgress * RunnerRules.sinkVisualDepth }
     /// たこ焼き（#797）の無敵の残り秒数。0 なら無敵ではない。
     ///
     /// 取り直すと満タンに戻す（重ねない。`pickupOverboost` と同じ扱い）。空中でも減る
@@ -200,7 +216,10 @@ public struct RunnerField: Equatable, Sendable {
         // 基準速はその地点の値（#675）。ステージ制では `stage.speed` そのもの。
         let base = stage.speed(at: distance)
         guard isGrounded else { return base }
-        let floor = isOnBoostFloor ? RunnerRules.boostFloorMultiplier : 1
+        // 加速床と沈む床は同じ区画に置けない（区画記号は 1 文字）ので、掛かるのは高々どちらか一方。
+        var floor: Double = 1
+        if isOnBoostFloor { floor *= RunnerRules.boostFloorMultiplier }
+        if isOnSinkFloor { floor *= RunnerRules.sinkFloorMultiplier }
         return base * (pedalBoost + pickupOverboost + justLandingOverboost) * floor
     }
 
@@ -216,6 +235,19 @@ public struct RunnerField: Equatable, Sendable {
     public var isOnBoostFloor: Bool {
         guard isGrounded else { return false }
         return firstBoostFloor { $0.start <= distance && distance < $0.end } != nil
+    }
+
+    /// いま沈む床（#1089）の上に乗っているか。
+    ///
+    /// 判定の作法は加速床（`isOnBoostFloor`）とまったく同じ——状態は持たず**中心の x** で
+    /// 毎回見るので、水面を出た瞬間に減速も沈みも切れる。空中では常に false で、
+    /// そのおかげで「跳んでいるあいだは沈まない・空中の横速度は基準速のまま」が両方成り立つ。
+    ///
+    /// 台座（#674）の上に乗っているあいだも false——台座は水面より上の接地面なので、
+    /// 足は水に浸かっていない（`surfaceY(at:)` が地面より高い値を返す）。
+    public var isOnSinkFloor: Bool {
+        guard isGrounded, surfaceY(at: distance) <= Metrics.groundY else { return false }
+        return firstSinkFloor { $0.start <= distance && distance < $0.end } != nil
     }
 
     /// いま無敵か（たこ焼き・#797）。true のあいだは岩・鳥・台座の正面に当たっても
@@ -314,6 +346,11 @@ public struct RunnerField: Equatable, Sendable {
         if isGrounded { jumpStartDistance = distance }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
+        // 沈み（#1089）は「接地していなければ 0」が不変条件だが、**次の `advance` を待たずに
+        // ここで戻す**。描画（`RunnerScene.sync`）は `tick` と独立に毎フレーム走るので、
+        // 踏み切った直後に一時停止すると `advance` が呼ばれないまま、空中の走者が沈んだ位置で
+        // 描かれ続ける（PR #1110 の指摘）。
+        sinkProgress = 0
         jumpCount += 1
         isHolding = true
         holdElapsed = 0
@@ -369,6 +406,7 @@ public struct RunnerField: Equatable, Sendable {
         // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
         self.jumpStartDistance = self.isGrounded ? nil : distance
         self.lastMissCause = nil
+        self.sinkProgress = 0
         advanceTrack()
     }
 
@@ -552,6 +590,21 @@ public struct RunnerField: Equatable, Sendable {
             }
         }
 
+        // 沈む床（#1089）。**接地して水面の上にいるあいだだけ**沈みが溜まり、足が離れていれば
+        // 0 に戻る。溜まり切ったら溺れてミス——穴に落ちたときと同じ `.fell` を出す
+        // （見た目も「下へ沈んでいく」で、`RunnerScene` の落下演出がそのまま合う）。
+        // 死因だけは `.sink` で区別する。
+        if isOnSinkFloor {
+            sinkProgress = min(1, sinkProgress + dt / RunnerRules.sinkDuration)
+            if sinkProgress >= 1 {
+                lastMissCause = .sink
+                events.append(.fell)
+                return
+            }
+        } else {
+            sinkProgress = 0
+        }
+
         // エンドレス（#1086）にチェックポイントとゴールは無い。
         guard track == nil else { return }
 
@@ -729,5 +782,15 @@ public struct RunnerField: Equatable, Sendable {
             if let floor = track[position].boostFloor, predicate(floor) { return floor }
         }
         return nil
+    }
+
+    /// 沈む床を左から順に見て、`predicate` を満たす最初のもの。
+    ///
+    /// **エンドレス（#1086）には沈む床を置かない**（#1089 決裁「生成器に教えるのは別の版」）ので、
+    /// 枠で走っているあいだは常に nil。生成器（`RunnerEndlessCourse`）が `~` を出さないことは
+    /// `RunnerStageTests.endlessCourseHasNoSinkFloors` が固定する。
+    private func firstSinkFloor(where predicate: (RunnerSinkFloor) -> Bool) -> RunnerSinkFloor? {
+        guard track == nil else { return nil }
+        return stage.sinkFloors.first(where: predicate)
     }
 }

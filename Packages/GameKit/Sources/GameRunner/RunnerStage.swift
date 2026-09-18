@@ -264,6 +264,79 @@ public enum RunnerRules {
     /// 上げすぎると床の上で次の障害へ突っ込む速さになるため、まずは控えめのこの値から始める。
     public static let boostFloorMultiplier: Double = 1.3
 
+    // MARK: 沈む床（#1089・会長決裁 2026-09-17〜18。里山＝田んぼ・港町＝干潟）
+
+    /// 沈む床に乗っているあいだ、**接地中の速さ**に掛かる倍率。
+    ///
+    /// 置き場所も掛け方も加速床（`boostFloorMultiplier`）とまったく同じ——床は区間の性質で、
+    /// 乗り（`pedalBoost`）は操作の上手さという別の軸なので掛け合わせる。加速床が 1 を超える
+    /// 値なのに対し、こちらは 1 未満（「乗ると遅くなる」）。
+    ///
+    /// 値は 0.6。上限まで乗り切った状態（1.55）でも 0.93 倍で、**素の基準速より遅い**
+    /// ——「漕いでも前に進まない」という泥の手応えを出すための下限。これより上げると
+    /// 乗り切った人には減速が体感できず、下げると沈みを戻すための跳躍が間に合わなくなる
+    /// （下の `sinkDuration` の見積もりはこの値を前提にしている）。
+    /// **空中には一切乗らない**（`RunnerField.currentSpeed`）ので、加速床と同じく
+    /// 「1 回のジャンプで進む距離 = `speed × jumpAirTime`」は動かない。
+    public static let sinkFloorMultiplier: Double = 0.6
+
+    /// 沈む床に**接地したまま**沈み切る（＝溺れる）までの秒数。
+    ///
+    /// 沈みは接地しているあいだだけ増え、**足が離れた瞬間に 0 へ戻る**
+    /// （`RunnerField.sinkProgress`）。「一定量だけ減らす」形にしなかったのは、跳ぶ回数と
+    /// 抜けられる長さの関係が跳んだ高さ・間隔で変わってしまい、「1 秒に 3 回の連打で
+    /// いちばん長い床を抜けられる」という公平さの保証（`RunnerStageTests`）を
+    /// 床の長さだけから計算できなくなるため。0 へ戻すなら、保証は
+    /// **「接地が続く時間がこの秒数を超えないこと」**だけになる。
+    ///
+    /// 値は 0.8 秒。根拠:
+    /// - **連打の側**: 人が無理なく出せる 1 秒 3 回（周期 0.333 秒）なら、接地が続くのは
+    ///   最悪でも 0.333 秒で、0.8 秒の 4 割ちょうど。どれだけ長い床でも溺れない
+    /// - **放置の側**: いちばん長い床（2 区画ぶん = 112）を跳ばずに渡ると、里山のいちばん遅い
+    ///   面（21 面・速さ 50）でも 112 ÷ (50 × 1.55 × 0.6) ≒ 2.4 秒かかる。0.8 秒では渡り切れず
+    ///   必ず溺れる＝「跳び続けろ」が成立する
+    /// - **短い床（1 区画ぶん = 48）**も、素の乗りのままなら 48 ÷ 46.5 ≒ 1.0 秒で渡り切れない
+    ///   ——最低 1 回は跳ぶ必要がある。アイテムの上乗せ（合計 1.95）まで乗せていれば
+    ///   0.72 秒で走り抜けられるので、「加速して押し切る」選択肢は残る
+    public static let sinkDuration: Double = 0.8
+
+    /// 沈む床の左右に残す岸（あぜ道・干潟の縁）の幅（タイル数）。
+    ///
+    /// 床は区画まるごと（64）を占めるが、**両端に岸を残して水面だけを実効の長さにする**。
+    /// こうしないと 1 区画ぶんの短い床でも長さが 64 になり、二段ジャンプの最大の飛距離
+    /// （`doubleJumpRange(at:)` は 21 面の速さ 50 で 64.0）とちょうど同じで、
+    /// **理屈の上でも越えられない**——「短い床は二段で跳び越せる」という決裁が成立しない。
+    /// 岸を 2 タイルずつ残すと 1 区画ぶんの水面は 48 になり、21 面で 25% の余裕ができる。
+    /// 見た目の側でも、水面の手前に必ず岸が見えるほうが「ここから沈む」と読みやすい。
+    public static let sinkFloorBankTiles = 2
+
+    /// 沈み切ったときに走者の**絵**が地面から下がる量（ワールド単位）。
+    ///
+    /// **当たり判定の地面の高さ（`RunnerField.Metrics.groundY`）は動かさない**（決裁）。
+    /// 動かすとジャンプの軌道と全ステージの成立条件がやり直しになる。下がるのは
+    /// `RunnerScene` が走者ノードを置く y だけ（`RunnerField.sinkDepth`）。
+    /// 値は走者の高さ 11 の半分強で、沈み切る頃には腰まで浸かって見える。
+    public static let sinkVisualDepth: Double = 6
+
+    /// 二段ジャンプで空中にいられる最大の時間。
+    ///
+    /// 一段目で頂点（`jumpApex`）まで上がり、**その頂点で二段目を踏み切る**のがいちばん長い
+    /// （二段目は `vy` を `jumpVelocity` に戻すので、高いところで踏み切るほど落ちるのに時間がかかる）。
+    /// `v/g`（頂点まで）＋ `(v + √(v² + 2g·apex))/g`（そこから地面まで）= `v(2 + √2)/g`。
+    /// 沈む床を「跳び越せるか」の上限はこの時間 × その面の基準速で決まる（`doubleJumpRange(at:)`）。
+    public static var doubleJumpAirTime: Double {
+        jumpVelocity * (2 + 2.0.squareRoot()) / gravity
+    }
+
+    /// 速さ `speed` の面で、二段ジャンプで跳び越せる横の距離の上限。
+    ///
+    /// **空中の横速度は必ず基準速**（`RunnerField.currentSpeed`）なので、乗りにも床の倍率にも
+    /// 左右されない。沈む床の長さがこれを下回れば「二段で跳び越せる床」、上回れば
+    /// 「跳び越せない床」（`RunnerStageTests` が両方を固定する）。
+    public static func doubleJumpRange(at speed: Double) -> Double {
+        speed * doubleJumpAirTime
+    }
+
     /// ゆっくりモードで**時間の進み**に掛ける倍率（アクセシビリティ）。
     ///
     /// **速さではなく時間を遅くする**のが要点。走る速さだけを落とすと、ジャンプの飛距離
@@ -442,6 +515,7 @@ public enum RunnerRules {
 /// | `P` | 乗れる台座（区画まるごと。**連続する `P` は 1 つの台座にまとまる**） |
 
 /// | `=` | スピードアップ床（平地 + 加速区間。障害としては扱わない。連続すると 1 つの床になる） |
+/// | `~` | 沈む床（#1089。里山＝田んぼ・港町＝干潟。平地 + 減速して沈む区間。連続すると 1 つになる） |
 public struct RunnerStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -484,6 +558,11 @@ public struct RunnerStage: Equatable, Sendable {
     /// `pickups` と同じ理由で **`hazards` とは別の配列**。床は障害としては平地なので、
     /// 成立条件チェック（`RunnerStageTests`）にも当たり判定にも巻き込まない。
     public let boostFloors: [RunnerBoostFloor]
+
+    /// 左から順に並んだ沈む床（#1089。里山＝田んぼ・港町＝干潟）。
+    ///
+    /// `boostFloors` と同じ理由で **`hazards` とは別の配列**（地形としては平地で、越える相手ではない）。
+    public let sinkFloors: [RunnerSinkFloor]
     /// チェックポイント（コースの中ほど）の x。
     ///
     /// **必ず平地に置く**。障害の上に置くと、再開した瞬間にまたミスになって進めない。
@@ -523,13 +602,17 @@ public struct RunnerStage: Equatable, Sendable {
         let length = Double(pattern.count) * segmentWidth
         let hazards = Self.makeHazards(pattern: pattern)
         let platforms = Self.makePlatforms(pattern: pattern)
+        let sinkFloors = Self.makeSinkFloors(pattern: pattern)
         self.length = length
         self.hazards = hazards
         self.pickups = Self.makePickups(pattern: pattern)
         self.platforms = platforms
-        self.checkpoint = Self.makeCheckpoint(length: length, hazards: hazards, platforms: platforms)
+        self.checkpoint = Self.makeCheckpoint(
+            length: length, hazards: hazards, platforms: platforms, sinkFloors: sinkFloors
+        )
 
         self.boostFloors = Self.makeBoostFloors(pattern: pattern)
+        self.sinkFloors = sinkFloors
     }
 
     /// その地点での基準速（#675）。`speed` から `speedGain` の傾きで上がり、`speedCap` で頭打ち。
@@ -589,7 +672,8 @@ public struct RunnerStage: Equatable, Sendable {
     /// 区画の並び（`hazardTileOffset`・`segmentTiles`）は変えていないので、
     /// 隣の障害までの間隔は従来どおり保たれる——広がるのは穴の幅だけ。
     ///
-    /// `pickupSymbol`（`s`）・`takoyakiSymbol`（`k`）と `boostFloorSymbol`（`=`）はここには
+    /// `pickupSymbol`（`s`）・`takoyakiSymbol`（`k`）と `boostFloorSymbol`（`=`）・
+    /// `sinkFloorSymbol`（`~`）はここには
     /// 含めない。**アイテムも床も障害ではない**ので `makeHazards`/`RunnerStageTests` の
     /// 対象から自然に外れる（いずれも地形としては平地そのもの）。
     static func segmentSpec(_ symbol: Character) -> (kind: RunnerHazardKind, tiles: Int)? {
@@ -690,15 +774,48 @@ public struct RunnerStage: Equatable, Sendable {
         return result
     }
 
+    /// 沈む床の区画記号（#1089）。水面のさざ波をそのまま字にした 1 文字。
+    static let sinkFloorSymbol: Character = "~"
+
+    /// 区画記号を沈む床の並びへ展開する。
+    ///
+    /// **連続する `~` は 1 本にまとめる**（加速床と同じ理由。境目で効果が切れる余地を作らない）。
+    /// 加速床と違うのは、**両端に岸（`RunnerRules.sinkFloorBankTiles`）を残す**こと——
+    /// 区画まるごとを水面にすると 1 区画ぶんでも二段ジャンプで跳び越せなくなる
+    /// （`RunnerRules.sinkFloorBankTiles` の説明を参照）。岸は連続した並びの**外側だけ**に残す。
+    /// 内側にも残すと、まとめた意味が無くなって境目に乾いた地面ができてしまう。
+    static func makeSinkFloors(pattern: String) -> [RunnerSinkFloor] {
+        let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        let bank = Double(RunnerRules.sinkFloorBankTiles) * RunnerRules.tileWidth
+        var runs: [(start: Int, count: Int)] = []
+        for (index, symbol) in pattern.enumerated() where symbol == sinkFloorSymbol {
+            if let last = runs.last, last.start + last.count == index {
+                runs[runs.count - 1].count += 1
+            } else {
+                runs.append((start: index, count: 1))
+            }
+        }
+        return runs.map { run in
+            RunnerSinkFloor(
+                start: Double(run.start) * segmentWidth + bank,
+                length: Double(run.count) * segmentWidth - bank * 2,
+                segments: run.count
+            )
+        }
+    }
+
     /// 中点から右へずらしながら、障害と重ならず着地に必要な余白もある位置を探す。
     ///
+    /// 沈む床（#1089）も避ける——水の上から再開すると、走り出した瞬間から沈みが溜まり始め、
+    /// 助走の無いまま連打を強いられる（台座を避けるのとまったく同じ理由）。
     /// 台座（#674）も同じ扱いで避ける。再開は必ず地面の高さで始まる
     /// （`RunnerField.init(stage:startingAt:passedCheckpoint:)`）ので、台座の範囲に置くと
     /// 走者が台座にめり込んだ状態から走り出すことになる。
     /// 動く障害（#796）は当たり判定の位置ではなく**関わる距離の範囲**（`RunnerHazard.activeRange`）
     /// を避ける——飛び立つ最中の鳥・突進の予告中のイノシシの目の前から走り出させない。
     static func makeCheckpoint(
-        length: Double, hazards: [RunnerHazard], platforms: [RunnerPlatform]
+        length: Double, hazards: [RunnerHazard], platforms: [RunnerPlatform],
+        sinkFloors: [RunnerSinkFloor] = []
     ) -> Double {
         let step = RunnerRules.tileWidth
         // 走者の前後に体 1 つぶんの余白を要求する（縁ぎりぎりから再開させない）。
@@ -710,7 +827,8 @@ public struct RunnerStage: Equatable, Sendable {
                 $0.activeRange.lowerBound - margin < x && x < $0.activeRange.upperBound + margin
             }
             let onPlatform = platforms.contains { $0.start - margin < x && x < $0.end + margin }
-            if !onHazard, !onPlatform { return x }
+            let onSinkFloor = sinkFloors.contains { $0.start - margin < x && x < $0.end + margin }
+            if !onHazard, !onPlatform, !onSinkFloor { return x }
             x += step
         }
         return x
@@ -897,10 +1015,9 @@ public extension RunnerStage {
         // 5 区画以内の手前に置かない、先頭・末尾の 2 区画は平地）で、面ごとに台座 1〜2 基（1 基 2 区画。
         // 25・26 面だけ 2 基）と床 1 本（2 区画）を置く。
         //
-        // **新しい仕組みのうち突き上げ（#1010・`^`）は入った。** 残る 3 つ（#1089 沈む床・
-        // #1090 崩れる足場・#1091 高い塀）はまだ `release/v1.1.6` に無いので、予定の区画を今ある障害で
-        // 仮に埋めてある（#1009 本文 D）。仮置きは 高い塀 → 高い岩 `t`、沈む床 → 2 タイルの穴 `2`、
-        // 崩れる足場 → 3 タイルの穴 `3`。
+        // **新しい仕組みのうち突き上げ（#1010・`^`）と沈む床（#1089・`~`）は入った。** 残る 2 つ
+        // （#1090 崩れる足場・#1091 高い塀）はまだ `release/v1.1.6` に無いので、予定の区画を今ある障害で
+        // 仮に埋めてある（#1009 本文 D）。仮置きは 高い塀 → 高い岩 `t`、崩れる足場 → 3 タイルの穴 `3`。
         // 各行の「予定」に区画番号（0 始まり）を残してあるので、仕組み側の Issue はそこを自分の記号へ
         // 置き換える。予定の区画は #1009 の「入れない組み合わせ」を守る位置に選んである:
         // 鳥の隣に突き上げを置かない・崩れる足場と沈む床の直後に鳥を置かない・高い塀の直後
@@ -910,16 +1027,16 @@ public extension RunnerStage {
         // 障害の数（仮置きを含む）は世界の中で面番号に対して減らない（`newWorldHazardCountsNeverDecrease`）。
         "--PP-1n-^-2ikt1n==-^2b-ti1^---",           // 19: 30区画・障害15個（穴5+低い岩2+高い岩2+鳥1+イノシシ2+竹の子3）。里山に入った。竹の子を覚える（初出の区画 8 は前後を素の平地にして単独で見せる）
         "--1n^-2dkt1-PP-n^2itn==-^1b-^--",          // 20: 31区画・障害17個（穴5+低い岩3+高い岩2+鳥1+犬1+イノシシ1+竹の子4）。切り株（`n`）のすぐ隣に竹の子（区画 3〜4・15〜16）。低く跳ぶか高く跳ぶかの見極め
-        "--1tn-2-2ikn^1==-t1d2-b2t-PP-^--",         // 21: 32区画・障害17個（穴7+低い岩2+高い岩3+鳥1+犬1+イノシシ1+竹の子2）。予定: 田んぼ（#1089）= 区画 6・20。田んぼを覚える
-        "--PP-1n2ikt2^-n1d-==-t2i1^2b-t1--",        // 22: 33区画・障害19個（穴8+低い岩2+高い岩3+鳥1+犬1+イノシシ2+竹の子2）。予定: 田んぼ = 区画 7・22。田んぼの直後にイノシシ
-        "--1^n21ikt2^n22d-==-t^1bn2-^-PP---",       // 23: 34区画・障害20個（穴8+低い岩3+高い岩2+鳥1+犬1+イノシシ1+竹の子4）。予定: 田んぼ = 区画 5・13・25。田んぼを抜けた直後に用水路
-        "--PP-1^n2ikt^221dn==-^-3-^t1b2-t---",      // 24: 35区画・障害20個（穴8+低い岩2+高い岩3+鳥1+犬1+イノシシ1+竹の子4）。予定: 田んぼ = 区画 8・14・29 / 吊り橋（#1090）= 区画 23 / 石垣（#1091）= 区画 31。里山の締め。全部入り
+        "--1tn-~-2ikn^1==-t1d~-b2t-PP-^--",         // 21: 32区画・障害15個（穴5+低い岩2+高い岩3+鳥1+犬1+イノシシ1+竹の子2）＋短い田んぼ 2（区画 6・20。#1089）。田んぼを覚える（区画 6 は前後を素の平地にして単独で見せる）
+        "--PP-1n~~kt2^-n1d-==-t~~1^2b-t1--",        // 22: 33区画・障害15個（穴6+低い岩2+高い岩3+鳥1+犬1+竹の子2）＋長い田んぼ 2（区画 7〜8・22〜23。二段でも跳び越せず連打が要る）。予定: 吊り橋（#1090）は置かない
+        "--1^n~1ikt2^n~2d-==-t^1bn~-^-PP---",       // 23: 34区画・障害17個（穴5+低い岩3+高い岩2+鳥1+犬1+イノシシ1+竹の子4）＋短い田んぼ 3（区画 5・13・25）。田んぼを抜けた直後に用水路（区画 6・14）
+        "--PP-1^n~ikt^2~1dn==-^-3-^t1b~-t---",      // 24: 35区画・障害17個（穴5+低い岩2+高い岩3+鳥1+犬1+イノシシ1+竹の子4）＋短い田んぼ 3（区画 8・14・29）。予定: 吊り橋（#1090）= 区画 23 / 石垣（#1091）= 区画 31。里山の締め。全部入り
         "--PP-1n-3-tik2t1==-t2-31ti-PP-d2-b--",     // 25: 36区画・障害17個（穴8+低い岩1+高い岩4+鳥1+犬1+イノシシ2）。予定: 古い桟橋（#1090）= 区画 8・22。港町に入った。桟橋の先が切れ目
         "--132dk-^-n-PP-t31i-==-^n2b-32ti-PP--",    // 26: 37区画・障害18個（穴8+低い岩2+高い岩2+鳥1+犬1+イノシシ2+波しぶき2）。予定: 古い桟橋 = 区画 3・16・28。波しぶきの初出（区画 8 は前後を素の平地）
         "--PP-1n-t-2ikt31-t-==-2dn32tb-t-1it---",   // 27: 38区画・障害20個（穴8+低い岩2+高い岩6+鳥1+犬1+イノシシ2）。予定: 古い桟橋 = 区画 14・25 / コンテナ（#1091）= 区画 8・30。二段ジャンプを覚える
         "--1t-32ikt^1-t-d31t-==-^n2b-t-32ti-PP--",  // 28: 39区画・障害22個（穴9+低い岩1+高い岩6+鳥1+犬1+イノシシ2+波しぶき2）。予定: 古い桟橋 = 区画 5・16・30 / コンテナ = 区画 3・13・28
-        "--PP--2-^2iktt-1n2it-==-^2b-t-21t^nd2---", // 29: 40区画・障害22個（穴8+低い岩2+高い岩5+鳥1+犬1+イノシシ2+波しぶき3）。予定: 干潟（#1089）= 区画 6・17・30 / コンテナ = 区画 13・28。里山で覚えた仕組みの港版
-        "--PP-1^n2ikt32t-d^1-==-t2itt-32b-^n21t---", // 30: 41区画・障害25個（穴10+低い岩2+高い岩6+鳥1+犬1+イノシシ2+波しぶき3）。予定: 干潟 = 区画 8・24・35 / 古い桟橋 = 区画 12・29 / コンテナ = 区画 14・27・37。港町の締め。全部入り
+        "--PP--~-^2iktt-1n~it-==-^2b-t-~1t^nd2---", // 29: 40区画・障害19個（穴5+低い岩2+高い岩5+鳥1+犬1+イノシシ2+波しぶき3）＋短い干潟 3（区画 6・17・30。#1089）。里山で覚えた仕組みの港版（区画 6 は前後を素の平地にして単独で見せる）
+        "--PP-1^n~ikt32t-d^1-==-t~itt-32b-^n~1t---", // 30: 41区画・障害22個（穴7+低い岩2+高い岩6+鳥1+犬1+イノシシ2+波しぶき3）＋短い干潟 3（区画 8・24・35）。予定: 古い桟橋（#1090）= 区画 12・29 / コンテナ（#1091）= 区画 14・27・37。港町の締め。全部入り
     ]
 }
 
@@ -948,9 +1065,12 @@ public extension RunnerStage {
     /// 「伸びかけ」と「伸び切り」が 1 枚ずつ撮れる（絵は世界の着せ替え——ショーケースは
     /// **朝の下町**で走る（`RunnerScene.rebuildCourse` が `number == 0` を朝に倒す）ので、
     /// `RunnerWorld.originalDressing` の竹の子が出る）。
+    /// 沈む床（`~`・#1089）は突き上げの次に **2 区画続けて**置いてある。本番の短い床（1 区画）では
+    /// 自動操縦が 1 回跳ぶだけで抜けてしまい、沈みかけ・溺れた瞬間（`-simulateRunner sink` /
+    /// `sink-failed`）を撮る間が無い。2 区画ぶん（= 長い床）なら、跳ばずに走らせれば必ず沈み切る。
     static let debugShowcase = RunnerStage(
         number: 0,
-        pattern: "--==-kn--t--b--d--i--^--PP--1--2--3--",
+        pattern: "--==-kn--t--b--d--i--^--~~--PP--1--2--3--",
         speed: RunnerRules.baseSpeed
     )
 }

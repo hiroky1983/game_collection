@@ -372,15 +372,15 @@ struct RunnerWorldTests {
         // （QA 用ショーケースは `rebuildCourse` が朝の下町で走らせるので竹の子を入れてある）。
         #expect(RunnerWorld.originalDressing == D(
             pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot
+            platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy
         ))
         #expect(RunnerWorld.satoyama.dressing == D(
             pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot
+            platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot, sinkFloor: .paddy
         ))
         #expect(RunnerWorld.harbor.dressing == D(
             pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
-            platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray
+            platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray, sinkFloor: .tideland
         ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
@@ -453,6 +453,25 @@ struct RunnerWorldTests {
         #expect(WCAG.relativeLuminance(P.ditchWall) > WCAG.relativeLuminance(RunnerWorld.satoyama.road.asphalt))
         // 奈落（1〜18 面）の色は変えていない。
         #expect(RunnerPalette.pitVoid == 0x141824)
+    }
+
+    /// 沈む床（#1089）が**踏み込む前に読める**こと。床は当たり判定を持たないので、
+    /// 「ここから沈む」は色と模様だけで伝える必要がある:
+    ///
+    /// - 水面（泥）はその世界の路面と 3:1 以上（普通の地面ではないと分かる）
+    /// - 模様（苗・カニの穴）と照りは水面（泥）と 3:1 以上（模様として読める）
+    @Test("田んぼ・干潟は路面と 3:1 以上で、苗・カニの穴・照りは水面と 3:1 以上")
+    func sinkFloorsReadAsWater() {
+        typealias P = RunnerWorld.DressingPalette
+        #expect(WCAG.contrast(P.paddyWater, RunnerWorld.satoyama.road.asphalt) >= 3.0, "田んぼが農道に溶ける")
+        #expect(WCAG.contrast(P.tidelandMud, RunnerWorld.harbor.road.asphalt) >= 3.0, "干潟が岸壁に溶ける")
+        #expect(WCAG.contrast(P.paddySeedling, P.paddyWater) >= 3.0, "苗が水面に溶ける")
+        #expect(WCAG.contrast(P.waterGlint, P.paddyWater) >= 3.0, "水面の照りが読めない")
+        #expect(WCAG.contrast(P.tidelandHole, P.tidelandMud) >= 3.0, "カニの穴が泥に溶ける")
+        #expect(WCAG.contrast(P.tidelandSheen, P.tidelandMud) >= 3.0, "潮の照りが読めない")
+        // 底は水面（泥）より暗い——段差で「深さ」が出る（用水路・岸壁の切れ目と同じ約束の裏返し）。
+        #expect(WCAG.relativeLuminance(P.paddyDeep) < WCAG.relativeLuminance(P.paddyWater))
+        #expect(WCAG.relativeLuminance(P.tidelandDeep) < WCAG.relativeLuminance(P.tidelandMud))
     }
 
     /// 鳥の頭とくちばしの色は #1009 で `Creatures` に入れた。朝・夕方・夜は**それまでと同じ値**
