@@ -9,6 +9,9 @@ import SwiftUI
 /// （基盤規約「メニュー・リザルト・設定は SwiftUI」）。
 public struct RunnerView: View {
     private let services: GameServices
+    /// **`private` を付けないのは意図的**（#1106）。ヘッダーを別ファイルの extension
+    /// （`RunnerView+Header.swift`）へ分けた際、そちらから読むため。Swift では別ファイルの
+    /// extension から `private` に手が届かないので、同じモジュール内にだけ開けてある。
     @State var model: RunnerModel
     @State private var scene: RunnerScene
     /// チェックポイント再開のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
