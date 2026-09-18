@@ -146,3 +146,34 @@ struct RunnerTutorialPage: View {
         #endif
     }
 }
+
+// MARK: - 初回の操作ガイド（#988 → #1027 でモーダルへ）
+
+/// 初回プレイだけ出す操作ガイドのモーダル。
+///
+/// #988 ではコースの上のカードで出していたが、カードの「はじめる」がステージ制で走り出す
+/// 作りだったため、**初回だけモードを選べない**（右上からエンドレスを選んでも、ガードの
+/// 「はじめる」がステージ制で上書きする）という穴があった（会長指摘 2026-09-16）。
+/// モーダルにして「読む」だけに徹し、閉じたら開始シートへ送る。
+///
+/// 中身は「？」から開くページ（`RunnerTutorialPage`）と同じものを使う——同じ内容を 2 通りの
+/// 見た目で持たない（基盤規約「同じ役割の UI は同じ見た目に」）。
+struct RunnerTutorialSheet: View {
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                RunnerTutorialPage()
+                Button(action: onClose) {
+                    Text("はじめる").themeBody(18).frame(maxWidth: .infinity)
+                        .foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+                .padding(Theme.pad)
+            }
+            .popBackground()
+        }
+        .presentationDetents([.large])
+    }
+}
