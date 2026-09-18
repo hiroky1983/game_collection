@@ -133,7 +133,27 @@ struct RunnerTutorialWiringTests {
         // 2 回呼ぶと 2 つめが必ず false になる。
         #expect(SourceScan.matchCount(of: #"RunnerTutorial\.shouldShow\("#, in: source) == 1)
         #expect(source.contains("RunnerTutorial.shouldShow(playLog: services.playLog)"))
-        #expect(SourceScan.matchCount(of: #"_showsTutorial\s*=\s*State"#, in: source) == 1)
+        // 判定の結果は `init` で 1 か所に焼く。#1092 でストーリーの始まりが前に入ったので、
+        // 焼く先は提示のフラグ（`showsTutorial`）ではなく控え（`pendingTutorial`）のほう
+        // ——`init` から直接提示を立てると、始まりのオーバーレイの上にモーダルが被る。
+        #expect(SourceScan.matchCount(of: #"_pendingTutorial\s*=\s*State"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"_showsTutorial\s*=\s*State"#, in: source) == 0)
+        #expect(source.contains("@State private var showsTutorial = false"))
+    }
+
+    /// 出す順は 始まり（#1092）→ 操作ガイド → 開始シート（#1092 の受け入れ条件 A）。
+    ///
+    /// SwiftUI の提示順は `swift test` からは観測できない（ホストした View のアクセシビリティ
+    /// ツリーが読めない）ので、ここは**結線の形**で固定する。
+    @Test("操作ガイドはストーリーの始まりが明けてから出す")
+    func tutorialFollowsTheStoryIntro() throws {
+        let source = try Self.source()
+        let after = try #require(SourceScan.declaration(of: "private func beginAfterIntro", in: source))
+        #expect(after.contains("pendingTutorial"))
+        #expect(after.contains("showsTutorial = true"))
+        #expect(after.contains("presentStartSheetIfNeeded()"))
+        // 始まりを出す回は、明けるまで先へ進めない（`onAppear` で分岐する）。
+        #expect(source.contains("introScene = .intro"))
     }
 
     /// 1 行ヒント（`HowToPlayHint(.runner)`）は**走行中ずっと出す**。
