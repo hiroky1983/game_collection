@@ -176,6 +176,13 @@ public final class PokerModel {
     private func persist() {
         let savablePhases: [PokerPhase] = [.betting1, .exchange, .cpuExchange, .betting2]
         guard savablePhases.contains(phase) else {
+            // 局は進んでいないが、復活（#499）で戻した残高と「使い切った」印だけは残す（#1104）。
+            // 捨てると、広告を見た直後に次の局を始める前で離れた人が報酬を丸ごと失い（#523 で
+            // 復活の枚数を初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。
+            if hasRevivedThisSession && !sessionOver {
+                persistRevivedRoundWaiting()
+                return
+            }
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -185,6 +192,23 @@ public final class PokerModel {
             phase: phase, currentBet: currentBet,
             playerBetInRound: playerBetInRound, cpuBetInRound: cpuBetInRound,
             cpuFolded: cpuFolded, cpuAction: cpuAction, rules: rules,
+            hasRevivedThisSession: hasRevivedThisSession
+        )
+        try? services?.snapshots.save(snap, for: gameID)
+    }
+
+    /// 局を持たない「次の局待ち」の中断データ（#1104）。復活したセッションの両者の残高と
+    /// 「復活を使い切った」印だけを持ち回る。
+    ///
+    /// 決着の画（`winner` と役は中断データに持っていない）を復元しても読めないので、局は書かずに
+    /// `.idle` で戻す。画面側は復元した局面が `.idle` なら開始シートを出す（`PokerView.init`）。
+    private func persistRevivedRoundWaiting() {
+        let snap = PokerSnapshot(
+            playerHand: [], cpuHand: [], deck: [],
+            playerChips: playerChips, cpuChips: cpuChips, pot: 0,
+            phase: .idle, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "", rules: rules,
             hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
@@ -719,6 +743,8 @@ public final class PokerModel {
         cpuChips    = PokerModel.initialChips
         sessionOver = false
         sessionWinner = nil
+        // 次の局を始める前にハブへ戻られても報酬が消えないように、この時点で書き出す（#1104）。
+        persist()
         return .granted
     }
 

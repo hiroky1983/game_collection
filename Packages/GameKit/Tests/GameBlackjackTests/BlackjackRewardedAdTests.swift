@@ -289,6 +289,74 @@ struct BlackjackRewardedAdTests {
         #expect(!restored.canReviveAfterBust, "再起動で回数が復活しない")
     }
 
+    /// #523 で復活の枚数を初期額より多くしたため、広告を見た直後に離れると損をする向きに反転した（#1104）。
+    /// 賭ける前の局面は局を持たないので、以前は `persist()` が中断データごと捨てていた。
+    @Test("復活したあと賭ける前に離れても、残高と復活の使用済みが残る（#1104）")
+    func keepsRevivedChipsWhenLeavingBeforeBetting() async {
+        let store = MemorySnapshotStore()
+        let (model, _, _) = makeBustedModel(store: store)
+        #expect(await model.recoverChipsAfterAd())
+        #expect(model.phase == .betting, "賭ける前で止まっている")
+
+        // ここで何も賭けずにハブへ戻り、開き直す（引き継ぐのは中断データだけ）。
+        let saved = store.load(BlackjackSnapshot.self, for: "blackjack")
+        #expect(saved?.chips == BlackjackModel.reviveChips, "復活後の残高が書かれていない")
+        #expect(saved?.hasRevivedThisSession == true, "使用済みの旗が中断データに乗る")
+
+        let reopened = BlackjackModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true)),
+            seed: 20260918
+        )
+        #expect(reopened.chips == 2000, "見た広告のぶんが消えている")
+        #expect(reopened.phase == .betting)
+        #expect(!reopened.sessionOver)
+
+        // 復活権も戻らない（#523 受け入れ条件 B）。もう一度破産させても 2 回目は出ない。
+        playAllInUntilBust(reopened)
+        #expect(reopened.sessionOver)
+        #expect(!reopened.canReviveAfterBust, "中断を挟んで復活の回数が戻っている")
+    }
+
+    /// 復活したセッションは、ラウンドの決着（`.result`）で離れても残高を持ち越す（#1104）。
+    @Test("復活したセッションはラウンドの決着で離れても残高が残る（#1104）")
+    func keepsRevivedChipsWhenLeavingAtResult() async {
+        let store = MemorySnapshotStore()
+        let (model, _, _) = makeBustedModel(store: store)
+        #expect(await model.recoverChipsAfterAd())
+
+        model.placeBet(100)
+        while model.phase == .playerTurn { model.stand() }
+        #expect(model.phase == .result, "1 ラウンドは決着している")
+        let settled = model.chips
+
+        let reopened = BlackjackModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true)),
+            seed: 20260918
+        )
+        #expect(reopened.chips == settled, "精算後の残高が初期額へ戻っている")
+        #expect(reopened.phase == .betting, "決着の画は持ち越さず賭け待ちへ戻す")
+        #expect(!reopened.canReviveAfterBust)
+    }
+
+    /// 復活の中断データ（#1104）が「最初からやり直す」の初期化を邪魔しないこと。
+    @Test("復活したあと最初からやり直すと、中断データは消えて初期額に戻る（#1104）")
+    func restartClearsRevivedSnapshot() async {
+        let store = MemorySnapshotStore()
+        let (model, _, _) = makeBustedModel(store: store)
+        #expect(await model.recoverChipsAfterAd())
+        #expect(store.exists(for: "blackjack"), "復活の中断データが書かれている")
+
+        model.restartSession()
+        #expect(!store.exists(for: "blackjack"), "やり直しで中断データが消えていない")
+
+        let reopened = BlackjackModel(
+            services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+        )
+        #expect(reopened.chips == BlackjackModel.initialChips)
+        playAllInUntilBust(reopened)
+        #expect(reopened.canReviveAfterBust, "新しいセッションの復活権が消えている")
+    }
+
     @Test("最初からやり直すと復活の回数も戻る")
     func restartRestoresReviveBudget() async {
         let (model, _, _) = makeBustedModel()
