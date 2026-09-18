@@ -243,7 +243,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 | 障害 | 朝・夕方・夜（= `originalDressing`） | 里山 | 港町 |
 |---|---|---|---|
-| 穴 | 工事の切れ目（黄黒の柵＋奈落） | 用水路（水＋あぜの壁） | 岸壁の切れ目（海＋防舷材） |
+| 穴 | 工事の切れ目（黄黒の柵＋奈落） | 用水路（水＋コンクリートの壁） | 岸壁の切れ目（海＋防舷材） |
 | 低い岩 | 岩塊 | 切り株 | ロープの束 |
 | 高い岩 | 岩塊 | **岩塊のまま**（大きな石として読ませる） | ドラム缶 |
 | 台座 | 工事の足場 | わら積み | 木箱の山 |
@@ -255,13 +255,16 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | 崩れる足場（#1090） | 本編には出ない | 古い吊り橋 | 古い木の桟橋 |
 | 高い塀（#1091） | 本編には出ない | 石垣 | 積まれたコンテナ |
 
-- **新しい仕組み 4 つ（突き上げ・沈む床・崩れる足場・高い塀）は 21 面以降にしか置いていない**ので、`originalDressing` が
+- **新しい仕組み 4 つ（突き上げ・沈む床・崩れる足場・高い塀）は 19 面以降にしか置いていない**ので、`originalDressing` が
   持っている絵（竹の子・田んぼ・古い吊り橋・石垣）は QA 用ショーケース（`RunnerStage.debugShowcase`）でしか出ない
-- **鳥（カラス・カモメ）とたこ焼きだけは絵が共通で色だけ変わる**（`RunnerWorld.Creatures`）
+- **鳥（カラス・カモメ）は絵が共通で色だけ変わる**（`RunnerWorld.Creatures`）。高い岩も里山では岩塊のままなので同じ扱い。
+  **たこ焼きは絵も色も全世界で共通**（世界に依存しない固定のテクスチャを 1 枚だけ作って貼る）
 - **1〜18 面の絵は変えていない**。朝・夕方・夜は `dressing == originalDressing` で元の部品へ落ちる
-  （`WorldTests.dressings` と `WorldSceneTests.originalWorldsUseTheOriginalParts` が固定）
-- 世界ごとのコマは起動時に 1 回だけ作ってキャッシュする（`RunnerScene.dogTextures` / `boarTextures` / `blockTextures`）。
-  絵は画像ファイルではなくドット絵の文字列（`RunnerPixelArt`）で持ち、アセットを増やさない
+  （`RunnerWorldTests` の `dressings` と `RunnerWorldSceneTests.originalWorldsUseTheOriginalParts` が固定）
+- 犬・イノシシ・岩枠のコマは起動時に 1 回だけ作ってキャッシュする（`RunnerScene.dogTextures` / `boarTextures` /
+  `blockTextures`）。**突き上げ・高い塀は起動時には作らず、その世界で最初に使うときに作ってキャッシュする**
+  （19 面以降にしか出ないので、1〜18 面しか遊ばない人のぶんは 1 枚も起こさない）。ドット絵の文字列（`RunnerPixelArt`）で
+  持つのは生き物と岩枠で、穴・台座・加速床・沈む床・崩れる足場は図形（`SKShapeNode`）で組む。どちらも画像ファイルは増やさない
 
 **跳び続けないと沈む床（#1089）**: 区画記号 `~`。里山では**田んぼ**、港町では**干潟**。乗ると接地中の速さが
 `RunnerRules.sinkFloorMultiplier`（0.6）倍に落ち、**接地したまま `sinkDuration`（0.8 秒）で沈み切ると溺れてミス**
@@ -422,7 +425,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   「途中の対局」としては数えられない
 - **書く**: 決着時（`concludeGame`）・広告で免除を立てた直後（`waiveExchangeAfterAd`）・次の配りで免除を使い切った後
   （`startGame`。順位だけ残して書き直す）。決着のたびに上書きするので、1 度の階級が何ゲームも効き続けることはない
-- **消す**: **その局の 1 手目が中断データとして保存された時点**の 1 か所だけ（`persist()`・#1103）。
+- **消す**: 通常の経路は **その局の 1 手目が中断データとして保存された時点**の 1 か所だけ（`persist()`・#1103。
+  ほかに、順位が人数ぶん揃っていない異常系で持ち越し自体を捨てる分岐が `persistCarryOver()` にある）。
   **配った時点では消さない**——配ったばかりの局は中断データを保存しない（`isUntouchedDeal`・#240）ため、配った時点で
   消すと「開いて・1 手も出さずに閉じて・開き直す」だけで交換ゼロの配りが手に入る。中断データの保存に失敗した回も
   あえて残す（消すと中断データも持ち越しも無い状態になり、同じ抜け道が書き込みエラーのときだけ再発する）
@@ -433,7 +437,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 ### ブラックジャック・ポーカー: 復活のチップは無料のやり直しより必ず多い（#499 #523・`release/v1.1.6`）
 
 チップ切れからリワード広告で復活したときに戻るチップ（`reviveChips`）は、**無料でやり直したとき（`initialChips`）より
-必ず多くする**（会長決裁 C 案・2026-09-17）。復活は順位表に載らないため、少ない枚数だと無料のやり直しの完全な下位互換になり、
+必ず多くする**（#523 の会長決裁 C 案）。復活は順位表に載らないため、少ない枚数だと無料のやり直しの完全な下位互換になり、
 実際に `revival` が 0 件だった。
 
 | | 広告で復活（`reviveChips`） | 無料でやり直す（`initialChips`） | 倍率の理由 |
@@ -443,7 +447,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | ポーカー（CPU） | 100（`initialChips` のまま） | 100 | 復活しても CPU 側は増やさない |
 
 - 導線の文言はどちらもこの定数から作る（枚数の数え違いを 1 か所に閉じる）。復活は **1 セッション 1 回**まで
-- **復活を使ったセッションは Game Center の順位表へ送らない**（`GameScore.isLeaderboardEligible = !hasRevivedThisSession`）。
+- **復活を使ったセッションは Game Center の順位表へ送らない**（BJ は `GameScore.isLeaderboardEligible = !hasRevivedThisSession`、
+  ポーカーは既定と違うルールでも外れるので `rules.isLeaderboardEligible && !hasRevivedThisSession`）。
   送ると「広告を何回見たか」の表になるため。**ローカルの自己ベストには残す**ので、分けるのは `GameScore.variant` ではなく
   `isLeaderboardEligible` のほう（`variant` を足すと保存先が変わって過去の自己ベストが参照されなくなる）
 - リワード救済の `purpose` は `revival`
