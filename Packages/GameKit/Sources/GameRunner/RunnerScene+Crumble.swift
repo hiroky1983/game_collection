@@ -180,8 +180,8 @@ extension RunnerScene {
     ///
     /// - 乗るまで: 何も起きない
     /// - 揺れ（`RunnerRules.crumbleWarnDuration` まで）: 板ごと上下に震え、ひびが濃くなる
-    /// - 抜け落ち: **左から順に**板が落ちて薄くなる。落ちる縁は走者に追いつかない
-    ///   （`RunnerRules.crumbleFallDuration`）ので、残った板の上を走っている限り踏み外さない
+    /// - 抜け落ち: **左から順に**板が落ちて薄くなる。**板が消えた縁**は走者に追いつかない
+    ///   （`crumblePlankStagger`）ので、残った板の上を走っている限り踏み外さない
     /// - 崩れ切ったあと: 板も縄／桁も消え、下の谷（川・海）がそのまま見える
     func syncCrumblingPlatforms(_ field: RunnerField) {
         for (index, view) in crumblingPlatformNodes {

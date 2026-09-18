@@ -360,11 +360,11 @@ public enum RunnerRules {
     ///
     /// **このあいだも板の上には乗れる**（決裁の「崩れ始めてから崩れ切るまでの間に乗っている
     /// 場合の扱い」への回答）。抜けるのは**左から順**で、走者は必ず右へ進むので、
-    /// 抜けた縁が走者に追いつくことはない——追いつかないことは
-    /// 「板張りの長さ < その面の速さ × `crumbleDuration`」と同じ式で、
-    /// `RunnerCrumblingPlatformTests.crumblingPlatformsAreCrossableAtMinimumPedal` がそれを固定する
-    /// （縁は `crumbleWarnDuration` で 0、`crumbleDuration` で板張りの右端に達する 1 次式なので、
-    /// 両端で走者より後ろなら途中も後ろ）。
+    /// **板が消えた縁**（`RunnerScene.crumblePlankStagger`）が走者に追いつくことはない。
+    /// 消えた縁は 1 次式で、**板張りの右端に届くのはちょうど `crumbleDuration`**
+    /// ——そこでの走者の位置は「板張りの長さ < その面の速さ × `crumbleDuration`」が成り立つ限り
+    /// 必ず先なので（`RunnerCrumblingPlatformTests.crumblingPlatformsAreCrossableAtMinimumPedal`
+    /// が固定する）、両端で先なら途中も先になる。
     ///
     /// 「抜け始めた瞬間に落ちる」にしなかったのは、そうすると渡り切る猶予が
     /// `crumbleWarnDuration` だけになり、**予告を見せる時間と渡る時間が同じ枠を取り合う**ため。
