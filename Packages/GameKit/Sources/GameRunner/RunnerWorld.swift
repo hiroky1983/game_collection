@@ -679,6 +679,20 @@ public extension RunnerWorld {
             /// 波しぶき（港町）。岸壁の縁に泡が立つ予告 → 水柱が上がる。
             case seaSpray
         }
+        /// 崩れる足場（#1090）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
+        public enum CrumblingPlatform: Equatable, Sendable {
+            /// 古い吊り橋（里山）。渡した板が縄に吊られ、乗るとたわんで板が抜け落ちる。
+            case suspensionBridge
+            /// 古い木の桟橋（港町）。杭に載った板がきしみ、海へ落ちる。
+            case woodenPier
+        }
+        /// 高い塀（#1091）。**当たり判定・高さは 1 つ**で、絵だけを替える。
+        public enum Wall: Equatable, Sendable {
+            /// 石垣（里山）。目地の通った四角い石を積んだ、田畑の境の石積み。
+            case stoneWall
+            /// 積まれたコンテナ（港町）。海上コンテナを 2 段積み。
+            case containerStack
+        }
         /// 沈む床（#1089）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum SinkFloor: Equatable, Sendable {
             /// 田んぼ（里山）。水面に苗の列、入ると泥が跳ねる。
@@ -705,6 +719,8 @@ public extension RunnerWorld {
         public let boostFloor: BoostFloor
         public let shoot: Shoot
         public let sinkFloor: SinkFloor
+        public let crumblingPlatform: CrumblingPlatform
+        public let wall: Wall
 
         /// 岩の枠の着せ替え。岩でない種類は nil。
         public func block(for kind: RunnerHazardKind) -> Block? {
@@ -712,19 +728,22 @@ public extension RunnerWorld {
             case .lowBlock:                        return lowBlock
             case .tallBlock:                       return tallBlock
             // 突き上げ（#1010）は岩の枠ではなく自分の着せ替え（`shoot`）を持つ。
-            case .pit, .bird, .dog, .boar, .shoot: return nil
+            // 突き上げ（#1010）・高い塀（#1091）は岩の枠ではなく自分の着せ替え（`shoot` / `wall`）を持つ。
+            case .pit, .bird, .dog, .boar, .shoot, .wall: return nil
             }
         }
     }
 
     /// 元の絵。1〜18 面はこれ（#1009 より前と同じ）。
     ///
-    /// 突き上げ（#1010）は 19 面以降にしか置かないので、ここの `shoot` が本編で使われることは
-    /// 無い。竹の子にしてあるのは **QA 用ショーケース**（`RunnerStage.debugShowcase` は
-    /// `number == 0` なので `RunnerScene.rebuildCourse` が朝の下町で走らせる）で撮れるようにするため。
+    /// 突き上げ（#1010）・高い塀（#1091）は 19 面以降にしか置かないので、ここの `shoot` / `wall` が
+    /// 本編で使われることは無い。竹の子・石垣にしてあるのは **QA 用ショーケース**
+    /// （`RunnerStage.debugShowcase` は `number == 0` なので `RunnerScene.rebuildCourse` が
+    /// 朝の下町で走らせる）で撮れるようにするため。
     static let originalDressing = Dressing(
         pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
-        platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy
+        platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy,
+        crumblingPlatform: .suspensionBridge, wall: .stoneWall
     )
 
     var dressing: Dressing {
@@ -734,20 +753,20 @@ public extension RunnerWorld {
         case .satoyama:
             // 穴＝用水路・低い岩＝切り株・高い岩＝大きな石（岩塊のまま）・犬＝田舎の犬（色違い）・
             // イノシシ＝イノシシ・台座＝わら積み・加速床＝舗装された農道・突き上げ＝竹の子（#1010）・
-            // 沈む床＝田んぼ（#1089）。
+            // 沈む床＝田んぼ（#1089）・崩れる足場＝古い吊り橋（#1090）・高い塀＝石垣（#1091）。
             return Dressing(
                 pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
                 platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot,
-                sinkFloor: .paddy
+                sinkFloor: .paddy, crumblingPlatform: .suspensionBridge, wall: .stoneWall
             )
         case .harbor:
             // 穴＝岸壁の切れ目・低い岩＝ロープの束・高い岩＝ドラム缶・犬＝野良猫・イノシシ＝
             // フォークリフト・台座＝木箱の山・加速床＝ベルトコンベア・突き上げ＝波しぶき（#1010）・
-            // 沈む床＝干潟（#1089）。
+            // 沈む床＝干潟（#1089）・崩れる足場＝古い木の桟橋（#1090）・高い塀＝積まれたコンテナ（#1091）。
             return Dressing(
                 pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
                 platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray,
-                sinkFloor: .tideland
+                sinkFloor: .tideland, crumblingPlatform: .woodenPier, wall: .containerStack
             )
         }
     }
@@ -821,5 +840,24 @@ public extension RunnerWorld {
         public static let tidelandHole: UInt32 = 0x171310
         /// 潮の照り（濡れた泥の光沢）。泥と 3:1 以上。
         public static let tidelandSheen: UInt32 = 0xDCE8EC
+        // 崩れる足場（`Dressing.CrumblingPlatform`・#1090）
+        /// 古びた板（吊り橋・桟橋で共通）。乗る面なので**いちばん明るい**
+        /// ——台座（#674）と同じく、遊ぶ人が最初に読み取るべきは「どこに足が着くか」。
+        ///
+        /// **この色は背景との 3:1（#929）を担っていない**（淡い丘・あぜ道とは 1.0〜1.5:1）。
+        /// 担うのは下の木目と柱・杭で、竹の子・波しぶきと同じ「濃い側が担う」形
+        /// （`WorldTests.dressedForegroundStandsOutFromBackdrops`）。
+        public static let crumbleDeck: UInt32 = 0xD8C49A
+        /// 板の木目・板と板の継ぎ目。**板 1 枚ごとに下端へ入る**ので、抜け落ちていく途中でも
+        /// 残った板の輪郭が読める。里山・港町の背景の全部と 3:1 以上（この足場には縁取りの
+        /// ノードが無いので、主色だけで満たす必要がある）。
+        public static let crumbleDeckSeam: UInt32 = 0x6B5233
+        /// 吊り橋の縄（主索と吊り索）。板の上（空・丘を背に）へ張るので、こちらも背景と 3:1 以上。
+        public static let crumbleRope: UInt32 = 0x6A4F2B
+        /// 桟橋の杭と、吊り橋の袂の柱。**崩れても残る**ので、背景と 3:1 以上で「ここに橋があった」
+        /// と読める濃さにしてある。
+        public static let crumblePost: UInt32 = 0x4E3B27
+        /// 崩れる予告のひび（揺れているあいだ板の上に出る）。板の面の上の模様なので板と 3:1 以上。
+        public static let crumbleCrack: UInt32 = 0x3A2B18
     }
 }

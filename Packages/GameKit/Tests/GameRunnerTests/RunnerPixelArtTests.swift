@@ -22,6 +22,11 @@ struct RunnerPixelArtTests {
             ("波しぶき", RunnerPixelArt.shoot(world: .harbor)),
             ("土の盛り上がり", RunnerPixelArt.shootCue(world: .satoyama)),
             ("泡", RunnerPixelArt.shootCue(world: .harbor)),
+            // 高い塀（#1091）。こちらも色は世界によらず、着せ替え（石垣・コンテナ）で絵ごと替わる。
+            ("石垣", RunnerPixelArt.wallArt(for: .stoneWall)),
+            ("積まれたコンテナ", RunnerPixelArt.wallArt(for: .containerStack)),
+            // 毎面のゴール（#1092）。色は世界によらない 1 枚。
+            ("宝くじ", RunnerPixelArt.lotteryTicket()),
         ] + RunnerWorld.allCases.flatMap { world in
             RunnerPixelArt.WalkFrame.allCases.flatMap { frame in
                 [
@@ -56,6 +61,19 @@ struct RunnerPixelArtTests {
         // 底の行の中央にドットがある（原点 = 底の中央が絵の上に乗る）。
         let bottom = Array(s.rows[s.height - 1])
         #expect(bottom[s.width / 2] != ".", "底の中央が透明")
+    }
+
+    /// 決裁（#1092）: ゴールに浮かべる宝くじ。**券面として読める大きさ**で、たこ焼き（走者の頭ほど）
+    /// より横に長い紙であること。シーン側は `anchorPoint = (0.5, 0.5)` で中心を高さに合わせるので、
+    /// たこ焼きと同じく格子に透明な余白が無いことも固定する。
+    @Test("宝くじは横長の券で、格子に余白が無い")
+    func lotteryTicketIsALandscapeSlip() throws {
+        let s = RunnerPixelArt.lotteryTicket()
+        let b = try #require(s.opaqueBounds)
+        #expect(b.x == 0 && b.y == 0 && b.width == s.width && b.height == s.height, "余白: \(b)")
+        #expect(b.width > b.height, "券が横長でない（\(b.width)×\(b.height)）")
+        // 高さは走者（36 ドット）の 1/3 前後。大きすぎるとコースの主役になってしまう。
+        #expect((10...16).contains(b.height), "高さ \(b.height) ドット")
     }
 
     /// #929 の規則: 手前の物は暗い縁取りで浮かせる。縁取り `K` はどの色より暗く、格子の外周
@@ -412,5 +430,73 @@ struct RunnerPixelArtTests {
         #expect(tipRows.contains("a") || tipRows.contains("A"), "穂先に緑が無い")
         let stumpTop = stump.rows.prefix(stump.height / 3).joined()
         #expect(!stumpTop.contains("a"), "切り株の上に濃い緑がある（見分けが付かない）")
+    }
+
+    // MARK: 高い塀（#1091）
+
+    /// 高い塀（石垣・積まれたコンテナ）も**当たり判定の箱いっぱい**（4×18）に貼るので、
+    /// 格子の縦横比が箱と同じで余白が無いこと。
+    @Test("石垣・コンテナは 4:18 の格子で余白が無い")
+    func wallsFitTheWallHitBox() throws {
+        let height = RunnerHazardKind.wall.height
+        for (name, sprite) in [
+            ("石垣", RunnerPixelArt.wallArt(for: .stoneWall)),
+            ("積まれたコンテナ", RunnerPixelArt.wallArt(for: .containerStack)),
+        ] {
+            #expect(
+                Double(sprite.width) * height == Double(sprite.height) * RunnerRules.tileWidth,
+                "\(name): \(sprite.width)×\(sprite.height) は 4×\(height) の比でない"
+            )
+            #expect(sprite.width >= 12, "\(name): 1 ドットが走者より大きい")
+            let b = try #require(sprite.opaqueBounds)
+            #expect(
+                b.x == 0 && b.y == 0 && b.width == sprite.width && b.height == sprite.height,
+                "\(name) の余白: \(b)"
+            )
+        }
+    }
+
+    /// **里山と港町で絵が別物**であること（#1091「里山版と港町版の 2 種類の見た目を持つ」）。
+    /// 突き上げと同じく、着せ替えの列挙だけを見ると「両方とも石垣を返す」実装でも緑になる。
+    @Test("里山は石垣（灰の石と目地）・港町はコンテナ（赤い箱と桁）で、色が混ざらない")
+    func wallArtDiffersBetweenWorlds() {
+        #expect(RunnerPixelArt.wallArt(for: .stoneWall).rows == RunnerPixelArt.stoneWallRows)
+        #expect(RunnerPixelArt.wallArt(for: .containerStack).rows == RunnerPixelArt.containerStackRows)
+        let stone = RunnerPixelArt.stoneWallRows.joined()
+        let container = RunnerPixelArt.containerStackRows.joined()
+        #expect(stone != container, "石垣とコンテナの絵が同じ")
+        // 石垣: 石（`G`）・目地（`g`）・笠石（`W`）があり、コンテナの赤（`R`/`r`/`O`）は無い。
+        #expect(stone.contains("G") && stone.contains("g") && stone.contains("W"), "石垣に石の階調が無い")
+        for red in ["R", "r", "O"] {
+            #expect(!stone.contains(red), "石垣にコンテナの色 \(red) が混ざっている")
+        }
+        // コンテナ: 赤の 3 階調があり、石の色は無い。
+        #expect(container.contains("R") && container.contains("r") && container.contains("O"), "コンテナに赤の階調が無い")
+        for grey in ["G", "g", "W"] {
+            #expect(!container.contains(grey), "コンテナに石垣の色 \(grey) が混ざっている")
+        }
+    }
+
+    /// 高い塀は**高い岩（大きな石・ドラム缶）と一目で区別できる**こと（#1091 の受け入れ条件
+    /// 「高さが倍以上に見える・形が違う」）。
+    @Test("塀は高い岩の 2 倍以上の高さで、主色も岩と離れている")
+    func wallsLookNothingLikeATallBlock() {
+        let art = RunnerPixelArt.palette
+        #expect(
+            RunnerHazardKind.wall.height >= RunnerHazardKind.tallBlock.height * 2,
+            "塀の箱が高い岩の 2 倍に届かない"
+        )
+        // 形: 石垣は横一直線の目地が何段も入る（丸い岩塊・円筒のドラム缶には無い）。
+        let seams = RunnerPixelArt.stoneWallRows.filter { row in
+            row.dropFirst().dropLast().allSatisfy { dot in dot == "g" }
+        }
+        #expect(seams.count >= 6, "石垣の目地が \(seams.count) 段しかない（積んで見えない）")
+        // コンテナは桁（`r` で埋まる行）が段ごとに 2 本ずつ入るので、2 段積みなら 4 行以上。
+        let rails = RunnerPixelArt.containerStackRows.filter { row in
+            row.dropFirst().dropLast().allSatisfy { dot in dot == "r" }
+        }
+        #expect(rails.count >= 4, "コンテナの桁が \(rails.count) 行しかない（2 段に見えない）")
+        // 色: コンテナの赤はドラム缶の青と 1.5:1 以上離す（港町で隣り合っても別物に見える）。
+        #expect(WCAG.contrast(art["R"]!, art["N"]!) >= 1.5, "コンテナの赤とドラム缶の青が同じ明るさ")
     }
 }

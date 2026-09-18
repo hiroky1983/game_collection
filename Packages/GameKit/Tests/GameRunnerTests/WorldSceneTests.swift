@@ -169,6 +169,51 @@ struct RunnerWorldSceneTests {
         #expect(rising > 10 && risen > 5, "伸びかけ \(rising) / 伸び切り \(risen) 地点しか見ていない")
     }
 
+    /// 高い塀（#1091）の描画経路。**その世界の絵が貼られ、その世界のぶんしかテクスチャを作らない**
+    /// （受け入れ条件「その世界に入ったときに作ってキャッシュする」「描画中に毎フレーム作り直さない」）。
+    ///
+    /// 突き上げと同じく**里山（24 面・石垣）と港町（27 面・コンテナ）の両方**で回す——片方だけだと、
+    /// もう片方のテクスチャを取り違えても・作り忘れても緑のまま通る。
+    @Test("塀は本数ぶん組まれ、その世界の絵が貼られ、キャッシュはその世界のぶんだけ", arguments: [
+        (24, RunnerWorld.Dressing.Wall.stoneWall, 1),
+        (27, RunnerWorld.Dressing.Wall.containerStack, 2),
+    ])
+    func wallsUseTheWorldArt(number: Int, style: RunnerWorld.Dressing.Wall, count: Int) throws {
+        let (model, scene) = makeScene(stage: number, suite: "wall-\(number)")
+        let walls = model.field.stage.hazards.filter { $0.kind == .wall }
+        #expect(walls.count == count, "\(number) 面の塀が \(walls.count) 本（空振り防止）")
+        #expect(scene.world.dressing.wall == style)
+        #expect(scene.cachedWallStyles == [style], "作ったテクスチャ: \(scene.cachedWallStyles)")
+        let expected = scene.wallTexture(style)
+        let other: RunnerWorld.Dressing.Wall = style == .stoneWall ? .containerStack : .stoneWall
+        // **2 つの着せ替えのテクスチャが「絵として」違うこと**をドットを読んで言う（同じ画を 2 枚
+        // 焼いてもインスタンスは別物になるので `!==` では足りない・#1010 の敵対的検証と同じ理由）。
+        #expect(
+            Self.pixels(of: expected) != Self.pixels(of: scene.wallTexture(other)),
+            "2 つの世界で同じ絵を貼っている"
+        )
+        #expect(
+            Self.pixels(of: expected) == Self.pixels(of: RunnerPixelArt.wallArt(for: style)),
+            "貼られている絵が \(style) のドット絵と違う"
+        )
+        // コース層に本数ぶん貼られ、別の世界の絵は 1 枚も無い。
+        #expect(spriteCount(in: scene.courseLayer, texture: expected) == count, "塀の絵が本数ぶん無い")
+        #expect(spriteCount(in: scene.courseLayer, texture: scene.wallTexture(other)) == 0, "別の世界の絵がある")
+        // 絵は当たり判定の箱いっぱい（高さ 18）に貼る。
+        let sprite = Self.firstSprite(in: scene.courseLayer, texture: expected)
+        #expect(sprite?.size.height == CGFloat(RunnerHazardKind.wallTop))
+        #expect(sprite?.size.width == CGFloat(RunnerRules.tileWidth))
+    }
+
+    /// 子孫まで含めて、`texture` を貼った最初のスプライト。
+    private static func firstSprite(in node: SKNode, texture: SKTexture) -> SKSpriteNode? {
+        for child in node.children {
+            if let sprite = child as? SKSpriteNode, sprite.texture === texture { return sprite }
+            if let found = firstSprite(in: child, texture: texture) { return found }
+        }
+        return nil
+    }
+
     @Test("1 面（朝）では着せ替えのテクスチャは 1 枚も貼られず、岩は元の岩塊のまま")
     func originalWorldsUseTheOriginalParts() {
         let (model, scene) = makeScene(stage: 1, suite: "morning")
@@ -338,5 +383,47 @@ struct RunnerWorldSceneTests {
             scene.sync()
         }
         #expect(model.phase.isRunning || model.phase == .cleared, "\(number) 面で 15 秒以内にミスした")
+    }
+
+    /// 崩れる足場（#1090）の絵が、当たり判定と同じ時刻に消えること。
+    ///
+    /// **崩れ切った（`RunnerField.hasCrumbled`）ときに板が 1 枚でも残っていてはいけない**
+    /// ——そこはもう穴なので、板が見えていると「床があるのに落ちた」画になる（PR #1113 の指摘）。
+    /// 逆に、崩れ切る**前**は必ず 1 枚以上残っていること（消すのが早すぎないこと）も見る。
+    @Test("崩れる足場の板は、崩れ切ったときにちょうど全部消える")
+    func crumblingPlanksVanishExactlyWhenTheGapOpens() {
+        let number = RunnerStage.all.first { !$0.crumblingPlatforms.isEmpty }?.number
+        guard let number else { Issue.record("本編に崩れる足場が無い"); return }
+        let (model, scene) = makeScene(stage: number, suite: "crumble")
+        // **走り出してから**ノードを控える。走行が変わると `sync` がコースを組み直すので、
+        // スタート前に控えた `view` は捨てられたノードを指したまま更新されなくなる。
+        model.press()
+        model.release()
+        scene.sync()
+        guard let (index, view) = scene.crumblingPlatformNodes.first else {
+            Issue.record("崩れる足場のノードが組まれていない")
+            return
+        }
+        #expect(view.planks.count > 1, "板が 1 枚しか無い（この検証が空振りしている）")
+
+        var sawPartialDeck = false
+        for _ in 0..<(60 * 120) {
+            if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+            if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
+            model.tick(dt: 1.0 / 60)
+            scene.sync()
+            let visible = view.planks.filter { $0.alpha > 0.01 }.count
+            if model.field.hasCrumbled(index) {
+                #expect(visible == 0, "崩れ切ったのに板が \(visible) 枚残っている")
+                break
+            }
+            guard let progress = model.field.crumbleProgress(index), progress > 0 else { continue }
+            // **消え切るのは崩れ切る瞬間だけ**。0.999 で切っているのは、進みが 1 に達する
+            // 直前のフレーム（丸め誤差で `hasCrumbled` がまだ false）を落とすため。
+            #expect(visible > 0 || progress > 0.999, "崩れ切る前（進み \(progress)）に板が全部消えた")
+            if visible > 0, visible < view.planks.count { sawPartialDeck = true }
+        }
+        #expect(model.field.hasCrumbled(index), "崩れ切るまで進まなかった")
+        #expect(sawPartialDeck, "板が左から順に抜けていく途中を観測できていない")
     }
 }

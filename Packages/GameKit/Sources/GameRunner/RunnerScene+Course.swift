@@ -14,6 +14,12 @@ extension RunnerScene {
         if renderedWorld != nextWorld { applyWorld(nextWorld) }
         renderOrigin = 0
 
+        // `courseLayer.removeAllChildren()` で消えた側の控えも落とす（エンドレスには置かない）。
+        crumblingPlatformNodes = [:]
+        // ゴールの宝くじ（#1092）も消えた。やり直し・次の面では下の `buildStageCourse` が
+        // ゴールの位置へ置き直す（受け入れ条件「やり直すと宝くじがゴールの位置に戻っている」）。
+        goalTicket = nil
+        goalTicketBase = .zero
         if model.field.track != nil {
             // エンドレス（#1086）: 区画は走りながら `syncEndlessCourse` が枠に合わせて置く。
             // ここでは部品の置き場を用意するだけ（ゴールもチェックポイントも無い）。
@@ -47,12 +53,21 @@ extension RunnerScene {
         // そこが空いていることが見た目でも当たり判定でも同じ意味になる。
         // スタートの手前（x < 0）にも道路を敷く。空けたままだと開始時の画面左が崖に見える
         // （会長 QA 2026-09-14「断崖絶壁から走り出す」）。
+        //
+        // 崩れる足場（#1090）の下も**最初から谷**（里山＝川・港町＝海）。板が架かっているうちは
+        // 渡れるが、崩れ切れば穴と同じ扱いになる（`RunnerField.isCrumbledGap(at:)`）ので、
+        // 地面の側では穴とまったく同じに扱う——ここで場合分けを増やすと、絵だけ地面が残って
+        // 「落ちたのに床が見えている」画になる。
+        var gaps = stage.hazards.filter { $0.kind == .pit }
+        gaps += stage.crumblingPlatforms.map {
+            RunnerHazard(kind: .pit, start: $0.start, length: $0.length)
+        }
         var x: Double = -Metrics.width
-        for pit in stage.hazards where pit.kind == .pit {
+        for pit in gaps.sorted(by: { $0.start < $1.start }) {
             if pit.start > x { addGround(from: x, to: pit.start) }
             addPitVoid(pit)
             addPitEdgeMarkers(pit)
-            x = pit.end
+            x = max(x, pit.end)
         }
         if x < stage.length { addGround(from: x, to: stage.length + Metrics.width) }
 
@@ -74,12 +89,21 @@ extension RunnerScene {
             // `frame` を写す仲間（`movingHazards`）に入れる。
             case .shoot:                   movingHazards.append(addShoot(hazard))
             case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
+            // 高い塀（#1091）は動かないので岩と同じくコース層へ 1 回置くだけ。
+            case .wall:                    courseLayer.addChild(makeWall(hazard))
             case .pit:                     break
             }
         }
 
-        for platform in stage.platforms {
-            courseLayer.addChild(makePlatform(platform))
+        for (index, platform) in stage.platforms.enumerated() {
+            switch platform.kind {
+            case .solid:
+                courseLayer.addChild(makePlatform(platform))
+            case .crumbling:
+                // 崩れる足場（#1090）は組み立てのときに自分でコース層へ足す（袂の柱と揺れる板を
+                // 別の親に分けるため）。`sync` が引けるよう添字で控える。
+                crumblingPlatformNodes[index] = makeCrumblingPlatform(platform)
+            }
         }
 
         pickupNodes = stage.pickups.map { pickup in

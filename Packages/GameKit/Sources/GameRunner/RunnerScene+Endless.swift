@@ -343,10 +343,10 @@ extension RunnerScene {
                 let part = endless.acquire(kind, in: self)
                 part.view?.hazard = hazard
                 item = part
-            case .shoot:
-                // 突き上げ（#1010）はエンドレスの生成器に教えていない（決裁「生成器に教えるのは
-                // 別の版」）。`RunnerEndlessCourse.parts` に居ないのでここへは来ないが、
-                // 網羅の switch を default で逃がさないために置いてある。
+            case .shoot, .wall:
+                // 突き上げ（#1010）と高い塀（#1091）はエンドレスの生成器に教えていない
+                // （どちらも決裁「生成器に教えるのは別の版」）。`RunnerEndlessCourse.parts` に
+                // 居ないのでここへは来ないが、網羅の switch を default で逃がさないために置いてある。
                 break
             }
         } else if let pickup = segment.pickup {

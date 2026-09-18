@@ -110,11 +110,13 @@ struct RunnerStageTests {
     ///   （目安として +3 個まで。世界が変わった直後は新しい仕組みを覚える面なので数で押さない）
     @Test("里山・港町の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
     func newWorldHazardCountsNeverDecrease() {
-        // **沈む床（#1089）も 1 つで 1 個と数える。** `RunnerHazard` ではないが、遊ぶ側から見れば
-        // 「越えるか、連打して抜けるか」を迫られる手応えそのもので、置いた区画は障害と同じく
-        // 平地の余白を 1 つ潰している。数えないと、仮置きの穴を沈む床へ置き換えた面だけが
-        // 見かけ上やさしくなったように見えてしまう。
-        let counts = RunnerStage.all.map { $0.hazards.count + $0.sinkFloors.count }
+        // **沈む床（#1089）と崩れる足場（#1090）も 1 つで 1 個と数える。** `RunnerHazard` では
+        // ないが、遊ぶ側から見れば「越えるか、連打して抜けるか」「止まらずに渡り切るか」を
+        // 迫られる手応えそのもので、置いた区画は障害と同じく平地の余白を 1 つ潰している。
+        // 数えないと、仮置きの穴を置き換えた面だけが見かけ上やさしくなったように見えてしまう。
+        let counts = RunnerStage.all.map {
+            $0.hazards.count + $0.sinkFloors.count + $0.crumblingPlatforms.count
+        }
         #expect(counts.count == 30)
         for range in [18..<24, 24..<30] {
             let group = Array(counts[range])
@@ -384,6 +386,7 @@ struct RunnerStageTests {
                     || symbol == RunnerStage.platformSymbol
                     || symbol == RunnerStage.boostFloorSymbol
                     || symbol == RunnerStage.sinkFloorSymbol
+                    || symbol == RunnerStage.crumblingPlatformSymbol
                 #expect(isKnown, "ステージ \(stage.number) に未知の記号 '\(symbol)' がある")
             }
         }
@@ -423,6 +426,24 @@ struct RunnerStageTests {
                         encounter.height < RunnerRules.jumpApex,
                         "ステージ \(stage.number) の \(hazard.kind) がジャンプの頂点より高い"
                     )
+                case .wall:
+                    // 高い塀（#1091）は**二段ジャンプ**で越える相手。式の形は岩と同じで、
+                    // 滞空と頂点だけが二段ぶん（`RunnerRules.doubleJumpAirTime(above:)` / `doubleJumpApex`）。
+                    // 「一段では越えられない」ことは `RunnerDoubleJumpWallTests` が実際に走らせて固定する。
+                    let window = RunnerRules.doubleJumpAirTime(above: encounter.height + RunnerAutoPilot.clearance)
+                    let overlap = (encounter.length + halfWidth * 2) / stage.speed
+                    #expect(
+                        window > overlap,
+                        "ステージ \(stage.number) の塀（高さ \(encounter.height)）を二段でも越えきれない"
+                    )
+                    #expect(
+                        encounter.height > RunnerRules.jumpApex,
+                        "ステージ \(stage.number) の塀が一段のジャンプで越えられる高さ"
+                    )
+                    #expect(
+                        encounter.height < RunnerRules.doubleJumpApex,
+                        "ステージ \(stage.number) の塀が二段ジャンプの頂点より高い"
+                    )
                 }
                 if hazard.kind == .boar, let stopAt = hazard.stopAt {
                     guard let rock = stage.hazards.first(where: { $0.kind.isRock && $0.end == stopAt }) else {
@@ -447,11 +468,12 @@ struct RunnerStageTests {
     @Test("隣り合う障害のあいだに着地して踏み切り直す余地がある")
     func hazardsAreFarEnoughApart() {
         for stage in RunnerStage.all {
-            let range = stage.speed * RunnerRules.jumpAirTime
             let ordered = stage.hazards.sorted { $0.encounter.start < $1.encounter.start }
             for (previous, next) in zip(ordered, ordered.dropFirst()) {
                 if next.kind == .boar, next.stopAt == previous.end, previous.kind.isRock { continue }
-                let needed = range + RunnerAutoPilot.lead(for: next, speed: stage.speed)
+                // 前の障害を越えた滞空は、高い塀（#1091）だけ二段ぶん長い。
+                let landingRange = stage.speed * RunnerRules.airTime(clearing: previous.kind)
+                let needed = landingRange + RunnerAutoPilot.lead(for: next, speed: stage.speed)
                 #expect(
                     next.encounter.start - previous.encounter.start > needed,
                     "ステージ \(stage.number): \(previous.start) と \(next.start) の障害が近すぎる"
@@ -765,21 +787,24 @@ struct RunnerStageTests {
     /// `RunnerPlaythroughTests` でも落ちるが、原因が配置のどこにあるかはここでしか分からない。
     ///
     /// QA用ショーケースも対象（`stagesUnderLayoutRules`）。
-    @Test("台座の前後の区画は平地になっている")
+    ///
+    /// **崩れる足場（`C`・#1090）も台座なので同じ規則を掛ける。** 記号で分岐せず
+    /// `RunnerStage.platformKind(_:)`（＝展開して台座になる記号か）で見るのは、
+    /// 台座の種類を増やしたときに**足し忘れても静かに素通りする**のを防ぐため
+    /// （2026-09-18 の敵対的検証で、`platformSymbol` だけを見ていたせいで
+    /// 26 面の足場の直前に高い岩を置いても全件緑だったのを実測）。
+    @Test("台座（崩れる足場を含む）の前後の区画は平地になっている")
     func platformsHaveFlatGroundOnBothSides() {
         for stage in stagesUnderLayoutRules {
             let symbols = Array(stage.pattern)
-            for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.platformSymbol {
-                if index > 0, symbols[index - 1] != RunnerStage.platformSymbol {
+            for (index, symbol) in symbols.enumerated() {
+                guard let kind = RunnerStage.platformKind(symbol) else { continue }
+                for neighbor in [index - 1, index + 1] where symbols.indices.contains(neighbor) {
+                    // 同じ種類の台座が続いているだけなら 1 基にまとまるので見なくてよい。
+                    guard RunnerStage.platformKind(symbols[neighbor]) != kind else { continue }
                     #expect(
-                        symbols[index - 1] == "-",
-                        "ステージ \(stage.number): 台座の手前（区画 \(index - 1)）が平地でない"
-                    )
-                }
-                if index < symbols.count - 1, symbols[index + 1] != RunnerStage.platformSymbol {
-                    #expect(
-                        symbols[index + 1] == "-",
-                        "ステージ \(stage.number): 台座の直後（区画 \(index + 1)）が平地でない"
+                        symbols[neighbor] == "-",
+                        "ステージ \(stage.number): 台座 \(symbol)（区画 \(index)）の隣（区画 \(neighbor)）が平地でない"
                     )
                 }
             }
@@ -943,9 +968,9 @@ struct RunnerPlaythroughTests {
             model.release()
         }
         var frames = 0
-        // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を無効にする
+        // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を無効にする
         // ための設計）ので、`.failed` に落ち着くまで回し続ける。
-        while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
             frames += 1
             // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。無駄ジャンプ
             // （`hopWastefully`）も含め、自動操縦の跳躍はすべて切り詰め無しの全弾道で揃える
@@ -1015,6 +1040,8 @@ struct RunnerPlaythroughTests {
     /// `encounter` から取る。動く相手でも、踏み切ってからの弾道は同じ）。
     /// 飛び立つ鳥（#796/#945）は跳んで越える相手ではなく**走ったまま下を抜ける**相手なので対象外
     /// ——`runningUnderClearsBirds` / `birdsPunishJumpingOnArrival` が別に固定する。
+    /// 高い塀（#1091）は**一段では越えられない**のが仕様そのものなので対象外
+    /// （二段で越えられることは `RunnerDoubleJumpWallTests` が固定する）。
     /// 突き上げ（#1010）は伸び切った高さが高い岩と同じなので、高い岩と同じ理由で対象外
     /// ——**「予告を読んで高く跳ぶ」を求める仕組み**そのもので、瞬間タップで越えられては困る
     /// （越えられることは `RunnerHazardMotionTests.shootsAreClearedByJumpingHigh` が全弾道で固定する）。
@@ -1023,6 +1050,7 @@ struct RunnerPlaythroughTests {
         for stage in RunnerStage.all {
             for hazard in stage.hazards
             where hazard.kind != .tallBlock && hazard.kind != .bird && hazard.kind != .shoot
+                && hazard.kind != .wall
                 && !(hazard.kind == .boar && hazard.stopAt != nil) {
                 var field = RunnerField(stage: stage)
                 // 踏み切り位置へ直接置く。**測っているのは「踏み切ってからの弾道だけ」**で、
@@ -1330,7 +1358,7 @@ struct RunnerPlaythroughTests {
             model.press()
             model.release()
             var frames = 0
-            while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+            while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
                 frames += 1
                 model.tick(dt: 1.0 / 60)
             }
@@ -1417,6 +1445,10 @@ struct RunnerPlaythroughTests {
         case .bird, .dog, .boar:
             // 動いている相手（#796/#955/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
             return (safeTakeOff, false)
+        case .wall:
+            // 高い塀（#1091）は二段で越える相手で、着地は高さ 18 を落ちたぶんずっと先——
+            // ジャスト着地の窓（体 1 つぶん）には構造的に入らないので狙わない。
+            return (safeTakeOff, false)
         }
         guard distance <= latest else { return (safeTakeOff, false) }
         return (min(max(desired, earliest), latest), tap)
@@ -1438,13 +1470,17 @@ struct RunnerPlaythroughTests {
         model.release()
         var frames = 0
         var releaseNow = false
-        while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
+        while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
             frames += 1
             let field = model.field
             if field.isOnSinkFloor {
                 // 沈む床（#1089）ではジャスト着地を狙わない——狙う対象は「越えた障害の真裏」で、
                 // 床は越える相手ではない。ここだけ自動操縦と同じ判断（跳ぶか我慢するか）に任せる。
                 if RunnerAutoPilot.shouldJump(field: field) { model.press() }
+            } else if RunnerAutoPilot.shouldTakeSecondJump(field: field) {
+                // 高い塀（#1091）の二段目。**空中で押す唯一の場面**で、ジャスト着地の狙いとは
+                // 無関係（塀の着地は窓の外）なので自動操縦の判断をそのまま使う。
+                model.press()
             } else if field.isGrounded, let target = RunnerAutoPilot.nextTarget(field: field) {
                 // 既定は自動操縦と同じ踏み切り（台座・鳥まわりはこの判断に任せる）。
                 var plan = (x: target.start - target.lead, tap: false)
@@ -1464,8 +1500,9 @@ struct RunnerPlaythroughTests {
                     releaseNow = plan.tap
                 }
             }
-            // タップなら同じフレームで離す（最小のジャンプ）。押しっぱなしの場合は着地まで待つ。
-            if releaseNow || model.field.isGrounded {
+            // タップなら同じフレームで離す（最小のジャンプ）。押しっぱなしの場合は着地まで待つ
+            // （塀の二段目の直前だけは `shouldRelease` が空中で離させる・#1091）。
+            if releaseNow || RunnerAutoPilot.shouldRelease(field: model.field) {
                 model.release()
                 releaseNow = false
             }
