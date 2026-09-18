@@ -824,6 +824,33 @@ public final class RunnerModel {
             press(); release()
             runUpToSinkFloorForDebug()
             advanceFramesForDebug(seconds: 10)
+        case "crumble":
+            // 崩れる足場（#1090）に乗って**ぎしぎし揺れている**瞬間で止める
+            // （受け入れ条件「乗って揺れている」の画）。ショーケースの `C` まで自動操縦で行き、
+            // 板の上で揺れの段（`RunnerRules.crumbleWarnDuration` 以内）に居るあいだに止める。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            runOntoCrumblingPlatformForDebug()
+            advanceUntilForDebug { model in
+                guard let progress = model.crumbleProgressForDebug else { return false }
+                return progress * RunnerRules.crumbleDuration >= RunnerRules.crumbleWarnDuration * 0.5
+            }
+            isFrozenForCapture = true
+        case "crumble-fallen":
+            // 板が全部抜け落ちて**谷だけが残った**瞬間で止める（受け入れ条件「崩れた後」の画）。
+            //
+            // 公平さの保証（`RunnerRules.crumbleMaxLength(at:)`）により、**走者が板の上に居る
+            // まま崩れ切ることはできない**——どんな跳び方をしても横の進みは基準速を下回らず、
+            // 板張りは必ずその速さで渡り切れる長さだから。そこで「渡り切った直後の走者の
+            // 後ろで崩れ切る」ところを撮る。跳び続けると横の進みが基準速に落ちる
+            // （空中は乗りが効かない）ので、崩れ切った跡が画面に残る。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            runOntoCrumblingPlatformForDebug()
+            advanceUntilForDebug(jumping: true) { model in
+                model.crumbleProgressForDebug.map { $0 >= 1 } ?? false
+            }
+            isFrozenForCapture = true
         case "invincible":
             // たこ焼き（#797）を取って無敵のまま最初の岩に重なっている瞬間で止める
             // （受け入れ条件「無敵中に岩へ当たっても crashed が出ない」「残り時間が画面で分かる」の画）。
@@ -917,6 +944,22 @@ public final class RunnerModel {
                 advanceUntilForDebug { (0.5...0.8).contains($0.field.sinkProgress) }
                 isFrozenForCapture = true
             }
+        case let name where name.hasPrefix("crumble:"):
+            // 本番ステージの崩れる足場を、その面の世界の背景の上で撮る（例 `-simulateRunner crumble:24`）。
+            // `crumble` はショーケース（朝の下町）で走るので、里山の古い吊り橋・港町の古い木の桟橋は
+            // こちらで確かめる（`sink:` と同じ理由）。板に乗って揺れているところで止める。
+            if let number = Int(name.dropFirst("crumble:".count)),
+               RunnerStage.stage(number: number)?.crumblingPlatforms.isEmpty == false {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                runOntoCrumblingPlatformForDebug()
+                advanceUntilForDebug { model in
+                    guard let progress = model.crumbleProgressForDebug else { return false }
+                    return progress * RunnerRules.crumbleDuration >= RunnerRules.crumbleWarnDuration * 0.5
+                }
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
@@ -1004,11 +1047,28 @@ public final class RunnerModel {
         })
     }
 
-    /// 跳ばずに走らせて、条件が満たされるまで進める（沈む床の撮影用）。
-    private func advanceUntilForDebug(_ stop: (RunnerModel) -> Bool) {
+    /// 崩れる足場（#1090）の**上**まで自動操縦で行く。板に足が着いた（崩れの時計が動き出した）
+    /// 瞬間で止めるので、そこから先はこちらで走らせ方を決められる。
+    private func runOntoCrumblingPlatformForDebug() {
+        autoPlayForDebug(until: { model in
+            model.field.stage.crumblingPlatforms.isEmpty || !model.field.crumbleElapsed.isEmpty
+        })
+    }
+
+    /// 撮影用に、いま乗っている（または最後に乗った）崩れる足場の崩れ具合。
+    private var crumbleProgressForDebug: Double? {
+        field.crumbleElapsed.keys.sorted().last.flatMap { field.crumbleProgress($0) }
+    }
+
+    /// 走らせて、条件が満たされるまで進める（沈む床・崩れる足場の撮影用）。
+    ///
+    /// - Parameter jumping: true なら接地するたびに踏み切る。空中では乗り（`pedalBoost`）が
+    ///   効かず横の進みが基準速に落ちるので、**いちばんゆっくり進む走り方**になる。
+    private func advanceUntilForDebug(jumping: Bool = false, _ stop: (RunnerModel) -> Bool) {
         var frames = 0
         while phase.isRunning, !stop(self), frames < 60 * 30 {
             frames += 1
+            if jumping, field.isGrounded { press(); release() }
             tick(dt: 1.0 / 60)
         }
     }

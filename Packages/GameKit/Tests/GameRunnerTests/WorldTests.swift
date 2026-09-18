@@ -372,15 +372,18 @@ struct RunnerWorldTests {
         // （QA 用ショーケースは `rebuildCourse` が朝の下町で走らせるので竹の子を入れてある）。
         #expect(RunnerWorld.originalDressing == D(
             pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy
+            platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy,
+            crumblingPlatform: .suspensionBridge
         ))
         #expect(RunnerWorld.satoyama.dressing == D(
             pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
-            platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot, sinkFloor: .paddy
+            platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot, sinkFloor: .paddy,
+            crumblingPlatform: .suspensionBridge
         ))
         #expect(RunnerWorld.harbor.dressing == D(
             pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
-            platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray, sinkFloor: .tideland
+            platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray, sinkFloor: .tideland,
+            crumblingPlatform: .woodenPier
         ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)

@@ -117,6 +117,10 @@ final class RunnerScene: SKScene {
     /// `sync` が毎フレーム `RunnerHazard.frame(atRunnerDistance:)` の位置へ置き直す。
     /// エンドレス（#1086）では使わない（動く障害も `endless` の部品として使い回す）。
     var movingHazards: [MovingHazardView] = []
+    /// 崩れる足場（#1090）のノード。鍵は `stage.platforms` の添字で、`RunnerField.crumbleElapsed`
+    /// と同じ引き方をする。`rebuildCourse` で作り直し、`sync` が崩れの進みを毎フレーム写す。
+    /// エンドレス（#1086）には置かないので常に空。
+    var crumblingPlatformNodes: [Int: CrumblingPlatformView] = [:]
     /// コース層（`courseLayer`）の x = 0 が指すワールド x（#1086）。
     ///
     /// エンドレスは距離が数百万単位まで伸びる。ノードをワールド座標のまま置くと、SpriteKit の

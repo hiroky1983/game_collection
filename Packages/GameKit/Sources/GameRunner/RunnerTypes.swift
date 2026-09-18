@@ -461,9 +461,26 @@ public struct RunnerPickup: Equatable, Sendable {
 /// 物差しがすべて前提にしている全体でただ 1 つの定数なので、そこを可変にすると全部が
 /// 連鎖する。台座は「地面の上に置く物体」なのでその前提を一切壊さない。
 public struct RunnerPlatform: Equatable, Sendable {
+    /// 台座の種類（#1090）。**上面の高さも乗り降りの規則も同じ**で、違うのは
+    /// 「乗ると崩れるか」だけ——だから別の型ではなくこの列挙で分ける。
+    /// 接地面の解決（`RunnerField.surfaceY(at:)`）・正面の当たり判定
+    /// （`RunnerField.isHittingPlatformFace`）・自動操縦の踏み切り（`RunnerAutoPilot`）は
+    /// どれも種類を見ずに書けるので、崩れる側の分岐は `RunnerField` の崩れの時計 1 か所で済む。
+    public enum Kind: Equatable, Sendable {
+        /// 崩れない台座（#674。工事の足場・わら積み・木箱の山）。
+        case solid
+        /// 乗ると少しして崩れる足場（#1090。里山＝古い吊り橋・港町＝古い木の桟橋）。
+        ///
+        /// 崩れ切ると接地面が消え、その区間は**穴と同じ扱い**になる（解析の死因は `pit`）。
+        case crumbling
+    }
+
     /// 左端の x（コース先頭からのワールド座標）。
     public let start: Double
     /// 長さ。レイアウトの連続した `P` がここでまとめられる。
+    ///
+    /// 崩れる足場（`C`）は**区画まるごとではなく、両端に岸を残した板張りぶん**
+    /// （`RunnerRules.crumbleBankTiles`）。
     public let length: Double
     /// 上面の高さ（**地面からの相対値**。障害の `height` と同じ物差し）。
     ///
@@ -471,11 +488,17 @@ public struct RunnerPlatform: Equatable, Sendable {
     /// 接地面の解決（`RunnerField.surfaceY(at:)`）を「覆っている台座のうち最も高い上面」で
     /// 書けるようにするため——高さ違いの台座を足す日が来ても、重ねた段の解決はそのまま動く。
     public let top: Double
+    /// 崩れる足場か（#1090）。
+    public let kind: Kind
 
-    public init(start: Double, length: Double, top: Double = RunnerRules.platformHeight) {
+    public init(
+        start: Double, length: Double, top: Double = RunnerRules.platformHeight,
+        kind: Kind = .solid
+    ) {
         self.start = start
         self.length = length
         self.top = top
+        self.kind = kind
     }
 
     /// 右端の x。
