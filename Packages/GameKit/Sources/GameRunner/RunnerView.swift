@@ -22,9 +22,21 @@ public struct RunnerView: View {
     /// 使う設定」で、開始時に `RunnerModel.newGame(startingAtStage:)` で焼き込む。
     /// ツールバーの「はじめから」は 1 面、スタート画面の「マップ」はいまの面を選んだ状態で開く。
     @State private var selectedStage = 1
-    /// 初回プレイの操作ガイド（#988）をいま出しているか。判定と「見せた」の記録は `init` で
-    /// 1 回だけ済ませる（`HowToPlayHint` と同じ作法）。「はじめる」で false になる。
-    @State private var showsTutorial: Bool
+    /// 初回プレイの操作ガイド（#988）をいま出しているか。「はじめる」で false になる。
+    ///
+    /// **判定と「見せた」の記録は `init` で 1 回だけ**済ませ（`HowToPlayHint` と同じ作法）、
+    /// 結果は `pendingTutorial` に控える。提示はストーリーの始まり（#1092）より**後**なので、
+    /// ここを `init` から直接立てると、始まりの上にモーダルが被る。
+    @State private var showsTutorial = false
+    /// `init` の時点で「操作ガイドを出す回」だったか。始まりが明けたら提示に移す。
+    @State private var pendingTutorial: Bool
+    /// `init` の時点で「ストーリーの始まりを出す回」だったか（#1092）。
+    @State private var pendingIntro: Bool
+    /// いま流している始まり。世界の締めのほうは `model.storyScene` が持つ。
+    @State private var introScene: RunnerStoryScene?
+    /// 撮影・QA で止めるコマ（`-simulateRunner story-world3:2`）。製品では常に nil のまま
+    /// （立てるのは `onAppear` の `#if DEBUG` の中だけ）。
+    @State private var frozenStoryPanel: Int?
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -32,9 +44,23 @@ public struct RunnerView: View {
         let model = RunnerModel(services: services)
         _model = State(initialValue: model)
         _scene = State(initialValue: RunnerScene(model: model))
-        // 判定は 1 回だけ（`shouldShow` が「見せた」の記録も兼ねるので二度呼ばない）。
-        let showsTutorial = RunnerTutorial.shouldShow(playLog: services.playLog)
-        _showsTutorial = State(initialValue: showsTutorial)
+        // 判定は 1 回だけ（どちらも「見せた」の記録を兼ねるので二度呼ばない）。
+        // 順番は 始まり → 操作ガイド → 開始シート（#1092 の受け入れ条件 A）。
+        _pendingIntro = State(initialValue: RunnerStory.shouldShowIntro(playLog: services.playLog))
+        _pendingTutorial = State(initialValue: RunnerTutorial.shouldShow(playLog: services.playLog))
+    }
+
+    /// いま画面を覆っているストーリーの場面（始まり or 世界の締め）。
+    private var presentedStory: RunnerStoryScene? { introScene ?? model.storyScene }
+
+    /// 始まりが明けた / 出さない回の続き。操作ガイドがあればそれを、無ければ開始シートを出す。
+    private func beginAfterIntro() {
+        if pendingTutorial {
+            pendingTutorial = false
+            showsTutorial = true
+        } else {
+            presentStartSheetIfNeeded()
+        }
     }
 
     public var body: some View {
@@ -90,6 +116,21 @@ public struct RunnerView: View {
         .sheet(isPresented: $showsTutorial, onDismiss: { presentStartSheetIfNeeded() }) {
             RunnerTutorialSheet { showsTutorial = false }
         }
+        // ストーリー（#1092）。始まりは開く前・世界の締めはクリアの結果パネルの手前に、
+        // どちらも画面いっぱいで流す。シートより下に置くので、シートが出ているあいだは被らない。
+        .overlay {
+            if let scene = presentedStory {
+                RunnerStoryView(scene: scene) {
+                    if introScene != nil {
+                        introScene = nil
+                        beginAfterIntro()
+                    } else {
+                        model.finishStory()
+                    }
+                }
+                .frozenStoryPanel(frozenStoryPanel)
+            }
+        }
         .sheet(isPresented: $showStartSheet) {
             RunnerStartSheet(
                 mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage
@@ -112,10 +153,17 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world5|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
-                model.applyDebugScenario(args[i + 1])
+                // ストーリーの始まり（#1092）だけは走行と無関係な View の状態なので、
+                // モデルのシナリオではなくここで立てる（締めのほうはモデルが `.story` にする）。
+                frozenStoryPanel = RunnerStory.debugPanelIndex(for: args[i + 1])
+                if RunnerStory.debugScene(for: args[i + 1]) == .intro {
+                    introScene = .intro
+                } else {
+                    model.applyDebugScenario(args[i + 1])
+                }
             }
             // 撮影用: 開始シート（ワールドマップ #798）を開いた状態にする（`-showRunnerStartSheet`）。
             if args.contains("-showRunnerStartSheet") {
@@ -124,7 +172,13 @@ public struct RunnerView: View {
             #endif
             // 自動表示の判断は**起動引数を適用したあと**（#1063）。先に判断すると、その時点では
             // まだ `.ready` なので撮影・QA の画面（`-simulateRunner`）にもシートが被る。
-            presentStartSheetIfNeeded()
+            // ストーリーの始まり（#1092）を出す回は、それが明けてから操作ガイド・開始シートへ進む。
+            if pendingIntro {
+                pendingIntro = false
+                introScene = .intro
+            } else {
+                beginAfterIntro()
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
@@ -488,6 +542,10 @@ public struct RunnerView: View {
         case .chasing:
             // 宝くじを追いかける短い演出中（#1092）。クリアのパネルはこの演出が終わってから出す。
             EmptyView()
+        case .story:
+            // 世界の締めの演出中（#1092）。場面は `RunnerStoryView` が画面いっぱいに被せるので、
+            // コースの上には何も出さない（クリアのパネルは締めが明けてから）。
+            EmptyView()
         case .failed:
             // ミスの表示は両モードで同じ枠（#675「既存の失敗リザルトを流用」）。エンドレスは
             // ミスがそのまま決着なので、走行距離と自己ベストの行が加わる。
@@ -848,6 +906,9 @@ struct RunnerStartSheet: View {
     let onStart: () -> Void
     let onCancel: () -> Void
 
+    /// 見返している場面（#1092）。シートの上に重ねるので、開始シート自身は閉じない。
+    @State private var replayScene: RunnerStoryScene?
+
     var body: some View {
         GameSetupSheet(
             title: "はじめから", startTitle: "スタート", layout: .scrolling,
@@ -869,6 +930,56 @@ struct RunnerStartSheet: View {
                 GameSetupSection("ステージを選ぶ") {
                     RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
                 }
+                GameSetupSection("おはなし") {
+                    RunnerStoryReplayList(reachedStage: reachedStage) { replayScene = $0 }
+                }
+            }
+        }
+        .overlay {
+            if let scene = replayScene {
+                RunnerStoryView(scene: scene) { replayScene = nil }
+            }
+        }
+    }
+}
+
+// MARK: - おはなしの見返し（#1092）
+
+/// 開始シートに置く「見たおはなしをもう一度見る」の並び。
+///
+/// 受け入れ条件「v1.1.6 に上げた時点で 6・12・18 面をクリア済みの人は締めを見ていない。
+/// **ワールドマップから、到達済みの世界の締めを見返せる**」への答え。見返せるのは
+/// 抜けた世界だけで（`RunnerStory.replayableScenes`）、まだの世界は並ばない
+/// ——これから見る話を目次で先に見せない。
+struct RunnerStoryReplayList: View {
+    let reachedStage: Int
+    let onSelect: (RunnerStoryScene) -> Void
+
+    var body: some View {
+        let scenes = RunnerStory.replayableScenes(reachedStage: reachedStage)
+        VStack(spacing: 8) {
+            ForEach(scenes, id: \.self) { scene in
+                Button { onSelect(scene) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.rectangle.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.inkSub)
+                        Text(scene.title)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.ink)
+                        Spacer(minLength: 0)
+                    }
+                    // 上下の余白と合わせて 44pt（iOS の最小のタップ寸）。
+                    .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                            .fill(Theme.surface)
+                    )
+                }
+                .buttonStyle(.pop)
+                .accessibilityLabel("\(scene.title)をもう一度見る")
             }
         }
     }
