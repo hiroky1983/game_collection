@@ -154,16 +154,19 @@ public enum RunnerStory {
 
     /// ワールドマップから見返せる場面（受け入れ条件「到達済みの世界の締めを見返せる」）。
     ///
-    /// 始まりは常に見返せる（ここまで来た人は必ず見ている）。締めは**その世界を抜けた人だけ**
-    /// ——最終面をクリアすると到達点が次の面へ進むので、`reachedStage` が世界の最終面を超えたかで見る。
-    /// 30 面（最後の世界の最終面）をクリアしても到達点はそこで頭打ちになるので、
-    /// **到達点が最終面に並んだ時点でも見返せる**ようにしてある（そうしないと最後の締めだけ
-    /// 見返せない）。
-    public static func replayableScenes(reachedStage: Int) -> [RunnerStoryScene] {
+    /// 始まりは常に見返せる（ここまで来た人は必ず見ている）。締めは**もう見た世界だけ**で、
+    /// 判定は `PlayLog` の「見た」印そのもの。
+    ///
+    /// **到達点（`reachedStage`）では判定できない**（CodeRabbit 指摘・#1092）。到達点は
+    /// 「クリアした面の**次**の面」まで進むので、29 面をクリアした時点で 30 になり、
+    /// 「到達点が最後の面に並んだ = 港町の締めを見た」と読むと**まだ見ていない最後の締めが
+    /// 一覧に出てしまう**（これから見る話のネタバレになる）。印で見れば、最後の世界だけを
+    /// 特別扱いする必要も無い。
+    @MainActor
+    public static func replayableScenes(playLog: PlayLog?) -> [RunnerStoryScene] {
         [.intro] + RunnerWorld.allCases.compactMap { world in
-            let last = world.stageRange.upperBound
-            let cleared = reachedStage > last || (reachedStage == last && last == RunnerRules.stageCount)
-            return cleared ? .ending(world) : nil
+            let scene = RunnerStoryScene.ending(world)
+            return playLog?.hasShownGuide(for: scene.seenKey) == true ? scene : nil
         }
     }
 

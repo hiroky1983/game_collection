@@ -136,18 +136,29 @@ struct RunnerStoryTests {
         }
     }
 
-    @Test("見返せるのは抜けた世界の締めだけ。始まりはいつでも見返せる")
-    func replayListGrowsWithProgress() {
-        #expect(RunnerStory.replayableScenes(reachedStage: 1) == [.intro])
-        #expect(RunnerStory.replayableScenes(reachedStage: 6) == [.intro], "6 面はまだクリア前（到達点 6 = これから遊ぶ面）")
-        #expect(RunnerStory.replayableScenes(reachedStage: 7) == [.intro, .ending(.morning)])
-        #expect(RunnerStory.replayableScenes(reachedStage: 13).count == 3)
-        // 最後の世界だけは到達点が頭打ちになるので、並んだ時点で見返せる。
+    /// 見返しの一覧は**到達点ではなく「見た」印**で決める（CodeRabbit 指摘・#1092）。
+    /// 到達点は「クリアした面の次の面」まで進むので、29 面をクリアしただけで 30 になり、
+    /// まだ見ていない最後の締めが一覧に出てしまう（これから見る話のネタバレ）。
+    @Test("見返せるのはもう見た世界の締めだけ。始まりはいつでも見返せる")
+    func replayListFollowsWhatHasBeenSeen() {
+        let log = makePlayLog("replay")
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro])
+        #expect(RunnerStory.replayableScenes(playLog: nil) == [.intro], "記録が無くても始まりは出す")
+
+        // 6 面クリア（＝締めを見た）で世界 1 が並ぶ。
+        _ = RunnerStory.endingToPlay(clearedStage: 6, playLog: log, arguments: [])
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning)])
+
+        // 29 面クリアでは到達点が 30 になるが、港町の締めはまだ見ていないので並ばない。
+        _ = RunnerStory.endingToPlay(clearedStage: 29, playLog: log, arguments: [])
         #expect(
-            RunnerStory.replayableScenes(reachedStage: RunnerRules.stageCount).count
-                == RunnerWorld.allCases.count + 1,
-            "30 面をクリアしても最後の締めだけ見返せない"
+            RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning)],
+            "まだ見ていない最後の締めが一覧に出ている（ネタバレ）"
         )
+
+        // 30 面をクリアして初めて並ぶ。
+        _ = RunnerStory.endingToPlay(clearedStage: 30, playLog: log, arguments: [])
+        #expect(RunnerStory.replayableScenes(playLog: log) == [.intro, .ending(.morning), .ending(.harbor)])
     }
 
     // MARK: 3. 走行との結び付き
@@ -200,6 +211,20 @@ struct RunnerStoryTests {
         for _ in 0..<600 { model.tick(dt: 1.0 / 60) }   // 10 秒ぶん
         #expect(model.phase == .story, "時間で勝手にリザルトへ移った")
         #expect(model.storyScene == .ending(.morning))
+    }
+
+    /// `RunnerStoryView` はコースを覆うが、ツールバーの「はじめから」はその外側にあるので、
+    /// 締めの最中でも新しい走行を始められる（CodeRabbit 指摘・#1092）。
+    @Test("締めの最中に新しい走行を始めると、締めも一緒に閉じる")
+    func startingANewRunClosesTheEnding() throws {
+        let log = makePlayLog("model-newgame")
+        let model = try makeModel(startingAt: 6, log: log, suite: "story-newgame")
+        #expect(runToGoal(model))
+        #expect(model.phase == .story)
+
+        model.newGame(startingAtStage: 1)
+        #expect(model.phase == .ready)
+        #expect(model.storyScene == nil, "新しい走行の上に締めが被ったまま消せない")
     }
 
     @Test("締めの最中はジャンプ・一時停止が効かない")

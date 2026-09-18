@@ -113,33 +113,32 @@ public struct PixelSprite: Sendable, Equatable {
     /// 別々のパレットから来るので、同じ文字が別の色を指すのが普通で、素朴に辞書を統合すると
     /// 片方の色が黙って化ける。ここでは重ねる側の文字を「同じ色が既にあればその文字・無ければ
     /// 空いている文字」へ写してから焼き込むので、**色は 1 つも変わらない**。
+    /// **文字を配るのは実際に枠の中へ描いたドットだけ**（CodeRabbit 指摘・#1092）。先に
+    /// 重ねる側の全色へ配ると、部品がまるごと枠の外にあっても在庫を使い切って落ちる。
     public func overlaying(_ other: PixelSprite, x: Int, y: Int) -> PixelSprite {
-        let top = trimmingPalette(), add = other.trimmingPalette()
+        let top = trimmingPalette()
         var palette = top.palette
         var keyForColor = [UInt32: Character](palette.map { ($0.value, $0.key) }, uniquingKeysWith: { a, _ in a })
-        var remap = [Character: Character]()
-        for (ch, rgb) in add.palette {
-            if let existing = keyForColor[rgb] { remap[ch] = existing; continue }
-            guard let free = Self.paletteKeyPool.first(where: { palette[$0] == nil }) else {
-                preconditionFailure("ドット絵の合成でパレットの文字が枯れた（色数 \(palette.count + 1)）")
-            }
-            palette[free] = rgb
-            keyForColor[rgb] = free
-            remap[ch] = free
-        }
         var out = rows.map { Array($0) }
-        for (dy, row) in add.rows.enumerated() {
+        for (dy, row) in other.rows.enumerated() {
             let ty = y + dy
             guard ty >= 0, ty < out.count else { continue }
             for (dx, ch) in row.enumerated() {
                 let tx = x + dx
-                guard ch != ".", tx >= 0, tx < out[ty].count, let key = remap[ch] else { continue }
-                out[ty][tx] = key
+                guard ch != ".", tx >= 0, tx < out[ty].count, let rgb = other.palette[ch] else { continue }
+                if let existing = keyForColor[rgb] {
+                    out[ty][tx] = existing
+                    continue
+                }
+                guard let free = Self.paletteKeyPool.first(where: { palette[$0] == nil }) else {
+                    preconditionFailure("ドット絵の合成でパレットの文字が枯れた（色数 \(palette.count + 1)）")
+                }
+                palette[free] = rgb
+                keyForColor[rgb] = free
+                out[ty][tx] = free
             }
         }
-        // 枠の外へ落ちた部品の色は 1 ドットも残っていないので、最後にもう一度落とす
-        // （残すと「重ねたのに見えない色」がパレットに溜まり、合成を重ねるほど文字が枯れる）。
-        return PixelSprite(rows: out.map { String($0) }, palette: palette).trimmingPalette()
+        return PixelSprite(rows: out.map { String($0) }, palette: palette)
     }
 
     /// 合成で色に割り当てる文字の在庫（`.` は透明なので含めない）。

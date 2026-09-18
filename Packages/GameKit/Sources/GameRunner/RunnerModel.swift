@@ -541,6 +541,11 @@ public final class RunnerModel {
         chaseElapsed = 0
         phaseAfterChase = .cleared
         didFinishGoalChase = false
+        // 締めの場面も走行の頭で落とす（#1092・CodeRabbit 指摘）。`RunnerStoryView` はコースを
+        // 覆うがツールバーの「はじめから」はその外側にあるので、締めの最中でも新しい走行を
+        // 始められる。ここで落とさないと、`.ready` に戻ったのに `finishStory()` が
+        // `.story` 以外では効かず、オーバーレイが消せないまま被り続ける。
+        storyScene = nil
         recordResult = nil
         didReachNewStage = false
         didSetBestDistance = false

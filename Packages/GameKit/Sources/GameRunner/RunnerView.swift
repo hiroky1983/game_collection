@@ -133,7 +133,8 @@ public struct RunnerView: View {
         }
         .sheet(isPresented: $showStartSheet) {
             RunnerStartSheet(
-                mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage
+                mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage,
+                playLog: services.playLog
             ) {
                 // 選んだモード・面でコースを作るところまで。**走り出しはしない**——シートを
                 // 閉じるとコースの上に「タップでスタート」（`tapToStartHint`）が出て、
@@ -903,6 +904,8 @@ struct RunnerStartSheet: View {
     @Binding var selectedStage: Int
     /// 到達した最大の面。これより先は鍵付きで押せない（`RunnerModel.reachedStage`）。
     let reachedStage: Int
+    /// 「おはなし」の見返しに並べる場面を決めるための記録（#1092）。
+    let playLog: PlayLog?
     let onStart: () -> Void
     let onCancel: () -> Void
 
@@ -931,7 +934,7 @@ struct RunnerStartSheet: View {
                     RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
                 }
                 GameSetupSection("おはなし") {
-                    RunnerStoryReplayList(reachedStage: reachedStage) { replayScene = $0 }
+                    RunnerStoryReplayList(playLog: playLog) { replayScene = $0 }
                 }
             }
         }
@@ -949,14 +952,14 @@ struct RunnerStartSheet: View {
 ///
 /// 受け入れ条件「v1.1.6 に上げた時点で 6・12・18 面をクリア済みの人は締めを見ていない。
 /// **ワールドマップから、到達済みの世界の締めを見返せる**」への答え。見返せるのは
-/// 抜けた世界だけで（`RunnerStory.replayableScenes`）、まだの世界は並ばない
+/// もう見た世界だけで（`RunnerStory.replayableScenes`）、まだの世界は並ばない
 /// ——これから見る話を目次で先に見せない。
 struct RunnerStoryReplayList: View {
-    let reachedStage: Int
+    let playLog: PlayLog?
     let onSelect: (RunnerStoryScene) -> Void
 
     var body: some View {
-        let scenes = RunnerStory.replayableScenes(reachedStage: reachedStage)
+        let scenes = RunnerStory.replayableScenes(playLog: playLog)
         VStack(spacing: 8) {
             ForEach(scenes, id: \.self) { scene in
                 Button { onSelect(scene) } label: {

@@ -119,6 +119,22 @@ struct PixelArtTests {
         #expect(base.overlaying(top, x: -5, y: -5) == base)
     }
 
+    /// 枠の外の部品にまで文字を配ると、在庫（`paletteKeyPool`）を使い切って落ちる（CodeRabbit 指摘・#1092）。
+    @Test("色数の多い部品をまるごと枠の外へ置いても、文字を使い切らない")
+    func overlayingOutOfBoundsDoesNotConsumeKeys() {
+        let base = PixelSprite.solid(width: 4, height: 4, color: 0x111111)
+        // 在庫の総数を超える色数の部品（1 ドット 1 色）。
+        let pool = PixelSprite.paletteKeyPool
+        let keys = pool + ["A"]   // 在庫より 1 多い（同じ文字は色を上書きするので数は在庫ぶん）
+        var palette = [Character: UInt32]()
+        for (i, ch) in keys.enumerated() { palette[ch] = UInt32(0x010000 + i) }
+        let wide = PixelSprite(rows: [String(palette.keys.sorted())], palette: palette)
+        #expect(wide.palette.count > pool.count - 1, "テストの部品の色数が在庫より少ない（空振り）")
+        // 枠の外なら 1 ドットも描かれないので、文字は 1 つも減らない。
+        #expect(base.overlaying(wide, x: 100, y: 100) == base)
+        #expect(base.overlaying(wide, x: 0, y: -10) == base)
+    }
+
     @Test("同じ色は 1 つの文字にまとめる（文字を無駄に使わない）")
     func overlayingReusesKeysForTheSameColor() {
         let base = PixelSprite(rows: ["K"], palette: ["K": 0x102030])
