@@ -165,6 +165,17 @@ extension RunnerScene {
         )
     }
 
+    /// 板が抜け始める時刻を左右にずらす幅（抜け落ち時間に対する割合）。
+    ///
+    /// 左端の板は抜け落ちの頭（`fallen == 0`）で、右端の板は `fallen == stagger` で落ち始め、
+    /// どれも `1 - stagger` かけて消える。**「消えた縁」が板張りの右端に届くのはちょうど
+    /// `fallen == 1`**（＝当たり判定が穴に変わる瞬間）で、絵と当たり判定がずれない。
+    ///
+    /// 消えた縁は 1 次式なので、両端で走者より後ろなら途中も後ろ——
+    /// 「板張りの長さ < 速さ × `crumbleDuration`」（`RunnerRules.crumbleMaxLength(at:)`）が
+    /// 成り立つ限り、残った板を踏み外すことも、足の下の板が先に消えることも無い。
+    static let crumblePlankStagger: Double = 0.75
+
     /// 崩れの進みを絵へ写す（`sync` から毎フレーム）。
     ///
     /// - 乗るまで: 何も起きない
@@ -191,17 +202,20 @@ extension RunnerScene {
             // 描き続けると、板が全部落ちたあとに宙へひびだけが残る。
             view.cracks.alpha = CGFloat(min(1, elapsed / warn) * (1 - min(1, fallen)))
             for (i, plank) in view.planks.enumerated() {
-                // この板が抜け始める割合。左端が 0、右端が 1。
-                let share = Double(i) / Double(max(1, view.planks.count - 1))
-                let drop = fallen - share
+                // この板が抜け始める割合。左端が 0、右端が `Self.crumblePlankStagger`。
+                //
+                // **右端を 1 にしない**のが要点。1 だと右端の板は「崩れ切る瞬間」にようやく
+                // 落ち始めることになり、足場が穴として扱われたあとも板が残って見える
+                // （PR #1113 の指摘）。1 枚が落ち切るのに残りの `1 - stagger` を使うので、
+                // **右端の板もちょうど `fallen == 1` で消える**。
+                let order = Double(i) / Double(max(1, view.planks.count - 1))
+                let drop = fallen - order * Self.crumblePlankStagger
                 guard drop > 0 else {
                     plank.position = CGPoint(x: plank.position.x, y: view.top)
                     plank.alpha = 1
                     continue
                 }
-                // 落ちる速さは重力そのままでは速すぎて 1 フレームで消えるので、谷の底
-                // （`Metrics.groundY`）までを抜け落ち時間の 1/4 で渡る見た目の落下にする。
-                let fall = min(1, drop * 4)
+                let fall = min(1, drop / (1 - Self.crumblePlankStagger))
                 plank.position = CGPoint(
                     x: plank.position.x,
                     y: view.top - Metrics.groundY * fall * fall
