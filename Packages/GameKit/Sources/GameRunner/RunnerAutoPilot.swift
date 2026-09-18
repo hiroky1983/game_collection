@@ -13,10 +13,14 @@ import Foundation
 ///
 /// 判断は**押して即離す最小のジャンプ**だけを使う。大ジャンプ（押し続け）は余裕を増やす
 /// 上振れなので、これでゴールできれば「押さなくても越えられる地形」であることの証明になる。
+///
+/// **唯一の例外が高い塀（#1091）**で、そこだけは二段目を踏む（`shouldTakeSecondJump`）——
+/// 一段では物理的に越えられない高さなので、「二段を使うのが最小の操作」になる。
+/// 二段目を踏むのは一段目の頂点（いちばん高く上がる踏み方）で、それ以外の障害では踏まない。
 public enum RunnerAutoPilot {
-    /// 踏み切るべきか。接地していないときは常に false。
+    /// 踏み切るべきか。接地していないときは、高い塀（#1091）の**二段目**だけを踏む。
     public static func shouldJump(field: RunnerField) -> Bool {
-        guard field.isGrounded else { return false }
+        guard field.isGrounded else { return shouldTakeSecondJump(field: field) }
         // 沈む床（#1089）の上では、**沈む前に跳ぶ。ただし跳んだ先が次の障害の踏み切り地点を
         // 越えてしまうなら、その 1 回だけ我慢する**。
         //
@@ -34,6 +38,31 @@ public enum RunnerAutoPilot {
         }
         guard let target = nextTarget(field: field) else { return false }
         return target.start - field.distance <= target.lead
+    }
+
+    /// 空中で二段目を踏むべきか（#1091 の高い塀だけ）。
+    ///
+    /// **踏むのは一段目の頂点**（上昇が終わった最初のフレーム = `vy <= 0`）。二段目は `vy` を
+    /// `jumpVelocity` に戻すので、高いところで踏むほど高く上がる——頂点で踏めば
+    /// `RunnerRules.doubleJumpApex`（≒ 28.13）まで届き、塀（20）に対していちばん余裕が出る
+    /// （遊ぶ人にはこの一点だけが正解ではなく、押し始めに 0.2 秒以上の幅がある。
+    /// `RunnerDoubleJumpWallTests.doubleJumpWindowIsGenerousOnEveryStage`）。
+    static func shouldTakeSecondJump(field: RunnerField) -> Bool {
+        isAimingSecondJump(field: field) && field.vy <= 0
+    }
+
+    /// いま空中にいるジャンプが「高い塀を二段で越えるための一段目」か。
+    ///
+    /// **塀のために踏み切ったジャンプでしか二段目を踏まない**のが要点。前方に塀があるだけで
+    /// 頂点ごとに踏むと、まだ遠い塀に向かって空中で跳ね続けて手前の地形を読み違える。
+    /// 「踏み切りの余裕（`lead`）の内側に塀の左端がある」ことを条件にすることで、
+    /// 一段目を踏み切った地点から連続した 1 回の跳躍だけが二段目を持つ。
+    static func isAimingSecondJump(field: RunnerField) -> Bool {
+        guard !field.isGrounded, field.jumpCount == 1 else { return false }
+        guard let next = field.nextHazardFrame(from: field.playerMaxX), next.hazard.kind == .wall
+        else { return false }
+        let speed = field.stage.speed(at: field.distance)
+        return next.frame.start - field.distance <= lead(for: next.hazard, frame: next.frame, speed: speed)
     }
 
     /// 沈む床の上で「いま跳ぶと次の障害に間に合わない」ときに我慢できる沈みの上限（0…1）。
@@ -102,8 +131,16 @@ public enum RunnerAutoPilot {
     /// 2026-09-10）ので、地形の成立条件（`RunnerStageTests`）が前提にしている
     /// 「切り詰め無しの全弾道」を保証するには着地まで押し続ける必要がある。
     /// 接地中に呼んでも（すでに `isHolding == false` のため）安全な no-op。
+    ///
+    /// **例外は高い塀の二段目（#1091）**。押しっぱなしのままでは `RunnerModel.press()` が
+    /// 「もう押している」として二度目の踏み切りを弾く（実際の操作でも、二段ジャンプは
+    /// 一度離してから押し直す）ので、**頂点の手前で一度離す**。離す高さを
+    /// `vy <= RunnerRules.jumpCutVelocity` にしてあるのは、そこまで落ちていれば
+    /// `RunnerField.endHold()` の切り詰めが**何も起きない**から——弾道は押しっぱなしと 1 単位も
+    /// 変わらず、ステージの成立条件（全弾道が前提）はそのまま成り立つ。
     public static func shouldRelease(field: RunnerField) -> Bool {
-        field.isGrounded
+        if field.isGrounded { return true }
+        return isAimingSecondJump(field: field) && field.vy <= RunnerRules.jumpCutVelocity
     }
 
     /// その障害に対して、何ワールド単位手前で踏み切るか（置いた位置で見る静的な版）。
@@ -138,6 +175,13 @@ public enum RunnerAutoPilot {
             // 地点より手前なので、この見積もりで実際に越えられる
             // （`RunnerHazardMotionTests.shootFinishesRisingBeforeTheTakeOffPoint`）。
             let rise = RunnerRules.riseTime(to: hazard.height + clearance)
+            return RunnerField.Metrics.playerHalfWidth
+                + (1 - advance) * (RunnerRules.tileWidth / 2 + speed * rise)
+        case .wall:
+            // 高い塀（#1091）は**二段ジャンプの上昇時間**で見る。式の形は岩とまったく同じで、
+            // 上端まで上がるのに一段目の頂点を経由するぶんだけ長い時間が入る
+            // ——岩の式（`riseTime`）で踏み切ると、塀の高さへ上がりきる前に当たる。
+            let rise = RunnerRules.doubleJumpRiseTime(to: hazard.height + clearance)
             return RunnerField.Metrics.playerHalfWidth
                 + (1 - advance) * (RunnerRules.tileWidth / 2 + speed * rise)
         }

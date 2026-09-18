@@ -784,6 +784,30 @@ public final class RunnerModel {
                     && frame.start - field.distance < 20
             })
             isFrozenForCapture = true
+        case "wall":
+            // 高い塀（#1091）の**手前**で止める（受け入れ条件の撮影シナリオ `wall`）。
+            // ショーケースの `w` まで自動操縦で行き、接地したまま間合いが 24 を切ったところで止める
+            // ——塀の全高（20）と走者が 1 画面に収まり、「一段では届かない」高さが読める画になる。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard let wall = field.stage.hazards.first(where: { $0.kind == .wall }) else { return true }
+                return field.isGrounded && wall.start - field.distance < 24
+            })
+            isFrozenForCapture = true
+        case "wall-double":
+            // **二段目の頂点**で止める（撮影シナリオ `wall-double`）。自動操縦が一段目の頂点で
+            // 二段目を踏む（`RunnerAutoPilot.shouldTakeSecondJump`）ので、そのあと上昇が終わった
+            // 瞬間 = 二段ジャンプのいちばん高いところを撮る。塀の上端より足が上にある画になる。
+            applyDebugStage(.debugShowcase)
+            press(); release()
+            autoPlayForDebug(until: { model in
+                let field = model.field
+                guard field.stage.hazards.contains(where: { $0.kind == .wall }) else { return true }
+                return field.jumpCount == 2 && field.vy <= 0
+            })
+            isFrozenForCapture = true
         case "platform":
             // 台座の上を走っている瞬間で止める（#674 の受け入れ条件「台座の上を走っている瞬間」の画）。
             // 本番では台座は 16 面以降にしか出ないので、ショーケースの台座を使う。端から 8 単位
@@ -979,6 +1003,23 @@ public final class RunnerModel {
                     guard let progress = model.crumbleProgressForDebug else { return false }
                     return progress * RunnerRules.crumbleDuration >= RunnerRules.crumbleWarnDuration * 0.5
                 }
+                isFrozenForCapture = true
+            }
+        case let name where name.hasPrefix("wall:"):
+            // 本番ステージの高い塀を、その面の世界の背景の上で撮る（例 `-simulateRunner wall:24`）。
+            // `wall` はショーケース（朝の下町）で走るので、里山の石垣・港町のコンテナは
+            // こちらで確かめる（`sink:` / `crumble:` と同じ理由）。塀の手前で止める。
+            if let number = Int(name.dropFirst("wall:".count)),
+               let stage = RunnerStage.stage(number: number),
+               stage.hazards.contains(where: { $0.kind == .wall }) {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let wall = field.stage.hazards.first(where: { $0.kind == .wall }) else { return true }
+                    return field.isGrounded && wall.start - field.distance < 24
+                })
                 isFrozenForCapture = true
             }
         case let name where name.hasPrefix("stage:"):

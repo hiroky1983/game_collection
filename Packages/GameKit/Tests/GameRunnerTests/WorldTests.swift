@@ -373,23 +373,23 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.originalDressing == D(
             pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
             platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy,
-            crumblingPlatform: .suspensionBridge
+            crumblingPlatform: .suspensionBridge, wall: .stoneWall
         ))
         #expect(RunnerWorld.satoyama.dressing == D(
             pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
             platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot, sinkFloor: .paddy,
-            crumblingPlatform: .suspensionBridge
+            crumblingPlatform: .suspensionBridge, wall: .stoneWall
         ))
         #expect(RunnerWorld.harbor.dressing == D(
             pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
             platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray, sinkFloor: .tideland,
-            crumblingPlatform: .woodenPier
+            crumblingPlatform: .woodenPier, wall: .containerStack
         ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
         #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
         #expect(RunnerWorld.satoyama.dressing.block(for: .tallBlock) == .boulder)
-        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar, .shoot] {
+        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar, .shoot, .wall] {
             #expect(RunnerWorld.harbor.dressing.block(for: kind) == nil, "\(kind)")
         }
     }
@@ -419,6 +419,11 @@ struct RunnerWorldTests {
             (.satoyama, "土の盛り上がり", art["S"]!, RunnerPixelArt.outline),
             (.harbor, "波しぶき", art["N"]!, RunnerPixelArt.outline),
             (.harbor, "泡", art["C"]!, RunnerPixelArt.outline),
+            // 高い塀（#1091）。石垣の石（`G`）・コンテナの本体（`R`）は背景と 1.6〜2.8:1 しか
+            // 無いので、**3:1 を担うのは目地（`g`）と桁・リブ（`r`）**——竹の子・波しぶきと同じ
+            // 「濃い側が担う」形で、主色にその濃い側を置いてある（縁取りだけで通る空振りにしない）。
+            (.satoyama, "石垣の目地", art["g"]!, RunnerPixelArt.outline),
+            (.harbor, "コンテナの桁とリブ", art["r"]!, RunnerPixelArt.outline),
         ]
         for item in items {
             for (name, backdrop) in item.0.groundBackdrops {

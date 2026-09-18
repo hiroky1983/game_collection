@@ -686,6 +686,13 @@ public extension RunnerWorld {
             /// 古い木の桟橋（港町）。杭に載った板がきしみ、海へ落ちる。
             case woodenPier
         }
+        /// 高い塀（#1091）。**当たり判定・高さは 1 つ**で、絵だけを替える。
+        public enum Wall: Equatable, Sendable {
+            /// 石垣（里山）。目地の通った四角い石を積んだ、田畑の境の石積み。
+            case stoneWall
+            /// 積まれたコンテナ（港町）。海上コンテナを 2 段積み。
+            case containerStack
+        }
         /// 沈む床（#1089）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum SinkFloor: Equatable, Sendable {
             /// 田んぼ（里山）。水面に苗の列、入ると泥が跳ねる。
@@ -713,6 +720,7 @@ public extension RunnerWorld {
         public let shoot: Shoot
         public let sinkFloor: SinkFloor
         public let crumblingPlatform: CrumblingPlatform
+        public let wall: Wall
 
         /// 岩の枠の着せ替え。岩でない種類は nil。
         public func block(for kind: RunnerHazardKind) -> Block? {
@@ -720,20 +728,22 @@ public extension RunnerWorld {
             case .lowBlock:                        return lowBlock
             case .tallBlock:                       return tallBlock
             // 突き上げ（#1010）は岩の枠ではなく自分の着せ替え（`shoot`）を持つ。
-            case .pit, .bird, .dog, .boar, .shoot: return nil
+            // 突き上げ（#1010）・高い塀（#1091）は岩の枠ではなく自分の着せ替え（`shoot` / `wall`）を持つ。
+            case .pit, .bird, .dog, .boar, .shoot, .wall: return nil
             }
         }
     }
 
     /// 元の絵。1〜18 面はこれ（#1009 より前と同じ）。
     ///
-    /// 突き上げ（#1010）は 19 面以降にしか置かないので、ここの `shoot` が本編で使われることは
-    /// 無い。竹の子にしてあるのは **QA 用ショーケース**（`RunnerStage.debugShowcase` は
-    /// `number == 0` なので `RunnerScene.rebuildCourse` が朝の下町で走らせる）で撮れるようにするため。
+    /// 突き上げ（#1010）・高い塀（#1091）は 19 面以降にしか置かないので、ここの `shoot` / `wall` が
+    /// 本編で使われることは無い。竹の子・石垣にしてあるのは **QA 用ショーケース**
+    /// （`RunnerStage.debugShowcase` は `number == 0` なので `RunnerScene.rebuildCourse` が
+    /// 朝の下町で走らせる）で撮れるようにするため。
     static let originalDressing = Dressing(
         pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
         platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy,
-        crumblingPlatform: .suspensionBridge
+        crumblingPlatform: .suspensionBridge, wall: .stoneWall
     )
 
     var dressing: Dressing {
@@ -743,20 +753,20 @@ public extension RunnerWorld {
         case .satoyama:
             // 穴＝用水路・低い岩＝切り株・高い岩＝大きな石（岩塊のまま）・犬＝田舎の犬（色違い）・
             // イノシシ＝イノシシ・台座＝わら積み・加速床＝舗装された農道・突き上げ＝竹の子（#1010）・
-            // 沈む床＝田んぼ（#1089）・崩れる足場＝古い吊り橋（#1090）。
+            // 沈む床＝田んぼ（#1089）・崩れる足場＝古い吊り橋（#1090）・高い塀＝石垣（#1091）。
             return Dressing(
                 pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
                 platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot,
-                sinkFloor: .paddy, crumblingPlatform: .suspensionBridge
+                sinkFloor: .paddy, crumblingPlatform: .suspensionBridge, wall: .stoneWall
             )
         case .harbor:
             // 穴＝岸壁の切れ目・低い岩＝ロープの束・高い岩＝ドラム缶・犬＝野良猫・イノシシ＝
             // フォークリフト・台座＝木箱の山・加速床＝ベルトコンベア・突き上げ＝波しぶき（#1010）・
-            // 沈む床＝干潟（#1089）・崩れる足場＝古い木の桟橋（#1090）。
+            // 沈む床＝干潟（#1089）・崩れる足場＝古い木の桟橋（#1090）・高い塀＝積まれたコンテナ（#1091）。
             return Dressing(
                 pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
                 platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray,
-                sinkFloor: .tideland, crumblingPlatform: .woodenPier
+                sinkFloor: .tideland, crumblingPlatform: .woodenPier, wall: .containerStack
             )
         }
     }
