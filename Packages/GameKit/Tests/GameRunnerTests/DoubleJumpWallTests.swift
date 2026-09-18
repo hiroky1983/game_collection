@@ -239,6 +239,47 @@ struct RunnerDoubleJumpWallTests {
         #expect(field.lastMissCause == .rock, "死因が \(String(describing: field.lastMissCause))")
     }
 
+    /// **本編に置いた塀が、二段目を踏まなければ必ず当たる**こと（`RunnerStageTests.movingHazardsHitWhenIgnored`
+    /// の塀版）。合成ステージでの `ignoringTheSecondJumpCrashesWithRockCause` だけでは、
+    /// **たこ焼きの無敵（`RunnerRules.invincibleDuration` = 3 秒）で素通りできる並び**を見逃す
+    /// ——実際、29 面はたこ焼きが塀の 2 区画手前にあり、取得 1.63 秒後に塀へ着いて
+    /// 二段ジャンプ無しで通り抜けられた（2026-09-18 の敵対的検証で実測）。
+    @Test("本編の塀は、二段目を踏まなければ必ず当たる（無敵で素通りできない）")
+    func wallsAreHitWhenTheSecondJumpIsSkipped() {
+        var checked = 0
+        for stage in RunnerStage.all {
+            for wall in stage.hazards where wall.kind == .wall {
+                var field = RunnerField(stage: stage)
+                var events: [RunnerEvent] = []
+                var frames = 0
+                var invincibleAtWall = false
+                while field.distance < wall.end + 8, frames < 60 * 180 {
+                    frames += 1
+                    // **二段目だけを踏まない**（`shouldTakeSecondJump` が真のフレームを飛ばす）。
+                    // それ以外は自動操縦のまま走らせる。
+                    if RunnerAutoPilot.shouldJump(field: field),
+                       !RunnerAutoPilot.shouldTakeSecondJump(field: field) {
+                        field.jump()
+                    }
+                    if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+                    if field.playerMaxX > wall.start, field.isInvincible { invincibleAtWall = true }
+                    events += field.step(dt: 1.0 / 60)
+                    if events.contains(where: { $0.isTerminal }) { break }
+                }
+                checked += 1
+                #expect(
+                    !invincibleAtWall,
+                    "ステージ \(stage.number) の塀（\(wall.start)）に無敵のまま到達した（たこ焼きが近すぎる）"
+                )
+                #expect(
+                    events.contains(.crashed) && field.lastMissCause == .rock,
+                    "ステージ \(stage.number) の塀（\(wall.start)）は二段目無しでも越えられる（\(events.last.map { "\($0)" } ?? "-")）"
+                )
+            }
+        }
+        #expect(checked >= 5, "塀が \(checked) 本しか無い（この検証が空振りしている）")
+    }
+
     /// ゆっくりモード（アクセシビリティ）でも同じ操作で越えられること。時間が一様に遅くなるだけで
     /// 軌道は相似なので、**押し始めの実時間の猶予はむしろ広がる**。
     @Test("ゆっくりモードでも二段ジャンプで越えられ、猶予は狭くならない")
@@ -316,8 +357,11 @@ struct RunnerDoubleJumpWallTests {
                 for offset in 1...RunnerRules.wallLandingSegments {
                     let landing = index + offset
                     guard pattern.indices.contains(landing) else { continue }
+                    // 穴 `123`・突き上げ `^`・沈む床 `~`・動物 `di` に加えて、**鳥 `b`**（跳んだ先に
+                    // いる相手で、降りてくる軌道が帯を通る）と**崩れる足場 `C`**（乗った瞬間から
+                    // 時計が動き出す）も着地点に置かない。
                     #expect(
-                        !"123^~di".contains(pattern[landing]),
+                        !"123^~dibC".contains(pattern[landing]),
                         "ステージ \(stage.number): 塀（区画 \(index)）の着地点 \(landing) が \(pattern[landing])"
                     )
                 }

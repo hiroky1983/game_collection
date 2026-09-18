@@ -777,7 +777,7 @@ public struct RunnerField: Equatable, Sendable {
     private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
         switch kind {
         // 高い塀（#1091）も横に動かない相手なので岩と同じ扱い。二段ジャンプは滞空が長く、
-        // 高さ 20 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
+        // 高さ 18 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
         // 入ることは岩より更に無い（判断を 1 か所に閉じるために対象からは外さない）。
         case .pit, .lowBlock, .tallBlock, .shoot, .wall: return true
         case .bird, .dog, .boar:                         return false

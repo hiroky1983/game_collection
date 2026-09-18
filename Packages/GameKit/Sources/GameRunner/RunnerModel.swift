@@ -787,7 +787,7 @@ public final class RunnerModel {
         case "wall":
             // 高い塀（#1091）の**手前**で止める（受け入れ条件の撮影シナリオ `wall`）。
             // ショーケースの `w` まで自動操縦で行き、接地したまま間合いが 24 を切ったところで止める
-            // ——塀の全高（20）と走者が 1 画面に収まり、「一段では届かない」高さが読める画になる。
+            // ——塀の全高（18）と走者が 1 画面に収まり、「一段では届かない」高さが読める画になる。
             applyDebugStage(.debugShowcase)
             press(); release()
             autoPlayForDebug(until: { model in

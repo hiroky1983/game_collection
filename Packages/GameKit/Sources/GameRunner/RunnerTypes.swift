@@ -88,7 +88,7 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 19〜30 面にだけ置く。
     ///
     /// **当たり判定の作りは高い岩とまったく同じ**（地面から生えていて、正面から当たるとミス・
-    /// 上には乗れない）で、**違うのは高さだけ**（`wallTop` = 20）。一段ジャンプの頂点
+    /// 上には乗れない）で、**違うのは高さだけ**（`wallTop` = 18）。一段ジャンプの頂点
     /// （`RunnerRules.jumpApex` ≒ 14.06）より高く、二段ジャンプの頂点
     /// （`RunnerRules.doubleJumpApex` ≒ 28.13）より低いので、**二段目を踏まないとどう跳んでも
     /// 越えられない**——すでに実装済みで、チュートリアルでも教えているのに使う場面が無かった

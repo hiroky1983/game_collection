@@ -44,7 +44,7 @@ public enum RunnerAutoPilot {
     ///
     /// **踏むのは一段目の頂点**（上昇が終わった最初のフレーム = `vy <= 0`）。二段目は `vy` を
     /// `jumpVelocity` に戻すので、高いところで踏むほど高く上がる——頂点で踏めば
-    /// `RunnerRules.doubleJumpApex`（≒ 28.13）まで届き、塀（20）に対していちばん余裕が出る
+    /// `RunnerRules.doubleJumpApex`（≒ 28.13）まで届き、塀（18）に対していちばん余裕が出る
     /// （遊ぶ人にはこの一点だけが正解ではなく、押し始めに 0.2 秒以上の幅がある。
     /// `RunnerDoubleJumpWallTests.doubleJumpWindowIsGenerousOnEveryStage`）。
     static func shouldTakeSecondJump(field: RunnerField) -> Bool {

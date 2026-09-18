@@ -199,7 +199,7 @@ struct RunnerWorldSceneTests {
         // コース層に本数ぶん貼られ、別の世界の絵は 1 枚も無い。
         #expect(spriteCount(in: scene.courseLayer, texture: expected) == count, "塀の絵が本数ぶん無い")
         #expect(spriteCount(in: scene.courseLayer, texture: scene.wallTexture(other)) == 0, "別の世界の絵がある")
-        // 絵は当たり判定の箱いっぱい（高さ 20）に貼る。
+        // 絵は当たり判定の箱いっぱい（高さ 18）に貼る。
         let sprite = Self.firstSprite(in: scene.courseLayer, texture: expected)
         #expect(sprite?.size.height == CGFloat(RunnerHazardKind.wallTop))
         #expect(sprite?.size.width == CGFloat(RunnerRules.tileWidth))

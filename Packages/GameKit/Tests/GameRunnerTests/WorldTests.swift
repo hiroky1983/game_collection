@@ -419,11 +419,6 @@ struct RunnerWorldTests {
             (.satoyama, "土の盛り上がり", art["S"]!, RunnerPixelArt.outline),
             (.harbor, "波しぶき", art["N"]!, RunnerPixelArt.outline),
             (.harbor, "泡", art["C"]!, RunnerPixelArt.outline),
-            // 高い塀（#1091）。石垣の石（`G`）・コンテナの本体（`R`）は背景と 1.6〜2.8:1 しか
-            // 無いので、**3:1 を担うのは目地（`g`）と桁・リブ（`r`）**——竹の子・波しぶきと同じ
-            // 「濃い側が担う」形で、主色にその濃い側を置いてある（縁取りだけで通る空振りにしない）。
-            (.satoyama, "石垣の目地", art["g"]!, RunnerPixelArt.outline),
-            (.harbor, "コンテナの桁とリブ", art["r"]!, RunnerPixelArt.outline),
         ]
         for item in items {
             for (name, backdrop) in item.0.groundBackdrops {
@@ -454,6 +449,24 @@ struct RunnerWorldTests {
                 }
             }
         }
+        // 高い塀（#1091）も**主色だけで 3:1 を要求する**。上の `items` の形（主色か縁取りの
+        // どちらかが通ればよい）に混ぜてはいけない——縁取り（`RunnerPixelArt.outline`）は
+        // どの背景とも 7.8:1 以上あるので、面の色を背景そのものにしても緑になってしまう
+        // （2026-09-18 の敵対的検証で実測）。3:1 を担うのは**石垣の目地**（`g`。石と石のあいだに
+        // 横一直線に入るので、遠目には塀の模様そのもの）と**コンテナの桁・リブ**（`r`）で、
+        // 面の色（石 `G` 1.16〜1.83:1・コンテナ本体 `R` 2.07〜4.19:1）は担っていない。
+        for (world, part, color) in [
+            (RunnerWorld.satoyama, "石垣の目地", art["g"]!),
+            (RunnerWorld.harbor, "コンテナの桁とリブ", art["r"]!),
+        ] {
+            for (name, backdrop) in world.groundBackdrops {
+                #expect(
+                    WCAG.contrast(color, backdrop) >= 3.0,
+                    "\(world) の高い塀の\(part)が \(name) (\(String(backdrop, radix: 16))) に溶ける"
+                )
+            }
+        }
+
         // 縄は板の**上**（空・丘を背に）に張るので、模様ではなく手前の物として背景と比べる。
         for (name, backdrop) in RunnerWorld.satoyama.groundBackdrops {
             #expect(

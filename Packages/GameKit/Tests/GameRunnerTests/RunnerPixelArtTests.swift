@@ -419,9 +419,9 @@ struct RunnerPixelArtTests {
 
     // MARK: 高い塀（#1091）
 
-    /// 高い塀（石垣・積まれたコンテナ）も**当たり判定の箱いっぱい**（4×20）に貼るので、
+    /// 高い塀（石垣・積まれたコンテナ）も**当たり判定の箱いっぱい**（4×18）に貼るので、
     /// 格子の縦横比が箱と同じで余白が無いこと。
-    @Test("石垣・コンテナは 4:20 の格子で余白が無い")
+    @Test("石垣・コンテナは 4:18 の格子で余白が無い")
     func wallsFitTheWallHitBox() throws {
         let height = RunnerHazardKind.wall.height
         for (name, sprite) in [

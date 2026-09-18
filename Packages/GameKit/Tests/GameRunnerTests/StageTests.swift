@@ -468,7 +468,6 @@ struct RunnerStageTests {
     @Test("隣り合う障害のあいだに着地して踏み切り直す余地がある")
     func hazardsAreFarEnoughApart() {
         for stage in RunnerStage.all {
-            let range = stage.speed * RunnerRules.jumpAirTime
             let ordered = stage.hazards.sorted { $0.encounter.start < $1.encounter.start }
             for (previous, next) in zip(ordered, ordered.dropFirst()) {
                 if next.kind == .boar, next.stopAt == previous.end, previous.kind.isRock { continue }
@@ -1447,7 +1446,7 @@ struct RunnerPlaythroughTests {
             // 動いている相手（#796/#955/#801）は「真裏」が置いた位置に無いので狙わない（呼び出し側で弾いている）。
             return (safeTakeOff, false)
         case .wall:
-            // 高い塀（#1091）は二段で越える相手で、着地は高さ 20 を落ちたぶんずっと先——
+            // 高い塀（#1091）は二段で越える相手で、着地は高さ 18 を落ちたぶんずっと先——
             // ジャスト着地の窓（体 1 つぶん）には構造的に入らないので狙わない。
             return (safeTakeOff, false)
         }
