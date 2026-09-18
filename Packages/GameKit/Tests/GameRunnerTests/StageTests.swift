@@ -110,11 +110,13 @@ struct RunnerStageTests {
     ///   （目安として +3 個まで。世界が変わった直後は新しい仕組みを覚える面なので数で押さない）
     @Test("里山・港町の障害の数は世界の中で減らず、世界の変わり目で跳ね上がらない")
     func newWorldHazardCountsNeverDecrease() {
-        // **沈む床（#1089）も 1 つで 1 個と数える。** `RunnerHazard` ではないが、遊ぶ側から見れば
-        // 「越えるか、連打して抜けるか」を迫られる手応えそのもので、置いた区画は障害と同じく
-        // 平地の余白を 1 つ潰している。数えないと、仮置きの穴を沈む床へ置き換えた面だけが
-        // 見かけ上やさしくなったように見えてしまう。
-        let counts = RunnerStage.all.map { $0.hazards.count + $0.sinkFloors.count }
+        // **沈む床（#1089）と崩れる足場（#1090）も 1 つで 1 個と数える。** `RunnerHazard` では
+        // ないが、遊ぶ側から見れば「越えるか、連打して抜けるか」「止まらずに渡り切るか」を
+        // 迫られる手応えそのもので、置いた区画は障害と同じく平地の余白を 1 つ潰している。
+        // 数えないと、仮置きの穴を置き換えた面だけが見かけ上やさしくなったように見えてしまう。
+        let counts = RunnerStage.all.map {
+            $0.hazards.count + $0.sinkFloors.count + $0.crumblingPlatforms.count
+        }
         #expect(counts.count == 30)
         for range in [18..<24, 24..<30] {
             let group = Array(counts[range])
@@ -384,6 +386,7 @@ struct RunnerStageTests {
                     || symbol == RunnerStage.platformSymbol
                     || symbol == RunnerStage.boostFloorSymbol
                     || symbol == RunnerStage.sinkFloorSymbol
+                    || symbol == RunnerStage.crumblingPlatformSymbol
                 #expect(isKnown, "ステージ \(stage.number) に未知の記号 '\(symbol)' がある")
             }
         }
@@ -765,21 +768,24 @@ struct RunnerStageTests {
     /// `RunnerPlaythroughTests` でも落ちるが、原因が配置のどこにあるかはここでしか分からない。
     ///
     /// QA用ショーケースも対象（`stagesUnderLayoutRules`）。
-    @Test("台座の前後の区画は平地になっている")
+    ///
+    /// **崩れる足場（`C`・#1090）も台座なので同じ規則を掛ける。** 記号で分岐せず
+    /// `RunnerStage.platformKind(_:)`（＝展開して台座になる記号か）で見るのは、
+    /// 台座の種類を増やしたときに**足し忘れても静かに素通りする**のを防ぐため
+    /// （2026-09-18 の敵対的検証で、`platformSymbol` だけを見ていたせいで
+    /// 26 面の足場の直前に高い岩を置いても全件緑だったのを実測）。
+    @Test("台座（崩れる足場を含む）の前後の区画は平地になっている")
     func platformsHaveFlatGroundOnBothSides() {
         for stage in stagesUnderLayoutRules {
             let symbols = Array(stage.pattern)
-            for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.platformSymbol {
-                if index > 0, symbols[index - 1] != RunnerStage.platformSymbol {
+            for (index, symbol) in symbols.enumerated() {
+                guard let kind = RunnerStage.platformKind(symbol) else { continue }
+                for neighbor in [index - 1, index + 1] where symbols.indices.contains(neighbor) {
+                    // 同じ種類の台座が続いているだけなら 1 基にまとまるので見なくてよい。
+                    guard RunnerStage.platformKind(symbols[neighbor]) != kind else { continue }
                     #expect(
-                        symbols[index - 1] == "-",
-                        "ステージ \(stage.number): 台座の手前（区画 \(index - 1)）が平地でない"
-                    )
-                }
-                if index < symbols.count - 1, symbols[index + 1] != RunnerStage.platformSymbol {
-                    #expect(
-                        symbols[index + 1] == "-",
-                        "ステージ \(stage.number): 台座の直後（区画 \(index + 1)）が平地でない"
+                        symbols[neighbor] == "-",
+                        "ステージ \(stage.number): 台座 \(symbol)（区画 \(index)）の隣（区画 \(neighbor)）が平地でない"
                     )
                 }
             }

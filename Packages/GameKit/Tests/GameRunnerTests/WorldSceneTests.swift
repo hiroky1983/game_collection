@@ -339,4 +339,46 @@ struct RunnerWorldSceneTests {
         }
         #expect(model.phase.isRunning || model.phase == .cleared, "\(number) 面で 15 秒以内にミスした")
     }
+
+    /// 崩れる足場（#1090）の絵が、当たり判定と同じ時刻に消えること。
+    ///
+    /// **崩れ切った（`RunnerField.hasCrumbled`）ときに板が 1 枚でも残っていてはいけない**
+    /// ——そこはもう穴なので、板が見えていると「床があるのに落ちた」画になる（PR #1113 の指摘）。
+    /// 逆に、崩れ切る**前**は必ず 1 枚以上残っていること（消すのが早すぎないこと）も見る。
+    @Test("崩れる足場の板は、崩れ切ったときにちょうど全部消える")
+    func crumblingPlanksVanishExactlyWhenTheGapOpens() {
+        let number = RunnerStage.all.first { !$0.crumblingPlatforms.isEmpty }?.number
+        guard let number else { Issue.record("本編に崩れる足場が無い"); return }
+        let (model, scene) = makeScene(stage: number, suite: "crumble")
+        // **走り出してから**ノードを控える。走行が変わると `sync` がコースを組み直すので、
+        // スタート前に控えた `view` は捨てられたノードを指したまま更新されなくなる。
+        model.press()
+        model.release()
+        scene.sync()
+        guard let (index, view) = scene.crumblingPlatformNodes.first else {
+            Issue.record("崩れる足場のノードが組まれていない")
+            return
+        }
+        #expect(view.planks.count > 1, "板が 1 枚しか無い（この検証が空振りしている）")
+
+        var sawPartialDeck = false
+        for _ in 0..<(60 * 120) {
+            if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+            if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
+            model.tick(dt: 1.0 / 60)
+            scene.sync()
+            let visible = view.planks.filter { $0.alpha > 0.01 }.count
+            if model.field.hasCrumbled(index) {
+                #expect(visible == 0, "崩れ切ったのに板が \(visible) 枚残っている")
+                break
+            }
+            guard let progress = model.field.crumbleProgress(index), progress > 0 else { continue }
+            // **消え切るのは崩れ切る瞬間だけ**。0.999 で切っているのは、進みが 1 に達する
+            // 直前のフレーム（丸め誤差で `hasCrumbled` がまだ false）を落とすため。
+            #expect(visible > 0 || progress > 0.999, "崩れ切る前（進み \(progress)）に板が全部消えた")
+            if visible > 0, visible < view.planks.count { sawPartialDeck = true }
+        }
+        #expect(model.field.hasCrumbled(index), "崩れ切るまで進まなかった")
+        #expect(sawPartialDeck, "板が左から順に抜けていく途中を観測できていない")
+    }
 }

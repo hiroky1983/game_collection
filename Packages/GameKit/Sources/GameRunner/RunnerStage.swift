@@ -318,6 +318,78 @@ public enum RunnerRules {
     /// 値は走者の高さ 11 の半分強で、沈み切る頃には腰まで浸かって見える。
     public static let sinkVisualDepth: Double = 6
 
+    // MARK: 崩れる足場（#1090・会長決裁 2026-09-17〜18。里山＝古い吊り橋・港町＝古い木の桟橋）
+
+    /// 崩れる足場の左右に残す岸（橋の袂・桟橋の付け根）の幅（タイル数）。
+    ///
+    /// 台座（`P`）は区画まるごと（64）を占めるが、**崩れる足場は両端に岸を残した板張りだけ**にする。
+    /// 理由は 2 つ:
+    ///
+    /// - **公平さの計算に効く**。渡り切るのに要る距離がそのまま板張りの長さなので、短いほど
+    ///   `crumbleDuration` に余裕が出る。区画まるごと（64）だと、ショーケース（速さ 34）で
+    ///   渡り切るのに 1.88 秒かかり、崩れるまでの時間をそれ以上に伸ばさないと成立しない
+    /// - **跳び越す選択肢が残る**。台座は正面が壁なので、左端に届く前に上面より高く上がる助走
+    ///   （`riseTime(to: platformHeight) × 速さ` ＋ 半身）が要る。本編で足場を置いてある
+    ///   いちばん遅い 24 面（52.4）では 助走 14.8 ＋ 板張り 48 = 62.8 で、二段ジャンプの飛距離
+    ///   89.5（`doubleJumpRange(at:)`）の内側——「乗らずに跳び越えれば崩れない」という決裁の
+    ///   遊びが成立する。区画まるごと（64）だと 78.8 になり、速い面でしか成立しない
+    ///   （QA 用ショーケースの 34 では助走 12.4 ＋ 48 = 60.4 が飛距離 58.0 を超えて越えられないが、
+    ///   そちらは撮影用のコースで本編には出ない）
+    ///
+    /// 沈む床の岸（`sinkFloorBankTiles`）と同じ値・同じ役割で、見た目の側でも
+    /// 「板の手前に必ず地面が見える」ほうが踏み切る位置を読みやすい。
+    public static let crumbleBankTiles = 2
+
+    /// 崩れる足場の板張りの長さ（1 区画ぶん）。両端の岸を引いた実効値。
+    public static var crumbleDeckLength: Double {
+        Double(segmentTiles) * tileWidth - Double(crumbleBankTiles) * tileWidth * 2
+    }
+
+    /// 走者が**初めて乗ってから**、板が抜け始めるまでの秒数（ぎしぎし揺れているあいだ）。
+    ///
+    /// きっかけは初めて接地した瞬間だけで、以後は乗っていてもいなくても時計は進む
+    /// （`RunnerField.crumbleElapsed`）。**跳んで着地し直しても二重に始まらない**のはこのため。
+    ///
+    /// 値は 0.5 秒。いちばん遅いショーケース（速さ 34）でも、乗りが上限（1.55）なら板張り 48 を
+    /// 0.91 秒で渡るので、**普通に走っても半分あたりで板が抜け始めるのが見える**——
+    /// 「乗るとぎしぎし揺れて、一定時間で崩れる」という決裁の手応えを、渡り切れる人にも
+    /// 必ず 1 度は見せる長さ。
+    public static let crumbleWarnDuration: Double = 0.5
+
+    /// 板が抜け始めてから、足場が崩れ切るまでの秒数。
+    ///
+    /// **このあいだも板の上には乗れる**（決裁の「崩れ始めてから崩れ切るまでの間に乗っている
+    /// 場合の扱い」への回答）。抜けるのは**左から順**で、走者は必ず右へ進むので、
+    /// **板が消えた縁**（`RunnerScene.crumblePlankStagger`）が走者に追いつくことはない。
+    /// 消えた縁は 1 次式で、**板張りの右端に届くのはちょうど `crumbleDuration`**
+    /// ——そこでの走者の位置は「板張りの長さ < その面の速さ × `crumbleDuration`」が成り立つ限り
+    /// 必ず先なので（`RunnerCrumblingPlatformTests.crumblingPlatformsAreCrossableAtMinimumPedal`
+    /// が固定する）、両端で先なら途中も先になる。
+    ///
+    /// 「抜け始めた瞬間に落ちる」にしなかったのは、そうすると渡り切る猶予が
+    /// `crumbleWarnDuration` だけになり、**予告を見せる時間と渡る時間が同じ枠を取り合う**ため。
+    /// 分けておけば「予告は必ず見える」と「最低の乗りでも渡り切れる」を別々に決められる。
+    public static let crumbleFallDuration: Double = 1.1
+
+    /// 乗ってから足場が崩れ切るまでの秒数（揺れ + 抜け落ち）。渡り切る猶予そのもの。
+    public static var crumbleDuration: Double { crumbleWarnDuration + crumbleFallDuration }
+
+    /// 速さ `speed` の面に置ける崩れる足場の長さの上限。
+    ///
+    /// **ペダルの乗りが最低（1.0 倍）でも渡り切れること**が決裁の公平さの条件。接地中の速さは
+    /// `speed × 乗り` で乗りは 1 以上、空中の横速度は必ず `speed`（`RunnerField.currentSpeed`）
+    /// なので、**跳ぼうが跳ぶまいが横の進みは `speed` を下回らない**——上限はこの 1 本で足りる。
+    ///
+    /// 崩れの時計を進めるのは 1 サブステップの**移動より先**（`RunnerField.advance`）なので、
+    /// 崩れ切る瞬間の走者は「時計どおりの位置」より最大 1 サブステップぶん手前にいる。
+    /// その `RunnerField.Metrics.maxSubstep` を上限から引いて、式のほうで飲み込んでおく。
+    ///
+    /// 板張り 48 に対し、いちばん遅いショーケース（34）で 52.4、里山の初出 24 面（52.4）で 81.8。
+    /// 2 区画ぶん（112）はどの面でも超えるので、**連続した `C` は機械的に弾かれる**。
+    public static func crumbleMaxLength(at speed: Double) -> Double {
+        speed * crumbleDuration - RunnerField.Metrics.maxSubstep
+    }
+
     /// 二段ジャンプで空中にいられる最大の時間。
     ///
     /// 一段目で頂点（`jumpApex`）まで上がり、**その頂点で二段目を踏み切る**のがいちばん長い
@@ -516,6 +588,7 @@ public enum RunnerRules {
 
 /// | `=` | スピードアップ床（平地 + 加速区間。障害としては扱わない。連続すると 1 つの床になる） |
 /// | `~` | 沈む床（#1089。里山＝田んぼ・港町＝干潟。平地 + 減速して沈む区間。連続すると 1 つになる） |
+/// | `C` | 崩れる足場（#1090。里山＝古い吊り橋・港町＝古い木の桟橋。台座の一種で、乗ると崩れて穴になる） |
 public struct RunnerStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -563,6 +636,11 @@ public struct RunnerStage: Equatable, Sendable {
     ///
     /// `boostFloors` と同じ理由で **`hazards` とは別の配列**（地形としては平地で、越える相手ではない）。
     public let sinkFloors: [RunnerSinkFloor]
+
+    /// `platforms` のうち崩れる足場だけ（#1090）。数え上げ・描画の分岐が何度も書く読み口。
+    public var crumblingPlatforms: [RunnerPlatform] {
+        platforms.filter { $0.kind == .crumbling }
+    }
     /// チェックポイント（コースの中ほど）の x。
     ///
     /// **必ず平地に置く**。障害の上に置くと、再開した瞬間にまたミスになって進めない。
@@ -673,9 +751,9 @@ public struct RunnerStage: Equatable, Sendable {
     /// 隣の障害までの間隔は従来どおり保たれる——広がるのは穴の幅だけ。
     ///
     /// `pickupSymbol`（`s`）・`takoyakiSymbol`（`k`）と `boostFloorSymbol`（`=`）・
-    /// `sinkFloorSymbol`（`~`）はここには
-    /// 含めない。**アイテムも床も障害ではない**ので `makeHazards`/`RunnerStageTests` の
-    /// 対象から自然に外れる（いずれも地形としては平地そのもの）。
+    /// `sinkFloorSymbol`（`~`）・`crumblingPlatformSymbol`（`C`）はここには
+    /// 含めない。**アイテムも床も台座も障害ではない**ので `makeHazards`/`RunnerStageTests` の
+    /// 対象から自然に外れる（床は地形としては平地そのもので、台座は越えるのではなく乗るもの）。
     static func segmentSpec(_ symbol: Character) -> (kind: RunnerHazardKind, tiles: Int)? {
         switch symbol {
         case "1": return (.pit, 2)
@@ -718,33 +796,58 @@ public struct RunnerStage: Equatable, Sendable {
     /// `=`（スピードアップ床・別 Issue）と紛れないよう大文字 1 文字にしてある。
     static let platformSymbol: Character = "P"
 
+    /// 崩れる足場の区画記号（#1090。Crumble の C）。
+    ///
+    /// 台座（`P`）と同じ大文字にしてあるのは、**同じ「乗るもの」の仲間だから**
+    /// ——置き方の規則（前後の区画は素の平地・上には何も置かない）も同じものが掛かる。
+    static let crumblingPlatformSymbol: Character = "C"
+
+    /// その区画記号が作る台座の種類。台座でない記号は nil。
+    static func platformKind(_ symbol: Character) -> RunnerPlatform.Kind? {
+        switch symbol {
+        case platformSymbol:          return .solid
+        case crumblingPlatformSymbol: return .crumbling
+        default:                      return nil
+        }
+    }
+
     /// 区画記号を台座の並びへ展開する。
     ///
     /// **障害と違い、台座は区画をまるごと占める**（`hazardTileOffset` を使わない）。台座は
     /// 上を走るものなので、区画の中央に短く置くと乗った直後に降りることになって用を成さない。
     /// **連続する `P` は 1 つの台座にまとめる**ので、`PPP` は 3 区画ぶんの長さの台座 1 つになる
     /// ——隣り合う 2 つの台座として展開すると、継ぎ目に「端から落ちる」判定が生まれてしまう。
+    /// 崩れる足場（`C`・#1090）も同じ規則でまとめるが、**種類が違えばまとめない**
+    /// （`PC` は崩れない台座と崩れる足場の 2 基。崩れたときに残る側と消える側が分かれるので、
+    /// 1 基に融合させてはいけない）。
+    ///
+    /// 崩れる足場だけは、まとめたあとに**両端から岸**（`RunnerRules.crumbleBankTiles`）を
+    /// 削って板張りぶんの長さにする（岸が無いと、渡り切る距離が区画まるごとになって
+    /// 公平さの上限 `RunnerRules.crumbleMaxLength(at:)` に収まらない）。
     static func makePlatforms(pattern: String) -> [RunnerPlatform] {
         let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
+        let bank = Double(RunnerRules.crumbleBankTiles) * RunnerRules.tileWidth
         var result: [RunnerPlatform] = []
-        var runStart: Int?
-        for (index, symbol) in pattern.enumerated() {
-            if symbol == platformSymbol {
-                if runStart == nil { runStart = index }
-            } else if let start = runStart {
-                result.append(RunnerPlatform(
-                    start: Double(start) * segmentWidth,
-                    length: Double(index - start) * segmentWidth
-                ))
-                runStart = nil
-            }
-        }
-        if let start = runStart {
+        var run: (start: Int, kind: RunnerPlatform.Kind)?
+
+        func close(at index: Int) {
+            guard let run else { return }
+            let inset = run.kind == .crumbling ? bank : 0
             result.append(RunnerPlatform(
-                start: Double(start) * segmentWidth,
-                length: Double(pattern.count - start) * segmentWidth
+                start: Double(run.start) * segmentWidth + inset,
+                length: Double(index - run.start) * segmentWidth - inset * 2,
+                kind: run.kind
             ))
         }
+
+        for (index, symbol) in pattern.enumerated() {
+            let kind = platformKind(symbol)
+            if run?.kind != kind {
+                close(at: index)
+                run = kind.map { (start: index, kind: $0) }
+            }
+        }
+        close(at: pattern.count)
         return result
     }
 
@@ -1015,9 +1118,13 @@ public extension RunnerStage {
         // 5 区画以内の手前に置かない、先頭・末尾の 2 区画は平地）で、面ごとに台座 1〜2 基（1 基 2 区画。
         // 25・26 面だけ 2 基）と床 1 本（2 区画）を置く。
         //
-        // **新しい仕組みのうち突き上げ（#1010・`^`）と沈む床（#1089・`~`）は入った。** 残る 2 つ
-        // （#1090 崩れる足場・#1091 高い塀）はまだ `release/v1.1.6` に無いので、予定の区画を今ある障害で
-        // 仮に埋めてある（#1009 本文 D）。仮置きは 高い塀 → 高い岩 `t`、崩れる足場 → 3 タイルの穴 `3`。
+        // **新しい仕組みのうち突き上げ（#1010・`^`）・沈む床（#1089・`~`）・崩れる足場（#1090・`C`）は
+        // 入った。** 残る #1091 高い塀はまだ `release/v1.1.6` に無いので、予定の区画を高い岩 `t` で
+        // 仮に埋めてある（#1009 本文 D）。
+        //
+        // 崩れる足場は台座（`P`）と同じ置き方の規則（前後の区画は素の平地）が掛かるので、`3` を `C` に
+        // 置き換えるにあたって 24〜28・30 面の並びを組み直した（減った障害は同じ面の別の区画へ移し、
+        // 世界の中で障害の数が減らないようにしてある。#1090）。
         // 各行の「予定」に区画番号（0 始まり）を残してあるので、仕組み側の Issue はそこを自分の記号へ
         // 置き換える。予定の区画は #1009 の「入れない組み合わせ」を守る位置に選んである:
         // 鳥の隣に突き上げを置かない・崩れる足場と沈む床の直後に鳥を置かない・高い塀の直後
@@ -1028,15 +1135,15 @@ public extension RunnerStage {
         "--PP-1n-^-2ikt1n==-^2b-ti1^---",           // 19: 30区画・障害15個（穴5+低い岩2+高い岩2+鳥1+イノシシ2+竹の子3）。里山に入った。竹の子を覚える（初出の区画 8 は前後を素の平地にして単独で見せる）
         "--1n^-2dkt1-PP-n^2itn==-^1b-^--",          // 20: 31区画・障害17個（穴5+低い岩3+高い岩2+鳥1+犬1+イノシシ1+竹の子4）。切り株（`n`）のすぐ隣に竹の子（区画 3〜4・15〜16）。低く跳ぶか高く跳ぶかの見極め
         "--1tn-~-2ikn^1==-t1d~-b2t-PP-^--",         // 21: 32区画・障害15個（穴5+低い岩2+高い岩3+鳥1+犬1+イノシシ1+竹の子2）＋短い田んぼ 2（区画 6・20。#1089）。田んぼを覚える（区画 6 は前後を素の平地にして単独で見せる）
-        "--PP-1n~~kt2^-n1d-==-t~~1^2b-t1--",        // 22: 33区画・障害15個（穴6+低い岩2+高い岩3+鳥1+犬1+竹の子2）＋長い田んぼ 2（区画 7〜8・22〜23。二段でも跳び越せず連打が要る）。予定: 吊り橋（#1090）は置かない
+        "--PP-1n~~kt2^-n1d-==-t~~1^2b-t1--",        // 22: 33区画・障害15個（穴6+低い岩2+高い岩3+鳥1+犬1+竹の子2）＋長い田んぼ 2（区画 7〜8・22〜23。二段でも跳び越せず連打が要る）。吊り橋（#1090）は決裁どおり置かない
         "--1^n~1ikt2^n~2d-==-t^1bn~-^-PP---",       // 23: 34区画・障害17個（穴5+低い岩3+高い岩2+鳥1+犬1+イノシシ1+竹の子4）＋短い田んぼ 3（区画 5・13・25）。田んぼを抜けた直後に用水路（区画 6・14）
-        "--PP-1^n~ikt^2~1dn==-^-3-^t1b~-t---",      // 24: 35区画・障害17個（穴5+低い岩2+高い岩3+鳥1+犬1+イノシシ1+竹の子4）＋短い田んぼ 3（区画 8・14・29）。予定: 吊り橋（#1090）= 区画 23 / 石垣（#1091）= 区画 31。里山の締め。全部入り
-        "--PP-1n-3-tik2t1==-t2-31ti-PP-d2-b--",     // 25: 36区画・障害17個（穴8+低い岩1+高い岩4+鳥1+犬1+イノシシ2）。予定: 古い桟橋（#1090）= 区画 8・22。港町に入った。桟橋の先が切れ目
-        "--132dk-^-n-PP-t31i-==-^n2b-32ti-PP--",    // 26: 37区画・障害18個（穴8+低い岩2+高い岩2+鳥1+犬1+イノシシ2+波しぶき2）。予定: 古い桟橋 = 区画 3・16・28。波しぶきの初出（区画 8 は前後を素の平地）
-        "--PP-1n-t-2ikt31-t-==-2dn32tb-t-1it---",   // 27: 38区画・障害20個（穴8+低い岩2+高い岩6+鳥1+犬1+イノシシ2）。予定: 古い桟橋 = 区画 14・25 / コンテナ（#1091）= 区画 8・30。二段ジャンプを覚える
-        "--1t-32ikt^1-t-d31t-==-^n2b-t-32ti-PP--",  // 28: 39区画・障害22個（穴9+低い岩1+高い岩6+鳥1+犬1+イノシシ2+波しぶき2）。予定: 古い桟橋 = 区画 5・16・30 / コンテナ = 区画 3・13・28
+        "--PP-1^n~ikt^2~1dn==-^-C-^t1b~-t---",      // 24: 35区画・障害16個（穴4+低い岩2+高い岩3+鳥1+犬1+イノシシ1+竹の子4）＋短い田んぼ 3（区画 8・14・29）＋吊り橋 1（区画 23。#1090）。予定: 石垣（#1091）= 区画 31。里山の締め。全部入り
+        "--PP-1n-C-tik2t1==-t2-C-ti-PP-d21b--",     // 25: 36区画・障害15個（穴6+低い岩1+高い岩4+鳥1+犬1+イノシシ2）＋古い桟橋 2（区画 8・22。#1090）。港町に入った。桟橋を覚える（区画 8 は前後を素の平地にして単独で見せる）
+        "--1-C-2dk-^-n-PP-t-C-1i2==-^n2b-C-t--",    // 26: 37区画・障害14個（穴5+低い岩2+高い岩2+鳥1+犬1+イノシシ1+波しぶき2）＋古い桟橋 3（区画 4・19・32。#1090）。波しぶきの初出（区画 10 は前後を素の平地）
+        "--PP-1n-t-2ik-C-2t-==-2d-C-tb1t-1it---",   // 27: 38区画・障害16個（穴6+低い岩1+高い岩5+鳥1+犬1+イノシシ2）＋古い桟橋 2（区画 14・25。#1090）。予定: コンテナ（#1091）= 区画 8・30。二段ジャンプを覚える
+        "--1t-C-ikt^12t--C-t1==-^n2b-t-C-ti-PP--",  // 28: 39区画・障害17個（穴5+低い岩1+高い岩6+鳥1+イノシシ2+波しぶき2）＋古い桟橋 3（区画 5・16・30。#1090）。予定: コンテナ（#1091）= 区画 3・13・28
         "--PP--~-^2iktt-1n~it-==-^2b-t-~1t^nd2---", // 29: 40区画・障害19個（穴5+低い岩2+高い岩5+鳥1+犬1+イノシシ2+波しぶき3）＋短い干潟 3（区画 6・17・30。#1089）。里山で覚えた仕組みの港版（区画 6 は前後を素の平地にして単独で見せる）
-        "--PP-1^n~ikt32t-d^1-==-t~itt-32b-^n~1t---", // 30: 41区画・障害22個（穴7+低い岩2+高い岩6+鳥1+犬1+イノシシ2+波しぶき3）＋短い干潟 3（区画 8・24・35）。予定: 古い桟橋（#1090）= 区画 12・29 / コンテナ（#1091）= 区画 14・27・37。港町の締め。全部入り
+        "--PP-1^n~ik-C-t1d^1-==-t~itt-C-b-^n~1t---", // 30: 41区画・障害18個（穴4+低い岩2+高い岩5+鳥1+犬1+イノシシ2+波しぶき3）＋短い干潟 3（区画 8・24・35）＋古い桟橋 2（区画 12・29。#1090）。予定: コンテナ（#1091）= 区画 14・27・37。港町の締め。全部入り
     ]
 }
 
@@ -1068,9 +1175,12 @@ public extension RunnerStage {
     /// 沈む床（`~`・#1089）は突き上げの次に **2 区画続けて**置いてある。本番の短い床（1 区画）では
     /// 自動操縦が 1 回跳ぶだけで抜けてしまい、沈みかけ・溺れた瞬間（`-simulateRunner sink` /
     /// `sink-failed`）を撮る間が無い。2 区画ぶん（= 長い床）なら、跳ばずに走らせれば必ず沈み切る。
+    /// 崩れる足場（`C`・#1090）は台座の次に 1 区画。**連続では置けない**——2 区画ぶんの板張りは
+    /// どの面の速さでも渡り切れず（`RunnerRules.crumbleMaxLength(at:)`）、
+    /// `RunnerCrumblingPlatformTests.crumblingPlatformsAreCrossableAtMinimumPedal` が弾く。
     static let debugShowcase = RunnerStage(
         number: 0,
-        pattern: "--==-kn--t--b--d--i--^--~~--PP--1--2--3--",
+        pattern: "--==-kn--t--b--d--i--^--~~--PP--C--1--2--3--",
         speed: RunnerRules.baseSpeed
     )
 }
