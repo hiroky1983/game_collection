@@ -36,6 +36,15 @@ enum RunnerPixelArt {
         // 水柱の陰は `L`/`N`（ドラム缶と同じ青の階調）。
         "a": 0x27663A,
         "C": 0xBFE4F2,
+        // 高い塀（#1091）。`G`/`g`/`W` は石垣の石・目地・笠石、`R`/`r`/`O` はコンテナの
+        // 本体・桁とリブ・左肩の照り。どちらも**濃い側**（`g` / `r`）が背景との 3:1 を担う
+        // （竹の子の `S`・波しぶきの `N` と同じ約束。`WorldTests` が固定）。
+        "G": 0x9EA294,
+        "g": 0x4A4D45,
+        "W": 0xC8CCBE,
+        "R": 0xC24A33,
+        "r": 0x6E2118,
+        "O": 0xC85B45,
     ]
 
     /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
@@ -220,6 +229,15 @@ enum RunnerPixelArt {
     }
 
     /// 世界から引く版（テスト・寸法の測り方で使う）。
+    /// 高い塀の絵（#1091）。**絵の選び方は持たない**——着せ替え（`RunnerWorld.Dressing.Wall`）を
+    /// そのまま受け取って対応する格子を返すだけ（突き上げの `shootArt(for:)` と同じ作法）。
+    static func wallArt(for style: RunnerWorld.Dressing.Wall) -> PixelSprite {
+        switch style {
+        case .stoneWall:      return PixelSprite(rows: stoneWallRows, palette: palette)
+        case .containerStack: return PixelSprite(rows: containerStackRows, palette: palette)
+        }
+    }
+
     static func shoot(world: RunnerWorld) -> PixelSprite { shootArt(for: world.dressing.shoot) }
     static func shootCue(world: RunnerWorld) -> PixelSprite { shootCueArt(for: world.dressing.shoot) }
 
@@ -505,6 +523,135 @@ enum RunnerPixelArt {
         "KLLNNNNNNnnK",
         "KLLNNNNNNnnK",
         "KnnnnnnnnnnK",
+        "KKKKKKKKKKKK",
+    ]
+
+    // MARK: 高い塀の絵（#1091）
+
+    /// 石垣（里山の高い塀）。当たり判定は 4×18 なので格子は 12×54
+    /// （`RunnerPixelArtTests.wallsFitTheWallHitBox` が縦横比と余白なしを固定）。
+    ///
+    /// **高い岩（大きな石）と一目で区別できる**（決裁）ようにしてある: 岩塊は 4×9 の丸い塊 1 つだが、
+    /// 石垣は**高さが 2 倍以上**あり、横一直線の目地（`g`）で 8 段に積まれた四角い石の列。
+    /// 天端の笠石（`W`）で上端が一直線に見えるのも、丸い岩との違いを作っている。
+    /// 下のほうの石には苔（`A`・切り株と同じ緑）を差して、地面に古くから在る物に見せる。
+    static let stoneWallRows: [String] = [
+        "KKKKKKKKKKKK",
+        "KWWWWWWWWWWK",
+        "KWWWWWWWWWWK",
+        "KWWWWWWWWWWK",
+        "KggggggggggK",
+        "KWWWgWWWgWWK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KggggggggggK",
+        "KWWWWWgWWWgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KggggggggggK",
+        "KWWgWWWgWWWK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KggggggggggK",
+        "KWWWWgWWWgWK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KggggggggggK",
+        "KWWWgWWWWgWK",
+        "KGGGgGGGGgGK",
+        "KGGGgGGGGgGK",
+        "KGAGgGGGGgGK",
+        "KGAGgGGGGgGK",
+        "KGGGgGGGGgGK",
+        "KggggggggggK",
+        "KWWgWWgWWWWK",
+        "KGGgGGgGGGGK",
+        "KGGgGGgGGGGK",
+        "KGGgGGgGGAGK",
+        "KGGgGGgGGAGK",
+        "KGGgGGgGGGGK",
+        "KggggggggggK",
+        "KWWWWgWWgWWK",
+        "KGGGGgGGgGGK",
+        "KGGGGgGGgGGK",
+        "KGGAGgGGgGGK",
+        "KGGAGgGGgGGK",
+        "KGGGGgGGgGGK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 積まれたコンテナ（港町の高い塀）。同じ 12×54 の格子に**海上コンテナを 2 段**積む。
+    ///
+    /// 遠景のコンテナ（`SceneryPalette.containerRust` ほか）は淡い色で奥に置いてあるので、
+    /// 手前のこれは**濃い赤**（`R`）と黒に近い桁・リブ（`r`）で描く。段の継ぎ目に桁（`r`）が
+    /// 2 本並ぶので、1 個の箱ではなく「2 つ積んである」と読める——ドラム缶（4×9 の円筒）とは
+    /// 高さも形も違う。縦のリブ（波板）は列で通してあり、走っていても縦縞として見える。
+    static let containerStackRows: [String] = [
+        "KKKKKKKKKKKK",
+        "KrrrrrrrrrrK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrMRrMRrRK",
+        "KORrMRrMRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KrrrrrrrrrrK",
+        "KKKKKKKKKKKK",
+        "KKKKKKKKKKKK",
+        "KrrrrrrrrrrK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrMRrMRrRK",
+        "KORrMRrMRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KrrrrrrrrrrK",
         "KKKKKKKKKKKK",
     ]
 

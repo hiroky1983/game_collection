@@ -233,13 +233,21 @@ public enum RunnerEndlessCourse {
             let window = RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance)
             let overlap = (encounter.length + RunnerField.Metrics.playerWidth) / speed
             return window > overlap && encounter.height < RunnerRules.jumpApex
+        case .wall:
+            // 高い塀（#1091）も生成器には置かない（決裁「生成器に教えるのは今回ではない」）。
+            // 式は岩と同じ形で、**一段ではなく二段ジャンプの上昇・滞空**で見るところだけが違う。
+            let window = RunnerRules.doubleJumpAirTime(above: encounter.height + RunnerAutoPilot.clearance)
+            let overlap = (encounter.length + RunnerField.Metrics.playerWidth) / speed
+            return window > overlap && encounter.height < RunnerRules.doubleJumpApex
         }
     }
 
     /// 前の障害を跳んで着地してから、次の踏み切りに入れるだけの間隔があるか。
     /// 動く障害は等価な静止区間（`encounter`）で見る。
     static func hasLandingGap(from previous: RunnerHazard, to next: RunnerHazard, speed: Double) -> Bool {
-        let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.lead(for: next, speed: speed)
+        // 前の障害を越えた滞空は、高い塀（#1091）だけ二段ぶん長い（`RunnerRules.airTime(clearing:)`）。
+        let needed = speed * RunnerRules.airTime(clearing: previous.kind)
+            + RunnerAutoPilot.lead(for: next, speed: speed)
         return next.encounter.start - previous.encounter.start > needed
     }
 }

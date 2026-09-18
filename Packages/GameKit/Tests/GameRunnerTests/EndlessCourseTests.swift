@@ -404,6 +404,9 @@ struct RunnerEndlessCourseTests {
                 // 突き上げ（#1010）は生成器に教えていない（決裁「生成器に教えるのは別の版」）。
                 // 出てきたら生成の不具合なので、ここで落とす。
                 check(false, "種 \(seed): エンドレスに突き上げが出た（\(hazard.start)）")
+            case .wall:
+                // 高い塀（#1091）も同じ理由で生成器に教えていない。
+                check(false, "種 \(seed): エンドレスに高い塀が出た（\(hazard.start)）")
             case .lowBlock, .tallBlock, .bird, .dog, .boar:
                 let overlap = (encounter.length + halfWidth * 2) / speed
                 check(

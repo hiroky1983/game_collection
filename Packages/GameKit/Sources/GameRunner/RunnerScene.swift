@@ -86,6 +86,24 @@ final class RunnerScene: SKScene {
     var cachedShootStyles: Set<RunnerWorld.Dressing.Shoot> {
         Set(shootTextureCache.keys).union(shootCueTextureCache.keys)
     }
+
+    /// 高い塀（#1091 石垣・積まれたコンテナ）のテクスチャ。突き上げとまったく同じ扱いで、
+    /// **起動時には作らず、その世界で最初に使うときに作ってキャッシュする**（決裁の受け入れ条件
+    /// 「その世界に入ったときに作ってキャッシュする」「描画中に毎フレーム画像を作り直さない」）。
+    /// 塀が出るのは 19 面以降なので、1〜18 面しか遊ばない人のぶんは 1 枚も起こさない。
+    private var wallTextureCache: [RunnerWorld.Dressing.Wall: SKTexture] = [:]
+
+    /// 高い塀の絵。初回だけ作る。**絵の選び方は持たない**
+    /// ——`RunnerPixelArt.wallArt(for:)` に着せ替えをそのまま渡すだけ。
+    func wallTexture(_ style: RunnerWorld.Dressing.Wall) -> SKTexture {
+        if let cached = wallTextureCache[style] { return cached }
+        let texture = Self.makeTexture(RunnerPixelArt.wallArt(for: style), name: "高い塀 \(style)")
+        wallTextureCache[style] = texture
+        return texture
+    }
+
+    /// テスト用: いま作ってキャッシュしてある高い塀のテクスチャの種類。
+    var cachedWallStyles: Set<RunnerWorld.Dressing.Wall> { Set(wallTextureCache.keys) }
     /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
     private var renderedRiderFrame: OjisanPixel.RiderFrame?
     /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが

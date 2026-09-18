@@ -169,6 +169,51 @@ struct RunnerWorldSceneTests {
         #expect(rising > 10 && risen > 5, "伸びかけ \(rising) / 伸び切り \(risen) 地点しか見ていない")
     }
 
+    /// 高い塀（#1091）の描画経路。**その世界の絵が貼られ、その世界のぶんしかテクスチャを作らない**
+    /// （受け入れ条件「その世界に入ったときに作ってキャッシュする」「描画中に毎フレーム作り直さない」）。
+    ///
+    /// 突き上げと同じく**里山（24 面・石垣）と港町（27 面・コンテナ）の両方**で回す——片方だけだと、
+    /// もう片方のテクスチャを取り違えても・作り忘れても緑のまま通る。
+    @Test("塀は本数ぶん組まれ、その世界の絵が貼られ、キャッシュはその世界のぶんだけ", arguments: [
+        (24, RunnerWorld.Dressing.Wall.stoneWall, 1),
+        (27, RunnerWorld.Dressing.Wall.containerStack, 2),
+    ])
+    func wallsUseTheWorldArt(number: Int, style: RunnerWorld.Dressing.Wall, count: Int) throws {
+        let (model, scene) = makeScene(stage: number, suite: "wall-\(number)")
+        let walls = model.field.stage.hazards.filter { $0.kind == .wall }
+        #expect(walls.count == count, "\(number) 面の塀が \(walls.count) 本（空振り防止）")
+        #expect(scene.world.dressing.wall == style)
+        #expect(scene.cachedWallStyles == [style], "作ったテクスチャ: \(scene.cachedWallStyles)")
+        let expected = scene.wallTexture(style)
+        let other: RunnerWorld.Dressing.Wall = style == .stoneWall ? .containerStack : .stoneWall
+        // **2 つの着せ替えのテクスチャが「絵として」違うこと**をドットを読んで言う（同じ画を 2 枚
+        // 焼いてもインスタンスは別物になるので `!==` では足りない・#1010 の敵対的検証と同じ理由）。
+        #expect(
+            Self.pixels(of: expected) != Self.pixels(of: scene.wallTexture(other)),
+            "2 つの世界で同じ絵を貼っている"
+        )
+        #expect(
+            Self.pixels(of: expected) == Self.pixels(of: RunnerPixelArt.wallArt(for: style)),
+            "貼られている絵が \(style) のドット絵と違う"
+        )
+        // コース層に本数ぶん貼られ、別の世界の絵は 1 枚も無い。
+        #expect(spriteCount(in: scene.courseLayer, texture: expected) == count, "塀の絵が本数ぶん無い")
+        #expect(spriteCount(in: scene.courseLayer, texture: scene.wallTexture(other)) == 0, "別の世界の絵がある")
+        // 絵は当たり判定の箱いっぱい（高さ 18）に貼る。
+        let sprite = Self.firstSprite(in: scene.courseLayer, texture: expected)
+        #expect(sprite?.size.height == CGFloat(RunnerHazardKind.wallTop))
+        #expect(sprite?.size.width == CGFloat(RunnerRules.tileWidth))
+    }
+
+    /// 子孫まで含めて、`texture` を貼った最初のスプライト。
+    private static func firstSprite(in node: SKNode, texture: SKTexture) -> SKSpriteNode? {
+        for child in node.children {
+            if let sprite = child as? SKSpriteNode, sprite.texture === texture { return sprite }
+            if let found = firstSprite(in: child, texture: texture) { return found }
+        }
+        return nil
+    }
+
     @Test("1 面（朝）では着せ替えのテクスチャは 1 枚も貼られず、岩は元の岩塊のまま")
     func originalWorldsUseTheOriginalParts() {
         let (model, scene) = makeScene(stage: 1, suite: "morning")

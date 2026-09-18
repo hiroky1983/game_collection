@@ -373,23 +373,23 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.originalDressing == D(
             pit: .construction, lowBlock: .boulder, tallBlock: .boulder, dog: .dog, boar: .boar,
             platform: .scaffold, boostFloor: .boostBand, shoot: .bambooShoot, sinkFloor: .paddy,
-            crumblingPlatform: .suspensionBridge
+            crumblingPlatform: .suspensionBridge, wall: .stoneWall
         ))
         #expect(RunnerWorld.satoyama.dressing == D(
             pit: .irrigationDitch, lowBlock: .stump, tallBlock: .boulder, dog: .dog, boar: .boar,
             platform: .strawStack, boostFloor: .pavedFarmRoad, shoot: .bambooShoot, sinkFloor: .paddy,
-            crumblingPlatform: .suspensionBridge
+            crumblingPlatform: .suspensionBridge, wall: .stoneWall
         ))
         #expect(RunnerWorld.harbor.dressing == D(
             pit: .quayGap, lowBlock: .ropeCoil, tallBlock: .drum, dog: .cat, boar: .forklift,
             platform: .crateStack, boostFloor: .conveyor, shoot: .seaSpray, sinkFloor: .tideland,
-            crumblingPlatform: .woodenPier
+            crumblingPlatform: .woodenPier, wall: .containerStack
         ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
         #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
         #expect(RunnerWorld.satoyama.dressing.block(for: .tallBlock) == .boulder)
-        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar, .shoot] {
+        for kind in [RunnerHazardKind.pit, .bird, .dog, .boar, .shoot, .wall] {
             #expect(RunnerWorld.harbor.dressing.block(for: kind) == nil, "\(kind)")
         }
     }
@@ -449,6 +449,24 @@ struct RunnerWorldTests {
                 }
             }
         }
+        // 高い塀（#1091）も**主色だけで 3:1 を要求する**。上の `items` の形（主色か縁取りの
+        // どちらかが通ればよい）に混ぜてはいけない——縁取り（`RunnerPixelArt.outline`）は
+        // どの背景とも 7.8:1 以上あるので、面の色を背景そのものにしても緑になってしまう
+        // （2026-09-18 の敵対的検証で実測）。3:1 を担うのは**石垣の目地**（`g`。石と石のあいだに
+        // 横一直線に入るので、遠目には塀の模様そのもの）と**コンテナの桁・リブ**（`r`）で、
+        // 面の色（石 `G` 1.16〜1.83:1・コンテナ本体 `R` 2.07〜4.19:1）は担っていない。
+        for (world, part, color) in [
+            (RunnerWorld.satoyama, "石垣の目地", art["g"]!),
+            (RunnerWorld.harbor, "コンテナの桁とリブ", art["r"]!),
+        ] {
+            for (name, backdrop) in world.groundBackdrops {
+                #expect(
+                    WCAG.contrast(color, backdrop) >= 3.0,
+                    "\(world) の高い塀の\(part)が \(name) (\(String(backdrop, radix: 16))) に溶ける"
+                )
+            }
+        }
+
         // 縄は板の**上**（空・丘を背に）に張るので、模様ではなく手前の物として背景と比べる。
         for (name, backdrop) in RunnerWorld.satoyama.groundBackdrops {
             #expect(

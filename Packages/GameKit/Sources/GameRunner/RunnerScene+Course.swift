@@ -85,6 +85,8 @@ extension RunnerScene {
             // `frame` を写す仲間（`movingHazards`）に入れる。
             case .shoot:                   movingHazards.append(addShoot(hazard))
             case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
+            // 高い塀（#1091）は動かないので岩と同じくコース層へ 1 回置くだけ。
+            case .wall:                    courseLayer.addChild(makeWall(hazard))
             case .pit:                     break
             }
         }

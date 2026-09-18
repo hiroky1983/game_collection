@@ -41,6 +41,35 @@ extension RunnerScene {
         return node
     }
 
+    // MARK: 高い塀（石垣・積まれたコンテナ・#1091）
+
+    /// 二段ジャンプでしか越えられない高い塀。**当たり判定の箱いっぱい**（4 × `wallTop` = 18）に
+    /// ドット絵を貼るだけで、岩の着せ替え（`makeBlock`）とまったく同じ作り。格子は 12×54 で
+    /// 箱と同じ縦横比（`RunnerPixelArtTests.wallsFitTheWallHitBox` が固定）なので、貼っても伸びない。
+    ///
+    /// 絵は**その世界で最初に使うときに作ってキャッシュ**する（`RunnerScene.wallTexture`）。
+    /// 接地の陰は岩と同じ平たい楕円——高さが 2 倍以上あるので、陰は箱の高さではなく**幅**から出す
+    /// （岩と同じ式だと塀の足元に大きな黒い楕円が出て、地面が凹んで見える）。
+    func makeWall(_ hazard: RunnerHazard) -> SKNode {
+        let node = SKNode()
+        node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
+        let w = hazard.length, h = hazard.height
+
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 1.15, height: w * 0.25))
+        shadow.fillColor = RunnerPalette.color(world.palette.rockDark)
+        shadow.strokeColor = .clear
+        shadow.position = CGPoint(x: w / 2, y: 0)
+        node.addChild(shadow)
+
+        let sprite = SKSpriteNode(texture: wallTexture(world.dressing.wall))
+        sprite.anchorPoint = CGPoint(x: 0.5, y: 0)
+        sprite.size = CGSize(width: w, height: h)
+        sprite.position = CGPoint(x: w / 2, y: 0)
+        sprite.zPosition = 1
+        node.addChild(sprite)
+        return node
+    }
+
     // MARK: 穴（用水路・岸壁の切れ目）
 
     /// 用水路の水（`Dressing.Pit.irrigationDitch`）。奈落（`addPitVoid`）と同じ矩形を深い水で塗り、
