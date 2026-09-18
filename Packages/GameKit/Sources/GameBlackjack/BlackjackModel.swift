@@ -328,6 +328,12 @@ public final class BlackjackModel {
             hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
+        // 局を持たない中断データは「続きから戻れる」ではない（#1104。CodeRabbit の指摘）。
+        // `GameServices.gameDidLeave` は中断データの有無だけで判定するため、伝えないと
+        // 離脱が休憩として数えられ、続きの無い局に「途中のままです」のお知らせが予約される。
+        // どちらも次のラウンドを配った時点（`gameDidRestart` → `gameDidBeginPlay`）で元へ戻る。
+        services?.gameWillNotResume(gameID: gameID)
+        services?.gameDidRestoreFinished(gameID: gameID)
     }
 
     // MARK: - Betting

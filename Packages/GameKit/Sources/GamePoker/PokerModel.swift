@@ -212,6 +212,19 @@ public final class PokerModel {
             hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
+        notifyRoundWaitingSnapshot()
+    }
+
+    /// 局を持たない中断データを書いたことを、解析とお知らせへ伝える（#1104。CodeRabbit の指摘）。
+    ///
+    /// `GameServices.gameDidLeave` は**中断データの有無だけ**で「続きから戻れる」と判定するので、
+    /// 伝えないと (1) 離脱が休憩として数えられ `game_end` の `duration_sec` にハブ滞在が混ざる
+    /// （ダブルアップの決着待ちで離れた場合。局が閉じていれば既に `gameDidFinish` 済みで影響しない）
+    /// (2)「途中のままです」のお知らせが、続きの無い局に予約される。
+    /// どちらも次の局を始めた時点（`gameDidRestart` → `gameDidBeginPlay`）で元へ戻る。
+    private func notifyRoundWaitingSnapshot() {
+        services?.gameWillNotResume(gameID: gameID)
+        services?.gameDidRestoreFinished(gameID: gameID)
     }
 
     // MARK: - Start

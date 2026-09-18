@@ -93,8 +93,9 @@ private func makeBustedModel(
 /// - Parameter deckRanks: ダブルアップで使う山札のランク。先頭が見せ札、次がめくり札になる。
 @MainActor
 private func makeRevivedWinAwaitingDoubleUp(
-    deckRanks: [Int]
-) -> (PokerModel, MemorySnapshotStore) {
+    deckRanks: [Int],
+    analytics: GameAnalytics? = nil
+) -> (PokerModel, MemorySnapshotStore, GameServices) {
     var nextID = 0
     func card(_ rank: Int, _ suit: PokerSuit) -> PokerCard {
         defer { nextID += 1 }
@@ -116,12 +117,30 @@ private func makeRevivedWinAwaitingDoubleUp(
         hasRevivedThisSession: true
     )
     try? store.save(snap, for: "poker")
-    let model = PokerModel(
-        services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
+    let services = GameServices(
+        snapshots: store, ads: StubAdService(rewardEarned: true), analytics: analytics
     )
+    let model = PokerModel(services: services)
+    // 中断から復元したモデルは `init` でプレイを数えない（#158）ので、局を始めた体にしてから
+    // 決着させる。解析の「進行中のプレイ」が無いと、離脱と休憩の差が観測できない。
+    services.gameDidRestart(gameID: "poker")
+    services.gameDidProgress(gameID: "poker")
     model.bet2Action(.check)
     #expect(model.awaitsDoubleUp, "勝ってダブルアップの提示に入っている")
-    return (model, store)
+    return (model, store, services)
+}
+
+/// 送信されたイベントをそのまま溜めるスパイ（`AnalyticsTests` の同名の型と同じ形）。
+@MainActor
+private final class SpyAnalyticsService: AnalyticsService {
+    private(set) var events: [AnalyticsEvent] = []
+    func log(_ event: AnalyticsEvent) { events.append(event) }
+
+    var quits: Int {
+        events.filter {
+            if case let .gameEnd(_, result, _, _, _) = $0 { return result == .quit } else { return false }
+        }.count
+    }
 }
 
 /// 局を始めてはフォールドし続け、アンティで手持ちを削ってチップ切れまで進める。
@@ -446,7 +465,7 @@ struct PokerRewardedAdTests {
     @Test("復活したセッションのダブルアップの結果が中断データに乗る（#1104）")
     func persistsDoubleUpSettlement() {
         // 外したとき: 賭け金は戻らない。その残高が保存されている。
-        let (lost, lostStore) = makeRevivedWinAwaitingDoubleUp(deckRanks: [13, 3])
+        let (lost, lostStore, _) = makeRevivedWinAwaitingDoubleUp(deckRanks: [13, 3])
         let beforeLoss = lost.playerChips
         lost.startDoubleUp()
         lost.guessDoubleUp(.high)          // K より上を予想して 3 が出る＝失敗
@@ -456,7 +475,7 @@ struct PokerRewardedAdTests {
                 "外した賭け金が中断データでは戻っている")
 
         // 受け取ったとき: 倍になった賭け金を含む残高が保存されている。
-        let (won, wonStore) = makeRevivedWinAwaitingDoubleUp(deckRanks: [5, 13])
+        let (won, wonStore, _) = makeRevivedWinAwaitingDoubleUp(deckRanks: [5, 13])
         won.startDoubleUp()
         won.guessDoubleUp(.high)           // 5 より上を予想して K が出る＝成功
         won.takeDoubleUpWinnings()
@@ -468,7 +487,7 @@ struct PokerRewardedAdTests {
     /// 挑戦の経過は中断データに持たないので、途中で離れたら賭ける前の残高で戻す（#1104）。
     @Test("ダブルアップに挑戦中に離れたら、賭け金は預けたままにならない（#1104）")
     func returnsStakeWhenLeavingDuringDoubleUp() {
-        let (model, store) = makeRevivedWinAwaitingDoubleUp(deckRanks: [5, 13])
+        let (model, store, _) = makeRevivedWinAwaitingDoubleUp(deckRanks: [5, 13])
         let beforeChallenge = model.playerChips
         model.startDoubleUp()
         #expect(model.playerChips < beforeChallenge, "賭け金は手持ちから引かれている")
@@ -477,6 +496,26 @@ struct PokerRewardedAdTests {
             services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))
         )
         #expect(reopened.playerChips == beforeChallenge, "預けた賭け金が消えている")
+    }
+
+    /// 局を持たない中断データは「続きから戻れる」ではない（#1104。CodeRabbit の Major 指摘）。
+    /// `GameServices.gameDidLeave` は中断データの有無だけで休憩と離脱を分けるので、伝えないと
+    /// ダブルアップの決着待ちで捨てた局が「休憩」のまま残り、次の局の `game_end` の
+    /// `duration_sec` にハブ滞在時間が混ざる。
+    @Test("局を持たない中断データを書いたあとに離れたら、休憩ではなく離脱として数える（#1104）")
+    func leavingWithRoundWaitingSnapshotCountsAsQuit() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["poker"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let (model, store, services) = makeRevivedWinAwaitingDoubleUp(
+            deckRanks: [5, 13], analytics: analytics
+        )
+        #expect(model.awaitsDoubleUp)
+        #expect(store.exists(for: "poker"), "復活したセッションなので中断データは在る")
+
+        services.gameDidLeave(gameID: "poker")
+        #expect(spy.quits == 1, "続きの無い局が休憩として数えられている")
     }
 
     /// 復活の中断データ（#1104）が「もう一度はじめる」の初期化を邪魔しないこと。
