@@ -733,6 +733,14 @@ public enum RunnerPhase: Equatable, Sendable {
     /// ——`RunnerModel.clearStage()` を丸ごと済ませてからこの局面に入るので、演出を飛ばしても
     /// 演出中にアプリを閉じても、クリアは記録済み。
     case chasing
+    /// 世界の締めの演出中（#1092）。6・12・18・24・30 面を**初めて**クリアしたときだけ入り、
+    /// そのときは毎面のゴールの演出（`.chasing`）の**代わり**に流す（2 回続けて逃げられる形にしない）。
+    ///
+    /// `.chasing` と違って**時間では進まない**——コマ送りは `RunnerStoryView` が持ち、
+    /// 終わり（またはタップで飛ばした）ときに `RunnerModel.finishStory()` が
+    /// `.cleared` / `.allCleared` へ移す。`clearStage()` は入る前に済んでいるので、
+    /// ここで閉じてもクリアは記録済み。
+    case story
     /// ステージクリア（まだ次のステージが残っている）。
     case cleared
     /// 最終ステージまでクリアした。
@@ -745,6 +753,9 @@ public enum RunnerPhase: Equatable, Sendable {
     ///
     /// どちらも「`tick` は進めるがゲームは進んでいない・リザルトはまだ出ない」局面で、
     /// 走らせ切るループ（自動操縦・撮影・テスト）は `isRunning` と併せてここも回し続ける。
+    ///
+    /// **世界の締め（`.story`）は入れない**。あちらは時間ではなくコマ送り（View）で進むので、
+    /// 回し続けても永久に抜けない（抜ける操作は `RunnerModel.finishStory()`）。
     public var isSettling: Bool { self == .falling || self == .chasing }
 }
 
@@ -762,7 +773,8 @@ public enum RunnerResultFace {
     public static func face(for phase: RunnerPhase, isNewBest: Bool = false) -> OjisanPixel.Face? {
         switch phase {
         case .ready: return .smile
-        case .running, .paused, .falling, .chasing: return nil
+        // 締めの演出中（`.story`）は場面の絵が画面を占めるので、顔は出さない。
+        case .running, .paused, .falling, .chasing, .story: return nil
         case .failed: return isNewBest ? .cheer : .frown
         case .cleared, .allCleared: return .cheer
         }

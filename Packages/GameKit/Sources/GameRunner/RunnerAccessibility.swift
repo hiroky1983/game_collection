@@ -86,7 +86,8 @@ public enum RunnerAccessibility {
     public static func endlessResultLabel(phase: RunnerPhase, distance: Int) -> String {
         switch phase {
         case .falling, .failed: return "\(max(0, distance))メートルでミスしました"
-        case .chasing, .cleared, .allCleared: return distanceLabel(distance)
+        // 締め（`.story`・#1092）もステージ制だけの局面なので、同じくここには来ない。
+        case .chasing, .story, .cleared, .allCleared: return distanceLabel(distance)
         case .paused:     return "一時停止中"
         case .ready:      return "エンドレス。タップでスタート"
         case .running:    return "走行中"
@@ -97,8 +98,14 @@ public enum RunnerAccessibility {
     ///
     /// ゴールの演出中（`.chasing`・#1092）だけは**ジャンプではなく演出を飛ばす**操作になるので、
     /// ヒントの文言も入れ替える（`RunnerModel.press` の分岐と 1:1）。
+    /// 世界の締め（`.story`・#1092）も同じくジャンプにはならない。あちらはオーバーレイ側が
+    /// 「とばす」ボタンを持つので、コースのヒントは何も起きないことだけを言う。
     public static func courseHint(phase: RunnerPhase) -> String {
-        phase == .chasing ? "ダブルタップで演出をスキップ" : "ダブルタップでジャンプ"
+        switch phase {
+        case .chasing: return "ダブルタップで演出をスキップ"
+        case .story:   return "おはなしを表示中です"
+        default:       return "ダブルタップでジャンプ"
+        }
     }
 
     /// ミス・クリアの結果。
@@ -109,6 +116,9 @@ public enum RunnerAccessibility {
         // ゴールの演出中（#1092）も、記録はもう確定しているのでクリアと言い切る
         // ——読み上げが「走行中」のまま 1.5 秒待たされるのを避ける。
         case .chasing:    return "ステージ \(stageNumber) クリア"
+        // 世界の締め（#1092）はオーバーレイ自身が場面と台詞を読み上げるので、
+        // 背後のコースはクリアの事実だけを言う。
+        case .story:      return "ステージ \(stageNumber) クリア"
         case .cleared:    return "ステージ \(stageNumber) クリア"
         case .allCleared: return "全ステージクリア"
         case .paused:     return "一時停止中"
