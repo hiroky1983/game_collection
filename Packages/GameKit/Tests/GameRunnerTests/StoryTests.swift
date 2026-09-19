@@ -333,13 +333,13 @@ struct RunnerStoryTests {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
         // 枠は 1 か所だけ。判定を素通りする 2 個目が増えたらここで落ちる。
         #expect(SourceScan.matchCount(of: #"BannerSlot\(ads:"#, in: source) == 1)
-        #expect(
-            SourceScan.matchCount(
-                of: #"if Self\.showsBanner\(isStoryPresented: presentedStory != nil\) \{\s*BannerSlot\(ads:"#,
-                in: source
-            ) == 1,
-            "バナーがストーリーの判定の外に置かれている"
+        // 判定の**内側**に置く。見るのは `if` のブロックの中身なので、引数の書き方・改行・
+        // 途中に別の部品が増えることには依らない（CodeRabbit 指摘・PR #1165）。
+        let guarded = try #require(
+            SourceScan.declaration(of: "if Self.showsBanner(", in: source),
+            "バナーの判定（`showsBanner`）を通っていない"
         )
+        #expect(guarded.contains("BannerSlot(ads:"), "バナーがストーリーの判定の外に置かれている")
         // 幕のあいだも枠の高さは空の帯で残す（縦幅の分配が変わるとコースの高さまで動く）。
         #expect(source.contains("Color.clear.frame(height: BannerSlot.height)"))
     }
