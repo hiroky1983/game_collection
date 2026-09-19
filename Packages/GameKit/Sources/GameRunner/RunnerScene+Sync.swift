@@ -110,7 +110,7 @@ extension RunnerScene {
                     y: goalTicketBase.y + sin(p * .pi * 0.5) * Self.goalTicketFlyY
                 )
                 ticket.zRotation = CGFloat(p * 2.2)
-                ticket.alpha = 1 - p * 0.35
+                ticket.alpha = 1 - p * 0.6
             }
         }
         // おじさんは画面の右端の外まで走り去る。
@@ -132,7 +132,12 @@ extension RunnerScene {
     }
 
     /// 飛ばされた宝くじが右へ進む量（画面幅 100 に対して、確実に枠の外まで出る）。
-    static let goalTicketFlyX: Double = 120
+    ///
+    /// おじさんの移動量（`Metrics.width + goalChaseExitMargin - Metrics.playerX` ≒ 98）より
+    /// 大きく取り、同じ 1.5 秒でも宝くじがはっきり先に画面外へ抜けるようにしてある（#1172。
+    /// 会長 QA「速度が同じに見える」——上昇の弧（`goalTicketFlyY`）で横移動が遅く見えていたため、
+    /// 120 → 200 に上げた）。
+    static let goalTicketFlyX: Double = 200
     /// 同じく上へ上がる量。上端（`Metrics.height` = 115）へ抜ける手前で横へ流れる。
     static let goalTicketFlyY: Double = 46
     /// 走り去った走者が画面の外に消えるまでの余白。

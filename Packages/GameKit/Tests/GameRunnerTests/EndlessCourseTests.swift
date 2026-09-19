@@ -47,10 +47,15 @@ struct RunnerEndlessCourseTests {
 
     /// 走りながら作る生成器（#1086）が、#675 / #930 の一括生成と**同じ並び**を出すこと。
     /// 判定式・部品の解禁距離・速さと密度の上がり方・乱数の引き方を変えていないことの証拠。
-    /// 期待値は一括生成（`pattern(using:)`・400 区画）を置き換える直前に採った先頭 390 区画
+    /// 元の期待値は一括生成（`pattern(using:)`・400 区画）を置き換える直前に採った先頭 390 区画
     /// （一括生成は末尾の 2 区画を平地に固定し、その手前 3 区画では台座・床を置かなかったので、
     /// そこより手前だけを比べる）。
-    @Test("先頭 390 区画は一括生成だった頃の並びと 1 文字も変わらない")
+    ///
+    /// **#1172 でイノシシ（`i`）の重みを変えたのに合わせて採り直した**。この検査は「乱数の引き方・
+    /// 判定式を変えていない証拠」であって部品の重みまで固定するものではないため、重みを意図的に
+    /// 変えるたびに採り直してよい（採り直す際は `RunnerEndlessCourse.pattern(seed:count:)` を
+    /// そのまま呼んで文字列を控えるだけでよい）。
+    @Test("先頭 390 区画は現在の重み・解禁距離で決まる並びから 1 文字も変わらない")
     func streamingMatchesTheFormerBatchGenerator() {
         for (seed, expected) in Self.batchFingerprints {
             #expect(RunnerEndlessCourse.pattern(seed: seed, count: 390) == expected, "種 \(seed)")
@@ -58,11 +63,11 @@ struct RunnerEndlessCourseTests {
     }
 
     private static let batchFingerprints: [(UInt64, String)] = [
-        (1, "--1---1-11--n-1-1ns--n--nnn-s-1---1-1--s2sd2--2n---tndsdn--d1ds2s-2d--n2n-s2-1dt--t--nn11--n2s2-s1ns-n-1-2n2-3-1-3sbb31-1t-1-t--1it--n--PP-stbt21-t-b--bn1t--1t-i-bd-2b31--31ti-sbbstd1s-niinit-btnb1s-3t-tt-n1--d-2--=-st1-ns3-n--bt3--dd1-i1-n-3idnkndn1bbnin2112tn-d--b1n31t1tb-1b3tn-dd11n3n313-b2n3i1-1n-n1nddi1-ni3t3-b2nn-d--b1nbi2i21n12in--bnnn-=-n13n1-3b--b-b1bsnb--nd-1n--nb1biis-nb-i-n2t"),
-        (2, "--1---1--1---1--1---2-2---1--2---2-nd-12-12-n2---n--d-n-2d---1--b1-s2n--nd-tb-dndn-d1--n-sn2tbtn-snb2ss31--12--d--d-sn--3dd-bn--=--i3n-n13n--tb--n-n--i1b-d--21n-1s-PPP--dd-in1dns-n-b2b--nb--n1s-n3b-tnsd-1ds-33ninbb2--=-12n2b-1ttb2i31bidb-bt-2i-bi11b-n--t-PP-=-dbdd-==-3sdnnnt--d21ibs-11n-131332s1bid1ds-i1b1di2-b331t1-==-kb-PP-ktn1t-n2-b3binn2dt12bsb3tnd-3-3ibi312ni3binbnn-3-t1-3ids31kiin3"),
-        (3, "--1--s1s1--n1-nn-1---21---n---1-2-t-1---tn-n2nt--sd-dtd--sd-nd-t--nbs-=--2-t-s1b2--1-bsn1--=-b--12n2--d--3bn--n-d--tsn31n-3n--dsi-t--1--i-b-bin-sb-d--3n1--n2s-2i12nn--b-1tin-3s-n11-PP-3--n-nni-13-si--ii3n-t321-PP--iininsd3dn32-2d1sin-1n21b-bsn1bk2-kdni-ii31i1nd1t1t-1-31b31-2-1dnd1i3tnddn32-bnt1dni-d2-kd23t13-dd1-s21bdd11b3dtin-ii-k212i1tti23131s22-t-3nd11i-1t-1d1bnis3dnt3-in--23ti--di-1n"),
-        (675, "--1---n---n1-s-1--2sn---1--12s--n-d---t-1---2-1-tdsd--11t-n-1s-1-2-=-n2-b--n-1-122-1-n--d-n-n1-PP--23--bt-s1-s1--323--nnn--n--311bb-sb--bb1bs-b2-sn-2--1b-t-i-nniid-s3n12-s3t--1s1-1tsb1--n3t11t--3-3-PP-b-in3--ii-21di-n--ns-i--3-nn-1bbn121s-=--ti32-nd21-b21tdnb1tbi2-n2--tndi--2-ns-nb-in-is1sddi--b3n211b--ni1i21int3b1n-3itii22i-db-3k-2itntn2-in213b12nt-t-snntnd12d2t1i-=-k1ni1bdn1isb22i1tb1-"),
-        (1086, "--1---n--1s-1---n---2--1---1---n-1n2-dnss-t-nn-n--n11--n-ns--n-s1-bn--PP--1dd-nt11sb--2n1-b-1-n--==--t-n2d--bs-tb-b2tdd-22--n--1t112s-b--dib--b222-s3--ndtb--tnn-t-=-tb-t-si--2-b3sn-1n1d-n-PP-tnbn-i-ibn-d--nn3-=-1bsb--1stb11321tts-1--binn-1t2dn1-1i1-t-b-sn-22k1-i2-i--ntt--=-i2s-bdt1nt1d1d121in-1d1n31b2bi-it133-b1i-2ttn-i311-d132n1bni2d--2nn-i33tb3sd--t1d2isn13-snn32n3ti2tsnts-PPP--n-nikn2"),
+        (1, "--1---1-11--n-1-1ns--n--nnn-s-1---1-1--s2sd2--2n---tndsdn--d1ds2s-2d--n2n-s2-1dt--t--nn11--n2s2-s1ns-n-1-2n2-3-1-3sbb31-1t-1-t--nit--n--i--in-1n-n--PPP-b21t--1d-i-bd-tbb1--b1ti-sb1ti31s-niii2ii--2din3--==-d2-1b1i-is2--i2t1-nsb-n--PP-t--tntn-b--23tbi3nkn3ninninit11tt2-3--==-23b-dtnn1-n-dd11nbiiinb1b-PPP-n32i-sn2-n1n3idi1-2i3t3-=-snn-3--PP--dnt33-1n12in--b2nn-ibnbd-1-3t13-n2112b--nd-1n--2b"),
+        (2, "--1---1--1---1--1---2-2---1--2---2-nd-12-12-n2---n--d-n-2d---1--b1-s2n--nd-tb-dndn-d1--n-sn2tbtn-snb2ss31--12--d--d-sn--3dd-bn--ii3n-21ibn--db--2-n--i1dd--21n-1s-==--3d-innd2s-n-b2b--nb--niss2-3b-dnsi3-1ds-33ninbb2--ib-ntb-1tdbtib1idb-d-2i-bi1ni--i--dti1ti3ibi-snii33sn-n-t1ii1-PP-n-131bb2s1ii31ds-i1b1dit-==-b31d1-ib1bi3s2indnt-PPP-ndi2b3db2t3i-tind-3-3iiib12nibin2in-b-d1-3idsb1kiin31in13"),
+        (3, "--1--s1s1--n1-nn-1---21---n---1-2-t-1---tn-n2nt--sd-dtd--sd-nd-t--nbs-=--2-t-s1b2--1-bsn1--=-b--12n2--d--3bn--n-d--tsn31n-3n--dsi-t--1--i-PP-n--in-snd--bn1-b-sn--in22n--PPP-nd-bs23n11-ib2-n-nni-1b-si--ib--13ski-2-1i-nsidbdn32-231sin-1n21tknnd3bikn--1i3ik23nd1d-1-31i-d22-13n31i3dnd3n32-bnd13ni-d2-kdit3t1b-d3n-si21tit3n1bb2nd1iii-k212i1tti2b1b1s2t-d-bin3n1i-1t-n31nis3dnd3-in--23ti--3i-1ndi"),
+        (675, "--1---n---n1-s-1--2sn---1--12s--n-d---t-1---2-1-tdsd--11t-n-1s-1-2-=-n2-b--n-1-122-1-n--d-n-n1-PP--23--bt-s1-s1--323--nnn--n--311ts-t-i-ns-1--2-sn-t--1b-t-i-nniid-s3n12-sbd--1s1-1ts1--nbd11t--b-3-i-i-in3--ii-t1di-n--ns-i--3-n2-1bbn121s-i-diib2-ni3t1-PP-i3ii-1dii2-n2--dn3i--t-2s-n2ss2-is1s3di--PPP-ttk1i2dtdni33b3n2sn-3itiitti-PPP-bnibk-2idntn2-ind-==--bi32d-snntn312dtd1i-ii1ndi22id-sb33td"),
+        (1086, "--1---n--1s-1---n---2--1---1---n-1n2-dnss-t-nn-n--n11--n-ns--n-s1-bn--PP--1dd-nt11sb--2n1-b-1-n--==--t-n2d--bs-tb-b2tdd-22--n--1d11ts-=-d-ii--3-22t-sb--nidtd-i-i-d-2db-t-si--2-PPP-21i-i-3s-n-i1b-bndn-b1-nn2--2--111d-sni1b-132ntts-1--binn-1i-n3n3di1i1-d-PP-ds-iti-11-iit-i-nntt--i1n3bb2-isnd13i13i121in-1d1nb12i-it1bi3bnnitni-22bni311-31b2n1nit3--2ni-ti33dibs3--t1i3ti-111-=-1tb1b-tdsnts-==-"),
     ]
 
     /// 受け入れ条件 B「1,000 種 × 70,000 単位以上で、生成されたコースを成立条件で検算する」。
