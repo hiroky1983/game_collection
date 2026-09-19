@@ -861,12 +861,14 @@ struct DaifugoExchangeWaiverTests {
         #expect(model.isExchangeWaived, "配っただけでは戻さない（着手するまで配りは確定しない・#1146）")
 
         // 次も大貧民で決着し、今度は免除しない（= 広告を見なかった・失敗した）とき。
+        // `configureForTesting` は中身のある手札を置いて `persist()` まで通すので、この時点で
+        // 免除は1手目の保存と同じ経路で使い切られている（決着まで残らない）。決着そのもので
+        // 戻ることは `waiverIsSpentByResigningAnUntouchedDeal` が別に固定している。
         model.configureForTesting(
             hands: [[card(3), card(4)], [card(5)], [card(9)], [card(10)]],
             gameNumber: model.gameNumber
         )
         model.resign()
-        #expect(model.isExchangeWaived == false, "決着したら戻す（#1146）")
         model.startGame()
         #expect(model.lastTransfers.contains { $0.from == DaifugoModel.humanIndex && $0.cards.count == 2 },
                 "免除しなければ従来どおり強い2枚を差し出す")
