@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import GameKitTestSupport
 @testable import Core
@@ -95,5 +96,64 @@ struct GameSetupSheetSourceTests {
 
     private static func read(_ path: String) throws -> String {
         try String(contentsOf: sourcesDirectory.appendingPathComponent(path), encoding: .utf8)
+    }
+}
+
+// MARK: - CPU の強さ 5 段階（#1174）
+
+/// CPU と 1 対 1 で戦う 4 ゲームの「CPUの強さ」が、**同じ部品・同じ寸法**で組まれていること。
+///
+/// 同じ役割の UI は寸法だけでなく部品まで同じにする（拡大トグル #641 と同じ約束）。
+/// ここを各ゲームが持ち直すと、段を足すたびに 1 本だけ古い並びが残る。
+@Suite("CPUの強さの選択 UI（#1174）")
+struct CPUStrengthPickerSourceTests {
+
+    /// 5 段階を持つゲーム（`CPUStrength` を使う 4 本）。囲碁・神経衰弱・花札は
+    /// 別の段階の型（`GoLevel` など）を持つので対象外。
+    private static let games = [
+        "GameChess/ChessView.swift",
+        "GameGomoku/GomokuView.swift",
+        "GameOthello/OthelloView.swift",
+        "GameShogi/ShogiView.swift",
+    ]
+
+    @Test("4ゲームとも共通の 5 段階ピッカーで組んでいる")
+    func everyCPUGameUsesTheSharedPicker() throws {
+        for path in Self.games {
+            let source = try String(
+                contentsOf: SourceScan.packageRoot
+                    .appendingPathComponent("Sources").appendingPathComponent(path),
+                encoding: .utf8)
+            #expect(source.contains(#"GameSetupSection("CPUの強さ")"#), "\(path) に強さの節が無い")
+            #expect(source.contains("CPUStrengthPicker(level: $level"),
+                    "\(path) が共通の 5 段階ピッカーを使っていない")
+            // 説明は 5 段ぶん渡す（`CPUStrength.allCases` と同じ並び）。
+            #expect(source.contains("とことん読む"), "\(path) にガチの説明が無い")
+            // 段の呼び名はピッカー側（`CPUStrength.label`）が持つ。各ゲームに書き写さない。
+            for label in CPUStrength.labels {
+                #expect(!source.contains("title: \"\(label)\""),
+                        "\(path) が段の呼び名を書き写している（\(label)）")
+            }
+        }
+    }
+
+    /// 段を選び直してもシートの高さが変わらないこと（説明は常に 1 行）。
+    /// 伸び縮みすると、選んだ拍子に「対局開始」が動く。
+    @Test("段を選び直しても高さが変わらない")
+    @MainActor
+    func heightIsStableAcrossSelections() {
+        let details = ["手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み", "とことん読む"]
+        var heights: [Int] = []
+        for strength in CPUStrength.allCases {
+            var level = strength.rawValue
+            let picker = CPUStrengthPicker(
+                level: Binding(get: { level }, set: { level = $0 }), details: details
+            )
+            let renderer = ImageRenderer(content: picker.frame(width: 343))
+            renderer.scale = 1
+            heights.append(renderer.cgImage?.height ?? 0)
+        }
+        #expect(heights.allSatisfy { $0 > 0 }, "ピッカーが描かれていない")
+        #expect(Set(heights).count == 1, "段によって高さが違う: \(heights)")
     }
 }

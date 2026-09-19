@@ -311,7 +311,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
         persist()
-        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     // MARK: - 投了

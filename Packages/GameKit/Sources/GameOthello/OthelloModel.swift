@@ -268,7 +268,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
         persist()
-        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     public func clearSnapshot() { services?.snapshots.clear(for: gameID) }

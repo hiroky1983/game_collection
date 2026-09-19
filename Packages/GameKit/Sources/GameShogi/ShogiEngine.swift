@@ -1,4 +1,5 @@
 import Foundation
+import Core
 
 /// 将棋 AI の境界（USI 風）。
 public protocol ShogiEngine: Sendable {
@@ -36,7 +37,7 @@ enum PieceValue {
 
 // MARK: - Zobrist Hashing
 
-private struct LCG {
+private struct LCG: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 {
         state = state &* 6364136223846793005 &+ 1442695040888963407
@@ -142,36 +143,65 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     let useQuiescence: Bool
     let useBook: Bool
     let timeLimit: TimeInterval
+    /// 「入門」か（#1174）。読みの設定は「簡単」と同じまま、着手の選び方だけを変える
+    /// （`noviceMove`）。
+    let isNovice: Bool
+    /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テストだけが種を渡して再現する）。
+    /// 「入門」以外は乱数を使わないので、この値は見ない。
+    let seed: UInt64?
 
     /// 難易度。**表示している強さの文言と中身が一致していること**（#416 の教訓）:
     ///
     /// | level | 表示 | 探索深さ | 静止探索 | 位置評価 | 定跡 |
     /// |---|---|---|---|---|---|
-    /// | 0 | 弱（駒得だけ） | 2 | 無し | 無し | 無し |
-    /// | 1 | 普通（囲いを作る） | 4 | 有り | 有り | 無し |
-    /// | 2 | 強（定跡＋深読み） | 5 | 有り | 有り | 有り |
+    /// | -1 | 入門（手なりで指す） | 2 | 無し | 無し | 無し |
+    /// | 0 | 簡単（駒得だけ） | 2 | 無し | 無し | 無し |
+    /// | 1 | ふつう（囲いを作る） | 4 | 有り | 有り | 無し |
+    /// | 2 | むずかしい（定跡＋深読み） | 5 | 有り | 有り | 有り |
+    /// | 3 | ガチ（とことん読む） | 7 | 有り | 有り | 有り |
+    ///
+    /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
     ///
     /// level 0 は「初心者が勝てる最弱」を作るために、**深さ 2 + 静止探索なし**にしてある（#502。
     /// チェス `SimpleChessEngine` の level 0 と同じ設計）。静止探索を切ると取り合いの途中で
     /// 数え終えるので、1回の取り返しの先にある駒得・駒損が見えなくなる。深さ 2 は残すので、
     /// 「取ったら取り返されるだけ」の只捨ては避ける = 弱いが壊れてはいない、という水準になる。
     /// 深さ 1 まで落とすと只捨てを始めるため採らない（測定結果は #502 / PR に記載）。
-    public init(level: Int = 1) {
-        switch level {
-        case 0:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
-        case 2:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true,  true,  true,  1.5)
-        default: (depth, usePositional, useQuiescence, useBook, timeLimit) = (4, true,  true,  false, 1.0)
+    ///
+    /// その下の「入門」（#1174）も**深さ 2 のまま**で、`noviceMove` が駒損しない手の中から
+    /// 乱択する。深さを削るのではなく選び方を崩すので、只捨てを始める水準には戻らない。
+    public init(level: Int = CPUStrength.standard.rawValue) {
+        self.init(level: level, seed: nil)
+    }
+
+    init(level: Int, seed: UInt64?) {
+        let strength = CPUStrength.strength(for: level)
+        switch strength {
+        case .novice:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
+        case .easy:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
+        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true,  true,  true,  1.5)
+        case .serious: (depth, usePositional, useQuiescence, useBook, timeLimit) = (7, true,  true,  true,  3.0)
+        case .normal:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (4, true,  true,  false, 1.0)
         }
+        self.isNovice = strength == .novice
+        self.seed = seed
     }
 
     /// テスト・計測用の直接指定。時間切れによる打ち切りを避けたいときは `timeLimit` を大きく取る。
-    init(depth: Int, usePositional: Bool, useQuiescence: Bool, useBook: Bool, timeLimit: TimeInterval) {
+    init(depth: Int, usePositional: Bool, useQuiescence: Bool, useBook: Bool, timeLimit: TimeInterval,
+         isNovice: Bool = false, seed: UInt64? = nil) {
         self.depth = depth
         self.usePositional = usePositional
         self.useQuiescence = useQuiescence
         self.useBook = useBook
         self.timeLimit = timeLimit
+        self.isNovice = isNovice
+        self.seed = seed
     }
+
+    /// 「入門」が許す駒損の幅（#1174）。**歩 1 枚に満たない差**しか許さないので、
+    /// 駒を只で捨てる手・取り返される取りは候補に入らない。
+    static let noviceMargin = PieceValue.base(.pawn) - 1
 
     public func bestMove(sfen: String) async -> String? {
         guard var pos = Position.fromSFEN(sfen) else { return nil }
@@ -181,9 +211,40 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         if useBook, let booked = OpeningBook.move(for: sfen),
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
+        if isNovice { return noviceMove(&pos, moves: moves)?.usi }
+
         var ctx = SearchContext(maxDepth: depth, usePositional: usePositional,
                                 useQuiescence: useQuiescence, timeLimit: timeLimit)
         return ctx.search(&pos)?.usi
+    }
+
+    /// 「入門」の着手（#1174）。読みの深さは「簡単」と同じ（自分の手＋相手の応手＝深さ 2）まま、
+    /// **最善から歩 1 枚ぶんも損しない手の中から乱択する**。
+    ///
+    /// 「簡単」は同じ評価で並んだ手を指し手オーダリング（取る手・成る手が先）で選ぶので、
+    /// 駒得の機会は逃さず攻めの手が先に出る。「入門」はそこを崩して手なりに指す。
+    /// 駒を只で捨てる手・取り返されるだけの取りは歩 1 枚より大きく損をするため候補に入らず、
+    /// 「損はしないが得も狙わない」水準に収まる（弱いが壊れてはいない・#502 と同じ物差し）。
+    func noviceMove(_ pos: inout Position, moves: [Move]) -> Move? {
+        var ctx = SearchContext(maxDepth: 1, usePositional: usePositional,
+                                useQuiescence: useQuiescence, timeLimit: timeLimit)
+        var scored: [(move: Move, score: Int)] = []
+        for move in moves {
+            let undo = pos.make(move)
+            // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
+            let score = -ctx.negamax(&pos, depth: depth - 1, alpha: Int.min + 1, beta: Int.max, ply: 1)
+            pos.unmake(undo)
+            scored.append((move, score))
+        }
+        guard let best = scored.map(\.score).max() else { return nil }
+        let pool = scored.filter { $0.score >= best - Self.noviceMargin }.map(\.move)
+        guard !pool.isEmpty else { return moves.first }
+        if let seed {
+            var rng = LCG(state: seed)
+            return pool[Int.random(in: 0..<pool.count, using: &rng)]
+        }
+        var rng = SystemRandomNumberGenerator()
+        return pool[Int.random(in: 0..<pool.count, using: &rng)]
     }
 
     func kingSafety(_ pos: Position, _ color: Side) -> Int {

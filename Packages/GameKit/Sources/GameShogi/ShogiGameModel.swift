@@ -365,7 +365,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         isThinking = false
         clearSelection()
         persist()
-        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     /// 人間が指している側（CPU 戦の表示用）。
