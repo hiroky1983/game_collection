@@ -70,7 +70,9 @@ public struct OthelloEngine: Sendable {
                                  alpha: Int.min + 1, beta: Int.max, deadline: deadline)
             if score > bestScore { bestScore = score; best = (r, c) }
         }
-        return (best, true)
+        // 最後の根手の探索中に期限切れになっていた場合もここで拾う。ループ先頭のチェックだけだと、
+        // 全ての根手を一応は評価しているのに「読み切った」と誤って報告してしまう（検証指摘）。
+        return (best, Date() <= deadline)
     }
 
     /// 「入門」の着手（#1174）。角が取れるなら取り、そうでなければ**角のとなり**

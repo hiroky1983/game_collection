@@ -257,8 +257,15 @@ public struct SimpleChessEngine: ChessEngine {
             maxDepth: 1, usePositional: usePositional,
             useQuiescence: useQuiescence, timeLimit: timeLimit
         )
+        // 先にオーダリング（MVV-LVA）しておく。時間切れで1手も読めなかった／全滅した場合の
+        // フォールバックに使う（「簡単」の反復深化が時間切れ時に使うのと同じ考え方 = 只捨てではない手）。
+        let orderedMoves = ctx.orderMoves(moves, pos: pos, killers: [nil, nil])
         var scored: [(move: ChessMove, score: Int)] = []
-        for move in moves {
+        for move in orderedMoves {
+            // 期限切れなら打ち切る。ここでチェックしないと、期限切れ後の `negamax` が
+            // 「自分の手を指した直後の駒得」だけを返し続け、`noviceMargin` の判定が
+            // 取り返しを見ない只捨てを弾けなくなる（#1174 検証指摘）。
+            if Date() > ctx.deadline { break }
             let undo = pos.make(move)
             // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
             let score = -ctx.negamax(&pos, depth: depth - 1,
@@ -266,9 +273,9 @@ public struct SimpleChessEngine: ChessEngine {
             pos.unmake(undo)
             scored.append((move, score))
         }
-        guard let best = scored.map(\.score).max() else { return nil }
+        guard let best = scored.map(\.score).max() else { return orderedMoves.first }
         let pool = scored.filter { $0.score >= best - Self.noviceMargin }.map(\.move)
-        guard !pool.isEmpty else { return moves.first }
+        guard !pool.isEmpty else { return orderedMoves.first }
         if let seed {
             var rng = ChessLCG(state: seed)
             return pool[Int.random(in: 0..<pool.count, using: &rng)]

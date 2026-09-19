@@ -170,12 +170,88 @@ struct EngineTests {
     }
 }
 
+// MARK: - 自己対戦ハーネス（将棋 `ShogiSelfPlay` と同じ設計）
+
+/// 難易度の実測用。`timeLimit` を実測の 100 倍以上に取って**深さで決まる**状態にしてから使う。
+enum ChessSelfPlay {
+    /// 決定的な擬似乱数（ランダム役の手を再現可能にする。将棋 `ShogiSelfPlay.Rand` と同じ実装）。
+    struct Rand {
+        var state: UInt64
+        init(seed: UInt64) { state = seed &* 6364136223846793005 &+ 1442695040888963407 }
+        mutating func int(_ upper: Int) -> Int {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            let mixed = state ^ (state >> 33)
+            return upper <= 0 ? 0 : Int(mixed % UInt64(upper))
+        }
+    }
+
+    struct Result {
+        /// 白視点の駒得（キングを除く盤上の駒）。
+        var material: Int
+        var plies: Int
+        /// 詰みで終わったなら負けた側。手数上限・ステイルメイトなら nil。
+        var mated: ChessColor?
+    }
+
+    /// `nil` を渡した側はランダムに指す（「壊れていないこと」の対照）。
+    static func play(
+        white: SimpleChessEngine?,
+        black: SimpleChessEngine?,
+        seed: UInt64,
+        maxPlies: Int
+    ) async -> Result {
+        var pos = ChessPosition.start()
+        var rng = Rand(seed: seed)
+        for ply in 0..<maxPlies {
+            let moves = pos.legalMoves()
+            if moves.isEmpty {
+                let mated = pos.isKingInCheck(pos.sideToMove) ? pos.sideToMove : nil
+                return Result(material: material(pos), plies: ply, mated: mated)
+            }
+            var chosen = moves[rng.int(moves.count)]
+            let engine = pos.sideToMove == .white ? white : black
+            if let engine {
+                let uci = await engine.bestMove(fen: pos.toFEN())
+                let move = uci.flatMap(ChessMove.fromUCI)
+                #expect(move != nil, "CPU が手を返さなかった")
+                if let move {
+                    #expect(moves.contains(move), "CPU が非合法手を選んだ: \(uci ?? "-")")
+                    chosen = move
+                }
+            }
+            pos.make(chosen)
+        }
+        return Result(material: material(pos), plies: maxPlies, mated: nil)
+    }
+
+    /// キングを除いた駒の価値の差（白視点）。
+    static func material(_ pos: ChessPosition) -> Int {
+        var s = 0
+        for sq in 0..<ChessSquare.count {
+            guard let p = pos.squares[sq], p.type != .king else { continue }
+            s += (p.color == .white ? 1 : -1) * ChessPieceValue.base(p.type)
+        }
+        return s
+    }
+}
+
 // MARK: - 入門・ガチ（#1174）
 
 /// 両端に足した 2 段（#1174）。段の番号は 0 始まりではない（`CPUStrength`）。
 ///
 /// 将棋 `ShogiNoviceAndSeriousTests` と対で、同じ考え方・同じ物差しで見る
 /// （エンジンは共通化しないが、段の設計は 4 ゲームで揃える）。
+///
+/// **「入門 < 簡単」の直接対戦もこのファイルの方針どおり CI に置かない。** 将棋と同じ理由が
+/// そのまま当てはまる: 深さ 2 どうしの直接対戦では、乱択の幅が「簡単の最善からポーン 1 枚未満」
+/// しかないため差が埋もれる。実測（8手だけランダムに進めてから 60 手・40 局、先後を半々にした
+/// 直接対戦・デバッグビルド・192 秒）: **入門 19 勝/40 局・引き分け 7・入門視点の駒得合計 +5340**
+/// と、むしろ入門が上回っている（ノイズの範囲。統計的な差にならない）。将棋の旧「弱」に相当する
+/// 深い相手を挟めば差は出るはずだが、チェスの「ふつう」（深さ 3・位置評価＋静止探索あり）を
+/// 相手に 16 局（4 シード×先後）試したところ 3 分 43 秒かかった（実測）ため、有意な局数を
+/// 回すにはオフラインでも現実的な時間に収まらない。そのため CI には①設定の一致
+/// ②タダ取り・刺し違え回避・1 手詰め（このファイルの下にある個別テスト）
+/// ③入門がでたらめな相手には大差で勝つこと、の 3 つを置く。
 @Suite("チェスの入門とガチ")
 struct ChessNoviceAndSeriousTests {
 
@@ -274,5 +350,18 @@ struct ChessNoviceAndSeriousTests {
             ).bestMove(fen: ChessPosition.startFEN) { easyMoves.insert(uci) }
         }
         #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+    }
+
+    /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する
+    /// （将棋 `noviceStillCrushesRandomPlay` と同じ物差し）。
+    @Test("入門もでたらめな相手には大差で勝つ")
+    func noviceStillCrushesRandomPlay() async {
+        let novice = untimedNovice(seed: 13)
+
+        let asWhite = await ChessSelfPlay.play(white: novice, black: nil, seed: 13, maxPlies: 120)
+        #expect(asWhite.material > 1_000, "白の「入門」が駒得できていない（\(asWhite.material)）")
+
+        let asBlack = await ChessSelfPlay.play(white: nil, black: novice, seed: 13, maxPlies: 120)
+        #expect(asBlack.material < -1_000, "黒の「入門」が駒得できていない（\(asBlack.material)）")
     }
 }
