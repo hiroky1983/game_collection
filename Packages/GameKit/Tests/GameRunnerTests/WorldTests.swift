@@ -413,11 +413,8 @@ struct RunnerWorldTests {
             (.harbor, "木箱", P.crateWood, RunnerWorld.harbor.outline),
             (.harbor, "木箱の上面", P.crateTop, RunnerWorld.harbor.outline),
             (.harbor, "防舷材", P.fender, RunnerPalette.pitEdge),
-            // 突き上げ（#1010）。淡い皮（`T`）・淡い泡（`C`）はどちらも背景と 1.0〜1.4:1 しか無いので、
-            // **3:1 を担っているのは縁取りと、面の中の濃い側**（竹の子は樹皮の `S`、波しぶきは
-            // 水の陰の `N`）。主色にその濃い側を置いて、縁取りだけで通る空振りにしない
-            // （2026-09-18 の敵対的検証で、`C` を港町の背景色そのものにしても緑だったのを実測）。
-            (.satoyama, "竹の子", art["S"]!, RunnerPixelArt.outline),
+            // 突き上げの予告（#1010）。土の盛り上がりは樹皮の `S`、泡は淡い `C`。
+            // **竹の子（`shootArt`）はここではなく下の「主色だけ」の群で見る**——理由はそちらに書いた。
             (.satoyama, "土の盛り上がり", art["S"]!, RunnerPixelArt.outline),
             (.harbor, "波しぶき", art["N"]!, RunnerPixelArt.outline),
             (.harbor, "泡", art["C"]!, RunnerPixelArt.outline),
@@ -431,6 +428,22 @@ struct RunnerWorldTests {
                     "\(item.0) の\(item.1) 主色 \(main) / 縁取り \(edge) と \(name) \(String(backdrop, radix: 16))"
                 )
             }
+        }
+        // 竹の子（#1010）は**主色だけで 3:1 を要求する**（崩れる足場・高い塀と同じ扱い）。
+        // 上の `items` の形（主色か縁取りのどちらかが通ればよい）に混ぜると、縁取り
+        // （`RunnerPixelArt.outline`）がどの背景とも 8.2:1 以上あるので、竹の子の主色を
+        // 背景そのものにしても緑になってしまう。
+        //
+        // 比べる色は**絵に実在する濃い側**（`a` = 0x27663A・穂先の濃い緑）。
+        // 以前は樹皮の `S` と比べていたが、`RunnerPixelArt.bambooShootRows` に使われている文字は
+        // `. A K T a h s` だけで **`S` は 1 ドットも無い**——上の「切り株」の行と主色も縁取りも
+        // 同じだったので、切り株が通る限り必ず通る空振りだった（#1148）。
+        // 淡い皮（`T`）は背景と 1.0〜1.4:1 しか無いので、3:1 を担えるのは濃い側だけ。
+        for (name, backdrop) in RunnerWorld.satoyama.groundBackdrops {
+            #expect(
+                WCAG.contrast(art["a"]!, backdrop) >= 3.0,
+                "里山の竹の子の穂先が \(name) (\(String(backdrop, radix: 16))) に溶ける"
+            )
         }
         // 崩れる足場（#1090）は**縁取りのノードを持たない**（板 1 枚ずつに `SKShapeNode` を足すと
         // 1 基で 20 個増える）。したがって上の `items` の形（主色か縁取りのどちらかが通ればよい）に
