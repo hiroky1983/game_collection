@@ -470,7 +470,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             }.value
         } commit: { uci in
             // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
-            guard phase == .playing, !gameOver, !isAITurn, !hints.isExhausted,
+            // 成り選択中（`pendingPromotion`）を外せないのが要点（PR #1184 の指摘）。読みの最中でも
+            // 成り先は選べてしまい、そのとき `aiTurnKey` はまだ変わらないのでキーの照合では弾けない。
+            // 弾かずに通すと、直後の `apply` が印を消すので「回数だけ減ってヒントが出ない」になる。
+            guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
+                  !hints.isExhausted,
                   let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move),
                   hints.consume() else { return }
             hintMove = move

@@ -65,6 +65,35 @@ struct ShogiHintTests {
         #expect(model.hintsRemaining == BoardHintBudget.perGame - 1, "指したら回数が戻っている")
     }
 
+    /// 読みの最中でも成・不成は選べてしまい、そのとき `aiTurnKey` はまだ変わらないので
+    /// キーの照合では弾けない（PR #1184 の指摘。チェスと同じ穴）。
+    @Test("成り・不成を選んでいる最中に返ってきたヒントは、回数を減らさない")
+    func hintDuringPromotionChoiceIsDropped() async throws {
+        let store = MemorySnapshotStore()
+        // 4 段目の歩が 3 段目（敵陣）へ上がると成・不成を選ぶ局面（人間=先手の手番）。
+        try store.save(
+            ShogiSnapshot(
+                initialSfen: "4k4/9/9/2P6/9/9/9/9/4K4 b - 1", moves: [], phase: .playing,
+                reviewPly: nil, sente: .human, gote: .ai, aiLevel: 1,
+                startedAt: Date(), undoUsed: false
+            ),
+            for: "shogi"
+        )
+        let model = ShogiGameModel(services: makeServices(store))
+        try #require(!model.gameOver && !model.isAITurn, "前提: 先手（人間）の手番で止まっている")
+
+        // 読みが始まる直前に成り・不成の選択へ入る（手数は増えないので照合は素通りする）。
+        model.thinkingGate = { @MainActor in
+            model.tapSquare(Sq.fromUSI(Substring("7d")) ?? 0)
+            model.tapSquare(Sq.fromUSI(Substring("7c")) ?? 0)
+        }
+        await model.requestHint()
+
+        #expect(model.pendingPromotion != nil, "前提: 成り・不成の選択中のまま")
+        #expect(model.hints.used == 0, "選択中に返ってきたヒントで回数が減っている")
+        #expect(model.hintMove == nil, "成り・不成の選択中にヒントの印を出している")
+    }
+
     @Test("新規対局で3回に戻る")
     func newGameRefillsHints() async {
         let model = ShogiGameModel(services: nil)

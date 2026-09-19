@@ -75,6 +75,36 @@ struct ChessHintTests {
         #expect(model.hintMove == nil, "前の対局のヒントの印が残っている")
     }
 
+    /// 読みの最中でも成り先は選べてしまい、そのとき `aiTurnKey` はまだ変わらないので
+    /// キーの照合では弾けない（PR #1184 の指摘）。通すと直後の `apply` が印を消すため、
+    /// 「回数だけ減ってヒントが出ない」になる。
+    @Test("成り先を選んでいる最中に返ってきたヒントは、回数を減らさない")
+    func hintDuringPromotionChoiceIsDropped() async throws {
+        let store = MemorySnapshotStore()
+        // a7 のポーンが a8 へ上がると成り先を選ぶ局面（人間=白の手番）。
+        try store.save(
+            ChessSnapshot(
+                initialFen: "4k3/P7/8/8/8/8/8/4K3 w - - 0 1", moves: [], phase: .playing,
+                reviewPly: nil, white: .human, black: .ai, aiLevel: 1,
+                startedAt: Date(), undoUsed: false
+            ),
+            for: "chess"
+        )
+        let model = ChessGameModel(services: makeChessServices(store))
+        try #require(!model.gameOver && !model.isAITurn, "前提: 白（人間）の手番で止まっている")
+
+        // 読みが始まる直前に成り先の選択へ入る（手数は増えないので照合は素通りする）。
+        model.thinkingGate = { @MainActor in
+            model.tapSquare(ChessSquare.fromName("a7") ?? 0)
+            model.tapSquare(ChessSquare.fromName("a8") ?? 0)
+        }
+        await model.requestHint()
+
+        #expect(model.pendingPromotion != nil, "前提: 成り先の選択中のまま")
+        #expect(model.hints.used == 0, "選択中に返ってきたヒントで回数が減っている")
+        #expect(model.hintMove == nil, "成り先の選択中にヒントの印を出している")
+    }
+
     @Test("中断データに使った回数が乗り、再開しても残りが戻らない")
     func hintCountSurvivesRestart() async throws {
         let store = MemorySnapshotStore()

@@ -385,9 +385,17 @@ public struct BoardHintButton<Model: BoardHintModel>: View {
         .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.yellow))
         .disabled(!model.canUseHint)
         .accessibilityLabel("ヒント、残り\(model.hintsRemaining)回")
-        .accessibilityHint(model.canUseHint
-                           ? "CPU の読みで最善手を1手だけ盤の上に示します。ヒントを使った対局は順位表に送りません"
-                           : "いまは使えません（あなたの手番ではないか、3回とも使い切りました）")
+        // 読みの最中も `canUseHint` は false になる。「使えない理由」だけを読ませると、
+        // 押した直後の数秒に「あなたの手番ではない」と誤った案内をすることになる（PR #1184 の指摘）。
+        .accessibilityHint(hintText)
+    }
+
+    /// ボタンの状態ごとの読み上げ説明。
+    private var hintText: String {
+        if model.isHintThinking { return "CPU が最善手を読んでいます" }
+        return model.canUseHint
+            ? "CPU の読みで最善手を1手だけ盤の上に示します。ヒントを使った対局は順位表に送りません"
+            : "いまは使えません（あなたの手番ではないか、3回とも使い切りました）"
     }
 }
 
