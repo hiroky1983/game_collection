@@ -352,6 +352,28 @@ struct RunnerStoryTests {
         #expect(source.contains("Color.clear.frame(height: BannerSlot.height)"))
     }
 
+    /// コマ替えを静止画のパッ切り替えからクロスフェードにする（#1170・会長QA「静止画のパッ切り替えで淡々」）。
+    ///
+    /// `Image`/`Text` は中身の差し替え自体がアニメーション対象にならないため、`.contentTransition`
+    /// で補間対象にする必要がある。`.contentTransition` は「有効なアニメーションが張られている
+    /// ときだけ」補間する SwiftUI の仕様なので、`.gameAnimation` が Reduce Motion で
+    /// `.animation(nil, value:)` に落ちれば、専用の分岐を書かなくてもクロスフェードごと止まる。
+    /// この結線が崩れていないかは `swift test` からは見えない（View の描画は観測できない）ので、
+    /// 絵・台詞の両方に付いていて `.gameAnimation` の外に出ていないことをソースの形で固定する。
+    @Test("絵と台詞のコマ替えはクロスフェードで、Reduce Motion に追従するアニメーションの中にある（#1170）")
+    func panelSwitchCrossFadesInsideGameAnimation() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
+        let view = try #require(SourceScan.declaration(of: "struct RunnerStoryView", in: source))
+        #expect(
+            SourceScan.matchCount(of: #"\.contentTransition\(\.opacity\)"#, in: view) == 2,
+            "絵・台詞のどちらかに .contentTransition が付いていない"
+        )
+        #expect(
+            view.contains(".gameAnimation(.easeInOut(duration: 0.28), value: index)"),
+            "素の .animation を使っている、または gameAnimation の外に出ている"
+        )
+    }
+
     // MARK: 4. 絵
 
     @Test("どのコマも 1 枚の格子に焼き込まれ、寸法が揃っていてパレットに無い文字が無い")

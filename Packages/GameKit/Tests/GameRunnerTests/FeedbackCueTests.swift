@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import GameRunner
 import CoreTestSupport
+import GameRunnerTestSupport
 
 /// 効果音 4 音（#703: 跳ぶ・取る・やられる・クリア）。
 ///
