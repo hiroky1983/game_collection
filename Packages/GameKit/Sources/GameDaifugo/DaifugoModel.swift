@@ -89,10 +89,12 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var lastRanking: [Int] = []
     /// 直前に行ったカード交換の内訳（リザルト直後の説明に使う）。
     public private(set) var lastTransfers: [DaifugoTransfer] = []
-    /// 次のゲームの大富豪⇔大貧民の交換を、広告で免除済みか（#1048）。`startGame()` で使って戻す。
+    /// 次のゲームの大富豪⇔大貧民の交換を、広告で免除済みか（#1048）。
     ///
     /// 順位（`lastRanking`）と一緒に `DaifugoCarryOver` へ書き、画面を離れて開き直しても
-    /// **次の1ゲームだけ**効くようにしてある（#1066）。
+    /// **次の1ゲームだけ**効くようにしてある（#1066）。戻すのは配った時点ではなく、
+    /// 順位の持ち越しと同じ「その配りが確定した時点」= 1手目の保存（`persist()`）と
+    /// 決着（`concludeGame()`）の2か所（#1146）。
     public private(set) var isExchangeWaived = false
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
@@ -269,13 +271,13 @@ public final class DaifugoModel: AITurnGuarded {
             dealt = exchanged.hands
             lastTransfers = exchanged.transfers
         }
-        isExchangeWaived = false   // 免除は直後の1ゲームだけ（#1048）
-        // 持ち越しを消すのは**この局の1手目が着手された時点**（`persist()`）で、配った時点では消さない（#1103）。
-        // 配ったばかりの局は中断データも保存されない（`isUntouchedDeal`・#240）ため、ここで消すと
+        // 持ち越し（順位・免除）は配った時点では**一切触らない**（#1103・#1146）。消えるのは
+        // この局の1手目が保存されたとき（`persist()`）と決着したとき（`concludeGame()`）の2か所だけ。
+        // 配ったばかりの局は中断データも保存されない（`isUntouchedDeal`・#240）ため、ここで順位を消すと
         // 「開いて・1手も出さずに閉じて・開き直す」だけで交換ゼロの配りが手に入り、#1066 が塞いだはずの
-        // 「広告を見るよりハブへ戻るほうが得」がタップ1回ぶん増えただけで残る。
-        // 免除（`isExchangeWaived`）はこの配りで使い切ったので、順位だけを残して書き直す（#1048）。
-        persistCarryOver()
+        // 「広告を見るよりハブへ戻るほうが得」がタップ1回ぶん増えただけで残る（#1103）。
+        // 免除（`isExchangeWaived`）だけをここで落とすと向きが反転し、同じ経路で
+        // **広告を見た人だけが免除を失う**（#1146）。どちらも「配りは着手されるまで確定しない」で揃える。
 
         hands = dealt
         field = []
@@ -528,6 +530,10 @@ public final class DaifugoModel: AITurnGuarded {
         }
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
         services?.snapshots.clear(for: gameID)
+        // 決着した = 免除を乗せた配りが終わった（#1146）。1手も出さずに投了した局は `persist()` を
+        // 通らないので、消費をあちらだけに任せると免除が次の階級と一緒に持ち越され、
+        // 1本の広告で何ゲームでも献上を逃げられる。新しい階級を書き込む前にここで戻す。
+        isExchangeWaived = false
         // 中断データは決着で消えるが、次のゲームの交換に使う順位だけは別に残す（#1066）。
         persistCarryOver()
     }
@@ -650,16 +656,20 @@ public final class DaifugoModel: AITurnGuarded {
             // 持ち越しはここで使い切る。残したままにすると、何日も経ってから開いた対局にまで
             // 古い順位の交換が乗り続ける。
             services?.snapshots.clear(for: carryOverID)
+            // 免除もこの1手目で使い切る（#1146）。持ち越しが消えた以上「まだ着手していない配り」は
+            // もう作れないので、ここで戻さないと同じ免除が対局中の「新しいゲーム」にも乗り続ける。
+            isExchangeWaived = false
         } catch {
             // 保存に失敗したときは持ち越しを**残す**。ここで消すと中断データも持ち越しも無い状態になり、
             // #1103 で塞いだ「交換ゼロで配り直せる」経路が書き込みエラーのときだけ再発する。
+            // 免除も同じ理由で残す（消すと今度は広告を見た側が損をする・#1146）。
         }
     }
 
     /// 次のゲームへの持ち越し（順位・免除）を保存する（#1066）。
     ///
-    /// 呼ぶのは決着時（`concludeGame()`）・広告の免除時（`waiveExchangeAfterAd()`）・次の配り
-    /// （`startGame()` で免除だけ使い切って書き直す）の3か所。消えるのは**その局の1手目が
+    /// 呼ぶのは決着時（`concludeGame()`）と広告の免除時（`waiveExchangeAfterAd()`）の2か所。
+    /// 配った時点（`startGame()`）では呼ばない（#1146）。消えるのは**その局の1手目が
     /// 保存されたとき**の1か所だけ（`persist()`・#1103）。決着のたびに上書きするので、
     /// 1 度の階級が何ゲームも効き続けることはない。
     private func persistCarryOver() {
