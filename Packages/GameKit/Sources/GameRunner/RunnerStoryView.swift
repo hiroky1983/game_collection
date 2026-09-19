@@ -73,9 +73,9 @@ struct RunnerStoryView: View {
                     capsuleButton("とばす", action: onFinish)
                         .accessibilityHint("このおはなしを最後まで飛ばします")
                 }
-                // 画面の最下部はバナー（`BannerSlot`）の帯なので、その上に置く。
-                // 幕がタップを受け切るので広告が誤って押されることはないが、
-                // 押すボタンを広告の真上に重ねない。
+                // 画面の最下部はバナー（`BannerSlot`）の帯。幕のあいだバナー自体は出さない
+                // （`RunnerView.showsBanner`・#1147）が、枠の高さは空の帯として残るので、
+                // ボタンはその上に置いたままにする（幕が明けた前後でボタンの位置が動かない）。
                 .padding(.bottom, 84)
             }
             .gameAnimation(.easeInOut(duration: 0.28), value: index)
