@@ -309,8 +309,9 @@ PR_COUNT=$(printf '%s\n' "$MERGED_PRS" | wc -l | tr -d ' ')
 
 log "監査当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, since=$SINCE, prs=$PR_COUNT)"
 cd "$RUN_DIR" || exit 0
-# Fable 5.1 で起動する（会長指示 2026-09-14「複雑なタスクは Fable で」。1 日 1 回なので利用量は限定的）。
-PATH="$GH_SHIM_DIR:$PATH" claude --model "${AUDIT_MODEL:-fable}" \
+# Sonnet で起動する（会長指示 2026-09-18: 週間リミット逼迫のため恒久対応で全モデル Sonnet に固定。
+# 2026-09-14 の「複雑なタスクは Fable で」は撤回）。
+PATH="$GH_SHIM_DIR:$PATH" claude --model "${AUDIT_MODEL:-sonnet}" \
   --allowedTools "Bash,Read,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-audit-prompt.md")
 
