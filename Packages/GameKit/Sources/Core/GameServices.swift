@@ -224,4 +224,18 @@ public struct GameServices {
         )
         return result
     }
+
+    /// 決着とリザルトのあいだに演出を挟むゲーム（チャリンコおじさんのゴールの演出・世界の締め）が、
+    /// **演出の局面に入る入口**で呼ぶ（#1143）。評価リクエストは予定だけ立てて伏せ、
+    /// `resultDidBecomeVisible()` を呼ぶまで出さない。記録・解析・順位表の順序（#1092）は変えない。
+    @MainActor
+    public func deferReviewRequestUntilResultIsVisible() {
+        review?.deferUntilResultIsVisible()
+    }
+
+    /// 上の演出が終わってリザルトに移った瞬間に呼ぶ（#1143）。伏せていなければ何も起きない。
+    @MainActor
+    public func resultDidBecomeVisible() {
+        review?.resultDidBecomeVisible()
+    }
 }

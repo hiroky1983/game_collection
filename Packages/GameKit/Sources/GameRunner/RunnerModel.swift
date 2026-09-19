@@ -630,6 +630,9 @@ public final class RunnerModel {
         // （宝くじは飛んでいった先・おじさんは画面の外）を、毎面の演出を見た回と揃えるため。
         didFinishGoalChase = true
         phase = .story
+        // 締めは最長 4.8 秒（1.2 秒 × 4 コマ・#1123）。そのあいだ評価リクエストを伏せないと、
+        // 条件6「リザルトの1.0秒後」から外れて演出のさなかにダイアログが被る（#1143）。
+        services?.deferReviewRequestUntilResultIsVisible()
     }
 
     /// 締めを見終えた / 飛ばした。記録はすでに確定しているので、局面を進めるだけ。
@@ -637,6 +640,8 @@ public final class RunnerModel {
         guard phase == .story else { return }
         storyScene = nil
         phase = phaseAfterChase
+        // ここでリザルトが見えるので、伏せていた評価リクエストを表に戻す（#1143）。
+        services?.resultDidBecomeVisible()
     }
 
     // MARK: - ゴールの演出（#1092）
@@ -660,6 +665,9 @@ public final class RunnerModel {
         chaseElapsed = 0
         didFinishGoalChase = false
         phase = .chasing
+        // 演出は `RunnerRules.goalChaseDuration`（1.5秒・#1121）。`beginStory` と同じ理由で
+        // 評価リクエストを伏せる（#1143）。
+        services?.deferReviewRequestUntilResultIsVisible()
     }
 
     /// 演出を飛ばしてリザルトを出す。タップ（`press`）と、時間切れ（`tick`）の共通の出口。
@@ -669,6 +677,8 @@ public final class RunnerModel {
         guard phase == .chasing else { return }
         didFinishGoalChase = true
         phase = phaseAfterChase
+        // ここでリザルトが見えるので、伏せていた評価リクエストを表に戻す（#1143）。
+        services?.resultDidBecomeVisible()
     }
 
     /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（ここは `PlayRecord.applying` と同じ）。
