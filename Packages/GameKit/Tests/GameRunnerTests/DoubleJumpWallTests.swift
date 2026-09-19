@@ -248,18 +248,24 @@ struct RunnerDoubleJumpWallTests {
     func wallsAreHitWhenTheSecondJumpIsSkipped() {
         var checked = 0
         for stage in RunnerStage.all {
-            for wall in stage.hazards where wall.kind == .wall {
+            let walls = stage.hazards.filter { $0.kind == .wall }
+            for wall in walls {
                 var field = RunnerField(stage: stage)
                 var events: [RunnerEvent] = []
                 var frames = 0
                 var invincibleAtWall = false
                 while field.distance < wall.end + 8, frames < 60 * 180 {
                     frames += 1
-                    // **二段目だけを踏まない**（`shouldTakeSecondJump` が真のフレームを飛ばす）。
-                    // それ以外は自動操縦のまま走らせる。
-                    if RunnerAutoPilot.shouldJump(field: field),
-                       !RunnerAutoPilot.shouldTakeSecondJump(field: field) {
-                        field.jump()
+                    // **二段目を踏まないのは対象の塀だけ**。手前の塀では踏んで越える。
+                    //
+                    // 全部の塀で踏まないと、塀が 2 本ある面（27〜30）では 1 本目でミスして
+                    // 打ち切られ、`events.contains(.crashed)` も `!invincibleAtWall` も 1 本目で
+                    // 決まってしまう——**2 本目には一度も到達しないまま緑**になる
+                    // （9 本中 5 本しか実走していなかった。#1148）。
+                    if RunnerAutoPilot.shouldJump(field: field) {
+                        let skipping = RunnerAutoPilot.shouldTakeSecondJump(field: field)
+                            && Self.nextWall(in: walls, at: field)?.start == wall.start
+                        if !skipping { field.jump() }
                     }
                     if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
                     if field.playerMaxX > wall.start, field.isInvincible { invincibleAtWall = true }
@@ -275,9 +281,25 @@ struct RunnerDoubleJumpWallTests {
                     events.contains(.crashed) && field.lastMissCause == .rock,
                     "ステージ \(stage.number) の塀（\(wall.start)）は二段目無しでも越えられる（\(events.last.map { "\($0)" } ?? "-")）"
                 )
+                // **その塀で落ちた**こと（手前の塀・岩で打ち切られた結果を取り違えない）。
+                // 止まった位置が対象の塀と横に重なっていることまで見る。
+                #expect(
+                    field.playerMaxX >= wall.start && field.playerMinX <= wall.end,
+                    """
+                    ステージ \(stage.number): 対象の塀（\(wall.start)〜\(wall.end)）ではない場所で終わった\
+                    （走者 \(field.playerMinX)〜\(field.playerMaxX)）
+                    """
+                )
             }
         }
-        #expect(checked >= 5, "塀が \(checked) 本しか無い（この検証が空振りしている）")
+        #expect(checked >= 9, "塀が \(checked) 本しか無い（この検証が空振りしている）")
+    }
+
+    /// いま走者が向かっている塀（右端がまだ走者の後ろに抜けていない、いちばん手前の塀）。
+    /// `RunnerAutoPilot.isAimingSecondJump` は「どの塀か」を返さないので、対象の塀でだけ
+    /// 二段目を抜くために `wallsAreHitWhenTheSecondJumpIsSkipped` が自前で持つ。
+    static func nextWall(in walls: [RunnerHazard], at field: RunnerField) -> RunnerHazard? {
+        walls.first { $0.end >= field.playerMinX }
     }
 
     /// ゆっくりモード（アクセシビリティ）でも同じ操作で越えられること。時間が一様に遅くなるだけで
@@ -375,6 +397,56 @@ struct RunnerDoubleJumpWallTests {
             RunnerRules.doubleJumpRange(at: fastest)
                 <= Double(RunnerRules.wallLandingSegments) * segment
         )
+    }
+
+    /// 決裁の「入れない組み合わせ」の続き（#1148）: **塀の手前の一定距離にたこ焼きを置かない**。
+    ///
+    /// たこ焼きの無敵（`RunnerRules.invincibleDuration` = 3 秒）を着けたまま塀へ着けると、
+    /// 二段ジャンプを踏まずに素通りできてしまう。実走の検査（`wallsAreHitWhenTheSecondJumpIsSkipped`）
+    /// は**自動操縦の乗り**（実測 1.41 前後）でしか走らないので、上限まで乗せて走る人の並びは
+    /// 見逃す——30 面はたこ焼きから塀まで 4 区画で、乗りが上限（1.55）なら 2.89 秒で着いて
+    /// 0.11 秒ぶん無敵が残っていた（2026-09-19 実測）。鳥（`noBirdRightBeforeAWall`）と同じく
+    /// **区画記号と座標の両方**で弾く。
+    @Test("塀の手前にたこ焼きが無く、いちばん速く走っても着くまでに無敵が切れる")
+    func noTakoyakiRightBeforeAWall() {
+        var seen = 0
+        for stage in RunnerStage.all {
+            let pattern = Array(stage.pattern)
+            for (index, symbol) in pattern.enumerated() where symbol == "w" {
+                for offset in 1...RunnerRules.wallTakoyakiClearanceSegments {
+                    let before = index - offset
+                    guard pattern.indices.contains(before) else { continue }
+                    #expect(
+                        pattern[before] != RunnerStage.takoyakiSymbol,
+                        "ステージ \(stage.number): 塀（区画 \(index)）の \(offset) 区画手前がたこ焼き"
+                    )
+                }
+            }
+            // 座標でも見る: **接地中に出せるいちばん速い速さ**で走っても、塀に着くころには
+            // 無敵が切れていること。区画数の規則はいちばん速い面で引いた 1 本なので、
+            // あいだに加速床（`boostFloorMultiplier`）が架かる並びだけは区画数では足りない。
+            for wall in stage.hazards where wall.kind == .wall {
+                for takoyaki in stage.pickups
+                where takoyaki.kind == .invincible && takoyaki.start < wall.start {
+                    seen += 1
+                    let boosted = stage.boostFloors.contains {
+                        takoyaki.start < $0.end && $0.start < wall.start
+                    }
+                    let speed = stage.speed
+                        * (RunnerRules.maxPedalBoost + RunnerRules.justLandingOverboost)
+                        * (boosted ? RunnerRules.boostFloorMultiplier : 1)
+                    let seconds = (wall.start - takoyaki.start) / speed
+                    #expect(
+                        seconds > RunnerRules.invincibleDuration,
+                        """
+                        ステージ \(stage.number): たこ焼き（\(takoyaki.start)）から塀（\(wall.start)）まで\
+                        最速 \(seconds) 秒——無敵（\(RunnerRules.invincibleDuration) 秒）が切れないまま着ける
+                        """
+                    )
+                }
+            }
+        }
+        #expect(seen > 0, "塀より手前にたこ焼きのある面が 1 つも無い（この検証が空振りしている）")
     }
 
     /// 決裁の「入れない組み合わせ」: **塀の手前の一定距離に鳥を置かない**
