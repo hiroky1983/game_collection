@@ -203,6 +203,8 @@ public struct ChessView: View {
         let pos = model.displayedPosition
         // 64 マスの読み上げ文それぞれから引くので、ここで 1 回だけ求める。
         let checkedKing = model.checkedKingSquare
+        // `hintSquares` も同じ理由でループの外に出す（1 回の描画で 64 回導かない）。
+        let hintSquares = model.hintSquares
         return GeometryReader { geo in
             let cell = (geo.size.width - 8) / 8
             VStack(spacing: 0) {
@@ -225,7 +227,8 @@ public struct ChessView: View {
                                 isSelected: model.selectedSquare == idx,
                                 isTarget: model.legalTargets.contains(idx),
                                 isLastMove: model.highlightedSquares.contains(idx),
-                                isCheckedKing: checkedKing == idx
+                                isCheckedKing: checkedKing == idx,
+                                isHint: hintSquares.contains(idx)
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -239,7 +242,8 @@ public struct ChessView: View {
                 corner: Theme.cornerSmall,
                 pieces: { pieceLayer(cell: cell) },
                 check: { checkLayer(cell: cell) },
-                targets: { targetLayer(cell: cell) }
+                targets: { targetLayer(cell: cell) },
+                hint: { hintLayer(cell: cell) }
             )
             // 座標の文字はチェスにしかない層なので、共通の重ね順の外に置く。
             .overlay { coordinateLayer(cell: cell) }
@@ -357,6 +361,30 @@ public struct ChessView: View {
         .accessibilityHidden(true)
     }
 
+    /// ヒントの印（#1118）。推奨手の移動元・移動先マスを黄色の枠で囲む。
+    ///
+    /// 着手先の印（`targetLayer`・珊瑚色）と色を分けるのは、同じ色だと「自分が選んだ駒の
+    /// 行き先」と「ヒントが指した手」が見分けられないため。指す・待った・新規対局で消える。
+    private func hintLayer(cell: CGFloat) -> some View {
+        GeometryReader { geo in
+            let slot = geo.size.width / 8
+            ZStack(alignment: .topLeading) {
+                ForEach(model.hintSquares.sorted(), id: \.self) { square in
+                    let spot = ChessSquare.displayPosition(of: square, flipped: flipped)
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Theme.yellow, lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Theme.yellow.opacity(0.28)))
+                        .frame(width: cell - 4, height: cell - 4)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        // 読み上げはマス（`ChessCell` の `isHint`）が持つ。
+        .accessibilityHidden(true)
+    }
+
     /// 筋（a〜h）と段（1〜8）の目印。棋譜表記と盤を突き合わせられるようにする。
     /// マスの色に応じて**反対色**で描くので、明暗どちらのマスに載っても読める。
     private func coordinateLayer(cell: CGFloat) -> some View {
@@ -438,6 +466,10 @@ public struct ChessView: View {
             // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。
             BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) { showResignConfirm = true }
                 .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
+
+            Spacer()
+
+            BoardHintButton(model: model, usesTapTargetCapsule: false)
 
             Spacer()
 

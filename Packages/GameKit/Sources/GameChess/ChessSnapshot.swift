@@ -21,6 +21,8 @@ public struct ChessSnapshot: Codable, Equatable, Sendable {
     /// 追加する項目は**必ず Optional**にする（古いスナップショットが読めなくなるため）。
     public var undoUsed: Bool?
     public var resigned: Bool?
+    /// この局で使ったヒントの回数（#1118）。
+    public var hintsUsed: Int?
 
     public init(
         initialFen: String,
@@ -32,7 +34,8 @@ public struct ChessSnapshot: Codable, Equatable, Sendable {
         aiLevel: Int?,
         startedAt: Date,
         undoUsed: Bool,
-        resigned: Bool = false
+        resigned: Bool = false,
+        hintsUsed: Int = 0
     ) {
         self.initialFen = initialFen
         self.moves = moves
@@ -44,5 +47,6 @@ public struct ChessSnapshot: Codable, Equatable, Sendable {
         self.startedAt = startedAt
         self.undoUsed = undoUsed
         self.resigned = resigned
+        self.hintsUsed = hintsUsed
     }
 }

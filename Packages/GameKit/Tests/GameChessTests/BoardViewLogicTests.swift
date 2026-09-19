@@ -106,7 +106,7 @@ struct ChessLastMoveTests {
 @Suite("チェス 盤の組み方")
 struct ChessBoardViewSourceTests {
 
-    /// 角丸 → 駒 → 王手 → 着手先 の重なり順そのものは、共通の `boardLayers`（Core・#530）が持つ。
+    /// 角丸 → 駒 → 王手 → 着手先 → ヒント の重なり順そのものは、共通の `boardLayers`（Core・#530）が持つ。
     /// **順番の検証はそちらに移した**（`BoardGameChromeSourceTests`）。ここではチェスが自前で
     /// 積み直していないこと = 共通の順番に乗っていることだけを見る。
     /// 修飾子の**置き場所**で決まるため、値では検証できない（将棋 `ShogiPieceLayerSourceTests` と同じ流儀）。
@@ -116,10 +116,11 @@ struct ChessBoardViewSourceTests {
         #expect(lines.contains(".boardLayers("), "board が boardLayers を使っていない:\n\(lines.joined(separator: "\n"))")
         #expect(lines.contains("pieces: { pieceLayer(cell: cell) },"))
         #expect(lines.contains("check: { checkLayer(cell: cell) },"))
-        #expect(lines.contains("targets: { targetLayer(cell: cell) }"))
+        #expect(lines.contains("targets: { targetLayer(cell: cell) },"))
+        #expect(lines.contains("hint: { hintLayer(cell: cell) }"))
         #expect(lines.contains { $0.hasPrefix(".clipShape(") } == false,
                 "board に自前の clipShape がある（共通の角丸と二重に掛かる）:\n\(lines.joined(separator: "\n"))")
-        // 座標の層（チェスにしかない）は共通の重ね順の**後ろ**に来る。共通の 3 層より前に
+        // 座標の層（チェスにしかない）は共通の重ね順の**後ろ**に来る。共通の 4 層より前に
         // 割り込ませると、駒や着手先の印が座標の文字に隠れる。
         guard let shared = lines.firstIndex(of: ".boardLayers("),
               let coordinate = lines.firstIndex(of: ".overlay { coordinateLayer(cell: cell) }") else {
@@ -127,7 +128,7 @@ struct ChessBoardViewSourceTests {
             return
         }
         #expect(shared < coordinate)
-        // 共通の 3 層を自前の overlay で足し直していないこと（座標の 1 枚だけが許される）。
+        // 共通の 4 層を自前の overlay で足し直していないこと（座標の 1 枚だけが許される）。
         #expect(lines.filter { $0.hasPrefix(".overlay {") } == [".overlay { coordinateLayer(cell: cell) }"])
     }
 

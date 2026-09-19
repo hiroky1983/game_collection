@@ -6,7 +6,7 @@ import Core
 /// ルールは `ChessPosition` に委譲し、ここは UI 操作と永続化を担う（将棋の `ShogiGameModel` と同じ分担）。
 @MainActor
 @Observable
-public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
+public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public let initialFEN: String
     public private(set) var moves: [ChessMove]
     public private(set) var position: ChessPosition
@@ -27,6 +27,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
     public var aiLevel: Int
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
+    /// この局で使ったヒントの回数（#1118）。`newGame` で 0 に戻る。
+    public private(set) var hintsUsed: Int
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
@@ -76,6 +78,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false
+        // ヒントが無かった頃の中断データは nil。使っていない局として復元する（#1118）。
+        self.hintsUsed = snap?.hintsUsed ?? 0
         self.gameOver = false
         self.result = nil
 
@@ -304,6 +308,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
+        // 示していた推奨手は、指した時点でこの局面の手ではなくなる（#1118）。
+        clearHint()
         clearSelection()
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
@@ -341,7 +347,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
             services?.feedback.notify(.success)
         }
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: outcome, score: GameScore(metric: .winLoss)
+            gameID: gameID, outcome: outcome,
+            score: finishScore
         )
     }
 
@@ -361,6 +368,10 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         result = nil
         undoUsed = false
         resigned = false
+        // ヒントは 1 局ごとにリセットする（#1118 の確定仕様 A）。
+        hintsUsed = 0
+        hintMove = nil
+        isHinting = false
         recordResult = nil
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
@@ -440,6 +451,75 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         return pos
     }
 
+    // MARK: - ヒント（#1118）
+
+    /// 盤に示している推奨手。指すか、新規対局・待ったで局面が変わると消える。
+    public private(set) var hintMove: ChessMove?
+    /// ヒントの探索中か。連打で探索を重ねないための旗。
+    public private(set) var isHinting: Bool = false
+
+    /// この局で残っているヒントの回数。
+    public var hintsRemaining: Int { BoardHintRules.remaining(used: hintsUsed) }
+
+    /// いまヒントを押せるか。**CPU の手番と思考中は押せない**
+    /// （CPU に指させる手をそのまま見せることになり、ヒントの意味が無い）。
+    public var canUseHint: Bool { isHintablePosition && !isThinking && !isHinting }
+
+    /// 局面の側の条件だけ（探索中かどうかは見ない）。
+    ///
+    /// **探索から戻ったあとの再判定はこちらを使う**。`canUseHint` は `!isHinting` を含むので、
+    /// 自分で立てた旗に引っかかってヒントが必ず捨てられる（テストで実測・#1118）。
+    private var isHintablePosition: Bool {
+        phase == .playing && !gameOver && !isAITurn && hintsRemaining > 0
+    }
+
+    /// 推奨手の移動元・移動先マス（盤のハイライト用）。
+    public var hintSquares: Set<Int> {
+        guard let m = hintMove else { return [] }
+        return [m.from, m.to]
+    }
+
+    /// この局の決着を Game Center の順位表へ送ってよいか（#1118）。
+    ///
+    /// ヒントを 1 回でも使ったら送らない。ローカルの自己ベストには影響しない
+    /// （`GameScore.isLeaderboardEligible` の設計どおり、手元の記録は使用の有無を問わず残る）。
+    var isLeaderboardEligible: Bool { hintsUsed == 0 }
+
+    /// 決着時に `gameDidFinish` へ渡す成績。**決着の経路（詰み・引き分け・投了）が複数あるので
+    /// 1 か所にまとめる**——片方の経路だけヒントの旗を載せ忘れると、その終わり方のときだけ
+    /// 順位表の扱いが変わるという静かな食い違いになる。
+    var finishScore: GameScore {
+        GameScore(metric: .winLoss, isLeaderboardEligible: isLeaderboardEligible)
+    }
+
+    /// 現在の局面の最善手を 1 手求めて盤に示す。
+    ///
+    /// 探索は CPU の着手と同じエンジン・同じ強さで回す。**回数を減らすのは手が見つかったときだけ**で、
+    /// 探索中に局面が変わった（指した・待った・新規対局）場合は何も起きなかったことにする。
+    public func requestHint() async {
+        guard canUseHint else { return }
+        let turn = aiTurnKey
+        isHinting = true
+        defer { isHinting = false }
+
+        let level = aiLevel
+        let fen = position.toFEN()
+        let uci = await Task.detached(priority: .userInitiated) {
+            await SimpleChessEngine(level: level).bestMove(fen: fen)
+        }.value
+
+        // 探索のあいだに局面が動いていたら、その手はもうこの盤の手ではない（#729 と同じ考え方）。
+        guard aiTurnKey == turn, isHintablePosition,
+              let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move) else { return }
+        hintMove = move
+        hintsUsed += 1
+        services?.feedback.impact(.light)
+        persist()
+    }
+
+    /// 盤から推奨手の印を消す。手が進んだとき・局面が戻ったときに呼ぶ。
+    private func clearHint() { hintMove = nil }
+
     // MARK: - 投了
 
     public func resign() {
@@ -477,6 +557,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
         undoUsed = true
+        clearHint()
         clearSelection()
         persist()
     }
@@ -505,7 +586,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
             aiLevel: (white == .ai || black == .ai) ? aiLevel : nil,
             startedAt: startedAt,
             undoUsed: undoUsed,
-            resigned: resigned
+            resigned: resigned,
+            hintsUsed: hintsUsed
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

@@ -193,7 +193,7 @@ struct ShogiPieceLayerSourceTests {
         #expect(body.contains("KomaView(") == false, "ShogiCell が駒を描いています:\n\(body)")
     }
 
-    /// 角丸 → 駒 → 王手 → 着手先 の重なり順そのものは、共通の `boardLayers`（Core・#530）が持つ。
+    /// 角丸 → 駒 → 王手 → 着手先 → ヒント の重なり順そのものは、共通の `boardLayers`（Core・#530）が持つ。
     /// **順番の検証はそちらに移した**（`BoardGameChromeSourceTests`）。ここでは将棋が自前で
     /// 積み直していないこと = 共通の順番に乗っていることだけを見る。
     /// 自前の `.clipShape` / `.overlay` を足すと、共通側を直しても将棋だけ古い順番のまま残る。
@@ -201,10 +201,11 @@ struct ShogiPieceLayerSourceTests {
     func boardUsesSharedLayerOrder() throws {
         let lines = try Self.lines(ofFunction: "private var board: some View {")
         #expect(lines.contains(".boardLayers("), "board が boardLayers を使っていない:\n\(lines.joined(separator: "\n"))")
-        // 3 層は引数として渡す。`.overlay { … }` を自前で足すと共通の順番の外に出る。
+        // 4 層は引数として渡す。`.overlay { … }` を自前で足すと共通の順番の外に出る。
         #expect(lines.contains("pieces: { pieceLayer(cell: cell) },"))
         #expect(lines.contains("check: { checkLayer(cell: cell) },"))
-        #expect(lines.contains("targets: { targetLayer(cell: cell) }"))
+        #expect(lines.contains("targets: { targetLayer(cell: cell) },"))
+        #expect(lines.contains("hint: { hintLayer(cell: cell) }"))
         #expect(lines.contains { $0.hasPrefix(".clipShape(") } == false,
                 "board に自前の clipShape がある（共通の角丸と二重に掛かる）:\n\(lines.joined(separator: "\n"))")
         #expect(lines.contains { $0.hasPrefix(".overlay {") } == false,

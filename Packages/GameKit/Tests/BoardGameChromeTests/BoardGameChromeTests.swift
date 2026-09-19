@@ -203,7 +203,7 @@ struct BoardGameChromeSourceTests {
     @Test("角丸は駒より前、印は駒より後（= 上）に重ねる")
     func boardLayersKeepOrder() throws {
         let lines = try Self.lines(
-            ofFunction: "func boardLayers<Pieces: View, Check: View, Targets: View>("
+            ofFunction: "func boardLayers<Pieces: View, Check: View, Targets: View, Hint: View>("
         )
         let clips = lines.enumerated().filter { $0.element.hasPrefix("clipShape(") }
         // 2つ目を後ろに足されると、そちらが駒の層まで丸めてしまう（数も固定する）。
@@ -211,8 +211,9 @@ struct BoardGameChromeSourceTests {
         guard let clip = clips.first?.offset,
               let pieces = lines.firstIndex(of: ".overlay { pieces() }"),
               let check = lines.firstIndex(of: ".overlay { check() }"),
-              let targets = lines.firstIndex(of: ".overlay { targets() }") else {
-            Issue.record("角丸 / 3 層が見つからない（走査の前提が壊れている）:\n\(lines.joined(separator: "\n"))")
+              let targets = lines.firstIndex(of: ".overlay { targets() }"),
+              let hint = lines.firstIndex(of: ".overlay { hint() }") else {
+            Issue.record("角丸 / 4 層が見つからない（走査の前提が壊れている）:\n\(lines.joined(separator: "\n"))")
             return
         }
         // 角丸をあとに置くと、選択して持ち上げた駒（拡大 + 上へ）が盤の上端で切り落とされる（#477）。
@@ -220,6 +221,9 @@ struct BoardGameChromeSourceTests {
         // 逆にすると、取れる駒を囲む枠や王手の枠が駒の下に潜って読めなくなる（#200・#377）。
         #expect(pieces < check)
         #expect(check < targets)
+        // ヒントの印（#1118）はいちばん上。着手先の印と重なる局面で下に潜ると、
+        // 「押したのに何も出ない」と受け取られる。
+        #expect(targets < hint)
     }
 
     /// 「浮いている」ことは駒の下に落ちる影で伝わるので、影を先に描く。

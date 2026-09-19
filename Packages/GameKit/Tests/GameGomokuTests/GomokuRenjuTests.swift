@@ -133,7 +133,8 @@ private func doubleThreeSnapshot(
         undoUsed: nil,
         resigned: nil,
         winner: nil,
-        forbiddenMoves: forbiddenMoves
+        forbiddenMoves: forbiddenMoves,
+        hintsUsed: nil
     )
 }
 
@@ -161,7 +162,8 @@ private func doubleThreeSnapshotWithHistory() -> GomokuSnapshot {
         undoUsed: nil,
         resigned: nil,
         winner: nil,
-        forbiddenMoves: true
+        forbiddenMoves: true,
+        hintsUsed: nil
     )
 }
 

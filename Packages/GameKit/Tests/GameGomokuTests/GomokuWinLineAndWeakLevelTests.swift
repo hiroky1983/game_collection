@@ -55,7 +55,8 @@ private func blackFourSnapshot(winner: GomokuStone? = nil, resigned: Bool? = nil
         undoUsed: nil,
         resigned: resigned,
         winner: winner?.rawValue,
-        forbiddenMoves: nil
+        forbiddenMoves: nil,
+        hintsUsed: nil
     )
 }
 

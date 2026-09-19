@@ -101,16 +101,21 @@ public extension View {
     ///   マスと一緒に変わり、移動が補間されない。
     /// - **王手の印と着手先の印は駒より後（= 上）**。駒の下に潜ると、玉を囲む枠も
     ///   「取れる駒」に重ねる枠も読めなくなる。
-    func boardLayers<Pieces: View, Check: View, Targets: View>(
+    /// - **ヒントの印はいちばん上**（#1118）。着手先の印（自分が選んだ駒の行き先）と
+    ///   重なる局面があり、下に潜ると「押したのに何も出ない」と受け取られる。
+    ///   ヒントは一時的な印なので、常設の印を隠しても困らない。
+    func boardLayers<Pieces: View, Check: View, Targets: View, Hint: View>(
         corner: CGFloat,
         @ViewBuilder pieces: () -> Pieces,
         @ViewBuilder check: () -> Check,
-        @ViewBuilder targets: () -> Targets
+        @ViewBuilder targets: () -> Targets,
+        @ViewBuilder hint: () -> Hint
     ) -> some View {
         clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
             .overlay { pieces() }
             .overlay { check() }
             .overlay { targets() }
+            .overlay { hint() }
     }
 }
 
@@ -313,6 +318,86 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
             Button { showUndoConfirm = true } label: {
                 Label("待った", systemImage: "arrow.uturn.backward")
             }
+        }
+    }
+}
+
+// MARK: - 操作列の「ヒント」
+
+/// 戦略ゲームのヒントの共通ルール（#1118）。
+///
+/// 会長決裁（2026-09-19・選択肢 A）で「**無料 3 回のみ・広告での補充は無し**」に確定している。
+/// 収益化の凍結が禁じているのは「収益を増やす目的で広告の面・頻度を増やすこと」で、
+/// #480（ソリティアの「戻す」）の例外は**詰み（それ以上進めない）の救済**に認められたもの。
+/// 「負けそう」は詰みではないため例外の射程に入らない、というのが決裁の理由。
+///
+/// 回数は**局ごとにリセット**する（`newGame` で 0 に戻し、中断データには使った数を書く）。
+public enum BoardHintRules {
+    /// 1 局あたりに使えるヒントの回数。
+    public static let perGame = 3
+
+    /// 残り回数。使った数が上限を超えていても負の数にはしない。
+    public static func remaining(used: Int) -> Int { max(0, perGame - used) }
+}
+
+/// 「ヒント」を持つ盤ゲームの Model（将棋・チェス・五目並べ・#1118）。
+///
+/// `BoardUndoModel` と同じく、`BoardHintButton` が読む分だけを要求する。
+@MainActor
+public protocol BoardHintModel: AnyObject {
+    /// この局で残っているヒントの回数。
+    var hintsRemaining: Int { get }
+    /// いま押せるか（人間の手番・対局中・残り回数あり・思考中でない）。
+    var canUseHint: Bool { get }
+    /// ヒントの探索中か。連打で探索を重ねないための旗。
+    var isHinting: Bool { get }
+    /// 現在の局面の最善手を 1 手求めて、盤に示す。
+    func requestHint() async
+}
+
+/// 操作列の「ヒント」ボタン（#1118）。
+///
+/// 見た目は `BoardUndoButton` と同じ作りで、`usesTapTargetCapsule` で
+/// そのゲームの操作列に合わせる（true = 枠 44pt の共通カプセル・五目並べ、
+/// false = 素の文字・将棋・チェス）。**同じ行に並ぶ「投了」「待った」と揃える**のが目的で、
+/// 行の中で 1 つだけ見た目が違うと壊れて見える（#711 の教訓）。
+///
+/// 残り回数はラベルに出す。`Text` の補間は数値に桁区切りを入れる（#1112）ので、
+/// 回数は `verbatim` で組み立てる。
+public struct BoardHintButton<Model: BoardHintModel>: View {
+    private let model: Model
+    private let usesTapTargetCapsule: Bool
+
+    public init(model: Model, usesTapTargetCapsule: Bool) {
+        self.model = model
+        self.usesTapTargetCapsule = usesTapTargetCapsule
+    }
+
+    /// VoiceOver 用。「ヒント 2」だけだと何の 2 か伝わらない。
+    private var accessibilityLabel: String {
+        "ヒント 残り\(String(model.hintsRemaining))回"
+    }
+
+    public var body: some View {
+        button
+            .disabled(!model.canUseHint)
+            .accessibilityLabel(accessibilityLabel)
+    }
+
+    @ViewBuilder private var button: some View {
+        if usesTapTargetCapsule {
+            Button { Task { await model.requestHint() } } label: { label }
+                .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.yellow))
+        } else {
+            Button { Task { await model.requestHint() } } label: { label }
+        }
+    }
+
+    private var label: some View {
+        Label {
+            Text(verbatim: "ヒント \(model.hintsRemaining)")
+        } icon: {
+            Image(systemName: "lightbulb.fill")
         }
     }
 }

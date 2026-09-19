@@ -155,6 +155,13 @@ public struct GomokuView: View {
                     accessibilityGrid(pad: pad, spacing: spacing)
                 }
 
+                // ヒントの交点を示す（#1118）。盤は `Canvas` 1 枚なので、空いている交点に
+                // 印を出す層をここに重ねる。直前手マーカー（珊瑚色のリング）と色を分けるのは、
+                // 同じ色だと「CPU が打った場所」と「ヒントが指した場所」が見分けられないため。
+                GomokuHintCanvas(hint: model.hintMove, pad: pad)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+
                 // 決着した五を光らせる（#665）。盤の前面に重ねるので、タップと VoiceOver の
                 // 交点グリッドを横取りしないよう当たり判定・支援技術の両方から外す。
                 GomokuWinLineCanvas(
@@ -219,7 +226,8 @@ public struct GomokuView: View {
                             row: row,
                             col: col,
                             stone: model.board[row, col],
-                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false
+                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false,
+                            isHint: model.hintMove.map { $0.row == row && $0.col == col } ?? false
                         ))
                     }
                 }
@@ -302,6 +310,10 @@ public struct GomokuView: View {
             // 2 つとも同じカプセルに揃え、当たり判定を 44pt にする（#711）。中身は盤ゲーム 5 本で共通（#828）。
             BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
                 .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
+
+            Spacer()
+
+            BoardHintButton(model: model, usesTapTargetCapsule: true)
 
             Spacer()
 
@@ -440,6 +452,33 @@ private struct GomokuBoardCanvas: View, Animatable {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - ヒント
+
+/// ヒントが指した交点に印を出す層（#1118）。
+///
+/// 盤は `Canvas` 1 枚で描くため、将棋・チェスのようなマス単位の View が無い。
+/// 空いている交点に置く印なので石の層とは別に重ね、`hint` が nil のときは何も描かない。
+private struct GomokuHintCanvas: View {
+    let hint: (row: Int, col: Int)?
+    let pad: CGFloat
+
+    var body: some View {
+        Canvas { ctx, size in
+            guard let hint else { return }
+            let inner = size.width - pad * 2
+            let spacing = inner / CGFloat(gomokuBoardSize - 1)
+            let cx = pad + CGFloat(hint.col) * spacing
+            let cy = pad + CGFloat(hint.row) * spacing
+            // 石とほぼ同じ大きさの輪にする。空の交点なので塗りは薄く敷くだけにして、
+            // 下の格子（打つ場所の目安）が透けて見えるようにする。
+            let r = spacing * 0.42
+            let rect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
+            ctx.fill(Path(ellipseIn: rect), with: .color(Theme.yellow.opacity(0.35)))
+            ctx.stroke(Path(ellipseIn: rect), with: .color(Theme.yellow), lineWidth: 2.6)
         }
     }
 }

@@ -200,6 +200,8 @@ public struct ShogiView: View {
         // `checkedKingSquare` は表示局面を組み直す（検討中は指し手の全再生）ため、
         // ループの中で呼ぶと 1 回の描画で 81 回それをやることになる。
         let checkedKing = model.checkedKingSquare
+        // `hintSquares` も同じ理由でループの外に出す（1 回の描画で 81 回導かない）。
+        let hintSquares = model.hintSquares
         return GeometryReader { geo in
             let cell = (geo.size.width - 8) / 9
             VStack(spacing: 0) {
@@ -223,7 +225,8 @@ public struct ShogiView: View {
                                 isSelected: model.selectedSquare == idx,
                                 isTarget: model.legalTargets.contains(idx),
                                 isLastMove: model.highlightedSquares.contains(idx),
-                                isCheckedKing: checkedKing == idx
+                                isCheckedKing: checkedKing == idx,
+                                isHint: hintSquares.contains(idx)
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -247,7 +250,8 @@ public struct ShogiView: View {
                 corner: Theme.cornerSmall,
                 pieces: { pieceLayer(cell: cell) },
                 check: { checkLayer(cell: cell) },
-                targets: { targetLayer(cell: cell) }
+                targets: { targetLayer(cell: cell) },
+                hint: { hintLayer(cell: cell) }
             )
             .padding(4)
             .background(
@@ -410,6 +414,30 @@ public struct ShogiView: View {
         .accessibilityHidden(true)
     }
 
+    /// ヒントの印（#1118）。推奨手の移動元・移動先マスを黄色の枠で囲む。
+    ///
+    /// 着手先の印（`targetLayer`・珊瑚色）と色を分けるのは、同じ色だと「自分が選んだ駒の
+    /// 行き先」と「ヒントが指した手」が見分けられないため。指す・待った・新規対局で消える。
+    private func hintLayer(cell: CGFloat) -> some View {
+        GeometryReader { geo in
+            let slot = geo.size.width / 9
+            ZStack(alignment: .topLeading) {
+                ForEach(model.hintSquares.sorted(), id: \.self) { square in
+                    let spot = Sq.displayPosition(of: square, flipped: flipped)
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Theme.yellow, lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Theme.yellow.opacity(0.28)))
+                        .frame(width: cell - 4, height: cell - 4)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        // 読み上げはマス（`ShogiCell` の `isHint`）が持つ。
+        .accessibilityHidden(true)
+    }
+
     // MARK: - ステータス
 
     private var statusBar: some View {
@@ -473,6 +501,10 @@ public struct ShogiView: View {
             // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。
             BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) { showResignConfirm = true }
                 .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
+
+            Spacer()
+
+            BoardHintButton(model: model, usesTapTargetCapsule: false)
 
             Spacer()
 

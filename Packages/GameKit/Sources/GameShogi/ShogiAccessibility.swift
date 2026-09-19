@@ -51,7 +51,8 @@ public enum ShogiAccessibility {
         isSelected: Bool,
         isTarget: Bool,
         isLastMove: Bool,
-        isCheckedKing: Bool = false
+        isCheckedKing: Bool = false,
+        isHint: Bool = false
     ) -> String {
         var parts = [squareName(index)]
         if let piece {
@@ -65,6 +66,9 @@ public enum ShogiAccessibility {
         if isSelected { parts.append("選択中") }
         if isTarget { parts.append(piece == nil ? "ここに指せます" : "取れます") }
         if isLastMove { parts.append("直前の手") }
+        // ヒントの黄色い枠（`ShogiView.hintLayer`）と同じ条件で出す（#1118）。
+        // 画面を見ないと「押したのにどこが光ったか」が分からないため、最後に添える。
+        if isHint { parts.append("ヒントの手") }
         return parts.joined(separator: "、")
     }
 
