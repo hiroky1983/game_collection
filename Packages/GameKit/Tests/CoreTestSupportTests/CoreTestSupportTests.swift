@@ -63,30 +63,32 @@ struct CoreTestSupportBoundaryTests {
         let tests = try Self.swiftFiles(under: SourceScan.packageRoot.appendingPathComponent("Tests"))
         #expect(tests.count > 100, "Tests が読めていない（\(tests.count) 件）")
 
-        // このファイル自身に当たらないよう、語を分けて組み立てる。
         let owned = ["autoPlayCurrentStage", "failCurrentStage"]
         let banned = ["clearRunnerStage", "failRunnerStage", "failRunnerAfterCheckpoint"]
+        let owner = "GameRunnerTestSupport/RunnerAutoPlay.swift"
+        // `func` と名前のあいだが改行・複数の空白でも当てる（`"func " + name` の文字列一致だと
+        // 書式を変えただけのコピーが素通りする。CodeRabbit 指摘）。
+        func declares(_ name: String, in file: (path: String, text: String)) -> Bool {
+            SourceScan.matchCount(of: #"\bfunc\s+"# + name + #"\b"#,
+                                  in: SourceScan.strippingComments(file.text)) > 0
+        }
 
         var offenders: [String] = []
         for name in owned {
-            let needle = "func " + name
             offenders += tests
-                .filter { SourceScan.strippingComments($0.text).contains(needle) }
-                .filter { $0.path != "GameRunnerTestSupport/RunnerAutoPlay.swift" }
+                .filter { declares(name, in: $0) && $0.path != owner }
                 .map { "\($0.path)（\(name)）" }
         }
         for name in banned {
-            let needle = "func " + name
             offenders += tests
-                .filter { SourceScan.strippingComments($0.text).contains(needle) }
+                .filter { declares(name, in: $0) }
                 .map { "\($0.path)（\(name)・旧名）" }
         }
         #expect(offenders.isEmpty, "GameRunnerTestSupport の自動操縦を使わずに定義し直している: \(offenders)")
 
         // 空振り防止。寄せ先が消えた・改名されたら「0 件だから緑」で素通りする。
         let ownerHits = owned.filter { name in
-            tests.contains { $0.path == "GameRunnerTestSupport/RunnerAutoPlay.swift"
-                && $0.text.contains("func " + name) }
+            tests.contains { $0.path == owner && declares(name, in: $0) }
         }
         #expect(ownerHits == owned, "寄せ先に自動操縦が無い: \(ownerHits)")
     }
