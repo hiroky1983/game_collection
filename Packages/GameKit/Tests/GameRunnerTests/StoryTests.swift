@@ -100,13 +100,41 @@ struct RunnerStoryTests {
 
     // MARK: 2. 出す・出さないの判定
 
-    @Test("始まりは初めて開いたときだけ流れる")
+    @Test("始まりは見せ終えるまで流れ続け、見せ終えたら二度と流れない")
     func introPlaysOnlyOnce() {
         let log = makePlayLog("intro-once")
         #expect(RunnerStory.shouldShowIntro(playLog: log, arguments: []))
+        RunnerStory.markIntroShown(playLog: log)
         #expect(!RunnerStory.shouldShowIntro(playLog: log, arguments: []), "2 回目にも流れている")
         // `PlayLog` が無い環境（テスト用の入口など）では流さない。
         #expect(!RunnerStory.shouldShowIntro(playLog: nil, arguments: []))
+    }
+
+    /// 始まり（最長 4.8 秒）のあいだにナビバーの「戻る」で離れると、`onFinish` が呼ばれない
+    /// ＝ `markIntroShown` を通らない。判定そのものでは印を付けない（#1144）。
+    @Test("始まりを最後まで見ずに離れたら、次に開いたときもう一度流れる（#1144）")
+    func introSurvivesLeavingMidway() {
+        let log = makePlayLog("intro-midway")
+        #expect(RunnerStory.shouldShowIntro(playLog: log, arguments: []))
+        // 「開いた」だけでは印が付かない——ここが false になると、始まりも初回の操作ガイドも
+        // 二度と出ない（#1144 の現象）。
+        #expect(RunnerStory.shouldShowIntro(playLog: log, arguments: []), "判定だけで印が付いている")
+        #expect(RunnerStory.shouldShowIntro(playLog: log, arguments: []))
+        // 見せ終えて初めて付く。
+        RunnerStory.markIntroShown(playLog: log)
+        #expect(!RunnerStory.shouldShowIntro(playLog: log, arguments: []))
+    }
+
+    /// `-simulateRunner story-intro` は判定（`shouldShowIntro`）を通さずオーバーレイを直接立てるので、
+    /// 見終わると `markIntroShown` に届く。ここで印が付くと、QA でストーリーを流したシミュレータでは
+    /// 以後ふつうに起動しても始まりが出なくなる（`captureModesSuppressTheStory` と同じ趣旨）。
+    @Test("撮影・QA で始まりを最後まで流しても「見せた」印は付かない（#1144）")
+    func captureModesDoNotSpendTheIntroMark() {
+        for argument in ["-screenshotMode", "-simulateRunner"] {
+            let log = makePlayLog("capture-mark-\(argument)")
+            RunnerStory.markIntroShown(playLog: log, arguments: [argument])
+            #expect(RunnerStory.shouldShowIntro(playLog: log, arguments: []), "\(argument) で印が付いている")
+        }
     }
 
     @Test("締めはその面を初めてクリアしたときだけ流れる")
@@ -268,6 +296,20 @@ struct RunnerStoryTests {
         #expect(view.contains(".accessibilityAddTraits(.isModal)"))
     }
 
+    /// 「見せた」印を付ける場所をソースの形で固定する（#1144）。View の提示は `swift test` から
+    /// 観測できないので、`init` で消費していないことと、`onFinish` の側で付けていることを見る。
+    @Test("始まりの「見せた」印は、見せ終えた時点でだけ付ける（#1144）")
+    func theIntroMarkIsSpentWhenItIsActuallySeen() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
+        let initializer = try #require(SourceScan.declaration(of: "public init(services", in: source))
+        #expect(!initializer.contains("markIntroShown"), "`init` で印を消費している")
+        #expect(initializer.contains("RunnerStory.shouldShowIntro(playLog: services.playLog)"))
+        // 付けるのはオーバーレイの `onFinish`（最後のコマ／「とばす」／画面タップ）の側だけ。
+        #expect(SourceScan.matchCount(of: #"RunnerStory\.markIntroShown\("#, in: source) == 1)
+        let body = try #require(SourceScan.declaration(of: "public var body", in: source))
+        #expect(body.contains("RunnerStory.markIntroShown(playLog: services.playLog)"))
+    }
+
     @Test("ストーリーが出ているあいだ「はじめから」は押せず、中断しても操作ガイドが消えない")
     func theStoryKeepsThePresentationOrder() throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
@@ -276,7 +318,8 @@ struct RunnerStoryTests {
         // それでも中断された経路（撮影用の `-showRunnerStartSheet` など）で取り残さない。
         let open = try #require(SourceScan.declaration(of: "private func openStartSheet", in: source))
         #expect(open.contains("introScene = nil"))
-        // `RunnerTutorial.shouldShow` は `init` で「見せた」ことにするので、ここで拾わないと二度と出ない。
+        // 出していない操作ガイドは開始シートの `onDismiss` が引き取る（#1144 で印の消費を
+        // 提示の直前へ寄せたので、ここで拾っても二重表示にはならない）。
         #expect(source.contains("isPresented: $showStartSheet, onDismiss:"))
     }
 
