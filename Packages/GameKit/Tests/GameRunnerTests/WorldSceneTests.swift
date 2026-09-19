@@ -390,7 +390,12 @@ struct RunnerWorldSceneTests {
     /// **崩れ切った（`RunnerField.hasCrumbled`）ときに板が 1 枚でも残っていてはいけない**
     /// ——そこはもう穴なので、板が見えていると「床があるのに落ちた」画になる（PR #1113 の指摘）。
     /// 逆に、崩れ切る**前**は必ず 1 枚以上残っていること（消すのが早すぎないこと）も見る。
-    @Test("崩れる足場の板は、崩れ切ったときにちょうど全部消える")
+    ///
+    /// あわせて `RunnerScene+Crumble.swift` の doc が主張する
+    /// **「板が消えた縁は走者に追いつかない」**（`crumblePlankStagger` の根拠）も固定する
+    /// ——枚数だけを見ていると、走者の足の下から先に消える並びでも「崩れ切るまで 1 枚以上ある」
+    /// で緑になってしまう（#1148）。
+    @Test("崩れる足場の板は、崩れ切ったときにちょうど全部消え、足の下から先に消えない")
     func crumblingPlanksVanishExactlyWhenTheGapOpens() {
         let number = RunnerStage.all.first { !$0.crumblingPlatforms.isEmpty }?.number
         guard let number else { Issue.record("本編に崩れる足場が無い"); return }
@@ -405,8 +410,10 @@ struct RunnerWorldSceneTests {
             return
         }
         #expect(view.planks.count > 1, "板が 1 枚しか無い（この検証が空振りしている）")
+        let deckStart = model.field.stage.platforms[index].start
 
         var sawPartialDeck = false
+        var sawPlankAheadOfTheRunner = false
         for _ in 0..<(60 * 120) {
             if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
             if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
@@ -422,8 +429,35 @@ struct RunnerWorldSceneTests {
             // 直前のフレーム（丸め誤差で `hasCrumbled` がまだ false）を落とすため。
             #expect(visible > 0 || progress > 0.999, "崩れ切る前（進み \(progress)）に板が全部消えた")
             if visible > 0, visible < view.planks.count { sawPartialDeck = true }
+            // **抜けるのは左から順**（`crumbleFallDuration` / `crumblePlankStagger` の doc）。
+            // 消えた板は必ず**左からの連続した並び**で、残っている板が左に、消えた板が右に
+            // ある瞬間は 1 フレームも無い。ここを見ないと、右から消す実装に変えても
+            // 「崩れ切るまで 1 枚以上ある」「崩れ切ったら 0 枚」は両方満たすので緑のまま通る。
+            let gone = view.planks.map { $0.alpha <= 0.01 }
+            if let firstVisible = gone.firstIndex(of: false) {
+                #expect(
+                    !gone[firstVisible...].contains(true),
+                    """
+                    進み \(progress): 板の消え順が左からではない\
+                    （消えた = \(gone.map { $0 ? "x" : "o" }.joined())）
+                    """
+                )
+            }
+            // **走者の足元から先には消えない**（`crumblePlankStagger` の doc の主張そのもの）。
+            // 走者の後ろ端（`playerMinX`）より右にある板は、崩れ切るまで必ず見えている。
+            for plank in view.planks where deckStart + plank.position.x >= model.field.playerMinX {
+                sawPlankAheadOfTheRunner = true
+                #expect(
+                    plank.alpha > 0.01,
+                    """
+                    進み \(progress): 走者（\(model.field.playerMinX)）より先の板\
+                    （\(deckStart + plank.position.x)）が先に消えた（消えた縁が走者に追いついている）
+                    """
+                )
+            }
         }
         #expect(model.field.hasCrumbled(index), "崩れ切るまで進まなかった")
         #expect(sawPartialDeck, "板が左から順に抜けていく途中を観測できていない")
+        #expect(sawPlankAheadOfTheRunner, "走者より先にある板を一度も見ていない（この検証が空振りしている）")
     }
 }
