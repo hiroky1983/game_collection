@@ -112,7 +112,13 @@ public enum RunnerStory {
     /// 台詞の上限（文字）。iPhone SE（第 3 世代・幅 375pt）の吹き出しで 2 行に収まる長さ。
     public static let lineLimit = 24
 
-    /// 始まりを出すか。**判定と同時に「見た」印を付ける**（`RunnerTutorial.shouldShow` と同じ作法）。
+    /// 始まりを出すか。**印は付けない**（#1144。締めの `endingToPlay` とはここが違う）。
+    ///
+    /// 印を付けるのは最後のコマまで見た／「とばす」を押した時点（`markIntroShown`）。判定と同時に
+    /// 付けていたころは、始まり（最長 4.8 秒）のオーバーレイのあいだにナビバーの「戻る」で
+    /// 離れた人が、**一度も見ていないのに見たことになる**（しかも同じ `init` で印を消費していた
+    /// 初回の操作ガイドごと二度と出なくなる）。締めのほうは「クリアした瞬間」に判定するので
+    /// 判定と提示のあいだに窓が無く、従来どおり 1 回で済ませてよい。
     ///
     /// v1.1.5 以前から遊んでいる人にも 1 回流れる——印は v1.1.6 で新設した鍵なので、
     /// 既に 18 面まで進んでいる人でも初めて開いた時点では未設定になる（話を知らないまま先へ進ませない）。
@@ -124,7 +130,23 @@ public enum RunnerStory {
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> Bool {
         guard !arguments.contains("-screenshotMode"), !arguments.contains("-simulateRunner") else { return false }
-        return playLog?.markGuideShown(for: RunnerStoryScene.intro.seenKey) ?? false
+        guard let playLog else { return false }
+        return !playLog.hasShownGuide(for: RunnerStoryScene.intro.seenKey)
+    }
+
+    /// 始まりを見せ終えたことを記録する（#1144）。呼ぶのは最後のコマまで送った／「とばす」
+    /// （画面タップも同じ）で抜けた時点だけで、途中で画面を離れた人には次回もう一度流れる。
+    ///
+    /// **撮影・QA では印を付けない**（`shouldShowIntro` と同じガード）。`-simulateRunner story-intro`
+    /// は判定を通さずオーバーレイを直接立てるので、ここを素通しにすると QA で一度流しただけで
+    /// 遊ぶ人が二度と始まりを見られなくなる（`captureModesSuppressTheStory` が明文化している契約）。
+    @MainActor
+    public static func markIntroShown(
+        playLog: PlayLog?,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
+        guard !arguments.contains("-screenshotMode"), !arguments.contains("-simulateRunner") else { return }
+        playLog?.markGuideShown(for: RunnerStoryScene.intro.seenKey)
     }
 
     /// `stage` 面をクリアしたときに流す締め。流すものが無ければ nil。

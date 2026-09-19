@@ -27,13 +27,12 @@ public struct RunnerView: View {
     @State private var selectedStage = 1
     /// 初回プレイの操作ガイド（#988）をいま出しているか。「はじめる」で false になる。
     ///
-    /// **判定と「見せた」の記録は `init` で 1 回だけ**済ませ（`HowToPlayHint` と同じ作法）、
-    /// 結果は `pendingTutorial` に控える。提示はストーリーの始まり（#1092）より**後**なので、
-    /// ここを `init` から直接立てると、始まりの上にモーダルが被る。
+    /// **判定と「見せた」の記録は、実際に出す直前（`presentTutorialIfNeeded`）でまとめて行う**
+    /// （#1144）。`init` で済ませると、先に流れるストーリーの始まり（#1092・最長 4.8 秒）の
+    /// あいだに「戻る」で離れた人が、一度も見ていないのに二度と見られなくなる。
     @State private var showsTutorial = false
-    /// `init` の時点で「操作ガイドを出す回」だったか。始まりが明けたら提示に移す。
-    @State private var pendingTutorial: Bool
     /// `init` の時点で「ストーリーの始まりを出す回」だったか（#1092）。
+    /// 判定だけで印は付かない（付けるのは見せ終えた時点・#1144）。
     @State private var pendingIntro: Bool
     /// いま流している始まり。世界の締めのほうは `model.storyScene` が持つ。
     @State private var introScene: RunnerStoryScene?
@@ -47,10 +46,10 @@ public struct RunnerView: View {
         let model = RunnerModel(services: services)
         _model = State(initialValue: model)
         _scene = State(initialValue: RunnerScene(model: model))
-        // 判定は 1 回だけ（どちらも「見せた」の記録を兼ねるので二度呼ばない）。
         // 順番は 始まり → 操作ガイド → 開始シート（#1092 の受け入れ条件 A）。
+        // ここで見るのは始まりだけ（「見せた」の印は付かない・#1144）。操作ガイドの判定は
+        // 始まりが明けてから（`presentTutorialIfNeeded`）で、`init` では触らない。
         _pendingIntro = State(initialValue: RunnerStory.shouldShowIntro(playLog: services.playLog))
-        _pendingTutorial = State(initialValue: RunnerTutorial.shouldShow(playLog: services.playLog))
     }
 
     /// いま画面を覆っているストーリーの場面（始まり or 世界の締め）。
@@ -58,12 +57,23 @@ public struct RunnerView: View {
 
     /// 始まりが明けた / 出さない回の続き。操作ガイドがあればそれを、無ければ開始シートを出す。
     private func beginAfterIntro() {
-        if pendingTutorial {
-            pendingTutorial = false
-            showsTutorial = true
-        } else {
+        if !presentTutorialIfNeeded() {
             presentStartSheetIfNeeded()
         }
+    }
+
+    /// 初回プレイの操作ガイド（#988）を出す回なら出す。**判定と「見せた」の記録はここだけ**（#1144）。
+    ///
+    /// `RunnerTutorial.shouldShow` は判定と記録を兼ねるので、呼ぶ場所が提示の瞬間から離れると
+    /// その分だけ「印は付いたのに見ていない」窓ができる。#1123 で始まり（#1092）のオーバーレイが
+    /// 手前に入り、`init` で呼んでいた従来の作りでは最長 4.8 秒の窓ができていた。
+    ///
+    /// - Returns: 出したか。false なら開始シートへ進んでよい。
+    @discardableResult
+    private func presentTutorialIfNeeded() -> Bool {
+        guard RunnerTutorial.shouldShow(playLog: services.playLog) else { return false }
+        showsTutorial = true
+        return true
     }
 
     public var body: some View {
@@ -130,6 +140,9 @@ public struct RunnerView: View {
                 RunnerStoryView(scene: scene) {
                     if introScene != nil {
                         introScene = nil
+                        // 最後のコマまで送った／「とばす」（画面タップ）で抜けた時点が
+                        // 「見せた」。途中で戻った人には次回もう一度流す（#1144）。
+                        RunnerStory.markIntroShown(playLog: services.playLog)
                         beginAfterIntro()
                     } else {
                         model.finishStory()
@@ -139,13 +152,10 @@ public struct RunnerView: View {
             }
         }
         .sheet(isPresented: $showStartSheet, onDismiss: {
-            // 始まり（#1092）を中断してここへ来た場合、操作ガイドがまだ出ていない
-            // （`RunnerTutorial.shouldShow` は `init` で「見せた」ことにしてしまうので、
-            // ここで出さないと二度と出ない）。ふつうの経路では既に出し終えているので何も起きない。
-            if pendingTutorial {
-                pendingTutorial = false
-                showsTutorial = true
-            }
+            // 始まり（#1092）を中断してここへ来た場合、操作ガイドがまだ出ていないので拾う。
+            // ふつうの経路では出し終えている＝印が付いているので、`shouldShow` が false になり
+            // 何も起きない（#1144 で印の消費を提示の直前へ寄せたため、二重表示にならない）。
+            _ = presentTutorialIfNeeded()
         }) {
             RunnerStartSheet(
                 mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage,
