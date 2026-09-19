@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 import Testing
 import Core
 @testable import GameGomoku
@@ -11,7 +12,8 @@ import GameKitTestSupport
 private struct TestRNG: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
+        // MMIX の 1 歩は共通部品の定数を使う（定数の書き写しをやめた #1074 / #1150 の扱い）。
+        state = state &* MMIXRandom.multiplier &+ MMIXRandom.increment
         var z = state
         z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
         z = (z ^ (z >> 27)) &* 0x94D049BB133111EB

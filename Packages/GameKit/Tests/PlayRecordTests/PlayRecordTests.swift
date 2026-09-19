@@ -23,6 +23,7 @@ import GameSpider
 import GameChess
 import MahjongTiles
 import CoreTestSupport
+import GameRunnerTestSupport
 
 // MARK: - 共通のヘルパー
 
@@ -1002,7 +1003,7 @@ struct GameRecordingTests {
         defer { defaults.removePersistentDomain(forName: name) }
 
         let model = RunnerModel(services: makeServices(log: log), startingAt: 4)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
 
         let record = log.record(gameID: "runner")
@@ -1308,25 +1309,6 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
         case .idle, .gameResult:
             return
         }
-    }
-}
-
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
-@MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
     }
 }
 

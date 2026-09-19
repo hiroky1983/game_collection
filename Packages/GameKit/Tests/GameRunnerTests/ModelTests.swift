@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import GameRunner
 import CoreTestSupport
+import GameRunnerTestSupport
 
 @Suite("チャリンコおじさん: 進行と操作")
 @MainActor
@@ -876,13 +877,6 @@ struct RunnerStartScreenTests {
 @MainActor
 struct RunnerStageFlowTests {
 
-    /// 送信されたイベントをそのまま溜めるスパイ（`EndlessCourseTests` と同じ形）。
-    @MainActor
-    private final class SpyAnalyticsService: AnalyticsService {
-        private(set) var events: [AnalyticsEvent] = []
-        func log(_ event: AnalyticsEvent) { events.append(event) }
-    }
-
     @Test("「次の面へ」「もう一度」「このステージをもう一度」の直後は走行中で、直後のタップは踏み切り")
     func stageTransitionsRunImmediately() {
         let model = RunnerModel(startingAt: 1, preference: makePreference("flow-run"))
@@ -1022,12 +1016,6 @@ struct RunnerStageFlowTests {
 @Suite("チャリンコおじさん: 1 走行 = game_start 1 本（#1064）")
 @MainActor
 struct RunnerPlayCountTests {
-
-    @MainActor
-    private final class SpyAnalyticsService: AnalyticsService {
-        private(set) var events: [AnalyticsEvent] = []
-        func log(_ event: AnalyticsEvent) { events.append(event) }
-    }
 
     /// 進む時計。**実時間を待たない**（実時間の待ち合わせは並列実行で落ちるため）。
     @MainActor

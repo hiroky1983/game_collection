@@ -2,6 +2,9 @@ import Core
 import Foundation
 @testable import GameRunner
 import CoreTestSupport
+// 自動操縦（`autoPlayCurrentStage` / `failCurrentStage`）は横断のテストとも共有するので
+// `GameRunnerTestSupport` に置いてある（#1150）。
+import GameRunnerTestSupport
 
 /// 既定オフ・使い捨ての設定。`UserDefaults.standard` を汚さない。
 func makePreference(_ suite: String) -> FeedbackPreference {
@@ -37,51 +40,4 @@ func makeServices(
             GameCenterReporter(service: $0, allowedGameIDs: [RunnerModel.gameID])
         }
     )
-}
-
-/// 自動操縦でいまのステージをゴールまで走らせる。
-/// - Returns: 決着したか（打ち切りに達したら false）。
-@MainActor
-@discardableResult
-func autoPlayCurrentStage(_ model: RunnerModel, maxFrames: Int = 60 * 300) -> Bool {
-    if model.phase == .ready {
-        model.press()
-        model.release()
-    }
-    var frames = 0
-    // 決着の演出（`.falling` / ゴールの `.chasing`・#1092）は `isRunning` に含めない（演出中は
-    // タップ・一時停止を効かせないための設計）ので、ここで打ち切らず `.failed` / `.cleared` に
-    // 落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase.isSettling, frames < maxFrames {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すと `vy` が
-        // 切り詰められて（会長QA「軽いタップなら本当に小ジャンプ」2026-09-10）
-        // 地形を越えられなくなる。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
-    return frames < maxFrames
-}
-
-/// 跳ばずに走らせてミスさせる。
-@MainActor
-func failCurrentStage(_ model: RunnerModel, stopAfterCheckpoint: Bool = false) {
-    if model.phase == .ready {
-        model.press()
-        model.release()
-    }
-    var frames = 0
-    // 同上: 演出時間ぶんも回して `.failed` まで進める。
-    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
-        frames += 1
-        // `stopAfterCheckpoint` のときだけ、チェックポイントを通過するまで自動操縦で走る。
-        // それ以外は一度も跳ばないので、最初の障害で必ずミスになる。
-        if stopAfterCheckpoint, !model.field.passedCheckpoint,
-           RunnerAutoPilot.shouldJump(field: model.field) {
-            model.press()
-        }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
 }

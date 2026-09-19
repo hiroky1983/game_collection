@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import GameRunner
 import CoreTestSupport
+import GameRunnerTestSupport
 
 /// エンドレスモードのコース生成（#675 → #1086 で終わりの無いコースに）。
 ///
@@ -925,13 +926,6 @@ struct RunnerEndlessModelTests {
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return PlayLog(defaults: defaults)
-    }
-
-    /// 送信されたイベントをそのまま溜めるスパイ（`MahjongNewGameTests` と同じ形）。
-    @MainActor
-    private final class SpyAnalyticsService: AnalyticsService {
-        private(set) var events: [AnalyticsEvent] = []
-        func log(_ event: AnalyticsEvent) { events.append(event) }
     }
 
     @Test("モードは開始時に焼き込まれ、ステージ制の続き（ステージ番号）はそのまま残る")
