@@ -675,7 +675,7 @@ public final class DaifugoModel: AITurnGuarded {
     private func persistCarryOver() {
         // 順位が揃っていない決着（起こらないはずだが）は持ち越さない。中途半端な順位を残すと
         // 次の `startGame()` の交換が壊れるので、交換が起きない側に倒して消す
-        // （`startGame()` からも呼ぶため、`return` で済ませると古い持ち越しが残りうる）。
+        // （`return` で済ませると1つ前の階級の持ち越しがそのまま残り、次の配りに乗り続ける）。
         guard lastRanking.count == Self.playerCount else {
             services?.snapshots.clear(for: carryOverID)
             return
