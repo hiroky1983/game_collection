@@ -55,6 +55,18 @@ public struct RunnerView: View {
     /// いま画面を覆っているストーリーの場面（始まり or 世界の締め）。
     private var presentedStory: RunnerStoryScene? { introScene ?? model.storyScene }
 
+    /// 画面下のバナー広告を出すか（#1147）。
+    ///
+    /// ストーリー（#1092）の幕は画面いっぱいを覆うので、出したままだと**見えないバナーの
+    /// インプレッションが計上されうる**（AdMob の「広告を他の要素で覆わない」に触れる）。
+    /// 幕が出ているあいだは枠ごと外す。**枠の高さ（`BannerSlot.height`）は空の帯で保つ**——
+    /// 縦幅の分配が変わるとコース（SpriteKit の面）の高さまで動くため。
+    ///
+    /// 幕が明けると `BannerSlot` が作り直され、そのぶん広告のリクエストが増える（ストーリーは
+    /// 1 人あたり最大 6 回・各 5 秒以内なので、ゲーム画面を開き直すのと同程度）。見えない
+    /// インプレッションを残すより副作用が小さいと判断した（PR の `## 社長判断`）。
+    static func showsBanner(isStoryPresented: Bool) -> Bool { !isStoryPresented }
+
     /// 始まりが明けた / 出さない回の続き。操作ガイドがあればそれを、無ければ開始シートを出す。
     private func beginAfterIntro() {
         if !presentTutorialIfNeeded() {
@@ -94,7 +106,12 @@ public struct RunnerView: View {
             }
             secondaryInfo
             Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
+            if Self.showsBanner(isStoryPresented: presentedStory != nil) {
+                BannerSlot(ads: services.ads)
+            } else {
+                // 幕のあいだも枠の高さだけは残す（`showsBanner` の doc）。
+                Color.clear.frame(height: BannerSlot.height)
+            }
         }
         .padding()
         .rewardOffer(resumeRescue, for: .checkpoint, isPresented: model.canResumeFromCheckpoint,

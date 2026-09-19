@@ -323,6 +323,27 @@ struct RunnerStoryTests {
         #expect(source.contains("isPresented: $showStartSheet, onDismiss:"))
     }
 
+    /// 幕はバナー広告まで覆うので、そのままだと**見えないバナーのインプレッションが計上されうる**
+    /// （AdMob の「広告を他の要素で覆わない」・#1147）。判定は純関数で、結線はソースの形で固定する
+    /// （View の描画は `swift test` から観測できない）。
+    @Test("ストーリーが出ているあいだはバナーを出さず、明けたら戻る（#1147）")
+    func theStoryHidesTheBanner() throws {
+        #expect(!RunnerView.showsBanner(isStoryPresented: true), "幕の裏に見えないバナーが残る")
+        #expect(RunnerView.showsBanner(isStoryPresented: false), "幕が明けてもバナーが戻らない")
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
+        // 枠は 1 か所だけ。判定を素通りする 2 個目が増えたらここで落ちる。
+        #expect(SourceScan.matchCount(of: #"BannerSlot\(ads:"#, in: source) == 1)
+        // 判定の**内側**に置く。見るのは `if` のブロックの中身なので、引数の書き方・改行・
+        // 途中に別の部品が増えることには依らない（CodeRabbit 指摘・PR #1165）。
+        let guarded = try #require(
+            SourceScan.declaration(of: "if Self.showsBanner(", in: source),
+            "バナーの判定（`showsBanner`）を通っていない"
+        )
+        #expect(guarded.contains("BannerSlot(ads:"), "バナーがストーリーの判定の外に置かれている")
+        // 幕のあいだも枠の高さは空の帯で残す（縦幅の分配が変わるとコースの高さまで動く）。
+        #expect(source.contains("Color.clear.frame(height: BannerSlot.height)"))
+    }
+
     // MARK: 4. 絵
 
     @Test("どのコマも 1 枚の格子に焼き込まれ、寸法が揃っていてパレットに無い文字が無い")
