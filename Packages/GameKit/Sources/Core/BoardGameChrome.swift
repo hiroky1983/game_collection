@@ -317,6 +317,88 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
     }
 }
 
+// MARK: - ヒントの色
+
+/// ヒントが示す手の印の色（#1118）。3 本とも同じ色で示す。
+///
+/// **紫にする理由**: ボタンと同じ黄色は、将棋の飴色の盤にも五目並べの榧色の盤にも沈んで読めない。
+/// 盤の上で既に意味を持っている色（着手先の `Theme.coral`・王手の `BoardGameCheckColor`）とも
+/// 取り違えられない残りの差し色が紫だった。
+public enum BoardGameHintColor {
+    public static let color = Theme.purple
+}
+
+// MARK: - 操作列の「ヒント」
+
+/// ヒントを持つ盤ゲームの Model（将棋・チェス・五目並べ・#1118）。
+///
+/// `BoardHintButton` が読む分だけを要求する。回数の勘定そのものは 3 本とも
+/// `CoreEngine.BoardHintBudget` が持つので、ここでは「いま押せるか」「残りいくつか」だけを見る。
+@MainActor
+public protocol BoardHintModel: AnyObject {
+    /// 残り回数（ボタンの文字に出る）。
+    var hintsRemaining: Int { get }
+    /// いまヒントを押せるか（人間の手番・対局中・残りが在る・読みが走っていない）。
+    var canUseHint: Bool { get }
+    /// ヒントの読みの最中か。ボタンの中の合図に使う。
+    var isHintThinking: Bool { get }
+    /// 最善手を 1 手求めて盤の上に示す。求まらなければ回数は減らさない。
+    func requestHint() async
+}
+
+/// 操作列の「ヒント」ボタン（#1118）。
+///
+/// **3 本とも同じ部品・同じ見た目にする**（`feedback_same_widget_same_look` の方針）。`BoardResignButton` の
+/// ような見た目の分岐は持たせない — 新しく足す部品なので、片方だけ違う組み方を最初から作らない。
+/// 見た目は枠 44pt の共通カプセル（`BoardGameControlCapsuleStyle`）で、黄色 + 電球はナンプレのヒント
+/// （`SudokuView`）と同じ。アプリの中で「ヒント」の合図をゲームごとに変えない。
+///
+/// 将棋・チェスの操作列はカプセルが約 30pt の 1 行なので、**呼び出し側で
+/// `.padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)` を掛けて 44pt の枠を
+/// レイアウト上だけ詰める**（検討ナビの ◀ ▶ と同じ手。44 − 8 × 2 = 28pt < カプセル）。
+/// 詰めないと対局中の操作列だけが 14pt 高くなり、決着の瞬間に盤が縮む（#139・#148）。
+/// 五目並べの操作列は元から 44pt のカプセルで組んであるので、そのまま並べる（#711）。
+public struct BoardHintButton<Model: BoardHintModel>: View {
+    private let model: Model
+
+    public init(model: Model) {
+        self.model = model
+    }
+
+    public var body: some View {
+        Button {
+            // 読みは Model の中で `AITurnGuarded` の照合に載せる（押したあとの局面ずれはそこで弾く）。
+            Task { await model.requestHint() }
+        } label: {
+            Label {
+                Text("ヒント\(model.hintsRemaining)")
+            } icon: {
+                // 読みは最長 2 秒ほど掛かる。押したのに何も変わらない間を作らないよう、
+                // 電球を回転に差し替える（文字は残すのでボタンの幅はほぼ変わらない）。
+                if model.isHintThinking {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "lightbulb.fill")
+                }
+            }
+        }
+        .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.yellow))
+        .disabled(!model.canUseHint)
+        .accessibilityLabel("ヒント、残り\(model.hintsRemaining)回")
+        // 読みの最中も `canUseHint` は false になる。「使えない理由」だけを読ませると、
+        // 押した直後の数秒に「あなたの手番ではない」と誤った案内をすることになる（PR #1184 の指摘）。
+        .accessibilityHint(hintText)
+    }
+
+    /// ボタンの状態ごとの読み上げ説明。
+    private var hintText: String {
+        if model.isHintThinking { return "CPU が最善手を読んでいます" }
+        return model.canUseHint
+            ? "CPU の読みで最善手を1手だけ盤の上に示します。ヒントを使った対局は順位表に送りません"
+            : "いまは使えません（あなたの手番ではないか、3回とも使い切りました）"
+    }
+}
+
 // MARK: - 検討ナビ
 
 /// 終局後の検討ナビ（1手戻す / 手数 / 1手進める）と「もう一度」を 1 段にまとめた帯（#139・#530）。
