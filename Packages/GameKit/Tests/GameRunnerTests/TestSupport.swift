@@ -25,11 +25,13 @@ final class SpyGameCenterService: GameCenterService, @unchecked Sendable {
 func makeServices(
     store: SnapshotStore = MemorySnapshotStore(),
     log: PlayLog? = nil,
-    gameCenter: GameCenterService? = nil
+    gameCenter: GameCenterService? = nil,
+    review: ReviewRequestService? = nil
 ) -> GameServices {
     GameServices(
         snapshots: store,
         ads: NoopAdService(),
+        review: review,
         playLog: log,
         gameCenter: gameCenter.map {
             GameCenterReporter(service: $0, allowedGameIDs: [RunnerModel.gameID])
