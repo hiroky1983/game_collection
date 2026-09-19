@@ -50,6 +50,16 @@ struct RunnerStoryView: View {
                     .frame(maxWidth: 440)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .padding(.horizontal, 16)
+                    // コマの絵をパッと差し替えず、フェードで繋ぐ（#1170）。`Image` は中身の
+                    // 差し替え自体はアニメーション対象にならないため、`.animation` だけでは
+                    // 前後のコマが一瞬で入れ替わる。`.contentTransition` が中身の差し替えそのものを
+                    // 補間対象にし、`gameAnimation` で張った `index` のアニメーションに乗る。
+                    //
+                    // `.contentTransition` は SwiftUI の仕様上「有効なアニメーションが張られている
+                    // ときだけ」補間する（アニメーション自体は作らない）。`gameAnimation` は Reduce
+                    // Motion オンで `.animation(nil, value:)` に落ちるので、追加のガード無しに
+                    // クロスフェードも一緒に止まる——専用の分岐は要らない。
+                    .contentTransition(.opacity)
                 Text(panel.line)
                     .font(.headline)
                     .foregroundStyle(.white)
@@ -62,6 +72,8 @@ struct RunnerStoryView: View {
                         RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.14))
                     )
                     .padding(.horizontal, 16)
+                    // 台詞も絵と同じくフェードで繋ぐ（#1170）。
+                    .contentTransition(.opacity)
                 progressDots
                 Spacer(minLength: 0)
                 HStack(spacing: 12) {
