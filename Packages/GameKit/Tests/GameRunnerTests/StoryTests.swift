@@ -333,8 +333,16 @@ struct RunnerStoryTests {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameRunner"))
         // 枠は 1 か所だけ。判定を素通りする 2 個目が増えたらここで落ちる。
         #expect(SourceScan.matchCount(of: #"BannerSlot\(ads:"#, in: source) == 1)
-        // 判定の**内側**に置く。見るのは `if` のブロックの中身なので、引数の書き方・改行・
-        // 途中に別の部品が増えることには依らない（CodeRabbit 指摘・PR #1165）。
+        // 判定に渡すのは「幕が出ているか」そのもの（`overlay` が幕を出す条件と同じ式）。
+        // ここを見ないと、引数を `false` や逆条件に書き換えても走査が緑のまま通る（verifier 指摘）。
+        #expect(
+            SourceScan.matchCount(
+                of: #"showsBanner\(\s*isStoryPresented:\s*presentedStory != nil\s*\)"#, in: source
+            ) == 1,
+            "バナーの判定が、幕を出す条件（`presentedStory != nil`）以外を見ている"
+        )
+        // 判定の**内側**に置く。見るのは `if` のブロックの中身なので、改行や途中に別の部品が
+        // 増えることには依らない（CodeRabbit 指摘・PR #1165）。
         let guarded = try #require(
             SourceScan.declaration(of: "if Self.showsBanner(", in: source),
             "バナーの判定（`showsBanner`）を通っていない"
