@@ -273,6 +273,12 @@ public final class BlackjackModel {
                 // 判定を精算のときだけに置くと、賭ける前に戻った局面が
                 // 「ボタンが全部無効・破産カードも出ない」で詰む。
                 self.checkSessionOver()
+                // 戻った先は賭け待ちで「続き」ではないので、中断のお知らせ（#663）の対象から外す（#1145）。
+                // `persistRevivedBetWaiting` の通知は**保存したプロセスの中**でしか効かない
+                // （`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）。
+                // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
+                // 将棋・チェスが `init` で同じことをしている（`ChessGameModel.init`）。
+                self.services?.gameDidRestoreFinished(gameID: gameID)
             }
         }
         // ディーラーが引いている途中で中断していたら、その続きから引く（#667）。

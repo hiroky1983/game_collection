@@ -167,6 +167,14 @@ public final class PokerModel {
             self.rules           = snap.rules ?? .standard
             // 同じく旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
             self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
+            // `.idle` を書くのは `persistRevivedRoundWaiting` だけ（局を持たない中断データ・#1104）。
+            // 戻った先は次の局の開始シートで「続き」ではないので、中断のお知らせ（#663）の対象から
+            // 外す（#1145）。保存時の `notifyRoundWaitingSnapshot` は**保存したプロセスの中**でしか
+            // 効かない（`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）ため、
+            // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
+            if snap.phase == .idle {
+                self.services?.gameDidRestoreFinished(gameID: gameID)
+            }
         } else {
             self.playerChips = PokerModel.initialChips
             self.cpuChips    = PokerModel.initialChips
