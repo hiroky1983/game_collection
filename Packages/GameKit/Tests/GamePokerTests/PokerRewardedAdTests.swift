@@ -130,19 +130,6 @@ private func makeRevivedWinAwaitingDoubleUp(
     return (model, store, services)
 }
 
-/// 送信されたイベントをそのまま溜めるスパイ（`AnalyticsTests` の同名の型と同じ形）。
-@MainActor
-private final class SpyAnalyticsService: AnalyticsService {
-    private(set) var events: [AnalyticsEvent] = []
-    func log(_ event: AnalyticsEvent) { events.append(event) }
-
-    var quits: Int {
-        events.filter {
-            if case let .gameEnd(_, result, _, _, _) = $0 { return result == .quit } else { return false }
-        }.count
-    }
-}
-
 /// 局を始めてはフォールドし続け、アンティで手持ちを削ってチップ切れまで進める。
 /// チェックには CPU が必ずチェックで返し、交換後の 2 巡目でフォールドすれば必ず決着する
 /// （`PokerReviveLeaderboardTests.finishRound` と同じ最短の進め方）。
@@ -515,7 +502,7 @@ struct PokerRewardedAdTests {
         #expect(store.exists(for: "poker"), "復活したセッションなので中断データは在る")
 
         services.gameDidLeave(gameID: "poker")
-        #expect(spy.quits == 1, "続きの無い局が休憩として数えられている")
+        #expect(spy.quits.count == 1, "続きの無い局が休憩として数えられている")
     }
 
     /// 復活の中断データ（#1104）が「もう一度はじめる」の初期化を邪魔しないこと。

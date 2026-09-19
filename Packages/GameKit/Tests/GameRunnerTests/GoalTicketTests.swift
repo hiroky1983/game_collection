@@ -4,6 +4,7 @@ import Testing
 import Core
 @testable import GameRunner
 import CoreTestSupport
+import GameRunnerTestSupport
 
 /// 毎面のゴール（旗 → ひらひら浮いている宝くじ）と、着いたあとの「追いかける」演出（#1092 A0）。
 ///

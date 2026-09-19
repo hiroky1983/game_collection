@@ -8,22 +8,6 @@ import CoreTestSupport
 
 // MARK: - ヘルパー
 
-/// 送信されたイベントをそのまま溜めるスパイ（`AnalyticsTests` の同名の型と同じ形）。
-@MainActor
-private final class SpyAnalyticsService: AnalyticsService {
-    private(set) var events: [AnalyticsEvent] = []
-    func log(_ event: AnalyticsEvent) { events.append(event) }
-
-    var starts: Int {
-        events.filter { if case .gameStart = $0 { return true } else { return false } }.count
-    }
-    var quits: Int {
-        events.filter {
-            if case let .gameEnd(_, result, _, _, _) = $0 { return result == .quit } else { return false }
-        }.count
-    }
-}
-
 /// 何を切っても和了に絡まない手（`MahjongModelTests` の `junkHand` と同じ意図）。
 @MainActor
 private func junkHand() -> MahjongHand { MahjongNotation.hand("147m258p369s1234z") }
@@ -216,14 +200,14 @@ struct MahjongNewGameTests {
         )
         let model = makeModel(analytics: analytics)
         model.startGame()
-        #expect(spy.starts == 1)
-        #expect(spy.quits == 0)
+        #expect(spy.starts.count == 1)
+        #expect(spy.quits.count == 0)
 
         discardOnce(model)
         model.startGame()
 
-        #expect(spy.quits == 1, "捨てた対局の game_end が先に出る")
-        #expect(spy.starts == 2, "そのあと新しい対局の game_start が出る")
+        #expect(spy.quits.count == 1, "捨てた対局の game_end が先に出る")
+        #expect(spy.starts.count == 2, "そのあと新しい対局の game_start が出る")
     }
 
     @Test("配っただけで切らずに捨てた対局は離脱に数えない")
@@ -237,8 +221,8 @@ struct MahjongNewGameTests {
 
         model.startGame()
 
-        #expect(spy.quits == 0)
-        #expect(spy.starts == 2)
+        #expect(spy.quits.count == 0)
+        #expect(spy.starts.count == 2)
     }
 
     /// トビ復活の広告を見ているあいだに「新規対局」を押されたら、**新しい対局に復活を乗せない**。

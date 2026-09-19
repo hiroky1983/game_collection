@@ -25,6 +25,7 @@ import GameChess
 import GameBlocks
 import MahjongTiles
 import CoreTestSupport
+import GameRunnerTestSupport
 
 // MARK: - Mocks
 
@@ -165,9 +166,9 @@ private func playBlockPuzzle(_ services: GameServices) {
 @MainActor
 private func playRunner(_ services: GameServices) {
     let model = RunnerModel(services: services, startingAt: 1)
-    failRunnerStage(model)      // 跳ばずに走って穴に落ちる
+    failCurrentStage(model)      // 跳ばずに走って穴に落ちる
     model.retryStage()
-    clearRunnerStage(model)     // 自動操縦でゴールまで
+    autoPlayCurrentStage(model)     // 自動操縦でゴールまで
 }
 
 /// フリーセル（#492）。決着まで指し切るにはソルバーが要る（`GameFreeCellTests` で通しを検証済み）ため、
@@ -886,38 +887,6 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
         case .idle, .gameResult:
             return
         }
-    }
-}
-
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
-@MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
-/// 一度も跳ばずに走らせてミスさせる。
-@MainActor
-private func failRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
-        frames += 1
-        model.tick(dt: 1.0 / 60)
     }
 }
 
