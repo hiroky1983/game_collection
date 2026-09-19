@@ -48,7 +48,7 @@ let package = Package(
         // チェス（#462）。ルール・探索は純粋ロジックなので Core だけに依存する。
         .target(name: "GameChess",          dependencies: ["Core", "CoreEngine"]),
         .target(name: "GameMinesweeper",    dependencies: ["Core"]),
-        .target(name: "GameOthello",        dependencies: ["Core", "CoreEngine"]),
+        .target(name: "GameOthello",        dependencies: ["Core"]),
         .target(name: "GamePoker",          dependencies: ["Core"]),
         .target(name: "GameConcentration",  dependencies: ["Core"]),
         .target(name: "GameBlackjack",      dependencies: ["Core"]),
