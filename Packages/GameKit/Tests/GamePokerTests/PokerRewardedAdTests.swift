@@ -817,6 +817,40 @@ struct PokerReviveLeaderboardTests {
 
 // MARK: - 局を持たない中断データの扱い（#1104）
 
+/// お知らせの予約先のスパイ。`ResumeReminderTests` のものは許諾と競合まで見るが、ここで要るのは
+/// 「予約が入ったか」だけなので最小限にする。
+@MainActor
+private final class SpyReminderScheduler: ResumeReminderScheduler {
+    private(set) var reminders: [String: ResumeReminder] = [:]
+
+    func authorization() async -> ReminderAuthorization { .provisional }
+    func requestProvisionalAuthorization() async -> ReminderAuthorization { .provisional }
+    func pendingReminders() async -> [ResumeReminder] { Array(reminders.values) }
+    func schedule(_ reminder: ResumeReminder, title: String, body: String) async {
+        reminders[reminder.gameID] = reminder
+    }
+    func cancel(gameIDs: [String]) { gameIDs.forEach { reminders[$0] = nil } }
+    func cancelAll() { reminders.removeAll() }
+}
+
+/// アプリを起動し直した状態（決着済みの印を覚えていない新しいサービス）を作る。
+@MainActor
+private func makeRelaunchedServices(
+    store: MemorySnapshotStore
+) -> (GameServices, ResumeReminderService, SpyReminderScheduler) {
+    let spy = SpyReminderScheduler()
+    let reminders = ResumeReminderService(
+        scheduler: spy,
+        isEnabled: { true },
+        isSuppressed: false,
+        reminderTitle: { $0 == "poker" ? "ポーカー" : nil }
+    )
+    let services = GameServices(
+        snapshots: store, ads: StubAdService(rewardEarned: true), reminders: reminders
+    )
+    return (services, reminders, spy)
+}
+
 @Suite("復活のチップだけを持つ中断データ（#1104）")
 @MainActor
 struct PokerRevivedSnapshotTests {
@@ -859,5 +893,48 @@ struct PokerRevivedSnapshotTests {
         )
         try store.save(inRound, for: "poker")
         #expect(module.hasResumableSnapshot(in: store), "進行中の局が続きから外れている")
+    }
+
+    /// 保存時の通知（`notifyRoundWaitingSnapshot`）は `ResumeReminder` の**メモリ上の**決着済みの印に
+    /// しか効かず、再起動で消える。復元側でも伝えないと、起動し直してから開いて戻ったときだけ
+    /// 続きの無い局に「途中のままです」が予約される（#1145）。
+    @Test("再起動後に開いて戻っても「途中のままです」を予約しない（#1145）")
+    func revivedSnapshotSchedulesNoReminderAfterRelaunch() async {
+        let (model, _, store) = makeBustedModel()
+        #expect(await model.recoverChipsAfterAd())
+        #expect(store.load(PokerSnapshot.self, for: "poker")?.phase == .idle,
+                "前提が崩れた: 局を持たない中断データが残るはず")
+
+        // アプリを終了して起動し直し、ハブから開いて次の局を始めずに戻る。
+        let (services, reminders, spy) = makeRelaunchedServices(store: store)
+        _ = PokerModel(services: services)
+        services.gameDidLeave(gameID: "poker")
+        await reminders.pendingWork?.value
+
+        #expect(spy.reminders.isEmpty, "続きの無い局に「途中のままです」を予約した")
+    }
+
+    /// 上の対照。途中の局まで黙らせていたら、本物の中断が知らされなくなる。
+    @Test("途中の局が残っているときは、再起動後でも従来どおり予約する（#1145）")
+    func inRoundSnapshotStillSchedulesReminderAfterRelaunch() async throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            PokerSnapshot(
+                playerHand: [], cpuHand: [], deck: [],
+                playerChips: 90, cpuChips: 90, pot: 20,
+                phase: .betting1, currentBet: 0,
+                playerBetInRound: 0, cpuBetInRound: 0,
+                cpuFolded: false, cpuAction: "", rules: .standard
+            ),
+            for: "poker"
+        )
+
+        let (services, reminders, spy) = makeRelaunchedServices(store: store)
+        let model = PokerModel(services: services)
+        #expect(model.phase == .betting1, "前提が崩れた: 途中の局を復元しているはず")
+        services.gameDidLeave(gameID: "poker")
+        await reminders.pendingWork?.value
+
+        #expect(spy.reminders["poker"] != nil, "途中の局が残っているのに予約しなかった")
     }
 }
