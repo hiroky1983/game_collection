@@ -273,7 +273,8 @@ fi
 
 log "経営当番起動 (workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR)"
 cd "$RUN_DIR" || exit 0
-PATH="$GH_SHIM_DIR:$PATH" claude --model opus \
+# 会長指示 2026-09-18: 週間リミット逼迫のため恒久対応で全モデル Sonnet に固定。
+PATH="$GH_SHIM_DIR:$PATH" claude --model sonnet \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/Scripts/ai-management-prompt.md")" >>"$LOG" 2>&1
 RC=$?
