@@ -136,8 +136,16 @@ public enum RunnerStory {
 
     /// 始まりを見せ終えたことを記録する（#1144）。呼ぶのは最後のコマまで送った／「とばす」
     /// （画面タップも同じ）で抜けた時点だけで、途中で画面を離れた人には次回もう一度流れる。
+    ///
+    /// **撮影・QA では印を付けない**（`shouldShowIntro` と同じガード）。`-simulateRunner story-intro`
+    /// は判定を通さずオーバーレイを直接立てるので、ここを素通しにすると QA で一度流しただけで
+    /// 遊ぶ人が二度と始まりを見られなくなる（`captureModesSuppressTheStory` が明文化している契約）。
     @MainActor
-    public static func markIntroShown(playLog: PlayLog?) {
+    public static func markIntroShown(
+        playLog: PlayLog?,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
+        guard !arguments.contains("-screenshotMode"), !arguments.contains("-simulateRunner") else { return }
         playLog?.markGuideShown(for: RunnerStoryScene.intro.seenKey)
     }
 
