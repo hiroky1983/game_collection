@@ -25,7 +25,7 @@ public final class RewardedRescue {
     /// 失敗の知らせだけはどのゲームでも同じ言い回しにする。タイトル（何ができなかったか）は
     /// ゲームごとに違うので `rewardedRescueAlerts(_:notEarned:unavailable:)` で受け取る。
     public static let notEarnedMessage =
-        "広告を最後まで視聴しなかったか、広告を読み込めませんでした。\nもう一度お試しください。"
+        "広告を最後まで視聴しなかったか、広告を読み込めませんでした。\n通信状態をご確認のうえ、もう一度お試しください。"
 
     /// 広告のロード〜視聴中。救済ボタンの `disabled` に使う。
     public private(set) var isWatching = false

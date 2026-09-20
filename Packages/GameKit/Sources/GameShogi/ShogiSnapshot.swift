@@ -15,6 +15,9 @@ public struct ShogiSnapshot: Codable, Equatable, Sendable {
     public var startedAt: Date
     public var undoUsed: Bool?
     public var resigned: Bool?
+    /// この局で使ったヒントの回数（#1118）。**追加する項目は必ず Optional**にする
+    /// （鍵を持たない v1.1.5 までの中断データが読めなくなるため）。欠けていたら未使用として読む。
+    public var hintsUsed: Int?
 
     public init(
         initialSfen: String,
@@ -26,7 +29,8 @@ public struct ShogiSnapshot: Codable, Equatable, Sendable {
         aiLevel: Int?,
         startedAt: Date,
         undoUsed: Bool,
-        resigned: Bool = false
+        resigned: Bool = false,
+        hintsUsed: Int = 0
     ) {
         self.initialSfen = initialSfen
         self.moves = moves
@@ -38,5 +42,6 @@ public struct ShogiSnapshot: Codable, Equatable, Sendable {
         self.startedAt = startedAt
         self.undoUsed = undoUsed
         self.resigned = resigned
+        self.hintsUsed = hintsUsed
     }
 }

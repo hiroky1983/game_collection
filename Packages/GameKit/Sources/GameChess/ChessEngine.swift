@@ -1,4 +1,5 @@
 import Foundation
+import Core
 import CoreEngine
 
 /// チェス AI の境界（UCI 風）。将棋の `ShogiEngine` と同じ形にしてある。
@@ -163,46 +164,119 @@ public struct SimpleChessEngine: ChessEngine {
     let useQuiescence: Bool
     let useBook: Bool
     let timeLimit: TimeInterval
+    /// 「入門」か（#1174）。読みの設定は「簡単」と同じまま、着手の選び方だけを変える
+    /// （`noviceMove`）。将棋 `SimpleMinimaxEngine` と同じ設計。
+    let isNovice: Bool
+    /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テストだけが種を渡して再現する）。
+    /// 「入門」以外は乱数を使わないので、この値は見ない。
+    let seed: UInt64?
 
     /// 難易度。**表示している強さの文言と中身が一致していること**（#416 の教訓）:
     ///
     /// | level | 表示 | 探索深さ | 静止探索 | 位置評価 | 定跡 |
     /// |---|---|---|---|---|---|
-    /// | 0 | 弱（駒の損得だけ） | 2 | 無し | 無し | 無し |
-    /// | 1 | 普通（駒の働きも見る） | 3 | 有り | 有り | 無し |
-    /// | 2 | 強（定跡＋深読み） | 5 | 有り | 有り | 有り |
+    /// | -1 | 入門（手なりで指す） | 2 | 無し | 無し | 無し |
+    /// | 0 | 簡単（駒の損得だけ） | 2 | 無し | 無し | 無し |
+    /// | 1 | ふつう（駒の働きも見る） | 3 | 有り | 有り | 無し |
+    /// | 2 | むずかしい（定跡＋深読み） | 5 | 有り | 有り | 有り |
+    /// | 3 | ガチ（とことん読む） | 7 | 有り | 有り | 有り |
+    ///
+    /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
     ///
     /// level 0 で静止探索を切っているのは「初心者が勝てる最弱」を作るため。
     /// 静止探索が無いと取り合いの途中で数え終えるので、駒の只捨てを見落とす。
-    public init(level: Int = 1) {
-        switch level {
-        case 0:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
-        case 2:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true, true, true, 2.0)
-        default: (depth, usePositional, useQuiescence, useBook, timeLimit) = (3, true, true, false, 1.0)
+    /// その下の「入門」（#1174）は**深さ 2 のまま**で、`noviceMove` が駒損しない手の中から
+    /// 乱択する（深さを削ると只捨てを始めるため。将棋 #502 の測定と同じ理由）。
+    public init(level: Int = CPUStrength.standard.rawValue) {
+        self.init(level: level, seed: nil)
+    }
+
+    init(level: Int, seed: UInt64?) {
+        let strength = CPUStrength.strength(for: level)
+        switch strength {
+        case .novice:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
+        case .easy:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
+        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true, true, true, 2.0)
+        case .serious: (depth, usePositional, useQuiescence, useBook, timeLimit) = (7, true, true, true, 3.0)
+        case .normal:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (3, true, true, false, 1.0)
         }
+        self.isNovice = strength == .novice
+        self.seed = seed
     }
 
     /// テスト用の直接指定。時間切れによる打ち切りを避けたいときに `timeLimit` を大きく取る。
-    init(depth: Int, usePositional: Bool, useQuiescence: Bool, useBook: Bool, timeLimit: TimeInterval) {
+    init(depth: Int, usePositional: Bool, useQuiescence: Bool, useBook: Bool, timeLimit: TimeInterval,
+         isNovice: Bool = false, seed: UInt64? = nil) {
         self.depth = depth
         self.usePositional = usePositional
         self.useQuiescence = useQuiescence
         self.useBook = useBook
         self.timeLimit = timeLimit
+        self.isNovice = isNovice
+        self.seed = seed
     }
+
+    /// 「入門」が許す駒損の幅（#1174）。**ポーン 1 枚に満たない差**しか許さないので、
+    /// 駒を只で捨てる手・取り返される取りは候補に入らない。
+    static let noviceMargin = ChessPieceValue.base(.pawn) - 1
 
     public func bestMove(fen: String) async -> String? {
         guard var pos = ChessPosition.fromFEN(fen) else { return nil }
-        guard !pos.legalMoves().isEmpty else { return nil }
+        let moves = pos.legalMoves()
+        guard !moves.isEmpty else { return nil }
 
         if useBook, let booked = ChessOpeningBook.move(for: fen),
-           let m = ChessMove.fromUCI(booked), pos.legalMoves().contains(m) { return booked }
+           let m = ChessMove.fromUCI(booked), moves.contains(m) { return booked }
+
+        if isNovice { return noviceMove(&pos, moves: moves)?.uci }
 
         var ctx = ChessSearchContext(
             maxDepth: depth, usePositional: usePositional,
             useQuiescence: useQuiescence, timeLimit: timeLimit
         )
         return ctx.search(&pos)?.uci
+    }
+
+    /// 「入門」の着手（#1174）。読みの深さは「簡単」と同じ（自分の手＋相手の応手＝深さ 2）まま、
+    /// **最善からポーン 1 枚ぶんも損しない手の中から乱択する**。
+    ///
+    /// 「簡単」は同じ評価で並んだ手を指し手オーダリング（取る手が先）で選ぶので、駒得の機会は
+    /// 逃さず攻めの手が先に出る。「入門」はそこを崩して手なりに指す。駒を只で捨てる手・
+    /// 取り返されるだけの取りはポーン 1 枚より大きく損をするため候補に入らず、
+    /// 「損はしないが得も狙わない」水準に収まる（弱いが壊れてはいない）。
+    func noviceMove(_ pos: inout ChessPosition, moves: [ChessMove]) -> ChessMove? {
+        var ctx = ChessSearchContext(
+            maxDepth: 1, usePositional: usePositional,
+            useQuiescence: useQuiescence, timeLimit: timeLimit
+        )
+        // 先にオーダリング（MVV-LVA）しておく。時間切れで1手も読めなかった／全滅した場合の
+        // フォールバックに使う（「簡単」の反復深化が時間切れ時に使うのと同じ考え方 = 只捨てではない手）。
+        let orderedMoves = ctx.orderMoves(moves, pos: pos, killers: [nil, nil])
+        var scored: [(move: ChessMove, score: Int)] = []
+        for move in orderedMoves {
+            // 期限切れなら打ち切る。ここでチェックしないと、期限切れ後の `negamax` が
+            // 「自分の手を指した直後の駒得」だけを返し続け、`noviceMargin` の判定が
+            // 取り返しを見ない只捨てを弾けなくなる（#1174 検証指摘）。
+            if Date() > ctx.deadline { break }
+            let undo = pos.make(move)
+            // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
+            let score = -ctx.negamax(&pos, depth: depth - 1,
+                                     alpha: -chessMateScore * 2, beta: chessMateScore * 2, ply: 1)
+            pos.unmake(undo)
+            // negamax の探索中に期限切れになった場合、返る値は不完全な評価（中断時点の
+            // evaluate(pos)）なので候補に入れない（CodeRabbit 指摘・PR #1190）。
+            if Date() > ctx.deadline { break }
+            scored.append((move, score))
+        }
+        guard let best = scored.map(\.score).max() else { return orderedMoves.first }
+        let pool = scored.filter { $0.score >= best - Self.noviceMargin }.map(\.move)
+        guard !pool.isEmpty else { return orderedMoves.first }
+        if let seed {
+            var rng = SplitMix64(seed: seed)
+            return pool[Int.random(in: 0..<pool.count, using: &rng)]
+        }
+        var rng = SystemRandomNumberGenerator()
+        return pool[Int.random(in: 0..<pool.count, using: &rng)]
     }
 
     /// 静的評価（テストから覗く用）。手番側から見た点数。
