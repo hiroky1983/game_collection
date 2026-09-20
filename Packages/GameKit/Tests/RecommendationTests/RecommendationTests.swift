@@ -11,6 +11,7 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameBaccarat
+import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -39,7 +40,7 @@ import GameKitTestSupport
 // hanafuda は #668 で戻した。
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
-    "solitaire", "freecell", "spider", "daifugo", "poker", "blackjack", "baccarat", "minesweeper", "gomoku",
+    "solitaire", "freecell", "spider", "daifugo", "sevens", "poker", "blackjack", "baccarat", "minesweeper", "gomoku",
     "concentration", "blocks", "runner", "hanafuda",
 ]
 
@@ -50,7 +51,7 @@ private func makeRegistry() -> GameRegistry {
     GameRegistry([
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
-        FreeCellModule(), SpiderModule(), DaifugoModule(), PokerModule(), BlackjackModule(),
+        FreeCellModule(), SpiderModule(), DaifugoModule(), SevensModule(), PokerModule(), BlackjackModule(),
         BaccaratModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
         HanafudaModule(),
@@ -134,7 +135,8 @@ struct RecommendationTableTests {
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["baccarat", "poker", "daifugo"]),
         ("baccarat",      ["blackjack", "poker", "daifugo"]),
-        ("daifugo",       ["poker", "blackjack", "hanafuda"]),
+        ("daifugo",       ["sevens", "hanafuda", "poker"]),
+        ("sevens",        ["daifugo", "poker", "blackjack"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
@@ -638,8 +640,10 @@ struct PlayLogStorageTests {
         // 評価リクエスト（#53）の4キーはこのテストでは書き込まれない（勝利を記録していないため）。
         #expect(Set(after20.keys) == Set(PlayLog.recommendationKeys), "書き込むキーは5つだけ")
         #expect(Set(after1020.keys) == Set(after20.keys), "1000回遊んでもキーは増えない")
-        // 増えうるのは整数の桁だけ（バイナリ plist の整数幅）。追記型ログなら数十 KB になる。
-        #expect(storedSize(after1020) - storedSize(after20) <= 16, "データ量はほぼ一定")
+        // 増えうるのは整数の桁と、20回目までに未プレイだった残り数本ぶんの gameID 文字列
+        // （`playedGameIDs` は「一度でも遊んだ ID」の集合で、ハブが増えるほど 20 回時点の
+        // 未プレイ本数も増える）。追記型ログなら数十 KB になるので、その桁とは区別できる。
+        #expect(storedSize(after1020) - storedSize(after20) <= 32, "データ量はほぼ一定")
         #expect(storedValueSize(after1020) < 300, "値の合計は300バイト未満（Issue #52 のデータ設計）")
         #expect(storedSize(after1020) <= 512, "キー名と plist の枠を含めても 512 バイト以内")
 

@@ -11,6 +11,7 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameBaccarat
+import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -300,6 +301,30 @@ private func playConcentration(_ services: GameServices) {
         if model.firstFlippedIndex == nil { model.tap(index: first) }
         model.tap(index: second)
     }
+}
+
+/// 七並べ: 出せる手があるうちにパスを叩く（拒否）→ 貪欲法で最後まで打ち切る（決着）。
+/// CPU の手番は `runCPUTurnsIfNeeded` が進める（CPU 側では鳴らさない）。
+@MainActor
+@discardableResult
+private func playSevens(_ services: GameServices) async -> SevensModel {
+    let model = SevensModel(services: services, cpuDelay: .zero, seed: 2026)
+    model.startGame()
+    var didReject = false
+    for _ in 0..<500 where model.phase == .playing {
+        await model.runCPUTurnsIfNeeded()
+        guard model.phase == .playing, model.isPlayerTurn else { continue }
+        if !didReject {
+            didReject = true
+            model.pass()   // 出せる手があるうちに叩くと拒否される
+        }
+        if let card = SevensRules.greedyPlay(hand: model.playerHand, board: model.board) {
+            model.play(card)
+        } else {
+            model.pass()
+        }
+    }
+    return model
 }
 
 /// 大富豪: 何も選ばずに「出す」（拒否）→ 貪欲法で最後まで打ち切る（決着）。
@@ -641,6 +666,18 @@ struct FeedbackEnabledTests {
         #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
     }
 
+    @Test("七並べ: カードを出す・拒否・決着で発火する")
+    func sevens() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = await playSevens(services)
+        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
+        #expect(spy.impacts.contains(.light), "パスで発火する")
+        #expect(spy.notices(of: .warning) > 0, "出せる手があるのにパスすると拒否として発火する")
+        #expect(model.phase == .result, "手順の最後は必ず決着している")
+        let expected: FeedbackNotice = model.didPlayerWin ? .success : .error
+        #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
+    }
+
     @Test("大富豪: カード選択・出し・拒否・決着で発火する")
     func daifugo() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
@@ -772,6 +809,7 @@ struct FeedbackDisabledTests {
         playConcentration(services)
         playBlackjack(services)
         playBaccarat(services)
+        await playSevens(services)
         await playDaifugo(services)
         playMahjong(services)
         await playSudoku(services)
@@ -822,6 +860,7 @@ struct SoundFeedbackTests {
         await check("神経衰弱") { playConcentration($0) }
         await check("ブラックジャック") { _ = playBlackjack($0) }
         await check("バカラ") { _ = playBaccarat($0) }
+        await check("七並べ") { _ = await playSevens($0) }
         await check("大富豪") { _ = await playDaifugo($0) }
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }
