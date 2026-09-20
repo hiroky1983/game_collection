@@ -85,6 +85,52 @@ struct OthelloEngineTests {
         #expect(rate <= 0.75, "弱がでたらめな相手に \(wins)/\(games) 勝っている（強すぎる）")
         #expect(rate >= 0.35, "弱がでたらめな相手に \(wins)/\(games) しか勝てない（弱すぎる）")
     }
+
+    // MARK: - 時間切れ時の反復深化（#1133）
+
+    /// 時間切れのとき、`rootSearch` が単独で返す不完全な結果（未評価の候補手が残ったまま・
+    /// `negamax` が壊れた評価値で埋めた `alpha`）をそのまま使わないことを固定する。
+    /// 呼び出し時点で既に期限切れなら、深さ 1 すら読み切れないので `moves[0]` に倒す。
+    @Test("時間切れが呼び出し時点で既に発生していれば moves[0] に倒す")
+    func iterativeDeepeningFallsBackWhenAlreadyExpired() async {
+        let board = OthelloBoard()
+        let moves = board.validMoves(for: .black)
+        let engine = OthelloEngine(level: CPUStrength.hard.rawValue, timeLimitOverride: -1)
+        let move = await engine.bestMove(board: board, stone: .black)
+        #expect(move?.row == moves[0].0 && move?.col == moves[0].1,
+                "期限切れ時に moves[0] 以外を返している（読み残しの評価に頼っている）: \(String(describing: move))")
+    }
+
+    /// 反復深化は「時間切れになった深さ」の結果を丸ごと捨て、直前の読み切った深さの結果を使う
+    /// （#1133）。深さ 1 の所要時間を実測し、その数倍だけ猶予がある deadline を与えて
+    /// `iterativeDeepening` を呼ぶと、深さ 4 まで読み切るには全く足りないはず（探索量は
+    /// 深さに対して指数的に増える）。返る手が深さ 1 のフルサーチ結果と一致することを確認する。
+    @Test("時間切れのときは直前に読み切った深さの結果を使う")
+    func iterativeDeepeningUsesLastCompletedDepth() async throws {
+        let board = OthelloBoard()
+        let moves = board.validMoves(for: .black)
+        let farDeadline = Date().addingTimeInterval(600)
+        let engine = OthelloEngine(level: CPUStrength.hard.rawValue)
+
+        let d1Start = Date()
+        let depth1 = engine.rootSearch(moves, board: board, stone: .black, depth: 1, deadline: farDeadline)
+        let depth1Duration = Date().timeIntervalSince(d1Start)
+        #expect(depth1.completed, "前提が崩れている: 深さ 1 は時間無制限でも完了しない")
+
+        let d4Start = Date()
+        let depth4 = engine.rootSearch(moves, board: board, stone: .black, depth: 4, deadline: farDeadline)
+        let depth4Duration = Date().timeIntervalSince(d4Start)
+        #expect(depth4.completed, "前提が崩れている: 深さ 4 は時間無制限でも完了しない")
+        try #require(depth4Duration > depth1Duration * 10,
+                     "前提が崩れている: 深さ4が深さ1の10倍未満で終わっている（マシンが速すぎてタイミング設計が成立しない）")
+
+        // 深さ1は確実に間に合うが、深さ4には遠く及ばない deadline を作る。
+        let deadline = Date().addingTimeInterval(depth1Duration * 3)
+        let result = engine.iterativeDeepening(moves, board: board, stone: .black,
+                                               maxDepth: OthelloEngine.hardMaxDepth, deadline: deadline)
+        #expect(result.0 == depth1.best.0 && result.1 == depth1.best.1,
+                "深さ1の結果と異なる（未完了の深い探索の結果が混入している可能性）")
+    }
 }
 
 // MARK: - 入門・ガチ（#1174）
