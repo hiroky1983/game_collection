@@ -274,9 +274,11 @@ public struct ShogiView: View {
 
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
     private var ladder: DifficultyLadderPrompt? {
-        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
-                               levelLabels: ["弱", "普通", "強"]) { level in
-            model.newGame(humanSide: model.humanSide, aiLevel: level)
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.newGame(humanSide: model.humanSide,
+                          aiLevel: CPUStrength.level(atLadderIndex: index))
         }
     }
 
@@ -551,14 +553,10 @@ struct NewGameSheet: View {
                 }
             }
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    GameSetupChooser(title: "弱", subtitle: "駒得だけ", selected: level == 0,
-                                     accent: Theme.Fill.teal) { level = 0 }
-                    GameSetupChooser(title: "普通", subtitle: "囲いを作る", selected: level == 1,
-                                     accent: Theme.Fill.yellow) { level = 1 }
-                    GameSetupChooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2,
-                                     accent: Theme.Fill.coral) { level = 2 }
-                }
+                // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
+                CPUStrengthPicker(level: $level, details: [
+                    "手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み", "とことん読む",
+                ])
             }
         }
     }

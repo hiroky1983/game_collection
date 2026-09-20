@@ -208,7 +208,9 @@ public struct GameSetupChooser: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 titleText
-                subtitleText
+                // 副題が空のときは行ごと出さない（CPU の強さの5段階だけは、狭い端末で
+                // 読める大きさを保つため副題をタイルの外へ出している。`CPUStrengthPicker`）。
+                if !subtitle.isEmpty { subtitleText }
             }
             .frame(maxWidth: .infinity).padding(.vertical, metrics.verticalPadding)
             .background(

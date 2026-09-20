@@ -86,14 +86,16 @@ public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
 ///
 /// ゲームごとの呼び名（「やさしい」「初級」「弱」「レベル 0」…）をそのまま送ると、
 /// GA4 では `game_id` ごとに別の文字列集合になり、横断で読めない。強さを選ぶゲームは
-/// この4段階へ写し、面を進めるゲームは面番号を `stage-N` として送る。写像は各ゲーム側の
+/// この5段階へ写し、面を進めるゲームは面番号を `stage-N` として送る。写像は各ゲーム側の
 /// `analyticsLevel` に置く（Core は個々のゲームの型を知らない）。
 /// 難易度・段階の概念を持たないゲームは `nil` で、`level` の鍵ごと送らない。
 ///
 /// - Note: 送る値は必ず文字列。面番号を整数で送ると同じ `level` が数値と文字列の2型になり、
 ///   GA4 のカスタムディメンションとして読めなくなる。
 public enum AnalyticsLevel: Equatable, Sendable {
-    /// 入門・いちばんやさしい強さ。
+    /// 最弱。段階が3つのゲームでは使わない（CPU 対戦の5段階の「入門」・#1174）。
+    case novice
+    /// いちばんやさしい強さ。5段階のゲームでは下から2番目（「簡単」）。
     case beginner
     /// 標準の強さ。
     case normal
@@ -109,6 +111,7 @@ public enum AnalyticsLevel: Equatable, Sendable {
     /// `level` パラメータに載る文字列。
     public var parameterValue: String {
         switch self {
+        case .novice:   return "novice"
         case .beginner: return "beginner"
         case .normal:   return "normal"
         case .hard:     return "hard"
@@ -118,11 +121,14 @@ public enum AnalyticsLevel: Equatable, Sendable {
         }
     }
 
-    /// 強さを表す4段階の全量。`stage` は面数がゲームごとに違うためここには入らない。
-    public static let allStrengths: [AnalyticsLevel] = [.beginner, .normal, .hard, .expert]
+    /// 強さを表す段階の全量（やさしい順）。`stage` は面数がゲームごとに違うためここには入らない。
+    public static let allStrengths: [AnalyticsLevel] = [.novice, .beginner, .normal, .hard, .expert]
 
     /// **0 始まり**の強さ設定（各ゲームの `aiLevel` など）を段階へ写す。
     /// 範囲外の値も型の上では作れるため、下は `beginner`・上は `expert` に倒して受け止める。
+    ///
+    /// CPU 対戦の5段階（将棋・チェス・五目並べ・オセロ）は番号が 0 始まりではないので、
+    /// ここではなく `CPUStrength.analyticsLevel` が写す（#1174）。
     public static func aiStrength(_ zeroBased: Int) -> AnalyticsLevel {
         switch zeroBased {
         case ..<1:  return .beginner

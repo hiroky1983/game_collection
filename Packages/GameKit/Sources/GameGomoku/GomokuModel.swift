@@ -373,7 +373,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // ヒントの読みも同じ理由で下ろす（#1118）。旧タスクの defer は対局が変わると旗に触らない。
         isHintThinking = false
         persist()
-        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     // MARK: - 投了
