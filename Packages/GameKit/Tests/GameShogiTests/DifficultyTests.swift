@@ -352,6 +352,23 @@ struct ShogiNoviceAndSeriousTests {
         #expect(moves.count > 1, "期限切れ時に手が1通りしかない = 1件も評価されず orderedMoves.first に固定されている")
     }
 
+    /// 安全フロアの評価は `negamax` の期限判定も無効化しないと、相手の応手を読まない
+    /// 静的評価（`evaluate(pos)`）のまま候補に残り、取り返される取りを選びうる
+    /// （CodeRabbit 指摘・PR #1199）。合法手を金の1手（取り返される取り）と玉の2手（安全）の
+    /// 計3手だけに絞った局面（角に追い込んだ玉・金の退路は自駒でふさぐ）を使い、
+    /// 安全フロア（3手）の範囲内だけで判定できるようにした。
+    /// - 9a の金は 8a の歩しか取れない（前方・後方は盤外か自駒でふさいでいる）。
+    ///   取ると 8b の金に取り返される。
+    /// - 1a の玉は 2a / 2b の2箇所だけ動ける（前方は盤外、後方は自駒でふさいでいる）。
+    @Test("期限切れでも取り返されるだけの駒は取らない（合法手を3手に限定した局面）")
+    func expiredNoviceAvoidsTheHangingCaptureInMinimalPosition() async {
+        let sfen = "Gp6K/Pg6P/9/9/9/9/9/9/9 b - 1"
+        for seed in UInt64(1)...30 {
+            let usi = await ShogiSelfPlay.expired(level: Self.novice, seed: seed).bestMove(sfen: sfen)
+            #expect(usi != "9a8a", "期限切れの入門が金を歩と刺し違えている（seed \(seed)・\(usi ?? "nil")）")
+        }
+    }
+
     /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する
     /// （「弱」に対する `newWeakStillCrushesRandomPlay` と同じ物差し）。
     @Test("入門もランダムな相手には大差で勝つ")

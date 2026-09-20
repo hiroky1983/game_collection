@@ -367,6 +367,19 @@ struct ChessNoviceAndSeriousTests {
         #expect(moves.count > 1, "期限切れ時に手が1通りしかない = 1件も評価されず orderedMoves.first に固定されている")
     }
 
+    /// 安全フロアの評価は `negamax` の期限判定も無効化しないと、相手の応手を読まない
+    /// 静的評価（`evaluate(pos)`）のまま候補に残り、取り返される取りを選びうる
+    /// （CodeRabbit 指摘・PR #1199）。`noviceAvoidsTheHangingCapture` と同じ局面を
+    /// 呼び出し時点で期限切れにして確認する。
+    @Test("期限切れでも取り返されるだけの取りは選ばない")
+    func expiredNoviceAvoidsTheHangingCapture() async {
+        let fen = "k7/8/3p4/4p3/8/8/8/K3Q3 w - - 0 1"
+        for seed in UInt64(1)...30 {
+            #expect(await expiredNovice(seed: seed).bestMove(fen: fen) != "e1e5",
+                    "期限切れの入門がクイーンをポーンと刺し違えている（seed \(seed)）")
+        }
+    }
+
     /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する
     /// （将棋 `noviceStillCrushesRandomPlay` と同じ物差し）。
     @Test("入門もでたらめな相手には大差で勝つ")
