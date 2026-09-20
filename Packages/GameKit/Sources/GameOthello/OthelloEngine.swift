@@ -24,16 +24,21 @@ public struct OthelloEngine: Sendable {
     /// テスト専用: 持ち時間を上書きする（時間切れの挙動を決定的に検証するため・#1133）。
     /// `nil` なら `level` から決まる通常の持ち時間を使う。
     let timeLimitOverride: TimeInterval?
+    /// テスト専用: 現在時刻の取得元（#1133 CodeRabbit 指摘）。実時間に依存しない固定時計を
+    /// 注入できるようにし、実行環境の速度差でフレークする回帰テストを避ける。
+    let now: @Sendable () -> Date
 
     public init(level: Int = CPUStrength.standard.rawValue) {
         self.level = level
         self.timeLimitOverride = nil
+        self.now = { Date() }
     }
 
-    /// テスト用: 持ち時間を直接指定する（#1133 回帰テスト用）。
-    init(level: Int, timeLimitOverride: TimeInterval) {
+    /// テスト用: 持ち時間・時計を直接指定する（#1133 回帰テスト用）。
+    init(level: Int, timeLimitOverride: TimeInterval? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
         self.level = level
         self.timeLimitOverride = timeLimitOverride
+        self.now = now
     }
 
     public func bestMove(board: OthelloBoard, stone: OthelloStone) async -> (row: Int, col: Int)? {
@@ -51,7 +56,7 @@ public struct OthelloEngine: Sendable {
         }
         let timeLimit = timeLimitOverride ?? defaultTimeLimit
 
-        let deadline = Date().addingTimeInterval(timeLimit)
+        let deadline = now().addingTimeInterval(timeLimit)
         return iterativeDeepening(moves, board: board, stone: stone, maxDepth: maxDepth, deadline: deadline)
     }
 
@@ -71,7 +76,7 @@ public struct OthelloEngine: Sendable {
                                     maxDepth: Int, deadline: Date) -> (row: Int, col: Int) {
         var best = moves[0]
         for d in 1...maxDepth {
-            if Date() > deadline { break }
+            if now() > deadline { break }
             let result = rootSearch(moves, board: board, stone: stone, depth: d, deadline: deadline)
             guard result.completed else { break }
             best = result.best
@@ -87,7 +92,7 @@ public struct OthelloEngine: Sendable {
         var best = moves[0]
         var bestScore = Int.min + 1
         for (r, c) in moves {
-            if Date() > deadline { return (best, false) }
+            if now() > deadline { return (best, false) }
             var b = board
             b.place(row: r, col: c, stone: stone)
             let score = -negamax(b, stone: stone.opponent, depth: depth - 1,
@@ -96,7 +101,7 @@ public struct OthelloEngine: Sendable {
         }
         // 最後の根手の探索中に期限切れになっていた場合もここで拾う。ループ先頭のチェックだけだと、
         // 全ての根手を一応は評価しているのに「読み切った」と誤って報告してしまう（検証指摘）。
-        return (best, Date() <= deadline)
+        return (best, now() <= deadline)
     }
 
     /// 「入門」の着手（#1174）。角が取れるなら取り、そうでなければ**角のとなり**
@@ -150,7 +155,7 @@ public struct OthelloEngine: Sendable {
                          alpha: Int, beta: Int, deadline: Date) -> Int {
         if board.isFull { return finalScore(board, for: stone) }
         let moves = board.validMoves(for: stone)
-        if depth == 0 || Date() > deadline { return evaluate(board, for: stone) }
+        if depth == 0 || now() > deadline { return evaluate(board, for: stone) }
         if moves.isEmpty {
             if board.validMoves(for: stone.opponent).isEmpty { return finalScore(board, for: stone) }
             return -negamax(board, stone: stone.opponent, depth: depth - 1,
@@ -158,7 +163,7 @@ public struct OthelloEngine: Sendable {
         }
         var alpha = alpha
         for (r, c) in moves {
-            if Date() > deadline { break }
+            if now() > deadline { break }
             var b = board
             b.place(row: r, col: c, stone: stone)
             let score = -negamax(b, stone: stone.opponent, depth: depth - 1,
