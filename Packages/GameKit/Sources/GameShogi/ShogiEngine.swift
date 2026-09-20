@@ -179,7 +179,8 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         self.seed = seed
     }
 
-    /// テスト・計測用の直接指定。時間切れによる打ち切りを避けたいときは `timeLimit` を大きく取る。
+    /// テスト・計測用の直接指定。時間切れによる打ち切りを構造的に無くしたいときは
+    /// `timeLimit: .infinity` を渡す（`.distantFuture` を締切にする。#1187）。
     init(depth: Int, usePositional: Bool, useQuiescence: Bool, useBook: Bool, timeLimit: TimeInterval,
          isNovice: Bool = false, seed: UInt64? = nil) {
         self.depth = depth
@@ -286,7 +287,9 @@ private struct SearchContext {
         self.maxDepth = maxDepth
         self.usePositional = usePositional
         self.useQuiescence = useQuiescence
-        self.deadline = Date().addingTimeInterval(timeLimit)
+        // `timeLimit: .infinity` は「打ち切りを構造的に無くす」ための特別値（#1187）。
+        // `Date().addingTimeInterval(.infinity)` の結果に依存せず、明示的に `.distantFuture` にする。
+        self.deadline = timeLimit.isFinite ? Date().addingTimeInterval(timeLimit) : .distantFuture
         self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [TTEntry](repeating: TTEntry(), count: TT_SIZE)
     }
