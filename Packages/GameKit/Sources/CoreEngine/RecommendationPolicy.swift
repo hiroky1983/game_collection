@@ -89,7 +89,12 @@ public enum RecommendationPolicy {
         // 第1候補は同じ「トランプを1人で並べる」ソリティア（#397）に置き換えた。
         "concentration": ["solitaire", "daifugo", "blackjack"],
         "poker":         ["blackjack", "daifugo", "concentration"],
-        "blackjack":     ["poker", "daifugo", "concentration"],
+        // 第3候補をバカラ（#1197）に差し替えた。同じ「チップを賭けて札を配るだけ」の型で、
+        // 神経衰弱より近い（神経衰弱はポーカー・ソリティア・麻雀ソリティアから引き続き出る）。
+        "blackjack":     ["baccarat", "poker", "daifugo"],
+        // バカラ（#1197）。賭け方がそのまま通じるブラックジャックが最も近く、
+        // 次いで同じトランプでチップを賭けるポーカー、CPU と札を競う大富豪の順。
+        "baccarat":      ["blackjack", "poker", "daifugo"],
         // 第3候補を花札こいこい（#495）にした。同じ「CPU と札を取り合う」型で、
         // 1 人で札をめくる神経衰弱より近い（神経衰弱はポーカー・ブラックジャックから引き続き出る）。
         "daifugo":       ["poker", "blackjack", "hanafuda"],

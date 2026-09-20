@@ -153,6 +153,18 @@ public extension HowToPlayGuide {
         hintIcon: "suit.spade.fill"
     )
 
+    static let baccarat = HowToPlayGuide(
+        gameID: "baccarat",
+        title: "バカラの遊び方",
+        lines: [
+            "プレイヤー・バンカー・タイの 3 つから賭け先を選び、ベットする枚数を決めます。",
+            "カードは自動で配られます。合計の下 1 桁（10・J・Q・K は 0、A は 1）が 9 に近いほうが勝ちです。",
+            "3 枚目を引くかどうかは公式ルールで自動的に決まります。配当はプレイヤー 1 倍・バンカー 0.95 倍・タイ 8 倍です。",
+        ],
+        hint: "賭け先を選んでベットしよう",
+        hintIcon: "suit.diamond.fill"
+    )
+
     static let daifugo = HowToPlayGuide(
         gameID: "daifugo",
         title: "大富豪の遊び方",
@@ -302,7 +314,7 @@ public extension HowToPlayGuide {
 
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
-        .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
+        .poker, .concentration, .blackjack, .baccarat, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
         .hanafuda, .spider,
     ]

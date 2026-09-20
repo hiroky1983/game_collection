@@ -33,6 +33,7 @@ Packages/GameKit/
     GameDaifugo/        ← 大富豪
     GamePoker/          ← ポーカー
     GameBlackjack/      ← ブラックジャック
+    GameBaccarat/       ← バカラ（未リリース。2026-09-21 時点）
     GameMinesweeper/    ← マインスイーパー
     GameGomoku/         ← 五目並べ
     GameConcentration/  ← 神経衰弱
