@@ -1,5 +1,5 @@
 import Foundation
-import Core
+import CoreEngine
 
 public protocol GomokuEngine: Sendable {
     func bestMove(board: GomokuBoard, stone: GomokuStone) async -> (row: Int, col: Int)?
@@ -7,24 +7,16 @@ public protocol GomokuEngine: Sendable {
 
 // MARK: - Zobrist
 
-private struct GomokuLCG: RandomNumberGenerator {
-    var state: UInt64
-    mutating func next() -> UInt64 {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
-        return state ^ (state >> 33)
-    }
-}
-
 private enum GomokuZobrist {
     // [color 0-1][square 0-224]
     static let stone: [[UInt64]] = {
-        var rng = GomokuLCG(state: 0xABCD_1234_CAFE_9876)
+        var rng = MMIXRandom(state: 0xABCD_1234_CAFE_9876)
         var t = [[UInt64]](repeating: [UInt64](repeating: 0, count: 225), count: 2)
         for c in 0..<2 { for sq in 0..<225 { t[c][sq] = rng.next() } }
         return t
     }()
     static let sideToMove: UInt64 = {
-        var rng = GomokuLCG(state: 0xDEAD_BEEF_1234_5678)
+        var rng = MMIXRandom(state: 0xDEAD_BEEF_1234_5678)
         return rng.next()
     }()
 }
@@ -134,7 +126,7 @@ public struct SimpleGomokuEngine: GomokuEngine {
             let ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
                                           forbiddenMoves: forbiddenMoves, transpositionTableSize: 0)
             if let seed {
-                var rng = GomokuLCG(state: seed)
+                var rng = MMIXRandom(state: seed)
                 return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate,
                                     choice: weakChoice, using: &rng)
             }

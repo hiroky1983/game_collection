@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import Core
+import CoreEngine
 @testable import GameOthello
 
 /// CPU の難易度カーブの回帰テスト（#1013）。
@@ -224,21 +224,12 @@ enum OthelloSelfPlay {
         var white: Int
     }
 
-    /// 決定的な擬似乱数（でたらめ役の手を再現可能にする）。
-    struct Rand: RandomNumberGenerator {
-        var state: UInt64
-        init(seed: UInt64) { state = seed &* 6364136223846793005 &+ 1442695040888963407 }
-        mutating func next() -> UInt64 {
-            state = state &* 6364136223846793005 &+ 1442695040888963407
-            return state ^ (state >> 33)
-        }
-    }
-
     /// - Parameter openingPlies: 最初の何手をでたらめに打つか。決定的な段どうしを
     ///   何局も戦わせるために使う（同じ手順を繰り返すと 1 局しか作れないため・#1174）。
     static func play(black: Side, white: Side, seed: UInt64, openingPlies: Int = 0) async -> Result {
         var board = OthelloBoard()
-        var rng = Rand(seed: seed)
+        // 決定的な擬似乱数（でたらめ役の手を再現可能にする）。共通の `MMIXRandom`（#1150）。
+        var rng = MMIXRandom(seed: seed)
         var stone = OthelloStone.black
         var ply = 0
         while true {

@@ -370,6 +370,7 @@ extension RunnerScene {
         goalTicket = node
         goalTicketBase = node.position
         applyGoalTicketSway(node)
+        applyGoalSparkle(to: node)
         return node
     }
 
@@ -398,4 +399,51 @@ extension RunnerScene {
             .sequence([tiltLeft, tiltRight]),
         ])), withKey: Self.loopActionKey)
     }
+
+    /// 宝くじの周りで瞬く小さな光の粒（#1171）。「これが当たり券だ」という目印を強調する
+    /// もので、廃止した紙吹雪（お祝い）とは別の意図——**逃げられた場面で祝うのは話と合わない**
+    /// という #1092 の決裁はここでは動かない（決裁済みなのは「派手な達成の演出」で、常時の目印は別）。
+    ///
+    /// 券の**子ノード**にする。券本体の揺れ（`applyGoalTicketSway`）は `loopActionKey` を券自身に
+    /// 掛けるため、同じキーで粒にも掛けると揺れを上書きしてしまう——粒は自分自身に別々の
+    /// `loopActionKey` を持つので競合しない。子ノードなので、ゴールの演出（`syncGoalChase`）で
+    /// 券が飛んで消えていくときも、位置・透明度をそのまま一緒に引き継ぐ（追加の同期コード不要）。
+    ///
+    /// 位置は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。**Reduce Motion が
+    /// オンなら点滅させず、そのまま光ったまま**にする（揺れと違って粒ごと消すと「目印が減る」
+    /// だけになり、動きを止める効果に見合わないため）。
+    func applyGoalSparkle(to ticket: SKSpriteNode) {
+        let halfW = ticket.size.width / 2
+        let halfH = ticket.size.height / 2
+        // (dx, dy, radius, 点滅の位相ずれ) — 券の四隅の外側に置く。
+        let specs: [(dx: CGFloat, dy: CGFloat, r: CGFloat, phase: TimeInterval)] = [
+            (halfW + 0.6, halfH + 0.4, 0.55, 0.0),
+            (-halfW - 0.5, halfH + 0.7, 0.4, 0.35),
+            (halfW + 0.3, -halfH - 0.6, 0.4, 0.65),
+            (-halfW - 0.7, -halfH - 0.3, 0.5, 0.9),
+        ]
+        for spec in specs {
+            let sparkle = SKShapeNode(circleOfRadius: spec.r)
+            sparkle.name = Self.goalSparkleNodeName
+            sparkle.fillColor = RunnerPalette.color(RunnerPalette.pickupBolt)
+            sparkle.strokeColor = .clear
+            sparkle.zPosition = 1
+            sparkle.position = CGPoint(x: spec.dx, y: spec.dy)
+            ticket.addChild(sparkle)
+            guard !reducesMotion else {
+                sparkle.alpha = 0.9
+                continue
+            }
+            sparkle.alpha = 0.25
+            let blinkIn = SKAction.fadeAlpha(to: 1.0, duration: 0.5)
+            blinkIn.timingMode = .easeInEaseOut
+            let blinkOut = SKAction.fadeAlpha(to: 0.25, duration: 0.5)
+            blinkOut.timingMode = .easeInEaseOut
+            let loop = SKAction.repeatForever(.sequence([blinkIn, blinkOut]))
+            sparkle.run(.sequence([.wait(forDuration: spec.phase), loop]), withKey: Self.loopActionKey)
+        }
+    }
+
+    /// 宝くじの周りの光の粒の名前。ゴールに1つしか無い前提で数を数えるテストが目印にする。
+    static let goalSparkleNodeName = "goalSparkle"
 }

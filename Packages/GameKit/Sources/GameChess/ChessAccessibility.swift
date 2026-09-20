@@ -23,7 +23,8 @@ public enum ChessAccessibility {
         isSelected: Bool,
         isTarget: Bool,
         isLastMove: Bool,
-        isCheckedKing: Bool = false
+        isCheckedKing: Bool = false,
+        isHint: Bool = false
     ) -> String {
         var parts = [squareName(index)]
         if let piece {
@@ -36,6 +37,8 @@ public enum ChessAccessibility {
         if isSelected { parts.append("選択中") }
         if isTarget { parts.append(piece == nil ? "ここに指せます" : "取れます") }
         if isLastMove { parts.append("直前の手") }
+        // ヒントの印（#1118）。見た目の枠（`ChessView.targetLayer` が描くヒントの印）と同じ条件で読ませる。
+        if isHint { parts.append("ヒントの手") }
         return parts.joined(separator: "、")
     }
 

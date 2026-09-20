@@ -24,44 +24,9 @@ import GameChess
 import GameBlocks
 import MahjongTiles
 import CoreTestSupport
+import GameRunnerTestSupport
 
 // MARK: - Mocks
-
-/// 送信されたイベントをそのまま溜めるスパイ。Firebase もネットワークも使わない。
-@MainActor
-private final class SpyAnalyticsService: AnalyticsService {
-    private(set) var events: [AnalyticsEvent] = []
-
-    func log(_ event: AnalyticsEvent) { events.append(event) }
-
-    var starts: [String] {
-        events.compactMap { if case let .gameStart(gameID, _, _) = $0 { return gameID } else { return nil } }
-    }
-    /// `game_start` に載った難易度（#500）。載せていないゲームは nil。
-    var startLevels: [AnalyticsLevel?] {
-        events.compactMap { if case let .gameStart(_, level, _) = $0 { return .some(level) } else { return nil } }
-    }
-    var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
-        events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 {
-                return (gameID, result, durationSec)
-            }
-            return nil
-        }
-    }
-    /// 視聴完了したリワード広告（#500）。
-    var rewards: [(gameID: String, purpose: RewardPurpose)] {
-        events.compactMap {
-            if case let .rewardAd(gameID, purpose) = $0 { return (gameID, purpose) }
-            return nil
-        }
-    }
-    func starts(of gameID: String) -> Int { starts.filter { $0 == gameID }.count }
-    func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
-    func quits(of gameID: String) -> Int {
-        ends.filter { $0.gameID == gameID && $0.result == .quit }.count
-    }
-}
 
 /// 壊れた神経衰弱の中断データ（配列の長さが食い違う）。
 ///
@@ -829,7 +794,7 @@ struct AllGamesAnalyticsTests {
     func runner() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
         expectOnePair(spy, gameID: "runner")
         #expect(spy.ends.first?.result == .win, "ステージクリアは勝ち")
@@ -839,9 +804,9 @@ struct AllGamesAnalyticsTests {
     func runnerRetryIsNotAPlay() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        failRunnerStage(model)
+        failCurrentStage(model)
         model.retryStage()
-        failRunnerStage(model)
+        failCurrentStage(model)
         #expect(spy.starts == ["runner"], "開始は 1 回だけ")
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
     }
@@ -850,7 +815,7 @@ struct AllGamesAnalyticsTests {
     func runnerNextStageCountsAsNewPlay() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         model.advanceToNextStage()
         #expect(spy.starts == ["runner", "runner"])
         #expect(spy.ends.count == 1, "次のステージの終局はこれから")
@@ -1198,38 +1163,6 @@ private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
     [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
 }
 
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
-@MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
-/// 一度も跳ばずに走らせてミスさせる。
-@MainActor
-private func failRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // 決着の演出（`.falling` / `.chasing`）は `isRunning` に含めない（演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase.isSettling, frames < 60 * 300 {
-        frames += 1
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
 /// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
 @MainActor
@@ -1360,7 +1293,7 @@ struct RunnerQuitTests {
     func leavingAfterAMissCarriesTheCause() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services)
-        failRunnerStage(model)
+        failCurrentStage(model)
         #expect(model.phase == .failed)
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
@@ -1374,13 +1307,13 @@ struct RunnerQuitTests {
     func clearingWithoutAMissHasNoCause() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         guard case let .gameEnd(_, result, _, _, cause)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
-        failRunnerStage(model)
+        failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
         guard case let .gameEnd(_, result2, _, _, cause2)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)

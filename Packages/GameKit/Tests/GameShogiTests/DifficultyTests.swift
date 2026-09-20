@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import Core
+import CoreEngine
 @testable import GameShogi
 
 /// 難易度カーブの回帰テスト（#502）。
@@ -17,15 +17,10 @@ import Core
 /// 自己対戦は `timeLimit` を実測の 100 倍以上に取って**深さで決まる**状態にしてから行う。
 /// 実時間で打ち切られると、同じテストが実行環境の速さで別の結果を返す。
 enum ShogiSelfPlay {
-    /// 決定的な擬似乱数（ランダム役の手を再現可能にする）。
-    struct Rand {
-        var state: UInt64
-        init(seed: UInt64) { state = seed &* 6364136223846793005 &+ 1442695040888963407 }
-        mutating func int(_ upper: Int) -> Int {
-            state = state &* 6364136223846793005 &+ 1442695040888963407
-            let mixed = state ^ (state >> 33)
-            return upper <= 0 ? 0 : Int(mixed % UInt64(upper))
-        }
+    /// 決定的な擬似乱数（ランダム役の手を再現可能にする）。共通の `MMIXRandom`（#1150）。
+    /// 0 個からは選べないので `upper <= 0` は 0 を返す（`next()` は進めない）。
+    static func randomIndex(_ upper: Int, using rng: inout MMIXRandom) -> Int {
+        upper <= 0 ? 0 : Int(rng.next() % UInt64(upper))
     }
 
     struct Result {
@@ -44,14 +39,14 @@ enum ShogiSelfPlay {
         maxPlies: Int
     ) async -> Result {
         var pos = Position.start()
-        var rng = Rand(seed: seed)
+        var rng = MMIXRandom(seed: seed)
         for ply in 0..<maxPlies {
             let moves = pos.legalMoves()
             if moves.isEmpty {
                 return Result(material: material(pos), plies: ply, mated: pos.sideToMove)
             }
             let engine = pos.sideToMove == .black ? black : white
-            var chosen = moves[rng.int(moves.count)]
+            var chosen = moves[randomIndex(moves.count, using: &rng)]
             if let engine {
                 let usi = await engine.bestMove(sfen: pos.toSFEN())
                 let move = usi.flatMap(Move.fromUSI)

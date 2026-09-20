@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import CoreEngine
 @testable import GameChess
 
 /// CPU の思考。
@@ -174,17 +175,6 @@ struct EngineTests {
 
 /// 難易度の実測用。`timeLimit` を実測の 100 倍以上に取って**深さで決まる**状態にしてから使う。
 enum ChessSelfPlay {
-    /// 決定的な擬似乱数（ランダム役の手を再現可能にする。将棋 `ShogiSelfPlay.Rand` と同じ実装）。
-    struct Rand {
-        var state: UInt64
-        init(seed: UInt64) { state = seed &* 6364136223846793005 &+ 1442695040888963407 }
-        mutating func int(_ upper: Int) -> Int {
-            state = state &* 6364136223846793005 &+ 1442695040888963407
-            let mixed = state ^ (state >> 33)
-            return upper <= 0 ? 0 : Int(mixed % UInt64(upper))
-        }
-    }
-
     struct Result {
         /// 白視点の駒得（キングを除く盤上の駒）。
         var material: Int
@@ -201,14 +191,14 @@ enum ChessSelfPlay {
         maxPlies: Int
     ) async -> Result {
         var pos = ChessPosition.start()
-        var rng = Rand(seed: seed)
+        var rng = MMIXRandom(seed: seed)
         for ply in 0..<maxPlies {
             let moves = pos.legalMoves()
             if moves.isEmpty {
                 let mated = pos.isKingInCheck(pos.sideToMove) ? pos.sideToMove : nil
                 return Result(material: material(pos), plies: ply, mated: mated)
             }
-            var chosen = moves[rng.int(moves.count)]
+            var chosen = moves[Int.random(in: 0..<moves.count, using: &rng)]
             let engine = pos.sideToMove == .white ? white : black
             if let engine {
                 let uci = await engine.bestMove(fen: pos.toFEN())

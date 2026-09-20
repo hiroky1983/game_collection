@@ -6,7 +6,7 @@ import Core
 /// ルールは `ChessPosition` に委譲し、ここは UI 操作と永続化を担う（将棋の `ShogiGameModel` と同じ分担）。
 @MainActor
 @Observable
-public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
+public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public let initialFEN: String
     public private(set) var moves: [ChessMove]
     public private(set) var position: ChessPosition
@@ -27,6 +27,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
     public var aiLevel: Int
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
+    /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋と共通）。
+    public private(set) var hints: BoardHintBudget
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
@@ -76,6 +78,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false
+        // 鍵を持たない v1.1.5 までの中断データは「まだ使っていない」として読む（#1118）。
+        self.hints = BoardHintBudget(used: snap?.hintsUsed ?? 0)
         self.gameOver = false
         self.result = nil
 
@@ -305,6 +309,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
         clearSelection()
+        // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
+        hintMove = nil
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
 
@@ -341,7 +347,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
             services?.feedback.notify(.success)
         }
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: outcome, score: GameScore(metric: .winLoss)
+            gameID: gameID, outcome: outcome, score: hints.winLossScore
         )
     }
 
@@ -361,6 +367,9 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         result = nil
         undoUsed = false
         resigned = false
+        // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
+        hints.reset()
+        hintMove = nil
         recordResult = nil
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
@@ -372,6 +381,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         gameSerial += 1
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（将棋 #145）。
         isThinking = false
+        // ヒントの読みも同じ理由で下ろす（#1118）。旧タスクの defer は対局が変わると旗に触らない。
+        isHintThinking = false
         clearSelection()
         persist()
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
@@ -421,11 +432,65 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
         }
     }
 
+    // MARK: - ヒント（#1118）
+
+    /// ヒントで示している最善手。着手・待った・新規対局・投了で消える（局面が変われば印は嘘になる）。
+    /// **永続化しない** — 中断データに残すのは使った回数だけ（将棋と同じ）。
+    public private(set) var hintMove: ChessMove?
+    /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ。
+    public private(set) var isHintThinking: Bool = false
+
+    /// 残り回数（`BoardHintButton` が読む）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// ヒントで光らせるマス（移動元・移動先）。
+    public var hintSquares: Set<Int> {
+        guard let hintMove else { return [] }
+        return [hintMove.from, hintMove.to]
+    }
+
+    /// いまヒントを押せるか。**自分の手番で、対局中で、残りが在るとき**だけ。
+    public var canUseHint: Bool {
+        phase == .playing && !gameOver && !hints.isExhausted
+            && !isAITurn && !isThinking && !isHintThinking && pendingPromotion == nil
+    }
+
+    /// 現在の局面の最善手を 1 手求め、盤の上に示す（#1118。将棋 `ShogiGameModel.requestHint` と同型）。
+    ///
+    /// 読みは CPU の着手と同じ `AITurnGuarded` の照合に載せる（#531）。**求まらなかった局・
+    /// 局面が変わった局では回数を減らさない**。
+    public func requestHint() async {
+        guard canUseHint else { return }
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let fen = position.toFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
+                await SimpleChessEngine(level: BoardHintBudget.engineLevel).bestMove(fen: fen)
+            }.value
+        } commit: { uci in
+            // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
+            // 成り選択中（`pendingPromotion`）を外せないのが要点（PR #1184 の指摘）。読みの最中でも
+            // 成り先は選べてしまい、そのとき `aiTurnKey` はまだ変わらないのでキーの照合では弾けない。
+            // 弾かずに通すと、直後の `apply` が印を消すので「回数だけ減ってヒントが出ない」になる。
+            guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
+                  !hints.isExhausted,
+                  let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move),
+                  hints.consume() else { return }
+            hintMove = move
+            services?.feedback.impact(.light)
+            // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
+            persist()
+        }
+    }
+
     // MARK: - 検討（終局後に手を戻す／進める）
 
     public func reviewGoTo(ply: Int) {
         phase = .review
         reviewPly = min(max(ply, 0), moves.count)
+        // 盤に出ている局面が変わるので、ヒントの印は残さない（#1118）。
+        hintMove = nil
         clearSelection()
         persist()
     }
@@ -444,6 +509,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
 
     public func resign() {
         guard phase == .playing, !gameOver else { return }
+        // 投了で盤の意味が変わるので、ヒントの印も片付ける（#1118）。
+        hintMove = nil
         resigned = true
         finish(with: .resignation(loser: humanSide))
         reviewPly = moves.count
@@ -472,6 +539,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
     /// 待った: 直前 2 手（人間→CPU）を巻き戻し、人間が指し直せる状態にする。
     public func undoLastExchange() {
         guard canUndo else { return }
+        // ヒントの印は 2 手前の盤には合わないので消す（#1118。回数は戻さない）。
+        hintMove = nil
         moves.removeLast(2)
         position = positionAt(ply: moves.count)
         legalMovesCache = position.legalMoves()
@@ -505,7 +574,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
             aiLevel: (white == .ai || black == .ai) ? aiLevel : nil,
             startedAt: startedAt,
             undoUsed: undoUsed,
-            resigned: resigned
+            resigned: resigned,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

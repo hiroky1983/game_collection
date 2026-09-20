@@ -4,6 +4,7 @@ import Testing
 import Core
 @testable import GameRunner
 import CoreTestSupport
+import GameRunnerTestSupport
 
 /// 毎面のゴール（旗 → ひらひら浮いている宝くじ）と、着いたあとの「追いかける」演出（#1092 A0）。
 ///
@@ -360,6 +361,73 @@ struct RunnerGoalTicketTests {
         scene.rebuildCourse()
         let ticket = try #require(scene.goalTicket)
         #expect(ticket.action(forKey: RunnerScene.loopActionKey) != nil)
+    }
+
+    // MARK: キラキラ（#1171）
+
+    /// 4 粒とも券の**子ノード**であること（親が動く・消えるとき追加の同期無しで一緒に動く前提）。
+    @Test("宝くじの周りに 4 粒のキラキラが子ノードとして付く")
+    func theTicketHasFourSparkleChildren() throws {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("goal-sparkle-count"))
+        let scene = RunnerScene(model: model)
+        scene.rebuildCourse()
+        let ticket = try #require(scene.goalTicket)
+        let sparkles = ticket.children.filter { $0.name == RunnerScene.goalSparkleNodeName }
+        #expect(sparkles.count == 4)
+        for sparkle in sparkles {
+            #expect(sparkle.parent === ticket, "券の子ノードになっていない")
+        }
+    }
+
+    @Test("Reduce Motion がオフなら、キラキラは点滅する")
+    func sparklesBlinkWithoutReduceMotion() throws {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("goal-sparkle-blink"))
+        let scene = RunnerScene(model: model)
+        scene.reduceMotionOverride = false
+        scene.rebuildCourse()
+        let ticket = try #require(scene.goalTicket)
+        let sparkles = ticket.children.filter { $0.name == RunnerScene.goalSparkleNodeName }
+        #expect(!sparkles.isEmpty)
+        for sparkle in sparkles {
+            #expect(sparkle.action(forKey: RunnerScene.loopActionKey) != nil, "点滅していない")
+        }
+    }
+
+    /// 点滅（アルファの明滅）は動きの一種として扱い、揺れと同じく Reduce Motion では止める。
+    /// 消すと「目印が減る」だけになるので、粒自体は残し、常時光った状態（alpha 0.9）にする。
+    @Test("Reduce Motion がオンなら、キラキラは点滅せずそのまま光る")
+    func sparklesAreStillWithReduceMotion() throws {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("goal-sparkle-still"))
+        let scene = RunnerScene(model: model)
+        scene.reduceMotionOverride = true
+        scene.rebuildCourse()
+        let ticket = try #require(scene.goalTicket)
+        let sparkles = ticket.children.filter { $0.name == RunnerScene.goalSparkleNodeName }
+        #expect(!sparkles.isEmpty)
+        for sparkle in sparkles {
+            #expect(sparkle.action(forKey: RunnerScene.loopActionKey) == nil, "Reduce Motion 中に点滅している")
+            // `alpha` は SpriteKit 内部で Float 精度になるため、0.9 との厳密等値ではなく許容誤差で比べる。
+            #expect(abs(sparkle.alpha - 0.9) < 1e-6)
+        }
+    }
+
+    /// 同じ面をやり直したとき、キラキラも券と一緒に元の場所へ戻っている
+    /// （子ノードなので `retryPutsTheTicketBack` の券本体の検査と同じ理屈で保証されるが、
+    /// 粒の個数がやり直しのたびに増殖しない＝毎回作り直されていることを別途確かめる）。
+    @Test("同じ面をやり直しても、キラキラの数は増えない")
+    func retryDoesNotDuplicateSparkles() throws {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("goal-sparkle-retry"))
+        let scene = RunnerScene(model: model)
+        scene.reduceMotionOverride = false
+        scene.rebuildCourse()
+        #expect(runToGoal(model))
+        model.skipGoalChase()
+        model.replayCurrentStage()
+        scene.sync()
+        scene.rebuildCourse()
+        let ticket = try #require(scene.goalTicket)
+        let sparkles = ticket.children.filter { $0.name == RunnerScene.goalSparkleNodeName }
+        #expect(sparkles.count == 4, "やり直しで粒が増殖・欠落している（\(sparkles.count)）")
     }
 
     // MARK: 撮影シナリオ（#1092 の受け入れ条件）

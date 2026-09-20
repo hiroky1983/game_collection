@@ -225,7 +225,8 @@ public struct ChessView: View {
                                 isSelected: model.selectedSquare == idx,
                                 isTarget: model.legalTargets.contains(idx),
                                 isLastMove: model.highlightedSquares.contains(idx),
-                                isCheckedKing: checkedKing == idx
+                                isCheckedKing: checkedKing == idx,
+                                isHint: model.hintSquares.contains(idx)
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -333,7 +334,12 @@ public struct ChessView: View {
         .accessibilityHidden(true)
     }
 
-    /// 着手先の印。アニメーションは付けない — 選択の反映は即時にする。
+    /// 着手先の印と、ヒントが示す手の印（#1118）。アニメーションは付けない — 選択の反映は即時にする。
+    ///
+    /// **ヒントの印もこの層で描く**（将棋の `targetLayer` と同じ組み方）。共通の重ね順
+    /// （`boardLayers`・#530）に 4 つ目の層を足すと、両ゲームで印の順番が食い違う余地ができる。
+    /// ヒントは着手先の印より後に描くので、両方が出るマスでも紫の枠が読める。
+    /// 色は 3 本共通（`BoardGameHintColor`）。読み上げはマス（`ChessCell` の `isHint`）が持つ。
     private func targetLayer(cell: CGFloat) -> some View {
         GeometryReader { geo in
             let slot = geo.size.width / 8
@@ -352,6 +358,16 @@ public struct ChessView: View {
                     }
                     .position(x: slot * (CGFloat(spot.col) + 0.5),
                               y: slot * (CGFloat(spot.row) + 0.5))
+                }
+                ForEach(model.hintSquares.sorted(), id: \.self) { square in
+                    let spot = ChessSquare.displayPosition(of: square, flipped: flipped)
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(BoardGameHintColor.color, lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 4)
+                            .fill(BoardGameHintColor.color.opacity(0.22)))
+                        .frame(width: cell - 4, height: cell - 4)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
                 }
             }
         }
@@ -443,9 +459,16 @@ public struct ChessView: View {
 
             Spacer()
 
+            // ヒントは 3 本とも同じ部品・同じ見た目（#1118）。44pt の枠は検討ナビの ◀ ▶ と同じ手で
+            // レイアウト上だけ詰め、対局中の操作列が高くならないようにする（詰めないと盤が縮む・#139）。
+            BoardHintButton(model: model)
+                .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
+
             BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
         }
         .themeBody(14)
+        // ヒントが増えて 3 つ並ぶので、iPhone SE の幅でも改行させず 1 行に収める（将棋と同じ）。
+        .lineLimit(1).minimumScaleFactor(0.8)
         .padding(.horizontal, 16).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }

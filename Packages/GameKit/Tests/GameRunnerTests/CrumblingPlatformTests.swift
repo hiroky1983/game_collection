@@ -2,6 +2,7 @@ import CoreEngine
 import Foundation
 import Testing
 @testable import GameRunner
+import GameRunnerTestSupport
 
 /// 乗ると崩れる足場（#1090・里山＝古い吊り橋・港町＝古い木の桟橋）の検証。
 ///

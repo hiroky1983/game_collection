@@ -1,5 +1,5 @@
 import Foundation
-import Core
+import CoreEngine
 
 /// 将棋 AI の境界（USI 風）。
 public protocol ShogiEngine: Sendable {
@@ -37,18 +37,10 @@ enum PieceValue {
 
 // MARK: - Zobrist Hashing
 
-private struct LCG: RandomNumberGenerator {
-    var state: UInt64
-    mutating func next() -> UInt64 {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
-        return state ^ (state >> 33)
-    }
-}
-
 private enum Zobrist {
     // [pieceType 0-7][color 0-1][promoted 0-1][square 0-80]
     static let piece: [[[[UInt64]]]] = {
-        var rng = LCG(state: 0xDEAD_BEEF_CAFE_BABE)
+        var rng = MMIXRandom(state: 0xDEAD_BEEF_CAFE_BABE)
         var t = [[[[UInt64]]]](
             repeating: [[[UInt64]]](
                 repeating: [[UInt64]](
@@ -64,7 +56,7 @@ private enum Zobrist {
 
     // [color 0-1][pieceType 0-6 droppable][count 0-18]
     static let hand: [[[UInt64]]] = {
-        var rng = LCG(state: 0xCAFE_BABE_DEAD_BEEF)
+        var rng = MMIXRandom(state: 0xCAFE_BABE_DEAD_BEEF)
         var t = [[[UInt64]]](
             repeating: [[UInt64]](
                 repeating: [UInt64](repeating: 0, count: 19),
@@ -77,7 +69,7 @@ private enum Zobrist {
     }()
 
     static let sideToMove: UInt64 = {
-        var rng = LCG(state: 0x1234_5678_9ABC_DEF0)
+        var rng = MMIXRandom(state: 0x1234_5678_9ABC_DEF0)
         return rng.next()
     }()
 }
@@ -247,7 +239,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         let pool = scored.filter { $0.score >= best - Self.noviceMargin }.map(\.move)
         guard !pool.isEmpty else { return orderedMoves.first }
         if let seed {
-            var rng = LCG(state: seed)
+            var rng = SplitMix64(seed: seed)
             return pool[Int.random(in: 0..<pool.count, using: &rng)]
         }
         var rng = SystemRandomNumberGenerator()

@@ -7,42 +7,6 @@ import CoreTestSupport
 
 // MARK: - Mocks
 
-/// 送信されたイベントをそのまま溜めるスパイ。Firebase もネットワークも使わない。
-@MainActor
-private final class SpyAnalyticsService: AnalyticsService {
-    private(set) var events: [AnalyticsEvent] = []
-    func log(_ event: AnalyticsEvent) { events.append(event) }
-
-    var starts: [(gameID: String, level: AnalyticsLevel?)] {
-        events.compactMap {
-            if case let .gameStart(gameID, level, _) = $0 { return (gameID, level) }
-            return nil
-        }
-    }
-    var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
-        events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 { return (gameID, result, durationSec) }
-            return nil
-        }
-    }
-    var rewards: [(gameID: String, purpose: RewardPurpose)] {
-        events.compactMap {
-            if case let .rewardAd(gameID, purpose) = $0 { return (gameID, purpose) }
-            return nil
-        }
-    }
-    /// リワード広告の要求（#659）。
-    var requests: [(gameID: String, purpose: RewardPurpose)] {
-        events.compactMap {
-            if case let .rewardRequest(gameID, purpose) = $0 { return (gameID, purpose) }
-            return nil
-        }
-    }
-    var quits: [(gameID: String, durationSec: Int)] {
-        ends.filter { $0.result == .quit }.map { ($0.gameID, $0.durationSec) }
-    }
-}
-
 /// 視聴完了 / 未完了を指定できる広告。
 private struct StubAdService: AdService {
     let earnsReward: Bool

@@ -100,19 +100,11 @@ enum ChessPieceSquareTable {
 
 // MARK: - Zobrist ハッシュ
 
-private struct ChessLCG: RandomNumberGenerator {
-    var state: UInt64
-    mutating func next() -> UInt64 {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
-        return state ^ (state >> 33)
-    }
-}
-
 private enum ChessZobrist {
     // [pieceType 0-5][color 0-1][square 0-63]
     static let piece: [[[UInt64]]] = {
         // 種は SplitMix64 の増分と同じ値（#1074 で定数の書き写しをやめて参照に変えた。表の値は変わらない）。
-        var rng = ChessLCG(state: SplitMix64.goldenGamma)
+        var rng = MMIXRandom(state: SplitMix64.goldenGamma)
         var t = [[[UInt64]]](
             repeating: [[UInt64]](repeating: [UInt64](repeating: 0, count: 64), count: 2),
             count: 6)
@@ -121,18 +113,18 @@ private enum ChessZobrist {
     }()
 
     static let castling: [UInt64] = {
-        var rng = ChessLCG(state: 0xC2B2_AE3D_27D4_EB4F)
+        var rng = MMIXRandom(state: 0xC2B2_AE3D_27D4_EB4F)
         return (0..<16).map { _ in rng.next() }
     }()
 
     /// アンパッサン標的は**筋だけ**を混ぜる（同じ筋なら効果は同じで、段は手番から決まる）。
     static let enPassantFile: [UInt64] = {
-        var rng = ChessLCG(state: 0x1656_67B1_9E37_79F9)
+        var rng = MMIXRandom(state: 0x1656_67B1_9E37_79F9)
         return (0..<8).map { _ in rng.next() }
     }()
 
     static let whiteToMove: UInt64 = {
-        var rng = ChessLCG(state: 0x8521_4F35_2A7C_11D3)
+        var rng = MMIXRandom(state: 0x8521_4F35_2A7C_11D3)
         return rng.next()
     }()
 }
@@ -277,7 +269,7 @@ public struct SimpleChessEngine: ChessEngine {
         let pool = scored.filter { $0.score >= best - Self.noviceMargin }.map(\.move)
         guard !pool.isEmpty else { return orderedMoves.first }
         if let seed {
-            var rng = ChessLCG(state: seed)
+            var rng = SplitMix64(seed: seed)
             return pool[Int.random(in: 0..<pool.count, using: &rng)]
         }
         var rng = SystemRandomNumberGenerator()
