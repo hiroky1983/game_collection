@@ -7,12 +7,13 @@ struct SelfPlayTests {
     /// のため、CI ランナーの負荷次第で到達する深さ・指し手が変わり、このテストが確率的に
     /// 落ちていた（PR #633 の CI 失敗・issue #634・2026-09-11）。**直接指定の入口**
     /// （`init(depth:usePositional:useQuiescence:useBook:timeLimit:)`）で `level: 2` と
-    /// 同じ強さ（深さ5・位置評価/静止探索/定跡あり）を指定しつつ、`timeLimit` を打ち切りが
-    /// 実質発生しない大きさにする——同じ局面なら常に同じ深さまで読み切り、同じ手を指す。
+    /// 同じ強さ（深さ5・位置評価/静止探索/定跡あり）を指定しつつ、`timeLimit: .infinity` で
+    /// 打ち切りを構造的に無くす——同じ局面なら常に同じ深さまで読み切り、同じ手を指す
+    /// （有限の大きい値（旧: 60秒）だと、高負荷時にその値を超えて打ち切りが再発した。#1187）。
     private static func deterministicStrongEngine() -> SimpleMinimaxEngine {
         SimpleMinimaxEngine(
             depth: 5, usePositional: true, useQuiescence: true, useBook: true,
-            timeLimit: 60
+            timeLimit: .infinity
         )
     }
 

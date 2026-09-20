@@ -14,8 +14,9 @@ import CoreEngine
 /// ③軽い設定どうし（旧「弱」対 新「弱」・新「弱」対ランダム）の直接対戦
 /// で固定する。
 ///
-/// 自己対戦は `timeLimit` を実測の 100 倍以上に取って**深さで決まる**状態にしてから行う。
-/// 実時間で打ち切られると、同じテストが実行環境の速さで別の結果を返す。
+/// 自己対戦は `timeLimit: .infinity` で締切そのものを無くし、**深さで決まる**状態にしてから行う。
+/// 実時間で打ち切られると、同じテストが実行環境の速さで別の結果を返す（#1187: 有限の大きい値だと
+/// 高負荷時にその値を超えて打ち切りが再発した）。
 enum ShogiSelfPlay {
     /// 決定的な擬似乱数（ランダム役の手を再現可能にする）。共通の `MMIXRandom`（#1150）。
     /// 0 個からは選べないので `upper <= 0` は 0 を返す（`next()` は進めない）。
@@ -77,20 +78,22 @@ enum ShogiSelfPlay {
 
     /// 下方調整する前の「弱」（深さ 3 + 静止探索）。調整で本当に弱くなったかを測る基準。
     static let previousWeak = SimpleMinimaxEngine(
-        depth: 3, usePositional: false, useQuiescence: true, useBook: false, timeLimit: 30)
+        depth: 3, usePositional: false, useQuiescence: true, useBook: false, timeLimit: .infinity)
 
     /// 出荷している難易度を、**時間で打ち切られない形**にして返す（探索設定はそのまま）。
     ///
     /// 出荷値の `timeLimit`（0.5〜1.5 秒）はデバッグビルドでは実際に効いてしまい、
     /// そのとき返る手は同時に走っている他のテストの負荷で変わる。テストが CPU の
-    /// 混み具合で赤くなるのを避けるため、上限だけ十分大きい値へ差し替えて深さで決まる状態にする。
+    /// 混み具合で赤くなるのを避けるため、`timeLimit: .infinity` で締切そのものを無くし、
+    /// 深さだけで決まる状態にする（有限の大きい値だと、高負荷時にその値を超えて打ち切りが
+    /// 発生しうる。#1187: 実測で60秒設定が360秒かかるケースがあった）。
     ///
     /// - Parameter seed: 「入門」（#1174）の乱択を再現したいときに渡す。他の段は乱数を使わない。
     static func untimed(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
         let shipped = SimpleMinimaxEngine(level: level)
         return SimpleMinimaxEngine(
             depth: shipped.depth, usePositional: shipped.usePositional,
-            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: 30,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: .infinity,
             isNovice: shipped.isNovice, seed: seed)
     }
 
