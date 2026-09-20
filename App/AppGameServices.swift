@@ -9,6 +9,8 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameBaccarat
+import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -182,8 +184,12 @@ enum AppEnvironment {
         // スパイダーソリティア（#717）。ソリティア御三家の残る 1 本なので、その隣に置く。
         SpiderModule(),
         DaifugoModule(),
+        // 七並べ（#1198）。手番制で札を出し合う型が同じ大富豪の隣に置く。
+        SevensModule(),
         PokerModule(),
         BlackjackModule(),
+        // バカラ（#1197）。同じ「チップを賭けて札を配るだけ」の型なので、ブラックジャックの隣に置く。
+        BaccaratModule(),
         MinesweeperModule(),
         GomokuModule(),
         ConcentrationModule(),
