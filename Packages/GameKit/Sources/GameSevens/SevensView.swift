@@ -186,12 +186,12 @@ public struct SevensView: View {
                         // 44pt 以上にする（大富豪 #195 と同じ考え方）。
                         .frame(maxWidth: .infinity, minHeight: SevensHandLayout.minimumTapTarget)
                         .contentShape(Rectangle())
-                        .onTapGesture { model.play(card) }
+                        .onTapGesture { play(card) }
                         .transition(.scale.combined(with: .opacity))
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(SevensAccessibility.handCardLabel(card, canPlay: playable))
                         .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { model.play(card) }
+                        .accessibilityAction { play(card) }
                         .disabled(!model.isPlayerTurn)
                 }
             }
@@ -202,6 +202,13 @@ public struct SevensView: View {
         }
         .padding(.horizontal, SevensHandLayout.horizontalPadding).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 人間がカードを出す。パス・次のゲーム開始と同様、出した直後に CPU の手番を進める
+    /// （出さないと次に人間の手番が回ってくるまで盤面が止まったままになる）。
+    private func play(_ card: SevensCard) {
+        model.play(card)
+        Task { await model.runCPUTurnsIfNeeded() }
     }
 
     private func hintLine(_ message: String) -> some View {
