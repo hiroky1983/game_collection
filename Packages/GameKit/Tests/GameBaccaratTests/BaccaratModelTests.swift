@@ -139,9 +139,13 @@ struct BaccaratModelTests {
         #expect(model.sessionOver)
         #expect(model.chips < BaccaratModel.minimumBet)
         #expect(model.chips >= 0, "残高を負にしない")
-        // 終わったセッションでは賭けられない。
+
+        // 終わったセッションでは賭けられない（残高が最小ベットに足りていても受け付けない）。
+        let chipsAtSessionOver = model.chips
+        let handAtSessionOver = model.playerHand
         model.placeBet(BaccaratModel.minimumBet)
-        #expect(model.playerHand.isEmpty || model.phase == .result)
+        #expect(model.chips == chipsAtSessionOver, "賭けが通っていない")
+        #expect(model.playerHand == handAtSessionOver, "新しい局が配られていない")
     }
 
     @Test("最初からやり直すと 1000 枚に戻り、賭け先も既定へ戻る")

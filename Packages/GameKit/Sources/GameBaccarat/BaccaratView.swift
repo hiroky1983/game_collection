@@ -111,9 +111,10 @@ public struct BaccaratView: View {
                 Text(side.label)
                     .themeBody(13)
                     .foregroundStyle(model.selectedBet == side ? Theme.ink : Theme.inkSub)
-                // 賭けた先は枠の色だけでなく文字でも示す（色覚に依存させない）。
+                // 賭けている先は枠の色だけでなく文字でも示す（色覚に依存させない）。
+                // 賭ける前・決着後のどちらでも読める語にする（「賭けた」だと賭け待ちで過去形になる）。
                 if model.selectedBet == side {
-                    Text("賭けた")
+                    Text("ベット先")
                         .font(.system(size: 10, weight: .black, design: .rounded))
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 6).padding(.vertical, 2)

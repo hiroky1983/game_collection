@@ -175,6 +175,20 @@ struct BaccaratRewardedAdTests {
         #expect(!reopened.canReviveAfterBust, "中断を挟んでも回数は戻らない")
     }
 
+    /// 復活したあとにもう一度破産したら中断データは残さない。残すと、開き直したときに
+    /// 「最小ベットに届かない残高・復活権なし」という詰んだ状態がそのまま復元される。
+    @Test("復活後にまた破産したら、中断データは残さない")
+    func bustingAgainAfterReviveClearsTheSnapshot() async {
+        let store = MemorySnapshotStore()
+        let (model, _, _) = makeBustedModel(store: store)
+        #expect(await model.recoverChipsAfterAd())
+        #expect(store.exists(for: "baccarat"))
+
+        playAllInUntilBust(model)
+        #expect(model.sessionOver)
+        #expect(!store.exists(for: "baccarat"), "詰んだ残高を持ち回らない")
+    }
+
     @Test("中断データは「続きから」ではない（ハブの表示にも resume にも数えない）")
     func revivedSnapshotIsNotResumable() async {
         let store = MemorySnapshotStore()
@@ -205,5 +219,8 @@ struct BaccaratRewardedAdTests {
         let model = BaccaratModel(services: GameServices(snapshots: store, ads: NoopAdService()))
         #expect(model.chips == 800, "残高は読めている")
         #expect(!model.sessionOver)
+        // 鍵が無いぶんは「まだ使っていない」に倒す（`?? true` に倒すと復活権が消える）。
+        playAllInUntilBust(model)
+        #expect(model.canReviveAfterBust, "鍵の無い中断データは復活を使っていない扱い")
     }
 }

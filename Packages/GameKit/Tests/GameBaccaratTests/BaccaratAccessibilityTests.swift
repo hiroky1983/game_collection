@@ -52,7 +52,7 @@ struct BaccaratAccessibilityTests {
     @Test("選んでいる賭け先は文字でも示している")
     func selectedBetIsShownInText() throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameBaccarat"))
-        #expect(source.contains("\"賭けた\""), "賭けた先を文字で示していない")
+        #expect(source.contains("\"ベット先\""), "賭けている先を文字で示していない")
         #expect(source.contains(".isSelected"), "VoiceOver へ選択状態を伝えていない")
     }
 }
