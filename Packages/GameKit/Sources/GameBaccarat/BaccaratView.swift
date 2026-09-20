@@ -40,6 +40,8 @@ public struct BaccaratView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
+        .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
+                     services: services, gameID: model.gameID)
         .gameChrome(title: "バカラ", review: services.review)
         .howToPlay(.baccarat)
         .rewardedRescueAlerts(

@@ -94,7 +94,7 @@ public final class BaccaratModel {
     public var bankerTotal: Int { baccaratTotal(bankerHand) }
 
     private var deck: [BaccaratCard] = []
-    private let gameID = "baccarat"
+    let gameID = "baccarat"
     private let services: GameServices?
     private var seed: UInt64?
 
