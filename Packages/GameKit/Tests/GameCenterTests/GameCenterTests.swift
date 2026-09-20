@@ -10,6 +10,7 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameBaccarat
+import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -86,7 +87,7 @@ private func isClose(_ actual: Double?, _ expected: Double) -> Bool {
 private func makeHubModules() -> [GameModule] {
     [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
-        PokerModule(), ConcentrationModule(), BlackjackModule(), BaccaratModule(), DaifugoModule(),
+        PokerModule(), ConcentrationModule(), BlackjackModule(), BaccaratModule(), SevensModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(),
