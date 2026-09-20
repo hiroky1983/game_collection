@@ -9,6 +9,7 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameBaccarat
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -843,6 +844,20 @@ struct GameRecordingTests {
         while model.phase == .playerTurn { model.hit() }   // バーストするまで引く
 
         let record = log.record(gameID: "blackjack")
+        #expect(record?.metric == .points)
+        #expect(record?.bestPoints == model.chips)
+        #expect(record?.plays == 1)
+    }
+
+    @Test("バカラ: 精算後のチップが最高記録になる")
+    func baccaratRecordsChips() {
+        let (log, defaults, name) = makeLog(suite: "baccarat")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = BaccaratModel(services: makeServices(log: log), seed: 20260921)
+        model.placeBet(100)   // 賭けた時点で決着まで進む
+
+        let record = log.record(gameID: "baccarat")
         #expect(record?.metric == .points)
         #expect(record?.bestPoints == model.chips)
         #expect(record?.plays == 1)

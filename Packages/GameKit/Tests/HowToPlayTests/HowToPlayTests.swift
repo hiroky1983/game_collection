@@ -9,6 +9,7 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameBaccarat
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -34,6 +35,7 @@ private let registeredModules: [GameModule] = [
     PokerModule(),
     ConcentrationModule(),
     BlackjackModule(),
+    BaccaratModule(),
     DaifugoModule(),
     MahjongSolitaireModule(),
     SolitaireModule(),

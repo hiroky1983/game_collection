@@ -9,6 +9,7 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameBaccarat
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -184,6 +185,8 @@ enum AppEnvironment {
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),
+        // バカラ（#1197）。同じ「チップを賭けて札を配るだけ」の型なので、ブラックジャックの隣に置く。
+        BaccaratModule(),
         MinesweeperModule(),
         GomokuModule(),
         ConcentrationModule(),

@@ -10,6 +10,7 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameBaccarat
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -367,6 +368,18 @@ private func playSudoku(_ services: GameServices) async -> SudokuModel {
     return model
 }
 
+/// バカラ: 賭け先の選び直し・チップ不足の拒否・配り・決着を一通り通す。
+/// 賭けた瞬間に決着まで進むので、ブラックジャックのような手番の分岐は無い。
+@MainActor
+@discardableResult
+private func playBaccarat(_ services: GameServices) -> BaccaratModel {
+    let model = BaccaratModel(services: services, seed: 20260921)
+    model.select(.banker)      // 賭け先の選び直し
+    model.placeBet(999_999)    // 拒否（チップ不足）
+    model.placeBet(100)        // 成立（配り → 決着）
+    return model
+}
+
 /// ブラックジャック: 初手がブラックジャックだと配りの手応え（impact）に到達せずに決着するため、
 /// 種を固定して「初手がブラックジャックにならない配り」に寄せる（#94。無指定では約 4.8% で落ちていた）。
 @MainActor
@@ -608,6 +621,26 @@ struct FeedbackEnabledTests {
         #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
     }
 
+    @Test("バカラ: 賭け先の選び直し・配り・チップ不足・決着で発火する")
+    func baccarat() {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        let model = playBaccarat(services)
+        #expect(spy.impacts.contains(.light), "賭け先を選び直すと発火する")
+        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
+        #expect(spy.notices(of: .warning) > 0, "チップ不足のベットは拒否として発火する")
+        // 件数ではなく最後の notify を結果と突き合わせる（ポーカーと同じ理由）。
+        #expect(model.phase == .result, "手順の最後は必ず決着している")
+        let expected: FeedbackNotice
+        if model.lastChipDelta > 0 {
+            expected = .success
+        } else if model.lastChipDelta == 0 {
+            expected = .warning   // タイで賭け金が戻った
+        } else {
+            expected = .error
+        }
+        #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
+    }
+
     @Test("大富豪: カード選択・出し・拒否・決着で発火する")
     func daifugo() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
@@ -738,6 +771,7 @@ struct FeedbackDisabledTests {
         playPoker(services)
         playConcentration(services)
         playBlackjack(services)
+        playBaccarat(services)
         await playDaifugo(services)
         playMahjong(services)
         await playSudoku(services)
@@ -787,6 +821,7 @@ struct SoundFeedbackTests {
         await check("ポーカー") { _ = playPoker($0) }
         await check("神経衰弱") { playConcentration($0) }
         await check("ブラックジャック") { _ = playBlackjack($0) }
+        await check("バカラ") { _ = playBaccarat($0) }
         await check("大富豪") { _ = await playDaifugo($0) }
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }

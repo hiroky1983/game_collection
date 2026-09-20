@@ -9,6 +9,7 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
+import GameBaccarat
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -57,7 +58,7 @@ private struct BrokenConcentrationSnapshot: Codable {
 private func makeHubGameIDs() -> Set<String> {
     let modules: [GameModule] = [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
-        PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
+        PokerModule(), ConcentrationModule(), BlackjackModule(), BaccaratModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(),
@@ -405,7 +406,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 21, "ハブに並ぶゲームは21本")
+        #expect(hubGameIDs.count == 22, "ハブに並ぶゲームは22本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -985,6 +986,16 @@ struct AllGamesAnalyticsTests {
         expectOnePair(spy, gameID: "blackjack")
     }
 
+    @Test("バカラ: 配られた時点で開始・その場の決着で終局")
+    func baccarat() {
+        let (services, spy) = makeServices()
+        let model = BaccaratModel(services: services, seed: 20260921)
+        #expect(spy.events.isEmpty, "ベット前はラウンドが始まらない")
+        model.placeBet(100)
+        #expect(model.phase == .result, "賭けた時点で決着まで進む")
+        // 決着が即出るゲームでも `game_start` が先に立つ（#158）。
+        expectOnePair(spy, gameID: "baccarat")
+    }
 
     @Test("大富豪: 配られた時点で開始・決着で終局")
     func daifugo() async {

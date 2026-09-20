@@ -53,6 +53,8 @@ targets:
       - package: GameKit
         product: GameBlackjack
       - package: GameKit
+        product: GameBaccarat
+      - package: GameKit
         product: GameDaifugo
       - package: GameKit
         product: GameMahjongSolitaire
