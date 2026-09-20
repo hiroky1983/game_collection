@@ -263,6 +263,9 @@ public struct SimpleChessEngine: ChessEngine {
             let score = -ctx.negamax(&pos, depth: depth - 1,
                                      alpha: -chessMateScore * 2, beta: chessMateScore * 2, ply: 1)
             pos.unmake(undo)
+            // negamax の探索中に期限切れになった場合、返る値は不完全な評価（中断時点の
+            // evaluate(pos)）なので候補に入れない（CodeRabbit 指摘・PR #1190）。
+            if Date() > ctx.deadline { break }
             scored.append((move, score))
         }
         guard let best = scored.map(\.score).max() else { return orderedMoves.first }
