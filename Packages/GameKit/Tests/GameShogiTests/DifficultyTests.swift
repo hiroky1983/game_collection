@@ -96,6 +96,16 @@ enum ShogiSelfPlay {
 
     /// 出荷している「弱」（探索設定は `level: 0` そのまま、時間の上限だけ外したもの）。
     static var currentWeak: SimpleMinimaxEngine { untimed(level: 0) }
+
+    /// 呼び出し時点で既に期限切れの設定（#1196 回帰テスト用）。`timeLimit` に負の値を渡すと
+    /// `SearchContext.init` の `Date().addingTimeInterval` がその場で過去の時刻になる。
+    static func expired(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
+        let shipped = SimpleMinimaxEngine(level: level)
+        return SimpleMinimaxEngine(
+            depth: shipped.depth, usePositional: shipped.usePositional,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: -1,
+            isNovice: shipped.isNovice, seed: seed)
+    }
 }
 
 @Suite("将棋の難易度: 3段階の設計（#502）")
@@ -325,6 +335,21 @@ struct ShogiNoviceAndSeriousTests {
                 .bestMove(sfen: sfen) { easyMoves.insert(usi) }
         }
         #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+    }
+
+    /// 呼び出し時点で既に `deadline` を過ぎていても、`noviceMove` は評価済みの候補から選ぶ
+    /// （#1196）。安全フロア（`minNoviceEvaluations`）を入れる前は、1手も評価できないまま
+    /// `orderedMoves.first` を無条件に返していたため、乱数の種を変えても常に同じ手になっていた。
+    @Test("期限切れでも評価済みの候補から選ぶ（1手固定に戻らない）")
+    func noviceStillVariesWhenDeadlineAlreadyPassed() async {
+        let sfen = Position.start().toSFEN()
+        var moves = Set<String>()
+        for seed in UInt64(1)...30 {
+            if let usi = await ShogiSelfPlay.expired(level: Self.novice, seed: seed).bestMove(sfen: sfen) {
+                moves.insert(usi)
+            }
+        }
+        #expect(moves.count > 1, "期限切れ時に手が1通りしかない = 1件も評価されず orderedMoves.first に固定されている")
     }
 
     /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する

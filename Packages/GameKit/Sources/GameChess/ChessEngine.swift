@@ -244,6 +244,13 @@ public struct SimpleChessEngine: ChessEngine {
     /// 逃さず攻めの手が先に出る。「入門」はそこを崩して手なりに指す。駒を只で捨てる手・
     /// 取り返されるだけの取りはポーン 1 枚より大きく損をするため候補に入らず、
     /// 「損はしないが得も狙わない」水準に収まる（弱いが壊れてはいない）。
+    /// 時間切れでも最低限これだけは評価してから選ぶ（#1196）。1件も評価できないまま
+    /// `orderedMoves.first`（安全性未確認）へ逃げると `noviceMargin` の駒損しない保証を
+    /// すり抜ける。1件だけ評価しても自分自身としか比較できず実質フォールバックと変わらない
+    /// ため、比較に足る数（負けている手を弾ける最低限）を確保する。depth 1 の negamax なので
+    /// 数手ぶんの追加コストは無視できる。
+    static let minNoviceEvaluations = 3
+
     func noviceMove(_ pos: inout ChessPosition, moves: [ChessMove]) -> ChessMove? {
         var ctx = ChessSearchContext(
             maxDepth: 1, usePositional: usePositional,
@@ -253,19 +260,22 @@ public struct SimpleChessEngine: ChessEngine {
         // フォールバックに使う（「簡単」の反復深化が時間切れ時に使うのと同じ考え方 = 只捨てではない手）。
         let orderedMoves = ctx.orderMoves(moves, pos: pos, killers: [nil, nil])
         var scored: [(move: ChessMove, score: Int)] = []
-        for move in orderedMoves {
+        for (index, move) in orderedMoves.enumerated() {
+            let withinSafetyFloor = index < Self.minNoviceEvaluations
             // 期限切れなら打ち切る。ここでチェックしないと、期限切れ後の `negamax` が
             // 「自分の手を指した直後の駒得」だけを返し続け、`noviceMargin` の判定が
-            // 取り返しを見ない只捨てを弾けなくなる（#1174 検証指摘）。
-            if Date() > ctx.deadline { break }
+            // 取り返しを見ない只捨てを弾けなくなる（#1174 検証指摘）。ただし安全フロアの
+            // 範囲内は期限を無視して必ず評価する（#1196）。
+            if !withinSafetyFloor, Date() > ctx.deadline { break }
             let undo = pos.make(move)
             // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
             let score = -ctx.negamax(&pos, depth: depth - 1,
                                      alpha: -chessMateScore * 2, beta: chessMateScore * 2, ply: 1)
             pos.unmake(undo)
             // negamax の探索中に期限切れになった場合、返る値は不完全な評価（中断時点の
-            // evaluate(pos)）なので候補に入れない（CodeRabbit 指摘・PR #1190）。
-            if Date() > ctx.deadline { break }
+            // evaluate(pos)）なので候補に入れない（CodeRabbit 指摘・PR #1190）。安全フロアの
+            // 範囲内は不完全でも比較材料として使う（同上の理由）。
+            if !withinSafetyFloor, Date() > ctx.deadline { break }
             scored.append((move, score))
         }
         guard let best = scored.map(\.score).max() else { return orderedMoves.first }
