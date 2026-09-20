@@ -258,6 +258,17 @@ struct ChessNoviceAndSeriousTests {
         )
     }
 
+    /// 呼び出し時点で既に期限切れの「入門」（#1196 回帰テスト用）。`timeLimit` に負の値を渡すと
+    /// `ChessSearchContext.init` の `Date().addingTimeInterval` がその場で過去の時刻になる。
+    private func expiredNovice(seed: UInt64?) -> SimpleChessEngine {
+        let shipped = SimpleChessEngine(level: Self.novice)
+        return SimpleChessEngine(
+            depth: shipped.depth, usePositional: shipped.usePositional,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: -1,
+            isNovice: true, seed: seed
+        )
+    }
+
     /// 「入門」は**読みの設定を「簡単」と 1 ビットも変えず**、着手の選び方だけを崩してある。
     /// 深さを 1 に落とすと只捨てを始めるので、そこには戻さない。
     @Test("入門の読みは簡単と同じで、選び方だけが違う")
@@ -340,6 +351,33 @@ struct ChessNoviceAndSeriousTests {
             ).bestMove(fen: ChessPosition.startFEN) { easyMoves.insert(uci) }
         }
         #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+    }
+
+    /// 呼び出し時点で既に `deadline` を過ぎていても、`noviceMove` は評価済みの候補から選ぶ
+    /// （#1196）。安全フロア（`minNoviceEvaluations`）を入れる前は、1手も評価できないまま
+    /// `orderedMoves.first` を無条件に返していたため、乱数の種を変えても常に同じ手になっていた。
+    @Test("期限切れでも評価済みの候補から選ぶ（1手固定に戻らない）")
+    func noviceStillVariesWhenDeadlineAlreadyPassed() async {
+        var moves = Set<String>()
+        for seed in UInt64(1)...30 {
+            if let uci = await expiredNovice(seed: seed).bestMove(fen: ChessPosition.startFEN) {
+                moves.insert(uci)
+            }
+        }
+        #expect(moves.count > 1, "期限切れ時に手が1通りしかない = 1件も評価されず orderedMoves.first に固定されている")
+    }
+
+    /// 安全フロアの評価は `negamax` の期限判定も無効化しないと、相手の応手を読まない
+    /// 静的評価（`evaluate(pos)`）のまま候補に残り、取り返される取りを選びうる
+    /// （CodeRabbit 指摘・PR #1199）。`noviceAvoidsTheHangingCapture` と同じ局面を
+    /// 呼び出し時点で期限切れにして確認する。
+    @Test("期限切れでも取り返されるだけの取りは選ばない")
+    func expiredNoviceAvoidsTheHangingCapture() async {
+        let fen = "k7/8/3p4/4p3/8/8/8/K3Q3 w - - 0 1"
+        for seed in UInt64(1)...30 {
+            #expect(await expiredNovice(seed: seed).bestMove(fen: fen) != "e1e5",
+                    "期限切れの入門がクイーンをポーンと刺し違えている（seed \(seed)）")
+        }
     }
 
     /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する
