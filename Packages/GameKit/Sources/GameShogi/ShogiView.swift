@@ -223,7 +223,8 @@ public struct ShogiView: View {
                                 isSelected: model.selectedSquare == idx,
                                 isTarget: model.legalTargets.contains(idx),
                                 isLastMove: model.highlightedSquares.contains(idx),
-                                isCheckedKing: checkedKing == idx
+                                isCheckedKing: checkedKing == idx,
+                                isHint: model.hintSquares.contains(idx)
                             ))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.tapSquare(idx) }
@@ -273,9 +274,11 @@ public struct ShogiView: View {
 
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
     private var ladder: DifficultyLadderPrompt? {
-        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
-                               levelLabels: ["弱", "普通", "強"]) { level in
-            model.newGame(humanSide: model.humanSide, aiLevel: level)
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.newGame(humanSide: model.humanSide,
+                          aiLevel: CPUStrength.level(atLadderIndex: index))
         }
     }
 
@@ -383,8 +386,14 @@ public struct ShogiView: View {
         .accessibilityHidden(true)
     }
 
-    /// 着手先の印。駒の層より上に重ねる（#200）。
+    /// 着手先の印と、ヒントが示す手の印（#200・#1118）。駒の層より上に重ねる。
     /// アニメーションは付けない — 選択の反映は従来どおり即時にする。
+    ///
+    /// **ヒントの印もこの層で描く**。共通の重ね順（`boardLayers`・#530）に 4 つ目の層を足したり、
+    /// 盤へ自前の `.overlay` を重ねたりすると、将棋だけ共通の順番の外に出る（`PieceLayoutTests`）。
+    /// ヒントは着手先の印より後に描くので、両方が出るマスでも紫の枠が読める。
+    /// 出す条件は `model.hintSquares` だけで、盤が動けば Model 側が印を落とす。
+    /// 色は 3 本共通（`BoardGameHintColor`）。読み上げはマス（`ShogiCell` の `isHint`）が持つ。
     private func targetLayer(cell: CGFloat) -> some View {
         GeometryReader { geo in
             let slot = geo.size.width / 9
@@ -403,6 +412,16 @@ public struct ShogiView: View {
                     }
                     .position(x: slot * (CGFloat(spot.col) + 0.5),
                               y: slot * (CGFloat(spot.row) + 0.5))
+                }
+                ForEach(model.hintSquares.sorted(), id: \.self) { square in
+                    let spot = Sq.displayPosition(of: square, flipped: flipped)
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(BoardGameHintColor.color, lineWidth: 3)
+                        .background(RoundedRectangle(cornerRadius: 4)
+                            .fill(BoardGameHintColor.color.opacity(0.22)))
+                        .frame(width: cell - 4, height: cell - 4)
+                        .position(x: slot * (CGFloat(spot.col) + 0.5),
+                                  y: slot * (CGFloat(spot.row) + 0.5))
                 }
             }
         }
@@ -476,9 +495,17 @@ public struct ShogiView: View {
 
             Spacer()
 
+            // ヒントは 3 本とも同じ部品・同じ見た目（#1118）。44pt の枠は検討ナビの ◀ ▶ と同じ手で
+            // レイアウト上だけ詰め、対局中の操作列が高くならないようにする（詰めないと盤が縮む・#139）。
+            BoardHintButton(model: model)
+                .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
+
             BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
         }
         .themeBody(14)
+        // ヒントが増えて 3 つ並ぶので、iPhone SE の幅でも改行させず 1 行に収める
+        // （ナンプレが #1118 以前に同じ詰まり方で「ヒント」を改行させていた）。
+        .lineLimit(1).minimumScaleFactor(0.8)
         .padding(.horizontal, 16).padding(.vertical, 5)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -526,14 +553,10 @@ struct NewGameSheet: View {
                 }
             }
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    GameSetupChooser(title: "弱", subtitle: "駒得だけ", selected: level == 0,
-                                     accent: Theme.Fill.teal) { level = 0 }
-                    GameSetupChooser(title: "普通", subtitle: "囲いを作る", selected: level == 1,
-                                     accent: Theme.Fill.yellow) { level = 1 }
-                    GameSetupChooser(title: "強", subtitle: "定跡＋深読み", selected: level == 2,
-                                     accent: Theme.Fill.coral) { level = 2 }
-                }
+                // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
+                CPUStrengthPicker(level: $level, details: [
+                    "手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み", "とことん読む",
+                ])
             }
         }
     }

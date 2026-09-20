@@ -93,9 +93,11 @@ public struct GomokuView: View {
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じで、
     /// 石の色と禁じ手の有無は今の対局のものを引き継ぐ。
     private var ladder: DifficultyLadderPrompt? {
-        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
-                               levelLabels: ["弱", "普通", "強"]) { level in
-            model.newGame(humanSide: model.humanSide, aiLevel: level,
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.newGame(humanSide: model.humanSide,
+                          aiLevel: CPUStrength.level(atLadderIndex: index),
                           forbiddenMoves: model.forbiddenMovesEnabled)
         }
     }
@@ -165,6 +167,10 @@ public struct GomokuView: View {
                 .gameAnimation(GomokuMotion.winLine, value: model.winningLine)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+
+                // ヒントが示す交点（#1118）。盤の前面に重ねるので、勝ち筋と同じく
+                // タップと VoiceOver の交点グリッドを横取りしないよう両方から外す。
+                hintMark(pad: pad, spacing: spacing)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
@@ -173,6 +179,25 @@ public struct GomokuView: View {
             .overlay(alignment: .top) { forbiddenNotice }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// ヒントが示す交点の印（#1118）。次に打つと良い 1 点を紫の輪で囲む。
+    ///
+    /// 出す条件は `model.hintPoint` だけで、盤が動けば Model 側が印を落とす。
+    /// 色は将棋・チェスと共通（`BoardGameHintColor`）。読み上げは VoiceOver 用の交点グリッド
+    /// （`accessibilityGrid` の `isHint`）が持つ。
+    @ViewBuilder
+    private func hintMark(pad: CGFloat, spacing: CGFloat) -> some View {
+        if let point = model.hintPoint {
+            Circle()
+                .stroke(BoardGameHintColor.color, lineWidth: 3)
+                .background(Circle().fill(BoardGameHintColor.color.opacity(0.22)))
+                .frame(width: spacing * 0.9, height: spacing * 0.9)
+                .position(x: pad + spacing * CGFloat(point.col),
+                          y: pad + spacing * CGFloat(point.row))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     /// 禁じ手で打てなかったことを盤の上に出す（#441）。
@@ -219,7 +244,8 @@ public struct GomokuView: View {
                             row: row,
                             col: col,
                             stone: model.board[row, col],
-                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false
+                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false,
+                            isHint: model.hintPoint == GomokuPoint(row: row, col: col)
                         ))
                     }
                 }
@@ -305,9 +331,15 @@ public struct GomokuView: View {
 
             Spacer()
 
+            // ヒントは 3 本とも同じ部品・同じ見た目（#1118）。ここは元から枠 44pt のカプセルで
+            // 組んである列なので、将棋・チェスのような余白の詰めは要らない。
+            BoardHintButton(model: model)
+
             BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
         }
         .themeBody(14)
+        // ヒントが増えて 3 つ並ぶので、iPhone SE の幅でも改行させず 1 行に収める（将棋・チェスと同じ）。
+        .lineLimit(1).minimumScaleFactor(0.8)
         // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
         .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
@@ -561,14 +593,10 @@ struct GomokuNewGameSheet: View {
                 }
             }
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    GameSetupChooser(title: "弱",   subtitle: "浅い読み",
-                                     selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
-                    GameSetupChooser(title: "普通", subtitle: "標準",
-                                     selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
-                    GameSetupChooser(title: "強",   subtitle: "深い読み",
-                                     selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
-                }
+                // 説明は `SimpleGomokuEngine.init(level:)` の中身と一致させる（#416）。
+                CPUStrengthPicker(level: $level, details: [
+                    "見のがしが多い", "浅い読み", "標準", "深い読み", "とことん読む",
+                ])
             }
             // 既定はオフ（自由五目）。オンにすると黒だけが三三・四四・長連を打てなくなる。
             GameSetupSection("禁じ手（連珠ルール）") {
