@@ -33,7 +33,44 @@ struct RunnerWorldMap: View {
                     }
                 }
             }
+            teaserCard
         }
+    }
+
+    /// 港町（最後の世界）の下に置く、機能しないティザー（#1185）。
+    ///
+    /// **`RunnerWorld` には手を入れない**（実在しない世界を enum ケースとして足すと
+    /// `world(forStage:)` 等の既存ロジック・テストに実在の面として混入するため、表示専用の
+    /// 静的パーツとして別に置く）。タップしても何も起きないよう `Button` は使わず、
+    /// VoiceOver にも「押せる面」だと読ませない（`.accessibilityElement(children: .ignore)` +
+    /// 単一のラベルで上書き）。
+    private var teaserCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Theme.inkSub.opacity(0.4))
+                    .frame(width: 10, height: 10)
+                Text("？？？")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12, weight: .bold))
+                Text("つづく…")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(Theme.inkSub)
+            .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                    .fill(Theme.surface)
+            )
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("まだ見ぬ世界が続く予定です")
     }
 
     private func worldHeader(_ world: RunnerWorld) -> some View {
