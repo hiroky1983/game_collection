@@ -22,12 +22,19 @@ public struct HanafudaView: View {
     public var body: some View {
         VStack(spacing: 8) {
             scoreBar
-            if model.phase == .matchResult {
-                matchResultCard.transition(.opacity)
-            } else {
-                opponentArea
-                fieldArea.transition(.opacity)
-                handArea
+            // 場・手札は局の進み方で行数が変わり（最大 8 枚ずつ＝2 行）、小さい画面（iPhone SE 等）
+            // では他の要素ごと画面下にはみ出ていた（会長指摘）。可変な部分だけスクロールにして、
+            // 得点・操作・広告は常に見える位置に固定する。
+            ScrollView {
+                if model.phase == .matchResult {
+                    matchResultCard.transition(.opacity)
+                } else {
+                    VStack(spacing: 8) {
+                        opponentArea
+                        fieldArea.transition(.opacity)
+                        handArea
+                    }
+                }
             }
             HowToPlayHint(.hanafuda, playLog: services.playLog)
             actionArea
@@ -38,13 +45,13 @@ public struct HanafudaView: View {
         .padding(Theme.pad)
         .gameChrome(title: "花札こいこい", review: services.review) {
             // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
-            // 早見表をここに置く（#495 の仕様）。ツールバーは `Label` をアイコンだけに畳むので
-            // 文字を出すために `Text` を直接渡す。
+            // 早見表をここに置く（#495 の仕様）。タイトル＋「?」（遊び方）とアイコンで並べる
+            // （文字ラベルにすると幅を取り、狭い画面でヘッダーが崩れていた・会長指摘）。
             ToolbarItem(placement: .primaryAction) {
                 Button { showYakuSheet = true } label: {
-                    Text("役")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                    Image(systemName: "list.bullet.rectangle")
                 }
+                .accessibilityLabel("役の早見表")
             }
         }
         .howToPlay(.hanafuda) { HanafudaRuleSheet() }
@@ -202,13 +209,9 @@ public struct HanafudaView: View {
                     .disabled(!isCandidate(card))
                 }
             }
-            // 縦の余りは**場のカード自身**に吸わせ、札は中央に置く（#193 と同じ考え方）。
-            // 上寄せにすると、場が 1 行しか無いときに札の下へ大きな空白が残って
-            // 「描き損ねた」ように見える。
-            .frame(maxHeight: .infinity, alignment: .center)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .popCard(corner: Theme.cornerSmall)
     }
 
