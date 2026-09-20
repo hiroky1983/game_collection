@@ -101,6 +101,9 @@ private struct TTEntry {
     var score: Int32 = 0
     var depth: Int8 = -1
     var flag: TTFlag = .exact
+    /// この局面で最善と分かっている手（#1134）。次にこの局面へ来たとき、指し手オーダリングの
+    /// 最優先候補にする。反復深化の各深さ・再訪問局面の両方でベータカットの効率が上がる。
+    var bestMove: Move?
 }
 
 private let TT_SIZE = 1 << 19  // 512K エントリ ≈ 8MB
@@ -144,15 +147,20 @@ public struct SimpleMinimaxEngine: ShogiEngine {
 
     /// 難易度。**表示している強さの文言と中身が一致していること**（#416 の教訓）:
     ///
-    /// | level | 表示 | 探索深さ | 静止探索 | 位置評価 | 定跡 |
+    /// | level | 表示 | 探索深さ上限 | 静止探索 | 位置評価 | 定跡 |
     /// |---|---|---|---|---|---|
     /// | -1 | 入門（手なりで指す） | 2 | 無し | 無し | 無し |
     /// | 0 | 簡単（駒得だけ） | 2 | 無し | 無し | 無し |
     /// | 1 | ふつう（囲いを作る） | 4 | 有り | 有り | 無し |
-    /// | 2 | むずかしい（定跡＋深読み） | 5 | 有り | 有り | 有り |
+    /// | 2 | むずかしい（定跡＋深読み） | 32 | 有り | 有り | 有り |
     /// | 3 | ガチ（とことん読む） | 7 | 有り | 有り | 有り |
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
+    ///
+    /// 「むずかしい」の探索深さ上限は #1134 で 5 → 32 に上げた。**持ち時間 1.5 秒は変えていない**——
+    /// 反復深化は深さ上限か `timeLimit` のどちらか早く来た方で打ち切るため、実測（`swiftc -O`）では
+    /// 旧設定（深さ 5 固定）が 0.007〜0.63 秒で探索を終え、残りの持ち時間を使い切っていなかった。
+    /// 上限を外して時間いっぱい反復深化を続けさせることで、同じ持ち時間のまま深く読む（詳細は PR）。
     ///
     /// level 0 は「初心者が勝てる最弱」を作るために、**深さ 2 + 静止探索なし**にしてある（#502。
     /// チェス `SimpleChessEngine` の level 0 と同じ設計）。静止探索を切ると取り合いの途中で
@@ -171,7 +179,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         switch strength {
         case .novice:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
         case .easy:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
-        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true,  true,  true,  1.5)
+        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (32, true,  true,  true,  1.5)
         case .serious: (depth, usePositional, useQuiescence, useBook, timeLimit) = (7, true,  true,  true,  3.0)
         case .normal:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (4, true,  true,  false, 1.0)
         }
@@ -222,7 +230,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
                                 useQuiescence: useQuiescence, timeLimit: timeLimit)
         // 先にオーダリング（MVV-LVA）しておく。時間切れで1手も読めなかった／全滅した場合の
         // フォールバックに使う（「簡単」の反復深化が時間切れ時に使うのと同じ考え方 = 只捨てではない手）。
-        let orderedMoves = ctx.orderMoves(moves, pos: pos, killers: [nil, nil])
+        let orderedMoves = ctx.orderMoves(moves, pos: pos, killers: [nil, nil], ttMove: nil)
         var scored: [(move: Move, score: Int)] = []
         for move in orderedMoves {
             // 期限切れなら打ち切る。ここでチェックしないと、期限切れ後の `negamax` が
@@ -264,6 +272,10 @@ private struct SearchContext {
     let deadline: Date
     var killers: [[Move?]]   // killers[ply][0..1]
     var tt: [TTEntry]
+    /// クワイエット手（駒を取らない手）がベータカットを引き起こした回数（#1134）。
+    /// 盤上の移動は `from * 81 + to`、打ちは `81*81 + type.rawValue*81 + to` に積む。
+    /// 反復深化の途中で消さない（深い反復ほど過去の実績を活かせる）。
+    var history: [Int]
 
     init(maxDepth: Int, usePositional: Bool, useQuiescence: Bool, timeLimit: TimeInterval) {
         self.maxDepth = maxDepth
@@ -272,12 +284,20 @@ private struct SearchContext {
         self.deadline = Date().addingTimeInterval(timeLimit)
         self.killers = [[Move?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [TTEntry](repeating: TTEntry(), count: TT_SIZE)
+        self.history = [Int](repeating: 0, count: 81 * 81 + 8 * 81)
+    }
+
+    private func historyIndex(_ move: Move) -> Int {
+        switch move {
+        case let .board(from, to, _): return from * 81 + to
+        case let .drop(type, to): return 81 * 81 + type.rawValue * 81 + to
+        }
     }
 
     // MARK: 反復深化
 
     mutating func search(_ pos: inout Position) -> Move? {
-        var orderedMoves = orderMoves(pos.legalMoves(), pos: pos, killers: [nil, nil])
+        var orderedMoves = orderMoves(pos.legalMoves(), pos: pos, killers: [nil, nil], ttMove: nil)
         var best: Move? = orderedMoves.first
 
         for d in 1...maxDepth {
@@ -316,6 +336,7 @@ private struct SearchContext {
         let hash = pos.zobristHash()
         let ttIdx = Int(hash & UInt64(TT_SIZE - 1))
         let entry = tt[ttIdx]
+        let ttMove: Move? = entry.hash == hash ? entry.bestMove : nil
         if entry.hash == hash && Int(entry.depth) >= depth {
             let s = Int(entry.score)
             switch entry.flag {
@@ -342,9 +363,10 @@ private struct SearchContext {
 
         var alpha = alpha
         var flag: TTFlag = .upper
+        var bestMoveHere: Move?
         let killerSet = ply < killers.count ? killers[ply] : [nil, nil]
 
-        for move in orderMoves(moves, pos: pos, killers: killerSet) {
+        for move in orderMoves(moves, pos: pos, killers: killerSet, ttMove: ttMove) {
             let undo = pos.make(move)
             let score = -negamax(&pos, depth: depth - 1, alpha: -beta, beta: -alpha, ply: ply + 1)
             pos.unmake(undo)
@@ -353,17 +375,19 @@ private struct SearchContext {
                 if ply < killers.count && !isCapture(move, pos) {
                     killers[ply][1] = killers[ply][0]
                     killers[ply][0] = move
+                    history[historyIndex(move)] += depth * depth
                 }
-                tt[ttIdx] = TTEntry(hash: hash, score: Int32(beta), depth: Int8(clamping: depth), flag: .lower)
+                tt[ttIdx] = TTEntry(hash: hash, score: Int32(beta), depth: Int8(clamping: depth), flag: .lower, bestMove: move)
                 return beta
             }
             if score > alpha {
                 alpha = score
                 flag = .exact
+                bestMoveHere = move
             }
         }
 
-        tt[ttIdx] = TTEntry(hash: hash, score: Int32(alpha), depth: Int8(clamping: depth), flag: flag)
+        tt[ttIdx] = TTEntry(hash: hash, score: Int32(alpha), depth: Int8(clamping: depth), flag: flag, bestMove: bestMoveHere)
         return alpha
     }
 
@@ -395,14 +419,16 @@ private struct SearchContext {
 
     // MARK: 指し手オーダリング（MVV-LVA + キラー）
 
-    func orderMoves(_ moves: [Move], pos: Position, killers: [Move?]) -> [Move] {
+    func orderMoves(_ moves: [Move], pos: Position, killers: [Move?], ttMove: Move?) -> [Move] {
         moves
-            .map { ($0, moveScore($0, pos: pos, killers: killers)) }
+            .map { ($0, moveScore($0, pos: pos, killers: killers, ttMove: ttMove)) }
             .sorted { $0.1 > $1.1 }
             .map { $0.0 }
     }
 
-    func moveScore(_ move: Move, pos: Position, killers: [Move?]) -> Int {
+    /// 置換表の最善手（#1134）を最優先にする。取る手・成る手・キラーの順位付けは変えていない。
+    func moveScore(_ move: Move, pos: Position, killers: [Move?], ttMove: Move?) -> Int {
+        if let ttMove, move == ttMove { return 100_000 }
         switch move {
         case let .board(from, to, promote):
             if let cap = pos.squares[to] {
@@ -414,7 +440,8 @@ private struct SearchContext {
         case .drop: break
         }
         if killers.contains(where: { $0 == move }) { return 4_000 }
-        return 0
+        // ヒストリーヒューリスティック（#1134）: 取る手・キラーの帯より下に収める。
+        return min(history[historyIndex(move)], 3_000)
     }
 
     func captureScore(_ move: Move, _ pos: Position) -> Int {

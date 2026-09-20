@@ -85,11 +85,17 @@ enum ShogiSelfPlay {
     /// そのとき返る手は同時に走っている他のテストの負荷で変わる。テストが CPU の
     /// 混み具合で赤くなるのを避けるため、上限だけ十分大きい値へ差し替えて深さで決まる状態にする。
     ///
+    /// **「強」の探索深さ上限は #1134 で 32（実質無制限）に緩めた**ため、そのまま使うと
+    /// 反復深化が時間（30 秒）で打ち切られてしまい、この関数の「深さで決まる」という前提が
+    /// 崩れる（実測: 軽い局面でも depth 32 は 10 秒あっても到達しない）。ここでのテストが
+    /// 要求する最大の読みは `smallGainBehindRecapture` の深さ 5（#502）なので、上限が
+    /// 大きい設定は 7 に絞って探索を自然終了させる（実測 0.03〜0.31 秒・#1134 の PR に記載）。
+    ///
     /// - Parameter seed: 「入門」（#1174）の乱択を再現したいときに渡す。他の段は乱数を使わない。
     static func untimed(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
         let shipped = SimpleMinimaxEngine(level: level)
         return SimpleMinimaxEngine(
-            depth: shipped.depth, usePositional: shipped.usePositional,
+            depth: min(shipped.depth, 7), usePositional: shipped.usePositional,
             useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: 30,
             isNovice: shipped.isNovice, seed: seed)
     }
@@ -137,8 +143,11 @@ struct ShogiDifficultyConfigTests {
     }
 
     /// #502 の受け入れ条件「調整後も『強』の棋力が現状から落ちていないこと」。
-    /// 下方調整は level 0 だけに閉じており、普通・強の探索設定は 1 ビットも動かさない。
-    @Test("普通・強の設定は下方調整の前後で変わっていない")
+    /// 下方調整は level 0 だけに閉じており、普通の探索設定は 1 ビットも動かさない。
+    /// **「強」の探索深さ上限は #1134 で 5 → 32 に上げた**（持ち時間 1.5 秒は変えていない。
+    /// 反復深化が時間で打ち切られる設計のため、上限を緩めても即座に強くなりすぎることはなく、
+    /// 実測で棋力の実質的な天井を引き上げる）。
+    @Test("普通の設定は下方調整の前後で変わっていない・強の探索深さ上限は#1134で緩めた")
     func strongLevelsAreUntouched() {
         let normal = SimpleMinimaxEngine(level: 1)
         #expect(normal.depth == 4)
@@ -146,10 +155,10 @@ struct ShogiDifficultyConfigTests {
         #expect(normal.timeLimit == 1.0)
 
         let strong = SimpleMinimaxEngine(level: 2)
-        #expect(strong.depth == 5)
+        #expect(strong.depth == 32, "「強」の探索深さ上限は #1134 で 5 → 32 に上げた")
         #expect(strong.useQuiescence)
         #expect(strong.usePositional)
-        #expect(strong.timeLimit == 1.5)
+        #expect(strong.timeLimit == 1.5, "持ち時間は #1134 でも変えていない")
     }
 }
 
@@ -291,15 +300,18 @@ struct ShogiNoviceAndSeriousTests {
         #expect(SimpleMinimaxEngine.noviceMargin < PieceValue.base(.pawn))
     }
 
-    /// 既存の最上段（むずかしい）の設定はそのままで、その上に積んでいる。
-    @Test("ガチはむずかしいより深く長く読む（むずかしいの設定は変えない）")
+    /// 既存の最上段（むずかしい）の持ち時間はそのままで、その上に積んでいる。
+    /// **むずかしいの探索深さ上限は #1134 で 32 に緩めた**ため、上限の数値どうしの比較では
+    /// 「ガチの方が深い」を表せなくなった（どちらも反復深化が持ち時間で打ち切られる設計で、
+    /// 実際に到達する深さは上限ではなく時間で決まる）。「深く長く読む」の主張は持ち時間の比較で担保する。
+    @Test("ガチはむずかしいより長く読む（むずかしいの持ち時間は変えない）")
     func seriousIsDeeperThanHard() {
         let hard = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.depth == 5 && hard.timeLimit == 1.5, "むずかしいの設定は #1174 で触らない")
+        #expect(hard.depth == 32, "むずかしいの探索深さ上限は #1134 で 5 → 32 に上げた")
+        #expect(hard.timeLimit == 1.5, "むずかしいの持ち時間は #1174 に続き #1134 でも触らない")
 
         let serious = SimpleMinimaxEngine(level: Self.serious)
         #expect(serious.depth == 7)
-        #expect(serious.depth > hard.depth)
         #expect(serious.timeLimit == 3.0)
         #expect(serious.timeLimit > hard.timeLimit, "深くするなら持ち時間も伸ばす（打ち切りで弱くなる）")
         #expect(serious.useBook && serious.useQuiescence && serious.usePositional)
