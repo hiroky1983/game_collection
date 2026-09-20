@@ -410,7 +410,7 @@ struct RewardGuardCallSiteTests {
         let withOutcome = sources.reduce(0) {
             $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
         }
-        #expect(withOutcome == 3, "広告をモデルで抱えている3面（ブラックジャック・ポーカー・麻雀）")
+        #expect(withOutcome == 4, "広告をモデルで抱えている4面（ブラックジャック・バカラ・ポーカー・麻雀）")
         #expect(all == withOutcome,
                 "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
     }
@@ -419,12 +419,13 @@ struct RewardGuardCallSiteTests {
     func nobodyBypassesTheSharedEntryPoint() throws {
         // `RewardedRescue` を通さずに `services.showRewardedAd(...)` を直に呼ぶと、
         // 連打ガードも局ガードも失敗アラートも付かない面が 1 つだけ生まれる。
-        // モデルが広告ごと持っている3面（`requestHandledByModel` 側）だけが直に呼んでよい。
+        // モデルが広告ごと持っている4面（`requestHandledByModel` 側）だけが直に呼んでよい。
         let callers = try Self.gameSources()
             .filter { $0.text.contains("showRewardedAd(") }
             .map(\.path)
             .sorted()
         #expect(callers == [
+            "GameBaccarat/BaccaratModel.swift",
             "GameBlackjack/BlackjackModel.swift",
             "GameMahjong/MahjongModel.swift",
             "GamePoker/PokerModel.swift",
@@ -434,7 +435,7 @@ struct RewardGuardCallSiteTests {
     @Test("広告を自分で抱えているモデルは、画面の世代を自分で照合している")
     func modelHeldRescuesCheckTheScreenGeneration() throws {
         // `RewardedRescue.request` を通る 18 面は共通側が世代を照合する（#653）が、
-        // 広告をモデルの中で抱えている3面はそこを通らないので、各モデルが自分で照合する。
+        // 広告をモデルの中で抱えている4面はそこを通らないので、各モデルが自分で照合する。
         // 照合の無いモデルが増えると、捨てられたモデルが `PlayLog` や中断データを
         // 新しい対局の裏で書き換える経路がそのぶん生まれる。
         let missing = try Self.gameSources()

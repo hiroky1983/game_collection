@@ -7,9 +7,9 @@ import Core
 /// |---|---|---|
 /// | -1 | 入門 | 角が取れれば取り、そうでなければ**角のとなり**を好んで打つ（#1174） |
 /// | 0 | 簡単 | 読まずに**最も多く返る手**を選ぶ（角の価値もモビリティも知らない初心者の打ち方） |
-/// | 1 | ふつう | 深さ 3 の αβ + 位置評価 |
-/// | 2 | むずかしい | 深さ 5 の αβ + 位置評価 |
-/// | 3 | ガチ | 深さ 5 を読んでから深さ 7 を読み直す αβ + 位置評価（1 手 2.5 秒・#1174） |
+/// | 1 | ふつう | 深さ 3 までの反復深化 αβ + 位置評価 |
+/// | 2 | むずかしい | 深さ 5 までの反復深化 αβ + 位置評価（#1133。以前は深さ固定で時間切れ時に読み残した） |
+/// | 3 | ガチ | 深さ 7 までの反復深化 αβ + 位置評価（1 手 2.5 秒・#1174 / #1133） |
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
 ///
@@ -21,8 +21,25 @@ import Core
 /// 角を相手に渡しやすくなるぶん簡単より弱く、こちらも乱数を使わないので弱さがぶれない。
 public struct OthelloEngine: Sendable {
     let level: Int
+    /// テスト専用: 持ち時間を上書きする（時間切れの挙動を決定的に検証するため・#1133）。
+    /// `nil` なら `level` から決まる通常の持ち時間を使う。
+    let timeLimitOverride: TimeInterval?
+    /// テスト専用: 現在時刻の取得元（#1133 CodeRabbit 指摘）。実時間に依存しない固定時計を
+    /// 注入できるようにし、実行環境の速度差でフレークする回帰テストを避ける。
+    let now: @Sendable () -> Date
 
-    public init(level: Int = CPUStrength.standard.rawValue) { self.level = level }
+    public init(level: Int = CPUStrength.standard.rawValue) {
+        self.level = level
+        self.timeLimitOverride = nil
+        self.now = { Date() }
+    }
+
+    /// テスト用: 持ち時間・時計を直接指定する（#1133 回帰テスト用）。
+    init(level: Int, timeLimitOverride: TimeInterval? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
+        self.level = level
+        self.timeLimitOverride = timeLimitOverride
+        self.now = now
+    }
 
     public func bestMove(board: OthelloBoard, stone: OthelloStone) async -> (row: Int, col: Int)? {
         let moves = board.validMoves(for: stone)
@@ -31,39 +48,51 @@ public struct OthelloEngine: Sendable {
         if strength == .novice { return noviceMove(moves, on: board, for: stone) }
         if strength == .easy { return greediestMove(moves, on: board, for: stone) }
 
-        let (depth, timeLimit): (Int, TimeInterval)
+        let (maxDepth, defaultTimeLimit): (Int, TimeInterval)
         switch strength {
-        case .serious: (depth, timeLimit) = (5, Self.seriousTimeLimit)
-        case .hard:    (depth, timeLimit) = (5, 0.8)
-        default:       (depth, timeLimit) = (3, 0.5)
+        case .serious: (maxDepth, defaultTimeLimit) = (Self.seriousDeepDepth, Self.seriousTimeLimit)
+        case .hard:    (maxDepth, defaultTimeLimit) = (Self.hardMaxDepth, 0.8)
+        default:       (maxDepth, defaultTimeLimit) = (3, 0.5)
         }
+        let timeLimit = timeLimitOverride ?? defaultTimeLimit
 
-        let deadline = Date().addingTimeInterval(timeLimit)
-        let shallow = rootSearch(moves, board: board, stone: stone, depth: depth, deadline: deadline)
-        guard strength == .serious else { return shallow.best }
-
-        // 「ガチ」だけは深さ 5 のあとに深さ 7 をもう一度読み、**時間内に読み切れたときだけ**
-        // そちらを採る（#1174）。この探索は反復深化を持たないので、深い読みを途中で打ち切ると
-        // 見ていない手が残り、深さ 5 を読み切るより弱い手を返しうる。2 段構えにすれば
-        // 遅い端末でも「むずかしい」を下回らない。既存 3 段階の読み方は 1 段のままで変えない。
-        let deep = rootSearch(moves, board: board, stone: stone,
-                              depth: Self.seriousDeepDepth, deadline: deadline)
-        return deep.completed ? deep.best : shallow.best
+        let deadline = now().addingTimeInterval(timeLimit)
+        return iterativeDeepening(moves, board: board, stone: stone, maxDepth: maxDepth, deadline: deadline)
     }
 
+    /// 「むずかしい」の読みの深さ（#502 のまま）。
+    static let hardMaxDepth = 5
     /// 「ガチ」の深い方の読み（#1174）。
     static let seriousDeepDepth = 7
     /// 「ガチ」の 1 手の持ち時間（#1174）。深さ 5 と深さ 7 の 2 段ぶんを合わせた上限。
     static let seriousTimeLimit: TimeInterval = 2.5
 
+    /// 反復深化。深さ 1 から `maxDepth` まで順に上げ、**時間内に読み切れた最後の深さの手だけ**を使う
+    /// （#1133）。時間切れになった深さの `rootSearch` は「未評価の候補手が残ったままの best」や
+    /// 「探索途中で打ち切られ壊れた評価値で埋まった `negamax` の戻り値」を含みうるため、その深さの
+    /// 結果は丸ごと捨てる。読み切れた深さが1つも無ければ `moves[0]` に倒す
+    /// （深さ 1 すら時間内に終わらないほど遅い場合の保険。実運用では起こらない想定）。
+    func iterativeDeepening(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
+                                    maxDepth: Int, deadline: Date) -> (row: Int, col: Int) {
+        var best = moves[0]
+        for d in 1...maxDepth {
+            if now() > deadline { break }
+            let result = rootSearch(moves, board: board, stone: stone, depth: d, deadline: deadline)
+            guard result.completed else { break }
+            best = result.best
+        }
+        return best
+    }
+
     /// 根の手を 1 巡して最善を返す。`completed` は時間切れで打ち切られなかったか。
-    /// 打ち切られた場合もそこまでの最善を返す（従来どおり）。
-    private func rootSearch(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
+    /// 打ち切られた場合の `best` は読み残しがある不完全な結果なので、呼び出し側
+    /// （`iterativeDeepening`）は使わずに前の深さの結果を採る（#1133）。
+    func rootSearch(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
                             depth: Int, deadline: Date) -> (best: (row: Int, col: Int), completed: Bool) {
         var best = moves[0]
         var bestScore = Int.min + 1
         for (r, c) in moves {
-            if Date() > deadline { return (best, false) }
+            if now() > deadline { return (best, false) }
             var b = board
             b.place(row: r, col: c, stone: stone)
             let score = -negamax(b, stone: stone.opponent, depth: depth - 1,
@@ -72,7 +101,7 @@ public struct OthelloEngine: Sendable {
         }
         // 最後の根手の探索中に期限切れになっていた場合もここで拾う。ループ先頭のチェックだけだと、
         // 全ての根手を一応は評価しているのに「読み切った」と誤って報告してしまう（検証指摘）。
-        return (best, Date() <= deadline)
+        return (best, now() <= deadline)
     }
 
     /// 「入門」の着手（#1174）。角が取れるなら取り、そうでなければ**角のとなり**
@@ -126,7 +155,7 @@ public struct OthelloEngine: Sendable {
                          alpha: Int, beta: Int, deadline: Date) -> Int {
         if board.isFull { return finalScore(board, for: stone) }
         let moves = board.validMoves(for: stone)
-        if depth == 0 || Date() > deadline { return evaluate(board, for: stone) }
+        if depth == 0 || now() > deadline { return evaluate(board, for: stone) }
         if moves.isEmpty {
             if board.validMoves(for: stone.opponent).isEmpty { return finalScore(board, for: stone) }
             return -negamax(board, stone: stone.opponent, depth: depth - 1,
@@ -134,7 +163,7 @@ public struct OthelloEngine: Sendable {
         }
         var alpha = alpha
         for (r, c) in moves {
-            if Date() > deadline { break }
+            if now() > deadline { break }
             var b = board
             b.place(row: r, col: c, stone: stone)
             let score = -negamax(b, stone: stone.opponent, depth: depth - 1,

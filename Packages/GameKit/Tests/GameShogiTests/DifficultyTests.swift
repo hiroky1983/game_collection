@@ -14,8 +14,9 @@ import CoreEngine
 /// ③軽い設定どうし（旧「弱」対 新「弱」・新「弱」対ランダム）の直接対戦
 /// で固定する。
 ///
-/// 自己対戦は `timeLimit` を実測の 100 倍以上に取って**深さで決まる**状態にしてから行う。
-/// 実時間で打ち切られると、同じテストが実行環境の速さで別の結果を返す。
+/// 自己対戦は `timeLimit: .infinity` で締切そのものを無くし、**深さで決まる**状態にしてから行う。
+/// 実時間で打ち切られると、同じテストが実行環境の速さで別の結果を返す（#1187: 有限の大きい値だと
+/// 高負荷時にその値を超えて打ち切りが再発した）。
 enum ShogiSelfPlay {
     /// 決定的な擬似乱数（ランダム役の手を再現可能にする）。共通の `MMIXRandom`（#1150）。
     /// 0 個からは選べないので `upper <= 0` は 0 を返す（`next()` は進めない）。
@@ -77,25 +78,37 @@ enum ShogiSelfPlay {
 
     /// 下方調整する前の「弱」（深さ 3 + 静止探索）。調整で本当に弱くなったかを測る基準。
     static let previousWeak = SimpleMinimaxEngine(
-        depth: 3, usePositional: false, useQuiescence: true, useBook: false, timeLimit: 30)
+        depth: 3, usePositional: false, useQuiescence: true, useBook: false, timeLimit: .infinity)
 
     /// 出荷している難易度を、**時間で打ち切られない形**にして返す（探索設定はそのまま）。
     ///
     /// 出荷値の `timeLimit`（0.5〜1.5 秒）はデバッグビルドでは実際に効いてしまい、
     /// そのとき返る手は同時に走っている他のテストの負荷で変わる。テストが CPU の
-    /// 混み具合で赤くなるのを避けるため、上限だけ十分大きい値へ差し替えて深さで決まる状態にする。
+    /// 混み具合で赤くなるのを避けるため、`timeLimit: .infinity` で締切そのものを無くし、
+    /// 深さだけで決まる状態にする（有限の大きい値だと、高負荷時にその値を超えて打ち切りが
+    /// 発生しうる。#1187: 実測で60秒設定が360秒かかるケースがあった）。
     ///
     /// - Parameter seed: 「入門」（#1174）の乱択を再現したいときに渡す。他の段は乱数を使わない。
     static func untimed(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
         let shipped = SimpleMinimaxEngine(level: level)
         return SimpleMinimaxEngine(
             depth: shipped.depth, usePositional: shipped.usePositional,
-            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: 30,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: .infinity,
             isNovice: shipped.isNovice, seed: seed)
     }
 
     /// 出荷している「弱」（探索設定は `level: 0` そのまま、時間の上限だけ外したもの）。
     static var currentWeak: SimpleMinimaxEngine { untimed(level: 0) }
+
+    /// 呼び出し時点で既に期限切れの設定（#1196 回帰テスト用）。`timeLimit` に負の値を渡すと
+    /// `SearchContext.init` の `Date().addingTimeInterval` がその場で過去の時刻になる。
+    static func expired(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
+        let shipped = SimpleMinimaxEngine(level: level)
+        return SimpleMinimaxEngine(
+            depth: shipped.depth, usePositional: shipped.usePositional,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: -1,
+            isNovice: shipped.isNovice, seed: seed)
+    }
 }
 
 @Suite("将棋の難易度: 3段階の設計（#502）")
@@ -325,6 +338,38 @@ struct ShogiNoviceAndSeriousTests {
                 .bestMove(sfen: sfen) { easyMoves.insert(usi) }
         }
         #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+    }
+
+    /// 呼び出し時点で既に `deadline` を過ぎていても、`noviceMove` は評価済みの候補から選ぶ
+    /// （#1196）。安全フロア（`minNoviceEvaluations`）を入れる前は、1手も評価できないまま
+    /// `orderedMoves.first` を無条件に返していたため、乱数の種を変えても常に同じ手になっていた。
+    @Test("期限切れでも評価済みの候補から選ぶ（1手固定に戻らない）")
+    func noviceStillVariesWhenDeadlineAlreadyPassed() async {
+        let sfen = Position.start().toSFEN()
+        var moves = Set<String>()
+        for seed in UInt64(1)...30 {
+            if let usi = await ShogiSelfPlay.expired(level: Self.novice, seed: seed).bestMove(sfen: sfen) {
+                moves.insert(usi)
+            }
+        }
+        #expect(moves.count > 1, "期限切れ時に手が1通りしかない = 1件も評価されず orderedMoves.first に固定されている")
+    }
+
+    /// 安全フロアの評価は `negamax` の期限判定も無効化しないと、相手の応手を読まない
+    /// 静的評価（`evaluate(pos)`）のまま候補に残り、取り返される取りを選びうる
+    /// （CodeRabbit 指摘・PR #1199）。合法手を金の1手（取り返される取り）と玉の2手（安全）の
+    /// 計3手だけに絞った局面（角に追い込んだ玉・金の退路は自駒でふさぐ）を使い、
+    /// 安全フロア（3手）の範囲内だけで判定できるようにした。
+    /// - 9a の金は 8a の歩しか取れない（前方・後方は盤外か自駒でふさいでいる）。
+    ///   取ると 8b の金に取り返される。
+    /// - 1a の玉は 2a / 2b の2箇所だけ動ける（前方は盤外、後方は自駒でふさいでいる）。
+    @Test("期限切れでも取り返されるだけの駒は取らない（合法手を3手に限定した局面）")
+    func expiredNoviceAvoidsTheHangingCaptureInMinimalPosition() async {
+        let sfen = "Gp6K/Pg6P/9/9/9/9/9/9/9 b - 1"
+        for seed in UInt64(1)...30 {
+            let usi = await ShogiSelfPlay.expired(level: Self.novice, seed: seed).bestMove(sfen: sfen)
+            #expect(usi != "9a8a", "期限切れの入門が金を歩と刺し違えている（seed \(seed)・\(usi ?? "nil")）")
+        }
     }
 
     /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する

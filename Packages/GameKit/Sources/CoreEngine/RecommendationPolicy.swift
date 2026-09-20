@@ -89,10 +89,19 @@ public enum RecommendationPolicy {
         // 第1候補は同じ「トランプを1人で並べる」ソリティア（#397）に置き換えた。
         "concentration": ["solitaire", "daifugo", "blackjack"],
         "poker":         ["blackjack", "daifugo", "concentration"],
-        "blackjack":     ["poker", "daifugo", "concentration"],
-        // 第3候補を花札こいこい（#495）にした。同じ「CPU と札を取り合う」型で、
-        // 1 人で札をめくる神経衰弱より近い（神経衰弱はポーカー・ブラックジャックから引き続き出る）。
-        "daifugo":       ["poker", "blackjack", "hanafuda"],
+        // 第3候補をバカラ（#1197）に差し替えた。同じ「チップを賭けて札を配るだけ」の型で、
+        // 神経衰弱より近い（神経衰弱はポーカー・ソリティア・麻雀ソリティアから引き続き出る）。
+        "blackjack":     ["baccarat", "poker", "daifugo"],
+        // バカラ（#1197）。賭け方がそのまま通じるブラックジャックが最も近く、
+        // 次いで同じトランプでチップを賭けるポーカー、CPU と札を競う大富豪の順。
+        "baccarat":      ["blackjack", "poker", "daifugo"],
+        // 第1候補を七並べ（#1198）に差し替えた。同じ「CPU と手番制で札を出し合う」型がいちばん近く、
+        // 花札こいこいは第2候補に繰り上げ、ブラックジャックが第3候補から外れる
+        // （ブラックジャックは他ゲームから引き続き出るが、花札こいこいはここで値に出す唯一の場所のため落とせない）。
+        "daifugo":       ["sevens", "hanafuda", "poker"],
+        // 七並べ（#1198）。手番制で札を出し合う型が同じ大富豪が最も近く、
+        // 次いで同じトランプでチップを賭けるポーカー、札を配って遊ぶブラックジャックの順。
+        "sevens":        ["daifugo", "poker", "blackjack"],
         // 麻雀ソリティア（#90）。牌が同じ四人打ち麻雀が最も近い。
         "mahjong":       ["mahjong4", "concentration", "minesweeper"],
         // 四人打ち麻雀（#106）。牌が同じで手軽な麻雀ソリティア、同じ CPU 対戦の大富豪、

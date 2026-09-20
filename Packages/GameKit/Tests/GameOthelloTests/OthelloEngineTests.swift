@@ -85,6 +85,109 @@ struct OthelloEngineTests {
         #expect(rate <= 0.75, "弱がでたらめな相手に \(wins)/\(games) 勝っている（強すぎる）")
         #expect(rate >= 0.35, "弱がでたらめな相手に \(wins)/\(games) しか勝てない（弱すぎる）")
     }
+
+    // MARK: - 時間切れ時の反復深化（#1133）
+
+    /// 時間切れのとき、`rootSearch` が単独で返す不完全な結果（未評価の候補手が残ったまま・
+    /// `negamax` が壊れた評価値で埋めた `alpha`）をそのまま使わないことを固定する。
+    /// 呼び出し時点で既に期限切れなら、深さ 1 すら読み切れないので `moves[0]` に倒す。
+    @Test("時間切れが呼び出し時点で既に発生していれば moves[0] に倒す")
+    func iterativeDeepeningFallsBackWhenAlreadyExpired() async {
+        let board = OthelloBoard()
+        let moves = board.validMoves(for: .black)
+        let engine = OthelloEngine(level: CPUStrength.hard.rawValue, timeLimitOverride: -1)
+        let move = await engine.bestMove(board: board, stone: .black)
+        #expect(move?.row == moves[0].0 && move?.col == moves[0].1,
+                "期限切れ時に moves[0] 以外を返している（読み残しの評価に頼っている）: \(String(describing: move))")
+    }
+
+    /// 角を取れば圧勝的に評価が高くなるが、`validMoves`（左上から生成）の並びでは角より
+    /// 先に来る手がもう1つある局面（CodeRabbit 指摘: 初期盤面は対称で `moves[0]` と
+    /// 深さ1の最善手が偶然一致してしまい、フォールバックとの区別が付かない）。
+    private func asymmetricBoardWithLateCorner() -> OthelloBoard {
+        var cells = [OthelloStone?](repeating: nil, count: othelloBoardSize * othelloBoardSize)
+        // (3,2) に黒を置くと (3,3) の白を挟んで1枚返る（validMoves では先に生成される）。
+        cells[3 * othelloBoardSize + 3] = .white
+        cells[3 * othelloBoardSize + 4] = .black
+        // (7,7)（右下の角）に黒を置くと (6,6) の白を挟んで1枚返る。
+        cells[6 * othelloBoardSize + 6] = .white
+        cells[5 * othelloBoardSize + 5] = .black
+        return OthelloBoard(cells: cells)
+    }
+
+    /// 反復深化は「時間切れになった深さ」の結果を丸ごと捨て、直前の読み切った深さの結果を使う
+    /// （#1133）。実時間には依存しない（CodeRabbit 指摘: 所要時間の実測はスケジューラ停止・
+    /// CI 負荷でフレークする）。`now` を注入し、深さ1の探索に要した `now()` 呼び出し回数を
+    /// 数えてから、その直後にだけ「期限切れ」へ切り替わる固定時計で深さ2以降を確実に打ち切る。
+    @Test("時間切れのときは直前に読み切った深さの結果を使う")
+    func iterativeDeepeningUsesLastCompletedDepth() async throws {
+        let board = asymmetricBoardWithLateCorner()
+        let moves = board.validMoves(for: .black)
+        try #require(moves.count == 2, "前提が崩れている: 局面の合法手が想定と違う（\(moves)）")
+        try #require(!(moves[0].0 == 7 && moves[0].1 == 7),
+                     "前提が崩れている: 角が validMoves の先頭に来ている（非対称にならない）")
+
+        let deadline = Date().addingTimeInterval(600)
+        let before = Date()
+        let after = Date().addingTimeInterval(1_200)
+
+        // 深さ1のみ／深さ2まで、それぞれ反復深化を1回走らせ、あいだの now() 呼び出し回数を数える。
+        let counter1 = CallCountingClock()
+        let depth1Only = OthelloEngine(level: CPUStrength.hard.rawValue, now: counter1.now)
+            .iterativeDeepening(moves, board: board, stone: .black, maxDepth: 1, deadline: deadline)
+        #expect(depth1Only.0 == 7 && depth1Only.1 == 7,
+                "前提が崩れている: 深さ1の最善手が角を取っていない（評価関数の重みが変わった？）")
+        #expect(!(depth1Only.0 == moves[0].0 && depth1Only.1 == moves[0].1),
+                "前提が崩れている: 深さ1の最善手が moves[0] と同じで、フォールバックと区別できない")
+        let depth1Calls = counter1.callCount
+
+        let counter2 = CallCountingClock()
+        _ = OthelloEngine(level: CPUStrength.hard.rawValue, now: counter2.now)
+            .iterativeDeepening(moves, board: board, stone: .black, maxDepth: 2, deadline: deadline)
+        let depth1And2Calls = counter2.callCount
+        try #require(depth1And2Calls > depth1Calls + 4,
+                     "前提が崩れている: 深さ2の呼び出し回数が少なすぎて途中で打ち切るタイミングを作れない")
+
+        // 深さ1は確実に完了させ、深さ2は「開始はするが呼び出しの半ばで期限切れになる」
+        // タイミングに切り替える。rootSearch/negamax の途中経過（不完全な best・壊れた
+        // 評価値）が最終結果に混ざっていないかを検証できる。
+        let switchAt = depth1Calls + (depth1And2Calls - depth1Calls) / 2
+        let switching = SwitchingClock(switchAfterCalls: switchAt, before: before, after: after)
+        let switchingEngine = OthelloEngine(level: CPUStrength.hard.rawValue, now: switching.now)
+        let result = switchingEngine.iterativeDeepening(moves, board: board, stone: .black,
+                                                        maxDepth: OthelloEngine.hardMaxDepth, deadline: deadline)
+        #expect(result.0 == depth1Only.0 && result.1 == depth1Only.1,
+                "深さ1の結果と異なる（未完了の深い探索の結果が混入している可能性）")
+    }
+}
+
+/// `now()` の呼び出し回数だけを数える実時計（#1133 回帰テスト用）。
+private final class CallCountingClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var callCount = 0
+    func now() -> Date {
+        lock.lock(); callCount += 1; lock.unlock()
+        return Date()
+    }
+}
+
+/// `switchAfterCalls` 回目までは `before` を、それ以降は `after` を返す固定時計
+/// （#1133 回帰テスト用）。実時間を一切使わないため、CI の速度差でフレークしない。
+private final class SwitchingClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var callCount = 0
+    private let switchAfterCalls: Int
+    private let before: Date
+    private let after: Date
+    init(switchAfterCalls: Int, before: Date, after: Date) {
+        self.switchAfterCalls = switchAfterCalls
+        self.before = before
+        self.after = after
+    }
+    func now() -> Date {
+        lock.lock(); callCount += 1; let c = callCount; lock.unlock()
+        return c <= switchAfterCalls ? before : after
+    }
 }
 
 // MARK: - 入門・ガチ（#1174）

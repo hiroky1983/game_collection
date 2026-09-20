@@ -67,7 +67,7 @@ struct BoardHintBudgetTests {
     /// 合わせると「最善手」を名乗れなくなる（#665）。
     @Test("読ませる強さは最強に固定")
     func readsWithTheStrongestEngine() {
-        #expect(BoardHintBudget.engineLevel == 2)
+        #expect(BoardHintBudget.engineLevel == CPUStrength.serious.rawValue)
     }
 }
 
