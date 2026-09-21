@@ -147,6 +147,8 @@ public struct HanafudaView: View {
                 Text(yakuLine(for: .cpu))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Spacer()
                 Text("手札\(model.cpuHand.count)枚")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -240,6 +242,8 @@ public struct HanafudaView: View {
                 Text(yakuLine(for: .human))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Spacer()
             }
             capturedStrip(model.humanCaptured, height: fit.stripHeight)
@@ -453,7 +457,7 @@ enum HanafudaFit {
     /// 札の並べ方の候補（列数）。広い画面は 6 列 2 段、狭い画面は 8 列 1 段のほうが大きく取れる。
     static let columnChoices = [6, 8]
     /// 縮められない部分（見出しの文字・カードの内側の余白・段のあいだ以外）の高さ。
-    /// 見出し 3 行（12pt の文字 ≈ 16pt）＋ 3 カードぶんの上下余白 60 ＋ カード内の縦の間隔 4 か所 ＋ カード間の間隔 2 か所。
+    /// 見出し 3 行（12pt の文字 ≈ 16pt。役名の行は lineLimit(1) で折り返さない）＋ 3 カードぶんの上下余白 60 ＋ カード内の縦の間隔 4 か所 ＋ カード間の間隔 2 か所。
     static let fixedHeight: CGFloat = 3 * 16 + 3 * 2 * cardPadding + 4 * gap + 2 * sectionSpacing
 
     struct Metrics: Equatable {
