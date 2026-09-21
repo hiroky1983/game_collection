@@ -20,6 +20,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameShiritori
 import GameSpider
 import GameChess
 import GameBlocks
@@ -39,7 +40,7 @@ import GameKitTestSupport
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
     "solitaire", "freecell", "spider", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
-    "concentration", "blocks", "runner", "hanafuda",
+    "concentration", "shiritori", "blocks", "runner", "hanafuda",
 ]
 
 @MainActor
@@ -50,7 +51,7 @@ private func makeRegistry() -> GameRegistry {
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         FreeCellModule(), SpiderModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
-        GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
+        GomokuModule(), ConcentrationModule(), ShiritoriModule(), BlocksModule(), RunnerModule(),
         HanafudaModule(),
     ])
 }
@@ -67,13 +68,15 @@ private func makeLog(suite: String) -> (PlayLog, UserDefaults) {
 @MainActor
 private func makeServices(
     suite: String,
-    hiddenIDs: Set<String> = []
+    hiddenIDs: Set<String> = [],
+    now: @escaping () -> Date = { Date() }
 ) -> (GameServices, RecommendationService) {
     let (log, _) = makeLog(suite: suite)
     let registry = makeRegistry()
     let service = RecommendationService(
         log: log,
-        availableModules: { hubOrder.compactMap { registry.module(id: $0) }.filter { !hiddenIDs.contains($0.id) } }
+        availableModules: { hubOrder.compactMap { registry.module(id: $0) }.filter { !hiddenIDs.contains($0.id) } },
+        now: now
     )
     let services = GameServices(
         snapshots: MemorySnapshotStore(),
@@ -87,6 +90,27 @@ private func makeServices(
 @MainActor
 private func advanceFinishes(_ service: RecommendationService, count: Int, gameID: String) {
     for _ in 0..<count { service.gameDidFinish(gameID: gameID) }
+}
+
+/// 次の提示が出るところまで空回しする。
+///
+/// ハブのゲーム数が `firstShowThreshold`（20）を超えると、全ゲームを遊び切る**前に**1回目の提示が
+/// 出る。「遊び尽くしたあと」の振る舞いを見るテストは、その1回を挟んで先へ進める必要がある。
+/// 次の提示には間隔（`interval`）と時間の歯止め（`minimumElapsed`）の両方が要るので、
+/// 1回ごとに1時間進めながら回し、**出た時点で止める**
+/// （`gameDidFinish` は毎回いったん提示を消すので、行き過ぎるとまた nil に戻る）。
+@MainActor
+private func advanceToNextSuggestion(
+    _ service: RecommendationService,
+    gameID: String,
+    advanceClock: (TimeInterval) -> Void
+) {
+    service.dismiss()
+    for _ in 0...(RecommendationPolicy.extendedInterval + 1) {
+        advanceClock(3600)
+        service.gameDidFinish(gameID: gameID)
+        if service.suggestedGameID != nil { return }
+    }
 }
 
 // MARK: - 固定テーブル（受け入れ条件: 提示されるゲームがテーブルどおり・ランダム要素が無い）
@@ -105,7 +129,7 @@ struct RecommendationTableTests {
         ("2048",          ["sudoku", "minesweeper", "blocks"]),
         ("blocks",        ["runner", "2048", "minesweeper"]),
         ("minesweeper",   ["sudoku", "2048", "mahjong"]),
-        ("concentration", ["solitaire", "daifugo", "blackjack"]),
+        ("concentration", ["solitaire", "daifugo", "shiritori"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
         ("daifugo",       ["poker", "blackjack", "hanafuda"]),
@@ -118,6 +142,7 @@ struct RecommendationTableTests {
         ("spider",        ["freecell", "solitaire", "mahjong"]),
         ("runner",        ["blocks", "2048", "concentration"]),
         ("hanafuda",      ["daifugo", "poker", "blackjack"]),
+        ("shiritori",     ["concentration", "hanafuda", "daifugo"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
@@ -497,6 +522,11 @@ struct RecommendationServiceTests {
             }
             #expect(service.suggestedGameID == nil, "しきい値の1つ手前までは出さない")
             finish("shogi")
+        } else {
+            // ゲーム数がしきい値を**超えた**ら、遊び尽くす前に1回目（未プレイ枠）が出てしまう
+            // （#1243 で 21 本になり、しきい値ちょうどの 20 本だった前提が崩れた）。
+            // このテストが見たいのは「遊び尽くしたあと」なので、その1回を捨てて次の提示まで進める。
+            advanceToNextSuggestion(service, gameID: "shogi") { clock = clock.addingTimeInterval($0) }
         }
         #expect(service.suggestedGameID == "2048", "最終プレイが最も古いゲームが出る")
         if case .revisit(let days?) = service.suggestedReason {
@@ -510,7 +540,8 @@ struct RecommendationServiceTests {
     /// その場合も「日付不明＝最も古い」に倒して提示は続ける（黙って消えない）。
     @Test("最終プレイ日時が記録されていなくても、久しぶり枠は出る")
     func suggestsRevisitWithoutDates() {
-        let (_, service) = makeServices(suite: "service-all-played-nodates")
+        var clock = Date(timeIntervalSince1970: 1_800_000_000)
+        let (_, service) = makeServices(suite: "service-all-played-nodates", now: { clock })
         for id in hubOrder { service.gameDidFinish(gameID: id) }   // ハブのゲーム数ぶん
         // 上と同じ理由で場合分けする（ゲーム数がしきい値以上なら、この時点でもう提示されている）。
         if hubOrder.count < RecommendationPolicy.firstShowThreshold {
@@ -521,6 +552,8 @@ struct RecommendationServiceTests {
             )                                                      // しきい値の1つ手前まで
             #expect(service.suggestedGameID == nil)
             service.gameDidFinish(gameID: "shogi")                 // 20回目で提示
+        } else {
+            advanceToNextSuggestion(service, gameID: "shogi") { clock = clock.addingTimeInterval($0) }
         }
         #expect(service.suggestedGameID == "2048", "日付が無ければハブ順で先頭（将棋以外）")
         #expect(service.suggestedReason == .revisit(days: nil))
