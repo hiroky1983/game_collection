@@ -51,17 +51,32 @@ public struct GameSetupSheet<Content: View>: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        // NavigationStack は使わない。シートの `.medium` では中身の上端がナビゲーションバーの分だけ
+        // 押し下げられず、最初の節の見出しがバー（キャンセル・題名）と重なった（#1252。
+        // `.navigationBarTitleDisplayMode(.inline)` を足しても直らない）。題名とキャンセルは
+        // 中身の上に積む行として自前で描き、重なりが構造上起きないようにする。
+        VStack(spacing: 0) {
+            header
             frame
-                .popBackground()
-                .navigationTitle(title)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("キャンセル") { onCancel() }
-                    }
-                }
         }
+        .popBackground()
         .modifier(SetupSheetDetents(layout: layout))
+    }
+
+    private var header: some View {
+        ZStack {
+            Text(title).themeBody(17, weight: .bold).foregroundStyle(Theme.ink)
+                .accessibilityAddTraits(.isHeader)
+            HStack {
+                Button("キャンセル") { onCancel() }
+                    .themeBody(17, weight: .regular)
+                Spacer()
+            }
+        }
+        .frame(minHeight: 44)
+        .padding(.horizontal, Theme.pad)
+        .padding(.top, 30)
+        .padding(.bottom, 4)
     }
 
     @ViewBuilder
