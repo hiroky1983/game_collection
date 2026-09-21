@@ -595,7 +595,7 @@ struct ChessNewGameSheet: View {
                             GameSetupChooser(
                                 title: candidate.label, subtitle: candidate.subtitle,
                                 selected: style == candidate,
-                                accent: candidate == .flat ? Theme.Fill.teal : Theme.Fill.yellow,
+                                accent: candidate.tileAccent,
                                 metrics: Self.metrics
                             ) { style = candidate }
                         }

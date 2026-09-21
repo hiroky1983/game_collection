@@ -128,12 +128,40 @@ struct ChessPieceStyleTests {
         }
     }
 
-    @Test("意匠は 2 つで、保存キーは v1")
+    @Test("意匠は 3 つで、保存キーは v1")
     func casesAndKey() {
-        #expect(ChessPieceStyle.allCases == [.flat, .sculpted], "並び順が設定シートの並び順になる")
+        #expect(ChessPieceStyle.allCases == [.flat, .sculpted, .real], "並び順が設定シートの並び順になる")
         #expect(ChessPieceStyle.flat.rawValue == "flat")
         #expect(ChessPieceStyle.sculpted.rawValue == "sculpted")
+        #expect(ChessPieceStyle.real.rawValue == "real")
         // 改名すると、既に立体を選んでいる人の設定が既定へ戻る。
         #expect(ChessPieceStylePreference.key == "chessPieceStyle_v1")
+    }
+
+    @Test("リアルの選択は保存でき、既定はシンプルのまま")
+    func realPersistsAndDefaultStaysFlat() {
+        let pref = makePreference("asobiba.chess.tests.real")
+        #expect(pref.style == .flat)
+        pref.style = .real
+        #expect(pref.style == .real)
+    }
+
+    @Test("リアルは輪郭線と外側の影を持たない（描画側が接地影を自前で描く）")
+    func realHasNoOuterShadow() {
+        for color in ChessColor.allCases {
+            #expect(ChessPieceStyle.real.shading(for: color).shadowOpacity == 0)
+        }
+    }
+
+    @Test("リアルの断面は全種で滑らかにされ、接地から頂点まで昇る")
+    func realProfilesRiseFromGround() {
+        for type in ChessPieceType.allCases {
+            let prof = ChessRealProfiles.smoothed(type)
+            #expect(prof.count > 8, "\(type) の断面が空")
+            #expect(prof.first?.y == 0)
+            let top = prof.map(\.y).max() ?? 0
+            #expect(abs(top - ChessRealProfiles.profile(type).map(\.y).max()!) < 1e-9)
+            #expect(prof.allSatisfy { $0.r >= 0 && $0.r <= 0.5 }, "半径がマスの半分を超えない")
+        }
     }
 }
