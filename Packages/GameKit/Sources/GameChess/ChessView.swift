@@ -656,34 +656,44 @@ struct ChessRuleDetail: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("駒の動き").themeBody(16).foregroundStyle(Theme.ink)
-                ForEach(pieces, id: \.0.rawValue) { type, movement in
-                    HStack(alignment: .center, spacing: 10) {
-                        ChessPieceView(piece: ChessPiece(type: type, color: .white), size: 30,
-                                       style: style)
-                            .frame(width: 30, height: 30)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(type.japaneseName)
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(Theme.ink)
-                            Text(movement)
-                                .font(.system(size: 12, design: .rounded))
-                                .foregroundStyle(Theme.inkSub)
+        // 他ゲームのルールシート（大富豪・花札）と同じ包み: スクロール + セクションごとのカード背景
+        // （会長指摘 2026-09-21: ScrollView 自体が無く下が切れて読めなかった）。
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("駒の動き").themeBody(16).foregroundStyle(Theme.ink)
+                    ForEach(pieces, id: \.0.rawValue) { type, movement in
+                        HStack(alignment: .center, spacing: 10) {
+                            ChessPieceView(piece: ChessPiece(type: type, color: .white), size: 30,
+                                           style: style)
+                                .frame(width: 30, height: 30)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(type.japaneseName)
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Theme.ink)
+                                Text(movement)
+                                    .font(.system(size: 12, design: .rounded))
+                                    .foregroundStyle(Theme.inkSub)
+                            }
                         }
+                        .accessibilityElement(children: .combine)
                     }
-                    .accessibilityElement(children: .combine)
                 }
+                .padding(12)
+                .popCard(corner: Theme.cornerSmall)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("特別なルール").themeBody(16).foregroundStyle(Theme.ink)
+                    ruleLine("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。")
+                    ruleLine("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。")
+                    ruleLine("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。")
+                    ruleLine("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。")
+                }
+                .padding(12)
+                .popCard(corner: Theme.cornerSmall)
             }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("特別なルール").themeBody(16).foregroundStyle(Theme.ink)
-                ruleLine("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。")
-                ruleLine("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。")
-                ruleLine("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。")
-                ruleLine("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。")
-            }
+            .padding(Theme.pad)
         }
+        .popBackground()
     }
 
     private func ruleLine(_ title: String, _ body: String) -> some View {
