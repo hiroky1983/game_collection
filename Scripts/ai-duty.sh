@@ -651,9 +651,10 @@ APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --s
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
                  and ($l | index("blocked")) == null)] | length' 2>/dev/null || echo 0)
 
-# 起動モデルの選択（会長指示 2026-09-18: 週間リミットが14%まで逼迫したため恒久対応で全モデル
-# Sonnet に固定。2026-09-14 導入の「model:fable ラベルは Fable 5.1 で起動」は撤回し、
-# 該当 Issue でも Sonnet で起動する（候補の取得自体は仕事2 の選定引き継ぎのために残す）。
+# 起動モデルの選択。既定は Sonnet（会長指示 2026-09-18: 週間リミット逼迫のため恒久対応。
+# 2026-09-22 時点でリミットは解消したが、既定を Sonnet にすること自体は継続する会長指示）。
+# `model:fable` ラベルが付いた Issue が次の着手候補に来たときだけ Fable 5.1 で起動する
+# （2026-09-18 に一時撤回していたが、2026-09-22 に会長指示でラベルの効力を復活させた）。
 NEXT_CANDIDATE=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
   --json number,labels,milestone \
   --jq '[.[] | ([.labels[].name]) as $l
@@ -666,7 +667,8 @@ NEXT_CANDIDATE=$(gh issue list -R hiroky1983/game_collection --label "ai:approve
 DUTY_MODEL=sonnet
 DUTY_MODEL_NOTE=""
 if [ -n "$NEXT_CANDIDATE" ] && [ "$(jq -r '.fable' <<<"$NEXT_CANDIDATE" 2>/dev/null)" = "true" ]; then
-  DUTY_MODEL_NOTE="今回選んだ #$(jq -r '.number' <<<"$NEXT_CANDIDATE") には \`model:fable\` が付いているが、週間リミット逼迫のため恒久対応で Sonnet で起動している（会長指示 2026-09-18）。仕事2 ではこの Issue を選ぶこと。"
+  DUTY_MODEL=fable
+  DUTY_MODEL_NOTE="今回選んだ #$(jq -r '.number' <<<"$NEXT_CANDIDATE") には \`model:fable\` が付いているため Fable 5.1 で起動している。仕事2 ではこの Issue を選ぶこと。"
 fi
 export DUTY_MODEL
 
