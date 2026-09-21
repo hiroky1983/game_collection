@@ -28,28 +28,22 @@ public enum ShiritoriPresentation {
 
     // MARK: - 結果
 
-    /// 取った札の割合（%・四捨五入）。1 枚も取られていなければ 0。
-    public static func sharePercent(player: Int, cpu: Int) -> Int {
-        let total = player + cpu
-        guard total > 0 else { return 0 }
-        return Int((Double(player) * 100 / Double(total)).rounded())
-    }
-
     public static func resultTitle(ending: ShiritoriEnding, didWin: Bool) -> String {
         switch ending {
         case .cpuHitN:    return didWin ? "CPUが「ん」で終わった！勝ち！" : "決着"
         case .playerHitN: return "「ん」で終わってしまった…負け"
         case .cpuStuck:   return "CPUが続けられない！勝ち！"
         case .playerStuck: return "続けられる札がない…負け"
-        case .timeUp:     return didWin ? "時間切れ。ノルマ達成で勝ち！" : "時間切れ…ノルマ未達で負け"
+        case .timeUp:     return "時間切れ…ノルマ未達で負け"
+        case .quotaReached: return "ノルマ達成！勝ち！"
         }
     }
 
-    /// 結果に添える内訳（例: "あなた3枚・CPU2枚（60%）／ノルマ: 取った札の過半数（5割より多く）でクリア"）。
-    /// ノルマを勝敗に使うのは時間切れだけなので、ノルマの説明もそのときだけ添える。
+    /// 結果に添える内訳（例: "あなた3枚・CPU2枚／ノルマ: 6枚取ったらクリア"）。
+    /// ノルマが勝敗に絡むのは時間切れと到達の決着だけなので、ノルマの説明もそのときだけ添える。
     public static func resultDetail(player: Int, cpu: Int, quota: ShiritoriQuota, ending: ShiritoriEnding) -> String {
-        let base = "あなた\(player)枚・CPU\(cpu)枚（\(sharePercent(player: player, cpu: cpu))%）"
-        return ending == .timeUp ? base + "／ノルマ: \(quota.summary)" : base
+        let base = "あなた\(player)枚・CPU\(cpu)枚"
+        return ending == .timeUp || ending == .quotaReached ? base + "／ノルマ: \(quota.summary)" : base
     }
 
     // MARK: - VoiceOver
