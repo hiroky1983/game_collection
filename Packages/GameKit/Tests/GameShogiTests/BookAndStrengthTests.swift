@@ -53,3 +53,38 @@ struct StrongLevelTests {
         #expect(usi == "5e5d")
     }
 }
+
+@Suite("玉への攻め駒の接近（#1258）")
+struct KingDangerTests {
+    private let engine = SimpleMinimaxEngine(level: 1)
+
+    @Test func startPositionHasNoDanger() {
+        let pos = Position.start()
+        #expect(engine.kingDanger(pos, .black) == 0)
+        #expect(engine.kingDanger(pos, .white) == 0)
+    }
+
+    @Test func twoAttackersNearKingAreDangerousButOneIsNot() {
+        // 先手玉 5九 に対し、後手の銀が距離2に2枚（棒銀・早繰り銀の形）／1枚だけ。
+        let two = Position.fromSFEN("4k4/9/9/9/9/9/2s3s2/9/4K4 b - 1")!
+        let one = Position.fromSFEN("4k4/9/9/9/9/9/2s6/9/4K4 b - 1")!
+        #expect(engine.kingDanger(two, .black) > 0)
+        #expect(engine.kingDanger(one, .black) == 0)
+        // 近いほど危険（距離2 → 距離1）
+        let closer = Position.fromSFEN("4k4/9/9/9/9/9/9/3s1s3/4K4 b - 1")!
+        #expect(engine.kingDanger(closer, .black) > engine.kingDanger(two, .black))
+    }
+
+    @Test func dangerIgnoresFarAttackers() {
+        let far = Position.fromSFEN("4k4/9/9/s6s1/9/9/9/9/4K4 b - 1")!
+        #expect(engine.kingDanger(far, .black) == 0)
+    }
+
+    @Test func promotedBishopIsWorthLessThanPromotedRook() {
+        // 馬 < 龍、かつ 馬 > 飛（成り駒の駒割を定説の並びに、#1258）
+        let horse = PieceValue.onBoard(Piece(type: .bishop, color: .black, promoted: true))
+        let dragon = PieceValue.onBoard(Piece(type: .rook, color: .black, promoted: true))
+        let rook = PieceValue.onBoard(Piece(type: .rook, color: .black, promoted: false))
+        #expect(rook < horse && horse < dragon)
+    }
+}
