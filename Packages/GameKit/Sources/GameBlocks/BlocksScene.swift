@@ -77,8 +77,12 @@ final class BlocksScene: SKScene {
     /// ブロックのノードを作り直した時点の `BlocksModel.fieldGeneration`。
     private var renderedGeneration = -1
 
-    /// 球のノード。**上限ぶん先に作って余りを隠す**（#599）。増えるたびに作ると、
-    /// 球が増えた最初のフレームだけノードの生成が挟まって画が飛ぶ。
+    /// 球のノード。**アイテム（`itemNodes`）と同じく、足りなくなったら足して使い回す**（#1202）。
+    ///
+    /// #599 時点では `BlocksRules.maxBalls`（3個）ぶん先に作って余りを隠す方式だったが、
+    /// フレンジー増殖（`BlocksRules.frenzyMaxBalls` = 30 まで一気に増える）でこの上限を
+    /// 超えるため、固定プールのままだと超えたぶんが**描かれずに消える**（実際に見つかった不具合）。
+    /// 増える瞬間だけノード生成が挟まるが、増える回数自体がコンボ成立時に限られるため実害は小さい。
     private var ballNodes: [SKShapeNode] = []
     /// 落下中のアイテムのノード。種類ごとに見た目が違うので種類別に持つ。
     private var itemNodes: [BlocksItemKind: [SKNode]] = [:]
@@ -114,14 +118,6 @@ final class BlocksScene: SKScene {
         paddleNode.strokeColor = .clear
         addChild(blockLayer)
         addChild(paddleNode)
-        for _ in 0..<BlocksRules.maxBalls {
-            let node = SKShapeNode(circleOfRadius: CGFloat(BlocksField.Metrics.ballRadius))
-            node.fillColor = BlocksPalette.color(BlocksPalette.ball)
-            node.strokeColor = .clear
-            node.isHidden = true
-            ballNodes.append(node)
-            addChild(node)
-        }
         rebuildBlocks()
         sync()
     }
@@ -191,14 +187,7 @@ final class BlocksScene: SKScene {
             rebuildBlocks()
         }
         let field = model.field
-        for (index, node) in ballNodes.enumerated() {
-            guard index < field.balls.count else {
-                node.isHidden = true
-                continue
-            }
-            node.isHidden = false
-            node.position = CGPoint(x: field.balls[index].x, y: field.balls[index].y)
-        }
+        syncBalls(field.balls)
         paddleNode.position = CGPoint(x: field.paddleX, y: BlocksField.Metrics.paddleY)
         // 伸長中は横だけ引き伸ばす（#599）。`SKShapeNode` は生成時の寸法を持つので、
         // 幅を変えるには拡大率を動かす。
@@ -216,6 +205,26 @@ final class BlocksScene: SKScene {
                 // 同じ色なら SpriteKit 側で描画は変わらない。
                 node.color = BlocksPalette.blockColor(block, row: row)
             }
+        }
+    }
+
+    /// 球をノードへ写す（#1202）。`syncItems` と同じく、足りなくなったら足して使い回す。
+    private func syncBalls(_ balls: [BlocksBall]) {
+        while ballNodes.count < balls.count {
+            let node = SKShapeNode(circleOfRadius: CGFloat(BlocksField.Metrics.ballRadius))
+            node.fillColor = BlocksPalette.color(BlocksPalette.ball)
+            node.strokeColor = .clear
+            node.isHidden = true
+            ballNodes.append(node)
+            addChild(node)
+        }
+        for (index, node) in ballNodes.enumerated() {
+            guard index < balls.count else {
+                node.isHidden = true
+                continue
+            }
+            node.isHidden = false
+            node.position = CGPoint(x: balls[index].x, y: balls[index].y)
         }
     }
 
