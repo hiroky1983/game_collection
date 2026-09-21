@@ -410,7 +410,7 @@ struct RewardGuardCallSiteTests {
         let withOutcome = sources.reduce(0) {
             $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
         }
-        #expect(withOutcome == 3, "広告をモデルで抱えている3面（ブラックジャック・ポーカー・麻雀）")
+        #expect(withOutcome == 4, "広告をモデルで抱えている3面（ブラックジャック・ポーカー・麻雀）。麻雀は復活と最終局延長（#1201）の2か所")
         #expect(all == withOutcome,
                 "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
     }
