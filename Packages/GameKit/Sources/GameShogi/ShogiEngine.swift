@@ -614,8 +614,8 @@ private struct SearchContext {
             while Sq.onBoard(file: f, rank: r) {
                 if let p = pos.squares[Sq.index(file: f, rank: r)] {
                     if p.color == opponent {
-                        let isLanceForward = p.type == .lance && df == 0
-                            && ((p.color == .black && dr == -1) || (p.color == .white && dr == 1))
+                        let isLanceForward = p.type == .lance && !p.promoted && df == 0
+                            && ((p.color == .black && dr == 1) || (p.color == .white && dr == -1))
                         if p.type == .rook || isLanceForward {
                             penalty += max(0, 9 - dist) * 6
                         }
