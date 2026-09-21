@@ -263,7 +263,7 @@ struct ShiritoriModelTests {
     @Test("CPU が「ん」で終わる読みを選ばされたら、ノルマに関係なく勝つ")
     func cpuHittingNWinsRegardlessOfQuota() async {
         let (model, _) = makeModel()
-        // りんご →(あなた)ごりら →(CPU の手は らーめん だけ)。1 対 1 = 50% でふつうなら負けの成績。
+        // りんご →(あなた)ごりら →(CPU の手は らーめん だけ)。1 対 1 でノルマ（6 枚）には届かない成績でも、CPU が「ん」を選ばされたら勝ち。
         model.configureForTesting(opener: apple, board: [gorilla, trapForCPU], quota: .normal)
         model.select(0)
         await model.runCPUTurnIfNeeded()
