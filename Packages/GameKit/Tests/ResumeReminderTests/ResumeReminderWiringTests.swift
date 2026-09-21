@@ -20,7 +20,7 @@ struct ResumeReminderWiringTests {
             Self.matches(#"snapshots: ClearObservingSnapshotStore\(base: FileSnapshotStore\(\)\) \{[^}]*reminders\.snapshotDidClear\(gameID: gameID\)"#, in: source),
             "中断データの消去（終局・やり直し）がお知らせの取り消しに届いていない"
         )
-        #expect(Self.matches(#"gameCenter: gameCenter,\s*reminders: reminders\s*\)"#, in: source),
+        #expect(Self.matches(#"gameCenter: gameCenter,\s*reminders: reminders,\s*reengagement: reengagement\s*\)"#, in: source),
                 "ResumeReminderService が GameServices に渡っていない（離脱・開いたの両方が届かない）")
     }
 
@@ -49,10 +49,17 @@ struct ResumeReminderWiringTests {
                 "非表示にしても予約済みのお知らせが取り消されない")
     }
 
-    @Test("許可はダイアログの出ない provisional でだけ求める")
+    @Test("#663 の許可はダイアログの出ない provisional でだけ求める")
     func authorizationIsProvisionalOnly() throws {
         let source = try SourceScan.appSources()
-        let requests = source.split(separator: "\n").filter { $0.contains("requestAuthorization(options:") }
+        guard let range = source.range(of: "final class UserNotificationReminderScheduler") else {
+            Issue.record("UserNotificationReminderScheduler が見つからない（走査のパターンが壊れている可能性）")
+            return
+        }
+        // 次の `final class` の手前までを1クラスぶんの範囲とみなす（#1193 のスケジューラを巻き込まない）。
+        let body = source[range.upperBound...]
+        let classBody = body.range(of: "\nfinal class ").map { body[body.startIndex..<$0.lowerBound] } ?? body
+        let requests = classBody.split(separator: "\n").filter { $0.contains("requestAuthorization(options:") }
         #expect(requests.count == 1, "許可を求める箇所が \(requests.count) か所ある")
         #expect(requests.allSatisfy { $0.contains(".provisional") },
                 "provisional を含まない許可の要求がある（起動直後などに許可ダイアログが出る）")
