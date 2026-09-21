@@ -53,12 +53,14 @@ public enum ReengagementReminderPolicy {
     public static func candidate(
         games: [ReengagementCandidateInput],
         availableIDs: [String],
-        now: Date
+        now: Date,
+        calendar: Calendar = .current
     ) -> String? {
         let available = Set(availableIDs)
         let eligible = games.filter { input in
             guard available.contains(input.gameID), input.plays > 0, let last = input.lastPlayedAt else { return false }
-            return now.timeIntervalSince(last) >= Double(minimumIdleDays) * 86_400
+            guard let eligibleAt = calendar.date(byAdding: .day, value: minimumIdleDays, to: last) else { return false }
+            return now >= eligibleAt
         }
         guard let maxPlays = eligible.map(\.plays).max() else { return nil }
         let topGameIDs = Set(eligible.filter { $0.plays == maxPlays }.map(\.gameID))
@@ -69,7 +71,7 @@ public enum ReengagementReminderPolicy {
     /// （例: 40日ぶりに評価すると7日後・30日後は既に過去なので60日後だけになる）。
     public static func fireDates(lastPlayedAt: Date, now: Date, calendar: Calendar) -> [Date] {
         offsetDays.compactMap { days in
-            let base = lastPlayedAt.addingTimeInterval(Double(days) * 86_400)
+            guard let base = calendar.date(byAdding: .day, value: days, to: lastPlayedAt) else { return nil }
             let atHour = calendar.date(bySettingHour: deliveryHour, minute: 0, second: 0, of: base) ?? base
             return atHour > now ? atHour : nil
         }
@@ -125,7 +127,7 @@ public final class ReengagementReminderService {
     /// アプリがバックグラウンドに入った（`GameCollectionApp` の `scenePhase` から呼ぶ）。
     public func applicationDidEnterBackground(games: [ReengagementCandidateInput], availableIDs: [String]) {
         guard !isSuppressed, isEnabled() else { return }
-        let target = ReengagementReminderPolicy.candidate(games: games, availableIDs: availableIDs, now: now())
+        let target = ReengagementReminderPolicy.candidate(games: games, availableIDs: availableIDs, now: now(), calendar: calendar)
         let lastPlayedAt = target.flatMap { id in games.first(where: { $0.gameID == id })?.lastPlayedAt }
         epoch += 1
         let token = epoch
@@ -139,6 +141,9 @@ public final class ReengagementReminderService {
     /// そのゲームを開いた。予約が残っていれば消す（識別子はゲーム単位で決まるので、
     /// 予約が無いゲームに対して呼んでも何も起きない）。
     public func gameDidOpen(gameID: String) {
+        // 進行中の判定〜予約タスクが後から追加してしまわないよう、世代を進めてから取り消す
+        // （#663 と同じ設計。CodeRabbit 指摘・PR #1223）。
+        epoch += 1
         scheduler.cancel(gameID: gameID)
     }
 

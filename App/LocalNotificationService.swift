@@ -130,6 +130,10 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
     }
 
     func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
+        // 前回の予約が残っているとインデックスがずれて末尾が重複するため、採番し直す前に必ず消す。
+        let identifiers = ReengagementReminderPolicy.offsetDays.indices
+            .map { ReengagementReminderNotification.identifier(for: gameID, index: $0) }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
         await Self.add(gameID: gameID, fireDates: fireDates, title: title, body: body)
     }
 
@@ -206,12 +210,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didReceive response: UNNotificationResponse
     ) async {
         guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
-        let userInfo = response.notification.request.content.userInfo
-        if let gameID = userInfo[ResumeReminderNotification.gameIDKey] as? String {
+        let request = response.notification.request
+        let userInfo = request.content.userInfo
+        // gameIDKey は両方とも "gameID" で共通のため、先に識別子の接頭辞で通知の種類を判定する。
+        if request.identifier.hasPrefix(ResumeReminderNotification.identifierPrefix),
+           let gameID = userInfo[ResumeReminderNotification.gameIDKey] as? String {
             await MainActor.run {
                 AppEnvironment.reminders.notificationTapped(gameID: gameID)
             }
-        } else if let gameID = userInfo[ReengagementReminderNotification.gameIDKey] as? String {
+        } else if request.identifier.hasPrefix(ReengagementReminderNotification.identifierPrefix),
+                  let gameID = userInfo[ReengagementReminderNotification.gameIDKey] as? String {
             await MainActor.run {
                 AppEnvironment.reengagement.notificationTapped(gameID: gameID)
             }
