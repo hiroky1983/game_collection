@@ -136,12 +136,12 @@ struct ShiritoriRulesTests {
         #expect(ShiritoriRules.cpuMove(slots: board, after: "そ") == nil)
     }
 
-    @Test("CPU は「ん」で終わる読みをほかに手があれば避け、無ければ選んで負ける")
-    func cpuAvoidsNUnlessForced() {
+    @Test("CPU は「ん」で終わる読みも避けない（固定順の先頭を選ぶだけ）")
+    func cpuDoesNotAvoidN() {
         let trap = ShiritoriCard(.pillow, "こばん")
         let safe = ShiritoriCard(.kitten, "こねこ")
-        #expect(ShiritoriRules.cpuMove(slots: slots([trap, safe]), after: "こ")?.slot == 1, "先に並んでいても避ける")
-        #expect(ShiritoriRules.cpuMove(slots: slots([trap]), after: "こ")?.slot == 0, "それしか無ければ選ばされる")
+        #expect(ShiritoriRules.cpuMove(slots: slots([trap, safe]), after: "こ")?.slot == 0, "先頭が「ん」なら選んで負ける")
+        #expect(ShiritoriRules.cpuMove(slots: slots([safe, trap]), after: "こ")?.slot == 0)
     }
 
     @Test("最初の場の札は、プレイヤーの最初の手が残る札から選ぶ")

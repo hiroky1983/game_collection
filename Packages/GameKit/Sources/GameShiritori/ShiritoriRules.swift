@@ -132,11 +132,10 @@ enum ShiritoriRules {
     }
 
     /// CPU の手。**固定順（盤の並び順）で走査して最初に見つかった札を選ぶだけ**（本家のボスと同じ。
-    /// 難易度でロジックは変えない）。裏読みも常に見る。「ん」で終わる読みは、ほかに手があれば避ける
-    /// （選ぶと即負けになるため。ほかに手が無いときだけ、その手を選んで負ける）。
+    /// 難易度でロジックは変えない）。裏読みも常に見る。「ん」で終わる読みも避けない
+    /// （Issue #1243 の指定どおり。それが先頭なら選んで、その場で負ける）。
     static func cpuMove(slots: [ShiritoriSlot], after tail: Character) -> ShiritoriMove? {
-        let all = moves(slots: slots, after: tail)
-        return all.first { !endsWithN($0.reading) } ?? all.first
+        moves(slots: slots, after: tail).first
     }
 
     /// 最初の場の札にする位置。**プレイヤーの最初の手が 1 つは残る**札を、シャッフル済みの山から
