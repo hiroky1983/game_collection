@@ -292,6 +292,8 @@ public struct BlocksField: Equatable, Sendable {
     /// `placeBall` は球を 1 個に差し替えてしまうため、複数球が既にある状態を保ったまま
     /// ブロックを壊すテストが書けない。ここでは `resolveBlocks` の後半（耐久を減らし、
     /// アイテム出現とコンボ進行を行う部分）だけを、当たり判定を飛ばして再利用する。
+    /// 実際の衝突が無いので、種は「動いている球のうち先頭のもの」で代用する
+    /// （このヘルパー自体は特定の球が衝突したことを模擬しないため）。
     @discardableResult
     public mutating func destroyBlockForTesting(row: Int, column: Int) -> [BlocksEvent] {
         guard let block = blocks[row][column] else { return [] }
@@ -301,10 +303,19 @@ public struct BlocksField: Equatable, Sendable {
         var events: [BlocksEvent] = [
             .blockHit(row: row, column: column, kind: block.kind, destroyed: result.destroyed)
         ]
-        if result.destroyed, let ballCount = progressCombo() {
+        if result.destroyed, let seed = balls.first(where: { $0.isMoving }),
+           let ballCount = progressCombo(seed: seed) {
             events.append(.frenzyTriggered(ballCount: ballCount))
         }
         return events
+    }
+
+    /// テスト用に、盤上の球を複数まとめて直接置く（#1202）。
+    ///
+    /// `placeBall` は 1 個に限定されるため、「配列の先頭とは別の球が実際に衝突した」
+    /// という複数球のシナリオを組み立てるのに使う。
+    public mutating func placeBallsForTesting(_ newBalls: [BlocksBall]) {
+        balls = newBalls
     }
     #endif
 
@@ -455,7 +466,7 @@ public struct BlocksField: Equatable, Sendable {
             kind: block.kind,
             destroyed: result.destroyed
         ))
-        if result.destroyed, let ballCount = progressCombo() {
+        if result.destroyed, let ballCount = progressCombo(seed: ball) {
             events.append(.frenzyTriggered(ballCount: ballCount))
         }
     }
@@ -464,23 +475,29 @@ public struct BlocksField: Equatable, Sendable {
 
     /// 連続で壊したブロックの数を進め、しきい値に達していればフレンジー増殖を発動する。
     ///
+    /// `seed` は**今まさに衝突してブロックを壊した球**（衝突・反射を解決した後の値）。
+    /// `balls` 配列から「動いている球」を検索して選ぶと、複数球のときに衝突していない
+    /// 別の球を、単一球でも衝突前の（反射前の）値を拾ってしまう
+    /// （`balls[index] = ball` の書き戻しは `resolveBlocks` の呼び出し元・後で行われるため。
+    /// CodeRabbit 指摘・Major）。
+    ///
     /// **乱数は使わない**（基盤規約）。しきい値の倍数に達するたびに発動するので、
     /// コンボを維持し続ける限り何度でも起きる（`spawnItemIfDue` と同じ modulo の形）。
-    private mutating func progressCombo() -> Int? {
+    private mutating func progressCombo(seed: BlocksBall) -> Int? {
         guard let threshold = frenzyThreshold, threshold > 0 else { return nil }
         comboCount += 1
         guard comboCount % threshold == 0 else { return nil }
-        return triggerFrenzy()
+        return triggerFrenzy(seed: seed)
     }
 
-    /// 動いている球を 1 個種にして、`BlocksRules.frenzyMaxBalls` に達するまで扇状に増やす。
+    /// `seed` を種にして、`BlocksRules.frenzyMaxBalls` に達するまで扇状に増やす。
     ///
     /// 既存の `multiBall`（アイテム取得トリガー・`splitBalls()`・上限 `maxBalls`=3）とは
     /// 規模もトリガーも別物（会長決裁 2026-09-21）。複数の球を種にすると増える方向が偏り、
     /// 「画面を均等に埋める」体験にならないため、種は 1 個に絞る。
-    /// すでに上限に達している（or 動いている球が無い）ときは何もしない。
-    private mutating func triggerFrenzy() -> Int? {
-        guard let seed = balls.first(where: { $0.isMoving }) else { return nil }
+    /// すでに上限に達している（or 種が止まっている）ときは何もしない。
+    private mutating func triggerFrenzy(seed: BlocksBall) -> Int? {
+        guard seed.isMoving else { return nil }
         let capacity = BlocksRules.frenzyMaxBalls - balls.count
         guard capacity > 0 else { return nil }
 

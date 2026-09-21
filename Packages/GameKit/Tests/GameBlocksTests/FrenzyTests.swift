@@ -136,6 +136,28 @@ struct FrenzyTests {
         #expect(events.contains(.frenzyTriggered(ballCount: BlocksRules.frenzyMaxBalls)))
     }
 
+    @Test("複数球のとき、実際に衝突した球が種になる（配列の先頭の球ではない）")
+    func seedIsTheBallThatActuallyCollided() {
+        var f = roomyField(speed: 70, frenzyThreshold: 1)
+        let target = firstBreakable(f)!
+        let rect = BlocksField.blockRect(row: target.row, column: target.column)
+        // 配列の先頭（balls[0]）は動いてはいるが、ブロックにも壁にも当たらない場所に置く
+        // （`resolveBlocks` を呼んでも何も起きない位置・速さ）。
+        let decoy = BlocksBall(x: 5, y: 5, vx: 0, vy: 5)
+        // 実際に衝突する球（balls[1]）は先頭とはっきり違う速さでブロックへ向かわせる。
+        let hitter = BlocksBall(x: rect.midX, y: rect.minY - 2.1, vx: 0, vy: 70)
+        f.placeBallsForTesting([decoy, hitter])
+
+        let events = f.step(dt: 0.02)
+        #expect(events.contains(.frenzyTriggered(ballCount: BlocksRules.frenzyMaxBalls)))
+
+        let addedSpeeds = Set(f.balls.dropFirst(2).map { $0.speed.rounded() })
+        #expect(
+            addedSpeeds == [70],
+            "先頭のおとり球（速さ5）ではなく、実際に衝突した球（速さ70）が種になっているべき: \(addedSpeeds)"
+        )
+    }
+
     @Test("増えた球は種と同じ速さで、向きは分散する")
     func addedBallsKeepSpeedAndSpread() {
         var f = roomyField(speed: 90, frenzyThreshold: 3)
