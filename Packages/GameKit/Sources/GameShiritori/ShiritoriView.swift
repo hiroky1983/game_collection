@@ -232,6 +232,7 @@ public struct ShiritoriView: View {
             Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota))
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             RecordLabel(model.recordResult)
                 .frame(maxWidth: .infinity, alignment: .leading)

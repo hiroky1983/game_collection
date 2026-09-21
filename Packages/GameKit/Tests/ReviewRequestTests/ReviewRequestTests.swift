@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+@testable import GameShiritori
 import GameSpider
 import GameChess
 import MahjongTiles
@@ -479,6 +480,16 @@ struct GameOutcomeRoutingTests {
         autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
         #expect(service.log.totalWins == 1)
+    }
+
+    @Test("カードしりとり: 1 枚も取らずに時間切れになっても勝利にならない")
+    func shiritoriTimeUpWithNothingTakenIsNotAWin() {
+        let (services, service) = makeServices(suite: "route-shiritori")
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame(quota: .easy)
+        model.tick(ShiritoriTime.initial)
+        #expect(model.phase == .result)
+        #expect(service.log.totalWins == 0)
     }
 
     @Test("花札こいこい: 投了は勝利にならない")

@@ -87,7 +87,9 @@ public enum RecommendationPolicy {
         "minesweeper":   ["sudoku", "2048", "mahjong"],
         // トランプ系。同じ札を使う大富豪（#89）へ抜けられるようにする（#237）。
         // 第1候補は同じ「トランプを1人で並べる」ソリティア（#397）に置き換えた。
-        "concentration": ["solitaire", "daifugo", "blackjack"],
+        // 第3候補をカードしりとり（#1243）に差し替えた。神経衰弱と絵柄を共有する（#1244）「絵札で遊ぶ」
+        // ゲームで、ブラックジャックより近い（ブラックジャックはポーカー・大富豪から引き続き出る）。
+        "concentration": ["solitaire", "daifugo", "shiritori"],
         "poker":         ["blackjack", "daifugo", "concentration"],
         "blackjack":     ["poker", "daifugo", "concentration"],
         // 第3候補を花札こいこい（#495）にした。同じ「CPU と札を取り合う」型で、

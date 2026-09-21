@@ -499,7 +499,7 @@ struct PlayMeasurementCallSiteTests {
         return joined
     }
 
-    /// プレイを数えているモジュール（= ハブに並ぶ 21 本のゲーム）。
+    /// プレイを数えているモジュール（= ハブに並ぶ 22 本のゲーム）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -509,7 +509,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 21, "ハブに並ぶゲームは21本")
+        #expect(games.count == 22, "ハブに並ぶゲームは22本")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -533,6 +533,7 @@ struct PlayMeasurementCallSiteTests {
             "GameMinesweeper",   // 初級 / 中級 / 上級
             "GameOthello",       // CPU の強さ 3 段階
             "GameRunner",        // 面番号 1〜15
+            "GameShiritori",     // ノルマ 3 段階（やさしい / ふつう / むずかしい・#1243）
             "GameShogi",         // CPU の強さ 3 段階
             "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
