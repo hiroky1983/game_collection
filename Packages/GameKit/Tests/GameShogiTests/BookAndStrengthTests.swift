@@ -115,4 +115,11 @@ struct KingPawnShieldTests {
         let withRook = shield("4k4/9/9/9/9/9/9/9/4K4 b r 1")
         #expect(withRook < noRook)
     }
+
+    @Test func whiteSideIsMirrored() {
+        // 後手玉 5一 の前方（rank が増える向き）に歩があれば盾になる／遠い歩は盾にならない
+        let near = shield("4k4/4p4/9/9/9/9/9/9/4K4 w - 1", .white)
+        let far = shield("4k4/9/9/9/4p4/9/9/9/4K4 w - 1", .white)
+        #expect(near > far)
+    }
 }
