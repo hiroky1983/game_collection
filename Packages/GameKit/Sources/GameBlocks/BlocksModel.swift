@@ -284,6 +284,10 @@ public final class BlocksModel {
             // **得点は動かさない**（#599）。効果そのものは `BlocksField` が適用済みで、
             // ここでやるのは取れたと分かる手応えを返すことだけ。
             services?.feedback.notify(.success)
+        case .frenzyTriggered:
+            // 同じく**得点は動かさない**（#1202）。増殖の瞬間だけ手応えを強めに返す。
+            services?.feedback.impact(.rigid)
+            services?.feedback.notify(.success)
         case .ballLost:
             loseLife()
         }
@@ -408,6 +412,11 @@ public final class BlocksModel {
             catchNextItemForDebug()
             catchNextItemForDebug()
             isFrozenForDebug = true
+        case "frenzy":
+            // フレンジー増殖（#1202）が発動した直後の画。1 面のしきい値ぶん連続で壊すと発動する。
+            launch()
+            breakBlocksUntilFrenzyForDebug()
+            isFrozenForDebug = true
         case "gameover":
             var guardCount = 0
             while !phase.isFinished, guardCount < 100 {
@@ -446,6 +455,23 @@ public final class BlocksModel {
         // シャッターを切る前に落ちて残機が減った画になる）。
         if phase == .playing {
             placeBallForTesting(x: field.paddleX, y: BlocksField.Metrics.height * 0.3, vx: 22, vy: 30)
+        }
+    }
+
+    /// フレンジーが発動するまでブロックを壊す（#1202）。
+    ///
+    /// `breakBlocksForDebug` は最後に球を盤の中ほどへ置き直す（`placeBallForTesting` は
+    /// 球を 1 個へ差し替えるため、フレンジーで増えた球が消えてしまう）。ここでは
+    /// **盤上の球数が増えた瞬間に止める**ことで、増えた球をそのまま画に残す。
+    private func breakBlocksUntilFrenzyForDebug() {
+        let before = field.balls.count
+        var guardCount = 0
+        while field.balls.count <= before, phase == .playing, guardCount < 4_000 {
+            guardCount += 1
+            guard let target = firstBreakableForDebug() else { break }
+            let rect = BlocksField.blockRect(row: target.row, column: target.column)
+            placeBallForTesting(x: rect.midX, y: rect.midY, vx: 0, vy: 1)
+            tick(dt: 1.0 / 60)
         }
     }
 
