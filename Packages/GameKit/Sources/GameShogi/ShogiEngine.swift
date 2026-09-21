@@ -286,6 +286,11 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         SearchContext(maxDepth: depth, usePositional: usePositional,
                       useQuiescence: useQuiescence, timeLimit: 0).kingDanger(pos, color)
     }
+
+    func kingPawnShield(_ pos: Position, _ color: Side) -> Int {
+        SearchContext(maxDepth: depth, usePositional: usePositional,
+                      useQuiescence: useQuiescence, timeLimit: 0).kingPawnShield(pos, color)
+    }
 }
 
 // MARK: - SearchContext（探索の可変状態）
@@ -522,8 +527,8 @@ private struct SearchContext {
         }
 
         if usePositional {
-            score += kingShelter(pos, .black) - kingDanger(pos, .black)
-                   - kingShelter(pos, .white) + kingDanger(pos, .white)
+            score += kingShelter(pos, .black) - kingDanger(pos, .black) + kingPawnShield(pos, .black)
+                   - kingShelter(pos, .white) + kingDanger(pos, .white) - kingPawnShield(pos, .white)
         }
 
         return pos.sideToMove == .black ? score : -score
@@ -592,6 +597,37 @@ private struct SearchContext {
         let homeRank = color == .black ? 8 : 0
         s += max(0, 2 - abs(kr - homeRank)) * 10
         s -= kingExposure(pos, color: color, kingSq: k)
+        return s
+    }
+
+    /// 玉頭の歩の盾と開いた筋（#1258 段階4）。shelter とは別項（自己対戦テストは shelter だけを見る）。
+    /// 玉の筋と両隣で、玉の前方3マス以内に自分の歩があれば加点し、その筋に自分の歩が1枚も無ければ
+    /// （相手の飛香が走れる開いた筋）減点する。相手が飛車を持っている（盤上・持ち駒とも）ときは
+    /// 開いた筋の減点を倍にする。前方2マスに絞ると、7六歩を突いたあとの 6九玉が盾なしと見なされ、
+    /// 囲いを進める手が選ばれなくなった（自己対戦で実測）ため3マスにしている。
+    func kingPawnShield(_ pos: Position, _ color: Side) -> Int {
+        guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
+            return 0
+        }
+        let kf = Sq.file(k), kr = Sq.rank(k)
+        let forward = color == .black ? -1 : 1
+        let opponent = color.opponent
+        let oppHasRook = pos.hands[opponent.rawValue][PieceType.rook.rawValue] > 0
+            || pos.squares.contains { $0?.type == .rook && $0?.color == opponent }
+        var s = 0
+        for f in max(0, kf - 1)...min(8, kf + 1) {
+            var shield = false
+            var hasPawn = false
+            for r in 0..<Sq.count / 9 {
+                guard let p = pos.squares[Sq.index(file: f, rank: r)],
+                      p.type == .pawn, !p.promoted, p.color == color else { continue }
+                hasPawn = true
+                let ahead = (r - kr) * forward
+                if ahead >= 1 && ahead <= 3 { shield = true }
+            }
+            if shield { s += 5 }
+            if !hasPawn { s -= oppHasRook ? 8 : 4 }
+        }
         return s
     }
 
