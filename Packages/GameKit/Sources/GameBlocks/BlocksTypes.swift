@@ -80,6 +80,10 @@ public enum BlocksEvent: Equatable, Sendable {
     /// **得点は動かない**。Model 側がこれを受けて鳴らすのは手応えだけで、
     /// スコアに触る分岐をここから生やさないこと（順位表の値の意味が版で変わる）。
     case itemCaught(kind: BlocksItemKind)
+    /// フレンジー増殖が発動した（#1202）。連続でブロックを壊すこと自体がトリガーで、
+    /// `itemCaught` と同じく**得点は動かない**（効果は `BlocksField` が自分で適用済み）。
+    /// `ballCount` は発動直後の盤上の球数（手応えの強さを変える用途を想定）。
+    case frenzyTriggered(ballCount: Int)
     /// 盤上の球がすべて落ちた（1 機失う）。
     ///
     /// 球が増えているあいだ（#599）は、1 個落ちただけでは出ない。
