@@ -284,6 +284,16 @@ public final class BlocksModel {
             // **得点は動かさない**（#599）。効果そのものは `BlocksField` が適用済みで、
             // ここでやるのは取れたと分かる手応えを返すことだけ。
             services?.feedback.notify(.success)
+        case .vaultWallOpened:
+            // **得点は動かさない**（#1250）。壁が開いた手応えだけ返す。
+            services?.feedback.impact(.rigid)
+        case .vaultCleared(_, let hits):
+            // 一斉ダメージのぶんの得点を積む。ステージクリアの判定はこのあとの `blockHit`
+            // （金庫を空にした最後の 1 個）が行うので、ここでは判定しない。
+            for hit in hits {
+                score += BlocksScoring.blockPoints(kind: hit.kind, destroyed: hit.destroyed, stage: stageNumber)
+            }
+            services?.feedback.notify(.success)
         case .frenzyTriggered:
             // 同じく**得点は動かさない**（#1202）。増殖の瞬間だけ手応えを強めに返す。
             services?.feedback.impact(.rigid)

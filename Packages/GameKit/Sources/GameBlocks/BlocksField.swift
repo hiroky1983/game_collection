@@ -152,6 +152,10 @@ public struct BlocksField: Equatable, Sendable {
     public private(set) var comboCount: Int
     /// このステージでのフレンジー増殖のしきい値。nil ならこのステージでは発動しない（#1202）。
     private let frenzyThreshold: Int?
+    /// 盤上の金庫（#1250）。レイアウトの `w` から自動で決まる（`BlocksVault.detect`）。
+    public private(set) var vaults: [BlocksVault]
+    /// 空にした金庫の数。描画側が「一斉に崩れる」演出を出すきっかけの検知に使う。
+    public private(set) var vaultsClearedCount: Int
 
     public init(stage: BlocksStage, speed: Double) {
         self.blocks = stage.makeBlocks()
@@ -163,6 +167,8 @@ public struct BlocksField: Equatable, Sendable {
         self.destroyedCount = 0
         self.comboCount = 0
         self.frenzyThreshold = stage.frenzyThreshold
+        self.vaults = BlocksVault.detect(in: blocks)
+        self.vaultsClearedCount = 0
     }
 
     // MARK: - 盤面の問い合わせ
@@ -300,11 +306,11 @@ public struct BlocksField: Equatable, Sendable {
         let result = block.damaged()
         blocks[row][column] = result.block
         if result.destroyed { spawnItemIfDue(row: row, column: column) }
-        var events: [BlocksEvent] = [
-            .blockHit(row: row, column: column, kind: block.kind, destroyed: result.destroyed)
-        ]
-        if result.destroyed, let seed = balls.first(where: { $0.isMoving }),
-           let ballCount = progressCombo(seed: seed) {
+        var events: [BlocksEvent] = []
+        let seed = balls.first(where: { $0.isMoving })
+        if result.destroyed { events += advanceVault(row: row, column: column, seed: seed) }
+        events.append(.blockHit(row: row, column: column, kind: block.kind, destroyed: result.destroyed))
+        if result.destroyed, let seed, let ballCount = progressCombo(seed: seed) {
             events.append(.frenzyTriggered(ballCount: ballCount))
         }
         return events
@@ -460,6 +466,8 @@ public struct BlocksField: Equatable, Sendable {
         let result = block.damaged()
         blocks[hit.row][hit.column] = result.block
         if result.destroyed { spawnItemIfDue(row: hit.row, column: hit.column) }
+        // 金庫の効果は `blockHit` より前に並べる（`BlocksEvent.vaultWallOpened` 参照）。
+        if result.destroyed { events += advanceVault(row: hit.row, column: hit.column, seed: ball) }
         events.append(.blockHit(
             row: hit.row,
             column: hit.column,
@@ -469,6 +477,54 @@ public struct BlocksField: Equatable, Sendable {
         if result.destroyed, let ballCount = progressCombo(seed: ball) {
             events.append(.frenzyTriggered(ballCount: ballCount))
         }
+    }
+
+    // MARK: - 金庫（#1250）
+
+    /// 壊したブロックが金庫の中身なら数え、開いた壁ごとに球を 1 個足す。空になったら一斉ダメージ。
+    ///
+    /// 球の追加は既存の上限 `BlocksRules.maxBalls` の枠内（`multiBall` と同じ扱い）。
+    /// **乱数は使わない**（基盤規約）。
+    private mutating func advanceVault(row: Int, column: Int, seed: BlocksBall?) -> [BlocksEvent] {
+        let cell = BlocksVault.Cell(row: row, column: column)
+        guard let index = vaults.firstIndex(where: { $0.contentCells.contains(cell) }) else { return [] }
+        var events: [BlocksEvent] = []
+        for wall in vaults[index].recordDestroyed() {
+            blocks[wall.row][wall.column] = nil
+            if let seed { addVaultBall(seed: seed) }
+            events.append(.vaultWallOpened(vault: index, row: wall.row, column: wall.column))
+        }
+        if vaults[index].isEmpty {
+            vaultsClearedCount += 1
+            events.append(.vaultCleared(vault: index, hits: shockwave()))
+        }
+        return events
+    }
+
+    /// 金庫の壁が開いたぶんの球を 1 個足す。上限に達していれば何もしない。
+    private mutating func addVaultBall(seed: BlocksBall) {
+        guard seed.isMoving, balls.count < BlocksRules.maxBalls else { return }
+        let sign: Double = balls.count % 2 == 0 ? 1 : -1
+        let rotated = Self.rotate(vx: seed.vx, vy: seed.vy, by: sign * BlocksRules.multiBallSpread)
+        let clamped = BlocksPhysics.clampVertical(rotated)
+        balls.append(BlocksBall(x: seed.x, y: seed.y, vx: clamped.vx, vy: clamped.vy))
+    }
+
+    /// 金庫を空にした瞬間の一斉ダメージ。**まだ閉じている他の金庫の中身は巻き込まない**
+    /// （そちらの壁が開く数え方と再帰的に絡むため）。アイテム出現・フレンジーのコンボにも数えない。
+    private mutating func shockwave() -> [BlocksBlockHit] {
+        var hits: [BlocksBlockHit] = []
+        for row in blocks.indices {
+            for column in blocks[row].indices {
+                guard let block = blocks[row][column], block.isBreakable else { continue }
+                let cell = BlocksVault.Cell(row: row, column: column)
+                guard !vaults.contains(where: { $0.contentCells.contains(cell) }) else { continue }
+                let result = block.damaged()
+                blocks[row][column] = result.block
+                hits.append(BlocksBlockHit(row: row, column: column, kind: block.kind, destroyed: result.destroyed))
+            }
+        }
+        return hits
     }
 
     // MARK: - フレンジー増殖（#1202）
