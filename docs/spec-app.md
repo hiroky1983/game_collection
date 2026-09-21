@@ -237,7 +237,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
-| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820） |
+| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195） |
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
@@ -253,6 +253,11 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   写像は各ゲームの `analyticsMode`（`MahjongGameLength` / `RunnerMode`）に置く。一局戦は 1 対局が 1 局なので
   `game_start` が機械的に増える。回数を比べるときは `mode` で分け、時間で比べるときは `duration_sec` を使う。
   `game_end` の `mode` は開始時に焼き込んだ値で、途中で遊び方を替えて始め直したときも捨てたプレイの側の値が載る（#783・#785・#820）
+- `play_count` / `days_since_last_play`（`AnalyticsEngagement`・#1195・会長決裁 2026-09-21 案A）は `game_start` だけに載る、
+  そのゲームの遊び込み具合。イベントは増やさずパラメータだけを足した。値は端末内の `PlayLog`（ゲーム別記録・区分は合算）から
+  開始時に読むだけで、新しい保存は持たない。送るのは回数と日数だけで日時そのものは載せない。目的は会長が GA4 で人の目で
+  分析することで、アプリ側の判定（再エンゲージメント通知・レコメンド）には使わない。**GA4 で集計するにはカスタムディメンション
+  / 指標の登録が要る（会長操作）**。
 - `cause`（`AnalyticsEndCause`・#796・`release/v1.1.5` から）は**そのプレイで最後にミスした原因**。
   ミスのたびにイベントは出さず（イベントの種類は増やさない）、各ゲームが `gameDidMiss` で原因を
   伝えると `GameAnalytics` が覚えておき、そのプレイの `game_end` に載せる。ミスの無いプレイ・ミスの

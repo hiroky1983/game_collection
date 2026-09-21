@@ -93,7 +93,7 @@ struct QuitTrackingTests {
 
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
-            case let .gameStart(_, _, mode):     return ("start", mode)
+            case let .gameStart(_, _, mode, _):     return ("start", mode)
             case let .gameEnd(_, _, _, mode, _): return ("end", mode)
             default:                             return nil
             }

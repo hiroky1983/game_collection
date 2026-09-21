@@ -309,6 +309,14 @@ public final class PlayLog {
         return result
     }
 
+    /// `game_start` に載せる、そのゲームの遊び込み具合（#1195）。読むだけで何も保存しない。
+    ///
+    /// 最終プレイ日時が無い（旧データ・未プレイ）ゲームは経過日数を nil にする。
+    public func engagement(gameID: String, now: Date) -> AnalyticsEngagement {
+        let days = lastPlayedAtByGame[gameID].map { Int(now.timeIntervalSince($0) / 86_400) }
+        return AnalyticsEngagement(playCount: totalPlaysByGame[gameID] ?? 0, daysSinceLastPlay: days)
+    }
+
     /// 決着 1 回を記録して、更新後の記録と更新内訳を返す。
     ///
     /// 判定そのものは `PlayRecord.applying` に閉じ込め、ここは永続化だけを担う。
