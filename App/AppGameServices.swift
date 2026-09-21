@@ -108,7 +108,7 @@ enum AppEnvironment {
         isAvailable: { GKLocalPlayer.local.isAuthenticated }
     )
 
-    /// 解析イベント（#158）。送るのは `game_start` / `game_end` の2種だけ。
+    /// 解析イベント（#158）。送るイベントの全量は `AnalyticsEvent`（`game_start` には #1195 で遊び込み具合を載せる）。
     /// 設定でオフにすると `GatedAnalyticsService` が Firebase へ渡さない。
     /// 撮影モードは広告と同じ理由で送信そのものを止める（動作確認の操作を実データに混ぜない）。
     static let analytics = GameAnalytics(
@@ -116,7 +116,9 @@ enum AppEnvironment {
             base: isScreenshotMode ? NoopAnalyticsService() : FirebaseAnalyticsService()
         ) { settings.analyticsEnabled },
         // ハブに登録済みのゲーム ID だけを送信対象にする（未知の文字列が game_id にならない）。
-        allowedGameIDs: Set(registry.modules.map(\.id))
+        allowedGameIDs: Set(registry.modules.map(\.id)),
+        // `game_start` に「そのゲームの通算プレイ回数・前回からの経過日数」を載せる（#1195）。
+        engagement: { gameID, now in playLog.engagement(gameID: gameID, now: now) }
     )
 
     /// 設定の「利用状況の送信」を **Firebase SDK 全体の収集状態**へ反映する。

@@ -866,7 +866,7 @@ struct AllGamesAnalyticsTests {
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。スート数は `level` に載る。
         #expect(spy.starts == ["spider", "spider"])
         let levels = spy.events.compactMap { event -> AnalyticsLevel? in
-            if case let .gameStart(_, level, _) = event { return level } else { return nil }
+            if case let .gameStart(_, level, _, _) = event { return level } else { return nil }
         }
         #expect(levels == [.normal, .hard], "2 スート = normal・4 スート = hard")
     }
@@ -1330,5 +1330,64 @@ struct RunnerQuitTests {
         // ハブから画面を開いただけでは `game_start` も出ない（#1064）。数えるのは面を選んで
         // 始めたとき（`newGame*`）と走り出したとき（`beginRun`）で、開いて戻るだけなら 0 本 0 本。
         #expect(spy.starts.isEmpty)
+    }
+}
+
+// MARK: - game_start の遊び込み具合（#1195）
+
+@Suite("game_start の遊び込み具合（#1195）")
+@MainActor
+struct GameStartEngagementTests {
+    private func makeLog(_ suite: String) -> PlayLog {
+        let name = "asobiba.analytics.engagement.\(suite)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return PlayLog(defaults: defaults)
+    }
+
+    @Test("パラメータは engagement を渡したときだけ出て、初めてのゲームでは経過日数の鍵が出ない")
+    func parameterShape() {
+        #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")])
+
+        let first = AnalyticsEvent.gameStart(
+            gameID: "2048", engagement: AnalyticsEngagement(playCount: 0, daysSinceLastPlay: nil))
+        #expect(first.parameters == ["game_id": .string("2048"), "play_count": .int(0)])
+
+        let again = AnalyticsEvent.gameStart(
+            gameID: "2048", level: .hard, engagement: AnalyticsEngagement(playCount: 7, daysSinceLastPlay: 3))
+        #expect(again.parameters == [
+            "game_id": .string("2048"), "level": .string("hard"),
+            "play_count": .int(7), "days_since_last_play": .int(3),
+        ])
+        #expect(AnalyticsEngagement(playCount: -1, daysSinceLastPlay: -2)
+            == AnalyticsEngagement(playCount: 0, daysSinceLastPlay: 0), "時計の巻き戻しで負の値を送らない")
+    }
+
+    @Test("PlayLog の通算回数と最終プレイからの経過日数が game_start に載る")
+    func startCarriesPlayLogEngagement() {
+        let log = makeLog("start")
+        let clock = TestClock()
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["2048", "sudoku"], now: { clock.now },
+            engagement: { gameID, now in log.engagement(gameID: gameID, now: now) }
+        )
+
+        analytics.startPlay(gameID: "2048")
+        #expect(spy.events.first == .gameStart(
+            gameID: "2048", engagement: AnalyticsEngagement(playCount: 0, daysSinceLastPlay: nil)))
+
+        // 2 回決着して 3 日 + 半日あける（区分が違っても 1 ゲームとして合算する）。
+        log.recordResult(gameID: "2048", outcome: .win, score: GameScore(variant: "a"), at: clock.now)
+        log.recordResult(gameID: "2048", outcome: .loss, score: GameScore(variant: "b"), at: clock.now)
+        clock.advance(3.5 * 86_400)
+        analytics.restartPlay(gameID: "2048")
+        #expect(spy.events.last == .gameStart(
+            gameID: "2048", engagement: AnalyticsEngagement(playCount: 2, daysSinceLastPlay: 3)))
+
+        // 別のゲームの記録は混ざらない。
+        analytics.startPlay(gameID: "sudoku")
+        #expect(spy.events.last == .gameStart(
+            gameID: "sudoku", engagement: AnalyticsEngagement(playCount: 0, daysSinceLastPlay: nil)))
     }
 }

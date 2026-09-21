@@ -973,7 +973,7 @@ struct RunnerStageFlowTests {
 
         func starts() -> [String] {
             spy.events.compactMap { event -> String? in
-                if case let .gameStart(_, level, _) = event { return level?.parameterValue ?? "-" } else { return nil }
+                if case let .gameStart(_, level, _, _) = event { return level?.parameterValue ?? "-" } else { return nil }
             }
         }
         func ends() -> [AnalyticsResult] {
@@ -1038,7 +1038,7 @@ struct RunnerPlayCountTests {
 
     private func starts(_ spy: SpyAnalyticsService) -> [String] {
         spy.events.compactMap { event -> String? in
-            if case let .gameStart(_, level, _) = event { return level?.parameterValue ?? "-" } else { return nil }
+            if case let .gameStart(_, level, _, _) = event { return level?.parameterValue ?? "-" } else { return nil }
         }
     }
 

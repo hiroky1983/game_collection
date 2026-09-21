@@ -1152,7 +1152,7 @@ struct RunnerEndlessModelTests {
         model.newEndlessGame(seed: 1)
         model.newGame(mode: .stages)
         let starts = spy.events.compactMap { event -> (level: String?, mode: String?)? in
-            if case let .gameStart(_, level, mode) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
+            if case let .gameStart(_, level, mode, _) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
         }
         #expect(starts.map(\.mode) == ["stage", "endless", "stage"])
         #expect(starts.map(\.level) == ["stage-3", nil, "stage-1"])
