@@ -88,3 +88,31 @@ struct KingDangerTests {
         #expect(rook < horse && horse < dragon)
     }
 }
+
+@Suite("玉頭の歩の盾と開いた筋（#1258 段階4）")
+struct KingPawnShieldTests {
+    private let engine = SimpleMinimaxEngine(level: 1)
+
+    private func shield(_ sfen: String, _ color: Side = .black) -> Int {
+        let pos = Position.fromSFEN(sfen)!
+        return engine.kingPawnShield(pos, color)
+    }
+
+    @Test func pawnsInFrontOfKingScoreHigherThanNone() {
+        let withPawns = shield("4k4/9/9/9/9/9/3PPP3/9/4K4 b - 1")
+        let without = shield("4k4/9/9/9/9/9/9/9/4K4 b - 1")
+        #expect(withPawns > without)
+    }
+
+    @Test func pawnFarAheadDoesNotShield() {
+        let near = shield("4k4/9/9/9/9/9/4P4/9/4K4 b - 1")
+        let far = shield("4k4/9/9/9/4P4/9/9/9/4K4 b - 1")
+        #expect(near > far)
+    }
+
+    @Test func openFileIsWorseWhenOpponentHasRook() {
+        let noRook = shield("4k4/9/9/9/9/9/9/9/4K4 b - 1")
+        let withRook = shield("4k4/9/9/9/9/9/9/9/4K4 b r 1")
+        #expect(withRook < noRook)
+    }
+}
