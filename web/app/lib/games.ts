@@ -388,7 +388,7 @@ export const games: Game[] = [
     slug: "shiritori",
     name: "カードしりとり",
     emoji: "🔤",
-    tagline: "絵札でしりとり！CPU より多く取ろう",
+    tagline: "絵札でしりとり。CPUと取り合おう",
     pageTitle: "カードしりとり - CPU と絵札で遊べる無料のしりとりゲーム",
     description:
       "絵札の読みをつなげて、CPU と交互に札を取り合うカードしりとり。1枚の札が複数の読みを持つ「うらよみ」や、制限時間と「ん」で負けのスリルが楽しめます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",

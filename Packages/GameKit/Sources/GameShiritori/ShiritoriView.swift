@@ -31,12 +31,13 @@ public struct ShiritoriView: View {
         .padding(Theme.pad)
         .gameChrome(title: "カードしりとり", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
-                Button { showSetup = true } label: {
+                Button { model.pause(); showSetup = true } label: {
                     Label("新規ゲーム", systemImage: "plus.circle.fill")
                 }
             }
         }
-        .howToPlay(.shiritori) { ShiritoriRuleSheet() }
+        // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
+        .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }
         .sheet(isPresented: $showSetup) {
             ShiritoriSetupSheet(quota: model.quota) { quota in
                 model.startGame(quota: quota)
@@ -46,6 +47,11 @@ public struct ShiritoriView: View {
         .task {
             // 開いた直後は難易度を選ばせる。
             if model.phase == .idle { showSetup = true }
+        }
+        .task(id: model.isPlayerTurn) {
+            // CPU の手番。画面を離れたらこのタスクごと取り消される（非構造化の Task にすると、
+            // 離脱後に手が着地して幽霊の対局記録を書く）。
+            await model.runCPUTurnIfNeeded()
         }
         .task {
             // 制限時間を進める。減るのはプレイヤーの手番のあいだだけ（モデルが判定する）。
@@ -99,14 +105,14 @@ public struct ShiritoriView: View {
                 }
             }
             .frame(height: 8)
-            Text("\(seconds)びょう")
+            Text(model.isPaused ? "一時停止" : "\(seconds)びょう")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(urgent ? Theme.coral : Theme.ink)
                 .frame(minWidth: 52, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("のこり\(seconds)秒")
+        .accessibilityLabel(model.isPaused ? "一時停止中。札をタップすると再開します" : "のこり\(seconds)秒")
     }
 
     // MARK: - 場の札
@@ -180,10 +186,9 @@ public struct ShiritoriView: View {
         .gameAnimation(.easeInOut(duration: 0.15), value: model.slots)
     }
 
-    /// 札を取る。取った直後に CPU の手番を進める（進めないと次に人間の番が回るまで盤が止まる）。
+    /// 札を取る。CPU の手番は `.task(id: model.isPlayerTurn)` が進める。
     private func select(_ index: Int) {
         model.select(index)
-        Task { await model.runCPUTurnIfNeeded() }
     }
 
     // MARK: - 操作

@@ -245,6 +245,56 @@ struct ShiritoriModelTests {
         #expect(model.timeRemaining == 70)
     }
 
+    @Test("一時停止: 止めている間は時間が減らず、札をタップすると再開する。開始前・決着後は止めない")
+    func pauseFreezesTheClockUntilTheNextTap() {
+        let (model, _) = makeModel()
+        model.pause()
+        #expect(!model.isPaused, "開始前は止めるものが無い")
+
+        model.configureForTesting(opener: apple, board: [gorilla, squirrel])
+        model.pause()
+        model.tick(30)
+        #expect(model.isPaused)
+        #expect(model.timeRemaining == 60)
+
+        model.select(1)   // お手つきでも再開する（タップした = 遊び始めた）
+        #expect(!model.isPaused)
+        model.tick(10)
+        #expect(model.timeRemaining == 45, "-5 秒のあと 10 秒減る")
+
+        model.pause()
+        model.startGame()
+        #expect(!model.isPaused, "新しいゲームは止まらずに始まる")
+    }
+
+    @Test("CPU の演出待ちがある構成でも 1 手だけ進み、同時に 2 回起動しても二重に指さない")
+    func delayedCPUTurnRunsOnce() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = ShiritoriModel(services: services, cpuDelay: .milliseconds(20), seed: 1)
+        model.configureForTesting(opener: apple, board: [gorilla, otter, top, squirrel])
+        model.select(0)   // ごりら → CPU は らっこ
+        #expect(!model.isPlayerTurn)
+        async let first: Void = model.runCPUTurnIfNeeded()
+        async let second: Void = model.runCPUTurnIfNeeded()
+        _ = await (first, second)
+        #expect(model.cpuCount == 1)
+        #expect(model.slots[1].owner == .cpu)
+        #expect(model.isPlayerTurn)
+    }
+
+    @Test("演出待ちの間に新しいゲームが始まったら、古い CPU の手は指さない")
+    func staleCPUTurnDoesNotLandOnANewGame() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = ShiritoriModel(services: services, cpuDelay: .milliseconds(50), seed: 1)
+        model.configureForTesting(opener: apple, board: [gorilla, otter])
+        model.select(0)
+        let pending = Task { await model.runCPUTurnIfNeeded() }
+        model.startGame()   // 待っている間に次のゲームが配られる（プレイヤーの番）
+        await pending.value
+        #expect(model.cpuCount == 0)
+        #expect(model.isPlayerTurn)
+    }
+
     @Test("実際の山札を最後まで遊びきると、どの種でも必ず決着する（プレイヤーは取れる札の先頭を取る）")
     func fullGamesAlwaysFinish() async {
         for seed in UInt64(0)..<100 {

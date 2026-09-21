@@ -66,6 +66,9 @@ public final class ShiritoriModel: AITurnGuarded {
     public private(set) var recordResult: RecordResult?
     /// 決着後のみ意味を持つ。
     public private(set) var didPlayerWin = false
+    /// 一時停止中か。ルールや新規ゲームのシートを開いている間、読んでいるだけで時間を取られないように
+    /// 止める（#510）。次に札をタップした時点で再開する。
+    public private(set) var isPaused = false
 
     private let services: GameServices?
     private let deck: [ShiritoriCard]
@@ -135,6 +138,7 @@ public final class ShiritoriModel: AITurnGuarded {
         gameNumber += 1
         phase = .playing
         isPlayerTurn = true
+        isPaused = false
 
         services?.feedback.impact(.medium)   // 札が配られた
         // 1 ゲーム = 1 プレイ。中断データは持たないので、画面を離れたら失われる（#663）。
@@ -154,6 +158,7 @@ public final class ShiritoriModel: AITurnGuarded {
     /// 札をタップして取る。しりとりが成立しなければお手つき（時間 -5 秒・手番はそのまま）。
     public func select(_ index: Int) {
         guard isSelectable(index) else { return }
+        isPaused = false
         guard let tail = requiredTail,
               let reading = ShiritoriRules.acceptingReading(of: slots[index].card, after: tail) else {
             miss()
@@ -165,9 +170,14 @@ public final class ShiritoriModel: AITurnGuarded {
 
     /// 時間を進める。**プレイヤーの手番のあいだだけ**減り、0 になったら時間切れで終わる。
     public func tick(_ seconds: Double) {
-        guard phase == .playing, isPlayerTurn, seconds > 0 else { return }
+        guard phase == .playing, isPlayerTurn, !isPaused, seconds > 0 else { return }
         timeRemaining = max(0, timeRemaining - seconds)
         if timeRemaining <= 0 { finish(.timeUp) }
+    }
+
+    /// 対局中だけ止める（開始前・決着後は止めるものが無い）。
+    public func pause() {
+        if phase == .playing { isPaused = true }
     }
 
     private func miss() {
