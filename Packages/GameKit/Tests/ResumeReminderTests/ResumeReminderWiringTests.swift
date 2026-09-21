@@ -49,8 +49,8 @@ struct ResumeReminderWiringTests {
                 "非表示にしても予約済みのお知らせが取り消されない")
     }
 
-    @Test("#663 の許可はダイアログの出ない provisional でだけ求める")
-    func authorizationIsProvisionalOnly() throws {
+    @Test("#663 の許可は標準ダイアログの出る明示的な許可でだけ求める（provisional を含めない・#1219）")
+    func authorizationIsExplicitOnly() throws {
         let source = try SourceScan.appSources()
         guard let range = source.range(of: "final class UserNotificationReminderScheduler") else {
             Issue.record("UserNotificationReminderScheduler が見つからない（走査のパターンが壊れている可能性）")
@@ -61,8 +61,8 @@ struct ResumeReminderWiringTests {
         let classBody = body.range(of: "\nfinal class ").map { body[body.startIndex..<$0.lowerBound] } ?? body
         let requests = classBody.split(separator: "\n").filter { $0.contains("requestAuthorization(options:") }
         #expect(requests.count == 1, "許可を求める箇所が \(requests.count) か所ある")
-        #expect(requests.allSatisfy { $0.contains(".provisional") },
-                "provisional を含まない許可の要求がある（起動直後などに許可ダイアログが出る）")
+        #expect(requests.allSatisfy { !$0.contains(".provisional") },
+                "provisional を含む許可の要求がある（標準の許可ダイアログが出ない）")
     }
 
     @Test("通知のタップを起動時から受け取り、そのゲームを notification の導線で開く")

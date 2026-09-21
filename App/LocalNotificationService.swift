@@ -29,9 +29,9 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
         }
     }
 
-    func requestProvisionalAuthorization() async -> ReminderAuthorization {
-        // `.provisional` を含めると許可ダイアログは出ず、通知センターに静かに届く（#663 の決裁 (a)）。
-        _ = try? await center.requestAuthorization(options: [.alert, .sound, .provisional])
+    func requestExplicitAuthorization() async -> ReminderAuthorization {
+        // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21・#1219）。
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
         return await authorization()
     }
 

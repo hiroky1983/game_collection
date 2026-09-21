@@ -8,7 +8,8 @@ import Observation
 public enum ReminderAuthorization: Sendable, Equatable {
     case notDetermined
     case denied
-    /// ダイアログを出さずに得る仮の許可（`.provisional`）。通知センターに静かに届く。
+    /// ダイアログを出さずに得る仮の許可（`.provisional`）。v1.1.5 以前に許可済みのユーザーの
+    /// 状態として OS から返ってくることがある（#1219。新規の要求では使わなくなった）。
     case provisional
     case authorized
 
@@ -39,8 +40,9 @@ public struct ResumeReminder: Equatable, Sendable {
 @MainActor
 public protocol ResumeReminderScheduler: AnyObject {
     func authorization() async -> ReminderAuthorization
-    /// `.provisional` で許可を求め、その後の状態を返す。**許可ダイアログは出ない**（#663 の決裁 (a)）。
-    func requestProvisionalAuthorization() async -> ReminderAuthorization
+    /// 標準の許可ダイアログを出して求める。**`.provisional` は含めない**
+    /// （会長決裁 2026-09-21・#1219。#663 の決裁 (a) はこれにより更新された）。
+    func requestExplicitAuthorization() async -> ReminderAuthorization
     func pendingReminders() async -> [ResumeReminder]
     /// 同じゲームの予約が既にあれば置き換える。
     func schedule(_ reminder: ResumeReminder, title: String, body: String) async
@@ -93,7 +95,8 @@ public enum ResumeReminderPolicy {
 ///
 /// - 同じゲームは 1 件、全体で `ResumeReminderPolicy.maxPending` 件まで
 /// - そのゲームを開く・中断データが消える（終局・やり直し・設定の切り替え）と取り消す
-/// - 許諾が未決定なら `.provisional` を求めてから予約する。**許可ダイアログは出さない**
+/// - 許諾が未決定なら、標準の許可ダイアログ（明示的な許可）を求めてから予約する
+///   （会長決裁 2026-09-21・#1219。以前は `.provisional` でダイアログを出さずに求めていた）
 /// - 決着済みの局は、次のプレイを始めるか1手指すまで予約しない（将棋・チェスは終局後の見返しを
 ///   中断データに残すため、「中断データがある」だけでは途中の局と見分けられない）
 /// - 撮影モード・DEBUG ビルドでは予約しない（`isSuppressed`）
@@ -205,7 +208,7 @@ public final class ResumeReminderService {
     private func schedule(gameID: String, title: String, leftAt: Date, token: Int, global: Int) async {
         var status = await scheduler.authorization()
         if status == .notDetermined {
-            status = await scheduler.requestProvisionalAuthorization()
+            status = await scheduler.requestExplicitAuthorization()
         }
         guard status.allowsScheduling else { return }
         let pending = await scheduler.pendingReminders()
