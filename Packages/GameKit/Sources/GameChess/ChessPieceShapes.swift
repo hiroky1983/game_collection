@@ -32,6 +32,15 @@ struct ChessPieceView: View {
     }
 
     var body: some View {
+        if style == .real {
+            // 面ごとに陰影を持つ別の描き方。輪郭線・外側の影は `ChessRealPieceCanvas` が自前で持つ。
+            ChessRealPieceCanvas(piece: piece, size: size)
+        } else {
+            outlinedBody
+        }
+    }
+
+    private var outlinedBody: some View {
         let shading = style.shading(for: piece.color)
         return Canvas { ctx, sz in
             let rect = CGRect(origin: .zero, size: sz)
