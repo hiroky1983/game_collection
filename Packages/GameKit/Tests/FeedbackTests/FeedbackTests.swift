@@ -10,8 +10,6 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
-import GameBaccarat
-import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -303,30 +301,6 @@ private func playConcentration(_ services: GameServices) {
     }
 }
 
-/// 七並べ: 出せる手があるうちにパスを叩く（拒否）→ 貪欲法で最後まで打ち切る（決着）。
-/// CPU の手番は `runCPUTurnsIfNeeded` が進める（CPU 側では鳴らさない）。
-@MainActor
-@discardableResult
-private func playSevens(_ services: GameServices) async -> SevensModel {
-    let model = SevensModel(services: services, cpuDelay: .zero, seed: 2026)
-    model.startGame()
-    var didReject = false
-    for _ in 0..<500 where model.phase == .playing {
-        await model.runCPUTurnsIfNeeded()
-        guard model.phase == .playing, model.isPlayerTurn else { continue }
-        if !didReject {
-            didReject = true
-            model.pass()   // 出せる手があるうちに叩くと拒否される
-        }
-        if let card = SevensRules.greedyPlay(hand: model.playerHand, board: model.board) {
-            model.play(card)
-        } else {
-            model.pass()
-        }
-    }
-    return model
-}
-
 /// 大富豪: 何も選ばずに「出す」（拒否）→ 貪欲法で最後まで打ち切る（決着）。
 /// CPU の手番は `runCPUTurnsIfNeeded` が進める（CPU 側では鳴らさない）。
 @MainActor
@@ -390,18 +364,6 @@ private func playSudoku(_ services: GameServices) async -> SudokuModel {
         if model.selected != index { model.select(index: index) }
         model.enter(digit: model.solution[index])
     }
-    return model
-}
-
-/// バカラ: 賭け先の選び直し・チップ不足の拒否・配り・決着を一通り通す。
-/// 賭けた瞬間に決着まで進むので、ブラックジャックのような手番の分岐は無い。
-@MainActor
-@discardableResult
-private func playBaccarat(_ services: GameServices) -> BaccaratModel {
-    let model = BaccaratModel(services: services, seed: 20260921)
-    model.select(.banker)      // 賭け先の選び直し
-    model.placeBet(999_999)    // 拒否（チップ不足）
-    model.placeBet(100)        // 成立（配り → 決着）
     return model
 }
 
@@ -646,38 +608,6 @@ struct FeedbackEnabledTests {
         #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
     }
 
-    @Test("バカラ: 賭け先の選び直し・配り・チップ不足・決着で発火する")
-    func baccarat() {
-        let (services, spy) = makeServices(hapticsEnabled: true)
-        let model = playBaccarat(services)
-        #expect(spy.impacts.contains(.light), "賭け先を選び直すと発火する")
-        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
-        #expect(spy.notices(of: .warning) > 0, "チップ不足のベットは拒否として発火する")
-        // 件数ではなく最後の notify を結果と突き合わせる（ポーカーと同じ理由）。
-        #expect(model.phase == .result, "手順の最後は必ず決着している")
-        let expected: FeedbackNotice
-        if model.lastChipDelta > 0 {
-            expected = .success
-        } else if model.lastChipDelta == 0 {
-            expected = .warning   // タイで賭け金が戻った
-        } else {
-            expected = .error
-        }
-        #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
-    }
-
-    @Test("七並べ: カードを出す・拒否・決着で発火する")
-    func sevens() async {
-        let (services, spy) = makeServices(hapticsEnabled: true)
-        let model = await playSevens(services)
-        #expect(spy.impacts.contains(.medium), "カードを配ると発火する")
-        #expect(spy.impacts.contains(.light), "パスで発火する")
-        #expect(spy.notices(of: .warning) > 0, "出せる手があるのにパスすると拒否として発火する")
-        #expect(model.phase == .result, "手順の最後は必ず決着している")
-        let expected: FeedbackNotice = model.didPlayerWin ? .success : .error
-        #expect(spy.notices.last == expected, "決着が結果どおりに発火する")
-    }
-
     @Test("大富豪: カード選択・出し・拒否・決着で発火する")
     func daifugo() async {
         let (services, spy) = makeServices(hapticsEnabled: true)
@@ -808,8 +738,6 @@ struct FeedbackDisabledTests {
         playPoker(services)
         playConcentration(services)
         playBlackjack(services)
-        playBaccarat(services)
-        await playSevens(services)
         await playDaifugo(services)
         playMahjong(services)
         await playSudoku(services)
@@ -859,8 +787,6 @@ struct SoundFeedbackTests {
         await check("ポーカー") { _ = playPoker($0) }
         await check("神経衰弱") { playConcentration($0) }
         await check("ブラックジャック") { _ = playBlackjack($0) }
-        await check("バカラ") { _ = playBaccarat($0) }
-        await check("七並べ") { _ = await playSevens($0) }
         await check("大富豪") { _ = await playDaifugo($0) }
         await check("数独") { _ = await playSudoku($0) }
         await check("麻雀ソリティア") { _ = playMahjong($0) }

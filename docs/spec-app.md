@@ -31,10 +31,8 @@ Packages/GameKit/
     GameSolitaire/      ← ソリティア（クロンダイク）
     GameFreeCell/       ← フリーセル（未リリース。2026-09-10 時点）
     GameDaifugo/        ← 大富豪
-    GameSevens/         ← 七並べ（未リリース。2026-09-21 時点）
     GamePoker/          ← ポーカー
     GameBlackjack/      ← ブラックジャック
-    GameBaccarat/       ← バカラ（未リリース。2026-09-21 時点）
     GameMinesweeper/    ← マインスイーパー
     GameGomoku/         ← 五目並べ
     GameConcentration/  ← 神経衰弱
