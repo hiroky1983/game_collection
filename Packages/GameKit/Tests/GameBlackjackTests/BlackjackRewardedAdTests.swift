@@ -504,8 +504,8 @@ struct BlackjackReviveLeaderboardTests {
 private final class SpyReminderScheduler: ResumeReminderScheduler {
     private(set) var reminders: [String: ResumeReminder] = [:]
 
-    func authorization() async -> ReminderAuthorization { .provisional }
-    func requestProvisionalAuthorization() async -> ReminderAuthorization { .provisional }
+    func authorization() async -> ReminderAuthorization { .authorized }
+    func requestExplicitAuthorization() async -> ReminderAuthorization { .authorized }
     func pendingReminders() async -> [ResumeReminder] { Array(reminders.values) }
     func schedule(_ reminder: ResumeReminder, title: String, body: String) async {
         reminders[reminder.gameID] = reminder

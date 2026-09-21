@@ -15,9 +15,9 @@ import CoreTestSupport
 @MainActor
 private final class SpyScheduler: ResumeReminderScheduler {
     var status: ReminderAuthorization
-    /// `.provisional` を求めたあとの状態。
+    /// 明示的な許可を求めたあとの状態。
     var statusAfterRequest: ReminderAuthorization
-    private(set) var provisionalRequests = 0
+    private(set) var explicitRequests = 0
     private(set) var reminders: [String: ResumeReminder] = [:]
     private(set) var contents: [String: (title: String, body: String)] = [:]
     private(set) var cancelled: [String] = []
@@ -31,7 +31,7 @@ private final class SpyScheduler: ResumeReminderScheduler {
     private var held: [CheckedContinuation<Void, Never>] = []
     var heldCount: Int { held.count }
 
-    init(status: ReminderAuthorization = .provisional, statusAfterRequest: ReminderAuthorization = .provisional) {
+    init(status: ReminderAuthorization = .authorized, statusAfterRequest: ReminderAuthorization = .authorized) {
         self.status = status
         self.statusAfterRequest = statusAfterRequest
     }
@@ -51,8 +51,8 @@ private final class SpyScheduler: ResumeReminderScheduler {
         return status
     }
 
-    func requestProvisionalAuthorization() async -> ReminderAuthorization {
-        provisionalRequests += 1
+    func requestExplicitAuthorization() async -> ReminderAuthorization {
+        explicitRequests += 1
         status = statusAfterRequest
         return status
     }
@@ -238,15 +238,27 @@ struct ResumeReminderServiceTests {
         #expect(spy.reminders["shogi"] == nil, "非表示のゲームに予約した")
     }
 
-    @Test("許諾が未決定なら、ダイアログの出ない provisional を求めてから予約する")
-    func requestsProvisionalWhenNotDetermined() async {
-        let spy = SpyScheduler(status: .notDetermined, statusAfterRequest: .provisional)
+    @Test("許諾が未決定なら、標準の許可ダイアログ（明示的な許可）を求めてから予約する")
+    func requestsExplicitAuthorizationWhenNotDetermined() async {
+        let spy = SpyScheduler(status: .notDetermined, statusAfterRequest: .authorized)
         let service = makeService(spy, Environment(now: date(13, 12)))
 
         service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
         await service.pendingWork?.value
 
-        #expect(spy.provisionalRequests == 1)
+        #expect(spy.explicitRequests == 1)
+        #expect(spy.reminders["shogi"] != nil)
+    }
+
+    @Test("v1.1.5 以前に provisional で許可済みのユーザーはそのまま予約できる（#1219）")
+    func provisionalFromBeforeStillSchedules() async {
+        let spy = SpyScheduler(status: .provisional)
+        let service = makeService(spy, Environment(now: date(13, 12)))
+
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await service.pendingWork?.value
+
+        #expect(spy.explicitRequests == 0, "既に許可済みなのに求め直している")
         #expect(spy.reminders["shogi"] != nil)
     }
 
@@ -263,7 +275,7 @@ struct ResumeReminderServiceTests {
         second.gameDidLeave(gameID: "shogi", hasSnapshot: true)
         await second.pendingWork?.value
         #expect(denied.reminders.isEmpty)
-        #expect(denied.provisionalRequests == 0, "拒否した人に許可を求め直している")
+        #expect(denied.explicitRequests == 0, "拒否した人に許可を求め直している")
     }
 
     @Test("設定がオフなら予約せず、オフにしたら予約済みもすべて取り消す")
@@ -292,7 +304,7 @@ struct ResumeReminderServiceTests {
         await service.pendingWork?.value
 
         #expect(spy.reminders.isEmpty)
-        #expect(spy.provisionalRequests == 0)
+        #expect(spy.explicitRequests == 0)
     }
 
     @Test("対象外のゲーム（中断データから局を復元しない等）は予約しない")
