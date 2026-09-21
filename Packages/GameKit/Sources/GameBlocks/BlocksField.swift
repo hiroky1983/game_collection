@@ -145,6 +145,13 @@ public struct BlocksField: Equatable, Sendable {
     public private(set) var destroyedCount: Int
     /// このステージでの球の速さ。発射・パドル反射のたびにこの値へ揃える。
     public private(set) var speed: Double
+    /// 1 機失うことなく連続で壊したブロックの数（#1202）。フレンジー増殖の発動条件に使う。
+    ///
+    /// `destroyedCount` と違い**落球でリセットされる**（`resetBall()`）。ノーミスを維持する
+    /// 動機になるよう「連続」を条件にしているため。
+    public private(set) var comboCount: Int
+    /// このステージでのフレンジー増殖のしきい値。nil ならこのステージでは発動しない（#1202）。
+    private let frenzyThreshold: Int?
 
     public init(stage: BlocksStage, speed: Double) {
         self.blocks = stage.makeBlocks()
@@ -154,6 +161,8 @@ public struct BlocksField: Equatable, Sendable {
         self.items = []
         self.widePaddleRemaining = 0
         self.destroyedCount = 0
+        self.comboCount = 0
+        self.frenzyThreshold = stage.frenzyThreshold
     }
 
     // MARK: - 盤面の問い合わせ
@@ -242,6 +251,8 @@ public struct BlocksField: Equatable, Sendable {
         balls = [BlocksBall(x: paddleX, y: Metrics.restingBallY)]
         items.removeAll()
         widePaddleRemaining = 0
+        // フレンジーのコンボもここで切れる（#1202）。ノーミスを維持できなかった、という扱い。
+        comboCount = 0
         // 縮んだパドルの位置で球を乗せ直す。
         movePaddle(to: paddleX)
     }
@@ -274,6 +285,38 @@ public struct BlocksField: Equatable, Sendable {
     public mutating func dropItemForTesting(kind: BlocksItemKind, x: Double, y: Double) {
         items.append(BlocksItem(kind: kind, x: x, y: y))
     }
+
+    /// テスト用に、当たり判定を経由せず 1 個のブロックを直接壊す（#1202）。
+    ///
+    /// フレンジー増殖の上限・コンボのリセットは「壊した瞬間の `balls` の状態」に依存する。
+    /// `placeBall` は球を 1 個に差し替えてしまうため、複数球が既にある状態を保ったまま
+    /// ブロックを壊すテストが書けない。ここでは `resolveBlocks` の後半（耐久を減らし、
+    /// アイテム出現とコンボ進行を行う部分）だけを、当たり判定を飛ばして再利用する。
+    /// 実際の衝突が無いので、種は「動いている球のうち先頭のもの」で代用する
+    /// （このヘルパー自体は特定の球が衝突したことを模擬しないため）。
+    @discardableResult
+    public mutating func destroyBlockForTesting(row: Int, column: Int) -> [BlocksEvent] {
+        guard let block = blocks[row][column] else { return [] }
+        let result = block.damaged()
+        blocks[row][column] = result.block
+        if result.destroyed { spawnItemIfDue(row: row, column: column) }
+        var events: [BlocksEvent] = [
+            .blockHit(row: row, column: column, kind: block.kind, destroyed: result.destroyed)
+        ]
+        if result.destroyed, let seed = balls.first(where: { $0.isMoving }),
+           let ballCount = progressCombo(seed: seed) {
+            events.append(.frenzyTriggered(ballCount: ballCount))
+        }
+        return events
+    }
+
+    /// テスト用に、盤上の球を複数まとめて直接置く（#1202）。
+    ///
+    /// `placeBall` は 1 個に限定されるため、「配列の先頭とは別の球が実際に衝突した」
+    /// という複数球のシナリオを組み立てるのに使う。
+    public mutating func placeBallsForTesting(_ newBalls: [BlocksBall]) {
+        balls = newBalls
+    }
     #endif
 
     // MARK: - 進行
@@ -304,7 +347,7 @@ public struct BlocksField: Equatable, Sendable {
 
                 if resolveWalls(&ball) { events.append(.wallBounce) }
                 if resolvePaddle(&ball) { events.append(.paddleBounce) }
-                if let hit = resolveBlocks(&ball) { events.append(hit) }
+                resolveBlocks(&ball, events: &events)
 
                 if ball.y < 0 {
                     // 増えた球のうちの 1 個が落ちただけ。残機が減るのは最後の 1 個のときだけ。
@@ -373,16 +416,19 @@ public struct BlocksField: Equatable, Sendable {
     ///
     /// 隣り合う 2 個に同時に重なったときに両方で反転させると、角に挟まれた球が元の向きへ
     /// 戻ってしまう（2 回反転 = 反転なし）。最も深く重なっている 1 個だけを見る。
-    private mutating func resolveBlocks(_ ball: inout BlocksBall) -> BlocksEvent? {
+    ///
+    /// 起きたできごとは `events` へ直接追記する（`.blockHit` に加え、コンボがしきい値に
+    /// 達すれば `.frenzyTriggered` も同じ 1 回の破壊から出るため、単一の戻り値では表せない）。
+    private mutating func resolveBlocks(_ ball: inout BlocksBall, events: inout [BlocksEvent]) {
         let r = Metrics.ballRadius
         // 球の周りにある候補だけを見る。行と列は座標から直接引けるので全走査はしない。
         let minColumn = max(0, Int(((ball.x - r) / Metrics.blockWidth).rounded(.down)))
         let maxColumn = min(Metrics.columns - 1, Int(((ball.x + r) / Metrics.blockWidth).rounded(.down)))
-        guard minColumn <= maxColumn else { return nil }
+        guard minColumn <= maxColumn else { return }
         let topEdge = Metrics.height - Metrics.topMargin
         let minRow = max(0, Int(((topEdge - (ball.y + r)) / Metrics.blockHeight).rounded(.down)))
         let maxRow = min(blocks.count - 1, Int(((topEdge - (ball.y - r)) / Metrics.blockHeight).rounded(.down)))
-        guard minRow <= maxRow else { return nil }
+        guard minRow <= maxRow else { return }
 
         var best: (row: Int, column: Int, collision: BlocksPhysics.Collision)?
         for row in minRow...maxRow {
@@ -399,7 +445,7 @@ public struct BlocksField: Equatable, Sendable {
                 }
             }
         }
-        guard let hit = best, let block = blocks[hit.row][hit.column] else { return nil }
+        guard let hit = best, let block = blocks[hit.row][hit.column] else { return }
 
         ball.x = hit.collision.x
         ball.y = hit.collision.y
@@ -414,12 +460,56 @@ public struct BlocksField: Equatable, Sendable {
         let result = block.damaged()
         blocks[hit.row][hit.column] = result.block
         if result.destroyed { spawnItemIfDue(row: hit.row, column: hit.column) }
-        return .blockHit(
+        events.append(.blockHit(
             row: hit.row,
             column: hit.column,
             kind: block.kind,
             destroyed: result.destroyed
-        )
+        ))
+        if result.destroyed, let ballCount = progressCombo(seed: ball) {
+            events.append(.frenzyTriggered(ballCount: ballCount))
+        }
+    }
+
+    // MARK: - フレンジー増殖（#1202）
+
+    /// 連続で壊したブロックの数を進め、しきい値に達していればフレンジー増殖を発動する。
+    ///
+    /// `seed` は**今まさに衝突してブロックを壊した球**（衝突・反射を解決した後の値）。
+    /// `balls` 配列から「動いている球」を検索して選ぶと、複数球のときに衝突していない
+    /// 別の球を、単一球でも衝突前の（反射前の）値を拾ってしまう
+    /// （`balls[index] = ball` の書き戻しは `resolveBlocks` の呼び出し元・後で行われるため。
+    /// CodeRabbit 指摘・Major）。
+    ///
+    /// **乱数は使わない**（基盤規約）。しきい値の倍数に達するたびに発動するので、
+    /// コンボを維持し続ける限り何度でも起きる（`spawnItemIfDue` と同じ modulo の形）。
+    private mutating func progressCombo(seed: BlocksBall) -> Int? {
+        guard let threshold = frenzyThreshold, threshold > 0 else { return nil }
+        comboCount += 1
+        guard comboCount % threshold == 0 else { return nil }
+        return triggerFrenzy(seed: seed)
+    }
+
+    /// `seed` を種にして、`BlocksRules.frenzyMaxBalls` に達するまで扇状に増やす。
+    ///
+    /// 既存の `multiBall`（アイテム取得トリガー・`splitBalls()`・上限 `maxBalls`=3）とは
+    /// 規模もトリガーも別物（会長決裁 2026-09-21）。複数の球を種にすると増える方向が偏り、
+    /// 「画面を均等に埋める」体験にならないため、種は 1 個に絞る。
+    /// すでに上限に達している（or 種が止まっている）ときは何もしない。
+    private mutating func triggerFrenzy(seed: BlocksBall) -> Int? {
+        guard seed.isMoving else { return nil }
+        let capacity = BlocksRules.frenzyMaxBalls - balls.count
+        guard capacity > 0 else { return nil }
+
+        var added: [BlocksBall] = []
+        for index in 0..<capacity {
+            let fraction = capacity > 1 ? Double(index) / Double(capacity - 1) - 0.5 : 0
+            let rotated = Self.rotate(vx: seed.vx, vy: seed.vy, by: fraction * BlocksRules.frenzySpreadAngle)
+            let clamped = BlocksPhysics.clampVertical(rotated)
+            added.append(BlocksBall(x: seed.x, y: seed.y, vx: clamped.vx, vy: clamped.vy))
+        }
+        balls.append(contentsOf: added)
+        return balls.count
     }
 
     // MARK: - アイテム（#599）

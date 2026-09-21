@@ -61,7 +61,7 @@ public struct BlocksView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateBlocks <playing|paused|cleared|gameover>`（#463）。
+            // 撮影・動作確認用: `-simulateBlocks <playing|paused|cleared|gameover|multiball|frenzy>`（#463・#1202）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateBlocks"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
