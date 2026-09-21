@@ -472,7 +472,8 @@ struct RewardAdCallSiteTests {
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
         // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(counts.values.reduce(0, +) == 16, "リワード広告の面は16箇所（Core に寄せた待った・コンティニューの幕を除く）")
+        // 麻雀の最終局延長（#1201）で 1 か所増えて 17。
+        #expect(counts.values.reduce(0, +) == 17, "リワード広告の面は17箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 

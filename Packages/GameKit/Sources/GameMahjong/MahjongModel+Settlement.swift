@@ -190,7 +190,7 @@ extension MahjongModel {
         // アガリやめ: 最終局で親が連荘する条件を満たしていても、その親がトップなら終局する。
         // これを入れないと、勝っている親が連荘し続けるかぎり対局が終わらない。
         // 連荘の変形なので、連荘の無い一局戦では `continues` が常に false になり成立しない。
-        let isFinalRound = roundNumber >= gameLength.roundCount
+        let isFinalRound = roundNumber >= roundLimit
         if continues && isFinalRound && isTopPlayer(dealer) {
             endsAfterThisHand = true
         }
@@ -219,7 +219,7 @@ extension MahjongModel {
     /// 対局が終わったか。最終局を終えた（= その次の局に入る）か、アガリやめか、誰かが飛んだとき。
     /// 最終局は対局の長さで決まる（東風戦は東 4 局、一局戦は東 1 局。#639）。
     func isGameOver() -> Bool {
-        endsAfterThisHand || roundNumber > gameLength.roundCount || scores.contains { $0 < 0 }
+        endsAfterThisHand || roundNumber > roundLimit || scores.contains { $0 < 0 }
     }
 
     /// いま見ている局のリザルトから進むと、次の局ではなく終局（順位）に行くか（#639）。
@@ -240,7 +240,7 @@ extension MahjongModel {
         // 突然終わる驚きが最も大きいので最優先で表示する。次いで「東4局を終えた」が自然な終局、
         // アガリやめはその変形（roundNumber は 4 のまま）なので最後に判定する。
         gameEndReason = scores.contains(where: { $0 < 0 }) ? .busted
-            : roundNumber > gameLength.roundCount ? .completedAllRounds
+            : roundNumber > roundLimit ? .completedAllRounds
             : endsAfterThisHand ? .agariYame
             : .completedAllRounds
         // 同点は席順（親から近い順）で上位にする。

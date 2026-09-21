@@ -41,7 +41,7 @@ public final class MahjongModel: AITurnGuarded {
     public internal(set) var currentPlayer: Int = 0
     /// 親（0 = 自分）。
     public internal(set) var dealer: Int = 0
-    /// 東何局か（1〜`gameLength.roundCount`）。
+    /// 東何局か（1〜`roundLimit`。通常は `gameLength.roundCount`）。
     public internal(set) var roundNumber: Int = 1
     public internal(set) var honba: Int = 0
     /// **その対局に焼き込まれた**長さ（#639）。`startGame(length:)` でだけ変わり、対局中は動かない。
@@ -79,6 +79,19 @@ public final class MahjongModel: AITurnGuarded {
     /// トビで終わった対局を、リワード広告を見て続けられる状態か（#338）。
     /// 1 半荘 1 回までで、自分がトビたときにだけ立つ。
     public internal(set) var canReviveAfterBust = false
+
+    /// 東 4 局を終えて自分が最下位のとき、リワード広告を見て東 5 局を 1 局だけ足せる状態か（#1201）。
+    /// 東風戦だけ・1 半荘 1 回まで。東 4 局を打ち切った終局とアガリやめ（親が連荘できる最終局で
+    /// トップの親が和了り続けて終わる）は対象で、トビ終了は対象外（持ち点がマイナスのまま続けると
+    /// 次の局が成立しない。トビは復活の側）。決着の順位から導ける状態なので保存せず、
+    /// リザルト（`.gameResult`）にいる間だけ真になる。
+    public var canExtendAfterLastPlace: Bool {
+        phase == .gameResult
+            && gameLength == .tonpuu
+            && !hasExtendedGame
+            && (gameEndReason == .completedAllRounds || gameEndReason == .agariYame)
+            && reviewOutcome == .loss
+    }
 
     /// ロンの提示。
     public struct RonOffer: Equatable, Sendable {
@@ -137,6 +150,13 @@ public final class MahjongModel: AITurnGuarded {
     var endsAfterThisHand = false
     /// この半荘でトビ復活（#338）を既に使ったか。1 半荘 1 回までの制限に使う。
     var hasRevivedThisGame = false
+    /// この半荘で最終局延長（#1201）を既に使ったか。1 半荘 1 回までの制限と、打ち切る局数
+    /// （`roundLimit`）に使う。延長戦の最中・その後の中断でも持ち回す。
+    var hasExtendedGame = false
+    /// 打ち切る局数。延長（#1201）を使った半荘は東 1 局ぶん長い。
+    var roundLimit: Int { gameLength.roundCount + (hasExtendedGame ? Self.extensionRounds : 0) }
+    /// 最終局延長で足す局数。
+    static let extensionRounds = 1
     /// 東風戦が終わった理由。`.gameResult` のときだけ入る（#352）。
     public internal(set) var gameEndReason: MahjongGameEndReason?
 
@@ -184,6 +204,7 @@ public final class MahjongModel: AITurnGuarded {
             revealedDoraCount = snap.revealedDoraCount ?? 1
             deadWallDraws = snap.deadWallDraws ?? 0
             hasRevivedThisGame = snap.hasRevivedThisGame ?? false
+            hasExtendedGame = snap.hasExtendedGame ?? false
             // 局のリザルト表示中に中断した場合はリザルトから再開する（#350）。以前は決着と同時に
             // 中断データを消していたため、「次の局へ」を押す前に終了すると東風戦の途中経過
             // （局数・持ち点・親・本場）がまるごと失われていた。旧形式（キー無し）は nil に
@@ -392,6 +413,7 @@ public final class MahjongModel: AITurnGuarded {
         recordResult = nil
         endsAfterThisHand = false
         hasRevivedThisGame = false
+        hasExtendedGame = false
         canReviveAfterBust = false
         gameEndReason = nil
         gameSerial += 1
@@ -479,7 +501,7 @@ public final class MahjongModel: AITurnGuarded {
         scores[Self.humanIndex] < 0
             && reviewOutcome == .loss
             && !endsAfterThisHand
-            && roundNumber <= gameLength.roundCount
+            && roundNumber <= roundLimit
     }
 
     /// リワード広告を表示し、**視聴完了したときだけ**トビ終了から復活して対局を続ける（#338）。
@@ -537,6 +559,41 @@ public final class MahjongModel: AITurnGuarded {
         return .granted
     }
 
+    // MARK: - 最終局の延長
+
+    /// リワード広告を表示し、**視聴完了したときだけ**東 5 局を足して対局を続ける（#1201）。
+    /// 返り値の意味と各ガードは `reviveAfterAd()` と同じ（視聴しなかったら `.notEarned`、見終えたのに
+    /// 適用できなかったら `.unavailable`）。
+    ///
+    /// 決着で書いた「負け」は取り消す（同じ半荘の続きなので、広告を見るほど通算成績が増える抜け道に
+    /// しない）。持ち点はそのまま次の局へ持ち越し、得点の操作はしない。決着で `concludeGame` が
+    /// トップへ回収した供託は戻さない（回収済みとして続ける。`reviveAfterAd` と同じ）。
+    public func extendAfterAd() async -> RewardedModelOutcome {
+        guard canExtendAfterLastPlace else { return .unavailable }
+        let serialBeforeAd = gameSerial
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .continue) ?? true else { return .notEarned }
+        guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
+        guard gameSerial == serialBeforeAd, canExtendAfterLastPlace else { return .unavailable }
+        hasExtendedGame = true
+        services?.playLog?.cancelLoss(gameID: gameID, variant: gameLength.recordVariant)
+        recordResult = nil
+        ranking = []
+        gameEndReason = nil
+        if endsAfterThisHand {
+            // アガリやめは連荘の形（局・親が動いていない）で終わっている。延長は次の局へ進めて配る。
+            endsAfterThisHand = false
+            dealer = (dealer + 1) % Self.playerCount
+            roundNumber += Self.extensionRounds
+            honba = 0
+        }
+        // 局と親は最終局の決着時に次へ進んでいる（`finishHand`）ので、そのまま東 5 局を配る。
+        startHand()
+        // `game_end` は送信済みなので、続きは次の 1 プレイとして数える（復活と同じ・#158）。
+        services?.gameDidRestart(gameID: gameID, mode: gameLength.analyticsMode)
+        return .granted
+    }
+
     // MARK: - 永続化
 
     func persist() {
@@ -567,6 +624,7 @@ public final class MahjongModel: AITurnGuarded {
             revealedDoraCount: revealedDoraCount,
             deadWallDraws: deadWallDraws,
             hasRevivedThisGame: hasRevivedThisGame,
+            hasExtendedGame: hasExtendedGame,
             handResult: phase == .handResult ? handResult : nil,
             endsAfterThisHand: endsAfterThisHand,
             gameLength: gameLength
