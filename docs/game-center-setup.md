@@ -24,7 +24,6 @@ App Store Connect → あそびば → 「Game Center」→ リーダーボー�
 | `asobiba.2048.score` | 2048 ハイスコア | 整数 | High to Low（高い順） |
 | `asobiba.poker.chips` | ポーカー 最高チップ | 整数 | High to Low |
 | `asobiba.blackjack.chips` | ブラックジャック 最高チップ | 整数 | High to Low |
-| `asobiba.baccarat.chips` | バカラ 最高チップ | 整数 | High to Low |
 | `asobiba.minesweeper.time.beginner` | マインスイーパー 初級 最短タイム | 経過時間（秒） | **Low to High（短い順）** |
 | `asobiba.minesweeper.time.intermediate` | マインスイーパー 中級 最短タイム | 経過時間（秒） | **Low to High** |
 | `asobiba.minesweeper.time.expert` | マインスイーパー 上級 最短タイム | 経過時間（秒） | **Low to High** |

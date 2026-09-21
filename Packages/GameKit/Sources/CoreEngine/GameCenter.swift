@@ -74,11 +74,6 @@ public enum GameCenterLeaderboard {
     public static let game2048Score  = "asobiba.2048.score"
     public static let pokerChips     = "asobiba.poker.chips"
     public static let blackjackChips = "asobiba.blackjack.chips"
-    /// バカラ（#1197）。賭け先の選択以外にルールの分岐が無く、全員が同じ配当表で遊ぶので
-    /// ポーカー・ブラックジャックと同じく「最高チップ数」1 つの表にする。
-    /// 復活（リワード広告）を使ったセッションは `isLeaderboardEligible` が false になり、
-    /// この対応表に来る前に弾かれる。
-    public static let baccaratChips  = "asobiba.baccarat.chips"
     /// ブロック崩し（#463）。ステージ構成は全員共通で、同じ条件で比べられるため対象にする。
     public static let blocksScore    = "asobiba.blocks.score"
     /// ブロックならべ（#493）。盤・ピースの出方は全員共通なので区分を持たない表 1 つ。
@@ -115,7 +110,7 @@ public enum GameCenterLeaderboard {
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
-        game2048Score, pokerChips, blackjackChips, baccaratChips, blocksScore, blockPuzzleScore, runnerStage,
+        game2048Score, pokerChips, blackjackChips, blocksScore, blockPuzzleScore, runnerStage,
         runnerDistance, hanafudaPoints,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
@@ -164,7 +159,6 @@ public enum GameCenterLeaderboard {
         case "2048":      return game2048Score
         case "poker":     return pokerChips
         case "blackjack": return blackjackChips
-        case "baccarat":  return baccaratChips
         // ブロック崩し（#463）。コンティニュー（リワード広告）を使った回は
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
         case "blocks":    return blocksScore
