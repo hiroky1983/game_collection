@@ -20,6 +20,17 @@ swift test --package-path Packages/GameKit
 xcodegen generate
 ```
 
+## シミュレータ操作の注意（Xcode 27・2026-09-17〜）
+
+- **`Simulator.app` は無い。`Xcode.app/Contents/Applications/DeviceHub.app` に変わった**。`open -a Simulator` は失敗する
+  （`Unable to find application named 'Simulator'`）。画面を人に見せたいときはこちらを開く:
+  `open /Applications/Xcode.app/Contents/Applications/DeviceHub.app --args -CurrentDeviceUDID <UDID>`
+- `xcrun simctl`（boot / install / launch / io screenshot 等）の挙動自体は変わっていない
+- **シミュレータは名前ではなく UDID で指定する**。Xcode 27 導入で iOS 26.4 の端末一式が 26.5 側に丸ごと複製され、
+  同じ名前の端末が複数組できた。`-destination 'name=iPhone 17'` のような名前指定だと、会長が見ている端末とは
+  別の1台に黙ってインストールしてしまう。`xcrun simctl list devices booted` で UDID を取り、
+  `-destination "id=<UDID>"` を使う
+
 ## 迷ったら
 
 - ゲーム追加の作法・ゲーム一覧: `docs/spec-app.md` の「パッケージ構成」と `App/AppGameServices.swift`
