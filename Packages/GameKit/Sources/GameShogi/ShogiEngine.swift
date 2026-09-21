@@ -520,21 +520,108 @@ private struct SearchContext {
         return count
     }
 
+    /// 玉の安全度（#1134 で駒の連携・遠くからの利きを精緻化）。
+    ///
+    /// 元は「隣接8マスの金銀だけ+30」という粗い判定だった。ここでは:
+    /// 1. 隣接マスの守り駒を種類別に重み付け（金・銀を厚く、桂・香・歩・大駒も薄く評価）。
+    /// 2. 2マス圏（美濃囲い・矢倉などの外側の金銀）も軽く評価する。
+    /// 3. 金銀が2枚以上揃っている（=連携している）ときに追加ボーナス。単独の守り駒より
+    ///    連携した囲いのほうが実戦的に堅いという知見を反映する。
+    /// 4. 大駒（飛・角・馬・龍）の利きが玉まで素通しになっていないか（`kingExposure`）を見る。
     func kingSafety(_ pos: Position, _ color: Side) -> Int {
         guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
             return 0
         }
         let kf = Sq.file(k), kr = Sq.rank(k)
         var s = 0
-        for (df, dr) in [(-1,-1),(0,-1),(1,-1),(-1,0),(1,0),(-1,1),(0,1),(1,1)] {
+        var strongDefenders = 0
+        for (df, dr) in Self.ring1 {
             let f = kf + df, r = kr + dr
             guard Sq.onBoard(file: f, rank: r),
                   let p = pos.squares[Sq.index(file: f, rank: r)], p.color == color else { continue }
-            s += (p.type == .gold || p.type == .silver) ? 30 : 0
+            switch p.type {
+            case .gold:   s += 35; strongDefenders += 1
+            case .silver: s += 30; strongDefenders += 1
+            case .knight: s += 18
+            case .lance:  s += 12
+            case .pawn:   s += 8
+            default:      s += 5
+            }
         }
+        for (df, dr) in Self.ring2 {
+            let f = kf + df, r = kr + dr
+            guard Sq.onBoard(file: f, rank: r),
+                  let p = pos.squares[Sq.index(file: f, rank: r)], p.color == color else { continue }
+            switch p.type {
+            case .gold:   s += 12
+            case .silver: s += 10
+            case .knight: s += 6
+            default: break
+            }
+        }
+        if strongDefenders >= 2 { s += 15 }
         s += abs(kf - 4) * 15
         let homeRank = color == .black ? 8 : 0
         s += max(0, 2 - abs(kr - homeRank)) * 10
+        s -= kingExposure(pos, color: color, kingSq: k)
         return s
+    }
+
+    /// 隣接8マス（距離1のリング）。
+    private static let ring1: [(Int, Int)] = [(-1,-1),(0,-1),(1,-1),(-1,0),(1,0),(-1,1),(0,1),(1,1)]
+
+    /// 距離2のリング（斜めの角を除いた16マス。美濃囲いの端の金銀・桂がここに来る）。
+    private static let ring2: [(Int, Int)] = [
+        (-2,-2),(-1,-2),(0,-2),(1,-2),(2,-2),
+        (-2,-1),(2,-1),
+        (-2,0),(2,0),
+        (-2,1),(2,1),
+        (-2,2),(-1,2),(0,2),(1,2),(2,2),
+    ]
+
+    /// 玉の位置から縦横・斜めへ相手の大駒（飛・龍・角・馬・香）の利きが素通しかを見る。
+    /// 玉から見て最初にぶつかった駒だけを見る（間に自駒・敵駒があれば遮られる）。
+    /// 距離が近いほど危険度を高くする（`isKingInCheck` は既に別で扱うので、ここは
+    /// 「王手ではないが利きが素通し」という一歩手前の危険を評価するのが目的）。
+    func kingExposure(_ pos: Position, color: Side, kingSq: Int) -> Int {
+        let kf = Sq.file(kingSq), kr = Sq.rank(kingSq)
+        let opponent = color.opponent
+        var penalty = 0
+
+        for (df, dr) in [(0,-1),(0,1),(1,0),(-1,0)] {
+            var f = kf + df, r = kr + dr
+            var dist = 1
+            while Sq.onBoard(file: f, rank: r) {
+                if let p = pos.squares[Sq.index(file: f, rank: r)] {
+                    if p.color == opponent {
+                        let isLanceForward = p.type == .lance && df == 0
+                            && ((p.color == .black && dr == -1) || (p.color == .white && dr == 1))
+                        if p.type == .rook || isLanceForward {
+                            penalty += max(0, 9 - dist) * 6
+                        }
+                    }
+                    break
+                }
+                dist += 1
+                f += df; r += dr
+            }
+        }
+
+        for (df, dr) in [(1,-1),(-1,-1),(1,1),(-1,1)] {
+            var f = kf + df, r = kr + dr
+            var dist = 1
+            while Sq.onBoard(file: f, rank: r) {
+                if let p = pos.squares[Sq.index(file: f, rank: r)] {
+                    if p.color == opponent, p.type == .bishop {
+                        penalty += max(0, 9 - dist) * 6
+                    }
+                    break
+                }
+                dist += 1
+                f += df; r += dr
+            }
+        }
+
+        return penalty
     }
 }
