@@ -234,7 +234,8 @@ public struct ShiritoriView: View {
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
             }
-            Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota))
+            Text(ShiritoriPresentation.resultDetail(player: model.playerCount, cpu: model.cpuCount, quota: model.quota,
+                                                          ending: model.ending ?? .timeUp))
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.inkSub)
                 .fixedSize(horizontal: false, vertical: true)
@@ -251,8 +252,8 @@ public struct ShiritoriView: View {
 // MARK: - 盤の寸法
 
 enum ShiritoriBoardLayout {
-    /// 19 枚が 5 列 × 4 行（5・5・5・4）に収まる。iPhone SE でも広告枠を含めて縦に収まる本数。
-    static let columns = 5
+    /// 29 枚が 6 列 × 5 行（6・6・6・6・5）に収まる。iPhone SE でも広告枠を含めて縦に収まる本数。
+    static let columns = 6
 }
 
 // MARK: - 札
@@ -354,7 +355,7 @@ struct ShiritoriSetupSheet: View {
                             ) { quota = level }
                         }
                     }
-                    Text(quota.summary)
+                    Text("時間切れのとき: " + quota.summary)
                         .themeBody(13)
                         .foregroundStyle(Theme.inkSub)
                         .lineLimit(2).minimumScaleFactor(0.7)
@@ -373,7 +374,8 @@ struct ShiritoriRuleSheet: View {
         ("読みのルール", "「ー」で終わるときはひとつ前の字で受けます。「ぎ」のような濁音は、そのまま「ぎ」でも、濁点を取った「き」でも受けられます。1枚の札が別の読みを持つこともあります（うらよみ）"),
         ("制限時間", "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります"),
         ("「ん」で終わると負け", "「ん」で終わる読みの札を選んだ人は、その場で負けです"),
-        ("ノルマ", "どちらかが続けられなくなるか時間切れになると終わり、取られた札のうち自分が取った割合がノルマを超えていれば勝ちです。やさしい=4割以上・ふつう=5割より多く・むずかしい=7割以上"),
+        ("勝ち負け", "CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです"),
+        ("ノルマ", "時間切れになったときだけ、取られた札のうち自分が取った割合がノルマを満たせば勝ちです。やさしい=4割以上・ふつう=5割より多く・むずかしい=7割以上"),
     ]
 
     var body: some View {
