@@ -92,7 +92,108 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
     }
 }
 
-/// 通知のタップを受ける（#663）。アプリが終了していた状態からのタップも拾うため、
+/// 再エンゲージメント通知（#1193）の識別子。3件（7日・30日・60日後）を同じゲームで
+/// 区別するため、末尾に発火順のインデックスを付ける。
+enum ReengagementReminderNotification {
+    static let identifierPrefix = "reengagement-reminder."
+    static let gameIDKey = "gameID"
+
+    static func identifier(for gameID: String, index: Int) -> String {
+        identifierPrefix + gameID + ".\(index)"
+    }
+}
+
+/// `ReengagementReminderService`（Core）の予約先を `UNUserNotificationCenter` で実装する。
+/// #663 と識別子の名前空間を分けているので、お互いの予約を巻き込まずに操作できる。
+@MainActor
+final class UserNotificationReengagementScheduler: ReengagementReminderScheduler {
+    private var center: UNUserNotificationCenter { .current() }
+
+    func authorization() async -> ReminderAuthorization {
+        switch await Self.authorizationStatus() {
+        case .authorized:               return .authorized
+        case .provisional, .ephemeral:  return .provisional
+        case .notDetermined:            return .notDetermined
+        case .denied:                   return .denied
+        @unknown default:               return .denied
+        }
+    }
+
+    func requestExplicitAuthorization() async -> ReminderAuthorization {
+        // `.provisional` を含めない = 標準の許可ダイアログが出る（会長決裁 2026-09-21）。
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        return await authorization()
+    }
+
+    func scheduledGameID() async -> String? {
+        await Self.pendingGameID()
+    }
+
+    func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
+        // 前回の予約が残っているとインデックスがずれて末尾が重複するため、採番し直す前に必ず消す。
+        let identifiers = ReengagementReminderPolicy.offsetDays.indices
+            .map { ReengagementReminderNotification.identifier(for: gameID, index: $0) }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        await Self.add(gameID: gameID, fireDates: fireDates, title: title, body: body)
+    }
+
+    func cancel(gameID: String) {
+        let identifiers = ReengagementReminderPolicy.offsetDays.indices
+            .map { ReengagementReminderNotification.identifier(for: gameID, index: $0) }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    func cancelAll() {
+        Task { await Self.cancelAllPendingAndDelivered() }
+    }
+
+    // 通知センターの応答型は Sendable でないため、MainActor へ持ち込まずに値だけ取り出す。
+
+    nonisolated private static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    nonisolated private static func pendingGameID() async -> String? {
+        await UNUserNotificationCenter.current().pendingNotificationRequests()
+            .first { $0.identifier.hasPrefix(ReengagementReminderNotification.identifierPrefix) }
+            .flatMap { $0.content.userInfo[ReengagementReminderNotification.gameIDKey] as? String }
+    }
+
+    nonisolated private static func cancelAllPendingAndDelivered() async {
+        let center = UNUserNotificationCenter.current()
+        let pendingIDs = await center.pendingNotificationRequests()
+            .map(\.identifier)
+            .filter { $0.hasPrefix(ReengagementReminderNotification.identifierPrefix) }
+        center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
+        let deliveredIDs = await center.deliveredNotifications()
+            .map(\.request.identifier)
+            .filter { $0.hasPrefix(ReengagementReminderNotification.identifierPrefix) }
+        center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
+    }
+
+    nonisolated private static func add(gameID: String, fireDates: [Date], title: String, body: String) async {
+        let center = UNUserNotificationCenter.current()
+        for (index, fireDate) in fireDates.enumerated() {
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            content.userInfo = [ReengagementReminderNotification.gameIDKey: gameID]
+            let components = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute, .second], from: fireDate
+            )
+            let request = UNNotificationRequest(
+                identifier: ReengagementReminderNotification.identifier(for: gameID, index: index),
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            )
+            try? await center.add(request)
+        }
+    }
+}
+
+/// 通知のタップを受ける（#663・#1193）。アプリが終了していた状態からのタップも拾うため、
 /// 起動処理の中で delegate を立てる（SwiftUI の `App` だけでは起動時のタップを受け取れない）。
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
@@ -108,11 +209,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
-              let gameID = response.notification.request.content.userInfo[ResumeReminderNotification.gameIDKey] as? String
-        else { return }
-        await MainActor.run {
-            AppEnvironment.reminders.notificationTapped(gameID: gameID)
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
+        let request = response.notification.request
+        let userInfo = request.content.userInfo
+        // gameIDKey は両方とも "gameID" で共通のため、先に識別子の接頭辞で通知の種類を判定する。
+        if request.identifier.hasPrefix(ResumeReminderNotification.identifierPrefix),
+           let gameID = userInfo[ResumeReminderNotification.gameIDKey] as? String {
+            await MainActor.run {
+                AppEnvironment.reminders.notificationTapped(gameID: gameID)
+            }
+        } else if request.identifier.hasPrefix(ReengagementReminderNotification.identifierPrefix),
+                  let gameID = userInfo[ReengagementReminderNotification.gameIDKey] as? String {
+            await MainActor.run {
+                AppEnvironment.reengagement.notificationTapped(gameID: gameID)
+            }
         }
     }
 
