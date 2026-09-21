@@ -108,10 +108,18 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
+                    Toggle(isOn: Binding(
+                        get: { settings.reengagementRemindersEnabled },
+                        set: { settings.reengagementRemindersEnabled = $0 }
+                    )) {
+                        Label("久しぶり通知", systemImage: "bell.badge")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
                 } header: {
                     Text("通知")
                 } footer: {
-                    Text("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までで、ほかのお知らせは送りません。オフにすると、予約済みのお知らせも取り消します。")
+                    Text("「続きのお知らせ」は、途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\n「久しぶり通知」は、よく遊んでいたのに7日以上開いていないあそびがあるとき、7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。同時に1件で、一度開いたら以降は送りません。\nどちらもオフにすると、予約済みのお知らせを取り消します。")
                 }
 
                 // MARK: 解析

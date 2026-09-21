@@ -125,6 +125,8 @@ let package = Package(
             "Core", "Game2048", "GameRunner", "GameShogi", "GameChess", "GameMahjong",
             "MahjongTiles", "GameKitTestSupport", "CoreTestSupport",
         ]),
+        // 再エンゲージメント通知（#1193）。#663 とは別の判定・別の許諾のため、テストも分ける。
+        .testTarget(name: "ReengagementReminderTests", dependencies: ["Core", "GameKitTestSupport"]),
         // 盤ゲーム（将棋・チェス）の共通の枠（#530）。値も重なり順も「両方で同じ」であることが
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
         .testTarget(name: "BoardGameChromeTests", dependencies: ["Core", "GameKitTestSupport"]),

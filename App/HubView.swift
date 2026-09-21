@@ -345,6 +345,17 @@ struct HubView: View {
                     resume: isResumable(id)
                 ))
             }
+            // 再エンゲージメント通知（#1193）がタップされたら、そのゲームを直接開く。
+            .onChange(of: services.reengagement?.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                services.reengagement?.requestedGameID = nil
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .notification, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
             .task {
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
                 // 以前は自前の事前説明シートを挟み「最初のゲームを遊び終えてハブに戻った時点」で

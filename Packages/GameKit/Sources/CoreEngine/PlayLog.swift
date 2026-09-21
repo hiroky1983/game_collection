@@ -299,6 +299,16 @@ public final class PlayLog {
         return result
     }
 
+    /// ゲームごとの通算プレイ回数（再エンゲージメント通知 #1193）。区分があるゲームは合算する。
+    public var totalPlaysByGame: [String: Int] {
+        var result: [String: Int] = [:]
+        for (key, record) in records {
+            let gameID = key.split(separator: "#", maxSplits: 1).first.map(String.init) ?? key
+            result[gameID, default: 0] += record.plays
+        }
+        return result
+    }
+
     /// 決着 1 回を記録して、更新後の記録と更新内訳を返す。
     ///
     /// 判定そのものは `PlayRecord.applying` に閉じ込め、ここは永続化だけを担う。

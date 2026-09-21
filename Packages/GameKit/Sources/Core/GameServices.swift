@@ -45,6 +45,9 @@ public struct GameServices {
     public let screenGeneration: GameScreenGeneration
     /// 中断したゲームのお知らせ（#663）。テスト・プレビューでは nil（予約しない）。
     public let reminders: ResumeReminderService?
+    /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
+    /// テスト・プレビューでは nil（予約しない）。
+    public let reengagement: ReengagementReminderService?
 
     public init(
         snapshots: SnapshotStore,
@@ -56,7 +59,8 @@ public struct GameServices {
         analytics: GameAnalytics? = nil,
         gameCenter: GameCenterReporter? = nil,
         screenGeneration: GameScreenGeneration = GameScreenGeneration(),
-        reminders: ResumeReminderService? = nil
+        reminders: ResumeReminderService? = nil,
+        reengagement: ReengagementReminderService? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -68,6 +72,7 @@ public struct GameServices {
         self.gameCenter = gameCenter
         self.screenGeneration = screenGeneration
         self.reminders = reminders
+        self.reengagement = reengagement
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -150,6 +155,7 @@ public struct GameServices {
     public func gameDidOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         analytics?.recordGameOpen(gameID: gameID, source: source, position: position, resume: resume)
         reminders?.gameDidOpen(gameID: gameID)
+        reengagement?.gameDidOpen(gameID: gameID)
     }
 
     /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。`share_tap` を送るだけで、プレイの数え方にも
