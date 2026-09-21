@@ -10,6 +10,8 @@ import SwiftUI
 public enum ObjectCardKind: String, CaseIterable, Sendable, Codable {
     case apple, gorilla, seaOtter, koala, camel, rabbit, guitar, drum, kitten, glass
     case squirrel, watermelon, turtle, eyeglasses, cat, spinningTop, pillow, ostrich, handFan, crocodile
+    /// #1245 で 20 → 30 枚に増やした 10 種。連鎖が伸びやすいよう語頭・語尾を重ねて選んだ。
+    case boat, leek, ball, mushroom, horse, deer, cow, bell, moon, octopus
 
     /// VoiceOver の読み上げ文。絵だけのカードなので、言葉はここで持つ。
     public var displayName: String {
@@ -34,6 +36,16 @@ public enum ObjectCardKind: String, CaseIterable, Sendable, Codable {
         case .ostrich:     return "ダチョウ"
         case .handFan:     return "うちわ"
         case .crocodile:   return "ワニ"
+        case .boat:        return "ふね"
+        case .leek:        return "ねぎ"
+        case .ball:        return "まり"
+        case .mushroom:    return "きのこ"
+        case .horse:       return "うま"
+        case .deer:        return "しか"
+        case .cow:         return "うし"
+        case .bell:        return "すず"
+        case .moon:        return "つき"
+        case .octopus:     return "たこ"
         }
     }
 
@@ -62,6 +74,16 @@ public enum ObjectCardKind: String, CaseIterable, Sendable, Codable {
         case .ostrich:     return ObjectCardSprites.ostrich
         case .handFan:     return ObjectCardSprites.handFan
         case .crocodile:   return ObjectCardSprites.crocodile
+        case .boat:        return ObjectCardSprites.boat
+        case .leek:        return ObjectCardSprites.leek
+        case .ball:        return ObjectCardSprites.ball
+        case .mushroom:    return ObjectCardSprites.mushroom
+        case .horse:       return ObjectCardSprites.horse
+        case .deer:        return ObjectCardSprites.deer
+        case .cow:         return ObjectCardSprites.cow
+        case .bell:        return ObjectCardSprites.bell
+        case .moon:        return ObjectCardSprites.moon
+        case .octopus:     return ObjectCardSprites.octopus
         }
     }
 
@@ -613,5 +635,265 @@ enum ObjectCardSprites {
             "....................",
         ],
         palette: ["K": 0x3A2A2A, "a": 0x2C7F44, "b": 0x2B2B33, "c": 0xF2C230, "d": 0x39A85B, "e": 0xFFFFFF, "f": 0x8DD16B]
+    )
+
+    static let boat = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            ".........K..........",
+            "........KcK.........",
+            "........KcdK........",
+            "........KcddK.......",
+            ".......KKcdddK......",
+            "......KeKcdddK......",
+            ".....KeeKcddddK.....",
+            "....KeeeKcdddddK....",
+            ".....KKKKcKKKKK.....",
+            "...KKKKKKcKKKKKKK...",
+            "..KbbbbbbcbbbbbbbK..",
+            "...KaaaaaaaaaaaaK...",
+            "...KaaaaaaaaaaaK....",
+            "....KaaaaaaaaaaK....",
+            "...KKKKKKKKKKKKKK...",
+            "..KfffggffffggfffK..",
+            "...KKKKKKKKKKKKKK...",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xB5651D, "b": 0x8B4513, "c": 0x6B4423, "d": 0xFFFFFF, "e": 0xF2D24B, "f": 0x4AA8E0, "g": 0xBFE3F5]
+    )
+
+    static let leek = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            "........K.KKK.......",
+            "......KKaKaaaKK.....",
+            "....KKaaabaaaaaK....",
+            "...KaabaabaaabaK....",
+            "....KabaabaabaaK....",
+            "....KaababaabaaK....",
+            "....KaaabbaabaaK....",
+            ".....KKKdeddKKK.....",
+            ".......KdeddK.......",
+            ".......KdeddK.......",
+            ".......KdeddK.......",
+            ".......KdeddK.......",
+            ".......KdeddK.......",
+            "......KffffffK......",
+            "......KffggffK......",
+            "......KffggffK......",
+            ".......KKKKKK.......",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0x39A85B, "b": 0x2C7F44, "d": 0xF4F7E8, "e": 0xFFFFFF, "f": 0xD9DFC4, "g": 0xBFA98A]
+    )
+
+    static let ball = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            "......KKKKKKKK......",
+            ".....KaaaaaaaaK.....",
+            "....KadaaaaaaaaK....",
+            "...KaddaaaaaaaaaK...",
+            "..KaadaaaaaaaaaaaK..",
+            "..KbbbbbbbbbbbbbbK..",
+            "..KbbbbbbbbbbbbbbK..",
+            "..KccccccccccccccK..",
+            "..KccccccccccccccK..",
+            "..KbbbbbbbbbbbbbbK..",
+            "..KaaaaaaaaaaaaaaK..",
+            "..KaaaaaaaaaaaaaaK..",
+            "...KaaaaaaaaaaaaK...",
+            "....KaaaaaaaaaaK....",
+            ".....KaaaaaaaaK.....",
+            "......KKKKKKKK......",
+            "....................",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xE24A3C, "b": 0xFF7A6B, "c": 0xF2D24B, "d": 0xFFFFFF]
+    )
+
+    static let mushroom = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            ".......KKKKKK.......",
+            ".....KKaaaaaaKK.....",
+            "....KaaaaaaaaaaK....",
+            "...KaaaaaaaadddaK...",
+            "..KaadddaaaadddaaK..",
+            ".KaaadddaaaadddaaaK.",
+            ".KaaadddaaaaaaaaaaK.",
+            ".KaaaaaaadddaaaaaaK.",
+            "..KaaaaaadddaaaaaK..",
+            "..KaaaaaaaaaaaaaaK..",
+            "...KKKccccccccKKK...",
+            "...KaabbbbbbbbaaK...",
+            "....KabbbbbbbbaK....",
+            ".....KeebbbbbbK.....",
+            ".....KeebbbbbbK.....",
+            ".....KeebbbbbbK.....",
+            "......KKKKKKKK......",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xE24A3C, "b": 0xF6E7C8, "c": 0xC9B18A, "d": 0xFFFFFF, "e": 0xE3D2AC]
+    )
+
+    static let horse = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            ".........K..........",
+            "........KaK.KKK.....",
+            ".......KKfaKdddK....",
+            "......KaafaaadddK...",
+            "......KaafaaadddK...",
+            "......KekfaaaadddK..",
+            "......KkafaaaadddK..",
+            "...KKKaaafaaaadddK..",
+            "..KbbbaaaaaaaadddK..",
+            "...KbbaaaaaaaadddK..",
+            "...KkbaaaaaaaadddK..",
+            "...KkbaaaaaaaadddK..",
+            "....KKKKKKaaaadddK..",
+            ".........KaaaadddK..",
+            ".........KaaaadddK..",
+            "..........KKKKKKK...",
+            "....................",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xB5651D, "b": 0xE0A97A, "d": 0x4A2A12, "e": 0xFFFFFF, "k": 0x3A2A2A, "f": 0xD98B3D]
+    )
+
+    static let deer = PixelSprite(
+        rows: [
+            "....................",
+            ".....K........K.....",
+            "...KKdK......KdKK...",
+            "..KddK.......KdKdK..",
+            ".KdddK........KdddK.",
+            "..KKdK...KK...KdKK..",
+            "...KdKKKKggKKKdK....",
+            "....KaaaaaaaaadK....",
+            "...KKaaagaagaaaK....",
+            "..KaaaaaaaaaaaaaK...",
+            "...KKafaaaaaafaK....",
+            "....KaaaaaaaaaaK....",
+            "...KaaaabbbaaaaK....",
+            "....KaaabeebaaaK....",
+            ".....KaabeebaaK.....",
+            ".....KaabbbbaaK.....",
+            "......KaaaaaaK......",
+            ".......KKKKKK.......",
+            "....................",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xC98B4A, "b": 0xF3D9B1, "d": 0x7A4B1F, "e": 0x3A2A2A, "f": 0x2A2A2A, "g": 0xFFFFFF]
+    )
+
+    static let cow = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            "....K..........K....",
+            "...KhK........KhK...",
+            "...KhKKKKKKKKKhK....",
+            "..KKKaaaaaaaaahKK...",
+            ".KbbbddddaaaaaabbK..",
+            ".KbbaddddaaaaaaabK..",
+            ".KaaaddddaaakaaaaK..",
+            "..KKKddddaaadddKK...",
+            "....KaakaaaadddK....",
+            "....KaaaaaaadddK....",
+            "...KaaappppppddK....",
+            "....KappppppppaK....",
+            "....KappkppkppaK....",
+            ".....KppppppppK.....",
+            ".....KappppppaK.....",
+            "......KKKKKKKK......",
+            "....................",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xFFFFFF, "b": 0xF3D9B1, "d": 0x3A2A2A, "h": 0xE8D9A8, "p": 0xF7A8B8, "k": 0x3A2A2A]
+    )
+
+    static let bell = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            "........K..K........",
+            ".......KaKKaK.......",
+            ".......KaaaaK.......",
+            ".....KKaaaaaaKK.....",
+            "....KacccaaaaaaK....",
+            "....KacccaaaaaaK....",
+            "...KaacccaaaaaaaK...",
+            "...KaaaaaaaaaaaaK...",
+            "...KaaaaaaaaaaaaK...",
+            "...KaaaaaaaaaaaaK...",
+            "..KbbbbbbbbbbbbbbK..",
+            "...KaaaaabbaaaaaK...",
+            "....KaaaabbaaaaK....",
+            "....KaaaabbaaaaK....",
+            ".....KKaabbaaKK.....",
+            ".......KKKKKK.......",
+            "....................",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xF2C230, "b": 0xB5861A, "c": 0xFFF2A8]
+    )
+
+    static let moon = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            "......KKKK..........",
+            ".....KaaaaK.........",
+            "....KaaaaK..........",
+            "...KaaaaK...........",
+            "..KabbaaK...........",
+            "..KabaaK............",
+            "..KaaaaK............",
+            "..KaaaaK............",
+            "..KaaaaaK...........",
+            "..KaaaaaK...........",
+            "..KaabbaaK..........",
+            "..KaaabaaaKK...K....",
+            "...KaaaaaaaaKKKaK...",
+            "....KaaaaaaaaaaK....",
+            ".....KaaaaaaaaK.....",
+            "......KKKKKKKK......",
+            "....................",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xF7D454, "b": 0xE0B030]
+    )
+
+    static let octopus = PixelSprite(
+        rows: [
+            "....................",
+            "....................",
+            "......KKKKKKKK......",
+            ".....KaaaaaaaaK.....",
+            "....KaccaaaaaaaK....",
+            "...KaccaaaaaaaaaK...",
+            "..KaaaaeaaaaeaaaaK..",
+            "..KaaaeeeaaeeeaaaK..",
+            "..KaaaeeeaaeeeaaaK..",
+            "..KaaaekeaaekeaaaK..",
+            "..KaaaaeaaaaeaaaaK..",
+            "...KaaaaakkaaaaaK...",
+            "...KKaaaaaaaaaaK....",
+            "..KaaKaaaaaaaaaaK...",
+            "..KaaKaaKaaKaaaaK...",
+            "..KaaKaaKaaKaaKK....",
+            "..KaaKaaKaaKaaKK....",
+            "..KaKKaK.KKKaKKaK...",
+            "...K..K.....K..K....",
+            "....................",
+        ],
+        palette: ["K": 0x3A2A2A, "a": 0xE8674F, "c": 0xFFB39F, "e": 0xFFFFFF, "k": 0x3A2A2A]
     )
 }

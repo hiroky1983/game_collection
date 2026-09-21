@@ -15,11 +15,11 @@ public enum ShiritoriPhase: Equatable, Sendable {
 
 /// 何で終わったか。
 public enum ShiritoriEnding: Equatable, Sendable {
-    /// CPU が続けられない（取れる札が無い・札が尽きた）。ノルマで勝敗が決まる。
+    /// CPU が続けられない（取れる札が無い・札が尽きた）。**ノルマに関係なく勝ち**（会長決裁 2026-09-21・#1245）。
     case cpuStuck
-    /// プレイヤーが続けられない。ノルマで勝敗が決まる。
+    /// プレイヤーが続けられない。**ノルマに関係なく負け**。
     case playerStuck
-    /// 制限時間が切れた。ノルマで勝敗が決まる。
+    /// 制限時間が切れた。**ノルマで勝敗が決まる**（ノルマを使うのはこの終わり方だけ）。
     case timeUp
     /// プレイヤーが「ん」で終わる読みを選んだ。**ノルマに関係なく負け**。
     case playerHitN
@@ -39,9 +39,10 @@ public enum ShiritoriEvent: Equatable, Sendable {
 
 /// カードしりとり（CPU 1 人との対戦・#1243）。プレイヤーが先手。
 ///
-/// 盤に 19 枚の札を並べ、残る 1 枚を最初の「場の札」にする。手番の人は、場の札の読みの語尾に続く
+/// 盤に 29 枚の札を並べ、残る 1 枚を最初の「場の札」にする。手番の人は、場の札の読みの語尾に続く
 /// 読みを持つ札を 1 枚選んで**取る**。取った札が新しい場の札になり、相手の番になる。
-/// 誰かが続けられなくなる・制限時間が切れると終わり、取った札の割合がノルマ（難易度）を満たせば勝ち。
+/// 相手が続けられなくなれば勝ち・自分が続けられなくなれば負け。制限時間が切れたときだけ、
+/// 取った札の割合がノルマ（難易度）を満たせば勝ち（会長決裁 2026-09-21・#1245）。
 ///
 /// ルール判定は `ShiritoriRules`（純粋関数）に寄せ、この型は**進行・時間・記録**だけを持つ。
 /// 制限時間は**プレイヤーの手番のあいだだけ**減る（CPU の演出待ちで時間を取られないように）。
@@ -102,7 +103,7 @@ public final class ShiritoriModel: AITurnGuarded {
         currentCard == nil ? nil : ShiritoriKana.tail(of: currentReading)
     }
 
-    /// 決着時点でノルマを満たしているか（「ん」の即決着は判定しない。負け・勝ちが先に決まる）。
+    /// 決着時点でノルマを満たしているか（判定に使うのは時間切れだけ。詰み・「ん」の決着は勝ち負けが先に決まる）。
     public var isQuotaMet: Bool { quota.isMet(player: playerCount, cpu: cpuCount) }
 
     /// 評価リクエスト（#53）の判定用。引き分けは無い。
@@ -224,9 +225,9 @@ public final class ShiritoriModel: AITurnGuarded {
         phase = .result
         isPlayerTurn = false
         switch ending {
-        case .playerHitN:                     didPlayerWin = false
-        case .cpuHitN:                        didPlayerWin = true
-        case .cpuStuck, .playerStuck, .timeUp: didPlayerWin = isQuotaMet
+        case .playerHitN, .playerStuck: didPlayerWin = false
+        case .cpuHitN, .cpuStuck:       didPlayerWin = true
+        case .timeUp:                   didPlayerWin = isQuotaMet
         }
         services?.feedback.notify(didPlayerWin ? .success : .error)
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore())

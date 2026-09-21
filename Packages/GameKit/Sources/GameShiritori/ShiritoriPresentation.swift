@@ -39,15 +39,17 @@ public enum ShiritoriPresentation {
         switch ending {
         case .cpuHitN:    return didWin ? "CPUが「ん」で終わった！勝ち！" : "決着"
         case .playerHitN: return "「ん」で終わってしまった…負け"
-        case .cpuStuck:   return didWin ? "CPUが続けられない！勝ち！" : "CPUを詰ませたけど、ノルマ未達…負け"
-        case .playerStuck: return didWin ? "続けられない…でもノルマ達成！勝ち！" : "続けられる札がない…負け"
+        case .cpuStuck:   return "CPUが続けられない！勝ち！"
+        case .playerStuck: return "続けられる札がない…負け"
         case .timeUp:     return didWin ? "時間切れ。ノルマ達成で勝ち！" : "時間切れ…ノルマ未達で負け"
         }
     }
 
     /// 結果に添える内訳（例: "あなた3枚・CPU2枚（60%）／ノルマ: 取った札の過半数（5割より多く）でクリア"）。
-    public static func resultDetail(player: Int, cpu: Int, quota: ShiritoriQuota) -> String {
-        "あなた\(player)枚・CPU\(cpu)枚（\(sharePercent(player: player, cpu: cpu))%）／ノルマ: \(quota.summary)"
+    /// ノルマを勝敗に使うのは時間切れだけなので、ノルマの説明もそのときだけ添える。
+    public static func resultDetail(player: Int, cpu: Int, quota: ShiritoriQuota, ending: ShiritoriEnding) -> String {
+        let base = "あなた\(player)枚・CPU\(cpu)枚（\(sharePercent(player: player, cpu: cpu))%）"
+        return ending == .timeUp ? base + "／ノルマ: \(quota.summary)" : base
     }
 
     // MARK: - VoiceOver

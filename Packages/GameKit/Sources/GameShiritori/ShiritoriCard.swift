@@ -20,8 +20,13 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         self.readings = readings.map { ShiritoriKana.hiragana($0) }
     }
 
-    /// 山札（20 枚）。**会長決裁 2026-09-21（#1243）の初期カード案そのまま**。
-    /// 神経衰弱の絵柄（#1244）もこの 20 種に揃える。
+    /// 山札（30 枚）。最初の 20 枚は会長決裁 2026-09-21（#1243）の初期カード案そのまま、
+    /// 後ろの 10 枚は #1245（会長決裁: 20 枚では連鎖がすぐ途切れる）で足した。
+    /// 神経衰弱の絵柄（#1244）もこの 30 種に揃える。
+    ///
+    /// 足した 10 枚は、既存の語尾（こ・ら・す・か・ま・ね など）から始まる札と、その語頭で終わる札を
+    /// 混ぜて連鎖が伸びやすくしてある。裏読みは足していない（先頭字が既存のどの語尾とも重ならない
+    /// 裏読みは、表読みが受けられない札にしか使われず連鎖に効かなかったため）。
     public static let deck: [ShiritoriCard] = [
         ShiritoriCard(.apple, "りんご"),
         ShiritoriCard(.gorilla, "ごりら"),
@@ -43,5 +48,15 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         ShiritoriCard(.ostrich, "だちょう", "えみゅー"),
         ShiritoriCard(.handFan, "うちわ", "おうぎ"),
         ShiritoriCard(.crocodile, "わに"),
+        ShiritoriCard(.boat, "ふね"),
+        ShiritoriCard(.leek, "ねぎ"),
+        ShiritoriCard(.ball, "まり"),
+        ShiritoriCard(.mushroom, "きのこ"),
+        ShiritoriCard(.horse, "うま"),
+        ShiritoriCard(.deer, "しか"),
+        ShiritoriCard(.cow, "うし"),
+        ShiritoriCard(.bell, "すず"),
+        ShiritoriCard(.moon, "つき"),
+        ShiritoriCard(.octopus, "たこ"),
     ]
 }

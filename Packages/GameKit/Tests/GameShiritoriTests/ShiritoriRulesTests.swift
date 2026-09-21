@@ -66,15 +66,16 @@ private func slots(_ cards: [ShiritoriCard]) -> [ShiritoriSlot] {
 @Suite("しりとりの札と手")
 struct ShiritoriRulesTests {
 
-    @Test("山札は会長決裁どおり 20 枚。絵は全種そろい、同じ絵は 2 枚無い")
+    @Test("山札は 30 枚（#1245）。絵は全種そろい、同じ絵は 2 枚無い")
     func deckMatchesApprovedList() {
         let deck = ShiritoriCard.deck
-        #expect(deck.count == 20)
+        #expect(deck.count == 30)
         #expect(Set(deck.map(\.kind)) == Set(ObjectCardKind.allCases))
-        #expect(Set(deck.map(\.id)).count == 20)
+        #expect(Set(deck.map(\.id)).count == 30)
         #expect(deck.map(\.primaryReading) == [
             "りんご", "ごりら", "らっこ", "こあら", "らくだ", "うさぎ", "ぎたー", "たいこ", "こねこ", "こっぷ",
             "りす", "すいか", "かめ", "めがね", "ねこ", "こま", "まくら", "だちょう", "うちわ", "わに",
+            "ふね", "ねぎ", "まり", "きのこ", "うま", "しか", "うし", "すず", "つき", "たこ",
         ])
     }
 
@@ -212,7 +213,7 @@ struct ObjectCardArtTests {
 
     @Test("全種が 20×20 で、パレットに無い文字を使っていない")
     func spritesAreWellFormed() {
-        #expect(ObjectCardKind.allCases.count == 20)
+        #expect(ObjectCardKind.allCases.count == 30)
         for kind in ObjectCardKind.allCases {
             let sprite = kind.sprite
             #expect(sprite.width == ObjectCardKind.dots && sprite.height == ObjectCardKind.dots, "\(kind)")
@@ -241,6 +242,6 @@ struct ObjectCardArtTests {
     @Test("VoiceOver 用の名前が全種にある")
     func everyKindHasAName() {
         for kind in ObjectCardKind.allCases { #expect(!kind.displayName.isEmpty) }
-        #expect(Set(ObjectCardKind.allCases.map(\.displayName)).count == 20)
+        #expect(Set(ObjectCardKind.allCases.map(\.displayName)).count == 30)
     }
 }
