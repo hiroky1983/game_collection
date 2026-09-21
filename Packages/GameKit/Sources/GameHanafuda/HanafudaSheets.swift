@@ -7,63 +7,63 @@ import Core
 ///
 /// **ここで選んだ値は試合の開始時に焼き込まれ、途中で変えられない**（1 局 = 1 RuleSet 原則）。
 /// 月見酒・花見酒はローカルルールなので、採用するかを最初に決めさせる。
+/// 見た目は他ゲームと同じ共通枠（`GameSetupSheet`・#527）に揃える。節が3つで `.medium` に収まらないため
+/// `.scrolling`（将棋・チェス・囲碁・五目並べと同じ判断基準）を使う。
 public struct HanafudaSetupSheet: View {
     @Binding var draft: HanafudaOptions
     let onStart: () -> Void
+    let onCancel: () -> Void
 
-    public init(draft: Binding<HanafudaOptions>, onStart: @escaping () -> Void) {
+    /// タイルが横3つ並ぶ CPU の強さは、他ゲームの3段選択と同じ縮小設定にする。
+    private static let strengthMetrics = GameSetupChooser.Metrics(
+        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6
+    )
+
+    public init(draft: Binding<HanafudaOptions>, onStart: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self._draft = draft
         self.onStart = onStart
+        self.onCancel = onCancel
     }
 
     public var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Picker("局数", selection: $draft.rounds) {
-                        ForEach(HanafudaOptions.allowedRounds, id: \.self) { count in
-                            Text("\(count)局").tag(count)
-                        }
+        GameSetupSheet(
+            title: "花札こいこい", startTitle: "はじめる", layout: .scrolling,
+            onStart: onStart, onCancel: onCancel
+        ) {
+            GameSetupSection("何局戦うか") {
+                HStack(spacing: 12) {
+                    ForEach(HanafudaOptions.allowedRounds, id: \.self) { count in
+                        GameSetupChooser(title: "\(count)局", subtitle: "",
+                                          selected: draft.rounds == count,
+                                          accent: Theme.Fill.purple) { draft.rounds = count }
                     }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("何局戦うか")
-                } footer: {
-                    Text("全局が終わった時点で、合計の文数が多いほうの勝ちです。")
                 }
-
-                Section {
-                    Picker("CPUの強さ", selection: $draft.difficulty) {
-                        ForEach(HanafudaDifficulty.allCases, id: \.self) { level in
-                            Text(level.label).tag(level)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("CPUの強さ")
-                }
-
-                Section {
-                    Toggle(isOn: $draft.sakeYakuEnabled) {
-                        Label("月見酒・花見酒", systemImage: "moon.stars")
-                            .foregroundStyle(Theme.ink)
-                    }
-                } header: {
-                    Text("ローカルルール")
-                } footer: {
-                    Text("「芒に月＋菊に盃」「桜に幕＋菊に盃」を役として数えます。オフにすると菊に盃はタネ札としてだけ働きます。")
+                Text("全局が終わった時点で、合計の文数が多いほうの勝ちです。")
+                    .themeBody(12).foregroundStyle(Theme.inkSub)
+            }
+            GameSetupSection("CPUの強さ") {
+                HStack(spacing: 12) {
+                    difficultyTile(.easy, accent: Theme.Fill.teal)
+                    difficultyTile(.normal, accent: Theme.Fill.yellow)
+                    difficultyTile(.hard, accent: Theme.Fill.coral)
                 }
             }
-            .navigationTitle("花札こいこい")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("はじめる") { onStart() }
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+            GameSetupSection("ローカルルール") {
+                Toggle(isOn: $draft.sakeYakuEnabled) {
+                    Label("月見酒・花見酒", systemImage: "moon.stars")
+                        .foregroundStyle(Theme.ink)
                 }
+                Text("「芒に月＋菊に盃」「桜に幕＋菊に盃」を役として数えます。オフにすると菊に盃はタネ札としてだけ働きます。")
+                    .themeBody(12).foregroundStyle(Theme.inkSub)
             }
+        }
+    }
+
+    private func difficultyTile(_ value: HanafudaDifficulty, accent: Color) -> some View {
+        GameSetupChooser(title: value.label, subtitle: "",
+                          selected: draft.difficulty == value, accent: accent,
+                          metrics: Self.strengthMetrics) {
+            draft.difficulty = value
         }
     }
 }

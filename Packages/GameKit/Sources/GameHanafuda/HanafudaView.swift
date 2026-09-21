@@ -57,7 +57,7 @@ public struct HanafudaView: View {
         .howToPlay(.hanafuda) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {
-            HanafudaSetupSheet(draft: $draft) { model.startMatch(options: draft) }
+            HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })
                 .interactiveDismissDisabled()
         }
         .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
