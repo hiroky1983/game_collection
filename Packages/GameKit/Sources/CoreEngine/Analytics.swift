@@ -193,16 +193,38 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     }
 }
 
+/// `game_start` に添える、そのゲームのこれまでの遊び込み具合（#1195）。
+///
+/// 送るのは**回数と経過日数だけ**（日時そのものや個人を特定する情報は載せない）。
+/// 目的は会長が GA4 で「どのゲームが繰り返し遊ばれ、どれが離れているか」を人の目で分析すること
+/// で、アプリ側の判定（久しぶり通知など）には使わない。
+public struct AnalyticsEngagement: Equatable, Sendable {
+    /// このプレイより前に**終局した**回数（そのゲームの通算・区分は合算）。初めてなら 0。
+    public let playCount: Int
+    /// 前回の決着からの経過日数（暦日ではなく 24 時間単位の切り捨て）。一度も遊んでいなければ nil で、鍵ごと送らない。
+    public let daysSinceLastPlay: Int?
+
+    public init(playCount: Int, daysSinceLastPlay: Int?) {
+        self.playCount = max(0, playCount)
+        self.daysSinceLastPlay = daysSinceLastPlay.map { max(0, $0) }
+    }
+}
+
 /// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
 /// `reward_offer` / `share_tap` の7種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
-/// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。
+/// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
+/// #1195 の会長決裁（2026-09-21・案A）でイベントは増やさずパラメータだけ足した。
 ///
 /// パラメータは各ケースの関連値だけから組み立てるため、呼び出し側が任意のキーや値を
 /// 追加する余地が無い。イベントを増やすにはこの enum にケースを足す = 意図的な変更が要る。
 public enum AnalyticsEvent: Equatable, Sendable {
     /// 1プレイの開始。パラメータは `game_id` と、難易度を持つゲームだけ `level`、
     /// 遊び方を選べるゲームだけ `mode`（#783・#820。値の全量は `AnalyticsMode`）。
-    case gameStart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil)
+    /// 遊び込み具合を渡したときだけ `play_count` / 一度でも遊んだゲームだけ `days_since_last_play`（#1195）。
+    case gameStart(
+        gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil,
+        engagement: AnalyticsEngagement? = nil
+    )
     /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` と、開始時に `mode` を
     /// 付けたプレイだけ `mode`（開始と終わりを同じ鍵で突き合わせるため）、そのプレイで 1 度でも
     /// ミスしたゲームだけ `cause`（最後のミスの原因・#796）。
@@ -248,12 +270,17 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 送信するパラメータ。キーも値もこの1か所でしか組み立てない。
     public var parameters: [String: AnalyticsValue] {
         switch self {
-        case let .gameStart(gameID, level, mode):
+        case let .gameStart(gameID, level, mode, engagement):
             var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
             // 難易度を持たないゲームでは鍵ごと送らない（GA4 で "none" のような
             // 実在しない段階を作らないため）。`mode` も同じ扱い。
             if let level { parameters["level"] = .string(level.parameterValue) }
             if let mode { parameters["mode"] = .string(mode.rawValue) }
+            if let engagement {
+                parameters["play_count"] = .int(engagement.playCount)
+                // 初めて遊ぶゲームでは鍵ごと送らない（`level` と同じく、実在しない値を作らない）。
+                if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
+            }
             return parameters
         case let .gameEnd(gameID, result, durationSec, mode, cause):
             var parameters: [String: AnalyticsValue] = [
@@ -347,6 +374,9 @@ public final class GameAnalytics {
     private let allowedGameIDs: Set<String>
     /// 現在時刻。テストが実時間で待たずに経過秒を検証できるよう差し替え可能にする。
     private let now: () -> Date
+    /// `game_start` に載せる遊び込み具合の取得元（#1195）。nil を返せば載せない。
+    /// 呼ぶのは開始のたびで、まだ今回のプレイを数えていない時点の記録を返すこと。
+    private let engagement: @MainActor (String, Date) -> AnalyticsEngagement?
     private var plays: [String: PlayState] = [:]
     /// 進行中のプレイの `mode`（#783）。開始で覚え、終わりの `game_end` に同じ値を載せる。
     /// `mode` を持たないゲームは鍵が無い。
@@ -358,11 +388,13 @@ public final class GameAnalytics {
     public init(
         service: AnalyticsService,
         allowedGameIDs: Set<String>,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        engagement: @escaping @MainActor (String, Date) -> AnalyticsEngagement? = { _, _ in nil }
     ) {
         self.service = service
         self.allowedGameIDs = allowedGameIDs
         self.now = now
+        self.engagement = engagement
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに呼ぶ。**冪等**。
@@ -521,10 +553,13 @@ public final class GameAnalytics {
     }
 
     private func beginPlay(gameID: String, level: AnalyticsLevel?, mode: AnalyticsMode?) {
-        plays[gameID] = .inFlight(startedAt: now(), didProgress: false, canResume: true)
+        let startedAt = now()
+        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: false, canResume: true)
         modes[gameID] = mode
         // 前のプレイの死因を次のプレイへ持ち越さない。
         causes[gameID] = nil
-        service.log(.gameStart(gameID: gameID, level: level, mode: mode))
+        service.log(.gameStart(
+            gameID: gameID, level: level, mode: mode, engagement: engagement(gameID, startedAt)
+        ))
     }
 }

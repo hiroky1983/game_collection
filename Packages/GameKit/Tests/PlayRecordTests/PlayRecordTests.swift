@@ -9,8 +9,6 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
-import GameBaccarat
-import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -850,20 +848,6 @@ struct GameRecordingTests {
         #expect(record?.plays == 1)
     }
 
-    @Test("バカラ: 精算後のチップが最高記録になる")
-    func baccaratRecordsChips() {
-        let (log, defaults, name) = makeLog(suite: "baccarat")
-        defer { defaults.removePersistentDomain(forName: name) }
-
-        let model = BaccaratModel(services: makeServices(log: log), seed: 20260921)
-        model.placeBet(100)   // 賭けた時点で決着まで進む
-
-        let record = log.record(gameID: "baccarat")
-        #expect(record?.metric == .points)
-        #expect(record?.bestPoints == model.chips)
-        #expect(record?.plays == 1)
-    }
-
     @Test("オセロ: 投了で敗北が記録され、連勝は0に戻る")
     func othelloRecordsWinLoss() {
         let (log, defaults, name) = makeLog(suite: "othello")
@@ -1127,30 +1111,6 @@ struct GameRecordingTests {
         #expect(record?.metric == .points)
         #expect(record?.bestPoints == model.playerChips)
         #expect(model.recordResult != nil)
-    }
-
-    @Test("七並べ: 決着すると勝敗が記録され、ハブに1行出る")
-    func sevensRecordsWinLoss() async {
-        let (log, defaults, name) = makeLog(suite: "sevens")
-        defer { defaults.removePersistentDomain(forName: name) }
-
-        let model = SevensModel(services: makeServices(log: log), cpuDelay: .zero, seed: 2026)
-        model.startGame()
-        for _ in 0..<500 where model.phase == .playing {
-            await model.runCPUTurnsIfNeeded()
-            guard model.phase == .playing, model.isPlayerTurn else { continue }
-            if let card = SevensRules.greedyPlay(hand: model.playerHand, board: model.board) {
-                model.play(card)
-            } else {
-                model.pass()
-            }
-        }
-
-        #expect(model.phase == .result)
-        #expect(model.recordResult != nil)
-        #expect(log.record(gameID: "sevens")?.plays == 1)
-        #expect(log.record(gameID: "sevens")?.metric == .winLoss)
-        #expect(log.summaryLine(gameID: "sevens") != nil)
     }
 
     @Test("大富豪: 中位フィニッシュ（引き分け扱い）でもハブに1行出る")

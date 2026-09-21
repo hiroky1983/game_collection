@@ -96,7 +96,7 @@ struct QuitTrackingTests {
 
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
-            case let .gameStart(_, _, mode):     return ("start", mode)
+            case let .gameStart(_, _, mode, _):     return ("start", mode)
             case let .gameEnd(_, _, _, mode, _): return ("end", mode)
             default:                             return nil
             }
@@ -658,7 +658,7 @@ struct RewardAdCallSiteTests {
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
         // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(counts.values.reduce(0, +) == 17, "リワード広告の面は17箇所（Core に寄せた待った・コンティニューの幕を除く）")
+        #expect(counts.values.reduce(0, +) == 16, "リワード広告の面は16箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 
@@ -685,7 +685,7 @@ struct PlayMeasurementCallSiteTests {
         return joined
     }
 
-    /// プレイを数えているモジュール（= ハブに並ぶ 23 本のゲーム）。
+    /// プレイを数えているモジュール（= ハブに並ぶ 21 本のゲーム）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -695,7 +695,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 23, "ハブに並ぶゲームは23本")
+        #expect(games.count == 21, "ハブに並ぶゲームは21本")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
