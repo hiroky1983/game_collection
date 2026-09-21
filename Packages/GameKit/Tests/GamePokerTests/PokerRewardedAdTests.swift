@@ -804,40 +804,6 @@ struct PokerReviveLeaderboardTests {
 
 // MARK: - 局を持たない中断データの扱い（#1104）
 
-/// お知らせの予約先のスパイ。`ResumeReminderTests` のものは許諾と競合まで見るが、ここで要るのは
-/// 「予約が入ったか」だけなので最小限にする。
-@MainActor
-private final class SpyReminderScheduler: ResumeReminderScheduler {
-    private(set) var reminders: [String: ResumeReminder] = [:]
-
-    func authorization() async -> ReminderAuthorization { .authorized }
-    func requestExplicitAuthorization() async -> ReminderAuthorization { .authorized }
-    func pendingReminders() async -> [ResumeReminder] { Array(reminders.values) }
-    func schedule(_ reminder: ResumeReminder, title: String, body: String) async {
-        reminders[reminder.gameID] = reminder
-    }
-    func cancel(gameIDs: [String]) { gameIDs.forEach { reminders[$0] = nil } }
-    func cancelAll() { reminders.removeAll() }
-}
-
-/// アプリを起動し直した状態（決着済みの印を覚えていない新しいサービス）を作る。
-@MainActor
-private func makeRelaunchedServices(
-    store: MemorySnapshotStore
-) -> (GameServices, ResumeReminderService, SpyReminderScheduler) {
-    let spy = SpyReminderScheduler()
-    let reminders = ResumeReminderService(
-        scheduler: spy,
-        isEnabled: { true },
-        isSuppressed: false,
-        reminderTitle: { $0 == "poker" ? "ポーカー" : nil }
-    )
-    let services = GameServices(
-        snapshots: store, ads: StubAdService(rewardEarned: true), reminders: reminders
-    )
-    return (services, reminders, spy)
-}
-
 @Suite("復活のチップだけを持つ中断データ（#1104）")
 @MainActor
 struct PokerRevivedSnapshotTests {
@@ -893,7 +859,10 @@ struct PokerRevivedSnapshotTests {
                 "前提が崩れた: 局を持たない中断データが残るはず")
 
         // アプリを終了して起動し直し、ハブから開いて次の局を始めずに戻る。
-        let (services, reminders, spy) = makeRelaunchedServices(store: store)
+        let (services, reminders, spy) = makeRelaunchedServices(
+            store: store, ads: StubAdService(rewardEarned: true),
+            reminderTitle: { $0 == "poker" ? "ポーカー" : nil }
+        )
         _ = PokerModel(services: services)
         services.gameDidLeave(gameID: "poker")
         await reminders.pendingWork?.value
@@ -916,7 +885,10 @@ struct PokerRevivedSnapshotTests {
             for: "poker"
         )
 
-        let (services, reminders, spy) = makeRelaunchedServices(store: store)
+        let (services, reminders, spy) = makeRelaunchedServices(
+            store: store, ads: StubAdService(rewardEarned: true),
+            reminderTitle: { $0 == "poker" ? "ポーカー" : nil }
+        )
         let model = PokerModel(services: services)
         #expect(model.phase == .betting1, "前提が崩れた: 途中の局を復元しているはず")
         services.gameDidLeave(gameID: "poker")
