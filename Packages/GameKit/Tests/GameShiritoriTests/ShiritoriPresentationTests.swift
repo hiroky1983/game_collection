@@ -6,17 +6,9 @@ import Core
 @Suite("カードしりとりの文言")
 struct ShiritoriPresentationTests {
 
-    @Test("取った割合は四捨五入。0 枚は 0%")
-    func sharePercentRounds() {
-        #expect(ShiritoriPresentation.sharePercent(player: 2, cpu: 1) == 67)
-        #expect(ShiritoriPresentation.sharePercent(player: 1, cpu: 2) == 33)
-        #expect(ShiritoriPresentation.sharePercent(player: 1, cpu: 1) == 50)
-        #expect(ShiritoriPresentation.sharePercent(player: 0, cpu: 0) == 0)
-    }
-
     @Test("結果の見出しは終わり方と勝敗の全組み合わせで空でなく、勝ち・負けが読み取れる")
     func resultTitlesCoverEveryEnding() {
-        let endings: [ShiritoriEnding] = [.cpuStuck, .playerStuck, .timeUp, .playerHitN, .cpuHitN]
+        let endings: [ShiritoriEnding] = [.cpuStuck, .playerStuck, .timeUp, .playerHitN, .cpuHitN, .quotaReached]
         for ending in endings {
             for win in [true, false] {
                 // 「ん」の即決着は勝敗が終わり方で決まるので、起こり得ない組み合わせは見ない。
@@ -24,18 +16,22 @@ struct ShiritoriPresentationTests {
                 if ending == .cpuHitN && !win { continue }
                 if ending == .cpuStuck && !win { continue }
                 if ending == .playerStuck && win { continue }
+                if ending == .timeUp && win { continue }         // 時間切れは負け固定
+                if ending == .quotaReached && !win { continue }  // ノルマ到達は勝ち固定
                 let title = ShiritoriPresentation.resultTitle(ending: ending, didWin: win)
                 #expect(title.contains(win ? "勝ち" : "負け"), "\(ending) win=\(win): \(title)")
             }
         }
     }
 
-    @Test("内訳の 1 行に枚数・割合が入り、ノルマは時間切れのときだけ添える")
+    @Test("内訳の 1 行に枚数が入り、ノルマは時間切れ・ノルマ到達のときだけ添える")
     func resultDetailMentionsCountsAndQuota() {
         let timeUp = ShiritoriPresentation.resultDetail(player: 3, cpu: 2, quota: .normal, ending: .timeUp)
-        #expect(timeUp == "あなた3枚・CPU2枚（60%）／ノルマ: 取った札の過半数（5割より多く）でクリア")
+        #expect(timeUp == "あなた3枚・CPU2枚／ノルマ: 6枚取ったらクリア")
+        let reached = ShiritoriPresentation.resultDetail(player: 6, cpu: 5, quota: .normal, ending: .quotaReached)
+        #expect(reached == "あなた6枚・CPU5枚／ノルマ: 6枚取ったらクリア")
         let stuck = ShiritoriPresentation.resultDetail(player: 3, cpu: 2, quota: .normal, ending: .cpuStuck)
-        #expect(stuck == "あなた3枚・CPU2枚（60%）")
+        #expect(stuck == "あなた3枚・CPU2枚")
     }
 
     @Test("案内: 自分の番は受ける字を出し、CPU の番は考え中")

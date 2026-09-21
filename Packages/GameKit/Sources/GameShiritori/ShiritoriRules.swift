@@ -28,17 +28,12 @@ public struct ShiritoriMove: Equatable, Sendable {
 
 // MARK: - ノルマ（難易度）
 
-/// 難易度。**ノルマの割合だけで表す**（会長決裁 2026-09-21・#1243。CPU の考える速さでは変えない）。
+/// 難易度。**ノルマの枚数だけで表す**（会長決裁 2026-09-21・#1243。CPU の考える速さでは変えない）。
 ///
-/// ノルマは「決着した時点で、取られた札のうち自分が取った札の割合」で見る。
-/// 割合は やさしい=4割以上・ふつう=5割より多く（過半数）・むずかしい=7割以上。
-///
-/// - Important: Issue #1243 の文面は「山札に対する割合」だが、1 本の連鎖を交互に取る限り
-///   プレイヤーが取れるのは最大でも山札の約半分（先手・交互。30 枚でも最長連鎖 22 手＝約 11 枚）なので、
-///   5割超・7割を山札に対して数えると**数学的に届かない**。そこで取られた札の合計を分母にしている。
-///   ただし判定を使うのは時間切れだけで、その瞬間は先手・交互のため常に同数（50%）になる。
-///   数字の見直しは #1245 で会長に提案中（決まるまで現行のまま）。
-///   割合の定義を変えるときはこの型の `isMet` だけを触ればよい。
+/// ノルマは「プレイヤーが取った札の枚数」で、**取るたびに見て、届いた瞬間に勝ち**（本家ワギャンランドと同じ
+/// 即時勝利条件・社長決裁 2026-09-21 の訂正・#1245）。時間切れまでにノルマへ届かなければ負け。
+/// 枚数は暫定値（参考: ランダムに打つ人の平均 6.4 枚・上位 1 割 9 枚）で、会長が本家の実プレイ動画で
+/// 確かめたあとに変わりうる。数字を変えるときはこの型の `cardCount` だけを触ればよい。
 public enum ShiritoriQuota: Int, CaseIterable, Codable, Sendable {
     case easy = 0
     case normal = 1
@@ -55,25 +50,16 @@ public enum ShiritoriQuota: Int, CaseIterable, Codable, Sendable {
     }
 
     /// 開始シート・結果に出すノルマの説明。
-    public var summary: String {
+    public var summary: String { "\(cardCount)枚取ったらクリア" }
+
+    /// 勝ちになる、プレイヤーが取った枚数。
+    public var cardCount: Int {
         switch self {
-        case .easy:   return "取った札の4割以上でクリア"
-        case .normal: return "取った札の過半数（5割より多く）でクリア"
-        case .hard:   return "取った札の7割以上でクリア"
+        case .easy:   return 4
+        case .normal: return 6
+        case .hard:   return 9
         }
     }
-
-    /// 割合（%）。
-    var percent: Int {
-        switch self {
-        case .easy:   return 40
-        case .normal: return 50
-        case .hard:   return 70
-        }
-    }
-
-    /// 「より多く」か（false は「以上」）。過半数だけが厳密な不等号。
-    var isStrict: Bool { self == .normal }
 
     public var analyticsLevel: AnalyticsLevel {
         switch self {
@@ -83,14 +69,8 @@ public enum ShiritoriQuota: Int, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// 決着時の獲得枚数がノルマを満たすか。誰も取っていない（合計 0 枚）なら満たさない。
-    public func isMet(player: Int, cpu: Int) -> Bool {
-        let total = player + cpu
-        guard total > 0 else { return false }
-        let lhs = player * 100
-        let rhs = percent * total
-        return isStrict ? lhs > rhs : lhs >= rhs
-    }
+    /// プレイヤーが取った枚数がノルマに届いているか。
+    public func isMet(player: Int) -> Bool { player >= cardCount }
 }
 
 // MARK: - 時間

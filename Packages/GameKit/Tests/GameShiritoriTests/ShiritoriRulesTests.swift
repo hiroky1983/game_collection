@@ -162,40 +162,32 @@ struct ShiritoriRulesTests {
 @Suite("ノルマ（難易度）")
 struct ShiritoriQuotaTests {
 
-    @Test("やさしい: 4割以上（ちょうど 4割は満たす）")
-    func easyIsInclusive() {
-        #expect(ShiritoriQuota.easy.isMet(player: 2, cpu: 3), "2/5 = 40%")
-        #expect(!ShiritoriQuota.easy.isMet(player: 1, cpu: 2), "1/3 = 33%")
-        #expect(ShiritoriQuota.easy.isMet(player: 1, cpu: 1))
+    @Test("ノルマの枚数は やさしい4・ふつう6・むずかしい9（暫定値・#1245）")
+    func cardCounts() {
+        #expect(ShiritoriQuota.allCases.map(\.cardCount) == [4, 6, 9])
     }
 
-    @Test("ふつう: 5割より多く（ちょうど 5割は満たさない）")
-    func normalIsStrictMajority() {
-        #expect(!ShiritoriQuota.normal.isMet(player: 1, cpu: 1), "1/2 = 50%")
-        #expect(ShiritoriQuota.normal.isMet(player: 2, cpu: 1), "2/3 = 67%")
-        #expect(!ShiritoriQuota.normal.isMet(player: 3, cpu: 3))
-    }
-
-    @Test("むずかしい: 7割以上（ちょうど 7割は満たす）")
-    func hardIsSeventyPercent() {
-        #expect(ShiritoriQuota.hard.isMet(player: 7, cpu: 3), "7/10 = 70%")
-        #expect(!ShiritoriQuota.hard.isMet(player: 2, cpu: 1), "2/3 = 67%")
-        #expect(ShiritoriQuota.hard.isMet(player: 1, cpu: 0))
-    }
-
-    @Test("1 枚も取られていなければ、どの難易度でも満たさない")
-    func nobodyTookAnythingIsNeverMet() {
-        for quota in ShiritoriQuota.allCases { #expect(!quota.isMet(player: 0, cpu: 0)) }
-    }
-
-    @Test("難易度が上がるほどノルマは厳しい（同じ成績で満たす段が単調に減る）")
-    func laddersAreMonotonic() {
-        for player in 0...10 {
-            for cpu in 0...10 {
-                let met = ShiritoriQuota.allCases.map { $0.isMet(player: player, cpu: cpu) }
-                #expect(met == met.sorted { $0 && !$1 }, "\(player)-\(cpu): \(met)")
-            }
+    @Test("ちょうどの枚数で満たし、1 枚足りなければ満たさない")
+    func boundaryIsInclusive() {
+        for quota in ShiritoriQuota.allCases {
+            #expect(quota.isMet(player: quota.cardCount), "\(quota)")
+            #expect(!quota.isMet(player: quota.cardCount - 1), "\(quota)")
+            #expect(quota.isMet(player: quota.cardCount + 1), "\(quota)")
         }
+        for quota in ShiritoriQuota.allCases { #expect(!quota.isMet(player: 0)) }
+    }
+
+    @Test("難易度が上がるほどノルマは厳しい（同じ枚数で満たす段が単調に減る）")
+    func laddersAreMonotonic() {
+        for player in 0...12 {
+            let met = ShiritoriQuota.allCases.map { $0.isMet(player: player) }
+            #expect(met == met.sorted { $0 && !$1 }, "\(player): \(met)")
+        }
+    }
+
+    @Test("説明文は枚数を含む")
+    func summaryMentionsCount() {
+        #expect(ShiritoriQuota.allCases.map(\.summary) == ["4枚取ったらクリア", "6枚取ったらクリア", "9枚取ったらクリア"])
     }
 
     @Test("解析の段階と表示名")

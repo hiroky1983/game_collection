@@ -135,23 +135,23 @@ struct ShiritoriModelTests {
         #expect(model.timeRemaining == 50, "0 以下の経過は無視する")
     }
 
-    @Test("時間切れ: ノルマで勝敗が決まる。1 枚も取っていなければ負け")
+    @Test("時間切れ: 1 枚も取っていなければ負け")
     func timeUpWithNothingTakenLoses() {
         let (model, _) = makeModel()
         model.configureForTesting(opener: apple, board: [gorilla], quota: .easy)
         model.tick(60)
 
         #expect(model.ending == .timeUp)
-        #expect(!model.didPlayerWin, "0 枚はやさしいでも満たさない")
+        #expect(!model.didPlayerWin)
         #expect(model.phase == .result)
         model.tick(5)
         model.select(0)
         #expect(model.slots[0].owner == nil, "決着後は操作できない")
     }
 
-    @Test("CPU が続けられない: ノルマに関係なく勝ち（会長決裁 2026-09-21・#1245）")
+    @Test("CPU が続けられない: ノルマに届いていなくても勝ち（会長決裁 2026-09-21・#1245）")
     func cpuStuckAlwaysWins() async {
-        // りんご →(あなた)ごりら →(CPU)らっこ →(あなた)こま →(CPU 詰み)。2 対 1 = 66% はむずかしいの7割に届かない。
+        // りんご →(あなた)ごりら →(CPU)らっこ →(あなた)こま →(CPU 詰み)。2 対 1 はどの難易度のノルマ（4 枚以上）にも届かない。
         for quota in ShiritoriQuota.allCases {
             let (model, _) = makeModel()
             model.configureForTesting(opener: apple, board: [gorilla, otter, top], quota: quota)
@@ -161,13 +161,13 @@ struct ShiritoriModelTests {
             model.select(2)                              // こま（語尾ま）
             #expect(model.ending == .cpuStuck, "\(quota)")
             #expect(model.playerCount == 2 && model.cpuCount == 1)
-            #expect(!model.isQuotaMet || quota != .hard, "むずかしいのノルマは満たしていない局面で確かめる")
-            #expect(model.didPlayerWin, "\(quota): 詰ませたら割合に関係なく勝ち")
+            #expect(!model.isQuotaMet, "ノルマは満たしていない局面で確かめる")
+            #expect(model.didPlayerWin, "\(quota): 詰ませたら枚数に関係なく勝ち")
             #expect(model.phase == .result)
         }
     }
 
-    @Test("プレイヤーが続けられない: ノルマに関係なく負け（同数でもやさしいで救われない）")
+    @Test("プレイヤーが続けられない: 負け")
     func playerStuckAlwaysLoses() async {
         for quota in ShiritoriQuota.allCases {
             let (model, _) = makeModel()
@@ -177,14 +177,13 @@ struct ShiritoriModelTests {
             await model.runCPUTurnIfNeeded()
             #expect(model.ending == .playerStuck, "\(quota)")
             #expect(model.playerCount == 1 && model.cpuCount == 1)
-            #expect(model.isQuotaMet == (quota == .easy), "やさしいの4割は満たしているが、それでも")
             #expect(!model.didPlayerWin, "\(quota)")
         }
     }
 
-    @Test("時間切れだけはノルマで決まる。同数（50%）はやさしいでは勝ち・ふつうでは負け")
-    func timeUpIsJudgedByQuota() async {
-        for (quota, expectedWin) in [(ShiritoriQuota.easy, true), (.normal, false)] {
+    @Test("時間切れは常に負け: ノルマ未達のまま時間が尽きる（同数でもやさしいで救われない）")
+    func timeUpAlwaysLoses() async {
+        for quota in ShiritoriQuota.allCases {
             let (model, _) = makeModel()
             model.configureForTesting(opener: apple, board: [gorilla, otter, top], quota: quota)
             model.select(0)
@@ -192,8 +191,61 @@ struct ShiritoriModelTests {
             model.tick(100)
             #expect(model.ending == .timeUp, "\(quota)")
             #expect(model.playerCount == 1 && model.cpuCount == 1)
-            #expect(model.didPlayerWin == expectedWin, "\(quota)")
+            #expect(!model.didPlayerWin, "\(quota)")
         }
+    }
+
+    /// りんご →(あなた)ごりら →(CPU)らっこ →(あなた)こま →(CPU)まくら →(あなた)らくだ →(CPU)だるま →(あなた)まり。
+    /// あなたは 4 枚（ごりら・こま・らくだ・まり）、CPU は 3 枚。CPU は盤の並び順で最初に受けられる札を取る。
+    private static let quotaChain = [
+        ShiritoriCard(.gorilla, "ごりら"), ShiritoriCard(.seaOtter, "らっこ"), ShiritoriCard(.spinningTop, "こま"),
+        ShiritoriCard(.pillow, "まくら"), ShiritoriCard(.camel, "らくだ"), ShiritoriCard(.ostrich, "だるま"),
+        ShiritoriCard(.ball, "まり"),
+    ]
+
+    private func playQuotaChain(_ model: ShiritoriModel) async {
+        for playerSlot in [0, 2, 4, 6] where model.phase == .playing {
+            model.select(playerSlot)
+            await model.runCPUTurnIfNeeded()
+        }
+    }
+
+    @Test("ノルマの枚数に届いた瞬間に勝ち（時間切れを待たない・#1245）。やさしいは 4 枚目で決着する")
+    func reachingTheQuotaWinsImmediately() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: Self.quotaChain, quota: .easy)
+        await playQuotaChain(model)
+
+        #expect(model.ending == .quotaReached)
+        #expect(model.playerCount == 4 && model.cpuCount == 3)
+        #expect(model.didPlayerWin)
+        #expect(model.timeRemaining > 0, "時間は残っている")
+        #expect(model.phase == .result)
+        #expect(model.reviewOutcome == .win)
+    }
+
+    @Test("同じ 4 枚でも、ふつう（6 枚）ではまだ届かない。決着は CPU の詰みまで持ち越す")
+    func fourCardsDoNotReachNormalQuota() async {
+        let (model, _) = makeModel()
+        model.configureForTesting(opener: apple, board: Self.quotaChain, quota: .normal)
+        await playQuotaChain(model)
+
+        #expect(model.playerCount == 4)
+        #expect(!model.isQuotaMet)
+        #expect(model.ending == .cpuStuck, "ノルマ未達でも詰ませて勝つ経路は残る")
+    }
+
+    @Test("ノルマに届く札が「ん」で終わるなら、ノルマより「ん」の負けが先")
+    func hittingNBeatsReachingTheQuota() async {
+        let (model, _) = makeModel()
+        // 4 枚目（まり の代わりに まん）が「ん」で終わる。
+        var board = Self.quotaChain
+        board[6] = ShiritoriCard(.ball, "まん")
+        model.configureForTesting(opener: apple, board: board, quota: .easy)
+        await playQuotaChain(model)
+
+        #expect(model.ending == .playerHitN)
+        #expect(!model.didPlayerWin)
     }
 
     @Test("「ん」で終わる読みを選んだら、ノルマに関係なくその場で負ける")
