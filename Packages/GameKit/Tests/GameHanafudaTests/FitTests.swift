@@ -68,5 +68,20 @@ struct HanafudaFitTests {
         let m = HanafudaFit.metrics(availableWidth: 343, availableHeight: 500, stripHeight: 40,
                                     fieldCount: 8, handCount: 8)
         #expect(m.columns.count == m.columnCount)
+        for column in m.columns {
+            guard case .fixed(let width) = column.size else {
+                Issue.record("固定幅でない列がある")
+                continue
+            }
+            #expect(width == m.cardWidth)
+        }
+    }
+
+    /// 見出し 3 行（16pt）＋ 3 カードの上下余白（60）＋ カード内の縦の間隔 4 か所（24）＋ カード間 2 か所（16）。
+    /// 実装と同じ式をテストが参照すると、式を壊しても収まりテストが一緒に動いて緑のまま残るため、値で固定する。
+    @Test("縮められない高さの見積もりは 148pt")
+    func fixedHeightIsPinned() {
+        #expect(HanafudaFit.fixedHeight == 148)
+        #expect(HanafudaCardArt.aspectRatio == 1.5)
     }
 }

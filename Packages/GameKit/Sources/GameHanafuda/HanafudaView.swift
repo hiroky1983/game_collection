@@ -259,6 +259,7 @@ public struct HanafudaView: View {
                     ))
                 }
             }
+            .frame(maxWidth: .infinity)
         }
         .padding(10)
         .popCard(corner: Theme.cornerSmall)
