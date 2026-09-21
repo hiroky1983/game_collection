@@ -125,10 +125,6 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
         return await authorization()
     }
 
-    func scheduledGameID() async -> String? {
-        await Self.pendingGameID()
-    }
-
     func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
         // 前回の予約が残っているとインデックスがずれて末尾が重複するため、採番し直す前に必ず消す。
         let identifiers = ReengagementReminderPolicy.offsetDays.indices
@@ -152,12 +148,6 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
 
     nonisolated private static func authorizationStatus() async -> UNAuthorizationStatus {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
-    }
-
-    nonisolated private static func pendingGameID() async -> String? {
-        await UNUserNotificationCenter.current().pendingNotificationRequests()
-            .first { $0.identifier.hasPrefix(ReengagementReminderNotification.identifierPrefix) }
-            .flatMap { $0.content.userInfo[ReengagementReminderNotification.gameIDKey] as? String }
     }
 
     nonisolated private static func cancelAllPendingAndDelivered() async {
