@@ -187,7 +187,7 @@ struct MahjongNewGameTests {
         model.startGame(length: .tonpuu)
         model.startGame(length: .singleHand)
         let modes = spy.events.compactMap { event -> String? in
-            if case let .gameStart(_, _, mode) = event { return mode?.rawValue } else { return nil }
+            if case let .gameStart(_, _, mode, _) = event { return mode?.rawValue } else { return nil }
         }
         #expect(modes == ["tonpuu", "single_hand"])
     }

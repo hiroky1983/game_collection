@@ -631,6 +631,8 @@ struct GoRuleDetails: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .padding(12)
+                .popCard(corner: Theme.cornerSmall)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

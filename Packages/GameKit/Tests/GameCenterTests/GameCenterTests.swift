@@ -9,8 +9,6 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
-import GameBaccarat
-import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -87,7 +85,7 @@ private func isClose(_ actual: Double?, _ expected: Double) -> Bool {
 private func makeHubModules() -> [GameModule] {
     [
         Game2048Module(), ShogiModule(), GomokuModule(), MinesweeperModule(), OthelloModule(),
-        PokerModule(), ConcentrationModule(), BlackjackModule(), BaccaratModule(), SevensModule(), DaifugoModule(),
+        PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(),
@@ -281,7 +279,6 @@ struct GameCenterLeaderboardTests {
             ("2048", GameScore(metric: .points, points: 1)),
             ("poker", GameScore(metric: .points, points: 1)),
             ("blackjack", GameScore(metric: .points, points: 1)),
-            ("baccarat", GameScore(metric: .points, points: 1)),
             ("blocks", GameScore(metric: .points, points: 1)),
             // 区分キーは `MinesweeperDifficulty` のプリセット（#444 で 12×12/25・15×15/40 から変更）。
             ("minesweeper", GameScore(metric: .shortestTime, seconds: 1, variant: "9x9-10")),
@@ -704,48 +701,6 @@ struct GameCenterPerGameTests {
         #expect(spy.scores.count == 1)
         #expect(spy.scores.first?.leaderboardID == GameCenterLeaderboard.blackjackChips)
         #expect(spy.scores.first?.value == model.chips)
-    }
-
-    @Test("バカラ: 精算後のチップが送られる")
-    func baccarat() {
-        let (log, defaults, name) = makeLog(suite: "baccarat")
-        defer { defaults.removePersistentDomain(forName: name) }
-        let spy = SpyGameCenterService()
-
-        let model = BaccaratModel(services: makeServices(log: log, spy: spy), seed: 20260921)
-        model.placeBet(100)   // 賭けた時点で決着まで進む
-
-        #expect(spy.scores.count == 1)
-        #expect(spy.scores.first?.leaderboardID == GameCenterLeaderboard.baccaratChips)
-        #expect(spy.scores.first?.value == model.chips)
-    }
-
-    /// 復活（#499）を使ったセッションは順位表から外す。外さないと「広告を何回見たか」の表になる。
-    @Test("バカラ: 復活を使ったセッションのラウンドは何も送らない")
-    func baccaratSkipsRevivedSession() async {
-        let (log, defaults, name) = makeLog(suite: "baccarat-revived")
-        defer { defaults.removePersistentDomain(forName: name) }
-        let spy = SpyGameCenterService()
-
-        let model = BaccaratModel(services: makeServices(log: log, spy: spy), seed: 20260921)
-        // 全額をタイに賭け続けて破産させる（外れやすいので数局で尽きる）。
-        model.select(.tie)
-        for _ in 0..<300 {
-            if model.sessionOver { break }
-            if model.phase == .result { model.nextRound() }
-            guard model.phase == .betting, model.chips >= BaccaratModel.minimumBet else { break }
-            model.placeBet(model.chips)
-        }
-        #expect(model.sessionOver)
-        #expect(!spy.scores.isEmpty, "破産までのラウンドは対象（復活前なので送る）")
-
-        #expect(await model.recoverChipsAfterAd())
-        // 破産までのぶんは送信済みなので、ここから先に増えないことを見る。
-        let sentBeforeRevive = spy.scores.count
-        model.placeBet(100)
-        #expect(model.phase == .result, "1 ラウンドは決着している")
-        #expect(spy.scores.count == sentBeforeRevive, "復活後のラウンドは順位表へ送らない")
-        #expect(model.recordResult != nil, "順位表から外すだけで、手元の記録は残す（#397）")
     }
 
     @Test("オセロ: 投了しても順位表には何も送らない")

@@ -9,8 +9,6 @@ import GameOthello
 import GamePoker
 import GameConcentration
 import GameBlackjack
-import GameBaccarat
-import GameSevens
 import GameDaifugo
 import GameMahjongSolitaire
 import GameMahjong
@@ -574,43 +572,6 @@ struct GameOutcomeRoutingTests {
         model.restartSession()
         model.placeBet(100)
         if model.phase == .playerTurn { model.stand() }
-        #expect(model.phase == .result)
-
-        switch model.reviewOutcome {
-        case .win:  #expect(service.log.totalWins == 1)
-        default:    #expect(service.log.totalWins == 0)
-        }
-    }
-
-    @Test("バカラ: 手の強弱ではなく、賭けが当たったかで振り分ける")
-    func baccarat() {
-        let (services, service) = makeServices(suite: "route-baccarat")
-        let model = BaccaratModel(services: services, seed: 20260921)
-        model.select(.player)
-        model.placeBet(100)
-        #expect(model.phase == .result)
-
-        // プレイヤーの手が勝ったときだけ勝ち。タイは引き分け（賭け金が戻る）。
-        switch model.outcome {
-        case .player: #expect(service.log.totalWins == 1)
-        default:      #expect(service.log.totalWins == 0)
-        }
-    }
-
-    @Test("七並べ: 勝てば勝ち・負ければ負けに振り分ける")
-    func sevens() async {
-        let (services, service) = makeServices(suite: "route-sevens")
-        let model = SevensModel(services: services, cpuDelay: .zero, seed: 2026)
-        model.startGame()
-        for _ in 0..<500 where model.phase == .playing {
-            await model.runCPUTurnsIfNeeded()
-            guard model.phase == .playing, model.isPlayerTurn else { continue }
-            if let card = SevensRules.greedyPlay(hand: model.playerHand, board: model.board) {
-                model.play(card)
-            } else {
-                model.pass()
-            }
-        }
         #expect(model.phase == .result)
 
         switch model.reviewOutcome {
