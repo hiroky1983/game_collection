@@ -21,6 +21,11 @@ public extension CPUStrength {
 /// 「表示している文言と探索の中身を一致させる」約束（#416）はこの 1 行が引き継ぐので、
 /// `details` には各ゲームのエンジンが実際にやっていることを書くこと。
 ///
+/// **5 つを 1 行に並べると文字も枠も小さくなりすぎる**（会長の指摘・2026-09-22）。
+/// 3 列 × 2 段（5 個目は 3 列目の下が空く）に組み替え、1 タイルの横幅を約 1.7 倍にして
+/// 標準に近い大きさの文字で収める。読み上げ順（`CPUStrength.allCases`）は変えないので、
+/// 左上から右下へやさしい順に読む向きも保たれる。
+///
 /// 4 ゲーム（将棋・チェス・五目並べ・オセロ）が同じ部品を使い、寸法も色も揃える。
 /// 呼び出し側は節の見出しごと `GameSetupSection("CPUの強さ")` で包む。
 public struct CPUStrengthPicker: View {
@@ -28,11 +33,16 @@ public struct CPUStrengthPicker: View {
     private let details: [String]
     @Binding private var level: Int
 
-    /// タイルが 5 つ横に並ぶので、標準より一回り小さく詰める（囲碁の置き石と同じ考え方）。
-    /// 最長の「むずかしい」は狭い端末（iPhone SE）で縮めて 1 行に収める。
+    /// 3 列になった分、5 列詰めだった頃より大きく取れる。最長の「むずかしい」も
+    /// 縮小なしで 1 行に収まる（`GameSetupSheetTests` の実測）。
     private static let metrics = GameSetupChooser.Metrics(
-        title: .body(15), verticalPadding: 14, titleMinimumScale: 0.6
+        title: .body(17), verticalPadding: 16, titleMinimumScale: 0.8
     )
+    private static let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+    ]
 
     public init(level: Binding<Int>, details: [String]) {
         _level = level
@@ -46,7 +56,7 @@ public struct CPUStrengthPicker: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+            LazyVGrid(columns: Self.columns, spacing: 8) {
                 ForEach(CPUStrength.allCases, id: \.rawValue) { strength in
                     GameSetupChooser(
                         title: strength.label, subtitle: "",
