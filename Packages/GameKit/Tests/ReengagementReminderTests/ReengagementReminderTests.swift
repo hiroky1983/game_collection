@@ -4,7 +4,7 @@ import Core
 
 // MARK: - テスト用の部品
 
-/// 予約先のスパイ。実装（`UserNotificationReengagementScheduler`）と同じく、対象は常に高々1件。
+/// 予約先のスパイ。実装（`UserNotificationReengagementScheduler`）と同じく、ゲームごとに予約を持つ。
 @MainActor
 private final class SpyScheduler: ReengagementReminderScheduler {
     var status: ReminderAuthorization
@@ -46,13 +46,14 @@ private final class SpyScheduler: ReengagementReminderScheduler {
         return status
     }
 
-    func scheduledGameID() async -> String? {
-        scheduled.keys.first
-    }
-
     func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
-        scheduled[gameID] = fireDates
-        contents[gameID] = (title, body)
+        if fireDates.isEmpty {
+            scheduled[gameID] = nil
+            contents[gameID] = nil
+        } else {
+            scheduled[gameID] = fireDates
+            contents[gameID] = (title, body)
+        }
     }
 
     func cancel(gameID: String) {
@@ -87,16 +88,29 @@ private func date(_ day: Int, _ hour: Int = 12, _ minute: Int = 0) -> Date {
     tokyo.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
 }
 
+/// `days` 日後の暦日で、送信時刻（19時）に設定した日時。月をまたぐ計算はこちらを使う。
+private func offsetDate(_ days: Int, from base: Date, hour: Int = ReengagementReminderPolicy.deliveryHour) -> Date {
+    let day = tokyo.date(byAdding: .day, value: days, to: base)!
+    return tokyo.date(bySettingHour: hour, minute: 0, second: 0, of: day)!
+}
+
 private let titles = ["shogi": "将棋", "2048": "2048", "sudoku": "ナンプレ", "go": "囲碁"]
+
+/// テストごとに独立した `UserDefaults` の入れ物（プロセス内の他テストと状態を共有しないため）。
+private func freshStore() -> ReengagementReminderStore {
+    ReengagementReminderStore(defaults: UserDefaults(suiteName: "ReengagementReminderTests.\(UUID().uuidString)")!)
+}
 
 @MainActor
 private func makeService(
     _ spy: SpyScheduler,
     _ env: Environment,
+    store: ReengagementReminderStore = freshStore(),
     suppressed: Bool = false
 ) -> ReengagementReminderService {
     ReengagementReminderService(
         scheduler: spy,
+        store: store,
         isEnabled: { env.enabled },
         isSuppressed: suppressed,
         reminderTitle: { env.hidden.contains($0) ? nil : titles[$0] },
@@ -173,6 +187,37 @@ struct ReengagementReminderPolicyTests {
         #expect(dates.count == 1)
         #expect(dates.first == tokyo.date(byAdding: .day, value: 60, to: date(1, 19))!)
     }
+
+    @Test("新規スレッドの追加は直近の追加からちょうど3日で解禁、2日は不可")
+    func newThreadCooldown() {
+        let lastAdded = date(1, 8)
+        #expect(!ReengagementReminderPolicy.canAddNewThread(lastThreadAddedAt: lastAdded, now: date(3, 8), calendar: tokyo))
+        #expect(ReengagementReminderPolicy.canAddNewThread(lastThreadAddedAt: lastAdded, now: date(4, 8), calendar: tokyo))
+        #expect(ReengagementReminderPolicy.canAddNewThread(lastThreadAddedAt: nil, now: date(1, 8), calendar: tokyo),
+                "一度も追加していなければ常に追加できる")
+    }
+
+    @Test("60日後通知は発火予定時刻+24時間経つまでは未反応と判定しない")
+    func unresponsiveRequires24HoursAfterSixtyDayFire() {
+        let lastPlayedAt = date(1, 8)
+        let fireDate = ReengagementReminderPolicy.sixtyDayFireDate(lastPlayedAt: lastPlayedAt, calendar: tokyo)!
+        #expect(fireDate == tokyo.date(byAdding: .day, value: 60, to: date(1, 19))!)
+        #expect(!ReengagementReminderPolicy.isUnresponsiveAfterSixtyDays(fireDate: fireDate, now: fireDate.addingTimeInterval(23 * 60 * 60)))
+        #expect(ReengagementReminderPolicy.isUnresponsiveAfterSixtyDays(fireDate: fireDate, now: fireDate.addingTimeInterval(24 * 60 * 60)))
+    }
+
+    @Test("同じ暦日に重なったら日数の大きい方だけ残る")
+    func resolvingCollisionsKeepsLargerOffset() {
+        let sameDay = date(10, 19)
+        let otherDay = date(20, 19)
+        let threads: [String: [(days: Int, date: Date)]] = [
+            "shogi": [(30, sameDay), (60, otherDay)],
+            "go": [(7, sameDay)],
+        ]
+        let resolved = ReengagementReminderPolicy.resolvingCollisions(threads: threads, calendar: tokyo)
+        #expect(resolved["shogi"] == [sameDay, otherDay], "衝突しなかった shogi の 60 日後はそのまま残る")
+        #expect(resolved["go"] == nil, "go の 7 日後は shogi の 30 日後に負けてスキップされる")
+    }
 }
 
 // MARK: - サービスの挙動
@@ -195,44 +240,186 @@ struct ReengagementReminderServiceTests {
         #expect(spy.contents["shogi"]?.title == "「将棋」、久しぶりに遊んでみませんか？")
     }
 
-    @Test("対象が無ければ何も予約せず、前回の対象があれば取り消す")
-    func cancelsWhenNoCandidate() async {
+    @Test("複数ゲームのスレッドが同時にアクティブになれ、新しい対象が選ばれても既存スレッドはキャンセルされない")
+    func multipleThreadsCanBeActiveSimultaneously() async {
         let spy = SpyScheduler()
-        let env = Environment(now: date(20))
+        let env = Environment(now: date(8, 8))
         let service = makeService(spy, env)
-        let idle = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
-        service.applicationDidEnterBackground(games: idle, availableIDs: ["shogi"])
+
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))],
+            availableIDs: ["shogi"]
+        )
         await service.pendingWork?.value
         #expect(spy.scheduled["shogi"] != nil)
 
-        // 次の背景遷移までに遊んで対象で無くなった。
-        let none = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: env.now)]
-        service.applicationDidEnterBackground(games: none, availableIDs: ["shogi"])
+        // クールダウン（3日）が明けた4日後、別のゲームが新しい対象として選ばれる。
+        env.now = date(12, 8)
+        service.applicationDidEnterBackground(
+            games: [
+                ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8)),
+                ReengagementCandidateInput(gameID: "go", plays: 999, lastPlayedAt: date(4, 8)),
+            ],
+            availableIDs: ["shogi", "go"]
+        )
         await service.pendingWork?.value
-        #expect(spy.scheduled.isEmpty)
-        #expect(spy.cancelledGameIDs == ["shogi"])
+
+        #expect(spy.cancelledGameIDs.isEmpty, "既存のアクティブなスレッド（shogi）がキャンセルされている")
+        #expect(spy.scheduled["shogi"] != nil, "既存スレッドの予約が消えている")
+        #expect(spy.scheduled["go"] != nil, "新しい対象が予約されていない")
     }
 
-    @Test("対象が別のゲームに変わったら、古い対象を取り消して置き換える")
-    func replacesWhenTargetChanges() async {
+    @Test("既にアクティブなスレッドと同じゲームが再度選ばれても、二重登録しない")
+    func reselectingActiveThreadIsNoop() async {
         let spy = SpyScheduler()
-        let env = Environment(now: date(20))
+        let env = Environment(now: date(8, 8))
         let service = makeService(spy, env)
-        let first = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
-        service.applicationDidEnterBackground(games: first, availableIDs: ["shogi"])
-        await service.pendingWork?.value
-        #expect(spy.scheduled.keys.contains("shogi"))
+        let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
 
-        let second = [
-            ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8)),
-            ReengagementCandidateInput(gameID: "2048", plays: 999, lastPlayedAt: date(1, 8)),
-        ]
-        service.applicationDidEnterBackground(games: second, availableIDs: ["shogi", "2048"])
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await service.pendingWork?.value
+        let firstDates = spy.scheduled["shogi"]
+
+        env.now = date(12, 8)
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
         await service.pendingWork?.value
 
-        #expect(spy.cancelledGameIDs == ["shogi"])
-        #expect(spy.scheduled.keys.contains("2048"))
-        #expect(!spy.scheduled.keys.contains("shogi"))
+        #expect(spy.explicitRequests == 0, "既にアクティブなスレッドの再選定で許諾を求め直している")
+        #expect(spy.scheduled["shogi"] == firstDates, "同じスレッドが組み直されて発火予定が変わっている")
+    }
+
+    @Test("直近のスレッド追加から3日以内は、新規対象が生まれても新しいスレッドを追加しない")
+    func newThreadCooldownBlocksAddition() async {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(8, 8))
+        let service = makeService(spy, env)
+
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))],
+            availableIDs: ["shogi"]
+        )
+        await service.pendingWork?.value
+        #expect(spy.scheduled["shogi"] != nil)
+
+        // クールダウン中（2日後）に新しい対象が現れても見送る。
+        env.now = date(10, 8)
+        service.applicationDidEnterBackground(
+            games: [
+                ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8)),
+                ReengagementCandidateInput(gameID: "go", plays: 999, lastPlayedAt: date(1, 8)),
+            ],
+            availableIDs: ["shogi", "go"]
+        )
+        await service.pendingWork?.value
+        #expect(spy.scheduled["go"] == nil, "クールダウン中に新しいスレッドが追加されている")
+
+        // クールダウンが明けた（4日後）ら追加できる。
+        env.now = date(12, 8)
+        service.applicationDidEnterBackground(
+            games: [
+                ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8)),
+                ReengagementCandidateInput(gameID: "go", plays: 999, lastPlayedAt: date(1, 8)),
+            ],
+            availableIDs: ["shogi", "go"]
+        )
+        await service.pendingWork?.value
+        #expect(spy.scheduled["go"] != nil, "クールダウン明けに新しいスレッドが追加されていない")
+    }
+
+    @Test("同日に複数のスレッドの発火日が重なったら、日数が大きい方だけ送られ小さい方はその回だけスキップされる")
+    func collisionsOnSameDaySkipSmallerOffset() async {
+        let spy = SpyScheduler()
+        let aBaseline = date(1, 8)
+        let env = Environment(now: date(8, 8))
+        let service = makeService(spy, env)
+
+        // shogi: 9/1 起点。30日後は shogi の 30 日後（10/1 19時）。
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: aBaseline)],
+            availableIDs: ["shogi"]
+        )
+        await service.pendingWork?.value
+        let shogiThirtyDay = offsetDate(30, from: aBaseline)
+
+        // go: 「go の7日後」が「shogi の30日後」と同じ暦日になるよう起点を選ぶ（衝突を作る）。
+        let bBaseline = tokyo.date(byAdding: .day, value: -7, to: tokyo.startOfDay(for: shogiThirtyDay))!
+        let bBaselineAtMorning = tokyo.date(bySettingHour: 8, minute: 0, second: 0, of: bBaseline)!
+        env.now = tokyo.date(byAdding: .day, value: 7, to: bBaselineAtMorning)! // go がちょうど7日idleになる瞬間
+
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "go", plays: 999, lastPlayedAt: bBaselineAtMorning)],
+            availableIDs: ["go"]
+        )
+        await service.pendingWork?.value
+
+        let goSevenDay = offsetDate(7, from: bBaselineAtMorning)
+        #expect(tokyo.isDate(goSevenDay, inSameDayAs: shogiThirtyDay), "テストの前提（同じ暦日に重なる）が崩れている")
+
+        #expect(spy.scheduled["shogi"]?.contains(shogiThirtyDay) == true, "衝突に勝った shogi の30日後が消えている")
+        #expect(spy.scheduled["go"]?.contains(goSevenDay) != true, "衝突に負けた go の7日後がスキップされていない")
+    }
+
+    @Test("60日後通知が発火して24時間経っても未反応なら、ユーザー全体でこの機能を永続停止する")
+    func permanentlyStopsAfterSixtyDaySilence() async {
+        let spy = SpyScheduler()
+        let baseline = date(1, 8)
+        let env = Environment(now: date(8, 8))
+        let store = freshStore()
+        let service = makeService(spy, env, store: store)
+
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: baseline)],
+            availableIDs: ["shogi"]
+        )
+        await service.pendingWork?.value
+        #expect(spy.scheduled["shogi"] != nil)
+
+        // 60日後の発火予定時刻から24時間経ったが、lastPlayedAt は変わっていない（未反応）。
+        let sixtyDayFire = ReengagementReminderPolicy.sixtyDayFireDate(lastPlayedAt: baseline, calendar: tokyo)!
+        env.now = sixtyDayFire.addingTimeInterval(24 * 60 * 60)
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: baseline)],
+            availableIDs: ["shogi"]
+        )
+        await service.pendingWork?.value
+
+        #expect(store.isPermanentlyStopped)
+        #expect(spy.cancelAllCount == 1)
+        #expect(store.activeThreads.isEmpty)
+
+        // 永続停止後は、別のゲームが対象になっても一切判定しない。
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "go", plays: 999, lastPlayedAt: date(1, 8))],
+            availableIDs: ["go"]
+        )
+        await service.pendingWork?.value
+        #expect(spy.scheduled.isEmpty, "永続停止後に新しいスレッドが追加されている")
+    }
+
+    @Test("60日後通知の発火予定時刻から24時間経つ前は、未反応と判定せず永続停止しない")
+    func doesNotStopBeforeTwentyFourHoursPassed() async {
+        let spy = SpyScheduler()
+        let baseline = date(1, 8)
+        let env = Environment(now: date(8, 8))
+        let store = freshStore()
+        let service = makeService(spy, env, store: store)
+
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: baseline)],
+            availableIDs: ["shogi"]
+        )
+        await service.pendingWork?.value
+
+        let sixtyDayFire = ReengagementReminderPolicy.sixtyDayFireDate(lastPlayedAt: baseline, calendar: tokyo)!
+        env.now = sixtyDayFire.addingTimeInterval(23 * 60 * 60)
+        service.applicationDidEnterBackground(
+            games: [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: baseline)],
+            availableIDs: ["shogi"]
+        )
+        await service.pendingWork?.value
+
+        #expect(!store.isPermanentlyStopped)
+        #expect(spy.cancelAllCount == 0)
     }
 
     @Test("そのゲームを開くと取り消す")
@@ -372,6 +559,28 @@ struct ReengagementReminderServiceTests {
 
         service.notificationTapped(gameID: "shogi")
         #expect(service.requestedGameID == "shogi")
+    }
+}
+
+// MARK: - 永続状態
+
+@Suite("再エンゲージメント通知の永続状態（#1229）")
+struct ReengagementReminderStoreTests {
+    @Test("アクティブなスレッド・最終追加日時・永続停止フラグを保存・復元できる")
+    func persistsState() {
+        let store = freshStore()
+        #expect(store.activeThreads.isEmpty)
+        #expect(store.lastThreadAddedAt == nil)
+        #expect(!store.isPermanentlyStopped)
+
+        let now = date(1, 8)
+        store.activeThreads = ["shogi": now, "go": date(4, 8)]
+        store.lastThreadAddedAt = now
+        store.isPermanentlyStopped = true
+
+        #expect(store.activeThreads == ["shogi": now, "go": date(4, 8)])
+        #expect(store.lastThreadAddedAt == now)
+        #expect(store.isPermanentlyStopped)
     }
 }
 
