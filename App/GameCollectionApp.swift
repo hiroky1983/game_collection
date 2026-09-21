@@ -48,6 +48,14 @@ struct GameCollectionApp: App {
                 // ウェルカムバナーがスクリーンショットに写り込むため開始しない。
                 GameCenterAuth.start()
             }
+            // 再エンゲージメント通知（#1193）の対象は、バックグラウンドに入るたびに判定し直す
+            // （アプリを開いている間の経過日数は判定材料として発生しないため）。
+            if newPhase == .background {
+                AppEnvironment.reengagement.applicationDidEnterBackground(
+                    games: AppEnvironment.reengagementCandidateInputs(),
+                    availableIDs: AppEnvironment.settings.visibleModules(from: AppEnvironment.registry).map(\.id)
+                )
+            }
         }
     }
 

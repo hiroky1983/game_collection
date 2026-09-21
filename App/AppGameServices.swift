@@ -53,7 +53,8 @@ enum AppEnvironment {
         playLog: playLog,
         analytics: analytics,
         gameCenter: gameCenter,
-        reminders: reminders
+        reminders: reminders,
+        reengagement: reengagement
     )
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
@@ -71,6 +72,30 @@ enum AppEnvironment {
             return module.title
         }
     )
+
+    /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
+    /// アプリがバックグラウンドに入るたびに対象を判定し直す（`GameCollectionApp` から呼ぶ）。
+    /// 撮影モードと DEBUG ビルドでは予約しない（#663 と同じ理由）。
+    static let reengagement = ReengagementReminderService(
+        scheduler: UserNotificationReengagementScheduler(),
+        isEnabled: { settings.reengagementRemindersEnabled },
+        isSuppressed: isScreenshotMode || isDebugBuild,
+        // #663 と異なり「中断データから局を復元できるか」は問わない。設定で非表示にしたゲームだけ除く。
+        reminderTitle: { gameID in
+            guard let module = registry.module(id: gameID) else { return nil }
+            guard !settings.hiddenIDs.contains(gameID) else { return nil }
+            return module.title
+        }
+    )
+
+    /// 再エンゲージメント通知（#1193）の対象判定に渡す、登録ゲームぶんの通算プレイ回数・最終プレイ日時。
+    static func reengagementCandidateInputs() -> [ReengagementCandidateInput] {
+        let plays = playLog.totalPlaysByGame
+        let lastPlayedAt = playLog.lastPlayedAtByGame
+        return registry.modules.map { module in
+            ReengagementCandidateInput(gameID: module.id, plays: plays[module.id] ?? 0, lastPlayedAt: lastPlayedAt[module.id])
+        }
+    }
 
     /// Game Center のリーダーボード・実績（#289 段階②③）。
     /// **未サインイン**では `isAvailable` が false になり、送信そのものが起きない。
