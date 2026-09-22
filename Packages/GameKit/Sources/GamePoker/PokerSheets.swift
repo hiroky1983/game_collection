@@ -36,12 +36,17 @@ struct PokerStartSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ルール")
                         .themeBody(15).foregroundStyle(Theme.inkSub)
-                    Picker("ルール", selection: $rules) {
+                    // 他ゲームの開始シート（麻雀の対局の長さ・チャリおじのモードなど）と同じ
+                    // 大きめのタイルに揃える（会長指摘・2026-09-23。`.pickerStyle(.segmented)` は
+                    // 他より一回り小さく見えた）。
+                    HStack(spacing: 12) {
                         ForEach(PokerRuleSet.allCases) { rule in
-                            Text(rule.title).tag(rule)
+                            GameSetupChooser(
+                                title: rule.title, subtitle: "",
+                                selected: rules == rule, accent: Theme.Fill.coral
+                            ) { rules = rule }
                         }
                     }
-                    .pickerStyle(.segmented)
                     Text(rules.summary)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.inkSub)

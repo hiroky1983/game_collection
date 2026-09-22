@@ -356,7 +356,7 @@ extension RunnerScene {
     ///
     /// ゆらゆら揺れる（`SKAction`）のは「浮いている紙」だと動きで伝えるため。**Reduce Motion が
     /// オンなら揺らさない**（決裁の受け入れ条件）。到達した瞬間の音・触覚は `RunnerModel` が
-    /// `feedback.notify(.success)` で鳴らす（`RunnerFeedbackCue`）。
+    /// `feedback.notify(.milestone)` で鳴らす（`RunnerFeedbackCue`）。
     @discardableResult
     func addGoalMarker(at x: Double) -> SKSpriteNode {
         let sprite = RunnerPixelArt.lotteryTicket()

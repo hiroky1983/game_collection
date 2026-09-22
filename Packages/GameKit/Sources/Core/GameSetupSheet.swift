@@ -97,6 +97,24 @@ public struct GameSetupSheet<Content: View>: View {
                 }
                 .padding(Theme.pad)
             }
+        case .scrollingPinnedStart:
+            // シートの高さ自体は `.scrolling` と同じ常に `.large`（中身の増減で伸び縮みしない）。
+            // 開始ボタンだけを `ScrollView` の外に出し、スクロールしなくても押せるようにする。
+            // `VStack{ ScrollView; button }` で組むと、`ScrollView` が `VStack` に入れ子になった
+            // ぶん「余った分だけ使う」高さの伝播が効かず、button がシートの外へ押し出されて
+            // 見えなくなった（実機確認・2026-09-22）。`.safeAreaInset` なら `ScrollView` 自身が
+            // 直接の子（`.scrolling` と同じ形）のまま、下にButton の場所を安全に確保できる。
+            ScrollView {
+                VStack(alignment: .leading, spacing: spacing) { content }
+                    .padding(Theme.pad)
+            }
+            .safeAreaInset(edge: .bottom) {
+                startButton
+                    .padding(.horizontal, Theme.pad)
+                    .padding(.top, 12)
+                    .padding(.bottom, Theme.pad)
+                    .background(.regularMaterial)
+            }
         }
     }
 
@@ -115,6 +133,13 @@ public enum GameSetupSheetLayout: Sendable {
     case pinnedStart
     /// 中身ごとスクロールさせ、開始ボタンも一緒に流す。常に `.large` で開く。
     case scrolling
+    /// `.scrolling` と同じ常に `.large`（中身の増減でシート自体の高さは動かない）だが、
+    /// 開始ボタンだけスクロール領域の外に出して固定する（#675・会長指摘2026-09-22
+    /// 「スクロールして始めるボタン押下が煩わしい」）。2026-09-16に`.pinnedStart`へ
+    /// 切り替える案を一度試して「モーダルの長さも変わってる」で差し戻されたのは、
+    /// `.pinnedStart`が`.medium`/`.large`の可変検知（`gameSheetDetents()`）を使うため。
+    /// こちらは検知を挟まず`.large`固定のままなので同じ問題は起きない。
+    case scrollingPinnedStart
 }
 
 /// 並べ方に応じたシートの高さ。分岐を修飾子の中に閉じ込め、呼び出し側の型を揃える。
@@ -124,8 +149,9 @@ private struct SetupSheetDetents: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         switch layout {
-        case .pinnedStart: content.gameSheetDetents()
-        case .scrolling:   content.presentationDetents([.large])
+        case .pinnedStart:          content.gameSheetDetents()
+        case .scrolling:            content.presentationDetents([.large])
+        case .scrollingPinnedStart: content.presentationDetents([.large])
         }
     }
 }
