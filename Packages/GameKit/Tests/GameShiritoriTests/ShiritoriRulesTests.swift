@@ -206,6 +206,7 @@ struct ObjectCardArtTests {
     @Test("全種が 40×40 で、パレットに無い文字を使っていない")
     func spritesAreWellFormed() {
         #expect(ObjectCardKind.allCases.count == 30)
+        #expect(ObjectCardKind.dots == 40, "#1287 で 20 → 40 に上げた。全種を同時に戻す退行も赤にする")
         for kind in ObjectCardKind.allCases {
             let sprite = kind.sprite
             #expect(sprite.width == ObjectCardKind.dots && sprite.height == ObjectCardKind.dots, "\(kind)")

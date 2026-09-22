@@ -90,10 +90,12 @@ public enum ObjectCardKind: String, CaseIterable, Sendable, Codable {
         }
     }
 
-    /// 1 ドット = 4px（160×160）で持つビットマップ。起動後 1 回だけ作る（毎表示でビットマップ化しない）。
+    /// 1 ドット = 2px（80×80）で持つビットマップ。起動後 1 回だけ作る（毎表示でビットマップ化しない）。
+    /// 20×20 のときは 4px で持っていた。画素数（80×80・30 枚で約 0.8MB）と初回生成の時間を据え置くために
+    /// 倍率を半分にしている。描画は `.interpolation(.none)` で枠に合わせて伸縮するので見た目は変わらない。
     private static let images: [ObjectCardKind: CGImage] = {
         var out: [ObjectCardKind: CGImage] = [:]
-        for kind in allCases { if let cg = kind.sprite.cgImage(scale: 4) { out[kind] = cg } }
+        for kind in allCases { if let cg = kind.sprite.cgImage(scale: 2) { out[kind] = cg } }
         return out
     }()
 
