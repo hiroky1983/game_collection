@@ -409,7 +409,7 @@ struct HubView: View {
                     for style: FeedbackImpact in [.light, .medium, .rigid] {
                         services.feedback.impact(style)
                     }
-                    for type: FeedbackNotice in [.success, .warning, .error] {
+                    for type: FeedbackNotice in [.success, .warning, .error, .milestone] {
                         services.feedback.notify(type)
                     }
                 }

@@ -33,6 +33,8 @@ public enum SoundEffect: String, CaseIterable, Sendable {
     case warning
     /// 負け・ゲームオーバー。
     case error
+    /// 大きな節目の達成（`FeedbackNotice.milestone`）。他の音より長く派手にしてよい唯一の種類。
+    case fanfare
 
     public init(_ impact: FeedbackImpact) {
         switch impact {
@@ -44,16 +46,19 @@ public enum SoundEffect: String, CaseIterable, Sendable {
 
     public init(_ notice: FeedbackNotice) {
         switch notice {
-        case .success: self = .success
-        case .warning: self = .warning
-        case .error:   self = .error
+        case .success:   self = .success
+        case .warning:   self = .warning
+        case .error:     self = .error
+        case .milestone: self = .fanfare
         }
     }
 
     /// 波形の定義。音源ファイルを同梱せずに実行時へ合成するため、
     /// 素材のライセンスとアプリサイズの問題が発生しない。
     ///
-    /// いずれも 0.3 秒未満の短い音にしてある（操作のテンポを妨げないため）。
+    /// `fanfare` 以外は 0.3 秒未満の短い音にしてある（操作のテンポを妨げないため）。
+    /// `fanfare` だけ例外で、頻繁に鳴る操作音ではなく「大きな節目の達成」1 回だけに使うので、
+    /// 長く派手にしてよい（会長指示・2026-09-23。マリオの1UPのような、少し長めの上昇フレーズ）。
     public var steps: [ToneStep] {
         switch self {
         case .light:
@@ -80,6 +85,19 @@ public enum SoundEffect: String, CaseIterable, Sendable {
             return [
                 ToneStep(frequency: 391.99, duration: 0.110, amplitude: 0.30),
                 ToneStep(frequency: 261.63, duration: 0.160, amplitude: 0.30),
+            ]
+        case .fanfare:
+            // 大きな節目（チャリンコおじさんのゴール到達）。C5→E5→G5→C6 と駆け上がり、
+            // G5 へ少し戻ってから E6 で伸ばして終える「弾む」上昇フレーズ。任天堂の1UP音の
+            // 曲そのものは使わず、似た雰囲気（明るい・短い・駆け上がる）だけを自前の音で作る。
+            return [
+                ToneStep(frequency: 523.25,  duration: 0.080, amplitude: 0.30), // C5
+                ToneStep(frequency: 659.25,  duration: 0.080, amplitude: 0.30), // E5
+                ToneStep(frequency: 783.99,  duration: 0.080, amplitude: 0.30), // G5
+                ToneStep(frequency: 1046.50, duration: 0.100, amplitude: 0.32), // C6
+                ToneStep(frequency: 783.99,  duration: 0.060, amplitude: 0.28), // G5（弾む）
+                ToneStep(frequency: 1046.50, duration: 0.080, amplitude: 0.30), // C6
+                ToneStep(frequency: 1318.51, duration: 0.200, amplitude: 0.32), // E6（伸ばして終える）
             ]
         }
     }

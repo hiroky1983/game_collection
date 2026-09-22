@@ -18,6 +18,10 @@ public enum FeedbackNotice: Equatable, Sendable {
     case warning
     /// 負け・ゲームオーバー。
     case error
+    /// 大きな節目の達成（今のところチャリンコおじさんのゴール到達のみ・会長指示 2026-09-23）。
+    /// 触覚は `success` と同じものを使う（`UINotificationFeedbackGenerator` にそれ以上強い種類が無い）。
+    /// 効果音だけ `success` より長く派手なもの（`SoundEffect.fanfare`）に差し替える。
+    case milestone
 }
 
 /// 触覚フィードバックの境界。App 層が UIKit 実装を注入し、テスト・プレビューでは `NoopFeedbackService` を使う。
