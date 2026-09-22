@@ -9,7 +9,13 @@ import Foundation
 /// `rawValue` は各ゲームのモデルが持つ `aiLevel` そのもので、中断データにもこの数字で入る。
 /// **強さの順に並ぶが 0 始まりではない**: 既存 3 段階（0=簡単・1=ふつう・2=むずかしい）の
 /// 番号を動かすと、中断データからの再開が 1 段ずれ、段階ごとの強さを固定している既存テストの
-/// 意味まで変わってしまう。そのため、あとから足した「入門」を -1、「ガチ」を 3 に置いてある。
+/// 意味まで変わってしまう。そのため、あとから足した「入門」を -1 に置いてある。
+///
+/// **「ガチ」（rawValue 3）は v1.1.6 で一旦見送り**（会長指摘・2026-09-22：実際に将棋で遊んで
+/// みても強さを感じられず、各ゲームのエンジン側の調整が先に要ると判断）。`CPUStrength(rawValue:)`
+/// は未知の番号を `.standard` に倒す既定の仕組みがあるので、万一 `aiLevel = 3` の中断データが
+/// 残っていても壊れずに再開できる。各ゲームのエンジン（`SimpleMinimaxEngine.init(level:)` 等）に
+/// 残した `case 3` 自体は削っていないので、調整が済んだらここへ `case serious = 3` を戻すだけでよい。
 public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     /// 入門。最弱（#1174 で追加）。
     case novice = -1
@@ -19,8 +25,6 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     case normal = 1
     /// むずかしい。同じく「強」。
     case hard = 2
-    /// ガチ。最強（#1174 で追加）。
-    case serious = 3
 
     /// 開始シート・新規対局の既定。
     public static let standard = CPUStrength.normal
@@ -28,11 +32,10 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     /// 画面に出す呼び名（#1174 で確定。装飾のない短い言葉でトーンを揃えてある）。
     public var label: String {
         switch self {
-        case .novice:  return "入門"
-        case .easy:    return "簡単"
-        case .normal:  return "ふつう"
-        case .hard:    return "むずかしい"
-        case .serious: return "ガチ"
+        case .novice: return "入門"
+        case .easy:   return "簡単"
+        case .normal: return "ふつう"
+        case .hard:   return "むずかしい"
         }
     }
 
@@ -40,11 +43,10 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     /// GA4 に貯まっている数字はそのまま続けて読める（#1174）。
     public var analyticsLevel: AnalyticsLevel {
         switch self {
-        case .novice:  return .novice
-        case .easy:    return .beginner
-        case .normal:  return .normal
-        case .hard:    return .hard
-        case .serious: return .expert
+        case .novice: return .novice
+        case .easy:   return .beginner
+        case .normal: return .normal
+        case .hard:   return .hard
         }
     }
 

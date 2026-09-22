@@ -190,13 +190,12 @@ private final class SwitchingClock: @unchecked Sendable {
     }
 }
 
-// MARK: - 入門・ガチ（#1174）
+// MARK: - 入門（#1174）
 
-@Suite("オセロ 入門とガチ")
+@Suite("オセロ 入門")
 struct OthelloNoviceAndSeriousTests {
 
     private static let novice = CPUStrength.novice.rawValue
-    private static let serious = CPUStrength.serious.rawValue
 
     /// 角が取れるなら取る（「勝てるのに取らない」不自然さは作らない）。
     /// 同じ盤面で「簡単」は返る枚数を採って角を見送る（`weakPrefersFlipCountOverCorner`）ので、
@@ -287,29 +286,6 @@ struct OthelloNoviceAndSeriousTests {
         #expect(wins >= games * 3 / 10, "入門がでたらめな相手に \(wins)/\(games) しか勝てない（壊れている）")
     }
 
-    /// ガチは「むずかしい」と同じ深さ 5 を読んでから深さ 7 を読み直す（#1174）。
-    /// 深さ 7 が時間内に終わらなければ深さ 5 の結論を使うので、遅い端末でも下回らない。
-    @Test("ガチの深さと持ち時間")
-    func seriousConfiguration() {
-        #expect(OthelloEngine.seriousDeepDepth == 7)
-        #expect(OthelloEngine.seriousTimeLimit == 2.5)
-    }
-
-    /// 深く読んでも足元は崩さない: 取れる角は取る。
-    @Test("ガチは取れる角を取る")
-    func seriousTakesTheCorner() async {
-        var cells = [OthelloStone?](repeating: nil, count: othelloBoardSize * othelloBoardSize)
-        cells[0 * othelloBoardSize + 1] = .white
-        cells[0 * othelloBoardSize + 2] = .black
-        cells[3 * othelloBoardSize + 3] = .white
-        cells[2 * othelloBoardSize + 3] = .white
-        cells[1 * othelloBoardSize + 3] = .white
-        cells[0 * othelloBoardSize + 3] = .black
-        let board = OthelloBoard(cells: cells)
-
-        let move = await OthelloEngine(level: Self.serious).bestMove(board: board, stone: .black)
-        #expect(move?.row == 0 && move?.col == 0, "ガチが角を取らなかった: \(String(describing: move))")
-    }
 }
 
 // MARK: - 自己対戦（テスト用）

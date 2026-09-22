@@ -157,10 +157,9 @@ struct ShogiDifficultyConfigTests {
 
     /// #502 の受け入れ条件「調整後も『強』の棋力が現状から落ちていないこと」。
     /// 下方調整は level 0 だけに閉じており、普通の探索設定は 1 ビットも動かさない。
-    /// **「強」の探索深さ上限は #1134 で 5 → 32 に上げた**（持ち時間 1.5 秒は変えていない。
-    /// 反復深化が時間で打ち切られる設計のため、上限を緩めても即座に強くなりすぎることはなく、
-    /// 実測で棋力の実質的な天井を引き上げる）。
-    @Test("普通の設定は下方調整の前後で変わっていない・強の探索深さ上限は#1134で緩めた")
+    /// **「強」の探索深さ上限は #1134 で 5 → 32 に上げていたが、v1.1.6 で一旦取り消した**
+    /// （会長指摘・2026-09-22。「ガチ」の見送りと合わせ、v1.1.5 から公開されている 5 に戻す）。
+    @Test("普通の設定は下方調整の前後で変わっていない・強の探索深さ上限は v1.1.5 の値のまま")
     func strongLevelsAreUntouched() {
         let normal = SimpleMinimaxEngine(level: 1)
         #expect(normal.depth == 4)
@@ -168,10 +167,10 @@ struct ShogiDifficultyConfigTests {
         #expect(normal.timeLimit == 1.0)
 
         let strong = SimpleMinimaxEngine(level: 2)
-        #expect(strong.depth == 32, "「強」の探索深さ上限は #1134 で 5 → 32 に上げた")
+        #expect(strong.depth == 5)
         #expect(strong.useQuiescence)
         #expect(strong.usePositional)
-        #expect(strong.timeLimit == 1.5, "持ち時間は #1134 でも変えていない")
+        #expect(strong.timeLimit == 1.5, "持ち時間は v1.1.5 から変えていない")
     }
 }
 
@@ -290,11 +289,10 @@ struct ShogiWeakLevelSelfPlayTests {
 /// 相手が同じなので符号ではなく差を読む）で、入門のほうが負け込む。
 /// この 1 組だけで 213 秒かかるため、CI には①設定 ②同じ局面で手が散ること
 /// ③只捨て・タダ取りの下限（`ShogiDifficultyLadderTests` が全 5 段階で見る）を置く。
-@Suite("将棋の難易度: 入門とガチ（#1174）", .timeLimit(.minutes(5)))
+@Suite("将棋の難易度: 入門（#1174）", .timeLimit(.minutes(5)))
 struct ShogiNoviceAndSeriousTests {
 
     private static let novice = CPUStrength.novice.rawValue
-    private static let serious = CPUStrength.serious.rawValue
 
     /// 「入門」は**読みの設定を「簡単」と 1 ビットも変えず**、着手の選び方だけを崩してある。
     /// 深さを 1 に落とすと只捨てを始める（#502 の実測）ので、そこには戻さない。
@@ -313,22 +311,16 @@ struct ShogiNoviceAndSeriousTests {
         #expect(SimpleMinimaxEngine.noviceMargin < PieceValue.base(.pawn))
     }
 
-    /// 既存の最上段（むずかしい）の持ち時間はそのままで、その上に積んでいる。
-    /// **むずかしいの探索深さ上限は #1134 で 32 に緩めた**ため、上限の数値どうしの比較では
-    /// 「ガチの方が深い」を表せなくなった（どちらも反復深化が持ち時間で打ち切られる設計で、
-    /// 実際に到達する深さは上限ではなく時間で決まる）。「深く長く読む」の主張は持ち時間の比較で担保する。
-    @Test("ガチはむずかしいより長く読む（むずかしいの持ち時間は変えない）")
-    func seriousIsDeeperThanHard() {
+    /// 「ガチ」は v1.1.6 で一旦見送った（会長指摘・2026-09-22。強さを実感できず調整が必要と判断）。
+    /// `#1134`で試した深さ上限32への変更・`#1174`の「ガチ」（深さ7・3.0秒）も一旦取り消し、
+    /// v1.1.5から公開されている「むずかしい」（深さ5・1.5秒）の設定へ戻す。
+    @Test("むずかしいの設定は v1.1.5 の値のまま")
+    func hardConfigurationMatchesShippedValue() {
         let hard = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.depth == 32, "むずかしいの探索深さ上限は #1134 で 5 → 32 に上げた")
-        #expect(hard.timeLimit == 1.5, "むずかしいの持ち時間は #1174 に続き #1134 でも触らない")
-
-        let serious = SimpleMinimaxEngine(level: Self.serious)
-        #expect(serious.depth == 7)
-        #expect(serious.timeLimit == 3.0)
-        #expect(serious.timeLimit > hard.timeLimit, "深くするなら持ち時間も伸ばす（打ち切りで弱くなる）")
-        #expect(serious.useBook && serious.useQuiescence && serious.usePositional)
-        #expect(!serious.isNovice)
+        #expect(hard.depth == 5)
+        #expect(hard.timeLimit == 1.5)
+        #expect(hard.useBook && hard.useQuiescence && hard.usePositional)
+        #expect(!hard.isNovice)
     }
 
     /// 「入門」は同じ局面でも手が散る（＝選び方を崩している）。

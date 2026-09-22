@@ -50,9 +50,8 @@ public struct OthelloEngine: Sendable {
 
         let (maxDepth, defaultTimeLimit): (Int, TimeInterval)
         switch strength {
-        case .serious: (maxDepth, defaultTimeLimit) = (Self.seriousDeepDepth, Self.seriousTimeLimit)
-        case .hard:    (maxDepth, defaultTimeLimit) = (Self.hardMaxDepth, 0.8)
-        default:       (maxDepth, defaultTimeLimit) = (3, 0.5)
+        case .hard: (maxDepth, defaultTimeLimit) = (Self.hardMaxDepth, 0.8)
+        default:    (maxDepth, defaultTimeLimit) = (3, 0.5)
         }
         let timeLimit = timeLimitOverride ?? defaultTimeLimit
 
@@ -62,10 +61,6 @@ public struct OthelloEngine: Sendable {
 
     /// 「むずかしい」の読みの深さ（#502 のまま）。
     static let hardMaxDepth = 5
-    /// 「ガチ」の深い方の読み（#1174）。
-    static let seriousDeepDepth = 7
-    /// 「ガチ」の 1 手の持ち時間（#1174）。深さ 5 と深さ 7 の 2 段ぶんを合わせた上限。
-    static let seriousTimeLimit: TimeInterval = 2.5
 
     /// 反復深化。深さ 1 から `maxDepth` まで順に上げ、**時間内に読み切れた最後の深さの手だけ**を使う
     /// （#1133）。時間切れになった深さの `rootSearch` は「未評価の候補手が残ったままの best」や

@@ -364,13 +364,10 @@ struct GomokuNoviceAndSeriousTests {
     }
 
     /// 既存 3 段階の設定は #1174 で 1 ビットも動かしていない（`GomokuStrengthLabelTests` と対）。
-    @Test func seriousIsDeeperAndSlowerThanHard() {
+    @Test func hardConfigurationIsUnchanged() {
         let hard = SimpleGomokuEngine(level: CPUStrength.hard.rawValue)
-        let serious = SimpleGomokuEngine(level: CPUStrength.serious.rawValue)
         #expect(hard.depth == 5 && hard.timeLimit == 1.5, "むずかしいの設定は変えない")
-        #expect(serious.depth == 7)
-        #expect(serious.timeLimit == 3.0)
-        #expect(!serious.isWeak)
+        #expect(!hard.isWeak)
     }
 
     /// 弱くしても壊さない: 自分の五は必ず取る（#665 の「弱」と同じ下限）。
@@ -401,18 +398,18 @@ struct GomokuNoviceAndSeriousTests {
         #expect((0.1...0.3).contains(rate), "入門の防御率が \(rate)（400 回中 \(blocked) 回）")
     }
 
-    /// ガチは即勝ちも即防ぎも見逃さない（深く読ませても足元が崩れていないこと）。
-    @Test func seriousTakesTheWinAndTheBlock() async {
-        let level = CPUStrength.serious.rawValue
+    /// むずかしいは即勝ちも即防ぎも見逃さない（深く読ませても足元が崩れていないこと）。
+    @Test func hardTakesTheWinAndTheBlock() async {
+        let level = CPUStrength.hard.rawValue
         let winnable = makeBoard(black: [(3, 10), (4, 10), (5, 10)],
                                  white: [(7, 3), (7, 4), (7, 5), (7, 6)])
         let win = await SimpleGomokuEngine(level: level).bestMove(board: winnable, stone: .white)
         #expect(win?.row == 7 && (win?.col == 7 || win?.col == 2),
-                "ガチが五を完成していない: \(String(describing: win))")
+                "むずかしいが五を完成していない: \(String(describing: win))")
 
         let mustBlock = makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)], white: [(7, 2)])
         let block = await SimpleGomokuEngine(level: level).bestMove(board: mustBlock, stone: .white)
-        #expect(block?.row == 7 && block?.col == 7, "ガチが四を止めていない: \(String(describing: block))")
+        #expect(block?.row == 7 && block?.col == 7, "むずかしいが四を止めていない: \(String(describing: block))")
     }
 
     /// 下限: 弱くしても、でたらめに打つ相手には勝ち越す（勝負として成立している）。

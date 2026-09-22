@@ -242,11 +242,10 @@ enum ChessSelfPlay {
 /// 回すにはオフラインでも現実的な時間に収まらない。そのため CI には①設定の一致
 /// ②タダ取り・刺し違え回避・1 手詰め（このファイルの下にある個別テスト）
 /// ③入門がでたらめな相手には大差で勝つこと、の 3 つを置く。
-@Suite("チェスの入門とガチ")
+@Suite("チェスの入門")
 struct ChessNoviceAndSeriousTests {
 
     private static let novice = CPUStrength.novice.rawValue
-    private static let serious = CPUStrength.serious.rawValue
 
     /// 時間で打ち切られない「入門」（`seed` を渡すと乱択を再現できる）。
     private func untimedNovice(seed: UInt64?) -> SimpleChessEngine {
@@ -286,19 +285,13 @@ struct ChessNoviceAndSeriousTests {
         #expect(SimpleChessEngine.noviceMargin < ChessPieceValue.base(.pawn))
     }
 
-    /// 既存の最上段（むずかしい）の設定はそのままで、その上に積んでいる。
-    @Test("ガチはむずかしいより深く長く読む（むずかしいの設定は変えない）")
-    func seriousIsDeeperThanHard() {
+    /// 既存の最上段（むずかしい）の設定は変えていない。
+    @Test("むずかしいの設定は #1174 で触らない")
+    func hardConfigurationIsUnchanged() {
         let hard = SimpleChessEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.depth == 5 && hard.timeLimit == 2.0, "むずかしいの設定は #1174 で触らない")
-
-        let serious = SimpleChessEngine(level: Self.serious)
-        #expect(serious.depth == 7)
-        #expect(serious.depth > hard.depth)
-        #expect(serious.timeLimit == 3.0)
-        #expect(serious.timeLimit > hard.timeLimit, "深くするなら持ち時間も伸ばす（打ち切りで弱くなる）")
-        #expect(serious.useBook && serious.useQuiescence && serious.usePositional)
-        #expect(!serious.isNovice)
+        #expect(hard.depth == 5 && hard.timeLimit == 2.0)
+        #expect(hard.useBook && hard.useQuiescence && hard.usePositional)
+        #expect(!hard.isNovice)
     }
 
     /// タダの駒は入門も取る（弱くはするが壊さない）。
