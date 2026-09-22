@@ -79,11 +79,12 @@ struct ShiritoriRulesTests {
         ])
     }
 
-    @Test("裏読みは決裁済みの 4 枚だけ。読みはすべてひらがなで、空でない")
+    @Test("裏読みは決裁済みの 5 枚だけ。読みはすべてひらがなで、空でない")
     func alternateReadingsAreTheApprovedOnes() {
         let withAlternates = ShiritoriCard.deck.filter { $0.readings.count > 1 }
         #expect(Dictionary(uniqueKeysWithValues: withAlternates.map { ($0.primaryReading, Array($0.readings.dropFirst())) }) == [
             "たいこ": ["どらむ"], "こっぷ": ["ぐらす"], "だちょう": ["えみゅー"], "うちわ": ["おうぎ"],
+            "ねこ": ["にゃんこ"],
         ])
         for card in ShiritoriCard.deck {
             for reading in card.readings {
@@ -98,6 +99,25 @@ struct ShiritoriRulesTests {
         for card in ShiritoriCard.deck {
             for reading in card.readings {
                 #expect(!ShiritoriRules.endsWithN(reading), "\(card.id) の \(reading)")
+            }
+        }
+    }
+
+    /// どの札の語尾で終わっても、次を受けられる札が山札に必ずある（#1287 QA: 「わに」が
+    /// 「に」で始まる札を 1 枚も持たず、取ると相手が必ず詰んで一発勝ちになっていた）。
+    /// この保証が崩れると同じ「取れば勝ち確定」札が生まれる。
+    ///
+    /// 「どらむ」（語尾 む）・「えみゅー」（語尾 ゆ）も同じ穴が残っている（#1292・対応方針は未定）。
+    /// 塞ぐまでの間はここで明示的に見逃し、テストが赤いまま放置されるのを避ける。
+    @Test("すべての札の語尾を、別の札の語頭で受けられる（詰み専用札が生まれていないか）")
+    func everyTailHasAFollower() {
+        let knownGaps: Set<String> = ["どらむ", "えみゅー"]   // #1292
+        for card in ShiritoriCard.deck {
+            for reading in card.readings where !ShiritoriRules.endsWithN(reading) && !knownGaps.contains(reading) {
+                guard let tail = ShiritoriKana.tail(of: reading) else { continue }
+                let rest = ShiritoriCard.deck.filter { $0.id != card.id }.map { ShiritoriSlot(card: $0) }
+                #expect(!ShiritoriRules.moves(slots: rest, after: tail).isEmpty,
+                        "\(card.id) の \(reading)（語尾 \(tail)）を受けられる札が無い")
             }
         }
     }

@@ -42,7 +42,7 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         ShiritoriCard(.watermelon, "すいか"),
         ShiritoriCard(.turtle, "かめ"),
         ShiritoriCard(.eyeglasses, "めがね"),
-        ShiritoriCard(.cat, "ねこ"),
+        ShiritoriCard(.cat, "ねこ", "にゃんこ"),
         ShiritoriCard(.spinningTop, "こま"),
         ShiritoriCard(.pillow, "まくら"),
         ShiritoriCard(.ostrich, "だちょう", "えみゅー"),
