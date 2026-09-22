@@ -1,6 +1,6 @@
 import Core
 
-/// できごと（`RunnerEvent`）に対して鳴らす手応え（#703 の効果音 4 音）。
+/// できごと（`RunnerEvent`）に対して鳴らす手応え（#703 の効果音 4 音 + ゴールの `milestone`）。
 ///
 /// このゲームには**音の発火点を別に作らない**。Core の `SoundEffect` は触覚
 /// （`FeedbackImpact` / `FeedbackNotice`）と 1 対 1 で、App 層が `CompositeFeedbackService` で
@@ -8,6 +8,10 @@ import Core
 /// 「跳ぶ → light」「取る → light」「やられる → error」「クリア → success」の 4 音は、
 /// ここで決めた触覚をそのまま `services.feedback` に渡すだけで鳴る。設定の効果音オフは
 /// `GatedFeedbackService` が受け持つので、ここには条件分岐が無い。
+///
+/// **ゴール到達だけは例外で `milestone`**（会長指示・2026-09-23「もっと長めの、マリオの1UPの
+/// ようなイメージで」）。チェックポイント通過（`.passedCheckpoint`）は今までどおり `success`
+/// のまま——大きな節目はステージ完走そのものだけで、道中の通過点まで派手にすると煩い。
 ///
 /// 純関数にしてあるのは、`RunnerModel.handle` の中で状態遷移と混ざっている対応表を
 /// テストで固定するため（`FeedbackCueTests`）。跳ぶ音だけは `RunnerEvent` ではなく
@@ -34,7 +38,7 @@ public enum RunnerFeedbackCue: Equatable, Sendable {
         // イノシシの予告「ドドド」（#801）。着地（light / medium）より硬く、決着（notice）ではない。
         case .boarCharging:       return .impact(.rigid)
         case .fell, .crashed:     return .notice(.error)
-        case .reachedGoal:        return .notice(.success)
+        case .reachedGoal:        return .notice(.milestone)
         }
     }
 

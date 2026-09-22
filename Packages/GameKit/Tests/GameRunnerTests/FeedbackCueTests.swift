@@ -5,7 +5,7 @@ import Testing
 import CoreTestSupport
 import GameRunnerTestSupport
 
-/// 効果音 4 音（#703: 跳ぶ・取る・やられる・クリア）。
+/// 効果音 4 音（#703: 跳ぶ・取る・やられる・クリア）+ ゴールだけの fanfare（2026-09-23）。
 ///
 /// このゲームは音の発火点を持たず、触覚の呼び出しに App 層の効果音が相乗りする
 /// （`RunnerFeedbackCue` の doc）。だから確かめるのは「できごと → 触覚」の対応表と、
@@ -34,7 +34,7 @@ struct RunnerFeedbackCueTests {
         #expect(RunnerFeedbackCue.cue(for: .collectedInvincibleItem, lastLandingWasJust: false) == .impact(.light))
         #expect(RunnerFeedbackCue.cue(for: .fell, lastLandingWasJust: false) == .notice(.error))
         #expect(RunnerFeedbackCue.cue(for: .crashed, lastLandingWasJust: false) == .notice(.error))
-        #expect(RunnerFeedbackCue.cue(for: .reachedGoal, lastLandingWasJust: false) == .notice(.success))
+        #expect(RunnerFeedbackCue.cue(for: .reachedGoal, lastLandingWasJust: false) == .notice(.milestone))
         #expect(RunnerFeedbackCue.cue(for: .passedCheckpoint, lastLandingWasJust: false) == .notice(.success))
         // イノシシの予告「ドドド」（#801）は硬い手応えで、決着（notice）ではない。
         #expect(RunnerFeedbackCue.cue(for: .boarCharging, lastLandingWasJust: false) == .impact(.rigid))
@@ -42,11 +42,12 @@ struct RunnerFeedbackCueTests {
         #expect(RunnerFeedbackCue.cue(for: .landed, lastLandingWasJust: false) == .impact(.light))
         #expect(RunnerFeedbackCue.cue(for: .landed, lastLandingWasJust: true) == .impact(.medium))
 
-        // 4 音（取る → light・やられる → error・クリア → success）。跳ぶ音は `press()` 側で light。
+        // 4 音（取る → light・やられる → error・クリア → success）+ ゴールだけ fanfare。
+        // 跳ぶ音は `press()` 側で light。
         #expect(RunnerFeedbackCue.cue(for: .collectedSpeedItem, lastLandingWasJust: false).soundEffect == .light)
         #expect(RunnerFeedbackCue.cue(for: .fell, lastLandingWasJust: false).soundEffect == .error)
         #expect(RunnerFeedbackCue.cue(for: .crashed, lastLandingWasJust: false).soundEffect == .error)
-        #expect(RunnerFeedbackCue.cue(for: .reachedGoal, lastLandingWasJust: false).soundEffect == .success)
+        #expect(RunnerFeedbackCue.cue(for: .reachedGoal, lastLandingWasJust: false).soundEffect == .fanfare)
         #expect(SoundEffect(FeedbackImpact.light) == .light, "跳ぶ音")
     }
 
@@ -80,13 +81,13 @@ struct RunnerFeedbackCueTests {
         #expect(spy.notices.last == .error)
     }
 
-    @Test("ゴールに着くと success が鳴る（チェックポイント通過の success とは別に 1 回）")
-    func goalPlaysSuccess() {
+    @Test("ゴールに着くと milestone が鳴る（チェックポイント通過の success とは別音）")
+    func goalPlaysMilestone() {
         let spy = SpyFeedbackService()
         let model = makeModel(spy, stage: 1, suite: "cue-goal")
         autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
-        #expect(spy.notices == [.success, .success], "チェックポイント通過 + ゴール")
+        #expect(spy.notices == [.success, .milestone], "チェックポイント通過 → ゴール")
         #expect(!spy.notices.contains(.error))
     }
 
