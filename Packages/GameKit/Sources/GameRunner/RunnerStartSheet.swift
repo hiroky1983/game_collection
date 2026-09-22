@@ -38,12 +38,16 @@ struct RunnerStartSheet: View {
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection("モード") {
-                Picker("モード", selection: $mode) {
+                // 他ゲームの開始シートと同じ大きめのタイルに揃える（会長指摘・2026-09-23。
+                // `.pickerStyle(.segmented)` は他より一回り小さく見えた）。
+                HStack(spacing: 12) {
                     ForEach(RunnerMode.allCases) { option in
-                        Text(option.title).tag(option)
+                        GameSetupChooser(
+                            title: option.title, subtitle: "",
+                            selected: mode == option, accent: Theme.Fill.coral
+                        ) { mode = option }
                     }
                 }
-                .pickerStyle(.segmented)
                 Text(mode.summary)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.inkSub)

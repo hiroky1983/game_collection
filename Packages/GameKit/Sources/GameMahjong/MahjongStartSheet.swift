@@ -17,12 +17,16 @@ struct MahjongStartSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("対局の長さ")
                         .themeBody(15).foregroundStyle(Theme.inkSub)
-                    Picker("対局の長さ", selection: $length) {
+                    // 他ゲームの開始シート（先手／後手・6局／12局など）と同じ大きめのタイルに揃える
+                    // （会長指摘・2026-09-23。`.pickerStyle(.segmented)` は他より一回り小さく見えた）。
+                    HStack(spacing: 12) {
                         ForEach(MahjongGameLength.allCases) { option in
-                            Text(option.title).tag(option)
+                            GameSetupChooser(
+                                title: option.title, subtitle: "",
+                                selected: length == option, accent: Theme.Fill.coral
+                            ) { length = option }
                         }
                     }
-                    .pickerStyle(.segmented)
                     Text(length.summary)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
