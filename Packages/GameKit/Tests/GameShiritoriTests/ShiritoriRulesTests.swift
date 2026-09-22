@@ -203,7 +203,7 @@ struct ShiritoriQuotaTests {
 @Suite("具体物カードのドット絵")
 struct ObjectCardArtTests {
 
-    @Test("全種が 20×20 で、パレットに無い文字を使っていない")
+    @Test("全種が 40×40 で、パレットに無い文字を使っていない")
     func spritesAreWellFormed() {
         #expect(ObjectCardKind.allCases.count == 30)
         for kind in ObjectCardKind.allCases {
