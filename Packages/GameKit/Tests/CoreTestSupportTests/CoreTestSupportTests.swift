@@ -43,7 +43,7 @@ struct CoreTestSupportBoundaryTests {
         #expect(tests.count > 100, "Tests が読めていない（\(tests.count) 件）")
 
         var offenders: [String] = []
-        for name in ["MemorySnapshotStore", "SpyFeedbackService", "SpyAnalyticsService"] {
+        for name in ["MemorySnapshotStore", "SpyFeedbackService", "SpyAnalyticsService", "SpyReminderScheduler"] {
             let pattern = #"\b(class|struct) "# + name + #"\b"#
             offenders += tests
                 .filter { SourceScan.matchCount(of: pattern, in: SourceScan.strippingComments($0.text)) > 0 }

@@ -147,6 +147,7 @@ extension MahjongView {
             }
             RecordLabel(model.recordResult)
             if model.canReviveAfterBust { reviveButton }
+            if model.canExtendAfterLastPlace { extendButton }
         }
         .frame(maxWidth: .infinity)
         .padding(16)

@@ -15,6 +15,9 @@ enum BlocksPalette {
     static let ball: UInt32 = 0xFFF6EC
     /// 壊れないブロック。地に近い彩度の低い色で「触っても無駄」と分かるようにする。
     static let solid: UInt32 = 0x4A5068
+    /// 金庫の壁（#1250）。壊れないブロックと見分けがつくよう、暖色の真鍮色にする
+    /// （地の紺・灰色系のなかで「あとで開く箱」と分かる）。
+    static let vaultWall: UInt32 = 0xB08D57
     /// 硬いブロック（2 回ぶん残っている）。
     static let hardFull: UInt32 = 0x8E99BC
     /// 硬いブロック（あと 1 回）。明るくして「あと一撃」を色で伝える。
@@ -52,6 +55,8 @@ enum BlocksPalette {
         switch block.kind {
         case .solid:
             return color(solid)
+        case .vaultWall:
+            return color(vaultWall)
         case .hard:
             return color(block.remaining == 1 ? hardCracked : hardFull)
         case .normal:
@@ -95,6 +100,8 @@ final class BlocksScene: SKScene {
     )
     private let blockLayer = SKNode()
     private var blockNodes: [[SKSpriteNode?]] = []
+    /// 描画済みの `BlocksField.vaultsClearedCount`。増えた瞬間に一斉クリアの演出を出す（#1250）。
+    private var renderedVaultClears = 0
 
     init(model: BlocksModel) {
         self.model = model
@@ -179,6 +186,20 @@ final class BlocksScene: SKScene {
             blockNodes.append(nodes)
         }
         renderedGeneration = model.fieldGeneration
+        renderedVaultClears = model.field.vaultsClearedCount
+    }
+
+    /// 金庫を空にした瞬間の演出（#1250）。盤全体を一瞬明るくして、詰まっていたものが崩れたと伝える。
+    private func flashVaultCleared() {
+        let flash = SKSpriteNode(
+            color: BlocksPalette.color(BlocksPalette.ball),
+            size: CGSize(width: BlocksField.Metrics.width, height: BlocksField.Metrics.height)
+        )
+        flash.position = CGPoint(x: BlocksField.Metrics.width / 2, y: BlocksField.Metrics.height / 2)
+        flash.alpha = 0.4
+        flash.zPosition = 2
+        addChild(flash)
+        flash.run(.sequence([.fadeOut(withDuration: 0.3), .removeFromParent()]))
     }
 
     /// モデルの状態をノードへ写す。
@@ -187,6 +208,10 @@ final class BlocksScene: SKScene {
             rebuildBlocks()
         }
         let field = model.field
+        if field.vaultsClearedCount > renderedVaultClears {
+            renderedVaultClears = field.vaultsClearedCount
+            flashVaultCleared()
+        }
         syncBalls(field.balls)
         paddleNode.position = CGPoint(x: field.paddleX, y: BlocksField.Metrics.paddleY)
         // 伸長中は横だけ引き伸ばす（#599）。`SKShapeNode` は生成時の寸法を持つので、

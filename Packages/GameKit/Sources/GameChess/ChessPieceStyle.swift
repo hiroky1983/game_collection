@@ -11,12 +11,15 @@ public enum ChessPieceStyle: String, CaseIterable, Sendable {
     case flat
     /// 影・ツヤを足した立体的な駒。
     case sculpted
+    /// 回転体として面ごとに陰影を持たせ、輪郭線を引かない写実寄りの駒（#1015）。
+    case real
 
     /// 設定シートのタイルに出す名前。
     public var label: String {
         switch self {
         case .flat:     return "シンプル"
         case .sculpted: return "立体"
+        case .real:     return "リアル"
         }
     }
 
@@ -25,6 +28,16 @@ public enum ChessPieceStyle: String, CaseIterable, Sendable {
         switch self {
         case .flat:     return "今までの駒"
         case .sculpted: return "影とツヤ"
+        case .real:     return "丸みと反射"
+        }
+    }
+
+    /// 設定シートのタイルの色。
+    var tileAccent: Color {
+        switch self {
+        case .flat:     return Theme.Fill.teal
+        case .sculpted: return Theme.Fill.yellow
+        case .real:     return Theme.Fill.coral
         }
     }
 
@@ -44,6 +57,12 @@ public enum ChessPieceStyle: String, CaseIterable, Sendable {
                 shadowRadius: 0.03,
                 shadowOffset: 0.02
             )
+        case .real:
+            // 描画は `ChessRealPieceCanvas` が材質から自前で行い、この値は使わない。
+            // 外側の影も自前の接地影なので、`ChessPieceView` の影は落とさない（0）。
+            return ChessPieceShading(
+                fill: [], highlight: nil, highlightRadius: 0, sheen: 0, depth: 0,
+                shadowOpacity: 0, shadowRadius: 0, shadowOffset: 0)
         case .sculpted:
             // 面の色は現行と同じものを使い、**光の当て方だけ**で立体にする。
             // 照りの中心は左上（碁石・五目の石と同じ光源。#398/#368）。ここを揃えないと、

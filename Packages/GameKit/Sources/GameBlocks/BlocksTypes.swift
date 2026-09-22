@@ -11,13 +11,16 @@ public enum BlockKind: String, Codable, Equatable, Sendable, CaseIterable {
     case hard
     /// 壊れない障害物。ステージクリアの条件には数えない。
     case solid
+    /// 金庫の壁（#1250）。壊れない障害物として当たるが、金庫の中身を壊した数に応じて
+    /// `BlocksField` が 1 枚ずつ取り除く。ステージクリアの条件には数えない。
+    case vaultWall
 
     /// 初期耐久。壊れないブロックは nil。
     public var hitPoints: Int? {
         switch self {
         case .normal: return 1
         case .hard:   return 2
-        case .solid:  return nil
+        case .solid, .vaultWall: return nil
         }
     }
 
@@ -27,6 +30,7 @@ public enum BlockKind: String, Codable, Equatable, Sendable, CaseIterable {
         case .normal: return "n"
         case .hard:   return "h"
         case .solid:  return "s"
+        case .vaultWall: return "w"
         }
     }
 
@@ -64,6 +68,21 @@ public struct Block: Equatable, Sendable {
     }
 }
 
+/// 金庫の全消し（#1250）で 1 ダメージを受けたブロック 1 個ぶん。`blockHit` と同じ内容。
+public struct BlocksBlockHit: Equatable, Sendable {
+    public let row: Int
+    public let column: Int
+    public let kind: BlockKind
+    public let destroyed: Bool
+
+    public init(row: Int, column: Int, kind: BlockKind, destroyed: Bool) {
+        self.row = row
+        self.column = column
+        self.kind = kind
+        self.destroyed = destroyed
+    }
+}
+
 /// 1 サブステップで起きたできごと。Model がこれを見て得点・残機・音を動かす。
 ///
 /// **Field は状態を進めるだけで、得点も残機も知らない**。ゲームの進行はすべて Model 側にあり、
@@ -84,6 +103,13 @@ public enum BlocksEvent: Equatable, Sendable {
     /// `itemCaught` と同じく**得点は動かない**（効果は `BlocksField` が自分で適用済み）。
     /// `ballCount` は発動直後の盤上の球数（手応えの強さを変える用途を想定）。
     case frenzyTriggered(ballCount: Int)
+    /// 金庫の壁が 1 枚開いた（#1250）。球の追加は `BlocksField` が適用済みで、**得点は動かない**。
+    /// 壊したブロックの `blockHit` より**前**に並ぶ（Model がステージクリアを判定する前に
+    /// 金庫の効果をすべて処理し終えるため）。
+    case vaultWallOpened(vault: Int, row: Int, column: Int)
+    /// 金庫の中身が空になり、残っていた壁がすべて消えて盤上の壊せるブロックへ一斉に 1 ダメージが入った（#1250）。
+    /// `hits` は一斉ダメージを受けたブロック（**得点は Model がここから積む**）。
+    case vaultCleared(vault: Int, hits: [BlocksBlockHit])
     /// 盤上の球がすべて落ちた（1 機失う）。
     ///
     /// 球が増えているあいだ（#599）は、1 個落ちただけでは出ない。

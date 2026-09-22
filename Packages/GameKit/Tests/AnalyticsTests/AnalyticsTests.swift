@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+@testable import GameShiritori
 import GameSpider
 import GameChess
 import GameBlocks
@@ -60,7 +61,7 @@ private func makeHubGameIDs() -> Set<String> {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(), SpiderModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -429,7 +430,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 21, "ハブに並ぶゲームは21本")
+        #expect(hubGameIDs.count == 22, "ハブに並ぶゲームは22本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -845,6 +846,16 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.count == 1, "次のステージの終局はこれから")
     }
 
+    @Test("カードしりとり: 配られた時点で開始・決着で終局が1組")
+    func shiritori() async {
+        let (services, spy) = makeServices()
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 2026)
+        #expect(spy.events.isEmpty, "画面を開いただけでは配られない")
+        await playShiritori(model, quota: .hard)
+        #expect(model.phase == .result)
+        expectOnePair(spy, gameID: "shiritori")
+    }
+
     @Test("花札こいこい: 試合を始めた時点で開始・全局終了で終局が1組")
     func hanafuda() {
         let (services, spy) = makeServices()
@@ -1188,6 +1199,20 @@ private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
 }
 
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// 取れる札の先頭を取り、CPU の番は進めて、決着まで遊ぶ（カードしりとり）。
+@MainActor
+private func playShiritori(_ model: ShiritoriModel, quota: ShiritoriQuota = .normal) async {
+    model.startGame(quota: quota)
+    for _ in 0..<60 where model.phase == .playing {
+        if model.isPlayerTurn {
+            guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { break }
+            model.select(move.slot)
+        } else {
+            await model.runCPUTurnIfNeeded()
+        }
+    }
+}
+
 /// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
 @MainActor
 private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {

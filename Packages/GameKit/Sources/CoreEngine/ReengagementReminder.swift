@@ -112,6 +112,7 @@ public enum ReengagementReminderPolicy {
 
     /// 複数スレッドの発火予定が同じ暦日に重なったら、日数が大きい方（＝より切迫している方）だけを残す
     /// （会長決裁 2026-09-21）。小さい方はその回だけスキップされる（スレッド自体は他の予定日が残っていれば続く）。
+    /// 日数まで同じ場合も 1 件だけ残す（`gameID` の昇順で先の方。Dictionary の反復順に依存させない）。
     public static func resolvingCollisions(
         threads: [String: [(days: Int, date: Date)]],
         calendar: Calendar
@@ -124,9 +125,8 @@ public enum ReengagementReminderPolicy {
         var result: [String: [Date]] = [:]
         for (_, group) in grouped {
             guard let maxDays = group.map(\.days).max() else { continue }
-            for entry in group where entry.days == maxDays {
-                result[entry.gameID, default: []].append(entry.date)
-            }
+            guard let winner = group.filter({ $0.days == maxDays }).min(by: { $0.gameID < $1.gameID }) else { continue }
+            result[winner.gameID, default: []].append(winner.date)
         }
         for key in result.keys { result[key]?.sort() }
         return result
@@ -294,6 +294,12 @@ public final class ReengagementReminderService {
             }
             activeThreads.removeValue(forKey: gameID)
         }
+        // 非表示にした・アプリの更新で外れたゲームのスレッドは、新しい対象の有無に関係なくここで後始末する
+        // （後段は新しい対象があるときにしか届かず、開けない通知が残りうる。CodeRabbit 指摘・PR #1234）。
+        for gameID in activeThreads.keys.filter({ reminderTitle($0) == nil }) {
+            scheduler.cancel(gameID: gameID)
+            activeThreads.removeValue(forKey: gameID)
+        }
         store.activeThreads = activeThreads
         guard epoch == token, !store.isPermanentlyStopped else { return }
 
@@ -315,8 +321,10 @@ public final class ReengagementReminderService {
 
         // 4. 許諾が確認できたので新しいスレッドとして記録し、既存スレッドとあわせて発火予定を
         //    組み直す。同じ暦日に重なったら日数の大きい方だけ残してから反映する。
+        let previousLastThreadAddedAt = store.lastThreadAddedAt
+        let addedAt = now()
         activeThreads[target] = newLastPlayedAt
-        store.lastThreadAddedAt = now()
+        store.lastThreadAddedAt = addedAt
         store.activeThreads = activeThreads
 
         var perThreadSchedule: [String: [(days: Int, date: Date)]] = [:]
@@ -337,6 +345,11 @@ public final class ReengagementReminderService {
             // （取り消しが追加より先に処理されると残ってしまうため。PR #697 の CodeRabbit 指摘と同型）。
             guard epoch == token, isEnabled(), !store.isPermanentlyStopped else {
                 scheduler.cancel(gameID: gameID)
+                // 新規スレッドの記録だけが残ると、次の判定で「既にアクティブ」と見なされ永久に予約されない。
+                // 巻き戻して次の判定でやり直せるようにする（記録が別の処理で書き換わっていれば触らない）。
+                scheduler.cancel(gameID: target)
+                store.activeThreads.removeValue(forKey: target)
+                if store.lastThreadAddedAt == addedAt { store.lastThreadAddedAt = previousLastThreadAddedAt }
                 return
             }
         }

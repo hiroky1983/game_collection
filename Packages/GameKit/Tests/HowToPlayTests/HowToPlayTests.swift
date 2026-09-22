@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameShiritori
 import GameSpider
 import GameChess
 import GameBlocks
@@ -33,6 +34,7 @@ private let registeredModules: [GameModule] = [
     OthelloModule(),
     PokerModule(),
     ConcentrationModule(),
+    ShiritoriModule(),
     BlackjackModule(),
     DaifugoModule(),
     MahjongSolitaireModule(),

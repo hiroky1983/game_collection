@@ -65,8 +65,10 @@ private let GOMOKU_TT_SIZE = 1 << 18  // 256K エントリ ≈ 4MB
 /// 形の選び方も広げて手なりに打たせている。自分の五は必ず取るところは変えていないので、
 /// 弱いが壊れてはいない（簡単に 10/40・でたらめな相手には 40/40。実測は PR）。
 public struct SimpleGomokuEngine: GomokuEngine {
-    let depth: Int
+    var depth: Int
     let timeLimit: TimeInterval
+    /// 探索の時計。テストが「最後の根手の評価中に時間切れ」を実時間なしで再現するために差し替える（#1226）。
+    let now: @Sendable () -> Date
     /// 連珠の禁じ手ルール（#441）。オンのとき、黒番では三三・四四・長連を候補から外す。
     let forbiddenMoves: Bool
     /// 「弱」か（#665）。弱は探索せず `GomokuSearchContext.weakMove` の1手先の形だけで打つ。
@@ -103,7 +105,9 @@ public struct SimpleGomokuEngine: GomokuEngine {
     }
 
     init(level: Int, forbiddenMoves: Bool = false, seed: UInt64?,
-         weakBlockRate: Double? = nil) {
+         weakBlockRate: Double? = nil, maxDepth: Int? = nil,
+         now: @escaping @Sendable () -> Date = { Date() }) {
+        self.now = now
         let strength = CPUStrength.strength(for: level)
         switch strength {
         case .novice:  (depth, timeLimit) = (1, 0.4)
@@ -112,6 +116,7 @@ public struct SimpleGomokuEngine: GomokuEngine {
         case .serious: (depth, timeLimit) = (7, 3.0)
         case .normal:  (depth, timeLimit) = (4, 0.8)
         }
+        if let maxDepth { depth = maxDepth }   // テスト用: 反復深化の上限を絞る（#1226）
         self.forbiddenMoves = forbiddenMoves
         self.isWeak = strength == .easy || strength == .novice
         self.weakBlockRate = weakBlockRate
@@ -124,7 +129,7 @@ public struct SimpleGomokuEngine: GomokuEngine {
         if isWeak {
             // 探索しないので置換表（約4MB）は確保しない。
             let ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
-                                          forbiddenMoves: forbiddenMoves, transpositionTableSize: 0)
+                                          forbiddenMoves: forbiddenMoves, transpositionTableSize: 0, now: now)
             if let seed {
                 var rng = MMIXRandom(state: seed)
                 return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate,
@@ -135,14 +140,14 @@ public struct SimpleGomokuEngine: GomokuEngine {
                                 choice: weakChoice, using: &rng)
         }
         var ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
-                                      forbiddenMoves: forbiddenMoves)
+                                      forbiddenMoves: forbiddenMoves, now: now)
         return ctx.search(board: board, stone: stone)
     }
 
     /// 探索が読む候補手の並び。テストが全順序になっていることを確かめる窓口（#812）。
     func candidateMoves(board: GomokuBoard) -> [(Int, Int)] {
         GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit, forbiddenMoves: forbiddenMoves,
-                            transpositionTableSize: 0).candidateMoves(board: board)
+                            transpositionTableSize: 0, now: now).candidateMoves(board: board)
     }
 }
 
@@ -151,14 +156,16 @@ public struct SimpleGomokuEngine: GomokuEngine {
 private struct GomokuSearchContext {
     let maxDepth: Int
     let deadline: Date
+    let now: @Sendable () -> Date
     let forbiddenMoves: Bool
     var killers: [[Int?]]   // killers[ply][0..1]、row*15+col でエンコード
     var tt: [GomokuTTEntry]
 
     init(maxDepth: Int, timeLimit: TimeInterval, forbiddenMoves: Bool,
-         transpositionTableSize: Int = GOMOKU_TT_SIZE) {
+         transpositionTableSize: Int = GOMOKU_TT_SIZE, now: @escaping @Sendable () -> Date = { Date() }) {
         self.maxDepth = maxDepth
-        self.deadline = Date().addingTimeInterval(timeLimit)
+        self.now = now
+        self.deadline = now().addingTimeInterval(timeLimit)
         self.forbiddenMoves = forbiddenMoves
         self.killers = [[Int?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [GomokuTTEntry](repeating: GomokuTTEntry(), count: transpositionTableSize)
@@ -258,7 +265,7 @@ private struct GomokuSearchContext {
         var best: (Int, Int) = (first / gomokuBoardSize, first % gomokuBoardSize)
 
         for d in 1...maxDepth {
-            if Date() > deadline { break }
+            if now() > deadline { break }
             var localBest: Int? = nil
             var bestScore = Int.min + 1
             var alpha = Int.min + 1
@@ -267,7 +274,7 @@ private struct GomokuSearchContext {
             var b = board
 
             for encoded in orderedEncoded {
-                if Date() > deadline { aborted = true; break }
+                if now() > deadline { aborted = true; break }
                 let r = encoded / gomokuBoardSize, c = encoded % gomokuBoardSize
                 b[r, c] = stone
                 let score: Int
@@ -282,6 +289,10 @@ private struct GomokuSearchContext {
                 if score > alpha { alpha = score }
             }
 
+            // 最後の根手の評価中に期限切れになっていた場合もここで拾う。ループ先頭のチェックだけだと、
+            // 全ての根手を一応は評価しているのに「読み切った」と誤採用する（`negamax` は期限切れで
+            // 静的評価を即返すため、その深さの評価値が不完全になる。#1226）。
+            if now() > deadline { aborted = true }
             if !aborted, let lb = localBest {
                 best = (lb / gomokuBoardSize, lb % gomokuBoardSize)
                 orderedEncoded.removeAll { $0 == lb }
@@ -296,7 +307,7 @@ private struct GomokuSearchContext {
 
     mutating func negamax(_ board: inout GomokuBoard, stone: GomokuStone, depth: Int,
                           alpha: Int, beta: Int, ply: Int) -> Int {
-        if Date() > deadline { return evaluate(board, for: stone) }
+        if now() > deadline { return evaluate(board, for: stone) }
 
         let hash = board.zobristHash(stone: stone)
         let ttIdx = Int(hash & UInt64(GOMOKU_TT_SIZE - 1))

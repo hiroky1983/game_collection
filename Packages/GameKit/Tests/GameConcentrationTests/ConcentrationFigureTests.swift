@@ -1,10 +1,11 @@
-import CoreGraphics
 import Foundation
 import Testing
+import Core
 @testable import GameConcentration
 
-/// 絵柄の定義（#601）。絵文字をやめて自前の図案に替えたことを、定義の側から固定する。
-@Suite("神経衰弱: 絵柄の定義（#601）")
+/// 絵柄の定義（#601 → #1244）。抽象図形を具体物カード（`ObjectCardKind`）に替えたことと、
+/// 旧版の中断データが読み替えられることを、定義の側から固定する。
+@Suite("神経衰弱: 絵柄の定義（#601・#1244）")
 struct ConcentrationFigureDefinitionTests {
 
     /// 盤で使われるのは最大 18 種（18 ペア）。図案がこれを下回ると盤を組めない。
@@ -13,17 +14,14 @@ struct ConcentrationFigureDefinitionTests {
         #expect(ConcentrationFigure.allCases.count >= ConcentrationPairCount.large.rawValue)
     }
 
-    @Test("識別子・読み上げ文・色・旧版の絵文字がどれも重複しない")
+    @Test("識別子・読み上げ文が重複しない")
     func figureAttributesAreUnique() {
         let all = ConcentrationFigure.allCases
         #expect(Set(all.map(\.rawValue)).count == all.count, "識別子が重複している")
         #expect(Set(all.map(\.displayName)).count == all.count, "読み上げ文が重複している")
-        #expect(Set(all.map(\.legacyEmoji)).count == all.count, "旧版の絵文字が重複している")
-        #expect(Set(all.map { String(describing: $0.color) }).count == all.count, "色が重複している")
     }
 
-    /// 中断データに書く識別子に絵文字が混ざっていたら、OS 依存を持ち込んだまま名前だけ
-    /// 変えたことになる（旧版の絵文字は `legacyEmoji` だけが持つ）。
+    /// 中断データに書く識別子に絵文字が混ざっていたら、OS 依存を持ち込んだまま名前だけ変えたことになる。
     @Test("識別子は ASCII だけで書かれている")
     func rawValuesAreASCII() {
         for figure in ConcentrationFigure.allCases {
@@ -33,11 +31,41 @@ struct ConcentrationFigureDefinitionTests {
         }
     }
 
-    @Test("旧版の絵文字は現行の図案へ読み替えられる")
-    func legacyEmojiDecodesToItsFigure() {
+    @Test("盤に使う先頭 18 種は絵が描かれている")
+    func boardFiguresHaveArt() {
+        for figure in ConcentrationFigure.allCases.prefix(ConcentrationPairCount.large.rawValue) {
+            #expect(figure.cgImage != nil, "\(figure) のドット絵が作れない")
+        }
+    }
+
+    @Test("現行の識別子は現行の図案へ読み替えられる")
+    func currentRawValueDecodesToItself() {
         for figure in ConcentrationFigure.allCases {
-            #expect(ConcentrationFigure.decode(figure.legacyEmoji) == figure)
             #expect(ConcentrationFigure.decode(figure.rawValue) == figure)
+        }
+    }
+
+    /// 旧版（図形・絵文字）の中断データが、1 対 1 で新しいカードへ移ること。
+    /// 1 対 1 でないと、対だった 2 枚が別の絵になって盤が崩れる。
+    @Test("旧版の図形の識別子・絵文字は、どちらも同じ新カードへ 1 対 1 で読み替えられる")
+    func legacySymbolsDecodeOneToOne() {
+        var seen = Set<String>()
+        for legacy in LegacyConcentrationFigure.allCases {
+            let byIdentifier = ConcentrationFigure.decode(legacy.identifier)
+            let byEmoji = ConcentrationFigure.decode(legacy.emoji)
+            #expect(byIdentifier != nil, "\(legacy.identifier) が読み替えられない")
+            #expect(byIdentifier == byEmoji, "\(legacy.identifier) の識別子と絵文字で行き先が違う")
+            if let kind = byIdentifier { seen.insert(kind.rawValue) }
+        }
+        #expect(seen.count == LegacyConcentrationFigure.allCases.count, "旧 18 種が別々の新カードに移っていない")
+    }
+
+    /// 旧識別子が現行の識別子と同じ綴りだと、読み替えのつもりが現行の図案に吸われる。
+    @Test("旧版の識別子は現行の識別子と重ならない")
+    func legacyIdentifiersDoNotCollideWithCurrent() {
+        let current = Set(ConcentrationFigure.allCases.map(\.rawValue))
+        for legacy in LegacyConcentrationFigure.allCases {
+            #expect(!current.contains(legacy.identifier), "\(legacy.identifier) が現行の識別子と重なる")
         }
     }
 
@@ -49,67 +77,9 @@ struct ConcentrationFigureDefinitionTests {
     }
 }
 
-/// 図案の形。描画そのものは目で見るしかないが、「部品が空」「枠からはみ出す」
-/// 「2種類が同じ形になっている」は形の式から機械的に分かる。
-@Suite("神経衰弱: 図案の形（#601）")
-struct ConcentrationFigureArtTests {
-
-    private static let box = CGRect(x: 0, y: 0, width: 100, height: 100)
-
-    /// 制御点まで含めた外接矩形で見るため、少しだけ外側を許す。
-    private static let slack: CGFloat = 12
-
-    @Test("どの図案も部品を持ち、中身が空でない")
-    func everyFigureHasNonEmptyParts() {
-        for figure in ConcentrationFigure.allCases {
-            let parts = ConcentrationFigureArt.parts(of: figure, in: Self.box)
-            #expect(!parts.isEmpty, "\(figure) に部品が無い")
-            for (i, part) in parts.enumerated() {
-                #expect(!part.path.isEmpty, "\(figure) の部品 \(i) が空")
-            }
-        }
-    }
-
-    @Test("どの図案も枠からはみ出さない")
-    func everyFigureStaysInsideItsBox() {
-        let limit = Self.box.insetBy(dx: -Self.slack, dy: -Self.slack)
-        for figure in ConcentrationFigure.allCases {
-            for (i, part) in ConcentrationFigureArt.parts(of: figure, in: Self.box).enumerated() {
-                let bounds = part.path.boundingRect
-                #expect(limit.contains(bounds),
-                        "\(figure) の部品 \(i) が枠からはみ出している: \(bounds)")
-            }
-        }
-    }
-
-    /// 小さく描いたときに読めなくならないよう、どの図案も枠の過半を使う。
-    @Test("どの図案も枠の過半を使う")
-    func everyFigureFillsMostOfItsBox() {
-        for figure in ConcentrationFigure.allCases {
-            let bounds = ConcentrationFigureArt.parts(of: figure, in: Self.box)
-                .map(\.path.boundingRect)
-                .reduce(CGRect.null) { $0.union($1) }
-            #expect(bounds.width >= Self.box.width * 0.5,
-                    "\(figure) の横幅が \(bounds.width) しかない")
-            #expect(bounds.height >= Self.box.height * 0.5,
-                    "\(figure) の高さが \(bounds.height) しかない")
-        }
-    }
-
-    /// 同じ形が2種類あると、色でしか見分けられない札の組ができる。
-    @Test("同じ形の図案が2つ無い")
-    func noTwoFiguresShareTheSameShape() {
-        var seen: [String: ConcentrationFigure] = [:]
-        for figure in ConcentrationFigure.allCases {
-            var shape = ""
-            for part in ConcentrationFigureArt.parts(of: figure, in: Self.box) {
-                let width: String = part.strokeWidth == nil ? "fill" : "\(part.strokeWidth!)"
-                shape += part.path.description + "|" + width + "/"
-            }
-            if let other = seen[shape] {
-                Issue.record("\(figure) と \(other) の形が同じ")
-            }
-            seen[shape] = figure
-        }
+extension LegacyConcentrationFigure {
+    /// 新カードに対応する旧版の絵文字（テストが旧版の中断データを作るのに使う）。
+    static func emoji(ofReplacement rawValue: String) -> String {
+        allCases.first { $0.replacement.rawValue == rawValue }!.emoji
     }
 }

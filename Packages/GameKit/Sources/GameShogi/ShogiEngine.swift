@@ -26,8 +26,8 @@ enum PieceValue {
         if p.promoted {
             switch p.type {
             case .pawn, .lance, .knight, .silver: return 600
-            case .bishop: return 1200
-            case .rook: return 1300
+            case .bishop: return 1050
+            case .rook: return 1550
             default: break
             }
         }
@@ -275,9 +275,21 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         return pool[Int.random(in: 0..<pool.count, using: &rng)]
     }
 
+    /// 囲いの堅さ（shelter）だけ。自己対戦テストが「囲いが進んだか」を見るための口で、
+    /// 攻め駒の接近（`kingDanger`）は含めない。
     func kingSafety(_ pos: Position, _ color: Side) -> Int {
         SearchContext(maxDepth: depth, usePositional: usePositional,
-                      useQuiescence: useQuiescence, timeLimit: 0).kingSafety(pos, color)
+                      useQuiescence: useQuiescence, timeLimit: 0).kingShelter(pos, color)
+    }
+
+    func kingDanger(_ pos: Position, _ color: Side) -> Int {
+        SearchContext(maxDepth: depth, usePositional: usePositional,
+                      useQuiescence: useQuiescence, timeLimit: 0).kingDanger(pos, color)
+    }
+
+    func kingPawnShield(_ pos: Position, _ color: Side) -> Int {
+        SearchContext(maxDepth: depth, usePositional: usePositional,
+                      useQuiescence: useQuiescence, timeLimit: 0).kingPawnShield(pos, color)
     }
 }
 
@@ -420,9 +432,9 @@ private struct SearchContext {
         let standPat = evaluate(pos)
         if standPat >= beta { return beta }
 
-        // デルタ枝刈り: 最高の取り駒（竜=1300）を加えても alpha に届かない場合はスキップ
-        // alpha - 1300 はオーバーフローするので standPat + 1300 < alpha の形にする
-        if standPat + 1300 < alpha { return alpha }
+        // デルタ枝刈り: 最高の取り駒（竜=1550）を加えても alpha に届かない場合はスキップ
+        // alpha - 1550 はオーバーフローするので standPat + 1550 < alpha の形にする
+        if standPat + 1550 < alpha { return alpha }
 
         var alpha = max(alpha, standPat)
 
@@ -515,7 +527,8 @@ private struct SearchContext {
         }
 
         if usePositional {
-            score += kingSafety(pos, .black) - kingSafety(pos, .white)
+            score += kingShelter(pos, .black) - kingDanger(pos, .black) + kingPawnShield(pos, .black)
+                   - kingShelter(pos, .white) + kingDanger(pos, .white) - kingPawnShield(pos, .white)
         }
 
         return pos.sideToMove == .black ? score : -score
@@ -548,7 +561,7 @@ private struct SearchContext {
     /// 3. 金銀が2枚以上揃っている（=連携している）ときに追加ボーナス。単独の守り駒より
     ///    連携した囲いのほうが実戦的に堅いという知見を反映する。
     /// 4. 大駒（飛・角・馬・龍）の利きが玉まで素通しになっていないか（`kingExposure`）を見る。
-    func kingSafety(_ pos: Position, _ color: Side) -> Int {
+    func kingShelter(_ pos: Position, _ color: Side) -> Int {
         guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
             return 0
         }
@@ -585,6 +598,66 @@ private struct SearchContext {
         s += max(0, 2 - abs(kr - homeRank)) * 10
         s -= kingExposure(pos, color: color, kingSq: k)
         return s
+    }
+
+    /// 玉頭の歩の盾と開いた筋（#1258 段階4）。shelter とは別項（自己対戦テストは shelter だけを見る）。
+    /// 玉の筋と両隣で、玉の前方3マス以内に自分の歩があれば加点し、その筋に自分の歩が1枚も無ければ
+    /// （相手の飛香が走れる開いた筋）減点する。相手が飛車を持っている（盤上・持ち駒とも）ときは
+    /// 開いた筋の減点を倍にする。前方2マスに絞ると、7六歩を突いたあとの 6九玉が盾なしと見なされ、
+    /// 囲いを進める手が選ばれなくなった（自己対戦で実測）ため3マスにしている。
+    func kingPawnShield(_ pos: Position, _ color: Side) -> Int {
+        guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
+            return 0
+        }
+        let kf = Sq.file(k), kr = Sq.rank(k)
+        let forward = color == .black ? -1 : 1
+        let opponent = color.opponent
+        let oppHasRook = pos.hands[opponent.rawValue][PieceType.rook.rawValue] > 0
+            || pos.squares.contains { $0?.type == .rook && $0?.color == opponent }
+        var s = 0
+        for f in max(0, kf - 1)...min(8, kf + 1) {
+            var shield = false
+            var hasPawn = false
+            for r in 0..<Sq.count / 9 {
+                guard let p = pos.squares[Sq.index(file: f, rank: r)],
+                      p.type == .pawn, !p.promoted, p.color == color else { continue }
+                hasPawn = true
+                let ahead = (r - kr) * forward
+                if ahead >= 1 && ahead <= 3 { shield = true }
+            }
+            if shield { s += 5 }
+            if !hasPawn { s -= oppHasRook ? 8 : 4 }
+        }
+        return s
+    }
+
+    /// 玉に迫る相手の攻め駒（king tropism, #1258）。棒銀・早繰り銀のように玉から距離3以内へ
+    /// 攻め駒（銀・桂・角・飛と成り駒）が来ているほど減点する。囲い（shelter）は自駒しか見ないため、
+    /// 攻め駒が2筋まで来た局面が leaf で「無傷」に見えていた。攻め駒1枚では効かせず、
+    /// 2枚目以降から加算する（1枚だけの牽制で守りを固めすぎないため）。
+    func kingDanger(_ pos: Position, _ color: Side) -> Int {
+        guard let k = pos.squares.firstIndex(where: { $0?.type == .king && $0?.color == color }) else {
+            return 0
+        }
+        let kf = Sq.file(k), kr = Sq.rank(k)
+        var total = 0
+        var attackers = 0
+        for f in max(0, kf - 3)...min(8, kf + 3) {
+            for r in max(0, kr - 3)...min(8, kr + 3) {
+                guard let p = pos.squares[Sq.index(file: f, rank: r)], p.color != color else { continue }
+                let weight: Int
+                switch p.type {
+                case .silver, .bishop, .rook: weight = 3
+                case .knight: weight = 2
+                default: weight = p.promoted ? 2 : 0
+                }
+                if weight == 0 { continue }
+                let dist = max(abs(f - kf), abs(r - kr))
+                total += weight * (4 - dist) * 4
+                attackers += 1
+            }
+        }
+        return attackers >= 2 ? total : 0
     }
 
     /// 隣接8マス（距離1のリング）。

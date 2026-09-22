@@ -53,3 +53,73 @@ struct StrongLevelTests {
         #expect(usi == "5e5d")
     }
 }
+
+@Suite("玉への攻め駒の接近（#1258）")
+struct KingDangerTests {
+    private let engine = SimpleMinimaxEngine(level: 1)
+
+    @Test func startPositionHasNoDanger() {
+        let pos = Position.start()
+        #expect(engine.kingDanger(pos, .black) == 0)
+        #expect(engine.kingDanger(pos, .white) == 0)
+    }
+
+    @Test func twoAttackersNearKingAreDangerousButOneIsNot() {
+        // 先手玉 5九 に対し、後手の銀が距離2に2枚（棒銀・早繰り銀の形）／1枚だけ。
+        let two = Position.fromSFEN("4k4/9/9/9/9/9/2s3s2/9/4K4 b - 1")!
+        let one = Position.fromSFEN("4k4/9/9/9/9/9/2s6/9/4K4 b - 1")!
+        #expect(engine.kingDanger(two, .black) > 0)
+        #expect(engine.kingDanger(one, .black) == 0)
+        // 近いほど危険（距離2 → 距離1）
+        let closer = Position.fromSFEN("4k4/9/9/9/9/9/9/3s1s3/4K4 b - 1")!
+        #expect(engine.kingDanger(closer, .black) > engine.kingDanger(two, .black))
+    }
+
+    @Test func dangerIgnoresFarAttackers() {
+        let far = Position.fromSFEN("4k4/9/9/s6s1/9/9/9/9/4K4 b - 1")!
+        #expect(engine.kingDanger(far, .black) == 0)
+    }
+
+    @Test func promotedBishopIsWorthLessThanPromotedRook() {
+        // 馬 < 龍、かつ 馬 > 飛（成り駒の駒割を定説の並びに、#1258）
+        let horse = PieceValue.onBoard(Piece(type: .bishop, color: .black, promoted: true))
+        let dragon = PieceValue.onBoard(Piece(type: .rook, color: .black, promoted: true))
+        let rook = PieceValue.onBoard(Piece(type: .rook, color: .black, promoted: false))
+        #expect(rook < horse && horse < dragon)
+    }
+}
+
+@Suite("玉頭の歩の盾と開いた筋（#1258 段階4）")
+struct KingPawnShieldTests {
+    private let engine = SimpleMinimaxEngine(level: 1)
+
+    private func shield(_ sfen: String, _ color: Side = .black) -> Int {
+        let pos = Position.fromSFEN(sfen)!
+        return engine.kingPawnShield(pos, color)
+    }
+
+    @Test func pawnsInFrontOfKingScoreHigherThanNone() {
+        let withPawns = shield("4k4/9/9/9/9/9/3PPP3/9/4K4 b - 1")
+        let without = shield("4k4/9/9/9/9/9/9/9/4K4 b - 1")
+        #expect(withPawns > without)
+    }
+
+    @Test func pawnFarAheadDoesNotShield() {
+        let near = shield("4k4/9/9/9/9/9/4P4/9/4K4 b - 1")
+        let far = shield("4k4/9/9/9/4P4/9/9/9/4K4 b - 1")
+        #expect(near > far)
+    }
+
+    @Test func openFileIsWorseWhenOpponentHasRook() {
+        let noRook = shield("4k4/9/9/9/9/9/9/9/4K4 b - 1")
+        let withRook = shield("4k4/9/9/9/9/9/9/9/4K4 b r 1")
+        #expect(withRook < noRook)
+    }
+
+    @Test func whiteSideIsMirrored() {
+        // 後手玉 5一 の前方（rank が増える向き）に歩があれば盾になる／遠い歩は盾にならない
+        let near = shield("4k4/4p4/9/9/9/9/9/9/4K4 w - 1", .white)
+        let far = shield("4k4/9/9/9/4p4/9/9/9/4K4 w - 1", .white)
+        #expect(near > far)
+    }
+}

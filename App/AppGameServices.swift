@@ -21,6 +21,7 @@ import GameFreeCell
 import GameRunner
 import GameHanafuda
 import GameSpider
+import GameShiritori
 // GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
 // 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
 // `registry` に1行足せば復活できる）。
@@ -214,6 +215,8 @@ enum AppEnvironment {
         MinesweeperModule(),
         GomokuModule(),
         ConcentrationModule(),
+        // カードしりとり（#1243）。同じ「絵札を取り合う」神経衰弱の隣に置く。
+        ShiritoriModule(),
         // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
         // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
         BlocksModule(),

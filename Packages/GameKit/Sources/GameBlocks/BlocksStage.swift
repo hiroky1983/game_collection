@@ -3,7 +3,7 @@ import Foundation
 /// 1 ステージぶんのブロック配置と球の速さ（#463）。
 ///
 /// レイアウトは 1 行 = `BlocksField.Metrics.columns` 文字の文字列で、
-/// `n` = 通常 / `h` = 硬い（2 回）/ `s` = 壊れない / `.` = 空き。上の行が画面の上。
+/// `n` = 通常 / `h` = 硬い（2 回）/ `s` = 壊れない / `w` = 金庫の壁（#1250）/ `.` = 空き。上の行が画面の上。
 public struct BlocksStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -70,6 +70,9 @@ public extension BlocksStage {
     /// - 前半（1〜4）は通常ブロックだけで操作に慣れさせ、`hard` は 4 面目から出す
     /// - `solid`（壊れない）は 5 面目から。**必ず縦にも横にも隙間を空けて置く**。壁のように
     ///   並べると、その裏の通常ブロックへ球が届かずステージが詰む
+    /// - **金庫（`w`・#1250）は 4 面目から**。1〜3 面は変えない。後半ほど箱を大きく・数を増やす。
+    ///   入り口は下段の 1 マスだけ空け、壁の外接矩形の最下段に必ず切れ目を作る
+    ///   （`VaultTests.everyVaultHasContentsAndAnEntrance` が全面で検査する）
     /// - 最終面（12）は全種を使うが、最上段と最下段のあいだに通常ブロックの層を挟んで
     ///   突破口を残す
     ///
@@ -136,77 +139,78 @@ public extension BlocksStage {
             "nnnnnnnnn",
         ],
         // 4. 硬いブロックの初出。最上段だけなので 2 回当てれば必ず抜ける。
+        //    金庫（#1250）の初出。中身は硬いブロック 3 個で、入り口は下の 1 マス。
         [
             "hhhhhhhhh",
-            "nnnnnnnnn",
-            "nnnnnnnnn",
-            "n.n.n.n.n",
+            "nnwwwwwnn",
+            "nnwhhhwnn",
+            "n.ww.wwn.",
         ],
         // 5. 壊れないブロックの初出。柱は 2 本だけで、左右にも下にも通り道がある。
         [
             "n.s.n.s.n",
-            "nnnnnnnnn",
-            "n.n.n.n.n",
-            "nnnnnnnnn",
+            "nwwwwwnnn",
+            "nwnnnwnnn",
+            "nww.wwnnn",
         ],
         // 6. ダイヤ。中央に硬いブロックを 1 つ置いて最後の 1 個を粘らせる。
         [
             "....h....",
             "...nnn...",
             "..n.n.n..",
-            ".nnnnnnn.",
-            "..n.n.n..",
-            "...nnn...",
+            ".wwwwwww.",
+            ".wnnnnnw.",
+            ".www.www.",
         ],
         // 7. 両袖が硬い壁。中央に通常ブロックの通路を開けてある。
         [
             "hh.nnn.hh",
-            "nnnnnnnnn",
-            ".n.nhn.n.",
-            "nnnnnnnnn",
+            "nwwwwwwwn",
+            "nwnhnhnwn",
+            "nwww.wwwn",
         ],
         // 8. 硬いブロックの市松。総打数がはっきり増える。
         [
             "hnhnhnhnh",
-            "nhnhnhnhn",
-            "hnhnhnhnh",
-            "nnnnnnnnn",
+            "wwww.wwww",
+            "whhwnwhhw",
+            "w.wwnww.w",
         ],
         // 9. 砦。壊れないブロックは最上段に散らすだけで、下の層は素通しにする。
         [
             "s..s.s..s",
             "nnnnnnnnn",
-            "nnh.h.hnn",
-            "nnnnnnnnn",
-            "..nnnnn..",
+            "nwwwwwwwn",
+            "nwhnnnhwn",
+            ".www.www.",
         ],
         // 10. 硬い両肩 + 隙間の多い胴。速度が上がってくるので当て損ないを許す形にする。
         [
             "hhhnnnhhh",
-            "n.n.n.n.n",
             "nnnnnnnnn",
-            ".nn.n.nn.",
-            "nnnnnnnnn",
-            "n.n.n.n.n",
+            "wwwn.nwww",
+            "whwnnnwhw",
+            "whw.n.whw",
+            "w.wnnnw.w",
         ],
         // 11. 硬い層で上下を挟み、中央に壊れない柱を左右 1 本ずつ置く。
         [
             "hnhnhnhnh",
             "nnnnnnnnn",
-            "s.n.n.n.s",
-            "nnnnnnnnn",
-            "hnhnhnhnh",
-            "nnnnnnnnn",
+            "swwwwwwws",
+            "nwnhnhnwn",
+            "nwhnnnhwn",
+            "nwww.wwwn",
         ],
         // 12. 最終面。全種を使うが、硬い層のあいだに必ず通常ブロックの層を挟む。
         [
             "hhhhhhhhh",
             "nsnsnsnsn",
             "nnnnnnnnn",
-            "hnhnhnhnh",
-            "nnnnnnnnn",
-            "nsnsnsnsn",
-            "hhhhhhhhh",
+            "nwwwwwwwn",
+            "nwhnhnhwn",
+            "nwnhnhnwn",
+            "nwww.wwwn",
         ],
     ]
 }

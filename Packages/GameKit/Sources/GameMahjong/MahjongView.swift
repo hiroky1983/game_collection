@@ -21,6 +21,7 @@ public struct MahjongView: View {
     /// トビ復活（#338）。ポーカー・ブラックジャックの「広告を見てチップ回復」と同じ持ち方。
     /// トビ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var reviveRescue = RewardedRescue()
+    @State private var extendRescue = RewardedRescue()
     /// 役の早見表（#501）。`MahjongModel` には触れないので、開閉しても対局の状態は動かない。
     @State private var showYakuSheet = false
     /// 進行中の対局を捨てて配り直す前の確認（#638）。
@@ -129,6 +130,8 @@ public struct MahjongView: View {
         // 見えていた（会長指摘）。背景色を揃えて帯の境目を消す。
         // 復活ボタンは終局のリザルトにだけ出る（#780）。
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.phase == .gameResult && model.canReviveAfterBust,
+                     services: services, gameID: model.gameID)
+        .rewardOffer(extendRescue, for: .continue, isPresented: model.phase == .gameResult && model.canExtendAfterLastPlace,
                      services: services, gameID: model.gameID)
         .gameChrome(title: "麻雀", review: services.review, matchesNavigationBarBackground: true) {
             // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
@@ -246,6 +249,14 @@ public struct MahjongView: View {
             unavailable: RewardUnavailableAlert(
                 title: "復活できませんでした",
                 message: "広告を見ているあいだに対局が変わったため、復活は適用していません。復活の回数は減っていません。"
+            )
+        )
+        .rewardedRescueAlerts(
+            extendRescue,
+            notEarned: "延長できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "延長できませんでした",
+                message: "広告を見ているあいだに対局が変わったため、延長は適用していません。延長の回数は減っていません。"
             )
         )
     }
@@ -468,6 +479,26 @@ public struct MahjongView: View {
         .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
         .disabled(reviveRescue.isWatching)
         .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
+    }
+
+    /// 東 4 局を終えて最下位だったときだけ出る延長導線（#1201）。トビ復活と同じ形で、
+    /// 視聴完了のときだけ東 5 局を 1 局足す。得点は動かさない（1 半荘 1 回まで）。
+    var extendButton: some View {
+        Button {
+            extendRescue.requestHandledByModel(withOutcome: {
+                await model.extendAfterAd()
+            }, whenGranted: {
+                await model.runCPUTurnsIfNeeded()
+            })
+        } label: {
+            Label("広告を見て東5局を追加（1半荘に1回）", systemImage: "play.rectangle.fill")
+                .themeBody(16).frame(maxWidth: .infinity)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(Theme.onAccent)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+        .disabled(extendRescue.isWatching)
+        .accessibilityHint("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1半荘に1回だけです")
     }
 
     // MARK: - 操作
