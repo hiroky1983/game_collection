@@ -74,7 +74,7 @@ extension ConcentrationFigure {
 
 // MARK: - 表示
 
-/// 絵柄 1 つぶん。描画は Core の `ObjectCardArt`（20×20 ドット・補間なし）。
+/// 絵柄 1 つぶん。描画は Core の `ObjectCardArt`（40×40 ドット・補間なし）。
 struct ConcentrationFigureView: View {
     let figure: ConcentrationFigure
 
