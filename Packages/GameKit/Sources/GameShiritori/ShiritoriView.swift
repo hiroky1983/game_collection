@@ -275,14 +275,24 @@ struct ShiritoriCardTile: View {
 
     private var isCurrent: Bool { style == .current }
 
+    /// 読みを文字で見せるか。**取られる前の盤札では隠す**——絵だけを見て読みを考えるのが
+    /// しりとりパネルの遊び（ワギャンランド踏襲）で、文字を出すと当てる要素が消える
+    /// （会長指摘・2026-09-22「カードに文字書いてたら意味がない」）。場の最後の1枚（`.current`。
+    /// 次に続ける相手が読みを知っている必要がある）と、**取られたあとの札**（結果の確認）だけ見せる。
+    private var showsReading: Bool { isCurrent || owner != nil }
+
     var body: some View {
         VStack(spacing: 2) {
             ObjectCardArt(card.kind)
                 .padding(isCurrent ? 6 : 3)
+            // 常に描画して高さを確保する（グリッドの行の高さが札ごとにばらつかないように）。
+            // 隠すときは不透明度だけ0にする（VoiceOver は `boardArea` 側の `accessibilityLabel` が別に持つ）。
             Text(reading)
                 .font(.system(size: isCurrent ? 14 : 10, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1).minimumScaleFactor(0.5)
+                .opacity(showsReading ? 1 : 0)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 2).padding(.vertical, 3)
         .frame(maxWidth: .infinity)

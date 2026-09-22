@@ -152,15 +152,13 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     /// | -1 | 入門（手なりで指す） | 2 | 無し | 無し | 無し |
     /// | 0 | 簡単（駒得だけ） | 2 | 無し | 無し | 無し |
     /// | 1 | ふつう（囲いを作る） | 4 | 有り | 有り | 無し |
-    /// | 2 | むずかしい（定跡＋深読み） | 32 | 有り | 有り | 有り |
-    /// | 3 | ガチ（とことん読む） | 7 | 有り | 有り | 有り |
+    /// | 2 | むずかしい（定跡＋深読み） | 5 | 有り | 有り | 有り |
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
     ///
-    /// 「むずかしい」の探索深さ上限は #1134 で 5 → 32 に上げた。**持ち時間 1.5 秒は変えていない**——
-    /// 反復深化は深さ上限か `timeLimit` のどちらか早く来た方で打ち切るため、実測（`swiftc -O`）では
-    /// 旧設定（深さ 5 固定）が 0.007〜0.63 秒で探索を終え、残りの持ち時間を使い切っていなかった。
-    /// 上限を外して時間いっぱい反復深化を続けさせることで、同じ持ち時間のまま深く読む（詳細は PR）。
+    /// **「ガチ」（level 3・#1174）と「むずかしい」の探索深さ上限32への引き上げ（#1134）は
+    /// v1.1.6 で一旦取り消した**（会長指摘・2026-09-22。実プレイで強さを感じられず、
+    /// 調整してから出し直すと判断。v1.1.5 から公開されている深さ5・持ち時間1.5秒に戻してある）。
     ///
     /// level 0 は「初心者が勝てる最弱」を作るために、**深さ 2 + 静止探索なし**にしてある（#502。
     /// チェス `SimpleChessEngine` の level 0 と同じ設計）。静止探索を切ると取り合いの途中で
@@ -179,8 +177,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         switch strength {
         case .novice:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
         case .easy:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
-        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (32, true,  true,  true,  1.5)
-        case .serious: (depth, usePositional, useQuiescence, useBook, timeLimit) = (7, true,  true,  true,  3.0)
+        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true,  true,  true,  1.5)
         case .normal:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (4, true,  true,  false, 1.0)
         }
         self.isNovice = strength == .novice

@@ -595,7 +595,7 @@ struct GomokuNewGameSheet: View {
             GameSetupSection("CPUの強さ") {
                 // 説明は `SimpleGomokuEngine.init(level:)` の中身と一致させる（#416）。
                 CPUStrengthPicker(level: $level, details: [
-                    "見のがしが多い", "浅い読み", "標準", "深い読み", "とことん読む",
+                    "見のがしが多い", "浅い読み", "標準", "深い読み",
                 ])
             }
             // 既定はオフ（自由五目）。オンにすると黒だけが三三・四四・長連を打てなくなる。

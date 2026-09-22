@@ -555,7 +555,7 @@ struct NewGameSheet: View {
             GameSetupSection("CPUの強さ") {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
                 CPUStrengthPicker(level: $level, details: [
-                    "手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み", "とことん読む",
+                    "手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み",
                 ])
             }
         }

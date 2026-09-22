@@ -18,9 +18,9 @@ public struct BoardHintBudget: Equatable, Sendable {
     /// **対局中の CPU の強さには合わせず、常に最強で読む**。ヒントは「最善手を教えてほしい」という
     /// 求めなので、弱い CPU と対局しているときに弱い手を示しても答えにならない。五目並べの level 0 は
     /// 探索せず確率で見逃す「弱」なので、合わせると最善手ですらなくなる（#665）。
-    /// 5段階化（#1174）で `CPUStrength.hard`（むずかしい）より強い `.serious`（ガチ）が増えたため、
-    /// 最強を指すにはそちらを使う（#1196）。
-    public static let engineLevel = CPUStrength.serious.rawValue
+    /// **v1.1.6 では「ガチ」を一旦見送った**ため、現行の最強である `.hard`（むずかしい）を指す
+    /// （`.serious` 復活時はそちらへ戻す。#1196）。
+    public static let engineLevel = CPUStrength.hard.rawValue
 
     /// この局で使った回数。中断データにはこの値だけを保存する（残りは引き算で導ける）。
     public private(set) var used: Int

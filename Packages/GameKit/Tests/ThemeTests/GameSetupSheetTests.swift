@@ -108,8 +108,8 @@ struct GameSetupSheetSourceTests {
 @Suite("CPUの強さの選択 UI（#1174）")
 struct CPUStrengthPickerSourceTests {
 
-    /// 5 段階を持つゲーム（`CPUStrength` を使う 4 本）。囲碁・神経衰弱・花札は
-    /// 別の段階の型（`GoLevel` など）を持つので対象外。
+    /// `CPUStrength` を使う 4 本。囲碁・神経衰弱・花札は別の段階の型（`GoLevel` など）を
+    /// 持つので対象外。
     private static let games = [
         "GameChess/ChessView.swift",
         "GameGomoku/GomokuView.swift",
@@ -117,7 +117,7 @@ struct CPUStrengthPickerSourceTests {
         "GameShogi/ShogiView.swift",
     ]
 
-    @Test("4ゲームとも共通の 5 段階ピッカーで組んでいる")
+    @Test("4ゲームとも共通のピッカーで組んでいる")
     func everyCPUGameUsesTheSharedPicker() throws {
         for path in Self.games {
             let source = try String(
@@ -126,9 +126,9 @@ struct CPUStrengthPickerSourceTests {
                 encoding: .utf8)
             #expect(source.contains(#"GameSetupSection("CPUの強さ")"#), "\(path) に強さの節が無い")
             #expect(source.contains("CPUStrengthPicker(level: $level"),
-                    "\(path) が共通の 5 段階ピッカーを使っていない")
-            // 説明は 5 段ぶん渡す（`CPUStrength.allCases` と同じ並び）。
-            #expect(source.contains("とことん読む"), "\(path) にガチの説明が無い")
+                    "\(path) が共通のピッカーを使っていない")
+            // 「ガチ」は v1.1.6 で一旦見送ったので、その説明（「とことん読む」）は書かれていない。
+            #expect(!source.contains("とことん読む"), "\(path) に見送ったはずのガチの説明が残っている")
             // 段の呼び名はピッカー側（`CPUStrength.label`）が持つ。各ゲームに書き写さない。
             for label in CPUStrength.labels {
                 #expect(!source.contains("title: \"\(label)\""),
@@ -142,7 +142,7 @@ struct CPUStrengthPickerSourceTests {
     @Test("段を選び直しても高さが変わらない")
     @MainActor
     func heightIsStableAcrossSelections() {
-        let details = ["手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み", "とことん読む"]
+        let details = ["手なりで指す", "駒得だけ", "囲いを作る", "定跡＋深読み"]
         var heights: [Int] = []
         for strength in CPUStrength.allCases {
             var level = strength.rawValue

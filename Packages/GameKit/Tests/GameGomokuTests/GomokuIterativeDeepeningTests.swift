@@ -34,7 +34,7 @@ struct GomokuIterativeDeepeningTests {
 
     private func run(maxDepth: Int, expireAfter: Int?) async -> (move: (row: Int, col: Int)?, calls: Int) {
         let clock = Clock(expireAfter: expireAfter)
-        let engine = SimpleGomokuEngine(level: CPUStrength.serious.rawValue, seed: nil,
+        let engine = SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: nil,
                                         maxDepth: maxDepth, now: clock.now)
         let move = await engine.bestMove(board: Self.midgame(), stone: .black)
         return (move, clock.callCount)

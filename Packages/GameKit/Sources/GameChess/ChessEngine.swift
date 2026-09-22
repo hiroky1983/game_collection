@@ -197,7 +197,6 @@ public struct SimpleChessEngine: ChessEngine {
         case .novice:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
         case .easy:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
         case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (5, true, true, true, 2.0)
-        case .serious: (depth, usePositional, useQuiescence, useBook, timeLimit) = (7, true, true, true, 3.0)
         case .normal:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (3, true, true, false, 1.0)
         }
         self.isNovice = strength == .novice
