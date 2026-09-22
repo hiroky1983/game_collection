@@ -3,7 +3,9 @@ import Foundation
 import SwiftUI
 import Core
 import MahjongTiles
+import GameKitTestSupport
 @testable import GameMahjong
+import CoreTestSupport
 
 /// 役早見表（#501）の受け入れ条件。
 ///
@@ -215,7 +217,7 @@ struct MahjongYakuSheetTests {
     @Test("早見表は対局のモデルを一切参照しない（開いても状態を動かしようがない）")
     func sheetDoesNotTouchTheModel() throws {
         // コメントには「モデルに触らない」という説明そのものが書いてあるので、コードだけを見る。
-        let source = try Self.strippingComments(Self.sheetSource())
+        let source = try SourceScan.strippingComments(Self.sheetSource())
         for forbidden in ["MahjongModel", "GameServices", "snapshots", "services"] {
             #expect(
                 !source.contains(forbidden),
@@ -229,7 +231,7 @@ struct MahjongYakuSheetTests {
     @Test("早見表を描画しても中断データと局面は 1 ビットも変わらない")
     @MainActor
     func renderingTheSheetLeavesTheGameUntouched() {
-        let store = YakuSheetMemorySnapshotStore()
+        let store = MemorySnapshotStore()
         let model = MahjongModel(
             services: GameServices(snapshots: store, ads: NoopAdService()),
             cpuDelay: .zero,
@@ -318,22 +320,8 @@ struct MahjongYakuSheetTests {
         ]
     }
 
-    /// 行コメント（`//` 以降）を落とす。文言の説明とコードを混同しないため。
-    private static func strippingComments(_ source: String) -> String {
-        source.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { line -> Substring in
-                guard let range = line.range(of: "//") else { return line }
-                return line[line.startIndex..<range.lowerBound]
-            }
-            .joined(separator: "\n")
-    }
-
     private static func source(_ relativePath: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameMahjongTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
+        try SourceScan.packageSource(relativePath)
     }
 
     private static func scoringSource() throws -> String {
@@ -347,24 +335,4 @@ struct MahjongYakuSheetTests {
     private static func viewSource() throws -> String {
         try source("Sources/GameMahjong/MahjongView.swift")
     }
-}
-
-/// 早見表の契約テスト専用のインメモリ保存先（生 JSON をそのまま比較したいので独自に持つ）。
-private final class YakuSheetMemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        storage[gameID] = try JSONEncoder().encode(snapshot)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = storage[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for gameID: String) { storage[gameID] = nil }
-
-    func exists(for gameID: String) -> Bool { storage[gameID] != nil }
-
-    func rawData(for gameID: String) -> Data? { storage[gameID] }
 }

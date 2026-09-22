@@ -1,9 +1,10 @@
+import Core
 import Foundation
 
 /// 画面の状態を読み上げる文（#494）。
 ///
 /// アクション枠は**盤面を読み上げても遊べるようにはならない**（基盤規約 §3）。代わりに
-/// 進行に関わる情報（ステージ・進み具合・タイム）を SwiftUI 側のヘッダーへ置き、
+/// 進行に関わる情報（ステージ・進み具合・スピード）を SwiftUI 側のヘッダーへ置き、
 /// ここで作った文を `accessibilityLabel` に付ける。SpriteKit の中に文字は描かない。
 ///
 /// 純関数なので、View を組まずに `AccessibilityTests` で文面を固定できる。
@@ -11,6 +12,38 @@ public enum RunnerAccessibility {
     /// ヘッダーのステージ表示。
     public static func stageLabel(number: Int, total: Int) -> String {
         "ステージ \(number) / \(total)"
+    }
+
+    /// ステージ表示の読み上げ。番号に世界の名前（#703）を添える——画面では背景の色で
+    /// 分かる「どこを走っているか」を、見えない人にも番号だけでなく言葉で伝える。
+    public static func stageLabelWithWorld(number: Int, total: Int) -> String {
+        "\(stageLabel(number: number, total: total))、\(RunnerWorld.world(forStage: number).displayName)"
+    }
+
+    /// ワールドマップ（#798）の面のボタン。「1-1、到達済み」の形で、表記と選べるかどうかを
+    /// 1 文で言う（鍵の絵だけでは読み上げに出ない）。面の名前は #946 で外した。
+    public static func stageMapLabel(number: Int, reached: Bool) -> String {
+        "\(stageHeadline(number: number))、\(reached ? "到達済み" : "未到達")"
+    }
+
+    /// 面の見出し「2-3」（#931。名前は #946 で外し番号だけ）。走行中の HUD・スタート画面の
+    /// 主ボタン・クリア表示の「つぎは」・ワールドマップで同じ形を使う。3 世界に収まらない番号
+    /// （範囲外）は「ステージ N」に倒す。
+    public static func stageHeadline(number: Int) -> String {
+        guard RunnerWorld.contains(stage: number) else { return "ステージ \(number)" }
+        return RunnerWorld.code(forStage: number)
+    }
+
+    /// スタート画面（#931）の主ボタン。「2-3 から走る」。
+    public static func startStageLabel(number: Int) -> String {
+        "\(stageHeadline(number: number)) から走る"
+    }
+
+    /// スタート画面（#931）のエンドレスのボタン。自己ベストを添えて
+    /// 「エンドレス、自己ベスト 1,234 メートル」。まだ走っていなければ「まだ記録なし」。
+    public static func startEndlessLabel(bestDistance: Int?) -> String {
+        guard let bestDistance else { return "エンドレス、まだ記録なし" }
+        return "エンドレス、自己ベスト \(RecordFormat.number(max(0, bestDistance))) メートル"
     }
 
     /// 進み具合。パーセントは 5 刻みに丸める（1% ごとに読み上げが変わると耳で追えない）。
@@ -30,18 +63,31 @@ public enum RunnerAccessibility {
         return "スピード \(percent)パーセント"
     }
 
-    /// タイム。分と秒に分けて読む（`1:05` は「いちころごー」と読まれてしまう）。
-    public static func timeLabel(seconds: Int) -> String {
-        let value = max(0, seconds)
-        let minutes = value / 60
-        let rest = value % 60
-        return minutes > 0 ? "\(minutes)分\(rest)秒" : "\(rest)秒"
+    /// たこ焼き（#797）の無敵の残り時間。秒は切り上げる（残り 0.3 秒を「0秒」と読まない）。
+    public static func invincibleLabel(remaining: Double) -> String {
+        "無敵 あと\(Int(max(0, remaining).rounded(.up)))秒"
     }
 
-    /// ベストタイム。未クリアのステージは記録が無いことを言う。
-    public static func bestLabel(seconds: Int?) -> String {
-        guard let seconds else { return "ベストタイムはまだありません" }
-        return "ベストタイム \(timeLabel(seconds: seconds))"
+    /// 走行距離（エンドレス・#675）。単位はワールド単位だが、画面と同じ「m」で読む。
+    public static func distanceLabel(_ distance: Int) -> String {
+        "走行距離 \(max(0, distance))メートル"
+    }
+
+    /// エンドレスの自己ベスト。まだ 1 回も走っていなければ記録が無いことを言う。
+    public static func bestDistanceLabel(_ distance: Int?) -> String {
+        guard let distance else { return "自己ベストはまだありません" }
+        return "自己ベスト \(max(0, distance))メートル"
+    }
+
+    /// エンドレスの結果。ステージ番号の代わりに走行距離を言う。
+    public static func endlessResultLabel(phase: RunnerPhase, distance: Int) -> String {
+        switch phase {
+        case .falling, .failed: return "\(max(0, distance))メートルでミスしました"
+        case .cleared, .allCleared: return "コースを走りきりました。\(distanceLabel(distance))"
+        case .paused:     return "一時停止中"
+        case .ready:      return "エンドレス。タップでスタート"
+        case .running:    return "走行中"
+        }
     }
 
     /// ミス・クリアの結果。

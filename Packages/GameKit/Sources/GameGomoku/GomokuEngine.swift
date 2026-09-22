@@ -6,7 +6,7 @@ public protocol GomokuEngine: Sendable {
 
 // MARK: - Zobrist
 
-private struct GomokuLCG {
+private struct GomokuLCG: RandomNumberGenerator {
     var state: UInt64
     mutating func next() -> UInt64 {
         state = state &* 6364136223846793005 &+ 1442695040888963407
@@ -61,20 +61,54 @@ public struct SimpleGomokuEngine: GomokuEngine {
     let timeLimit: TimeInterval
     /// 連珠の禁じ手ルール（#441）。オンのとき、黒番では三三・四四・長連を候補から外す。
     let forbiddenMoves: Bool
+    /// 「弱」か（#665）。弱は探索せず `GomokuSearchContext.weakMove` の1手先の形だけで打つ。
+    let isWeak: Bool
+    /// 弱が相手の即勝ち（四）を防ぐ確率（#665）。残りは見逃すので、人間が五を完成できる。
+    let weakBlockRate: Double
+    /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テストだけが種を渡して再現する）。
+    let seed: UInt64?
+
+    /// 弱の既定の防御率。深さ3の読みと即防ぎを持っていた旧「弱」は盤ゲーム5本で最も強かった（#665）。
+    static let defaultWeakBlockRate = 0.5
 
     public init(level: Int = 1, forbiddenMoves: Bool = false) {
+        self.init(level: level, forbiddenMoves: forbiddenMoves, seed: nil)
+    }
+
+    init(level: Int, forbiddenMoves: Bool = false, seed: UInt64?,
+         weakBlockRate: Double = SimpleGomokuEngine.defaultWeakBlockRate) {
         switch level {
-        case 0:  (depth, timeLimit) = (3, 0.4)
+        case 0:  (depth, timeLimit) = (1, 0.4)
         case 2:  (depth, timeLimit) = (5, 1.5)
         default: (depth, timeLimit) = (4, 0.8)
         }
         self.forbiddenMoves = forbiddenMoves
+        self.isWeak = level == 0
+        self.weakBlockRate = weakBlockRate
+        self.seed = seed
     }
 
     public func bestMove(board: GomokuBoard, stone: GomokuStone) async -> (row: Int, col: Int)? {
+        if isWeak {
+            // 探索しないので置換表（約4MB）は確保しない。
+            let ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
+                                          forbiddenMoves: forbiddenMoves, transpositionTableSize: 0)
+            if let seed {
+                var rng = GomokuLCG(state: seed)
+                return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate, using: &rng)
+            }
+            var rng = SystemRandomNumberGenerator()
+            return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate, using: &rng)
+        }
         var ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
                                       forbiddenMoves: forbiddenMoves)
         return ctx.search(board: board, stone: stone)
+    }
+
+    /// 探索が読む候補手の並び。テストが全順序になっていることを確かめる窓口（#812）。
+    func candidateMoves(board: GomokuBoard) -> [(Int, Int)] {
+        GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit, forbiddenMoves: forbiddenMoves,
+                            transpositionTableSize: 0).candidateMoves(board: board)
     }
 }
 
@@ -87,12 +121,56 @@ private struct GomokuSearchContext {
     var killers: [[Int?]]   // killers[ply][0..1]、row*15+col でエンコード
     var tt: [GomokuTTEntry]
 
-    init(maxDepth: Int, timeLimit: TimeInterval, forbiddenMoves: Bool) {
+    init(maxDepth: Int, timeLimit: TimeInterval, forbiddenMoves: Bool,
+         transpositionTableSize: Int = GOMOKU_TT_SIZE) {
         self.maxDepth = maxDepth
         self.deadline = Date().addingTimeInterval(timeLimit)
         self.forbiddenMoves = forbiddenMoves
         self.killers = [[Int?]](repeating: [nil, nil], count: maxDepth + 10)
-        self.tt = [GomokuTTEntry](repeating: GomokuTTEntry(), count: GOMOKU_TT_SIZE)
+        self.tt = [GomokuTTEntry](repeating: GomokuTTEntry(), count: transpositionTableSize)
+    }
+
+    // MARK: 弱の着手（#665）
+
+    /// 「弱」の着手: 読まずに1手先の形（`moveScore`）だけを見て打つ。
+    ///
+    /// - 自分の即勝ちは必ず取る（取らないと「勝てるのに打たない」不自然な CPU になる）。
+    /// - 相手の即勝ちを防ぐのは `blockRate` の確率だけ。見逃した回は防ぐ手を候補から外す
+    ///   （外さないと `moveScore` が防ぐ手を最上位に置くので、結局そこへ打って穴にならない）。
+    /// - それ以外は、最善の半分以上の点が付いた手（最大3手）から乱択する。
+    ///   形の良い手がある局面で無意味な手を打つほどは崩さない。
+    func weakMove<R: RandomNumberGenerator>(board: GomokuBoard, stone: GomokuStone,
+                                            blockRate: Double, using rng: inout R) -> (Int, Int)? {
+        let candidates = legalMoves(candidateMoves(board: board), board: board, stone: stone)
+        guard !candidates.isEmpty else { return (gomokuBoardSize / 2, gomokuBoardSize / 2) }
+
+        for (r, c) in candidates {
+            var b = board; b[r, c] = stone
+            if b.checkWin(row: r, col: c) { return (r, c) }
+        }
+
+        let opp = stone.opponent
+        let blocks = candidates.filter { move in
+            guard !isForbidden(board, row: move.0, col: move.1, stone: opp) else { return false }
+            var b = board; b[move.0, move.1] = opp
+            return b.checkWin(row: move.0, col: move.1)
+        }
+        var pool = candidates
+        if !blocks.isEmpty {
+            if Double.random(in: 0..<1, using: &rng) < blockRate { return blocks[0] }
+            let rest = candidates.filter { m in !blocks.contains { $0 == m } }
+            if !rest.isEmpty { pool = rest }
+        }
+
+        let scored = pool
+            .map { (move: $0, score: moveScore($0.0 * gomokuBoardSize + $0.1, board: board, stone: stone,
+                                                killers: [nil, nil], ttMove: nil)) }
+            // 同点は座標順に並べる。候補は Set 由来で並びが実行ごとに変わるため、種が同じなら同じ手になるようにする。
+            .sorted { $0.score != $1.score ? $0.score > $1.score
+                                           : ($0.move.0, $0.move.1) < ($1.move.0, $1.move.1) }
+        let best = scored[0].score
+        let choices = scored.prefix(3).filter { $0.score * 2 >= best }
+        return choices[Int.random(in: 0..<choices.count, using: &rng)].move
     }
 
     // MARK: 禁じ手のふるい分け（#441）
@@ -358,9 +436,13 @@ private struct GomokuSearchContext {
             }
         }
         let center = gomokuBoardSize / 2
+        // Set の走査順は呼び出し・プロセスごとに変わるので、距離が同じ升は座標で並べて全順序にする（#812）。
+        // 同点を残すと即勝ち・防ぎ点の選び方が揺れ、種を固定しても CPU の手が再現しない。
         return seen.map { ($0 / gomokuBoardSize, $0 % gomokuBoardSize) }
             .sorted { a, b in
-                abs(a.0 - center) + abs(a.1 - center) < abs(b.0 - center) + abs(b.1 - center)
+                let da = abs(a.0 - center) + abs(a.1 - center)
+                let db = abs(b.0 - center) + abs(b.1 - center)
+                return (da, a.0, a.1) < (db, b.0, b.1)
             }
     }
 }

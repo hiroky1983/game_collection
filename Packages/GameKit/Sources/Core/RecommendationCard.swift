@@ -5,10 +5,11 @@ import SwiftUI
 /// **非モーダル**。操作をブロックせず、×で閉じられる。全画面ダイアログやアラートは使わない。
 public struct RecommendationCard: View {
     /// 先頭のアイコンの一辺。カードの高さはこれで決まる（文字はこれより低い）。
-    private static let iconSide: CGFloat = 36
-    private static let verticalPadding: CGFloat = 10
+    /// 同じ枠に出る `DifficultyLadderCard`（#722）も同じ値で組むためモジュール内に公開する。
+    static let iconSide: CGFloat = 36
+    static let verticalPadding: CGFloat = 10
     /// 見出しの基準 pt。実カードと `heightPlaceholder` で必ず同じ値を使う（高さ契約）。
-    private static let captionSize: CGFloat = 11
+    static let captionSize: CGFloat = 11
 
     private let module: GameModule
     private let accent: Color
@@ -116,29 +117,55 @@ public struct RecommendationCard: View {
     }
 }
 
-/// 各ゲームのリザルト直下に置く枠。提示するものが無ければ**何も描かない**（余白も作らない）。
+/// 各ゲームのリザルト直下に置く枠。決着していなければ**何も描かない**（余白も作らない）。
+///
+/// 決着後は、提示するレコメンドがあればそのカードを、無ければ難易度の「階段」（#722）を出す。
+/// **どちらも無ければ何も出さない**（#917）。以前はここに「ほかのあそび」（ハブへ戻るだけの
+/// ボタン・#661）を出していたが、左上の戻ると同じ出口で押す価値が無く「これなら出ないほうが
+/// いい」（会長 QA 2026-09-15）ため取り下げた。枠の高さはひな形（`heightPlaceholder`）が
+/// 確保しているので、何も出なくても周りの寸法は動かない。
+/// レコメンドのカード自体が別のゲームへの出口なので、両方は並べない（×で閉じれば入れ替わる）。
+/// レコメンドを階段より優先するのは、レコメンドは決着の時点で提示済みとして数えられている
+/// （`PlayLog.markShown`）ため、隠すと「見せていないのに無視された」回が積み上がるから。
 public struct RecommendationSlot: View {
     private let services: GameServices
     private let isFinished: Bool
+    private let ladder: DifficultyLadderPrompt?
+    /// ×で閉じた階段の提案。次の決着の提案は `plays` が変わるので、閉じたままにはならない。
+    @State private var dismissedLadder: DifficultyLadderOffer?
 
-    /// - Parameter isFinished: そのゲームがリザルトを表示している状態か。
-    ///   新しい対局を始めた時点でカードを引っ込めるために使う。
-    public init(services: GameServices, isFinished: Bool) {
+    /// - Parameters:
+    ///   - isFinished: そのゲームがリザルトを表示している状態か。
+    ///     新しい対局を始めた時点でカードを引っ込めるために使う。
+    ///   - ladder: 難易度を持つゲームが渡す「一段上」の提案（#722）。勧めないときは nil。
+    public init(
+        services: GameServices,
+        isFinished: Bool,
+        ladder: DifficultyLadderPrompt? = nil
+    ) {
         self.services = services
         self.isFinished = isFinished
+        self.ladder = ladder
     }
 
     public var body: some View {
-        if isFinished,
-           let service = services.recommendations,
-           let module = service.suggestedModule {
-            RecommendationCard(
-                module: module,
-                accent: service.suggestedAccent,
-                caption: service.suggestedReason.caption,
-                onOpen: { service.accept() },
-                onDismiss: { service.dismiss() }
-            )
+        if isFinished {
+            if let service = services.recommendations,
+               let module = service.suggestedModule {
+                RecommendationCard(
+                    module: module,
+                    accent: service.suggestedAccent,
+                    caption: service.suggestedReason.caption,
+                    onOpen: { service.accept() },
+                    onDismiss: { service.dismiss() }
+                )
+            } else if let ladder, ladder.offer != dismissedLadder {
+                DifficultyLadderCard(
+                    offer: ladder.offer,
+                    onClimb: ladder.climb,
+                    onDismiss: { dismissedLadder = ladder.offer }
+                )
+            }
         }
     }
 }

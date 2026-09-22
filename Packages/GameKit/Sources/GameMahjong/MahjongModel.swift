@@ -3,154 +3,13 @@ import Observation
 import Core
 import MahjongTiles
 
-// MARK: - 進行の段階
-
-public enum MahjongPhase: String, Equatable, Sendable, Codable {
-    /// 開始前（スタートシート表示中）。
-    case idle
-    /// 対局中。
-    case playing
-    /// 自分がロンできる牌が出て、宣言するか見逃すかを待っている。
-    case ronOffer
-    /// 自分が鳴ける牌が出て、鳴くかスルーするかを待っている。
-    case callOffer
-    /// 1 局の決着（和了 or 流局）を見せている。
-    case handResult
-    /// 東風戦そのものの終了（順位が出ている）。
-    case gameResult
-}
-
-/// 1 局の決着の内訳。リザルト表示にそのまま使う。
-public struct MahjongHandResult: Equatable, Sendable, Codable {
-    public enum Kind: String, Equatable, Sendable, Codable {
-        case tsumo, ron, exhaustiveDraw
-    }
-    public let kind: Kind
-    /// 和了した人。流局なら nil。
-    public let winner: Int?
-    /// 放銃した人。ツモ・流局なら nil。
-    public let loser: Int?
-    /// 成立した役（表示用の名前と飜数）。
-    public let yaku: [String]
-    public let han: Int
-    public let fu: Int
-    /// 満貫以上の呼び名。
-    public let limitName: String?
-    /// 和了者が受け取った点（本場・供託を含む）。
-    public let gainedPoints: Int
-    /// 流局時に聴牌していた人。
-    public let tenpaiPlayers: [Int]
-    /// この局で各プレイヤーの点数がどれだけ動いたか（添字はプレイヤー番号、この局の直前からの差分）。
-    /// 和了者はプラス、放銃・ツモ払い・流局のノーテン罰符はマイナス。会長指摘「誰が誰に振り込んだか
-    /// わかるようにしてほしい」への対応で、リザルト画面の得点表に添える。
-    public let pointChanges: [Int]
-    // 和了手の表示（#351）で足した項目。`handResult` はリザルト中断の保存対象（#350）なので、
-    // 古い中断データを読めなくしないため**任意**にする（`melds` と同じ判断）。
-    /// 和了者の門前手牌（和了牌を含まない）。流局では nil。
-    public let winningHand: [MahjongTile]?
-    /// 和了者の副露。流局では nil。
-    public let winningMelds: [MahjongCall]?
-    /// 和了牌。流局では nil。
-    public let winningTile: MahjongTile?
-    /// 立直で和了ったときの裏ドラ表示牌。立直していない和了・流局では nil。
-    public let uraDoraIndicators: [MahjongTile]?
-    // 卓中央の表示ずれ（#375）で足した項目。上と同じ理由で**任意**にする。
-    /// 決着したこの局の局数（東 n 局の n）。`finishHand` はリザルト表示に入るのと同時に
-    /// 次局へ繰り上げるため、卓中央にはこちらを出す。古い中断データでは nil。
-    public let roundNumber: Int?
-    /// 決着したこの局の本場。`roundNumber` と同じ理由で持つ。
-    public let honba: Int?
-
-    init(
-        kind: Kind,
-        winner: Int?,
-        loser: Int?,
-        yaku: [String],
-        han: Int,
-        fu: Int,
-        limitName: String?,
-        gainedPoints: Int,
-        tenpaiPlayers: [Int],
-        pointChanges: [Int],
-        winningHand: [MahjongTile]? = nil,
-        winningMelds: [MahjongCall]? = nil,
-        winningTile: MahjongTile? = nil,
-        uraDoraIndicators: [MahjongTile]? = nil,
-        roundNumber: Int? = nil,
-        honba: Int? = nil
-    ) {
-        self.kind = kind
-        self.winner = winner
-        self.loser = loser
-        self.yaku = yaku
-        self.han = han
-        self.fu = fu
-        self.limitName = limitName
-        self.gainedPoints = gainedPoints
-        self.tenpaiPlayers = tenpaiPlayers
-        self.pointChanges = pointChanges
-        self.winningHand = winningHand
-        self.winningMelds = winningMelds
-        self.winningTile = winningTile
-        self.uraDoraIndicators = uraDoraIndicators
-        self.roundNumber = roundNumber
-        self.honba = honba
-    }
-}
-
-/// 東風戦が終わった理由。リザルトの見出しに使う（#352。東2局で突然終わっても
-/// 「なぜ終わったか」が画面から読めるようにする）。
-public enum MahjongGameEndReason: Equatable, Sendable {
-    /// 東4局まで打ち切った（通常の終局）。
-    case completedAllRounds
-    /// 東4局の親がトップのまま連荘条件を満たしたため打ち切った。
-    case agariYame
-    /// 誰かの持ち点がマイナスになった。
-    case busted
-}
-
-// MARK: - 永続化
-
-struct MahjongSnapshot: Codable {
-    let wall: [MahjongTile]
-    let wallIndex: Int
-    let deadWall: [MahjongTile]
-    let hands: [MahjongHand]
-    let drawnTile: MahjongTile?
-    let discards: [[MahjongTile]]
-    let riichi: [Bool]
-    let riichiFuriten: [Bool]
-    let scores: [Int]
-    let dealer: Int
-    let roundNumber: Int
-    let honba: Int
-    let riichiSticks: Int
-    let currentPlayer: Int
-    let turnCount: Int
-    // 鳴き（#263）で足した項目。**古い中断データを読めなくしないため任意**にする
-    // （必須にすると更新直後の 1 局が黙って消える）。
-    let melds: [[MahjongCall]]?
-    /// フリテンの判定に使う「これまでに捨てた牌の種類」。鳴かれて河から消えた牌も残す。
-    let discardedKinds: [[Int]]?
-    let revealedDoraCount: Int?
-    let deadWallDraws: Int?
-    /// トビ復活（#338）を使い切ったか。中断を挟んでも「1 半荘 1 回まで」を守るために持ち回る。
-    /// 上と同じ理由で任意（古い中断データは「まだ使っていない」扱いになる）。
-    let hasRevivedThisGame: Bool?
-    // 局のリザルト中の中断（#350）で足した項目。同じく任意にして古い中断データも読めるようにする。
-    /// リザルト表示中に中断したときの決着内容。**nil なら対局中の中断**（この有無が
-    /// `.handResult` か `.playing` かをそのまま表す。決着内容は決着時にしか入らないため）。
-    let handResult: MahjongHandResult?
-    /// アガリやめが確定しているか。リザルト中断から再開しても終局判定を引き継ぐ。
-    let endsAfterThisHand: Bool?
-}
-
 // MARK: - Model
 
-/// 四人打ち麻雀・東風戦（CPU 3 人との対局）。プレイヤーは常に番号 0。
+/// 四人打ち麻雀（CPU 3 人との対局）。プレイヤーは常に番号 0。
 ///
 /// 決裁 A（#106・2026-08-24）の段階実装に、#263 で**鳴き（ポン・チー・カン）**を足した:
 /// **東風戦 / 鳴きあり / 主要な一飜・二飜役 + 七対子 / 簡易点数計算**。半荘は次版以降。
+/// #639 で**一局戦**（東 1 局だけ）を対局の長さの分岐として足した（`MahjongGameLength`）。
 ///
 /// 鳴きの範囲外としたもの（#263 の PR に明記）: 立直後のカン（暗槓を含む）・食い替えの禁止・
 /// 四開槓・流し満貫。
@@ -159,7 +18,7 @@ struct MahjongSnapshot: Codable {
 /// （`MahjongShanten` / `MahjongScoring` / `MahjongAI`）に寄せ、この型は**進行・永続化・演出**だけを持つ。
 @MainActor
 @Observable
-public final class MahjongModel {
+public final class MahjongModel: AITurnGuarded {
     /// 人間プレイヤーの番号。
     public static let humanIndex = 0
     /// 参加人数。
@@ -170,24 +29,26 @@ public final class MahjongModel {
     public static let deadWallCount = 14
 
     /// 門前の手牌。副露した面子は含まない（`melds` 側に入る）。
-    public private(set) var hands: [MahjongHand] = Array(repeating: MahjongHand(), count: playerCount)
+    public internal(set) var hands: [MahjongHand] = Array(repeating: MahjongHand(), count: playerCount)
     /// 各家が晒している副露。
-    public private(set) var melds: [[MahjongCall]] = Array(repeating: [], count: playerCount)
+    public internal(set) var melds: [[MahjongCall]] = Array(repeating: [], count: playerCount)
     /// いま自摸ってきた牌（手出しと区別して見せるため手牌とは別に持つ）。
-    public private(set) var drawnTile: MahjongTile?
-    public private(set) var discards: [[MahjongTile]] = Array(repeating: [], count: playerCount)
-    public private(set) var riichi: [Bool] = Array(repeating: false, count: playerCount)
-    public private(set) var scores: [Int] = Array(repeating: startingScore, count: playerCount)
-    public private(set) var phase: MahjongPhase = .idle
-    public private(set) var currentPlayer: Int = 0
+    public internal(set) var drawnTile: MahjongTile?
+    public internal(set) var discards: [[MahjongTile]] = Array(repeating: [], count: playerCount)
+    public internal(set) var riichi: [Bool] = Array(repeating: false, count: playerCount)
+    public internal(set) var scores: [Int] = Array(repeating: startingScore, count: playerCount)
+    public internal(set) var phase: MahjongPhase = .idle
+    public internal(set) var currentPlayer: Int = 0
     /// 親（0 = 自分）。
-    public private(set) var dealer: Int = 0
-    /// 東何局か（1〜4）。
-    public private(set) var roundNumber: Int = 1
-    public private(set) var honba: Int = 0
+    public internal(set) var dealer: Int = 0
+    /// 東何局か（1〜`gameLength.roundCount`）。
+    public internal(set) var roundNumber: Int = 1
+    public internal(set) var honba: Int = 0
+    /// **その対局に焼き込まれた**長さ（#639）。`startGame(length:)` でだけ変わり、対局中は動かない。
+    public private(set) var gameLength: MahjongGameLength = .tonpuu
     /// 供託されている立直棒の本数。
-    public private(set) var riichiSticks: Int = 0
-    public private(set) var handResult: MahjongHandResult?
+    public internal(set) var riichiSticks: Int = 0
+    public internal(set) var handResult: MahjongHandResult?
 
     /// 卓中央に出す局数。**リザルト表示中は決着した局の値**を返す（#375）。
     ///
@@ -203,21 +64,21 @@ public final class MahjongModel {
         phase == .handResult ? (handResult?.honba ?? honba) : honba
     }
 
-    /// 東風戦の最終順位（1 位から順のプレイヤー番号）。対局中は空。
-    public private(set) var ranking: [Int] = []
-    public private(set) var recordResult: RecordResult?
+    /// 対局の最終順位（1 位から順のプレイヤー番号）。対局中は空。
+    public internal(set) var ranking: [Int] = []
+    public internal(set) var recordResult: RecordResult?
     /// 立直を宣言しようとしていて、切る牌の選択を待っている状態。
-    public private(set) var isDeclaringRiichi = false
+    public internal(set) var isDeclaringRiichi = false
     /// ロンできる牌が出たときの提示内容（`phase == .ronOffer` のとき有効）。
-    public private(set) var ronOffer: RonOffer?
+    public internal(set) var ronOffer: RonOffer?
     /// 鳴ける牌が出たときの提示内容（`phase == .callOffer` のとき有効）。
-    public private(set) var callOffer: CallOffer?
+    public internal(set) var callOffer: CallOffer?
     /// CPU 起動用の通し番号 × 手数。
-    public private(set) var turnCount = 0
+    public internal(set) var turnCount = 0
     public private(set) var gameSerial = 0
     /// トビで終わった対局を、リワード広告を見て続けられる状態か（#338）。
     /// 1 半荘 1 回までで、自分がトビたときにだけ立つ。
-    public private(set) var canReviveAfterBust = false
+    public internal(set) var canReviveAfterBust = false
 
     /// ロンの提示。
     public struct RonOffer: Equatable, Sendable {
@@ -236,34 +97,34 @@ public final class MahjongModel {
     }
 
     /// 打牌に対して鳴きを主張できる家。優先度の高い順に並べて 1 人ずつ聞く。
-    private struct PendingClaim {
+    struct PendingClaim {
         let player: Int
         let options: [MahjongCall]
     }
 
-    private var wall: [MahjongTile] = []
-    private var wallIndex = 0
+    var wall: [MahjongTile] = []
+    var wallIndex = 0
     /// 王牌 14 枚。前から `[表ドラ, 裏ドラ] × 5` で、末尾 4 枚が嶺上牌。
-    private var deadWall: [MahjongTile] = []
+    var deadWall: [MahjongTile] = []
     /// 嶺上牌を何枚引いたか（= カンの回数）。引いたぶん自摸れる枚数が減る。
-    private var deadWallDraws = 0
+    var deadWallDraws = 0
     /// めくれている表ドラ表示牌の数。カンのたびに 1 増える。
-    private var revealedDoraCount = 1
+    var revealedDoraCount = 1
     /// フリテンの判定に使う「これまでに捨てた牌の種類」。鳴かれて河から消えた牌もここには残る。
-    private var discardedKinds: [Set<Int>] = Array(repeating: [], count: playerCount)
+    var discardedKinds: [Set<Int>] = Array(repeating: [], count: playerCount)
     /// いま処理中の打牌（鳴きの主張を順に聞いている間だけ有効）。
-    private var pendingDiscard: (tile: MahjongTile, by: Int)?
-    private var pendingClaims: [PendingClaim] = []
+    var pendingDiscard: (tile: MahjongTile, by: Int)?
+    var pendingClaims: [PendingClaim] = []
     /// 槍槓のロンを提示している間、保留している加槓。見逃されたら続きを実行する。
-    private var pendingKan: (call: MahjongCall, player: Int)?
+    var pendingKan: (call: MahjongCall, player: Int)?
     /// いまのツモ牌が嶺上牌か（嶺上開花の判定に使う）。
-    private var isRinshanDraw = false
+    var isRinshanDraw = false
     /// 立直後に自分の待ち牌が河に流れたときの永続フリテン。
-    private var riichiFuriten: [Bool] = Array(repeating: false, count: playerCount)
+    var riichiFuriten: [Bool] = Array(repeating: false, count: playerCount)
     /// 見逃しによる同巡内フリテン（次の自摸で解ける）。
-    private var temporaryFuriten: [Bool] = Array(repeating: false, count: playerCount)
+    var temporaryFuriten: [Bool] = Array(repeating: false, count: playerCount)
     /// 立直の宣言巡（一発の判定に使う）。`nil` は未立直。
-    private var riichiTurn: [Int?] = Array(repeating: nil, count: playerCount)
+    var riichiTurn: [Int?] = Array(repeating: nil, count: playerCount)
     /// 宣言牌がまだ通っていない立直の宣言者（#375）。宣言牌をロンされた立直は**不成立**で
     /// 1000 点も出ないため、その支払いは宣言牌が通るまで保留する。
     ///
@@ -271,20 +132,20 @@ public final class MahjongModel {
     /// `.ronOffer` の待ち受け中だけで、**どちらも `persist()` を通らない**（`.ronOffer` は
     /// 復元時に `.playing` へ落ちて宣言前の状態から打ち直しになる）。そのため中断データに
     /// 持ち回す必要がない。
-    private var pendingRiichi: Int?
+    var pendingRiichi: Int?
     /// アガリやめが成立し、この局で東風戦を終えるか。
-    private var endsAfterThisHand = false
+    var endsAfterThisHand = false
     /// この半荘でトビ復活（#338）を既に使ったか。1 半荘 1 回までの制限に使う。
-    private var hasRevivedThisGame = false
+    var hasRevivedThisGame = false
     /// 東風戦が終わった理由。`.gameResult` のときだけ入る（#352）。
-    public private(set) var gameEndReason: MahjongGameEndReason?
+    public internal(set) var gameEndReason: MahjongGameEndReason?
 
-    private let services: GameServices?
-    private let gameID = "mahjong4"
-    private let cpuDelay: Duration
+    let services: GameServices?
+    let gameID = "mahjong4"
+    let cpuDelay: Duration
     private var seed: UInt64?
     private let hints: FeedbackPreference
-    private var isRunningCPUTurns = false
+    var isRunningCPUTurns = false
     /// デバッグ用: 自分の手番・鳴き判断・ロン判断も CPU と同じロジックで自動的に進める。
     /// `MahjongView` から起動引数（`-mahjongAutoPlay`）のときだけ有効化され、通常プレイでは
     /// 常に false。会長がシミュレータで毎回手動プレイして確認する手間を省くための機能。
@@ -329,7 +190,10 @@ public final class MahjongModel {
             // 落ちるので、従来どおり対局中（`.playing`）として復元される。
             handResult = snap.handResult
             endsAfterThisHand = snap.endsAfterThisHand ?? false
+            gameLength = snap.gameLength ?? .tonpuu
             phase = snap.handResult != nil ? .handResult : .playing
+            // 終局の手前のリザルトから再開した局も決着済み（#811。`finishHand` の末尾と同じ判定）。
+            if concludesAfterCurrentResult { services?.gameDidRestoreFinished(gameID: gameID) }
         }
     }
 
@@ -384,7 +248,7 @@ public final class MahjongModel {
     }
 
     /// 裏ドラ表示牌。和了の精算でだけ使い、対局中は見せない（王牌の奇数番目）。
-    private var uraIndicators: [MahjongTile] {
+    var uraIndicators: [MahjongTile] {
         (0..<revealedDoraCount).compactMap { index in
             index * 2 + 1 < deadWall.count ? deadWall[index * 2 + 1] : nil
         }
@@ -492,7 +356,7 @@ public final class MahjongModel {
 
     /// 「新規対局」で失われるものがあるか（#638）。
     ///
-    /// 東風戦が進行中なら、持ち点・局・河・供託はこの対局だけのもので、配り直すと戻せない。
+    /// 対局が進行中なら、持ち点・局・河・供託はこの対局だけのもので、配り直すと戻せない。
     /// 開始前（`.idle`）と決着後（`.gameResult`）は捨てるものが無いので確認を挟まない
     /// （将棋 `moves.isEmpty` / ブロック崩し `hasProgressToLose` と同じ境目）。
     public var hasGameInProgress: Bool {
@@ -504,16 +368,21 @@ public final class MahjongModel {
 
     // MARK: - 対局の開始
 
-    /// 東風戦を最初から始める。**進行中の対局はここで破棄される**（#638）。
+    /// 対局を最初から始める。**進行中の対局はここで破棄される**（#638）。
     ///
-    /// 破棄した東風戦の扱いは次のとおりで、未完了のまま戦績に載ることはない:
+    /// - Parameter length: この対局に**焼き込む**長さ（#639）。nil なら直前の対局と同じものを
+    ///   使い続ける（リザルトの「もう一度」とツールバーの「新規対局」は選び直しを挟まないため）。
+    ///   ここでしか対局の長さは変わらない。
+    ///
+    /// 破棄した対局の扱いは次のとおりで、未完了のまま戦績に載ることはない:
     /// - **記録（`PlayLog`）**: 勝敗を書くのは終局（`concludeGame` の `gameDidFinish`）だけなので、
     ///   打ち切った対局は通算成績にも Game Center の実績にも一切載らない。
     /// - **中断データ**: 直後の `startHand` → `persist` が新しい配牌で上書きするため、
     ///   捨てた対局の続きをあとから開ける経路は残らない。
     /// - **解析**: `gameDidRestart` が、1 枚でも切っていた対局に `game_end`（`quit`）を付けてから
     ///   次の `game_start` を送る（#500）。配っただけで切らずに捨てた対局は離脱に数えない。
-    public func startGame() {
+    public func startGame(length: MahjongGameLength? = nil) {
+        if let length { gameLength = length }
         scores = Array(repeating: Self.startingScore, count: Self.playerCount)
         dealer = 0
         roundNumber = 1
@@ -527,7 +396,7 @@ public final class MahjongModel {
         gameEndReason = nil
         gameSerial += 1
         startHand()
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, mode: gameLength.analyticsMode)
     }
 
     /// 次の局へ進む（リザルトの「次の局へ」）。
@@ -595,640 +464,61 @@ public final class MahjongModel {
         seed.map { MahjongSeededGenerator(seed: $0) }
     }
 
-    // MARK: - 自摸と打牌
-
-    private func draw(for player: Int) {
-        // カンのたびに山の末尾 1 枚が王牌へ回るので、自摸れる範囲も同じだけ短くなる。
-        guard wallIndex < wall.count - deadWallDraws else {
-            concludeExhaustiveDraw()
-            return
-        }
-        temporaryFuriten[player] = false
-        isRinshanDraw = false
-        drawnTile = wall[wallIndex]
-        wallIndex += 1
-        currentPlayer = player
-        turnCount += 1
-    }
-
-    /// カンの直後に嶺上牌を引く。王牌の末尾から順に使う。
-    private func drawFromDeadWall(for player: Int) {
-        guard deadWallDraws < 4, deadWall.count >= Self.deadWallCount else {
-            concludeExhaustiveDraw()
-            return
-        }
-        temporaryFuriten[player] = false
-        drawnTile = deadWall[deadWall.count - 1 - deadWallDraws]
-        deadWallDraws += 1
-        isRinshanDraw = true
-        currentPlayer = player
-        turnCount += 1
-    }
-
-    /// カンで新しいドラをめくる（王牌は表裏 5 組ぶん用意してある）。
-    private func revealKanDora() {
-        revealedDoraCount = min(5, revealedDoraCount + 1)
-    }
-
-    /// 人間が牌を切る。`tile` は手牌かツモ牌のどちらでもよい。
-    public func discard(_ tile: MahjongTile) {
-        guard isPlayerTurn, discardableTiles.contains(tile) else {
-            services?.feedback.notify(.warning)
-            return
-        }
-        services?.feedback.impact(.light)
-        if isDeclaringRiichi { commitRiichi(for: Self.humanIndex) }
-        performDiscard(tile, by: Self.humanIndex)
-    }
-
-    /// 立直を宣言する。実際に成立するのは、続けて切る牌を選んだ時点。
-    public func declareRiichi() {
-        guard canDeclareRiichi else {
-            services?.feedback.notify(.warning)
-            return
-        }
-        isDeclaringRiichi = true
-        services?.feedback.impact(.rigid)
-    }
-
-    /// 立直の宣言を取り消す。
-    public func cancelRiichiDeclaration() {
-        isDeclaringRiichi = false
-    }
-
-    /// ツモ和了を宣言する。
-    public func declareTsumo() {
-        guard canDeclareTsumo, let drawn = drawnTile else {
-            services?.feedback.notify(.warning)
-            return
-        }
-        concludeWin(
-            winner: Self.humanIndex, loser: nil, winningTile: drawn,
-            isTsumo: true, isRinshan: isRinshanDraw
-        )
-    }
-
-    /// 提示されているロンを宣言する。
-    public func declareRon() {
-        guard phase == .ronOffer, let offer = ronOffer else { return }
-        ronOffer = nil
-        pendingKan = nil
-        concludeWin(
-            winner: Self.humanIndex, loser: offer.discarder, winningTile: offer.tile,
-            isTsumo: false, isChankan: offer.isChankan
-        )
-    }
-
-    /// 提示されているロンを見逃す。同巡内はロンできなくなり、立直中なら以後もロンできない。
-    public func declineRon() {
-        guard phase == .ronOffer, let offer = ronOffer else { return }
-        ronOffer = nil
-        temporaryFuriten[Self.humanIndex] = true
-        if riichi[Self.humanIndex] { riichiFuriten[Self.humanIndex] = true }
-        phase = .playing
-        // 見逃した = 宣言牌は通ったので、保留していた立直をここで成立させる（#375）。
-        settlePendingRiichi()
-        services?.feedback.impact(.light)
-        // 槍槓を見逃した場合は、止めていた加槓をそのまま成立させて続ける。
-        if let pending = pendingKan {
-            completeSelfKan(pending.call, by: pending.player)
-            return
-        }
-        // 打牌に対するロンを見逃したときは、続けて鳴きの主張を順に聞く
-        // （ロンを見逃した牌をポンすること自体は妨げられない）。
-        pendingDiscard = (offer.tile, offer.discarder)
-        pendingClaims = claimOrder(for: offer.tile, discardedBy: offer.discarder)
-        resolveNextClaim()
-    }
-
-    /// 立直を宣言した状態にする。**1000 点の支払いはここでは行わない**（#375）。
-    /// 宣言牌をロンされた立直は不成立で点棒も出ないため、支払いは宣言牌が通った時点
-    /// （`settlePendingRiichi`）まで保留する。
-    private func commitRiichi(for player: Int) {
-        isDeclaringRiichi = false
-        riichi[player] = true
-        riichiTurn[player] = turnCount
-        pendingRiichi = player
-        services?.feedback.notify(.success)
-    }
-
-    /// 宣言牌が誰にもロンされなかったので立直を成立させ、1000 点を供託に出す。
-    private func settlePendingRiichi() {
-        guard let player = pendingRiichi else { return }
-        pendingRiichi = nil
-        scores[player] -= 1000
-        riichiSticks += 1
-    }
-
-    /// 宣言牌をロンされたので立直を不成立に戻す。点棒は出ないので供託も動かさない。
-    private func cancelPendingRiichi() {
-        guard let player = pendingRiichi else { return }
-        pendingRiichi = nil
-        riichi[player] = false
-        riichiTurn[player] = nil
-    }
-
-    /// 牌を河に置き、他家のロンと鳴きを確かめる。
-    private func performDiscard(_ tile: MahjongTile, by player: Int) {
-        if drawnTile == tile {
-            drawnTile = nil
-        } else {
-            hands[player].remove(tile)
-            if let drawn = drawnTile {
-                hands[player].add(drawn)
-                drawnTile = nil
-            }
-        }
-        isRinshanDraw = false
-        // 牌が切られた = 捨てたら途中離脱として数える局面（#500）。
-        services?.gameDidProgress(gameID: gameID)
-        discards[player].append(tile)
-        discardedKinds[player].insert(MahjongTileOrder.index(of: tile))
-
-        // 立直者の待ちがこの牌なら、以後その人はロンできない（見逃しと同じ扱い）。
-        for other in 0..<Self.playerCount where other != player && riichi[other] {
-            let waits = MahjongShanten.waits(hands[other], meldCount: melds[other].count)
-            if waits.contains(tile) && !canWin(other, tile: tile) {
-                riichiFuriten[other] = true
-            }
-        }
-
-        if let claimant = ronClaimant(for: tile, discardedBy: player) {
-            if claimant == Self.humanIndex, !autoPlayEnabled {
-                ronOffer = RonOffer(tile: tile, discarder: player)
-                phase = .ronOffer
-                services?.feedback.notify(.success)
-                return
-            }
-            concludeWin(winner: claimant, loser: player, winningTile: tile, isTsumo: false)
-            return
-        }
-
-        // 宣言牌が誰にもロンされずに通ったので、ここで立直が成立する（#375）。
-        // 鳴かれた場合も立直そのものは成立するため、鳴きの解決より前に確定させる。
-        settlePendingRiichi()
-        pendingDiscard = (tile, player)
-        pendingClaims = claimOrder(for: tile, discardedBy: player)
-        resolveNextClaim()
-    }
-
-    /// 打牌を鳴ける家を優先度順に並べる。
-    ///
-    /// ポン・カンは誰でも主張できるが**チーは下家だけ**で、ポン・カンのほうが優先される。
-    /// 同じ優先度が重なることは無い（同じ牌を 2 人がポンできるのは牌が 4 枚しか無い以上
-    /// ありえるが、その場合は放銃者に近い家が取る = 席順で先に来る）。
-    private func claimOrder(for tile: MahjongTile, discardedBy discarder: Int) -> [PendingClaim] {
-        var tripletClaims: [PendingClaim] = []
-        var runClaims: [PendingClaim] = []
-        for step in 1..<Self.playerCount {
-            let player = (discarder + step) % Self.playerCount
-            // 立直している人は手牌を変えられないので鳴けない。
-            guard !riichi[player] else { continue }
-            let options = MahjongCallFinder.claimOptions(
-                hand: hands[player], tile: tile, from: discarder, allowsChi: step == 1
-            )
-            guard !options.isEmpty else { continue }
-            let triplets = options.filter { $0.kind != .chi }
-            let runs = options.filter { $0.kind == .chi }
-            if !triplets.isEmpty {
-                tripletClaims.append(PendingClaim(player: player, options: triplets))
-            }
-            if !runs.isEmpty {
-                runClaims.append(PendingClaim(player: player, options: runs))
-            }
-        }
-        return tripletClaims + runClaims
-    }
-
-    /// 優先度の高い家から順に「鳴くか」を聞く。誰も鳴かなければ手番を次へ送る。
-    private func resolveNextClaim() {
-        while !pendingClaims.isEmpty, let pending = pendingDiscard {
-            let claim = pendingClaims.removeFirst()
-            if claim.player == Self.humanIndex, !autoPlayEnabled {
-                callOffer = CallOffer(
-                    tile: pending.tile, discarder: pending.by, options: claim.options
-                )
-                phase = .callOffer
-                services?.feedback.impact(.rigid)
-                return
-            }
-            let chosen = MahjongAI.chooseCall(
-                options: claim.options,
-                hand: hands[claim.player],
-                melds: melds[claim.player],
-                seatWind: seatWind(claim.player),
-                roundWind: 0
-            )
-            if let chosen {
-                performCall(chosen, by: claim.player)
-                return
-            }
-        }
-        let discarder = pendingDiscard?.by ?? currentPlayer
-        pendingDiscard = nil
-        pendingClaims = []
-        continueAfterDiscard(by: discarder)
-    }
-
-    /// ロンも鳴きも起きなかったときに手番を次へ送る。
-    private func continueAfterDiscard(by player: Int) {
-        persist()
-        guard phase == .playing else { return }
-        draw(for: (player + 1) % Self.playerCount)
-        persist()
-    }
-
-    // MARK: - 鳴き
-
-    /// 提示されている鳴きのうち 1 つを成立させる。
-    public func acceptCall(_ call: MahjongCall) {
-        guard phase == .callOffer, let offer = callOffer, offer.options.contains(call) else {
-            services?.feedback.notify(.warning)
-            return
-        }
-        performCall(call, by: Self.humanIndex)
-    }
-
-    /// 提示されている鳴きを見送る。下家のチーなど、優先度の低い主張があればそちらへ回る。
-    public func declineCall() {
-        guard phase == .callOffer else { return }
-        callOffer = nil
-        phase = .playing
-        services?.feedback.impact(.light)
-        resolveNextClaim()
-    }
-
-    /// 鳴きを成立させ、手番をその人へ移す。
-    private func performCall(_ call: MahjongCall, by player: Int) {
-        guard let pending = pendingDiscard else { return }
-        pendingDiscard = nil
-        pendingClaims = []
-        callOffer = nil
-        phase = .playing
-
-        // 鳴かれた牌は河から取り上げる。フリテンの判定に使う `discardedKinds` には残す
-        // （実際に捨てた事実は消えないため）。
-        if !discards[pending.by].isEmpty { discards[pending.by].removeLast() }
-        for tile in call.tilesFromHand { hands[player].remove(tile) }
-        melds[player].append(call)
-
-        cancelIppatsu()
-        currentPlayer = player
-        drawnTile = nil
-        isRinshanDraw = false
-        turnCount += 1
-        services?.feedback.impact(.medium)
-
-        if call.kind == .openKan {
-            revealKanDora()
-            drawFromDeadWall(for: player)
-        }
-        persist()
-    }
-
-    /// 自分の手番でカン（暗槓・加槓）を宣言する。
-    public func declareKan(_ call: MahjongCall) {
-        guard availableSelfKans.contains(call) else {
-            services?.feedback.notify(.warning)
-            return
-        }
-        performSelfKan(call, by: Self.humanIndex)
-    }
-
-    private func performSelfKan(_ call: MahjongCall, by player: Int) {
-        // 加槓は槍槓（他家が横取りするロン）の対象になる。暗槓は対象外。
-        if call.kind == .addedKan, let claimant = ronClaimant(
-            for: call.tile, discardedBy: player, isChankan: true
-        ) {
-            if claimant == Self.humanIndex, !autoPlayEnabled {
-                pendingKan = (call, player)
-                ronOffer = RonOffer(tile: call.tile, discarder: player, isChankan: true)
-                phase = .ronOffer
-                services?.feedback.notify(.success)
-                return
-            }
-            concludeWin(
-                winner: claimant, loser: player, winningTile: call.tile,
-                isTsumo: false, isChankan: true
-            )
-            return
-        }
-        completeSelfKan(call, by: player)
-    }
-
-    private func completeSelfKan(_ call: MahjongCall, by player: Int) {
-        pendingKan = nil
-        // ツモ牌もいったん手牌に入れてから、槓に使う牌を抜く。
-        if let drawn = drawnTile {
-            hands[player].add(drawn)
-            drawnTile = nil
-        }
-        for tile in call.tilesFromHand { hands[player].remove(tile) }
-        if call.kind == .addedKan,
-           let index = melds[player].firstIndex(where: { $0.kind == .pon && $0.tile == call.tile }) {
-            melds[player][index] = call
-        } else {
-            melds[player].append(call)
-        }
-        cancelIppatsu()
-        services?.feedback.impact(.medium)
-        revealKanDora()
-        drawFromDeadWall(for: player)
-        persist()
-    }
-
-    /// 鳴きが入ると一発は消える。立直そのものは続く。
-    private func cancelIppatsu() {
-        riichiTurn = Array(repeating: nil, count: Self.playerCount)
-    }
-
-    // MARK: - 和了の判定
-
-    /// この牌でロンできる人。放銃者の下家から順に見て最初の 1 人（頭跳ね）。
-    private func ronClaimant(
-        for tile: MahjongTile, discardedBy discarder: Int, isChankan: Bool = false
-    ) -> Int? {
-        for step in 1..<Self.playerCount {
-            let player = (discarder + step) % Self.playerCount
-            if canWin(player, tile: tile, isChankan: isChankan) { return player }
-        }
-        return nil
-    }
-
-    /// その牌でロンできるか（和了形 + 役 + フリテンでない）。
-    private func canWin(_ player: Int, tile: MahjongTile, isChankan: Bool = false) -> Bool {
-        guard !isFuriten(player) else { return false }
-        return winScore(
-            for: player, winningTile: tile, isTsumo: false, isChankan: isChankan
-        ) != nil
-    }
-
-    /// フリテンか。自分が捨てた牌に待ち牌が 1 つでもあれば該当する。
-    ///
-    /// 判定には河ではなく `discardedKinds`（捨てた牌の種類の記録）を使う。鳴かれた牌は河から
-    /// 消えるが、**捨てた事実は消えない**のでフリテンは続くため。
-    func isFuriten(_ player: Int) -> Bool {
-        if riichiFuriten[player] || temporaryFuriten[player] { return true }
-        let waits = MahjongShanten.waits(hands[player], meldCount: melds[player].count)
-        guard !waits.isEmpty else { return false }
-        return waits.contains { discardedKinds[player].contains(MahjongTileOrder.index(of: $0)) }
-    }
-
-    /// 和了点。役が無ければ nil（= 和了できない）。
-    private func winScore(
-        for player: Int,
-        winningTile: MahjongTile,
-        isTsumo: Bool,
-        isRinshan: Bool = false,
-        isChankan: Bool = false
-    ) -> MahjongScore? {
-        let calls = melds[player]
-        let hand = hands[player].adding(winningTile)
-        guard hand.total == 14 - calls.count * 3 else { return nil }
-        let context = MahjongWinContext(
-            winningTile: winningTile,
-            isTsumo: isTsumo,
-            isRiichi: riichi[player],
-            isIppatsu: isIppatsu(player),
-            isLastTile: remainingTiles == 0,
-            isRinshan: isRinshan,
-            isChankan: isChankan,
-            seatWind: seatWind(player),
-            roundWind: 0,
-            doraIndicators: doraIndicators,
-            uraIndicators: uraIndicators
-        )
-        return MahjongScoring.score(hand: hand, calls: calls, context: context)
-    }
-
-    /// 一発か。立直の宣言から 1 巡以内の和了。
-    ///
-    /// `turnCount` は自摸のたびに 1 増える通し番号で、`declaredAt` は宣言者が立直を宣言した
-    /// 手番の値。他家のロンは差が 1〜3、**宣言者自身の次の自摸によるツモは差がちょうど 4**
-    /// （= 参加人数）になるため、境界は `< playerCount` ではなく `<= playerCount`。
-    /// `<` にすると立直後の第一ツモだけ一発が付かない。
-    private func isIppatsu(_ player: Int) -> Bool {
-        guard riichi[player], let declaredAt = riichiTurn[player] else { return false }
-        return turnCount - declaredAt <= Self.playerCount
-    }
-
-    // MARK: - 局の決着
-
-    private func concludeWin(
-        winner: Int,
-        loser: Int?,
-        winningTile: MahjongTile,
-        isTsumo: Bool,
-        isRinshan: Bool = false,
-        isChankan: Bool = false
-    ) {
-        guard let score = winScore(
-            for: winner, winningTile: winningTile, isTsumo: isTsumo,
-            isRinshan: isRinshan, isChankan: isChankan
-        ) else { return }
-        pendingDiscard = nil
-        pendingClaims = []
-        pendingKan = nil
-        callOffer = nil
-        // 立直の宣言牌をロンされた場合、その立直は不成立で 1000 点も出ない（#375）。
-        // 供託に積む前に取り消すので、和了者が受け取る供託にもこの 1000 点は入らない。
-        if !isTsumo, let loser, loser == pendingRiichi { cancelPendingRiichi() }
-        let scoresBefore = scores
-
-        var gained = score.total
-        // 本場は 1 本につき 300 点（ツモなら 100 点ずつ）。
-        let honbaBonus = honba * 300
-        if let loser {
-            scores[loser] -= score.ronPayment + honbaBonus
-        } else {
-            for player in 0..<Self.playerCount where player != winner {
-                let payment = player == dealer ? score.tsumoFromDealer : score.tsumoFromNonDealer
-                scores[player] -= payment + honba * 100
-            }
-        }
-        gained += honbaBonus
-        // 供託の立直棒はすべて和了者のもの。
-        gained += riichiSticks * 1000
-        scores[winner] += gained
-        riichiSticks = 0
-
-        handResult = MahjongHandResult(
-            kind: isTsumo ? .tsumo : .ron,
-            winner: winner,
-            loser: loser,
-            yaku: score.yaku.map { "\($0.name) \($0.isYakuman ? "役満" : "\($0.han)飜")" },
-            han: score.han,
-            fu: score.fu,
-            limitName: score.limitName,
-            gainedPoints: gained,
-            tenpaiPlayers: [],
-            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] },
-            // 和了手の表示用（#351）。手牌は和了牌を足す前の門前部分を渡す（和了牌は別枠で
-            // ハイライトして出す）。裏ドラは点数計算（`winScore`）に既に入っているものを
-            // 立直和了のときだけ開示する。
-            winningHand: hands[winner].tiles,
-            winningMelds: melds[winner],
-            winningTile: winningTile,
-            uraDoraIndicators: riichi[winner] ? uraIndicators : nil,
-            roundNumber: roundNumber,
-            honba: honba
-        )
-        // 和了牌を手牌に入れた状態で見せる（リザルトで役を確かめられるように）。
-        hands[winner] = hands[winner].adding(winningTile)
-        drawnTile = nil
-        finishHand(dealerContinues: winner == dealer)
-    }
-
-    private func concludeExhaustiveDraw() {
-        drawnTile = nil
-        pendingDiscard = nil
-        pendingClaims = []
-        pendingKan = nil
-        callOffer = nil
-        let tenpai = (0..<Self.playerCount).filter {
-            MahjongShanten.isTenpai(hands[$0], meldCount: melds[$0].count)
-        }
-        let scoresBefore = scores
-        applyExhaustiveDrawPayments(tenpaiPlayers: tenpai)
-        handResult = MahjongHandResult(
-            kind: .exhaustiveDraw,
-            winner: nil,
-            loser: nil,
-            yaku: [],
-            han: 0,
-            fu: 0,
-            limitName: nil,
-            gainedPoints: 0,
-            tenpaiPlayers: tenpai,
-            pointChanges: (0..<Self.playerCount).map { scores[$0] - scoresBefore[$0] },
-            roundNumber: roundNumber,
-            honba: honba
-        )
-        finishHand(dealerContinues: tenpai.contains(dealer))
-    }
-
-    /// 荒牌平局の点棒授受。聴牌者で 3000 点を分け合う（全員聴牌・全員ノーテンなら動かない）。
-    func applyExhaustiveDrawPayments(tenpaiPlayers: [Int]) {
-        let tenpaiCount = tenpaiPlayers.count
-        guard tenpaiCount > 0, tenpaiCount < Self.playerCount else { return }
-        let notenCount = Self.playerCount - tenpaiCount
-        let gain = 3000 / tenpaiCount
-        let loss = 3000 / notenCount
-        for player in 0..<Self.playerCount {
-            scores[player] += tenpaiPlayers.contains(player) ? gain : -loss
-        }
-    }
-
-    private func finishHand(dealerContinues: Bool) {
-        phase = .handResult
-        // アガリやめ: 東 4 局で親が連荘する条件を満たしていても、その親がトップなら終局する。
-        // これを入れないと、勝っている親が連荘し続けるかぎり東風戦が終わらない。
-        let isFinalRound = roundNumber >= Self.playerCount
-        if dealerContinues && isFinalRound && isTopPlayer(dealer) {
-            endsAfterThisHand = true
-        }
-        if dealerContinues {
-            honba += 1
-        } else {
-            honba = 0
-            dealer = (dealer + 1) % Self.playerCount
-            roundNumber += 1
-        }
-        switch handResult?.winner {
-        case Self.humanIndex: services?.feedback.notify(.success)
-        case .some:           services?.feedback.notify(.error)
-        case nil:             services?.feedback.notify(.warning)
-        }
-        // リザルト表示中に離脱しても局間の経過が消えないよう、決着内容ごと保存する（#350）。
-        // 親・本場・局数の繰り上げが終わった後に保存するので、再開後の「次の局へ」は
-        // 中断が無かったときと同じ条件で次局を始められる。
-        persist()
-    }
-
-    /// 東風戦が終わったか。東 4 局を終えた（= 5 局目に入る）か、アガリやめか、誰かが飛んだとき。
-    private func isGameOver() -> Bool {
-        endsAfterThisHand || roundNumber > Self.playerCount || scores.contains { $0 < 0 }
-    }
-
-    /// その人が単独・同点を問わず最高点か。
-    func isTopPlayer(_ player: Int) -> Bool {
-        scores[player] == scores.max()
-    }
-
-    private func concludeGame() {
-        // 終了理由をリザルトの見出し用に確定する（#352）。トビは他の条件と同時に成立しうるが、
-        // 突然終わる驚きが最も大きいので最優先で表示する。次いで「東4局を終えた」が自然な終局、
-        // アガリやめはその変形（roundNumber は 4 のまま）なので最後に判定する。
-        gameEndReason = scores.contains(where: { $0 < 0 }) ? .busted
-            : roundNumber > Self.playerCount ? .completedAllRounds
-            : endsAfterThisHand ? .agariYame
-            : .completedAllRounds
-        // 同点は席順（親から近い順）で上位にする。
-        ranking = (0..<Self.playerCount).sorted {
-            (scores[$0], -seatWind($0)) > (scores[$1], -seatWind($1))
-        }
-        // 最後の局が流局で終わると供託（立直棒）が残る。誰にも渡さないと点棒が消えるので、
-        // 一般的なルールどおりトップが回収する（回収してもトップは入れ替わらない）。
-        // 最後の局が流局で終わると供託（立直棒）が残る。誰にも渡さないと点棒が消えるので、
-        // 一般的なルールどおりトップが回収する（回収してもトップは入れ替わらない）。
-        if riichiSticks > 0, let top = ranking.first {
-            scores[top] += riichiSticks * 1000
-            riichiSticks = 0
-        }
-        phase = .gameResult
-        services?.snapshots.clear(for: gameID)
-        switch reviewOutcome {
-        case .win:  services?.feedback.notify(.success)
-        case .loss: services?.feedback.notify(.error)
-        case .draw: services?.feedback.notify(.warning)
-        }
-        recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss)
-        )
-        // 自分がトビて終わった対局は、リワード広告で 1 半荘 1 回だけ続けられる（#338）。
-        // 決着の通知（`gameDidFinish`）はここまでで従来どおり済ませ、復活したときに
-        // 記録側だけを巻き戻す（2048・マインスイーパーのコンティニューと同じ扱い。`reviveAfterAd`）。
-        canReviveAfterBust = didBustOut && !hasRevivedThisGame
-    }
+    // MARK: - トビからの復活
+    // 広告を呼ぶここは `AdsTests`（`RewardedRescueTests`）がこのファイル名で走査するので、別ファイルへ出さない。
 
     /// 自分がトビて最下位で終わった対局か。次の 3 つは false（そのまま終局にする）:
-    /// - 東 4 局を終えた・アガリやめが同時に成立している → 復活しても続ける局が無い
+    /// - 最終局を終えた・アガリやめが同時に成立している → 復活しても続ける局が無い
+    ///   （**一局戦（#639）はトビても必ずここに当たる**。最終局 = 東 1 局なので、復活して
+    ///   続けられる局が構造的に存在しない。したがって一局戦では復活導線自体が出ない）
     /// - CPU だけがトビた → 自分は生き残っているので続ける動機が無い
     ///   （ポーカー・ブラックジャックの「自分のチップが尽きたときだけ回復を出す」形に揃える）
     /// - 自分がマイナスでも最下位ではない（複数人が同時にトビた稀なケース）→ 記録の巻き戻しが
     ///   `PlayLog.cancelLoss`（= 負けの取り消し）しか無く、負け以外を取り消す手段が無いため対象外にする
-    private var didBustOut: Bool {
+    var didBustOut: Bool {
         scores[Self.humanIndex] < 0
             && reviewOutcome == .loss
             && !endsAfterThisHand
-            && roundNumber <= Self.playerCount
+            && roundNumber <= gameLength.roundCount
     }
 
     /// リワード広告を表示し、**視聴完了したときだけ**トビ終了から復活して対局を続ける（#338）。
-    /// 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// 視聴中断・ロード失敗時は何も変更せず `.notEarned` を返す（呼び出し側でユーザーに通知する）。
+    /// 見終えたのに適用できなかったとき（救済できる状態でない・広告のあいだに対局が入れ替わった）は
+    /// `.unavailable` を返し、視聴しなかったことと分ける（#814。ブラックジャック・ポーカーの #727 と同じ形）。
     /// services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり復活させる。
     ///
     /// 復活はマイナスの持ち点を初期値（25,000 点）へ戻すだけなので、点棒の合計は 100,000 点を
     /// 超える。救済措置なので合計の保存より「そのまま続けられること」を優先する。
     /// `concludeGame` でトップが回収した供託も戻さない（回収済みとして続ける）。
-    @discardableResult
-    public func reviveAfterAd() async -> Bool {
-        guard canReviveAfterBust else { return false }
+    public func reviveAfterAd() async -> RewardedModelOutcome {
+        guard canReviveAfterBust else { return .unavailable }
         let serialBeforeAd = gameSerial
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
+        // 画面の世代（#653）。`gameSerial` は**このモデルの中**の通し番号なので、ハブへ戻って
+        // 開き直し、別の `MahjongModel` が動き出した場合には何も変わらない（下のガードを
+        // 素通りする）。モデルより長生きする世代で突き合わせる。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
+        // ハブへ戻られていたら、この復活が乗るべき対局はもう画面に無い。適用すると、捨てられた
+        // このモデルが `cancelLoss` で**いま遊んでいる対局の負け**を取り消し、`gameDidRestart` で
+        // `game_start` / `game_end` の対応（#158）も崩す。
+        guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
         // 広告のロード〜視聴のあいだも画面は操作できる。そこで「新規対局」（#638）や
         // リザルトの「もう一度」を押されていたら、**入れ替わったあとの対局**に復活が乗る
         // （`RewardedRescue` が「#480 → #509 → #511 と 3 回続けて空いた穴」と呼んでいるもの）。
         // 乗ると、始めたばかりの対局の手牌が配り直され、正しく記録済みの前局の負けまで
         // `cancelLoss` で取り消される。通し番号で照合して、入れ替わっていたら適用しない
-        // （`requestHandledByModel` の「`perform` が false を返す形で局ガードを効かせる」契約）。
-        guard gameSerial == serialBeforeAd, canReviveAfterBust else { return false }
+        // （`.unavailable` を返して、視聴しなかったときとは別のアラートを出させる。#814）。
+        guard gameSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisGame = true
         canReviveAfterBust = false
         // 同じ半荘の続きなので、直前に記録した「負け」は無かったことにする（2048・マインスイーパーの
         // コンティニューと同じ扱い）。そのままだと 1 半荘が 2 回（トビの負け + 復活後の最終着順）
         // として数えられ、広告を見るほど通算成績が増える抜け道になる。
-        services?.playLog?.cancelLoss(gameID: gameID)
+        // 取り消す先は決着を書いた記録と同じ区分でなければならない（#639）。一局戦では
+        // 復活導線自体が出ない（`didBustOut`）ので現状ここは常に東風戦 = nil だが、
+        // 書き込み先（`concludeGame`）と読み替え先が食い違う形を残さない。
+        services?.playLog?.cancelLoss(gameID: gameID, variant: gameLength.recordVariant)
         recordResult = nil
         for player in 0..<Self.playerCount where scores[player] < 0 {
             scores[player] = Self.startingScore
@@ -1239,141 +529,17 @@ public final class MahjongModel {
         startHand()
         // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158。
         // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる）。
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, mode: gameLength.analyticsMode)
         // Game Center（#289）は送信済みのぶんを取り消さない。四人打ち麻雀はリーダーボードの
         // 対象外（勝敗しか残らない対 CPU 戦のため `GameCenterLeaderboard` に登録が無い）で、
         // 実績の進捗は勝利数と遊んだゲーム数から作られる。トビ = 負けなので勝利数は増えておらず、
         // 「麻雀を遊んだ」という事実も復活で変わらないため、巻き戻す対象がそもそも無い。
-        return true
-    }
-
-    // MARK: - CPU
-
-    /// 自動で進む手番が続く限り進める。自分が選ぶ番になるか、局が決着したら止まる。
-    /// View から複数の契機で呼ばれても内部で 1 本に制限する。
-    ///
-    /// `autoPlayEnabled` のときは、局が終わって `.handResult` になっても止まらず、
-    /// そのまま「次の局へ」を自動で押した扱いにして次の局のCPU手番も続けて進める
-    /// （対局全体が終わる `.gameResult` まで無人で進む）。
-    public func runCPUTurnsIfNeeded() async {
-        // 多重起動防止。ただし「先行タスクがいたら即リターン」にすると、`.task(id:)` の
-        // 差し替え時に「新タスクが先に走る → 先行タスクがまだフラグを持っていて即リターン →
-        // 直後に先行タスクがキャンセルで抜ける」の順になったとき走者が誰もいなくなり、
-        // `turnKey` はもう変わらないので再起動も掛からず手番が止まる（レース）。
-        // 先行タスクの終了を待ってから引き継ぐ。待機中に自分がキャンセルされたら
-        // （さらに次のタスクへ差し替えられたら）そちらに譲って抜ける。
-        while isRunningCPUTurns {
-            guard !Task.isCancelled else { return }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        isRunningCPUTurns = true
-        defer { isRunningCPUTurns = false }
-
-        while true {
-            while phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) {
-                if cpuDelay > .zero {
-                    try? await Task.sleep(for: cpuDelay)
-                    // `try?` がキャンセルのエラーを握り潰すため、キャンセル後は
-                    // `Task.sleep` が即座に返る。ここで抜けないと、`.task(id:)` に
-                    // 差し替えられた古いタスクが `cpuDelay` を一切待たずに残りの手番を
-                    // 走り抜けてしまう（CodeRabbit 指摘）。
-                    guard !Task.isCancelled else { return }
-                    guard phase == .playing, isAutomaticTurn, awaitsDiscard(currentPlayer) else { return }
-                }
-                advanceAutomaticTurn()
-            }
-            guard autoPlayEnabled, phase == .handResult else { return }
-            if cpuDelay > .zero {
-                try? await Task.sleep(for: cpuDelay)
-                guard !Task.isCancelled else { return }
-                guard autoPlayEnabled, phase == .handResult else { return }
-            }
-            advanceToNextHand()
-        }
-    }
-
-    /// 人の選択を要さない手番か。CPU の手番と、**立直後でツモ和了もできない自分の手番**
-    /// （宣言後は自摸切りしかできないので選ばせる意味が無い）。`autoPlayEnabled` のときは
-    /// 自分の手番も含めすべて自動。
-    private var isAutomaticTurn: Bool {
-        if currentPlayer != Self.humanIndex { return true }
-        if autoPlayEnabled { return true }
-        return riichi[Self.humanIndex] && !canDeclareTsumo
-    }
-
-    private func advanceAutomaticTurn() {
-        if currentPlayer == Self.humanIndex, !autoPlayEnabled {
-            guard let drawn = drawnTile else { return }
-            performDiscard(drawn, by: Self.humanIndex)   // 立直中の自摸切り
-            return
-        }
-        performCPUTurn(currentPlayer)
-    }
-
-    private func performCPUTurn(_ player: Int) {
-        let meldCount = melds[player].count
-        if let drawn = drawnTile {
-            // ツモ和了できるなら必ず和了する。
-            if winScore(
-                for: player, winningTile: drawn, isTsumo: true, isRinshan: isRinshanDraw
-            ) != nil {
-                concludeWin(
-                    winner: player, loser: nil, winningTile: drawn,
-                    isTsumo: true, isRinshan: isRinshanDraw
-                )
-                return
-            }
-            if riichi[player] {
-                performDiscard(drawn, by: player)
-                return
-            }
-            // 形が悪くならないカン（暗槓・加槓）はしてよい。
-            if deadWallDraws < 4, remainingTiles > 0 {
-                let options = MahjongCallFinder.selfKanOptions(
-                    hand: hands[player], drawnTile: drawn, melds: melds[player]
-                )
-                if let kan = MahjongAI.chooseSelfKan(
-                    options: options, hand: hands[player], drawnTile: drawn, melds: melds[player]
-                ) {
-                    performSelfKan(kan, by: player)
-                    return
-                }
-            }
-        }
-        // 鳴いた直後はツモ牌が無く、手牌がそのまま 1 枚多い状態になっている。
-        var full = hands[player]
-        if let drawn = drawnTile { full.add(drawn) }
-        let choice = MahjongAI.chooseDiscard(
-            from: full, meldCount: meldCount, visible: visibleCounts(for: player)
-        )
-        // 立直の条件（門前・聴牌・点棒・残り牌）が揃っていれば宣言してから切る。
-        if drawnTile != nil, melds[player].allSatisfy({ !$0.breaksConcealment }),
-           MahjongAI.shouldDeclareRiichi(hand: full.removing(choice.tile)),
-           scores[player] >= 1000, remainingTiles >= Self.playerCount {
-            commitRiichi(for: player)
-        }
-        performDiscard(choice.tile, by: player)
-    }
-
-    /// その人から見えている牌の枚数（自分の手牌 + 全員の河と副露 + ドラ表示牌）。
-    private func visibleCounts(for player: Int) -> [Int] {
-        var counts = hands[player].counts
-        if let drawn = drawnTile, player == currentPlayer {
-            counts[MahjongTileOrder.index(of: drawn)] += 1
-        }
-        for pile in discards {
-            for tile in pile { counts[MahjongTileOrder.index(of: tile)] += 1 }
-        }
-        for calls in melds {
-            for tile in calls.flatMap(\.tiles) { counts[MahjongTileOrder.index(of: tile)] += 1 }
-        }
-        for indicator in doraIndicators { counts[MahjongTileOrder.index(of: indicator)] += 1 }
-        return counts
+        return .granted
     }
 
     // MARK: - 永続化
 
-    private func persist() {
+    func persist() {
         // `.handResult` も保存対象（#350）。東風戦の決着（`.gameResult`）だけは従来どおり消す
         // （終わった対局を「続きから」で開かない）。
         guard phase == .playing || phase == .ronOffer || phase == .handResult else {
@@ -1402,7 +568,8 @@ public final class MahjongModel {
             deadWallDraws: deadWallDraws,
             hasRevivedThisGame: hasRevivedThisGame,
             handResult: phase == .handResult ? handResult : nil,
-            endsAfterThisHand: endsAfterThisHand
+            endsAfterThisHand: endsAfterThisHand,
+            gameLength: gameLength
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
@@ -1422,8 +589,10 @@ public final class MahjongModel {
         scores: [Int]? = nil,
         roundNumber: Int = 1,
         honba: Int = 0,
-        melds: [[MahjongCall]]? = nil
+        melds: [[MahjongCall]]? = nil,
+        length: MahjongGameLength? = nil
     ) {
+        if let length { self.gameLength = length }
         self.hands = hands
         self.wall = wall
         self.wallIndex = 0
@@ -1486,6 +655,17 @@ public final class MahjongModel {
         phase = .handResult
     }
 
+    /// 撮影・動作確認用（DEBUG 限定）: 打ち切りで終わったリザルト（見出し + 順位表）をその場で作る。
+    /// 見出しは対局の長さで変わる（#639）が、実プレイで到達するには最後まで打つしかなく、
+    /// シミュレータは自動タップができない（`simulateBustResultForTesting` と同じ理由）。
+    func simulateFinalResultForTesting(length: MahjongGameLength) {
+        gameLength = length
+        scores = [32_000, 27_000, 23_000, 18_000]
+        roundNumber = length.roundCount + 1
+        handResult = nil
+        concludeGame()
+    }
+
     /// 撮影・動作確認用（DEBUG 限定）: トビ終了のリザルト（復活ボタンが出る状態）をその場で作る（#338）。
     /// トビは実プレイでは稀にしか起きず、シミュレータは自動タップができないため、非対話で
     /// この画面を確認する経路が要る（`-solitaireHintConfirm` と同じ理由・#336）。
@@ -1496,11 +676,6 @@ public final class MahjongModel {
         concludeGame()
     }
     #endif
-
-    /// テスト専用: 自分の手番でのカン（暗槓・加槓）を経由させる。
-    func declareKanForTesting(_ call: MahjongCall, by player: Int) {
-        performSelfKan(call, by: player)
-    }
 
     /// テスト専用: 人間以外の手番を 1 つだけ進める。
     func stepCPUForTesting() {
@@ -1518,22 +693,5 @@ public final class MahjongModel {
     func exhaustWallForTesting() {
         wallIndex = wall.count
         concludeExhaustiveDraw()
-    }
-}
-
-// MARK: - Seeded RNG
-
-/// テスト用の決定的な乱数生成器（SplitMix64）。本番は `seed` を渡さないので system の乱数を使う。
-struct MahjongSeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { self.state = seed }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
     }
 }

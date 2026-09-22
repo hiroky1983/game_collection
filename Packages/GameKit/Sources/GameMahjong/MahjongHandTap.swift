@@ -34,6 +34,10 @@ enum MahjongHandTap {
     /// 牌の値ではなく位置で作るのは、同じ牌が複数枚あっても区別するためと、
     /// 手牌が毎回ゼロから並べ直される配列で identity を安定させるため（`handOnTable` のコメント参照）。
     static func handTileID(index: Int) -> String { "hand\(index)" }
+    /// `handTileID` から位置を戻す（打牌の飛び出し位置に使う）。ツモ牌や不正な ID は nil。
+    static func handIndex(of id: String) -> Int? {
+        id.hasPrefix("hand") ? Int(id.dropFirst(4)) : nil
+    }
 
     /// ツモ牌を指す ID。手牌とは別枠なので位置に依存しない固定値。
     static let drawnTileID = "drawn"

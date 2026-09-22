@@ -3,23 +3,9 @@ import Foundation
 import Core
 import MahjongTiles
 @testable import GameMahjong
+import CoreTestSupport
 
 // MARK: - ヘルパー
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-    /// 保存された生の JSON（旧形式との互換の検証に使う）。
-    func rawData(for gameID: String) -> Data? { store[gameID] }
-}
 
 /// 何を切っても和了に絡まない、聴牌から遠い手牌。
 ///
@@ -987,6 +973,36 @@ struct MahjongCancelTests {
         #expect(
             model.discards.reduce(0) { $0 + $1.count } == before,
             "キャンセル済みのタスクが cpuDelay を無視して打牌を進めた"
+        )
+    }
+
+    /// 間合いが 0 だと sleep 後の判定を一度も通らない。走者を取る前（`withAITurnRunner`）にもループ先頭にも
+    /// キャンセル確認が無いと、画面を離れたあとも手番と中断データが進む（PR #859 の CodeRabbit 指摘）。
+    /// 固定しているのは「どちらかで止まる」ことまで。ループ先頭の確認は大富豪 #287・花札 #726 とそろえた二重化で、
+    /// 間合い 0 のループには suspend が無いため、単独では MainActor の外からキャンセルされたときにしか効かない。
+    @Test("間合いが 0 でもキャンセルされたら打牌を進めない")
+    func cancelledLoopWithoutDelayDoesNotAdvance() async {
+        let model = MahjongModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()),
+            cpuDelay: .zero,
+            seed: 2026
+        )
+        model.startGame()
+        if model.currentPlayer == MahjongModel.humanIndex, let drawn = model.drawnTile {
+            model.discard(drawn)
+        }
+        try? #require(model.phase == .playing)
+        #expect(model.currentPlayer != MahjongModel.humanIndex, "CPU の手番になっていない")
+
+        let before = model.discards.reduce(0) { $0 + $1.count }
+        // 上のテストと同じく、MainActor 上なので cancel() は本体の実行より先に確定する。
+        let task = Task { await model.runCPUTurnsIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(
+            model.discards.reduce(0) { $0 + $1.count } == before,
+            "キャンセル済みのタスクが間合い 0 の手番を進めた"
         )
     }
 

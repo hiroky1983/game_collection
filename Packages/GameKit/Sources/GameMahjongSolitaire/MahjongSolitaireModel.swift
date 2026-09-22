@@ -65,6 +65,9 @@ public final class MahjongSolitaireModel {
     public private(set) var solution: [[Int]] = []
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// 配り直しの通し番号（#815）。`newGame()` のたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に配り直されたらヒント・並べ替えを適用しない）。
+    public private(set) var dealSerial = 0
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -83,9 +86,6 @@ public final class MahjongSolitaireModel {
 
     /// 1 手戻せるか。取った直後だけ true。
     public var canUndo: Bool { phase == .playing && lastTake != nil }
-
-    /// 残りの組数（表示用）。
-    public var remainingPairCount: Int { remainingCount / 2 }
 
     /// - Parameters:
     ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
@@ -229,6 +229,13 @@ public final class MahjongSolitaireModel {
         return true
     }
 
+    /// 広告を出す前に控えた `dealSerial` の盤面にだけヒントを出す（#815）。
+    @discardableResult
+    public func showHint(forDeal serial: Int) -> Bool {
+        guard serial == dealSerial else { return false }
+        return showHint()
+    }
+
     /// 残っている牌を並べ替えて、そこから必ず取り切れる配置に作り直す。
     /// 位置の組み合わせ自体が取り切れない場合は false を返す（この場合は最初からやり直すしかない）。
     @discardableResult
@@ -250,6 +257,14 @@ public final class MahjongSolitaireModel {
         return true
     }
 
+    /// 広告を出す前に控えた `dealSerial` の盤面だけを並べ替える（#815）。
+    /// 配り直された盤面を並べ替えると、広告と無関係な新しい局の配置と `shuffleCount` が変わる。
+    @discardableResult
+    public func shuffleRemaining(forDeal serial: Int) -> Bool {
+        guard serial == dealSerial else { return false }
+        return shuffleRemaining()
+    }
+
     /// 新しい盤面を配る（結果は記録しない）。
     ///
     /// 途中の盤面を捨てても通算成績には乗せない。**「手詰まりで最初から」（`giveUpAndRestart()`）も
@@ -258,6 +273,7 @@ public final class MahjongSolitaireModel {
     /// - Parameter layout: 配る盤面のかたち。**nil なら今と同じかたちのまま配り直す**（#239）。
     public func newGame(layout newLayout: MahjongSolitaireLayout? = nil) {
         if let newLayout { layout = newLayout }
+        dealSerial += 1
         let dealt = MahjongSolitaireModel.makeBoard(seed: seed, layout: layout)
         seed = dealt.nextSeed
         faces = dealt.board.faces

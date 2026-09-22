@@ -19,23 +19,12 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
+import CoreTestSupport
 
 // MARK: - モック
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 送信内容をそのまま溜めるスパイ。Apple の GameKit にもネットワークにも触れない。
 @MainActor
@@ -97,7 +86,7 @@ private func makeHubModules() -> [GameModule] {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(),
     ]
 }
 
@@ -299,8 +288,13 @@ struct GameCenterLeaderboardTests {
             ("mahjong", GameScore(metric: .shortestTime, seconds: 1)),
             ("solitaire", GameScore(metric: .shortestTime, seconds: 1)),
             ("freecell", GameScore(metric: .shortestTime, seconds: 1)),
+            ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "1suit")),
+            ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "2suit")),
+            ("spider", GameScore(metric: .shortestTime, seconds: 1, variant: "4suit")),
             ("blockpuzzle", GameScore(metric: .points, points: 1)),
             ("runner", GameScore(metric: .points, points: 1)),
+            // エンドレス（#675）は区分キー "endless"（`RunnerMode.endless.recordVariant`）で走行距離の表へ。
+            ("runner", GameScore(metric: .points, points: 1, variant: "endless")),
             ("hanafuda", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
@@ -672,6 +666,26 @@ struct GameCenterPerGameTests {
         #expect(spy.scores.isEmpty, "半分だけ走った回は送らない")
     }
 
+    @Test("スパイダーソリティア: クリアでスート数ごとの表にタイムが送られる")
+    func spiderWin() {
+        let (log, defaults, name) = makeLog(suite: "spider")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let spy = SpyGameCenterService()
+
+        let seed = SpiderDealer.verifiedSeeds(for: .one)[0]
+        let model = SpiderModel(services: makeServices(log: log, spy: spy), seed: seed)
+        guard let solution = SpiderSolver.solve(
+            SpiderDealer.deal(seed: seed, suits: .one),
+            maxStates: SpiderSolver.defaultMaxStates(for: .one)).solution else {
+            Issue.record("種 \(seed) の勝ち筋が見つからなかった")
+            return
+        }
+        playSpiderSolution(model, solution)
+
+        #expect(model.phase == .won)
+        #expect(leaderboardID(for: "spider", in: log) == GameCenterLeaderboard.spiderTimeOneSuit)
+    }
+
     @Test("ブラックジャック: 精算後のチップが送られる")
     func blackjack() {
         let (log, defaults, name) = makeLog(suite: "blackjack")
@@ -745,24 +759,53 @@ struct GameCenterEntryPointTests {
         )
     }
 
-    @Test("ハブのツールバーから実績・ランキングを開ける")
-    func hubHasGameCenterEntryPoint() throws {
+    @Test("ハブのツールバーのトロフィーから「きろく」を開ける（#669）")
+    func hubToolbarOpensRecords() throws {
         let source = try appSource("HubView.swift")
-        // 「トロフィーのボタンを押すと `openGameCenter()` が走る」という**結線**まで見る。
+        // 「トロフィーのボタンを押すと きろく のシートが出る」という**結線**まで見る。
         // 部品の有無を個別に contains で確かめるだけだと、ボタンの中身を空にしても
-        // `openGameCenter()` の定義側が文字列として残るため緑のまま素通りする（QA 指摘）。
+        // 定義側が文字列として残るため緑のまま素通りする（QA 指摘）。
         #expect(
             source.range(
-                of: #"Button \{ openGameCenter\(\) \} label: \{\s*Image\(systemName: "trophy\.fill"\)"#,
+                of: #"Button \{ showRecords = true \} label: \{\s*Image\(systemName: "trophy\.fill"\)"#,
                 options: .regularExpression
             ) != nil,
-            "トロフィーのボタンと openGameCenter() の結線が切れている"
+            "トロフィーのボタンと きろく のシートの結線が切れている"
         )
-        #expect(source.contains("GameCenterEntry.open()"),
-                "ハブから GameCenterEntry を呼ぶ導線が消えている")
+        #expect(
+            source.range(
+                // 印の確認（guard）まで縛る。guard が消えると「完了」で閉じるたびに Game Center が開く。
+                of: #"\.sheet\(isPresented: \$showRecords, onDismiss: \{\s*guard opensGameCenterAfterRecords else \{ return \}\s*opensGameCenterAfterRecords = false\s*openGameCenter\(\)\s*\}\) \{\s*RecordsView\("#,
+                options: .regularExpression
+            ) != nil,
+            "きろく のシートが RecordsView を出していない、または閉じたあとに Game Center を開く結線が無い"
+        )
         // アイコンだけのボタンは VoiceOver がシンボル名を読むため、明示のラベルが要る。
-        #expect(source.contains(#"accessibilityLabel("実績・ランキング")"#),
+        #expect(source.contains(#"accessibilityLabel("きろく")"#),
                 "アイコンボタンの読み上げラベルが消えている")
+    }
+
+    @Test("「きろく」の中から実績・ランキングを開ける（#334 の導線を引き継ぐ）")
+    func recordsHasGameCenterEntryPoint() throws {
+        let records = try appSource("RecordsView.swift")
+        #expect(
+            records.range(
+                of: #"Button \{ onOpenGameCenter\(\) \} label: \{\s*Label\("Game Center で実績・ランキングを見る""#,
+                options: .regularExpression
+            ) != nil,
+            "きろく の Game Center ボタンの結線が切れている"
+        )
+        // 実際に開くのは閉じ切ったあとのハブ。ハブ側の結線（印を立ててシートを閉じる）まで見る。
+        let hub = try appSource("HubView.swift")
+        #expect(
+            hub.range(
+                of: #"RecordsView\([^)]*\) \{\s*opensGameCenterAfterRecords = true\s*showRecords = false"#,
+                options: .regularExpression
+            ) != nil,
+            "きろく から Game Center を求めたときにシートを閉じる結線が切れている"
+        )
+        #expect(hub.contains("GameCenterEntry.open()"),
+                "ハブから GameCenterEntry を呼ぶ導線が消えている")
     }
 
     @Test("未サインインのときは Game Center を開かず、案内に落ちる")
@@ -806,6 +849,20 @@ struct GameCenterEntryPointTests {
             }
             #expect(usages.isEmpty,
                     "\(file.lastPathComponent) が deprecated な GKGameCenterViewController を使っている: \(usages)")
+        }
+    }
+}
+
+/// スパイダーの勝ち筋をタップ操作で指す（`GameSpiderTests` と同じ翻訳）。
+@MainActor
+private func playSpiderSolution(_ model: SpiderModel, _ solution: [SpiderMove]) {
+    for move in solution {
+        switch move {
+        case .move(let from, let cardIndex, let to):
+            model.tapPile(from, cardIndex: cardIndex)
+            model.tapPile(to)
+        case .deal:
+            model.tapStock()
         }
     }
 }

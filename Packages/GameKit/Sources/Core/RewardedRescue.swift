@@ -55,10 +55,18 @@ public final class RewardedRescue {
         // 広告のロード〜表示中の連打で 2 本目が失敗し、誤ってアラートが出るのを防ぐ。
         guard !isWatching else { return }
         isWatching = true
+        // 画面の世代（#653）。`guardedBy` の局ガードは Model の中だけを見るので、**Model ごと
+        // 入れ替わる経路**（ロード中にハブへ戻って開き直す）は弾けない。ここで押さえる。
+        let generation = services.screenGeneration.current
         Task {
             if await services.showRewardedAd(gameID: gameID, purpose: purpose) {
-                // 広告を見たのに適用できなかったときは、黙って終わらせない（対価が無い状態を作らない）。
-                if !grant() {
+                if services.screenGeneration.current != generation {
+                    // ハブへ戻られている。この救済が狙っていた画面はもう無く、`grant` を呼ぶと
+                    // 捨てられた Model が `PlayLog` や中断データを新しい対局の裏で書き換える。
+                    // アラートも出さない（出す先の画面が無いので、次に開いたときに
+                    // 身に覚えのないアラートが出るだけになる）。
+                } else if !grant() {
+                    // 広告を見たのに適用できなかったときは、黙って終わらせない（対価が無い状態を作らない）。
                     // 照合を持たない面（`unchecked`）は false を返さないのが契約。返ってきたら
                     // 宣言と実装が食い違っている（照合を足したのに宣言が古い）。
                     assert(guardedBy.isChecked, "\(gameID) は照合していない宣言なのに grant が false を返した")
@@ -105,6 +113,41 @@ public extension RewardedRescue {
             }
         }
     }
+
+    /// `requestHandledByModel(_:whenGranted:)` のうち、**見終えたのに適用できなかった**ことを
+    /// 視聴しなかったことと分けて知らせる形（#727）。
+    ///
+    /// `Bool` の形では、広告のあいだに局が入れ替わって適用しなかったときも
+    /// 「広告を最後まで視聴しなかったか…」のアラートが出てしまう。`.unavailable` は
+    /// `showsUnavailable` を立てるので、この形を呼ぶ面は `rewardedRescueAlerts(unavailable:)` を
+    /// 必ず渡す（`RewardGuardCallSiteTests` がファイル単位で数を突き合わせる）。
+    func requestHandledByModel(
+        withOutcome perform: @escaping @MainActor () async -> RewardedModelOutcome,
+        whenGranted: (@MainActor () async -> Void)? = nil
+    ) {
+        guard !isWatching else { return }
+        isWatching = true
+        Task {
+            let outcome = await perform()
+            isWatching = false
+            switch outcome {
+            case .granted:     await whenGranted?()
+            case .notEarned:   showsNotEarned = true
+            case .unavailable: showsUnavailable = true
+            }
+        }
+    }
+}
+
+/// 広告ごと抱えているモデルの救済が、どう終わったか（#727）。
+public enum RewardedModelOutcome: Sendable, Equatable {
+    /// 視聴を完了し、報酬を適用した。
+    case granted
+    /// 視聴しなかった・読み込めなかった（→ `showsNotEarned`）。
+    case notEarned
+    /// 救済できる状態ではなかった、または視聴のあいだに局が入れ替わって適用しなかった
+    /// （→ `showsUnavailable`）。
+    case unavailable
 }
 
 /// 広告の前後で局が入れ替わっていないことを、どうやって確かめるか（#526）。
@@ -124,6 +167,108 @@ public enum RewardGuard: Sendable {
     public var isChecked: Bool {
         if case .checkedByGrant = self { return true }
         return false
+    }
+}
+
+// MARK: - 広告コンティニューの幕
+
+/// 決着した盤に被せる「広告を見て続ける」の幕（#829）。
+///
+/// 2048・ブロックならべ・ナンプレに、黒の幕・見出し・救済ボタン・二次ボタンという同じ組み方が
+/// 写しで置かれていた（#729 の局ガードのコメントごと）。救済ボタンは**局ガード付きの `request` を
+/// ここで必ず通す**ので、寄せた面では照合の書き忘れが構造的に起きない（`RewardGuardCallSiteTests`）。
+///
+/// ゲームごとに違う見た目（見出しの大きさ・幕の角丸・見出しの下の一行・内側の余白）だけを引数で受ける。
+/// 失敗のアラート（`rewardedRescueAlerts`）は画面全体に付くものなので、呼び出し側に残す。
+public struct RewardedContinueOverlay<Detail: View>: View {
+    private let title: LocalizedStringKey
+    private let titleFont: Font
+    private let cornerRadius: CGFloat
+    private let contentPadding: CGFloat
+    private let detail: Detail
+    private let rescueLabel: LocalizedStringKey
+    private let canContinue: Bool
+    private let continueRescue: RewardedRescue
+    private let services: GameServices
+    private let gameID: String
+    private let serial: () -> Int
+    private let grant: (Int) -> Bool
+    private let secondaryTitle: LocalizedStringKey
+    private let secondaryAction: () -> Void
+
+    /// - Parameters:
+    ///   - detail: 見出しの下の一行（記録の表示や、広告で何が戻るかの説明）。
+    ///   - canContinue: 救済ボタンを出すか。1 局 1 回のゲームは使ったら false にする。
+    ///   - serial: 局の通し番号。**タップした瞬間に**読んで控え、広告の後に `grant` へ渡す。
+    ///   - grant: 控えた通し番号の局へコンティニューを適用する。局が入れ替わっていたら false を返す。
+    ///   - secondaryTitle: 救済を選ばないときのボタン（「もう一度」「諦めて答えを見る」）。
+    public init(
+        title: LocalizedStringKey,
+        titleFont: Font = .title2.bold(),
+        cornerRadius: CGFloat = 8,
+        contentPadding: CGFloat = 0,
+        detail: Detail,
+        rescueLabel: LocalizedStringKey,
+        canContinue: Bool = true,
+        rescue: RewardedRescue,
+        services: GameServices,
+        gameID: String,
+        serial: @autoclosure @escaping () -> Int,
+        grant: @escaping (Int) -> Bool,
+        secondaryTitle: LocalizedStringKey,
+        secondaryAction: @escaping () -> Void
+    ) {
+        self.title = title
+        self.titleFont = titleFont
+        self.cornerRadius = cornerRadius
+        self.contentPadding = contentPadding
+        self.detail = detail
+        self.rescueLabel = rescueLabel
+        self.canContinue = canContinue
+        self.continueRescue = rescue
+        self.services = services
+        self.gameID = gameID
+        self.serial = serial
+        self.grant = grant
+        self.secondaryTitle = secondaryTitle
+        self.secondaryAction = secondaryAction
+    }
+
+    public var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.black.opacity(0.55))
+            VStack(spacing: 12) {
+                Text(title).font(titleFont).foregroundStyle(.white)
+                detail
+                if canContinue {
+                    Button {
+                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
+                        // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                        let game = serial()
+                        continueRescue.request(
+                            services, gameID: gameID, purpose: .continue,
+                            guardedBy: .checkedByGrant
+                        ) {
+                            grant(game)
+                        }
+                    } label: {
+                        Label(rescueLabel, systemImage: "play.rectangle.fill")
+                            .foregroundStyle(Theme.onAccent)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.Fill.coral)
+                    .disabled(continueRescue.isWatching)
+                }
+                // 視聴中に「もう一度」「諦めて答えを見る」を押すと局が入れ替わり、見終えた広告が
+                // `grant` の局照合で弾かれて見損になる（#911。マインスイーパーの #816 と同型）。
+                Button(secondaryTitle) { secondaryAction() }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+                    .disabled(continueRescue.isWatching)
+            }
+            .padding(contentPadding)
+        }
     }
 }
 

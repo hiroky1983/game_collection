@@ -20,8 +20,10 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
+import CoreTestSupport
 
 // MARK: - 共通のヘルパー
 
@@ -31,22 +33,24 @@ import GameBlocks
 /// `availableIDs` の順に下りるため、順序がずれていると本番とテストで違うゲームを勧める
 /// （#397 の CodeRabbit 指摘。以前は #262 以前の古い並びのまま放置されていた）。
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
-// blockpuzzle・hanafudaは含めない（#642。v1.1.4のハブから次版へ持ち越したため）。
+// blockpuzzle は含めない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が続いている）。
+// hanafuda は #668 で戻した。
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
-    "solitaire", "freecell", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
-    "concentration", "blocks", "runner",
+    "solitaire", "freecell", "spider", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
+    "concentration", "blocks", "runner", "hanafuda",
 ]
 
 @MainActor
 private func makeRegistry() -> GameRegistry {
-    // BlockPuzzleModule・HanafudaModuleは含めない（#642。v1.1.4の`AppEnvironment.registry`と
-    // 構成を一致させるため。分析基盤の先行リリースを優先し次版へ持ち越した）。
+    // BlockPuzzleModule は含めない（#642 / #603。v1.1.5 の `AppEnvironment.registry` と
+    // 構成を一致させるため）。HanafudaModule は #668 で戻した。
     GameRegistry([
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
-        FreeCellModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
+        FreeCellModule(), SpiderModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
         GomokuModule(), ConcentrationModule(), BlocksModule(), RunnerModule(),
+        HanafudaModule(),
     ])
 }
 
@@ -57,19 +61,6 @@ private func makeLog(suite: String) -> (PlayLog, UserDefaults) {
     let defaults = UserDefaults(suiteName: name)!
     defaults.removePersistentDomain(forName: name)
     return (PlayLog(defaults: defaults), defaults)
-}
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 @MainActor
@@ -104,7 +95,7 @@ private func advanceFinishes(_ service: RecommendationService, count: Int, gameI
 struct RecommendationTableTests {
 
     /// Issue #52 の表に #237 の入れ替えを反映したもの。第1〜第3候補まで検証する。
-    /// blockpuzzle・hanafudaの行は無い（#642。v1.1.4のハブから次版へ持ち越したため）。
+    /// blockpuzzle の行は無い（#642 / #603。ハブから外したままのため）。hanafuda は #668 で戻した。
     static let table: [(String, [String])] = [
         ("shogi",         ["gomoku", "othello", "chess"]),
         ("chess",         ["shogi", "othello", "go"]),
@@ -116,14 +107,16 @@ struct RecommendationTableTests {
         ("concentration", ["solitaire", "daifugo", "blackjack"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
-        ("daifugo",       ["poker", "blackjack", "concentration"]),
+        ("daifugo",       ["poker", "blackjack", "hanafuda"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
         ("sudoku",        ["minesweeper", "2048", "mahjong"]),
         ("go",            ["gomoku", "othello", "shogi"]),
         ("solitaire",     ["freecell", "mahjong", "concentration"]),
-        ("freecell",      ["solitaire", "sudoku", "minesweeper"]),
+        ("freecell",      ["solitaire", "spider", "sudoku"]),
+        ("spider",        ["freecell", "solitaire", "mahjong"]),
         ("runner",        ["blocks", "2048", "concentration"]),
+        ("hanafuda",      ["daifugo", "poker", "blackjack"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")

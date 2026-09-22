@@ -106,6 +106,30 @@ struct FreeCellDealerTests {
             #expect(verified.contains(FreeCellDealer.randomVerifiedSeed(using: &rng)))
         }
     }
+
+    /// 種を固定した乱数なので結果は毎回同じ。種は 1200 個あるので、除外を外せば必ずどこかで
+    /// 直前と重なる回数にしてある（500 回だと緑のまま通り抜けた。#914 の変異テストで実測）。
+    @Test("出題は直前の種を除いて選ぶ（#914）")
+    func randomSeedExcludesPrevious() {
+        var rng = FreeCellSeededGenerator(seed: 42)
+        let verified = Set(FreeCellDealer.verifiedSeeds)
+        var previous = FreeCellDealer.verifiedSeeds[0]
+        for _ in 0..<20_000 {
+            let next = FreeCellDealer.randomVerifiedSeed(excluding: previous, using: &rng)
+            #expect(next != previous)
+            #expect(verified.contains(next))
+            previous = next
+        }
+    }
+
+    @Test("ほかに候補が無いときだけ直前と同じ種を返す")
+    func pickFallsBackWhenOnlyPreviousRemains() {
+        var rng = FreeCellSeededGenerator(seed: 1)
+        #expect(FreeCellDealer.pick(from: [7], excluding: 7, using: &rng) == 7)
+        for _ in 0..<20 {
+            #expect(FreeCellDealer.pick(from: [7, 8], excluding: 7, using: &rng) == 8)
+        }
+    }
 }
 
 @Suite("ソルバー")

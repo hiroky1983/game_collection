@@ -9,12 +9,22 @@ public struct BlackjackView: View {
     /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var reviveRescue = RewardedRescue()
 
-    // ベット選択肢
-    private let betOptions = [50, 100, 200, 500]
+    // ベット選択肢。先頭は破産判定の境目（`BlackjackModel.minimumBet`）と必ず同じ額にする
+    // ——ここだけ動かすと「全ボタンが無効なのに破産にならない」残高が生まれる（#656）。
+    private let betOptions = [BlackjackModel.minimumBet, 100, 200, 500]
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: BlackjackModel(services: services))
+        var dealerDrawInterval = BlackjackMotion.dealerDrawInterval
+        #if DEBUG
+        // 撮影用（#667）: `-blackjackDealerDrawSeconds <秒>` でディーラーの間を延ばし、引いている途中を止めて撮る。
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-blackjackDealerDrawSeconds"), i + 1 < args.count,
+           let seconds = Double(args[i + 1]) {
+            dealerDrawInterval = .milliseconds(Int(seconds * 1000))
+        }
+        #endif
+        _model = State(initialValue: BlackjackModel(services: services, dealerDrawInterval: dealerDrawInterval))
     }
 
     public var body: some View {
@@ -61,7 +71,14 @@ public struct BlackjackView: View {
             }
             #endif
         }
-        .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
+        .rewardedRescueAlerts(
+            reviveRescue,
+            notEarned: "チップは回復しませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "チップは回復しませんでした",
+                message: "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。"
+            )
+        )
     }
 
     // MARK: - Chips Bar
@@ -305,9 +322,22 @@ public struct BlackjackView: View {
             playerActionView
         case .result:
             resultView
-        case .dealerTurn, .idle:
+        case .dealerTurn:
+            dealerTurnView
+        case .idle:
             EmptyView()
         }
+    }
+
+    /// ディーラーが1枚ずつ引いているあいだの操作欄（#667）。待ちを飛ばして結果まで進められる。
+    private var dealerTurnView: some View {
+        VStack(spacing: 8) {
+            actionButton("結果まで進める", color: Theme.fillMuted, foreground: .white) {
+                model.skipDealerDraws()
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     private var bettingView: some View {
@@ -401,7 +431,9 @@ public struct BlackjackView: View {
                     .font(.system(size: 24))
                     .foregroundStyle(Theme.coral)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("チップがなくなりました")
+                    // 残高が 0 とは限らない（端数の 25 枚で止まることがある・#656）ので
+                    // 「なくなりました」ではなく「足りません」と言う。
+                    Text("チップが足りなくなりました")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.coral)
                     Text(sessionOverSubtitle)
@@ -420,8 +452,9 @@ public struct BlackjackView: View {
             if model.canReviveAfterBust {
                 Button {
                     // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
-                    // `recoverChipsAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
-                    reviveRescue.requestHandledByModel { await model.recoverChipsAfterAd() }
+                    // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。見終えたのに
+                    // 適用できなかったときは「視聴しなかった」ではなく適用できない旨を出す（#727）。
+                    reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
                 } label: {
                     // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由）。
                     Label(reviveButtonTitle, systemImage: "play.rectangle.fill")
@@ -438,6 +471,9 @@ public struct BlackjackView: View {
                 .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            // 広告のロード〜視聴中にやり直すと、見終えた復活が新しいセッションへ乗りかける（#727）。
+            // モデル側でも照合しているが、押せる窓そのものを塞ぐ。
+            .disabled(reviveRescue.isWatching)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -456,13 +492,16 @@ public struct BlackjackView: View {
                 // 折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                // 高さは上下の余白（10pt）任せだと約 37pt で Apple HIG の 44pt に届かない（#709）。
+                // 見た目のトーン（角丸・色）は変えず、下限だけを与えて背景ごと 44pt にする。
+                // 文字が大きくなって 44pt を超えるぶんには従来どおり伸びる。
+                .frame(maxWidth: .infinity, minHeight: BlackjackMetrics.actionButtonMinHeight)
                 .background(disabled ? Theme.inkSub.opacity(0.3) : color,
                             in: RoundedRectangle(cornerRadius: 10))
                 .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        .buttonStyle(.plain)
+        // `.plain` は押下フィードバックも消えるので、押している間だけ沈む `.pop` を使う（#195）。
+        .buttonStyle(.pop)
         .disabled(disabled)
     }
 }

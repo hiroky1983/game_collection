@@ -68,6 +68,5 @@ public struct OthelloBoard: Equatable, Sendable {
     }
 
     public func count(for stone: OthelloStone) -> Int { cells.filter { $0 == stone }.count }
-    public var totalPieces: Int { cells.compactMap { $0 }.count }
     public var isFull: Bool { !cells.contains(nil) }
 }

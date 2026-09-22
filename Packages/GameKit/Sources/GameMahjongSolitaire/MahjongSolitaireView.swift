@@ -129,9 +129,11 @@ public struct MahjongSolitaireView: View {
         .rewardedRescueAlerts(
             shuffleRescue,
             notEarned: "並べ替えできませんでした",
+            // 広告のあいだも「最初から」（手詰まりの覆い）や「次のゲーム」で配り直せるので、
+            // 取り切れない残り方だけを理由にしない（#815）。
             unavailable: RewardUnavailableAlert(
-                title: "この盤面は並べ替えられません",
-                message: "残った牌が重なっていて取り切れません。「最初から」で新しい盤面を配ってください。"
+                title: "並べ替えられませんでした",
+                message: "広告を見ているあいだに新しい盤面が配られたか、残った牌が重なっていて取り切れません。取り切れないときは「最初から」で新しい盤面を配ってください。"
             )
         )
         // ヒントもリワード広告制（#336）。確認ダイアログは `HintAlerts` にまとめてある
@@ -141,8 +143,8 @@ public struct MahjongSolitaireView: View {
             hintRescue,
             notEarned: "ヒントを表示できませんでした",
             unavailable: RewardUnavailableAlert(
-                title: "取れる組がありません",
-                message: "光らせられる組が無くなりました。「並べ替え」で残りを配置し直してください。"
+                title: "ヒントを出せませんでした",
+                message: "広告を見ているあいだに新しい盤面が配られたか、光らせられる組が無くなりました。組が無いときは「並べ替え」で残りを配置し直してください。"
             )
         )
         .overlay {
@@ -201,6 +203,9 @@ public struct MahjongSolitaireView: View {
             Label("新規ゲーム", systemImage: "plus.circle.fill")
         }
         .accessibilityLabel("新規ゲーム（盤面のかたちを選ぶ）")
+        // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
+        // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
+        .disabled(isWatchingRewardAd)
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。
@@ -262,38 +267,22 @@ public struct MahjongSolitaireView: View {
     /// - **記号だけにしない**。虫めがねアイコン 1 つでは「押すと何が起きるか」が伝わらず、
     ///   拡大・全体表示という機能の存在自体が初回プレイで気づかれない。常時出す短い文字で補う
     ///   （一度きりのヒントと違い、初回でも 2 回目以降でも同じように読める）。
+    ///
+    /// 見た目そのものはマインスイーパー・ナンプレ・フリーセルの拡大と共通の `BoardToggleButton`
+    /// （Core・#641）が持つ。**ON（差し色の面）＝拡大中**の向きも 4 ゲームで揃える。以前はここだけ
+    /// 全体表示を ON にしていたため、開始直後にソリティアだけ塗りつぶしで出て別物に見えていた
+    /// （会長 QA 2026-09-13「ボタンが同じ見た目になっていない」）。
     private var displayToggle: some View {
-        Button { showsWholeBoard.toggle() } label: {
-            HStack(spacing: 4) {
-                Image(systemName: showsWholeBoard ? "plus.magnifyingglass" : "minus.magnifyingglass")
-                    .font(.system(size: 15, weight: .bold))
-                Text(showsWholeBoard ? "拡大" : "全体")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-            }
-            .padding(.horizontal, 10)
-            .frame(
-                minWidth: Metrics.toggleButtonMinSide,
-                minHeight: Metrics.toggleButtonMinSide
-            )
-            // 押していない側の面は `Theme.surface`（＝カードと同じ白）だったため、
-            // ボタンの輪郭がどこにも無く「押せる物」に見えなかった。薄い差し色と枠線を敷く（#197）。
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(showsWholeBoard ? Theme.Fill.teal : Theme.teal.opacity(0.12))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(showsWholeBoard ? .clear : Theme.teal.opacity(0.55), lineWidth: 1.5)
-            )
-            // 押している側は差し色の面なので `Theme.onAccent`、薄い面の側は本文色（#197・#220）。
-            .foregroundStyle(showsWholeBoard ? Theme.onAccent : Theme.ink)
-            // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
-            .contentShape(Rectangle())
+        BoardToggleButton(
+            isOn: !showsWholeBoard,
+            systemImage: !showsWholeBoard ? "minus.magnifyingglass" : "plus.magnifyingglass",
+            title: !showsWholeBoard ? "全体" : "拡大",
+            fill: Theme.Fill.teal,
+            accent: Theme.teal,
+            label: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
+        ) {
+            showsWholeBoard.toggle()
         }
-        // `.plain` は自前で描いた背景を通す代わりに押下フィードバックまで消える。
-        // そのために用意された `.pop` を使う（#195・`PopButtonStyle`）。
-        .buttonStyle(.pop)
-        .accessibilityLabel(showsWholeBoard ? "牌を大きくする" : "盤面全体を表示")
     }
 
     private var timeText: String {
@@ -559,12 +548,14 @@ public struct MahjongSolitaireView: View {
     /// 視聴中の連打で2本目の広告が失敗して誤アラートが出るのは共通側が塞ぐ（#526）。
     private func requestShuffle() {
         guard !isWatchingRewardAd else { return }
+        // どの盤面に対する並べ替えかを広告を出す前に控え、ロード中に配り直された盤面へは乗せない（#815）。
+        let deal = model.dealSerial
         shuffleRescue.request(
             services, gameID: model.gameID, purpose: .shuffle,
             guardedBy: .checkedByGrant
         ) {
             // 広告を見たのに並べ替わらない盤面（取り切れない残り方）は黙って終わらせない。
-            model.shuffleRemaining()
+            model.shuffleRemaining(forDeal: deal)
         }
     }
 
@@ -574,12 +565,14 @@ public struct MahjongSolitaireView: View {
     /// `requestShuffle()` と同じく、視聴中の連打のガードは共通側が持つ（#526）。
     private func requestHint() {
         guard !isWatchingRewardAd else { return }
+        // 並べ替えと同じく、ロード中に配り直された盤面へは乗せない（#815）。
+        let deal = model.dealSerial
         hintRescue.request(
             services, gameID: model.gameID, purpose: .hint,
             guardedBy: .checkedByGrant
         ) {
             // 広告を見たのに光らない（視聴中に手詰まりになった）経路は黙って終わらせない。
-            model.showHint()
+            model.showHint(forDeal: deal)
         }
     }
 
@@ -656,29 +649,6 @@ struct MahjongSolitaireRuleSheet: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(Self.rules, id: \.0) { rule in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(rule.0)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.coral)
-                        Text(rule.1)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-                }
-            }
-            .padding(Theme.pad)
-        }
-        .popBackground()
-        .navigationTitle("ルール")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
+        RuleListSheet(title: "ルール", rules: Self.rules)
     }
 }

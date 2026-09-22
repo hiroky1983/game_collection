@@ -237,6 +237,18 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.grid.1x2.fill"
     )
 
+    static let spider = HowToPlayGuide(
+        gameID: "spider",
+        title: "スパイダーソリティアの遊び方",
+        lines: [
+            "動かす札をタップして選び、置きたい列をタップします。置けるのは、ひとつ上の札より1つ小さい札（スートは問いません）か、空いた列です。",
+            "まとめて動かせるのは、同じスートで降順に揃った並びだけです。動かせる手が無くなったら左上の山札をタップして各列に1枚ずつ配ります（空いた列があると配れません）。",
+            "同じスートで K から A まで13枚揃うと自動で取り除かれます。8組すべて取り除いたらクリアです。",
+        ],
+        hint: "札をタップ → 置き先をタップ",
+        hintIcon: "rectangle.portrait.on.rectangle.portrait.angled.fill"
+    )
+
     static let blockPuzzle = HowToPlayGuide(
         gameID: "blockpuzzle",
         title: "ブロックならべの遊び方",
@@ -253,11 +265,11 @@ public extension HowToPlayGuide {
         gameID: "blocks",
         title: "ブロック崩しの遊び方",
         lines: [
-            "画面を指でなぞるとパドルが動きます。タップすると球が飛び出します。",
+            "指を横に動かした分だけパドルが動きます。指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。タップすると球が飛び出します。",
             "球をはね返してブロックに当てます。灰色のブロックは壊れません。",
             "ときどき落ちてくるアイテムをパドルで受けると、パドルが伸びたり球が増えたりします。壊せるブロックを全部消すと次のステージへ。盤の球をすべて落とすと 1 ミスで、3 回で終わりです。",
         ],
-        hint: "なぞってパドルを動かそう",
+        hint: "盤の下で指を横に動かしてパドルを操作",
         hintIcon: "hand.draw.fill"
     )
 
@@ -267,7 +279,7 @@ public extension HowToPlayGuide {
         title: "チャリンコおじさんの遊び方",
         lines: [
             "画面をタップするとおじさんが走り出します。あとは自動で右へ進みます。",
-            "タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ってタイムが縮みます。",
+            "タップでジャンプ。長く押すほど高く跳べるので、穴や障害物を跳び越えます。空中でもう一度タップすると二段ジャンプ。ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗って先へ進めます。",
             "ぶつかるか穴に落ちたらミス。何度でもステージの頭からやり直せます。青いチェックポイントより先で失敗した場合は、広告を見てそこから再開することもできます。",
         ],
         hint: "タップでジャンプ",
@@ -292,7 +304,7 @@ public extension HowToPlayGuide {
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda,
+        .hanafuda, .spider,
     ]
 }
 
@@ -377,6 +389,49 @@ public struct HowToPlaySheet<Extra: View>: View {
     }
 }
 
+// MARK: - くわしいルール
+
+/// `HowToPlaySheet` の `extra` から開く「くわしいルール」ページ。見出しと本文の組をカードで縦に並べる（#829）。
+///
+/// ソリティア・フリーセル・スパイダー・大富豪・麻雀ソリティア・麻雀が同じ body を写しで持っていたので、
+/// 組み方はここに 1 つだけ置く。**文言は各ゲームの `rules` に残す**（テストが文言そのものを検証するため）。
+public struct RuleListSheet: View {
+    private let title: LocalizedStringKey
+    private let rules: [(String, String)]
+
+    public init(title: LocalizedStringKey, rules: [(String, String)]) {
+        self.title = title
+        self.rules = rules
+    }
+
+    public var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                ForEach(rules, id: \.0) { rule in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(rule.0)
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .foregroundStyle(Theme.coral)
+                        Text(rule.1)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
+                }
+            }
+            .padding(Theme.pad)
+        }
+        .popBackground()
+        .navigationTitle(title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+}
+
 // MARK: - ツールバーの `?` ボタン
 
 private struct HowToPlayToolbar<Extra: View>: ViewModifier {
@@ -418,11 +473,15 @@ public extension View {
     }
 
     /// 詳細ページ付きの `?` ボタン（ポーカーの役一覧・大富豪のルール）。
+    ///
+    /// `onPresent` は詳細ページを持たない版と同じ意味（開く直前に呼ぶ。リアルタイム進行の
+    /// ゲームはここで一時停止する）。
     func howToPlay<Extra: View>(
         _ guide: HowToPlayGuide,
+        onPresent: (() -> Void)? = nil,
         @ViewBuilder extra: @escaping () -> Extra
     ) -> some View {
-        modifier(HowToPlayToolbar(guide: guide, extra: extra))
+        modifier(HowToPlayToolbar(guide: guide, extra: extra, onPresent: onPresent))
     }
 }
 
@@ -444,6 +503,17 @@ public struct HowToPlayHint: View {
         // 何も出さないとき `.onAppear` が呼ばれない（EmptyView には付かない）のを避ける意味もある。
         // 再描画で init が呼び直されても `@State` が初回の判定を保つため、途中で消えたりしない。
         _isVisible = State(initialValue: playLog?.markGuideShown(for: guide.gameID) ?? false)
+    }
+
+    /// 出すかどうかを**呼び出し側が決める**版（#650）。
+    ///
+    /// 既定の初期化子は init で `markGuideShown` を消費するため、`ViewThatFits` のように
+    /// 同じ列を複数回組み立てる画面では使えない（2 つめ以降の init が false を受け取り、
+    /// あとから選ばれた枝に初回ヒントが出ない）。そういう画面では呼び出し側が
+    /// 自分の `@State` で1回だけ判定し、その結果をここへ渡す。
+    public init(_ guide: HowToPlayGuide, isVisible: Bool) {
+        self.guide = guide
+        _isVisible = State(initialValue: isVisible)
     }
 
     public var body: some View {

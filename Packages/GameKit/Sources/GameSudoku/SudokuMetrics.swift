@@ -1,4 +1,5 @@
 import CoreGraphics
+import Core
 
 /// 数独の寸法。**状態を持たない純粋な定数・関数**として View から切り出す
 /// （マインスイーパー `MinesweeperMetrics`・麻雀ソリティア `MahjongSolitaireBoardMetrics` と同じ理由）。
@@ -12,6 +13,29 @@ enum SudokuMetrics {
 
     /// 数字パッド・操作ボタンの一辺の下限。
     static let padButtonMinSide: CGFloat = minimumTapTarget
+
+    /// 帯の拡大トグルの一辺。実寸は共通の `BoardToggleButton`（Core・#641）が持つので、
+    /// 帯の高さの見積りがそこからずれないよう同じ値を参照する。
+    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
+
+    /// 帯の拡大トグルに「拡大／全体」の文字を出せる帯の幅の下限。iPhone SE（帯 343pt）では
+    /// 文字を付けると左の「残り」「ミス」が潰れ、iPhone 17 Pro Max（361pt）では収まる（実測 2026-09-13）。
+    static let zoomTitleMinStatusBarWidth: CGFloat = 350
+
+    /// 帯の幅 `statusBarWidth` で拡大トグルに文字を出すか。未計測（0）は出す側に倒す。
+    static func showsZoomTitle(statusBarWidth: CGFloat) -> Bool {
+        statusBarWidth <= 0 || statusBarWidth >= zoomTitleMinStatusBarWidth
+    }
+
+    /// 帯の幅 `statusBarWidth` で「残り」「ミス」にアイコンを付けるか（#775）。未計測（0）は付ける側に倒す。
+    ///
+    /// iPhone SE（帯 343pt）では拡大トグルの文字を省いても、時計が「11:05」と 2 桁分になると
+    /// 「残り…」「ミス…」に潰れた（`minimumScaleFactor(0.7)` は文字しか縮めず、アイコンと間隔は残る）。
+    /// 右の時計・トグルは既に中身の幅しか取っていないので、左に幅を返せるのはアイコンだけ。
+    /// 境目は拡大トグルの文字と同じ（文字を省く幅ではアイコンも省く）。
+    static func showsStatusIcons(statusBarWidth: CGFloat) -> Bool {
+        showsZoomTitle(statusBarWidth: statusBarWidth)
+    }
 
     /// 拡大モードでの 1 マスの一辺。
     ///
@@ -58,4 +82,14 @@ enum SudokuMetrics {
 
     /// 数字が入る演出の長さ（秒）。Reduce Motion では `gameAnimation` が自動で止める。
     static let fillDuration: Double = 0.14
+
+    /// 行・列・ブロックが揃ったマスを光らせておく長さ（秒・#666）。このあと `unitFlashFadeDuration` で消える。
+    /// フェードと合わせて Issue の「0.25 秒ハイライト」に収める（`SudokuFeedbackTests` が縛る）。
+    static let unitFlashHoldDuration: Double = 0.1
+    /// 揃ったマスの光が消える演出の長さ（秒）。Reduce Motion では `withGameAnimation` が即時に落とす。
+    static let unitFlashFadeDuration: Double = 0.15
+    /// 誤答のマスが揺れる演出の長さ（秒・#666）。五目並べの無効タップの揺れ（#202）と同じ長さにそろえる。
+    static let mistakeShakeDuration: Double = 0.32
+    /// 使い切った数字を数字パッドで薄くするときの不透明度（#666）。灰色の文字色に重ねて、押す必要が無いことを示す。
+    static let exhaustedDigitOpacity: Double = 0.35
 }

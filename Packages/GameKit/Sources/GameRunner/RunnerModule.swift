@@ -13,9 +13,16 @@ public struct RunnerModule: GameModule {
     // `RunnerModel.gameID` との一致は `ModuleTests` が機械的に確かめる。
     public let id = "runner"
     public let title = "チャリンコおじさん"
-    public let description = "タップで跳んで15ステージを走りぬけよう"
-    // 自転車の絵。ハブで隣に並ぶブロック崩し（`tennisball.fill`）とも見分けが付く。
+    // ステージ数は #674 で 15 → 18 に増えた（乗れる台座の枠）。ハブの一覧に出る文言なので
+    // `RunnerRules.stageCount` と食い違わないようにする（`RunnerModuleTests` が縛る）。
+    public let description = "タップで跳んで18ステージを走りぬけよう"
+    // ハブのアイコンは自転車（会長指示 2026-09-16）。おじさんの顔（`OjisanPixel.mascotIcon`）は
+    // おじさんシリーズを増やしたときに全部同じ顔になって見分けが付かなくなるので使わない。
+    // ゲームごとの中身（この本なら自転車）で表す、他 19 本と同じ作法に揃える。
     public var icon: Image { Image(systemName: "bicycle") }
+    // 中断データは再開する面と到達点の控えで、走行は必ずステージの頭から始まる
+    // （`RunnerModel.press()` の `gameWillNotResume`）。中断のお知らせ（#663）の対象から外す。
+    public var resumesFromSnapshot: Bool { false }
 
     public init() {}
 

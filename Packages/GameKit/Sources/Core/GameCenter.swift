@@ -81,6 +81,10 @@ public enum GameCenterLeaderboard {
     /// チャリンコおじさん（#494）。送るのは**到達ステージ数**（High to Low）。
     /// コースは全員共通で、同じ地形を同じ速さで走るため比べられる。
     public static let runnerStage   = "asobiba.runner.stage"
+    /// チャリンコおじさんのエンドレス（#675）。送るのは**走行距離**（High to Low）。
+    /// コースは毎回ランダムだが、冒頭は固定で難易度の上がり方（速さ・密度）は距離で決まる
+    /// ため、同じ物差しで比べられる。到達ステージ数（`runnerStage`）とは別の表。
+    public static let runnerDistance = "asobiba.runner.distance"
     /// 花札こいこい（#495）。送るのは**1 試合で稼いだ合計文数**（High to Low）。
     /// 局数は 6 / 12 から選べるが、区分は分けない（12 局のほうが伸びるのは
     /// 「長く打った」ぶんで、同じ土俵の上位を狙う指標として成り立つ）。
@@ -98,14 +102,20 @@ public enum GameCenterLeaderboard {
     public static let solitaireTime           = "asobiba.solitaire.time"
     /// フリーセル（#492）。配札は検証済みの種から選ぶだけで難度の区分を持たないので表は 1 つ。
     public static let freeCellTime            = "asobiba.freecell.time"
+    /// スパイダーソリティア（#717）。スート数（1 / 2 / 4）でタイムの水準がまったく違うので表を分ける
+    /// （ナンプレの難易度別と同じ扱い）。
+    public static let spiderTimeOneSuit       = "asobiba.spider.time.1suit"
+    public static let spiderTimeTwoSuits      = "asobiba.spider.time.2suit"
+    public static let spiderTimeFourSuits     = "asobiba.spider.time.4suit"
 
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blackjackChips, blocksScore, blockPuzzleScore, runnerStage,
-        hanafudaPoints,
+        runnerDistance, hanafudaPoints,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
         solitaireTime, freeCellTime,
+        spiderTimeOneSuit, spiderTimeTwoSuits, spiderTimeFourSuits,
     ]
 
     /// 決着 1 回を送るリーダーボードと値。対象外なら nil（＝何も送らない）。
@@ -124,7 +134,7 @@ public enum GameCenterLeaderboard {
         switch score.metric {
         case .points:
             guard let points = score.points, points >= 0 else { return nil }
-            guard let id = pointsLeaderboardID(gameID: gameID) else { return nil }
+            guard let id = pointsLeaderboardID(gameID: gameID, variant: score.variant) else { return nil }
             return GameCenterScore(leaderboardID: id, value: points)
 
         case .shortestTime:
@@ -142,7 +152,9 @@ public enum GameCenterLeaderboard {
         }
     }
 
-    private static func pointsLeaderboardID(gameID: String) -> String? {
+    /// - Parameter variant: 区分キー（`GameScore.variant`）。得点系で区分を持つのは
+    ///   チャリンコおじさんのエンドレス（#675）だけで、他のゲームは nil のまま。
+    private static func pointsLeaderboardID(gameID: String, variant: String?) -> String? {
         switch gameID {
         case "2048":      return game2048Score
         case "poker":     return pokerChips
@@ -155,8 +167,17 @@ public enum GameCenterLeaderboard {
         case "blockpuzzle": return blockPuzzleScore
         // チャリンコおじさん（#494）。チェックポイント再開（リワード広告）を使ったステージは
         // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる。
-        case "runner":    return runnerStage
-        // 花札こいこい（#495）。試合の合計文数を送る。
+        // 区分キーは `RunnerMode.recordVariant`（#675）。ステージ制は nil のまま到達ステージ数、
+        // エンドレス（"endless"）は走行距離を別の表へ送る。Core は GameRunner に依存できない
+        // （依存の向きが逆）ため文字列を写し取っており、一致は `RunnerModuleTests` が縛る。
+        case "runner":
+            switch variant {
+            case nil:        return runnerStage
+            case "endless":  return runnerDistance
+            default:         return nil
+            }
+        // 花札こいこい（#495）。試合の合計文数を送る。既定ルール（6 局・酒の役あり・普通）以外の試合は
+        // `isLeaderboardEligible` が false になり、この対応表に来る前に弾かれる（#827）。
         case "hanafuda":  return hanafudaPoints
         default:          return nil
         }
@@ -204,6 +225,15 @@ public enum GameCenterLeaderboard {
             // 区分を持たないので、区分キーが付いていないときだけ送る（#492）。
             // フリーセルは救済アイテムを持たないため、ソリティアのような除外の分岐も要らない。
             return variant == nil ? freeCellTime : nil
+        case "spider":
+            // 区分キーは `SpiderSuitCount.recordVariant`（"<スート数>suit"）。Core は GameSpider に
+            // 依存できないため文字列を写し取っており、一致は `SpiderModelTests` が縛る。
+            switch variant {
+            case "1suit": return spiderTimeOneSuit
+            case "2suit": return spiderTimeTwoSuits
+            case "4suit": return spiderTimeFourSuits
+            default:      return nil
+            }
         case "sudoku":
             // 区分キーは `SudokuDifficulty` の rawValue。
             switch variant {

@@ -56,6 +56,27 @@ public enum RewardPurpose: String, Equatable, Sendable, CaseIterable {
     case shuffle
 }
 
+/// `game_end` の `cause`。**そのプレイで最後にミスした原因**（#796）。
+///
+/// チャリンコおじさんの「鳥を置物から障害にしたら、鳥にやられる割合が変わったか」を数字で
+/// 読むための分類。障害の種類ごとに鍵を増やさず、`game_id` と同じく**語彙は enum に閉じる**
+/// ——ゲーム側の型（`RunnerHazardKind` など）をそのまま文字列にすると、絵柄を足すたびに GA4 の
+/// 値の集合が増えて横断で読めなくなる。
+///
+/// 送るのは「最後のミス」だけ（ミスのたびにイベントは出さない・イベントの種類は増やさない）。
+/// ステージ制のミスは決着ではなく、`game_end` は クリア（win）か途中離脱（quit）でしか出ないので、
+/// 「何にやられて諦めたか」＝離脱直前の死因が読める。ミスの無いプレイは鍵ごと送らない。
+public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
+    /// 穴に落ちた。
+    case pit
+    /// 岩（低い・高い）や台座の正面にぶつかった。
+    case rock
+    /// 鳥。
+    case bird
+    /// 地面を走る動物（犬・イノシシ）。
+    case animal
+}
+
 /// `game_start` の `level`。難易度・段階を**ゲーム横断で読める語彙**へ正規化する（#500）。
 ///
 /// ゲームごとの呼び名（「やさしい」「初級」「弱」「レベル 0」…）をそのまま送ると、
@@ -107,51 +128,125 @@ public enum AnalyticsLevel: Equatable, Sendable {
     }
 }
 
-/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` の3種のみ**
-/// （#158 の決裁範囲 + #500 の会長決裁 2026-09-08）。
+/// `game_start` / `game_end` の `mode`。1 回の**遊び方**の区分（#783・#820）。
+///
+/// `level`（難易度・段階）とは別の軸で、同じゲームの中で 1 回の長さや終わり方が変わる遊び方を分ける。
+/// ゲームごとの型（`MahjongGameLength` / `RunnerMode`）はそれぞれの `analyticsMode` でここへ写す
+/// （Core は個々のゲームの型を知らない）。遊び方を選べないゲームは `nil` で、`mode` の鍵ごと送らない。
+public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
+    /// 四人打ち麻雀の東風戦。
+    case tonpuu
+    /// 四人打ち麻雀の一局戦（v1.1.5）。1 対局が 1 局なので `game_start` が機械的に増える。
+    case singleHand = "single_hand"
+    /// チャリンコおじさんのステージ制。面番号は `level` の `stage-N` が持つ。
+    case stage
+    /// チャリンコおじさんのエンドレス。面が無いので `level` を送らない。
+    case endless
+}
+
+/// `game_open` の `source`。ゲーム画面へ**どこから入ったか**（#659）。
+///
+/// ハブの中の導線を面ごとに読むための分類で、ゲーム名は含めない（それは `game_id` が持つ）。
+public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
+    /// ハブのグリッドのカード。
+    case hub
+    /// ハブ最上部の「つづき・最近」の行（#660）。
+    case recent
+    /// リザルト画面のレコメンドカード（#52）。
+    case recommendation
+    /// 中断したゲームのローカル通知（#663）。**発火点はまだ無い**（#663 の実装で使う）。
+    case notification
+    /// ハブ最上部の「はじめの1本」（#721）。記録がゼロの初回だけ出る1枚。
+    case firstPick = "first_pick"
+
+    /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
+    /// `position` の鍵ごと送らない。
+    public var hasPosition: Bool {
+        switch self {
+        case .hub, .recent:                              return true
+        case .recommendation, .notification, .firstPick: return false
+        }
+    }
+}
+
+/// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` の5種のみ**
+/// （#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12）。
 ///
 /// パラメータは各ケースの関連値だけから組み立てるため、呼び出し側が任意のキーや値を
 /// 追加する余地が無い。イベントを増やすにはこの enum にケースを足す = 意図的な変更が要る。
 public enum AnalyticsEvent: Equatable, Sendable {
-    /// 1プレイの開始。パラメータは `game_id` と、難易度を持つゲームだけ `level`。
-    case gameStart(gameID: String, level: AnalyticsLevel? = nil)
-    /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` のみ。
+    /// 1プレイの開始。パラメータは `game_id` と、難易度を持つゲームだけ `level`、
+    /// 遊び方を選べるゲームだけ `mode`（#783・#820。値の全量は `AnalyticsMode`）。
+    case gameStart(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil)
+    /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` と、開始時に `mode` を
+    /// 付けたプレイだけ `mode`（開始と終わりを同じ鍵で突き合わせるため）、そのプレイで 1 度でも
+    /// ミスしたゲームだけ `cause`（最後のミスの原因・#796）。
     /// 決着（win / loss / draw）と途中離脱（quit）の両方がこのイベントで出る。
-    case gameEnd(gameID: String, result: AnalyticsResult, durationSec: Int)
+    case gameEnd(
+        gameID: String, result: AnalyticsResult, durationSec: Int,
+        mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil
+    )
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
+    /// リワード広告の**要求**（タップ）。視聴できたかどうかに関係なく1回出る（#659）。
+    /// パラメータは `game_id` / `purpose` のみで、`reward_ad` と同じ語彙で突き合わせられる。
+    case rewardRequest(gameID: String, purpose: RewardPurpose)
+    /// ハブからゲーム画面を開いた（#659）。パラメータは `game_id` / `source` / `resume` と、
+    /// 並びを持つ導線だけ `position`。
+    ///
+    /// - Parameters:
+    ///   - position: 導線の中での位置（**1 始まり**）。並びを持たない導線では nil で、鍵ごと送らない。
+    ///   - resume: 開いた時点で「続きから」だったか。GA4 で集計しやすいよう 0 / 1 で送る。
+    case gameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool)
 
     /// Firebase のイベント名。
     public var name: String {
         switch self {
-        case .gameStart: return "game_start"
-        case .gameEnd:   return "game_end"
-        case .rewardAd:  return "reward_ad"
+        case .gameStart:     return "game_start"
+        case .gameEnd:       return "game_end"
+        case .rewardAd:      return "reward_ad"
+        case .rewardRequest: return "reward_request"
+        case .gameOpen:      return "game_open"
         }
     }
 
     /// 送信するパラメータ。キーも値もこの1か所でしか組み立てない。
     public var parameters: [String: AnalyticsValue] {
         switch self {
-        case let .gameStart(gameID, level):
+        case let .gameStart(gameID, level, mode):
             var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
             // 難易度を持たないゲームでは鍵ごと送らない（GA4 で "none" のような
-            // 実在しない段階を作らないため）。
+            // 実在しない段階を作らないため）。`mode` も同じ扱い。
             if let level { parameters["level"] = .string(level.parameterValue) }
+            if let mode { parameters["mode"] = .string(mode.rawValue) }
             return parameters
-        case let .gameEnd(gameID, result, durationSec):
-            return [
+        case let .gameEnd(gameID, result, durationSec, mode, cause):
+            var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
                 // 「クリア」「ゲームオーバー」は各ゲームが決着判定の時点で正規化済み。
                 "result": .string(result.rawValue),
                 "duration_sec": .int(durationSec),
             ]
-        case let .rewardAd(gameID, purpose):
+            if let mode { parameters["mode"] = .string(mode.rawValue) }
+            // ミスの無いプレイ・ミスの概念が無いゲームでは鍵ごと送らない（`level` と同じ扱い）。
+            if let cause { parameters["cause"] = .string(cause.rawValue) }
+            return parameters
+        case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
                 "game_id": .string(gameID),
                 "purpose": .string(purpose.rawValue),
             ]
+        case let .gameOpen(gameID, source, position, resume):
+            var parameters: [String: AnalyticsValue] = [
+                "game_id": .string(gameID),
+                "source": .string(source.rawValue),
+                "resume": .int(resume ? 1 : 0),
+            ]
+            // 並びを持たない導線では鍵ごと送らない（`level` と同じく、実在しない位置を作らない）。
+            // 位置は 1 始まり。0 以下は並びの中に存在しないので 1 に丸める。
+            if source.hasPosition, let position { parameters["position"] = .int(max(1, position)) }
+            return parameters
         }
     }
 }
@@ -185,7 +280,8 @@ public struct GatedAnalyticsService: AnalyticsService {
     }
 }
 
-/// 1プレイの開始・終わりを対応付けて `game_start` / `game_end` / `reward_ad` を送る係。
+/// 1プレイの開始・終わりを対応付けて `game_start` / `game_end` を送り、あわせて
+/// `reward_ad` / `reward_request` / `game_open` も送る係。
 ///
 /// 各ゲームは「開始した」「1手指した」「やり直した」「終局した」を伝えるだけで、
 /// **二重発火の抑制と経過秒の計測、離脱と休憩の切り分けはここ1か所**に閉じ込める。
@@ -209,6 +305,12 @@ public final class GameAnalytics {
     /// 現在時刻。テストが実時間で待たずに経過秒を検証できるよう差し替え可能にする。
     private let now: () -> Date
     private var plays: [String: PlayState] = [:]
+    /// 進行中のプレイの `mode`（#783）。開始で覚え、終わりの `game_end` に同じ値を載せる。
+    /// `mode` を持たないゲームは鍵が無い。
+    private var modes: [String: AnalyticsMode] = [:]
+    /// 進行中のプレイで最後にミスした原因（#796）。終わりの `game_end` に `cause` として載せる。
+    /// プレイを始め直すと消える。ミスしていないプレイは鍵が無い。
+    private var causes: [String: AnalyticsEndCause] = [:]
 
     public init(
         service: AnalyticsService,
@@ -225,9 +327,9 @@ public final class GameAnalytics {
     /// SwiftUI は親の再描画のたびに `State(initialValue:)` の式を評価するため、Model の
     /// `init` は1回の表示で何度も走りうる。ここで冪等にしておくことで、再描画・
     /// バックグラウンド復帰で `game_start` が増えない。
-    public func startPlay(gameID: String, level: AnalyticsLevel? = nil) {
+    public func startPlay(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
         guard allowedGameIDs.contains(gameID), plays[gameID] == nil else { return }
-        beginPlay(gameID: gameID, level: level)
+        beginPlay(gameID: gameID, level: level, mode: mode)
     }
 
     /// 「新しいゲーム」「次のラウンド」など、明示的に次のプレイを始めたときに呼ぶ。
@@ -236,10 +338,10 @@ public final class GameAnalytics {
     /// - Note: 前のプレイが未決着で、かつ**1手でも指していた**場合は、始め直す前に
     ///   `game_end`（`result = quit`）を送る（#500）。1手も指していない配り直しは
     ///   捨てた盤面が無いので送らない（ソリティア #397 の敗北記録と同じ境目）。
-    public func restartPlay(gameID: String, level: AnalyticsLevel? = nil) {
+    public func restartPlay(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
         guard allowedGameIDs.contains(gameID) else { return }
         endPlayAsQuitIfProgressed(gameID: gameID)
-        beginPlay(gameID: gameID, level: level)
+        beginPlay(gameID: gameID, level: level, mode: mode)
     }
 
     /// そのプレイで1手指した（盤面が動いた）ときに呼ぶ。**冪等**で、何度呼んでも状態は変わらない。
@@ -268,6 +370,16 @@ public final class GameAnalytics {
         plays[gameID] = .inFlight(startedAt: startedAt, didProgress: didProgress, canResume: false)
     }
 
+    /// そのプレイでミスした（穴に落ちた・ぶつかった）ときに呼ぶ（#796）。**イベントは送らない**。
+    ///
+    /// 覚えておいて、終わりの `game_end` に「最後のミスの原因」として載せる。何度ミスしても
+    /// 最後の 1 つで上書きするだけなので、リトライを繰り返しても送信は増えない。
+    /// 進行中のプレイが無ければ何もしない（中断からの再開など、開始を数えていないプレイ）。
+    public func recordMissCause(gameID: String, cause: AnalyticsEndCause) {
+        guard case .inFlight = plays[gameID] else { return }
+        causes[gameID] = cause
+    }
+
     /// 終局したときに呼ぶ。進行中のプレイが無いときは**何も送らない**
     /// （中断からの再開など、開始を数えていないプレイの終局。`duration_sec` の起点が
     /// 分からないため、対応の取れない `game_end` を作らない）。
@@ -282,6 +394,21 @@ public final class GameAnalytics {
     public func recordRewardAd(gameID: String, purpose: RewardPurpose) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.rewardAd(gameID: gameID, purpose: purpose))
+    }
+
+    /// リワード広告を**要求した**（タップした）ときに呼ぶ（#659）。
+    /// 視聴完了の `reward_ad` と対にして、完了率（`reward_ad ÷ reward_request`）を読むためのもの。
+    /// プレイの数え方には影響しない。
+    public func recordRewardRequest(gameID: String, purpose: RewardPurpose) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.rewardRequest(gameID: gameID, purpose: purpose))
+    }
+
+    /// ハブからゲーム画面を開いたときに呼ぶ（#659）。プレイの数え方には影響しない
+    /// （1プレイの開始は各ゲームの `startPlay` が決める。開いただけで遊ばずに戻る人もいるため）。
+    public func recordGameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。
@@ -331,11 +458,17 @@ public final class GameAnalytics {
     private func sendEnd(gameID: String, result: AnalyticsResult, startedAt: Date) {
         // 時計が巻き戻っても負の秒数を送らない。
         let seconds = max(0, Int(now().timeIntervalSince(startedAt)))
-        service.log(.gameEnd(gameID: gameID, result: result, durationSec: seconds))
+        service.log(.gameEnd(
+            gameID: gameID, result: result, durationSec: seconds,
+            mode: modes[gameID], cause: causes[gameID]
+        ))
     }
 
-    private func beginPlay(gameID: String, level: AnalyticsLevel?) {
+    private func beginPlay(gameID: String, level: AnalyticsLevel?, mode: AnalyticsMode?) {
         plays[gameID] = .inFlight(startedAt: now(), didProgress: false, canResume: true)
-        service.log(.gameStart(gameID: gameID, level: level))
+        modes[gameID] = mode
+        // 前のプレイの死因を次のプレイへ持ち越さない。
+        causes[gameID] = nil
+        service.log(.gameStart(gameID: gameID, level: level, mode: mode))
     }
 }

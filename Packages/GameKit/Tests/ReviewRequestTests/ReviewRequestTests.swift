@@ -19,8 +19,10 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import MahjongTiles
+import CoreTestSupport
 
 // MARK: - 共通のヘルパー
 
@@ -33,19 +35,6 @@ private func makeLog(suite: String) -> (PlayLog, UserDefaults, String) {
     let defaults = UserDefaults(suiteName: name)!
     defaults.removePersistentDomain(forName: name)
     return (PlayLog(defaults: defaults), defaults, name)
-}
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 /// 各ゲームの Model に渡す services と、そこに載せた評価リクエストサービス。
@@ -498,6 +487,15 @@ struct GameOutcomeRoutingTests {
         model.startMatch(options: HanafudaOptions(rounds: 6))
         model.resign()
         #expect(model.phase == .matchResult)
+        #expect(service.log.totalWins == 0)
+    }
+
+    @Test("スパイダーソリティア: 捨てた配札は勝利にならない")
+    func spiderAbandon() {
+        let (services, service) = makeServices(suite: "route-spider")
+        let model = SpiderModel(services: services, seed: SpiderDealer.verifiedSeeds(for: .one)[0])
+        model.tapStock()
+        model.newGame()
         #expect(service.log.totalWins == 0)
     }
 

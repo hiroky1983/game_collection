@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GameConcentration
 
 /// 終局演出と手番表示の演出（#208）。
@@ -46,35 +47,35 @@ struct ConcentrationMotionTests {
         // 終局オーバーレイ: transition と、それを動かすアニメーションの両方が要る。
         // どちらか片方だけだと出現は従来どおり瞬間表示のままになる。
         #expect(
-            Self.matchCount(of: #"resultOverlay\s*\n\s*\.transition\(\.opacity\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"resultOverlay\s*\n\s*\.transition\(\.opacity\)"#, in: source) == 1,
             "終局オーバーレイに .transition(.opacity) が付いていない"
         )
         #expect(
-            Self.matchCount(of: #"ConcentrationMotion\.resultOverlayFade"#, in: source) == 1,
+            SourceScan.matchCount(of: #"ConcentrationMotion\.resultOverlayFade"#, in: source) == 1,
             "終局オーバーレイが ConcentrationMotion.resultOverlayFade で animate されていない"
         )
         // 旧実装（overlay 直下の素の if）に戻っていないこと。戻ると上の件数が保たれたまま
         // ZStack が消えて transition が効かなくなる。
         #expect(
-            Self.matchCount(of: #"\.overlay \{\s*\n\s*if model\.isGameOver"#, in: source) == 0,
+            SourceScan.matchCount(of: #"\.overlay \{\s*\n\s*if model\.isGameOver"#, in: source) == 0,
             "終局オーバーレイが transition の効かない素の if に戻っている"
         )
 
         // 手番のアクティブ表示。
         #expect(
-            Self.matchCount(of: #"ConcentrationMotion\.turnHighlight, value: isActive"#, in: source) == 1,
+            SourceScan.matchCount(of: #"ConcentrationMotion\.turnHighlight, value: isActive"#, in: source) == 1,
             "手番のアクティブ表示が isActive で animate されていない"
         )
 
         // 既存のカードめくり。定数へ寄せたあとも結線が残っていること。
         #expect(
-            Self.matchCount(of: #"ConcentrationMotion\.cardFlip, value: isFaceUp"#, in: source) == 1,
+            SourceScan.matchCount(of: #"ConcentrationMotion\.cardFlip, value: isFaceUp"#, in: source) == 1,
             "カードめくりが ConcentrationMotion.cardFlip で animate されていない"
         )
 
         // Reduce Motion に追従しない素の `.animation(` が紛れ込んでいないこと（#210）。
         #expect(
-            Self.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
+            SourceScan.matchCount(of: #"[^e]\.animation\("#, in: source) == 0,
             "Reduce Motion に追従しない .animation( が使われている"
         )
     }
@@ -82,18 +83,6 @@ struct ConcentrationMotionTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameConcentrationTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameConcentration/ConcentrationView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GameConcentration/ConcentrationView.swift")
     }
 }

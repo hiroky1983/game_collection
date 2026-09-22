@@ -7,6 +7,17 @@ public enum GomokuStone: Int, Codable, Equatable, Sendable {
     public var opponent: GomokuStone { self == .black ? .white : .black }
 }
 
+/// 盤上の交点（#665 の勝ち筋の座標に使う）。
+public struct GomokuPoint: Hashable, Sendable {
+    public let row: Int
+    public let col: Int
+
+    public init(row: Int, col: Int) {
+        self.row = row
+        self.col = col
+    }
+}
+
 public struct GomokuBoard: Equatable, Sendable {
     public private(set) var cells: [GomokuStone?]
 
@@ -37,6 +48,28 @@ public struct GomokuBoard: Equatable, Sendable {
             if count >= 5 { return true }
         }
         return false
+    }
+
+    /// (row, col) の石を含む 5 つ以上の連を、端から端へ並んだ座標で返す（#665）。無ければ `nil`。
+    ///
+    /// 決着の「なぜ負けたか」を盤上で見せるためのもので、判定そのものは `checkWin` と同じ。
+    /// 自由五目の長連（6 つ以上）は連全体を返す。複数の向きで同時に揃った場合は
+    /// `checkWin` と同じ走査順（横 → 縦 → 右下がり → 右上がり）で最初の向きだけを返す。
+    public func winningLine(row: Int, col: Int) -> [GomokuPoint]? {
+        guard let stone = self[row, col] else { return nil }
+        for (dr, dc) in [(0, 1), (1, 0), (1, 1), (1, -1)] {
+            var line = [GomokuPoint(row: row, col: col)]
+            for sign in [-1, 1] {
+                var r = row + dr * sign, c = col + dc * sign
+                while r >= 0 && r < gomokuBoardSize && c >= 0 && c < gomokuBoardSize && self[r, c] == stone {
+                    let point = GomokuPoint(row: r, col: c)
+                    if sign < 0 { line.insert(point, at: 0) } else { line.append(point) }
+                    r += dr * sign; c += dc * sign
+                }
+            }
+            if line.count >= 5 { return line }
+        }
+        return nil
     }
 
     public var isFull: Bool { !cells.contains(nil) }

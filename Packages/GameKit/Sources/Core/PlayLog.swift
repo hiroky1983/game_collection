@@ -55,11 +55,11 @@ public struct ReviewRequestState: Equatable, Sendable {
 /// 保存先は端末内の `UserDefaults` のみ（サーバ送信なし・iCloud 同期なし）。既存の `GameSettings`
 /// （`gameOrder_v1` / `hiddenGames_v1`）と同じ場所・同じ命名規則。
 ///
-/// **盤面・棋譜といったゲームの途中状態は一切残さない**。持つのは下の11キー
+/// **盤面・棋譜といったゲームの途中状態は一切残さない**。持つのは下の12キー
 /// （レコメンド #52 の5キー + 評価リクエスト #53 の4キー + プレイ記録 #115 の1キー
-/// + 遊び方ガイド #118 の1キー）だけで、
+/// + 遊び方ガイド #118 の1キー + 新しいゲームの印 #723 の1キー）だけで、
 /// いずれも追記型ログではなく同じ値の上書きのため、何回遊んでもキー数もデータ量も増えない
-/// （`playedGameIDs` と `records` と `guidedGameIDs` だけは増えるが、上限は登録ゲーム数
+/// （`playedGameIDs` と `records` と `guidedGameIDs` と `knownGameIDs` だけは増えるが、上限は登録ゲーム数
 /// （+ 難易度数）でプレイ回数には依存しない）。
 @MainActor
 public final class PlayLog {
@@ -98,10 +98,19 @@ public final class PlayLog {
     /// 遊び方ガイド（#118）が書き込むキー。
     public static let howToPlayKeys = [guidedGameIDsKey]
 
+    /// 前回ハブを出した時点の登録ゲーム ID（#723）。`guidedGameIDs` と同じく**1キー**に配列で入れる。
+    public static let knownGameIDsKey = "playLog_knownGameIDs_v1"
+
+    /// 新しいゲームの印（#723）が書き込むキー。
+    public static let newGameKeys = [knownGameIDsKey]
+
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
-    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys
+    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys
 
     private let defaults: UserDefaults
+
+    /// この起動で「増えた」と判定したゲーム（#723）。最初の問い合わせで決め、以後は同じ値を返す。
+    private var sessionNewGameIDs: Set<String>?
 
     /// 通算のゲーム終了回数（全ゲーム合算・勝敗を問わない）。
     public private(set) var totalFinishes: Int
@@ -272,7 +281,7 @@ public final class PlayLog {
 
     /// ハブのカードに出す 1 行。記録がまだ無ければ nil。
     public func summaryLine(gameID: String) -> String? {
-        RecordFormat.hubLine(records(gameID: gameID))
+        RecordFormat.hubLine(records(gameID: gameID), gameID: gameID)
     }
 
     /// ゲームごとの最終プレイ日時（#335）。区分があるゲームは最も新しいものを代表にする。
@@ -345,14 +354,37 @@ public final class PlayLog {
         return true
     }
 
+    // MARK: - 新しいゲームの印（#723）
+
+    /// 更新で増えたゲームの ID。判定の規則は `NewGames.ids` が持つ。
+    ///
+    /// 最初の呼び出しで前回の登録ゲームと比べ、**その場でいまの登録ゲームを保存する**。
+    /// そのため同じ起動の中では何度呼んでも同じ値を返し、次の起動では同じゲームを NEW にしない
+    /// （ハブを出した時点で「見た」とみなす）。
+    public func newGameIDs(registeredIDs: [String]) -> Set<String> {
+        if let sessionNewGameIDs { return sessionNewGameIDs }
+        let known = defaults.stringArray(forKey: Self.knownGameIDsKey).map(Set.init)
+        // 記録を持たない版からの更新と新規インストールを、プレイの痕跡の有無で見分ける。
+        let hasPlayHistory = totalFinishes > 0 || !guidedGameIDs.isEmpty || !records.isEmpty
+        let result = NewGames.ids(registeredIDs: registeredIDs, knownIDs: known, hasPlayHistory: hasPlayHistory)
+        // 並びを固定して保存し、同じ集合なら常に同じバイト列になるようにする。
+        defaults.set(Set(registeredIDs).sorted(), forKey: Self.knownGameIDsKey)
+        sessionNewGameIDs = result
+        return result
+    }
+
     private func persistRecords() {
         guard let data = try? JSONEncoder().encode(records) else { return }
         defaults.set(data, forKey: Self.recordsKey)
     }
 
-    /// 設定の「プレイ記録を消去」から呼ぶ。保存した10キーをすべて削除する。
+    /// 設定の「プレイ記録を消去」から呼ぶ。保存したキーをすべて削除する。
+    ///
+    /// 新しいゲームの印（#723）の記録も消える。消去後はプレイの痕跡も無いため、次の起動は
+    /// 新規インストールと同じ扱いになり、何も NEW にならない。
     public func clear() {
         for key in Self.allKeys { defaults.removeObject(forKey: key) }
+        sessionNewGameIDs = []
         totalFinishes = 0
         playedGameIDs = []
         lastShownCount = 0

@@ -19,16 +19,27 @@ import GameChess
 import GameBlocks
 import GameFreeCell
 import GameRunner
-// GameBlockPuzzle・GameHanafuda は import しない（#642。分析基盤の先行リリースを優先するため
-// v1.1.4のハブからブロックならべ・花札こいこいを外した。コード自体は残っているので、
-// 次版で `registry` に1行ずつ戻せば復活できる）。
+import GameHanafuda
+import GameSpider
+// GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
+// 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
+// `registry` に1行足せば復活できる）。
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
 @MainActor
 enum AppEnvironment {
     static let services = GameServices(
-        snapshots: FileSnapshotStore(),
+        // 中断データの消去（終局・やり直し・設定の切り替え）を横で捕まえ、そのゲームの
+        // お知らせを取り消す（#663）。保存形式と読み書きは `FileSnapshotStore` のまま。
+        snapshots: ClearObservingSnapshotStore(base: FileSnapshotStore()) { gameID in
+            // 消去は UI 起点の主スレッドで起きる。そうでない呼び出しだけ主スレッドへ回す。
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { reminders.snapshotDidClear(gameID: gameID) }
+            } else {
+                Task { @MainActor in reminders.snapshotDidClear(gameID: gameID) }
+            }
+        },
         ads: isScreenshotMode ? NoopAdService() : AdMobAdService(),
         // 触覚と効果音は同じ発火点に相乗りさせ、オン / オフだけを別々に見る（#116）。
         feedback: CompositeFeedbackService([
@@ -39,7 +50,24 @@ enum AppEnvironment {
         review: review,
         playLog: playLog,
         analytics: analytics,
-        gameCenter: gameCenter
+        gameCenter: gameCenter,
+        reminders: reminders
+    )
+
+    /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
+    /// 撮影モードと DEBUG ビルドでは予約しない（撮影・開発中の動作確認の端末に溜めない）。
+    static let reminders = ResumeReminderService(
+        scheduler: UserNotificationReminderScheduler(),
+        isEnabled: { settings.notificationsEnabled },
+        isSuppressed: isScreenshotMode || isDebugBuild,
+        // 通知に出すゲーム名。中断データから局を復元しないゲーム（チャリンコおじさん）は対象外。
+        // 設定で非表示にしたゲームも、ハブの他の導線（レコメンド・最近遊んだ）と同じく対象外（#810）。
+        // タップ時もここで弾くので、非表示のゲームへは遷移しない。
+        reminderTitle: { gameID in
+            guard let module = registry.module(id: gameID), module.resumesFromSnapshot else { return nil }
+            guard !settings.hiddenIDs.contains(gameID) else { return nil }
+            return module.title
+        }
     )
 
     /// Game Center のリーダーボード・実績（#289 段階②③）。
@@ -116,6 +144,15 @@ enum AppEnvironment {
         #endif
     }
 
+    /// DEBUG ビルドか。
+    static var isDebugBuild: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
     /// 並び順 = 新規インストール時の既定表示順（会長判断・2026-08-24）。ゲーム数が増えて
     /// 1画面で全ては見渡せなくなったため、五目並べ・神経衰弱を下へ、麻雀（4人打ち）を上へ寄せた。
@@ -138,6 +175,8 @@ enum AppEnvironment {
         SolitaireModule(),
         // フリーセル（#492）。同じ「1人でトランプを片付ける」ソリティアの隣に置く。
         FreeCellModule(),
+        // スパイダーソリティア（#717）。ソリティア御三家の残る 1 本なので、その隣に置く。
+        SpiderModule(),
         DaifugoModule(),
         PokerModule(),
         BlackjackModule(),
@@ -149,6 +188,9 @@ enum AppEnvironment {
         BlocksModule(),
         // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
         RunnerModule(),
+        // 花札こいこい（#495）。和風の看板として末尾に置く（初期表示順のみ。既にアプリを
+        // 使っている人の並びには影響しない）。#642 で v1.1.4 から持ち越したぶんを #668 で戻した。
+        HanafudaModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))

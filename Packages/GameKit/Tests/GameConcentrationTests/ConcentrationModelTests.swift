@@ -4,22 +4,9 @@ import Foundation
 
 // MARK: - Mock
 
-private final class MockSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
 import Core
-private func makeServices(_ store: MockSnapshotStore) -> GameServices {
+import CoreTestSupport
+private func makeServices(_ store: MemorySnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
@@ -338,25 +325,62 @@ struct ConcentrationModelTests {
 
     // MARK: Bug 2: 復元時の宙吊りカード問題
 
-    @Test("復元時: 途中でめくれていたカードは裏返される")
-    func restore_flipsDanglingFaceUpCard() async {
-        let store = MockSnapshotStore()
-        let model1 = ConcentrationModel(services: makeServices(store))
+    @Test("復元時: 1枚めくった状態を復元しても覗き見にならない（#731）")
+    func restore_keepsFirstFlipSoPeekingCostsTheTurn() async {
+        let store = MemorySnapshotStore()
+        let model1 = ConcentrationModel(services: makeServices(store),
+                                        autoClearDelay: testAutoClearDelay)
+        let (a, b) = mismatchPair(in: model1.cards)
 
-        // 1枚だけめくってページ離脱（firstFlippedIndexが設定された状態を保存）
-        model1.tap(index: 0)
-        #expect(model1.cards[0].isFaceUp)
+        // 1枚だけめくってハブへ戻る → 開き直す（2回繰り返しても同じ）
+        model1.tap(index: a)
+        _ = ConcentrationModel(services: makeServices(store), autoClearDelay: testAutoClearDelay)
+        let model2 = ConcentrationModel(services: makeServices(store), autoClearDelay: testAutoClearDelay)
 
-        // 新しいモデルで復元（ページ戻りをシミュレート）
-        let model2 = ConcentrationModel(services: makeServices(store))
+        #expect(model2.cards[a].isFaceUp, "めくった1枚目は表のまま再開する")
+        #expect(model2.firstFlippedIndex == a)
+        #expect(model2.currentPlayer == .human)
 
-        #expect(!model2.cards[0].isFaceUp, "宙吊りカードは裏返される")
-        #expect(model2.firstFlippedIndex == nil)
+        // 続きの2枚目で外せば、覗き見した分も含めて手番を失う
+        model2.tap(index: b)
+        #expect(model2.mismatchedIndices == [a, b])
+        await awaitAutoClear(model2)
+        #expect(model2.currentPlayer == .cpu, "1枚目を見た手番は離脱しても消えない")
+    }
+
+    @Test("復元時: 1枚目の欄が無い旧い中断データでも、表向きの1枚を1枚目として戻す（#731）")
+    func restore_legacySnapshotKeepsFirstFlip() {
+        var stub = StubConcentrationSnapshot.healthy()
+        stub.isFaceUp[4] = true  // mismatchedIndices は nil = 鍵そのものが無い旧形式
+        let model = restored(from: stub)
+
+        #expect(model.cards.count == stub.symbols.count, "旧形式も復元できる（新しい盤へ倒れない）")
+        #expect(model.cards[4].isFaceUp)
+        #expect(model.firstFlippedIndex == 4)
+        #expect(model.currentPlayer == .human)
+    }
+
+    @Test("復元時: 1枚目の形にならない宙吊りカードは従来どおり裏返される")
+    func restore_flipsDanglingFaceUpCardThatIsNotAFirstFlip() {
+        // 表向き・未獲得が2枚（不一致の記録なし）
+        var twoFaceUp = StubConcentrationSnapshot.healthy()
+        twoFaceUp.isFaceUp[0] = true
+        twoFaceUp.isFaceUp[2] = true
+        // CPU の手番で1枚だけ表向き（CPU は2枚目の後にしか保存しないので起きえない）
+        var cpuTurn = StubConcentrationSnapshot.healthy()
+        cpuTurn.isFaceUp[0] = true
+        cpuTurn.currentPlayer = 1
+
+        for stub in [twoFaceUp, cpuTurn] {
+            let model = restored(from: stub)
+            #expect(model.cards.allSatisfy { !$0.isFaceUp }, "宙吊りカードは裏返される")
+            #expect(model.firstFlippedIndex == nil)
+        }
     }
 
     @Test("復元時: ミスマッチカードは裏返され、手番も CPU へ進む（#415）")
     func restore_flipsBackMismatchedCards() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         let (a, b) = mismatchPair(in: model1.cards)
@@ -376,7 +400,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: 人間のミスマッチ中の離脱を繰り返しても手番は CPU のまま（#415）")
     func restore_mismatchTurnAdvanceIsIdempotent() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         let (a, b) = mismatchPair(in: model1.cards)
@@ -394,7 +418,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: CPU がミスマッチしたまま離脱すると人間の手番から再開する（#415）")
     func restore_cpuMismatchAdvancesTurnToHuman() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let ai = ScriptedConcentrationAI()
         let model1 = ConcentrationModel(services: makeServices(store),
                                         autoClearDelay: testAutoClearDelay,
@@ -431,7 +455,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: 待ったでミスマッチを取り消していれば手番は人間のまま（#415）")
     func restore_keepsHumanTurnAfterMatta() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store),
                                         autoClearDelay: testAutoClearDelay)
         let (a, b) = mismatchPair(in: model1.cards)
@@ -464,7 +488,7 @@ struct ConcentrationModelTests {
 
     @Test("復元後: マッチ済みカードは保持される")
     func restore_preservesMatchedCards() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         let (a, b) = matchPair(in: model1.cards)
@@ -481,7 +505,7 @@ struct ConcentrationModelTests {
 
     @Test("復元時: CPUターンのturnIDは非ゼロ（task(id:) が再起動される）")
     func restore_cpuTurnHasNonZeroTurnID() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
 
         // 人間がミスマッチ → 次へ → CPUターンで保存
@@ -498,7 +522,7 @@ struct ConcentrationModelTests {
 
     @Test("復元後: 人間ターンでカードをめくれる")
     func restore_humanCanTapAfterRestore() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model1 = ConcentrationModel(services: makeServices(store))
         // ペアをマッチして保存（スコアがある状態）
         let (a, b) = matchPair(in: model1.cards)
@@ -517,7 +541,7 @@ struct ConcentrationModelTests {
 
     /// スタブの中断データを置いて復元させ、できあがったモデルを返す。
     private func restored(from stub: StubConcentrationSnapshot) -> ConcentrationModel {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(stub, for: "concentration")
         return ConcentrationModel(services: makeServices(store))
     }
@@ -590,7 +614,7 @@ struct ConcentrationModelTests {
     @Test("新しい盤の絵柄はすべて自前の図案の識別子で、絵文字が残っていない")
     func newBoardUsesFigureIdentifiers() {
         for pairs in ConcentrationPairCount.allCases {
-            let model = ConcentrationModel(services: makeServices(MockSnapshotStore()))
+            let model = ConcentrationModel(services: makeServices(MemorySnapshotStore()))
             model.newGame(pairCount: pairs, cpuLevel: .normal)
 
             for card in model.cards {
@@ -624,7 +648,7 @@ struct ConcentrationModelTests {
     func restore_normalizesLegacyEmojiOnSave() {
         var stub = StubConcentrationSnapshot.healthy()
         stub.symbols = stub.symbols.map { ConcentrationFigure.decode($0)!.legacyEmoji }
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(stub, for: "concentration")
 
         let model = ConcentrationModel(services: makeServices(store))
@@ -671,5 +695,103 @@ struct ConcentrationModelTests {
         #expect(model.pairCount == .small)
         #expect(model.playerScore == 3)
         #expect(model.cpuScore == 1)
+    }
+}
+
+// MARK: - CPU 手番のキャンセル（#725）
+
+@Suite("CPU 手番のキャンセル")
+@MainActor
+struct ConcentrationCancellationTests {
+
+    /// `ConcentrationView` は `.task(id: model.turnID) { await model.performCPUMoveIfNeeded() }` で
+    /// CPU を回しており、このタスクは**画面を離れるとキャンセルされる**。`try? await Task.sleep` は
+    /// キャンセル後は毎回即座に返るため、`doCPUTurn` が `Task.isCancelled` を見ていないと
+    /// CPU が待ち時間ゼロで取り切り、決着して1敗が記録され中断データも消える（#725）。
+    ///
+    /// 大富豪の `DaifugoCancelTests` と同じく、MainActor 上で作った Task は `await` で手放すまで
+    /// 本体が動かないので、`cancel()` は必ず本体より先に確定する（実時間に依存しない）。
+    /// 返り値は「人間がミスマッチして CPU 番に移った」直後のモデルと、それを書いた中断データの置き場。
+    private func modelAtCPUTurnThatWouldSweep() async -> (ConcentrationModel, MemorySnapshotStore) {
+        let store = MemorySnapshotStore()
+        let scripted = ScriptedConcentrationAI()
+        let model = ConcentrationModel(services: makeServices(store),
+                                       autoClearDelay: testAutoClearDelay,
+                                       aiFactory: { _ in scripted })
+        let (a, b) = mismatchPair(in: model.cards)
+        model.tap(index: a)
+        model.tap(index: b)
+        await awaitAutoClear(model)
+
+        // キャンセルが効かなければ、CPU はこの順に全ペアを取り切って決着まで走り抜ける
+        // （Issue の「記憶率の高い CPU が覚えた札を取り切る」を確定的に再現する）。
+        let bySymbol = Dictionary(grouping: model.cards.indices, by: { model.cards[$0].symbol })
+        scripted.choices = bySymbol.values.flatMap { $0 }
+        return (model, store)
+    }
+
+    @Test("CPU 手番中にタスクをキャンセルすると以降の札をめくらない")
+    func cancelledCPUTurnDoesNotFlip() async {
+        let (model, store) = await modelAtCPUTurnThatWouldSweep()
+        #expect(model.currentPlayer == .cpu, "CPU の手番になっていない")
+        let facesBefore = model.cards.map(\.isFaceUp)
+        let matchedBefore = model.cards.map(\.isMatched)
+
+        let task = Task { await model.performCPUMoveIfNeeded() }
+        task.cancel()
+        await task.value
+
+        #expect(model.cards.map(\.isFaceUp) == facesBefore, "キャンセル済みのタスクが札をめくった")
+        #expect(model.cards.map(\.isMatched) == matchedBefore, "キャンセル済みのタスクがペアを取った")
+        #expect(model.cpuScore == 0)
+        #expect(!model.isGameOver, "キャンセル済みのタスクが決着まで走り抜けた")
+        #expect(model.recordResult == nil, "決着していないので成績は記録されない")
+        #expect(store.exists(for: "concentration"), "中断データが消えていない")
+        #expect(!model.isThinking, "抜けた後に isThinking が残ると次の CPU 手番が始まらない")
+        #expect(model.currentPlayer == .cpu, "手番はそのまま")
+    }
+
+    /// 上のテストは本体の開始前にキャンセルするので、踏むのはループ先頭の判定だけになる。
+    /// 実際に画面を離れるのは CPU が間合いの sleep に入っている最中で、そのとき効くのは sleep 直後の
+    /// 判定のほう（#817）。`await Task { @MainActor in }.value` で本体を最初の sleep まで走らせてから
+    /// キャンセルし、sleep が即座に返った直後に抜けることを固定する（実時間に依存しない）。
+    @Test("CPU が間合いの sleep に入った後にキャンセルすると、起きた直後に抜けて札をめくらない")
+    func cancelledDuringCPUPauseDoesNotFlip() async {
+        let (model, store) = await modelAtCPUTurnThatWouldSweep()
+        #expect(model.currentPlayer == .cpu, "CPU の手番になっていない")
+        let facesBefore = model.cards.map(\.isFaceUp)
+        let matchedBefore = model.cards.map(\.isMatched)
+
+        let task = Task { await model.performCPUMoveIfNeeded() }
+        // task の後ろに積んだ空のジョブを待つ = task は最初の sleep に入って MainActor を手放している。
+        await Task { @MainActor in }.value
+        #expect(model.isThinking, "CPU の手番が sleep に入っていない（ループ先頭の判定しか踏まない）")
+        task.cancel()
+        await task.value
+
+        #expect(model.cards.map(\.isFaceUp) == facesBefore, "sleep 中にキャンセルされたのに札をめくった")
+        #expect(model.cards.map(\.isMatched) == matchedBefore, "sleep 中にキャンセルされたのにペアを取った")
+        #expect(model.cpuScore == 0)
+        #expect(!model.isGameOver)
+        #expect(store.exists(for: "concentration"), "中断データが消えていない")
+        #expect(!model.isThinking, "抜けた後に isThinking が残ると次の CPU 手番が始まらない")
+        #expect(model.currentPlayer == .cpu, "手番はそのまま")
+    }
+
+    @Test("CPU 手番中に離れても、離れた時点の盤面から再開できる")
+    func cancelledCPUTurnRestoresBoardAtLeave() async {
+        let (model, store) = await modelAtCPUTurnThatWouldSweep()
+        let task = Task { await model.performCPUMoveIfNeeded() }
+        task.cancel()
+        await task.value
+
+        // 「つづき」から開き直す = 同じ中断データから新しいモデルを作る
+        let resumed = ConcentrationModel(services: makeServices(store))
+        #expect(resumed.cards.map(\.symbol) == model.cards.map(\.symbol))
+        #expect(resumed.cards.map(\.isMatched) == model.cards.map(\.isMatched))
+        #expect(resumed.cards.allSatisfy { !$0.isFaceUp })
+        #expect(resumed.cpuScore == 0)
+        #expect(resumed.currentPlayer == .cpu, "CPU の手番から再開する")
+        #expect(resumed.turnID != 0, "CPU の手番を task(id:) が拾い直せる")
     }
 }

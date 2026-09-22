@@ -12,45 +12,59 @@ public struct PokerView: View {
     /// 開始シートでの選択。**次の局に使う設定**であって、進行中の局はこれを見ない（#496）。
     @State private var selectedRules: PokerRuleSet
     @State private var showBonusTable = false
+    /// 初回だけ出す遊び方ヒントを出すか（#118）。**この画面では判定を自前で持つ**（#650）。
+    /// 下の `body` は `ViewThatFits` で同じ列を2回組み立てるため、init で「見せた」を消費する
+    /// `HowToPlayHint(_:playLog:)` を使うと 2 つめが false を受け取り、あとから選ばれた枝で
+    /// ヒントが消える。判定はここで 1 回だけ行い、結果を渡す。
+    @State private var showsHowToPlayHint: Bool
     /// 画面の広さ（#458）。iPad で縦の余白をどう配るかにだけ使う（#485）。
     @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
-        let restored = PokerModel(services: services)
+        // Reduce Motion が ON なら手札は即座に表になるので、勝敗の触覚も待たせない（#667）。
+        let restored = PokerModel(
+            services: services,
+            showdownRevealDelay: Motion.isReduceMotionEnabled ? .zero : PokerMotion.showdownRevealDelay
+        )
         _model = State(initialValue: restored)
         let hasSnapshot = services.snapshots.exists(for: "poker")
         _showStartSheet = State(initialValue: !hasSnapshot)
         _hasPlayedOnce  = State(initialValue: hasSnapshot)
         // 中断から戻ったときは、その局に焼き込まれていたルールを選択の初期値にする。
         _selectedRules  = State(initialValue: restored.rules)
+        _showsHowToPlayHint = State(
+            initialValue: services.playLog?.markGuideShown(for: "poker") ?? false
+        )
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
-            chipsBar
-            verticalSlack
-            cpuArea
-            verticalSlack
-            potArea
-            verticalSlack
-            playerArea
-            verticalSlack
-            HowToPlayHint(.poker, playLog: services.playLog)
-            if model.sessionOver {
-                sessionOverView
-            } else {
-                actionArea
+        // 背の高い局面（ダブルアップ・チップ切れのセッション終了）は縦が足りず、`VStack` 1 枚では
+        // 溢れたぶんが上下に切り落とされていた（#650。チップ帯がナビゲーションバーの裏へ隠れ、
+        // いちばん下のボタンが画面の下端で切れる）。
+        //
+        // **収まるあいだは今までの縦並びをそのまま使い、収まらないときだけスクロールに落とす**。
+        // `ViewThatFits` は選んだ側しか画面に置かないので、収まる局面の描画は従来と一致し、
+        // #485 / #640 で決めた位置が 1pt も動かない（iPhone 17 Pro Max・iPad Pro の
+        // 通常の対局でピクセル一致を実測）。
+        //
+        // 常にスクロールに載せる形は採らない。`ScrollView` を置くと iOS 26 のナビゲーションバーが
+        // 確保する安全域が 49pt → 64pt に広がり（プローブビルドで実測）、収まっている端末まで
+        // 15pt 下がるため。
+        ViewThatFits(in: .vertical) {
+            mainColumn
+            GeometryReader { geo in
+                ScrollView {
+                    // **幅を枠に固定する**。`ScrollView` は中身の理想幅が枠より広いとそちらを
+                    // 提案してくるため、指定しないと CPU の札5枚（固定 pt で枠に収まらない）が
+                    // 基準になって列全体が広がり、右端が切れて左へ寄る（実測）。
+                    mainColumn
+                        .frame(width: geo.size.width)
+                        // 高さの下限も枠に合わせる。入れないと `Spacer` が最小のまま畳まれ、
+                        // 数 pt 溢れただけの局面でも並びが base と食い違う。
+                        .frame(minHeight: geo.size.height, alignment: .top)
+                }
             }
-            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
-            // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
-            // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
-            if layout.isWide {
-                Color.clear.frame(height: 4)
-            } else {
-                Spacer(minLength: 4)
-            }
-            BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
         .gameChrome(title: "ポーカー", review: services.review) {
@@ -127,7 +141,46 @@ public struct PokerView: View {
             }
             #endif
         }
-        .rewardedRescueAlerts(reviveRescue, notEarned: "チップは回復しませんでした")
+        .rewardedRescueAlerts(
+            reviveRescue,
+            notEarned: "チップは回復しませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "チップは回復しませんでした",
+                message: "広告を見ているあいだにセッションが変わったため、復活は適用していません。復活の回数は減っていません。"
+            )
+        )
+    }
+
+    /// 画面の縦並び本体。`ViewThatFits` の2つの枝で同じものを使うために切り出しただけで、
+    /// 並びは変えていない。
+    private var mainColumn: some View {
+        VStack(spacing: 10) {
+            chipsBar
+            verticalSlack
+            cpuArea
+            verticalSlack
+            potArea
+            verticalSlack
+            playerArea
+            verticalSlack
+            actionSlack
+            // 出すかどうかは `showsHowToPlayHint` が1回だけ決める（上の `body` のコメント）。
+            HowToPlayHint(.poker, isVisible: showsHowToPlayHint)
+            if model.sessionOver {
+                sessionOverView
+            } else {
+                actionArea
+            }
+            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
+            // iPad の余りは上の `verticalSlack` が配るので、ここには可変の余白を置かない。
+            // 置くと最後の 1 つぶんが下端に固まって残る（実測 14.2%・#485）。
+            if layout.isWide {
+                Color.clear.frame(height: 4)
+            } else {
+                Spacer(minLength: 4)
+            }
+            BannerSlot(ads: services.ads)
+        }
     }
 
     /// iPad で余った高さを節の間に配るための可変余白（#485）。iPhone では何も置かないので
@@ -135,6 +188,23 @@ public struct PokerView: View {
     @ViewBuilder
     private var verticalSlack: some View {
         if layout.isWide { Spacer(minLength: 0) }
+    }
+
+    /// 操作の節（遊び方ヒント + チェック/ベット）の上に置く可変余白（#640）。
+    ///
+    /// iPhone では余りが下端の `Spacer` に全部たまり、操作の列が画面の中ほどに浮いて
+    /// 下だけが大きく空いていた。ここに同じ可変余白をもう 1 つ置くと余りが上下で等分され、
+    /// 列が半分ぶんだけ下がる（iPhone 17 Pro Max の実測で **+99pt**）。
+    /// `playerArea` 側に `.frame(maxHeight: .infinity)` を付ける手も試したが、
+    /// 余りを総取りして操作の列が広告に接してしまう（実測 +185pt）ため採らない。
+    ///
+    /// 余りが無い端末では `Spacer` 自体は 0pt だが、`VStack(spacing: 10)` の隙間が 1 つ増えるぶん
+    /// 節全体が 10pt 伸びる（iPhone SE で実測。上に 5pt / 下に 5pt 広がるだけで、広告まで収まる）。
+    ///
+    /// iPad は `verticalSlack` がすでに余りを節の間に配っているので何も置かない（#485 の配分を崩さない）。
+    @ViewBuilder
+    private var actionSlack: some View {
+        if !layout.isWide { Spacer(minLength: 0) }
     }
 
     // MARK: - Chips Bar
@@ -208,6 +278,13 @@ public struct PokerView: View {
 
     // MARK: - Pot Area
 
+    /// ポットの数値の入れ替え方。CPU の 5 枚を返す決着（ショーダウン・プレイヤーのフォールド）では、
+    /// 返り終わるまで動かさない（#667）。先に 0 へ転がると、めくる前に勝敗が分かってしまう。
+    /// CPU のフォールドは相手が降りた時点で勝ちが見えているので従来どおりすぐ動かす。
+    private var potAnimation: Animation {
+        model.phase == .result && !model.cpuFolded ? PokerMotion.potSettle : PokerMotion.potChange
+    }
+
     private var potArea: some View {
         HStack {
             Spacer()
@@ -233,7 +310,8 @@ public struct PokerView: View {
                         // ベット・コールで増え、決着で勝者に渡って 0 に戻る。数字が瞬時に
                         // 入れ替わると増減の向きが分からないので、転がして見せる（#206）。
                         .contentTransition(.numericText(value: Double(model.pot)))
-                        .gameAnimation(PokerMotion.potChange, value: model.pot)
+                        // ショーダウンの決着だけは 5 枚が返り終わってから転がす（#667）。
+                        .gameAnimation(potAnimation, value: model.pot)
                         // 枚数が変わるのと同時に画面全体のレイアウトが動く場面（ゲーム画面へ
                         // 入りながらアンティが積まれるなど）では、この Text だけが古い位置から
                         // 滑ってきてポットの枠の外に文字が出る。実測で確認したため、
@@ -283,6 +361,18 @@ public struct PokerView: View {
                                 model.toggleCardSelection(card)
                             }
                         }
+                        // カードは `onTapGesture` で組んでいるため、ボタン trait も読み上げ文も
+                        // 自動では付かない（#710。大富豪の #188 と同じ形）。
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            PokerAccessibility.handCardLabel(card: card, isSelected: isSelected, phase: model.phase)
+                        )
+                        .accessibilityHint(PokerAccessibility.handCardHint(phase: model.phase))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { model.toggleCardSelection(card) }
+                        // 交換フェーズ以外では `toggleCardSelection` が何もしないので、
+                        // 操作可能として案内しない（描画は素の図形なので見た目は変わらない）。
+                        .disabled(!PokerAccessibility.acceptsSelection(phase: model.phase))
                         .offset(y: isSelected ? 10 : 0)
                         .gameAnimation(PokerMotion.handSelection, value: isSelected)
                 }
@@ -579,8 +669,9 @@ public struct PokerView: View {
             if model.canReviveAfterBust {
                 Button {
                     // 連打ガードと失敗アラートは共通側が持つ（#526）。広告と回復は
-                    // `recoverChipsAfterAd()` が 1 本で受け持つのでモデル側の形のまま。
-                    reviveRescue.requestHandledByModel { await model.recoverChipsAfterAd() }
+                    // `reviveAfterAd()` が 1 本で受け持つのでモデル側の形のまま。見終えたのに
+                    // 適用できなかったとき（#728）は「視聴しなかった」と別のアラートを出す。
+                    reviveRescue.requestHandledByModel(withOutcome: { await model.reviveAfterAd() })
                 } label: {
                     // 「1セッションに1回」は VoiceOver のヒントだけでなく見た目にも出す（#352 と同じ理由。
                     // 書かないと2回目を期待して押す人が出る）。数値は `Text` 補間の桁区切りを避けて
@@ -604,6 +695,8 @@ public struct PokerView: View {
                 .foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            // 復活広告のロード〜視聴中にやり直すと、見終えた広告が新しいセッションに乗る（#728）。
+            .disabled(reviveRescue.isWatching)
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -664,331 +757,5 @@ struct FlipRevealCardView: View, Animatable {
                 .degrees(PokerMotion.flipDegrees(progress: progress)),
                 axis: (x: 0, y: 1, z: 0)
             )
-    }
-}
-
-// MARK: - Card View
-
-struct CardView: View {
-    let card: PokerCard
-    var faceUp: Bool = true
-    var selected: Bool = false
-
-    /// 画面の広さ（#458）。この画面は `GeometryReader` を 1 つも持たず札が固定 pt なので、
-    /// iPad では 5 枚並べても 310pt しか占めず左右に大きな空白が残る。ここで札ごと拡大する。
-    @Environment(\.adaptiveLayout) private var layout
-
-    private var metrics: PlayingCardMetrics {
-        PlayingCardMetrics.standard.scaled(by: layout.elementScale)
-    }
-
-    var body: some View {
-        ZStack {
-            // 外形・面・裏はトランプ共通基盤（#397。質感は CardStyle #366）。
-            PlayingCardSurface(
-                faceUp: faceUp,
-                cornerRadius: metrics.cornerRadius,
-                border: selected ? Theme.coral : Color.gray.opacity(0.2),
-                borderWidth: selected ? 2 : 0.5,
-                shadowColor: selected ? Theme.coral.opacity(0.6) : .black.opacity(0.15),
-                shadowRadius: selected ? 6 : 3
-            )
-
-            if faceUp {
-                PlayingCardFace(figure: card.figure, metrics: metrics)
-            } else {
-                PlayingCardBack(metrics: metrics)
-            }
-        }
-        .frame(width: metrics.width, height: metrics.height)
-    }
-}
-
-// MARK: - Start Sheet
-
-struct PokerStartSheet: View {
-    @Binding var rules: PokerRuleSet
-    let onStart: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                // ボーナスルールを選ぶと節が2つ増えるので、文字を大きくしても押し出されない
-                // ようにスクロールさせる（開始ボタンは下に固定したまま・#189 と同じ考え方）。
-                ScrollView {
-                    VStack(spacing: 20) { sections }
-                }
-                Button {
-                    onStart()
-                } label: {
-                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("5カードドロー")
-        }
-        .presentationDetents([.large])
-    }
-
-    @ViewBuilder
-    private var sections: some View {
-        Group {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ルール")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    Picker("ルール", selection: $rules) {
-                        ForEach(PokerRuleSet.allCases) { rule in
-                            Text(rule.title).tag(rule)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    Text(rules.summary)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ゲームの流れ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    ruleRow("1", "アンティ 10枚 → 手札5枚配布")
-                    ruleRow("2", "ベット（チェック or 20枚ベット）")
-                    ruleRow("3", "カード交換（0〜5枚）")
-                    ruleRow("4", "最終ベット → 勝負")
-                    if rules == .bonus {
-                        ruleRow("5", "勝負に勝つと役ボーナス → ダブルアップに挑戦")
-                    }
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                NavigationLink {
-                    HandGuideSheet()
-                } label: {
-                    HStack {
-                        Image(systemName: "list.bullet.rectangle")
-                        Text("役一覧を見る")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                    .foregroundStyle(Theme.coral)
-                    .padding(16)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                }
-
-                if rules == .bonus {
-                    NavigationLink {
-                        BonusTableSheet()
-                    } label: {
-                        HStack {
-                            Image(systemName: "list.number")
-                            Text("役ボーナス配当表を見る")
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Theme.inkSub)
-                        }
-                        .foregroundStyle(Theme.coral)
-                        .padding(16)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                            .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                    }
-                }
-
-        }
-    }
-
-    private func ruleRow(_ num: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(num)
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(Theme.onAccent)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.Fill.coral))
-            Text(text)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(Theme.ink)
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Bonus Table Sheet
-
-/// 役ボーナスの配当表（#496）。役を覚える教材を兼ねるので、金額だけでなく役の説明も添える。
-struct BonusTableSheet: View {
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                Text("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 4)
-
-                ForEach(PokerBonusTable.payouts) { payout in
-                    HStack(spacing: 8) {
-                        Text(payout.rank.description)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.coral)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        Spacer()
-                        Text("+\(payout.chips)枚")
-                            .font(.system(size: 16, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.yellow)
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-                }
-
-                HStack(spacing: 8) {
-                    Text("ワンペア・ハイカード")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Spacer()
-                    Text("なし")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-
-                Text("勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 8)
-            }
-            .padding(Theme.pad)
-        }
-        .popBackground()
-        .navigationTitle("役ボーナス配当表")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-    }
-}
-
-// MARK: - Hand Guide Sheet
-
-struct HandGuideSheet: View {
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(handGuides, id: \.name) { guide in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Text(guide.name)
-                                .font(.system(size: 14, weight: .black, design: .rounded))
-                                .foregroundStyle(Theme.coral)
-                            Text(guide.desc)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(Theme.inkSub)
-                        }
-                        HStack(spacing: 4) {
-                            ForEach(guide.cards) { card in
-                                MiniCardView(card: card)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-                }
-            }
-            .padding(Theme.pad)
-        }
-        .popBackground()
-        .navigationTitle("役一覧")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-    }
-
-    private func c(_ rank: Int, _ suit: PokerSuit) -> PokerCard {
-        PokerCard(id: rank * 10 + suit.rawValue, suit: suit, rank: rank)
-    }
-
-    private var handGuides: [HandGuide] {
-        let s = PokerSuit.spades; let h = PokerSuit.hearts
-        let d = PokerSuit.diamonds; let cl = PokerSuit.clubs
-        return [
-            HandGuide("ロイヤルフラッシュ", "最強・同スーツ A K Q J 10",
-                      [c(14,s), c(13,s), c(12,s), c(11,s), c(10,s)]),
-            HandGuide("ストレートフラッシュ", "連続5枚の同スーツ",
-                      [c(9,h), c(8,h), c(7,h), c(6,h), c(5,h)]),
-            HandGuide("フォーカード", "同ランク4枚",
-                      [c(14,s), c(14,h), c(14,d), c(14,cl), c(7,s)]),
-            HandGuide("フルハウス", "3枚 ＋ 2枚",
-                      [c(13,s), c(13,h), c(13,d), c(9,s), c(9,h)]),
-            HandGuide("フラッシュ", "同スーツ5枚（順不同）",
-                      [c(14,cl), c(10,cl), c(7,cl), c(4,cl), c(2,cl)]),
-            HandGuide("ストレート", "連続5枚（スーツ混在）",
-                      [c(9,s), c(8,h), c(7,d), c(6,cl), c(5,s)]),
-            HandGuide("スリーカード", "同ランク3枚",
-                      [c(8,s), c(8,h), c(8,d), c(4,cl), c(2,s)]),
-            HandGuide("ツーペア", "ペア2組",
-                      [c(13,s), c(13,h), c(9,d), c(9,cl), c(5,s)]),
-            HandGuide("ワンペア", "ペア1組",
-                      [c(11,s), c(11,h), c(8,d), c(4,cl), c(2,s)]),
-            HandGuide("ハイカード", "役なし・最高位カードで比較",
-                      [c(14,s), c(10,h), c(7,d), c(4,cl), c(2,s)]),
-        ]
-    }
-
-    struct HandGuide: Identifiable {
-        let id = UUID()
-        let name: String
-        let desc: String
-        let cards: [PokerCard]
-        init(_ name: String, _ desc: String, _ cards: [PokerCard]) {
-            self.name = name; self.desc = desc; self.cards = cards
-        }
-    }
-}
-
-// MARK: - Mini Card View
-
-struct MiniCardView: View {
-    let card: PokerCard
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                )
-            VStack(spacing: 0) {
-                Text(card.rankLabel)
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                Text(card.suit.symbol)
-                    .font(.system(size: 14))
-            }
-            .foregroundStyle(card.suit.isRed ? Color(hex: 0xC0392B) : Color(hex: 0x1A1A1A))
-        }
-        .frame(width: 38, height: 54)
     }
 }

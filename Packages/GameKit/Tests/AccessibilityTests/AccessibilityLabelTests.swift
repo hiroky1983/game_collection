@@ -9,6 +9,7 @@ import Testing
 @testable import GameGo
 @testable import GameSolitaire
 @testable import GameFreeCell
+@testable import GameSpider
 @testable import GameChess
 @testable import MahjongTiles
 
@@ -196,6 +197,21 @@ struct MinesweeperAccessibilityTests {
         #expect(MinesweeperAccessibility.cellHint(flagMode: false, canReveal: true, canToggleFlag: true,
                                                   canChord: false)
                 == "ダブルタップで開きます")
+    }
+
+    /// 旗モードはマスのタップ結果を左右するので、ボタンから「いまどちらか」が分かること（#761）。
+    @Test("旗モードの切り替えはオン/オフを読む") func flagToggle() {
+        #expect(MinesweeperAccessibility.flagToggleLabel(isOn: true) == "旗モード、オン")
+        #expect(MinesweeperAccessibility.flagToggleLabel(isOn: false) == "旗モード、オフ")
+    }
+
+    /// 拡大はラベルもヒントも状態で切り替える（フリーセル #604 と同じ形・#761）。
+    @Test("拡大の切り替えはラベルとヒントが状態で変わる") func zoomToggle() {
+        #expect(MinesweeperAccessibility.zoomToggleLabel(isZoomed: true) == "盤全体を表示")
+        #expect(MinesweeperAccessibility.zoomToggleLabel(isZoomed: false) == "盤を拡大")
+        #expect(MinesweeperAccessibility.zoomToggleHint(isZoomed: true) == "等倍に戻して盤全体を画面に収めます")
+        #expect(MinesweeperAccessibility.zoomToggleHint(isZoomed: false)
+                == "マスを大きくして指で押しやすくします。はみ出した部分は縦横にスクロールします")
     }
 
     @Test("実行できない操作はヒントで案内しない") func hintSuppressedWhenUnavailable() {
@@ -642,5 +658,93 @@ struct FreeCellAccessibilityTests {
 
         let fresh = FreeCellAccessibility.deadEndPromptLabel(canUndo: false, remaining: 3)
         #expect(fresh.contains("新しい配札"))
+    }
+}
+
+@Suite("スパイダーソリティアの読み上げ文")
+struct SpiderAccessibilityTests {
+
+    private func card(_ suit: SpiderSuit, _ rank: Int) -> SpiderCard {
+        SpiderCard(id: suit.rawValue * 13 + rank - 1, suit: suit, rank: rank)
+    }
+
+    @Test("場札は 列・枚数・札・上に載る枚数 を読む")
+    func tableauCard() {
+        let label = SpiderAccessibility.tableauCardLabel(
+            pile: 2, position: 4, aboveCount: 2,
+            card: card(.heart, 7), isSelected: true, isMovable: true
+        )
+        #expect(label == "3列目、5枚目、ハートの7、上に2枚、選択中")
+    }
+
+    @Test("動かせない札はそのことを読む（スートが混ざった並び）")
+    func immovableCard() {
+        let label = SpiderAccessibility.tableauCardLabel(
+            pile: 0, position: 3, aboveCount: 1,
+            card: card(.spade, 9), isSelected: false, isMovable: false
+        )
+        #expect(label.hasSuffix("動かせません"))
+    }
+
+    @Test("伏せ札は列ごとに枚数だけを読む")
+    func faceDown() {
+        #expect(SpiderAccessibility.faceDownLabel(pile: 3, count: 4) == "4列目、伏せ札4枚")
+    }
+
+    @Test("空の列は「どの札でも置ける」ことまで読む")
+    func emptyPile() {
+        #expect(SpiderAccessibility.emptyPileLabel(pile: 9) == "10列目、空、どの札でも置けます")
+    }
+
+    /// 配れない理由は見た目では分からない（山札は普通に見える）ので、音声でも必ず伝える。
+    @Test("山札は残り回数と、空いた列で配れない理由を読む")
+    func stock() {
+        #expect(SpiderAccessibility.stockLabel(dealsRemaining: 0, isBlockedByEmptyPile: false) == "山札、空")
+        #expect(SpiderAccessibility.stockLabel(dealsRemaining: 3, isBlockedByEmptyPile: false) == "山札、残り3回")
+        #expect(SpiderAccessibility.stockLabel(dealsRemaining: 3, isBlockedByEmptyPile: true)
+                == "山札、残り3回、空いた列があるので配れません")
+    }
+
+    @Test("完成した組は組数を読む")
+    func completed() {
+        #expect(SpiderAccessibility.completedLabel(count: 0) == "完成した組、なし")
+        #expect(SpiderAccessibility.completedLabel(count: 3) == "完成した組、3組")
+    }
+
+    @Test("ステータスはスート数・配札番号・経過・手数・完成した組・山札の残りを読む")
+    func status() {
+        let playing = SpiderAccessibility.statusLabel(
+            phase: .playing, suitCount: .two, elapsedSeconds: 65, moveCount: 12,
+            dealNumber: 137, dealsRemaining: 3, completedCount: 1, isDeadEnd: false)
+        #expect(playing == "2スート、配札137番、経過1:05、12手、1組完成、山札残り3回")
+
+        let dead = SpiderAccessibility.statusLabel(
+            phase: .playing, suitCount: .two, elapsedSeconds: 65, moveCount: 12,
+            dealNumber: 137, dealsRemaining: 0, completedCount: 1, isDeadEnd: true)
+        #expect(dead.hasPrefix("指せる手がありません。"))
+
+        let won = SpiderAccessibility.statusLabel(
+            phase: .won, suitCount: .four, elapsedSeconds: 65, moveCount: 12,
+            dealNumber: 137, dealsRemaining: 0, completedCount: 8, isDeadEnd: false)
+        #expect(won.hasPrefix("クリア。4スート"))
+        #expect(!won.contains("山札"), "決着後に操作の案内を読まない")
+    }
+
+    @Test("「戻す」は残り回数を必ず読む")
+    func undoButton() {
+        #expect(SpiderAccessibility.undoButtonLabel(remaining: 2) == "1手戻す、残り2回")
+        #expect(SpiderAccessibility.undoButtonLabel(remaining: 0) == "1手戻す、残りなし")
+        #expect(SpiderAccessibility.undoButtonHint(canUndo: false, remaining: 3) == "まだ戻せる手がありません")
+        #expect(SpiderAccessibility.undoButtonHint(canUndo: true, remaining: 0)
+                .contains("\(SpiderUndoBudget.refill)回"))
+    }
+
+    @Test("行き止まりの告知は、残っている選択肢まで読み分ける")
+    func deadEndPrompt() {
+        let canUndo = SpiderAccessibility.deadEndPromptLabel(canUndo: true, remaining: 2)
+        #expect(canUndo.contains("手を戻せます"))
+        #expect(canUndo.contains("残り2回"))
+        #expect(SpiderAccessibility.deadEndPromptLabel(canUndo: true, remaining: 0).contains("広告"))
+        #expect(SpiderAccessibility.deadEndPromptLabel(canUndo: false, remaining: 3).contains("新しい配札"))
     }
 }

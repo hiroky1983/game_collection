@@ -2,23 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameMinesweeper
-
-/// テスト専用の中断データ置き場（`MinesweeperMarkTests` と同じ手口。ファイルに書かない）。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ value: T, for key: String) throws {
-        storage[key] = try JSONEncoder().encode(value)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for key: String) -> T? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for key: String) { storage[key] = nil }
-    func exists(for key: String) -> Bool { storage[key] != nil }
-}
+import CoreTestSupport
 
 // MARK: - 計時の停止（#375: タイマー Task がモデルごとリークする）
 

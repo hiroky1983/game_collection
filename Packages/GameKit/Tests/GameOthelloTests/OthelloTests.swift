@@ -1,7 +1,9 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GameOthello
+import CoreTestSupport
 
 @Suite("OthelloBoard")
 struct OthelloBoardTests {
@@ -100,45 +102,6 @@ struct OthelloAITurnKeyTests {
 
 // MARK: - 思考中の新規対局（#140 のレビュー指摘: 旧盤面で選んだ手が新盤面に着手される）
 
-/// 思考タスクを探索の開始直前で止めておくためのゲート（#172）。
-///
-/// 以前は「思考タスクを積んだ直後に空タスクを積む」という MainActor のジョブ順序で待ち合わせて
-/// いたが、これは「空タスクが走る時点で探索がまだ終わっていない」ことまでは保証できない。
-/// オセロは初期盤面の合法手が4手しかなく探索が軽いため、CI の巡り合わせによっては前提の
-/// `#require(model.isThinking)` のほうが落ちて、無関係な PR のマージを止めていた。
-///
-/// ここではモデル側の待ち合わせ点（`thinkingGate`）で思考を明示的に止め、テストが `release()` を
-/// 呼ぶまで探索に入らせない。到達も解放もテストが制御するため、探索の所要時間に依存しない。
-@MainActor
-final class ThinkingGate {
-    private var hasArrived = false
-    private var isReleased = false
-    private var onArrival: CheckedContinuation<Void, Never>?
-    private var onRelease: CheckedContinuation<Void, Never>?
-
-    /// 思考タスク側。ゲートへの到達を知らせ、`release()` まで停止する。
-    func wait() async {
-        hasArrived = true
-        onArrival?.resume()
-        onArrival = nil
-        guard !isReleased else { return }
-        await withCheckedContinuation { onRelease = $0 }
-    }
-
-    /// テスト側。思考タスクがゲートに到達するまで待つ。
-    func waitUntilArrived() async {
-        guard !hasArrived else { return }
-        await withCheckedContinuation { onArrival = $0 }
-    }
-
-    /// テスト側。止めていた思考タスクを探索へ進ませる。
-    func release() {
-        isReleased = true
-        onRelease?.resume()
-        onRelease = nil
-    }
-}
-
 @MainActor
 @Suite("オセロ 思考中の新規対局")
 struct OthelloNewGameDuringThinkingTests {
@@ -146,8 +109,8 @@ struct OthelloNewGameDuringThinkingTests {
     ///
     /// ゲートは一度到達したら外す（`thinkingGate = nil`）。停止中の旧タスクはすでにゲートの中に
     /// いるため影響を受けず、以降に始まる新しい対局の思考は素通りする。
-    private func startThinking(_ model: OthelloModel) async throws -> (task: Task<Void, Never>, gate: ThinkingGate) {
-        let gate = ThinkingGate()
+    private func startThinking(_ model: OthelloModel) async throws -> (task: Task<Void, Never>, gate: TaskGate) {
+        let gate = TaskGate()
         model.thinkingGate = { await gate.wait() }
         let task = Task { await model.performAIMoveIfNeeded() }
         await gate.waitUntilArrived()
@@ -184,21 +147,7 @@ struct OthelloNewGameDuringThinkingTests {
 
 // MARK: - 撮影用プレビュー（#366 の PR #367 に付いた未消化のレビュー指摘）
 
-private final class MockSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
-private func makeServices(_ store: MockSnapshotStore) -> GameServices {
+private func makeServices(_ store: MemorySnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
@@ -233,7 +182,9 @@ private func othelloSnapshot(
         isDraw: false,
         mustPass: mustPass ? true : nil,
         turnID: 20,
-        undoUsed: nil
+        undoUsed: nil,
+        undoCells: nil,
+        undoCurrentStone: nil
     )
 }
 
@@ -272,7 +223,7 @@ struct OthelloPassDeadlockTests {
     /// 白番（`isAITurn`）のまま `mustPass` が false だと CPU は合法手 0 で何もせず終わり、
     /// 以後は `tap()` も「待った」も `isAITurn` に塞がれて投了か新規対局しか手が無くなる。
     @Test func undoAfterCPUPassLetsHumanKeepPlaying() async throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(
             othelloSnapshot(cells: othelloCells(othelloPassPendingDiagram),
                             currentStone: .black, humanSide: .black, mustPass: false),
@@ -304,7 +255,7 @@ struct OthelloPassDeadlockTests {
     /// 積んでしまうと、戻った先で CPU が再びパスして同じ局面へ返る往復になり、
     /// 履歴も減らないため自分の着手を永久に戻せなくなる。
     @Test func undoGoesBackBeforeOwnMoveNotToThePassItself() async throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let cells = othelloCells(othelloPassPendingDiagram)
         try store.save(
             othelloSnapshot(cells: cells, currentStone: .black, humanSide: .black, mustPass: false),
@@ -324,7 +275,7 @@ struct OthelloPassDeadlockTests {
     /// モデル側は復元した状態を保っており（View の表示条件がそのまま真）、
     /// 案内の「OK」にあたる `confirmPass()` で対局を続けられること。
     @Test func restoredPassPendingGameIsStillPlayable() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(
             othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
                             currentStone: .white, humanSide: .white, mustPass: true),
@@ -348,32 +299,47 @@ struct OthelloPassDeadlockTests {
     @Test func viewShowsPassAlertOnRestore() throws {
         let source = try Self.viewSource()
         #expect(
-            Self.matchCount(of: #"\.onChange\(of: model\.mustPass, initial: true\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"\.onChange\(of: model\.mustPass, initial: true\)"#, in: source) == 1,
             "パスの案内が initial: true で結線されていない（復元直後に案内が出ない）"
         )
         // パスの手段が案内の「OK」1箇所だけである、という上のテストの前提を固定する。
         #expect(
-            Self.matchCount(of: #"model\.confirmPass\(\)"#, in: source) == 1,
+            SourceScan.matchCount(of: #"model\.confirmPass\(\)"#, in: source) == 1,
             "confirmPass() の呼び出し箇所が変わっている（パスの導線の前提が崩れている）"
         )
+    }
+
+    /// 「投了」「待った」が両方とも共通のカプセル（枠 44pt・`BoardGameControlCapsuleStyle`）を通り、操作列の余白を詰めている（#711）。
+    /// 以前は「待った」だけが枠の無い素の文字で、当たり判定が約 17pt しかなかった。
+    /// ボタンの中身は Core の `BoardResignButton` / `BoardUndoButton` に寄せた（#828）ので、ここでは見た目の選び方を見る。
+    /// 選んだ見た目が共通のカプセルを通り、押せない状態が結線されていることは `BoardGameChromeTests` が固定する。
+    @Test func gameControlsUseCapsuleStyleForBothButtons() throws {
+        let controls = SourceScan.strippingComments(
+            SourceScan.functionSource(startingWith: "private var gameControls: some View {", in: try Self.viewSource())
+        )
+        try #require(!controls.isEmpty, "走査の前提が壊れている: gameControls が見つからない")
+        #expect(
+            SourceScan.matchCount(of: #"BoardResignButton\(look: \.tapTargetCapsule\)"#, in: controls) == 1,
+            "「投了」が共通のカプセルを通っていない"
+        )
+        #expect(
+            SourceScan.matchCount(of: #"BoardUndoButton\([^)]*usesTapTargetCapsule: true\)"#, in: controls) == 1,
+            "「待った」が共通のカプセルを通っていない"
+        )
+        // 手書きのカプセルが残っていると、そちらの外寸・当たり判定が効いてしまう。
+        #expect(SourceScan.matchCount(of: #"\.background\(Capsule\(\)"#, in: controls) == 0)
+        // ボタンの枠が 44pt になったぶん操作列の余白を詰めていないと、操作列が 14pt 高くなり盤が縮む（#148）。
+        #expect(
+            SourceScan.matchCount(of: #"\.padding\(\.vertical, BoardGameControlMetrics\.rowVerticalPadding\)"#, in: controls) == 1,
+            "操作列の上下の余白が BoardGameControlMetrics.rowVerticalPadding になっていない"
+        )
+        #expect(SourceScan.matchCount(of: #"\.padding\(\.vertical, 8\)"#, in: controls) == 0)
     }
 
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameOthelloTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameOthello/OthelloView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GameOthello/OthelloView.swift")
     }
 }
 
@@ -384,7 +350,7 @@ struct OthelloPreviewMidgameTests {
     /// 中断対局が残っていても撮影用の中盤盤面が作られること。
     /// 以前は `guard turnID == 0` で弾いていたため、保存対局があると撮影が空振りしていた。
     @Test func buildsMidgameEvenWithSavedGame() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let seed = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
         seed.tap(row: 2, col: 3)                  // 中断対局を1つ作る（黒が1手）
 
@@ -403,7 +369,7 @@ struct OthelloPreviewMidgameTests {
     /// 上書きしないこと。以前は nil が 0 と読まれて `guard turnID == 0` を素通りし、
     /// 復元した中盤の対局に撮影用の着手が重なって `persist()` が保存を壊していた。
     @Test func doesNotOverwriteLegacySnapshot() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let seed = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
         seed.tap(row: 2, col: 3)
         let saved = try #require(store.load(OthelloSnapshot.self, for: "othello"))
@@ -412,7 +378,7 @@ struct OthelloPreviewMidgameTests {
         let legacy = OthelloSnapshot(
             cells: saved.cells, currentStone: saved.currentStone, humanSide: saved.humanSide,
             aiLevel: saved.aiLevel, startedAt: saved.startedAt, winner: nil, isDraw: false,
-            mustPass: nil, turnID: nil, undoUsed: nil)
+            mustPass: nil, turnID: nil, undoUsed: nil, undoCells: nil, undoCurrentStone: nil)
         try store.save(legacy, for: "othello")
 
         let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
@@ -433,7 +399,7 @@ struct OthelloPreviewMidgameTests {
         model.newGame(humanSide: .white, aiLevel: 2)   // CPU=黒(先手) → 起動直後から CPU の手番
         try #require(model.isAITurn)
 
-        let gate = ThinkingGate()
+        let gate = TaskGate()
         model.thinkingGate = { await gate.wait() }
         let thinking = Task { await model.performAIMoveIfNeeded() }
         await gate.waitUntilArrived()
@@ -502,7 +468,7 @@ WWWWWWWW
 struct OthelloEmptyCellBonusTests {
 
     private func restored(_ diagram: String) throws -> OthelloModel {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         try store.save(
             othelloSnapshot(cells: othelloCells(diagram),
                             currentStone: .black, humanSide: .black, mustPass: false),
@@ -585,10 +551,10 @@ struct OthelloEmptyCellBonusTests {
     /// モデルが正しくても実石数を読んだままだと、リザルトの合計が 64 にならず狙いが画面に出ない。
     @Test func viewReadsBonusAppliedScore() throws {
         let source = try Self.viewSource()
-        #expect(Self.matchCount(of: #"model\.blackScore"#, in: source) == 2)
-        #expect(Self.matchCount(of: #"model\.whiteScore"#, in: source) == 2)
+        #expect(SourceScan.matchCount(of: #"model\.blackScore"#, in: source) == 2)
+        #expect(SourceScan.matchCount(of: #"model\.whiteScore"#, in: source) == 2)
         #expect(
-            Self.matchCount(of: #"model\.(black|white)Count"#, in: source) == 0,
+            SourceScan.matchCount(of: #"model\.(black|white)Count"#, in: source) == 0,
             "スコアの表示に実石数（blackCount / whiteCount）が残っている"
         )
     }
@@ -596,18 +562,66 @@ struct OthelloEmptyCellBonusTests {
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameOthelloTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameOthello/OthelloView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/GameOthello/OthelloView.swift")
+    }
+}
+
+// MARK: - 中断からの待った（#732）
+
+@MainActor
+@Suite("オセロ 中断からの待った")
+struct OthelloSnapshotTests {
+
+    /// 中断から再開しても、直前のやり取り（自分の着手 + CPU の応手）を「待った」で戻せる。
+    /// 修正前は巻き戻し履歴がメモリ上にしか無く、復元後は `canUndo` が false で押せなかった。
+    @Test func restoredGameCanUndoLastExchange() async throws {
+        let store = MemorySnapshotStore()
+        let first = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        let move = try #require(first.board.validMoves(for: .black).first)
+        first.tap(row: move.0, col: move.1)
+        await first.performAIMoveIfNeeded()
+        try #require(first.isAITurn == false, "前提: CPU が応手して人間の手番に戻ること")
+        try #require(first.canUndo, "前提: 中断前は「待った」が押せること")
+
+        // ハブへ戻って開き直す = 同じ保存先から作り直す
+        let resumed = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(resumed.board == first.board)
+        #expect(resumed.canUndo)
+
+        resumed.undoLastExchange()
+        #expect(resumed.board == OthelloBoard())
+        #expect(resumed.currentStone == .black)
+        #expect(resumed.undoUsed)
+
+        // 戻し切ったあとの中断では戻る先が残らない（同じ手を二度戻せない）
+        let again = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(again.board == OthelloBoard())
+        #expect(again.canUndo == false)
     }
 
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+    /// 戻る先を持たない旧形式の中断データも読め、盤面は復元され「待った」は従来どおり押せない。
+    @Test func legacySnapshotWithoutUndoKeysStillLoads() throws {
+        let legacy: [String: Any] = [
+            "cells": OthelloBoard().cells.map { $0?.rawValue ?? NSNull() as Any },
+            "currentStone": OthelloStone.black.rawValue,
+            "humanSide": OthelloStone.black.rawValue,
+            "aiLevel": 2,
+            "startedAt": 0,
+            "isDraw": false,
+            "turnID": 4,
+            "undoUsed": true,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: legacy)
+        let snap = try JSONDecoder().decode(OthelloSnapshot.self, from: data)
+        #expect(snap.undoCells == nil)
+        #expect(snap.undoCurrentStone == nil)
+
+        let store = MemorySnapshotStore()
+        try store.save(snap, for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(model.aiLevel == 2)
+        #expect(model.turnID == 4)
+        #expect(model.undoUsed)
+        #expect(model.canUndo == false)
     }
 }

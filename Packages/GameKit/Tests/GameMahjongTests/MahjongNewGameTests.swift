@@ -4,21 +4,9 @@ import Core
 import SwiftUI
 import MahjongTiles
 @testable import GameMahjong
+import CoreTestSupport
 
 // MARK: - ヘルパー
-
-private final class MemoryStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 送信されたイベントをそのまま溜めるスパイ（`AnalyticsTests` の同名の型と同じ形）。
 @MainActor
@@ -31,7 +19,7 @@ private final class SpyAnalyticsService: AnalyticsService {
     }
     var quits: Int {
         events.filter {
-            if case let .gameEnd(_, result, _) = $0 { return result == .quit } else { return false }
+            if case let .gameEnd(_, result, _, _, _) = $0 { return result == .quit } else { return false }
         }.count
     }
 }
@@ -42,7 +30,7 @@ private func junkHand() -> MahjongHand { MahjongNotation.hand("147m258p369s1234z
 
 @MainActor
 private func makeModel(
-    store: SnapshotStore = MemoryStore(),
+    store: SnapshotStore = MemorySnapshotStore(),
     playLog: PlayLog? = nil,
     analytics: GameAnalytics? = nil
 ) -> MahjongModel {
@@ -184,7 +172,7 @@ struct MahjongNewGameTests {
 
     @Test("破棄した局面は中断データから復元できない")
     func abandonedSnapshotIsOverwritten() {
-        let store = MemoryStore()
+        let store = MemorySnapshotStore()
         let model = makeModel(store: store)
         model.startGame()
         model.configureForTesting(
@@ -203,6 +191,21 @@ struct MahjongNewGameTests {
         #expect(restored.roundNumber == 1, "残っているのは新しい配牌のほうだけ")
         #expect(restored.scores == Array(repeating: MahjongModel.startingScore,
                                          count: MahjongModel.playerCount))
+    }
+
+    @Test("game_start / game_end には対局形式（東風戦 tonpuu ／ 一局戦 single_hand）が mode として付く（#783）")
+    func analyticsCarriesGameLength() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["mahjong4"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let model = makeModel(analytics: analytics)
+        model.startGame(length: .tonpuu)
+        model.startGame(length: .singleHand)
+        let modes = spy.events.compactMap { event -> String? in
+            if case let .gameStart(_, _, mode) = event { return mode?.rawValue } else { return nil }
+        }
+        #expect(modes == ["tonpuu", "single_hand"])
     }
 
     @Test("1枚でも切っていれば離脱として game_end(quit) を付けてから次の game_start を送る")
@@ -249,7 +252,7 @@ struct MahjongNewGameTests {
         defer { defaults.removePersistentDomain(forName: name) }
         let ads = InterruptingAdService()
         let model = MahjongModel(
-            services: GameServices(snapshots: MemoryStore(), ads: ads, playLog: playLog),
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: ads, playLog: playLog),
             cpuDelay: .zero,
             seed: 2026
         )
@@ -269,13 +272,57 @@ struct MahjongNewGameTests {
 
         // 広告を見ているあいだに「新規対局」で配り直す。
         ads.duringAd = { model.startGame() }
-        let revived = await model.reviveAfterAd()
+        let outcome = await model.reviveAfterAd()
 
-        #expect(!revived, "入れ替わったあとの対局には復活を適用しない")
+        // 見終えたのに適用しなかったので「視聴しなかった」（.notEarned）ではない（#814）。
+        #expect(outcome == .unavailable, "入れ替わったあとの対局には復活を適用しない")
         #expect(playLog.record(gameID: "mahjong4")?.losses == lossesAfterBust,
                 "記録済みの前局の負けが取り消されない")
         #expect(model.roundNumber == 1, "新しく始めた対局はそのまま続く")
         #expect(model.scores == Array(repeating: MahjongModel.startingScore,
                                       count: MahjongModel.playerCount))
+    }
+
+    /// 上のテストが塞いだのは**同じモデルの中**で局が入れ替わる経路だけ（#638）。
+    /// 広告のロード中にハブへ戻って開き直すとモデルそのものが入れ替わり、`gameSerial` は
+    /// 古いモデルのまま動かないのでガードを素通りする（#653）。画面の世代で突き合わせる。
+    @Test("広告を見ているあいだにハブへ戻って開き直したら、古いモデルの復活は適用されない")
+    func reviveDoesNotLandAfterLeavingTheScreen() async {
+        let (playLog, defaults, name) = makeIsolatedPlayLog()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let ads = InterruptingAdService()
+        let store = MemorySnapshotStore()
+        let services = GameServices(snapshots: store, ads: ads, playLog: playLog)
+        let left = MahjongModel(services: services, cpuDelay: .zero, seed: 2026)
+        left.startGame()
+        left.configureForTesting(
+            hands: Array(repeating: junkHand(), count: MahjongModel.playerCount),
+            wall: [],
+            scores: [-1_000, 30_000, 35_000, 36_000]
+        )
+        left.exhaustWallForTesting()
+        left.advanceToNextHand()
+        #expect(left.phase == .gameResult)
+        #expect(left.canReviveAfterBust)
+        #expect(playLog.record(gameID: "mahjong4")?.losses == 1, "トビの負けは正しく記録されている")
+
+        // 広告を見ているあいだにハブへ戻り、もう一度麻雀を開く（= 別のモデルが動き出す）。
+        var reopened: MahjongModel?
+        ads.duringAd = {
+            services.gameDidLeave(gameID: "mahjong4")
+            let next = MahjongModel(services: services, cpuDelay: .zero, seed: 7)
+            next.startGame()
+            reopened = next
+        }
+        let outcome = await left.reviveAfterAd()
+
+        #expect(outcome == .unavailable, "画面を離れたあとの対局に復活を適用している")
+        #expect(playLog.record(gameID: "mahjong4")?.losses == 1,
+                "いま遊んでいる対局の負けが cancelLoss で取り消されている")
+        #expect(playLog.record(gameID: "mahjong4")?.plays == 1,
+                "gameDidRestart で game_start だけが増えている")
+        #expect(left.phase == .gameResult, "捨てられたモデルに次の局が配られている")
+        #expect(left.scores[0] == -1_000, "捨てられたモデルの持ち点が初期値へ戻っている")
+        #expect(reopened?.phase == .playing, "開き直した対局はそのまま続く")
     }
 }

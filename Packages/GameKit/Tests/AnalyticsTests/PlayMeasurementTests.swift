@@ -2,6 +2,8 @@ import Testing
 import Foundation
 import SwiftUI
 import Core
+import GameKitTestSupport
+import CoreTestSupport
 
 // MARK: - Mocks
 
@@ -13,13 +15,13 @@ private final class SpyAnalyticsService: AnalyticsService {
 
     var starts: [(gameID: String, level: AnalyticsLevel?)] {
         events.compactMap {
-            if case let .gameStart(gameID, level) = $0 { return (gameID, level) }
+            if case let .gameStart(gameID, level, _) = $0 { return (gameID, level) }
             return nil
         }
     }
     var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec) = $0 { return (gameID, result, durationSec) }
+            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 { return (gameID, result, durationSec) }
             return nil
         }
     }
@@ -29,23 +31,16 @@ private final class SpyAnalyticsService: AnalyticsService {
             return nil
         }
     }
+    /// リワード広告の要求（#659）。
+    var requests: [(gameID: String, purpose: RewardPurpose)] {
+        events.compactMap {
+            if case let .rewardRequest(gameID, purpose) = $0 { return (gameID, purpose) }
+            return nil
+        }
+    }
     var quits: [(gameID: String, durationSec: Int)] {
         ends.filter { $0.result == .quit }.map { ($0.gameID, $0.durationSec) }
     }
-}
-
-/// 中断データの有無だけを持つ最小の保存先。`exists` が「続きから」の可否を表す。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
 }
 
 /// 視聴完了 / 未完了を指定できる広告。
@@ -92,7 +87,6 @@ private func makeServices(
 @Suite("途中離脱の記録（#500）")
 @MainActor
 struct QuitTrackingTests {
-
     @Test("1手でも指した盤面を「新しいゲーム」で捨てると quit が出る")
     func restartAfterProgressSendsQuit() {
         let clock = TestClock()
@@ -105,6 +99,44 @@ struct QuitTrackingTests {
         #expect(spy.quits.map(\.gameID) == ["2048"])
         #expect(spy.quits.first?.durationSec == 35, "duration_sec は決着時と同じく開始からの経過")
         #expect(spy.starts.count == 2, "捨てたぶんと新しいぶんで game_start は2回")
+    }
+
+    @Test("別の mode で始め直したとき、捨てたプレイの quit に載るのは前の mode（#820）")
+    func quitCarriesThePreviousMode() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.restartPlay(gameID: "solitaire", mode: .stage)
+        analytics.recordProgress(gameID: "solitaire")
+        analytics.restartPlay(gameID: "solitaire", mode: .endless)
+
+        let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
+            if case let .gameEnd(_, result, _, mode, _) = event { return (result, mode) } else { return nil }
+        }
+        #expect(ends.count == 1)
+        #expect(ends.first?.result == .quit)
+        #expect(ends.first?.mode == .stage, "開始時に焼き込んだ値。始め直した後の mode ではない")
+    }
+
+    @Test("決着の game_end の mode は直前の game_start と同じ（#820）")
+    func finishCarriesTheStartMode() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "solitaire", mode: .singleHand)
+        analytics.finishPlay(gameID: "solitaire", outcome: .win)
+        analytics.restartPlay(gameID: "solitaire", mode: .tonpuu)
+        analytics.finishPlay(gameID: "solitaire", outcome: .loss)
+        analytics.restartPlay(gameID: "solitaire")
+        analytics.recordProgress(gameID: "solitaire")
+        analytics.finishPlay(gameID: "solitaire", outcome: .draw)
+
+        let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
+            switch event {
+            case let .gameStart(_, _, mode):     return ("start", mode)
+            case let .gameEnd(_, _, _, mode, _): return ("end", mode)
+            default:                             return nil
+            }
+        }
+        #expect(modes.map(\.name) == ["start", "end", "start", "end", "start", "end"])
+        #expect(modes.map(\.mode) == [.singleHand, .singleHand, .tonpuu, .tonpuu, nil, nil],
+                "mode を付けずに始めたプレイの game_end に前のプレイの mode を持ち越さない")
     }
 
     @Test("1手も指していない配り直しでは quit を出さない")
@@ -266,7 +298,6 @@ struct QuitTrackingTests {
 @Suite("リワード広告の計測（#500）")
 @MainActor
 struct RewardAdTrackingTests {
-
     @Test("視聴完了したときだけ reward_ad を送る")
     func onlyCompletedViewsAreSent() async {
         let (earned, earnedSpy) = makeServices(earnsReward: true)
@@ -294,6 +325,111 @@ struct RewardAdTrackingTests {
         let (services, spy) = makeServices()
         _ = await services.showRewardedAd(gameID: "../../etc/passwd", purpose: .hint)
         #expect(spy.rewards.isEmpty)
+        #expect(spy.requests.isEmpty, "要求も同じく捨てる（#659）")
+    }
+}
+
+// MARK: - リワード広告の要求・ハブからの遷移（#659）
+
+@Suite("広告の要求とハブからの遷移の計測（#659）")
+@MainActor
+struct OpenAndRequestTrackingTests {
+    @Test("reward_request は視聴の成否に関係なく、広告の結果より先に1回出る")
+    func requestIsSentBeforeTheResult() async {
+        let (earned, earnedSpy) = makeServices(earnsReward: true)
+        _ = await earned.showRewardedAd(gameID: "solitaire", purpose: .undo)
+        #expect(earnedSpy.events.map(\.name) == ["reward_request", "reward_ad"])
+
+        let (skipped, skippedSpy) = makeServices(earnsReward: false)
+        _ = await skipped.showRewardedAd(gameID: "solitaire", purpose: .hint)
+        #expect(skippedSpy.requests.map(\.purpose) == [.hint],
+                "ロード失敗・途中で閉じた回こそ完了率の分母に入れる")
+        #expect(skippedSpy.rewards.isEmpty)
+    }
+
+    @Test("game_open は導線・位置・続きからをそのまま送り、プレイの数え方に触らない")
+    func openIsSentWithoutTouchingPlayState() {
+        let (services, spy) = makeServices()
+        services.gameDidOpen(gameID: "sudoku", source: .recent, position: 1, resume: true)
+        services.gameDidStart(gameID: "sudoku")
+        services.gameDidProgress(gameID: "sudoku")
+        services.gameDidFinish(gameID: "sudoku", outcome: .win)
+
+        #expect(spy.events.first == .gameOpen(gameID: "sudoku", source: .recent, position: 1, resume: true))
+        #expect(spy.starts.count == 1, "開いたことは game_start を増やさない")
+        #expect(spy.ends.map(\.result) == [.win])
+    }
+
+    @Test("開いただけで遊ばずに戻っても、game_open だけが残り quit は出ない")
+    func openThenLeaveIsNotQuit() {
+        let (services, spy) = makeServices()
+        services.gameDidOpen(gameID: "2048", source: .hub, position: 3, resume: false)
+        services.gameDidLeave(gameID: "2048")
+        #expect(spy.events.map(\.name) == ["game_open"])
+    }
+
+    @Test("ハブに無い gameID の遷移は送らない")
+    func unknownGameIDOpenIsDropped() {
+        let (services, spy) = makeServices()
+        services.gameDidOpen(gameID: "device-1234", source: .hub, position: 1, resume: false)
+        #expect(spy.events.isEmpty)
+    }
+
+    @Test("設定で送信をオフにすると、どちらのイベントも送らない")
+    func gatedOffSendsNothing() async {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: GatedAnalyticsService(base: spy) { false },
+            allowedGameIDs: testGameIDs
+        )
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: StubAdService(earnsReward: true), analytics: analytics
+        )
+        services.gameDidOpen(gameID: "2048", source: .hub, position: 1, resume: false)
+        _ = await services.showRewardedAd(gameID: "2048", purpose: .continue)
+        #expect(spy.events.isEmpty)
+    }
+}
+
+// MARK: - ハブの遷移計測の結線（#659）
+
+/// `game_open` の発火点は App ターゲット（`HubView`）にあり GameKit のテストから import できないため、
+/// `HubRecentRowWiringTests` と同じく `App/` 一式を走査して結線を固定する。
+@Suite("ハブの遷移計測の結線（#659）")
+struct GameOpenWiringTests {
+    private static func count(_ needle: String, in source: String) -> Int {
+        source.components(separatedBy: needle).count - 1
+    }
+
+    @Test("送るのは path が空 → 非空になった1か所だけ")
+    func openIsSentFromTheSinglePathTransition() throws {
+        let source = try SourceScan.appSources()
+        #expect(Self.count("gameDidOpen(", in: source) == 1, "game_open の発火点が1か所ではない")
+        #expect(
+            source.range(
+                of: #"if oldPath\.isEmpty, let opened = newPath\.first \{\s*services\.gameDidOpen\("#,
+                options: .regularExpression
+            ) != nil,
+            "空 → 非空の遷移と gameDidOpen の結線が切れている"
+        )
+    }
+
+    @Test("ハブのすべての遷移が導線を持つ HubRoute で積まれる")
+    func everyLinkCarriesItsSource() throws {
+        let source = try SourceScan.appSources()
+        let links = Self.count("NavigationLink(value:", in: source)
+        #expect(links >= 2, "走査のパターンが壊れている可能性")
+        #expect(Self.count("NavigationLink(value: HubRoute(", in: source) == links,
+                "導線を持たない遷移がある（game_open の source が分からない）")
+        // 導線ごとに正しい source を載せている。
+        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: index \+ 1"#,
+                             options: .regularExpression) != nil, "グリッド")
+        #expect(source.range(of: #"gameID: candidate\.gameID, source: \.recent,\s*position: offset \+ 1"#,
+                             options: .regularExpression) != nil, "つづき・最近")
+        #expect(source.range(of: #"gameID: id, source: \.recommendation, position: nil"#,
+                             options: .regularExpression) != nil, "レコメンド")
+        #expect(source.range(of: #"gameID: pick, source: \.firstPick, position: nil"#,
+                             options: .regularExpression) != nil, "はじめの1本")
     }
 }
 
@@ -306,7 +442,6 @@ struct RewardAdTrackingTests {
 /// 呼び出しの形そのものを検査対象にする（`MotionTests` の走査と同じ考え方）。
 @Suite("リワード広告の発火箇所（#500）")
 struct RewardAdCallSiteTests {
-
     private static let sourcesRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()   // AnalyticsTests
         .deletingLastPathComponent()   // Tests
@@ -352,7 +487,9 @@ struct RewardAdCallSiteTests {
 
         // 呼び出しの総数 = すべての面の数。面を増やしたらここも動くので、
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
-        #expect(counts.values.reduce(0, +) == 21, "リワード広告の面は21箇所")
+        // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
+        // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
+        #expect(counts.values.reduce(0, +) == 14, "リワード広告の面は14箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 
@@ -364,7 +501,6 @@ struct RewardAdCallSiteTests {
 /// 各ゲームの操作を通しで再現できないため、呼び出しの存在そのものを検査対象にする。
 @Suite("プレイ計測の付け忘れ（#500）")
 struct PlayMeasurementCallSiteTests {
-
     private static let sourcesRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()   // AnalyticsTests
         .deletingLastPathComponent()   // Tests
@@ -384,7 +520,7 @@ struct PlayMeasurementCallSiteTests {
         return joined
     }
 
-    /// プレイを数えているモジュール（= ハブに並ぶ 20 本のゲーム）。
+    /// プレイを数えているモジュール（= ハブに並ぶ 21 本のゲーム）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -394,7 +530,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 20, "ハブに並ぶゲームは20本")
+        #expect(games.count == 21, "ハブに並ぶゲームは21本")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -419,6 +555,7 @@ struct PlayMeasurementCallSiteTests {
             "GameOthello",       // CPU の強さ 3 段階
             "GameRunner",        // 面番号 1〜15
             "GameShogi",         // CPU の強さ 3 段階
+            "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
         ])
     }

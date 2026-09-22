@@ -35,6 +35,13 @@ struct RunnerModuleTests {
         #expect(module.title == "チャリンコおじさん", "表示名は権利チェックで採用した名前")
     }
 
+    /// ハブの一覧に出る説明文はステージ数を名指ししている。#674 で 15 → 18 に増えたように
+    /// ステージが足されたときに文言だけ取り残されると、遊ぶ前から数字が嘘になる。
+    @Test("説明文のステージ数が実際のステージ数と一致する")
+    func descriptionMatchesStageCount() {
+        #expect(RunnerModule().description.contains("\(RunnerRules.stageCount)ステージ"))
+    }
+
     @Test("遊び方ガイドがこのゲームの ID に紐づいている")
     func howToPlayGuideIsWired() {
         #expect(HowToPlayGuide.runner.gameID == RunnerModel.gameID)
@@ -50,5 +57,25 @@ struct RunnerModuleTests {
         )
         #expect(entry == GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerStage, value: 7))
         #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.runnerStage))
+    }
+
+    /// エンドレス（#675）は走行距離を**別の表**へ送る。Core は GameRunner に依存できないため
+    /// 区分キー "endless" を文字列で写し取っており、`RunnerMode.endless.recordVariant` との一致を
+    /// ここで縛る（食い違うと「どれだけ走っても順位表に載らない」静かな故障になる）。
+    @Test("エンドレスの走行距離は asobiba.runner.distance に紐づき、ステージ制の表には混ざらない")
+    func endlessLeaderboardIsWired() {
+        let entry = GameCenterLeaderboard.score(
+            gameID: RunnerModel.gameID,
+            outcome: .loss,
+            score: GameScore(
+                metric: .points, points: 1_234,
+                variant: RunnerMode.endless.recordVariant,
+                variantLabel: RunnerMode.endless.recordVariantLabel
+            )
+        )
+        #expect(entry == GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerDistance, value: 1_234))
+        #expect(GameCenterLeaderboard.runnerDistance == "asobiba.runner.distance")
+        #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.runnerDistance))
+        #expect(RunnerMode.stages.recordVariant == nil, "ステージ制の記録の保存先を動かさない")
     }
 }

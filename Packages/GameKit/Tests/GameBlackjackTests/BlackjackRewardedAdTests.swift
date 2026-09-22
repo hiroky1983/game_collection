@@ -3,25 +3,9 @@ import Foundation
 import SwiftUI
 import Core
 @testable import GameBlackjack
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MockSnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-
-    /// 旧バージョンが書いた JSON をそのまま流し込む（鍵を1つ落とした形を作るのに使う）。
-    func saveRaw(_ json: Data, for gameID: String) { store[gameID] = json }
-}
 
 /// `BlackjackSnapshot` を符号化してから指定の鍵を落とし、旧バージョンが書いた JSON を作る。
 private func encodingWithoutKey(_ snapshot: BlackjackSnapshot, key: String) throws -> Data {
@@ -37,6 +21,8 @@ private final class StubAdService: AdService, @unchecked Sendable {
     private let rewardEarned: Bool
     private(set) var rewardedCount = 0
     private(set) var interstitialCount = 0
+    /// 視聴のあいだに起きること（ハブへ戻る等）。広告のロード中も画面は操作できる（#653）。
+    var duringAd: (@MainActor () -> Void)?
 
     init(rewardEarned: Bool) { self.rewardEarned = rewardEarned }
 
@@ -44,6 +30,7 @@ private final class StubAdService: AdService, @unchecked Sendable {
     @MainActor func showInterstitial() async { interstitialCount += 1 }
     @MainActor func showRewardedAd() async -> Bool {
         rewardedCount += 1
+        duringAd?()
         return rewardEarned
     }
 }
@@ -73,11 +60,12 @@ private func makeBustedModel(
     rewardEarned: Bool = true,
     chips: Int = 100,
     hasRevived: Bool = false,
-    store: MockSnapshotStore = MockSnapshotStore(),
+    store: MemorySnapshotStore = MemorySnapshotStore(),
     gameCenter: GameCenterReporter? = nil,
     playLog: PlayLog? = nil,
-    seed: UInt64 = 20260909
-) -> (BlackjackModel, StubAdService, MockSnapshotStore) {
+    seed: UInt64 = 20260909,
+    screenGeneration: GameScreenGeneration = GameScreenGeneration()
+) -> (BlackjackModel, StubAdService, MemorySnapshotStore) {
     var nextID = 0
     func make(_ ranks: [Int]) -> [BlackjackCard] {
         ranks.map { rank in
@@ -101,7 +89,8 @@ private func makeBustedModel(
     let ads = StubAdService(rewardEarned: rewardEarned)
     let model = BlackjackModel(
         services: GameServices(
-            snapshots: store, ads: ads, playLog: playLog, gameCenter: gameCenter
+            snapshots: store, ads: ads, playLog: playLog, gameCenter: gameCenter,
+            screenGeneration: screenGeneration
         ),
         seed: seed
     )
@@ -144,6 +133,80 @@ struct BlackjackRewardedAdTests {
         #expect(ads.rewardedCount == 1)
     }
 
+    /// 広告のロード中はハブへ戻れる。戻ると Model は捨てられ、次に開くと別の Model が動くが、
+    /// 広告の完了を待つ `Task` は古い Model を強参照したまま生き残る（#653）。
+    /// 世代を進めるのは `GameServices.gameDidLeave`（配線の検証は `RewardedRescueTests`）。
+    @Test("広告を見ているあいだにハブへ戻ったら、捨てられたモデルにチップは戻らない")
+    func doesNotRecoverAfterLeavingTheScreen() async {
+        let generation = GameScreenGeneration()
+        let (model, ads, _) = makeBustedModel(screenGeneration: generation)
+        ads.duringAd = { generation.advance() }
+
+        let recovered = await model.recoverChipsAfterAd()
+
+        #expect(!recovered, "捨てられたモデルに復活を適用している")
+        #expect(model.chips == 0, "画面に無いモデルのチップが増えている")
+        #expect(model.sessionOver, "セッション終了のまま")
+        #expect(ads.rewardedCount == 1, "広告そのものは出ている（計測は従来どおり付く）")
+    }
+
+    /// 広告のロード中は同じ画面の「最初からやり直す」も押せる（#727）。画面の世代（#653）は
+    /// 同じ画面の中の入れ替わりでは進まないので、セッションの通し番号で照合する。
+    @Test("広告中にセッションを作り直したら復活を適用しない")
+    func doesNotReviveSessionRestartedDuringAd() async {
+        let (model, ads, _) = makeBustedModel()
+        ads.duringAd = { model.restartSession() }
+
+        let outcome = await model.reviveAfterAd()
+
+        #expect(outcome == .unavailable, "見終えたのに適用できなかったことを、視聴しなかったことと分けて返す")
+        #expect(model.chips == BlackjackModel.initialChips, "新しいセッションの残高が半分に減らされている")
+        #expect(!model.sessionOver)
+        #expect(model.phase == .betting)
+        #expect(ads.rewardedCount == 1)
+
+        // 新しいセッションの復活権（= 順位表資格）が、前のセッションで見た広告で消えていない。
+        playAllInUntilBust(model)
+        #expect(model.sessionOver)
+        #expect(model.canReviveAfterBust, "新しいセッションの復活権を消費している")
+    }
+
+    /// やり直したセッションも広告のあいだにチップが尽きると、`canReviveAfterBust` だけの照合は
+    /// 素通りする。前のセッションで見た広告を新しいセッションの復活に使わせない（#727）。
+    @Test("広告中にやり直したセッションもチップが尽きていたら、前のセッションの復活は乗せない")
+    func doesNotReviveRestartedSessionThatAlsoBustedDuringAd() async {
+        let (model, ads, _) = makeBustedModel()
+        ads.duringAd = {
+            model.restartSession()
+            playAllInUntilBust(model)
+        }
+
+        let outcome = await model.reviveAfterAd()
+
+        #expect(outcome == .unavailable)
+        #expect(model.sessionOver, "やり直したセッションのチップ切れはそのまま")
+        #expect(model.canReviveAfterBust, "新しいセッションの復活権を、前のセッションで見た広告で消費している")
+    }
+
+    /// 画面の状態はテストから操作できないので、書き方そのものを見る（#727）。
+    /// 範囲をやり直しボタンから先に絞るのは、手前の復活ボタンにも同じ `.disabled` があり、
+    /// ファイル全体を探すとそちらに当たって空振りするため。
+    @Test("視聴中は「最初からやり直す」を押せない")
+    func restartButtonIsDisabledWhileWatching() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GameBlackjackTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // GameKit
+            .appendingPathComponent("Sources/GameBlackjack/BlackjackView.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let start = try #require(source.range(of: "Button { model.restartSession() } label: {"),
+                                 "やり直しボタンの定義が見つからない（走査が空振りしている）")
+        let end = try #require(source.range(of: "// MARK: - Helper", range: start.upperBound..<source.endIndex))
+        let restartButton = source[start.upperBound..<end.lowerBound]
+        #expect(restartButton.contains("\n            .disabled(reviveRescue.isWatching)"),
+                "広告のロード〜視聴中に「最初からやり直す」が押せる")
+    }
+
     @Test("視聴未完了・ロード失敗ならチップは回復しない")
     func doesNotRecoverChipsWhenRewardNotEarned() async {
         let (model, ads, _) = makeBustedModel(rewardEarned: false)
@@ -171,7 +234,7 @@ struct BlackjackRewardedAdTests {
     @Test("チップが残っているうちは復活できず、広告も出さない")
     func doesNotShowAdWhileChipsRemain() async {
         let ads = StubAdService(rewardEarned: true)
-        let model = BlackjackModel(services: GameServices(snapshots: MockSnapshotStore(), ads: ads))
+        let model = BlackjackModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: ads))
         #expect(!model.sessionOver)
         #expect(!model.canReviveAfterBust)
 
@@ -197,7 +260,7 @@ struct BlackjackRewardedAdTests {
 
     @Test("中断から戻っても復活の回数は戻らない")
     func reviveBudgetSurvivesSuspend() async {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let (model, _, _) = makeBustedModel(store: store)
         #expect(await model.recoverChipsAfterAd())
 
@@ -269,8 +332,8 @@ struct BlackjackRewardedAdTests {
             activeHandIndex: 0,
             hasRevivedThisSession: nil
         )
-        let store = MockSnapshotStore()
-        store.saveRaw(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "blackjack")
+        let store = MemorySnapshotStore()
+        store.inject(try encodingWithoutKey(modern, key: "hasRevivedThisSession"), for: "blackjack")
 
         let model = BlackjackModel(
             services: GameServices(snapshots: store, ads: StubAdService(rewardEarned: true))

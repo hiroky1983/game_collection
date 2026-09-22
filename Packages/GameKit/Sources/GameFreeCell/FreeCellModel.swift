@@ -164,9 +164,9 @@ public final class FreeCellModel {
         if isFreshStart { services?.gameDidStart(gameID: gameID) }
     }
 
-    private static func pickSeed() -> UInt64 {
+    private static func pickSeed(excluding previous: UInt64? = nil) -> UInt64 {
         var system = SystemRandomNumberGenerator()
-        return FreeCellDealer.randomVerifiedSeed(using: &system)
+        return FreeCellDealer.randomVerifiedSeed(excluding: previous, using: &system)
     }
 
     /// 種から配り直して手順を再生する。undo も新規配札もこの 1 本を通る。
@@ -308,7 +308,8 @@ public final class FreeCellModel {
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
-        dealNumber = Self.pickSeed()
+        // 直前の配札は除く（#914）。
+        dealNumber = Self.pickSeed(excluding: dealNumber)
         moves = []
         undosRemaining = FreeCellUndoBudget.free
         board = Self.replay(moves, seed: dealNumber).board

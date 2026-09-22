@@ -1,3 +1,4 @@
+import Core
 import Foundation
 
 /// 横スクロールランナーのコースそのもの（#494）。
@@ -15,7 +16,7 @@ public struct RunnerField: Equatable, Sendable {
         /// 画面に見える横幅。
         ///
         /// 縦持ちの画面に載る帯の横幅なので、**広くしすぎない**。広げるほど 1 単位が
-        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（50.8 / 秒）でも
+        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（18 面の 47.6 / 秒）でも
         /// 走者の前に 74 単位 = 約 1.5 秒ぶんの地形が見えるので、初見でも反応できる。
         public static let width: Double = 100
         /// 画面に見える縦幅。
@@ -91,10 +92,45 @@ public struct RunnerField: Equatable, Sendable {
     public private(set) var pickupOverboost: Double = 0
     /// `pickupOverboost` が 0 になるまでの残り秒数。
     private var pickupOverboostRemaining: Double = 0
-    /// 取得済みのスピードアップアイテムの数。まだ消していないノードを消すのに描画側が使う。
+    /// 取得済みのアイテムの数（スピードアップ・たこ焼きを問わない）。
     public private(set) var collectedPickupCount: Int = 0
+    /// たこ焼き（#797）の無敵の残り秒数。0 なら無敵ではない。
+    ///
+    /// 取り直すと満タンに戻す（重ねない。`pickupOverboost` と同じ扱い）。空中でも減る
+    /// ——「取ってから何秒」の物差しで、跳んで時間を止めて持ち越せてはいけない。
+    /// 画面の残り時間表示（`RunnerView`）はこの値をそのまま読む。
+    public private(set) var invincibleRemaining: Double = 0
+    /// 直前の着地がジャスト着地だったか（#673）。
+    ///
+    /// 着地するたびに書き換わる（ジャストでなければ false に戻る）ので、`.landed` の
+    /// できごとと**同じフレームでだけ**意味を持つ。触覚の強さを変えるのに Model が使う。
+    public private(set) var lastLandingWasJust: Bool = false
+    /// この走行で決めたジャスト着地の回数。**1 回の着地につき 1 増える単調増加**。
+    ///
+    /// 描画側（`RunnerScene`）は毎フレームこの数を前フレームと比べて土煙を出す。
+    /// できごと（`RunnerEvent`）を増やさずに済ませているのは、`collectedPickupCount` と
+    /// 同じ理由——見た目だけの都合でルール層のできごとを増やすと、Model の分岐が
+    /// 演出のために太る。
+    public private(set) var justLandingCount: Int = 0
+    /// いまの滞空を始めた地点（接地中は nil）。ジャスト着地の判定で「この滞空のあいだに
+    /// 越えた障害」を絞り込むのに使う。
+    private var jumpStartDistance: Double?
+    /// ジャスト着地で乗っている、上限（`maxPedalBoost`）を超える一時的な上乗せ分（#673）。
+    ///
+    /// **`pickupOverboost` とまったく同じ仕組み**（時間で線形に減衰し、接地中だけ効く）。
+    /// `pedalBoost` に足す形では上限に張り付いた状態で何も起きず、効果が測れないほど
+    /// 小さかった（`RunnerRules.justLandingOverboost` のドキュメント参照）。
+    public private(set) var justLandingOverboost: Double = 0
+    /// `justLandingOverboost` が 0 になるまでの残り秒数。
+    private var justLandingOverboostRemaining: Double = 0
+    /// 直近のミスの原因（#796）。`.fell` / `.crashed` を返した瞬間に決まり、解析の `game_end` の
+    /// `cause` に載る。台座の正面（`isHittingPlatformFace`）は岩と同じ扱い。ミスするまで nil。
+    public private(set) var lastMissCause: AnalyticsEndCause?
     /// `stage.pickups` のうち、すでに取得した添字。**同じ走行中に同じアイテムは 1 回しか取れない**。
-    private var collectedPickupIndices: Set<Int> = []
+    ///
+    /// 描画側はこの添字でノードを消す。**取得は先頭から順とは限らない**——チェックポイントから
+    /// 再開すると手前のアイテムは取らないまま残る（#733）。
+    public private(set) var collectedPickupIndices: Set<Int> = []
 
     /// ステージの頭から始める。
     public init(stage: RunnerStage) {
@@ -127,15 +163,47 @@ public struct RunnerField: Equatable, Sendable {
     /// **空中では必ず `stage.speed`**（ペダルを漕げないので乗りが効かない・#569）。
     /// この一点で「跳んで進む距離 = `speed × 滞空時間`」が乗りに左右されなくなり、
     /// ステージの成立条件（`RunnerStageTests`）を丸ごと据え置ける。`pickupOverboost` も
-    /// 同じ理由で接地中にしか効かせない。
+    /// ジャスト着地の上乗せ（#673）もスピードアップ床の倍率（#672）も、同じ理由で
+    /// 接地中にしか効かせない。
+    ///
+    /// 床の倍率が**掛け算**で乗る理由は `RunnerRules.boostFloorMultiplier` を参照
+    /// （床は区間の性質、乗りは操作の上手さ、と別の軸なので掛け合わせる）。
     public var currentSpeed: Double {
-        isGrounded ? stage.speed * (pedalBoost + pickupOverboost) : stage.speed
+        // 基準速はその地点の値（#675）。ステージ制では `stage.speed` そのもの。
+        let base = stage.speed(at: distance)
+        guard isGrounded else { return base }
+        let floor = isOnBoostFloor ? RunnerRules.boostFloorMultiplier : 1
+        return base * (pedalBoost + pickupOverboost + justLandingOverboost) * floor
     }
+
+    /// いまスピードアップ床の上に乗っているか（#672）。
+    ///
+    /// **状態は持たず毎回位置から判定する**ので、区間を出た瞬間に効果が切れる
+    /// （アイテムのような減衰は無い）。判定に使うのは矩形ではなく**中心の x**——穴
+    /// （`isPit`）と同じ物差しにしてある。矩形で見ると爪先が縁にかかった時点から効き始め、
+    /// 床の境目が走者の体の幅ぶんぼやけて「どこから速くなったのか」が読めない。
+    ///
+    /// 空中では常に false（跳んだ瞬間に効果が切れる）。床の真上を跳んでいる間まで速いと、
+    /// 「跳んで進む距離 = `speed × 滞空時間`」が崩れてステージの成立条件がやり直しになる。
+    public var isOnBoostFloor: Bool {
+        guard isGrounded else { return false }
+        return stage.boostFloors.contains { $0.start <= distance && distance < $0.end }
+    }
+
+    /// いま無敵か（たこ焼き・#797）。true のあいだは岩・鳥・台座の正面に当たっても
+    /// `.crashed` を出さない。**穴は落ちる**（`advance` の接地判定はこの値を見ない）。
+    public var isInvincible: Bool { invincibleRemaining > 0 }
 
     /// 走者の当たり判定の矩形。
     public var playerMinX: Double { distance - Metrics.playerHalfWidth }
     public var playerMaxX: Double { distance + Metrics.playerHalfWidth }
-    /// 足元の地面からの高さ。
+    /// 足元の**地面からの**高さ。
+    ///
+    /// 台座（#674）の上に立っていると `RunnerRules.platformHeight` になる——**接地面からの
+    /// 高さではなく、あくまで地面が 0 の物差し**のまま。障害の高さ（`RunnerHazard.height`）・
+    /// 描画（`RunnerScene` は `footY` をそのまま使う）・ジャンプの軌道の検証
+    /// （`FieldTests` が `jumpApex` と突き合わせる）がすべてこの物差しで書かれているので、
+    /// ここを「接地面からの高さ」に変えると台座の有無で意味が変わる値になってしまう。
     public var altitude: Double { footY - Metrics.groundY }
 
     /// `x` に穴が開いているか（点で見る）。
@@ -143,9 +211,54 @@ public struct RunnerField: Equatable, Sendable {
         stage.hazards.contains { $0.kind == .pit && $0.start <= x && x < $0.end }
     }
 
+    /// その x で**足が乗る高さ**（#674）。台座の範囲内なら台座の上面、外は地面。
+    ///
+    /// 「足が地面まで落ちたら接地」という既存の判定を、地面の代わりにこの値と比べる形へ
+    /// 一本化したもの。`Metrics.groundY` を直に見ている接地まわりの箇所はすべてここを通す
+    /// ——そうしておかないと「地面では接地するが台座では素通りする」という食い違いが生まれる。
+    ///
+    /// 覆っている台座が複数あれば**最も高い上面**を採る。**第 1 弾ではこの `max` に到達しない**
+    /// ——台座の高さは 1 種類（`RunnerRules.platformHeight`）で、連続する `P` は 1 基に
+    /// まとまるため、ある x を覆う台座は常に高々 1 つ。高さ違いの台座を足して段を重ねる日
+    /// （次弾）に効く受け口として残してある。
+    public func surfaceY(at x: Double) -> Double {
+        var surface = Metrics.groundY
+        for platform in stage.platforms where platform.start <= x && x < platform.end {
+            surface = max(surface, Metrics.groundY + platform.top)
+        }
+        return surface
+    }
+
     /// 走者の**前方**にある最も近い障害。自動操縦テストと先読みの読み上げが使う。
+    ///
+    /// 動く障害（#796）は**いまの位置**（`frame(atRunnerDistance:)`）で見る。配列の並び
+    /// （置いた位置の順）と現在の並びは食い違いうる——岩の右側で止まったイノシシは、置いた
+    /// 位置では岩の手前の区画でも、いまは岩の向こう側にいる。まだ現れていない障害（突進前の
+    /// イノシシ・現れる前の犬）と、上がりきって接地した走者の頭より高い鳥は対象にしない
+    /// （跳ぶ相手ではない）。
     public func nextHazard(from x: Double) -> RunnerHazard? {
-        stage.hazards.first { $0.end > x }
+        var best: (hazard: RunnerHazard, start: Double)?
+        for hazard in stage.hazards {
+            guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { continue }
+            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { continue }
+            if best == nil || frame.start < best!.start { best = (hazard, frame.start) }
+        }
+        return best?.hazard
+    }
+
+    /// `nextHazard` と同じ規則で、その障害の**いまの当たり判定**を返す。
+    public func nextHazardFrame(from x: Double) -> (hazard: RunnerHazard, frame: RunnerHazardFrame)? {
+        guard let hazard = nextHazard(from: x),
+              let frame = hazard.frame(atRunnerDistance: distance) else { return nil }
+        return (hazard, frame)
+    }
+
+    /// 走者の**前方**にある最も近い台座（#674）。自動操縦が「跳んで乗る」対象に使う。
+    ///
+    /// 左端がまだ前方にあるものだけを返す。すでに上に乗っている台座（左端を通り過ぎている）を
+    /// 返してしまうと、自動操縦が台座の上で踏み切り続けることになる。
+    public func nextPlatform(from x: Double) -> RunnerPlatform? {
+        stage.platforms.first { $0.start >= x }
     }
 
     // MARK: - 操作
@@ -158,6 +271,18 @@ public struct RunnerField: Equatable, Sendable {
     @discardableResult
     public mutating func jump() -> Bool {
         guard jumpCount < RunnerRules.maxJumps else { return false }
+        // 滞空の起点は**一段目の踏み切り**。二段目で上書きすると、一段目で越えた障害が
+        // 「この滞空で越えた障害」から外れてしまう（#673）。
+        //
+        // **この `isGrounded` は意図の表明で、いまの物理では観測できない**（2026-09-13 の
+        // 敵対的検証で確認。外しても全テストが緑）。上書きすると起点が後ろへ動いて候補が
+        // 減るだけなので、選ばれる障害の右端は小さくなる方向にしか変わらない。そして
+        // 答えが変わるのは「二段目より後に越えた障害が無い」場合だけだが、二段目は `vy` を
+        // `jumpVelocity` に戻すので着地は必ず `jumpAirTime` 以上あと——最低でも
+        // 34 × 0.75 = 25.5 先で、窓（`RunnerRules.justLandingWindow` = 8）の外。
+        // つまり答えが変わる場合はどちらの実装でも加算されない。二段目の弾道を弱める
+        // （短いホップにする等）変更を入れた日にここが効き始めるので、残してある。
+        if isGrounded { jumpStartDistance = distance }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
         jumpCount += 1
@@ -199,15 +324,22 @@ public struct RunnerField: Equatable, Sendable {
     }
 
     /// テスト・撮影用に走者を直接置く。製品コードからは呼ばない。
+    ///
+    /// `altitude` は `altitude` プロパティと同じ**地面からの高さ**。台座の上に置きたければ
+    /// `RunnerRules.platformHeight` を渡す（接地したかどうかは、その x の接地面
+    /// （`surfaceY(at:)`）に届いているかで決まる）。
     public mutating func placeForTesting(distance: Double, altitude: Double, vy: Double) {
         self.distance = distance
         self.footY = Metrics.groundY + altitude
         self.vy = vy
-        self.isGrounded = altitude <= 0 && vy <= 0
+        self.isGrounded = footY <= surfaceY(at: distance) && vy <= 0
         self.jumpCount = self.isGrounded ? 0 : 1
         self.isHolding = false
         self.holdElapsed = 0
         self.pendingCut = false
+        // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
+        self.jumpStartDistance = self.isGrounded ? nil : distance
+        self.lastMissCause = nil
     }
 
     // MARK: - 進行
@@ -223,7 +355,31 @@ public struct RunnerField: Equatable, Sendable {
         // 1 サブステップの移動量を障害の最小寸法より小さく抑える（すり抜け防止）。
         // 横は**この dt のあいだに出しうる最大の速さ**で見積もる。いまの速さで割ると、
         // 同じ dt の中でペダルが乗ったぶんだけ 1 サブステップの移動量が見積もりを超える。
-        let horizontal = stage.speed * RunnerRules.maxPedalBoost * dt
+        // スピードアップ床（#672）に踏み込むとさらに倍率が乗るので、床の上に居るかに
+        // 関わらず**常に床の倍率まで見込んで**刻む（見積もりを多めに取るぶんには
+        // サブステップが細かくなるだけで、進み方も当たり判定も変わらない）。
+        //
+        // 上限を超える上乗せ（アイテム `pickupOverboost` とジャスト着地
+        // `justLandingOverboost`・#673）も足す。**`maxPedalBoost` だけで見積もると
+        // 上乗せが乗っているあいだ 1 サブステップが `Metrics.maxSubstep`（2）を超える**。
+        //
+        // 実測（dt は上限の `maxStep` = 1/20 秒。床がある 16〜18 面で起きる。数字は #968 で
+        // 18 面が 47.6 に下がる前の 54.4 のもので、速い側の見積もりとして残してある）:
+        // - ステージ18（速さ 54.4・床の上）の旧式の見積もりは 54.4 × 1.55 × 1.3 × 0.05 =
+        //   5.481 → 3 分割。ところが実移動は上乗せ 2 つとも乗ると
+        //   54.4 × 1.95 × 1.3 × 0.05 = 6.895 で、**1 サブステップ 2.298**
+        //   （アイテム単独の 1.75 倍でも 6.188 → 2.063）
+        // - 床が無いステージ（〜15 面）では超過しない。ステージ15 は見積もり 5.118 に対し
+        //   実移動 4.953（床の倍率ぶん見積もりが多めなので追いつかれない）
+        //
+        // 障害の最小寸法（`RunnerRules.tileWidth` = 4）よりは小さいのですり抜けは
+        // 起きていなかったが、安全の余裕が削れていた既存の見落とし。新式では同じ条件
+        // （ステージ18・全部乗り）で 6.895 → 4 分割・1 サブステップ 1.724 に収まる。
+        let maxFactor = RunnerRules.maxPedalBoost
+            + RunnerRules.pickupOverboost
+            + RunnerRules.justLandingOverboost
+        // 基準速は上限（`speedCap`。ステージ制では `speed` と同じ）で見積もる（#675）。
+        let horizontal = stage.speedCap * maxFactor * RunnerRules.boostFloorMultiplier * dt
         let vertical = abs(vy) * dt + RunnerRules.gravity * dt * dt
         let travel = max(horizontal, vertical)
         let substeps = max(1, Int((travel / Metrics.maxSubstep).rounded(.up)))
@@ -248,7 +404,37 @@ public struct RunnerField: Equatable, Sendable {
             pickupOverboost = RunnerRules.pickupOverboost
                 * (pickupOverboostRemaining / RunnerRules.pickupOverboostDuration)
         }
+        // ジャスト着地の上乗せ分も同じ形で減衰する（#673）。**跳んでいるあいだも減る**
+        // ——上乗せは「決めた直後の勢い」なので、空中で時間を止めて持ち越せてはいけない
+        // （`currentSpeed` が空中では効かせないのと合わせて、跳べば跳ぶほど損になる）。
+        if justLandingOverboostRemaining > 0 {
+            justLandingOverboostRemaining = max(0, justLandingOverboostRemaining - dt)
+            justLandingOverboost = RunnerRules.justLandingOverboost
+                * (justLandingOverboostRemaining / RunnerRules.justLandingOverboostDuration)
+        }
+        // 無敵（たこ焼き・#797）も同じ物差しで減る。速さには一切効かない。
+        if invincibleRemaining > 0 {
+            invincibleRemaining = max(0, invincibleRemaining - dt)
+        }
+        let previousDistance = distance
         distance += currentSpeed * dt
+
+        // 動く障害の予告の地点をこのサブステップでまたいだ（#801 イノシシの突進。犬は #955 で
+        // 前から歩いて来るようになり予告を持たない）。手応え・土煙の発火点で、当たり判定には
+        // 関わらない（位置は `frame(atRunnerDistance:)` が距離から引く）。チェックポイント再開で
+        // この地点より先から走り出した場合は鳴らない（予告する相手がいない）。
+        for hazard in stage.hazards {
+            guard let cue = hazard.cue else { continue }
+            if previousDistance < cue.distance, cue.distance <= distance { events.append(cue.event) }
+        }
+
+        // 台座の端から出た（#674）。接地面が足の下から消えるので、そのまま落下へ移す。
+        // ここで切り替えておかないと `isGrounded && vy == 0` のまま重力が掛からず、
+        // 台座の高さのまま空中を走り続けてしまう。落ちた先が穴なら、下の接地判定で
+        // 既存の穴の判定がそのまま効く。
+        if isGrounded, footY > surfaceY(at: distance) {
+            isGrounded = false
+        }
 
         if !isGrounded || vy != 0 {
             // 重力は押している間も一定（大ジャンプの高さは `endHold()` の切り詰めだけで決まる）。
@@ -266,47 +452,75 @@ public struct RunnerField: Equatable, Sendable {
             }
         }
 
-        // 障害物は矩形どうしの重なりで見る。走者の足が上端より上にあれば飛び越えている。
-        if isHittingBlock {
-            events.append(.crashed)
-            return
+        // 障害物は矩形どうしの重なりで見る（岩・低く飛ぶ鳥・犬・イノシシは跳んで越える）。
+        // 台座（#674）は正面（左端）に突っ込んだ場合だけ同じくミスになる。
+        // 無敵（たこ焼き・#797）のあいだはこの判定だけを通さない——動く障害（飛び立つ鳥・犬・
+        // イノシシ・#796）も岩と同じく素通りする。穴は下の接地判定で従来どおり落ちる。
+        // 台座の正面に突っ込んだ場合は当たり判定を素通りして上面に乗る
+        // （`surfaceY(at:)` が台座の範囲で上面を返すので、次の接地判定で足が上面に止まる）。
+        if !isInvincible {
+            if let hit = hittingHazard {
+                lastMissCause = hit.kind.missCause
+                events.append(.crashed)
+                return
+            }
+            if isHittingPlatformFace {
+                lastMissCause = .rock
+                events.append(.crashed)
+                return
+            }
         }
 
-        // スピードアップアイテム。「触れると得する」だけなので、穴・障害物と違って
+        // アイテム。「触れると得する」だけなので、穴・障害物と違って
         // 高さは問わず横方向の重なりだけで見る。`currentSpeed` の「空中では必ず基準速度」
         // という不変条件には触れない（接地しているあいだしか乗りは効かないので、
         // 跳んで取ってもその場では速くならない）。
         //
-        // 効果は2つ: (1) `pedalBoost` を即座に上限へ引き上げる（乗れていない状態で取った
-        // 場合の底上げ）、(2) それとは別枠の `pickupOverboost` を一時的に乗せる（会長QA
-        // 「取るタイミングが大体もうMAX速度で意味がない」2026-09-10 への対応。`pedalBoost`
-        // 自体はどの道 `maxPedalBoost` で頭打ちなので、上限に張り付いた状態で取っても
-        // (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
+        // スピードアップの効果は2つ: (1) `pedalBoost` を即座に上限へ引き上げる（乗れていない
+        // 状態で取った場合の底上げ）、(2) それとは別枠の `pickupOverboost` を一時的に乗せる
+        // （会長QA「取るタイミングが大体もうMAX速度で意味がない」2026-09-10 への対応。
+        // `pedalBoost` 自体はどの道 `maxPedalBoost` で頭打ちなので、上限に張り付いた状態で
+        // 取っても (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
         // 乗り具合に関わらず必ず体感できる加速にする）。
+        // たこ焼き（#797）は速さに触らず、無敵の残り時間を満タンにするだけ。
         for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
             guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { continue }
             collectedPickupIndices.insert(index)
             collectedPickupCount += 1
-            pedalBoost = RunnerRules.maxPedalBoost
-            pickupOverboost = RunnerRules.pickupOverboost
-            pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
-            events.append(.collectedSpeedItem)
+            switch pickup.kind {
+            case .speed:
+                pedalBoost = RunnerRules.maxPedalBoost
+                pickupOverboost = RunnerRules.pickupOverboost
+                pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
+                events.append(.collectedSpeedItem)
+            case .invincible:
+                invincibleRemaining = RunnerRules.invincibleDuration
+                events.append(.collectedInvincibleItem)
+            }
         }
 
-        if footY <= Metrics.groundY {
+        // 接地面は「地面 or 台座の上面」（#674）。台座の範囲内なら上面で止まる。
+        let surface = surfaceY(at: distance)
+        if footY <= surface {
             // 穴の判定は**中心の x** で行う。矩形で見ると爪先が縁を越えた瞬間に落ちてしまう。
-            if isPit(at: distance) {
+            // 台座の上に落ち着く場合は穴を見ない——穴は地面に開いた欠落なので、その上に
+            // 台座が架かっているなら渡れる（台座の端から降りれば下の穴の判定が効く）。
+            if surface <= Metrics.groundY, isPit(at: distance) {
+                lastMissCause = .pit
                 events.append(.fell)
                 return
             }
             let wasAirborne = !isGrounded
-            footY = Metrics.groundY
+            footY = surface
             vy = 0
             isGrounded = true
             jumpCount = 0
             isHolding = false
             pendingCut = false
-            if wasAirborne { events.append(.landed) }
+            if wasAirborne {
+                applyJustLanding()
+                events.append(.landed)
+            }
         }
 
         if !passedCheckpoint, distance >= stage.checkpoint {
@@ -320,12 +534,87 @@ public struct RunnerField: Equatable, Sendable {
         }
     }
 
-    /// いま障害物に当たっているか。足が上端より上にあれば飛び越えている。
-    private var isHittingBlock: Bool {
-        stage.hazards.contains { hazard in
-            guard hazard.kind != .pit else { return false }
-            guard hazard.start < playerMaxX, playerMinX < hazard.end else { return false }
-            return footY < Metrics.groundY + hazard.height
+    /// 着地した瞬間に「越えた障害の真裏に降りられたか」を見て、一時的な上乗せを乗せる（#673）。
+    ///
+    /// **速さに触るのは接地中だけ**——空中の横速度（`currentSpeed`）は基準のままなので、
+    /// 「1 回のジャンプで進む距離 = `speed × jumpAirTime`」という全ステージの成立条件
+    /// （`RunnerStageTests`）の物差しは動かない（#635 決裁）。
+    ///
+    /// ギリギリで跳んで直後に降りれば上乗せが乗り続け、早すぎ・遅すぎの跳び方では
+    /// 何も乗らない。これがベストタイムに出るスキル差の実体。
+    ///
+    /// **台座（#674）は対象外**。台座は `RunnerHazard` とは別の型（`RunnerPlatform`）で、
+    /// そもそも `stage.hazards` に居ないので網羅 switch（`rewardsJustLanding`）には
+    /// 現れない——「越えた対象」は岩と穴だけ。台座は越えるものではなく乗るもので、
+    /// 上面に降りるのは「越えた直後の着地」ではないため報酬の対象にしない。
+    /// 台座から降りたあと**その先の穴を越えて**着地した場合は、越えた対象が穴なので普通に拾う。
+    private mutating func applyJustLanding() {
+        lastLandingWasJust = false
+        guard let takeOff = jumpStartDistance else { return }
+        jumpStartDistance = nil
+        // 「直前に越えた障害」= この滞空のあいだに**中心 x が右端を通過した**障害のうち最後のもの。
+        // `hazards` は左から順に並んでいるので `last` がそのまま「最後に越えたもの」になる。
+        guard let cleared = stage.hazards.last(where: {
+            Self.rewardsJustLanding($0.kind) && $0.end > takeOff && $0.end <= distance
+        }) else { return }
+        guard distance - cleared.end <= RunnerRules.justLandingWindow else { return }
+        // 上限（`maxPedalBoost`）を超える別枠に乗せる。重ねず、決め直すたびに上書きして
+        // 満タンへ戻す（`pickupOverboost` と同じ扱い）。
+        justLandingOverboost = RunnerRules.justLandingOverboost
+        justLandingOverboostRemaining = RunnerRules.justLandingOverboostDuration
+        lastLandingWasJust = true
+        justLandingCount += 1
+    }
+
+    /// ジャスト着地の対象になる障害か（#673）。
+    ///
+    /// **跳んで越え、置いた位置（`RunnerHazard.end`）がそのまま「真裏」になるものだけ**
+    /// ——「越えた直後に降りる」が判定の実体なので、跳び越える対象でない障害を混ぜると、
+    /// 越え方と関係なく上乗せが乗る。
+    /// 鳥は飛んで動いている相手で「真裏」が置いた位置にない（#796）、イノシシ（#801）と犬（#955）は
+    /// 向かってきて走者の体の中を通り抜けるので、どれも対象外。
+    private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
+        switch kind {
+        case .pit, .lowBlock, .tallBlock: return true
+        case .bird, .dog, .boar:          return false
+        }
+    }
+
+    /// いま当たっている障害物（無ければ nil）。ミスの原因（`lastMissCause`）を決めるのに種類が要る。
+    ///
+    /// 縦は**帯どうしの重なり**で見る（#671）。走者は足（`footY`）から頭
+    /// （`footY + playerHeight`）まで、障害は帯の下端から上端まで。地面から生えている岩は
+    /// 下端が 0 なので「頭が下端より上」は常に真になり、従来どおり「足が上端より上なら
+    /// 飛び越えている」だけの判定に一致する。位置と帯は**いまの走者の距離で引く**
+    /// （`RunnerHazard.frame(atRunnerDistance:)`・#796）——上がりきった鳥は帯が頭より上に
+    /// 抜けるので、同じ式のまま自然に当たらなくなる。
+    private var hittingHazard: RunnerHazard? {
+        stage.hazards.first { hazard in
+            guard hazard.kind != .pit,
+                  let frame = hazard.frame(atRunnerDistance: distance) else { return false }
+            guard frame.start < playerMaxX, playerMinX < frame.end else { return false }
+            return footY < Metrics.groundY + frame.top
+                && Metrics.groundY + frame.bottom < footY + Metrics.playerHeight
+        }
+    }
+
+    /// いま台座の正面（左端）に突っ込んでいるか（#674）。高い障害物と同じくミスになる。
+    ///
+    /// **中心がまだ台座の左端より手前にある場合しか見ない**のが要点。矩形の重なりだけで
+    /// 判定すると、上面を走り切って右端から降りる瞬間——尻がまだ台座に重なったまま、
+    /// 足が上面より下へ落ちる——を「正面衝突」と取り違えて、まっとうな着地が全部ミスになる。
+    /// 走者は後退しないので、中心が左端を越えた時点でその台座は「乗ったか、越えたか」の
+    /// どちらかであって、もう当たるものではない。
+    ///
+    /// **`private` にしていないのは境界をテストで直接突けるようにするため**。`step` 経由だと
+    /// この判定に来る前に `distance` と `footY` が動いてしまい、「中心が左端ちょうど」
+    /// 「足が上面ちょうど」という 2 つの等号の扱いを固定できない
+    /// （`FieldTests.platformFaceIsInclusiveAtTheBoundary`）。
+    var isHittingPlatformFace: Bool {
+        stage.platforms.contains { platform in
+            guard distance < platform.start else { return false }
+            guard platform.start < playerMaxX else { return false }
+            return footY < Metrics.groundY + platform.top
         }
     }
 }

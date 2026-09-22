@@ -13,6 +13,11 @@ struct OthelloSnapshot: Codable {
     let mustPass: Bool?
     let turnID: Int?
     let undoUsed: Bool?
+    /// 「待った」で戻る先（巻き戻し履歴の最上段）の盤面と手番（#732）。
+    /// 履歴がメモリ上にしか無いと、中断から再開したとき `undoUsed` だけが残り「待った」が押せなくなる。
+    /// 旧形式のデータには無いので optional。無ければ従来どおり履歴は空で始まる。
+    let undoCells: [Int?]?
+    let undoCurrentStone: Int?
 }
 
 private struct TurnState {
@@ -22,7 +27,7 @@ private struct TurnState {
 
 @MainActor
 @Observable
-public final class OthelloModel {
+public final class OthelloModel: AITurnGuarded, BoardUndoModel {
     public private(set) var board: OthelloBoard
     public private(set) var currentStone: OthelloStone
     public private(set) var humanSide: OthelloStone
@@ -52,7 +57,7 @@ public final class OthelloModel {
     /// 探索の所要時間に依存せず決定論的に作れる（#172）。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "othello"
+    public let gameID = "othello"
     /// CPU が着手する前に、直前の反転演出へ最低限あける間合い（#204）。
     /// **読みと並行に測るので、読みが長い局面（強レベル）ではここによる追加の待ちは発生しない**。
     /// テストは `.zero` を渡して実時間の待ちを消す（大富豪・麻雀の `cpuDelay` と同じ運用）。
@@ -118,6 +123,11 @@ public final class OthelloModel {
             mustPass     = snap.mustPass ?? false
             turnID       = snap.turnID ?? 0
             undoUsed     = snap.undoUsed ?? false
+            if let cells = snap.undoCells, cells.count == othelloBoardSize * othelloBoardSize,
+               let stone = snap.undoCurrentStone.flatMap({ OthelloStone(rawValue: $0) }) {
+                undoHistory = [TurnState(cells: cells.map { $0.flatMap { OthelloStone(rawValue: $0) } },
+                                         currentStone: stone)]
+            }
         } else {
             board        = OthelloBoard()
             currentStone = .black
@@ -184,6 +194,17 @@ public final class OthelloModel {
         persist()
     }
 
+    /// 広告を出す前に控えた `aiTurnKey`（対局の通し番号 × 手番の通し番号）の局面にだけ待ったを適用する（#729）。
+    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手・パスで局面が変わっていたら false
+    ///   （View は「待ったを使えなかった」と知らせる）。対局の番号だけを照合すると、ロード中に
+    ///   1 往復打ったとき、広告を出したときとは別の 1 往復が戻る。
+    @discardableResult
+    public func undoLastExchange(forTurn turn: AITurnKey) -> Bool {
+        guard turn == aiTurnKey, canUndo else { return false }
+        undoLastExchange()
+        return true
+    }
+
     public func resign() {
         guard !gameOver else { return }
         winner = humanSide.opponent
@@ -195,36 +216,35 @@ public final class OthelloModel {
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking, !gameOver else { return }
         // 待ちの最中に新規対局が始まると、旧盤面での判断（パス・着手）が新しい盤面に
-        // 適用されてしまう。開始時のトリガー（対局の通し番号 × turnID）を控え、
-        // 完了時に一致する場合だけ進める。
-        let key = aiTurnKey
-        let serial = gameSerial
-
+        // 適用されてしまう。開始時の `aiTurnKey`（対局の通し番号 × turnID）と
+        // 一致する場合だけ進める（#531 で共通化）。
         if mustPass {
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            guard aiTurnKey == key, isAITurn, mustPass else { return }
-            confirmPass()
+            await withAITurnGuard(key: \.aiTurnKey) {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+            } commit: { _ in
+                guard isAITurn, mustPass else { return }
+                confirmPass()
+            }
             return
         }
 
-        isThinking = true
-        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
-        defer { if gameSerial == serial { isThinking = false } }
-
-        let b = board, s = currentStone, lvl = aiLevel
-        // 直前の着手の反転演出を見せてから打つための締切（#204）。読みを始める前に取り、
-        // 読みが終わったあとに「残り」だけ待つので、読みが長ければ待ちはゼロになる。
-        let settleDeadline = ContinuousClock.now + flipSettleDelay
-        await thinkingGate?()
-        let move = await Task.detached(priority: .userInitiated) {
-            await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
-        }.value
-        try? await Task.sleep(until: settleDeadline, clock: .continuous)
-
-        guard aiTurnKey == key, isAITurn, !gameOver else { return }
-        // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
-        if let (r, c) = move, board.isValid(row: r, col: c, stone: currentStone) {
-            place(row: r, col: c)
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let b = board, s = currentStone, lvl = aiLevel
+            // 直前の着手の反転演出を見せてから打つための締切（#204）。読みを始める前に取り、
+            // 読みが終わったあとに「残り」だけ待つので、読みが長ければ待ちはゼロになる。
+            let settleDeadline = ContinuousClock.now + flipSettleDelay
+            await thinkingGate?()
+            let move = await Task.detached(priority: .userInitiated) {
+                await OthelloEngine(level: lvl).bestMove(board: b, stone: s)
+            }.value
+            try? await Task.sleep(until: settleDeadline, clock: .continuous)
+            return move
+        } commit: { move in
+            guard isAITurn, !gameOver else { return }
+            // 旧盤面で選んだ手を新しい盤面に打つと石が返らず盤面が壊れるため、合法手であることも再確認する。
+            if let (r, c) = move, board.isValid(row: r, col: c, stone: currentStone) {
+                place(row: r, col: c)
+            }
         }
     }
 
@@ -370,7 +390,9 @@ public final class OthelloModel {
             isDraw: isDraw,
             mustPass: mustPass ? true : nil,
             turnID: turnID,
-            undoUsed: undoUsed ? true : nil
+            undoUsed: undoUsed ? true : nil,
+            undoCells: undoHistory.last.map { $0.cells.map { $0?.rawValue } },
+            undoCurrentStone: undoHistory.last?.currentStone.rawValue
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

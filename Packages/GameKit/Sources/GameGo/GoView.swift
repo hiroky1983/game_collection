@@ -7,10 +7,11 @@ public struct GoView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// 出ている「パス」の札（#664）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
+    @State private var passBannerID: Int?
 
     public init(services: GameServices) {
         self.services = services
@@ -69,6 +70,24 @@ public struct GoView: View {
         }
         .task(id: model.phase) {
             await model.evaluateEndgameIfNeeded()
+        }
+        // パスした瞬間だけ札を出し、少し置いて引っ込める（#664・将棋 #377 と同じ機構）。
+        //
+        // 引っ込めるのは**自分が出した札がまだ出ているときだけ**にする。`.task(id:)` は
+        // 契機が変わると古いタスクを取り消すが、`Task.sleep` の `CancellationError` は
+        // `try?` が飲み込むので古いタスクは最後まで走る。素朴に nil を書くと、続けて
+        // 相手もパスしたときに**古い後始末が新しい札を消す**（将棋・チェスで既知・#519）。
+        .task(id: model.passEventID) {
+            let id = model.passEventID
+            guard id > 0 else { return }
+            passBannerID = id
+            try? await Task.sleep(for: .seconds(passBannerHold))
+            if passBannerID == id { passBannerID = nil }
+        }
+        // 待った・新規対局・投了・対局続行・終局の確定で盤の意味が変わったら、
+        // 上の固定待ちを待たずに札を畳む（#519 と同じ手当て）。
+        .onChange(of: model.passBannerDismissID) { _, _ in
+            passBannerID = nil
         }
         .task {
             #if DEBUG
@@ -171,9 +190,9 @@ public struct GoView: View {
     private var board: some View {
         GeometryReader { geo in
             let size = model.board.size
-            let pad: CGFloat = 18
-            let inner = geo.size.width - pad * 2
-            let spacing = inner / CGFloat(size - 1)
+            // 余白は間隔に比例させる（9 路で縁の石が角丸からはみ出していた・`GoBoardMetrics`）。
+            let pad = GoBoardMetrics.pad(boardWidth: geo.size.width, size: size)
+            let spacing = GoBoardMetrics.spacing(boardWidth: geo.size.width, size: size)
 
             ZStack {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
@@ -207,15 +226,47 @@ public struct GoView: View {
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GoShake(animatableData: CGFloat(model.rejectedTapCount)))
             .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
+            // 拒否の理由は揺れの外に置く（一緒に揺らすと読めない・五目 #441 と同じ組み方）。
+            .overlay(alignment: .top) { rejectionNotice }
         }
         .aspectRatio(1, contentMode: .fit)
         // 終局後のレコメンドは盤の下端に重ねる（常時高さ予約の代替。将棋 #405 と同じ）。
         .overlay(alignment: .bottom) {
             if model.phase == .finished {
-                RecommendationSlot(services: services, isFinished: true)
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。石の色と置き石は今の対局のものを引き継ぐ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = GoLevel.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.aiLevel),
+                                      levelLabels: levels.map(\.label)) { level in
+            model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap)
+        }
+    }
+
+    /// 打てなかった理由を盤の上に出す（#664。五目の `forbiddenNotice` #441 と同じ組み方）。
+    ///
+    /// 自殺手・コウは**空いている交点なのに石が入らない**ので、震え（#202）と警告音だけでは
+    /// 「なぜ打てないのか」が伝わらない。理由の文言は `GoTapRejection.message` に定義済みで、
+    /// ここが初めての参照箇所になる。次に打てたら `apply` が `lastRejection` を消すので
+    /// 自然に引っ込む。盤への `overlay` なので、出ても消えても盤と操作エリアの高さは変わらない。
+    @ViewBuilder
+    private var rejectionNotice: some View {
+        if let rejection = model.lastRejection {
+            Text(rejection.message)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(Theme.Fill.coral))
+                .padding(.top, 10)
+                // 帯は盤より前面なので、既定のままだと重なった交点へのタップを吸ってしまう。
+                // 見せるだけの表示なので当たり判定から外す。
+                .allowsHitTesting(false)
         }
     }
 
@@ -303,6 +354,7 @@ public struct GoView: View {
                     Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
+            passBanner
             Spacer(minLength: 8)
             if model.gameOver {
                 RecordLabel(model.recordResult)
@@ -323,6 +375,37 @@ public struct GoView: View {
         ))
     }
 
+    /// 「パス」の札を出しておく時間（#664）。将棋・チェスの王手札（#377）と同じ
+    /// 「盤が動かない合図を一定時間だけ出す」機構なので、尺もその値をそのまま借りる。
+    private var passBannerHold: TimeInterval { BoardGameMotion.checkBannerHold }
+
+    /// パスの合図（#664）。盤も手番バッジも動かないパスで、唯一「何かが起きた」を示す要素。
+    ///
+    /// 分岐は**この層の中**に置く（将棋 #201 と同じ）。呼び出し側の `if` にすると、
+    /// 出入りする枝と一緒に修飾子まで消えて `.transition` が効かない。
+    /// 読み上げは持たせない — 1 秒あまりで消える要素に VoiceOver のフォーカスが乗ると、
+    /// 消えた瞬間にフォーカスごと飛ぶ（将棋の王手札と同じ判断）。
+    ///
+    /// 面色は**パスボタンと同じ** `Theme.fillMuted`。将棋の王手札の緋色
+    /// （`BoardGameCheckColor`）は危急の合図の色で、この画面には投了ボタンと拒否理由の帯という
+    /// 赤系がすでに 2 つある。パスは危急ではないので、押した相手（ボタン）と同じ色にして
+    /// 「押したものの結果」と読めるようにする。
+    private var passBanner: some View {
+        ZStack {
+            if passBannerID != nil {
+                Text("パス")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.fillMuted))
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .gameAnimation(BoardGameMotion.checkBanner, value: passBannerID)
+    }
+
     private var resultText: String {
         guard let winner = model.winner else { return "引き分け" }
         return winner == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち"
@@ -330,18 +413,9 @@ public struct GoView: View {
 
     private var gameControls: some View {
         HStack(spacing: 12) {
-            Button { showResignConfirm = true } label: {
-                Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-                Button("投了する", role: .destructive) { model.resign() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("現在の対局を終了します。CPUの勝ちになります。")
-            }
+            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。囲碁だけ間に「パス」を挟む。
+            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 10)) { showResignConfirm = true }
+                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
 
             Spacer(minLength: 0)
 
@@ -355,35 +429,7 @@ public struct GoView: View {
 
             Spacer(minLength: 0)
 
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
-                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    guard model.undoUsed else {
-                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
-                        // アラートの終了アニメーションに巻き込まれる）。
-                        Task { model.undoLastExchange() }
-                        return
-                    }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する
-                    undoRescue.request(
-                        services, gameID: model.gameID, purpose: .undo,
-                        guardedBy: .unchecked(note: "対局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
-                    ) {
-                        model.undoLastExchange()
-                        return true
-                    }
-                }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
-            }
-            .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
+            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
         }
         .themeBody(14)
         .padding(.horizontal, 12).padding(.vertical, 8)
@@ -476,7 +522,7 @@ private struct GoBoardCanvas: View, Animatable {
 
                     let cx = pad + CGFloat(col) * s
                     let cy = pad + CGFloat(row) * s
-                    let r = s * 0.47 * (0.55 + 0.45 * appear)
+                    let r = s * GoBoardMetrics.stoneRadiusRatio * (0.55 + 0.45 * appear)
                     let rect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
                     let path = Path(ellipseIn: rect)
 

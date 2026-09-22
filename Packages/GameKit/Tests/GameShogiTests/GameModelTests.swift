@@ -1,7 +1,9 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GameShogi
+import CoreTestSupport
 
 @MainActor
 @Suite("対局モデル（人間→CPU の流れ）")
@@ -67,7 +69,7 @@ struct ShogiGameModelTests {
 
     @Test("成り・不成の選択をやめると着手されず、駒の選択も解ける")
     func promotionCanBeCancelled() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         // 先手歩が 5d から 5c（成り可否が両方合法な、強制成りでないマス）へ進める局面。
         try store.save(
             ShogiSnapshot(
@@ -95,21 +97,7 @@ struct ShogiGameModelTests {
 
 // MARK: - CPU 起動トリガー（#82: 後手を選ぶと CPU が初手を指さない）
 
-private final class MockSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
-private func makeServices(_ store: MockSnapshotStore) -> GameServices {
+private func makeServices(_ store: MemorySnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
@@ -159,7 +147,7 @@ struct ShogiAITurnKeyTests {
 
     /// 「続きから」再開時も手番の判定が保存内容どおりに復元される。
     @Test func resumedGameRestoresSides() {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let first = ShogiGameModel(services: makeServices(store))
         first.newGame(humanSide: .white)
 
@@ -172,42 +160,6 @@ struct ShogiAITurnKeyTests {
 
 // MARK: - 思考中の新規対局（#145: 旧タスクの思考フラグで新しい対局の CPU が止まる）
 
-/// 思考タスクを探索の開始直前で止めておくためのゲート（#172。オセロ側と同じ仕組み）。
-///
-/// 以前は「思考タスクを積んだ直後に空タスクを積む」という MainActor のジョブ順序で待ち合わせて
-/// いたが、これは「空タスクが走る時点で探索がまだ終わっていない」ことまでは保証できない。
-/// 将棋は探索が重いぶん実際には落ちていなかったが、穴はオセロ（#172 で顕在化）と同じであるため
-/// 同じ方式へ揃える。`Task.sleep` でフラグを見張る形に戻さないこと（#145 / #152）。
-@MainActor
-final class ThinkingGate {
-    private var hasArrived = false
-    private var isReleased = false
-    private var onArrival: CheckedContinuation<Void, Never>?
-    private var onRelease: CheckedContinuation<Void, Never>?
-
-    /// 思考タスク側。ゲートへの到達を知らせ、`release()` まで停止する。
-    func wait() async {
-        hasArrived = true
-        onArrival?.resume()
-        onArrival = nil
-        guard !isReleased else { return }
-        await withCheckedContinuation { onRelease = $0 }
-    }
-
-    /// テスト側。思考タスクがゲートに到達するまで待つ。
-    func waitUntilArrived() async {
-        guard !hasArrived else { return }
-        await withCheckedContinuation { onArrival = $0 }
-    }
-
-    /// テスト側。止めていた思考タスクを探索へ進ませる。
-    func release() {
-        isReleased = true
-        onRelease?.resume()
-        onRelease = nil
-    }
-}
-
 @MainActor
 @Suite("将棋 思考中の新規対局")
 struct ShogiNewGameDuringThinkingTests {
@@ -215,8 +167,8 @@ struct ShogiNewGameDuringThinkingTests {
     ///
     /// ゲートは一度到達したら外す（`thinkingGate = nil`）。停止中の旧タスクはすでにゲートの中に
     /// いるため影響を受けず、以降に始まる新しい対局の思考は素通りする。
-    private func startThinking(_ model: ShogiGameModel) async throws -> (task: Task<Void, Never>, gate: ThinkingGate) {
-        let gate = ThinkingGate()
+    private func startThinking(_ model: ShogiGameModel) async throws -> (task: Task<Void, Never>, gate: TaskGate) {
+        let gate = TaskGate()
         model.thinkingGate = { await gate.wait() }
         let task = Task { await model.performAIMoveIfNeeded() }
         await gate.waitUntilArrived()
@@ -293,7 +245,7 @@ struct ShogiRepetitionTests {
     }
 
     @MainActor
-    private func humanVsHumanModel(_ store: MockSnapshotStore) -> ShogiGameModel {
+    private func humanVsHumanModel(_ store: MemorySnapshotStore) -> ShogiGameModel {
         let model = ShogiGameModel(services: makeServices(store))
         model.sente = .human
         model.gote = .human
@@ -302,7 +254,7 @@ struct ShogiRepetitionTests {
 
     @Test("同一局面が 2 回・3 回では終局しない")
     func doesNotEndBeforeFourthOccurrence() {
-        let model = humanVsHumanModel(MockSnapshotStore())
+        let model = humanVsHumanModel(MemorySnapshotStore())
         playCycles(2, on: model)   // 初期局面の出現は 0・4・8 手目の 3 回
         #expect(model.moves.count == 8)
         #expect(model.gameOver == false)
@@ -311,7 +263,7 @@ struct ShogiRepetitionTests {
 
     @Test("同一局面が 4 回現れたら千日手で引き分けになる")
     func fourfoldRepetitionEndsAsDraw() {
-        let model = humanVsHumanModel(MockSnapshotStore())
+        let model = humanVsHumanModel(MemorySnapshotStore())
         playCycles(3, on: model)   // 0・4・8・12 手目で 4 回目
         #expect(model.moves.count == 12)
         #expect(model.gameOver)
@@ -321,7 +273,7 @@ struct ShogiRepetitionTests {
 
     @Test("千日手はアプリを再起動しても引き分けのまま復元される")
     func repetitionSurvivesRestart() {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         let model = humanVsHumanModel(store)
         playCycles(3, on: model)
         #expect(model.resultText == "引き分け（千日手）")
@@ -334,7 +286,7 @@ struct ShogiRepetitionTests {
 
     @Test("詰みで終わった対局を再起動しても勝敗表示が残る（#375）")
     func checkmateResultSurvivesRestart() throws {
-        let store = MockSnapshotStore()
+        let store = MemorySnapshotStore()
         // 先手: 6c/5c/4c 金 + 1i 玉、後手: 5a 玉のみ。▲5c5b で 5a 玉は詰み。
         try store.save(
             ShogiSnapshot(

@@ -2,26 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameFreeCell
-
-/// 中断データの保存先。書いた中身をそのまま読み返せる最小の実装。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        storage[gameID] = try JSONEncoder().encode(snapshot)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = storage[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for gameID: String) { storage.removeValue(forKey: gameID) }
-
-    func exists(for gameID: String) -> Bool { storage[gameID] != nil }
-
-    var isEmpty: Bool { storage.isEmpty }
-}
+import CoreTestSupport
 
 @MainActor
 private func makeServices(store: SnapshotStore = MemorySnapshotStore()) -> GameServices {
@@ -164,6 +145,18 @@ struct FreeCellModelTests {
         model.newGame()
         #expect(model.undosRemaining == FreeCellUndoBudget.free)
         #expect(model.moveCount == 0)
+    }
+
+    /// 種は 1200 個。除かなかった場合に 10000 回すべて直前と違う確率は約 0.02% なので、
+    /// 除外を外すとほぼ確実に赤くなる（2000 回だと約 19% の確率で緑のまま通り抜けた。#914 の変異テストで実測）。
+    @Test("「新しいゲーム」を 10000 回押しても直前と同じ配札が出ない")
+    func newGameNeverRepeatsPreviousDeal() {
+        let model = FreeCellModel(services: makeServices(), seed: firstSeed())
+        for _ in 0..<10_000 {
+            let previous = model.dealNumber
+            model.newGame()
+            #expect(model.dealNumber != previous)
+        }
     }
 
     // MARK: - 中断復元（契約: 種 + 手順）
