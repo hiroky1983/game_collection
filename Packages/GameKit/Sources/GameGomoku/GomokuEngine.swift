@@ -113,7 +113,6 @@ public struct SimpleGomokuEngine: GomokuEngine {
         case .novice:  (depth, timeLimit) = (1, 0.4)
         case .easy:    (depth, timeLimit) = (1, 0.4)
         case .hard:    (depth, timeLimit) = (5, 1.5)
-        case .serious: (depth, timeLimit) = (7, 3.0)
         case .normal:  (depth, timeLimit) = (4, 0.8)
         }
         if let maxDepth { depth = maxDepth }   // テスト用: 反復深化の上限を絞る（#1226）

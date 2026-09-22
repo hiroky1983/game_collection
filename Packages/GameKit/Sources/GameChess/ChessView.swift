@@ -585,7 +585,7 @@ struct ChessNewGameSheet: View {
             GameSetupSection("CPUの強さ") {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleChessEngine.init(level:)`。
                 CPUStrengthPicker(level: $level, details: [
-                    "手なりで指す", "駒の損得だけ", "駒の働きも見る", "定跡＋深読み", "とことん読む",
+                    "手なりで指す", "駒の損得だけ", "駒の働きも見る", "定跡＋深読み",
                 ])
             }
             GameSetupSection("駒の見た目") {

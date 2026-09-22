@@ -258,15 +258,14 @@ struct GomokuInvalidTapTests {
 @Suite("Gomoku 強さ表示")
 struct GomokuStrengthLabelTests {
 
-    /// 実際の探索深さは 1/1/4/5/7（「簡単」は #665 で探索をやめ、1手先の形だけを見る。
-    /// 「入門」は #1174 でその簡単と同じ読みのまま防御率だけを下げた）。
-    /// この前提が変わったら表示も見直す。
-    @Test func engineDepthsAreOneOneFourFiveSeven() {
+    /// 実際の探索深さは 1/1/4/5（「簡単」は #665 で探索をやめ、1手先の形だけを見る。
+    /// 「入門」は #1174 でその簡単と同じ読みのまま防御率だけを下げた。「ガチ」は
+    /// v1.1.6 で一旦見送り・#1258 参照）。この前提が変わったら表示も見直す。
+    @Test func engineDepthsAreOneOneFourFive() {
         #expect(SimpleGomokuEngine(level: -1).depth == 1)
         #expect(SimpleGomokuEngine(level: 0).depth == 1)
         #expect(SimpleGomokuEngine(level: 1).depth == 4)
         #expect(SimpleGomokuEngine(level: 2).depth == 5)
-        #expect(SimpleGomokuEngine(level: 3).depth == 7)
     }
 
     /// 手数を名乗らない。反復深化＋時間制限（0.4/0.8/1.5秒）で打ち切られるため、
@@ -284,9 +283,9 @@ struct GomokuStrengthLabelTests {
     @Test func viewUsesOthelloStyleWording() throws {
         let source = try Self.viewSource()
         #expect(source.contains(#"GameSetupSection("CPUの強さ")"#))
-        // 5 段階（#1174）。並びは `CPUStrength` のやさしい順と同じ。
+        // #1174。並びは `CPUStrength` のやさしい順と同じ（「ガチ」はv1.1.6で一旦見送り）。
         #expect(source.contains("CPUStrengthPicker(level: $level"))
-        for wording in ["見のがしが多い", "浅い読み", "標準", "深い読み", "とことん読む"] {
+        for wording in ["見のがしが多い", "浅い読み", "標準", "深い読み"] {
             #expect(
                 SourceScan.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,
                 "「\(wording)」が1箇所でない（強さ選択の文言が変わっている）"

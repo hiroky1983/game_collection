@@ -2,22 +2,23 @@ import SwiftUI
 
 public extension CPUStrength {
     /// タイルの面色。上に載る文字は `Theme.onAccent`（#220）。
-    /// 既存 3 段階の色（teal / yellow / coral）は動かさず、両端に pink・purple を足している。
+    /// 既存 3 段階の色（teal / yellow / coral）は動かさず、下に pink を足している。
+    /// 「ガチ」（purple）は v1.1.6 で一旦見送り（`CPUStrength.swift` 参照）。
     var accent: Color {
         switch self {
-        case .novice:  return Theme.Fill.pink
-        case .easy:    return Theme.Fill.teal
-        case .normal:  return Theme.Fill.yellow
-        case .hard:    return Theme.Fill.coral
-        case .serious: return Theme.Fill.purple
+        case .novice: return Theme.Fill.pink
+        case .easy:   return Theme.Fill.teal
+        case .normal: return Theme.Fill.yellow
+        case .hard:   return Theme.Fill.coral
         }
     }
 }
 
-/// 開始シートで「CPUの強さ」を選ぶ 5 段階の並び（#1174）。
+/// 開始シートで「CPUの強さ」を選ぶ段階の並び（#1174）。
 ///
-/// 段が 5 つになったので、タイルの中に副題（探索の中身）まで入れると iPhone SE では
-/// 読めない大きさになる。そこで**タイルは呼び名だけ**にし、選んでいる段の説明を下の 1 行に出す。
+/// 「ガチ」を含む5段階だったときにタイルの中に副題（探索の中身）まで入れると iPhone SE では
+/// 読めない大きさになった経緯があり、そこで**タイルは呼び名だけ**にし、選んでいる段の説明を
+/// 下の1行に出す形にした（「ガチ」見送り後の4段階でもこの形のまま据え置く）。
 /// 「表示している文言と探索の中身を一致させる」約束（#416）はこの 1 行が引き継ぐので、
 /// `details` には各ゲームのエンジンが実際にやっていることを書くこと。
 ///

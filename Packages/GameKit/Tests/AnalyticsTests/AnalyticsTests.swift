@@ -298,19 +298,20 @@ struct AnalyticsEventShapeTests {
         #expect(AnalyticsLevel.stage(0).parameterValue == "stage-1", "0 以下は 1 に丸める")
     }
 
-    /// CPU 対戦の5段階（#1174）は 0 始まりではないので `aiStrength` ではなく
+    /// CPU 対戦の強さ（#1174）は 0 始まりではないので `aiStrength` ではなく
     /// `CPUStrength` が写す。**既存3段階の値を動かしていない**ことがここの要点で、
     /// 段を足したあとも GA4 に貯まっている beginner / normal / hard がそのまま続く。
-    @Test("CPU対戦の5段階は既存3段階の値を変えずに両端を足している（#1174）")
+    /// 「ガチ」（3・expert）は v1.1.6 で一旦見送り、知らない番号として既定に丸まる。
+    @Test("CPU対戦の強さは既存3段階の値を変えずに下へ足している（#1174）")
     func cpuStrengthKeepsExistingAnalyticsValues() {
         #expect(CPUStrength.allCases.map(\.analyticsLevel.parameterValue)
-                == ["novice", "beginner", "normal", "hard", "expert"])
+                == ["novice", "beginner", "normal", "hard"])
         #expect(CPUStrength.analyticsLevel(forLevel: 0) == .beginner, "簡単は従来の「弱」と同じ値")
         #expect(CPUStrength.analyticsLevel(forLevel: 1) == .normal)
         #expect(CPUStrength.analyticsLevel(forLevel: 2) == .hard)
         #expect(CPUStrength.analyticsLevel(forLevel: -1) == .novice)
-        #expect(CPUStrength.analyticsLevel(forLevel: 3) == .expert)
-        // 知らない番号は既定（ふつう）に倒す。
+        // 見送った「ガチ」（3）を含め、知らない番号は既定（ふつう）に倒す。
+        #expect(CPUStrength.analyticsLevel(forLevel: 3) == .normal)
         #expect(CPUStrength.analyticsLevel(forLevel: 99) == .normal)
     }
 }
@@ -1282,14 +1283,10 @@ struct StartSheetLevelTests {
         othello.newGame(aiLevel: 0)
         #expect(othelloSpy.startLevels == [nil, .beginner])
 
-        // #1174 で足した両端（入門 = -1・ガチ = 3）も、その段のまま載る。
+        // #1174 で足した「入門」（-1）も、その段のまま載る（「ガチ」は v1.1.6 で一旦見送り）。
         let (noviceServices, noviceSpy) = makeServices()
         OthelloModel(services: noviceServices).newGame(aiLevel: CPUStrength.novice.rawValue)
         #expect(noviceSpy.startLevels == [nil, .novice])
-
-        let (seriousServices, seriousSpy) = makeServices()
-        ShogiGameModel(services: seriousServices).newGame(aiLevel: CPUStrength.serious.rawValue)
-        #expect(seriousSpy.startLevels == [nil, .expert])
     }
 
     /// リザルトの「階段」（#722）は花札だけ開始シートを通らず `restartMatch` で始め直す。

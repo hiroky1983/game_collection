@@ -25,10 +25,10 @@ struct ChessPieceStyleTests {
     @Test("選んだ意匠は保存され、次に読んだときも同じ")
     func persists() {
         let pref = makePreference("persist")
-        pref.style = .sculpted
-        #expect(pref.style == .sculpted)
+        pref.style = .real
+        #expect(pref.style == .real)
         // 同じ保存先を別に組み立てても（＝アプリを起動し直しても）読める。
-        #expect(ChessPieceStylePreference(defaults: UserDefaults(suiteName: "asobiba.chess.tests.persist")!).style == .sculpted)
+        #expect(ChessPieceStylePreference(defaults: UserDefaults(suiteName: "asobiba.chess.tests.persist")!).style == .real)
     }
 
     @Test("読めない値が入っていたら既定へ倒す")
@@ -37,6 +37,15 @@ struct ChessPieceStyleTests {
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         defaults.set("marble", forKey: ChessPieceStylePreference.key)
+        #expect(ChessPieceStylePreference(defaults: defaults).style == .flat)
+    }
+
+    @Test("廃止した「立体」を選んでいた人の保存値は既定（シンプル）へ倒す（会長指摘・#1015 で廃止）")
+    func removedSculptedValueFallsBackToFlat() {
+        let name = "asobiba.chess.tests.sculpted-migration"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        defaults.set("sculpted", forKey: ChessPieceStylePreference.key)
         #expect(ChessPieceStylePreference(defaults: defaults).style == .flat)
     }
 
@@ -56,63 +65,6 @@ struct ChessPieceStyleTests {
                 == [ChessBoardStyle.blackPieceTop, ChessBoardStyle.blackPieceBottom])
     }
 
-    @Test("立体は照り・ツヤ・陰を持ち、面の色は既定と同じものを使う")
-    func sculptedAddsLightOnly() {
-        for color in ChessColor.allCases {
-            let flat = ChessPieceStyle.flat.shading(for: color)
-            let sculpted = ChessPieceStyle.sculpted.shading(for: color)
-            #expect(sculpted.fill == flat.fill, "色を替えるのではなく光の当て方だけを替える")
-            #expect(sculpted.highlight != nil)
-            #expect(sculpted.hasOverlay)
-            #expect(sculpted.sheen > 0)
-            #expect(sculpted.depth > 0)
-            #expect(sculpted.shadowOpacity > flat.shadowOpacity, "立体のほうが影は濃い")
-        }
-    }
-
-    @Test("照りの中心は左上（碁石・五目の石と同じ光源）")
-    func highlightComesFromUpperLeft() {
-        for color in ChessColor.allCases {
-            let highlight = ChessPieceStyle.sculpted.shading(for: color).highlight
-            #expect(highlight != nil)
-            #expect(highlight!.x < 0.5)
-            #expect(highlight!.y < 0.5)
-        }
-    }
-
-    @Test("立体の陰影の値を実測値で固定する")
-    func sculptedValuesArePinned() {
-        // 相対比較（ツヤ > 0・黒 < 白 など）だけにすると、値を大きく崩す変異が素通りする
-        // （敵対的検証で実測: `highlightRadius` を 1.15 → 3.5 にしても全テストが緑のままだった）。
-        // ここはシミュレータで見た目を確かめて決めた値なので、動かすときは撮り直しが要る。
-        let white = ChessPieceStyle.sculpted.shading(for: .white)
-        #expect(white.highlight == CGPoint(x: 0.34, y: 0.26))
-        #expect(white.highlightRadius == 1.15)
-        #expect(white.sheen == 0.42)
-        #expect(white.depth == 0.18)
-        #expect(white.shadowOpacity == 0.34)
-
-        let black = ChessPieceStyle.sculpted.shading(for: .black)
-        #expect(black.highlight == CGPoint(x: 0.34, y: 0.26), "光源は色によらず同じ")
-        #expect(black.highlightRadius == 1.15)
-        #expect(black.sheen == 0.30)
-        #expect(black.depth == 0.30)
-        #expect(black.shadowOpacity == 0.40)
-
-        for shading in [white, black] {
-            #expect(shading.shadowRadius == 0.05)
-            #expect(shading.shadowOffset == 0.035)
-        }
-    }
-
-    @Test("ツヤは黒駒のほうが弱く、陰は黒駒のほうが強い")
-    func sculptedSplitsByPieceColor() {
-        let white = ChessPieceStyle.sculpted.shading(for: .white)
-        let black = ChessPieceStyle.sculpted.shading(for: .black)
-        #expect(black.sheen < white.sheen, "暗い面に同じ白を乗せると塗料のように光る")
-        #expect(black.depth > white.depth, "明るい面に同じ陰を落とすと下半分が濁る")
-    }
-
     @Test("駒の形（部品の並び）は意匠に依存しない")
     func silhouetteIsSharedAcrossStyles() {
         // 図案は `ChessPieceArt` が持ち、意匠は `shading` しか触らない。
@@ -128,13 +80,12 @@ struct ChessPieceStyleTests {
         }
     }
 
-    @Test("意匠は 3 つで、保存キーは v1")
+    @Test("意匠は 2 つ（「立体」は#1015のリアル追加を受けて廃止）、保存キーは v1")
     func casesAndKey() {
-        #expect(ChessPieceStyle.allCases == [.flat, .sculpted, .real], "並び順が設定シートの並び順になる")
+        #expect(ChessPieceStyle.allCases == [.flat, .real], "並び順が設定シートの並び順になる")
         #expect(ChessPieceStyle.flat.rawValue == "flat")
-        #expect(ChessPieceStyle.sculpted.rawValue == "sculpted")
         #expect(ChessPieceStyle.real.rawValue == "real")
-        // 改名すると、既に立体を選んでいる人の設定が既定へ戻る。
+        // 改名すると、既に選んでいる人の設定が既定へ戻る。
         #expect(ChessPieceStylePreference.key == "chessPieceStyle_v1")
     }
 
