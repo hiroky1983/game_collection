@@ -28,7 +28,7 @@ public enum BlocksScoring {
     public static func blockPoints(kind: BlockKind, destroyed: Bool, stage: Int) -> Int {
         let base: Int
         switch (kind, destroyed) {
-        case (.solid, _):        base = 0
+        case (.solid, _), (.vaultWall, _): base = 0
         case (.normal, true):    base = normalDestroyedPoints
         case (.normal, false):   base = 0      // 通常ブロックは 1 発で壊れるのでこの組み合わせは来ない
         case (.hard, true):      base = hardDestroyedPoints

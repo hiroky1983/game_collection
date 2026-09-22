@@ -21,6 +21,18 @@ private final class SpyScheduler: ReengagementReminderScheduler {
     private var held: [CheckedContinuation<Void, Never>] = []
     var heldCount: Int { held.count }
 
+    /// true のあいだ `schedule` がそこで止まる（予約を追加している最中の競合を作るため）。
+    var holdsSchedule = false
+    private var heldSchedules: [CheckedContinuation<Void, Never>] = []
+    var heldScheduleCount: Int { heldSchedules.count }
+
+    func releaseSchedule() {
+        holdsSchedule = false
+        let waiting = heldSchedules
+        heldSchedules.removeAll()
+        waiting.forEach { $0.resume() }
+    }
+
     init(status: ReminderAuthorization = .authorized, statusAfterRequest: ReminderAuthorization = .authorized) {
         self.status = status
         self.statusAfterRequest = statusAfterRequest
@@ -47,6 +59,9 @@ private final class SpyScheduler: ReengagementReminderScheduler {
     }
 
     func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
+        if holdsSchedule {
+            await withCheckedContinuation { heldSchedules.append($0) }
+        }
         if fireDates.isEmpty {
             scheduled[gameID] = nil
             contents[gameID] = nil
@@ -217,6 +232,22 @@ struct ReengagementReminderPolicyTests {
         let resolved = ReengagementReminderPolicy.resolvingCollisions(threads: threads, calendar: tokyo)
         #expect(resolved["shogi"] == [sameDay, otherDay], "衝突しなかった shogi の 60 日後はそのまま残る")
         #expect(resolved["go"] == nil, "go の 7 日後は shogi の 30 日後に負けてスキップされる")
+    }
+
+    @Test("同じ暦日に同じ日数が重なっても 1 件だけ残り、gameID の昇順で先の方が勝つ")
+    func resolvingCollisionsKeepsSingleEntryOnTie() {
+        let sameDay = date(10, 19)
+        let threads: [String: [(days: Int, date: Date)]] = [
+            "shogi": [(30, sameDay)],
+            "go": [(30, sameDay)],
+            "2048": [(30, sameDay)],
+        ]
+        // Dictionary の反復順に依存しないことを確かめるため、入力を作り直して何度も解く。
+        for _ in 0..<20 {
+            let shuffled = Dictionary(uniqueKeysWithValues: threads.shuffled())
+            let resolved = ReengagementReminderPolicy.resolvingCollisions(threads: shuffled, calendar: tokyo)
+            #expect(resolved == ["2048": [sameDay]], "同率の予定が複数残った、または勝者が揺れた: \(resolved)")
+        }
     }
 }
 
@@ -514,6 +545,59 @@ struct ReengagementReminderServiceTests {
         await service.pendingWork?.value
 
         #expect(spy.scheduled.isEmpty)
+    }
+
+    @Test("非表示にしたゲームの既存スレッドは、新しい対象が無くても予約と記録を後始末する")
+    func hiddenGameThreadIsCleanedUpWithoutNewTarget() async {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(8, 8))
+        let store = freshStore()
+        let service = makeService(spy, env, store: store)
+        let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
+
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await service.pendingWork?.value
+        #expect(spy.scheduled["shogi"] != nil)
+        #expect(store.activeThreads["shogi"] != nil)
+
+        env.hidden = ["shogi"]
+        service.applicationDidEnterBackground(games: games, availableIDs: [])
+        await service.pendingWork?.value
+
+        #expect(spy.scheduled["shogi"] == nil, "非表示ゲームの予約が残っている")
+        #expect(spy.cancelledGameIDs.contains("shogi"))
+        #expect(store.activeThreads["shogi"] == nil, "非表示ゲームのスレッドが永続状態に残っている")
+    }
+
+    @Test("予約の追加中に判定がやり直されたら新規スレッドの記録を巻き戻し、次の判定で予約し直せる")
+    func abortedAdditionRollsBackNewThread() async throws {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(8, 8))
+        let store = freshStore()
+        let service = makeService(spy, env, store: store)
+        let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
+        spy.holdsSchedule = true
+
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        var spins = 0
+        while spy.heldScheduleCount == 0 {
+            await Task.yield()
+            spins += 1
+            try #require(spins < 10_000, "予約の処理が schedule に到達しない")
+        }
+        // 追加の完了を待つ間に世代が進む（別ゲームを開いた）。
+        service.gameDidOpen(gameID: "go")
+        spy.releaseSchedule()
+        await service.pendingWork?.value
+
+        #expect(spy.scheduled.isEmpty, "中断されたのに予約が残った")
+        #expect(store.activeThreads.isEmpty, "中断された新規スレッドの記録が残っている")
+        #expect(store.lastThreadAddedAt == nil, "クールダウンの起点が巻き戻されていない")
+
+        // 対照: 巻き戻されていれば、次の判定で同じゲームが再び予約される。
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await service.pendingWork?.value
+        #expect(spy.scheduled["shogi"]?.count == 3, "次の判定でも予約し直されない")
     }
 
     @Test("許諾の問い合わせを待つ間に対象が無くなった・設定を切られたなら予約しない")

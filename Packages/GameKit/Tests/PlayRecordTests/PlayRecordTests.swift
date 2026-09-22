@@ -19,6 +19,7 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+@testable import GameShiritori
 import GameSpider
 import GameChess
 import MahjongTiles
@@ -1012,6 +1013,21 @@ struct GameRecordingTests {
         #expect(record?.wins == 1, "ステージクリアは勝ち")
     }
 
+    @Test("カードしりとり: 決着で勝敗が記録され、ハブに1行出る")
+    func shiritoriRecordsWinLoss() async {
+        let (log, defaults, name) = makeLog(suite: "shiritori")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = ShiritoriModel(services: makeServices(log: log), cpuDelay: .zero, seed: 2026)
+        await playShiritori(model)
+
+        #expect(model.phase == .result)
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: "shiritori")?.plays == 1)
+        #expect(log.record(gameID: "shiritori")?.metric == .winLoss)
+        #expect(log.summaryLine(gameID: "shiritori") != nil)
+    }
+
     @Test("花札こいこい: 合計文数を見出しにし、勝敗も残る")
     func hanafudaRecordsPoints() {
         let (log, defaults, name) = makeLog(suite: "hanafuda")
@@ -1313,6 +1329,20 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
 }
 
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// 取れる札の先頭を取り、CPU の番は進めて、決着まで遊ぶ（カードしりとり）。
+@MainActor
+private func playShiritori(_ model: ShiritoriModel, quota: ShiritoriQuota = .normal) async {
+    model.startGame(quota: quota)
+    for _ in 0..<60 where model.phase == .playing {
+        if model.isPlayerTurn {
+            guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { break }
+            model.select(move.slot)
+        } else {
+            await model.runCPUTurnIfNeeded()
+        }
+    }
+}
+
 /// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
 @MainActor
 private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
