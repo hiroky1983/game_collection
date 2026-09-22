@@ -129,7 +129,7 @@ public struct RunnerView: View {
                 .imageScale(.large)
                 // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
                 // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
-                // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「とばす」で抜けられる。
+                // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
                 .disabled(presentedStory != nil)
             }
         }
@@ -157,7 +157,7 @@ public struct RunnerView: View {
                 RunnerStoryView(scene: scene) {
                     if introScene != nil {
                         introScene = nil
-                        // 最後のコマまで送った／「とばす」（画面タップ）で抜けた時点が
+                        // 最後のコマまで送った／「スキップ」（画面タップ）で抜けた時点が
                         // 「見せた」。途中で戻った人には次回もう一度流す（#1144）。
                         RunnerStory.markIntroShown(playLog: services.playLog)
                         beginAfterIntro()

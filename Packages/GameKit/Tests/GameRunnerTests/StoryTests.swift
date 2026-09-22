@@ -80,13 +80,15 @@ struct RunnerStoryTests {
         #expect(RunnerStory.ending(forClearedStage: RunnerRules.stageCount + 1) == nil)
     }
 
-    @Test("どの場面もコマが 1 枚以上あり、尺は 5 秒以内、台詞は SE の幅に収まる長さ")
+    @Test("どの場面もコマが 1 枚以上あり、尺は 7 秒以内、台詞は SE の幅に収まる長さ")
     func panelsAreShortEnough() {
+        // 上限は元は 5 秒だったが、`panelDuration` を 1.2→1.6 秒に伸ばしたことで
+        // いちばん長い港町（4コマ）が 6.4 秒になった（会長指摘・2026-09-22）。
         for scene in RunnerStoryScene.all {
             let panels = scene.panels
             #expect(!panels.isEmpty, "\(scene): コマが無い")
             let seconds = Double(panels.count) * RunnerStory.panelDuration
-            #expect(seconds <= 5.0, "\(scene): \(seconds) 秒（1 場面は長くても 5 秒程度）")
+            #expect(seconds <= 7.0, "\(scene): \(seconds) 秒（1 場面は長くても 7 秒程度）")
             #expect(!scene.title.isEmpty)
             for panel in panels {
                 #expect(!panel.line.isEmpty, "\(scene): 台詞が空のコマがある")
@@ -291,7 +293,7 @@ struct RunnerStoryTests {
         // 自動送り（`Task.sleep`）へ入る前に抜ける。
         #expect(view.contains("guard !voiceOverEnabled else { return }"))
         #expect(view.contains("if voiceOverEnabled {"), "自分で送る操作が出ていない")
-        #expect(view.contains("つぎへ") && view.contains("おわり") && view.contains("とばす"))
+        #expect(view.contains("つぎへ") && view.contains("おわり") && view.contains("スキップ"))
         // 背後のコースへ回り込ませない。
         #expect(view.contains(".accessibilityAddTraits(.isModal)"))
     }
