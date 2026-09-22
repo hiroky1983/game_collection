@@ -8,7 +8,7 @@ public struct ShiritoriView: View {
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: ShiritoriModel(services: services))
+        _model = State(initialValue: ShiritoriModel(services: services, cpuCursorDelay: .milliseconds(400)))
     }
 
     public var body: some View {
@@ -45,6 +45,12 @@ public struct ShiritoriView: View {
             } onCancel: { showSetup = false }
         }
         .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-shiritoriCPUCursorProbe") {
+                model.debugShowCPUCursor()
+                return
+            }
+            #endif
             // 開いた直後は難易度を選ばせる。
             if model.phase == .idle { showSetup = true }
         }
@@ -171,7 +177,8 @@ public struct ShiritoriView: View {
         ) {
             ForEach(Array(model.slots.enumerated()), id: \.element.card.id) { index, slot in
                 ShiritoriCardTile(card: slot.card, reading: slot.card.primaryReading,
-                                  style: .board(owner: slot.owner, selectable: model.isSelectable(index)))
+                                  style: .board(owner: slot.owner, selectable: model.isSelectable(index),
+                                                isCPUCursor: model.cpuCursorSlot == index))
                     .contentShape(Rectangle())
                     .onTapGesture { select(index) }
                     .accessibilityElement(children: .ignore)
@@ -183,7 +190,10 @@ public struct ShiritoriView: View {
         .padding(.horizontal, 8).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .popCard(corner: Theme.cornerSmall)
-        .gameAnimation(.easeInOut(duration: 0.15), value: model.slots)
+        // slots と cpuCursorSlot を1つの Equatable にまとめて modifier を1つだけ掛ける
+        // （.gameAnimation の入れ子・多重掛けは内側が外側のトランザクションを打ち消すため禁止）。
+        .gameAnimation(.easeInOut(duration: 0.15),
+                       value: ShiritoriBoardAnimationState(slots: model.slots, cpuCursorSlot: model.cpuCursorSlot))
     }
 
     /// 札を取る。CPU の手番は `.task(id: model.isPlayerTurn)` が進める。
@@ -249,6 +259,14 @@ public struct ShiritoriView: View {
     }
 }
 
+// MARK: - 盤のアニメーション対象
+
+/// `boardArea` の `.gameAnimation` に渡す 1 つの値（#1286）。
+private struct ShiritoriBoardAnimationState: Equatable {
+    let slots: [ShiritoriSlot]
+    let cpuCursorSlot: Int?
+}
+
 // MARK: - 盤の寸法
 
 enum ShiritoriBoardLayout {
@@ -261,7 +279,7 @@ enum ShiritoriBoardLayout {
 struct ShiritoriCardTile: View {
     enum Style: Equatable {
         case current
-        case board(owner: ShiritoriOwner?, selectable: Bool)
+        case board(owner: ShiritoriOwner?, selectable: Bool, isCPUCursor: Bool)
     }
 
     let card: ShiritoriCard
@@ -269,8 +287,14 @@ struct ShiritoriCardTile: View {
     let style: Style
 
     private var owner: ShiritoriOwner? {
-        if case let .board(owner, _) = style { return owner }
+        if case let .board(owner, _, _) = style { return owner }
         return nil
+    }
+
+    /// CPU が次に取ろうとしている札か（#1286: 取る前にカーソルが動く演出）。
+    private var isCPUCursor: Bool {
+        if case let .board(_, _, isCPUCursor) = style { return isCPUCursor }
+        return false
     }
 
     private var isCurrent: Bool { style == .current }
@@ -301,7 +325,7 @@ struct ShiritoriCardTile: View {
                 .fill(CardStyle.faceFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(borderColor, lineWidth: isCurrent ? 2.5 : (owner == nil ? 1 : 2))
+                        .stroke(borderColor, lineWidth: (isCurrent || isCPUCursor) ? 2.5 : (owner == nil ? 1 : 2))
                 )
         )
         .opacity(owner == nil ? 1 : 0.55)
@@ -309,7 +333,7 @@ struct ShiritoriCardTile: View {
     }
 
     private var borderColor: Color {
-        if isCurrent { return Theme.yellow }
+        if isCurrent || isCPUCursor { return Theme.yellow }
         switch owner {
         case .player: return Theme.teal
         case .cpu:    return Theme.coral

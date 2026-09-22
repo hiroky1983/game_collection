@@ -325,6 +325,40 @@ struct ShiritoriModelTests {
         #expect(!model.isPaused, "新しいゲームは止まらずに始まる")
     }
 
+    @Test("CPU の手番はまずカーソルが対象へ移り、間を置いてから確定する（#1286）")
+    func cpuTurnMovesCursorBeforeClaiming() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, cpuCursorDelay: .milliseconds(20), seed: 1)
+        model.configureForTesting(opener: apple, board: [gorilla, otter, top, squirrel])
+        model.select(0)   // ごりら → CPU は らっこ（index 1）
+        #expect(model.cpuCursorSlot == nil, "カーソルはまだ立っていない")
+
+        let task = Task { await model.runCPUTurnIfNeeded() }
+        await Task { }.value   // CPU タスクの後ろに積まれるので、走った時点でカーソルは立っている
+        #expect(model.cpuCursorSlot == 1, "対象スロットへカーソルが動く")
+        #expect(model.slots[1].owner == nil, "カーソルが立った直後はまだ確定していない")
+
+        await task.value
+        #expect(model.cpuCursorSlot == nil, "確定したらカーソルは消える")
+        #expect(model.slots[1].owner == .cpu)
+    }
+
+    @Test("演出待ちの間に新しいゲームが始まったら、カーソルも残らない")
+    func staleCPUCursorIsClearedByNewGame() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, cpuCursorDelay: .milliseconds(20), seed: 1)
+        model.configureForTesting(opener: apple, board: [gorilla, otter])
+        model.select(0)
+        let pending = Task { await model.runCPUTurnIfNeeded() }
+        await Task { }.value
+        #expect(model.cpuCursorSlot != nil, "前提: カーソルが立っている")
+
+        model.startGame()   // 待っている間に次のゲームが配られる
+        await pending.value
+        #expect(model.cpuCursorSlot == nil)
+        #expect(model.cpuCount == 0)
+    }
+
     @Test("CPU の演出待ちがある構成でも 1 手だけ進み、同時に 2 回起動しても二重に指さない")
     func delayedCPUTurnRunsOnce() async {
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())

@@ -72,11 +72,15 @@ public final class ShiritoriModel: AITurnGuarded {
     /// 一時停止中か。ルールや新規ゲームのシートを開いている間、読んでいるだけで時間を取られないように
     /// 止める（#510）。次に札をタップした時点で再開する。
     public private(set) var isPaused = false
+    /// CPU が次に取ろうとしている札。考えた手が決まってから確定するまでの間だけセットする
+    /// （#1286: 取り札が瞬時に確定せず、カーソルが動いてから選ぶ演出のため）。
+    public private(set) var cpuCursorSlot: Int?
 
     private let services: GameServices?
     private let deck: [ShiritoriCard]
     let gameID = "shiritori"
     private let cpuDelay: Duration
+    private let cpuCursorDelay: Duration
     private var seed: UInt64?
     /// CPU の手番が二重に走らないようにする門番。
     var isRunningCPUTurns = false
@@ -85,11 +89,13 @@ public final class ShiritoriModel: AITurnGuarded {
         services: GameServices? = nil,
         deck: [ShiritoriCard] = ShiritoriCard.deck,
         cpuDelay: Duration = .milliseconds(800),
+        cpuCursorDelay: Duration = .zero,
         seed: UInt64? = nil
     ) {
         self.services = services
         self.deck = deck
         self.cpuDelay = cpuDelay
+        self.cpuCursorDelay = cpuCursorDelay
         self.seed = seed
     }
 
@@ -142,6 +148,7 @@ public final class ShiritoriModel: AITurnGuarded {
         phase = .playing
         isPlayerTurn = true
         isPaused = false
+        cpuCursorSlot = nil
 
         services?.feedback.impact(.medium)   // 札が配られた
         // 1 ゲーム = 1 プレイ。中断データは持たないので、画面を離れたら失われる（#663）。
@@ -241,6 +248,9 @@ public final class ShiritoriModel: AITurnGuarded {
     // MARK: - CPU
 
     /// CPU の手番なら 1 手進める。決着か人間の手番になったら止まる。
+    ///
+    /// 手が決まったらまず `cpuCursorSlot` を立てて `cpuCursorDelay` の間見せてから確定する
+    /// （#1286: 対象へカーソルが動いてから取る演出。`cpuDelay` は「考え始めるまでの間」のまま変えない）。
     public func runCPUTurnIfNeeded() async {
         await withAITurnRunner(running: \.isRunningCPUTurns) {
             guard phase == .playing, !isPlayerTurn else { return }
@@ -248,17 +258,25 @@ public final class ShiritoriModel: AITurnGuarded {
                 guard await pauseCPUTurn(for: cpuDelay) else { return }
                 guard phase == .playing, !isPlayerTurn else { return }
             }
-            performCPUTurn()
+            guard let tail = requiredTail,
+                  let move = ShiritoriRules.cpuMove(slots: slots, after: tail) else {
+                finish(.cpuStuck)
+                return
+            }
+            cpuCursorSlot = move.slot
+            if cpuCursorDelay > .zero {
+                guard await pauseCPUTurn(for: cpuCursorDelay) else {
+                    cpuCursorSlot = nil
+                    return
+                }
+                guard phase == .playing, !isPlayerTurn else {
+                    cpuCursorSlot = nil
+                    return
+                }
+            }
+            cpuCursorSlot = nil
+            claim(move.slot, reading: move.reading, by: .cpu)
         }
-    }
-
-    private func performCPUTurn() {
-        guard let tail = requiredTail,
-              let move = ShiritoriRules.cpuMove(slots: slots, after: tail) else {
-            finish(.cpuStuck)
-            return
-        }
-        claim(move.slot, reading: move.reading, by: .cpu)
     }
 
     // MARK: - テスト用
@@ -283,3 +301,20 @@ public final class ShiritoriModel: AITurnGuarded {
         self.isPlayerTurn = isPlayerTurn
     }
 }
+
+#if DEBUG
+extension ShiritoriModel {
+    /// 撮影用: CPU が対象スロットへカーソルを向けている状態を再現する
+    /// （`cpuCursorSlot` は中断データを持たないため注入できず、シミュレータは自動タップできない・#1286）。
+    func debugShowCPUCursor() {
+        configureForTesting(
+            opener: ShiritoriCard(.apple, "りんご"),
+            board: [ShiritoriCard(.gorilla, "ごりら"), ShiritoriCard(.spinningTop, "こま")],
+            isPlayerTurn: false
+        )
+        cpuCursorSlot = 0
+        // 本物の CPU 手番タスクが横から追い越して確定させないように、走者の枠を埋めておく。
+        isRunningCPUTurns = true
+    }
+}
+#endif
