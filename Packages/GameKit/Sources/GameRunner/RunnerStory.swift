@@ -105,9 +105,11 @@ public struct RunnerStoryPanel: Equatable, Sendable {
 // MARK: - 出す・出さないの判定
 
 public enum RunnerStory {
-    /// 1 コマの尺（秒）。`panels` の枚数を掛けたものが 1 場面の長さで、いちばん長い港町
-    /// （4 コマ）でも 5 秒に収まる（会長決裁「1 場面は長くても 5 秒程度」）。
-    public static let panelDuration: Double = 1.2
+    /// 1 コマの尺（秒）。`panels` の枚数を掛けたものが 1 場面の長さになる。
+    /// 当初 1.2 秒（いちばん長い港町=4コマでも5秒に収まる想定）だったが、
+    /// 実プレイで「もうちょっと遅くしてほしい」と指摘され 1.6 秒へ伸ばした
+    /// （会長指摘・2026-09-22。港町は 6.4 秒になる。読む速さを優先し秒数の上限は据え置かない）。
+    public static let panelDuration: Double = 1.6
 
     /// 台詞の上限（文字）。iPhone SE（第 3 世代・幅 375pt）の吹き出しで 2 行に収まる長さ。
     public static let lineLimit = 24
