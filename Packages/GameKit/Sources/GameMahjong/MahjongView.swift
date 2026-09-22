@@ -131,6 +131,8 @@ public struct MahjongView: View {
         // 復活ボタンは終局のリザルトにだけ出る（#780）。
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.phase == .gameResult && model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
+        .rewardOffer(extendRescue, for: .continue, isPresented: model.phase == .gameResult && model.canExtendAfterLastPlace,
+                     services: services, gameID: model.gameID)
         .gameChrome(title: "麻雀", review: services.review, matchesNavigationBarBackground: true) {
             // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
             // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
