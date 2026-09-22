@@ -2,21 +2,7 @@ import Core
 import Foundation
 import Testing
 @testable import GameBlocks
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private(set) var saveCount = 0
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        saveCount += 1
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
+import CoreTestSupport
 
 /// 既定オフ・使い捨ての設定。`UserDefaults.standard` を汚さない。
 private func makePreference(_ suite: String) -> FeedbackPreference {

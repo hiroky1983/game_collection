@@ -5,6 +5,8 @@ import FirebaseCore
 
 @main
 struct GameCollectionApp: App {
+    /// 中断のお知らせ（#663）のタップを、アプリが終了していた状態からでも受け取るため。
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var adsInitialized = false
 
@@ -38,6 +40,8 @@ struct GameCollectionApp: App {
                 adsInitialized = true
                 Task {
                     await initializeAds()
+                    // リワード広告を 1 本先読みしておく（#658）。表示はタップ時だけ。
+                    (AppEnvironment.services.ads as? AdMobAdService)?.enableRewardedPreload()
                 }
                 // Game Center 認証（#289 段階①）。iOS 26「ゲーム」アプリの推薦面に載る資格を
                 // 得るためのもので、失敗してもゲームには一切影響しない。撮影モードでは
@@ -53,7 +57,8 @@ struct GameCollectionApp: App {
             services: AppEnvironment.services,
             settings: AppEnvironment.settings,
             initialGameID: startGameID,
-            showsSettingsInitially: showSettingsOnLaunch
+            showsSettingsInitially: showSettingsOnLaunch,
+            showsRecordsInitially: showRecordsOnLaunch
         )
         // iPad の広い画面へ追従するための適応レイヤ（#458）。ウインドウの幅をここで一度だけ測り、
         // `\.adaptiveLayout` として全画面へ配る。各画面はこの値を読むだけで、
@@ -71,5 +76,11 @@ struct GameCollectionApp: App {
     private var showSettingsOnLaunch: Bool {
         AppEnvironment.isScreenshotMode
             && ProcessInfo.processInfo.arguments.contains("-showSettings")
+    }
+
+    /// 撮影モードで「きろく」画面（#669）を撮るための起動引数（`-screenshotMode -showRecords`）。
+    private var showRecordsOnLaunch: Bool {
+        AppEnvironment.isScreenshotMode
+            && ProcessInfo.processInfo.arguments.contains("-showRecords")
     }
 }

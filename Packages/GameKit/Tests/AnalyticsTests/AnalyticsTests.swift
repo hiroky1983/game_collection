@@ -19,25 +19,13 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameSpider
 import GameChess
 import GameBlocks
 import MahjongTiles
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 送信されたイベントをそのまま溜めるスパイ。Firebase もネットワークも使わない。
 @MainActor
@@ -47,15 +35,15 @@ private final class SpyAnalyticsService: AnalyticsService {
     func log(_ event: AnalyticsEvent) { events.append(event) }
 
     var starts: [String] {
-        events.compactMap { if case let .gameStart(gameID, _) = $0 { return gameID } else { return nil } }
+        events.compactMap { if case let .gameStart(gameID, _, _) = $0 { return gameID } else { return nil } }
     }
     /// `game_start` に載った難易度（#500）。載せていないゲームは nil。
     var startLevels: [AnalyticsLevel?] {
-        events.compactMap { if case let .gameStart(_, level) = $0 { return .some(level) } else { return nil } }
+        events.compactMap { if case let .gameStart(_, level, _) = $0 { return .some(level) } else { return nil } }
     }
     var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec) = $0 {
+            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 {
                 return (gameID, result, durationSec)
             }
             return nil
@@ -107,7 +95,7 @@ private func makeHubGameIDs() -> Set<String> {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -157,8 +145,59 @@ private func makeServices(
 @Suite("送信するイベントの形")
 struct AnalyticsEventShapeTests {
 
-    @Test("イベントは game_start / game_end / reward_ad の3種だけで、パラメータも決まった鍵しか持たない")
+    @Test("reward_request は reward_ad と同じ鍵だけを持つ（#659）")
+    func rewardRequestShape() {
+        let request = AnalyticsEvent.rewardRequest(gameID: "solitaire", purpose: .undo)
+        #expect(request.name == "reward_request")
+        #expect(request.parameters == ["game_id": .string("solitaire"), "purpose": .string("undo")])
+    }
+
+    @Test("game_open は game_id / source / resume と、並びを持つ導線だけ position を持つ（#659）")
+    func gameOpenShape() {
+        let hub = AnalyticsEvent.gameOpen(gameID: "shogi", source: .hub, position: 11, resume: true)
+        #expect(hub.name == "game_open")
+        #expect(hub.parameters == [
+            "game_id": .string("shogi"),
+            "source": .string("hub"),
+            "position": .int(11),
+            "resume": .int(1),
+        ])
+
+        let recent = AnalyticsEvent.gameOpen(gameID: "shogi", source: .recent, position: 2, resume: false)
+        #expect(recent.parameters["position"] == .int(2))
+        #expect(recent.parameters["resume"] == .int(0), "resume は 0 / 1 の整数")
+
+        // 1枚しか出ない導線は位置を持たない。渡されても送らない（実在しない位置を作らない）。
+        for source in [GameOpenSource.recommendation, .notification, .firstPick] {
+            let event = AnalyticsEvent.gameOpen(gameID: "shogi", source: source, position: 1, resume: false)
+            #expect(Set(event.parameters.keys) == ["game_id", "source", "resume"], "\(source)")
+        }
+        // 位置が取れなかった並びも鍵ごと落とす。0 以下は 1 に丸める。
+        #expect(AnalyticsEvent.gameOpen(gameID: "shogi", source: .hub, position: nil, resume: false)
+            .parameters["position"] == nil)
+        #expect(AnalyticsEvent.gameOpen(gameID: "shogi", source: .hub, position: 0, resume: false)
+            .parameters["position"] == .int(1))
+    }
+
+    @Test("source は hub / recent / recommendation / notification / first_pick の5値に閉じている（#659・#721）")
+    func openSourceIsClosed() {
+        #expect(GameOpenSource.allCases.map(\.rawValue) == [
+            "hub", "recent", "recommendation", "notification", "first_pick",
+        ])
+        #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
+    }
+
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open の5種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
+        // 全量の列挙（#659 で2種追加）。個々の鍵は下と上の各テストで固定する。
+        #expect([
+            AnalyticsEvent.gameStart(gameID: "2048"),
+            .gameEnd(gameID: "2048", result: .win, durationSec: 0),
+            .rewardAd(gameID: "2048", purpose: .undo),
+            .rewardRequest(gameID: "2048", purpose: .undo),
+            .gameOpen(gameID: "2048", source: .hub, position: 1, resume: false),
+        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open"])
+
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
         #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")],
                 "難易度を持たないゲームでは level の鍵ごと出ない")
@@ -176,11 +215,35 @@ struct AnalyticsEventShapeTests {
         #expect(Set(end.parameters.keys) == ["game_id", "result", "duration_sec"],
                 "受け入れ条件どおり3鍵のみ。スコアや端末識別子の鍵は存在しない")
 
+        // `cause`（#796）: ミスしたプレイだけ鍵が出る。
+        let caused = AnalyticsEvent.gameEnd(gameID: "runner", result: .quit, durationSec: 12, cause: .bird)
+        #expect(caused.parameters["cause"] == .string("bird"))
+        #expect(Set(caused.parameters.keys) == ["game_id", "result", "duration_sec", "cause"])
+
+        // `mode`（#783）: 付けたときだけ鍵が出る。開始と終わりで同じ値
+        let moded = AnalyticsEvent.gameStart(gameID: "mahjong4", mode: .singleHand)
+        #expect(moded.parameters == ["game_id": .string("mahjong4"), "mode": .string("single_hand")])
+        let modedEnd = AnalyticsEvent.gameEnd(gameID: "mahjong4", result: .loss, durationSec: 90, mode: .tonpuu)
+        #expect(modedEnd.parameters["mode"] == .string("tonpuu"))
+        #expect(Set(modedEnd.parameters.keys) == ["game_id", "result", "duration_sec", "mode"])
+
         let reward = AnalyticsEvent.rewardAd(gameID: "solitaire", purpose: .undo)
         #expect(reward.name == "reward_ad")
         #expect(reward.parameters == ["game_id": .string("solitaire"), "purpose": .string("undo")])
         #expect(Set(reward.parameters.keys) == ["game_id", "purpose"],
                 "広告の単価・報酬額など収益の生値は載せない")
+    }
+
+    @Test("cause は pit / rock / bird / animal の4値に閉じている（#796）")
+    func causeIsClosed() {
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal"])
+        let sent = AnalyticsEndCause.allCases.map { cause -> String in
+            guard case let .string(text)? = AnalyticsEvent
+                .gameEnd(gameID: "runner", result: .loss, durationSec: 0, cause: cause)
+                .parameters["cause"] else { return "" }
+            return text
+        }
+        #expect(sent == ["pit", "rock", "bird", "animal"])
     }
 
     @Test("result は win / loss / draw / quit の4値に閉じている（#500）")
@@ -197,6 +260,21 @@ struct AnalyticsEventShapeTests {
 
         // 決着の3値は `GameOutcome` からの写像だけで作られ、`quit` は決着から作れない。
         #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
+    }
+
+    @Test("mode は tonpuu / single_hand / stage / endless の4値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
+    func modeIsClosed() {
+        #expect(AnalyticsMode.allCases.map(\.rawValue) == ["tonpuu", "single_hand", "stage", "endless"])
+        // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
+        for mode in AnalyticsMode.allCases {
+            #expect(AnalyticsEvent.gameStart(gameID: "runner", mode: mode).parameters["mode"] == .string(mode.rawValue))
+            #expect(AnalyticsEvent.gameEnd(gameID: "runner", result: .win, durationSec: 0, mode: mode)
+                .parameters["mode"] == .string(mode.rawValue))
+        }
+        // 遊び方を持つゲームの型から写した値の集合 = 全量。使われない値を定義していない。
+        let used = MahjongGameLength.allCases.map(\.analyticsMode) + RunnerMode.allCases.map(\.analyticsMode)
+        #expect(used.count == Set(used).count, "別のゲームの遊び方が同じ値に潰れている")
+        #expect(Set(used) == Set(AnalyticsMode.allCases))
     }
 
     @Test("purpose の全量は7種で、reward_ad 以外には載らない（#500）")
@@ -336,7 +414,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 20, "ハブに並ぶゲームは20本")
+        #expect(hubGameIDs.count == 21, "ハブに並ぶゲームは21本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -785,6 +863,23 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.isEmpty, "1 局の決着では終局しない（試合が終わるまで数えない）")
     }
 
+    @Test("スパイダーソリティア: 開いた時点で開始（level 付き）・配り直しで終局（loss）")
+    func spider() {
+        let (services, spy) = makeServices()
+        let model = SpiderModel(services: services, seed: SpiderDealer.verifiedSeeds(for: .two)[0],
+                                rules: SpiderRuleSet(suitCount: .two))
+        model.tapStock()
+        model.newGame(rules: SpiderRuleSet(suitCount: .four))
+        #expect(spy.ends.map(\.gameID) == ["spider"])
+        #expect(spy.ends.first?.result == .loss)
+        // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。スート数は `level` に載る。
+        #expect(spy.starts == ["spider", "spider"])
+        let levels = spy.events.compactMap { event -> AnalyticsLevel? in
+            if case let .gameStart(_, level, _) = event { return level } else { return nil }
+        }
+        #expect(levels == [.normal, .hard], "2 スート = normal・4 スート = hard")
+    }
+
     @Test("ブロック崩し: 開いた時点で開始・残機を使い切って終局（loss）")
     func blocks() {
         let (services, spy) = makeServices()
@@ -1179,6 +1274,26 @@ struct StartSheetLevelTests {
         othello.newGame(aiLevel: 0)
         #expect(othelloSpy.startLevels == [nil, .beginner])
     }
+
+    /// リザルトの「階段」（#722）は花札だけ開始シートを通らず `restartMatch` で始め直す。
+    /// 強さを差し替える前に `game_start` を送ると、上げる前の段で数えてしまう。
+    @Test("花札の階段は勧めた強さで始め直し、その強さを game_start に載せる")
+    func hanafudaLadderRestartCarriesNewLevel() {
+        let (services, spy) = makeServices()
+        let model = playHanafudaMatch(services)
+        #expect(model.phase == .matchResult, "前提: 試合が決着している")
+        #expect(model.options.difficulty == .normal)
+
+        let sentBeforeRestart = spy.startLevels.count
+        model.restartMatch(difficulty: .hard)
+
+        // 末尾だけ見ると、変更前の強さでも送ってから変更後を送る実装を見逃す。
+        #expect(Array(spy.startLevels.dropFirst(sentBeforeRestart)) == [.hard],
+                "始め直しの game_start は変更後の強さで 1 回だけ")
+        #expect(model.options.difficulty == .hard)
+        #expect(model.options.rounds == 6, "局数は前の試合のものを引き継ぐ")
+        #expect(model.phase != .matchResult)
+    }
 }
 
 // MARK: - チャリンコおじさんの離脱（#500 / PR #572 の CodeRabbit 指摘）
@@ -1202,6 +1317,39 @@ struct RunnerQuitTests {
 
         #expect(spy.ends.map(\.result) == [.quit])
         #expect(spy.quits(of: RunnerModel.gameID) == 1)
+    }
+
+    /// #796: ミスは `game_end` を出さないが原因を覚えておき、離脱（quit）に「最後のミスの原因」として載る。
+    /// 1 面の最初の障害は穴なので、跳ばずに走ればミスの原因は `pit`。
+    @Test("ミスしてから画面を離れると quit に cause（最後のミスの原因）が付く")
+    func leavingAfterAMissCarriesTheCause() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services)
+        failRunnerStage(model)
+        #expect(model.phase == .failed)
+        #expect(spy.ends.isEmpty, "ミスでは終局しない")
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        let end = spy.events.last
+        guard case let .gameEnd(_, result, _, _, cause)? = end else { Issue.record("game_end が無い"); return }
+        #expect(result == .quit)
+        #expect(cause == .pit)
+    }
+
+    @Test("ミスせずクリアすると game_end に cause は付かない")
+    func clearingWithoutAMissHasNoCause() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        clearRunnerStage(model)
+        guard case let .gameEnd(_, result, _, _, cause)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        #expect(result == .win)
+        #expect(cause == nil)
+        // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
+        model.advanceToNextStage()
+        failRunnerStage(model)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        guard case let .gameEnd(_, result2, _, _, cause2)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        #expect(result2 == .quit)
+        #expect(cause2 == .pit)
     }
 
     @Test("走り出す前に離れても quit は出ない")

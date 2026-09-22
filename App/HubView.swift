@@ -1,16 +1,44 @@
 import SwiftUI
 import Core
 
+/// ハブからゲーム画面への遷移先（#659）。
+///
+/// `NavigationLink(value:)` に載せる値を ID の文字列からこの型に広げ、**どの導線から入ったか**を
+/// 遷移そのものに持たせる。タップの横で別の状態に書き留める形にすると、タップと `path` の変化の
+/// 順序が保証されず、`game_open` の `source` に前の導線の値が載りうる。
+struct HubRoute: Hashable {
+    let gameID: String
+    let source: GameOpenSource
+    /// 導線の中での位置（1 始まり）。並びを持たない導線では nil。
+    let position: Int?
+    /// タップした時点で「続きから」だったか。
+    let resume: Bool
+}
+
 /// ハブ画面。登録された GameModule をカードで列挙し、選択で各ゲームを遅延ロード起動する。
 /// NavigationStack の土台はこの一覧。各ゲームは push される（→ ゲーム側の「戻る」でここに戻れる）。
 struct HubView: View {
     let registry: GameRegistry
     let services: GameServices
     let settings: GameSettings
-    @State private var path: [String]
+    @State private var path: [HubRoute]
     @State private var showSettings: Bool
+    /// アプリ内「きろく」画面（#669）。ツールバーのトロフィーから開く。
+    @State private var showRecords: Bool
+    /// 「きろく」の中から Game Center を求められた。シートが閉じ切ってから開くための印
+    /// （シートを出したまま Game Center のオーバーレイやサインイン画面を重ねない）。
+    @State private var opensGameCenterAfterRecords = false
     /// 未サインインで実績・ランキングを開こうとしたときの案内（#334）。
     @State private var showGameCenterSignInGuidance = false
+    /// カードの長押しメニューで非表示にした直後に出す案内（#662）。数秒で消える。
+    @State private var hiddenNotice: HiddenNotice?
+
+    /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
+    /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
+    private struct HiddenNotice: Equatable {
+        let title: String
+        let id = UUID()
+    }
     /// 画面の広さ（#458）。カードの最小幅だけをここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -42,6 +70,50 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
+    /// 「つづき・最近」行（#660）に出す候補。順序と打ち切りの規則は `RecentGames` が持つ。
+    ///
+    /// `PlayLog` も `SnapshotStore` も監視対象ではないので、行が更新されるのはハブが描き直される
+    /// ときだけ。ゲームから戻れば `path` が変わって body が走るため、グリッドの「続きから」バッジと
+    /// 同じタイミングで揃う（新しい監視の仕組みは足さない）。
+    private var recentCandidates: [RecentGames.Candidate] {
+        let visible = settings.visibleModules(from: registry).map(\.id)
+        let resuming = visible.filter { isResumable($0) }
+        return RecentGames.candidates(
+            visibleGameIDs: visible,
+            resumingGameIDs: Set(resuming),
+            resumeUpdatedAt: resuming.reduce(into: [:]) { result, id in
+                if let date = services.snapshots.modifiedAt(for: id) { result[id] = date }
+            },
+            lastPlayedAt: services.playLog?.lastPlayedAtByGame ?? [:]
+        )
+    }
+
+    /// 「続きから」で戻れる途中の局があるか（#809）。行・グリッドのバッジ・`game_open` の `resume` は
+    /// すべてここを通す。中断データの有無だけで決めると、局を復元しないチャリンコおじさんと、
+    /// 終局後も見返しを残す将棋・チェスが「つづきから」として先頭を占め続ける。
+    private func isResumable(_ gameID: String) -> Bool {
+        registry.hasResumableSnapshot(gameID: gameID, in: services.snapshots)
+    }
+
+    /// 更新で増えたゲームのうち、まだ開いていないもの（#723）。起動して最初にハブを組み立てた時点で決まり、
+    /// 開いたゲームから外していく。保存はしない（次の起動では `PlayLog` が「既知」として返さない）。
+    @State private var newGameIDs: Set<String>
+
+    /// NEW 印と1行の対象。非表示にしたゲームは数えない。
+    private var visibleNewGameIDs: Set<String> {
+        newGameIDs.intersection(settings.visibleModules(from: registry).map(\.id))
+    }
+
+    /// 差し色を引くための、ハブの並びのなかでの位置。グリッドのカードは `enumerated()` の
+    /// index で色を引くので、行側も同じ index を使わないと同じゲームが2か所で違う色になる。
+    private var paletteIndexByGame: [String: Int] {
+        var result: [String: Int] = [:]
+        for (index, module) in settings.visibleModules(from: registry).enumerated() {
+            result[module.id] = index
+        }
+        return result
+    }
+
     /// カード 1 枚に与える最小の高さ。iPad では縦を使い切るために伸び、iPhone では `nil`（＝据え置き）。
     private var cardMinHeight: CGFloat? {
         let count = settings.visibleModules(from: registry).count
@@ -55,32 +127,109 @@ struct HubView: View {
         services: GameServices,
         settings: GameSettings,
         initialGameID: String? = nil,
-        showsSettingsInitially: Bool = false
+        showsSettingsInitially: Bool = false,
+        showsRecordsInitially: Bool = false
     ) {
         self.registry = registry
         self.services = services
         self.settings = settings
-        _path = State(initialValue: initialGameID.map { [$0] } ?? [])
+        // 起動引数で直接開く経路（撮影・動作確認）。`onChange(of: path)` は初期値では走らないので
+        // `game_open` は送られない（ユーザーの導線ではないため、それで正しい）。
+        _path = State(initialValue: initialGameID.map {
+            [HubRoute(
+                gameID: $0, source: .hub, position: nil,
+                resume: registry.hasResumableSnapshot(gameID: $0, in: services.snapshots)
+            )]
+        } ?? [])
         _showSettings = State(initialValue: showsSettingsInitially)
+        _showRecords = State(initialValue: showsRecordsInitially)
+        // `init` は描き直しのたびに走るが、`PlayLog` が起動中は同じ値を返すので保存は1回きり。
+        _newGameIDs = State(initialValue: services.playLog?.newGameIDs(
+            registeredIDs: registry.modules.map(\.id)
+        ) ?? [])
     }
 
     var body: some View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
+                // 更新で増えたゲームがあるときだけ、その回の起動で1行出す（#723）。数え方は `NewGames` が持つ。
+                // 置き場所は「つづき・最近」と同じくスクロール領域の外（#485）。
+                if let notice = NewGames.notice(count: visibleNewGameIDs.count) {
+                    HubNewGamesNotice(message: notice)
+                        .padding(.horizontal, Theme.pad)
+                        .padding(.top, Theme.pad)
+                }
+                // 中断・記録ともゼロなら**行ごと出さない**（#660）。`RecommendationSlot` が
+                // 「決着前は何も描かない」のと同じ流儀で、初回ユーザーのハブは
+                // 1pt も動かない。
+                let recent = recentCandidates
+                if !recent.isEmpty {
+                    HubRecentRow(
+                        candidates: recent,
+                        registry: registry,
+                        paletteIndexByGame: paletteIndexByGame
+                    )
+                }
+                // 記録がゼロの初回だけ「はじめの1本」を1枚出す（#721）。出す条件と何を出すかは
+                // `FirstPick` が持つ。置き場所は「つづき・最近」と同じくスクロール領域の外
+                // （中に入れると iPad のカード高さの割り付けが溢れる・#485）。
+                if let pick = FirstPick.gameID(
+                    playedGameIDs: services.playLog?.playedGameIDs,
+                    visibleGameIDs: settings.visibleModules(from: registry).map(\.id),
+                    showsRecentRow: !recent.isEmpty
+                ), let module = registry.module(id: pick) {
+                    NavigationLink(value: HubRoute(
+                        gameID: pick, source: .firstPick, position: nil,
+                        resume: isResumable(pick)
+                    )) {
+                        HubFirstPickCard(
+                            module: module,
+                            accentFill: Theme.Fill.palette[(paletteIndexByGame[pick] ?? 0) % Theme.Fill.palette.count]
+                        )
+                    }
+                    .buttonStyle(.pop)
+                    .padding(.horizontal, Theme.pad)
+                    .padding(.top, Theme.pad)
+                }
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(Array(settings.visibleModules(from: registry).enumerated()), id: \.element.id) { index, module in
-                            NavigationLink(value: module.id) {
+                            let hasResume = isResumable(module.id)
+                            // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
+                            NavigationLink(value: HubRoute(
+                                gameID: module.id, source: .hub, position: index + 1, resume: hasResume
+                            )) {
                                 GameCard(
                                     module: module,
                                     accent: Theme.palette[index % Theme.palette.count],
                                     accentFill: Theme.Fill.palette[index % Theme.Fill.palette.count],
-                                    hasResume: services.snapshots.exists(for: module.id),
+                                    hasResume: hasResume,
+                                    isNew: newGameIDs.contains(module.id),
                                     record: services.playLog?.summaryLine(gameID: module.id),
                                     minHeight: cardMinHeight
                                 )
                             }
-                            .buttonStyle(.plain)
+                            // `.plain` は押下フィードバックまで消す（#716）。ゲーム本体は遅延ロードで
+                            // 画面が出るまで間があるため、押した手応えを `.pop` で返す。
+                            .buttonStyle(.pop)
+                            // 設定シートの奥にある並べ替え・非表示をハブから呼ぶ（#662）。
+                            // 同じ `GameSettings` を触るので、設定シートの並びと二重の状態にならない。
+                            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
+                            .contextMenu {
+                                Button {
+                                    moveToTop(module.id)
+                                } label: {
+                                    Label("いちばん上に置く", systemImage: "arrow.up.to.line")
+                                }
+                                // 先頭かどうかは非表示も含む並びで見る。表示中の先頭でも、前に非表示のゲームが
+                                // あれば動かす余地がある（戻したときに先頭に来ない）。
+                                .disabled(settings.orderedIDs.first == module.id)
+                                Button {
+                                    hide(module)
+                                } label: {
+                                    Label("非表示にする", systemImage: "eye.slash")
+                                }
+                            }
                         }
                     }
                     .padding(Theme.pad)
@@ -99,47 +248,93 @@ struct HubView: View {
                             .task(id: usable) { viewportHeight = usable }
                     }
                 }
+                .overlay(alignment: .bottom) {
+                    Group {
+                        if let hiddenNotice {
+                            HubHiddenNotice(title: hiddenNotice.title)
+                                .transition(.opacity)
+                        }
+                    }
+                    .gameAnimation(.easeOut(duration: 0.2), value: hiddenNotice)
+                }
+                .task(id: hiddenNotice) {
+                    guard hiddenNotice != nil else { return }
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    hiddenNotice = nil
+                }
                 BannerSlot(ads: services.ads)
             }
             .popBackground()
             .navigationTitle("あそびば")
             .toolbar {
-                // 実績・ランキング（#334）。歯車より左に置き、既存の設定ボタンの位置は動かさない。
+                // きろく（#669）。以前は Game Center を直接開いていた（#334）が、未サインインだと案内で
+                // 終わって手元の記録を見る場所が無かったため、アプリ内の画面に付け替えた。
+                // Game Center はその画面の中のボタンから開く。歯車より左の位置は変えない。
                 ToolbarItem(placement: .primaryAction) {
-                    Button { openGameCenter() } label: {
+                    Button { showRecords = true } label: {
                         Image(systemName: "trophy.fill")
                             .font(.system(size: 18, weight: .semibold))
                     }
-                    .accessibilityLabel("実績・ランキング")
+                    .accessibilityLabel("きろく")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSettings = true } label: {
                         Image(systemName: "gearshape.fill")
                             .font(.system(size: 18, weight: .semibold))
                     }
+                    // アイコンだけのボタンは VoiceOver がシンボル名を読む（#716）。
+                    .accessibilityLabel("設定")
                 }
             }
-            .navigationDestination(for: String.self) { id in
-                if let module = registry.module(id: id) {
+            .navigationDestination(for: HubRoute.self) { route in
+                if let module = registry.module(id: route.gameID) {
                     module.makeView(services: services)
                 }
             }
-            // ゲーム画面から離れたことを解析へ伝える（#158）。次に開いたときを新しい
-            // 1 プレイとして数え直すための境界で、ここが唯一の発火点。
-            // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
             .onChange(of: path) { oldPath, newPath in
-                if !oldPath.isEmpty, newPath.isEmpty, let leftGameID = oldPath.last {
-                    services.gameDidLeave(gameID: leftGameID)
+                // ゲーム画面から離れたことを解析へ伝える（#158）。次に開いたときを新しい
+                // 1 プレイとして数え直すための境界で、ここが唯一の発火点。
+                // レコメンドでの差し替え（空 path を経由する）も「離れた」で正しい。
+                if !oldPath.isEmpty, newPath.isEmpty, let left = oldPath.last {
+                    services.gameDidLeave(gameID: left.gameID)
+                }
+                // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
+                // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
+                if oldPath.isEmpty, let opened = newPath.first {
+                    services.gameDidOpen(
+                        gameID: opened.gameID, source: opened.source,
+                        position: opened.position, resume: opened.resume
+                    )
+                    // 開いたゲームは「見た」ので NEW 印を外す（#723）。導線を問わずここ1か所で外す。
+                    newGameIDs.remove(opened.gameID)
+                    // 先読みしたリワード広告が失効・未取得なら、ゲームを開いたこの時点で読み直す（#658）。
+                    // 救済の広告はゲーム画面の中でしか出ないので、ここで読んでおけばタップに間に合う。
+                    (services.ads as? AdMobAdService)?.preloadRewardedAd()
                 }
             }
             // リザルトのレコメンドカードがタップされたら、そのゲームへ差し替えて遷移する。
             .onChange(of: services.recommendations?.requestedGameID) { _, requested in
                 guard let id = requested else { return }
                 services.recommendations?.requestedGameID = nil
-                // NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
-                // いったん根まで戻し、次の runloop で積み直す。
-                path = []
-                DispatchQueue.main.async { path = [id] }
+                openFromOutside(HubRoute(
+                    gameID: id, source: .recommendation, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
+            // 中断したゲームのお知らせ（#663）がタップされたら、そのゲームを直接開く。
+            // アプリが終了していた状態からのタップはハブが描かれる前に値が入ることがあるため、
+            // 初期値でも走らせる。
+            .onChange(of: services.reminders?.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                services.reminders?.requestedGameID = nil
+                // 設定を開いたままだと、その裏で遷移して何も起きていないように見える。
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .notification, position: nil,
+                    resume: isResumable(id)
+                ))
             }
             .task {
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
@@ -170,11 +365,22 @@ struct HubView: View {
                 if args.contains("-simulateReviewRequest") {
                     services.review?.simulateRequest()
                 }
+                // 動作確認用: 中断のお知らせ（#663）をタップしたのと同じ入口でゲームを開く
+                // （`-simulateNotificationTap <gameID>`）。シミュレータでは通知をタップできないため。
+                if let i = args.firstIndex(of: "-simulateNotificationTap"), i + 1 < args.count {
+                    services.reminders?.notificationTapped(gameID: args[i + 1])
+                }
                 // 動作確認用: ツールバーの「実績・ランキング」を押したのと同じ分岐を通す
                 // （`-simulateGameCenterEntry`）。シミュレータは Game Center 未サインインのため、
                 // 実際に確認できるのは案内アラートの側になる。
                 if args.contains("-simulateGameCenterEntry") {
                     openGameCenter()
+                }
+                // 撮影・動作確認用: カードの長押しメニューで「非表示にする」を選んだのと同じ経路を通す
+                // （`-simulateHubHide <gameID>`・#662）。シミュレータでは長押しを自動化できないため。
+                if let i = args.firstIndex(of: "-simulateHubHide"), i + 1 < args.count,
+                   let module = registry.module(id: args[i + 1]) {
+                    hide(module)
                 }
                 // 動作確認用: 触覚・効果音を発火条件を通さずに 1 種ずつ鳴らす（`-simulateFeedback`）。
                 // 効果音が音声セッションをどう設定したかをシミュレータで確認するために使う
@@ -195,6 +401,17 @@ struct HubView: View {
             SettingsView(registry: registry, settings: settings, playLog: services.playLog)
                 .presentationDetents([.large])
         }
+        .sheet(isPresented: $showRecords, onDismiss: {
+            guard opensGameCenterAfterRecords else { return }
+            opensGameCenterAfterRecords = false
+            openGameCenter()
+        }) {
+            RecordsView(registry: registry, settings: settings, playLog: services.playLog) {
+                opensGameCenterAfterRecords = true
+                showRecords = false
+            }
+            .presentationDetents([.large])
+        }
         .alert("Game Center にサインインしていません", isPresented: $showGameCenterSignInGuidance) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -202,7 +419,32 @@ struct HubView: View {
         }
     }
 
-    /// ツールバーの「実績・ランキング」。サインイン済みなら Game Center を開き、
+    /// ハブの外（リザルトのレコメンド・中断のお知らせ）から求められたゲームへ遷移する。
+    ///
+    /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
+    /// いったん根まで戻し、次の runloop で積み直す。
+    private func openFromOutside(_ route: HubRoute) {
+        path = []
+        DispatchQueue.main.async { path = [route] }
+    }
+
+    /// 長押しメニューの「いちばん上に置く」（#662）。位置は表示中の並びではなく、非表示も含む
+    /// `orderedIDs` の中で数える（設定シートの `onMove` と同じ座標）。
+    private func moveToTop(_ id: String) {
+        guard let from = settings.orderedIDs.firstIndex(of: id), from > 0 else { return }
+        settings.move(from: IndexSet(integer: from), to: 0)
+    }
+
+    /// 長押しメニューの「非表示にする」（#662）。戻す場所が設定シートの奥にあるため、直後に案内を出す。
+    private func hide(_ module: GameModule) {
+        guard !settings.hiddenIDs.contains(module.id) else { return }
+        settings.toggleHidden(module.id)
+        hiddenNotice = HiddenNotice(title: module.title)
+        AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
+    }
+
+    /// 「きろく」の中の「Game Center で実績・ランキングを見る」（#669。以前はツールバーから直接・#334）。
+    /// サインイン済みなら Game Center を開き、
     /// 未サインインのときだけサインインを促す（#334 の受け入れ条件）。
     private func openGameCenter() {
         if GameCenterEntry.open() == .needsSignInGuidance {
@@ -223,6 +465,8 @@ private struct GameCard: View {
     /// アイコンチップの**面色**。上に白ではなく `Theme.onAccent` を載せる（#220）。
     let accentFill: Color
     let hasResume: Bool
+    /// 更新で増えたゲームか（#723）。「続きから」と同じ位置に NEW を出す（両方のときは「続きから」を優先）。
+    let isNew: Bool
     /// プレイ記録の 1 行（#115）。まだ記録が無ければ nil で、その場合はゲームの説明を出す。
     let record: String?
     /// iPad で縦を使い切るための最小の高さ（#485）。iPhone では nil ＝中身が決める高さのまま。
@@ -250,6 +494,15 @@ private struct GameCard: View {
 
                 if hasResume {
                     Text("続きから")
+                        .themeCaption(layout.scaled(11))
+                        .foregroundStyle(accent)
+                        .padding(.horizontal, layout.scaled(8))
+                        .padding(.vertical, layout.scaled(3))
+                        .background(Capsule().fill(accent.opacity(0.15)))
+                        .fixedSize()
+                } else if isNew {
+                    // 「続きから」と同じ部品・同じ配色（#220 のコントラスト確認済みの組み合わせ）。
+                    Text("NEW")
                         .themeCaption(layout.scaled(11))
                         .foregroundStyle(accent)
                         .padding(.horizontal, layout.scaled(8))
@@ -294,6 +547,51 @@ private struct GameCard: View {
     private var accessibilityLabel: String {
         var parts = [module.title, record ?? module.description]
         if hasResume { parts.append("続きから") }
+        if isNew { parts.append("新着") }
         return parts.joined(separator: "、")
+    }
+}
+
+/// 更新で増えたゲームがあるときだけハブ上部に出す1行（#723）。
+///
+/// 閉じるボタンは置かない。この起動のあいだだけ出て、次の起動では `PlayLog` が同じゲームを
+/// 「増えた」と返さないので自然に消える。
+private struct HubNewGamesNotice: View {
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "sparkles")
+            .themeCaption(13)
+            .foregroundStyle(Theme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.pad)
+            .padding(.vertical, 10)
+            .popCard(corner: Theme.cornerSmall)
+            .accessibilityElement(children: .combine)
+    }
+}
+
+/// カードを長押しメニューで非表示にした直後の案内（#662）。
+///
+/// 戻す操作は設定シートにしか無いので、その場所だけを1行で伝える。読み上げは `HubView.hide` が
+/// 同じ文言をアナウンスで流すため、ここは VoiceOver から隠す（二重に読ませない）。
+private struct HubHiddenNotice: View {
+    let title: String
+
+    static func message(title: String) -> String {
+        "「\(title)」を非表示にしました。設定から戻せます"
+    }
+
+    var body: some View {
+        Text(Self.message(title: title))
+            .themeCaption(13)
+            .foregroundStyle(Theme.ink)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Theme.pad)
+            .padding(.vertical, 10)
+            .popCard(corner: Theme.cornerSmall)
+            .padding(Theme.pad)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }

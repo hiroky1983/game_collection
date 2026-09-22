@@ -2,23 +2,7 @@ import Testing
 import Foundation
 import Core
 @testable import GameGo
-
-/// テスト専用の中断データ置き場（ファイルに書かず、プロセス内だけで完結させる）。
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var storage: [String: Data] = [:]
-
-    func save<T: Codable>(_ value: T, for key: String) throws {
-        storage[key] = try JSONEncoder().encode(value)
-    }
-
-    func load<T: Codable>(_ type: T.Type, for key: String) -> T? {
-        guard let data = storage[key] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
-    func clear(for key: String) { storage[key] = nil }
-    func exists(for key: String) -> Bool { storage[key] != nil }
-}
+import CoreTestSupport
 
 @MainActor
 private func makeServices(_ store: SnapshotStore = MemorySnapshotStore()) -> GameServices {

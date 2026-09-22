@@ -114,6 +114,41 @@ public struct HanafudaOptions: Equatable, Sendable, Codable {
 
     /// 選べる局数。
     public static let allowedRounds = [6, 12]
+
+    /// 自己ベスト・通算成績を分けて数えるための区分キー（`GameScore.variant`・#827）。
+    ///
+    /// 既定（6 局・酒の役あり・普通）は **nil のまま**にする。ここに文字列を入れると記録の保存先が
+    /// `hanafuda` から `hanafuda#…` に変わり、これまでの自己ベストがどこからも参照されなくなる。
+    /// 既定と違う軸だけを `-` でつなぐ（例: 12 局・酒の役なし・弱 → `r12-nosake-easy`）。
+    public var recordVariant: String? {
+        let parts = variantParts(rounds: "r\(rounds)", noSake: "nosake", difficulty: difficulty.rawValue)
+        return parts.isEmpty ? nil : parts.joined(separator: "-")
+    }
+
+    /// ハブ・リザルトの記録行に添える区分名。既定は従来どおり添えない。
+    public var recordVariantLabel: String? {
+        let parts = variantParts(rounds: "\(rounds)局", noSake: "酒の役なし", difficulty: "CPU\(difficulty.label)")
+        return parts.isEmpty ? nil : parts.joined(separator: "・")
+    }
+
+    /// Game Center のリーダーボードへ送ってよいか。
+    ///
+    /// **順位表は既定ルール固定**（1局=1RuleSet 規約 4）。12 局戦は 6 局戦のおよそ倍の文数が出るうえ、
+    /// 酒の役の有無・CPU の強さでも文数の出方が変わるので、同じ表に混ぜると「どのルールで遊んだか」の
+    /// 表になる。既定外の自己ベストは `recordVariant` でローカルに別枠管理する。
+    public var isLeaderboardEligible: Bool {
+        self == HanafudaOptions()
+    }
+
+    /// 既定と違う軸の表記だけを、局数 → 酒の役 → 強さの順に並べる。
+    private func variantParts(rounds: String, noSake: String, difficulty: String) -> [String] {
+        let standard = HanafudaOptions()
+        var parts: [String] = []
+        if self.rounds != standard.rounds { parts.append(rounds) }
+        if sakeYakuEnabled != standard.sakeYakuEnabled { parts.append(noSake) }
+        if self.difficulty != standard.difficulty { parts.append(difficulty) }
+        return parts
+    }
 }
 
 /// CPU の強さ（#495）。

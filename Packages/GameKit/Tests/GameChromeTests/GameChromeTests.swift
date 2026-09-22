@@ -71,4 +71,15 @@ struct GameChromeSourceTests {
             #expect(hit == false, "\(game.name) が高さのひな形を自前で組んでいる")
         }
     }
+
+    /// レコメンドのカード（#52）と難易度の階段（#722）はレコメンドの枠に相乗りしている。
+    /// 枠を持たない終局画面が 1 本でもあると、そのゲームだけレコメンドも階段も出ない。
+    @Test("どのゲームの終局画面にもレコメンドの枠がある")
+    func everyGameHasRecommendationSlot() {
+        let entries = ["RecommendationSlot(", "RecommendationArea(", "GameControlArea("]
+        for game in Self.gameDirectories {
+            let hit = game.files.contains { file in entries.contains { file.contains($0) } }
+            #expect(hit, "\(game.name) の終局画面にレコメンドの枠が無い（レコメンドも階段も出ない）")
+        }
+    }
 }

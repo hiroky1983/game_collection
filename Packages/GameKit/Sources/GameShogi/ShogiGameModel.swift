@@ -6,7 +6,7 @@ import Core
 /// ルールは `Position` に委譲し、ここは UI 操作と永続化を担う。
 @MainActor
 @Observable
-public final class ShogiGameModel {
+public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
     public let initialSFEN: String
     public private(set) var moves: [Move]
     public private(set) var position: Position
@@ -35,7 +35,7 @@ public final class ShogiGameModel {
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "shogi"
+    public let gameID = "shogi"
     private var startedAt: Date
 
     public init(services: GameServices? = nil) {
@@ -97,6 +97,9 @@ public final class ShogiGameModel {
         if gameOver, let record = services?.playLog?.record(gameID: gameID) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
+        // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
+        // 中断のお知らせ（#663）の対象から外す。
+        if gameOver { services?.gameDidRestoreFinished(gameID: gameID) }
         // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
         // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
@@ -386,26 +389,21 @@ public final class ShogiGameModel {
     /// AI の手番なら最善手を計算して指す。View から手番変化のたびに呼ぶ。
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
-        // 計算中に新規対局が始まると、旧局面で選んだ手が新しい局面に指されうる
-        // （初期局面同士なら合法性の確認を通ってしまう）。開始時のトリガー
-        // （対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する（#145）。
-        let key = aiTurnKey
-        let serial = gameSerial
-        isThinking = true
-        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
-        defer { if gameSerial == serial { isThinking = false } }
-
-        let level = aiLevel
-        let sfen = position.toSFEN()
-        await thinkingGate?()
-        let usi = await Task.detached(priority: .userInitiated) {
-            await SimpleMinimaxEngine(level: level).bestMove(sfen: sfen)
-        }.value
-
-        // 計算中に状況が変わっていないか確認してから着手。
-        guard aiTurnKey == key, isAITurn, let usi, let move = Move.fromUSI(usi),
-              legalMovesCache.contains(move) else { return }
-        apply(move)
+        // 計算中に新規対局が始まると、旧局面で選んだ手が新しい局面に指されうる（#145）。
+        // 開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let level = aiLevel
+            let sfen = position.toSFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleMinimaxEngine(level: level).bestMove(sfen: sfen)
+            }.value
+        } commit: { usi in
+            // 計算中に状況が変わっていないか確認してから着手。
+            guard isAITurn, let usi, let move = Move.fromUSI(usi),
+                  legalMovesCache.contains(move) else { return }
+            apply(move)
+        }
     }
 
     // MARK: - 検討（終局後に手を戻す／進める）
@@ -480,6 +478,17 @@ public final class ShogiGameModel {
         undoUsed = true
         clearSelection()
         persist()
+    }
+
+    /// 広告を出す前に控えた `aiTurnKey`（対局の通し番号 × 手数）の局面にだけ待ったを適用する（#729）。
+    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手で局面が変わっていたら false
+    ///   （View は「待ったを使えなかった」と知らせる）。対局の番号だけを照合すると、ロード中に
+    ///   1 往復指したとき、広告を出したときとは別の 1 往復が戻る。
+    @discardableResult
+    public func undoLastExchange(forTurn turn: AITurnKey) -> Bool {
+        guard turn == aiTurnKey, canUndo else { return false }
+        undoLastExchange()
+        return true
     }
 
     // MARK: - 永続化

@@ -179,8 +179,22 @@ public final class BlackjackModel {
     /// 復活で戻るチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
     public static let reviveChips = initialChips / 2
 
+    /// いちばん安いベット額。**ベットボタンの並びと破産判定の両方がここを見る**（#656）。
+    /// 残高がこれに届かなければ、たとえ 0 枚でなくても打つ手が一つも無い＝そのセッションは
+    /// 終わりなので、`checkSessionOver()` はこの値を境にする。
+    ///
+    /// 50 枚ベットでブラックジャックを引いたときだけ 1.5 倍払いで 25 の端数が生まれるため、
+    /// 「0 枚になるまで遊べる」という前提は成り立たない（25 枚だと全ボタンが無効になり、
+    /// 破産カードも出ないのでハブに戻る以外の脱出手段が無くなっていた）。
+    public static let minimumBet = 50
+
     /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
     private var hasRevivedThisSession = false
+
+    /// セッションの通し番号。`restartSession()` で進む（#727）。
+    /// 広告のロード中に「最初からやり直す」を押されると、同じ画面の中でセッションが入れ替わる。
+    /// 画面の世代（#653）はハブへ戻ったときしか進まないので、こちらで照合する。
+    private var sessionSerial = 0
 
     /// チップ切れをリワード広告で 1 回だけ取り消せる状態か（#499）。
     /// 麻雀のトビ復活（#338）と同じで、1 セッション 1 回まで。
@@ -217,10 +231,19 @@ public final class BlackjackModel {
     private let services: GameServices?
     private var seed: UInt64?
 
-    /// - Parameter seed: テスト用の固定種。nil ならシステムの乱数を使う。
-    public init(services: GameServices? = nil, seed: UInt64? = nil) {
+    /// ディーラーが1枚引くごとの間（#667）。`.zero` なら従来どおりその場で引き切る。
+    private let dealerDrawInterval: Duration
+    /// 1枚ずつ引いている最中の `Task`。「結果まで進める」とセッションのやり直しで止める。
+    private(set) var dealerTask: Task<Void, Never>?
+
+    /// - Parameters:
+    ///   - seed: テスト用の固定種。nil ならシステムの乱数を使う。
+    ///   - dealerDrawInterval: ディーラーの引きの間。画面は `BlackjackMotion.dealerDrawInterval` を渡す。
+    ///     既定の `.zero` は待たずに引き切る（テストの決定性のため）。
+    public init(services: GameServices? = nil, seed: UInt64? = nil, dealerDrawInterval: Duration = .zero) {
         self.services = services
         self.seed = seed
+        self.dealerDrawInterval = dealerDrawInterval
         if let snap = services?.snapshots.load(BlackjackSnapshot.self, for: "blackjack") {
             self.dealerHand = snap.dealerHand
             self.deck       = snap.deck
@@ -241,12 +264,23 @@ public final class BlackjackModel {
             if self.hands.isEmpty {
                 self.phase = .betting
                 self.bet = 0
+                // 賭けに戻したのに賭けられない残高なら、その場で終わりにする（#656）。
+                // 判定を精算のときだけに置くと、賭ける前に戻った局面が
+                // 「ボタンが全部無効・破産カードも出ない」で詰む。
+                self.checkSessionOver()
             }
+        }
+        // ディーラーが引いている途中で中断していたら、その続きから引く（#667）。
+        // 賭けは確定済みなので、スタンドの前へ戻して選び直させることはしない。
+        if phase == .dealerTurn {
+            runDealer()
         }
     }
 
     private func persist() {
-        guard phase == .playerTurn else {
+        // ディーラーが1枚ずつ引いているあいだ（#667）も保存する。保存しないと、途中で落ちたとき
+        // スタンド前の中断データが残り、ディーラーの札を見てから選び直せてしまう。
+        guard phase == .playerTurn || phase == .dealerTurn else {
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -267,7 +301,10 @@ public final class BlackjackModel {
     // MARK: - Betting
 
     public func placeBet(_ amount: Int) {
-        guard phase == .betting, amount > 0 else { return }
+        // 終わったセッションでは賭けられない。最小ベット未満も受け付けない（#656）。
+        // 画面側は `sessionOver` のときベット欄ごと出さないが、境目をモデルにも持たせて
+        // おかないと「賭けられない残高で終わりにする」という判定の意味が保てない。
+        guard phase == .betting, !sessionOver, amount >= BlackjackModel.minimumBet else { return }
         guard chips >= amount else {
             services?.feedback.notify(.warning) // チップ不足でベットできない
             return
@@ -428,10 +465,55 @@ public final class BlackjackModel {
     // MARK: - Dealer AI (17以上でスタンド)
 
     private func runDealer() {
+        guard dealerDrawInterval > .zero else {
+            drawDealerToStand()
+            resolveAll()
+            return
+        }
+        persist()
+        startDealerDraws()
+    }
+
+    /// ディーラーを1枚ずつ引かせる（#667）。一気に引き切ると結果だけが瞬間的に出て、勝った実感が残らない。
+    ///
+    /// 伏せカードの公開 → 間 → 1枚 → 間 → … → 間 → 精算、の順に進む。17 以上で最初から止まる手でも
+    /// 1回ぶん間を置き、公開の直後に勝敗が出ないようにする。精算（記録・順位表の送信）は従来どおり
+    /// `resolveAll()` の1か所だけで、引き終わってから1回だけ走る。
+    ///
+    /// ディーラーの引きは CPU の手番なので触覚は鳴らさない（指が触れていない間の振動を避ける規約。
+    /// `FeedbackCPUSilentTests`）。決着の notify は `resolveAll()` が従来どおり鳴らす。
+    private func startDealerDraws() {
+        let interval = dealerDrawInterval
+        dealerTask = Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: interval)
+                // 「結果まで進める」・やり直しで止められたか、画面ごと捨てられた。
+                guard !Task.isCancelled, let self, self.phase == .dealerTurn else { return }
+                guard handValue(self.dealerHand) < 17 else {
+                    self.dealerTask = nil
+                    self.resolveAll()
+                    return
+                }
+                self.dealerHand.append(self.drawCard())
+                self.persist()
+            }
+        }
+    }
+
+    /// 「結果まで進める」（#667）。ディーラーの残りを待たずに引き切って精算する。
+    /// 引く札は待った場合と同じ（山札の順に引くだけ）なので、飛ばしても結果は変わらない。
+    public func skipDealerDraws() {
+        guard phase == .dealerTurn else { return }
+        dealerTask?.cancel()
+        dealerTask = nil
+        drawDealerToStand()
+        resolveAll()
+    }
+
+    private func drawDealerToStand() {
         while handValue(dealerHand) < 17 {
             dealerHand.append(drawCard())
         }
-        resolveAll()
     }
 
     // MARK: - Result
@@ -470,8 +552,11 @@ public final class BlackjackModel {
     }
 
     private func checkSessionOver() {
-        if chips <= 0 {
-            chips = 0
+        // 0 枚ではなく「いちばん安いベットに届かない」で終わりにする（#656）。
+        // 残高は端数（25 枚）で止まりうるので、`chips = 0` に丸めずそのまま見せる
+        // ——チップバーの表示と食い違わせない。
+        if chips < BlackjackModel.minimumBet {
+            chips = max(0, chips)
             sessionOver = true
         }
     }
@@ -502,11 +587,26 @@ public final class BlackjackModel {
     /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
     ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
     /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
+    /// - 広告のあいだに「最初からやり直す」でセッションが入れ替わっていたら適用しない（#727）。
     /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
     @discardableResult
     public func recoverChipsAfterAd() async -> Bool {
-        guard canReviveAfterBust else { return false }
-        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return false }
+        await reviveAfterAd() == .granted
+    }
+
+    /// `recoverChipsAfterAd()` の本体。見終えたのに適用できなかったこと（`.unavailable`）を
+    /// 視聴しなかったこと（`.notEarned`）と分けて返す（#727。画面のアラートを出し分けるため）。
+    public func reviveAfterAd() async -> RewardedModelOutcome {
+        guard canReviveAfterBust else { return .unavailable }
+        let serialBeforeAd = sessionSerial
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
+        guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
+        // 広告のロード〜視聴のあいだも画面は操作できる。「最初からやり直す」で新しいセッションが
+        // 始まっていたら、そこへ復活が乗って残高 1000 → 500 になり、復活権と順位表資格まで消える（#727）。
+        // 麻雀のトビ復活（`MahjongModel.reviveAfterAd`）と同じく、通し番号と救済できる状態を見直す。
+        guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisSession = true
         chips = BlackjackModel.reviveChips
         sessionOver = false
@@ -514,13 +614,17 @@ public final class BlackjackModel {
         clearHands()
         dealerHand = []
         phase = .betting
-        return true
+        return .granted
     }
 
     // MARK: - Restart
 
     public func restartSession() {
+        // ディーラーが引いている途中なら止める（#667。新しいセッションの卓に前の局の札が足されない）。
+        dealerTask?.cancel()
+        dealerTask = nil
         recordResult = nil
+        sessionSerial += 1
         chips = BlackjackModel.initialChips
         // 新しいセッションなので復活の回数も戻る（#499）。
         hasRevivedThisSession = false

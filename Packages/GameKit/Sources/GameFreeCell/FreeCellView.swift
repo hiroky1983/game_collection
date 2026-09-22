@@ -120,23 +120,18 @@ public struct FreeCellView: View {
         HStack(spacing: 8) {
             statusReadout
 
-            // 拡大トグル（#604）。ナンプレ（#262）・マインスイーパー（#203）と同じ位置・同じ 44pt の矩形。
-            Button { zoomMode.toggle() } label: {
-                Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
-                    .font(.system(size: 13, weight: .bold))
-                    .frame(
-                        minWidth: FreeCellMetrics.toggleButtonMinSide,
-                        minHeight: FreeCellMetrics.toggleButtonMinSide
-                    )
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
-                    )
-                    .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
-                    // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
-                    .contentShape(Rectangle())
+            // 拡大トグル（#604）。麻雀ソリティア・マインスイーパー・ナンプレと共通の `BoardToggleButton`
+            // （Core・#641）。以前は素のアイコンを手書きしていて見た目が揃っていなかった（会長 QA 2026-09-13）。
+            BoardToggleButton(
+                isOn: zoomMode,
+                systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
+                title: zoomMode ? "全体" : "拡大",
+                fill: Theme.Fill.teal,
+                accent: Theme.teal,
+                label: zoomMode ? "盤全体を表示" : "札を拡大"
+            ) {
+                zoomMode.toggle()
             }
-            .accessibilityLabel(zoomMode ? "盤全体を表示" : "札を拡大")
             // ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
             // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
             .accessibilityHint(zoomMode
@@ -703,6 +698,8 @@ public struct FreeCellView: View {
             .padding(.horizontal, 28)
         }
         .accessibilityElement(children: .contain)
+        // 暗幕が背面のタップを塞ぐので、VoiceOver も告知の中だけを移動させる。
+        .accessibilityAddTraits(.isModal)
         .accessibilityLabel(FreeCellAccessibility.deadEndPromptLabel(
             canUndo: model.canUndo, remaining: model.undosRemaining))
     }
@@ -731,136 +728,6 @@ public struct FreeCellView: View {
         ) {
             model.grantUndos(forDeal: deal)
         }
-    }
-}
-
-// MARK: - 札 1 枚の見た目
-
-/// 札 1 枚の外形と中身。フリーセルは**全札が表向き**なので裏面は持たない。
-struct FreeCellCardBody: View {
-    let card: FreeCellCard
-    let isSelected: Bool
-    let isCovered: Bool
-    let metrics: PlayingCardMetrics
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            // 外形・面はトランプ共通基盤（#397。質感は CardStyle #366）。
-            PlayingCardSurface(
-                faceUp: true,
-                cornerRadius: metrics.cornerRadius,
-                border: isSelected ? Theme.coral : Color.gray.opacity(0.2),
-                borderWidth: isSelected ? 2.5 : 0.5
-            )
-            if isCovered {
-                // 下に重なった札は段差ぶんの帯しか見えないので、左上に小さく出す。
-                FreeCellCardIndex(card: card, metrics: metrics)
-            } else {
-                PlayingCardFace(figure: card.figure, metrics: metrics)
-                    .frame(width: metrics.width, height: metrics.height)
-            }
-        }
-        .frame(width: metrics.width, height: metrics.height)
-    }
-}
-
-/// 重なって隠れた札の見出し（ランク + スートを左上に小さく）。
-struct FreeCellCardIndex: View {
-    let card: FreeCellCard
-    let metrics: PlayingCardMetrics
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Text(card.rankLabel)
-                .font(.system(size: metrics.rankFont * 0.72, weight: .black, design: .rounded))
-            Text(card.suit.symbol)
-                .font(.system(size: metrics.suitFont * 0.72))
-        }
-        .foregroundStyle(PlayingCardInk.color(for: card.suit))
-        .padding(.leading, metrics.cornerRadius * 0.7)
-        .padding(.top, metrics.cornerRadius * 0.4)
-    }
-}
-
-// MARK: - 配札（#421 の横展開）
-
-/// 配られてくる 1 枚。配り終わったあとは素通しなので、移動の補間には干渉しない。
-///
-/// 動きの器は共通基盤（`CardDealtView`・#524）が持ち、ここは**フリーセル固有の
-/// 「どこから」「どの順で」飛んでくるか**を `FreeCellMotion` から渡す口になる
-/// （配り元は上段のいちばん左・8 列へ 1 枚ずつ順に配る）。
-struct FreeCellDealtCardView<Content: View>: View {
-    let pile: Int
-    let depth: Int
-    /// 列の上端から測った、この札の落ち着き先。飛んでくる距離の計算に使う。
-    let restY: CGFloat
-    let metrics: PlayingCardMetrics
-    let dealing: Bool
-
-    let content: Content
-
-    init(pile: Int, depth: Int, restY: CGFloat, metrics: PlayingCardMetrics,
-         dealing: Bool, @ViewBuilder content: () -> Content) {
-        self.pile = pile
-        self.depth = depth
-        self.restY = restY
-        self.metrics = metrics
-        self.dealing = dealing
-        self.content = content()
-    }
-
-    var body: some View {
-        CardDealtView(
-            startOffset: FreeCellMotion.dealStartOffset(pile: pile, restY: restY, metrics: metrics),
-            animation: FreeCellMotion.dealAppear(pile: pile, depth: depth),
-            dealing: dealing
-        ) {
-            content
-        }
-    }
-}
-
-// MARK: - くわしいルール
-
-/// 「遊び方」シートから開く詳細ページ。組み方は `SolitaireRuleSheet` と同じ。
-struct FreeCellRuleSheet: View {
-    /// 文言はテストから検証したいので型の外に出しておく。
-    static let rules: [(String, String)] = [
-        ("ゲームの流れ", "配られた52枚を、右上の組札（4か所）に ♠♥♦♣ ごとに A から K まで順に積み上げればクリアです。最初から全部の札が見えているので、運ではなく読みで決まります"),
-        ("フリーセル", "左上の4つの枠が「フリーセル」です。札を1枚ずつ一時的に置けます。ここに入れた札は、場札か組札へいつでも戻せます"),
-        ("場札の並べ方", "場札（下の8列）には、ひとつ上の札より1つ小さくて色ちがいの札だけを置けます（黒の8 の上には 赤の7）"),
-        ("空いた列", "札が無くなった列には、どの札でも置けます（クロンダイクのように K だけ、ではありません）。空列はフリーセル以上に強い資源です"),
-        ("何枚まとめて動かせるか", "そろっている並びは「（空きフリーセル + 1）×（2の空き列数乗）」枚までまとめて動かせます。いま何枚動かせるかは盤の下に出ています。置き先が空列のときは、その列は数えません"),
-        ("操作", "動かしたい札をタップして選び、置きたい列・フリーセル・組札をタップします。ドラッグでも動かせます。もう一度同じ札をタップすると選択を外せます"),
-        ("戻す", "「戻す」は1局につき\(FreeCellUndoBudget.free)回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると\(FreeCellUndoBudget.refill)回ぶん補充できます"),
-        ("配られる札", "出題する配札は、すべて事前にコンピュータで解いてクリアできることを確かめてあります。行き止まりは配りのせいではなく、指し方で変わります。配札の番号は画面の上に出ています"),
-    ]
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(Self.rules, id: \.0) { rule in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(rule.0)
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .foregroundStyle(Theme.coral)
-                        Text(rule.1)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-                }
-            }
-            .padding(Theme.pad)
-        }
-        .popBackground()
-        .navigationTitle("ルール")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 }
 

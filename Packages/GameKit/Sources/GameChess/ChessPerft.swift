@@ -23,16 +23,4 @@ extension ChessPosition {
         }
         return nodes
     }
-
-    /// 指し手ごとの内訳（`perft divide`）。数が合わないときにどの手の先で狂っているかを絞り込む。
-    public func perftDivide(_ depth: Int) -> [(move: String, nodes: Int)] {
-        guard depth >= 1 else { return [] }
-        var pos = self
-        return pos.legalMovesInPlace().map { move in
-            let undo = pos.make(move)
-            let n = pos.perft(depth - 1)
-            pos.unmake(undo)
-            return (move.uci, n)
-        }
-    }
 }

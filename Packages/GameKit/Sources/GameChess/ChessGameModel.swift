@@ -6,7 +6,7 @@ import Core
 /// ルールは `ChessPosition` に委譲し、ここは UI 操作と永続化を担う（将棋の `ShogiGameModel` と同じ分担）。
 @MainActor
 @Observable
-public final class ChessGameModel {
+public final class ChessGameModel: AITurnGuarded, BoardUndoModel {
     public let initialFEN: String
     public private(set) var moves: [ChessMove]
     public private(set) var position: ChessPosition
@@ -34,7 +34,7 @@ public final class ChessGameModel {
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "chess"
+    public let gameID = "chess"
     private var startedAt: Date
 
     public init(services: GameServices? = nil) {
@@ -98,6 +98,9 @@ public final class ChessGameModel {
         if gameOver, let record = services?.playLog?.record(gameID: gameID) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
+        // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
+        // 中断のお知らせ（#663）の対象から外す。
+        if gameOver { services?.gameDidRestoreFinished(gameID: gameID) }
         // 保存された対局が無いときだけ新規対局の開始として数える（#158）。
         // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
         // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。
@@ -403,22 +406,19 @@ public final class ChessGameModel {
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
         // 計算中に新規対局が始まると、旧局面で選んだ手が新しい局面に指されうる。
-        // 開始時のトリガー（対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する。
-        let key = aiTurnKey
-        let serial = gameSerial
-        isThinking = true
-        defer { if gameSerial == serial { isThinking = false } }
-
-        let level = aiLevel
-        let fen = position.toFEN()
-        await thinkingGate?()
-        let uci = await Task.detached(priority: .userInitiated) {
-            await SimpleChessEngine(level: level).bestMove(fen: fen)
-        }.value
-
-        guard aiTurnKey == key, isAITurn, let uci, let move = ChessMove.fromUCI(uci),
-              legalMovesCache.contains(move) else { return }
-        apply(move)
+        // 開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let level = aiLevel
+            let fen = position.toFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleChessEngine(level: level).bestMove(fen: fen)
+            }.value
+        } commit: { uci in
+            guard isAITurn, let uci, let move = ChessMove.fromUCI(uci),
+                  legalMovesCache.contains(move) else { return }
+            apply(move)
+        }
     }
 
     // MARK: - 検討（終局後に手を戻す／進める）
@@ -479,6 +479,17 @@ public final class ChessGameModel {
         undoUsed = true
         clearSelection()
         persist()
+    }
+
+    /// 広告を出す前に控えた `aiTurnKey`（対局の通し番号 × 手数）の局面にだけ待ったを適用する（#729）。
+    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手で局面が変わっていたら false
+    ///   （View は「待ったを使えなかった」と知らせる）。対局の番号だけを照合すると、ロード中に
+    ///   1 往復指したとき、広告を出したときとは別の 1 往復が戻る。
+    @discardableResult
+    public func undoLastExchange(forTurn turn: AITurnKey) -> Bool {
+        guard turn == aiTurnKey, canUndo else { return false }
+        undoLastExchange()
+        return true
     }
 
     // MARK: - 永続化

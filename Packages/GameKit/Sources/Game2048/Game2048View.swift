@@ -46,7 +46,14 @@ public struct Game2048View: View {
             }
             #endif
         }
-        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: "コンティニューできませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "コンティニューできませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+            )
+        )
     }
 
     /// レコメンドカードの枠。高さの担保は `RecommendationArea`（#148）。
@@ -96,6 +103,11 @@ public struct Game2048View: View {
                 }
                 .padding(spacing)
             }
+            // 支援技術にだけ 16 マスを見せる（#712）。勝敗の幕（下の overlay）より手前に付けるので、
+            // 幕の「続ける」「もう一度」などのボタンは置き換わらずそのまま読める。
+            .accessibilityRepresentation {
+                accessibilityGrid(tileSize: tileSize, spacing: spacing)
+            }
             .overlay {
                 if model.gameOver {
                     gameOverOverlay
@@ -133,34 +145,17 @@ public struct Game2048View: View {
     }
 
     private var gameOverOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text("ゲームオーバー").font(.title2.bold()).foregroundStyle(.white)
-                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                if !model.continueUsed {
-                    Button {
-                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                        continueRescue.request(
-                            services, gameID: model.gameID, purpose: .continue,
-                            guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
-                        ) {
-                            withGameAnimation { model.continueAfterAd() }
-                            return true
-                        }
-                    } label: {
-                        Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
-                        .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Fill.coral)
-                    .disabled(continueRescue.isWatching)
-                }
-                Button("もう一度") { withGameAnimation { model.newGame() } }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-            }
-        }
+        RewardedContinueOverlay(
+            title: "ゲームオーバー",
+            detail: RecordLabel(model.recordResult, textColor: .white.opacity(0.85)),
+            rescueLabel: "広告を見てコンティニュー",
+            canContinue: !model.continueUsed,
+            rescue: continueRescue, services: services, gameID: model.gameID,
+            serial: model.gameSerial,
+            grant: { game in withGameAnimation { model.continueAfterAd(forGame: game) } },
+            secondaryTitle: "もう一度",
+            secondaryAction: { withGameAnimation { model.newGame() } }
+        )
     }
 
     #if DEBUG
@@ -184,10 +179,51 @@ public struct Game2048View: View {
                 let direction: Direction = abs(dx) > abs(dy)
                     ? (dx > 0 ? .right : .left)
                     : (dy > 0 ? .down : .up)
-                withGameAnimation(.easeInOut(duration: 0.12)) {
-                    model.move(direction)
+                slide(direction)
+            }
+    }
+
+    /// スワイプと VoiceOver のアクションが共通で通る 1 手。
+    private func slide(_ direction: Direction) {
+        withGameAnimation(.easeInOut(duration: 0.12)) {
+            model.move(direction)
+        }
+    }
+
+    /// VoiceOver 用のマス目グリッド（#712）。
+    ///
+    /// 盤はスワイプでしか動かせず、VoiceOver 有効時はスワイプが支援技術に吸われるため、
+    /// 各マスに上下左右へ動かすアクションを持たせる（どのマスにフォーカスしていても盤全体が動く）。
+    /// `accessibilityRepresentation` は**描画も当たり判定もされず、支援技術に見せる姿としてだけ使われる**
+    /// ので、見た目・アニメーション・指でのスワイプは一切変わらない。
+    /// 勝敗の幕が出ているあいだは `model.move(_:)` が何もしないので、アクション自体を出さない。
+    private func accessibilityGrid(tileSize: CGFloat, spacing: CGFloat) -> some View {
+        let n = Game2048Logic.size
+        let canMove = !model.gameOver && !model.showWinPrompt
+        return VStack(spacing: spacing) {
+            ForEach(0..<n, id: \.self) { r in
+                HStack(spacing: spacing) {
+                    ForEach(0..<n, id: \.self) { c in
+                        Color.clear
+                            .frame(width: tileSize, height: tileSize)
+                            .accessibilityElement()
+                            .accessibilityLabel(Game2048Accessibility.tileLabel(
+                                row: r, col: c, value: model.board[r][c]
+                            ))
+                            .accessibilityActions {
+                                if canMove {
+                                    ForEach(Direction.allCases, id: \.self) { direction in
+                                        Button(Game2048Accessibility.moveActionName(direction)) {
+                                            slide(direction)
+                                        }
+                                    }
+                                }
+                            }
+                    }
                 }
             }
+        }
+        .padding(spacing)
     }
 }
 

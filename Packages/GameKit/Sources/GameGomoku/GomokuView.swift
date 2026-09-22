@@ -7,7 +7,6 @@ public struct GomokuView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -84,10 +83,20 @@ public struct GomokuView: View {
     /// 対局中（投了・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// **高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.gameOver, services: services) {
+        GameControlArea(isFinished: model.gameOver, services: services, ladder: ladder) {
             resultControls
         } playing: {
             gameControls
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じで、
+    /// 石の色と禁じ手の有無は今の対局のものを引き継ぐ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
+                               levelLabels: ["弱", "普通", "強"]) { level in
+            model.newGame(humanSide: model.humanSide, aiLevel: level,
+                          forbiddenMoves: model.forbiddenMovesEnabled)
         }
     }
 
@@ -131,7 +140,7 @@ public struct GomokuView: View {
                 )
                 // 置いた石が現れる演出（#202）。`Canvas` は View が再評価されないと描き直されない
                 // ため、`GomokuBoardCanvas` を `Animatable` にして手数を補間させている。
-                .gameAnimation(.easeOut(duration: 0.18), value: model.moveCount)
+                .gameAnimation(.easeOut(duration: GomokuMotion.placementDuration), value: model.moveCount)
                 .gesture(
                     SpatialTapGesture()
                         .onEnded { val in
@@ -145,6 +154,17 @@ public struct GomokuView: View {
                 .accessibilityRepresentation {
                     accessibilityGrid(pad: pad, spacing: spacing)
                 }
+
+                // 決着した五を光らせる（#665）。盤の前面に重ねるので、タップと VoiceOver の
+                // 交点グリッドを横取りしないよう当たり判定・支援技術の両方から外す。
+                GomokuWinLineCanvas(
+                    line: model.winningLine ?? [],
+                    pad: pad,
+                    progress: model.winningLine == nil ? 0 : 1
+                )
+                .gameAnimation(GomokuMotion.winLine, value: model.winningLine)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GomokuShake(animatableData: CGFloat(model.rejectedTapCount)))
@@ -279,53 +299,17 @@ public struct GomokuView: View {
 
     private var gameControls: some View {
         HStack(spacing: 12) {
-            Button { showResignConfirm = true } label: {
-                Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-                Button("投了する", role: .destructive) { model.resign() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("現在の対局を終了します。CPUの勝ちになります。")
-            }
+            // 2 つとも同じカプセルに揃え、当たり判定を 44pt にする（#711）。中身は盤ゲーム 5 本で共通（#828）。
+            BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
+                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
 
             Spacer()
 
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
-                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    guard model.undoUsed else {
-                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
-                        // アラートの終了アニメーションに巻き込まれる）。
-                        Task { model.undoLastExchange() }
-                        return
-                    }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する
-                    undoRescue.request(
-                        services, gameID: model.gameID, purpose: .undo,
-                        guardedBy: .unchecked(note: "対局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
-                    ) {
-                        model.undoLastExchange()
-                        return true
-                    }
-                }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
-            }
-            .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
+            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
+        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 }
@@ -456,6 +440,64 @@ private struct GomokuBoardCanvas: View, Animatable {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - 勝ち筋
+
+/// 五目並べの演出の尺（#665）。View の `static` は MainActor 隔離になるため、別の enum に置く。
+enum GomokuMotion {
+    /// 置いた石が現れる時間（#202）。
+    static let placementDuration: TimeInterval = 0.18
+    /// 勝ち筋が光りきるまでの時間。
+    static let winLineDuration: TimeInterval = 0.3
+    /// 決着の石が現れきってから線を引き始める。
+    static var winLine: Animation {
+        .easeOut(duration: winLineDuration).delay(placementDuration)
+    }
+}
+
+/// 決着した五を盤上で光らせる（#665）。
+///
+/// 端の石から端の石へ線を伸ばし、並んだ石をリングで囲む。`progress`（0→1）で線の長さと
+/// リングの濃さが増える。`GomokuBoardCanvas` と同じく `Animatable` にして補間させ、
+/// Reduce Motion が ON のときは `.gameAnimation` が補間を落とすので即座に光りきる。
+private struct GomokuWinLineCanvas: View, Animatable {
+    nonisolated let line: [GomokuPoint]
+    nonisolated let pad: CGFloat
+    nonisolated var progress: Double
+
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        let progress = min(max(progress, 0), 1)
+        Canvas { ctx, size in
+            guard let first = line.first, let last = line.last, progress > 0 else { return }
+            let s = (size.width - pad * 2) / CGFloat(gomokuBoardSize - 1)
+            func center(_ p: GomokuPoint) -> CGPoint {
+                CGPoint(x: pad + CGFloat(p.col) * s, y: pad + CGFloat(p.row) * s)
+            }
+
+            var layer = ctx
+            layer.opacity = progress
+            for point in line {
+                let c = center(point)
+                let r = s * 0.46 + 3
+                layer.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                             with: .color(Theme.coral), lineWidth: 3)
+            }
+
+            let start = center(first), end = center(last)
+            var path = Path()
+            path.move(to: start)
+            path.addLine(to: CGPoint(x: start.x + (end.x - start.x) * progress,
+                                     y: start.y + (end.y - start.y) * progress))
+            ctx.stroke(path, with: .color(Theme.coral.opacity(0.75)),
+                       style: StrokeStyle(lineWidth: s * 0.16, lineCap: .round))
         }
     }
 }

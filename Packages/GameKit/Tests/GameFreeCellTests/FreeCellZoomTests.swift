@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CoreGraphics
+import GameKitTestSupport
 @testable import GameFreeCell
 
 /// 拡大モード（会長QA #595 の項目10 = #604）。
@@ -135,30 +136,31 @@ struct FreeCellZoomTests {
 
     @Test("等倍と拡大の分岐は札の幅を決める 1 か所だけにある")
     func theZoomBranchLivesInExactlyOnePlace() throws {
-        let source = Self.strippingComments(try Self.viewSource())
-        let branches = Self.matchCount(of: #"zoomMode\s*\?"#, in: source)
+        let source = SourceScan.strippingComments(try Self.viewSource())
+        let branches = SourceScan.matchCount(of: #"zoomMode\s*\?"#, in: source)
         #expect(
             branches == Self.expectedZoomBranches,
             """
             拡大の分岐が \(branches) か所ある（想定 \(Self.expectedZoomBranches) か所: \
-            札の幅・スクロール方向・トグルの記号/塗り/文字色・読み上げのラベルとヒント）。\
+            札の幅・スクロール方向・トグルの記号/文字・読み上げのラベルとヒント）。\
             寸法の分岐を各所に撒くと、拡大したのに当たり判定だけ等倍のまま、という形のズレが生まれる
             """
         )
-        let width = try #require(Self.declaration(of: "private func cardWidth", in: source))
-        #expect(Self.strippingComments(width).contains("zoomMode"), "札の幅の分岐がここから消えている")
+        let width = try #require(SourceScan.declaration(of: "private func cardWidth", in: source))
+        #expect(SourceScan.strippingComments(width).contains("zoomMode"), "札の幅の分岐がここから消えている")
         #expect(width.contains("zoomedCardWidth"), "取り違え防止")
     }
 
-    /// 札の幅・スクロール方向・トグルの記号/塗り/文字色・読み上げのラベルとヒント。
-    private static let expectedZoomBranches = 7
+    /// 札の幅・スクロール方向・トグルの記号/文字・読み上げのラベルとヒント
+    /// （塗り・文字色の分岐は共通の `BoardToggleButton`（Core・#641）へ移った）。
+    private static let expectedZoomBranches = 6
 
     @Test("盤は 1 つの札幅から作った metrics を上段と場札へ配る")
     func theBoardFeedsOneMetricsToBothRows() throws {
         let source = try Self.viewSource()
-        let block = try #require(Self.declaration(of: "private var board:", in: source))
-        let body = Self.strippingComments(block)
-        #expect(Self.matchCount(of: #"let metrics = "#, in: body) == 1, "metrics が複数ある")
+        let block = try #require(SourceScan.declaration(of: "private var board:", in: source))
+        let body = SourceScan.strippingComments(block)
+        #expect(SourceScan.matchCount(of: #"let metrics = "#, in: body) == 1, "metrics が複数ある")
         #expect(body.contains("topRow(metrics: metrics)"))
         #expect(body.contains("tableau(metrics: metrics)"))
         #expect(!body.contains("FreeCellMetrics.cardWidth("),
@@ -170,56 +172,19 @@ struct FreeCellZoomTests {
     @Test("拡大トグルは読み上げを畳んだ要素の外にある")
     func theToggleIsOutsideTheCollapsedAccessibilityElement() throws {
         let source = try Self.viewSource()
-        let readout = try #require(Self.declaration(of: "private var statusReadout:", in: source))
+        let readout = try #require(SourceScan.declaration(of: "private var statusReadout:", in: source))
         #expect(readout.contains("children: .ignore"), "取り違え防止。畳んでいるのはこちら")
         #expect(!readout.contains("zoomMode"), "トグルが畳んだ要素の中にある。VoiceOver から押せない")
 
-        let bar = try #require(Self.declaration(of: "private var statusBar:", in: source))
+        let bar = try #require(SourceScan.declaration(of: "private var statusBar:", in: source))
         #expect(bar.contains("zoomMode.toggle()"), "トグルが帯から消えている")
-        #expect(!Self.strippingComments(bar).contains("children: .ignore"),
+        #expect(!SourceScan.strippingComments(bar).contains("children: .ignore"),
                 "帯ごと畳むとトグルが読み上げから消える")
     }
 
-    // MARK: - ヘルパー（`FreeCellTopRowTests` と同じもの）
+    // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameFreeCellTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameFreeCell/FreeCellView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
-    private static func declaration(of header: String, in source: String) -> String? {
-        guard let start = source.range(of: header) else { return nil }
-        guard let open = source[start.upperBound...].firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var index = open
-        while index < source.endIndex {
-            if source[index] == "{" { depth += 1 }
-            if source[index] == "}" {
-                depth -= 1
-                if depth == 0 { return String(source[open...index]) }
-            }
-            index = source.index(after: index)
-        }
-        return nil
-    }
-
-    /// 行コメント（`//` 以降）を落とす。禁じ手を説明した注記まで「使っている」と数えないため。
-    private static func strippingComments(_ source: String) -> String {
-        source.split(separator: "\n", omittingEmptySubsequences: false).map { line -> Substring in
-            if let slashes = line.range(of: "//") { return line[line.startIndex..<slashes.lowerBound] }
-            return line[...]
-        }.joined(separator: "\n")
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.moduleSources("GameFreeCell")
     }
 }

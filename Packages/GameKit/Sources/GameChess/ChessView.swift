@@ -7,7 +7,6 @@ public struct ChessView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showUndoConfirm = false
     @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -257,10 +256,18 @@ public struct ChessView: View {
         // 終局後のレコメンドは盤の下端に重ねる（将棋と同じ。高さの予約をせずに済ませる）。
         .overlay(alignment: .bottom) {
             if model.gameOver {
-                RecommendationSlot(services: services, isFinished: true)
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
+                               levelLabels: ["弱", "普通", "強"]) { level in
+            model.newGame(humanSide: model.humanSide, aiLevel: level)
         }
     }
 
@@ -428,52 +435,13 @@ public struct ChessView: View {
 
     private var gameControls: some View {
         HStack(spacing: 12) {
-            Button { showResignConfirm = true } label: {
-                Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-                Button("投了する", role: .destructive) { model.resign() }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("現在の対局を終了します。CPUの勝ちになります。")
-            }
+            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。
+            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) { showResignConfirm = true }
+                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
 
             Spacer()
 
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
-                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    guard model.undoUsed else {
-                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
-                        // アラートの終了アニメーションに巻き込まれる）。
-                        Task { model.undoLastExchange() }
-                        return
-                    }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する。
-                    undoRescue.request(
-                        services, gameID: model.gameID, purpose: .undo,
-                        guardedBy: .unchecked(note: "対局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
-                    ) {
-                        model.undoLastExchange()
-                        return true
-                    }
-                }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                // 戻るのは「自分の1手 + CPU の応手」の2手（`undoLastExchange`）。
-                // 「直前の1手」とだけ書くと、盤が2手ぶん戻ることが伝わらない。
-                Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると、もう一度あなたの直前の1手（CPU の応手ごと）を取り消せます。"
-                     : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
-            }
-            .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
+            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 5)

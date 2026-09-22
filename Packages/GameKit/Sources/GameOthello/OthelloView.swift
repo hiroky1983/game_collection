@@ -7,7 +7,6 @@ public struct OthelloView: View {
     @State private var showNewGame = false
     @State private var showPassAlert = false
     @State private var showResignConfirm = false
-    @State private var showUndoConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
 
@@ -70,12 +69,7 @@ public struct OthelloView: View {
         } message: {
             Text("打てるマスがありません。パスします。")
         }
-        .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
-            Button("投了する", role: .destructive) { model.resign() }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("現在の対局を終了します。CPUの勝ちになります。")
-        }
+        .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
         // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
         // 保存され、復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
         // パスの手段はこの案内の「OK」だけなので、出ないと着手も「待った」も塞がったまま詰む。
@@ -249,47 +243,17 @@ public struct OthelloView: View {
 
     private var gameControls: some View {
         HStack(spacing: 12) {
-            Button { showResignConfirm = true } label: {
-                Label("投了", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
+            // 2 つとも同じカプセルに揃え、当たり判定を 44pt にする（#711）。中身は盤ゲーム 5 本で共通（#828）。
+            // 投了の確認ダイアログだけは画面全体に付けている（body の `boardResignConfirmation`）。
+            BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
 
             Spacer()
 
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
-                Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
-                    guard model.undoUsed else {
-                        // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
-                        // 手番で盤を動かす（同じ transaction に乗せると盤の変化が
-                        // アラートの終了アニメーションに巻き込まれる）。
-                        Task { model.undoLastExchange() }
-                        return
-                    }
-                    // 視聴完了（報酬獲得）したときだけ待ったを許可する
-                    undoRescue.request(
-                        services, gameID: model.gameID, purpose: .undo,
-                        guardedBy: .unchecked(note: "対局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
-                    ) {
-                        model.undoLastExchange()
-                        return true
-                    }
-                }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text(model.undoUsed
-                     ? "無料の待ったは使い切りました。\n広告を視聴すると1手戻せます。"
-                     : "直前の1手を取り消します。\n無料で使えるのは1回だけです。")
-            }
-            .rewardedRescueAlerts(undoRescue, notEarned: "待ったは使えませんでした")
+            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
         }
         .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
+        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -344,10 +308,18 @@ public struct OthelloView: View {
     /// 対局中（投了・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// **高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.gameOver, services: services) {
+        GameControlArea(isFinished: model.gameOver, services: services, ladder: ladder) {
             newGameButton
         } playing: {
             gameControls
+        }
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
+                               levelLabels: ["弱", "普通", "強"]) { level in
+            model.newGame(humanSide: model.humanSide, aiLevel: level)
         }
     }
 

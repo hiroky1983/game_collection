@@ -4,21 +4,9 @@ import SwiftUI
 import Core
 import MahjongTiles
 @testable import GameMahjong
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MemoryStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
 
 /// 視聴完了・未完了を制御できる広告スタブ（ポーカーの `PokerRewardedAdTests` と同じ形）。
 private final class StubAdService: AdService, @unchecked Sendable {
@@ -67,7 +55,7 @@ private func concludeGame(
 
 @MainActor
 private func makeModel(
-    rewardEarned: Bool, playLog: PlayLog? = nil, store: SnapshotStore = MemoryStore()
+    rewardEarned: Bool, playLog: PlayLog? = nil, store: SnapshotStore = MemorySnapshotStore()
 ) -> (MahjongModel, StubAdService) {
     let ads = StubAdService(rewardEarned: rewardEarned)
     let model = MahjongModel(
@@ -119,9 +107,9 @@ struct MahjongRewardedAdTests {
         let (model, ads) = makeModel(rewardEarned: true)
         concludeGame(model, scores: [-1_000, 30_000, 35_000, 36_000])
 
-        let revived = await model.reviveAfterAd()
+        let outcome = await model.reviveAfterAd()
 
-        #expect(revived)
+        #expect(outcome == .granted)
         #expect(ads.rewardedCount == 1)
         #expect(model.scores[0] == MahjongModel.startingScore, "マイナスの持ち点だけが初期値へ戻る")
         #expect(model.scores[1] == 30_000)
@@ -135,9 +123,9 @@ struct MahjongRewardedAdTests {
         let (model, ads) = makeModel(rewardEarned: false)
         concludeGame(model, scores: [-1_000, 30_000, 35_000, 36_000])
 
-        let revived = await model.reviveAfterAd()
+        let outcome = await model.reviveAfterAd()
 
-        #expect(!revived)
+        #expect(outcome == .notEarned, "視聴しなかったことは、適用できなかったこと（.unavailable）と分けて返す（#814）")
         #expect(ads.rewardedCount == 1)
         #expect(model.scores[0] == -1_000, "報酬なしなので持ち点は 1 点も戻らない")
         #expect(model.phase == .gameResult)
@@ -158,14 +146,14 @@ struct MahjongRewardedAdTests {
     func revivesOncePerGame() async {
         let (model, ads) = makeModel(rewardEarned: true)
         concludeGame(model, scores: [-1_000, 30_000, 35_000, 36_000])
-        #expect(await model.reviveAfterAd())
+        #expect(await model.reviveAfterAd() == .granted)
 
         // 復活後の局でまたトビて終局させる。
         concludeGame(model, scores: [-2_000, 30_000, 35_000, 37_000])
 
         #expect(model.phase == .gameResult)
         #expect(!model.canReviveAfterBust)
-        #expect(await model.reviveAfterAd() == false)
+        #expect(await model.reviveAfterAd() == .unavailable, "救済できる状態ではない")
         #expect(ads.rewardedCount == 1, "2 回目は広告を出さない")
     }
 
@@ -173,7 +161,7 @@ struct MahjongRewardedAdTests {
     func reviveBudgetResetsOnNewGame() async {
         let (model, _) = makeModel(rewardEarned: true)
         concludeGame(model, scores: [-1_000, 30_000, 35_000, 36_000])
-        #expect(await model.reviveAfterAd())
+        #expect(await model.reviveAfterAd() == .granted)
 
         model.startGame()
         concludeGame(model, scores: [-1_000, 30_000, 35_000, 36_000])
@@ -183,10 +171,10 @@ struct MahjongRewardedAdTests {
 
     @Test("中断から復元しても、使い切った復活枠は戻らない")
     func reviveBudgetSurvivesRestore() async {
-        let store = MemoryStore()
+        let store = MemorySnapshotStore()
         let (model, _) = makeModel(rewardEarned: true, store: store)
         concludeGame(model, scores: [-1_000, 30_000, 35_000, 36_000])
-        #expect(await model.reviveAfterAd())
+        #expect(await model.reviveAfterAd() == .granted)
         #expect(store.exists(for: "mahjong4"), "復活後の局は中断データとして保存されている")
 
         let restored = MahjongModel(
@@ -210,7 +198,7 @@ struct MahjongRewardedAdTests {
         #expect(log.record(gameID: "mahjong4")?.plays == 1, "決着の通知は従来どおりその場で行う")
         #expect(log.record(gameID: "mahjong4")?.losses == 1)
 
-        #expect(await model.reviveAfterAd())
+        #expect(await model.reviveAfterAd() == .granted)
 
         #expect(log.record(gameID: "mahjong4")?.plays == 0, "同じ半荘の続きなので負けを巻き戻す")
         #expect(log.record(gameID: "mahjong4")?.losses == 0)

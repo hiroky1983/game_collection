@@ -1,22 +1,9 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GameSudoku
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-    var savedCount = 0
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-        savedCount += 1
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
+import CoreTestSupport
 
 @MainActor
 private func makeModel(
@@ -274,45 +261,6 @@ struct SudokuModelHintTests {
     }
 }
 
-/// 生成タスクを生成の開始直前で止めておくためのゲート（#419。オセロ・将棋の `ThinkingGate` と同じ形）。
-///
-/// 以前は `Task.yield()` を 100 回まで回して `isGenerating` が立つのを待っていたが、これは
-/// 「回し終えた時点で生成がまだ終わっていない」ことまでは保証できない。`yield` 1 回の実時間は
-/// MainActor のジョブ行列の長さで決まるため、囲碁の重い CPU テストと並列に走ると 100 回ぶんで
-/// `hard` の生成（実測 約1秒）を追い越し、2 本目が「弾かれる」のではなく普通に走ってしまう。
-///
-/// ここではモデル側の待ち合わせ点（`generationGate`）で生成を明示的に止め、テストが `release()` を
-/// 呼ぶまで先へ進ませない。到達も解放もテストが制御するため、生成の所要時間に依存しない。
-@MainActor
-private final class GenerationGate {
-    private var hasArrived = false
-    private var isReleased = false
-    private var onArrival: CheckedContinuation<Void, Never>?
-    private var onRelease: CheckedContinuation<Void, Never>?
-
-    /// 生成タスク側。ゲートへの到達を知らせ、`release()` まで停止する。
-    func wait() async {
-        hasArrived = true
-        onArrival?.resume()
-        onArrival = nil
-        guard !isReleased else { return }
-        await withCheckedContinuation { onRelease = $0 }
-    }
-
-    /// テスト側。生成タスクがゲートに到達するまで待つ。
-    func waitUntilArrived() async {
-        guard !hasArrived else { return }
-        await withCheckedContinuation { onArrival = $0 }
-    }
-
-    /// テスト側。止めていた生成タスクを進ませる。
-    func release() {
-        isReleased = true
-        onRelease?.resume()
-        onRelease = nil
-    }
-}
-
 @Suite("数独 Model の新規ゲームの再入")
 @MainActor
 struct SudokuModelNewGameTests {
@@ -320,7 +268,7 @@ struct SudokuModelNewGameTests {
     @Test("生成中の新規ゲーム要求は弾かれる（2本目の生成が走らない）")
     func newGameIsNotReentrant() async throws {
         let (model, _) = makeModel()
-        let gate = GenerationGate()
+        let gate = TaskGate()
         model.generationGate = { await gate.wait() }
         let first = Task { await model.newGame(difficulty: .hard) }
         // 途中の `#require` が失敗して抜けたときも、ゲートで止まっている 1 本目を必ず解放する
@@ -900,7 +848,7 @@ struct SudokuTimerPersistenceTests {
 
         // 次の盤の生成中（`.generating`）に画面を離れる。この状態では計時が止まっているので、
         // `persist()` を無条件に呼ぶと「プレイ中でない」と判定されて中断データが消える。
-        let gate = GenerationGate()
+        let gate = TaskGate()
         model.generationGate = { await gate.wait() }
         // 難易度は `.easy`。ゲートで生成の手前を押さえるので、生成そのものの重さは検証に要らない。
         let generating = Task { await model.newGame(difficulty: .easy) }

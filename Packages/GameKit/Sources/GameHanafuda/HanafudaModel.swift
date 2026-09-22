@@ -77,7 +77,9 @@ public struct HanafudaRoundResult: Equatable, Sendable, Codable {
 // MARK: - スナップショット
 
 struct HanafudaSnapshot: Codable {
-    let options: HanafudaOptions
+    /// 焼き込んだルール。鍵が無いデータは既定（`HanafudaOptions()`）に倒すので optional
+    /// （1局=1RuleSet 規約 2・#827。非 optional だと鍵の欠けたデータのデコードが丸ごと失敗し、中断が黙って消える）。
+    let options: HanafudaOptions?
     let round: Int
     let dealer: HanafudaPlayer
     let turn: HanafudaPlayer
@@ -104,7 +106,7 @@ struct HanafudaSnapshot: Codable {
 /// 寄せ、この型は**進行・永続化・演出**だけを持つ。
 @MainActor
 @Observable
-public final class HanafudaModel {
+public final class HanafudaModel: AITurnGuarded {
 
     // MARK: 公開状態
 
@@ -186,7 +188,7 @@ public final class HanafudaModel {
               Set(all.map(\.id)).count == HanafudaCard.deckSize,
               all.allSatisfy({ (0..<HanafudaCard.deckSize).contains($0.id) })
         else { return nil }
-        guard snap.round >= 1, snap.round <= snap.options.rounds,
+        guard snap.round >= 1, snap.round <= (snap.options ?? HanafudaOptions()).rounds,
               snap.claimed.allSatisfy({ $0 >= 0 }),
               snap.koiKoiCounts.allSatisfy({ $0 >= 0 }),
               snap.totals.allSatisfy({ $0 >= 0 })
@@ -211,7 +213,7 @@ public final class HanafudaModel {
     }
 
     private func apply(_ snap: HanafudaSnapshot) {
-        options = snap.options
+        options = snap.options ?? HanafudaOptions()
         round = snap.round
         dealer = snap.dealer
         turn = snap.turn
@@ -528,14 +530,18 @@ public final class HanafudaModel {
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: outcome,
-            score: GameScore(metric: .points, points: humanTotal)
+            score: matchScore
         )
         services?.feedback.notify(outcome == .win ? .success : (outcome == .loss ? .error : .warning))
         services?.snapshots.clear(for: Self.gameID)
     }
 
     /// 試合の決着後に「もう一度」。設定は前回のものを引き継ぐ。
-    public func restartMatch() {
+    ///
+    /// - Parameter difficulty: CPU の強さだけ変えて始め直すとき（リザルトの「階段」#722）に渡す。
+    ///   試合の開始時に焼き込む設定の一部なので、`game_start` より前に差し替える。
+    public func restartMatch(difficulty: HanafudaDifficulty? = nil) {
+        if let difficulty { options.difficulty = difficulty }
         services?.gameDidRestart(gameID: Self.gameID, level: options.difficulty.analyticsLevel)
         let options = self.options
         humanTotal = 0
@@ -558,7 +564,7 @@ public final class HanafudaModel {
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .loss,
-            score: GameScore(metric: .points, points: humanTotal)
+            score: matchScore
         )
         services?.feedback.notify(.error)
         services?.snapshots.clear(for: Self.gameID)
@@ -568,17 +574,35 @@ public final class HanafudaModel {
         phase == .playing || phase == .koiKoiPrompt || phase == .roundResult
     }
 
+    /// 決着・投了で記録する成績。既定ルールは区分なし・順位表の対象のまま、分岐は別枠にする
+    /// （1局=1RuleSet 規約 3・4・#827）。
+    private var matchScore: GameScore {
+        GameScore(
+            metric: .points,
+            points: humanTotal,
+            variant: options.recordVariant,
+            variantLabel: options.recordVariantLabel,
+            isLeaderboardEligible: options.isLeaderboardEligible
+        )
+    }
+
     // MARK: - CPU
 
     /// CPU の手番なら 1 手進める。View の `.task(id:)` から呼ぶ。
     public func runCPUTurnIfNeeded() async {
-        guard !isRunningCPUTurn else { return }
-        isRunningCPUTurn = true
-        defer { isRunningCPUTurn = false }
-        while phase == .playing, turn == .cpu, !cpuHand.isEmpty {
-            try? await Task.sleep(for: cpuDelay)
-            guard phase == .playing, turn == .cpu else { return }
-            stepCPU()
+        // 多重起動防止。「先行タスクがいたら即リターン」にすると、下のキャンセル検知と
+        // 組み合わさったとき「新タスクが即リターン → 先行タスクがキャンセルで抜ける」の順で
+        // 走者不在になり CPU の手番で止まるため、大富豪（#287）・麻雀（#311）と同じく
+        // 先行タスクの終了を待ってから引き継ぐ。待機中に自分もキャンセルされたら譲って抜ける（#726。#531 で共通化）。
+        await withAITurnRunner(running: \.isRunningCPUTurn) {
+            while phase == .playing, turn == .cpu, !cpuHand.isEmpty {
+                // キャンセル済みなら無駄な sleep をしない（止めるのは下の sleep 後の判定で、ここは近道）。
+                guard !Task.isCancelled else { return }
+                // 画面を離れると `.task(id:)` がキャンセルされる。状態の guard だけでは通過してしまい、
+                // 離れた後に CPU が待ち時間ゼロで打ち、その結果（役・あがり）が中断データに残る（#726）。
+                guard await pauseCPUTurn(for: cpuDelay), phase == .playing, turn == .cpu else { return }
+                stepCPU()
+            }
         }
     }
 

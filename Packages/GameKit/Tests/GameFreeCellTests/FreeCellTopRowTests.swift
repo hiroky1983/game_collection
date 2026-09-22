@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CoreGraphics
+import GameKitTestSupport
 @testable import GameFreeCell
 
 /// 上段（フリーセル 4 枠 + 組札 4 枠）の幅（会長QA #595 の項目9）。
@@ -47,9 +48,9 @@ struct FreeCellTopRowTests {
     @Test("上段に Spacer を置いていない")
     func topRowHasNoSpacer() throws {
         let source = try Self.viewSource()
-        let block = try #require(Self.declaration(of: "private func topRow", in: source))
+        let block = try #require(SourceScan.declaration(of: "private func topRow", in: source))
         #expect(
-            !Self.strippingComments(block).contains("Spacer("),
+            !SourceScan.strippingComments(block).contains("Spacer("),
             "上段に Spacer が戻っている。隙間が 1 つ増えて左右の枠の破線が切れる"
         )
         // 取り違え防止: 上段そのものを取れていることを確かめる。
@@ -57,39 +58,9 @@ struct FreeCellTopRowTests {
         #expect(block.contains("cellView"), "topRow の宣言を取れていない")
     }
 
-    // MARK: - ヘルパー（`FreeCellDragLocationTests` と同じもの）
+    // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameFreeCellTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameFreeCell/FreeCellView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    /// `header` で始まる宣言の本体（対応する閉じ括弧まで）を取り出す。
-    private static func declaration(of header: String, in source: String) -> String? {
-        guard let start = source.range(of: header) else { return nil }
-        guard let open = source[start.upperBound...].firstIndex(of: "{") else { return nil }
-        var depth = 0
-        var index = open
-        while index < source.endIndex {
-            if source[index] == "{" { depth += 1 }
-            if source[index] == "}" {
-                depth -= 1
-                if depth == 0 { return String(source[open...index]) }
-            }
-            index = source.index(after: index)
-        }
-        return nil
-    }
-
-    /// 行コメント（`//` 以降）を落とす。禁じ手を説明した注記まで「使っている」と数えないため。
-    private static func strippingComments(_ source: String) -> String {
-        source.split(separator: "\n", omittingEmptySubsequences: false).map { line -> Substring in
-            if let slashes = line.range(of: "//") { return line[line.startIndex..<slashes.lowerBound] }
-            return line[...]
-        }.joined(separator: "\n")
+        try SourceScan.moduleSources("GameFreeCell")
     }
 }

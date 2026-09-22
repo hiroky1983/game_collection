@@ -1,25 +1,11 @@
 import Testing
 import Foundation
 import Core
+import GameKitTestSupport
 @testable import GameSolitaire
+import CoreTestSupport
 
 // MARK: - Mocks
-
-private final class MemorySnapshotStore: SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-    /// 旧版の中断データ（`drawMode` の鍵が無い JSON）を直接ねじ込む口。
-    func inject(raw: Data, for gameID: String) { store[gameID] = raw }
-}
 
 @MainActor
 private func makeServices(store: SnapshotStore = MemorySnapshotStore()) -> GameServices {
@@ -384,7 +370,7 @@ struct SolitaireRuleSetBakingTests {
         {"seed":\(SolitaireDealer.verifiedSeeds[0]),"moves":[{"draw":{}}],\
         "elapsedSeconds":12,"jokerGrants":1,"undosRemaining":3}
         """
-        store.inject(raw: Data(legacy.utf8), for: "solitaire")
+        store.inject(Data(legacy.utf8), for: "solitaire")
 
         let model = SolitaireModel(services: makeServices(store: store))
         #expect(model.rules.drawMode == .one, "旧データが3枚めくりに化けた")
@@ -529,27 +515,22 @@ struct SolitaireSetupSheetTests {
     func viewIsWiredToTheSheet() throws {
         let source = try Self.viewSource()
         // シートを開くのは「新規ゲーム」の 1 か所だけ（撮影用の口を除く）。
-        #expect(Self.matchCount(of: #"SolitaireSetupSheet\(draft: \$draft"#, in: source) == 1,
+        #expect(SourceScan.matchCount(of: #"SolitaireSetupSheet\(draft: \$draft"#, in: source) == 1,
                 "開始シートが View から外れている")
         // 焼き込むのは「配る」を押した瞬間だけ。ここが `model.newGame()` に戻ると
         // 選んだルールが捨てられ、1局=1RuleSet の入口が消える。
-        #expect(Self.matchCount(of: #"model\.newGame\(rules: draft\)"#, in: source) == 1,
+        #expect(SourceScan.matchCount(of: #"model\.newGame\(rules: draft\)"#, in: source) == 1,
                 "選んだルールが配り直しに渡っていない")
         // 開くたびに今の局のルールを引き直す（前回の選択が残らない）。
-        #expect(Self.matchCount(of: #"draft = model\.rules"#, in: source) == 1,
+        #expect(SourceScan.matchCount(of: #"draft = model\.rules"#, in: source) == 1,
                 "開始シートの初期選択が今の局のルールになっていない")
         // 捨て札の扇は「めくり枚数ぶん」を出す。`suffix(3)` のような直書きに戻ると
         // 1枚めくりの局でも 3 枚重なって見える。
-        #expect(Self.matchCount(of: #"waste\.suffix\(model\.rules\.drawCount\)"#, in: source) == 1,
+        #expect(SourceScan.matchCount(of: #"waste\.suffix\(model\.rules\.drawCount\)"#, in: source) == 1,
                 "捨て札の重ね枚数がルールから外れている")
     }
 
     private static func viewSource() throws -> String {
         try SolitaireSources.joined()
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(in: source, range: NSRange(source.startIndex..., in: source))
     }
 }

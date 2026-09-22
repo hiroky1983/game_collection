@@ -2,24 +2,11 @@ import Testing
 import Foundation
 import Core
 @testable import GameChess
+import CoreTestSupport
 
 private func sq(_ name: String) -> Int { ChessSquare.fromName(Substring(name))! }
 
-final class MockChessSnapshotStore: Core.SnapshotStore, @unchecked Sendable {
-    private var store: [String: Data] = [:]
-
-    func save<T: Codable>(_ snapshot: T, for gameID: String) throws {
-        store[gameID] = try JSONEncoder().encode(snapshot)
-    }
-    func load<T: Codable>(_ type: T.Type, for gameID: String) -> T? {
-        guard let data = store[gameID] else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-    func clear(for gameID: String) { store.removeValue(forKey: gameID) }
-    func exists(for gameID: String) -> Bool { store[gameID] != nil }
-}
-
-func makeChessServices(_ store: MockChessSnapshotStore) -> GameServices {
+func makeChessServices(_ store: MemorySnapshotStore) -> GameServices {
     GameServices(snapshots: store, ads: NoopAdService())
 }
 
@@ -113,7 +100,7 @@ struct ChessGameModelTests {
 
     @Test("最奥段へ届くと成り先の選択待ちになり、選ぶと着手される")
     func promotionAsksThenApplies() {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         // 白ポーンが e7 に居て、e8 は空・d8 に黒ルーク（前進でも取りでも成れる）。人間=白。
         try? store.save(ChessSnapshot(
             initialFen: "k2r4/4P3/8/8/8/8/8/6K1 w - - 0 1",
@@ -145,7 +132,7 @@ struct ChessGameModelTests {
 
     @Test("成りの選択をやめると着手されず、選択も解ける")
     func promotionCanBeCancelled() {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(ChessSnapshot(
             initialFen: "k2r4/4P3/8/8/8/8/8/6K1 w - - 0 1",
             moves: [], phase: .playing, reviewPly: nil,
@@ -171,7 +158,7 @@ struct ChessResultTests {
 
     /// 指定の局面から人間だけで指し進める（CPU は動かさない）モデルを作る。
     private func model(fen: String, moves: [String] = []) -> ChessGameModel {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(ChessSnapshot(
             initialFen: fen, moves: moves, phase: .playing, reviewPly: nil,
             white: .human, black: .human, aiLevel: nil, startedAt: Date(), undoUsed: false
@@ -285,7 +272,7 @@ struct ChessSnapshotTests {
 
     @Test("指しかけの対局が手順ごと復元される")
     func resumesInProgressGame() async {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         let first = ChessGameModel(services: makeChessServices(store))
         tapMove(first, "e2e4")
         await first.performAIMoveIfNeeded()
@@ -301,7 +288,7 @@ struct ChessSnapshotTests {
 
     @Test("先後の選択も復元される（黒を選んだら再開直後は CPU の番）")
     func resumesSides() {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         let first = ChessGameModel(services: makeChessServices(store))
         first.newGame(humanSide: .black)
 
@@ -315,7 +302,7 @@ struct ChessSnapshotTests {
     /// キャスリング権・アンパッサン標的・50手計数が復元できずに食い違う。
     @Test("復元 → 待った → 続行 で局面が壊れない")
     func restoreThenUndoThenContinue() async {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         let first = ChessGameModel(services: makeChessServices(store))
         // キャスリング権が消える手（ルークを動かす）を含む手順を作る。
         for uci in ["g1f3", "b8c6", "h1g1", "g8f6"] {
@@ -349,7 +336,7 @@ struct ChessSnapshotTests {
 
     @Test("終局した対局を開き直すと決着の表示が戻る")
     func resumesFinishedGame() {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         try? store.save(ChessSnapshot(
             initialFen: "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",
             moves: ["a1a8"], phase: .review, reviewPly: 1,
@@ -364,7 +351,7 @@ struct ChessSnapshotTests {
 
     @Test("投了で終わった対局も投了として戻る")
     func resumesResignedGame() {
-        let store = MockChessSnapshotStore()
+        let store = MemorySnapshotStore()
         let first = ChessGameModel(services: makeChessServices(store))
         first.apply(ChessMove.fromUCI("e2e4")!)
         first.resign()
@@ -385,8 +372,8 @@ struct ChessCorruptedSnapshotTests {
         moves: [String],
         phase: ChessGamePhase = .playing,
         reviewPly: Int? = nil
-    ) -> MockChessSnapshotStore {
-        let store = MockChessSnapshotStore()
+    ) -> MemorySnapshotStore {
+        let store = MemorySnapshotStore()
         try? store.save(ChessSnapshot(
             initialFen: initialFen, moves: moves, phase: phase, reviewPly: reviewPly,
             white: .human, black: .ai, aiLevel: 0, startedAt: Date(), undoUsed: false

@@ -105,6 +105,10 @@ struct MinesweeperSnapshot: Codable {
         /// 既存の呼び出し（テストの盤面組み立てなど）がそのまま通る。
         var mark: MinesweeperMark? = nil
     }
+
+    /// この局で広告コンティニューを使ったか（#657）。再起動でコンティニュー権が復活しないよう保存する
+    /// （2048 の `continueUsed` と同じ理由）。旧形式には無いので optional で、無ければ未使用として読む。
+    var continueUsed: Bool? = nil
 }
 
 @MainActor
@@ -125,6 +129,18 @@ public final class MinesweeperModel {
     public private(set) var hitMine: (row: Int, col: Int)?
     /// 直近の終局で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// この局で広告コンティニューを使ったか（#657）。**1局1回まで**で、使った局のタイムは順位表に送らない。
+    ///
+    /// 以前は上限が無く、踏んだ地雷が1個ずつ確定していくため広告を見続ければ必ず解けた。
+    /// そのタイムが順位表に載ると、順位表が「広告を何回見たか」の表になる（#406 と同じ理由）。
+    public private(set) var continueUsed = false
+    /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に局が入れ替わったらコンティニューを適用しない）。
+    public private(set) var gameSerial = 0
+    /// 旗モード（タップで開く代わりに旗・? を切り替える）。以前は View の `@State` で、
+    /// Model を通らないため切り替えの手応えが鳴らなかった（#761）。ナンプレの `noteMode` と同じ形。
+    /// 中断データには書かない（再開時はオフ）。
+    public private(set) var flagMode = false
 
     private var timerTask: Task<Void, Never>?
     private let services: GameServices?
@@ -169,7 +185,9 @@ public final class MinesweeperModel {
             metric: .shortestTime,
             seconds: elapsedSeconds,
             variant: recordVariant,
-            variantLabel: recordVariantLabel
+            variantLabel: recordVariantLabel,
+            // コンティニューを使った局は順位表に送らない。自己ベストには残す（#657）。
+            isLeaderboardEligible: !continueUsed
         )
     }
 
@@ -196,6 +214,10 @@ public final class MinesweeperModel {
                     return cell
                 }
             }
+            // 鍵の無い旧形式でも、コンティニューで確定した爆弾マスが盤に残っていれば使用済み（#816）。
+            // 未使用に倒すと、v1.1.4 で使った局に2回目のコンティニューと順位表送信が通る。
+            self.continueUsed = snap.continueUsed
+                ?? snap.cells.contains { $0.contains(where: \.isContinuedMine) }
         } else {
             self.rows       = rows
             self.cols       = cols
@@ -207,6 +229,7 @@ public final class MinesweeperModel {
     // MARK: - New game
 
     public func newGame(rows: Int, cols: Int, mines: Int) {
+        gameSerial += 1
         timerTask?.cancel()
         timerTask      = nil
         self.rows       = rows
@@ -219,7 +242,15 @@ public final class MinesweeperModel {
         self.elapsedSeconds = 0
         self.hitMine    = nil
         self.recordResult = nil
+        self.continueUsed = false
+        self.flagMode   = false
         persist()
+    }
+
+    /// 旗モードを切り替える。モード切り替えの手応えは他ゲームと揃えて `.rigid`（#761）。
+    public func toggleFlagMode() {
+        flagMode.toggle()
+        services?.feedback.impact(.rigid)
     }
 
     // MARK: - Timer resume (call from onAppear when restoring saved game)
@@ -385,8 +416,24 @@ public final class MinesweeperModel {
 
     // MARK: - Continue
 
-    public func continueAfterAd() {
-        guard gameState == .lost, let hit = hitMine else { return }
+    /// コンティニューを提案できるか。地雷を踏んで負けた直後で、この局でまだ使っていないときだけ（#657）。
+    /// 諦めた局（`hitMine` が nil）では出さない。
+    public var canContinue: Bool {
+        gameState == .lost && hitMine != nil && !continueUsed
+    }
+
+    /// 広告を出す前に控えた `gameSerial` の局にだけコンティニューを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「コンティニューできなかった」と知らせる。
+    @discardableResult
+    public func continueAfterAd(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return continueAfterAd()
+    }
+
+    @discardableResult
+    public func continueAfterAd() -> Bool {
+        guard canContinue, let hit = hitMine else { return false }
+        continueUsed = true
         // 同じ盤面の続きなので、直前に記録した「負け」は無かったことにする
         // （そのままだと1回のプレイが2回分として数えられる）。
         services?.playLog?.cancelLoss(gameID: gameID, variant: recordVariant)
@@ -426,6 +473,7 @@ public final class MinesweeperModel {
         }
 
         persist()
+        return true
     }
 
     public func toggleFlag(row: Int, col: Int) {
@@ -491,7 +539,8 @@ public final class MinesweeperModel {
             },
             flagCount: flagCount,
             revealedCount: revealedCount,
-            elapsedSeconds: elapsedSeconds
+            elapsedSeconds: elapsedSeconds,
+            continueUsed: continueUsed
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

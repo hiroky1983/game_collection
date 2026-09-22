@@ -12,6 +12,12 @@ public struct SudokuView: View {
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     @State private var zoomMode = false
+    /// 帯の実幅（拡大トグルに文字を出すかの判定に使う。0 は未計測＝出す）。
+    @State private var statusBarWidth: CGFloat = 0
+    /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
+    @State private var flashingCells: Set<Int> = []
+    /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
+    @State private var holdsUnitFlash = false
 
     public init(services: GameServices) {
         self.services = services
@@ -51,7 +57,9 @@ public struct SudokuView: View {
                     Label("新規ゲーム", systemImage: "plus.circle.fill")
                 }
                 // 生成中の二度押しで 2 本目の生成が走らないようにする（Model 側でも再入を弾く）。
-                .disabled(model.isGenerating)
+                // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
+                // 「広告を見たのに入らなかった」を起こさないための緩和）。
+                .disabled(model.isGenerating || hintRescue.isWatching)
             }
         }
         .howToPlay(.sudoku)
@@ -84,7 +92,14 @@ public struct SudokuView: View {
                 message: "広告を見ているあいだに盤面が変わったため、ヒントを入れられませんでした。\nヒントの残り回数は減っていません。"
             )
         )
-        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: "コンティニューできませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "コンティニューできませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったか、この局を諦めたため、コンティニューできませんでした。"
+            )
+        )
         // 画面を離れたら計時を止める（#375）。止めないと計時の Task が self を握ったまま
         // 残り、モデルが解放されずに経過秒だけが進み続ける。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
@@ -109,13 +124,76 @@ public struct SudokuView: View {
                 showNewGame = false
                 if !model.hasPuzzle { await model.newGame(difficulty: .easy) }
             }
+            // 撮影・動作確認用（DEBUG 限定）: 空きマスをすべて正解で埋めてクリアさせる（#722 の階段の撮影）。
+            // `-sudokuAutoStart` と併用する。記録・リザルトは本物の決着の経路をそのまま通る。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuAutoSolve"), model.state == .playing {
+                for index in 0..<SudokuEngine.cellCount where model.board[index] == 0 {
+                    if model.selected != index { model.select(index: index) }
+                    model.enter(digit: model.solution[index])
+                }
+            }
+            // 撮影・動作確認用（DEBUG 限定）: 揃った行の光と、使い切った数字パッドを止めた状態で出す（#666）。
+            // `-sudokuAutoStart` と併用する。数字 5 をすべて正解で埋めてから、1 行目を最後に揃える。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuUnitFlashPreview"), model.state == .playing {
+                holdsUnitFlash = true
+                let fives = (0..<SudokuEngine.cellCount).filter { model.board[$0] == 0 && model.solution[$0] == 5 }
+                let firstRow = SudokuEngine.cells(ofUnit: 0).filter { model.board[$0] == 0 && model.solution[$0] != 5 }
+                for index in fives + firstRow {
+                    if model.selected != index { model.select(index: index) }
+                    model.enter(digit: model.solution[index])
+                }
+            }
+            // 撮影・動作確認用（DEBUG 限定）: 起動 2 秒後に空きマスへ誤答を 1 つ入れ、揺れを非対話で起こす（#666）。
+            // `-sudokuAutoStart` と併用する。揺れが補間されるかの実測（連続スクショ）に使う。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuMistakePreview"), model.state == .playing,
+               let index = (0..<SudokuEngine.cellCount).first(where: { model.board[$0] == 0 }) {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if model.selected != index { model.select(index: index) }
+                model.enter(digit: model.solution[index] % SudokuEngine.size + 1)
+            }
             #endif
+        }
+        .task(id: model.unitFlash) { await flashCompletedUnits(model.unitFlash) }
+    }
+
+    /// 行・列・ブロックが揃ったマスを一瞬光らせる（#666）。
+    ///
+    /// 光は即座に出し、`unitFlashHoldDuration` 待ってからフェードで消す。Reduce Motion では
+    /// `withGameAnimation` がフェードを落とすだけで、出る・消えるの状態変化は必ず起きる。
+    /// 次の合図が来ると `.task(id:)` が前の待ちを取り消すので、古い光の消し忘れも起きない。
+    private func flashCompletedUnits(_ flash: SudokuUnitFlash?) async {
+        guard let flash else {
+            flashingCells = []
+            return
+        }
+        flashingCells = flash.cells
+        try? await Task.sleep(nanoseconds: UInt64(SudokuMetrics.unitFlashHoldDuration * 1_000_000_000))
+        guard !Task.isCancelled, !holdsUnitFlash else { return }
+        withGameAnimation(.easeOut(duration: SudokuMetrics.unitFlashFadeDuration)) {
+            flashingCells = []
         }
     }
 
     // MARK: - Status Bar
 
+    /// 帯は要素が多い（残り・ミス・難易度・時計・拡大）ので、拡大トグルの文字「拡大／全体」は
+    /// **入る幅のときだけ**出す（`SudokuMetrics.showsZoomTitle`）。iPhone SE（帯の幅 343pt）では
+    /// 文字を付けると「残り49」「ミス 0/3」が「残…」「ミ…」に潰れた（実測）。
+    /// `ViewThatFits` は文字の縮小（`minimumScaleFactor`）を見込まず iPhone 17 Pro Max でも文字を
+    /// 落としてしまったので、帯の実幅で判定する。
     private var statusBar: some View {
+        statusBarRow(zoomTitle: SudokuMetrics.showsZoomTitle(statusBarWidth: statusBarWidth),
+                     statusIcons: SudokuMetrics.showsStatusIcons(statusBarWidth: statusBarWidth))
+            .background(
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { statusBarWidth = g.size.width }
+                        .onChange(of: g.size.width) { _, w in statusBarWidth = w }
+                }
+            )
+    }
+
+    private func statusBarRow(zoomTitle: Bool, statusIcons: Bool) -> some View {
         HStack(spacing: 8) {
             Group {
                 if model.isFinished {
@@ -127,12 +205,13 @@ public struct SudokuView: View {
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(cleared ? Theme.teal : Theme.coral)
                 } else if model.hasPuzzle {
-                    Label("残り\(model.remainingCount)", systemImage: "square.grid.3x3")
+                    statusLabel("残り\(model.remainingCount)", systemImage: "square.grid.3x3", showsIcon: statusIcons)
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.coral)
                     // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
-                    Label("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle")
+                    statusLabel("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle",
+                                showsIcon: statusIcons)
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
@@ -162,23 +241,19 @@ public struct SudokuView: View {
                     // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                     .opacity(model.hasPuzzle ? 1 : 0)
 
-                // 拡大トグル。マインスイーパー（#203）と同じ 44pt の矩形で受ける。
-                Button { zoomMode.toggle() } label: {
-                    Image(systemName: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass")
-                        .font(.system(size: 13, weight: .bold))
-                        .frame(
-                            minWidth: SudokuMetrics.padButtonMinSide,
-                            minHeight: SudokuMetrics.padButtonMinSide
-                        )
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(zoomMode ? Theme.Fill.teal : Theme.surface)
-                        )
-                        .foregroundStyle(zoomMode ? Theme.onAccent : Theme.inkSub)
-                        // 背景の角丸ではなく矩形全体を受ける（角の 44pt も取りこぼさない）。
-                        .contentShape(Rectangle())
+                // 拡大トグル。麻雀ソリティア・マインスイーパーと共通の `BoardToggleButton`（Core・#641）。
+                // 以前は素のアイコン（13pt・枠なし・`Theme.surface`）を手書きしていて、他のゲームと
+                // 見た目が揃っていなかった（会長 QA 2026-09-13）。
+                BoardToggleButton(
+                    isOn: zoomMode,
+                    systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
+                    title: zoomTitle ? (zoomMode ? "全体" : "拡大") : nil,
+                    fill: Theme.Fill.teal,
+                    accent: Theme.teal,
+                    label: zoomMode ? "盤全体を表示" : "盤を拡大"
+                ) {
+                    zoomMode.toggle()
                 }
-                .accessibilityLabel(zoomMode ? "盤全体を表示" : "盤を拡大")
             }
             .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -187,6 +262,16 @@ public struct SudokuView: View {
         .popCard(corner: Theme.cornerSmall)
         // 3 つを別々に読ませるとスワイプ回数が増えるだけなので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .contain)
+    }
+
+    /// 帯の「残り」「ミス」。狭い帯ではアイコンを省いて文字に幅を渡す（#775・`SudokuMetrics.showsStatusIcons`）。
+    @ViewBuilder
+    private func statusLabel(_ title: String, systemImage: String, showsIcon: Bool) -> some View {
+        if showsIcon {
+            Label(title, systemImage: systemImage)
+        } else {
+            Text(title)
+        }
     }
 
     private var difficultyAccent: Color {
@@ -235,13 +320,14 @@ public struct SudokuView: View {
         let errors = model.errorCells
         let peers = model.highlightedCells
         let sameDigits = model.sameDigitCells
+        let flashing = flashingCells
         return VStack(spacing: 0) {
             ForEach(0..<SudokuEngine.size, id: \.self) { row in
                 HStack(spacing: 0) {
                     ForEach(0..<SudokuEngine.size, id: \.self) { col in
                         cellView(
                             row: row, col: col, side: cellSide,
-                            errors: errors, peers: peers, sameDigits: sameDigits
+                            errors: errors, peers: peers, sameDigits: sameDigits, flashing: flashing
                         )
                     }
                 }
@@ -285,7 +371,7 @@ public struct SudokuView: View {
 
     private func cellView(
         row: Int, col: Int, side: CGFloat,
-        errors: Set<Int>, peers: Set<Int>, sameDigits: Set<Int>
+        errors: Set<Int>, peers: Set<Int>, sameDigits: Set<Int>, flashing: Set<Int>
     ) -> some View {
         let index = row * SudokuEngine.size + col
         let digit = model.board[index]
@@ -294,6 +380,7 @@ public struct SudokuView: View {
         let isError = errors.contains(index)
         let isHinted = model.hintedCells.contains(index)
         let noteDigits = (1...SudokuEngine.size).filter { model.hasNote($0, at: index) }
+        let shakes = model.mistakeShakes[index] ?? 0
 
         return ZStack {
             Rectangle()
@@ -303,6 +390,11 @@ public struct SudokuView: View {
                     isSameDigit: sameDigits.contains(index),
                     isError: isError
                 ))
+            // 行・列・ブロックが揃った瞬間の光（#666）。色の判定（`cellFill`）とは別の層に重ね、
+            // 選択・間違いの色を塗り替えない。
+            Rectangle()
+                .fill(Theme.yellow.opacity(0.45))
+                .opacity(flashing.contains(index) ? 1 : 0)
             if digit != 0 {
                 Text("\(digit)")
                     .font(.system(size: side * 0.58, weight: isGiven ? .black : .semibold, design: .rounded))
@@ -312,10 +404,15 @@ public struct SudokuView: View {
                 noteGrid(noteDigits: noteDigits, side: side)
             }
         }
+        // 誤答を入れたマスの中身だけを短く横に揺らす（#666。五目並べの無効タップ #202 と同じ型）。
+        .modifier(SudokuShake(animatableData: CGFloat(shakes)))
+        // 演出の修飾子は入れ子にすると内側が外側のトランザクションを打ち消す（#199）。ここでは
+        // **それを前提に**、揺れを数字の演出（下）の内側に置いている: 誤答では両方の値が同時に変わり、
+        // 内側の linear が勝つので揺れは必ず補間される（その 1 回だけ数字の出方も linear になる）。
+        // 正答では揺れの値が変わらないので、下の数字の演出が従来どおり効く。
+        .gameAnimation(.linear(duration: SudokuMetrics.mistakeShakeDuration), value: shakes)
         .frame(width: side, height: side)
         .border(Theme.inkSub.opacity(0.35), width: SudokuMetrics.cellBorderWidth)
-        // 演出の修飾子はマスに **1 つだけ** 置く。入れ子にすると内側が外側のトランザクションを
-        // 打ち消し、どちらかの演出が静かに効かなくなる（#199 で実際に踏んだ）。
         .gameAnimation(.easeOut(duration: SudokuMetrics.fillDuration), value: digit)
         .contentShape(Rectangle())
         .onTapGesture { model.select(index: index) }
@@ -384,7 +481,7 @@ public struct SudokuView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
-            GameControlArea(isFinished: model.isFinished, services: services) {
+            GameControlArea(isFinished: model.isFinished, services: services, ladder: ladder) {
                 resultControls
             } playing: {
                 if model.state == .playing {
@@ -456,6 +553,8 @@ public struct SudokuView: View {
         } label: {
             Text("\(digit)")
                 .font(.system(size: 20, weight: .bold, design: .rounded))
+                // 使い切った数字は文字だけを薄くする（#666）。ボタンの面は残し、並びの位置は変えない。
+                .opacity(exhausted ? SudokuMetrics.exhaustedDigitOpacity : 1)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: SudokuMetrics.padButtonMinSide)
                 .background(
@@ -568,49 +667,45 @@ public struct SudokuView: View {
     /// 入れる先を選択状態から切り離しておく。
     private func requestHint() {
         guard !hintRescue.isWatching, let target = model.selected, model.canHint(at: target) else { return }
+        // どの局に対するヒントかを広告を出す前に控え、ロード中に始めた新しい局へは入れない（#815）。
+        let game = model.gameSerial
         hintRescue.request(
             services, gameID: model.gameID, purpose: .hint,
             guardedBy: .checkedByGrant
         ) {
             // 広告を見たのに入らなかったら黙って終わらせない（対価が無い状態を作らない）。
-            model.applyHint(at: target)
+            model.applyHint(forGame: game, at: target)
         }
     }
 
     // MARK: - ミス上限（広告コンティニュー・2048 と同型）
 
     private var failedOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                .fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text("ミスが\(SudokuModel.maxMistakes)回になりました")
-                    .font(.title3.bold()).foregroundStyle(.white)
-                Text("広告を見るとミスが0に戻り、続きから遊べます")
-                    .themeCaption(12).foregroundStyle(.white.opacity(0.85))
-                Button {
-                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                    continueRescue.request(
-                        services, gameID: model.gameID, purpose: .continue,
-                        guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
-                    ) {
-                        model.continueAfterAd()
-                        return true
-                    }
-                } label: {
-                    Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Fill.coral)
-                .disabled(continueRescue.isWatching)
-                Button("諦めて答えを見る") { model.giveUp() }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-            }
-            .padding(16)
-        }
+        RewardedContinueOverlay(
+            title: "ミスが\(SudokuModel.maxMistakes)回になりました",
+            titleFont: .title3.bold(),
+            cornerRadius: Theme.cornerSmall,
+            contentPadding: 16,
+            detail: Text("広告を見るとミスが0に戻り、続きから遊べます")
+                .themeCaption(12).foregroundStyle(.white.opacity(0.85)),
+            rescueLabel: "広告を見てコンティニュー",
+            rescue: continueRescue, services: services, gameID: model.gameID,
+            serial: model.gameSerial,
+            grant: { game in model.continueAfterAd(forGame: game) },
+            secondaryTitle: "諦めて答えを見る",
+            secondaryAction: { model.giveUp() }
+        )
         .accessibilityElement(children: .contain)
+    }
+
+    /// クリアが続いたら一段上の難易度を勧める（#722）。始め直しの後始末は新規ゲームシートと同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        let levels = SudokuDifficulty.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.difficulty),
+                                      levelLabels: levels.map(\.label)) { level in
+            zoomMode = false
+            Task { await model.newGame(difficulty: levels[level]) }
+        }
     }
 
     // MARK: - Result Controls
@@ -635,6 +730,28 @@ public struct SudokuView: View {
         .themeBody(14)
         .padding(.horizontal, 12).padding(.vertical, 4)
         .popCard(corner: Theme.cornerSmall)
+    }
+}
+
+// MARK: - 誤答の揺れ
+
+/// 誤答を入れたマスの横揺れ（#666）。五目並べの `GomokuShake`（#202）と同じ型。
+///
+/// `animatableData` にそのマスの誤答の回数を渡す。値が 1 進むあいだに左右へ `shakes` 往復し、
+/// 整数では `sin` が 0 になるので**必ず元位置へ戻る**。Reduce Motion が ON のときは
+/// `.gameAnimation` がアニメーションを落とすため補間自体が起きず、マスは静止したままになる
+/// （触覚は Model 側から従来どおり鳴る）。
+private struct SudokuShake: GeometryEffect {
+    /// 片側の振れ幅（pt）。マスの枠の内側で収まるよう、盤全体を揺らす五目並べより小さくする。
+    var amount: CGFloat = 3
+    /// 通し番号 1 つにつき往復する回数。
+    var shakes: CGFloat = 3
+    var animatableData: CGFloat
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(
+            CGAffineTransform(translationX: amount * sin(animatableData * .pi * 2 * shakes), y: 0)
+        )
     }
 }
 

@@ -126,6 +126,30 @@ public enum SudokuEngine {
         return result
     }
 
+    /// 行・列・3×3 ブロックを 1 本の通し番号で表した「ユニット」の数（行 0〜8・列 9〜17・ブロック 18〜26）。
+    /// 揃った行・列・ブロックを光らせる判定（#666）で使う。
+    public static let unitCount = size * 3
+
+    /// `index` のマスが属する 3 つのユニット（行・列・ブロックの順）。
+    public static func units(of index: Int) -> [Int] {
+        let row = index / size, col = index % size
+        return [row, size + col, size * 2 + (row / 3) * 3 + col / 3]
+    }
+
+    /// ユニットに含まれる 9 マス。
+    public static func cells(ofUnit unit: Int) -> [Int] {
+        switch unit {
+        case 0..<size:
+            return (0..<size).map { unit * size + $0 }
+        case size..<(size * 2):
+            return (0..<size).map { $0 * size + (unit - size) }
+        default:
+            let block = unit - size * 2
+            let blockRow = (block / 3) * 3, blockCol = (block % 3) * 3
+            return (0..<size).map { (blockRow + $0 / 3) * size + blockCol + $0 % 3 }
+        }
+    }
+
     // MARK: - Private
 
     /// 先頭のマスから順に、シャッフルした数字を試して埋める。

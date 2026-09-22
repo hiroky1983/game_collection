@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 @testable import GameGomoku
 
 @Suite("GomokuBoard")
@@ -257,9 +258,10 @@ struct GomokuInvalidTapTests {
 @Suite("Gomoku 強さ表示")
 struct GomokuStrengthLabelTests {
 
-    /// 実際の探索深さは 1/2/3 ではなく 3/4/5。この前提が変わったら表示も見直す。
-    @Test func engineDepthsAreThreeFourFive() {
-        #expect(SimpleGomokuEngine(level: 0).depth == 3)
+    /// 実際の探索深さは 1/4/5（「弱」は #665 で探索をやめ、1手先の形だけを見る）。
+    /// この前提が変わったら表示も見直す。
+    @Test func engineDepthsAreOneFourFive() {
+        #expect(SimpleGomokuEngine(level: 0).depth == 1)
         #expect(SimpleGomokuEngine(level: 1).depth == 4)
         #expect(SimpleGomokuEngine(level: 2).depth == 5)
     }
@@ -269,7 +271,7 @@ struct GomokuStrengthLabelTests {
     @Test func viewDoesNotClaimAPlyCount() throws {
         let source = try Self.viewSource()
         #expect(
-            Self.matchCount(of: #"\d+\s*手読み"#, in: source) == 0,
+            SourceScan.matchCount(of: #"\d+\s*手読み"#, in: source) == 0,
             "「N手読み」という表示が復活している（実際の探索深さは 3/4/5 で、しかも時間制限で上限に届かないことがある）"
         )
     }
@@ -281,27 +283,42 @@ struct GomokuStrengthLabelTests {
         #expect(source.contains(#"GameSetupSection("CPUの強さ")"#))
         for wording in ["浅い読み", "標準", "深い読み"] {
             #expect(
-                Self.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,
+                SourceScan.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,
                 "「\(wording)」が1箇所でない（強さ選択の文言が変わっている）"
             )
         }
     }
 
+    /// 「投了」「待った」が両方とも共通のカプセル（枠 44pt・`BoardGameControlCapsuleStyle`）を通り、操作列の余白を詰めている（#711）。
+    /// 以前は「待った」だけが枠の無い素の文字で、当たり判定が約 17pt しかなかった。
+    /// ボタンの中身は Core の `BoardResignButton` / `BoardUndoButton` に寄せた（#828）ので、ここでは見た目の選び方を見る。
+    /// 選んだ見た目が共通のカプセルを通り、押せない状態が結線されていることは `BoardGameChromeTests` が固定する。
+    @Test func gameControlsUseCapsuleStyleForBothButtons() throws {
+        let controls = SourceScan.strippingComments(
+            SourceScan.functionSource(startingWith: "private var gameControls: some View {", in: try Self.viewSource())
+        )
+        try #require(!controls.isEmpty, "走査の前提が壊れている: gameControls が見つからない")
+        #expect(
+            SourceScan.matchCount(of: #"BoardResignButton\(look: \.tapTargetCapsule\)"#, in: controls) == 1,
+            "「投了」が共通のカプセルを通っていない"
+        )
+        #expect(
+            SourceScan.matchCount(of: #"BoardUndoButton\([^)]*usesTapTargetCapsule: true\)"#, in: controls) == 1,
+            "「待った」が共通のカプセルを通っていない"
+        )
+        // 手書きのカプセルが残っていると、そちらの外寸・当たり判定が効いてしまう。
+        #expect(SourceScan.matchCount(of: #"\.background\(Capsule\(\)"#, in: controls) == 0)
+        // ボタンの枠が 44pt になったぶん操作列の余白を詰めていないと、操作列が 14pt 高くなり盤が縮む（#148）。
+        #expect(
+            SourceScan.matchCount(of: #"\.padding\(\.vertical, BoardGameControlMetrics\.rowVerticalPadding\)"#, in: controls) == 1,
+            "操作列の上下の余白が BoardGameControlMetrics.rowVerticalPadding になっていない"
+        )
+        #expect(SourceScan.matchCount(of: #"\.padding\(\.vertical, 8\)"#, in: controls) == 0)
+    }
+
     // MARK: - ヘルパー
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameGomokuTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameGomoku/GomokuView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
-    private static func matchCount(of pattern: String, in source: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        return regex.numberOfMatches(
-            in: source, range: NSRange(source.startIndex..., in: source)
-        )
+        try SourceScan.packageSource("Sources/GameGomoku/GomokuView.swift")
     }
 }

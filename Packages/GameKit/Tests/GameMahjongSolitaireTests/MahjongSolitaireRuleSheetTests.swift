@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import Core
 import MahjongTiles
+import GameKitTestSupport
 @testable import GameMahjongSolitaire
 
 /// 「くわしいルール」ページの受け入れ条件（#238）。
@@ -100,11 +101,6 @@ struct MahjongSolitaireRuleSheetTests {
     }
 
     private static func viewSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameMahjongSolitaireTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameMahjongSolitaire/MahjongSolitaireView.swift")
-        return try String(contentsOf: url, encoding: .utf8)
+        try SourceScan.packageSource("Sources/GameMahjongSolitaire/MahjongSolitaireView.swift")
     }
 }

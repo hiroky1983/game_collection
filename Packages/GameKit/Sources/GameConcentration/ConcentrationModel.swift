@@ -34,6 +34,9 @@ public final class ConcentrationModel {
     public private(set) var lastMatchedIndices: [Int] = []
     public private(set) var mismatchedIndices: [Int] = []
     public private(set) var mattaUsed: Bool = false
+    /// 局の通し番号（#729）。新規ゲームのたびに増やし、中断データには書かない。
+    /// 広告を出す前に控えておき、見終えたときに照合する（ロード中に局が入れ替わったら待ったを適用しない）。
+    public private(set) var gameSerial = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     ///
     /// 神経衰弱は CPU と交互にめくる**対戦もの**で、手数はプレイヤーの技量だけでは決まらない
@@ -128,14 +131,24 @@ public final class ConcentrationModel {
     }
 
     /// ミスマッチを取り消してプレイヤーのターンを継続する（ターン交代なし）
-    public func useMatta() {
-        guard canMatta else { return }
+    @discardableResult
+    public func useMatta() -> Bool {
+        guard canMatta else { return false }
         cancelAutoClear()
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         mattaUsed = true
         services?.feedback.impact(.rigid)
         persist()
+        return true
+    }
+
+    /// 広告を出す前に控えた `gameSerial` の局にだけ待ったを適用する（#729）。
+    /// - Returns: 適用できたか。false のとき View は「待ったを使えなかった」と知らせる。
+    @discardableResult
+    public func useMatta(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        return useMatta()
     }
 
     /// 「待った」の確認ダイアログを出す前に自動ターン交代を止める（#137）。
@@ -189,15 +202,20 @@ public final class ConcentrationModel {
     private func doCPUTurn() async {
         isThinking = true
 
+        // 画面を離れると `.task(id:)` がキャンセルされ、`try? await Task.sleep` はキャンセル後
+        // 毎回即座に返る（`CancellationError` を `try?` が握り潰す）。状態の guard だけでは通過して
+        // しまい、残りの手番が待ち時間ゼロで走り抜けて決着・中断データの消去まで進むため、
+        // sleep の直後とループ先頭でキャンセルを見る（#725。大富豪 #287 と同形）。
         while currentPlayer == .cpu && !isGameOver {
+            guard !Task.isCancelled else { isThinking = false; return }
             try? await Task.sleep(nanoseconds: 600_000_000)
-            guard currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
+            guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let first = ai.chooseCard(cards: cards, firstFlipped: nil)
             flipCard(index: first)
 
             try? await Task.sleep(nanoseconds: 700_000_000)
-            guard currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
+            guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let second = ai.chooseCard(cards: cards, firstFlipped: first)
             flipCard(index: second)
@@ -206,6 +224,8 @@ public final class ConcentrationModel {
             if !mismatchedIndices.isEmpty {
                 isThinking = false  // clearMismatch前にfalseにして新タスクが動けるようにする
                 try? await Task.sleep(nanoseconds: 900_000_000)
+                // 離れたら伏せずに抜ける。不一致の2枚は中断データに残っており、復元側が手番を進める（#415）
+                guard !Task.isCancelled else { return }
                 clearMismatch()     // ← turnID++でtaskが再起動するが isThinking=false なので競合しない
                 return
             }
@@ -220,6 +240,7 @@ public final class ConcentrationModel {
 
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         cancelAutoClear()
+        gameSerial += 1
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
         ai = aiFactory(cpuLevel.memoryAccuracy)
@@ -275,9 +296,15 @@ public final class ConcentrationModel {
             )
         }
 
-        // 途中でめくれていたカード（非マッチ・フェイスアップ）を裏返す。
-        // firstFlippedIndex は復元しないため、宙吊りカードが残るとゲームが詰まる。
-        for i in cards.indices where cards[i].isFaceUp && !cards[i].isMatched {
+        // 人間が1枚目だけめくって中断していたら、その札を表のまま1枚目として戻す（#731）。
+        // 伏せて戻すと手番を消費せずに札を覗き見でき、離脱を繰り返すだけで全札を覚えられた。
+        // 表向き・未獲得の札が1枚だけ残る中断データは人間の1枚目しか作らない（CPU は2枚目の後にしか
+        // 保存しない）ので、鍵を足さずに盤面から読み取る。鍵の無い旧い中断データにも効く。
+        firstFlippedIndex = Self.validatedFirstFlip(of: snap)
+
+        // それ以外でめくれていたカード（非マッチ・フェイスアップ）を裏返す。
+        // 1枚目として戻さなかった札が表のまま残るとゲームが詰まる。
+        for i in cards.indices where cards[i].isFaceUp && !cards[i].isMatched && i != firstFlippedIndex {
             cards[i].isFaceUp = false
         }
 
@@ -309,6 +336,17 @@ public final class ConcentrationModel {
               indices.allSatisfy({ snap.isFaceUp[$0] && !snap.isMatched[$0] }),
               symbols[indices[0]] != symbols[indices[1]] else { return nil }
         return indices
+    }
+
+    /// 中断データに残った「人間がめくった1枚目」を取り出す（#731）。
+    ///
+    /// `tap` の直後の保存が作る形（人間の手番・不一致の2枚なし・表向きかつ未獲得の札がちょうど1枚）
+    /// だけを認める。それ以外の宙吊りは従来どおり伏せる。
+    /// 呼び出しは `validatedSetting(of:)` を通った後に限る（配列長の一致が前提）。
+    private static func validatedFirstFlip(of snap: ConcentrationSnapshot) -> Int? {
+        guard snap.currentPlayer == 0, (snap.mismatchedIndices ?? []).isEmpty else { return nil }
+        let dangling = snap.isFaceUp.indices.filter { snap.isFaceUp[$0] && !snap.isMatched[$0] }
+        return dangling.count == 1 ? dangling[0] : nil
     }
 
     /// 中断データが「最後まで遊べる盤面」かを検証し、復元に使う設定を取り出す（#218）。

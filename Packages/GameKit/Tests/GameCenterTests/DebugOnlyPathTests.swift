@@ -138,6 +138,29 @@ struct DebugOnlyPathTests {
         )
     }
 
+    @Test("一局戦リザルトの撮影経路は Release に残っていない")
+    func singleHandResultHookIsDebugOnly() throws {
+        let view = try sourceText("GameMahjong/MahjongView.swift")
+        #expect(view.contains("-mahjongSingleHandResult"),
+                "起動引数 -mahjongSingleHandResult が見つからない。名前を変えたならこのテストも直すこと")
+        let model = try sourceText("GameMahjong/MahjongModel.swift")
+        #expect(model.contains("func simulateFinalResultForTesting("),
+                "simulateFinalResultForTesting が見つからない。名前を変えたならこのテストも直すこと")
+
+        // この経路は `concludeGame()` を直接呼ぶ = 打たずに 1 局ぶんの決着を記録できる。
+        // Release に残ると、起動引数を注入するだけで戦績と Game Center の実績が積める（#514）。
+        #expect(
+            try releaseVisibleCode(inFileAt: "GameMahjong/MahjongView.swift")
+                .contains("-mahjongSingleHandResult") == false,
+            "-mahjongSingleHandResult の読み取りが Release ビルドに残っている（#514）"
+        )
+        #expect(
+            try releaseVisibleCode(inFileAt: "GameMahjong/MahjongModel.swift")
+                .contains("simulateFinalResultForTesting") == false,
+            "simulateFinalResultForTesting が Release ビルドに残っている（#514）"
+        )
+    }
+
     @Test("球を直接置くテスト用 API は Release に残っていない")
     func placeBallForTestingIsDebugOnly() throws {
         let raw = try sourceText("GameBlocks/BlocksModel.swift")

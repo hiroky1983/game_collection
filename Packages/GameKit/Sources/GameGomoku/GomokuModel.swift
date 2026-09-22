@@ -42,7 +42,7 @@ struct GomokuSnapshot: Codable {
 
 @MainActor
 @Observable
-public final class GomokuModel {
+public final class GomokuModel: AITurnGuarded, BoardUndoModel {
     public private(set) var board: GomokuBoard
     public private(set) var currentStone: GomokuStone
     public private(set) var humanSide: GomokuStone
@@ -65,11 +65,14 @@ public final class GomokuModel {
     public private(set) var rejectedTapCount: Int = 0
     /// 直近の拒否理由（#202）。フィードバックの内訳をテストから確かめるために公開する。
     public private(set) var lastRejection: GomokuTapRejection?
+    /// 決着した五（以上）の座標（#665）。着手で勝敗が決まったときだけ入り、投了・引き分けでは `nil`。
+    /// View はこれを盤上の勝ち筋として光らせ、「なぜ負けたか」を見せる。
+    public private(set) var winningLine: [GomokuPoint]?
     private var resigned: Bool
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
-    let gameID = "gomoku"
+    public let gameID = "gomoku"
     private var startedAt: Date
     private var moves: [(row: Int, col: Int, stone: GomokuStone)]
 
@@ -161,6 +164,10 @@ public final class GomokuModel {
         self.lastMove     = lastMove
         self.undoUsed     = undoUsed
         self.resigned     = resigned
+        // 勝ち筋は保存せず、直前手から引き直す（決着を書いた中断データでも光るように）。
+        if let savedWinner, !resigned, let last = lastMove, board[last.row, last.col] == savedWinner {
+            self.winningLine = board.winningLine(row: last.row, col: last.col)
+        }
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
         // **開始シートを出す局には `level` を載せない**（PR #572 の指摘）。この分岐と開始シートの
         // 表示条件はどちらも「中断データが無いこと」で、シートで強さを選ぶのはこの直後。
@@ -210,7 +217,8 @@ public final class GomokuModel {
         moveCount += 1
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
-        if board.checkWin(row: row, col: col) {
+        if let line = board.winningLine(row: row, col: col) {
+            winningLine = line
             winner = currentStone
             services?.feedback.notify(mover == humanSide ? .success : .error)
             recordResult = services?.gameDidFinish(
@@ -264,25 +272,21 @@ public final class GomokuModel {
     public func performAIMoveIfNeeded() async {
         guard isAITurn, !isThinking else { return }
         // 計算中に新規対局が始まると、旧盤面で選んだ手が新しい盤面に着手されてしまう。
-        // 計算開始時のトリガー（対局の通し番号 × 手数）を控え、完了時に一致する場合だけ着手する。
-        let key = aiTurnKey
-        let serial = gameSerial
-        isThinking = true
-        // 別対局が始まっていたら、思考フラグの持ち主は新しい対局のタスクなので触らない。
-        defer { if gameSerial == serial { isThinking = false } }
+        // 計算開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
+            let b = board
+            let s = currentStone
+            let level = aiLevel
 
-        let b = board
-        let s = currentStone
-        let level = aiLevel
+            let renju = forbiddenMovesEnabled
 
-        let renju = forbiddenMovesEnabled
-
-        let move = await Task.detached(priority: .userInitiated) {
-            await SimpleGomokuEngine(level: level, forbiddenMoves: renju).bestMove(board: b, stone: s)
-        }.value
-
-        guard aiTurnKey == key, isAITurn, let (r, c) = move, board[r, c] == nil else { return }
-        place(row: r, col: c)
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleGomokuEngine(level: level, forbiddenMoves: renju).bestMove(board: b, stone: s)
+            }.value
+        } commit: { move in
+            guard isAITurn, let (r, c) = move, board[r, c] == nil else { return }
+            place(row: r, col: c)
+        }
     }
 
     public func newGame(humanSide: GomokuStone = .black, aiLevel: Int = 1, forbiddenMoves: Bool = false) {
@@ -292,6 +296,7 @@ public final class GomokuModel {
         self.aiLevel   = aiLevel
         forbiddenMovesEnabled = forbiddenMoves
         lastRejection  = nil
+        winningLine    = nil
         winner         = nil
         isDraw         = false
         lastMove       = nil
@@ -355,6 +360,17 @@ public final class GomokuModel {
             currentStone = .black
         }
         persist()
+    }
+
+    /// 広告を出す前に控えた `aiTurnKey`（対局の通し番号 × 手数）の局面にだけ待ったを適用する（#729）。
+    /// - Returns: 戻せたか。広告のあいだに新規対局・投了・着手で局面が変わっていたら false
+    ///   （View は「待ったを使えなかった」と知らせる）。対局の番号だけを照合すると、ロード中に
+    ///   1 往復打ったとき、広告を出したときとは別の 1 往復が戻る。
+    @discardableResult
+    public func undoLastExchange(forTurn turn: AITurnKey) -> Bool {
+        guard turn == aiTurnKey, canUndo else { return false }
+        undoLastExchange()
+        return true
     }
 
     private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)]) -> GomokuBoard {

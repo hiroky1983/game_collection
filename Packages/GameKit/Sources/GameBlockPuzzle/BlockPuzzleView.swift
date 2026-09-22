@@ -54,7 +54,14 @@ public struct BlockPuzzleView: View {
             }
         }
         .howToPlay(.blockPuzzle)
-        .rewardedRescueAlerts(continueRescue, notEarned: "コンティニューできませんでした")
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: "コンティニューできませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "コンティニューできませんでした",
+                message: "広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。"
+            )
+        )
     }
 
     // MARK: - スコア
@@ -234,34 +241,17 @@ public struct BlockPuzzleView: View {
     }
 
     private var gameOverOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text("ゲームオーバー").font(.title2.bold()).foregroundStyle(.white)
-                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                if !model.continueUsed {
-                    Button {
-                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する
-                        continueRescue.request(
-                            services, gameID: BlockPuzzleModel.gameID, purpose: .continue,
-                            guardedBy: .unchecked(note: "局の通し番号を持たないため照合していない（#526 の共通化では挙動を変えない）")
-                        ) {
-                            withGameAnimation { model.continueAfterAd() }
-                            return true
-                        }
-                    } label: {
-                        Label("広告を見て中央を空ける", systemImage: "play.rectangle.fill")
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Fill.coral)
-                    .disabled(continueRescue.isWatching)
-                }
-                Button("もう一度") { withGameAnimation { model.newGame() } }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-            }
-        }
+        RewardedContinueOverlay(
+            title: "ゲームオーバー",
+            detail: RecordLabel(model.recordResult, textColor: .white.opacity(0.85)),
+            rescueLabel: "広告を見て中央を空ける",
+            canContinue: !model.continueUsed,
+            rescue: continueRescue, services: services, gameID: BlockPuzzleModel.gameID,
+            serial: model.gameSerial,
+            grant: { game in withGameAnimation { model.continueAfterAd(forGame: game) } },
+            secondaryTitle: "もう一度",
+            secondaryAction: { withGameAnimation { model.newGame() } }
+        )
     }
 
     /// 色番号 1...5 を配色へ。0（空きマス）はここに来ない。

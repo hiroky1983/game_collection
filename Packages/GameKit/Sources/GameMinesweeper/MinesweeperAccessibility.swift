@@ -61,4 +61,23 @@ public enum MinesweeperAccessibility {
         // 開いている数字マスは、周囲の旗が揃っていればまとめて開ける（コード・#437）。
         return canChord ? "ダブルタップで周囲をまとめて開きます" : ""
     }
+
+    /// 旗モードの切り替えボタン（#761）。旗モードはマスのタップ結果を左右するので、
+    /// 画面を見なくても「いまどちらか」が分かるよう状態込みで読む（ナンプレのメモと同じ形）。
+    public static func flagToggleLabel(isOn: Bool) -> String {
+        isOn ? "旗モード、オン" : "旗モード、オフ"
+    }
+
+    /// 拡大の切り替えボタン（#761）。ラベルは押すと何が起きるか（フリーセル・ナンプレと同じ）。
+    public static func zoomToggleLabel(isZoomed: Bool) -> String {
+        isZoomed ? "盤全体を表示" : "盤を拡大"
+    }
+
+    /// ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に「盤全体を表示」と読んだ直後に
+    /// 拡大の案内をすることになる（フリーセル #604 と同じ理由）。
+    public static func zoomToggleHint(isZoomed: Bool) -> String {
+        isZoomed
+            ? "等倍に戻して盤全体を画面に収めます"
+            : "マスを大きくして指で押しやすくします。はみ出した部分は縦横にスクロールします"
+    }
 }
