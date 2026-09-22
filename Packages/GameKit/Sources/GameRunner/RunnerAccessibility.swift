@@ -99,7 +99,7 @@ public enum RunnerAccessibility {
     /// ゴールの演出中（`.chasing`・#1092）だけは**ジャンプではなく演出を飛ばす**操作になるので、
     /// ヒントの文言も入れ替える（`RunnerModel.press` の分岐と 1:1）。
     /// 世界の締め（`.story`・#1092）も同じくジャンプにはならない。あちらはオーバーレイ側が
-    /// 「とばす」ボタンを持つので、コースのヒントは何も起きないことだけを言う。
+    /// 「スキップ」ボタンを持つので、コースのヒントは何も起きないことだけを言う。
     public static func courseHint(phase: RunnerPhase) -> String {
         switch phase {
         case .chasing: return "ダブルタップで演出をスキップ"

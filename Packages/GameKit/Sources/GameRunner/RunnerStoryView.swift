@@ -7,7 +7,7 @@ import SwiftUI
 ///
 /// 画面いっぱいを覆い、コマを `RunnerStory.panelDuration` 秒ずつ送る。**どこをタップしても
 /// 場面ごと飛ばせる**（受け入れ条件「タップで飛ばせる」）。VoiceOver では台詞を読み、
-/// 「とばす」ボタンで抜けられる。
+/// 「スキップ」ボタンで抜けられる。
 ///
 /// **Reduce Motion（視差効果を減らす）がオンのときは、コマの入れ替えを動かさない**
 /// （`gameAnimation` 経由。会長決裁の受け入れ条件 B）。コマ送りそのものは止めない
@@ -82,7 +82,7 @@ struct RunnerStoryView: View {
                         capsuleButton(isLastPanel ? "おわり" : "つぎへ", action: advance)
                             .accessibilityHint(isLastPanel ? "おはなしを閉じます" : "次のコマへ進みます")
                     }
-                    capsuleButton("とばす", action: onFinish)
+                    capsuleButton("スキップ", action: onFinish)
                         .accessibilityHint("このおはなしを最後まで飛ばします")
                 }
                 // 画面の最下部はバナー（`BannerSlot`）の帯。幕のあいだバナー自体は出さない
@@ -118,7 +118,7 @@ struct RunnerStoryView: View {
         }
     }
 
-    /// 下端に並べる丸いボタンの見た目（「つぎへ」「とばす」で揃える）。
+    /// 下端に並べる丸いボタンの見た目（「つぎへ」「スキップ」で揃える）。
     private func capsuleButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
             .font(.subheadline.weight(.semibold))

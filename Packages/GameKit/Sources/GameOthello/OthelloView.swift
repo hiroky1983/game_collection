@@ -537,7 +537,7 @@ struct OthelloNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始",
+            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの石") {
