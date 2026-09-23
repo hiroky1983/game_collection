@@ -54,6 +54,8 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
         // 再エンゲージメント通知（#1193）が別の識別子空間で予約されるようになったため、
         // 全消し（removeAllPendingNotificationRequests）は使わず、続きのお知らせだけを対象にする
         // （CodeRabbit 指摘・PR #1228。全消しだとオンのままの再エンゲージメント通知も巻き込む）。
+        // 接頭辞で絞る実装そのものが崩れて #1223 の久しぶり通知（`reengagement-reminder.`）まで
+        // 巻き込んで消えていた不整合を #1268 で直したのもこの箇所。
         Task { await Self.cancelAllPendingAndDelivered() }
     }
 
