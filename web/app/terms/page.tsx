@@ -16,7 +16,7 @@ export default function TermsPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">利用規約</h1>
-        <p className="text-sm text-gray-400">最終更新日：2026年6月19日</p>
+        <p className="text-sm text-gray-400">最終更新日：2026年9月23日</p>
       </div>
 
       <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-900 rounded-xl p-5 mb-10 text-sm text-orange-800 dark:text-orange-300 leading-relaxed">
@@ -26,8 +26,9 @@ export default function TermsPage() {
 
       <Section title="1. 本アプリについて">
         <p>
-          「あそびば」は将棋・2048・五目並べ・マインスイーパー・オセロを収録したゲームコレクションアプリです。
-          iOS 17.0以上のデバイスでご利用いただけます。
+          「あそびば」は、トランプゲーム・将棋やチェスなどの盤上ゲーム・パズルなど、様々なジャンルのゲームを収録した
+          ゲームコレクションアプリです（例：トランプゲーム・盤上ゲーム・パズルなど）。収録ゲームは今後の
+          アップデートにより追加・変更される場合があります。iOS 17.0以上のデバイスでご利用いただけます。
         </p>
       </Section>
 
@@ -36,6 +37,11 @@ export default function TermsPage() {
           <li>本アプリは個人的・非商業的な目的でのみご利用いただけます。</li>
           <li>本アプリのご利用にはApple IDが必要な場合があります。</li>
           <li>インターネット接続なしでもゲームをお楽しみいただけますが、広告の表示には接続が必要な場合があります。</li>
+          <li>
+            一部のゲーム（ポーカー・ブラックジャック等）で使用するポイント・チップはゲーム内でのみ利用できる仮想的なものであり、
+            現金・金銭的価値との交換や換金は一切できません。また、チップの購入（課金）はできません。
+            チップがなくなった場合、リワード広告の視聴によりチップが回復することがあります。
+          </li>
         </ul>
       </Section>
 
