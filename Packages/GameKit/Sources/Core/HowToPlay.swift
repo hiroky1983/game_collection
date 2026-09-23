@@ -324,11 +324,23 @@ public extension HowToPlayGuide {
         hintIcon: "square.grid.4x3.fill"
     )
 
+    static let roulette = HowToPlayGuide(
+        gameID: "roulette",
+        title: "ルーレットの遊び方",
+        lines: [
+            "チップの額を選び、賭けたい場所（数字・赤黒・奇数偶数・1〜18 / 19〜36・12 個ずつの区分）をタップして置きます。何か所にも置けます。",
+            "「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。",
+            "配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。",
+        ],
+        hint: "賭ける場所をタップしてスピン",
+        hintIcon: "circle.circle.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen,
+        .hanafuda, .spider, .shiritori, .fifteen, .roulette,
     ]
 }
 

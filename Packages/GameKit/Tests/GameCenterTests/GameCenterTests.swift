@@ -21,6 +21,7 @@ import GameRunner
 import GameHanafuda
 import GameShiritori
 import GameFifteen
+import GameRoulette
 import GameSpider
 import GameChess
 import GameBlocks
@@ -91,6 +92,7 @@ private func makeHubModules() -> [GameModule] {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
+        RouletteModule(),
     ]
 }
 
@@ -300,6 +302,7 @@ struct GameCenterLeaderboardTests {
             // エンドレス（#675）は区分キー "endless"（`RunnerMode.endless.recordVariant`）で走行距離の表へ。
             ("runner", GameScore(metric: .points, points: 1, variant: "endless")),
             ("hanafuda", GameScore(metric: .points, points: 1)),
+            ("roulette", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID
