@@ -348,11 +348,23 @@ public extension HowToPlayGuide {
         hintIcon: "hand.draw.fill"
     )
 
+    static let colorRelay = HowToPlayGuide(
+        gameID: "colorrelay",
+        title: "いろリレーの遊び方",
+        lines: [
+            "場の札と同じ色か、同じ数字・記号の札を出します。手札を先になくした人が勝ちです。",
+            "出せる札がなければ山から 1 枚引きます。引いた札が出せるなら、そのまま出せます。",
+            "とばし・ぎゃく・+2・いろがえ・いろがえ+4 の特殊札で流れを変えましょう。",
+        ],
+        hint: "同じ色か同じ数字の札を出そう",
+        hintIcon: "rectangle.on.rectangle.angled"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits,
+        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay,
     ]
 }
 
