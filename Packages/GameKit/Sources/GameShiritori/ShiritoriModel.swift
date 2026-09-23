@@ -81,6 +81,7 @@ public final class ShiritoriModel: AITurnGuarded {
     let gameID = "shiritori"
     private let cpuDelay: Duration
     private let cpuCursorDelay: Duration
+    private let cpuCursorStepDelay: Duration
     private var seed: UInt64?
     /// CPU の手番が二重に走らないようにする門番。
     var isRunningCPUTurns = false
@@ -90,12 +91,14 @@ public final class ShiritoriModel: AITurnGuarded {
         deck: [ShiritoriCard] = ShiritoriCard.deck,
         cpuDelay: Duration = .milliseconds(800),
         cpuCursorDelay: Duration = .zero,
+        cpuCursorStepDelay: Duration = .zero,
         seed: UInt64? = nil
     ) {
         self.services = services
         self.deck = deck
         self.cpuDelay = cpuDelay
         self.cpuCursorDelay = cpuCursorDelay
+        self.cpuCursorStepDelay = cpuCursorStepDelay
         self.seed = seed
     }
 
@@ -249,8 +252,10 @@ public final class ShiritoriModel: AITurnGuarded {
 
     /// CPU の手番なら 1 手進める。決着か人間の手番になったら止まる。
     ///
-    /// 手が決まったらまず `cpuCursorSlot` を立てて `cpuCursorDelay` の間見せてから確定する
-    /// （#1286: 対象へカーソルが動いてから取る演出。`cpuDelay` は「考え始めるまでの間」のまま変えない）。
+    /// 手が決まったら、まだ取られていない札を盤の並び順（左から右）に対象までなぞってから確定する
+    /// （#1286・会長指摘 2026-09-23: 対象へ一瞬で止まるだけでは「動いた」と感じられなかった。
+    /// 通過する札は `cpuCursorStepDelay`、最後に止まる対象だけ `cpuCursorDelay` の間見せる。
+    /// `cpuDelay` は「考え始めるまでの間」のまま変えない）。
     public func runCPUTurnIfNeeded() async {
         await withAITurnRunner(running: \.isRunningCPUTurns) {
             guard phase == .playing, !isPlayerTurn else { return }
@@ -263,9 +268,13 @@ public final class ShiritoriModel: AITurnGuarded {
                 finish(.cpuStuck)
                 return
             }
-            cpuCursorSlot = move.slot
-            if cpuCursorDelay > .zero {
-                guard await pauseCPUTurn(for: cpuCursorDelay) else {
+            let sweep = slots.indices.filter { $0 <= move.slot && slots[$0].owner == nil }
+            for (offset, slot) in sweep.enumerated() {
+                cpuCursorSlot = slot
+                let isFinal = offset == sweep.count - 1
+                let delay = isFinal ? cpuCursorDelay : cpuCursorStepDelay
+                guard delay > .zero else { continue }
+                guard await pauseCPUTurn(for: delay) else {
                     cpuCursorSlot = nil
                     return
                 }
