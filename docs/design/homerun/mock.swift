@@ -1784,9 +1784,9 @@ struct Controls2Axis: View {
                         ZStack(alignment: .top) {
                             VStack(spacing: 0) {
                                 band("上", "ゴロ 0〜10°", hexColor(0xEFE7DC))
-                                band("真ん中", "ライナー 10〜20°", hexColor(0xD9F1EF))
+                                band("真ん中", "ライナー 10〜25°", hexColor(0xD9F1EF))
                                 band("少し下", "柵越え 25〜35°", T.yellow.opacity(0.45))
-                                band("下すぎ", "ポップ 45°〜", hexColor(0xEFE7DC))
+                                band("下すぎ", "ポップ 35°〜", hexColor(0xEFE7DC))
                             }.frame(width: 150)
                             Circle().fill(.white).frame(width: 16, height: 16).overlay(Circle().stroke(T.ink, lineWidth: 1)).offset(x: 63, y: 38)
                             Circle().stroke(T.teal, lineWidth: 2.5).frame(width: 18, height: 18).offset(x: 63, y: 66)
@@ -1805,7 +1805,7 @@ struct Controls2Axis: View {
                             Text("方向 = 左右 + タイミング").font(T.f(15)).foregroundStyle(T.ink)
                             row("左右", "カーソルをボールの内側に置くと引っ張り、外側なら流し打ち（最大 ±35°）", T.teal)
                             row("早い/遅い", "早いタップは引っ張り側、遅いと流し側へ ±15° ずれる", T.coral)
-                            Text("柵は両翼 100 m・中堅 122 m。合計が ±45° を越えるとファウル（0 m）= 目一杯引っ張って早く振ったときだけ起きる。センターは遠いがファウルが無い、の駆け引き").font(T.f(10, .medium)).foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
+                            Text("柵は両翼 100 m・中堅 122 m。合計が ±45° を越えるとファウル（0 m）= 目一杯引っ張って早く振るか、目一杯流して遅く振ったときだけ起きる。センターは遠いがファウルが無い、の駆け引き").font(T.f(10, .medium)).foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
