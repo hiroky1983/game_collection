@@ -27,19 +27,27 @@ public struct RouletteView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
-            tableCard
-            boardCard
-            HowToPlayHint(.roulette, playLog: services.playLog)
-            if model.sessionOver {
-                sessionOverView
-            } else {
-                actionArea
+        // 縦の狭さ（iPhone SE）はこの画面で測る。`AdaptiveLayout` は幅しか持たない（#458）。
+        GeometryReader { geometry in
+            let sizing = RouletteMetrics.sizing(forHeight: geometry.size.height)
+            VStack(spacing: sizing.stackSpacing) {
+                tableCard(sizing)
+                boardCard(sizing)
+                HowToPlayHint(.roulette, playLog: services.playLog)
+                if model.sessionOver {
+                    sessionOverView(sizing)
+                } else {
+                    actionArea(sizing)
+                }
+                // 操作欄の高さは局面で変わる（賭け中は 2 段・回転中は 1 段）。余りはここで吸って
+                // 盤面を上に固定し、バナーは下に留める（中央寄せだと局面ごとに盤面が上下に動く）。
+                Spacer(minLength: 0)
+                RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
+                BannerSlot(ads: services.ads)
             }
-            RecommendationSlot(services: services, isFinished: model.phase == .result || model.sessionOver)
-            BannerSlot(ads: services.ads)
+            .padding(Theme.pad)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        .padding(Theme.pad)
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
         .gameChrome(title: "ルーレット", review: services.review)
@@ -83,14 +91,14 @@ public struct RouletteView: View {
 
     // MARK: - Table (wheel + chips + result)
 
-    private var tableCard: some View {
+    private func tableCard(_ sizing: RouletteMetrics.Sizing) -> some View {
         HStack(alignment: .center, spacing: 14) {
             RouletteWheelView(
                 rotation: wheelRotation,
                 highlighted: model.phase == .result ? model.winningNumber : nil
             )
-            .frame(width: layout.scaled(RouletteMetrics.wheelDiameter),
-                   height: layout.scaled(RouletteMetrics.wheelDiameter))
+            .frame(width: layout.scaled(sizing.wheelDiameter),
+                   height: layout.scaled(sizing.wheelDiameter))
 
             VStack(alignment: .leading, spacing: 8) {
                 Label("チップ: \(model.chips)枚", systemImage: "circle.hexagongrid.fill")
@@ -104,7 +112,7 @@ public struct RouletteView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -182,17 +190,17 @@ public struct RouletteView: View {
     // MARK: - Board
 
     /// 盤面。0 の左に 1〜36 を 4 段 × 9 列で並べ、下に 12 個ずつの区分と赤黒などを置く。
-    private var boardCard: some View {
+    private func boardCard(_ sizing: RouletteMetrics.Sizing) -> some View {
         let spacing = RouletteMetrics.cellSpacing
         return VStack(spacing: spacing) {
             HStack(spacing: spacing) {
-                betCell(.straight(0), height: RouletteMetrics.numberCellHeight * 4 + spacing * 3)
-                    .frame(width: layout.scaled(RouletteMetrics.numberCellHeight))
+                betCell(.straight(0), height: sizing.numberCellHeight * 4 + spacing * 3)
+                    .frame(width: layout.scaled(sizing.numberCellHeight))
                 VStack(spacing: spacing) {
                     ForEach(0..<4, id: \.self) { row in
                         HStack(spacing: spacing) {
                             ForEach(1...9, id: \.self) { column in
-                                betCell(.straight(row * 9 + column), height: RouletteMetrics.numberCellHeight)
+                                betCell(.straight(row * 9 + column), height: sizing.numberCellHeight)
                             }
                         }
                     }
@@ -200,16 +208,16 @@ public struct RouletteView: View {
             }
             HStack(spacing: spacing) {
                 ForEach(RouletteBetKind.dozens, id: \.self) { kind in
-                    betCell(kind, height: RouletteMetrics.outsideCellHeight)
+                    betCell(kind, height: sizing.outsideCellHeight)
                 }
             }
             HStack(spacing: spacing) {
                 ForEach(RouletteBetKind.evenMoney, id: \.self) { kind in
-                    betCell(kind, height: RouletteMetrics.outsideCellHeight)
+                    betCell(kind, height: sizing.outsideCellHeight)
                 }
             }
         }
-        .padding(10)
+        .padding(RouletteMetrics.boardPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -277,15 +285,15 @@ public struct RouletteView: View {
     // MARK: - Action Area
 
     @ViewBuilder
-    private var actionArea: some View {
+    private func actionArea(_ sizing: RouletteMetrics.Sizing) -> some View {
         switch model.phase {
-        case .betting:  bettingView
-        case .spinning: spinningView
-        case .result:   resultView
+        case .betting:  bettingView(sizing)
+        case .spinning: spinningView(sizing)
+        case .result:   resultView(sizing)
         }
     }
 
-    private var bettingView: some View {
+    private func bettingView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 Text("チップ")
@@ -305,7 +313,7 @@ public struct RouletteView: View {
                 }
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -335,17 +343,17 @@ public struct RouletteView: View {
     }
 
     /// ホイールが回っているあいだの操作欄。待ちを飛ばして結果まで進められる。
-    private var spinningView: some View {
+    private func spinningView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
             actionButton("結果まで進める", color: Theme.fillMuted, foreground: .white) {
                 model.skipSpin()
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
-    private var resultView: some View {
+    private func resultView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
             HStack(spacing: 12) {
@@ -357,7 +365,7 @@ public struct RouletteView: View {
                 }
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -379,7 +387,7 @@ public struct RouletteView: View {
         "最初からやり直す (\(RouletteModel.initialChips)枚)"
     }
 
-    private var sessionOverView: some View {
+    private func sessionOverView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: "xmark.octagon.fill")
@@ -424,7 +432,7 @@ public struct RouletteView: View {
             // 広告のロード〜視聴中にやり直すと、見終えた復活が新しいセッションへ乗りかける（#727）。
             .disabled(reviveRescue.isWatching)
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }
 
