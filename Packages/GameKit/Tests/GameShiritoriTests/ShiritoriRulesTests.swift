@@ -79,16 +79,32 @@ struct ShiritoriRulesTests {
         ])
     }
 
-    @Test("裏読みは決裁済みの 3 枚だけ。読みはすべてひらがなで、空でない")
+    @Test("裏読みは決裁済みの 1 枚だけ。読みはすべてひらがなで、空でない")
     func alternateReadingsAreTheApprovedOnes() {
         let withAlternates = ShiritoriCard.deck.filter { $0.readings.count > 1 }
         #expect(Dictionary(uniqueKeysWithValues: withAlternates.map { ($0.primaryReading, Array($0.readings.dropFirst())) }) == [
-            "こっぷ": ["ぐらす"], "うちわ": ["おうぎ"], "ねこ": ["にゃんこ"],
+            "ねこ": ["にゃんこ"],
         ])
         for card in ShiritoriCard.deck {
             for reading in card.readings {
                 #expect(!reading.isEmpty)
                 #expect(reading == ShiritoriKana.hiragana(reading), "\(reading) はひらがなに揃っている")
+            }
+        }
+    }
+
+    /// 裏読みは「選ぶ契機」自体が山札に無ければ実プレイで絶対に発火しない（#1271: 「どらむ」
+    /// 「えみゅー」（#1292 で削除）・「ぐらす」「おうぎ」（本 Issue で削除）の4件が該当し、
+    /// いずれも受け皿となる語頭の札が無かった）。裏読みを残す・足すときは必ずこのテストを通すこと。
+    @Test("すべての裏読みの語頭を、別の札の語尾から受けられる（選ぶ契機があるか）")
+    func everyAlternateReadingIsReachable() {
+        for card in ShiritoriCard.deck {
+            for reading in card.readings.dropFirst() {
+                guard let head = ShiritoriKana.head(of: reading) else { continue }
+                let otherTails = ShiritoriCard.deck.filter { $0.id != card.id }
+                    .flatMap(\.readings).compactMap(ShiritoriKana.tail(of:))
+                #expect(otherTails.contains { ShiritoriKana.accepts(head: head, after: $0) },
+                        "\(card.id) の裏読み \(reading)（語頭 \(head)）を選べる契機が無い")
             }
         }
     }
