@@ -312,11 +312,23 @@ public extension HowToPlayGuide {
         hintIcon: "leaf.fill"
     )
 
+    static let fifteen = HowToPlayGuide(
+        gameID: "fifteen",
+        title: "15パズルの遊び方",
+        lines: [
+            "空白の隣にあるタイルをタップすると、空白へスライドします。",
+            "空白と同じ列・行にあるタイルをタップすると、間のタイルをまとめて動かせます。",
+            "1〜15 を左上から順に並べたらクリアです。手数が少ないほど良い記録です。",
+        ],
+        hint: "空白の隣をタップで動く",
+        hintIcon: "square.grid.4x3.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori,
+        .hanafuda, .spider, .shiritori, .fifteen,
     ]
 }
 

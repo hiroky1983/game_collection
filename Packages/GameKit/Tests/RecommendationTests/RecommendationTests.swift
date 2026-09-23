@@ -21,6 +21,7 @@ import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 import GameShiritori
+import GameFifteen
 import GameSpider
 import GameChess
 import GameBlocks
@@ -40,7 +41,7 @@ import GameKitTestSupport
 private let hubOrder = [
     "2048", "shogi", "mahjong4", "sudoku", "othello", "go", "chess", "mahjong",
     "solitaire", "freecell", "spider", "daifugo", "poker", "blackjack", "minesweeper", "gomoku",
-    "concentration", "shiritori", "blocks", "runner", "hanafuda",
+    "concentration", "shiritori", "fifteen", "blocks", "runner", "hanafuda",
 ]
 
 @MainActor
@@ -51,7 +52,7 @@ private func makeRegistry() -> GameRegistry {
         Game2048Module(), ShogiModule(), MahjongModule(), SudokuModule(),
         OthelloModule(), GoModule(), ChessModule(), MahjongSolitaireModule(), SolitaireModule(),
         FreeCellModule(), SpiderModule(), DaifugoModule(), PokerModule(), BlackjackModule(), MinesweeperModule(),
-        GomokuModule(), ConcentrationModule(), ShiritoriModule(), BlocksModule(), RunnerModule(),
+        GomokuModule(), ConcentrationModule(), ShiritoriModule(), FifteenModule(), BlocksModule(), RunnerModule(),
         HanafudaModule(),
     ])
 }
@@ -128,7 +129,7 @@ struct RecommendationTableTests {
         ("othello",       ["gomoku", "shogi", "2048"]),
         ("2048",          ["sudoku", "minesweeper", "blocks"]),
         ("blocks",        ["runner", "2048", "minesweeper"]),
-        ("minesweeper",   ["sudoku", "2048", "mahjong"]),
+        ("minesweeper",   ["sudoku", "2048", "fifteen"]),
         ("concentration", ["solitaire", "daifugo", "shiritori"]),
         ("poker",         ["blackjack", "daifugo", "concentration"]),
         ("blackjack",     ["poker", "daifugo", "concentration"]),
@@ -143,6 +144,7 @@ struct RecommendationTableTests {
         ("runner",        ["blocks", "2048", "concentration"]),
         ("hanafuda",      ["daifugo", "poker", "blackjack"]),
         ("shiritori",     ["concentration", "hanafuda", "daifugo"]),
+        ("fifteen",       ["sudoku", "2048", "minesweeper"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
@@ -626,7 +628,9 @@ struct PlayLogStorageTests {
         defaults.removePersistentDomain(forName: name)
 
         let log = PlayLog(defaults: defaults)
-        for i in 0..<20 { log.recordFinish(gameID: hubOrder[i % hubOrder.count]) }
+        // 全ゲームを 1 巡させてから比べる（ゲームが増えるたびに「20 回では遊ばれないゲーム」が生まれ、
+        // その ID が 1000 回の側で初めて保存されて差が開くため）。
+        for i in 0..<max(20, hubOrder.count) { log.recordFinish(gameID: hubOrder[i % hubOrder.count]) }
         log.markShown(at: Date(timeIntervalSince1970: 1_800_000_000))
         let after20 = defaults.persistentDomain(forName: name) ?? [:]
 
