@@ -9,7 +9,10 @@ public struct ShiritoriView: View {
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: ShiritoriModel(
-            services: services, cpuCursorDelay: .milliseconds(400), cpuCursorStepDelay: .milliseconds(55)
+            // 通過札は boardArea の .gameAnimation（150ms）が完了しきってから次へ進むよう、
+            // ステップ間隔をアニメーション時間と揃える（55msだと遷移途中で次へ切り替わり、
+            // 各札を明確に示せない。CodeRabbit指摘・PR #1309）
+            services: services, cpuCursorDelay: .milliseconds(400), cpuCursorStepDelay: .milliseconds(150)
         ))
     }
 

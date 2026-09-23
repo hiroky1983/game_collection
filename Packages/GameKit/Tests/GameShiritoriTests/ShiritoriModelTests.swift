@@ -358,8 +358,13 @@ struct ShiritoriModelTests {
         #expect(model.cpuCursorSlot == 0, "まず手前の未確定札（りす）へカーソルが立つ")
         #expect(model.slots[0].owner == nil, "通過しただけで取られてはいない")
 
-        // なぞりの間（10ms）は過ぎたが、対象での静止（200ms）はまだ終わっていない時間帯を狙う。
-        try? await Task.sleep(for: .milliseconds(50))
+        // 固定時間の待機ではなく、カーソルが対象へ移るまで状態の変化で同期する
+        // （実行環境の負荷で固定スリープがズレるとフレークする。CodeRabbit指摘・PR #1309）。
+        var gate = 0
+        while model.cpuCursorSlot != 1, gate < 1_000 {
+            gate += 1
+            await Task.yield()
+        }
         #expect(model.cpuCursorSlot == 1, "なぞり終えて対象（らっこ）へ移る")
         #expect(model.slots[1].owner == nil, "対象へ着いた直後はまだ確定していない")
 
