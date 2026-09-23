@@ -1,6 +1,8 @@
 // 柵越えおじさん（プレミアム枠・ホームラン案）のモック生成器（#1316）。
-// macOS 上で `swiftc -O mock.swift -o mock && ./mock <出力ディレクトリ>` で
-// iPhone 実寸（393×852pt・@2x）の PNG を書き出す。アプリのビルドには一切使わない使い捨て。
+// macOS 上で `swiftc -O mock.swift -o mockgen && ./mockgen <出力ディレクトリ> [--3d]` で
+// iPhone 実寸（393×852pt・@2x）の PNG を書き出す（`--3d` で 3D 方向の 21〜29 だけ）。アプリのビルドには一切使わない使い捨て。
+// 01〜16 は初回・2 回目（ドット絵 / 滑らかな塗り）の記録。21〜29 が現行（会長決裁 2026-09-24: 絵柄は 3D・
+// センターカメラで打者を正面に・ミート点の第 2 軸）。3D は透視投影 + トゥーン調 2D 部品の疑似 3D（末尾の MARK を参照）。
 // ドット絵は OjisanPixel と同じパレットを使い、頭身（デフォルメ強度）を引数で変えて生成する。
 import AppKit
 import SwiftUI
@@ -1495,6 +1497,864 @@ struct CompareAB: View {
     }
 }
 
+// MARK: - 3D 方向（会長決裁 2026-09-24: 絵柄は 3D に決定・センターカメラで打者を正面に・投手は一直線上・ミート点の第 2 軸）
+//
+// 本物の 3D ではなく「疑似 3D」: 球場は透視投影（Cam）で描き、人物はトゥーン調（セル 2 階調 + ハイライト・輪郭線なし）の
+// 2D 部品を奥行きに応じた大きさで置く。世界座標は本塁が原点、+Z = 投手方向、+Y = 上、+X = 三塁側（右打者が立つ側 = 左翼側）。
+// 打席のカメラはセンター（外野）側の高い位置から本塁を見る「テレビ中継のセンターカメラ」。投手は手前で背中越し、
+// 打者はカメラ目線の正面、投手 → 本塁 → 捕手 → 審判 → バックネットが画面の中央の一直線に並ぶ。
+
+struct V3 { var x: Double, y: Double, z: Double; init(_ x: Double, _ y: Double, _ z: Double) { self.x = x; self.y = y; self.z = z } }
+func - (a: V3, b: V3) -> V3 { V3(a.x - b.x, a.y - b.y, a.z - b.z) }
+func + (a: V3, b: V3) -> V3 { V3(a.x + b.x, a.y + b.y, a.z + b.z) }
+func * (a: V3, s: Double) -> V3 { V3(a.x * s, a.y * s, a.z * s) }
+func dot(_ a: V3, _ b: V3) -> Double { a.x * b.x + a.y * b.y + a.z * b.z }
+func cross(_ a: V3, _ b: V3) -> V3 { V3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x) }
+func norm(_ a: V3) -> V3 { let l = dot(a, a).squareRoot(); return V3(a.x / l, a.y / l, a.z / l) }
+/// 扇形の座標。θ は中堅を 0 とし、+X（三塁・左翼）側が正（度）。
+func polar(_ r: Double, _ deg: Double, y: Double = 0) -> V3 { let t = deg * .pi / 180; return V3(r * sin(t), y, r * cos(t)) }
+/// 柵までの距離。両翼 100 m・左右中間 ≒ 114 m・中堅 120 m。
+func fenceR(_ deg: Double) -> Double { 100 + 20 * cos(2 * deg * .pi / 180) }
+
+struct Cam {
+    let pos: V3, f: V3, r: V3, u: V3, fpx: CGFloat, c: Pt
+    init(pos: V3, target: V3, fpx: CGFloat, c: Pt = Pt(x: screenW / 2, y: screenH / 2)) {
+        self.pos = pos; f = norm(target - pos); r = norm(cross(f, V3(0, 1, 0))); u = cross(r, f); self.fpx = fpx; self.c = c
+    }
+    func depth(_ p: V3) -> Double { dot(p - pos, f) }
+    func project(_ p: V3) -> Pt {
+        let v = p - pos, d = max(dot(v, f), 0.5)
+        return Pt(x: c.x + fpx * CGFloat(dot(v, r) / d), y: c.y - fpx * CGFloat(dot(v, u) / d))
+    }
+    /// 1 m が何 pt に映るか。
+    func ppm(_ p: V3) -> CGFloat { fpx / CGFloat(max(depth(p), 0.5)) }
+    func poly(_ pts: [V3]) -> Path { var p = line(pts); p.closeSubpath(); return p }
+    func line(_ pts: [V3]) -> Path {
+        var p = Path()
+        for (i, q) in pts.enumerated() { if i == 0 { p.move(to: project(q)) } else { p.addLine(to: project(q)) } }
+        return p
+    }
+    func circle(_ center: V3, r: Double, n: Int = 56) -> Path {
+        poly((0..<n).map { i in let t = Double(i) / Double(n) * 2 * .pi; return V3(center.x + r * sin(t), center.y, center.z + r * cos(t)) })
+    }
+}
+
+struct LCG {
+    var s: UInt32
+    init(_ s: UInt32) { self.s = s }
+    mutating func next() -> UInt32 { s = s &* 1664525 &+ 1013904223; return s >> 8 }
+    mutating func unit() -> Double { Double(next() % 10000) / 10000 }
+}
+
+// トゥーンの 2 階調（明・暗）。光源は左上で全部品共通。
+struct Tone { let l: UInt32, d: UInt32 }
+enum TC {
+    static let skin = Tone(l: 0xFBE0BE, d: 0xE2A87C), skinDeep = Tone(l: 0xE8B88E, d: 0xC08A60)
+    static let navy = Tone(l: 0x5C6FA6, d: 0x28345C), white = Tone(l: 0xFFFFFF, d: 0xC9C6D4), yellow = Tone(l: 0xFFE070, d: 0xD8A020)
+    static let wood = Tone(l: 0xDDAE74, d: 0x8A5A2C), gray = Tone(l: 0xD4D4DC, d: 0x8A8A98), dark = Tone(l: 0x4A4A56, d: 0x1E1E28)
+    static let red = Tone(l: 0xC03030, d: 0x7A1818), mitt = Tone(l: 0xB8794A, d: 0x6E4222), ump = Tone(l: 0x3A3F52, d: 0x1C1F2A)
+    static let grassL: UInt32 = 0x6FBF62, grassD: UInt32 = 0x3E8E45, dirtL: UInt32 = 0xD8A26C, dirtD: UInt32 = 0xA8743E
+    static let crowd: [UInt32] = [0xE85D4A, 0x3D6FD8, 0xF2C94C, 0xF4F4F8, 0x2FB5A8, 0x9B6BD8, 0x333A4A, 0xF08FB0, 0x60C070, 0xE9A24C]
+}
+
+enum Toon {
+    static func stops(_ t: Tone, _ split: Double) -> Gradient {
+        Gradient(stops: [.init(color: hexColor(t.l), location: 0), .init(color: hexColor(t.l), location: split), .init(color: hexColor(t.d), location: split + 0.012), .init(color: hexColor(t.d), location: 1)])
+    }
+    static func cel(_ t: Tone, in r: CGRect, split: Double = 0.55) -> GraphicsContext.Shading {
+        .linearGradient(stops(t, split), startPoint: Pt(x: r.minX, y: r.minY), endPoint: Pt(x: r.maxX, y: r.minY + r.width * 0.75))
+    }
+    static func sphere(_ t: Tone, center: Pt, r: CGFloat, split: Double = 0.6) -> GraphicsContext.Shading {
+        .radialGradient(stops(t, split), center: Pt(x: center.x - r * 0.28, y: center.y - r * 0.32), startRadius: 0, endRadius: r * 1.3)
+    }
+}
+
+func ell(_ cx: CGFloat, _ cy: CGFloat, _ rx: CGFloat, _ ry: CGFloat) -> Path { Path(ellipseIn: CGRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2)) }
+func rr(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat) -> Path { Path(roundedRect: CGRect(x: x, y: y, width: w, height: h), cornerRadius: r) }
+/// 2 点を結ぶカプセル（腕・脚・バット）。
+func cap(_ a: Pt, _ b: Pt, w: CGFloat) -> Path {
+    let dx = b.x - a.x, dy = b.y - a.y, len = (dx * dx + dy * dy).squareRoot()
+    return Path(roundedRect: CGRect(x: -w / 2, y: -w / 2, width: len + w, height: w), cornerRadius: w / 2)
+        .applying(CGAffineTransform(translationX: a.x, y: a.y).rotated(by: atan2(dy, dx)))
+}
+func rot(_ p: Path, _ cx: CGFloat, _ cy: CGFloat, _ deg: Double) -> Path { p.applying(CGAffineTransform(translationX: cx, y: cy).rotated(by: deg * .pi / 180)) }
+
+/// 局所座標（y 下向き）で組んだ図形を、画面上の足元 `feet` と拡大率 `s` で置く描き手。
+struct Rig {
+    let ctx: GraphicsContext, t: CGAffineTransform, s: CGFloat
+    init(ctx: GraphicsContext, t: CGAffineTransform, s: CGFloat) { self.ctx = ctx; self.t = t; self.s = s }
+    init(_ ctx: GraphicsContext, feet: Pt, s: CGFloat, feetLocal: Pt) {
+        self.init(ctx: ctx, t: CGAffineTransform(translationX: feet.x - feetLocal.x * s, y: feet.y - feetLocal.y * s).scaledBy(x: s, y: s), s: s)
+    }
+    func P(_ x: CGFloat, _ y: CGFloat) -> Pt { Pt(x: x, y: y).applying(t) }
+    func cel(_ p: Path, _ tone: Tone, split: Double = 0.55) { let q = p.applying(t); ctx.fill(q, with: Toon.cel(tone, in: q.boundingRect, split: split)) }
+    func flat(_ p: Path, _ c: Color) { ctx.fill(p.applying(t), with: .color(c)) }
+    func sphere(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ tone: Tone, split: Double = 0.6) {
+        let c = P(cx, cy), rr = r * s
+        ctx.fill(Path(ellipseIn: CGRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2)), with: Toon.sphere(tone, center: c, r: rr, split: split))
+    }
+    func stroke(_ p: Path, _ c: Color, w: CGFloat) { ctx.stroke(p.applying(t), with: .color(c), style: StrokeStyle(lineWidth: w * s, lineCap: .round, lineJoin: .round)) }
+    /// 光沢（白の楕円・半透明）
+    func gloss(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, deg: Double = -25, a: Double = 0.5) { flat(rot(ell(0, 0, w / 2, h / 2), cx, cy, deg), .white.opacity(a)) }
+    func shadow(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, a: Double = 0.26) {
+        var c = ctx; c.addFilter(.blur(radius: 2.5 * s))
+        c.fill(ell(cx, cy, w / 2, h / 2).applying(t), with: .color(.black.opacity(a)))
+    }
+    func clipped(_ p: Path) -> Rig { var c = ctx; c.clip(to: p.applying(t)); return Rig(ctx: c, t: t, s: s) }
+}
+
+/// おじさんの顔（正面）。`R` は頭の半径。特徴（薄い頭・白髪の側頭・太い眉・ヒゲ・頬）は Core の OjisanPixel と同じ。
+func drawOjisanHead(_ g: Rig, hc: Pt, R: CGFloat, pose: Pose) {
+    g.sphere(hc.x - R * 1.0, hc.y + R * 0.12, R * 0.2, TC.skinDeep); g.sphere(hc.x + R * 1.0, hc.y + R * 0.12, R * 0.2, TC.skinDeep)
+    g.sphere(hc.x, hc.y, R, TC.skin, split: 0.66)
+    g.cel(rr(hc.x - R * 1.04, hc.y - R * 0.22, R * 0.36, R * 0.66, R * 0.16), TC.gray); g.cel(rr(hc.x + R * 0.68, hc.y - R * 0.22, R * 0.36, R * 0.66, R * 0.16), TC.gray)
+    if pose == .cheer { g.gloss(hc.x - R * 0.3, hc.y - R * 0.66, R * 0.7, R * 0.28) }
+    // 眉（空振りは内側を吊り上げる）
+    let bw = R * 0.52, bh = R * 0.16
+    g.flat(rot(rr(-bw / 2, -bh / 2, bw, bh, bh / 2), hc.x - R * 0.38, hc.y - R * 0.12, pose == .frown ? -14 : 6), hexColor(0x5A5A66))
+    g.flat(rot(rr(-bw / 2, -bh / 2, bw, bh, bh / 2), hc.x + R * 0.38, hc.y - R * 0.12, pose == .frown ? 14 : -6), hexColor(0x5A5A66))
+    // 目
+    for sgn in [-1.0, 1.0] {
+        let ex = hc.x + R * 0.33 * sgn, ey = hc.y + R * 0.2
+        if pose == .frown {
+            let lw = R * 0.34, lh = R * 0.08
+            g.flat(rot(rr(-lw / 2, -lh / 2, lw, lh, lh / 2), ex, ey - R * 0.08, sgn < 0 ? 28 : -28), hexColor(0x221E28))
+            g.flat(rot(rr(-lw / 2, -lh / 2, lw, lh, lh / 2), ex, ey + R * 0.08, sgn < 0 ? -28 : 28), hexColor(0x221E28))
+        } else {
+            g.flat(ell(ex, ey, R * 0.18, pose == .cheer ? R * 0.14 : R * 0.2), .white)
+            g.flat(ell(ex + R * 0.03, ey + (pose == .cheer ? 0 : R * 0.05), R * 0.095, R * 0.095), hexColor(0x221E28))
+            g.flat(ell(ex - R * 0.02, ey - R * 0.03, R * 0.035, R * 0.035), .white)
+        }
+    }
+    if pose == .frown {  // 汗
+        var d = Path(); d.move(to: Pt(x: hc.x + R * 1.25, y: hc.y - R * 0.7)); d.addQuadCurve(to: Pt(x: hc.x + R * 1.4, y: hc.y - R * 0.32), control: Pt(x: hc.x + R * 1.56, y: hc.y - R * 0.5)); d.addQuadCurve(to: Pt(x: hc.x + R * 1.25, y: hc.y - R * 0.7), control: Pt(x: hc.x + R * 1.1, y: hc.y - R * 0.5))
+        g.cel(d, Tone(l: 0xA8DCFA, d: 0x4EA8E8))
+    }
+    g.flat(ell(hc.x, hc.y + R * 0.44, R * 0.12, R * 0.09), hexColor(0xD69E76))
+    for sgn in [-1.0, 1.0] { var c = g.ctx; c.addFilter(.blur(radius: R * g.s * 0.06)); c.fill(ell(hc.x + R * 0.62 * sgn, hc.y + R * 0.44, R * 0.17, R * 0.17).applying(g.t), with: .color(T.coral.opacity(0.5))) }
+    g.cel(rr(hc.x - R * 0.46, hc.y + R * 0.56, R * 0.92, R * 0.27, R * 0.13), TC.gray)
+    switch pose {
+    case .cheer:
+        g.cel(ell(hc.x, hc.y + R * 0.94, R * 0.3, R * 0.18), TC.red); g.flat(ell(hc.x, hc.y + R * 1.02, R * 0.16, R * 0.08), T.pink)
+    case .frown:
+        var m = Path(); m.move(to: Pt(x: hc.x - R * 0.24, y: hc.y + R * 0.96)); m.addQuadCurve(to: Pt(x: hc.x + R * 0.24, y: hc.y + R * 0.96), control: Pt(x: hc.x, y: hc.y + R * 0.8)); g.stroke(m, hexColor(0x96282C), w: R * 0.08)
+    default:
+        var m = Path(); m.move(to: Pt(x: hc.x - R * 0.27, y: hc.y + R * 0.88)); m.addQuadCurve(to: Pt(x: hc.x + R * 0.27, y: hc.y + R * 0.88), control: Pt(x: hc.x, y: hc.y + R * 1.06)); g.stroke(m, hexColor(0x96282C), w: R * 0.08)
+    }
+    if pose != .cheer { drawHelmet(g, hc: hc, R: R) }
+}
+
+/// 紺のヘルメット（黄の中央ライン・つば・投手側の耳当て = 右打者は本人の左 = 画面右）。
+func drawHelmet(_ g: Rig, hc: Pt, R: CGFloat, flap: Bool = true) {
+    let gc = g.clipped(Path(CGRect(x: hc.x - R * 1.5, y: hc.y - R * 1.5, width: R * 3, height: R * 1.44)))
+    gc.sphere(hc.x, hc.y - R * 0.06, R * 1.1, TC.navy, split: 0.58)
+    gc.flat(cap(Pt(x: hc.x, y: hc.y - R * 1.12), Pt(x: hc.x, y: hc.y - R * 0.2), w: R * 0.14), hexColor(0xF0C030))
+    gc.gloss(hc.x - R * 0.44, hc.y - R * 0.74, R * 0.6, R * 0.24)
+    g.flat(ell(hc.x, hc.y - R * 0.06, R * 1.26, R * 0.16), hexColor(0x1E2848))
+    if flap { g.cel(rr(hc.x + R * 0.86, hc.y - R * 0.12, R * 0.4, R * 0.62, R * 0.14), TC.navy) }
+}
+
+/// 右打者・正面（カメラ目線）。局所座標 200×176、足元は (100, 170)。`heads` = 頭身（全身 160 のうち頭の直径が 160/heads）。
+func drawBatter(_ ctx: GraphicsContext, feet: Pt, s: CGFloat, pose: Pose, heads: CGFloat = 2.2, shadow: Bool = true) {
+    let g = Rig(ctx, feet: feet, s: s, feetLocal: Pt(x: 100, y: 170))
+    let R = 80 / heads
+    let hc = Pt(x: 100, y: 10 + R)
+    let sy = 10 + 2 * R - 6
+    let bodyH = 160 - 2 * R
+    let torsoH = bodyH * 0.6
+    let tw = min(68, 36 + bodyH * 0.36)
+    let ly = sy + torsoH - 6
+    let armW = max(11, R * 0.34), handR = max(7, R * 0.23), batW = max(8, R * 0.25)
+    let shL = Pt(x: 100 - tw * 0.4, y: sy + 8), shR = Pt(x: 100 + tw * 0.4, y: sy + 8)
+    if shadow { g.shadow(100, 170, 100, 16) }
+    func bat(_ a: Pt, _ b: Pt) {
+        let dx = b.x - a.x, dy = b.y - a.y
+        g.cel(cap(a, b, w: batW), TC.wood, split: 0.6)
+        g.cel(cap(a, Pt(x: a.x + dx * 0.22, y: a.y + dy * 0.22), w: batW), TC.dark)
+        g.flat(cap(Pt(x: a.x + dx * 0.3 - batW * 0.25, y: a.y + dy * 0.3 - batW * 0.25), Pt(x: a.x + dx * 0.95 - batW * 0.25, y: a.y + dy * 0.95 - batW * 0.25), w: batW * 0.22), .white.opacity(0.4))
+    }
+    func leg(_ x0: CGFloat, _ x1: CGFloat) {
+        let w = max(16, tw * 0.3)
+        g.cel(cap(Pt(x: x0, y: ly), Pt(x: x1, y: 158), w: w), TC.white)
+        g.cel(cap(Pt(x: x1, y: 150), Pt(x: x1, y: 163), w: w * 0.92), TC.navy)
+        g.cel(rr(x1 - w * 0.62, 161, w * 1.24, 10, 5), TC.dark)
+    }
+    func hand(_ p: Pt) { g.sphere(p.x, p.y, handR, TC.yellow, split: 0.55) }
+    func arm(_ a: Pt, _ b: Pt) { g.cel(cap(a, b, w: armW), TC.skin, split: 0.5) }
+    func sleeve(_ p: Pt, left: Bool) { g.cel(ell(p.x + (left ? -3 : 3), p.y + 1, armW * 0.9, armW * 0.66), TC.white) }
+
+    let hands = Pt(x: 100 - tw * 0.5, y: sy + 14)
+    switch pose {
+    case .stance: bat(Pt(x: hands.x + 2, y: hands.y + 4), Pt(x: hands.x - 22, y: hands.y - 70 - R * 0.4))
+    case .cheer, .frown: bat(Pt(x: 42, y: 166), Pt(x: 118, y: 166))
+    case .swing: break
+    }
+    let spread = tw * 0.33
+    switch pose {
+    case .stance: leg(100 - spread * 0.7, 100 - spread); leg(100 + spread * 0.7, 100 + spread)
+    case .swing: leg(100 - spread * 0.5, 100 - spread * 1.3); leg(100 + spread * 0.7, 100 + spread * 0.9)
+    default: leg(100 - spread * 0.6, 100 - spread * 0.8); leg(100 + spread * 0.6, 100 + spread * 0.8)
+    }
+    let torso = rr(100 - tw / 2, sy, tw, torsoH, tw * 0.22)
+    g.cel(torso, TC.white, split: 0.62)
+    let gc = g.clipped(torso)
+    var x = 100 - tw / 2 + 6
+    while x < 100 + tw / 2 { gc.stroke(cap(Pt(x: x, y: sy), Pt(x: x, y: sy + torsoH), w: 0.1), hexColor(0x28345C, 0.25), w: 1.4); x += 6 }
+    g.flat(rr(96.5, sy + 4, 7, torsoH - 8, 0), .white)
+    for i in 0..<3 { g.flat(ell(100, sy + 14 + CGFloat(i) * 10, 1.8, 1.8), hexColor(0x28345C)) }
+    var v = Path(); v.move(to: Pt(x: 100 - 14, y: sy - 1)); v.addLine(to: Pt(x: 100, y: sy + 11)); v.addLine(to: Pt(x: 100 + 14, y: sy - 1)); g.stroke(v, hexColor(0xF0C030), w: 4.5)
+    g.cel(rr(100 - tw / 2, sy + torsoH - 8, tw, 8, 3), TC.navy); g.flat(rr(96, sy + torsoH - 7.5, 8, 7, 1.5), hexColor(0xF0C030))
+    switch pose {
+    case .stance:
+        sleeve(shL, left: true); sleeve(shR, left: false)
+        arm(shR, Pt(x: hands.x + 8, y: hands.y + 6)); arm(shL, Pt(x: hands.x, y: hands.y + 2))
+        hand(Pt(x: hands.x + 6, y: hands.y + 8)); hand(Pt(x: hands.x, y: hands.y - 2))
+    case .swing:
+        let h = Pt(x: 100 + tw * 0.55, y: sy + 22)
+        sleeve(shL, left: true); sleeve(shR, left: false)
+        arm(shL, h); arm(shR, Pt(x: h.x - 2, y: h.y - 6))
+        bat(Pt(x: h.x + 4, y: h.y), Pt(x: h.x + 74, y: h.y - 10))
+        hand(h); hand(Pt(x: h.x + 6, y: h.y - 8))
+    case .cheer:
+        arm(shL, Pt(x: 42, y: sy - 48)); arm(shR, Pt(x: 158, y: sy - 52)); sleeve(shL, left: true); sleeve(shR, left: false)
+        hand(Pt(x: 40, y: sy - 54)); hand(Pt(x: 160, y: sy - 58))
+        // 脱いだヘルメットが宙に
+        let hg = Rig(ctx: ctx, t: g.t.translatedBy(x: 168, y: 14).rotated(by: 0.5), s: s)
+        drawHelmet(hg, hc: Pt(x: 0, y: 0), R: R * 0.55, flap: false)
+    case .frown:
+        arm(shL, Pt(x: 100 - tw * 0.62, y: sy + torsoH + 4)); arm(shR, Pt(x: 100 + tw * 0.62, y: sy + torsoH + 4)); sleeve(shL, left: true); sleeve(shR, left: false)
+        hand(Pt(x: 100 - tw * 0.64, y: sy + torsoH + 10)); hand(Pt(x: 100 + tw * 0.64, y: sy + torsoH + 10))
+    }
+    drawOjisanHead(g, hc: hc, R: R, pose: pose)
+}
+
+/// 投手（背中越し・右投げ・リリース直後のフォロースルー）。局所 200×200、足元 (100, 190)。名無しなので背番号なし。
+func drawPitcherBack(_ ctx: GraphicsContext, feet: Pt, s: CGFloat) {
+    let g = Rig(ctx, feet: feet, s: s, feetLocal: Pt(x: 100, y: 190))
+    g.shadow(100, 190, 130, 22)
+    // 後ろ脚（画面右・投げ終わって浮く）→ 前脚（画面左・踏み込み）
+    g.cel(cap(Pt(x: 114, y: 122), Pt(x: 158, y: 172), w: 26), TC.white); g.cel(cap(Pt(x: 150, y: 164), Pt(x: 160, y: 176), w: 22), TC.navy); g.cel(rr(146, 172, 32, 13, 6), TC.dark)
+    g.cel(cap(Pt(x: 86, y: 122), Pt(x: 52, y: 176), w: 28), TC.white); g.cel(cap(Pt(x: 54, y: 168), Pt(x: 50, y: 182), w: 24), TC.navy); g.cel(rr(34, 178, 34, 13, 6), TC.dark)
+    // 胴（背中）
+    let torso = rr(58, 56, 84, 72, 20); g.cel(torso, TC.white, split: 0.6)
+    let gc = g.clipped(torso); var x: CGFloat = 64; while x < 142 { gc.stroke(cap(Pt(x: x, y: 56), Pt(x: x, y: 128), w: 0.1), hexColor(0x28345C, 0.25), w: 1.4); x += 6 }
+    g.cel(rr(58, 122, 84, 9, 4), TC.navy)
+    // 腕: 左（画面左）はグラブを胸元に、右（画面右）はフォロースルーで体の前を横切る
+    g.cel(ell(68, 66, 14, 11), TC.white); g.cel(ell(132, 66, 14, 11), TC.white)
+    g.cel(cap(Pt(x: 66, y: 70), Pt(x: 46, y: 98), w: 16), TC.skin); g.sphere(40, 104, 16, TC.mitt, split: 0.55)
+    g.cel(cap(Pt(x: 134, y: 66), Pt(x: 92, y: 118), w: 16), TC.skin); g.sphere(88, 122, 9, TC.skin)
+    // 首・後頭部・帽子（後ろから: つばは見えない）
+    g.cel(cap(Pt(x: 100, y: 52), Pt(x: 100, y: 62), w: 20), TC.skinDeep)
+    g.sphere(100, 34, 26, TC.skin)
+    let cap1 = g.clipped(Path(CGRect(x: 60, y: 0, width: 80, height: 46)))
+    cap1.sphere(100, 32, 27, TC.navy, split: 0.58)
+    g.flat(ell(100, 45, 27, 5), hexColor(0x1E2848)); g.sphere(100, 6, 3.5, TC.navy)
+    g.gloss(90, 16, 20, 8)
+}
+
+/// 捕手（正面・しゃがみ）。局所 200×140、足元 (100, 132)。
+func drawCatcher(_ ctx: GraphicsContext, feet: Pt, s: CGFloat) {
+    let g = Rig(ctx, feet: feet, s: s, feetLocal: Pt(x: 100, y: 132))
+    g.shadow(100, 132, 120, 16)
+    for sgn in [-1.0, 1.0] {
+        g.cel(cap(Pt(x: 100 + 20 * sgn, y: 92), Pt(x: 100 + 54 * sgn, y: 100), w: 26), TC.white)         // 太もも
+        g.cel(rr(100 + 54 * sgn - 13, 98, 26, 30, 8), TC.gray)                                             // すね当て
+        g.cel(rr(100 + 54 * sgn - 15, 124, 30, 10, 5), TC.dark)
+    }
+    g.cel(rr(62, 56, 76, 52, 16), TC.navy)                                                                 // 胸当て
+    g.cel(rr(68, 60, 64, 16, 8), Tone(l: 0x7A8CC4, d: 0x3C4C80))
+    g.cel(cap(Pt(x: 70, y: 66), Pt(x: 54, y: 96), w: 14), TC.skin); g.sphere(52, 100, 8, TC.skin)          // 右手（画面左）は膝
+    g.cel(cap(Pt(x: 130, y: 66), Pt(x: 150, y: 72), w: 14), TC.skin)
+    g.sphere(158, 66, 21, TC.mitt, split: 0.5); g.flat(ell(156, 68, 12, 14), hexColor(0xD9A070, 0.7))     // ミット
+    g.sphere(100, 32, 24, TC.skin)
+    let cap1 = g.clipped(Path(CGRect(x: 60, y: 0, width: 80, height: 34)))
+    cap1.sphere(100, 30, 26, TC.navy, split: 0.58)
+    g.stroke(rr(80, 20, 40, 36, 12), hexColor(0x9A9AA6), w: 3)                                             // マスク
+    for y in [30.0, 40.0, 50.0] { g.stroke(cap(Pt(x: 82, y: y), Pt(x: 118, y: y), w: 0.1), hexColor(0x9A9AA6), w: 2.2) }
+}
+
+/// 審判（捕手の後ろ・前かがみ）。局所 200×200、足元 (100, 190)。捕手に大半が隠れる。
+func drawUmpire(_ ctx: GraphicsContext, feet: Pt, s: CGFloat) {
+    let g = Rig(ctx, feet: feet, s: s, feetLocal: Pt(x: 100, y: 190))
+    g.cel(cap(Pt(x: 80, y: 120), Pt(x: 70, y: 180), w: 24), TC.gray); g.cel(cap(Pt(x: 120, y: 120), Pt(x: 130, y: 180), w: 24), TC.gray)
+    g.cel(rr(58, 60, 84, 70, 20), TC.ump, split: 0.6)
+    g.cel(cap(Pt(x: 66, y: 74), Pt(x: 58, y: 118), w: 15), TC.ump); g.cel(cap(Pt(x: 134, y: 74), Pt(x: 142, y: 118), w: 15), TC.ump)
+    g.sphere(60, 122, 8, TC.skin); g.sphere(140, 122, 8, TC.skin)
+    g.sphere(100, 36, 24, TC.skin)
+    let cap1 = g.clipped(Path(CGRect(x: 60, y: 0, width: 80, height: 36)))
+    cap1.sphere(100, 34, 26, TC.ump, split: 0.58)
+    g.stroke(rr(80, 24, 40, 36, 12), hexColor(0x9A9AA6), w: 3)
+    for y in [34.0, 44.0, 54.0] { g.stroke(cap(Pt(x: 82, y: y), Pt(x: 118, y: y), w: 0.1), hexColor(0x9A9AA6), w: 2.2) }
+}
+
+/// ボール（白のトゥーン球 + 赤い縫い目）。
+func drawBall(_ ctx: GraphicsContext, at c: Pt, r: CGFloat, alpha: Double = 1) {
+    var cc = ctx; cc.opacity = alpha
+    cc.fill(ell(c.x, c.y, r, r), with: Toon.sphere(Tone(l: 0xFFFFFF, d: 0xC8C8D2), center: c, r: r, split: 0.62))
+    for sgn in [-1.0, 1.0] {
+        var p = Path(); p.move(to: Pt(x: c.x + r * 0.5 * sgn, y: c.y - r * 0.78)); p.addQuadCurve(to: Pt(x: c.x + r * 0.5 * sgn, y: c.y + r * 0.78), control: Pt(x: c.x + r * 1.15 * sgn, y: c.y))
+        cc.stroke(p, with: .color(hexColor(0xD43C2C)), lineWidth: max(1, r * 0.13))
+    }
+}
+
+// MARK: - 打席のカメラと球場（センターカメラ）
+
+enum Phase { case pitch, impact }
+enum BannerPos { case none, bottom, top }
+let atBatCam = Cam(pos: V3(0, 6.5, 50), target: V3(0, 1.5, 0), fpx: 4400)
+/// ボールが到達する点（本塁上・ベルトの高さ）= 的の位置。第 1 弾はコース固定（真ん中）。
+let ringWorld = V3(0, 0.95, 0.25)
+
+func drawStadium3D(_ ctx: GraphicsContext, _ cam: Cam, size: CGSize) {
+    ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(Gradient(colors: [hexColor(0x3E8FD8), hexColor(0xBFE2F7)]), startPoint: .zero, endPoint: Pt(x: 0, y: 260)))
+    // バックネット裏のスタンド（Z = -17 の壁）。客席の粒を世界座標で置くので遠近が自動で付く
+    let zW = -17.0, wallTop = 0.9, standsTop = 12.0
+    ctx.fill(cam.poly([V3(-40, wallTop, zW), V3(40, wallTop, zW), V3(40, standsTop, zW), V3(-40, standsTop, zW)]), with: .linearGradient(Gradient(colors: [hexColor(0x1C2440), hexColor(0x5A6890)]), startPoint: cam.project(V3(0, standsTop, zW)), endPoint: cam.project(V3(0, wallTop, zW))))
+    var rng = LCG(11)
+    var crowd = ctx; crowd.addFilter(.blur(radius: 1.6))
+    var y = wallTop + 0.4
+    while y < standsTop {
+        var x = -40.0
+        while x < 40 {
+            let p = V3(x + rng.unit() * 0.12, y, zW), sp = cam.project(p), d = cam.ppm(p) * 0.26
+            if sp.y > -10 && sp.y < size.height { crowd.fill(ell(sp.x, sp.y, d / 2, d / 2 * 1.2), with: .color(hexColor(TC.crowd[Int(rng.next() % 10)], 0.9))) }
+            x += 0.34
+        }
+        y += 0.48
+    }
+    // 屋根の影（上段ほど暗い）とバックネット
+    let top = cam.project(V3(0, standsTop, zW)).y, base = cam.project(V3(0, 0, zW)).y
+    ctx.fill(Path(CGRect(x: 0, y: min(0, top), width: size.width, height: base - min(0, top))), with: .linearGradient(Gradient(colors: [.black.opacity(0.5), .clear]), startPoint: Pt(x: 0, y: 0), endPoint: Pt(x: 0, y: base * 0.75)))
+    var nx = -40.0; while nx < 40 { ctx.stroke(cam.line([V3(nx, 0, zW + 0.5), V3(nx, standsTop, zW + 0.5)]), with: .color(.black.opacity(0.13)), lineWidth: 1); nx += 0.9 }
+    // 緑のフェンスパッド（壁の下端）
+    ctx.fill(cam.poly([V3(-40, 0, zW), V3(40, 0, zW), V3(40, wallTop, zW), V3(-40, wallTop, zW)]), with: .linearGradient(Gradient(colors: [hexColor(0x2E7A4C), hexColor(0x1F5A36)]), startPoint: cam.project(V3(0, wallTop, zW)), endPoint: cam.project(V3(0, 0, zW))))
+    ctx.stroke(cam.line([V3(-40, wallTop, zW), V3(40, wallTop, zW)]), with: .color(hexColor(0xF0C030)), lineWidth: 2)
+    // 芝（壁の下端から画面下まで）と刈り筋
+    ctx.fill(Path(CGRect(x: 0, y: base - 1, width: size.width, height: size.height - base + 1)), with: .linearGradient(Gradient(colors: [hexColor(0x5AAE58), hexColor(TC.grassD)]), startPoint: Pt(x: 0, y: base), endPoint: Pt(x: 0, y: size.height)))
+    var sx = -40.0; var k = 0
+    while sx < 40 { if k % 2 == 0 { ctx.fill(cam.poly([V3(sx, 0, zW), V3(sx + 2.6, 0, zW), V3(sx + 2.6, 0, 46), V3(sx, 0, 46)]), with: .color(.white.opacity(0.07))) }; sx += 2.6; k += 1 }
+    // 土: 本塁の円・走路・マウンド
+    let dirt = GraphicsContext.Shading.linearGradient(Gradient(colors: [hexColor(TC.dirtL), hexColor(TC.dirtD)]), startPoint: Pt(x: 0, y: base), endPoint: Pt(x: 0, y: size.height))
+    ctx.fill(cam.circle(V3(0, 0.01, 0), r: 4.2), with: dirt)
+    for a in [-45.0, 45.0] {
+        let d = polar(1, a), n = V3(d.z, 0, -d.x)
+        ctx.fill(cam.poly([polar(3.6, a) + n * 0.55, polar(34, a) + n * 0.55, polar(34, a) - n * 0.55, polar(3.6, a) - n * 0.55]), with: dirt)
+    }
+    ctx.fill(cam.circle(V3(0, 0.2, 18.44), r: 2.75), with: dirt)
+    ctx.fill(cam.poly([V3(-0.3, 0.26, 18.44), V3(0.3, 0.26, 18.44), V3(0.3, 0.26, 18.6), V3(-0.3, 0.26, 18.6)]), with: .color(.white.opacity(0.9)))
+    // 白線: ファウルライン・バッターボックス・本塁
+    let line = GraphicsContext.Shading.color(.white.opacity(0.85))
+    for a in [-45.0, 45.0] { ctx.stroke(cam.line([polar(0.6, a), polar(46, a)]), with: line, lineWidth: 2.5) }
+    for sgn in [-1.0, 1.0] { ctx.stroke(cam.poly([V3(0.37 * sgn, 0.01, -1.0), V3(1.59 * sgn, 0.01, -1.0), V3(1.59 * sgn, 0.01, 0.85), V3(0.37 * sgn, 0.01, 0.85)]), with: line, lineWidth: 2.5) }
+    ctx.fill(cam.poly([V3(-0.215, 0.02, 0.215), V3(0.215, 0.02, 0.215), V3(0.215, 0.02, 0), V3(0, 0.02, -0.215), V3(-0.215, 0.02, 0)]), with: .color(.white))
+}
+
+func drawAtBatScene(_ ctx: GraphicsContext, size: CGSize, phase: Phase) {
+    let cam = atBatCam
+    drawStadium3D(ctx, cam, size: size)
+    // 奥から順に: 審判 → 捕手 → 打者 → ボール → 投手（手前・背中越し）
+    let ump = V3(0.35, 0, -2.7); drawUmpire(ctx, feet: cam.project(ump), s: cam.ppm(ump) * 1.85 / 190)
+    let cat = V3(0, 0, -1.6); drawCatcher(ctx, feet: cam.project(cat), s: cam.ppm(cat) * 1.0 / 132)
+    let bat = V3(0.95, 0, 0); drawBatter(ctx, feet: cam.project(bat), s: cam.ppm(bat) * 1.9 / 160, pose: phase == .pitch ? .stance : .swing)
+    if phase == .pitch {
+        let rel = V3(0.45, 1.75, 16.6)
+        for i in stride(from: 4, through: 0, by: -1) {
+            let t = 0.56 - Double(i) * 0.07, p = rel + (ringWorld - rel) * t
+            drawBall(ctx, at: cam.project(p), r: 4 + cam.ppm(p) * 0.085, alpha: i == 0 ? 1 : 0.3 - Double(i) * 0.055)
+        }
+    } else {
+        // インパクト直後: 打球が左翼（+X = 画面右）へ、カメラの脇を抜けて飛び出す
+        let p = V3(3.4, 2.8, 6.5), sp = cam.project(p)
+        var c = ctx; c.addFilter(.blur(radius: 7)); c.fill(cap(cam.project(V3(0.3, 1.0, 0.5)), sp, w: 16), with: .color(.white.opacity(0.55)))
+        drawBall(ctx, at: sp, r: 4 + cam.ppm(p) * 0.085)
+        let ip = cam.project(ringWorld)
+        var star = Path()
+        for i in 0..<12 { let a = Double(i) * .pi / 6, r: CGFloat = i % 2 == 0 ? 30 : 12; let q = Pt(x: ip.x + r * CGFloat(cos(a)), y: ip.y + r * CGFloat(sin(a))); if i == 0 { star.move(to: q) } else { star.addLine(to: q) } }
+        star.closeSubpath()
+        ctx.fill(star, with: .color(hexColor(0xFFE070, 0.9))); ctx.fill(ell(ip.x, ip.y, 9, 9), with: .color(.white))
+    }
+    let pit = V3(0.1, 0.25, 18.44); drawPitcherBack(ctx, feet: cam.project(pit), s: cam.ppm(pit) * 1.6 / 190)
+}
+
+// MARK: - 外野カメラ（方向つき）。打球の向きにカメラが振られ、フェンスの曲がりとポールで「どこへ飛んだか」が判る
+
+struct Shot {
+    let dir: Double, dist: Double, cam: Cam
+    init(dir: Double, dist: Double, camR: Double = 48, camH: Double = 13, side: Double = -20, fpx: CGFloat = 820) {
+        self.dir = dir; self.dist = dist
+        cam = Cam(pos: polar(camR, dir + side, y: camH), target: polar(fenceR(dir), dir, y: 5.5), fpx: fpx)
+    }
+    /// 打球の弧（見た目は柵の 8 m 先に落ちる放物線）。
+    func ball(_ t: Double) -> V3 { let d = dist + 3, h = d * 0.12; var p = polar(d * t, dir); p.y = 1 + 4 * h * t * (1 - t); return p }
+}
+
+func drawOutfieldScene(_ ctx: GraphicsContext, size: CGSize, shot: Shot) {
+    let cam = shot.cam
+    ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(Gradient(colors: [hexColor(0x3E8FD8), hexColor(0xC4E6F8)]), startPoint: .zero, endPoint: Pt(x: 0, y: size.height * 0.45)))
+    // 地平線から下は芝
+    let far = cam.pos + V3(cam.f.x, 0, cam.f.z) * 4000; let hz = cam.project(V3(far.x, 0, far.z)).y
+    ctx.fill(Path(CGRect(x: 0, y: hz, width: size.width, height: size.height - hz)), with: .linearGradient(Gradient(colors: [hexColor(0x4E9E52), hexColor(0x7CC46C)]), startPoint: Pt(x: 0, y: hz), endPoint: Pt(x: 0, y: size.height)))
+    // 刈り筋（扇形・5° ごとに交互）
+    var a = -60.0
+    while a < 60 { if Int((a + 60) / 5) % 2 == 0 { ctx.fill(cam.poly([polar(10, a), polar(10, a + 5), polar(fenceR(a + 5) - 3, a + 5), polar(fenceR(a + 2.5) - 3, a + 2.5), polar(fenceR(a) - 3, a)]), with: .color(.white.opacity(0.07))) }; a += 5 }
+    // 外野スタンド（フェンスの外の斜面）に客席の粒
+    let slopeL = cam.project(polar(fenceR(shot.dir) + 30, shot.dir - 40, y: 14)), slopeR = cam.project(polar(fenceR(shot.dir) + 30, shot.dir + 40, y: 14))
+    var stands: [V3] = []
+    for i in 0...40 { let t = -60 + Double(i) * 3; stands.append(polar(fenceR(t) + 2, t, y: 0.4)) }
+    for i in 0...40 { let t = 60 - Double(i) * 3; stands.append(polar(fenceR(t) + 32, t, y: 15)) }
+    ctx.fill(cam.poly(stands), with: .linearGradient(Gradient(colors: [hexColor(0x5A6890), hexColor(0x1C2440)]), startPoint: Pt(x: 0, y: min(slopeL.y, slopeR.y)), endPoint: Pt(x: 0, y: cam.project(polar(fenceR(shot.dir) + 2, shot.dir, y: 0.4)).y)))
+    var rng = LCG(23)
+    var crowd = ctx; crowd.addFilter(.blur(radius: 1.1))
+    var row = 0.0
+    while row < 30 {
+        var t = -60.0
+        while t < 60 {
+            let p = polar(fenceR(t) + 3 + row, t + rng.unit() * 0.2, y: 0.6 + row * 0.47)
+            if cam.depth(p) > 3 { let sp = cam.project(p), d = cam.ppm(p) * 0.34; if sp.x > -10 && sp.x < size.width + 10 && sp.y > -10 { crowd.fill(ell(sp.x, sp.y, d / 2, d / 2), with: .color(hexColor(TC.crowd[Int(rng.next() % 10)], 0.9))) } }
+            t += 0.5
+        }
+        row += 1.0
+    }
+    // ウォーニングトラック → フェンス（緑のパッド・黄線）→ ポール
+    var track: [V3] = []; for i in 0...80 { let t = -60 + Double(i) * 1.5; track.append(polar(fenceR(t) - 3.2, t)) }; for i in 0...80 { let t = 60 - Double(i) * 1.5; track.append(polar(fenceR(t) + 0.3, t)) }
+    ctx.fill(cam.poly(track), with: .color(hexColor(0xC28C58)))
+    var i = -60.0
+    while i < 60 {
+        let q = cam.poly([polar(fenceR(i), i), polar(fenceR(i + 1.5), i + 1.5), polar(fenceR(i + 1.5), i + 1.5, y: 3.2), polar(fenceR(i), i, y: 3.2)])
+        let shade = 0.5 + 0.5 * cos((i - shot.dir) * .pi / 60)
+        ctx.fill(q, with: .color(hexColor(0x2E7A4C).opacity(1).mix(with: hexColor(0x1A4A2C), by: 1 - shade)))
+        i += 1.5
+    }
+    var yl: [V3] = []; for k in 0...80 { let t = -60 + Double(k) * 1.5; yl.append(polar(fenceR(t), t, y: 3.2)) }
+    ctx.stroke(cam.line(yl), with: .color(hexColor(0xF0C030)), lineWidth: max(2, cam.ppm(polar(fenceR(shot.dir), shot.dir)) * 0.25))
+    for pole in [-45.0, 45.0] {
+        let b = polar(fenceR(pole), pole), w = cam.ppm(b) * 0.35
+        ctx.stroke(cam.line([b, polar(fenceR(pole), pole, y: 22)]), with: .color(hexColor(0xFFD84A)), lineWidth: max(2.5, w))
+        ctx.stroke(cam.line([polar(fenceR(pole), pole, y: 22), polar(fenceR(pole) + 6, pole, y: 22)]), with: .color(hexColor(0xFFD84A)), lineWidth: max(2, w * 0.7))
+    }
+    // 打球の弧（画面に入る範囲だけ）とフェンス上のボール
+    let tf = fenceR(shot.dir) / (shot.dist + 3), bp = shot.ball(tf), bsp = cam.project(bp), br = 6 + cam.ppm(bp) * 0.12
+    var arc = Path(); var started = false
+    var t = 0.0
+    while t <= tf + 0.015 { let p = shot.ball(t); if cam.depth(p) > 4 { let sp = cam.project(p); if started { arc.addLine(to: sp) } else { arc.move(to: sp); started = true } }; t += 0.01 }
+    ctx.stroke(arc, with: .color(.white.opacity(0.75)), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [7, 9]))
+    for k in 1...3 { let q = cam.project(shot.ball(tf - Double(k) * 0.03)); drawBall(ctx, at: q, r: br * (1 - CGFloat(k) * 0.12), alpha: 0.3 - Double(k) * 0.08) }
+    var glow = ctx; glow.addFilter(.blur(radius: 10)); glow.fill(ell(bsp.x, bsp.y, br * 2.2, br * 2.2), with: .color(.white.opacity(0.6)))
+    drawBall(ctx, at: bsp, r: br)
+}
+
+// MARK: - 画面 21〜29（3D 方向）
+
+struct HUD3D: View {
+    var phase: Phase = .pitch; var banner: BannerPos = .none
+    var body: some View {
+        ZStack(alignment: .top) {
+            VStack(spacing: 6) {
+                HStack {
+                    hud("3 / 10 球", icon: "baseball.fill")
+                    Spacer()
+                    VStack(spacing: 0) { Text("今回").font(T.f(11)).foregroundStyle(.white.opacity(0.85)); Text("246 m").font(T.f(28, .heavy).monospacedDigit()).foregroundStyle(.white) }
+                    Spacer()
+                    hud("柵越え 1", icon: "flag.checkered")
+                }
+                .padding(.horizontal, 16).padding(.top, banner == .top ? 112 : 60)
+                HStack(spacing: 8) { Chip(text: "1 球目 118 m 左中", fill: .white.opacity(0.9)); Chip(text: "2 球目 128 m 中 柵越え", fill: T.yellow) }
+            }
+            if phase == .impact {
+                VStack(spacing: 2) {
+                    Text("ジャスト！").font(T.f(38, .heavy))
+                    HStack(spacing: 4) { Image(systemName: "arrow.up.right"); Text("引っ張り・打ち上げ") }.font(T.f(16, .heavy))
+                }
+                .foregroundStyle(.white).shadow(color: .black.opacity(0.45), radius: 3, y: 2).position(x: 196, y: 300)
+            }
+            VStack { Spacer()
+                HStack(spacing: 8) { Image(systemName: phase == .pitch ? "hand.draw.fill" : "hand.tap.fill"); Text(phase == .pitch ? "押したままずらし、輪が的に重なった瞬間に離す" : "カキーン！ 外野カメラへ") }
+                    .font(T.f(14)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(Capsule().fill(.black.opacity(0.4))).padding(.bottom, banner == .bottom ? 98 : 40)
+            }
+            HStack { Image(systemName: "pause.fill").font(T.f(15)).foregroundStyle(T.coral).frame(width: 36, height: 36).background(Circle().fill(.white)); Spacer() }
+                .padding(.leading, 16).padding(.top, banner == .top ? 160 : 108)
+            if banner == .top { adBanner.padding(.top, 54) }
+            if banner == .bottom { VStack { Spacer(); adBanner.padding(.bottom, 34) } }
+        }
+    }
+    var adBanner: some View {
+        Rectangle().fill(hexColor(0x3A3A40)).frame(height: 50)
+            .overlay(Text("バナー広告（打席中・変更案）").font(T.f(12, .medium)).foregroundStyle(.white.opacity(0.8)))
+            .padding(.horizontal, 12)
+    }
+    func hud(_ t: String, icon: String) -> some View {
+        HStack(spacing: 5) { Image(systemName: icon).font(T.f(12)); Text(t).font(T.f(14, .heavy).monospacedDigit()) }
+            .foregroundStyle(.white).padding(.horizontal, 12).padding(.vertical, 7).background(Capsule().fill(.black.opacity(0.4)))
+    }
+}
+
+/// 的（白・固定）・縮む輪（コーラル）・ミート点（黄・指でずらす）。
+struct Ring3D: View {
+    var shrink: CGFloat = 86; var cursor: CGSize? = CGSize(width: 9, height: 7); var label = true
+    var body: some View {
+        let p = atBatCam.project(ringWorld)
+        ZStack {
+            Circle().fill(.white.opacity(0.16)).frame(width: 46, height: 46)
+            Circle().stroke(.white, lineWidth: 1).frame(width: 46, height: 46)
+            Circle().fill(T.coral.opacity(0.10)).frame(width: shrink, height: shrink)
+            Circle().stroke(T.coral, lineWidth: 5).frame(width: shrink, height: shrink).shadow(color: T.coral.opacity(0.7), radius: 6)
+            if let c = cursor {
+                Ellipse().stroke(T.yellow, lineWidth: 3).frame(width: 30, height: 21).shadow(color: .black.opacity(0.45), radius: 2).offset(c)
+                Circle().fill(T.yellow).frame(width: 5, height: 5).offset(c)
+                if label {
+                    Path { q in q.move(to: Pt(x: c.width - 14, y: 10 + c.height)); q.addLine(to: Pt(x: -58, y: 64)) }.stroke(T.yellow, lineWidth: 1.5).frame(width: 1, height: 1)
+                    Text("ミート点（指でずらす）").font(T.f(11, .heavy)).foregroundStyle(T.onAccent).padding(.horizontal, 8).padding(.vertical, 4).background(Capsule().fill(T.yellow)).offset(x: -104, y: 74)
+                }
+            }
+        }.position(p)
+    }
+}
+
+struct AtBat3D: View {
+    var phase: Phase = .pitch; var banner: BannerPos = .none
+    var body: some View {
+        ZStack(alignment: .top) {
+            Canvas { ctx, size in drawAtBatScene(ctx, size: size, phase: phase) }
+            if phase == .pitch { Ring3D(label: banner == .none) }
+            HUD3D(phase: phase, banner: banner)
+        }
+    }
+}
+
+struct Outfield3D: View {
+    let shot: Shot; let title: String; let dist: String; let chips: [(String, Color, String)]; let footer: String
+    var body: some View {
+        ZStack(alignment: .top) {
+            Canvas { ctx, size in drawOutfieldScene(ctx, size: size, shot: shot) }
+            // 距離表示（フェンスの位置に投影）
+            ForEach([-45.0, -22.5, 0.0, 22.5, 45.0], id: \.self) { a in
+                let p = polar(fenceR(a) - 0.3, a, y: 1.7)
+                if shot.cam.depth(p) > 8 {
+                    let sp = shot.cam.project(p), s = shot.cam.ppm(p)
+                    if sp.x > 20 && sp.x < 373 { Text("\(Int(fenceR(a).rounded()))m").font(.system(size: max(9, s * 1.4), weight: .heavy)).foregroundStyle(.white.opacity(0.9)).position(sp) }
+                }
+            }
+            VStack(spacing: 4) {
+                Text(title).font(T.f(46, .black)).foregroundStyle(T.yellow).shadow(color: .black.opacity(0.4), radius: 3, y: 3)
+                Text(dist).font(T.f(62, .black).monospacedDigit()).foregroundStyle(.white).shadow(color: .black.opacity(0.4), radius: 3, y: 3)
+                HStack(spacing: 6) { ForEach(0..<chips.count, id: \.self) { i in Chip(text: chips[i].0, fill: chips[i].1, icon: chips[i].2) } }
+            }.padding(.top, 78)
+            ForEach(0..<28, id: \.self) { i in
+                let x = CGFloat((i * 71) % 380) + 6, y = CGFloat((i * 137) % 300) + 250
+                RoundedRectangle(cornerRadius: 1).fill([T.coral, T.teal, T.pink, T.yellow][i % 4]).frame(width: 6, height: 10).rotationEffect(.degrees(Double(i * 37))).position(x: x, y: y)
+            }
+            VStack { Spacer(); HStack(spacing: 6) { Image(systemName: "baseball.fill"); Text(footer) }.font(T.f(14, .heavy)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 8).background(Capsule().fill(.black.opacity(0.4))).padding(.bottom, 40) }
+        }
+    }
+}
+
+struct Batter3DView: View {
+    var pose: Pose = .stance; var heads: CGFloat = 2.2; var w: CGFloat = 120; var h: CGFloat = 130
+    var body: some View { Canvas { ctx, size in drawBatter(ctx, feet: Pt(x: size.width / 2, y: size.height - 6), s: (size.height - 8) / 176, pose: pose, heads: heads) }.frame(width: w, height: h) }
+}
+
+struct Lobby3D: View {
+    var remaining = 2
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            T.bg.ignoresSafeArea()
+            VStack(spacing: 12) {
+                NavBar(title: "柵越えおじさん")
+                VStack(spacing: 12) {
+                    Card {
+                        HStack(alignment: .center, spacing: 10) {
+                            Batter3DView(w: 110, h: 122)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("1 挑戦 = 10 球").font(T.f(20, .heavy)).foregroundStyle(T.ink)
+                                Text("タイミングとミート点で柵を越えろ。引っ張れば飛ぶ、切れればファウル。アウトは無い。10 球ぜんぶ振れる。").font(T.f(12, .medium)).foregroundStyle(T.inkSub)
+                                Chip(text: "体験版", fill: T.fillPurple, icon: "sparkles")
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    Card {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack { Text("今日の挑戦").font(T.f(15)).foregroundStyle(T.ink); Spacer(); Text("残り \(remaining) / 3").font(T.f(15, .heavy)).foregroundStyle(T.coral) }
+                            Challenges(remaining: remaining, total: 3)
+                            Text("0:00 に 3 回に戻ります").font(T.f(12, .medium)).foregroundStyle(T.inkSub)
+                            HStack(spacing: 8) {
+                                LobbyTrial().smallButton("広告を見て +1", sub: "1 本 30 秒・きょう あと 5 本", icon: "play.rectangle.fill", fill: T.fillCoral)
+                                LobbyTrial().smallButton("アンケートで +1", sub: "3 問・30 秒・1 日 1 回", icon: "list.bullet.clipboard.fill", fill: T.fillPurple)
+                            }
+                        }
+                    }
+                    Card {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("きろく").font(T.f(15)).foregroundStyle(T.ink)
+                            HStack { LobbyTrial().stat("自己ベスト", "812 m"); Spacer(); LobbyTrial().stat("最長の 1 本", "131 m"); Spacer(); LobbyTrial().stat("通算 柵越え", "27 本") }
+                            HStack(spacing: 6) { Image(systemName: "trophy.fill").foregroundStyle(T.coral); Text("順位表（Game Center）").font(T.f(13)).foregroundStyle(T.coral) }
+                        }
+                    }
+                    BigButton(text: "打席に立つ", icon: "figure.baseball")
+                    Text("挑戦回数は打席に立った時点で 1 つ減ります").font(T.f(11, .medium)).foregroundStyle(T.inkSub)
+                }.padding(.horizontal, 16)
+                Spacer(minLength: 0)
+                Banner().padding(.bottom, 24)
+            }
+        }
+    }
+}
+
+/// 10 球の内訳（方向・ファウル入り）と打球の散らばり。
+struct Result3D: View {
+    struct B { let d: Int; let kind: String; let dir: String; let deg: Double }
+    let balls: [B] = [
+        B(d: 118, kind: "hit", dir: "左中", deg: 24), B(d: 0, kind: "foul", dir: "ファウル", deg: 52), B(d: 131, kind: "hr", dir: "左中", deg: 26), B(d: 96, kind: "hit", dir: "中", deg: 2),
+        B(d: 104, kind: "hr", dir: "右翼線", deg: -43), B(d: 0, kind: "miss", dir: "空振り", deg: 0), B(d: 88, kind: "hit", dir: "中", deg: -4), B(d: 47, kind: "hit", dir: "右中", deg: -18),
+        B(d: 122, kind: "hr", dir: "中", deg: 4), B(d: 109, kind: "hit", dir: "右中", deg: -20),
+    ]
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            T.bg.ignoresSafeArea()
+            VStack(spacing: 10) {
+                NavBar(title: "柵越えおじさん")
+                VStack(spacing: 10) {
+                    Card {
+                        HStack(spacing: 10) {
+                            Batter3DView(pose: .cheer, w: 110, h: 112)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("10 球の結果").font(T.f(13)).foregroundStyle(T.inkSub)
+                                Text("815 m").font(T.f(40, .black).monospacedDigit()).foregroundStyle(T.ink)
+                                HStack(spacing: 6) { Chip(text: "柵越え 3 本", fill: T.yellow, icon: "flag.checkered"); Chip(text: "ベスト更新！", fill: T.pink) }
+                            }
+                        }
+                    }
+                    Card {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("1 球ずつ").font(T.f(15)).foregroundStyle(T.ink)
+                                    ForEach(0..<10, id: \.self) { i in row(i) }
+                                }
+                                VStack(spacing: 4) {
+                                    Text("打球の散らばり").font(T.f(12)).foregroundStyle(T.ink)
+                                    spray.frame(width: 150, height: 132)
+                                    Text("★ 柵越え ● 当たり ○ ファウル").font(T.f(9, .medium)).foregroundStyle(T.inkSub)
+                                }
+                            }
+                            HStack { Text("最長 131 m（3 球目・ジャスト・左中間）").font(T.f(11, .medium)).foregroundStyle(T.inkSub); Spacer(); Text("順位表に送信済み").font(T.f(11, .medium)).foregroundStyle(T.inkSub) }
+                        }
+                    }
+                    HStack(spacing: 10) {
+                        BigButton(text: "もう一回（残り 1）", icon: "arrow.counterclockwise")
+                        BigButton(text: "ホームへ", fill: hexColor(0xEFE7DC), fg: T.ink).frame(width: 120)
+                    }
+                }.padding(.horizontal, 16)
+                Spacer(minLength: 0)
+                Banner().padding(.bottom, 24)
+            }
+        }
+    }
+    func row(_ i: Int) -> some View {
+        let b = balls[i]
+        let (icon, tint): (String, Color) = b.kind == "hr" ? ("star.fill", T.yellow) : (b.kind == "hit" ? ("baseball.fill", T.teal) : (b.kind == "foul" ? ("circle", T.inkSub) : ("xmark", T.inkSub)))
+        return HStack(spacing: 5) {
+            Text("\(i + 1)").font(T.f(10, .heavy).monospacedDigit()).foregroundStyle(T.inkSub).frame(width: 18, alignment: .trailing)
+            Image(systemName: icon).font(T.f(10)).foregroundStyle(tint).frame(width: 12)
+            Text(b.d > 0 ? "\(b.d) m" : "—").font(T.f(12, .heavy).monospacedDigit()).foregroundStyle(T.ink).frame(width: 46, alignment: .trailing)
+            Text(b.dir).font(T.f(10, .medium)).foregroundStyle(b.kind == "foul" || b.kind == "miss" ? T.coral : T.inkSub)
+        }
+        .padding(.horizontal, 6).padding(.vertical, 2).background(RoundedRectangle(cornerRadius: 6).fill(b.kind == "hr" ? T.yellow.opacity(0.25) : hexColor(0xF7F1E8)))
+    }
+    var spray: some View {
+        Canvas { ctx, size in
+            let home = Pt(x: size.width / 2, y: size.height - 8), k = (size.height - 16) / 125
+            func at(_ r: Double, _ deg: Double) -> Pt { let t = deg * .pi / 180; return Pt(x: home.x + CGFloat(r * sin(t)) * k, y: home.y - CGFloat(r * cos(t)) * k) }
+            var field = Path(); field.move(to: home)
+            for i in 0...60 { let a = -45 + Double(i) * 1.5; field.addLine(to: at(fenceR(a), a)) }
+            field.closeSubpath()
+            ctx.fill(field, with: .color(hexColor(0x7CC46C, 0.55)))
+            ctx.stroke(field, with: .color(hexColor(0x3E8E45)), lineWidth: 1.5)
+            for (l, r) in [(10.0, 45.0), (-10.0, 10.0), (-45.0, -10.0)] {
+                var cone = Path(); cone.move(to: home); cone.addLine(to: at(fenceR(l) + 14, l)); cone.addLine(to: at(fenceR(r) + 14, r)); cone.closeSubpath()
+                ctx.fill(cone, with: .color((l == 10 ? T.coral : (l == -10 ? T.teal : T.purple)).opacity(0.10)))
+            }
+            for b in balls where b.kind != "miss" {
+                let p = at(Double(b.kind == "foul" ? 60 : b.d), b.deg)
+                if b.kind == "hr" { ctx.fill(ell(p.x, p.y, 5, 5), with: .color(T.yellow)); ctx.stroke(ell(p.x, p.y, 5, 5), with: .color(hexColor(0xC4901C)), lineWidth: 1) }
+                else if b.kind == "hit" { ctx.fill(ell(p.x, p.y, 4, 4), with: .color(T.teal)) }
+                else { ctx.stroke(ell(p.x, p.y, 4, 4), with: .color(T.inkSub), lineWidth: 1.5) }
+            }
+            ctx.fill(ell(home.x, home.y, 3, 3), with: .color(T.ink))
+        }
+    }
+}
+
+/// メカニクスの説明: 操作（押す→ずらす→離す）・ミート点の帯（方向 × 角度）・球場の柵距離。
+struct Mechanics: View {
+    let cols = ["ファウル", "流し\n×0.92", "センター\n×1.00", "引っ張り\n×1.10", "ファウル"]
+    let rows = ["ゴロ ×0.30", "ライナー ×0.85", "打ち上げ ×1.00", "ポップ ×0.45"]
+    let rowK: [Double] = [0.30, 0.85, 1.00, 0.45], colK: [Double] = [0, 0.92, 1.00, 1.10, 0]
+    var body: some View {
+        ZStack(alignment: .top) {
+            T.bg.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("打つ = タイミング × ミート点").font(T.f(24, .heavy)).foregroundStyle(T.ink).padding(.top, 62)
+                Text("タイミング（縮む輪）が初速、ミート点（指でずらす）が方向と角度を決める。ミート点の初期位置はボールの真ん中（= センター・ライナー）。").font(T.f(12, .medium)).foregroundStyle(T.inkSub)
+                Card {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("操作は 1 本の指で 3 拍").font(T.f(15)).foregroundStyle(T.ink)
+                        HStack(spacing: 6) {
+                            step("1", "押す", "画面のどこでも。投球が始まったら", "hand.tap.fill", T.teal)
+                            step("2", "ずらす", "ミート点が指と同じだけ動く（トラックパッド式）", "hand.draw.fill", T.purple)
+                            step("3", "離す", "輪が的に重なった瞬間 = タイミング", "hand.raised.fill", T.coral)
+                        }
+                    }
+                }
+                Card {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack { Text("ミート点の帯（右打者）").font(T.f(15)).foregroundStyle(T.ink); Spacer(); Text("← 外側　　内側 →").font(T.f(11, .medium)).foregroundStyle(T.inkSub) }
+                        grid
+                        Text("一番飛ぶのは「ボールの少し下・少し内側」。ずらしすぎると崖（ファウル / ポップ）に落ちるのが駆け引き。ゴロは柵越え不可。").font(T.f(11, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Card {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("柵までの距離は方向で変わる").font(T.f(15)).foregroundStyle(T.ink)
+                        HStack(alignment: .top, spacing: 10) {
+                            field.frame(width: 160, height: 118)
+                            VStack(alignment: .leading, spacing: 4) {
+                                legend(T.coral, "引っ張り: 柵 100〜114 m・×1.10。当たりでもポール際なら越えるが、切れればファウル")
+                                legend(T.teal, "センター: 柵 114〜120 m・×1.00。安全だがジャスト以外は届きにくい")
+                                legend(T.purple, "流し: 柵 100〜114 m・×0.92。帯が広く手堅い")
+                            }
+                        }
+                        Text("最大飛距離 140 m（ジャスト・打ち上げ・センター）。ナイス 88%・当たり 72%。乱数なし。").font(T.f(11, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }.padding(.horizontal, 16)
+        }
+    }
+    func step(_ n: String, _ t: String, _ sub: String, _ icon: String, _ tint: Color) -> some View {
+        VStack(spacing: 4) {
+            ZStack { Circle().fill(tint.opacity(0.18)).frame(width: 44, height: 44); Image(systemName: icon).font(T.f(20)).foregroundStyle(tint) }
+            Text("\(n). \(t)").font(T.f(13, .heavy)).foregroundStyle(T.ink)
+            Text(sub).font(T.f(9.5, .medium)).foregroundStyle(T.inkSub).multilineTextAlignment(.center).frame(height: 36, alignment: .top)
+        }.frame(maxWidth: .infinity)
+    }
+    func legend(_ c: Color, _ t: String) -> some View {
+        HStack(alignment: .top, spacing: 5) { Circle().fill(c).frame(width: 8, height: 8).padding(.top, 3); Text(t).font(T.f(10, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true) }
+    }
+    var grid: some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 3) {
+                Text("").frame(width: 70)
+                ForEach(0..<5, id: \.self) { c in Text(cols[c]).font(T.f(9.5, .heavy)).foregroundStyle(c == 0 || c == 4 ? T.inkSub : T.ink).multilineTextAlignment(.center).frame(maxWidth: .infinity).frame(height: 26) }
+            }
+            ForEach(0..<4, id: \.self) { r in
+                HStack(spacing: 3) {
+                    Text(rows[r]).font(T.f(9, .heavy)).foregroundStyle(T.ink).frame(width: 70, alignment: .leading)
+                    ForEach(0..<5, id: \.self) { c in cell(r, c) }
+                }
+            }
+            HStack { Text("↑ ミート点を上に").font(T.f(9, .medium)); Spacer(); Text("ミート点を下に ↓").font(T.f(9, .medium)) }.foregroundStyle(T.inkSub).padding(.leading, 70)
+        }
+    }
+    func cell(_ r: Int, _ c: Int) -> some View {
+        let v = rowK[r] * colK[c]
+        let foul = c == 0 || c == 4
+        let fill: Color = foul ? hexColor(0xE6DED3) : (r == 0 ? hexColor(0xEFE7DC) : T.yellow.opacity(0.12 + v * 0.7))
+        return ZStack {
+            RoundedRectangle(cornerRadius: 6).fill(fill)
+            if r == 2 && c == 3 { RoundedRectangle(cornerRadius: 6).stroke(T.coral, lineWidth: 2.5) }
+            if r == 1 && c == 2 { Circle().fill(.white).frame(width: 16, height: 16).overlay(Circle().stroke(hexColor(0xD43C2C), lineWidth: 1.5)) }
+            else if foul { Text("0").font(T.f(10, .heavy)).foregroundStyle(T.inkSub) }
+            else { Text(String(format: "%.2f", v)).font(T.f(10, .heavy).monospacedDigit()).foregroundStyle(T.ink) }
+        }.frame(maxWidth: .infinity).frame(height: 30)
+    }
+    var field: some View {
+        Canvas { ctx, size in
+            let home = Pt(x: size.width / 2, y: size.height - 6), k = (size.height - 14) / 124
+            func at(_ r: Double, _ deg: Double) -> Pt { let t = deg * .pi / 180; return Pt(x: home.x + CGFloat(r * sin(t)) * k, y: home.y - CGFloat(r * cos(t)) * k) }
+            for (l, r, c) in [(10.0, 45.0, T.coral), (-10.0, 10.0, T.teal), (-45.0, -10.0, T.purple)] {
+                var cone = Path(); cone.move(to: home)
+                for i in 0...20 { let a = l + (r - l) * Double(i) / 20; cone.addLine(to: at(fenceR(a), a)) }
+                cone.closeSubpath(); ctx.fill(cone, with: .color(c.opacity(0.22))); ctx.stroke(cone, with: .color(c), lineWidth: 1)
+            }
+            for (a, t) in [(-45.0, "100"), (-22.5, "114"), (0.0, "120"), (22.5, "114"), (45.0, "100")] {
+                let p = at(fenceR(a) + 9, a)
+                ctx.draw(Text(t).font(T.f(9, .heavy)).foregroundStyle(T.ink), at: p)
+            }
+            ctx.fill(ell(home.x, home.y, 3, 3), with: .color(T.ink))
+        }
+    }
+}
+
+/// 3D トゥーンのキャラ案: 4 ポーズ・頭身 3 段・投手（背中）・捕手。
+struct Character3D: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            T.bg.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("3D トゥーン: 柵越えおじさん").font(T.f(24, .heavy)).foregroundStyle(T.ink).padding(.top, 62)
+                Text("セル 2 階調 + ハイライト・輪郭線なし（現行パワプロ系のトゥーン調シェーディングの見え方）。顔の特徴と黄・紺の配色は Core の OjisanPixel と同じ。本物の 3D モデルではなく、実装の目標の絵。").font(T.f(11.5, .medium)).foregroundStyle(T.inkSub)
+                Card {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("ユニフォーム姿・4 ポーズ（2.2 頭身）").font(T.f(15)).foregroundStyle(T.ink)
+                        Canvas { ctx, _ in
+                            for (i, pose) in [Pose.stance, .swing, .cheer, .frown].enumerated() {
+                                drawBatter(ctx, feet: Pt(x: 45 + CGFloat(i) * 92, y: 138), s: 0.78, pose: pose)
+                            }
+                        }.frame(height: 148)
+                        HStack { ForEach(["構え", "スイング", "柵越え", "空振り"], id: \.self) { Text($0).font(T.f(11)).foregroundStyle(T.inkSub).frame(maxWidth: .infinity) } }
+                    }
+                }
+                Card {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("頭身の 3 案（3D 化で改めて比較）").font(T.f(15)).foregroundStyle(T.ink)
+                        Canvas { ctx, _ in
+                            for (i, h) in [2.0, 2.5, 3.0].enumerated() { drawBatter(ctx, feet: Pt(x: 60 + CGFloat(i) * 120, y: 126), s: 0.68, pose: .stance, heads: h) }
+                        }.frame(height: 134)
+                        HStack { ForEach(["2 頭身（パワプロ寄り）", "2.5 頭身", "3 頭身（写実寄り）"], id: \.self) { Text($0).font(T.f(11)).foregroundStyle(T.inkSub).frame(maxWidth: .infinity) } }
+                    }
+                }
+                Card {
+                    HStack(alignment: .top, spacing: 8) {
+                        Canvas { ctx, _ in
+                            drawPitcherBack(ctx, feet: Pt(x: 50, y: 118), s: 0.58)
+                            drawCatcher(ctx, feet: Pt(x: 150, y: 118), s: 0.66)
+                        }.frame(width: 200, height: 124)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("投手（背中越し）と捕手").font(T.f(13, .heavy)).foregroundStyle(T.ink)
+                            Text("投手は名無し・背番号なし。捕手と審判は打席の一直線を埋める「野球らしさ」の部品で、判定には関わらない。").font(T.f(10.5, .medium)).foregroundStyle(T.inkSub)
+                        }
+                    }
+                }
+            }.padding(.horizontal, 16)
+        }
+    }
+}
+
+/// 打席中のバナー広告の 2 案（下部 / 上部）を並べる（会長発言「上部か下部にバナーを」の比較材料）。
+struct BannerCompare: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            T.bg.ignoresSafeArea()
+            VStack(spacing: 8) {
+                Text("打席中のバナー広告: 変更案 2 つ").font(T.f(22, .heavy)).foregroundStyle(T.ink).padding(.top, 62)
+                Text("現行方針（バナー無し）は `22-at-bat-3d.jpg`。下部案は既存ゲームと同じ枠、上部案は HUD を 52pt 下げる。").font(T.f(11, .medium)).foregroundStyle(T.inkSub).multilineTextAlignment(.center).padding(.horizontal, 20)
+                HStack(alignment: .top, spacing: 12) {
+                    col("下部（既存ゲームと同じ）", .bottom)
+                    col("上部（HUD を下げる）", .top)
+                }
+            }
+        }
+    }
+    func col(_ t: String, _ b: BannerPos) -> some View {
+        VStack(spacing: 6) {
+            AtBat3D(banner: b).frame(width: screenW, height: screenH).clipShape(RoundedRectangle(cornerRadius: 40))
+                .scaleEffect(0.44).frame(width: screenW * 0.44, height: screenH * 0.44)
+            Text(t).font(T.f(12, .heavy)).foregroundStyle(T.ink)
+        }
+    }
+}
+
 // MARK: - 書き出し
 
 @MainActor
@@ -1511,6 +2371,17 @@ func write<V: View>(_ v: V, _ name: String, dir: String, scale: CGFloat = 2) {
 
 MainActor.assumeIsolated {
     let dir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
+    // 3D 方向（会長決裁 2026-09-24 夜）。`--3d` を付けるとこの系列だけ書き出す
+    write(Phone { Lobby3D() }, "21-lobby-3d", dir: dir)
+    write(Phone(dark: true) { AtBat3D() }, "22-at-bat-3d", dir: dir)
+    write(Phone(dark: true) { AtBat3D(phase: .impact) }, "23-at-bat-3d-impact", dir: dir)
+    write(Phone(dark: true) { Outfield3D(shot: Shot(dir: 25, dist: 131), title: "柵越え！", dist: "131 m", chips: [("ジャスト", T.yellow, "star.fill"), ("引っ張り・左中間", T.fillCoral, "arrow.up.right")], footer: "3 球目まで 249 m ／ 柵越え 2") }, "24-outfield-leftcenter", dir: dir)
+    write(Phone(dark: true) { Outfield3D(shot: Shot(dir: -43, dist: 104, side: 18), title: "ポール際 柵越え！", dist: "104 m", chips: [("当たり", .white.opacity(0.9), "baseball.fill"), ("流し・右翼線", T.fillPurple, "arrow.up.left")], footer: "5 球目まで 449 m ／ 柵越え 2") }, "25-outfield-rightline", dir: dir)
+    write(Phone { Result3D() }, "26-result-3d", dir: dir)
+    write(Phone { Mechanics() }, "27-mechanics", dir: dir)
+    write(Phone { Character3D() }, "28-character-3d", dir: dir)
+    write(Phone { BannerCompare() }, "29-banner-compare", dir: dir)
+    if CommandLine.arguments.contains("--3d") { return }
     write(Phone { LobbyTrial() }, "01-lobby-trial", dir: dir)
     write(Phone { LobbyFull() }, "02-lobby-full", dir: dir)
     write(Phone(dark: true) { AtBat() }, "03-at-bat", dir: dir)
