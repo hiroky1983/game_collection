@@ -22,8 +22,22 @@ jobs:
         with:
           persist-credentials: false
 
+      # 将棋の自己対戦テスト（SelfPlayTests）は決定的だがCIの中で最も重い1本（実測304秒）で、
+      # 将棋AI強化は中止済み（2026-08-10決裁）のためソースが変わる見込みが低い。
+      # nightly-shogi-selfplay.yml へ分離する（#1039）。
+      # skip は "GameShogiTests.SelfPlayTests/" の完全一致で絞る。単純な "SelfPlayTests" だと
+      # 別ファイル（DifficultyTests.swift）の ShogiWeakLevelSelfPlayTests も部分一致で巻き込み、
+      # 意図せず弱さ調整のテストまでCIから外れてしまう（実測で確認済み）。
       - name: GameKit 全テスト
-        run: swift test --package-path Packages/GameKit
+        run: swift test --package-path Packages/GameKit --skip '^GameShogiTests\.SelfPlayTests/'
+
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: アプリ本体のビルド検証（署名なし）
         run: |
