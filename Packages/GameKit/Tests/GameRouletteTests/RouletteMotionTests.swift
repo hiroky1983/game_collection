@@ -49,6 +49,22 @@ struct RouletteMotionTests {
         #expect(abs((second - first) - Motion.spinTurns * 360) < 1e-9)
     }
 
+    @Test("結果まで進めるための値は、見た目が同じで値だけ変わる")
+    func snappedKeepsTheSamePocketUnderTheBall() {
+        for index in [0, 1, 18, 36] {
+            let target = Motion.targetRotation(from: 500, toPocket: index)
+            let snapped = Motion.snapped(target)
+            #expect(snapped != target, "同じ値では変化にならずアニメーションが止まらない")
+            let delta = ((target - snapped).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+            #expect(abs(delta) < 1e-9, "見た目（360 で割った余り）が変わっている")
+            // そこから次のスピンをしても、規定どおり回って狙ったポケットに止まる。
+            let next = Motion.targetRotation(from: snapped, toPocket: 5)
+            let landed = (Motion.pocketAngle(index: 5) + next).truncatingRemainder(dividingBy: 360)
+            #expect(min(landed, 360 - landed) < 1e-6)
+            #expect(next >= snapped + Motion.spinTurns * 360 - 1e-9)
+        }
+    }
+
     @Test("Model の待ち時間と View の回転の長さは同じ値から作る")
     func spinIntervalMatchesDuration() {
         #expect(Motion.spinDuration > 0)
@@ -65,5 +81,19 @@ struct RouletteMotionTests {
         #expect(SourceScan.matchCount(of: #"RouletteModel\(services: services, spinInterval: spinInterval\)"#, in: view) == 1,
                 "Model へ Motion 由来の待ち時間を渡していない")
         #expect(SourceScan.matchCount(of: #"\.gameAnimation\(RouletteMotion\.resultBadge"#, in: view) == 1)
+
+        // 「結果まで進める」はホイールを止めてから精算する（止めないと結果の後も回り続ける）。
+        let skip = SourceScan.functionSource(startingWith: "private func skipSpin()", in: view)
+        #expect(SourceScan.matchCount(of: #"withGameAnimation\(nil\)"#, in: skip) == 1)
+        #expect(SourceScan.matchCount(of: #"RouletteMotion\.snapped\(wheelRotation\)"#, in: skip) == 1)
+        #expect(SourceScan.matchCount(of: #"model\.skipSpin\(\)"#, in: skip) == 1)
+        let spinning = SourceScan.functionSource(startingWith: "private func spinningView(", in: view)
+        #expect(spinning.contains("skipSpin()") && !spinning.contains("model.skipSpin()"),
+                "ボタンは View の skipSpin（ホイールを止める側）を呼ぶ")
+
+        // Reduce Motion が ON ならホイールは飛ぶので、Model の待ちも飛ばして結果を出す。
+        #expect(SourceScan.matchCount(of: #"@Environment\(\\\.accessibilityReduceMotion\)"#, in: view) == 1)
+        let spin = SourceScan.functionSource(startingWith: "private func spinWheel()", in: view)
+        #expect(spin.contains("if reduceMotion {") && spin.contains("model.skipSpin()"))
     }
 }

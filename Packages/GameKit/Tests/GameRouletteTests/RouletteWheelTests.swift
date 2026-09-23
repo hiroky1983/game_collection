@@ -12,6 +12,16 @@ struct RouletteWheelTests {
         #expect(RouletteWheel.pocketOrder.first == 0, "0 が先頭（回転 0 で 12 時）")
     }
 
+    @Test("並びは実物のヨーロピアンホイールと同じ")
+    func pocketOrderMatchesTheRealWheel() {
+        // 「37 個・重複なし・赤黒交互」を満たす別の順列に差し替えても上のテストは通るので、並びそのものを固定する。
+        #expect(RouletteWheel.pocketOrder == [
+            0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+            5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
+        ])
+        #expect(RouletteWheel.redNumbers == [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36])
+    }
+
     @Test("赤 18・黒 18・緑は 0 だけ")
     func colorsAreBalanced() {
         let colors = RouletteWheel.numbers.map(RouletteWheel.color(of:))

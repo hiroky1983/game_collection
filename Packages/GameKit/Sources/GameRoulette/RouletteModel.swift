@@ -114,6 +114,14 @@ public final class RouletteModel {
         case .betting:
             // 賭ける前の局面で残高が足りなければ、その場で終わりにする（#656 と同じ理由）。
             checkSessionOver()
+            // 復活のチップだけを持ち回る中断データ（口が無い）は「続き」ではないので、中断の
+            // お知らせ（#663）の対象から外す（#1145）。保存側の `notifyRoundWaitingSnapshot` は
+            // **保存したプロセスの中**でしか効かない（`ResumeReminder` の決着済みの印はメモリ上の
+            // 集合で、再起動で空に戻る）。復元側でも伝えないと、アプリを起動し直してから開いて
+            // 戻ったときだけ予約される。ブラックジャック・ポーカーの `init` と同じ。
+            if bets.isEmpty && hasRevivedThisSession {
+                services?.gameDidRestoreFinished(gameID: gameID)
+            }
         case .result:
             break
         }

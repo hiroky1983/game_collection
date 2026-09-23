@@ -6,6 +6,8 @@ public struct RouletteView: View {
     private let services: GameServices
     /// 画面の広さ（#458）。ホイールとマスの高さを同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
+    /// Reduce Motion。ON ならホイールは回らず止まる位置へ飛ぶので、結果も待たせずに出す。
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var reviveRescue = RewardedRescue()
     /// ホイールの累積回転角（度）。止まった位置を保ったまま、スピンごとに数周ぶん増える
@@ -32,7 +34,11 @@ public struct RouletteView: View {
             let sizing = RouletteMetrics.sizing(forHeight: geometry.size.height)
             VStack(spacing: sizing.stackSpacing) {
                 tableCard(sizing)
-                boardCard(sizing)
+                // チップが尽きたら盤面は畳む（置けないし精算も済んでいる。出目と収支は上のカードに残る）。
+                // 復活・やり直しの操作欄は賭け中の操作欄より高く、盤面と同居させると SE で下が切れる。
+                if !model.sessionOver {
+                    boardCard(sizing)
+                }
                 HowToPlayHint(.roulette, playLog: services.playLog)
                 if model.sessionOver {
                     sessionOverView(sizing)
@@ -65,6 +71,13 @@ public struct RouletteView: View {
                 model.placeBet(.straight(17))
                 model.spin()
             }
+            // `-simulateRouletteBust` は全額を 0 に置いて回す（37 回に 36 回はチップ切れの画面になる）。
+            if ProcessInfo.processInfo.arguments.contains("-simulateRouletteBust"), model.canBet, model.bets.isEmpty {
+                model.selectedChip = 500
+                model.placeBet(.straight(0))
+                model.placeBet(.straight(0))
+                model.spin()
+            }
             #endif
         }
         .onChange(of: model.phase) { _, phase in
@@ -80,13 +93,29 @@ public struct RouletteView: View {
         )
     }
 
-    /// 出目のポケットが玉の真下に来るまでホイールを回す。Reduce Motion が ON なら即座にその位置へ飛ぶ。
+    /// 出目のポケットが玉の真下に来るまでホイールを回す。
+    ///
+    /// Reduce Motion が ON なら `withGameAnimation` が補間を落とし、ホイールは止まる位置へ即座に飛ぶ。
+    /// そのまま Model の待ちを残すと、玉の真下に出目が見えているのに「回転中…」が 2.6 秒続くので、
+    /// 待ちも飛ばして結果を出す。
     private func spinWheel() {
         guard let number = model.winningNumber else { return }
         let index = RouletteWheel.pocketIndex(of: number)
         withGameAnimation(RouletteMotion.spin) {
             wheelRotation = RouletteMotion.targetRotation(from: wheelRotation, toPocket: index)
         }
+        if reduceMotion {
+            model.skipSpin()
+        }
+    }
+
+    /// 「結果まで進める」。走っている回転を止まる位置へ飛ばしてから精算する
+    /// （止めないと、結果が出たあともホイールが回り続け、玉の真下と出目が一時的に食い違う）。
+    private func skipSpin() {
+        withGameAnimation(nil) {
+            wheelRotation = RouletteMotion.snapped(wheelRotation)
+        }
+        model.skipSpin()
     }
 
     // MARK: - Table (wheel + chips + result)
@@ -346,7 +375,7 @@ public struct RouletteView: View {
     private func spinningView(_ sizing: RouletteMetrics.Sizing) -> some View {
         VStack(spacing: 8) {
             actionButton("結果まで進める", color: Theme.fillMuted, foreground: .white) {
-                model.skipSpin()
+                skipSpin()
             }
         }
         .padding(.horizontal, 14).padding(.vertical, sizing.cardVerticalPadding)

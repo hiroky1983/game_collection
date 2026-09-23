@@ -213,6 +213,73 @@ struct RouletteRewardedAdTests {
         #expect(!model.sessionOver)
     }
 
+    @Test("復活直後の口の無い中断データは「続きから」に数えない。回転中・口ありは数える（#809）")
+    func resumableSnapshotExcludesRevivedWaiting() async throws {
+        let module = RouletteModule()
+        let store = MemorySnapshotStore()
+        #expect(!module.hasResumableSnapshot(in: store), "中断データが無い")
+
+        let (model, _, _) = makeBustedModel(store: store)
+        #expect(await model.reviveAfterAd() == .granted)
+        #expect(store.exists(for: "roulette"), "前提が崩れた: 復活のチップだけの中断データが残るはず")
+        #expect(!module.hasResumableSnapshot(in: store), "口の無い賭け待ちを「続き」に数えている")
+
+        model.selectedChip = 10
+        model.placeBet(.red)
+        #expect(module.hasResumableSnapshot(in: store), "口を置いたら続きがある")
+
+        try store.save(
+            RouletteSnapshot(chips: 500, bets: [RouletteBet(id: 0, kind: .red, amount: 100)],
+                             phase: .spinning, winningNumber: 3, history: [], hasRevivedThisSession: false),
+            for: "roulette"
+        )
+        #expect(module.hasResumableSnapshot(in: store), "回転中は続きがある")
+    }
+
+    /// 保存時の通知（`notifyRoundWaitingSnapshot`）は `ResumeReminder` の**メモリ上の**決着済みの印に
+    /// しか効かず、再起動で消える。復元側でも伝えないと、起動し直してから開いて戻ったときだけ
+    /// 続きの無い局に「途中のままです」が予約される（#1145）。
+    @Test("再起動後に開いて戻っても「途中のままです」を予約しない（#1145）")
+    func revivedSnapshotSchedulesNoReminderAfterRelaunch() async {
+        let store = MemorySnapshotStore()
+        let (model, _, _) = makeBustedModel(store: store)
+        #expect(await model.reviveAfterAd() == .granted)
+        #expect(model.phase == .betting && model.bets.isEmpty, "賭ける前で止まっている")
+        #expect(store.exists(for: "roulette"), "前提が崩れた: 復活のチップだけの中断データが残るはず")
+
+        // アプリを終了して起動し直し、ハブから開いて何も賭けずに戻る。
+        let (services, reminders, spy) = makeRelaunchedServices(
+            store: store, ads: StubAdService(rewardEarned: true),
+            reminderTitle: { $0 == "roulette" ? "ルーレット" : nil }
+        )
+        _ = RouletteModel(services: services)
+        services.gameDidLeave(gameID: "roulette")
+        await reminders.pendingWork?.value
+
+        #expect(spy.reminders.isEmpty, "続きの無い局に「途中のままです」を予約した")
+    }
+
+    /// 上の対照。口が残っている中断データまで黙らせていたら、本物の中断が知らされなくなる。
+    @Test("口を置いたまま離れたときは、再起動後でも従来どおり予約する（#1145）")
+    func betsOnTableStillScheduleReminderAfterRelaunch() async throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            RouletteSnapshot(chips: 2000, bets: [RouletteBet(id: 0, kind: .black, amount: 50)],
+                             phase: .betting, winningNumber: nil, history: [], hasRevivedThisSession: true),
+            for: "roulette"
+        )
+        let (services, reminders, spy) = makeRelaunchedServices(
+            store: store, ads: StubAdService(rewardEarned: true),
+            reminderTitle: { $0 == "roulette" ? "ルーレット" : nil }
+        )
+        let model = RouletteModel(services: services)
+        #expect(model.bets.count == 1, "前提が崩れた: 置いた口を復元しているはず")
+        services.gameDidLeave(gameID: "roulette")
+        await reminders.pendingWork?.value
+
+        #expect(spy.reminders["roulette"] != nil, "口が残っているのに予約しなかった")
+    }
+
     @Test("復活を使ったセッションの記録は順位表へ送らない（ローカルの自己ベストには残る）")
     func revivedSessionIsNotEligibleForLeaderboard() async {
         let spy = SpyGameCenterService()

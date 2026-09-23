@@ -20,9 +20,11 @@ enum RouletteMetrics {
 
     /// 「縦が狭い」と見なす境目（pt）。画面の中身に使える高さがこれを下回ったら `Sizing.compact` に落とす。
     ///
-    /// iPhone SE（第 3 世代）は 667pt からステータスバーとナビゲーションバーを引いて約 603pt。
-    /// iPhone 13 mini は 812pt で約 720pt。あいだの 620pt に置く。
-    static let compactHeightThreshold: CGFloat = 620
+    /// 通常の寸法（`Sizing.regular`）が初回ガイドとバナー込みで要る高さ（約 681pt・`RouletteMetricsTests`
+    /// が見積もる）より上に置く。境目を必要高さより下に置くと、そのあいだの高さでは通常の寸法を
+    /// 選んだのに収まらない。iPhone SE（第 3 世代）は約 603pt・iPhone 13 mini は約 687pt で詰める側、
+    /// iPhone 17 は約 715pt で通常の側。
+    static let compactHeightThreshold: CGFloat = 690
 
     /// 画面の高さで変える寸法の束。`AdaptiveLayout`（#458）は幅しか見ないので、縦の狭さはこの画面で持つ
     /// （盤面 37 マス・ホイール・操作欄・バナーを 1 画面に固定 pt で並べる画面はここだけ）。
