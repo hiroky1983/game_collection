@@ -1715,10 +1715,9 @@ struct Result3D: View {
                                 legend("star.fill", T.yellow, "柵越え"); legend("circle.fill", T.teal, "当たり"); legend("circle.fill", T.coral, "直撃"); Text("F").font(T.f(9, .black)).foregroundStyle(T.inkSub); Text("ファウル").font(T.f(9, .medium)).foregroundStyle(T.inkSub); legend("xmark", T.inkSub, "空振り")
                             }
                             FanChart(hits: hits, labels: true).frame(height: 150)
-                            HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text("左 4 ／ 中 2 ／ 右 2 ／ ファウル 1 ／ 空振り 1").font(T.f(11, .heavy)).foregroundStyle(T.ink)
-                                Spacer()
-                                Text("中堅を越えたのは 6・9 球目").font(T.f(10, .medium)).foregroundStyle(T.inkSub).lineLimit(1).minimumScaleFactor(0.7)
+                                Text("引っ張り多め。中堅 122 m を越えたのは 6・9 球目").font(T.f(10, .medium)).foregroundStyle(T.inkSub)
                             }
                         }
                     }
