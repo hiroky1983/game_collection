@@ -108,6 +108,15 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
+    /// 無料ヒントを**1回使った**ときに各 Model から呼ぶ（#1326）。`game_end` の `hints_used` に載る。
+    ///
+    /// 途中離脱の `game_end` は Model を経由せず共通経路で出るため、決着時に値を渡す形ではなく
+    /// 使うたびにここへ伝えて `GameAnalytics` に覚えさせる。
+    @MainActor
+    public func gameDidUseHint(gameID: String) {
+        analytics?.recordHintUsed(gameID: gameID)
+    }
+
     /// この局は**画面を離れたら失われる**ことを各 Model から伝える（#500）。
     ///
     /// 既定の判定は「中断データが在る = 続きから戻れる」（`gameDidLeave`）だが、中断データを

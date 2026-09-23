@@ -154,3 +154,62 @@ struct ChessHintTests {
         #expect(model.recordResult != nil, "リザルトの記録行も従来どおり出る")
     }
 }
+
+/// ヒントの使用回数が `game_end` の `hints_used` に載る結線（#1326）。
+@MainActor
+@Suite("チェス ヒントの解析（#1326）")
+struct ChessHintAnalyticsTests {
+
+    private func makeModel() -> (ChessGameModel, SpyAnalyticsService) {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: ["chess"])
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        return (ChessGameModel(services: services), spy)
+    }
+
+    private func playPawn(_ model: ChessGameModel) throws {
+        model.tapSquare(try #require(ChessSquare.fromName("e2")))
+        model.tapSquare(try #require(ChessSquare.fromName("e4")))
+    }
+
+    private func endParameters(_ spy: SpyAnalyticsService) -> [[String: AnalyticsValue]] {
+        spy.events.compactMap { if case .gameEnd = $0 { return $0.parameters } else { return nil } }
+    }
+
+    @Test("ヒントを使った局を指してから捨てると、quit の game_end に hints_used が載る")
+    func quitCarriesHintsUsed() async throws {
+        let (model, spy) = makeModel()
+        await model.requestHint()
+        await model.requestHint()
+        try playPawn(model)
+
+        model.newGame()
+
+        let ends = endParameters(spy)
+        #expect(ends.count == 1)
+        #expect(ends.first?["result"] == .string("quit"))
+        #expect(ends.first?["hints_used"] == .int(2))
+    }
+
+    @Test("ヒントを使った局の決着（投了）の game_end に hints_used が載る")
+    func finishCarriesHintsUsed() async {
+        let (model, spy) = makeModel()
+        await model.requestHint()
+
+        model.resign()
+
+        #expect(endParameters(spy).first?["hints_used"] == .int(1))
+    }
+
+    @Test("ヒントを使わなかった局の game_end には hints_used の鍵が無い")
+    func noHintNoKey() throws {
+        let (model, spy) = makeModel()
+        try playPawn(model)
+
+        model.newGame()
+
+        let ends = endParameters(spy)
+        #expect(ends.count == 1)
+        #expect(ends.first?.keys.contains("hints_used") == false)
+    }
+}

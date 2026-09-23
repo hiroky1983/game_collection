@@ -223,7 +223,8 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   3本とも決着へ渡す成績は `hints.winLossScore` の1経路に閉じる
 - 使った回数は中断データに持ち回る（`hintsUsed`。鍵を持たない v1.1.5 までの中断データは未使用として読む）。
   **盤の上の印は保存しない**（開き直したら出し直す）
-- 解析イベントは増やさない。ヒントの使用は `game_start` / `game_end` の数え方にも値にも影響しない
+- 解析イベントは増やさない。ヒントの使用は `game_start` / `game_end` の数え方には影響せず、使った回数だけ
+  `game_end` の `hints_used` に載る（#1326。下記「解析仕様」）
 - ボタンは3本とも同じ部品・同じ見た目（`Core/BoardGameChrome.swift` の `BoardHintButton`。
   黄色 + 電球はナンプレのヒントと同じ）。パズル系（ナンプレ #262・麻雀ソリティア #336）の
   **リワード広告制のヒントとは別の仕組み**で、そちらは従来どおり
@@ -240,7 +241,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796) |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
@@ -268,6 +269,13 @@ Sheet で表示。`List` + `EditMode` 常時有効。
   いまはチャリンコおじさんだけが送る。ステージ制ではミスは決着ではなく `game_end` はクリア（win）か
   途中離脱（quit）でしか出ないので、「何にやられて諦めたか」＝離脱直前の死因として読む。
   GA4 のカスタムディメンション登録が要る（会長操作）
+- `hints_used`（#1326）は**そのプレイで使った無料ヒントの回数**（1〜3）。将棋・チェス・五目並べの3本だけが送る。
+  各 Model が `BoardHintBudget.consume()` の成功ごとに `gameDidUseHint` を呼び、`GameAnalytics` が進行中の
+  プレイに覚えて `game_end` に載せる。**送信は `sendEnd` の1か所**なので、決着（`finishPlay`）でも
+  途中離脱（`leaveGame` / `restartPlay`）でも同じ値が載る。使わなかったプレイ・ヒントを持たないゲームは鍵ごと送らない。
+  1手も指さずに捨てた局は従来どおり `game_end` 自体が出ない。休憩（再開できる離脱）をまたいでも数えは残るが、
+  アプリを終了して中断データから復元した局は開始を数えないため、復元前に使った分は載らない。
+  GA4 のカスタム指標「ヒント使用回数」（範囲=イベント）は 2026-09-24 に登録済み
 - パラメータの値（`result` / `level` / `purpose` / `source` / `mode` / `cause`）は `CaseIterable` な enum で定義し、
   `AnalyticsTests` に全量のテストを置く。文字列の引数で値を足せる口を作らない（#820。`mode` だけ `String?` だったため、
   文書に無い値が 23 分後に流れ込んだ）

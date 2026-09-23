@@ -1177,7 +1177,7 @@ struct RunnerEndlessModelTests {
         let model = RunnerModel(services: services, startingAt: 1, preference: makePreference("endless-analytics-end"))
         func ends() -> [(result: AnalyticsResult, mode: AnalyticsMode?, cause: AnalyticsEndCause?)] {
             spy.events.compactMap { event in
-                if case let .gameEnd(_, result, _, mode, cause) = event { return (result, mode, cause) } else { return nil }
+                if case let .gameEnd(_, result, _, mode, cause, _) = event { return (result, mode, cause) } else { return nil }
             }
         }
         model.newEndlessGame(seed: 1)

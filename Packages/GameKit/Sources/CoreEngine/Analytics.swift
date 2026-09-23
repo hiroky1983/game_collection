@@ -214,11 +214,12 @@ public enum AnalyticsEvent: Equatable, Sendable {
     )
     /// 1プレイの終わり。パラメータは `game_id` / `result` / `duration_sec` と、開始時に `mode` を
     /// 付けたプレイだけ `mode`（開始と終わりを同じ鍵で突き合わせるため）、そのプレイで 1 度でも
-    /// ミスしたゲームだけ `cause`（最後のミスの原因・#796）。
+    /// ミスしたゲームだけ `cause`（最後のミスの原因・#796）、無料ヒントを 1 回でも使ったプレイだけ
+    /// `hints_used`（#1326）。
     /// 決着（win / loss / draw）と途中離脱（quit）の両方がこのイベントで出る。
     case gameEnd(
         gameID: String, result: AnalyticsResult, durationSec: Int,
-        mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil
+        mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0
     )
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
@@ -265,7 +266,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -276,6 +277,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
             if let mode { parameters["mode"] = .string(mode.rawValue) }
             // ミスの無いプレイ・ミスの概念が無いゲームでは鍵ごと送らない（`level` と同じ扱い）。
             if let cause { parameters["cause"] = .string(cause.rawValue) }
+            // ヒントを使わなかったプレイ・ヒントを持たないゲームでは鍵ごと送らない（`cause` と同じ扱い）。
+            if hintsUsed > 0 { parameters["hints_used"] = .int(hintsUsed) }
             return parameters
         case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
@@ -341,8 +344,8 @@ public final class GameAnalytics {
     /// そのゲームの1プレイの状態。**キーが無い = この画面でまだ1プレイも数えていない**。
     private enum PlayState {
         /// 進行中。`startedAt` は `duration_sec` の起点、`didProgress` は「1手でも指したか」、
-        /// `canResume` は「画面を離れても続きから戻れるか」。
-        case inFlight(startedAt: Date, didProgress: Bool, canResume: Bool)
+        /// `canResume` は「画面を離れても続きから戻れるか」、`hintsUsed` は使った無料ヒントの回数（#1326）。
+        case inFlight(startedAt: Date, didProgress: Bool, canResume: Bool, hintsUsed: Int)
         /// 終局済み。`game_end` は送信済みなので、同じプレイで二度送らない。
         case finished
     }
@@ -405,9 +408,11 @@ public final class GameAnalytics {
     ///   「戻す」で初期配置まで巻き戻してから捨てた場合も離脱として数える。遊んだ時間は実際に
     ///   使われており、`duration_sec` と対応の取れない `game_start` を作らないほうが集計が読める。
     public func recordProgress(gameID: String) {
-        guard case let .inFlight(startedAt, didProgress, canResume) = plays[gameID], !didProgress
+        guard case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID], !didProgress
         else { return }
-        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: true, canResume: canResume)
+        plays[gameID] = .inFlight(
+            startedAt: startedAt, didProgress: true, canResume: canResume, hintsUsed: hintsUsed
+        )
     }
 
     /// この局は**画面を離れたら失われる**ことを伝える（#500）。
@@ -417,9 +422,25 @@ public final class GameAnalytics {
     /// 復元せず必ずステージの頭から始まる（しかも記録を守るため決着後も消さない）。
     /// これを休憩と読むと、走行を捨てた離脱が永久に記録されない。
     public func markUnresumable(gameID: String) {
-        guard case let .inFlight(startedAt, didProgress, canResume) = plays[gameID], canResume
+        guard case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID], canResume
         else { return }
-        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: didProgress, canResume: false)
+        plays[gameID] = .inFlight(
+            startedAt: startedAt, didProgress: didProgress, canResume: false, hintsUsed: hintsUsed
+        )
+    }
+
+    /// 無料ヒントを 1 回使ったときに呼ぶ（#1326）。**イベントは送らない**。
+    ///
+    /// 回数は進行中のプレイに覚えておき、終わりの `game_end` に `hints_used` として載せる。
+    /// `game_end` は決着（`finishPlay`）でも途中離脱（`leaveGame` / `restartPlay`）でも `sendEnd` の
+    /// 1 か所から出るので、ヒントを使った直後に離脱しても値は失われない。
+    /// 進行中のプレイが無ければ何もしない（中断からの再開など、開始を数えていないプレイ）。
+    public func recordHintUsed(gameID: String) {
+        guard case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID]
+        else { return }
+        plays[gameID] = .inFlight(
+            startedAt: startedAt, didProgress: didProgress, canResume: canResume, hintsUsed: hintsUsed + 1
+        )
     }
 
     /// そのプレイでミスした（穴に落ちた・ぶつかった）ときに呼ぶ（#796）。**イベントは送らない**。
@@ -436,9 +457,9 @@ public final class GameAnalytics {
     /// （中断からの再開など、開始を数えていないプレイの終局。`duration_sec` の起点が
     /// 分からないため、対応の取れない `game_end` を作らない）。
     public func finishPlay(gameID: String, outcome: GameOutcome) {
-        guard case let .inFlight(startedAt, _, _) = plays[gameID] else { return }
+        guard case let .inFlight(startedAt, _, _, hintsUsed) = plays[gameID] else { return }
         plays[gameID] = .finished
-        sendEnd(gameID: gameID, result: AnalyticsResult(outcome), startedAt: startedAt)
+        sendEnd(gameID: gameID, result: AnalyticsResult(outcome), startedAt: startedAt, hintsUsed: hintsUsed)
     }
 
     /// リワード広告を**視聴し終えた**ときに呼ぶ（#500）。
@@ -500,7 +521,7 @@ public final class GameAnalytics {
             return
         }
         // 中断データが在っても、そこから局を復元しないゲームは離脱として扱う（`markUnresumable`）。
-        if case let .inFlight(_, _, canResume) = plays[gameID], canResume, isResumable { return }
+        if case let .inFlight(_, _, canResume, _) = plays[gameID], canResume, isResumable { return }
         endPlayAsQuitIfProgressed(gameID: gameID)
         // 送っても送らなくても、再開できない盤面はもう続きが無い。次に開いたら数え直す。
         plays[gameID] = nil
@@ -508,23 +529,24 @@ public final class GameAnalytics {
 
     /// 未決着のまま捨てられたプレイに `game_end`（`quit`）を送る。1手も指していなければ何も送らない。
     private func endPlayAsQuitIfProgressed(gameID: String) {
-        guard case let .inFlight(startedAt, didProgress, _) = plays[gameID], didProgress else { return }
+        guard case let .inFlight(startedAt, didProgress, _, hintsUsed) = plays[gameID], didProgress
+        else { return }
         plays[gameID] = .finished
-        sendEnd(gameID: gameID, result: .quit, startedAt: startedAt)
+        sendEnd(gameID: gameID, result: .quit, startedAt: startedAt, hintsUsed: hintsUsed)
     }
 
-    private func sendEnd(gameID: String, result: AnalyticsResult, startedAt: Date) {
+    private func sendEnd(gameID: String, result: AnalyticsResult, startedAt: Date, hintsUsed: Int) {
         // 時計が巻き戻っても負の秒数を送らない。
         let seconds = max(0, Int(now().timeIntervalSince(startedAt)))
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
-            mode: modes[gameID], cause: causes[gameID]
+            mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed
         ))
     }
 
     private func beginPlay(gameID: String, level: AnalyticsLevel?, mode: AnalyticsMode?) {
         let startedAt = now()
-        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: false, canResume: true)
+        plays[gameID] = .inFlight(startedAt: startedAt, didProgress: false, canResume: true, hintsUsed: 0)
         modes[gameID] = mode
         // 前のプレイの死因を次のプレイへ持ち越さない。
         causes[gameID] = nil
