@@ -336,11 +336,23 @@ public extension HowToPlayGuide {
         hintIcon: "circle.circle.fill"
     )
 
+    static let fruits = HowToPlayGuide(
+        gameID: "fruits",
+        title: "くっつきフルーツの遊び方",
+        lines: [
+            "箱の上で指を左右に動かして位置を決め、離すと果物が落ちます。",
+            "同じ果物どうしが触れるとくっついて、1 つ大きい果物になります。いちばん大きいのはメロンです。",
+            "上の点線より上に果物がとどまるとゲームオーバー。大きく育てて高得点を狙いましょう。",
+        ],
+        hint: "左右に動かして、離すと落ちる",
+        hintIcon: "hand.draw.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .roulette,
+        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits,
     ]
 }
 
