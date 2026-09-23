@@ -164,13 +164,33 @@ struct ShiritoriRulesTests {
 
     @Test("最初の場の札は、プレイヤーの最初の手が残る札から選ぶ")
     func openerLeavesAFirstMove() throws {
-        // わに（語尾「に」に続く札は無い）を先頭に置いても、後ろの札が選ばれる。
-        let deck = [ShiritoriCard(.crocodile, "わに"), ShiritoriCard(.apple, "りんご"), ShiritoriCard(.gorilla, "ごりら")]
+        // 「ごはん」（語尾「ん」）は場に出さない。残りは りんご→ごりら→らっこ→こあら で
+        // 互いに語尾を受け合える構成（#1297 の新しいチェックでも、どの札を除いても後続が残る）。
+        let deck = [
+            ShiritoriCard(.apple, "ごはん"), ShiritoriCard(.rabbit, "りんご"), ShiritoriCard(.gorilla, "ごりら"),
+            ShiritoriCard(.seaOtter, "らっこ"), ShiritoriCard(.koala, "こあら"),
+        ]
         #expect(ShiritoriRules.openerIndex(in: deck) == 1)
         #expect(ShiritoriRules.openerIndex(in: [ShiritoriCard(.crocodile, "わに")]) == nil)
         // 語尾が「ん」の札は場に出さない。
         let n = [ShiritoriCard(.apple, "ごはん"), ShiritoriCard(.gorilla, "んま")]
         #expect(ShiritoriRules.openerIndex(in: n) == nil)
+    }
+
+    /// #1297: 「わに」の唯一の後続「にゃんこ」＝ねこ札を開場札に選ぶと、盤の「わに」を取った瞬間に
+    /// 相手が詰んで一発勝ちになっていた（#1287型の再発）。開場札の並び順を 30 通り総当たりで変えても、
+    /// 選ばれた開場札を除いた 29 枚のどの読みの語尾も、他の札で受けられることを固定する。
+    @Test("開場札を除いた29枚でも、唯一の後続を失って詰み専用になる札が生まれない（総当たり30パターン）")
+    func openerNeverStripsAnotherCardsOnlyFollower() throws {
+        let deck = ShiritoriCard.deck
+        for rotation in deck.indices {
+            let rotated = Array(deck[rotation...] + deck[..<rotation])
+            let openerIdx = try #require(ShiritoriRules.openerIndex(in: rotated), "rotation \(rotation): 開場札が見つからない")
+            var rest = rotated
+            let opener = rest.remove(at: openerIdx)
+            #expect(!ShiritoriRules.hasDeadEndReading(in: rest),
+                    "rotation \(rotation): 開場札 \(opener.id) を除くと後続を失う札がある")
+        }
     }
 }
 

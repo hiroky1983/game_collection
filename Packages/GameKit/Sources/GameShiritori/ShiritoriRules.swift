@@ -122,12 +122,30 @@ enum ShiritoriRules {
 
     /// 最初の場の札にする位置。**プレイヤーの最初の手が 1 つは残る**札を、シャッフル済みの山から
     /// 先頭に近い順に選ぶ（開始直後に詰んで何もできない局を作らない）。語尾が「ん」の札も避ける。
+    ///
+    /// 加えて、**開場札を抜いたことで他の札が唯一の後続を失わないか**も見る（#1297: 「わに」の
+    /// 唯一の後続だった「にゃんこ」＝ねこ札を開場札に選ぶと、盤の「わに」を取った瞬間に相手が
+    /// 詰んで一発勝ちになる穴が再発した）。開場札自身の後続有無だけでは、開場札の**不在**が他の
+    /// 札に与える影響を見落とす。
     static func openerIndex(in deck: [ShiritoriCard]) -> Int? {
         deck.indices.first { index in
             let card = deck[index]
             guard let tail = ShiritoriKana.tail(of: card.primaryReading), !ShiritoriKana.isN(tail) else { return false }
-            let rest = deck.enumerated().filter { $0.offset != index }.map { ShiritoriSlot(card: $0.element) }
-            return !moves(slots: rest, after: tail).isEmpty
+            let restCards = deck.enumerated().filter { $0.offset != index }.map(\.element)
+            guard !moves(slots: restCards.map { ShiritoriSlot(card: $0) }, after: tail).isEmpty else { return false }
+            return !hasDeadEndReading(in: restCards)
+        }
+    }
+
+    /// `cards` の構成に、いずれかの読み（「ん」を除く）の語尾を、他のどの札の語頭でも受けられない
+    /// 読み（詰み専用の唯一後続喪失）が無いか。
+    static func hasDeadEndReading(in cards: [ShiritoriCard]) -> Bool {
+        cards.contains { card in
+            card.readings.contains { reading in
+                guard !endsWithN(reading), let tail = ShiritoriKana.tail(of: reading) else { return false }
+                let rest = cards.filter { $0.id != card.id }.map { ShiritoriSlot(card: $0) }
+                return moves(slots: rest, after: tail).isEmpty
+            }
         }
     }
 }
