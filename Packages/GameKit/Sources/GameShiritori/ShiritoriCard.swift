@@ -32,6 +32,10 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
     /// 「どらむ」（語頭 ど・語尾 む→ゆ の受け皿が無い）・「えみゅー」は #1292 で、
     /// 「ぐらす」（語頭 ぐ）・「おうぎ」（語頭 お）は #1271 で、同じ理由（受け皿となる語頭の
     /// 濁音・清音のどちらの語尾も山札に無く、選ぶ契機が絶対に来ない）で裏読み自体を削除した。
+    ///
+    /// #1298 で会長不採用の 5 枚（こねこ・まくら・うちわ・ねぎ・まり）を くま・まふらー・まいく・くり・にく に
+    /// 差し替えた（`ObjectCardKind` の識別子は中断データのため据え置き）。「ま」で始まる札（こま・うま の受け）と
+    /// 「り」で終わる札（りんご・りす の送り）を残すよう選び、全札の語尾が受けられることはテストが縛る。
     public static let deck: [ShiritoriCard] = [
         ShiritoriCard(.apple, "りんご"),
         ShiritoriCard(.gorilla, "ごりら"),
@@ -41,7 +45,7 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         ShiritoriCard(.rabbit, "うさぎ"),
         ShiritoriCard(.guitar, "ぎたー"),
         ShiritoriCard(.drum, "たいこ"),
-        ShiritoriCard(.kitten, "こねこ"),
+        ShiritoriCard(.kitten, "くま"),
         ShiritoriCard(.glass, "こっぷ"),
         ShiritoriCard(.squirrel, "りす"),
         ShiritoriCard(.watermelon, "すいか"),
@@ -49,13 +53,13 @@ public struct ShiritoriCard: Identifiable, Equatable, Hashable, Sendable {
         ShiritoriCard(.eyeglasses, "めがね"),
         ShiritoriCard(.cat, "ねこ", "にゃんこ"),
         ShiritoriCard(.spinningTop, "こま"),
-        ShiritoriCard(.pillow, "まくら"),
+        ShiritoriCard(.pillow, "まふらー"),
         ShiritoriCard(.ostrich, "だちょう"),
-        ShiritoriCard(.handFan, "うちわ"),
+        ShiritoriCard(.handFan, "まいく"),
         ShiritoriCard(.crocodile, "わに"),
         ShiritoriCard(.boat, "ふね"),
-        ShiritoriCard(.leek, "ねぎ"),
-        ShiritoriCard(.ball, "まり"),
+        ShiritoriCard(.leek, "くり"),
+        ShiritoriCard(.ball, "にく"),
         ShiritoriCard(.mushroom, "きのこ"),
         ShiritoriCard(.horse, "うま"),
         ShiritoriCard(.deer, "しか"),
