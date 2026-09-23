@@ -20,6 +20,7 @@ import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 import GameShiritori
+import GameFifteen
 import GameSpider
 import GameChess
 import GameBlocks
@@ -89,7 +90,7 @@ private func makeHubModules() -> [GameModule] {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
     ]
 }
 

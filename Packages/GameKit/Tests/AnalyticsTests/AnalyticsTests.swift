@@ -20,6 +20,7 @@ import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 @testable import GameShiritori
+@testable import GameFifteen
 import GameSpider
 import GameChess
 import GameBlocks
@@ -61,7 +62,7 @@ private func makeHubGameIDs() -> Set<String> {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -431,7 +432,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 22, "ハブに並ぶゲームは22本")
+        #expect(hubGameIDs.count == 23, "ハブに並ぶゲームは23本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
