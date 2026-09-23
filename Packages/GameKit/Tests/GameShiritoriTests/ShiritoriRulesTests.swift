@@ -188,8 +188,16 @@ struct ShiritoriRulesTests {
             let openerIdx = try #require(ShiritoriRules.openerIndex(in: rotated), "rotation \(rotation): 開場札が見つからない")
             var rest = rotated
             let opener = rest.remove(at: openerIdx)
-            #expect(!ShiritoriRules.hasDeadEndReading(in: rest),
-                    "rotation \(rotation): 開場札 \(opener.id) を除くと後続を失う札がある")
+            // 検証対象の openerIndex と同じ hasDeadEndReading を使うと、そちらのロジック自体の
+            // バグを見逃しうるため、ここは `moves` を直接呼んで独立に確かめる（CodeRabbit 指摘）。
+            for card in rest {
+                let otherSlots = rest.filter { $0.id != card.id }.map { ShiritoriSlot(card: $0) }
+                for reading in card.readings {
+                    guard !ShiritoriRules.endsWithN(reading), let tail = ShiritoriKana.tail(of: reading) else { continue }
+                    #expect(!ShiritoriRules.moves(slots: otherSlots, after: tail).isEmpty,
+                            "rotation \(rotation): 開場札 \(opener.id) を除くと \(card.id) の読み \(reading) に後続がない")
+                }
+            }
         }
     }
 }
