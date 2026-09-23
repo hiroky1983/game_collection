@@ -69,6 +69,8 @@ public final class FruitsModel {
     /// `field` は毎フレーム変わるため、画面が `field.isOverLine` を直接読むと**毎フレーム再評価される**。
     /// ここで鏡を持ち、変わったときだけ代入する（ブロック崩しの `isPaddleWide` と同じ理由）。
     public private(set) var isOverLine = false
+    /// 盤の果物の数。`isOverLine` と同じ理由の鏡（VoiceOver の読み上げが body から読む）。
+    public private(set) var fruitCount = 0
     /// プレイの通し番号。「はじめから」とコンティニューの照合に使う（#729）。
     public private(set) var gameSerial = 0
     /// 演出の合図（新しい順ではなく古い順・直近 `effectHistoryLimit` 件）。
@@ -118,6 +120,7 @@ public final class FruitsModel {
             heldKind = held
             nextKind = next
             isOverLine = field.isOverLine
+            fruitCount = field.count
             // 復元は新しいプレイではないので `game_start` は送らない。
         } else {
             let seed = seed ?? UInt64.random(in: 0...UInt64.max)
@@ -156,6 +159,7 @@ public final class FruitsModel {
     public func drop() {
         guard phase == .playing, let kind = heldKind else { return }
         field.drop(kind)
+        fruitCount = field.count
         heldKind = nil
         cooldown = Self.dropCooldown
         dropCount += 1
@@ -187,6 +191,7 @@ public final class FruitsModel {
             handle(event)
         }
         if isOverLine != field.isOverLine { isOverLine = field.isOverLine }
+        if fruitCount != field.count { fruitCount = field.count }
         settledTime = field.isSettled ? settledTime + step : 0
         if needsCheckpoint, phase == .playing, cooldown == 0, settledTime >= Self.settleConfirmation {
             needsCheckpoint = false
@@ -212,6 +217,7 @@ public final class FruitsModel {
         needsCheckpoint = false
         settledTime = 0
         isOverLine = false
+        fruitCount = 0
         seed = UInt64.random(in: 0...UInt64.max)
         generator = SplitMix64(seed: seed)
         drawCount = 0
@@ -236,6 +242,7 @@ public final class FruitsModel {
         recordResult = nil
         continueUsed = true
         field.clearForContinue()
+        fruitCount = field.count
         phase = .playing
         isOverLine = false
         cooldown = 0

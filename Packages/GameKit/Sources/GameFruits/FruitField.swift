@@ -72,7 +72,7 @@ public struct FruitField: Equatable, Sendable {
         public static let height: Double = 120
         /// 危険線。これより上に果物が `overLineLimit` 秒居続けたら終局。
         public static let deadlineY: Double = 96
-        /// 落とす前の果物の中心の高さ。いちばん大きい落とせる果物（みかん・半径 8.8）の頭が天井に触れない。
+        /// 落とす前の果物の中心の高さ。いちばん大きい落とせる果物（みかん・半径 7.3）の頭が天井に触れない。
         public static let spawnY: Double = 108
         /// 重力（単位/秒²）。
         public static let gravity: Double = 320

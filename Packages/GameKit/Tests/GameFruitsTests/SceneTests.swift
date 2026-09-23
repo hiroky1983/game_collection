@@ -60,6 +60,16 @@ struct SceneTests {
         #expect(notified == 1)
     }
 
+    @Test("危険線は開いた直後から通常色で塗られ、果物が掛かると警告色に変わる")
+    func deadlineIsStyledFromTheStart() {
+        let model = makeModel()
+        let scene = FruitsScene(model: model)
+        #expect(scene.isDeadlineWarning == nil, "まだ塗っていない")
+        // ビューに載せずに `didMove` を呼ぶ（SKView は作らない）。
+        scene.didMove(to: SKView())
+        #expect(scene.isDeadlineWarning == false, "既定の白のままにしない（地と見分けが付かない）")
+    }
+
     @Test("1 フレームの進みには上限がある")
     func frameIsCapped() {
         let model = makeModel()

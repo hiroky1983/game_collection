@@ -168,7 +168,7 @@ public struct FruitsView: View {
     }
 
     private var accessibilityValue: String {
-        var parts = ["果物 \(model.field.count) 個"]
+        var parts = ["果物 \(model.fruitCount) 個"]
         if let held = model.heldKind {
             parts.append("手に\(held.name)")
         } else {

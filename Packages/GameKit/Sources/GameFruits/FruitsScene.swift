@@ -57,7 +57,9 @@ final class FruitsScene: SKScene {
     private var consumedEffectSerial = -1
     /// 案内線を最後に描いた x。毎フレーム作り直さないため。
     private var renderedGuideX: Double = -1
-    private var renderedWarning = false
+    /// 描画済みの危険線の状態（警告か）。nil は「まだ一度も塗っていない」。
+    /// `SKColor` の比較は色空間違いで一致しないので、色ではなくこの値で判定する。
+    private var renderedWarning: Bool?
 
     /// 1 フレーム描き終えるたびに呼ぶ（#522）。呼び出し側が描画ループを止めてよいかを判断する合図。
     var onFrameRendered: (() -> Void)?
@@ -93,9 +95,11 @@ final class FruitsScene: SKScene {
         dashed.move(to: CGPoint(x: 0, y: FruitField.Metrics.deadlineY))
         dashed.addLine(to: CGPoint(x: FruitField.Metrics.width, y: FruitField.Metrics.deadlineY))
         deadlineNode.path = dashed.copy(dashingWithPhase: 0, lengths: [2.2, 1.6])
-        deadlineNode.lineWidth = 0.7
         deadlineNode.zPosition = 1
         addChild(deadlineNode)
+        // `SKShapeNode` の既定の線は不透明の白で、地（クリーム）とほぼ見分けが付かない。ここで通常色を塗る
+        // （`sync()` が塗るのは状態が変わったときだけ）。
+        applyDeadlineStyle(warning: false)
 
         guideNode.lineWidth = 0.5
         guideNode.strokeColor = FruitsPalette.color(FruitsPalette.guide, alpha: 0.45)
@@ -156,9 +160,11 @@ final class FruitsScene: SKScene {
                 node = makeFruitNode(fruit.kind)
                 fruitNodes[fruit.id] = node
                 addChild(node)
-                // 合体で生まれた果物は少し小さく出て膨らむ。落とした果物も同じ経路で出るが、
+                // 合体で生まれた果物は少し小さく出て膨らむ。「このフレームで生まれた」は年齢が 1 フレーム以内か
+                // で見る（`FruitField.step` は年齢を進めてから合体を適用するので、同じフレームの後半の
+                // サブステップで生まれた果物の年齢はぴったり 0 にならない）。落とした果物も同じ経路で出るが、
                 // 落とし始めは手の果物と同じ大きさなので違和感は無い。
-                if !reduceMotion, fruit.age == 0 {
+                if !reduceMotion, fruit.age <= FruitsModel.maxStep {
                     node.setScale(0.7)
                     node.run(.scale(to: 1, duration: 0.14))
                 }
@@ -199,13 +205,21 @@ final class FruitsScene: SKScene {
 
     private func syncDeadline() {
         let warning = model.isOverLine
-        guard warning != renderedWarning || deadlineNode.strokeColor == .clear else { return }
+        guard warning != renderedWarning else { return }
+        applyDeadlineStyle(warning: warning)
+    }
+
+    /// 危険線の色と太さ。果物が掛かっているあいだは赤く太くする。
+    private func applyDeadlineStyle(warning: Bool) {
         renderedWarning = warning
         deadlineNode.strokeColor = warning
             ? FruitsPalette.color(FruitsPalette.deadlineWarning)
             : FruitsPalette.color(FruitsPalette.deadline, alpha: 0.6)
         deadlineNode.lineWidth = warning ? 1.1 : 0.7
     }
+
+    /// 危険線が警告色か（テスト用）。
+    var isDeadlineWarning: Bool? { renderedWarning }
 
     /// 合体・消滅の輪。モデルが積んだ合図のうち、まだ描いていないものを描く。
     private func syncEffects() {

@@ -142,6 +142,7 @@ struct FruitsStartTests {
         model.moveCursor(to: 40)
         model.drop()
         #expect(model.field.count == 1)
+        #expect(model.fruitCount == 1)
         #expect(model.field.fruits.first?.kind == held)
         #expect(model.field.fruits.first?.x == 40)
         #expect(model.heldKind == nil)
@@ -337,6 +338,7 @@ struct FruitsGameOverTests {
         #expect(model.score == 300, "得点は残る")
         #expect(model.recordResult == nil)
         #expect(model.field.fruits.map(\.kind).sorted() == [.mandarin, .pineapple, .melon], "ぶどう（線の上）とブルーベリー（小さい）が消える")
+        #expect(model.fruitCount == 3, "果物の数の鏡も片づけに追従する")
         #expect(model.heldKind != nil, "すぐ落とせる")
         #expect(model.canDrop)
         #expect(playLog.record(gameID: "fruits")?.losses == 0, "負けは取り消す")
@@ -347,6 +349,20 @@ struct FruitsGameOverTests {
 
         // 2 回目は無い。
         #expect(!model.continueAfterAd(forGame: serial))
+    }
+
+    @Test("メロンを作っていた回のコンティニューは勝ちの記録を取り消さない")
+    func continueKeepsTheWin() {
+        let (playLog, defaults, name) = makePlayLog("continue-win")
+        defer { defaults.removePersistentDomain(forName: name) }
+        let model = makeModel(fruits: overflowingColumn, score: 400, hasMadeMelon: true, playLog: playLog)
+        advance(model, seconds: 1.5)
+        #expect(model.phase == .gameOver)
+        #expect(playLog.record(gameID: "fruits")?.wins == 1)
+        #expect(model.continueAfterAd(forGame: model.gameSerial))
+        #expect(playLog.record(gameID: "fruits")?.wins == 1, "勝ちは取り消さない")
+        #expect(playLog.record(gameID: "fruits")?.plays == 1)
+        #expect(model.hasMadeMelon, "続きでもメロンを作った印は残る")
     }
 
     @Test("広告のあいだに「はじめから」で入れ替わった局へは適用しない（#729）")
