@@ -686,7 +686,7 @@ struct PlayMeasurementCallSiteTests {
         return joined
     }
 
-    /// プレイを数えているモジュール（= ハブに並ぶ 23 本のゲーム + 企画倉庫のルーレット #1318）。
+    /// プレイを数えているモジュール（= ハブに並ぶ 23 本のゲーム + 企画倉庫のルーレット #1318・くっつきフルーツ #1319）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -696,7 +696,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 24, "ハブに並ぶゲームは23本 + 企画倉庫のルーレット（#1318）")
+        #expect(games.count == 25, "ハブに並ぶゲームは23本 + 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,

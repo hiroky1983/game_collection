@@ -31,6 +31,7 @@ let package = Package(
         .library(name: "GameSpider",       targets: ["GameSpider"]),
         .library(name: "GameFifteen",     targets: ["GameFifteen"]),
         .library(name: "GameRoulette",     targets: ["GameRoulette"]),
+        .library(name: "GameFruits",       targets: ["GameFruits"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
         .library(name: "GameBlockPuzzle",  targets: ["GameBlockPuzzle"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
@@ -78,6 +79,9 @@ let package = Package(
         // ルーレット（#1318・企画倉庫）。配当・当たり判定は純粋ロジックで、乱数は CoreEngine の
         // `SplitMix64` を使うので CoreEngine への依存も明示する。
         .target(name: "GameRoulette",       dependencies: ["Core", "CoreEngine"]),
+        // くっつきフルーツ（#1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない純粋ロジックで、
+        // 落とす果物の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
+        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine"]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
@@ -153,6 +157,7 @@ let package = Package(
         .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFifteenTests",        dependencies: ["GameFifteen", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameRouletteTests",       dependencies: ["GameRoulette", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameFruitsTests",         dependencies: ["GameFruits", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
@@ -189,7 +194,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
         .testTarget(name: "AnalyticsTests", dependencies: [
@@ -197,7 +202,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits",
             "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
@@ -206,7 +211,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette", "GameFruits",
             "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。

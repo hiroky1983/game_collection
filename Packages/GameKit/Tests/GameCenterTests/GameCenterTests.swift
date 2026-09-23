@@ -22,6 +22,7 @@ import GameHanafuda
 import GameShiritori
 import GameFifteen
 import GameRoulette
+import GameFruits
 import GameSpider
 import GameChess
 import GameBlocks
@@ -92,7 +93,7 @@ private func makeHubModules() -> [GameModule] {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
-        RouletteModule(),
+        RouletteModule(), FruitsModule(),
     ]
 }
 
@@ -303,6 +304,7 @@ struct GameCenterLeaderboardTests {
             ("runner", GameScore(metric: .points, points: 1, variant: "endless")),
             ("hanafuda", GameScore(metric: .points, points: 1)),
             ("roulette", GameScore(metric: .points, points: 1)),
+            ("fruits", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID
