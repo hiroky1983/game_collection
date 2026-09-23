@@ -611,6 +611,7 @@ struct Challenges: View {
 
 struct LobbyTrial: View {
     var remaining = 2
+    var threeD = false   // 3 回目（方向 3D）: 打者を SceneKit の描画に差し替え、説明文を 2 軸の判定に合わせる
     var body: some View {
         ZStack(alignment: .bottom) {
             T.bg.ignoresSafeArea()
@@ -619,10 +620,10 @@ struct LobbyTrial: View {
                 VStack(spacing: 12) {
                     Card {
                         HStack(alignment: .center, spacing: 14) {
-                            Px(canvas: ojisanHD(.stance), scale: 2)
+                            if threeD { Img3D("3d-pose-0", w: 92, h: 106) } else { Px(canvas: ojisanHD(.stance), scale: 2) }
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("1 挑戦 = 10 球").font(T.f(20, .heavy)).foregroundStyle(T.ink)
-                                Text("タイミングだけで柵を越えろ。\nアウトは無い。10 球ぜんぶ振れる。").font(T.f(13, .medium)).foregroundStyle(T.inkSub)
+                                Text(threeD ? "タイミングとミートで柵を越えろ。\n方向と角度は自分で決める。アウトは無い。" : "タイミングだけで柵を越えろ。\nアウトは無い。10 球ぜんぶ振れる。").font(T.f(13, .medium)).foregroundStyle(T.inkSub)
                                 Chip(text: "体験版", fill: T.fillPurple, icon: "sparkles")
                             }
                             Spacer(minLength: 0)
@@ -1498,7 +1499,381 @@ struct CompareAB: View {
 // MARK: - 書き出し
 
 @MainActor
-func write<V: View>(_ v: V, _ name: String, dir: String, scale: CGFloat = 2) {
+// MARK: - 3 回目（会長決裁 2026-09-24: キャラは 3D・打席はセンターカメラ・判定は 2 軸）
+// 絵は mock3d.swift（SceneKit）が書き出した 3d-*.png を読み込み、HUD と図だけを SwiftUI で重ねる。
+
+var assetDir = "."   // トップレベル変数は main ファイルでは MainActor 隔離になる
+
+struct Img3D: View {
+    let name: String; var w: CGFloat = 393, h: CGFloat = 852
+    init(_ name: String, w: CGFloat = 393, h: CGFloat = 852) { self.name = name; self.w = w; self.h = h }
+    var body: some View {
+        if let img = NSImage(contentsOfFile: assetDir + "/" + name + ".png") {
+            Image(nsImage: img).resizable().interpolation(.high).frame(width: w, height: h)
+        } else {
+            Rectangle().fill(T.fillMuted).frame(width: w, height: h).overlay(Text("no \(name)").font(T.f(12)))
+        }
+    }
+}
+
+/// 打球方向（度・0 が中堅・負が左）から呼び名を引く。
+func directionName(_ deg: Double) -> String {
+    if abs(deg) > 45 { return "ファウル" }
+    if deg < -32 { return "レフト" }; if deg < -10 { return "左中間" }
+    if deg <= 10 { return "センター" }; if deg <= 32 { return "右中間" }
+    return "ライト"
+}
+/// 柵の距離（両翼 100m・中堅 122m。mock3d.swift と同じ式）。
+func fenceMeters(_ deg: Double) -> Double { 100 + 22 * cos(2 * deg * .pi / 180) }
+
+struct Hit { let deg: Double; let dist: Double; let kind: String }   // kind: hr / hit / wall / miss / foul
+
+/// 扇形のスプレーチャート（上から見た球場。本塁が下端の中央）。
+struct FanChart: View {
+    var hits: [Hit] = []
+    var highlight: Double? = nil        // 打球方向をハイライト（打席・外野カメラの方向メーター）
+    var labels = false
+    var dark = false
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            let cx = w / 2, cy = h - 6, s = (h - 24) / 122
+            let pt: (Double, Double) -> CGPoint = { deg, d in CGPoint(x: cx + d * s * sin(deg * .pi / 180), y: cy - d * s * cos(deg * .pi / 180)) }
+            let line = dark ? Color.white : T.ink
+            ZStack {
+                // フェア地域（扇）と柵の弧
+                Path { p in
+                    p.move(to: CGPoint(x: cx, y: cy))
+                    for deg in stride(from: -45.0, through: 45.0, by: 1.5) { p.addLine(to: pt(deg, fenceMeters(deg))) }
+                    p.closeSubpath()
+                }.fill(dark ? Color.white.opacity(0.14) : hexColor(0x5FB05F, 0.28))
+                if let hl = highlight {
+                    Path { p in
+                        p.move(to: CGPoint(x: cx, y: cy))
+                        for deg in stride(from: hl - 7, through: hl + 7, by: 1.0) { p.addLine(to: pt(deg, fenceMeters(deg) + 8)) }
+                        p.closeSubpath()
+                    }.fill(T.yellow.opacity(0.75))
+                }
+                Path { p in
+                    p.move(to: pt(-45, fenceMeters(-45)))
+                    for deg in stride(from: -45.0, through: 45.0, by: 1.5) { p.addLine(to: pt(deg, fenceMeters(deg))) }
+                }.stroke(dark ? Color.white : hexColor(0x2F7A4F), lineWidth: 2)
+                Path { p in p.move(to: pt(-45, 112)); p.addLine(to: CGPoint(x: cx, y: cy)); p.addLine(to: pt(45, 112)) }
+                    .stroke(line.opacity(0.7), style: StrokeStyle(lineWidth: 1.5))
+                // 内野の菱形（小さく）
+                Path { p in p.move(to: CGPoint(x: cx, y: cy)); p.addLine(to: pt(-45, 27.4)); p.addLine(to: pt(0, 38.8)); p.addLine(to: pt(45, 27.4)); p.closeSubpath() }
+                    .stroke(line.opacity(0.45), lineWidth: 1)
+                if labels {
+                    Text("100").font(T.f(9)).foregroundStyle(line).position(pt(-45, 100).applying(.init(translationX: -12, y: -8)))
+                    Text("122").font(T.f(9)).foregroundStyle(line).position(pt(0, 122).applying(.init(translationX: 14, y: -22)))
+                    Text("100").font(T.f(9)).foregroundStyle(line).position(pt(45, 100).applying(.init(translationX: 12, y: -8)))
+                }
+                ForEach(0..<hits.count, id: \.self) { i in
+                    let hit = hits[i]
+                    let p = hit.kind == "miss" ? CGPoint(x: cx, y: cy - 6) : pt(hit.deg, hit.dist)
+                    ZStack {
+                        switch hit.kind {
+                        case "hr": Image(systemName: "star.fill").font(.system(size: 13, weight: .black)).foregroundStyle(T.yellow).shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+                        case "wall": Circle().fill(T.coral).frame(width: 9, height: 9).overlay(Circle().stroke(.white, lineWidth: 1.5))
+                        case "foul": Text("F").font(T.f(10, .black)).foregroundStyle(T.inkSub)
+                        case "miss": Image(systemName: "xmark").font(.system(size: 9, weight: .black)).foregroundStyle(T.inkSub)
+                        default: Circle().fill(T.teal).frame(width: 9, height: 9).overlay(Circle().stroke(.white, lineWidth: 1.5))
+                        }
+                        Text("\(i + 1)").font(T.f(7, .heavy)).foregroundStyle(line).offset(x: 8, y: -7)
+                    }.position(p)
+                }
+            }
+        }
+    }
+}
+
+/// 3D 打席の HUD（センターカメラ・2 軸の判定）。座標は mock3d.swift の probe 出力（pt）に合わせてある。
+struct AtBat3D: View {
+    let target = CGPoint(x: 158, y: 498)     // 的（ボールが本塁上を通る点 = 内角低め。probe zone 166,485 の左下）
+    let cursor = CGPoint(x: 146, y: 508)     // ミートカーソル（的の少し下・内側 = 上がる帯 + 引っ張り）     // ミートカーソル（的の少し下 = 打球が上がる帯）
+    var body: some View {
+        ZStack(alignment: .top) {
+            Img3D("3d-at-bat")
+            LinearGradient(colors: [.black.opacity(0.5), .clear], startPoint: .top, endPoint: .bottom).frame(height: 190)
+            // ストライクゾーン（9 分割・半透明）
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(.white.opacity(0.1)).frame(width: 70, height: 92)
+                RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.85), lineWidth: 1.5).frame(width: 70, height: 92)
+                Path { p in
+                    for i in 1..<3 { p.move(to: CGPoint(x: 70 / 3 * CGFloat(i), y: 0)); p.addLine(to: CGPoint(x: 70 / 3 * CGFloat(i), y: 92)) }
+                    for i in 1..<3 { p.move(to: CGPoint(x: 0, y: 92 / 3 * CGFloat(i))); p.addLine(to: CGPoint(x: 70, y: 92 / 3 * CGFloat(i))) }
+                }.stroke(.white.opacity(0.35), lineWidth: 1).frame(width: 70, height: 92)
+            }.position(x: 170, y: 490)
+            // 的（白い細い輪・固定）と縮む輪（コーラル・投球の途中）
+            Circle().fill(.white.opacity(0.16)).frame(width: 46, height: 46).position(target)
+            Circle().stroke(.white, lineWidth: 1.2).frame(width: 46, height: 46).position(target)
+            Circle().stroke(T.coral, lineWidth: 5).frame(width: 78, height: 78).shadow(color: T.coral.opacity(0.7), radius: 6).position(target)
+            // ミートカーソル（水色の輪 + 中心の点。左親指のドラッグで動く。黄はグローブと被るので使わない）
+            ZStack {
+                Circle().stroke(T.teal, lineWidth: 3).frame(width: 34, height: 34).shadow(color: .black.opacity(0.45), radius: 2)
+                Circle().fill(.white).frame(width: 6, height: 6)
+                Path { p in p.move(to: CGPoint(x: 17, y: 3)); p.addLine(to: CGPoint(x: 17, y: 9)); p.move(to: CGPoint(x: 17, y: 25)); p.addLine(to: CGPoint(x: 17, y: 31)); p.move(to: CGPoint(x: 3, y: 17)); p.addLine(to: CGPoint(x: 9, y: 17)); p.move(to: CGPoint(x: 25, y: 17)); p.addLine(to: CGPoint(x: 31, y: 17)) }
+                    .stroke(T.teal, lineWidth: 2).frame(width: 34, height: 34)
+            }.position(cursor)
+            // HUD（上）: 球数 / 今回の合計 / 柵越え本数、直前 2 球の結果（方向つき）
+            VStack(spacing: 6) {
+                HStack {
+                    hud("4 / 10 球", icon: "baseball.fill")
+                    Spacer()
+                    VStack(spacing: 0) { Text("今回").font(T.f(11)).foregroundStyle(.white.opacity(0.85)); Text("232 m").font(T.f(28, .heavy).monospacedDigit()).foregroundStyle(.white) }
+                    Spacer()
+                    hud("柵越え 1", icon: "flag.checkered")
+                }
+                .padding(.horizontal, 16).padding(.top, 60)
+                HStack(spacing: 8) { Chip(text: "2 球目 128 m ★ 左中間", fill: T.yellow); Chip(text: "3 球目 空振り", fill: .white.opacity(0.9)) }.padding(.leading, 56)
+            }
+            // 方向メーター（今のカーソルとタイミングならどこへ飛ぶか。右上）
+            VStack(spacing: 2) {
+                FanChart(highlight: -22, dark: true).frame(width: 84, height: 66)
+                Text("左中間 116 m").font(T.f(10, .heavy)).foregroundStyle(.white)
+            }.padding(8).background(RoundedRectangle(cornerRadius: 12).fill(.black.opacity(0.35))).position(x: 330, y: 205)
+            HStack { Image(systemName: "pause.fill").font(T.f(15)).foregroundStyle(T.coral).frame(width: 36, height: 36).background(Circle().fill(.white)); Spacer() }
+                .padding(.leading, 16).padding(.top, 104)
+            // 親指 2 本の受け口（左: カーソル・右: スイング）と案内
+            VStack { Spacer()
+                HStack(alignment: .bottom) {
+                    pad(label: "カーソル", icon: "arrow.up.and.down.and.arrow.left.and.right")
+                    Spacer()
+                    pad(label: "スイング", icon: "hand.tap.fill")
+                }.padding(.horizontal, 22)
+                HStack(spacing: 8) { Text("左: ボールの少し下へカーソル ／ 右: 輪が重なったらタップ") }
+                    .font(T.f(13)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 9)
+                    .background(Capsule().fill(.black.opacity(0.4))).padding(.top, 8).padding(.bottom, 36)
+            }
+        }
+    }
+    func hud(_ t: String, icon: String) -> some View {
+        HStack(spacing: 5) { Image(systemName: icon).font(T.f(12)); Text(t).font(T.f(14, .heavy).monospacedDigit()) }
+            .foregroundStyle(.white).padding(.horizontal, 12).padding(.vertical, 7).background(Capsule().fill(.black.opacity(0.35)))
+    }
+    func pad(label: String, icon: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 26, weight: .bold))
+            Text(label).font(T.f(11, .heavy))
+        }.foregroundStyle(.white.opacity(0.9)).frame(width: 92, height: 92)
+        .background(Circle().fill(.white.opacity(0.14)).overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1.5)))
+    }
+}
+
+/// 3D の外野カメラ（左中間へ伸びる打球。フェンスの距離が方向で違うことを見せる）。
+struct Outfield3D: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            Img3D("3d-outfield")
+            LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom).frame(height: 160)
+            // フェンスの距離表示（3D の白い板の上に置く）
+            Text("左中間 116 m").font(T.f(20, .black)).foregroundStyle(hexColor(0x28345C)).position(x: 196, y: 510)
+            VStack(spacing: 6) {
+                Chip(text: "左中間へ！", fill: T.teal, icon: "arrow.up.left")
+                Text("104 m").font(T.f(64, .black).monospacedDigit()).foregroundStyle(.white).shadow(color: .black.opacity(0.4), radius: 3, y: 3)
+                Text("ぐんぐん伸びる…").font(T.f(16, .heavy)).foregroundStyle(.white.opacity(0.9)).shadow(color: .black.opacity(0.4), radius: 2, y: 2)
+            }.padding(.top, 72)
+            VStack(spacing: 2) {
+                FanChart(highlight: -22, dark: true).frame(width: 84, height: 66)
+                Text("柵まで 116 m").font(T.f(10, .heavy)).foregroundStyle(.white)
+            }.padding(8).background(RoundedRectangle(cornerRadius: 12).fill(.black.opacity(0.35))).position(x: 330, y: 300)
+            VStack { Spacer(); HStack(spacing: 6) { Image(systemName: "baseball.fill"); Text("4 球目 ／ ここまで 232 m ／ 柵越え 1") }.font(T.f(14, .heavy)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 8).background(Capsule().fill(.black.opacity(0.35))).padding(.bottom, 40) }
+        }
+    }
+}
+
+/// 結果（スプレーチャート付き）。
+struct Result3D: View {
+    let hits: [Hit] = [
+        Hit(deg: -30, dist: 104, kind: "hit"), Hit(deg: -12, dist: 128, kind: "hr"), Hit(deg: 0, dist: 0, kind: "miss"), Hit(deg: -22, dist: 131, kind: "hr"),
+        Hit(deg: 18, dist: 96, kind: "hit"), Hit(deg: 8, dist: 124, kind: "hr"), Hit(deg: -40, dist: 77, kind: "hit"), Hit(deg: -48, dist: 60, kind: "foul"),
+        Hit(deg: -2, dist: 127, kind: "hr"), Hit(deg: 30, dist: 111, kind: "wall"),
+    ]
+    func legend(_ icon: String, _ c: Color, _ t: String) -> some View {
+        HStack(spacing: 2) { Image(systemName: icon).font(.system(size: 8, weight: .black)).foregroundStyle(c); Text(t).font(T.f(9, .medium)).foregroundStyle(T.inkSub) }
+    }
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            T.bg.ignoresSafeArea()
+            VStack(spacing: 10) {
+                NavBar(title: "柵越えおじさん")
+                VStack(spacing: 10) {
+                    Card {
+                        HStack(spacing: 12) {
+                            Img3D("3d-pose-2", w: 84, h: 97)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("10 球の結果").font(T.f(13)).foregroundStyle(T.inkSub)
+                                Text("898 m").font(T.f(38, .black).monospacedDigit()).foregroundStyle(T.ink)
+                                HStack(spacing: 6) { Chip(text: "柵越え 4 本", fill: T.yellow, icon: "flag.checkered"); Chip(text: "ベスト更新！", fill: T.pink) }
+                            }
+                        }
+                    }
+                    Card {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 6) {
+                                Text("どこへ飛んだか").font(T.f(15)).foregroundStyle(T.ink); Spacer()
+                                legend("star.fill", T.yellow, "柵越え"); legend("circle.fill", T.teal, "当たり"); legend("circle.fill", T.coral, "直撃"); Text("F").font(T.f(9, .black)).foregroundStyle(T.inkSub); Text("ファウル").font(T.f(9, .medium)).foregroundStyle(T.inkSub); legend("xmark", T.inkSub, "空振り")
+                            }
+                            FanChart(hits: hits, labels: true).frame(height: 150)
+                            HStack(spacing: 10) {
+                                Text("左 4 ／ 中 2 ／ 右 2 ／ ファウル 1 ／ 空振り 1").font(T.f(11, .heavy)).foregroundStyle(T.ink)
+                                Spacer()
+                                Text("中堅を越えたのは 6・9 球目").font(T.f(10, .medium)).foregroundStyle(T.inkSub).lineLimit(1).minimumScaleFactor(0.7)
+                            }
+                        }
+                    }
+                    Card {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("1 球ずつ").font(T.f(15)).foregroundStyle(T.ink)
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
+                                ForEach(0..<10, id: \.self) { i in
+                                    let h = hits[i]
+                                    VStack(spacing: 2) {
+                                        Image(systemName: h.kind == "hr" ? "star.fill" : (h.kind == "miss" ? "xmark" : "baseball.fill")).font(T.f(12)).foregroundStyle(h.kind == "hr" ? T.yellow : (h.kind == "hit" || h.kind == "wall" ? T.teal : T.inkSub))
+                                        Text(h.kind == "miss" ? "空振り" : (h.kind == "foul" ? "ファウル" : "\(Int(h.dist)) m")).font(T.f(10, .heavy).monospacedDigit()).foregroundStyle(T.ink)
+                                        Text(h.kind == "miss" ? "—" : (h.kind == "wall" ? "直撃" : directionName(h.deg))).font(T.f(8, .medium)).foregroundStyle(T.inkSub)
+                                    }.frame(maxWidth: .infinity).padding(.vertical, 6).background(RoundedRectangle(cornerRadius: 10).fill(h.kind == "hr" ? T.yellow.opacity(0.25) : hexColor(0xF7F1E8)))
+                                }
+                            }
+                            HStack { Text("最長 131 m（4 球目・左中間・ジャスト）").font(T.f(11, .medium)).foregroundStyle(T.inkSub); Spacer(); Text("順位表に送信済み").font(T.f(11, .medium)).foregroundStyle(T.inkSub) }
+                        }
+                    }
+                    HStack(spacing: 10) {
+                        BigButton(text: "もう一回（残り 1）", icon: "arrow.counterclockwise")
+                        BigButton(text: "ホームへ", fill: hexColor(0xEFE7DC), fg: T.ink).frame(width: 120)
+                    }
+                }.padding(.horizontal, 16)
+                Spacer(minLength: 0)
+                Banner().padding(.bottom, 24)
+            }
+        }
+    }
+}
+
+/// 判定 2 軸の操作説明図（会長指摘「タイミング 1 軸だけではプレミアムとして成り立たない」への回答）。
+struct Controls2Axis: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            T.bg.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("判定は 2 軸: いつ振るか × どこで捉えるか").font(T.f(20, .heavy)).foregroundStyle(T.ink).padding(.top, 64)
+                Text("縮む輪のタイミングで飛距離の土台と左右のずれ、ミートカーソルの上下で角度・左右で方向。「どこへどれだけ飛ぶか」を自分で決める。").font(T.f(12, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                Card {
+                    HStack(alignment: .top, spacing: 12) {
+                        // 画面の縮図
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12).fill(hexColor(0x5FB05F, 0.35)).frame(width: 104, height: 190)
+                            RoundedRectangle(cornerRadius: 3).stroke(T.ink.opacity(0.6), lineWidth: 1).frame(width: 26, height: 34).position(x: 52, y: 78)
+                            Circle().stroke(T.coral, lineWidth: 3).frame(width: 30, height: 30).position(x: 50, y: 82)
+                            Circle().stroke(T.teal, lineWidth: 2.5).frame(width: 14, height: 14).position(x: 48, y: 86)
+                            Circle().fill(T.ink.opacity(0.15)).frame(width: 34, height: 34).position(x: 24, y: 160)
+                            Circle().fill(T.ink.opacity(0.15)).frame(width: 34, height: 34).position(x: 80, y: 160)
+                            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right").font(.system(size: 13, weight: .bold)).foregroundStyle(T.ink).position(x: 24, y: 160)
+                            Image(systemName: "hand.tap.fill").font(.system(size: 13, weight: .bold)).foregroundStyle(T.ink).position(x: 80, y: 160)
+                        }.frame(width: 104, height: 190)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("親指 2 本").font(T.f(15)).foregroundStyle(T.ink)
+                            row("左", "ドラッグでミートカーソル（水色）を動かす。離しても消えない", T.teal)
+                            row("右", "輪（コーラル）が的に重なった瞬間にタップ = スイング", T.coral)
+                            row("的", "ボールが本塁上を通る点。投球開始と同時に見える。9 分割のゾーンのどこかに来る", .white)
+                            Text("片手で遊ぶ設定（ホールドで動かし・離して振る）は補助として残す。体験版の測定は 2 本指を既定にする").font(T.f(10, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                Card {
+                    HStack(alignment: .top, spacing: 12) {
+                        ZStack(alignment: .top) {
+                            VStack(spacing: 0) {
+                                band("上", "ゴロ 0〜10°", hexColor(0xEFE7DC))
+                                band("真ん中", "ライナー 10〜20°", hexColor(0xD9F1EF))
+                                band("少し下", "柵越え 25〜35°", T.yellow.opacity(0.45))
+                                band("下すぎ", "ポップ 45°〜", hexColor(0xEFE7DC))
+                            }.frame(width: 150)
+                            Circle().fill(.white).frame(width: 16, height: 16).overlay(Circle().stroke(T.ink, lineWidth: 1)).offset(x: 63, y: 38)
+                            Circle().stroke(T.teal, lineWidth: 2.5).frame(width: 18, height: 18).offset(x: 63, y: 66)
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("角度 = カーソルの高さ").font(T.f(15)).foregroundStyle(T.ink)
+                            Text("ボール（白）の少し下にカーソル（水色）を置くと打球が上がる。真ん中は速いが低く、柵を越えにくい。上を叩くとゴロで距離は伸びない。").font(T.f(11, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                            Text("帯の幅はゾーンの 1/4（約 22pt）。ジャストでも帯を外すと柵越えにならない").font(T.f(10, .medium)).foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                Card {
+                    HStack(alignment: .top, spacing: 12) {
+                        FanChart(labels: true).frame(width: 150, height: 120)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("方向 = 左右 + タイミング").font(T.f(15)).foregroundStyle(T.ink)
+                            row("左右", "カーソルをボールの内側に置くと引っ張り、外側なら流し打ち（最大 ±35°）", T.teal)
+                            row("早い/遅い", "早いタップは引っ張り側、遅いと流し側へ ±15° ずれる", T.coral)
+                            Text("柵は両翼 100 m・中堅 122 m。合計が ±45° を越えるとファウル（0 m）= 目一杯引っ張って早く振ったときだけ起きる。センターは遠いがファウルが無い、の駆け引き").font(T.f(10, .medium)).foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                Card {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("飛距離 = 土台（タイミング）× 角度の係数 × 芯（カーソルとボールの距離）").font(T.f(13, .heavy)).foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
+                        Text("土台: ジャスト 135 / ナイス 120 / 当たり 100 m（能力値で伸びる）。角度: 柵越えの帯 1.0・ライナー 0.85・ゴロ 0.3・ポップ 0.5。芯: ぴったり 1.0 → 半径 11pt で 0.8。乱数は入れない（今までどおり）").font(T.f(10, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }.padding(.horizontal, 16)
+        }
+    }
+    func row(_ k: String, _ t: String, _ c: Color) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(k).font(T.f(10, .heavy)).foregroundStyle(T.ink).padding(.horizontal, 6).padding(.vertical, 2).background(Capsule().fill(c == .white ? hexColor(0xEFE7DC) : c.opacity(0.5)))
+            Text(t).font(T.f(11, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    func band(_ k: String, _ t: String, _ c: Color) -> some View {
+        HStack { Text(k).font(T.f(10, .heavy)).foregroundStyle(T.ink).frame(width: 42, alignment: .leading); Text(t).font(T.f(9, .medium)).foregroundStyle(T.ink) }
+            .padding(.leading, 10).frame(width: 150, height: 28, alignment: .leading).background(c)
+    }
+}
+
+/// 3D のキャラ案（SceneKit・4 ポーズ + 回転 + 縮小）。
+struct Character3D: View {
+    let names = ["構え", "スイング", "柵越え", "空振り"]
+    var body: some View {
+        ZStack(alignment: .top) {
+            T.bg.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("方向 3D: 図形合成 + トゥーン陰影").font(T.f(22, .heavy)).foregroundStyle(T.ink).padding(.top, 64)
+                Text("球・カプセル・箱・円柱だけで組んだ本当の 3D モデル（SceneKit）。3 段階の陰影と輪郭線で「パワプロ」に近いトゥーン調。外部の 3D 資産・画像は使っていない = 社内で 0 円でできる上限。").font(T.f(12, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                Card {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("ユニフォーム姿・4 ポーズ（同じモデルの関節違い）").font(T.f(14)).foregroundStyle(T.ink)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
+                            ForEach(0..<4, id: \.self) { i in
+                                VStack(spacing: 0) { Img3D("3d-pose-\(i)", w: 130, h: 150); Text(names[i]).font(T.f(11)).foregroundStyle(T.inkSub) }
+                            }
+                        }
+                    }
+                }
+                Card {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("回せる（カメラが動く演出に耐える）").font(T.f(14)).foregroundStyle(T.ink)
+                        HStack(spacing: 4) { ForEach(0..<4, id: \.self) { i in Img3D("3d-turn-\(i)", w: 72, h: 83) } }
+                        Text("正面・斜め・真横・背中。コマ絵ではないので外野カメラや打者の回転をそのまま作れる").font(T.f(10, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Card {
+                    HStack(spacing: 12) {
+                        Img3D("3d-pose-0", w: 44, h: 50)
+                        RoundedRectangle(cornerRadius: 14).fill(T.yellow).frame(width: 60, height: 60).overlay(Img3D("3d-pose-0", w: 52, h: 60))
+                        Img3D("3d-pitcher", w: 62, h: 71)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("縮めても読める").font(T.f(14)).foregroundStyle(T.ink)
+                            Text("ハブ 44pt・アイコン・投手（同じ部品の色替え）。顔の特徴は `OjisanPixel` と同じ").font(T.f(10, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }.padding(.horizontal, 16)
+        }
+    }
+}
+
+@MainActor func write<V: View>(_ v: V, _ name: String, dir: String, scale: CGFloat = 2) {
     let r = ImageRenderer(content: v)
     r.scale = scale
     guard let cg = r.cgImage else { print("no image: \(name)"); return }
@@ -1511,6 +1886,17 @@ func write<V: View>(_ v: V, _ name: String, dir: String, scale: CGFloat = 2) {
 
 MainActor.assumeIsolated {
     let dir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
+    assetDir = dir
+    if CommandLine.arguments.count > 2 && CommandLine.arguments[2] == "3d" {
+        // 3 回目（方向 3D + 判定 2 軸・31〜36）だけを描く。先に `mock3dbin <dir>` で 3d-*.png を作っておくこと
+        write(Phone(dark: true) { AtBat3D() }, "31-at-bat-3D", dir: dir)
+        write(Phone { Character3D() }, "32-character-3D", dir: dir)
+        write(Phone(dark: true) { Outfield3D() }, "33-outfield-3D", dir: dir)
+        write(Phone { Result3D() }, "34-result-spray", dir: dir)
+        write(Phone { Controls2Axis() }, "35-controls", dir: dir)
+        write(Phone { LobbyTrial(threeD: true) }, "36-lobby-3D", dir: dir)
+        return
+    }
     write(Phone { LobbyTrial() }, "01-lobby-trial", dir: dir)
     write(Phone { LobbyFull() }, "02-lobby-full", dir: dir)
     write(Phone(dark: true) { AtBat() }, "03-at-bat", dir: dir)
