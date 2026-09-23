@@ -477,6 +477,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                   !hints.isExhausted,
                   let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move),
                   hints.consume() else { return }
+            services?.gameDidUseHint(gameID: gameID)
             hintMove = move
             services?.feedback.impact(.light)
             // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
