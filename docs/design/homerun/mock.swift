@@ -577,8 +577,9 @@ struct AtBat: View {
             }
             Px(canvas: ball(), scale: 3).position(x: 236, y: 646)
             Px(canvas: ojisan(p, pose: .stance), scale: 3).position(x: 112, y: 684)
-            // 判定リング: 白い的（固定）と、収縮してくるコーラルの輪
-            Circle().stroke(.white, lineWidth: 3).frame(width: 46, height: 46).position(x: 196, y: 662)
+            // 判定リング: 白い的（固定・線は細く、内側を薄く塗る）と、収縮してくるコーラルの輪（太い）
+            Circle().fill(.white.opacity(0.18)).frame(width: 46, height: 46).position(x: 196, y: 662)
+            Circle().stroke(.white, lineWidth: 1).frame(width: 46, height: 46).position(x: 196, y: 662)
             Circle().stroke(T.coral, lineWidth: 5).frame(width: 118, height: 118).position(x: 196, y: 662)
             Circle().fill(T.coral.opacity(0.12)).frame(width: 118, height: 118).position(x: 196, y: 662)
             // HUD（上）
@@ -594,7 +595,7 @@ struct AtBat: View {
                 HStack(spacing: 8) { Chip(text: "1 球目 118 m", fill: .white.opacity(0.9)); Chip(text: "2 球目 128 m 柵越え", fill: T.yellow) }
             }
             // 前の球の判定（フェードアウト中）
-            Text("ナイス！").font(T.f(34, .heavy)).foregroundStyle(T.yellow)
+            Text("ナイス！").font(T.f(34, .heavy)).foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.35), radius: 2, y: 2).position(x: 196, y: 470)
             // 下の案内
             VStack { Spacer()
@@ -642,7 +643,7 @@ struct Outfield: View {
             VStack(spacing: 4) {
                 Text("柵越え！").font(T.f(48, .black)).foregroundStyle(T.yellow).shadow(color: .black.opacity(0.4), radius: 3, y: 3)
                 Text("131 m").font(T.f(64, .black).monospacedDigit()).foregroundStyle(.white).shadow(color: .black.opacity(0.4), radius: 3, y: 3)
-                Chip(text: "ジャスト ±25ms", fill: T.yellow, icon: "star.fill")
+                Chip(text: "ジャスト", fill: T.yellow, icon: "star.fill")
             }.padding(.top, 84)
             // 紙吹雪
             ForEach(0..<24, id: \.self) { i in
@@ -855,7 +856,7 @@ MainActor.assumeIsolated {
     write(Phone { Recover() }, "06-recover", dir: dir)
     write(Phone { CharacterSheet() }, "07-character", dir: dir)
     write(Phone { Placement() }, "08-placement", dir: dir)
-    // ドット絵だけの大きなシート（レビュー用・8 倍）
+    // ドット絵だけの大きなシート（レビュー用・6 倍）
     var sheet = PixelCanvas(w: 3 * 64, h: 4 * 60)
     for (i, p) in proportions.enumerated() { for (j, pose) in [Pose.stance, .swing, .cheer, .frown].enumerated() {
         sheet.blit(ojisan(p, pose: pose), i * 64 + 4, j * 60 + 4)
