@@ -610,7 +610,7 @@ struct Challenges: View {
 // MARK: - 画面 1: 打席前（体験版）
 
 struct LobbyTrial: View {
-    let p = proportions[1]
+    var remaining = 2
     var body: some View {
         ZStack(alignment: .bottom) {
             T.bg.ignoresSafeArea()
@@ -630,8 +630,8 @@ struct LobbyTrial: View {
                     }
                     Card {
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack { Text("今日の挑戦").font(T.f(15)).foregroundStyle(T.ink); Spacer(); Text("残り 2 / 3").font(T.f(15, .heavy)).foregroundStyle(T.coral) }
-                            Challenges(remaining: 2, total: 3)
+                            HStack { Text("今日の挑戦").font(T.f(15)).foregroundStyle(T.ink); Spacer(); Text("残り \(remaining) / 3").font(T.f(15, .heavy)).foregroundStyle(T.coral) }
+                            Challenges(remaining: remaining, total: 3)
                             Text("0:00 に 3 回に戻ります").font(T.f(12, .medium)).foregroundStyle(T.inkSub)
                             HStack(spacing: 8) {
                                 smallButton("広告を見て +1", sub: "1 本 30 秒・きょう あと 5 本", icon: "play.rectangle.fill", fill: T.fillCoral)
@@ -906,7 +906,7 @@ struct Recover: View {
     let p = proportions[1]
     var body: some View {
         ZStack(alignment: .bottom) {
-            LobbyTrial()
+            LobbyTrial(remaining: 0)
             Color.black.opacity(0.4)
             VStack(spacing: 14) {
                 Capsule().fill(hexColor(0xD9CFC3)).frame(width: 36, height: 5).padding(.top, 8)
@@ -1113,12 +1113,12 @@ struct VecOjisan: View {
             // バット（構えは体の後ろ）
             if pose == .stance { batView(Pt(x: 146, y: 88), Pt(x: 170, y: 26)) }
             if pose == .cheer || pose == .frown { batView(Pt(x: 60, y: 165), Pt(x: 120, y: 165)) }
-            // 脚
+            // 脚（白パンツが胴の下に見えるよう、胴より 8pt 下まで出す）
             ForEach([84.0, 116.0], id: \.self) { x in
-                Capsule().fill(V.white).frame(width: 24, height: 48).position(x: x, y: 138)
-                Capsule().fill(V.navy).frame(width: 24, height: 20).position(x: x, y: 150)
-                RoundedRectangle(cornerRadius: 5).fill(V.dark).frame(width: 30, height: 12).position(x: x, y: 163)
-                Capsule().fill(.white.opacity(0.35)).frame(width: 5, height: 26).position(x: x - 7, y: 132)
+                Capsule().fill(V.white).frame(width: 24, height: 50).position(x: x, y: 142)
+                Capsule().fill(V.navy).frame(width: 24, height: 16).position(x: x, y: 157)
+                RoundedRectangle(cornerRadius: 5).fill(V.dark).frame(width: 30, height: 12).position(x: x, y: 166)
+                Capsule().fill(.white.opacity(0.35)).frame(width: 5, height: 22).position(x: x - 7, y: 138)
             }
             // 胴（ジャージ）
             ZStack {
@@ -1132,7 +1132,7 @@ struct VecOjisan: View {
             .frame(width: 66, height: 54).clipShape(RoundedRectangle(cornerRadius: 18))
             .overlay(alignment: .bottom) { Capsule().fill(V.navy).frame(width: 66, height: 8).overlay(RoundedRectangle(cornerRadius: 2).fill(V.yellow).frame(width: 10, height: 6)) }
             .rotationEffect(.degrees(pose == .swing ? -6 : 0))
-            .position(x: 100, y: 112)
+            .position(x: 100, y: 108)
             // 袖口（白）と腕・手袋・バット
             Capsule().fill(V.white).frame(width: 22, height: 16).rotationEffect(.degrees(24)).position(x: 70, y: 96)
             Capsule().fill(V.white).frame(width: 22, height: 16).rotationEffect(.degrees(-24)).position(x: 130, y: 96)
@@ -1381,14 +1381,14 @@ struct CharacterA: View {
             T.bg.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 12) {
                 Text("方向A: ドット絵のまま密度を上げる").font(T.f(20, .heavy)).foregroundStyle(T.ink).padding(.top, 64)
-                Text("グリッドを 2 倍（頭 18 → 30 ドット）にし、縁の陰影と服の描き込み（ピンストライプ・前立て・ベルト・耳当て）を足した。色はチャリンコおじさんと同じパレット + 3 色。")
+                Text("グリッドを約 1.7 倍（頭 18 → 30 ドット）にし、縁の陰影と服の描き込み（ピンストライプ・前立て・ベルト・耳当て）を足した。色はチャリンコおじさんと同じパレット + 3 色。")
                     .font(T.f(11, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
                 Card {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("ユニフォーム姿・4 ポーズ（2 倍）").font(T.f(15, .heavy)).foregroundStyle(T.ink)
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .center, spacing: 6) {
                             ForEach([Pose.stance, .swing, .cheer, .frown], id: \.self) { pose in
-                                VStack(spacing: 2) { Px(canvas: ojisanHD(pose), scale: 2).frame(height: 166, alignment: .bottom); Text(label(pose)).font(T.f(10)).foregroundStyle(T.inkSub) }
+                                VStack(spacing: 2) { Px(canvas: ojisanHD(pose), scale: 2).frame(height: 158, alignment: .bottom); Text(label(pose)).font(T.f(10)).foregroundStyle(T.inkSub) }
                             }
                         }
                     }
@@ -1440,7 +1440,7 @@ struct CharacterB: View {
                     HStack(alignment: .center, spacing: 14) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("小さくしても崩れないのが利点").font(T.f(13, .heavy)).foregroundStyle(T.ink)
-                            Text("ベクターなので 44pt に縮めても線がにじまない。逆にドット絵路線の他の 18 本と並ぶハブでは浮く").font(T.f(10, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                            Text("ベクターなので 44pt に縮めても線がにじまない。逆にドット絵路線の既存ゲームと並ぶハブでは浮く").font(T.f(10, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
                         }
                         VecOjisan(pose: .stance).scaleEffect(0.4).frame(width: 80, height: 72)
                         ZStack { RoundedRectangle(cornerRadius: 12).fill(T.yellow).frame(width: 44, height: 44); VecOjisan(pose: .stance).scaleEffect(0.24).frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 12)) }
@@ -1457,29 +1457,29 @@ struct CompareAB: View {
         ZStack(alignment: .top) {
             T.bg.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 12) {
-                Text("方向A と方向B（同じポーズ・同じ大きさ）").font(T.f(18, .heavy)).foregroundStyle(T.ink).padding(.top, 64).fixedSize(horizontal: false, vertical: true)
+                Text("方向A と方向B（同じポーズ・同じ大きさ）").font(T.f(17, .heavy)).foregroundStyle(T.ink).padding(.top, 64).fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
                 HStack(alignment: .top, spacing: 10) {
                     Card {
                         VStack(spacing: 6) {
                             Text("A ドット絵・高密度").font(T.f(14, .heavy)).foregroundStyle(T.ink)
-                            Px(canvas: ojisanHD(.swing), scale: 2).frame(height: 190)
-                            Px(canvas: ojisanHD(.cheer), scale: 2).frame(height: 190)
+                            Px(canvas: ojisanHD(.stance), scale: 2).frame(width: 140, height: 180)
+                            Px(canvas: ojisanHD(.cheer), scale: 2).frame(width: 140, height: 180)
                         }.frame(maxWidth: .infinity)
-                    }
+                    }.clipped()
                     Card {
                         VStack(spacing: 6) {
                             Text("B 滑らかな塗り").font(T.f(14, .heavy)).foregroundStyle(T.ink)
-                            VecOjisan(pose: .swing).scaleEffect(0.98).frame(width: 160, height: 190).offset(x: -12)
-                            VecOjisan(pose: .cheer).scaleEffect(0.98).frame(width: 160, height: 190).offset(x: -4)
+                            VecOjisan(pose: .stance).scaleEffect(0.86).frame(width: 140, height: 180)
+                            VecOjisan(pose: .cheer).scaleEffect(0.86).frame(width: 140, height: 180)
                         }.frame(maxWidth: .infinity)
-                    }
+                    }.clipped()
                 }
                 Card {
                     VStack(alignment: .leading, spacing: 5) {
                         row("描く基盤", "PixelSprite + SpriteKit（走者と同じ）", "SwiftUI の図形（今回のモック）か、描き出した PNG を SpriteKit へ")
                         row("動き", "コマ絵の差し替え（走者と同じ）", "部品ごとの回転・移動（コマ数は不要）")
                         row("新規の絵", "4 ポーズ + 投手 + 球場の部品", "同左 + 影・光の設計（球場側も塗り直し）")
-                        row("ハブとの一貫性", "18 本と同じ路線", "1 本だけ絵柄が違う（プレミアムの印にもなる）")
+                        row("ハブとの一貫性", "既存ゲームと同じ路線", "1 本だけ絵柄が違う（プレミアムの印にもなる）")
                         row("パワプロとの距離", "遠い（2D のまま）", "近づくが 3D ではない。頭身と光沢で寄せる")
                     }
                 }
@@ -1488,7 +1488,7 @@ struct CompareAB: View {
     }
     func row(_ k: String, _ a: String, _ b: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
-            Text(k).font(T.f(11, .heavy)).foregroundStyle(T.ink).frame(width: 78, alignment: .leading)
+            Text(k).font(T.f(11, .heavy)).foregroundStyle(T.ink).frame(width: 70, alignment: .leading).fixedSize(horizontal: false, vertical: true)
             Text(a).font(T.f(10, .medium)).foregroundStyle(T.inkSub).frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
             Text(b).font(T.f(10, .medium)).foregroundStyle(T.inkSub).frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
         }
