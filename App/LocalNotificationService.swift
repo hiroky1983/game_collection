@@ -51,15 +51,27 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
     }
 
     func cancelAll() {
-        // このアプリが出す通知はこのお知らせだけなので、まとめて消してよい。
-        center.removeAllPendingNotificationRequests()
-        center.removeAllDeliveredNotifications()
+        // 接頭辞で絞って消す（#1268: 以前は無条件に全消去しており、#1223 で増えた
+        // 久しぶり通知（`reengagement-reminder.`）の予約まで巻き込んでいた）。
+        Task { await Self.cancelAllPendingAndDelivered() }
     }
 
     // 通知センターの応答型は Sendable でないため、MainActor へ持ち込まずに値だけ取り出す。
 
     nonisolated private static func authorizationStatus() async -> UNAuthorizationStatus {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    nonisolated private static func cancelAllPendingAndDelivered() async {
+        let center = UNUserNotificationCenter.current()
+        let pendingIDs = await center.pendingNotificationRequests()
+            .map(\.identifier)
+            .filter { $0.hasPrefix(ResumeReminderNotification.identifierPrefix) }
+        center.removePendingNotificationRequests(withIdentifiers: pendingIDs)
+        let deliveredIDs = await center.deliveredNotifications()
+            .map(\.request.identifier)
+            .filter { $0.hasPrefix(ResumeReminderNotification.identifierPrefix) }
+        center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
     }
 
     nonisolated private static func pendingReminderRequests() async -> [ResumeReminder] {
