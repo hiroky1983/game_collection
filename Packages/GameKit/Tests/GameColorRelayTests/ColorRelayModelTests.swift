@@ -293,6 +293,33 @@ struct ColorRelayPlayTests {
         #expect(model.currentPlayer == 1)
     }
 
+    @Test("出せる札を持っていても引ける（引いた札が出せなければ番は終わる）")
+    func canDrawEvenWithPlayableCard() {
+        // 標準的なルールと同じで、出したくない札を温存して引く選択を許す。誤タップの保険は付けない
+        // （verifier の指摘を受けて、この挙動を意図として固定する）。
+        let (model, _) = makeModel()
+        let quiet = quietOpponents()
+        model.configureForTesting(hands: [[card(.red, .number(9))]] + quiet.hands,
+                                  top: card(.red, .number(7)), drawPile: [card(.purple, .number(2))])
+        #expect(model.canDraw, "出せる あかの9 があっても引ける")
+        model.drawCard()
+        #expect(model.playerHand.count == 2)
+        #expect(model.currentPlayer == 1, "引いた むらさきの2 は出せないので番が終わる")
+    }
+
+    @Test("出さずに次へ回すと選択も外れる")
+    func endTurnClearsSelection() {
+        let (model, _) = makeModel()
+        let quiet = quietOpponents()
+        model.configureForTesting(hands: [[card(nil, .wild)]] + quiet.hands,
+                                  top: card(.red, .number(7)), drawPile: quiet.drawPile + [card(.red, .number(2))])
+        model.drawCard()
+        model.toggleSelection(card(nil, .wild))
+        #expect(model.selectedID != nil)
+        model.endTurn()
+        #expect(model.selectedID == nil, "相手の番に万能札の選択が残ると、次の自分の番に色選択欄から始まってしまう")
+    }
+
     @Test("引いた札を出さずに次へ回せる")
     func endTurnAfterDraw() {
         let (model, _) = makeModel()
@@ -546,6 +573,52 @@ struct ColorRelaySnapshotTests {
         store.inject(Data("{\"hands\":[]}".utf8), for: "colorrelay")
         let (model, _) = makeModel(store: store)
         #expect(model.phase == .idle)
+
+        // 形は正しいが値が範囲外（手番の番号・引き札の枚数）のデータも無視する。
+        // 通してしまうと `hands[currentPlayer]` や `for _ in 0..<pendingDraw` で落ちる。
+        let (valid, _) = makeModel(store: store)
+        let quiet = quietOpponents()
+        valid.configureForTesting(hands: [[card(.green, .number(5))]] + quiet.hands,
+                                  top: card(.red, .number(7)), drawPile: quiet.drawPile)
+        let raw = try? #require(store.rawData(for: "colorrelay"))
+        var json = (try? JSONSerialization.jsonObject(with: raw ?? Data())) as? [String: Any] ?? [:]
+        json["currentPlayer"] = 9
+        store.inject(try! JSONSerialization.data(withJSONObject: json), for: "colorrelay")
+        #expect(ColorRelayModel(services: GameServices(snapshots: store, ads: NoopAdService()), cpuDelay: .zero).phase == .idle)
+        json["currentPlayer"] = 0
+        json["pendingDraw"] = -1
+        store.inject(try! JSONSerialization.data(withJSONObject: json), for: "colorrelay")
+        #expect(ColorRelayModel(services: GameServices(snapshots: store, ads: NoopAdService()), cpuDelay: .zero).phase == .idle)
+        json["pendingDraw"] = 0
+        store.inject(try! JSONSerialization.data(withJSONObject: json), for: "colorrelay")
+        #expect(ColorRelayModel(services: GameServices(snapshots: store, ads: NoopAdService()), cpuDelay: .zero).phase == .playing,
+                "値を戻せば復元できる（検証そのものが機能している）")
+    }
+
+    @Test("山の切り直し直後に配った直後と同じ枚数になっても、対局中の中断データは消えない")
+    func refillDoesNotLookLikeUntouchedDeal() {
+        // 手札の合計 27 + 場 81 で山が尽き、1 枚引くと「手札 28・場 1・山 79」= 配った直後と同じ枚数になる
+        // （CodeRabbit 指摘・PR #1339）。枚数で判定していると中断データが消える。
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(store: store)
+        let deck = RelayCard.makeDeck()
+        // CPU 3 人は 7 枚ずつ（あかの札）、人間は 6 枚（みどりの札）で合計 27 枚。場はいろがえで色は あか
+        // （人間の手札に出せる札が無い）。捨て札はその下に 80 枚、山は空。
+        let cpuHands: [[RelayCard]] = [Array(deck[0..<7]), Array(deck[7..<14]), Array(deck[14..<21])]
+        let human = Array(deck[25..<31])
+        let top = card(nil, .wild)
+        let used = Set(cpuHands.flatMap { $0 } + human + [top])
+        let below = deck.filter { !used.contains($0) }
+        #expect(below.count == 80)
+        model.configureForTesting(hands: [human] + cpuHands, top: top, drawPile: [],
+                                  discardBelowTop: below, activeColor: .red)
+        #expect(store.exists(for: "colorrelay"))
+        #expect(model.playableCardIDs.isEmpty)
+        model.drawCard()
+        #expect(model.hands.reduce(0) { $0 + $1.count } == 28, "配った直後と同じ枚数になる")
+        #expect(model.discardPile.count == 1)
+        #expect(model.drawPile.count == 79)
+        #expect(store.exists(for: "colorrelay"), "対局中なのに配った直後と誤認して中断データを消した")
     }
 }
 

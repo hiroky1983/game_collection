@@ -6,6 +6,10 @@ public struct ColorRelayView: View {
     private let services: GameServices
     /// 引き札を広告で免除する救済（#1320）。
     @State private var waiveRescue = RewardedRescue()
+    /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（CodeRabbit 指摘・PR #1339）。
+    /// `.task` の側は View のライフサイクルで自動的にキャンセルされるが、ボタンから起こした
+    /// 非構造化タスクはそのままでは生き残り、画面外で CPU が打ち続けて決着・記録まで進んでしまう。
+    @State private var cpuTask: Task<Void, Never>?
     /// 画面の広さ（#458）。札と同じ倍率で場の枠を拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -50,6 +54,7 @@ public struct ColorRelayView: View {
                 message: "広告を見ているあいだに番が進んだため、免除できませんでした。"
             )
         )
+        .onDisappear { cpuTask?.cancel() }
         .task {
             // 開幕のモーダルは置かず、盤を見せたまま配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -65,6 +70,12 @@ public struct ColorRelayView: View {
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
+    }
+
+    /// 人間の操作の後に CPU の手番を回す。前のタスクは止めてから起こす（走者は `withAITurnRunner` が 1 本に保つ）。
+    private func runCPU() {
+        cpuTask?.cancel()
+        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
     // MARK: - ステータス
@@ -166,7 +177,7 @@ public struct ColorRelayView: View {
         VStack(spacing: 4) {
             Button {
                 model.drawCard()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             } label: {
                 ColorRelayCardBack(metrics: PlayingCardMetrics.medium.scaled(by: layout.elementScale))
             }
@@ -301,7 +312,7 @@ public struct ColorRelayView: View {
                 // 視聴中に引くと番が進み、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton("\(model.pendingDraw)枚引く", color: Theme.Fill.coral, disabled: waiveRescue.isWatching) {
                     model.takePenalty()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -324,17 +335,17 @@ public struct ColorRelayView: View {
                 if model.canEndTurn {
                     actionButton("出さずに次へ", color: Theme.fillMuted, foreground: .white) {
                         model.endTurn()
-                        Task { await model.runCPUTurnsIfNeeded() }
+                        runCPU()
                     }
                 } else {
                     actionButton("1枚引く", color: Theme.fillMuted, foreground: .white, disabled: !model.canDraw) {
                         model.drawCard()
-                        Task { await model.runCPUTurnsIfNeeded() }
+                        runCPU()
                     }
                 }
                 actionButton(playButtonTitle, color: Theme.Fill.coral, disabled: !model.canPlaySelection) {
                     model.playSelected()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -342,7 +353,7 @@ public struct ColorRelayView: View {
         case .result:
             actionButton("次のゲーム", color: Theme.Fill.coral) {
                 model.startGame()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -360,7 +371,7 @@ public struct ColorRelayView: View {
                 guardedBy: .checkedByGrant
             ) {
                 let applied = model.waivePenaltyAfterAd(forTurn: turn)
-                if applied { Task { await model.runCPUTurnsIfNeeded() } }
+                if applied { runCPU() }
                 return applied
             }
         } label: {
@@ -381,7 +392,7 @@ public struct ColorRelayView: View {
     private func colorChoiceButton(_ color: RelayColor) -> some View {
         Button {
             model.playSelected(color: color)
-            Task { await model.runCPUTurnsIfNeeded() }
+            runCPU()
         } label: {
             VStack(spacing: 4) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -678,7 +689,7 @@ struct ColorRelayCardBack: View {
 struct ColorRelayRuleSheet: View {
     static let rules: [(String, String)] = [
         ("ゲームの流れ", "CPU3人と対戦します。7枚ずつ配り、場の札と同じ色か同じ数字・記号の札を順番に出します。手札を先になくした人が勝ちです"),
-        ("出せないとき", "山から1枚引きます。引いた札が出せるならそのまま出せます（出さずに次へ回してもかまいません）。出せなければ自動で次の人の番になります"),
+        ("引くとき", "出せる札が無いとき（出したくないときも）は山から1枚引きます。引いた札が出せるならそのまま出せます（出さずに次へ回してもかまいません）。出せなければ自動で次の人の番になります"),
         ("とばし", "次の人の番を飛ばします"),
         ("ぎゃく", "番の回る向きが逆になります"),
         ("+2", "次の人は山から2枚引き、番を飛ばされます"),

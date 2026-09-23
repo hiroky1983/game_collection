@@ -46,9 +46,6 @@ public final class ColorRelayModel: AITurnGuarded {
     public static let playerCount = 4
     /// `GameModule.id` と同じ値。`ModuleTests` が一致を確かめる。
     public static let gameID = "colorrelay"
-    /// 山札の枚数。「配ったばかりか」の判定に使う。
-    private static let deckCount = RelayCard.makeDeck().count
-
     public private(set) var hands: [[RelayCard]] = Array(repeating: [], count: playerCount)
     public private(set) var drawPile: [RelayCard] = []
     /// 捨て札。末尾が場に見えている札。
@@ -79,6 +76,10 @@ public final class ColorRelayModel: AITurnGuarded {
     public private(set) var turnSerial = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
+    /// 配ったばかりで 1 手も進んでいない局か（#240）。`startGame()` で立て、最初に札が動いた時点で下ろす。
+    /// 枚数から推定すると、山の切り直し直後にたまたま配った直後と同じ枚数になる局面で誤判定する
+    /// （CodeRabbit 指摘・PR #1339）ので、フラグで持つ。配ったばかりの局は保存しないため中断データには入れない。
+    private var isUntouchedDeal = false
 
     private let services: GameServices?
     let gameID = ColorRelayModel.gameID
@@ -99,8 +100,10 @@ public final class ColorRelayModel: AITurnGuarded {
         self.cpuDelay = cpuDelay
         self.seed = seed
         self.hints = hints
+        // 手書き・壊れた中断データで落ちないよう、配列の長さと番号の範囲を見てから戻す。
         if let snap = services?.snapshots.load(ColorRelaySnapshot.self, for: gameID),
-           snap.hands.count == Self.playerCount, !snap.discardPile.isEmpty {
+           snap.hands.count == Self.playerCount, !snap.discardPile.isEmpty,
+           (0..<Self.playerCount).contains(snap.currentPlayer), snap.pendingDraw >= 0 {
             hands            = snap.hands
             drawPile         = snap.drawPile
             discardPile      = snap.discardPile
@@ -230,6 +233,7 @@ public final class ColorRelayModel: AITurnGuarded {
         lastActions = Array(repeating: "", count: Self.playerCount)
         isPenaltyWaived = false
         recordResult = nil
+        isUntouchedDeal = true
         gameNumber += 1
         // 親はゲームごとに 1 人ずつ回す（1 ゲーム目は人間）。
         currentPlayer = (gameNumber - 1) % Self.playerCount
@@ -310,6 +314,7 @@ public final class ColorRelayModel: AITurnGuarded {
     public func endTurn() {
         guard canEndTurn else { return }
         services?.feedback.impact(.light)
+        selectedID = nil
         lastActions[Self.humanIndex] = "出さずに次へ"
         advanceTurn(steps: 1)
         persist()
@@ -343,6 +348,7 @@ public final class ColorRelayModel: AITurnGuarded {
     // MARK: - 進行
 
     private func play(_ card: RelayCard, by player: Int, chosenColor: RelayColor?) {
+        isUntouchedDeal = false
         hands[player].removeAll { $0.id == card.id }
         discardPile.append(card)
         activeColor = card.color ?? chosenColor ?? activeColor
@@ -401,6 +407,7 @@ public final class ColorRelayModel: AITurnGuarded {
     /// それでも足りなければ引ける枚数だけ引く。
     @discardableResult
     private func draw(count: Int, for player: Int) -> [RelayCard] {
+        isUntouchedDeal = false
         var drawn: [RelayCard] = []
         for _ in 0..<count {
             if drawPile.isEmpty { refillDrawPile() }
@@ -515,6 +522,7 @@ public final class ColorRelayModel: AITurnGuarded {
         selectedID = nil
         ranking = []
         lastActions = Array(repeating: "", count: Self.playerCount)
+        isUntouchedDeal = false
         turnSerial += 1
         phase = .playing
         persist()
@@ -565,13 +573,6 @@ public final class ColorRelayModel: AITurnGuarded {
     #endif
 
     // MARK: - 永続化
-
-    /// 配ったばかりで 1 手も進んでいない局か（#240）。
-    /// 4 人の手札の合計と山・場の合計が山札の枚数と同じで、場が 1 枚だけ = まだ誰も何もしていない。
-    private var isUntouchedDeal: Bool {
-        hands.reduce(0) { $0 + $1.count } == ColorRelayRules.initialHandCount * Self.playerCount
-            && discardPile.count == 1
-    }
 
     private func persist() {
         // 配ったばかりの盤面は保存しない（#240）。開始してすぐ閉じただけでハブに「続きから」が付くと、
