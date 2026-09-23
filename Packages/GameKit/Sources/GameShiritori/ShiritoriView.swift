@@ -8,7 +8,9 @@ public struct ShiritoriView: View {
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: ShiritoriModel(services: services, cpuCursorDelay: .milliseconds(400)))
+        _model = State(initialValue: ShiritoriModel(
+            services: services, cpuCursorDelay: .milliseconds(400), cpuCursorStepDelay: .milliseconds(55)
+        ))
     }
 
     public var body: some View {

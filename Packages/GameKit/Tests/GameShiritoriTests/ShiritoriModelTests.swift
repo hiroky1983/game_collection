@@ -343,6 +343,32 @@ struct ShiritoriModelTests {
         #expect(model.slots[1].owner == .cpu)
     }
 
+    @Test("CPU のカーソルは対象より手前の未確定札も左から右へなぞってから止まる（会長指摘 2026-09-23）")
+    func cpuCursorSweepsThroughEarlierSlotsBeforeSettling() async {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = ShiritoriModel(
+            services: services, cpuDelay: .zero,
+            cpuCursorDelay: .milliseconds(200), cpuCursorStepDelay: .milliseconds(10), seed: 1
+        )
+        // squirrel（りす）は「ら」を受けないので通過するだけ。otter（らっこ）が実際の対象。
+        model.configureForTesting(opener: gorilla, board: [squirrel, otter], isPlayerTurn: false)
+
+        let task = Task { await model.runCPUTurnIfNeeded() }
+        await Task { }.value
+        #expect(model.cpuCursorSlot == 0, "まず手前の未確定札（りす）へカーソルが立つ")
+        #expect(model.slots[0].owner == nil, "通過しただけで取られてはいない")
+
+        // なぞりの間（10ms）は過ぎたが、対象での静止（200ms）はまだ終わっていない時間帯を狙う。
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(model.cpuCursorSlot == 1, "なぞり終えて対象（らっこ）へ移る")
+        #expect(model.slots[1].owner == nil, "対象へ着いた直後はまだ確定していない")
+
+        await task.value
+        #expect(model.cpuCursorSlot == nil, "確定したらカーソルは消える")
+        #expect(model.slots[0].owner == nil, "通過しただけの札は取られない")
+        #expect(model.slots[1].owner == .cpu, "対象だけが取られる")
+    }
+
     @Test("演出待ちの間に新しいゲームが始まったら、カーソルも残らない")
     func staleCPUCursorIsClearedByNewGame() async {
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
