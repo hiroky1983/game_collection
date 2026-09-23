@@ -358,12 +358,12 @@ struct ShiritoriModelTests {
         #expect(model.cpuCursorSlot == 0, "まず手前の未確定札（りす）へカーソルが立つ")
         #expect(model.slots[0].owner == nil, "通過しただけで取られてはいない")
 
-        // 固定時間の待機ではなく、カーソルが対象へ移るまで状態の変化で同期する
-        // （実行環境の負荷で固定スリープがズレるとフレークする。CodeRabbit指摘・PR #1309）。
-        var gate = 0
-        while model.cpuCursorSlot != 1, gate < 1_000 {
-            gate += 1
-            await Task.yield()
+        // 固定回数の Task.yield() は実時間の経過を保証しないため、高速な CI 環境では
+        // cpuCursorStepDelay（10ms）の完了前にループが尽きてフレークする
+        // （CodeRabbit指摘・PR #1313）。実時間の期限で打ち切るポーリングに変える。
+        let deadline = ContinuousClock.now.advanced(by: .milliseconds(500))
+        while model.cpuCursorSlot != 1, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(2))
         }
         #expect(model.cpuCursorSlot == 1, "なぞり終えて対象（らっこ）へ移る")
         #expect(model.slots[1].owner == nil, "対象へ着いた直後はまだ確定していない")
