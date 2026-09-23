@@ -76,7 +76,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -97,7 +97,7 @@ struct QuitTrackingTests {
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
             case let .gameStart(_, _, mode, _):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _): return ("end", mode)
+            case let .gameEnd(_, _, _, mode, _, _): return ("end", mode)
             default:                             return nil
             }
         }
@@ -725,5 +725,95 @@ struct PlayMeasurementCallSiteTests {
             "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
         ])
+    }
+}
+
+// MARK: - 無料ヒントの使用回数（#1326）
+
+@Suite("game_end の hints_used（#1326）")
+@MainActor
+struct HintsUsedTrackingTests {
+    private func endParameters(_ spy: SpyAnalyticsService) -> [[String: AnalyticsValue]] {
+        spy.events.compactMap { if case .gameEnd = $0 { return $0.parameters } else { return nil } }
+    }
+
+    @Test("パラメータ: 0 のときは鍵ごと送らず、1 以上のときだけ Int で載る")
+    func parameterOnlyWhenUsed() {
+        let none = AnalyticsEvent.gameEnd(gameID: "2048", result: .win, durationSec: 1)
+        #expect(none.parameters["hints_used"] == nil)
+        #expect(Set(none.parameters.keys) == ["game_id", "result", "duration_sec"])
+
+        let used = AnalyticsEvent.gameEnd(gameID: "2048", result: .win, durationSec: 1, hintsUsed: 3)
+        #expect(used.parameters["hints_used"] == .int(3))
+        #expect(Set(used.parameters.keys) == ["game_id", "result", "duration_sec", "hints_used"])
+    }
+
+    @Test("ヒントを使ってから途中離脱（leaveGame）しても quit に載る")
+    func quitAfterHintCarriesCount() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+
+        analytics.leaveGame(gameID: "2048", isResumable: false)
+
+        #expect(endParameters(spy).first?["result"] == .string("quit"))
+        #expect(endParameters(spy).first?["hints_used"] == .int(2))
+    }
+
+    @Test("ヒントを使ってから決着（finishPlay）しても載る")
+    func finishAfterHintCarriesCount() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+
+        analytics.finishPlay(gameID: "2048", outcome: .loss)
+
+        #expect(endParameters(spy).first?["hints_used"] == .int(1))
+    }
+
+    @Test("休憩（再開できる離脱）をまたいでも数えは残り、再開後の決着に載る")
+    func hintCountSurvivesResumableLeave() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        #expect(endParameters(spy).isEmpty)
+
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(endParameters(spy).first?["hints_used"] == .int(1))
+    }
+
+    @Test("次のプレイへ持ち越さない（始め直すと 0 に戻り、鍵も出ない）")
+    func restartResetsCount() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+        analytics.restartPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        let ends = endParameters(spy)
+        #expect(ends.count == 2)
+        #expect(ends.first?["hints_used"] == .int(1))
+        #expect(ends.last?.keys.contains("hints_used") == false)
+    }
+
+    @Test("決着後や開始を数えていないプレイのヒントは数えない")
+    func hintOutsideInFlightIsIgnored() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.recordHintUsed(gameID: "2048")           // 開始前
+        analytics.startPlay(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        analytics.recordHintUsed(gameID: "2048")           // 決着後
+        analytics.restartPlay(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(endParameters(spy).allSatisfy { $0.keys.contains("hints_used") == false })
     }
 }

@@ -469,6 +469,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                   !hints.isExhausted,
                   let usi, let move = Move.fromUSI(usi), legalMovesCache.contains(move),
                   hints.consume() else { return }
+            services?.gameDidUseHint(gameID: gameID)
             hintMove = move
             services?.feedback.impact(.light)
             // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。

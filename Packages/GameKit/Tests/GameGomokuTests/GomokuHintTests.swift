@@ -164,3 +164,57 @@ struct GomokuHintTests {
         #expect(model.recordResult != nil, "リザルトの記録行も従来どおり出る")
     }
 }
+
+/// ヒントの使用回数が `game_end` の `hints_used` に載る結線（#1326）。
+@MainActor
+@Suite("五目並べ ヒントの解析（#1326）")
+struct GomokuHintAnalyticsTests {
+
+    private func makeModel() -> (GomokuModel, SpyAnalyticsService) {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: ["gomoku"])
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        return (GomokuModel(services: services), spy)
+    }
+
+    private func endParameters(_ spy: SpyAnalyticsService) -> [[String: AnalyticsValue]] {
+        spy.events.compactMap { if case .gameEnd = $0 { return $0.parameters } else { return nil } }
+    }
+
+    @Test("ヒントを使った局を打ってから捨てると、quit の game_end に hints_used が載る")
+    func quitCarriesHintsUsed() async {
+        let (model, spy) = makeModel()
+        await model.requestHint()
+        await model.requestHint()
+        model.tap(row: 0, col: 0)
+
+        model.newGame()
+
+        let ends = endParameters(spy)
+        #expect(ends.count == 1)
+        #expect(ends.first?["result"] == .string("quit"))
+        #expect(ends.first?["hints_used"] == .int(2))
+    }
+
+    @Test("ヒントを使った局の決着（投了）の game_end に hints_used が載る")
+    func finishCarriesHintsUsed() async {
+        let (model, spy) = makeModel()
+        await model.requestHint()
+
+        model.resign()
+
+        #expect(endParameters(spy).first?["hints_used"] == .int(1))
+    }
+
+    @Test("ヒントを使わなかった局の game_end には hints_used の鍵が無い")
+    func noHintNoKey() {
+        let (model, spy) = makeModel()
+        model.tap(row: 0, col: 0)
+
+        model.newGame()
+
+        let ends = endParameters(spy)
+        #expect(ends.count == 1)
+        #expect(ends.first?.keys.contains("hints_used") == false)
+    }
+}

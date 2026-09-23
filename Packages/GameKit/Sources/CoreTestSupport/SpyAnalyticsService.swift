@@ -30,7 +30,7 @@ public final class SpyAnalyticsService: AnalyticsService {
     /// `game_end` の `game_id` / `result` / `duration_sec`。
     public var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 {
+            if case let .gameEnd(gameID, result, durationSec, _, _, _) = $0 {
                 return (gameID, result, durationSec)
             }
             return nil

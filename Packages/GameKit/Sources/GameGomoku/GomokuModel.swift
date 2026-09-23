@@ -339,6 +339,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             guard !gameOver, !isAITurn, !hints.isExhausted,
                   let (row, col) = move, board[row, col] == nil,
                   hints.consume() else { return }
+            services?.gameDidUseHint(gameID: gameID)
             hintPoint = GomokuPoint(row: row, col: col)
             services?.feedback.impact(.light)
             // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
