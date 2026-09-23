@@ -793,7 +793,7 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.count == 1, "終局はまだ 1 回（続きの終局はこれから）")
     }
 
-    @Test("チャリンコおじさん: 開いた時点で開始・ステージクリアで終局（win）")
+    @Test("チャリンコおじさん: 走り出した時点で開始・ステージクリアで終局（win）")
     func runner() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
