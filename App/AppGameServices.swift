@@ -23,6 +23,7 @@ import GameHanafuda
 import GameSpider
 import GameShiritori
 import GameFifteen
+import GameRoulette
 // GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
 // 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
 // `registry` に1行足せば復活できる）。
@@ -221,6 +222,10 @@ enum AppEnvironment {
         // 15パズル（#1314）。同じ「1人で盤面を詰める」ナンプレ・2048 系の軽量パズルで、
         // 収録本数を偶数（22本）に保つための1本。
         FifteenModule(),
+        // ルーレット（企画倉庫・#1318）。出荷する版が決まるまでハブには並べない
+        // （`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」。`#if DEBUG` では分岐しない）。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // RouletteModule(),
         // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
         // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
         BlocksModule(),

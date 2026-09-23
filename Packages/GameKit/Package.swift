@@ -30,6 +30,7 @@ let package = Package(
         .library(name: "GameFreeCell",     targets: ["GameFreeCell"]),
         .library(name: "GameSpider",       targets: ["GameSpider"]),
         .library(name: "GameFifteen",     targets: ["GameFifteen"]),
+        .library(name: "GameRoulette",     targets: ["GameRoulette"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
         .library(name: "GameBlockPuzzle",  targets: ["GameBlockPuzzle"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
@@ -74,6 +75,9 @@ let package = Package(
         // （神経衰弱 #1244 と共有するドット絵）を使うので Core だけに依存する。
         .target(name: "GameShiritori",      dependencies: ["Core"]),
         .target(name: "GameFifteen",        dependencies: ["Core"]),
+        // ルーレット（#1318・企画倉庫）。配当・当たり判定は純粋ロジックで、乱数は CoreEngine の
+        // `SplitMix64` を使うので CoreEngine への依存も明示する。
+        .target(name: "GameRoulette",       dependencies: ["Core", "CoreEngine"]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
@@ -148,6 +152,7 @@ let package = Package(
         .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFifteenTests",        dependencies: ["GameFifteen", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameRouletteTests",       dependencies: ["GameRoulette", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
@@ -184,7 +189,7 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette",
         ]),
         // 解析イベント（#158）も全ゲーム横断（1プレイ 1 組の発火を全 Model で検証する）。
         .testTarget(name: "AnalyticsTests", dependencies: [
@@ -192,7 +197,8 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette",
+            "GameKitTestSupport", "CoreTestSupport",
         ]),
         // Game Center（#289）も全ゲーム横断（どのゲームがどのリーダーボードへ送るかを全 Model で検証する）。
         .testTarget(name: "GameCenterTests", dependencies: [
@@ -200,7 +206,8 @@ let package = Package(
             "GameOthello", "GamePoker", "GameConcentration", "GameBlackjack", "GameDaifugo",
             "GameMahjongSolitaire", "GameMahjong", "GameSudoku", "GameGo", "GameSolitaire",
             "GameChess", "GameBlocks", "GameFreeCell", "GameBlockPuzzle", "GameRunner", "GameRunnerTestSupport",
-            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameKitTestSupport", "CoreTestSupport",
+            "GameHanafuda", "GameSpider", "GameShiritori", "GameFifteen", "GameRoulette",
+            "GameKitTestSupport", "CoreTestSupport",
         ]),
         // VoiceOver の読み上げ文（#188）も盤面を持つゲーム横断。
         // 読み上げ文の生成は純関数に切り出してあるので、View を組まずに検証できる。
