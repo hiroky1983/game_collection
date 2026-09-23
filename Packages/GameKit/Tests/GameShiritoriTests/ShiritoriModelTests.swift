@@ -389,6 +389,7 @@ struct ShiritoriModelTests {
 
     @Test("実際の山札を最後まで遊びきると、どの種でも必ず決着する（プレイヤーは取れる札の先頭を取る）")
     func fullGamesAlwaysFinish() async {
+        var alternateWasPlayed = false
         for seed in UInt64(0)..<100 {
             let (model, _) = makeModel(seed: seed)
             model.startGame(quota: .normal)
@@ -400,11 +401,17 @@ struct ShiritoriModelTests {
                 } else {
                     await model.runCPUTurnIfNeeded()
                 }
+                if case .played(_, _, let isAlternate) = model.lastEvent, isAlternate {
+                    alternateWasPlayed = true
+                }
             }
             #expect(model.phase == .result, "seed \(seed)")
             #expect(model.ending != nil)
             #expect(model.playerCount + model.cpuCount <= 29)
             #expect(model.playerCount >= model.cpuCount, "先手なので同数か 1 枚多い")
         }
+        // 残る裏読み「にゃんこ」（#1271 で「ぐらす」「おうぎ」を削除した後）が、実プレイで
+        // 一度も選ばれないなら、それも到達不能な裏読みが紛れている兆候。
+        #expect(alternateWasPlayed, "100 シードのどのゲームでも裏読みが一度も選ばれなかった")
     }
 }
