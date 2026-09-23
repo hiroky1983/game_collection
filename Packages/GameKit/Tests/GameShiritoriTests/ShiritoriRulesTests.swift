@@ -72,18 +72,19 @@ struct ShiritoriRulesTests {
         #expect(deck.count == 30)
         #expect(Set(deck.map(\.kind)) == Set(ObjectCardKind.allCases))
         #expect(Set(deck.map(\.id)).count == 30)
+        // #1298: こねこ→くま・まくら→まふらー・うちわ→まいく・ねぎ→くり・まり→にく（識別子は据え置き）
         #expect(deck.map(\.primaryReading) == [
-            "りんご", "ごりら", "らっこ", "こあら", "らくだ", "うさぎ", "ぎたー", "たいこ", "こねこ", "こっぷ",
-            "りす", "すいか", "かめ", "めがね", "ねこ", "こま", "まくら", "だちょう", "うちわ", "わに",
-            "ふね", "ねぎ", "まり", "きのこ", "うま", "しか", "うし", "すず", "つき", "たこ",
+            "りんご", "ごりら", "らっこ", "こあら", "らくだ", "うさぎ", "ぎたー", "たいこ", "くま", "こっぷ",
+            "りす", "すいか", "かめ", "めがね", "ねこ", "こま", "まふらー", "だちょう", "まいく", "わに",
+            "ふね", "くり", "にく", "きのこ", "うま", "しか", "うし", "すず", "つき", "たこ",
         ])
     }
 
-    @Test("裏読みは決裁済みの 3 枚だけ。読みはすべてひらがなで、空でない")
+    @Test("裏読みは決裁済みの 2 枚だけ（うちわ→おうぎ は #1298 の差し替えで消えた）。読みはすべてひらがなで、空でない")
     func alternateReadingsAreTheApprovedOnes() {
         let withAlternates = ShiritoriCard.deck.filter { $0.readings.count > 1 }
         #expect(Dictionary(uniqueKeysWithValues: withAlternates.map { ($0.primaryReading, Array($0.readings.dropFirst())) }) == [
-            "こっぷ": ["ぐらす"], "うちわ": ["おうぎ"], "ねこ": ["にゃんこ"],
+            "こっぷ": ["ぐらす"], "ねこ": ["にゃんこ"],
         ])
         for card in ShiritoriCard.deck {
             for reading in card.readings {
