@@ -27,10 +27,12 @@ struct RuleDetailScrollAndCardSourceTests {
         #expect(typeNames.count >= 10, "howToPlay の extra 抽出が空振りしている可能性: \(typeNames.sorted())")
 
         for typeName in typeNames.sorted() {
-            guard let body = SourceScan.declaration(of: "struct \(typeName)", in: allSource) else {
+            guard let declaration = SourceScan.declaration(of: "struct \(typeName)", in: allSource) else {
                 Issue.record("\(typeName) の定義が見つからない（howToPlay の extra から抽出された型名）")
                 continue
             }
+            // コメント中の語（「ScrollView 自体が無く…」等）で素通りしないよう、コメントを除いて判定する（#1273）。
+            let body = SourceScan.strippingComments(declaration)
             // RuleListSheet 経由（大富豪・花札の一部・フリーセル等）は、共通コンポーネント自身が
             // ScrollView とカード背景の両方を持つため、呼び出し側のソースには現れなくてよい。
             let usesSharedSheet = body.contains("RuleListSheet(")
