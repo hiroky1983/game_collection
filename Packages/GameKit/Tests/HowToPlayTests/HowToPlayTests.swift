@@ -20,6 +20,7 @@ import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
 import GameShiritori
+import GameFifteen
 import GameSpider
 import GameChess
 import GameBlocks
@@ -35,6 +36,7 @@ private let registeredModules: [GameModule] = [
     PokerModule(),
     ConcentrationModule(),
     ShiritoriModule(),
+    FifteenModule(),
     BlackjackModule(),
     DaifugoModule(),
     MahjongSolitaireModule(),

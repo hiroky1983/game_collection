@@ -81,6 +81,8 @@ targets:
       - package: GameKit
         product: GameShiritori
       - package: GameKit
+        product: GameFifteen
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds
