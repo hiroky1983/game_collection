@@ -23,6 +23,7 @@ import GameShiritori
 import GameFifteen
 import GameRoulette
 import GameFruits
+import GameColorRelay
 import GameSpider
 import GameChess
 import GameBlocks
@@ -41,6 +42,7 @@ private let registeredModules: [GameModule] = [
     FifteenModule(),
     RouletteModule(),
     FruitsModule(),
+    ColorRelayModule(),
     BlackjackModule(),
     DaifugoModule(),
     MahjongSolitaireModule(),

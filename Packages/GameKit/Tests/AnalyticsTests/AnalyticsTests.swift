@@ -23,6 +23,7 @@ import GameHanafuda
 @testable import GameFifteen
 import GameRoulette
 import GameFruits
+import GameColorRelay
 import GameSpider
 import GameChess
 import GameBlocks
@@ -65,7 +66,7 @@ private func makeHubGameIDs() -> Set<String> {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
-        RouletteModule(), FruitsModule(),
+        RouletteModule(), FruitsModule(), ColorRelayModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -435,7 +436,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 25, "ハブに並ぶゲームは25本（企画倉庫のルーレット #1318・くっつきフルーツ #1319 を含む）")
+        #expect(hubGameIDs.count == 26, "ハブに並ぶゲームは26本（企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -1046,6 +1047,31 @@ struct AllGamesAnalyticsTests {
         }
         #expect(model.phase == .result)
         expectOnePair(spy, gameID: "daifugo")
+    }
+
+    @Test("いろリレー: 配られた時点で開始・誰かが上がった時点で終局")
+    func colorRelay() async {
+        let (services, spy) = makeServices()
+        let model = ColorRelayModel(services: services, cpuDelay: .zero, seed: 2026)
+        #expect(spy.events.isEmpty, "画面を開いただけでは配られない")
+        model.startGame()
+        for _ in 0..<2_000 where model.phase == .playing {
+            await model.runCPUTurnsIfNeeded()
+            guard model.phase == .playing, model.isPlayerTurn else { continue }
+            if model.isPlayerPenalized {
+                model.takePenalty()
+            } else if let id = model.playableCardIDs.first,
+                      let card = model.playerHand.first(where: { $0.id == id }) {
+                model.toggleSelection(card)
+                model.playSelected(color: card.isWild ? .red : nil)
+            } else if model.canDraw {
+                model.drawCard()
+            } else {
+                model.endTurn()
+            }
+        }
+        #expect(model.phase == .result)
+        expectOnePair(spy, gameID: "colorrelay")
     }
 
     @Test("四人打ち麻雀: 東風戦 1 回が 1 プレイ（局ごとには数えない）")
