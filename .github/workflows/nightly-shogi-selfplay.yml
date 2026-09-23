@@ -1,0 +1,28 @@
+name: Nightly Shogi Self-Play
+
+# GameShogiTests/SelfPlayTests.swift（自己対戦で囲い・定跡が進むか）は決定的だが
+# CIの中で最も重い1本（実測304秒）。将棋AI強化は中止済み（2026-08-10決裁）で
+# ソースが変わる見込みが低いため、毎回のCIから外しここで毎晩だけ回す（#1039）。
+# schedule はデフォルトブランチ（main）でのみ実行される GitHub Actions の仕様のため、
+# release ブランチではこのワークフローは発火しない。
+on:
+  schedule:
+    - cron: '0 18 * * *' # 03:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selfplay:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # "SelfPlayTests" 単純一致だと DifficultyTests.swift の ShogiWeakLevelSelfPlayTests も
+      # 部分一致で巻き込むため、完全一致になるよう "GameShogiTests.SelfPlayTests/" にアンカーする
+      - name: 将棋の自己対戦テスト
+        run: swift test --package-path Packages/GameKit --filter '^GameShogiTests\.SelfPlayTests/'
