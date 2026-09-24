@@ -25,6 +25,7 @@ import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
+import GameBackgammon
 import GameSpider
 import GameChess
 import GameBlocks
@@ -67,7 +68,7 @@ private func makeHubGameIDs() -> Set<String> {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
-        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(),
+        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -437,7 +438,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 27, "ハブに並ぶゲームは27本（企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321 を含む）")
+        #expect(hubGameIDs.count == 28, "ハブに並ぶゲームは28本（企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -974,6 +975,15 @@ struct AllGamesAnalyticsTests {
         #expect(model.gameState == .won)
         expectOnePair(spy, gameID: "minesweeper")
         #expect(spy.ends.first?.result == .win)
+    }
+
+    @Test("バックギャモン: 開いた時点で開始・投了で終局（loss）")
+    func backgammon() {
+        let (services, spy) = makeServices()
+        let model = BackgammonModel(services: services, cpuDelay: .zero, seed: 7)
+        model.resign()
+        expectOnePair(spy, gameID: "backgammon")
+        #expect(spy.ends.first?.result == .loss)
     }
 
     @Test("オセロ: 開いた時点で開始・投了で終局（loss）")

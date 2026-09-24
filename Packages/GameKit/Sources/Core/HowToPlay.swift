@@ -372,11 +372,23 @@ public extension HowToPlayGuide {
         hintIcon: "sum"
     )
 
+    static let backgammon = HowToPlayGuide(
+        gameID: "backgammon",
+        title: "バックギャモンの遊び方",
+        lines: [
+            "あなたは白。サイコロは自動で振られ、出た目のぶんだけ駒を右下の自陣へ向けて進めます。動かす駒 → 行き先の順にタップ。",
+            "相手の駒が 2 個以上あるポイントには止まれません。1 個だけなら叩いてバー（中央）へ送れます。バーの駒は先に戻さないと他の駒を動かせません。",
+            "15 個すべてが自陣（1〜6 ポイント）に入ったら、右端の置き場へ「あがり」。先に全部あげたほうの勝ちです。",
+        ],
+        hint: "動かす駒 → 行き先の順にタップ",
+        hintIcon: "dice.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan,
+        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon,
     ]
 }
 

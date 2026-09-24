@@ -91,6 +91,8 @@ targets:
       - package: GameKit
         product: GameAnzan
       - package: GameKit
+        product: GameBackgammon
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

@@ -25,6 +25,7 @@ import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
+import GameBackgammon
 import GameSpider
 import GameChess
 import GameBlocks
@@ -95,7 +96,7 @@ private func makeHubModules() -> [GameModule] {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
-        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(),
+        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(),
     ]
 }
 
@@ -226,7 +227,7 @@ struct GameCenterLeaderboardTests {
 
     @Test("勝敗しか残らないゲームは対象外")
     func winLossGamesAreExcluded() {
-        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration", "colorrelay"] {
+        for gameID in ["shogi", "chess", "gomoku", "othello", "daifugo", "mahjong4", "concentration", "colorrelay", "backgammon"] {
             #expect(
                 GameCenterLeaderboard.score(
                     gameID: gameID, outcome: .win, score: GameScore(metric: .winLoss)
