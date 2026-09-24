@@ -384,11 +384,23 @@ public extension HowToPlayGuide {
         hintIcon: "dice.fill"
     )
 
+    static let speed = HowToPlayGuide(
+        gameID: "speed",
+        title: "スピードの遊び方",
+        lines: [
+            "台札は真ん中の2山。手札から、台札の数字と1つ違い（A と K もつながる）の札を、どちらかの台札に重ねます。順番はなく、CPU も同時に出してきます。",
+            "出した札のぶん、山札から手札に補充されます。手札も山札も先に出し切ったほうの勝ちです。",
+            "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。",
+        ],
+        hint: "台札と1つ違いの札を重ねよう",
+        hintIcon: "hare.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon,
+        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
     ]
 }
 
