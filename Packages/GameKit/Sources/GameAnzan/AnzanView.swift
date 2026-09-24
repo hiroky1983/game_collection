@@ -46,7 +46,8 @@ public struct AnzanView: View {
                     Label("難易度", systemImage: "slider.horizontal.3")
                 }
                 // 数が出ているあいだにシートを被せると見逃すので、出し終わるまで待たせる。
-                .disabled(model.phase == .flashing)
+                // 広告の視聴中も塞ぐ（難易度を変えると問題が入れ替わり、見終えた広告の見直しが乗らない）。
+                .disabled(model.phase == .flashing || replayRescue.isWatching)
             }
         }
         .howToPlay(.anzan)
@@ -125,7 +126,9 @@ public struct AnzanView: View {
         .frame(maxWidth: .infinity, minHeight: 150, maxHeight: .infinity)
         .gameAnimation(.easeOut(duration: 0.15), value: model.step)
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
-        .accessibilityElement(children: .ignore)
+        // 板は 1 つの要素として読み上げつつ、中の見直しボタンには VoiceOver で届くようにする
+        // （`.ignore` にすると板の中の Button がフォーカスから外れる。ソリティアの救済ダイアログと同じ `.contain`）。
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(AnzanAccessibility.stageLabel(
             phase: model.phase, step: model.step, displayedNumber: model.displayedNumber,
             input: model.input, sum: model.sum, answer: model.answer, isCorrect: model.isCorrect
@@ -223,7 +226,9 @@ public struct AnzanView: View {
                     Text(verbatim: "あなたの答え \(answer)")
                 }
                 if let seconds = model.answerSeconds {
-                    Text(verbatim: "回答 \(seconds)秒")
+                    // 記録の 1 行（`RecordLabel`）は勝敗の指標なので秒数を出さない。最速を更新した回は
+                    // 「自己ベスト更新！」の中身がここで分かるように添える。
+                    Text(verbatim: model.recordResult?.update.seconds == true ? "回答 \(seconds)秒（最速！）" : "回答 \(seconds)秒")
                 }
             }
             .themeCaption(12)
@@ -237,11 +242,14 @@ public struct AnzanView: View {
 
     /// テンキーの高さを常に確保し、局面ごとの操作をその上に重ねる（板が伸び縮みしないため）。
     private var controls: some View {
-        ZStack {
+        // 広告のロード〜視聴中は決定も塞ぐ。ここで決定すると問題が決着して、見終えた広告の見直しが
+        // 局ガードで弾かれて見損になる（コンティニューの幕の #911 と同型）。
+        let canType = model.phase == .answering && !replayRescue.isWatching
+        return ZStack {
             keypad
-                .opacity(model.phase == .answering ? 1 : 0)
-                .allowsHitTesting(model.phase == .answering)
-                .accessibilityHidden(model.phase != .answering)
+                .opacity(model.phase == .answering ? (canType ? 1 : 0.5) : 0)
+                .allowsHitTesting(canType)
+                .accessibilityHidden(!canType)
             switch model.phase {
             case .idle:
                 Button { showSetup = true } label: {

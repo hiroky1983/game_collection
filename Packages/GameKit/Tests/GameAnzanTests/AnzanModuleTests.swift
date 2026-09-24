@@ -48,6 +48,9 @@ struct AnzanModuleTests {
         #expect(code.contains("model.replayAfterAd(forGame:"))
         #expect(code.contains("unavailable: RewardUnavailableAlert("))
         #expect(code.contains(".rewardOffer(replayRescue, for: .hint, isPresented: model.canReplay"))
+        #expect(code.contains(".accessibilityElement(children: .contain)"), "板の中の見直しボタンに VoiceOver で届くようにする")
+        #expect(code.contains("model.phase == .answering && !replayRescue.isWatching"),
+                "広告の視聴中は決定を塞ぐ（決着すると見終えた広告の見直しが乗らない・#911 と同型）")
         #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由でしか出さない")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(code.contains("level: settings.analyticsLevel"), "難易度を持つので game_start に level を載せる")

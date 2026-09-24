@@ -130,7 +130,9 @@ public final class AnzanModel {
         let current = steps[stepIndex]
         step = current
         if stepIndex == 0 {
-            // 数が出始めた = 捨てたら途中離脱として数える問題（#500）。冪等なので見直しでも増えない。
+            // 「よーい」が出た = 出題が動き出した問題。ここから先で捨てたら途中離脱として数える（#500）。
+            // 最初の数ではなく「よーい」で立てるのは、数が 1 つも出ていない問題は捨てられないため
+            // （`start` の直後に離れた分だけ数えない）。冪等なので見直しでも増えない。
             services?.gameDidProgress(gameID: Self.gameID)
         }
         return .milliseconds(AnzanLogic.milliseconds(of: current, speed: settings.speed))
