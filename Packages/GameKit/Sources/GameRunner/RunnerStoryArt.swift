@@ -157,12 +157,12 @@ enum RunnerStoryArt {
 
     /// 顔を出すコマの置き方（バストアップ）。
     ///
-    /// 正面顔（`OjisanPixel.face`）は**顔だけ**なので、3 倍にして地面に置くと首から下が無い
+    /// 正面顔（`OjisanPixel.faceLowRes`。荒い格子の場面に合わせて高解像度化前の 16×15 を使う）は**顔だけ**なので、3 倍にして地面に置くと首から下が無い
     /// 「浮いた丸い頭」に見える。ここで首と肩（黄色いポロシャツ）を継ぎ足し、下端をコマの
     /// 下端に接地させて胸から上の絵にする。**足すのはこの話の中だけ**——顔そのものは
-    /// ハブのアイコン・リザルトと同じ `OjisanPixel` のまま（`Core` の定義は変えない）。
+    /// `OjisanPixel` の定義のまま（`Core` の定義は変えない）。
     static func bust(_ face: OjisanPixel.Face) -> PixelSprite {
-        let head = OjisanPixel.face(face).scaled(3)
+        let head = OjisanPixel.faceLowRes(face).scaled(3)
         let body = PixelSprite(rows: shoulderRows, palette: OjisanPixel.palette)
         // 肩は顎に少し重ねる（隙間を空けると首が切れて見える）。
         return PixelSprite.blank(width: head.width, height: bustHeight)
@@ -171,7 +171,7 @@ enum RunnerStoryArt {
     }
 
     /// バストアップの高さ（顔 45 + 肩 14 − 重ね 6）。
-    static let bustHeight = OjisanPixel.faceDotSize.height * 3 + 14 - 6
+    static let bustHeight = OjisanPixel.faceLowResDotSize.height * 3 + 14 - 6
 
     /// バストアップの上端（下端がコマの下端にちょうど接する位置）。
     static var bustY: Int { panelHeight - bustHeight }

@@ -787,7 +787,7 @@ public enum RunnerResultFace {
     /// SE 級（240〜319pt）で 3 倍 = 48pt、それより低くても 2 倍 = 32pt は確保する。
     /// `GeometryReader` が最初に渡す 0 でも落ちない（2 倍を返す）。
     public static func dotScale(forCourseHeight height: Double) -> Int {
-        let budget = Int(height * 0.2) / OjisanPixel.faceDotSize.width
+        let budget = Int(height * 0.2) / (OjisanPixel.faceDotSize.width / OjisanPixel.faceResolution)
         return min(4, max(2, budget))
     }
 
