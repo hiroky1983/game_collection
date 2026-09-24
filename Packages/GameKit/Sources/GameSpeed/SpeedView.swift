@@ -17,6 +17,8 @@ public struct SpeedView: View {
     @State private var showSetup: Bool
     /// 画面の広さ（#458）。札と同じ倍率で拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
+    /// バックグラウンドへ移ったら CPU を止める（アクション枠の基盤規約「即一時停止」。ブロック崩し・チャリンコおじさんと同じ）。
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
         self.services = services
@@ -86,6 +88,14 @@ public struct SpeedView: View {
                 message: "広告を見ているあいだにゲームが終わったか、負けそうな局面ではなくなったため、タイムを取れませんでした。"
             )
         )
+        // 広告の視聴中とバックグラウンドでは CPU を止める。あなたが触れないあいだに CPU だけが出し切ると、
+        // 見終えた広告のタイムが局ガードで弾かれて見損になる（verifier 指摘・PR #1345）。
+        .onChange(of: timeoutRescue.isWatching) { _, watching in
+            model.holdCPU(watching || scenePhase != .active)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            model.holdCPU(timeoutRescue.isWatching || phase != .active)
+        }
         // CPU の待ちは Model が決め、ここは待つだけ。場が動くたびに `cpuRun` が進んで前のループが止まり、
         // 画面を離れれば `.task` ごと止まる。
         .task(id: model.cpuRun) { await runCPU() }

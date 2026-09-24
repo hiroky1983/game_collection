@@ -55,6 +55,9 @@ public final class SpeedModel {
     public private(set) var timeoutUsed = false
     /// 「めくる」が続いた回数。誰かが出せば 0 に戻る。
     public private(set) var consecutiveFlips = 0
+    /// CPU を止めているか（広告の視聴中・バックグラウンド）。止めているあいだ `nextCPUWait()` は nil を返し、
+    /// 解くと反応の間を数え直してから動く（止めていたぶん CPU が有利にならない）。
+    public private(set) var isCPUHeld = false
     /// 勝ったときの所要秒数（切り上げ・最低 1 秒）。負け・引き分けでは nil。
     public private(set) var winSeconds: Int?
     /// 直近の決着で確定した記録。リザルトに 1 行出す。
@@ -249,7 +252,7 @@ public final class SpeedModel {
     /// - どちらも出せなければ、「めくる」までの残り。
     /// - タイム中なら、タイムの残り。
     public func nextCPUWait() -> Duration? {
-        guard phase == .playing else { return nil }
+        guard phase == .playing, !isCPUHeld else { return nil }
         #if DEBUG
         if isFrozenForCapture { return nil }
         #endif
@@ -279,7 +282,7 @@ public final class SpeedModel {
     /// `nextCPUWait()` の待ちを終えたあとに呼ぶ。反応の間が過ぎていれば出し、めくる間が過ぎていればめくる。
     /// まだなら何もしない（View は続けて `nextCPUWait()` を取り直す）。
     public func performCPUAction() {
-        guard phase == .playing else { return }
+        guard phase == .playing, !isCPUHeld else { return }
         #if DEBUG
         if isFrozenForCapture { return }
         #endif
@@ -306,6 +309,17 @@ public final class SpeedModel {
         guard !humanHasPlayable, let since = stuckSince else { return }
         let elapsed = Duration.seconds(current.timeIntervalSince(since)) + .milliseconds(5)
         if elapsed >= stuckDelay { performFlip() }
+    }
+
+    /// CPU を止める / 解く。広告の視聴中（あなたが触れないあいだに CPU だけが出し切ってしまい、見終えた
+    /// 広告のタイムが乗らない）とバックグラウンド移行時（アクション枠の基盤規約「即一時停止」）に使う。
+    /// 解いたときは反応の間・めくるまでの間を数え直し、`cpuRun` を進めて View の待ちを組み直す。
+    public func holdCPU(_ held: Bool) {
+        guard held != isCPUHeld else { return }
+        isCPUHeld = held
+        cpuArmedAt = nil
+        stuckSince = nil
+        if !held { cpuRun += 1 }
     }
 
     // MARK: - 救済
@@ -417,7 +431,9 @@ public final class SpeedModel {
         // （出せなくなっていれば `nextCPUWait()` が捨てる）。連打で CPU を先送りし続けられないようにするため。
         if player == .cpu { cpuArmedAt = nil }
         stuckSince = nil
-        selectedID = nil
+        // 選択を外すのはあなたが出したときだけ。CPU の着手で黙って外すと、選択したつもりで台札をタップした
+        // 瞬間に「選択なし」の分岐へ入り、別の札が出る（CodeRabbit 指摘・PR #1345）。置けるかは `tapPile` が確かめる。
+        if player == .human { selectedID = nil }
         markProgress()
         if remaining(of: player) == 0 {
             concludeGame(winner: player)

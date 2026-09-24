@@ -556,6 +556,68 @@ struct SpeedModelTests {
         #expect(model.piles[0].last == card(.spades, 5))
     }
 
+    @Test("CPU を止めているあいだ（広告の視聴中・バックグラウンド）は待ちも動きも無く、解くと反応の間を数え直す")
+    func holdCPU() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5)], cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .fast)
+        )
+        let wait = model.nextCPUWait()!
+        clock.advance(wait / 2)
+        let run = model.cpuRun
+        model.holdCPU(true)
+        #expect(model.isCPUHeld)
+        #expect(model.nextCPUWait() == nil, "止めているあいだは View のループが抜ける")
+        clock.advance(30)
+        model.performCPUAction()
+        #expect(model.piles[0].last == card(.spades, 6), "30 秒経っても出さない")
+        #expect(model.cpuRun == run, "止めるだけでは待ちを組み直さない")
+        model.holdCPU(false)
+        #expect(!model.isCPUHeld)
+        #expect(model.cpuRun == run + 1, "解いたら View の待ちを組み直す")
+        let restarted = model.nextCPUWait()!
+        #expect(reactionRange(.fast).contains(restarted), "反応の間は満額から数え直す: \(restarted)")
+        clock.advance(restarted)
+        model.performCPUAction()
+        #expect(model.piles[0].last == card(.spades, 5))
+        model.holdCPU(false)
+        #expect(model.cpuRun == run + 2, "同じ値を重ねて渡しても組み直さない")
+    }
+
+    @Test("CPU が出しても、あなたの選択は外れない（外れると台札のタップで別の札が出る）")
+    func selectionSurvivesCPUPlay() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        model.configureForTesting(
+            humanHand: [card(.hearts, 5), card(.hearts, 9)],
+            humanStock: [card(.diamonds, 3)],
+            cpuHand: [card(.spades, 7), card(.spades, 12)],
+            cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 4)], [card(.clubs, 6)]],
+            settings: SpeedSettings(level: .fast)
+        )
+        model.tapHandCard(card(.hearts, 5))   // 左（4）にも右（6）にも置けるので選択
+        #expect(model.selectedID == card(.hearts, 5).id)
+        // CPU が ♠7 を右（♣6）に出す。♥5 は左（♠4）にまだ置けるので選択は残る。
+        let wait = model.nextCPUWait()!
+        clock.advance(wait)
+        model.performCPUAction()
+        #expect(model.piles[1].last == card(.spades, 7))
+        #expect(model.selectedID == card(.hearts, 5).id, "CPU の着手では選択を保つ")
+        // 選択中の札が置けない台札（右 7）をタップしても、別の札（♥9 なら置ける）は出ない。
+        model.tapPile(1)
+        #expect(model.piles[1].last == card(.spades, 7))
+        #expect(model.selectedID == card(.hearts, 5).id)
+        model.tapPile(0)
+        #expect(model.piles[0].last == card(.hearts, 5))
+        #expect(model.selectedID == nil)
+    }
+
     @Test("タイムを使った勝ちは時間の記録から外れる（勝ち・連勝には数える）")
     func timeoutExcludesBestTime() {
         let clock = ManualClock()
