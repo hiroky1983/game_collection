@@ -163,8 +163,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba
-        MARKETING_VERSION: "1.1.6"
-        CURRENT_PROJECT_VERSION: "10"
+        MARKETING_VERSION: "1.1.7"
+        CURRENT_PROJECT_VERSION: "11"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
         # 1 = iPhone / 2 = iPad（#458）。調べた競合 30 本すべてが iPad 対応で、
