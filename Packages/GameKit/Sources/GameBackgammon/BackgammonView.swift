@@ -319,8 +319,12 @@ public struct BackgammonView: View {
 public struct BackgammonBoardLayout: Sendable {
     public static let barWidth: CGFloat = 0.7
     public static let trayWidth: CGFloat = 0.9
-    public static let unitsWide: CGFloat = 12 + barWidth + trayWidth
-    public static let unitsTall: CGFloat = 10.4
+    /// 左右端の余白（単位）。盤は角丸で切り抜くので、端の列の駒が角に掛からないぶんを空ける。
+    public static let sideInset: CGFloat = 0.4
+    /// 上下端の余白（単位）。同じく角丸に駒が掛からないぶん。
+    public static let verticalInset: CGFloat = 0.25
+    public static let unitsWide: CGFloat = 12 + barWidth + trayWidth + sideInset * 2
+    public static let unitsTall: CGFloat = 10.4 + verticalInset * 2
     public static let aspectRatio: CGFloat = unitsWide / unitsTall
     /// 三角の高さ（単位）。上下で 2 本ぶんの間に 1 単位以上の隙間が残る。
     public static let pointHeight: CGFloat = 4.6
@@ -336,7 +340,8 @@ public struct BackgammonBoardLayout: Sendable {
 
     /// 列（0〜11。左から）の左端 x。
     public func columnX(_ column: Int) -> CGFloat {
-        column < 6 ? CGFloat(column) * unit : (6 + Self.barWidth + CGFloat(column - 6)) * unit
+        let inner = column < 6 ? CGFloat(column) : 6 + Self.barWidth + CGFloat(column - 6)
+        return (Self.sideInset + inner) * unit
     }
 
     /// ポイントの添字 → 列と上下。下段は右から 1〜12、上段は左から 13〜24。
@@ -347,14 +352,18 @@ public struct BackgammonBoardLayout: Sendable {
     /// 列の中心 x。
     public func centerX(of index: Int) -> CGFloat { columnX(position(of: index).column) + unit / 2 }
 
-    public var barMinX: CGFloat { 6 * unit }
-    public var barMaxX: CGFloat { (6 + Self.barWidth) * unit }
-    public var trayMinX: CGFloat { (12 + Self.barWidth) * unit }
+    public var barMinX: CGFloat { (Self.sideInset + 6) * unit }
+    public var barMaxX: CGFloat { (Self.sideInset + 6 + Self.barWidth) * unit }
+    public var trayMinX: CGFloat { (Self.sideInset + 12 + Self.barWidth) * unit }
+    public var trayMaxX: CGFloat { trayMinX + Self.trayWidth * unit }
+    /// 三角の付け根の y（上段は上端の余白の下、下段は下端の余白の上）。
+    public var topBaseY: CGFloat { Self.verticalInset * unit }
+    public var bottomBaseY: CGFloat { height - Self.verticalInset * unit }
 
     /// `k` 番目（0 始まり）の駒の中心 y。
     public func checkerCenterY(k: Int, isTop: Bool) -> CGFloat {
         let d = checkerDiameter
-        return isTop ? d * (CGFloat(k) + 0.5) + unit * 0.04 : height - d * (CGFloat(k) + 0.5) - unit * 0.04
+        return isTop ? topBaseY + d * (CGFloat(k) + 0.5) : bottomBaseY - d * (CGFloat(k) + 0.5)
     }
 
     /// タップ位置 → ポイントの添字・バー・あがり。盤の外なら nil。
@@ -365,7 +374,7 @@ public struct BackgammonBoardLayout: Sendable {
         let isTop = location.y < height / 2
         let column: Int
         if location.x < barMinX {
-            column = min(5, Int(location.x / unit))
+            column = max(0, min(5, Int((location.x - Self.sideInset * unit) / unit)))
         } else {
             column = 6 + min(5, Int((location.x - barMaxX) / unit))
         }
@@ -458,7 +467,7 @@ private struct BackgammonBoardCanvas: View {
     let lastMove: BackgammonMove?
 
     var body: some View {
-        Canvas { ctx, sz in
+        Canvas { ctx, _ in
             let u = layout.unit
             let h = layout.height
             let d = layout.checkerDiameter
@@ -473,8 +482,8 @@ private struct BackgammonBoardCanvas: View {
                 let (column, isTop) = layout.position(of: index)
                 let x0 = layout.columnX(column)
                 var path = Path()
-                let tipY = isTop ? BackgammonBoardLayout.pointHeight * u : h - BackgammonBoardLayout.pointHeight * u
-                let baseY: CGFloat = isTop ? 0 : h
+                let baseY = isTop ? layout.topBaseY : layout.bottomBaseY
+                let tipY = isTop ? baseY + BackgammonBoardLayout.pointHeight * u : baseY - BackgammonBoardLayout.pointHeight * u
                 path.move(to: CGPoint(x: x0 + u * 0.04, y: baseY))
                 path.addLine(to: CGPoint(x: x0 + u * 0.96, y: baseY))
                 path.addLine(to: CGPoint(x: x0 + u / 2, y: tipY))
@@ -504,15 +513,19 @@ private struct BackgammonBoardCanvas: View {
             for index in movable where index < BackgammonBoard.pointCount && selected == nil {
                 let (_, isTop) = layout.position(of: index)
                 let cx = layout.centerX(of: index)
-                let cy = isTop ? BackgammonBoardLayout.pointHeight * u + u * 0.3 : h - BackgammonBoardLayout.pointHeight * u - u * 0.3
+                let cy = isTop ? layout.topBaseY + BackgammonBoardLayout.pointHeight * u + u * 0.3
+                               : layout.bottomBaseY - BackgammonBoardLayout.pointHeight * u - u * 0.3
                 let r = u * 0.12
                 ctx.fill(Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: 2 * r, height: 2 * r)),
                          with: .color(Color(hex: BackgammonBoardStyle.hint)))
             }
             if movable.contains(BackgammonBoard.bar), selected == nil {
+                // バーの駒は中央から下へ積むので、その下に置く（駒の下に隠れないように）。
                 let cx = (layout.barMinX + layout.barMaxX) / 2
+                let drawn = CGFloat(min(board.bar(for: .white), 3))
+                let cy = h / 2 + d * (drawn + 0.6)
                 let r = u * 0.12
-                ctx.fill(Path(ellipseIn: CGRect(x: cx - r, y: h / 2 + u * 0.3 - r, width: 2 * r, height: 2 * r)),
+                ctx.fill(Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: 2 * r, height: 2 * r)),
                          with: .color(Color(hex: BackgammonBoardStyle.hint)))
             }
 
@@ -577,7 +590,6 @@ private struct BackgammonBoardCanvas: View {
                              with: .color(Color(hex: side == .white ? BackgammonBoardStyle.whiteFace : BackgammonBoardStyle.blackFace)))
                 }
             }
-            _ = sz
         }
     }
 }
