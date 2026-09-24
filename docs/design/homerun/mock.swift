@@ -1639,7 +1639,7 @@ struct AtBat3D: View {
             }.padding(8).background(RoundedRectangle(cornerRadius: 12).fill(.black.opacity(0.35))).position(x: 330, y: 205)
             HStack { Image(systemName: "pause.fill").font(T.f(15)).foregroundStyle(T.coral).frame(width: 36, height: 36).background(Circle().fill(.white)); Spacer() }
                 .padding(.leading, 16).padding(.top, 104)
-            // 片手操作（会長決裁 2026-09-24: 親指 2 本は不採用）: 押している指の残像（下半分のどこでもよい）と、下端の案内 1 本だけ。受け口の円は置かない
+            // 片手操作（会長決裁 2026-09-24: 親指 2 本は不採用）: 押している指の残像（下 1/3 のどこでもよい）と、下端の案内 1 本だけ。受け口の円は置かない
             ZStack {
                 ForEach(0..<3, id: \.self) { i in
                     Circle().fill(.white.opacity(0.10 + Double(i) * 0.07)).frame(width: 52 - CGFloat(i) * 8, height: 52 - CGFloat(i) * 8)
@@ -1774,7 +1774,7 @@ struct Controls2Axis: View {
                         }.frame(width: 104, height: 150)
                         VStack(alignment: .leading, spacing: 5) {
                             Text("指 1 本（片手）").font(T.f(15)).foregroundStyle(T.ink)
-                            row("押す", "下半分のどこでもよい。押した瞬間からカーソル（水色）が指に追従", T.teal)
+                            row("押す", "下 1/3（ゾーンより下）のどこでもよい。押した瞬間からカーソル（水色）が指に追従", T.teal)
                             row("ずらす", "指の移動量だけ動く（トラックパッド式）。的の少し下・内側へ", T.teal)
                             row("離す", "輪が的に重なった瞬間に離す = スイング。離した位置で角度と方向が決まる", T.coral)
                             row("的", "ボールが本塁上を通る点。9 分割のゾーンのどこかに来る", .white)
@@ -1791,12 +1791,12 @@ struct Controls2Axis: View {
                                 band("少し下", "柵越え 25〜35°", T.yellow.opacity(0.45))
                                 band("下すぎ", "ポップ 35°〜", hexColor(0xEFE7DC))
                             }.frame(width: 150)
-                            Circle().fill(.white).frame(width: 16, height: 16).overlay(Circle().stroke(T.ink, lineWidth: 1)).offset(x: 63, y: 38)
-                            Circle().stroke(T.teal, lineWidth: 2.5).frame(width: 18, height: 18).offset(x: 63, y: 66)
+                            Circle().fill(.white).frame(width: 16, height: 16).overlay(Circle().stroke(T.ink, lineWidth: 1)).offset(x: 70, y: 38)
+                            Circle().stroke(T.teal, lineWidth: 2.5).frame(width: 18, height: 18).offset(x: 70, y: 66)
                         }
                         VStack(alignment: .leading, spacing: 6) {
                             Text("角度 = カーソルの高さ").font(T.f(15)).foregroundStyle(T.ink)
-                            Text("ボール（白）の少し下にカーソル（水色）を置くと打球が上がる。真ん中は速いが低く、柵を越えにくい。上を叩くとゴロで距離は伸びない。").font(T.f(11, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
+                            Text("ボール（白）の少し下にカーソル（水色）を置くと打球が上がる。真ん中は速いが低く柵を越えにくい。上を叩くとゴロ。").font(T.f(11, .medium)).foregroundStyle(T.inkSub).fixedSize(horizontal: false, vertical: true)
                             Text("帯の幅はゾーンの 1/4（約 22pt）。ジャストでも帯を外すと柵越えにならない").font(T.f(10, .medium)).foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -1829,7 +1829,7 @@ struct Controls2Axis: View {
     }
     func band(_ k: String, _ t: String, _ c: Color) -> some View {
         HStack { Text(k).font(T.f(10, .heavy)).foregroundStyle(T.ink).frame(width: 42, alignment: .leading); Text(t).font(T.f(9, .medium)).foregroundStyle(T.ink) }
-            .padding(.leading, 10).frame(width: 150, height: 28, alignment: .leading).background(c)
+            .padding(.leading, 8).frame(width: 150, height: 28, alignment: .leading).background(c)
     }
 }
 
@@ -1899,7 +1899,7 @@ MainActor.assumeIsolated {
     let dir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
     assetDir = dir
     if CommandLine.arguments.count > 2 && CommandLine.arguments[2] == "3d" {
-        // 3 回目（方向 3D + 判定 2 軸・31〜36）だけを描く。先に `mock3dbin <dir>` で 3d-*.png を作っておくこと
+        // 3〜4 回目（方向 3D + 判定 2 軸・31〜36）だけを描く。先に `mock3dbin <dir>` で 3d-*.png を作っておくこと
         write(Phone(dark: true) { AtBat3D() }, "31-at-bat-3D", dir: dir)
         write(Phone { Character3D() }, "32-character-3D", dir: dir)
         write(Phone(dark: true) { Outfield3D() }, "33-outfield-3D", dir: dir)

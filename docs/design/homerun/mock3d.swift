@@ -292,7 +292,8 @@ func catcherNode() -> SCNNode {
     }
     head.addChildNode(sphere(0.12, P.skinDark, at: v(0, -0.16, 1.0), outline: 0.03))
     head.addChildNode(limb(v(-0.15, -0.5, 0.92), v(0.15, -0.5, 0.92), r: 0.035, P.mouth, outline: 0))
-    func bar(_ a: SCNVector3, _ b: SCNVector3) -> SCNNode { limb(a, b, r: 0.05, cage, outline: 0.02) }
+    // ケージの棒は細く（打席ではストライクゾーンの 9 分割と重なって見えないよう、格子に見せない太さにする）
+    func bar(_ a: SCNVector3, _ b: SCNVector3) -> SCNNode { limb(a, b, r: 0.035, cage, outline: 0.015) }
     let fz: CGFloat = 1.22, fw: CGFloat = 0.78, ft: CGFloat = 0.62, fb: CGFloat = -0.78
     head.addChildNode(bar(v(-fw, ft, fz), v(fw, ft, fz))); head.addChildNode(bar(v(-fw, fb, fz), v(fw, fb, fz)))
     head.addChildNode(bar(v(-fw, ft, fz), v(-fw, fb, fz))); head.addChildNode(bar(v(fw, ft, fz), v(fw, fb, fz)))
@@ -491,10 +492,11 @@ func atBatShot() -> Shot {
     let batter = ojisan(poses[0]); batter.scale = SCNVector3(charScale, charScale, charScale)
     batter.position = v(-1.0, 0, 0.15); batter.eulerAngles.y = 0.35
     scene.rootNode.addChildNode(batter); scene.rootNode.addChildNode(blobShadow(0.6, at: batter.position))
-    // 審判（捕手の後ろ。ほとんど隠れる）と捕手（4 回目で参考ブランチの見え方に寄せた）
-    let umpire = umpireNode(); umpire.scale = SCNVector3(charScale, charScale, charScale); umpire.position = v(0.15, 0, -2.75)
+    // 審判（捕手の後ろ。ほとんど隠れる）と捕手（4 回目で参考ブランチの見え方に寄せた）。
+    // 捕手は本塁の少し一塁側・奥（参考ブランチ `22` と同じく、リングとストライクゾーンの周りを空ける。マスクの格子がゾーンの 9 分割と重ならない位置）
+    let umpire = umpireNode(); umpire.scale = SCNVector3(charScale, charScale, charScale); umpire.position = v(0.75, 0, -3.2)
     scene.rootNode.addChildNode(umpire)
-    let catcher = catcherNode(); catcher.scale = SCNVector3(charScale, charScale, charScale); catcher.position = v(0.0, 0, -1.7)
+    let catcher = catcherNode(); catcher.scale = SCNVector3(charScale, charScale, charScale); catcher.position = v(0.6, 0, -2.2)
     scene.rootNode.addChildNode(catcher); scene.rootNode.addChildNode(blobShadow(0.7, at: catcher.position))
     // 投手（マウンドの前・本塁に向く = カメラに背中）
     let pitcher = pitcherNode(); pitcher.scale = SCNVector3(charScale, charScale, charScale)
