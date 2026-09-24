@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 /// 「拡大は整数倍で、色が混ざらない」の 3 点。
 @Suite("ドット絵")
 struct PixelArtTests {
-    @Test("走者のコマは 40×37、正面顔は 32×30（粗い版は 16×15）で、行の長さが揃いパレットに無い文字が無い")
+    @Test("走者のコマは 40×37、正面顔は 32×30 で、行の長さが揃いパレットに無い文字が無い")
     func spritesAreWellFormed() {
         for frame in OjisanPixel.RiderFrame.allCases {
             let s = OjisanPixel.rider(frame)
@@ -22,9 +22,7 @@ struct PixelArtTests {
             let s = OjisanPixel.face(face)
             #expect(s.width == 32 && s.height == 30, "\(face): \(s.width)×\(s.height)")
             #expect(s.undefinedKeys.isEmpty, "\(face): パレットに無い文字 \(s.undefinedKeys)")
-            let low = OjisanPixel.faceLowRes(face)
-            #expect(low.width == 16 && low.height == 15, "\(face)（粗い版）: \(low.width)×\(low.height)")
-            #expect(low.undefinedKeys.isEmpty, "\(face)（粗い版）: パレットに無い文字 \(low.undefinedKeys)")
+            #expect(s.opaqueBounds != nil, "\(face): 何も描かれていない")
         }
     }
 

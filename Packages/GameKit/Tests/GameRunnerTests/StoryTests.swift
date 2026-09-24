@@ -403,12 +403,41 @@ struct RunnerStoryTests {
         for (name, s) in parts {
             #expect(s.undefinedKeys.isEmpty, "\(name): パレットに無い文字 \(s.undefinedKeys)")
             #expect(s.opaqueBounds != nil, "\(name): 何も描かれていない")
-            // 1 コマ（120×68）に収まる（はみ出す部品は置いた瞬間に切り落とされ、絵が欠ける）。
+            // 1 コマ（240×136）に収まる（はみ出す部品は置いた瞬間に切り落とされ、絵が欠ける）。
+            // 部品はコマの半分の細かさで描くので、置くときの 2 倍でも収まることまで見る。
             #expect(
-                s.width <= RunnerStoryArt.panelWidth && s.height <= RunnerStoryArt.panelHeight,
+                s.width * 2 <= RunnerStoryArt.panelWidth && s.height * 2 <= RunnerStoryArt.panelHeight,
                 "\(name): \(s.width)×\(s.height)"
             )
         }
+    }
+
+    @Test("胸像は高解像度の正面顔（32×30）を 3 倍にしたもので、コマの下端に接地する")
+    func bustUsesHighResFace() {
+        for face in OjisanPixel.Face.allCases {
+            let bust = RunnerStoryArt.bust(face)
+            let head = OjisanPixel.face(face).scaled(3)
+            #expect(bust.width == head.width, "\(face): 幅 \(bust.width)")
+            #expect(bust.height == RunnerStoryArt.bustHeight, "\(face): 高さ \(bust.height)")
+            // 肩が乗り始める手前までは顔そのもの。合成でパレットの文字は振り直されるので、
+            // 「どこが透明か」の型で見る（粗い版・別の倍率に戻したらここで落ちる）。
+            func mask(_ rows: [String]) -> [String] {
+                rows.map { String($0.map { $0 == "." ? "." : "#" }) }
+            }
+            let sharedRows = head.height - 12
+            #expect(
+                mask(Array(bust.rows.prefix(sharedRows))) == mask(Array(head.rows.prefix(sharedRows))),
+                "\(face): 顔の形がコマの胸像と合っていない"
+            )
+            // 顔と肩の間に透けた行を作らない（`bust` の「隙間を空けると首が切れて見える」の担保。
+            // 重ねる量を取り違えて肩が下にずれると、顎の下に地の色が帯で出るのでここで落ちる）。
+            #expect(
+                !bust.rows.contains { !$0.contains { $0 != "." } },
+                "\(face): 顔と肩の間、または下端に透けた行がある"
+            )
+        }
+        // 下端がコマの下端にちょうど接する。
+        #expect(RunnerStoryArt.bustY + RunnerStoryArt.bustHeight == RunnerStoryArt.panelHeight)
     }
 
     @Test("場面ごとに絵が違う（同じ絵を使い回して話が進まない、を防ぐ）")
@@ -437,7 +466,8 @@ struct RunnerStoryTests {
     func writeReviewSheet() throws {
         guard let out = ProcessInfo.processInfo.environment["RUNNER_STORY_OUT"] else { return }
         let panels = RunnerStoryArt.Panel.allCases
-        let scale = 2, columns = 4, gap = 8
+        // #1349 でコマの格子を倍にしたので、1 ドット = 1px で撮る（シートの大きさは従来どおり）。
+        let scale = 1, columns = 4, gap = 8
         let cell = (w: RunnerStoryArt.panelWidth * scale, h: RunnerStoryArt.panelHeight * scale)
         let rows = (panels.count + columns - 1) / columns
         let width = columns * cell.w + (columns + 1) * gap

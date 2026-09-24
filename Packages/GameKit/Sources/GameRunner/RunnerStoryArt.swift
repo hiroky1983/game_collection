@@ -19,12 +19,23 @@ import SwiftUI
 /// 新しく描き起こすのは、この話にしか出てこない**福引きのガラガラ・カラス・配達トラック・貨物船**の 4 つだけ。
 enum RunnerStoryArt {
     /// 1 コマの格子（ドット）。16:9 より少し縦長にして、走者（40×37）と台詞の両方が収まる比にする。
-    static let panelWidth = 120
-    static let panelHeight = 68
+    ///
+    /// 格子の細かさは**正面顔（`OjisanPixel.face`・32×30）に合わせてある**（#1349）。`overlaying` は
+    /// ドットの大きさが揃っていることが前提で、`scaled(_:)` は整数倍しか無いので、顔が 16×15 から
+    /// 32×30 になった分だけコマの格子も倍（120×68 → 240×136）にした。顔以外の部品は元の粗さのまま
+    /// `fit(_:times:)` で格子を合わせて置くので、**構図も画面に出る大きさも従来と同じ**で、顔だけが細かくなる。
+    static let panelWidth = 240
+    static let panelHeight = 136
     /// 土台の地面（道・川面・海面）の厚み。走者の足元はここに乗る。
-    static let groundHeight = 12
+    static let groundHeight = 24
     /// 走者・部品を置く床の y（この行から下が地面）。
     static var groundY: Int { panelHeight - groundHeight }
+
+    /// 顔以外の部品（走者・宝くじ・ここで描き起こした 4 つ）を 1 コマの格子に合わせる。
+    ///
+    /// これらは 1 ドット = コマの 2 ドットの粗さで描いてあるので、そのまま重ねると半分の大きさになる。
+    /// `times` はその部品だけさらに大きく見せたいときの倍率（格子を倍にする前の `.scaled(2)` に当たる）。
+    private static func fit(_ art: PixelSprite, times: Int = 1) -> PixelSprite { art.scaled(2 * times) }
 
     // MARK: 1 コマの種類
 
@@ -76,107 +87,111 @@ enum RunnerStoryArt {
         case .introDraw:
             // 朝の下町の商店街。右にガラガラ、左でおじさんが回している。
             return backdrop(.morning)
-                .overlaying(lotteryDrum().scaled(2), x: 62, y: panelHeight - 40)
-                .overlaying(bust(.smile), x: 8, y: bustY)
+                .overlaying(fit(lotteryDrum(), times: 2), x: 124, y: panelHeight - 80)
+                .overlaying(bust(.smile), x: 16, y: bustY)
         case .introJoy:
             // 当たった宝くじを掲げて大喜び。
             return backdrop(.morning)
-                .overlaying(RunnerPixelArt.lotteryTicket().scaled(2), x: 66, y: 12)
-                .overlaying(bust(.cheer), x: 8, y: bustY)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket(), times: 2), x: 132, y: 24)
+                .overlaying(bust(.cheer), x: 16, y: bustY)
         case .introBlownAway:
             // 風に飛ばされる。宝くじは右上の空へ。
             return backdrop(.morning)
-                .overlaying(windLines().scaled(2), x: 54, y: 16)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 94, y: 3)
-                .overlaying(bust(.frown), x: 8, y: bustY)
+                .overlaying(fit(windLines(), times: 2), x: 108, y: 32)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 188, y: 6)
+                .overlaying(bust(.frown), x: 16, y: bustY)
         case .introChase:
             // ママチャリで追いかける。以降のゲーム画面と同じ「右へ走る」向き。
             return backdrop(.morning)
-                .overlaying(OjisanPixel.rider(.ride0), x: 14, y: groundY - 37)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 94, y: 8)
+                .overlaying(fit(OjisanPixel.rider(.ride0)), x: 28, y: groundY - 74)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 188, y: 16)
 
         case .morningReach:  return reachPanel(.morning)
         case .morningCrow:
             // カラスが咥えて飛んでいく。宝くじはくちばしの先（左）に重ねる。
             return backdrop(.morning)
-                .overlaying(crow().scaled(2), x: 58, y: 0)
+                .overlaying(fit(crow(), times: 2), x: 116, y: 0)
                 // くちばしの先（カラスは左へ飛ぶ）。
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 40, y: 12)
-                .overlaying(bust(.gaze), x: 6, y: bustY)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 80, y: 24)
+                .overlaying(bust(.gaze), x: 12, y: bustY)
 
         case .eveningDrop:
             // カラスが落とす。宝くじはカラスの真下、まだ空の途中。
             return backdrop(.evening)
-                .overlaying(crow().scaled(2), x: 58, y: 0)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 72, y: 34)
-                .overlaying(bust(.cheer), x: 6, y: bustY)
+                .overlaying(fit(crow(), times: 2), x: 116, y: 0)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 144, y: 68)
+                .overlaying(bust(.cheer), x: 12, y: bustY)
         case .eveningRiver:
             // 川に落ちて流されていく。地面を川面に差し替え、宝くじを水面に浮かべる。
             return backdrop(.evening, ground: RunnerWorld.SceneryPalette.riverWater)
-                .overlaying(waterGlints(RunnerWorld.SceneryPalette.riverGlint), x: 0, y: groundY + 3)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 82, y: groundY - 5)
-                .overlaying(bust(.gaze), x: 6, y: bustY)
+                .overlaying(waterGlints(RunnerWorld.SceneryPalette.riverGlint), x: 0, y: groundY + 6)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 164, y: groundY - 10)
+                .overlaying(bust(.gaze), x: 12, y: bustY)
 
         case .nightReach:    return reachPanel(.night)
         case .nightTruck:
             // 配達トラックの荷台に貼り付いて走り去る。**おじさんは出さない**
             // ——貼り付いているのは宝くじのほうなので、トラックを大きく見せる。
             return backdrop(.night)
-                .overlaying(deliveryTruck().scaled(2), x: 16, y: groundY - 32)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 46, y: groundY - 40)
+                .overlaying(fit(deliveryTruck(), times: 2), x: 32, y: groundY - 64)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 92, y: groundY - 80)
 
         case .satoyamaReach: return reachPanel(.satoyama)
         case .satoyamaDitch:
             // 用水路に落ちて海のほうへ。地面を用水路の水に差し替える。
             return backdrop(.satoyama, ground: RunnerWorld.DressingPalette.ditchWater)
-                .overlaying(waterGlints(RunnerWorld.DressingPalette.waterGlint), x: 0, y: groundY + 3)
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 84, y: groundY - 5)
-                .overlaying(bust(.gaze), x: 6, y: bustY)
+                .overlaying(waterGlints(RunnerWorld.DressingPalette.waterGlint), x: 0, y: groundY + 6)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 168, y: groundY - 10)
+                .overlaying(bust(.gaze), x: 12, y: bustY)
 
         case .harborReach:   return reachPanel(.harbor)
         case .harborShip:
             // 出航する貨物船の甲板に落ちる。ここだけは船を大きく見せて「行ってしまった」を出す。
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
-                .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 4)
-                .overlaying(cargoShip().scaled(2), x: 4, y: groundY - 32)
+                .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 8)
+                .overlaying(fit(cargoShip(), times: 2), x: 8, y: groundY - 64)
                 // 甲板（コンテナの上）に落ちたところ。空へ浮かせない。
-                .overlaying(RunnerPixelArt.lotteryTicket(), x: 40, y: groundY - 28)
+                .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 80, y: groundY - 56)
         case .harborWatch:
             // 岸壁で見送る。船は水平線の向こうへ（等倍のまま右に置く）。
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
-                .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 4)
-                .overlaying(cargoShip(), x: 62, y: groundY - 17)
-                .overlaying(bust(.gaze), x: 6, y: bustY)
+                .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 8)
+                .overlaying(fit(cargoShip()), x: 124, y: groundY - 34)
+                .overlaying(bust(.gaze), x: 12, y: bustY)
         case .harborToBeContinued:
             // 「つづく」。文字は台詞側に出すので、絵は水平線と遠ざかる船だけにする。
             return backdrop(.harbor, ground: RunnerWorld.SceneryPalette.seaWater)
-                .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 4)
-                .overlaying(cargoShip(), x: 58, y: groundY - 15)
+                .overlaying(waterGlints(RunnerWorld.SceneryPalette.seaGlint), x: 0, y: groundY + 8)
+                .overlaying(fit(cargoShip()), x: 116, y: groundY - 30)
         }
     }
 
     /// 顔を出すコマの置き方（バストアップ）。
     ///
-    /// 正面顔（`OjisanPixel.faceLowRes`。荒い格子の場面に合わせて高解像度化前の 16×15 を使う）は**顔だけ**なので、3 倍にして地面に置くと首から下が無い
+    /// 正面顔（`OjisanPixel.face`・32×30）は**顔だけ**なので、3 倍にして地面に置くと首から下が無い
     /// 「浮いた丸い頭」に見える。ここで首と肩（黄色いポロシャツ）を継ぎ足し、下端をコマの
     /// 下端に接地させて胸から上の絵にする。**足すのはこの話の中だけ**——顔そのものは
     /// `OjisanPixel` の定義のまま（`Core` の定義は変えない）。
+    ///
+    /// #1349 で顔が 16×15 → 32×30 になったが、コマの格子も倍にしたので **3 倍のまま**でよい
+    /// （96×90 ドット = 旧 48×45 と画面に出る大きさは同じ）。肩は旧来の粗さで描いてあるので
+    /// `fit(_:)` で格子を合わせる。
     static func bust(_ face: OjisanPixel.Face) -> PixelSprite {
-        let head = OjisanPixel.faceLowRes(face).scaled(3)
-        let body = PixelSprite(rows: shoulderRows, palette: OjisanPixel.palette)
+        let head = OjisanPixel.face(face).scaled(3)
+        let body = fit(PixelSprite(rows: shoulderRows, palette: OjisanPixel.palette))
         // 肩は顎に少し重ねる（隙間を空けると首が切れて見える）。
         return PixelSprite.blank(width: head.width, height: bustHeight)
             .overlaying(head, x: 0, y: 0)
-            .overlaying(body, x: 0, y: head.height - 6)
+            .overlaying(body, x: 0, y: head.height - 12)
     }
 
-    /// バストアップの高さ（顔 45 + 肩 14 − 重ね 6）。
-    static let bustHeight = OjisanPixel.faceLowResDotSize.height * 3 + 14 - 6
+    /// バストアップの高さ（顔 90 + 肩 28 − 重ね 12）。
+    static let bustHeight = OjisanPixel.faceDotSize.height * 3 + 28 - 12
 
     /// バストアップの上端（下端がコマの下端にちょうど接する位置）。
     static var bustY: Int { panelHeight - bustHeight }
 
-    /// 首と肩（48×14）。顔を 3 倍にしたときの幅に合わせてある。色は `OjisanPixel.palette`
+    /// 首と肩（48×14。`fit(_:)` で 96×28 にして使う）。顔を 3 倍にしたときの幅に合わせてある。色は `OjisanPixel.palette`
     /// （`S` = 肌・`Y` = 黄色いポロシャツ・`K` = 輪郭）をそのまま使う。
     static let shoulderRows: [String] = [
         "....................KKKKKKKK....................",
@@ -199,9 +214,9 @@ enum RunnerStoryArt {
     /// （毎回同じ形で外されるのがこの話の型なので、絵でもそれを繰り返す）。
     private static func reachPanel(_ world: RunnerWorld) -> PixelSprite {
         backdrop(world)
-            .overlaying(OjisanPixel.rider(.jump), x: 26, y: groundY - 40)
+            .overlaying(fit(OjisanPixel.rider(.jump)), x: 52, y: groundY - 80)
             // 伸ばした手のすぐ先に置く（届きそうで届かない距離）。
-            .overlaying(RunnerPixelArt.lotteryTicket(), x: 70, y: groundY - 44)
+            .overlaying(fit(RunnerPixelArt.lotteryTicket()), x: 140, y: groundY - 88)
     }
 
     // MARK: 土台
@@ -212,12 +227,12 @@ enum RunnerStoryArt {
         var out = PixelSprite.solid(width: panelWidth, height: panelHeight, color: p.sky)
         // 遠景の丘（奥・手前）を 2 段。地面の上に薄く重ねるだけで、面の形は作らない。
         out = out.overlaying(
-            PixelSprite.solid(width: panelWidth, height: 8, color: p.hillFar),
-            x: 0, y: groundY - 14
+            PixelSprite.solid(width: panelWidth, height: 16, color: p.hillFar),
+            x: 0, y: groundY - 28
         )
         out = out.overlaying(
-            PixelSprite.solid(width: panelWidth, height: 7, color: p.hillNear),
-            x: 0, y: groundY - 7
+            PixelSprite.solid(width: panelWidth, height: 14, color: p.hillNear),
+            x: 0, y: groundY - 14
         )
         out = out.overlaying(
             PixelSprite.solid(width: panelWidth, height: groundHeight, color: ground ?? world.road.asphalt),
@@ -225,23 +240,25 @@ enum RunnerStoryArt {
         )
         if ground == nil {
             // 路面の白線。破線 1 段だけ入れて「道」だと読めるようにする。
-            out = out.overlaying(roadLine(world.road.line), x: 0, y: groundY + 5)
+            out = out.overlaying(roadLine(world.road.line), x: 0, y: groundY + 10)
         }
         return out
     }
 
-    /// 路面の破線（画面の幅いっぱい・4 ドットおき）。
+    /// 路面の破線（画面の幅いっぱい・4 ドットおき）。他の部品と同じ粗さで作って `fit(_:)` で格子を合わせる
+    /// （コマの格子で直接描くと線が半分の太さになり、破線が細かく散る）。
     private static func roadLine(_ color: UInt32) -> PixelSprite {
-        let row = String((0..<panelWidth).map { $0 % 8 < 4 ? "#" : "." })
-        return PixelSprite(rows: [row], palette: ["#": color])
+        let row = String((0..<(panelWidth / 2)).map { $0 % 8 < 4 ? "#" : "." })
+        return fit(PixelSprite(rows: [row], palette: ["#": color]))
     }
 
-    /// 水面の照り（細い破線を 2 段）。川・用水路・海で共通。
+    /// 水面の照り（細い破線を 2 段）。川・用水路・海で共通。破線は `roadLine` と同じ粗さで作る。
     private static func waterGlints(_ color: UInt32) -> PixelSprite {
-        let a = String((0..<panelWidth).map { $0 % 14 < 5 ? "#" : "." })
-        let gap = String(repeating: ".", count: panelWidth)
-        let b = String((0..<panelWidth).map { ($0 + 7) % 12 < 4 ? "#" : "." })
-        return PixelSprite(rows: [a, gap, b], palette: ["#": color])
+        let w = panelWidth / 2
+        let a = String((0..<w).map { $0 % 14 < 5 ? "#" : "." })
+        let gap = String(repeating: ".", count: w)
+        let b = String((0..<w).map { ($0 + 7) % 12 < 4 ? "#" : "." })
+        return fit(PixelSprite(rows: [a, gap, b], palette: ["#": color]))
     }
 
     /// 風の線（飛ばされるコマ）。
@@ -376,7 +393,7 @@ enum RunnerStoryArt {
 
     /// 表示したコマだけをビットマップにして覚えておく。
     ///
-    /// 16 コマを起動時にまとめて作ると 1 枚 120×68 でも無視できない量になるので、
+    /// 16 コマを起動時にまとめて作ると 1 枚 240×136 でも無視できない量になるので、
     /// `faceImages` のような一括生成にはしない（1 場面で使うのは 2〜4 枚）。
     @MainActor private static var cache: [Panel: CGImage] = [:]
 
@@ -386,7 +403,10 @@ enum RunnerStoryArt {
         if let cg = cache[panel] {
             return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
         }
-        guard let cg = sprite(panel).cgImage(scale: 2) else { return Image(systemName: "bicycle") }
+        // 1 ドット = 1px。#1349 で格子を倍にしたぶん、ここは 2 倍から 1 倍に落とす
+        // ——出来上がりの画素数（240×136px）は従来と同じで、顔だけが細かくなる。
+        // 顔のいちばん細かい部分でも 3px 角あるので、これ以上増やしても情報は増えない。
+        guard let cg = sprite(panel).cgImage(scale: 1) else { return Image(systemName: "bicycle") }
         cache[panel] = cg
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
     }

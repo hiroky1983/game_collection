@@ -19,9 +19,9 @@ import SwiftUI
 /// なぜママチャリで海を渡れるのかは**一切説明しない**（そこがギャグ）。
 ///
 /// 走者のコマは 40×37 ドット（右向き）。1 ドット = 整数 pt で描く（`PixelSprite.cgImage(scale:)`）。
-/// 正面顔は 32×30 ドット（ハブのカード・リザルト。#1349 で 16×15 から解像度を上げ、さらに会長指示で SD（ちびキャラ）寄りに
-/// デフォルメを強めた: 頭を丸く大きく、目を大きく、鼻と口を小さく、額を広く。配色・表情の意味は同じ）。
-/// 粗い版（`faceLowRes`）は元の写実寄りの絵柄のまま。
+/// 正面顔は 32×30 ドット（ハブのカード・リザルト・ストーリーの胸像。#1349 で 16×15 から解像度を上げ、さらに会長指示で
+/// SD（ちびキャラ）寄りにデフォルメを強めた: 頭を丸く大きく、目を大きく、鼻と口を小さく、額を広く。配色・表情の意味は同じ）。
+/// 粗い版（16×15）は使うところが無くなったので #1349 で消した。
 public enum OjisanPixel {
     /// 共通パレット（SFC 風に彩度をやや落とし、暗い輪郭で締める）。
     public static let palette: [Character: UInt32] = [
@@ -88,19 +88,6 @@ public enum OjisanPixel {
         case .gaze: return PixelSprite(rows: gazeRows, palette: palette)
         }
     }
-
-    /// 正面顔の粗い版（16×15）。世界の締め（`RunnerStoryArt` の胸像）が 3 倍にして荒い格子の場面に重ねるので、
-    /// 高解像度化（#1349）の対象外としてそのまま残す。ハブ・リザルトは `face(_:)` を使う。
-    public static func faceLowRes(_ face: Face) -> PixelSprite {
-        switch face {
-        case .smile: return PixelSprite(rows: smileLowRows, palette: palette)
-        case .cheer: return PixelSprite(rows: cheerLowRows, palette: palette)
-        case .frown: return PixelSprite(rows: frownLowRows, palette: palette)
-        case .gaze: return PixelSprite(rows: gazeLowRows, palette: palette)
-        }
-    }
-    /// 粗い版の正面顔のドット数（`faceLowRes` の大きさ）。
-    public static let faceLowResDotSize: (width: Int, height: Int) = (width: 16, height: 15)
 
     // MARK: ハブ・リザルト用の正面顔
 
@@ -352,24 +339,6 @@ public enum OjisanPixel {
         "..KKTtttttTKK.......KKTtttttTKK.........",
         "...KKTTTTTKK.........KKTTTTTKK..........",
     ]
-    // smile 16x15
-    static let smileLowRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhShhSSSShhSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShMMMMhSsK.",
-        "..KKsSSQQQQSsKK.",
-        "....KsSSSSSsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
-    ]
     // smile 32x30（#1349・SD 寄りのデフォルメ）。頭を横幅いっぱいの丸い大きな輪郭にして首を無くし、額を広く取った
     // 「薄い頭」（頭頂は地肌だけ・左上に W のツヤ・側頭部に H/h の髪と W の白髪）。目は 6×5 の黒目に Q のハイライト、
     // 鼻は s の 2 段、頬は 5×3 の C、鼻の下のヒゲは h/H の 12〜14 幅、口は歯（Q）の見える笑い。
@@ -406,24 +375,6 @@ public enum OjisanPixel {
         ".........KKKKKKKKKKKKKK.........",
         "................................",
     ]
-    // cheer 16x15
-    static let cheerLowRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhShhSSSShhSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShMMMMhSsK.",
-        "..KKsMMMMMMMsKK.",
-        "....KsQQQQQsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
-    ]
     // cheer 32x30（#1349）。smile と同じ格子で、眉（11 行）を少し上げ、口（23〜27 行）を顎まで届く大口＋下の歯に差し替え。
     static let cheerRows: [String] = [
         "..........KKKKKKKKKKKK..........",
@@ -457,24 +408,6 @@ public enum OjisanPixel {
         ".........KKKKKKKKKKKKKK.........",
         "................................",
     ]
-    // frown 16x15
-    static let frownLowRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhSSShhShhSSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShhhhhhSsK.",
-        "..KKsSMMMMMSsKK.",
-        "....KsSSSSSsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
-    ]
     // frown 32x30（#1349）。smile と同じ格子で、眉（11〜13 行）を内側が下がる怒り眉に、口（24〜25 行）をヒゲの下のへの字に差し替え。
     static let frownRows: [String] = [
         "..........KKKKKKKKKKKK..........",
@@ -507,25 +440,6 @@ public enum OjisanPixel {
         "......KKKssSSSSSSSSSSssKKK......",
         ".........KKKKKKKKKKKKKK.........",
         "................................",
-    ]
-    // gaze 16x15（#1092）。眉（`h`）を内側へ寄せて八の字にし、口（`M`）は 2×2 で小さく開けたまま。
-    // 頬（`C`）は笑顔と同じ位置に残す——血の気が引いた顔ではなく「呆けている」顔にしたいので。
-    static let gazeLowRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhSShhSShhSSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSSShMMhSSsK.",
-        "..KKsSShMMhSsKK.",
-        "....KsSSSSSsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
     ]
     // gaze 32x30（#1349）。smile と同じ格子で、眉（11〜13 行）を八の字に、口（23〜25 行）を小さく開いた楕円（幅 4/6/4）に差し替え。頬はそのまま。
     static let gazeRows: [String] = [
