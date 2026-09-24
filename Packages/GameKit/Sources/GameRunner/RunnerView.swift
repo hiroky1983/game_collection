@@ -456,12 +456,14 @@ public struct RunnerView: View {
         }
     }
 
-    /// おじさんの顔をドット絵の比率（16×15）のまま整数倍で置く（#702）。
+    /// おじさんの顔をドット絵の比率（32×30）のまま整数倍で置く（#702）。`scale` は旧来（16×15）の 1 ドット = 何 pt かで、
+    /// 顔が細かくなった（#1349）ぶん実際の 1 ドットは `scale / faceResolution` pt になり、大きさは変わらない。
     /// `Core` の `OjisanPixel.faceImage` は装飾画像なので VoiceOver には出ない。
     private func ojisanFace(_ face: OjisanPixel.Face, scale: Int) -> some View {
         let dots = OjisanPixel.faceDotSize
+        let res = OjisanPixel.faceResolution
         return OjisanPixel.faceImage(face)
-            .frame(width: CGFloat(dots.width * scale), height: CGFloat(dots.height * scale))
+            .frame(width: CGFloat(dots.width * scale / res), height: CGFloat(dots.height * scale / res))
     }
 
     /// クリア表示の添え書き。初到達の印と、次に走る面の番号（「つぎは 2-4」・#946）。
