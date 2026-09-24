@@ -254,15 +254,78 @@ func pitcherNode() -> SCNNode {
     return n
 }
 
-/// 捕手（しゃがみ。マスクとミット）。
+/// 捕手（正面・しゃがみ）。4 回目（会長決裁 2026-09-24）で社長側参考ブランチの `28-character-3d.jpg` の見え方に寄せた:
+/// 白い太ももを左右に開いたしゃがみ・グレーのレガース・紺の胸当て（上に薄い帯）・スカルキャップ + ケージ付きマスク（顔が見える）・
+/// 左手（画面右）に大きな茶のミット・右手（画面左）は膝。3 回目の「青い塊に黒い板」は使わない。+z（投手）を向く。
 func catcherNode() -> SCNNode {
     let n = SCNNode()
-    n.addChildNode(sphere(0.95, col(0x6C7A9C), at: v(0, 1.05, 0), scale: SCNVector3(1.05, 0.95, 0.9)))
-    for sx: CGFloat in [-0.75, 0.75] { n.addChildNode(limb(v(sx, 0.35, 0.5), v(sx, 0.9, 0.2), r: 0.32, col(0x6C7A9C))); n.addChildNode(box(0.6, 0.3, 0.8, P.eye, at: v(sx, 0.15, 0.6), radius: 0.1)) }
-    n.addChildNode(sphere(0.95, P.navy, at: v(0, 2.55, 0)))
-    n.addChildNode(box(1.2, 1.1, 0.25, col(0x4A4A58), at: v(0, 2.35, 0.9), radius: 0.15))  // マスク
-    n.addChildNode(sphere(0.55, P.glove, at: v(-0.9, 1.7, 0.9), scale: SCNVector3(1, 1.1, 0.5)))
-    n.addChildNode(sphere(0.26, P.skin, at: v(1.0, 1.35, 0.8)))
+    let pad = col(0x9A9AA6), band = col(0x7A8CC4), cage = col(0xB4B4C0)
+    // 脚: 太もも（白）を外へ開き、すね（レガース）は垂直。靴は黒
+    for sx: CGFloat in [-1, 1] {
+        let hip = v(sx * 0.45, 1.05, 0.1), knee = v(sx * 1.35, 0.95, 0.95), ankle = v(sx * 1.35, 0.25, 1.0)
+        n.addChildNode(limb(hip, knee, r: 0.36, P.uniform))
+        n.addChildNode(limb(knee, ankle, r: 0.3, P.uniform))
+        n.addChildNode(box(0.72, 0.95, 0.5, pad, at: v(sx * 1.35, 0.6, 1.15), radius: 0.2))          // レガース
+        n.addChildNode(sphere(0.34, pad, at: knee, scale: SCNVector3(1, 0.9, 0.9)))                    // 膝当て
+        n.addChildNode(box(0.66, 0.3, 0.9, P.eye, at: v(sx * 1.35, 0.15, 1.05), radius: 0.1))        // 靴
+    }
+    // 胴: 胸当て（紺の角丸の箱）と肩の帯（薄い紺）。後ろに白の胴
+    n.addChildNode(limb(v(0, 1.0, -0.1), v(0, 1.9, -0.1), r: 0.8, P.uniform))
+    n.addChildNode(box(2.2, 1.7, 0.85, P.navy, at: v(0, 1.4, 0.25), radius: 0.36))
+    n.addChildNode(box(1.9, 0.42, 0.9, band, at: v(0, 2.05, 0.25), radius: 0.18))
+    // 腕: 袖は白・前腕は肌。左手（+x・画面右）は前に出してミット、右手（-x・画面左）は膝に置く
+    let shL = v(1.05, 1.95, 0.15), elL = v(1.6, 1.55, 0.75), hdL = v(1.55, 1.65, 1.35)
+    n.addChildNode(limb(shL, elL, r: 0.27, P.uniform)); n.addChildNode(limb(elL, hdL, r: 0.21, P.skin))
+    let mitt = sphere(0.62, P.glove, at: v(1.55, 1.7, 1.55), scale: SCNVector3(1, 1.05, 0.55)); n.addChildNode(mitt)
+    n.addChildNode(sphere(0.4, col(0xD9A070), at: v(1.5, 1.72, 1.86), scale: SCNVector3(0.8, 0.9, 0.12), outline: 0.02))   // ミットのポケット
+    let shR = v(-1.05, 1.95, 0.15), elR = v(-1.5, 1.35, 0.55), hdR = v(-1.35, 1.05, 1.0)
+    n.addChildNode(limb(shR, elR, r: 0.27, P.uniform)); n.addChildNode(limb(elR, hdR, r: 0.21, P.skin))
+    n.addChildNode(sphere(0.27, P.skin, at: hdR))
+    // 頭: 肌の球 + 紺のスカルキャップ（中心を上へ = 顔が開く）+ ケージ付きマスク（角丸の枠 + 横棒 3 本 + 縦棒 2 本。顔はケージ越しに見える）
+    let head = SCNNode(); head.position = v(0, 2.85, 0)
+    head.addChildNode(sphere(1.0, P.skin, at: v(0, 0, 0)))
+    head.addChildNode(sphere(1.06, P.navy, at: v(0, 0.42, -0.1)))
+    for sx: CGFloat in [-1, 1] {
+        head.addChildNode(sphere(0.2, P.white, at: v(sx * 0.36, 0.02, 0.86), outline: 0.03))
+        head.addChildNode(sphere(0.11, P.eye, at: v(sx * 0.33, 0.0, 1.02), outline: 0))
+        let brow = box(0.36, 0.11, 0.1, P.grayDark, at: v(sx * 0.37, 0.33, 0.9), radius: 0.03, outline: 0.025); head.addChildNode(brow)
+    }
+    head.addChildNode(sphere(0.12, P.skinDark, at: v(0, -0.16, 1.0), outline: 0.03))
+    head.addChildNode(limb(v(-0.15, -0.5, 0.92), v(0.15, -0.5, 0.92), r: 0.035, P.mouth, outline: 0))
+    func bar(_ a: SCNVector3, _ b: SCNVector3) -> SCNNode { limb(a, b, r: 0.05, cage, outline: 0.02) }
+    let fz: CGFloat = 1.22, fw: CGFloat = 0.78, ft: CGFloat = 0.62, fb: CGFloat = -0.78
+    head.addChildNode(bar(v(-fw, ft, fz), v(fw, ft, fz))); head.addChildNode(bar(v(-fw, fb, fz), v(fw, fb, fz)))
+    head.addChildNode(bar(v(-fw, ft, fz), v(-fw, fb, fz))); head.addChildNode(bar(v(fw, ft, fz), v(fw, fb, fz)))
+    for y: CGFloat in [0.25, -0.15, -0.5] { head.addChildNode(bar(v(-fw, y, fz + 0.02), v(fw, y, fz + 0.02))) }
+    for x: CGFloat in [-0.28, 0.28] { head.addChildNode(bar(v(x, ft, fz + 0.02), v(x, fb, fz + 0.02))) }
+    // 枠から頭へ戻る側面のバー（マスクが顔に付いて見えるように）
+    for sx: CGFloat in [-1, 1] { head.addChildNode(bar(v(sx * fw, ft, fz), v(sx * 0.95, 0.35, 0.35))); head.addChildNode(bar(v(sx * fw, fb, fz), v(sx * 0.9, -0.55, 0.4))) }
+    n.addChildNode(head)
+    return n
+}
+
+/// 審判（捕手の後ろ・前かがみ。チャコールの服・同じケージ付きマスク）。捕手に大半が隠れる「野球らしさ」の部品。+z を向く。
+func umpireNode() -> SCNNode {
+    let n = SCNNode()
+    let ump = col(0x3A3F52), cage = col(0xB4B4C0)
+    for sx: CGFloat in [-1, 1] {
+        n.addChildNode(limb(v(sx * 0.6, 0.3, -0.2), v(sx * 0.55, 1.6, 0.05), r: 0.36, col(0x6A6E7E)))
+        n.addChildNode(box(0.66, 0.3, 0.9, P.eye, at: v(sx * 0.6, 0.15, -0.1), radius: 0.1))
+    }
+    n.addChildNode(box(2.3, 1.9, 1.1, ump, at: v(0, 2.5, 0.2), radius: 0.5))                           // 前かがみの胴（胸当て込み）
+    for sx: CGFloat in [-1, 1] {
+        n.addChildNode(limb(v(sx * 1.15, 2.9, 0.3), v(sx * 1.3, 1.85, 0.75), r: 0.25, ump))
+        n.addChildNode(sphere(0.26, P.skin, at: v(sx * 1.3, 1.75, 0.8)))
+    }
+    let head = SCNNode(); head.position = v(0, 3.65, 0.55); head.eulerAngles.x = 0.25
+    head.addChildNode(sphere(0.9, P.skin, at: v(0, 0, 0)))
+    head.addChildNode(sphere(0.96, ump, at: v(0, 0.4, -0.1)))
+    func bar(_ a: SCNVector3, _ b: SCNVector3) -> SCNNode { limb(a, b, r: 0.05, cage, outline: 0.02) }
+    let fz: CGFloat = 1.1, fw: CGFloat = 0.7, ft: CGFloat = 0.55, fb: CGFloat = -0.7
+    head.addChildNode(bar(v(-fw, ft, fz), v(fw, ft, fz))); head.addChildNode(bar(v(-fw, fb, fz), v(fw, fb, fz)))
+    head.addChildNode(bar(v(-fw, ft, fz), v(-fw, fb, fz))); head.addChildNode(bar(v(fw, ft, fz), v(fw, fb, fz)))
+    for y: CGFloat in [0.2, -0.15, -0.45] { head.addChildNode(bar(v(-fw, y, fz + 0.02), v(fw, y, fz + 0.02))) }
+    n.addChildNode(head)
     return n
 }
 
@@ -428,9 +491,11 @@ func atBatShot() -> Shot {
     let batter = ojisan(poses[0]); batter.scale = SCNVector3(charScale, charScale, charScale)
     batter.position = v(-1.0, 0, 0.15); batter.eulerAngles.y = 0.35
     scene.rootNode.addChildNode(batter); scene.rootNode.addChildNode(blobShadow(0.6, at: batter.position))
-    // 捕手
-    let catcher = catcherNode(); catcher.scale = SCNVector3(charScale, charScale, charScale); catcher.position = v(0.0, -0.05, -1.7)
-    scene.rootNode.addChildNode(catcher); scene.rootNode.addChildNode(blobShadow(0.55, at: catcher.position))
+    // 審判（捕手の後ろ。ほとんど隠れる）と捕手（4 回目で参考ブランチの見え方に寄せた）
+    let umpire = umpireNode(); umpire.scale = SCNVector3(charScale, charScale, charScale); umpire.position = v(0.15, 0, -2.75)
+    scene.rootNode.addChildNode(umpire)
+    let catcher = catcherNode(); catcher.scale = SCNVector3(charScale, charScale, charScale); catcher.position = v(0.0, 0, -1.7)
+    scene.rootNode.addChildNode(catcher); scene.rootNode.addChildNode(blobShadow(0.7, at: catcher.position))
     // 投手（マウンドの前・本塁に向く = カメラに背中）
     let pitcher = pitcherNode(); pitcher.scale = SCNVector3(charScale, charScale, charScale)
     pitcher.position = v(0.0, 0.3, 17.4); pitcher.eulerAngles.y = .pi
@@ -500,12 +565,16 @@ func outfieldShot() -> Shot {
 // MARK: - キャラ単体（透明背景・4 ポーズ + 回転 4 方向 + 投手）
 
 func characterShot(_ pose: Pose3, yaw: CGFloat, name: String, outfit: Outfit = .batter, size: CGFloat = 640) -> Shot {
+    nodeShot(ojisan(pose, outfit: outfit), yaw: yaw, name: name, size: size)
+}
+/// 任意のノードを透明背景で 1 枚に描く（捕手・審判用）。`lookY` は注視点の高さ（しゃがんだ捕手は低い）。
+func nodeShot(_ n: SCNNode, yaw: CGFloat, name: String, size: CGFloat = 640, lookY: CGFloat = 2.45, camY: CGFloat = 3.6) -> Shot {
     let scene = SCNScene()
     scene.background.contents = NSColor.clear
     addLights(scene, sunYaw: 0.5)
-    let n = ojisan(pose, outfit: outfit); n.eulerAngles.y = yaw; scene.rootNode.addChildNode(n)
+    n.eulerAngles.y = yaw; scene.rootNode.addChildNode(n)
     let cam = SCNNode(); cam.camera = SCNCamera(); cam.camera!.projectionDirection = .vertical; cam.camera!.fieldOfView = 30
-    cam.position = v(0.4, 3.6, 13.5); cam.look(at: v(0, 2.45, 0))
+    cam.position = v(0.4, camY, 13.5); cam.look(at: v(0, lookY, 0))
     scene.rootNode.addChildNode(cam)
     return Shot(name: name, size: CGSize(width: size, height: size * 1.15), scene: scene, camera: cam, probes: [])
 }
@@ -543,6 +612,9 @@ if only == nil || only == "char" {
     for (i, p) in poses.enumerated() { render(characterShot(p, yaw: 0.25, name: "3d-pose-\(i)"), dir: dir) }
     for (i, yaw) in [0.0, 0.8, 1.35, 3.14].enumerated() { render(characterShot(poses[0], yaw: yaw, name: "3d-turn-\(i)"), dir: dir) }
     render(characterShot(Pose3(name: "投球", elbowR: v(1.55, 3.3, -0.45), handR: v(1.35, 4.35, -0.75), elbowL: v(-1.35, 2.25, 0.5), handL: v(-1.0, 2.65, 1.15)), yaw: 0.3, name: "3d-pitcher", outfit: .pitcher), dir: dir)
+    // 4 回目: 投手の背中（打席で見える向き）と捕手（正面・しゃがみ。参考ブランチの見え方）
+    render(characterShot(Pose3(name: "投球", elbowR: v(1.55, 3.3, -0.45), handR: v(1.35, 4.35, -0.75), elbowL: v(-1.35, 2.25, 0.5), handL: v(-1.0, 2.65, 1.15)), yaw: .pi + 0.15, name: "3d-pitcher-back", outfit: .pitcher), dir: dir)
+    render(nodeShot(catcherNode(), yaw: 0.12, name: "3d-catcher", lookY: 1.75, camY: 2.9), dir: dir)
 }
 if only == nil || only == "field" {
     render(atBatShot(), dir: dir)
