@@ -111,8 +111,11 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
     public var canRestartTurn: Bool {
         !gameOver && !isAITurn && !mustPass && turnStart != nil && remainingDice.count < dice.count
     }
+    /// 「待った」が押せるのは**自分の手番の頭（まだ目を使っていない）**だけ。手番の途中は「やり直し」の領分で、
+    /// ここでも押せると無料枠や広告を「やり直し」と同じ結果に使わせてしまう（verifier 指摘・PR #1344）。
     public var canUndo: Bool {
         !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
+            && remainingDice.count == dice.count
     }
     public var humanPips: Int { board.pipCount(humanSide) }
     public var cpuPips: Int { board.pipCount(humanSide.opponent) }
@@ -200,6 +203,9 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         remainingDice = dice
         selectedPoint = nil
         lastMove = nil
+        // この手番の最初の 1 手で積んだ「待った」の戻り先も取り下げる。残すと次の 1 手でもう 1 本積まれ、
+        // 同じ盤面のエントリが 2 本並んで広告の待ったが空振りする（verifier 指摘・PR #1344）。
+        if undoHistory.last?.board == start { undoHistory.removeLast() }
         turnID += 1
         persist()
     }
@@ -284,6 +290,9 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         turnID = 0
         gameSerial += 1
         isThinking = false
+        // まだ 1 手も動いていない局は `persist()` が保存しないので、前の対局の中断データはここで消す
+        // （残すと、新規対局を始めて 1 手も指さずに離れたとき「続きから」が前の対局を復元する）。
+        services?.snapshots.clear(for: gameID)
         openNewGame()
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
@@ -312,6 +321,9 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel {
         selectedPoint = nil
         turnStart = side == humanSide ? board : nil
         mustPass = BackgammonRules.legalMoves(board: board, side: side, dice: dice).isEmpty
+        // 自分がパスする手番では「直前の自分の 1 手」がパスそのものになるので、古い戻り先は捨てる。
+        // 残すと、パスの次の手番で押した「待った」が 2 往復以上前まで戻る（verifier 指摘・PR #1344）。
+        if side == humanSide, mustPass { undoHistory = [] }
         turnID += 1
         persist()
     }

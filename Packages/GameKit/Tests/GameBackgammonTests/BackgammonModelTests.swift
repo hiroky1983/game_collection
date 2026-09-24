@@ -185,6 +185,75 @@ struct BackgammonModelTests {
         #expect(model.board != board)
     }
 
+    @Test("CPU がパスした直後に自分もパスになる並びでも、手番の鍵が進む（案内の発火点）")
+    func cpuPassThenHumanPass() async {
+        let model = BackgammonModel(services: nil, cpuDelay: .zero, seed: 1)
+        // 白 1 個がバーで黒が 19〜24 を閉じ、黒 1 個もバーで白が 1〜6 を閉じている: 双方パスしか無い。
+        let b = board([0: 2, 1: 2, 2: 2, 3: 2, 4: 3, 5: 3], [18: 3, 19: 3, 20: 2, 21: 2, 22: 2, 23: 2], bar: [1, 1])
+        model.configureForTesting(board: b, side: .black, roll: (6, 1))
+        #expect(model.isAITurn && model.mustPass)
+        let keyBefore = model.aiTurnKey
+        await model.performAIMoveIfNeeded()   // CPU のパス → 続けて人間の手番になり、人間もパス
+        #expect(!model.isAITurn && model.mustPass, "mustPass は true のまま（値の変化で案内を出すと取りこぼす）")
+        #expect(model.aiTurnKey != keyBefore, "案内は aiTurnKey の変化で出す")
+        model.confirmPass()
+        #expect(model.isAITurn)
+    }
+
+    @Test("待ったは手番の頭だけ。やり直しで戻り先は二重に積まれず、パスした手番を挟むと古い戻り先は捨てる")
+    func undoHistoryHygiene() async {
+        let model = BackgammonModel(services: nil, cpuDelay: .zero, seed: 5)
+        model.configureForTesting(board: BackgammonBoard(), roll: (3, 1))
+        model.tap(7); model.tap(4)
+        #expect(!model.canUndo, "目を 1 つ使った途中では待ったを出さない（やり直しの領分）")
+        #expect(model.canRestartTurn)
+        model.restartTurn()
+        // やり直し後にもう一度動かしても、戻り先は 1 本だけ。
+        model.tap(7); model.tap(4); model.tap(5); model.tap(4)
+        await playCPUTurn(model)
+        guard model.canUndo else { return }
+        model.undoLastExchange()
+        #expect(model.board == BackgammonBoard())
+        #expect(!model.canUndo, "同じ盤面のエントリが 2 本並んでいない")
+    }
+
+    @Test("パスした手番を挟むと、それより前の戻り先は残らない（2 往復以上戻らない）")
+    func passClearsUndoHistory() async {
+        var exercised = 0
+        for seed in UInt64(0)..<6 {
+            let model = BackgammonModel(services: nil, cpuDelay: .zero, seed: seed)
+            model.newGame(aiLevel: 0)
+            var plies = 0
+            var humanJustPassed = false
+            while !model.gameOver && plies < 3_000 {
+                plies += 1
+                if model.isAITurn { await model.performAIMoveIfNeeded(); continue }
+                if model.mustPass { humanJustPassed = true; model.confirmPass(); continue }
+                if humanJustPassed {
+                    // 直前の自分の手番がパスなら、戻せる「自分の 1 手」は無い。
+                    #expect(!model.canUndo, "seed \(seed) ply \(plies)")
+                    exercised += 1
+                    humanJustPassed = false
+                }
+                guard let move = model.legalMoves.first else { break }
+                model.tap(move.from); model.tap(move.to)
+            }
+        }
+        #expect(exercised > 0, "パスの直後の手番が 1 回も現れなかった（種を見直す）")
+    }
+
+    @Test("新規対局を始めた時点で前の対局の中断データは消える")
+    func newGameClearsSnapshot() async {
+        let (services, store) = makeServices()
+        let model = BackgammonModel(services: services, cpuDelay: .zero, seed: 5)
+        if model.isAITurn { await playCPUTurn(model) }
+        let move = model.legalMoves.first!
+        model.tap(move.from); model.tap(move.to)
+        #expect(store.exists(for: "backgammon"))
+        model.newGame(aiLevel: 0)
+        #expect(!store.exists(for: "backgammon"), "1 手も指していない新規対局は前の対局を「続きから」にしない")
+    }
+
     @Test("あがりで決着し、種類（ギャモン）が付く。投了は CPU の勝ち")
     func finishAndResign() {
         let (services, store) = makeServices()

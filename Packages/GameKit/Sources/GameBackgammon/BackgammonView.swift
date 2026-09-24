@@ -59,10 +59,14 @@ public struct BackgammonView: View {
             Text("この目で動かせる駒がありません。CPU の番になります。")
         }
         .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
+        // パスの案内は **`mustPass` ではなく手番の鍵（`aiTurnKey`）の変化で出す**。CPU がパスした直後に
+        // 自分もパスになると、`confirmPass()` → `beginTurn()` が同期で続いて `mustPass` は true → true のまま
+        // 変化せず、`onChange(of: mustPass)` では案内が出ずに操作不能になる（verifier 指摘・PR #1344。
+        // 400 局の自動対局で 6 回）。手番の鍵は `beginTurn` のたびに必ず進む。
         // `initial: true` が要る（#414）。案内を閉じる前に中断すると `mustPass = true` のまま保存され、
         // 復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
-        .onChange(of: model.mustPass, initial: true) { _, newValue in
-            if newValue && !model.isAITurn { showPassAlert = true }
+        .onChange(of: model.aiTurnKey, initial: true) { _, _ in
+            if model.mustPass && !model.isAITurn { showPassAlert = true }
         }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()

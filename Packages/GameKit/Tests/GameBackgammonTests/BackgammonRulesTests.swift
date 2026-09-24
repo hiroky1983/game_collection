@@ -106,6 +106,10 @@ struct BackgammonRulesTests {
         #expect(BackgammonRules.isConsistent(b))
         let seqs = BackgammonRules.sequences(board: b, side: .white, dice: [5, 2])
         #expect(seqs.count == 1 && seqs[0].count == 1 && seqs[0][0].die == 5, "\(seqs)")
+        // 2 の生の手（8→6）は存在するが、合法手には出ない（`legalMoves` が `rawMoves` の直結ではないことの担保）。
+        #expect(!BackgammonRules.rawMoves(board: b, side: .white, die: 2).isEmpty)
+        let legal = BackgammonRules.legalMoves(board: b, side: .white, dice: [5, 2])
+        #expect(legal.count == 1 && legal[0].die == 5, "\(legal)")
     }
 
     @Test("ゾロ目は 4 回動かせる")

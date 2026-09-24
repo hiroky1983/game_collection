@@ -90,6 +90,7 @@ struct BackgammonEngineTests {
         let elapsed = clock.measure {
             _ = BackgammonEngine(level: CPUStrength.hard.rawValue).bestSequence(board: b, side: .black, dice: [4, 4, 4, 4])
         }
-        #expect(elapsed < .seconds(20), "Debug ビルドでも 20 秒以内（実測 \(elapsed)）")
+        // 実測は Debug で 0.23 秒・-O で最悪 0.25 秒（verifier 計測・PR #1344）。CI の遅いランナーを見込んで 3 秒。
+        #expect(elapsed < .seconds(3), "Debug ビルドでも 3 秒以内（実測 \(elapsed)）")
     }
 }
