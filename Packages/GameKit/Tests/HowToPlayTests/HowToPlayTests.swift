@@ -26,6 +26,7 @@ import GameFruits
 import GameColorRelay
 import GameAnzan
 import GameBackgammon
+import GameSpeed
 import GameSpider
 import GameChess
 import GameBlocks
@@ -47,6 +48,7 @@ private let registeredModules: [GameModule] = [
     ColorRelayModule(),
     AnzanModule(),
     BackgammonModule(),
+    SpeedModule(),
     BlackjackModule(),
     DaifugoModule(),
     MahjongSolitaireModule(),

@@ -26,6 +26,7 @@ import GameFruits
 import GameColorRelay
 import GameAnzan
 import GameBackgammon
+import GameSpeed
 import GameSpider
 import GameChess
 import GameBlocks
@@ -68,7 +69,7 @@ private func makeHubGameIDs() -> Set<String> {
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
-        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(),
+        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -438,7 +439,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 28, "ハブに並ぶゲームは28本（企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322 を含む）")
+        #expect(hubGameIDs.count == 29, "ハブに並ぶゲームは29本（企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -984,6 +985,33 @@ struct AllGamesAnalyticsTests {
         model.resign()
         expectOnePair(spy, gameID: "backgammon")
         #expect(spy.ends.first?.result == .loss)
+    }
+
+    @Test("スピード: 速さを選んだ時点で開始・出し切りで終局（自動対戦で 1 組）")
+    func speed() {
+        let clock = TestClock()
+        let (services, spy) = makeServices(clock: clock)
+        var current = Date(timeIntervalSince1970: 1_000_000)
+        let model = SpeedModel(services: services, seed: 7, now: { current })
+        #expect(spy.events.isEmpty, "画面を開いただけでは始まらない（速さのシートから入る）")
+        model.start(SpeedSettings(level: .fast))
+        #expect(spy.startLevels == [.hard])
+        var steps = 0
+        while model.phase == .playing, steps < 5000 {
+            steps += 1
+            if let id = model.humanPlayableIDs.min(), let card = model.humanHand.first(where: { $0.id == id }) {
+                let targets = model.playableTargets(for: card)
+                model.tapHandCard(card)
+                if targets.count > 1 { model.tapPile(0) }
+                continue
+            }
+            guard let wait = model.nextCPUWait() else { break }
+            let (s, attos) = wait.components
+            current = current.addingTimeInterval(TimeInterval(s) + TimeInterval(attos) / 1e18)
+            model.performCPUAction()
+        }
+        #expect(model.phase == .result)
+        expectOnePair(spy, gameID: "speed")
     }
 
     @Test("オセロ: 開いた時点で開始・投了で終局（loss）")
