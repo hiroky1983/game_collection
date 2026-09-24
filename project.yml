@@ -89,6 +89,8 @@ targets:
       - package: GameKit
         product: GameColorRelay
       - package: GameKit
+        product: GameAnzan
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

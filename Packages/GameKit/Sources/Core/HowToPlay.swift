@@ -360,11 +360,23 @@ public extension HowToPlayGuide {
         hintIcon: "rectangle.on.rectangle.angled"
     )
 
+    static let anzan = HowToPlayGuide(
+        gameID: "anzan",
+        title: "ぱっと暗算の遊び方",
+        lines: [
+            "数が 1 つずつ、パッと出ては消えます。出た数を頭の中でぜんぶ足していきましょう。",
+            "最後の数が消えたら、合計をテンキーで入力して「決定」。正解すると連続正解が伸びます。",
+            "右上の「難易度」で桁数・個数・速さをそれぞれ選べます。まずは 1 桁・5 個から。",
+        ],
+        hint: "出た数をぜんぶ足そう",
+        hintIcon: "sum"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay,
+        .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan,
     ]
 }
 
