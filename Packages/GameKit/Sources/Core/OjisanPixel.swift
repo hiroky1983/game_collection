@@ -373,7 +373,7 @@ public enum OjisanPixel {
     // smile 32x30（#1349・SD 寄りのデフォルメ）。頭を横幅いっぱいの丸い大きな輪郭にして首を無くし、額を広く取った
     // 「薄い頭」（頭頂は地肌だけ・左上に W のツヤ・側頭部に H/h の髪と W の白髪）。目は 6×5 の黒目に Q のハイライト、
     // 鼻は s の 2 段、頬は 5×3 の C、鼻の下のヒゲは h/H の 12〜14 幅、口は歯（Q）の見える笑い。
-    // 左右対称に描き、頭頂のツヤだけ左に寄せている。
+    // 左右対称に描き、頭頂のツヤだけ左に寄せている。以下の「N 行」は配列の添字（0 始まり）。
     static let smileRows: [String] = [
         "..........KKKKKKKKKKKK..........",
         ".......KKKSSSSSSSSSSSSKKK.......",
@@ -527,7 +527,7 @@ public enum OjisanPixel {
         ".......KKK......",
         "................",
     ]
-    // gaze 32x30（#1349）。smile と同じ格子で、眉（11〜13 行）を八の字に、口（23〜25 行）を小さく開いた丸に差し替え。頬はそのまま。
+    // gaze 32x30（#1349）。smile と同じ格子で、眉（11〜13 行）を八の字に、口（23〜25 行）を小さく開いた楕円（幅 4/6/4）に差し替え。頬はそのまま。
     static let gazeRows: [String] = [
         "..........KKKKKKKKKKKK..........",
         ".......KKKSSSSSSSSSSSSKKK.......",
@@ -553,8 +553,8 @@ public enum OjisanPixel {
         "KsSCCCCSSShhhhHHHHhhhhSSSCCCCSsK",
         ".KssSSSSShhhhhHHHHhhhhhSSSSSssK.",
         ".KssSSSSSSSSSSMMMMSSSSSSSSSSssK.",
-        "..KssSSSSSSSSSMMMMSSSSSSSSSssK..",
-        "...KssSSSSSSSSSMMSSSSSSSSSssK...",
+        "..KssSSSSSSSSMMMMMMSSSSSSSSssK..",
+        "...KssSSSSSSSSMMMMSSSSSSSSssK...",
         "....KssSSSSSSSSSSSSSSSSSSssK....",
         "......KKKssSSSSSSSSSSssKKK......",
         ".........KKKKKKKKKKKKKK.........",
