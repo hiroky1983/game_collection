@@ -576,8 +576,9 @@ public final class SpeedModel {
             )
             selectedID = card(.hearts, 5).id
         case "stuck":
+            // 台札は 3 と 3。手札に 2・4・A・K が無いので、どちらも出せない。
             configureForTesting(
-                humanHand: [card(.hearts, 5), card(.hearts, 9), card(.diamonds, 12), card(.hearts, 2)],
+                humanHand: [card(.hearts, 5), card(.hearts, 9), card(.diamonds, 12), card(.hearts, 7)],
                 humanStock: Array(redRest.prefix(14)),
                 cpuHand: [card(.spades, 6), card(.clubs, 10), card(.spades, 1), card(.spades, 8)],
                 cpuStock: Array(blackRest.prefix(12)),

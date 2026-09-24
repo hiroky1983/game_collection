@@ -177,7 +177,8 @@ public struct SpeedView: View {
                 pileView(index)
             }
         }
-        .frame(maxWidth: .infinity)
+        // 縦の余りはこの枠が吸う（`Spacer` を置くと中身が上下に散る。いろリレーの手札と同じ考え方）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
         .overlay(alignment: .top) {
