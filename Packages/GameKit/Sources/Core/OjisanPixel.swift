@@ -19,7 +19,7 @@ import SwiftUI
 /// なぜママチャリで海を渡れるのかは**一切説明しない**（そこがギャグ）。
 ///
 /// 走者のコマは 40×37 ドット（右向き）。1 ドット = 整数 pt で描く（`PixelSprite.cgImage(scale:)`）。
-/// 正面顔は 16×15 ドット（ハブのカード・リザルト・LP）。
+/// 正面顔は 32×30 ドット（ハブのカード・リザルト。#1349 で 16×15 から解像度だけ上げた。絵柄・表情・配色は同じ）。
 public enum OjisanPixel {
     /// 共通パレット（SFC 風に彩度をやや落とし、暗い輪郭で締める）。
     public static let palette: [Character: UInt32] = [
@@ -87,16 +87,29 @@ public enum OjisanPixel {
         }
     }
 
+    /// 正面顔の粗い版（16×15）。世界の締め（`RunnerStoryArt` の胸像）が 3 倍にして荒い格子の場面に重ねるので、
+    /// 高解像度化（#1349）の対象外としてそのまま残す。ハブ・リザルトは `face(_:)` を使う。
+    public static func faceLowRes(_ face: Face) -> PixelSprite {
+        switch face {
+        case .smile: return PixelSprite(rows: smileLowRows, palette: palette)
+        case .cheer: return PixelSprite(rows: cheerLowRows, palette: palette)
+        case .frown: return PixelSprite(rows: frownLowRows, palette: palette)
+        case .gaze: return PixelSprite(rows: gazeLowRows, palette: palette)
+        }
+    }
+    /// 粗い版の正面顔のドット数（`faceLowRes` の大きさ）。
+    public static let faceLowResDotSize: (width: Int, height: Int) = (width: 16, height: 15)
+
     // MARK: ハブ・リザルト用の正面顔
 
-    /// アイコン用キャンバスの一辺（ドット）。16×15 の顔を 24×24 の中央に置き、周りの余白で
+    /// アイコン用キャンバスの一辺（ドット）。32×30 の顔を 48×48 の中央に置き、周りの余白で
     /// 他ゲームの SF Symbol（枠の 5〜6 割の大きさ）と見た目の比率を揃える。
-    public static let iconCanvasDots = 24
+    public static let iconCanvasDots = 48
 
     /// 正面顔（笑顔）のビットマップ。起動後 1 回だけ作る（#700 の受け入れ条件: 毎表示でビットマップ化しない）。
-    /// 1 ドット = 4px で持ち、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
+    /// 1 ドット = 2px で持ち（旧 16×15 の 1 ドット = 4px と同じ 96px 四方）、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
     public static let mascotFaceImage: CGImage? =
-        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 4)
+        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 2)
 
     /// ハブのカード・おすすめ・設定などで `GameModule.icon` として出す正面顔。
     /// 呼び出し側は SF Symbol と同じく `.font(...)` で大きさを決めているが、ビットマップには効かないので
@@ -109,11 +122,16 @@ public enum OjisanPixel {
 
     // MARK: リザルト・スタート画面用の正面顔（#702）
 
-    /// 正面顔のドット数（幅 16 × 高さ 15）。表示側はこの比率で枠を切る（`faceImage` の doc）。
-    public static let faceDotSize: (width: Int, height: Int) = (width: 16, height: 15)
+    /// 高解像度化前（16×15）に対する正面顔の細かさ（縦横とも何倍か）。表示の大きさは旧来の
+    /// 「16 ドット × 倍率 pt」のままにしたいので、`faceDotSize` を `faceResolution` で割って枠を切る。
+    public static let faceResolution = 2
 
-    /// 3 表情のビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
-    /// 1 度だけ評価される）。1 ドット = 4px で持ち、表示側で整数倍の pt に縮尺する。
+    /// 正面顔のドット数（幅 32 × 高さ 30）。表示側はこの比率で枠を切る（`faceImage` の doc）。
+    public static let faceDotSize: (width: Int, height: Int) = (width: 16 * faceResolution, height: 15 * faceResolution)
+
+    /// 表情ごとのビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
+    /// 1 度だけ評価される）。1 ドット = 4px（128×120px）で持ち、
+    /// 表示側で縮尺する。
     public static let faceImages: [Face: CGImage] = {
         var out: [Face: CGImage] = [:]
         for face in Face.allCases { out[face] = Self.face(face).cgImage(scale: 4) }
@@ -123,8 +141,8 @@ public enum OjisanPixel {
     /// リザルト（クリア・ミス）とスタート画面に出す正面顔（#702）。
     ///
     /// 装飾（`Image(decorative:)`）なので VoiceOver は読まない。`resizable` + `interpolation(.none)` で
-    /// にじませない。呼び出し側は `faceDotSize` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt）。
-    /// 比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
+    /// にじませない。呼び出し側は `faceDotSize` ÷ `faceResolution` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt。
+    /// 1 ドット = 2pt）。比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
     public static func faceImage(_ face: Face) -> Image {
         guard let cg = faceImages[face] else { return Image(systemName: "bicycle") }
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
@@ -333,7 +351,7 @@ public enum OjisanPixel {
         "...KKTTTTTKK.........KKTTTTTKK..........",
     ]
     // smile 16x15
-    static let smileRows: [String] = [
+    static let smileLowRows: [String] = [
         ".....KKKKKK.....",
         "...KKHHSSHHKK...",
         "..KHHhSSSShHHK..",
@@ -350,8 +368,41 @@ public enum OjisanPixel {
         ".......KKK......",
         "................",
     ]
+    // smile 32x30（#1349）。
+    static let smileRows: [String] = [
+        "..........KKKKKKKKKKKK..........",
+        "..........KKKKKKKKKKKK..........",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "..KKHHhhSShhhhSSSSSSSShhhhSSHHKK",
+        "..KKHHhhSShhhhSSSSSSSShhhhSSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "....KKssSSSShhMMMMMMMMhhSSssKK..",
+        "....KKssSSSShhMMMMMMMMhhSSssKK..",
+        "....KKKKssSSSSQQQQQQQQSSssKKKK..",
+        "....KKKKssSSSSQQQQQQQQSSssKKKK..",
+        "........KKssSSSSSSSSSSssKK......",
+        "........KKssSSSSSSSSSSssKK......",
+        "..........KKKKssssKKKKKK........",
+        "..........KKKKssssKKKKKK........",
+        "..............KKKKKK............",
+        "..............KKKKKK............",
+        "................................",
+        "................................",
+    ]
     // cheer 16x15
-    static let cheerRows: [String] = [
+    static let cheerLowRows: [String] = [
         ".....KKKKKK.....",
         "...KKHHSSHHKK...",
         "..KHHhSSSShHHK..",
@@ -368,8 +419,41 @@ public enum OjisanPixel {
         ".......KKK......",
         "................",
     ]
+    // cheer 32x30（#1349）。
+    static let cheerRows: [String] = [
+        "..........KKKKKKKKKKKK..........",
+        "..........KKKKKKKKKKKK..........",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "..KKHHhhSShhhhSSSSSSSShhhhSSHHKK",
+        "..KKHHhhSShhhhSSSSSSSShhhhSSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "....KKssSSSShhMMMMMMMMhhSSssKK..",
+        "....KKssSSSShhMMMMMMMMhhSSssKK..",
+        "....KKKKssMMMMMMMMMMMMMMssKKKK..",
+        "....KKKKssMMMMMMMMMMMMMMssKKKK..",
+        "........KKssQQQQQQQQQQssKK......",
+        "........KKssQQQQQQQQQQssKK......",
+        "..........KKKKssssKKKKKK........",
+        "..........KKKKssssKKKKKK........",
+        "..............KKKKKK............",
+        "..............KKKKKK............",
+        "................................",
+        "................................",
+    ]
     // frown 16x15
-    static let frownRows: [String] = [
+    static let frownLowRows: [String] = [
         ".....KKKKKK.....",
         "...KKHHSSHHKK...",
         "..KHHhSSSShHHK..",
@@ -386,9 +470,42 @@ public enum OjisanPixel {
         ".......KKK......",
         "................",
     ]
+    // frown 32x30（#1349）。
+    static let frownRows: [String] = [
+        "..........KKKKKKKKKKKK..........",
+        "..........KKKKKKKKKKKK..........",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "..KKHHhhSSSSSShhhhSShhhhSSSSHHKK",
+        "..KKHHhhSSSSSShhhhSShhhhSSSSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "....KKssSSSShhhhhhhhhhhhSSssKK..",
+        "....KKssSSSShhhhhhhhhhhhSSssKK..",
+        "....KKKKssSSMMMMMMMMMMSSssKKKK..",
+        "....KKKKssSSMMMMMMMMMMSSssKKKK..",
+        "........KKssSSSSSSSSSSssKK......",
+        "........KKssSSSSSSSSSSssKK......",
+        "..........KKKKssssKKKKKK........",
+        "..........KKKKssssKKKKKK........",
+        "..............KKKKKK............",
+        "..............KKKKKK............",
+        "................................",
+        "................................",
+    ]
     // gaze 16x15（#1092）。眉（`h`）を内側へ寄せて八の字にし、口（`M`）は 2×2 で小さく開けたまま。
     // 頬（`C`）は笑顔と同じ位置に残す——血の気が引いた顔ではなく「呆けている」顔にしたいので。
-    static let gazeRows: [String] = [
+    static let gazeLowRows: [String] = [
         ".....KKKKKK.....",
         "...KKHHSSHHKK...",
         "..KHHhSSSShHHK..",
@@ -404,5 +521,38 @@ public enum OjisanPixel {
         ".....KKssKKK....",
         ".......KKK......",
         "................",
+    ]
+    // gaze 32x30（#1349）。
+    static let gazeRows: [String] = [
+        "..........KKKKKKKKKKKK..........",
+        "..........KKKKKKKKKKKK..........",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "......KKKKHHHHSSSSHHHHKKKK......",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHHHhhSSSSSSSShhHHHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "....KKHHhhSSSSSSSSSSSShhHHKK....",
+        "..KKHHhhSSSShhhhSSSShhhhSSSSHHKK",
+        "..KKHHhhSSSShhhhSSSShhhhSSSSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKHHhhSSQQEESSSSSSSSQQEESSHHKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKhhSSSSSSSSSSssSSSSSSSSSShhKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSCCSSSSSSSSSSSSCCSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "..KKssSSSSSShhhhHHHHhhhhSSSSssKK",
+        "....KKssSSSSSShhMMMMhhSSSSssKK..",
+        "....KKssSSSSSShhMMMMhhSSSSssKK..",
+        "....KKKKssSSSShhMMMMhhSSssKKKK..",
+        "....KKKKssSSSShhMMMMhhSSssKKKK..",
+        "........KKssSSSSSSSSSSssKK......",
+        "........KKssSSSSSSSSSSssKK......",
+        "..........KKKKssssKKKKKK........",
+        "..........KKKKssssKKKKKK........",
+        "..............KKKKKK............",
+        "..............KKKKKK............",
+        "................................",
+        "................................",
     ]
 }
