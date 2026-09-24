@@ -46,7 +46,7 @@ struct RunnerResultFaceTests {
         // 顔の一辺（16 ドット × 倍率）はコースの高さの 2 割を超えない（2 倍の下限を除く）。
         for height in stride(from: 240.0, through: 600.0, by: 7) {
             let scale = RunnerResultFace.dotScale(forCourseHeight: height)
-            #expect(Double(OjisanPixel.faceDotSize.width * scale) <= height * 0.2, "高さ \(height)")
+            #expect(Double(OjisanPixel.faceDotSize.width / OjisanPixel.faceResolution * scale) <= height * 0.2, "高さ \(height)")
         }
         #expect(RunnerResultFace.startDotScale == 2, "スタート画面の笑顔は 2 倍 = 32pt")
     }
