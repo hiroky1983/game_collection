@@ -234,9 +234,11 @@ public final class FruitsModel {
     @discardableResult
     public func continueAfterAd(forGame serial: Int) -> Bool {
         guard phase == .gameOver, !continueUsed, serial == gameSerial else { return false }
-        // 同じ 1 プレイの続きなので、直前に記録した「負け」は無かったことにする。
-        // メロンを作っていた回は勝ちとして記録されているので取り消すものが無い。
-        if !hasMadeMelon {
+        // 同じ 1 プレイの続きなので、直前に記録した結果は無かったことにする（再び終局したときに数え直す）。
+        // メロンを作っていた回は勝ち、作れなかった回は負けとして記録されている（#1359）。
+        if hasMadeMelon {
+            services?.playLog?.cancelWin(gameID: Self.gameID)
+        } else {
             services?.playLog?.cancelLoss(gameID: Self.gameID)
         }
         recordResult = nil
