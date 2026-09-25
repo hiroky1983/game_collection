@@ -33,6 +33,12 @@ struct GameCollectionApp: App {
             #endif
         }
         .onChange(of: scenePhase) { _, newPhase in
+            // duration_sec にバックグラウンドの時間を入れない（#1373）。
+            if newPhase == .active {
+                AppEnvironment.analytics.appDidBecomeActive()
+            } else {
+                AppEnvironment.analytics.appDidResignActive()
+            }
             // 起動時は広告の初期化だけ行い、ATT 許可は聞かない（初回起動の1枚目がシステムダイアログに
             // なるのを避ける。実際に聞くのは最初のゲームを遊び終えてハブに戻った時点＝HubView）。
             // 撮影モードは広告そのものを出さない（NoopAdService）ので SDK の初期化も走らせない。

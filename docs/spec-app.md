@@ -241,7 +241,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326) |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal・最後のミスの原因。#796)、無料ヒントを 1 回でも使ったプレイのみ `hints_used`(1〜3・#1326) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |

@@ -387,6 +387,14 @@ public final class GameAnalytics {
     /// 進行中のプレイで最後にミスした原因（#796）。終わりの `game_end` に `cause` として載せる。
     /// プレイを始め直すと消える。ミスしていないプレイは鍵が無い。
     private var causes: [String: AnalyticsEndCause] = [:]
+    /// 進行中のプレイの `duration_sec` から差し引く秒数（#1373）。バックグラウンド・ハブでの休憩の時間を積む。
+    private var excludedSeconds: [String: TimeInterval] = [:]
+    /// ハブへ戻って休憩している（続きから戻れる）プレイの、休憩に入った時刻。再開（`startPlay`）で閉じる。
+    private var restingSince: [String: Date] = [:]
+    /// アプリが前面から外れた時刻。前面に戻ったときに、休憩中でない進行中のプレイへ差し引きを配る。
+    private var inactiveSince: Date?
+    /// `duration_sec` の上限（秒）。計時を止め損ねた場合の歯止め（#1373）。
+    static let maxDurationSeconds = 2 * 60 * 60
 
     public init(
         service: AnalyticsService,
@@ -406,7 +414,10 @@ public final class GameAnalytics {
     /// `init` は1回の表示で何度も走りうる。ここで冪等にしておくことで、再描画・
     /// バックグラウンド復帰で `game_start` が増えない。
     public func startPlay(gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
-        guard allowedGameIDs.contains(gameID), plays[gameID] == nil else { return }
+        guard allowedGameIDs.contains(gameID) else { return }
+        // 休憩していたプレイの再開。開始は数え直さず、休憩の時間だけ計時から外す。
+        closeRest(gameID: gameID)
+        guard plays[gameID] == nil else { return }
         beginPlay(gameID: gameID, level: level, mode: mode)
     }
 
@@ -532,6 +543,30 @@ public final class GameAnalytics {
     /// 送信済みの `game_start` とだけ対応が付く（= 集計側では「始めたのに終わっていない」ぶんに入る）。
     public func discardPlayState() {
         plays.removeAll()
+        excludedSeconds.removeAll()
+        restingSince.removeAll()
+    }
+
+    /// アプリが前面から外れたときに呼ぶ（#1373）。戻るまでの時間は `duration_sec` に入れない。
+    public func appDidResignActive() {
+        if inactiveSince == nil { inactiveSince = now() }
+    }
+
+    /// アプリが前面に戻ったときに呼ぶ（#1373）。
+    public func appDidBecomeActive() {
+        guard let since = inactiveSince else { return }
+        inactiveSince = nil
+        let away = max(0, now().timeIntervalSince(since))
+        for (gameID, state) in plays {
+            // 休憩中のプレイは、休憩に入った時刻からの全部を再開時に外すので二重に引かない。
+            guard case .inFlight = state, restingSince[gameID] == nil else { continue }
+            excludedSeconds[gameID, default: 0] += away
+        }
+    }
+
+    private func closeRest(gameID: String) {
+        guard let since = restingSince.removeValue(forKey: gameID) else { return }
+        excludedSeconds[gameID, default: 0] += max(0, now().timeIntervalSince(since))
     }
 
     /// ゲーム画面から離れたときに呼ぶ（ハブが1か所で呼ぶ）。
@@ -548,13 +583,21 @@ public final class GameAnalytics {
     public func leaveGame(gameID: String, isResumable: Bool) {
         if case .finished = plays[gameID] {
             plays[gameID] = nil
+            excludedSeconds[gameID] = nil
+            restingSince[gameID] = nil
             return
         }
         // 中断データが在っても、そこから局を復元しないゲームは離脱として扱う（`markUnresumable`）。
-        if case let .inFlight(_, _, canResume, _) = plays[gameID], canResume, isResumable { return }
+        if case let .inFlight(_, _, canResume, _) = plays[gameID], canResume, isResumable {
+            // 休憩。再開するまでの時間は `duration_sec` に入れない（#1373）。
+            if restingSince[gameID] == nil { restingSince[gameID] = now() }
+            return
+        }
         endPlayAsQuitIfProgressed(gameID: gameID)
         // 送っても送らなくても、再開できない盤面はもう続きが無い。次に開いたら数え直す。
         plays[gameID] = nil
+        excludedSeconds[gameID] = nil
+        restingSince[gameID] = nil
     }
 
     /// 未決着のまま捨てられたプレイに `game_end`（`quit`）を送る。1手も指していなければ何も送らない。
@@ -566,8 +609,10 @@ public final class GameAnalytics {
     }
 
     private func sendEnd(gameID: String, result: AnalyticsResult, startedAt: Date, hintsUsed: Int) {
-        // 時計が巻き戻っても負の秒数を送らない。
-        let seconds = max(0, Int(now().timeIntervalSince(startedAt)))
+        closeRest(gameID: gameID)
+        // 前面にいた時間だけを数える。時計が巻き戻っても負の秒数を送らず、上限で頭打ちにする（#1373）。
+        let active = now().timeIntervalSince(startedAt) - (excludedSeconds[gameID] ?? 0)
+        let seconds = min(Self.maxDurationSeconds, max(0, Int(active)))
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
             mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed
@@ -578,6 +623,8 @@ public final class GameAnalytics {
         let startedAt = now()
         plays[gameID] = .inFlight(startedAt: startedAt, didProgress: false, canResume: true, hintsUsed: 0)
         modes[gameID] = mode
+        excludedSeconds[gameID] = nil
+        restingSince[gameID] = nil
         // 前のプレイの死因を次のプレイへ持ち越さない。
         causes[gameID] = nil
         service.log(.gameStart(
