@@ -165,8 +165,11 @@ struct GoModelFlowTests {
         #expect(model.phase == .scoring)
 
         let first = Task { await model.evaluateEndgameIfNeeded() }
-        // 最初の計算が走り出す（計算中フラグが立つ）まで MainActor を譲る。
-        while !model.isScoringInProgress { await Task.yield() }
+        // 最初の計算が走り出す（計算中フラグが立つ）まで MainActor を譲る。計算の完了処理は
+        // MainActor が要るので、ここから先の同期区間（続行〜再パス）が終わるまで割り込めない。
+        // 上限付きにするのは、前提が崩れたときにハングせず赤で落とすため。
+        for _ in 0..<100 where !model.isScoringInProgress { await Task.yield() }
+        #expect(model.isScoringInProgress, "最初の計算が始まっていない")
 
         // 計算中に続行して 1 手打ち、また両者パスで scoring へ戻す。
         model.resumePlay()
