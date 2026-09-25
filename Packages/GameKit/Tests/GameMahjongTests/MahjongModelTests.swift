@@ -287,7 +287,7 @@ struct MahjongTurnTests {
         model.advanceToNextHand()
         #expect(model.dealer == 1)
         #expect(model.roundNumber == 2)
-        #expect(model.honba == 0)
+        #expect(model.honba == 1, "荒牌流局は親流れでも本場が積まれる（#1391）")
     }
 }
 
