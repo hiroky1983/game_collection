@@ -534,6 +534,7 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
     let guide: HowToPlayGuide
     let extra: (() -> Extra)?
     var onPresent: (() -> Void)?
+    var onDismiss: (() -> Void)?
     @State private var isPresented = false
 
     func body(content: Content) -> some View {
@@ -549,7 +550,7 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
                     .accessibilityLabel("遊び方")
                 }
             }
-            .sheet(isPresented: $isPresented) {
+            .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
                 if let extra {
                     HowToPlaySheet(guide: guide, extra: extra)
                 } else {
@@ -564,8 +565,12 @@ public extension View {
     ///
     /// `onPresent` はシートを開く直前に呼ばれる。リアルタイム進行のゲームは
     /// ここで一時停止する（読んでいる間に落球する、を防ぐ。#510）。
-    func howToPlay(_ guide: HowToPlayGuide, onPresent: (() -> Void)? = nil) -> some View {
-        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil, onPresent: onPresent))
+    func howToPlay(
+        _ guide: HowToPlayGuide,
+        onPresent: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil
+    ) -> some View {
+        modifier(HowToPlayToolbar<EmptyView>(guide: guide, extra: nil, onPresent: onPresent, onDismiss: onDismiss))
     }
 
     /// 詳細ページ付きの `?` ボタン（ポーカーの役一覧・大富豪のルール）。
@@ -575,9 +580,10 @@ public extension View {
     func howToPlay<Extra: View>(
         _ guide: HowToPlayGuide,
         onPresent: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil,
         @ViewBuilder extra: @escaping () -> Extra
     ) -> some View {
-        modifier(HowToPlayToolbar(guide: guide, extra: extra, onPresent: onPresent))
+        modifier(HowToPlayToolbar(guide: guide, extra: extra, onPresent: onPresent, onDismiss: onDismiss))
     }
 }
 
