@@ -92,15 +92,19 @@ enum ShogiSelfPlay {
     /// 反復深化が時間（30 秒）で打ち切られてしまい、この関数の「深さで決まる」という前提が
     /// 崩れる（実測: 軽い局面でも depth 32 は 10 秒あっても到達しない）。ここでのテストが
     /// 要求する最大の読みは `smallGainBehindRecapture` の深さ 5（#502）なので、上限が
-    /// 大きい設定は 7 に絞って探索を自然終了させる（実測 0.03〜0.31 秒・#1134 の PR に記載）。
+    /// 大きい設定は絞って探索を自然終了させる（#1134 の実測 0.03〜0.31 秒は 7 まで。#1397 で「むずかしい」の
+    /// 出荷上限を 7 にしたが、ここは従来どおり 5 に絞る＝デバッグビルドの CI 時間を延ばさない）。
     ///
     /// - Parameter seed: 「入門」（#1174）の乱択を再現したいときに渡す。他の段は乱数を使わない。
-    static func untimed(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
+    ///
+    /// - Parameter slips: `true` なら出荷どおり「見逃し」（#1397）を起こす。既定は `false`
+    ///   （読みの深さだけを固定するテストが確率で揺れないように）。
+    static func untimed(level: Int, seed: UInt64? = nil, slips: Bool = false) -> SimpleMinimaxEngine {
         let shipped = SimpleMinimaxEngine(level: level)
         return SimpleMinimaxEngine(
-            depth: min(shipped.depth, 7), usePositional: shipped.usePositional,
+            depth: min(shipped.depth, 5), usePositional: shipped.usePositional,
             useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: .infinity,
-            isNovice: shipped.isNovice, seed: seed)
+            nodeLimit: nil, policy: slips ? shipped.policy : shipped.policy.withoutSlip, seed: seed)
     }
 
     /// 出荷している「弱」（探索設定は `level: 0` そのまま、時間の上限だけ外したもの）。
@@ -113,7 +117,7 @@ enum ShogiSelfPlay {
         return SimpleMinimaxEngine(
             depth: shipped.depth, usePositional: shipped.usePositional,
             useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: -1,
-            isNovice: shipped.isNovice, seed: seed)
+            nodeLimit: nil, policy: shipped.policy.withoutSlip, seed: seed)
     }
 }
 
@@ -159,18 +163,16 @@ struct ShogiDifficultyConfigTests {
     /// 下方調整は level 0 だけに閉じており、普通の探索設定は 1 ビットも動かさない。
     /// **「強」の探索深さ上限は #1134 で 5 → 32 に上げていたが、v1.1.6 で一旦取り消した**
     /// （会長指摘・2026-09-22。「ガチ」の見送りと合わせ、v1.1.5 から公開されている 5 に戻す）。
-    @Test("普通の設定は下方調整の前後で変わっていない・強の探索深さ上限は v1.1.5 の値のまま")
+    @Test("普通の探索深さ上限は v1.1.5 の値のまま・強は 7（打ち切りは局面数で決める・#1397）")
     func strongLevelsAreUntouched() {
         let normal = SimpleMinimaxEngine(level: 1)
         #expect(normal.depth == 4)
         #expect(normal.useQuiescence)
-        #expect(normal.timeLimit == 1.0)
 
         let strong = SimpleMinimaxEngine(level: 2)
-        #expect(strong.depth == 5)
+        #expect(strong.depth == 7, "深さ上限は 5 → 7（#1397: 打ち切りは局面数で決め、ふつうに負けない深さまで読む）")
         #expect(strong.useQuiescence)
         #expect(strong.usePositional)
-        #expect(strong.timeLimit == 1.5, "持ち時間は v1.1.5 から変えていない")
     }
 }
 
@@ -212,9 +214,11 @@ struct ShogiDifficultyLadderTests {
         }
     }
 
-    @Test("取り返されるだけの駒はどの段階も取らない")
+    /// 入門は読みが自分の手 1 手だけ（#1397）なので、取り返される取りを指すことがある
+    /// （只で取られる手も一定の確率で指す、が入門の設計）。簡単以上は取らない。
+    @Test("取り返されるだけの駒は簡単以上の段階は取らない")
     func noLevelTakesTheHangingCapture() async {
-        for level in allLevels {
+        for level in allLevels where level != CPUStrength.novice.rawValue {
             let usi = await ShogiSelfPlay.untimed(level: level).bestMove(sfen: poisonedPawn)
             #expect(usi != "5e5d", "level \(level) が金を歩と刺し違えている")
         }
@@ -294,19 +298,21 @@ struct ShogiNoviceAndSeriousTests {
 
     private static let novice = CPUStrength.novice.rawValue
 
-    /// 「入門」は**読みの設定を「簡単」と 1 ビットも変えず**、着手の選び方だけを崩してある。
-    /// 深さを 1 に落とすと只捨てを始める（#502 の実測）ので、そこには戻さない。
-    @Test("入門の読みは簡単と同じで、選び方だけが違う")
-    func noviceSharesTheEasySearch() {
+    /// 「入門」は自分の手 1 手だけを読む（深さ 1・#1397）。深さ 2 のままだと、簡単との
+    /// 対戦で簡単が詰まされる局が残り「上の段階は下の段階に負けない」を満たせなかった
+    /// （48 局中 1〜2 局。深さ 1 なら 0 局）。取り返される取りを指すのは設計どおり。
+    @Test("入門は簡単より浅く読み、読み以外の設定は簡単と同じ")
+    func noviceReadsShallowerThanEasy() {
         let novice = SimpleMinimaxEngine(level: Self.novice)
         let easy = SimpleMinimaxEngine(level: CPUStrength.easy.rawValue)
         #expect(novice.isNovice)
         #expect(!easy.isNovice)
-        #expect(novice.depth == easy.depth && easy.depth == 2)
+        #expect(novice.depth == 1 && easy.depth == 2)
         #expect(novice.useQuiescence == easy.useQuiescence)
         #expect(novice.usePositional == easy.usePositional)
         #expect(novice.useBook == easy.useBook)
         #expect(novice.timeLimit == easy.timeLimit)
+        #expect(novice.nodeLimit == nil && easy.nodeLimit == nil)
         // 許す損は歩 1 枚未満。駒を只で捨てる手はこの幅に入らない。
         #expect(SimpleMinimaxEngine.noviceMargin < PieceValue.base(.pawn))
     }
@@ -314,11 +320,10 @@ struct ShogiNoviceAndSeriousTests {
     /// 「ガチ」は v1.1.6 で一旦見送った（会長指摘・2026-09-22。強さを実感できず調整が必要と判断）。
     /// `#1134`で試した深さ上限32への変更・`#1174`の「ガチ」（深さ7・3.0秒）も一旦取り消し、
     /// v1.1.5から公開されている「むずかしい」（深さ5・1.5秒）の設定へ戻す。
-    @Test("むずかしいの設定は v1.1.5 の値のまま")
+    @Test("むずかしいの探索設定（深さ上限 7・定跡・静止探索・位置評価）")
     func hardConfigurationMatchesShippedValue() {
         let hard = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.depth == 5)
-        #expect(hard.timeLimit == 1.5)
+        #expect(hard.depth == 7)
         #expect(hard.useBook && hard.useQuiescence && hard.usePositional)
         #expect(!hard.isNovice)
     }
@@ -336,15 +341,16 @@ struct ShogiNoviceAndSeriousTests {
         }
         #expect(noviceMoves.count > 1, "入門の手が 1 通りしかない（乱択が効いていない）")
 
+        // 見逃しを切った「簡単」は決定的（見逃しの確率だけが乱数を使う）。
         var easyMoves = Set<String>()
         for _ in 0..<5 {
             if let usi = await ShogiSelfPlay.untimed(level: CPUStrength.easy.rawValue)
                 .bestMove(sfen: sfen) { easyMoves.insert(usi) }
         }
-        #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+        #expect(easyMoves.count == 1, "前提が崩れている: 見逃しを除いた簡単は決定的")
     }
 
-    /// 呼び出し時点で既に `deadline` を過ぎていても、`noviceMove` は評価済みの候補から選ぶ
+    /// 呼び出し時点で既に `deadline` を過ぎていても、`policyMove` は評価済みの候補から選ぶ
     /// （#1196）。安全フロア（`minNoviceEvaluations`）を入れる前は、1手も評価できないまま
     /// `orderedMoves.first` を無条件に返していたため、乱数の種を変えても常に同じ手になっていた。
     @Test("期限切れでも評価済みの候補から選ぶ（1手固定に戻らない）")
@@ -367,12 +373,12 @@ struct ShogiNoviceAndSeriousTests {
     /// - 9a の金は 8a の歩しか取れない（前方・後方は盤外か自駒でふさいでいる）。
     ///   取ると 8b の金に取り返される。
     /// - 1a の玉は 2a / 2b の2箇所だけ動ける（前方は盤外、後方は自駒でふさいでいる）。
-    @Test("期限切れでも取り返されるだけの駒は取らない（合法手を3手に限定した局面）")
-    func expiredNoviceAvoidsTheHangingCaptureInMinimalPosition() async {
+    @Test("期限切れでも取り返されるだけの駒は取らない（合法手を3手に限定した局面・簡単）")
+    func expiredEasyAvoidsTheHangingCaptureInMinimalPosition() async {
         let sfen = "Gp6K/Pg6P/9/9/9/9/9/9/9 b - 1"
         for seed in UInt64(1)...30 {
-            let usi = await ShogiSelfPlay.expired(level: Self.novice, seed: seed).bestMove(sfen: sfen)
-            #expect(usi != "9a8a", "期限切れの入門が金を歩と刺し違えている（seed \(seed)・\(usi ?? "nil")）")
+            let usi = await ShogiSelfPlay.expired(level: CPUStrength.easy.rawValue, seed: seed).bestMove(sfen: sfen)
+            #expect(usi != "9a8a", "期限切れの簡単が金を歩と刺し違えている（seed \(seed)・\(usi ?? "nil")）")
         }
     }
 
