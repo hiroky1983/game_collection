@@ -52,7 +52,8 @@ extension MahjongModel {
             isTsumo: isTsumo,
             isRiichi: riichi[player],
             isIppatsu: isIppatsu(player),
-            isLastTile: remainingTiles == 0,
+            // 嶺上牌は海底に数えない（残り 0 枚でのカン → 嶺上開花に海底摸月が重なるのを防ぐ）
+            isLastTile: remainingTiles == 0 && !isRinshan,
             isRinshan: isRinshan,
             isChankan: isChankan,
             seatWind: seatWind(player),
