@@ -91,12 +91,10 @@ final class GameSettings {
 
     init(registeredIDs: [String]) {
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
-        var order = stored.filter { registeredIDs.contains($0) }
-        for id in registeredIDs where !order.contains(id) { order.append(id) }
-        self.orderedIDs = order
+        self.orderedIDs = GameOrderMerge.mergedOrder(stored: stored, registered: registeredIDs)
 
         let hiddenArr = UserDefaults.standard.stringArray(forKey: Self.hiddenKey) ?? []
-        self.hiddenIDs = Set(hiddenArr.filter { registeredIDs.contains($0) })
+        self.hiddenIDs = GameOrderMerge.mergedHidden(stored: hiddenArr, registered: registeredIDs)
 
         // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
         self.hapticsEnabled = Self.haptics.isEnabled
