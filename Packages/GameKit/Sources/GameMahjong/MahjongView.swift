@@ -153,6 +153,7 @@ public struct MahjongView: View {
                 Button { startNewGame() } label: {
                     Label("新規対局", systemImage: "plus.circle.fill")
                 }
+                .disabled(isWatchingRescueAd)
             }
         }
         .confirmationDialog(
@@ -584,7 +585,8 @@ public struct MahjongView: View {
             .popCard(corner: Theme.cornerSmall)
             .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
-            actionButton("もう一度", color: Theme.Fill.coral) {
+            // 復活・延長の広告を読み込んでいる間は局を捨てさせない（#1381）。
+            actionButton("もう一度", color: Theme.Fill.coral, disabled: isWatchingRescueAd) {
                 model.startGame()
                 runCPU()
             }
@@ -610,6 +612,8 @@ public struct MahjongView: View {
         .tint(color)
         .disabled(disabled)
     }
+
+    private var isWatchingRescueAd: Bool { reviveRescue.isWatching || extendRescue.isWatching }
 
     static let windNames = ["東", "南", "西", "北"]
 
