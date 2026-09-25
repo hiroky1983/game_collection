@@ -440,4 +440,49 @@ struct AnzanModelTests {
         model.applyDebugScenario("wrong")
         #expect(model.phase == .result && !model.isCorrect && model.answer == model.sum - 10)
     }
+
+    @Test("数の表示中に止めると入力へ進まず、再開で頭から出し直す（#1357）")
+    func pauseDuringFlashingRestartsFromTop() {
+        let model = AnzanModel(services: makeServices(), seed: 21)
+        model.start(AnzanSettings(digits: .two, count: .five, speed: .normal))
+        model.advanceDisplay()
+        model.advanceDisplay()
+        model.advanceDisplay()
+        model.pauseDisplay()
+        #expect(model.phase == .flashing)
+        #expect(model.step == nil)
+        #expect(model.advanceDisplay() == nil, "止めているあいだは進まない")
+        #expect(model.phase == .flashing, "残りを飛ばして入力に進まない")
+        #expect(model.input.isEmpty && model.answer == nil)
+        let runBefore = model.displayRun
+        model.resumeDisplay()
+        #expect(model.displayRun == runBefore + 1, "再開は頭から回し直す")
+        #expect(model.advanceDisplay() != nil)
+        #expect(model.step == .ready, "「よーい」から出し直す")
+        #expect(flashThrough(model) == model.numbers, "数を全部見せ直す")
+        #expect(model.phase == .answering)
+    }
+
+    @Test("止めていないときの resume と、入力中の pause は何もしない（#1357）")
+    func pauseResumeAreNoOpsOutsideFlashing() {
+        let model = AnzanModel(services: makeServices(), seed: 22)
+        model.start(AnzanSettings(digits: .two, count: .five, speed: .normal))
+        let run = model.displayRun
+        model.resumeDisplay()
+        #expect(model.displayRun == run, "止めていなければ回し直さない")
+        _ = flashThrough(model)
+        model.pauseDisplay()
+        #expect(model.phase == .answering)
+        model.resumeDisplay()
+        #expect(model.displayRun == run)
+    }
+
+    @Test("止めたまま次の問題へ進むと表示は動く（#1357）")
+    func newQuestionClearsPause() {
+        let model = AnzanModel(services: makeServices(), seed: 23)
+        model.start(AnzanSettings(digits: .two, count: .five, speed: .normal))
+        model.pauseDisplay()
+        model.start(AnzanSettings(digits: .two, count: .five, speed: .normal))
+        #expect(model.advanceDisplay() != nil)
+    }
 }
