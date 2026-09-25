@@ -642,7 +642,7 @@ struct ChessRuleDetail: View {
     var style: ChessPieceStyle = .flat
 
     private let pieces: [(ChessPieceType, String)] = [
-        (.king, "たて・よこ・ななめに1マス。取られたら負け"),
+        (.king, "たて・よこ・ななめに1マス。逃げ場のない王手（チェックメイト）で負け"),
         (.queen, "たて・よこ・ななめに何マスでも"),
         (.rook, "たて・よこに何マスでも"),
         (.bishop, "ななめに何マスでも"),
@@ -679,9 +679,10 @@ struct ChessRuleDetail: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("特別なルール").themeBody(16).foregroundStyle(Theme.ink)
                     ruleLine("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。")
-                    ruleLine("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。")
+                    ruleLine("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。間に駒があるとき、王手されているとき、通り道か着地のマスが攻撃されているときは使えません。")
                     ruleLine("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。")
                     ruleLine("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。")
+                    ruleLine("自動の引き分け", "同じ局面が3回くり返される・50手のあいだポーンも駒取りも無い・駒が足りずチェックメイトできない、のいずれかで引き分けになります。")
                 }
                 .padding(12)
                 .popCard(corner: Theme.cornerSmall)

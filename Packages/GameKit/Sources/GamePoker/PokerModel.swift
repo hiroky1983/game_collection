@@ -477,7 +477,7 @@ public final class PokerModel {
             cpuChips += pot
             pot = 0
             winner = .cpu
-            cpuAction = "プレイヤーフォールド"
+            cpuAction = "あなたがフォールド"
             phase = .result
             settleRound()
             persist()

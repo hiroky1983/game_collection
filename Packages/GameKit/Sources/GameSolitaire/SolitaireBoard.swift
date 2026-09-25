@@ -129,10 +129,11 @@ public struct SolitaireBoard: Equatable, Sendable, Codable {
         return bottom.rank == top.rank - 1 && bottom.isRed != top.isRed
     }
 
-    /// ジョーカーを置けるか。所持していること・空列でないこと・上がジョーカーでないこと。
+    /// ジョーカーを置けるか。所持していること・空列でないこと・列にジョーカーが無いこと。
+    /// 中継を終えたジョーカーは上に札を載せたまま列に残るので、一番上だけでなく列全体を見る。
     public func canPlaceJoker(onPile pile: Int) -> Bool {
-        guard jokerAvailable, let top = tableau[pile].top else { return false }
-        return !top.isJoker
+        guard jokerAvailable, !tableau[pile].faceUp.isEmpty else { return false }
+        return !tableau[pile].faceUp.contains(where: \.isJoker)
     }
 
     public func isLegal(_ move: SolitaireMove) -> Bool {

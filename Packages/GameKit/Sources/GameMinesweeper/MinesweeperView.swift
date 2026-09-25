@@ -61,7 +61,7 @@ public struct MinesweeperView: View {
             Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("途中で終了すると対局データが失われます。")
+            Text("途中で終了するとゲームのデータが失われます。")
         }
         .confirmationDialog("諦めますか？", isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
             Button("諦める", role: .destructive) { model.giveUp() }
@@ -171,7 +171,7 @@ public struct MinesweeperView: View {
                 // 広告のロード〜視聴中は押せない。押せると幕だけ閉じてモデルは負けのまま残り、
                 // 見終えたときに諦めたはずの局へコンティニューが乗る（#816）。
                 Button { showContinue = false } label: {
-                    Text("あきらめる")
+                    Text("諦める")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                 }
@@ -571,7 +571,7 @@ struct MinesweeperNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "スタート",
+            title: "新規ゲーム", startTitle: "スタート",
             onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
         ) {
             GameSetupSection("難易度") {
