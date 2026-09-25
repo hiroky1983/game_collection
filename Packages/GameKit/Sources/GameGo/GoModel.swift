@@ -65,6 +65,9 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
     public private(set) var endgame: GoEndgame?
     /// 終局の計算中。
     public private(set) var isScoringInProgress: Bool = false
+    /// テスト用: 終局の計算が終わってから結果を採用するまでの間に差し込む処理（#1379）。
+    /// 「計算中に盤が動く」状況を、実時間の待ち合わせなしで再現するために使う。
+    var afterEndgameComputeForTesting: (@MainActor () async -> Void)?
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
@@ -272,19 +275,25 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         let serial = gameSerial
         defer { if gameSerial == serial { isScoringInProgress = false } }
 
-        let snapshot = state
-        let ruleset = ruleset
-        let moveCount = moves.count
-        // 種は手数から決める。同じ局面なら何度計算しても同じ結果になり、
-        // 「もう一度パスしたら別の判定になった」という不可解な挙動を作らない。
-        let seed = UInt64(moveCount) &* 0x9E37_79B9 &+ 0x60_0D_5EED
-        let result = await Task.detached(priority: .userInitiated) {
-            let analysis = GoDeadStones.analyze(state: snapshot, playouts: 600, seed: seed)
-            let score = GoScoring.score(board: snapshot.board, removing: analysis.dead, ruleset: ruleset)
-            return GoEndgame(score: score, dead: analysis.dead, isUncertain: !analysis.isConfident)
-        }.value
+        // 計算中に「対局続行→着手→再び両者パス」と進むと、古い結果は手数の照合で捨てられる。
+        // その間に届いた新しい `.scoring` 側のタスクは計算中フラグで即戻っており、`phase` も
+        // 変わらないので再計算の契機が二度と来ない（#1379）。捨てたら現在の盤で計算し直す。
+        while phase == .scoring, endgame == nil, gameSerial == serial {
+            let snapshot = state
+            let ruleset = ruleset
+            let moveCount = moves.count
+            // 種は手数から決める。同じ局面なら何度計算しても同じ結果になり、
+            // 「もう一度パスしたら別の判定になった」という不可解な挙動を作らない。
+            let seed = UInt64(moveCount) &* 0x9E37_79B9 &+ 0x60_0D_5EED
+            let result = await Task.detached(priority: .userInitiated) {
+                let analysis = GoDeadStones.analyze(state: snapshot, playouts: 600, seed: seed)
+                let score = GoScoring.score(board: snapshot.board, removing: analysis.dead, ruleset: ruleset)
+                return GoEndgame(score: score, dead: analysis.dead, isUncertain: !analysis.isConfident)
+            }.value
 
-        adoptEndgame(result, serial: serial, moveCount: moveCount)
+            await afterEndgameComputeForTesting?()
+            adoptEndgame(result, serial: serial, moveCount: moveCount)
+        }
     }
 
     /// 計算結果を採用してよいか判定してから反映する。

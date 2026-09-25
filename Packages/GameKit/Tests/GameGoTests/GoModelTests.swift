@@ -154,6 +154,37 @@ struct GoModelFlowTests {
         #expect(model.endgame != nil)
     }
 
+    /// 計算中に「対局続行→着手→再び両者パス」と進むと、古い結果は捨てられ、新しい scoring 側の
+    /// 呼び出しは計算中フラグで即戻る。捨てたあとに再計算しないと `endgame` が埋まらない（#1379）。
+    @Test("計算中に対局続行して再び両者パスしても、終局の計算は完了する（#1379）")
+    func scoringCompletesAfterResumeAndRepassDuringCalculation() async {
+        let model = GoModel(services: makeServices())
+        model.newGame(humanSide: .black, level: .easy)
+        model.pass()
+        model.forcePassForTesting()
+        #expect(model.phase == .scoring)
+
+        // 最初の計算が終わった直後（= まだ計算中フラグが立っている間）に盤を動かす。
+        var interrupted = false
+        model.afterEndgameComputeForTesting = { [unowned model] in
+            guard !interrupted else { return }
+            interrupted = true
+            model.resumePlay()
+            model.tap(row: 4, col: 4)
+            model.forcePassForTesting()
+            model.pass()
+            #expect(model.phase == .scoring)
+            // 新しい scoring 側の呼び出しは、計算中フラグで即戻る。
+            await model.evaluateEndgameIfNeeded()
+            #expect(model.endgame == nil)
+        }
+        await model.evaluateEndgameIfNeeded()
+
+        #expect(interrupted)
+        #expect(model.endgame != nil, "古い結果を捨てたあと再計算されず、終局が確定できない")
+        #expect(!model.isScoringInProgress)
+    }
+
     @Test("投了すると CPU の勝ちで決着し、中断データを消す")
     func resignEndsTheGame() {
         let store = MemorySnapshotStore()
