@@ -47,6 +47,26 @@ struct RunnerTutorialTests {
         defaults.removePersistentDomain(forName: name)
     }
 
+    /// 始まり（#1092・最長 4.8 秒）の途中でナビバーの「戻る」を押されても、初回の操作ガイドは
+    /// 残っていること（#1144）。View の提示は `swift test` から観測できないので、印を消費する
+    /// 唯一の経路（`RunnerTutorial.shouldShow`）を**まだ呼んでいない**状態として再現する。
+    @Test("始まりの途中で離れても、次に開いたとき操作ガイドが出る（#1144）")
+    func theTutorialSurvivesLeavingDuringTheIntro() {
+        let (defaults, name) = makeDefaults("intro-midway")
+        let log = PlayLog(defaults: defaults)
+
+        // 1 回目: 始まりのオーバーレイが出ているあいだ（`beginAfterIntro` に到達していない）。
+        #expect(RunnerStory.shouldShowIntro(playLog: log, arguments: []))
+        // ここで「戻る」。`onFinish` を通らないので始まりの印も付かない。
+
+        // 2 回目: 始まりがもう一度流れ、見せ終えてから操作ガイドへ進む。
+        #expect(RunnerStory.shouldShowIntro(playLog: log, arguments: []), "始まりが消えている")
+        RunnerStory.markIntroShown(playLog: log)
+        #expect(RunnerTutorial.shouldShow(playLog: log, arguments: []), "初回の操作ガイドが消えている")
+
+        defaults.removePersistentDomain(forName: name)
+    }
+
     @Test("盤の下の 1 行ヒント（gameID = runner）とは印を共有しない")
     func doesNotShareTheHintFlag() {
         let (defaults, name) = makeDefaults("hint-flag")
@@ -69,6 +89,19 @@ struct RunnerTutorialTests {
         #expect(!log.hasShownGuide(for: RunnerTutorial.seenKey), "撮影モードで印を消費してはいけない")
         // 撮影のあとに実機で遊べば初回として出る。
         #expect(RunnerTutorial.shouldShow(playLog: log, arguments: []))
+
+        defaults.removePersistentDomain(forName: name)
+    }
+
+    @Test("QA・撮影用の起動（-simulateRunner）でも出さず、印も消費しない")
+    func hiddenForDebugScenarios() {
+        let (defaults, name) = makeDefaults("simulate")
+        let log = PlayLog(defaults: defaults)
+
+        // `-screenshotMode` を付けずに `showcase` を初回起動すると、見たい画にガイドが被っていた（#1063）。
+        #expect(!RunnerTutorial.shouldShow(playLog: log, arguments: ["app", "-simulateRunner", "showcase"]))
+        #expect(!log.hasShownGuide(for: RunnerTutorial.seenKey), "QA の起動で印を消費してはいけない")
+        #expect(RunnerTutorial.shouldShow(playLog: log, arguments: []), "普通に開けば初回として出る")
 
         defaults.removePersistentDomain(forName: name)
     }
@@ -120,7 +153,32 @@ struct RunnerTutorialWiringTests {
         // 2 回呼ぶと 2 つめが必ず false になる。
         #expect(SourceScan.matchCount(of: #"RunnerTutorial\.shouldShow\("#, in: source) == 1)
         #expect(source.contains("RunnerTutorial.shouldShow(playLog: services.playLog)"))
-        #expect(SourceScan.matchCount(of: #"_showsTutorial\s*=\s*State"#, in: source) == 1)
+        // その 1 か所は**出す直前**（`presentTutorialIfNeeded`）でなければならない（#1144）。
+        // `init` で済ませると、先に流れるストーリーの始まり（#1092・最長 4.8 秒）のあいだに
+        // 「戻る」で離れた人が、一度も見ていないのに二度と見られなくなる。
+        let gate = try #require(SourceScan.declaration(of: "private func presentTutorialIfNeeded", in: source))
+        #expect(gate.contains("RunnerTutorial.shouldShow(playLog: services.playLog)"))
+        #expect(gate.contains("showsTutorial = true"))
+        let initializer = try #require(SourceScan.declaration(of: "public init(services", in: source))
+        #expect(!initializer.contains("RunnerTutorial"), "`init` で「見せた」印を消費している")
+        #expect(SourceScan.matchCount(of: #"_showsTutorial\s*=\s*State"#, in: source) == 0)
+        #expect(source.contains("@State private var showsTutorial = false"))
+    }
+
+    /// 出す順は 始まり（#1092）→ 操作ガイド → 開始シート（#1092 の受け入れ条件 A）。
+    ///
+    /// SwiftUI の提示順は `swift test` からは観測できない（ホストした View のアクセシビリティ
+    /// ツリーが読めない）ので、ここは**結線の形**で固定する。
+    @Test("操作ガイドはストーリーの始まりが明けてから出す")
+    func tutorialFollowsTheStoryIntro() throws {
+        let source = try Self.source()
+        let after = try #require(SourceScan.declaration(of: "private func beginAfterIntro", in: source))
+        #expect(after.contains("presentTutorialIfNeeded()"))
+        #expect(after.contains("presentStartSheetIfNeeded()"))
+        // 始まりを出す回は、明けるまで先へ進めない（`onAppear` で分岐する）。
+        #expect(source.contains("introScene = .intro"))
+        // 明けたのが「見せ終えた」ときだけ印が付く（#1144）。
+        #expect(source.contains("RunnerStory.markIntroShown(playLog: services.playLog)"))
     }
 
     /// 1 行ヒント（`HowToPlayHint(.runner)`）は**走行中ずっと出す**。

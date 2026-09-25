@@ -195,3 +195,228 @@ public struct CardMotionID: Hashable {
         self.card = card
     }
 }
+
+// MARK: - 列の段差と、帯だけ見えている札の見出し
+
+/// 列に重ねた札の段差・押せる範囲・見出しの寸法（フリーセル・スパイダー共通）。
+///
+/// 札の幅は「画面幅 ÷ 列の数」でほぼ決まり横には広げられないが、**縦は盤の下に大きく余る**
+/// （iPhone 17 で盤が画面の上 4 割しか使っていなかった）。そこで段差を固定比にせず、
+/// **いちばん長い列が盤の下端に収まる範囲で広げる**。段差は全列で同じ値にする
+/// （列ごとに違うと見た目が揃わない）。
+///
+/// - 下限は従来の固定比（表向き 0.24・伏せ札 0.13）。**今より詰めることはしない**。
+/// - 上限は表向き 0.45。広げすぎると同じ列の札が離れて、1 本の列に見えなくなる。
+/// - 伏せ札は表向きと同じ倍率で伸ばす（表向きより狭い関係を保つ）。
+///
+/// 同じ役割の UI は同じ見た目にする決まりなので、2 つのゲームは**この 1 つの計算**を通す。
+public struct CardStackLayout: Equatable, Sendable {
+    /// 表向きの札を重ねる段差。
+    public let faceUpStep: CGFloat
+    /// 伏せ札を重ねる段差。
+    public let faceDownStep: CGFloat
+    /// 列が押せる範囲（ドロップ枠を含む）の高さ。**盤の下端まで**伸ばす。
+    public let reachHeight: CGFloat
+    /// 帯だけ見えている札の見出し。
+    public let index: CardStackIndexMetrics
+
+    /// 列 1 本の札の内訳。
+    public struct Column: Equatable, Sendable {
+        public let faceDown: Int
+        public let faceUp: Int
+
+        public init(faceDown: Int = 0, faceUp: Int) {
+            self.faceDown = max(0, faceDown)
+            self.faceUp = max(0, faceUp)
+        }
+    }
+
+    /// 段差の下限（札の高さに対する比）。従来の固定値。
+    public static let minFaceUpRatio: CGFloat = 0.24
+    public static let minFaceDownRatio: CGFloat = 0.13
+    /// 表向きの段差の上限比。伏せ札の上限はこれと同じ倍率ぶん（0.13 × 0.45 / 0.24）。
+    public static let maxFaceUpRatio: CGFloat = 0.45
+    /// 盤の左右の余白（画面の端から盤まで）。帯やボタンの `Theme.pad`（16pt）より詰める。
+    public static let boardSideInset: CGFloat = 4
+    /// いちばん長い列の最後の札と、盤の下端とのあいだに残す余白。
+    public static let bottomMargin: CGFloat = 4
+
+    public init(faceUpStep: CGFloat, faceDownStep: CGFloat, reachHeight: CGFloat, index: CardStackIndexMetrics) {
+        self.faceUpStep = faceUpStep
+        self.faceDownStep = faceDownStep
+        self.reachHeight = reachHeight
+        self.index = index
+    }
+
+    /// 札の幅・高さ、場札に使える高さ（上段の下から盤の下端まで）、全列の内訳から寸法を決める。
+    ///
+    /// `tableauHeight` が 0 以下（`GeometryReader` が最初に渡す大きさ 0 など）のときは下限の段差になる。
+    public static func make(
+        cardWidth: CGFloat,
+        cardHeight: CGFloat,
+        tableauHeight: CGFloat,
+        columns: [Column]
+    ) -> CardStackLayout {
+        let steps = steps(cardHeight: cardHeight, tableauHeight: tableauHeight, columns: columns)
+        return CardStackLayout(
+            faceUpStep: steps.faceUp,
+            faceDownStep: steps.faceDown,
+            reachHeight: max(0, tableauHeight),
+            index: CardStackIndexMetrics.make(cardWidth: cardWidth, faceUpStep: steps.faceUp)
+        )
+    }
+
+    public static func minFaceUpStep(cardHeight: CGFloat) -> CGFloat { (cardHeight * minFaceUpRatio).rounded() }
+    public static func minFaceDownStep(cardHeight: CGFloat) -> CGFloat { (cardHeight * minFaceDownRatio).rounded() }
+    public static func maxFaceUpStep(cardHeight: CGFloat) -> CGFloat {
+        max(minFaceUpStep(cardHeight: cardHeight), (cardHeight * maxFaceUpRatio).rounded(.down))
+    }
+    public static func maxFaceDownStep(cardHeight: CGFloat) -> CGFloat {
+        max(minFaceDownStep(cardHeight: cardHeight),
+            (cardHeight * minFaceDownRatio * maxFaceUpRatio / minFaceUpRatio).rounded(.down))
+    }
+
+    /// 全列で共通の段差。いちばん長い列（下限の段差で測って最も高くなる列）が収まる倍率を取る。
+    ///
+    /// 倍率は下限（1 倍）と上限（0.45 / 0.24 倍）で挟む。切り捨てで丸めるので、
+    /// 下限に掛からない限り**いちばん長い列は `tableauHeight - bottomMargin` を超えない**。
+    public static func steps(
+        cardHeight: CGFloat,
+        tableauHeight: CGFloat,
+        columns: [Column]
+    ) -> (faceUp: CGFloat, faceDown: CGFloat) {
+        let maxScale = maxFaceUpRatio / minFaceUpRatio
+        // 各列の「段差の合計」を札の高さを単位にして測る（下限の比のとき）。
+        let longestSpan = columns.map { column in
+            CGFloat(column.faceDown) * minFaceDownRatio
+                + CGFloat(max(0, column.faceUp - 1)) * minFaceUpRatio
+        }.max() ?? 0
+
+        let scale: CGFloat
+        if longestSpan <= 0 {
+            scale = maxScale
+        } else {
+            let room = tableauHeight - bottomMargin - cardHeight
+            scale = min(maxScale, max(1, room / (cardHeight * longestSpan)))
+        }
+        let up = min(maxFaceUpStep(cardHeight: cardHeight),
+                     max(minFaceUpStep(cardHeight: cardHeight),
+                         (cardHeight * minFaceUpRatio * scale).rounded(.down)))
+        let down = min(maxFaceDownStep(cardHeight: cardHeight),
+                       max(minFaceDownStep(cardHeight: cardHeight),
+                           (cardHeight * minFaceDownRatio * scale).rounded(.down)))
+        return (up, down)
+    }
+
+    /// 列 1 本の高さ（いちばん上の札の全体が見える高さまで）。
+    public static func columnHeight(_ column: Column, faceUpStep: CGFloat, faceDownStep: CGFloat,
+                                    cardHeight: CGFloat) -> CGFloat {
+        CGFloat(column.faceDown) * faceDownStep
+            + CGFloat(max(0, column.faceUp - 1)) * faceUpStep
+            + cardHeight
+    }
+}
+
+/// 重なって帯だけ見えている札の、左上の「数字 + マーク」の寸法。
+///
+/// 従来は札の幅に比例した面の文字（`PlayingCardMetrics.rankFont`）の 0.72 倍で、スパイダーでは
+/// 9pt 台まで縮んでいた。**帯の高さ**に合わせて大きくし、**「10」+ マークが札の幅に収まる**ところで
+/// 頭打ちにする。文字の幅は SF Pro Rounded（Black）の実測から、小さい文字ほど広がる分を見込んだ値。
+public struct CardStackIndexMetrics: Equatable, Sendable {
+    public let rankFont: CGFloat
+    public let suitFont: CGFloat
+    /// 数字とマークの間隔。
+    public let spacing: CGFloat
+    /// 札の左端から文字までの余白。
+    public let leading: CGFloat
+    /// 文字の枠を札の上端からずらす量。**負の値で上へ寄せる**: 文字の枠は数字の上に
+    /// 行の余白（約 0.26em）を持つので、それを帯の中で使うと帯に入る文字が小さくなる。
+    public let top: CGFloat
+    /// 文字に使える幅（札の幅 − 左右の余白）。
+    public let maxWidth: CGFloat
+
+    /// 「10」の幅（em）。SF Pro Rounded Black の実測 1.22〜1.31em（小さいほど広い）を丸めて上に取る。
+    public static let tenWidthEm: CGFloat = 1.32
+    /// いちばん幅のあるマーク（♥）の幅（em）。実測 0.96em。
+    public static let suitWidthEm: CGFloat = 0.98
+    /// 数字の上端から行の上端までの余白（em）。ascender 0.967 − cap height 0.705。
+    public static let ascenderGapEm: CGFloat = 0.26
+    /// 数字の高さ（em）。
+    public static let capHeightEm: CGFloat = 0.705
+    /// マークの大きさ（数字に対する比）。数字を優先して大きくするためにマークは一回り小さく組む。
+    public static let suitRatio: CGFloat = 0.68
+    /// 帯の上端から数字の上端まで・数字の下端から次の札までに残す余白。
+    public static let bandInset: CGFloat = 2
+    /// 数字の大きさの下限（帯が詰まったときでも従来より小さくしない目安）と、札の幅に対する上限比。
+    public static let minRankFont: CGFloat = 10
+    public static let maxRankFontRatio: CGFloat = 0.45
+
+    public init(rankFont: CGFloat, suitFont: CGFloat, spacing: CGFloat, leading: CGFloat,
+                top: CGFloat, maxWidth: CGFloat) {
+        self.rankFont = rankFont
+        self.suitFont = suitFont
+        self.spacing = spacing
+        self.leading = leading
+        self.top = top
+        self.maxWidth = maxWidth
+    }
+
+    public static func make(cardWidth: CGFloat, faceUpStep: CGFloat) -> CardStackIndexMetrics {
+        let leading = max(2, (cardWidth * 0.06).rounded())
+        let trailing: CGFloat = 1.5
+        let spacing: CGFloat = 1
+        let maxWidth = max(0, cardWidth - leading - trailing)
+
+        // 幅: 「10」+ 間隔 + マークが収まる大きさ。
+        let widthBound = (maxWidth - spacing) / (tenWidthEm + suitWidthEm * suitRatio)
+        // 高さ: 数字の上端を帯の上端（+余白）に寄せたとき、下端が次の札の手前（−余白）に収まる大きさ。
+        let heightBound = (faceUpStep - bandInset * 2) / capHeightEm
+        let ceiling = cardWidth * maxRankFontRatio
+
+        let rank = max(1, min(ceiling, widthBound, max(minRankFont, heightBound)).rounded(.down))
+        let suit = (rank * suitRatio).rounded(.down)
+        return CardStackIndexMetrics(
+            rankFont: rank,
+            suitFont: suit,
+            spacing: spacing,
+            leading: leading,
+            top: bandInset - ascenderGapEm * rank,
+            maxWidth: maxWidth
+        )
+    }
+
+    /// 「10」+ マークの見込み幅。`maxWidth` 以下であることをテストで固定する。
+    public var estimatedTenWidth: CGFloat {
+        rankFont * Self.tenWidthEm + spacing + suitFont * Self.suitWidthEm
+    }
+}
+
+/// 重なって帯だけ見えている札の見出し（左上の数字 + マーク）。フリーセル・スパイダー共通。
+public struct CardStackIndex: View {
+    private let rankLabel: String
+    private let suit: PlayingCardSuit
+    private let metrics: CardStackIndexMetrics
+
+    public init(rankLabel: String, suit: PlayingCardSuit, metrics: CardStackIndexMetrics) {
+        self.rankLabel = rankLabel
+        self.suit = suit
+        self.metrics = metrics
+    }
+
+    public var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: metrics.spacing) {
+            Text(rankLabel)
+                .font(.system(size: metrics.rankFont, weight: .black, design: .rounded))
+            Text(suit.symbol)
+                .font(.system(size: metrics.suitFont, weight: .bold))
+        }
+        .lineLimit(1)
+        // 見込み幅（`estimatedTenWidth`）で収めてあるが、端末の字形の差で溢れたときは
+        // 切れる（「1…」）より縮むほうが読める。
+        .minimumScaleFactor(0.7)
+        .foregroundStyle(PlayingCardInk.color(for: suit))
+        .frame(width: metrics.maxWidth, alignment: .leading)
+        .offset(x: metrics.leading, y: metrics.top)
+        .allowsHitTesting(false)
+    }
+}

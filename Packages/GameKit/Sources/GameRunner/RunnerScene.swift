@@ -31,6 +31,9 @@ final class RunnerScene: SKScene {
     /// コース（地面・障害物・ゴール）。走者は動かさず、こちらを左へ流す。
     let courseLayer = SKNode()
     let player = SKNode()
+    /// 画面に固定して走者より手前に出す演出（ゴールの紙吹雪・激突の土煙）。以前はシーン直下に
+    /// z = 6 で置いていたが、層に z が入った（#942）あとは遠景（100）より奥になって見えなかった（#1069）。
+    let effectLayer = SKNode()
     /// 走者の絵（#701）。`player` の唯一の子で、コマはテクスチャの差し替えで切り替える
     /// （`applyRiderFrame`）。落下・激突の演出（`playFallAnimation`）と無敵の点滅は親の
     /// `player` に掛けるので、ここには `SKAction` を掛けない。
@@ -40,11 +43,69 @@ final class RunnerScene: SKScene {
     /// たこ焼き（#956）のテクスチャ。走者と同じく起動時に 1 回だけ作り、面ごとの `addTakoyaki` は
     /// これを貼るだけ（毎面 `CGImage` を起こさない）。
     let takoyakiTexture = RunnerScene.makeTexture(RunnerPixelArt.takoyaki(), name: "たこ焼き")
-    /// 犬・イノシシの歩きのコマのテクスチャ（#975）。色が世界ごと（`RunnerWorld.creatures`）なので
-    /// 3 世界 × 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
+    /// ゴールに浮かべる宝くじ（#1092）のテクスチャ。全ステージで同じ 1 枚。
+    let lotteryTicketTexture = RunnerScene.makeTexture(RunnerPixelArt.lotteryTicket(), name: "宝くじ")
+    /// 犬・イノシシの歩きのコマのテクスチャ（#975）。色が世界ごと（`RunnerWorld.creatures`）で、
+    /// 港町では絵ごと猫・フォークリフトに着せ替わる（`RunnerWorld.Dressing`・#1009）ので、
+    /// 全世界（5 つ）× 2 コマを起動時に 1 回だけ作り、面ごとの `addDog` / `addBoar` はいまの世界の 2 枚を
     /// 貼るだけ（毎面 `CGImage` を起こさない）。
-    let dogTextures = RunnerScene.makeWalkTextures(name: "犬") { RunnerPixelArt.dog($0, colors: $1) }
-    let boarTextures = RunnerScene.makeWalkTextures(name: "イノシシ") { RunnerPixelArt.boar($0, colors: $1) }
+    let dogTextures = RunnerScene.makeWalkTextures(name: "犬") { RunnerPixelArt.walker($0, world: $1) }
+    let boarTextures = RunnerScene.makeWalkTextures(name: "イノシシ") { RunnerPixelArt.charger($0, world: $1) }
+    /// 岩の枠の着せ替え（切り株・ロープの束・ドラム缶・#1009）のテクスチャ。色は世界によらないので
+    /// 1 枚ずつ起動時に作る。岩塊（`makeRock`）は図形のままなのでテクスチャは無い。
+    let blockTextures: [RunnerWorld.Dressing.Block: SKTexture] = [
+        .stump: RunnerScene.makeTexture(RunnerPixelArt.stump(), name: "切り株"),
+        .ropeCoil: RunnerScene.makeTexture(RunnerPixelArt.ropeCoil(), name: "ロープの束"),
+        .drum: RunnerScene.makeTexture(RunnerPixelArt.drum(), name: "ドラム缶"),
+    ]
+    /// 突き上げ（#1010 竹の子・波しぶき）と、その予告（土の塚・泡）のテクスチャ。
+    ///
+    /// **起動時には作らず、その世界に入って最初に使うときに作ってキャッシュする**
+    /// （#1010 の受け入れ条件）。突き上げが出るのは 19 面以降なので、1〜18 面しか遊ばない人の
+    /// ぶんは 1 枚も起こさない。面ごとの `addShoot` は 2 回目以降キャッシュを貼るだけ。
+    private var shootTextureCache: [RunnerWorld.Dressing.Shoot: SKTexture] = [:]
+    private var shootCueTextureCache: [RunnerWorld.Dressing.Shoot: SKTexture] = [:]
+
+    /// 伸び切った突き上げの絵。初回だけ作る。**絵の選び方は持たない**
+    /// ——`RunnerPixelArt.shootArt(for:)` に着せ替えをそのまま渡すだけ。
+    func shootTexture(_ style: RunnerWorld.Dressing.Shoot) -> SKTexture {
+        if let cached = shootTextureCache[style] { return cached }
+        let texture = Self.makeTexture(RunnerPixelArt.shootArt(for: style), name: "突き上げ \(style)")
+        shootTextureCache[style] = texture
+        return texture
+    }
+
+    /// 突き上げの予告（土の塚・泡）の絵。初回だけ作る。
+    func shootCueTexture(_ style: RunnerWorld.Dressing.Shoot) -> SKTexture {
+        if let cached = shootCueTextureCache[style] { return cached }
+        let texture = Self.makeTexture(RunnerPixelArt.shootCueArt(for: style), name: "突き上げの予告 \(style)")
+        shootCueTextureCache[style] = texture
+        return texture
+    }
+
+    /// テスト用: いま作ってキャッシュしてある突き上げのテクスチャの種類
+    /// （`RunnerWorldSceneTests` が「その世界のぶんしか作らない」を確かめる）。
+    var cachedShootStyles: Set<RunnerWorld.Dressing.Shoot> {
+        Set(shootTextureCache.keys).union(shootCueTextureCache.keys)
+    }
+
+    /// 高い塀（#1091 石垣・積まれたコンテナ）のテクスチャ。突き上げとまったく同じ扱いで、
+    /// **起動時には作らず、その世界で最初に使うときに作ってキャッシュする**（決裁の受け入れ条件
+    /// 「その世界に入ったときに作ってキャッシュする」「描画中に毎フレーム画像を作り直さない」）。
+    /// 塀が出るのは 19 面以降なので、1〜18 面しか遊ばない人のぶんは 1 枚も起こさない。
+    private var wallTextureCache: [RunnerWorld.Dressing.Wall: SKTexture] = [:]
+
+    /// 高い塀の絵。初回だけ作る。**絵の選び方は持たない**
+    /// ——`RunnerPixelArt.wallArt(for:)` に着せ替えをそのまま渡すだけ。
+    func wallTexture(_ style: RunnerWorld.Dressing.Wall) -> SKTexture {
+        if let cached = wallTextureCache[style] { return cached }
+        let texture = Self.makeTexture(RunnerPixelArt.wallArt(for: style), name: "高い塀 \(style)")
+        wallTextureCache[style] = texture
+        return texture
+    }
+
+    /// テスト用: いま作ってキャッシュしてある高い塀のテクスチャの種類。
+    var cachedWallStyles: Set<RunnerWorld.Dressing.Wall> { Set(wallTextureCache.keys) }
     /// いま貼っているコマ。`applyRiderFrame` が同じコマの貼り直しを省くための控え。
     private var renderedRiderFrame: OjisanPixel.RiderFrame?
     /// クランクの位相。接地して進んだぶんだけ回す（空中では止まる）。半回転ごとに漕ぐコマが
@@ -74,7 +135,40 @@ final class RunnerScene: SKScene {
     var removedPickupIndices: Set<Int> = []
     /// 動く障害（#796 飛び立つ鳥・#800 犬・#801 イノシシ）のノード。`rebuildCourse` で作り直し、
     /// `sync` が毎フレーム `RunnerHazard.frame(atRunnerDistance:)` の位置へ置き直す。
+    /// エンドレス（#1086）では使わない（動く障害も `endless` の部品として使い回す）。
     var movingHazards: [MovingHazardView] = []
+    /// ゴールに浮かべた宝くじ（#1092）。`rebuildCourse` で作り直し、ゴールに着いたら
+    /// `syncGoalChase` が飛ばしていく。エンドレス（ゴールが無い）では nil のまま。
+    var goalTicket: SKSpriteNode?
+    /// 宝くじを置いた場所（揺れ・飛ばす動きの基準）。演出は `SKAction` ではなく
+    /// `RunnerModel.goalChaseProgress` からここを基準に置き直す（撮影で止められるように）。
+    var goalTicketBase: CGPoint = .zero
+
+    /// いま「視差効果を減らす」が有効か（#210・#1092）。既定は OS の設定をそのつど読む。
+    ///
+    /// **テストは `reduceMotionOverride` にこのシーンぶんだけ与えること。**
+    /// `Motion.override` はプロセス全体に効くグローバルな状態で、Swift Testing が
+    /// スイートを並行実行するため、**別のスイートが立てた値をこちらが拾って揺れる**
+    /// （実際に CI のフルスイートで「宝くじが飛ばない」と誤検知した。#828 と同型）。
+    var reducesMotion: Bool { reduceMotionOverride ?? Motion.isReduceMotionEnabled }
+    /// 上記の注入口。製品コードからは触らない（nil = OS の設定に従う）。
+    var reduceMotionOverride: Bool?
+    /// 崩れる足場（#1090）のノード。鍵は `stage.platforms` の添字で、`RunnerField.crumbleElapsed`
+    /// と同じ引き方をする。`rebuildCourse` で作り直し、`sync` が崩れの進みを毎フレーム写す。
+    /// エンドレス（#1086）には置かないので常に空。
+    var crumblingPlatformNodes: [Int: CrumblingPlatformView] = [:]
+    /// コース層（`courseLayer`）の x = 0 が指すワールド x（#1086）。
+    ///
+    /// エンドレスは距離が数百万単位まで伸びる。ノードをワールド座標のまま置くと、SpriteKit の
+    /// 描画に使う単精度（Float・有効桁 7 桁弱）では 1 単位の 1/10 すら表せなくなり、長く走るほど
+    /// 絵がガタつく。そこでノードは「ワールド x − この値」に置き、走者が
+    /// `EndlessRenderer.rebaseSpan` 進むごとにこの値を区画の左端へ動かして、ノードを
+    /// 同じだけ左へ戻す（`applyRenderOrigin`）。画面上の位置は
+    /// `courseLayer.position.x + ノードの x = playerX − distance + ワールド x` で、この値に依らない。
+    /// ステージ制は常に 0（従来どおりワールド座標そのまま）。
+    var renderOrigin: Double = 0
+    /// エンドレスの描画（部品の使い回しと、いま描いている区画・#1086）。ステージ制では nil のまま。
+    var endless: EndlessRenderer?
     /// すでに土煙を出したジャスト着地の数（#673）。`field.justLandingCount` が増えた
     /// フレームだけ演出を出すための控え。`rebuildCourse` で 0 に戻す。
     var renderedJustLandingCount = 0
@@ -124,8 +218,9 @@ final class RunnerScene: SKScene {
         static let hills: CGFloat = 200
         static let course: CGFloat = 300
         static let player: CGFloat = 400
+        static let effects: CGFloat = 500
         /// 奥から手前の順。
-        static let ordered: [CGFloat] = [clouds, backdrop, hills, course, player]
+        static let ordered: [CGFloat] = [clouds, backdrop, hills, course, player, effects]
         /// 部品（車輪・屋根・煙など）が層の中で使う相対 z の上限。これより層の間隔を広くとる。
         static let partMax: CGFloat = 10
     }
@@ -145,12 +240,14 @@ final class RunnerScene: SKScene {
         hillLayer.zPosition = LayerZ.hills
         courseLayer.zPosition = LayerZ.course
         player.zPosition = LayerZ.player
+        effectLayer.zPosition = LayerZ.effects
         addChild(cloudLayer)
         addChild(backdropLayer)
         addChild(hillLayer)
         addChild(courseLayer)
         buildPlayer()
         addChild(player)
+        addChild(effectLayer)
         rebuildCourse()
         sync()
     }
@@ -199,14 +296,15 @@ final class RunnerScene: SKScene {
     }
 
     /// 犬・イノシシの歩きのコマを、世界ごと（`RunnerWorld.allCases`）に `RunnerPixelArt.WalkFrame` の
-    /// `rawValue` 順で作る。`sprite` にコマと世界の色を渡すと絵が返る（`RunnerPixelArt.dog` / `boar`）。
+    /// `rawValue` 順で作る。`sprite` にコマと世界を渡すと、その世界の着せ替えと色の絵が返る
+    /// （`RunnerPixelArt.walker` / `charger`。朝・夕方・夜は従来どおり `dog` / `boar` の色違い）。
     private static func makeWalkTextures(
-        name: String, sprite: (RunnerPixelArt.WalkFrame, RunnerWorld.Creatures) -> PixelSprite
+        name: String, sprite: (RunnerPixelArt.WalkFrame, RunnerWorld) -> PixelSprite
     ) -> [RunnerWorld: [SKTexture]] {
         var textures: [RunnerWorld: [SKTexture]] = [:]
         for world in RunnerWorld.allCases {
             textures[world] = RunnerPixelArt.WalkFrame.allCases.map { frame in
-                makeTexture(sprite(frame, world.creatures), name: "\(name)のコマ \(frame)（\(world)）")
+                makeTexture(sprite(frame, world), name: "\(name)のコマ \(frame)（\(world)）")
             }
         }
         return textures

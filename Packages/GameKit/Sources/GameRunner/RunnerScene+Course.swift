@@ -8,59 +8,30 @@ extension RunnerScene {
         courseLayer.removeAllChildren()
         let stage = model.field.stage
         // 世界はステージ番号で決まる（#703）。変わったときだけ背景を作り直す。
-        // エンドレス（#675・`number == 0`）は朝の下町で走る。距離で世界を変える案は第 2 弾（真の無限）と
-        // 一緒に扱う（走行中に配色を差し替えると `applyWorld` の組み直しでコマ落ちしうるため、今は固定）。
+        // エンドレス（#675・`number == 0`）は朝の下町で走る。距離で世界を変えると、走行中に配色を
+        // 差し替える `applyWorld` の組み直し（雲・丘・部品の作り直し）でコマ落ちしうるので固定。
         let nextWorld = stage.number == 0 ? RunnerWorld.morning : RunnerWorld.world(forStage: stage.number)
         if renderedWorld != nextWorld { applyWorld(nextWorld) }
+        renderOrigin = 0
 
-        // 地面は「穴でないところ」を並べて描く。穴の場所には何も置かないので、
-        // そこが空いていることが見た目でも当たり判定でも同じ意味になる。
-        // スタートの手前（x < 0）にも道路を敷く。空けたままだと開始時の画面左が崖に見える
-        // （会長 QA 2026-09-14「断崖絶壁から走り出す」）。
-        var x: Double = -Metrics.width
-        for pit in stage.hazards where pit.kind == .pit {
-            if pit.start > x { addGround(from: x, to: pit.start) }
-            addPitVoid(pit)
-            addPitEdgeMarkers(pit)
-            x = pit.end
-        }
-        if x < stage.length { addGround(from: x, to: stage.length + Metrics.width) }
-
-        // スピードアップ床は地面の**上に重ねて**塗る（地面を作り直すのではなく、
-        // 同じ路面の色と模様だけを差し替える）。地面より後に足すことで手前に来る。
-        for floor in stage.boostFloors { addBoostFloor(floor) }
-
-        movingHazards = []
-        for hazard in stage.hazards where hazard.kind != .pit {
-            switch hazard.kind {
-            case .bird:                    movingHazards.append(addBird(hazard))
-            case .dog:                     movingHazards.append(addDog(hazard))
-            case .boar:                    movingHazards.append(addBoar(hazard))
-            case .lowBlock, .tallBlock:    addRock(hazard)
-            case .pit:                     break
-            }
-        }
-
-        for platform in stage.platforms {
-            addPlatform(platform)
-        }
-
-        pickupNodes = stage.pickups.map { pickup in
-            switch pickup.kind {
-            case .speed:      return addPickup(pickup)
-            case .invincible: return addTakoyaki(pickup)
-            }
+        // `courseLayer.removeAllChildren()` で消えた側の控えも落とす（エンドレスには置かない）。
+        crumblingPlatformNodes = [:]
+        // ゴールの宝くじ（#1092）も消えた。やり直し・次の面では下の `buildStageCourse` が
+        // ゴールの位置へ置き直す（受け入れ条件「やり直すと宝くじがゴールの位置に戻っている」）。
+        goalTicket = nil
+        goalTicketBase = .zero
+        if model.field.track != nil {
+            // エンドレス（#1086）: 区画は走りながら `syncEndlessCourse` が枠に合わせて置く。
+            // ここでは部品の置き場を用意するだけ（ゴールもチェックポイントも無い）。
+            buildEndlessCourse()
+            movingHazards = []
+            pickupNodes = []
+        } else {
+            buildStageCourse(stage)
         }
         removedPickupIndices = []
         renderedJustLandingCount = 0
         isBlinkingInvincible = false
-
-        // エンドレス（#675）にチェックポイントは無い。`RunnerStage` は中点に計算するが、
-        // 再開できない旗を立てると「ここから再開できる」という旗の意味（#494）が嘘になる。
-        if model.mode == .stages {
-            addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
-        }
-        addGoalMarker(at: stage.length)
         renderedGeneration = model.runGeneration
         // 新しい走行の頭（もう一度・はじめから等）。前回の落下演出が沈める・フェードして
         // 終わった見た目のままだと、次の挑戦の走者が透けた/縮んだ状態で始まってしまう。
@@ -76,6 +47,76 @@ extension RunnerScene {
         lastRenderedDistance = nil
     }
 
+    /// ステージ制のコースを丸ごと組む（`rebuildCourse` から呼ぶ）。
+    private func buildStageCourse(_ stage: RunnerStage) {
+        // 地面は「穴でないところ」を並べて描く。穴の場所には何も置かないので、
+        // そこが空いていることが見た目でも当たり判定でも同じ意味になる。
+        // スタートの手前（x < 0）にも道路を敷く。空けたままだと開始時の画面左が崖に見える
+        // （会長 QA 2026-09-14「断崖絶壁から走り出す」）。
+        //
+        // 崩れる足場（#1090）の下も**最初から谷**（里山＝川・港町＝海）。板が架かっているうちは
+        // 渡れるが、崩れ切れば穴と同じ扱いになる（`RunnerField.isCrumbledGap(at:)`）ので、
+        // 地面の側では穴とまったく同じに扱う——ここで場合分けを増やすと、絵だけ地面が残って
+        // 「落ちたのに床が見えている」画になる。
+        var gaps = stage.hazards.filter { $0.kind == .pit }
+        gaps += stage.crumblingPlatforms.map {
+            RunnerHazard(kind: .pit, start: $0.start, length: $0.length)
+        }
+        var x: Double = -Metrics.width
+        for pit in gaps.sorted(by: { $0.start < $1.start }) {
+            if pit.start > x { addGround(from: x, to: pit.start) }
+            addPitVoid(pit)
+            addPitEdgeMarkers(pit)
+            x = max(x, pit.end)
+        }
+        if x < stage.length { addGround(from: x, to: stage.length + Metrics.width) }
+
+        // スピードアップ床は地面の**上に重ねて**塗る（地面を作り直すのではなく、
+        // 同じ路面の色と模様だけを差し替える）。地面より後に足すことで手前に来る。
+        for floor in stage.boostFloors { courseLayer.addChild(makeBoostFloor(floor)) }
+        // 沈む床（#1089）も同じく地面の上に重ねる。走者より**奥**（`zPosition` は既定の 0 のまま）
+        // なので、沈んだ走者は水面の手前に描かれる——腰まで浸かって見せるのは走者ノードを
+        // 下げること（`RunnerField.sinkDepth`）だけで足りる。
+        for floor in stage.sinkFloors { courseLayer.addChild(makeSinkFloor(floor)) }
+
+        movingHazards = []
+        for hazard in stage.hazards where hazard.kind != .pit {
+            switch hazard.kind {
+            case .bird:                    movingHazards.append(addBird(hazard))
+            case .dog:                     movingHazards.append(addDog(hazard))
+            case .boar:                    movingHazards.append(addBoar(hazard))
+            // 突き上げ（#1010）は位置は動かないが**伸びた高さが距離で決まる**ので、毎フレーム
+            // `frame` を写す仲間（`movingHazards`）に入れる。
+            case .shoot:                   movingHazards.append(addShoot(hazard))
+            case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
+            // 高い塀（#1091）は動かないので岩と同じくコース層へ 1 回置くだけ。
+            case .wall:                    courseLayer.addChild(makeWall(hazard))
+            case .pit:                     break
+            }
+        }
+
+        for (index, platform) in stage.platforms.enumerated() {
+            switch platform.kind {
+            case .solid:
+                courseLayer.addChild(makePlatform(platform))
+            case .crumbling:
+                // 崩れる足場（#1090）は組み立てのときに自分でコース層へ足す（袂の柱と揺れる板を
+                // 別の親に分けるため）。`sync` が引けるよう添字で控える。
+                crumblingPlatformNodes[index] = makeCrumblingPlatform(platform)
+            }
+        }
+
+        pickupNodes = stage.pickups.map { pickup in
+            switch pickup.kind {
+            case .speed:      return addPickup(pickup)
+            case .invincible: return addTakoyaki(pickup)
+            }
+        }
+
+        addCheckpointMarker(at: stage.checkpoint, percent: stage.checkpointPercent)
+        addGoalMarker(at: stage.length)
+    }
+
     /// 乗れる台座（#674）。工事の足場に架かった歩板——街の中の「高い場所」。
     ///
     /// 意匠は「丸と長方形＋パス」の規約（#494 の権利チェック）の内側で、**上面がいちばん明るく、
@@ -88,7 +129,16 @@ extension RunnerScene {
     ///
     /// 当たり判定は `RunnerField` が `platform.start`〜`.end`／上面 `platform.top` で見ており、
     /// この見た目とは独立している——床板の上端をちょうど `top` に合わせてあるだけ。
-    private func addPlatform(_ platform: RunnerPlatform) {
+    ///
+    /// 作ったノードは左端 `platform.start` に置いて返す（コース層へ足すのは呼び出し側。エンドレスは
+    /// 同じ長さの台座を使い回す・#1086）。
+    func makePlatform(_ platform: RunnerPlatform) -> SKNode {
+        // 里山・港町の着せ替え（#1009）。足場の描画はそのまま残し、別の物はここで分岐する。
+        switch world.dressing.platform {
+        case .scaffold:   break
+        case .strawStack: return makeStrawStack(platform)
+        case .crateStack: return makeCrateStack(platform)
+        }
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)
         let w = platform.length, top = platform.top
@@ -173,7 +223,7 @@ extension RunnerScene {
         face.zPosition = 3
         node.addChild(face)
 
-        courseLayer.addChild(node)
+        return node
     }
 
     /// 障害物（岩）。丸2枚重ね→多角形1枚→矩形の積み石、と直してきたがいずれも
@@ -189,7 +239,9 @@ extension RunnerScene {
     /// 意匠に寄せないことで、パス自体は許容済み）。
     /// 当たり判定は `RunnerField` が `hazard.start`〜`.end`/`.height` の矩形で見ており、
     /// この見た目の変更とは独立している——中に収まる大きさで描いているだけ。
-    private func addRock(_ hazard: RunnerHazard) {
+    ///
+    /// 作ったノードは `hazard.start` に置いて返す（コース層へ足すのは呼び出し側・#1086）。
+    func makeRock(_ hazard: RunnerHazard) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: hazard.start, y: Metrics.groundY)
         let w = hazard.length, h = hazard.height
@@ -221,7 +273,7 @@ extension RunnerScene {
             baseY += boulderHeight * (1 - overlap)
         }
 
-        courseLayer.addChild(node)
+        return node
     }
 
     /// 手前の物（岩・犬・イノシシ・鳥・たこ焼き・台座・旗）の縁取りの太さ（コースの単位）。

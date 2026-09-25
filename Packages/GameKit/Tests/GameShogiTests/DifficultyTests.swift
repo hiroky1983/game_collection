@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import CoreEngine
 @testable import GameShogi
 
 /// 難易度カーブの回帰テスト（#502）。
@@ -13,18 +14,14 @@ import Foundation
 /// ③軽い設定どうし（旧「弱」対 新「弱」・新「弱」対ランダム）の直接対戦
 /// で固定する。
 ///
-/// 自己対戦は `timeLimit` を実測の 100 倍以上に取って**深さで決まる**状態にしてから行う。
-/// 実時間で打ち切られると、同じテストが実行環境の速さで別の結果を返す。
+/// 自己対戦は `timeLimit: .infinity` で締切そのものを無くし、**深さで決まる**状態にしてから行う。
+/// 実時間で打ち切られると、同じテストが実行環境の速さで別の結果を返す（#1187: 有限の大きい値だと
+/// 高負荷時にその値を超えて打ち切りが再発した）。
 enum ShogiSelfPlay {
-    /// 決定的な擬似乱数（ランダム役の手を再現可能にする）。
-    struct Rand {
-        var state: UInt64
-        init(seed: UInt64) { state = seed &* 6364136223846793005 &+ 1442695040888963407 }
-        mutating func int(_ upper: Int) -> Int {
-            state = state &* 6364136223846793005 &+ 1442695040888963407
-            let mixed = state ^ (state >> 33)
-            return upper <= 0 ? 0 : Int(mixed % UInt64(upper))
-        }
+    /// 決定的な擬似乱数（ランダム役の手を再現可能にする）。共通の `MMIXRandom`（#1150）。
+    /// 0 個からは選べないので `upper <= 0` は 0 を返す（`next()` は進めない）。
+    static func randomIndex(_ upper: Int, using rng: inout MMIXRandom) -> Int {
+        upper <= 0 ? 0 : Int(rng.next() % UInt64(upper))
     }
 
     struct Result {
@@ -43,14 +40,14 @@ enum ShogiSelfPlay {
         maxPlies: Int
     ) async -> Result {
         var pos = Position.start()
-        var rng = Rand(seed: seed)
+        var rng = MMIXRandom(seed: seed)
         for ply in 0..<maxPlies {
             let moves = pos.legalMoves()
             if moves.isEmpty {
                 return Result(material: material(pos), plies: ply, mated: pos.sideToMove)
             }
             let engine = pos.sideToMove == .black ? black : white
-            var chosen = moves[rng.int(moves.count)]
+            var chosen = moves[randomIndex(moves.count, using: &rng)]
             if let engine {
                 let usi = await engine.bestMove(sfen: pos.toSFEN())
                 let move = usi.flatMap(Move.fromUSI)
@@ -81,22 +78,43 @@ enum ShogiSelfPlay {
 
     /// 下方調整する前の「弱」（深さ 3 + 静止探索）。調整で本当に弱くなったかを測る基準。
     static let previousWeak = SimpleMinimaxEngine(
-        depth: 3, usePositional: false, useQuiescence: true, useBook: false, timeLimit: 30)
+        depth: 3, usePositional: false, useQuiescence: true, useBook: false, timeLimit: .infinity)
 
     /// 出荷している難易度を、**時間で打ち切られない形**にして返す（探索設定はそのまま）。
     ///
     /// 出荷値の `timeLimit`（0.5〜1.5 秒）はデバッグビルドでは実際に効いてしまい、
     /// そのとき返る手は同時に走っている他のテストの負荷で変わる。テストが CPU の
-    /// 混み具合で赤くなるのを避けるため、上限だけ十分大きい値へ差し替えて深さで決まる状態にする。
-    static func untimed(level: Int) -> SimpleMinimaxEngine {
+    /// 混み具合で赤くなるのを避けるため、`timeLimit: .infinity` で締切そのものを無くし、
+    /// 深さだけで決まる状態にする（有限の大きい値だと、高負荷時にその値を超えて打ち切りが
+    /// 発生しうる。#1187: 実測で60秒設定が360秒かかるケースがあった）。
+    ///
+    /// **「強」の探索深さ上限は #1134 で 32（実質無制限）に緩めた**ため、そのまま使うと
+    /// 反復深化が時間（30 秒）で打ち切られてしまい、この関数の「深さで決まる」という前提が
+    /// 崩れる（実測: 軽い局面でも depth 32 は 10 秒あっても到達しない）。ここでのテストが
+    /// 要求する最大の読みは `smallGainBehindRecapture` の深さ 5（#502）なので、上限が
+    /// 大きい設定は 7 に絞って探索を自然終了させる（実測 0.03〜0.31 秒・#1134 の PR に記載）。
+    ///
+    /// - Parameter seed: 「入門」（#1174）の乱択を再現したいときに渡す。他の段は乱数を使わない。
+    static func untimed(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
         let shipped = SimpleMinimaxEngine(level: level)
         return SimpleMinimaxEngine(
-            depth: shipped.depth, usePositional: shipped.usePositional,
-            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: 30)
+            depth: min(shipped.depth, 7), usePositional: shipped.usePositional,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: .infinity,
+            isNovice: shipped.isNovice, seed: seed)
     }
 
     /// 出荷している「弱」（探索設定は `level: 0` そのまま、時間の上限だけ外したもの）。
     static var currentWeak: SimpleMinimaxEngine { untimed(level: 0) }
+
+    /// 呼び出し時点で既に期限切れの設定（#1196 回帰テスト用）。`timeLimit` に負の値を渡すと
+    /// `SearchContext.init` の `Date().addingTimeInterval` がその場で過去の時刻になる。
+    static func expired(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
+        let shipped = SimpleMinimaxEngine(level: level)
+        return SimpleMinimaxEngine(
+            depth: shipped.depth, usePositional: shipped.usePositional,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: -1,
+            isNovice: shipped.isNovice, seed: seed)
+    }
 }
 
 @Suite("将棋の難易度: 3段階の設計（#502）")
@@ -138,8 +156,10 @@ struct ShogiDifficultyConfigTests {
     }
 
     /// #502 の受け入れ条件「調整後も『強』の棋力が現状から落ちていないこと」。
-    /// 下方調整は level 0 だけに閉じており、普通・強の探索設定は 1 ビットも動かさない。
-    @Test("普通・強の設定は下方調整の前後で変わっていない")
+    /// 下方調整は level 0 だけに閉じており、普通の探索設定は 1 ビットも動かさない。
+    /// **「強」の探索深さ上限は #1134 で 5 → 32 に上げていたが、v1.1.6 で一旦取り消した**
+    /// （会長指摘・2026-09-22。「ガチ」の見送りと合わせ、v1.1.5 から公開されている 5 に戻す）。
+    @Test("普通の設定は下方調整の前後で変わっていない・強の探索深さ上限は v1.1.5 の値のまま")
     func strongLevelsAreUntouched() {
         let normal = SimpleMinimaxEngine(level: 1)
         #expect(normal.depth == 4)
@@ -150,7 +170,7 @@ struct ShogiDifficultyConfigTests {
         #expect(strong.depth == 5)
         #expect(strong.useQuiescence)
         #expect(strong.usePositional)
-        #expect(strong.timeLimit == 1.5)
+        #expect(strong.timeLimit == 1.5, "持ち時間は v1.1.5 から変えていない")
     }
 }
 
@@ -180,9 +200,13 @@ struct ShogiDifficultyLadderTests {
     /// 5d の飛車が無防備。**どの段階も取る**（弱がランダムに落ちていないことの下限）。
     private let freeRook = "4k4/9/9/4r4/4G4/9/9/9/4K4 b - 1"
 
+    /// #1174 で足した両端（入門・ガチ）も含めた全段階。番号は 0 始まりではないので
+    /// `CPUStrength` から引く。
+    private let allLevels = CPUStrength.allCases.map(\.rawValue)
+
     @Test("タダの駒はどの段階も取る")
     func everyLevelTakesAFreePiece() async {
-        for level in 0...2 {
+        for level in allLevels {
             let usi = await ShogiSelfPlay.untimed(level: level).bestMove(sfen: freeRook)
             #expect(usi == "5e5d", "level \(level) がタダの飛車を取っていない（\(usi ?? "-")）")
         }
@@ -190,7 +214,7 @@ struct ShogiDifficultyLadderTests {
 
     @Test("取り返されるだけの駒はどの段階も取らない")
     func noLevelTakesTheHangingCapture() async {
-        for level in 0...2 {
+        for level in allLevels {
             let usi = await ShogiSelfPlay.untimed(level: level).bestMove(sfen: poisonedPawn)
             #expect(usi != "5e5d", "level \(level) が金を歩と刺し違えている")
         }
@@ -251,5 +275,117 @@ struct ShogiWeakLevelSelfPlayTests {
 
         let asWhite = await ShogiSelfPlay.play(black: nil, white: new, seed: 13, maxPlies: 120)
         #expect(asWhite.material < -2_000, "後手の「弱」が駒得できていない（\(asWhite.material)）")
+    }
+}
+
+// MARK: - 入門・ガチ（#1174）
+
+/// 両端に足した 2 段（#1174）。
+///
+/// **「入門 < 簡単」の実測はこのファイルの方針どおり CI に置かない。** 深さ 2 どうしの
+/// 直接対戦ではどちらも駒損を避けるだけで取り合いが起こらず（実測: 100手2局の駒得差 0）、
+/// 差を見るには読める相手を挟む必要がある。旧「弱」（深さ 3 + 静止探索）を相手に
+/// 80手2局×先後で測ると **簡単 −10,200 / 入門 −14,000**（デバッグビルド実測。
+/// 相手が同じなので符号ではなく差を読む）で、入門のほうが負け込む。
+/// この 1 組だけで 213 秒かかるため、CI には①設定 ②同じ局面で手が散ること
+/// ③只捨て・タダ取りの下限（`ShogiDifficultyLadderTests` が全 5 段階で見る）を置く。
+@Suite("将棋の難易度: 入門（#1174）", .timeLimit(.minutes(5)))
+struct ShogiNoviceAndSeriousTests {
+
+    private static let novice = CPUStrength.novice.rawValue
+
+    /// 「入門」は**読みの設定を「簡単」と 1 ビットも変えず**、着手の選び方だけを崩してある。
+    /// 深さを 1 に落とすと只捨てを始める（#502 の実測）ので、そこには戻さない。
+    @Test("入門の読みは簡単と同じで、選び方だけが違う")
+    func noviceSharesTheEasySearch() {
+        let novice = SimpleMinimaxEngine(level: Self.novice)
+        let easy = SimpleMinimaxEngine(level: CPUStrength.easy.rawValue)
+        #expect(novice.isNovice)
+        #expect(!easy.isNovice)
+        #expect(novice.depth == easy.depth && easy.depth == 2)
+        #expect(novice.useQuiescence == easy.useQuiescence)
+        #expect(novice.usePositional == easy.usePositional)
+        #expect(novice.useBook == easy.useBook)
+        #expect(novice.timeLimit == easy.timeLimit)
+        // 許す損は歩 1 枚未満。駒を只で捨てる手はこの幅に入らない。
+        #expect(SimpleMinimaxEngine.noviceMargin < PieceValue.base(.pawn))
+    }
+
+    /// 「ガチ」は v1.1.6 で一旦見送った（会長指摘・2026-09-22。強さを実感できず調整が必要と判断）。
+    /// `#1134`で試した深さ上限32への変更・`#1174`の「ガチ」（深さ7・3.0秒）も一旦取り消し、
+    /// v1.1.5から公開されている「むずかしい」（深さ5・1.5秒）の設定へ戻す。
+    @Test("むずかしいの設定は v1.1.5 の値のまま")
+    func hardConfigurationMatchesShippedValue() {
+        let hard = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue)
+        #expect(hard.depth == 5)
+        #expect(hard.timeLimit == 1.5)
+        #expect(hard.useBook && hard.useQuiescence && hard.usePositional)
+        #expect(!hard.isNovice)
+    }
+
+    /// 「入門」は同じ局面でも手が散る（＝選び方を崩している）。
+    /// 「簡単」は乱数を使わないので必ず同じ手になる。
+    @Test("入門は同じ局面でも指す手が散る")
+    func noviceVariesItsMove() async {
+        let sfen = Position.start().toSFEN()
+        var noviceMoves = Set<String>()
+        for seed in UInt64(1)...30 {
+            if let usi = await ShogiSelfPlay.untimed(level: Self.novice, seed: seed).bestMove(sfen: sfen) {
+                noviceMoves.insert(usi)
+            }
+        }
+        #expect(noviceMoves.count > 1, "入門の手が 1 通りしかない（乱択が効いていない）")
+
+        var easyMoves = Set<String>()
+        for _ in 0..<5 {
+            if let usi = await ShogiSelfPlay.untimed(level: CPUStrength.easy.rawValue)
+                .bestMove(sfen: sfen) { easyMoves.insert(usi) }
+        }
+        #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+    }
+
+    /// 呼び出し時点で既に `deadline` を過ぎていても、`noviceMove` は評価済みの候補から選ぶ
+    /// （#1196）。安全フロア（`minNoviceEvaluations`）を入れる前は、1手も評価できないまま
+    /// `orderedMoves.first` を無条件に返していたため、乱数の種を変えても常に同じ手になっていた。
+    @Test("期限切れでも評価済みの候補から選ぶ（1手固定に戻らない）")
+    func noviceStillVariesWhenDeadlineAlreadyPassed() async {
+        let sfen = Position.start().toSFEN()
+        var moves = Set<String>()
+        for seed in UInt64(1)...30 {
+            if let usi = await ShogiSelfPlay.expired(level: Self.novice, seed: seed).bestMove(sfen: sfen) {
+                moves.insert(usi)
+            }
+        }
+        #expect(moves.count > 1, "期限切れ時に手が1通りしかない = 1件も評価されず orderedMoves.first に固定されている")
+    }
+
+    /// 安全フロアの評価は `negamax` の期限判定も無効化しないと、相手の応手を読まない
+    /// 静的評価（`evaluate(pos)`）のまま候補に残り、取り返される取りを選びうる
+    /// （CodeRabbit 指摘・PR #1199）。合法手を金の1手（取り返される取り）と玉の2手（安全）の
+    /// 計3手だけに絞った局面（角に追い込んだ玉・金の退路は自駒でふさぐ）を使い、
+    /// 安全フロア（3手）の範囲内だけで判定できるようにした。
+    /// - 9a の金は 8a の歩しか取れない（前方・後方は盤外か自駒でふさいでいる）。
+    ///   取ると 8b の金に取り返される。
+    /// - 1a の玉は 2a / 2b の2箇所だけ動ける（前方は盤外、後方は自駒でふさいでいる）。
+    @Test("期限切れでも取り返されるだけの駒は取らない（合法手を3手に限定した局面）")
+    func expiredNoviceAvoidsTheHangingCaptureInMinimalPosition() async {
+        let sfen = "Gp6K/Pg6P/9/9/9/9/9/9/9 b - 1"
+        for seed in UInt64(1)...30 {
+            let usi = await ShogiSelfPlay.expired(level: Self.novice, seed: seed).bestMove(sfen: sfen)
+            #expect(usi != "9a8a", "期限切れの入門が金を歩と刺し違えている（seed \(seed)・\(usi ?? "nil")）")
+        }
+    }
+
+    /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する
+    /// （「弱」に対する `newWeakStillCrushesRandomPlay` と同じ物差し）。
+    @Test("入門もランダムな相手には大差で勝つ")
+    func noviceStillCrushesRandomPlay() async {
+        let novice = ShogiSelfPlay.untimed(level: Self.novice, seed: 13)
+
+        let asBlack = await ShogiSelfPlay.play(black: novice, white: nil, seed: 13, maxPlies: 120)
+        #expect(asBlack.material > 2_000, "先手の「入門」が駒得できていない（\(asBlack.material)）")
+
+        let asWhite = await ShogiSelfPlay.play(black: nil, white: novice, seed: 13, maxPlies: 120)
+        #expect(asWhite.material < -2_000, "後手の「入門」が駒得できていない（\(asWhite.material)）")
     }
 }

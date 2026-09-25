@@ -21,18 +21,51 @@ enum RunnerPixelArt {
         "d": 0xB8682A,
         "S": 0x5C2C10,
         "s": 0x8E4A1E,
-        "M": 0xFAF6EC,
+        "M": paperWhite,
         "A": 0x3F8F4C,
         "T": 0xE6C98C,
+        // 港町の置物（#1009）。`H`/`h` はロープの麻色 2 階調、`N`/`n`/`L` はドラム缶の青 3 階調
+        // （本体・陰・照り）。切り株は上の木肌 `T`・年輪 `d`・樹皮 `S`/`s`・苔 `A` で描ける。
+        "H": 0xC9A064,
+        "h": 0x8E6A3A,
+        "N": 0x2A5480,
+        "n": 0x1B3A5C,
+        "L": 0x5A86B4,
+        // 突き上げ（#1010）。竹の子は穂先の濃い緑 `a` と既にある苔の緑 `A`、皮は `T`（淡い生成り・
+        // 主色）と `H`/`h`（皮の重なりの線）、斑点は `s`。波しぶきは泡の淡い水色 `C` と白 `M`、
+        // 水柱の陰は `L`/`N`（ドラム缶と同じ青の階調）。
+        "a": 0x27663A,
+        "C": 0xBFE4F2,
+        // 高い塀（#1091）。`G`/`g`/`W` は石垣の石・目地・笠石、`R`/`r`/`O` はコンテナの
+        // 本体・桁とリブ・左肩の照り。どちらも**濃い側**（`g` / `r`）が背景との 3:1 を担う
+        // （竹の子の `a`・波しぶきの `N` と同じ約束。`WorldTests` が固定）。
+        "G": 0x9EA294,
+        "g": 0x4A4D45,
+        "W": 0xC8CCBE,
+        "R": 0xC24A33,
+        "r": 0x6E2118,
+        "O": 0xC85B45,
+        // 宝くじ（#1092）。`Y` は券面の上帯（金）、`P` はそこに刷られた赤い文字・罫線。
+        // 紙そのものは既にある `M`（生成りの白）と `T`（淡いクリーム＝切り取り線の側）を使う。
+        "Y": lotteryBand,
+        "P": lotteryPrint,
     ]
 
-    /// 縁取り（焦げ茶寄りの黒）。3 世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
+    /// 縁取り（焦げ茶寄りの黒）。全世界の縁取り（`RunnerWorld.outline`・0x0E1420〜0x241A14）と同じ
     /// 濃さで、朝のパステルの丘・壁、夕方の手前の丘（0x6E5A96・いちばん厳しい）の上でも輪郭が立つ
     /// （`WorldTests` が 3:1 を固定。朝の値 0x241A14 は夕方の丘に 2.9 で届かないので一段暗い）。
     static let outline: UInt32 = 0x1A120E
 
     /// たこ焼きの生地の主色（きつね色）。岩のグレー・地面の茶・鳥の緑のどれとも系統が違う食べ物の色。
     static let takoyakiDough: UInt32 = 0xE8A860
+
+    /// 生成りの白（`M`）。たこ焼きのマヨと、宝くじの券面（#1092）の主色を兼ねる。
+    /// **宝くじが背景から浮くかの検査（`WorldTests.foregroundStandsOutFromBackdrops`）はこの色を見る。**
+    static let paperWhite: UInt32 = 0xFAF6EC
+    /// 宝くじの上帯（金）。
+    static let lotteryBand: UInt32 = 0xE4B23C
+    /// 宝くじに刷られた赤い文字・罫線。
+    static let lotteryPrint: UInt32 = 0xC6314C
 
     // MARK: たこ焼き（`RunnerPickupKind.invincible`・#797 → #956）
 
@@ -80,7 +113,7 @@ enum RunnerPixelArt {
     }
 
     /// 犬・イノシシのパレットは**世界ごと**（`RunnerWorld.creatures`・#929「朝は暗く、夜は明るく」）。
-    /// たこ焼きのように 1 つの色で 3 世界を通すことはできない——イノシシらしい暗い茶は夜の路面
+    /// たこ焼きのように 1 つの色で全世界を通すことはできない——イノシシらしい暗い茶は夜の路面
     /// （0x353A48）と 2:1 に届かず、縁取りも暗いので夜には沈む（`WorldTests` の
     /// `creatureBodiesStandOutFromBackdrops` が主色だけで 3:1 を求める）。そこで文字は固定し、
     /// 色だけを世界の `Creatures` から写す。`K` は世界の縁取り（`creatures.outline`）。
@@ -105,6 +138,120 @@ enum RunnerPixelArt {
     static func boar(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
         PixelSprite(rows: frame == .walk0 ? boarWalk0Rows : boarWalk1Rows, palette: creaturePalette(colors))
     }
+
+    // MARK: 着せ替え（`RunnerWorld.Dressing`・#1009）
+
+    /// 犬の枠の絵（世界の着せ替えで犬か猫）。色は世界の `Creatures` から写す。
+    static func walker(_ frame: WalkFrame, world: RunnerWorld) -> PixelSprite {
+        switch world.dressing.dog {
+        case .dog: return dog(frame, colors: world.creatures)
+        case .cat: return cat(frame, colors: world.creatures)
+        }
+    }
+
+    /// イノシシの枠の絵（世界の着せ替えでイノシシかフォークリフト）。
+    static func charger(_ frame: WalkFrame, world: RunnerWorld) -> PixelSprite {
+        switch world.dressing.boar {
+        case .boar:     return boar(frame, colors: world.creatures)
+        case .forklift: return forklift(frame, colors: world.creatures)
+        }
+    }
+
+    /// 犬の枠の格子（寸法を測る用。`RunnerScene.addDog`）。
+    static func walkerRows(world: RunnerWorld) -> [String] {
+        switch world.dressing.dog {
+        case .dog: return dogWalk0Rows
+        case .cat: return catWalk0Rows
+        }
+    }
+
+    /// イノシシの枠の格子（寸法を測る用。`RunnerScene.addBoar`）。
+    static func chargerRows(world: RunnerWorld) -> [String] {
+        switch world.dressing.boar {
+        case .boar:     return boarWalk0Rows
+        case .forklift: return forkliftDrive0Rows
+        }
+    }
+
+    /// イノシシの枠の土煙を立てる列（`boarRearFootX` / `forkliftRearWheelX`）。
+    static func chargerRearFootX(world: RunnerWorld) -> Double {
+        switch world.dressing.boar {
+        case .boar:     return boarRearFootX
+        case .forklift: return forkliftRearWheelX
+        }
+    }
+
+    /// 猫のパレット。犬と同じ文字（`O` 体・`o` 縞と暗部・`W` 胸と口元）に目の `E` を足す。
+    /// 首輪 `R` は使わない（野良）。
+    static func catPalette(_ c: RunnerWorld.Creatures) -> [Character: UInt32] {
+        creaturePalette(c).merging(["E": catEye]) { _, new in new }
+    }
+
+    /// 猫の目（黄）。世界によらない。
+    static let catEye: UInt32 = 0xE8C84A
+
+    static func cat(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? catWalk0Rows : catWalk1Rows, palette: catPalette(colors))
+    }
+
+    /// フォークリフトのパレット。イノシシの文字を機械に読み替える: `B` 車体（錆橙・主色）/ `b` タイヤ・
+    /// マスト・ヘッドガード / `S` 鋼のフォークとマストのレール・ホイール / `T` ヘッドライト。
+    /// 回転灯と後ろの警告帯の黄 `Y` は世界によらない。
+    static func forkliftPalette(_ c: RunnerWorld.Creatures) -> [Character: UInt32] {
+        creaturePalette(c).merging(["Y": warningYellow]) { _, new in new }
+    }
+
+    /// フォークリフトの回転灯・警告帯の黄。穴の柵（`RunnerPalette.pitEdge`）より少し落とした黄。
+    static let warningYellow: UInt32 = 0xF2C14E
+
+    static func forklift(_ frame: WalkFrame, colors: RunnerWorld.Creatures) -> PixelSprite {
+        PixelSprite(rows: frame == .walk0 ? forkliftDrive0Rows : forkliftDrive1Rows, palette: forkliftPalette(colors))
+    }
+
+    /// 切り株（`RunnerWorld.Dressing.Block.stump`）。
+    static func stump() -> PixelSprite { PixelSprite(rows: stumpRows, palette: palette) }
+
+    /// ロープの束（`RunnerWorld.Dressing.Block.ropeCoil`）。
+    static func ropeCoil() -> PixelSprite { PixelSprite(rows: ropeCoilRows, palette: palette) }
+
+    /// ドラム缶（`RunnerWorld.Dressing.Block.drum`）。
+    static func drum() -> PixelSprite { PixelSprite(rows: drumRows, palette: palette) }
+
+    // MARK: 突き上げ（`RunnerHazardKind.shoot`・#1010）
+
+    /// 伸び切った突き上げの絵（着せ替えから直接引く）。
+    ///
+    /// **着せ替え → 絵の対応はここ 1 か所だけ**。`RunnerScene` は世界から着せ替えを引いて
+    /// この関数に渡すだけで、世界と絵の対応を自分では持たない（かつては
+    /// 「着せ替え → 世界 → 着せ替え → 絵」と 2 度写していて、途中で取り違えても
+    /// テストで気付けなかった）。
+    static func shootArt(for style: RunnerWorld.Dressing.Shoot) -> PixelSprite {
+        switch style {
+        case .bambooShoot: return PixelSprite(rows: bambooShootRows, palette: palette)
+        case .seaSpray:    return PixelSprite(rows: seaSprayRows, palette: palette)
+        }
+    }
+
+    /// 突き上げの予告の絵（土が盛り上がる／泡が立つ）。対応は `shootArt(for:)` と同じ作法。
+    static func shootCueArt(for style: RunnerWorld.Dressing.Shoot) -> PixelSprite {
+        switch style {
+        case .bambooShoot: return PixelSprite(rows: soilMoundRows, palette: palette)
+        case .seaSpray:    return PixelSprite(rows: foamRows, palette: palette)
+        }
+    }
+
+    /// 世界から引く版（テスト・寸法の測り方で使う）。
+    /// 高い塀の絵（#1091）。**絵の選び方は持たない**——着せ替え（`RunnerWorld.Dressing.Wall`）を
+    /// そのまま受け取って対応する格子を返すだけ（突き上げの `shootArt(for:)` と同じ作法）。
+    static func wallArt(for style: RunnerWorld.Dressing.Wall) -> PixelSprite {
+        switch style {
+        case .stoneWall:      return PixelSprite(rows: stoneWallRows, palette: palette)
+        case .containerStack: return PixelSprite(rows: containerStackRows, palette: palette)
+        }
+    }
+
+    static func shoot(world: RunnerWorld) -> PixelSprite { shootArt(for: world.dressing.shoot) }
+    static func shootCue(world: RunnerWorld) -> PixelSprite { shootCueArt(for: world.dressing.shoot) }
 
     /// 歩きのコマを、**自分が進んだ距離**（ワールド単位・0 以上）から選ぶ。`stride` ごとに
     /// `walk0` / `walk1` を入れ替える（走者の `RunnerRider.pedalFrame` と同じ作法。位相ではなく
@@ -219,4 +366,444 @@ enum RunnerPixelArt {
         ".....KKBBBBBBBBBBBBBBBBBBBBBBBK..",
         "......KBBBBBBBBBBBBBBBBBBBBBBK...",
     ]
+
+    // MARK: 野良猫（港町の犬の枠・#1009）
+
+    /// 野良猫（左向き）30×21 ドット。犬と同じ格子・同じ脚の段（下の 6 行、うち脚は 5 行）で、
+    /// `RunnerScene.addDog` が犬と同じ置き方で貼れる（当たり判定・寸法は犬のまま）。
+    ///
+    /// 犬との見分けは**三角の立ち耳が頭の上に 2 つ・短い顔・細く立ち上がって先が前に曲がる尾・
+    /// 背中の縞（`o`）・胸と口元の薄い色（`W`）・黄色い目（`E`）・首輪なし**。#975 で犬から
+    /// 意図的に外した「猫らしさ」をこちらに集めてある。頭は左（右から左へ歩いて来る向き）。
+    static let catWalk0Rows: [String] = catBodyRows + [
+        ".....KOOKKKooKKKKooKKKOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KOOK.KooK..KooK.KOOK.....",
+        ".....KKKK.KKKK..KKKK.KKKK.....",
+    ]
+
+    static let catWalk1Rows: [String] = catBodyRows + [
+        ".....KooKKKOOKKKKOOKKKooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KooK.KOOK..KOOK.KooK.....",
+        ".....KKKK.KKKK..KKKK.KKKK.....",
+    ]
+
+    /// 猫の頭・胴・尾（脚より上の 15 行）。2 コマで共通。
+    private static let catBodyRows: [String] = [
+        "...........................KK.",
+        "..........................KOOK",
+        "..KK....KK...............KOoOK",
+        "..KOK..KOK..............KOOKK.",
+        "..KOoKKoOK.............KOoK...",
+        "..KOOOOOOK.............KOOK...",
+        ".KOOOOOOOOK...........KOoOK...",
+        ".KOEKOOOOOOK..........KOOK....",
+        "KWOOOOOOOOOKKKKKKKKKKKOoK.....",
+        "KWWKOOOOOOOOOOoOOOOoOOOOK.....",
+        ".KWWWOOOOOOOOOOoOOOOoOOOK.....",
+        "..KKOOOOOOOOOOOOoOOOOoOOK.....",
+        "...KWWWOOOOOOOOOOOOOOOOOK.....",
+        "...KWWWWWWWWOOOOOOOOOOOOK.....",
+        "....KWWWWWWWWWWWWWWWWWOOK.....",
+    ]
+
+    // MARK: フォークリフト（港町のイノシシの枠・#1009）
+
+    /// フォークリフト（左向き）33×23 ドット。イノシシと同じ格子で、`RunnerScene.addBoar` が
+    /// イノシシと同じ置き方（左端＝当たり判定の左端）で貼れる。**フォークの先が絵の左端（列 0）**
+    /// ——イノシシの鼻先と同じ約束で、ドラム缶にぶつかって止まるとフォークが缶に触れた形になる。
+    ///
+    /// 左からフォーク 2 本（`S`・地面の高さ）・マスト（`S` のレール 2 本に `b` の芯）・ヘッドガード
+    /// （`b` の枠に回転灯 `Y`）・錆橙の車体（`B`）にヘッドライト（`T`）・後ろのカウンターウェイトに
+    /// 黄黒の警告帯・タイヤ 2 つ（`b`・ホイール `S`）。運転席は空で誰も乗せない（おじさんシリーズの
+    /// 顔を機械に付けない）。2 コマの違いはホイールの向きだけ（走っていると分かる程度）。
+    static let forkliftDrive0Rows: [String] = forkliftBodyRows + [
+        "........KbbbKKbbbbK....KbbbbK....",
+        "........KKKKKKbSSbK....KbSSbK....",
+        "KKKKKKKKKKKK.KbSSbK....KbSSbK....",
+        "KSSSSSSSSSSK.KbbbbK....KbbbbK....",
+        "KKKKKKKKKKKK..KKKK......KKKK.....",
+    ]
+
+    static let forkliftDrive1Rows: [String] = forkliftBodyRows + [
+        "........KbbbKKbbbbK....KbbbbK....",
+        "........KKKKKKbbSbK....KbbSbK....",
+        "KKKKKKKKKKKK.KbSbbK....KbSbbK....",
+        "KSSSSSSSSSSK.KbbbbK....KbbbbK....",
+        "KKKKKKKKKKKK..KKKK......KKKK.....",
+    ]
+
+    /// フォークリフトの後輪の中心の列（絵の左端からのドット数）。土煙（排気）はここに立てる。
+    static let forkliftRearWheelX: Double = 25.5
+
+    /// フォークリフトのマスト・ヘッドガード・車体（タイヤより上の 18 行）。2 コマで共通。
+    private static let forkliftBodyRows: [String] = [
+        "...................KKKKK.........",
+        "..............KKKKKKYYYKKKKKKK...",
+        "..............KbbbbbbbbbbbbbbK...",
+        "........KKKKK.KbbKKKKKKKKKKbbK...",
+        "........KSbSK.KbbK........KbbK...",
+        "........KSbSK.KbbK.......KKbbK...",
+        "........KSbSK.KbbK.......KbbbK...",
+        "........KSbSK.KbbK.......KbbbK...",
+        "........KSbSKKKbbK.......KbbbK...",
+        "........KSbSKBBBBBKKKKKKKBBBBKKK.",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKTBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKBBBBBBBBBBBBBBBKYKYK",
+        "........KSbSKBBBBBBBBBBBBBBBKYKYK",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKBBBBBBBBBBBBBBBBBBBK",
+        "........KSbSKKKKKKKKKKKKKKKKKKKKK",
+    ]
+
+    // MARK: 切り株・ロープの束・ドラム缶（岩の枠・#1009）
+
+    /// 岩の枠の置物は**当たり判定の箱いっぱい**に描く（岩塊 `RunnerScene.makeRock` と同じ）。
+    /// 低い岩は幅 4 × 高さ 5、高い岩は 4 × 9 なので、格子は 12×15 と 12×27（1 ドット ≒ 0.33 単位
+    /// ＝走者と同じ）。縦横比が箱と一致することは `RunnerPixelArtTests` が固定する。
+    ///
+    /// 切り株（里山の低い岩）: 上面は木肌（`T`）に年輪（`d`）、側面は樹皮の縦の筋（`S`/`s`）と苔（`A`）。
+    static let stumpRows: [String] = [
+        "...KKKKKK...",
+        ".KKTTTTTTKK.",
+        "KTTTddddTTTK",
+        "KTTdTTTTdTTK",
+        "KTTTddddTTTK",
+        "KsTTTTTTTTsK",
+        "KSsSSsSSSsSK",
+        "KSsSSsSSSsSK",
+        "KSsSSsSSSsSK",
+        "KSsSAsSSSsSK",
+        "KSsSAAsSSsSK",
+        "KSsSSsSSSsSK",
+        "KSSSSsSSSSSK",
+        "KSSSSSSSSSSK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// ロープの束（港町の低い岩）: 上面は渦巻きに巻いた麻縄（`H`/`h`）、側面は横の縄の段。
+    static let ropeCoilRows: [String] = [
+        "...KKKKKK...",
+        ".KKHHHHHHKK.",
+        "KHHhhhhhhHHK",
+        "KHhHHHHHHhHK",
+        "KHhHhhhhHhHK",
+        "KHhHhHHhHhHK",
+        "KHhHHHHhHhHK",
+        "KHhhhhhhhhHK",
+        "KHHHHHHHHHHK",
+        "KhHHHHHHHHhK",
+        "KHhhhhhhhhHK",
+        "KHHHHHHHHHHK",
+        "KHhhhhhhhhHK",
+        "KHHHHHHHHHHK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// ドラム缶（港町の高い岩）: 青い缶（`N`）に左の照り（`L`）と右の陰（`n`）、上の蓋と 2 本のリブ。
+    static let drumRows: [String] = [
+        "..KKKKKKKK..",
+        ".KLLNNNNNNK.",
+        "KLLNNNNNNnnK",
+        "KnnnnnnnnnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLLLLLLLLnK",
+        "KnnnnnnnnnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLLLLLLLLnK",
+        "KnnnnnnnnnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KLLNNNNNNnnK",
+        "KnnnnnnnnnnK",
+        "KKKKKKKKKKKK",
+    ]
+
+    // MARK: 高い塀の絵（#1091）
+
+    /// 石垣（里山の高い塀）。当たり判定は 4×18 なので格子は 12×54
+    /// （`RunnerPixelArtTests.wallsFitTheWallHitBox` が縦横比と余白なしを固定）。
+    ///
+    /// **高い岩（大きな石）と一目で区別できる**（決裁）ようにしてある: 岩塊は 4×9 の丸い塊 1 つだが、
+    /// 石垣は**高さが 2 倍以上**あり、横一直線の目地（`g`）で 8 段に積まれた四角い石の列。
+    /// 天端の笠石（`W`）で上端が一直線に見えるのも、丸い岩との違いを作っている。
+    /// 下のほうの石には苔（`A`・切り株と同じ緑）を差して、地面に古くから在る物に見せる。
+    static let stoneWallRows: [String] = [
+        "KKKKKKKKKKKK",
+        "KWWWWWWWWWWK",
+        "KWWWWWWWWWWK",
+        "KWWWWWWWWWWK",
+        "KggggggggggK",
+        "KWWWgWWWgWWK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KGGGgGGGgGGK",
+        "KggggggggggK",
+        "KWWWWWgWWWgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KGGGGGgGGGgK",
+        "KggggggggggK",
+        "KWWgWWWgWWWK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KGGgGGGgGGGK",
+        "KggggggggggK",
+        "KWWWWgWWWgWK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KGGGGgGGGgGK",
+        "KggggggggggK",
+        "KWWWgWWWWgWK",
+        "KGGGgGGGGgGK",
+        "KGGGgGGGGgGK",
+        "KGAGgGGGGgGK",
+        "KGAGgGGGGgGK",
+        "KGGGgGGGGgGK",
+        "KggggggggggK",
+        "KWWgWWgWWWWK",
+        "KGGgGGgGGGGK",
+        "KGGgGGgGGGGK",
+        "KGGgGGgGGAGK",
+        "KGGgGGgGGAGK",
+        "KGGgGGgGGGGK",
+        "KggggggggggK",
+        "KWWWWgWWgWWK",
+        "KGGGGgGGgGGK",
+        "KGGGGgGGgGGK",
+        "KGGAGgGGgGGK",
+        "KGGAGgGGgGGK",
+        "KGGGGgGGgGGK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 積まれたコンテナ（港町の高い塀）。同じ 12×54 の格子に**海上コンテナを 2 段**積む。
+    ///
+    /// 遠景のコンテナ（`SceneryPalette.containerRust` ほか）は淡い色で奥に置いてあるので、
+    /// 手前のこれは**濃い赤**（`R`）と黒に近い桁・リブ（`r`）で描く。段の継ぎ目に桁（`r`）が
+    /// 2 本並ぶので、1 個の箱ではなく「2 つ積んである」と読める——ドラム缶（4×9 の円筒）とは
+    /// 高さも形も違う。縦のリブ（波板）は列で通してあり、走っていても縦縞として見える。
+    static let containerStackRows: [String] = [
+        "KKKKKKKKKKKK",
+        "KrrrrrrrrrrK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrMRrMRrRK",
+        "KORrMRrMRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KrrrrrrrrrrK",
+        "KKKKKKKKKKKK",
+        "KKKKKKKKKKKK",
+        "KrrrrrrrrrrK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrMRrMRrRK",
+        "KORrMRrMRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KORrRRrRRrRK",
+        "KrrrrrrrrrrK",
+        "KKKKKKKKKKKK",
+    ]
+
+    // MARK: 突き上げの絵（#1010）
+
+    /// 竹の子（里山の突き上げ）。当たり判定は高い岩と同じ 4×9 なので格子は 12×27
+    /// （`RunnerPixelArtTests.shootsFitTheTallHitBox` が縦横比と余白なしを固定）。
+    ///
+    /// **切り株（低い岩）と明確に見分けられる形と色**（決裁）にしてある: 切り株は 4×5 の
+    /// 平たい円筒で側面が濃い樹皮（`S`）だが、竹の子は**高さが 2 倍近い円錐**で、主色は
+    /// 淡い生成りの皮（`T`）、穂先だけ濃い緑（`a`/`A`）。皮の重なりを `H`/`h` の山形の線で
+    /// 3 段入れ、斑点（`s`）を散らしてある。
+    static let bambooShootRows: [String] = [
+        ".....KK.....",
+        ".....KK.....",
+        "....KaaK....",
+        "....KaaK....",
+        "....KaaK....",
+        "...KaaaaK...",
+        "...KaAAaK...",
+        "...KAAAAK...",
+        "..KaAAAAaK..",
+        "..KAAAAAAK..",
+        "..KAAAAAAK..",
+        "..KhTTTThK..",
+        ".KTThTThTTK.",
+        ".KTTTTTTTTK.",
+        ".KTTTTTTTTK.",
+        ".KhTTTTTThK.",
+        "KTTThTTThTTK",
+        "KTTTTTTTTTTK",
+        "KTTTTTTTTTTK",
+        "KTTsTTTTsTTK",
+        "KhTTTTTTTThK",
+        "KTTThTTThTTK",
+        "KTTTTTTTTTTK",
+        "KTTTTTTTTTTK",
+        "KTTsTTTTTsTK",
+        "KhTTTTTTTThK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 波しぶき（港町の突き上げ）。竹の子とまったく同じ格子・同じシルエットで、色だけが水。
+    /// **動きと当たり判定は竹の子と 1 つ**（`RunnerHazardKind.shoot`）で、替わるのは絵だけ。
+    ///
+    /// 港町の背景（海 0x9FC0D4・岬 0xA4C1CE・岸壁 0xB9BDBD）は水と同じ淡い青の帯なので、
+    /// **柱の中で左（白い泡 `M`）から右（水の陰 `L`→`N`）へ濃淡を付けて形を立てる**。
+    /// 縁取りだけに頼ると、背景に溶けた平たい三角に見える（最初にそう描いて撮って分かった）。
+    static let seaSprayRows: [String] = [
+        ".....KK.....",
+        ".....KK.....",
+        "....KMMK....",
+        "....KMMK....",
+        "....KMCK....",
+        "...KMMCLK...",
+        "...KMCCLK...",
+        "...KMCCLK...",
+        "..KMMCCLLK..",
+        "..KMCCCLLK..",
+        "..KMCCCLNK..",
+        "..KMCCCLNK..",
+        ".KMMCCCLLNK.",
+        ".KMCCMCLLNK.",
+        ".KMCCCCLLNK.",
+        ".KMMCCCLLNK.",
+        "KMMCCCCLLNNK",
+        "KMCCMCCLLNNK",
+        "KMCCCCCLLNNK",
+        "KMMCCCCLLNNK",
+        "KMCCMCCLLNNK",
+        "KMCCCCCLLNNK",
+        "KMMCCCCLLNNK",
+        "KMCCMCCLLNNK",
+        "KMCCCCCLLNNK",
+        "KMMCCCLLNNNK",
+        "KKKKKKKKKKKK",
+    ]
+
+    /// 予告（里山）: 土が盛り上がる。地面に置く**低くて横に広い**塚（18×7 ドット）。
+    ///
+    /// 横に広げてあるのは読ませたい予告だから——当たり判定（1 タイル = 12 ドット）の
+    /// `shootCueVisualScale` 倍（= 18 ドット）の幅で貼るので、**1 ドットの大きさは本体の
+    /// 竹の子と同じ**（`RunnerPixelArtTests.shootsFitTheTallHitBox` が固定）。
+    /// 高さは 7 ドット = 本体の 1/4 弱で、伸びてくる竹の子の根元だけを隠す。
+    static let soilMoundRows: [String] = [
+        ".......KKKK.......",
+        ".....KKSSSSKK.....",
+        "...KKSSsSSSsSKK...",
+        "..KSSsSSSSsSSSSK..",
+        ".KSSSsSSSSSSsSSSK.",
+        "KSSsSSSSSSSSsSSSSK",
+        "KKKKKKKKKKKKKKKKKK",
+    ]
+
+    /// 予告（港町）: 岸壁の縁に泡が立つ。塚とまったく同じ格子で、色だけが泡。
+    static let foamRows: [String] = [
+        ".......KKKK.......",
+        ".....KKCCCCKK.....",
+        "...KKCCMCCCMCKK...",
+        "..KCCMCCCCMCCCCK..",
+        ".KCCCMCCCCCCMCCCK.",
+        "KCCMCCCCCCCCMCCCCK",
+        "KKKKKKKKKKKKKKKKKK",
+    ]
+
+    /// 予告（塚・泡）を当たり判定の幅の何倍で描くか（`RunnerScene.addShoot`）。
+    ///
+    /// **格子の幅がこの倍率そのもの**（18 ドット / 本体 12 ドット = 1.5）なので、この倍率で
+    /// 貼ると 1 ドットの大きさが本体と揃う。倍率を変えるなら格子の幅も一緒に変える。
+    static let shootCueVisualScale: Double = 1.5
+
+    // MARK: 宝くじ（毎面のゴール・#1092）
+
+    /// ゴールに浮いている宝くじ（21×13 ドット）。旗を置き換える目印（会長決裁 2026-09-18）。
+    ///
+    /// おじさんが追いかけている当たり券そのものなので、**紙の券面**として読める形にする:
+    /// 上段に金の帯（`Y`）と赤い刷り（`P`）、下段は生成りの紙（`M`）に赤い罫線、右寄りの
+    /// 縦 1 列だけクリーム（`T`）で切り取り線の耳を出す。文字は書かない——この大きさ
+    /// （幅 7 単位 ≒ 走者の自転車 1 台ぶん）では読めず、`RunnerAccessibility` が
+    /// 言葉のほうを担うため。
+    ///
+    /// 格子は絵にぴったり（透明な余白の行・列が無い）。シーン側は `anchorPoint = (0.5, 0.5)` で
+    /// **絵の中心**を走者の高さに合わせる（たこ焼きの底合わせとは違う——浮いている物なので）。
+    static let lotteryTicketRows: [String] = [
+        "KKKKKKKKKKKKKKKKKKKKK",
+        "KYYYYYYYYYYYYYYYYYYYK",
+        "KYYYYPPPPPPPPPPPYYYYK",
+        "KMMMMMMMMMMMMMMMMMMMK",
+        "KMPPPMMPPPMMPPPMMMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KMPPPPPPPPPPPPPMMMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KMPPPMMMPPPMMMPPPMTMK",
+        "KMMMMMMMMMMMMMMMMMTMK",
+        "KTTTTTTTTTTTTTTTTTTTK",
+        "KTTTTTTTTTTTTTTTTTTTK",
+        "KKKKKKKKKKKKKKKKKKKKK",
+    ]
+
+    static func lotteryTicket() -> PixelSprite {
+        PixelSprite(rows: lotteryTicketRows, palette: palette)
+    }
 }

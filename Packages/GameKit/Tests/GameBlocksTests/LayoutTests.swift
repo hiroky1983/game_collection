@@ -178,7 +178,12 @@ struct BlocksLayoutTests {
     /// 段数によって違い（3 段で 0.61 倍・7 段で 0.52 倍）、速さは終盤ほど上がるので、
     /// **段数が多く速さも上がる終盤ステージがいちばん厳しくなる**。ここを見落とすと
     /// 「難度は変えていない」という説明が終盤だけ成り立たなくなる。
-    @Test("どのステージでも落球までの猶予が #597 以前と変わらない")
+    ///
+    /// **2026-09-21（#1202）に許容比を更新した**: `BlocksStage.baseSpeed` / `speedStep` を
+    /// 約 1.26 倍に引き上げた（会長判断・序盤の「もっさり」対策）ため、猶予は #597 以前の
+    /// 比で見て一律 **0.75〜0.87 倍**に縮む（段数ごとの相対カーブ自体は変えていないので、
+    /// 段数による縮み方の違いは #597 のときと同じ範囲に収まる）。
+    @Test("どのステージでも落球までの猶予が、球速アップ（#1202）を織り込んだ比で揃っている")
     func fallingGraceMatchesTheOldBoard() {
         for stage in BlocksStage.all {
             let rows = Double(stage.rows.count)
@@ -194,7 +199,7 @@ struct BlocksLayoutTests {
 
             let ratio = grace / legacyGrace
             #expect(
-                ratio >= 0.95 && ratio <= 1.15,
+                ratio >= 0.75 && ratio <= 0.87,
                 """
                 ステージ\(stage.number)（\(stage.rows.count)段・速さ \(stage.ballSpeed)）の猶予が \
                 \(grace) 秒。#597 以前は \(legacyGrace) 秒だったので \(ratio) 倍になっている

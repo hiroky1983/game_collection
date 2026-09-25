@@ -289,7 +289,16 @@ struct HubView: View {
             }
             .navigationDestination(for: HubRoute.self) { route in
                 if let module = registry.module(id: route.gameID) {
+                    // 自己ベスト更新のリザルトに出す共有ボタンの情報（#1043）。20 本の `RecordLabel` の
+                    // 呼び出しを直さずに済むよう、ゲーム画面を作るここ 1 か所から配る。
+                    let gameID = module.id
+                    let services = services
                     module.makeView(services: services)
+                        .environment(\.recordShare, RecordShareContext(
+                            gameTitle: module.title,
+                            url: AppEnvironment.appStoreURL,
+                            didTap: { services.gameDidTapShare(gameID: gameID) }
+                        ))
                 }
             }
             .onChange(of: path) { oldPath, newPath in
@@ -329,6 +338,17 @@ struct HubView: View {
                 guard let id = requested else { return }
                 services.reminders?.requestedGameID = nil
                 // 設定を開いたままだと、その裏で遷移して何も起きていないように見える。
+                showSettings = false
+                showRecords = false
+                openFromOutside(HubRoute(
+                    gameID: id, source: .notification, position: nil,
+                    resume: isResumable(id)
+                ))
+            }
+            // 再エンゲージメント通知（#1193）がタップされたら、そのゲームを直接開く。
+            .onChange(of: services.reengagement?.requestedGameID, initial: true) { _, requested in
+                guard let id = requested else { return }
+                services.reengagement?.requestedGameID = nil
                 showSettings = false
                 showRecords = false
                 openFromOutside(HubRoute(
@@ -389,7 +409,7 @@ struct HubView: View {
                     for style: FeedbackImpact in [.light, .medium, .rigid] {
                         services.feedback.impact(style)
                     }
-                    for type: FeedbackNotice in [.success, .warning, .error] {
+                    for type: FeedbackNotice in [.success, .warning, .error, .milestone] {
                         services.feedback.notify(type)
                     }
                 }

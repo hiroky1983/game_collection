@@ -22,39 +22,60 @@ extension RunnerScene {
                 base: hillBaseX[i], distance: field.distance, parallax: Self.hillParallax,
                 spacing: Self.hillSpacing, count: hillTiles.count)
         }
-        // 走者の画面上の x は動かさず、コースのほうを左へ流す。
-        courseLayer.position = CGPoint(x: Metrics.playerX - field.distance, y: 0)
+        // エンドレス（#1086）は枠に入った区画だけを置き、遠くへ進んだらコース層の原点を動かす。
+        if field.track != nil { syncEndlessCourse(field) }
+        // 崩れる足場（#1090）の揺れと板の抜け落ち。**ミス・ゴールのあとも写す**
+        // ——`tick` が止まっても崩れの時計は止まった値のままなので、絵も止まって整合する。
+        if !crumblingPlatformNodes.isEmpty { syncCrumblingPlatforms(field) }
+        // 走者の画面上の x は動かさず、コースのほうを左へ流す。ノードは原点（`renderOrigin`）からの
+        // 位置に置いてあるので、画面上の位置は原点に依らない（ステージ制の原点は常に 0）。
+        courseLayer.position = CGPoint(x: Self.courseLayerX(distance: field.distance, origin: renderOrigin), y: 0)
         if model.phase == .falling {
             // ミスした瞬間に `field` は凍る（`RunnerModel.tick` が `field.step` を呼ばなくなる）ので
             // 値は変わらない。最初のフレームだけ、ミスした瞬間の位置・向きへきっちり合わせてから
             // 演出を始める（以後 `player.position` / `.zRotation` はここでは触らず、演出の
             // `SKAction` に専有させる。毎フレーム上書きすると動きが打ち消される）。
             if lastSyncedPhase != .falling {
-                player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+                player.position = CGPoint(x: Metrics.playerX, y: field.footY - field.sinkDepth)
                 player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
                 // 無敵のまま穴に落ちた（#797）場合、点滅の途中の薄さで落下演出に入らないよう
                 // 先に戻す（`playFallAnimation` の `removeAllActions` で点滅そのものは止まる）。
                 stopInvincibleBlink()
                 playFallAnimation()
             }
+        } else if model.phase == .chasing {
+            // ゴールの演出（#1092）。`.falling` と同じで `field` は着いた瞬間で凍っており、
+            // 絵は `RunnerModel.goalChaseProgress` だけから決まる（`SKAction` に任せない
+            // ので、撮影で時間を止めれば絵もそこで止まる）。
+            if lastSyncedPhase != .chasing {
+                stopInvincibleBlink()
+                goalTicket?.removeAction(forKey: Self.loopActionKey)
+            }
+            syncGoalChase(field, progress: model.goalChaseProgress)
+        } else if model.didFinishGoalChase {
+            // 演出が明けたあと（リザルトを出しているあいだ）。**走り去った先に置いたまま**にする。
+            // 下の `else` に落とすと走者が 1 フレームで画面の中央へ戻り、半透明のリザルトの裏で
+            // 瞬間移動して見える。演出を飛ばした場合（`sync` を 1 度も通っていない撮影シナリオ
+            // `-simulateRunner cleared` を含む）もここを通るので、飛ばしても見終えても同じ画になる。
+            if lastSyncedPhase != .chasing { goalTicket?.removeAction(forKey: Self.loopActionKey) }
+            syncGoalChase(field, progress: 1)
         } else {
-            player.position = CGPoint(x: Metrics.playerX, y: field.footY)
+            // 沈む床（#1089）では**絵だけ**を沈みぶん下げる（`field.sinkDepth`）。当たり判定の
+            // `footY` は動かないので、ジャンプの軌道も成立条件も沈みに左右されない。
+            player.position = CGPoint(x: Metrics.playerX, y: field.footY - field.sinkDepth)
             advancePedaling(field)
             // 空中では前のめりにする。跳んでいることが動きだけで分かるようにするため
             // （コマは `jump` の 1 枚だが、傾きで勢いが出る）。
             player.zRotation = field.isGrounded ? 0 : CGFloat(max(-0.3, min(0.3, field.vy / 300)))
-            syncPickups(field)
+            // エンドレスのアイテム・動く障害は `syncEndlessCourse` が区画ごとに扱う。
+            if field.track == nil {
+                syncPickups(field)
+                syncMovingHazards(field)
+            }
             syncJustLanding(field)
-            syncMovingHazards(field)
             // 無敵の点滅（#797）は走者ノードの alpha だけを触る。動く障害（#796）の同期は
             // 障害側のノードしか動かさないので、順序に依存も干渉もしない。
             syncInvincibility(field)
-            // ゴールに着いた最初のフレームだけ紙吹雪を散らす（#703「着いた感」）。
-            // `.falling` の落下演出と同じ「前回反映した phase」との比較で 1 回に絞る。
-            if model.phase == .cleared || model.phase == .allCleared,
-               lastSyncedPhase != .cleared, lastSyncedPhase != .allCleared {
-                spawnGoalConfetti()
-            }
         }
         // コマは局面・接地・位相の純関数（`RunnerRider.frame`）。`.falling` に入った最初の
         // フレームで `tumble`、演出明けの `.failed` で `dizzy`、空中は `jump`、接地は漕ぐ 2 枚。
@@ -65,22 +86,71 @@ extension RunnerScene {
         lastSyncedPhase = model.phase
     }
 
-    /// ゴール到達の紙吹雪。土煙と同じ丸だけの部品（#494）で、旗の色と白を交互に散らす。
-    /// 座標は画面固定（走者の頭上）——クリアした瞬間 `field` は止まりコースも流れない。
-    /// ノードは演出が終わると自分で消えるので、次の走行（`rebuildCourse`）に後始末は要らない。
-    private func spawnGoalConfetti() {
-        let origin = CGPoint(x: Metrics.playerX, y: Metrics.groundY + Metrics.playerHeight + 3)
-        // 弾ける方向は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
-        let specs: [(dx: Double, dy: Double, r: Double)] = [
-            (-7, 9, 1.0), (-3, 12, 0.8), (2, 13, 1.1), (6, 11, 0.9), (9, 7, 0.8),
-            (-9, 4, 0.7), (-1, 8, 0.7), (4, 6, 0.9), (11, 3, 0.7), (-5, 6, 0.8),
-        ]
-        for (i, spec) in specs.enumerated() {
-            spawnDust(
-                at: origin, specs: [spec], duration: 0.7,
-                color: i.isMultiple(of: 2) ? RunnerPalette.goal : RunnerPalette.cloud
-            )
+    /// ゴールの演出（#1092）: 宝くじが風に飛ばされ、おじさんが追いかけて画面の外へ走り去る。
+    ///
+    /// **`SKAction` を使わず `progress`（0〜1）から毎フレーム置き直す**。ゴールに着いた瞬間に
+    /// `field` は凍るのでコース層も流れず、ここで動かすのは宝くじと走者の 2 つだけ。
+    /// 時間の出どころは `RunnerModel` なので、撮影で時間を止めれば絵も同じところで止まる
+    /// （`-simulateRunner chasing`）。紙吹雪は廃止した——逃げられた場面で祝うのは話と合わない
+    /// （決裁 #1092）。激突の土煙（`spawnCrashDust`）はそのまま残る。
+    ///
+    /// **Reduce Motion がオンなら宝くじは動かさず、その場で消える**。走者が走り去るところは
+    /// 残す（消えると「クリアしたのに何も起きない」になるため。決裁の「おじさんが走り去る程度に」）。
+    func syncGoalChase(_ field: RunnerField, progress: Double) {
+        let p = min(1, max(0, progress))
+        if let ticket = goalTicket {
+            if reducesMotion {
+                ticket.position = goalTicketBase
+                ticket.zRotation = 0
+                ticket.alpha = p > 0 ? 0 : 1
+            } else {
+                // 右上へ弧を描いて飛んでいく（上がり方は頭打ちにして、最後は横へ抜ける）。
+                ticket.position = CGPoint(
+                    x: goalTicketBase.x + p * Self.goalTicketFlyX,
+                    y: goalTicketBase.y + sin(p * .pi * 0.5) * Self.goalTicketFlyY
+                )
+                ticket.zRotation = CGFloat(p * 2.2)
+                ticket.alpha = 1 - p * 0.6
+            }
         }
+        // おじさんは画面の右端の外まで走り去る。
+        let chaseX = Metrics.playerX + p * (Metrics.width + Self.goalChaseExitMargin - Metrics.playerX)
+        let previousX = player.position.x
+        // **空中でゴールしたら、まず地面へ降ろす**（`goalChaseLandingRatio` ぶんで着地しきる）。
+        // 着いたときの高度のまま水平に滑らせると、跳んだままのコマ（`jump`）で横へ流れていき、
+        // 「追いかけて走り去る」の絵にならない。
+        player.position = CGPoint(
+            x: chaseX,
+            y: Self.goalChaseRiderY(startY: field.footY - field.sinkDepth, progress: p)
+        )
+        player.zRotation = 0
+        // 走り去るあいだも脚は回す。位相は**画面上で進んだぶん**で進めるので、
+        // 止めれば脚も止まる（`advancePedaling` が距離で回すのと同じ考え方）。
+        pedalPhase = RunnerRider.advance(
+            phase: pedalPhase, by: Double(chaseX - previousX), isPedaling: true
+        )
+    }
+
+    /// 飛ばされた宝くじが右へ進む量（画面幅 100 に対して、確実に枠の外まで出る）。
+    ///
+    /// おじさんの移動量（`Metrics.width + goalChaseExitMargin - Metrics.playerX` ≒ 98）より
+    /// 大きく取り、同じ 1.5 秒でも宝くじがはっきり先に画面外へ抜けるようにしてある（#1172。
+    /// 会長 QA「速度が同じに見える」——上昇の弧（`goalTicketFlyY`）で横移動が遅く見えていたため、
+    /// 120 → 200 に上げた）。
+    static let goalTicketFlyX: Double = 200
+    /// 同じく上へ上がる量。上端（`Metrics.height` = 115）へ抜ける手前で横へ流れる。
+    static let goalTicketFlyY: Double = 46
+    /// 走り去った走者が画面の外に消えるまでの余白。
+    static let goalChaseExitMargin: Double = 24
+    /// 空中でゴールした走者が地面まで降りきる、演出全体に対する割合。
+    /// 純関数（`goalChaseRiderY`）から引くので `nonisolated`。
+    nonisolated static let goalChaseLandingRatio: Double = 0.3
+
+    /// 演出中の走者の足元の y。**空中でゴールしたら `goalChaseLandingRatio` ぶんで地面まで降ろす**。
+    /// 接地したままゴールした（`startY == groundY`）ふつうの場合は最初から最後まで地面のまま。
+    nonisolated static func goalChaseRiderY(startY: Double, progress: Double) -> Double {
+        let landed = min(1, max(0, progress) / goalChaseLandingRatio)
+        return startY + (RunnerField.Metrics.groundY - startY) * landed
     }
 
     /// 取得済みのピックアップのノードを消す（`removedPickupIndices` の宣言を参照）。
@@ -110,7 +180,12 @@ extension RunnerScene {
     private func syncJustLanding(_ field: RunnerField) {
         guard field.justLandingCount > renderedJustLandingCount else { return }
         renderedJustLandingCount = field.justLandingCount
-        spawnJustLandingDust(atWorldX: field.distance)
+        spawnJustLandingDust(atCourseX: field.distance - renderOrigin)
+    }
+
+    /// コース層の x。走者の画面上の x（`playerX`）に、原点から見た走者の位置を引き当てる（#1086）。
+    nonisolated static func courseLayerX(distance: Double, origin: Double) -> Double {
+        Metrics.playerX - (distance - origin)
     }
 
     /// 無敵（たこ焼き・#797）の点滅を、`field.isInvincible` と食い違ったフレームだけ掛ける／外す。
@@ -150,6 +225,19 @@ extension RunnerScene {
     /// `tumble`（自転車が横倒しで前へ投げ出された絵）に差し替えるので、ここで掛ける回転は
     /// **絵の中の転倒に上乗せする勢い**に留める（#701）。当たり判定・進行のタイミングは
     /// `RunnerModel` 側の `RunnerRules.fallDuration` が決めており、ここは見た目だけを作る。
+    /// その死因は「**下へ沈んで消える**」側か、「ぶつかって転げる」側か。
+    ///
+    /// 穴（`.pit`）と沈む床（`.sink`・#1089）が沈む側。**位置ではなく死因で見る**のが要点で、
+    /// 以前は `isPit(at: distance)` で分けていたため、溺れた走者は穴の上に居らず
+    /// 「岩に弾き返されて転げる」演出に落ちていた（PR #1110 の指摘）。溺れた相手に弾き返す物は無い。
+    /// ミスの原因が分からない（nil）ときは、当たった側の演出に倒す（その場に残るほうが安全）。
+    nonisolated static func sinksOutOfSight(cause: AnalyticsEndCause?) -> Bool {
+        switch cause {
+        case .pit, .sink:                  return true
+        case .rock, .bird, .animal, .none: return false
+        }
+    }
+
     private func playFallAnimation() {
         player.removeAllActions()
         let duration = RunnerRules.fallDuration
@@ -171,7 +259,7 @@ extension RunnerScene {
         let topple = SKAction.rotate(byAngle: -.pi * 0.35, duration: duration)
         topple.timingMode = .easeOut
 
-        if model.field.isPit(at: model.field.distance) {
+        if Self.sinksOutOfSight(cause: model.field.lastMissCause) {
             // 穴の奈落は `Metrics.groundY` の深さまである（`addPitVoid`）。以前の沈み幅
             // （-3.5）はその1割ほどしかなく、穴の底へ落ちる前に演出が終わって
             // 「穴の横で止まっている」ように見えていた。奈落の深さに合わせて沈める。
@@ -231,7 +319,7 @@ extension RunnerScene {
 
     /// 激突点の土煙。丸だけで組む（#494）。ノードは演出が終わると自分で消えるので、
     /// `rebuildCourse` 側での後始末は要らない。座標は画面固定（走者の前輪の先）——
-    /// ミスの瞬間 `field` は凍っていてコースも流れないため、シーン直下に置いてよい。
+    /// ミスの瞬間 `field` は凍っていてコースも流れないため、画面固定の `effectLayer` に置いてよい。
     private func spawnCrashDust() {
         // 弾ける方向は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。
         spawnDust(
@@ -239,7 +327,8 @@ extension RunnerScene {
             specs: [
                 (-1.5, 2.5, 1.1), (0.8, 3.2, 0.9), (2.0, 1.8, 1.2),
                 (-3.0, 1.2, 0.8), (0.2, 0.8, 1.3), (-4.5, 2.0, 0.7),
-            ]
+            ],
+            in: effectLayer
         )
     }
 
@@ -249,31 +338,40 @@ extension RunnerScene {
     ///
     /// **こちらはコース側（`courseLayer`）に置く**——走行中はコースが流れ続けるので、
     /// 画面固定にすると土煙が走者と一緒に前へ動いて見える。降りた地点に残して後ろへ流す。
-    private func spawnJustLandingDust(atWorldX worldX: Double) {
+    /// `courseX` はコース層の座標（ワールド x − `renderOrigin`・#1086）。
+    private func spawnJustLandingDust(atCourseX courseX: Double) {
         spawnDust(
-            at: CGPoint(x: worldX - 2.6, y: Metrics.groundY + 0.8),
+            at: CGPoint(x: courseX - 2.6, y: Metrics.groundY + 0.8),
             specs: [(-2.2, 1.4, 0.8), (-4.0, 0.9, 0.6), (-0.6, 1.9, 0.7)],
             duration: 0.3,
             in: courseLayer
         )
     }
 
+    /// 土煙・紙吹雪の粒の名前。演出が終わると自分で消える一時的なノードで、部品の数
+    /// （エンドレスのノード数の上限・#1086）を数えるテストはこの名前のノードを除く。
+    static let dustNodeName = "dust"
+
     /// 丸だけの土煙を 1 か所から散らす。ノードは演出が終わると自分で消える。
+    ///
+    /// 置く層（`parent`）は省略させない。シーン直下に置くと層の z（#942）より奥になり、
+    /// 背景の後ろに隠れる（#1069）。`zPosition` は層の中の相対値。
     private func spawnDust(
         at origin: CGPoint,
         specs: [(dx: Double, dy: Double, r: Double)],
         duration: TimeInterval = 0.4,
-        in parent: SKNode? = nil,
+        in parent: SKNode,
         color: UInt32 = RunnerPalette.cloud
     ) {
         for spec in specs {
             let puff = SKShapeNode(circleOfRadius: spec.r)
+            puff.name = Self.dustNodeName
             puff.fillColor = RunnerPalette.color(color)
             puff.strokeColor = .clear
             puff.alpha = 0.8
             puff.zPosition = 6
             puff.position = origin
-            (parent ?? self).addChild(puff)
+            parent.addChild(puff)
             let drift = SKAction.moveBy(x: spec.dx, y: spec.dy, duration: duration)
             drift.timingMode = .easeOut
             puff.run(.sequence([

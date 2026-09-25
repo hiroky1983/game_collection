@@ -20,11 +20,13 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+@testable import GameShiritori
 import GameSpider
 import GameChess
 import GameBlocks
 import MahjongTiles
 import CoreTestSupport
+import GameRunnerTestSupport
 
 // MARK: - Mocks
 
@@ -165,9 +167,9 @@ private func playBlockPuzzle(_ services: GameServices) {
 @MainActor
 private func playRunner(_ services: GameServices) {
     let model = RunnerModel(services: services, startingAt: 1)
-    failRunnerStage(model)      // 跳ばずに走って穴に落ちる
+    failCurrentStage(model)      // 跳ばずに走って穴に落ちる
     model.retryStage()
-    clearRunnerStage(model)     // 自動操縦でゴールまで
+    autoPlayCurrentStage(model)     // 自動操縦でゴールまで
 }
 
 /// フリーセル（#492）。決着まで指し切るにはソルバーが要る（`GameFreeCellTests` で通しを検証済み）ため、
@@ -436,6 +438,7 @@ private func playAllGames(_ services: GameServices) async {
     playBlockPuzzle(services)
     playRunner(services)
     _ = playHanafudaMatch(services)
+    await playShiritoriGame(services)
 }
 
 // MARK: - オン: 3 種すべてが発火する
@@ -509,6 +512,15 @@ struct FeedbackEnabledTests {
         #expect(spy.impacts.contains(.light), "置けたときに発火する")
         #expect(spy.notices(of: .warning) > 0, "置けない位置は拒否として発火する")
         #expect(spy.notices(of: .error) > 0, "詰みは決着として発火する")
+    }
+
+    @Test("カードしりとり: 札を取る・お手つき・決着で発火する")
+    func shiritori() async {
+        let (services, spy) = makeServices(hapticsEnabled: true)
+        await playShiritoriGame(services)
+        #expect(spy.impacts.contains(.medium), "配り・札を取ると発火する")
+        #expect(spy.notices(of: .warning) > 0, "お手つきは拒否として発火する")
+        #expect(spy.notices(of: .success) > 0 || spy.notices(of: .error) > 0, "決着で発火する")
     }
 
     @Test("花札こいこい: 札を出す・取る・決着で発火する")
@@ -796,6 +808,7 @@ struct SoundFeedbackTests {
         await check("ブロックならべ") { playBlockPuzzle($0) }
         await check("チャリンコおじさん") { playRunner($0) }
         await check("花札こいこい") { _ = playHanafudaMatch($0) }
+        await check("カードしりとり") { await playShiritoriGame($0) }
         await check("麻雀") { services in
             let model = MahjongModel(services: services, cpuDelay: .zero, seed: 4649)
             model.startGame()
@@ -889,39 +902,24 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
     }
 }
 
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
-@MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
-/// 一度も跳ばずに走らせてミスさせる。
-@MainActor
-private func failRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// お手つきを 1 回してから、取れる札の先頭を取り続けて決着まで遊ぶ（カードしりとり）。
+@MainActor
+private func playShiritoriGame(_ services: GameServices) async {
+    let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 2026)
+    model.startGame()
+    let moves = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").map(\.slot)
+    if let wrong = model.slots.indices.first(where: { !moves.contains($0) }) { model.select(wrong) }
+    for _ in 0..<60 where model.phase == .playing {
+        if model.isPlayerTurn {
+            guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { break }
+            model.select(move.slot)
+        } else {
+            await model.runCPUTurnIfNeeded()
+        }
+    }
+}
+
 /// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
 @MainActor
 private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {

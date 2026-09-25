@@ -16,7 +16,9 @@ public final class RunnerModel {
     /// 参照するため（値は不変の文字列なので分離する必要がない）。
     public nonisolated static let gameID = "runner"
 
-    public private(set) var field: RunnerField
+    /// setter が `internal` なのは、撮影・QA の局面を作る `RunnerModel+Debug.swift`（#1106 で分けた `#if DEBUG` の extension）
+    /// がここへ書き込むため。別ファイルの extension からは `private(set)` に手が届かない。書き換えてよいのはこのモジュール内だけ。
+    public internal(set) var field: RunnerField
     /// 遊び方のモード（#675）。**走行の開始時に焼き込み、走行中は読み替えない**
     /// （`docs/ai-devops.md`「1局=1RuleSet」）。切り替わるのは `newGame(mode:)` の 1 か所だけ。
     public private(set) var mode: RunnerMode = .stages
@@ -29,15 +31,17 @@ public final class RunnerModel {
     /// 直前のエンドレスの決着で自己ベストを更新したか。リザルトのバッジに使う。
     public private(set) var didSetBestDistance = false
     /// 1 始まりのステージ番号。エンドレス中も**そのまま保持する**（戻ってきたときの続き）。
-    public private(set) var stageNumber: Int
+    /// setter が `internal` な理由は `field` と同じ（`RunnerModel+Debug.swift`）。
+    public internal(set) var stageNumber: Int
     /// 到達した最大のステージ番号（1 始まり・#798）。ワールドマップで選べる面の上限で、
     /// 常に `stageNumber` 以上。クリアで次の面が到達済みになり、面を選んで遊んでも巻き戻らない。
     /// 中断データ（`RunnerSnapshot.reachedStage`）に残す。
-    public private(set) var reachedStage: Int
+    /// setter が `internal` な理由は `field` と同じ（`RunnerModel+Debug.swift`）。
+    public internal(set) var reachedStage: Int
     public private(set) var phase: RunnerPhase
     /// QA 用に差し替えたコース（`-simulateRunner showcase` 等・DEBUG 専用）。
     /// 入っているあいだは `startStage` がここのコースを使い、「もう一度」でも本番の面に戻らない。
-    private var debugStageOverride: RunnerStage?
+    var debugStageOverride: RunnerStage?
     /// いまの走行でチェックポイント再開（リワード広告）を使ったか。**1 回の走行につき 1 回まで**。
     /// 「もう一度」で頭から走り直せば戻る（会長決裁 2026-09-15・#958。以前は 1 ステージ 1 回で、
     /// クリアできない面で 2 回目以降が頭からだけになり離脱につながるとの判断）。
@@ -63,6 +67,16 @@ public final class RunnerModel {
     private var isPressed = false
     /// `.falling` に入ってからの経過秒。`RunnerRules.fallDuration` に達すると `.failed` へ移る。
     private var fallElapsed: Double = 0
+    /// `.chasing`（ゴールの演出・#1092）に入ってからの経過秒。
+    private var chaseElapsed: Double = 0
+    /// 演出が明けたら移る先。ゴールに着いた瞬間に `clearStage()` が決めた `.cleared` / `.allCleared`
+    /// をそのまま控える（演出は結果を変えない）。
+    private var phaseAfterChase: RunnerPhase = .cleared
+    /// この走行でゴールの演出（#1092）が済んだか。**リザルトを出しているあいだの絵**に使う
+    /// ——済んでいれば、宝くじは飛んでいった先・おじさんは画面の外に置いたままにする
+    /// （`RunnerScene.sync`）。演出を飛ばしたときも真になるので、飛ばした場合と
+    /// 見終えた場合でリザルトの画が食い違わない。
+    public private(set) var didFinishGoalChase = false
     /// 一時停止する前の状態。`resume()` で戻す。
     private var phaseBeforePause: RunnerPhase = .ready
     private let services: GameServices?
@@ -76,12 +90,19 @@ public final class RunnerModel {
         let restored = services?.snapshots
             .load(RunnerSnapshot.self, for: RunnerModel.gameID)?
             .validated()
+        let clearedStage = services?.playLog?
+            .record(gameID: Self.gameID, variant: RunnerMode.stages.recordVariant)?
+            .bestPoints
         self.init(
             services: services,
             preference: preference,
             stage: restored?.stage ?? 1,
-            reachedStage: restored?.reachedStage ?? 1,
-            isFreshStart: restored == nil
+            reachedStage: max(restored?.reachedStage ?? 1, Self.reachedStage(afterClearing: clearedStage)),
+            // **ハブから開いただけでは 1 プレイと数えない**（#1064）。この時点ではどのモード・
+            // どの面を走るかが決まっておらず（開始シート #1027 で選ぶ）、ここで数えると
+            // 「シートの『スタート』で数え直して 2 本目」（初回起動）と
+            // 「シートを閉じてコースをタップしただけなら 0 本」（2 回目以降）に転ぶ。
+            countsPlayStart: false
         )
     }
 
@@ -101,20 +122,22 @@ public final class RunnerModel {
             stage: stage,
             // 狙った局面から始めるので、その面までは到達済みとみなす。
             reachedStage: stage,
-            isFreshStart: true
+            // 面を選んで始める入口なので、`newGame(startingAtStage:)` と同じく 1 プレイとして数える。
+            countsPlayStart: true
         )
     }
 
     /// 唯一の指定イニシャライザ。
     ///
-    /// `isFreshStart` は解析（#158）の数え方だけに効く。中断からの復元は「新しいプレイ」では
-    /// ないので `game_start` を送らない。
+    /// `countsPlayStart` は解析（#158）の数え方だけに効く。**面を選んで始める入口だけ真**で、
+    /// ハブから開くだけの入口（中断からの復元を含む）は偽（#1064）。偽で作った局は走り出し
+    /// （`beginRun`）で数える。
     private init(
         services: GameServices?,
         preference: FeedbackPreference,
         stage: Int,
         reachedStage: Int,
-        isFreshStart: Bool
+        countsPlayStart: Bool
     ) {
         self.services = services
         self.preference = preference
@@ -131,11 +154,27 @@ public final class RunnerModel {
             .bestPoints
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
-        if isFreshStart {
+        if countsPlayStart {
             services?.gameDidStart(
                 gameID: Self.gameID, level: .stage(stageNumber), mode: RunnerMode.stages.analyticsMode
             )
+            // 数えたプレイには必ず「続きから戻れない」を立てる（`restartPlay` と同じ理由・#1105）。
+            services?.gameWillNotResume(gameID: Self.gameID)
         }
+    }
+
+    /// クリアした面の記録（本編の `PlayRecord.bestPoints`＝クリアした面の番号の最大）から見た到達点（#1009）。
+    ///
+    /// **面を足した版へ更新した人のため**にある。中断データの到達点（`RunnerSnapshot.reachedStage`）は
+    /// 保存した版の最終面で頭打ちになっている（18 面クリア済みでも 18 のまま）ので、それだけでは
+    /// 「最終面まで来た人」と「最終面をクリアした人」を区別できず、足した 19 面が選べない。
+    /// 記録はクリアした番号そのもの（v1.1.4 から同じ値）なので、その次の面までは到達済みとみなす。
+    /// 記録が無い・壊れた値なら 1 面。上限は最終面。
+    nonisolated static func reachedStage(afterClearing clearedStage: Int?) -> Int {
+        guard let clearedStage, clearedStage >= 1 else { return 1 }
+        // 先に上限で打ち切る（壊れた記録が `Int.max` だと `+ 1` で溢れて落ちる・PR #1096 の CodeRabbit 指摘）。
+        guard clearedStage < RunnerRules.stageCount else { return RunnerRules.stageCount }
+        return clearedStage + 1
     }
 
     // MARK: - 問い合わせ
@@ -145,8 +184,9 @@ public final class RunnerModel {
     /// 走行距離（ワールド単位）。エンドレス（#675）の記録はこの値の整数部。
     public var distance: Double { field.distance }
     /// 走行距離の表示・記録用の値（m）。**1 タイル（`RunnerRules.tileWidth` 単位）＝ 1 m** と
-    /// 数える。ワールド単位のままだと 400 区画で 25,600 m・時速 140 km 超の表示になり実感と
-    /// 合わないため（社長レビュー 2026-09-14）。6,400 m を 8 分前後で走る＝時速 48 km ほど。
+    /// 数える。ワールド単位のままだと 1 区画 64 m・最高速で時速 200 km 超の表示になり実感と
+    /// 合わないため（社長レビュー 2026-09-14）。1 区画 16 m、最高速（基準 60 × ペダル 1.55）で
+    /// 秒速 23 m ＝時速 84 km ほど。
     public var distanceMeters: Int { Int(field.distance / RunnerRules.tileWidth) }
     /// ステージ番号（1 始まり）が到達済み（ワールドマップで選べる）か（#798）。
     /// 1 面は常に到達済み。範囲外は false。
@@ -179,11 +219,11 @@ public final class RunnerModel {
     /// 1 回の走行が終わって、リザルトを出している状態か。
     ///
     /// ステージ制は全ステージクリアだけが「終わり」で、ミスは何度でもやり直せる途中。
-    /// エンドレスはミスした時点で 1 回が終わり、コースを走り切った場合も同じ扱い。
+    /// エンドレスはミスした時点で 1 回が終わる（コースに終わりは無いので、ミス以外の終わり方は無い・#1086）。
     public var isRunOver: Bool {
         switch mode {
         case .stages:  return phase == .allCleared
-        case .endless: return phase == .failed || phase == .allCleared
+        case .endless: return phase == .failed
         }
     }
 
@@ -200,6 +240,9 @@ public final class RunnerModel {
             // 跳ぶ音（#703）。踏み切りが成立したときだけ鳴らす——二段目も同じく成立すれば鳴り、
             // 三度目（`RunnerRules.maxJumps` 超え）や押しっぱなしでは鳴らない。
             if field.jump() { services?.feedback.impact(.light) }
+        case .chasing:
+            // ゴールの演出中（#1092）はジャンプにはならず、**演出を飛ばす**操作になる。
+            skipGoalChase()
         default:
             break
         }
@@ -210,6 +253,16 @@ public final class RunnerModel {
     /// `replayCurrentStage`・#941）の共通の実体。
     private func beginRun() {
         phase = .running
+        // **走り出した = ここからが 1 プレイ**（#1064）。`gameDidStart` は冪等なので、面を選んで
+        // 始めた走行（`startStages` / `newEndlessGame` の `gameDidRestart`）では増えない。
+        // ここで数えるのは、ハブから開いてそのままコースをタップした走行——開始シートを
+        // キャンセルした 2 回目以降の起動がこれで、以前は `game_start` も `game_end` も
+        // 出ていなかった。エンドレスに `level` は付けない（`newEndlessGame` と同じ形）。
+        services?.gameDidStart(
+            gameID: Self.gameID,
+            level: mode == .stages ? .stage(stageNumber) : nil,
+            mode: mode.analyticsMode
+        )
         // 走り出した = 捨てたら途中離脱として数える走行（#500）。
         services?.gameDidProgress(gameID: Self.gameID)
         // このゲームの中断データは再開する面と到達点の控えで、決着後も消さない
@@ -265,12 +318,31 @@ public final class RunnerModel {
             if fallElapsed >= RunnerRules.fallDuration { phase = .failed }
             return
         }
+        // 締めの演出中（`.story`・#1092）は下の `guard phase.isRunning` が止める
+        // ——コマ送りは View が持つので、時間では何も進めない。
+        if phase == .chasing {
+            #if DEBUG
+            // 演出の途中を撮る（`-simulateRunner chasing`）あいだは進みも止める。見た目は
+            // `goalChaseProgress` から決まるので、ここを止めれば絵も止まる。
+            if isFrozenForCapture { return }
+            #endif
+            // `.falling` と同じで `field.step` は呼ばない（ゴールに着いた状態で凍らせる）。
+            chaseElapsed += dt
+            if chaseElapsed >= RunnerRules.goalChaseDuration { skipGoalChase() }
+            return
+        }
         guard phase.isRunning else { return }
         #if DEBUG
         // 撮影用に止めているあいだは進めない（下記 `applyDebugScenario` を参照）。
         if isFrozenForCapture { return }
         #endif
         let step = min(dt, RunnerRules.maxStep) * (isSlowMode ? RunnerRules.slowFactor : 1)
+        #if DEBUG
+        if isAutoPilotForDebug {
+            advanceWithAutoPilotForDebug(by: step)
+            return
+        }
+        #endif
         for event in field.step(dt: step) {
             guard phase.isRunning else { break }
             handle(event)
@@ -281,7 +353,7 @@ public final class RunnerModel {
     ///
     /// ステージ制は**その場で走り出す**（#941。面をまたぐたびにスタート画面を挟んで
     /// もう 1 タップさせない、会長指示 2026-09-15）。
-    /// エンドレス（#675）では**新しい種でもう 1 回**走る（コースを走り切った後も同じ）。
+    /// エンドレス（#675）では**新しい種でもう 1 回**走る。
     /// 同じコースを走り直す導線は出さない——「冒頭は同じ・以降は毎回違う」が決裁の形で、
     /// 同じ並びを覚えて距離を伸ばすモードにはしない。ミスの時点で 1 回が決着しているので、
     /// 次の 1 回は新しいプレイとして数え直す（ステージ制のやり直しは同じプレイの続き）。
@@ -297,7 +369,7 @@ public final class RunnerModel {
         case .endless:
             guard isRunOver else { return }
             startEndless(seed: Self.randomSeed())
-            services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
+            restartPlay()
         }
     }
 
@@ -312,7 +384,7 @@ public final class RunnerModel {
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
         // 1 ステージ = 1 プレイとして数え直す（#158。前のステージの `game_end` は送信済み）。
-        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        restartPlay(level: .stage(stageNumber))
         beginRun()
     }
 
@@ -321,7 +393,7 @@ public final class RunnerModel {
         guard mode == .stages, phase == .cleared || phase == .allCleared else { return }
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
-        services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode)
+        restartPlay(level: .stage(stageNumber))
         beginRun()
     }
 
@@ -368,9 +440,7 @@ public final class RunnerModel {
         stageNumber = number
         checkpointUsed = false
         startStage(from: 0, passedCheckpoint: false)
-        services?.gameDidRestart(
-            gameID: Self.gameID, level: .stage(stageNumber), mode: mode.analyticsMode
-        )
+        restartPlay(level: .stage(stageNumber))
     }
 
     /// 種を指定してエンドレスをはじめから（#675）。
@@ -381,7 +451,7 @@ public final class RunnerModel {
     public func newEndlessGame(seed: UInt64) {
         mode = .endless
         startEndless(seed: seed)
-        services?.gameDidRestart(gameID: Self.gameID, mode: mode.analyticsMode)
+        restartPlay()
     }
 
     /// スタート画面（#931）のボタンで走り出す。開始シートを経ずにモードを選んで**その場で走り出す**入口。
@@ -433,12 +503,26 @@ public final class RunnerModel {
 
     // MARK: - 内部
 
+    /// 新しいプレイとして数え直す（`game_start`）。面・モードを選んで始める入口の共通の実体。
+    ///
+    /// `gameDidRestart` のあとに **`gameWillNotResume` を必ず立てる**（#1105）。このゲームの
+    /// 中断データはステージ番号と到達点の控えで走行そのものを復元せず、しかも記録を守るため
+    /// 決着後も消さないので、既定の「中断データが在る = 続きから戻れる」がそのままだと
+    /// **選んで始めたのに走らずハブへ戻った走行が休憩扱いで残る**。残ると次の走行の
+    /// `gameDidStart` が（冪等なので）無視されて `game_start` が落ち、その `game_end` の
+    /// `duration_sec` がハブ滞在まで含んだ値になる。走り出し（`beginRun`）でも同じことを
+    /// するが、そこへ辿り着く前に離脱されるのがこの穴だった。
+    private func restartPlay(level: AnalyticsLevel? = nil) {
+        services?.gameDidRestart(gameID: Self.gameID, level: level, mode: mode.analyticsMode)
+        services?.gameWillNotResume(gameID: Self.gameID)
+    }
+
     /// 現在のステージのコースを作り直し、走り出す前の状態にする。
     ///
     /// `.ready` に置くだけで走り出さない。走り出すかは呼び出し側が決める——ハブから入った直後
     /// （`init`）・「はじめから」・マップで面を選んだとき（`startStages`）・チェックポイント再開は
     /// スタート画面を出し、面をまたぐ導線（#941）は続けて `beginRun()` を呼ぶ。
-    private func startStage(from distance: Double, passedCheckpoint: Bool) {
+    func startStage(from distance: Double, passedCheckpoint: Bool) {
         // QA 用のショーケース（`-simulateRunner showcase` 等）は、ミスして「もう一度」を押しても
         // 本番の面に戻らない（2026-09-15。戻ると 1 回ミスしただけで見比べが終わってしまう）。
         // 面を選び直す入口（`startStages` / `newGame`）では解除する。
@@ -457,16 +541,29 @@ public final class RunnerModel {
     /// アプリを閉じたら消える（会長決裁）。ステージ制の続き（`stageNumber`）はそのまま残る。
     private func startEndless(seed: UInt64) {
         endlessSeed = seed
-        resetRun(RunnerField(stage: RunnerEndlessCourse.makeStage(seed: seed)))
+        // コースは走りながら作る（#1086）。ここで作るのは走り出す地点のまわりの数区画だけ。
+        resetRun(RunnerField(endlessSeed: seed))
     }
 
     /// 新しいコースで走り出す前の状態に戻す。ステージ制・エンドレス・QA用の差し替えで共通。
-    private func resetRun(_ newField: RunnerField) {
+    func resetRun(_ newField: RunnerField) {
+        #if DEBUG
+        // 長時間の実測用の自動操縦（`endless-autopilot`）は、そのシナリオで作ったコースの 1 回だけ。
+        isAutoPilotForDebug = false
+        #endif
         field = newField
         runGeneration += 1
         phase = .ready
         isPressed = false
         fallElapsed = 0
+        chaseElapsed = 0
+        phaseAfterChase = .cleared
+        didFinishGoalChase = false
+        // 締めの場面も走行の頭で落とす（#1092・CodeRabbit 指摘）。`RunnerStoryView` はコースを
+        // 覆うがツールバーの「はじめから」はその外側にあるので、締めの最中でも新しい走行を
+        // 始められる。ここで落とさないと、`.ready` に戻ったのに `finishStory()` が
+        // `.story` 以外では効かず、オーバーレイが消せないまま被り続ける。
+        storyScene = nil
         recordResult = nil
         didReachNewStage = false
         didSetBestDistance = false
@@ -479,7 +576,7 @@ public final class RunnerModel {
         return generator.next()
     }
 
-    private func handle(_ event: RunnerEvent) {
+    func handle(_ event: RunnerEvent) {
         // 手応え（触覚と、それに相乗りする効果音）。対応表は `RunnerFeedbackCue` に置いてある。
         // 演出の土煙・紙吹雪は `RunnerScene` が出す。
         // エンドレス（#675）にチェックポイントは無い（`RunnerStage` が中点に計算はするが、
@@ -502,18 +599,86 @@ public final class RunnerModel {
             }
             // エンドレスはミスした時点で 1 回が決着する（#675）。記録は演出を待たずに確定させ、
             // 演出明けの `.failed` のリザルトに出す。
-            if mode == .endless { finishEndlessRun(outcome: .loss) }
+            if mode == .endless { finishEndlessRun() }
         case .reachedGoal:
-            switch mode {
-            case .stages:
-                clearStage()
-            case .endless:
-                // 固定長（`RunnerRules.endlessSegments`）を走り切った。第 1 弾はここで打ち切り、
-                // 走った距離をそのまま記録する（真の無限は第 2 弾・Issue #675）。
-                phase = .allCleared
-                finishEndlessRun(outcome: .win)
+            // エンドレスにゴールは無い（#1086）——`RunnerField` はエンドレスでこのできごとを出さない。
+            guard mode == .stages else { return }
+            // **順番が意味を持つ**: 記録・解析・順位表・中断データは `clearStage()` が
+            // ゴールに着いた瞬間に確定させ、そのあとで演出の局面を被せる（#1092）。
+            let cleared = stageNumber
+            clearStage()
+            // 世界の締め（6・12・18・24・30 面の初回クリア）は、毎面のゴールの演出の**代わり**に流す。
+            if let scene = RunnerStory.endingToPlay(clearedStage: cleared, playLog: services?.playLog) {
+                beginStory(scene)
+            } else {
+                beginGoalChase()
             }
         }
+    }
+
+    // MARK: - 世界の締め（#1092）
+
+    /// 流している最中の場面。`.story` 以外では nil。
+    public private(set) var storyScene: RunnerStoryScene?
+
+    /// クリアが確定したあと、リザルトの手前に締めを挟む。
+    func beginStory(_ scene: RunnerStoryScene) {
+        guard phase == .cleared || phase == .allCleared else { return }
+        phaseAfterChase = phase
+        storyScene = scene
+        // 締めを流した回も「ゴールの演出は済んだ」扱いにする。リザルトの背後の絵
+        // （宝くじは飛んでいった先・おじさんは画面の外）を、毎面の演出を見た回と揃えるため。
+        didFinishGoalChase = true
+        phase = .story
+        // 締めは最長 4.8 秒（1.2 秒 × 4 コマ・#1123）。そのあいだ評価リクエストを伏せないと、
+        // 条件6「リザルトの1.0秒後」から外れて演出のさなかにダイアログが被る（#1143）。
+        services?.deferReviewRequestUntilResultIsVisible()
+    }
+
+    /// 締めを見終えた / 飛ばした。記録はすでに確定しているので、局面を進めるだけ。
+    public func finishStory() {
+        guard phase == .story else { return }
+        storyScene = nil
+        phase = phaseAfterChase
+        // ここでリザルトが見えるので、伏せていた評価リクエストを表に戻す（#1143）。
+        services?.resultDidBecomeVisible()
+    }
+
+    // MARK: - ゴールの演出（#1092）
+
+    /// 宝くじを追いかける演出の進み（0〜1）。`.chasing` 以外では 0。
+    ///
+    /// **見た目はこの値だけから決まる**（`RunnerScene.syncGoalChase`）。`SKAction` に任せず
+    /// モデルの経過時間から引くことで、撮影で時間を止めれば絵も同じところで止まる。
+    public var goalChaseProgress: Double {
+        guard phase == .chasing else { return 0 }
+        return min(1, max(0, chaseElapsed / RunnerRules.goalChaseDuration))
+    }
+
+    /// クリアが確定したあと、リザルトの手前に演出の局面を挟む。
+    ///
+    /// `clearStage()` が `.cleared` / `.allCleared` を立てた直後にだけ呼ぶ。QA用ショーケースの
+    /// 打ち切りもここを通る（`.allCleared` なので同じく演出が入る）。
+    private func beginGoalChase() {
+        guard phase == .cleared || phase == .allCleared else { return }
+        phaseAfterChase = phase
+        chaseElapsed = 0
+        didFinishGoalChase = false
+        phase = .chasing
+        // 演出は `RunnerRules.goalChaseDuration`（1.5秒・#1121）。`beginStory` と同じ理由で
+        // 評価リクエストを伏せる（#1143）。
+        services?.deferReviewRequestUntilResultIsVisible()
+    }
+
+    /// 演出を飛ばしてリザルトを出す。タップ（`press`）と、時間切れ（`tick`）の共通の出口。
+    ///
+    /// 記録はすでに確定しているので、ここでやることは局面を進めることだけ。
+    public func skipGoalChase() {
+        guard phase == .chasing else { return }
+        didFinishGoalChase = true
+        phase = phaseAfterChase
+        // ここでリザルトが見えるので、伏せていた評価リクエストを表に戻す（#1143）。
+        services?.resultDidBecomeVisible()
     }
 
     /// 走行距離 `meters` が自己ベスト `best` の更新か。同点は更新扱いにしない（ここは `PlayRecord.applying` と同じ）。
@@ -530,15 +695,15 @@ public final class RunnerModel {
     /// （区分 nil）とは別の行になり、互いを汚さない。順位表は `asobiba.runner.distance`
     /// （`GameCenterLeaderboard.runnerDistance`）。コンティニューは無いので常に送信対象。
     ///
-    /// ミスで終わる回は `.loss`、走り切った回は `.win`（2048 のゲームオーバーと同じ数え方。
-    /// 毎回を勝ちにすると通算勝利数の実績が走るたびに進んでしまう）。
-    private func finishEndlessRun(outcome: GameOutcome) {
+    /// 決着は必ずミスなので `.loss`（2048 のゲームオーバーと同じ数え方。毎回を勝ちにすると
+    /// 通算勝利数の実績が走るたびに進んでしまう）。コースに終わりが無いので勝ちで終わる回は無い（#1086）。
+    private func finishEndlessRun() {
         let meters = distanceMeters
         didSetBestDistance = Self.isNewBestDistance(meters, over: endlessBestDistance)
         if didSetBestDistance { endlessBestDistance = meters }
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
-            outcome: outcome,
+            outcome: .loss,
             score: GameScore(
                 metric: .points,
                 points: meters,
@@ -608,246 +773,8 @@ public final class RunnerModel {
     /// （最初の撮影では「走行中」を撮ったつもりが、待っているあいだに最初の穴へ落ちて
     /// ミスの画になった）。止まったブロック崩しと違い、狙った画を撮るには時間ごと
     /// 止める必要がある。DEBUG ビルド限定で、製品には入らない。
-    private var isFrozenForCapture = false
-    /// 撮影用のエンドレスの種（#675）。毎回同じコースを撮るための固定値で、意味は無い。
-    private static let captureSeed: UInt64 = 675
-
-    /// 撮影・動作確認用に狙った画面まで進める（起動引数 `-simulateRunner <名前>`）。
-    ///
-    /// 走行中・一時停止・ミス・クリアの画は、実機では**指で遊ばないと**出せない。
-    /// シミュレータには自動タップの手段が無いため、`-simulateBlocks`（#463）と同じ形で
-    /// 起動引数から状態を作る。
-    public func applyDebugScenario(_ name: String) {
-        switch name {
-        case "running":
-            press(); release()
-            // 最初の障害を跳び越している最中で止める（走っていることが 1 枚で分かる画）。
-            autoPlayForDebug(until: { $0.field.altitude > RunnerRules.jumpApex * 0.6 })
-            isFrozenForCapture = true
-        case "pedaling":
-            press(); release()
-            // 漕いでいる画を撮る。`running` は空中で止めるので、そちらは `jump` のコマになる（#569）。
-            // 漕ぐコマは 2 枚（#701）で、`ride0` は走り出す前と同じ絵なので、**左ペダルが前の
-            // `ride1` が出る瞬間**で止める。シーンは最初の反映で「それまでに進んだ距離」を
-            // まとめて位相に足すので、凍らせた画のコマは接地距離だけで決まる。
-            autoPlayForDebug(until: {
-                $0.field.isGrounded && $0.field.distance > 34
-                    && RunnerRider.pedalFrame(
-                        phase: RunnerRider.phase(forGroundedDistance: $0.field.distance)
-                    ) == .ride1
-            })
-            isFrozenForCapture = true
-        case "paused":
-            press(); release()
-            autoPlayForDebug(until: { $0.field.distance > 80 })
-            pause()
-        case "failed":
-            press(); release()
-            // 跳ばずに走り続ければ、最初の障害で必ずミスになる。
-            advanceFramesForDebug(seconds: 30)
-        case "cleared":
-            press(); release()
-            autoPlayForDebug(until: { _ in false })
-        case "showcase":
-            // QA用: 低い障害物・高い障害物・鳥・穴3サイズを1本で見比べる（`RunnerStage.debugShowcase`）。
-            // `.ready` のまま渡すので、実機・シミュレータで普通にタップして遊べる。
-            applyDebugStage(.debugShowcase)
-        case "bird":
-            // 飛び立つ前（羽ばたきの予備動作中）で止める（#796 の受け入れ条件の画 1/3）。
-            // ショーケース（`RunnerStage.debugShowcase`）の鳥を使う。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            autoPlayForDebug(until: { model in
-                guard let bird = model.field.stage.hazards.first(where: { $0.kind == .bird }) else { return true }
-                return model.field.distance >= bird.birdTakeoffDistance - RunnerRules.birdFlutterDistance / 2
-            })
-            isFrozenForCapture = true
-        case "bird-low":
-            // 飛び立った直後、まだ頭より低いところを上がっている途中（画 2/3・#945）。
-            // 帯の下端が止まっていた上端（5）を越え、頭（11）にはまだ届いていないところで止める
-            // ——おじさんはまだ手前を走っている。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            autoPlayForDebug(until: { model in
-                let field = model.field
-                guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
-                      let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
-                return frame.bottom >= RunnerHazardKind.birdLowTop
-                    && frame.bottom < RunnerField.Metrics.playerHeight
-            })
-            isFrozenForCapture = true
-        case "bird-up":
-            // 上がりきった鳥の真下を走ったまま抜けている瞬間（画 3/3・#945 の受け入れ条件そのもの）。
-            // 接地したまま帯と横に重なったところで止める——帯の下端は頭の 3 上（`birdMeetBottom`）。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            autoPlayForDebug(until: { model in
-                let field = model.field
-                guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }),
-                      let frame = bird.frame(atRunnerDistance: field.distance) else { return true }
-                return field.isGrounded && frame.bottom >= RunnerHazardKind.birdMeetBottom
-                    && field.playerMaxX > frame.start && field.playerMinX < frame.end
-            })
-            isFrozenForCapture = true
-        case "dog":
-            // 犬が走者の少し前（画面の中央）で向かい合っている瞬間（#955）。左向きに歩いて来る
-            // 犬の鼻先が画面の中央（走者の中心の `width / 2 − playerX` = 24 先）に入った最初の
-            // フレームで止める——自動操縦の踏み切り（間合い 10 前後）より手前なので、走者は
-            // まだ接地して向かい合っている。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            autoPlayForDebug(until: { model in
-                let field = model.field
-                guard let dog = field.stage.hazards.first(where: { $0.kind == .dog }),
-                      let frame = dog.frame(atRunnerDistance: field.distance) else { return false }
-                let center = RunnerField.Metrics.width / 2 - RunnerField.Metrics.playerX
-                return field.isGrounded && frame.start - field.distance <= center
-            })
-            isFrozenForCapture = true
-        case "boar":
-            // イノシシが画面に入って突進している瞬間（#801）。出会う手前で止める。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            autoPlayForDebug(until: { model in
-                let field = model.field
-                guard let boar = field.stage.hazards.first(where: { $0.kind == .boar }),
-                      let frame = boar.frame(atRunnerDistance: field.distance) else { return false }
-                return field.isGrounded && frame.start - field.distance < 40
-            })
-            isFrozenForCapture = true
-        case "platform":
-            // 台座の上を走っている瞬間で止める（#674 の受け入れ条件「台座の上を走っている瞬間」の画）。
-            // 本番では台座は 16 面以降にしか出ないので、ショーケースの台座を使う。端から 8 単位
-            // 内側に入ってから止め、乗った直後・降りる直前の画にならないようにする。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            autoPlayForDebug(until: { model in
-                let field = model.field
-                return field.isGrounded
-                    && field.stage.platforms.contains { $0.start + 8 <= field.distance && field.distance < $0.end - 8 }
-            })
-            isFrozenForCapture = true
-        case "floor":
-            // スピードアップ床の上を走っている瞬間で止める（#672 の受け入れ条件の画）。
-            // 区間に入って 20 単位進んだところで止め、矢印模様が走者の足元に見えるようにする。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            autoPlayForDebug(until: { model in
-                let field = model.field
-                return field.isOnBoostFloor
-                    && field.stage.boostFloors.contains { $0.start + 20 <= field.distance }
-            })
-            isFrozenForCapture = true
-        case "invincible":
-            // たこ焼き（#797）を取って無敵のまま最初の岩に重なっている瞬間で止める
-            // （受け入れ条件「無敵中に岩へ当たっても crashed が出ない」「残り時間が画面で分かる」の画）。
-            // 本番では 4 面以降にしか出ないので、ショーケースの `k`（最初の岩の直前）を使う。
-            // 自動操縦は無敵でも岩の手前で跳んでしまうので、**跳ばずに**走らせて岩の中に
-            // 居る瞬間（接地したまま岩と重なっている＝無敵でなければミスの位置）で止める。
-            applyDebugStage(.debugShowcase)
-            press(); release()
-            var frames = 0
-            while phase.isRunning, frames < 60 * 30 {
-                let field = self.field
-                guard let rock = field.stage.hazards.first(where: { $0.kind != .pit }) else { break }
-                if field.isInvincible, field.playerMaxX > rock.start, field.playerMinX < rock.end { break }
-                frames += 1
-                tick(dt: 1.0 / 60)
-            }
-            isFrozenForCapture = true
-        case "endless":
-            // エンドレス（#675）の走り出す前の画。上部セクションが「走行距離」表示に変わる。
-            // 種を固定して毎回同じコースを撮る。
-            newEndlessGame(seed: Self.captureSeed)
-        case "endless-running":
-            // エンドレスの走行中（距離が伸びている画）。冒頭の固定区画（#930 で 4 区画に短縮）を
-            // 抜けたランダム区画で、跳んでいる最中の瞬間で止める（距離 600 超・跳躍の 6 割以上）。
-            newEndlessGame(seed: Self.captureSeed)
-            press(); release()
-            autoPlayForDebug(until: { $0.field.distance > 600 && $0.field.altitude > RunnerRules.jumpApex * 0.6 })
-            isFrozenForCapture = true
-        case "endless-failed":
-            // エンドレスのリザルト（走行距離・自己ベスト）。冒頭を自動操縦で抜けてから
-            // 跳ぶのをやめ、ランダム区画の最初の障害でミスさせる。
-            newEndlessGame(seed: Self.captureSeed)
-            press(); release()
-            autoPlayForDebug(until: { $0.field.distance > 700 })
-            advanceFramesForDebug(seconds: 60)
-        case let name where name.hasPrefix("bird:"):
-            // 本番ステージの鳥を、その面の世界の背景の上で撮る（例 `-simulateRunner bird:5`）。
-            // `bird` はショーケースで走るので、面ごとの世界の配色で鳥が見分けられるか（#818）は
-            // こちらで確かめる。最初の鳥が走者の少し前方（画面の中央付近）に来た接地中の瞬間で止める。
-            if let number = Int(name.dropFirst("bird:".count)),
-               RunnerStage.stage(number: number)?.hazards.contains(where: { $0.kind == .bird }) == true {
-                stageNumber = number
-                startStage(from: 0, passedCheckpoint: false)
-                press(); release()
-                autoPlayForDebug(until: { model in
-                    let field = model.field
-                    guard let bird = field.stage.hazards.first(where: { $0.kind == .bird }) else { return true }
-                    return field.isGrounded && (8...45).contains(bird.start - field.distance)
-                })
-                isFrozenForCapture = true
-            }
-        case let name where name.hasPrefix("map:"):
-            // 撮影用: ワールドマップ（#798）の到達面を作る（例 `-simulateRunner map:8` で 8 面まで到達済み）。
-            // 開始シートは `RunnerView` が `-showRunnerStartSheet` で開く。
-            if let number = Int(name.dropFirst("map:".count)) {
-                reachedStage = min(max(number, 1), RunnerRules.stageCount)
-            }
-        case let name where name.hasPrefix("stage:"):
-            // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
-            // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。
-            // `applyDebugStage` ではなく `stageNumber` ごと差し替える——番号を動かさないと、
-            // ミスして「もう一度」を押した瞬間に `startStage` が 1 面目を読み直す
-            // （会長QA「ミスると元のステージに戻る」）。ヘッダーの番号も記録先もその面になる。
-            if let number = Int(name.dropFirst("stage:".count)),
-               RunnerStage.stage(number: number) != nil {
-                stageNumber = number
-                startStage(from: 0, passedCheckpoint: false)
-            }
-        default:
-            break
-        }
-    }
-
-    /// `RunnerStage.all` を経由せず、任意のステージ定義で走らせ直す（QA用）。
-    ///
-    /// `stageNumber`（ヘッダーの「ステージ N/18」表示・到達点の記録先）はそのまま
-    /// 動かさない。「もう一度」「はじめから」を押すと `startStage` が `RunnerStage.all` から
-    /// 引き直すので、ショーケースからは抜ける——QA専用の一時的な差し替えとして割り切る。
-    private func applyDebugStage(_ customStage: RunnerStage) {
-        debugStageOverride = customStage
-        resetRun(RunnerField(stage: customStage))
-    }
-
-    /// 指定秒ぶん 60fps で進める。
-    ///
-    /// `.falling` は `isRunning` に含めていないので、ミスの演出中で止まらないよう
-    /// ループの継続条件にも加える（そうしないと `-simulateRunner failed` が `.falling` で
-    /// 止まってしまい `.failed` の画が撮れない）。
-    private func advanceFramesForDebug(seconds: Double) {
-        var remaining = seconds
-        while remaining > 0, phase.isRunning || phase == .falling {
-            tick(dt: 1.0 / 60)
-            remaining -= 1.0 / 60
-        }
-    }
-
-    /// 地形を読んで自動で跳びながら、`until` が真になるかゴールに着くまで走る（撮影用）。
-    ///
-    /// 判断は `RunnerAutoPilot` に置いてある。**テストが全ステージのクリア可能性を
-    /// 確かめるのに使うのと同じ関数**なので、撮影用にだけ都合の良い操作を書き足す余地がない。
-    private func autoPlayForDebug(until stop: (RunnerModel) -> Bool) {
-        var frames = 0
-        while phase.isRunning, !stop(self), frames < 60 * 120 {
-            frames += 1
-            // 着地するまで離さない（`RunnerAutoPilot.shouldRelease` を参照。早く離すと
-            // ジャンプが切り詰められて越えられない）。
-            if RunnerAutoPilot.shouldJump(field: field) { press() }
-            if RunnerAutoPilot.shouldRelease(field: field) { release() }
-            tick(dt: 1.0 / 60)
-        }
-    }
+    var isFrozenForCapture = false
+    /// 自動操縦で走り続けているか（`-simulateRunner endless-autopilot`・#1086）。
+    var isAutoPilotForDebug = false
     #endif
 }

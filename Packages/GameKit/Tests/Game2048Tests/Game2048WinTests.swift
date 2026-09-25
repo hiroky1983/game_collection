@@ -4,20 +4,6 @@ import Core
 @testable import Game2048
 import CoreTestSupport
 
-/// 送信されたイベントをそのまま溜めるスパイ。Firebase もネットワークも使わない。
-@MainActor
-private final class SpyAnalyticsService: AnalyticsService {
-    private(set) var events: [AnalyticsEvent] = []
-    func log(_ event: AnalyticsEvent) { events.append(event) }
-
-    var starts: Int {
-        events.filter { if case .gameStart = $0 { return true } else { return false } }.count
-    }
-    var outcomes: [AnalyticsResult] {
-        events.compactMap { if case let .gameEnd(_, result, _, _, _) = $0 { return result } else { return nil } }
-    }
-}
-
 /// #438: 2048 到達時の勝利演出と、それに伴う `outcome: .win` の通知。
 @Suite("2048 勝利演出（#438）")
 @MainActor
@@ -167,13 +153,13 @@ struct Game2048WinTests {
     func continuingCountsAsANewPlay() {
         let harness = makeHarness(suite: "restart-count")
         let model = makeModel(harness, board: Self.oneMoveFromWin)
-        #expect(harness.analytics.starts == 1, "前提: 1 プレイ数えている")
+        #expect(harness.analytics.starts.count == 1, "前提: 1 プレイ数えている")
 
         model.move(.left)
         #expect(harness.analytics.outcomes == [.win])
 
         model.continueAfterWin()
-        #expect(harness.analytics.starts == 2, "続きは次の 1 プレイとして数える")
+        #expect(harness.analytics.starts.count == 2, "続きは次の 1 プレイとして数える")
     }
 
     @Test("勝利演出を出している間はスワイプを受け付けない")
@@ -221,11 +207,11 @@ struct Game2048WinTests {
         let restored = Game2048Model(services: restarted)
         #expect(restored.hasWon)
         #expect(restored.showWinPrompt, "選ばないうちに演出が消えない（#516）")
-        #expect(spy.starts == 0, "復元だけでは `game_start` を数えない")
+        #expect(spy.starts.count == 0, "復元だけでは `game_start` を数えない")
 
         // 「続ける」を選んでから終局まで遊ぶ。
         restored.continueAfterWin()
-        #expect(spy.starts == 1, "続行がこのプロセスの 1 プレイ目になる")
+        #expect(spy.starts.count == 1, "続行がこのプロセスの 1 プレイ目になる")
         while !restored.gameOver {
             guard let direction = Direction.allCases.first(where: {
                 Game2048Logic.slide(restored.board, $0).moved
@@ -243,12 +229,12 @@ struct Game2048WinTests {
     func continueAfterWinIsNoOpWithoutPrompt() {
         let harness = makeHarness(suite: "noop")
         let model = makeModel(harness, board: Self.oneMoveFromWin)
-        let startsBefore = harness.analytics.starts
+        let startsBefore = harness.analytics.starts.count
 
         model.continueAfterWin()
 
         #expect(!model.showWinPrompt)
-        #expect(harness.analytics.starts == startsBefore, "プレイを数え増やさない")
+        #expect(harness.analytics.starts.count == startsBefore, "プレイを数え増やさない")
     }
 
     // MARK: - 中断・復元
@@ -300,7 +286,7 @@ struct Game2048WinTests {
 
         // 続きは従来どおり次の 1 プレイとして数え直せる。
         restored.continueAfterWin()
-        #expect(harness.analytics.starts == 2, "続行が 1 プレイとして数えられる")
+        #expect(harness.analytics.starts.count == 2, "続行が 1 プレイとして数えられる")
         while !restored.gameOver {
             guard let direction = Direction.allCases.first(where: {
                 Game2048Logic.slide(restored.board, $0).moved

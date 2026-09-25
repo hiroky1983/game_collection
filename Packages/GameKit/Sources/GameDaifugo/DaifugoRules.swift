@@ -286,14 +286,17 @@ public enum DaifugoRules {
     /// - Parameters:
     ///   - hands: プレイヤー番号順の手札。
     ///   - ranking: 1位から順のプレイヤー番号。
+    ///   - waivingTopPair: 大富豪⇔大貧民の2枚交換を行わない（大貧民が広告で献上を免除した・#1048）。
+    ///     片側だけ渡すと枚数が崩れるので、組ごと取りやめる。富豪⇔貧民の1枚交換はそのまま行う。
     /// - Returns: 交換後の手札と、実際に動いた札の一覧。
     public static func applyExchange(
         hands: [[DaifugoCard]],
-        ranking: [Int]
+        ranking: [Int],
+        waivingTopPair: Bool = false
     ) -> (hands: [[DaifugoCard]], transfers: [DaifugoTransfer]) {
         guard ranking.count == 4 else { return (hands, []) }
         // (上位, 下位, 枚数)
-        let pairs = [(ranking[0], ranking[3], 2), (ranking[1], ranking[2], 1)]
+        let pairs = (waivingTopPair ? [] : [(ranking[0], ranking[3], 2)]) + [(ranking[1], ranking[2], 1)]
 
         var transfers: [DaifugoTransfer] = []
         var result = hands

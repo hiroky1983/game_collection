@@ -79,6 +79,10 @@ targets:
       - package: GameKit
         product: GameSpider
       - package: GameKit
+        product: GameShiritori
+      - package: GameKit
+        product: GameFifteen
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds
@@ -147,8 +151,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba
-        MARKETING_VERSION: "1.1.5"
-        CURRENT_PROJECT_VERSION: "9"
+        MARKETING_VERSION: "1.1.6"
+        CURRENT_PROJECT_VERSION: "10"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
         # 1 = iPhone / 2 = iPad（#458）。調べた競合 30 本すべてが iPad 対応で、

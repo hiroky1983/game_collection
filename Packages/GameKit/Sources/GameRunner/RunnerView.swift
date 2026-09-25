@@ -9,7 +9,10 @@ import SwiftUI
 /// （基盤規約「メニュー・リザルト・設定は SwiftUI」）。
 public struct RunnerView: View {
     private let services: GameServices
-    @State private var model: RunnerModel
+    /// **`private` を付けないのは意図的**（#1106）。ヘッダーを別ファイルの extension
+    /// （`RunnerView+Header.swift`）へ分けた際、そちらから読むため。Swift では別ファイルの
+    /// extension から `private` に手が届かないので、同じモジュール内にだけ開けてある。
+    @State var model: RunnerModel
     @State private var scene: RunnerScene
     /// チェックポイント再開のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var resumeRescue = RewardedRescue()
@@ -22,9 +25,20 @@ public struct RunnerView: View {
     /// 使う設定」で、開始時に `RunnerModel.newGame(startingAtStage:)` で焼き込む。
     /// ツールバーの「はじめから」は 1 面、スタート画面の「マップ」はいまの面を選んだ状態で開く。
     @State private var selectedStage = 1
-    /// 初回プレイの操作ガイド（#988）をいま出しているか。判定と「見せた」の記録は `init` で
-    /// 1 回だけ済ませる（`HowToPlayHint` と同じ作法）。「はじめる」で false になる。
-    @State private var showsTutorial: Bool
+    /// 初回プレイの操作ガイド（#988）をいま出しているか。「はじめる」で false になる。
+    ///
+    /// **判定と「見せた」の記録は、実際に出す直前（`presentTutorialIfNeeded`）でまとめて行う**
+    /// （#1144）。`init` で済ませると、先に流れるストーリーの始まり（#1092・最長 4.8 秒）の
+    /// あいだに「戻る」で離れた人が、一度も見ていないのに二度と見られなくなる。
+    @State private var showsTutorial = false
+    /// `init` の時点で「ストーリーの始まりを出す回」だったか（#1092）。
+    /// 判定だけで印は付かない（付けるのは見せ終えた時点・#1144）。
+    @State private var pendingIntro: Bool
+    /// いま流している始まり。世界の締めのほうは `model.storyScene` が持つ。
+    @State private var introScene: RunnerStoryScene?
+    /// 撮影・QA で止めるコマ（`-simulateRunner story-world3:2`）。製品では常に nil のまま
+    /// （立てるのは `onAppear` の `#if DEBUG` の中だけ）。
+    @State private var frozenStoryPanel: Int?
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -32,9 +46,46 @@ public struct RunnerView: View {
         let model = RunnerModel(services: services)
         _model = State(initialValue: model)
         _scene = State(initialValue: RunnerScene(model: model))
-        // 判定は 1 回だけ（`shouldShow` が「見せた」の記録も兼ねるので二度呼ばない）。
-        let showsTutorial = RunnerTutorial.shouldShow(playLog: services.playLog)
-        _showsTutorial = State(initialValue: showsTutorial)
+        // 順番は 始まり → 操作ガイド → 開始シート（#1092 の受け入れ条件 A）。
+        // ここで見るのは始まりだけ（「見せた」の印は付かない・#1144）。操作ガイドの判定は
+        // 始まりが明けてから（`presentTutorialIfNeeded`）で、`init` では触らない。
+        _pendingIntro = State(initialValue: RunnerStory.shouldShowIntro(playLog: services.playLog))
+    }
+
+    /// いま画面を覆っているストーリーの場面（始まり or 世界の締め）。
+    private var presentedStory: RunnerStoryScene? { introScene ?? model.storyScene }
+
+    /// 画面下のバナー広告を出すか（#1147）。
+    ///
+    /// ストーリー（#1092）の幕は画面いっぱいを覆うので、出したままだと**見えないバナーの
+    /// インプレッションが計上されうる**（AdMob の「広告を他の要素で覆わない」に触れる）。
+    /// 幕が出ているあいだは枠ごと外す。**枠の高さ（`BannerSlot.height`）は空の帯で保つ**——
+    /// 縦幅の分配が変わるとコース（SpriteKit の面）の高さまで動くため。
+    ///
+    /// 幕が明けると `BannerSlot` が作り直され、そのぶん広告のリクエストが増える（ストーリーは
+    /// 1 人あたり最大 6 回・各 5 秒以内なので、ゲーム画面を開き直すのと同程度）。見えない
+    /// インプレッションを残すより副作用が小さいと判断した（PR の `## 社長判断`）。
+    static func showsBanner(isStoryPresented: Bool) -> Bool { !isStoryPresented }
+
+    /// 始まりが明けた / 出さない回の続き。操作ガイドがあればそれを、無ければ開始シートを出す。
+    private func beginAfterIntro() {
+        if !presentTutorialIfNeeded() {
+            presentStartSheetIfNeeded()
+        }
+    }
+
+    /// 初回プレイの操作ガイド（#988）を出す回なら出す。**判定と「見せた」の記録はここだけ**（#1144）。
+    ///
+    /// `RunnerTutorial.shouldShow` は判定と記録を兼ねるので、呼ぶ場所が提示の瞬間から離れると
+    /// その分だけ「印は付いたのに見ていない」窓ができる。#1123 で始まり（#1092）のオーバーレイが
+    /// 手前に入り、`init` で呼んでいた従来の作りでは最長 4.8 秒の窓ができていた。
+    ///
+    /// - Returns: 出したか。false なら開始シートへ進んでよい。
+    @discardableResult
+    private func presentTutorialIfNeeded() -> Bool {
+        guard RunnerTutorial.shouldShow(playLog: services.playLog) else { return false }
+        showsTutorial = true
+        return true
     }
 
     public var body: some View {
@@ -55,7 +106,12 @@ public struct RunnerView: View {
             }
             secondaryInfo
             Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
+            if Self.showsBanner(isStoryPresented: presentedStory != nil) {
+                BannerSlot(ads: services.ads)
+            } else {
+                // 幕のあいだも枠の高さだけは残す（`showsBanner` の doc）。
+                Color.clear.frame(height: BannerSlot.height)
+            }
         }
         .padding()
         .gameChrome(title: "チャリンコおじさん", review: services.review) {
@@ -71,6 +127,10 @@ public struct RunnerView: View {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
                 .imageScale(.large)
+                // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
+                // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
+                // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
+                .disabled(presentedStory != nil)
             }
         }
         .howToPlay(.runner) {
@@ -90,9 +150,33 @@ public struct RunnerView: View {
         .sheet(isPresented: $showsTutorial, onDismiss: { presentStartSheetIfNeeded() }) {
             RunnerTutorialSheet { showsTutorial = false }
         }
-        .sheet(isPresented: $showStartSheet) {
+        // ストーリー（#1092）。始まりは開く前・世界の締めはクリアの結果パネルの手前に、
+        // どちらも画面いっぱいで流す。シートより下に置くので、シートが出ているあいだは被らない。
+        .overlay {
+            if let scene = presentedStory {
+                RunnerStoryView(scene: scene) {
+                    if introScene != nil {
+                        introScene = nil
+                        // 最後のコマまで送った／「スキップ」（画面タップ）で抜けた時点が
+                        // 「見せた」。途中で戻った人には次回もう一度流す（#1144）。
+                        RunnerStory.markIntroShown(playLog: services.playLog)
+                        beginAfterIntro()
+                    } else {
+                        model.finishStory()
+                    }
+                }
+                .frozenStoryPanel(frozenStoryPanel)
+            }
+        }
+        .sheet(isPresented: $showStartSheet, onDismiss: {
+            // 始まり（#1092）を中断してここへ来た場合、操作ガイドがまだ出ていないので拾う。
+            // ふつうの経路では出し終えている＝印が付いているので、`shouldShow` が false になり
+            // 何も起きない（#1144 で印の消費を提示の直前へ寄せたため、二重表示にならない）。
+            _ = presentTutorialIfNeeded()
+        }) {
             RunnerStartSheet(
-                mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage
+                mode: $selectedMode, selectedStage: $selectedStage, reachedStage: model.reachedStage,
+                playLog: services.playLog
             ) {
                 // 選んだモード・面でコースを作るところまで。**走り出しはしない**——シートを
                 // 閉じるとコースの上に「タップでスタート」（`tapToStartHint`）が出て、
@@ -111,18 +195,33 @@ public struct RunnerView: View {
         .onAppear {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
-            presentStartSheetIfNeeded()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|showcase|bird|bird:N|platform|floor|invincible|stage:N|map:N|endless|endless-running|endless-failed>`（#494・#675・#797）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world5|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
-                model.applyDebugScenario(args[i + 1])
+                // ストーリーの始まり（#1092）だけは走行と無関係な View の状態なので、
+                // モデルのシナリオではなくここで立てる（締めのほうはモデルが `.story` にする）。
+                frozenStoryPanel = RunnerStory.debugPanelIndex(for: args[i + 1])
+                if RunnerStory.debugScene(for: args[i + 1]) == .intro {
+                    introScene = .intro
+                } else {
+                    model.applyDebugScenario(args[i + 1])
+                }
             }
             // 撮影用: 開始シート（ワールドマップ #798）を開いた状態にする（`-showRunnerStartSheet`）。
             if args.contains("-showRunnerStartSheet") {
                 openStartSheet(mode: model.mode, stage: 1)
             }
             #endif
+            // 自動表示の判断は**起動引数を適用したあと**（#1063）。先に判断すると、その時点では
+            // まだ `.ready` なので撮影・QA の画面（`-simulateRunner`）にもシートが被る。
+            // ストーリーの始まり（#1092）を出す回は、それが明けてから操作ガイド・開始シートへ進む。
+            if pendingIntro {
+                pendingIntro = false
+                introScene = .intro
+            } else {
+                beginAfterIntro()
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             // 反射神経を使うゲームなので、画面が引っ込んだ瞬間に必ず止める
@@ -139,168 +238,14 @@ public struct RunnerView: View {
         )
     }
 
-    // MARK: - ヘッダー
-
-    /// 面の見出し・スピード・進み具合を 1 行にまとめた画面上部のセクション。
-    ///
-    /// #931 で**秒数（タイム・ベストタイム）を外した**（会長決裁「ステージのタイムは要らない」。
-    /// ステージ制は難しい横スクロールを攻略して先へ進むのが主役で、秒を縮める遊びではない）。
-    /// 代わりに「いまどの面を走っているか」（`RunnerAccessibility.stageHeadline`）を主役にする。
-    /// ベストタイムのチップ一覧も無くなったので 1 行だけになり、浮いた縦幅は `course` が取る。
-    /// **モードを切り替えても高さが変わらない**よう、ステージ制とエンドレスで同じ 3 区画の並び
-    /// （左: 見出し / 中: スピード / 右: 進み具合か自己ベスト）にしてある。
-    private var topSummary: some View {
-        header
-            .padding(.horizontal, 16).padding(.vertical, 10)
-            .popCard(corner: Theme.cornerSmall)
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            switch model.mode {
-            case .stages:  stageHeadline
-            case .endless: distanceReadout
-            }
-            speedMeter
-            Spacer(minLength: 0)
-            switch model.mode {
-            case .stages:  progressReadout
-            case .endless: endlessBestReadout
-            }
-        }
-    }
-
-    /// ステージ制の見出し。「ステージ 9 / 18」の小さな行の下に「2-3」（#931。面の名前は #946 で
-    /// 外し、番号だけ）。
-    private var stageHeadline: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(RunnerAccessibility.stageLabel(number: model.stageNumber, total: RunnerRules.stageCount))
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            Text(stageHeadlineText)
-                .font(.system(size: 17, weight: .heavy, design: .rounded))
-                .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .accessibilityElement()
-        // 番号に世界の名前（#703）と「世界-面」の表記を添える——画面では背景の色で分かる
-        // 「どこを走っているか」を、見えない人にも言葉で伝える。
-        .accessibilityLabel(
-            RunnerAccessibility.stageLabelWithWorld(number: model.stageNumber, total: RunnerRules.stageCount)
-                + "、" + stageHeadlineText
-        )
-    }
-
-    /// ステージ制の進み具合。ゲージだけでは何のゲージか分からないので「ゴールまで」の見出しを添える。
-    private var progressReadout: some View {
-        VStack(alignment: .trailing, spacing: 4) {
-            Text("ゴールまで")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            progressBar
-        }
-        .accessibilityElement()
-        .accessibilityLabel(RunnerAccessibility.progressLabel(model.field.progress))
-    }
-
-    /// エンドレス（#675）は「ステージ N / 18」と進み具合の代わりに走行距離を出す。
-    /// 進み具合は出さない——固定長の終わりを見せると「エンドレス」の看板と食い違う。
-    private var distanceReadout: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("走行距離")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            Text(distanceText(model.distanceMeters))
-                .font(.system(size: 22, weight: .heavy, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.ink)
-        }
-        .accessibilityElement()
-        .accessibilityLabel(RunnerAccessibility.distanceLabel(model.distanceMeters))
-    }
-
-    /// エンドレスの自己ベスト（走行距離）。走りながら「あとどれだけで更新か」を読めるように残す。
-    private var endlessBestReadout: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text("自己ベスト")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            Text(model.endlessBestDistance.map(distanceText) ?? "–")
-                .font(.system(size: 15, weight: .heavy, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.ink)
-        }
-        .accessibilityElement()
-        .accessibilityLabel(RunnerAccessibility.bestDistanceLabel(model.endlessBestDistance))
-    }
-
-    /// 走行距離の表示（`1,234 m`）。単位はワールド単位だが、数字に「m」を添えて距離と分かるようにする。
-    private func distanceText(_ distance: Int) -> String {
-        "\(RecordFormat.number(max(0, distance))) m"
-    }
-
-    /// ペダルの乗り（#569）。
-    ///
-    /// **いま速いのか遅いのか**を走りながら読めるようにする。倍率の数字は走行中に読めないので、
-    /// 進み具合と同じ形のゲージにして伸び縮みだけで伝える。
-    private var speedMeter: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("スピード")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.Fill.coral.opacity(0.2))
-                    Capsule().fill(Theme.Fill.coral)
-                        .frame(width: geo.size.width * speedRatio)
-                }
-            }
-            .frame(width: 64, height: 6)
-        }
-        .padding(.leading, 8)
-        .accessibilityElement()
-        .accessibilityLabel(RunnerAccessibility.speedLabel(ratio: speedRatio))
-    }
-
-    /// ゲージの割合。0 が基準の速さ、1 が上限。
-    private var speedRatio: Double {
-        let span = RunnerRules.maxPedalBoost - 1
-        guard span > 0 else { return 0 }
-        return min(1, max(0, (model.field.pedalBoost - 1) / span))
-    }
-
-    private var progressBar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Theme.Fill.coral.opacity(0.2))
-                Capsule().fill(Theme.Fill.coral)
-                    .frame(width: geo.size.width * model.field.progress)
-            }
-        }
-        .frame(width: 88, height: 6)
-    }
-
-    private var pauseButton: some View {
-        Button {
-            if model.phase == .paused { model.resume() } else { model.pause() }
-        } label: {
-            Image(systemName: model.phase == .paused ? "play.fill" : "pause.fill")
-                .font(.system(size: 16, weight: .bold))
-                .frame(width: 34, height: 34)
-                .background(Circle().fill(Theme.Fill.coral))
-                .foregroundStyle(Theme.onAccent)
-        }
-        .buttonStyle(.pop)
-        .accessibilityLabel(model.phase == .paused ? "再開" : "一時停止")
-        // 止めるものが無い状態では押せない。
-        .disabled(
-            model.phase == .falling || model.phase == .failed
-                || model.phase == .cleared || model.phase == .allCleared
-        )
-    }
-
     /// 開始シート（`RunnerStartSheet`）を、選んでおくモードと面を決めて開く。
     /// ツールバーの「はじめから」の経路（#1027。「マップ」導線はカードごと廃止した）。
     private func openStartSheet(mode: RunnerMode, stage: Int) {
+        // 始まり（#1092）が出ているあいだツールバーは押せないようにしてあるが、撮影用の
+        // `-showRunnerStartSheet` など他の経路から来ても取り残しを作らないよう畳んでおく。
+        // 畳まないと開始シートの下に始まりが残り、閉じた拍子に開始シートがもう一度開く。
+        // 出していない操作ガイドは開始シートの `onDismiss` が引き取る。
+        introScene = nil
         selectedMode = mode
         selectedStage = stage
         showStartSheet = true
@@ -316,8 +261,32 @@ public struct RunnerView: View {
     /// チェックポイント再開直後（`canChooseMode == false`）は出さない——広告で得た再開を
     /// 誤って手放させない。初回の操作ガイド中（`showsTutorial`）も出さない。
     private func presentStartSheetIfNeeded() {
-        guard model.phase == .ready, model.canChooseMode, !showsTutorial, !showStartSheet else { return }
+        guard Self.shouldPresentStartSheet(
+            phase: model.phase, canChooseMode: model.canChooseMode,
+            showsTutorial: showsTutorial, showStartSheet: showStartSheet
+        ) else { return }
         openStartSheet(mode: model.mode, stage: model.stageNumber)
+    }
+
+    /// `presentStartSheetIfNeeded` の実体（純関数・#1063）。
+    ///
+    /// 撮影モード（`-screenshotMode`）と QA・撮影用の画面（`-simulateRunner`）では出さない——
+    /// 走行中の画を撮る指定にシートが被ると、ASO のスクリーンショット
+    /// （`Scripts/capture-aso-screenshots.sh` の `05-runner`）がシートごと写る。開始シートそのものを
+    /// 撮る `-showRunnerStartSheet` は別の経路（`openStartSheet`）で開くので、ここで塞いでよい。
+    /// `-simulateRunner` が効くのは DEBUG だけだが、判定は構成で分けない——リリース構成に
+    /// 撮影用の引数が渡ることは無く、渡っても開始シートが出ないだけで済む。
+    ///
+    /// - Parameter arguments: 起動引数。既定は実プロセスのもので、テストが撮影・QA の起動を固定するために差し替える。
+    static func shouldPresentStartSheet(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        phase: RunnerPhase,
+        canChooseMode: Bool,
+        showsTutorial: Bool,
+        showStartSheet: Bool
+    ) -> Bool {
+        guard !arguments.contains("-screenshotMode"), !arguments.contains("-simulateRunner") else { return false }
+        return phase == .ready && canChooseMode && !showsTutorial && !showStartSheet
     }
 
     // MARK: - コース
@@ -370,7 +339,7 @@ public struct RunnerView: View {
         }
         .accessibilityElement()
         .accessibilityLabel(courseLabel)
-        .accessibilityHint("ダブルタップでジャンプ")
+        .accessibilityHint(RunnerAccessibility.courseHint(phase: model.phase))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.press(); model.release() }
     }
@@ -446,18 +415,19 @@ public struct RunnerView: View {
         case .falling:
             // 落下・激突の短い演出中（`RunnerScene`）。ミスパネルはこの演出が終わってから出す。
             EmptyView()
+        case .chasing:
+            // 宝くじを追いかける短い演出中（#1092）。クリアのパネルはこの演出が終わってから出す。
+            EmptyView()
+        case .story:
+            // 世界の締めの演出中（#1092）。場面は `RunnerStoryView` が画面いっぱいに被せるので、
+            // コースの上には何も出さない（クリアのパネルは締めが明けてから）。
+            EmptyView()
         case .failed:
             // ミスの表示は両モードで同じ枠（#675「既存の失敗リザルトを流用」）。エンドレスは
             // ミスがそのまま決着なので、走行距離と自己ベストの行が加わる。
             panel(title: "ミス！", face: resultFace, faceScale: faceScale) {
                 if model.mode == .endless { endlessDetail }
                 if model.canResumeFromCheckpoint { resumeButton }
-                retryButton
-            }
-        case .allCleared where model.mode == .endless:
-            // 固定長のコースを走り切った（第 1 弾は 400 区画で打ち切り・#675）。
-            panel(title: "コースを走りきった！", face: resultFace, faceScale: faceScale) {
-                endlessDetail
                 retryButton
             }
         case .cleared:
@@ -486,12 +456,14 @@ public struct RunnerView: View {
         }
     }
 
-    /// おじさんの顔をドット絵の比率（16×15）のまま整数倍で置く（#702）。
+    /// おじさんの顔をドット絵の比率（32×30）のまま整数倍で置く（#702）。`scale` は旧来（16×15）の 1 ドット = 何 pt かで、
+    /// 顔が細かくなった（#1349）ぶん実際の 1 ドットは `scale / faceResolution` pt になり、大きさは変わらない。
     /// `Core` の `OjisanPixel.faceImage` は装飾画像なので VoiceOver には出ない。
     private func ojisanFace(_ face: OjisanPixel.Face, scale: Int) -> some View {
         let dots = OjisanPixel.faceDotSize
+        let res = OjisanPixel.faceResolution
         return OjisanPixel.faceImage(face)
-            .frame(width: CGFloat(dots.width * scale), height: CGFloat(dots.height * scale))
+            .frame(width: CGFloat(dots.width * scale / res), height: CGFloat(dots.height * scale / res))
     }
 
     /// クリア表示の添え書き。初到達の印と、次に走る面の番号（「つぎは 2-4」・#946）。
@@ -536,6 +508,9 @@ public struct RunnerView: View {
     }
 
     /// ミスからのやり直し。ステージ制は同じステージの頭から、エンドレスは新しいコースで。
+    ///
+    /// 広告のロード〜視聴中は押せない（#1068）。押すと `runGeneration` が進み、見終えた広告が
+    /// `resumeFromCheckpoint(forRun:)` の世代照合で弾かれて視聴が無駄になる（#816 / #911 と同型）。
     private var retryButton: some View {
         Button {
             model.retryStage()
@@ -545,6 +520,7 @@ public struct RunnerView: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(Theme.Fill.coral)
+        .disabled(resumeRescue.isWatching)
     }
 
     // MARK: - スタート画面（#931 → #1027 でカードを縮小）
@@ -628,12 +604,13 @@ public struct RunnerView: View {
     /// `RunnerWorld.mapColor` は文字を載せる前提の色ではない（ワールドマップでは帯と薄い色味にだけ
     /// 使っている）。主ボタンは面いっぱいに塗るので、どの世界でも読めるよう**ライト / ダークで
     /// 変わらない濃い茶**にする。白は朝の水色（0x6FC3EE）で 2:1 を切り、`Theme.ink` は夜（0x6B7FC2）で
-    /// 3:1 を切るが、この色なら朝 9:1・夕方 5:1・夜 4.7:1 で 3 世界とも 4.5:1 以上。
+    /// 3:1 を切るが、この色なら朝 9:1・夕方 5:1・夜 4.7:1・里山（田の緑）9:1・港町（海の青）7.7:1 で
+    /// 4.5:1 以上（`RunnerStageCodeTests.mapColorsAreDistinguishable` が固定・#1009）。
     private static let onWorld = Color(hex: 0x1A1410)
 
     /// 画面に出す面の見出し。QA 用のショーケース（DEBUG）を走っているあいだは面の番号を
     /// 名乗らない——コースが本番の面と違うのに「3-3」と出ると取り違える（2026-09-15）。
-    private var stageHeadlineText: String {
+    var stageHeadlineText: String {
         model.isRunningDebugStage
             ? "ショーケース"
             : RunnerAccessibility.stageHeadline(number: model.stageNumber)
@@ -779,187 +756,5 @@ public struct RunnerView: View {
             HowToPlayHint(.runner, isVisible: true)
             recommendationArea
         }
-    }
-}
-
-// MARK: - 開始シート（#675）
-
-/// 「はじめから」で開く、モード（ステージ制／エンドレス）と始める面を選ぶシート。
-///
-/// 枠は共通の `GameSetupSheet`、モードの選び方は麻雀の東風戦／一局戦（`MahjongStartSheet`）と
-/// 同じセグメントのピッカー + 1 行の説明。ステージ制のときだけ下にワールドマップ（#798）が
-/// 付く。選んだモードと面は `RunnerModel.newGame(startingAtStage:)` / `newGame(mode:)` で
-/// 走行に焼き込まれ、走行中に読み替えられることはない（1局=1RuleSet）。
-///
-/// 並べ方は `.scrolling`（常に `.large`）。3 世界 × 6 面の格子は 3 列 × 2 段を 3 つ積むので、
-/// モードの節と合わせると `.medium` には収まらない（`GameSetupSheet` の注意書きどおり、
-/// 収まらない中身を `pinnedStart` にすると開始ボタンが押せなくなる）。エンドレスを選んで
-/// 格子が消えても**シートの高さは変えない**——`pinnedStart` にして開始ボタンを下端へ離す案を
-/// 一度試したが、モードを切り替えるたびにシートそのものの高さが変わり、会長QA「モーダルの
-/// 長さも変わってるしよ」で差し戻しになった（2026-09-16）。高さを動かさずに済む直し方は
-/// 追って検討する。
-struct RunnerStartSheet: View {
-    @Binding var mode: RunnerMode
-    /// ワールドマップで選んでいる面（1 始まり）。
-    @Binding var selectedStage: Int
-    /// 到達した最大の面。これより先は鍵付きで押せない（`RunnerModel.reachedStage`）。
-    let reachedStage: Int
-    let onStart: () -> Void
-    let onCancel: () -> Void
-
-    var body: some View {
-        GameSetupSheet(
-            title: "はじめから", startTitle: "スタート", layout: .scrolling,
-            onStart: onStart, onCancel: onCancel
-        ) {
-            GameSetupSection("モード") {
-                Picker("モード", selection: $mode) {
-                    ForEach(RunnerMode.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Text(mode.summary)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if mode == .stages {
-                GameSetupSection("ステージを選ぶ") {
-                    RunnerWorldMap(selectedStage: $selectedStage, reachedStage: reachedStage)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - ワールドマップ（#798）
-
-/// 開始シートに載せる 3 世界 × 6 面の格子。到達済みの面だけ選べる。
-///
-/// **世界ごとに 3 列 × 2 段**にしてある。マスに出すのは「1-1」の表記だけ（面の名前は #946 で
-/// 外した）。6 列 1 段だと iPhone SE（幅 375pt・シートの余白を引いて 343pt）では 1 マスが
-/// 50pt 前後になり鍵の絵と並べると窮屈なので、3 列のままにしてある。
-/// マスの高さは名前の行が無くなっても 44pt を割らないよう `minHeight` で担保する。
-///
-/// 世界の色（`RunnerWorld.mapColor`）は**見出しの丸・マスの上端の帯・マスの薄い色味**にだけ
-/// 使い、文字はその上に載せない（世界の空の色は文字とのコントラストが世界ごとにばらつくため。
-/// 面と文字の組み合わせは `Theme` のまま）。選択中は他の設定シート（`GameSetupChooser`）と
-/// 同じ「差し色で塗って `onAccent` の文字」にして、選んでいることの見え方をアプリ全体で揃える。
-/// 未到達は鍵の絵と薄い文字で、押せない（`disabled`）。
-struct RunnerWorldMap: View {
-    @Binding var selectedStage: Int
-    let reachedStage: Int
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(RunnerWorld.allCases, id: \.self) { world in
-                VStack(alignment: .leading, spacing: 8) {
-                    worldHeader(world)
-                    LazyVGrid(columns: columns, spacing: 8) {
-                        ForEach(world.stageRange, id: \.self) { number in
-                            stageCell(number, world: world)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func worldHeader(_ world: RunnerWorld) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color(hex: world.mapColor))
-                .frame(width: 10, height: 10)
-            Text("ワールド \(world.number)")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-            Text(world.displayName)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.ink)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func stageCell(_ number: Int, world: RunnerWorld) -> some View {
-        let reached = number <= reachedStage
-        let selected = reached && number == selectedStage
-        let tint = Color(hex: world.mapColor)
-        return Button {
-            selectedStage = number
-        } label: {
-            HStack(spacing: 4) {
-                // 数値の桁区切りが入らないよう verbatim で出す。
-                Text(verbatim: RunnerWorld.code(forStage: number))
-                    .font(.system(size: 14, weight: .heavy, design: .rounded).monospacedDigit())
-                if !reached {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .bold))
-                }
-            }
-            .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))
-            // 上下の余白 10pt と合わせて 44pt（iOS の最小のタップ寸）。
-            .frame(maxWidth: .infinity, minHeight: 24)
-            .padding(.vertical, 10)
-            .padding(.horizontal, 4)
-            .background(
-                ZStack(alignment: .top) {
-                    RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                        .fill(selected ? Theme.Fill.coral : (reached ? tint.opacity(0.16) : Theme.surface))
-                    // 世界の色の帯。未到達は薄くして「まだ塗られていない」ことを見せる。
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(tint.opacity(reached ? 1 : 0.35))
-                        .frame(height: 4)
-                        .padding(.horizontal, 10)
-                        .padding(.top, 3)
-                    if !reached {
-                        // 未到達はさらに幕をかけてグレーに沈める（麻雀牌の `isBlocked` と同じ濃さ）。
-                        // 面色の帯だけでは薄く、シートの地（`Theme.surface`）と同化して押せない
-                        // マスだと分かりにくかった（会長指摘「アンロックなステージは背景グレーに」・
-                        // 2026-09-16）。
-                        RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                            .fill(Theme.ink.opacity(0.16))
-                    }
-                }
-                .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
-            )
-        }
-        .buttonStyle(.pop)
-        .disabled(!reached)
-        .accessibilityLabel(RunnerAccessibility.stageMapLabel(number: number, reached: reached))
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-    }
-}
-
-// MARK: - 初回の操作ガイド（#988 → #1027 でモーダルへ）
-
-/// 初回プレイだけ出す操作ガイドのモーダル。
-///
-/// #988 ではコースの上のカードで出していたが、カードの「はじめる」がステージ制で走り出す
-/// 作りだったため、**初回だけモードを選べない**（右上からエンドレスを選んでも、ガードの
-/// 「はじめる」がステージ制で上書きする）という穴があった（会長指摘 2026-09-16）。
-/// モーダルにして「読む」だけに徹し、閉じたら開始シートへ送る。
-///
-/// 中身は「？」から開くページ（`RunnerTutorialPage`）と同じものを使う——同じ内容を 2 通りの
-/// 見た目で持たない（基盤規約「同じ役割の UI は同じ見た目に」）。
-struct RunnerTutorialSheet: View {
-    let onClose: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                RunnerTutorialPage()
-                Button(action: onClose) {
-                    Text("はじめる").themeBody(18).frame(maxWidth: .infinity)
-                        .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-                .padding(Theme.pad)
-            }
-            .popBackground()
-        }
-        .presentationDetents([.large])
     }
 }

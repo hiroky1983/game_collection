@@ -631,7 +631,7 @@ struct ConcentrationModelTests {
     @Test("復元時: 旧版の絵文字で書かれた中断データも図案に読み替えて復元される")
     func restore_acceptsLegacyEmojiSnapshot() {
         var stub = StubConcentrationSnapshot.healthy()
-        stub.symbols = stub.symbols.map { ConcentrationFigure.decode($0)!.legacyEmoji }
+        stub.symbols = stub.symbols.map { LegacyConcentrationFigure.emoji(ofReplacement: ConcentrationFigure.decode($0)!.rawValue) }
         stub.playerScore = 2
 
         let model = restored(from: stub)
@@ -647,7 +647,7 @@ struct ConcentrationModelTests {
     @Test("復元時: 旧版の絵文字は識別子に正規化され、次の保存に絵文字が残らない")
     func restore_normalizesLegacyEmojiOnSave() {
         var stub = StubConcentrationSnapshot.healthy()
-        stub.symbols = stub.symbols.map { ConcentrationFigure.decode($0)!.legacyEmoji }
+        stub.symbols = stub.symbols.map { LegacyConcentrationFigure.emoji(ofReplacement: ConcentrationFigure.decode($0)!.rawValue) }
         let store = MemorySnapshotStore()
         try? store.save(stub, for: "concentration")
 

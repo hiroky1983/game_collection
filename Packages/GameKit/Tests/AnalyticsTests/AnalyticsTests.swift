@@ -19,49 +19,16 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+@testable import GameShiritori
+@testable import GameFifteen
 import GameSpider
 import GameChess
 import GameBlocks
 import MahjongTiles
 import CoreTestSupport
+import GameRunnerTestSupport
 
 // MARK: - Mocks
-
-/// 送信されたイベントをそのまま溜めるスパイ。Firebase もネットワークも使わない。
-@MainActor
-private final class SpyAnalyticsService: AnalyticsService {
-    private(set) var events: [AnalyticsEvent] = []
-
-    func log(_ event: AnalyticsEvent) { events.append(event) }
-
-    var starts: [String] {
-        events.compactMap { if case let .gameStart(gameID, _, _) = $0 { return gameID } else { return nil } }
-    }
-    /// `game_start` に載った難易度（#500）。載せていないゲームは nil。
-    var startLevels: [AnalyticsLevel?] {
-        events.compactMap { if case let .gameStart(_, level, _) = $0 { return .some(level) } else { return nil } }
-    }
-    var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
-        events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 {
-                return (gameID, result, durationSec)
-            }
-            return nil
-        }
-    }
-    /// 視聴完了したリワード広告（#500）。
-    var rewards: [(gameID: String, purpose: RewardPurpose)] {
-        events.compactMap {
-            if case let .rewardAd(gameID, purpose) = $0 { return (gameID, purpose) }
-            return nil
-        }
-    }
-    func starts(of gameID: String) -> Int { starts.filter { $0 == gameID }.count }
-    func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
-    func quits(of gameID: String) -> Int {
-        ends.filter { $0.gameID == gameID && $0.result == .quit }.count
-    }
-}
 
 /// 壊れた神経衰弱の中断データ（配列の長さが食い違う）。
 ///
@@ -95,7 +62,7 @@ private func makeHubGameIDs() -> Set<String> {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(), SpiderModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
     ]
     return Set(GameRegistry(modules).modules.map(\.id))
 }
@@ -179,6 +146,13 @@ struct AnalyticsEventShapeTests {
             .parameters["position"] == .int(1))
     }
 
+    @Test("share_tap は game_id だけを持ち、スコアの生値や共有先を載せない（#1043）")
+    func shareTapShape() {
+        let tap = AnalyticsEvent.shareTap(gameID: "2048")
+        #expect(tap.name == "share_tap")
+        #expect(tap.parameters == ["game_id": .string("2048")])
+    }
+
     @Test("source は hub / recent / recommendation / notification / first_pick の5値に閉じている（#659・#721）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
@@ -187,16 +161,17 @@ struct AnalyticsEventShapeTests {
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open の5種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / share_tap の6種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
-        // 全量の列挙（#659 で2種追加）。個々の鍵は下と上の各テストで固定する。
+        // 全量の列挙（#659 で2種・#1043 で1種追加）。個々の鍵は下と上の各テストで固定する。
         #expect([
             AnalyticsEvent.gameStart(gameID: "2048"),
             .gameEnd(gameID: "2048", result: .win, durationSec: 0),
             .rewardAd(gameID: "2048", purpose: .undo),
             .rewardRequest(gameID: "2048", purpose: .undo),
             .gameOpen(gameID: "2048", source: .hub, position: 1, resume: false),
-        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open"])
+            .shareTap(gameID: "2048"),
+        ].map(\.name) == ["game_start", "game_end", "reward_ad", "reward_request", "game_open", "share_tap"])
 
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
         #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")],
@@ -234,16 +209,18 @@ struct AnalyticsEventShapeTests {
                 "広告の単価・報酬額など収益の生値は載せない")
     }
 
-    @Test("cause は pit / rock / bird / animal の4値に閉じている（#796）")
+    /// #1089（沈む床）で `sink` を 1 つだけ足した。**足す前の 4 値の並びは変えない**
+    /// ——GA4 側の既存の集計は値の集合が増えても壊れないが、既存の値の綴りが変わると壊れる。
+    @Test("cause は pit / rock / bird / animal / sink の5値に閉じている（#796・#1089）")
     func causeIsClosed() {
-        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal"])
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal", "sink"])
         let sent = AnalyticsEndCause.allCases.map { cause -> String in
             guard case let .string(text)? = AnalyticsEvent
                 .gameEnd(gameID: "runner", result: .loss, durationSec: 0, cause: cause)
                 .parameters["cause"] else { return "" }
             return text
         }
-        #expect(sent == ["pit", "rock", "bird", "animal"])
+        #expect(sent == ["pit", "rock", "bird", "animal", "sink"])
     }
 
     @Test("result は win / loss / draw / quit の4値に閉じている（#500）")
@@ -284,10 +261,10 @@ struct AnalyticsEventShapeTests {
         ])
     }
 
-    @Test("level は強さ4段階と面番号だけで、0 始まりの設定値から写す（#500）")
+    @Test("level は強さ5段階と面番号だけで、0 始まりの設定値から写す（#500・#1174）")
     func levelVocabularyIsClosed() {
         #expect(AnalyticsLevel.allStrengths.map(\.parameterValue)
-                == ["beginner", "normal", "hard", "expert"])
+                == ["novice", "beginner", "normal", "hard", "expert"])
         // 各ゲームの `aiLevel` は 0 始まり。範囲外も型の上では作れるので両端に倒す。
         #expect((0...3).map { AnalyticsLevel.aiStrength($0) }
                 == [.beginner, .normal, .hard, .expert])
@@ -296,6 +273,23 @@ struct AnalyticsEventShapeTests {
         // 面番号は丸めずそのまま送る（「何面で詰まるか」が難易度設計そのものなので）。
         #expect(AnalyticsLevel.stage(7).parameterValue == "stage-7")
         #expect(AnalyticsLevel.stage(0).parameterValue == "stage-1", "0 以下は 1 に丸める")
+    }
+
+    /// CPU 対戦の強さ（#1174）は 0 始まりではないので `aiStrength` ではなく
+    /// `CPUStrength` が写す。**既存3段階の値を動かしていない**ことがここの要点で、
+    /// 段を足したあとも GA4 に貯まっている beginner / normal / hard がそのまま続く。
+    /// 「ガチ」（3・expert）は v1.1.6 で一旦見送り、知らない番号として既定に丸まる。
+    @Test("CPU対戦の強さは既存3段階の値を変えずに下へ足している（#1174）")
+    func cpuStrengthKeepsExistingAnalyticsValues() {
+        #expect(CPUStrength.allCases.map(\.analyticsLevel.parameterValue)
+                == ["novice", "beginner", "normal", "hard"])
+        #expect(CPUStrength.analyticsLevel(forLevel: 0) == .beginner, "簡単は従来の「弱」と同じ値")
+        #expect(CPUStrength.analyticsLevel(forLevel: 1) == .normal)
+        #expect(CPUStrength.analyticsLevel(forLevel: 2) == .hard)
+        #expect(CPUStrength.analyticsLevel(forLevel: -1) == .novice)
+        // 見送った「ガチ」（3）を含め、知らない番号は既定（ふつう）に倒す。
+        #expect(CPUStrength.analyticsLevel(forLevel: 3) == .normal)
+        #expect(CPUStrength.analyticsLevel(forLevel: 99) == .normal)
     }
 }
 
@@ -414,7 +408,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 21, "ハブに並ぶゲームは21本")
+        #expect(hubGameIDs.count == 23, "ハブに並ぶゲームは23本")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -799,11 +793,11 @@ struct AllGamesAnalyticsTests {
         #expect(spy.ends.count == 1, "終局はまだ 1 回（続きの終局はこれから）")
     }
 
-    @Test("チャリンコおじさん: 開いた時点で開始・ステージクリアで終局（win）")
+    @Test("チャリンコおじさん: 走り出した時点で開始・ステージクリアで終局（win）")
     func runner() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
         expectOnePair(spy, gameID: "runner")
         #expect(spy.ends.first?.result == .win, "ステージクリアは勝ち")
@@ -813,9 +807,9 @@ struct AllGamesAnalyticsTests {
     func runnerRetryIsNotAPlay() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        failRunnerStage(model)
+        failCurrentStage(model)
         model.retryStage()
-        failRunnerStage(model)
+        failCurrentStage(model)
         #expect(spy.starts == ["runner"], "開始は 1 回だけ")
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
     }
@@ -824,10 +818,20 @@ struct AllGamesAnalyticsTests {
     func runnerNextStageCountsAsNewPlay() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         model.advanceToNextStage()
         #expect(spy.starts == ["runner", "runner"])
         #expect(spy.ends.count == 1, "次のステージの終局はこれから")
+    }
+
+    @Test("カードしりとり: 配られた時点で開始・決着で終局が1組")
+    func shiritori() async {
+        let (services, spy) = makeServices()
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 2026)
+        #expect(spy.events.isEmpty, "画面を開いただけでは配られない")
+        await playShiritori(model, quota: .hard)
+        #expect(model.phase == .result)
+        expectOnePair(spy, gameID: "shiritori")
     }
 
     @Test("花札こいこい: 試合を始めた時点で開始・全局終了で終局が1組")
@@ -875,7 +879,7 @@ struct AllGamesAnalyticsTests {
         // 配り直しは「次のプレイの開始」なので、開始は 2 回数える。スート数は `level` に載る。
         #expect(spy.starts == ["spider", "spider"])
         let levels = spy.events.compactMap { event -> AnalyticsLevel? in
-            if case let .gameStart(_, level, _) = event { return level } else { return nil }
+            if case let .gameStart(_, level, _, _) = event { return level } else { return nil }
         }
         #expect(levels == [.normal, .hard], "2 スート = normal・4 スート = hard")
     }
@@ -1172,39 +1176,21 @@ private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
     [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
 }
 
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
-@MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
-/// 一度も跳ばずに走らせてミスさせる。
-@MainActor
-private func failRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
 /// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// 取れる札の先頭を取り、CPU の番は進めて、決着まで遊ぶ（カードしりとり）。
+@MainActor
+private func playShiritori(_ model: ShiritoriModel, quota: ShiritoriQuota = .normal) async {
+    model.startGame(quota: quota)
+    for _ in 0..<60 where model.phase == .playing {
+        if model.isPlayerTurn {
+            guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { break }
+            model.select(move.slot)
+        } else {
+            await model.runCPUTurnIfNeeded()
+        }
+    }
+}
+
 /// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
 @MainActor
 private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {
@@ -1273,6 +1259,11 @@ struct StartSheetLevelTests {
         let othello = OthelloModel(services: othelloServices)
         othello.newGame(aiLevel: 0)
         #expect(othelloSpy.startLevels == [nil, .beginner])
+
+        // #1174 で足した「入門」（-1）も、その段のまま載る（「ガチ」は v1.1.6 で一旦見送り）。
+        let (noviceServices, noviceSpy) = makeServices()
+        OthelloModel(services: noviceServices).newGame(aiLevel: CPUStrength.novice.rawValue)
+        #expect(noviceSpy.startLevels == [nil, .novice])
     }
 
     /// リザルトの「階段」（#722）は花札だけ開始シートを通らず `restartMatch` で始め直す。
@@ -1325,12 +1316,12 @@ struct RunnerQuitTests {
     func leavingAfterAMissCarriesTheCause() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services)
-        failRunnerStage(model)
+        failCurrentStage(model)
         #expect(model.phase == .failed)
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1339,15 +1330,15 @@ struct RunnerQuitTests {
     func clearingWithoutAMissHasNoCause() {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
-        clearRunnerStage(model)
-        guard case let .gameEnd(_, result, _, _, cause)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        autoPlayCurrentStage(model)
+        guard case let .gameEnd(_, result, _, _, cause, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
-        failRunnerStage(model)
+        failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
     }
@@ -1359,6 +1350,67 @@ struct RunnerQuitTests {
         services.gameDidLeave(gameID: RunnerModel.gameID)
 
         #expect(spy.ends.isEmpty, "1 歩も走っていない走行は捨てても離脱にならない")
-        #expect(spy.starts == [RunnerModel.gameID])
+        // ハブから画面を開いただけでは `game_start` も出ない（#1064）。数えるのは面を選んで
+        // 始めたとき（`newGame*`）と走り出したとき（`beginRun`）で、開いて戻るだけなら 0 本 0 本。
+        #expect(spy.starts.isEmpty)
+    }
+}
+
+// MARK: - game_start の遊び込み具合（#1195）
+
+@Suite("game_start の遊び込み具合（#1195）")
+@MainActor
+struct GameStartEngagementTests {
+    private func makeLog(_ suite: String) -> PlayLog {
+        let name = "asobiba.analytics.engagement.\(suite)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return PlayLog(defaults: defaults)
+    }
+
+    @Test("パラメータは engagement を渡したときだけ出て、初めてのゲームでは経過日数の鍵が出ない")
+    func parameterShape() {
+        #expect(AnalyticsEvent.gameStart(gameID: "2048").parameters == ["game_id": .string("2048")])
+
+        let first = AnalyticsEvent.gameStart(
+            gameID: "2048", engagement: AnalyticsEngagement(playCount: 0, daysSinceLastPlay: nil))
+        #expect(first.parameters == ["game_id": .string("2048"), "play_count": .int(0)])
+
+        let again = AnalyticsEvent.gameStart(
+            gameID: "2048", level: .hard, engagement: AnalyticsEngagement(playCount: 7, daysSinceLastPlay: 3))
+        #expect(again.parameters == [
+            "game_id": .string("2048"), "level": .string("hard"),
+            "play_count": .int(7), "days_since_last_play": .int(3),
+        ])
+        #expect(AnalyticsEngagement(playCount: -1, daysSinceLastPlay: -2)
+            == AnalyticsEngagement(playCount: 0, daysSinceLastPlay: 0), "時計の巻き戻しで負の値を送らない")
+    }
+
+    @Test("PlayLog の通算回数と最終プレイからの経過日数が game_start に載る")
+    func startCarriesPlayLogEngagement() {
+        let log = makeLog("start")
+        let clock = TestClock()
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["2048", "sudoku"], now: { clock.now },
+            engagement: { gameID, now in log.engagement(gameID: gameID, now: now) }
+        )
+
+        analytics.startPlay(gameID: "2048")
+        #expect(spy.events.first == .gameStart(
+            gameID: "2048", engagement: AnalyticsEngagement(playCount: 0, daysSinceLastPlay: nil)))
+
+        // 2 回決着して 3 日 + 半日あける（区分が違っても 1 ゲームとして合算する）。
+        log.recordResult(gameID: "2048", outcome: .win, score: GameScore(variant: "a"), at: clock.now)
+        log.recordResult(gameID: "2048", outcome: .loss, score: GameScore(variant: "b"), at: clock.now)
+        clock.advance(3.5 * 86_400)
+        analytics.restartPlay(gameID: "2048")
+        #expect(spy.events.last == .gameStart(
+            gameID: "2048", engagement: AnalyticsEngagement(playCount: 2, daysSinceLastPlay: 3)))
+
+        // 別のゲームの記録は混ざらない。
+        analytics.startPlay(gameID: "sudoku")
+        #expect(spy.events.last == .gameStart(
+            gameID: "sudoku", engagement: AnalyticsEngagement(playCount: 0, daysSinceLastPlay: nil)))
     }
 }

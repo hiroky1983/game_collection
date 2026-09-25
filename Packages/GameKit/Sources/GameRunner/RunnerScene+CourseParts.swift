@@ -44,7 +44,7 @@ extension RunnerScene {
             .scale(to: 1.15, duration: 0.45),
             .scale(to: 1.0, duration: 0.45),
         ])
-        node.run(.repeatForever(pulse))
+        node.run(.repeatForever(pulse), withKey: Self.loopActionKey)
 
         courseLayer.addChild(node)
         return node
@@ -76,11 +76,18 @@ extension RunnerScene {
         rise.timingMode = .easeInEaseOut
         let sink = SKAction.moveBy(x: 0, y: -0.7, duration: 0.55)
         sink.timingMode = .easeInEaseOut
-        node.run(.repeatForever(.sequence([rise, sink])))
+        node.run(.repeatForever(.sequence([rise, sink])), withKey: Self.loopActionKey)
 
         courseLayer.addChild(node)
         return node
     }
+
+    /// 部品に掛けた繰り返しの動き（脈動・浮遊・羽ばたき・土煙・床の矢印）の `SKAction` のキー（#1086）。
+    ///
+    /// エンドレスは部品を使い回すので、使い回す前に動きを止めて最初の姿勢へ戻し、キーから取り出した
+    /// 同じ動きを掛け直す（`EndlessRenderer.Part`）。キーを付けずに掛けると取り出せず、使い回した
+    /// 部品が止まったままになる。ステージ制の見た目には関わらない。
+    static let loopActionKey = "loop"
 
     /// 取得済みのピックアップをフェードアウト＋縮小で消す。
     func removePickupNode(_ node: SKNode) {
@@ -98,19 +105,31 @@ extension RunnerScene {
     /// 「本当にここが穴なのか・幅はどれくらいか」が伝わらなかった（会長QA）。
     /// 地面と同じ矩形をそのまま塗り替えるだけなので、幅は `pit.start`〜`.end` の実寸そのもの
     /// ——当たり判定（`RunnerField.isPit`）が見ている境界と完全に一致する。
-    func addPitVoid(_ pit: RunnerHazard) {
+    func addPitVoid(_ pit: RunnerHazard, into parent: SKNode? = nil) {
+        // 里山・港町の着せ替え（#1009）。奈落の描画はそのまま残し、水の入った穴はここで分岐する。
+        switch world.dressing.pit {
+        case .construction:    break
+        case .irrigationDitch: return addDitchWater(pit, into: parent ?? courseLayer)
+        case .quayGap:         return addGapSea(pit, into: parent ?? courseLayer)
+        }
         let void = SKSpriteNode(
             color: RunnerPalette.color(RunnerPalette.pitVoid),
             size: CGSize(width: pit.length, height: Metrics.groundY)
         )
         void.anchorPoint = .zero
         void.position = CGPoint(x: pit.start, y: 0)
-        courseLayer.addChild(void)
+        (parent ?? courseLayer).addChild(void)
     }
 
     /// 穴の縁の警告帯。地面と同系色の穴だけでは切れ目が分かりづらいというQAを受けて追加。
     /// 当たり判定には影響しない、純粋な見た目の追加。
-    func addPitEdgeMarkers(_ pit: RunnerHazard) {
+    func addPitEdgeMarkers(_ pit: RunnerHazard, into parent: SKNode? = nil) {
+        // 里山・港町の着せ替え（#1009）。柵の描画はそのまま残し、壁・防舷材はここで分岐する。
+        switch world.dressing.pit {
+        case .construction:    break
+        case .irrigationDitch: return addDitchWalls(pit, into: parent ?? courseLayer)
+        case .quayGap:         return addQuayFenders(pit, into: parent ?? courseLayer)
+        }
         // 黄と黒の 3 段（工事の柵）。道路の穴＝工事中の切れ目、という読みに揃える（会長 QA 2026-09-14）。
         for edgeX in [pit.start, pit.end] {
             for (i, hex) in [RunnerPalette.pitEdge, RunnerPalette.pitEdgeDark, RunnerPalette.pitEdge].enumerated() {
@@ -120,27 +139,35 @@ extension RunnerScene {
                 )
                 strip.anchorPoint = CGPoint(x: 0.5, y: 1)
                 strip.position = CGPoint(x: edgeX, y: Metrics.groundY - Double(i) * 1.0)
-                courseLayer.addChild(strip)
+                (parent ?? courseLayer).addChild(strip)
             }
         }
     }
 
     /// 道路の断面（会長 QA 2026-09-14）。上からアスファルト・白い破線・縁石・路肩・地盤。
     /// 色は `RunnerWorld.road`。高さは物理（`Metrics.groundY`）に合わせ、路面の上端が地面。
-    /// 破線は 1 本の `SKShapeNode` にまとめる（エンドレスは 6,400 m あるので、1 本ずつ
-    /// ノードにすると数千個になる）。
-    private static let roadHeight: Double = 5.0
+    /// 破線は 1 本の `SKShapeNode` にまとめる（ステージ制は穴と穴のあいだを 1 本の地面で描くので、
+    /// 1 本ずつノードにすると長い面で数百個になる）。エンドレスは区画ごとの地面を使い回す（#1086）。
+    ///
+    /// - Parameters:
+    ///   - bandStart: 帯（アスファルト〜地盤）だけを `start` より手前から塗る x。破線の位相は `start` で
+    ///     決める。エンドレスの区画ごとの地面が、隣の区画との継ぎ目に細い隙間を見せないよう重ねるのに使う。
+    ///   - parent: 足す先。省略するとコース層。
+    /// 路面（アスファルト）の厚み。加速床の着せ替え（`RunnerScene+Dressing`・#1009）も同じ厚みを塗り替える。
+    static let roadHeight: Double = 5.0
     private static let curbHeight: Double = 1.0
     private static let shoulderHeight: Double = 4.0
 
-    func addGround(from start: Double, to end: Double) {
+    func addGround(from start: Double, to end: Double, bandStart: Double? = nil, into parent: SKNode? = nil) {
         let road = world.road
-        let width = end - start
+        let parent = parent ?? courseLayer
+        let bandStart = min(start, bandStart ?? start)
+        let width = end - bandStart
         func band(_ hex: UInt32, y: Double, height: Double) {
             let node = SKSpriteNode(color: RunnerPalette.color(hex), size: CGSize(width: width, height: height))
             node.anchorPoint = .zero
-            node.position = CGPoint(x: start, y: y)
-            courseLayer.addChild(node)
+            node.position = CGPoint(x: bandStart, y: y)
+            parent.addChild(node)
         }
         let roadBottom = Metrics.groundY - Self.roadHeight
         let curbBottom = roadBottom - Self.curbHeight
@@ -166,7 +193,7 @@ extension RunnerScene {
         line.fillColor = RunnerPalette.color(road.line)
         line.strokeColor = .clear
         line.alpha = world == .night ? 0.75 : 0.9
-        courseLayer.addChild(line)
+        parent.addChild(line)
     }
 
     /// スピードアップ床（#672）。**地面の路面だけを塗り替え、その上に進行方向の矢印を並べる**。
@@ -179,9 +206,20 @@ extension RunnerScene {
     /// 矢印は丸・長方形では向きが出ないので三角のパスで描く（意匠制約 #494 は
     /// 「特定作品に寄せない」ことで、ゴール旗・稲妻と同じくパス自体は許容済み）。
     /// 色だけでなく**形**でも「前へ押される区間」だと伝わるようにしてある。
-    func addBoostFloor(_ floor: RunnerBoostFloor) {
+    ///
+    /// 部品は 1 つのノードにまとめ、左端 `floor.start` に置いて返す（コース層へ足すのは呼び出し側。
+    /// エンドレスは同じ長さの床を使い回す・#1086）。
+    func makeBoostFloor(_ floor: RunnerBoostFloor) -> SKNode {
+        // 里山・港町の着せ替え（#1009）。青い加速帯の描画はそのまま残し、別の物はここで分岐する。
+        switch world.dressing.boostFloor {
+        case .boostBand:     break
+        case .pavedFarmRoad: return makePavedFarmRoad(floor)
+        case .conveyor:      return makeConveyor(floor)
+        }
         // 路面全体（アスファルトの厚み）を加速帯の色で塗り替え、上下を暗い青で縁取る。
         // 以前は 2.2 の薄い帯に小さな三角で、走者の足元では気づけなかった（会長 QA 2026-09-14）。
+        let node = SKNode()
+        node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
         let surface = SKSpriteNode(
@@ -189,16 +227,16 @@ extension RunnerScene {
             size: CGSize(width: floor.length, height: height)
         )
         surface.anchorPoint = .zero
-        surface.position = CGPoint(x: floor.start, y: bottom)
-        courseLayer.addChild(surface)
+        surface.position = CGPoint(x: 0, y: bottom)
+        node.addChild(surface)
         for edgeY in [bottom, Metrics.groundY - 0.6] {
             let edge = SKSpriteNode(
                 color: RunnerPalette.color(RunnerPalette.boostFloorEdge),
                 size: CGSize(width: floor.length, height: 0.6)
             )
             edge.anchorPoint = .zero
-            edge.position = CGPoint(x: floor.start, y: edgeY)
-            courseLayer.addChild(edge)
+            edge.position = CGPoint(x: 0, y: edgeY)
+            node.addChild(edge)
         }
 
         // 山形の矢印（シェブロン）を路面いっぱいの高さで並べ、右へ流して「前へ押される」ことを
@@ -226,16 +264,17 @@ extension RunnerScene {
         chevrons.run(.repeatForever(.sequence([
             .moveBy(x: spacing, y: 0, duration: 0.35),
             .moveBy(x: -spacing, y: 0, duration: 0),
-        ])))
+        ])), withKey: Self.loopActionKey)
         let crop = SKCropNode()
         let mask = SKSpriteNode(color: .white, size: CGSize(width: floor.length, height: height))
         mask.anchorPoint = .zero
         crop.maskNode = mask
-        crop.position = CGPoint(x: floor.start, y: 0)
+        crop.position = CGPoint(x: 0, y: 0)
         // マスクは crop の座標系（x = 0 が床の始点）なので、矢印パスも床の始点基準に置く。
         mask.position = CGPoint(x: 0, y: bottom)
         crop.addChild(chevrons)
-        courseLayer.addChild(crop)
+        node.addChild(crop)
+        return node
     }
 
     /// チェックポイントの目印。丸いバッジだけでは「これが何なのか分からない」というQAを受け、
@@ -303,67 +342,108 @@ extension RunnerScene {
         courseLayer.addChild(label)
     }
 
-    /// ゴールの目印（旗）。細い柱だけでは「何のオブジェクトか分からない」というQAを受け、
-    /// 三角の旗を足して一目でゴールと分かる形にした。
+    /// ゴールの目印（**ひらひら浮いている宝くじ**・#1092）。
     ///
-    /// 「着いた感」が薄い（#703 の要素分解）ので、旗をチェックポイントの旗と同じ寸法級まで
-    /// 広げ、奥に陰の 1 枚を重ねて厚みを出し、「ゴール」と書く。**文字はこの旗の意味そのもの**
-    /// なので、チェックポイントの到達率と同じく「SpriteKit の中に文字は描かない」
-    /// （`RunnerAccessibility`）の例外にあたる。先端を尖らせた矢羽根型にしてあるのは、
-    /// 先端に切れ込みのあるつばめ尾のチェックポイントと形で見分けるため（文字が三角の
-    /// 細い先端に収まらないので、純粋な三角は捨てた）。旗は横にゆっくり伸び縮みさせて、
-    /// 風にはためいて見せる（1 ノードの `SKAction` だけで、コースの他のノードには影響しない）。
-    /// 到達した瞬間の音・触覚は `RunnerModel` が `feedback.notify(.success)` で鳴らす
-    /// （`RunnerFeedbackCue`）。
-    func addGoalMarker(at x: Double) {
-        let poleHeight = 21.0
-        let pole = SKSpriteNode(color: RunnerPalette.color(RunnerPalette.wheel), size: CGSize(width: 1.4, height: poleHeight))
-        pole.anchorPoint = CGPoint(x: 0.5, y: 0)
-        pole.position = CGPoint(x: x, y: Metrics.groundY)
-        courseLayer.addChild(pole)
-
-        // 矢羽根型の旗。左辺を柱に付け、無地の矩形部分（x: 0〜12）の先を尖らせる。
-        let flagHalfHeight = 4.4
-        let flagPath = CGMutablePath()
-        flagPath.move(to: CGPoint(x: 0, y: flagHalfHeight))
-        flagPath.addLine(to: CGPoint(x: 12, y: flagHalfHeight))
-        flagPath.addLine(to: CGPoint(x: 15.5, y: 0))
-        flagPath.addLine(to: CGPoint(x: 12, y: -flagHalfHeight))
-        flagPath.addLine(to: CGPoint(x: 0, y: -flagHalfHeight))
-        flagPath.closeSubpath()
-
-        // はためき。柱側（x=0）を軸に横だけ伸縮させる。旗・陰・文字をまとめて動かす。
-        let flag = SKNode()
-        flag.position = CGPoint(x: x + 0.7, y: Metrics.groundY + poleHeight - flagHalfHeight - 0.6)
-        let wave = SKAction.sequence([
-            .scaleX(to: 0.9, duration: 0.55),
-            .scaleX(to: 1.0, duration: 0.55),
-        ])
-        wave.timingMode = .easeInEaseOut
-        flag.run(.repeatForever(wave))
-        courseLayer.addChild(flag)
-
-        let shade = SKShapeNode(path: flagPath)
-        shade.fillColor = RunnerPalette.color(RunnerPalette.goalShade)
-        shade.strokeColor = .clear
-        shade.position = CGPoint(x: 0.6, y: -0.6)
-        flag.addChild(shade)
-
-        let cloth = SKShapeNode(path: flagPath)
-        cloth.fillColor = RunnerPalette.color(RunnerPalette.goal)
-        // 旗には暗い縁取り（#929）。桃色の旗は朝のパステルの空・屋根と明度が並ぶ。
-        outline(cloth)
-        flag.addChild(cloth)
-
-        // 「ゴール」。無地の矩形部分（x: 0〜12）の真ん中に置く（3 文字 × 3.6 ≒ 10.8 幅）。
-        let label = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
-        label.text = "ゴール"
-        label.fontSize = 3.6
-        label.fontColor = RunnerPalette.color(RunnerPalette.goalText)
-        label.verticalAlignmentMode = .center
-        label.horizontalAlignmentMode = .center
-        label.position = CGPoint(x: 6, y: 0)
-        label.zPosition = 1
-        flag.addChild(label)
+    /// 会長決裁 2026-09-18 でゴールは旗から宝くじに変わった——おじさんが追いかけているのは
+    /// 風に飛ばされた当たり券で、毎面のゴールはその券に**追いつきかける**場面だからである
+    /// （着いた瞬間にまた飛ばされる演出が `RunnerScene.syncGoalChase`）。「ゴール」と書いた
+    /// 矢羽根型の旗と、その柱は丸ごと廃止した。**チェックポイントの旗（`addCheckpointMarker`）は
+    /// そのまま**で、形も色も文字の有無も別物なので取り違えない。
+    ///
+    /// 高さは**走者の胴の高さ**（`goalTicketY`）。跳んで取るものだと誤解させないためで、
+    /// 着いたかの判定は今までどおり距離だけ（`RunnerField` の `distance >= stage.length`）——
+    /// 地面を走っていても跳んでいても同じ地点でゴールになる。
+    ///
+    /// ゆらゆら揺れる（`SKAction`）のは「浮いている紙」だと動きで伝えるため。**Reduce Motion が
+    /// オンなら揺らさない**（決裁の受け入れ条件）。到達した瞬間の音・触覚は `RunnerModel` が
+    /// `feedback.notify(.milestone)` で鳴らす（`RunnerFeedbackCue`）。
+    @discardableResult
+    func addGoalMarker(at x: Double) -> SKSpriteNode {
+        let sprite = RunnerPixelArt.lotteryTicket()
+        let unit = Self.riderPlacement.unit
+        let node = SKSpriteNode(texture: lotteryTicketTexture)
+        // 浮いている物なので**絵の中心**を置き場に合わせる（底合わせのたこ焼きとは違う）。
+        node.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        node.size = CGSize(width: Double(sprite.width) * unit, height: Double(sprite.height) * unit)
+        node.position = CGPoint(x: x, y: Self.goalTicketY)
+        courseLayer.addChild(node)
+        goalTicket = node
+        goalTicketBase = node.position
+        applyGoalTicketSway(node)
+        applyGoalSparkle(to: node)
+        return node
     }
+
+    /// ゴールの宝くじを浮かべる高さ（地面からの絶対 y）。
+    ///
+    /// 走者の見た目の高さは `RunnerRider.visualHeight`（11.9）で、その 6 割ほど＝胴のあたりに
+    /// 券の中心を置く。券の高さは 13 ドット ≒ 4.3 単位なので、下端は地面から 2 単位ほど上に
+    /// 浮き、上端は走者の頭より下に収まる——**接地したまま重なる高さ**で、跳ぶ必要は無い。
+    static let goalTicketY: Double = Metrics.groundY + RunnerRider.visualHeight * 0.6
+
+    /// ゆらゆら（上下 + わずかな傾き）。Reduce Motion がオンなら掛けない（#1092）。
+    func applyGoalTicketSway(_ node: SKNode) {
+        node.removeAction(forKey: Self.loopActionKey)
+        node.zRotation = 0
+        guard !reducesMotion else { return }
+        let rise = SKAction.moveBy(x: 0, y: 0.9, duration: 0.7)
+        rise.timingMode = .easeInEaseOut
+        let sink = SKAction.moveBy(x: 0, y: -0.9, duration: 0.7)
+        sink.timingMode = .easeInEaseOut
+        let tiltLeft = SKAction.rotate(toAngle: 0.10, duration: 0.7)
+        tiltLeft.timingMode = .easeInEaseOut
+        let tiltRight = SKAction.rotate(toAngle: -0.10, duration: 0.7)
+        tiltRight.timingMode = .easeInEaseOut
+        node.run(.repeatForever(.group([
+            .sequence([rise, sink]),
+            .sequence([tiltLeft, tiltRight]),
+        ])), withKey: Self.loopActionKey)
+    }
+
+    /// 宝くじの周りで瞬く小さな光の粒（#1171）。「これが当たり券だ」という目印を強調する
+    /// もので、廃止した紙吹雪（お祝い）とは別の意図——**逃げられた場面で祝うのは話と合わない**
+    /// という #1092 の決裁はここでは動かない（決裁済みなのは「派手な達成の演出」で、常時の目印は別）。
+    ///
+    /// 券の**子ノード**にする。券本体の揺れ（`applyGoalTicketSway`）は `loopActionKey` を券自身に
+    /// 掛けるため、同じキーで粒にも掛けると揺れを上書きしてしまう——粒は自分自身に別々の
+    /// `loopActionKey` を持つので競合しない。子ノードなので、ゴールの演出（`syncGoalChase`）で
+    /// 券が飛んで消えていくときも、位置・透明度をそのまま一緒に引き継ぐ（追加の同期コード不要）。
+    ///
+    /// 位置は決め打ち（乱数は使わない。撮影・QAで毎回同じ画になるように）。**Reduce Motion が
+    /// オンなら点滅させず、そのまま光ったまま**にする（揺れと違って粒ごと消すと「目印が減る」
+    /// だけになり、動きを止める効果に見合わないため）。
+    func applyGoalSparkle(to ticket: SKSpriteNode) {
+        let halfW = ticket.size.width / 2
+        let halfH = ticket.size.height / 2
+        // (dx, dy, radius, 点滅の位相ずれ) — 券の四隅の外側に置く。
+        let specs: [(dx: CGFloat, dy: CGFloat, r: CGFloat, phase: TimeInterval)] = [
+            (halfW + 0.6, halfH + 0.4, 0.55, 0.0),
+            (-halfW - 0.5, halfH + 0.7, 0.4, 0.35),
+            (halfW + 0.3, -halfH - 0.6, 0.4, 0.65),
+            (-halfW - 0.7, -halfH - 0.3, 0.5, 0.9),
+        ]
+        for spec in specs {
+            let sparkle = SKShapeNode(circleOfRadius: spec.r)
+            sparkle.name = Self.goalSparkleNodeName
+            sparkle.fillColor = RunnerPalette.color(RunnerPalette.pickupBolt)
+            sparkle.strokeColor = .clear
+            sparkle.zPosition = 1
+            sparkle.position = CGPoint(x: spec.dx, y: spec.dy)
+            ticket.addChild(sparkle)
+            guard !reducesMotion else {
+                sparkle.alpha = 0.9
+                continue
+            }
+            sparkle.alpha = 0.25
+            let blinkIn = SKAction.fadeAlpha(to: 1.0, duration: 0.5)
+            blinkIn.timingMode = .easeInEaseOut
+            let blinkOut = SKAction.fadeAlpha(to: 0.25, duration: 0.5)
+            blinkOut.timingMode = .easeInEaseOut
+            let loop = SKAction.repeatForever(.sequence([blinkIn, blinkOut]))
+            sparkle.run(.sequence([.wait(forDuration: spec.phase), loop]), withKey: Self.loopActionKey)
+        }
+    }
+
+    /// 宝くじの周りの光の粒の名前。ゴールに1つしか無い前提で数を数えるテストが目印にする。
+    static let goalSparkleNodeName = "goalSparkle"
 }

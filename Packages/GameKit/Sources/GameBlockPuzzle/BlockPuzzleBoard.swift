@@ -1,20 +1,9 @@
 import Foundation
+import CoreEngine
 
-/// 種を与えると同じ並びを再現する乱数（SplitMix64）。
-/// ソリティアの `SolitaireSeededGenerator` と同じ実装で、テストからピースの並びを固定するのに使う。
-public struct BlockPuzzleRandom: RandomNumberGenerator, Sendable {
-    private var state: UInt64
-
-    public init(seed: UInt64) { self.state = seed }
-
-    public mutating func next() -> UInt64 {
-        state &+= 0x9E3779B97F4A7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
-        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
-        return z ^ (z >> 31)
-    }
-}
+/// 種を与えると同じ並びを再現する乱数（SplitMix64）。テストからピースの並びを固定するのに使う。
+/// 実体は CoreEngine の `SplitMix64`（#916 で 5 ゲームぶんのコピーを 1 本に寄せた）。
+public typealias BlockPuzzleRandom = SplitMix64
 
 /// ブロックならべ（#493）の純粋ロジック。SwiftUI 非依存・乱数は呼び出し側が持つので、
 /// 盤の判定はすべてここで網羅的にテストできる。

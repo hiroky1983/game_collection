@@ -3,6 +3,7 @@ import Foundation
 import Core
 @testable import GameBlackjack
 import CoreTestSupport
+import GameKitTestSupport
 
 // MARK: - Mocks
 
@@ -183,12 +184,7 @@ struct BlackjackDealerPacingTests {
 
     @Test("画面が引きの間を Model へ渡し、ディーラーの番に「結果まで進める」を出す")
     func viewIsWiredToThePacing() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameBlackjackTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/GameBlackjack/BlackjackView.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try SourceScan.packageSource("Sources/GameBlackjack/BlackjackView.swift")
 
         #expect(source.contains("var dealerDrawInterval = BlackjackMotion.dealerDrawInterval"))
         #expect(source.contains("BlackjackModel(services: services, dealerDrawInterval: dealerDrawInterval)"))

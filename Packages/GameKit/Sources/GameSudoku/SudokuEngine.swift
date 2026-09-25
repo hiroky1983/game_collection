@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// 数独の難易度。盤から取り除くマスの数だけが違う。
 public enum SudokuDifficulty: String, CaseIterable, Codable, Sendable {
@@ -181,16 +182,5 @@ public enum SudokuEngine {
 }
 
 /// テスト用の決定的な乱数生成器（SplitMix64）。本番は `seed` を渡さないので system の乱数を使う。
-struct SudokuSeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { self.state = seed }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E3779B97F4A7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
-        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
-        return z ^ (z >> 31)
-    }
-}
+/// 実体は CoreEngine の `SplitMix64`（#916 で 5 ゲームぶんのコピーを 1 本に寄せた）。
+typealias SudokuSeededGenerator = SplitMix64

@@ -53,7 +53,7 @@ struct RunnerHazardMotionTests {
     /// 重なりの範囲と一致すること。ここがずれると、テストは緑なのに詰む配置ができる。
     /// 鳥（#945）は帯が頭より上を飛ぶので、横の重なりだけを測る（「跳んでいてはいけない区間」）。
     @Test("等価な静止区間は、当たり判定を刻んで測った重なりと一致する", arguments: [
-        RunnerHazardKind.lowBlock, .bird, .dog, .boar,
+        RunnerHazardKind.lowBlock, .bird, .dog, .boar, .shoot,
     ])
     func encounterMatchesMeasuredOverlap(kind: RunnerHazardKind) {
         let hazard = Self.hazard(kind)
@@ -66,10 +66,15 @@ struct RunnerHazardMotionTests {
         // 前端が触れる地点 = `encounter.start − 4`、後端が抜ける地点 = `encounter.end + 4`。
         #expect(abs(measured.lowerBound - (encounter.start - Self.half)) < 0.02, "\(kind): 触れ始め \(measured.lowerBound) vs \(encounter.start - Self.half)")
         #expect(abs(measured.upperBound - (encounter.end + Self.half)) < 0.02, "\(kind): 抜け \(measured.upperBound) vs \(encounter.end + Self.half)")
-        if kind == .bird {
+        switch kind {
+        case .bird:
             // 鳥の `height` は止まっているあいだの上端（岩と同じ物差しで踏み切りの余裕・間隔を取るための値）。
             #expect(encounter.height == RunnerHazardKind.birdLowTop)
-        } else {
+        case .shoot:
+            // 突き上げ（#1010）は走者が着くまでに伸び切っているので、出会うときは高い岩そのもの。
+            #expect(encounter.height == RunnerHazardKind.tallBlock.height, "伸び切った高さは高い岩と同じ")
+            #expect(encounter.start == hazard.start && encounter.length == hazard.length, "横にずれない")
+        default:
             #expect(encounter.height == RunnerHazardKind.lowBlock.height, "出会うときの高さは低い岩と同じ")
         }
     }
@@ -86,7 +91,7 @@ struct RunnerHazardMotionTests {
     /// 走っている最中の踏み切り判断（相対速度で見る `lead(for:frame:speed:)`）と、成立条件が
     /// 使う静的な余裕（`lead(for:speed:)` を `encounter` に当てる）が**同じ踏み切り地点**を指すこと。
     @Test("動く相手への踏み切り地点は、静的換算と相対速度の見積もりで一致する", arguments: [
-        RunnerHazardKind.bird, .dog, .boar,
+        RunnerHazardKind.bird, .dog, .boar, .shoot,
     ])
     func dynamicLeadAgreesWithStaticLead(kind: RunnerHazardKind) {
         let hazard = Self.hazard(kind)
@@ -402,6 +407,188 @@ struct RunnerHazardMotionTests {
         #expect(boar.kind == .boar && boar.stopAt == nil)
     }
 
+    // MARK: - 突き上げ（#1010 竹の子・波しぶき）
+
+    /// 突き上げ 1 本だけのコース（区画 4 の中央に置く。ステージ制と同じ置き方）。
+    private static func shootCourse(speed: Double) -> RunnerStage {
+        RunnerStage(number: 0, pattern: "----^-----", speed: speed)
+    }
+
+    @Test("予告まで当たり判定を持たず、予告から 8 タイルで高い岩の高さまで伸びて止まる")
+    func shootRisesFromTheGroundAfterTheCue() {
+        let shoot = Self.hazard(.shoot)
+        let cue = shoot.shootCueDistance
+        #expect(cue + Self.half == shoot.start - RunnerRules.shootTriggerDistance, "予告は前端が間合いに入った瞬間")
+        for d in [cue - 100, cue - 1, cue] {
+            #expect(shoot.frame(atRunnerDistance: d) == nil, "予告の前に当たり判定がある（\(d)）")
+            #expect(shoot.shootRise(atRunnerDistance: d) == 0, "予告の前に伸びている（\(d)）")
+        }
+        // 伸びている途中: 当たり判定の上端は**見た目の高さ**（`shootRise`）とぴたり一致し、
+        // 横には動かず、高さは単調に増える。
+        var previous = 0.0
+        for step in stride(from: 0.5, through: RunnerRules.shootRiseDistance, by: 0.5) {
+            let d = cue + step
+            let rise = shoot.shootRise(atRunnerDistance: d)
+            guard let frame = shoot.frame(atRunnerDistance: d) else {
+                Issue.record("伸びかけ（\(d)）の当たり判定が無い"); return
+            }
+            #expect(frame.top == rise, "見た目と当たり判定がずれた（\(d)）")
+            #expect(frame.bottom == 0, "地面から生えていない（\(d)）")
+            #expect(frame.start == shoot.start && frame.end == shoot.end && frame.advance == 0, "横に動いた（\(d)）")
+            #expect(rise > previous, "伸びが止まっている（\(d)）")
+            previous = rise
+        }
+        // 伸び切った高さは高い岩と同じで、その先は変わらない。
+        let full = RunnerHazardKind.shootTop
+        #expect(full == RunnerHazardKind.tallBlock.height, "伸び切った高さは高い岩と同じ")
+        for step in [RunnerRules.shootRiseDistance, RunnerRules.shootRiseDistance + 500] {
+            #expect(shoot.frame(atRunnerDistance: cue + step)?.top == full, "伸び切りで止まらない（+\(step)）")
+        }
+    }
+
+    /// **「運で死ぬ瞬間が無い」の実体**（#1010 設計の芯）: どの面でも、走者が踏み切るべき地点に
+    /// 着くより手前で伸び切っている。ここが崩れると、伸びかけの低い帯を見て小さく跳んだ人が
+    /// 空中で刺される。
+    @Test("踏み切るべき地点に走者が着くより手前で伸び切る（全 30 面）")
+    func shootFinishesRisingBeforeTheTakeOffPoint() {
+        var tightest = Double.infinity
+        var count = 0
+        for stage in RunnerStage.all {
+            for shoot in stage.hazards where shoot.kind == .shoot {
+                count += 1
+                let risen = shoot.shootCueDistance + RunnerRules.shootRiseDistance
+                let takeOff = shoot.start - RunnerAutoPilot.lead(for: shoot, speed: stage.speed)
+                #expect(risen < takeOff, "ステージ \(stage.number): 伸び切り \(risen) が踏み切り \(takeOff) より後")
+                tightest = min(tightest, takeOff - risen)
+            }
+        }
+        #expect(count > 0, "突き上げが 1 本も無い")
+        #expect(tightest > RunnerRules.tileWidth, "いちばん厳しい面の余裕が 1 タイル未満（\(tightest)）")
+    }
+
+    /// 予告が**見てから反応できる**こと。物差しは犬・イノシシの予告と同じ「見えてから当たる
+    /// （踏み切る）まで」で、いちばん厳しい条件——最速の 30 面・ペダル上限 1.55 倍——で測る。
+    @Test("予告から踏み切るべき地点までは、最速の面でペダル上限でも 0.6 秒以上ある")
+    func shootCueLeavesTimeToRead() {
+        var shortest = Double.infinity
+        for stage in RunnerStage.all {
+            for shoot in stage.hazards where shoot.kind == .shoot {
+                let takeOff = shoot.start - RunnerAutoPilot.lead(for: shoot, speed: stage.speed)
+                let travel = takeOff - shoot.shootCueDistance
+                shortest = min(shortest, travel / (stage.speed * RunnerRules.maxPedalBoost))
+            }
+        }
+        #expect(shortest >= 0.6, "いちばん短い読み時間が \(shortest) 秒")
+        // 予告は**画面の中**で出る（外で出しても読めないので、これ以上早くはできない）。
+        let shoot = Self.hazard(.shoot)
+        let lookAhead = RunnerField.Metrics.width - RunnerField.Metrics.playerX
+        #expect(shoot.start - shoot.shootCueDistance <= lookAhead, "予告が画面の外で出ている")
+    }
+
+    /// 跳んで真上を越えている最中に下から伸びて刺さらないこと。走者の体が区画に届く前に
+    /// 伸び切っているので、重なっているあいだの上端は常に伸び切った値。
+    @Test("走者の体が届く前に伸び切っていて、重なっているあいだ高さが変わらない")
+    func shootNeverPiercesTheRunnerMidAir() {
+        let probe = Self.hazard(.shoot)
+        let firstTouch = probe.start - Self.half - RunnerField.Metrics.playerWidth
+        #expect(
+            probe.shootCueDistance + RunnerRules.shootRiseDistance < firstTouch,
+            "体が届く前に伸び切っていない"
+        )
+        for stage in RunnerStage.all {
+            for hazard in stage.hazards where hazard.kind == .shoot {
+                var d = hazard.start - Self.half - RunnerField.Metrics.playerWidth
+                while d <= hazard.end + Self.half {
+                    #expect(
+                        hazard.frame(atRunnerDistance: d)?.top == RunnerHazardKind.shootTop,
+                        "ステージ \(stage.number): 距離 \(d) で伸び切っていない"
+                    )
+                    d += 0.5
+                }
+            }
+        }
+    }
+
+    @Test("跳ばなければ当たり（cause は rock）、押しっぱなしの全弾道なら越えられる")
+    func shootsAreClearedByJumpingHigh() {
+        for number in [19, 30] {
+            let speed = RunnerStage.all[number - 1].speed
+            let stage = Self.shootCourse(speed: speed)
+
+            // 跳ばない: 伸び切った突き上げに当たる（死因は岩と同じ）。
+            var idle = RunnerField(stage: stage)
+            var cause: AnalyticsEndCause?
+            var frames = 0
+            while frames < 60 * 60 {
+                frames += 1
+                let events = idle.step(dt: 1.0 / 60)
+                if events.contains(.crashed) { cause = idle.lastMissCause; break }
+                if events.contains(where: { $0.isTerminal }) { break }
+            }
+            #expect(cause == .rock, "\(number) 面の速さ（\(speed)）で跳ばずに走って当たらない")
+
+            // 自動操縦（着地まで離さない全弾道）で越えてゴールできる。
+            var field = RunnerField(stage: stage)
+            var crashed = false, cleared = false
+            frames = 0
+            while !crashed, !cleared, frames < 60 * 60 {
+                frames += 1
+                if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
+                if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+                for event in field.step(dt: 1.0 / 60) {
+                    if event == .crashed || event == .fell { crashed = true }
+                    if event == .reachedGoal { cleared = true }
+                }
+            }
+            #expect(cleared && !crashed, "\(number) 面の速さで自動操縦が越えられない")
+        }
+    }
+
+    /// 伸びは**走者の距離だけ**で決まること（#1010 の受け入れ条件「ゆっくりモードで同じ割合」
+    /// 「一時停止・復帰でずれない／二重に進まない」）。時間の刻み幅を変えても、伸び切る地点は動かない
+    /// ——ゆっくりモード（`slowFactor` を dt に掛ける）も一時停止（dt が来ない）も刻み幅の話なので、
+    /// これが動かなければ伸びもずれない。
+    @Test("伸びは距離だけで決まる（刻み幅を変えても伸び切る地点が動かない）")
+    func shootRiseDependsOnlyOnDistance() throws {
+        let stage = Self.shootCourse(speed: RunnerStage.all[18].speed)
+        let shoot = try #require(stage.hazards.first { $0.kind == .shoot })
+        let analytic = shoot.shootCueDistance + RunnerRules.shootRiseDistance
+        for dt in [1.0 / 60, RunnerRules.slowFactor / 60, RunnerRules.maxStep] {
+            var field = RunnerField(stage: stage)
+            var fullyRisenAt: Double?
+            while field.distance < shoot.start - 20 {
+                _ = field.step(dt: dt)
+                if fullyRisenAt == nil, shoot.shootRise(atRunnerDistance: field.distance) >= RunnerHazardKind.shootTop {
+                    fullyRisenAt = field.distance
+                }
+            }
+            let at = try #require(fullyRisenAt, "刻み \(dt) で伸び切らなかった")
+            // 観測できる粒度は 1 フレームぶんの進み（刻み × 出しうる最大の接地速度）。
+            // その中で一致していれば「伸び切る地点は時間の刻み方に依らない」と言える。
+            let grain = stage.speed * RunnerRules.maxPedalBoost * dt
+            #expect(at >= analytic, "刻み \(dt): 伸び切り \(at) が計算値 \(analytic) より手前")
+            #expect(at - analytic <= grain, "刻み \(dt): 伸び切り \(at) vs \(analytic)（粒度 \(grain)）")
+        }
+        // 途中から走り出しても（チェックポイント再開・撮影）、同じ地点なら同じ高さ。
+        let resumed = RunnerField(stage: stage, startingAt: analytic, passedCheckpoint: true)
+        #expect(shoot.shootRise(atRunnerDistance: resumed.distance) == RunnerHazardKind.shootTop)
+    }
+
+    /// チェックポイントが**伸びかけの真ん前**に置かれないこと（`activeRange` に予告からの区間を
+    /// 入れてある）。再開した瞬間に目の前で伸び始めて反応できない、を防ぐ。
+    @Test("突き上げの予告〜通過の区間にチェックポイントが置かれない")
+    func checkpointsAvoidTheRisingWindow() {
+        for stage in RunnerStage.all {
+            for shoot in stage.hazards where shoot.kind == .shoot {
+                #expect(
+                    !shoot.activeRange.contains(stage.checkpoint),
+                    "ステージ \(stage.number): チェックポイント \(stage.checkpoint) が突き上げの区間 \(shoot.activeRange) の中"
+                )
+                #expect(shoot.activeRange.lowerBound == shoot.shootCueDistance, "区間が予告から始まっていない")
+            }
+        }
+    }
+
     // MARK: - 死因（#796 `game_end` の `cause`）
 
     @Test("ミスの原因は、穴・岩・台座の正面・鳥・動物で分かれる")
@@ -422,10 +609,15 @@ struct RunnerHazardMotionTests {
         #expect(cause("--n---", at: Self.segment * 2 + offset - 6) == .rock)
         #expect(cause("--t---", at: Self.segment * 2 + offset - 6) == .rock)
         #expect(cause("--P---", at: Self.segment * 2 - 6) == .rock, "台座の正面は岩と同じ")
+        #expect(cause("--^---", at: Self.segment * 2 + offset - 6) == .rock, "突き上げは岩と同じ")
         #expect(RunnerHazardKind.bird.missCause == .bird)
         #expect(RunnerHazardKind.dog.missCause == .animal)
         #expect(RunnerHazardKind.boar.missCause == .animal)
-        #expect(AnalyticsEndCause.allCases.count == 4)
+        #expect(RunnerHazardKind.shoot.missCause == .rock, "`AnalyticsEndCause` は増やさない（決裁）")
+        // 沈む床（#1089）だけは `RunnerHazardKind` を持たない——床は障害ではないので、
+        // 死因は `RunnerField` が直に立てる（`sink`）。語彙はこの 1 つだけ増えた。
+        #expect(AnalyticsEndCause.allCases.count == 5)
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue).contains("sink"))
     }
 
     // MARK: - 手応え

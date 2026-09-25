@@ -95,9 +95,13 @@ public final class PokerModel {
 
     // MARK: チップ切れ復活（#499）
 
-    /// 復活で戻るプレイヤーのチップ。初期チップの**半分**。導線の文言もこの値から作る
-    /// （数え違いを1か所に閉じる）。
-    public static let reviveChips = PokerModel.initialChips / 2
+    /// 復活で戻るプレイヤーのチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
+    ///
+    /// **無料の「もう一度はじめる」（`initialChips`）より必ず多くする**（#523 会長決裁 C 案）。以前は半分の
+    /// 50 枚で、復活は順位表にも載らないため無料のやり直しの完全な下位互換になり、`revival` が 0 件だった。
+    /// CPU との 1 対 1 ではチップの多さがそのまま勝ちやすさになるので、ブラックジャック（倍）より控えめの
+    /// 1.5 倍にしている。CPU 側は復活でも `initialChips` のまま。
+    public static let reviveChips = 150
 
     /// このセッションで復活を既に使ったか。1 セッション 1 回までの制限に使う。
     private var hasRevivedThisSession = false
@@ -163,6 +167,14 @@ public final class PokerModel {
             self.rules           = snap.rules ?? .standard
             // 同じく旧データには鍵が無い。復活が存在しなかった頃の中断なので「未使用」に倒す。
             self.hasRevivedThisSession = snap.hasRevivedThisSession ?? false
+            // `.idle` を書くのは `persistRevivedRoundWaiting` だけ（局を持たない中断データ・#1104）。
+            // 戻った先は次の局の開始シートで「続き」ではないので、中断のお知らせ（#663）の対象から
+            // 外す（#1145）。保存時の `notifyRoundWaitingSnapshot` は**保存したプロセスの中**でしか
+            // 効かない（`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）ため、
+            // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
+            if snap.phase == .idle {
+                self.services?.gameDidRestoreFinished(gameID: gameID)
+            }
         } else {
             self.playerChips = PokerModel.initialChips
             self.cpuChips    = PokerModel.initialChips
@@ -172,6 +184,13 @@ public final class PokerModel {
     private func persist() {
         let savablePhases: [PokerPhase] = [.betting1, .exchange, .cpuExchange, .betting2]
         guard savablePhases.contains(phase) else {
+            // 局は進んでいないが、復活（#499）で戻した残高と「使い切った」印だけは残す（#1104）。
+            // 捨てると、広告を見た直後に次の局を始める前で離れた人が報酬を丸ごと失い（#523 で
+            // 復活の枚数を初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。
+            if hasRevivedThisSession && !sessionOver {
+                persistRevivedRoundWaiting()
+                return
+            }
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -184,6 +203,36 @@ public final class PokerModel {
             hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
+    }
+
+    /// 局を持たない「次の局待ち」の中断データ（#1104）。復活したセッションの両者の残高と
+    /// 「復活を使い切った」印だけを持ち回る。
+    ///
+    /// 決着の画（`winner` と役は中断データに持っていない）を復元しても読めないので、局は書かずに
+    /// `.idle` で戻す。画面側は復元した局面が `.idle` なら開始シートを出す（`PokerView.init`）。
+    private func persistRevivedRoundWaiting() {
+        let snap = PokerSnapshot(
+            playerHand: [], cpuHand: [], deck: [],
+            playerChips: playerChips, cpuChips: cpuChips, pot: 0,
+            phase: .idle, currentBet: 0,
+            playerBetInRound: 0, cpuBetInRound: 0,
+            cpuFolded: false, cpuAction: "", rules: rules,
+            hasRevivedThisSession: hasRevivedThisSession
+        )
+        try? services?.snapshots.save(snap, for: gameID)
+        notifyRoundWaitingSnapshot()
+    }
+
+    /// 局を持たない中断データを書いたことを、解析とお知らせへ伝える（#1104。CodeRabbit の指摘）。
+    ///
+    /// `GameServices.gameDidLeave` は**中断データの有無だけ**で「続きから戻れる」と判定するので、
+    /// 伝えないと (1) 離脱が休憩として数えられ `game_end` の `duration_sec` にハブ滞在が混ざる
+    /// （ダブルアップの決着待ちで離れた場合。局が閉じていれば既に `gameDidFinish` 済みで影響しない）
+    /// (2)「途中のままです」のお知らせが、続きの無い局に予約される。
+    /// どちらも次の局を始めた時点（`gameDidRestart` → `gameDidBeginPlay`）で元へ戻る。
+    private func notifyRoundWaitingSnapshot() {
+        services?.gameWillNotResume(gameID: gameID)
+        services?.gameDidRestoreFinished(gameID: gameID)
     }
 
     // MARK: - Start
@@ -295,6 +344,10 @@ public final class PokerModel {
             )
         )
         checkSessionOver()
+        // ダブルアップの精算はここまでで終わっている。復活したセッション（#1104）は、
+        // この残高で中断データを書き直す（ダブルアップの各操作は `persist()` を呼ばないため、
+        // 書き直さないとショーダウン直後の古い残高が残る）。
+        persist()
     }
 
     /// ダブルアップの決着待ちなら、賭け金を受け取って局を閉じる。待っていなければ何もしない。
@@ -686,9 +739,9 @@ public final class PokerModel {
     ///   いつでも押せる増量ボタンではない）。
     /// - **1 セッション 1 回まで**。中断を挟んでも回数は戻らない（`hasRevivedThisSession` を
     ///   スナップショットに持ち回る）。回数が戻るのは `restartSession()` の新しいセッションだけ。
-    /// - 戻すのは**プレイヤーだけ初期チップの半分**で、CPU は初期チップに戻す。
+    /// - プレイヤーは `reviveChips`（初期チップより多い）、CPU は初期チップに戻す（#523）。
     ///   CPU の持ち点は勝ち取った資産ではなく卓の設定値なので、そのまま（勝ち越したぶん）残すと
-    ///   50 対 250 の卓になって復活の意味が消える。半分の手持ちで対等な卓に戻る、が復活の価値。
+    ///   150 対 250 の卓になって復活の意味が消える。初期より多い手持ちで卓に戻る、が復活の価値。
     /// - 視聴中断・ロード失敗時は何も変更せず false を返す（呼び出し側でユーザーに通知する）。
     /// - 広告のあいだに「もう一度はじめる」でセッションが入れ替わっていたら適用しない（#728）。
     /// - services 未注入時（プレビュー・テスト）は広告機構自体が無いため従来どおり回復させる。
@@ -707,7 +760,7 @@ public final class PokerModel {
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
         guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
         // 広告のロード〜視聴のあいだも画面は操作できる。「もう一度はじめる」で新しいセッションが
-        // 始まっていたら、そこへ復活が乗って 100 → 50 枚になり、復活権と順位表資格まで消える（#728）。
+        // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#728）。
         // ブラックジャック（#727）と同じく、通し番号と救済できる状態を見直す。
         guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisSession = true
@@ -715,6 +768,8 @@ public final class PokerModel {
         cpuChips    = PokerModel.initialChips
         sessionOver = false
         sessionWinner = nil
+        // 次の局を始める前にハブへ戻られても報酬が消えないように、この時点で書き出す（#1104）。
+        persist()
         return .granted
     }
 

@@ -153,6 +153,18 @@ public extension HowToPlayGuide {
         hintIcon: "suit.spade.fill"
     )
 
+    static let shiritori = HowToPlayGuide(
+        gameID: "shiritori",
+        title: "カードしりとりの遊び方",
+        lines: [
+            "場の札の読みの最後の字から始まる読みの札を選んで取ります。取った札が新しい場の札になり、CPUの番です。",
+            "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶと-5秒。「ん」で終わる読みを選ぶとその場で負けです。",
+            "CPUが続けられなくなればあなたの勝ち、あなたが続けられなくなれば負けです。自分が取った札がノルマ（やさしい4枚・ふつう6枚・むずかしい9枚）に届いた瞬間も勝ちで、届かないまま時間切れになると負けです。",
+        ],
+        hint: "最後の字から始まる札を取ろう",
+        hintIcon: "textformat.abc"
+    )
+
     static let daifugo = HowToPlayGuide(
         gameID: "daifugo",
         title: "大富豪の遊び方",
@@ -300,11 +312,23 @@ public extension HowToPlayGuide {
         hintIcon: "leaf.fill"
     )
 
+    static let fifteen = HowToPlayGuide(
+        gameID: "fifteen",
+        title: "15パズルの遊び方",
+        lines: [
+            "空白の隣にあるタイルをタップすると、空白へスライドします。",
+            "空白と同じ列・行にあるタイルをタップすると、間のタイルをまとめて動かせます。",
+            "1〜15 を左上から順に並べたらクリアです。手数が少ないほど良い記録です。",
+        ],
+        hint: "空白の隣をタップで動く",
+        hintIcon: "square.grid.4x3.fill"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
-        .hanafuda, .spider,
+        .hanafuda, .spider, .shiritori, .fifteen,
     ]
 }
 

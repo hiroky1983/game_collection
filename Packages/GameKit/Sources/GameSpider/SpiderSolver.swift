@@ -1,4 +1,8 @@
 import Foundation
+// 種の事前計算で CoreEngine のファイルごと 1 バイナリにまとめるときは飛ばす（`SpiderDealerTests` の手順）。
+#if canImport(CoreEngine)
+import CoreEngine
+#endif
 
 /// 配札が理論上クリアできるかを判定するソルバー（#717 の「解ける配札だけ配る」の裏付け）。
 ///
@@ -115,7 +119,8 @@ public enum SpiderSolver {
         mutating func explore(from root: State, budget stageBudget: Int) -> Stage {
             var nodes: [Node] = [Node(state: root, parent: -1, move: .deal)]
             var visited: Set<Data> = [root.key(table)]
-            var frontier = Heap()
+            // 同じ見込みなら後から生まれたほうを先に見る（深さ優先寄りにして、同じ見込みの局面を横に並べて掘り尽くさない）。
+            var frontier = BestFirstQueue(tieBreak: .laterFirst)
             frontier.push(priority: heuristic(root, table), order: 0, node: 0)
             var order = 0
             var budget = stageBudget
@@ -344,46 +349,6 @@ public enum SpiderSolver {
             }
         }
         return score
-    }
-
-    /// 最良優先の待ち行列。同じ評価値なら**後から生まれたほうを先に見る**
-    /// （深さ優先寄りにして、同じ見込みの局面を横に並べて掘り尽くさないため）。
-    private struct Heap {
-        private var items: [(priority: Int, order: Int, node: Int)] = []
-
-        mutating func push(priority: Int, order: Int, node: Int) {
-            items.append((priority, order, node))
-            var child = items.count - 1
-            while child > 0 {
-                let parent = (child - 1) / 2
-                guard isHigher(items[child], than: items[parent]) else { break }
-                items.swapAt(child, parent)
-                child = parent
-            }
-        }
-
-        mutating func pop() -> Int? {
-            guard let first = items.first else { return nil }
-            items.swapAt(0, items.count - 1)
-            items.removeLast()
-            var parent = 0
-            while true {
-                let left = parent * 2 + 1
-                let right = left + 1
-                var best = parent
-                if left < items.count, isHigher(items[left], than: items[best]) { best = left }
-                if right < items.count, isHigher(items[right], than: items[best]) { best = right }
-                if best == parent { break }
-                items.swapAt(parent, best)
-                parent = best
-            }
-            return first.node
-        }
-
-        private func isHigher(_ lhs: (priority: Int, order: Int, node: Int),
-                              than rhs: (priority: Int, order: Int, node: Int)) -> Bool {
-            lhs.priority != rhs.priority ? lhs.priority < rhs.priority : lhs.order > rhs.order
-        }
     }
 
     // MARK: - 手の生成

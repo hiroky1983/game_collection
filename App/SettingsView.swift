@@ -108,10 +108,18 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral)
+                    Toggle(isOn: Binding(
+                        get: { settings.reengagementRemindersEnabled },
+                        set: { settings.reengagementRemindersEnabled = $0 }
+                    )) {
+                        Label("久しぶり通知", systemImage: "bell.badge")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral)
                 } header: {
                     Text("通知")
                 } footer: {
-                    Text("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までで、ほかのお知らせは送りません。オフにすると、予約済みのお知らせも取り消します。")
+                    Text("「続きのお知らせ」は、途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\n「久しぶり通知」は、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nどちらもオフにすると、予約済みのお知らせを取り消します。")
                 }
 
                 // MARK: 解析
@@ -143,7 +151,12 @@ struct SettingsView: View {
                             isPresented: $showClearPlayLogConfirm,
                             titleVisibility: .visible
                         ) {
-                            Button("消去する", role: .destructive) { playLog.clear() }
+                            Button("消去する", role: .destructive) {
+                                playLog.clear()
+                                // 久しぶり通知（#1193）はプレイ記録の最終プレイ日時を基準に予約するため、
+                                // 記録を消したのにスレッドや予約だけ残らないよう合わせて取り消す（#1269）。
+                                AppEnvironment.reengagement.cancelAll()
+                            }
                             Button("キャンセル", role: .cancel) {}
                         } message: {
                             Text("ベストスコア・最短タイム・勝敗と連勝の記録、遊んだ回数・勝った回数、おすすめや評価のお願い・遊び方ガイドの表示履歴を消します。元に戻せません。")
@@ -181,7 +194,7 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.ink)
 
                     ShareLink(
-                        item: URL(string: "https://apps.apple.com/jp/app/id6781719499")!,
+                        item: AppEnvironment.appStoreURL,
                         subject: Text("あそびばアプリ"),
                         message: Text("このゲームアプリ面白いよ！")
                     ) {

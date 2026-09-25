@@ -271,7 +271,8 @@ public struct MahjongTableLayout: Sendable {
     }
 
     /// 副露の牌の基準の幅（縮尺 1 のとき）。4 家とも河と同じ（会長指摘 2026-09-13。対面は #960 で 0.9 倍から
-    /// 河と同じに）。自分・対面は行に収まらないときだけ `inlineMelds` が縮める。
+    /// 河と同じに）。自分・対面は行に収まらないときだけ `inlineMelds` が、上家・下家は列に収まらないときだけ
+    /// `sideMeldTileWidth` が縮める。
     public func meldTileWidth(seat: Int) -> CGFloat {
         riverTileWidth
     }
@@ -371,34 +372,78 @@ public struct MahjongTableLayout: Sendable {
     /// 上家は手牌一覧（v 0.961、上端はその 16pt ほど上）に触れない位置。
     static func sideMeldStartV(seat: Int) -> CGFloat { seat == 1 ? 0.035 : 0.885 }
 
+    /// 上家・下家の副露と壁の間（pt）。
+    static let sideMeldWallClearance: CGFloat = 1
+
+    /// 上家・下家の副露の牌の幅。基準は河と同じ（`meldTileWidth(seat:)`）で、`meldSizes` の全組が列の先端から
+    /// 壁の手前までに収まらないときだけ縮める（#1065。河と同じ幅のままだと、4 組 13 枚で上家の最後の牌が壁に 4〜5pt 掛かり、全部カンなら両家ともはみ出す）。
+    /// 壁は組数から決まるツモ番の枚数（`14 − 3 × 組数`。最も長い）で取るので、手番ごとに大きさが揺れない。
+    /// 大きさ 0 の卓では 0（#874）。
+    public func sideMeldTileWidth(seat: Int, meldSizes: [Int]) -> CGFloat {
+        let sizes = meldSizes.map { max(0, $0) }
+        let tiles = CGFloat(sizes.reduce(0, +))
+        let base = meldTileWidth(seat: seat)
+        guard tiles > 0 else { return base }
+        let fixed = CGFloat(max(0, sizes.count - 1)) * Self.meldGroupSpacing
+        let wallCount = max(1, 14 - 3 * sizes.count)
+        let available: CGFloat
+        if seat == 1 {
+            // 下家: 先端（奥）から、手前に寄せた壁の最も奥の牌の上面まで
+            let lead = project(u: Self.sideMeldU(seat: 1), v: Self.sideMeldStartV(seat: 1)).y - base / 2
+            let wall = handBlock(seat: 1, index: 0, count: wallCount).0
+            available = min(wall.a.y, wall.b.y, wall.c.y, wall.d.y) - Self.sideMeldWallClearance - lead
+        } else {
+            // 上家: 先端（手前）から、奥に寄せた壁の最も手前の牌の足元まで
+            let lead = project(u: Self.sideMeldU(seat: 3), v: Self.sideMeldStartV(seat: 3)).y + base / 2
+            let wall = handBlock(seat: 3, index: wallCount - 1, count: wallCount).0
+            available = lead - (max(wall.a.y, wall.b.y, wall.c.y, wall.d.y) + wall.drop) - Self.sideMeldWallClearance
+        }
+        guard tiles * base + fixed > available else { return base }
+        return max(0, (available - fixed) / tiles)
+    }
+
     /// 上家・下家の副露 1 枚の置き場。`ordinal` は全組を通した通し番号（0 が列の先端）、`gaps` は
     /// その前にある組の区切りの数。壁と同じ列（u 一定）に沿って、下家は奥から手前へ、上家は手前から奥へ、
-    /// 牌の幅ぶんずつ進める。
-    public func sideMeldSlot(seat: Int, ordinal: Int, gaps: Int) -> Slot {
+    /// 牌の幅ぶんずつ進める。`tileWidth` は `sideMeldTileWidth` の値（省略時は河と同じ）で、縮めても列の先端の
+    /// 縁は動かさない。
+    public func sideMeldSlot(seat: Int, ordinal: Int, gaps: Int, tileWidth: CGFloat? = nil) -> Slot {
         let u = Self.sideMeldU(seat: seat)
         let dir: CGFloat = seat == 1 ? 1 : -1
         let head = project(u: u, v: Self.sideMeldStartV(seat: seat))
-        let advance = riverTileWidth * CGFloat(max(0, ordinal)) + CGFloat(max(0, gaps)) * Self.meldGroupSpacing
+        let w = tileWidth ?? riverTileWidth
+        let advance = (w - riverTileWidth) / 2 + w * CGFloat(max(0, ordinal))
+            + CGFloat(max(0, gaps)) * Self.meldGroupSpacing
         let center = CGPoint(x: head.x, y: head.y + dir * advance)
         return Slot(center: center, scale: head.scale, rotation: seat == 1 ? -90 : 90)
     }
 
     /// 上家・下家の副露 1 枚が画面上で占める矩形（横向きなので幅が牌の高さ）。
-    public func sideMeldRect(seat: Int, ordinal: Int, gaps: Int) -> CGRect {
-        let slot = sideMeldSlot(seat: seat, ordinal: ordinal, gaps: gaps)
-        let w = riverTileWidth * slot.scale
+    public func sideMeldRect(seat: Int, ordinal: Int, gaps: Int, tileWidth: CGFloat? = nil) -> CGRect {
+        let slot = sideMeldSlot(seat: seat, ordinal: ordinal, gaps: gaps, tileWidth: tileWidth)
+        let w = (tileWidth ?? riverTileWidth) * slot.scale
         let h = w * Self.tileAspect
         return CGRect(x: slot.center.x - h / 2, y: slot.center.y - w / 2, width: h, height: w)
     }
 
     /// `groups` 組・合計 `count` 枚の副露を、重なりの検査用に矩形の列で返す。上家・下家は 1 枚ずつ、
     /// 自分・対面は 1 組ずつ（`inlineMelds`。手牌はツモ番の `14 − 3 × groups` 枚として最も長い場合を取る）。
-    /// 組の区切りは 3 枚ごとにあるとみなし、余った枚数はカンとして先頭の組から 1 枚ずつ足す。
+    /// 組は `meldSizes` で配り（3 枚ずつ、余った枚数はカンとして先頭の組から 1 枚ずつ足す）、上家・下家の区切りは
+    /// 描画（`MahjongTableView.sideMelds`）と同じくその組の境目に置く。
     public func meldTileRects(seat: Int, groups: Int, tiles count: Int) -> [CGRect] {
+        let sizes = Self.meldSizes(groups: groups, tiles: count)
         guard seat == 1 || seat == 3 else {
-            return inlineMelds(seat: seat, handCount: 14 - 3 * groups, meldSizes: Self.meldSizes(groups: groups, tiles: count)).groupRects
+            return inlineMelds(seat: seat, handCount: 14 - 3 * groups, meldSizes: sizes).groupRects
         }
-        return (0..<count).map { sideMeldRect(seat: seat, ordinal: $0, gaps: min($0 / 3, max(0, groups - 1))) }
+        let w = sideMeldTileWidth(seat: seat, meldSizes: sizes)
+        let groupOfTile = Self.groupOfTile(sizes)
+        return (0..<count).map { k in
+            sideMeldRect(seat: seat, ordinal: k, gaps: k < groupOfTile.count ? groupOfTile[k] : max(0, groups - 1), tileWidth: w)
+        }
+    }
+
+    /// 牌ごとの組の番号（`[4, 3]` → `[0, 0, 0, 0, 1, 1, 1]`）。上家・下家では、その牌の前にある組の区切りの数。
+    static func groupOfTile(_ meldSizes: [Int]) -> [Int] {
+        meldSizes.enumerated().flatMap { gi, n in Array(repeating: gi, count: max(0, n)) }
     }
 
     /// `groups` 組に `count` 枚を配る（3 枚ずつ、余りは先頭からカンに）。

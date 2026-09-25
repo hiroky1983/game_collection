@@ -50,10 +50,11 @@ struct HubRecentRowWiringTests {
                 "起動引数で開く経路の resume が同じ判定を通っていない")
         let routes = source.components(separatedBy: "HubRoute(").count - 1
         let judged = source.components(separatedBy: "resume: isResumable(").count - 1
-        // HubRoute を作る箇所: 起動引数・はじめの1本・グリッド・行・レコメンド・通知と、型の定義。
+        // HubRoute を作る箇所: 起動引数・はじめの1本・グリッド・行・レコメンド・通知(#663)・
+        // 通知(#1193 再エンゲージメント)と、型の定義。
         // グリッドは hasResume、行は candidate.hasResume、起動引数はレジストリを経由するので、
-        // isResumable を直接渡すのは、はじめの1本・レコメンド・通知の 3 か所。
-        #expect(judged == 3, "resume: isResumable( が \(judged) か所（HubRoute は \(routes) か所）")
+        // isResumable を直接渡すのは、はじめの1本・レコメンド・通知2種の 4 か所。
+        #expect(judged == 4, "resume: isResumable( が \(judged) か所（HubRoute は \(routes) か所）")
     }
 
     @Test("候補が無ければ行そのものを描かない")

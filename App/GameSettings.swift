@@ -65,6 +65,16 @@ final class GameSettings {
             }
         }
     }
+    /// 再エンゲージメント通知（#1193）のオン / オフ。既定はオン。
+    /// #663 とは別の許諾（標準ダイアログ）・別の判定条件のため、トグルも分ける。
+    var reengagementRemindersEnabled: Bool {
+        didSet {
+            Self.reengagementReminders.isEnabled = reengagementRemindersEnabled
+            if !reengagementRemindersEnabled {
+                AppEnvironment.reengagement.cancelAll()
+            }
+        }
+    }
 
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
@@ -73,6 +83,7 @@ final class GameSettings {
     // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
     private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
     private static let notifications = FeedbackPreference(key: "resumeRemindersEnabled_v1")
+    private static let reengagementReminders = FeedbackPreference(key: "reengagementRemindersEnabled_v1")
     // ヒント表示はゲーム側（GameKit）も同じキーを読むため、定義は Core に置いたものを共有する。
     private static var hints: FeedbackPreference { .hints }
     // ゆっくりモード（#463・#494）も同じ理由で Core 側の定義を共有する。既定値だけがオフ。
@@ -92,6 +103,7 @@ final class GameSettings {
         self.soundEnabled = Self.sound.isEnabled
         self.analyticsEnabled = Self.analytics.isEnabled
         self.notificationsEnabled = Self.notifications.isEnabled
+        self.reengagementRemindersEnabled = Self.reengagementReminders.isEnabled
         self.hintsEnabled = Self.hints.isEnabled
         self.slowModeEnabled = Self.slowMode.isEnabled
     }

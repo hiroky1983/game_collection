@@ -16,8 +16,8 @@ public struct RunnerField: Equatable, Sendable {
         /// 画面に見える横幅。
         ///
         /// 縦持ちの画面に載る帯の横幅なので、**広くしすぎない**。広げるほど 1 単位が
-        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（18 面の 47.6 / 秒）でも
-        /// 走者の前に 74 単位 = 約 1.5 秒ぶんの地形が見えるので、初見でも反応できる。
+        /// 小さく描かれ、走者も地形も豆粒になる。最速のステージ（30 面の 57.2 / 秒・#1009）でも
+        /// 走者の前に 74 単位 = 約 1.3 秒ぶんの地形が見えるので、初見でも反応できる。
         public static let width: Double = 100
         /// 画面に見える縦幅。
         ///
@@ -55,7 +55,16 @@ public struct RunnerField: Equatable, Sendable {
         public static let maxSubstep: Double = 2
     }
 
+    /// 走っているコース。エンドレス（#1086）では速さの式だけを持つ空のコース
+    /// （`RunnerEndlessCourse.stage`）で、中身は `track` が持つ。
     public let stage: RunnerStage
+    /// エンドレスのコースの、いま走者のまわりにある区画（#1086）。ステージ制では nil。
+    ///
+    /// 障害・アイテム・台座・床の問い合わせは、ステージ制なら `stage` の配列を、エンドレスなら
+    /// この枠を見る（下の「コースの中身」）。枠は `advance(dt:into:)` が 1 サブステップごとに
+    /// 走者へ追いつかせる。**エンドレスにゴールとチェックポイントは無い**（`reachedGoal` /
+    /// `passedCheckpoint` を出さない）。
+    public private(set) var track: RunnerEndlessTrack?
     /// 走者の中心のワールド x。ステージ先頭が 0、`stage.length` でゴール。
     public private(set) var distance: Double
     /// 足元の高さ。`Metrics.groundY` が接地。
@@ -94,6 +103,38 @@ public struct RunnerField: Equatable, Sendable {
     private var pickupOverboostRemaining: Double = 0
     /// 取得済みのアイテムの数（スピードアップ・たこ焼きを問わない）。
     public private(set) var collectedPickupCount: Int = 0
+    /// 沈む床（#1089）にどれだけ沈んでいるか（0…1）。1 で溺れてミス。
+    ///
+    /// **接地して沈む床の上にいるあいだだけ増える**（`RunnerRules.sinkDuration` 秒で 1 に届く）。
+    /// 足が離れた瞬間——跳んでも、床を出ても——**0 に戻す**。「跳ぶと沈みが戻る」を
+    /// 状態遷移ではなく「接地していなければ 0」という不変条件で書いてあるので、
+    /// 一時停止・バックグラウンド復帰・チェックポイント再開のどこにも取りこぼす経路が無い。
+    ///
+    /// ゆっくりモードでは `RunnerModel.tick` が `dt` そのものを縮めるので、沈む速さも
+    /// 同じ割合で遅くなる（この型は時計を知らない）。
+    public private(set) var sinkProgress: Double = 0
+    /// 沈みに応じて走者の**絵**を下げる量（ワールド単位）。`RunnerScene` が走者ノードの y から引く。
+    ///
+    /// **当たり判定には一切効かない**（決裁「当たり判定の地面の高さは変えない」）。
+    /// `footY` も `surfaceY(at:)` も動かさないので、ジャンプの軌道と全ステージの成立条件は
+    /// 沈んでいるかどうかに左右されない——沈んだ状態で踏み切っても普通のジャンプになる。
+    public var sinkDepth: Double { sinkProgress * RunnerRules.sinkVisualDepth }
+    /// 崩れる足場（#1090）ごとの、**初めて乗ってからの経過秒**。`stage.platforms` の添字で引く。
+    ///
+    /// 鍵が無い＝まだ誰も乗っていない足場。**入るのは 1 度だけ**（`advance` が
+    /// `crumbleElapsed[index] == nil` のときにしか 0 を入れない）なので、跳んで着地し直しても
+    /// 時計は巻き戻らず、二重にも進まない——決裁の「着地で崩れのきっかけが二重に起きない」は
+    /// この一点で成り立つ。
+    ///
+    /// 一度動き出した時計は**乗っているかどうかに関わらず進む**。崩れ落ちるのは
+    /// 「乗った足場が耐えられなくなる」出来事で、跳んで足を離しているあいだだけ止まるのは
+    /// 不自然なうえ、渡り切る猶予が跳び方で変わってしまい公平さを計算で押さえられなくなる。
+    ///
+    /// ゆっくりモードでは `RunnerModel.tick` が `dt` を縮めるので崩れも同じ割合で遅くなり、
+    /// 一時停止・バックグラウンドのあいだは `tick` 自体が来ないので進まない（沈む床と同じ）。
+    /// **エンドレス（#1086）には崩れる足場を置かない**ので、走っているのが枠（`track`）のときは
+    /// 常に空のまま。
+    public private(set) var crumbleElapsed: [Int: Double] = [:]
     /// たこ焼き（#797）の無敵の残り秒数。0 なら無敵ではない。
     ///
     /// 取り直すと満タンに戻す（重ねない。`pickupOverboost` と同じ扱い）。空中でも減る
@@ -130,7 +171,13 @@ public struct RunnerField: Equatable, Sendable {
     ///
     /// 描画側はこの添字でノードを消す。**取得は先頭から順とは限らない**——チェックポイントから
     /// 再開すると手前のアイテムは取らないまま残る（#733）。
+    ///
+    /// エンドレス（#1086）では**区画の通し番号**（`RunnerEndlessSegment.index`）で覚える。枠の中の
+    /// 位置で覚えると、枠を回した瞬間に取っていないアイテムが消える／取ったアイテムが復活する。
+    /// 枠から捨てた区画の番号はここからも消す（距離に比例して増えない）。
     public private(set) var collectedPickupIndices: Set<Int> = []
+    /// エンドレスで、`collectedPickupIndices` からこの番号より手前の区画を消し終えている（#1086）。
+    private var collectedPickupsPrunedBelow = 0
 
     /// ステージの頭から始める。
     public init(stage: RunnerStage) {
@@ -150,9 +197,22 @@ public struct RunnerField: Equatable, Sendable {
         self.pedalBoost = 1
     }
 
+    /// エンドレスのコースを頭から走る（#1086）。コースは走りながら種 `seed` から作る。
+    public init(endlessSeed seed: UInt64) {
+        self.init(endless: RunnerEndlessTrack(seed: seed))
+    }
+
+    /// 枠の数などを変えた `track` で走る（テスト用）。
+    init(endless track: RunnerEndlessTrack) {
+        self.init(stage: RunnerEndlessCourse.stage)
+        self.track = track
+        // 取ったアイテムの番号は枠にある区画のぶんしか持たないので、枠の数だけ先に取っておく。
+        collectedPickupIndices.reserveCapacity(track.capacity)
+    }
+
     // MARK: - 問い合わせ
 
-    /// ゴールまでの進み具合（0〜1）。
+    /// ゴールまでの進み具合（0〜1）。エンドレス（#1086）にゴールは無く、常に 1（画面には出さない）。
     public var progress: Double {
         guard stage.length > 0 else { return 1 }
         return min(1, max(0, distance / stage.length))
@@ -172,7 +232,10 @@ public struct RunnerField: Equatable, Sendable {
         // 基準速はその地点の値（#675）。ステージ制では `stage.speed` そのもの。
         let base = stage.speed(at: distance)
         guard isGrounded else { return base }
-        let floor = isOnBoostFloor ? RunnerRules.boostFloorMultiplier : 1
+        // 加速床と沈む床は同じ区画に置けない（区画記号は 1 文字）ので、掛かるのは高々どちらか一方。
+        var floor: Double = 1
+        if isOnBoostFloor { floor *= RunnerRules.boostFloorMultiplier }
+        if isOnSinkFloor { floor *= RunnerRules.sinkFloorMultiplier }
         return base * (pedalBoost + pickupOverboost + justLandingOverboost) * floor
     }
 
@@ -187,7 +250,20 @@ public struct RunnerField: Equatable, Sendable {
     /// 「跳んで進む距離 = `speed × 滞空時間`」が崩れてステージの成立条件がやり直しになる。
     public var isOnBoostFloor: Bool {
         guard isGrounded else { return false }
-        return stage.boostFloors.contains { $0.start <= distance && distance < $0.end }
+        return firstBoostFloor { $0.start <= distance && distance < $0.end } != nil
+    }
+
+    /// いま沈む床（#1089）の上に乗っているか。
+    ///
+    /// 判定の作法は加速床（`isOnBoostFloor`）とまったく同じ——状態は持たず**中心の x** で
+    /// 毎回見るので、水面を出た瞬間に減速も沈みも切れる。空中では常に false で、
+    /// そのおかげで「跳んでいるあいだは沈まない・空中の横速度は基準速のまま」が両方成り立つ。
+    ///
+    /// 台座（#674）の上に乗っているあいだも false——台座は水面より上の接地面なので、
+    /// 足は水に浸かっていない（`surfaceY(at:)` が地面より高い値を返す）。
+    public var isOnSinkFloor: Bool {
+        guard isGrounded, surfaceY(at: distance) <= Metrics.groundY else { return false }
+        return firstSinkFloor { $0.start <= distance && distance < $0.end } != nil
     }
 
     /// いま無敵か（たこ焼き・#797）。true のあいだは岩・鳥・台座の正面に当たっても
@@ -208,7 +284,7 @@ public struct RunnerField: Equatable, Sendable {
 
     /// `x` に穴が開いているか（点で見る）。
     public func isPit(at x: Double) -> Bool {
-        stage.hazards.contains { $0.kind == .pit && $0.start <= x && x < $0.end }
+        firstHazard { $0.kind == .pit && $0.start <= x && x < $0.end } != nil
     }
 
     /// その x で**足が乗る高さ**（#674）。台座の範囲内なら台座の上面、外は地面。
@@ -223,10 +299,58 @@ public struct RunnerField: Equatable, Sendable {
     /// （次弾）に効く受け口として残してある。
     public func surfaceY(at x: Double) -> Double {
         var surface = Metrics.groundY
-        for platform in stage.platforms where platform.start <= x && x < platform.end {
+        forEachPlatform { _, platform in
+            guard platform.start <= x && x < platform.end else { return }
             surface = max(surface, Metrics.groundY + platform.top)
         }
         return surface
+    }
+
+    // MARK: - 崩れる足場（#1090）
+
+    /// その足場（`stage.platforms` の添字）が崩れ切ったか。
+    ///
+    /// 崩れ切ると接地面が消え、下に架かっていた区間が**穴と同じ扱い**になる
+    /// （`isCrumbledGap(at:)`）。まだ抜け落ちている途中（`crumbleWarnDuration` 〜
+    /// `crumbleDuration`）は false ——**板が抜けきるまでは乗れる**というのが決裁への回答で、
+    /// 抜けるのは左から順なので、右へ進む走者が残った板を踏み外すことはない
+    /// （`RunnerRules.crumbleFallDuration` の説明）。
+    public func hasCrumbled(_ index: Int) -> Bool {
+        guard let elapsed = crumbleElapsed[index] else { return false }
+        return elapsed >= RunnerRules.crumbleDuration
+    }
+
+    /// その足場が崩れるまでの進み具合（0…1）。まだ誰も乗っていなければ nil。
+    ///
+    /// 描画（`RunnerScene`）が揺れと板の抜け落ちを引くのに使う。**`RunnerField` は時計を
+    /// 持つだけで、どう見せるかは知らない**（沈む床の `sinkProgress` と同じ分担）。
+    public func crumbleProgress(_ index: Int) -> Double? {
+        crumbleElapsed[index].map { min(1, $0 / RunnerRules.crumbleDuration) }
+    }
+
+    /// その x が、崩れ落ちた足場の跡（＝穴）か。
+    ///
+    /// **穴（`RunnerHazard.pit`）として持たないのが要点**。障害の配列に入れると、
+    /// 成立条件の検査（`RunnerStageTests.everyHazardIsClearable`）が「1 回のジャンプで
+    /// 跳び越せる穴か」を要求してしまう——板張り 48 はどの面でも単発では跳べないが、
+    /// **架かっているあいだは渡れる**のだから、跳び越せる必要は無い。
+    public func isCrumbledGap(at x: Double) -> Bool {
+        guard track == nil else { return false }
+        for (index, platform) in stage.platforms.enumerated()
+        where platform.kind == .crumbling && hasCrumbled(index) {
+            if platform.start <= x && x < platform.end { return true }
+        }
+        return false
+    }
+
+    /// その x を覆っている**崩れる足場**の添字（まだ崩れていないものだけ）。
+    private func crumblingPlatformIndex(at x: Double) -> Int? {
+        guard track == nil else { return nil }
+        for (index, platform) in stage.platforms.enumerated()
+        where platform.kind == .crumbling && !hasCrumbled(index) {
+            if platform.start <= x && x < platform.end { return index }
+        }
+        return nil
     }
 
     /// 走者の**前方**にある最も近い障害。自動操縦テストと先読みの読み上げが使う。
@@ -238,9 +362,9 @@ public struct RunnerField: Equatable, Sendable {
     /// （跳ぶ相手ではない）。
     public func nextHazard(from x: Double) -> RunnerHazard? {
         var best: (hazard: RunnerHazard, start: Double)?
-        for hazard in stage.hazards {
-            guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { continue }
-            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { continue }
+        forEachHazard { hazard in
+            guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { return }
+            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { return }
             if best == nil || frame.start < best!.start { best = (hazard, frame.start) }
         }
         return best?.hazard
@@ -258,7 +382,7 @@ public struct RunnerField: Equatable, Sendable {
     /// 左端がまだ前方にあるものだけを返す。すでに上に乗っている台座（左端を通り過ぎている）を
     /// 返してしまうと、自動操縦が台座の上で踏み切り続けることになる。
     public func nextPlatform(from x: Double) -> RunnerPlatform? {
-        stage.platforms.first { $0.start >= x }
+        firstPlatform { $0.start >= x }
     }
 
     // MARK: - 操作
@@ -285,6 +409,11 @@ public struct RunnerField: Equatable, Sendable {
         if isGrounded { jumpStartDistance = distance }
         vy = RunnerRules.jumpVelocity
         isGrounded = false
+        // 沈み（#1089）は「接地していなければ 0」が不変条件だが、**次の `advance` を待たずに
+        // ここで戻す**。描画（`RunnerScene.sync`）は `tick` と独立に毎フレーム走るので、
+        // 踏み切った直後に一時停止すると `advance` が呼ばれないまま、空中の走者が沈んだ位置で
+        // 描かれ続ける（PR #1110 の指摘）。
+        sinkProgress = 0
         jumpCount += 1
         isHolding = true
         holdElapsed = 0
@@ -328,6 +457,11 @@ public struct RunnerField: Equatable, Sendable {
     /// `altitude` は `altitude` プロパティと同じ**地面からの高さ**。台座の上に置きたければ
     /// `RunnerRules.platformHeight` を渡す（接地したかどうかは、その x の接地面
     /// （`surfaceY(at:)`）に届いているかで決まる）。
+    ///
+    /// **崩れる足場の時計（`crumbleElapsed`）は巻き戻さない**（#1090）。沈み（`sinkProgress`）が
+    /// 走者の状態なのに対し、足場が崩れたかどうかはコースの状態で、走者を置き直したからといって
+    /// 落ちた板が戻るわけではない。撮影の hook（`-simulateRunner crumble-fallen`）はこの性質に
+    /// 頼って「崩れ切った足場」の画を作る。
     public mutating func placeForTesting(distance: Double, altitude: Double, vy: Double) {
         self.distance = distance
         self.footY = Metrics.groundY + altitude
@@ -340,6 +474,8 @@ public struct RunnerField: Equatable, Sendable {
         // 空中に置いた場合は「ここで踏み切った」扱い。手前の障害を越えた扱いにはしない。
         self.jumpStartDistance = self.isGrounded ? nil : distance
         self.lastMissCause = nil
+        self.sinkProgress = 0
+        advanceTrack()
     }
 
     // MARK: - 進行
@@ -416,15 +552,23 @@ public struct RunnerField: Equatable, Sendable {
         if invincibleRemaining > 0 {
             invincibleRemaining = max(0, invincibleRemaining - dt)
         }
+        // 崩れる足場（#1090）の時計。**動き出したものは全部進める**（乗っているかは見ない）。
+        // 進めるのを移動より先に置くのは、この dt のあいだに崩れ切る足場があるなら、
+        // その先の接地判定・正面の当たり判定を**もう無いもの**として通すため。
+        for index in crumbleElapsed.keys {
+            crumbleElapsed[index]? += dt
+        }
         let previousDistance = distance
         distance += currentSpeed * dt
+        // エンドレス（#1086）は、進んだぶんだけ前の区画を作って後ろの区画を捨てる。
+        advanceTrack()
 
         // 動く障害の予告の地点をこのサブステップでまたいだ（#801 イノシシの突進。犬は #955 で
         // 前から歩いて来るようになり予告を持たない）。手応え・土煙の発火点で、当たり判定には
         // 関わらない（位置は `frame(atRunnerDistance:)` が距離から引く）。チェックポイント再開で
         // この地点より先から走り出した場合は鳴らない（予告する相手がいない）。
-        for hazard in stage.hazards {
-            guard let cue = hazard.cue else { continue }
+        forEachHazard { hazard in
+            guard let cue = hazard.cue else { return }
             if previousDistance < cue.distance, cue.distance <= distance { events.append(cue.event) }
         }
 
@@ -483,19 +627,16 @@ public struct RunnerField: Equatable, Sendable {
         // 取っても (1) だけでは何も変わらない。上限を超える一時的な上乗せにすることで、
         // 乗り具合に関わらず必ず体感できる加速にする）。
         // たこ焼き（#797）は速さに触らず、無敵の残り時間を満タンにするだけ。
-        for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
-            guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { continue }
-            collectedPickupIndices.insert(index)
-            collectedPickupCount += 1
-            switch pickup.kind {
-            case .speed:
-                pedalBoost = RunnerRules.maxPedalBoost
-                pickupOverboost = RunnerRules.pickupOverboost
-                pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
-                events.append(.collectedSpeedItem)
-            case .invincible:
-                invincibleRemaining = RunnerRules.invincibleDuration
-                events.append(.collectedInvincibleItem)
+        if let track {
+            // エンドレス（#1086）は区画の通し番号で覚える（`collectedPickupIndices` を参照）。
+            for position in 0..<track.count {
+                let segment = track[position]
+                guard let pickup = segment.pickup, !collectedPickupIndices.contains(segment.index) else { continue }
+                collect(pickup, index: segment.index, into: &events)
+            }
+        } else {
+            for (index, pickup) in stage.pickups.enumerated() where !collectedPickupIndices.contains(index) {
+                collect(pickup, index: index, into: &events)
             }
         }
 
@@ -505,7 +646,11 @@ public struct RunnerField: Equatable, Sendable {
             // 穴の判定は**中心の x** で行う。矩形で見ると爪先が縁を越えた瞬間に落ちてしまう。
             // 台座の上に落ち着く場合は穴を見ない——穴は地面に開いた欠落なので、その上に
             // 台座が架かっているなら渡れる（台座の端から降りれば下の穴の判定が効く）。
-            if surface <= Metrics.groundY, isPit(at: distance) {
+            // 崩れ落ちた足場の跡（#1090）も同じ扱い。架かっていた区間の下は最初から
+            // 谷（川・海）で、板が無くなればそこへ落ちる。死因は穴と同じ `.pit`
+            // ——遊ぶ側から見て起きたことは「足場が無いところへ落ちた」で同じだから
+            //（決裁「解析の `cause` は `pit`（`AnalyticsEndCause` を増やさない）」）。
+            if surface <= Metrics.groundY, isPit(at: distance) || isCrumbledGap(at: distance) {
                 lastMissCause = .pit
                 events.append(.fell)
                 return
@@ -521,7 +666,30 @@ public struct RunnerField: Equatable, Sendable {
                 applyJustLanding()
                 events.append(.landed)
             }
+            // 崩れる足場に**初めて乗った**瞬間だけ時計を動かし始める（#1090）。着地し直しても
+            // 鍵はすでにあるので巻き戻らない。跳び越えただけ（接地しない）なら崩れない。
+            if let index = crumblingPlatformIndex(at: distance), crumbleElapsed[index] == nil {
+                crumbleElapsed[index] = 0
+            }
         }
+
+        // 沈む床（#1089）。**接地して水面の上にいるあいだだけ**沈みが溜まり、足が離れていれば
+        // 0 に戻る。溜まり切ったら溺れてミス——穴に落ちたときと同じ `.fell` を出す
+        // （見た目も「下へ沈んでいく」で、`RunnerScene` の落下演出がそのまま合う）。
+        // 死因だけは `.sink` で区別する。
+        if isOnSinkFloor {
+            sinkProgress = min(1, sinkProgress + dt / RunnerRules.sinkDuration)
+            if sinkProgress >= 1 {
+                lastMissCause = .sink
+                events.append(.fell)
+                return
+            }
+        } else {
+            sinkProgress = 0
+        }
+
+        // エンドレス（#1086）にチェックポイントとゴールは無い。
+        guard track == nil else { return }
 
         if !passedCheckpoint, distance >= stage.checkpoint {
             passedCheckpoint = true
@@ -531,6 +699,34 @@ public struct RunnerField: Equatable, Sendable {
         if distance >= stage.length {
             distance = stage.length
             events.append(.reachedGoal)
+        }
+    }
+
+    /// 走者の体に触れていればアイテムを取る。`index` は取得済みとして覚える番号（`collectedPickupIndices`）。
+    private mutating func collect(_ pickup: RunnerPickup, index: Int, into events: inout [RunnerEvent]) {
+        guard playerMinX <= pickup.start, pickup.start <= playerMaxX else { return }
+        collectedPickupIndices.insert(index)
+        collectedPickupCount += 1
+        switch pickup.kind {
+        case .speed:
+            pedalBoost = RunnerRules.maxPedalBoost
+            pickupOverboost = RunnerRules.pickupOverboost
+            pickupOverboostRemaining = RunnerRules.pickupOverboostDuration
+            events.append(.collectedSpeedItem)
+        case .invincible:
+            invincibleRemaining = RunnerRules.invincibleDuration
+            events.append(.collectedInvincibleItem)
+        }
+    }
+
+    /// エンドレスの枠を走者の位置に追いつかせ、枠から捨てた区画の取得済みの印を消す（#1086）。
+    private mutating func advanceTrack() {
+        guard track != nil else { return }
+        track!.advance(to: distance)
+        let firstIndex = track!.firstIndex
+        while collectedPickupsPrunedBelow < firstIndex {
+            collectedPickupIndices.remove(collectedPickupsPrunedBelow)
+            collectedPickupsPrunedBelow += 1
         }
     }
 
@@ -554,9 +750,11 @@ public struct RunnerField: Equatable, Sendable {
         jumpStartDistance = nil
         // 「直前に越えた障害」= この滞空のあいだに**中心 x が右端を通過した**障害のうち最後のもの。
         // `hazards` は左から順に並んでいるので `last` がそのまま「最後に越えたもの」になる。
-        guard let cleared = stage.hazards.last(where: {
-            Self.rewardsJustLanding($0.kind) && $0.end > takeOff && $0.end <= distance
-        }) else { return }
+        var cleared: RunnerHazard?
+        forEachHazard { hazard in
+            if Self.rewardsJustLanding(hazard.kind), hazard.end > takeOff, hazard.end <= distance { cleared = hazard }
+        }
+        guard let cleared else { return }
         guard distance - cleared.end <= RunnerRules.justLandingWindow else { return }
         // 上限（`maxPedalBoost`）を超える別枠に乗せる。重ねず、決め直すたびに上書きして
         // 満タンへ戻す（`pickupOverboost` と同じ扱い）。
@@ -573,10 +771,16 @@ public struct RunnerField: Equatable, Sendable {
     /// 越え方と関係なく上乗せが乗る。
     /// 鳥は飛んで動いている相手で「真裏」が置いた位置にない（#796）、イノシシ（#801）と犬（#955）は
     /// 向かってきて走者の体の中を通り抜けるので、どれも対象外。
+    /// 突き上げ（#1010）は横に動かず、走者が着く前に伸び切って置いた位置の高い岩そのものになる
+    /// ので岩と同じ扱い（実際には高さ 9 を落ちるあいだに体 4 つぶん進むため、岩と同じく窓に
+    /// 入ることは無い。判断を 1 か所に閉じるために対象からは外さない）。
     private static func rewardsJustLanding(_ kind: RunnerHazardKind) -> Bool {
         switch kind {
-        case .pit, .lowBlock, .tallBlock: return true
-        case .bird, .dog, .boar:          return false
+        // 高い塀（#1091）も横に動かない相手なので岩と同じ扱い。二段ジャンプは滞空が長く、
+        // 高さ 18 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
+        // 入ることは岩より更に無い（判断を 1 か所に閉じるために対象からは外さない）。
+        case .pit, .lowBlock, .tallBlock, .shoot, .wall: return true
+        case .bird, .dog, .boar:                         return false
         }
     }
 
@@ -589,7 +793,7 @@ public struct RunnerField: Equatable, Sendable {
     /// （`RunnerHazard.frame(atRunnerDistance:)`・#796）——上がりきった鳥は帯が頭より上に
     /// 抜けるので、同じ式のまま自然に当たらなくなる。
     private var hittingHazard: RunnerHazard? {
-        stage.hazards.first { hazard in
+        firstHazard { hazard in
             guard hazard.kind != .pit,
                   let frame = hazard.frame(atRunnerDistance: distance) else { return false }
             guard frame.start < playerMaxX, playerMinX < frame.end else { return false }
@@ -611,10 +815,79 @@ public struct RunnerField: Equatable, Sendable {
     /// 「足が上面ちょうど」という 2 つの等号の扱いを固定できない
     /// （`FieldTests.platformFaceIsInclusiveAtTheBoundary`）。
     var isHittingPlatformFace: Bool {
-        stage.platforms.contains { platform in
+        firstPlatform { platform in
             guard distance < platform.start else { return false }
             guard platform.start < playerMaxX else { return false }
             return footY < Metrics.groundY + platform.top
+        } != nil
+    }
+
+    // MARK: - コースの中身（#1086）
+    //
+    // ステージ制は `stage` の配列、エンドレスは `track` の枠を、どちらも**左から順に**見る。
+    // 当たり判定・接地・先読みはすべてここを通す（片方だけ直して食い違わないように）。
+
+    /// 障害を左から順に見て、`predicate` を満たす最初のもの。
+    private func firstHazard(where predicate: (RunnerHazard) -> Bool) -> RunnerHazard? {
+        guard let track else { return stage.hazards.first(where: predicate) }
+        for position in 0..<track.count {
+            if let hazard = track[position].hazard, predicate(hazard) { return hazard }
         }
+        return nil
+    }
+
+    /// 障害を左から順にすべて見る。
+    private func forEachHazard(_ body: (RunnerHazard) -> Void) {
+        guard let track else { return stage.hazards.forEach(body) }
+        for position in 0..<track.count {
+            if let hazard = track[position].hazard { body(hazard) }
+        }
+    }
+
+    /// 台座を左から順に見て、`predicate` を満たす最初のもの。**崩れ落ちた足場は無いものとして飛ばす**。
+    private func firstPlatform(where predicate: (RunnerPlatform) -> Bool) -> RunnerPlatform? {
+        var found: RunnerPlatform?
+        forEachPlatform { _, platform in
+            guard found == nil, predicate(platform) else { return }
+            found = platform
+        }
+        return found
+    }
+
+    /// 台座を左から順にすべて見る。添字は `stage.platforms` のもので、エンドレス（#1086）の
+    /// 枠から来た台座は nil（枠には崩れる足場を置かないので、崩れの時計を引く必要が無い）。
+    ///
+    /// **崩れ落ちた足場（`hasCrumbled`）は渡さない**。接地面（`surfaceY(at:)`）も正面の当たり判定
+    /// （`isHittingPlatformFace`）も自動操縦の踏み切り先（`nextPlatform`）も、崩れたあとは
+    /// 「そこには何も無い」が正しい——読み口を 1 つに絞って、足し忘れる箇所を作らない。
+    private func forEachPlatform(_ body: (Int?, RunnerPlatform) -> Void) {
+        guard let track else {
+            for (index, platform) in stage.platforms.enumerated() where !hasCrumbled(index) {
+                body(index, platform)
+            }
+            return
+        }
+        for position in 0..<track.count {
+            if let platform = track[position].platform { body(nil, platform) }
+        }
+    }
+
+    /// スピードアップ床を左から順に見て、`predicate` を満たす最初のもの。
+    private func firstBoostFloor(where predicate: (RunnerBoostFloor) -> Bool) -> RunnerBoostFloor? {
+        guard let track else { return stage.boostFloors.first(where: predicate) }
+        for position in 0..<track.count {
+            if let floor = track[position].boostFloor, predicate(floor) { return floor }
+        }
+        return nil
+    }
+
+    /// 沈む床を左から順に見て、`predicate` を満たす最初のもの。
+    ///
+    /// **エンドレス（#1086）には沈む床を置かない**（#1089 決裁「生成器に教えるのは別の版」）ので、
+    /// 枠で走っているあいだは常に nil。生成器（`RunnerEndlessCourse`）が `~` を出さないことは
+    /// `RunnerStageTests.endlessCourseHasNoSinkFloors` が固定する。
+    private func firstSinkFloor(where predicate: (RunnerSinkFloor) -> Bool) -> RunnerSinkFloor? {
+        guard track == nil else { return nil }
+        return stage.sinkFloors.first(where: predicate)
     }
 }

@@ -57,12 +57,7 @@ struct FirstPickTests {
     func preferredIDMatchesRegisteredModule() throws {
         // ID が綴り違いだと、勧めるゲームが「非表示」と同じ扱いになって先頭のゲームに黙って倒れる。
         // このテストターゲットは Core にしか依存しないため、モジュールの宣言を読んで突き合わせる。
-        let moduleFile = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // RecentGamesTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .appendingPathComponent("Sources/GameBlackjack/BlackjackModule.swift")
-        let source = try String(contentsOf: moduleFile, encoding: .utf8)
+        let source = try SourceScan.packageSource("Sources/GameBlackjack/BlackjackModule.swift")
         #expect(source.contains(#"public let id = "\#(FirstPick.preferredGameID)""#))
     }
 }

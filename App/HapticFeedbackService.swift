@@ -25,9 +25,12 @@ final class HapticFeedbackService: FeedbackService {
     func notify(_ type: FeedbackNotice) {
         let feedbackType: UINotificationFeedbackGenerator.FeedbackType
         switch type {
-        case .success: feedbackType = .success
-        case .warning: feedbackType = .warning
-        case .error:   feedbackType = .error
+        case .success:   feedbackType = .success
+        case .warning:   feedbackType = .warning
+        case .error:     feedbackType = .error
+        // UINotificationFeedbackGenerator に「successより強い」種類は無いので同じものを使う。
+        // 長く派手にするのは効果音（SoundEffect.fanfare）側だけでよい。
+        case .milestone: feedbackType = .success
         }
         notification.notificationOccurred(feedbackType)
     }

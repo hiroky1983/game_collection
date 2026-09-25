@@ -195,6 +195,21 @@ struct DaifugoExchangeTests {
         #expect(result[2].contains(card(3, .hearts)))
     }
 
+    @Test("献上を免除すると大富豪⇔大貧民の交換だけが起きず、富豪⇔貧民は交換する（#1048）")
+    func waivingTopPairSkipsOnlyTheTwoCardSwap() {
+        let before = hands()
+        let (result, transfers) = DaifugoRules.applyExchange(
+            hands: before, ranking: [0, 1, 2, 3], waivingTopPair: true
+        )
+
+        #expect(!transfers.contains { $0.from == 3 || $0.to == 3 }, "大貧民は札を渡しも受け取りもしない")
+        #expect(!transfers.contains { $0.from == 0 || $0.to == 0 }, "大富豪も同じ")
+        #expect(result[3] == before[3].sorted { $0.sortKey < $1.sortKey }, "大貧民の手札はそのまま（ジョーカーと 2 を守れる）")
+        #expect(result[0] == before[0].sorted { $0.sortKey < $1.sortKey })
+        #expect(transfers.first { $0.from == 2 && $0.to == 1 }?.cards.map(\.rank) == [1], "富豪⇔貧民は従来どおり")
+        #expect(transfers.first { $0.from == 1 && $0.to == 2 }?.cards.map(\.rank) == [3])
+    }
+
     @Test("交換で札が消えたり増えたりしない")
     func conserved() {
         let before = hands()

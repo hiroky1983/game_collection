@@ -10,9 +10,18 @@ import SwiftUI
 ///
 /// 設定: 大阪に住む 65 歳。薄い頭に白髪まじりの側頭部、太い眉、鼻の下のヒゲ（メガネは無し・会長
 /// 指示 2026-09-15）、笑顔、黄色のポロシャツ、紺のズボン、前かご付きの赤いママチャリ。
+/// **思い立ったらママチャリでどこへでも行く、ちょっと変わったおじさん。**
+///
+/// ストーリー（会長決裁 2026-09-17〜18・#1092。**おじさんシリーズの他のゲームも同じ設定を使う**）:
+/// 商店街の福引きで当たった**宝くじ**が風に飛ばされ、どこまでも追いかけていく。あと一歩で掴み
+/// かけるたび、カラス・川・トラック・用水路・貨物船に邪魔されて次の土地へ飛んでいく。最後は
+/// （将来の版で）地獄の閻魔大王から取り返すが、**億だと思ったら 300 円**。
+/// なぜママチャリで海を渡れるのかは**一切説明しない**（そこがギャグ）。
 ///
 /// 走者のコマは 40×37 ドット（右向き）。1 ドット = 整数 pt で描く（`PixelSprite.cgImage(scale:)`）。
-/// 正面顔は 16×15 ドット（ハブのカード・リザルト・LP）。
+/// 正面顔は 32×30 ドット（ハブのカード・リザルト・ストーリーの胸像。#1349 で 16×15 から解像度を上げ、さらに会長指示で
+/// SD（ちびキャラ）寄りにデフォルメを強めた: 頭を丸く大きく、目を大きく、鼻と口を小さく、額を広く。配色・表情の意味は同じ）。
+/// 粗い版（16×15）は使うところが無くなったので #1349 で消した。
 public enum OjisanPixel {
     /// 共通パレット（SFC 風に彩度をやや落とし、暗い輪郭で締める）。
     public static let palette: [Character: UInt32] = [
@@ -56,6 +65,9 @@ public enum OjisanPixel {
     /// 正面顔の表情。
     public enum Face: String, CaseIterable, Sendable {
         case smile, cheer, frown
+        /// ぽかんと見送る（#1092 の世界の締め。宝くじに逃げられた直後・岸壁で船を見送る場面）。
+        /// 眉は八の字、口は小さく開いたまま。しかめ面（`frown`）と違って怒っても悔しがってもいない。
+        case gaze
     }
 
     public static func rider(_ frame: RiderFrame) -> PixelSprite {
@@ -73,19 +85,20 @@ public enum OjisanPixel {
         case .smile: return PixelSprite(rows: smileRows, palette: palette)
         case .cheer: return PixelSprite(rows: cheerRows, palette: palette)
         case .frown: return PixelSprite(rows: frownRows, palette: palette)
+        case .gaze: return PixelSprite(rows: gazeRows, palette: palette)
         }
     }
 
     // MARK: ハブ・リザルト用の正面顔
 
-    /// アイコン用キャンバスの一辺（ドット）。16×15 の顔を 24×24 の中央に置き、周りの余白で
+    /// アイコン用キャンバスの一辺（ドット）。32×30 の顔を 48×48 の中央に置き、周りの余白で
     /// 他ゲームの SF Symbol（枠の 5〜6 割の大きさ）と見た目の比率を揃える。
-    public static let iconCanvasDots = 24
+    public static let iconCanvasDots = 48
 
     /// 正面顔（笑顔）のビットマップ。起動後 1 回だけ作る（#700 の受け入れ条件: 毎表示でビットマップ化しない）。
-    /// 1 ドット = 4px で持ち、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
+    /// 1 ドット = 2px で持ち（旧 16×15 の 1 ドット = 4px と同じ 96px 四方）、表示側で枠の大きさに合わせて縮尺する（`mascotIcon`）。
     public static let mascotFaceImage: CGImage? =
-        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 4)
+        face(.smile).padded(width: iconCanvasDots, height: iconCanvasDots).cgImage(scale: 2)
 
     /// ハブのカード・おすすめ・設定などで `GameModule.icon` として出す正面顔。
     /// 呼び出し側は SF Symbol と同じく `.font(...)` で大きさを決めているが、ビットマップには効かないので
@@ -98,11 +111,16 @@ public enum OjisanPixel {
 
     // MARK: リザルト・スタート画面用の正面顔（#702）
 
-    /// 正面顔のドット数（幅 16 × 高さ 15）。表示側はこの比率で枠を切る（`faceImage` の doc）。
-    public static let faceDotSize: (width: Int, height: Int) = (width: 16, height: 15)
+    /// 高解像度化前（16×15）に対する正面顔の細かさ（縦横とも何倍か）。表示の大きさは旧来の
+    /// 「16 ドット × 倍率 pt」のままにしたいので、`faceDotSize` を `faceResolution` で割って枠を切る。
+    public static let faceResolution = 2
 
-    /// 3 表情のビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
-    /// 1 度だけ評価される）。1 ドット = 4px で持ち、表示側で整数倍の pt に縮尺する。
+    /// 正面顔のドット数（幅 32 × 高さ 30）。表示側はこの比率で枠を切る（`faceImage` の doc）。
+    public static let faceDotSize: (width: Int, height: Int) = (width: 16 * faceResolution, height: 15 * faceResolution)
+
+    /// 表情ごとのビットマップ。`mascotFaceImage` と同じく起動後 1 回だけ作る（`static let` は初回参照時に
+    /// 1 度だけ評価される）。1 ドット = 4px（128×120px）で持ち、
+    /// 表示側で縮尺する。
     public static let faceImages: [Face: CGImage] = {
         var out: [Face: CGImage] = [:]
         for face in Face.allCases { out[face] = Self.face(face).cgImage(scale: 4) }
@@ -112,8 +130,8 @@ public enum OjisanPixel {
     /// リザルト（クリア・ミス）とスタート画面に出す正面顔（#702）。
     ///
     /// 装飾（`Image(decorative:)`）なので VoiceOver は読まない。`resizable` + `interpolation(.none)` で
-    /// にじませない。呼び出し側は `faceDotSize` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt）。
-    /// 比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
+    /// にじませない。呼び出し側は `faceDotSize` ÷ `faceResolution` × 整数倍の `frame` を切る（例: 4 倍 = 64×60pt。
+    /// 1 ドット = 2pt）。比率を崩すと 1 ドットが縦横で違う大きさになるので、`frame` の幅と高さは必ず同じ倍率で決める。
     public static func faceImage(_ face: Face) -> Image {
         guard let cg = faceImages[face] else { return Image(systemName: "bicycle") }
         return Image(decorative: cg, scale: 1).resizable().interpolation(.none)
@@ -321,58 +339,139 @@ public enum OjisanPixel {
         "..KKTtttttTKK.......KKTtttttTKK.........",
         "...KKTTTTTKK.........KKTTTTTKK..........",
     ]
-    // smile 16x15
+    // smile 32x30（#1349・SD 寄りのデフォルメ）。頭を横幅いっぱいの丸い大きな輪郭にして首を無くし、額を広く取った
+    // 「薄い頭」（頭頂は地肌だけ・左上に W のツヤ・側頭部に H/h の髪と W の白髪）。目は 6×5 の黒目に Q のハイライト、
+    // 鼻は s の 2 段、頬は 5×3 の C、鼻の下のヒゲは h/H の 12〜14 幅、口は歯（Q）の見える笑い。
+    // 左右対称に描き、頭頂のツヤだけ左に寄せている。以下の「N 行」は配列の添字（0 始まり）。
     static let smileRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhShhSSSShhSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShMMMMhSsK.",
-        "..KKsSSQQQQSsKK.",
-        "....KsSSSSSsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
+        "..........KKKKKKKKKKKK..........",
+        ".......KKKSSSSSSSSSSSSKKK.......",
+        ".....KKHHSSSSSSSSSSSSSSHHKK.....",
+        "....KHWhSSSSSWWSSSSSSSSShWHK....",
+        "...KHHhhSSSSWSSSSSSSSSSShhHHK...",
+        "..KHHhhSSSSSSSSSSSSSSSSSShhHHK..",
+        "..KWHhhSSSSSSSSSSSSSSSSSShhHWK..",
+        ".KHHhhSSSSSSSSSSSSSSSSSSSShhHHK.",
+        ".KHWhhSSSSSSSSSSSSSSSSSSSShhWHK.",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHWhhSSShhhhhSSSSSShhhhhSSShhWHK",
+        "KHHhhSShhhhhhSSSSSShhhhhhSShhHHK",
+        "KHhhSSSSSSSSSSSSSSSSSSSSSSSShhHK",
+        "KHhhSSSSQQEESSSSSSSSEEQQSSSShhHK",
+        "KhhSSSSQQEEEESSSSSSEEEEQQSSSShhK",
+        "KhhSSSSQEEEEESSSSSSEEEEEQSSSShhK",
+        "KssSSSSEEEEEESSSSSSEEEEEESSSSssK",
+        "KssSSSSSEEEESSSSSSSSEEEESSSSSssK",
+        "KsSCCCCSSSSSSSSssSSSSSSSSCCCCSsK",
+        "KsCCCCCSSSSSSSssssSSSSSSSCCCCCsK",
+        "KsSCCCCSSShhhhHHHHhhhhSSSCCCCSsK",
+        ".KssSSSSShhhhhHHHHhhhhhSSSSSssK.",
+        ".KssSSSSSSSMSSSSSSSSMSSSSSSSssK.",
+        "..KssSSSSSSMQQQQQQQQMSSSSSSssK..",
+        "...KssSSSSSSMMMMMMMMSSSSSSssK...",
+        "....KssSSSSSSSSSSSSSSSSSSssK....",
+        "......KKKssSSSSSSSSSSssKKK......",
+        ".........KKKKKKKKKKKKKK.........",
+        "................................",
     ]
-    // cheer 16x15
+    // cheer 32x30（#1349）。smile と同じ格子で、眉（11 行）を少し上げ、口（23〜27 行）を顎まで届く大口＋下の歯に差し替え。
     static let cheerRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhShhSSSShhSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShMMMMhSsK.",
-        "..KKsMMMMMMMsKK.",
-        "....KsQQQQQsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
+        "..........KKKKKKKKKKKK..........",
+        ".......KKKSSSSSSSSSSSSKKK.......",
+        ".....KKHHSSSSSSSSSSSSSSHHKK.....",
+        "....KHWhSSSSSWWSSSSSSSSShWHK....",
+        "...KHHhhSSSSWSSSSSSSSSSShhHHK...",
+        "..KHHhhSSSSSSSSSSSSSSSSSShhHHK..",
+        "..KWHhhSSSSSSSSSSSSSSSSSShhHWK..",
+        ".KHHhhSSSSSSSSSSSSSSSSSSSShhHHK.",
+        ".KHWhhSSSSSSSSSSSSSSSSSSSShhWHK.",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHWhhSSSShhhhSSSSSShhhhSSSShhWHK",
+        "KHHhhSShhhhhhSSSSSShhhhhhSShhHHK",
+        "KHhhSSSSSSSSSSSSSSSSSSSSSSSShhHK",
+        "KHhhSSSSQQEESSSSSSSSEEQQSSSShhHK",
+        "KhhSSSSQQEEEESSSSSSEEEEQQSSSShhK",
+        "KhhSSSSQEEEEESSSSSSEEEEEQSSSShhK",
+        "KssSSSSEEEEEESSSSSSEEEEEESSSSssK",
+        "KssSSSSSEEEESSSSSSSSEEEESSSSSssK",
+        "KsSCCCCSSSSSSSSssSSSSSSSSCCCCSsK",
+        "KsCCCCCSSSSSSSssssSSSSSSSCCCCCsK",
+        "KsSCCCCSSShhhhHHHHhhhhSSSCCCCSsK",
+        ".KssSSSSShhhhhHHHHhhhhhSSSSSssK.",
+        ".KssSSSSSMMMMMMMMMMMMMMSSSSSssK.",
+        "..KssSSSSMMMMMMMMMMMMMMSSSSssK..",
+        "...KssSSSMQQQQQQQQQQQQMSSSssK...",
+        "....KssSSSMMMMMMMMMMMMSSSssK....",
+        "......KKKssSMMMMMMMMSssKKK......",
+        ".........KKKKKKKKKKKKKK.........",
+        "................................",
     ]
-    // frown 16x15
+    // frown 32x30（#1349）。smile と同じ格子で、眉（11〜13 行）を内側が下がる怒り眉に、口（24〜25 行）をヒゲの下のへの字に差し替え。
     static let frownRows: [String] = [
-        ".....KKKKKK.....",
-        "...KKHHSSHHKK...",
-        "..KHHhSSSShHHK..",
-        "..KHhSSSSSShHK..",
-        ".KHhSSShhShhSSHK",
-        ".KHhSQESSSSQESHK",
-        ".KhSSSSSsSSSSShK",
-        ".KsSSCSSSSSSCSsK",
-        ".KsSSShhHHhhSSsK",
-        "..KsSShhhhhhSsK.",
-        "..KKsSMMMMMSsKK.",
-        "....KsSSSSSsK...",
-        ".....KKssKKK....",
-        ".......KKK......",
-        "................",
+        "..........KKKKKKKKKKKK..........",
+        ".......KKKSSSSSSSSSSSSKKK.......",
+        ".....KKHHSSSSSSSSSSSSSSHHKK.....",
+        "....KHWhSSSSSWWSSSSSSSSShWHK....",
+        "...KHHhhSSSSWSSSSSSSSSSShhHHK...",
+        "..KHHhhSSSSSSSSSSSSSSSSSShhHHK..",
+        "..KWHhhSSSSSSSSSSSSSSSSSShhHWK..",
+        ".KHHhhSSSSSSSSSSSSSSSSSSSShhHHK.",
+        ".KHWhhSSSSSSSSSSSSSSSSSSSShhWHK.",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHWhhSShhhhSSSSSSSSSShhhhSShhWHK",
+        "KHHhhSSSShhhhhSSSShhhhhSSSShhHHK",
+        "KHhhSSSSSSShhhSSSShhhSSSSSSShhHK",
+        "KHhhSSSSQQEESSSSSSSSEEQQSSSShhHK",
+        "KhhSSSSQQEEEESSSSSSEEEEQQSSSShhK",
+        "KhhSSSSQEEEEESSSSSSEEEEEQSSSShhK",
+        "KssSSSSEEEEEESSSSSSEEEEEESSSSssK",
+        "KssSSSSSEEEESSSSSSSSEEEESSSSSssK",
+        "KsSCCCCSSSSSSSSssSSSSSSSSCCCCSsK",
+        "KsCCCCCSSSSSSSssssSSSSSSSCCCCCsK",
+        "KsSCCCCSSShhhhHHHHhhhhSSSCCCCSsK",
+        ".KssSSSSShhhhhHHHHhhhhhSSSSSssK.",
+        ".KssSSSSSSSSSSSSSSSSSSSSSSSSssK.",
+        "..KssSSSSSMMSSSSSSSSMMSSSSSssK..",
+        "...KssSSSSSSMMMMMMMMSSSSSSssK...",
+        "....KssSSSSSSSSSSSSSSSSSSssK....",
+        "......KKKssSSSSSSSSSSssKKK......",
+        ".........KKKKKKKKKKKKKK.........",
+        "................................",
+    ]
+    // gaze 32x30（#1349）。smile と同じ格子で、眉（11〜13 行）を八の字に、口（23〜25 行）を小さく開いた楕円（幅 4/6/4）に差し替え。頬はそのまま。
+    static let gazeRows: [String] = [
+        "..........KKKKKKKKKKKK..........",
+        ".......KKKSSSSSSSSSSSSKKK.......",
+        ".....KKHHSSSSSSSSSSSSSSHHKK.....",
+        "....KHWhSSSSSWWSSSSSSSSShWHK....",
+        "...KHHhhSSSSWSSSSSSSSSSShhHHK...",
+        "..KHHhhSSSSSSSSSSSSSSSSSShhHHK..",
+        "..KWHhhSSSSSSSSSSSSSSSSSShhHWK..",
+        ".KHHhhSSSSSSSSSSSSSSSSSSSShhHHK.",
+        ".KHWhhSSSSSSSSSSSSSSSSSSSShhWHK.",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHHhhSSSSSSSSSSSSSSSSSSSSSShhHHK",
+        "KHWhhSSSSSShhhSSSShhhSSSSSShhWHK",
+        "KHHhhSSShhhhhSSSSSShhhhhSSShhHHK",
+        "KHhhSSShhhSSSSSSSSSSSShhhSSShhHK",
+        "KHhhSSSSQQEESSSSSSSSEEQQSSSShhHK",
+        "KhhSSSSQQEEEESSSSSSEEEEQQSSSShhK",
+        "KhhSSSSQEEEEESSSSSSEEEEEQSSSShhK",
+        "KssSSSSEEEEEESSSSSSEEEEEESSSSssK",
+        "KssSSSSSEEEESSSSSSSSEEEESSSSSssK",
+        "KsSCCCCSSSSSSSSssSSSSSSSSCCCCSsK",
+        "KsCCCCCSSSSSSSssssSSSSSSSCCCCCsK",
+        "KsSCCCCSSShhhhHHHHhhhhSSSCCCCSsK",
+        ".KssSSSSShhhhhHHHHhhhhhSSSSSssK.",
+        ".KssSSSSSSSSSSMMMMSSSSSSSSSSssK.",
+        "..KssSSSSSSSSMMMMMMSSSSSSSSssK..",
+        "...KssSSSSSSSSMMMMSSSSSSSSssK...",
+        "....KssSSSSSSSSSSSSSSSSSSssK....",
+        "......KKKssSSSSSSSSSSssKKK......",
+        ".........KKKKKKKKKKKKKK.........",
+        "................................",
     ]
 }

@@ -7,42 +7,6 @@ import CoreTestSupport
 
 // MARK: - Mocks
 
-/// 送信されたイベントをそのまま溜めるスパイ。Firebase もネットワークも使わない。
-@MainActor
-private final class SpyAnalyticsService: AnalyticsService {
-    private(set) var events: [AnalyticsEvent] = []
-    func log(_ event: AnalyticsEvent) { events.append(event) }
-
-    var starts: [(gameID: String, level: AnalyticsLevel?)] {
-        events.compactMap {
-            if case let .gameStart(gameID, level, _) = $0 { return (gameID, level) }
-            return nil
-        }
-    }
-    var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
-        events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec, _, _) = $0 { return (gameID, result, durationSec) }
-            return nil
-        }
-    }
-    var rewards: [(gameID: String, purpose: RewardPurpose)] {
-        events.compactMap {
-            if case let .rewardAd(gameID, purpose) = $0 { return (gameID, purpose) }
-            return nil
-        }
-    }
-    /// リワード広告の要求（#659）。
-    var requests: [(gameID: String, purpose: RewardPurpose)] {
-        events.compactMap {
-            if case let .rewardRequest(gameID, purpose) = $0 { return (gameID, purpose) }
-            return nil
-        }
-    }
-    var quits: [(gameID: String, durationSec: Int)] {
-        ends.filter { $0.result == .quit }.map { ($0.gameID, $0.durationSec) }
-    }
-}
-
 /// 視聴完了 / 未完了を指定できる広告。
 private struct StubAdService: AdService {
     let earnsReward: Bool
@@ -109,7 +73,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -129,8 +93,8 @@ struct QuitTrackingTests {
 
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
-            case let .gameStart(_, _, mode):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _): return ("end", mode)
+            case let .gameStart(_, _, mode, _):     return ("start", mode)
+            case let .gameEnd(_, _, _, mode, _, _): return ("end", mode)
             default:                             return nil
             }
         }
@@ -375,6 +339,28 @@ struct OpenAndRequestTrackingTests {
         #expect(spy.events.isEmpty)
     }
 
+    @Test("共有ボタンを押すと share_tap だけが出て、プレイの数え方に触らない（#1043）")
+    func shareTapIsSentWithoutTouchingPlayState() {
+        let (services, spy) = makeServices()
+        services.gameDidStart(gameID: "2048")
+        services.gameDidProgress(gameID: "2048")
+        services.gameDidFinish(gameID: "2048", outcome: .loss)
+        services.gameDidTapShare(gameID: "2048")
+        services.gameDidTapShare(gameID: "2048")
+        services.gameDidLeave(gameID: "2048")
+
+        #expect(spy.events.map(\.name) == ["game_start", "game_end", "share_tap", "share_tap"],
+                "押した回数だけ出る。終局済みのプレイに quit は足されない")
+        #expect(spy.events.last == .shareTap(gameID: "2048"))
+    }
+
+    @Test("ハブに無い gameID の共有は送らない（#1043）")
+    func unknownGameIDShareIsDropped() {
+        let (services, spy) = makeServices()
+        services.gameDidTapShare(gameID: "device-1234")
+        #expect(spy.events.isEmpty)
+    }
+
     @Test("設定で送信をオフにすると、どちらのイベントも送らない")
     func gatedOffSendsNothing() async {
         let spy = SpyAnalyticsService()
@@ -387,6 +373,7 @@ struct OpenAndRequestTrackingTests {
         )
         services.gameDidOpen(gameID: "2048", source: .hub, position: 1, resume: false)
         _ = await services.showRewardedAd(gameID: "2048", purpose: .continue)
+        services.gameDidTapShare(gameID: "2048")
         #expect(spy.events.isEmpty)
     }
 }
@@ -442,11 +429,7 @@ struct GameOpenWiringTests {
 /// 呼び出しの形そのものを検査対象にする（`MotionTests` の走査と同じ考え方）。
 @Suite("リワード広告の発火箇所（#500）")
 struct RewardAdCallSiteTests {
-    private static let sourcesRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // AnalyticsTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // GameKit
-        .appendingPathComponent("Sources")
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
 
     /// `Sources/` 配下の Swift ファイル（Core を除く）を読み込む。
     private static func gameSources() throws -> [(path: String, text: String)] {
@@ -489,7 +472,8 @@ struct RewardAdCallSiteTests {
         // 「増やしたのに purpose を付け忘れた」も上のテストと合わせて検出できる。
         // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(counts.values.reduce(0, +) == 14, "リワード広告の面は14箇所（Core に寄せた待った・コンティニューの幕を除く）")
+        // 麻雀の最終局延長（#1201）で 1 か所増えて 17。
+        #expect(counts.values.reduce(0, +) == 17, "リワード広告の面は17箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 
@@ -501,11 +485,7 @@ struct RewardAdCallSiteTests {
 /// 各ゲームの操作を通しで再現できないため、呼び出しの存在そのものを検査対象にする。
 @Suite("プレイ計測の付け忘れ（#500）")
 struct PlayMeasurementCallSiteTests {
-    private static let sourcesRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // AnalyticsTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // GameKit
-        .appendingPathComponent("Sources")
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
 
     /// モジュール名 → そのモジュールの全ソースを連結した文字列。
     private static func modules() throws -> [String: String] {
@@ -520,7 +500,7 @@ struct PlayMeasurementCallSiteTests {
         return joined
     }
 
-    /// プレイを数えているモジュール（= ハブに並ぶ 21 本のゲーム）。
+    /// プレイを数えているモジュール（= ハブに並ぶ 23 本のゲーム）。
     private static func playingModules() throws -> [String: String] {
         try modules().filter {
             $0.value.contains("gameDidStart(") || $0.value.contains("gameDidRestart(")
@@ -530,7 +510,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 21, "ハブに並ぶゲームは21本")
+        #expect(games.count == 23, "ハブに並ぶゲームは23本")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,
@@ -554,9 +534,100 @@ struct PlayMeasurementCallSiteTests {
             "GameMinesweeper",   // 初級 / 中級 / 上級
             "GameOthello",       // CPU の強さ 3 段階
             "GameRunner",        // 面番号 1〜15
+            "GameShiritori",     // ノルマ 3 段階（やさしい / ふつう / むずかしい・#1243）
             "GameShogi",         // CPU の強さ 3 段階
             "GameSpider",        // 1 / 2 / 4 スート（#717）
             "GameSudoku",        // かんたん / ふつう / むずかしい
         ])
+    }
+}
+
+// MARK: - 無料ヒントの使用回数（#1326）
+
+@Suite("game_end の hints_used（#1326）")
+@MainActor
+struct HintsUsedTrackingTests {
+    private func endParameters(_ spy: SpyAnalyticsService) -> [[String: AnalyticsValue]] {
+        spy.events.compactMap { if case .gameEnd = $0 { return $0.parameters } else { return nil } }
+    }
+
+    @Test("パラメータ: 0 のときは鍵ごと送らず、1 以上のときだけ Int で載る")
+    func parameterOnlyWhenUsed() {
+        let none = AnalyticsEvent.gameEnd(gameID: "2048", result: .win, durationSec: 1)
+        #expect(none.parameters["hints_used"] == nil)
+        #expect(Set(none.parameters.keys) == ["game_id", "result", "duration_sec"])
+
+        let used = AnalyticsEvent.gameEnd(gameID: "2048", result: .win, durationSec: 1, hintsUsed: 3)
+        #expect(used.parameters["hints_used"] == .int(3))
+        #expect(Set(used.parameters.keys) == ["game_id", "result", "duration_sec", "hints_used"])
+    }
+
+    @Test("ヒントを使ってから途中離脱（leaveGame）しても quit に載る")
+    func quitAfterHintCarriesCount() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+
+        analytics.leaveGame(gameID: "2048", isResumable: false)
+
+        #expect(endParameters(spy).first?["result"] == .string("quit"))
+        #expect(endParameters(spy).first?["hints_used"] == .int(2))
+    }
+
+    @Test("ヒントを使ってから決着（finishPlay）しても載る")
+    func finishAfterHintCarriesCount() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+
+        analytics.finishPlay(gameID: "2048", outcome: .loss)
+
+        #expect(endParameters(spy).first?["hints_used"] == .int(1))
+    }
+
+    @Test("休憩（再開できる離脱）をまたいでも数えは残り、再開後の決着に載る")
+    func hintCountSurvivesResumableLeave() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        #expect(endParameters(spy).isEmpty)
+
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(endParameters(spy).first?["hints_used"] == .int(1))
+    }
+
+    @Test("次のプレイへ持ち越さない（始め直すと 0 に戻り、鍵も出ない）")
+    func restartResetsCount() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.startPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+        analytics.recordHintUsed(gameID: "2048")
+        analytics.restartPlay(gameID: "2048")
+        analytics.recordProgress(gameID: "2048")
+
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        let ends = endParameters(spy)
+        #expect(ends.count == 2)
+        #expect(ends.first?["hints_used"] == .int(1))
+        #expect(ends.last?.keys.contains("hints_used") == false)
+    }
+
+    @Test("決着後や開始を数えていないプレイのヒントは数えない")
+    func hintOutsideInFlightIsIgnored() {
+        let (analytics, spy) = makeAnalytics()
+        analytics.recordHintUsed(gameID: "2048")           // 開始前
+        analytics.startPlay(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        analytics.recordHintUsed(gameID: "2048")           // 決着後
+        analytics.restartPlay(gameID: "2048")
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(endParameters(spy).allSatisfy { $0.keys.contains("hints_used") == false })
     }
 }

@@ -27,7 +27,7 @@ public enum RunnerAccessibility {
     }
 
     /// 面の見出し「2-3」（#931。名前は #946 で外し番号だけ）。走行中の HUD・スタート画面の
-    /// 主ボタン・クリア表示の「つぎは」・ワールドマップで同じ形を使う。3 世界に収まらない番号
+    /// 主ボタン・クリア表示の「つぎは」・ワールドマップで同じ形を使う。どの世界にも収まらない番号
     /// （範囲外）は「ステージ N」に倒す。
     public static func stageHeadline(number: Int) -> String {
         guard RunnerWorld.contains(stage: number) else { return "ステージ \(number)" }
@@ -80,13 +80,31 @@ public enum RunnerAccessibility {
     }
 
     /// エンドレスの結果。ステージ番号の代わりに走行距離を言う。
+    ///
+    /// エンドレスにゴールは無い（#1086）ので `.cleared` / `.allCleared` にはならない。switch を
+    /// 網羅するために、万一来ても走行距離だけを言う（「走りきった」とは言わない）。
     public static func endlessResultLabel(phase: RunnerPhase, distance: Int) -> String {
         switch phase {
         case .falling, .failed: return "\(max(0, distance))メートルでミスしました"
-        case .cleared, .allCleared: return "コースを走りきりました。\(distanceLabel(distance))"
+        // 締め（`.story`・#1092）もステージ制だけの局面なので、同じくここには来ない。
+        case .chasing, .story, .cleared, .allCleared: return distanceLabel(distance)
         case .paused:     return "一時停止中"
         case .ready:      return "エンドレス。タップでスタート"
         case .running:    return "走行中"
+        }
+    }
+
+    /// コースを二本指ダブルタップしたとき何が起きるか。
+    ///
+    /// ゴールの演出中（`.chasing`・#1092）だけは**ジャンプではなく演出を飛ばす**操作になるので、
+    /// ヒントの文言も入れ替える（`RunnerModel.press` の分岐と 1:1）。
+    /// 世界の締め（`.story`・#1092）も同じくジャンプにはならない。あちらはオーバーレイ側が
+    /// 「スキップ」ボタンを持つので、コースのヒントは何も起きないことだけを言う。
+    public static func courseHint(phase: RunnerPhase) -> String {
+        switch phase {
+        case .chasing: return "ダブルタップで演出をスキップ"
+        case .story:   return "おはなしを表示中です"
+        default:       return "ダブルタップでジャンプ"
         }
     }
 
@@ -95,6 +113,12 @@ public enum RunnerAccessibility {
         switch phase {
         case .falling:    return "ステージ \(stageNumber) でミスしました"
         case .failed:     return "ステージ \(stageNumber) でミスしました"
+        // ゴールの演出中（#1092）も、記録はもう確定しているのでクリアと言い切る
+        // ——読み上げが「走行中」のまま 1.5 秒待たされるのを避ける。
+        case .chasing:    return "ステージ \(stageNumber) クリア"
+        // 世界の締め（#1092）はオーバーレイ自身が場面と台詞を読み上げるので、
+        // 背後のコースはクリアの事実だけを言う。
+        case .story:      return "ステージ \(stageNumber) クリア"
         case .cleared:    return "ステージ \(stageNumber) クリア"
         case .allCleared: return "全ステージクリア"
         case .paused:     return "一時停止中"

@@ -107,12 +107,14 @@ struct MahjongTableView: View {
 
     /// 上家・下家の副露。壁の列に沿って 1 枚ずつ置く（置き場は `MahjongTableLayout.sideMeldSlot`。
     /// 台形だった頃は列が斜めになるので 1 枚ずつ置いた。長方形でも組の間隔をそこで持てるので変えていない）。
+    /// 列に収まらないときは牌が縮む（`sideMeldTileWidth`。#1065）。
     private func sideMelds(_ seat: Int) -> some View {
         let tiles: [(group: Int, tile: MahjongTile)] = scene.melds[seat].enumerated()
             .flatMap { gi, meld in meld.tiles.map { (group: gi, tile: $0) } }
+        let tileWidth = layout.sideMeldTileWidth(seat: seat, meldSizes: scene.melds[seat].map { $0.tiles.count })
         return ForEach(Array(tiles.enumerated()), id: \.offset) { ordinal, item in
-            let slot = layout.sideMeldSlot(seat: seat, ordinal: ordinal, gaps: item.group)
-            let w = layout.riverTileWidth * slot.scale
+            let slot = layout.sideMeldSlot(seat: seat, ordinal: ordinal, gaps: item.group, tileWidth: tileWidth)
+            let w = tileWidth * slot.scale
             MahjongTileView(tile: item.tile, width: w, height: w * MahjongTableLayout.tileAspect)
                 .rotationEffect(.degrees(slot.rotation))
                 .position(slot.center)
@@ -247,8 +249,13 @@ struct MahjongCenterPanel: View {
         return HStack(spacing: unit * 0.04) {
             Text(wind)
                 .font(.system(size: unit * 0.14, weight: .black, design: .rounded))
-                .foregroundStyle(isCurrent ? Color(hex: 0xFFD54A) : Color(hex: 0xB8B8C0))
-                .shadow(color: isCurrent ? Color(hex: 0xFFD54A).opacity(0.8) : .clear, radius: unit * 0.04)
+                // 自風以外の東西南北が黒地に沈んで見えにくかった（会長指摘）ので、地の色を白に近づけ、
+                // 自風と同じ発光を弱めた形で足す。手番の金色との差は保ったまま、暗い方の下限を上げる。
+                .foregroundStyle(isCurrent ? Color(hex: 0xFFD54A) : Color(hex: 0xF0F0F5))
+                .shadow(
+                    color: isCurrent ? Color(hex: 0xFFD54A).opacity(0.8) : Color.white.opacity(0.5),
+                    radius: unit * 0.04
+                )
             led("\(scene.scores[index])", size: unit * 0.135)
             if scene.riichi[index] {
                 Text("立直")

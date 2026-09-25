@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 
 /// ゲーム画面の共通枠（#528）が、全ゲームで**本当に**共通のものを通っているかを見る。
 ///
@@ -13,11 +14,7 @@ struct GameChromeSourceTests {
 
     /// `Sources/` 直下のゲームごとのディレクトリ（Core と牌の描画部品を除く）。
     private static let gameDirectories: [(name: String, files: [String])] = {
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameChromeTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources")
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
         let excluded: Set<String> = ["Core", "MahjongTiles"]
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: sources.path)) ?? [])
             .filter { $0.hasPrefix("Game") && !excluded.contains($0) }

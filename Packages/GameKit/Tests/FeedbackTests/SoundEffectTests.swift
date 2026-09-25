@@ -47,11 +47,24 @@ struct ToneGeneratorTests {
         #expect(actual == expected)
     }
 
-    @Test("どの効果音も 0.3 秒未満に収まる（操作のテンポを妨げない）", arguments: SoundEffect.allCases)
+    @Test(
+        "fanfare 以外は 0.3 秒未満に収まる（操作のテンポを妨げない）",
+        arguments: SoundEffect.allCases.filter { $0 != .fanfare }
+    )
     func soundsAreShort(effect: SoundEffect) {
         let seconds = effect.steps.reduce(0) { $0 + $1.duration }
         #expect(seconds > 0)
         #expect(seconds < 0.3)
+    }
+
+    /// `fanfare` は頻繁に鳴る操作音ではなく「大きな節目の達成」1 回だけに使うので、
+    /// 上の 0.3 秒制約から意図的に外れる（会長指示・2026-09-23）。長すぎて不自然にならない
+    /// 程度の上限だけ別に固定する。
+    @Test("fanfare は他より長いが 1.5 秒は超えない")
+    func fanfareIsLongerButBounded() {
+        let seconds = SoundEffect.fanfare.steps.reduce(0) { $0 + $1.duration }
+        #expect(seconds > 0.3, "他の音より明確に長い")
+        #expect(seconds < 1.5)
     }
 
     @Test("振幅が 16bit の範囲に収まり、音が割れない", arguments: SoundEffect.allCases)
@@ -110,7 +123,7 @@ struct SoundEffectMappingTests {
     @Test("FeedbackImpact / FeedbackNotice の全ケースが 1 対 1 で対応する")
     func mappingIsOneToOne() {
         let impacts: [FeedbackImpact] = [.light, .medium, .rigid]
-        let notices: [FeedbackNotice] = [.success, .warning, .error]
+        let notices: [FeedbackNotice] = [.success, .warning, .error, .milestone]
         let mapped = impacts.map(SoundEffect.init) + notices.map(SoundEffect.init)
         #expect(Set(mapped).count == mapped.count, "同じ効果音に潰れていない")
         #expect(Set(mapped) == Set(SoundEffect.allCases), "取りこぼしが無い")

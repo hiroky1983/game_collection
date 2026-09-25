@@ -38,11 +38,13 @@ struct GomokuSnapshot: Codable {
     let winner: Int?
     /// 連珠の禁じ手ルール（#441）。旧スナップショットには無いので optional。
     let forbiddenMoves: Bool?
+    /// この局で使ったヒントの回数（#1118）。鍵を持たない v1.1.5 までの中断データでは nil = 未使用。
+    let hintsUsed: Int?
 }
 
 @MainActor
 @Observable
-public final class GomokuModel: AITurnGuarded, BoardUndoModel {
+public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var board: GomokuBoard
     public private(set) var currentStone: GomokuStone
     public private(set) var humanSide: GomokuStone
@@ -56,6 +58,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
     public private(set) var lastMove: (row: Int, col: Int)?
     public private(set) var moveCount: Int
     public private(set) var undoUsed: Bool
+    /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェスと共通）。
+    public private(set) var hints: BoardHintBudget
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
@@ -98,6 +102,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         let lastMove: (row: Int, col: Int)?
         let undoUsed: Bool
         let resigned: Bool
+        let hintsUsed: Int
         let savedWinner: GomokuStone?
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
@@ -132,6 +137,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
             }
             undoUsed    = snap.undoUsed ?? false
             resigned    = snap.resigned ?? false
+            // 鍵を持たない v1.1.5 までの中断データは「まだ使っていない」として読む（#1118）。
+            hintsUsed   = snap.hintsUsed ?? 0
             savedWinner = snap.winner.flatMap { GomokuStone(rawValue: $0) }
         } else {
             board        = GomokuBoard()
@@ -145,6 +152,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
             lastMove     = nil
             undoUsed     = false
             resigned     = false
+            hintsUsed    = 0
             savedWinner  = nil
             isFreshStart = true
         }
@@ -164,6 +172,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         self.lastMove     = lastMove
         self.undoUsed     = undoUsed
         self.resigned     = resigned
+        self.hints        = BoardHintBudget(used: hintsUsed)
         // 勝ち筋は保存せず、直前手から引き直す（決着を書いた中断データでも光るように）。
         if let savedWinner, !resigned, let last = lastMove, board[last.row, last.col] == savedWinner {
             self.winningLine = board.winningLine(row: last.row, col: last.col)
@@ -211,6 +220,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         let mover = currentStone
         // 打てた時点で直前の拒否は解消している。View の禁じ手表示もここで消える（#441）。
         lastRejection = nil
+        // 盤が動いたらヒントの印は用済み（#1118）。示した交点に打ったかどうかは問わない。
+        hintPoint = nil
         board[row, col] = currentStone
         moves.append((row, col, currentStone))
         lastMove = (row, col)
@@ -224,12 +235,12 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: mover == humanSide ? .win : .loss,
-                score: GameScore(metric: .winLoss)
+                score: hints.winLossScore
             )
         } else if board.isFull {
             isDraw = true
             services?.feedback.notify(.warning)
-            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .draw, score: GameScore(metric: .winLoss))
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .draw, score: hints.winLossScore)
         } else {
             currentStone = currentStone.opponent
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
@@ -289,6 +300,53 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         }
     }
 
+    // MARK: - ヒント（#1118）
+
+    /// ヒントで示している交点。着手・待った・新規対局・投了で消える（盤が変われば印は嘘になる）。
+    /// **永続化しない** — 中断データに残すのは使った回数だけ（将棋・チェスと同じ）。
+    public private(set) var hintPoint: GomokuPoint?
+    /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
+    /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「思考中…」と名乗る）。
+    public private(set) var isHintThinking: Bool = false
+
+    /// 残り回数（`BoardHintButton` が読む）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// いまヒントを押せるか。**自分の手番で、対局中で、残りが在るとき**だけ。
+    public var canUseHint: Bool {
+        !gameOver && !hints.isExhausted && !isAITurn && !isThinking && !isHintThinking
+    }
+
+    /// 現在の盤面の最善手を 1 手求め、盤の上に示す（#1118。将棋・チェスと同型）。
+    ///
+    /// 読みは CPU の着手と同じ `AITurnGuarded` の照合に載せる（#531）。**求まらなかった局・
+    /// 盤が変わった局では回数を減らさない**。禁じ手ルールは今の対局の設定をそのまま渡す
+    /// （渡さないと、黒に三三の点を勧めて「打てません」と断られる手を示してしまう・#441）。
+    public func requestHint() async {
+        guard canUseHint else { return }
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let b = board
+            let stone = currentStone
+            let renju = forbiddenMovesEnabled
+            return await Task.detached(priority: .userInitiated) {
+                // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
+                // 五目並べの level 0（弱）は探索せず確率で見逃すので、合わせると最善手にならない（#665）。
+                await SimpleGomokuEngine(level: BoardHintBudget.engineLevel, forbiddenMoves: renju)
+                    .bestMove(board: b, stone: stone)
+            }.value
+        } commit: { move in
+            // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
+            guard !gameOver, !isAITurn, !hints.isExhausted,
+                  let (row, col) = move, board[row, col] == nil,
+                  hints.consume() else { return }
+            services?.gameDidUseHint(gameID: gameID)
+            hintPoint = GomokuPoint(row: row, col: col)
+            services?.feedback.impact(.light)
+            // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
+            persist()
+        }
+    }
+
     public func newGame(humanSide: GomokuStone = .black, aiLevel: Int = 1, forbiddenMoves: Bool = false) {
         board          = GomokuBoard()
         currentStone   = .black
@@ -304,14 +362,19 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         moves          = []
         undoUsed       = false
         resigned       = false
+        // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
+        hints.reset()
+        hintPoint      = nil
         recordResult   = nil
         startedAt      = Date()
         gameSerial    += 1
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする。
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking     = false
+        // ヒントの読みも同じ理由で下ろす（#1118）。旧タスクの defer は対局が変わると旗に触らない。
+        isHintThinking = false
         persist()
-        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     // MARK: - 投了
@@ -320,10 +383,12 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         guard !gameOver else { return }
         // 投了で盤の意味が変わるので、直前の拒否の理由も一緒に片付ける（#518）。
         lastRejection = nil
+        // ヒントの印も同じ理由で片付ける（#1118）。
+        hintPoint = nil
         resigned = true
         winner = humanSide.opponent
         services?.feedback.notify(.error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
         persist()
     }
 
@@ -346,6 +411,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
         guard canUndo else { return }
         // 盤が2手ぶん戻ると禁じ手の成立条件も変わるので、古い理由の帯を残さない（#518）。
         lastRejection = nil
+        // ヒントの印も 2 手前の盤には合わないので消す（#1118。回数は戻さない）。
+        hintPoint = nil
         moves.removeLast(2)
         board        = Self.board(from: moves)
         moveCount    = moves.count
@@ -396,7 +463,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel {
             undoUsed: undoUsed,
             resigned: resigned ? true : nil,
             winner: winner?.rawValue,
-            forbiddenMoves: forbiddenMovesEnabled ? true : nil
+            forbiddenMoves: forbiddenMovesEnabled ? true : nil,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

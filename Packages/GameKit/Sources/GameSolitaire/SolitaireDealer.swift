@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// 配札。種（seed）から決定的に作るので、同じ種はいつでも同じ盤面を再現する。
 ///
@@ -63,16 +64,5 @@ public enum SolitaireDealer {
 }
 
 /// 決定的な乱数生成器（SplitMix64）。配札は種から再現できる必要があるので system の乱数は使わない。
-public struct SolitaireSeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    public init(seed: UInt64) { self.state = seed }
-
-    public mutating func next() -> UInt64 {
-        state &+= 0x9E3779B97F4A7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
-        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
-        return z ^ (z >> 31)
-    }
-}
+/// 実体は CoreEngine の `SplitMix64`（#916 で 5 ゲームぶんのコピーを 1 本に寄せた）。
+public typealias SolitaireSeededGenerator = SplitMix64

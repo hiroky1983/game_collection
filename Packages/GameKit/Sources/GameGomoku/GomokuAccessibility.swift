@@ -7,7 +7,12 @@ import Foundation
 /// View を組まずにテストできるようにする。
 public enum GomokuAccessibility {
     /// 交点 1 つの読み上げ文（例: "8行8列、黒石、直前の手"）。
-    public static func pointLabel(row: Int, col: Int, stone: GomokuStone?, isLastMove: Bool) -> String {
+    ///
+    /// - Parameter isHint: ヒントが示している交点か（#1118）。見た目の印（`GomokuView.hintMark`）と
+    ///   同じ条件で読ませる。
+    public static func pointLabel(
+        row: Int, col: Int, stone: GomokuStone?, isLastMove: Bool, isHint: Bool = false
+    ) -> String {
         var parts = ["\(row + 1)行\(col + 1)列"]
         switch stone {
         case .black: parts.append("黒石")
@@ -15,6 +20,7 @@ public enum GomokuAccessibility {
         case nil:    parts.append("空点")
         }
         if isLastMove { parts.append("直前の手") }
+        if isHint { parts.append("ヒントの手") }
         return parts.joined(separator: "、")
     }
 }

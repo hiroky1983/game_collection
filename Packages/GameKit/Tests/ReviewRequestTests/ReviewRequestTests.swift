@@ -19,10 +19,12 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+@testable import GameShiritori
 import GameSpider
 import GameChess
 import MahjongTiles
 import CoreTestSupport
+import GameRunnerTestSupport
 
 // MARK: - 共通のヘルパー
 
@@ -470,14 +472,24 @@ struct GameOutcomeRoutingTests {
     func runnerStageClear() {
         let (services, service) = makeServices(suite: "route-runner")
         let model = RunnerModel(services: services, startingAt: 1)
-        failRunnerStage(model)
+        failCurrentStage(model)
         #expect(model.phase == .failed)
         #expect(service.log.totalWins == 0, "ミスは決着ではない")
 
         model.retryStage()
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
         #expect(service.log.totalWins == 1)
+    }
+
+    @Test("カードしりとり: 1 枚も取らずに時間切れになっても勝利にならない")
+    func shiritoriTimeUpWithNothingTakenIsNotAWin() {
+        let (services, service) = makeServices(suite: "route-shiritori")
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 2026)
+        model.startGame(quota: .easy)
+        model.tick(ShiritoriTime.initial)
+        #expect(model.phase == .result)
+        #expect(service.log.totalWins == 0)
     }
 
     @Test("花札こいこい: 投了は勝利にならない")
@@ -814,38 +826,6 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
         case .idle, .gameResult:
             return
         }
-    }
-}
-
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
-@MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
-/// 一度も跳ばずに走らせてミスさせる。
-@MainActor
-private func failRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        model.tick(dt: 1.0 / 60)
     }
 }
 

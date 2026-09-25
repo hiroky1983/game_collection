@@ -66,6 +66,40 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// **岩にぶつかると止まる**（`RunnerHazard.stopAt`）: 出会う地点と出現点のあいだに岩があれば、
     /// その岩の右側で止まって低い岩と同じ置物になる（「岩の手前に置くと岩で止まる」読み）。
     case boar
+    /// 下から突き上げてくる障害（#1010・区画記号 `^`）。里山では**竹の子**、港町では**波しぶき**。
+    /// 30 面化（#1009）の新しい仕組み 4 つのうちの 1 つで、19〜30 面にだけ置く。
+    ///
+    /// - 地面の中にいるあいだは**当たり判定を持たない**（`frame(atRunnerDistance:)` が nil）
+    /// - 走者の前端が `RunnerRules.shootTriggerDistance`（= その区画が画面の右端に入る間合い）まで
+    ///   近づいた瞬間に予告（土が盛り上がる／泡が立つ）が出て、そこから走者が
+    ///   `RunnerRules.shootRiseDistance` 進むあいだに**高い岩と同じ高さ**（`shootTop`）まで伸び切る
+    /// - **踏み切るべき地点に走者が来るより手前で伸び切る**（`RunnerHazardMotionTests` が固定）。
+    ///   踏切のように「運で死ぬ瞬間」は無く、伸び切った状態なら高い岩とまったく同じように跳び越せる
+    /// - 伸びている途中の当たり判定は**見た目の高さと一致**する（`frame.top` がそのまま伸びた高さ）
+    /// - **低い岩（切り株）と見分けるのは予告**。予告が出る前の地面は何も無い地面と同じに見えてよく、
+    ///   予告を読んで「低く跳ぶか高く跳ぶか」を決めるのがこの仕組みの遊び（新しい操作は足さない）
+    ///
+    /// 横には動かない（`advance` は常に 0）ので、走者から見て等価な静止区間（`encounter`）は
+    /// **高い岩とまったく同じ**——ステージの成立条件（`RunnerStageTests` の間隔・跳び越し）は
+    /// 高い岩 `t` を置いたときと 1 単位も変わらない。
+    case shoot
+    /// 二段ジャンプでしか越えられない高い塀（#1091・区画記号 `w`）。里山では**石垣**、
+    /// 港町では**積まれたコンテナ**。30 面化（#1009）の新しい仕組み 4 つのうちの 1 つで、
+    /// 19〜30 面にだけ置く。
+    ///
+    /// **当たり判定の作りは高い岩とまったく同じ**（地面から生えていて、正面から当たるとミス・
+    /// 上には乗れない）で、**違うのは高さだけ**（`wallTop` = 18）。一段ジャンプの頂点
+    /// （`RunnerRules.jumpApex` ≒ 14.06）より高く、二段ジャンプの頂点
+    /// （`RunnerRules.doubleJumpApex` ≒ 28.13）より低いので、**二段目を踏まないとどう跳んでも
+    /// 越えられない**——すでに実装済みで、チュートリアルでも教えているのに使う場面が無かった
+    /// 二段ジャンプ（`RunnerRules.maxJumps`）に、初めて必然性を与える障害。
+    ///
+    /// 横には動かないので、走者から見た等価な静止区間（`encounter`）は置いた位置そのもの
+    /// ——間隔の式は岩と同じで、**踏み切りの余裕（`RunnerAutoPilot.lead`）だけが二段ぶん**に
+    /// なる（`RunnerRules.doubleJumpRiseTime(to:)`）。
+    ///
+    /// 解析の死因は決裁どおり**高い岩と同じ `rock`**（`AnalyticsEndCause` は増やさない）。
+    case wall
 
     /// 当たり判定の**下端**（地面からの高さ）。地面から生えている障害は 0。
     ///
@@ -74,8 +108,8 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 止まった鳥に触れることは無い。
     public var bottom: Double {
         switch self {
-        case .pit, .lowBlock, .tallBlock, .dog, .boar: return 0
-        case .bird:                                    return Self.birdLowTop - Self.birdBandHeight
+        case .pit, .lowBlock, .tallBlock, .dog, .boar, .shoot, .wall: return 0
+        case .bird:                                                  return Self.birdLowTop - Self.birdBandHeight
         }
     }
 
@@ -83,6 +117,8 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     ///
     /// **ジャンプの頂点（`RunnerRules.jumpApex`）より十分低く**すること。越えられない高さを置くと
     /// ステージが詰む。`RunnerStageTests` が全ステージで機械的に確かめる。
+    /// **唯一の例外が高い塀（`wall`・#1091）**で、こちらは一段の頂点より**高く**、二段ジャンプの
+    /// 頂点（`RunnerRules.doubleJumpApex`）より低い——「二段で越えろ」がそのまま高さになっている。
     /// 動く障害（犬・イノシシ）は**走者と出会うときの上端**。鳥だけは例外で、これは**止まっている
     /// あいだの上端**（低い岩と同じ 5）——走者と出会うときの帯は頭より上（`birdMeetBottom` から
     /// 上）にあり、跳んで越える相手ではなく下を抜ける相手なので「越える高さ」は無い。
@@ -95,6 +131,8 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
         case .lowBlock:          return 5
         case .tallBlock:         return 9
         case .bird, .dog, .boar: return Self.birdLowTop
+        case .shoot:             return Self.shootTop
+        case .wall:              return Self.wallTop
         }
     }
 
@@ -102,15 +140,28 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     public var isAnimal: Bool { self == .dog || self == .boar }
 
     /// 岩か（イノシシが止まる相手・#801）。
+    ///
+    /// **突き上げ（#1010）は岩に数えない。** イノシシが突進して通り抜ける時点で突き上げはまだ
+    /// 地面の中（予告はイノシシが通り過ぎたあとに出る）なので、ぶつかる物が無い。
+    /// 突き上げの手前にイノシシを置かないことは `RunnerStageTests` が機械的に弾く（#1009 の
+    /// 「入れない組み合わせ」）。
+    ///
+    /// **高い塀（#1091）も岩には数えない。** 突き上げと同じく、手前にイノシシを置かないことを
+    /// `RunnerStageTests` が機械的に弾く（#1009 の「入れない組み合わせ」）ので、止まる相手として
+    /// 数える必要が無い。数えてしまうと、塀の後ろで止まったイノシシを「塀ごと越えきれるか」
+    /// （`RunnerEndlessCourse.isClearableWithBoarBehind`）という一段ジャンプ前提の式に掛けることになる。
     public var isRock: Bool { self == .lowBlock || self == .tallBlock }
 
     /// この障害にやられたときの死因（`game_end` の `cause`・#796）。語彙は Core の enum に閉じる。
+    ///
+    /// 突き上げ（#1010）と高い塀（#1091）は**跳び越し損ねた岩と同じ `rock`**
+    /// （どちらも決裁どおり `AnalyticsEndCause` は増やさない）。
     public var missCause: AnalyticsEndCause {
         switch self {
-        case .pit:                  return .pit
-        case .lowBlock, .tallBlock: return .rock
-        case .bird:                 return .bird
-        case .dog, .boar:           return .animal
+        case .pit:                         return .pit
+        case .lowBlock, .tallBlock, .shoot, .wall: return .rock
+        case .bird:                        return .bird
+        case .dog, .boar:                  return .animal
         }
     }
 
@@ -132,6 +183,40 @@ public enum RunnerHazardKind: String, Codable, Equatable, Sendable, CaseIterable
     /// 絵の見た目の倍率（`RunnerBirdArt.visualScale`・#943）はこの値に効かない——描く絵は
     /// 帯より大きいが、帯の厚みは倍率 1 の絵の寸法のまま。
     static let birdBandHeight: Double = RunnerBirdArt(width: RunnerRules.tileWidth).bandHeight
+
+    /// 突き上げ（#1010）が伸び切った高さ。**高い岩とまったく同じ**（決裁「伸び切った高さは
+    /// 高い岩（9）と同じ。それより高くしない」）。
+    ///
+    /// 値を書き写さず `tallBlock.height` から導いているのは、岩の高さを触った日に片方だけ
+    /// 古い値で取り残されるのを防ぐため（鳥の `birdLowTop` が `lowBlock.height` から
+    /// 導いているのと同じ作法）。この一致は `RunnerHazardMotionTests` が固定する。
+    public static var shootTop: Double { tallBlock.height }
+
+    /// 高い塀（#1091）の高さ。**一段ジャンプでは絶対に届かず、二段ジャンプなら十分余る**値。
+    ///
+    /// 両側の余裕（決裁の受け入れ条件「両側の余裕とその根拠をコメントに書く」）:
+    ///
+    /// | | 高さ | 18 との差 |
+    /// |---|---|---|
+    /// | 高い岩（今までいちばん高い障害） | 9 | ちょうど 2 倍（一目で別物と分かる寸法） |
+    /// | 一段ジャンプの頂点（`RunnerRules.jumpApex`） | 14.06 | **3.94 低い**（塀の 22%） |
+    /// | 二段ジャンプの頂点（`RunnerRules.doubleJumpApex`） | 28.13 | **10.13 高い**（塀の 56%） |
+    ///
+    /// - **下側**: 越えるには上端 + `RunnerAutoPilot.clearance`（0.5）= 18.5 を足が超える必要があり、
+    ///   一段の頂点は 14.06。**踏み切り方をどう変えても届かない**——`jumpVelocity` は長押しでも
+    ///   伸びない最大値で、切り詰め（`endHold`）は頂点を下げる方向にしか効かない。地面の高さは
+    ///   全ステージ共通（#635）で、塀の隣に台座は置かないので「高いところから跳ぶ」抜け道も無い
+    ///   （`RunnerDoubleJumpWallTests.singleJumpNeverClearsTheWall` が踏み切り位置を 1 単位刻みで
+    ///   ずらして実際に走らせ、全部ミスになることを確かめる）
+    /// - **上側**: 20 ではなく 18 なのは、**二段目の押し始めの猶予**（決裁「0.2 秒以上」）で決まる。
+    ///   塀が高いほど「上端より上にいられる時間」が短くなり、押せる時間帯が細る。実測
+    ///   （`RunnerDoubleJumpWallTests.doubleJumpWindowIsGenerousOnEveryStage` と同じ条件）では、
+    ///   一段目を**短く押した**（弾道が切り詰められる）場合の猶予がいちばん狭く、
+    ///   塀を置いた面の速さ 52.4〜57.2 で **20 なら 0.15〜0.18 秒**（下限割れ）・**18 なら 0.22〜0.23 秒**。
+    ///   長押しなら 18 で 0.31〜0.33 秒ある。**18 は 0.2 秒を満たせるいちばん高い値**
+    ///
+    /// 高くしすぎると二段目が「目押し」になり、低くしすぎると高い岩との見分けが付かなくなる。
+    public static let wallTop: Double = 18
 }
 
 /// 動く障害の**いまの当たり判定**（#796）。座標はワールド座標、高さは地面からの相対値。
@@ -225,11 +310,34 @@ public struct RunnerHazard: Equatable, Sendable {
     /// 予告の手応え（#801 イノシシ）。現れる瞬間の走者の距離と、そのとき出すできごと。
     /// 予告の無い障害は nil（犬は前から歩いて来るのが見えるので予告しない・#955）。
     /// `RunnerField.step` がこの距離をまたいだサブステップで 1 回だけ出す。
+    /// 突き上げ（#1010）は手応えを持たない——予告は**見て読むもの**（土が盛り上がる／泡が立つ）で、
+    /// 「予告で見分けて跳ぶ高さを変える」が遊びの芯だから（`RunnerScene.addShoot` が
+    /// `shootRise(atRunnerDistance:)` から描く）。
     public var cue: (distance: Double, event: RunnerEvent)? {
         switch kind {
-        case .pit, .lowBlock, .tallBlock, .bird, .dog: return nil
+        case .pit, .lowBlock, .tallBlock, .bird, .dog, .shoot, .wall: return nil
         case .boar: return (boarChargeStartDistance, .boarCharging)
         }
+    }
+
+    // MARK: 突き上げ（#1010 竹の子・波しぶき）
+
+    /// 突き上げの予告が出て伸び始める走者の距離（中心 x）。**前端**が
+    /// `RunnerRules.shootTriggerDistance` まで近づいた瞬間で、鳥の `birdTakeoffDistance`・
+    /// イノシシの `boarChargeStartDistance` と同じ作法。
+    public var shootCueDistance: Double {
+        start - RunnerRules.shootTriggerDistance - RunnerField.Metrics.playerHalfWidth
+    }
+
+    /// いま伸びている高さ（地面から。予告の前は 0、伸び切ると `RunnerHazardKind.shootTop`）。
+    ///
+    /// 当たり判定（`frame`）と見た目（`RunnerScene.syncMovingHazard`）は**両方ここを読む**ので、
+    /// 「見た目の高さと当たり判定が一致する」（決裁）が構造的に守られる。
+    public func shootRise(atRunnerDistance distance: Double) -> Double {
+        let travel = distance - shootCueDistance
+        guard travel > 0 else { return 0 }
+        let full = RunnerHazardKind.shootTop
+        return min(full, full * travel / RunnerRules.shootRiseDistance)
     }
 
     /// イノシシの予告（手応え）が出て突進が始まる走者の距離。土煙は本体の足元に付いており
@@ -245,7 +353,8 @@ public struct RunnerHazard: Equatable, Sendable {
     /// イノシシ・画面の右に現れる前の犬）は nil。岩・穴は常に置いた場所そのもの。
     public func frame(atRunnerDistance distance: Double) -> RunnerHazardFrame? {
         switch kind {
-        case .pit, .lowBlock, .tallBlock:
+        case .pit, .lowBlock, .tallBlock, .wall:
+            // 高い塀（#1091）は置いた場所から動かない——高い岩と同じ 1 行で足りる。
             return RunnerHazardFrame(start: start, end: end, bottom: bottom, top: height, advance: 0)
         case .bird:
             let travel = birdTravel(atRunnerDistance: distance)
@@ -278,6 +387,12 @@ public struct RunnerHazard: Equatable, Sendable {
                 start: charging, end: charging + length, bottom: 0, top: height,
                 advance: -RunnerRules.boarAdvance
             )
+        case .shoot:
+            // 予告が出る前は地面の中——当たり判定を持たない（`RunnerField.nextHazard` の
+            // 対象からも自然に外れるので、自動操縦が見えない相手に踏み切ることも無い）。
+            let top = shootRise(atRunnerDistance: distance)
+            guard top > 0 else { return nil }
+            return RunnerHazardFrame(start: start, end: end, bottom: 0, top: top, advance: 0)
         }
     }
 
@@ -296,7 +411,10 @@ public struct RunnerHazard: Equatable, Sendable {
     public var encounter: RunnerHazardEncounter {
         let playerWidth = RunnerField.Metrics.playerWidth
         switch kind {
-        case .pit, .lowBlock, .tallBlock:
+        case .pit, .lowBlock, .tallBlock, .shoot, .wall:
+            // 突き上げ（#1010）は横に動かず、走者が着くより手前で伸び切っている——
+            // 走者から見れば置いた位置の高い岩そのもの。高い塀（#1091）も置いた位置のまま
+            // （高さだけが違うので、間隔の式は岩と同じで踏み切りの余裕だけが変わる）。
             return RunnerHazardEncounter(start: start, length: length, height: height)
         case .dog:
             // 前から `k` で向かって来る相手（#955。イノシシと同じ式で `k` が小さいだけ）。鼻先が
@@ -337,7 +455,7 @@ public struct RunnerHazard: Equatable, Sendable {
     public var activeRange: ClosedRange<Double> {
         let half = RunnerField.Metrics.playerHalfWidth
         switch kind {
-        case .pit, .lowBlock, .tallBlock:
+        case .pit, .lowBlock, .tallBlock, .wall:
             return (start - half)...(end + half)
         case .bird:
             // 羽ばたきの予備動作から、後端が抜けるまで。
@@ -348,6 +466,11 @@ public struct RunnerHazard: Equatable, Sendable {
             return dogAppearDistance...(encounter.end + half)
         case .boar:
             return boarChargeStartDistance...(max(encounter.end, boarSpawn) + half)
+        case .shoot:
+            // 予告が出て伸び始めてから、後端が抜けるまで（#1010）。チェックポイントをこの外に
+            // 置くことで、伸びかけの真ん前から再開させない（決裁「一時停止・復帰で状態がずれない」
+            // と同じ趣旨——伸びは距離で決まるので、再開地点がこの外なら必ず 0 か伸び切りのどちらか）。
+            return shootCueDistance...(end + half)
         }
     }
 }
@@ -392,9 +515,26 @@ public struct RunnerPickup: Equatable, Sendable {
 /// 物差しがすべて前提にしている全体でただ 1 つの定数なので、そこを可変にすると全部が
 /// 連鎖する。台座は「地面の上に置く物体」なのでその前提を一切壊さない。
 public struct RunnerPlatform: Equatable, Sendable {
+    /// 台座の種類（#1090）。**上面の高さも乗り降りの規則も同じ**で、違うのは
+    /// 「乗ると崩れるか」だけ——だから別の型ではなくこの列挙で分ける。
+    /// 接地面の解決（`RunnerField.surfaceY(at:)`）・正面の当たり判定
+    /// （`RunnerField.isHittingPlatformFace`）・自動操縦の踏み切り（`RunnerAutoPilot`）は
+    /// どれも種類を見ずに書けるので、崩れる側の分岐は `RunnerField` の崩れの時計 1 か所で済む。
+    public enum Kind: Equatable, Sendable {
+        /// 崩れない台座（#674。工事の足場・わら積み・木箱の山）。
+        case solid
+        /// 乗ると少しして崩れる足場（#1090。里山＝古い吊り橋・港町＝古い木の桟橋）。
+        ///
+        /// 崩れ切ると接地面が消え、その区間は**穴と同じ扱い**になる（解析の死因は `pit`）。
+        case crumbling
+    }
+
     /// 左端の x（コース先頭からのワールド座標）。
     public let start: Double
     /// 長さ。レイアウトの連続した `P` がここでまとめられる。
+    ///
+    /// 崩れる足場（`C`）は**区画まるごとではなく、両端に岸を残した板張りぶん**
+    /// （`RunnerRules.crumbleBankTiles`）。
     public let length: Double
     /// 上面の高さ（**地面からの相対値**。障害の `height` と同じ物差し）。
     ///
@@ -402,11 +542,17 @@ public struct RunnerPlatform: Equatable, Sendable {
     /// 接地面の解決（`RunnerField.surfaceY(at:)`）を「覆っている台座のうち最も高い上面」で
     /// 書けるようにするため——高さ違いの台座を足す日が来ても、重ねた段の解決はそのまま動く。
     public let top: Double
+    /// 崩れる足場か（#1090）。
+    public let kind: Kind
 
-    public init(start: Double, length: Double, top: Double = RunnerRules.platformHeight) {
+    public init(
+        start: Double, length: Double, top: Double = RunnerRules.platformHeight,
+        kind: Kind = .solid
+    ) {
         self.start = start
         self.length = length
         self.top = top
+        self.kind = kind
     }
 
     /// 右端の x。
@@ -435,6 +581,45 @@ public struct RunnerBoostFloor: Equatable, Sendable {
 
     /// 右端の x。
     public var end: Double { start + length }
+}
+
+/// コース上の「跳び続けないと沈む床」1 つ（#1089・里山＝田んぼ・港町＝干潟）。
+///
+/// **`RunnerHazard` とは別の型・別の配列**にしてあるのは `RunnerBoostFloor` と同じ理由
+/// ——床は「越えるもの」ではなく「乗ると効果が掛かる区間」で、地形としては平地そのもの。
+/// 障害の配列に混ぜると「すべての障害が押さないジャンプで越えられる」という成立条件
+/// （`RunnerStageTests.everyHazardIsClearable`）が、越える相手ではないものまで巻き込む。
+///
+/// 加速床と違うのは 2 点だけ:
+///
+/// - 掛かる倍率が 1 未満（`RunnerRules.sinkFloorMultiplier`）で、接地中の速さが**落ちる**
+/// - 接地したままでいると沈み（`RunnerField.sinkProgress`）が溜まり、溜まり切ると溺れてミス
+///   （`AnalyticsEndCause.sink`）。足が離れれば 0 に戻る
+///
+/// 区間は**区画まるごとではなく、両端に岸（`RunnerRules.sinkFloorBankTiles`）を残した水面**。
+/// 1 区画ぶんでも二段ジャンプで跳び越せる長さに収めるため（決裁「短い床は二段で跳び越せる」）。
+public struct RunnerSinkFloor: Equatable, Sendable {
+    /// 水面の左端の x（コース先頭からのワールド座標）。
+    public let start: Double
+    /// 水面の長さ。レイアウトの連続した `~` がここでまとめられる（岸のぶんは含まない）。
+    public let length: Double
+    /// 元になった区画の数。**長さではなく区画数で「短い床／長い床」を見分ける**ための値
+    /// （長さは岸を引いた実効値なので、1 区画ぶんかどうかを長さから割り戻すと岸の定数に依存する）。
+    public let segments: Int
+
+    public init(start: Double, length: Double, segments: Int) {
+        self.start = start
+        self.length = length
+        self.segments = segments
+    }
+
+    /// 右端の x。
+    public var end: Double { start + length }
+
+    /// 速さ `speed` の面で、二段ジャンプで跳び越せる床か（`RunnerRules.doubleJumpRange(at:)`）。
+    public func isClearableByDoubleJump(at speed: Double) -> Bool {
+        length < RunnerRules.doubleJumpRange(at: speed)
+    }
 }
 
 /// 1 サブステップで起きたできごと。Model がこれを見て進行・記録・音を動かす。
@@ -478,7 +663,7 @@ public enum RunnerEvent: Equatable, Sendable {
 /// コース（`RunnerEndlessCourse`）を**ミスするまで走って距離を競う**1 回完結のモードで、
 /// チェックポイントも中断保存も持たない（会長決裁 2026-09-12）。
 public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
-    /// 18 ステージを順にクリアしていく現行ルール。
+    /// ステージを 1 面から順にクリアしていく現行ルール（#1009 で 30 面・5 世界）。
     case stages
     /// 走行距離を競うエンドレス（#675）。
     case endless
@@ -495,7 +680,8 @@ public enum RunnerMode: String, Codable, Sendable, CaseIterable, Identifiable {
     /// 開始シートに出す 1 行の説明。
     public var summary: String {
         switch self {
-        case .stages:  return "ステージ 1 から 18 面を順にクリアして、3 つの世界を先へ進む、いつもの遊び方"
+        case .stages:
+            return "ステージ 1 から \(RunnerRules.stageCount) 面を順にクリアして、\(RunnerWorld.allCases.count) つの世界を先へ進む、いつもの遊び方"
         case .endless: return "毎回ちがうコースをミスするまで走って、走行距離を競う。途中で閉じると記録は残りません"
         }
     }
@@ -539,6 +725,22 @@ public enum RunnerPhase: Equatable, Sendable {
     case falling
     /// ミスした。リトライ（無料・無制限）か、チェックポイント再開（リワード広告・1 回の走行につき 1 回）を選ぶ。
     case failed
+    /// ゴールに着いた直後の短い演出中（宝くじが飛ばされ、おじさんが追いかけて走り去る・#1092）。
+    ///
+    /// `.falling` と同じ作法で、タップ・一時停止は効かず（タップは演出を飛ばす操作になる）、
+    /// `RunnerRules.goalChaseDuration` 秒で自動的に `.cleared` / `.allCleared` へ移る。
+    /// **記録・解析・Game Center はここへ入る前（ゴールに着いた瞬間）に確定している**
+    /// ——`RunnerModel.clearStage()` を丸ごと済ませてからこの局面に入るので、演出を飛ばしても
+    /// 演出中にアプリを閉じても、クリアは記録済み。
+    case chasing
+    /// 世界の締めの演出中（#1092）。6・12・18・24・30 面を**初めて**クリアしたときだけ入り、
+    /// そのときは毎面のゴールの演出（`.chasing`）の**代わり**に流す（2 回続けて逃げられる形にしない）。
+    ///
+    /// `.chasing` と違って**時間では進まない**——コマ送りは `RunnerStoryView` が持ち、
+    /// 終わり（またはタップで飛ばした）ときに `RunnerModel.finishStory()` が
+    /// `.cleared` / `.allCleared` へ移す。`clearStage()` は入る前に済んでいるので、
+    /// ここで閉じてもクリアは記録済み。
+    case story
     /// ステージクリア（まだ次のステージが残っている）。
     case cleared
     /// 最終ステージまでクリアした。
@@ -546,6 +748,15 @@ public enum RunnerPhase: Equatable, Sendable {
 
     /// 走っていて `tick` を進めるべき状態か。
     public var isRunning: Bool { self == .running }
+
+    /// 決着の演出中（`.falling` / `.chasing`）か。
+    ///
+    /// どちらも「`tick` は進めるがゲームは進んでいない・リザルトはまだ出ない」局面で、
+    /// 走らせ切るループ（自動操縦・撮影・テスト）は `isRunning` と併せてここも回し続ける。
+    ///
+    /// **世界の締め（`.story`）は入れない**。あちらは時間ではなくコマ送り（View）で進むので、
+    /// 回し続けても永久に抜けない（抜ける操作は `RunnerModel.finishStory()`）。
+    public var isSettling: Bool { self == .falling || self == .chasing }
 }
 
 /// リザルト・スタート画面に出すおじさんの表情（#702）。
@@ -556,13 +767,14 @@ public enum RunnerResultFace {
     /// 局面に応じた表情。顔を出さない局面（走行中・一時停止・落下演出中）は nil。
     ///
     /// - ready: 笑顔（スタート画面の主ボタンの左に小さく）
-    /// - cleared / allCleared: ガッツポーズ（エンドレスの「走りきった」も含む）
+    /// - cleared / allCleared: ガッツポーズ（ステージ制のクリア。エンドレスはこの局面にならない・#1086）
     /// - failed: しかめ面。ただしエンドレスで自己ベストを更新した回はガッツポーズ
     ///   （ミスで終わる決着なので、記録が伸びたことのほうを喜ばせる）
     public static func face(for phase: RunnerPhase, isNewBest: Bool = false) -> OjisanPixel.Face? {
         switch phase {
         case .ready: return .smile
-        case .running, .paused, .falling: return nil
+        // 締めの演出中（`.story`）は場面の絵が画面を占めるので、顔は出さない。
+        case .running, .paused, .falling, .chasing, .story: return nil
         case .failed: return isNewBest ? .cheer : .frown
         case .cleared, .allCleared: return .cheer
         }
@@ -575,7 +787,7 @@ public enum RunnerResultFace {
     /// SE 級（240〜319pt）で 3 倍 = 48pt、それより低くても 2 倍 = 32pt は確保する。
     /// `GeometryReader` が最初に渡す 0 でも落ちない（2 倍を返す）。
     public static func dotScale(forCourseHeight height: Double) -> Int {
-        let budget = Int(height * 0.2) / OjisanPixel.faceDotSize.width
+        let budget = Int(height * 0.2) / (OjisanPixel.faceDotSize.width / OjisanPixel.faceResolution)
         return min(4, max(2, budget))
     }
 

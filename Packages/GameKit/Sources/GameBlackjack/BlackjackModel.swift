@@ -174,10 +174,15 @@ public final class BlackjackModel {
 
     // MARK: チップ切れ復活（#499）
 
-    /// セッション開始時の持ちチップ。復活はこの**半分**から再開する。
+    /// セッション開始時の持ちチップ。無料の「最初からやり直す」もこの額に戻す。
     static let initialChips = 1000
     /// 復活で戻るチップ。導線の文言もこの値から作る（数え違いを1か所に閉じる）。
-    public static let reviveChips = initialChips / 2
+    ///
+    /// **無料のやり直し（`initialChips`）より必ず多くする**（#523 会長決裁 C 案）。以前は半分の 500 枚で、
+    /// 復活は順位表にも載らないため無料のやり直しの完全な下位互換になり、`revival` が 0 件だった。
+    /// 広告を見る理由を「チップが増える」で作り、順位表の扱い（復活したセッションは送らない）は変えない。
+    /// ディーラー相手でチップの多さが勝敗を左右しないので、倍の 2000 枚にしている。
+    public static let reviveChips = 2000
 
     /// いちばん安いベット額。**ベットボタンの並びと破産判定の両方がここを見る**（#656）。
     /// 残高がこれに届かなければ、たとえ 0 枚でなくても打つ手が一つも無い＝そのセッションは
@@ -268,6 +273,12 @@ public final class BlackjackModel {
                 // 判定を精算のときだけに置くと、賭ける前に戻った局面が
                 // 「ボタンが全部無効・破産カードも出ない」で詰む。
                 self.checkSessionOver()
+                // 戻った先は賭け待ちで「続き」ではないので、中断のお知らせ（#663）の対象から外す（#1145）。
+                // `persistRevivedBetWaiting` の通知は**保存したプロセスの中**でしか効かない
+                // （`ResumeReminder` の決着済みの印はメモリ上の集合で、再起動で空に戻る）。
+                // 復元側でも伝えないと、アプリを起動し直してから開いて戻ったときだけ予約される。
+                // 将棋・チェスが `init` で同じことをしている（`ChessGameModel.init`）。
+                self.services?.gameDidRestoreFinished(gameID: gameID)
             }
         }
         // ディーラーが引いている途中で中断していたら、その続きから引く（#667）。
@@ -281,6 +292,13 @@ public final class BlackjackModel {
         // ディーラーが1枚ずつ引いているあいだ（#667）も保存する。保存しないと、途中で落ちたとき
         // スタンド前の中断データが残り、ディーラーの札を見てから選び直せてしまう。
         guard phase == .playerTurn || phase == .dealerTurn else {
+            // 局は進んでいないが、復活（#499）で戻した残高と「使い切った」印だけは残す（#1104）。
+            // 捨てると、広告を見た直後に賭ける前で離れた人が報酬を丸ごと失い（#523 で復活の枚数を
+            // 初期額より多くしたので損得の向きが反転した）、そのうえ復活権まで戻る。
+            if hasRevivedThisSession && !sessionOver {
+                persistRevivedBetWaiting()
+                return
+            }
             services?.snapshots.clear(for: gameID)
             return
         }
@@ -296,6 +314,32 @@ public final class BlackjackModel {
             hasRevivedThisSession: hasRevivedThisSession
         )
         try? services?.snapshots.save(snap, for: gameID)
+    }
+
+    /// 局を持たない「賭け待ち」の中断データ（#1104）。復活したセッションの残高と
+    /// 「復活を使い切った」印だけを持ち回る。
+    ///
+    /// 決着の画（`outcome` は中断データに持っていない）を復元しても読めないので、局は書かずに
+    /// 賭ける前へ戻す。復元側は「手が無ければ賭け待ちに戻す」既存の経路（`init`）がそのまま使える。
+    private func persistRevivedBetWaiting() {
+        let snap = BlackjackSnapshot(
+            playerHand: [],
+            dealerHand: [],
+            deck: [],
+            chips: chips,
+            bet: 0,
+            phase: .betting,
+            hands: [],
+            activeHandIndex: 0,
+            hasRevivedThisSession: hasRevivedThisSession
+        )
+        try? services?.snapshots.save(snap, for: gameID)
+        // 局を持たない中断データは「続きから戻れる」ではない（#1104。CodeRabbit の指摘）。
+        // `GameServices.gameDidLeave` は中断データの有無だけで判定するため、伝えないと
+        // 離脱が休憩として数えられ、続きの無い局に「途中のままです」のお知らせが予約される。
+        // どちらも次のラウンドを配った時点（`gameDidRestart` → `gameDidBeginPlay`）で元へ戻る。
+        services?.gameWillNotResume(gameID: gameID)
+        services?.gameDidRestoreFinished(gameID: gameID)
     }
 
     // MARK: - Betting
@@ -548,7 +592,9 @@ public final class BlackjackModel {
         }
         recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: currentScore)
         checkSessionOver()
-        services?.snapshots.clear(for: gameID)
+        // 決着した局は保存しない。ただし復活（#499）を使ったセッションは、残高と「使い切った」印を
+        // 賭け待ちの形で残す（#1104）。`persist()` に寄せて、捨てる／残すの判断を1か所に置く。
+        persist()
     }
 
     private func checkSessionOver() {
@@ -604,7 +650,7 @@ public final class BlackjackModel {
         guard await services?.showRewardedAd(gameID: gameID, purpose: .revival) ?? true else { return .notEarned }
         guard services?.screenGeneration.current == generationBeforeAd else { return .unavailable }
         // 広告のロード〜視聴のあいだも画面は操作できる。「最初からやり直す」で新しいセッションが
-        // 始まっていたら、そこへ復活が乗って残高 1000 → 500 になり、復活権と順位表資格まで消える（#727）。
+        // 始まっていたら、そこへ復活が乗って復活権と順位表資格まで消える（#727）。
         // 麻雀のトビ復活（`MahjongModel.reviveAfterAd`）と同じく、通し番号と救済できる状態を見直す。
         guard sessionSerial == serialBeforeAd, canReviveAfterBust else { return .unavailable }
         hasRevivedThisSession = true
@@ -614,6 +660,8 @@ public final class BlackjackModel {
         clearHands()
         dealerHand = []
         phase = .betting
+        // 賭ける前にハブへ戻られても報酬が消えないように、この時点で書き出す（#1104）。
+        persist()
         return .granted
     }
 
@@ -671,17 +719,5 @@ public final class BlackjackModel {
 
 // MARK: - Seeded RNG
 
-/// テスト用の決定的な乱数生成器（SplitMix64）。本番は `seed` を渡さないので system の乱数を使う。
-struct BlackjackSeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { self.state = seed }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
+/// テスト用の決定的な乱数生成器（CoreEngine の `SplitMix64`・#1074）。本番は `seed` を渡さないので system の乱数を使う。
+typealias BlackjackSeededGenerator = SplitMix64

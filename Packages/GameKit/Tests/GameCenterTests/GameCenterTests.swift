@@ -19,10 +19,14 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+import GameShiritori
+import GameFifteen
 import GameSpider
 import GameChess
 import GameBlocks
 import CoreTestSupport
+import GameKitTestSupport
+import GameRunnerTestSupport
 
 // MARK: - モック
 
@@ -86,7 +90,7 @@ private func makeHubModules() -> [GameModule] {
         PokerModule(), ConcentrationModule(), BlackjackModule(), DaifugoModule(),
         MahjongSolitaireModule(), MahjongModule(), SudokuModule(), GoModule(),
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(), BlockPuzzleModule(),
-        RunnerModule(), HanafudaModule(), SpiderModule(),
+        RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
     ]
 }
 
@@ -644,7 +648,7 @@ struct GameCenterPerGameTests {
         let spy = SpyGameCenterService()
 
         let model = RunnerModel(services: makeServices(log: log, spy: spy), startingAt: 3)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
         #expect(spy.scores == [
             GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerStage, value: 3),
@@ -659,9 +663,9 @@ struct GameCenterPerGameTests {
         let spy = SpyGameCenterService()
 
         let model = RunnerModel(services: makeServices(log: log, spy: spy), startingAt: 3)
-        failRunnerAfterCheckpoint(model)
+        failCurrentStage(model, stopAfterCheckpoint: true)
         #expect(model.resumeFromCheckpoint(forRun: model.runGeneration))
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
         #expect(spy.scores.isEmpty, "半分だけ走った回は送らない")
     }
@@ -748,14 +752,8 @@ struct GameCenterPerGameTests {
 @Suite("実績・ランキングの導線")
 struct GameCenterEntryPointTests {
     private func appSource(_ fileName: String) throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameCenterTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // GameKit/
-            .deletingLastPathComponent()   // Packages/
-            .deletingLastPathComponent()   // リポジトリのルート
-        return try String(
-            contentsOf: repoRoot.appendingPathComponent("App/\(fileName)"), encoding: .utf8
+        try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/\(fileName)"), encoding: .utf8
         )
     }
 
@@ -829,11 +827,7 @@ struct GameCenterEntryPointTests {
     func doesNotUseDeprecatedGameCenterViewController() throws {
         // 置き換え先は GKAccessPoint（SDK ヘッダの API_DEPRECATED_WITH_REPLACEMENT が明示）。
         // 導線を触るときに「昔の作法」へ戻してしまわないよう、App/ 全体で禁止する。
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let appDir = repoRoot.appendingPathComponent("App")
+        let appDir = SourceScan.repositoryRoot.appendingPathComponent("App")
         let swiftFiles = try FileManager.default
             .contentsOfDirectory(at: appDir, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" }
@@ -909,42 +903,4 @@ private func blockPuzzleStuckBoard() -> [[Int]] {
 /// 1×1 と、置き場所の無い 3×3 が 2 つ。
 private func blockPuzzleStuckHand() -> [BlockPuzzlePiece?] {
     [BlockPuzzlePiece.catalog[0], BlockPuzzlePiece.catalog[10], BlockPuzzlePiece.catalog[10]]
-}
-
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
-@MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
-}
-
-/// チェックポイント通過後にミスさせる（広告での再開が出せる状態を作る）。
-@MainActor
-private func failRunnerAfterCheckpoint(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（チェックポイント通過前のジャンプだけは製品コードと同じ
-        // 「越えられる」保証が要る。通過後は跳ばないので、以降で必ずミスになる）。
-        if !model.field.passedCheckpoint, RunnerAutoPilot.shouldJump(field: model.field) {
-            model.press()
-        }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
-    }
 }

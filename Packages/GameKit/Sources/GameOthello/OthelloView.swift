@@ -317,9 +317,11 @@ public struct OthelloView: View {
 
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
     private var ladder: DifficultyLadderPrompt? {
-        DifficultyLadderPrompt(result: model.recordResult, currentLevel: model.aiLevel,
-                               levelLabels: ["弱", "普通", "強"]) { level in
-            model.newGame(humanSide: model.humanSide, aiLevel: level)
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.newGame(humanSide: model.humanSide,
+                          aiLevel: CPUStrength.level(atLadderIndex: index))
         }
     }
 
@@ -535,7 +537,7 @@ struct OthelloNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始",
+            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの石") {
@@ -549,14 +551,10 @@ struct OthelloNewGameSheet: View {
                 }
             }
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    GameSetupChooser(title: "弱",   subtitle: "浅い読み",
-                                     selected: level == 0, accent: Theme.Fill.teal)   { level = 0 }
-                    GameSetupChooser(title: "普通", subtitle: "標準",
-                                     selected: level == 1, accent: Theme.Fill.yellow) { level = 1 }
-                    GameSetupChooser(title: "強",   subtitle: "深い読み",
-                                     selected: level == 2, accent: Theme.Fill.coral)  { level = 2 }
-                }
+                // 説明は `OthelloEngine.bestMove` の中身と一致させる（#416）。
+                CPUStrengthPicker(level: $level, details: [
+                    "角のとなりが好き", "浅い読み", "標準", "深い読み",
+                ])
             }
         }
     }

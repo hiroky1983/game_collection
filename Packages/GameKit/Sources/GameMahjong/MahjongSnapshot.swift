@@ -31,6 +31,9 @@ struct MahjongSnapshot: Codable {
     /// トビ復活（#338）を使い切ったか。中断を挟んでも「1 半荘 1 回まで」を守るために持ち回る。
     /// 上と同じ理由で任意（古い中断データは「まだ使っていない」扱いになる）。
     let hasRevivedThisGame: Bool?
+    /// 最終局延長（#1201）を使ったか。延長戦の途中で中断しても東 5 局まで打ち切れるように持ち回す。
+    /// 上と同じ理由で任意（古い中断データは「使っていない」扱い）。
+    let hasExtendedGame: Bool?
     // 局のリザルト中の中断（#350）で足した項目。同じく任意にして古い中断データも読めるようにする。
     /// リザルト表示中に中断したときの決着内容。**nil なら対局中の中断**（この有無が
     /// `.handResult` か `.playing` かをそのまま表す。決着内容は決着時にしか入らないため）。
@@ -44,17 +47,5 @@ struct MahjongSnapshot: Codable {
 
 // MARK: - Seeded RNG
 
-/// テスト用の決定的な乱数生成器（SplitMix64）。本番は `seed` を渡さないので system の乱数を使う。
-struct MahjongSeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { self.state = seed }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
+/// テスト用の決定的な乱数生成器（CoreEngine の `SplitMix64`・#1074）。本番は `seed` を渡さないので system の乱数を使う。
+typealias MahjongSeededGenerator = SplitMix64

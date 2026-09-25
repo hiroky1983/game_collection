@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Testing
+import GameKitTestSupport
 @testable import Core
 
 /// 何も残さない中断データ置き場。`GameServices` を組み立てるためだけに使う。
@@ -265,11 +266,7 @@ struct RewardedRescueTests {
 @Suite("局ガードの宣言（#526）")
 struct RewardGuardCallSiteTests {
 
-    private static let sourcesRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()   // AdsTests
-        .deletingLastPathComponent()   // Tests
-        .deletingLastPathComponent()   // GameKit
-        .appendingPathComponent("Sources")
+    private static let sourcesRoot = SourceScan.packageRoot.appendingPathComponent("Sources")
 
     private static func gameSources() throws -> [(path: String, text: String)] {
         try FileManager.default
@@ -293,7 +290,7 @@ struct RewardGuardCallSiteTests {
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(requests == 11, "救済の入口は11面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く）")
+        #expect(requests == 13, "救済の入口は13面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }
@@ -413,7 +410,7 @@ struct RewardGuardCallSiteTests {
         let withOutcome = sources.reduce(0) {
             $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
         }
-        #expect(withOutcome == 3, "広告をモデルで抱えている3面（ブラックジャック・ポーカー・麻雀）")
+        #expect(withOutcome == 4, "広告をモデルで抱えている3面（ブラックジャック・ポーカー・麻雀）。麻雀は復活と最終局延長（#1201）の2か所")
         #expect(all == withOutcome,
                 "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
     }

@@ -3,25 +3,36 @@ import Foundation
 import Testing
 @testable import GameRunner
 import CoreTestSupport
+import GameRunnerTestSupport
 
-/// エンドレスモードのコース生成（#675）。
+/// エンドレスモードのコース生成（#675 → #1086 で終わりの無いコースに）。
 ///
 /// 生成器は置く前に成立条件を判定する（`RunnerEndlessCourse.canPlace`）が、ここでは
 /// **生成したコースを独立に検め直す**。判定式はステージ制の `RunnerStageTests` と同じ物差し
 /// （弾道は `RunnerRules`、踏み切りは `RunnerAutoPilot.lead`）で書き、生成器より厳しい速さの
 /// 幅（区画 1 つ手前の遅い速さ／2 区画先の速い速さ）で見る。
+///
+/// 検算するコースは**枠（`RunnerEndlessTrack`）を通して集めたもの**で、区画を捨てて枠を回した
+/// 継ぎ目をまたぐ並びも含む（`EndlessCourseSample`）。
 @Suite("チャリンコおじさん: エンドレスのコース生成")
 struct RunnerEndlessCourseTests {
-    private static let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
-    /// 受け入れ条件「1,000 種で生成した全コースが成立条件を満たす」の種の数。
+    private static let segmentWidth = RunnerEndlessSegment.width
+    /// 受け入れ条件「1,000 種 × 70,000 単位以上」の種の数。
     private static let seedCount: UInt64 = 1_000
+    /// 検算する区画の数。1,100 区画 = 70,400 単位で、速さの上限（約 22,187）・密度の上限（20,480）・
+    /// 最後の部品（イノシシ 8,192・たこ焼き 12,800）の解禁のどれよりも 3 倍以上先まで見る。
+    /// その先は生成の条件が変わらないので、ここで詰まなければどこまで走っても同じ（#1086 の設計）。
+    static let verifiedSegments = 1_100
+    /// 密度・解禁距離などの分布を見る窓（先頭 400 区画 = 25,600 単位。速さも密度も上限に届く距離）。
+    private static let analysisSegments = 400
 
     @Test("同じ種なら同じコース、違う種なら違うコース")
     func sameSeedSameCourse() {
-        #expect(RunnerEndlessCourse.pattern(seed: 42) == RunnerEndlessCourse.pattern(seed: 42))
-        #expect(RunnerEndlessCourse.makeStage(seed: 7) == RunnerEndlessCourse.makeStage(seed: 7))
-        let patterns = Set((1...20).map { RunnerEndlessCourse.pattern(seed: UInt64($0)) })
+        #expect(RunnerEndlessCourse.pattern(seed: 42, count: 500) == RunnerEndlessCourse.pattern(seed: 42, count: 500))
+        let patterns = Set((1...20).map { RunnerEndlessCourse.pattern(seed: UInt64($0), count: 400) })
         #expect(patterns.count == 20, "種が違えばコースも違う（冒頭だけ同じ）")
+        // 長さを変えて作っても、先頭の並びは同じ（区画 N の中身は種と N だけで決まる）。
+        #expect(RunnerEndlessCourse.pattern(seed: 42, count: 1_000).hasPrefix(RunnerEndlessCourse.pattern(seed: 42, count: 300)))
     }
 
     /// 「最初の数区画は毎回同じ」（会長決裁）。導入はステージ 1 の出だし（最初の穴まで）と
@@ -30,28 +41,68 @@ struct RunnerEndlessCourseTests {
     func introIsFixedAndMatchesStageOne() {
         #expect(RunnerStage.all[0].pattern.hasPrefix(RunnerEndlessCourse.intro))
         for seed in 1...Self.seedCount {
-            let pattern = RunnerEndlessCourse.pattern(seed: seed)
+            let pattern = RunnerEndlessCourse.pattern(seed: seed, count: 8)
             #expect(pattern.hasPrefix(RunnerEndlessCourse.intro), "種 \(seed) の冒頭が固定パターンでない")
         }
     }
 
-    @Test("固定長 400 区画で、先頭と末尾の 2 区画は平地")
-    func hasFixedLengthAndClearance() {
-        #expect(RunnerRules.endlessSegments == 400)
-        for seed in 1...Self.seedCount {
-            let stage = RunnerEndlessCourse.makeStage(seed: seed)
-            #expect(stage.pattern.count == RunnerRules.endlessSegments, "種 \(seed) の区画数")
-            #expect(stage.pattern.hasPrefix("--") && stage.pattern.hasSuffix("--"), "種 \(seed) の余白")
-            #expect(stage.number == 0, "本番のステージ番号を名乗らない")
+    /// 走りながら作る生成器（#1086）が、#675 / #930 の一括生成と**同じ並び**を出すこと。
+    /// 判定式・部品の解禁距離・速さと密度の上がり方・乱数の引き方を変えていないことの証拠。
+    /// 元の期待値は一括生成（`pattern(using:)`・400 区画）を置き換える直前に採った先頭 390 区画
+    /// （一括生成は末尾の 2 区画を平地に固定し、その手前 3 区画では台座・床を置かなかったので、
+    /// そこより手前だけを比べる）。
+    ///
+    /// **#1172 でイノシシ（`i`）の重みを変えたのに合わせて採り直した**。この検査は「乱数の引き方・
+    /// 判定式を変えていない証拠」であって部品の重みまで固定するものではないため、重みを意図的に
+    /// 変えるたびに採り直してよい（採り直す際は `RunnerEndlessCourse.pattern(seed:count:)` を
+    /// そのまま呼んで文字列を控えるだけでよい）。
+    @Test("先頭 390 区画は現在の重み・解禁距離で決まる並びから 1 文字も変わらない")
+    func streamingMatchesTheFormerBatchGenerator() {
+        for (seed, expected) in Self.batchFingerprints {
+            #expect(RunnerEndlessCourse.pattern(seed: seed, count: 390) == expected, "種 \(seed)")
         }
     }
 
-    /// 受け入れ条件「1,000 種で生成した全コースが成立条件を満たす」。
-    @Test("1,000 種すべてのコースがステージ制と同じ成立条件を満たす")
-    func everySeedSatisfiesLayoutRules() {
-        for seed in 1...Self.seedCount {
-            expectSatisfiesLayoutRules(RunnerEndlessCourse.makeStage(seed: seed), seed: seed)
+    private static let batchFingerprints: [(UInt64, String)] = [
+        (1, "--1---1-11--n-1-1ns--n--nnn-s-1---1-1--s2sd2--2n---tndsdn--d1ds2s-2d--n2n-s2-1dt--t--nn11--n2s2-s1ns-n-1-2n2-3-1-3sbb31-1t-1-t--nit--n--i--in-1n-n--PPP-b21t--1d-i-bd-tbb1--b1ti-sb1ti31s-niii2ii--2din3--==-d2-1b1i-is2--i2t1-nsb-n--PP-t--tntn-b--23tbi3nkn3ninninit11tt2-3--==-23b-dtnn1-n-dd11nbiiinb1b-PPP-n32i-sn2-n1n3idi1-2i3t3-=-snn-3--PP--dnt33-1n12in--b2nn-ibnbd-1-3t13-n2112b--nd-1n--2b"),
+        (2, "--1---1--1---1--1---2-2---1--2---2-nd-12-12-n2---n--d-n-2d---1--b1-s2n--nd-tb-dndn-d1--n-sn2tbtn-snb2ss31--12--d--d-sn--3dd-bn--ii3n-21ibn--db--2-n--i1dd--21n-1s-==--3d-innd2s-n-b2b--nb--niss2-3b-dnsi3-1ds-33ninbb2--ib-ntb-1tdbtib1idb-d-2i-bi1ni--i--dti1ti3ibi-snii33sn-n-t1ii1-PP-n-131bb2s1ii31ds-i1b1dit-==-b31d1-ib1bi3s2indnt-PPP-ndi2b3db2t3i-tind-3-3iiib12nibin2in-b-d1-3idsb1kiin31in13"),
+        (3, "--1--s1s1--n1-nn-1---21---n---1-2-t-1---tn-n2nt--sd-dtd--sd-nd-t--nbs-=--2-t-s1b2--1-bsn1--=-b--12n2--d--3bn--n-d--tsn31n-3n--dsi-t--1--i-PP-n--in-snd--bn1-b-sn--in22n--PPP-nd-bs23n11-ib2-n-nni-1b-si--ib--13ski-2-1i-nsidbdn32-231sin-1n21tknnd3bikn--1i3ik23nd1d-1-31i-d22-13n31i3dnd3n32-bnd13ni-d2-kdit3t1b-d3n-si21tit3n1bb2nd1iii-k212i1tti2b1b1s2t-d-bin3n1i-1t-n31nis3dnd3-in--23ti--3i-1ndi"),
+        (675, "--1---n---n1-s-1--2sn---1--12s--n-d---t-1---2-1-tdsd--11t-n-1s-1-2-=-n2-b--n-1-122-1-n--d-n-n1-PP--23--bt-s1-s1--323--nnn--n--311ts-t-i-ns-1--2-sn-t--1b-t-i-nniid-s3n12-sbd--1s1-1ts1--nbd11t--b-3-i-i-in3--ii-t1di-n--ns-i--3-n2-1bbn121s-i-diib2-ni3t1-PP-i3ii-1dii2-n2--dn3i--t-2s-n2ss2-is1s3di--PPP-ttk1i2dtdni33b3n2sn-3itiitti-PPP-bnibk-2idntn2-ind-==--bi32d-snntn312dtd1i-ii1ndi22id-sb33td"),
+        (1086, "--1---n--1s-1---n---2--1---1---n-1n2-dnss-t-nn-n--n11--n-ns--n-s1-bn--PP--1dd-nt11sb--2n1-b-1-n--==--t-n2d--bs-tb-b2tdd-22--n--1d11ts-=-d-ii--3-22t-sb--nidtd-i-i-d-2db-t-si--2-PPP-21i-i-3s-n-i1b-bndn-b1-nn2--2--111d-sni1b-132ntts-1--binn-1i-n3n3di1i1-d-PP-ds-iti-11-iit-i-nntt--i1n3bb2-isnd13i13i121in-1d1nb12i-it1bi3bnnitni-22bni311-31b2n1nit3--2ni-ti33dibs3--t1i3ti-111-=-1tb1b-tdsnts-==-"),
+    ]
+
+    /// 受け入れ条件 B「1,000 種 × 70,000 単位以上で、生成されたコースを成立条件で検算する」。
+    /// 種を 100 ずつに分けて並列に回す（Swift Testing は引数ごとのケースを並列に走らせる）。
+    @Test(
+        "1,000 種すべてのコースが 70,000 単位先までステージ制と同じ成立条件を満たす（継ぎ目も含む）",
+        .timeLimit(.minutes(10)),
+        arguments: 0..<10
+    )
+    func everySeedSatisfiesLayoutRules(chunk: Int) {
+        let first = UInt64(chunk) * 100 + 1
+        for seed in first...(first + 99) {
+            let sample = EndlessCourseSample(seed: seed, segments: Self.verifiedSegments)
+            #expect(sample.seamPairs > 100, "種 \(seed): 継ぎ目をまたぐ並びを見ていない（\(sample.seamPairs)）")
+            expectSatisfiesLayoutRules(sample, seed: seed)
         }
+    }
+
+    /// 枠から取り出した区画の中身が、同じ並びを `RunnerStage` の展開（ステージ制と同じ式）で作った
+    /// 障害・アイテム・台座・床と一致する——区画ごとの組み立て・イノシシの止まる岩の書き足し・
+    /// 台座と床の長さが、継ぎ目をまたいでも欠けず重複しないことの独立な確認。
+    @Test("枠から集めた区画の中身は、同じ並びをステージ制の式で展開したものと一致する", arguments: [1, 2, 675, 1086] as [UInt64])
+    func trackSegmentsMatchStageExpansion(seed: UInt64) {
+        let sample = EndlessCourseSample(seed: seed, segments: Self.verifiedSegments)
+        let stage = RunnerStage(number: 0, pattern: String(sample.symbols), speed: RunnerRules.baseSpeed)
+        // 末尾の 3 区画は比べない。並びを途中で切るので、ステージ制の展開では末尾の台座が短くなり、
+        // 最後のイノシシの止まる岩（次の区画）も見えない（枠の区画はその先まで作ってから決めている）。
+        let end = Double(Self.verifiedSegments - 3) * RunnerEndlessSegment.width
+        #expect(sample.hazards.filter { $0.start < end } == stage.hazards.filter { $0.start < end })
+        #expect(sample.pickups.filter { $0.start < end } == stage.pickups.filter { $0.start < end })
+        #expect(sample.platforms.filter { $0.start < end } == stage.platforms.filter { $0.start < end })
+        #expect(sample.floors.filter { $0.start < end } == stage.boostFloors.filter { $0.start < end })
+        #expect(stage.hazards.contains { $0.kind == .boar && $0.stopAt != nil }, "岩で止まるイノシシを含む種で確かめる")
+        #expect(!stage.platforms.isEmpty && !stage.boostFloors.isEmpty)
     }
 
     /// 部品は岩・穴・鳥・犬・イノシシ・アイテム・たこ焼き・台座・床のすべて（Issue #675「部品」、
@@ -61,18 +112,18 @@ struct RunnerEndlessCourseTests {
     func allPartsAppear() {
         var seen: Set<Character> = []
         for seed in 1...100 as ClosedRange<UInt64> {
-            seen.formUnion(RunnerEndlessCourse.pattern(seed: seed))
+            seen.formUnion(RunnerEndlessCourse.pattern(seed: seed, count: Self.analysisSegments))
         }
         #expect(seen == ["-", "1", "2", "3", "n", "t", "b", "d", "i", "s", "k", "P", "="], "出ていない記号がある: \(seen)")
     }
 
-    /// Issue #797「エンドレスでは中盤から」。解禁距離（全長の半分）より手前にたこ焼きが 1 つも
-    /// 無く、以降には出ること。手前の乱数を余分に消費しないので、解禁前の並びは #797 以前と同じ。
+    /// Issue #797「エンドレスでは中盤から」。解禁距離より手前にたこ焼きが 1 つも無く、以降には出ること。
+    /// 手前の乱数を余分に消費しないので、解禁前の並びは #797 以前と同じ。
     @Test("たこ焼きは中盤（解禁距離）より手前には出ない")
     func takoyakiAppearsOnlyFromTheMiddle() {
         var seenAfterUnlock = 0
         for seed in 1...100 as ClosedRange<UInt64> {
-            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed))
+            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed, count: Self.analysisSegments))
             for (index, symbol) in symbols.enumerated() where symbol == RunnerStage.takoyakiSymbol {
                 let distance = Double(index) * Self.segmentWidth
                 #expect(
@@ -85,6 +136,25 @@ struct RunnerEndlessCourseTests {
         #expect(seenAfterUnlock > 0, "解禁後にたこ焼きが 1 つも出ない")
     }
 
+    /// 受け入れ条件 A「エンドレスにゴールが無い」。#675 は 400 区画目で打ち切り、末尾 2 区画を平地にしていた。
+    /// いまは 400 区画を過ぎても同じ密度で障害が続き、平地の連続の上限も保たれる。
+    @Test("400 区画を過ぎても末尾の平地は無く、障害が同じ密度で続く")
+    func courseDoesNotEnd() {
+        var around400 = 0
+        var farther = 0
+        var segments = 0
+        for seed in 1...100 as ClosedRange<UInt64> {
+            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed, count: Self.verifiedSegments))
+            #expect(symbols[396..<404].contains { RunnerStage.segmentSpec($0) != nil }, "種 \(seed): 400 区画のあたりが平地だけ")
+            around400 += symbols[300..<400].filter { RunnerStage.segmentSpec($0) != nil }.count
+            farther += symbols[1_000..<1_100].filter { RunnerStage.segmentSpec($0) != nil }.count
+            segments += 100
+        }
+        let near = Double(around400) / Double(segments)
+        let far = Double(farther) / Double(segments)
+        #expect(abs(near - far) < 0.05, "300〜400 区画の密度 \(near) と 1,000〜1,100 区画の密度 \(far) が違う")
+    }
+
     // MARK: - 難易度カーブ
 
     /// 受け入れ条件「距離に応じて速くなり障害が増える」。距離 0 と 5,000 で単調増加。
@@ -95,7 +165,7 @@ struct RunnerEndlessCourseTests {
         #expect(RunnerEndlessCourse.hazardDensity(atDistance: 5_000) > RunnerEndlessCourse.hazardDensity(atDistance: 0))
         var previousSpeed = 0.0
         var previousDensity = 0.0
-        for distance in stride(from: 0.0, through: 30_000, by: 500) {
+        for distance in stride(from: 0.0, through: 10_000_000, by: 500) where distance <= 70_000 || distance.truncatingRemainder(dividingBy: 1_000_000) == 0 {
             let speed = RunnerEndlessCourse.speed(atDistance: distance)
             let density = RunnerEndlessCourse.hazardDensity(atDistance: distance)
             #expect(speed >= previousSpeed && density >= previousDensity, "距離 \(distance) で下がっている")
@@ -104,9 +174,9 @@ struct RunnerEndlessCourseTests {
             previousDensity = density
         }
         #expect(previousSpeed == RunnerRules.endlessMaxSpeed, "終盤は上限に達する")
-        // `makeStage` が作るステージの `speed(at:)` も同じ式。
-        let stage = RunnerEndlessCourse.makeStage(seed: 1)
-        for distance in [0.0, 1_000, 5_000, 20_000, 30_000] {
+        // エンドレスの `RunnerStage` の `speed(at:)` も同じ式。
+        let stage = RunnerEndlessCourse.stage
+        for distance in [0.0, 1_000, 5_000, 20_000, 30_000, 10_000_000] {
             #expect(abs(stage.speed(at: distance) - RunnerEndlessCourse.speed(atDistance: distance)) < 1e-9)
         }
     }
@@ -117,7 +187,7 @@ struct RunnerEndlessCourseTests {
         var early = 0
         var late = 0
         for seed in 1...100 as ClosedRange<UInt64> {
-            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed))
+            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed, count: Self.analysisSegments))
             early += symbols[12..<112].filter { RunnerStage.segmentSpec($0) != nil }.count
             late += symbols[298..<398].filter { RunnerStage.segmentSpec($0) != nil }.count
         }
@@ -133,13 +203,12 @@ struct RunnerEndlessCourseTests {
             && symbol != RunnerStage.boostFloorSymbol
     }
 
-    /// 距離 `range` に入る区画の並び（区画の左端の距離で見る）。末尾の平地 2 区画は含めない。
+    /// 距離 `range` に入る区画の並び（区画の左端の距離で見る。先頭 `analysisSegments` 区画の中）。
     private static func body(of symbols: [Character], in range: Range<Double>) -> ArraySlice<Character> {
-        let bodyEnd = RunnerRules.endlessSegments - RunnerEndlessCourse.trailingSegments
         let lower = Int((range.lowerBound / segmentWidth).rounded(.up))
         let upper = range.upperBound.isFinite
-            ? min(bodyEnd, Int((range.upperBound / segmentWidth).rounded(.up)))
-            : bodyEnd
+            ? min(symbols.count, Int((range.upperBound / segmentWidth).rounded(.up)))
+            : symbols.count
         return symbols[lower..<upper]
     }
 
@@ -148,7 +217,7 @@ struct RunnerEndlessCourseTests {
         var hazards = 0
         var segments = 0
         for seed in 1...seedCount {
-            let slice = body(of: Array(RunnerEndlessCourse.pattern(seed: seed)), in: range)
+            let slice = body(of: Array(RunnerEndlessCourse.pattern(seed: seed, count: analysisSegments)), in: range)
             hazards += slice.filter { RunnerStage.segmentSpec($0) != nil }.count
             segments += slice.count
         }
@@ -169,7 +238,7 @@ struct RunnerEndlessCourseTests {
     func openingHasEnoughHazards() {
         var total = 0
         for seed in 1...Self.seedCount {
-            let slice = Self.body(of: Array(RunnerEndlessCourse.pattern(seed: seed)), in: 0..<2_000)
+            let slice = Self.body(of: Array(RunnerEndlessCourse.pattern(seed: seed, count: 40)), in: 0..<2_000)
             total += slice.filter { RunnerStage.segmentSpec($0) != nil }.count
         }
         let mean = Double(total) / Double(Self.seedCount)
@@ -177,19 +246,18 @@ struct RunnerEndlessCourseTests {
     }
 
     /// 平地（何もない区画）の連続に上限がある: 序盤は最大 3 区画、4,000 単位以降は最大 2 区画。
-    /// 末尾の平地 2 区画（`trailingSegments`）は見ない。
+    /// 70,000 単位先まで（継ぎ目をまたぐ連続も含めて）見る。
     /// 測定値: #930 で直す前は 1,000 種すべてが両方に落ちた（序盤の最長は 4〜23 区画、
     /// 4,000 以降の最長は 4〜18 区画。速さ 34 で 1 区画 ≒ 1.9 秒なので、8 区画 = 15 秒の空白が普通だった）。
-    @Test("平地の連続は序盤 3 区画・4,000 単位以降 2 区画まで")
+    @Test("平地の連続は序盤 3 区画・4,000 単位以降 2 区画まで（70,000 単位先まで）")
     func flatRunsAreCapped() {
-        let bodyEnd = RunnerRules.endlessSegments - RunnerEndlessCourse.trailingSegments
         let lateStart = Int((RunnerEndlessCourse.flatRunTightenDistance / Self.segmentWidth).rounded(.up))
         for seed in 1...Self.seedCount {
-            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed))
+            let symbols = Array(RunnerEndlessCourse.pattern(seed: seed, count: Self.verifiedSegments))
             var run = 0
             var longestEarly = 0
             var longestLate = 0
-            for index in 0..<bodyEnd {
+            for index in symbols.indices {
                 run = Self.isEmpty(symbols[index]) ? run + 1 : 0
                 if index < lateStart {
                     longestEarly = max(longestEarly, run)
@@ -224,7 +292,7 @@ struct RunnerEndlessCourseTests {
         ]
         var earliest: [Character: Double] = [:]
         for seed in 1...Self.seedCount {
-            for (index, symbol) in RunnerEndlessCourse.pattern(seed: seed).enumerated() {
+            for (index, symbol) in RunnerEndlessCourse.pattern(seed: seed, count: Self.analysisSegments).enumerated() {
                 let distance = Double(index) * Self.segmentWidth
                 earliest[symbol] = min(earliest[symbol] ?? .infinity, distance)
             }
@@ -289,58 +357,93 @@ struct RunnerEndlessCourseTests {
     ///
     /// 速さは距離で上がるので、越えられるかは**手前の遅い**速さ（`low`）で、間隔・鳥の前後は
     /// **先の速い**速さ（`high`）で判定する。どちらも生成器が使う幅より外側を取る。
-    private func expectSatisfiesLayoutRules(_ stage: RunnerStage, seed: UInt64) {
+    private func expectSatisfiesLayoutRules(_ course: EndlessCourseSample, seed: UInt64) {
+        // 1,000 種 × 数百の障害を回すので、`#expect` の代わりに外れたときだけ記録する（`#expect` は
+        // 通るたびに式を組み立てるので、この件数ではテスト時間の大半を占めた）。
+        func check(_ condition: Bool, _ message: @autoclosure () -> String) {
+            if !condition { Issue.record(Comment(rawValue: message())) }
+        }
         let halfWidth = RunnerField.Metrics.playerHalfWidth
-        func low(_ hazard: RunnerHazard) -> Double { stage.speed(at: hazard.start - Self.segmentWidth) }
-        func high(_ hazard: RunnerHazard) -> Double { stage.speed(at: hazard.end + Self.segmentWidth * 2) }
+        func speed(_ distance: Double) -> Double { RunnerEndlessCourse.speed(atDistance: distance) }
+        func low(_ hazard: RunnerHazard) -> Double { speed(hazard.start - Self.segmentWidth) }
+        func high(_ hazard: RunnerHazard) -> Double { speed(hazard.end + Self.segmentWidth * 2) }
+        // 瞬間タップで高さを越えている時間。高さの種類は数えるほどなので覚えておく（標本の走査は重い）。
+        var tapTimes: [Double: Double] = [:]
+        func tapTime(above height: Double) -> Double {
+            if let known = tapTimes[height] { return known }
+            let time = Self.tapTime(above: height)
+            tapTimes[height] = time
+            return time
+        }
 
-        // 記号。
-        let symbols = Array(stage.pattern)
+        // 記号。集めた並びの右端（`courseEnd`）をまたぐ台座・床と、右端の区画のイノシシは
+        // 相手（連続の続き・止まる岩）が並びの外にあるので、それを要る検算からは外す。
+        let symbols = course.symbols
+        let courseEnd = Double(symbols.count) * Self.segmentWidth
         for symbol in symbols where symbol != "-" {
             let isKnown = RunnerStage.segmentSpec(symbol) != nil
                 || symbol == RunnerStage.pickupSymbol
                 || symbol == RunnerStage.takoyakiSymbol
                 || symbol == RunnerStage.platformSymbol
                 || symbol == RunnerStage.boostFloorSymbol
-            #expect(isKnown, "種 \(seed): 未知の記号 '\(symbol)'")
+            check(isKnown, "種 \(seed): 未知の記号 '\(symbol)'")
         }
 
         // 障害 1 つずつ: 押さないジャンプで越えられる（動く障害は等価な静止区間で）。穴は最大 3 タイル表記（4 タイル幅）。
-        for hazard in stage.hazards {
+        for hazard in course.hazards {
             let speed = low(hazard)
             let encounter = hazard.encounter
             switch hazard.kind {
             case .pit:
-                #expect(hazard.length <= 4 * RunnerRules.tileWidth, "種 \(seed): 穴が広すぎる（\(hazard.length)）")
+                check(hazard.length <= 4 * RunnerRules.tileWidth, "種 \(seed): 穴が広すぎる（\(hazard.length)）")
                 let needed = RunnerAutoPilot.lead(for: hazard, speed: speed) + hazard.length
-                #expect(
+                check(
                     speed * RunnerRules.jumpAirTime > needed + RunnerRules.tileWidth,
                     "種 \(seed): \(hazard.start) の穴（\(hazard.length)）が跳び越せない"
                 )
                 // 瞬間タップでも渡れる（`RunnerPlaythroughTests.instantTapClearsPitsAndLowBlocks` と同じ境目）。
-                #expect(
+                check(
                     speed * Self.tapAirTime > hazard.length + halfWidth + RunnerRules.tileWidth,
                     "種 \(seed): \(hazard.start) の穴（\(hazard.length)）を瞬間タップで渡れない（速さ \(speed)）"
                 )
+            case .shoot:
+                // 突き上げ（#1010）は生成器に教えていない（決裁「生成器に教えるのは別の版」）。
+                // 出てきたら生成の不具合なので、ここで落とす。
+                check(false, "種 \(seed): エンドレスに突き上げが出た（\(hazard.start)）")
+            case .wall:
+                // 高い塀（#1091）も同じ理由で生成器に教えていない。
+                check(false, "種 \(seed): エンドレスに高い塀が出た（\(hazard.start)）")
             case .lowBlock, .tallBlock, .bird, .dog, .boar:
                 let overlap = (encounter.length + halfWidth * 2) / speed
-                #expect(
+                check(
                     RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance) > overlap,
                     "種 \(seed): \(hazard.start) の \(hazard.kind)（高さ \(encounter.height)）を越えきれない"
                 )
-                #expect(encounter.height < RunnerRules.jumpApex)
+                check(encounter.height < RunnerRules.jumpApex, "種 \(seed): \(hazard.start) の \(hazard.kind) が頂点より高い")
                 if hazard.kind != .tallBlock, !(hazard.kind == .boar && hazard.stopAt != nil) {
-                    #expect(
-                        Self.tapTime(above: encounter.height + RunnerAutoPilot.clearance) > overlap,
+                    check(
+                        tapTime(above: encounter.height + RunnerAutoPilot.clearance) > overlap,
                         "種 \(seed): \(hazard.start) の \(hazard.kind) を瞬間タップで越えられない"
                     )
                 }
+                // イノシシが関わる岩は出現点（72 先）までにしか無いので、次の 2 区画だけを渡す（全障害をなめると重い）。
+                let segmentIndex = Int(hazard.start / Self.segmentWidth)
+                let nearby = hazard.kind == .boar
+                    ? course.segments[segmentIndex..<min(segmentIndex + 3, course.segments.count)].compactMap(\.hazard) : []
+                if hazard.kind == .boar, hazard.start + Self.segmentWidth < courseEnd {
+                    // 止まる岩はステージ制の式（`boarStop`）で独立に求め直したものと一致する。
+                    let moving = RunnerHazard(kind: .boar, start: hazard.start, length: hazard.length)
+                    check(
+                        hazard.stopAt == RunnerStage.boarStop(for: moving, among: nearby),
+                        "種 \(seed): イノシシ \(hazard.start) の止まる岩が食い違う"
+                    )
+                }
                 // 岩の右側で止まったイノシシ（#801）は岩と一続き。岩の高さのまま両方を越えきれること。
-                if hazard.kind == .boar, let stopAt = hazard.stopAt {
-                    let rock = stage.hazards.first { $0.kind.isRock && $0.end == stopAt }
-                    #expect(rock != nil, "種 \(seed): イノシシ \(hazard.start) が止まる岩が無い")
+                if hazard.kind == .boar, hazard.start + Self.segmentWidth < courseEnd, let stopAt = hazard.stopAt {
+                    let rock = nearby.first { $0.kind.isRock && $0.end == stopAt }
+                    check(rock != nil, "種 \(seed): イノシシ \(hazard.start) が止まる岩が無い")
                     if let rock {
-                        #expect(
+                        check(
                             RunnerEndlessCourse.isClearableWithBoarBehind(rock, speed: low(rock)),
                             "種 \(seed): 岩 \(rock.start) と止まったイノシシを越えきれない"
                         )
@@ -351,56 +454,73 @@ struct RunnerEndlessCourseTests {
 
         // 隣り合う障害の間隔（動く障害は等価な静止区間の並びで）。岩と、その右側で止まった
         // イノシシは一続きなので間隔を問わない。
-        let ordered = stage.hazards.sorted { $0.encounter.start < $1.encounter.start }
+        let ordered = course.hazards.sorted { $0.encounter.start < $1.encounter.start }
         for (previous, next) in zip(ordered, ordered.dropFirst()) {
             if next.kind == .boar, next.stopAt == previous.end, previous.kind.isRock { continue }
             let speed = high(next)
             let needed = speed * RunnerRules.jumpAirTime + RunnerAutoPilot.lead(for: next, speed: speed)
-            #expect(
+            check(
                 next.encounter.start - previous.encounter.start > needed,
                 "種 \(seed): \(previous.start)（\(previous.kind)）と \(next.start)（\(next.kind)）が近すぎる"
             )
         }
         // 障害のあとの台座への踏み切り（`RunnerEndlessCourse.canPlacePlatform` と同じ式）。
-        for platform in stage.platforms {
+        for platform in course.platforms {
             guard let previous = ordered.last(where: { $0.encounter.start < platform.start }) else { continue }
-            let speed = stage.speed(at: platform.start + Self.segmentWidth)
+            let speed = speed(platform.start + Self.segmentWidth)
             let rise = RunnerRules.riseTime(to: platform.top + RunnerAutoPilot.clearance)
             let takeOff = platform.start - RunnerAutoPilot.baseLead - speed * rise
             let landing = previous.encounter.start - RunnerAutoPilot.lead(for: previous, speed: speed)
                 + speed * RunnerRules.jumpAirTime
-            #expect(landing < takeOff, "種 \(seed): \(previous.start) の着地が台座 \(platform.start) の踏み切りに食い込む")
+            check(landing < takeOff, "種 \(seed): \(previous.start) の着地が台座 \(platform.start) の踏み切りに食い込む")
         }
 
         // 台座の前後は素の平地、床の直後は素の平地で台座の隣ではない（`RunnerStage.patterns` の配置規則）。
         for (index, symbol) in symbols.enumerated() {
             if symbol == RunnerStage.platformSymbol {
                 if index > 0, symbols[index - 1] != RunnerStage.platformSymbol {
-                    #expect(symbols[index - 1] == "-", "種 \(seed): 台座の手前（区画 \(index - 1)）が平地でない")
+                    check(symbols[index - 1] == "-", "種 \(seed): 台座の手前（区画 \(index - 1)）が平地でない")
                 }
                 if index < symbols.count - 1, symbols[index + 1] != RunnerStage.platformSymbol {
-                    #expect(symbols[index + 1] == "-", "種 \(seed): 台座の直後（区画 \(index + 1)）が平地でない")
+                    check(symbols[index + 1] == "-", "種 \(seed): 台座の直後（区画 \(index + 1)）が平地でない")
                 }
             }
             if symbol == RunnerStage.boostFloorSymbol {
                 if index < symbols.count - 1, symbols[index + 1] != RunnerStage.boostFloorSymbol {
-                    #expect(symbols[index + 1] == "-", "種 \(seed): 床の直後（区画 \(index + 1)）が平地でない")
+                    check(symbols[index + 1] == "-", "種 \(seed): 床の直後（区画 \(index + 1)）が平地でない")
                 }
                 if index > 0 {
-                    #expect(symbols[index - 1] != RunnerStage.platformSymbol, "種 \(seed): 床が台座の直後（区画 \(index)）")
+                    check(symbols[index - 1] != RunnerStage.platformSymbol, "種 \(seed): 床が台座の直後（区画 \(index)）")
                 }
             }
         }
-        for platform in stage.platforms {
-            #expect(platform.top + RunnerAutoPilot.clearance < RunnerRules.jumpApex)
-            for hazard in stage.hazards {
-                #expect(!(hazard.start < platform.end && platform.start < hazard.end), "種 \(seed): 台座の上に障害")
+        // 台座・床は連続の頭にだけ 1 基あり、長さは連続の区画数ちょうど（欠けない・重複しない）。
+        func expectRuns<T>(of symbol: Character, _ items: [T], start: (T) -> Double, length: (T) -> Double, name: String) {
+            var runs: [(start: Double, length: Double)] = []
+            var index = 0
+            while index < symbols.count {
+                guard symbols[index] == symbol else { index += 1; continue }
+                let head = index
+                while index < symbols.count, symbols[index] == symbol { index += 1 }
+                runs.append((Double(head) * Self.segmentWidth, Double(index - head) * Self.segmentWidth))
             }
-            for pickup in stage.pickups {
-                #expect(!(platform.start <= pickup.start && pickup.start < platform.end), "種 \(seed): 台座の上にアイテム")
+            runs.removeAll { $0.start + $0.length >= courseEnd }
+            let items = items.filter { start($0) + length($0) < courseEnd }
+            check(items.count == runs.count, "種 \(seed): \(name)の数 \(items.count) と連続の数 \(runs.count)")
+            for (item, run) in zip(items, runs) {
+                check(start(item) == run.start && length(item) == run.length, "種 \(seed): \(name) \(start(item)) の範囲が連続と食い違う")
             }
-            for floor in stage.boostFloors {
-                #expect(!(floor.start < platform.end && platform.start < floor.end), "種 \(seed): 床が台座と重なる")
+        }
+        expectRuns(of: RunnerStage.platformSymbol, course.platforms, start: \.start, length: \.length, name: "台座")
+        expectRuns(of: RunnerStage.boostFloorSymbol, course.floors, start: \.start, length: \.length, name: "床")
+        for platform in course.platforms {
+            check(platform.top + RunnerAutoPilot.clearance < RunnerRules.jumpApex, "種 \(seed): 台座 \(platform.start) が高すぎる")
+            // 台座の上の区画には障害・アイテム・床が無い（障害とアイテムは自分の区画の中にしか無い）。
+            guard platform.end <= courseEnd else { continue }
+            let first = Int(platform.start / Self.segmentWidth)
+            let last = Int((platform.end / Self.segmentWidth).rounded()) - 1
+            for index in first...last {
+                check(symbols[index] == RunnerStage.platformSymbol, "種 \(seed): 台座の上（区画 \(index)）に '\(symbols[index])'")
             }
         }
     }
@@ -471,53 +591,320 @@ struct RunnerEndlessCourseTests {
     }
 }
 
-/// エンドレスのコースを実際に走り切れることの実証（`RunnerPlaythroughTests` と同じ自動操縦）。
+/// 枠（`RunnerEndlessTrack`）を少しずつ進めながら、入ってきた区画を先頭から順に集めたもの。
+///
+/// 枠は `capacity` を使い回すので、集めた並びには**枠の最後から最初へ回った継ぎ目**をまたぐ
+/// 隣り合う区画の組が含まれる（`seamPairs` がその数）。
+struct EndlessCourseSample {
+    var symbols: [Character] = []
+    var segments: [RunnerEndlessSegment] = []
+    var hazards: [RunnerHazard] = []
+    var pickups: [RunnerPickup] = []
+    var platforms: [RunnerPlatform] = []
+    var floors: [RunnerBoostFloor] = []
+    /// 枠の番号が `capacity − 1` から 0 へ回った隣り合う区画の組の数。
+    var seamPairs = 0
+
+    init(seed: UInt64, segments count: Int, capacity: Int = RunnerEndlessTrack.defaultCapacity,
+         aheadDistance: Double = RunnerEndlessTrack.aheadDistance, step: Double = 7) {
+        var track = RunnerEndlessTrack(seed: seed, capacity: capacity, aheadDistance: aheadDistance)
+        var distance = 0.0
+        var previousSlot: Int?
+        while segments.count < count {
+            for position in 0..<track.count {
+                let segment = track[position]
+                guard segment.index == segments.count else { continue }
+                let slot = track.slot(ofSegmentIndex: segment.index)
+                if let previousSlot, let slot, previousSlot == capacity - 1, slot == 0 { seamPairs += 1 }
+                previousSlot = slot
+                segments.append(segment)
+                symbols.append(segment.symbol)
+                if let hazard = segment.hazard { hazards.append(hazard) }
+                if let pickup = segment.pickup { pickups.append(pickup) }
+                if let platform = segment.platform { platforms.append(platform) }
+                if let floor = segment.boostFloor { floors.append(floor) }
+                if segments.count == count { break }
+            }
+            distance += step
+            track.advance(to: distance)
+        }
+    }
+}
+
+/// 枠（`RunnerEndlessTrack`）と、走りながら作るコースの性質（#1086 の受け入れ条件 C・D・E）。
+@Suite("チャリンコおじさん: エンドレスの枠")
+struct RunnerEndlessTrackTests {
+    /// 受け入れ条件 C「区画 N の中身は種と N だけで決まる」「枠の数・何区画先まで作るかに左右されない」。
+    @Test("枠の数・先読みの距離・進め方を変えても、区画ごとの中身は同じ")
+    func contentIsIndependentOfCapacityAndLookahead() {
+        for seed in [7, 1086] as [UInt64] {
+            let reference = EndlessCourseSample(seed: seed, segments: 600)
+            for (capacity, ahead, step) in [(8, 160.0, 1.3), (16, 400.0, 23.0), (32, 1_000.0, 64.0), (64, 2_000.0, 250.0)] {
+                let other = EndlessCourseSample(seed: seed, segments: 600, capacity: capacity, aheadDistance: ahead, step: step)
+                #expect(other.segments == reference.segments, "種 \(seed)・枠 \(capacity)・先読み \(ahead)・刻み \(step)")
+            }
+            // 生成器を直接回した並びとも同じ（枠は中身を作り替えない）。
+            var generator = RunnerEndlessGenerator(seed: seed)
+            #expect((0..<600).map { _ in generator.next() } == reference.segments)
+        }
+    }
+
+    /// 受け入れ条件 D「保持する区画データの数に上限があり、距離に比例して増えない」
+    /// 「走行中に区画データ用の配列の再確保が起きない」。
+    @Test("枠は 8 区画で、10,000,000 単位先まで進めても増えず、配列も再確保されない")
+    func trackStaysBoundedWithoutReallocation() {
+        #expect(RunnerEndlessTrack.defaultCapacity == 8)
+        var track = RunnerEndlessTrack(seed: 3)
+        let address = track.storageAddress
+        var distance = 0.0
+        var maxCount = 0
+        while distance < 70_000 {
+            distance += 4.65  // 最高速（60 × ペダル 1.55）で 1/20 秒ぶん
+            track.advance(to: distance)
+            maxCount = max(maxCount, track.count)
+            #expect(track.count <= 7, "距離 \(distance) で \(track.count) 区画")
+            #expect(track.storageAddress == address, "距離 \(distance) で配列が再確保された")
+        }
+        #expect(maxCount == 7, "同時に持つ区画の最大（doc の根拠）: \(maxCount)")
+        // 一気に遠くへ進めても、持つ区画の数と配列は変わらない。
+        track.advance(to: 10_000_000)
+        #expect(track.count <= 7)
+        #expect(track.storageAddress == address)
+        #expect(track.firstIndex == Int(10_000_000 / RunnerEndlessSegment.width) - RunnerEndlessTrack.retainedSegmentsBehind)
+    }
+
+    /// 受け入れ条件 E「最高速でも走者の前方に生成済みの区画が常に一定数以上ある」。
+    /// 一定数 = `aheadDistance`（160 = 画面の先読み 74 に、イノシシが突進を始める 76 先の区画の右端 116 を
+    /// 覆うだけの余裕を足した距離）。走者のいる区画の先に、少なくとも 2 区画まるごと。
+    @Test("最高速で最大の刻みで進めても、走者の前 160 単位（2 区画以上）は常に生成済み")
+    func generationKeepsAheadAtMaxSpeed() {
+        // 最高速 = 速さの上限 × ペダルの上限 × アイテム・ジャスト着地の上乗せ × 床（`RunnerField.step` の見積もりと同じ）。
+        let top = RunnerRules.endlessMaxSpeed
+            * (RunnerRules.maxPedalBoost + RunnerRules.pickupOverboost + RunnerRules.justLandingOverboost)
+            * RunnerRules.boostFloorMultiplier
+        var track = RunnerEndlessTrack(seed: 11)
+        var distance = 0.0
+        while distance < 30_000 {
+            distance += top * RunnerRules.maxStep
+            track.advance(to: distance)
+            #expect(track.generatedEnd - distance >= RunnerEndlessTrack.aheadDistance)
+            let current = Int(distance / RunnerEndlessSegment.width)
+            #expect(track.endIndex - current - 1 >= 2, "距離 \(distance): 前に \(track.endIndex - current - 1) 区画")
+        }
+    }
+
+    /// 受け入れ条件 E「区画を作る処理でフレーム落ちしない。1 区画ぶんの生成時間を計測する」。
+    /// デバッグビルドの計測値（最適化なしなので製品より遅い側の見積もり）を出力し、1 フレーム（16.7 ミリ秒）の
+    /// 1/100 に当たる 0.167 ミリ秒を上限にする。1 フレームで作る区画は最高速でも 1 つ未満（64 ÷ 93 × 1/60）。
+    @Test("1 区画の生成はデバッグビルドでも 0.167 ミリ秒未満")
+    func generationIsFastEnough() {
+        var generator = RunnerEndlessGenerator(seed: 5)
+        let count = 50_000
+        let clock = ContinuousClock()
+        let elapsed = clock.measure {
+            for _ in 0..<count { _ = generator.next() }
+        }
+        let perSegment = (Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18) / Double(count)
+        print("エンドレスの生成: 1 区画 \(String(format: "%.4f", perSegment * 1_000)) ミリ秒（\(count) 区画の平均）")
+        #expect(perSegment < 0.167e-3, "1 区画 \(perSegment * 1_000) ミリ秒")
+    }
+
+    /// 受け入れ条件 E「生成されていない場所に走者が入っても地面として扱われ、落ちない」。
+    /// 先読みを負にして、生成がわざと走者の後ろを追いかける枠で走らせる（穴は区画のデータでしか表さない）。
+    @Test("まだ作っていない場所は地面で、跳ばずに走っても落ちない")
+    func ungeneratedGroundIsSolid() {
+        var field = RunnerField(endless: RunnerEndlessTrack(seed: 1, capacity: 8, aheadDistance: -200))
+        var events: [RunnerEvent] = []
+        for _ in 0..<(60 * 20) { events += field.step(dt: 1.0 / 60) }
+        #expect(field.distance > 800)
+        let terminals = events.filter { $0.isTerminal }
+        #expect(terminals.isEmpty, "\(terminals)")
+        let beyond = field.distance + 20
+        #expect(beyond > field.track?.generatedEnd ?? 0, "対照: 走者の前は作っていない")
+        #expect(!field.isPit(at: beyond))
+        #expect(field.surfaceY(at: beyond) == RunnerField.Metrics.groundY)
+        // 対照: ふつうの先読みなら同じ時間のうちに穴で落ちる。
+        var normal = RunnerField(endlessSeed: 1)
+        var normalEvents: [RunnerEvent] = []
+        for _ in 0..<(60 * 20) where !normalEvents.contains(where: \.isTerminal) { normalEvents += normal.step(dt: 1.0 / 60) }
+        #expect(normalEvents.contains(.fell))
+    }
+}
+
+/// エンドレスのコースを実際に走り続けられることの実証（`RunnerPlaythroughTests` と同じ自動操縦）。
 @Suite("チャリンコおじさん: エンドレスのクリア可能性")
 struct RunnerEndlessPlaythroughTests {
-    private static let segmentWidth = Double(RunnerRules.segmentTiles) * RunnerRules.tileWidth
-
-    /// 自動操縦で `until` の距離まで走る。戻り値は決着のできごと（無ければ nil）と到達距離。
-    private func run(seed: UInt64, until goal: Double) -> (terminal: RunnerEvent?, distance: Double) {
-        var field = RunnerField(stage: RunnerEndlessCourse.makeStage(seed: seed))
+    /// 受け入れ条件 A「自動操縦で 70,000 単位以上をミスせず走れる。少なくとも 20 種」。
+    ///
+    /// あわせて、走っているあいだずっと次を確かめる（受け入れ条件 A・D・E・F）:
+    /// - ゴール・チェックポイントのできごとが出ない
+    /// - 枠は 7 区画以内で、配列は再確保されない
+    /// - 前 160 単位は生成済み
+    /// - 取ったアイテムは枠を回しても取ったまま、取っていないアイテムは消えない、通り過ぎたアイテムは必ず取っている
+    /// 種 675 は撮影・長時間の実測（`-simulateRunner endless-*`）が使う種。
+    @Test("自動操縦が 20 種すべて（と撮影用の種）で 70,000 単位をミスせず走り続ける", .timeLimit(.minutes(10)), arguments: Array(1...20) + [675])
+    func autoPilotRuns70000Units(seed: Int) {
+        let goal = 70_000.0
+        var field = RunnerField(endlessSeed: UInt64(seed))
+        let address = field.track?.storageAddress
+        // 同じ並びをステージ制の式で一括に展開したコース。足元の接地面・床・穴をこれと突き合わせ、
+        // 枠から後ろの区画を早く捨てすぎていない（乗っている台座が消えない）ことを走りながら確かめる。
+        // 毎フレーム全障害をなめると重いので、区画ごとの表に引き直しておく（穴・台座は自分の区画の中に収まり、
+        // 台座は区画まるごとを占めるので、区画の番号で引ける）。
+        let reference = RunnerStage(
+            number: 0, pattern: RunnerEndlessCourse.pattern(seed: UInt64(seed), count: 1_200), speed: RunnerRules.baseSpeed
+        )
+        let width = RunnerEndlessSegment.width
+        var referencePits = [RunnerHazard?](repeating: nil, count: 1_200)
+        for pit in reference.hazards where pit.kind == .pit { referencePits[Int(pit.start / width)] = pit }
+        var referencePlatforms = [Bool](repeating: false, count: 1_200)
+        for platform in reference.platforms {
+            for index in Int(platform.start / width)..<Int((platform.end / width).rounded()) { referencePlatforms[index] = true }
+        }
+        func referenceSurface(at x: Double) -> Double {
+            RunnerField.Metrics.groundY + (referencePlatforms[Int(x / width)] ? RunnerRules.platformHeight : 0)
+        }
+        func referenceIsPit(at x: Double) -> Bool {
+            guard let pit = referencePits[Int(x / width)] else { return false }
+            return pit.start <= x && x < pit.end
+        }
         var frames = 0
-        while frames < 60 * 1_200, field.distance < goal {
+        var collectedEver = Set<Int>()
+        var pickupsPassed = Set<Int>()
+        while frames < 60 * 2_000, field.distance < goal {
             frames += 1
             if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
             if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
             let events = field.step(dt: 1.0 / 60)
-            if let terminal = events.first(where: { $0.isTerminal }) {
-                return (terminal, field.distance)
+            if let terminal = events.first(where: \.isTerminal) {
+                Issue.record("種 \(seed): \(field.distance) で \(terminal)")
+                return
+            }
+            if events.contains(.passedCheckpoint) { Issue.record("種 \(seed): チェックポイントのできごとが出た") }
+            guard let track = field.track else { Issue.record("枠が無い"); return }
+            if track.count > 7 || track.storageAddress != address {
+                Issue.record("種 \(seed): 距離 \(field.distance) で枠 \(track.count)・配列の再確保")
+            }
+            for x in [field.playerMinX, field.distance, field.playerMaxX]
+            where field.surfaceY(at: x) != referenceSurface(at: x) || field.isPit(at: x) != referenceIsPit(at: x) {
+                Issue.record("種 \(seed): 距離 \(field.distance) の足元（x \(x)）が一括展開と違う")
+            }
+            if track.generatedEnd - field.distance < RunnerEndlessTrack.aheadDistance {
+                Issue.record("種 \(seed): 距離 \(field.distance) で生成が追いついていない")
+            }
+            // アイテム。
+            for index in field.collectedPickupIndices {
+                if track.segment(withIndex: index)?.pickup == nil { Issue.record("種 \(seed): 枠に無い区画 \(index) を取った印") }
+            }
+            collectedEver.formUnion(field.collectedPickupIndices)
+            for position in 0..<track.count {
+                let segment = track[position]
+                guard let pickup = segment.pickup else { continue }
+                let collected = field.collectedPickupIndices.contains(segment.index)
+                if collectedEver.contains(segment.index), !collected {
+                    Issue.record("種 \(seed): 取ったアイテム（区画 \(segment.index)）が復活した")
+                }
+                if collected, pickup.start > field.playerMaxX {
+                    Issue.record("種 \(seed): まだ触れていないアイテム（区画 \(segment.index)）が消えた")
+                }
+                if pickup.start < field.playerMinX {
+                    pickupsPassed.insert(segment.index)
+                    if !collected { Issue.record("種 \(seed): 通り過ぎたアイテム（区画 \(segment.index)）を取っていない") }
+                }
             }
         }
-        return (nil, field.distance)
+        #expect(field.distance >= goal, "種 \(seed): \(field.distance) までしか走れていない（\(frames) フレーム）")
+        // 最後のフレームでちょうど体に触れているアイテムは、取ったがまだ通り過ぎていない。
+        #expect(
+            (pickupsPassed.count...(pickupsPassed.count + 1)).contains(field.collectedPickupCount),
+            "種 \(seed): 取った数 \(field.collectedPickupCount) / 通り過ぎた数 \(pickupsPassed.count)"
+        )
+        #expect(field.collectedPickupIndices.count <= RunnerEndlessTrack.defaultCapacity, "取った印は枠のぶんしか持たない")
     }
 
-    /// 受け入れ条件「`RunnerAutoPilot` が任意の種で最低 100 区画走れる」。
-    @Test("自動操縦が 20 種すべてで 100 区画以上走れる")
-    func autoPilotRunsAtLeast100Segments() {
-        let goal = Self.segmentWidth * 100
-        // 種の数は実行時間との釣り合い（デバッグビルドで 1 種 ≒ 0.9 秒）。生成の成立条件そのものは
-        // 1,000 種で検めている（`RunnerEndlessCourseTests`）ので、ここは物理とつないだ実証に絞る。
-        for seed in 1...20 {
-            let result = run(seed: UInt64(seed), until: goal)
-            #expect(result.terminal == nil, "種 \(seed): \(result.distance) で \(String(describing: result.terminal))")
-            #expect(result.distance >= goal, "種 \(seed): \(result.distance) までしか走れていない")
+    /// 受け入れ条件 C「区画の中身がフレームレート・ゆっくりモード・一時停止に左右されない」。
+    /// 走り方（刻み・遅さ・止め方）を変えて同じ種を走らせ、途中で枠に入った区画を、生成器を
+    /// 直接回した並び（`RunnerEndlessGenerator`）と通し番号ごとに比べる。
+    private static let determinismSeed: UInt64 = 42
+    private static let determinismGoal = 6_000.0
+
+    /// 生成器を直接回した先頭の区画（比べる相手）。
+    private static let generatedSegments: [RunnerEndlessSegment] = {
+        var generator = RunnerEndlessGenerator(seed: determinismSeed)
+        return (0..<200).map { _ in generator.next() }
+    }()
+
+    /// 枠に入った区画を覚える。
+    private static func observe(_ field: RunnerField, into seen: inout [Int: RunnerEndlessSegment]) {
+        guard let track = field.track else { return }
+        for position in 0..<track.count { seen[track[position].index] = track[position] }
+    }
+
+    private static func expectMatchesGenerator(_ seen: [Int: RunnerEndlessSegment], _ name: String) {
+        #expect(seen.count > 90, "\(name): 比べられた区画が少ない（\(seen.count)）")
+        for (index, segment) in seen where index < generatedSegments.count && segment != generatedSegments[index] {
+            Issue.record("\(name): 区画 \(index) の中身が違う")
         }
     }
 
-    /// 400 区画の終わりまで通しで走れる（成立条件が終盤の速さ・密度でも保たれている）。
-    @Test("自動操縦が 400 区画を最後まで走り切れる")
-    func autoPilotFinishesTheWholeCourse() {
-        for seed in [1, 2, 3] as [UInt64] {
-            let result = run(seed: seed, until: .infinity)
-            #expect(result.terminal == .reachedGoal, "種 \(seed): \(result.distance) で \(String(describing: result.terminal))")
+    @Test("刻みを変えて走っても、区画ごとの中身は同じ", arguments: [1.0 / 60, 1.0 / 90, 1.0 / 120])
+    func courseIsIndependentOfFrameRate(dt: Double) {
+        var field = RunnerField(endlessSeed: Self.determinismSeed)
+        var seen: [Int: RunnerEndlessSegment] = [:]
+        var frames = 0
+        while field.distance < Self.determinismGoal, frames < 60 * 900 {
+            frames += 1
+            if RunnerAutoPilot.shouldJump(field: field) { field.jump() }
+            if RunnerAutoPilot.shouldRelease(field: field) { field.endHold() }
+            if field.step(dt: dt).contains(where: \.isTerminal) {
+                Issue.record("刻み \(dt): \(field.distance) でミス")
+                break
+            }
+            Self.observe(field, into: &seen)
         }
+        Self.expectMatchesGenerator(seen, "刻み \(dt)")
+    }
+
+    /// Model の `tick` 越し（ゆっくりモード・一時停止あり）。MainActor で順番待ちになるので、上限は
+    /// CI のフルスイート全体（約 7〜8 分）に対して取る。
+    @MainActor
+    @Test("ゆっくりモード・一時停止を挟んで走っても、区画ごとの中身は同じ", .timeLimit(.minutes(15)), arguments: [true, false])
+    func courseIsIndependentOfSlowModeAndPause(slow: Bool) {
+        let preference = makePreference("endless-determinism-\(slow)")
+        preference.isEnabled = slow
+        let model = RunnerModel(startingAt: 1, preference: preference)
+        model.newEndlessGame(seed: Self.determinismSeed)
+        model.press()
+        model.release()
+        var seen: [Int: RunnerEndlessSegment] = [:]
+        var frames = 0
+        var pausedCycle = -1
+        while model.distance < Self.determinismGoal, model.phase.isRunning || model.phase == .paused, frames < 60 * 900 {
+            frames += 1
+            // 200 フレームほどごとに 30 フレーム止める（止めているあいだに枠が動かないことも見る）。
+            // 止めるのは接地しているときだけ——一時停止は押している指を離した扱いにするので
+            // （`RunnerModel.pause`）、跳んでいる最中に止めると自動操縦の全弾道が切り詰められる。
+            if frames % 230 >= 200, frames / 230 != pausedCycle, model.field.isGrounded {
+                pausedCycle = frames / 230
+                model.pause()
+                let before = model.field.track
+                for _ in 0..<30 { model.tick(dt: 1.0 / 60) }
+                #expect(model.field.track == before, "一時停止中に枠が動いた")
+                model.resume()
+            }
+            if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+            if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
+            model.tick(dt: 1.0 / 60)
+            Self.observe(model.field, into: &seen)
+        }
+        #expect(model.distance >= Self.determinismGoal, "ゆっくりモード \(slow): \(model.distance) で止まった（\(model.phase)）")
+        Self.expectMatchesGenerator(seen, slow ? "ゆっくりモード・一時停止あり" : "通常・一時停止あり")
     }
 
     /// 跳ばなければ必ずミスになる（自動操縦が「何もしなくても勝てる」証明にならないための対照）。
     @Test("一度も跳ばなければ最初の穴でミスになる")
     func doingNothingFails() {
-        var field = RunnerField(stage: RunnerEndlessCourse.makeStage(seed: 1))
+        var field = RunnerField(endlessSeed: 1)
         var events: [RunnerEvent] = []
         var frames = 0
         while frames < 60 * 60, !events.contains(where: { $0.isTerminal }) {
@@ -541,24 +928,19 @@ struct RunnerEndlessModelTests {
         return PlayLog(defaults: defaults)
     }
 
-    /// 送信されたイベントをそのまま溜めるスパイ（`MahjongNewGameTests` と同じ形）。
-    @MainActor
-    private final class SpyAnalyticsService: AnalyticsService {
-        private(set) var events: [AnalyticsEvent] = []
-        func log(_ event: AnalyticsEvent) { events.append(event) }
-    }
-
     @Test("モードは開始時に焼き込まれ、ステージ制の続き（ステージ番号）はそのまま残る")
     func modeIsBakedAtStart() {
         let model = RunnerModel(startingAt: 5, preference: makePreference("endless-mode"))
         #expect(model.mode == .stages)
         #expect(model.endlessSeed == nil)
+        #expect(model.field.track == nil, "ステージ制は枠を持たない")
         model.newEndlessGame(seed: 42)
         #expect(model.mode == .endless)
         #expect(model.endlessSeed == 42)
         #expect(model.phase == .ready)
         #expect(model.distance == 0)
-        #expect(model.stage.pattern == RunnerEndlessCourse.pattern(seed: 42), "コースは種から決まる")
+        #expect(model.field.track?.seed == 42, "コースは種から決まる")
+        #expect(model.stage == RunnerEndlessCourse.stage, "コースの中身は枠が持ち、ステージは速さの式だけ")
         #expect(model.stageNumber == 5, "エンドレス中もステージ制の続きを失わない")
         #expect(!model.canResumeFromCheckpoint)
         // 「はじめから」でステージ制へ戻るとステージ 1 から。
@@ -566,6 +948,7 @@ struct RunnerEndlessModelTests {
         #expect(model.mode == .stages)
         #expect(model.stageNumber == 1)
         #expect(model.stage.number == 1)
+        #expect(model.field.track == nil)
     }
 
     @Test("ミスで 1 回が終わり、走行距離が残る。もう一度は新しい種で始まる")
@@ -574,6 +957,7 @@ struct RunnerEndlessModelTests {
         model.newEndlessGame(seed: 1)
         failCurrentStage(model)
         #expect(model.phase == .failed)
+        #expect(model.isRunOver)
         #expect(model.distance > 0)
         #expect(model.endlessBestDistance == model.distanceMeters)
         #expect(model.didSetBestDistance, "初回は必ず更新")
@@ -583,6 +967,7 @@ struct RunnerEndlessModelTests {
         #expect(model.phase == .ready)
         #expect(model.mode == .endless)
         #expect(model.endlessSeed != 1, "同じコースを走り直す導線は無い")
+        #expect(model.field.track?.seed == model.endlessSeed)
         #expect(model.runGeneration == generation + 1)
         #expect(model.distance == 0)
     }
@@ -642,30 +1027,54 @@ struct RunnerEndlessModelTests {
         #expect(!model.didSetBestDistance)
     }
 
-    /// 固定長のコースを走り切った場合も 1 回の決着（第 1 弾は 400 区画で打ち切り）。
-    @Test("コースを走り切ると勝ちとして距離が記録される")
-    func finishingTheCourseCountsAsAWin() {
-        let log = makePlayLog("finish")
+    /// 受け入れ条件 D「走行中に、区画データ用の配列の再確保が起きない」を Model の `tick` 越しに確かめる
+    /// （`@Observable` のプロパティ越しに書き換えても、枠の配列が複製されないこと）。
+    @Test("Model の tick で走らせても、枠の配列は再確保されない", .timeLimit(.minutes(15)))
+    func modelTickDoesNotReallocateTrack() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("endless-no-realloc"))
+        model.newEndlessGame(seed: 9)
+        let address = model.field.track?.storageAddress
+        #expect(address != nil)
+        model.press()
+        model.release()
+        var frames = 0
+        while model.distance < 5_000, model.phase.isRunning, frames < 60 * 300 {
+            frames += 1
+            if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+            if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
+            model.tick(dt: 1.0 / 60)
+        }
+        #expect(model.distance >= 5_000)
+        #expect(model.field.track?.storageAddress == address)
+    }
+
+    /// 受け入れ条件 H「記録と順位表が 7 桁以上の距離でも正しく送られる・表示される」。
+    @Test("7 桁の走行距離でも記録・順位表・桁区切りが正しい")
+    func sevenDigitDistanceIsRecorded() {
+        let log = makePlayLog("seven-digits")
+        let gameCenter = SpyGameCenterService()
         let model = RunnerModel(
-            services: makeServices(log: log), startingAt: 1, preference: makePreference("endless-finish")
+            services: makeServices(log: log, gameCenter: gameCenter),
+            startingAt: 1, preference: makePreference("endless-seven-digits")
         )
-        model.newEndlessGame(seed: 2)
-        #expect(autoPlayCurrentStage(model, maxFrames: 60 * 1_200), "走り切る前に打ち切りに達した")
-        #expect(model.phase == .allCleared)
-        #expect(model.isRunOver)
-        #expect(model.distance == model.stage.length)
-        let record = log.record(gameID: RunnerModel.gameID, variant: RunnerMode.endless.recordVariant)
-        #expect(record?.wins == 1)
-        #expect(record?.bestPoints == Int(model.stage.length / RunnerRules.tileWidth), "1 タイル＝1 m で記録する")
-        // その先は無い。「もう一度」で新しいコース。
-        model.advanceToNextStage()
-        #expect(model.phase == .allCleared, "エンドレスに次のステージは無い")
-        model.retryStage()
-        #expect(model.phase == .ready && model.mode == .endless)
+        model.newEndlessGame(seed: 4)
+        model.press()
+        model.release()
+        model.fastForwardEndlessForDebug(to: 4_000_000)
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        let meters = model.distanceMeters
+        #expect(meters >= 1_000_000 && meters < 1_001_000, "\(meters) m")
+        #expect(model.endlessBestDistance == meters)
+        #expect(log.record(gameID: RunnerModel.gameID, variant: RunnerMode.endless.recordVariant)?.bestPoints == meters)
+        #expect(gameCenter.scores == [GameCenterScore(leaderboardID: GameCenterLeaderboard.runnerDistance, value: meters)])
+        #expect(RecordFormat.number(meters) == "1,000,\(String(format: "%03d", meters - 1_000_000))")
+        #expect(RunnerAccessibility.distanceLabel(meters) == "走行距離 \(meters)メートル")
+        #expect(RunnerAccessibility.startEndlessLabel(bestDistance: meters).hasPrefix("エンドレス、自己ベスト 1,000,"))
     }
 
     /// 撮影用シナリオ（`-simulateRunner endless-*`）が狙った画で止まること。種は固定なので決定論的。
-    @Test("撮影用シナリオ endless-running / endless-failed は狙った状態で止まる")
+    @Test("撮影用シナリオ endless / endless-running / endless-failed / endless-far / endless-far-failed は狙った状態で止まる")
     func captureScenariosLandWhereIntended() {
         let ready = RunnerModel(startingAt: 1, preference: makePreference("endless-capture-ready"))
         ready.applyDebugScenario("endless")
@@ -680,6 +1089,37 @@ struct RunnerEndlessModelTests {
         failed.applyDebugScenario("endless-failed")
         #expect(failed.mode == .endless && failed.phase == .failed)
         #expect(failed.distance > 700, "冒頭の固定区画を抜けてからミスする")
+
+        let far = RunnerModel(startingAt: 1, preference: makePreference("endless-capture-far"))
+        far.applyDebugScenario("endless-far")
+        #expect(far.mode == .endless && far.phase == .running)
+        #expect(!far.field.isGrounded, "跳んでいる最中で止める")
+        #expect(far.distanceMeters >= 2_500_000, "7 桁の距離（\(far.distanceMeters) m）")
+        let distance = far.distance
+        far.tick(dt: 1.0 / 60)
+        #expect(far.distance == distance, "撮影のために止めてある")
+
+        let farFailed = RunnerModel(startingAt: 1, preference: makePreference("endless-capture-far-failed"))
+        farFailed.applyDebugScenario("endless-far-failed")
+        #expect(farFailed.mode == .endless && farFailed.phase == .failed)
+        #expect(farFailed.distanceMeters >= 2_500_000 && farFailed.endlessBestDistance == farFailed.distanceMeters)
+    }
+
+    /// 長時間の実測用の `-simulateRunner endless-autopilot` は、フレームが伸びても（1/20 秒）自動操縦の判断を
+    /// 1/60 秒以下の刻みで行い、テストと同じくミスせず走り続ける。
+    @Test("長時間の実測用シナリオは、フレームが伸びてもミスせず走り続ける", .timeLimit(.minutes(15)))
+    func autopilotScenarioSurvivesSlowFrames() {
+        let model = RunnerModel(startingAt: 1, preference: makePreference("endless-capture-autopilot"))
+        model.applyDebugScenario("endless-autopilot")
+        #expect(model.mode == .endless && model.phase == .running)
+        var frames = 0
+        while model.distance < 5_000, model.phase.isRunning, frames < 60 * 900 {
+            frames += 1
+            // 実機で計測中に起きる長いフレーム（上限の 1/20 秒）と短いフレームを混ぜる。
+            model.tick(dt: frames % 3 == 0 ? 1.0 / 20 : 1.0 / 60)
+        }
+        #expect(model.phase == .running, "\(model.distance) で \(model.phase)")
+        #expect(model.distance >= 5_000)
     }
 
     @Test("一時停止はエンドレスでも効く")
@@ -690,10 +1130,12 @@ struct RunnerEndlessModelTests {
         model.release()
         model.tick(dt: 0.5)
         let distance = model.distance
+        let track = model.field.track
         model.pause()
         #expect(model.phase == .paused)
         for _ in 0..<60 { model.tick(dt: 1.0 / 60) }
         #expect(model.distance == distance)
+        #expect(model.field.track == track, "止めているあいだに区画を作らない・捨てない")
         model.resume()
         #expect(model.phase == .running)
     }
@@ -710,14 +1152,22 @@ struct RunnerEndlessModelTests {
         model.newEndlessGame(seed: 1)
         model.newGame(mode: .stages)
         let starts = spy.events.compactMap { event -> (level: String?, mode: String?)? in
-            if case let .gameStart(_, level, mode) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
+            if case let .gameStart(_, level, mode, _) = event { return (level?.parameterValue, mode?.rawValue) } else { return nil }
         }
         #expect(starts.map(\.mode) == ["stage", "endless", "stage"])
         #expect(starts.map(\.level) == ["stage-3", nil, "stage-1"])
     }
 
-    /// `game_end` にも開始時の `mode` が焼き込まれて載る（#785 の中核。#820）。
-    @Test("エンドレスのミスで game_end(mode: endless) が 1 回だけ出る")
+    /// `game_end` にも開始時の `mode` が焼き込まれて載る（#785 の中核。#820）。受け入れ条件 H
+    /// 「エンドレスの `game_end` はミスした時だけ、1 回の走行につきちょうど 1 本（`result = loss`・
+    /// `mode = endless`・`cause` 付き）」を、長く走ってからのミスと続けての 2 回で確かめる。
+    ///
+    /// 2 回目の走行は #675 の固定長（400 区画 = 25,600 単位）を越えるまで走らせ、受け入れ条件 A「エンドレスで
+    /// `.allCleared` にならない」と I「クリア演出の分岐が発火しない」（`RunnerScene.sync` の紙吹雪は `.cleared` /
+    /// `.allCleared` に入った最初のフレームでだけ出る）も同じ走行で確かめる。
+    ///
+    /// Model のテストは MainActor で順番待ちになるので、上限は CI のフルスイート全体（約 7〜8 分）に対して取る。
+    @Test("エンドレスの game_end はミスした時だけ 1 走行 1 本で、400 区画を越えてもクリアにならない", .timeLimit(.minutes(15)))
     func endlessMissSendsOneGameEndWithMode() {
         let spy = SpyAnalyticsService()
         let analytics = GameAnalytics(
@@ -725,16 +1175,49 @@ struct RunnerEndlessModelTests {
         )
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
         let model = RunnerModel(services: services, startingAt: 1, preference: makePreference("endless-analytics-end"))
+        func ends() -> [(result: AnalyticsResult, mode: AnalyticsMode?, cause: AnalyticsEndCause?)] {
+            spy.events.compactMap { event in
+                if case let .gameEnd(_, result, _, mode, cause, _) = event { return (result, mode, cause) } else { return nil }
+            }
+        }
         model.newEndlessGame(seed: 1)
+        failCurrentStage(model)
+        #expect(model.phase == .failed)
+        #expect(ends().count == 1)
+
+        // 2 回目: #675 の終点（25,600）の手前 1 区画へ一気に進め、そこから自動操縦で終点を越えて走る。
+        // そのあいだは game_end が増えない。そこから跳ばずにミス。
+        model.retryStage()
+        model.press()
+        model.release()
+        model.fastForwardEndlessForDebug(to: 25_536)
+        var frames = 0
+        while model.distance < 26_000, model.phase.isRunning, frames < 60 * 900 {
+            frames += 1
+            if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
+            if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
+            model.tick(dt: 1.0 / 60)
+            if model.phase != .running {
+                Issue.record("距離 \(model.distance) で \(model.phase) になった")
+            }
+        }
+        #expect(model.distance >= 26_000)
+        #expect(!model.isRunOver)
+        #expect(model.recordResult == nil, "ミスするまで記録は書かない")
+        #expect(ends().count == 1, "走っているあいだは game_end を出さない")
+        // その先は無い。「次の面へ」は効かない。
+        model.advanceToNextStage()
+        #expect(model.phase == .running, "エンドレスに次のステージは無い")
         failCurrentStage(model)
         #expect(model.phase == .failed)
         // 「もう一度」は新しい 1 回の開始で、ミスした回の game_end を重ねない。
         model.retryStage()
-        let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _) = event { return (result, mode) } else { return nil }
+        let all = ends()
+        #expect(all.count == 2)
+        for end in all {
+            #expect(end.mode == .endless)
+            #expect(end.result == .loss)
+            #expect(end.cause != nil, "ミスの原因が載る")
         }
-        #expect(ends.count == 1)
-        #expect(ends.first?.mode == .endless)
-        #expect(ends.first?.result == .loss)
     }
 }

@@ -9,6 +9,8 @@ public struct HanafudaView: View {
     @Environment(\.adaptiveLayout) private var layout
     @State private var showResignConfirm = false
     @State private var showYakuSheet = false
+    /// 最終局で負けているときに広告で 1 局延長する救済（#1049）。
+    @State private var extendRescue = RewardedRescue()
     /// 開始前の設定（局数・酒の役・強さ）。局が始まったら焼き込まれる（1 局 = 1 RuleSet）。
     @State private var draft = HanafudaOptions()
 
@@ -20,12 +22,26 @@ public struct HanafudaView: View {
     public var body: some View {
         VStack(spacing: 8) {
             scoreBar
-            if model.phase == .matchResult {
-                matchResultCard.transition(.opacity)
-            } else {
-                opponentArea
-                fieldArea.transition(.opacity)
-                handArea
+            // 場・手札は局の進み方で行数が変わり（最大 8 枚ずつ）、小さい画面（iPhone SE 等）では
+            // 他の要素ごと画面下にはみ出ていた（会長指摘）。かといってスクロールにすると「スクロール
+            // しないと見えない」に変わっただけなので、残った高さを測って札の大きさを縮め、
+            // 1 画面に収める（#1254。麻雀・将棋・オセロの盤と同じ考え方）。
+            GeometryReader { geo in
+                if model.phase == .matchResult {
+                    matchResultCard.transition(.opacity)
+                } else {
+                    let fit = HanafudaFit.metrics(
+                        availableWidth: geo.size.width, availableHeight: geo.size.height,
+                        stripHeight: layout.scaled(HanafudaFit.baseStripHeight),
+                        fieldCount: model.field.count, handCount: model.humanHand.count
+                    )
+                    VStack(spacing: HanafudaFit.sectionSpacing) {
+                        opponentArea(fit)
+                        fieldArea(fit).transition(.opacity)
+                        handArea(fit)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                }
             }
             HowToPlayHint(.hanafuda, playLog: services.playLog)
             actionArea
@@ -36,19 +52,19 @@ public struct HanafudaView: View {
         .padding(Theme.pad)
         .gameChrome(title: "花札こいこい", review: services.review) {
             // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
-            // 早見表をここに置く（#495 の仕様）。ツールバーは `Label` をアイコンだけに畳むので
-            // 文字を出すために `Text` を直接渡す。
+            // 早見表をここに置く（#495 の仕様）。タイトル＋「?」（遊び方）とアイコンで並べる
+            // （文字ラベルにすると幅を取り、狭い画面でヘッダーが崩れていた・会長指摘）。
             ToolbarItem(placement: .primaryAction) {
                 Button { showYakuSheet = true } label: {
-                    Text("役")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                    Image(systemName: "list.bullet.rectangle")
                 }
+                .accessibilityLabel("役の早見表")
             }
         }
         .howToPlay(.hanafuda) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {
-            HanafudaSetupSheet(draft: $draft) { model.startMatch(options: draft) }
+            HanafudaSetupSheet(draft: $draft, onStart: { model.startMatch(options: draft) }, onCancel: { dismiss() })
                 .interactiveDismissDisabled()
         }
         .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
@@ -57,6 +73,14 @@ public struct HanafudaView: View {
         } message: {
             Text("この試合を打ち切ります。負けとして記録されます。")
         }
+        .rewardedRescueAlerts(
+            extendRescue,
+            notEarned: "延長できませんでした",
+            unavailable: RewardUnavailableAlert(
+                title: "延長できませんでした",
+                message: "広告を見ているあいだに試合が終わったため、延長できませんでした。"
+            )
+        )
         .task(id: model.aiTurnKey) {
             await model.runCPUTurnIfNeeded()
         }
@@ -80,7 +104,7 @@ public struct HanafudaView: View {
                 scoreChip(title: "あなた", value: model.humanTotal, fill: Theme.Fill.teal)
                 Spacer(minLength: 8)
                 if model.phase != .matchResult {
-                    Text("\(model.round) / \(model.options.rounds)局")
+                    Text(model.round > model.options.rounds ? "延長戦" : "\(model.round) / \(model.options.rounds)局")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                     Spacer(minLength: 8)
@@ -114,7 +138,7 @@ public struct HanafudaView: View {
 
     // MARK: - 相手
 
-    private var opponentArea: some View {
+    private func opponentArea(_ fit: HanafudaFit.Metrics) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("CPUの取り札")
@@ -123,12 +147,14 @@ public struct HanafudaView: View {
                 Text(yakuLine(for: .cpu))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Spacer()
                 Text("手札\(model.cpuHand.count)枚")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
             }
-            capturedStrip(model.cpuCaptured)
+            capturedStrip(model.cpuCaptured, height: fit.stripHeight)
         }
         .padding(10)
         .popCard(corner: Theme.cornerSmall)
@@ -137,29 +163,27 @@ public struct HanafudaView: View {
     }
 
     /// 取り札を小さく並べる帯。枚数が増えても高さが変わらないよう 1 行に収める。
-    private func capturedStrip(_ cards: [HanafudaCard]) -> some View {
+    private func capturedStrip(_ cards: [HanafudaCard], height: CGFloat) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 3) {
                 if cards.isEmpty {
                     Text("なし")
                         .font(.system(size: 12, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
-                        .frame(height: capturedHeight)
+                        .frame(height: height)
                 }
                 ForEach(cards) { card in
                     HanafudaCardFace(card: card)
-                        .frame(height: capturedHeight)
+                        .frame(height: height)
                 }
             }
         }
-        .frame(height: capturedHeight)
+        .frame(height: height)
     }
-
-    private var capturedHeight: CGFloat { layout.scaled(40) }
 
     // MARK: - 場
 
-    private var fieldArea: some View {
+    private func fieldArea(_ fit: HanafudaFit.Metrics) -> some View {
         VStack(spacing: 6) {
             HStack {
                 Text("場")
@@ -172,14 +196,14 @@ public struct HanafudaView: View {
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .foregroundStyle(Theme.coral)
                         HanafudaCardFace(card: drawn, isHighlighted: true)
-                            .frame(height: capturedHeight)
+                            .frame(height: fit.stripHeight)
                     }
                 }
                 Text("山札\(model.deck.count)枚")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
             }
-            LazyVGrid(columns: fieldColumns, spacing: 6) {
+            LazyVGrid(columns: fit.columns, spacing: HanafudaFit.gap) {
                 ForEach(model.field) { card in
                     Button { model.chooseFieldCard(card) } label: {
                         HanafudaCardFace(
@@ -192,18 +216,10 @@ public struct HanafudaView: View {
                     .disabled(!isCandidate(card))
                 }
             }
-            // 縦の余りは**場のカード自身**に吸わせ、札は中央に置く（#193 と同じ考え方）。
-            // 上寄せにすると、場が 1 行しか無いときに札の下へ大きな空白が残って
-            // 「描き損ねた」ように見える。
-            .frame(maxHeight: .infinity, alignment: .center)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(HanafudaFit.cardPadding)
+        .frame(maxWidth: .infinity)
         .popCard(corner: Theme.cornerSmall)
-    }
-
-    private var fieldColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 6), count: 6)
     }
 
     private func isCandidate(_ card: HanafudaCard) -> Bool {
@@ -217,7 +233,7 @@ public struct HanafudaView: View {
 
     // MARK: - 手札
 
-    private var handArea: some View {
+    private func handArea(_ fit: HanafudaFit.Metrics) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("あなたの取り札")
@@ -226,10 +242,12 @@ public struct HanafudaView: View {
                 Text(yakuLine(for: .human))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Spacer()
             }
-            capturedStrip(model.humanCaptured)
-            LazyVGrid(columns: fieldColumns, spacing: 6) {
+            capturedStrip(model.humanCaptured, height: fit.stripHeight)
+            LazyVGrid(columns: fit.columns, spacing: HanafudaFit.gap) {
                 ForEach(model.humanHand) { card in
                     Button { model.play(card) } label: {
                         HanafudaCardFace(
@@ -245,6 +263,7 @@ public struct HanafudaView: View {
                     ))
                 }
             }
+            .frame(maxWidth: .infinity)
         }
         .padding(10)
         .popCard(corner: Theme.cornerSmall)
@@ -278,9 +297,14 @@ public struct HanafudaView: View {
         case .roundResult:
             VStack(spacing: 8) {
                 roundResultCard
+                if model.canExtendMatch {
+                    extendMatchButton
+                }
+                // 視聴中に試合の結果へ進むと、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(
-                    model.round >= model.options.rounds ? "試合の結果へ" : "次の局へ",
-                    color: Theme.Fill.coral
+                    model.round >= model.totalRounds ? "試合の結果へ" : "次の局へ",
+                    color: Theme.Fill.coral,
+                    disabled: extendRescue.isWatching
                 ) { model.advanceAfterRound() }
             }
         case .matchResult:
@@ -304,6 +328,33 @@ public struct HanafudaView: View {
             .padding(.horizontal, 12).padding(.vertical, 10)
             .popCard(corner: Theme.cornerSmall)
         }
+    }
+
+    /// 最終局で負けているときにだけ出す「広告を見て1局延長」（#1049）。
+    private var extendMatchButton: some View {
+        Button {
+            // 視聴完了（報酬獲得）したときだけ延長する。どの局の決着に対するものかを広告の前に控え、
+            // 視聴中に試合が決着・入れ替わっていたら乗せない（#729）。
+            let serial = model.gameSerial
+            extendRescue.request(
+                services, gameID: HanafudaModel.gameID, purpose: .continue,
+                guardedBy: .checkedByGrant
+            ) {
+                model.extendMatchAfterAd(forGame: serial)
+            }
+        } label: {
+            Label("広告を見て1局延長（1試合に1回）", systemImage: "play.rectangle.fill")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(extendRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
+                            in: RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
+                .foregroundStyle(extendRescue.isWatching ? Theme.inkSub : Theme.onAccent)
+        }
+        .buttonStyle(.plain)
+        .disabled(extendRescue.isWatching)
     }
 
     private var roundResultCard: some View {
@@ -382,5 +433,69 @@ public struct HanafudaView: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
+    }
+}
+
+// MARK: - 画面の高さへの収め方（#1254）
+
+/// 場・手札・取り札の帯を、残った高さに収めるための寸法。
+///
+/// `View` の static 定数は MainActor に隔離されるため、テストから読めるよう別の enum に置く。
+enum HanafudaFit {
+    /// 札のあいだ・段のあいだ。
+    static let gap: CGFloat = 6
+    /// 3 つのカード（相手・場・手札）のあいだ。
+    static let sectionSpacing: CGFloat = 8
+    /// 各カードの内側の余白。
+    static let cardPadding: CGFloat = 10
+    /// 取り札の帯の、縮める前の高さ。
+    static let baseStripHeight: CGFloat = 40
+    /// 場・手札が並びうる最大枚数（配り直後の 8 枚）。これを超えたぶんだけ段を足す。
+    static let baseCardCount = 8
+    /// 縮小率の下限。これ以下には縮めない（札が読めなくなるため）。
+    static let minScale: CGFloat = 0.4
+    /// 札の並べ方の候補（列数）。広い画面は 6 列 2 段、狭い画面は 8 列 1 段のほうが大きく取れる。
+    static let columnChoices = [6, 8]
+    /// 縮められない部分（見出しの文字・カードの内側の余白・段のあいだ以外）の高さ。
+    /// 見出し 3 行（12pt の文字 ≈ 16pt。役名の行は lineLimit(1) で折り返さない）＋ 3 カードぶんの上下余白 60 ＋ カード内の縦の間隔 4 か所 ＋ カード間の間隔 2 か所。
+    static let fixedHeight: CGFloat = 3 * 16 + 3 * 2 * cardPadding + 4 * gap + 2 * sectionSpacing
+
+    struct Metrics: Equatable {
+        var cardWidth: CGFloat
+        var stripHeight: CGFloat
+        var columnCount: Int
+
+        var columns: [GridItem] {
+            Array(repeating: GridItem(.fixed(cardWidth), spacing: HanafudaFit.gap), count: columnCount)
+        }
+    }
+
+    /// - Parameters:
+    ///   - availableWidth / availableHeight: 場・手札を置ける領域（得点・操作・広告を除いた残り）。
+    ///   - stripHeight: 縮める前の取り札の帯の高さ。
+    ///   - fieldCount / handCount: いまの枚数。`baseCardCount` を超えたときだけ段が増える。
+    static func metrics(availableWidth: CGFloat, availableHeight: CGFloat, stripHeight: CGFloat,
+                        fieldCount: Int, handCount: Int) -> Metrics {
+        let innerWidth = max(0, availableWidth - 2 * cardPadding)
+        var best = Metrics(cardWidth: 0, stripHeight: stripHeight * minScale, columnCount: columnChoices[0])
+        for columns in columnChoices {
+            let naturalWidth = (innerWidth - CGFloat(columns - 1) * gap) / CGFloat(columns)
+            let fieldRows = rows(max(baseCardCount, fieldCount), columns: columns)
+            let handRows = rows(max(baseCardCount, handCount), columns: columns)
+            let rowGaps = CGFloat(fieldRows - 1 + handRows - 1) * gap
+            let naturalHeight = 3 * stripHeight + CGFloat(fieldRows + handRows) * naturalWidth * HanafudaCardArt.aspectRatio
+            let scale = naturalHeight > 0
+                ? min(1, max(minScale, (availableHeight - fixedHeight - rowGaps) / naturalHeight))
+                : 1
+            // 同じ大きさなら列の少ない（＝これまでどおりの）並べ方を残す。
+            if naturalWidth * scale > best.cardWidth {
+                best = Metrics(cardWidth: naturalWidth * scale, stripHeight: stripHeight * scale, columnCount: columns)
+            }
+        }
+        return best
+    }
+
+    private static func rows(_ count: Int, columns: Int) -> Int {
+        (count + columns - 1) / columns
     }
 }

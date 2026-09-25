@@ -9,22 +9,30 @@ import Core
 public enum ChessPieceStyle: String, CaseIterable, Sendable {
     /// 平らな塗りの駒。v1.1.3 までと同じ見た目で、**既定**。
     case flat
-    /// 影・ツヤを足した立体的な駒。
-    case sculpted
+    /// 回転体として面ごとに陰影を持たせ、輪郭線を引かない写実寄りの駒（#1015）。
+    case real
 
     /// 設定シートのタイルに出す名前。
     public var label: String {
         switch self {
-        case .flat:     return "シンプル"
-        case .sculpted: return "立体"
+        case .flat: return "シンプル"
+        case .real: return "リアル"
         }
     }
 
     /// タイルの副題。
     public var subtitle: String {
         switch self {
-        case .flat:     return "今までの駒"
-        case .sculpted: return "影とツヤ"
+        case .flat: return "今までの駒"
+        case .real: return "丸みと反射"
+        }
+    }
+
+    /// 設定シートのタイルの色。
+    var tileAccent: Color {
+        switch self {
+        case .flat: return Theme.Fill.teal
+        case .real: return Theme.Fill.coral
         }
     }
 
@@ -44,26 +52,12 @@ public enum ChessPieceStyle: String, CaseIterable, Sendable {
                 shadowRadius: 0.03,
                 shadowOffset: 0.02
             )
-        case .sculpted:
-            // 面の色は現行と同じものを使い、**光の当て方だけ**で立体にする。
-            // 照りの中心は左上（碁石・五目の石と同じ光源。#398/#368）。ここを揃えないと、
-            // 同じ画面に出る駒とカードで光の向きが食い違う。
+        case .real:
+            // 描画は `ChessRealPieceCanvas` が材質から自前で行い、この値は使わない。
+            // 外側の影も自前の接地影なので、`ChessPieceView` の影は落とさない（0）。
             return ChessPieceShading(
-                fill: color == .white
-                    ? [ChessBoardStyle.whitePieceTop, ChessBoardStyle.whitePieceBottom]
-                    : [ChessBoardStyle.blackPieceTop, ChessBoardStyle.blackPieceBottom],
-                highlight: CGPoint(x: 0.34, y: 0.26),
-                highlightRadius: 1.15,
-                // 黒駒は面が暗いぶん白のツヤが乗りやすい。同じ値にすると黒だけ塗料を塗った
-                // ように光る（実測して白 0.42 / 黒 0.30 に分けた）。
-                sheen: color == .white ? 0.42 : 0.30,
-                // 逆に落とす陰は黒駒のほうを強くする。白駒で同じだけ落とすと、
-                // 明るいマスの上で下半分が灰色に濁る。
-                depth: color == .white ? 0.18 : 0.30,
-                shadowOpacity: color == .white ? 0.34 : 0.40,
-                shadowRadius: 0.05,
-                shadowOffset: 0.035
-            )
+                fill: [], highlight: nil, highlightRadius: 0, sheen: 0, depth: 0,
+                shadowOpacity: 0, shadowRadius: 0, shadowOffset: 0)
         }
     }
 }
@@ -102,7 +96,8 @@ public struct ChessPieceShading: Equatable, Sendable {
 /// `static let` にすると `UserDefaults` を抱えた共有可変状態になり Sendable 違反になるため、
 /// 使う側で都度組み立てる（実体は文字列と `UserDefaults` の参照だけなので安い）。
 public struct ChessPieceStylePreference {
-    /// 保存キー。**改名すると、既に立体を選んでいる人の設定が既定へ戻る**。
+    /// 保存キー。**改名すると、既に選んでいる人の設定が既定へ戻る**。「立体」は#1015で廃止済みで、
+    /// 保存値に残っていても`ChessPieceStyle(rawValue:)`が失敗し既定の`.flat`へ自動で落ちる。
     static let key = "chessPieceStyle_v1"
 
     private let defaults: UserDefaults

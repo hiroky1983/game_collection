@@ -789,9 +789,10 @@ struct MahjongCallAITests {
 struct MahjongCallFullGameTests {
 
     // 進行が詰まらないことの保証は `guardCount` の上限で取っている。`.timeLimit` は
-    // 万一の無限ループを止める保険なので、フルスイートの並列実行で CPU を取り合っても
-    // 落ちないところまで緩める（1 分だと 8 コア機でも実測で超えることがある）。
-    @Test("鳴けるときは必ず鳴いても東風戦が最後まで進む", .timeLimit(.minutes(3)))
+    // 万一の無限ループを止める保険なので、上限はこのテストの所要時間ではなくフルスイート全体の
+    // 所要時間に対して取る（#676。理由は `MahjongFullGameTests` の同じ箇所。このテストも CI で
+    // 138〜211 秒かかっていた）。
+    @Test("鳴けるときは必ず鳴いても東風戦が最後まで進む", .timeLimit(.minutes(15)))
     func playsThroughWhileAlwaysCalling() async {
         let model = makeModel()
         model.startGame()

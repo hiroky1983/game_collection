@@ -19,10 +19,12 @@ import GameFreeCell
 import GameBlockPuzzle
 import GameRunner
 import GameHanafuda
+@testable import GameShiritori
 import GameSpider
 import GameChess
 import MahjongTiles
 import CoreTestSupport
+import GameRunnerTestSupport
 
 // MARK: - 共通のヘルパー
 
@@ -73,6 +75,42 @@ struct PlayRecordApplyTests {
         )
         #expect(better.record.bestPoints == 1201)
         #expect(better.update.points)
+    }
+
+    @Test("初回の 0 点は記録に残すが、自己ベスト更新とは言わない（#1067）")
+    func firstZeroPointsIsNotNewBest() {
+        let zero = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 0), to: nil
+        )
+        #expect(zero.record.bestPoints == 0)
+        #expect(!zero.update.points)
+        #expect(!zero.update.isNewBest)
+
+        let one = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 1), to: nil
+        )
+        #expect(one.record.bestPoints == 1)
+        #expect(one.update.points)
+
+        // 記録 0 のあとの 0 点は同点なので更新ではない。
+        let zeroAgain = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 0), to: zero.record
+        )
+        #expect(zeroAgain.record.bestPoints == 0)
+        #expect(!zeroAgain.update.points)
+
+        // 記録 0 を上回れば更新。
+        let afterZero = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 1), to: zero.record
+        )
+        #expect(afterZero.update.points)
+
+        // 到達した最大値も同じ物差し。
+        let zeroHighest = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, highestValue: 0), to: nil
+        )
+        #expect(zeroHighest.record.highestValue == 0)
+        #expect(!zeroHighest.update.highestValue)
     }
 
     @Test("タイムは短いほうが自己ベスト。同タイムは更新扱いにしない")
@@ -225,7 +263,9 @@ struct RecordFormatTests {
         #expect(RecordFormat.hubLine([cleared]) == "ベスト 3")
         #expect(RecordFormat.runnerStageLine(clearedStage: 6) == "2-1 まで到達")
         #expect(RecordFormat.runnerStageLine(clearedStage: 17) == "3-6 まで到達")
-        #expect(RecordFormat.runnerStageLine(clearedStage: 18) == "全 18 面クリア")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 18) == "4-1 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 29) == "5-6 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 30) == "全 30 面クリア")
 
         let moves = PlayRecord.applying(
             outcome: .win, score: GameScore(metric: .fewestMoves, moves: 24), to: nil
@@ -314,6 +354,27 @@ struct RecordFormatTests {
             outcome: .loss, score: GameScore(metric: .shortestTime, seconds: 10), to: nil
         ).record
         #expect(RecordFormat.resultLine(notCleared) == "クリア記録なし（1回挑戦）")
+    }
+
+    @Test("共有の文言は記録を前面に出し、リザルトの1行と同じ表記を使う（#1043）")
+    func shareMessages() {
+        let points = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 12340, highestValue: 1024), to: nil
+        ).record
+        #expect(RecordFormat.shareMessage(title: "2048", record: points)
+            == "あそびばの「2048」で記録更新！\n自己ベスト 12,340（最大 1,024）")
+
+        // 区分で記録を分けるゲームは、どの区分の記録かを添える。
+        let easy = PlayRecord.applying(
+            outcome: .win,
+            score: GameScore(metric: .shortestTime, seconds: 83, variant: "easy", variantLabel: "初級"),
+            to: nil
+        ).record
+        #expect(RecordFormat.shareMessage(title: "マインスイーパー", record: easy)
+            == "あそびばの「マインスイーパー」（初級）で記録更新！\n最短タイム 1:23・1回クリア")
+
+        // リザルトに行が出ない記録（まだ何も無い）では文言も作らない。
+        #expect(RecordFormat.shareMessage(title: "2048", record: PlayRecord()) == nil)
     }
 }
 
@@ -943,13 +1004,28 @@ struct GameRecordingTests {
         defer { defaults.removePersistentDomain(forName: name) }
 
         let model = RunnerModel(services: makeServices(log: log), startingAt: 4)
-        clearRunnerStage(model)
+        autoPlayCurrentStage(model)
         #expect(model.phase == .cleared)
 
         let record = log.record(gameID: "runner")
         #expect(record?.metric == .points)
         #expect(record?.bestPoints == 4, "クリアしたステージ番号が到達点")
         #expect(record?.wins == 1, "ステージクリアは勝ち")
+    }
+
+    @Test("カードしりとり: 決着で勝敗が記録され、ハブに1行出る")
+    func shiritoriRecordsWinLoss() async {
+        let (log, defaults, name) = makeLog(suite: "shiritori")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let model = ShiritoriModel(services: makeServices(log: log), cpuDelay: .zero, seed: 2026)
+        await playShiritori(model)
+
+        #expect(model.phase == .result)
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: "shiritori")?.plays == 1)
+        #expect(log.record(gameID: "shiritori")?.metric == .winLoss)
+        #expect(log.summaryLine(gameID: "shiritori") != nil)
     }
 
     @Test("花札こいこい: 合計文数を見出しにし、勝敗も残る")
@@ -1252,26 +1328,21 @@ private func playMahjongFourPlayer(_ model: MahjongModel, rejectOnce: Bool = fal
     }
 }
 
-/// チャリンコおじさん（#494）で 1 ステージを走り切る。
-/// 判断は製品コードと同じ `RunnerAutoPilot`（撮影用の DEBUG シナリオも同じ関数を使う）。
+/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
+/// 取れる札の先頭を取り、CPU の番は進めて、決着まで遊ぶ（カードしりとり）。
 @MainActor
-private func clearRunnerStage(_ model: RunnerModel) {
-    if model.phase == .ready { model.press(); model.release() }
-    var frames = 0
-    // `.falling` は `isRunning` に含めない（ミス直後の演出中はタップ・一時停止を効かせない
-    // ための設計）ので、`.failed`/`.cleared` に落ち着くまで回し続ける。
-    while model.phase.isRunning || model.phase == .falling, frames < 60 * 300 {
-        frames += 1
-        // 着地するまで離さない（`RunnerAutoPilot.shouldRelease`）。早く離すとジャンプが
-        // 切り詰められて地形を越えられなくなる（会長QA「軽いタップなら本当に小ジャンプ」
-        // 2026-09-10）。
-        if RunnerAutoPilot.shouldJump(field: model.field) { model.press() }
-        if RunnerAutoPilot.shouldRelease(field: model.field) { model.release() }
-        model.tick(dt: 1.0 / 60)
+private func playShiritori(_ model: ShiritoriModel, quota: ShiritoriQuota = .normal) async {
+    model.startGame(quota: quota)
+    for _ in 0..<60 where model.phase == .playing {
+        if model.isPlayerTurn {
+            guard let move = ShiritoriRules.moves(slots: model.slots, after: model.requiredTail ?? "ん").first else { break }
+            model.select(move.slot)
+        } else {
+            await model.runCPUTurnIfNeeded()
+        }
     }
 }
 
-/// 花札こいこい（#495）で 1 試合を決着まで通す。人間側は「出せる先頭の札」を出し、
 /// こいこいは聞かれたらあがる。CPU は製品コードと同じ `HanafudaAI`。
 @MainActor
 private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, rounds: Int = 6) -> HanafudaModel {

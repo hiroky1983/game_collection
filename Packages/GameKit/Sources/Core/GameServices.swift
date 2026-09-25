@@ -45,6 +45,9 @@ public struct GameServices {
     public let screenGeneration: GameScreenGeneration
     /// 中断したゲームのお知らせ（#663）。テスト・プレビューでは nil（予約しない）。
     public let reminders: ResumeReminderService?
+    /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
+    /// テスト・プレビューでは nil（予約しない）。
+    public let reengagement: ReengagementReminderService?
 
     public init(
         snapshots: SnapshotStore,
@@ -56,7 +59,8 @@ public struct GameServices {
         analytics: GameAnalytics? = nil,
         gameCenter: GameCenterReporter? = nil,
         screenGeneration: GameScreenGeneration = GameScreenGeneration(),
-        reminders: ResumeReminderService? = nil
+        reminders: ResumeReminderService? = nil,
+        reengagement: ReengagementReminderService? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -68,6 +72,7 @@ public struct GameServices {
         self.gameCenter = gameCenter
         self.screenGeneration = screenGeneration
         self.reminders = reminders
+        self.reengagement = reengagement
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -101,6 +106,15 @@ public struct GameServices {
     public func gameDidProgress(gameID: String) {
         analytics?.recordProgress(gameID: gameID)
         reminders?.gameDidBeginPlay(gameID: gameID)
+    }
+
+    /// 無料ヒントを**1回使った**ときに各 Model から呼ぶ（#1326）。`game_end` の `hints_used` に載る。
+    ///
+    /// 途中離脱の `game_end` は Model を経由せず共通経路で出るため、決着時に値を渡す形ではなく
+    /// 使うたびにここへ伝えて `GameAnalytics` に覚えさせる。
+    @MainActor
+    public func gameDidUseHint(gameID: String) {
+        analytics?.recordHintUsed(gameID: gameID)
     }
 
     /// この局は**画面を離れたら失われる**ことを各 Model から伝える（#500）。
@@ -150,6 +164,14 @@ public struct GameServices {
     public func gameDidOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         analytics?.recordGameOpen(gameID: gameID, source: source, position: position, resume: resume)
         reminders?.gameDidOpen(gameID: gameID)
+        reengagement?.gameDidOpen(gameID: gameID)
+    }
+
+    /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。`share_tap` を送るだけで、プレイの数え方にも
+    /// 画面の世代にも触らない。呼ぶのは `RecordLabel` の共有ボタンの 1 か所（ハブが `RecordShareContext` で配る）。
+    @MainActor
+    public func gameDidTapShare(gameID: String) {
+        analytics?.recordShareTap(gameID: gameID)
     }
 
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
@@ -216,5 +238,19 @@ public struct GameServices {
             playedGameCount: playLog?.playedGameIDs.count ?? 0
         )
         return result
+    }
+
+    /// 決着とリザルトのあいだに演出を挟むゲーム（チャリンコおじさんのゴールの演出・世界の締め）が、
+    /// **演出の局面に入る入口**で呼ぶ（#1143）。評価リクエストは予定だけ立てて伏せ、
+    /// `resultDidBecomeVisible()` を呼ぶまで出さない。記録・解析・順位表の順序（#1092）は変えない。
+    @MainActor
+    public func deferReviewRequestUntilResultIsVisible() {
+        review?.deferUntilResultIsVisible()
+    }
+
+    /// 上の演出が終わってリザルトに移った瞬間に呼ぶ（#1143）。伏せていなければ何も起きない。
+    @MainActor
+    public func resultDidBecomeVisible() {
+        review?.resultDidBecomeVisible()
     }
 }

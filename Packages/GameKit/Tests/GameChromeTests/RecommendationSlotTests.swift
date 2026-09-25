@@ -3,6 +3,7 @@ import SwiftUI
 import Testing
 import Core
 import CoreTestSupport
+import GameKitTestSupport
 
 /// レコメンドの枠（`RecommendationSlot`）が「出すものが無いときは何も描かない」ことを見る（#917）。
 ///
@@ -44,12 +45,7 @@ struct RecommendationSlotTests {
     /// コメントの言及に当たらないよう、コードの行だけを見る。
     @Test("ほかのあそびの部品は枠から消えている")
     func otherGamesCardIsGone() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // GameChromeTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // GameKit
-            .appendingPathComponent("Sources/Core/RecommendationCard.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try SourceScan.packageSource("Sources/Core/RecommendationCard.swift")
         let code = source.split(separator: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")

@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 public protocol GomokuEngine: Sendable {
     func bestMove(board: GomokuBoard, stone: GomokuStone) async -> (row: Int, col: Int)?
@@ -6,24 +7,16 @@ public protocol GomokuEngine: Sendable {
 
 // MARK: - Zobrist
 
-private struct GomokuLCG: RandomNumberGenerator {
-    var state: UInt64
-    mutating func next() -> UInt64 {
-        state = state &* 6364136223846793005 &+ 1442695040888963407
-        return state ^ (state >> 33)
-    }
-}
-
 private enum GomokuZobrist {
     // [color 0-1][square 0-224]
     static let stone: [[UInt64]] = {
-        var rng = GomokuLCG(state: 0xABCD_1234_CAFE_9876)
+        var rng = MMIXRandom(state: 0xABCD_1234_CAFE_9876)
         var t = [[UInt64]](repeating: [UInt64](repeating: 0, count: 225), count: 2)
         for c in 0..<2 { for sq in 0..<225 { t[c][sq] = rng.next() } }
         return t
     }()
     static let sideToMove: UInt64 = {
-        var rng = GomokuLCG(state: 0xDEAD_BEEF_1234_5678)
+        var rng = MMIXRandom(state: 0xDEAD_BEEF_1234_5678)
         return rng.next()
     }()
 }
@@ -56,35 +49,78 @@ private let GOMOKU_TT_SIZE = 1 << 18  // 256K エントリ ≈ 4MB
 
 // MARK: - Engine（公開 API）
 
+/// 五目並べの CPU。
+///
+/// | level | 表示 | 打ち方 |
+/// |---|---|---|
+/// | -1 | 入門 | 読まずに1手先の形だけ（簡単と同じ）＋ 相手の四を防ぐのは 5 回に 1 回・候補も広め |
+/// | 0 | 簡単 | 読まずに1手先の形だけ（#665）＋ 相手の四を防ぐのは 2 回に 1 回 |
+/// | 1 | ふつう | 深さ 4 の αβ（1 手 0.8 秒） |
+/// | 2 | むずかしい | 深さ 5 の αβ（1 手 1.5 秒） |
+/// | 3 | ガチ | 深さ 7 の αβ（1 手 3.0 秒・#1174） |
+///
+/// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
+/// 「入門」は簡単と同じ打ち方のまま、**相手の四を防ぐ率**と**候補の広さ**だけを緩めてある（#1174）。
+/// 防御率を下げるだけでは簡単と互角だった（自己対戦 20/40。どちらも四をそもそも作りにくいため）ので、
+/// 形の選び方も広げて手なりに打たせている。自分の五は必ず取るところは変えていないので、
+/// 弱いが壊れてはいない（簡単に 10/40・でたらめな相手には 40/40。実測は PR）。
 public struct SimpleGomokuEngine: GomokuEngine {
-    let depth: Int
+    var depth: Int
     let timeLimit: TimeInterval
+    /// 探索の時計。テストが「最後の根手の評価中に時間切れ」を実時間なしで再現するために差し替える（#1226）。
+    let now: @Sendable () -> Date
     /// 連珠の禁じ手ルール（#441）。オンのとき、黒番では三三・四四・長連を候補から外す。
     let forbiddenMoves: Bool
     /// 「弱」か（#665）。弱は探索せず `GomokuSearchContext.weakMove` の1手先の形だけで打つ。
+    /// 「入門」（#1174）も同じ打ち方なので、どちらもここが true になる。
     let isWeak: Bool
     /// 弱が相手の即勝ち（四）を防ぐ確率（#665）。残りは見逃すので、人間が五を完成できる。
     let weakBlockRate: Double
     /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テストだけが種を渡して再現する）。
     let seed: UInt64?
+    /// 読まない段階が着手をどこから選ぶか。「入門」は広げて手なりに打つ（#1174）。
+    let weakChoice: WeakChoice
 
     /// 弱の既定の防御率。深さ3の読みと即防ぎを持っていた旧「弱」は盤ゲーム5本で最も強かった（#665）。
     static let defaultWeakBlockRate = 0.5
+    /// 「入門」の防御率（#1174）。簡単の半分以下にして、人間の四がだいたい通るようにする。
+    static let noviceBlockRate = 0.2
 
-    public init(level: Int = 1, forbiddenMoves: Bool = false) {
+    /// 読まない段階が乱択する候補の広さ。広げるほど形の良し悪しを気にしなくなる。
+    struct WeakChoice: Equatable, Sendable {
+        /// 点の高い順に何手まで候補にするか。
+        let count: Int
+        /// 最善の何分の1以上の点が付いた手までを候補にするか（2 なら半分以上）。
+        let shareDenominator: Int
+    }
+
+    /// 「簡単」の広さ（#665 の実装そのまま。上位 3 手・最善の半分以上）。
+    static let easyChoice = WeakChoice(count: 3, shareDenominator: 2)
+    /// 「入門」の広さ（#1174）。上位 6 手・最善の 1/4 以上まで広げる。
+    /// 防御率を下げるだけでは簡単と互角だったため（実測 20/40）、形の選び方も崩している。
+    static let noviceChoice = WeakChoice(count: 6, shareDenominator: 4)
+
+    public init(level: Int = CPUStrength.standard.rawValue, forbiddenMoves: Bool = false) {
         self.init(level: level, forbiddenMoves: forbiddenMoves, seed: nil)
     }
 
     init(level: Int, forbiddenMoves: Bool = false, seed: UInt64?,
-         weakBlockRate: Double = SimpleGomokuEngine.defaultWeakBlockRate) {
-        switch level {
-        case 0:  (depth, timeLimit) = (1, 0.4)
-        case 2:  (depth, timeLimit) = (5, 1.5)
-        default: (depth, timeLimit) = (4, 0.8)
+         weakBlockRate: Double? = nil, maxDepth: Int? = nil,
+         now: @escaping @Sendable () -> Date = { Date() }) {
+        self.now = now
+        let strength = CPUStrength.strength(for: level)
+        switch strength {
+        case .novice:  (depth, timeLimit) = (1, 0.4)
+        case .easy:    (depth, timeLimit) = (1, 0.4)
+        case .hard:    (depth, timeLimit) = (5, 1.5)
+        case .normal:  (depth, timeLimit) = (4, 0.8)
         }
+        if let maxDepth { depth = maxDepth }   // テスト用: 反復深化の上限を絞る（#1226）
         self.forbiddenMoves = forbiddenMoves
-        self.isWeak = level == 0
+        self.isWeak = strength == .easy || strength == .novice
         self.weakBlockRate = weakBlockRate
+            ?? (strength == .novice ? Self.noviceBlockRate : Self.defaultWeakBlockRate)
+        self.weakChoice = strength == .novice ? Self.noviceChoice : Self.easyChoice
         self.seed = seed
     }
 
@@ -92,23 +128,25 @@ public struct SimpleGomokuEngine: GomokuEngine {
         if isWeak {
             // 探索しないので置換表（約4MB）は確保しない。
             let ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
-                                          forbiddenMoves: forbiddenMoves, transpositionTableSize: 0)
+                                          forbiddenMoves: forbiddenMoves, transpositionTableSize: 0, now: now)
             if let seed {
-                var rng = GomokuLCG(state: seed)
-                return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate, using: &rng)
+                var rng = MMIXRandom(state: seed)
+                return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate,
+                                    choice: weakChoice, using: &rng)
             }
             var rng = SystemRandomNumberGenerator()
-            return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate, using: &rng)
+            return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate,
+                                choice: weakChoice, using: &rng)
         }
         var ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
-                                      forbiddenMoves: forbiddenMoves)
+                                      forbiddenMoves: forbiddenMoves, now: now)
         return ctx.search(board: board, stone: stone)
     }
 
     /// 探索が読む候補手の並び。テストが全順序になっていることを確かめる窓口（#812）。
     func candidateMoves(board: GomokuBoard) -> [(Int, Int)] {
         GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit, forbiddenMoves: forbiddenMoves,
-                            transpositionTableSize: 0).candidateMoves(board: board)
+                            transpositionTableSize: 0, now: now).candidateMoves(board: board)
     }
 }
 
@@ -117,14 +155,16 @@ public struct SimpleGomokuEngine: GomokuEngine {
 private struct GomokuSearchContext {
     let maxDepth: Int
     let deadline: Date
+    let now: @Sendable () -> Date
     let forbiddenMoves: Bool
     var killers: [[Int?]]   // killers[ply][0..1]、row*15+col でエンコード
     var tt: [GomokuTTEntry]
 
     init(maxDepth: Int, timeLimit: TimeInterval, forbiddenMoves: Bool,
-         transpositionTableSize: Int = GOMOKU_TT_SIZE) {
+         transpositionTableSize: Int = GOMOKU_TT_SIZE, now: @escaping @Sendable () -> Date = { Date() }) {
         self.maxDepth = maxDepth
-        self.deadline = Date().addingTimeInterval(timeLimit)
+        self.now = now
+        self.deadline = now().addingTimeInterval(timeLimit)
         self.forbiddenMoves = forbiddenMoves
         self.killers = [[Int?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [GomokuTTEntry](repeating: GomokuTTEntry(), count: transpositionTableSize)
@@ -137,10 +177,13 @@ private struct GomokuSearchContext {
     /// - 自分の即勝ちは必ず取る（取らないと「勝てるのに打たない」不自然な CPU になる）。
     /// - 相手の即勝ちを防ぐのは `blockRate` の確率だけ。見逃した回は防ぐ手を候補から外す
     ///   （外さないと `moveScore` が防ぐ手を最上位に置くので、結局そこへ打って穴にならない）。
-    /// - それ以外は、最善の半分以上の点が付いた手（最大3手）から乱択する。
-    ///   形の良い手がある局面で無意味な手を打つほどは崩さない。
-    func weakMove<R: RandomNumberGenerator>(board: GomokuBoard, stone: GomokuStone,
-                                            blockRate: Double, using rng: inout R) -> (Int, Int)? {
+    /// - それ以外は、最善に近い点が付いた手（`choice` の広さ）から乱択する。
+    ///   「簡単」は最善の半分以上・最大3手なので、形の良い手がある局面で無意味な手を打つほどは
+    ///   崩さない。「入門」はここを広げて手なりに打つ（#1174）。
+    func weakMove<R: RandomNumberGenerator>(
+        board: GomokuBoard, stone: GomokuStone, blockRate: Double,
+        choice: SimpleGomokuEngine.WeakChoice, using rng: inout R
+    ) -> (Int, Int)? {
         let candidates = legalMoves(candidateMoves(board: board), board: board, stone: stone)
         guard !candidates.isEmpty else { return (gomokuBoardSize / 2, gomokuBoardSize / 2) }
 
@@ -169,7 +212,7 @@ private struct GomokuSearchContext {
             .sorted { $0.score != $1.score ? $0.score > $1.score
                                            : ($0.move.0, $0.move.1) < ($1.move.0, $1.move.1) }
         let best = scored[0].score
-        let choices = scored.prefix(3).filter { $0.score * 2 >= best }
+        let choices = scored.prefix(choice.count).filter { $0.score * choice.shareDenominator >= best }
         return choices[Int.random(in: 0..<choices.count, using: &rng)].move
     }
 
@@ -221,7 +264,7 @@ private struct GomokuSearchContext {
         var best: (Int, Int) = (first / gomokuBoardSize, first % gomokuBoardSize)
 
         for d in 1...maxDepth {
-            if Date() > deadline { break }
+            if now() > deadline { break }
             var localBest: Int? = nil
             var bestScore = Int.min + 1
             var alpha = Int.min + 1
@@ -230,7 +273,7 @@ private struct GomokuSearchContext {
             var b = board
 
             for encoded in orderedEncoded {
-                if Date() > deadline { aborted = true; break }
+                if now() > deadline { aborted = true; break }
                 let r = encoded / gomokuBoardSize, c = encoded % gomokuBoardSize
                 b[r, c] = stone
                 let score: Int
@@ -245,6 +288,10 @@ private struct GomokuSearchContext {
                 if score > alpha { alpha = score }
             }
 
+            // 最後の根手の評価中に期限切れになっていた場合もここで拾う。ループ先頭のチェックだけだと、
+            // 全ての根手を一応は評価しているのに「読み切った」と誤採用する（`negamax` は期限切れで
+            // 静的評価を即返すため、その深さの評価値が不完全になる。#1226）。
+            if now() > deadline { aborted = true }
             if !aborted, let lb = localBest {
                 best = (lb / gomokuBoardSize, lb % gomokuBoardSize)
                 orderedEncoded.removeAll { $0 == lb }
@@ -259,7 +306,7 @@ private struct GomokuSearchContext {
 
     mutating func negamax(_ board: inout GomokuBoard, stone: GomokuStone, depth: Int,
                           alpha: Int, beta: Int, ply: Int) -> Int {
-        if Date() > deadline { return evaluate(board, for: stone) }
+        if now() > deadline { return evaluate(board, for: stone) }
 
         let hash = board.zobristHash(stone: stone)
         let ttIdx = Int(hash & UInt64(GOMOKU_TT_SIZE - 1))

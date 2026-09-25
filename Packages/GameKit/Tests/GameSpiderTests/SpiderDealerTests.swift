@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GameSpider
 
 @Suite("配札")
@@ -53,12 +54,16 @@ struct SpiderDealerTests {
     ///
     /// デバッグビルドでは 1 配札あたり数秒〜数十秒かかり、4 スートは -O でも十数秒かかるので、
     /// `swift test` ではなく **`swiftc -O` で純ロジックのファイルだけを 1 バイナリにして回す**
-    /// （`GameSpider` の盤・配札・ソルバーは Core すら import しないのでそのまま並べられる）:
+    /// （`GameSpider` の盤・配札・ソルバーは Core すら import しないのでそのまま並べられる。
+    /// 乱数と待ち行列は CoreEngine の共通部品（#916）なので、その 2 ファイルも並べる。
+    /// `import CoreEngine` は `#if canImport` で囲ってあり、1 バイナリにまとめたときは飛ばされる）:
     ///
     /// ```
     /// S=Packages/GameKit/Sources/GameSpider
+    /// E=Packages/GameKit/Sources/CoreEngine
     /// swiftc -O -o /tmp/spider-gen $S/SpiderCard.swift $S/SpiderRules.swift $S/SpiderBoard.swift \
-    ///   $S/SpiderDealer.swift $S/SpiderSolver.swift $S/SpiderVerifiedSeeds.swift main.swift
+    ///   $S/SpiderDealer.swift $S/SpiderSolver.swift $S/SpiderVerifiedSeeds.swift \
+    ///   $E/SplitMix64.swift $E/BestFirstQueue.swift main.swift
     /// ```
     ///
     /// `main.swift` は `SpiderDealer.deal(seed:suits:)` を 1 から順に `SpiderSolver.solve` へ渡し、
@@ -117,6 +122,44 @@ struct SpiderDealerTests {
                     .isSolvable, "種 \(seed)（\(suits)）")
             }
         }
+    }
+
+    /// 共通の乱数（CoreEngine の `SplitMix64`。`SpiderSeededGenerator` はその別名）の出力列そのものの固定（#916）。
+    /// 同じ種の 2 インスタンスを比べるだけでは、定数を取り違えた変更を見逃す。出力が 1 ビットでも変わると
+    /// 5 ゲームの検証済みの種と保存した勝ち筋がすべて無効になるので、既知の値と突き合わせる。
+    /// 期待値は共通化の前の実装（`FreeCellSeededGenerator`）で出したもので、種 0 は SplitMix64 の参照実装の出力と同じ。
+    @Test("共通の乱数は既知の出力列を返す")
+    func splitMix64GoldenVectors() {
+        let expected: [(seed: UInt64, outputs: [UInt64])] = [
+            (0, [0xE220_A839_7B1D_CDAF, 0x6E78_9E6A_A1B9_65F4, 0x06C4_5D18_8009_454F]),
+            (42, [0xBDD7_3226_2FEB_6E95, 0x28EF_E333_B266_F103, 0x4752_6757_130F_9F52]),
+        ]
+        for (seed, outputs) in expected {
+            var rng = SpiderSeededGenerator(seed: seed)
+            let actual = outputs.indices.map { _ in rng.next() }
+            #expect(actual == outputs, "種 \(seed)")
+        }
+    }
+
+    /// SplitMix64 の実装が CoreEngine の 1 本だけであることの固定（#1074）。
+    /// #916 の確認は `0x9E3779B97F4A7C15` の書式しか見ておらず、`0x9E37_79B9_7F4A_7C15` と書いた
+    /// 同じ実装が 8 ファイルに残っていた。区切りの `_` と大文字小文字、10 進表記まで揃えて数える。
+    @Test("SplitMix64 の増分定数は CoreEngine の共通部品にしか現れない")
+    func splitMix64HasSingleImplementation() throws {
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        // 空振り防止。パスの導出が外れて 0 件になると「1 ファイルだけ」を見る検査が崩れる。
+        #expect(files.count > 100)
+        let hits = try files.filter { file in
+            let text = try String(contentsOf: file, encoding: .utf8)
+                .replacingOccurrences(of: "_", with: "")
+                .lowercased()
+            return text.contains("9e3779b97f4a7c15") || text.contains("11400714819323198485")
+        }
+        .map { $0.path.replacingOccurrences(of: sources.path + "/", with: "") }
+        #expect(hits == ["CoreEngine/SplitMix64.swift"])
     }
 
     @Test("出題は検証済みの種からしか選ばない", arguments: SpiderSuitCount.allCases)
@@ -224,5 +267,19 @@ struct SpiderSolverTests {
             #expect(applied)
         }
         #expect(board.isWon)
+    }
+
+    /// 待ち行列を共通部品（`BestFirstQueue`）へ寄せたとき（#916）に、**探索順が 1 手も変わっていない**ことの固定。
+    /// スパイダーは同点なら後から生まれた局面を先に見る（`.laterFirst`）。向きを取り違えると局面数が変わる。
+    /// 値は共通化の前のソルバーで実測したもの。ソルバーに手を入れて変わったら、種の作り直しと合わせて更新する。
+    @Test("同じ配札なら探索した局面数と勝ち筋の長さが変わらない", arguments: [
+        (SpiderSuitCount.one, 25_221, 1_410), (.two, 63_109, 458),
+    ])
+    func searchOrderIsPinned(suits: SpiderSuitCount, states: Int, moves: Int) {
+        let seed = SpiderDealer.verifiedSeeds(for: suits)[0]
+        let result = SpiderSolver.solve(SpiderDealer.deal(seed: seed, suits: suits),
+                                        maxStates: SpiderSolver.defaultMaxStates(for: suits))
+        #expect(result.statesExplored == states, "\(suits)")
+        #expect(result.solution?.count == moves, "\(suits)")
     }
 }

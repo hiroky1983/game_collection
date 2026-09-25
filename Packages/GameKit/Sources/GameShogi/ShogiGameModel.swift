@@ -6,7 +6,7 @@ import Core
 /// ルールは `Position` に委譲し、ここは UI 操作と永続化を担う。
 @MainActor
 @Observable
-public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
+public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public let initialSFEN: String
     public private(set) var moves: [Move]
     public private(set) var position: Position
@@ -28,6 +28,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
     public var aiLevel: Int
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
+    /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ。
+    public private(set) var hints: BoardHintBudget
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
@@ -69,6 +71,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false
+        // 鍵を持たない v1.1.5 までの中断データは「まだ使っていない」として読む（#1118）。
+        self.hints = BoardHintBudget(used: snap?.hintsUsed ?? 0)
         self.gameOver = false
         self.resultText = nil
 
@@ -294,6 +298,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         services?.gameDidProgress(gameID: gameID)
         clearSelection()
+        // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
+        hintMove = nil
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
         if legalMovesCache.isEmpty {
@@ -305,7 +311,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser == humanSide ? .loss : .win,
-                score: GameScore(metric: .winLoss)
+                score: hints.winLossScore
             )
         } else if Self.isFourfoldRepetition(initialSFEN: initialSFEN, moves: moves, current: position) {
             // 千日手（#375）。同一局面が 4 回現れたら引き分けで終局する。これが無いと、
@@ -316,7 +322,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
             phase = .review
             services?.feedback.notify(.warning)
             recordResult = services?.gameDidFinish(
-                gameID: gameID, outcome: .draw, score: GameScore(metric: .winLoss)
+                gameID: gameID, outcome: .draw, score: hints.winLossScore
             )
         } else if position.isKingInCheck(position.sideToMove) {
             // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す
@@ -349,6 +355,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         resultText = nil
         undoUsed = false
         resigned = false
+        // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
+        hints.reset()
+        hintMove = nil
         recordResult = nil
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
@@ -363,9 +372,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（#145）。
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking = false
+        // ヒントの読みも同じ理由で下ろす（#1118）。旧タスクの defer は対局が変わると旗に触らない。
+        isHintThinking = false
         clearSelection()
         persist()
-        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel))
+        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
     /// 人間が指している側（CPU 戦の表示用）。
@@ -406,11 +417,73 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         }
     }
 
+    // MARK: - ヒント（#1118）
+
+    /// ヒントで示している最善手。着手・待った・新規対局・投了で消える（局面が変われば印は嘘になる）。
+    /// **永続化しない** — 中断データに残すのは使った回数だけで、印は開き直したら出し直す。
+    public private(set) var hintMove: Move?
+    /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
+    /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「CPU思考中…」と名乗る）。
+    public private(set) var isHintThinking: Bool = false
+
+    /// 残り回数（`BoardHintButton` が読む）。
+    public var hintsRemaining: Int { hints.remaining }
+
+    /// ヒントで光らせるマス（移動元・移動先。打つ手は打つ先だけ）。
+    public var hintSquares: Set<Int> {
+        switch hintMove {
+        case let .board(from, to, _): return [from, to]
+        case let .drop(_, to): return [to]
+        case nil: return []
+        }
+    }
+
+    /// いまヒントを押せるか。**自分の手番で、対局中で、残りが在るとき**だけ。
+    /// CPU の思考中・成り選択の最中は盤が自分のものではないので押させない。
+    public var canUseHint: Bool {
+        phase == .playing && !gameOver && !hints.isExhausted
+            && !isAITurn && !isThinking && !isHintThinking && pendingPromotion == nil
+    }
+
+    /// 現在の局面の最善手を 1 手求め、盤の上に示す（#1118）。
+    ///
+    /// 読みは CPU の着手と同じ `AITurnGuarded` の照合に載せる（#531）。読んでいるあいだに
+    /// 指す・待った・新規対局が入ると、旧局面の手を新しい盤の上に光らせることになるため。
+    /// **求まらなかった局・局面が変わった局では回数を減らさない**（ヒントが出ないのに
+    /// 1 回使ったことにしない）。
+    public func requestHint() async {
+        guard canUseHint else { return }
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let sfen = position.toSFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
+                await SimpleMinimaxEngine(level: BoardHintBudget.engineLevel).bestMove(sfen: sfen)
+            }.value
+        } commit: { usi in
+            // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
+            // 成り選択中（`pendingPromotion`）を外せないのが要点（PR #1184 の指摘）。読みの最中でも
+            // 成・不成は選べてしまい、そのとき `aiTurnKey` はまだ変わらないのでキーの照合では弾けない。
+            // 弾かずに通すと、直後の `apply` が印を消すので「回数だけ減ってヒントが出ない」になる。
+            guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
+                  !hints.isExhausted,
+                  let usi, let move = Move.fromUSI(usi), legalMovesCache.contains(move),
+                  hints.consume() else { return }
+            services?.gameDidUseHint(gameID: gameID)
+            hintMove = move
+            services?.feedback.impact(.light)
+            // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
+            persist()
+        }
+    }
+
     // MARK: - 検討（終局後に手を戻す／進める）
 
     public func reviewGoTo(ply: Int) {
         phase = .review
         reviewPly = min(max(ply, 0), moves.count)
+        // 盤に出ている局面が変わるので、ヒントの印は残さない（#1118）。
+        hintMove = nil
         clearSelection()
         persist()
     }
@@ -439,10 +512,12 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         guard phase == .playing, !gameOver else { return }
         // 投了で盤の意味が変わるので、出したままの王手の札も一緒に片付ける（#519）。
         checkBannerDismissID += 1
+        // ヒントの印も同じ理由で片付ける（#1118）。
+        hintMove = nil
         resigned = true
         gameOver = true
         services?.feedback.notify(.error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: GameScore(metric: .winLoss))
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
         resultText = "あなたの負け（投了）"
         phase = .review
         reviewPly = moves.count
@@ -471,6 +546,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
         guard canUndo else { return }
         // 盤が 2 手ぶん戻ると王手も消えるので、出したままの札を残さない（#519）。
         checkBannerDismissID += 1
+        // ヒントの印も 2 手前の盤には合わないので消す（#1118。回数は戻さない）。
+        hintMove = nil
         moves.removeLast(2)
         position = positionAt(ply: moves.count)
         legalMovesCache = position.legalMoves()
@@ -504,7 +581,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel {
             aiLevel: (sente == .ai || gote == .ai) ? aiLevel : nil,
             startedAt: startedAt,
             undoUsed: undoUsed,
-            resigned: resigned
+            resigned: resigned,
+            hintsUsed: hints.used
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
