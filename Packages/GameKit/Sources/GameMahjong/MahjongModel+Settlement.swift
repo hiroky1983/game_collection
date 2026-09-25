@@ -209,16 +209,20 @@ extension MahjongModel {
         // リザルト表示中に離脱しても局間の経過が消えないよう、決着内容ごと保存する（#350）。
         // 親・本場・局数の繰り上げが終わった後に保存するので、再開後の「次の局へ」は
         // 中断が無かったときと同じ条件で次局を始められる。
+        // 終局が確定するなら、`game_end` は保存より**先**に送る（保存の直後に終了すると、復元は
+        // `gameDidRestoreFinished` しか呼ばず `game_end` が永久に出ない。#1375）。
+        if concludesAfterCurrentResult {
+            services?.gameDidDecide(gameID: gameID, outcome: finalOutcome())
+        }
         persist()
         // その先が終局（一局戦・最終局・アガリやめ・トビ）のリザルトは、中断データが残っていても
         // 続けて打つ局が無い。「結果を見る」を押さずに戻っても中断のお知らせ（#663）を予約させない（#811）。
         // 記録（戦績・評価リクエスト等）は「結果を見る」の `concludeGame` で付けるので、ここでは `gameDidFinish` を呼ばない。
-        // ただし `game_end` はここで送る。リザルトで離れると休憩と判定され、`concludeGame` に戻らなければ
+        // ただし `game_end` は上の `persist()` の前に送っている。リザルトで離れると休憩と判定され、`concludeGame` に戻らなければ
         // 遊び切った対局が「始めたのに終わっていない」ぶんに数えられる（#1375）。送信済みのプレイは
         // `concludeGame` の `gameDidFinish` が再び送らない（`finishPlay` は進行中のときだけ送る）。
         if concludesAfterCurrentResult {
             services?.gameDidRestoreFinished(gameID: gameID)
-            services?.gameDidDecide(gameID: gameID, outcome: finalOutcome())
         }
     }
 
