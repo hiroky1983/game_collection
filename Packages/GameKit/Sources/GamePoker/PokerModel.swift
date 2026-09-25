@@ -392,6 +392,7 @@ public final class PokerModel {
                 cpuChips -= callAmount
                 pot += callAmount
                 cpuBetInRound = callAmount
+                refundPlayerExcess(bet: playerBet, called: callAmount)
                 cpuAction = "コール"
                 phase = .exchange
             } else {
@@ -505,6 +506,7 @@ public final class PokerModel {
                 cpuChips -= callAmount
                 pot += callAmount
                 cpuBetInRound = callAmount
+                refundPlayerExcess(bet: playerBet, called: callAmount)
                 cpuAction = "コール"
                 phase = .showdown
                 resolveShowdown()
@@ -523,10 +525,29 @@ public final class PokerModel {
         playerChips -= amount
         pot += amount
         playerBetInRound += amount
+        refundCPUExcess(bet: currentBet, called: amount)
         currentBet = 0
         phase = .showdown
         resolveShowdown()
         persist()
+    }
+
+    /// ショートコール（相手のチップが足りずベット全額に届かない）のとき、ベット側へ超過分を戻す。
+    /// 戻さないと超過分がポットに残り、勝者が総取りしてしまう。
+    private func refundPlayerExcess(bet: Int, called: Int) {
+        let excess = bet - called
+        guard excess > 0 else { return }
+        playerChips += excess
+        pot -= excess
+        playerBetInRound -= excess
+    }
+
+    private func refundCPUExcess(bet: Int, called: Int) {
+        let excess = bet - called
+        guard excess > 0 else { return }
+        cpuChips += excess
+        pot -= excess
+        cpuBetInRound -= excess
     }
 
     public func foldToCPUBet() {
