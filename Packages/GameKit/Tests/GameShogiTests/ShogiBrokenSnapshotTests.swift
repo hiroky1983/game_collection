@@ -41,6 +41,19 @@ struct ShogiBrokenSnapshotTests {
         #expect(m.initialSFEN == Position.startSFEN)
     }
 
+    @Test("持ち駒数が異常な初期局面は初形に倒す（合法手の生成で整数が溢れない）")
+    func absurdHandCountFallsBackToStart() throws {
+        let (m, _) = try model(sfen: "4k4/9/9/9/9/9/9/9/4K4 b 9999999999999999P 1", moves: [])
+        #expect(m.initialSFEN == Position.startSFEN)
+    }
+
+    @Test("盤上と持ち駒の合計が総数を超える初期局面も初形に倒す")
+    func overTotalFallsBackToStart() throws {
+        // 盤上に歩 18 枚 + 持ち駒に歩 1 枚。
+        let (m, _) = try model(sfen: "4k4/9/PPPPPPPPP/PPPPPPPPP/9/9/9/9/4K4 b P 1", moves: [])
+        #expect(m.initialSFEN == Position.startSFEN)
+    }
+
     @Test("検討位置は手数の範囲に丸める")
     func reviewPlyIsClamped() throws {
         let (m, _) = try model(moves: ["7g7f"], reviewPly: 99)
