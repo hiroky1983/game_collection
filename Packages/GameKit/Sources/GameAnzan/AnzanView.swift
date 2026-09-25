@@ -62,7 +62,7 @@ public struct AnzanView: View {
             if scenePhase == .active { model.resumeDisplay() }
         })
         .onChange(of: scenePhase) { _, phase in
-            // 背面ではタイマーが即満了して数が飛ぶ・回答時間が伸びるので、画面が引っ込んだら止める。
+            // 背面ではタイマーが即満了して数が飛ぶので、数の表示中に画面が引っ込んだら止める（入力中は何もしない）。
             if phase != .active {
                 model.pauseDisplay()
             } else if !showHowToPlay {
