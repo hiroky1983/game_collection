@@ -268,7 +268,7 @@ public struct ConcentrationView: View {
                 }
             }
 
-            RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+            RecordLabel(model.recordResult)
 
             Button { showNewGame = true } label: {
                 Text("もう一度")
