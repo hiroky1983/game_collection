@@ -266,7 +266,7 @@ final class RunnerScene: SKScene {
         // 初回フレームは経過時間が測れないので進めない。
         guard let last = lastUpdate, currentTime > last else { return }
         let dt = currentTime - last
-        // 描画ループを止めていたあいだ（`RunnerView.syncRenderLoop`・#1386）も `currentTime` は進み続ける。
+        // 描画ループを止めていたあいだ（`RunnerView` の `onFrameRendered`・#1386）も `currentTime` は進み続ける。
         // 再開の 1 フレーム目は計時の穴とみなしてモデルは進めず、時計だけ合わせ直す（描画は写す）。
         guard dt <= RunnerRules.staleFrameThreshold else {
             sync()
