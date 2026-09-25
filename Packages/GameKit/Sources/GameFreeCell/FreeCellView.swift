@@ -112,6 +112,8 @@ public struct FreeCellView: View {
             #endif
         }
         .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
     }
 
     /// 途中の盤面があるときだけ確認を挟んでから配り直す。

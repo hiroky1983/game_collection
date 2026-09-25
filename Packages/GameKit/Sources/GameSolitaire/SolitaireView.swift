@@ -136,6 +136,8 @@ public struct SolitaireView: View {
             #endif
         }
         .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([jokerRescue, undoRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
     }
 
     /// 開始シートを開く。**いま遊んでいるルールを初期選択にする**（#498）。

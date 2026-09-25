@@ -157,6 +157,8 @@ public struct MahjongSolitaireView: View {
         }
         // 画面を離れたら計時を止める（#1369）。戻れば .task が再開する。
         .onDisappear { model.pauseTimer() }
+        // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
+        .pausesTimerWhileWatching([shuffleRescue, hintRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG

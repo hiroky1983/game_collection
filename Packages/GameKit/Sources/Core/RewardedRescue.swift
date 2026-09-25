@@ -338,6 +338,27 @@ public extension View {
         ))
     }
 
+    /// 広告のロード〜視聴中は計時を止め、終わったら再開する（#1382）。
+    ///
+    /// 全画面広告は `onDisappear` を発火させないので、`.onDisappear { model.pauseTimer() }` だけでは
+    /// 計時が回り続け、広告の 15〜30 秒がそのままクリアタイム（自己ベスト）に乗る。
+    /// 計時のあるゲームは、救済ごとの `RewardedRescue` をすべて渡す。
+    /// 再開は `resumeTimerIfNeeded()` の流儀（局が終わっていれば何もしない）に任せる。
+    ///
+    /// - Parameters:
+    ///   - rescues: この画面の救済。どれかが `isWatching` の間は止める。
+    ///   - pause: 計時を止める（`model.pauseTimer`）。
+    ///   - resume: 計時を再開する（`model.resumeTimerIfNeeded`）。
+    func pausesTimerWhileWatching(
+        _ rescues: [RewardedRescue],
+        pause: @escaping @MainActor () -> Void,
+        resume: @escaping @MainActor () -> Void
+    ) -> some View {
+        onChange(of: rescues.contains { $0.isWatching }) { _, watching in
+            if watching { pause() } else { resume() }
+        }
+    }
+
     /// リワード広告の失敗を伝えるアラートを取り付ける（#526）。
     ///
     /// - Parameters:
