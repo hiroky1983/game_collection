@@ -138,6 +138,15 @@ public struct GameServices {
         reminders?.gameDidFinish(gameID: gameID)
     }
 
+    /// 終局が確定したが、記録（`gameDidFinish`）は後で付ける局のリザルトに入ったときに各 Model から呼ぶ（#1375）。
+    ///
+    /// 解析の `game_end` だけを先に送る。記録・評価リクエスト・レコメンド・Game Center は触らないので、
+    /// あとで `gameDidFinish` を呼んでも `game_end` は二重に出ない（送信済みのプレイは再送しない）。
+    @MainActor
+    public func gameDidDecide(gameID: String, outcome: GameOutcome) {
+        analytics?.finishPlay(gameID: gameID, outcome: outcome)
+    }
+
     /// ゲーム画面から離れたときにハブから呼ぶ（#158）。次に開いたときを新しいプレイとして数え直す。
     ///
     /// 中断データが残っているかをここで `SnapshotStore` に聞き、**休憩（あとで続きから再開できる）**と

@@ -286,6 +286,9 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 - 送信は `GameAnalytics`（`Core/Analytics.swift`）が一括管理し、二重発火の抑制・経過秒の計測・
   離脱と休憩の切り分けをここ1か所に閉じ込める。個々のゲームは
   「開始した」「1手指した」「やり直した」「終局した」「画面を離れた」を伝えるだけでよい
+- **記録を「結果を見る」で付けるゲーム（麻雀）は、終局が確定したリザルトに入った時点で `game_end` を送る**（#1375）。`GameServices.gameDidDecide`
+  （解析の `finishPlay` だけを呼ぶ）を使い、戦績・評価リクエスト・Game Center は従来どおり `gameDidFinish`（結果を見る）で付ける。
+  送信済みのプレイは `finishPlay` が再送しないので、`game_end` は二重に出ない。
 - **休憩中にアプリが終了しても、「続きから」で戻って決着した局の `game_end` は出る**（#1374）。`GameAnalytics` が休憩に入る
   時点（`leaveGame` の休憩分岐）で、計時済み秒・1 手指したか・ヒント回数・`mode` を控えに書き、ハブが `game_open`（`resume = 1`）を
   送る時点で取り戻す。`game_start` は送信済みなので数え直さない。保存は `UserDefaults` の **1 キー `analytics_resting_plays_v1`**
