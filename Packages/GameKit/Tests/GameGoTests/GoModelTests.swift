@@ -156,7 +156,7 @@ struct GoModelFlowTests {
 
     /// 計算中に「対局続行→着手→再び両者パス」と進むと、古い結果は捨てられ、新しい scoring 側の
     /// 呼び出しは計算中フラグで即戻る。捨てたあとに再計算しないと `endgame` が埋まらない（#1379）。
-    @Test("計算中に対局続行して再び両者パスしても、終局の計算は完了する（#1379）")
+    @Test("計算中に対局続行して再び両者パスしても、終局の計算は完了する（#1379）", .timeLimit(.minutes(2)))
     func scoringCompletesAfterResumeAndRepassDuringCalculation() async {
         let model = GoModel(services: makeServices())
         model.newGame(humanSide: .black, level: .easy)
@@ -167,9 +167,8 @@ struct GoModelFlowTests {
         let first = Task { await model.evaluateEndgameIfNeeded() }
         // 最初の計算が走り出す（計算中フラグが立つ）まで MainActor を譲る。計算の完了処理は
         // MainActor が要るので、ここから先の同期区間（続行〜再パス）が終わるまで割り込めない。
-        // 上限付きにするのは、前提が崩れたときにハングせず赤で落とすため。
-        for _ in 0..<100 where !model.isScoringInProgress { await Task.yield() }
-        #expect(model.isScoringInProgress, "最初の計算が始まっていない")
+        // 回数で打ち切ると負荷の高い CI で始まる前に尽きるため、ハングは `.timeLimit` で赤にする。
+        while !model.isScoringInProgress { await Task.yield() }
 
         // 計算中に続行して 1 手打ち、また両者パスで scoring へ戻す。
         model.resumePlay()
