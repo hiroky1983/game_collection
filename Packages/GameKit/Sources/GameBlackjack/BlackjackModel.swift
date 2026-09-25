@@ -375,7 +375,10 @@ public final class BlackjackModel {
         // 配った時点でベットは確定済み。ここから捨てれば途中離脱として数える（#500）。
         services?.gameDidProgress(gameID: gameID)
 
-        if isBlackjack(playerHand) {
+        // ディーラーのナチュラルも配った時点で見る（標準ルール）。見ないまま続行させると、
+        // ダブルダウン・スプリットで増やした賭け金まで精算で失う（元の賭け金だけ負けるのが標準）。
+        // プレイヤーもナチュラルならプッシュ（`blackjackSettlement`）。
+        if isBlackjack(playerHand) || isBlackjack(dealerHand) {
             resolveAll()
             return
         }
