@@ -205,7 +205,8 @@ echo "== 10. 通し実行: 早期 exit でも EXIT トラップから通知が�
 # スクリプトを実際に走らせて確認する。claude を起動させないよう、収集の直後で exit する版を作る。
 unset DUTY_LIB_ONLY   # 通しで走らせる回はテスト用の入口を無効にする（子プロセスに継承させない）
 E2E="$TEST_HOME/ai-duty-e2e.sh"
-awk '{ print } /^collect_notify_targets$/ { print "exit 0" }' "$TARGET" >"$E2E"
+# 通知を集めるのはスロット1だけで、呼び出しは if の中にある（2並列化 2026-09-25）。字下げを許して当てる
+awk '{ print } /^ *collect_notify_targets$/ { print "exit 0" }' "$TARGET" >"$E2E"
 grep -q '^exit 0$' "$E2E" || ng "テスト用スクリプトの生成に失敗（collect_notify_targets の行が見つからない）"
 reset_log; rm -f "$STATE"
 MOCK_GH_RINGI='[{"number":128}]' MOCK_GH_PROPOSED='[{"number":79,"labels":[{"name":"ai:proposed"}]}]' \

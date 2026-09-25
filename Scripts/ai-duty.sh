@@ -6,7 +6,15 @@
 set -uo pipefail
 
 DUTY_DIR="$HOME/.asobiba-duty/game_collection"
-LOCK_DIR="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
+# ロックはスロットごとに1つ（会長指示 2026-09-25: 当番を最大2つ同時に走らせる）。スロット1は従来と
+# 同じパスにする。自己更新が失敗した回は会長の作業ツリーの旧版（スロットを知らない）が走るが、
+# 旧版が取るロックがスロット1と同じ場所なら、旧版と新版のスロット1が同時に走ることはない
+LOCK_BASE="${TMPDIR:-/tmp}/asobiba-ai-duty.lock"
+LOCK_DIR="$LOCK_BASE"
+# Issue の確保（二重着手防止）の置き場。Issue 番号ごとのディレクトリに確保したプロセスの PID を書く
+CLAIMS_DIR="$LOCK_BASE.claims"
+DUTY_MAX_SLOTS="${DUTY_MAX_SLOTS:-2}"  # 同時に走らせてよい当番の数
+DUTY_SLOT=""  # このプロセスが取ったスロット番号（ロック取得後に決まる）
 LOG="$HOME/Library/Logs/asobiba-ai-duty.log"
 DUTY_FETCH_TIMEOUT="${DUTY_FETCH_TIMEOUT:-90}"  # 自己更新の fetch の上限秒数（テストから短縮できるよう外出し）
 DUTY_FETCH_KILL_GRACE="${DUTY_FETCH_KILL_GRACE:-5}"  # SIGTERM / SIGKILL それぞれの猶予秒数（同上）
@@ -15,7 +23,8 @@ DUTY_NOTIFY_STATE="${DUTY_NOTIFY_STATE:-$HOME/.asobiba-duty/last-notify}"  # 通
 DUTY_NOTIFY_INTERVAL="${DUTY_NOTIFY_INTERVAL:-86400}"  # 同じ対象を再通知しない秒数（既定 = 1日）
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
-log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
+# 2つのスロットが同じログへ書くため、スロットが決まったあとは行頭にスロット番号を付ける
+log() { echo "[$(date '+%F %T')] ${DUTY_SLOT:+[s${DUTY_SLOT}] }$*" >>"$LOG"; }
 
 # DUTY_LOCK_GRACE は外部から差し替えられるため、0 以上の10進整数だけを通して既定値へ戻す。
 # `[ "$AGE" -lt "$DUTY_LOCK_GRACE" ]` は非数値だと「整数式が必要」で**失敗（= 偽）**になり、
@@ -27,6 +36,106 @@ case "$DUTY_LOCK_GRACE" in
     DUTY_LOCK_GRACE=30
     ;;
 esac
+# DUTY_MAX_SLOTS も同じ理由で 1 以上の10進整数だけを通す。0 や非数値を通すと取れるスロットが
+# 無くなって当番が永久に止まる（あるいは比較の失敗で意図しない数だけ走る）
+case "$DUTY_MAX_SLOTS" in
+  ''|*[!0-9]*)
+    log "DUTY_MAX_SLOTS=$DUTY_MAX_SLOTS は 1 以上の整数でないため既定値 2 を使う"
+    DUTY_MAX_SLOTS=2
+    ;;
+  *)
+    DUTY_MAX_SLOTS=$((10#$DUTY_MAX_SLOTS))
+    if [ "$DUTY_MAX_SLOTS" -lt 1 ]; then
+      log "DUTY_MAX_SLOTS=0 は取れるスロットが無くなるため既定値 2 を使う"
+      DUTY_MAX_SLOTS=2
+    fi
+    ;;
+esac
+
+# スロット n のロックディレクトリ。スロット1は旧来の単一ロックと同じパス（LOCK_BASE の説明参照）
+slot_dir() {
+  if [ "$1" -eq 1 ]; then echo "$LOCK_BASE"; else echo "$LOCK_BASE.$1"; fi
+}
+
+# 自分以外の生きているスロットのロックディレクトリを列挙する。DUTY_MAX_SLOTS を下げた直後でも
+# 上限を超えた番号のスロットで走り続けている当番を見落とさないよう、番号ではなく実在のディレクトリで見る
+other_live_slot_dirs() {
+  local d p
+  for d in "$LOCK_BASE" "$LOCK_BASE".[0-9]*; do
+    [ -d "$d" ] || continue
+    p=$(cat "$d/pid" 2>/dev/null || true)
+    [ -n "$p" ] && [ "$p" != "$$" ] && kill -0 "$p" 2>/dev/null && echo "$d"
+  done
+}
+
+# 生きている他の当番が確保している Issue 番号（空白区切り）。孤児回収（仕事9・2-c）の除外と、
+# スロット1がスロット2の PR に手を出さないための除外に使う
+other_claimed_issues() {
+  local d p out=""
+  for d in "$CLAIMS_DIR"/[0-9]*; do
+    [ -d "$d" ] || continue
+    p=$(cat "$d/pid" 2>/dev/null || true)
+    [ -n "$p" ] && [ "$p" != "$$" ] && kill -0 "$p" 2>/dev/null && out="$out ${d##*/}"
+  done
+  printf '%s' "${out# }"
+}
+
+# Issue の確保（会長指示 2026-09-25 の2並列化で生じる二重着手の防止）。2つの当番がほぼ同時に起動すると、
+# どちらかが ai:in-progress を付けるより前に、両方が同じ ai:approved の Issue を選びうる。選ぶのを
+# LLM に任せず、このスクリプトが mkdir（原子的）で1件ずつ確保してから渡す。ロックと同じ作法で、
+#   - 生きた PID が確保している Issue は取らない
+#   - PID 未書き込みの確保は DUTY_LOCK_GRACE 秒だけ「確保の直後」とみなして取らない
+#   - それ以外（異常終了で残った確保）は回収する
+#   - PID を書いたあと読み直し、自分のものでなければ降りる（回収が競合したとき後勝ちの1つだけが残る）
+# 戻り値: 0 = 確保できた / 1 = 他の当番が確保している（呼び出し側は次の候補へ進む）
+claim_issue() {
+  local d="$CLAIMS_DIR/$1" owner mtime age
+  mkdir -p "$CLAIMS_DIR" 2>/dev/null
+  if ! mkdir "$d" 2>/dev/null; then
+    owner=$(cat "$d/pid" 2>/dev/null || true)
+    if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then return 1; fi
+    if [ -z "$owner" ]; then
+      mtime=$(stat -f %m "$d" 2>/dev/null || stat -c %Y "$d" 2>/dev/null || true)
+      case "$mtime" in ''|*[!0-9]*) return 1 ;; esac
+      age=$(( $(date +%s) - mtime ))
+      [ "$age" -ge "$DUTY_LOCK_GRACE" ] || return 1
+    fi
+    rm -rf "$d" 2>/dev/null
+    mkdir "$d" 2>/dev/null || return 1
+  fi
+  { echo $$ >"$d/pid"; } 2>/dev/null || return 1
+  sleep 1
+  [ "$(cat "$d/pid" 2>/dev/null || true)" = "$$" ] || return 1
+  # どのスロットが確保したかを残す（ログ・手での調査用。判定には pid だけを使う）
+  { echo "${DUTY_SLOT:-?}" >"$d/slot"; } 2>/dev/null
+  return 0
+}
+
+# 着手候補（1行1件「番号 fable真偽」、選定順に並んだもの）を先頭から確保し、最初に取れた1件を
+# DUTY_ISSUE / DUTY_ISSUE_FABLE に入れる。他の当番が確保中のものは飛ばす（= スロット2は2番目の候補を取る）
+DUTY_ISSUE=""
+DUTY_ISSUE_FABLE=false
+claim_next_issue() {
+  local n f
+  while read -r n f; do
+    case "$n" in ''|*[!0-9]*) continue ;; esac
+    if claim_issue "$n"; then
+      DUTY_ISSUE="$n"
+      DUTY_ISSUE_FABLE="${f:-false}"
+      return 0
+    fi
+  done <<EOF
+$1
+EOF
+  return 1
+}
+
+# EXIT トラップから呼ぶ。自分が確保したままの Issue だけを放す（回収で奪われていたら触らない）
+release_claim() {
+  [ -n "$DUTY_ISSUE" ] || return 0
+  [ "$(cat "$CLAIMS_DIR/$DUTY_ISSUE/pid" 2>/dev/null || true)" = "$$" ] || return 0
+  rm -rf "${CLAIMS_DIR:?}/$DUTY_ISSUE" 2>/dev/null
+}
 
 # シミュレータの後片付け（Issue #100）。当番が動作確認のために起動したシミュレータだけを落とし、
 # 実行前から起動していたもの（= 会長が使用中の可能性がある）には触らない差分方式。
@@ -41,8 +150,42 @@ esac
 #     UDID を記録させるしかないが、それを忘れることこそが本スクリプトの存在理由なので backstop に
 #     はできない。実害が出たら「あそびば以外のアプリが前面にあるデバイスは落とさない」等の
 #     追加条件を検討する
+#   - **2並列化（2026-09-25）での持ち主の判定**: 差分だけだと、スロット1の後片付けがスロット2の起動した
+#     シミュレータ（スロット1の実行前には無かった = 差分に入る）を撮影の途中で落とす。そこで各スロットは
+#     実行前の一覧（sims_before）と、当番が自分で起動したと記録した UDID（sims。プロンプトで記録させる）を
+#     自分のロックディレクトリに置き、判定は sims_to_shutdown に切り出して次の順で行う:
+#       1. 自分の実行前から起動 → 触らない（従来どおり）
+#       2. 生きている他スロットが「自分が起動した」と記録 → 触らない
+#       3. 自分が記録 → 落とす（確実に自分のもの）
+#       4. 記録の無いもの: 生きている他スロットの実行前一覧に**すべて**載っている（= どの他スロットの
+#          実行中にも新しく起動されたものではない）なら落とす。1つでも載っていない他スロットがあれば、
+#          そのスロットが起動した可能性があるので落とさずに**判定を委ねる**。委ねた先のスロットの実行前には
+#          無かったものなので、そのスロットの終了時の差分に必ず入る（最後に抜けるスロットが落とすので残り続けない）
+#     記録は LLM が忘れうるので 4 が安全側の本線で、記録は「自分の分を早く片付ける」ための補助に留める
 SIMS_BEFORE=""
 SIMS_TRACKED=0
+
+# 落とすシミュレータの判定（上の 1〜4）。副作用が無いので Scripts/tests/test-ai-duty-lock.sh から直接検証する。
+# 引数: $1 = 起動中の UDID / $2 = 自分の実行前の UDID / $3 = 自分の記録 / $4 = 生きている他スロットの記録
+#       $5 = 生きている他スロットの実行前一覧（1スロット1行。行頭に ":" を付ける。実行前が0台でも行が消えない
+#            ようにするため。一覧が読めないスロットは ":" だけの行 = 何も載っていない扱いで安全側に倒れる）
+# 出力: 落とす UDID（1行1件）
+sims_to_shutdown() {
+  local booted="$1" before="$2" mine="$3" theirs="$4" others="$5" u line keep
+  for u in $booted; do
+    case " $before " in *" $u "*) continue ;; esac
+    case " $theirs " in *" $u "*) continue ;; esac
+    case " $mine " in *" $u "*) echo "$u"; continue ;; esac
+    keep=0
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      case " ${line#:} " in *" $u "*) ;; *) keep=1 ;; esac
+    done <<EOF
+$others
+EOF
+    [ "$keep" -eq 0 ] && echo "$u"
+  done
+}
 
 booted_sims() {
   xcrun simctl list devices booted -j 2>/dev/null \
@@ -57,16 +200,27 @@ capture_sims_before() {
   SIMS_BEFORE=$(printf '%s' "$raw" | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null | tr '\n' ' ') \
     || { log "後片付け: シミュレータ一覧の解析に失敗（jq）。後片付けは行わない"; SIMS_BEFORE=""; return 0; }
   SIMS_TRACKED=1
+  # 他スロットの判定材料（sims_to_shutdown の $5）。書けなくても他スロット側は安全側（委ねる）に倒れる
+  { printf '%s' "$SIMS_BEFORE" >"$LOCK_DIR/sims_before"; } 2>/dev/null
 }
 
 cleanup_simulators() {
   [ "$SIMS_TRACKED" -eq 1 ] || return 0
-  local u
-  for u in $(booted_sims); do
-    case " $SIMS_BEFORE " in
-      *" $u "*) continue ;;  # 実行前から起動していた = 触らない
+  local u d booted mine theirs="" others="" target
+  booted=$(booted_sims)
+  mine=$(cat "$LOCK_DIR/sims" 2>/dev/null | tr '\n' ' ')
+  for d in $(other_live_slot_dirs); do
+    theirs="$theirs $(cat "$d/sims" 2>/dev/null | tr '\n' ' ')"
+    others="$others
+:$(cat "$d/sims_before" 2>/dev/null)"
+  done
+  target=$(sims_to_shutdown "$booted" "$SIMS_BEFORE" "$mine" "$theirs" "$others")
+  for u in $booted; do
+    case " $SIMS_BEFORE " in *" $u "*) continue ;; esac
+    case " $(printf '%s' "$target" | tr '\n' ' ') " in
+      *" $u "*) xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown" ;;
+      *) log "後片付け: シミュレータ $u は他スロットの実行中に起動されたため残す（そのスロットの終了時に判定する）" ;;
     esac
-    xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown"
   done
   # 画面を映すアプリ自体は終了しない。実行前のシミュレータがゼロでも、当番の実行中（最大1時間）に
   # 会長がそれを開いた可能性があり、`killall` はそれを問答無用で殺す（PR #110 の
@@ -522,17 +676,42 @@ is_ship_ready() {
 #     当番は毎回見送り、それでも30分ごとに鳴り続けた（#1016 で 01:47〜06:23 JST に8回空振り）
 #   - 最終更新から $2 秒以上経っているものだけ
 #   - オープン PR に紐づいている（closingIssuesReferences）ものは除く
+#   - 生きている他スロットの当番が確保している Issue は除く（2026-09-25 の2並列化）。以前は「ロックで
+#     他の当番は動いていない」ことが孤児判定の前提だったが、2並列では他スロットが30分以上コメント無しで
+#     実装している Issue が無更新に見える。確保はプロセスの生存とひも付くので、生きている間は外れない
 # 引数: $1 = `gh issue list --json number,updatedAt,labels` の出力 / $2 = 無更新とみなす秒数
 #       $3 = オープン PR に紐づく Issue 番号の JSON 配列
+#       $4 = 他スロットが確保中の Issue 番号の JSON 配列（省略時は空）
 # 出力: 件数（jq に失敗したら 0）
 count_orphans() {
   printf '%s' "$1" \
-    | jq --argjson age "$2" --argjson linked "$3" \
+    | jq --argjson age "$2" --argjson linked "$3" --argjson busy "${4:-[]}" \
        '[.[] | . as $i
              | select(([$i.labels[]?.name] | index("ai:approved")) != null)
              | select(($i.updatedAt | fromdateiso8601) < (now - $age))
-             | select(($linked | index($i.number)) == null)] | length' 2>/dev/null || echo 0
+             | select(($linked | index($i.number)) == null)
+             | select(($busy | index($i.number)) == null)] | length' 2>/dev/null || echo 0
 }
+
+# 他スロットが確保中の Issue 番号（空白区切り）を JSON 配列にする。数字以外は落とすので jq にそのまま渡せる
+numbers_to_json() {
+  local n out=""
+  for n in $1; do
+    case "$n" in ''|*[!0-9]*) continue ;; esac
+    out="$out,$((10#$n))"
+  done
+  printf '[%s]' "${out#,}"
+}
+
+# 仕事2〜6 で「他スロットが作業中の Issue を Closes する PR」を数えないための jq 定義（2026-09-25 の2並列化）。
+# スロット2は自分の PR のレビュー消化・マージまで自分で運ぶので、スロット1がそれを検知して起きても
+# 触れずに終わるだけの空振りになる（CodeRabbit の往復の間、3分おきに起き続ける）。
+# 入力の closingIssuesReferences は GraphQL（{nodes: [...]}）と gh pr list（配列）の両方の形を受ける
+DUTY_JQ_BUSY_LIB='
+def linked_to_busy($busy):
+  [(.closingIssuesReferences // [] | if type == "array" then . else (.nodes // []) end)[] | .number] as $ns
+  | any($ns[]; . as $n | ($busy | index($n)) != null);
+'
 
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
 # （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
@@ -559,6 +738,18 @@ self_update "$@"
 #        無条件にすると常に1プロセスに戻る）
 #     3. EXIT トラップは自分が所有者のときだけロックを削除する（競合した相手のロックを
 #        巻き添えにしない）。cleanup_simulators / notify_pending は所有権と無関係に走らせる
+#   **2並列化（会長指示 2026-09-25）**: ロックを DUTY_MAX_SLOTS 個（既定2）のスロットに分けた。launchd の発火は
+#   従来どおり3分ごとで、1回の発火 = このプロセス1つ = スロット1つ。このスクリプトが自分で2つ目の当番を
+#   起動することは無く、前の実行が動いている間に次の発火が来たときだけ2つ目のスロットで並ぶ。スロットごとの
+#   取得・回収・所有権の確認は上の3点をそのまま使い、取れなかったスロットは次の番号を試す（すべて埋まって
+#   いればスキップ）。所有権の確認で負けたときは次のスロットを試さずに降りる（競合の勝者と別スロットで
+#   走っても得るものが無く、3分後の次回に取り直せば足りる）。
+#   「多重起動しない」前提で書かれていた箇所は、スロット番号で次のように置き換えた:
+#     - スロット1だけ: 仕事2〜13 の検知（PR の消化・公開後の取り込み・孤児回収・出荷準備などの全体の仕事）と
+#       会長への通知。スロット2以降は Issue 1件の着手（仕事1）だけを行う
+#     - Issue の二重着手: claim_issue で確保した1件だけを渡す
+#     - 孤児回収: 他スロットが確保中の Issue を除く（count_orphans）
+#     - シミュレータ・worktree・scratch・派生データ・入力フィルタの置き場: スロットごとに分ける
 lock_age() {
   local mtime now
   mtime=$(stat -f %m "$LOCK_DIR" 2>/dev/null || stat -c %Y "$LOCK_DIR" 2>/dev/null) || return 1
@@ -577,28 +768,41 @@ release_lock() {
   # 出さず、残ってもそのロックは PID 未書き込み扱いで次回の猶予超過に回収される
   rm -rf "$LOCK_DIR" 2>/dev/null || log "ロックの解放に失敗（次回の猶予超過で回収される）"
 }
-PID_FILE="$LOCK_DIR/pid"
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
-  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-    log "前回実行中 (pid=$OLD_PID) のためスキップ"
-    exit 0
+# スロット $1 のロックディレクトリを取る（PID の記録と所有権の確認は呼び出し側で1回だけ行う）。
+# 戻り値: 0 = mkdir できた / 1 = 使用中（次のスロットへ）
+try_slot() {
+  local old age
+  LOCK_DIR=$(slot_dir "$1")
+  PID_FILE="$LOCK_DIR/pid"
+  mkdir "$LOCK_DIR" 2>/dev/null && return 0
+  old=$(cat "$PID_FILE" 2>/dev/null || true)
+  if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then
+    log "スロット$1: 前回実行中 (pid=$old)"
+    return 1
   fi
-  if [ -z "$OLD_PID" ]; then
-    AGE=$(lock_age || true)
+  if [ -z "$old" ]; then
+    age=$(lock_age || true)
     # 非数値（stat の想定外出力）と負値（mtime が未来 = 時刻の巻き戻り）は「不明」に倒す。
     # DUTY_LOCK_GRACE と同じ理由で、比較が失敗すると回収する側に落ちてしまう
-    case "$AGE" in ''|*[!0-9]*) AGE="" ;; esac
-    if [ -z "$AGE" ] || [ "$AGE" -lt "$DUTY_LOCK_GRACE" ]; then
-      log "ロック取得直後（PID 未書き込み・経過=${AGE:-不明}秒）のためスキップ"
-      exit 0
+    case "$age" in ''|*[!0-9]*) age="" ;; esac
+    if [ -z "$age" ] || [ "$age" -lt "$DUTY_LOCK_GRACE" ]; then
+      log "スロット$1: ロック取得直後（PID 未書き込み・経過=${age:-不明}秒）"
+      return 1
     fi
   fi
-  log "停止済みプロセスのロックを回収 (pid=${OLD_PID:-不明})"
+  log "スロット$1: 停止済みプロセスのロックを回収 (pid=${old:-不明})"
   # 削除中に他プロセスが書き込むと rm が失敗しうる（release_lock と同じ理由）。
-  # 失敗しても直後の mkdir が失敗して降りるので、ここは stderr を汚さないだけでよい
+  # 失敗しても直後の mkdir が失敗して次のスロットへ進むので、ここは stderr を汚さないだけでよい
   rm -rf "$LOCK_DIR" 2>/dev/null
-  mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+  mkdir "$LOCK_DIR" 2>/dev/null
+}
+GOT_SLOT=""
+for SLOT_TRY in $(seq 1 "$DUTY_MAX_SLOTS"); do
+  if try_slot "$SLOT_TRY"; then GOT_SLOT="$SLOT_TRY"; break; fi
+done
+if [ -z "$GOT_SLOT" ]; then
+  log "全スロット（${DUTY_MAX_SLOTS}）が使用中のためスキップ"
+  exit 0
 fi
 if ! write_pid; then
   log "ロックへの PID 記録に失敗（他プロセスに回収された）ためスキップ"
@@ -612,6 +816,12 @@ if [ "$(cat "$PID_FILE" 2>/dev/null || true)" != "$$" ]; then
   log "ロックの所有権が他プロセスに移ったためスキップ (所有者=$(cat "$PID_FILE" 2>/dev/null || echo 不明))"
   exit 0
 fi
+DUTY_SLOT="$GOT_SLOT"
+export DUTY_SLOT
+log "スロット${DUTY_SLOT}/${DUTY_MAX_SLOTS} を取得"
+# スロットごとの置き場の接尾辞。スロット1は従来と同じ名前にする（既存の派生データ・入力フィルタをそのまま使う）
+SLOT_SUFFIX=""
+[ "$DUTY_SLOT" -eq 1 ] || SLOT_SUFFIX="-s$DUTY_SLOT"
 # worktree の後片付け（会長指示 2026-09-13「worktree は作業終了後に必ず掃除する」）。
 # 1実行=1使い捨て worktree なので、終了時に自分の分を消す。push 済みのものは origin にあり、
 # 未 push の変更は次回の当番が拾わない（新しい worktree で始まる）ため、残しても誰も読まない。
@@ -632,12 +842,16 @@ cleanup_worktree() {
     && log "後片付け: worktree $RUN_DIR を削除" \
     || { rm -rf "$RUN_DIR"; git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1; log "後片付け: worktree $RUN_DIR を rm -rf で削除"; }
 }
-trap 'cleanup_simulators; cleanup_worktree; notify_pending; release_lock' EXIT
+trap 'cleanup_simulators; cleanup_worktree; notify_pending; release_claim; release_lock' EXIT
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
-# 会長の操作待ち（決裁・承認）を先に集める。以降のどこで exit しても EXIT トラップから通知が出る
-collect_notify_targets
+# 会長の操作待ち（決裁・承認）を先に集める。以降のどこで exit しても EXIT トラップから通知が出る。
+# 集めて通知するのはスロット1だけ（2並列化 2026-09-25）。両スロットが集めると、連投防止の状態ファイルを
+# 読んでから書くまでの間に2つとも「未通知」と判断して同じ内容を2回鳴らしうる
+if [ "$DUTY_SLOT" -eq 1 ]; then
+  collect_notify_targets
+fi
 
 # 仕事1: 承認済みで未着手の Issue
 # ai:in-progress（着手済み）と ringi:pending（会長の決裁待ち = 当番には進められない）は除外する。
@@ -651,11 +865,13 @@ APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --s
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
                  and ($l | index("blocked")) == null)] | length' 2>/dev/null || echo 0)
 
-# 起動モデルの選択。既定は Sonnet（会長指示 2026-09-18: 週間リミット逼迫のため恒久対応。
-# 2026-09-22 時点でリミットは解消したが、既定を Sonnet にすること自体は継続する会長指示）。
-# `model:fable` ラベルが付いた Issue が次の着手候補に来たときだけ Fable 5.1 で起動する
-# （2026-09-18 に一時撤回していたが、2026-09-22 に会長指示でラベルの効力を復活させた）。
-NEXT_CANDIDATE=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
+# 着手する Issue の確保（2並列化 2026-09-25）。以前は仕事2（ai-duty-prompt.md セクション2）で LLM が
+# 選んでいたが、2つの当番がほぼ同時に起動すると、どちらかが ai:in-progress を付ける前に同じ Issue を
+# 選びうる。プロンプトの選定手順と同じ順（マイルストーンの版 → 番号）に並べた候補を、先頭から
+# claim_issue で確保し、取れた1件だけを当番に渡す（他スロットが確保中のものは飛ばす）。
+# 候補が全部ほかの当番に確保されている回は、承認済みがあっても「仕事1 なし」として数える
+# （起動しても着手できる Issue が無く、空振りになるため）。
+CANDIDATES=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open --limit 200 \
   --json number,labels,milestone \
   --jq '[.[] | ([.labels[].name]) as $l
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
@@ -663,15 +879,46 @@ NEXT_CANDIDATE=$(gh issue list -R hiroky1983/game_collection --label "ai:approve
         | {number: .number,
            fable: (($l | index("model:fable")) != null),
            ver: ((.milestone.title // "v999.999.999") | ltrimstr("v") | split(".") | map(tonumber? // 999))}]
-        | sort_by(.ver, .number) | .[0] // empty' 2>/dev/null || true)
+        | sort_by(.ver, .number) | .[] | "\(.number) \(.fable)"' 2>/dev/null || true)
+if [ -n "$CANDIDATES" ] && claim_next_issue "$CANDIDATES"; then
+  log "Issue #$DUTY_ISSUE を確保"
+else
+  APPROVED=0
+fi
+# 生きている他スロットが確保中の Issue（孤児回収の除外・PR 検知の除外・プロンプトの補足に使う）
+OTHER_CLAIMS=$(other_claimed_issues)
+OTHER_CLAIMS_JSON=$(numbers_to_json "$OTHER_CLAIMS")
+
+# スロット2以降は Issue 1件の着手だけを行う（全体の仕事はスロット1の担当）。確保できなければ何もしない
+if [ "$DUTY_SLOT" -ne 1 ] && [ -z "$DUTY_ISSUE" ]; then
+  log "スロット${DUTY_SLOT}: 着手できる Issue が無いため終了（全体の仕事はスロット1の担当）"
+  exit 0
+fi
+
+# 起動モデルの選択。既定は Sonnet（会長指示 2026-09-18: 週間リミット逼迫のため恒久対応。
+# 2026-09-22 時点でリミットは解消したが、既定を Sonnet にすること自体は継続する会長指示）。
+# `model:fable` ラベルが付いた Issue を確保したときだけ Fable 5.1 で起動する
+# （2026-09-18 に一時撤回していたが、2026-09-22 に会長指示でラベルの効力を復活させた）。
 DUTY_MODEL=sonnet
 DUTY_MODEL_NOTE=""
-if [ -n "$NEXT_CANDIDATE" ] && [ "$(jq -r '.fable' <<<"$NEXT_CANDIDATE" 2>/dev/null)" = "true" ]; then
+if [ -n "$DUTY_ISSUE" ] && [ "$DUTY_ISSUE_FABLE" = "true" ]; then
   DUTY_MODEL=fable
-  DUTY_MODEL_NOTE="今回選んだ #$(jq -r '.number' <<<"$NEXT_CANDIDATE") には \`model:fable\` が付いているため Fable 5.1 で起動している。仕事2 ではこの Issue を選ぶこと。"
+  DUTY_MODEL_NOTE="#${DUTY_ISSUE} には \`model:fable\` が付いているため Fable 5.1 で起動している。"
 fi
 export DUTY_MODEL
 
+# 仕事2〜13 はスロット1だけが検知する（2並列化 2026-09-25。PR の消化・公開後の取り込み・孤児回収・
+# 出荷準備などはリポジトリ全体に1つしかない仕事で、2つの当番が同時に手を付けると同じ PR に二重に push
+# したり、同じマージ・タグ打ちを競ったりする）。スロット2以降は検知そのものを行わず、下の既定値 0 のまま進む。
+# 本体を関数に包んでいるだけで、各仕事のブロックはトップレベルと同じ書き方のまま（字下げもしない。
+# Scripts/tests/test-ai-duty-detect.sh がブロックをコメント行の目印で切り出して評価するため）
+THREADS=0 PENDING_REVIEW=0 CONFLICTS=0 RINGI_REPLIES=0 STALLED=0 RELEASED=0 SUBMISSION_UNFROZEN=0
+PROPOSED_REPLIES=0 ORPHANS=0 ORPHAN_COMMITS=0 BLOCKED_UPDATES=0 RINGI_STAMPS=0 SHIP_READY=0
+SHIP_VER="" SHIP_SHA=""
+# 信頼アカウント（仕事3・5・8・11〜13 の判定と、入力フィルタの確認が使う）。スロット2でも入力フィルタの
+# 確認に要るので、検知の関数の外で決める
+DUTY_TRUSTED_ACTORS="${DUTY_TRUSTED_ACTORS:-hiroky1983}"
+detect_singleton_jobs() {
 # 仕事2: オープン PR 上の未解決 CodeRabbit スレッド
 # 上限 50 PR × 100 スレッド（個人リポジトリの規模では実質全件。超えたら要ページング対応）
 THREADS=$(gh api graphql -f query='
@@ -679,6 +926,7 @@ query {
   repository(owner: "hiroky1983", name: "game_collection") {
     pullRequests(states: OPEN, first: 50) {
       nodes {
+        closingIssuesReferences(first: 10) { nodes { number } }
         reviewThreads(first: 100) {
           nodes {
             isResolved
@@ -688,7 +936,8 @@ query {
       }
     }
   }
-}' --jq '[.data.repository.pullRequests.nodes[].reviewThreads.nodes[]
+}' 2>/dev/null | jq --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.data.repository.pullRequests.nodes[]
+  | select(linked_to_busy($busy) | not) | .reviewThreads.nodes[]
   | select(.isResolved == false)
   | (.comments.nodes[0].author.login // "") as $l
   | select($l == "coderabbitai" or $l == "coderabbitai[bot]")] | length' 2>/dev/null || echo 0)
@@ -715,7 +964,6 @@ query {
 # 直後の発火を避けるため、HEAD コミットが 30 分以上前のものだけを対象にする（committedDate は
 # push 時刻の下限でしかないが、ここでの用途は「催促を急ぎすぎない」猶予だけで、
 # 早まっても催促上限3回で頭打ちになる）。
-DUTY_TRUSTED_ACTORS="${DUTY_TRUSTED_ACTORS:-hiroky1983}"
 PENDING_REVIEW=$(gh api graphql -f query='
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
@@ -723,15 +971,18 @@ query {
       nodes {
         isDraft
         headRefOid
+        closingIssuesReferences(first: 10) { nodes { number } }
         commits(last: 1) { nodes { commit { committedDate } } }
         reviews(last: 20) { nodes { author { login } commit { oid } } }
         comments(last: 30) { nodes { author { login } updatedAt body } }
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" '($trusted | split(",")) as $actors
+}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" --argjson busy "$OTHER_CLAIMS_JSON" \
+  "$DUTY_JQ_BUSY_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.pullRequests.nodes[]
   | select(.isDraft == false)
+  | select(linked_to_busy($busy) | not)
   | .headRefOid as $oid
   | (.commits.nodes[0].commit.committedDate | fromdateiso8601) as $head
   | select(now - $head > 1800)
@@ -752,8 +1003,9 @@ query {
   | select($nudges < 3)] | length' 2>/dev/null || echo 0)
 
 # 仕事4: コンフリクトで滞留しているオープン PR（誰のトリガーにも掛からず放置される穴の解消）
-CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeable \
-  --jq '[.[] | select(.mergeable == "CONFLICTING")] | length' 2>/dev/null || echo 0)
+CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeable,closingIssuesReferences 2>/dev/null \
+  | jq --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.[] | select(linked_to_busy($busy) | not)
+      | select(.mergeable == "CONFLICTING")] | length' 2>/dev/null || echo 0)
 
 # 仕事5: 決裁コメントの着信（ringi:pending の Issue に決裁スレッド以外の新規コメントが付いたら
 # 会長の決裁着信の可能性として当番を起こす。判定と反映は当番エージェントが行う）
@@ -777,8 +1029,9 @@ query {
 
 # 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
 # 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
-STALLED=$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest \
-  --jq '[.[] | select(.mergeStateStatus == "CLEAN") | select(.autoMergeRequest == null)] | length' 2>/dev/null || echo 0)
+STALLED=$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest,closingIssuesReferences 2>/dev/null \
+  | jq --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.[] | select(linked_to_busy($busy) | not)
+      | select(.mergeStateStatus == "CLEAN") | select(.autoMergeRequest == null)] | length' 2>/dev/null || echo 0)
 
 # 仕事7: App Store で公開済みなのに main へ未マージの release ブランチ
 # 規程（ai-devops.md）では「公開後に release/vX.Y.Z → main をマージしタグを打つ」のは AI の責務だが、
@@ -844,11 +1097,11 @@ query {
 # 恒久的に外れて誰も着手できなくなる（#80 で発生。12:07 の実行が着手直後に死亡し約2.5時間滞留）。
 #
 # 誤検知ガードは2重:
-#   1) ロック — ここに到達している時点で他の当番は動いていない。生きている先行プロセスが
-#      あればロック取得の段階で既に exit 済みで、この行は実行されない。つまり
-#      「ロックが存在せず（= 当番が動いていない）」という条件は到達自体が保証している。
-#      逆に言うと、実行中の当番が長時間かけて実装している Issue は、次回の launchd 起動が
-#      ロックで弾かれるため対象にならない。
+#   1) スロットと確保 — ここを走るのはスロット1だけで、スロット1の先行プロセスが生きていれば
+#      ロック取得の段階で弾かれる。2並列化（2026-09-25）以降はスロット2の当番が同時に動いて
+#      いうるため、「ロックがあるので他の当番は動いていない」は成り立たない。代わりに、生きている
+#      他スロットが確保中の Issue（OTHER_CLAIMS_JSON。確保はプロセスの生存とひも付く）を除外する。
+#      これで、他スロットが30分以上コメント無しで実装している Issue を孤児と誤認しない。
 #   2) 経過時間 — 最終更新から30分以上のものだけを対象にする。着手宣言・進捗コメント・
 #      ラベル操作はいずれも updatedAt を更新するため、生きている作業は時間切れにならない。
 #   3) 成果物 — オープン PR に紐づいている Issue（PR 本文の `Closes #N`）は除外する。
@@ -869,7 +1122,7 @@ query {
 # 経過時間ガードが効くため、当番が起きて状況を確認するだけで実害は無い
 LINKED_ISSUES="${LINKED_ISSUES:-[]}"
 ORPHANS=$(count_orphans "$(gh issue list -R hiroky1983/game_collection --label "ai:in-progress" --state open \
-  --json number,updatedAt,labels 2>/dev/null)" "$DUTY_ORPHAN_MIN_AGE" "$LINKED_ISSUES")
+  --json number,updatedAt,labels 2>/dev/null)" "$DUTY_ORPHAN_MIN_AGE" "$LINKED_ISSUES" "${OTHER_CLAIMS_JSON:-[]}")
 ORPHANS="${ORPHANS:-0}"
 
 # 仕事10: マージ済み PR のブランチに取り残されたコミット（Issue #100）
@@ -1042,6 +1295,10 @@ query($title: String!) {
     SHIP_READY=1
   fi
 fi
+}
+if [ "$DUTY_SLOT" -eq 1 ]; then
+  detect_singleton_jobs
+fi
 
 # 実行モード決定。仕事が無ければ何もしない。
 # 2026-08-19: 以前はここで「枯渇駆動の企画モード」（分析なしで機械的に2〜3件起票するだけ）に
@@ -1064,13 +1321,19 @@ git -C "$DUTY_DIR" fetch origin --prune >>"$LOG" 2>&1
 # 1実行 = 1使い捨て worktree。前回の残骸（異常終了時の未コミット変更等）と物理的に隔離する
 RUNS_DIR="$HOME/.asobiba-duty/runs"
 mkdir -p "$RUNS_DIR"
+# worktree と scratch の名前はスロットごとに分ける（2並列化 2026-09-25）。スロット1は従来どおり `run-<時刻>`、
+# スロット n（2以上）は `s<n>-run-<時刻>`。名前空間を分けると、下の掃除が「自分のスロットの残骸」だけを
+# 見れば済み、実行中の他スロットの worktree を消さない。スロット2の名前を `run-` で始めないのは、
+# 自己更新に失敗した回に走る旧版（`run-*` を全部消す）にスロット2の作業中の worktree を消させないため
+RUN_PREFIX="run-"
+[ "$DUTY_SLOT" -eq 1 ] || RUN_PREFIX="s${DUTY_SLOT}-run-"
 # 前回までの実行用 worktree を**すべて**掃除する（会長指示 2026-09-13）。
 # 以前は「3日より古いもの」だけを消していたが、実際には一度も消えず 9/9〜9/13 の5日で
-# 52 個・50GB が溜まっていた（フルチェックアウト1個≈1GB）。ロックで直列に動いているので、
-# この時点で残っている run-* は全部が終了済みの残骸であり、年齢を見ずに消してよい。
+# 52 個・50GB が溜まっていた（フルチェックアウト1個≈1GB）。同じスロットの当番はロックで直列に動いているので、
+# この時点で残っている自分のスロットの worktree は全部が終了済みの残骸であり、年齢を見ずに消してよい。
 # 終了時の cleanup_worktree（EXIT トラップ）が本線で、ここは異常終了で残った回の backstop。
 STALE_COUNT=0
-for d in "$RUNS_DIR"/run-*; do
+for d in "$RUNS_DIR/$RUN_PREFIX"*; do
   [ -d "$d" ] || continue
   if git -C "$DUTY_DIR" worktree remove --force "$d" >>"$LOG" 2>&1; then
     STALE_COUNT=$((STALE_COUNT + 1))
@@ -1081,28 +1344,31 @@ done
 git -C "$DUTY_DIR" worktree prune >>"$LOG" 2>&1
 [ "$STALE_COUNT" -gt 0 ] && log "掃除: 前回までの worktree を $STALE_COUNT 個削除（runs=$(du -sh "$RUNS_DIR" 2>/dev/null | cut -f1)）"
 
-RUN_DIR="$RUNS_DIR/run-$(date +%Y%m%d-%H%M%S)"
+RUN_DIR="$RUNS_DIR/${RUN_PREFIX}$(date +%Y%m%d-%H%M%S)"
 git -C "$DUTY_DIR" worktree add --detach "$RUN_DIR" origin/main >>"$LOG" 2>&1 || { log "worktree 作成失敗"; exit 0; }
 
 # アプリのビルド（xcodebuild）の派生データは**この 1 か所を使い回す**（会長指示 2026-09-14「当番の残骸は
 # そっちで何とかして」）。当番はそれまで実行ごとに /tmp/dd-<issue> などを新しく作っていて、2026-09-14 に
 # 125 個・約 150GB が /tmp に残っていた。1 か所に固定すると SPM 依存の取得（初回 20〜30 分）も 2 回目から
 # 差分ビルドで済む。before/after の比較ビルドは `$DUTY_DERIVED_DATA-base` の 1 個だけ許す。
+# 2並列化（2026-09-25）でスロットごとに1か所にした（スロット2は `-s2`）。同じ派生データを2つの xcodebuild が
+# 同時に使うと、ビルドデータベースのロックを取り合ってどちらかのビルドが失敗する。
 # 撮影物・ビルドログ・一時スクリプトは `$DUTY_SCRATCH_DIR`（実行ごと。EXIT で消す）に置かせる。
-DUTY_DERIVED_DATA="$HOME/.asobiba-duty/derived-data"
+DUTY_DERIVED_DATA="$HOME/.asobiba-duty/derived-data${SLOT_SUFFIX}"
 DUTY_SCRATCH_DIR="$HOME/.asobiba-duty/scratch/$(basename "$RUN_DIR")"
 mkdir -p "$DUTY_DERIVED_DATA" "$DUTY_SCRATCH_DIR"
 export DUTY_DERIVED_DATA DUTY_SCRATCH_DIR
 # 派生データは 14 日使われなければ捨てる（Xcode やランタイムの更新で古いキャッシュが害になることがある）。
 # 前回の scratch と、規程に反して /tmp に作られた派生データ（`*dd*` で SPM のチェックアウト
 # `SourcePackages` を持つディレクトリ）は 1 日たっていれば消す。`rm -r`（-f 無し）で、消せなければログに残す。
+# scratch も worktree と同じく自分のスロットの名前空間だけを消す（他スロットの実行中の scratch を消さない）
 for d in "$DUTY_DERIVED_DATA" "$DUTY_DERIVED_DATA-base"; do
   [ -d "$d" ] || continue
   if [ -n "$(find "$d" -maxdepth 0 -mtime +14 2>/dev/null)" ]; then
     rm -r "$d" 2>>"$LOG" && log "掃除: 14 日使われていない派生データ $d を削除" || log "掃除: $d を消せなかった（手で確認すること）"
   fi
 done
-for d in "$HOME/.asobiba-duty/scratch"/run-*; do
+for d in "$HOME/.asobiba-duty/scratch/$RUN_PREFIX"*; do
   [ -d "$d" ] && [ "$d" != "$DUTY_SCRATCH_DIR" ] || continue
   rm -r "$d" 2>>"$LOG" || log "掃除: scratch $d を消せなかった（手で確認すること）"
 done
@@ -1122,7 +1388,10 @@ done
 #   - 効いていることを起動前に実測し、確認できなければ **claude を起動しない**（fail closed）。
 #     フィルタ無しで走らせるくらいなら1回休むほうがよい。ラッパー自体の回帰は
 #     Scripts/tests/test-duty-gh-shim.sh（CI で実行）が防ぐ
-GH_SHIM_DIR="$HOME/.asobiba-duty/gh-shim"
+#   - 置き場所はスロットごとに分ける（2並列化 2026-09-25。スロット2は `gh-shim-s2`）。下の install_gh_shim は
+#     置き場所を一度消して作り直すため、共有すると後から起動したスロットが、実行中の他スロットの PATH に
+#     入っているラッパーを消す。消えた瞬間から相手の `gh` は PATH の後ろの本物に落ち、**フィルタ無しで素通し**になる
+GH_SHIM_DIR="$HOME/.asobiba-duty/gh-shim${SLOT_SUFFIX}"
 install_gh_shim() {
   local src="$RUN_DIR/Scripts/duty-gh-shim" probe
   [ -f "$src/gh" ] && [ -f "$src/filter.jq" ] || { log "入力フィルタ: $src が見つからない"; return 1; }
@@ -1170,24 +1439,55 @@ if ! install_gh_shim; then
   exit 0
 fi
 
+# 確保した Issue には、ここでスクリプトが ai:in-progress を付ける（会長確認 2026-09-25）。ラベルは原子的な
+# 確保にならず、LLM に任せると一覧を読んでから付けるまでに時間が空く。二重着手を防いでいるのは上の
+# claim_issue（ローカルの mkdir）で、ラベルはそのあとに他の検知（仕事1 の集計・次回の候補）から外すための印。
+# claude を起動する直前に付けるのは、ここより前で終わった回（入力フィルタの失敗等）にラベルだけが残って
+# 30分後の孤児回収を待たせないため。付けられなくても確保は効いているので起動は続ける（プロンプトでも付ける）
+if [ -n "$DUTY_ISSUE" ]; then
+  gh issue edit "$DUTY_ISSUE" -R hiroky1983/game_collection --add-label "ai:in-progress" >>"$LOG" 2>&1 \
+    && log "Issue #$DUTY_ISSUE に ai:in-progress を付与" \
+    || log "Issue #$DUTY_ISSUE への ai:in-progress の付与に失敗（確保は有効なので続行。当番がプロンプトどおり付ける）"
+fi
+
 # claude を起動する直前に実行前の状態を確定させる（これ以降に増えた分だけが当番のもの）
 capture_sims_before
 # 同時に起動してよいシミュレータは全体で2台まで（会長指示 2026-09-13。3台以上で Mac が固まる）。
 # 実行前に何台起動しているかをプロンプトへ渡し、当番側で「あと何台起動できるか」を判断させる。
 SIMS_BOOTED_COUNT=$(printf '%s' "${SIMS_BEFORE% }" | wc -w | tr -d ' ')
 export SIMS_BOOTED_COUNT
+# 当番が自分で起動したシミュレータの UDID を書かせる先（cleanup_simulators が「確実に自分のもの」として
+# 落とし、他スロットは「他人のもの」として残す。書き忘れても安全側に倒れる。判定は sims_to_shutdown 参照）
+DUTY_SIM_RECORD="$LOCK_DIR/sims"
+: >"$DUTY_SIM_RECORD" 2>/dev/null
+export DUTY_SIM_RECORD
 # 仕事13 で起動したときは、対象の版と停止マーカーに書く SHA を補足で渡す（当番が別の版を選ばないため）
 DUTY_SHIP_NOTE=""
 if [ "$SHIP_READY" -eq 1 ]; then
   DUTY_SHIP_NOTE="仕事13（出荷準備）: release/v${SHIP_VER}（HEAD ${SHIP_SHA:0:7}）が出荷準備の条件を満たした。セクション 2.5 の手順を行うこと。"
 fi
+# 2並列化（2026-09-25）: スロットの役割・確保した Issue・他スロットの作業中 Issue を補足で渡す
+# （ai-duty-prompt.md の「当番の同時実行（スロット）」節がこの補足を前提に書かれている）
+if [ -n "$DUTY_ISSUE" ]; then
+  DUTY_ISSUE_NOTE="セクション2で着手してよい Issue は #${DUTY_ISSUE} だけ（ai-duty.sh が確保済み。ほかの Issue を選ばない）。"
+else
+  DUTY_ISSUE_NOTE="今回セクション2で着手してよい Issue は無い（候補なし、または他スロットが確保済み）。"
+fi
+if [ "$DUTY_SLOT" -eq 1 ]; then
+  DUTY_SLOT_NOTE="あなたはスロット1（全体の仕事を担当）。"
+else
+  DUTY_SLOT_NOTE="あなたはスロット${DUTY_SLOT}。行うのはセクション2で #${DUTY_ISSUE} に着手し、自分が出した PR をレビュー消化・マージまで運ぶことだけ（それ以外のセクションはスロット1の担当なので行わない）。"
+fi
+if [ -n "$OTHER_CLAIMS" ]; then
+  DUTY_SLOT_NOTE="${DUTY_SLOT_NOTE}他スロットが作業中の Issue: $(hash_numbers "$OTHER_CLAIMS")（これらの Issue と、それを Closes する PR・その作業ブランチには触れない。2-c の孤児回収の対象からも外す）。"
+fi
 
-log "当番起動 (model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, ship_ready=$SHIP_READY, ship_target=${SHIP_VER:-なし}, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (slot=$DUTY_SLOT/$DUTY_MAX_SLOTS, issue=${DUTY_ISSUE:-なし}, other_claims=[${OTHER_CLAIMS}], model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, ship_ready=$SHIP_READY, ship_target=${SHIP_VER:-なし}, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 PATH="$GH_SHIM_DIR:$PATH" claude --model "$DUTY_MODEL" \
   --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch" \
   -p "$(cat "$RUN_DIR/$PROMPT_FILE")
 
-（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。xcodebuild の派生データは必ず \`-derivedDataPath ${DUTY_DERIVED_DATA}\`（比較用のベースは \`${DUTY_DERIVED_DATA}-base\`）を使い、撮影物・ビルドログ・一時スクリプトは \`${DUTY_SCRATCH_DIR}\` に置くこと（/tmp に新しいディレクトリを作らない。この 2 つは環境変数 DUTY_DERIVED_DATA / DUTY_SCRATCH_DIR でも参照できる）。${DUTY_MODEL_NOTE}${DUTY_SHIP_NOTE}" >>"$LOG" 2>&1
+（実行環境の補足）起動時点で起動中のシミュレータは ${SIMS_BOOTED_COUNT} 台。上限は全体で2台。xcodebuild の派生データは必ず \`-derivedDataPath ${DUTY_DERIVED_DATA}\`（比較用のベースは \`${DUTY_DERIVED_DATA}-base\`）を使い、撮影物・ビルドログ・一時スクリプトは \`${DUTY_SCRATCH_DIR}\` に置くこと（/tmp に新しいディレクトリを作らない。この 2 つは環境変数 DUTY_DERIVED_DATA / DUTY_SCRATCH_DIR でも参照できる）。シミュレータを起動したら UDID を \`${DUTY_SIM_RECORD}\`（環境変数 DUTY_SIM_RECORD）に1行ずつ追記すること。${DUTY_SLOT_NOTE}${DUTY_ISSUE_NOTE}${DUTY_MODEL_NOTE}${DUTY_SHIP_NOTE}" >>"$LOG" 2>&1
 RC=$?
 log "当番終了 (mode=$MODE, exit=$RC)"
