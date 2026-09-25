@@ -1316,23 +1316,34 @@ private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, ro
 @MainActor
 struct StartSheetLevelTests {
 
-    /// 開始シート（強さを選ぶ画面）は「中断データが無いこと」で出る。Model の init が
-    /// `gameDidStart` を送るのも同じ条件なので、**その時点ではまだ強さが選ばれていない**。
-    /// ここで既定値を送ると、あとで選び直された強さぶんまで `normal` として数えてしまう。
-    @Test("シートが開く局の game_start には level を載せない")
-    func initialStartCarriesNoLevel() {
+    /// 開始シート（強さを選ぶ画面）は「中断データが無いこと」で出る。**その時点ではまだ強さが
+    /// 選ばれていない**ので、`init` では数えない（#1372）。シートで開始すれば `newGame` が選んだ強さ付きで
+    /// 1 回数え、シートを閉じただけなら `startPlayIfPending` が強さ無しで 1 回数える。
+    /// 以前は `init` で先に数えていて、1 局が 2 回 `game_start` になっていた。
+    @Test("シートが開く局は init では数えず、閉じたときに level 無しで 1 回だけ数える")
+    func initialStartIsDeferredUntilSheetCloses() {
         for make in [
-            { (services: GameServices) in _ = ShogiGameModel(services: services) },
-            { (services: GameServices) in _ = ChessGameModel(services: services) },
-            { (services: GameServices) in _ = GoModel(services: services) },
-            { (services: GameServices) in _ = GomokuModel(services: services) },
-            { (services: GameServices) in _ = OthelloModel(services: services) },
-        ] {
+            { (services: GameServices) in
+                let m = ShogiGameModel(services: services); return { m.startPlayIfPending() } },
+            { (services: GameServices) in
+                let m = ChessGameModel(services: services); return { m.startPlayIfPending() } },
+            { (services: GameServices) in
+                let m = GoModel(services: services); return { m.startPlayIfPending() } },
+            { (services: GameServices) in
+                let m = GomokuModel(services: services); return { m.startPlayIfPending() } },
+        ] as [(GameServices) -> () -> Void] {
             let (services, spy) = makeServices()
-            make(services)
-            #expect(spy.starts.count == 1, "開始そのものは従来どおり数える")
+            let dismissSheet = make(services)
+            #expect(spy.starts.isEmpty, "開いただけでは数えない")
+            dismissSheet()
+            dismissSheet()
+            #expect(spy.starts.count == 1, "閉じたときに 1 回だけ")
             #expect(spy.startLevels == [nil], "選ばれていない強さを送らない: \(spy.starts)")
         }
+        let (services, spy) = makeServices()
+        _ = OthelloModel(services: services)
+        #expect(spy.starts.count == 1)
+        #expect(spy.startLevels == [nil])
     }
 
     @Test("シートで選んだ強さは、その対局の game_start に載る")
@@ -1340,12 +1351,12 @@ struct StartSheetLevelTests {
         let (shogiServices, shogiSpy) = makeServices()
         let shogi = ShogiGameModel(services: shogiServices)
         shogi.newGame(aiLevel: 2)
-        #expect(shogiSpy.startLevels == [nil, .hard], "0 始まりの 2 は最上位ではなく hard")
+        #expect(shogiSpy.startLevels == [.hard], "0 始まりの 2 は最上位ではなく hard・1 局 1 回（#1372）")
 
         let (goServices, goSpy) = makeServices()
         let go = GoModel(services: goServices)
         go.newGame(level: .easy)
-        #expect(goSpy.startLevels == [nil, .beginner])
+        #expect(goSpy.startLevels == [.beginner])
 
         let (othelloServices, othelloSpy) = makeServices()
         let othello = OthelloModel(services: othelloServices)

@@ -64,7 +64,7 @@ public struct ShogiView: View {
             }
         }
         .howToPlay(.shogi)
-        .sheet(isPresented: $showNewGame) {
+        .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
                 model.newGame(humanSide: side, aiLevel: level)
                 showNewGame = false
