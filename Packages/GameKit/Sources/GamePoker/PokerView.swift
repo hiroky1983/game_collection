@@ -6,6 +6,7 @@ public struct PokerView: View {
     private let services: GameServices
     @State private var showStartSheet = true
     @State private var hasPlayedOnce = false
+    @Environment(\.dismiss) private var dismiss
     @State private var revealCPU = false
     /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var reviveRescue = RewardedRescue()
@@ -91,7 +92,14 @@ public struct PokerView: View {
                 hasPlayedOnce = true
                 revealCPU = false
                 model.startGame(rules: selectedRules)
+            } onCancel: {
+                // 「覗いてみたけど今はやめる」の退路（#1371）。局は始まっていないので記録・解析の
+                // イベントは何も発生しない（それらは `startGame()` だけが送る）。
+                showStartSheet = false
+                dismiss()
             }
+            // スワイプで閉じると「シートだけ消えて空の卓が残る」ため引き続き無効。
+            // 閉じる操作はキャンセル（ハブへ戻る）に一本化する。
             .interactiveDismissDisabled(true)
         }
         .sheet(isPresented: $showBonusTable) {
