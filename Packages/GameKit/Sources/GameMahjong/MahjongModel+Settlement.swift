@@ -209,11 +209,21 @@ extension MahjongModel {
         // リザルト表示中に離脱しても局間の経過が消えないよう、決着内容ごと保存する（#350）。
         // 親・本場・局数の繰り上げが終わった後に保存するので、再開後の「次の局へ」は
         // 中断が無かったときと同じ条件で次局を始められる。
+        // 終局が確定するなら、`game_end` は保存より**先**に送る（保存の直後に終了すると、復元は
+        // `gameDidRestoreFinished` しか呼ばず `game_end` が永久に出ない。#1375）。
+        if concludesAfterCurrentResult {
+            services?.gameDidDecide(gameID: gameID, outcome: finalOutcome())
+        }
         persist()
         // その先が終局（一局戦・最終局・アガリやめ・トビ）のリザルトは、中断データが残っていても
         // 続けて打つ局が無い。「結果を見る」を押さずに戻っても中断のお知らせ（#663）を予約させない（#811）。
-        // 記録は「結果を見る」の `concludeGame` で付けるので、ここでは `gameDidFinish` を呼ばない。
-        if concludesAfterCurrentResult { services?.gameDidRestoreFinished(gameID: gameID) }
+        // 記録（戦績・評価リクエスト等）は「結果を見る」の `concludeGame` で付けるので、ここでは `gameDidFinish` を呼ばない。
+        // ただし `game_end` は上の `persist()` の前に送っている。リザルトで離れると休憩と判定され、`concludeGame` に戻らなければ
+        // 遊び切った対局が「始めたのに終わっていない」ぶんに数えられる（#1375）。送信済みのプレイは
+        // `concludeGame` の `gameDidFinish` が再び送らない（`finishPlay` は進行中のときだけ送る）。
+        if concludesAfterCurrentResult {
+            services?.gameDidRestoreFinished(gameID: gameID)
+        }
     }
 
     /// 対局が終わったか。最終局を終えた（= その次の局に入る）か、アガリやめか、誰かが飛んだとき。
@@ -235,6 +245,22 @@ extension MahjongModel {
         scores[player] == scores.max()
     }
 
+    /// 順位（1 位から）。同点は席順（親から近い順）で上位にする。
+    private func rankedPlayers() -> [Int] {
+        (0..<Self.playerCount).sorted {
+            (scores[$0], -seatWind($0)) > (scores[$1], -seatWind($1))
+        }
+    }
+
+    /// いまの持ち点で終局した場合の勝敗（`reviewOutcome` と同じ基準。`ranking` はまだ確定させない）。
+    private func finalOutcome() -> GameOutcome {
+        let order = rankedPlayers()
+        guard let place = order.firstIndex(of: Self.humanIndex) else { return .draw }
+        if place == 0 { return .win }
+        if place == order.count - 1 { return .loss }
+        return .draw
+    }
+
     func concludeGame() {
         // 終了理由をリザルトの見出し用に確定する（#352）。トビは他の条件と同時に成立しうるが、
         // 突然終わる驚きが最も大きいので最優先で表示する。次いで「東4局を終えた」が自然な終局、
@@ -243,10 +269,7 @@ extension MahjongModel {
             : roundNumber > roundLimit ? .completedAllRounds
             : endsAfterThisHand ? .agariYame
             : .completedAllRounds
-        // 同点は席順（親から近い順）で上位にする。
-        ranking = (0..<Self.playerCount).sorted {
-            (scores[$0], -seatWind($0)) > (scores[$1], -seatWind($1))
-        }
+        ranking = rankedPlayers()
         // 最後の局が流局で終わると供託（立直棒）が残る。誰にも渡さないと点棒が消えるので、
         // 一般的なルールどおりトップが回収する（回収してもトップは入れ替わらない）。
         // 最後の局が流局で終わると供託（立直棒）が残る。誰にも渡さないと点棒が消えるので、
