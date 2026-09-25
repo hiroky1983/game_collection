@@ -351,8 +351,8 @@ struct FruitsGameOverTests {
         #expect(!model.continueAfterAd(forGame: serial))
     }
 
-    @Test("メロンを作っていた回のコンティニューは勝ちの記録を取り消さない")
-    func continueKeepsTheWin() {
+    @Test("メロンを作っていた回のコンティニューは勝ちを巻き戻し、再終局で 1 勝に数え直す（#1359）")
+    func continueRewindsTheWinAndRecountsOnce() {
         let (playLog, defaults, name) = makePlayLog("continue-win")
         defer { defaults.removePersistentDomain(forName: name) }
         let model = makeModel(fruits: overflowingColumn, score: 400, hasMadeMelon: true, playLog: playLog)
@@ -360,9 +360,22 @@ struct FruitsGameOverTests {
         #expect(model.phase == .gameOver)
         #expect(playLog.record(gameID: "fruits")?.wins == 1)
         #expect(model.continueAfterAd(forGame: model.gameSerial))
-        #expect(playLog.record(gameID: "fruits")?.wins == 1, "勝ちは取り消さない")
-        #expect(playLog.record(gameID: "fruits")?.plays == 1)
+        #expect(playLog.record(gameID: "fruits")?.wins == 0, "続きは次の 1 プレイなので、先の勝ちは巻き戻す")
+        #expect(playLog.record(gameID: "fruits")?.plays == 0)
+        #expect(playLog.record(gameID: "fruits")?.currentStreak == 0)
         #expect(model.hasMadeMelon, "続きでもメロンを作った印は残る")
+
+        // 続きを遊んで、もう一度終局するまで落とし続ける。
+        var drops = 0
+        while model.phase != .gameOver, drops < 400 {
+            dropWhenReady(model, at: 70)
+            drops += 1
+        }
+        #expect(model.phase == .gameOver, "続きが終局まで進む")
+        let record = playLog.record(gameID: "fruits")
+        #expect(record?.plays == 1, "1 プレイは 1 回だけ数える")
+        #expect(record?.wins == 1, "2 勝にならない")
+        #expect(record?.currentStreak == 1)
     }
 
     @Test("広告のあいだに「はじめから」で入れ替わった局へは適用しない（#729）")

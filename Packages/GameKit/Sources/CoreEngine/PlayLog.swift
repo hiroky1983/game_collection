@@ -353,6 +353,29 @@ public final class PlayLog {
         persistRecords()
     }
 
+    /// リワード広告のコンティニューで「その勝ちが無かったことになった」ときに呼ぶ（#1359）。
+    ///
+    /// くっつきフルーツはメロンを作った回を勝ちとして記録するが、その回もコンティニューで続きを遊べる。
+    /// 巻き戻さないと、再び終局したときにもう 1 勝が加わり、1 プレイが 2 勝として数えられる。
+    /// 勝ちは記録（`plays` / `wins` / 連勝）に加え、評価リクエストと実績の元になる通算勝利数
+    /// （`totalWins`）にも入っているので、両方を戻す。
+    ///
+    /// - Note: 自己ベストと最長連勝は巻き戻さない（`cancelLoss` と同じ理由。続きの終局で改めて勝ちを
+    ///   記録すれば、最長連勝は同じ値に戻る）。
+    public func cancelWin(gameID: String, variant: String? = nil) {
+        let key = Self.recordKey(gameID: gameID, variant: variant)
+        guard var record = records[key], record.plays > 0, record.wins > 0 else { return }
+        record.plays -= 1
+        record.wins -= 1
+        record.currentStreak = max(0, record.currentStreak - 1)
+        records[key] = record
+        persistRecords()
+        if totalWins > 0 {
+            totalWins -= 1
+            defaults.set(totalWins, forKey: Self.totalWinsKey)
+        }
+    }
+
     // MARK: - 遊び方のミニガイド（#118）
 
     /// そのゲームのミニガイドを既に出したか。
