@@ -68,7 +68,7 @@ extension RunnerView {
             progressBar
         }
         .accessibilityElement()
-        .accessibilityLabel(RunnerAccessibility.progressLabel(model.field.progress))
+        .accessibilityLabel(RunnerAccessibility.progressLabel(model.displayProgress))
     }
 
     /// エンドレス（#675）は「ステージ N / 18」と進み具合の代わりに走行距離を出す。
@@ -145,7 +145,7 @@ extension RunnerView {
     private var speedRatio: Double {
         let span = RunnerRules.maxPedalBoost - 1
         guard span > 0 else { return 0 }
-        return min(1, max(0, (model.field.pedalBoost - 1) / span))
+        return min(1, max(0, (model.displayPedalBoost - 1) / span))
     }
 
     private var progressBar: some View {
@@ -153,7 +153,7 @@ extension RunnerView {
             ZStack(alignment: .leading) {
                 Capsule().fill(Theme.Fill.coral.opacity(0.2))
                 Capsule().fill(Theme.Fill.coral)
-                    .frame(width: geo.size.width * model.field.progress)
+                    .frame(width: geo.size.width * model.displayProgress)
             }
         }
         .frame(width: 88, height: 6)

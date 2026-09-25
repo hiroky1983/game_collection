@@ -328,6 +328,16 @@ public struct RunnerView: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
     }
 
+    /// 動かない局面（一時停止・リザルト等）では SpriteKit のループを止める（#1386）。
+    ///
+    /// **止めるのは `SKView` で、`SpriteView` の引数ではない**（`isPaused` も
+    /// `preferredFramesPerSecond` も生成時にしか効かない。`BlocksView.syncRenderLoop` の実測メモ参照）。
+    /// 呼ぶのは 1 フレーム描き終えたとき（`RunnerScene.onFrameRendered`）。局面が変わったときは
+    /// 止めずに回し直し、描いたあとにここへ戻ってくる。
+    private func syncRenderLoop() {
+        scene.view?.isPaused = !model.phase.needsAnimationFrames
+    }
+
     /// コースの絵とタップを受ける層。
     private var playfield: some View {
         ZStack {
@@ -335,6 +345,13 @@ public struct RunnerView: View {
             // 機種によってはタップが SKView に吸われる。
             SpriteView(scene: scene, preferredFramesPerSecond: 60)
                 .allowsHitTesting(false)
+                // 描いたら止めてよいか見直す。画面を開き直して SKView が作り直されたときも、
+                // 次の 1 フレームでここに戻ってくる（#1386）。
+                .onAppear { scene.onFrameRendered = { syncRenderLoop() } }
+                // 局面が変わったらいったん回し、1 フレーム描いてから止め直す。**その場で止めない**:
+                // 演出を飛ばしたときのように、局面が `update` の外で変わり、絵の切り替え（走り去った先に
+                // 置く）がまだ描かれていない経路があるため。
+                .onChange(of: model.phase) { _, _ in scene.view?.isPaused = false }
             Color.clear
                 .contentShape(Rectangle())
                 .gesture(jumpGesture)
@@ -357,8 +374,8 @@ public struct RunnerView: View {
         case .endless:
             base = RunnerAccessibility.endlessResultLabel(phase: model.phase, distance: model.distanceMeters)
         }
-        guard model.phase == .running, model.field.isInvincible else { return base }
-        return base + "、" + RunnerAccessibility.invincibleLabel(remaining: model.field.invincibleRemaining)
+        guard model.phase == .running, model.isInvincible else { return base }
+        return base + "、" + RunnerAccessibility.invincibleLabel(remaining: model.displayInvincibleRemaining)
     }
 
     /// たこ焼き（#797）の無敵の残り時間。縮むゲージと秒数の両方で見せる（受け入れ条件
@@ -366,8 +383,8 @@ public struct RunnerView: View {
     /// `field` が無敵のまま凍るので、走行中と一時停止中にだけ出す（`RunnerScene` の点滅と同じ条件）。
     @ViewBuilder
     private var invincibleBadge: some View {
-        if model.field.isInvincible, model.phase == .running || model.phase == .paused {
-            let remaining = model.field.invincibleRemaining
+        if model.isInvincible, model.phase == .running || model.phase == .paused {
+            let remaining = model.displayInvincibleRemaining
             let ratio = min(1, max(0, remaining / RunnerRules.invincibleDuration))
             HStack(spacing: 8) {
                 Text("無敵")
