@@ -404,6 +404,20 @@ struct PokerDoubleUpTests {
         #expect(model.recordResult != nil)
     }
 
+    @Test("挑戦の途中で離れるときの締め（declineDoubleUp）は賭け金を戻して局を記録する（#1383）")
+    func decliningMidChallengeRefundsStakeAndRecords() {
+        let model = won(deck: ascendingDeck([5, 13]))
+        let chips = model.playerChips
+        model.startDoubleUp()
+        #expect(model.playerChips < chips, "賭け金は手持ちから引かれている")
+        model.declineDoubleUp()
+        #expect(model.playerChips == chips)
+        #expect(!model.awaitsDoubleUp)
+        #expect(model.recordResult != nil, "勝ちが記録される")
+        model.declineDoubleUp()
+        #expect(model.playerChips == chips, "二重には効かない")
+    }
+
     @Test("5回連続で当てると打ち止めになり、自動で受け取る")
     func fiveWinsInARowStops() {
         let model = won(deck: ascendingDeck([2, 3, 4, 5, 6, 7, 8]))

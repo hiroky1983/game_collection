@@ -7,6 +7,7 @@ public struct PokerView: View {
     @State private var showStartSheet = true
     @State private var hasPlayedOnce = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var revealCPU = false
     /// チップ切れ復活のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var reviveRescue = RewardedRescue()
@@ -114,6 +115,12 @@ public struct PokerView: View {
         }
         .onChange(of: model.phase) { _, phase in
             if phase == .result { revealCPU = true }
+        }
+        // ダブルアップの決着待ち（`.result` は中断データに載らない）のまま離れると、勝った局が
+        // 記録されずチップも初期値に戻る（#1383）。離れる前に賭け金を受け取って局を閉じる。
+        .onDisappear { model.declineDoubleUp() }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background { model.declineDoubleUp() }
         }
         .task {
             #if DEBUG
