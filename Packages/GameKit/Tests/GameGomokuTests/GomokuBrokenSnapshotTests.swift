@@ -29,6 +29,16 @@ struct GomokuBrokenSnapshotTests {
         #expect(store.load(GomokuSnapshot.self, for: "gomoku") == nil)
     }
 
+    @Test("列が盤の外、または負の座標でも新規開始に倒す")
+    func outOfRangeColumnAndNegativeAreDiscarded() throws {
+        for (row, col) in [(0, 15), (-1, 0), (0, -1)] {
+            let bad = GomokuMoveRecord(row: row, col: col, stone: GomokuStone.black.rawValue)
+            let (model, store) = try load(snapshot(cellCount: 0, history: [bad]))
+            #expect(model.moveCount == 0, "(\(row), \(col))")
+            #expect(store.load(GomokuSnapshot.self, for: "gomoku") == nil, "(\(row), \(col))")
+        }
+    }
+
     @Test("旧形式で升数が合わない盤は捨てる")
     func wrongCellCountIsDiscarded() throws {
         let (model, store) = try load(snapshot(cellCount: 7, history: nil))

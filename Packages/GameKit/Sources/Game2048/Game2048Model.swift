@@ -217,13 +217,13 @@ public final class Game2048Model {
         )
     }
 
-    /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。
     /// 復元してよい盤か。4x4 で、どのタイルも 0 以上であること。
     private static func isRestorable(_ board: [[Int]]) -> Bool {
         board.count == Game2048Logic.size
             && board.allSatisfy { $0.count == Game2048Logic.size && $0.allSatisfy { $0 >= 0 } }
     }
 
+    /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。
     private static func spawn(into board: inout [[Int]]) {
         let cells = Game2048Logic.emptyCells(board)
         guard let cell = cells.randomElement() else { return }

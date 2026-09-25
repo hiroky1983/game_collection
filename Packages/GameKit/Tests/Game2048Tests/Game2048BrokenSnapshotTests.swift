@@ -31,6 +31,14 @@ struct Game2048BrokenSnapshotTests {
         #expect(model.score == 0)
     }
 
+    @Test("負のタイルを含む盤も捨てる")
+    func negativeTile() throws {
+        var board = Game2048Logic.emptyBoard()
+        board[1][1] = -2
+        let (model, _) = try load(board: board)
+        #expect(model.score == 0)
+    }
+
     @Test("4x4 の盤は復元する（対照）")
     func validBoardIsKept() throws {
         var board = Game2048Logic.emptyBoard()
