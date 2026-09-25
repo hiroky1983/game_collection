@@ -157,6 +157,32 @@ struct GoEngineBasicTests {
                 "負けている黒がパスで終わらせてはいけない")
     }
 
+    @Test("相手が直前にパスしていて勝っているなら、ダメが残っていてもパスを候補に入れる（#1378）")
+    func considersPassAfterOpponentPassEvenWithNeutralPoints() {
+        // 上の盤の最下段に中立の点（黒白どちらにも接する空点）を 1 つ作る。
+        let board = GoDiagram.board([
+            "XXXXOOOOO",
+            "XXXXOOOOO",
+            "XXXXOOOOO",
+            "XXXXOOOOO",
+            "XXXXOOOOO",
+            "....XOOOO",
+            "....XOOOO",
+            "....XOOOO",
+            "....X.OOO",
+        ])
+        #expect(GoScoring.area(of: board).neutral > 0)
+        let engine = GoEngine(config: GoEngineConfig(playouts: 10, seed: 1, timeLimit: nil), ruleset: ruleset)
+
+        let fresh = GoState(board: board, sideToMove: .white)
+        #expect(!engine.rootCandidates(fresh).contains(.pass), "相手がパスしていなければ従来どおり打つ")
+
+        var afterPass = GoState(board: board, sideToMove: .black)
+        afterPass.play(.pass)
+        #expect(afterPass.sideToMove == .white)
+        #expect(engine.rootCandidates(afterPass).contains(.pass), "黒がパスした後の勝っている白はパスを選べるべき")
+    }
+
     @Test("実時間の上限を超えたら打ち切る（プレイアウト数を使い切らない）")
     func respectsTheTimeLimit() {
         let state = GoState.initial(ruleset: ruleset)
