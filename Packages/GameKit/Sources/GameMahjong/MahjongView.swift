@@ -39,6 +39,8 @@ public struct MahjongView: View {
     /// 開始シートで選んでいる対局の長さ（#639）。ここは「次の対局に使う設定」で、
     /// 進行中の対局が見ているのは `model.gameLength`（開始時に焼き込んだ値）のほう。
     @State private var selectedLength: MahjongGameLength
+    /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
+    @State private var cpuTask: Task<Void, Never>?
 
     public init(services: GameServices) {
         self.services = services
@@ -175,7 +177,7 @@ public struct MahjongView: View {
             MahjongStartSheet(length: $selectedLength) {
                 showStartSheet = false
                 model.startGame(length: selectedLength)
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             } onCancel: {
                 // 「覗いてみたけど今はやめる」の退路（#352）。対局は始まっていないので
                 // 記録・解析のイベントは何も発生しない（それらは `startGame()` だけが送る）。
@@ -236,6 +238,7 @@ public struct MahjongView: View {
         .task(id: model.turnKey) {
             await model.runCPUTurnsIfNeeded()
         }
+        .onDisappear { cpuTask?.cancel() }
         .onChange(of: model.playerHand) {
             // 手牌が変わったら選択（誤タップ防止の1タップ目）は必ず解除する。
             selectedTileID = nil
@@ -277,6 +280,11 @@ public struct MahjongView: View {
         showConfirmNewGame = true
     }
 
+    private func runCPU() {
+        cpuTask?.cancel()
+        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
+    }
+
     /// 開始シートは通さない。選ぶ項目は対局の長さ（#639）だけで、それは確認ダイアログの
     /// ボタン側で選べるようにしてある（対局中の人に遊び方の読み物を再度出しても手数が増えるだけ）。
     ///
@@ -284,7 +292,7 @@ public struct MahjongView: View {
     private func restartGame(length: MahjongGameLength? = nil) {
         if let length { selectedLength = length }
         model.startGame(length: length)
-        Task { await model.runCPUTurnsIfNeeded() }
+        runCPU()
     }
 
     // MARK: - 雀卓
@@ -466,7 +474,7 @@ public struct MahjongView: View {
             reviveRescue.requestHandledByModel(withOutcome: {
                 await model.reviveAfterAd()
             }, whenGranted: {
-                await model.runCPUTurnsIfNeeded()
+                runCPU()
             })
         } label: {
             // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
@@ -488,7 +496,7 @@ public struct MahjongView: View {
             extendRescue.requestHandledByModel(withOutcome: {
                 await model.extendAfterAd()
             }, whenGranted: {
-                await model.runCPUTurnsIfNeeded()
+                runCPU()
             })
         } label: {
             Label("広告を見て東5局を追加（1半荘に1回）", systemImage: "play.rectangle.fill")
@@ -517,7 +525,7 @@ public struct MahjongView: View {
             HStack(spacing: 12) {
                 actionButton("見逃す", color: Theme.fillMuted, foreground: .white) {
                     model.declineRon()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
                 actionButton("ロン", color: Theme.Fill.coral) { model.declareRon() }
             }
@@ -530,11 +538,11 @@ public struct MahjongView: View {
                     offer: offer,
                     onAccept: { call in
                         model.acceptCall(call)
-                        Task { await model.runCPUTurnsIfNeeded() }
+                        runCPU()
                     },
                     onDecline: {
                         model.declineCall()
-                        Task { await model.runCPUTurnsIfNeeded() }
+                        runCPU()
                     }
                 )
                 .frame(minHeight: Self.actionAreaMinHeight)
@@ -552,7 +560,7 @@ public struct MahjongView: View {
                 if model.canDeclareKan {
                     MahjongKanButton(options: model.availableSelfKans) { call in
                         model.declareKan(call)
-                        Task { await model.runCPUTurnsIfNeeded() }
+                        runCPU()
                     }
                 }
                 actionButton("ツモ", color: Theme.Fill.coral, disabled: !model.canDeclareTsumo) {
@@ -570,7 +578,7 @@ public struct MahjongView: View {
                 color: Theme.Fill.coral
             ) {
                 model.advanceToNextHand()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -578,7 +586,7 @@ public struct MahjongView: View {
         case .gameResult:
             actionButton("もう一度", color: Theme.Fill.coral) {
                 model.startGame()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)

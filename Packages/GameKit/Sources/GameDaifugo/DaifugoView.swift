@@ -7,6 +7,8 @@ public struct DaifugoView: View {
     @State private var showResignConfirm = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
+    /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
+    @State private var cpuTask: Task<Void, Never>?
     /// 画面の広さ（#458）。場の空き枠を札と同じ倍率で拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -81,6 +83,12 @@ public struct DaifugoView: View {
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
             await model.runCPUTurnsIfNeeded()
         }
+        .onDisappear { cpuTask?.cancel() }
+    }
+
+    private func runCPU() {
+        cpuTask?.cancel()
+        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
     // MARK: - ステータス
@@ -303,7 +311,7 @@ public struct DaifugoView: View {
             // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
             actionButton("結果まで進める", color: Theme.Fill.coral, disabled: model.isSkippingToResult) {
                 model.skipToResult()
-                Task { await model.runCPUTurnsIfNeeded() }
+                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -311,11 +319,11 @@ public struct DaifugoView: View {
             HStack(spacing: 12) {
                 actionButton("パス", color: Theme.fillMuted, foreground: .white, disabled: !model.canPass) {
                     model.pass()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
                 actionButton(playButtonTitle, color: Theme.Fill.coral, disabled: !model.canPlaySelection) {
                     model.playSelected()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -328,7 +336,7 @@ public struct DaifugoView: View {
                 // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton("次のゲーム", color: Theme.Fill.coral, disabled: waiveRescue.isWatching) {
                     model.startGame()
-                    Task { await model.runCPUTurnsIfNeeded() }
+                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
