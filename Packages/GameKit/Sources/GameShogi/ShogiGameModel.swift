@@ -44,12 +44,19 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.services = services
         let snap = services?.snapshots.load(ShogiSnapshot.self, for: "shogi")
 
-        let sfen = snap?.initialSfen ?? Position.startSFEN
-        var pos = Position.fromSFEN(sfen) ?? Position.start()
+        // 中断データが壊れていても起動できるようにする（#1384。チェス #520 と同じ方針）。
+        // 読めない初期局面は初形に倒し、`initialSFEN` にも実際に読めた側を残す
+        // （千日手判定がここから指し手列を再生し直すため、食い違わせない）。
+        let savedSFEN = snap?.initialSfen ?? Position.startSFEN
+        let parsed = Position.fromSFEN(savedSFEN)
+        let sfen = parsed == nil ? Position.startSFEN : savedSFEN
+        var pos = parsed ?? Position.start()
         var moveList: [Move] = []
         if let snap {
             for usi in snap.moves {
-                guard let m = Move.fromUSI(usi) else { break }
+                // 読めない表記に加えて**不正な手でも切り詰める**。`make` は移動元の駒を
+                // force-unwrap するので、検証せず適用すると壊れた中断データで起動不能になる。
+                guard let m = Move.fromUSI(usi), pos.legalMoves().contains(m) else { break }
                 moveList.append(m)
                 pos.make(m)
             }
@@ -63,7 +70,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.selectedHand = nil
         self.pendingPromotion = nil
         self.phase = snap?.phase ?? .playing
-        self.reviewPly = snap?.reviewPly ?? moveList.count
+        // 手数の範囲に収める（切り詰めが起きた手順や壊れた値でも添字が範囲外にならないように）。
+        self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=先手 / CPU=後手）。
         self.sente = snap?.sente ?? .human
         self.gote = snap?.gote ?? .ai
