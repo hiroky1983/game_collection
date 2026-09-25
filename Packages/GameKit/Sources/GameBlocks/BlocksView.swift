@@ -50,6 +50,7 @@ public struct BlocksView: View {
                 Button { startNewGame() } label: {
                     Label("はじめから", systemImage: "arrow.clockwise")
                 }
+                .disabled(continueRescue.isWatching)
             }
         }
         .howToPlay(.blocks, onPresent: {
@@ -412,6 +413,8 @@ public struct BlocksView: View {
         Button("はじめから") { startNewGame() }
             .buttonStyle(.bordered)
             .tint(.white)
+            // 広告の読み込み中に盤を作り直すと、見終えても照合で弾かれる（#1381）。
+            .disabled(continueRescue.isWatching)
     }
 
     private func panel<Content: View>(
