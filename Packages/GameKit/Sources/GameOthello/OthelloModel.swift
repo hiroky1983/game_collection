@@ -117,7 +117,14 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
 
-        if let snap = services?.snapshots.load(OthelloSnapshot.self, for: "othello") {
+        var loaded = services?.snapshots.load(OthelloSnapshot.self, for: "othello")
+        // 盤の寸法が合わない中断データは、読むと盤の添字が範囲外になり開くたびに落ちる（#1384）。
+        // 消して新規開始に倒す。
+        if let snap = loaded, snap.cells.count != othelloBoardSize * othelloBoardSize {
+            services?.snapshots.clear(for: "othello")
+            loaded = nil
+        }
+        if let snap = loaded {
             let cells = snap.cells.map { $0.flatMap { OthelloStone(rawValue: $0) } }
             board        = OthelloBoard(cells: cells)
             currentStone = OthelloStone(rawValue: snap.currentStone) ?? .black

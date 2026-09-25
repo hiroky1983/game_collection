@@ -34,7 +34,14 @@ public final class Game2048Model {
         var initialScore: Int
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
-        if let snap = services?.snapshots.load(Game2048Snapshot.self, for: gameID) {
+        var loaded = services?.snapshots.load(Game2048Snapshot.self, for: gameID)
+        // 盤が 4x4 でない中断データは、読むと添字が範囲外になり開くたびに落ちる（#1384）。
+        // 消して新規開始に倒す。
+        if let snap = loaded, !Self.isRestorable(snap.board) {
+            services?.snapshots.clear(for: gameID)
+            loaded = nil
+        }
+        if let snap = loaded {
             initialBoard = snap.board
             initialScore = snap.score
             // 再起動でコンティニュー権が復活しないよう、使用済みフラグも復元する。
@@ -208,6 +215,12 @@ public final class Game2048Model {
             ),
             for: gameID
         )
+    }
+
+    /// 復元してよい盤か。4x4 で、どのタイルも 0 以上であること。
+    private static func isRestorable(_ board: [[Int]]) -> Bool {
+        board.count == Game2048Logic.size
+            && board.allSatisfy { $0.count == Game2048Logic.size && $0.allSatisfy { $0 >= 0 } }
     }
 
     /// 空きマスへランダムに 2(90%)/4(10%) を 1 個置く。

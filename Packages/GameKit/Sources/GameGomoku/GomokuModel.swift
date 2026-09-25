@@ -107,7 +107,14 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // 中断からの復元は「新しいプレイ」ではないので解析の開始は数えない（#158）。
         var isFreshStart = false
 
-        if let snap = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku") {
+        var loaded = services?.snapshots.load(GomokuSnapshot.self, for: "gomoku")
+        // 盤の寸法・着手の座標が範囲外の中断データは、読むと添字が範囲外になり開くたびに落ちる（#1384）。
+        // 消して新規開始に倒す。
+        if let snap = loaded, !Self.isRestorable(snap) {
+            services?.snapshots.clear(for: "gomoku")
+            loaded = nil
+        }
+        if let snap = loaded {
             humanSide = GomokuStone(rawValue: snap.humanSide) ?? .black
             aiLevel   = snap.aiLevel
             forbiddenMoves = snap.forbiddenMoves ?? false
@@ -455,6 +462,16 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         guard turn == aiTurnKey, canUndo else { return false }
         undoLastExchange()
         return true
+    }
+
+    /// 復元してよい中断データか。座標は盤の内側、手順が無い旧形式は盤の升数が合っていること。
+    private static func isRestorable(_ snap: GomokuSnapshot) -> Bool {
+        if let history = snap.moveHistory {
+            return history.allSatisfy {
+                (0..<gomokuBoardSize).contains($0.row) && (0..<gomokuBoardSize).contains($0.col)
+            }
+        }
+        return snap.cells.count == gomokuBoardSize * gomokuBoardSize
     }
 
     private static func board(from moves: [(row: Int, col: Int, stone: GomokuStone)]) -> GomokuBoard {

@@ -194,7 +194,14 @@ public final class MinesweeperModel {
     public init(services: GameServices? = nil, rows: Int = 9, cols: Int = 9, mines: Int = 10) {
         self.services = services
 
-        if let snap = services?.snapshots.load(MinesweeperSnapshot.self, for: "minesweeper") {
+        var loaded = services?.snapshots.load(MinesweeperSnapshot.self, for: "minesweeper")
+        // 寸法と cells が食い違う中断データは、読むと添字が範囲外になり開くたびに落ちる（#1384）。
+        // 消して新規開始に倒す。
+        if let snap = loaded, !Self.isRestorable(snap) {
+            services?.snapshots.clear(for: "minesweeper")
+            loaded = nil
+        }
+        if let snap = loaded {
             self.rows          = snap.rows
             self.cols          = snap.cols
             self.totalMines    = snap.totalMines
@@ -660,6 +667,15 @@ public final class MinesweeperModel {
         // 狂う（#240 の同型・#513）。一定間隔で保存し直し、失われる幅を最大
         // `persistInterval` 秒に抑える。
         if elapsedSeconds % Self.persistInterval == 0 { persist() }
+    }
+
+    /// 復元してよい中断データか。行数・列数が正で、`cells` の形と地雷数がそれに合っていること。
+    private static func isRestorable(_ snap: MinesweeperSnapshot) -> Bool {
+        guard snap.rows > 0, snap.cols > 0,
+              snap.cells.count == snap.rows,
+              snap.cells.allSatisfy({ $0.count == snap.cols })
+        else { return false }
+        return (0...snap.rows * snap.cols).contains(snap.totalMines)
     }
 
     private static func emptyBoard(rows: Int, cols: Int) -> [[MinesweeperCell]] {
