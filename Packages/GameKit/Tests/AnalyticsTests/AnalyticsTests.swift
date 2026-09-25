@@ -413,7 +413,7 @@ struct GameAnalyticsTests {
 
         #expect(spy.starts.count == 1, "再開で game_start は増えない")
         #expect(spy.ends.count == 1, "遊び切ったので game_end は出る")
-        #expect(spy.ends.first?.durationSec == 90, "経過秒は最初の開始からの通算")
+        #expect(spy.ends.first?.durationSec == 70, "経過秒は前面で遊んだ時間の通算（休憩の 20 秒は入れない・#1373）")
     }
 
     @Test("遊びかけで離れたあと「新しいゲーム」を選べば次の1プレイとして数える")

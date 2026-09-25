@@ -143,8 +143,85 @@ struct QuitTrackingTests {
 
         #expect(spy.quits.isEmpty, "休憩を離脱として数えない")
         #expect(spy.ends.map(\.result) == [.win])
-        #expect(spy.ends.first?.durationSec == 90, "経過秒は最初の開始からの通算")
+        #expect(spy.ends.first?.durationSec == 70, "経過秒は前面で遊んだ時間の通算（休憩の 20 秒は入れない・#1373）")
         #expect(spy.starts.count == 1, "再開で game_start は増えない")
+    }
+
+    @Test("バックグラウンドにいた時間は duration_sec に入れない（#1373）")
+    func backgroundTimeIsExcluded() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(600)
+        analytics.appDidBecomeActive()
+        clock.advance(5)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 15)
+    }
+
+    @Test("休憩中にバックグラウンドを挟んでも、休憩ぶんを二重に引かない（#1373）")
+    func restingAndBackgroundAreNotDoubleCounted() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        clock.advance(100)
+        analytics.appDidResignActive()
+        clock.advance(100)
+        analytics.appDidBecomeActive()
+        clock.advance(100)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(7)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 17)
+    }
+
+    @Test("前面に戻る前に決着しても、離れていた時間は入れない（#1373）")
+    func finishingWhileStillInBackgroundExcludesTheAwayTime() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(600)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 10)
+    }
+
+    @Test("バックグラウンド中に休憩が始まっても、休憩前の前面の時間は残す（#1373）")
+    func restStartingWhileInactiveKeepsTheActivePart() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(10)
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        clock.advance(10)
+        analytics.appDidBecomeActive()
+        clock.advance(10)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(3)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 13)
+    }
+
+    @Test("duration_sec は 2 時間で頭打ちになる（#1373）")
+    func durationIsCapped() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(5 * 60 * 60)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 7200)
     }
 
     @Test("中断データが残らない離れ方は、1手でも指していれば quit")
