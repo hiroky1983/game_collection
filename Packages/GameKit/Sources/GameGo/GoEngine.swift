@@ -173,12 +173,16 @@ public struct GoEngine: Sendable {
     ///
     /// 2 は「境界が全部決まったら、勝っている側は打ち急がずに終わらせてよい」という終局判断で、
     /// 人間の打ち方とも一致する。
+    ///
+    /// 2 の条件は「相手が直前にパスした」場合にも緩める（#1378）。セキがあるとダメが 0 にならず、
+    /// 人間が優勢でパスしても CPU が打ち続けて終局できなくなるため。パスを候補に加えるだけで、
+    /// 選ぶかどうかは MCTS の訪問数に任せる。
     func rootCandidates(_ state: GoState) -> [GoMove] {
         let moves = GoPlayout.candidateMoves(in: state)
         guard !moves.isEmpty else { return [.pass] }
 
         let counted = GoScoring.area(of: state.board)
-        guard counted.neutral == 0 else { return moves }
+        guard counted.neutral == 0 || state.consecutivePasses >= 1 else { return moves }
 
         let score = GoScore(
             blackArea: counted.black,
