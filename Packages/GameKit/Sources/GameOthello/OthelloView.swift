@@ -5,6 +5,7 @@ public struct OthelloView: View {
     @State private var model: OthelloModel
     private let services: GameServices
     @State private var showNewGame = false
+    @State private var showConfirmNewGame = false
     @State private var showPassAlert = false
     @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
@@ -52,7 +53,13 @@ public struct OthelloView: View {
         .padding(Theme.pad)
         .gameChrome(title: "オセロ", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
+                Button {
+                    if model.hasProgressToLose {
+                        showConfirmNewGame = true
+                    } else {
+                        showNewGame = true
+                    }
+                } label: {
                     Label("新規対局", systemImage: "plus.circle.fill")
                 }
             }
@@ -63,6 +70,12 @@ public struct OthelloView: View {
                 model.newGame(humanSide: side, aiLevel: level)
                 showNewGame = false
             } onCancel: { showNewGame = false }
+        }
+        .confirmationDialog("新規対局しますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規対局", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると対局データが失われます。")
         }
         .alert("パス", isPresented: $showPassAlert) {
             Button("OK") { model.confirmPass() }

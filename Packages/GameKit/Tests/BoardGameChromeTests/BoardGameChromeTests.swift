@@ -43,6 +43,15 @@ struct BoardGameMotionTests {
         #expect(BoardGameCheckColor.hex == 0xB3261E)
         #expect(BoardGameCheckColor.color == Color(hex: BoardGameCheckColor.hex))
     }
+
+    /// 将棋の「王手」とチェスの「チェック」は同じ部品（`BoardGameCheckBanner`）で描く（#1011）。
+    /// 文字の大きさ・余白を個別に持つと、並べたときに札の大きさが食い違う。
+    @Test("王手の札の書式は将棋側（44pt・32×14）に揃えてある")
+    func checkBannerStyleMatchesShogi() {
+        #expect(BoardGameCheckBannerStyle.fontSize == 44)
+        #expect(BoardGameCheckBannerStyle.horizontalPadding == 32)
+        #expect(BoardGameCheckBannerStyle.verticalPadding == 14)
+    }
 }
 
 /// 盤の下の操作列のカプセル（オセロ・五目並べの「投了」「待った」・#711）。
