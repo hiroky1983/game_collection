@@ -167,7 +167,7 @@ extension MahjongModel {
             roundNumber: roundNumber,
             honba: honba
         )
-        finishHand(dealerContinues: tenpai.contains(dealer))
+        finishHand(dealerContinues: tenpai.contains(dealer), isExhaustiveDraw: true)
     }
 
     /// 荒牌平局の点棒授受。聴牌者で 3000 点を分け合う（全員聴牌・全員ノーテンなら動かない）。
@@ -182,7 +182,7 @@ extension MahjongModel {
         }
     }
 
-    private func finishHand(dealerContinues: Bool) {
+    private func finishHand(dealerContinues: Bool, isExhaustiveDraw: Bool = false) {
         phase = .handResult
         // 一局戦（#639）は連荘しない。認めると「1局で終わる」という約束のほうが破れる
         // （親が和了り続けるかぎり東1局1本場・2本場…と伸びる）。東風戦では `dealerContinues`
@@ -198,7 +198,9 @@ extension MahjongModel {
         if continues {
             honba += 1
         } else {
-            honba = 0
+            // 荒牌流局は親流れでも本場が積まれる（一般ルール。#1391）。和了による親流れだけ 0 に戻す。
+            // 連荘の無い一局戦は次局が無いので増やさない。
+            honba = isExhaustiveDraw && gameLength.allowsDealerRepeat ? honba + 1 : 0
             dealer = (dealer + 1) % Self.playerCount
             roundNumber += 1
         }
