@@ -898,3 +898,146 @@ struct HintsUsedTrackingTests {
         #expect(endParameters(spy).allSatisfy { $0.keys.contains("hints_used") == false })
     }
 }
+
+// MARK: - 休憩中にアプリが終了した局（#1374）
+
+@Suite("休憩中にアプリが終了した局の game_end（#1374）")
+@MainActor
+struct RestAcrossRelaunchTests {
+    private func makeStore() -> UserDefaults {
+        let name = "RestAcrossRelaunchTests-\(UUID().uuidString)"
+        let store = UserDefaults(suiteName: name)!
+        store.removePersistentDomain(forName: name)
+        return store
+    }
+
+    /// アプリを起動し直した状態。同じ保存先を持つ新しい `GameAnalytics` を作る。
+    private func relaunch(_ store: UserDefaults, clock: TestClock) -> (GameAnalytics, SpyAnalyticsService) {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: testGameIDs, now: { clock.now }, restStore: store
+        )
+        return (analytics, spy)
+    }
+
+    @Test("休憩のあとアプリが終了しても、「続きから」で戻って決着すれば game_end が出る")
+    func finishAfterRelaunchSendsEnd() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, beforeSpy) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048", mode: .endless)
+        before.recordProgress(gameID: "2048")
+        clock.advance(40)
+        before.leaveGame(gameID: "2048", isResumable: true)   // 休憩。ここでアプリが終了する
+        #expect(beforeSpy.starts.count == 1)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        clock.advance(3600)                                    // 終了していた間
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        clock.advance(25)
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(afterSpy.starts.isEmpty, "開始は送信済みなので数え直さない")
+        #expect(afterSpy.ends.map(\.result) == [.win])
+        #expect(afterSpy.ends.first?.durationSec == 65, "休憩前の 40 秒 + 戻ってからの 25 秒。終了中の時間は入れない")
+    }
+
+    @Test("復元した局を捨てると、1 手指していた分は quit として出る")
+    func quitAfterRelaunchSendsQuit() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.leaveGame(gameID: "2048", isResumable: false)
+
+        #expect(afterSpy.quits.map(\.gameID) == ["2048"])
+    }
+
+    @Test("決着したあとは控えが消え、次に「続きから」で開いても二重に出ない")
+    func finishedPlayDoesNotLeaveEntryBehind() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, _) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.finishPlay(gameID: "2048", outcome: .win)
+        after.leaveGame(gameID: "2048", isResumable: false)
+
+        let (third, thirdSpy) = relaunch(store, clock: clock)
+        third.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        third.finishPlay(gameID: "2048", outcome: .win)
+        #expect(thirdSpy.ends.isEmpty, "控えは決着で消えている")
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "空になったら鍵ごと消す")
+    }
+
+    @Test("新しく始めたプレイは、前の休憩の控えを引き継がない")
+    func newPlayDropsStaleEntry() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        clock.advance(500)
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: false)   // 新規で開いた
+        after.startPlay(gameID: "2048")
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil, "新しく始めた時点で古い控えは消える")
+        clock.advance(10)
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(afterSpy.ends.first?.durationSec == 10)
+    }
+
+    @Test("決着してからハブへ戻る前にアプリが終了しても、決着済みの局は復元されない")
+    func finishWithoutLeavingDoesNotLeaveEntryBehind() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, _) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.finishPlay(gameID: "2048", outcome: .win)   // leaveGame の前にアプリが終了する
+
+        let (third, thirdSpy) = relaunch(store, clock: clock)
+        third.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        third.restartPlay(gameID: "2048")
+        #expect(thirdSpy.ends.isEmpty, "決着済みの局を進行中として復元して quit を重ねない")
+    }
+
+    @Test("解析の設定を切り替えると控えも捨てる")
+    func discardPlayStateClearsEntries() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) != nil)
+
+        before.discardPlayState()
+        #expect(store.data(forKey: GameAnalytics.restStoreKey) == nil)
+    }
+
+    @Test("保存先を渡さなければ何も書かず、従来どおり動く")
+    func withoutStoreBehavesAsBefore() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        analytics.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+        #expect(spy.ends.map(\.result) == [.win])
+    }
+}

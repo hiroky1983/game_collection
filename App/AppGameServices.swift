@@ -126,7 +126,9 @@ enum AppEnvironment {
         // ハブに登録済みのゲーム ID だけを送信対象にする（未知の文字列が game_id にならない）。
         allowedGameIDs: Set(registry.modules.map(\.id)),
         // `game_start` に「そのゲームの通算プレイ回数・前回からの経過日数」を載せる（#1195）。
-        engagement: { gameID, now in playLog.engagement(gameID: gameID, now: now) }
+        engagement: { gameID, now in playLog.engagement(gameID: gameID, now: now) },
+        // 休憩中にアプリが終了しても、「続きから」で戻った局の `game_end` を出せるようにする（#1374）。
+        restStore: .standard
     )
 
     /// 設定の「利用状況の送信」を **Firebase SDK 全体の収集状態**へ反映する。
