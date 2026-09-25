@@ -151,7 +151,18 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
         // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
         // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
-        if isFreshStart { services?.gameDidStart(gameID: gameID) }
+        if isFreshStart { pendingInitialStart = true }
+    }
+
+    /// 開始シートを出す局の `game_start` は、最初の操作かシートを閉じた時点まで遅らせる（#1372）。
+    /// シートで「開始」を押すと `newGame` が選んだ強さ付きで数えるので、`init` で先に数えると
+    /// 1 局が 2 回 `game_start` になる（`game_end` は 1 回）。冪等で、2 回目以降は何もしない。
+    @ObservationIgnored private var pendingInitialStart = false
+
+    public func startPlayIfPending() {
+        guard pendingInitialStart else { return }
+        pendingInitialStart = false
+        services?.gameDidStart(gameID: gameID)
     }
 
     /// 中断データから対局設定を組み直す。**既知の値だけを受け入れる**（#520）。
@@ -228,6 +239,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         // 打てた時点で直前の拒否理由は用済み（五目の `place` と同じ畳み方・#664）。
         lastRejection = nil
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        startPlayIfPending()
         services?.gameDidProgress(gameID: gameID)
 
         if move == .pass {
@@ -326,6 +338,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         }
         // 盤面が毎回変わる対 CPU 戦なので、記録は勝敗だけ（`GameCenterLeaderboard` の
         // 選定理由どおり順位表の対象外。App Store Connect への登録作業も増やさない）。
+        startPlayIfPending()
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: outcome,
@@ -397,6 +410,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         // 前対局の札が出たままなら、新しい盤の上には残さない。
         self.passBannerDismissID += 1
         persist()
+        pendingInitialStart = false
         services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel.rawValue))
     }
 

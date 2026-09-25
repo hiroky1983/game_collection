@@ -49,7 +49,7 @@ public struct GoView: View {
             }
         }
         .howToPlay(.go) { GoRuleDetails() }
-        .sheet(isPresented: $showNewGame) {
+        .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
                 humanSide: model.humanSide,
                 level: model.aiLevel,

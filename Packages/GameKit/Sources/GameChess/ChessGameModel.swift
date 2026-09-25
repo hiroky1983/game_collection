@@ -111,7 +111,18 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // ここで既定値を送ると、選び直された強さぶんまで `normal` として数えてしまう。
         // 実際に選んだ強さは `newGame` の `gameDidRestart` が送る（シートを閉じてそのまま
         // 遊んだ局は `level` 無しになる = 選ばれていない事実をそのまま表す）。
-        if snap == nil { services?.gameDidStart(gameID: gameID) }
+        if snap == nil { pendingInitialStart = true }
+    }
+
+    /// 開始シートを出す局の `game_start` は、最初の操作かシートを閉じた時点まで遅らせる（#1372）。
+    /// シートで「開始」を押すと `newGame` が選んだ強さ付きで数えるので、`init` で先に数えると
+    /// 1 局が 2 回 `game_start` になる（`game_end` は 1 回）。冪等で、2 回目以降は何もしない。
+    @ObservationIgnored private var pendingInitialStart = false
+
+    public func startPlayIfPending() {
+        guard pendingInitialStart else { return }
+        pendingInitialStart = false
+        services?.gameDidStart(gameID: gameID)
     }
 
     // MARK: - 終局の判定
@@ -307,6 +318,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         position.make(move)
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
+        startPlayIfPending()
         services?.gameDidProgress(gameID: gameID)
         clearSelection()
         // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
@@ -346,6 +358,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             outcome = .win
             services?.feedback.notify(.success)
         }
+        startPlayIfPending()
         recordResult = services?.gameDidFinish(
             gameID: gameID, outcome: outcome, score: hints.winLossScore
         )
@@ -385,6 +398,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         isHintThinking = false
         clearSelection()
         persist()
+        pendingInitialStart = false
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
     }
 
@@ -477,6 +491,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                   !hints.isExhausted,
                   let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move),
                   hints.consume() else { return }
+            startPlayIfPending()
             services?.gameDidUseHint(gameID: gameID)
             hintMove = move
             services?.feedback.impact(.light)

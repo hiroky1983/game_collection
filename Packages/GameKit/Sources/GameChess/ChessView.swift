@@ -67,7 +67,7 @@ public struct ChessView: View {
         .howToPlay(.chess) {
             ChessRuleDetail(style: pieceStyle)
         }
-        .sheet(isPresented: $showNewGame) {
+        .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             ChessNewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel,
                               initialStyle: pieceStyle) { side, level, style in
                 // 意匠は局の外の設定なので、開始と同時に保存して次回起動へ持ち越す。
