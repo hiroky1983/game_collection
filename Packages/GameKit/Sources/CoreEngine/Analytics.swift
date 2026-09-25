@@ -396,6 +396,11 @@ public final class GameAnalytics {
     private var resting: Set<String> = []
     /// アプリが前面にあるか。前面から外れている間は誰の計時も進めない。
     private var isAppActive = true
+    /// 休憩中のプレイの控えの保存先（#1374）。nil なら保存しない（テスト・プレビュー）。
+    private let restStore: UserDefaults?
+    /// 休憩中のプレイの控えを入れる鍵。**この 1 つだけ**で、値はゲーム ID をキーにした辞書。
+    /// 書くのは休憩に入った時点の 1 回で、決着・離脱・新規開始・解析オフで消す。
+    public static let restStoreKey = "analytics_resting_plays_v1"
     /// `duration_sec` の上限（秒）。計時を止め損ねた場合の歯止め（#1373）。
     static let maxDurationSeconds = 2 * 60 * 60
 
@@ -403,12 +408,14 @@ public final class GameAnalytics {
         service: AnalyticsService,
         allowedGameIDs: Set<String>,
         now: @escaping () -> Date = Date.init,
-        engagement: @escaping @MainActor (String, Date) -> AnalyticsEngagement? = { _, _ in nil }
+        engagement: @escaping @MainActor (String, Date) -> AnalyticsEngagement? = { _, _ in nil },
+        restStore: UserDefaults? = nil
     ) {
         self.service = service
         self.allowedGameIDs = allowedGameIDs
         self.now = now
         self.engagement = engagement
+        self.restStore = restStore
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに呼ぶ。**冪等**。
@@ -525,6 +532,8 @@ public final class GameAnalytics {
     /// （1プレイの開始は各ゲームの `startPlay` が決める。開いただけで遊ばずに戻る人もいるため）。
     public func recordGameOpen(gameID: String, source: GameOpenSource, position: Int?, resume: Bool) {
         guard allowedGameIDs.contains(gameID) else { return }
+        // アプリが終了してから「続きから」で開いた局は、休憩前の計測状態を取り戻す（#1374）。
+        if resume { adoptRest(gameID: gameID) }
         service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
     }
 
@@ -549,6 +558,7 @@ public final class GameAnalytics {
         activeSeconds.removeAll()
         countingSince.removeAll()
         resting.removeAll()
+        restStore?.removeObject(forKey: Self.restStoreKey)
     }
 
     /// アプリが前面から外れたときに呼ぶ（#1373）。戻るまでの時間は `duration_sec` に入れない。
@@ -579,6 +589,60 @@ public final class GameAnalytics {
         activeSeconds[gameID] = nil
         countingSince[gameID] = nil
         resting.remove(gameID)
+        forgetRest(gameID: gameID)
+    }
+
+    /// 休憩中の計測状態の控え。アプリが終了しても「続きから」で戻った局の `game_end` を出せるように、
+    /// 休憩に入る時点で書き留める（#1374）。中断データと同じく端末の中にだけ置き、ゲーム数を超えて増えない。
+    private struct RestEntry: Codable {
+        var activeSeconds: TimeInterval
+        var didProgress: Bool
+        var hintsUsed: Int
+        var mode: String?
+    }
+
+    private func loadRests() -> [String: RestEntry] {
+        guard let data = restStore?.data(forKey: Self.restStoreKey),
+              let rests = try? JSONDecoder().decode([String: RestEntry].self, from: data)
+        else { return [:] }
+        return rests
+    }
+
+    private func saveRests(_ rests: [String: RestEntry]) {
+        guard let restStore else { return }
+        if rests.isEmpty {
+            restStore.removeObject(forKey: Self.restStoreKey)
+        } else if let data = try? JSONEncoder().encode(rests) {
+            restStore.set(data, forKey: Self.restStoreKey)
+        }
+    }
+
+    private func rememberRest(gameID: String) {
+        guard restStore != nil, case let .inFlight(_, didProgress, _, hintsUsed) = plays[gameID] else { return }
+        var rests = loadRests()
+        rests[gameID] = RestEntry(
+            activeSeconds: activeSeconds[gameID] ?? 0, didProgress: didProgress,
+            hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue
+        )
+        saveRests(rests)
+    }
+
+    private func forgetRest(gameID: String) {
+        guard restStore != nil else { return }
+        var rests = loadRests()
+        guard rests.removeValue(forKey: gameID) != nil else { return }
+        saveRests(rests)
+    }
+
+    /// アプリの終了をまたいだ休憩を、進行中のプレイとして取り戻す。開始は数え直さない（送信済みのため）。
+    private func adoptRest(gameID: String) {
+        guard plays[gameID] == nil, let entry = loadRests()[gameID] else { return }
+        plays[gameID] = .inFlight(
+            startedAt: now(), didProgress: entry.didProgress, canResume: true, hintsUsed: entry.hintsUsed
+        )
+        modes[gameID] = entry.mode.flatMap(AnalyticsMode.init(rawValue:))
+        activeSeconds[gameID] = entry.activeSeconds
+        resumeClock(gameID: gameID)
     }
 
     /// ゲーム画面から離れたときに呼ぶ（ハブが1か所で呼ぶ）。
@@ -603,6 +667,7 @@ public final class GameAnalytics {
             // 休憩。再開するまでの時間は `duration_sec` に入れない（#1373）。
             resting.insert(gameID)
             pauseClock(gameID: gameID)
+            rememberRest(gameID: gameID)
             return
         }
         endPlayAsQuitIfProgressed(gameID: gameID)
@@ -623,6 +688,7 @@ public final class GameAnalytics {
         // 前面にいた時間だけを数える。計時中の区間を締めてから読む。負の秒数は送らず、上限で頭打ちにする（#1373）。
         pauseClock(gameID: gameID)
         resting.remove(gameID)
+        forgetRest(gameID: gameID)
         let seconds = min(Self.maxDurationSeconds, max(0, Int(activeSeconds[gameID] ?? 0)))
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
