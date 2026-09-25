@@ -6,6 +6,8 @@ export type Game = {
   slug: string;
   name: string;
   emoji: string;
+  /// 絵文字の代わりに出す絵（`public/` からのパス）。ドット絵なので `GameMark` が整数倍で拡大する
+  icon?: { src: string; width: number; height: number };
   /// 一覧カードに出す1行紹介（アプリ内の GameModule.description に合わせる）
   tagline: string;
   /// ゲーム別ページの <title> に使う語（検索されるであろう表記を含める）
@@ -109,6 +111,28 @@ export const games: Game[] = [
       "ポン・チー・カン（暗槓・明槓・加槓）に対応。カンをすると新しいドラがめくれ、王牌から嶺上牌を引きます",
       "ドラ・裏ドラ・フリテン・槍槓・嶺上開花・海底摸月まで見て、飜と符から点数を自動で計算します",
       "開始前に「ゲームの流れ」と「ルールと役」を読めます。対局の途中でアプリを閉じても局面は保存されます",
+    ],
+  },
+  {
+    slug: "sudoku",
+    name: "ナンプレ",
+    emoji: "🧩",
+    tagline: "9×9のマスに1〜9を埋めよう",
+    pageTitle: "ナンプレ - かんたん・ふつう・むずかしいが選べる無料の数字パズル",
+    description:
+      "9×9のマスに1〜9を重複なく埋めるナンプレ（ナンバープレース）。かんたん・ふつう・むずかしいの3段階から選べ、出題は必ず答えが1通りに決まる盤面です。メモとヒントがあるので詰まっても進められます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
+    howTo: [
+      "難易度を選んで出題します。空きマスはかんたん30〜35・ふつう40〜45・むずかしい46〜50です",
+      "マスをタップして選び、下の数字パッドから1〜9を入れます",
+      "縦の9マス・横の9マス・3×3のブロックのそれぞれに1〜9が1つずつ入れば完成です",
+      "迷ったら「メモ」をオンにして、そのマスの候補の数字を書き込んでおけます",
+    ],
+    features: [
+      "出題は必ず唯一解。当てずっぽうでしか進めない盤面は出てきません",
+      "選んだマスと同じ行・列・ブロック、同じ数字が入っているマスを自動で色分け。間違った数字を入れたマスもその場で色が変わります",
+      "1マスに9個までメモを書けます。盤に9個そろった数字はパッド側が薄くなるので、埋め残しが分かります",
+      "ヒントは1局に3回まで（広告を見ると、選んだマスの答えが1つ入ります）。残りマス数と経過タイムは常に表示されます",
+      "難易度ごとにクリアタイムの自己ベストが残り、途中でアプリを閉じても盤面は保存されます",
     ],
   },
   {
@@ -471,6 +495,8 @@ export const games: Game[] = [
     slug: "runner",
     name: "チャリンコおじさん",
     emoji: "🚲",
+    // おじさんの正面顔（アプリの Core/OjisanPixel と同じ 16×15 ドットを 8 倍で書き出したもの、#700）
+    icon: { src: "/games/ojisan-face.png", width: 16, height: 15 },
     tagline: "タップで跳んで18ステージを走りぬけよう",
     pageTitle: "チャリンコおじさん - 無料で遊べるワンタップ横スクロールランナー",
     description:
@@ -514,4 +540,25 @@ export const games: Game[] = [
 
 export function findGame(slug: string): Game | undefined {
   return games.find((g) => g.slug === slug);
+}
+
+/// 配信済みゲームの `description` の末尾にある「収録」の一文（言い回しの揺れを含む）。
+const releasedSentence = /通信不要・登録不要[、で]*iPhone アプリ「あそびば」に無料で収録(しています)?。$/;
+const comingSoonSentence = "通信不要・登録不要、無料の iPhone アプリ「あそびば」に次のアップデートで追加予定。";
+
+/// ゲーム別ページの本文と meta description に使う説明文。`comingSoon` のときだけ末尾の
+/// 「収録」の一文を配信予定の文に差し替える（#682。meta description は検索結果のスニペットに
+/// そのまま出るため、「配信予定」バッジの無いところで「収録」と言わない）。`description` 自体は
+/// 配信済みの文面のまま持つので、リリース時は `comingSoon` を外すだけで元の文に戻る。
+export function pageDescription(game: Game): string {
+  if (!game.comingSoon) return game.description;
+  // 末尾の言い回しが想定外だと差し替えが空振りして配信済みの文が残るので、ビルドごと止める
+  if (!releasedSentence.test(game.description)) {
+    throw new Error(`games.ts: 配信予定の ${game.slug} の description の末尾が想定外です。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
+  }
+  const text = game.description.replace(releasedSentence, comingSoonSentence);
+  if (text.includes("収録")) {
+    throw new Error(`games.ts: 配信予定の ${game.slug} の description が「収録」と言っています。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
+  }
+  return text;
 }

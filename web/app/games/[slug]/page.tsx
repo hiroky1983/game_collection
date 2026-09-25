@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { findGame, games } from "../../lib/games";
-import { APP_SIZE_MB, APP_STORE_URL, SITE_NAME } from "../../lib/site";
+import { findGame, games, pageDescription } from "../../lib/games";
+import { APP_STORE_URL, SITE_NAME } from "../../lib/site";
+import GameMark from "../../components/GameMark";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -16,9 +17,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!game) return {};
 
   const url = `/games/${game.slug}`;
+  const description = pageDescription(game);
   return {
     title: game.pageTitle,
-    description: game.description,
+    description,
     alternates: { canonical: url },
     openGraph: {
       type: "article",
@@ -26,13 +28,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       locale: "ja_JP",
       url,
       title: `${game.pageTitle} | ${SITE_NAME}`,
-      description: game.description,
+      description,
       images: [{ url: `/og/${game.slug}.png`, width: 1200, height: 630, alt: `${game.name}（${SITE_NAME}）` }],
     },
     twitter: {
       card: "summary_large_image",
       title: `${game.pageTitle} | ${SITE_NAME}`,
-      description: game.description,
+      description,
       images: [`/og/${game.slug}.png`],
     },
   };
@@ -54,7 +56,7 @@ export default async function GamePage({ params }: Props) {
       </nav>
 
       <div className="mb-8">
-        <div className="text-5xl mb-3">{game.emoji}</div>
+        <div className="text-5xl mb-3"><GameMark game={game} scale={4} /></div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           {game.name}
           {game.comingSoon && (
@@ -66,7 +68,7 @@ export default async function GamePage({ params }: Props) {
         <p className="text-gray-500 dark:text-gray-400">{game.tagline}</p>
       </div>
 
-      <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-8">{game.description}</p>
+      <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-8">{pageDescription(game)}</p>
 
       <section className="mb-10">
         <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
@@ -93,8 +95,8 @@ export default async function GamePage({ params }: Props) {
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6 text-center mb-10">
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
           {game.comingSoon
-            ? `${game.name}は、ゲームコレクションアプリ「あそびば」の次のアップデートで追加予定です（現在のアプリにはまだ含まれていません）。アプリは無料・約${APP_SIZE_MB}、オフラインで遊べて会員登録も不要です。`
-            : `${game.name}は、ゲームコレクションアプリ「あそびば」に収録されています。無料・約${APP_SIZE_MB}、オフラインで遊べて会員登録も不要です。`}
+            ? `${game.name}は、ゲームコレクションアプリ「あそびば」の次のアップデートで追加予定です（現在のアプリにはまだ含まれていません）。アプリは無料で、オフラインで遊べて会員登録も不要です。`
+            : `${game.name}は、ゲームコレクションアプリ「あそびば」に収録されています。無料で、オフラインで遊べて会員登録も不要です。`}
         </p>
         <a
           href={APP_STORE_URL}
@@ -113,7 +115,7 @@ export default async function GamePage({ params }: Props) {
               href={`/games/${g.slug}`}
               className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-700 transition-colors"
             >
-              <span className="mr-1">{g.emoji}</span>
+              <GameMark game={g} scale={1} className="mr-1" />
               {g.name}
               {g.comingSoon && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">（配信予定）</span>}
             </Link>

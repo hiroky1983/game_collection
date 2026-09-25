@@ -1,0 +1,63 @@
+name: Scripts のテスト
+
+# Scripts/tests/*.sh を全本まとめて実行する（Issue #762）。
+#
+# なぜ要るか: 9本のうち6本（当番のロック・通知・検知、経営当番のロック、ASO 本数、MARKETING_VERSION）が
+# どの CI からも実行されておらず、main で3本が落ちたまま誰も気づいていなかった。当番の巡回が短くなり
+# ai-duty.sh を触る頻度が上がっているのに、回帰に気づく経路が手動実行しかなかった。
+#
+# 個別ワークフローで回っている3本（duty-input-filter / lp-game-list / pr-base-guard）もここで重ねて回す。
+# グロブで全本を拾えば、テストを足したときにワークフローの書き足しを忘れても漏れない。重複は数秒。
+#
+# macOS で回す: osascript のモック・date -v・touch -t・BSD の stat など macOS 前提のテストがあり、
+# 本番の実行環境（会長の Mac の launchd）とも揃う。
+#
+# ブランチ保護の必須チェックには加えない（paths 条件付きのジョブを必須にすると、
+# 該当しない PR がマージ不能になるため）。ジョブ ID を `test` にすると、必須チェックの
+# `test`（ci.yml）と名前で突き合わされて必須に相乗りするので、他の paths 付きと同じく `check` にする。
+on:
+  pull_request:
+    paths:
+      - 'Scripts/**'
+      - '.github/workflows/scripts-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Scripts/**'
+      - '.github/workflows/scripts-tests.yml'
+
+concurrency:
+  group: scripts-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Scripts/tests/*.sh を全本実行
+        run: |
+          set -uo pipefail
+          failed=""
+          for t in Scripts/tests/*.sh; do
+            echo "::group::$t"
+            if bash "$t"; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error file=$t::$t が失敗しました"
+              failed="$failed $t"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "失敗したテスト:$failed"
+            exit 1
+          fi
+          echo "全本成功"

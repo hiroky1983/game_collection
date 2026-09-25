@@ -1,0 +1,472 @@
+import SwiftUI
+import AppKit
+import Core
+import MahjongTiles
+
+// 麻雀刷新（#735〜#738）の静止画モック。iPhone 幅 393pt で描き、3倍で PNG にする。
+// 遠近は 3D 変換ではなく「卓上の座標 (u, v) → 画面座標＋縮尺」の写像で作る（CoreGraphics で確実に出る）。
+
+let W: CGFloat = 393
+let tableTop: CGFloat = 110
+let tableH: CGFloat = 390
+let wTop: CGFloat = 270      // 奥の辺の幅
+let wBottom: CGFloat = 393   // 手前の辺の幅
+
+struct P { var x: CGFloat; var y: CGFloat; var s: CGFloat }
+/// 卓上座標 (u: 0〜1 左→右, v: 0〜1 奥→手前) を画面へ。奥ほど小さい。
+func proj(_ u: CGFloat, _ v: CGFloat) -> P {
+    let vv = pow(v, 1.25)  // 奥を詰めて遠近を強める
+    let w = wTop + (wBottom - wTop) * vv
+    return P(x: W / 2 + (u - 0.5) * w, y: tableTop + vv * tableH, s: w / wBottom)
+}
+
+/// 高さ z（pt 相当）を持つ点の射影。上へ持ち上げる量は奥行きの縮尺に比例させる。
+func proj3(_ u: CGFloat, _ v: CGFloat, _ z: CGFloat) -> CGPoint {
+    let g = proj(u, v)
+    return CGPoint(x: g.x, y: g.y - z * g.s)
+}
+
+/// 左右の家の立て牌。卓上の footprint（u 方向に厚み、v 方向に幅）と高さから
+/// **上面**と**中央を向いた側面**と**手前の側面**を遠近に沿った四角形で描く。
+/// 奥から手前の順に描けば、手前の牌が奥の牌の手前面を隠して「壁」になる。
+struct SideBlock: View {
+    var u0: CGFloat, v0: CGFloat
+    var tu: CGFloat   // 厚み（u）
+    var dv: CGFloat   // 幅（v）
+    var h: CGFloat    // 高さ（pt）
+    var facesRight: Bool  // 中央が右にある（左の家）なら true
+    var body: some View {
+        let sc = proj(u0, v0).s
+        let dir: CGFloat = facesRight ? 1 : -1
+        // 裏地の膨らみ: 背は平らではなく中央へ向かって盛り上がっている。
+        // 中央側の面の輪郭を、上辺・下辺とも中央へ弧を描かせて丸みを出す。
+        let bulge: CGFloat = dir * 5.5 * sc
+        let lean: CGFloat = dir * 10 * sc
+        let a = proj3(u0, v0, h), b = proj3(u0 + tu, v0, h)
+        let c = proj3(u0 + tu, v0 + dv, h), d = proj3(u0, v0 + dv, h)
+        let b0 = proj3(u0 + tu, v0, 0).applying(.init(translationX: lean, y: 0))
+        let c0 = proj3(u0 + tu, v0 + dv, 0).applying(.init(translationX: lean, y: 0))
+        let a0 = proj3(u0, v0, 0).applying(.init(translationX: lean, y: 0))
+        let d0 = proj3(u0, v0 + dv, 0).applying(.init(translationX: lean, y: 0))
+        // 中央側の面（裏地）。手前の縦の縁を弧にして、面の真ん中が膨らんで見せる
+        let outerTop = facesRight ? (b, c) : (a, d)
+        let outerBot = facesRight ? (b0, c0) : (a0, d0)
+        let midTop = CGPoint(x: (outerTop.0.x + outerTop.1.x) / 2, y: (outerTop.0.y + outerTop.1.y) / 2)
+        let midBot = CGPoint(x: (outerBot.0.x + outerBot.1.x) / 2, y: (outerBot.0.y + outerBot.1.y) / 2)
+        ZStack {
+            // 裏地（中央向き）: 上辺と下辺を中央へ膨らませた面
+            Path { p in
+                p.move(to: outerTop.0)
+                p.addQuadCurve(to: outerTop.1, control: CGPoint(x: midTop.x + bulge, y: midTop.y))
+                p.addLine(to: outerBot.1)
+                p.addQuadCurve(to: outerBot.0, control: CGPoint(x: midBot.x + bulge, y: midBot.y))
+                p.closeSubpath()
+            }
+            .fill(RadialGradient(colors: [BackColor.top, BackColor.mid, BackColor.edge],
+                                 center: UnitPoint(x: facesRight ? 0.62 : 0.38, y: 0.32),
+                                 startRadius: 0, endRadius: max(h * sc * 0.75, 6)))
+            // 手前の側面（次の牌に隠れる。最後の1枚だけ見える）
+            Path { p in
+                p.move(to: d); p.addLine(to: c); p.addLine(to: c0); p.addLine(to: d0); p.closeSubpath()
+            }
+            .fill(Color(hex: 0xE6DCC6))
+            // 上面（光が当たる）。中央側の縁も同じ弧で膨らませる
+            Path { p in
+                p.move(to: a); p.addLine(to: b)
+                if facesRight {
+                    p.addQuadCurve(to: c, control: CGPoint(x: midTop.x + bulge, y: midTop.y))
+                    p.addLine(to: d)
+                } else {
+                    p.addLine(to: c); p.addLine(to: d)
+                    p.addQuadCurve(to: a, control: CGPoint(x: midTop.x + bulge, y: midTop.y))
+                }
+                p.closeSubpath()
+            }
+            .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivory], startPoint: .top, endPoint: .bottom))
+            // 稜線（上面の輪郭）
+            Path { p in
+                p.move(to: a); p.addLine(to: b)
+                if facesRight {
+                    p.addQuadCurve(to: c, control: CGPoint(x: midTop.x + bulge, y: midTop.y))
+                    p.addLine(to: d)
+                } else {
+                    p.addLine(to: c); p.addLine(to: d)
+                    p.addQuadCurve(to: a, control: CGPoint(x: midTop.x + bulge, y: midTop.y))
+                }
+                p.closeSubpath()
+            }
+            .stroke(Color(hex: 0xC9BC9F).opacity(0.9), lineWidth: 0.6)
+            // 裏地の縁: 上辺に照りの線
+            Path { p in
+                p.move(to: outerTop.0)
+                p.addQuadCurve(to: outerTop.1, control: CGPoint(x: midTop.x + bulge, y: midTop.y))
+            }
+            .stroke(Color.white.opacity(0.6), lineWidth: 0.9)
+        }
+        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1.5)
+    }
+}
+
+/// 牌の背（裏地）の膨らみ（対面の立て牌用）。上寄りに照りを置き、縁へ向かって落とす。
+let backBulge = Gradient(stops: [
+    .init(color: Color(hex: 0x4F9E78), location: 0.0),
+    .init(color: Color(hex: 0xC9F2DC), location: 0.18),
+    .init(color: Color(hex: 0x8AD3AE), location: 0.45),
+    .init(color: Color(hex: 0x5FAF88), location: 0.75),
+    .init(color: Color(hex: 0x3F8F69), location: 1.0),
+])
+
+/// 裏地（背）の色。左右の壁も対面の列も同じ3色を使う。
+enum BackColor {
+    static let top  = Color(hex: 0xC9F2DC)
+    static let mid  = Color(hex: 0x7CCBA3)
+    static let edge = Color(hex: 0x3F8F69)
+}
+
+/// 対面の家の立て牌。左右の壁と同じ射影で、上面（奥へ細く）と手前を向いた裏地の面を描く。
+struct FrontBlock: View {
+    var u0: CGFloat, v0: CGFloat
+    var du: CGFloat   // 幅（u）
+    var tv: CGFloat   // 厚み（v）
+    var h: CGFloat
+    var body: some View {
+        let sc = proj(u0, v0).s
+        let a = proj3(u0, v0, h), b = proj3(u0 + du, v0, h)
+        let c = proj3(u0 + du, v0 + tv, h), d = proj3(u0, v0 + tv, h)
+        let c0 = proj3(u0 + du, v0 + tv, 0), d0 = proj3(u0, v0 + tv, 0)
+        let bulge: CGFloat = 2.2 * sc
+        let midX = (d.x + c.x) / 2
+        ZStack {
+            // 手前を向いた裏地。上辺を少し持ち上げた弧にして膨らみを揃える
+            Path { p in
+                p.move(to: d)
+                p.addQuadCurve(to: c, control: CGPoint(x: midX, y: d.y - bulge))
+                p.addLine(to: c0)
+                p.addQuadCurve(to: d0, control: CGPoint(x: midX, y: d0.y + bulge * 0.4))
+                p.closeSubpath()
+            }
+            .fill(RadialGradient(colors: [BackColor.top, BackColor.mid, BackColor.edge],
+                                 center: UnitPoint(x: 0.5, y: 0.3), startRadius: 0, endRadius: max(h * sc * 0.8, 6)))
+            // 上面（奥へ細い帯）
+            Path { p in
+                p.move(to: a); p.addLine(to: b)
+                p.addLine(to: c)
+                p.addQuadCurve(to: d, control: CGPoint(x: midX, y: d.y - bulge))
+                p.closeSubpath()
+            }
+            .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivory], startPoint: .top, endPoint: .bottom))
+            Path { p in
+                p.move(to: d)
+                p.addQuadCurve(to: c, control: CGPoint(x: midX, y: d.y - bulge))
+            }
+            .stroke(Color.white.opacity(0.6), lineWidth: 0.8)
+        }
+        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1.5)
+    }
+}
+
+enum Pal {
+    static let felt = Color(hex: 0x2E7A50)
+    static let feltDark = Color(hex: 0x14432C)
+    static let wood = Color(hex: 0x8A5A2B)
+    static let woodLight = Color(hex: 0xC48A4A)
+    static let woodDark = Color(hex: 0x4A2C12)
+    static let ivory = Color(hex: 0xFFFCF2)
+    static let ivorySide = Color(hex: 0xD9CDB2)
+    static let backLight = Color(hex: 0x2E8060)
+    static let backDark = Color(hex: 0x1E5C43)
+    static let led = Color(hex: 0xFF3B2F)
+}
+
+/// 立てた牌を後ろ（背）から見た形。CPU の手牌用。
+struct StandingBack: View {
+    var w: CGFloat, h: CGFloat
+    var body: some View {
+        VStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: w * 0.12)
+                .fill(LinearGradient(colors: [Pal.ivory, Pal.ivorySide], startPoint: .top, endPoint: .bottom))
+                .frame(width: w, height: h * 0.34)
+            RoundedRectangle(cornerRadius: w * 0.1)
+                .fill(LinearGradient(gradient: backBulge, startPoint: .top, endPoint: .bottom))
+                .frame(width: w, height: h * 0.66)
+                .offset(y: -h * 0.06)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 2, y: 2)
+    }
+}
+
+/// 左右の家の立て牌。参考の雰囲気どおり、上面が明るく光る象牙のブロックとして描く
+/// （横から見ると背の緑はほぼ見えず、上面と手前の側面だけが見える）。奥から手前へ並ぶ。
+struct StandingSide: View {
+    var w: CGFloat, h: CGFloat
+    var ownerOnLeft: Bool
+    var body: some View {
+        VStack(spacing: 0) {
+            // 上面（光が当たる）
+            RoundedRectangle(cornerRadius: w * 0.12)
+                .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivory], startPoint: .top, endPoint: .bottom))
+                .frame(width: w, height: h * 0.42)
+            // 手前の側面（少し落とす）。持ち主側の縁をわずかに暗くして向きを出す
+            RoundedRectangle(cornerRadius: w * 0.08)
+                .fill(LinearGradient(colors: ownerOnLeft ? [Pal.ivorySide, Color(hex: 0xEFE6D2)] : [Color(hex: 0xEFE6D2), Pal.ivorySide],
+                                     startPoint: .leading, endPoint: .trailing))
+                .frame(width: w, height: h * 0.58)
+                .offset(y: -h * 0.04)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 2, x: ownerOnLeft ? 1 : -1, y: 2)
+    }
+}
+
+/// 河の1枚（表向き・寝かせた牌）。既存の MahjongTileView をそのまま使う。
+struct RiverTile: View {
+    var face: MahjongFace
+    var w: CGFloat
+    var body: some View {
+        MahjongTileView(face: face, width: w, height: w * 1.38)
+    }
+}
+
+
+/// 鳴いた牌（卓上・表向き）。`sideways` の位置の牌だけ 90 度倒す（誰から鳴いたかの印）。
+struct MeldOnTable: View {
+    var faces: [MahjongFace]
+    var sideways: Int
+    var w: CGFloat
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            ForEach(Array(faces.enumerated()), id: \.offset) { i, f in
+                if i == sideways {
+                    MahjongTileView(face: f, width: w, height: w * 1.38)
+                        .rotationEffect(.degrees(90))
+                        .frame(width: w * 1.38, height: w * 1.38, alignment: .bottom)
+                } else {
+                    MahjongTileView(face: f, width: w, height: w * 1.38)
+                }
+            }
+        }
+    }
+}
+
+struct LED: View {
+    var text: String
+    var size: CGFloat
+    var body: some View {
+        Text(text)
+            .font(.system(size: size, weight: .bold, design: .monospaced))
+            .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFF6A5C), Pal.led], startPoint: .top, endPoint: .bottom))
+            .shadow(color: Pal.led.opacity(0.9), radius: size * 0.18)
+            .shadow(color: Pal.led.opacity(0.5), radius: size * 0.5)
+    }
+}
+
+struct CenterPanel: View {
+    var side: CGFloat
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: side * 0.08)
+                .fill(LinearGradient(colors: [Color(hex: 0x1A1A1E), Color(hex: 0x050506)], startPoint: .top, endPoint: .bottom))
+                .overlay(RoundedRectangle(cornerRadius: side * 0.08).strokeBorder(Color(hex: 0x3A3A40), lineWidth: 2))
+                .shadow(color: .black.opacity(0.6), radius: 6, y: 4)
+            VStack(spacing: side * 0.02) {
+                LED(text: "東一局", size: side * 0.13)
+                LED(text: "2", size: side * 0.30)
+                LED(text: "本場 0  供託 1", size: side * 0.08)
+            }
+            // 4家の風と点数
+            seat("西", "25000", angle: 180, offset: CGPoint(x: 0, y: -side * 0.40))
+            seat("南", "27000", angle: -90, offset: CGPoint(x: side * 0.40, y: 0))
+            seat("北", "23000", angle: 90, offset: CGPoint(x: -side * 0.40, y: 0))
+            seat("東", "25000", angle: 0, offset: CGPoint(x: 0, y: side * 0.40), active: true)
+        }
+        .frame(width: side, height: side)
+    }
+    func seat(_ wind: String, _ pts: String, angle: Double, offset: CGPoint, active: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            Text(wind).font(.system(size: side * 0.09, weight: .black))
+                .foregroundStyle(active ? Color(hex: 0xFFD54A) : Color(hex: 0xB8B8C0))
+                .shadow(color: active ? Color(hex: 0xFFD54A).opacity(0.8) : .clear, radius: 4)
+            LED(text: pts, size: side * 0.085)
+        }
+        .rotationEffect(.degrees(angle))
+        .offset(x: offset.x, y: offset.y)
+    }
+}
+
+struct Table: View {
+    let hand: [MahjongFace] = [.characters(2), .characters(3), .characters(7), .circles(1), .circles(2), .circles(4),
+                               .circles(6), .circles(6), .circles(8), .circles(8), .bamboos(3), .dragon(2), .characters(7)]
+    let river1: [MahjongFace] = [.wind(1), .dragon(1), .bamboos(9), .characters(1), .wind(3), .circles(9), .bamboos(1), .characters(9)]
+    let river2: [MahjongFace] = [.wind(2), .bamboos(2), .dragon(2), .characters(5), .circles(3), .wind(3), .bamboos(8)]
+    let river3: [MahjongFace] = [.dragon(2), .characters(8), .wind(1), .bamboos(5), .circles(7), .characters(4)]
+    let river4: [MahjongFace] = [.circles(5), .wind(3), .bamboos(6), .characters(6), .dragon(1), .circles(2), .bamboos(4)]
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // 木枠（台形）
+            Path { p in
+                p.move(to: CGPoint(x: (W - wTop) / 2 - 14, y: tableTop - 16))
+                p.addLine(to: CGPoint(x: (W + wTop) / 2 + 14, y: tableTop - 16))
+                p.addLine(to: CGPoint(x: W + 2, y: tableTop + tableH + 12))
+                p.addLine(to: CGPoint(x: -2, y: tableTop + tableH + 12))
+                p.closeSubpath()
+            }
+            .fill(LinearGradient(colors: [Pal.woodLight, Pal.wood, Pal.woodDark], startPoint: .top, endPoint: .bottom))
+            // フェルト（台形）＋照明
+            Path { p in
+                p.move(to: CGPoint(x: (W - wTop) / 2, y: tableTop))
+                p.addLine(to: CGPoint(x: (W + wTop) / 2, y: tableTop))
+                p.addLine(to: CGPoint(x: W - 12, y: tableTop + tableH))
+                p.addLine(to: CGPoint(x: 12, y: tableTop + tableH))
+                p.closeSubpath()
+            }
+            .fill(RadialGradient(colors: [Pal.felt, Pal.felt, Pal.feltDark],
+                                 center: UnitPoint(x: 0.5, y: 0.55), startRadius: 40, endRadius: 320))
+            // 木枠の内側の落ち影
+            Path { p in
+                p.move(to: CGPoint(x: (W - wTop) / 2, y: tableTop))
+                p.addLine(to: CGPoint(x: (W + wTop) / 2, y: tableTop))
+                p.addLine(to: CGPoint(x: W - 12, y: tableTop + tableH))
+                p.addLine(to: CGPoint(x: 12, y: tableTop + tableH))
+                p.closeSubpath()
+            }
+            .stroke(Color.black.opacity(0.45), lineWidth: 6)
+            .blur(radius: 4)
+
+            // 対面（CPU2）の手牌: 背を向けて立つ
+            ForEach(0..<13, id: \.self) { i in
+                FrontBlock(u0: 0.5 + (CGFloat(i) - 6.5) * 0.0433, v0: 0.04, du: 0.0433, tv: 0.03, h: 22)
+            }
+            // 左（CPU3）・右（CPU1）の手牌: 横から
+            // 左右の家の手牌: 奥から手前へ 13 枚。厚み 0.032（≒12pt）、幅 0.05（v）、高さ 22pt
+            ForEach(0..<13, id: \.self) { i in
+                let v = 0.18 + CGFloat(i) * 0.05
+                SideBlock(u0: 0.02, v0: v, tu: 0.032, dv: 0.05, h: 22, facesRight: true)
+                SideBlock(u0: 0.948, v0: v, tu: 0.032, dv: 0.05, h: 22, facesRight: false)
+            }
+            // 河: 対面（奥）
+            ForEach(Array(river1.enumerated()), id: \.offset) { i, f in
+                let pt = proj(0.5 + (CGFloat(5 - i % 6) - 2.5) * 0.0535, 0.30 - CGFloat(i / 6) * 0.074)
+                RiverTile(face: f, w: 21 * pt.s).rotationEffect(.degrees(180)).position(x: pt.x, y: pt.y)
+            }
+            // 河: 自分（手前）
+            ForEach(Array(river4.enumerated()), id: \.offset) { i, f in
+                let pt = proj(0.5 + (CGFloat(i % 6) - 2.5) * 0.0535, 0.69 + CGFloat(i / 6) * 0.066)
+                RiverTile(face: f, w: 21 * pt.s).position(x: pt.x, y: pt.y)
+            }
+            // 河: 左（北家）は 90 度、右（南家）は -90 度
+            ForEach(Array(river2.enumerated()), id: \.offset) { i, f in
+                let pt = proj(0.26 - CGFloat(i / 6) * 0.074, 0.34 + CGFloat(i % 6) * 0.043)
+                RiverTile(face: f, w: 21 * pt.s).rotationEffect(.degrees(90)).position(x: pt.x, y: pt.y)
+            }
+            ForEach(Array(river3.enumerated()), id: \.offset) { i, f in
+                let pt = proj(0.74 + CGFloat(i / 6) * 0.074, 0.64 - CGFloat(i % 6) * 0.043)
+                RiverTile(face: f, w: 21 * pt.s).rotationEffect(.degrees(-90)).position(x: pt.x, y: pt.y)
+            }
+            // 対面（西家）のポン: 奥の右隅。対面から見て右＝画面では左だが、遠近の写像に載せるため
+            // 見やすさ優先で右奥に置く（180 度回転）
+            let m1 = proj(0.88, 0.09)
+            MeldOnTable(faces: [.bamboos(7), .bamboos(7), .bamboos(7)], sideways: 0, w: 15 * m1.s)
+                .rotationEffect(.degrees(180)).position(x: m1.x, y: m1.y)
+            // 南家（右）のチー: 右手前の角。南家の手前＝画面右下。-90 度
+            let m2 = proj(0.945, 0.905)
+            MeldOnTable(faces: [.characters(4), .characters(5), .characters(6)], sideways: 2, w: 17 * m2.s)
+                .rotationEffect(.degrees(-90)).position(x: m2.x, y: m2.y)
+            // 自分のポン（發）: 卓の右手前の角。下家から鳴いたので右端を横向きに
+            let m3 = proj(0.78, 0.955)
+            MeldOnTable(faces: [.dragon(1), .dragon(1), .dragon(1)], sideways: 2, w: 20 * m3.s)
+                .position(x: m3.x, y: m3.y)
+            // 中央パネル
+            let c = proj(0.5, 0.49)
+            CenterPanel(side: 86 * c.s).position(x: c.x, y: c.y)
+            // 立直棒（対面が立直中）
+            let rb = proj(0.5, 0.36)
+            Capsule().fill(Color.white).frame(width: 46 * rb.s, height: 4 * rb.s)
+                .overlay(Circle().fill(Pal.led).frame(width: 3 * rb.s)).position(x: rb.x, y: rb.y)
+        }
+    }
+}
+
+struct Screen: View {
+    let hand: [MahjongFace] = [.characters(2), .characters(3), .characters(7), .circles(1), .circles(2), .circles(4),
+                               .circles(6), .circles(6), .circles(8), .circles(8)]
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color(hex: 0xFFF6EC)
+            // ヘッダ
+            HStack {
+                Circle().fill(.white).frame(width: 44, height: 44)
+                    .overlay(Image(systemName: "chevron.left").foregroundStyle(Color(hex: 0xFF8A7E)).bold())
+                Spacer()
+                Text("麻雀").font(.system(size: 22, weight: .bold)).foregroundStyle(Color(hex: 0x3A2E2A))
+                Spacer()
+                Capsule().fill(.white).frame(width: 110, height: 44)
+                    .overlay(HStack(spacing: 14) {
+                        Image(systemName: "questionmark.circle"); Text("役"); Image(systemName: "plus.circle.fill")
+                    }.foregroundStyle(Color(hex: 0xFF8A7E)).bold())
+            }
+            .padding(.horizontal, 16).padding(.top, 44)
+
+            Table()
+
+            // ドラ表示（HUD・左上）。卓の上ではなく画面の角に固定する（参考画像の位置）
+            HStack(spacing: 6) {
+                Text("ドラ").font(.system(size: 12, weight: .black)).foregroundStyle(Color(hex: 0x3A2E2A))
+                MahjongTileView(face: .circles(4), width: 22, height: 30)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(Capsule().fill(.white).shadow(color: .black.opacity(0.18), radius: 6, y: 3))
+            .position(x: 62, y: tableTop - 2)
+
+            // 自分の手牌: 手前で大きく、少し立てて上面が見える
+            VStack(spacing: 0) {
+                Spacer().frame(height: tableTop + tableH + 22)
+                HStack(alignment: .bottom, spacing: 1) {
+                    ForEach(Array(hand.enumerated()), id: \.offset) { i, f in
+                        VStack(spacing: 0) {
+                            // 上面
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(LinearGradient(colors: [Color(hex: 0xFFFFFB), Pal.ivorySide], startPoint: .top, endPoint: .bottom))
+                                .frame(width: 27, height: 7)
+                            MahjongTileView(face: f, width: 27, height: 40, isSelected: i == 9)
+                        }
+                        .offset(y: i == 9 ? -6 : 0)
+                    }
+                    // ツモ牌
+                    VStack(spacing: 0) {
+                        RoundedRectangle(cornerRadius: 2).fill(Pal.ivorySide).frame(width: 27, height: 7)
+                        MahjongTileView(face: .wind(1), width: 27, height: 40)
+                    }
+                    .padding(.leading, 8)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(LinearGradient(colors: [Pal.wood, Pal.woodDark], startPoint: .top, endPoint: .bottom))
+                        .shadow(color: .black.opacity(0.35), radius: 8, y: 4)
+                )
+                .padding(.horizontal, 8)
+                Spacer().frame(height: 18)
+                HStack(spacing: 12) {
+                    ForEach(["立直", "ツモ"], id: \.self) { t in
+                        Text(t).font(.system(size: 17, weight: .bold)).foregroundStyle(Color(hex: 0x3A2E2A))
+                            .frame(maxWidth: .infinity).frame(height: 54)
+                            .background(Capsule().fill(Color(hex: 0xEDE4DA)))
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+        .frame(width: W, height: 800)
+    }
+}
+
+@MainActor func render() {
+    let out = URL(fileURLWithPath: CommandLine.arguments[1])
+    let r = ImageRenderer(content: Screen())
+    r.scale = 3
+    if let img = r.nsImage, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+       let png = rep.representation(using: .png, properties: [:]) {
+        try! png.write(to: out); print("wrote \(out.path)")
+    } else { print("render failed") }
+}
+MainActor.assumeIsolated { render() }
