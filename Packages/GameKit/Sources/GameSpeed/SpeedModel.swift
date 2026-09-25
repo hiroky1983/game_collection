@@ -55,9 +55,22 @@ public final class SpeedModel {
     public private(set) var timeoutUsed = false
     /// 「めくる」が続いた回数。誰かが出せば 0 に戻る。
     public private(set) var consecutiveFlips = 0
-    /// CPU を止めているか（広告の視聴中・バックグラウンド）。止めているあいだ `nextCPUWait()` は nil を返し、
-    /// 解くと反応の間を数え直してから動く（止めていたぶん CPU が有利にならない）。
-    public private(set) var isCPUHeld = false
+    /// CPU を止めている理由（広告の視聴中・バックグラウンド・シートの提示中）。1 つでも残っているあいだ
+    /// `nextCPUWait()` は nil を返し、すべて解くと反応の間を数え直してから動く（止めていたぶん CPU が有利にならない）。
+    public private(set) var cpuHolds: CPUHold = []
+    public var isCPUHeld: Bool { !cpuHolds.isEmpty }
+
+    /// CPU を止めている理由。理由ごとに独立して数えるので、広告が終わってもシートが開いていれば止まったまま。
+    public struct CPUHold: OptionSet, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        /// リワード広告の視聴中。
+        public static let ad = CPUHold(rawValue: 1 << 0)
+        /// バックグラウンド・非アクティブ。
+        public static let inactive = CPUHold(rawValue: 1 << 1)
+        /// 遊び方・速さのシートの提示中（背面で敗北が記録されないように。#1358）。
+        public static let sheet = CPUHold(rawValue: 1 << 2)
+    }
     /// 勝ったときの所要秒数（切り上げ・最低 1 秒）。負け・引き分けでは nil。
     public private(set) var winSeconds: Int?
     /// 直近の決着で確定した記録。リザルトに 1 行出す。
@@ -312,14 +325,19 @@ public final class SpeedModel {
     }
 
     /// CPU を止める / 解く。広告の視聴中（あなたが触れないあいだに CPU だけが出し切ってしまい、見終えた
-    /// 広告のタイムが乗らない）とバックグラウンド移行時（アクション枠の基盤規約「即一時停止」）に使う。
-    /// 解いたときは反応の間・めくるまでの間を数え直し、`cpuRun` を進めて View の待ちを組み直す。
-    public func holdCPU(_ held: Bool) {
-        guard held != isCPUHeld else { return }
-        isCPUHeld = held
+    /// 広告のタイムが乗らない）・バックグラウンド移行時（アクション枠の基盤規約「即一時停止」）・
+    /// シートの提示中（読んでいるあいだに負けが記録される、を防ぐ。#1358）に使う。
+    /// 理由ごとに数えるので、ほかの理由が残っていれば解いても止まったまま。
+    /// すべて解いたときは反応の間・めくるまでの間を数え直し、`cpuRun` を進めて View の待ちを組み直す。
+    public func holdCPU(_ reason: CPUHold, _ held: Bool) {
+        var next = cpuHolds
+        if held { next.formUnion(reason) } else { next.subtract(reason) }
+        guard next != cpuHolds else { return }
+        let wasHeld = isCPUHeld
+        cpuHolds = next
         cpuArmedAt = nil
         stuckSince = nil
-        if !held { cpuRun += 1 }
+        if wasHeld && !isCPUHeld { cpuRun += 1 }
     }
 
     // MARK: - 救済

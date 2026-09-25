@@ -68,7 +68,10 @@ public struct SpeedView: View {
                 .disabled(timeoutRescue.isWatching)
             }
         }
-        .howToPlay(.speed) { SpeedRuleSheet() }
+        // シートを開いているあいだも CPU は止める（背面で出し切ると、読んでいる間に敗北が記録される。#1358）。
+        .howToPlay(.speed, onPresent: { model.holdCPU(.sheet, true) }, onDismiss: { model.holdCPU(.sheet, false) }) {
+            SpeedRuleSheet()
+        }
         .sheet(isPresented: $showSetup) {
             SpeedSetupSheet(initial: model.settings) { settings in
                 showSetup = false
@@ -91,10 +94,14 @@ public struct SpeedView: View {
         // 広告の視聴中とバックグラウンドでは CPU を止める。あなたが触れないあいだに CPU だけが出し切ると、
         // 見終えた広告のタイムが局ガードで弾かれて見損になる（verifier 指摘・PR #1345）。
         .onChange(of: timeoutRescue.isWatching) { _, watching in
-            model.holdCPU(watching || scenePhase != .active)
+            model.holdCPU(.ad, watching)
         }
         .onChange(of: scenePhase) { _, phase in
-            model.holdCPU(timeoutRescue.isWatching || phase != .active)
+            model.holdCPU(.inactive, phase != .active)
+        }
+        // 「速さ」のシートも同じ（開いたまま置くと背面で CPU が出し続ける）。閉じたら再開する。
+        .onChange(of: showSetup) { _, open in
+            model.holdCPU(.sheet, open)
         }
         // CPU の待ちは Model が決め、ここは待つだけ。場が動くたびに `cpuRun` が進んで前のループが止まり、
         // 画面を離れれば `.task` ごと止まる。

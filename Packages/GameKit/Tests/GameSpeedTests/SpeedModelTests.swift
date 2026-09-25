@@ -570,14 +570,14 @@ struct SpeedModelTests {
         let wait = model.nextCPUWait()!
         clock.advance(wait / 2)
         let run = model.cpuRun
-        model.holdCPU(true)
+        model.holdCPU(.ad, true)
         #expect(model.isCPUHeld)
         #expect(model.nextCPUWait() == nil, "止めているあいだは View のループが抜ける")
         clock.advance(30)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 6), "30 秒経っても出さない")
         #expect(model.cpuRun == run, "止めるだけでは待ちを組み直さない")
-        model.holdCPU(false)
+        model.holdCPU(.ad, false)
         #expect(!model.isCPUHeld)
         #expect(model.cpuRun == run + 1, "解いたら View の待ちを組み直す")
         let restarted = model.nextCPUWait()!
@@ -585,8 +585,42 @@ struct SpeedModelTests {
         clock.advance(restarted)
         model.performCPUAction()
         #expect(model.piles[0].last == card(.spades, 5))
-        model.holdCPU(false)
+        model.holdCPU(.ad, false)
         #expect(model.cpuRun == run + 2, "同じ値を重ねて渡しても組み直さない")
+    }
+
+    @Test("シートの提示中は CPU が着手せず、閉じたら再開する。ほかの理由が残っていれば解いても止まったまま（#1358）")
+    func holdCPUWhileSheetIsOpen() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current })
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5)], cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .fast)
+        )
+        model.holdCPU(.sheet, true)
+        #expect(model.nextCPUWait() == nil, "シートを開いているあいだは待ちも無い")
+        clock.advance(60)
+        model.performCPUAction()
+        #expect(model.piles[0].last == card(.spades, 6), "60 秒置いても CPU は出さない")
+        #expect(model.phase == .playing)
+
+        // 広告を見終えても、シートが開いたままなら止まったまま。
+        model.holdCPU(.ad, true)
+        model.holdCPU(.ad, false)
+        #expect(model.isCPUHeld && model.nextCPUWait() == nil)
+
+        let run = model.cpuRun
+        model.holdCPU(.sheet, false)
+        #expect(!model.isCPUHeld)
+        #expect(model.cpuRun == run + 1, "すべて解いたら View の待ちを組み直す")
+        let wait = model.nextCPUWait()!
+        #expect(reactionRange(.fast).contains(wait), "反応の間は満額から数え直す: \(wait)")
+        clock.advance(wait)
+        model.performCPUAction()
+        #expect(model.piles[0].last == card(.spades, 5))
     }
 
     @Test("CPU が出しても、あなたの選択は外れない（外れると台札のタップで別の札が出る）")
