@@ -311,6 +311,15 @@ public final class MahjongSolitaireModel {
         newGame()
     }
 
+    /// 画面を離れたときに計時を止める（View の `.onDisappear` から呼ぶ・#1369）。
+    /// 止める前に経過秒を保存し直すので、戻ったときは続きから数え直せる。
+    /// 止めないと古いモデルが計時と保存を続け、開き直した盤面や消した中断データを上書きする。
+    public func pauseTimer() {
+        if isCounting { persist() }
+        timerTask?.cancel()
+        timerTask = nil
+    }
+
     /// 計時が動いているか（テスト用）。
     public var isCounting: Bool { timerTask != nil }
 
@@ -406,10 +415,11 @@ public final class MahjongSolitaireModel {
 
     private func startTimer() {
         timerTask?.cancel()
-        timerTask = Task {
+        // `[weak self]`: 画面を離れたあともモデルを握り続けて計時が進まないようにする（#1369）。
+        timerTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled, let self else { break }
                 tick()
             }
         }
