@@ -123,12 +123,7 @@ public struct ShogiView: View {
     private var checkOverlay: some View {
         ZStack {
             if checkBannerID != nil {
-                Text("王手")
-                    .font(.system(size: 44, weight: .black, design: .serif))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 32).padding(.vertical, 14)
-                    .background(Capsule().fill(BoardStyle.check))
-                    .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+                BoardGameCheckBanner("王手")
                     // 札は中央にあり `offset` を持たないので、拡大の基準は札の中心になる。
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }

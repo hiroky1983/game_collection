@@ -170,6 +170,15 @@ public final class Game2048Model {
         return true
     }
 
+    /// 「リセット」で失われる進行があるか（#1011）。
+    ///
+    /// 開始直後の盤は 2 枚だけで得点 0。1 手動かすと（合体すれば得点が入り、しなければ 1 枚増えて）
+    /// このどちらかが変わる。終局後は捨てるものが無いので false。
+    public var hasProgressToLose: Bool {
+        guard !gameOver else { return false }
+        return score > 0 || board.joined().filter { $0 != 0 }.count > 2
+    }
+
     /// 新規ゲーム。
     public func newGame() {
         gameSerial += 1

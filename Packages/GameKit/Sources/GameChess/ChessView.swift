@@ -131,12 +131,7 @@ public struct ChessView: View {
     private var checkOverlay: some View {
         ZStack {
             if checkBannerID != nil {
-                Text("チェック")
-                    .font(.system(size: 38, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 28).padding(.vertical, 12)
-                    .background(Capsule().fill(ChessBoardStyle.check))
-                    .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+                BoardGameCheckBanner("チェック")
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
         }

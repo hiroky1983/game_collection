@@ -69,6 +69,39 @@ public enum BoardGameCheckColor {
     public static let color = Color(hex: hex)
 }
 
+/// 「王手」「チェック」の札の書式（#1011）。将棋とチェスで揃える。
+///
+/// 色（`BoardGameCheckColor`）と動き（`BoardGameMotion.checkBanner`）は #377・#530 で共通化済みで、
+/// 残っていたフォント・余白を将棋側（44pt・明朝系・32×14）に合わせた。
+/// 寸法は View の `static let` に置くと MainActor 隔離になりテストから読めないので、非隔離の enum に持つ。
+public enum BoardGameCheckBannerStyle {
+    public static let fontSize: CGFloat = 44
+    public static let horizontalPadding: CGFloat = 32
+    public static let verticalPadding: CGFloat = 14
+}
+
+/// 王手が掛かった瞬間に盤の中央へ飛び出す札の見た目。
+///
+/// 出入りの `.transition` と、残り続ける親に置くアニメーションは**呼び出し側**に置く
+/// （分岐と同じ層でないと `.transition` が効かない・将棋 #201/#195）。
+public struct BoardGameCheckBanner: View {
+    private let text: String
+
+    public init(_ text: String) {
+        self.text = text
+    }
+
+    public var body: some View {
+        Text(text)
+            .font(.system(size: BoardGameCheckBannerStyle.fontSize, weight: .black, design: .serif))
+            .foregroundStyle(.white)
+            .padding(.horizontal, BoardGameCheckBannerStyle.horizontalPadding)
+            .padding(.vertical, BoardGameCheckBannerStyle.verticalPadding)
+            .background(Capsule().fill(BoardGameCheckColor.color))
+            .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
+    }
+}
+
 // MARK: - 駒の持ち上げ
 
 public extension View {

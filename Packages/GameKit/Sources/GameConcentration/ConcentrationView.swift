@@ -5,6 +5,7 @@ public struct ConcentrationView: View {
     @State private var model: ConcentrationModel
     private let services: GameServices
     @State private var showNewGame = false
+    @State private var showConfirmNewGame = false
     @State private var showMattaConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -38,12 +39,24 @@ public struct ConcentrationView: View {
         .padding(Theme.pad)
         .gameChrome(title: "神経衰弱", review: services.review, tint: Theme.purple) {
             ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
+                Button {
+                    if model.hasProgressToLose {
+                        showConfirmNewGame = true
+                    } else {
+                        showNewGame = true
+                    }
+                } label: {
                     Label("新規", systemImage: "plus.circle.fill")
                 }
             }
         }
         .howToPlay(.concentration)
+        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると、いまの対戦が失われます。")
+        }
         .sheet(isPresented: $showNewGame) {
             ConcentrationNewGameSheet(
                 pairCount: model.pairCount,

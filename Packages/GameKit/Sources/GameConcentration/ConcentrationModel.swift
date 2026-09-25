@@ -57,6 +57,10 @@ public final class ConcentrationModel {
     }
     public var isHumanTurn: Bool { currentPlayer == .human }
     public var canMatta: Bool { !isGameOver && isHumanTurn && !mismatchedIndices.isEmpty }
+    /// 「新規」で失われる進行があるか（#1011）。1 枚でもめくった・取った札があり、まだ決着していないとき。
+    public var hasProgressToLose: Bool {
+        !isGameOver && cards.contains { $0.isFaceUp || $0.isMatched }
+    }
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。

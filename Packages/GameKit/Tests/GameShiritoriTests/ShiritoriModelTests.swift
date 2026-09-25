@@ -446,3 +446,26 @@ struct ShiritoriModelTests {
         #expect(alternateWasPlayed, "100 シードのどのゲームでも裏読みが一度も選ばれなかった")
     }
 }
+
+// MARK: - 新規ゲームで失われる進行（#1011）
+
+@Suite("カードしりとり 新規ゲームで失われる進行（#1011）")
+@MainActor
+struct ShiritoriProgressToLoseTests {
+
+    @Test("開始前は失うものが無く、対局中は失う進行がある")
+    func onlyWhilePlaying() {
+        let (model, _) = makeModel()
+        #expect(!model.hasProgressToLose)
+        model.startGame()
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("一時停止しても対局中には変わりない（ボタンが pause してから確認を出すため）")
+    func pausedStillCounts() {
+        let (model, _) = makeModel()
+        model.startGame()
+        model.pause()
+        #expect(model.hasProgressToLose)
+    }
+}

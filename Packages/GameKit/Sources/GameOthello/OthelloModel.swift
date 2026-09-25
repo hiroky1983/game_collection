@@ -71,6 +71,12 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
 
     public var gameOver: Bool { winner != nil || isDraw }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
+    /// 「新規対局」で失われる進行があるか（#1011）。
+    ///
+    /// 初期配置（4 個）から石が増えていて、まだ決着していないとき。決着後は捨てるものが無く、
+    /// 開始直後（CPU 先手でまだ打っていない盤を含む）も確認を挟むだけ無駄なので false。
+    /// 石の数で見るのは、`placementCount` が中断データから復元すると 0 に戻るため。
+    public var hasProgressToLose: Bool { !gameOver && blackCount + whiteCount > 4 }
     /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     public var reviewOutcome: GameOutcome {
         if isDraw { return .draw }

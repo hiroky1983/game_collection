@@ -4,6 +4,7 @@ import Core
 public struct ShiritoriView: View {
     @State private var model: ShiritoriModel
     @State private var showSetup = false
+    @State private var showConfirmNewGame = false
     private let services: GameServices
 
     public init(services: GameServices) {
@@ -36,10 +37,23 @@ public struct ShiritoriView: View {
         .padding(Theme.pad)
         .gameChrome(title: "カードしりとり", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
-                Button { model.pause(); showSetup = true } label: {
+                Button {
+                    model.pause()
+                    if model.hasProgressToLose {
+                        showConfirmNewGame = true
+                    } else {
+                        showSetup = true
+                    }
+                } label: {
                     Label("新規ゲーム", systemImage: "plus.circle.fill")
                 }
             }
+        }
+        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("途中で終了すると、いまの対局が失われます。")
         }
         // 読んでいる間に時間を取られないよう止める。札をタップすると再開する。
         .howToPlay(.shiritori, onPresent: { model.pause() }) { ShiritoriRuleSheet() }

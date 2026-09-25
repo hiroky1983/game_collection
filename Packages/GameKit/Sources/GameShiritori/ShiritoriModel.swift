@@ -58,6 +58,8 @@ public final class ShiritoriModel: AITurnGuarded {
     /// 場の札で**使った読み**（裏読みで取ったときは裏読み）。次の語尾はこれで決まる。
     public private(set) var currentReading = ""
     public private(set) var phase: ShiritoriPhase = .idle
+    /// 「新規ゲーム」で失われる進行があるか（#1011）。対局中だけ。開始前と結果画面は捨てるものが無い。
+    public var hasProgressToLose: Bool { phase == .playing }
     public private(set) var isPlayerTurn = false
     public private(set) var timeRemaining: Double = ShiritoriTime.initial
     public private(set) var ending: ShiritoriEnding?
