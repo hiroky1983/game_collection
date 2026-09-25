@@ -328,16 +328,6 @@ public struct RunnerView: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
     }
 
-    /// 動かない局面（一時停止・リザルト等）では SpriteKit のループを止める（#1386）。
-    ///
-    /// **止めるのは `SKView` で、`SpriteView` の引数ではない**（`isPaused` も
-    /// `preferredFramesPerSecond` も生成時にしか効かない。`BlocksView.syncRenderLoop` の実測メモ参照）。
-    /// 呼ぶのは 1 フレーム描き終えたとき（`RunnerScene.onFrameRendered`）。局面が変わったときは
-    /// 止めずに回し直し、描いたあとにここへ戻ってくる。
-    private func syncRenderLoop() {
-        scene.view?.isPaused = !model.phase.needsAnimationFrames
-    }
-
     /// コースの絵とタップを受ける層。
     private var playfield: some View {
         ZStack {
@@ -345,9 +335,18 @@ public struct RunnerView: View {
             // 機種によってはタップが SKView に吸われる。
             SpriteView(scene: scene, preferredFramesPerSecond: 60)
                 .allowsHitTesting(false)
+                // 動かない局面（一時停止・リザルト等）では SpriteKit のループを止める（#1386）。
+                // **止めるのは `SKView` で、`SpriteView` の引数ではない**（`isPaused` も
+                // `preferredFramesPerSecond` も生成時にしか効かない。`BlocksView.syncRenderLoop` の実測メモ参照）。
                 // 描いたら止めてよいか見直す。画面を開き直して SKView が作り直されたときも、
-                // 次の 1 フレームでここに戻ってくる（#1386）。
-                .onAppear { scene.onFrameRendered = { syncRenderLoop() } }
+                // 次の 1 フレームでここに戻ってくる。`scene` を強く捕まえると
+                // scene → クロージャ → `@State` の scene の循環になるので弱参照にする（CodeRabbit 指摘）。
+                .onAppear {
+                    let model = model
+                    scene.onFrameRendered = { [weak scene] in
+                        scene?.view?.isPaused = !model.phase.needsAnimationFrames
+                    }
+                }
                 // 局面が変わったらいったん回し、1 フレーム描いてから止め直す。**その場で止めない**:
                 // 演出を飛ばしたときのように、局面が `update` の外で変わり、絵の切り替え（走り去った先に
                 // 置く）がまだ描かれていない経路があるため。
