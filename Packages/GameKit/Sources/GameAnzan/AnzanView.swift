@@ -12,6 +12,9 @@ public struct AnzanView: View {
     /// 同じ問題をもう一度見る救済（広告 1 本で 1 問 1 回）。
     @State private var replayRescue = RewardedRescue()
     @State private var showSetup: Bool
+    /// 遊び方のシートを開いているあいだ true（閉じたときに、まだバックグラウンドなら再開しない）。
+    @State private var showHowToPlay = false
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
         self.services = services
@@ -50,7 +53,22 @@ public struct AnzanView: View {
                 .disabled(model.phase == .flashing || replayRescue.isWatching)
             }
         }
-        .howToPlay(.anzan)
+        .howToPlay(.anzan, onPresent: {
+            // 数が出ているあいだに読むと出題が進んで誤答になるので、止めて頭から出し直す。
+            showHowToPlay = true
+            model.pauseDisplay()
+        }, onDismiss: {
+            showHowToPlay = false
+            if scenePhase == .active { model.resumeDisplay() }
+        })
+        .onChange(of: scenePhase) { _, phase in
+            // 背面ではタイマーが即満了して数が飛ぶので、数の表示中に画面が引っ込んだら止める（入力中は何もしない）。
+            if phase != .active {
+                model.pauseDisplay()
+            } else if !showHowToPlay {
+                model.resumeDisplay()
+            }
+        }
         .sheet(isPresented: $showSetup) {
             AnzanSetupSheet(initial: model.settings) { settings in
                 showSetup = false

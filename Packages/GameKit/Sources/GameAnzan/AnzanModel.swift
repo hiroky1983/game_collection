@@ -54,6 +54,8 @@ public final class AnzanModel {
     private let now: () -> Date
     private var generator: SplitMix64?
     private var stepIndex = -1
+    /// 遊び方・バックグラウンドで表示を止めているあいだ true。`advanceDisplay()` は進めない。
+    private var isDisplayPaused = false
     private var answerStartedAt: Date?
     /// `gameDidStart` を一度通したか。2 問目からは `gameDidRestart` で数える。
     private var hasCountedStart = false
@@ -115,7 +117,7 @@ public final class AnzanModel {
     ///   （`flashing` 以外で呼んでも nil）。
     @discardableResult
     public func advanceDisplay() -> Duration? {
-        guard phase == .flashing else { return nil }
+        guard phase == .flashing, !isDisplayPaused else { return nil }
         #if DEBUG
         if isFrozenForCapture { return nil }
         #endif
@@ -136,6 +138,25 @@ public final class AnzanModel {
             services?.gameDidProgress(gameID: Self.gameID)
         }
         return .milliseconds(AnzanLogic.milliseconds(of: current, speed: settings.speed))
+    }
+
+    /// 数の表示中に画面が塞がれた（遊び方のシート・バックグラウンド）ので出題を止める。
+    ///
+    /// 見せかけの途中で入力に進むと、見ていない数の合計を答えることになり誤答が記録に残る。
+    /// 止めたコマは捨て、`resumeDisplay()` で頭（「よーい」）から出し直す。`flashing` 以外では何もしない。
+    public func pauseDisplay() {
+        guard phase == .flashing else { return }
+        isDisplayPaused = true
+        stepIndex = -1
+        step = nil
+    }
+
+    /// `pauseDisplay()` で止めた表示を頭から出し直す。止めていなければ何もしない。
+    public func resumeDisplay() {
+        guard isDisplayPaused else { return }
+        isDisplayPaused = false
+        guard phase == .flashing else { return }
+        displayRun += 1
     }
 
     // MARK: - 入力
@@ -203,6 +224,7 @@ public final class AnzanModel {
         stepIndex = -1
         step = nil
         answerStartedAt = nil
+        isDisplayPaused = false
         phase = .flashing
         displayRun += 1
         return true
@@ -222,6 +244,7 @@ public final class AnzanModel {
         stepIndex = -1
         step = nil
         answerStartedAt = nil
+        isDisplayPaused = false
         phase = .flashing
         displayRun += 1
         if hasCountedStart {
