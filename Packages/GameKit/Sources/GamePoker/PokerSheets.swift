@@ -6,6 +6,8 @@ import Core
 struct PokerStartSheet: View {
     @Binding var rules: PokerRuleSet
     let onStart: () -> Void
+    /// キャンセル（ハブへ戻る）。これが無いと開いたら 1 局遊ぶしかなかった（#1371。麻雀は #352 で対応済み）。
+    let onCancel: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -26,6 +28,11 @@ struct PokerStartSheet: View {
             .padding(Theme.pad)
             .popBackground()
             .navigationTitle("5カードドロー")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") { onCancel() }
+                }
+            }
         }
         .presentationDetents([.large])
     }
