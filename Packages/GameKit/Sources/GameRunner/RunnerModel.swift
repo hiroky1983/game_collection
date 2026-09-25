@@ -18,7 +18,30 @@ public final class RunnerModel {
 
     /// setter が `internal` なのは、撮影・QA の局面を作る `RunnerModel+Debug.swift`（#1106 で分けた `#if DEBUG` の extension）
     /// がここへ書き込むため。別ファイルの extension からは `private(set)` に手が届かない。書き換えてよいのはこのモジュール内だけ。
-    public internal(set) var field: RunnerField
+    ///
+    /// **観測対象から外してある**（#1386）。走行中は毎フレーム `field.step` で書き換わるので、
+    /// 観測したままだと `RunnerView` の body 全体が毎秒 60 回組み直される。View が読む値は
+    /// 下の表示用ミラー（`distanceMeters` ほか）に、**変わったときだけ**写す（`syncDisplay`）。
+    @ObservationIgnored
+    public internal(set) var field: RunnerField {
+        didSet { syncDisplay() }
+    }
+    /// 走行距離の表示・記録用の値（m）。**1 タイル（`RunnerRules.tileWidth` 単位）＝ 1 m** と
+    /// 数える。ワールド単位のままだと 1 区画 64 m・最高速で時速 200 km 超の表示になり実感と
+    /// 合わないため（社長レビュー 2026-09-14）。1 区画 16 m、最高速（基準 60 × ペダル 1.55）で
+    /// 秒速 23 m ＝時速 84 km ほど。
+    /// `field` の写し（表示用ミラー・#1386）。
+    public private(set) var distanceMeters = 0
+    /// `field.progress` を 0.5% 刻みに丸めた写し（進捗バー用・#1386）。
+    public private(set) var displayProgress = 0.0
+    /// `field.pedalBoost` を 0.01 刻みに丸めた写し（速さゲージ用・#1386）。
+    public private(set) var displayPedalBoost = 1.0
+    /// `field.isInvincible` の写し（#1386）。
+    public private(set) var isInvincible = false
+    /// `field.invincibleRemaining` を 0.1 秒刻みに**切り上げた**写し（読み上げの秒数が `rounded(.up)` なので、四捨五入だと最大 1 秒少なく読まれる）（無敵バッジ用・#1386）。
+    public private(set) var displayInvincibleRemaining = 0.0
+    /// `field.passedCheckpoint` の写し（#1386）。
+    public private(set) var passedCheckpoint = false
     /// 遊び方のモード（#675）。**走行の開始時に焼き込み、走行中は読み替えない**
     /// （`docs/ai-devops.md`「1局=1RuleSet」）。切り替わるのは `newGame(mode:)` の 1 か所だけ。
     public private(set) var mode: RunnerMode = .stages
@@ -152,6 +175,7 @@ public final class RunnerModel {
         self.endlessBestDistance = services?.playLog?
             .record(gameID: Self.gameID, variant: RunnerMode.endless.recordVariant)?
             .bestPoints
+        syncDisplay()
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
         if countsPlayStart {
@@ -177,17 +201,26 @@ public final class RunnerModel {
         return clearedStage + 1
     }
 
+    /// `field` から表示用ミラーへ写す。**値が変わったときだけ書く**（`@Observable` は同じ値の
+    /// 書き込みでも通知を出すので、毎フレーム書くと `field` を外した意味が無くなる・#1386）。
+    private func syncDisplay() {
+        func update<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<RunnerModel, T>, _ value: T) {
+            if self[keyPath: keyPath] != value { self[keyPath: keyPath] = value }
+        }
+        update(\.distanceMeters, Int(field.distance / RunnerRules.tileWidth))
+        update(\.displayProgress, (field.progress * 200).rounded() / 200)
+        update(\.displayPedalBoost, (field.pedalBoost * 100).rounded() / 100)
+        update(\.isInvincible, field.isInvincible)
+        update(\.displayInvincibleRemaining, (field.invincibleRemaining * 10).rounded(.up) / 10)
+        update(\.passedCheckpoint, field.passedCheckpoint)
+    }
+
     // MARK: - 問い合わせ
 
     /// 挑んでいるステージ。
     public var stage: RunnerStage { field.stage }
     /// 走行距離（ワールド単位）。エンドレス（#675）の記録はこの値の整数部。
     public var distance: Double { field.distance }
-    /// 走行距離の表示・記録用の値（m）。**1 タイル（`RunnerRules.tileWidth` 単位）＝ 1 m** と
-    /// 数える。ワールド単位のままだと 1 区画 64 m・最高速で時速 200 km 超の表示になり実感と
-    /// 合わないため（社長レビュー 2026-09-14）。1 区画 16 m、最高速（基準 60 × ペダル 1.55）で
-    /// 秒速 23 m ＝時速 84 km ほど。
-    public var distanceMeters: Int { Int(field.distance / RunnerRules.tileWidth) }
     /// ステージ番号（1 始まり）が到達済み（ワールドマップで選べる）か（#798）。
     /// 1 面は常に到達済み。範囲外は false。
     public func isStageReached(_ number: Int) -> Bool {
@@ -199,7 +232,7 @@ public final class RunnerModel {
     /// （チェックポイント再開の直後）は「つづきから」の 1 つだけにする——広告を見て手に入れた
     /// 途中からの再開を、誤タップで捨てさせない。純関数版は `canChooseMode(phase:passedCheckpoint:)`。
     public var canChooseMode: Bool {
-        Self.canChooseMode(phase: phase, passedCheckpoint: field.passedCheckpoint)
+        Self.canChooseMode(phase: phase, passedCheckpoint: passedCheckpoint)
     }
 
     /// `canChooseMode` の実体。走り出す前（`.ready`）で、コースの頭にいるときだけ真。
@@ -214,7 +247,7 @@ public final class RunnerModel {
     /// チェックポイント再開を出せる状態か（通過済み・未使用・ミスした直後）。
     public var canResumeFromCheckpoint: Bool {
         // エンドレスにチェックポイントは無い（1 回完結・#675）。
-        mode == .stages && phase == .failed && field.passedCheckpoint && !checkpointUsed
+        mode == .stages && phase == .failed && passedCheckpoint && !checkpointUsed
     }
     /// 1 回の走行が終わって、リザルトを出している状態か。
     ///
