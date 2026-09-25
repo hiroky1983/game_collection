@@ -104,31 +104,10 @@ struct BlackjackSettlementTests {
         #expect(!isBlackjack(hand([10, 10])))
     }
 
-    // MARK: - モデル経由（判定表が実際の対局結果に効いていること）
+    // MARK: - モデル経由
 
-    @Test("モデルの対局でも、ディーラーのナチュラルは3枚以上の21に勝つ")
-    @MainActor
-    func modelAppliesDealerNaturalRule() {
-        // 決定的な種を順に試し、「ディーラーがナチュラル・プレイヤーは非ナチュラルで
-        // ヒットして 3 枚以上の 21 に到達する」局面を最初に作れた種で検証する。
-        for seed in UInt64(1)...2000 {
-            let model = BlackjackModel(seed: seed)
-            model.placeBet(100)
-            guard model.phase == .playerTurn,
-                  isBlackjack(model.dealerHand) else { continue }
-
-            while model.playerValue < 21 && model.phase == .playerTurn {
-                model.hit()
-            }
-            guard model.phase == .playerTurn,
-                  model.playerValue == 21,
-                  model.playerHand.count >= 3 else { continue }
-
-            model.stand()
-            #expect(model.outcome == .lose)
-            #expect(model.chips == 900)
-            return
-        }
-        Issue.record("検証対象の局面を作れる種が 2000 件の中に無かった")
-    }
+    // 「ディーラーのナチュラル × プレイヤーの3枚以上の21」をモデル経由で確かめるテストは置かない。
+    // ディーラーがナチュラルの局は配った時点で精算されプレイヤーの手番に入らなくなった（#1377）ため、
+    // 3枚以上の21に到達する局面が作れない。判定表そのものは上の純関数のテストが担保し、
+    // 配札時に決着することは `BlackjackDealerNaturalTests` が担保する。
 }
