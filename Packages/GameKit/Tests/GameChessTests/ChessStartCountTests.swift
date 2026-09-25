@@ -35,4 +35,14 @@ struct ChessStartCountTests {
         #expect(spy.starts.count == 1)
         #expect(spy.startLevels.first.map { $0 == nil } == true)
     }
+
+    @Test("シートを閉じずに最初の 1 手を指しても、game_start は 1 回だけ")
+    func firstMoveWithoutClosingSheetCountsOnce() throws {
+        let (model, spy) = makeModel()
+        model.tapSquare(try #require(ChessSquare.fromName("e2")))
+        model.tapSquare(try #require(ChessSquare.fromName("e4")))
+        #expect(spy.starts.count == 1)
+        model.startPlayIfPending()
+        #expect(spy.starts.count == 1)
+    }
 }
