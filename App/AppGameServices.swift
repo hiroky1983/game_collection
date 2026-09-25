@@ -193,39 +193,35 @@ enum AppEnvironment {
     }
 
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
-    /// 並び順 = 新規インストール時の既定表示順（会長判断・2026-08-24）。ゲーム数が増えて
-    /// 1画面で全ては見渡せなくなったため、五目並べ・神経衰弱を下へ、麻雀（4人打ち）を上へ寄せた。
+    /// 並び順 = 新規インストール時の既定表示順。2026-09-23〜09-25 の GA4 実績から出したスコア順
+    /// （プレイ時間 50%・プレイ回数 25%・プレイ人数 25%。各指標を収録20本の中での順位パーセンタイルに
+    /// 直して重み付け）を基本に、会長の手動配置として チャリンコおじさん を 3位、四人打ち麻雀 を 4位、
+    /// カードしりとり を 9位、15パズル を最後に置いている（#1014・会長決裁 2026-09-25）。
+    /// ナンプレを上位に置く方針（国内の検索需要が最大級・#355 会長決裁 2026-08-31）はスコア順でも満たしている。
     /// 既にアプリを使っている人の並びには影響しない（`GameSettings` はユーザーの並び替えを
     /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
-        Game2048Module(),
-        ShogiModule(),
+        PokerModule(),
+        SolitaireModule(),
+        RunnerModule(),
         MahjongModule(),
-        // ナンプレは国内の検索需要が最大級のカテゴリなので上位に置く（#355 会長決裁・2026-08-31。
-        // それまでは #262 で末尾だった）。
         SudokuModule(),
         OthelloModule(),
-        // 囲碁（#398）。定番ボードの本丸で検索需要も大きいため、同系統の将棋・オセロの近くに置く。
-        GoModule(),
-        // チェス（#462）。将棋と同じ「駒を動かして王を詰ます」型なので、盤ゲームの並びに続ける。
-        ChessModule(),
-        MahjongSolitaireModule(),
-        // ソリティア（クロンダイク・#397）。同じ「1人でトランプを片付ける」麻雀ソリティアの隣に置く。
-        SolitaireModule(),
-        // フリーセル（#492）。同じ「1人でトランプを片付ける」ソリティアの隣に置く。
-        FreeCellModule(),
-        // スパイダーソリティア（#717）。ソリティア御三家の残る 1 本なので、その隣に置く。
-        SpiderModule(),
-        DaifugoModule(),
-        PokerModule(),
-        BlackjackModule(),
-        MinesweeperModule(),
-        GomokuModule(),
-        ConcentrationModule(),
-        // カードしりとり（#1243）。同じ「絵札を取り合う」神経衰弱の隣に置く。
+        Game2048Module(),
+        ShogiModule(),
         ShiritoriModule(),
-        // 15パズル（#1314）。同じ「1人で盤面を詰める」ナンプレ・2048 系の軽量パズルで、
-        // 収録本数を偶数（22本）に保つための1本。
+        DaifugoModule(),
+        GomokuModule(),
+        MinesweeperModule(),
+        SpiderModule(),
+        BlackjackModule(),
+        MahjongSolitaireModule(),
+        HanafudaModule(),
+        GoModule(),
+        BlocksModule(),
+        ConcentrationModule(),
+        ChessModule(),
+        FreeCellModule(),
         FifteenModule(),
         // ルーレット（企画倉庫・#1318）。出荷する版が決まるまでハブには並べない
         // （`docs/ai-devops.md`「新ゲームの企画〜倉庫〜リリースの流れ」。`#if DEBUG` では分岐しない）。
@@ -246,14 +242,6 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
-        // ブロック崩し（#463）。アクション枠の1本目で、既存の盤・カード系とは手触りが違うため
-        // 並びの末尾に置く（初期表示順のみ。既にアプリを使っている人の並びには影響しない）。
-        BlocksModule(),
-        // チャリンコおじさん（#494）。アクション枠はまとめて末尾に置く。
-        RunnerModule(),
-        // 花札こいこい（#495）。和風の看板として末尾に置く（初期表示順のみ。既にアプリを
-        // 使っている人の並びには影響しない）。#642 で v1.1.4 から持ち越したぶんを #668 で戻した。
-        HanafudaModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
