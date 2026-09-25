@@ -69,13 +69,14 @@ ID の全量は `Packages/GameKit/Sources/Core/GameCenter.swift`（`release/v1.1
 ## 2. 実績（4件）
 
 App Store Connect → あそびば → 「Game Center」→ 実績 を追加。ポイントの合計は 1000 以内である必要が
-あるため、下表は合計 300 に収めてある（後から増やせる）。
+あるため、下表は合計 250 に収めてある（後から増やせる）。**1 件あたりの上限は 100 点**（ASC が 100 超を拒否する）。
+2026-09-25 に社長が 4 件を登録した際は、表示名をアプリ内「きろく」画面と同じ（はじめての勝利・通算10勝・通算50勝・全部のあそびを遊ぶ）にした。
 
 | 実績 ID | 表示名（推奨） | 説明（推奨） | ポイント | 解除条件（アプリ側の実装） |
 |---|---|---|---|---|
 | `asobiba.achievement.firstwin` | はじめての勝利 | どれか1つのゲームで初めて勝つ / クリアする | 25 | 通算勝利数 1 |
 | `asobiba.achievement.wins10` | 常連 | 通算10勝 | 75 | 通算勝利数 10 |
-| `asobiba.achievement.wins50` | あそびばの主 | 通算50勝 | 150 | 通算勝利数 50 |
+| `asobiba.achievement.wins50` | あそびばの主 | 通算50勝 | 100 | 通算勝利数 50 |
 | `asobiba.achievement.playall` | 全制覇 | すべてのゲームを1回ずつ遊ぶ | 50 | 遊んだゲーム数がハブの登録数に達する |
 
 `asobiba.achievement.playall` は進捗つき（遊んだ本数 ÷ 登録ゲーム数）で送るため、Game Center 上でも
