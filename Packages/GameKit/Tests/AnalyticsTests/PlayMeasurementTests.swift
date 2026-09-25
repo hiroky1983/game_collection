@@ -181,6 +181,38 @@ struct QuitTrackingTests {
         #expect(spy.ends.first?.durationSec == 17)
     }
 
+    @Test("前面に戻る前に決着しても、離れていた時間は入れない（#1373）")
+    func finishingWhileStillInBackgroundExcludesTheAwayTime() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(600)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 10)
+    }
+
+    @Test("バックグラウンド中に休憩が始まっても、休憩前の前面の時間は残す（#1373）")
+    func restStartingWhileInactiveKeepsTheActivePart() {
+        let clock = TestClock()
+        let (analytics, spy) = makeAnalytics(clock: clock)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(10)
+        analytics.appDidResignActive()
+        clock.advance(10)
+        analytics.leaveGame(gameID: "2048", isResumable: true)
+        clock.advance(10)
+        analytics.appDidBecomeActive()
+        clock.advance(10)
+        analytics.startPlay(gameID: "2048")
+        clock.advance(3)
+        analytics.finishPlay(gameID: "2048", outcome: .win)
+
+        #expect(spy.ends.first?.durationSec == 13)
+    }
+
     @Test("duration_sec は 2 時間で頭打ちになる（#1373）")
     func durationIsCapped() {
         let clock = TestClock()
