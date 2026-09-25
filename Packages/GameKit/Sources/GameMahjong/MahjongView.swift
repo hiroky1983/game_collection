@@ -478,20 +478,20 @@ public struct MahjongView: View {
                 runCPU()
             })
         } label: {
-            // 「1半荘に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
+            // 「1対局に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
             // 書かないと2回目を期待して押す人が出る）。
-            Label("広告を見て25,000点で復活（1半荘に1回）", systemImage: "play.rectangle.fill")
+            Label("広告を見て25,000点で復活（1対局に1回）", systemImage: "play.rectangle.fill")
                 .themeBody(16).frame(maxWidth: .infinity)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
         .disabled(reviveRescue.isWatching)
-        .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1半荘に1回だけです")
+        .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1対局に1回だけです")
     }
 
     /// 東 4 局を終えて最下位だったときだけ出る延長導線（#1201）。トビ復活と同じ形で、
-    /// 視聴完了のときだけ東 5 局を 1 局足す。得点は動かさない（1 半荘 1 回まで）。
+    /// 視聴完了のときだけ東 5 局を 1 局足す。得点は動かさない（1 対局 1 回まで）。
     var extendButton: some View {
         Button {
             extendRescue.requestHandledByModel(withOutcome: {
@@ -500,14 +500,14 @@ public struct MahjongView: View {
                 runCPU()
             })
         } label: {
-            Label("広告を見て東5局を追加（1半荘に1回）", systemImage: "play.rectangle.fill")
+            Label("広告を見て東5局を追加（1対局に1回）", systemImage: "play.rectangle.fill")
                 .themeBody(16).frame(maxWidth: .infinity)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(Theme.onAccent)
         }
         .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
         .disabled(extendRescue.isWatching)
-        .accessibilityHint("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1半荘に1回だけです")
+        .accessibilityHint("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1対局に1回だけです")
     }
 
     // MARK: - 操作

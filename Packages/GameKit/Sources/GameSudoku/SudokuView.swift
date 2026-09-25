@@ -621,7 +621,7 @@ public struct SudokuView: View {
             .accessibilityLabel("元に戻す")
             .accessibilityHint(
                 model.canUndo
-                    ? "直前の1手を取り消します。ミスもその手のぶんだけ戻ります"
+                    ? "直前の1手を取り消します。ミスの回数は戻りません"
                     : "取り消せる手がありません"
             )
 

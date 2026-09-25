@@ -299,7 +299,7 @@ extension MahjongModel {
                 isLeaderboardEligible: gameLength.isLeaderboardEligible
             )
         )
-        // 自分がトビて終わった対局は、リワード広告で 1 半荘 1 回だけ続けられる（#338）。
+        // 自分がトビて終わった対局は、リワード広告で 1 対局 1 回だけ続けられる（#338）。
         // 決着の通知（`gameDidFinish`）はここまでで従来どおり済ませ、復活したときに
         // 記録側だけを巻き戻す（2048・マインスイーパーのコンティニューと同じ扱い。`reviveAfterAd`）。
         canReviveAfterBust = didBustOut && !hasRevivedThisGame
