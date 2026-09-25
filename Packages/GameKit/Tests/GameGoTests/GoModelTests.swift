@@ -156,7 +156,7 @@ struct GoModelFlowTests {
 
     /// 計算中に「対局続行→着手→再び両者パス」と進むと、古い結果は捨てられ、新しい scoring 側の
     /// 呼び出しは計算中フラグで即戻る。捨てたあとに再計算しないと `endgame` が埋まらない（#1379）。
-    @Test("計算中に対局続行して再び両者パスしても、終局の計算は完了する（#1379）", .timeLimit(.minutes(2)))
+    @Test("計算中に対局続行して再び両者パスしても、終局の計算は完了する（#1379）")
     func scoringCompletesAfterResumeAndRepassDuringCalculation() async {
         let model = GoModel(services: makeServices())
         model.newGame(humanSide: .black, level: .easy)
@@ -164,22 +164,23 @@ struct GoModelFlowTests {
         model.forcePassForTesting()
         #expect(model.phase == .scoring)
 
-        let first = Task { await model.evaluateEndgameIfNeeded() }
-        // 最初の計算が走り出す（計算中フラグが立つ）まで MainActor を譲る。計算の完了処理は
-        // MainActor が要るので、ここから先の同期区間（続行〜再パス）が終わるまで割り込めない。
-        // 回数で打ち切ると負荷の高い CI で始まる前に尽きるため、ハングは `.timeLimit` で赤にする。
-        while !model.isScoringInProgress { await Task.yield() }
-
-        // 計算中に続行して 1 手打ち、また両者パスで scoring へ戻す。
-        model.resumePlay()
-        model.tap(row: 4, col: 4)
-        model.forcePassForTesting()
-        model.pass()
-        #expect(model.phase == .scoring)
-        // 新しい scoring 側の呼び出しは、計算中フラグで即戻る。
+        // 最初の計算が終わった直後（= まだ計算中フラグが立っている間）に盤を動かす。
+        var interrupted = false
+        model.afterEndgameComputeForTesting = { [unowned model] in
+            guard !interrupted else { return }
+            interrupted = true
+            model.resumePlay()
+            model.tap(row: 4, col: 4)
+            model.forcePassForTesting()
+            model.pass()
+            #expect(model.phase == .scoring)
+            // 新しい scoring 側の呼び出しは、計算中フラグで即戻る。
+            await model.evaluateEndgameIfNeeded()
+            #expect(model.endgame == nil)
+        }
         await model.evaluateEndgameIfNeeded()
 
-        await first.value
+        #expect(interrupted)
         #expect(model.endgame != nil, "古い結果を捨てたあと再計算されず、終局が確定できない")
         #expect(!model.isScoringInProgress)
     }

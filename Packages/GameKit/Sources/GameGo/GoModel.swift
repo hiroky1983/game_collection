@@ -65,6 +65,9 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
     public private(set) var endgame: GoEndgame?
     /// 終局の計算中。
     public private(set) var isScoringInProgress: Bool = false
+    /// テスト用: 終局の計算が終わってから結果を採用するまでの間に差し込む処理（#1379）。
+    /// 「計算中に盤が動く」状況を、実時間の待ち合わせなしで再現するために使う。
+    var afterEndgameComputeForTesting: (@MainActor () async -> Void)?
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
@@ -288,6 +291,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
                 return GoEndgame(score: score, dead: analysis.dead, isUncertain: !analysis.isConfident)
             }.value
 
+            await afterEndgameComputeForTesting?()
             adoptEndgame(result, serial: serial, moveCount: moveCount)
         }
     }
