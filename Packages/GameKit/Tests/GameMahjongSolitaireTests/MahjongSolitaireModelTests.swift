@@ -515,6 +515,42 @@ struct MahjongSnapshotTests {
         )
     }
 
+    @Test("画面を離れたら計時が止まり、経過秒を保存して、戻れば再開する（#1369）")
+    func pauseTimerStopsTheClockAndSavesElapsedSeconds() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 60)
+        model.tap(model.solution[0][0])
+        model.tap(model.solution[0][1])
+        model.resumeTimerIfNeeded()
+        model.tick()
+        model.tick()
+        #expect(model.isCounting)
+
+        model.pauseTimer()
+
+        #expect(!model.isCounting, "離れたら計時の Task は止まる")
+        #expect(store.load(MahjongSolitaireSnapshot.self, for: "mahjong")?.elapsedSeconds == 2)
+
+        model.resumeTimerIfNeeded()
+        #expect(model.isCounting, "戻れば再開する")
+        model.pauseTimer()
+    }
+
+    @Test("クリア後の pauseTimer は中断データを書き戻さない（#1369）")
+    func pauseTimerAfterClearDoesNotResurrectSnapshot() {
+        let store = MemorySnapshotStore()
+        let (services, _) = makeServices(store: store)
+        let model = MahjongSolitaireModel(services: services, seed: 61)
+        model.resumeTimerIfNeeded()
+        clearBoard(model)
+        #expect(model.phase == .won)
+
+        model.pauseTimer()
+
+        #expect(store.load(MahjongSolitaireSnapshot.self, for: "mahjong") == nil)
+    }
+
     @Test("保存された経過秒から再開するので、自己ベストが不当に短くならない（#240）")
     func resumeKeepsTheElapsedSecondsSavedByTheTimer() {
         let store = MemorySnapshotStore()

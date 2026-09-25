@@ -155,6 +155,8 @@ public struct MahjongSolitaireView: View {
         .overlay {
             if model.isDeadlocked { deadlockOverlay }
         }
+        // 画面を離れたら計時を止める（#1369）。戻れば .task が再開する。
+        .onDisappear { model.pauseTimer() }
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
