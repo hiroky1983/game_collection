@@ -396,11 +396,24 @@ public extension HowToPlayGuide {
         hintIcon: "hare.fill"
     )
 
+    static let homerun = HowToPlayGuide(
+        gameID: "homerun",
+        title: "柵越えおじさんの遊び方",
+        lines: [
+            "1回の挑戦は10球。画面の下のほうを押したままずらすと、水色のミートカーソルが指の動きだけ動きます。",
+            "縮む輪が白い的に重なった瞬間に指を離すとスイング。カーソルをボールの少し下に置くと打球が上がり、左右と離す早さで方向が決まります。",
+            "合計飛距離を伸ばそう。挑戦は1日3回で、打席に立った時点で1回減ります（0:00 に戻ります）。",
+        ],
+        hint: "押したままずらし、輪が的に重なった瞬間に離す",
+        hintIcon: "figure.baseball"
+    )
+
     static let all: [HowToPlayGuide] = [
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .blockPuzzle, .runner,
         .hanafuda, .spider, .shiritori, .fifteen, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
+        .homerun,
     ]
 }
 
