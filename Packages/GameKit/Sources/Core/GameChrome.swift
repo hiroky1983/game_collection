@@ -103,11 +103,14 @@ private struct GameChromeToolbarOnly: ViewModifier {
 
 #if os(iOS)
 /// ナビバーの背景をコンテンツの背景色に揃える。
+///
+/// 可視性（`.visible`）は指定しない。常時不透明にすると、結果表示などの「画面全体を暗くする覆い」が
+/// バーの手前まで届かず、バーだけ明るく残る（#1444 の CodeRabbit 指摘）。自動のままなら、
+/// 先頭にいるあいだはバーが透けて背景と覆いがそのまま見え、スクロールしたときだけこの色で塗られる。
 private struct NavigationBarBackgroundMatch: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbarBackground(Theme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
     }
 }
 #endif
