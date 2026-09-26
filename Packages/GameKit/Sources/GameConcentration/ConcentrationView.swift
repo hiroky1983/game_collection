@@ -157,19 +157,14 @@ public struct ConcentrationView: View {
     // MARK: - Matta Controls
 
     private var mattaControls: some View {
-        HStack {
+        GameControlBar {
             // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
-            Button {
+            GameControlButton("待った", systemImage: "arrow.uturn.backward", tint: Theme.Fill.teal) {
                 model.pauseAutoTurn()
                 showMattaConfirm = true
-            } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-                    .themeBody(14)
             }
             .disabled(!model.canMatta)
-
-            Spacer()
-
+        } center: {
             // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。
             // 待っている間だけ「待った」が押せることをここで知らせる。
             if model.canMatta {
@@ -178,8 +173,6 @@ public struct ConcentrationView: View {
                     .foregroundStyle(Theme.coral)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Card Grid

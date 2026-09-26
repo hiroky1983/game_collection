@@ -584,7 +584,20 @@ public struct SudokuView: View {
     // MARK: - 操作ボタン
 
     private var gameControls: some View {
-        HStack(spacing: 6) {
+        // 左 = 戻す、中央 = メモ、右端 = 「⋯」（ヒント・諦める）。#1422。
+        GameControlBar(menuItems: controlMenuItems, verticalPadding: 4) {
+            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
+            GameControlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.teal) {
+                model.undo()
+            }
+            .disabled(!model.canUndo)
+            .accessibilityLabel("元に戻す")
+            .accessibilityHint(
+                model.canUndo
+                    ? "直前の1手を取り消します。ミスの回数は戻りません"
+                    : "取り消せる手がありません"
+            )
+        } center: {
             Button { model.toggleNoteMode() } label: {
                 Label("メモ", systemImage: "pencil.tip")
                     .foregroundStyle(model.noteMode ? Theme.onAccent : Theme.inkSub)
@@ -595,60 +608,23 @@ public struct SudokuView: View {
             }
             .buttonStyle(.pop)
             .accessibilityLabel(model.noteMode ? "メモモード、オン" : "メモモード、オフ")
-
-            // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
-            Button { model.undo() } label: {
-                Label("戻す", systemImage: "arrow.uturn.backward")
-                    // 有効時は差し色の面、無効時は濃いグレーの面。面ごとに読める文字色が違う（#220）。
-                    .foregroundStyle(model.canUndo ? Theme.onAccent : .white)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.canUndo ? Theme.Fill.teal : Theme.fillMuted))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
-            .disabled(!model.canUndo)
-            .accessibilityLabel("元に戻す")
-            .accessibilityHint(
-                model.canUndo
-                    ? "直前の1手を取り消します。ミスの回数は戻りません"
-                    : "取り消せる手がありません"
-            )
-
-            Button {
-                requestHint()
-            } label: {
-                Label("ヒント\(model.remainingHints)", systemImage: "lightbulb.fill")
-                    .foregroundStyle(model.canHint ? Theme.onAccent : .white)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(model.canHint ? Theme.Fill.yellow : Theme.fillMuted))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
-            .disabled(!model.canHint || hintRescue.isWatching)
-            .accessibilityLabel(SudokuAccessibility.hintLabel(remaining: model.remainingHints))
-            .accessibilityHint(model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください")
-
-            Spacer(minLength: 0)
-
-            Button { showGiveUpConfirm = true } label: {
-                Label("諦める", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: SudokuMetrics.padButtonMinSide)
-                    .background(Capsule().fill(Theme.Fill.coral))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
         }
-        .themeBody(14)
-        // 4ボタン+残数表示で幅が詰まり「ヒント」が改行していた（会長指摘 2026-09-02）。
-        // 1行固定+縮小許容で確実に収める。
         .lineLimit(1)
-        .minimumScaleFactor(0.8)
-        .padding(.horizontal, 10).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 「⋯」に入れる操作。ヒントは広告を見て答えが入る（残り回数付き）。
+    private var controlMenuItems: [GameControlMenuItem] {
+        [
+            GameControlMenuItem(
+                id: "hint", title: "ヒント\(model.remainingHints)", systemImage: "lightbulb.fill",
+                isEnabled: model.canHint && !hintRescue.isWatching,
+                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
+                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
+            ) { requestHint() },
+            GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
+                showGiveUpConfirm = true
+            },
+        ]
     }
 
     /// リワード広告を最後まで見たときだけヒントを与える（既存のコンティニューと同じ形・#262）。

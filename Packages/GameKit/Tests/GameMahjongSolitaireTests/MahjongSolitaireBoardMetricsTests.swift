@@ -204,27 +204,17 @@ struct MahjongSolitaireBoardMetricsTests {
         #expect(Metrics.controlButtonMinHeight >= Metrics.minimumTapTarget)
 
         // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する
-        // （#197 の `displayToggleMeetsTapTarget` と同じやり方）。3 つのボタンは共通の
-        // `controlButton(_:systemImage:tint:showsTitle:action:)` を通るので、結線の点は 1 つ。
+        // （#197 の `displayToggleMeetsTapTarget` と同じやり方）。#1422 で操作行は共通の
+        // `GameControlBar` / `GameControlButton` に移ったので、44pt の担保は Core 側
+        // （`BoardGameChromeTests` の `GameControlBarTests`）が持ち、ここでは共通部品を通っていることを見る。
         let source = try Self.viewSource()
         #expect(
-            source.range(
-                of: #"minHeight:\s*Metrics\.controlButtonMinHeight"#,
-                options: .regularExpression
-            ) != nil,
-            "共通の controlButton が Metrics.controlButtonMinHeight を使っていない"
+            SourceScan.matchCount(of: #"controlButton\("#, in: source) == 0,
+            "画面ごとの手描きボタン（controlButton）に戻っている。共通の GameControlButton を使う（#1422）"
         )
-        // 段を切り替える三項演算子（`showsTitle ? nil : …`）が高さ側に戻ると、
-        // 文字付きの段だけ 29pt に逆戻りする。そこも塞ぐ。
-        #expect(
-            source.range(
-                of: #"minHeight:\s*showsTitle\s*\?"#,
-                options: .regularExpression
-            ) == nil,
-            "文字付きの段だけ高さの下限が外れている（#199 の逆戻り）"
-        )
-        // ヒント・並べ替え・戻すの 3 つが同じヘルパーを通っていること。
-        #expect(SourceScan.matchCount(of: #"controlButton\("#, in: source) >= 3)
+        // 並べ替え・戻すの 2 つ（ヒントは「⋯」メニューへ移した）が同じ部品を通っていること。
+        #expect(SourceScan.matchCount(of: #"GameControlButton\("#, in: source) >= 2)
+        #expect(SourceScan.matchCount(of: #"GameControlBar\("#, in: source) == 1)
     }
 
     @Test("牌の消失・枠色の演出は Reduce Motion 追従のヘルパー経由で盤面に掛かっている")

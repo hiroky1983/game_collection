@@ -176,13 +176,14 @@ struct MahjongSolitaireHintAdContractTests {
     @Test("ヒントボタンは確認ダイアログを開くだけで、押した直後に広告を出さない")
     func hintButtonOpensConfirmationFirst() throws {
         let source = try Self.viewSource()
+        // ヒントは #1422 で盤下の「⋯」メニューに移った。押すと確認ダイアログを開くだけ。
         #expect(
-            source.contains(#"controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.Fill.teal, showsTitle: showsTitle) {"#),
-            "ヒントボタンの定義が見つからない（テストの走査が空振りしている）"
+            source.contains(#"id: "hint", title: "ヒント", systemImage: "lightbulb.fill","#),
+            "ヒントのメニュー項目の定義が見つからない（テストの走査が空振りしている）"
         )
         #expect(source.contains("showHintConfirm = true"), "確認ダイアログを開いていない")
         #expect(source.contains("Button(\"広告を見てヒントを見る\") { onWatchAd() }"), "確認ダイアログの視聴ボタンが無い")
-        #expect(source.contains(".disabled(!model.canHint || isWatchingRewardAd)"), "取れる組が無いときにボタンを塞いでいない")
+        #expect(source.contains("isEnabled: model.canHint && !isWatchingRewardAd"), "取れる組が無いときに項目を塞いでいない")
     }
 
     @Test("ヒントと並べ替えは同時に広告を要求しない（PR #577 の指摘）")
@@ -202,7 +203,7 @@ struct MahjongSolitaireHintAdContractTests {
         }
         // 見た目側は2つのボタンの両方を塞ぐ（ヒントは取れる組の有無と併せて塞ぐ）。
         // 出現数で数えると解説コメントに書いただけで通ってしまうので、書き方そのものを見る。
-        #expect(source.contains(".disabled(!model.canHint || isWatchingRewardAd)"), "ヒントボタンを塞いでいない")
+        #expect(source.contains("isEnabled: model.canHint && !isWatchingRewardAd"), "ヒント項目を塞いでいない")
         #expect(source.contains("\n            .disabled(isWatchingRewardAd)"), "並べ替えボタンを塞いでいない")
     }
 

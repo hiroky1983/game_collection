@@ -114,18 +114,16 @@ public struct MinesweeperView: View {
     // MARK: - Game Controls
 
     private var gameControls: some View {
-        HStack {
-            Button { showGiveUpConfirm = true } label: {
-                Label("諦める", systemImage: "flag.fill")
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.Fill.coral))
-            }
-            Spacer()
+        // 取り消しもメモも無いので、右端の「⋯」だけを置く（#1422）。
+        GameControlBar(menuItems: [
+            GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
+                showGiveUpConfirm = true
+            },
+        ]) {
+            EmptyView()
+        } center: {
+            EmptyView()
         }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Continue Overlay
