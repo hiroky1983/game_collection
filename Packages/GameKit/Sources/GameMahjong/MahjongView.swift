@@ -535,28 +535,33 @@ public struct MahjongView: View {
                 .frame(minHeight: Self.actionAreaMinHeight)
             }
         case .playing:
-            HStack(spacing: 12) {
-                if model.isDeclaringRiichi {
-                    actionButton("やめる", role: .skip) { model.cancelRiichiDeclaration() }
-                } else {
-                    actionButton("立直", role: .declaration, disabled: !model.canDeclareRiichi) {
-                        model.declareRiichi()
+            // 立直・カン・ツモは出来るときだけ出す（会長指摘: 押せないボタンが常に並んでいた）。
+            // 何も出せない間も同じ高さの空きを残し、ボタンの出入りで卓や広告が上下に動かないようにする。
+            let actions = MahjongTurnActions(model: model)
+            if actions.isEmpty {
+                Color.clear.frame(height: Self.actionAreaMinHeight)
+            } else {
+                HStack(spacing: 12) {
+                    if actions.showsCancelRiichi {
+                        actionButton("やめる", role: .skip) { model.cancelRiichiDeclaration() }
+                    }
+                    if actions.showsRiichi {
+                        actionButton("立直", role: .declaration) { model.declareRiichi() }
+                    }
+                    if actions.showsKan {
+                        MahjongKanButton(options: model.availableSelfKans) { call in
+                            model.declareKan(call)
+                            runCPU()
+                        }
+                    }
+                    if actions.showsTsumo {
+                        actionButton("ツモ", role: .primary) { model.declareTsumo() }
                     }
                 }
-                // カンは出来るときだけ出す（常設すると押せないボタンが 3 つ並ぶ）。
-                if model.canDeclareKan {
-                    MahjongKanButton(options: model.availableSelfKans) { call in
-                        model.declareKan(call)
-                        runCPU()
-                    }
-                }
-                actionButton("ツモ", role: .primary, disabled: !model.canDeclareTsumo) {
-                    model.declareTsumo()
-                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .popCard(corner: Theme.cornerSmall)
+                .frame(minHeight: Self.actionAreaMinHeight)
             }
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .popCard(corner: Theme.cornerSmall)
-            .frame(minHeight: Self.actionAreaMinHeight)
         case .handResult:
             // 一局戦（#639）はこの先に局が無いので「次の局へ」は嘘になる。東風戦の最終局・
             // アガリやめ・トビでも同じ状況なので、押した先に合わせて文言を差し替える。
@@ -597,4 +602,23 @@ public struct MahjongView: View {
 
     static let windNames = ["東", "南", "西", "北"]
 
+}
+
+/// 対局中（`.playing`）の操作行に出すボタン。判定はモデルの `canDeclare…` をそのまま使い、ここではルールを持たない。
+struct MahjongTurnActions: Equatable {
+    /// 立直の宣言牌を選んでいる途中の取り消し。
+    var showsCancelRiichi: Bool
+    var showsRiichi: Bool
+    var showsKan: Bool
+    var showsTsumo: Bool
+
+    var isEmpty: Bool { !(showsCancelRiichi || showsRiichi || showsKan || showsTsumo) }
+
+    @MainActor
+    init(model: MahjongModel) {
+        showsCancelRiichi = model.isDeclaringRiichi
+        showsRiichi = !model.isDeclaringRiichi && model.canDeclareRiichi
+        showsKan = model.canDeclareKan
+        showsTsumo = model.canDeclareTsumo
+    }
 }
