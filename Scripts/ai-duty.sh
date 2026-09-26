@@ -113,13 +113,47 @@ claim_issue() {
 
 # 着手候補（1行1件「番号 fable真偽」、選定順に並んだもの）を先頭から確保し、最初に取れた1件を
 # DUTY_ISSUE / DUTY_ISSUE_FABLE に入れる。他の当番が確保中のものは飛ばす（= スロット2は2番目の候補を取る）
+#
+# 重い Issue（`duty:heavy`。CPU 同士の対局計測などでメモリ・CPU を大量に使う）は同時に1本まで
+# （会長指示 2026-09-26「難易度調整を2つ取られるとメモリが死ぬ。UI と分けて担当できるように」）。
+# 候補の3列目が true の Issue は、他の生きた当番が重い Issue を確保中なら飛ばす。確保した直後にも
+# もう一度確かめ、同時に確保して重なったら自分が降りる（双方が降りても3分後に取り直せば足りる）。
+# 重いかどうかは確保ディレクトリではなくラベル（DUTY_HEAVY_ISSUES）で見る。着手済みの Issue は
+# 候補から外れるため、他の当番が抱えている Issue の重さは別に集めた一覧で判定する
 DUTY_ISSUE=""
 DUTY_ISSUE_FABLE=false
+DUTY_HEAVY_ISSUES="${DUTY_HEAVY_ISSUES:-}"
+# 重い Issue の一覧を取れなかった回は、他の当番が何かを作業中なら重いものとみなす（安全側に倒す。
+# 一覧が空のまま進むと重い Issue が2本同時に走りうる）
+DUTY_HEAVY_UNKNOWN="${DUTY_HEAVY_UNKNOWN:-}"
+heavy_claimed_by_other() {
+  local n others
+  others=$(other_claimed_issues)
+  if [ -n "$DUTY_HEAVY_UNKNOWN" ] && [ -n "$others" ]; then return 0; fi
+  for n in $others; do
+    # 確保に残した印を優先して見る（作業中に Issue がクローズされて一覧から消えても判定から落とさない。
+    # 一覧は印の無い旧版の当番が抱えている Issue のためにも見る）
+    [ -f "$CLAIMS_DIR/$n/heavy" ] && return 0
+    case " $DUTY_HEAVY_ISSUES " in *" $n "*) return 0 ;; esac
+  done
+  return 1
+}
 claim_next_issue() {
-  local n f
-  while read -r n f; do
+  local n f h
+  while read -r n f h; do
     case "$n" in ''|*[!0-9]*) continue ;; esac
+    if [ "$h" = true ] && heavy_claimed_by_other; then
+      log "Issue #$n は重い Issue（duty:heavy）で、他の当番が重い Issue を作業中のため飛ばす"
+      continue
+    fi
     if claim_issue "$n"; then
+      if [ "$h" = true ] && heavy_claimed_by_other; then
+        rm -f "$CLAIMS_DIR/$n/pid" "$CLAIMS_DIR/$n/slot" 2>/dev/null
+        rmdir "$CLAIMS_DIR/$n" 2>/dev/null
+        log "Issue #$n: 重い Issue の確保が他の当番と重なったため降りる"
+        continue
+      fi
+      [ "$h" = true ] && { : >"$CLAIMS_DIR/$n/heavy"; } 2>/dev/null
       DUTY_ISSUE="$n"
       DUTY_ISSUE_FABLE="${f:-false}"
       return 0
@@ -717,6 +751,17 @@ def linked_to_busy($busy):
 # （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
 if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
 
+# launchd からの起動は、本体を別セッションへ切り離してすぐ終わる（会長指示 2026-09-25 の2並列化の不具合修正）。
+# launchd は同じジョブの前回の起動が終わるまで次を起動しないため、当番が1本走っている間は3分ごとの発火が
+# 止まり、2つ目のスロットが一度も使われていなかった（2026-09-26: #1399 の2時間超の作業中に起動記録ゼロ）。
+# 切り離した本体は setsid で別のプロセスグループになるので、launchd が起動元の終了時に行う
+# プロセスグループの後始末でも殺されない。launchd 以外（手動実行・Scripts/tests）からの起動は従来どおり同期で走る
+if [ "${XPC_SERVICE_NAME:-}" = "com.asobiba.ai-duty" ] && [ -z "${DUTY_DETACHED:-}" ]; then
+  export DUTY_DETACHED=1
+  /usr/bin/perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV or exit 127' /bin/bash "$0" "$@" </dev/null &
+  exit 0
+fi
+
 self_update "$@"
 
 # 多重起動防止（前回の当番がまだ働いていたらスキップ。死んだプロセスのロックは回収）
@@ -878,8 +923,16 @@ CANDIDATES=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" -
                  and ($l | index("blocked")) == null)
         | {number: .number,
            fable: (($l | index("model:fable")) != null),
+           heavy: (($l | index("duty:heavy")) != null),
            ver: ((.milestone.title // "v999.999.999") | ltrimstr("v") | split(".") | map(tonumber? // 999))}]
-        | sort_by(.ver, .number) | .[] | "\(.number) \(.fable)"' 2>/dev/null || true)
+        | sort_by(.ver, .number) | .[] | "\(.number) \(.fable) \(.heavy)"' 2>/dev/null || true)
+# 重い Issue の一覧（着手済みも含む。claim_next_issue が他の当番の抱える Issue の重さを見るのに使う）
+if ! DUTY_HEAVY_ISSUES=$(gh issue list -R hiroky1983/game_collection --label "duty:heavy" --state open --limit 200 \
+  --json number --jq '[.[].number | tostring] | join(" ")' 2>/dev/null); then
+  DUTY_HEAVY_ISSUES=""
+  DUTY_HEAVY_UNKNOWN=1
+  log "重い Issue（duty:heavy）の一覧を取れなかったため、他の当番の作業中は重い候補を取らない"
+fi
 if [ -n "$CANDIDATES" ] && claim_next_issue "$CANDIDATES"; then
   log "Issue #$DUTY_ISSUE を確保"
 else

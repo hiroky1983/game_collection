@@ -94,6 +94,23 @@ check "終了コード 0" "0" "$?"
 check "終了時にロックが解放される" "no" "$(lock_exists)"
 check "スキップのログは出ない" "0" "$(logged 'のためスキップ')"
 
+echo "== 1-a. launchd からの起動は本体を切り離してすぐ終わる（2並列化の不具合修正 2026-09-26）=="
+# launchd は前回の起動が終わるまで次を起動しない。起動元がすぐ終わり、切り離した本体がロックを取ることを見る
+reset
+START=$(date +%s)
+run "$E2E_HOLD" XPC_SERVICE_NAME=com.asobiba.ai-duty DUTY_DETACHED= DUTY_TEST_HOLD=3
+check "起動元は終了コード 0" "0" "$?"
+check "起動元は本体の終了を待たない（2秒未満で戻る）" "yes" "$([ $(( $(date +%s) - START )) -lt 2 ] && echo yes || echo no)"
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ "$(logged 'スロット1/1 を取得')" = 1 ] && break; sleep 1; done
+check "切り離した本体がロックを取る" "1" "$(logged 'スロット1/1 を取得')"
+check "本体は別のプロセスグループで動く" "yes" \
+  "$(p=$(cat "$LOCK/pid" 2>/dev/null); [ -n "$p" ] && [ "$(ps -o pgid= -p "$p" | tr -d ' ')" = "$p" ] && echo yes || echo no)"
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -d "$LOCK" ] || break; sleep 1; done
+check "本体の終了後にロックが解放される" "no" "$(lock_exists)"
+reset
+run "$E2E" XPC_SERVICE_NAME=com.asobiba.ai-duty DUTY_DETACHED=1
+check "切り離し済み（DUTY_DETACHED=1）なら同期で走る" "1" "$(logged 'スロット1/1 を取得')"
+
 echo "== 1-b. 呼び出し元の DUTY_SCRATCH_DIR を後片付けで消さない（#762）=="
 # 当番セッションの中でこのテストを回すと、環境変数が引き継がれ、実行中の当番の scratch が消えていた
 reset
@@ -334,6 +351,54 @@ check "release_claim は自分の確保だけを放す" "no" \
 mkdir -p "$CLAIMS/41"; echo "$LIVE_PID" >"$CLAIMS/41/pid"
 check "release_claim は奪われた確保（他の当番の PID）を消さない" "yes" \
   "$(lib 'DUTY_ISSUE=41; release_claim; [ -d "$CLAIMS_DIR/41" ] && echo yes || echo no')"
+
+# 重い Issue（duty:heavy）は同時に1本まで（会長指示 2026-09-26）
+reset
+mkdir -p "$CLAIMS/60"; echo "$LIVE_PID" >"$CLAIMS/60/pid"
+check "他の当番が重い Issue を作業中なら、重い候補を飛ばして軽い候補を取る" "62" \
+  "$(lib 'DUTY_HEAVY_ISSUES="60 61"; claim_next_issue "61 false true
+62 false false" && echo "$DUTY_ISSUE"')"
+check "飛ばした重い候補は確保されずに残らない" "no" "$([ -d "$CLAIMS/61" ] && echo yes || echo no)"
+reset
+mkdir -p "$CLAIMS/60"; echo "$LIVE_PID" >"$CLAIMS/60/pid"
+check "他の当番が軽い Issue なら重い候補も取れる" "61" \
+  "$(lib 'DUTY_HEAVY_ISSUES="61"; claim_next_issue "61 false true
+62 false false" && echo "$DUTY_ISSUE"')"
+reset
+mkdir -p "$CLAIMS/60"; echo "$DEAD_PID" >"$CLAIMS/60/pid"
+check "重い Issue を抱えた当番が死んでいれば重い候補を取れる" "61" \
+  "$(lib 'DUTY_HEAVY_ISSUES="60 61"; claim_next_issue "61 false true" && echo "$DUTY_ISSUE"')"
+reset
+mkdir -p "$CLAIMS/60"; echo "$LIVE_PID" >"$CLAIMS/60/pid"
+check "重い候補しか無く他の当番が重い Issue を作業中なら何も取らない" "1 []" \
+  "$(lib 'DUTY_HEAVY_ISSUES="60 61"; claim_next_issue "61 false true"; echo "$? [$DUTY_ISSUE]"')"
+check "3列目の無い旧形式の候補は軽い Issue として扱う" "63 false" \
+  "$(lib 'DUTY_HEAVY_ISSUES="60"; claim_next_issue "63 false" && echo "$DUTY_ISSUE $DUTY_ISSUE_FABLE"')"
+reset
+mkdir -p "$CLAIMS/60"; echo "$LIVE_PID" >"$CLAIMS/60/pid"
+check "重い一覧を取れなかった回は、他の当番の作業中なら重い候補を取らない（安全側）" "62" \
+  "$(lib 'DUTY_HEAVY_UNKNOWN=1; claim_next_issue "61 false true
+62 false false" && echo "$DUTY_ISSUE"')"
+reset
+check "重い一覧を取れなくても、他の当番がいなければ重い候補を取る" "61" \
+  "$(lib 'DUTY_HEAVY_UNKNOWN=1; claim_next_issue "61 false true" && echo "$DUTY_ISSUE"')"
+reset
+mkdir -p "$CLAIMS/60"; echo "$LIVE_PID" >"$CLAIMS/60/pid"; : >"$CLAIMS/60/heavy"
+check "一覧から消えた（クローズ済み）Issue でも、確保に重い印があれば重い候補を取らない" "62" \
+  "$(lib 'DUTY_HEAVY_ISSUES="61"; claim_next_issue "61 false true
+62 false false" && echo "$DUTY_ISSUE"')"
+reset
+check "重い Issue を確保したら確保に印を残す" "yes" \
+  "$(lib 'claim_next_issue "61 false true" >/dev/null; [ -f "$CLAIMS_DIR/61/heavy" ] && echo yes || echo no')"
+reset
+check "軽い Issue の確保には印を残さない" "no" \
+  "$(lib 'claim_next_issue "62 false false" >/dev/null; [ -f "$CLAIMS_DIR/62/heavy" ] && echo yes || echo no')"
+# 確保の直後に他の当番の重い確保が現れた（同時確保の）場合は降りて確保を消す
+reset
+check "重い確保が同時に重なったら降りて確保を消す" "1 [] no" \
+  "$(lib 'DUTY_HEAVY_ISSUES="60 61"
+claim_issue() { mkdir -p "$CLAIMS_DIR/$1" "$CLAIMS_DIR/60"; echo $$ >"$CLAIMS_DIR/$1/pid"; echo "$LIVE_PID" >"$CLAIMS_DIR/60/pid"; return 0; }
+claim_next_issue "61 false true"; echo "$? [$DUTY_ISSUE] $([ -d "$CLAIMS_DIR/61" ] && echo yes || echo no)"')"
 
 reset
 mkdir "$LOCK" "$LOCK2" "$LOCK.3"
