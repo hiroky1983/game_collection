@@ -74,17 +74,11 @@ public struct PokerView: View {
         .padding(Theme.pad)
         .rewardOffer(reviveRescue, for: .revival, isPresented: model.canReviveAfterBust,
                      services: services, gameID: model.gameID)
-        .gameChrome(title: "ポーカー", review: services.review) {
-            // 配当表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
-            if model.rules == .bonus {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showBonusTable = true } label: {
-                        Image(systemName: "list.number")
-                    }
-                    .accessibilityLabel("役ボーナス配当表")
-                }
-            }
-        }
+        // 配当表は「役を覚える教材」を兼ねるので、対局中に1タップで開ける場所に置く（#496）。
+        .gameChrome(title: "ポーカー", review: services.review,
+                    reference: model.rules == .bonus
+                        ? GameChromeReference("役ボーナス配当表") { showBonusTable = true }
+                        : nil)
         // 役一覧は3行に収まらないので、遊び方シートの「くわしいルール」へ送る（#118）。
         .howToPlay(.poker) { HandGuideSheet() }
         .sheet(isPresented: $showStartSheet) {

@@ -32,19 +32,14 @@ public struct MinesweeperView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "マインスイーパー", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.gameState == .playing {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "マインスイーパー", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        if model.gameState == .playing {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.minesweeper)
         .sheet(isPresented: $showNewGame) {
             MinesweeperNewGameSheet { rows, cols, mines in

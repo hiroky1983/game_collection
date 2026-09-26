@@ -59,14 +59,10 @@ public struct FreeCellView: View {
                 .padding(.horizontal, Theme.pad)
         }
         .padding(.vertical, Theme.pad)
-        .gameChrome(title: "フリーセル", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { startNewGame() } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-                .accessibilityLabel("新しい配札にする")
-            }
-        }
+        .gameChrome(title: "フリーセル", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        startNewGame()
+                    })
         .howToPlay(.freecell) { FreeCellRuleSheet() }
         .confirmationDialog("新しい配札にしますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
             Button("終了して新規ゲーム", role: .destructive) { model.newGame() }

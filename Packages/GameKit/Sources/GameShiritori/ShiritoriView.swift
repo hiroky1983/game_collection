@@ -35,20 +35,15 @@ public struct ShiritoriView: View {
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "カードしりとり", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    model.pause()
-                    if model.hasProgressToLose {
-                        showConfirmNewGame = true
-                    } else {
-                        showSetup = true
-                    }
-                } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "カードしりとり", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        model.pause()
+                        if model.hasProgressToLose {
+                            showConfirmNewGame = true
+                        } else {
+                            showSetup = true
+                        }
+                    })
         .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
             Button("終了して新規ゲーム", role: .destructive) { showSetup = true }
             Button("キャンセル", role: .cancel) {}

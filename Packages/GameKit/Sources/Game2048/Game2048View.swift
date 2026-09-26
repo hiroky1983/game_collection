@@ -27,19 +27,14 @@ public struct Game2048View: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "2048", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.hasProgressToLose {
-                        showConfirmReset = true
-                    } else {
-                        withGameAnimation { model.newGame() }
-                    }
-                } label: {
-                    Label("リセット", systemImage: "arrow.clockwise")
-                }
-            }
-        }
+        .gameChrome(title: "2048", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        if model.hasProgressToLose {
+                            showConfirmReset = true
+                        } else {
+                            withGameAnimation { model.newGame() }
+                        }
+                    })
         .howToPlay(.game2048)
         .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
             Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }

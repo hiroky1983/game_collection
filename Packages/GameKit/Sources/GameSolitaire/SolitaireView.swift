@@ -50,14 +50,10 @@ public struct SolitaireView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "ソリティア", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { openSetup() } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-                .accessibilityLabel("新しい配札にする")
-            }
-        }
+        .gameChrome(title: "ソリティア", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        openSetup()
+                    })
         .howToPlay(.solitaire) { SolitaireRuleSheet() }
         // めくり方を選んでから配る（#498）。局に焼き込むのは「配る」を押した瞬間だけ。
         .sheet(isPresented: $showSetup) {

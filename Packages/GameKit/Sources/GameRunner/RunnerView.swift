@@ -116,25 +116,16 @@ public struct RunnerView: View {
         .padding()
         .rewardOffer(resumeRescue, for: .checkpoint, isPresented: model.canResumeFromCheckpoint,
                      services: services, gameID: RunnerModel.gameID)
-        .gameChrome(title: "チャリンコおじさん", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                // モードを変える唯一の導線（#1027）。開始シートを経由する（#675。チェスの
-                // 「新規対局」と同じ作法）。走行中なら読んでいる間にミスしないよう止める。
-                // アイコンを一回り大きくして見つけやすくする（会長指摘「トグルボタンが小さい」・
-                // 2026-09-16）。
-                Button {
-                    if model.phase == .running { model.pause() }
-                    openStartSheet(mode: model.mode, stage: 1)
-                } label: {
-                    Label("はじめから", systemImage: "arrow.clockwise")
-                }
-                .imageScale(.large)
-                // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
-                // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
-                // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
-                .disabled(presentedStory != nil)
-            }
-        }
+        // モードを変える唯一の導線（#1027）。開始シートを経由する（#675。チェスの
+        // 「新規対局」と同じ作法）。走行中なら読んでいる間にミスしないよう止める。
+        // ストーリー（#1092）が画面を覆っているあいだは押せない。ナビバーはオーバーレイの
+        // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
+        // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
+        .gameChrome(title: "チャリンコおじさん", review: services.review,
+                    newGame: GameChromeNewGame(.restart, isDisabled: presentedStory != nil) {
+                        if model.phase == .running { model.pause() }
+                        openStartSheet(mode: model.mode, stage: 1)
+                    })
         .howToPlay(.runner) {
             // 読んでいる間にミスしないよう止める。走り出す前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。

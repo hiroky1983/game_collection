@@ -45,14 +45,10 @@ public struct BlocksView: View {
         .padding()
         .rewardOffer(continueRescue, for: .continue, isPresented: model.phase == .gameOver && !model.continueUsed,
                      services: services, gameID: BlocksModel.gameID)
-        .gameChrome(title: "ブロック崩し", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { startNewGame() } label: {
-                    Label("はじめから", systemImage: "arrow.clockwise")
-                }
-                .disabled(continueRescue.isWatching)
-            }
-        }
+        .gameChrome(title: "ブロック崩し", review: services.review,
+                    newGame: GameChromeNewGame(.restart, isDisabled: continueRescue.isWatching) {
+                        startNewGame()
+                    })
         .howToPlay(.blocks, onPresent: {
             // 読んでいる間に落球しないよう止める。発射前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。

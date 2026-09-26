@@ -669,6 +669,24 @@ public struct YakuTableSection<Content: View>: View {
 
 // MARK: - ツールバーの `?` ボタン
 
+/// 「遊び方」シートを開く操作。`.howToPlay` が環境へ入れ、`gameChrome` がヘッダー右の所定の位置に
+/// `?` ボタンとして置く（#1418。ボタンを各自のツールバーに足す形だと、役の早見表・新規ボタンとの
+/// 並びが宣言順しだいになる）。
+struct HowToPlayTrigger {
+    let present: () -> Void
+}
+
+private struct HowToPlayTriggerKey: EnvironmentKey {
+    nonisolated(unsafe) static var defaultValue: HowToPlayTrigger? = nil
+}
+
+extension EnvironmentValues {
+    var howToPlayTrigger: HowToPlayTrigger? {
+        get { self[HowToPlayTriggerKey.self] }
+        set { self[HowToPlayTriggerKey.self] = newValue }
+    }
+}
+
 private struct HowToPlayToolbar<Extra: View>: ViewModifier {
     let guide: HowToPlayGuide
     let extra: (() -> Extra)?
@@ -678,17 +696,10 @@ private struct HowToPlayToolbar<Extra: View>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        onPresent?()
-                        isPresented = true
-                    } label: {
-                        Image(systemName: "questionmark.circle")
-                    }
-                    .accessibilityLabel("遊び方")
-                }
-            }
+            .environment(\.howToPlayTrigger, HowToPlayTrigger {
+                onPresent?()
+                isPresented = true
+            })
             .sheet(isPresented: $isPresented, onDismiss: onDismiss) {
                 if let extra {
                     HowToPlaySheet(guide: guide, extra: extra)

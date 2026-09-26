@@ -263,7 +263,7 @@ struct MahjongYakuSheetTests {
             "早見表のシートが結線されていない"
         )
         #expect(
-            source.contains("ToolbarItem(placement: .primaryAction)"),
+            source.contains("GameChromeReference {"),
             "ツールバーに早見表のボタンが無い"
         )
         #expect(source.contains("showYakuSheet = true"), "ボタンから開く経路が無い")

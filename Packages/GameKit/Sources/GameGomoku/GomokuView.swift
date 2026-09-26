@@ -34,19 +34,14 @@ public struct GomokuView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "五目並べ", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.gameOver || model.moveCount == 0 {
-                        showNewGame = true
-                    } else {
-                        showConfirmNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "五目並べ", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.gameOver || model.moveCount == 0 {
+                            showNewGame = true
+                        } else {
+                            showConfirmNewGame = true
+                        }
+                    })
         .howToPlay(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku)
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
