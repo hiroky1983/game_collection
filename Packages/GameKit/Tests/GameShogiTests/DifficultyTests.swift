@@ -126,10 +126,19 @@ struct ShogiDifficultyConfigTests {
     func probabilitiesAreOrdered() {
         let p = CPUStrength.allCases.map { SimpleMinimaxEngine(level: $0.rawValue).policy }
         #expect(p[3].isExact && p[3].bestMoveProbability == 1)
-        #expect(p[0].bestMoveProbability > 0 && p[0].bestMoveProbability <= p[1].bestMoveProbability
+        #expect(p[0].bestMoveProbability >= 0 && p[0].bestMoveProbability <= p[1].bestMoveProbability
                 && p[1].bestMoveProbability <= p[2].bestMoveProbability && p[2].bestMoveProbability < 1)
         #expect(p[0..<3].allSatisfy { !$0.isExact && $0.slipMargin == SimpleMinimaxEngine.slipMargin })
-        #expect(SimpleMinimaxEngine.slipMargin <= PieceValue.base(.knight), "外しでも金より大きい駒は損しない")
+        #expect(SimpleMinimaxEngine.slipMargin < PieceValue.base(.gold), "外しでも金より大きい駒は損しない")
+    }
+
+    /// 確率・損の幅は PR #1461 の勝率表（200 局×先後入れ替え・上の負けが 3% 以下）で決めた値。
+    /// 変えるときは同じ計測（`Scripts/shogi-cpu-bench`）をやり直して表を更新する。
+    @Test("最善手の確率は実測で決めた 0% / 10% / 50% / 100%、損の幅は銀 1 枚ぶん")
+    func probabilitiesArePinnedToTheMeasurement() {
+        let p = CPUStrength.allCases.map { SimpleMinimaxEngine(level: $0.rawValue).policy.bestMoveProbability }
+        #expect(p == [0, 0.1, 0.5, 1])
+        #expect(SimpleMinimaxEngine.slipMargin == PieceValue.base(.silver))
     }
 }
 

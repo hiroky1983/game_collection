@@ -25,7 +25,8 @@ struct ShogiMovePolicyTests {
     @Test("最善手を外す割合が設定した確率どおりになる（0% と 100% の両端を含む）")
     func missRateFollowsTheProbability() async {
         #expect(await missRate(probability: 1, trials: 20) == 0)
-        for p in [0.3, 0.5, 0.8] {
+        #expect(await missRate(probability: 0, trials: 20) == 1, "確率 0% は最善手を一度も指さない")
+        for p in [0.1, 0.5, 0.8] {
             let rate = await missRate(probability: p, trials: 400)
             #expect(abs(rate - (1 - p)) < 0.09, "確率 \(p) の外し率が \(rate)（期待 \(1 - p)）")
         }
