@@ -24,6 +24,7 @@ struct HomerunJudgeTests {
         #expect(HomerunTiming(offsetMilliseconds: -25) == .just)
         #expect(HomerunTiming(offsetMilliseconds: 25.1) == .nice)
         #expect(HomerunTiming(offsetMilliseconds: -60) == .nice)
+        #expect(HomerunTiming(offsetMilliseconds: 60.1) == .hit)
         #expect(HomerunTiming(offsetMilliseconds: 110) == .hit)
         #expect(HomerunTiming(offsetMilliseconds: -110.1) == .miss)
     }
@@ -125,9 +126,24 @@ struct HomerunJudgeTests {
         #expect(pullFoul.distance == 0)
         let pushFoul = HomerunJudge.judge(swing(t: 110, dx: 11))
         #expect(pushFoul.kind == .foul)
+        // 45° の際（±1e-9 / ±1e-6）: 110ms（±15°）に、カーソルで残りの 30° を足す
+        func dx(forCursorDegrees d: Double) -> Double { d / 35 * 11 }
+        #expect(HomerunJudge.judge(swing(t: 110, dx: dx(forCursorDegrees: 30 - 1e-9))).kind != .foul)
+        #expect(HomerunJudge.judge(swing(t: 110, dx: dx(forCursorDegrees: 30 + 1e-6))).kind == .foul)
+        #expect(HomerunJudge.judge(swing(t: -110, dx: -dx(forCursorDegrees: 30 + 1e-6))).kind == .foul)
         // -35 + (-9.5) = -44.5° はフェア・-35 + (-10.2) = -45.2° はファウル（早さ 70ms / 75ms）
         #expect(HomerunJudge.judge(swing(t: -70, dx: -11)).kind != .foul)
         #expect(HomerunJudge.judge(swing(t: -75, dx: -11)).kind == .foul)
+    }
+
+    @Test("土台: ナイス 120m・当たり 100m（芯 1.0 の帯の中心で）")
+    func timingBaseDistances() {
+        let nice = HomerunJudge.judge(swing(t: 40))
+        #expect(nice.timing == .nice)
+        #expect(abs(nice.distance - 120) < 1e-9)
+        let hit = HomerunJudge.judge(swing(t: 100))
+        #expect(hit.timing == .hit)
+        #expect(abs(hit.distance - 100) < 1e-9)
     }
 
     @Test("ゴロは柵越えにならず、ポップフライも柵に届かない")
@@ -180,6 +196,7 @@ struct HomerunJudgeTests {
         #expect(HomerunSector(direction: -7) == .center)
         #expect(HomerunSector(direction: 7) == .center)
         #expect(HomerunSector(direction: 7.1) == .rightCenter)
+        #expect(HomerunSector(direction: 21) == .rightCenter)
         #expect(HomerunSector(direction: 21.1) == .right)
     }
 }

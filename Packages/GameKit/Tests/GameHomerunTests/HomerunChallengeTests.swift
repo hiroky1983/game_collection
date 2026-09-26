@@ -151,6 +151,24 @@ struct HomerunChallengeTests {
         #expect(HomerunRecords.distanceBand(300) == 7)
     }
 
+    @Test("蓄積: ファウルと空振りは数えるがヒートマップには入れず、フェアなゴロ・ナイスは入れる")
+    func recordsMixedKinds() {
+        var c = HomerunChallenge()
+        let fly = HomerunLaunch.fly.centerDY
+        c.swing(perfect)                                                                    // 柵越え
+        c.swing(HomerunSwing(timingOffset: 40, cursorDX: 0, cursorDY: fly))                 // ナイス（フェア）
+        c.swing(HomerunSwing(timingOffset: 0, cursorDX: 0, cursorDY: HomerunLaunch.grounder.centerDY))  // ゴロ
+        c.swing(HomerunSwing(timingOffset: -110, cursorDX: -11, cursorDY: fly))             // ファウル
+        c.swing(nil)                                                                        // 見逃し
+        while !c.isFinished { c.swing(nil) }
+        var r = HomerunRecords()
+        r.record(c)
+        #expect(r.fouls == 1)
+        #expect(r.misses == 6)
+        #expect(r.homers == 1)
+        #expect(r.heatmap.reduce(0, +) == 3)
+    }
+
     @Test("蓄積: 直近は 20 挑戦だけで、21 挑戦目で最古が消える")
     func recentRingBuffer() {
         var r = HomerunRecords()

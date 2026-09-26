@@ -54,7 +54,7 @@ public struct HomerunRecords: Codable, Equatable, Sendable {
     public var longestTenths = 0
     public var fouls = 0
     public var misses = 0
-    /// 方向 5 区分 × 距離帯 8 段 = 40 セルの本数（行 = 方向）。ゴロ・ファウル・空振りも当たった球は数える。
+    /// 方向 5 区分 × 距離帯 8 段 = 40 セルの本数（行 = 方向）。フェアに飛んだ球（ゴロ・ポップも含む）だけ数える。ファウル・空振りは数えない。
     public var heatmap = [Int](repeating: 0, count: HomerunSector.allCases.count * HomerunRecords.distanceBandCount)
     /// 新しい挑戦が末尾。
     public var recent: [[HomerunShot]] = []
