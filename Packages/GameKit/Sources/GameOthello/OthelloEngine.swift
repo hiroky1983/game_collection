@@ -226,8 +226,10 @@ public struct OthelloEngine: Sendable {
         120, -20,  20,   5,   5,  20, -20, 120,
     ]
 
-    /// 位置評価 + 着手可能数の差 + 終盤の石数差（#1401）。角のとなりの減点は**その角が空いているときだけ**
-    /// 効かせる（角が埋まったあとは危険がないので、減点し続けると自分から良い手を避けてしまう）。
+    /// 位置評価 + 着手可能数の差 + 終盤の石数差（#1401）。外周のすぐ内側の升の減点は、**その真上・真横の
+    /// 外周の升（角のとなりなら角）が空いているあいだだけ**効かせる（埋まったあとは相手に辺を渡す危険がないので、
+    /// 減点し続けると自分から良い手を避けてしまう）。-5 の升も同じ扱いにしたほうが実測で強かった
+    /// （角だけに絞ると むずかしい 対 ふつう の負けが 3% を超えた）。
     func evaluate(_ board: OthelloBoard, for stone: OthelloStone) -> Int {
         let last = othelloBoardSize - 1
         var pos = 0
@@ -237,9 +239,9 @@ public struct OthelloEngine: Sendable {
             var w = Self.weights[i]
             if w < 0 {
                 let r = i / othelloBoardSize, c = i % othelloBoardSize
-                let cornerRow = r <= 1 ? 0 : (r >= last - 1 ? last : r)
-                let cornerCol = c <= 1 ? 0 : (c >= last - 1 ? last : c)
-                if board[cornerRow, cornerCol] != nil { w = 5 }
+                let anchorRow = r <= 1 ? 0 : (r >= last - 1 ? last : r)
+                let anchorCol = c <= 1 ? 0 : (c >= last - 1 ? last : c)
+                if board[anchorRow, anchorCol] != nil { w = 5 }
             }
             if s == stone { pos += w; mine += 1 } else { pos -= w; opp += 1 }
         }
