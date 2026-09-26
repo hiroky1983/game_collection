@@ -22,95 +22,80 @@ public struct BoardControlBarHint {
     }
 }
 
-/// 盤の下の操作行（盤ゲーム 5 本・#1421）。
+/// 盤の下の「⋯」の行（盤ゲーム 5 本・#1421・#1468）。
 ///
-/// 左＝待った（ティールのカプセル）、中央＝ゲーム固有（囲碁のパス）、右端＝「⋯」メニュー。
-/// メニューには投了（押したあと確認ダイアログ）とヒント（残り回数つき）を入れる。
+/// 待った・ゲーム固有の操作（囲碁のパス）・ヒント（残り回数つき）・投了（押したあと確認ダイアログ）を
+/// **すべて右下の「⋯」メニューに入れる**（会長決裁 2026-09-26 QA）。投了は末尾・赤（`GameControlMenu.ordered`）。
 ///
-/// **高さは 44pt 固定**（`BoardGameControlMetrics.minTapTarget` + 上下の余白）。決着で中身が
-/// 検討ナビに入れ替わっても、対局中の操作行が伸び縮みして盤が縮むことがないようにする（#139・#148）。
-public struct BoardGameControlBar<Model: BoardUndoModel, Center: View>: View {
+/// **高さは従来の操作行と同じ**（`GameOverflowBar` の 44pt + 上下の余白）。決着で中身が検討ナビに
+/// 入れ替わっても、対局中の行が伸び縮みして盤が縮むことがないようにする（#139・#148）。
+public struct BoardGameControlBar<Model: BoardUndoModel>: View {
     private let model: Model
     private let services: GameServices
     private let undoRescue: RewardedRescue
     private let hint: BoardControlBarHint?
+    private let extraItems: [GameControlMenuItem]
     private let onResign: () -> Void
-    private let center: Center
     @State private var showResignConfirm = false
+    @State private var showUndoConfirm = false
 
     /// - Parameter rescue: 救済は呼び出し側の `@State` から受け取る（`BoardUndoButton` と同じ理由）。
+    /// - Parameter extraItems: ゲーム固有の項目（囲碁のパス）。待ったのあと・ヒントの前に並ぶ。
     public init(
         model: Model,
         services: GameServices,
         rescue: RewardedRescue,
         hint: BoardControlBarHint? = nil,
-        onResign: @escaping () -> Void,
-        @ViewBuilder center: () -> Center
+        extraItems: [GameControlMenuItem] = [],
+        onResign: @escaping () -> Void
     ) {
         self.model = model
         self.services = services
         self.undoRescue = rescue
         self.hint = hint
+        self.extraItems = extraItems
         self.onResign = onResign
-        self.center = center()
     }
 
     public var body: some View {
-        HStack(spacing: 12) {
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
-            Spacer(minLength: 0)
-            center
-            Spacer(minLength: 0)
-            moreMenu
-        }
-        .themeBody(14)
-        .lineLimit(1).minimumScaleFactor(0.8)
-        .frame(height: BoardGameControlMetrics.minTapTarget)
-        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+        GameOverflowBar(
+            menuItems: menuItems,
+            // 投了・待ったの確認が開いている間は促しの待ちを止める（閉じた直後に吹き出しが出るのを防ぐ）。
+            nudge: hint.map {
+                HintNudge(isEligible: $0.nudge.isEligible && !showResignConfirm && !showUndoConfirm,
+                          game: $0.nudge.game, activity: $0.nudge.activity)
+            }
+        )
+        .boardUndoFlow(model: model, services: services, rescue: undoRescue, isPresented: $showUndoConfirm)
         .boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)
-        .hintNudge(hint.map {
-            // 投了の確認ダイアログが開いている間は待たない（閉じた直後に吹き出しが出るのを防ぐ）。
-            HintNudge(isEligible: $0.nudge.isEligible && !showResignConfirm, game: $0.nudge.game, activity: $0.nudge.activity)
-        })
     }
 
-    private var moreMenu: some View {
-        Menu {
-            if let hint {
-                Button(action: hint.request) {
-                    Label(hint.isThinking ? "ヒント（読み中…）" : "ヒント（残り\(hint.remaining)回）",
-                          systemImage: "lightbulb.fill")
-                }
-                .disabled(!hint.isEnabled)
-                .accessibilityHint(hint.isEnabled ? "最善手を1手だけ盤の上に示します。使った対局は順位表に送りません"
-                                                 : "いまは使えません（あなたの手番ではないか、使い切りました）")
-            }
-            Button(role: .destructive) { showResignConfirm = true } label: {
-                Label("投了", systemImage: "flag.fill")
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .foregroundStyle(Color.white)
-                // 待ったと同じ手（`BoardGameControlCapsuleStyle`）: カプセルを描いてから 44pt の枠で受ける。
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Capsule().fill(Theme.fillMuted))
-                .frame(minWidth: BoardGameControlMetrics.minTapTarget, minHeight: BoardGameControlMetrics.minTapTarget)
-                .contentShape(Rectangle())
+    private var menuItems: [GameControlMenuItem] {
+        var items = [
+            GameControlMenuItem(
+                id: "undo",
+                title: model.undoUsed ? "待った（広告を見て）" : "待った（無料）",
+                systemImage: "arrow.uturn.backward",
+                isEnabled: model.canUndo,
+                accessibilityLabel: "待った",
+                accessibilityHint: model.canUndo ? "あなたの直前の1手を、CPU の応手ごと取り消します" : "いまは使えません"
+            ) { showUndoConfirm = true }
+        ]
+        items += extraItems
+        if let hint {
+            items.append(GameControlMenuItem(
+                id: "hint",
+                title: hint.isThinking ? "ヒント（読み中…）" : "ヒント（残り\(hint.remaining)回）",
+                systemImage: "lightbulb.fill",
+                isEnabled: hint.isEnabled,
+                accessibilityHint: hint.isEnabled ? "最善手を1手だけ盤の上に示します。使った対局は順位表に送りません"
+                                                  : "いまは使えません（あなたの手番ではないか、使い切りました）",
+                action: hint.request
+            ))
         }
-        .accessibilityLabel("その他の操作")
-        .accessibilityHint(hint == nil ? "投了できます" : "ヒントと投了を選べます")
-    }
-}
-
-public extension BoardGameControlBar where Center == EmptyView {
-    init(
-        model: Model,
-        services: GameServices,
-        rescue: RewardedRescue,
-        hint: BoardControlBarHint? = nil,
-        onResign: @escaping () -> Void
-    ) {
-        self.init(model: model, services: services, rescue: rescue, hint: hint, onResign: onResign) { EmptyView() }
+        items.append(GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true) {
+            showResignConfirm = true
+        })
+        return items
     }
 }

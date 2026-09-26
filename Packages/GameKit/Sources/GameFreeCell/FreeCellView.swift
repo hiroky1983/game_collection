@@ -123,39 +123,17 @@ public struct FreeCellView: View {
 
     // MARK: - ステータスバー
 
-    /// 数字の並び + 拡大トグル。
+    /// 数字の並び。帯には表示だけを置く。拡大の切り替えは右下の「⋯」へ（#1468）。
     private var statusBar: some View {
-        // 44pt のトグルが帯の高さを決めるので縦の余白は 4 に詰める（#197・#1420）。
-        GameStatusBar(verticalPadding: 4) {
+        GameStatusBar {
             statusReadout
         } trailing: {
-
-            // 拡大トグル（#604）。麻雀ソリティア・マインスイーパー・ナンプレと共通の `BoardToggleButton`
-            // （Core・#641）。以前は素のアイコンを手書きしていて見た目が揃っていなかった（会長 QA 2026-09-13）。
-            BoardToggleButton(
-                isOn: zoomMode,
-                systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
-                title: zoomMode ? "全体" : "拡大",
-                fill: Theme.Fill.teal,
-                accent: Theme.teal,
-                label: zoomMode ? "盤全体を表示" : "札を拡大"
-            ) {
-                zoomMode.toggle()
-            }
-            // ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
-            // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
-            .accessibilityHint(zoomMode
-                ? "等倍に戻して盤全体を画面に収めます"
-                : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
+            EmptyView()
         }
         .accessibilityElement(children: .contain)
     }
 
-    /// 読み上げの対象。**拡大トグルはこの外に置く**（#604）。
-    ///
-    /// 数字は `children: .ignore` の 1 要素にまとめてあるので、中にボタンを入れると
-    /// VoiceOver から押せなくなる。読み上げを 1 要素に保ったままボタンを押せるようにするには、
-    /// 要素の境界を帯全体ではなく「数字の並び」に引き直すしかない。
+    /// 読み上げの対象。数字は `children: .ignore` の 1 要素にまとめる。
     private var statusReadout: some View {
         HStack(spacing: 8) {
             Group {
@@ -598,45 +576,33 @@ public struct FreeCellView: View {
     }
 
     private var gameControls: some View {
-        // 左 = 戻す（ティール）、中央 = 動かせる枚数・自動で上がる（#1422）。
-        GameControlBar {
-            // 残り回数を常時見せる（#476 と同じ見せ方）。
-            // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
-            GameControlButton("戻す\(model.undosRemaining)",
-                              systemImage: "arrow.uturn.backward",
-                              tint: Theme.Fill.teal) {
-                requestUndo()
-            }
-            .disabled(!model.canUndo || undoRescue.isWatching)
-            .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
-            .accessibilityHint(FreeCellAccessibility.undoButtonHint(
-                canUndo: model.canUndo, remaining: model.undosRemaining))
-        } center: {
-            // 一度に動かせる枚数は**フリーセルで手が通らない理由の大半**なので常時出す。
-            movableBadge
-
-            // 「あとは組札へ積むだけ」になった局面でだけ出す。終盤の連打を 1 回に畳む。
-            if model.canAutoFinish {
-                GameControlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
-                    model.autoFinish()
-                }
-                .accessibilityHint("残りの札をまとめて組札へ送ります")
-            }
-        }
-    }
-
-    /// 一度に動かせる枚数の表示。**ボタンではない**ので押せる見た目にはしない。
-    private var movableBadge: some View {
-        Label("\(model.board.maxMovableCount())枚", systemImage: "square.stack.3d.up.fill")
-            .lineLimit(1)
-            .foregroundStyle(Theme.onAccent)
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(Capsule().fill(Theme.Fill.purple))
-            // 隣の `GameControlButton` と同じ高さ（カプセル + 44pt の枠）に揃える（#1422）。
-            .frame(minHeight: BoardGameControlMetrics.minTapTarget)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("一度に\(model.board.maxMovableCount())枚まで動かせます")
-            .accessibilityHint("空きのフリーセルと空いた列が増えるほど多く動かせます")
+        // 戻す・拡大・自動で上がるは右下の「⋯」にまとめる（#1422・#1468）。
+        // 「動かせる枚数」の表示は操作行と一緒になくなる（会長決裁 2026-09-26。必要なら別の場所を相談）。
+        GameOverflowBar(menuItems: [
+            // 残り回数を文言に含める（#476 と同じ見せ方）。押せない間も項目は残す（#198）。
+            GameControlMenuItem(
+                id: "undo", title: "戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                accessibilityLabel: FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining),
+                accessibilityHint: FreeCellAccessibility.undoButtonHint(
+                    canUndo: model.canUndo, remaining: model.undosRemaining)
+            ) { requestUndo() },
+            // 拡大（#604）。ヒントも状態で切り替える。ラベルだけ切り替えると、拡大中に
+            // 「盤全体を表示」と読んだ直後に「札を大きくします」と案内することになる。
+            GameControlMenuItem(
+                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                accessibilityLabel: zoomMode ? "盤全体を表示" : "札を拡大",
+                accessibilityHint: zoomMode
+                    ? "等倍に戻して盤全体を画面に収めます"
+                    : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします"
+            ) { zoomMode.toggle() },
+            // 「あとは組札へ積むだけ」になった局面でだけ押せる。終盤の連打を 1 回に畳む。
+            GameControlMenuItem(
+                id: "autoFinish", title: "自動で上がる", systemImage: "wand.and.stars",
+                isEnabled: model.canAutoFinish,
+                accessibilityHint: "残りの札をまとめて組札へ送ります"
+            ) { model.autoFinish() },
+        ])
     }
 
     // MARK: - 行き止まりの告知

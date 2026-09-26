@@ -25,9 +25,6 @@ public enum FreeCellMetrics {
 
     /// HIG の最小タップ標的。
     public static let minimumTapTarget: CGFloat = 44
-    /// 拡大トグルの一辺（#604）。実寸は共通の `BoardToggleButton`（Core・#641）が持つので、
-    /// 帯の高さの見積りがそこからずれないよう同じ値を参照する。
-    public static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
     /// 拡大モードで画面幅に収める列の数（#604）。
     ///
     /// 8 列を 6 列ぶんの幅で描くので札は約 1.36 倍になり、**はみ出す 2 列は横スクロールで見る**。

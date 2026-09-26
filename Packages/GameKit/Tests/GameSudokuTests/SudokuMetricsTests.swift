@@ -65,40 +65,12 @@ struct SudokuMetricsTests {
     // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
     // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する。
 
-    @Test("拡大トグルの文字は iPhone SE の帯では省き、iPhone 17 Pro Max 以上では出す")
-    func zoomTitleFollowsStatusBarWidth() {
-        #expect(!Metrics.showsZoomTitle(statusBarWidth: Self.contentWidth(screenWidth: Self.iPhoneSE)))
-        #expect(Metrics.showsZoomTitle(statusBarWidth: 393 - 32))
-        #expect(Metrics.showsZoomTitle(statusBarWidth: 700))
-        #expect(Metrics.showsZoomTitle(statusBarWidth: 0), "未計測の初回描画は文字付き")
-    }
-
-    @Test("「残り」「ミス」のアイコンは iPhone SE の帯では省き、それより広い帯では付ける（#775）")
-    func statusIconsFollowStatusBarWidth() {
-        #expect(!Metrics.showsStatusIcons(statusBarWidth: Self.contentWidth(screenWidth: Self.iPhoneSE)))
-        #expect(Metrics.showsStatusIcons(statusBarWidth: 393 - 32))
-        #expect(Metrics.showsStatusIcons(statusBarWidth: Self.contentWidth(screenWidth: Self.iPhone17Pro)))
-        #expect(Metrics.showsStatusIcons(statusBarWidth: 700))
-        #expect(Metrics.showsStatusIcons(statusBarWidth: 0), "未計測の初回描画はアイコン付き")
-    }
-
-    @Test("帯の拡大トグルの一辺は共通枠の実寸と同じ")
-    func toggleMatchesSharedFrame() {
-        #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide)
-        #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
-    }
-
     @Test("View がタップ標的の定数を実際に使っている")
     func viewIsWiredToMetrics() throws {
         let source = try Self.viewSource()
         for expected in [
             #"minHeight:\s*SudokuMetrics\.padButtonMinSide"#,
-            // 帯の拡大トグルは共通の `BoardToggleButton`（Core・#641）が 44pt の frame を持つ
-            #"BoardToggleButton\("#,
             #"cellSide:\s*SudokuMetrics\.zoomedCellSide"#,
-            #"GameStatusBar\(verticalPadding:\s*SudokuMetrics\.statusBarVerticalPadding\)"#,
-            // 帯の「残り」「ミス」のアイコンは帯の実幅で出し分ける（#775）
-            #"SudokuMetrics\.showsStatusIcons\(statusBarWidth:\s*statusBarWidth\)"#,
         ] {
             #expect(
                 source.range(of: expected, options: .regularExpression) != nil,

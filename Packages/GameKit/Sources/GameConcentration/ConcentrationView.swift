@@ -157,22 +157,26 @@ public struct ConcentrationView: View {
     // MARK: - Matta Controls
 
     private var mattaControls: some View {
-        GameControlBar {
-            // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
-            GameControlButton("待った", systemImage: "arrow.uturn.backward", tint: Theme.Fill.teal) {
-                model.pauseAutoTurn()
-                showMattaConfirm = true
-            }
-            .disabled(!model.canMatta)
-        } center: {
+        // 待ったは右下の「⋯」へ（#1422・#1468）。押せる間（ミスマッチの猶予中）だけ有効になる。
+        GameOverflowBar(
+            menuItems: [
+                GameControlMenuItem(
+                    id: "matta", title: model.mattaUsed ? "待った（広告を見て）" : "待った（無料）",
+                    systemImage: "arrow.uturn.backward",
+                    isEnabled: model.canMatta,
+                    accessibilityLabel: "待った"
+                ) {
+                    // 確認ダイアログを開いている間に自動でターンが移ると「戻す」が空振りするため止める
+                    model.pauseAutoTurn()
+                    showMattaConfirm = true
+                }
+            ],
             // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。
             // 待っている間だけ「待った」が押せることをここで知らせる。
-            if model.canMatta {
-                Text("ミスマッチ… 待ったは今だけ")
-                    .themeBody(13)
-                    .foregroundStyle(Theme.coral)
-            }
-        }
+            caption: model.canMatta
+                ? GameOverflowCaption("ミスマッチ… 待ったは今だけ", color: Theme.coral)
+                : nil
+        )
     }
 
     // MARK: - Card Grid

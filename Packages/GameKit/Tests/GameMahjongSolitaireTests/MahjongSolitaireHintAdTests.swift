@@ -204,7 +204,7 @@ struct MahjongSolitaireHintAdContractTests {
         // 見た目側は2つのボタンの両方を塞ぐ（ヒントは取れる組の有無と併せて塞ぐ）。
         // 出現数で数えると解説コメントに書いただけで通ってしまうので、書き方そのものを見る。
         #expect(source.contains("isEnabled: model.canHint && !isWatchingRewardAd"), "ヒント項目を塞いでいない")
-        #expect(source.contains("\n            .disabled(isWatchingRewardAd)"), "並べ替えボタンを塞いでいない")
+        #expect(SourceScan.matchCount(of: #"id: "shuffle"[^{]*isEnabled: !isWatchingRewardAd"#, in: source) == 1, "並べ替え項目を塞いでいない")
     }
 
     @Test("視聴未完了のアラート文言が他ゲームと揃っている（#64・#526）")

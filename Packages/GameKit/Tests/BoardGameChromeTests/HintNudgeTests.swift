@@ -21,7 +21,7 @@ struct HintNudgeTests {
         for (path, watching) in [("GameSudoku/SudokuView.swift", "!hintRescue.isWatching"),
                                  ("GameMahjongSolitaire/MahjongSolitaireView.swift", "!isWatchingRewardAd")] {
             let text = try SourceScan.packageSource("Sources/\(path)")
-            #expect(text.contains("nudge: hintNudge"), "\(path) の GameControlBar に nudge を渡していない")
+            #expect(text.contains("nudge: hintNudge"), "\(path) の GameOverflowBar に nudge を渡していない")
             let body = try #require(text.range(of: "private var hintNudge: HintNudge"))
             #expect(text[body.upperBound...].prefix(400).contains(watching), "\(path) の促しが広告の視聴中を除いていない")
         }

@@ -299,7 +299,31 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
     public var body: some View {
         button
             .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
+            .boardUndoFlow(model: model, services: services, rescue: undoRescue, isPresented: $showUndoConfirm)
+    }
+
+    @ViewBuilder private var button: some View {
+        if usesTapTargetCapsule {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
+        } else {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+        }
+    }
+}
+
+public extension View {
+    /// 「待った」の確認アラート・広告の待った・失敗のアラートまでの流れ（#526・#729・#828）。
+    /// ボタン（`BoardUndoButton`）にも「⋯」メニューの項目（`BoardGameControlBar`・#1468）にも同じ流れを付ける。
+    func boardUndoFlow<Model: BoardUndoModel>(
+        model: Model, services: GameServices, rescue: RewardedRescue, isPresented: Binding<Bool>
+    ) -> some View {
+        self
+            .alert("待った確認", isPresented: isPresented) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
                     guard model.undoUsed else {
                         // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
@@ -311,7 +335,7 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
                     // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
                     // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
                     let turn = model.aiTurnKey
-                    undoRescue.request(
+                    rescue.request(
                         services, gameID: model.gameID, purpose: .undo,
                         guardedBy: .checkedByGrant
                     ) {
@@ -327,29 +351,16 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
                      : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
             // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
-            .rewardOffer(undoRescue, for: .undo, isPresented: showUndoConfirm && model.undoUsed,
+            .rewardOffer(rescue, for: .undo, isPresented: isPresented.wrappedValue && model.undoUsed,
                          services: services, gameID: model.gameID)
             .rewardedRescueAlerts(
-                undoRescue,
+                rescue,
                 notEarned: "待ったは使えませんでした",
                 unavailable: RewardUnavailableAlert(
                     title: "待ったは使えませんでした",
                     message: "広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。"
                 )
             )
-    }
-
-    @ViewBuilder private var button: some View {
-        if usesTapTargetCapsule {
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
-        } else {
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-        }
     }
 }
 

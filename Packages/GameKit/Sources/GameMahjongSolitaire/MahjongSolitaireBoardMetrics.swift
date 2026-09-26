@@ -13,35 +13,12 @@ enum MahjongSolitaireBoardMetrics {
     /// Apple HIG の最小タップ標的。牌の**幅**をこれ以上にする（高さは縦横比のぶんさらに大きくなる）。
     static let minimumTapTarget: CGFloat = 44
 
-    /// 表示切り替え（全体表示 ⇄ 拡大）ボタンの一辺の下限（#197）。
-    ///
-    /// 全体像を取り戻す唯一の入口がこのボタンなので、牌と同じく 44pt を下回らせない。
-    /// 実測 29×23pt だったものをここに集約し、値が縮んだらテストで気づけるようにする。
-    ///
-    /// 実際に frame へ渡すのは共通の `BoardToggleButton`（Core・#641）なので、値もそこから取る。
-    /// 帯の高さの見積り（`statusBarVerticalPadding`）がボタンの実寸から外れないようにするため。
-    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
-
-    /// 盤の下の操作ボタン（ヒント・並べ替え）の高さの下限（#199）。
-    ///
-    /// `Capsule` + 上下 6pt の余白しか無く、実測の高さは約 29pt で Apple HIG を下回っていた。
-    /// 表示切り替えボタン（#197）と同じく牌と同じ基準に揃える。
-    /// 操作カードが高くなるぶんは `controlArea` のひな形（リザルト + レコメンドカード ≒ 109pt）が
-    /// 吸収するため、盤面に配る高さは変わらない。
-    static let controlButtonMinHeight: CGFloat = minimumTapTarget
-
     /// 牌の増減・枠色の変化に掛ける演出の長さ（秒・#199）。
     ///
     /// 盤面の `.gameAnimation` と、最後の 1 組を消しきってからクリア表示へ切り替える待ち時間の
     /// **両方がこの値を使う**。片方だけ変えると、最後の 2 枚が消える前に盤面が差し替わる
     /// （または消えた後に間が空く）ため、定数を 1 つにして必ず連動させる。
     static let boardAnimationDuration: Double = 0.2
-
-    /// ステータスバーの上下の余白（#197）。
-    ///
-    /// 44pt のボタンをそのまま置くと帯が高くなり、#148 で捻出した盤面の高さを食う。
-    /// ボタンが帯の高さを決めるようになったぶん余白を詰め、帯の高さをほぼ据え置きにする。
-    static let statusBarVerticalPadding: CGFloat = 4
 
     /// 牌の縦横比（実物の牌に近い縦長）。
     static let tileAspect: CGFloat = 1.40

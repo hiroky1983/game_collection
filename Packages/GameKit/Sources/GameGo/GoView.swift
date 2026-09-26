@@ -398,19 +398,15 @@ public struct GoView: View {
     }
 
     private var gameControls: some View {
-        // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通。囲碁だけ中央に「パス」を挟む（#1421）。
+        // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通。囲碁だけ「パス」も「⋯」に入る（#1421・#1468）。
         BoardGameControlBar(
             model: model, services: services, rescue: undoRescue,
+            extraItems: [
+                GameControlMenuItem(id: "pass", title: "パス", systemImage: "forward.fill",
+                                    isEnabled: !(model.isAITurn || model.isThinking)) { model.pass() }
+            ],
             onResign: { model.resign() }
-        ) {
-            Button { model.pass() } label: {
-                Label("パス", systemImage: "forward.fill")
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.fillMuted))
-            }
-            .disabled(model.isAITurn || model.isThinking)
-        }
+        )
     }
 }
 
