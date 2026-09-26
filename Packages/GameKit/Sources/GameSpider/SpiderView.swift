@@ -771,7 +771,7 @@ struct SpiderRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: Self.rules)
+        RuleListSheet(rules: Self.rules)
     }
 }
 

@@ -432,6 +432,6 @@ struct ShiritoriRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: rules)
+        RuleListSheet(rules: rules)
     }
 }

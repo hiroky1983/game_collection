@@ -226,7 +226,7 @@ public struct FruitsView: View {
 /// 「くわしいルール」（果物の順番と得点）。対局画面の `?` から 1 タップで開ける。
 struct FruitsRuleSheet: View {
     var body: some View {
-        RuleListSheet(title: "くっつきフルーツのルール", rules: [
+        RuleListSheet(rules: [
             ("果物の順番", FruitKind.allCases.map(\.name).joined(separator: " → ")),
             ("落とす果物", "\(FruitKind.dropPool.map(\.name).joined(separator: "・"))の 5 種だけが出てきます。大きい果物はくっつけて作ります。"),
             ("得点", FruitKind.allCases.dropFirst().map { "\($0.name) \($0.points)" }.joined(separator: "・") + "。メロンどうしがくっつくと 2 つとも消えて \(FruitKind.melonVanishPoints) 点。"),

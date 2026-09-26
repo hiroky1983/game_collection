@@ -492,7 +492,7 @@ public struct RouletteView: View {
 /// 「くわしいルール」（配当の一覧）。対局画面の `?` から 1 タップで開ける。
 struct RouletteRuleSheet: View {
     var body: some View {
-        RuleListSheet(title: "ルーレットの配当", rules: [
+        RuleListSheet(rules: [
             ("数字 1 点（0〜36）", "配当 35 倍。当たると元金に加えて 35 倍が戻ります（10 枚なら 360 枚）。"),
             ("1〜12・13〜24・25〜36", "配当 2 倍。12 個の数字のどれかが出れば当たり（10 枚なら 30 枚）。"),
             ("赤・黒・奇数・偶数・1〜18・19〜36", "配当 1 倍。当たると元金と同額が戻ります（10 枚なら 20 枚）。"),

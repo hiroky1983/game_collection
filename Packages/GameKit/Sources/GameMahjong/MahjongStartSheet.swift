@@ -132,6 +132,6 @@ struct MahjongRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルールと役", rules: rules)
+        RuleListSheet(rules: rules)
     }
 }

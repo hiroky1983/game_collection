@@ -617,28 +617,9 @@ struct GoRuleDetails: View {
     ]
 
     var body: some View {
-        // 他ゲームのルールシート（大富豪・ポーカー）と同じ包み: スクロール + 左右余白 + 共通背景
-        // （会長指摘 2026-09-02: 全面白地・余白なしで見た目が他と違う）。
-        ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(sections, id: \.0) { title, lines in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title).themeBody(15).foregroundStyle(Theme.coral)
-                    ForEach(lines, id: \.self) { line in
-                        Text("・\(line)")
-                            .font(.system(size: 13, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.pad)
-        }
-        .popBackground()
+        RuleListSheet(rules: sections.map { title, lines in
+            (title, lines.map { "・\($0)" }.joined(separator: "\n"))
+        })
     }
 }
 
