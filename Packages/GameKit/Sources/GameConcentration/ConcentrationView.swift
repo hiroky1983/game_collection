@@ -130,9 +130,9 @@ public struct ConcentrationView: View {
             scoreChip(label: "あなた", score: model.playerScore,
                       color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver)
         } trailing: {
-            if model.isThinking {
-                ProgressView().controlSize(.small)
-            }
+            // 常に場所を取り、思考中の出入りで CPU のチップが左右に動かないようにする。
+            ProgressView().controlSize(.small)
+                .opacity(model.isThinking ? 1 : 0)
             scoreChip(label: "CPU", score: model.cpuScore,
                       color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver)
         }

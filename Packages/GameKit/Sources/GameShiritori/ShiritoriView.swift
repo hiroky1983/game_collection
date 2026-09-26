@@ -101,6 +101,7 @@ public struct ShiritoriView: View {
                 Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             } trailing: {
                 Text(model.quota.label)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
