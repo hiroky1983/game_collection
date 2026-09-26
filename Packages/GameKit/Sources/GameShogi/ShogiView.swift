@@ -141,7 +141,7 @@ public struct ShogiView: View {
                     .onTapGesture { model.cancelPromotion() }
                 VStack(spacing: 20) {
                     Text("成りますか？")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .themeBody(18, weight: .bold)
                         .foregroundStyle(Theme.ink)
                     HStack(spacing: 16) {
                         Button {
@@ -582,7 +582,9 @@ private struct HandAreaView: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isYou ? "あなた" : "CPU")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .themeCaption(11, weight: .bold, maxScale: 1.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
                 Text(color == .black ? "☗" : "☖")
                     .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
@@ -593,7 +595,7 @@ private struct HandAreaView: View {
             ZStack(alignment: .leading) {
                 if owned.isEmpty {
                     Text("持ち駒なし")
-                        .font(.system(size: 12, design: .rounded))
+                        .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {
                     HStack(spacing: 6) {
@@ -610,7 +612,7 @@ private struct HandAreaView: View {
                                                 .fill(selected ? Theme.yellow : BoardStyle.komaWoodLight)
                                         )
                                     Text("×\(count)")
-                                        .font(.system(size: 10, weight: .black, design: .rounded))
+                                        .themeCaption(10, weight: .black, maxScale: 1.5)
                                         .foregroundStyle(selected ? Theme.coral : Theme.inkSub)
                                 }
                             }

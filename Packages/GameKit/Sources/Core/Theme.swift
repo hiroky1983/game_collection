@@ -133,15 +133,22 @@ public enum Theme {
 /// 倍率が 1.0 になるため、見た目は固定 pt 指定だったときと完全に一致する。
 public struct ScaledThemeFont: ViewModifier {
     @ScaledMetric private var size: CGFloat
+    private let base: CGFloat
     private let weight: Font.Weight
+    private let maxScale: CGFloat
 
-    init(size: CGFloat, weight: Font.Weight, relativeTo textStyle: Font.TextStyle) {
+    /// `maxScale` は基準 pt に対する拡大の上限倍率（#1469）。帯・ボタンなど、拡大が際限なく続くと
+    /// 隣の要素を押し出したり盤に重なったりする密な場所だけが指定する。既定（無指定）は上限なし。
+    init(size: CGFloat, weight: Font.Weight, relativeTo textStyle: Font.TextStyle,
+         maxScale: CGFloat = .infinity) {
         _size = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
+        base = size
         self.weight = weight
+        self.maxScale = maxScale
     }
 
     public func body(content: Content) -> some View {
-        content.font(.system(size: size, weight: weight, design: .rounded))
+        content.font(.system(size: min(size, base * maxScale), weight: weight, design: .rounded))
     }
 }
 
@@ -243,19 +250,22 @@ public extension View {
     }
 
     /// 見出しを Dynamic Type 追従で適用する（#189）。
-    func themeTitle(_ size: CGFloat = 28, weight: Font.Weight = .heavy) -> some View {
-        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .title))
+    func themeTitle(_ size: CGFloat = 28, weight: Font.Weight = .heavy,
+                   maxScale: CGFloat = .infinity) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .title, maxScale: maxScale))
     }
 
     /// 本文を Dynamic Type 追従で適用する（#189）。
-    func themeBody(_ size: CGFloat = 17, weight: Font.Weight = .semibold) -> some View {
-        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .body))
+    func themeBody(_ size: CGFloat = 17, weight: Font.Weight = .semibold,
+                  maxScale: CGFloat = .infinity) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .body, maxScale: maxScale))
     }
 
     /// 記録・バッジなど小さな補助テキストを Dynamic Type 追従で適用する（#189）。
     /// 基準を `.caption` にして本文より拡大幅を抑える（狭い枠に入るテキストのため）。
-    func themeCaption(_ size: CGFloat = 11, weight: Font.Weight = .bold) -> some View {
-        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .caption))
+    func themeCaption(_ size: CGFloat = 11, weight: Font.Weight = .bold,
+                     maxScale: CGFloat = .infinity) -> some View {
+        modifier(ScaledThemeFont(size: size, weight: weight, relativeTo: .caption, maxScale: maxScale))
     }
 
     /// 新規ゲームシートの高さ。アクセシビリティ相当の文字サイズのときだけ `.large` で開く（#189）。

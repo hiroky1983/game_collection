@@ -592,7 +592,7 @@ public struct MahjongView: View {
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .themeBody(16, weight: .bold, maxScale: 1.5)
         }
         .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)

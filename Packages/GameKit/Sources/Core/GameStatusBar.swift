@@ -77,7 +77,10 @@ public struct TurnBadge: View {
 
     public var body: some View {
         Text(title)
-            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .themeBody(14, weight: .bold, maxScale: 1.5)
+            // 文字サイズ設定で拡大しても帯を押し広げない。縮めて 1 行に収める（#1469）。
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .foregroundStyle(kind.text)
             .padding(.horizontal, 12).padding(.vertical, 4)
             .background(Capsule().fill(kind.fill))

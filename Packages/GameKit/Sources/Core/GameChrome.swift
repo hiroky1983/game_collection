@@ -115,8 +115,20 @@ private func gameChromeBarItems(title: String, dismiss: DismissAction) -> some T
         Button { dismiss() } label: { Label("戻る", systemImage: "chevron.left") }
     }
     ToolbarItem(placement: .principal) {
+        GameChromeTitle(title: title)
+    }
+}
+
+/// ナビバー中央の表示名。文字サイズ設定に追従させつつ、幅を超える分は縮めて 1 行に収める（#1469）。
+/// `themeBody` は MainActor 隔離なので、非隔離の `ToolbarContentBuilder` 関数から直接は呼べず View に切り出している。
+private struct GameChromeTitle: View {
+    let title: String
+
+    var body: some View {
         Text(title)
-            .font(.system(size: 20, weight: .bold, design: .rounded))
+            .themeBody(20, weight: .bold, maxScale: 1.5)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
     }
 }
 

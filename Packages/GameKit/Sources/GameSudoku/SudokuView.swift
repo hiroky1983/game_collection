@@ -5,6 +5,8 @@ public struct SudokuView: View {
     @State private var model: SudokuModel
     private let services: GameServices
     @State private var showNewGame = true
+    /// 帯のタイマー（等幅）の文字サイズ。他の帯の文字と同じく文字サイズ設定に追従させる（#1469）。
+    @ScaledMetric(relativeTo: .caption) private var timerFontSize: CGFloat = 14
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
     /// ヒントのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
@@ -184,12 +186,12 @@ public struct SudokuView: View {
                         .foregroundStyle(cleared ? Theme.teal : Theme.coral)
                 } else if model.hasPuzzle {
                     Label("残り\(model.remainingCount)", systemImage: "square.grid.3x3")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.coral)
                     // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
                     Label("ミス \(model.mistakes)/\(SudokuModel.maxMistakes)", systemImage: "xmark.circle")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coral : Theme.inkSub)
                 } else {
@@ -211,7 +213,7 @@ public struct SudokuView: View {
                 .opacity(model.hasPuzzle ? 1 : 0)
         } trailing: {
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
-                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .font(.system(size: min(timerFontSize, 14 * 1.5), weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
                 // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                 .opacity(model.hasPuzzle ? 1 : 0)
