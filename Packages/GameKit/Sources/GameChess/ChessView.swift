@@ -145,7 +145,7 @@ public struct ChessView: View {
                     .onTapGesture { model.cancelPromotion() }
                 VStack(spacing: 18) {
                     Text("何に成りますか？")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .themeBody(18, weight: .bold)
                         .foregroundStyle(Theme.ink)
                     HStack(spacing: 12) {
                         // クイーンを先頭に置く。実戦のほぼ全てがクイーン成りなので、
@@ -472,7 +472,9 @@ private struct CapturedAreaView: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isYou ? "あなた" : "CPU")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .themeCaption(11, weight: .bold, maxScale: 1.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .foregroundStyle(isYou ? Theme.teal : Theme.inkSub)
                 Text(owner.name)
                     .font(.system(size: 12)).foregroundStyle(Theme.inkSub)
@@ -483,7 +485,7 @@ private struct CapturedAreaView: View {
             ZStack(alignment: .leading) {
                 if lost.isEmpty {
                     Text("取られた駒なし")
-                        .font(.system(size: 12, design: .rounded))
+                        .themeCaption(12, weight: .regular, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                 } else {
                     // **少し重ねて並べる**。取られた駒は片側で最大 15 枚まで増えるので、
@@ -640,10 +642,10 @@ struct ChessRuleDetail: View {
                                 .frame(width: 30, height: 30)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(type.japaneseName)
-                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .themeCaption(13, weight: .bold, maxScale: 1.5)
                                     .foregroundStyle(Theme.ink)
                                 Text(movement)
-                                    .font(.system(size: 12, design: .rounded))
+                                    .themeCaption(12, weight: .regular, maxScale: 1.5)
                                     .foregroundStyle(Theme.inkSub)
                             }
                         }

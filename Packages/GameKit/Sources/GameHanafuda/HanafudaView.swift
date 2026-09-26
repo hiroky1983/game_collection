@@ -101,13 +101,15 @@ public struct HanafudaView: View {
             } trailing: {
                 if model.phase != .matchResult {
                     Text(model.round > model.options.rounds ? "延長戦" : "\(model.round) / \(model.options.rounds)局")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .themeCaption(13, weight: .bold, maxScale: 1.5)
+                        .fitOneLine()
                         .foregroundStyle(Theme.inkSub)
                 }
                 scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.coral)
             }
             Text(model.message)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .themeCaption(13, weight: .semibold, maxScale: 1.5)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
@@ -118,12 +120,14 @@ public struct HanafudaView: View {
     private func scoreChip(title: String, value: Int, fill: Color) -> some View {
         HStack(spacing: 6) {
             Text(title)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .themeCaption(12, weight: .bold, maxScale: 1.5)
+                .fitOneLine()
                 .foregroundStyle(Theme.onAccent)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(fill))
             Text("\(value)文")
-                .font(.system(size: 16, weight: .heavy, design: .rounded))
+                .themeBody(16, weight: .heavy, maxScale: 1.5)
+                .fitOneLine()
                 .foregroundStyle(Theme.ink)
         }
         .accessibilityElement(children: .combine)
@@ -136,16 +140,19 @@ public struct HanafudaView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("CPUの取り札")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, weight: .bold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(model.turn == .cpu ? Theme.coral : Theme.inkSub)
                 Text(yakuLine(for: .cpu))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
                 Text("手札\(model.cpuHand.count)枚")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
             }
             capturedStrip(model.cpuCaptured, height: fit.stripHeight)
@@ -162,7 +169,8 @@ public struct HanafudaView: View {
             HStack(spacing: 3) {
                 if cards.isEmpty {
                     Text("なし")
-                        .font(.system(size: 12, design: .rounded))
+                        .themeCaption(12, weight: .regular, maxScale: 1.5)
+                        .fitOneLine()
                         .foregroundStyle(Theme.inkSub)
                         .frame(height: height)
                 }
@@ -181,20 +189,23 @@ public struct HanafudaView: View {
         VStack(spacing: 6) {
             HStack {
                 Text("場")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, weight: .bold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
                 Spacer()
                 if let drawn = model.drawnCard {
                     HStack(spacing: 4) {
                         Text("めくり札")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .themeCaption(12, weight: .bold, maxScale: 1.5)
+                            .fitOneLine()
                             .foregroundStyle(Theme.coral)
                         HanafudaCardFace(card: drawn, isHighlighted: true)
                             .frame(height: fit.stripHeight)
                     }
                 }
                 Text("山札\(model.deck.count)枚")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
             }
             LazyVGrid(columns: fit.columns, spacing: HanafudaFit.gap) {
@@ -231,10 +242,12 @@ public struct HanafudaView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("あなたの取り札")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .themeCaption(12, weight: .bold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
                 Text(yakuLine(for: .human))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .themeCaption(12, weight: .semibold, maxScale: 1.5)
+                    .fitOneLine()
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -336,7 +349,7 @@ public struct HanafudaView: View {
             }
         } label: {
             Label("広告を見て1局延長（1試合に1回）", systemImage: "play.rectangle.fill")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .themeBody(14, weight: .bold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
@@ -348,23 +361,25 @@ public struct HanafudaView: View {
         VStack(spacing: 6) {
             if let result = model.roundResult {
                 Text(result.winner == nil ? "流局" : "\(result.winner!.label)のあがり")
-                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .themeBody(18, weight: .heavy)
+                    .fitOneLine()
                     .foregroundStyle(result.winner == .human ? Theme.teal : Theme.ink)
                 if !result.hits.isEmpty {
                     Text(result.hits.map { "\($0.name) \($0.points)文" }.joined(separator: "・"))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .themeCaption(13, weight: .semibold, maxScale: 1.5)
                         .foregroundStyle(Theme.inkSub)
                         .multilineTextAlignment(.center)
                 }
                 if !result.reasons.isEmpty {
                     Text(result.reasons.joined(separator: "・"))
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .themeCaption(12, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Capsule().fill(Theme.Fill.yellow))
                 }
                 Text("\(result.score)文")
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .themeBody(22, weight: .heavy)
+                    .fitOneLine()
                     .foregroundStyle(Theme.coral)
             }
         }
@@ -378,10 +393,11 @@ public struct HanafudaView: View {
     private var matchResultCard: some View {
         VStack(spacing: 10) {
             Text(matchTitle)
-                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .themeBody(26, weight: .heavy)
+                .fitOneLine()
                 .foregroundStyle(model.humanTotal > model.cpuTotal ? Theme.teal : Theme.ink)
             Text("あなた \(model.humanTotal)文 ・ CPU \(model.cpuTotal)文")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .themeBody(15, weight: .semibold, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
             RecordLabel(model.recordResult)
         }
@@ -410,7 +426,8 @@ public struct HanafudaView: View {
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .themeBody(16, weight: .bold, maxScale: 1.5)
+                .fitOneLine()
         }
         .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
@@ -478,5 +495,12 @@ enum HanafudaFit {
 
     private static func rows(_ count: Int, columns: Int) -> Int {
         (count + columns - 1) / columns
+    }
+}
+
+private extension View {
+    /// 文字サイズ設定で拡大しても、帯・見出しを折り返さず 1 行に縮めて収める（#1469）。
+    func fitOneLine() -> some View {
+        lineLimit(1).minimumScaleFactor(0.5)
     }
 }
