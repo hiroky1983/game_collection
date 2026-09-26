@@ -9,114 +9,81 @@ struct PokerStartSheet: View {
     /// キャンセル（ハブへ戻る）。これが無いと開いたら 1 局遊ぶしかなかった（#1371。麻雀は #352 で対応済み）。
     let onCancel: () -> Void
 
+    /// 役一覧・配当表の詳細。共通枠は NavigationStack を持たないので、入れ子のシートで開く。
+    private enum Detail: Identifiable {
+        case handGuide, bonusTable
+        var id: Self { self }
+    }
+    @State private var detail: Detail?
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                // ボーナスルールを選ぶと節が2つ増えるので、文字を大きくしても押し出されない
-                // ようにスクロールさせる（開始ボタンは下に固定したまま・#189 と同じ考え方）。
-                ScrollView {
-                    VStack(spacing: 20) { sections }
+        // 節が増えても（ボーナスルール選択時）中身がスクロールするので押し出されない。
+        GameSetupSheet(kind: .versus, onStart: onStart, onCancel: onCancel) {
+            GameSetupSection("ルール") {
+                // 他ゲームの開始シートと同じ大きめのタイルに揃える（会長指摘・2026-09-23）。
+                HStack(spacing: 12) {
+                    ForEach(PokerRuleSet.allCases) { rule in
+                        GameSetupChooser(
+                            title: rule.title, subtitle: "",
+                            selected: rules == rule, accent: Theme.Fill.coral
+                        ) { rules = rule }
+                    }
                 }
-                Button {
-                    onStart()
-                } label: {
-                    Text("ゲーム開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+                Text(rules.summary)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("5カードドロー")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
+
+            GameSetupSection("ゲームの流れ") {
+                ruleRow("1", "アンティ 10枚 → 手札5枚配布")
+                ruleRow("2", "ベット（チェック or 20枚ベット）")
+                ruleRow("3", "カード交換（0〜5枚）")
+                ruleRow("4", "最終ベット → 勝負")
+                if rules == .bonus {
+                    ruleRow("5", "勝負に勝つと役ボーナス → ダブルアップに挑戦")
+                }
+            }
+
+            detailButton("役一覧を見る", systemImage: "list.bullet.rectangle", showing: .handGuide)
+            if rules == .bonus {
+                detailButton("役ボーナス配当表を見る", systemImage: "list.number", showing: .bonusTable)
+            }
+        }
+        .sheet(item: $detail) { detail in
+            NavigationStack {
+                Group {
+                    switch detail {
+                    case .handGuide: HandGuideSheet()
+                    case .bonusTable: BonusTableSheet()
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("閉じる") { self.detail = nil }
+                    }
                 }
             }
         }
-        .presentationDetents([.large])
     }
 
-    @ViewBuilder
-    private var sections: some View {
-        Group {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ルール")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    // 他ゲームの開始シート（麻雀の対局の長さ・チャリおじのモードなど）と同じ
-                    // 大きめのタイルに揃える（会長指摘・2026-09-23。`.pickerStyle(.segmented)` は
-                    // 他より一回り小さく見えた）。
-                    HStack(spacing: 12) {
-                        ForEach(PokerRuleSet.allCases) { rule in
-                            GameSetupChooser(
-                                title: rule.title, subtitle: "",
-                                selected: rules == rule, accent: Theme.Fill.coral
-                            ) { rules = rule }
-                        }
-                    }
-                    Text(rules.summary)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ゲームの流れ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    ruleRow("1", "アンティ 10枚 → 手札5枚配布")
-                    ruleRow("2", "ベット（チェック or 20枚ベット）")
-                    ruleRow("3", "カード交換（0〜5枚）")
-                    ruleRow("4", "最終ベット → 勝負")
-                    if rules == .bonus {
-                        ruleRow("5", "勝負に勝つと役ボーナス → ダブルアップに挑戦")
-                    }
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                NavigationLink {
-                    HandGuideSheet()
-                } label: {
-                    HStack {
-                        Image(systemName: "list.bullet.rectangle")
-                        Text("役一覧を見る")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                    .foregroundStyle(Theme.coral)
-                    .padding(16)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                }
-
-                if rules == .bonus {
-                    NavigationLink {
-                        BonusTableSheet()
-                    } label: {
-                        HStack {
-                            Image(systemName: "list.number")
-                            Text("役ボーナス配当表を見る")
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Theme.inkSub)
-                        }
-                        .foregroundStyle(Theme.coral)
-                        .padding(16)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                            .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                    }
-                }
-
+    private func detailButton(_ title: String, systemImage: String, showing target: Detail) -> some View {
+        Button { detail = target } label: {
+            HStack {
+                Image(systemName: systemImage)
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.inkSub)
+            }
+            .foregroundStyle(Theme.coral)
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
         }
+        .buttonStyle(.plain)
     }
 
     private func ruleRow(_ num: String, _ text: String) -> some View {
@@ -139,14 +106,13 @@ struct PokerStartSheet: View {
 /// 役ボーナスの配当表（#496）。役を覚える教材を兼ねるので、金額だけでなく役の説明も添える。
 struct BonusTableSheet: View {
     var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
+        YakuTableSheet(title: "役ボーナス配当表") {
+            YakuTableSection(
+                footer: "勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。"
+            ) {
                 Text("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 4)
-
                 ForEach(PokerBonusTable.payouts) { payout in
                     HStack(spacing: 8) {
                         Text(payout.rank.description)
@@ -159,12 +125,7 @@ struct BonusTableSheet: View {
                             .font(.system(size: 16, weight: .black, design: .rounded))
                             .foregroundStyle(Theme.yellow)
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
                 }
-
                 HStack(spacing: 8) {
                     Text("ワンペア・ハイカード")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -176,24 +137,8 @@ struct BonusTableSheet: View {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                 }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-
-                Text("勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 8)
             }
-            .padding(Theme.pad)
         }
-        .popBackground()
-        .navigationTitle("役ボーナス配当表")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 }
 
@@ -201,37 +146,17 @@ struct BonusTableSheet: View {
 
 struct HandGuideSheet: View {
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(handGuides, id: \.name) { guide in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Text(guide.name)
-                                .font(.system(size: 14, weight: .black, design: .rounded))
-                                .foregroundStyle(Theme.coral)
-                            Text(guide.desc)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(Theme.inkSub)
-                        }
-                        HStack(spacing: 4) {
-                            ForEach(guide.cards) { card in
-                                MiniCardView(card: card)
-                            }
+        RuleListSheet(rules: []) {
+            ForEach(handGuides, id: \.name) { guide in
+                RuleFigureCard(title: guide.name, detail: guide.desc) {
+                    HStack(spacing: 4) {
+                        ForEach(guide.cards) { card in
+                            MiniCardView(card: card)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
                 }
             }
-            .padding(Theme.pad)
         }
-        .popBackground()
-        .navigationTitle("役一覧")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 
     private func c(_ rank: Int, _ suit: PokerSuit) -> PokerCard {

@@ -87,7 +87,7 @@ struct HanafudaRecordVariantTests {
         #expect(Set(labels).count == labels.count)
         let all = HanafudaOptions(sakeYakuEnabled: false, rounds: 12, difficulty: .easy)
         #expect(all.recordVariant == "r12-nosake-easy")
-        #expect(all.recordVariantLabel == "12局・酒の役なし・CPU弱")
+        #expect(all.recordVariantLabel == "12局・酒の役なし・CPUかんたん")
     }
 
     // MARK: 記録と送信

@@ -2,17 +2,18 @@ import Foundation
 import Testing
 import GameKitTestSupport
 
-/// 「くわしいルール」（`.howToPlay(_:extra:)` の `extra`）が ScrollView + セクションごとの
-/// カード背景で組まれていること（#1231）。
+/// 「くわしいルール」（`.howToPlay(_:extra:)` の `extra`）が共通部品 `RuleListSheet` で組まれていること
+/// （#1231 で ScrollView とカード背景を確かめていたものを、#1414 で共通部品の使用そのものに強化）。
+/// あわせて役の早見表（麻雀・花札・ポーカー）が `YakuTableSheet` で組まれていること。
 ///
 /// チェス（`ScrollView` 自体が無く下が切れて読めない）・囲碁（`ScrollView` はあるがセクションの
 /// カード背景が無い）で、会長QAが同種の崩れを複数回見つけていた。毎回QAで見つかるのではなく、
 /// 新しいゲームを足したときに機械的に落ちるようにする。
-@Suite("くわしいルールの ScrollView とカード背景（#1231）")
+@Suite("くわしいルールは共通部品 RuleListSheet で組む（#1231・#1414）")
 struct RuleDetailScrollAndCardSourceTests {
 
-    @Test("howToPlay の extra はすべて ScrollView + カード背景で組んでいる")
-    func extraViewsUseScrollViewAndCard() throws {
+    @Test("howToPlay の extra はすべて RuleListSheet で始まる")
+    func extraViewsUseRuleListSheet() throws {
         let files = try Self.swiftFiles()
 
         var allSource = ""
@@ -33,18 +34,47 @@ struct RuleDetailScrollAndCardSourceTests {
             }
             // コメント中の語（「ScrollView 自体が無く…」等）で素通りしないよう、コメントを除いて判定する（#1273）。
             let body = SourceScan.strippingComments(declaration)
-            // RuleListSheet 経由（大富豪・花札の一部・フリーセル等）は、共通コンポーネント自身が
-            // ScrollView とカード背景の両方を持つため、呼び出し側のソースには現れなくてよい。
-            let usesSharedSheet = body.contains("RuleListSheet(")
-            let hasScrollView = body.contains("ScrollView")
-            let hasCardBackground = body.contains("popCard(")
-                || (body.contains("RoundedRectangle(cornerRadius:") && body.contains("Theme.surface"))
-            #expect(usesSharedSheet || hasScrollView, "\(typeName) に ScrollView が無い")
-            #expect(usesSharedSheet || hasCardBackground, "\(typeName) にセクションのカード背景が無い")
+            // 共通部品（`RuleListSheet`）の呼び出しで body が始まっていること（#1414）。
+            // 共通部品自身が ScrollView・カード背景・題名「くわしいルール」を持つので、それだけ確かめれば足りる。
+            // 独自の見た目を許す例外は作らない（許可リストは空）。
+            #expect(Self.bodyStarts(with: "RuleListSheet(", in: body),
+                    "\(typeName) の body が RuleListSheet で始まっていない（くわしいルールは共通部品を使う）")
+        }
+    }
+
+    @Test("役の早見表（*YakuSheet・*BonusTableSheet）は YakuTableSheet で始まる（#1414）")
+    func yakuTablesUseSharedFrame() throws {
+        var allSource = ""
+        var typeNames: Set<String> = []
+        let regex = try NSRegularExpression(pattern: #"struct\s+(\w*(?:Yaku|BonusTable)Sheet)\s*:\s*View"#)
+        for file in try Self.swiftFiles() {
+            let text = try String(contentsOf: Self.sourcesDirectory.appendingPathComponent(file), encoding: .utf8)
+            allSource += text + "\n"
+            for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+                if let range = Range(match.range(at: 1), in: text) { typeNames.insert(String(text[range])) }
+            }
+        }
+        // 麻雀・花札・ポーカーの 3 本。減ったら抽出が壊れている。
+        #expect(typeNames.count >= 3, "役の早見表の抽出が空振りしている可能性: \(typeNames.sorted())")
+        for typeName in typeNames.sorted() {
+            guard let declaration = SourceScan.declaration(of: "struct \(typeName)", in: allSource) else {
+                Issue.record("\(typeName) の定義が見つからない")
+                continue
+            }
+            #expect(Self.bodyStarts(with: "YakuTableSheet(", in: SourceScan.strippingComments(declaration)),
+                    "\(typeName) の body が YakuTableSheet で始まっていない（役の早見表は共通部品を使う）")
         }
     }
 
     // MARK: - ヘルパー
+
+    /// `var body: some View {` の直後の最初の式が `call` で始まるか（コメント除去済みのソースを渡す）。
+    private static func bodyStarts(with call: String, in declaration: String) -> Bool {
+        guard let head = declaration.range(of: "var body: some View {") else { return false }
+        return declaration[head.upperBound...]
+            .drop(while: { $0.isWhitespace })
+            .hasPrefix(call)
+    }
 
     private static var sourcesDirectory: URL {
         SourceScan.packageRoot.appendingPathComponent("Sources")
@@ -158,12 +188,8 @@ struct RuleDetailScrollAndCardSourceTests {
 @Suite("設定シートは *SetupSheet・*NewGameSheet 命名なら GameSetupSheet を使う（#1231）")
 struct SetupSheetNamingConventionSourceTests {
 
-    /// 意図的に `GameSetupSheet` を使わない例外。理由をここに書く。
-    ///
-    /// - `SolitaireSetupSheet`: 「配り直すときにルールを選ぶ」ための独自の `Form` 実装（#498）。
-    ///   1局=1RuleSet 原則にもとづき配札と同時に焼き込む値を選ぶ専用UIで、対局前の CPU 強さ等を
-    ///   選ぶ `GameSetupSheet` とは性質が異なる。
-    private static let exceptions: Set<String> = ["SolitaireSetupSheet"]
+    /// 意図的に `GameSetupSheet` を使わない例外。理由をここに書く（現在は無い。ソリティアも #1416 で載せ替え済み）。
+    private static let exceptions: Set<String> = []
 
     @Test("*SetupSheet・*NewGameSheet という命名の View は GameSetupSheet を使う")
     func namedSheetsUseSharedFrame() throws {

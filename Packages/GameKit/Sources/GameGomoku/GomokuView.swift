@@ -34,19 +34,14 @@ public struct GomokuView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "五目並べ", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.gameOver || model.moveCount == 0 {
-                        showNewGame = true
-                    } else {
-                        showConfirmNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "五目並べ", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.gameOver || model.moveCount == 0 {
+                            showNewGame = true
+                        } else {
+                            showConfirmNewGame = true
+                        }
+                    })
         .howToPlay(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku)
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
@@ -577,9 +572,9 @@ struct GomokuNewGameSheet: View {
 
     var body: some View {
         // 選択肢が3節あり `.medium` には収まらない（囲碁 GoNewGameSheet と同じで、
-        // はみ出すと「対局開始」が押せなくなる）。`.scrolling` は常に `.large` で開く。
+        // はみ出すと「対局開始」が押せなくなる）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level, renju) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの石") {

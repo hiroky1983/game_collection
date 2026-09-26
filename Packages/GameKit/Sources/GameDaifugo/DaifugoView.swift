@@ -45,18 +45,7 @@ public struct DaifugoView: View {
         // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "大富豪", review: services.review) {
-            // 中断すると次回は必ず「続きから」に戻るため、局面を降りる導線をここに置く（#194）。
-            // 他ゲームのツールバーはアイコンだけだが、旗単体では「投了」と読めない。ツールバーは
-            // `Label` を渡してもアイコンだけに畳むので、文字を出すために `Text` を直接渡す。
-            ToolbarItem(placement: .primaryAction) {
-                Button { showResignConfirm = true } label: {
-                    Text("投了")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                }
-                .disabled(!model.canResign)
-            }
-        }
+        .gameChrome(title: "大富豪", review: services.review)
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         .howToPlay(.daifugo) { DaifugoRuleSheet() }
         .confirmationDialog("投了しますか？", isPresented: $showResignConfirm, titleVisibility: .visible) {
@@ -325,6 +314,20 @@ public struct DaifugoView: View {
                     model.playSelected()
                     runCPU()
                 }
+                // 投了は盤下の「⋯」メニューに入れる（#1418・会長決裁 #1011 D1）。ヘッダー右は
+                // 役・？・新規の並びに固定するため文字の「投了」は置けない。中断すると次回は必ず
+                // 「続きから」に戻るので、局面を降りる導線としてここに残す（#194）。
+                Menu {
+                    Button("投了", role: .destructive) { showResignConfirm = true }
+                        .disabled(!model.canResign)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 44)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("その他の操作")
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -581,6 +584,6 @@ struct DaifugoRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: rules)
+        RuleListSheet(rules: rules)
     }
 }

@@ -135,27 +135,15 @@ public struct MahjongView: View {
                      services: services, gameID: model.gameID)
         .rewardOffer(extendRescue, for: .continue, isPresented: model.phase == .gameResult && model.canExtendAfterLastPlace,
                      services: services, gameID: model.gameID)
-        .gameChrome(title: "麻雀", review: services.review, matchesNavigationBarBackground: true) {
-            // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
-            // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
-            // 早見表をここに置く（#501。花札 #495 と同じ置き方）。ツールバーは `Label` を
-            // アイコンだけに畳むので、文字を出すために `Text` を直接渡す。
-            ToolbarItem(placement: .primaryAction) {
-                Button { showYakuSheet = true } label: {
-                    Text("役")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                }
-                .accessibilityLabel("役の早見表")
-            }
-            // 対局を始めると東風戦を打ち切るかトビるまで抜けられなかった（会長QA・#638）。
-            // 他ゲーム（将棋・囲碁・ナンプレ）と同じ位置・同じ絵柄で「新規対局」を置く。
-            ToolbarItem(placement: .primaryAction) {
-                Button { startNewGame() } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-                .disabled(isWatchingRescueAd)
-            }
-        }
+        // 役は 30 種以上あり、覚えていないと何をねらうか決められない。遊び方シートの
+        // 奥（`?` → くわしいルール）だと 2 タップかかるので、対局中 1 タップで開ける
+        // 早見表を置く（#501。花札 #495 と同じ置き方）。
+        // 対局を始めると東風戦を打ち切るかトビるまで抜けられなかった（会長QA・#638）ので新規対局も置く。
+        .gameChrome(title: "麻雀", review: services.review,
+                    reference: GameChromeReference { showYakuSheet = true },
+                    newGame: GameChromeNewGame(.match, isDisabled: isWatchingRescueAd) {
+                        startNewGame()
+                    })
         .confirmationDialog(
             "新規対局しますか？",
             isPresented: $showConfirmNewGame,

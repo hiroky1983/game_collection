@@ -46,13 +46,10 @@ public struct BlockPuzzleView: View {
         .coordinateSpace(name: Self.space)
         // ドラッグ中のピースは盤にも手元にも属さないので、画面全体の上に別に描く。
         .overlay(alignment: .topLeading) { dragPreview }
-        .gameChrome(title: "ブロックならべ", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { withGameAnimation { model.newGame() } } label: {
-                    Label("リセット", systemImage: "arrow.clockwise")
-                }
-            }
-        }
+        .gameChrome(title: "ブロックならべ", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        withGameAnimation { model.newGame() }
+                    })
         .howToPlay(.blockPuzzle)
         .rewardedRescueAlerts(
             continueRescue,

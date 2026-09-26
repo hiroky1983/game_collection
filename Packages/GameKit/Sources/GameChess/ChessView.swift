@@ -51,19 +51,14 @@ public struct ChessView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "チェス", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.phase == .playing && !model.moves.isEmpty {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "チェス", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.phase == .playing && !model.moves.isEmpty {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.chess) {
             ChessRuleDetail(style: pieceStyle)
         }
@@ -565,7 +560,7 @@ struct ChessNewGameSheet: View {
         // 節が 3 つあり `.medium` に収まらないので、囲碁・五目並べと同じくスクロールで開く
         // （`GameSetupSheet` の注記。取り違えると開始ボタンがはみ出して押せなくなる）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level, style) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの手番") {
@@ -650,13 +645,18 @@ struct ChessRuleDetail: View {
         (.pawn, "前へ1マス（最初だけ2マス）。取るときだけ斜め前"),
     ]
 
+    private let rules: [(String, String)] = [
+        ("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。"),
+        ("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。間に駒があるとき、王手されているとき、通り道か着地のマスが攻撃されているときは使えません。"),
+        ("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。"),
+        ("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。"),
+        ("自動の引き分け", "同じ局面が3回くり返される・50手のあいだポーンも駒取りも無い・駒が足りずチェックメイトできない、のいずれかで引き分けになります。"),
+    ]
+
     var body: some View {
-        // 他ゲームのルールシート（大富豪・花札）と同じ包み: スクロール + セクションごとのカード背景
-        // （会長指摘 2026-09-21: ScrollView 自体が無く下が切れて読めなかった）。
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+        RuleListSheet(rules: rules) {
+            RuleFigureCard(title: "駒の動き") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("駒の動き").themeBody(16).foregroundStyle(Theme.ink)
                     ForEach(pieces, id: \.0.rawValue) { type, movement in
                         HStack(alignment: .center, spacing: 10) {
                             ChessPieceView(piece: ChessPiece(type: type, color: .white), size: 30,
@@ -674,32 +674,8 @@ struct ChessRuleDetail: View {
                         .accessibilityElement(children: .combine)
                     }
                 }
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("特別なルール").themeBody(16).foregroundStyle(Theme.ink)
-                    ruleLine("プロモーション", "ポーンが一番奥に届くと、好きな駒（普通はクイーン）に変われます。")
-                    ruleLine("キャスリング", "キングとルークがまだ動いていなければ、キングを2マス動かして入れ替われます。間に駒があるとき、王手されているとき、通り道か着地のマスが攻撃されているときは使えません。")
-                    ruleLine("アンパッサン", "相手のポーンが2マス進んで真横に並んだ直後だけ、通り過ぎたマスへ斜めに取れます。")
-                    ruleLine("ステイルメイト", "王手されていないのに動かせる駒が1つも無いと、引き分けです。")
-                    ruleLine("自動の引き分け", "同じ局面が3回くり返される・50手のあいだポーンも駒取りも無い・駒が足りずチェックメイトできない、のいずれかで引き分けになります。")
-                }
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
             }
-            .padding(Theme.pad)
         }
-        .popBackground()
-    }
-
-    private func ruleLine(_ title: String, _ body: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.ink)
-            Text(body).font(.system(size: 12, design: .rounded))
-                .foregroundStyle(Theme.inkSub)
-        }
-        .accessibilityElement(children: .combine)
     }
 }
 

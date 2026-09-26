@@ -37,22 +37,17 @@ public struct ConcentrationView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "神経衰弱", review: services.review, tint: Theme.purple) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.hasProgressToLose {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "神経衰弱", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.hasProgressToLose {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.concentration)
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+        .confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規対局", role: .destructive) { showNewGame = true }
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("途中で終了すると、いまの対戦が失われます。")
@@ -395,7 +390,7 @@ struct ConcentrationNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "ゲーム開始", startTint: Theme.Fill.purple,
+            kind: .versus, startTint: Theme.Fill.purple,
             onStart: { onStart(selectedPairCount, selectedCPULevel) }, onCancel: onCancel
         ) {
             GameSetupSection("盤面サイズ") {
@@ -413,14 +408,14 @@ struct ConcentrationNewGameSheet: View {
             }
 
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    ForEach(ConcentrationCPULevel.allCases, id: \.rawValue) { l in
+                HStack(spacing: 6) {
+                    ForEach(Array(ConcentrationCPULevel.allCases.enumerated()), id: \.element) { step, l in
                         GameSetupChooser(
                             title: l.displayName,
                             subtitle: l.subtitle,
                             selected: selectedCPULevel == l,
-                            accent: Theme.Fill.coral,
-                            metrics: Self.metrics
+                            accent: DifficultyTile.accent(step: step, of: ConcentrationCPULevel.allCases.count),
+                            metrics: DifficultyTile.metrics
                         ) { selectedCPULevel = l }
                     }
                 }

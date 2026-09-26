@@ -13,35 +13,15 @@ import MahjongTiles
 /// モデルには一切触らない（`MahjongModel` を受け取らない）。開いている間も対局の状態は動かず、
 /// 閉じれば元の局面がそのまま残る。
 public struct MahjongYakuSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
     public init() {}
 
     public var body: some View {
-        NavigationStack {
-            List {
-                ForEach(MahjongYaku.Section.allCases, id: \.self) { section in
-                    Section {
-                        ForEach(MahjongYaku.yaku(in: section), id: \.self) { yaku in
-                            row(yaku)
-                        }
-                    } header: {
-                        Text(section.rawValue)
-                    } footer: {
-                        if let note = Self.footer(for: section) {
-                            Text(note)
-                        }
+        YakuTableSheet(title: "役の早見表", standalone: true) {
+            ForEach(MahjongYaku.Section.allCases, id: \.self) { section in
+                YakuTableSection(header: section.rawValue, footer: Self.footer(for: section)) {
+                    ForEach(MahjongYaku.yaku(in: section), id: \.self) { yaku in
+                        row(yaku)
                     }
-                }
-            }
-            .navigationTitle("役の早見表")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("閉じる") { dismiss() }
-                        .fontWeight(.semibold)
                 }
             }
         }

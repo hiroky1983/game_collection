@@ -50,19 +50,14 @@ public struct ShogiView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "将棋", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.phase == .playing && !model.moves.isEmpty {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "将棋", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.phase == .playing && !model.moves.isEmpty {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.shogi)
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(initialSide: model.humanSide, initialLevel: model.aiLevel) { side, level in
@@ -536,7 +531,7 @@ struct NewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの手番") {

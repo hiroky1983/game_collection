@@ -50,17 +50,10 @@ public struct HanafudaView: View {
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "花札こいこい", review: services.review) {
-            // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
-            // 早見表をここに置く（#495 の仕様）。タイトル＋「?」（遊び方）とアイコンで並べる
-            // （文字ラベルにすると幅を取り、狭い画面でヘッダーが崩れていた・会長指摘）。
-            ToolbarItem(placement: .primaryAction) {
-                Button { showYakuSheet = true } label: {
-                    Image(systemName: "list.bullet.rectangle")
-                }
-                .accessibilityLabel("役の早見表")
-            }
-        }
+        // 役は 12 種あり、覚えていないと打つ手が決められない。対局中 1 タップで開ける
+        // 早見表を置く（#495 の仕様）。
+        .gameChrome(title: "花札こいこい", review: services.review,
+                    reference: GameChromeReference { showYakuSheet = true })
         .howToPlay(.hanafuda) { HanafudaRuleSheet() }
         .sheet(isPresented: $showYakuSheet) { HanafudaYakuSheet(options: model.options) }
         .sheet(isPresented: .constant(model.phase == .idle)) {

@@ -516,7 +516,7 @@ struct SpeedSetupSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "CPU の速さをえらぶ", startTitle: "スタート",
+            kind: .versus,
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection("速さ") {
@@ -554,6 +554,6 @@ struct SpeedRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルール", rules: Self.rules)
+        RuleListSheet(rules: Self.rules)
     }
 }

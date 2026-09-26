@@ -224,7 +224,7 @@ struct ShiritoriRulesTests {
 @Suite("ノルマ（難易度）")
 struct ShiritoriQuotaTests {
 
-    @Test("ノルマの枚数は やさしい4・ふつう6・むずかしい9（暫定値・#1245）")
+    @Test("ノルマの枚数は かんたん4・ふつう6・むずかしい9（暫定値・#1245）")
     func cardCounts() {
         #expect(ShiritoriQuota.allCases.map(\.cardCount) == [4, 6, 9])
     }
@@ -254,7 +254,7 @@ struct ShiritoriQuotaTests {
 
     @Test("解析の段階と表示名")
     func labelsAndAnalyticsLevels() {
-        #expect(ShiritoriQuota.allCases.map(\.label) == ["やさしい", "ふつう", "むずかしい"])
+        #expect(ShiritoriQuota.allCases.map(\.label) == ["かんたん", "ふつう", "むずかしい"])
         #expect(ShiritoriQuota.allCases.map(\.analyticsLevel) == [.beginner, .normal, .hard])
         #expect(ShiritoriQuota.standard == .normal)
     }

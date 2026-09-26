@@ -364,7 +364,7 @@ public struct AnzanView: View {
 // MARK: - 難易度のシート
 
 /// 桁数・個数・速さをそれぞれ選ぶ（#1321 の受け入れ条件）。節が 3 つあるので常に `.large` で開き、
-/// スタートは下に固定する（`.scrollingPinnedStart`）。
+/// スタートは共通枠が下に固定する（#1415）。
 struct AnzanSetupSheet: View {
     let onStart: (AnzanSettings) -> Void
     let onCancel: () -> Void
@@ -381,7 +381,7 @@ struct AnzanSetupSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "難易度をえらぶ", startTitle: "スタート", layout: .scrollingPinnedStart,
+            kind: .solo,
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection("桁数") {

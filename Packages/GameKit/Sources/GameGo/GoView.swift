@@ -35,19 +35,14 @@ public struct GoView: View {
         }
         .gameAnimation(.none, value: model.phase)
         .padding(Theme.pad)
-        .gameChrome(title: "囲碁", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.gameOver || model.moveCount == 0 {
-                        showNewGame = true
-                    } else {
-                        showConfirmNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "囲碁", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.gameOver || model.moveCount == 0 {
+                            showNewGame = true
+                        } else {
+                            showConfirmNewGame = true
+                        }
+                    })
         .howToPlay(.go) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
@@ -617,28 +612,9 @@ struct GoRuleDetails: View {
     ]
 
     var body: some View {
-        // 他ゲームのルールシート（大富豪・ポーカー）と同じ包み: スクロール + 左右余白 + 共通背景
-        // （会長指摘 2026-09-02: 全面白地・余白なしで見た目が他と違う）。
-        ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(sections, id: \.0) { title, lines in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(title).themeBody(15).foregroundStyle(Theme.coral)
-                    ForEach(lines, id: \.self) { line in
-                        Text("・\(line)")
-                            .font(.system(size: 13, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.pad)
-        }
-        .popBackground()
+        RuleListSheet(rules: sections.map { title, lines in
+            (title, lines.map { "・\($0)" }.joined(separator: "\n"))
+        })
     }
 }
 
@@ -672,9 +648,9 @@ struct GoNewGameSheet: View {
 
     var body: some View {
         // 選択肢3節 + 置き石の条件節で .medium には収まらない（会長指摘 2026-09-02:
-        // ハンデ以降がはみ出て操作できない）。`.scrolling` は常に `.large` で開く。
+        // ハンデ以降がはみ出て操作できない）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", spacing: 20, layout: .scrolling,
+            kind: .versus, spacing: 20,
             onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
         ) {
             Text("9路盤・中国ルール（面積計算）")
@@ -691,14 +667,10 @@ struct GoNewGameSheet: View {
                 }
             }
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    ForEach(GoLevel.allCases, id: \.self) { candidate in
-                        GameSetupChooser(title: candidate.label, subtitle: candidate.detail,
-                                         selected: level == candidate,
-                                         accent: accent(for: candidate),
-                                         metrics: Self.metrics) { level = candidate }
-                    }
-                }
+                CPUStrengthPicker(
+                    level: Binding(get: { level.rawValue }, set: { level = GoLevel(rawValue: $0) ?? .normal }),
+                    details: GoLevel.allCases.map(\.detail)
+                )
             }
             // 置き石は黒（人間）がハンデをもらう仕組みなので、白を選んだときは出さない。
             if side == .black {
@@ -716,13 +688,4 @@ struct GoNewGameSheet: View {
             }
         }
     }
-
-    private func accent(for level: GoLevel) -> Color {
-        switch level {
-        case .easy:   return Theme.Fill.teal
-        case .normal: return Theme.Fill.yellow
-        case .hard:   return Theme.Fill.coral
-        }
-    }
-
 }

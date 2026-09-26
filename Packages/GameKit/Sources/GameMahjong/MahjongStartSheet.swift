@@ -11,80 +11,60 @@ struct MahjongStartSheet: View {
     /// キャンセル（ハブへ戻る）。12本中この1本だけ「入ったら戻れない」状態だった（#352）。
     let onCancel: () -> Void
 
+    /// 「ルールと役を見る」の詳細。共通枠は NavigationStack を持たないので、入れ子のシートで開く。
+    @State private var showRules = false
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("対局の長さ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    // 他ゲームの開始シート（先手／後手・6局／12局など）と同じ大きめのタイルに揃える
-                    // （会長指摘・2026-09-23。`.pickerStyle(.segmented)` は他より一回り小さく見えた）。
-                    HStack(spacing: 12) {
-                        ForEach(MahjongGameLength.allCases) { option in
-                            GameSetupChooser(
-                                title: option.title, subtitle: "",
-                                selected: length == option, accent: Theme.Fill.coral
-                            ) { length = option }
+        GameSetupSheet(kind: .versus, onStart: onStart, onCancel: onCancel) {
+            GameSetupSection("対局の長さ") {
+                HStack(spacing: 12) {
+                    ForEach(MahjongGameLength.allCases) { option in
+                        GameSetupChooser(
+                            title: option.title, subtitle: "",
+                            selected: length == option, accent: Theme.Fill.coral
+                        ) { length = option }
+                    }
+                }
+                Text(length.summary)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.inkSub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            GameSetupSection("ゲームの流れ") {
+                ruleRow("1", flowSummary)
+                ruleRow("2", "1枚ツモって1枚切る。4面子+雀頭で和了")
+                ruleRow("3", "聴牌したら立直できます（1000点を供託）。門前のときだけ")
+                ruleRow("4", "他の人の捨て牌はポン・チー・カンで鳴けます（鳴くと立直はできません）")
+            }
+
+            Button { showRules = true } label: {
+                HStack {
+                    Image(systemName: "list.bullet.rectangle")
+                    Text("ルールと役を見る")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.inkSub)
+                }
+                .foregroundStyle(Theme.coral)
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
+                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
+            }
+            .buttonStyle(.plain)
+        }
+        .sheet(isPresented: $showRules) {
+            NavigationStack {
+                MahjongRuleSheet()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("閉じる") { showRules = false }
                         }
                     }
-                    Text(length.summary)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ゲームの流れ")
-                        .themeBody(15).foregroundStyle(Theme.inkSub)
-                    ruleRow("1", flowSummary)
-                    ruleRow("2", "1枚ツモって1枚切る。4面子+雀頭で和了")
-                    ruleRow("3", "聴牌したら立直できます（1000点を供託）。門前のときだけ")
-                    ruleRow("4", "他の人の捨て牌はポン・チー・カンで鳴けます（鳴くと立直はできません）")
-                }
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-
-                NavigationLink {
-                    MahjongRuleSheet()
-                } label: {
-                    HStack {
-                        Image(systemName: "list.bullet.rectangle")
-                        Text("ルールと役を見る")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.inkSub)
-                    }
-                    .foregroundStyle(Theme.coral)
-                    .padding(16)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
-                }
-
-                Spacer()
-                Button {
-                    onStart()
-                } label: {
-                    Text("対局開始").themeBody(18).frame(maxWidth: .infinity)
-                    .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
-            }
-            .padding(Theme.pad)
-            .popBackground()
-            .navigationTitle("麻雀")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { onCancel() }
-                }
             }
         }
-        .presentationDetents([.large])
     }
 
     /// 選んだ長さに合わせた 1 行目。何局打つかは遊ぶ前にいちばん知りたい情報なので、
@@ -132,6 +112,6 @@ struct MahjongRuleSheet: View {
     ]
 
     var body: some View {
-        RuleListSheet(title: "ルールと役", rules: rules)
+        RuleListSheet(rules: rules)
     }
 }

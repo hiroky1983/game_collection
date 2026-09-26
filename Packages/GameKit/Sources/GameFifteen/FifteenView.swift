@@ -23,19 +23,14 @@ public struct FifteenView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "15パズル", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.hasProgressToLose {
-                        showConfirmReset = true
-                    } else {
-                        withGameAnimation { model.newGame() }
-                    }
-                } label: {
-                    Label("リセット", systemImage: "arrow.clockwise")
-                }
-            }
-        }
+        .gameChrome(title: "15パズル", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        if model.hasProgressToLose {
+                            showConfirmReset = true
+                        } else {
+                            withGameAnimation { model.newGame() }
+                        }
+                    })
         .howToPlay(.fifteen)
         .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmReset, titleVisibility: .visible) {
             Button("終了して新規ゲーム", role: .destructive) { withGameAnimation { model.newGame() } }
