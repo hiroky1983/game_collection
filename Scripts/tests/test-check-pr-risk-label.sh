@@ -39,7 +39,7 @@ echo "== 1. ラベル無しのアプリコードは落ちる（#808 の 6 本の
 check "Packages/ の変更・ラベル無し"            1 "release/v1.1.5" "fix/blocks-paddle-relative-control" "" "$PKG"
 check "App/ の変更・ラベル無し"                 1 "release/v1.1.5" "fix/716-hub" "" "App/HubView.swift"
 check "project.yml の変更・ラベル無し"          1 "release/v1.1.6" "chore/bump" "" "project.yml"
-check "docs に混ぜても落ちる"                   1 "release/v1.1.5" "feat/x" "" "docs/ui-review/a.png" "$PKG"
+check "docs に混ぜても落ちる"                   1 "release/v1.1.5" "feat/x" "" "docs/spec-app.md" "$PKG"
 check "risk 以外のラベルだけでは落ちる"         1 "release/v1.1.5" "feat/x" "bug,ai:approved" "$PKG"
 
 echo "== 2. 規程の 3 種のどれかがあれば通る =="
