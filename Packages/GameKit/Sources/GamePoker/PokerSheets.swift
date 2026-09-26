@@ -139,14 +139,13 @@ struct PokerStartSheet: View {
 /// 役ボーナスの配当表（#496）。役を覚える教材を兼ねるので、金額だけでなく役の説明も添える。
 struct BonusTableSheet: View {
     var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
+        YakuTableSheet(title: "役ボーナス配当表") {
+            YakuTableSection(
+                footer: "勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。"
+            ) {
                 Text("勝負（ショーダウン）で勝った側に、ポットとは別に配当されます。フォールド勝ちには付きません。")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 4)
-
                 ForEach(PokerBonusTable.payouts) { payout in
                     HStack(spacing: 8) {
                         Text(payout.rank.description)
@@ -159,12 +158,7 @@ struct BonusTableSheet: View {
                             .font(.system(size: 16, weight: .black, design: .rounded))
                             .foregroundStyle(Theme.yellow)
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
                 }
-
                 HStack(spacing: 8) {
                     Text("ワンペア・ハイカード")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -176,24 +170,8 @@ struct BonusTableSheet: View {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
                 }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                    .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
-
-                Text("勝って得たチップは、最大\(PokerModel.maxDoubleUpStreak)回まで「ダブルアップ」に賭けられます（1枚めくって見せ札より上か下かを当てる・同じ数字は引き直し）。")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 8)
             }
-            .padding(Theme.pad)
         }
-        .popBackground()
-        .navigationTitle("役ボーナス配当表")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 }
 
@@ -201,37 +179,17 @@ struct BonusTableSheet: View {
 
 struct HandGuideSheet: View {
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(handGuides, id: \.name) { guide in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Text(guide.name)
-                                .font(.system(size: 14, weight: .black, design: .rounded))
-                                .foregroundStyle(Theme.coral)
-                            Text(guide.desc)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(Theme.inkSub)
-                        }
-                        HStack(spacing: 4) {
-                            ForEach(guide.cards) { card in
-                                MiniCardView(card: card)
-                            }
+        RuleListSheet(rules: []) {
+            ForEach(handGuides, id: \.name) { guide in
+                RuleFigureCard(title: guide.name, detail: guide.desc) {
+                    HStack(spacing: 4) {
+                        ForEach(guide.cards) { card in
+                            MiniCardView(card: card)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
-                        .shadow(color: .black.opacity(0.06), radius: 4, y: 2))
                 }
             }
-            .padding(Theme.pad)
         }
-        .popBackground()
-        .navigationTitle("役一覧")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
     }
 
     private func c(_ rank: Int, _ suit: PokerSuit) -> PokerCard {
