@@ -32,8 +32,8 @@ struct ShogiMovePolicyTests {
         }
     }
 
-    /// 黒は 1i の玉と 5g の歩だけで、白は 9h の飛車と持ち駒の金。歩を動かす手など、黒が何を指しても
-    /// 白の 1h への金打ちで詰む手が多い（金は飛車が守り、玉は 2i にも逃げられない）。
+    /// 黒は 1i の玉と 5g の歩だけで、白は 2h の飛車と持ち駒の金。歩を動かす手など、黒が何を指しても
+    /// 白の金打ちで詰まされる手が多い（詰まされる手・そうでない手の両方があることはテストで確かめる）。
     private let matingThreat = "4k4/9/9/9/9/9/4P4/7r1/8K b g 1"
 
     private func exactEngine(seed: UInt64, margin: Int = SimpleMinimaxEngine.slipMargin) -> SimpleMinimaxEngine {
@@ -67,7 +67,7 @@ struct ShogiMovePolicyTests {
 
     @Test("外しの手は、最善と損の幅の外の手（駒を只で取られる手）を選ばない")
     func slipStaysWithinTheMargin() {
-        // 5e の金は 5d の歩を取れるが、その歩にも 5e の金を取られうる。金を歩の利きに残す手は幅（300）の外。
+        // 5e の金は 5d の歩を取れるが、その歩にも 5e の金を取られうる。金を歩の利きに残す手は幅（500 = 銀 1 枚ぶん）の外。
         let sfen = "4k4/9/9/4p4/4G4/9/9/9/4K4 b - 1"
         let pos = Position.fromSFEN(sfen)!
         var p = pos
@@ -83,6 +83,27 @@ struct ShogiMovePolicyTests {
             }
             #expect(!lostGold, "金を只で取られる手が候補に入っている: \(move.usi)")
         }
+    }
+
+    /// 外しの候補が無い（合法手が 1 手だけ）ときは、外せないので探索して最善手を指す。
+    /// 何も返さない・非合法手を返すと、CPU が止まる。
+    @Test("外しの候補が無ければ探索に回り、唯一の合法手を返す")
+    func slipWithNoCandidatesFallsBackToSearch() async {
+        // 黒玉 1i は、2a の飛車が 2 筋を押さえているので 1h へしか動けない。
+        let pos = Position.fromSFEN("4k2r1/9/9/9/9/9/9/9/8K b - 1")!
+        let moves = pos.legalMoves()
+        #expect(moves.count == 1, "前提: 合法手が 1 手だけ（\(moves.map(\.usi))）")
+        let e = SimpleMinimaxEngine(depth: 2, usePositional: true, useQuiescence: true, useBook: false,
+                                    timeLimit: .infinity, policy: SimpleMinimaxEngine.policy(0), seed: 1)
+        #expect(await e.bestMove(sfen: pos.toSFEN()) == moves[0].usi)
+    }
+
+    @Test("探索に残す時間は、使った時間と後始末ぶんを引く（上限を超えない・0 にならない）")
+    func searchTimeSubtractsWhatWasUsed() {
+        let over = SimpleMinimaxEngine.searchOverhead
+        #expect(abs(SimpleMinimaxEngine.searchTime(limit: 1, elapsed: 0.4) - (0.6 - over)) < 1e-9)
+        #expect(SimpleMinimaxEngine.searchTime(limit: 1, elapsed: 5) == SimpleMinimaxEngine.minSearchTime)
+        #expect(SimpleMinimaxEngine.searchTime(limit: .infinity, elapsed: 5) == .infinity)
     }
 
     @Test("局面数の上限に達したら読みを打ち切り、途中の深さは採用せず合法手を返す")

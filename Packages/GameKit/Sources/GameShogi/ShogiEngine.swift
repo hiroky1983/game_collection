@@ -244,19 +244,19 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         let startedAt = Date()
         if !policy.isExact {
             var rng = SplitMix64(seed: seed ?? UInt64.random(in: .min ... .max))
+            let slipDeadline = timeLimit.isFinite
+                ? startedAt.addingTimeInterval(timeLimit * Self.slipTotalShare) : Date.distantFuture
             if Double.random(in: 0..<1, using: &rng) >= policy.bestMoveProbability,
-               let slip = slipMove(&pos, moves: moves, using: &rng) {
+               let slip = slipMove(&pos, moves: moves, using: &rng, deadline: slipDeadline) {
                 return slip.usi
             }
         }
 
-        // 外しの手が見つからず探索に回るときも、1 手の合計が上限に収まるよう、使った時間と
-        // 置換表の確保・後始末ぶんを引いて残りで読む。
-        let remaining = timeLimit.isFinite
-            ? max(Self.minSearchTime, timeLimit - Date().timeIntervalSince(startedAt) - Self.searchOverhead)
-            : timeLimit
-        var ctx = SearchContext(maxDepth: depth, usePositional: usePositional,
-                                useQuiescence: useQuiescence, timeLimit: remaining, nodeLimit: nodeLimit)
+        // 外しの手が見つからず探索に回るときも、1 手の合計が上限に収まるよう、使った時間を引いて読む。
+        var ctx = SearchContext(
+            maxDepth: depth, usePositional: usePositional, useQuiescence: useQuiescence,
+            timeLimit: Self.searchTime(limit: timeLimit, elapsed: Date().timeIntervalSince(startedAt)),
+            nodeLimit: nodeLimit)
         return ctx.search(&pos)?.usi
     }
 
@@ -273,17 +273,26 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     /// 最善手を外すときの手（#1461）。全候補に 1 手だけ読んで（自分の手のあと、取り合いが落ち着くまで）
     /// 点を付け、点の最も高い手を除いたうち、最善から `slipMargin` 以内の損の手から乱択する。
     /// 大駒を只で取られる手・取り返される取りは幅の外に出る。候補が無い・選んだ手が詰まされる手だけなら
-    /// `nil`（呼び出し側が最善手を指す）。
+    /// `nil`（呼び出し側が探索して最善手を指す）。`deadline` を過ぎても確認が終わらなければ同じく `nil`。
     /// 全候補を深く読むと 1 手に何秒もかかる（実測: 平均 1.7 秒・最大 16 秒）ので、採点は浅くし、
     /// 詰まされないことだけを選んだ手について確かめる（`allowsMateInOne`）。
-    func slipMove(_ pos: inout Position, moves: [Move], using rng: inout SplitMix64) -> Move? {
+    func slipMove(_ pos: inout Position, moves: [Move], using rng: inout SplitMix64,
+                  deadline: Date = .distantFuture) -> Move? {
         var pool = slipPool(&pos, moves: moves)
-        while !pool.isEmpty {
+        while !pool.isEmpty, Date() <= deadline {
             let i = Int.random(in: 0..<pool.count, using: &rng)
             let move = pool.remove(at: i)
             if !Self.allowsMateInOne(&pos, after: move) { return move }
         }
         return nil
+    }
+
+    /// 外しの手を探す全体（採点＋詰みの確認）に使う時間の割合（考える時間に対する）。超えたら探索に回る。
+    static let slipTotalShare = 0.4
+
+    /// 探索に使える残りの時間。使った時間と、置換表の確保・後始末ぶん（`searchOverhead`）を引く。
+    static func searchTime(limit: TimeInterval, elapsed: TimeInterval) -> TimeInterval {
+        limit.isFinite ? max(minSearchTime, limit - elapsed - searchOverhead) : limit
     }
 
     /// 探索の時間から引く、置換表の確保・返り値の後始末ぶん（秒）。上限を超えないための余裕。
@@ -365,7 +374,7 @@ private struct SearchContext {
     /// 盤上の移動は `from * 81 + to`、打ちは `81*81 + type.rawValue*81 + to` に積む。
     /// 反復深化の途中で消さない（深い反復ほど過去の実績を活かせる）。
     var history: [Int]
-    /// 読む局面数の上限（#1397）。`nil` なら無し。時間の上限は安全用で、強さはこちらで決める。
+    /// 読む局面数の上限。`nil` なら無し（出荷値では使わない。計測・テストが探索量を揃えるための口）。
     let nodeLimit: Int?
     /// `negamax` / `quiesce` に入った回数。
     private(set) var nodes = 0

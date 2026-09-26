@@ -21,7 +21,8 @@ struct CPUBenchTests {
     /// デバッグビルドは遅いので余裕を見る。平均・最大・上限で打ち切られた割合の実測は単体バイナリ（`timing`）。
     @Test(.enabled(if: CPUBench.enabled), .timeLimit(.minutes(30)))
     func eachMoveStaysWithinItsTimeLimit() async {
-        let sfen = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 2"
+        // 定跡に載っている局面だと「むずかしい」が探索せず即答してしまうので、乱数で進めた中盤を使う。
+        let sfen = CPUBenchLadder.opening(seed: 3, plies: 30).toSFEN()
         for strength in CPUStrength.allCases {
             let engine = SimpleMinimaxEngine(level: strength.rawValue)
             let t = Date()
