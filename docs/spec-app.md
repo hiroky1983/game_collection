@@ -685,10 +685,10 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 
 ---
 
-## 解析仕様（Analytics・#158 / #500 / #659 / #780 / #1043）
+## 解析仕様（Analytics・#158 / #500 / #659 / #780 / #1043 / #1348）
 
-`CoreEngine/Analytics.swift` に**送信するイベントを7種だけに閉じた** `AnalyticsEvent` enum がある
-（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`share_tap` は #1043 で `release/v1.1.6` に、`reward_offer` は #780 で `release/v1.1.7` に追加。
+`CoreEngine/Analytics.swift` に**送信するイベントを8種だけに閉じた** `AnalyticsEvent` enum がある
+（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`share_tap` は #1043 で `release/v1.1.6` に、`reward_offer` は #780 で `release/v1.1.7` に、`survey_answer` は #1348 で `release/v1.1.7`（企画倉庫・registry コメントアウト中）に追加。
 v1.1.4 までの公開版は3種）。
 呼び出し側（各ゲーム）は任意のキー・値を足せず、イベントを増やすには enum にケースを足す必要がある
 （＝意図しないイベント発生や、ドキュメントと実装が知らないうちに乖離することを型で防ぐ設計）。
@@ -702,6 +702,7 @@ v1.1.4 までの公開版は3種）。
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の7値） / `result`(accepted\|declined\|not_ready) |
 | `share_tap` | 自己ベストを更新したリザルトの**共有ボタンを押した**（`RecordLabel` の共有ボタン。共有シートで実際に送ったかは問わない） | `game_id` のみ |
+| `survey_answer` | ゲーム内アンケートに答えた（#1348・柵越えおじさん。`allowedGameIDs` 外のゲームからは送られない） | `game_id` / 設問ごとの `q1`〜`q3`（選んだ選択肢の**番号・1 始まり**。自由記述は持たない。設問と選択肢は `HomerunCore/HomerunSurvey`。GA4 でのカスタムディメンション登録は出荷版が決まった時点の会長操作） |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
   `registry.modules.map(\.id)` から実行時に作られる）。新ゲームを `registry` に登録するだけで
