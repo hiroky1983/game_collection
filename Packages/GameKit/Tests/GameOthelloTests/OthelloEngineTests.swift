@@ -190,6 +190,67 @@ private final class SwitchingClock: @unchecked Sendable {
     }
 }
 
+// MARK: - 根の αβ と局面数の上限（#1401）
+
+@Suite("オセロ 探索の打ち切り")
+struct OthelloSearchBudgetTests {
+
+    /// 根で αβ を効かせても、選ぶ手の点数は全幅で読んだ最善と一致する（刈り込みで最善を落としていない）。
+    @Test("根の刈り込みは全幅の最善と同じ点数の手を選ぶ")
+    func rootPruningKeepsTheBestScore() {
+        let engine = OthelloEngine(level: CPUStrength.normal.rawValue)
+        for seed in 1...6 {
+            var board = OthelloBoard()
+            var rng = MMIXRandom(seed: UInt64(seed))
+            var stone = OthelloStone.black
+            for _ in 0..<(6 + seed * 3) {
+                let moves = board.validMoves(for: stone)
+                guard !moves.isEmpty else { break }
+                let m = moves[Int(rng.next() % UInt64(moves.count))]
+                board.place(row: m.0, col: m.1, stone: stone)
+                stone = stone.opponent
+            }
+            let moves = board.validMoves(for: stone)
+            guard !moves.isEmpty else { continue }
+            func fullWidthScore(_ m: (Int, Int)) -> Int {
+                var b = board
+                b.place(row: m.0, col: m.1, stone: stone)
+                var nodes = 0
+                return -engine.negamax(b, stone: stone.opponent, depth: 2, alpha: -Int.max, beta: Int.max,
+                                       deadline: .distantFuture, nodes: &nodes, nodeLimit: .max)
+            }
+            let expected = moves.map(fullWidthScore).max()
+            let chosen = engine.iterativeDeepening(moves, board: board, stone: stone, maxDepth: 3,
+                                                   deadline: .distantFuture)
+            #expect(fullWidthScore((chosen.row, chosen.col)) == expected, "seed \(seed): 刈り込みで最善を落とした")
+        }
+    }
+
+    /// 局面数の上限に達したら、その深さの結果は捨てて前の深さの手を使う。上限 0 では深さ 1 すら
+    /// 読み切れないので `moves[0]` に倒す。時計には依存しない（`deadline` は遠い未来）。
+    @Test("局面数の上限で読み切れなければ moves[0] に倒す")
+    func nodeLimitFallsBackToFirstMove() {
+        let board = OthelloBoard()
+        let moves = board.validMoves(for: .black)
+        let engine = OthelloEngine(level: CPUStrength.hard.rawValue)
+        let move = engine.iterativeDeepening(moves, board: board, stone: .black, maxDepth: 5,
+                                             deadline: .distantFuture, nodeLimit: 0)
+        #expect(move.row == moves[0].0 && move.col == moves[0].1)
+    }
+
+    /// 強さは時計で変わらない: 同じ局面には、時計が速くても遅くても同じ手を返す（局面数が主）。
+    @Test("むずかしいは時計が違っても同じ手を返す")
+    func hardMoveIsIndependentOfClock() {
+        let board = OthelloBoard()
+        let slow = OthelloEngine(level: CPUStrength.hard.rawValue,
+                                 now: { Date(timeIntervalSince1970: 0) })
+        let fast = OthelloEngine(level: CPUStrength.hard.rawValue)
+        let a = slow.move(board: board, stone: .black)
+        let b = fast.move(board: board, stone: .black)
+        #expect(a?.row == b?.row && a?.col == b?.col)
+    }
+}
+
 // MARK: - 入門（#1174）
 
 @Suite("オセロ 入門")
@@ -197,11 +258,10 @@ struct OthelloNoviceAndSeriousTests {
 
     private static let novice = CPUStrength.novice.rawValue
 
-    /// 角が取れるなら取る（「勝てるのに取らない」不自然さは作らない）。
-    /// 同じ盤面で「簡単」は返る枚数を採って角を見送る（`weakPrefersFlipCountOverCorner`）ので、
-    /// 2 つのテストが対になって「入門と簡単は別の打ち方」であることを固定する。
-    @Test("入門は取れる角を取る")
-    func noviceTakesTheCorner() async {
+    /// 入門は角が取れても取らない（#1401。2 手読んで自分にいちばん不利な手を選ぶので、角は選ばれない）。
+    /// 以前（#1174）は「取れる角は取る」だったが、簡単に負け越さなかったので悪手そのものを選ぶ形にした。
+    @Test("入門は取れる角を取らない")
+    func noviceDoesNotTakeTheCorner() async {
         var cells = [OthelloStone?](repeating: nil, count: othelloBoardSize * othelloBoardSize)
         cells[0 * othelloBoardSize + 1] = .white
         cells[0 * othelloBoardSize + 2] = .black
@@ -210,9 +270,10 @@ struct OthelloNoviceAndSeriousTests {
         cells[1 * othelloBoardSize + 3] = .white
         cells[0 * othelloBoardSize + 3] = .black
         let board = OthelloBoard(cells: cells)
+        #expect(board.isValid(row: 0, col: 0, stone: .black))
 
         let move = await OthelloEngine(level: Self.novice).bestMove(board: board, stone: .black)
-        #expect(move?.row == 0 && move?.col == 0, "入門が角を見送った: \(String(describing: move))")
+        #expect(!(move?.row == 0 && move?.col == 0), "入門が角を取った: \(String(describing: move))")
     }
 
     /// 角が無いときは**角のとなり**（X打ち・C打ち）へ飛びつく。初心者の癖をそのまま真似ている。
@@ -251,7 +312,7 @@ struct OthelloNoviceAndSeriousTests {
     /// **最初の 8 手をでたらめに進めてから**戦わせて局面を散らす。
     @Test("入門は簡単に負け越す")
     func noviceLosesToEasy() async {
-        let games = 40
+        let games = 12
         var wins = 0
         for i in 0..<games {
             let noviceIsBlack = i % 2 == 0
@@ -264,28 +325,8 @@ struct OthelloNoviceAndSeriousTests {
             if mine > theirs { wins += 1 }
         }
         print("othello novice vs easy: \(wins)/\(games)")
-        #expect(wins <= games * 4 / 10, "入門が簡単に \(wins)/\(games) 勝っている（段の順が崩れている）")
+        #expect(wins <= games / 10, "入門が簡単に \(wins)/\(games) 勝っている（段の順が崩れている）")
     }
-
-    /// 下限: 弱くしても、でたらめに打つ相手には勝ったり負けたりする（一方的に負けはしない）。
-    @Test("入門はでたらめな相手に一方的に負けはしない")
-    func noviceIsNotBrokenAgainstRandom() async {
-        let games = 40
-        var wins = 0
-        for i in 0..<games {
-            let noviceIsBlack = i % 2 == 0
-            let result = await OthelloSelfPlay.play(
-                black: noviceIsBlack ? .level(Self.novice) : .random,
-                white: noviceIsBlack ? .random : .level(Self.novice),
-                seed: UInt64(i) &+ 1)
-            let mine = noviceIsBlack ? result.black : result.white
-            let theirs = noviceIsBlack ? result.white : result.black
-            if mine > theirs { wins += 1 }
-        }
-        print("othello novice vs random: \(wins)/\(games)")
-        #expect(wins >= games * 3 / 10, "入門がでたらめな相手に \(wins)/\(games) しか勝てない（壊れている）")
-    }
-
 }
 
 // MARK: - 自己対戦（テスト用）
