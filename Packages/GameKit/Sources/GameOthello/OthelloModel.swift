@@ -364,7 +364,13 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel {
         } else {
             services?.feedback.notify(winner == humanSide ? .success : .error)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+        // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+        recordResult = services?.gameDidFinish(
+            gameID: gameID,
+            outcome: reviewOutcome,
+            score: GameScore(metric: .winLoss),
+            isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
+        )
         return true
     }
 

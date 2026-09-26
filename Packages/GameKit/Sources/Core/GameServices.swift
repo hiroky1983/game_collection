@@ -227,7 +227,12 @@ public struct GameServices {
     /// ここ1か所で調停する。**評価リクエストを優先**し、その回のレコメンドは提示カウントを
     /// 消費せず次回に送る。
     ///
-    /// - Parameter score: そのゲームの成績（#115）。省略すると勝敗だけが記録される。
+    /// - Parameters:
+    ///   - score: そのゲームの成績（#115）。省略すると勝敗だけが記録される。
+    ///   - isReviewHighlight: その勝ちが評価リクエストの「見せ場」か（#1471）。既定は true
+    ///     （＝勝てば見せ場）。ブラックジャックのブラックジャック・ポーカーの役・対 CPU 盤面ゲームの
+    ///     強さなど、勝ちの中でも絞りたいゲームだけ false を渡す。**自己ベストの更新は、ここで渡した
+    ///     値にかかわらず全ゲーム共通で見せ場になる**（連勝記録は含めない）。
     /// - Returns: 更新後の自己ベストと更新内訳。リザルトに `RecordLabel` で 1 行出すのに使う。
     ///   記録を持たない構成（テスト・プレビュー）では nil。
     @MainActor
@@ -235,7 +240,8 @@ public struct GameServices {
     public func gameDidFinish(
         gameID: String,
         outcome: GameOutcome,
-        score: GameScore = GameScore()
+        score: GameScore = GameScore(),
+        isReviewHighlight: Bool = true
     ) -> RecordResult? {
         // 記録が先。リザルトは戻り値をそのまま描画するため、他の依頼より前に確定させる。
         let result = playLog?.recordResult(gameID: gameID, outcome: outcome, score: score)
@@ -244,7 +250,11 @@ public struct GameServices {
         // 決着した局には「途中のままです」を予約しない（#663）。将棋・チェスは終局後も見返しを
         // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
         reminders?.gameDidFinish(gameID: gameID)
-        let willRequestReview = review?.gameDidFinish(outcome: outcome) ?? false
+        let isNewScoreBest = result.map { $0.update.points || $0.update.highestValue || $0.update.seconds || $0.update.moves } ?? false
+        let willRequestReview = review?.gameDidFinish(
+            outcome: outcome,
+            isHighlight: isReviewHighlight || isNewScoreBest
+        ) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
         // Game Center（#289）は**最後**に呼ぶ。実績の進捗は `PlayLog` の通算値から作るため、
         // 勝利数を増やす `review`（`recordWin`）と、遊んだゲームを記録する `recommendations`

@@ -71,6 +71,12 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
         allCases.indices.contains(index) ? allCases[index].rawValue : standard.rawValue
     }
 
+    /// 評価リクエストの見せ場になる強さか（#1471）。「ふつう」以上の CPU に勝ったときだけ。
+    /// 「入門」「かんたん」に勝っても、評価を頼むほどの手応えとは言えない。
+    public static func isReviewWorthy(level: Int) -> Bool {
+        level >= normal.rawValue
+    }
+
     /// 解析の段階（`aiLevel` から直接）。
     public static func analyticsLevel(forLevel level: Int) -> AnalyticsLevel {
         strength(for: level).analyticsLevel

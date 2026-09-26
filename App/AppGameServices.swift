@@ -160,13 +160,17 @@ enum AppEnvironment {
         availableModules: { settings.visibleModules(from: registry) }
     )
 
-    /// 評価リクエスト。勝った直後にだけ、生涯で1〜2回だけ聞く（条件は `ReviewRequestPolicy`）。
+    /// 評価リクエスト。勝ちの中でも見せ場の直後にだけ、間隔を空けて聞く（条件は `ReviewRequestPolicy`）。
     /// バージョンごとに1回までのため、`CFBundleShortVersionString` を判定に使う。
     static let review = ReviewRequestService(log: playLog, appVersion: shortVersion)
 
     /// App Store の商品ページ。設定の「アプリをシェア」と、リザルトの記録の共有（#1043）が添える URL。
     /// キャンペーンのパラメータは付けない（付けるには ASC の Campaign Link の設定が要る・#1043）。
     static let appStoreURL = URL(string: "https://apps.apple.com/jp/app/id6781719499")!
+
+    /// App Store のレビュー記入画面を直接開く URL（#1471）。設定の「アプリを評価する」用。
+    /// `requestReview` は OS の上限（365 日で 3 回）に達すると何も出ないので、自分から開いた人には使わない。
+    static let writeReviewURL = URL(string: "https://apps.apple.com/app/id6781719499?action=write-review")!
 
     /// 表示用のバージョン番号（例 "1.1.1"）。取れなければ判定を止めないよう "0" を使う。
     static var shortVersion: String {

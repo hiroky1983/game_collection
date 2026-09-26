@@ -593,7 +593,13 @@ public final class BlackjackModel {
         case .push:                  services?.feedback.notify(.warning)
         default:                     services?.feedback.notify(.error)
         }
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: currentScore)
+        // 評価リクエストの見せ場は、最初の 2 枚で 21 のブラックジャックで勝ったとき（#1471）。
+        recordResult = services?.gameDidFinish(
+            gameID: gameID,
+            outcome: reviewOutcome,
+            score: currentScore,
+            isReviewHighlight: outcome == .playerBlackjack
+        )
         checkSessionOver()
         // 決着した局は保存しない。ただし復活（#499）を使ったセッションは、残高と「使い切った」印を
         // 賭け待ちの形で残す（#1104）。`persist()` に寄せて、捨てる／残すの判断を1か所に置く。
