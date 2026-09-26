@@ -330,7 +330,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
 
-    /// 残り回数（`BoardHintButton` が読む）。
+    /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
 
     /// いまヒントを押せるか。**自分の手番で、対局中で、残りが在るとき**だけ。

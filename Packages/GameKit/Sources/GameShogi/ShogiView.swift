@@ -7,7 +7,6 @@ public struct ShogiView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（#200）。
@@ -470,26 +469,11 @@ public struct ShogiView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。
-            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 12)) { showResignConfirm = true }
-                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
-
-            Spacer()
-
-            // ヒントは 3 本とも同じ部品・同じ見た目（#1118）。44pt の枠は検討ナビの ◀ ▶ と同じ手で
-            // レイアウト上だけ詰め、対局中の操作列が高くならないようにする（詰めないと盤が縮む・#139）。
-            BoardHintButton(model: model)
-                .padding(.vertical, -BoardGameControlMetrics.reviewNavLayoutInset)
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
-        }
-        .themeBody(14)
-        // ヒントが増えて 3 つ並ぶので、iPhone SE の幅でも改行させず 1 行に収める
-        // （ナンプレが #1118 以前に同じ詰まり方で「ヒント」を改行させていた）。
-        .lineLimit(1).minimumScaleFactor(0.8)
-        .padding(.horizontal, 16).padding(.vertical, 5)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue, hint: BoardControlBarHint(model),
+            onResign: { model.resign() }
+        )
     }
 
     /// 検討ナビと「もう一度」の帯。実体はチェスと共通の `ReviewNavBar`（#139・#530）。

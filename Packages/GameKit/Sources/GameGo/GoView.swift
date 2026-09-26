@@ -7,7 +7,6 @@ public struct GoView: View {
     private let services: GameServices
     @State private var showNewGame: Bool
     @State private var showConfirmNewGame = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
     /// 出ている「パス」の札（#664）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
@@ -399,13 +398,11 @@ public struct GoView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 投了・待ったの中身は盤ゲーム 5 本で共通（#828）。囲碁だけ間に「パス」を挟む。
-            BoardResignButton(look: .handDrawnCapsule(horizontalPadding: 10)) { showResignConfirm = true }
-                .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
-
-            Spacer(minLength: 0)
-
+        // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通。囲碁だけ中央に「パス」を挟む（#1421）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            onResign: { model.resign() }
+        ) {
             Button { model.pass() } label: {
                 Label("パス", systemImage: "forward.fill")
                     .foregroundStyle(.white)
@@ -413,14 +410,7 @@ public struct GoView: View {
                     .background(Capsule().fill(Theme.fillMuted))
             }
             .disabled(model.isAITurn || model.isThinking)
-
-            Spacer(minLength: 0)
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: false)
         }
-        .themeBody(14)
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 }
 

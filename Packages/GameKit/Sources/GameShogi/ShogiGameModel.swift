@@ -468,7 +468,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「CPU思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
 
-    /// 残り回数（`BoardHintButton` が読む）。
+    /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
 
     /// ヒントで光らせるマス（移動元・移動先。打つ手は打つ先だけ）。
