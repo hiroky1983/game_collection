@@ -190,7 +190,7 @@ public struct SudokuView: View {
     }
 
     private func statusBarRow(zoomTitle: Bool, statusIcons: Bool) -> some View {
-        HStack(spacing: 8) {
+        GameStatusBar(verticalPadding: SudokuMetrics.statusBarVerticalPadding) {
             Group {
                 if model.isFinished {
                     let cleared = model.state == .cleared
@@ -220,7 +220,6 @@ public struct SudokuView: View {
                 }
             }
             .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(model.difficulty.label)
                 .themeCaption(11)
@@ -229,7 +228,7 @@ public struct SudokuView: View {
                 .background(Capsule().fill(difficultyAccent))
                 .fixedSize(horizontal: true, vertical: false)
                 .opacity(model.hasPuzzle ? 1 : 0)
-
+        } trailing: {
             HStack(spacing: 8) {
                 Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -252,10 +251,7 @@ public struct SudokuView: View {
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 12).padding(.vertical, SudokuMetrics.statusBarVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
         // 3 つを別々に読ませるとスワイプ回数が増えるだけなので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .contain)
     }

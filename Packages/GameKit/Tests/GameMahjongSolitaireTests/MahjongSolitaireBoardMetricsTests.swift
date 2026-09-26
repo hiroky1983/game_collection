@@ -187,7 +187,7 @@ struct MahjongSolitaireBoardMetricsTests {
         let source = try Self.viewSource()
         #expect(
             source.range(
-                of: #"\.padding\(\.vertical,\s*Metrics\.statusBarVerticalPadding\)"#,
+                of: #"GameStatusBar\(verticalPadding:\s*Metrics\.statusBarVerticalPadding\)"#,
                 options: .regularExpression
             ) != nil,
             "ステータスバーの余白が Metrics から切れている（帯の高さの見積りが効かなくなる）"

@@ -16,8 +16,13 @@ public enum GameStatusBarStyle {
 public struct GameStatusBar<Leading: View, Trailing: View>: View {
     private let leading: Leading
     private let trailing: Trailing
+    private let verticalPadding: CGFloat
 
-    public init(@ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+    /// `verticalPadding` は、44pt のトグルボタンが帯の高さを決めるゲーム（一人用の拡大・旗）が
+    /// 盤の高さを食わないよう詰めるための口（#1420）。既定は対戦ゲームと同じ 6。
+    public init(verticalPadding: CGFloat = GameStatusBarStyle.verticalPadding,
+                @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+        self.verticalPadding = verticalPadding
         self.leading = leading()
         self.trailing = trailing()
     }
@@ -30,7 +35,7 @@ public struct GameStatusBar<Leading: View, Trailing: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
-        .padding(.vertical, GameStatusBarStyle.verticalPadding)
+        .padding(.vertical, verticalPadding)
         // 余白のあとに下限を掛ける。先に掛けると完成した高さが 44 + 6×2 = 56pt になる。
         .frame(minHeight: GameStatusBarStyle.minHeight)
         .popCard(corner: Theme.cornerSmall)
