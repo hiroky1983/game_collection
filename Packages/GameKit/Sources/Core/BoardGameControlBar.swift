@@ -69,7 +69,10 @@ public struct BoardGameControlBar<Model: BoardUndoModel, Center: View>: View {
         .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
         .boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)
-        .hintNudge(hint?.nudge)
+        .hintNudge(hint.map {
+            // 投了の確認ダイアログが開いている間は待たない（閉じた直後に吹き出しが出るのを防ぐ）。
+            HintNudge(isEligible: $0.nudge.isEligible && !showResignConfirm, game: $0.nudge.game, activity: $0.nudge.activity)
+        })
     }
 
     private var moreMenu: some View {

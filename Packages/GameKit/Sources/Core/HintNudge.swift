@@ -49,12 +49,13 @@ private struct HintNudgeModifier: ViewModifier {
     /// 待ち時間を数え直す条件。バックグラウンドの時間は数えない（アクティブに戻ると 0 から）。
     private struct Key: Hashable {
         let isEligible: Bool
+        let game: Int
         let activity: AnyHashable
         let isActive: Bool
     }
 
     private var key: Key {
-        Key(isEligible: nudge?.isEligible ?? false, activity: nudge?.activity ?? AnyHashable(0), isActive: scenePhase == .active)
+        Key(isEligible: nudge?.isEligible ?? false, game: nudge?.game ?? 0, activity: nudge?.activity ?? AnyHashable(0), isActive: scenePhase == .active)
     }
 
     func body(content: Content) -> some View {

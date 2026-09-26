@@ -618,7 +618,7 @@ public struct SudokuView: View {
         HintNudge(
             isEligible: model.state == .playing && model.remainingHints > 0 && !hintRescue.isWatching,
             game: model.gameSerial,
-            activity: [model.selected ?? -1, model.hintsUsed, model.board.hashValue, model.notes.hashValue]
+            activity: [model.selected ?? -1, model.hintsUsed, model.board.hashValue, model.notes.hashValue, model.noteMode ? 1 : 0]
         )
     }
 

@@ -443,7 +443,7 @@ public struct MahjongSolitaireView: View {
         HintNudge(
             isEligible: model.canHint && !isWatchingRewardAd,
             game: model.dealSerial,
-            activity: [model.selectedIndex ?? -1, model.remainingCount, model.hintCount, model.shuffleCount, model.undoCount]
+            activity: [model.selectedIndex ?? -1, model.remainingCount, model.hintCount, model.shuffleCount, model.undoCount, showsWholeBoard ? 1 : 0]
         )
     }
 
