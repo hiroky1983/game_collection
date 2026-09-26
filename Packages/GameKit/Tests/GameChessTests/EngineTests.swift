@@ -247,49 +247,60 @@ struct ChessNoviceAndSeriousTests {
 
     private static let novice = CPUStrength.novice.rawValue
 
+    /// 時間で打ち切られない、見逃し（#1398）を切った指定段階。読みの深さだけを固定するテスト用。
+    private func untimed(level: Int, seed: UInt64? = nil) -> SimpleChessEngine {
+        let shipped = SimpleChessEngine(level: level)
+        return SimpleChessEngine(
+            depth: min(shipped.depth, 4), usePositional: shipped.usePositional,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: 600,
+            policy: shipped.policy.withoutSlip, seed: seed
+        )
+    }
+
     /// 時間で打ち切られない「入門」（`seed` を渡すと乱択を再現できる）。
     private func untimedNovice(seed: UInt64?) -> SimpleChessEngine {
         let shipped = SimpleChessEngine(level: Self.novice)
         return SimpleChessEngine(
             depth: shipped.depth, usePositional: shipped.usePositional,
             useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: 600,
-            isNovice: true, seed: seed
+            policy: shipped.policy.withoutSlip, seed: seed
         )
     }
 
-    /// 呼び出し時点で既に期限切れの「入門」（#1196 回帰テスト用）。`timeLimit` に負の値を渡すと
+    /// 呼び出し時点で既に期限切れの指定段階（#1196 回帰テスト用）。`timeLimit` に負の値を渡すと
     /// `ChessSearchContext.init` の `Date().addingTimeInterval` がその場で過去の時刻になる。
-    private func expiredNovice(seed: UInt64?) -> SimpleChessEngine {
-        let shipped = SimpleChessEngine(level: Self.novice)
+    private func expired(level: Int, seed: UInt64?) -> SimpleChessEngine {
+        let shipped = SimpleChessEngine(level: level)
         return SimpleChessEngine(
             depth: shipped.depth, usePositional: shipped.usePositional,
             useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: -1,
-            isNovice: true, seed: seed
+            policy: shipped.policy.withoutSlip, seed: seed
         )
     }
 
-    /// 「入門」は**読みの設定を「簡単」と 1 ビットも変えず**、着手の選び方だけを崩してある。
-    /// 深さを 1 に落とすと只捨てを始めるので、そこには戻さない。
-    @Test("入門の読みは簡単と同じで、選び方だけが違う")
-    func noviceSharesTheEasySearch() {
+    /// 「入門」は自分の手 1 手だけを読む（深さ 1・#1398）。深さ 2 のままだと、簡単との
+    /// 対戦で簡単が詰まされる局が残り「上の段階は下の段階に負けない」を満たせなかった。
+    /// 取り返される取りを指すのは設計どおり。
+    @Test("入門は簡単より浅く読み、読み以外の設定は簡単と同じ")
+    func noviceReadsShallowerThanEasy() {
         let novice = SimpleChessEngine(level: Self.novice)
         let easy = SimpleChessEngine(level: CPUStrength.easy.rawValue)
         #expect(novice.isNovice)
         #expect(!easy.isNovice)
-        #expect(novice.depth == easy.depth && easy.depth == 2)
+        #expect(novice.depth == 1 && easy.depth == 2)
         #expect(novice.useQuiescence == easy.useQuiescence)
         #expect(novice.usePositional == easy.usePositional)
         #expect(novice.useBook == easy.useBook)
         #expect(novice.timeLimit == easy.timeLimit)
-        // 許す損はポーン 1 枚未満。駒を只で捨てる手はこの幅に入らない。
+        #expect(novice.nodeLimit == nil && easy.nodeLimit == nil)
+        // 許す損はポーン 1 枚未満。
         #expect(SimpleChessEngine.noviceMargin < ChessPieceValue.base(.pawn))
     }
 
-    /// 既存の最上段（むずかしい）の設定は変えていない。
-    @Test("むずかしいの設定は #1174 で触らない")
-    func hardConfigurationIsUnchanged() {
+    @Test("むずかしいの探索設定（深さ上限・定跡・静止探索・位置評価）")
+    func hardConfiguration() {
         let hard = SimpleChessEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.depth == 5 && hard.timeLimit == 2.0)
+        #expect(hard.depth == SimpleChessEngine.hardDepth)
         #expect(hard.useBook && hard.useQuiescence && hard.usePositional)
         #expect(!hard.isNovice)
     }
@@ -305,14 +316,15 @@ struct ChessNoviceAndSeriousTests {
         }
     }
 
-    /// 取り返されるだけの取りは入門も指さない（只捨てに落ちていない）。
-    @Test("入門は取り返されるだけの取りを指さない")
-    func noviceAvoidsTheHangingCapture() async {
+    /// 取り返されるだけの取りは簡単以上は指さない。入門は読みが 1 手だけ（#1398）なので、
+    /// 指すことがある（只で取られる手も一定の確率で指す、が入門の設計）。
+    @Test("簡単は取り返されるだけの取りを指さない")
+    func easyAvoidsTheHangingCapture() async {
         // Qxe5 は d6 のポーンに取り返される（クイーン 900 とポーン 100 の刺し違え）。
         let fen = "k7/8/3p4/4p3/8/8/8/K3Q3 w - - 0 1"
         for seed in UInt64(1)...10 {
-            #expect(await untimedNovice(seed: seed).bestMove(fen: fen) != "e1e5",
-                    "入門がクイーンをポーンと刺し違えている（seed \(seed)）")
+            #expect(await untimed(level: CPUStrength.easy.rawValue, seed: seed).bestMove(fen: fen) != "e1e5",
+                    "簡単がクイーンをポーンと刺し違えている（seed \(seed)）")
         }
     }
 
@@ -343,7 +355,7 @@ struct ChessNoviceAndSeriousTests {
                 depth: 2, usePositional: false, useQuiescence: false, useBook: false, timeLimit: 600
             ).bestMove(fen: ChessPosition.startFEN) { easyMoves.insert(uci) }
         }
-        #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+        #expect(easyMoves.count == 1, "前提が崩れている: 見逃しを除いた簡単は決定的")
     }
 
     /// 呼び出し時点で既に `deadline` を過ぎていても、`noviceMove` は評価済みの候補から選ぶ
@@ -353,7 +365,7 @@ struct ChessNoviceAndSeriousTests {
     func noviceStillVariesWhenDeadlineAlreadyPassed() async {
         var moves = Set<String>()
         for seed in UInt64(1)...30 {
-            if let uci = await expiredNovice(seed: seed).bestMove(fen: ChessPosition.startFEN) {
+            if let uci = await expired(level: Self.novice, seed: seed).bestMove(fen: ChessPosition.startFEN) {
                 moves.insert(uci)
             }
         }
@@ -364,12 +376,12 @@ struct ChessNoviceAndSeriousTests {
     /// 静的評価（`evaluate(pos)`）のまま候補に残り、取り返される取りを選びうる
     /// （CodeRabbit 指摘・PR #1199）。`noviceAvoidsTheHangingCapture` と同じ局面を
     /// 呼び出し時点で期限切れにして確認する。
-    @Test("期限切れでも取り返されるだけの取りは選ばない")
-    func expiredNoviceAvoidsTheHangingCapture() async {
+    @Test("期限切れでも取り返されるだけの取りは選ばない（簡単）")
+    func expiredEasyAvoidsTheHangingCapture() async {
         let fen = "k7/8/3p4/4p3/8/8/8/K3Q3 w - - 0 1"
         for seed in UInt64(1)...30 {
-            #expect(await expiredNovice(seed: seed).bestMove(fen: fen) != "e1e5",
-                    "期限切れの入門がクイーンをポーンと刺し違えている（seed \(seed)）")
+            #expect(await expired(level: CPUStrength.easy.rawValue, seed: seed).bestMove(fen: fen) != "e1e5",
+                    "期限切れの簡単がクイーンをポーンと刺し違えている（seed \(seed)）")
         }
     }
 
