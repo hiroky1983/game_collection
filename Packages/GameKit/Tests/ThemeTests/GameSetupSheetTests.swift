@@ -59,7 +59,7 @@ struct GameSetupSheetSourceTests {
     func everySheetDecidesFrameByKind() throws {
         for (path, kind) in Self.allSheets {
             let source = try Self.read(path)
-            let range = try #require(source.range(of: "GameSetupSheet(\n"), "\(path) に GameSetupSheet( が無い")
+            let range = try #require(source.range(of: "GameSetupSheet("), "\(path) に GameSetupSheet( が無い")
             let call = String(source[range.upperBound...].prefix(240))
             #expect(call.contains("kind: \(kind)"), "\(path) の種別が \(kind) でない")
             for banned in ["title:", "startTitle:", "layout:"] {
@@ -77,7 +77,7 @@ struct GameSetupSheetSourceTests {
             .filter { $0.hasSuffix(".swift") && !$0.hasPrefix("Core/") }
             .filter {
                 try String(contentsOf: sources.appendingPathComponent($0), encoding: .utf8)
-                    .contains("GameSetupSheet(\n")
+                    .contains("GameSetupSheet(")
             }
         #expect(Set(users) == Set(Self.allSheets.map(\.path)), "開始シートを持つゲームの一覧がずれている: \(users.sorted())")
     }
