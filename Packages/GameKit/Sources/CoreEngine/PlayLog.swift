@@ -104,8 +104,13 @@ public final class PlayLog {
     /// 新しいゲームの印（#723）が書き込むキー。
     public static let newGameKeys = [knownGameIDsKey]
 
+    /// 柵越えおじさんの蓄積（#1348・通算・集計・直近 20 挑戦）。ゲームのフォルダはここを参照できない（`Core` が上流）ので
+    /// 文字列で持ち、`GameHomerunTests` が `HomerunStorage.recordsKey` と一致することを確かめる。
+    /// **日次台帳（`homerun_ledger_v1`）は入れない**（消去で回数が補充される穴になるため）。
+    public static let homerunKeys = ["homerun_records_v1"]
+
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
-    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys
+    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys + homerunKeys
 
     private let defaults: UserDefaults
 

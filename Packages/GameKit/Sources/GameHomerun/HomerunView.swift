@@ -5,19 +5,21 @@ import HomerunCore
 /// 柵越えおじさん（#1348）の画面。段 3 = 2D の仮絵で一回遊べる形（3D は後続の段）。
 ///
 /// 打席前（`36-lobby-3D`）→ 打席（`31-at-bat-3D`・全画面でバナー無し）→ 10 球の結果（`34-result-spray`）。
-/// **バナーはどの画面にも出さない**（打席・外野は無バナーが受け入れ条件。打席前・結果のバナーは広告を
-/// 接続する段 4 で足す）。
+/// **打席（と外野カメラ）にはバナーを出さない**（受け入れ条件・既存ゲームとの意図した違い）。バナーは打席前と結果だけ。
 ///
 /// 時間は Model が「次に起こしてほしい時刻」（`nextWake`）を返し、ここの `.task(id: model.step)` が待つだけ。
 /// 輪の大きさは `TimelineView` が時刻から描く（`Timer` は持たない）。
 public struct HomerunView: View {
     @State private var model: HomerunModel
+    /// 広告での回数 +1 の救済。**画面に 1 つだけ**持ち、打席前・結果のボタンへ渡す（ボタンごとに持つと、
+    /// 提示の計測（`reward_offer`）と連打ガードが割れ、付与でボタンが消えたときにアラートも一緒に消える）。
+    @State private var challengeRescue = RewardedRescue()
     private let services: GameServices
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
         self.services = services
-        _model = State(initialValue: HomerunModel())
+        _model = State(initialValue: HomerunModel(services: services))
     }
 
     public var body: some View {
@@ -31,9 +33,20 @@ public struct HomerunView: View {
                 HomerunRuleSheet()
             }
             .sheet(isPresented: Bindable(model).showsExhausted) {
-                HomerunExhaustedSheet { model.showsExhausted = false }
+                HomerunExhaustedSheet(canWatchAd: model.ledger.canWatchAd) { model.showsExhausted = false }
                     .presentationDetents([.medium])
             }
+            // 回数の提示（#780）。使い切ってボタンが出ているあいだを 1 回の提示として数える。
+            .rewardOffer(challengeRescue, for: .challenge, isPresented: offersRecovery,
+                         services: services, gameID: HomerunModel.gameID)
+            .rewardedRescueAlerts(
+                challengeRescue,
+                notEarned: "挑戦回数を増やせませんでした",
+                unavailable: RewardUnavailableAlert(
+                    title: "挑戦回数を増やせませんでした",
+                    message: "広告を見ているあいだに日付が変わったか、今日の広告での回復の上限に達したため、回数を増やせませんでした。"
+                )
+            )
             // バックグラウンドでは投球を止め、戻ったらその球をやり直す（台帳は戻さない）。
             // 戻ったときに日付が変わっていれば 0:00 の補充もここで拾う。
             .onChange(of: scenePhase) { _, phase in
@@ -44,17 +57,22 @@ public struct HomerunView: View {
             .task(id: model.step) { await runClock() }
     }
 
+    /// 回復のボタンが出ているか（打席前と結果で、残りが 0 のあいだ。上限に達していれば出さない）。
+    private var offersRecovery: Bool {
+        (model.phase == .idle || model.phase == .finished) && !model.ledger.canStart && model.ledger.canWatchAd
+    }
+
     @ViewBuilder
     private var content: some View {
         switch model.phase {
         case .idle:
-            HomerunLobbyView(model: model, services: services)
+            HomerunLobbyView(model: model, services: services, challengeRescue: challengeRescue)
                 .transition(.opacity)
         case .pitching, .ballResult:
             HomerunAtBatView(model: model)
                 .transition(.opacity)
         case .finished:
-            HomerunResultView(model: model, services: services)
+            HomerunResultView(model: model, services: services, challengeRescue: challengeRescue)
                 .transition(.opacity)
         }
     }
@@ -78,8 +96,16 @@ public struct HomerunView: View {
 struct HomerunLobbyView: View {
     let model: HomerunModel
     let services: GameServices
+    let challengeRescue: RewardedRescue
 
     var body: some View {
+        VStack(spacing: 0) {
+            lobbyScroll
+            BannerSlot(ads: services.ads)
+        }
+    }
+
+    private var lobbyScroll: some View {
         ScrollView {
             VStack(spacing: 14) {
                 introCard
@@ -95,6 +121,9 @@ struct HomerunLobbyView: View {
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
                 .accessibilityHint(model.ledger.canStart ? "挑戦回数を1回使って10球の打席を始めます" : "今日の挑戦は使い切りました")
+                if !model.ledger.canStart {
+                    HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
+                }
                 Text("挑戦回数は打席に立った時点で1つ減ります")
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSub)
@@ -190,16 +219,27 @@ struct HomerunLobbyView: View {
 struct HomerunResultView: View {
     let model: HomerunModel
     let services: GameServices
+    let challengeRescue: RewardedRescue
 
     private var balls: [HomerunBattedBall] { model.challenge?.results ?? [] }
 
     var body: some View {
+        VStack(spacing: 0) {
+            resultScroll
+            BannerSlot(ads: services.ads)
+        }
+    }
+
+    private var resultScroll: some View {
         ScrollView {
             VStack(spacing: 14) {
                 summaryCard
                 sprayCard
                 breakdownCard
                 actions
+                if model.ledger.remaining == 0 {
+                    HomerunRecoveryButton(model: model, services: services, challengeRescue: challengeRescue)
+                }
                 // ほかのゲームへのレコメンド（#52）。全ゲームの終局画面に置く約束（GameChromeTests）。
                 RecommendationSlot(services: services, isFinished: true)
             }
@@ -353,8 +393,10 @@ struct HomerunBallTile: View {
 
 // MARK: - 使い切りシート
 
-/// 残り 0 で打席に立とうとしたときのシート。広告・アンケートでの回復は段 4 で接続する（いまはボタンを出さない）。
+/// 残り 0 で打席に立とうとしたときのシート。広告での回復のボタンは打席前と結果にある（アラートと提示の計測を
+/// 1 か所にまとめるため、このシートには置かない）。アンケートでの +1 は後続の段。
 struct HomerunExhaustedSheet: View {
+    let canWatchAd: Bool
     let onClose: () -> Void
 
     var body: some View {
@@ -368,6 +410,12 @@ struct HomerunExhaustedSheet: View {
                 .themeBody(14)
                 .foregroundStyle(Theme.inkSub)
                 .multilineTextAlignment(.center)
+            if canWatchAd {
+                Text("閉じると出てくる「広告を見て挑戦 +1 回」で、今日の回数を増やせます。")
+                    .themeCaption(12)
+                    .foregroundStyle(Theme.inkSub)
+                    .multilineTextAlignment(.center)
+            }
             Button(action: onClose) {
                 Text("閉じる").themeBody(16).frame(maxWidth: .infinity)
             }
@@ -376,6 +424,52 @@ struct HomerunExhaustedSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.background.ignoresSafeArea())
+    }
+}
+
+// MARK: - 広告で挑戦回数 +1
+
+/// 「広告を見て挑戦 +1 回」（README §3.4）。1 日 5 本まで。回数はコインで買えず、広告とアンケートだけで増える。
+///
+/// 打席前と結果に同じものを置く（**広告の呼び出しはここ 1 か所**）。救済（`RewardedRescue`）・提示の計測・失敗の
+/// アラートは `HomerunView` が 1 つ持つ。広告を出す前に「今日」の鍵を時計から控え、視聴中に 0:00 をまたいだら
+/// 適用しない（前の日の広告で今日の回数を増やさない）。
+struct HomerunRecoveryButton: View {
+    let model: HomerunModel
+    let services: GameServices
+    let challengeRescue: RewardedRescue
+
+    var body: some View {
+        let ledger = model.ledger
+        VStack(spacing: 6) {
+            if ledger.canWatchAd {
+                Button {
+                    let day = model.dayKey(at: Date())
+                    challengeRescue.request(
+                        services, gameID: HomerunModel.gameID, purpose: .challenge,
+                        guardedBy: .checkedByGrant
+                    ) {
+                        model.grantAdChallenge(forDay: day, now: Date())
+                    }
+                } label: {
+                    Label("広告を見て挑戦 +1 回", systemImage: "play.rectangle.fill")
+                        .themeBody(16)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(challengeRescue.isWatching ? Theme.inkSub : Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .tint(challengeRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal)
+                .disabled(challengeRescue.isWatching)
+                Text(verbatim: "広告での回復は今日あと \(HomerunLedger.adLimitPerDay - ledger.adsWatched) 回（1 日 \(HomerunLedger.adLimitPerDay) 回まで）")
+                    .themeCaption(11)
+                    .foregroundStyle(Theme.inkSub)
+            } else {
+                Text(verbatim: "広告での回復は今日の上限（\(HomerunLedger.adLimitPerDay) 回）に達しました")
+                    .themeCaption(12)
+                    .foregroundStyle(Theme.inkSub)
+            }
+        }
     }
 }
 

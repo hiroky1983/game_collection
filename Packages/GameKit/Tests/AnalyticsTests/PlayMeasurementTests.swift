@@ -736,8 +736,8 @@ struct RewardAdCallSiteTests {
         // 盤ゲーム 5 本の待ったは Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
         // 麻雀の最終局延長（#1201）で 1 か所増えて 17。ルーレットのチップ切れ復活（#1318）で 18。
-        // いろリレーの引き札の免除（#1320）で 19。ぱっと暗算の見直し（#1321）で 20。スピードのタイム（#1323）で 21。
-        #expect(counts.values.reduce(0, +) == 21, "リワード広告の面は21箇所（Core に寄せた待った・コンティニューの幕を除く）")
+        // いろリレーの引き札の免除（#1320）で 19。ぱっと暗算の見直し（#1321）で 20。スピードのタイム（#1323）で 21。柵越えおじさんの挑戦回数（#1348）で 22。
+        #expect(counts.values.reduce(0, +) == 22, "リワード広告の面は22箇所（Core に寄せた待った・コンティニューの幕を除く）")
     }
 }
 
@@ -774,7 +774,7 @@ struct PlayMeasurementCallSiteTests {
     @Test("プレイを数えるゲームは全て gameDidProgress も呼んでいる")
     func everyGameReportsProgress() throws {
         let games = try Self.playingModules()
-        #expect(games.count == 29, "ハブに並ぶゲームは23本 + 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）")
+        #expect(games.count == 30, "ハブに並ぶゲームは23本 + 企画倉庫のルーレット（#1318）・くっつきフルーツ（#1319）・いろリレー（#1320）・ぱっと暗算（#1321）・バックギャモン（#1322）・スピード（#1323）・柵越えおじさん（#1348）")
 
         let silent = games.filter { !$0.value.contains("gameDidProgress(") }.keys.sorted()
         #expect(silent.isEmpty,

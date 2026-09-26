@@ -290,7 +290,7 @@ struct RewardGuardCallSiteTests {
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(requests == 16, "救済の入口は16面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323 を含む）")
+        #expect(requests == 17, "救済の入口は17面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348 を含む）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }
@@ -385,9 +385,9 @@ struct RewardGuardCallSiteTests {
         // `checkedByGrant` は宣言でしかなく、`grant` が局を識別する値を渡さなければ照合は起きない。
         // ナンプレのヒントと麻雀ソリティアのヒント／並べ替えは宣言だけで照合が無く、広告中に始めた
         // 新しい局へ報酬が乗っていた（#815）。上の「残りは0面」はこの3面を数えていなかった。
-        // 局の通し番号を受ける `model.xxx(forGame:` / `forDeal:` / `forTurn:` / `forRun:` の呼び出しを
+        // 局の通し番号を受ける `model.xxx(forGame:` / `forDeal:` / `forTurn:` / `forRun:` / `forDay:`（柵越えおじさんの日付の鍵・#1348）の呼び出しを
         // ファイル単位で数え、宣言の数と突き合わせる。
-        let serialCall = try Regex(#"model\.\w+\(for(Game|Deal|Turn|Run):"#)
+        let serialCall = try Regex(#"model\.\w+\(for(Game|Deal|Turn|Run|Day):"#)
         let mismatched = try Self.gameSources()
             .map { (
                 path: $0.path,

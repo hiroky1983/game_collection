@@ -30,11 +30,14 @@ struct HomerunModuleTests {
         }
     }
 
-    @Test("画面は共通の枠を 1 回だけ通り、バナーは出さず、時間は Model の締め切りを .task で待つだけ")
+    @Test("画面は共通の枠を 1 回だけ通り、バナーは打席前と結果だけで、時間は Model の締め切りを .task で待つだけ")
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameHomerun"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
-        #expect(!code.contains("BannerSlot("), "打席・外野は無バナー（段 3 はどの画面にも出さない）")
+        // バナーは打席前と結果の 2 か所だけ。打席（と外野カメラ）は無バナー（受け入れ条件・#1348）。
+        #expect(code.components(separatedBy: "BannerSlot(").count - 1 == 2, "打席前と結果にだけ出す")
+        let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
+        #expect(!atBat.contains("BannerSlot("), "打席・外野は無バナー")
         #expect(code.contains("HowToPlayHint(.homerun"))
         #expect(code.contains(".howToPlay(.homerun"))
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
