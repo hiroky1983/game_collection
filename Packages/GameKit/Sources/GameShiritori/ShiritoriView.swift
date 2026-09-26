@@ -399,12 +399,13 @@ struct ShiritoriSetupSheet: View {
         ) {
             GameSetupSection("むずかしさ") {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        ForEach(ShiritoriQuota.allCases, id: \.rawValue) { level in
+                    HStack(spacing: 6) {
+                        ForEach(Array(ShiritoriQuota.allCases.enumerated()), id: \.element) { step, level in
                             GameSetupChooser(
                                 title: level.label, subtitle: "",
-                                selected: quota == level, accent: Theme.Fill.purple,
-                                metrics: .init(title: .body(15), verticalPadding: 14, titleMinimumScale: 0.6)
+                                selected: quota == level,
+                                accent: DifficultyTile.accent(step: step, of: ShiritoriQuota.allCases.count),
+                                metrics: DifficultyTile.metrics
                             ) { quota = level }
                         }
                     }
@@ -428,7 +429,7 @@ struct ShiritoriRuleSheet: View {
         ("制限時間", "制限時間は60秒。しりとりが成立するたびに+10秒、成立しない札を選ぶ（おてつき）と-5秒。時間はあなたの番のあいだだけ減ります"),
         ("「ん」で終わると負け", "「ん」で終わる読みの札を選んだ人は、その場で負けです"),
         ("勝ち負け", "CPUが続けられなくなったらあなたの勝ち、あなたが続けられなくなったら負けです"),
-        ("ノルマ", "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。やさしい=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです"),
+        ("ノルマ", "自分が取った札がノルマの枚数に届いた瞬間に勝ちです。かんたん=4枚・ふつう=6枚・むずかしい=9枚。届かないまま時間切れになると負けです"),
     ]
 
     var body: some View {

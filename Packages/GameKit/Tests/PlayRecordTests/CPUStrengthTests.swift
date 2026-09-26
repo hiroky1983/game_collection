@@ -11,9 +11,9 @@ import Core
 @Suite("CPU の強さ")
 struct CPUStrengthTests {
 
-    @Test("呼び名はやさしい順に 入門・簡単・ふつう・むずかしい")
+    @Test("呼び名はやさしい順に 入門・かんたん・ふつう・むずかしい")
     func labelsAreOrderedFromEasiest() {
-        #expect(CPUStrength.labels == ["入門", "簡単", "ふつう", "むずかしい"])
+        #expect(CPUStrength.labels == ["入門", "かんたん", "ふつう", "むずかしい"])
         #expect(CPUStrength.allCases.map(\.label) == CPUStrength.labels)
     }
 

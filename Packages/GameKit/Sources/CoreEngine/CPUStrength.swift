@@ -33,7 +33,7 @@ public enum CPUStrength: Int, Codable, CaseIterable, Sendable {
     public var label: String {
         switch self {
         case .novice: return "入門"
-        case .easy:   return "簡単"
+        case .easy:   return "かんたん"
         case .normal: return "ふつう"
         case .hard:   return "むずかしい"
         }
