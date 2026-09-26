@@ -173,9 +173,9 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     ///
     /// | level | 表示 | 考える時間 | 最善手を打つ確率 | 定跡 |
     /// |---|---|---|---|---|
-    /// | -1 | 入門 | 0.5 秒 | `noviceBestMoveProbability` | 無し |
-    /// | 0 | かんたん | 1 秒 | `easyBestMoveProbability` | 無し |
-    /// | 1 | ふつう | 2 秒 | `normalBestMoveProbability` | 無し |
+    /// | -1 | 入門 | 0.5 秒 | 0%（`noviceBestMoveProbability`） | 無し |
+    /// | 0 | かんたん | 1 秒 | 10% | 無し |
+    /// | 1 | ふつう | 2 秒 | 50% | 無し |
     /// | 2 | むずかしい | 3 秒 | 100% | 有り |
     ///
     /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか読み終えたら指す。
@@ -203,13 +203,17 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     /// 反復深化の深さの上限。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
     static let maxDepth = 32
 
-    /// 最善手を打つ確率（PR #1461 の実測。上の段階の負けが 3% 以下で最も高い値）。
-    static let noviceBestMoveProbability = 0.3
-    static let easyBestMoveProbability = 0.5
-    static let normalBestMoveProbability = 0.8
+    /// 最善手を打つ確率（#1461 の実測。上の段階との対戦で上の負けが 3% 以下になる、10% 刻みで最も高い値。
+    /// 上から順に決めた: むずかしい 100% に対しふつう 50%、ふつう 50% に対しかんたん 10%、
+    /// かんたん 10% に対し入門 0%）。入門は探索を回さず、毎手「外し」の選び方で指す。
+    static let noviceBestMoveProbability = 0.0
+    static let easyBestMoveProbability = 0.1
+    static let normalBestMoveProbability = 0.5
 
-    /// 外したときに許す損の幅（駒 1 枚ぶんの目安。歩 3 枚・香 1 枚に当たり、金以上は入らない）。
-    static let slipMargin = 300
+    /// 外したときに許す損の幅（銀 1 枚ぶん）。歩・香・桂・銀を只で失う手までが入り、金・角・飛は入らない。
+    /// 300（歩 3 枚ぶん）だと外した手が強すぎて、ふつうが 40% まで下がり、かんたん・入門に割り当てる
+    /// 確率が残らなかった（PR #1461 の勝率表）。
+    static let slipMargin = 500
 
     static func policy(_ probability: Double) -> ShogiMovePolicy {
         ShogiMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
@@ -237,6 +241,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         if useBook, let booked = OpeningBook.move(for: sfen),
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
+        let startedAt = Date()
         if !policy.isExact {
             var rng = SplitMix64(seed: seed ?? UInt64.random(in: .min ... .max))
             if Double.random(in: 0..<1, using: &rng) >= policy.bestMoveProbability,
@@ -245,8 +250,13 @@ public struct SimpleMinimaxEngine: ShogiEngine {
             }
         }
 
+        // 外しの手が見つからず探索に回るときも、1 手の合計が上限に収まるよう、使った時間と
+        // 置換表の確保・後始末ぶんを引いて残りで読む。
+        let remaining = timeLimit.isFinite
+            ? max(Self.minSearchTime, timeLimit - Date().timeIntervalSince(startedAt) - Self.searchOverhead)
+            : timeLimit
         var ctx = SearchContext(maxDepth: depth, usePositional: usePositional,
-                                useQuiescence: useQuiescence, timeLimit: timeLimit, nodeLimit: nodeLimit)
+                                useQuiescence: useQuiescence, timeLimit: remaining, nodeLimit: nodeLimit)
         return ctx.search(&pos)?.usi
     }
 
@@ -275,6 +285,11 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         }
         return nil
     }
+
+    /// 探索の時間から引く、置換表の確保・返り値の後始末ぶん（秒）。上限を超えないための余裕。
+    static let searchOverhead = 0.03
+    /// どれだけ引いても探索に残す最低限の時間（秒）。
+    static let minSearchTime = 0.02
 
     /// 外しの採点に使う時間の割合（考える時間に対する）。
     static let slipBudgetShare = 0.2
