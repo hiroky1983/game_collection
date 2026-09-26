@@ -37,14 +37,14 @@ struct ChessMovePolicyTests {
     }
 
     /// 指定局面で、見逃しを切った同じ段階の手と違う手を指す割合（＝見逃しの確率）を測る。
-    /// 読みの深さは 4 までに絞る（デバッグビルドの CI 時間）。局面数の上限・定跡は使わない。
+    /// 読みの深さは 4 まで、局面数の上限は 300 に絞る（デバッグビルドの CI 時間）。定跡は使わない。
     private func slipRate(level: Int, fen: String, trials: Int) async -> Double {
         let shipped = SimpleChessEngine(level: level)
         func make(_ policy: ChessMovePolicy, _ seed: UInt64) -> SimpleChessEngine {
             SimpleChessEngine(
                 depth: min(shipped.depth, 4), usePositional: shipped.usePositional,
                 useQuiescence: shipped.useQuiescence, useBook: false, timeLimit: .infinity,
-                policy: policy, seed: seed)
+                nodeLimit: shipped.nodeLimit == nil ? nil : 300, policy: policy, seed: seed)
         }
         var slipped = 0
         for seed in 1...UInt64(trials) {
@@ -69,10 +69,10 @@ struct ChessMovePolicyTests {
     /// 初期局面は候補の損得が小さく、見逃しの手番は幅の中の 20 手から乱択する（最善と同じ手を引く目もある）。
     @Test("簡単は約 8%、ふつうは約 10% 見逃す")
     func easyAndNormalOverlookSometimes() async {
-        let easy = await slipRate(level: CPUStrength.easy.rawValue, fen: ChessPosition.startFEN, trials: 400)
+        let easy = await slipRate(level: CPUStrength.easy.rawValue, fen: ChessPosition.startFEN, trials: 100)
         #expect((0.02...0.16).contains(easy), "簡単の見逃し率が想定（約 8%）から外れている: \(easy)")
         let normal = await slipRate(level: CPUStrength.normal.rawValue, fen: ChessPosition.startFEN, trials: 100)
-        // 深さ 3 は 1 回ごとに時間がかかるので回数を絞り、幅を広げる（期待 10%・全く出ない確率は 0.003%）。
+        // 深く読む段階は 1 回ごとに時間がかかるので幅を広げる（期待 10%・全く出ない確率は 0.003%）。
         #expect((0.01...0.30).contains(normal), "ふつうの見逃し率が想定（約 10%）から外れている: \(normal)")
     }
 
