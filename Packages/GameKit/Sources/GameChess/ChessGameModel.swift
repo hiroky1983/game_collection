@@ -454,7 +454,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ。
     public private(set) var isHintThinking: Bool = false
 
-    /// 残り回数（`BoardHintButton` が読む）。
+    /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
 
     /// ヒントで光らせるマス（移動元・移動先）。

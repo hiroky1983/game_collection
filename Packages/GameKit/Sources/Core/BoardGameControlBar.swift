@@ -74,6 +74,8 @@ public struct BoardGameControlBar<Model: BoardUndoModel, Center: View>: View {
                           systemImage: "lightbulb.fill")
                 }
                 .disabled(!hint.isEnabled)
+                .accessibilityHint(hint.isEnabled ? "最善手を1手だけ盤の上に示します。使った対局は順位表に送りません"
+                                                 : "いまは使えません（あなたの手番ではないか、使い切りました）")
             }
             Button(role: .destructive) { showResignConfirm = true } label: {
                 Label("投了", systemImage: "flag.fill")
