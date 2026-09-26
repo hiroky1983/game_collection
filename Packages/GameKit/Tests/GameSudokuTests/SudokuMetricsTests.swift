@@ -96,7 +96,7 @@ struct SudokuMetricsTests {
             // 帯の拡大トグルは共通の `BoardToggleButton`（Core・#641）が 44pt の frame を持つ
             #"BoardToggleButton\("#,
             #"cellSide:\s*SudokuMetrics\.zoomedCellSide"#,
-            #"\.padding\(\.vertical,\s*SudokuMetrics\.statusBarVerticalPadding\)"#,
+            #"GameStatusBar\(verticalPadding:\s*SudokuMetrics\.statusBarVerticalPadding\)"#,
             // 帯の「残り」「ミス」のアイコンは帯の実幅で出し分ける（#775）
             #"SudokuMetrics\.showsStatusIcons\(statusBarWidth:\s*statusBarWidth\)"#,
         ] {

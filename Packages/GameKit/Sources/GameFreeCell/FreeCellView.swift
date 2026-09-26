@@ -125,8 +125,10 @@ public struct FreeCellView: View {
 
     /// 数字の並び + 拡大トグル。
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        // 44pt のトグルが帯の高さを決めるので縦の余白は 4 に詰める（#197・#1420）。
+        GameStatusBar(verticalPadding: 4) {
             statusReadout
+        } trailing: {
 
             // 拡大トグル（#604）。麻雀ソリティア・マインスイーパー・ナンプレと共通の `BoardToggleButton`
             // （Core・#641）。以前は素のアイコンを手書きしていて見た目が揃っていなかった（会長 QA 2026-09-13）。
@@ -146,9 +148,6 @@ public struct FreeCellView: View {
                 ? "等倍に戻して盤全体を画面に収めます"
                 : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
         }
-        // 44pt のトグルが帯の高さを決めるようになるぶん上下を詰める（#203・#262 と同じ手当て）。
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .contain)
     }
 
@@ -158,7 +157,7 @@ public struct FreeCellView: View {
     /// VoiceOver から押せなくなる。読み上げを 1 要素に保ったままボタンを押せるようにするには、
     /// 要素の境界を帯全体ではなく「数字の並び」に引き直すしかない。
     private var statusReadout: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             Group {
                 if model.phase == .won {
                     Label("クリア！", systemImage: "flag.checkered")
@@ -172,9 +171,6 @@ public struct FreeCellView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
-
-            Spacer()
 
             VStack(spacing: 0) {
                 Text(stateEmoji).font(.system(size: 24))
@@ -186,12 +182,9 @@ public struct FreeCellView: View {
                     .foregroundStyle(Theme.inkSub)
             }
 
-            Spacer()
-
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
-                .frame(minWidth: 78, alignment: .trailing)
         }
         // 数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)

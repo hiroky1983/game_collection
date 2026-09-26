@@ -44,4 +44,16 @@ struct GameStatusBarTests {
                     "\(game) が TurnBadge を使っていない")
         }
     }
+
+    /// 一人用の 6 本（#1420）。2048・15 パズル・ブロック崩しは大きなスコア表示を残す例外。
+    @Test("一人用の対象 6 本も GameStatusBar を通る")
+    func soloGamesUseSharedBar() throws {
+        let games = ["GameSolitaire", "GameFreeCell", "GameSpider", "GameMahjongSolitaire",
+                     "GameSudoku", "GameMinesweeper"]
+        for game in games {
+            let source = SourceScan.strippingComments(try SourceScan.moduleSources(game))
+            #expect(source.range(of: #"GameStatusBar\s*[({]"#, options: .regularExpression) != nil,
+                    "\(game) が GameStatusBar を使っていない")
+        }
+    }
 }

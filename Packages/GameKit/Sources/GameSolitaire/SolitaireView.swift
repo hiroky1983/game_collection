@@ -148,7 +148,7 @@ public struct SolitaireView: View {
     // MARK: - ステータスバー
 
     private var statusBar: some View {
-        HStack(spacing: 0) {
+        GameStatusBar {
             Group {
                 if model.phase == .won {
                     Label("クリア！", systemImage: "flag.checkered")
@@ -162,21 +162,13 @@ public struct SolitaireView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
 
-            Spacer()
-
-            Text(stateEmoji).font(.system(size: 28))
-
-            Spacer()
-
+            Text(stateEmoji).font(.system(size: 22))
+        } trailing: {
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
-                .frame(minWidth: 78, alignment: .trailing)
         }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
         // 3 つの数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SolitaireAccessibility.statusLabel(

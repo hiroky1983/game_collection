@@ -240,7 +240,9 @@ public struct MinesweeperView: View {
     /// 幅は固定値で決め打ちせず、各グループの内容幅（`fixedSize`）で決める。
     /// 左右を `maxWidth: .infinity` の等分フレームに載せることで絵文字が常に中央に来る。
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        // 縦の余白は 4。もとは 8 だったが、44pt になった切り替えボタンが帯の高さを決めるように
+        // なったぶんここを詰め、#148 で盤に捻出した高さをほぼ据え置きにしている（#203・#197・#1420）。
+        GameStatusBar(verticalPadding: MinesweeperMetrics.statusBarVerticalPadding) {
             Group {
                 if model.gameOver {
                     // 終局後の結果は行を増やさずここに同居させる（#148）。残り地雷数は
@@ -263,12 +265,11 @@ public struct MinesweeperView: View {
                 }
             }
             .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(stateEmoji)
-                .font(.system(size: 28))
+                .font(.system(size: 22))
                 .fixedSize(horizontal: true, vertical: false)
-
+        } trailing: {
             HStack(spacing: 8) {
                 Label(String(format: "%03d", min(model.elapsedSeconds, 999)),
                       systemImage: "clock")
@@ -311,12 +312,7 @@ public struct MinesweeperView: View {
                 .accessibilityHint(MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode))
             }
             .fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        // 縦の余白は 4。もとは 8 だったが、44pt になった切り替えボタンが帯の高さを決めるように
-        // なったぶんここを詰め、#148 で盤に捻出した高さをほぼ据え置きにしている（#203・#197 と同じ手当て）。
-        .padding(.horizontal, 12).padding(.vertical, MinesweeperMetrics.statusBarVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private var stateEmoji: String {

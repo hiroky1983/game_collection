@@ -230,7 +230,9 @@ public struct MahjongSolitaireView: View {
     // MARK: - ステータスバー
 
     private var statusBar: some View {
-        HStack(spacing: 0) {
+        // 縦の余白は 4。切り替えボタンが 44pt になって帯の高さを決めるようになったぶんここを詰め、
+        // #148 で捻出した盤面の高さを食わないようにしている（#197・#1420）。
+        GameStatusBar(verticalPadding: Metrics.statusBarVerticalPadding) {
             Group {
                 if model.phase == .won {
                     // 取り切った後の表示は行を増やさずここに同居させる（#148）。
@@ -246,27 +248,15 @@ public struct MahjongSolitaireView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
 
-            Spacer()
+            Text(stateEmoji).font(.system(size: 22))
+        } trailing: {
+            Label(timeText, systemImage: "clock")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.teal)
 
-            Text(stateEmoji).font(.system(size: 28))
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                Label(timeText, systemImage: "clock")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.teal)
-
-                displayToggle
-            }
-            .frame(minWidth: 78, alignment: .trailing)
+            displayToggle
         }
-        // 縦の余白は 4。切り替えボタンが 44pt になって帯の高さを決めるようになったぶんここを詰め、
-        // #148 で捻出した盤面の高さを食わないようにしている（#197）。
-        .padding(.horizontal, 12).padding(.vertical, Metrics.statusBarVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     /// 全体表示 ⇄ 拡大の切り替え（#197）。

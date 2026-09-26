@@ -130,8 +130,10 @@ public struct SpiderView: View {
     // MARK: - ステータスバー
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        // 44pt のトグルが帯の高さを決めるので縦の余白は 4 に詰める（#197・#1420）。
+        GameStatusBar(verticalPadding: 4) {
             statusReadout
+        } trailing: {
 
             BoardToggleButton(
                 isOn: zoomMode,
@@ -147,13 +149,11 @@ public struct SpiderView: View {
                 ? "等倍に戻して盤全体を画面に収めます"
                 : "札を大きくして指で押しやすくします。はみ出した列は横にスクロールします")
         }
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .contain)
     }
 
     private var statusReadout: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             Group {
                 if model.phase == .won {
                     Label("クリア！", systemImage: "flag.checkered")
@@ -167,9 +167,6 @@ public struct SpiderView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 78, alignment: .leading)
-
-            Spacer()
 
             VStack(spacing: 0) {
                 Text(stateEmoji).font(.system(size: 24))
@@ -179,12 +176,9 @@ public struct SpiderView: View {
                     .foregroundStyle(Theme.inkSub)
             }
 
-            Spacer()
-
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
-                .frame(minWidth: 78, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SpiderAccessibility.statusLabel(
