@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 @testable import Core
 
 /// ヒントを促す表示（#1424）。時間の待ち合わせはテストしない（実時間に頼るとフレークする）ので、
@@ -17,12 +18,9 @@ struct HintNudgeTests {
 
     @Test("ナンプレと麻雀ソリティアの操作行が促しを受け取り、広告の視聴中は出さない")
     func adHintGamesWireTheNudge() throws {
-        let sources = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources")
         for (path, watching) in [("GameSudoku/SudokuView.swift", "!hintRescue.isWatching"),
                                  ("GameMahjongSolitaire/MahjongSolitaireView.swift", "!isWatchingRewardAd")] {
-            let text = try String(contentsOf: sources.appendingPathComponent(path), encoding: .utf8)
+            let text = try SourceScan.packageSource("Sources/\(path)")
             #expect(text.contains("nudge: hintNudge"), "\(path) の GameControlBar に nudge を渡していない")
             let body = try #require(text.range(of: "private var hintNudge: HintNudge"))
             #expect(text[body.upperBound...].prefix(400).contains(watching), "\(path) の促しが広告の視聴中を除いていない")
