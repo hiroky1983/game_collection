@@ -127,6 +127,11 @@ struct HomerunLobbyView: View {
                 Text("挑戦回数は打席に立った時点で1つ減ります")
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSub)
+                Toggle(isOn: Bindable(model).showsDirectionMeter) {
+                    Text("方向メーターを表示").themeBody(14).foregroundStyle(Theme.ink)
+                }
+                .tint(Theme.coral)
+                .accessibilityHint("打席の右上に出る方向メーターの表示を切り替えます。消しても判定は変わりません")
                 // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
                 HowToPlayHint(.homerun, playLog: services.playLog)
             }
