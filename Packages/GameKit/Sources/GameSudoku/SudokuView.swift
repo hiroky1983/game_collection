@@ -617,7 +617,9 @@ public struct SudokuView: View {
         [
             GameControlMenuItem(
                 id: "hint", title: "ヒント\(model.remainingHints)", systemImage: "lightbulb.fill",
-                isEnabled: model.canHint && !hintRescue.isWatching
+                isEnabled: model.canHint && !hintRescue.isWatching,
+                accessibilityLabel: SudokuAccessibility.hintLabel(remaining: model.remainingHints),
+                accessibilityHint: model.canHint ? "広告を見ると選択中のマスの答えが入ります" : "答えを入れたいマスを選んでください"
             ) { requestHint() },
             GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true

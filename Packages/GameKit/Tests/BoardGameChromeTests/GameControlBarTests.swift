@@ -40,12 +40,23 @@ struct GameControlBarTests {
                 "\(module) に画面ごとの手描きの操作ボタン（controlButton）が残っている")
     }
 
+    /// 取り消し（戻す／待った）はティール（#1011 の色決裁）。コーラルは「終わらせる」操作の色。
+    @Test("取り消しボタンはコーラルではない",
+          arguments: ["GameSudoku", "GameSolitaire", "GameFreeCell", "GameSpider",
+                      "GameMahjongSolitaire", "GameConcentration"])
+    func undoIsNotCoral(module: String) throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
+        #expect(SourceScan.matchCount(of: #"GameControlButton\([^{]*Theme\.Fill\.coral"#, in: source) == 0,
+                "\(module) の操作行にコーラルのボタンが残っている")
+    }
+
     @Test("あきらめるは確認付きで「⋯」メニューに入っている（ナンプレ・マインスイーパー）",
           arguments: ["GameSudoku", "GameMinesweeper"])
     func giveUpLivesInTheMenu(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
         #expect(source.contains(#"GameControlMenuItem(id: "giveUp""#))
         #expect(source.contains("showGiveUpConfirm = true"))
+        #expect(source.contains("GameControlBar(menuItems:"), "項目を GameControlBar に渡していない")
         #expect(!source.contains(#"Label("諦める""#), "盤下に手描きの「諦める」ボタンが残っている")
     }
 }

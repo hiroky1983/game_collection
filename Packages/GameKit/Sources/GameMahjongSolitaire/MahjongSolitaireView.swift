@@ -445,7 +445,8 @@ public struct MahjongSolitaireView: View {
         [
             GameControlMenuItem(
                 id: "hint", title: "ヒント", systemImage: "lightbulb.fill",
-                isEnabled: model.canHint && !isWatchingRewardAd
+                isEnabled: model.canHint && !isWatchingRewardAd,
+                accessibilityHint: "広告を見ると取れる組が1組光ります"
             ) { showHintConfirm = true },
         ]
     }

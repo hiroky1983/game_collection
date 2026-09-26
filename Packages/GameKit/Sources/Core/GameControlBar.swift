@@ -89,6 +89,9 @@ public struct GameControlMenuItem: Identifiable {
     public let systemImage: String
     public let isDestructive: Bool
     public let isEnabled: Bool
+    /// 読み上げ。文字（残り回数付きの題など）と別に伝えたいときだけ渡す。
+    public let accessibilityLabel: String?
+    public let accessibilityHint: String?
     public let action: () -> Void
 
     public init(
@@ -97,6 +100,8 @@ public struct GameControlMenuItem: Identifiable {
         systemImage: String,
         isDestructive: Bool = false,
         isEnabled: Bool = true,
+        accessibilityLabel: String? = nil,
+        accessibilityHint: String? = nil,
         action: @escaping () -> Void
     ) {
         self.id = id
@@ -104,6 +109,8 @@ public struct GameControlMenuItem: Identifiable {
         self.systemImage = systemImage
         self.isDestructive = isDestructive
         self.isEnabled = isEnabled
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityHint = accessibilityHint
         self.action = action
     }
 }
@@ -119,6 +126,8 @@ struct GameControlMenu: View {
                     Label(item.title, systemImage: item.systemImage)
                 }
                 .disabled(!item.isEnabled)
+                .accessibilityLabel(item.accessibilityLabel ?? item.title)
+                .accessibilityHint(item.accessibilityHint ?? "")
             }
         } label: {
             Image(systemName: "ellipsis.circle")
