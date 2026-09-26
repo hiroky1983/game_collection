@@ -327,7 +327,7 @@ public struct GoView: View {
     // MARK: - ステータスバー
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             switch model.phase {
             case .finished:
                 Label(resultText, systemImage: "flag.checkered")
@@ -338,28 +338,20 @@ public struct GoView: View {
                     .themeBody(15).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .playing:
-                let isMine = model.state.sideToMove == model.humanSide
-                Text(isMine ? "あなたの番" : "CPUの番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
+                TurnBadge(isYourTurn: model.state.sideToMove == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
             passBanner
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             Text("\(model.moveCount)手").themeBody(13).foregroundStyle(Theme.inkSub)
         }
-        .frame(minHeight: 32)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(GoAccessibility.statusLabel(
             phase: model.phase,

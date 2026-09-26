@@ -83,7 +83,7 @@ public struct DaifugoView: View {
     // MARK: - ステータス
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
                 .themeBody(13)
                 .foregroundStyle(Theme.inkSub)
@@ -94,13 +94,16 @@ public struct DaifugoView: View {
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(Theme.Fill.coral))
             }
-            Spacer()
-            Text(turnLabel)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(model.isPlayerTurn ? Theme.teal : Theme.inkSub)
+        } trailing: {
+            TurnBadge(turnLabel, kind: turnKind)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var turnKind: TurnBadge.Kind {
+        switch model.phase {
+        case .idle, .result: return .finished
+        case .playing: return model.isPlayerTurn ? .you : .cpu
+        }
     }
 
     private var turnLabel: String {

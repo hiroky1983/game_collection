@@ -393,19 +393,13 @@ public struct ChessView: View {
     // MARK: - ステータス
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
                     .themeBody(16).foregroundStyle(Theme.coral)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text(model.position.sideToMove == .white ? "白番" : "黒番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    // 面色が白番＝差し色 / 黒番＝濃色と大きく違うので、文字色も面に合わせる（#220）。
-                    .foregroundStyle(model.position.sideToMove == .white ? Theme.onAccent : .white)
-                    .padding(.horizontal, 12).padding(.vertical, 2)
-                    .background(Capsule().fill(
-                        model.position.sideToMove == .white ? Theme.Fill.teal : Theme.fillStrong))
+                TurnBadge(isYourTurn: model.position.sideToMove == model.humanSide)
                     .gameAnimation(ChessMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
@@ -414,7 +408,7 @@ public struct ChessView: View {
                     Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -422,9 +416,6 @@ public struct ChessView: View {
                 Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
-        .frame(minHeight: 36)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 盤の下の操作エリア
