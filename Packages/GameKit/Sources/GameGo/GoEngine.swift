@@ -11,25 +11,36 @@ public struct GoEngineConfig: Sendable {
     public var exploration: Double
     public var seed: UInt64
     public var timeLimit: TimeInterval?
+    /// 最善手（訪問数が最大の手）を選ぶ確率。1 なら常に最善手（#1400）。
+    public var bestMoveChance: Double
+    /// 最善手を外すとき、最善手との勝率の差がこの幅以内の手から選ぶ。
+    public var mistakeMargin: Double
 
     public init(
         playouts: Int,
         exploration: Double = 1.0,
         seed: UInt64 = 0xA50_B1BA,
-        timeLimit: TimeInterval? = nil
+        timeLimit: TimeInterval? = nil,
+        bestMoveChance: Double = 1.0,
+        mistakeMargin: Double = 0
     ) {
         self.playouts = playouts
         self.exploration = exploration
         self.seed = seed
         self.timeLimit = timeLimit
+        self.bestMoveChance = bestMoveChance
+        self.mistakeMargin = mistakeMargin
     }
 
-    /// 強さ 3 段階の既定値。9路なら「強」でも 1 手 1 秒以内に収まるよう実時間の上限を掛ける。
+    /// 強さの既定値。打ち切りはプレイアウト回数が主で、実時間の上限は安全用（#1400）。
     ///
     /// テストは実時間で打ち切ると再現しないので、この関数ではなく
     /// `GoEngineConfig(playouts:seed:timeLimit: nil)` を直接組み立てること。
     public static func level(_ level: GoLevel, seed: UInt64 = 0xA50_B1BA) -> GoEngineConfig {
-        GoEngineConfig(playouts: level.playouts, seed: seed, timeLimit: level.timeLimit)
+        GoEngineConfig(
+            playouts: level.playouts, seed: seed, timeLimit: level.timeLimit,
+            bestMoveChance: level.bestMoveChance, mistakeMargin: level.mistakeMargin
+        )
     }
 }
 
@@ -135,7 +146,23 @@ public struct GoEngine: Sendable {
             nodes[lhs].visits < nodes[rhs].visits
         }
         guard let best, let move = nodes[best].move else { return rootMoves[0] }
-        return move
+        return chooseWithMistakes(best: best, move: move, nodes: nodes, random: &random)
+    }
+
+    /// 段階に応じて最善手を外す（#1400）。外すのは**勝率が最善手から `mistakeMargin` 以内の手**だけで、
+    /// パスと、読んでいない手（訪問 0）は選ばない。極端な悪手（大石をタダで取られる手など）は
+    /// 勝率が大きく落ちるので、この幅で自然に除外される。
+    private func chooseWithMistakes(best: Int, move: GoMove, nodes: [Node], random: inout GoRandom) -> GoMove {
+        guard config.bestMoveChance < 1, config.mistakeMargin > 0, move != .pass else { return move }
+        let roll = Double(random.next() >> 11) / Double(1 << 53)
+        guard roll >= config.bestMoveChance else { return move }
+        let bestRate = nodes[best].wins / Double(max(1, nodes[best].visits))
+        let pool = nodes[0].children.filter { child in
+            guard let candidate = nodes[child].move, candidate != .pass, nodes[child].visits > 0 else { return false }
+            return nodes[child].wins / Double(nodes[child].visits) >= bestRate - config.mistakeMargin
+        }
+        guard !pool.isEmpty, let pick = nodes[pool[random.index(below: pool.count)]].move else { return move }
+        return pick
     }
 
     private func selectChild(of node: Int, in nodes: [Node]) -> Int {

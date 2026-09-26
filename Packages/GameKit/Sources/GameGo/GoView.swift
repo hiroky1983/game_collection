@@ -672,14 +672,10 @@ struct GoNewGameSheet: View {
                 }
             }
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    ForEach(GoLevel.allCases, id: \.self) { candidate in
-                        GameSetupChooser(title: candidate.label, subtitle: candidate.detail,
-                                         selected: level == candidate,
-                                         accent: accent(for: candidate),
-                                         metrics: Self.metrics) { level = candidate }
-                    }
-                }
+                CPUStrengthPicker(
+                    level: Binding(get: { level.rawValue }, set: { level = GoLevel(rawValue: $0) ?? .normal }),
+                    details: GoLevel.allCases.map(\.detail)
+                )
             }
             // 置き石は黒（人間）がハンデをもらう仕組みなので、白を選んだときは出さない。
             if side == .black {
@@ -697,13 +693,4 @@ struct GoNewGameSheet: View {
             }
         }
     }
-
-    private func accent(for level: GoLevel) -> Color {
-        switch level {
-        case .easy:   return Theme.Fill.teal
-        case .normal: return Theme.Fill.yellow
-        case .hard:   return Theme.Fill.coral
-        }
-    }
-
 }

@@ -1,4 +1,5 @@
 import Foundation
+import CoreEngine
 
 /// 盤の路数。9路を既定にし、13路は後日の拡張に備えて型で持つ（#398。UI では 9 だけを出す）。
 ///
@@ -186,41 +187,59 @@ public struct GoRuleset: Equatable, Sendable, Codable {
     }
 }
 
-/// CPU の強さ。3 段階（#398 の受け入れ条件）。
+/// CPU の強さ。共通の 4 段階（入門・簡単・ふつう・むずかしい。#1400）。
+///
+/// `rawValue` は `CPUStrength` と同じ（入門 -1・簡単 0・ふつう 1・むずかしい 2）。既存 3 段階の番号は
+/// 動かさないので、中断データからの再開が 1 段ずれない。
 public enum GoLevel: Int, Codable, Equatable, Sendable, CaseIterable {
-    case easy = 0, normal = 1, hard = 2
+    case novice = -1, easy = 0, normal = 1, hard = 2
 
-    public var label: String {
-        switch self {
-        case .easy:   return "弱"
-        case .normal: return "普通"
-        case .hard:   return "強"
-        }
-    }
+    public var label: String { CPUStrength(rawValue: rawValue)?.label ?? "" }
 
-    /// 1 手あたりのプレイアウト数。体感差が出るよう桁で分ける。
+    /// 1 手あたりのプレイアウト数。**打ち切りはこの回数を主にする**（#1400）。
+    ///
+    /// 時間で打ち切ると遅い端末で上の段階が下の段階と同じ回数に張り付き、強さの差が端末の速さで
+    /// 消える（実測: 4 倍遅い端末想定で普通と強が 860〜1,700 回 / 970〜1,930 回）。
     public var playouts: Int {
         switch self {
-        case .easy:   return 400
-        case .normal: return 2_500
-        case .hard:   return 9_000
+        case .novice: return 100
+        case .easy:   return 200
+        case .normal: return 1_500
+        case .hard:   return 6_000
         }
     }
 
-    /// 1 手にかけてよい実時間の上限（秒）。
-    ///
-    /// 遅い端末でも「1 手 1 秒以内」（#398）に収めるための歯止め。**段階ごとに別の値**にするのが
-    /// 要点で、共通の上限にすると遅い端末で普通と強がどちらも上限に張り付いて同じ強さになる。
+    /// 1 手にかけてよい実時間の上限（秒）。**安全用**で、回数に比例させて長めに取る
+    /// （比率を揃えないと、遅い端末でどれかの段階だけ上限に届いて差が縮む）。
+    /// 普通の端末では回数が先に尽きるので、この値は強さに効かない。
     public var timeLimit: TimeInterval {
+        max(2.0, Double(playouts) * 0.001)
+    }
+
+    /// 最善手（訪問数が最大の手）を選ぶ確率。外れたときは `mistakeMargin` の幅で選び直す。
+    /// むずかしいは当面 100%（会長決裁 2026-09-25）。
+    public var bestMoveChance: Double {
         switch self {
-        case .easy:   return 0.4
-        case .normal: return 0.8
-        case .hard:   return 0.9
+        case .novice: return 0.1
+        case .easy:   return 0.85
+        case .normal: return 0.9
+        case .hard:   return 1.0
+        }
+    }
+
+    /// 最善手を外すとき、最善手との勝率の差がこの幅以内の手から選ぶ（許す損の幅）。
+    public var mistakeMargin: Double {
+        switch self {
+        case .novice: return 0.6
+        case .easy:   return 0.15
+        case .normal: return 0.08
+        case .hard:   return 0
         }
     }
 
     public var detail: String {
         switch self {
+        case .novice: return "ほぼ読まない"
         case .easy:   return "軽く読む"
         case .normal: return "そこそこ読む"
         case .hard:   return "しっかり読む"
