@@ -40,13 +40,13 @@ public struct SolitaireView: View {
             statusBar
             SolitaireBoardView(model: model, services: services).layoutPriority(1)
             HowToPlayHint(.solitaire, playLog: services.playLog)
+            Spacer(minLength: 0)
             SolitaireControlsView(
                 model: model,
                 services: services,
                 isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo
             )
-            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)

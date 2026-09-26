@@ -43,8 +43,8 @@ public struct ShogiView: View {
                 .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
             HowToPlayHint(.shogi, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

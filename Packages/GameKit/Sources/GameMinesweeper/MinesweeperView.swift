@@ -26,8 +26,8 @@ public struct MinesweeperView: View {
             board
                 .layoutPriority(1)
             HowToPlayHint(.minesweeper, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
@@ -114,16 +114,22 @@ public struct MinesweeperView: View {
     // MARK: - Game Controls
 
     private var gameControls: some View {
-        // 取り消しもメモも無いので、右端の「⋯」だけを置く（#1422）。
-        GameControlBar(menuItems: [
+        // 旗モード・拡大・諦めるは右下の「⋯」にまとめる（#1422・#1468）。
+        GameOverflowBar(menuItems: [
+            // 旗はマスのタップ結果を左右するので、状態はチェックとラベル（オン/オフ）の両方で伝える（#761）。
+            GameControlMenuItem(
+                id: "flag", title: "旗モード", systemImage: "flag.fill", isChecked: model.flagMode,
+                accessibilityLabel: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
+            ) { model.toggleFlagMode() },
+            GameControlMenuItem(
+                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: zoomMode,
+                accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
+                accessibilityHint: MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode)
+            ) { zoomMode.toggle() },
             GameControlMenuItem(id: "giveUp", title: "諦める", systemImage: "flag.fill", isDestructive: true) {
                 showGiveUpConfirm = true
             },
-        ]) {
-            EmptyView()
-        } center: {
-            EmptyView()
-        }
+        ])
     }
 
     // MARK: - Continue Overlay
@@ -238,9 +244,8 @@ public struct MinesweeperView: View {
     /// 幅は固定値で決め打ちせず、各グループの内容幅（`fixedSize`）で決める。
     /// 左右を `maxWidth: .infinity` の等分フレームに載せることで絵文字が常に中央に来る。
     private var statusBar: some View {
-        // 縦の余白は 4。もとは 8 だったが、44pt になった切り替えボタンが帯の高さを決めるように
-        // なったぶんここを詰め、#148 で盤に捻出した高さをほぼ据え置きにしている（#203・#197・#1420）。
-        GameStatusBar(verticalPadding: MinesweeperMetrics.statusBarVerticalPadding) {
+        // 帯には表示だけを置く（残り地雷・状態・タイマー）。旗・拡大の切り替えは右下の「⋯」へ（#1468）。
+        GameStatusBar {
             Group {
                 if model.gameOver {
                     // 終局後の結果は行を増やさずここに同居させる（#148）。残り地雷数は
@@ -267,49 +272,23 @@ public struct MinesweeperView: View {
             Text(stateEmoji)
                 .font(.system(size: 22))
                 .fixedSize(horizontal: true, vertical: false)
-        } trailing: {
-            HStack(spacing: 8) {
-                Label(String(format: "%03d", min(model.elapsedSeconds, 999)),
-                      systemImage: "clock")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.teal)
 
-                // 旗・拡大の切り替えはどちらも実測 29×23pt しかなく Apple HIG の 44pt を
-                // 下回っていた。麻雀ソリティアの表示切り替え（#197）と同じ形に揃える（#203）。
-                //
-                // #203 で移植できていたのは 44pt のタップ標的だけで、アイコン 13pt・角丸 8・
-                // 枠線なしと面の作りは一回り小さいままだった。同じ形を 2 ヶ所に手書きしていたのが
-                // 原因なので、共通の `BoardToggleButton`（Core）へ寄せて揃える（#641）。
-                //
-                // 文字ラベルも麻雀ソリティアと同じく付ける（会長 QA 2026-09-13「同じ見た目になっていない」。
-                // #641 では寸法だけ揃えて文字は見送っていた）。幅は iPhone SE でも足りる（両方に文字を
-                // 付けても帯の余りは 49.5pt 残る・#641 で実測）。旗は 2 状態の言い分けが無いので「旗」固定。
-                //
-                // 読み上げ文は `MinesweeperAccessibility` に置く（#761）。旗はマスのタップ結果を
-                // 左右するので状態込み（オン/オフ）で読み、拡大はフリーセルと同じくヒントも状態で切り替える。
-                BoardToggleButton(
-                    isOn: model.flagMode,
-                    systemImage: "flag.fill",
-                    title: "旗",
-                    fill: Theme.Fill.coral,
-                    accent: Theme.coral,
-                    label: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
-                ) {
-                    model.toggleFlagMode()
-                }
-                BoardToggleButton(
-                    isOn: zoomMode,
-                    systemImage: zoomMode ? "minus.magnifyingglass" : "plus.magnifyingglass",
-                    title: zoomMode ? "全体" : "拡大",
-                    fill: Theme.Fill.teal,
-                    accent: Theme.teal,
-                    label: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode)
-                ) {
-                    zoomMode.toggle()
-                }
-                .accessibilityHint(MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode))
+            // 旗モードは切り替えが「⋯」に移ったので、いまオンかどうかは帯に表示だけ出す（ボタンではない・#1468）。
+            if model.flagMode && !model.gameOver {
+                Text("旗モード")
+                    .themeCaption(11)
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.Fill.coral))
+                    .fixedSize(horizontal: true, vertical: false)
+                    .accessibilityHidden(true)
             }
-            .fixedSize(horizontal: true, vertical: false)
+        } trailing: {
+            Label(String(format: "%03d", min(model.elapsedSeconds, 999)),
+                  systemImage: "clock")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.teal)
+                .fixedSize(horizontal: true, vertical: false)
         }
     }
 

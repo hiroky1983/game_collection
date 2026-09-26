@@ -14,29 +14,6 @@ enum SudokuMetrics {
     /// 数字パッド・操作ボタンの一辺の下限。
     static let padButtonMinSide: CGFloat = minimumTapTarget
 
-    /// 帯の拡大トグルの一辺。実寸は共通の `BoardToggleButton`（Core・#641）が持つので、
-    /// 帯の高さの見積りがそこからずれないよう同じ値を参照する。
-    static let toggleButtonMinSide: CGFloat = BoardToggleMetrics.minSide
-
-    /// 帯の拡大トグルに「拡大／全体」の文字を出せる帯の幅の下限。iPhone SE（帯 343pt）では
-    /// 文字を付けると左の「残り」「ミス」が潰れ、iPhone 17 Pro Max（361pt）では収まる（実測 2026-09-13）。
-    static let zoomTitleMinStatusBarWidth: CGFloat = 350
-
-    /// 帯の幅 `statusBarWidth` で拡大トグルに文字を出すか。未計測（0）は出す側に倒す。
-    static func showsZoomTitle(statusBarWidth: CGFloat) -> Bool {
-        statusBarWidth <= 0 || statusBarWidth >= zoomTitleMinStatusBarWidth
-    }
-
-    /// 帯の幅 `statusBarWidth` で「残り」「ミス」にアイコンを付けるか（#775）。未計測（0）は付ける側に倒す。
-    ///
-    /// iPhone SE（帯 343pt）では拡大トグルの文字を省いても、時計が「11:05」と 2 桁分になると
-    /// 「残り…」「ミス…」に潰れた（`minimumScaleFactor(0.7)` は文字しか縮めず、アイコンと間隔は残る）。
-    /// 右の時計・トグルは既に中身の幅しか取っていないので、左に幅を返せるのはアイコンだけ。
-    /// 境目は拡大トグルの文字と同じ（文字を省く幅ではアイコンも省く）。
-    static func showsStatusIcons(statusBarWidth: CGFloat) -> Bool {
-        showsZoomTitle(statusBarWidth: statusBarWidth)
-    }
-
     /// 拡大モードでの 1 マスの一辺。
     ///
     /// **9 列 × 44pt = 396pt は、iPhone SE (3rd gen) の画面幅 375pt にも
@@ -64,9 +41,6 @@ enum SudokuMetrics {
     /// 1〜9 と消しゴムの 10 個を 2 段に割る。10 個を 1 段に並べると
     /// iPhone SE では 1 個 37pt 台になり、上の最小タップ標的を割る。
     static let padColumns = 5
-
-    /// ステータスバーの上下の余白。44pt のトグルが帯の高さを決めるぶん詰める（#203 と同じ手当て）。
-    static let statusBarVerticalPadding: CGFloat = 4
 
     /// 3×3 ブロックの区切り線の太さ。
     static let blockBorderWidth: CGFloat = 2

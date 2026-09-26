@@ -299,7 +299,33 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
     public var body: some View {
         button
             .disabled(!model.canUndo)
-            .alert("待った確認", isPresented: $showUndoConfirm) {
+            .boardUndoFlow(model: model, services: services, rescue: undoRescue, isPresented: $showUndoConfirm)
+    }
+
+    @ViewBuilder private var button: some View {
+        if usesTapTargetCapsule {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
+        } else {
+            Button { showUndoConfirm = true } label: {
+                Label("待った", systemImage: "arrow.uturn.backward")
+            }
+        }
+    }
+}
+
+public extension View {
+    /// 「待った」の確認アラート・広告の待った・失敗のアラートまでの流れ（#526・#729・#828）。
+    /// ボタン（`BoardUndoButton`）にも「⋯」メニューの項目（`BoardGameControlBar`・#1468）にも同じ流れを付ける。
+    func boardUndoFlow<Model: BoardUndoModel>(
+        model: Model, services: GameServices, rescue: RewardedRescue, isPresented: Binding<Bool>
+    ) -> some View {
+        let undoRescue = rescue
+        let showUndoConfirm = isPresented.wrappedValue
+        return self
+            .alert("待った確認", isPresented: isPresented) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
                     guard model.undoUsed else {
                         // 無料の待ったは #526 の前と同じく、アラートを閉じる処理とは別の
@@ -337,19 +363,6 @@ public struct BoardUndoButton<Model: BoardUndoModel>: View {
                     message: "広告を見ているあいだに新しい対局が始まったか、局面が変わったため、戻せませんでした。"
                 )
             )
-    }
-
-    @ViewBuilder private var button: some View {
-        if usesTapTargetCapsule {
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-            .buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.teal))
-        } else {
-            Button { showUndoConfirm = true } label: {
-                Label("待った", systemImage: "arrow.uturn.backward")
-            }
-        }
     }
 }
 

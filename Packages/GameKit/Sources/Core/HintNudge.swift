@@ -99,7 +99,7 @@ private struct HintNudgeBubble: View {
             Triangle()
                 .fill(Theme.yellow)
                 .frame(width: 12, height: 6)
-                .padding(.trailing, 32)
+                .padding(.trailing, 16)
         }
         .fixedSize()
     }

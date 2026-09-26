@@ -100,10 +100,11 @@ struct BoardHintButtonSourceTests {
         )
         #expect(source.contains("\"ヒント（残り\\(hint.remaining)回）\""), "残り回数を文字に出していない")
         #expect(source.contains("systemImage: \"lightbulb.fill\""))
-        #expect(source.contains(".disabled(!hint.isEnabled)"))
+        #expect(source.contains("isEnabled: hint.isEnabled"))
         #expect(source.contains("isEnabled = model.canUseHint"))
-        #expect(source.contains(".frame(height: BoardGameControlMetrics.minTapTarget)"), "操作行の高さが 44pt 固定でない")
-        #expect(source.contains("Label(\"投了\", systemImage: \"flag.fill\")"))
+        // 操作行の高さ（44pt 固定）は共通の `GameOverflowBar` が持つ（`GameOverflowBarTests`）。
+        #expect(source.contains("GameOverflowBar("), "操作行が共通の「⋯」の行を通っていない")
+        #expect(source.contains(#"GameControlMenuItem(id: "resign", title: "投了", systemImage: "flag.fill", isDestructive: true)"#))
         #expect(source.contains(".boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)"),
                 "投了に確認ダイアログが付いていない")
     }

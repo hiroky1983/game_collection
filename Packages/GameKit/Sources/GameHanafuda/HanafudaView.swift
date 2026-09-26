@@ -307,18 +307,18 @@ public struct HanafudaView: View {
                 actionButton("ハブへ戻る", role: .skip) { dismiss() }
             }
         default:
+            // 手番は表示だけ。投了は右下の「⋯」へ（#1468）。
             HStack(spacing: 10) {
                 TurnBadge(isYourTurn: model.isPlayerTurn)
                 Spacer()
-                Button { showResignConfirm = true } label: {
-                    Text("投了")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .disabled(!model.canResign)
+                GameControlMenu(items: [
+                    GameControlMenuItem(
+                        id: "resign", title: "投了", systemImage: "flag.fill",
+                        isDestructive: true, isEnabled: model.canResign
+                    ) { showResignConfirm = true },
+                ])
             }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .popCard(corner: Theme.cornerSmall)
+            .padding(.vertical, 2)
         }
     }
 

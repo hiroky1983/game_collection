@@ -143,78 +143,27 @@ struct MahjongSolitaireBoardMetricsTests {
         }
     }
 
-    // MARK: - 表示切り替えボタン（#197）
+    // MARK: - 操作は右下の「⋯」へ（#1468）
 
-    @Test("表示切り替えボタンのタップ標的は 44pt 以上")
-    func displayToggleMeetsTapTarget() throws {
-        // 修正前は `padding(.horizontal, 8).padding(.vertical, 5)` + フォント 13 で実測 29×23pt だった。
-        // 全体像を取り戻す唯一の入口なので、牌と同じ基準を満たす。
-        #expect(Metrics.toggleButtonMinSide >= Metrics.minimumTapTarget)
-
-        // 定数だけ見ても意味が無い。View が **この定数を** frame に渡していなければ、
-        // ここを 44 のままにして View 側だけ小さくする改変を素通ししてしまう。
-        // SwiftUI を実際に描いて測る仕組みがこのパッケージには無いので、結線をソースで固定する
-        // （`MotionTests.noRawAnimationOutsideCore` と同じやり方）。
-        //
-        // frame を持っているのは共通の `BoardToggleButton`（Core・#641）へ移った。結線は
-        // 「この定数が共通枠の寸法と同じ値」＋「View が共通枠を使っている」の 2 点に分かれる
-        // （共通枠が frame にこの寸法を渡していることは `BoardToggleButtonTests` が押さえる）。
-        #expect(Metrics.toggleButtonMinSide == BoardToggleMetrics.minSide,
-                "帯の高さの見積りがボタンの実寸から外れている")
-
-        let source = try Self.viewSource()
-        #expect(
-            source.contains("BoardToggleButton("),
-            "MahjongSolitaireView が共通の BoardToggleButton を使っていない（タップ標的が切れている）"
-        )
-    }
-
-    @Test("44pt のボタンを置いてもステータスバーは高くならない")
-    func statusBarStaysAsShortAsBefore() {
-        // 帯の高さ = max(中身の高さ) + 上下の余白 ×2。
-        // 修正前の中身でいちばん高いのは 28pt の絵文字（行の高さ ≈ 33.4pt）で、余白は 8 だった。
-        let emojiLineHeight: CGFloat = 33.4
-        let before = emojiLineHeight + 8 * 2
-        let after = max(emojiLineHeight, Metrics.toggleButtonMinSide) + Metrics.statusBarVerticalPadding * 2
-        // 盤面（残りの高さいっぱいに牌を敷く）を削らないことが条件（#148）。3pt 以内の増加に収める。
-        #expect(after - before <= 3)
-        // 余白を詰めすぎてボタンが帯からはみ出さないこと。
-        #expect(Metrics.statusBarVerticalPadding > 0)
-    }
-
-    @Test("ステータスバーの余白も View が Metrics の値を使っている")
-    func statusBarPaddingIsWiredToMetrics() throws {
-        let source = try Self.viewSource()
-        #expect(
-            source.range(
-                of: #"GameStatusBar\(verticalPadding:\s*Metrics\.statusBarVerticalPadding\)"#,
-                options: .regularExpression
-            ) != nil,
-            "ステータスバーの余白が Metrics から切れている（帯の高さの見積りが効かなくなる）"
-        )
+    @Test("状態の帯にボタン・トグルは無い。全体表示⇄拡大は「⋯」のチェック付き項目")
+    func displayToggleLivesInTheMenu() throws {
+        let source = SourceScan.strippingComments(try Self.viewSource())
+        #expect(!source.contains("BoardToggleButton("), "帯に切り替えボタンが残っている")
+        #expect(source.contains(#"GameControlMenuItem("#))
+        #expect(source.contains(#"id: "zoom""#))
+        #expect(SourceScan.matchCount(of: #"GameOverflowBar\("#, in: source) == 1)
     }
 
     // MARK: - 操作ボタンと演出（#199）
 
-    @Test("操作ボタン（ヒント・並べ替え・戻す）のタップ標的は 44pt 以上")
-    func gameControlButtonsMeetTapTarget() throws {
-        // 修正前は `padding(.horizontal, 12).padding(.vertical, 6)` + 本文 14pt で実測 約29pt だった。
-        // #198 でアイコンだけの段には 44pt が入ったが、既定の文字サイズで出る**文字付きの段**は
-        // 保留されていた（#199 のスコープ）。3 つとも同じ下限に揃える。
-        #expect(Metrics.controlButtonMinHeight >= Metrics.minimumTapTarget)
-
-        // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する
-        // （#197 の `displayToggleMeetsTapTarget` と同じやり方）。#1422 で操作行は共通の
-        // `GameControlBar` / `GameControlButton` に移ったので、44pt の担保は Core 側
-        // （`BoardGameChromeTests` の `GameControlBarTests`）が持ち、ここでは共通部品を通っていることを見る。
-        let source = try Self.viewSource()
-        #expect(
-            SourceScan.matchCount(of: #"controlButton\("#, in: source) == 0,
-            "画面ごとの手描きボタン（controlButton）に戻っている。共通の GameControlButton を使う（#1422）"
-        )
-        // 並べ替え・戻すの 2 つ（ヒントは「⋯」メニューへ移した）が同じ部品を通っていること。
-        #expect(SourceScan.matchCount(of: #"GameControlButton\("#, in: source) >= 2)
-        #expect(SourceScan.matchCount(of: #"GameControlBar\("#, in: source) == 1)
+    @Test("戻す・並べ替え・ヒントは「⋯」メニューに入っていて、画面ごとの手描きボタンは無い")
+    func controlsLiveInTheMenu() throws {
+        let source = SourceScan.strippingComments(try Self.viewSource())
+        for id in ["undo", "shuffle", "hint"] {
+            #expect(source.contains("id: \"\(id)\""), "\(id) が「⋯」メニューに無い")
+        }
+        #expect(SourceScan.matchCount(of: #"controlButton\("#, in: source) == 0)
+        #expect(SourceScan.matchCount(of: #"GameControlButton\("#, in: source) == 0)
     }
 
     @Test("牌の消失・枠色の演出は Reduce Motion 追従のヘルパー経由で盤面に掛かっている")

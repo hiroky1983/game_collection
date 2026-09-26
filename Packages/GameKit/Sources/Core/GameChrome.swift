@@ -234,7 +234,10 @@ public struct GameControlArea<Result: View, Playing: View>: View {
     }
 
     public var body: some View {
-        ZStack(alignment: .top) {
+        // 対局中の操作（右下の「⋯」・#1468）は、ひな形の高さの**下端**（= 広告バナーの直上）に寄せる。
+        // 上端に置くと、ゲームごとに「⋯」の高さがひな形の余りぶんずれる。決着後の中身はひな形と同じ高さなので、
+        // 寄せる向きは終局後の見た目に影響しない。
+        ZStack(alignment: .bottom) {
             finished { RecommendationCard.heightPlaceholder }
                 .hidden()
                 .allowsHitTesting(false)
@@ -244,6 +247,8 @@ public struct GameControlArea<Result: View, Playing: View>: View {
                 finished {
                     RecommendationSlot(services: services, isFinished: true, ladder: ladder)
                 }
+                // 決着後は従来どおり上寄せ（レコメンドが無い局で「もう一度」が下へ寄らない）。
+                .frame(maxHeight: .infinity, alignment: .top)
             } else {
                 playing()
             }

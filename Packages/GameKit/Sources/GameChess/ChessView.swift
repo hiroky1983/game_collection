@@ -44,8 +44,8 @@ public struct ChessView: View {
                 .layoutPriority(1)
             CapturedAreaView(model: model, owner: model.humanSide, style: pieceStyle)
             HowToPlayHint(.chess, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

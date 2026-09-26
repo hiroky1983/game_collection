@@ -102,8 +102,8 @@ public struct MahjongSolitaireView: View {
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
             HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
@@ -229,10 +229,9 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - ステータスバー
 
+    /// 帯には表示だけを置く（残り枚数・状態・時計）。全体表示⇄拡大などの操作は右下の「⋯」へ（#1468）。
     private var statusBar: some View {
-        // 縦の余白は 4。切り替えボタンが 44pt になって帯の高さを決めるようになったぶんここを詰め、
-        // #148 で捻出した盤面の高さを食わないようにしている（#197・#1420）。
-        GameStatusBar(verticalPadding: Metrics.statusBarVerticalPadding) {
+        GameStatusBar {
             Group {
                 if model.phase == .won {
                     // 取り切った後の表示は行を増やさずここに同居させる（#148）。
@@ -254,33 +253,6 @@ public struct MahjongSolitaireView: View {
             Label(timeText, systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
-
-            displayToggle
-        }
-    }
-
-    /// 全体表示 ⇄ 拡大の切り替え（#197）。
-    ///
-    /// 全体像を取り戻す唯一の入口なので、次の2点を満たす形にしてある:
-    /// - **タップ標的 44pt 以上**（従来は実測 29×23pt で Apple HIG を下回っていた）
-    /// - **記号だけにしない**。虫めがねアイコン 1 つでは「押すと何が起きるか」が伝わらず、
-    ///   拡大・全体表示という機能の存在自体が初回プレイで気づかれない。常時出す短い文字で補う
-    ///   （一度きりのヒントと違い、初回でも 2 回目以降でも同じように読める）。
-    ///
-    /// 見た目そのものはマインスイーパー・ナンプレ・フリーセルの拡大と共通の `BoardToggleButton`
-    /// （Core・#641）が持つ。**ON（差し色の面）＝拡大中**の向きも 4 ゲームで揃える。以前はここだけ
-    /// 全体表示を ON にしていたため、開始直後にソリティアだけ塗りつぶしで出て別物に見えていた
-    /// （会長 QA 2026-09-13「ボタンが同じ見た目になっていない」）。
-    private var displayToggle: some View {
-        BoardToggleButton(
-            isOn: !showsWholeBoard,
-            systemImage: !showsWholeBoard ? "minus.magnifyingglass" : "plus.magnifyingglass",
-            title: !showsWholeBoard ? "全体" : "拡大",
-            fill: Theme.Fill.teal,
-            accent: Theme.teal,
-            label: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
-        ) {
-            showsWholeBoard.toggle()
         }
     }
 
@@ -413,28 +385,9 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 操作
 
-    /// プレイ中の操作。アンドゥ（#198）を足して 3 つになったので、**1 段に収める**ための工夫が要る。
-    ///
-    /// 1. それまで右端に置いていた利用回数（「ヒント1 / 並べ替え1」）はやめた。3 つぶんの回数は
-    ///    どの iPhone の幅でも入らず、実測（iPhone 17 Pro）でボタンの文字が 2 行に折り返し、
-    ///    回数自体も「…」で切れた。回数はクリア後のリザルトに 3 つとも（0 回も省かず）出しており、
-    ///    情報は失われない。
-    /// 2. 文字が大きい設定では文字を捨ててアイコンだけにする（`ViewThatFits`）。縮小に頼ると
-    ///    アクセシビリティ XXXL で「ヒ…」まで切れて、大きいアイコンより読めなくなる（実測）。
-    ///    アイコンだけになるのは既定の文字サイズでは起きないので、#197 の「記号だけにしない」
-    ///    （＝初回に機能の存在が伝わらない）には抵触しない。読み上げのラベルは両方の段で同じ。
+    /// プレイ中の操作は右下の「⋯」にまとめる（#1422・#1468）。戻す・並べ替え・全体表示⇄拡大・ヒント。
     private var gameControls: some View {
-        // 左 = 戻す（ティール）、中央 = 並べ替え（紫）、右端 = 「⋯」（ヒント）。#1422。
-        // 判定させたいのは 2 ボタンぶんの幅なので、`ViewThatFits` はボタンだけに掛け、
-        // 伸び縮みする Spacer と「⋯」は外に置く（中に入れるとどんな幅でも「入る」と判定される）。
-        GameControlBar(menuItems: controlMenuItems, nudge: hintNudge) {
-            ViewThatFits(in: .horizontal) {
-                controlRow(showsTitle: true)
-                controlRow(showsTitle: false)
-            }
-        } center: {
-            EmptyView()
-        }
+        GameOverflowBar(menuItems: controlMenuItems, nudge: hintNudge)
     }
 
     /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
@@ -453,37 +406,30 @@ public struct MahjongSolitaireView: View {
     /// 覆いに頼らず二重の歯止めにしておく。ヒントの広告をロードしている最中も押させない。
     private var controlMenuItems: [GameControlMenuItem] {
         [
+            // 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。押せない間も項目は残す。
+            GameControlMenuItem(
+                id: "undo", title: "戻す", systemImage: "arrow.uturn.backward",
+                isEnabled: model.canUndo,
+                accessibilityLabel: "直前に取った2枚を戻す",
+                accessibilityHint: model.canUndo ? "" : "牌を取った直後だけ使えます"
+            ) { model.undoLastTake() },
+            // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。確認ダイアログ → 視聴 → 並べ替えの順に進む。
+            // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
+            GameControlMenuItem(
+                id: "shuffle", title: "並べ替え", systemImage: "shuffle",
+                isEnabled: !isWatchingRewardAd
+            ) { showShuffleConfirm = true },
+            // 全体表示 ⇄ 拡大（#197）。ON（チェック）＝拡大中の向きは他のゲームと揃える（会長 QA 2026-09-13）。
+            GameControlMenuItem(
+                id: "zoom", title: "拡大", systemImage: "plus.magnifyingglass", isChecked: !showsWholeBoard,
+                accessibilityLabel: showsWholeBoard ? "牌を大きくする" : "盤面全体を表示"
+            ) { showsWholeBoard.toggle() },
             GameControlMenuItem(
                 id: "hint", title: "ヒント", systemImage: "lightbulb.fill",
                 isEnabled: model.canHint && !isWatchingRewardAd,
                 accessibilityHint: "広告を見ると取れる組が1組光ります"
             ) { showHintConfirm = true },
         ]
-    }
-
-    private func controlRow(showsTitle: Bool) -> some View {
-        HStack(spacing: 8) {
-            undoButton(showsTitle: showsTitle)
-            // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。#199 の 3 ボタン化
-            // （ViewThatFits）と衝突したため、レイアウトは #199 側・押したときの挙動は
-            // #324 側を採って統合した。ここから確認ダイアログ → 視聴 → 並べ替えの順に進む。
-            GameControlButton("並べ替え", systemImage: "shuffle", tint: Theme.Fill.purple, showsTitle: showsTitle) {
-                showShuffleConfirm = true
-            }
-            // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
-            .disabled(isWatchingRewardAd)
-        }
-    }
-
-    /// 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。
-    private func undoButton(showsTitle: Bool) -> some View {
-        GameControlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.teal, showsTitle: showsTitle) {
-            model.undoLastTake()
-        }
-        // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれ、誤タップの救済に気づかれない）。
-        .disabled(!model.canUndo)
-        .accessibilityLabel("直前に取った2枚を戻す")
-        .accessibilityHint(model.canUndo ? "" : "牌を取った直後だけ使えます")
     }
 
     // MARK: - 盤の下の操作エリア
