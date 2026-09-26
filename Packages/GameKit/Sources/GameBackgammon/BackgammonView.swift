@@ -39,13 +39,10 @@ public struct BackgammonView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "バックギャモン", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showNewGame = true } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "バックギャモン", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        showNewGame = true
+                    })
         .howToPlay(.backgammon)
         .sheet(isPresented: $showNewGame) {
             BackgammonNewGameSheet(aiLevel: model.aiLevel) { level in

@@ -60,14 +60,10 @@ public struct SpiderView: View {
                 .padding(.horizontal, Theme.pad)
         }
         .padding(.vertical, Theme.pad)
-        .gameChrome(title: "スパイダーソリティア", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { openSetup() } label: {
-                    Label("新規ゲーム", systemImage: "plus.circle.fill")
-                }
-                .accessibilityLabel("新しい配札にする")
-            }
-        }
+        .gameChrome(title: "スパイダーソリティア", review: services.review,
+                    newGame: GameChromeNewGame(.solo) {
+                        openSetup()
+                    })
         .howToPlay(.spider) { SpiderRuleSheet() }
         .sheet(isPresented: $showSetup) {
             SpiderSetupSheet(draft: $draft, discardsProgress: model.canUndo) {

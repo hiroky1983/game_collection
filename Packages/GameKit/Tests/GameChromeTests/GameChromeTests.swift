@@ -61,6 +61,26 @@ struct GameChromeSourceTests {
         }
     }
 
+    /// ヘッダー右の「役の早見表」「新規」は `gameChrome` の引数で渡し、並び（役 → ？ → 新規）と絵柄を
+    /// Core で固定する（#1418）。ゲーム側が自前のツールバー項目に書き直すと並びと絵柄がばらつく。
+    @Test("役の早見表と新規ボタンはゲーム側で自前のアイコンに書き直されていない")
+    func referenceAndNewGameStayInCore() {
+        // ツールバー項目（`ToolbarItem(placement: .primaryAction)` から続く 400 文字）だけを見る。
+        // 開始シート・盤面選択メニューなど、ツールバー以外の同じ絵柄・文言は対象外。
+        let forbidden = ["list.bullet.rectangle", "list.number", "questionmark.circle",
+                         "Label(\"新規対局\"", "Label(\"新規ゲーム\"", "Label(\"はじめから\"", "Label(\"リセット\"", "Label(\"新規\""]
+        for game in Self.gameDirectories {
+            for file in game.files {
+                for part in file.components(separatedBy: "ToolbarItem(placement: .primaryAction)").dropFirst() {
+                    let head = String(part.prefix(400))
+                    for word in forbidden {
+                        #expect(head.contains(word) == false, "\(game.name) が \(word) をツールバーに自前で置いている")
+                    }
+                }
+            }
+        }
+    }
+
     /// 盤の下の操作エリアは、ひな形と実物を同じ組み方に通すのが要点（#148）。
     /// 各ゲームが `ZStack` + 隠しひな形を書き写す形に戻っていないことを見る。
     @Test("操作エリアの高さのひな形はゲーム側に書き写されていない")

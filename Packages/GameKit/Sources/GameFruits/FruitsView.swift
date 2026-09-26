@@ -34,13 +34,10 @@ public struct FruitsView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: "くっつきフルーツ", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { startNewGame() } label: {
-                    Label("はじめから", systemImage: "arrow.clockwise")
-                }
-            }
-        }
+        .gameChrome(title: "くっつきフルーツ", review: services.review,
+                    newGame: GameChromeNewGame(.restart) {
+                        startNewGame()
+                    })
         .howToPlay(.fruits) { FruitsRuleSheet() }
         .onAppear {
             #if DEBUG

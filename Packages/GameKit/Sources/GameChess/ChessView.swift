@@ -51,19 +51,14 @@ public struct ChessView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
-        .gameChrome(title: "チェス", review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if model.phase == .playing && !model.moves.isEmpty {
-                        showConfirmNewGame = true
-                    } else {
-                        showNewGame = true
-                    }
-                } label: {
-                    Label("新規対局", systemImage: "plus.circle.fill")
-                }
-            }
-        }
+        .gameChrome(title: "チェス", review: services.review,
+                    newGame: GameChromeNewGame(.match) {
+                        if model.phase == .playing && !model.moves.isEmpty {
+                            showConfirmNewGame = true
+                        } else {
+                            showNewGame = true
+                        }
+                    })
         .howToPlay(.chess) {
             ChessRuleDetail(style: pieceStyle)
         }
