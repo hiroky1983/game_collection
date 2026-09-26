@@ -141,8 +141,8 @@ struct HomerunLobbyView: View {
 
     private var introCard: some View {
         HStack(spacing: 14) {
-            OjisanCanvas(parts: OjisanArt.poseParts(.mascotFront))
-                .frame(width: 88, height: 88)
+            HomerunOjisan3DView()
+                .frame(width: 96, height: 96)
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: "1 挑戦 = \(HomerunChallenge.pitchCount) 球")
                     .themeTitle(22)
