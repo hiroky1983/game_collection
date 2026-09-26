@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import Core
 import GameKitTestSupport
@@ -15,6 +16,16 @@ struct GameStatusBarTests {
         #expect(GameStatusBarStyle.minHeight == 44)
         #expect(GameStatusBarStyle.horizontalPadding == 12)
         #expect(GameStatusBarStyle.verticalPadding == 6)
+    }
+
+    /// 余白より前に下限を掛けると 56pt になる（CodeRabbit 指摘）。完成した高さで見る。
+    @Test("小さな中身でも完成した高さは 44pt")
+    @MainActor
+    func completedHeightIsMinHeight() {
+        let renderer = ImageRenderer(content: GameStatusBar { Text("a") } trailing: { Text("b") }
+            .frame(width: 343))
+        renderer.scale = 1
+        #expect(renderer.cgImage?.height == 44)
     }
 
     @Test("手番の色: あなた＝ティール / CPU＝コーラル / 終局＝fillMuted")

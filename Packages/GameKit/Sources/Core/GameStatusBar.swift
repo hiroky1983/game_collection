@@ -29,9 +29,10 @@ public struct GameStatusBar<Leading: View, Trailing: View>: View {
             trailing
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: GameStatusBarStyle.minHeight)
         .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
         .padding(.vertical, GameStatusBarStyle.verticalPadding)
+        // 余白のあとに下限を掛ける。先に掛けると完成した高さが 44 + 6×2 = 56pt になる。
+        .frame(minHeight: GameStatusBarStyle.minHeight)
         .popCard(corner: Theme.cornerSmall)
     }
 }
