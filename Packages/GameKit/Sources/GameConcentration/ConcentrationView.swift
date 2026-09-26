@@ -413,14 +413,14 @@ struct ConcentrationNewGameSheet: View {
             }
 
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    ForEach(ConcentrationCPULevel.allCases, id: \.rawValue) { l in
+                HStack(spacing: 6) {
+                    ForEach(Array(ConcentrationCPULevel.allCases.enumerated()), id: \.element) { step, l in
                         GameSetupChooser(
                             title: l.displayName,
                             subtitle: l.subtitle,
                             selected: selectedCPULevel == l,
-                            accent: Theme.Fill.coral,
-                            metrics: Self.metrics
+                            accent: DifficultyTile.accent(step: step, of: ConcentrationCPULevel.allCases.count),
+                            metrics: DifficultyTile.metrics
                         ) { selectedCPULevel = l }
                     }
                 }

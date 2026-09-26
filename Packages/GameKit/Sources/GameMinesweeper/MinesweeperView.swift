@@ -559,28 +559,18 @@ struct MinesweeperNewGameSheet: View {
     /// ここに数値を直書きすると記録区分のラベルと二重管理になる。
     @State private var level: MinesweeperDifficulty = .beginner
 
-    /// 難易度ごとの差し色。色だけは Theme に依存するのでここに置く（enum は SwiftUI を持ち込まない）。
-    private static let accents: [MinesweeperDifficulty: Color] = [
-        .beginner: Theme.Fill.teal,
-        .intermediate: Theme.Fill.yellow,
-        .advanced: Theme.Fill.coral,
-    ]
-
-    /// 副題（「9×9・地雷10」など）が横3つに並ぶので、標準より小さい字で入れる。
-    private static let metrics = GameSetupChooser.Metrics(subtitleSize: 11)
-
     var body: some View {
         GameSetupSheet(
             kind: .solo,
             onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
         ) {
             GameSetupSection("難易度") {
-                HStack(spacing: 12) {
-                    ForEach(MinesweeperDifficulty.allCases, id: \.self) { difficulty in
+                HStack(spacing: 6) {
+                    ForEach(Array(MinesweeperDifficulty.allCases.enumerated()), id: \.element) { step, difficulty in
                         GameSetupChooser(title: difficulty.label, subtitle: difficulty.subtitle,
                                          selected: level == difficulty,
-                                         accent: Self.accents[difficulty] ?? Theme.Fill.teal,
-                                         metrics: Self.metrics) {
+                                         accent: DifficultyTile.accent(step: step, of: MinesweeperDifficulty.allCases.count),
+                                         metrics: DifficultyTile.metrics) {
                             level = difficulty
                         }
                     }

@@ -13,11 +13,6 @@ public struct HanafudaSetupSheet: View {
     let onStart: () -> Void
     let onCancel: () -> Void
 
-    /// タイルが横3つ並ぶ CPU の強さは、他ゲームの3段選択と同じ縮小設定にする。
-    private static let strengthMetrics = GameSetupChooser.Metrics(
-        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6
-    )
-
     public init(draft: Binding<HanafudaOptions>, onStart: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self._draft = draft
         self.onStart = onStart
@@ -41,10 +36,10 @@ public struct HanafudaSetupSheet: View {
                     .themeBody(12).foregroundStyle(Theme.inkSub)
             }
             GameSetupSection("CPUの強さ") {
-                HStack(spacing: 12) {
-                    difficultyTile(.easy, accent: Theme.Fill.teal)
-                    difficultyTile(.normal, accent: Theme.Fill.yellow)
-                    difficultyTile(.hard, accent: Theme.Fill.coral)
+                HStack(spacing: 6) {
+                    ForEach(Array(HanafudaDifficulty.allCases.enumerated()), id: \.element) { step, value in
+                        difficultyTile(value, accent: DifficultyTile.accent(step: step, of: HanafudaDifficulty.allCases.count))
+                    }
                 }
             }
             GameSetupSection("ローカルルール") {
@@ -61,7 +56,7 @@ public struct HanafudaSetupSheet: View {
     private func difficultyTile(_ value: HanafudaDifficulty, accent: Color) -> some View {
         GameSetupChooser(title: value.label, subtitle: "",
                           selected: draft.difficulty == value, accent: accent,
-                          metrics: Self.strengthMetrics) {
+                          metrics: DifficultyTile.metrics) {
             draft.difficulty = value
         }
     }

@@ -764,24 +764,19 @@ struct SudokuNewGameSheet: View {
     let onCancel: () -> Void
     @State private var difficulty: SudokuDifficulty = .normal
 
-    /// 「かんたん／ふつう／むずかしい」は横3つでは収まらないので、題名を縮めて1行に収める。
-    private static let metrics = GameSetupChooser.Metrics(
-        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6
-    )
-
     var body: some View {
         GameSetupSheet(
             kind: .solo,
             onStart: { onStart(difficulty) }, onCancel: onCancel
         ) {
             GameSetupSection("難易度") {
-                HStack(spacing: 12) {
+                HStack(spacing: 6) {
                     // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
                     // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
                     // `removalRange` のコメント参照・#354 の S6）。
-                    difficultyTile(.easy,   subtitle: "空き 約30〜35", accent: Theme.Fill.teal)
-                    difficultyTile(.normal, subtitle: "空き 約40〜45", accent: Theme.Fill.yellow)
-                    difficultyTile(.hard,   subtitle: "空き 約46〜50", accent: Theme.Fill.coral)
+                    difficultyTile(.easy,   subtitle: "空き 約30〜35", accent: DifficultyTile.accent(step: 0, of: 3))
+                    difficultyTile(.normal, subtitle: "空き 約40〜45", accent: DifficultyTile.accent(step: 1, of: 3))
+                    difficultyTile(.hard,   subtitle: "空き 約46〜50", accent: DifficultyTile.accent(step: 2, of: 3))
                 }
             }
         }
@@ -790,7 +785,7 @@ struct SudokuNewGameSheet: View {
     private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
         GameSetupChooser(title: value.label, subtitle: subtitle,
                          selected: difficulty == value, accent: accent,
-                         metrics: Self.metrics) {
+                         metrics: DifficultyTile.metrics) {
             difficulty = value
         }
     }

@@ -157,9 +157,9 @@ public enum HanafudaDifficulty: String, CaseIterable, Sendable, Equatable, Codab
 
     public var label: String {
         switch self {
-        case .easy:   return "弱"
-        case .normal: return "普通"
-        case .hard:   return "強"
+        case .easy:   return "かんたん"
+        case .normal: return "ふつう"
+        case .hard:   return "むずかしい"
         }
     }
 }

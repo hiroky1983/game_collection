@@ -703,20 +703,16 @@ struct SpiderSetupSheet: View {
     let onStart: () -> Void
     let onCancel: () -> Void
 
-    private static let metrics = GameSetupChooser.Metrics(
-        title: .title(20), subtitleSize: 11, titleMinimumScale: 0.6, subtitleMinimumScale: 0.7
-    )
-
     var body: some View {
         GameSetupSheet(
             kind: .solo, discardsProgress: discardsProgress,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection("スートの数") {
-                HStack(spacing: 12) {
-                    tile(.one, accent: Theme.Fill.teal)
-                    tile(.two, accent: Theme.Fill.yellow)
-                    tile(.four, accent: Theme.Fill.coral)
+                HStack(spacing: 6) {
+                    tile(.one, accent: DifficultyTile.accent(step: 0, of: 3))
+                    tile(.two, accent: DifficultyTile.accent(step: 1, of: 3))
+                    tile(.four, accent: DifficultyTile.accent(step: 2, of: 3))
                 }
                 Text(Self.footer(for: draft.suitCount))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -734,7 +730,7 @@ struct SpiderSetupSheet: View {
     private func tile(_ value: SpiderSuitCount, accent: Color) -> some View {
         GameSetupChooser(title: value.label, subtitle: value.subtitle,
                          selected: draft.suitCount == value, accent: accent,
-                         metrics: Self.metrics) {
+                         metrics: DifficultyTile.metrics) {
             draft.suitCount = value
         }
     }

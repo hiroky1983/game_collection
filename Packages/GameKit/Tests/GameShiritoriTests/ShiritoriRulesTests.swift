@@ -254,7 +254,7 @@ struct ShiritoriQuotaTests {
 
     @Test("解析の段階と表示名")
     func labelsAndAnalyticsLevels() {
-        #expect(ShiritoriQuota.allCases.map(\.label) == ["やさしい", "ふつう", "むずかしい"])
+        #expect(ShiritoriQuota.allCases.map(\.label) == ["かんたん", "ふつう", "むずかしい"])
         #expect(ShiritoriQuota.allCases.map(\.analyticsLevel) == [.beginner, .normal, .hard])
         #expect(ShiritoriQuota.standard == .normal)
     }
