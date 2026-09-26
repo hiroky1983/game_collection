@@ -130,31 +130,26 @@ private let advanceTable: [[Int]] = [
     [0, 0, 0,  0,  0,  0,  0,  0,  0],
 ]
 
-// MARK: - 手の選び方（#1397）
+// MARK: - 手の選び方（#1461）
 
-/// 1 手目の候補すべてに点数を付けたあと、**段階ごとにどう選ぶか**（会長決裁 2026-09-25）。
+/// 段階ごとの「最善手を打つ確率」（会長決裁 2026-09-26）。
 ///
-/// - `slipProbability`: 「見逃し」を起こす確率。起きたときは最善から `slipMargin` 以内の損で済む手から乱択する
-///   （只の駒を取り損ねる・取り返される手を指す、が初心者らしい間違いとして出る）。
-/// - `tieMargin`: 見逃しでないときに「最善と同等」とみなす幅。0 なら同点でも最初の最善手（決定的）。
-///
-/// 玉を只で取らせる手は合法手にならない（王手放置は指せない）ので、どの段階でも選ばれない。
-/// 見逃しで許す損は最大でも駒 1 枚ぶん（`slipMargin`）で、詰まされる手・大駒を二枚以上失う手は入らない。
-/// ただし深さ 1 の入門は相手の応手を読まないため、見逃しでない手番でも大駒を只で取られる手を
-/// 「同等」とみなすことがある（初心者らしい悪手として意図したもの）。むずかしいは当面 100%（最善手のみ）。
+/// 難易度は**考える時間**（`SimpleMinimaxEngine.timeLimit`）と、この確率だけで決める。
+/// 確率が外れたときは、1 手読み（＋静止探索）で全候補に点を付け、最善から `slipMargin` 以内の損で済む手
+/// （次の一手で詰まされる手は除く）のうち、最善以外から乱択する。
+/// 玉を取らせる手は合法手にならないので、どの段階でも選ばれない。
 struct ShogiMovePolicy: Equatable {
-    var slipProbability: Double
+    /// 探索が出した最善手をそのまま指す確率（0...1）。
+    var bestMoveProbability: Double
+    /// 外したときに許す損の幅（駒の価値の点数）。
     var slipMargin: Int
-    var tieMargin: Int
 
-    /// 最善手だけを選ぶ（ふつう・むずかしい。探索そのものが強さを決める）。
-    static let exact = ShogiMovePolicy(slipProbability: 0, slipMargin: 0, tieMargin: 0)
-    /// 見逃しを起こさず、選び方だけ各段階のまま（テストが「読み」だけを固定するための口）。
-    var withoutSlip: ShogiMovePolicy {
-        ShogiMovePolicy(slipProbability: 0, slipMargin: 0, tieMargin: tieMargin)
-    }
-    /// 探索を素直に回すだけでよいか（全候補の採点が要らない）。
-    var isExact: Bool { self == .exact }
+    /// 最善手だけを選ぶ（むずかしい）。
+    static let exact = ShogiMovePolicy(bestMoveProbability: 1, slipMargin: 0)
+    /// 外しを起こさず、探索の最善手だけを指す（テストが「読み」だけを固定するための口）。
+    var withoutSlip: ShogiMovePolicy { .exact }
+    /// 探索を素直に回すだけでよいか。
+    var isExact: Bool { bestMoveProbability >= 1 }
 }
 
 // MARK: - Engine（公開 API）
@@ -164,85 +159,61 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     let usePositional: Bool
     let useQuiescence: Bool
     let useBook: Bool
-    /// 安全用の時間の上限。段階の強さは `nodeLimit`（読む局面数）が決め、端末が遅くても
-    /// 強さが変わらないようにする（#1397。時間主体だと遅い端末ほど浅くしか読めない）。
+    /// 1 手の考える時間の上限（秒）。読み終われば早く指す。段階の差は、この時間と
+    /// `policy.bestMoveProbability` だけで付ける（#1461）。
     let timeLimit: TimeInterval
-    /// 読む局面数の上限（`nil` なら無し）。
+    /// 読む局面数の上限（`nil` なら無し）。出荷値では使わない（計測・テスト用の口）。
     let nodeLimit: Int?
     let policy: ShogiMovePolicy
-    /// 「入門」か（#1174）。読みの設定は「簡単」と同じまま、着手の選び方だけを変える。
-    var isNovice: Bool { policy.tieMargin > 0 }
     /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テストだけが種を渡して再現する）。
-    /// `policy` が乱数を使わない段階（ふつう・むずかしい）は、この値を見ない。
+    /// `policy` が乱数を使わない段階（むずかしい）は、この値を見ない。
     let seed: UInt64?
 
     /// 難易度。**表示している強さの文言と中身が一致していること**（#416 の教訓）:
     ///
-    /// | level | 表示 | 探索深さ上限 | 静止探索 | 位置評価 | 定跡 |
-    /// |---|---|---|---|---|---|
-    /// | -1 | 入門（手なりで指す） | 1 | 無し | 無し | 無し |
-    /// | 0 | 簡単（駒得だけ） | 2 | 無し | 無し | 無し |
-    /// | 1 | ふつう（囲いを作る） | 4（局面数 5,000 まで） | 有り | 有り | 無し |
-    /// | 2 | むずかしい（定跡＋深読み） | 7（局面数 150,000 まで） | 有り | 有り | 有り |
+    /// | level | 表示 | 考える時間 | 最善手を打つ確率 | 定跡 |
+    /// |---|---|---|---|---|
+    /// | -1 | 入門 | 0.5 秒 | `noviceBestMoveProbability` | 無し |
+    /// | 0 | かんたん | 1 秒 | `easyBestMoveProbability` | 無し |
+    /// | 1 | ふつう | 2 秒 | `normalBestMoveProbability` | 無し |
+    /// | 2 | むずかしい | 3 秒 | 100% | 有り |
     ///
-    /// **段階の強さは「読む局面数」で決め、時間は安全用に長めに残す**（#1397。時間主体だと、
-    /// 遅い端末ほど浅くしか読めず段階の差が消える）。**上の段階は下の段階に負けない**
-    /// （会長決裁 2026-09-25。`CPUBenchTests` で隣り合う段階どうしを先後入れ替えで計測する）。
-    /// 入門・簡単・ふつうは一定の確率で「見逃し」（`ShogiMovePolicy`）を起こす。
+    /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか読み終えたら指す。
+    /// 確率の根拠は PR #1461 の勝率表（上の段階が下の段階に負ける割合 3% 以下で最も高い値）。
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
-    ///
-    /// **「ガチ」（level 3・#1174）と「むずかしい」の探索深さ上限32への引き上げ（#1134）は
-    /// v1.1.6 で一旦取り消した**（会長指摘・2026-09-22。実プレイで強さを感じられず、
-    /// 調整してから出し直すと判断）。#1397 で「むずかしい」の深さ上限を 5 → 7 にしたのは
-    /// 「ふつう」に負ける局があったため（深さ 5・6 万局面で 48 局中 5 敗）。
-    ///
-    /// level 0 は「初心者が勝てる最弱」を作るために、**深さ 2 + 静止探索なし**にしてある（#502。
-    /// チェス `SimpleChessEngine` の level 0 と同じ設計）。静止探索を切ると取り合いの途中で
-    /// 数え終えるので、1回の取り返しの先にある駒得・駒損が見えなくなる。深さ 2 は残すので、
-    /// 「取ったら取り返されるだけ」の只捨ては避ける = 弱いが壊れてはいない、という水準になる。
-    /// 深さ 1 まで落とすと只捨てを始めるため採らない（測定結果は #502 / PR に記載）。
-    ///
-    /// その下の「入門」（#1174）は**自分の手 1 手だけを読む**（#1397。深さ 2 のままだと簡単との対戦で
-    /// 簡単が詰まされる局が 48 局中 1〜2 局残り、「上の段階は下の段階に負けない」を満たせなかった）。
-    /// 全候補に点を付け、歩 1 枚に満たない差の手から乱択し、35% は駒 1 枚ぶんまでの損を許す。
-    /// 取り返される取りを指すことがあるが、それが「初心者が勝てる」水準の中身（会長決裁 2026-09-25）。
     public init(level: Int = CPUStrength.standard.rawValue) {
         self.init(level: level, seed: nil)
     }
 
     init(level: Int, seed: UInt64?) {
         let strength = CPUStrength.strength(for: level)
+        (depth, usePositional, useQuiescence) = (Self.maxDepth, true, true)
+        useBook = strength == .hard
         switch strength {
-        case .novice:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (1, false, false, false, 0.5)
-        case .easy:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (2, false, false, false, 0.5)
-        case .hard:    (depth, usePositional, useQuiescence, useBook, timeLimit) = (7, true,  true,  true,  Self.hardTimeLimit)
-        case .normal:  (depth, usePositional, useQuiescence, useBook, timeLimit) = (4, true,  true,  false, Self.normalTimeLimit)
+        case .novice: (timeLimit, policy) = (0.5, Self.policy(Self.noviceBestMoveProbability))
+        case .easy:   (timeLimit, policy) = (1.0, Self.policy(Self.easyBestMoveProbability))
+        case .normal: (timeLimit, policy) = (2.0, Self.policy(Self.normalBestMoveProbability))
+        case .hard:   (timeLimit, policy) = (3.0, .exact)
         }
-        switch strength {
-        case .novice: (nodeLimit, policy) = (nil, Self.novicePolicy)
-        case .easy:   (nodeLimit, policy) = (nil, Self.easyPolicy)
-        case .normal: (nodeLimit, policy) = (Self.normalNodeLimit, Self.normalPolicy)
-        case .hard:   (nodeLimit, policy) = (Self.hardNodeLimit, .exact)
-        }
+        self.nodeLimit = nil
         self.seed = seed
     }
 
-    /// 入門: 3 割強は「駒 1 枚ぶん（銀・桂まで）損する手」から選ぶ。見逃さない手番でも
-    /// 歩 1 枚未満の差は同等とみなして乱択する（#1174）。
-    static let novicePolicy = ShogiMovePolicy(
-        slipProbability: 0.35, slipMargin: 500, tieMargin: PieceValue.base(.pawn) - 1)
-    /// 簡単: 8% で「歩〜桂 1 枚ぶん損する手」を混ぜる。ほかは最善手（決定的）。
-    static let easyPolicy = ShogiMovePolicy(slipProbability: 0.08, slipMargin: 300, tieMargin: 0)
+    /// 反復深化の深さの上限。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
+    static let maxDepth = 32
 
-    /// ふつう: 10% の手番だけ浅く読んで「歩〜桂 1 枚ぶん損する手」を混ぜる（むずかしいは 100% 最善手）。
-    static let normalPolicy = ShogiMovePolicy(slipProbability: 0.10, slipMargin: 300, tieMargin: 0)
+    /// 最善手を打つ確率（PR #1461 の実測。上の段階の負けが 3% 以下で最も高い値）。
+    static let noviceBestMoveProbability = 0.3
+    static let easyBestMoveProbability = 0.5
+    static let normalBestMoveProbability = 0.8
 
-    /// 段階の差を付ける読みの局面数（#1397）。時間は安全用に長めに残す。
-    static let normalNodeLimit = 5_000
-    static let hardNodeLimit = 150_000
-    static let normalTimeLimit: TimeInterval = 3.0
-    static let hardTimeLimit: TimeInterval = 8.0
+    /// 外したときに許す損の幅（駒 1 枚ぶんの目安。歩 3 枚・香 1 枚に当たり、金以上は入らない）。
+    static let slipMargin = 300
+
+    static func policy(_ probability: Double) -> ShogiMovePolicy {
+        ShogiMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
+    }
 
     /// テスト・計測用の直接指定。時間切れによる打ち切りを構造的に無くしたいときは
     /// `timeLimit: .infinity` を渡す（`.distantFuture` を締切にする。#1187）。
@@ -258,11 +229,6 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         self.seed = seed
     }
 
-    /// 全候補に点を付けて選ぶ浅い読みの深さ（入門・簡単、およびふつうの見逃しの手番）。
-    static let shallowDepth = 2
-    /// 「入門」が見逃し以外で許す駒損の幅（#1174）。**歩 1 枚に満たない差**しか許さない。
-    static let noviceMargin = PieceValue.base(.pawn) - 1
-
     public func bestMove(sfen: String) async -> String? {
         guard var pos = Position.fromSFEN(sfen) else { return nil }
         let moves = pos.legalMoves()
@@ -271,15 +237,11 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         if useBook, let booked = OpeningBook.move(for: sfen),
            let m = Move.fromUSI(booked), moves.contains(m) { return booked }
 
-        // 入門・簡単（深さ 2 以下）は毎手、全候補に点を付けて選ぶ。ふつう以上は探索で最善手を出し、
-        // 見逃しの手番だけ浅い読み（深さ 2）で全候補に点を付けて損の幅の中から選ぶ。
-        let scoresEveryMove = depth <= Self.shallowDepth
-        if scoresEveryMove || !policy.isExact {
+        if !policy.isExact {
             var rng = SplitMix64(seed: seed ?? UInt64.random(in: .min ... .max))
-            let slips = policy.slipProbability > 0 && Double.random(in: 0..<1, using: &rng) < policy.slipProbability
-            if scoresEveryMove || slips {
-                return policyMove(&pos, moves: moves, scoringDepth: min(depth, Self.shallowDepth),
-                                  slips: slips, using: &rng)?.usi
+            if Double.random(in: 0..<1, using: &rng) >= policy.bestMoveProbability,
+               let slip = slipMove(&pos, moves: moves, using: &rng) {
+                return slip.usi
             }
         }
 
@@ -288,7 +250,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         return ctx.search(&pos)?.usi
     }
 
-    /// 計測用: 手に加えて、読んだ局面数と完了した反復深化の深さを返す（#1397）。
+    /// 計測用: 手に加えて、読んだ局面数と完了した反復深化の深さを返す。
     /// 定跡・`policy` は通さず、探索そのものだけを見る。
     func analyze(sfen: String) -> (usi: String?, nodes: Int, depth: Int)? {
         guard var pos = Position.fromSFEN(sfen), !pos.legalMoves().isEmpty else { return nil }
@@ -298,66 +260,63 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         return (move?.usi, ctx.nodes, ctx.completedDepth)
     }
 
-    /// 入門・簡単の着手（#1174・#1397）。読みの深さは同じ（自分の手＋相手の応手＝深さ 2）まま、
-    /// 全候補に点を付けて `policy` で選ぶ。入門は**最善から歩 1 枚ぶんも損しない手の中から乱択**し、
-    /// さらに一定の確率で駒 1 枚ぶんまでの損を許す（見逃し）。
-    ///
-    /// 「簡単」は同じ評価で並んだ手を指し手オーダリング（取る手・成る手が先）で選ぶので、
-    /// 駒得の機会は逃さず攻めの手が先に出る。「入門」はそこを崩して手なりに指す。
-    /// 駒を只で捨てる手・取り返されるだけの取りは歩 1 枚より大きく損をするため候補に入らず、
-    /// 「損はしないが得も狙わない」水準に収まる（弱いが壊れてはいない・#502 と同じ物差し）。
-    /// 時間切れでも最低限これだけは評価してから選ぶ（#1196）。1件も評価できないまま
-    /// `orderedMoves.first`（安全性未確認）へ逃げると `noviceMargin` の駒損しない保証を
-    /// すり抜ける。1件だけ評価しても自分自身としか比較できず実質フォールバックと変わらない
-    /// ため、比較に足る数（負けている手を弾ける最低限）を確保する。depth 1 の negamax なので
-    /// 数手ぶんの追加コストは無視できる。
-    static let minNoviceEvaluations = 3
-
-    func policyMove(_ pos: inout Position, moves: [Move], scoringDepth: Int, slips: Bool,
-                    using rng: inout SplitMix64) -> Move? {
-        var ctx = SearchContext(maxDepth: 1, usePositional: usePositional,
-                                useQuiescence: useQuiescence, timeLimit: timeLimit, nodeLimit: nil)
-        // 先にオーダリング（MVV-LVA）しておく。時間切れで1手も読めなかった／全滅した場合の
-        // フォールバックに使う（「簡単」の反復深化が時間切れ時に使うのと同じ考え方 = 只捨てではない手）。
-        let orderedMoves = ctx.orderMoves(moves, pos: pos, killers: [nil, nil], ttMove: nil)
-        var scored: [(move: Move, score: Int)] = []
-        let originalDeadline = ctx.deadline
-        for (index, move) in orderedMoves.enumerated() {
-            let withinSafetyFloor = index < Self.minNoviceEvaluations
-            // 期限切れなら打ち切る。ここでチェックしないと、期限切れ後の `negamax` が
-            // 「自分の手を指した直後の駒得」だけを返し続け、`noviceMargin` の判定が
-            // 取り返しを見ない只捨てを弾けなくなる（#1174 検証指摘）。ただし安全フロアの
-            // 範囲内は期限を無視して必ず評価する（#1196）。
-            if !withinSafetyFloor, Date() > originalDeadline { break }
-            // 安全フロアの範囲内は `negamax`（と内部で呼ぶ `quiesce`）の期限判定も無効化する。
-            // `deadline` だけ外側で無視しても、`negamax` は自分の先頭で期限切れなら
-            // `evaluate(pos)`（相手の応手を読まない静的評価）を即返すため、取り返される
-            // 駒取りが安全フロアの候補に残ってしまう（CodeRabbit 指摘）。
-            ctx.deadline = withinSafetyFloor ? .distantFuture : originalDeadline
-            let undo = pos.make(move)
-            // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
-            let score = -ctx.negamax(&pos, depth: scoringDepth - 1, alpha: Int.min + 1, beta: Int.max, ply: 1)
-            pos.unmake(undo)
-            ctx.deadline = originalDeadline
-            // negamax の探索中に期限切れになった場合、返る値は不完全な評価（中断時点の
-            // evaluate(pos)）なので候補に入れない（CodeRabbit 指摘・PR #1190）。安全フロアの
-            // 範囲内は不完全でも比較材料として使う（同上の理由）。
-            if !withinSafetyFloor, Date() > originalDeadline { break }
-            scored.append((move, score))
+    /// 最善手を外すときの手（#1461）。全候補に 1 手だけ読んで（自分の手のあと、取り合いが落ち着くまで）
+    /// 点を付け、点の最も高い手を除いたうち、最善から `slipMargin` 以内の損の手から乱択する。
+    /// 大駒を只で取られる手・取り返される取りは幅の外に出る。候補が無い・選んだ手が詰まされる手だけなら
+    /// `nil`（呼び出し側が最善手を指す）。
+    /// 全候補を深く読むと 1 手に何秒もかかる（実測: 平均 1.7 秒・最大 16 秒）ので、採点は浅くし、
+    /// 詰まされないことだけを選んだ手について確かめる（`allowsMateInOne`）。
+    func slipMove(_ pos: inout Position, moves: [Move], using rng: inout SplitMix64) -> Move? {
+        var pool = slipPool(&pos, moves: moves)
+        while !pool.isEmpty {
+            let i = Int.random(in: 0..<pool.count, using: &rng)
+            let move = pool.remove(at: i)
+            if !Self.allowsMateInOne(&pos, after: move) { return move }
         }
-        guard let best = scored.map(\.score).max() else { return orderedMoves.first }
-        return Self.pick(scored, best: best, margin: slips ? policy.slipMargin : policy.tieMargin, using: &rng)
-            ?? orderedMoves.first
+        return nil
     }
 
-    /// 採点済みの候補から 1 手選ぶ。`margin` 以内の損の手から乱択し、0 なら最初の最善手。
-    static func pick<G: RandomNumberGenerator>(
-        _ scored: [(move: Move, score: Int)], best: Int, margin: Int, using rng: inout G
-    ) -> Move? {
-        if margin == 0 { return scored.first { $0.score == best }?.move }
-        let pool = scored.filter { $0.score >= best - margin }.map(\.move)
-        guard !pool.isEmpty else { return nil }
-        return pool[Int.random(in: 0..<pool.count, using: &rng)]
+    /// 外しの採点に使う時間の割合（考える時間に対する）。
+    static let slipBudgetShare = 0.2
+    /// 時間切れでも最低限採点する手数（比較の相手が要る）。
+    static let minSlipEvaluations = 8
+
+    /// 外しの候補（詰みの確認前）。最善（1 手読みの点が最も高い手）を除く。
+    func slipPool(_ pos: inout Position, moves: [Move]) -> [Move] {
+        var ctx = SearchContext(maxDepth: 1, usePositional: usePositional,
+                                useQuiescence: useQuiescence, timeLimit: .infinity, nodeLimit: nil)
+        // 取る手・成る手が先に並ぶ順に採点し、上限（考える時間の 2 割）で打ち切る。打ち切った残りの手は
+        // 候補に入らない（安全側）。持ち駒が多い局面は合法手が数百あり、全部採点すると何秒もかかる。
+        let deadline = timeLimit.isFinite ? Date().addingTimeInterval(timeLimit * Self.slipBudgetShare) : .distantFuture
+        // 局面数で読みを区切る計測用の設定（`nodeLimit`）でも、同じ割合で採点を打ち切る。
+        let nodeBudget = nodeLimit.map { Int(Double($0) * Self.slipBudgetShare) } ?? .max
+        var scored: [(move: Move, score: Int)] = []
+        for (index, move) in ctx.orderMoves(moves, pos: pos, killers: [nil, nil], ttMove: nil).enumerated() {
+            if index >= Self.minSlipEvaluations, Date() > deadline || ctx.nodes >= nodeBudget { break }
+            let undo = pos.make(move)
+            // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
+            let score = -ctx.negamax(&pos, depth: 0, alpha: Int.min + 1, beta: Int.max, ply: 1)
+            pos.unmake(undo)
+            scored.append((move, score))
+        }
+        guard let best = scored.map(\.score).max(), let top = scored.firstIndex(where: { $0.score == best })
+        else { return [] }
+        scored.remove(at: top)
+        return scored.filter { $0.score >= best - policy.slipMargin }.map(\.move)
+    }
+
+    /// `move` を指すと、相手に次の一手で詰まされる（＝即負け）か。
+    static func allowsMateInOne(_ pos: inout Position, after move: Move) -> Bool {
+        let undo = pos.make(move)
+        defer { pos.unmake(undo) }
+        for reply in pos.legalMovesInPlace() {
+            let u = pos.make(reply)
+            // 詰みは王手でしかありえない。王手の返答だけ、指し手が残るか数える（全返答で数えると重い）。
+            let mated = pos.isKingInCheck(pos.sideToMove) && pos.legalMovesInPlace().isEmpty
+            pos.unmake(u)
+            if mated { return true }
+        }
+        return false
     }
 
     /// 囲いの堅さ（shelter）だけ。自己対戦テストが「囲いが進んだか」を見るための口で、
