@@ -301,7 +301,7 @@ public struct DaifugoView: View {
             EmptyView()
         case .playing where model.isPlayerFinished:
             // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
-            actionButton("結果まで進める", color: Theme.Fill.coral, disabled: model.isSkippingToResult) {
+            actionButton("結果まで進める", role: .primary, disabled: model.isSkippingToResult) {
                 model.skipToResult()
                 runCPU()
             }
@@ -309,11 +309,11 @@ public struct DaifugoView: View {
             .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
-                actionButton("パス", color: Theme.fillMuted, foreground: .white, disabled: !model.canPass) {
+                actionButton("パス", role: .skip, disabled: !model.canPass) {
                     model.pass()
                     runCPU()
                 }
-                actionButton(playButtonTitle, color: Theme.Fill.coral, disabled: !model.canPlaySelection) {
+                actionButton(playButtonTitle, role: .primary, disabled: !model.canPlaySelection) {
                     model.playSelected()
                     runCPU()
                 }
@@ -340,7 +340,7 @@ public struct DaifugoView: View {
                     waiveExchangeButton
                 }
                 // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
-                actionButton("次のゲーム", color: Theme.Fill.coral, disabled: waiveRescue.isWatching) {
+                actionButton("次のゲーム", role: .primary, disabled: waiveRescue.isWatching) {
                     model.startGame()
                     runCPU()
                 }
@@ -367,13 +367,8 @@ public struct DaifugoView: View {
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(waiveRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(waiveRescue.isWatching ? Theme.inkSub : Theme.onAccent)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(waiveRescue.isWatching)
     }
 
@@ -461,26 +456,17 @@ public struct DaifugoView: View {
             : "次のゲームは階級に応じてカードを交換します（大富豪⇔大貧民 2枚 / 富豪⇔貧民 1枚）"
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   `fillMuted` のような濃い面には白を渡す（#220）。
-    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
-                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
-                // 文字を拡大すると「カードを選ぶ」「コール 20枚」等が折り返して
-                // ボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(disabled ? Theme.inkSub.opacity(0.3) : color,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        // `.plain` は装飾を消す代わりに押下フィードバックまで消してしまうので、
-        // 背景・文字色はそのまま通しつつ押下時だけ縮むスタイルに替える（#195）。
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 }

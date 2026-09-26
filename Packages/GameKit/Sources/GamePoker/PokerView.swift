@@ -446,10 +446,10 @@ public struct PokerView: View {
     // ベットラウンド1
     private var betting1View: some View {
         HStack(spacing: 12) {
-            actionButton("チェック", color: Theme.Fill.teal) {
+            actionButton("チェック", role: .primary) {
                 model.bet1Action(.check)
             }
-            actionButton("ベット \(20)枚", color: Theme.Fill.coral, disabled: model.playerChips < 20) {
+            actionButton("ベット \(20)枚", role: .primary, disabled: model.playerChips < 20) {
                 model.bet1Action(.bet(20))
             }
         }
@@ -468,7 +468,7 @@ public struct PokerView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 let count = model.selectedForExchange.count
-                actionButton(count == 0 ? "交換しない" : "\(count)枚を交換", color: Theme.Fill.coral) {
+                actionButton(count == 0 ? "交換しない" : "\(count)枚を交換", role: .primary) {
                     model.confirmExchange()
                 }
             }
@@ -483,23 +483,23 @@ public struct PokerView: View {
             if model.currentBet > 0 {
                 // CPUがベット済み → コールかフォールド
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.fillMuted, foreground: .white) {
+                    actionButton("フォールド", role: .skip) {
                         model.foldToCPUBet()
                     }
-                    actionButton("コール \(model.currentBet)枚", color: Theme.Fill.coral,
+                    actionButton("コール \(model.currentBet)枚", role: .primary,
                                  disabled: model.playerChips < model.currentBet) {
                         model.callCPUBet()
                     }
                 }
             } else {
                 HStack(spacing: 12) {
-                    actionButton("フォールド", color: Theme.fillMuted, foreground: .white) {
+                    actionButton("フォールド", role: .skip) {
                         model.bet2Action(.fold)
                     }
-                    actionButton("チェック", color: Theme.Fill.teal) {
+                    actionButton("チェック", role: .primary) {
                         model.bet2Action(.check)
                     }
-                    actionButton("ベット \(20)枚", color: Theme.Fill.coral, disabled: model.playerChips < 20) {
+                    actionButton("ベット \(20)枚", role: .primary, disabled: model.playerChips < 20) {
                         model.bet2Action(.bet(20))
                     }
                 }
@@ -517,7 +517,7 @@ public struct PokerView: View {
             // ダブルアップの決着待ちの間は記録がまだ確定していない（#496）。確定してから出す。
             if !model.awaitsDoubleUp {
                 RecordLabel(model.recordResult)
-                actionButton("次のゲーム", color: Theme.Fill.coral) {
+                actionButton("次のゲーム", role: .primary) {
                     revealCPU = false
                     if hasPlayedOnce {
                         model.startGame()
@@ -586,8 +586,8 @@ public struct PokerView: View {
                     Spacer()
                 }
                 HStack(spacing: 12) {
-                    actionButton("受け取る", color: Theme.Fill.teal) { model.declineDoubleUp() }
-                    actionButton("ダブルアップ", color: Theme.Fill.yellow,
+                    actionButton("受け取る", role: .primary) { model.declineDoubleUp() }
+                    actionButton("ダブルアップ", role: .declaration,
                                  disabled: !model.canStartDoubleUp) {
                         model.startDoubleUp()
                     }
@@ -602,15 +602,15 @@ public struct PokerView: View {
             EmptyView()
         } else if state.isAwaitingGuess {
             HStack(spacing: 12) {
-                actionButton("ロー ↓", color: Theme.Fill.purple) { model.guessDoubleUp(.low) }
-                actionButton("ハイ ↑", color: Theme.Fill.coral) { model.guessDoubleUp(.high) }
+                actionButton("ロー ↓", role: .declaration) { model.guessDoubleUp(.low) }
+                actionButton("ハイ ↑", role: .primary) { model.guessDoubleUp(.high) }
             }
         } else {
             HStack(spacing: 12) {
-                actionButton("受け取る \(state.stake)枚", color: Theme.Fill.teal) {
+                actionButton("受け取る \(state.stake)枚", role: .primary) {
                     model.takeDoubleUpWinnings()
                 }
-                actionButton(state.result == .push ? "引き直す" : "続ける", color: Theme.Fill.yellow) {
+                actionButton(state.result == .push ? "引き直す" : "続ける", role: .primary) {
                     model.continueDoubleUp()
                 }
             }
@@ -701,9 +701,8 @@ public struct PokerView: View {
                         // 0.8 では SE で末尾が切れる（#523。ブラックジャックの撮影で実測）。
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
-                        .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+                .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
                 .disabled(reviveRescue.isWatching)
             }
 
@@ -713,10 +712,9 @@ public struct PokerView: View {
                 model.restartSession()
                 showStartSheet = true
             } label: {
-                Text(restartButtonTitle).themeBody(16).frame(maxWidth: .infinity)
-                .foregroundStyle(Theme.onAccent)
+                Text(restartButtonTitle).themeBody(16)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            .buttonStyle(GameButtonStyle(role: .primary, shape: .block))
             // 復活広告のロード〜視聴中にやり直すと、見終えた広告が新しいセッションに乗る（#728）。
             .disabled(reviveRescue.isWatching)
         }
@@ -724,27 +722,18 @@ public struct PokerView: View {
         .popCard(corner: Theme.cornerSmall)
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   `fillMuted` のような濃い面には白を渡す（#220）。
-    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
-                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
-                // 文字を拡大すると「カードを選ぶ」「コール 20枚」等が折り返して
-                // ボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .padding(.horizontal, 8)
-                // 高さは上下の余白（10pt）任せだと実測 34〜37pt で Apple HIG の 44pt に届かない（#207）。
-                // 見た目のトーン（角丸・色）は変えず、下限だけを与えて背景ごと 44pt にする。
-                // 文字が大きくなって 44pt を超えるぶんには従来どおり伸びる。
-                .frame(maxWidth: .infinity, minHeight: PokerMetrics.actionButtonMinHeight)
-                .background(disabled ? Theme.inkSub.opacity(0.3) : color,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 }

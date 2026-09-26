@@ -310,7 +310,7 @@ public struct ColorRelayView: View {
                     waivePenaltyButton
                 }
                 // 視聴中に引くと番が進み、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
-                actionButton("\(model.pendingDraw)枚引く", color: Theme.Fill.coral, disabled: waiveRescue.isWatching) {
+                actionButton("\(model.pendingDraw)枚引く", role: .primary, disabled: waiveRescue.isWatching) {
                     model.takePenalty()
                     runCPU()
                 }
@@ -333,17 +333,17 @@ public struct ColorRelayView: View {
         case .playing:
             HStack(spacing: 12) {
                 if model.canEndTurn {
-                    actionButton("出さずに次へ", color: Theme.fillMuted, foreground: .white) {
+                    actionButton("出さずに次へ", role: .skip) {
                         model.endTurn()
                         runCPU()
                     }
                 } else {
-                    actionButton("1枚引く", color: Theme.fillMuted, foreground: .white, disabled: !model.canDraw) {
+                    actionButton("1枚引く", role: .skip, disabled: !model.canDraw) {
                         model.drawCard()
                         runCPU()
                     }
                 }
-                actionButton(playButtonTitle, color: Theme.Fill.coral, disabled: !model.canPlaySelection) {
+                actionButton(playButtonTitle, role: .primary, disabled: !model.canPlaySelection) {
                     model.playSelected()
                     runCPU()
                 }
@@ -351,7 +351,7 @@ public struct ColorRelayView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton("次のゲーム", color: Theme.Fill.coral) {
+            actionButton("次のゲーム", role: .primary) {
                 model.startGame()
                 runCPU()
             }
@@ -379,13 +379,8 @@ public struct ColorRelayView: View {
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(waiveRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(waiveRescue.isWatching ? Theme.inkSub : Theme.onAccent)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(waiveRescue.isWatching)
     }
 
@@ -461,22 +456,17 @@ public struct ColorRelayView: View {
         return winner == ColorRelayModel.humanIndex ? "あなたの勝ち！" : "\(model.playerName(winner))の勝ち"
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   `fillMuted` のような濃い面には白を渡す（#220）。
-    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
-                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
+                // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(disabled ? Theme.inkSub.opacity(0.3) : color,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 }
