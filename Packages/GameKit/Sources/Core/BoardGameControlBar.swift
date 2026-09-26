@@ -6,12 +6,17 @@ public struct BoardControlBarHint {
     let isEnabled: Bool
     let isThinking: Bool
     let request: () -> Void
+    /// 30 秒以上操作が無いときに出す促し（#1424）。
+    let nudge: HintNudge
 
+    /// - Parameter game: 局の番号（`gameSerial`）。
+    /// - Parameter activity: 操作のたびに値が変わる印（手数・選択など）。変わると促しの待ち時間を数え直す。
     @MainActor
-    public init<Model: BoardHintModel>(_ model: Model) {
+    public init<Model: BoardHintModel>(_ model: Model, game: Int, activity: AnyHashable) {
         remaining = model.hintsRemaining
         isEnabled = model.canUseHint
         isThinking = model.isHintThinking
+        nudge = HintNudge(isEligible: model.canUseHint, game: game, activity: activity)
         // 読みは Model の中で `AITurnGuarded` の照合に載せる（押したあとの局面ずれはそこで弾く）。
         request = { Task { await model.requestHint() } }
     }
@@ -64,6 +69,10 @@ public struct BoardGameControlBar<Model: BoardUndoModel, Center: View>: View {
         .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
         .boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)
+        .hintNudge(hint.map {
+            // 投了の確認ダイアログが開いている間は待たない（閉じた直後に吹き出しが出るのを防ぐ）。
+            HintNudge(isEligible: $0.nudge.isEligible && !showResignConfirm, game: $0.nudge.game, activity: $0.nudge.activity)
+        })
     }
 
     private var moreMenu: some View {

@@ -12,19 +12,23 @@ import SwiftUI
 public struct GameControlBar<Leading: View, Center: View>: View {
     private let menuItems: [GameControlMenuItem]
     private let verticalPadding: CGFloat
+    private let nudge: HintNudge?
     private let leading: Leading
     private let center: Center
 
     /// - Parameter verticalPadding: 外枠の上下の余白。盤の大きさを決める高さの計算に効くので、
     ///   従来の操作行の余白を持つゲーム（ナンプレは 4pt）は、その値を渡して外寸を据え置く（#139）。
+    /// - Parameter nudge: ヒントを促す吹き出し（#1424）。ヒントが「⋯」にあるゲームだけ渡す。
     public init(
         menuItems: [GameControlMenuItem] = [],
         verticalPadding: CGFloat = 8,
+        nudge: HintNudge? = nil,
         @ViewBuilder leading: () -> Leading,
         @ViewBuilder center: () -> Center
     ) {
         self.menuItems = menuItems
         self.verticalPadding = verticalPadding
+        self.nudge = nudge
         self.leading = leading()
         self.center = center()
     }
@@ -41,6 +45,7 @@ public struct GameControlBar<Leading: View, Center: View>: View {
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, verticalPadding)
         .popCard(corner: Theme.cornerSmall)
+        .hintNudge(nudge)
     }
 }
 

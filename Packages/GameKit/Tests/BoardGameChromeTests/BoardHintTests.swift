@@ -84,7 +84,7 @@ struct BoardHintButtonSourceTests {
     ])
     func everyBoardGameUsesTheSharedButton(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
-        #expect(SourceScan.matchCount(of: #"BoardControlBarHint\(model\)"#, in: source) == 1,
+        #expect(SourceScan.matchCount(of: #"BoardControlBarHint\(model, game:"#, in: source) == 1,
                 "\(path) が共通のヒントボタンを通っていない")
         // 文字・アイコン・色を各ゲームで持ち直していない（持つと「同じ見た目」が崩れる）。
         #expect(!source.contains("\"ヒント"), "\(path) がヒントの文言を持ち直している")
