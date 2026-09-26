@@ -42,37 +42,35 @@ struct SolitaireControlsView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 8) {
+        // 左 = 戻す（ティール）、中央 = ジョーカー・自動で上がる・ルール札（#1422）。
+        GameControlBar {
             // 残り回数を常時見せる（#476 仕様3）。ナンプレの「ヒント3」と同じ見せ方に揃えてある。
-            controlButton(
+            // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
+            GameControlButton(
                 "戻す\(model.undosRemaining)",
                 systemImage: "arrow.uturn.backward",
-                tint: Theme.Fill.coral
+                tint: Theme.Fill.teal
             ) {
                 onUndo()
             }
             .disabled(!model.canUndo || isWatchingUndoAd)
-            // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
-            .opacity(model.canUndo ? 1 : 0.4)
             .accessibilityLabel(SolitaireAccessibility.undoButtonLabel(remaining: model.undosRemaining))
             .accessibilityHint(SolitaireAccessibility.undoButtonHint(
                 canUndo: model.canUndo,
                 remaining: model.undosRemaining
             ))
-
+        } center: {
             // ジョーカーの所持を**常時**見せる（#406 の決裁1）。持っていない間も枠を残すのは
             // 「戻す」と同じ理由で、消すと「そんな機能は無い」と読まれるため（#198）。
             jokerButton
 
             // 「あとは組札へ積むだけ」になった局面でだけ出す。終盤の 52 回タップを 1 回に畳む。
             if model.canAutoFinish {
-                controlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
+                GameControlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
                     model.autoFinish()
                 }
                 .accessibilityHint("残りの札をまとめて組札へ送ります")
             }
-
-            Spacer(minLength: 0)
 
             // 標準以外のルールで遊んでいるときだけ出す（#498）。既定の1枚めくりは
             // 「標準」そのものなので札は出さず、操作列の見た目を従来のまま保つ。
@@ -85,9 +83,6 @@ struct SolitaireControlsView: View {
                     .accessibilityLabel("このゲームのルールは\(model.rules.drawMode.label)")
             }
         }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
         .overlay(alignment: .top) {
             if model.isPlacingJoker { jokerPlacingBanner }
         }
@@ -95,7 +90,7 @@ struct SolitaireControlsView: View {
 
     /// ジョーカーの所持ボタン。押すと「置く列を選ぶ」モードに入り、もう一度押すと抜ける。
     private var jokerButton: some View {
-        controlButton(
+        GameControlButton(
             model.isPlacingJoker ? "やめる" : "ジョーカー",
             systemImage: model.isPlacingJoker ? "xmark.circle.fill" : "questionmark.app.fill",
             tint: model.isPlacingJoker ? Theme.Fill.teal : Theme.Fill.purple
@@ -103,7 +98,6 @@ struct SolitaireControlsView: View {
             if model.isPlacingJoker { model.cancelPlacingJoker() } else { model.beginPlacingJoker() }
         }
         .disabled(!model.hasJoker && !model.isPlacingJoker)
-        .opacity(model.hasJoker || model.isPlacingJoker ? 1 : 0.4)
         .accessibilityLabel(SolitaireAccessibility.jokerButtonLabel(
             hasJoker: model.hasJoker,
             isPlacing: model.isPlacingJoker
@@ -125,24 +119,5 @@ struct SolitaireControlsView: View {
             .padding(.horizontal, 8)
             .offset(y: -34)
             .allowsHitTesting(false)
-    }
-
-    private func controlButton(
-        _ title: String,
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .lineLimit(1)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12)
-                // 高さは 44pt（#199 で全ゲームの操作ボタンに揃えた下限）。
-                .frame(minHeight: 44)
-                .background(Capsule().fill(tint))
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title)
     }
 }

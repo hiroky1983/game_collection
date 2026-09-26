@@ -598,36 +598,31 @@ public struct FreeCellView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 8) {
+        // 左 = 戻す（ティール）、中央 = 動かせる枚数・自動で上がる（#1422）。
+        GameControlBar {
             // 残り回数を常時見せる（#476 と同じ見せ方）。
-            controlButton("戻す\(model.undosRemaining)",
-                          systemImage: "arrow.uturn.backward",
-                          tint: Theme.Fill.coral) {
+            // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
+            GameControlButton("戻す\(model.undosRemaining)",
+                              systemImage: "arrow.uturn.backward",
+                              tint: Theme.Fill.teal) {
                 requestUndo()
             }
             .disabled(!model.canUndo || undoRescue.isWatching)
-            // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれる・#198 と同じ扱い）。
-            .opacity(model.canUndo ? 1 : 0.4)
             .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
             .accessibilityHint(FreeCellAccessibility.undoButtonHint(
                 canUndo: model.canUndo, remaining: model.undosRemaining))
-
+        } center: {
             // 一度に動かせる枚数は**フリーセルで手が通らない理由の大半**なので常時出す。
             movableBadge
 
             // 「あとは組札へ積むだけ」になった局面でだけ出す。終盤の連打を 1 回に畳む。
             if model.canAutoFinish {
-                controlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
+                GameControlButton("自動で上がる", systemImage: "wand.and.stars", tint: Theme.Fill.teal) {
                     model.autoFinish()
                 }
                 .accessibilityHint("残りの札をまとめて組札へ送ります")
             }
-
-            Spacer(minLength: 0)
         }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     /// 一度に動かせる枚数の表示。**ボタンではない**ので押せる見た目にはしない。
@@ -635,31 +630,13 @@ public struct FreeCellView: View {
         Label("\(model.board.maxMovableCount())枚", systemImage: "square.stack.3d.up.fill")
             .lineLimit(1)
             .foregroundStyle(Theme.onAccent)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
+            .padding(.horizontal, 12).padding(.vertical, 6)
             .background(Capsule().fill(Theme.Fill.purple))
+            // 隣の `GameControlButton` と同じ高さ（カプセル + 44pt の枠）に揃える（#1422）。
+            .frame(minHeight: BoardGameControlMetrics.minTapTarget)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("一度に\(model.board.maxMovableCount())枚まで動かせます")
             .accessibilityHint("空きのフリーセルと空いた列が増えるほど多く動かせます")
-    }
-
-    private func controlButton(
-        _ title: String,
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .lineLimit(1)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12)
-                // 高さは 44pt（#199 で全ゲームの操作ボタンに揃えた下限）。
-                .frame(minHeight: 44)
-                .background(Capsule().fill(tint))
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title)
     }
 
     // MARK: - 行き止まりの告知

@@ -424,85 +424,53 @@ public struct MahjongSolitaireView: View {
     ///    アイコンだけになるのは既定の文字サイズでは起きないので、#197 の「記号だけにしない」
     ///    （＝初回に機能の存在が伝わらない）には抵触しない。読み上げのラベルは両方の段で同じ。
     private var gameControls: some View {
-        HStack(spacing: 8) {
-            // 判定させたいのはボタン 3 つぶんの幅なので、伸び縮みする Spacer は外に置く
-            // （中に入れるとどんな幅でも「入る」と判定されて常に 1 つ目が選ばれる）。
+        // 左 = 戻す（ティール）、中央 = 並べ替え（紫）、右端 = 「⋯」（ヒント）。#1422。
+        // 判定させたいのは 2 ボタンぶんの幅なので、`ViewThatFits` はボタンだけに掛け、
+        // 伸び縮みする Spacer と「⋯」は外に置く（中に入れるとどんな幅でも「入る」と判定される）。
+        GameControlBar(menuItems: controlMenuItems) {
             ViewThatFits(in: .horizontal) {
                 controlRow(showsTitle: true)
                 controlRow(showsTitle: false)
             }
-            Spacer(minLength: 0)
+        } center: {
+            EmptyView()
         }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 「⋯」に入れる操作。ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず
+    /// 確認ダイアログを挟む。手詰まりで組が無いときは押せない（広告だけ見せない）。
+    /// 手詰まりなら操作行は `deadlockOverlay` に覆われるので実際には届かないが、
+    /// 覆いに頼らず二重の歯止めにしておく。ヒントの広告をロードしている最中も押させない。
+    private var controlMenuItems: [GameControlMenuItem] {
+        [
+            GameControlMenuItem(
+                id: "hint", title: "ヒント", systemImage: "lightbulb.fill",
+                isEnabled: model.canHint && !isWatchingRewardAd
+            ) { showHintConfirm = true },
+        ]
     }
 
     private func controlRow(showsTitle: Bool) -> some View {
         HStack(spacing: 8) {
-            // ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず
-            // 確認ダイアログを挟む。手詰まりで組が無いときは押せない（広告だけ見せない）。
-            controlButton("ヒント", systemImage: "lightbulb.fill", tint: Theme.Fill.teal, showsTitle: showsTitle) {
-                showHintConfirm = true
-            }
-            // 手詰まりでは押せない（広告だけ見せて何も起きない状態を作らない）。
-            // 手詰まりならこのボタンは `deadlockOverlay` に覆われるので実際には届かないが、
-            // 覆いに頼らず二重の歯止めにしておく。見た目を落とさないのは、押せない状態が
-            // ユーザーから見える経路が無く、薄くしても伝わる相手がいないため。
-            .disabled(!model.canHint || isWatchingRewardAd)
-            .accessibilityHint("広告を見ると取れる組が1組光ります")
+            undoButton(showsTitle: showsTitle)
             // 並べ替えはリワード広告制（会長指示 2026-08-30・PR #324）。#199 の 3 ボタン化
             // （ViewThatFits）と衝突したため、レイアウトは #199 側・押したときの挙動は
             // #324 側を採って統合した。ここから確認ダイアログ → 視聴 → 並べ替えの順に進む。
-            controlButton("並べ替え", systemImage: "shuffle", tint: Theme.Fill.purple, showsTitle: showsTitle) {
+            GameControlButton("並べ替え", systemImage: "shuffle", tint: Theme.Fill.purple, showsTitle: showsTitle) {
                 showShuffleConfirm = true
             }
-            // ヒントの広告をロードしている最中は押させない（上の `isWatchingRewardAd` の理由）。
+            // ヒントの広告をロードしている最中は押させない（`isWatchingRewardAd` の理由）。
             .disabled(isWatchingRewardAd)
-            undoButton(showsTitle: showsTitle)
         }
-    }
-
-    private func controlButton(
-        _ title: String,
-        systemImage: String,
-        tint: Color,
-        showsTitle: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Group {
-                if showsTitle {
-                    Label(title, systemImage: systemImage).lineLimit(1)
-                } else {
-                    Image(systemName: systemImage)
-                }
-            }
-            .foregroundStyle(Theme.onAccent)
-            .padding(.horizontal, 12)
-            // 高さは**どちらの段でも** 44pt（#199）。#198 の時点では文字付きの段を
-            // 上下 6pt の余白のままにして「44pt 化は #199 のスコープ」と保留していたが、
-            // ここで 3 つとも同じ下限に揃えた（1 つだけ大きくすると帯が不揃いになる）。
-            // 幅の下限はアイコンだけの段にのみ要る（文字付きの段は文字のぶんで足りる）。
-            .frame(
-                minWidth: showsTitle ? nil : Metrics.minimumTapTarget,
-                minHeight: Metrics.controlButtonMinHeight
-            )
-            .background(Capsule().fill(tint))
-            // 広げた枠の隅まで反応させる（既定は描いた中身のぶんしか受けない）。
-            .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title)
     }
 
     /// 直前に取った 2 枚を戻す（#198）。取った直後だけ押せる。
     private func undoButton(showsTitle: Bool) -> some View {
-        controlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral, showsTitle: showsTitle) {
+        GameControlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.teal, showsTitle: showsTitle) {
             model.undoLastTake()
         }
-        .disabled(!model.canUndo)
         // 押せない間も枠は残す（消えると「そんな機能は無い」と読まれ、誤タップの救済に気づかれない）。
-        .opacity(model.canUndo ? 1 : 0.4)
+        .disabled(!model.canUndo)
         .accessibilityLabel("直前に取った2枚を戻す")
         .accessibilityHint(model.canUndo ? "" : "牌を取った直後だけ使えます")
     }

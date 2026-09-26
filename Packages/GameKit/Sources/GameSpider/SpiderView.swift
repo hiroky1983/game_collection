@@ -541,25 +541,24 @@ public struct SpiderView: View {
     }
 
     private var gameControls: some View {
-        HStack(spacing: 8) {
-            controlButton("戻す\(model.undosRemaining)",
-                          systemImage: "arrow.uturn.backward",
-                          tint: Theme.Fill.coral) {
+        // 左 = 戻す（ティール）、中央 = 配る（#1422）。
+        GameControlBar {
+            GameControlButton("戻す\(model.undosRemaining)",
+                              systemImage: "arrow.uturn.backward",
+                              tint: Theme.Fill.teal) {
                 requestUndo()
             }
             .disabled(!model.canUndo || undoRescue.isWatching)
-            .opacity(model.canUndo ? 1 : 0.4)
             .accessibilityLabel(SpiderAccessibility.undoButtonLabel(remaining: model.undosRemaining))
             .accessibilityHint(SpiderAccessibility.undoButtonHint(
                 canUndo: model.canUndo, remaining: model.undosRemaining))
-
-            controlButton("配る\(model.board.dealsRemaining)",
-                          systemImage: "rectangle.stack.badge.plus",
-                          tint: Theme.Fill.teal) {
+        } center: {
+            GameControlButton("配る\(model.board.dealsRemaining)",
+                              systemImage: "rectangle.stack.badge.plus",
+                              tint: Theme.Fill.teal) {
                 model.tapStock()
             }
             .disabled(model.board.dealsRemaining == 0)
-            .opacity(model.board.dealsRemaining == 0 ? 0.4 : 1)
             .accessibilityLabel(SpiderAccessibility.stockLabel(
                 dealsRemaining: model.board.dealsRemaining,
                 isBlockedByEmptyPile: model.board.isDealBlockedByEmptyPile))
@@ -572,30 +571,7 @@ public struct SpiderView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
             }
-
-            Spacer(minLength: 0)
         }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    private func controlButton(
-        _ title: String,
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .lineLimit(1)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
-                .background(Capsule().fill(tint))
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title)
     }
 
     // MARK: - 行き止まりの告知
