@@ -34,7 +34,9 @@ enum CPUBenchLadder {
                 config.timeLimit = nil
                 move = GoEngine(config: config, ruleset: ruleset).bestMove(state: state)
             }
-            guard state.play(move) == nil else { return .draw }
+            // 非合法手は反則負け（引き分けに数えると、エンジンの不具合が 3% 基準をすり抜ける）。
+            let upperMoved = (state.sideToMove == .black) == upperIsBlack
+            guard state.play(move) == nil else { return upperMoved ? .lowerWon : .upperWon }
             plies += 1
         }
         guard let winner = GoScoring.score(board: state.board, ruleset: ruleset).winner else { return .draw }
