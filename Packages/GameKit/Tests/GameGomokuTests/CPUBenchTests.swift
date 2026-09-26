@@ -14,16 +14,16 @@ enum CPUBench {
 
 @Suite("五目並べ CPU の計測（CPU_BENCH=1 のときだけ）", .serialized)
 struct CPUBenchTests {
-    /// 隣り合う段階どうしを先後入れ替えで戦わせ、**上の段階の負けが 0** であることを確かめる
-    /// （会長決裁 2026-09-25）。1 組 `CPU_BENCH_OPENINGS`（既定 12）局面 × 先後 = 24 局。
+    /// 隣り合う段階どうしを先後入れ替えで戦わせ、**上の段階の負けが対局数の 3% 以下**
+    /// であることを確かめる（会長決裁 2026-09-26。引き分けは負けに数えない）。1 組 `CPU_BENCH_OPENINGS`（既定 12）局面 × 先後 = 24 局。
     @Test(.enabled(if: CPUBench.enabled), .timeLimit(.minutes(240)))
-    func upperStageNeverLosesToLowerStage() async {
+    func upperStageLosesAtMostThreePercent() async {
         let openings = Int(ProcessInfo.processInfo.environment["CPU_BENCH_OPENINGS"] ?? "") ?? 12
         for pair in CPUBenchLadder.pairs {
             let t = await CPUBenchLadder.run(upperLevel: pair.upper.rawValue, lowerLevel: pair.lower.rawValue,
                                              openings: openings)
             print("BENCH \(pair.name): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws)")
-            #expect(t.lowerWins == 0, "\(pair.name): 上の段階が \(t.lowerWins) 局負けた")
+            #expect(Double(t.lowerWins) <= Double(t.games) * 0.03, "\(pair.name): 上の段階が \(t.games) 局中 \(t.lowerWins) 局負けた")
         }
     }
 

@@ -156,7 +156,7 @@ struct GomokuNormalTacticsTests {
 @Suite("五目並べ 段階の序列")
 struct GomokuLadderQuickTests {
 
-    /// 簡単は入門に負けない（先後を入れ替えて 20 局。会長決裁 2026-09-25「上の段階は下の段階に一度も負けない」）。
+    /// 簡単は入門に負けない（先後を入れ替えて 20 局。会長決裁 2026-09-25。基準は 2026-09-26 に「負け 3% 以下」へ緩和済みだが、固定 seed の 20 局は負け 0 で通っている）。
     /// 重い組（ふつう対簡単・むずかしい対ふつう）は `CPUBenchTests`（`CPU_BENCH=1`）で計測する。
     @Test func easyNeverLosesToNovice() async {
         let t = await CPUBenchLadder.run(upperLevel: CPUStrength.easy.rawValue,
