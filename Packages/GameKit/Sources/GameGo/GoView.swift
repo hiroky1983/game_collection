@@ -653,9 +653,9 @@ struct GoNewGameSheet: View {
 
     var body: some View {
         // 選択肢3節 + 置き石の条件節で .medium には収まらない（会長指摘 2026-09-02:
-        // ハンデ以降がはみ出て操作できない）。`.scrolling` は常に `.large` で開く。
+        // ハンデ以降がはみ出て操作できない）。開始シートは共通枠が常に `.large` で開く（#1415）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", spacing: 20, layout: .scrolling,
+            kind: .versus, spacing: 20,
             onStart: { onStart(side, level, side == .black ? handicap : 0) }, onCancel: onCancel
         ) {
             Text("9路盤・中国ルール（面積計算）")

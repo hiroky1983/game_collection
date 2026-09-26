@@ -613,7 +613,7 @@ struct BackgammonNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始",
+            kind: .versus,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection("CPUの強さ") {

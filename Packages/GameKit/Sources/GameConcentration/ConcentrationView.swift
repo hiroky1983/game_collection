@@ -395,7 +395,7 @@ struct ConcentrationNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "ゲーム開始", startTint: Theme.Fill.purple,
+            kind: .versus, startTint: Theme.Fill.purple,
             onStart: { onStart(selectedPairCount, selectedCPULevel) }, onCancel: onCancel
         ) {
             GameSetupSection("盤面サイズ") {

@@ -709,8 +709,7 @@ struct SpiderSetupSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新しい配札",
-            startTitle: discardsProgress ? "終了して配る" : "配る",
+            kind: .solo, discardsProgress: discardsProgress,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection("スートの数") {

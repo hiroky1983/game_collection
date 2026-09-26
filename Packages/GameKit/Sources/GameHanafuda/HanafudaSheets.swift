@@ -7,8 +7,7 @@ import Core
 ///
 /// **ここで選んだ値は試合の開始時に焼き込まれ、途中で変えられない**（1 局 = 1 RuleSet 原則）。
 /// 月見酒・花見酒はローカルルールなので、採用するかを最初に決めさせる。
-/// 見た目は他ゲームと同じ共通枠（`GameSetupSheet`・#527）に揃える。節が3つで `.medium` に収まらないため
-/// `.scrolling`（将棋・チェス・囲碁・五目並べと同じ判断基準）を使う。
+/// 見た目は他ゲームと同じ共通枠（`GameSetupSheet`・#527）に揃える。節が3つあるが、共通枠は常に `.large` で開くので収まる（#1415）。
 public struct HanafudaSetupSheet: View {
     @Binding var draft: HanafudaOptions
     let onStart: () -> Void
@@ -27,7 +26,7 @@ public struct HanafudaSetupSheet: View {
 
     public var body: some View {
         GameSetupSheet(
-            title: "花札こいこい", startTitle: "はじめる", layout: .scrolling,
+            kind: .versus,
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection("何局戦うか") {

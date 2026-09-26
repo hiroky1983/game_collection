@@ -394,7 +394,7 @@ struct ShiritoriSetupSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "スタート",
+            kind: .versus,
             onStart: { onStart(quota) }, onCancel: onCancel
         ) {
             GameSetupSection("むずかしさ") {

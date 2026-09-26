@@ -536,7 +536,7 @@ struct NewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの手番") {
