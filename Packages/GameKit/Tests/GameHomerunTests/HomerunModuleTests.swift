@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import CoreEngine
 import HomerunCore
 @testable import GameHomerun
 import GameKitTestSupport
@@ -152,5 +153,37 @@ struct HomerunGeometryTests {
         let fp = HomerunSprayGeometry.mark(for: foul)
         #expect(fp.x < 0, "引っ張りのファウルは左側")
         #expect(abs(atan2(fp.x, -fp.y) * 180 / .pi) > 45, "ファウルラインの外")
+    }
+
+    @Test("合計飛距離（m）は順位表 homerunDistance へ送る")
+    @MainActor func leaderboardMapping() {
+        let mapped = GameCenterLeaderboard.score(
+            gameID: HomerunModel.gameID, outcome: .loss, score: GameScore(metric: .points, points: 812)
+        )
+        #expect(mapped == GameCenterScore(leaderboardID: GameCenterLeaderboard.homerunDistance, value: 812))
+        #expect(GameCenterLeaderboard.allIDs.contains(GameCenterLeaderboard.homerunDistance))
+    }
+
+    @Test("方向メーターは既定でオン。切り替えは保存され、次のモデルに引き継がれる")
+    @MainActor func directionMeterPreference() {
+        let suite = "asobiba.homerun.meter.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let pref = FeedbackPreference(key: "homerunDirectionMeter_v1", defaults: defaults)
+        let first = HomerunModel(defaults: defaults, directionMeter: pref)
+        #expect(first.showsDirectionMeter)
+        first.showsDirectionMeter = false
+        #expect(!pref.isEnabled)
+        let second = HomerunModel(defaults: defaults, directionMeter: pref)
+        #expect(!second.showsDirectionMeter)
+        first.showsDirectionMeter = true
+        let third = HomerunModel(defaults: defaults, directionMeter: pref)
+        #expect(third.showsDirectionMeter)
+    }
+
+    @Test("方向メーターの表示は設定に従い、消しても判定（previewSwing）の呼び出しは別経路")
+    func atBatGatesMeterOnSetting() throws {
+        let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
+        #expect(atBat.contains("model.showsDirectionMeter"))
     }
 }

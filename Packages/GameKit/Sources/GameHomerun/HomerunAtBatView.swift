@@ -38,7 +38,7 @@ struct HomerunAtBatView: View {
                         topHUD
                         HStack(alignment: .top) {
                             Spacer()
-                            if model.phase == .pitching {
+                            if model.phase == .pitching, model.showsDirectionMeter {
                                 HomerunDirectionMeter(swing: model.previewSwing(at: now))
                             }
                         }

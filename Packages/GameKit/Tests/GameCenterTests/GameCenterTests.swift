@@ -309,6 +309,7 @@ struct GameCenterLeaderboardTests {
             ("hanafuda", GameScore(metric: .points, points: 1)),
             ("roulette", GameScore(metric: .points, points: 1)),
             ("fruits", GameScore(metric: .points, points: 1)),
+            ("homerun", GameScore(metric: .points, points: 1)),
         ]
         let mapped = cases.compactMap {
             GameCenterLeaderboard.score(gameID: $0.0, outcome: .win, score: $0.1)?.leaderboardID

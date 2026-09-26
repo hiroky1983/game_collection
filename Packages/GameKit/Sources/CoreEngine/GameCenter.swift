@@ -95,6 +95,10 @@ public enum GameCenterLeaderboard {
     /// くっつきフルーツ（#1319・企画倉庫）。2048 と同じくスコア（High to Low）。
     /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
     public static let fruitsScore    = "asobiba.fruits.score"
+    /// 柵越えおじさん（#1348・企画倉庫）。送るのは 1 挑戦（10 球）の**合計飛距離 m**（High to Low）。
+    /// 判定は乱数なしで、同じ入力は同じ結果になるため同じ物差しで比べられる。
+    /// ハブに載せる版が決まったとき、この ID を App Store Connect に登録する（会長操作）。
+    public static let homerunDistance = "asobiba.homerun.distance"
 
     // 短いほど良い（App Store Connect では「Low to High」・フォーマットは経過時間で登録する）
     public static let minesweeperBeginner     = "asobiba.minesweeper.time.beginner"
@@ -117,7 +121,7 @@ public enum GameCenterLeaderboard {
     /// 登録が必要なリーダーボード ID の全量（App Store Connect の設定漏れを検証するのに使う）。
     public static let allIDs = [
         game2048Score, pokerChips, blackjackChips, blocksScore, blockPuzzleScore, runnerStage,
-        runnerDistance, hanafudaPoints, rouletteChips, fruitsScore,
+        runnerDistance, hanafudaPoints, rouletteChips, fruitsScore, homerunDistance,
         minesweeperBeginner, minesweeperIntermediate, minesweeperExpert,
         sudokuEasy, sudokuNormal, sudokuHard, mahjongSolitaireTime,
         solitaireTime, freeCellTime,
@@ -191,6 +195,8 @@ public enum GameCenterLeaderboard {
         // くっつきフルーツ（#1319）。広告コンティニューを使った回は `isLeaderboardEligible` が
         // false になり、この対応表に来る前に弾かれる（ブロック崩しと同じ）。
         case "fruits":    return fruitsScore
+        // 柵越えおじさん（#1348）。合計飛距離（m・切り捨て）を送る。
+        case "homerun":   return homerunDistance
         default:          return nil
         }
     }

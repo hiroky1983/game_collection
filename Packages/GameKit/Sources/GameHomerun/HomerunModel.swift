@@ -69,6 +69,10 @@ public final class HomerunModel {
     public private(set) var isNewBest = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
     public var showsExhausted = false
+    /// 方向メーター（打席の右上）を出すか。上級者向けに消せる（README §3.1）。消しても判定は変わらない。
+    public var showsDirectionMeter: Bool {
+        didSet { directionMeter.isEnabled = showsDirectionMeter }
+    }
     /// 進行が変わるたびに進む。View は `.task(id:)` の鍵にする。
     public private(set) var step = 0
     public private(set) var holds: Hold = []
@@ -88,6 +92,7 @@ public final class HomerunModel {
     private var cursorBase: CGPoint = .zero
 
     private let defaults: UserDefaults
+    private let directionMeter: FeedbackPreference
     private let calendar: Calendar
     private let pitches: [HomerunPitch]
     /// 解析・記録・広告の窓口。nil（テスト・プレビュー）なら何も送らない。
@@ -98,9 +103,12 @@ public final class HomerunModel {
     private var hasProgressed = false
 
     public init(services: GameServices? = nil, defaults: UserDefaults = .standard, calendar: Calendar = .current,
+                directionMeter: FeedbackPreference = .homerunDirectionMeter,
                 pitches: [HomerunPitch] = HomerunPitch.standardSequence, now: Date = Date()) {
         self.services = services
         self.defaults = defaults
+        self.directionMeter = directionMeter
+        showsDirectionMeter = directionMeter.isEnabled
         self.calendar = calendar
         self.pitches = pitches
         ledger = HomerunStorage.loadLedger(defaults)
