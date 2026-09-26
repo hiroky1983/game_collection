@@ -118,6 +118,12 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
 - **チェスも #1398（v1.1.7）で将棋と同じ作りに変えた**。局面数の上限は `ChessEngine.swift` の
   `normalNodeLimit` / `hardNodeLimit`、見逃しは `ChessMovePolicy`、入門は自分の手 1 手だけを読む。
   計測は `CPUBenchTests`（`CPU_BENCH=1`）。CPU 同士の対局計測は最適化ビルドの単体バイナリで回す
+- **五目並べも #1399（v1.1.7）で同じ考え方に寄せた**。ふつう・むずかしいは局面数の上限
+  （`GomokuEngine.swift` の `normalNodeLimit` / `hardNodeLimit`。時間は安全用）で読みの深さを決め、
+  むずかしいは候補を点の高い 14 手に絞って深く読む（`hardBreadth`）。ふつうは一定の確率で
+  「見逃し」（`GomokuMovePolicy`）を起こし、相手の開三・二重の脅威を先に潰す補いを持つ。
+  入門・簡単は読まない段のままで、入門は手なりの打ち方に「無作為」を混ぜ防御率を下げた。
+  **合格基準は上の段階の負けが対局数の 3% 以下**（会長決裁 2026-09-26）で、`CPUBenchTests`（`CPU_BENCH=1`。将棋・チェスと同じ形）で確かめる
 - **囲碁も #1400（v1.1.7）で共通の呼び名（入門・簡単・ふつう・むずかしい）に揃えた**（`GoLevel` の番号は `CPUStrength` と同じ -1〜2・
   開始シートは共通の `CPUStrengthPicker`）。打ち切りは**プレイアウト回数**（入門 100・簡単 200・ふつう 1,500・むずかしい 6,000）が主で、
   実時間の上限は回数に比例した安全用（`GoLevel.timeLimit`）。入門〜ふつうは `bestMoveChance` の確率を外れたとき、
