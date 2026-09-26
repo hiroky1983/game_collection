@@ -18,6 +18,9 @@ public struct GomokuPoint: Hashable, Sendable {
     }
 }
 
+/// 縦・横・斜め 2 方向。勝ち判定は探索のたびに呼ばれるので、配列を毎回作らない。
+let gomokuLineDirections: [(Int, Int)] = [(0, 1), (1, 0), (1, 1), (1, -1)]
+
 public struct GomokuBoard: Equatable, Sendable {
     public private(set) var cells: [GomokuStone?]
 
@@ -36,7 +39,7 @@ public struct GomokuBoard: Equatable, Sendable {
 
     public func checkWin(row: Int, col: Int) -> Bool {
         guard let stone = self[row, col] else { return false }
-        let dirs = [(0, 1), (1, 0), (1, 1), (1, -1)]
+        let dirs = gomokuLineDirections
         for (dr, dc) in dirs {
             var count = 1
             for sign in [-1, 1] {

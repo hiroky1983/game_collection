@@ -258,17 +258,17 @@ struct GomokuInvalidTapTests {
 @Suite("Gomoku 強さ表示")
 struct GomokuStrengthLabelTests {
 
-    /// 実際の探索深さは 1/1/4/5（「簡単」は #665 で探索をやめ、1手先の形だけを見る。
-    /// 「入門」は #1174 でその簡単と同じ読みのまま防御率だけを下げた。「ガチ」は
-    /// v1.1.6 で一旦見送り・#1258 参照）。この前提が変わったら表示も見直す。
-    @Test func engineDepthsAreOneOneFourFive() {
+    /// 実際の探索深さの上限は 1/1/3/9（「簡単」は #665 で探索をやめ、1手先の形だけを見る。
+    /// 「入門」は #1174 でその簡単と同じ読みのまま防御率だけを下げた。#1399 でふつうを 3、
+    /// むずかしいを 9（候補を点の高い 14 手に絞る）にした）。この前提が変わったら表示も見直す。
+    @Test func engineDepthsAreOneOneThreeNine() {
         #expect(SimpleGomokuEngine(level: -1).depth == 1)
         #expect(SimpleGomokuEngine(level: 0).depth == 1)
-        #expect(SimpleGomokuEngine(level: 1).depth == 4)
-        #expect(SimpleGomokuEngine(level: 2).depth == 5)
+        #expect(SimpleGomokuEngine(level: 1).depth == 3)
+        #expect(SimpleGomokuEngine(level: 2).depth == 9)
     }
 
-    /// 手数を名乗らない。反復深化＋時間制限（0.4/0.8/1.5秒）で打ち切られるため、
+    /// 手数を名乗らない。反復深化＋読む局面数の上限で打ち切られるため、
     /// depth は上限であって「必ず N 手読む」保証ではなく、具体的な数字は書けない。
     @Test func viewDoesNotClaimAPlyCount() throws {
         let source = try Self.viewSource()

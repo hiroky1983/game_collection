@@ -363,11 +363,19 @@ struct GomokuNoviceAndSeriousTests {
         #expect(novice.weakBlockRate < easy.weakBlockRate, "入門の防御率が簡単より高い")
     }
 
-    /// 既存 3 段階の設定は #1174 で 1 ビットも動かしていない（`GomokuStrengthLabelTests` と対）。
-    @Test func hardConfigurationIsUnchanged() {
+    /// 強さは読む局面数で決め、時間は安全用に長めに残す（#1399。時間主体だと遅い端末ほど浅くしか読めず、
+    /// ふつうとむずかしいが同じ深さに潰れる）。むずかしいは最善手だけを選ぶ（会長決裁 2026-09-25）。
+    @Test func searchLevelsAreBoundedByNodesNotTime() {
+        let normal = SimpleGomokuEngine(level: CPUStrength.normal.rawValue)
         let hard = SimpleGomokuEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.depth == 5 && hard.timeLimit == 1.5, "むずかしいの設定は変えない")
-        #expect(!hard.isWeak)
+        #expect(normal.nodeLimit == SimpleGomokuEngine.normalNodeLimit)
+        #expect(hard.nodeLimit == SimpleGomokuEngine.hardNodeLimit)
+        #expect(hard.nodeLimit! >= normal.nodeLimit! * 10, "むずかしいの局面数がふつうの 10 倍以上")
+        #expect(hard.timeLimit >= 3 && normal.timeLimit >= 3, "時間は安全用。強さを決めるのは局面数")
+        #expect(hard.policy == .exact, "むずかしいは当面 100% 最善手")
+        #expect(!hard.isWeak && !normal.isWeak)
+        #expect(SimpleGomokuEngine(level: CPUStrength.novice.rawValue).nodeLimit == nil)
+        #expect(SimpleGomokuEngine(level: CPUStrength.easy.rawValue).nodeLimit == nil)
     }
 
     /// 弱くしても壊さない: 自分の五は必ず取る（#665 の「弱」と同じ下限）。
@@ -395,7 +403,7 @@ struct GomokuNoviceAndSeriousTests {
         }
         let rate = Double(blocked) / Double(total)
         print("novice block rate: \(rate)")
-        #expect((0.1...0.3).contains(rate), "入門の防御率が \(rate)（400 回中 \(blocked) 回）")
+        #expect((0.02...0.10).contains(rate), "入門の防御率が \(rate)（400 回中 \(blocked) 回）")
     }
 
     /// むずかしいは即勝ちも即防ぎも見逃さない（深く読ませても足元が崩れていないこと）。
