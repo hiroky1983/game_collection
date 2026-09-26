@@ -218,7 +218,7 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
   - **アプリコードの PR に `docs/` の変更を含めない**（仕様の追記は main 直の別 PR で出す。2026-09-15・#821。スクショは docs に置かない → 下記）。
     release ブランチの `docs/` は main より古く、#799 が `docs/spec-app.md` を release/v1.1.5 側で更新した結果、
     正典に記述が無いまま取り込み時にコンフリクトする形になった。取り込みで `docs/` がぶつかったら main 側を正とする。
-  - **スクショはリポジトリにコミットしない**（`docs/ui-review/` へのコミットは禁止。2026-09-25 会長指示・#1409。659枚・123MB が全 worktree にコピーされ続け、ブランチ raw URL はマージ後の削除で 404 になっていた）。GitHub のリリース `ui-review`（プレリリース）へ `gh release upload ui-review <file> --clobber` で上げ、PR 本文には `https://github.com/hiroky1983/game_collection/releases/download/ui-review/<file>` を貼る。ファイル名は `<issue番号>-<説明>.png` で衝突を避ける。
+  - **スクショはリポジトリにコミットしない**（`docs/ui-review/` へのコミットは禁止。2026-09-25 会長指示・#1409。659枚・123MB が全 worktree にコピーされ続け、ブランチ raw URL はマージ後の削除で 404 になっていた）。GitHub のリリース `ui-review`（プレリリース）へ `gh release upload ui-review <file>` で上げ（`--clobber` は付けない。同名で上書きすると過去の PR の画像まで差し替わり、失敗時は元の画像も消える。撮り直しは別名にする）、PR 本文には `https://github.com/hiroky1983/game_collection/releases/download/ui-review/<file>` を貼る。ファイル名は `<issue番号>-<説明>.png` で、撮影ごとに一意にする（撮り直しは `-2` を付ける等）。
 - **`web/`（LP）のブランチ先は「内容がリリース済みアプリの事実か」で決める**（2026-08-28 改定・会長指示）。
   本番デプロイ（Vercel）は **main 追従＝main へのマージが即・本番公開**であることを常に前提にする。
   - **リリース済みアプリに関する変更**（SEO・リンク切れ・文言修正・既収録ゲームの説明是正など）→ **main 直の PR**。

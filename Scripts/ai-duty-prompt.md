@@ -216,7 +216,7 @@ Issue を `blocked` のまま留めない。**コード・テスト・PR が完�
   | `docs/` `Scripts/` `.github/` のみ | 変更したスクリプトのテスト（例 `bash Scripts/tests/test-ai-duty-detect.sh`）または `bash -n` | `main` |
 
   そのうえで PR を作成する（適切な risk:* ラベル、**本文の先頭に `Closes #<Issue番号>` を必ず記載**、受け入れ条件との対応表）。アプリの UI 変更はシミュレータのスクリーンショットを、LP の見た目を変える変更は LP のスクリーンショットを PR に添付する。
-  - **スクショはリポジトリにコミットしない**（`docs/ui-review/` へのコミットは禁止。2026-09-25 会長指示・#1409。659枚・123MB が全 worktree にコピーされ続け、ブランチ raw URL はマージ後の削除で 404 になっていた）。GitHub のリリース `ui-review`（プレリリース）へ `gh release upload ui-review <file> --clobber` で上げ、PR 本文には `https://github.com/hiroky1983/game_collection/releases/download/ui-review/<file>` を貼る。ファイル名は `<issue番号>-<説明>.png` で衝突を避ける。
+  - **スクショはリポジトリにコミットしない**（`docs/ui-review/` へのコミットは禁止。2026-09-25 会長指示・#1409。659枚・123MB が全 worktree にコピーされ続け、ブランチ raw URL はマージ後の削除で 404 になっていた）。GitHub のリリース `ui-review`（プレリリース）へ `gh release upload ui-review <file>` で上げ（`--clobber` は付けない。同名で上書きすると過去の PR の画像まで差し替わり、失敗時は元の画像も消える。撮り直しは別名にする）、PR 本文には `https://github.com/hiroky1983/game_collection/releases/download/ui-review/<file>` を貼る。ファイル名は `<issue番号>-<説明>.png` で、撮影ごとに一意にする（撮り直しは `-2` を付ける等）。
   - **撮影したら、そのあとクラッシュログを確認する**（2026-09-16 追加・#875。2026-09-14 に麻雀のローカルクラッシュが撮影では気づかれず、会長が実機で「結構クラッシュする」と気づくまで誰も拾わなかった教訓）: 撮影の前後で `ls -t ~/Library/Logs/DiagnosticReports/GameCollection-*.ips 2>/dev/null | head` を比べる。**新しいログが増えていたら、別のシミュレータに切り替えて撮り直さず**、その内容（`procLaunch`・例外の種類・`Invalid frame` 等の直前ログ）を PR 本文に書き、`bug` ラベルで Issue を起票する（マイルストーンは `Scripts/ai-audit-prompt.md`「Issue の対象バージョン」の節に従う）。「別の端末なら撮れた」は理由にならない。
 - 完了報告の前に検証を行うこと（テスト実行・ビルド確認。「たぶん動く」で報告しない）。
 
