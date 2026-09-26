@@ -95,6 +95,8 @@ targets:
       - package: GameKit
         product: GameSpeed
       - package: GameKit
+        product: GameHomerun
+      - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
         product: GoogleMobileAds

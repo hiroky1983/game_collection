@@ -29,6 +29,7 @@ import GameColorRelay
 import GameAnzan
 import GameBackgammon
 import GameSpeed
+import GameHomerun
 // GameBlockPuzzle は import しない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が
 // 続いているため v1.1.5 でも戻さない。コード自体は残っているので、戻す判断が出たら
 // `registry` に1行足せば復活できる）。
@@ -248,6 +249,10 @@ enum AppEnvironment {
         // スピード（企画倉庫・#1323）。上の 5 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // SpeedModule(),
+        // 柵越えおじさん（企画倉庫・#1348）。上の 6 本と同じ扱いで、出荷する版が決まるまでハブには並べない。
+        // いまは段 3（2D の仮絵で一回遊べる形）で、3D・回数回復（広告/アンケート）・解析・Game Center は後続の段。
+        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
+        // HomerunModule(),
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
