@@ -201,8 +201,10 @@ public final class HomerunModel {
         return true
     }
 
-    /// 広告を出す前に控える「今日」の鍵（`grantAdChallenge(forDay:now:)` へ渡す）。
-    public var currentDayKey: Int { ledger.dayKey }
+    /// 広告を出す前に控える「今日」の鍵（`grantAdChallenge(forDay:now:)` へ渡す）。台帳の日付ではなく**時計から**
+    /// 作る（画面を開いたまま 0:00 を過ぎても、日付の更新は前面へ戻るか打席に立つまで走らないため、
+    /// 台帳の日付を控えると、日をまたいでいない広告まで「前の日」として弾いてしまう）。
+    public func dayKey(at now: Date) -> Int { HomerunLedger.dayKey(for: now, calendar: calendar) }
 
     /// 10 球の結果から打席前へ戻る。
     public func backToLobby() {

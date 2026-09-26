@@ -44,13 +44,18 @@ struct HomerunConnectionTests {
         model.advance(now: try #require(model.resultUntil))
     }
 
+    /// 結果を閉じて次へ（最後の球なら終了）。
+    private func skipResult(_ model: HomerunModel) throws {
+        model.advance(now: try #require(model.resultUntil))
+    }
+
     // MARK: 広告で +1
 
     @Test("広告を見ると今日の回数が 1 増え、保存される。1 日 5 本まで")
     func adGrantsUpToLimit() {
         let defaults = makeDefaults()
         let model = makeModel(defaults: defaults)
-        let day = model.currentDayKey
+        let day = model.dayKey(at: Self.t0)
         for i in 1...HomerunLedger.adLimitPerDay {
             #expect(model.grantAdChallenge(forDay: day, now: Self.t0), "\(i) 本目は増える")
         }
@@ -63,11 +68,22 @@ struct HomerunConnectionTests {
     @Test("広告を見ているあいだに 0:00 をまたいだら、前の日の広告では増やさない")
     func adAcrossMidnightIsRejected() {
         let model = makeModel()
-        let dayBefore = model.currentDayKey
+        let dayBefore = model.dayKey(at: Self.t0)
         let nextDay = Self.t0.addingTimeInterval(24 * 3600)
         #expect(!model.grantAdChallenge(forDay: dayBefore, now: nextDay))
         #expect(model.ledger.adsWatched == 0)
         #expect(model.ledger.remaining == HomerunLedger.freePerDay, "新しい日は無料分に戻っている")
+    }
+
+    @Test("画面を開いたまま 0:00 を過ぎても、その日の鍵を控えて見た広告は増やす（台帳の日付が古いだけで弾かない）")
+    func adAfterMidnightWithStaleLedgerIsGranted() {
+        let model = makeModel()
+        let nextDay = Self.t0.addingTimeInterval(24 * 3600)
+        // 台帳はまだ前の日のまま（refreshDay が走っていない）。ボタンを押した時点の時計から鍵を作る。
+        let key = model.dayKey(at: nextDay)
+        #expect(key != model.ledger.dayKey)
+        #expect(model.grantAdChallenge(forDay: key, now: nextDay))
+        #expect(model.ledger.adsWatched == 1)
     }
 
     @Test("使い切ったあと広告で 1 回増え、打席に立てる")
@@ -78,7 +94,7 @@ struct HomerunConnectionTests {
             try skip(model)
         }
         #expect(!model.ledger.canStart)
-        #expect(model.grantAdChallenge(forDay: model.currentDayKey, now: Self.t0))
+        #expect(model.grantAdChallenge(forDay: model.dayKey(at: Self.t0), now: Self.t0))
         #expect(model.ledger.remaining == 1)
         #expect(model.start(now: Self.t0))
     }
@@ -120,6 +136,26 @@ struct HomerunConnectionTests {
         let record = try #require(log.record(gameID: HomerunModel.gameID))
         #expect(record.plays == 1)
         #expect(record.bestPoints == 0, "見送りだけの挑戦は 0 m")
+        #expect(spy.outcomes == [.loss])
+    }
+
+    @Test("柵越えが 1 本あれば win で、合計飛距離（m・切り捨て）が points に載る")
+    func homerRecordsPointsAndWin() throws {
+        let suite = "asobiba.homerun.connection.log2.\(UUID().uuidString)"
+        let log = PlayLog(defaults: UserDefaults(suiteName: suite)!)
+        let spy = SpyAnalyticsService()
+        let model = makeModel(services: makeServices(spy: spy, log: log))
+        model.start(now: Self.t0)
+        // 1 球目: 真ん中でボールの 22pt 下・ジャスト = 中堅 135 m の柵越え。
+        let arrive = try #require(model.arrival)
+        model.press(at: CGPoint(x: 150, y: 600))
+        let ball = model.ballPoint
+        model.drag(to: CGPoint(x: 150 + ball.x, y: 600 + ball.y + 22))
+        model.release(at: CGPoint(x: 150 + ball.x, y: 600 + ball.y + 22), now: arrive)
+        try skipResult(model)
+        #expect(model.phase == .finished)
+        #expect(spy.outcomes == [.win])
+        #expect(try #require(log.record(gameID: HomerunModel.gameID)).bestPoints == 135)
     }
 
     // MARK: 消去
