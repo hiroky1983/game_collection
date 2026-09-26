@@ -99,6 +99,63 @@ struct HomerunConnectionTests {
         #expect(model.start(now: Self.t0))
     }
 
+    // MARK: アンケートで +1
+
+    @Test("アンケートに答えると今日の回数が 1 増え、保存される。1 日 1 回")
+    func surveyGrantsOncePerDay() {
+        let defaults = makeDefaults()
+        let model = makeModel(defaults: defaults)
+        let day = model.dayKey(at: Self.t0)
+        #expect(model.submitSurvey([1, 2, 3], forDay: day, now: Self.t0))
+        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
+        #expect(!model.submitSurvey([1, 2, 3], forDay: day, now: Self.t0), "2 回目は増えない")
+        #expect(model.ledger.allowance == HomerunLedger.freePerDay + HomerunLedger.surveyBonus)
+        #expect(HomerunStorage.loadLedger(defaults).surveyDone)
+    }
+
+    @Test("未回答・範囲外の回答では増えず、回答も送られない")
+    func incompleteSurveyIsRejected() {
+        let spy = SpyAnalyticsService()
+        let model = makeModel(services: makeServices(spy: spy))
+        let day = model.dayKey(at: Self.t0)
+        #expect(!model.submitSurvey([1, 2], forDay: day, now: Self.t0), "2 問しか答えていない")
+        #expect(!model.submitSurvey([1, 2, 9], forDay: day, now: Self.t0), "選択肢の範囲外")
+        #expect(!model.submitSurvey([0, 1, 1], forDay: day, now: Self.t0), "番号は 1 始まり")
+        #expect(!model.ledger.surveyDone)
+        #expect(spy.events.isEmpty)
+    }
+
+    @Test("回答中に 0:00 をまたいだら、前の日の回答では増やさず送りもしない")
+    func surveyAcrossMidnightIsRejected() {
+        let spy = SpyAnalyticsService()
+        let model = makeModel(services: makeServices(spy: spy))
+        let dayBefore = model.dayKey(at: Self.t0)
+        let nextDay = Self.t0.addingTimeInterval(24 * 3600)
+        #expect(!model.submitSurvey([1, 1, 1], forDay: dayBefore, now: nextDay))
+        #expect(!model.ledger.surveyDone)
+        #expect(spy.events.isEmpty)
+    }
+
+    @Test("回答は survey_answer として選択肢の番号だけが 1 回送られ、端末には台帳の済みフラグしか残らない")
+    func surveySendsAnswersOnlyOnce() {
+        let spy = SpyAnalyticsService()
+        let defaults = makeDefaults()
+        let model = makeModel(services: makeServices(spy: spy), defaults: defaults)
+        let day = model.dayKey(at: Self.t0)
+        model.submitSurvey([2, 4, 1], forDay: day, now: Self.t0)
+        model.submitSurvey([1, 1, 1], forDay: day, now: Self.t0)
+        #expect(spy.events == [.surveyAnswer(gameID: HomerunModel.gameID, answers: [2, 4, 1])])
+    }
+
+    @Test("設問は 3 問で、番号の範囲が選択肢の数と一致する")
+    func surveyValidation() {
+        #expect(HomerunSurvey.questions.count == 3)
+        #expect(HomerunSurvey.isValid([1, 1, 1]))
+        let maxes = HomerunSurvey.questions.map(\.choices.count)
+        #expect(HomerunSurvey.isValid(maxes))
+        #expect(!HomerunSurvey.isValid(maxes.map { $0 + 1 }))
+    }
+
     // MARK: 解析・記録
 
     @Test("打席に立つと game_start、10 球目で game_end が 1 回ずつ。柵越えが無ければ loss")

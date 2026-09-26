@@ -183,6 +183,12 @@ public struct GameServices {
         analytics?.recordShareTap(gameID: gameID)
     }
 
+    /// ゲーム内アンケートに答えたときに呼ぶ（#1348）。`survey_answer` を送るだけで、プレイの数え方には触らない。
+    @MainActor
+    public func gameDidAnswerSurvey(gameID: String, answers: [Int]) {
+        analytics?.recordSurveyAnswer(gameID: gameID, answers: answers)
+    }
+
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
     /// `reward_ad` を送る（#500 / #659）。
     ///
