@@ -382,6 +382,17 @@ check "重い一覧を取れなかった回は、他の当番の作業中なら�
 reset
 check "重い一覧を取れなくても、他の当番がいなければ重い候補を取る" "61" \
   "$(lib 'DUTY_HEAVY_UNKNOWN=1; claim_next_issue "61 false true" && echo "$DUTY_ISSUE"')"
+reset
+mkdir -p "$CLAIMS/60"; echo "$LIVE_PID" >"$CLAIMS/60/pid"; : >"$CLAIMS/60/heavy"
+check "一覧から消えた（クローズ済み）Issue でも、確保に重い印があれば重い候補を取らない" "62" \
+  "$(lib 'DUTY_HEAVY_ISSUES="61"; claim_next_issue "61 false true
+62 false false" && echo "$DUTY_ISSUE"')"
+reset
+check "重い Issue を確保したら確保に印を残す" "yes" \
+  "$(lib 'claim_next_issue "61 false true" >/dev/null; [ -f "$CLAIMS_DIR/61/heavy" ] && echo yes || echo no')"
+reset
+check "軽い Issue の確保には印を残さない" "no" \
+  "$(lib 'claim_next_issue "62 false false" >/dev/null; [ -f "$CLAIMS_DIR/62/heavy" ] && echo yes || echo no')"
 # 確保の直後に他の当番の重い確保が現れた（同時確保の）場合は降りて確保を消す
 reset
 check "重い確保が同時に重なったら降りて確保を消す" "1 [] no" \

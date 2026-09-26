@@ -131,6 +131,9 @@ heavy_claimed_by_other() {
   others=$(other_claimed_issues)
   if [ -n "$DUTY_HEAVY_UNKNOWN" ] && [ -n "$others" ]; then return 0; fi
   for n in $others; do
+    # 確保に残した印を優先して見る（作業中に Issue がクローズされて一覧から消えても判定から落とさない。
+    # 一覧は印の無い旧版の当番が抱えている Issue のためにも見る）
+    [ -f "$CLAIMS_DIR/$n/heavy" ] && return 0
     case " $DUTY_HEAVY_ISSUES " in *" $n "*) return 0 ;; esac
   done
   return 1
@@ -150,6 +153,7 @@ claim_next_issue() {
         log "Issue #$n: 重い Issue の確保が他の当番と重なったため降りる"
         continue
       fi
+      [ "$h" = true ] && { : >"$CLAIMS_DIR/$n/heavy"; } 2>/dev/null
       DUTY_ISSUE="$n"
       DUTY_ISSUE_FABLE="${f:-false}"
       return 0
