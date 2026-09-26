@@ -44,11 +44,15 @@ public final class ReviewRequestService {
 
     /// 決着したときに各ゲームの Model から呼ぶ。
     ///
+    /// - Parameters:
+    ///   - outcome: 決着の種類。勝利以外は何も数えない。
+    ///   - isHighlight: その勝ちが「見せ場」か（#1471）。**勝利数は見せ場でなくても数える**
+    ///     （条件2・4は従来どおり勝利で数える）が、リクエストの予定を立てるのは見せ場のときだけ。
     /// - Returns: 評価リクエストを出す予定になったか。同じリザルトに出るレコメンド（#52）を
     ///   next回に送るかの判断に使う（競合したら評価リクエストを優先する）。
     @discardableResult
-    public func gameDidFinish(outcome: GameOutcome) -> Bool {
-        // 条件1: 勝利・クリアの直後のみ。敗北・投了・ゲームオーバーでは勝利数も増やさない。
+    public func gameDidFinish(outcome: GameOutcome, isHighlight: Bool = true) -> Bool {
+        // 条件1: 勝利・クリアの直後のみ（さらに見せ場に絞る。下の `isHighlight`）。敗北・投了・ゲームオーバーでは勝利数も増やさない。
         guard outcome == .win else { return false }
         log.recordWin()
         // 演出の途中で画面を離れると伏せ（#1143）が残る。決着のたびに必ず外すことで、
@@ -56,7 +60,10 @@ public final class ReviewRequestService {
         // この直後に `deferUntilResultIsVisible()` を呼んで伏せ直す（`RunnerModel`）。
         isDeferredUntilResultIsVisible = false
 
+        // すでに予定が立っている間は従来どおり true（同じリザルトのレコメンドを抑え続ける）。
         guard issuedRequestID == nil else { return true }
+        // 見せ場でない勝ちは、新しく予定を立てない（予定は見せ場で立てたものだけ）。
+        guard isHighlight else { return false }
         guard ReviewRequestPolicy.shouldRequest(
             state: log.reviewState,
             currentVersion: appVersion,

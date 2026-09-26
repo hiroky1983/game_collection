@@ -352,7 +352,9 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: outcome,
-            score: GameScore(metric: .winLoss)
+            score: GameScore(metric: .winLoss),
+            // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+            isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel.rawValue)
         )
         persist()
     }

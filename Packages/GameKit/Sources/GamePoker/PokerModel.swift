@@ -341,7 +341,10 @@ public final class PokerModel {
                 // 復活（#499）を使ったセッションは順位表へ送らない（ソリティアのジョーカー #406 と
                 // 同じ思想。送ると「広告を何回見たか」の表になる）。ローカルの自己ベストには残す。
                 isLeaderboardEligible: rules.isLeaderboardEligible && !hasRevivedThisSession
-            )
+            ),
+            // 評価リクエストの見せ場は、スリーカード以上の役で勝ったとき（#1471）。フォールド勝ちでは
+            // 役を判定していない場合があるので、いまの手札から数え直す。
+            isReviewHighlight: HandEvaluator.evaluate(playerHand).rank >= .threeOfAKind
         )
         checkSessionOver()
         // ダブルアップの精算はここまでで終わっている。復活したセッション（#1104）は、

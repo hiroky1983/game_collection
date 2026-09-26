@@ -360,7 +360,9 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
         startPlayIfPending()
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: outcome, score: hints.winLossScore
+            gameID: gameID, outcome: outcome, score: hints.winLossScore,
+            // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+            isReviewHighlight: beatsWorthyCPU
         )
     }
 
@@ -578,6 +580,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     }
 
     // MARK: - 永続化
+
+    /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
+    private var beatsWorthyCPU: Bool {
+        (white == .ai || black == .ai) && CPUStrength.isReviewWorthy(level: aiLevel)
+    }
 
     private func persist() {
         let snap = ChessSnapshot(

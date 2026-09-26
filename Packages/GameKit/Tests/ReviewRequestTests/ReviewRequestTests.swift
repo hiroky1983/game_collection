@@ -82,16 +82,17 @@ struct ReviewRequestPolicyTests {
             state: ReviewRequestState(totalWins: 5), currentVersion: appVersion, now: now) == true)
     }
 
-    @Test("条件3: 前回から120日経つまで出ない")
+    @Test("条件3: 前回から60日経つまで出ない（#1471 で120日から短縮）")
     func minimumElapsed() {
         func state(_ elapsed: TimeInterval) -> ReviewRequestState {
             .init(totalWins: 100, lastRequestedAt: now.addingTimeInterval(-elapsed),
                   lastRequestedWins: 5, lastRequestedVersion: "1.1.0")
         }
         #expect(ReviewRequestPolicy.shouldRequest(
-            state: state(119 * 24 * 3600), currentVersion: appVersion, now: now) == false)
+            state: state(59 * 24 * 3600), currentVersion: appVersion, now: now) == false)
         #expect(ReviewRequestPolicy.shouldRequest(
-            state: state(120 * 24 * 3600), currentVersion: appVersion, now: now) == true)
+            state: state(60 * 24 * 3600), currentVersion: appVersion, now: now) == true)
+        #expect(ReviewRequestPolicy.minimumElapsed == 60 * 24 * 3600)
     }
 
     @Test("条件4: 前回から+20勝するまで出ない")
@@ -178,7 +179,7 @@ struct ReviewRequestServiceTests {
         #expect(service.log.totalWins == 205, "勝利数の記録自体は続く")
     }
 
-    @Test("2回目は120日以上かつ+20勝を満たしたときだけ呼ばれる")
+    @Test("2回目は60日以上かつ+20勝を満たしたときだけ呼ばれる")
     func secondRequestNeedsBothGates() async {
         var clock = Date(timeIntervalSince1970: 1_800_000_000)
         let (log, _, _) = makeLog(suite: "service-second")
@@ -192,7 +193,7 @@ struct ReviewRequestServiceTests {
         await service.performPendingRequest { requested += 1 }
         #expect(requested == 1)
 
-        // 120日経過するが +20勝には届かない（+19勝）。
+        // 60日経過するが +20勝には届かない（+19勝）。
         clock = clock.addingTimeInterval(ReviewRequestPolicy.minimumElapsed)
         version = "1.1.2"
         let afterVersionUp = ReviewRequestService(
@@ -204,10 +205,10 @@ struct ReviewRequestServiceTests {
 
         afterVersionUp.gameDidFinish(outcome: .win) // +20勝目
         await afterVersionUp.performPendingRequest { requested += 1 }
-        #expect(requested == 2, "120日 + 20勝の両方を満たして2回目")
+        #expect(requested == 2, "60日 + 20勝の両方を満たして2回目")
     }
 
-    @Test("バージョンが上がっても120日経っていなければ出ない")
+    @Test("バージョンが上がっても60日経っていなければ出ない")
     func versionUpAloneIsNotEnough() async {
         var clock = Date(timeIntervalSince1970: 1_800_000_000)
         let (log, _, _) = makeLog(suite: "service-version-up")
@@ -217,11 +218,116 @@ struct ReviewRequestServiceTests {
         await first.performPendingRequest { requested += 1 }
         #expect(requested == 1)
 
-        clock = clock.addingTimeInterval(30 * 24 * 3600) // 30日後に新バージョン
+        clock = clock.addingTimeInterval(30 * 24 * 3600) // 30日後（60日未満）に新バージョン
         let second = ReviewRequestService(log: log, appVersion: "1.2.0", now: { clock }, delay: .zero)
         advanceWins(second, count: 100)
         await second.performPendingRequest { requested += 1 }
         #expect(requested == 1, "期間の歯止めはバージョン更新で解除されない")
+    }
+}
+
+// MARK: - 見せ場（#1471）
+
+@Suite("評価リクエストの見せ場")
+@MainActor
+struct ReviewHighlightTests {
+
+    @Test("見せ場でない勝ちは勝利数に数えるが、5勝目でも予定を立てない")
+    func nonHighlightWinsCountButDoNotPend() {
+        let (_, service) = makeServices(suite: "highlight-non")
+        for _ in 0..<10 { service.gameDidFinish(outcome: .win, isHighlight: false) }
+        #expect(service.log.totalWins == 10, "勝利数は見せ場でなくても数える")
+        #expect(service.pendingRequestID == nil)
+
+        #expect(service.gameDidFinish(outcome: .win, isHighlight: true))
+        #expect(service.pendingRequestID != nil, "見せ場の勝ちで初めて予定が立つ")
+    }
+
+    @Test("見せ場でも敗北では予定を立てない")
+    func highlightLossDoesNothing() {
+        let (_, service) = makeServices(suite: "highlight-loss")
+        advanceWins(service, count: 4)
+        #expect(service.gameDidFinish(outcome: .loss, isHighlight: true) == false)
+        #expect(service.pendingRequestID == nil)
+    }
+
+    /// 記録つきの services（自己ベストの更新を見せ場にできる構成）。
+    private func makeRecordingServices(suite: String) -> (GameServices, ReviewRequestService) {
+        let (log, _, _) = makeLog(suite: suite)
+        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .zero)
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(), review: service, playLog: log
+        )
+        return (services, service)
+    }
+
+    @Test("見せ場でない勝ちでも、得点の自己ベストを更新した回は見せ場になる")
+    func newBestIsAHighlight() {
+        let (services, service) = makeRecordingServices(suite: "highlight-best")
+        for _ in 0..<4 {
+            services.gameDidFinish(gameID: "g", outcome: .win,
+                                   score: GameScore(metric: .points, points: 10), isReviewHighlight: false)
+        }
+        // 4勝目までは自己ベスト 10 のまま。5勝目で同点（更新ではない）。
+        services.gameDidFinish(gameID: "g", outcome: .win,
+                               score: GameScore(metric: .points, points: 10), isReviewHighlight: false)
+        #expect(service.log.totalWins == 5)
+        #expect(service.pendingRequestID == nil, "同点は更新ではないので見せ場でない")
+
+        services.gameDidFinish(gameID: "g", outcome: .win,
+                               score: GameScore(metric: .points, points: 50), isReviewHighlight: false)
+        #expect(service.pendingRequestID != nil, "自己ベスト更新は全ゲーム共通で見せ場")
+    }
+
+    @Test("連勝記録の更新だけでは見せ場にならない")
+    func streakAloneIsNotAHighlight() {
+        let (services, service) = makeRecordingServices(suite: "highlight-streak")
+        for _ in 0..<8 {
+            services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss),
+                                   isReviewHighlight: false)
+        }
+        #expect(service.log.totalWins == 8)
+        #expect(service.pendingRequestID == nil)
+    }
+
+    @Test("既定（勝てば見せ場）のゲームは従来どおり5勝目で予定される")
+    func defaultIsHighlight() {
+        let (services, service) = makeRecordingServices(suite: "highlight-default")
+        for _ in 0..<5 { services.gameDidFinish(gameID: "g", outcome: .win) }
+        #expect(service.pendingRequestID != nil)
+    }
+
+    @Test("CPU の強さ: ふつう以上だけが見せ場")
+    func cpuStrengthWorthiness() {
+        #expect(CPUStrength.isReviewWorthy(level: CPUStrength.novice.rawValue) == false)
+        #expect(CPUStrength.isReviewWorthy(level: CPUStrength.easy.rawValue) == false)
+        #expect(CPUStrength.isReviewWorthy(level: CPUStrength.normal.rawValue))
+        #expect(CPUStrength.isReviewWorthy(level: CPUStrength.hard.rawValue))
+    }
+
+    @Test("ブラックジャック: ブラックジャックで勝つと予定され、普通の勝ちでは予定されない")
+    func blackjackNaturalOnly() throws {
+        func run(seed: UInt64, suite: String) -> (BlackjackModel, ReviewRequestService) {
+            let (services, service) = makeServices(suite: suite)
+            advanceWins(service, count: 4)
+            let model = BlackjackModel(services: services, seed: seed)
+            model.placeBet(100)
+            if model.phase == .playerTurn { model.stand() }
+            return (model, service)
+        }
+        var natural: (BlackjackModel, ReviewRequestService)?
+        var plain: (BlackjackModel, ReviewRequestService)?
+        for seed in 0..<3000 as Range<UInt64> where natural == nil || plain == nil {
+            let (model, service) = run(seed: seed, suite: "highlight-bj-\(seed)")
+            guard model.phase == .result else { continue }
+            if model.outcome == .playerBlackjack, natural == nil { natural = (model, service) }
+            if model.outcome == .win, plain == nil { plain = (model, service) }
+        }
+        let n = try #require(natural)
+        let p = try #require(plain)
+        #expect(n.1.pendingRequestID != nil, "ブラックジャックの勝ちは見せ場")
+        #expect(p.1.log.totalWins == 5)
+        #expect(p.1.pendingRequestID == nil, "普通の勝ちは見せ場でない")
     }
 }
 

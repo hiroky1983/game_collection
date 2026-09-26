@@ -84,9 +84,7 @@
 ## アプリ内リンク修正
 
 - [ ] **「アプリを評価する」ボタン**
-  - 現在: 空のクロージャ（何もしない）
-  - App Store の URL が決まったら `SKStoreReviewController.requestReview()` または
-    `UIApplication.shared.open(appStoreURL)` に差し替え
+  - v1.1.7〜: `AppEnvironment.writeReviewURL`（`?action=write-review`）を開く（#1471。`docs/spec-app.md` の「評価リクエスト」）
 
 - [ ] **「アプリをシェア」リンク**
   - 現在: `URL(string: "https://apps.apple.com")!` プレースホルダー

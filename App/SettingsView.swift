@@ -1,5 +1,4 @@
 import SafariServices
-import StoreKit
 import SwiftUI
 import Core
 
@@ -9,7 +8,7 @@ struct SettingsView: View {
     /// プレイ記録。注入されないとき（プレビュー等）は消去の導線を出さない。
     var playLog: PlayLog?
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.requestReview) private var requestReview
+    @Environment(\.openURL) private var openURL
     @State private var legalURL: IdentifiableURL?
     @State private var showClearPlayLogConfirm = false
 
@@ -187,7 +186,9 @@ struct SettingsView: View {
                 // MARK: その他
                 Section("その他") {
                     Button {
-                        requestReview()
+                        // OS の `requestReview` は上限に達すると何も出ない。自分から押した人には
+                        // 必ずレビュー画面が開く App Store の URL を使う（#1471）。
+                        openURL(AppEnvironment.writeReviewURL)
                     } label: {
                         Label("アプリを評価する", systemImage: "star")
                     }

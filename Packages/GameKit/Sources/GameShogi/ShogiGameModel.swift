@@ -351,7 +351,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser == humanSide ? .loss : .win,
-                score: hints.winLossScore
+                score: hints.winLossScore,
+                // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
+                isReviewHighlight: beatsWorthyCPU
             )
         } else if Self.isFourfoldRepetition(initialSFEN: initialSFEN, moves: moves, current: position) {
             // 千日手（#375）。同一局面が 4 回現れたら引き分けで終局する。これが無いと、
@@ -613,6 +615,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     }
 
     // MARK: - 永続化
+
+    /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
+    private var beatsWorthyCPU: Bool {
+        (sente == .ai || gote == .ai) && CPUStrength.isReviewWorthy(level: aiLevel)
+    }
 
     private func persist() {
         let snap = ShogiSnapshot(
