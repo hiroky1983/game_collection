@@ -258,6 +258,10 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
     /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
     case shareTap(gameID: String)
+    /// ゲーム内アンケートに答えた（#1348）。パラメータは `game_id` と設問ごとの `q1` `q2` …（**選んだ選択肢の番号・1 始まり**）。
+    ///
+    /// 選択式だけで自由記述は載せない。回答は端末に残さず、この 1 回の送信だけで完結する。
+    case surveyAnswer(gameID: String, answers: [Int])
 
     /// Firebase のイベント名。
     public var name: String {
@@ -269,6 +273,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .gameOpen:      return "game_open"
         case .rewardOffer:   return "reward_offer"
         case .shareTap:      return "share_tap"
+        case .surveyAnswer:  return "survey_answer"
         }
     }
 
@@ -324,6 +329,10 @@ public enum AnalyticsEvent: Equatable, Sendable {
             ]
         case let .shareTap(gameID):
             return ["game_id": .string(gameID)]
+        case let .surveyAnswer(gameID, answers):
+            var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
+            for (index, answer) in answers.enumerated() { parameters["q\(index + 1)"] = .int(answer) }
+            return parameters
         }
     }
 }
@@ -545,6 +554,12 @@ public final class GameAnalytics {
     public func recordShareTap(gameID: String) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.shareTap(gameID: gameID))
+    }
+
+    /// ゲーム内アンケートに答えたときに呼ぶ（#1348）。プレイの数え方には影響しない。
+    public func recordSurveyAnswer(gameID: String, answers: [Int]) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.surveyAnswer(gameID: gameID, answers: answers))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。
