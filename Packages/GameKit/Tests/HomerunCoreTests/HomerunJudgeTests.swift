@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import GameHomerun
+@testable import HomerunCore
 
 @Suite("柵越えおじさんの判定")
 struct HomerunJudgeTests {
