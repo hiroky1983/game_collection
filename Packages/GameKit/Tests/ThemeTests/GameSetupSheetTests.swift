@@ -82,6 +82,17 @@ struct GameSetupSheetSourceTests {
         #expect(Set(users) == Set(Self.allSheets.map(\.path)), "開始シートを持つゲームの一覧がずれている: \(users.sorted())")
     }
 
+    /// 共通枠の形そのもの（large 固定・開始ボタンをスクロールの外の下端に固定）が崩れていないこと。
+    /// 各ゲームの呼び出しを見る走査では、枠の中身を変えても気づけない。
+    @Test("共通枠は large 固定で、開始ボタンを下端に固定している")
+    func frameIsLargeWithPinnedStart() throws {
+        let source = try Self.read("Core/GameSetupSheet.swift")
+        #expect(source.contains(".presentationDetents([.large])"), "シートが large 固定でない")
+        #expect(!source.contains("presentationDetents([.medium"), "medium から開く並べ方が戻っている")
+        #expect(source.contains(".safeAreaInset(edge: .bottom)"), "開始ボタンが下端に固定されていない")
+        #expect(source.contains("終了して\\(kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
+    }
+
     @Test("種別ごとの題名と開始文言（#1011 決裁）")
     func kindWording() {
         #expect(GameSetupKind.versus.title == "新規対局")
