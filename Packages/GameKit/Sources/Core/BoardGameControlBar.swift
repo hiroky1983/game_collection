@@ -9,13 +9,14 @@ public struct BoardControlBarHint {
     /// 30 秒以上操作が無いときに出す促し（#1424）。
     let nudge: HintNudge
 
+    /// - Parameter game: 局の番号（`gameSerial`）。
     /// - Parameter activity: 操作のたびに値が変わる印（手数・選択など）。変わると促しの待ち時間を数え直す。
     @MainActor
-    public init<Model: BoardHintModel>(_ model: Model, activity: AnyHashable) {
+    public init<Model: BoardHintModel>(_ model: Model, game: Int, activity: AnyHashable) {
         remaining = model.hintsRemaining
         isEnabled = model.canUseHint
         isThinking = model.isHintThinking
-        nudge = HintNudge(isEligible: model.canUseHint, activity: activity)
+        nudge = HintNudge(isEligible: model.canUseHint, game: game, activity: activity)
         // 読みは Model の中で `AITurnGuarded` の照合に載せる（押したあとの局面ずれはそこで弾く）。
         request = { Task { await model.requestHint() } }
     }

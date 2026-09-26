@@ -7,7 +7,7 @@ import SwiftUI
 public enum HintNudgePolicy {
     /// 操作が無いまま待つ長さ。
     public static let idleDelay: Duration = .seconds(30)
-    /// 操作行が画面にある間（= 1 局）に出す回数の上限。出しすぎると邪魔になるため。
+    /// 1 局に出す回数の上限。出しすぎると邪魔になるため。
     public static let maxPerGame = 2
 
     /// まだ出してよいか。
@@ -21,10 +21,13 @@ public enum HintNudgePolicy {
 /// - `activity`: **操作のたびに値が変わる**印（手数・選択・盤面など）。変わると待ち時間を数え直し、出ている吹き出しを消す。
 public struct HintNudge {
     let isEligible: Bool
+    let game: Int
     let activity: AnyHashable
 
-    public init(isEligible: Bool, activity: AnyHashable) {
+    /// - Parameter game: 局を数える番号（`gameSerial` 等）。変わると「1 局に出す回数」を数え直す。
+    public init(isEligible: Bool, game: Int, activity: AnyHashable) {
         self.isEligible = isEligible
+        self.game = game
         self.activity = activity
     }
 }
@@ -65,6 +68,7 @@ private struct HintNudgeModifier: ViewModifier {
                     // 操作行の真上・右端（「⋯」の上）に、下端を操作行の上辺へ合わせて置く。
                     .alignmentGuide(.top) { $0[.bottom] + 4 }
             }
+            .onChange(of: nudge?.game) { shownCount = 0 }
             .task(id: key) {
                 setShowing(false)
                 guard key.isEligible, key.isActive, HintNudgePolicy.canShow(shownCount: shownCount) else { return }
