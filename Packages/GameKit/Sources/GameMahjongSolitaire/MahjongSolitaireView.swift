@@ -427,7 +427,7 @@ public struct MahjongSolitaireView: View {
         // 左 = 戻す（ティール）、中央 = 並べ替え（紫）、右端 = 「⋯」（ヒント）。#1422。
         // 判定させたいのは 2 ボタンぶんの幅なので、`ViewThatFits` はボタンだけに掛け、
         // 伸び縮みする Spacer と「⋯」は外に置く（中に入れるとどんな幅でも「入る」と判定される）。
-        GameControlBar(menuItems: controlMenuItems) {
+        GameControlBar(menuItems: controlMenuItems, nudge: hintNudge) {
             ViewThatFits(in: .horizontal) {
                 controlRow(showsTitle: true)
                 controlRow(showsTitle: false)
@@ -435,6 +435,15 @@ public struct MahjongSolitaireView: View {
         } center: {
             EmptyView()
         }
+    }
+
+    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
+    /// 手詰まり・決着・広告の視聴中は出さない。
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.canHint && !isWatchingRewardAd,
+            activity: [model.selectedIndex ?? -1, model.remainingCount, model.hintCount, model.shuffleCount, model.undoCount]
+        )
     }
 
     /// 「⋯」に入れる操作。ヒントもリワード広告制（#336）。並べ替えと同じく、押した直後に広告を出さず

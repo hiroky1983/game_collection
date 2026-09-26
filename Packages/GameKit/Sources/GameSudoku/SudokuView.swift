@@ -585,7 +585,7 @@ public struct SudokuView: View {
 
     private var gameControls: some View {
         // 左 = 戻す、中央 = メモ、右端 = 「⋯」（ヒント・諦める）。#1422。
-        GameControlBar(menuItems: controlMenuItems, verticalPadding: 4) {
+        GameControlBar(menuItems: controlMenuItems, verticalPadding: 4, nudge: hintNudge) {
             // 元に戻す（#353）。誤タップの救済用に**直前の1手だけ**取り消せる。
             GameControlButton("戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.teal) {
                 model.undo()
@@ -610,6 +610,15 @@ public struct SudokuView: View {
             .accessibilityLabel(model.noteMode ? "メモモード、オン" : "メモモード、オフ")
         }
         .lineLimit(1)
+    }
+
+    /// 30 秒以上操作が無いときの促し（#1424）。広告は自動で再生せず、吹き出しでメニューを示すだけ。
+    /// ヒントが尽きた・決着した・広告の視聴中は出さない。マスを選んでいなくても出す（選ぶところから促したいため）。
+    private var hintNudge: HintNudge {
+        HintNudge(
+            isEligible: model.state == .playing && model.remainingHints > 0 && !hintRescue.isWatching,
+            activity: [model.gameSerial, model.selected ?? -1, model.hintsUsed, model.board.hashValue, model.notes.hashValue]
+        )
     }
 
     /// 「⋯」に入れる操作。ヒントは広告を見て答えが入る（残り回数付き）。

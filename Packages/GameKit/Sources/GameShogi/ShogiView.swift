@@ -471,7 +471,7 @@ public struct ShogiView: View {
     private var gameControls: some View {
         // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
         BoardGameControlBar(
-            model: model, services: services, rescue: undoRescue, hint: BoardControlBarHint(model),
+            model: model, services: services, rescue: undoRescue, hint: BoardControlBarHint(model, activity: [model.gameSerial, model.moves.count, model.selectedSquare ?? -1, model.selectedHand?.hashValue ?? -1]),
             onResign: { model.resign() }
         )
     }
