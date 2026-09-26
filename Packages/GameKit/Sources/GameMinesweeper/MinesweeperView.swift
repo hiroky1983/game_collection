@@ -571,7 +571,7 @@ struct MinesweeperNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "スタート",
+            kind: .solo,
             onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
         ) {
             GameSetupSection("難易度") {

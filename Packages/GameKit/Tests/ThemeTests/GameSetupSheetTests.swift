@@ -34,6 +34,73 @@ struct GameSetupSheetSourceTests {
         }
     }
 
+    /// 開始シートを出す全 15 本（#1415）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
+    private static let allSheets: [(path: String, kind: String)] = [
+        ("GameChess/ChessView.swift", ".versus"),
+        ("GameShogi/ShogiView.swift", ".versus"),
+        ("GameGo/GoView.swift", ".versus"),
+        ("GameOthello/OthelloView.swift", ".versus"),
+        ("GameGomoku/GomokuView.swift", ".versus"),
+        ("GameBackgammon/BackgammonView.swift", ".versus"),
+        ("GameConcentration/ConcentrationView.swift", ".versus"),
+        ("GameSpeed/SpeedView.swift", ".versus"),
+        ("GameHanafuda/HanafudaSheets.swift", ".versus"),
+        ("GameShiritori/ShiritoriView.swift", ".versus"),
+        ("GameMinesweeper/MinesweeperView.swift", ".solo"),
+        ("GameSudoku/SudokuView.swift", ".solo"),
+        ("GameAnzan/AnzanView.swift", ".solo"),
+        ("GameSpider/SpiderView.swift", ".solo"),
+        ("GameRunner/RunnerStartSheet.swift", ".solo"),
+    ]
+
+    /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。
+    /// 引数に戻すと、また「新規対局」「はじめる」「配る」がゲームごとにばらばらになる。
+    @Test("全ゲームの開始シートが種別だけで題名・開始文言・並べ方を決めている")
+    func everySheetDecidesFrameByKind() throws {
+        for (path, kind) in Self.allSheets {
+            let source = try Self.read(path)
+            let range = try #require(source.range(of: "GameSetupSheet("), "\(path) に GameSetupSheet( が無い")
+            let call = String(source[range.upperBound...].prefix(240))
+            #expect(call.contains("kind: \(kind)"), "\(path) の種別が \(kind) でない")
+            for banned in ["title:", "startTitle:", "layout:"] {
+                let head = call.prefix { $0 != "{" }
+                #expect(!head.contains(banned), "\(path) が \(banned) を引数で渡している")
+            }
+        }
+    }
+
+    /// 走査が今ある開始シートの一部を取りこぼしていないこと（新しいゲームの追加で黙って対象外にならない）。
+    @Test("GameSetupSheet を使うファイルは全て allSheets に載っている")
+    func allSheetsIsExhaustive() throws {
+        let sources = Self.sourcesDirectory
+        let users = try FileManager.default.subpathsOfDirectory(atPath: sources.path)
+            .filter { $0.hasSuffix(".swift") && !$0.hasPrefix("Core/") }
+            .filter {
+                try String(contentsOf: sources.appendingPathComponent($0), encoding: .utf8)
+                    .contains("GameSetupSheet(")
+            }
+        #expect(Set(users) == Set(Self.allSheets.map(\.path)), "開始シートを持つゲームの一覧がずれている: \(users.sorted())")
+    }
+
+    /// 共通枠の形そのもの（large 固定・開始ボタンをスクロールの外の下端に固定）が崩れていないこと。
+    /// 各ゲームの呼び出しを見る走査では、枠の中身を変えても気づけない。
+    @Test("共通枠は large 固定で、開始ボタンを下端に固定している")
+    func frameIsLargeWithPinnedStart() throws {
+        let source = try Self.read("Core/GameSetupSheet.swift")
+        #expect(source.contains(".presentationDetents([.large])"), "シートが large 固定でない")
+        #expect(!source.contains("presentationDetents([.medium"), "medium から開く並べ方が戻っている")
+        #expect(source.contains(".safeAreaInset(edge: .bottom)"), "開始ボタンが下端に固定されていない")
+        #expect(source.contains("終了して\\(kind.startTitle)"), "進行を捨てるシートの確認文言が無い")
+    }
+
+    @Test("種別ごとの題名と開始文言（#1011 決裁）")
+    func kindWording() {
+        #expect(GameSetupKind.versus.title == "新規対局")
+        #expect(GameSetupKind.versus.startTitle == "対局開始")
+        #expect(GameSetupKind.solo.title == "新規ゲーム")
+        #expect(GameSetupKind.solo.startTitle == "スタート")
+    }
+
     /// タイルの塗り分け（選択中だけ差し色・非選択は `Theme.surface`）が Core の外に再実装されていないこと。
     ///
     /// 走査は Sources 一式に掛ける。ファイルを分割しても対象から外れないようにするため、

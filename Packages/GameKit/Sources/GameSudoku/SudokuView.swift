@@ -771,7 +771,7 @@ struct SudokuNewGameSheet: View {
 
     var body: some View {
         GameSetupSheet(
-            title: "新規ゲーム", startTitle: "スタート",
+            kind: .solo,
             onStart: { onStart(difficulty) }, onCancel: onCancel
         ) {
             GameSetupSection("難易度") {

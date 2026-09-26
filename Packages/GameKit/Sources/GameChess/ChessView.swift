@@ -565,7 +565,7 @@ struct ChessNewGameSheet: View {
         // 節が 3 つあり `.medium` に収まらないので、囲碁・五目並べと同じくスクロールで開く
         // （`GameSetupSheet` の注記。取り違えると開始ボタンがはみ出して押せなくなる）。
         GameSetupSheet(
-            title: "新規対局", startTitle: "対局開始", layout: .scrolling,
+            kind: .versus,
             onStart: { onStart(side, level, style) }, onCancel: onCancel
         ) {
             GameSetupSection("あなたの手番") {

@@ -8,43 +8,38 @@ import SwiftUI
 /// ここが持つ。`docs/ai-devops.md`「1局=1RuleSet」原則で局に焼き込む値を組み立てる場所でもあるため、
 /// 分岐が増えるゲームはこのシートに節（`GameSetupSection`）を足していく。
 ///
-/// **シートの高さは並べ方から決まる**。`pinnedStart` は開始ボタンを下端に固定する代わりに
-/// `.medium` から開き（`gameSheetDetents()`。文字を拡大したときだけ `.large`）、`scrolling` は
-/// 節が 3 つ以上あって `.medium` に収まらないゲーム用で常に `.large` で開く。ここを取り違えると
-/// 「開始ボタンがはみ出して押せない」（囲碁・五目並べで実際に起きた）に戻る。
+/// **並べ方は 1 種類だけ**（#1415・会長決裁 D3）: シートは常に `.large` 固定で、上に題名とキャンセル、
+/// 中身はスクロール、開始ボタンは下端に固定する。中身の長さはゲームごとに自由。かつては
+/// 「`.medium` から開く」「開始ボタンも一緒に流れる」など 3 種類あり、ゲームによってシートの高さも
+/// 開始ボタンの位置も違っていた。題名と開始ボタンの文言も、引数ではなく種別（`GameSetupKind`）で決める。
 public struct GameSetupSheet<Content: View>: View {
-    public typealias Layout = GameSetupSheetLayout
-
-    private let title: String
+    private let kind: GameSetupKind
     private let startTitle: String
     private let startTint: Color
     private let spacing: CGFloat
-    private let layout: Layout
     private let onStart: () -> Void
     private let onCancel: () -> Void
     private let content: Content
 
     /// - Parameters:
-    ///   - title: シートの題名（「新規対局」「新規ゲーム」など）。
-    ///   - startTitle: 開始ボタンの文言（「対局開始」「スタート」など）。
+    ///   - kind: 対戦か一人用か。題名と開始ボタンの文言はこれで決まる。
+    ///   - discardsProgress: 途中の盤面を捨てて始め直すシートのとき true。開始ボタンが
+    ///     「終了してスタート」のような確認の文言になる（誤って押して進行を失わないため）。
     ///   - startTint: 開始ボタンの面色。上に載る文字は `Theme.onAccent` 固定（#220）。
     ///   - spacing: 節と節の間隔。
-    ///   - layout: 並べ方。上の注意を参照。
     public init(
-        title: String,
-        startTitle: String,
+        kind: GameSetupKind,
+        discardsProgress: Bool = false,
         startTint: Color = Theme.Fill.coral,
         spacing: CGFloat = 24,
-        layout: Layout = .pinnedStart,
         onStart: @escaping () -> Void,
         onCancel: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
-        self.title = title
-        self.startTitle = startTitle
+        self.kind = kind
+        self.startTitle = discardsProgress ? "終了して\(kind.startTitle)" : kind.startTitle
         self.startTint = startTint
         self.spacing = spacing
-        self.layout = layout
         self.onStart = onStart
         self.onCancel = onCancel
         self.content = content()
@@ -60,12 +55,12 @@ public struct GameSetupSheet<Content: View>: View {
             frame
         }
         .popBackground()
-        .modifier(SetupSheetDetents(layout: layout))
+        .presentationDetents([.large])
     }
 
     private var header: some View {
         ZStack {
-            Text(title).themeBody(17, weight: .bold).foregroundStyle(Theme.ink)
+            Text(kind.title).themeBody(17, weight: .bold).foregroundStyle(Theme.ink)
                 .accessibilityAddTraits(.isHeader)
             HStack {
                 Button("キャンセル") { onCancel() }
@@ -79,42 +74,22 @@ public struct GameSetupSheet<Content: View>: View {
         .padding(.bottom, 4)
     }
 
-    @ViewBuilder
     private var frame: some View {
-        switch layout {
-        case .pinnedStart:
-            VStack(alignment: .leading, spacing: spacing) {
-                content
-                Spacer()
-                startButton
-            }
-            .padding(Theme.pad)
-        case .scrolling:
-            ScrollView {
-                VStack(alignment: .leading, spacing: spacing) {
-                    content
-                    startButton
-                }
+        // 開始ボタンだけを `ScrollView` の外に出し、スクロールしなくても押せるようにする。
+        // `VStack{ ScrollView; button }` で組むと、`ScrollView` が `VStack` に入れ子になった
+        // ぶん「余った分だけ使う」高さの伝播が効かず、button がシートの外へ押し出されて
+        // 見えなくなった（実機確認・2026-09-22）。`.safeAreaInset` なら `ScrollView` 自身が
+        // 直接の子のまま、下にボタンの場所を安全に確保できる。
+        ScrollView {
+            VStack(alignment: .leading, spacing: spacing) { content }
                 .padding(Theme.pad)
-            }
-        case .scrollingPinnedStart:
-            // シートの高さ自体は `.scrolling` と同じ常に `.large`（中身の増減で伸び縮みしない）。
-            // 開始ボタンだけを `ScrollView` の外に出し、スクロールしなくても押せるようにする。
-            // `VStack{ ScrollView; button }` で組むと、`ScrollView` が `VStack` に入れ子になった
-            // ぶん「余った分だけ使う」高さの伝播が効かず、button がシートの外へ押し出されて
-            // 見えなくなった（実機確認・2026-09-22）。`.safeAreaInset` なら `ScrollView` 自身が
-            // 直接の子（`.scrolling` と同じ形）のまま、下にButton の場所を安全に確保できる。
-            ScrollView {
-                VStack(alignment: .leading, spacing: spacing) { content }
-                    .padding(Theme.pad)
-            }
-            .safeAreaInset(edge: .bottom) {
-                startButton
-                    .padding(.horizontal, Theme.pad)
-                    .padding(.top, 12)
-                    .padding(.bottom, Theme.pad)
-                    .background(.regularMaterial)
-            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            startButton
+                .padding(.horizontal, Theme.pad)
+                .padding(.top, 12)
+                .padding(.bottom, Theme.pad)
+                .background(.regularMaterial)
         }
     }
 
@@ -127,31 +102,24 @@ public struct GameSetupSheet<Content: View>: View {
     }
 }
 
-/// `GameSetupSheet` の中身の並べ方。
-public enum GameSetupSheetLayout: Sendable {
-    /// 選択肢を上に寄せ、開始ボタンを下端に固定する。`.medium` から開く。
-    case pinnedStart
-    /// 中身ごとスクロールさせ、開始ボタンも一緒に流す。常に `.large` で開く。
-    case scrolling
-    /// `.scrolling` と同じ常に `.large`（中身の増減でシート自体の高さは動かない）だが、
-    /// 開始ボタンだけスクロール領域の外に出して固定する（#675・会長指摘2026-09-22
-    /// 「スクロールして始めるボタン押下が煩わしい」）。2026-09-16に`.pinnedStart`へ
-    /// 切り替える案を一度試して「モーダルの長さも変わってる」で差し戻されたのは、
-    /// `.pinnedStart`が`.medium`/`.large`の可変検知（`gameSheetDetents()`）を使うため。
-    /// こちらは検知を挟まず`.large`固定のままなので同じ問題は起きない。
-    case scrollingPinnedStart
-}
+/// 開始シートの種別。題名と開始ボタンの文言は種別で決まり、ゲームごとには変えない（#1415・#1011 決裁）。
+public enum GameSetupKind: Sendable {
+    /// CPU や相手と勝負するゲーム（将棋・チェス・囲碁など）。「新規対局」「対局開始」。
+    case versus
+    /// 一人で遊ぶゲーム（マインスイーパー・数独など）。「新規ゲーム」「スタート」。
+    case solo
 
-/// 並べ方に応じたシートの高さ。分岐を修飾子の中に閉じ込め、呼び出し側の型を揃える。
-private struct SetupSheetDetents: ViewModifier {
-    let layout: GameSetupSheetLayout
+    public var title: String {
+        switch self {
+        case .versus: "新規対局"
+        case .solo:   "新規ゲーム"
+        }
+    }
 
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        switch layout {
-        case .pinnedStart:          content.gameSheetDetents()
-        case .scrolling:            content.presentationDetents([.large])
-        case .scrollingPinnedStart: content.presentationDetents([.large])
+    public var startTitle: String {
+        switch self {
+        case .versus: "対局開始"
+        case .solo:   "スタート"
         }
     }
 }
