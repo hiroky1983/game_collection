@@ -224,7 +224,7 @@ struct ShiritoriRulesTests {
 @Suite("ノルマ（難易度）")
 struct ShiritoriQuotaTests {
 
-    @Test("ノルマの枚数は やさしい4・ふつう6・むずかしい9（暫定値・#1245）")
+    @Test("ノルマの枚数は かんたん4・ふつう6・むずかしい9（暫定値・#1245）")
     func cardCounts() {
         #expect(ShiritoriQuota.allCases.map(\.cardCount) == [4, 6, 9])
     }
