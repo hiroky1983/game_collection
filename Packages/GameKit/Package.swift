@@ -36,6 +36,7 @@ let package = Package(
         .library(name: "GameAnzan",        targets: ["GameAnzan"]),
         .library(name: "GameBackgammon",   targets: ["GameBackgammon"]),
         .library(name: "GameSpeed",        targets: ["GameSpeed"]),
+        .library(name: "GameHomerun",      targets: ["GameHomerun"]),
         .library(name: "GameShiritori",    targets: ["GameShiritori"]),
         .library(name: "GameBlockPuzzle",  targets: ["GameBlockPuzzle"]),
         .library(name: "GameRunner",       targets: ["GameRunner"]),
@@ -99,6 +100,9 @@ let package = Package(
         // 配りと反応の揺らぎに CoreEngine の `SplitMix64` を使う。CPU は `AITurnGuarded` ではなく、Model が
         // 「次に待つ時間」を返して View の `.task` が待つ形（ぱっと暗算と同じ）。
         .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine"]),
+        // 柵越えおじさん（#1348・企画倉庫・プレミアム枠）。判定（2 軸・乱数なし）・日次台帳・蓄積は純粋ロジックで、
+        // 画面（RealityKit）は後続の段で足す。
+        .target(name: "GameHomerun",        dependencies: ["Core"]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),
@@ -179,6 +183,7 @@ let package = Package(
         .testTarget(name: "GameAnzanTests",          dependencies: ["GameAnzan", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBackgammonTests",     dependencies: ["GameBackgammon", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSpeedTests",          dependencies: ["GameSpeed", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun"]),
         .testTarget(name: "GameBlockPuzzleTests",    dependencies: ["GameBlockPuzzle", "CoreTestSupport"]),
         .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "CoreTestSupport"]),
