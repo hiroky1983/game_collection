@@ -27,7 +27,7 @@ public struct BoardControlBarHint {
 /// 待った・ゲーム固有の操作（囲碁のパス）・ヒント（残り回数つき）・投了（押したあと確認ダイアログ）を
 /// **すべて右下の「⋯」メニューに入れる**（会長決裁 2026-09-26 QA）。投了は末尾・赤（`GameControlMenu.ordered`）。
 ///
-/// **高さは従来の操作行と同じ**（`GameOverflowBar` の 44pt + 上下の余白）。決着で中身が検討ナビに
+/// **高さは従来の操作行と同じ（46pt。決着で入れ替わる検討ナビ・結果の行との差を広げない）**（`GameOverflowBar` の 44pt + 上下の余白）。決着で中身が検討ナビに
 /// 入れ替わっても、対局中の行が伸び縮みして盤が縮むことがないようにする（#139・#148）。
 public struct BoardGameControlBar<Model: BoardUndoModel>: View {
     private let model: Model
@@ -60,6 +60,7 @@ public struct BoardGameControlBar<Model: BoardUndoModel>: View {
     public var body: some View {
         GameOverflowBar(
             menuItems: menuItems,
+            verticalPadding: BoardGameControlMetrics.rowVerticalPadding,
             // 投了・待ったの確認が開いている間は促しの待ちを止める（閉じた直後に吹き出しが出るのを防ぐ）。
             nudge: hint.map {
                 HintNudge(isEligible: $0.nudge.isEligible && !showResignConfirm && !showUndoConfirm,

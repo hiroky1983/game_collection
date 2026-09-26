@@ -247,6 +247,8 @@ public struct GameControlArea<Result: View, Playing: View>: View {
                 finished {
                     RecommendationSlot(services: services, isFinished: true, ladder: ladder)
                 }
+                // 決着後は従来どおり上寄せ（レコメンドが無い局で「もう一度」が下へ寄らない）。
+                .frame(maxHeight: .infinity, alignment: .top)
             } else {
                 playing()
             }

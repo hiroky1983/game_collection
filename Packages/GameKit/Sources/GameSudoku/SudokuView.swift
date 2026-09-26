@@ -12,7 +12,6 @@ public struct SudokuView: View {
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     @State private var zoomMode = false
-    /// 帯の実幅（拡大トグルに文字を出すかの判定に使う。0 は未計測＝出す）。
     /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
     @State private var flashingCells: Set<Int> = []
     /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
