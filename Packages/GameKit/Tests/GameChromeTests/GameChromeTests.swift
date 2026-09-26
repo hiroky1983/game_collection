@@ -65,11 +65,18 @@ struct GameChromeSourceTests {
     /// Core で固定する（#1418）。ゲーム側が自前のツールバー項目に書き直すと並びと絵柄がばらつく。
     @Test("役の早見表と新規ボタンはゲーム側で自前のアイコンに書き直されていない")
     func referenceAndNewGameStayInCore() {
-        for forbidden in ["list.bullet.rectangle", "list.number", "\"questionmark.circle\"",
-                          "Label(\"新規対局\"", "Label(\"新規ゲーム\"", "Label(\"はじめから\"", "Label(\"リセット\"", "Label(\"新規\""] {
-            for game in Self.gameDirectories {
-                let hit = game.files.contains { $0.contains(forbidden) }
-                #expect(hit == false, "\(game.name) が \(forbidden) をツールバーに自前で置いている")
+        // ツールバー項目（`ToolbarItem(placement: .primaryAction)` から続く 400 文字）だけを見る。
+        // 開始シート・盤面選択メニューなど、ツールバー以外の同じ絵柄・文言は対象外。
+        let forbidden = ["list.bullet.rectangle", "list.number", "questionmark.circle",
+                         "Label(\"新規対局\"", "Label(\"新規ゲーム\"", "Label(\"はじめから\"", "Label(\"リセット\"", "Label(\"新規\""]
+        for game in Self.gameDirectories {
+            for file in game.files {
+                for part in file.components(separatedBy: "ToolbarItem(placement: .primaryAction)").dropFirst() {
+                    let head = String(part.prefix(400))
+                    for word in forbidden {
+                        #expect(head.contains(word) == false, "\(game.name) が \(word) をツールバーに自前で置いている")
+                    }
+                }
             }
         }
     }

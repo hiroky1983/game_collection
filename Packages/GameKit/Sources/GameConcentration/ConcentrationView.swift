@@ -46,8 +46,8 @@ public struct ConcentrationView: View {
                         }
                     })
         .howToPlay(.concentration)
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { showNewGame = true }
+        .confirmationDialog("新規対局を始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
+            Button("終了して新規対局", role: .destructive) { showNewGame = true }
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("途中で終了すると、いまの対戦が失われます。")
