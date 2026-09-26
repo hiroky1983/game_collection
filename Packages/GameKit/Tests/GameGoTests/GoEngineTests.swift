@@ -1,4 +1,5 @@
 import Testing
+import CoreEngine
 import Foundation
 @testable import GameGo
 
@@ -199,14 +200,43 @@ struct GoEngineBasicTests {
         #expect(elapsed < .seconds(5), "実時間の上限が効いていない（\(elapsed)）")
     }
 
-    @Test("強さ 3 段階はプレイアウト数と持ち時間の両方で分かれている")
+    @Test("強さ 4 段階はプレイアウト数で分かれ、実時間の上限は回数に比例した安全用（#1400）")
     func levelsAreOrdered() {
-        #expect(GoLevel.easy.playouts < GoLevel.normal.playouts)
-        #expect(GoLevel.normal.playouts < GoLevel.hard.playouts)
-        // 遅い端末で普通と強が同じ上限に張り付かないよう、持ち時間も段階で分ける。
-        #expect(GoLevel.easy.timeLimit < GoLevel.normal.timeLimit)
-        #expect(GoLevel.normal.timeLimit < GoLevel.hard.timeLimit)
-        #expect(GoLevel.allCases.allSatisfy { $0.timeLimit <= 1.0 }, "1 手 1 秒以内に収める")
+        let levels = GoLevel.allCases
+        #expect(levels == [.novice, .easy, .normal, .hard])
+        for (lower, upper) in zip(levels, levels.dropFirst()) {
+            #expect(lower.playouts < upper.playouts)
+            #expect(lower.bestMoveChance <= upper.bestMoveChance)
+            #expect(lower.mistakeMargin >= upper.mistakeMargin)
+            #expect(lower.timeLimit <= upper.timeLimit)
+        }
+        #expect(GoLevel.hard.bestMoveChance == 1, "むずかしいは当面 100%（最善手のみ）")
+        // 安全用の上限は、遅い端末（約 4 倍遅い）でも回数が先に尽きる長さにする。
+        #expect(GoLevel.allCases.allSatisfy { $0.timeLimit >= Double($0.playouts) / 1_000 })
+    }
+
+    @Test("呼び名は共通の CPUStrength と同じで、番号も動かさない")
+    func labelsMatchCommonStrength() {
+        #expect(GoLevel.allCases.map(\.label) == CPUStrength.allCases.map(\.label))
+        #expect(GoLevel.allCases.map(\.rawValue) == CPUStrength.allCases.map(\.rawValue))
+    }
+
+    @Test("最善手を外す段階でも、選ぶ手は必ず合法で、種が同じなら同じ手になる")
+    func mistakesStayLegalAndDeterministic() {
+        let ruleset = GoRuleset(size: 9)
+        let state = GoState.initial(ruleset: ruleset)
+        let config = GoEngineConfig(playouts: 30, seed: 5, bestMoveChance: 0, mistakeMargin: 0.5)
+        var moves = Set<GoMove>()
+        for seed in 0..<6 as Range<UInt64> {
+            var c = config
+            c.seed = seed
+            let move = GoEngine(config: c, ruleset: ruleset).bestMove(state: state)
+            #expect(state.isLegal(move))
+            #expect(move != .pass)
+            #expect(GoEngine(config: c, ruleset: ruleset).bestMove(state: state) == move)
+            moves.insert(move)
+        }
+        #expect(moves.count > 1, "外す設定なのに手が散らばらない")
     }
 }
 
