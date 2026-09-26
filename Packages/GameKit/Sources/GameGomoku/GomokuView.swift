@@ -27,8 +27,8 @@ public struct GomokuView: View {
             stoneRow(stone: model.humanSide, isYou: true)
             HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
                           playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

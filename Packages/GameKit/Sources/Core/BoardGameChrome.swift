@@ -322,7 +322,9 @@ public extension View {
     func boardUndoFlow<Model: BoardUndoModel>(
         model: Model, services: GameServices, rescue: RewardedRescue, isPresented: Binding<Bool>
     ) -> some View {
-        self
+        let undoRescue = rescue
+        let showUndoConfirm = isPresented.wrappedValue
+        return self
             .alert("待った確認", isPresented: isPresented) {
                 Button(model.undoUsed ? "広告を見て戻す" : "戻す（無料）") {
                     guard model.undoUsed else {
@@ -335,7 +337,7 @@ public extension View {
                     // 視聴完了（報酬獲得）したときだけ待ったを許可する。どの局面に対する待ったかを
                     // 広告を出す前に控え、ロード中に対局が入れ替わったり指し進めたりした局面へは乗せない（#729）。
                     let turn = model.aiTurnKey
-                    rescue.request(
+                    undoRescue.request(
                         services, gameID: model.gameID, purpose: .undo,
                         guardedBy: .checkedByGrant
                     ) {
@@ -351,10 +353,10 @@ public extension View {
                      : "あなたの直前の1手を、CPU の応手ごと取り消します。\n無料で使えるのは1回だけです。")
             }
             // 無料の待ったの確認は広告の提示ではないので数えない（#780）。
-            .rewardOffer(rescue, for: .undo, isPresented: isPresented.wrappedValue && model.undoUsed,
+            .rewardOffer(undoRescue, for: .undo, isPresented: showUndoConfirm && model.undoUsed,
                          services: services, gameID: model.gameID)
             .rewardedRescueAlerts(
-                rescue,
+                undoRescue,
                 notEarned: "待ったは使えませんでした",
                 unavailable: RewardUnavailableAlert(
                     title: "待ったは使えませんでした",

@@ -26,8 +26,8 @@ public struct MinesweeperView: View {
             board
                 .layoutPriority(1)
             HowToPlayHint(.minesweeper, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

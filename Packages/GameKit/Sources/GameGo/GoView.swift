@@ -28,8 +28,8 @@ public struct GoView: View {
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
             HowToPlayHint(.go, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.phase)

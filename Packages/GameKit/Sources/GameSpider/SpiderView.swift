@@ -53,9 +53,9 @@ public struct SpiderView: View {
                 .layoutPriority(1)
             HowToPlayHint(.spider, playLog: services.playLog)
                 .padding(.horizontal, Theme.pad)
+            Spacer(minLength: 0)
             controlArea
                 .padding(.horizontal, Theme.pad)
-            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
                 .padding(.horizontal, Theme.pad)
         }

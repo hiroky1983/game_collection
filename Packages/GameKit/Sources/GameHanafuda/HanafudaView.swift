@@ -318,7 +318,7 @@ public struct HanafudaView: View {
                     ) { showResignConfirm = true },
                 ])
             }
-            .padding(.horizontal, 12).padding(.vertical, 2)
+            .padding(.vertical, 2)
         }
     }
 

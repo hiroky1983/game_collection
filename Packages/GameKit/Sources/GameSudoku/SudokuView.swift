@@ -39,8 +39,8 @@ public struct SudokuView: View {
                 // （＝広告だけ消費される）経路ができる。
                 .disabled(hintRescue.isWatching)
             HowToPlayHint(.sudoku, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)

@@ -48,7 +48,7 @@ public struct GameOverflowBar: View {
             }
         }
         .frame(minHeight: BoardGameControlMetrics.minTapTarget)
-        .padding(.horizontal, 16).padding(.vertical, verticalPadding)
+        .padding(.vertical, verticalPadding)
         .hintNudge(nudge)
     }
 }

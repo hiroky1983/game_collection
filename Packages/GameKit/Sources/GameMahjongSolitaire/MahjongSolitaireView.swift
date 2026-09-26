@@ -102,8 +102,8 @@ public struct MahjongSolitaireView: View {
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
             HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
-            controlArea
             Spacer(minLength: 0)
+            controlArea
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)

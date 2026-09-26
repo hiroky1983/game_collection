@@ -52,9 +52,9 @@ public struct FreeCellView: View {
                 .layoutPriority(1)
             HowToPlayHint(.freecell, playLog: services.playLog)
                 .padding(.horizontal, Theme.pad)
+            Spacer(minLength: 0)
             controlArea
                 .padding(.horizontal, Theme.pad)
-            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
                 .padding(.horizontal, Theme.pad)
         }
