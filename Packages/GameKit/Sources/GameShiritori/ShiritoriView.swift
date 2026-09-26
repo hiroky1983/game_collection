@@ -31,10 +31,14 @@ public struct ShiritoriView: View {
             HowToPlayHint(.shiritori, playLog: services.playLog)
             actionArea
             RecommendationSlot(services: services, isFinished: model.phase == .result)
+            // 札の盤は札の枚数ぶんの高さしか取らないため、余りをここで吸って広告を画面の下端に置く。
+            // 吸わないと画面全体が縦に伸びず、背景色が中身の範囲にしか塗られない（ヘッダーまわりと広告の下が白く残る）
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
         .padding(Theme.pad)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .gameChrome(title: "カードしりとり", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         model.pause()
