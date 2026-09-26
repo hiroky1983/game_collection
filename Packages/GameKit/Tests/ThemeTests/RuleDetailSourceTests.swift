@@ -188,12 +188,8 @@ struct RuleDetailScrollAndCardSourceTests {
 @Suite("設定シートは *SetupSheet・*NewGameSheet 命名なら GameSetupSheet を使う（#1231）")
 struct SetupSheetNamingConventionSourceTests {
 
-    /// 意図的に `GameSetupSheet` を使わない例外。理由をここに書く。
-    ///
-    /// - `SolitaireSetupSheet`: 「配り直すときにルールを選ぶ」ための独自の `Form` 実装（#498）。
-    ///   1局=1RuleSet 原則にもとづき配札と同時に焼き込む値を選ぶ専用UIで、対局前の CPU 強さ等を
-    ///   選ぶ `GameSetupSheet` とは性質が異なる。
-    private static let exceptions: Set<String> = ["SolitaireSetupSheet"]
+    /// 意図的に `GameSetupSheet` を使わない例外。理由をここに書く（現在は無い。ソリティアも #1416 で載せ替え済み）。
+    private static let exceptions: Set<String> = []
 
     @Test("*SetupSheet・*NewGameSheet という命名の View は GameSetupSheet を使う")
     func namedSheetsUseSharedFrame() throws {

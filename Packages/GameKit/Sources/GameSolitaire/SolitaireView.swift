@@ -64,6 +64,8 @@ public struct SolitaireView: View {
             SolitaireSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
                 showSetup = false
                 model.newGame(rules: draft)
+            } onCancel: {
+                showSetup = false
             }
         }
         .rewardedRescueAlerts(
