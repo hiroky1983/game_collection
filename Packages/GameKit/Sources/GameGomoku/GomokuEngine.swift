@@ -111,7 +111,7 @@ private struct GomokuRandom: RandomNumberGenerator {
 /// | -1 | 入門 | 読まずに1手先の形だけ。相手の四を防ぐのは 20 回に 1 回・6 割は形を見ずに無作為（#1399） |
 /// | 0 | 簡単 | 読まずに1手先の形だけ（#665）＋ 相手の四を防ぐのは 2 回に 1 回 |
 /// | 1 | ふつう | 深さ 3 の αβ（局面数 15,000 まで）＋ 開三・二重の脅威を先に潰す・10% で形の甘い手 |
-/// | 2 | むずかしい | 深さ 9 の αβ（局面数 300,000 まで・各局面は点の高い 14 手だけ読む）・最善手のみ |
+/// | 2 | むずかしい | 深さ 9 の αβ（局面数 250,000 まで・各局面は点の高い 14 手だけ読む）・最善手のみ |
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
 /// **段階の強さは「読む局面数」で決め、時間は安全用に長めに残す**（#1399。時間主体だと遅い端末ほど
@@ -157,7 +157,7 @@ public struct SimpleGomokuEngine: GomokuEngine {
     static let normalDepth = 3
     static let hardDepth = 9
     static let normalNodeLimit = 15_000
-    static let hardNodeLimit = 600_000
+    static let hardNodeLimit = 250_000
     static let hardBreadth = 14
     /// ふつう: 10% の手番だけ「評価で 150 以内の損」の手を混ぜる（開二つぶんに満たない。形の甘い手が出る程度）。
     /// むずかしいは 100% 最善手。
@@ -191,7 +191,7 @@ public struct SimpleGomokuEngine: GomokuEngine {
         switch strength {
         case .novice:  (depth, timeLimit, self.nodeLimit, self.policy) = (1, 0.4, nil, .exact)
         case .easy:    (depth, timeLimit, self.nodeLimit, self.policy) = (1, 0.4, nil, .exact)
-        case .hard:    (depth, timeLimit, self.nodeLimit, self.policy) = (Self.hardDepth, 4.0, Self.hardNodeLimit, .exact)
+        case .hard:    (depth, timeLimit, self.nodeLimit, self.policy) = (Self.hardDepth, 5.0, Self.hardNodeLimit, .exact)
         case .normal:  (depth, timeLimit, self.nodeLimit, self.policy) = (Self.normalDepth, 3.0, Self.normalNodeLimit, Self.normalPolicy)
         }
         seesDoubleThreats = strength == .normal
@@ -245,7 +245,9 @@ public struct SimpleGomokuEngine: GomokuEngine {
                     let theirs = ctx.doubleThreatPoints(
                         board, stone: opp,
                         candidates: ctx.legalMoves(ctx.candidateMoves(board: board), board: board, stone: opp))
-                    let points = theirs.withFour + theirs.threesOnly
+                    // 相手の打てる点は、自分には禁じ手（連珠の黒）のことがある。自分に打てる点だけに絞る。
+                    let legal = Set(candidates.map { $0.0 * gomokuBoardSize + $0.1 })
+                    let points = (theirs.withFour + theirs.threesOnly).filter { legal.contains($0) }
                     if !points.isEmpty { only = points }
                 }
             }

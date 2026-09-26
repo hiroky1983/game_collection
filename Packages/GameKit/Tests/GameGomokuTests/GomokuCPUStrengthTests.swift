@@ -81,7 +81,7 @@ struct GomokuSearchBudgetTests {
         let board = makeBoard(black: [(7, 7), (7, 8), (9, 9), (6, 9)], white: [(7, 9), (8, 8), (6, 6)])
         let small = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: 1, maxDepth: 6, nodeLimit: .some(300))
             .analyze(board: board, stone: .white)
-        let large = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: 1, maxDepth: 6, nodeLimit: .some(60_000))
+        let large = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: 1, maxDepth: 6, nodeLimit: .some(20_000))
             .analyze(board: board, stone: .white)
         #expect(small.depth < large.depth, "\(small.depth) / \(large.depth)")
     }
@@ -133,10 +133,21 @@ struct GomokuNormalTacticsTests {
         }
     }
 
+    /// 連珠ルールの黒は、相手（白）の二重の脅威を潰す点が自分の禁じ手（三三）のことがある。その点は打たない（検証で発覚）。
+    @Test func normalNeverPlaysAForbiddenPointWhileBlockingAFork() async {
+        let board = makeBoard(black: [(5, 5), (6, 6), (6, 8), (5, 9)], white: [(7, 8), (7, 9), (8, 7), (9, 7)])
+        for i in 0..<10 {
+            let engine = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, forbiddenMoves: true,
+                                            seed: UInt64(i + 1) &* 0x9E37_79B9_7F4A_7C15)
+            let move = await engine.bestMove(board: board, stone: .black)
+            #expect(!(move?.row == 7 && move?.col == 7), "三三の禁じ手 (7,7) を打った（種 \(i)）")
+        }
+    }
+
     /// むずかしいは即勝ちも即防ぎも、開三への対処も外さない（深く読ませても足元が崩れていない）。
     @Test func hardDoesNotLoseToAnOpenThree() async {
         let board = makeBoard(black: [(7, 6), (7, 7), (7, 8)], white: [(3, 3), (11, 11)])
-        let move = await SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: 1).bestMove(board: board, stone: .white)
+        let move = await SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: 1, nodeLimit: .some(30_000)).bestMove(board: board, stone: .white)
         // 活四を作らせない手（両端か、片側を先に塞ぐ手）であること。
         var after = board
         after[move!.row, move!.col] = .white
