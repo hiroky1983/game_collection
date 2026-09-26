@@ -285,10 +285,10 @@ struct AnalyticsEventShapeTests {
         #expect(Set(used) == Set(AnalyticsMode.allCases))
     }
 
-    @Test("purpose の全量は7種で、reward_ad 以外には載らない（#500）")
+    @Test("purpose の全量は8種で、reward_ad 以外には載らない（#500）")
     func rewardPurposeIsClosed() {
         #expect(RewardPurpose.allCases.map(\.rawValue) == [
-            "undo", "continue", "revival", "hint", "joker", "checkpoint", "shuffle",
+            "undo", "continue", "revival", "hint", "joker", "checkpoint", "shuffle", "challenge",
         ])
     }
 

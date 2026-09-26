@@ -90,9 +90,16 @@ public final class HomerunModel {
     private let defaults: UserDefaults
     private let calendar: Calendar
     private let pitches: [HomerunPitch]
+    /// 解析・記録・広告の窓口。nil（テスト・プレビュー）なら何も送らない。
+    private let services: GameServices?
+    /// このモデルで 1 回でも打席に立ったか（初回は `game_start`、以降は `game_end`（quit）を挟む始め直し）。
+    private var hasCountedStart = false
+    /// いまの挑戦で 1 球でも投げたか（`gameDidProgress` の冪等は解析側だが、呼ぶ回数を絞る）。
+    private var hasProgressed = false
 
-    public init(defaults: UserDefaults = .standard, calendar: Calendar = .current,
+    public init(services: GameServices? = nil, defaults: UserDefaults = .standard, calendar: Calendar = .current,
                 pitches: [HomerunPitch] = HomerunPitch.standardSequence, now: Date = Date()) {
+        self.services = services
         self.defaults = defaults
         self.calendar = calendar
         self.pitches = pitches
@@ -170,9 +177,32 @@ public final class HomerunModel {
         challenge = HomerunChallenge(pitches: pitches)
         lastBall = nil
         isNewBest = false
+        hasProgressed = false
         beginPitch(now: now)
+        if hasCountedStart {
+            services?.gameDidRestart(gameID: Self.gameID)
+        } else {
+            services?.gameDidStart(gameID: Self.gameID)
+            hasCountedStart = true
+        }
+        // 1 挑戦は途中から戻せない（中断データを持たない）。画面を離れたら休憩ではなく離脱として数える。
+        services?.gameWillNotResume(gameID: Self.gameID)
         return true
     }
+
+    /// 広告を見た報酬として今日の挑戦回数を 1 回増やす。**広告を出す前の日付で照合する**（見ている間に
+    /// 0:00 をまたぐと台帳が作り直されており、前の日の広告で今日の回数が増えるのを防ぐ）。
+    /// 上限（1 日 5 本）に達していれば増やさず false（→ 「適用できなかった」の知らせ）。
+    @discardableResult
+    public func grantAdChallenge(forDay dayKey: Int, now: Date) -> Bool {
+        refreshDay(now: now)
+        guard ledger.dayKey == dayKey, ledger.grantAd() else { return false }
+        HomerunStorage.saveLedger(ledger, defaults)
+        return true
+    }
+
+    /// 広告を出す前に控える「今日」の鍵（`grantAdChallenge(forDay:now:)` へ渡す）。
+    public var currentDayKey: Int { ledger.dayKey }
 
     /// 10 球の結果から打席前へ戻る。
     public func backToLobby() {
@@ -280,6 +310,10 @@ public final class HomerunModel {
         guard phase == .pitching, var challenge else { return nil }
         let ball = challenge.swing(swing)
         self.challenge = challenge
+        if !hasProgressed {
+            hasProgressed = true
+            services?.gameDidProgress(gameID: Self.gameID)
+        }
         lastBall = ball
         phase = .ballResult
         pitchStart = nil
@@ -296,6 +330,13 @@ public final class HomerunModel {
         records.record(challenge)
         isNewBest = records.bestTotalTenths > previousBest
         HomerunStorage.saveRecords(records, defaults)
+        // 決着 1 回につき `gameDidFinish` は 1 回だけ。合計飛距離（m・切り捨て）を points に載せる。
+        // 柵越えが 1 本でもあれば勝ち（評価リクエストの見せ場）、無ければ負け。
+        services?.gameDidFinish(
+            gameID: Self.gameID,
+            outcome: challenge.homerCount > 0 ? .win : .loss,
+            score: GameScore(metric: .points, points: Int(challenge.totalDistance))
+        )
     }
 
     private func finish() {

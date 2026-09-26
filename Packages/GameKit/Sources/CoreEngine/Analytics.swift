@@ -54,6 +54,10 @@ public enum RewardPurpose: String, Equatable, Sendable, CaseIterable {
     /// #500 が挙げた6分類のどれにも当たらないため足した7つ目（詳細は PR の「社長判断」）。
     /// 盤面は生きたままで、ゲームオーバーからの続行（`continue`）でも復活（`revival`）でもない。
     case shuffle
+    /// 1 日の挑戦回数を 1 回ぶん増やす（柵越えおじさん・#1348）。
+    ///
+    /// 盤面を救う 7 種とは違い、**回数制の枠そのものを買い足す**ため 8 つ目として足した（詳細は PR の「社長判断」）。
+    case challenge
 }
 
 /// `reward_offer` の `result`。リワード広告を**提示した 1 回がどう終わったか**（#780）。
