@@ -37,7 +37,7 @@ public struct ConcentrationView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "神経衰弱", review: services.review, tint: Theme.purple) {
+        .gameChrome(title: "神経衰弱", review: services.review) {
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     if model.hasProgressToLose {

@@ -21,34 +21,26 @@ public extension View {
     /// - Parameters:
     ///   - title: ナビゲーションバー中央に出す表示名。
     ///   - review: 評価リクエストの実行をこの画面に紐づける（`GameServices.review`）。
-    ///   - tint: ツールバーのボタンの色。既定は `Theme.coral`。
-    ///   - matchesNavigationBarBackground: ナビバーの背景をコンテンツの背景色に揃えるか。
-    ///     既定の白い帯がクリーム色のコンテンツと食い違い、画面上部だけ白く見えるという
-    ///     会長指摘を受けて麻雀に入れたもの。**現状これを立てているのは麻雀だけ**で、
-    ///     他ゲームは既定の帯のまま。見た目を変えないための引数なので、全ゲームで揃えるかは
-    ///     別途決めること（この差自体が #528 の言う「ばらつき」の一例）。
+    ///
+    /// ナビバーの背景は全ゲームで画面の背景色（`Theme.background`）に揃え、ツールバーのボタンは
+    /// `Theme.coral` に固定する（#1412・会長決裁 2026-09-25。既定の白い帯がクリーム色の画面と
+    /// 食い違う、神経衰弱だけボタンが紫、というばらつきを引数ごと無くした）。
     ///   - actions: ツールバー右側に置くゲーム固有の操作。
     func gameChrome<Actions: ToolbarContent>(
         title: String,
         review: ReviewRequestService?,
-        tint: Color = Theme.coral,
-        matchesNavigationBarBackground: Bool = false,
         @ToolbarContentBuilder actions: () -> Actions
     ) -> some View {
-        modifier(GameChromeBase(review: review, tint: tint,
-                                matchesNavigationBarBackground: matchesNavigationBarBackground))
+        modifier(GameChromeBase(review: review))
             .modifier(GameChromeToolbar(title: title, actions: actions()))
     }
 
     /// ツールバー右側に何も置かないゲーム用（ブラックジャックなど）。
     func gameChrome(
         title: String,
-        review: ReviewRequestService?,
-        tint: Color = Theme.coral,
-        matchesNavigationBarBackground: Bool = false
+        review: ReviewRequestService?
     ) -> some View {
-        modifier(GameChromeBase(review: review, tint: tint,
-                                matchesNavigationBarBackground: matchesNavigationBarBackground))
+        modifier(GameChromeBase(review: review))
             .modifier(GameChromeToolbarOnly(title: title))
     }
 }
@@ -71,8 +63,6 @@ private func gameChromeBarItems(title: String, dismiss: DismissAction) -> some T
 /// 背景・評価リクエスト・ナビバーの構成。ツールバーの中身より前に当てる。
 private struct GameChromeBase: ViewModifier {
     let review: ReviewRequestService?
-    let tint: Color
-    let matchesNavigationBarBackground: Bool
 
     func body(content: Content) -> some View {
         content
@@ -81,9 +71,9 @@ private struct GameChromeBase: ViewModifier {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
-            .modifier(NavigationBarBackgroundMatch(isEnabled: matchesNavigationBarBackground))
+            .modifier(NavigationBarBackgroundMatch())
             #endif
-            .tint(tint)
+            .tint(Theme.coral)
     }
 }
 
@@ -112,18 +102,15 @@ private struct GameChromeToolbarOnly: ViewModifier {
 }
 
 #if os(iOS)
-/// ナビバーの背景をコンテンツの背景色に揃える（立てたときだけ）。
+/// ナビバーの背景をコンテンツの背景色に揃える。
+///
+/// 可視性（`.visible`）は指定しない。常時不透明にすると、結果表示などの「画面全体を暗くする覆い」が
+/// バーの手前まで届かず、バーだけ明るく残る（#1444 の CodeRabbit 指摘）。自動のままなら、
+/// 先頭にいるあいだはバーが透けて背景と覆いがそのまま見え、スクロールしたときだけこの色で塗られる。
 private struct NavigationBarBackgroundMatch: ViewModifier {
-    let isEnabled: Bool
-
     func body(content: Content) -> some View {
-        if isEnabled {
-            content
-                .toolbarBackground(Theme.background, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
-        } else {
-            content
-        }
+        content
+            .toolbarBackground(Theme.background, for: .navigationBar)
     }
 }
 #endif

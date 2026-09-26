@@ -51,7 +51,9 @@ struct GameChromeSourceTests {
     @Test("枠の中身はゲーム側に書き写されていない")
     func chromeInternalsStayInCore() {
         // 戻るボタンの自前化と評価リクエストの紐づけは Core の gameChrome だけが持つ。
-        for forbidden in ["navigationBarBackButtonHidden", ".reviewRequestPrompt("] {
+        // ナビバーの背景とボタン色も Core に固定（#1412）。ゲーム側の上書きは 1 本だけ違う色に戻る。
+        for forbidden in ["navigationBarBackButtonHidden", ".reviewRequestPrompt(",
+                          ".toolbarBackground(", "matchesNavigationBarBackground"] {
             for game in Self.gameDirectories {
                 let hit = game.files.contains { $0.contains(forbidden) }
                 #expect(hit == false, "\(game.name) が \(forbidden) を自前で持っている")
