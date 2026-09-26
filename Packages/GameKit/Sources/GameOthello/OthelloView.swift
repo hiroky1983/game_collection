@@ -100,28 +100,17 @@ public struct OthelloView: View {
     // MARK: - Status Bar (スコアも一行に統合)
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             // 手番 / 結果
             if model.gameOver {
-                Text("終局")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.fillMuted))
+                TurnBadge("終局", kind: .finished)
             } else {
-                let isMine = !model.isAITurn
-                Text(isMine ? "あなたの番" : "CPUの番")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
+                TurnBadge(isYourTurn: !model.isAITurn)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                 }
             }
-
-            Spacer()
-
+        } trailing: {
             // コンパクトスコア（終局後はリザルトと同じ「残りマス加算」後の数字。#440）
             HStack(spacing: 5) {
                 Circle()
@@ -142,9 +131,6 @@ public struct OthelloView: View {
                     .frame(width: 13, height: 13)
             }
         }
-        // 縦の余白は 6。石・数字の大きさは変えずに、ここからも盤の高さを捻出している（#148）。
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - Board

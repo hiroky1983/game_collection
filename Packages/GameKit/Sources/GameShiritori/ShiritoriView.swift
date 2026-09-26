@@ -92,11 +92,17 @@ public struct ShiritoriView: View {
 
     private var statusBar: some View {
         VStack(spacing: 6) {
-            HStack(spacing: 8) {
+            GameStatusBar {
+                switch model.phase {
+                case .idle: EmptyView()
+                case .playing: TurnBadge(isYourTurn: model.isPlayerTurn)
+                default: TurnBadge("終了", kind: .finished)
+                }
                 Label("\(max(model.gameNumber, 1))ゲーム目", systemImage: "number")
                     .themeBody(13)
                     .foregroundStyle(Theme.inkSub)
-                Spacer()
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            } trailing: {
                 Text(model.quota.label)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.onAccent)
@@ -104,9 +110,8 @@ public struct ShiritoriView: View {
                     .background(Capsule().fill(Theme.Fill.purple))
             }
             timeBar
+                .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private var timeBar: some View {

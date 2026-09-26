@@ -96,25 +96,23 @@ public struct HanafudaView: View {
 
     private var scoreBar: some View {
         VStack(spacing: 6) {
-            HStack {
+            GameStatusBar {
                 scoreChip(title: "あなた", value: model.humanTotal, fill: Theme.Fill.teal)
-                Spacer(minLength: 8)
+            } trailing: {
                 if model.phase != .matchResult {
                     Text(model.round > model.options.rounds ? "延長戦" : "\(model.round) / \(model.options.rounds)局")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.inkSub)
-                    Spacer(minLength: 8)
                 }
-                scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.purple)
+                scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.coral)
             }
             Text(model.message)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
                 .lineLimit(2)
         }
-        .padding(10)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private func scoreChip(title: String, value: Int, fill: Color) -> some View {
@@ -310,9 +308,7 @@ public struct HanafudaView: View {
             }
         default:
             HStack(spacing: 10) {
-                Text(model.isPlayerTurn ? "あなたの番です" : "CPUが考えています…")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
+                TurnBadge(isYourTurn: model.isPlayerTurn)
                 Spacer()
                 Button { showResignConfirm = true } label: {
                     Text("投了")

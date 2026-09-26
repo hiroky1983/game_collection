@@ -422,18 +422,13 @@ public struct ShogiView: View {
     // MARK: - ステータス
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             if let result = model.resultText {
                 Label(result, systemImage: "flag.checkered")
                     .themeBody(16).foregroundStyle(Theme.coral)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text(model.position.sideToMove == .black ? "先手番" : "後手番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    // 面色が先手＝濃色 / 後手＝差し色と大きく違うので、文字色も面に合わせて変える（#220）。
-                    .foregroundStyle(model.position.sideToMove == .black ? .white : Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 2)
-                    .background(Capsule().fill(model.position.sideToMove == .black ? Theme.fillStrong : Theme.Fill.teal))
+                TurnBadge(isYourTurn: model.position.sideToMove == model.humanSide)
                     // 手番が移ったことを色の移り変わりで見せる（#201）。文字は差し替わるだけなので、
                     // 目に留まるのは色の変化。着手そのものを待たせないよう短く取る。
                     .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
@@ -444,7 +439,7 @@ public struct ShogiView: View {
                     Text("直前 \(last)").themeBody(14).foregroundStyle(Theme.ink)
                 }
             }
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 // 終局後の記録は行を増やさずここに同居させる（#139）。手数は検討ナビが
                 // 「n/N手」で出しているため、入れ替えても情報は失われない。
@@ -454,9 +449,6 @@ public struct ShogiView: View {
                 Text("\(model.moves.count)手").themeBody(13).foregroundStyle(Theme.inkSub)
             }
         }
-        .frame(minHeight: 36)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 盤の下の操作エリア

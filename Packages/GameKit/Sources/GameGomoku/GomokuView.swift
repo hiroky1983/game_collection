@@ -281,7 +281,7 @@ public struct GomokuView: View {
     // MARK: - Status Bar
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             if let w = model.winner {
                 Label(w == model.humanSide ? "あなたの勝ち！" : "CPUの勝ち",
                       systemImage: "flag.checkered")
@@ -292,18 +292,13 @@ public struct GomokuView: View {
                     .themeBody(16).foregroundStyle(Theme.inkSub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                let isMine = model.currentStone == model.humanSide
-                Text(isMine ? "あなたの番" : "CPUの番")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Capsule().fill(isMine ? Theme.Fill.teal : Theme.Fill.coral))
+                TurnBadge(isYourTurn: model.currentStone == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
                     Text("思考中…").themeBody(13).foregroundStyle(Theme.inkSub)
                 }
             }
-            Spacer(minLength: 8)
+        } trailing: {
             if model.gameOver {
                 // 終局後の記録は行を増やさずここに同居させる（#148）。
                 // 将棋（#139）は手数を検討ナビの「n/N手」に譲れたが、五目並べには
@@ -313,9 +308,6 @@ public struct GomokuView: View {
             }
             Text("\(model.moveCount)手").themeBody(13).foregroundStyle(Theme.inkSub)
         }
-        .frame(minHeight: 32)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private var gameControls: some View {

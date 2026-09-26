@@ -362,9 +362,9 @@ struct ShogiOverlayMotionSourceTests {
     func turnBadgeAnimatesColor() throws {
         let lines = try ShogiPieceLayerSourceTests.lines(ofFunction: "private var statusBar: some View {")
         guard let badge = lines.firstIndex(where: {
-            $0.hasPrefix(".background(Capsule().fill(model.position.sideToMove")
+            $0.hasPrefix("TurnBadge(isYourTurn: model.position.sideToMove")
         }) else {
-            Issue.record("手番バッジの背景が見つからない:\n\(lines.joined(separator: "\n"))")
+            Issue.record("手番バッジ（TurnBadge）が見つからない:\n\(lines.joined(separator: "\n"))")
             return
         }
         // バッジの色は `sideToMove` から決まるので、同じ値を見張る指定がバッジに要る。

@@ -126,19 +126,16 @@ public struct ConcentrationView: View {
     // MARK: - Status Bar
 
     private var statusBar: some View {
-        HStack(spacing: 8) {
+        GameStatusBar {
             scoreChip(label: "あなた", score: model.playerScore,
                       color: Theme.Fill.teal, isActive: model.isHumanTurn && !model.isGameOver)
-            Spacer()
-            if model.isThinking {
-                ProgressView().controlSize(.small)
-            }
-            Spacer()
+        } trailing: {
+            // 常に場所を取り、思考中の出入りで CPU のチップが左右に動かないようにする。
+            ProgressView().controlSize(.small)
+                .opacity(model.isThinking ? 1 : 0)
             scoreChip(label: "CPU", score: model.cpuScore,
                       color: Theme.Fill.coral, isActive: !model.isHumanTurn && !model.isGameOver)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     private func scoreChip(label: String, score: Int, color: Color, isActive: Bool) -> some View {
