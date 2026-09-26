@@ -84,45 +84,28 @@ struct BoardHintButtonSourceTests {
     ])
     func everyBoardGameUsesTheSharedButton(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
-        #expect(SourceScan.matchCount(of: #"BoardHintButton\(model: model\)"#, in: source) == 1,
+        #expect(SourceScan.matchCount(of: #"BoardControlBarHint\(model\)"#, in: source) == 1,
                 "\(path) が共通のヒントボタンを通っていない")
         // 文字・アイコン・色を各ゲームで持ち直していない（持つと「同じ見た目」が崩れる）。
         #expect(!source.contains("\"ヒント"), "\(path) がヒントの文言を持ち直している")
         #expect(!source.contains("lightbulb"), "\(path) がヒントのアイコンを持ち直している")
     }
 
-    /// 将棋・チェスの操作列はカプセルが約 30pt の 1 行なので、44pt の枠はレイアウト上だけ詰める
-    /// （詰めないと対局中の操作列だけが高くなり、決着の瞬間に盤が縮む・#139・#148）。
-    /// 五目並べの操作列は元から 44pt で組んであるので詰めない（#711）。
-    @Test(arguments: [
-        ("GameShogi/ShogiView.swift", true),
-        ("GameChess/ChessView.swift", true),
-        ("GameGomoku/GomokuView.swift", false),
-    ])
-    func hintButtonKeepsTheControlRowHeight(path: String, needsInset: Bool) throws {
-        let controls = SourceScan.strippingComments(
-            SourceScan.functionSource(
-                startingWith: "private var gameControls: some View {",
-                in: try SourceScan.packageSource("Sources/\(path)")
-            )
-        )
-        try #require(!controls.isEmpty, "走査の前提が壊れている: gameControls が見つからない")
-        let inset = #"\.padding\(\.vertical, -BoardGameControlMetrics\.reviewNavLayoutInset\)"#
-        #expect(SourceScan.matchCount(of: inset, in: controls) == (needsInset ? 1 : 0),
-                "\(path) のヒントボタンの余白の詰め方が合っていない")
-    }
-
-    /// 共通のボタンの中身。黄色 + 電球はナンプレのヒントと同じで、押せない状態は `canUseHint` に結線する。
-    @Test("共通のボタンは黄色のカプセルで、押せない状態を結線する")
-    func sharedButtonWiresLookAndDisabledState() throws {
+    /// 共通の操作行の中身。ヒントは「⋯」メニューの中で電球 + 残り回数を出し、押せない状態は `canUseHint` に結線する（#1421）。
+    /// 操作行の高さは 44pt 固定で、決着で入れ替わっても盤が縮まない（#139）。
+    @Test("共通の操作行はヒントをメニューに入れ、押せない状態を結線し、高さを固定する")
+    func controlBarWiresHintMenuAndFixedHeight() throws {
         let source = SourceScan.strippingComments(
-            try SourceScan.packageSource("Sources/Core/BoardGameChrome.swift")
+            try SourceScan.packageSource("Sources/Core/BoardGameControlBar.swift")
         )
-        #expect(source.contains("Text(\"ヒント\\(model.hintsRemaining)\")"), "残り回数を文字に出していない")
-        #expect(source.contains("Image(systemName: \"lightbulb.fill\")"))
-        #expect(source.contains(".buttonStyle(BoardGameControlCapsuleStyle(fill: Theme.Fill.yellow))"))
-        #expect(source.contains(".disabled(!model.canUseHint)"))
-        #expect(source.contains(".accessibilityLabel(\"ヒント、残り\\(model.hintsRemaining)回\")"))
+        #expect(source.contains("\"ヒント（残り\\(hint.remaining)回）\""), "残り回数を文字に出していない")
+        #expect(source.contains("systemImage: \"lightbulb.fill\""))
+        #expect(source.contains(".disabled(!hint.isEnabled)"))
+        #expect(source.contains("isEnabled = model.canUseHint"))
+        #expect(source.contains(".frame(height: BoardGameControlMetrics.minTapTarget)"), "操作行の高さが 44pt 固定でない")
+        #expect(source.contains("Label(\"投了\", systemImage: \"flag.fill\")"))
+        #expect(source.contains(".boardResignConfirmation(isPresented: $showResignConfirm, onResign: onResign)"),
+                "投了に確認ダイアログが付いていない")
     }
 
     /// 盤の上の印は 3 本とも同じ色（`BoardGameHintColor`）。ゲームごとに色を決めると、

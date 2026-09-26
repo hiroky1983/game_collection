@@ -7,7 +7,6 @@ public struct OthelloView: View {
     @State private var showNewGame = false
     @State private var showConfirmNewGame = false
     @State private var showPassAlert = false
-    @State private var showResignConfirm = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
 
@@ -77,7 +76,6 @@ public struct OthelloView: View {
         } message: {
             Text("打てるマスがありません。パスします。")
         }
-        .boardResignConfirmation(isPresented: $showResignConfirm) { model.resign() }
         // `initial: true` が要る（#414）。パスの案内を閉じる前に中断すると `mustPass = true` のまま
         // 保存され、復元後は値が変化しないので 2 引数版 `onChange` は既定では発火しない。
         // パスの手段はこの案内の「OK」だけなので、出ないと着手も「待った」も塞がったまま詰む。
@@ -236,19 +234,11 @@ public struct OthelloView: View {
     // MARK: - Controls
 
     private var gameControls: some View {
-        HStack(spacing: 12) {
-            // 2 つとも同じカプセルに揃え、当たり判定を 44pt にする（#711）。中身は盤ゲーム 5 本で共通（#828）。
-            // 投了の確認ダイアログだけは画面全体に付けている（body の `boardResignConfirmation`）。
-            BoardResignButton(look: .tapTargetCapsule) { showResignConfirm = true }
-
-            Spacer()
-
-            BoardUndoButton(model: model, services: services, rescue: undoRescue, usesTapTargetCapsule: true)
-        }
-        .themeBody(14)
-        // ボタンの枠が 44pt になったぶん上下の余白を詰め、操作列の外寸を据え置く（#711・#148）。
-        .padding(.horizontal, 16).padding(.vertical, BoardGameControlMetrics.rowVerticalPadding)
-        .popCard(corner: Theme.cornerSmall)
+        // 待った・「⋯」（投了）の並びは盤ゲーム 5 本で共通（#1421）。
+        BoardGameControlBar(
+            model: model, services: services, rescue: undoRescue,
+            onResign: { model.resign() }
+        )
     }
 
     private var resultOverlay: some View {

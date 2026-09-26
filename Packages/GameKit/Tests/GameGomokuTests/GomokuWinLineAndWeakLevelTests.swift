@@ -450,7 +450,7 @@ struct UndoWordingMatchesTwoPlyUndoTests {
         let source = try Self.source(path)
         #expect(!source.contains("\"直前の1手を取り消します。"), "\(path) に1手だけ戻るような文言が残っている")
         #expect(!source.contains("広告を視聴すると1手戻せます。"), "\(path) に1手だけ戻るような文言が残っている")
-        #expect(source.contains("BoardUndoButton("), "\(path) が共通の「待った」を通っていない")
+        #expect(source.contains("BoardGameControlBar("), "\(path) が共通の「待った」を通っていない")
     }
 
     @Test func sharedUndoButtonMentionsTheCPUReply() throws {
