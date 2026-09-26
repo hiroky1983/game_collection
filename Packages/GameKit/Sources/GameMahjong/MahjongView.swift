@@ -469,11 +469,10 @@ public struct MahjongView: View {
             // 「1対局に1回」は VoiceOver のヒントだけでなく見た目にも出す（#352。
             // 書かないと2回目を期待して押す人が出る）。
             Label("広告を見て25,000点で復活（1対局に1回）", systemImage: "play.rectangle.fill")
-                .themeBody(16).frame(maxWidth: .infinity)
+                .themeBody(16)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(reviveRescue.isWatching)
         .accessibilityHint("広告を最後まで見ると25,000点で対局を続けられます。1対局に1回だけです")
     }
@@ -489,11 +488,10 @@ public struct MahjongView: View {
             })
         } label: {
             Label("広告を見て東5局を追加（1対局に1回）", systemImage: "play.rectangle.fill")
-                .themeBody(16).frame(maxWidth: .infinity)
+                .themeBody(16)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(extendRescue.isWatching)
         .accessibilityHint("広告を最後まで見ると、東5局をもう1局だけ打てます。最下位のときに1対局に1回だけです")
     }
@@ -512,11 +510,11 @@ public struct MahjongView: View {
             EmptyView()
         case .ronOffer:
             HStack(spacing: 12) {
-                actionButton("見逃す", color: Theme.fillMuted, foreground: .white) {
+                actionButton("見逃す", role: .skip) {
                     model.declineRon()
                     runCPU()
                 }
-                actionButton("ロン", color: Theme.Fill.coral) { model.declareRon() }
+                actionButton("ロン", role: .primary) { model.declareRon() }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -539,9 +537,9 @@ public struct MahjongView: View {
         case .playing:
             HStack(spacing: 12) {
                 if model.isDeclaringRiichi {
-                    actionButton("やめる", color: Theme.fillMuted, foreground: .white) { model.cancelRiichiDeclaration() }
+                    actionButton("やめる", role: .skip) { model.cancelRiichiDeclaration() }
                 } else {
-                    actionButton("立直", color: Theme.Fill.purple, disabled: !model.canDeclareRiichi) {
+                    actionButton("立直", role: .declaration, disabled: !model.canDeclareRiichi) {
                         model.declareRiichi()
                     }
                 }
@@ -552,7 +550,7 @@ public struct MahjongView: View {
                         runCPU()
                     }
                 }
-                actionButton("ツモ", color: Theme.Fill.coral, disabled: !model.canDeclareTsumo) {
+                actionButton("ツモ", role: .primary, disabled: !model.canDeclareTsumo) {
                     model.declareTsumo()
                 }
             }
@@ -564,7 +562,7 @@ public struct MahjongView: View {
             // アガリやめ・トビでも同じ状況なので、押した先に合わせて文言を差し替える。
             actionButton(
                 model.concludesAfterCurrentResult ? "結果を見る" : "次の局へ",
-                color: Theme.Fill.coral
+                role: .primary
             ) {
                 model.advanceToNextHand()
                 runCPU()
@@ -574,7 +572,7 @@ public struct MahjongView: View {
             .frame(minHeight: Self.actionAreaMinHeight)
         case .gameResult:
             // 復活・延長の広告を読み込んでいる間は局を捨てさせない（#1381）。
-            actionButton("もう一度", color: Theme.Fill.coral, disabled: isWatchingRescueAd) {
+            actionButton("もう一度", role: .primary, disabled: isWatchingRescueAd) {
                 model.startGame()
                 runCPU()
             }
@@ -584,20 +582,14 @@ public struct MahjongView: View {
         }
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   `fillMuted` のような濃い面には白を渡す（#220）。
-    private func actionButton(
-        _ title: String, color: Color, foreground: Color = Theme.onAccent,
-        disabled: Bool = false, action: @escaping () -> Void
-    ) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .foregroundStyle(foreground)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(color)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 

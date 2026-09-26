@@ -226,25 +226,25 @@ public struct ShiritoriView: View {
     private var actionArea: some View {
         switch model.phase {
         case .idle:
-            actionButton("ゲームを始める", color: Theme.Fill.coral) { showSetup = true }
+            actionButton("ゲームを始める", role: .primary) { showSetup = true }
         case .playing:
             EmptyView()
         case .result:
-            actionButton("もう一度", color: Theme.Fill.coral) { showSetup = true }
+            actionButton("もう一度", role: .primary) { showSetup = true }
         }
     }
 
-    private func actionButton(_ title: String, color: Color, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
-                .lineLimit(1).minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(color, in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(Theme.onAccent)
+                // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .padding(.horizontal, 16).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
     }

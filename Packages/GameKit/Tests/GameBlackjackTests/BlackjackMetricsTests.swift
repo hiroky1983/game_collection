@@ -24,20 +24,14 @@ struct BlackjackMetricsTests {
         // 定数だけでは View 側を小さいままにする改変を素通しするので、結線もソースで固定する。
         let button = SourceScan.functionSource(startingWith: "private func actionButton(", in: try Self.viewSource())
         #expect(!button.isEmpty, "actionButton の定義が見つからない")
+        // 44pt・角丸・押下フィードバックは `GameButtonStyle`（#1413）が持つ（#1423）。
         #expect(
-            SourceScan.matchCount(of: #"minHeight:\s*BlackjackMetrics\.actionButtonMinHeight"#, in: button) == 1,
-            "actionButton が BlackjackMetrics.actionButtonMinHeight を使っていない"
+            SourceScan.matchCount(of: #"GameButtonStyle\(role:\s*role,\s*shape:\s*\.block\)"#, in: button) == 1,
+            "actionButton が GameButtonStyle(role:shape: .block) を使っていない"
         )
-
-        // 高さを決めていた元の `.padding(.vertical, 10)` が残っていると、下限を外しても
-        // 見た目が 37pt で保たれてしまい上の検証が空振りしうるので、消えていることも見る。
         #expect(
             SourceScan.matchCount(of: #"\.padding\(\.vertical,\s*10\)"#, in: button) == 0,
             "actionButton に高さを決める .padding(.vertical, 10) が残っている"
-        )
-        #expect(
-            SourceScan.matchCount(of: #"\.buttonStyle\(\.pop\)"#, in: button) == 1,
-            "actionButton が押下フィードバック付きの .pop になっていない"
         )
     }
 

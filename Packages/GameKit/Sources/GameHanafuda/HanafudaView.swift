@@ -283,8 +283,8 @@ public struct HanafudaView: View {
         switch model.phase {
         case .koiKoiPrompt:
             HStack(spacing: 10) {
-                actionButton("こいこい", color: Theme.Fill.purple) { model.declareKoiKoi() }
-                actionButton("あがり", color: Theme.Fill.coral, disabled: !model.canStop) {
+                actionButton("こいこい", role: .declaration) { model.declareKoiKoi() }
+                actionButton("あがり", role: .primary, disabled: !model.canStop) {
                     model.declareStop()
                 }
             }
@@ -297,14 +297,14 @@ public struct HanafudaView: View {
                 // 視聴中に試合の結果へ進むと、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(
                     model.round >= model.totalRounds ? "試合の結果へ" : "次の局へ",
-                    color: Theme.Fill.coral,
+                    role: .primary,
                     disabled: extendRescue.isWatching
                 ) { model.advanceAfterRound() }
             }
         case .matchResult:
             HStack(spacing: 10) {
-                actionButton("もう一度", color: Theme.Fill.coral) { model.restartMatch() }
-                actionButton("ハブへ戻る", color: Theme.fillMuted, foreground: .white) { dismiss() }
+                actionButton("もう一度", role: .primary) { model.restartMatch() }
+                actionButton("ハブへ戻る", role: .skip) { dismiss() }
             }
         default:
             HStack(spacing: 10) {
@@ -339,13 +339,8 @@ public struct HanafudaView: View {
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(extendRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
-                            in: RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-                .foregroundStyle(extendRescue.isWatching ? Theme.inkSub : Theme.onAccent)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(extendRescue.isWatching)
     }
 
@@ -410,20 +405,14 @@ public struct HanafudaView: View {
         return "引き分け"
     }
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   濃色の面（`Theme.fillMuted`）には `.white` を渡す（#220）。
-    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
-                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(disabled ? Theme.inkSub.opacity(0.3) : color,
-                            in: RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
-                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 }

@@ -337,7 +337,7 @@ public struct BlackjackView: View {
     /// ディーラーが1枚ずつ引いているあいだの操作欄（#667）。待ちを飛ばして結果まで進められる。
     private var dealerTurnView: some View {
         VStack(spacing: 8) {
-            actionButton("結果まで進める", color: Theme.fillMuted, foreground: .white) {
+            actionButton("結果まで進める", role: .skip) {
                 model.skipDealerDraws()
             }
         }
@@ -354,7 +354,7 @@ public struct BlackjackView: View {
                 ForEach(betOptions, id: \.self) { amount in
                     actionButton(
                         "\(amount)枚",
-                        color: Theme.Fill.coral,
+                        role: .primary,
                         disabled: model.chips < amount
                     ) {
                         model.placeBet(amount)
@@ -369,10 +369,10 @@ public struct BlackjackView: View {
     private var playerActionView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
-                actionButton("スタンド", color: Theme.fillMuted, foreground: .white) {
+                actionButton("スタンド", role: .skip) {
                     model.stand()
                 }
-                actionButton("ヒット", color: Theme.Fill.coral) {
+                actionButton("ヒット", role: .primary) {
                     model.hit()
                 }
             }
@@ -381,13 +381,13 @@ public struct BlackjackView: View {
             if model.isDoubleDownApplicable || model.isSplitApplicable {
                 HStack(spacing: 12) {
                     if model.isDoubleDownApplicable {
-                        actionButton("ダブルダウン", color: Theme.Fill.yellow,
+                        actionButton("ダブルダウン", role: .declaration,
                                      disabled: !model.canDoubleDown) {
                             model.doubleDown()
                         }
                     }
                     if model.isSplitApplicable {
-                        actionButton("スプリット", color: Theme.Fill.purple,
+                        actionButton("スプリット", role: .declaration,
                                      disabled: !model.canSplit) {
                             model.split()
                         }
@@ -402,7 +402,7 @@ public struct BlackjackView: View {
     private var resultView: some View {
         VStack(spacing: 8) {
             RecordLabel(model.recordResult)
-            actionButton("次のゲーム", color: Theme.Fill.coral) {
+            actionButton("次のゲーム", role: .primary) {
                 model.nextRound()
             }
         }
@@ -473,17 +473,15 @@ public struct BlackjackView: View {
                         // 0.8 では SE で 2000 枚の文言が末尾で切れる（#523 の撮影で実測）。
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
-                        .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.yellow)
+                .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
                 .disabled(reviveRescue.isWatching)
             }
 
             Button { model.restartSession() } label: {
-                Text(restartButtonTitle).themeBody(16).frame(maxWidth: .infinity)
-                .foregroundStyle(Theme.onAccent)
+                Text(restartButtonTitle).themeBody(16)
             }
-            .buttonStyle(.borderedProminent).controlSize(.large).tint(Theme.Fill.coral)
+            .buttonStyle(GameButtonStyle(role: .primary, shape: .block))
             // 広告のロード〜視聴中にやり直すと、見終えた復活が新しいセッションへ乗りかける（#727）。
             // モデル側でも照合しているが、押せる窓そのものを塞ぐ。
             .disabled(reviveRescue.isWatching)
@@ -494,27 +492,17 @@ public struct BlackjackView: View {
 
     // MARK: - Helper
 
-    /// - Parameter foreground: 面（`color`）の上に載せる文字色。差し色の面には `Theme.onAccent`、
-    ///   `fillMuted` のような濃い面には白を渡す（#220）。
-    private func actionButton(_ title: String, color: Color, foreground: Color = Theme.onAccent,
-                              disabled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
+    private func actionButton(_ title: String, role: GameButtonRole, disabled: Bool = false,
+                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
-                // 文字を拡大すると「200枚」が「20」「0枚」に折り返されて別の額に読めるため、
-                // 折り返さずに縮めて収める（#189）。
+                // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                // 高さは上下の余白（10pt）任せだと約 37pt で Apple HIG の 44pt に届かない（#709）。
-                // 見た目のトーン（角丸・色）は変えず、下限だけを与えて背景ごと 44pt にする。
-                // 文字が大きくなって 44pt を超えるぶんには従来どおり伸びる。
-                .frame(maxWidth: .infinity, minHeight: BlackjackMetrics.actionButtonMinHeight)
-                .background(disabled ? Theme.inkSub.opacity(0.3) : color,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(disabled ? Theme.inkSub : foreground)
         }
-        // `.plain` は押下フィードバックも消えるので、押している間だけ沈む `.pop` を使う（#195）。
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: role, shape: .block))
         .disabled(disabled)
     }
 }
