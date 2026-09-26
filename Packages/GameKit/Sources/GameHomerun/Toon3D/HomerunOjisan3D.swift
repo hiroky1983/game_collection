@@ -100,8 +100,8 @@ extension HomerunToonModel {
             m.bat([-1.3, 0.14, 1.3], [1.4, 0.14, 1.7], wood: C.wood, woodDark: C.woodDark)
         }
         // 頭
-        let headTurn = rotation(angle: p.headTilt, axis: [0, 0, 1]) * rotation(angle: p.bodyYaw * 0.4, axis: [0, 1, 0])
-            * rotation(angle: p.headPitch, axis: [1, 0, 0])
+        let headTurn = rotation(angle: p.headPitch, axis: [1, 0, 0]) * rotation(angle: p.bodyYaw * 0.4, axis: [0, 1, 0])
+            * rotation(angle: p.headTilt, axis: [0, 0, 1])
         m.group(translation([0, 3.3, 0]) * headTurn) { $0.head(p, outfit: outfit) }
         return m
     }
