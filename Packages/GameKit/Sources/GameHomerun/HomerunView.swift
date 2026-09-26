@@ -86,7 +86,7 @@ struct HomerunLobbyView: View {
                 todayCard
                 recordsCard
                 Button {
-                    withGameAnimation { model.start(now: Date()) }
+                    withGameAnimation { _ = model.start(now: Date()) }
                 } label: {
                     Label("打席に立つ", systemImage: "figure.baseball")
                         .themeBody(18)
@@ -289,7 +289,7 @@ struct HomerunResultView: View {
         let remaining = model.ledger.remaining
         return HStack(spacing: 10) {
             Button {
-                withGameAnimation { model.start(now: Date()) }
+                withGameAnimation { _ = model.start(now: Date()) }
             } label: {
                 Label(remaining > 0 ? "もう一回（残り \(remaining)）" : "今日はおしまい",
                       systemImage: "arrow.counterclockwise")
