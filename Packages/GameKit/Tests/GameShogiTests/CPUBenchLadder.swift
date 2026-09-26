@@ -123,7 +123,10 @@ enum CPUBenchLadder {
                        slipMargin: Int? = nil, seed: UInt64) -> SimpleMinimaxEngine {
         let shipped = SimpleMinimaxEngine(level: strength.rawValue)
         var policy = shipped.policy
-        if let p = bestMoveProbability { policy.bestMoveProbability = p }
+        if let p = bestMoveProbability {
+            policy.bestMoveProbability = p
+            if policy.slipMargin == 0 { policy.slipMargin = SimpleMinimaxEngine.slipMargin }  // 「むずかしい」の確率を下げて試すとき
+        }
         if let m = slipMargin, !policy.isExact { policy.slipMargin = m }
         return SimpleMinimaxEngine(
             depth: shipped.depth, usePositional: shipped.usePositional, useQuiescence: shipped.useQuiescence,

@@ -93,14 +93,6 @@ enum ShogiSelfPlay {
             useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: .infinity,
             nodeLimit: nil, policy: slips ? shipped.policy : shipped.policy.withoutSlip, seed: seed)
     }
-
-    /// 対局を回すテスト用の軽い設定（深さ 2・静止探索なし）。確率と損の幅は出荷値のまま。
-    static func light(level: Int, seed: UInt64? = nil) -> SimpleMinimaxEngine {
-        let shipped = SimpleMinimaxEngine(level: level)
-        return SimpleMinimaxEngine(
-            depth: 2, usePositional: false, useQuiescence: false, useBook: false, timeLimit: .infinity,
-            nodeLimit: nil, policy: shipped.policy, seed: seed)
-    }
 }
 
 @Suite("将棋の難易度: 段階の設計（#1461）")
