@@ -7,7 +7,7 @@ import HomerunCore
 /// 上端: 球数 / 今回の合計 / 柵越え本数 + 直前 2 球のチップ・方向メーター。中央やや上: 9 分割のゾーン・的・縮む輪・
 /// ミートカーソル。下 1/3: 押せる帯（受け口の円は置かない）と案内 1 本・押している指の残像。
 ///
-/// ゾーン・的・カーソルは画面の上寄り（高さの 42%）に置き、押せる帯（下 1/3）と重ねない = 指で的を隠さない。
+/// ゾーン・的・カーソルは画面の上寄り（高さの 45%）に置き、押せる帯（下 1/3）と重ねない = 指で的を隠さない。
 struct HomerunAtBatView: View {
     let model: HomerunModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -17,13 +17,16 @@ struct HomerunAtBatView: View {
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
-            let zoneCenter = CGPoint(x: size.width / 2, y: size.height * 0.42)
+            // 3D の背景は安全域の外まで（画面全体に）広がるので、ゾーンの位置は全画面の高さで割り、ここの座標（安全域の内側）に直す。
+            let inset = geo.safeAreaInsets
+            let fullHeight = size.height + inset.top + inset.bottom
+            let zoneCenter = CGPoint(x: size.width / 2, y: fullHeight * HomerunAtBatLayout.zoneScreenFraction - inset.top)
             let padHeight = size.height / 3
             // 型名で書く（`.animation(` は素のアニメーション API と見分けが付かず、Reduce Motion の走査に掛かる）。
             TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: model.phase != .pitching || model.isHeld)) { timeline in
                 let now = timeline.date
                 ZStack(alignment: .top) {
-                    HomerunFieldBackdrop(zoneCenter: zoneCenter)
+                    HomerunAtBatBackdrop(zoneCenter: zoneCenter)
                     HomerunZoneCanvas(
                         zoneCenter: zoneCenter,
                         ball: model.phase == .pitching ? model.ballPoint : nil,
@@ -170,9 +173,24 @@ struct HomerunAtBatView: View {
     }
 }
 
-// MARK: - 背景（2D の仮絵）
+// MARK: - 背景
 
-/// 客席・芝・土・本塁。3D（RealityKit）に差し替えるまでの仮絵。
+/// 打席の背景。iOS は 3D（RealityKit）のセンターカメラ、それ以外（macOS の `swift test`）は 2D の仮絵。
+struct HomerunAtBatBackdrop: View {
+    let zoneCenter: CGPoint
+
+    var body: some View {
+        #if os(iOS) && canImport(RealityKit)
+        HomerunAtBatScene3DView().ignoresSafeArea()
+        #else
+        HomerunFieldBackdrop(zoneCenter: zoneCenter)
+        #endif
+    }
+}
+
+// MARK: 2D の仮絵
+
+/// 客席・芝・土・本塁。3D（RealityKit）が描けない環境（macOS）の代わりの絵。
 struct HomerunFieldBackdrop: View {
     let zoneCenter: CGPoint
 
@@ -213,7 +231,7 @@ struct HomerunFieldBackdrop: View {
             plate.closeSubpath()
             ctx.fill(plate, with: .color(.white))
         }
-        // 打者（右打席 = 画面の左）: 3D モデルに差し替えるまでの仮絵として、ハブと同じおじさんのマスコット。
+        // 打者（右打席 = 画面の左）: ハブと同じおじさんのマスコット。
         .overlay(alignment: .topLeading) {
             let batterSize = HomerunZoneGeometry.zoneSize * 1.6
             OjisanCanvas(parts: OjisanArt.poseParts(.mascotFront))
