@@ -15,7 +15,7 @@ struct HomerunStadium3DTests {
         let colors = stadium.parts.map(\.color)
         #expect(Set(colors).count == colors.count, "同じ色の部品が分かれている")
         #expect(stadium.parts.allSatisfy { $0.outline == nil && !$0.striped })
-        #expect(stadium.parts.count < 40, "実体が \(stadium.parts.count) 個ある（客席が色ごとにまとまっていない）")
+        #expect(stadium.parts.count < 48, "実体が \(stadium.parts.count) 個ある（客席が色ごとにまとまっていない）")
         for part in stadium.parts {
             let m = part.mesh
             #expect(m.indices.count % 3 == 0 && m.indices.allSatisfy { Int($0) < m.positions.count })
@@ -37,13 +37,108 @@ struct HomerunStadium3DTests {
         #expect(HomerunJudge.fence(atDirection: 0) == 122 && abs(HomerunJudge.fence(atDirection: 45) - 100) < 1e-9)
     }
 
-    @Test("球場は地面（y ≒ 0）から客席の最上段までで、本塁の後ろにも客席がある")
+    @Test("球場は地面（y ≒ 0）から雲までで、本塁の後ろにも客席がある")
     func stadiumExtent() {
         let ys = allPositions.map(\.y)
         #expect(ys.min()! >= -0.03)
-        #expect(ys.max()! < 20)
+        #expect(ys.max()! < 100)
         #expect(allPositions.contains { $0.z < -20 && $0.y > 5 }, "本塁の後ろのスタンドが無い")
         #expect(allPositions.contains { $0.z > 110 }, "外野スタンドが無い")
+    }
+
+    private func positions(of color: UInt32) -> [SIMD3<Float>] {
+        stadium.parts.first { $0.color == color }?.mesh.positions ?? []
+    }
+
+    @Test("スタンドは 1 周つながる: 両翼（60°〜120°）と外野・バックネット裏のどこにも下段・上段の座席がある")
+    func standsWrapAround() {
+        typealias S = HomerunToonModel.StadiumColor
+        let lower = (0..<S.crowd.count).flatMap { positions(of: S.mutedCrowd($0, fraction: S.lowerTierMute)) }
+        let upper = (0..<S.crowd.count).flatMap { positions(of: S.mutedCrowd($0, fraction: S.upperTierMute)) }
+        #expect(!lower.isEmpty && !upper.isEmpty)
+        func direction(_ p: SIMD3<Float>) -> Double { atan2(Double(p.x), Double(p.z)) * 180 / .pi }
+        for deg in stride(from: -170.0, through: 170.0, by: 20) where abs(deg) >= 8 {
+            #expect(lower.contains { abs(direction($0) - deg) < 5 }, "\(deg)° に下段の座席が無い")
+            #expect(upper.contains { abs(direction($0) - deg) < 5 }, "\(deg)° に上段の座席が無い")
+        }
+        // 上段は下段より高く・奥にある（段差）。
+        let topOfLower = lower.map(\.y).max()!, bottomOfUpper = upper.map(\.y).min()!
+        #expect(bottomOfUpper > topOfLower - 0.5, "上段（\(bottomOfUpper)）が下段の最上列（\(topOfLower)）より低い")
+        #expect(HomerunToonModel.Stand.depth(row: HomerunToonModel.Stand.lowerRows) - HomerunToonModel.Stand.depth(row: HomerunToonModel.Stand.lowerRows - 1) > 3,
+                "上段の前に通路が無い")
+        // 中堅（|θ| < 6°）はバックスクリーンで、座席は置かない。
+        #expect(!lower.contains { abs(direction($0)) < 3 && $0.z > 100 }, "バックスクリーンの位置に座席がある")
+        // 箱の頂点は角だけなので、幅 26m の板の角（x = ±13）で見る。
+        #expect(positions(of: S.battersEye).contains { abs(abs($0.x) - 13) < 0.01 && $0.z > 120 && $0.y > 14 }, "バックスクリーンが無い")
+    }
+
+    @Test("スタンドの前縁: 外野は柵の 2m 外・バックネット裏は 16m・両翼はファウルラインの 16m 外側の直線で、弧と直線がつながる")
+    func standFront() {
+        typealias M = HomerunToonModel
+        #expect(abs(Double(M.standFront(0, depth: 0)) - 124) < 1e-3)
+        #expect(abs(Double(M.standFront(180, depth: 0)) - 16) < 1e-3 && abs(Double(M.standFront(-150, depth: 5)) - 21) < 1e-3)
+        // 90°（一塁線の真横）: ファウルラインからの垂直距離 16m → 本塁から 16/sin45° = 22.6m。
+        #expect(abs(Double(M.standFront(90, depth: 0)) - 16 / sin(Double.pi / 4)) < 1e-3)
+        // 135° で直線と本塁の弧が一致し、46° 付近で直線は柵の弧に切り替わる（弧より外へは出ない）。
+        #expect(abs(M.standFront(135, depth: 3) - M.standFront(136, depth: 3)) < 0.05)
+        #expect(M.standFront(50, depth: 0) <= Float(HomerunJudge.fence(atDirection: 46)) + 2 + 1e-3)
+        // 奥の列ほど外へ（両翼は垂直距離が増えるので本塁からの距離はより速く増える）。
+        #expect(M.standFront(100, depth: 10) > M.standFront(100, depth: 0) + 10)
+    }
+
+    @Test("設備: 照明塔 4 基（灯体は 30m より上）・スコアボード（中堅の奥・16m より上）・ファウルポール（両翼 100m の柵の上・20m）")
+    func facilities() {
+        typealias S = HomerunToonModel.StadiumColor
+        let lamps = positions(of: S.lamp).filter { $0.y > 30 }
+        #expect(!lamps.isEmpty)
+        for (x, z) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+            #expect(lamps.contains { Double($0.x) * x > 20 && Double($0.z) * z > 5 }, "(\(x), \(z)) の象限に照明塔が無い")
+        }
+        #expect(positions(of: S.screen).contains { abs(abs($0.x) - 12) < 0.01 && $0.z > 145 && $0.y > 16 }, "スコアボードが無い")
+        let yellow = positions(of: HomerunToonPalette.yellow)
+        let r = 100 * sin(Double.pi / 4)
+        for s in [-1.0, 1.0] {
+            #expect(yellow.contains { abs(Double($0.x) - s * r) < 1 && abs(Double($0.z) - r) < 1 && $0.y > 19 }, "\(s > 0 ? "右" : "左")翼のファウルポールが無い")
+        }
+    }
+
+    @Test("内野: 土の弧の上にダイヤモンドの内側とファウルラインの外側の芝が戻り、走路は 4 辺ある")
+    func infieldDirtAndGrass() {
+        typealias S = HomerunToonModel.StadiumColor
+        let grass = positions(of: S.grass), dirt = positions(of: S.dirt)
+        // 土の弧（マウンド中心・半径 29m）の頂点。
+        #expect(dirt.contains { abs(Double($0.z) - (18.44 + 29)) < 0.5 && abs($0.x) < 0.5 })
+        // 箱の頂点は角だけ。ダイヤモンドの内側の芝（走路の内側に 25.5m 角）は二塁側の角 (0, 19.4 + 25.5/√2) が土より上（y ≥ 0.02）。
+        let diamondTip = 19.4 + 25.5 / Float(2).squareRoot()
+        #expect(grass.contains { abs($0.x) < 0.01 && abs($0.z - diamondTip) < 0.01 && $0.y >= 0.02 }, "ダイヤモンドの内側の芝が無い・土より下にある")
+        // ファウルラインの外側の芝は本塁の後ろ（z < -20）まで届き、縞（y ≤ 0）より上にある。
+        #expect(grass.contains { $0.z < -20 && $0.y >= 0.02 }, "ファウル側の芝が無い")
+        // 一塁→二塁・三塁→二塁の走路: 一塁側の端の内側の角 (±18.72, 18.74)（本塁→一塁の走路の角 (±20.06, 18.72) とは別）。
+        for s: Float in [-1, 1] {
+            #expect(dirt.contains { abs($0.x - s * 18.72) < 0.05 && abs($0.z - 18.74) < 0.05 && $0.y >= 0.04 }, "塁間の走路が無い")
+        }
+    }
+
+    @Test("遠景（街並み・雲）は陰影なし（shade = 1）で、スタンドの外（220m 以遠）にある")
+    func skylineIsFlatAndFar() {
+        typealias S = HomerunToonModel.StadiumColor
+        for color in [S.skylineNear, S.skylineFar, S.cloud] {
+            let part = stadium.parts.first { $0.color == color }
+            #expect(part != nil, "\(String(color, radix: 16)) が無い")
+            guard let part else { continue }
+            #expect(part.mesh.shade.allSatisfy { $0 == 1 })
+            #expect(part.mesh.positions.allSatisfy { simd_length(SIMD2($0.x, $0.z)) > 200 })
+        }
+        // 球場の本体（座席）は陰影が付く。
+        let seat = stadium.parts.first { $0.color == S.mutedCrowd(0, fraction: S.lowerTierMute) }!
+        #expect(seat.mesh.shade.contains { $0 < 0.5 })
+    }
+
+    @Test("三角形の数は 20 万未満（古い端末で 60fps を保つ予算）")
+    func triangleBudget() {
+        let triangles = stadium.parts.reduce(0) { $0 + $1.mesh.indices.count / 3 }
+        #expect(triangles < 200_000, "三角形が \(triangles) 個")
+        #expect(triangles > 40_000, "球場が薄すぎる（\(triangles) 個）")
     }
 
     @Test("merged は輪郭線つきの部品を分けたまま残し、頂点数の合計を変えない")
@@ -113,6 +208,42 @@ struct HomerunStadium3DTests {
         let feet = L.screenFraction(of: [L.batter.position.x, 0, L.batter.position.z])
         #expect(head > 0.05 && feet < 0.95, "打者が画面の外（頭 \(head)・足元 \(feet)）")
         #expect(L.zoneScreenFraction + 0.2 < 2.0 / 3, "ゾーンの下端が押せる帯（下 1/3）に食い込む")
+    }
+
+    @Test("カメラの案はどれもストライクゾーンの中心を画面の横の中央・高さ 45% に映し、打者の頭と足元が画面に収まる",
+          arguments: HomerunAtBatLayout.CameraPreset.allCases)
+    func presetsKeepZoneWhereTheHUDIs(preset: HomerunAtBatLayout.CameraPreset) {
+        typealias L = HomerunAtBatLayout
+        let cam = preset.camera
+        for aspect in [9.0 / 19.5, 9.0 / 16.0] {
+            let zone = cam.screenPoint(of: L.zoneWorldCenter, aspect: aspect)
+            #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005, "\(preset): ゾーンが (\(zone.x), \(zone.y))")
+            let head = cam.screenPoint(of: [L.batter.position.x, 1.75, L.batter.position.z], aspect: aspect)
+            let feet = cam.screenPoint(of: [L.batter.position.x, 0, L.batter.position.z], aspect: aspect)
+            #expect(head.y > 0.05 && feet.y < 0.95 && head.x > 0.05 && head.x < 0.95, "\(preset): 打者が画面の外（頭 \(head)・足元 \(feet)）")
+            // 投手（マウンドの上・頭）も画面の中（HUD の帯より下に来るかは案ごとの見た目で会長が判断）。
+            let pitcher = cam.screenPoint(of: [L.pitcher.position.x, 2.1, L.pitcher.position.z], aspect: aspect)
+            #expect(pitcher.x > 0 && pitcher.x < 1 && pitcher.y > 0 && pitcher.y < 1, "\(preset): 投手が画面の外 \(pitcher)")
+        }
+        #expect(simd_length(cam.target - cam.position) > 5)
+    }
+
+    @Test("aimed は指定の点を画面の (0.5, yFraction) に置き、位置と画角は変えない")
+    func aimedCamera() {
+        let anchor: SIMD3<Float> = [1, 0.9, 0]
+        for (position, fov, y) in [(SIMD3<Float>(8, 10, 40), Float(14), 0.45), ([-3, 6, -12], 45, 0.3), ([0, 2, 20], 30, 0.6)] {
+            let cam = HomerunAtBatLayout.Camera.aimed(from: position, at: anchor, yFraction: y, verticalFieldOfView: fov)
+            let p = cam.screenPoint(of: anchor, aspect: 0.5)
+            #expect(abs(p.x - 0.5) < 1e-4 && abs(p.y - y) < 1e-4, "\(p)")
+            #expect(cam.position == position && cam.verticalFieldOfView == fov)
+        }
+    }
+
+    @Test("現行のセンターカメラは以前と同じ位置・注視点・画角のまま（既定の見た目を変えない）")
+    func centerPresetUnchanged() {
+        let cam = HomerunAtBatLayout.CameraPreset.center.camera
+        #expect(cam.position == [0, 6, 43] && cam.target == [0, 0.57, 0.3] && cam.verticalFieldOfView == 9.6)
+        #expect(HomerunAtBatLayout.cameraPosition == cam.position && HomerunAtBatLayout.verticalFieldOfView == 9.6)
     }
 }
 

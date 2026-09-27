@@ -10,6 +10,8 @@ import HomerunCore
 /// ゾーン・的・カーソルは画面の上寄り（高さの 45%）に置き、押せる帯（下 1/3）と重ねない = 指で的を隠さない。
 struct HomerunAtBatView: View {
     let model: HomerunModel
+    /// 3D の打席カメラの案（#1506 のモック。会長が選ぶまで既定は現行のセンターカメラ）。
+    var cameraPreset: HomerunAtBatLayout.CameraPreset = .center
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 押している指の位置（残像の描画用・押せる帯の座標）。
     @State private var fingerPoint: CGPoint?
@@ -31,7 +33,8 @@ struct HomerunAtBatView: View {
                     } else {
                         HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                              batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
-                                             pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)))
+                                             pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
+                                             cameraPreset: cameraPreset)
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             ball: model.phase == .pitching ? model.ballPoint : nil,
@@ -192,10 +195,11 @@ struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
+    var cameraPreset: HomerunAtBatLayout.CameraPreset = .center
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose).ignoresSafeArea()
+        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
         #endif

@@ -20,28 +20,93 @@ enum HomerunAtBatLayout {
     /// 投手はマウンドの上・本塁に向く（カメラに背中）。
     static let pitcher = Placement(position: [0, 0.3, 17.4], yaw: .pi)
 
-    /// センター側の遠くからの望遠（投手と打者の大きさの差を縮め、投手は腰から上だけ映す = 中継のセンターカメラ）。
-    static let cameraPosition: SIMD3<Float> = [0, 6, 43]
-    /// 注視点は、ストライクゾーンの中心（`zoneWorldCenter`）が画面の高さの `zoneScreenFraction` に映るように決めている
-    /// （原本より少し下を向く = 打席の HUD の 2D のゾーン・的・カーソルをそこへ重ねる。押せる帯の下 1/3 と重ねない）。
-    static let cameraTarget: SIMD3<Float> = [0, 0.57, 0.3]
-    static let verticalFieldOfView: Float = 9.6
+    /// カメラ（位置・注視点・垂直画角）。純粋な値なので、どの点が画面のどこに映るかをテストで固定できる。
+    struct Camera: Equatable {
+        var position: SIMD3<Float>
+        var target: SIMD3<Float>
+        var verticalFieldOfView: Float
+
+        /// 世界の点が画面のどこ（左上 = (0, 0)・右下 = (1, 1)）に映るか。`aspect` は画面の幅 / 高さ。透視投影・ロール無し。
+        func screenPoint(of point: SIMD3<Float>, aspect: Double) -> (x: Double, y: Double) {
+            let forward = simd_normalize(target - position)
+            let right = simd_normalize(simd_cross(forward, [0, 1, 0]))
+            let up = simd_cross(right, forward)
+            let v = point - position
+            let depth = Double(simd_dot(v, forward))
+            let halfTan = tan(Double(verticalFieldOfView) * .pi / 360)
+            return (0.5 + 0.5 * Double(simd_dot(v, right)) / depth / (halfTan * aspect),
+                    0.5 - 0.5 * Double(simd_dot(v, up)) / depth / halfTan)
+        }
+
+        /// 世界の点が画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
+        func screenFraction(of point: SIMD3<Float>) -> Double { screenPoint(of: point, aspect: 1).y }
+
+        /// `anchor` が画面の横の中央・高さ `yFraction` に映るように注視点を決めたカメラ。
+        /// 注視点は anchor を通る鉛直面の中にあり、anchor の向きから δ（tan δ = (1 − 2·yFraction)·tan(fov/2)）だけ下を向く。
+        static func aimed(from position: SIMD3<Float>, at anchor: SIMD3<Float>, yFraction: Double, verticalFieldOfView fov: Float) -> Camera {
+            let v = anchor - position
+            let ahead = simd_normalize(v)
+            let right = simd_normalize(simd_cross(ahead, [0, 1, 0]))
+            let up = simd_cross(right, ahead)
+            let delta = atan((1 - 2 * Float(yFraction)) * tan(fov * .pi / 360))
+            let forward = ahead * cos(delta) - up * sin(delta)
+            return Camera(position: position, target: position + forward * simd_length(v), verticalFieldOfView: fov)
+        }
+    }
+
+    /// 打席カメラの案（#1506 のモック。会長が選ぶまで既定は `.center`）。どの案もストライクゾーンの中心が
+    /// 画面の横の中央・高さ `zoneScreenFraction` に映る（2D のゾーン・的・カーソルの位置と片手操作を変えないため）。
+    enum CameraPreset: String, CaseIterable, Sendable {
+        /// 現行: 中継のセンターカメラ（本塁から 43m・高さ 6m・望遠 9.6°・ほぼ水平）。
+        case center
+        /// 案 A「中継・センター高め」: センター（やや一塁側 x 1m）・高さ 9.5m から 12° 見下ろす望遠。打者は正面のまま内野の土・走路・打席が
+        /// 奥行きをもって見え、投手は帽子だけが下端に残る（横へ寄せる・近づけるほど投手が画面の下に落ちるので、寄せは 1m に留めた）。
+        case broadcastHigh
+        /// 案 B「バックネット裏の高め」: 本塁の 14m 後ろ・高さ 8m から 27° 見下ろす。打者は背中・捕手越しに投手と外野の柵・スタンドまで映る。
+        case highHome
+        /// 案 C「打者の斜め後ろ上方」: 三塁側やや後ろ（x −2.5m・z −13m）・高さ 5m から 17° 見下ろす。打者の背中越しに投手が右上に映る。
+        case overShoulder
+
+        var title: String {
+            switch self {
+            case .center: "現行（センターカメラ・水平）"
+            case .broadcastHigh: "案 A 中継・センター高め（やや一塁側）"
+            case .highHome: "案 B バックネット裏の高め"
+            case .overShoulder: "案 C 打者の斜め後ろ上方"
+            }
+        }
+
+        var camera: Camera {
+            let zone = HomerunAtBatLayout.zoneWorldCenter, y = HomerunAtBatLayout.zoneScreenFraction
+            switch self {
+            case .center:
+                return Camera(position: [0, 6, 43], target: [0, 0.57, 0.3], verticalFieldOfView: 9.6)
+            case .broadcastHigh:
+                return .aimed(from: [1, 9.5, 40], at: zone, yFraction: y, verticalFieldOfView: 11.5)
+            case .highHome:
+                return .aimed(from: [0.5, 8, -14], at: zone, yFraction: y, verticalFieldOfView: 50)
+            case .overShoulder:
+                return .aimed(from: [-2.5, 5, -13], at: zone, yFraction: y, verticalFieldOfView: 42)
+            }
+        }
+    }
+
+    /// 現行のセンターカメラ（`CameraPreset.center`）。センター側の遠くからの望遠（投手と打者の大きさの差を縮め、
+    /// 投手は腰から上だけ映す = 中継のセンターカメラ）。注視点は、ストライクゾーンの中心（`zoneWorldCenter`）が画面の高さの
+    /// `zoneScreenFraction` に映るように決めている（原本より少し下を向く = 打席の HUD の 2D のゾーン・的・カーソルをそこへ重ねる。
+    /// 押せる帯の下 1/3 と重ねない）。
+    static var cameraPosition: SIMD3<Float> { CameraPreset.center.camera.position }
+    static var cameraTarget: SIMD3<Float> { CameraPreset.center.camera.target }
+    static var verticalFieldOfView: Float { CameraPreset.center.camera.verticalFieldOfView }
 
     /// ストライクゾーンの中心（本塁の真上・胸の高さ）。
     static let zoneWorldCenter: SIMD3<Float> = [0, 0.9, 0]
     /// 2D のゾーンの中心を置く画面の高さの割合（上端 = 0）。
     static let zoneScreenFraction: Double = 0.45
 
-    /// 世界の点が画面の高さのどこ（上端 = 0・下端 = 1）に映るか。カメラは左右に振らない（真正面）前提の透視投影。
+    /// 世界の点が現行のセンターカメラで画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
     static func screenFraction(of point: SIMD3<Float>) -> Double {
-        let forward = simd_normalize(cameraTarget - cameraPosition)
-        let right = simd_normalize(simd_cross(forward, [0, 1, 0]))
-        let up = simd_cross(right, forward)
-        let v = point - cameraPosition
-        let depth = Double(simd_dot(v, forward))
-        let height = Double(simd_dot(v, up))
-        let halfTan = tan(Double(verticalFieldOfView) * .pi / 360)
-        return 0.5 - 0.5 * height / depth / halfTan
+        CameraPreset.center.camera.screenFraction(of: point)
     }
 }
 
@@ -68,13 +133,14 @@ extension HomerunAtBatLayout {
 struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
+    var cameraPreset: HomerunAtBatLayout.CameraPreset = .center
 
     var body: some View {
         ZStack {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose)
+            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera)
             #endif
         }
         .accessibilityHidden(true)
@@ -87,13 +153,16 @@ import RealityKit
 private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
     let pitcherPose: HomerunOjisanPose3
+    let camera: HomerunAtBatLayout.Camera
 
-    /// 打者・投手の実体（ポーズが変わったら差し替える）。
+    /// 打者・投手の実体（ポーズが変わったら差し替える）とカメラ（案が変わったら向け直す）。
     final class Coordinator {
         var batter: Entity?
         var batterPose: HomerunOjisanPose3?
         var pitcher: Entity?
         var pitcherPose: HomerunOjisanPose3?
+        var cameraEntity: PerspectiveCamera?
+        var camera: HomerunAtBatLayout.Camera?
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -131,11 +200,17 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         place(.catcher(), HomerunAtBatLayout.catcher)
         place(.umpire(), HomerunAtBatLayout.umpire)
         let cam = PerspectiveCamera()
-        cam.camera.fieldOfViewInDegrees = HomerunAtBatLayout.verticalFieldOfView
         anchor.addChild(cam)
-        cam.look(at: HomerunAtBatLayout.cameraTarget, from: HomerunAtBatLayout.cameraPosition, relativeTo: nil)
+        Self.aim(cam, camera)
+        context.coordinator.cameraEntity = cam
+        context.coordinator.camera = camera
         view.scene.addAnchor(anchor)
         return view
+    }
+
+    private static func aim(_ cam: PerspectiveCamera, _ camera: HomerunAtBatLayout.Camera) {
+        cam.camera.fieldOfViewInDegrees = camera.verticalFieldOfView
+        cam.look(at: camera.target, from: camera.position, relativeTo: nil)
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {
@@ -153,6 +228,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             parent.removeChild(old)
             c.pitcher = new
             c.pitcherPose = pitcherPose
+        }
+        if c.camera != camera, let cam = c.cameraEntity {
+            Self.aim(cam, camera)
+            c.camera = camera
         }
     }
 }
