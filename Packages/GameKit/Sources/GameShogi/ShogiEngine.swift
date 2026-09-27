@@ -208,7 +208,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     /// 最善手を打つ確率（#1461 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。
     /// ふつうは会長決裁の 80%、かんたん・入門は上から順に計測で決めた）。
     static let noviceBestMoveProbability = 1.0
-    static let easyBestMoveProbability = 1.0
+    static let easyBestMoveProbability = 0.7
     static let normalBestMoveProbability = 0.8
 
     /// 外したときに許す損の幅（銀 1 枚ぶん）。歩・香・桂・銀を只で失う手までが入り、金・角・飛は入らない。
