@@ -17,7 +17,10 @@ struct HomerunAtBatView: View {
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
-            let zoneCenter = CGPoint(x: size.width / 2, y: size.height * HomerunAtBatLayout.zoneScreenFraction)
+            // 3D の背景は安全域の外まで（画面全体に）広がるので、ゾーンの位置は全画面の高さで割り、ここの座標（安全域の内側）に直す。
+            let inset = geo.safeAreaInsets
+            let fullHeight = size.height + inset.top + inset.bottom
+            let zoneCenter = CGPoint(x: size.width / 2, y: fullHeight * HomerunAtBatLayout.zoneScreenFraction - inset.top)
             let padHeight = size.height / 3
             // 型名で書く（`.animation(` は素のアニメーション API と見分けが付かず、Reduce Motion の走査に掛かる）。
             TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: model.phase != .pitching || model.isHeld)) { timeline in
