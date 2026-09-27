@@ -370,21 +370,19 @@ public struct BlocksView: View {
             // `RunnerView.pausedOverlay`と同じ（一時停止からいつでも切り替えられると
             // 難易度調整の抜け道になっていた）。
 
-            Button {
+            GameDeadEndActionButton("再開", systemImage: "play.fill", tint: Theme.Fill.coral) {
                 model.resume()
-            } label: {
-                Label("再開", systemImage: "play.fill")
-                    .foregroundStyle(Theme.onAccent)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Theme.Fill.coral)
 
             restartButton
         }
     }
 
     private var continueButton: some View {
-        Button {
+        GameDeadEndActionButton(
+            "広告を見てコンティニュー", systemImage: "play.rectangle.fill",
+            tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
+        ) {
             // どの局へのコンティニューかを広告前に控える。ロード中に「はじめから」で
             // 盤が作り直されたら適用せず知らせる（ソリティアの補充と同じ契約。#509）。
             let run = model.fieldGeneration
@@ -394,23 +392,16 @@ public struct BlocksView: View {
             ) {
                 model.continueAfterAd(forRun: run)
             }
-        } label: {
-            Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.Fill.coral)
-        .disabled(continueRescue.isWatching)
     }
 
     /// 一時停止中とリザルトで共用する。前者は進行が残っているので確認を挟み、
     /// 後者は `hasProgressToLose` が false なのでこれまでどおり即やり直す。
     private var restartButton: some View {
-        Button("はじめから") { startNewGame() }
-            .buttonStyle(.bordered)
-            .tint(.white)
-            // 広告の読み込み中に盤を作り直すと、見終えても照合で弾かれる（#1381）。
-            .disabled(continueRescue.isWatching)
+        // 広告の読み込み中に盤を作り直すと、見終えても照合で弾かれる（#1381）。
+        GameDeadEndDismissButton("はじめから", isDisabled: continueRescue.isWatching) {
+            startNewGame()
+        }
     }
 
     private func panel<Content: View>(
