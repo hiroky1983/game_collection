@@ -27,9 +27,10 @@ public struct GoView: View {
             board
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
-            HowToPlayHint(.go, playLog: services.playLog)
-            Spacer(minLength: 0)
             controlArea
+            HowToPlayHint(.go, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.phase)

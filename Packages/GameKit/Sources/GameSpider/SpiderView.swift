@@ -51,11 +51,12 @@ public struct SpiderView: View {
             board
                 .padding(.horizontal, SpiderMetrics.boardSideInset)
                 .layoutPriority(1)
-            HowToPlayHint(.spider, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
-            Spacer(minLength: 0)
             controlArea
                 .padding(.horizontal, Theme.pad)
+            HowToPlayHint(.spider, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
                 .padding(.horizontal, Theme.pad)
         }

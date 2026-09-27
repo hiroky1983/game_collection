@@ -39,9 +39,10 @@ public struct SudokuView: View {
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
                 .disabled(hintRescue.isWatching)
-            HowToPlayHint(.sudoku, playLog: services.playLog)
-            Spacer(minLength: 0)
             controlArea
+            HowToPlayHint(.sudoku, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
