@@ -151,15 +151,12 @@ public struct FreeCellView: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
 
-            VStack(spacing: 0) {
-                Text(stateEmoji).font(.system(size: 24))
-                // 番号付きディールはフリーセルの文化なので、どの配札を解いているかを常時出す（#492）。
-                // `Text("...\(数値)")` は LocalizedStringKey 扱いになり **桁区切りが入る**
-                // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
-                Text(verbatim: "配札 #" + String(model.dealNumber))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.inkSub)
-            }
+            // 番号付きディールはフリーセルの文化なので、どの配札を解いているかを常時出す（#492）。
+            // `Text("...\(数値)")` は LocalizedStringKey 扱いになり **桁区切りが入る**
+            // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
+            Text(verbatim: "配札 #" + String(model.dealNumber))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.inkSub)
 
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -175,11 +172,6 @@ public struct FreeCellView: View {
             maxMovableCount: model.board.maxMovableCount(),
             isDeadEnd: model.isDeadEnd
         ))
-    }
-
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        return model.isDeadEnd ? "😵" : "♦️"
     }
 
     // MARK: - 盤面

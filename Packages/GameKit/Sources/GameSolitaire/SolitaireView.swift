@@ -163,8 +163,6 @@ public struct SolitaireView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-
-            Text(stateEmoji).font(.system(size: 22))
         } trailing: {
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -179,13 +177,6 @@ public struct SolitaireView: View {
             isDeadEnd: model.isDeadEnd,
             isLost: model.isLost
         ))
-    }
-
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        if model.isDeadEnd { return "😵" }
-        // 敗北確定（#406）。告知を閉じたあとも、ここだけは状態を出し続ける。
-        return model.isLost ? "🤔" : "♠️"
     }
 
     // MARK: - リワード広告の段取り

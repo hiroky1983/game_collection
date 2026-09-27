@@ -270,10 +270,6 @@ public struct MinesweeperView: View {
             }
             .lineLimit(1)
 
-            Text(stateEmoji)
-                .font(.system(size: 22))
-                .fixedSize(horizontal: true, vertical: false)
-
             // 旗モードは切り替えが「⋯」に移ったので、いまオンかどうかは帯に表示だけ出す（ボタンではない・#1468）。
             if model.flagMode && !model.gameOver {
                 Text("旗モード")
@@ -290,14 +286,6 @@ public struct MinesweeperView: View {
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
                 .fixedSize(horizontal: true, vertical: false)
-        }
-    }
-
-    private var stateEmoji: String {
-        switch model.gameState {
-        case .won:  return "😎"
-        case .lost: return "😵"
-        default:    return "🙂"
         }
     }
 
