@@ -3,6 +3,7 @@ import Foundation
 // 囲碁 CPU の計測（#1465）。`build.sh` で作った単体バイナリの引数:
 //   speed                                1 秒あたりのプレイアウト数（最適化ビルド・1 スレッド）
 //   timing [positions]                   出荷の設定（実時間の上限つき）で 1 手にかかる時間: 平均・最大・上限で打ち切られた割合
+//                                        （TIMING_PLAYOUT_SCALE=10 で回数の上限を 10 倍にし、時間で打ち切る場合を確かめる）
 //   match <上> <上の確率> <下> <下の確率> <開始局面数>
 //                                        上の段階と下の段階を、先後入れ替えで開始局面数×2 局。確率は 0...1 か shipped（出荷値）。
 //                                        段階は novice / easy / normal / hard
@@ -64,13 +65,17 @@ struct Bench {
         case "timing":
             let n = args.count > 2 ? Int(args[2]) ?? 40 : 40
             let states = samplePositions(count: n)
+            // 回数の上限を何倍かにして、遅い端末で時間の上限が先に来る場合を再現する（TIMING_PLAYOUT_SCALE・既定 1）。
+            let scale = Int(env["TIMING_PLAYOUT_SCALE"] ?? "") ?? 1
             for l in GoLevel.allCases {
                 var wall: [Double] = []
                 var playouts: [Int] = []
                 var cut = 0
                 for (i, state) in states.enumerated() {
                     let t = Date()
-                    let r = GoEngine(config: .level(l, seed: UInt64(i + 1)), ruleset: ruleset).search(state: state)
+                    var config = GoEngineConfig.level(l, seed: UInt64(i + 1))
+                    config.playouts *= scale
+                    let r = GoEngine(config: config, ruleset: ruleset).search(state: state)
                     wall.append(Date().timeIntervalSince(t))
                     playouts.append(r.playouts)
                     if r.timedOut { cut += 1 }

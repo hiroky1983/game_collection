@@ -69,27 +69,33 @@ enum CPUBenchLadder {
     static func run(upper: Player, lower: Player, openings: Int, firstOpening: Int = 1,
                     concurrency: Int = 4) -> Tally {
         let jobs = (0..<openings).flatMap { i in [true, false].map { (firstOpening + i, $0) } }
-        let lock = NSLock()
-        var tally = Tally()
-        var next = 0
+        let shared = Shared()
         DispatchQueue.concurrentPerform(iterations: concurrency) { _ in
             while true {
-                lock.lock()
-                guard next < jobs.count else { lock.unlock(); return }
-                let (opening, upperIsBlack) = jobs[next]
-                next += 1
-                lock.unlock()
+                shared.lock.lock()
+                guard shared.next < jobs.count else { shared.lock.unlock(); return }
+                let (opening, upperIsBlack) = jobs[shared.next]
+                shared.next += 1
+                shared.lock.unlock()
                 let outcome = play(upper: upper, lower: lower, upperIsBlack: upperIsBlack, opening: opening)
-                lock.lock()
+                shared.lock.lock()
                 switch outcome {
-                case .upperWon: tally.upperWins += 1
-                case .lowerWon: tally.lowerWins += 1
-                case .draw: tally.draws += 1
+                case .upperWon: shared.tally.upperWins += 1
+                case .lowerWon: shared.tally.lowerWins += 1
+                case .draw: shared.tally.draws += 1
                 }
-                lock.unlock()
+                shared.lock.unlock()
             }
         }
-        return tally
+        return shared.tally
+    }
+
+    /// 並列の対局が共有する状態。`lock` を取ってから触る（Linux の Dispatch は `concurrentPerform` の
+    /// クロージャを `@Sendable` にしているので、ローカル変数を書き換えられない）。
+    private final class Shared: @unchecked Sendable {
+        let lock = NSLock()
+        var next = 0
+        var tally = Tally()
     }
 
     static let ladder: [(name: String, upper: GoLevel, lower: GoLevel)] = [

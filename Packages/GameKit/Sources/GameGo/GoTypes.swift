@@ -232,7 +232,8 @@ public enum GoLevel: Int, Codable, Equatable, Sendable, CaseIterable {
     }
 
     /// 最善手を打つ確率（#1465 の実測。すぐ上の段と先後半々で戦い、上の段の得点率が 90% 以上になる
-    /// 10% 刻みで最も高い値。ふつう → かんたん → 入門の順に決めた）。
+    /// 10% 刻みで最も高い値。ふつう → かんたん → 入門の順に決めた: むずかしい 100% に対しふつう 90%、
+    /// ふつう 90% に対しかんたん 90%、かんたん 90% に対し入門 100%。入門は外しを使わず、500 回の読みの少なさだけで弱くなる）。
     static let noviceBestMoveChance = 1.0
     static let easyBestMoveChance = 0.9
     static let normalBestMoveChance = 0.9

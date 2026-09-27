@@ -200,19 +200,34 @@ struct GoEngineBasicTests {
         #expect(elapsed < .seconds(5), "実時間の上限が効いていない（\(elapsed)）")
     }
 
-    @Test("強さ 4 段階はプレイアウト数で分かれ、実時間の上限は回数に比例した安全用（#1400）")
-    func levelsAreOrdered() {
+    @Test("段階は考える時間・回数の上限・最善手を打つ確率の 3 つで決まる（#1465 の決裁値）")
+    func levelsMatchTheDecidedValues() {
         let levels = GoLevel.allCases
         #expect(levels == [.novice, .easy, .normal, .hard])
-        for (lower, upper) in zip(levels, levels.dropFirst()) {
-            #expect(lower.playouts < upper.playouts)
-            #expect(lower.bestMoveChance <= upper.bestMoveChance)
-            #expect(lower.mistakeMargin >= upper.mistakeMargin)
-            #expect(lower.timeLimit <= upper.timeLimit)
+        #expect(levels.map(\.timeLimit) == [0.5, 1.0, 1.5, 2.0])
+        #expect(levels.map(\.playouts) == [500, 1_500, 4_000, 8_000])
+        #expect(levels.map(\.bestMoveChance) == [1.0, 0.9, 0.9, 1.0])
+        #expect(GoLevel.mistakeMargin == 0.1)
+        for level in levels {
+            let config = GoEngineConfig.level(level)
+            #expect(config.playouts == level.playouts)
+            #expect(config.timeLimit == level.timeLimit)
+            #expect(config.bestMoveChance == level.bestMoveChance)
+            #expect(config.mistakeMargin == GoLevel.mistakeMargin, "外したときの損の幅は全段階で共通")
         }
-        #expect(GoLevel.hard.bestMoveChance == 1, "むずかしいは当面 100%（最善手のみ）")
-        // 安全用の上限は、遅い端末（約 4 倍遅い）でも回数が先に尽きる長さにする。
-        #expect(GoLevel.allCases.allSatisfy { $0.timeLimit >= Double($0.playouts) / 1_000 })
+    }
+
+    @Test("実時間の上限で打ち切ったかを返し、回数の上限だけなら回数ぶん回す")
+    func searchReportsHowItStopped() {
+        let state = GoState.initial(ruleset: ruleset)
+        let byTime = GoEngine(config: GoEngineConfig(playouts: 5_000_000, seed: 3, timeLimit: 0), ruleset: ruleset)
+            .search(state: state)
+        #expect(byTime.timedOut)
+        #expect(byTime.playouts < 5_000_000)
+        let byCount = GoEngine(config: GoEngineConfig(playouts: 64, seed: 3, timeLimit: nil), ruleset: ruleset)
+            .search(state: state)
+        #expect(!byCount.timedOut)
+        #expect(byCount.playouts == 64)
     }
 
     @Test("呼び名は共通の CPUStrength と同じで、番号も動かさない")
@@ -221,11 +236,13 @@ struct GoEngineBasicTests {
         #expect(GoLevel.allCases.map(\.rawValue) == CPUStrength.allCases.map(\.rawValue))
     }
 
+    /// 外しの候補は訪問数 `minMistakeVisits` 以上の手だけなので、候補手の少ない 5 路で読みの回数を確保して確かめる
+    /// （9 路でこの回数を回すとデバッグビルドの CI で重い）。
     @Test("最善手を外す段階でも、選ぶ手は必ず合法で、種が同じなら同じ手になる")
     func mistakesStayLegalAndDeterministic() {
-        let ruleset = GoRuleset(size: 9)
+        let ruleset = GoRuleset(size: 5)
         let state = GoState.initial(ruleset: ruleset)
-        let config = GoEngineConfig(playouts: 30, seed: 5, bestMoveChance: 0, mistakeMargin: 0.5)
+        let config = GoEngineConfig(playouts: 400, seed: 5, bestMoveChance: 0, mistakeMargin: 0.5)
         var moves = Set<GoMove>()
         for seed in 0..<6 as Range<UInt64> {
             var c = config
@@ -237,6 +254,44 @@ struct GoEngineBasicTests {
             moves.insert(move)
         }
         #expect(moves.count > 1, "外す設定なのに手が散らばらない")
+    }
+
+    /// 同じ種なら木は同じで、確率の抽選は読み終えたあとなので、確率 100% の手がそのまま「最善手」になる。
+    @Test("外した手は最善手以外で、打った直後にアタリの石を最善手より増やさない（#1465）")
+    func mistakesSkipTheBestMoveAndSelfAtari() {
+        let ruleset = GoRuleset(size: 5)
+        var state = GoState.initial(ruleset: ruleset)
+        var differed = 0
+        for ply in 0..<10 {
+            let seed = UInt64(ply) &+ 11
+            let best = GoEngine(config: GoEngineConfig(playouts: 400, seed: seed, bestMoveChance: 1), ruleset: ruleset)
+                .bestMove(state: state)
+            let slip = GoEngine(config: GoEngineConfig(playouts: 400, seed: seed, bestMoveChance: 0), ruleset: ruleset)
+                .bestMove(state: state)
+            #expect(state.isLegal(slip))
+            if slip != best {
+                differed += 1
+                #expect(slip != .pass, "外すときにパスを選んだ")
+                #expect(GoEngine.stonesInAtari(after: slip, in: state) <= GoEngine.stonesInAtari(after: best, in: state),
+                        "外した手でアタリの石が増えた: \(slip)\n\(GoDiagram.text(state.board))")
+            }
+            guard !state.isTwoPassEnd else { break }
+            state.play(best)
+        }
+        #expect(differed > 0, "確率 0% なのに一度も最善手を外さない")
+    }
+
+    @Test("アタリの石の数え方: 自分から呼吸点 1 に入る手を数える")
+    func countsStonesLeftInAtari() {
+        let state = GoDiagram.state([
+            ".O...",
+            ".....",
+            ".....",
+            ".....",
+            ".....",
+        ], to: .black)
+        #expect(GoEngine.stonesInAtari(after: .play(GoPoint(row: 0, col: 0)), in: state) == 1)
+        #expect(GoEngine.stonesInAtari(after: .play(GoPoint(row: 2, col: 2)), in: state) == 0)
     }
 }
 
