@@ -26,18 +26,22 @@ struct HomerunAtBatView: View {
             TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: model.phase != .pitching || model.isHeld)) { timeline in
                 let now = timeline.date
                 ZStack(alignment: .top) {
-                    HomerunAtBatBackdrop(zoneCenter: zoneCenter,
-                                         batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind))
-                    HomerunZoneCanvas(
-                        zoneCenter: zoneCenter,
-                        ball: model.phase == .pitching ? model.ballPoint : nil,
-                        cursor: model.cursor,
-                        elapsed: model.pitchElapsed(at: now),
-                        offset: model.timingOffset(at: now),
-                        reduceMotion: reduceMotion
-                    )
-                    .accessibilityElement()
-                    .accessibilityLabel(zoneLabel)
+                    if showsOutfield, let ball = model.lastBall {
+                        HomerunOutfieldScene3DView(ball: ball).ignoresSafeArea()
+                    } else {
+                        HomerunAtBatBackdrop(zoneCenter: zoneCenter,
+                                             batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind))
+                        HomerunZoneCanvas(
+                            zoneCenter: zoneCenter,
+                            ball: model.phase == .pitching ? model.ballPoint : nil,
+                            cursor: model.cursor,
+                            elapsed: model.pitchElapsed(at: now),
+                            offset: model.timingOffset(at: now),
+                            reduceMotion: reduceMotion
+                        )
+                        .accessibilityElement()
+                        .accessibilityLabel(zoneLabel)
+                    }
                     VStack(spacing: 8) {
                         topHUD
                         HStack(alignment: .top) {
@@ -61,6 +65,12 @@ struct HomerunAtBatView: View {
             }
         }
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
+    }
+
+    /// 当たり以上（外野へ飛んだ）の結果は外野カメラの静止ショットに切り替える（README §3.2）。
+    private var showsOutfield: Bool {
+        guard model.phase == .ballResult, let kind = model.lastBall?.kind else { return false }
+        return kind == .inPlay || kind == .fenceHit || kind == .homer
     }
 
     private var zoneLabel: String {

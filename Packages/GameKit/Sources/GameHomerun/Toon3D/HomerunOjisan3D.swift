@@ -42,6 +42,10 @@ struct HomerunOjisanPose3: Equatable {
     static let pitch = HomerunOjisanPose3(
         elbowR: [1.55, 3.3, -0.45], handR: [1.35, 4.35, -0.75], elbowL: [-1.35, 2.25, 0.5], handL: [-1.0, 2.65, 1.15],
         headTilt: 0.05)
+    /// 外野手（見上げる。グラブの左手を上げて追う。`mock3d.swift` の `outfieldShot()` の写し）。
+    static let outfielder = HomerunOjisanPose3(
+        elbowR: [1.3, 1.6, 0.2], handR: [1.1, 1.0, 0.4], elbowL: [-1.4, 3.0, 0.2], handL: [-1.2, 4.2, 0.5],
+        headPitch: -0.55)
 }
 
 extension HomerunToonModel {
