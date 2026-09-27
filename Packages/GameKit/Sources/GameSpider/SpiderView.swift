@@ -156,13 +156,10 @@ public struct SpiderView: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
 
-            VStack(spacing: 0) {
-                Text(stateEmoji).font(.system(size: 24))
-                // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
-                Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.inkSub)
-            }
+            // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
+            Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.inkSub)
 
             Label(RecordFormat.time(model.elapsedSeconds), systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -179,11 +176,6 @@ public struct SpiderView: View {
             completedCount: model.board.completed.count,
             isDeadEnd: model.isDeadEnd
         ))
-    }
-
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        return model.isDeadEnd ? "😵" : "🕷️"
     }
 
     // MARK: - 盤面
