@@ -23,9 +23,9 @@ struct HomerunToonModel: Equatable {
         add(HomerunToonMesh.sphere(radius: r).placed(t), outline == 0 ? nil : HomerunToonMesh.sphere(radius: r + outline).placed(t).flipped(), color)
     }
 
-    /// 角丸の箱。`turn` は z 軸まわりの傾き（ラジアン）。
-    mutating func box(_ w: Float, _ h: Float, _ d: Float, _ color: UInt32, at p: SIMD3<Float>, radius: Float = 0, outline: Float = 0.05, turnZ: Float = 0) {
-        let t = Self.translation(p) * Self.rotation(angle: turnZ, axis: SIMD3(0, 0, 1))
+    /// 角丸の箱。`turnZ` は z 軸まわりの傾き・`yaw` は y 軸まわりの向き（ラジアン。球場の板を弦の向きへ回す）。
+    mutating func box(_ w: Float, _ h: Float, _ d: Float, _ color: UInt32, at p: SIMD3<Float>, radius: Float = 0, outline: Float = 0.05, turnZ: Float = 0, yaw: Float = 0) {
+        let t = Self.translation(p) * Self.rotation(angle: yaw, axis: SIMD3(0, 1, 0)) * Self.rotation(angle: turnZ, axis: SIMD3(0, 0, 1))
         let o = outline
         add(HomerunToonMesh.box(width: w, height: h, depth: d, radius: radius).placed(t),
             o == 0 ? nil : HomerunToonMesh.box(width: w + 2 * o, height: h + 2 * o, depth: d + 2 * o, radius: radius + o).placed(t).flipped(), color)
@@ -57,6 +57,24 @@ struct HomerunToonModel: Equatable {
             HomerunToonMesh.frustum(top: 0.17 + o, bottom: 0.09 + o, height: len + 2 * o).placed(t).flipped(), wood)
         sphere(0.17, wood, at: b)
         sphere(0.12, woodDark, at: a)
+    }
+
+    /// 輪郭線・縞の無い部品を色ごとに 1 個のメッシュへまとめる（球場のように数千個の箱を置くモデルで、実体の数を色数まで減らす）。
+    func merged() -> HomerunToonModel {
+        var byColor: [UInt32: HomerunToonMesh] = [:]
+        var order: [UInt32] = []
+        var rest: [HomerunToonPart] = []
+        for part in parts {
+            if part.outline == nil && !part.striped {
+                if byColor[part.color] == nil { order.append(part.color) }
+                byColor[part.color, default: HomerunToonMesh()].append(part.mesh)
+            } else {
+                rest.append(part)
+            }
+        }
+        var m = HomerunToonModel()
+        m.parts = order.map { HomerunToonPart(mesh: byColor[$0]!, outline: nil, color: $0) } + rest
+        return m
     }
 
     private mutating func add(_ mesh: HomerunToonMesh, _ outline: HomerunToonMesh?, _ color: UInt32, striped: Bool = false) {
