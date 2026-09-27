@@ -234,7 +234,7 @@ public struct SimpleChessEngine: ChessEngine {
     /// 最善手を打つ確率（#1462 の実測。すぐ上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
     static let noviceBestMoveProbability = 1.0
     static let easyBestMoveProbability = 1.0
-    static let normalBestMoveProbability = 1.0
+    static let normalBestMoveProbability = 0.9
 
     /// 外したときに許す損の幅（ナイト・ビショップ 1 枚ぶん）。
     static let slipMargin = 350
