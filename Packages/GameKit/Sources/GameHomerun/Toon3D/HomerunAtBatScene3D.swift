@@ -55,18 +55,26 @@ extension HomerunAtBatLayout {
         case .foul, .inPlay, .fenceHit: return .swing
         }
     }
+
+    /// いまの局面での投手のポーズ。投手のモーション中（的が出る前・`elapsed` が負）は振りかぶり、
+    /// 的が出た後（リリース）〜結果の間はリリースのまま止める。
+    static func pitcherPose(phase: HomerunModel.Phase, elapsed: TimeInterval?) -> HomerunOjisanPose3 {
+        guard phase == .pitching, let elapsed, elapsed < 0 else { return .pitch }
+        return .windup
+    }
 }
 
 /// 3D の打席シーン（球場 + 打者・投手・捕手・審判）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。
 struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
+    var pitcherPose: HomerunOjisanPose3 = .pitch
 
     var body: some View {
         ZStack {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView(batterPose: batterPose)
+            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose)
             #endif
         }
         .accessibilityHidden(true)
@@ -78,18 +86,20 @@ import RealityKit
 
 private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
+    let pitcherPose: HomerunOjisanPose3
 
-    /// 打者の実体（ポーズが変わったら差し替える）。
+    /// 打者・投手の実体（ポーズが変わったら差し替える）。
     final class Coordinator {
         var batter: Entity?
-        var pose: HomerunOjisanPose3?
+        var batterPose: HomerunOjisanPose3?
+        var pitcher: Entity?
+        var pitcherPose: HomerunOjisanPose3?
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    private static func batterEntity(_ pose: HomerunOjisanPose3) -> Entity {
-        let p = HomerunAtBatLayout.batter
-        let e = HomerunToonScene.entity(for: .ojisan(pose), scale: HomerunAtBatLayout.characterScale)
+    private static func characterEntity(_ pose: HomerunOjisanPose3, outfit: HomerunOjisanOutfit, _ p: HomerunAtBatLayout.Placement) -> Entity {
+        let e = HomerunToonScene.entity(for: .ojisan(pose, outfit: outfit), scale: HomerunAtBatLayout.characterScale)
         e.position = p.position
         e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
         return e
@@ -110,11 +120,14 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
             anchor.addChild(e)
         }
-        let batter = Self.batterEntity(batterPose)
+        let batter = Self.characterEntity(batterPose, outfit: .batter, HomerunAtBatLayout.batter)
         anchor.addChild(batter)
         context.coordinator.batter = batter
-        context.coordinator.pose = batterPose
-        place(.ojisan(.pitch, outfit: .pitcher), HomerunAtBatLayout.pitcher)
+        context.coordinator.batterPose = batterPose
+        let pitcher = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
+        anchor.addChild(pitcher)
+        context.coordinator.pitcher = pitcher
+        context.coordinator.pitcherPose = pitcherPose
         place(.catcher(), HomerunAtBatLayout.catcher)
         place(.umpire(), HomerunAtBatLayout.umpire)
         let cam = PerspectiveCamera()
@@ -127,12 +140,20 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
 
     func updateUIView(_ uiView: ARView, context: Context) {
         let c = context.coordinator
-        guard c.pose != batterPose, let old = c.batter, let parent = old.parent else { return }
-        let new = Self.batterEntity(batterPose)
-        parent.addChild(new)
-        parent.removeChild(old)
-        c.batter = new
-        c.pose = batterPose
+        if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
+            let new = Self.characterEntity(batterPose, outfit: .batter, HomerunAtBatLayout.batter)
+            parent.addChild(new)
+            parent.removeChild(old)
+            c.batter = new
+            c.batterPose = batterPose
+        }
+        if c.pitcherPose != pitcherPose, let old = c.pitcher, let parent = old.parent {
+            let new = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
+            parent.addChild(new)
+            parent.removeChild(old)
+            c.pitcher = new
+            c.pitcherPose = pitcherPose
+        }
     }
 }
 #endif

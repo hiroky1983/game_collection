@@ -30,7 +30,8 @@ struct HomerunAtBatView: View {
                         HomerunOutfieldScene3DView(ball: ball).ignoresSafeArea()
                     } else {
                         HomerunAtBatBackdrop(zoneCenter: zoneCenter,
-                                             batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind))
+                                             batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
+                                             pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)))
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             ball: model.phase == .pitching ? model.ballPoint : nil,
@@ -190,10 +191,11 @@ struct HomerunAtBatView: View {
 struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
+    var pitcherPose: HomerunOjisanPose3 = .pitch
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose).ignoresSafeArea()
+        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
         #endif

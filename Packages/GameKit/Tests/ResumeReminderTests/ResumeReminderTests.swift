@@ -295,6 +295,23 @@ struct ResumeReminderServiceTests {
         #expect(spy.reminders.isEmpty)
     }
 
+    @Test("オフからオンに戻すと、次の離脱で再び予約される（#1508: 久しぶり通知と共有する統合トグル）")
+    func settingTurnsBackOnReschedules() async {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(13, 12))
+        let service = makeService(spy, env)
+
+        env.enabled = false
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await service.pendingWork?.value
+        #expect(spy.reminders.isEmpty, "オフのときに予約している")
+
+        env.enabled = true
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await service.pendingWork?.value
+        #expect(spy.reminders["shogi"] != nil, "オンに戻しても再び予約されない")
+    }
+
     @Test("撮影モード・DEBUG ビルドでは予約も許諾の要求もしない")
     func suppressedBuildsDoNothing() async {
         let spy = SpyScheduler(status: .notDetermined)

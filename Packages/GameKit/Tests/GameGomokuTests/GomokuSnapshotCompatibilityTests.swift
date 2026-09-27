@@ -48,6 +48,6 @@ struct GomokuSnapshotCompatibilityTests {
         #expect(model.moveCount == 3)
         #expect(model.currentStone == .white)
         #expect(model.forbiddenMovesEnabled)
-        #expect(model.hintsRemaining == BoardHintBudget.perGame - 1)
+        #expect(model.hintsRemaining == BoardHintBudget.total - 1)
     }
 }

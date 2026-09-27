@@ -137,3 +137,22 @@ struct HomerunBatterPoseTests {
         }
     }
 }
+
+@Suite("柵越えおじさんの投手のポーズ")
+struct HomerunPitcherPoseTests {
+    @Test("投手のモーション中（的が出る前・elapsed が負）は振りかぶり")
+    func windupBeforeBallAppears() {
+        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: -0.8) == .windup)
+        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: -0.001) == .windup)
+    }
+
+    @Test("的が出た後（elapsed が 0 以上）・投球中でない・elapsed が無いときはリリースのまま")
+    func pitchOtherwise() {
+        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: 0) == .pitch)
+        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: 0.5) == .pitch)
+        #expect(HomerunAtBatLayout.pitcherPose(phase: .pitching, elapsed: nil) == .pitch)
+        for phase in [HomerunModel.Phase.idle, .ballResult, .finished] {
+            #expect(HomerunAtBatLayout.pitcherPose(phase: phase, elapsed: -0.5) == .pitch)
+        }
+    }
+}

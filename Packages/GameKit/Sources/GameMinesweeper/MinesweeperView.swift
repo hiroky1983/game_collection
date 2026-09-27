@@ -15,7 +15,14 @@ public struct MinesweeperView: View {
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: MinesweeperModel(services: services))
-        _showNewGame = State(initialValue: !services.snapshots.exists(for: "minesweeper"))
+        var startsWithNewGameSheet = !services.snapshots.exists(for: "minesweeper")
+        #if DEBUG
+        // 撮影用フックは `.task` の中で畳んでいるが、開始シートは init の時点で既に
+        // 表示アニメーションへ入っているため、`.task` での取り消しが間に合わず下端に
+        // 残ることがある（#1486）。地雷ヒットの撮影では最初から畳んでおく。
+        if ProcessInfo.processInfo.arguments.contains("-simulateMineHit") { startsWithNewGameSheet = false }
+        #endif
+        _showNewGame = State(initialValue: startsWithNewGameSheet)
     }
 
     public var body: some View {
@@ -25,6 +32,10 @@ public struct MinesweeperView: View {
             statusBar
             board
                 .layoutPriority(1)
+                // 重ねる範囲は盤だけ（画面全体は暗くしない・#1486）。
+                .overlay {
+                    if showContinue { continueOverlay }
+                }
             controlArea
             HowToPlayHint(.minesweeper, playLog: services.playLog)
             // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
@@ -65,9 +76,6 @@ public struct MinesweeperView: View {
         } message: {
             Text("全ての地雷が公開されゲームオーバーになります。")
         }
-        .overlay {
-            if showContinue { continueOverlay }
-        }
         .rewardOffer(continueRescue, for: .continue, isPresented: showContinue,
                      services: services, gameID: model.gameID)
         .rewardedRescueAlerts(
@@ -104,11 +112,30 @@ public struct MinesweeperView: View {
                 showNewGame = false
                 model.tap(row: row, col: col)
             }
+            // 同じく撮影・動作確認用: `-simulateMineHit` で地雷を踏み、コンティニューの提案幕
+            // （盤だけに重ねるパネル・#1486）を出す。地雷はタップ起点でしか配られない
+            // （初手までは配置が確定しない）ため、まず安全な初手を打ってから地雷を探して踏む。
+            if args.contains("-simulateMineHit") {
+                showNewGame = false
+                model.tap(row: 0, col: 0)
+                if model.gameState == .playing {
+                    outer: for r in 0..<model.rows {
+                        for c in 0..<model.cols where model.cell(atRow: r, col: c)?.isMine == true {
+                            model.tap(row: r, col: c)
+                            break outer
+                        }
+                    }
+                }
+            }
             #endif
         }
         .onChange(of: model.gameState) { _, state in
             // 使用済みの局では提案を出さず、そのまま終局後の表示にする（1局1回・#657）。
-            if state == .lost && model.canContinue { showContinue = true }
+            if state == .lost && model.canContinue {
+                // 盤だけに重ねるパネルなので、拡大表示中は先に等倍へ戻す（#1486）。
+                zoomMode = false
+                showContinue = true
+            }
         }
     }
 
@@ -137,15 +164,18 @@ public struct MinesweeperView: View {
 
     private var continueOverlay: some View {
         ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
+            Color.black.opacity(0.6)
+            VStack(spacing: 12) {
                 Text("💥")
                     .font(.system(size: 52))
                 Text("地雷を踏んだ！")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
+                    .foregroundStyle(.white)
 
-                Button {
+                GameDeadEndActionButton(
+                    "広告を見てコンティニュー", systemImage: "play.rectangle.fill",
+                    tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
+                ) {
                     // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
                     // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
                     let game = model.gameSerial
@@ -157,31 +187,15 @@ public struct MinesweeperView: View {
                         showContinue = false
                         return true
                     }
-                } label: {
-                    Label("広告を見てコンティニュー", systemImage: "play.rectangle.fill")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.plain)
-                .disabled(continueRescue.isWatching)
 
                 // 広告のロード〜視聴中は押せない。押せると幕だけ閉じてモデルは負けのまま残り、
                 // 見終えたときに諦めたはずの局へコンティニューが乗る（#816）。
-                Button { showContinue = false } label: {
-                    Text("諦める")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
+                GameDeadEndDismissButton("諦める", isDisabled: continueRescue.isWatching) {
+                    showContinue = false
                 }
-                .buttonStyle(.plain)
-                .disabled(continueRescue.isWatching)
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+            .padding(20)
         }
     }
 
@@ -270,10 +284,6 @@ public struct MinesweeperView: View {
             }
             .lineLimit(1)
 
-            Text(stateEmoji)
-                .font(.system(size: 22))
-                .fixedSize(horizontal: true, vertical: false)
-
             // 旗モードは切り替えが「⋯」に移ったので、いまオンかどうかは帯に表示だけ出す（ボタンではない・#1468）。
             if model.flagMode && !model.gameOver {
                 Text("旗モード")
@@ -290,14 +300,6 @@ public struct MinesweeperView: View {
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Theme.teal)
                 .fixedSize(horizontal: true, vertical: false)
-        }
-    }
-
-    private var stateEmoji: String {
-        switch model.gameState {
-        case .won:  return "😎"
-        case .lost: return "😵"
-        default:    return "🙂"
         }
     }
 

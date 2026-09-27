@@ -421,16 +421,21 @@ struct RewardGuardCallSiteTests {
     func nobodyBypassesTheSharedEntryPoint() throws {
         // `RewardedRescue` を通さずに `services.showRewardedAd(...)` を直に呼ぶと、
         // 連打ガードも局ガードも失敗アラートも付かない面が 1 つだけ生まれる。
-        // モデルが広告ごと持っている3面（`requestHandledByModel` 側）だけが直に呼んでよい。
+        // モデルが広告ごと持っている面（`requestHandledByModel` 側）だけが直に呼んでよい。
+        // 将棋・チェス・五目並べのヒント（無料枠を使い切った後・#1500）も、広告の視聴完了後に
+        // CPU の読みを始める必要があり分けられないため、モデルが直に呼ぶ側に入る。
         let callers = try Self.gameSources()
             .filter { $0.text.contains("showRewardedAd(") }
             .map(\.path)
             .sorted()
         #expect(callers == [
             "GameBlackjack/BlackjackModel.swift",
+            "GameChess/ChessGameModel.swift",
+            "GameGomoku/GomokuModel.swift",
             "GameMahjong/MahjongModel.swift",
             "GamePoker/PokerModel.swift",
             "GameRoulette/RouletteModel.swift",
+            "GameShogi/ShogiGameModel.swift",
         ], "共通 API を迂回した広告の呼び出しがある: \(callers)")
     }
 

@@ -9,6 +9,8 @@ public struct ChessView: View {
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告救済（無料枠を使い切った後の1回・#1500）。
+    @State private var hintRescue = RewardedRescue()
     /// 盤上の駒に「移動しても変わらない ID」を与えるための対応付け（将棋 #200 と同じ）。
     @State private var pieceLayout: ChessPieceLayout
     /// 表示中の「チェック」の合図の契機 ID。nil なら出していない。
@@ -435,7 +437,8 @@ public struct ChessView: View {
     private var gameControls: some View {
         // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
         BoardGameControlBar(
-            model: model, services: services, rescue: undoRescue, hint: BoardControlBarHint(model, game: model.gameSerial, activity: [model.moves.count, model.selectedSquare ?? -1]),
+            model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moves.count, model.selectedSquare ?? -1]),
             onResign: { model.resign() }
         )
     }
