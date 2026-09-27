@@ -135,7 +135,7 @@ public struct OthelloEngine: Sendable {
         return (move, nodes, depth)
     }
 
-    /// 最善手を外すときの手（#1464）。全候補に自分の手と相手の応手の 2 手だけ読んで点を付け、点の最も高い手を
+    /// 最善手を外すときの手（#1464）。全候補に自分の手と相手の応手の 2 手だけ（入門は 1 手）読んで点を付け、点の最も高い手を
     /// 除いたうち、最善から `slipMargin` 以内の損の手から乱択する。角を渡す手・角を捨てる手は幅の外に出る。
     /// 候補が無い・選べる手が即負けの手だけなら `nil`（呼び出し側が探索して最善手を打つ）。
     func slipMove(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
@@ -149,7 +149,10 @@ public struct OthelloEngine: Sendable {
     }
 
     /// 外しの採点で読む深さ（自分の手＋相手の応手）。1 手だけ（打った直後の評価）だと、相手に角を渡す手が見えない。
+    /// ただし**その段の深さの上限より深くは読まない**（入門は 1 手）。上限より深く読んで採点すると、外した手のほうが
+    /// 探索の最善手より良い手になりうる（実測: 入門の確率を 50% に下げると、かんたんの得点率が 100% のときより下がった）。
     static let slipReadDepth = 2
+    var slipDepth: Int { min(Self.slipReadDepth, depthLimit ?? Self.slipReadDepth) }
 
     /// 外しの候補（即負けの確認前）。最善（2 手読みの点が最も高い手）を除く。
     func slipPool(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone) -> [(Int, Int)] {
@@ -159,7 +162,7 @@ public struct OthelloEngine: Sendable {
             b.place(row: r, col: c, stone: stone)
             var nodes = 0
             // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
-            let score = -negamax(b, stone: stone.opponent, depth: Self.slipReadDepth - 1,
+            let score = -negamax(b, stone: stone.opponent, depth: slipDepth - 1,
                                  alpha: -Int.max, beta: Int.max, deadline: .distantFuture,
                                  nodes: &nodes, nodeLimit: .max)
             scored.append(((r, c), score))
