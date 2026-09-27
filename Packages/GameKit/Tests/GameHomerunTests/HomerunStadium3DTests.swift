@@ -115,3 +115,25 @@ struct HomerunStadium3DTests {
         #expect(L.zoneScreenFraction + 0.2 < 2.0 / 3, "ゾーンの下端が押せる帯（下 1/3）に食い込む")
     }
 }
+
+@Suite("柵越えおじさんの打者のポーズ")
+struct HomerunBatterPoseTests {
+    @Test("投球中・打席前・終了後は構え")
+    func stanceOutsideResult() {
+        for phase in [HomerunModel.Phase.idle, .pitching, .finished] {
+            #expect(HomerunAtBatLayout.batterPose(phase: phase, lastKind: .homer) == .stance)
+        }
+        #expect(HomerunAtBatLayout.batterPose(phase: .ballResult, lastKind: nil) == .stance)
+    }
+
+    @Test("結果の間は打球の種別でポーズが決まる")
+    func poseByKind() {
+        let expected: [HomerunKind: HomerunOjisanPose3] = [
+            .miss: .whiff, .homer: .cheer, .foul: .swing, .inPlay: .swing, .fenceHit: .swing,
+        ]
+        #expect(expected.count == HomerunKind.allCases.count)
+        for (kind, pose) in expected {
+            #expect(HomerunAtBatLayout.batterPose(phase: .ballResult, lastKind: kind) == pose)
+        }
+    }
+}

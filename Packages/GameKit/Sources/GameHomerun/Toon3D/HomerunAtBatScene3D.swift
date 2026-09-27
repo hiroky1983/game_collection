@@ -1,5 +1,6 @@
 import SwiftUI
 import simd
+import HomerunCore
 
 /// センターカメラの打席シーンの置き方（`mock3d.swift` の `atBatShot()` の写し・メートル）。純粋な値なのでテストで固定する。
 enum HomerunAtBatLayout {
@@ -44,14 +45,28 @@ enum HomerunAtBatLayout {
     }
 }
 
+extension HomerunAtBatLayout {
+    /// いまの局面での打者のポーズ。投球中は構え、結果の間は打球の種別で決まる（空振り = うなだれ・柵越え = 喜び・それ以外 = 振り切り）。
+    static func batterPose(phase: HomerunModel.Phase, lastKind: HomerunKind?) -> HomerunOjisanPose3 {
+        guard phase == .ballResult, let kind = lastKind else { return .stance }
+        switch kind {
+        case .miss: return .whiff
+        case .homer: return .cheer
+        case .foul, .inPlay, .fenceHit: return .swing
+        }
+    }
+}
+
 /// 3D の打席シーン（球場 + 打者・投手・捕手・審判）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。
 struct HomerunAtBatScene3DView: View {
+    var batterPose: HomerunOjisanPose3 = .stance
+
     var body: some View {
         ZStack {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView()
+            HomerunAtBatSceneView(batterPose: batterPose)
             #endif
         }
         .accessibilityHidden(true)
@@ -62,6 +77,24 @@ struct HomerunAtBatScene3DView: View {
 import RealityKit
 
 private struct HomerunAtBatSceneView: UIViewRepresentable {
+    let batterPose: HomerunOjisanPose3
+
+    /// 打者の実体（ポーズが変わったら差し替える）。
+    final class Coordinator {
+        var batter: Entity?
+        var pose: HomerunOjisanPose3?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    private static func batterEntity(_ pose: HomerunOjisanPose3) -> Entity {
+        let p = HomerunAtBatLayout.batter
+        let e = HomerunToonScene.entity(for: .ojisan(pose), scale: HomerunAtBatLayout.characterScale)
+        e.position = p.position
+        e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
+        return e
+    }
+
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
         view.environment.background = .color(.clear)
@@ -77,7 +110,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
             anchor.addChild(e)
         }
-        place(.ojisan(.stance), HomerunAtBatLayout.batter)
+        let batter = Self.batterEntity(batterPose)
+        anchor.addChild(batter)
+        context.coordinator.batter = batter
+        context.coordinator.pose = batterPose
         place(.ojisan(.pitch, outfit: .pitcher), HomerunAtBatLayout.pitcher)
         place(.catcher(), HomerunAtBatLayout.catcher)
         place(.umpire(), HomerunAtBatLayout.umpire)
@@ -89,6 +125,14 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: ARView, context: Context) {}
+    func updateUIView(_ uiView: ARView, context: Context) {
+        let c = context.coordinator
+        guard c.pose != batterPose, let old = c.batter, let parent = old.parent else { return }
+        let new = Self.batterEntity(batterPose)
+        parent.addChild(new)
+        parent.removeChild(old)
+        c.batter = new
+        c.pose = batterPose
+    }
 }
 #endif
