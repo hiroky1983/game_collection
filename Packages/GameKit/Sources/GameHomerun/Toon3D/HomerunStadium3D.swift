@@ -138,12 +138,13 @@ extension HomerunToonModel {
             let r = dr > 0 ? HomerunJudge.fence(atDirection: deg) + dr : Double(standFront(deg, depth: Stand.backDepth + 4))
             let x = Float(r * sin(deg * .pi / 180)), z = Float(r * cos(deg * .pi / 180))
             m.cylinder(1.0, height, S.tower, at: [x, height / 2, z], outline: 0)
-            m.box(10, 6, 1.5, S.lamp, at: [x, height + 2.5, z], outline: 0, yaw: Float(-deg * .pi / 180))
+            // 幅の向きを円の接線（yaw = +角）にして灯体の面をホームへ向ける（`box` の yaw は正で x 軸を -z 側へ回す）。
+            m.box(10, 6, 1.5, S.lamp, at: [x, height + 2.5, z], outline: 0, yaw: Float(deg * .pi / 180))
         }
-        // バックネット裏の低い壁
+        // バックネット裏の低い壁（yaw は +角 = 接線。原本の SceneKit の写しでは -角になっていて板が互い違いに見えていた）
         for deg in stride(from: 132.0, to: 228.0, by: 3.0) {
             let a = Float(deg * .pi / 180)
-            m.box(1.0, 1.1, 0.4, S.backWall, at: [14.5 * sin(a), 0.55, 14.5 * cos(a)], outline: 0, yaw: -a)
+            m.box(1.0, 1.1, 0.4, S.backWall, at: [14.5 * sin(a), 0.55, 14.5 * cos(a)], outline: 0, yaw: a)
         }
         skyline(into: &m)
         return m.merged()
@@ -161,6 +162,18 @@ extension HomerunToonModel {
         return min(line, arc)
     }
 
+    /// 奥行き `depth` の周を `size` m 刻みで -180° から 180° まで回した区間（始点の角度・幅）。最後の区間は 180° で切り詰める。
+    static func standSweep(depth: Float, size: Float) -> [(deg: Double, step: Double)] {
+        var segments: [(deg: Double, step: Double)] = []
+        var deg = -180.0
+        while deg < 180 {
+            let step = Double(size / standFront(deg, depth: depth)) * 180 / .pi
+            segments.append((deg, min(step, 180 - deg)))
+            deg += step
+        }
+        return segments
+    }
+
     private static func standPoint(_ deg: Double, depth: Float) -> SIMD2<Float> {
         let r = standFront(deg, depth: depth), a = deg * .pi / 180
         return [r * Float(sin(a)), r * Float(cos(a))]
@@ -169,14 +182,8 @@ extension HomerunToonModel {
     /// 1 周のスタンド: 段の座席・通路の壁・（内野側だけ）上段の後ろの壁と屋根。中堅（|deg| < 6）はバックスクリーンなので座席を置かない。
     private static func stands(into m: inout HomerunToonModel) {
         typealias S = StadiumColor
-        /// `deg` を、奥行き `depth` の周で `size` m 刻みになるよう回す。
         func sweep(depth: Float, size: Float, _ body: (Double, Double) -> Void) {
-            var deg = -180.0
-            while deg < 180 {
-                let step = Double(size / standFront(deg, depth: depth)) * 180 / .pi
-                body(deg, min(step, 180 - deg))
-                deg += step
-            }
+            for seg in standSweep(depth: depth, size: size) { body(seg.deg, seg.step) }
         }
         func segment(_ deg: Double, _ step: Double, depth: Float) -> (center: SIMD2<Float>, length: Float, yaw: Float) {
             let a = standPoint(deg, depth: depth), b = standPoint(deg + step, depth: depth), d = b - a
@@ -189,7 +196,8 @@ extension HomerunToonModel {
                 guard abs(deg + step / 2) >= 6 else { return }
                 let s = segment(deg, step, depth: depth)
                 let color = S.mutedCrowd(Int((deg + 180) * 13) + row * 5, fraction: upper ? S.upperTierMute : S.lowerTierMute)
-                m.box(Stand.seatSize, Stand.seatHeight, Stand.seatSize, color, at: [s.center.x, y, s.center.y], outline: 0, yaw: s.yaw)
+                // 最後の区間（180° で切り詰めた分）は箱も短くし、-180° の最初の座席と重ねない。
+                m.box(min(Stand.seatSize, s.length), Stand.seatHeight, Stand.seatSize, color, at: [s.center.x, y, s.center.y], outline: 0, yaw: s.yaw)
             }
         }
         // 通路の壁（1 周）

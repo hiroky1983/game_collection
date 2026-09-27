@@ -72,6 +72,37 @@ struct HomerunStadium3DTests {
         #expect(positions(of: S.battersEye).contains { abs(abs($0.x) - 13) < 0.01 && $0.z > 120 && $0.y > 14 }, "バックスクリーンが無い")
     }
 
+    @Test("スタンドの周回: 区間は -180° から 180° をちょうど埋め、各区間はその位置の座席 1 つ分以下（最後は切り詰め）で、箱の幅も区間に合わせる")
+    func standSweepCoversTheLoopOnce() {
+        typealias M = HomerunToonModel
+        for depth: Float in [2, 13.6, 25.3] {
+            let segments = M.standSweep(depth: depth, size: 1.5)
+            #expect(segments.first?.deg == -180)
+            let sum = segments.reduce(0.0) { $0 + $1.step }
+            #expect(abs(sum - 360) < 1e-9, "区間の合計が \(sum)°")
+            #expect(abs((segments.last!.deg + segments.last!.step) - 180) < 1e-9)
+            for seg in segments {
+                let nominal = Double(1.5 / M.standFront(seg.deg, depth: depth)) * 180 / .pi
+                #expect(seg.step <= nominal + 1e-9 && seg.step > 0)
+            }
+            // 区間は重ならず隙間もない（次の始点 = 前の始点 + 幅）。
+            for (a, b) in zip(segments, segments.dropFirst()) {
+                #expect(abs(a.deg + a.step - b.deg) < 1e-9)
+            }
+        }
+        // 最後の区間の箱は区間の長さに切り詰める（1 周の継ぎ目で -180° の最初の座席と重ねない）。座席の箱の x 幅は 1.5m 以下。
+        typealias S = M.StadiumColor
+        let lower = (0..<S.crowd.count).flatMap { color -> [SIMD3<Float>] in
+            stadium.parts.first { $0.color == S.mutedCrowd(color, fraction: S.lowerTierMute) }?.mesh.positions ?? []
+        }
+        let seam = lower.filter { abs($0.x) < 3 && $0.z < -17 && $0.z > -19 && abs($0.y - 0.45) < 0.01 }.map(\.x).sorted()
+        #expect(seam.count >= 8, "継ぎ目の座席が見つからない")
+        // 隣り合う箱の縁（頂点が 0.1m 未満に固まる）を数え、縁と縁の間隔は座席の幅 1.5m を超えない。
+        var edges: [Float] = []
+        for x in seam where edges.last.map({ x - $0 > 0.1 }) ?? true { edges.append(x) }
+        for (a, b) in zip(edges, edges.dropFirst()) { #expect(b - a <= 1.5 + 0.01, "縁の間隔 \(b - a)") }
+    }
+
     @Test("スタンドの前縁: 外野は柵の 2m 外・バックネット裏は 16m・両翼はファウルラインの 16m 外側の直線で、弧と直線がつながる")
     func standFront() {
         typealias M = HomerunToonModel
@@ -95,6 +126,15 @@ struct HomerunStadium3DTests {
             #expect(lamps.contains { Double($0.x) * x > 20 && Double($0.z) * z > 5 }, "(\(x), \(z)) の象限に照明塔が無い")
         }
         #expect(positions(of: S.screen).contains { abs(abs($0.x) - 12) < 0.01 && $0.z > 145 && $0.y > 16 }, "スコアボードが無い")
+        // 灯体（幅 10m の箱）は幅の向きが円の接線 = 面がホームを向く: 外野右の塔（36°）の角は接線 (cos36°, -sin36°) 方向に ±5m。
+        let lamp36 = lamps.filter { $0.x > 20 && $0.z > 5 && $0.y > 40 }
+        let r36 = HomerunJudge.fence(atDirection: 36) + 30, a36 = 36.0 * .pi / 180
+        let center36 = SIMD2(Float(r36 * sin(a36)), Float(r36 * cos(a36)))
+        let tangent = SIMD2(Float(cos(a36)), Float(-sin(a36)))
+        #expect(lamp36.contains { simd_length(SIMD2($0.x, $0.z) - (center36 + tangent * 5)) < 1.0 }, "灯体の面がホームを向いていない（yaw の符号）")
+        // バックネット裏の壁も接線向き（180° の板の幅は x 方向）。
+        let wall = positions(of: HomerunToonModel.StadiumColor.backWall)
+        #expect(wall.contains { abs($0.x - 0.5) < 0.01 && abs($0.z + 14.5) < 0.25 }, "バックネット裏の壁が接線を向いていない")
         let yellow = positions(of: HomerunToonPalette.yellow)
         let r = 100 * sin(Double.pi / 4)
         for s in [-1.0, 1.0] {
