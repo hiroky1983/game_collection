@@ -26,7 +26,8 @@ struct HomerunAtBatView: View {
             TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: model.phase != .pitching || model.isHeld)) { timeline in
                 let now = timeline.date
                 ZStack(alignment: .top) {
-                    HomerunAtBatBackdrop(zoneCenter: zoneCenter)
+                    HomerunAtBatBackdrop(zoneCenter: zoneCenter,
+                                         batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind))
                     HomerunZoneCanvas(
                         zoneCenter: zoneCenter,
                         ball: model.phase == .pitching ? model.ballPoint : nil,
@@ -178,10 +179,11 @@ struct HomerunAtBatView: View {
 /// 打席の背景。iOS は 3D（RealityKit）のセンターカメラ、それ以外（macOS の `swift test`）は 2D の仮絵。
 struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
+    var batterPose: HomerunOjisanPose3 = .stance
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView().ignoresSafeArea()
+        HomerunAtBatScene3DView(batterPose: batterPose).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
         #endif
