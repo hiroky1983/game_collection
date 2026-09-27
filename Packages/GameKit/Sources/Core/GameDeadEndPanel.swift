@@ -25,24 +25,41 @@ public struct GameDeadEndPanel<Buttons: View>: View {
     public var body: some View {
         ZStack {
             Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text(emoji).font(.system(size: 52))
-                Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text(message)
-                    .themeBody(15, weight: .semibold)
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
-                VStack(spacing: 12) {
-                    buttons
+            // 大きな文字設定＋ボタン多めのゲーム（ソリティアの4ボタン等）は、収まらない盤面で
+            // 最後のボタンに届かなくなる（CodeRabbit指摘）。**収まるあいだは今までの非スクロール
+            // 表示のままにし、収まらないときだけスクロールに落とす**（`PokerView` と同じ手当て）。
+            ViewThatFits(in: .vertical) {
+                card
+                GeometryReader { geo in
+                    ScrollView(showsIndicators: false) {
+                        // 幅を枠に固定する（`ScrollView` は中身の理想幅を提案してくるため）。
+                        card
+                            .frame(width: geo.size.width)
+                            .frame(minHeight: geo.size.height, alignment: .top)
+                    }
                 }
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
             .padding(.horizontal, 28)
         }
+    }
+
+    private var card: some View {
+        VStack(spacing: 20) {
+            Text(emoji).font(.system(size: 52))
+            Text(title)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.ink)
+            Text(message)
+                .themeBody(15, weight: .semibold)
+                .foregroundStyle(Theme.inkSub)
+                .multilineTextAlignment(.center)
+            VStack(spacing: 12) {
+                buttons
+            }
+        }
+        .padding(28)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
     }
 }
 
