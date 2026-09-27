@@ -471,6 +471,9 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             && !isAITurn && !isThinking && !isHintThinking && pendingPromotion == nil
     }
 
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか（#1500）。
+    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+
     /// 現在の局面の最善手を 1 手求め、盤の上に示す（#1118。将棋 `ShogiGameModel.requestHint` と同型）。
     ///
     /// 読みは CPU の着手と同じ `AITurnGuarded` の照合に載せる（#531）。**求まらなかった局・
@@ -500,6 +503,41 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
             persist()
         }
+    }
+
+    /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（会長決裁 2026-09-27・#1500。
+    /// 将棋 `ShogiGameModel.requestAdHint` と同型）。
+    ///
+    /// 広告の視聴完了を確かめてから CPU の読みを始める（読み終えてから広告を流さない契約）。
+    public func requestAdHint() async -> RewardedModelOutcome {
+        guard canUseHint, needsAdForHint else { return .unavailable }
+        let turn = aiTurnKey
+        // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
+        let generationBeforeAd = services?.screenGeneration.current
+        guard await services?.showRewardedAd(gameID: gameID, purpose: .hint) ?? true else {
+            return .notEarned
+        }
+        guard services?.screenGeneration.current == generationBeforeAd, turn == aiTurnKey else { return .unavailable }
+        var outcome: RewardedModelOutcome = .unavailable
+        await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
+            let fen = position.toFEN()
+            await thinkingGate?()
+            return await Task.detached(priority: .userInitiated) {
+                await SimpleChessEngine(level: BoardHintBudget.engineLevel).bestMove(fen: fen)
+            }.value
+        } commit: { uci in
+            guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
+                  !hints.isExhausted,
+                  let uci, let move = ChessMove.fromUCI(uci), legalMovesCache.contains(move),
+                  hints.consumeAd() else { return }
+            startPlayIfPending()
+            services?.gameDidUseHint(gameID: gameID)
+            hintMove = move
+            services?.feedback.impact(.light)
+            persist()
+            outcome = .granted
+        }
+        return outcome
     }
 
     // MARK: - 検討（終局後に手を戻す／進める）

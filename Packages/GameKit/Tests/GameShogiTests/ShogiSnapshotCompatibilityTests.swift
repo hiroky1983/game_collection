@@ -34,6 +34,6 @@ struct ShogiSnapshotCompatibilityTests {
         #expect(model.phase == .playing)
         #expect(!model.gameOver)
         #expect(model.aiLevel == 2)
-        #expect(model.hintsRemaining == BoardHintBudget.perGame - 2)
+        #expect(model.hintsRemaining == BoardHintBudget.total - 2)
     }
 }

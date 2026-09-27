@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftUI
 import Core
 import CoreTestSupport
 @testable import GameShogi
@@ -18,12 +19,12 @@ struct ShogiHintTests {
     @Test("押すと最善手が1手出て、残りが1つ減る")
     func showsBestMoveAndSpendsOne() async throws {
         let model = ShogiGameModel(services: nil)
-        #expect(model.hintsRemaining == BoardHintBudget.perGame)
+        #expect(model.hintsRemaining == BoardHintBudget.total)
         #expect(model.canUseHint)
 
         await model.requestHint()
 
-        #expect(model.hintsRemaining == BoardHintBudget.perGame - 1)
+        #expect(model.hintsRemaining == BoardHintBudget.total - 1)
         let move = try #require(model.hintMove, "ヒントの手が出ていない")
         #expect(model.legalMovesCache.contains(move), "合法手でない手を示している")
         // 盤の印は移動元・移動先（打つ手は打つ先だけ）。
@@ -31,15 +32,16 @@ struct ShogiHintTests {
         #expect(!model.isHintThinking, "読みが終わったのに思考中のまま")
     }
 
-    @Test("3回使うと押せなくなり、4回目は何も起きない")
+    @Test("無料3回を使い切ると requestHint()（無料専用）は何も起きない（広告枠は残る・#1500）")
     func stopsAfterThreeHints() async throws {
         let model = ShogiGameModel(services: nil)
         for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
-        #expect(model.hintsRemaining == 0)
-        #expect(!model.canUseHint)
+        #expect(model.hintsRemaining == BoardHintBudget.adRefillMax, "無料枠だけを使い切った状態")
+        #expect(model.canUseHint, "広告枠が残っているので押せる状態のまま")
+        #expect(model.needsAdForHint)
 
         await model.requestHint()
-        #expect(model.hintsRemaining == 0, "使い切ったあとに回数が動いている")
+        #expect(model.hintsRemaining == BoardHintBudget.adRefillMax, "無料専用の requestHint() で回数が動いている")
     }
 
     @Test("CPU の手番ではヒントを押せない")
@@ -62,7 +64,7 @@ struct ShogiHintTests {
 
         #expect(model.hintMove == nil)
         #expect(model.hintSquares.isEmpty)
-        #expect(model.hintsRemaining == BoardHintBudget.perGame - 1, "指したら回数が戻っている")
+        #expect(model.hintsRemaining == BoardHintBudget.total - 1, "指したら回数が戻っている")
     }
 
     /// 読みの最中でも成・不成は選べてしまい、そのとき `aiTurnKey` はまだ変わらないので
@@ -94,15 +96,15 @@ struct ShogiHintTests {
         #expect(model.hintMove == nil, "成り・不成の選択中にヒントの印を出している")
     }
 
-    @Test("新規対局で3回に戻る")
+    @Test("新規対局で8回に戻る")
     func newGameRefillsHints() async {
         let model = ShogiGameModel(services: nil)
         await model.requestHint()
-        #expect(model.hintsRemaining < BoardHintBudget.perGame)
+        #expect(model.hintsRemaining < BoardHintBudget.total)
 
         model.newGame()
 
-        #expect(model.hintsRemaining == BoardHintBudget.perGame)
+        #expect(model.hintsRemaining == BoardHintBudget.total)
         #expect(model.hintMove == nil, "前の対局のヒントの印が残っている")
     }
 
@@ -114,7 +116,7 @@ struct ShogiHintTests {
         try #require(model.hints.used == 1)
 
         let restored = ShogiGameModel(services: makeServices(store))
-        #expect(restored.hintsRemaining == BoardHintBudget.perGame - 1, "再開でヒントが戻っている")
+        #expect(restored.hintsRemaining == BoardHintBudget.total - 1, "再開でヒントが戻っている")
         #expect(restored.hintMove == nil, "印は保存しない（開き直したら出し直す）")
     }
 
@@ -133,7 +135,7 @@ struct ShogiHintTests {
         #expect(!legacy.contains("hintsUsed"), "前提: 旧形式と同じく鍵が無い中断データ")
 
         let restored = ShogiGameModel(services: makeServices(store))
-        #expect(restored.hintsRemaining == BoardHintBudget.perGame)
+        #expect(restored.hintsRemaining == BoardHintBudget.total)
     }
 
     @Test("ヒントを使った対局は順位表へ送らない（自己ベストはローカルに残る）")
@@ -212,5 +214,151 @@ struct ShogiHintAnalyticsTests {
         let ends = endParameters(spy)
         #expect(ends.count == 1)
         #expect(ends.first?.keys.contains("hints_used") == false)
+    }
+}
+
+// MARK: - 広告での追加ヒント（会長決裁 2026-09-27・#1500）
+
+/// 視聴完了・未完了を制御できる広告スタブ（`PokerRewardedAdTests` と同じ形）。
+private final class StubAdService: AdService, @unchecked Sendable {
+    private let rewardEarned: Bool
+    private(set) var shownCount = 0
+    var duringAd: (@MainActor () -> Void)?
+
+    init(rewardEarned: Bool) { self.rewardEarned = rewardEarned }
+
+    @MainActor func makeBannerView(width: CGFloat) -> AnyView? { nil }
+    @MainActor func showInterstitial() async {}
+    @MainActor func showRewardedAd() async -> Bool {
+        shownCount += 1
+        duringAd?()
+        return rewardEarned
+    }
+}
+
+@MainActor
+@Suite("将棋 広告での追加ヒント（#1500）")
+struct ShogiAdHintTests {
+
+    private func makeModel(
+        rewardEarned: Bool = true, store: MemorySnapshotStore = MemorySnapshotStore(),
+        screenGeneration: GameScreenGeneration = GameScreenGeneration()
+    ) -> (ShogiGameModel, StubAdService) {
+        let ads = StubAdService(rewardEarned: rewardEarned)
+        let services = GameServices(snapshots: store, ads: ads, screenGeneration: screenGeneration)
+        return (ShogiGameModel(services: services), ads)
+    }
+
+    @Test("無料枠が残っているうちは広告を要求しない")
+    func doesNotNeedAdWhileFreeRemains() async throws {
+        let (model, ads) = makeModel()
+        #expect(!model.needsAdForHint)
+
+        let outcome = await model.requestAdHint()
+
+        #expect(outcome == .unavailable)
+        #expect(ads.shownCount == 0, "無料枠があるのに広告を出している")
+        #expect(model.hints.used == 0)
+    }
+
+    @Test("無料3回を使い切ると次の1回に広告が要る")
+    func needsAdAfterTheFreeThreeAreUsed() async throws {
+        let (model, _) = makeModel()
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+
+        #expect(model.needsAdForHint)
+        #expect(model.canUseHint, "広告枠が残っているので押せる状態のまま")
+        #expect(model.hintsRemaining == BoardHintBudget.adRefillMax)
+    }
+
+    @Test("広告を視聴すると最善手が1手出て、広告枠が1つ減る")
+    func adGrantsOneMoreHint() async throws {
+        let (model, ads) = makeModel()
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+
+        let outcome = await model.requestAdHint()
+
+        #expect(outcome == .granted)
+        #expect(ads.shownCount == 1)
+        #expect(model.hints.used == BoardHintBudget.perGame + 1)
+        #expect(model.hintMove != nil, "ヒントの手が出ていない")
+    }
+
+    @Test("視聴しなかった・読み込めなかったときは回数を減らさない")
+    func notEarnedDoesNotConsume() async throws {
+        let (model, ads) = makeModel(rewardEarned: false)
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+
+        let outcome = await model.requestAdHint()
+
+        #expect(outcome == .notEarned)
+        #expect(ads.shownCount == 1)
+        #expect(model.hints.used == BoardHintBudget.perGame, "視聴未完了なのに回数が減っている")
+    }
+
+    @Test("広告5回ぶんで合計8回を使い切ると押せなくなる")
+    func stopsAfterEightHintsTotal() async throws {
+        let (model, _) = makeModel()
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+        for _ in 0..<BoardHintBudget.adRefillMax { _ = await model.requestAdHint() }
+
+        #expect(model.hintsRemaining == 0)
+        #expect(!model.canUseHint)
+        #expect(!model.needsAdForHint, "使い切ったら広告要求の状態も外れる")
+
+        let extra = await model.requestAdHint()
+        #expect(extra == .unavailable)
+        #expect(model.hints.used == BoardHintBudget.total)
+    }
+
+    @Test("広告を見ているあいだに新しい対局が始まったら、捨てた局へは適用しない")
+    func discardsTheHintIfANewGameStartedDuringTheAd() async throws {
+        let (model, ads) = makeModel()
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+        ads.duringAd = { model.newGame() }
+
+        let outcome = await model.requestAdHint()
+
+        #expect(outcome == .unavailable)
+        #expect(model.hints.used == 0, "新しい対局の回数へ広告の分が乗っている")
+    }
+
+    @Test("広告を見ているあいだにハブへ戻ったら、捨てられたモデルには適用しない")
+    func discardsTheHintIfTheScreenWasLeftDuringTheAd() async throws {
+        let generation = GameScreenGeneration()
+        let (model, ads) = makeModel(screenGeneration: generation)
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+        ads.duringAd = { generation.advance() }
+
+        let outcome = await model.requestAdHint()
+
+        #expect(outcome == .unavailable)
+        #expect(model.hints.used == BoardHintBudget.perGame, "画面を離れたのに回数が増えている")
+    }
+
+    @Test("新規対局で無料・広告とも8回に戻る")
+    func newGameRefillsBothTiers() async throws {
+        let (model, _) = makeModel()
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+        _ = await model.requestAdHint()
+
+        model.newGame()
+
+        #expect(model.hintsRemaining == BoardHintBudget.total)
+        #expect(!model.needsAdForHint)
+    }
+
+    @Test("中断データに広告ぶんの使用回数も乗り、再開しても残りが戻らない")
+    func adHintCountSurvivesRestart() async throws {
+        let store = MemorySnapshotStore()
+        let (model, _) = makeModel(store: store)
+        for _ in 0..<BoardHintBudget.perGame { await model.requestHint() }
+        _ = await model.requestAdHint()
+        try #require(model.hints.used == BoardHintBudget.perGame + 1)
+
+        let restoredServices = GameServices(snapshots: store, ads: NoopAdService())
+        let restored = ShogiGameModel(services: restoredServices)
+        #expect(restored.hintsRemaining == BoardHintBudget.total - (BoardHintBudget.perGame + 1))
+        #expect(restored.needsAdForHint, "無料枠を使い切った状態のまま再開している")
     }
 }

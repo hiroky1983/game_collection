@@ -146,6 +146,8 @@ public final class HanafudaModel: AITurnGuarded {
     public private(set) var recordResult: RecordResult?
     /// この試合で広告の延長（#1049）を使ったか。1 試合 1 回までの制限と、順位表から外す判定に使う。
     public private(set) var hasExtendedMatch = false
+    /// この試合を投了で終えたか。文数の比較だけでは見出しを決められないため（#1496）。次の試合開始で戻す。
+    public private(set) var wasResigned = false
 
     // MARK: 内部
 
@@ -597,6 +599,7 @@ public final class HanafudaModel: AITurnGuarded {
         cpuTotal = 0
         // 新しい試合なので延長の権利も戻る（#1049）。
         hasExtendedMatch = false
+        wasResigned = false
         round = 0
         dealer = (rng.next() % 2 == 0) ? .human : .cpu
         self.options = options
@@ -609,6 +612,7 @@ public final class HanafudaModel: AITurnGuarded {
         selection = nil
         drawnCard = nil
         phase = .matchResult
+        wasResigned = true
         message = "投了しました。\(humanTotal)文 対 \(cpuTotal)文"
         // 投了しても、それまでに稼いだ文数は正当な記録として残す。文数は打つほど増える
         // 一方なので、途中で降りて有利になることはない。
@@ -620,6 +624,21 @@ public final class HanafudaModel: AITurnGuarded {
         services?.feedback.notify(.error)
         services?.snapshots.clear(for: Self.gameID)
     }
+
+    #if DEBUG
+    /// 撮影・動作確認用（DEBUG 限定）: タップ無しで試合の結果画面まで進める
+    /// （`-hanafudaMatchResult`・`-hanafudaMatchResultResigned`）。シミュレータは自動タップができないため（#1496）。
+    public func debugForceMatchResult(resigned: Bool) {
+        if phase == .idle { startMatch(options: options) }
+        if resigned {
+            resign()
+        } else {
+            humanTotal = 12
+            cpuTotal = 8
+            finishMatch()
+        }
+    }
+    #endif
 
     public var canResign: Bool {
         phase == .playing || phase == .koiKoiPrompt || phase == .roundResult
