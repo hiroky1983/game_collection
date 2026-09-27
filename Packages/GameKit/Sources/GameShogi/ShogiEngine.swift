@@ -206,7 +206,8 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     static let maxDepth = 32
 
     /// 最善手を打つ確率（#1461 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。
-    /// ふつうは会長決裁の 80%、かんたん・入門は上から順に計測で決めた）。
+    /// ふつうは会長決裁の 80%、かんたん・入門は上から順に計測で決めた: ふつう 80% に対しかんたん 70%、
+    /// かんたん 70% に対し入門 100%。入門は外しを使わず、0.02 秒・1 手先の読みの浅さだけで弱くなる）。
     static let noviceBestMoveProbability = 1.0
     static let easyBestMoveProbability = 0.7
     static let normalBestMoveProbability = 0.8
