@@ -114,7 +114,8 @@ public struct GameControlMenu: View {
     private let isOpen: Binding<Bool>?
 
     /// - Parameter isOpen: メニューを開いているあいだ true にする（ヒントの吹き出しを止めるため・#1485）。
-    ///   SwiftUI の `Menu` は開閉を知らせないので、中身の出入り（onAppear / onDisappear）と項目の選択で追う。
+    ///   `Menu` の中身の出入り（onAppear / onDisappear）は実機で発火が確認できなかった（#1499）ため、
+    ///   開いた合図は「⋯」自体へのタップでも重ねて取る（`simultaneousGesture` は Menu 本来のタップを妨げない）。
     public init(items: [GameControlMenuItem], isOpen: Binding<Bool>? = nil) {
         self.items = items
         self.isOpen = isOpen
@@ -130,12 +131,24 @@ public struct GameControlMenu: View {
         items.filter { !$0.isDestructive } + items.filter(\.isDestructive)
     }
 
+    /// 項目のアイコン＋文字。押せない項目はアイコンも文字と同じグレーにする（いまはアイコンだけ差し色のコーラルに
+    /// 残ってしまっていた・#1499）。押せる項目はここで色を触らず、従来どおりの見た目のまま。
+    @ViewBuilder
+    private static func label(for item: GameControlMenuItem) -> some View {
+        if item.isEnabled {
+            Label(item.title, systemImage: item.systemImage)
+        } else {
+            Label(item.title, systemImage: item.systemImage)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     public var body: some View {
         Menu {
             ForEach(Self.ordered(items)) { item in
                 if let isChecked = item.isChecked {
                     Toggle(isOn: Binding(get: { isChecked }, set: { _ in setOpen(false); item.action() })) {
-                        Label(item.title, systemImage: item.systemImage)
+                        Self.label(for: item)
                     }
                     .disabled(!item.isEnabled)
                     .accessibilityLabel(item.accessibilityLabel ?? item.title)
@@ -145,7 +158,7 @@ public struct GameControlMenu: View {
                         setOpen(false)
                         item.action()
                     } label: {
-                        Label(item.title, systemImage: item.systemImage)
+                        Self.label(for: item)
                     }
                     .disabled(!item.isEnabled)
                     .accessibilityLabel(item.accessibilityLabel ?? item.title)
@@ -162,6 +175,7 @@ public struct GameControlMenu: View {
                 .background(Circle().fill(Theme.fillMuted))
                 .contentShape(Circle())
         }
+        .simultaneousGesture(TapGesture().onEnded { setOpen(true) })
         .accessibilityLabel("その他の操作")
     }
 }

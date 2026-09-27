@@ -9,6 +9,8 @@ public struct GomokuView: View {
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// ヒントの広告救済（無料枠を使い切った後の1回・#1500）。
+    @State private var hintRescue = RewardedRescue()
 
     public init(services: GameServices) {
         self.services = services
@@ -313,7 +315,8 @@ public struct GomokuView: View {
     private var gameControls: some View {
         // 待った・「⋯」（投了・ヒント）の並びは盤ゲーム 5 本で共通（#1421）。
         BoardGameControlBar(
-            model: model, services: services, rescue: undoRescue, hint: BoardControlBarHint(model, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
+            model: model, services: services, rescue: undoRescue,
+            hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
             onResign: { model.resign() }
         )
     }

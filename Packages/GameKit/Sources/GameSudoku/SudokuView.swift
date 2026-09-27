@@ -140,6 +140,18 @@ public struct SudokuView: View {
                     model.enter(digit: model.solution[index])
                 }
             }
+            // 撮影・動作確認用（DEBUG 限定）: ミス上限まで誤答を入れ、失敗幕を出す（#1486）。
+            // `-sudokuAutoStart` と併用する。
+            if ProcessInfo.processInfo.arguments.contains("-sudokuMistakeLimit") {
+                var guardCount = 0
+                while model.state == .playing, guardCount < SudokuModel.maxMistakes + 4 {
+                    guardCount += 1
+                    guard let index = (0..<SudokuEngine.cellCount).first(where: { !model.given[$0] && model.board[$0] == 0 }) else { break }
+                    if model.selected != index { model.select(index: index) }
+                    let wrong = (1...9).first { $0 != model.solution[index] }!
+                    model.enter(digit: wrong)
+                }
+            }
             // 撮影・動作確認用（DEBUG 限定）: 起動 2 秒後に空きマスへ誤答を 1 つ入れ、揺れを非対話で起こす（#666）。
             // `-sudokuAutoStart` と併用する。揺れが補間されるかの実測（連続スクショ）に使う。
             if ProcessInfo.processInfo.arguments.contains("-sudokuMistakePreview"), model.state == .playing,
@@ -622,7 +634,7 @@ public struct SudokuView: View {
             cornerRadius: Theme.cornerSmall,
             contentPadding: 16,
             detail: Text("広告を見るとミスが0に戻り、続きから遊べます")
-                .themeCaption(12).foregroundStyle(.white.opacity(0.85)),
+                .themeBody(15).foregroundStyle(.white.opacity(0.85)),
             rescueLabel: "広告を見てコンティニュー",
             rescue: continueRescue, services: services, gameID: model.gameID,
             serial: model.gameSerial,

@@ -252,8 +252,6 @@ public struct MahjongSolitaireView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-
-            Text(stateEmoji).font(.system(size: 22))
         } trailing: {
             Label(timeText, systemImage: "clock")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -264,11 +262,6 @@ public struct MahjongSolitaireView: View {
     private var timeText: String {
         let s = min(model.elapsedSeconds, 59 * 60 + 59)
         return String(format: "%02d:%02d", s / 60, s % 60)
-    }
-
-    private var stateEmoji: String {
-        if model.phase == .won { return "🎉" }
-        return model.isDeadlocked ? "😵" : "🀄️"
     }
 
     // MARK: - 盤面

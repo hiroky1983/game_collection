@@ -66,14 +66,14 @@ struct ReengagementReminderWiringTests {
                 "ハブがタップされたゲームを notification の導線で開いていない")
     }
 
-    @Test("設定のトグルで止められ、オフにすると予約済みも取り消す")
+    @Test("設定のトグルで止められ、オフにすると予約済みも取り消す（#1508: #663 と共有する統合トグル）")
     func settingToggleStopsReminders() throws {
         let source = try SourceScan.appSources()
-        #expect(Self.matches(#"get: \{ settings\.reengagementRemindersEnabled \},\s*set: \{ settings\.reengagementRemindersEnabled = \$0 \}"#, in: source),
-                "設定画面に久しぶり通知のトグルが無い")
-        #expect(Self.matches(#"isEnabled: \{ settings\.reengagementRemindersEnabled \}"#, in: source),
+        #expect(Self.matches(#"get: \{ settings\.notificationsEnabled \},\s*set: \{ settings\.notificationsEnabled = \$0 \}"#, in: source),
+                "設定画面に通知のトグルが無い")
+        #expect(Self.matches(#"isEnabled: \{ settings\.notificationsEnabled \}"#, in: source),
                 "設定のオン / オフが判定に届いていない")
-        #expect(Self.matches(#"if !reengagementRemindersEnabled \{\s*AppEnvironment\.reengagement\.cancelAll\(\)"#, in: source),
+        #expect(Self.matches(#"if !notificationsEnabled \{\s*AppEnvironment\.reminders\.cancelAll\(\)\s*AppEnvironment\.reengagement\.cancelAll\(\)"#, in: source),
                 "オフにしても予約済みのお知らせが残る")
     }
 
