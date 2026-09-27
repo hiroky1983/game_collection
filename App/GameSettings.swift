@@ -103,6 +103,13 @@ final class GameSettings {
         // 初期化中の代入では呼ばれないため、ここで明示的に書き戻す）。
         Self.notifications.isEnabled = mergedNotificationsEnabled
         Self.reengagementReminders.isEnabled = mergedNotificationsEnabled
+        // 統合前は久しぶり通知だけオフ（続きのお知らせはオン）だった等の場合、統合直後は
+        // 予約済みの片方が残ったままになる。didSet が呼ばれない初期化中の代入では取り消しも
+        // 走らないため、ここで明示的に両方取り消す。
+        if !mergedNotificationsEnabled {
+            AppEnvironment.reminders.cancelAll()
+            AppEnvironment.reengagement.cancelAll()
+        }
         self.hintsEnabled = Self.hints.isEnabled
         self.slowModeEnabled = Self.slowMode.isEnabled
     }
