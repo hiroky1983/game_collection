@@ -391,8 +391,12 @@ public protocol BoardHintModel: AnyObject {
     var canUseHint: Bool { get }
     /// ヒントの読みの最中か。ボタンの中の合図に使う。
     var isHintThinking: Bool { get }
-    /// 最善手を 1 手求めて盤の上に示す。求まらなければ回数は減らさない。
+    /// 無料枠を使い切っていて、次の 1 回に広告が要るか（#1500）。
+    var needsAdForHint: Bool { get }
+    /// 最善手を 1 手求めて盤の上に示す（無料枠）。求まらなければ回数は減らさない。
     func requestHint() async
+    /// 広告視聴後にヒントを 1 回出す（#1500）。視聴未完了・局面が変わった場合は回数を減らさない。
+    func requestAdHint() async -> RewardedModelOutcome
 }
 
 // MARK: - 検討ナビ
