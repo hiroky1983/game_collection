@@ -83,12 +83,14 @@ public struct OthelloEngine: Sendable {
         }
     }
 
-    /// 最善手を打つ確率（#1464 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
-    static let noviceBestMoveProbability = 1.0
+    /// 最善手を打つ確率（#1464 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。上から順に決めた:
+    /// むずかしい 100% に対しふつう 90%、ふつう 90% に対しかんたん 60%、かんたん 60% に対し入門 50%）。
+    static let noviceBestMoveProbability = 0.5
     static let easyBestMoveProbability = 0.6
     static let normalBestMoveProbability = 0.9
 
-    /// 外したときに許す損の幅（`evaluate` の点数）。
+    /// 外したときに許す損の幅（`evaluate` の点数）。X 打ち（角のななめとなり）の減点 1 つ・着手可能数の差 4 手ぶん。
+    /// 角を相手に渡す手（角の点 120）は入らない。実測で、外しの候補（最善以外）が残る局面は 8 割強（平均 3 手）。
     static let slipMargin = 40
 
     static func policy(_ probability: Double) -> OthelloMovePolicy {
@@ -118,9 +120,13 @@ public struct OthelloEngine: Sendable {
     }
 
     /// 考える時間の締切。`timeLimit: .infinity`（計測が局面数で打ち切るとき）は時間で打ち切らない。
+    /// 締切を過ぎてから探索を巻き戻して手を返すまでの分（`searchOverhead`）を先に引き、1 手が上限を超えないようにする。
     func deadline() -> Date {
-        timeLimit.isFinite ? now().addingTimeInterval(timeLimit) : .distantFuture
+        timeLimit.isFinite ? now().addingTimeInterval(timeLimit - Self.searchOverhead) : .distantFuture
     }
+
+    /// 締切を過ぎてから手を返すまでの余裕（秒）。引かないと、むずかしいが 1.5 秒を 1 ミリ秒ほど超えた（実測）。
+    static let searchOverhead = 0.02
 
     /// 計測用: 手に加えて、読んだ局面数と読み切った深さを返す（`policy` は通さず、探索そのものだけを見る）。
     func analyze(board: OthelloBoard, stone: OthelloStone) -> (move: (row: Int, col: Int), nodes: Int, depth: Int)? {

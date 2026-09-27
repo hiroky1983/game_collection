@@ -3,87 +3,199 @@ import Foundation
 import CoreEngine
 @testable import GameOthello
 
-/// CPU の難易度カーブの回帰テスト（#1013）。
+/// CPU の段階の回帰テスト（#1013・#1464）。
 ///
-/// **レベルどうしの勝率の実測は `-O` の単体バイナリで行い、結果は #1013 / PR の表に残す。**
-/// ここに入れるのは CI（最適化なしのデバッグビルド）で現実的な時間に収まるものだけ:
-/// 深さ 3・5 の探索を自己対戦させると 1 局で数十秒かかるため、置けるのは
-/// ①「弱」の打ち方（読まずに最も多く返る手を選ぶ）②探索を一切しない「弱」の直接対戦、の 2 つ。
+/// **段階どうしの勝率の実測は `-O` の単体バイナリで行い、結果は `docs/analytics/othello-1464-ladder.md` に残す。**
+/// ここに入れるのは CI（最適化なしのデバッグビルド）で現実的な時間に収まるものだけ。
 @Suite("オセロ CPU の難易度")
 struct OthelloEngineTests {
 
-    // MARK: - 弱（読まない）
+    // MARK: - 段階の設定（#1464）
 
-    /// 角を取れるが返る石は 1 枚、別の手なら 3 枚返る盤面。
-    /// 「弱」は角の価値を知らないので**枚数の多い方**を選ぶ（#1013。
-    /// 位置評価を見る実装に戻すと角を取るのでこのテストが落ちる）。
-    @Test("弱は角より返る枚数を優先する")
-    func weakPrefersFlipCountOverCorner() async {
-        var cells = [OthelloStone?](repeating: nil, count: othelloBoardSize * othelloBoardSize)
-        // 上端の行: (0,0) が空き・(0,1) が白・(0,2) が黒 → (0,0) に黒を置くと 1 枚返る。
-        cells[0 * othelloBoardSize + 1] = .white
-        cells[0 * othelloBoardSize + 2] = .black
-        // 中央の列: (4,3) が空き・(3,3)(2,3)(1,3) が白・(0,3) が黒 → (4,3) に置くと 3 枚返る。
-        cells[3 * othelloBoardSize + 3] = .white
-        cells[2 * othelloBoardSize + 3] = .white
-        cells[1 * othelloBoardSize + 3] = .white
-        cells[0 * othelloBoardSize + 3] = .black
-        let board = OthelloBoard(cells: cells)
-
-        #expect(board.flippable(row: 0, col: 0, stone: .black).count == 1)
-        #expect(board.flippable(row: 4, col: 3, stone: .black).count == 3)
-
-        let move = await OthelloEngine(level: 0).bestMove(board: board, stone: .black)
-        #expect(move?.row == 4 && move?.col == 3, "弱が角 (0,0) を取った: \(String(describing: move))")
+    /// 段階の差は時間・深さの上限・最善手の確率の 3 つだけ（会長決裁 2026-09-27）。値を変えたら段階表を測り直すこと。
+    @Test("段階の設定は決裁値（時間・深さの上限・最善手の確率）")
+    func settingsMatchTheDecision() {
+        let novice = OthelloEngine.settings(for: .novice), easy = OthelloEngine.settings(for: .easy)
+        let normal = OthelloEngine.settings(for: .normal), hard = OthelloEngine.settings(for: .hard)
+        #expect(novice.timeLimit == 0.3 && novice.depthLimit == 1 && novice.policy.bestMoveProbability == 0.5)
+        #expect(easy.timeLimit == 0.5 && easy.depthLimit == 3 && easy.policy.bestMoveProbability == 0.6)
+        #expect(normal.timeLimit == 1.0 && normal.depthLimit == 5 && normal.policy.bestMoveProbability == 0.9)
+        #expect(hard.timeLimit == 1.5 && hard.depthLimit == nil && hard.policy == .exact)
+        for s in [novice, easy, normal] { #expect(s.policy.slipMargin == 40) }
+        // 出荷のエンジンは局面数で打ち切らない（強さは時間と深さの上限で決まる）。
+        #expect(OthelloEngine(level: CPUStrength.hard.rawValue).nodeLimit == .max)
     }
 
-    @Test("弱は同じ盤面に必ず同じ手を返す")
-    func weakIsDeterministic() async {
+    @Test("深さの上限より深く読まない")
+    func searchStopsAtTheDepthLimit() throws {
         let board = OthelloBoard()
-        let first = await OthelloEngine(level: 0).bestMove(board: board, stone: .black)
-        for _ in 0..<20 {
-            let move = await OthelloEngine(level: 0).bestMove(board: board, stone: .black)
-            #expect(move?.row == first?.row && move?.col == first?.col)
+        for (strength, limit) in [(CPUStrength.novice, 1), (.easy, 3), (.normal, 5)] {
+            let r = try #require(OthelloEngine(level: strength.rawValue, timeLimitOverride: .infinity)
+                .analyze(board: board, stone: .black))
+            #expect(r.depth == limit, "\(strength.label) が深さ \(r.depth) まで読んだ")
         }
     }
 
     @Test("打てる手が無ければ nil、あれば必ず合法手")
     func returnsLegalMoveOnly() async throws {
         let board = OthelloBoard()
-        let move = await OthelloEngine(level: 0).bestMove(board: board, stone: .black)
-        let unwrapped = try #require(move)
-        #expect(board.isValid(row: unwrapped.row, col: unwrapped.col, stone: .black))
-
+        for strength in CPUStrength.allCases where strength != .hard {
+            let move = await OthelloEngine(level: strength.rawValue).bestMove(board: board, stone: .black)
+            let unwrapped = try #require(move)
+            #expect(board.isValid(row: unwrapped.row, col: unwrapped.col, stone: .black))
+        }
         // 白で埋めた盤は黒に打つ手が無い。
         let full = OthelloBoard(cells: [OthelloStone?](
             repeating: .white, count: othelloBoardSize * othelloBoardSize))
-        let none = await OthelloEngine(level: 0).bestMove(board: full, stone: .black)
+        let none = await OthelloEngine(level: CPUStrength.novice.rawValue).bestMove(board: full, stone: .black)
         #expect(none?.row == nil)
     }
 
-    // MARK: - 「弱」の勝率（#1013）
+    // MARK: - 最善手を外すとき（#1464）
 
-    /// でたらめに打つ相手との直接対戦。**「弱」は探索しないのでデバッグビルドでも一瞬で終わる。**
-    ///
-    /// 上限は「初心者が安定して勝てる弱さ」の担保（位置評価を見ていた以前の実装は同じ条件で
-    /// 88.3%・平均 +16.9 石だったので、戻すとこのテストが落ちる）。下限は弱くしすぎの検知。
-    @Test("弱はでたらめな相手に勝ったり負けたりする")
-    func weakWinRateAgainstRandom() async {
-        let games = 60
+    /// 乱数で進めた局面。
+    static func randomBoard(seed: UInt64, plies: Int) -> (OthelloBoard, OthelloStone) {
+        var board = OthelloBoard()
+        var rng = MMIXRandom(seed: seed)
+        var stone = OthelloStone.black
+        for _ in 0..<plies {
+            var moves = board.validMoves(for: stone)
+            if moves.isEmpty { stone = stone.opponent; moves = board.validMoves(for: stone) }
+            guard !moves.isEmpty else { break }
+            let m = moves[Int(rng.next() % UInt64(moves.count))]
+            board.place(row: m.0, col: m.1, stone: stone)
+            stone = stone.opponent
+        }
+        return (board, stone)
+    }
+
+    /// 外しの候補は、採点で最も高い手を含まず、最善から損の幅以内の手だけ。
+    @Test("外しの候補は最善を除き、損の幅の中の手だけ")
+    func slipPoolExcludesTheBestAndStaysWithinTheMargin() {
+        for strength in [CPUStrength.novice, .easy] {
+            let engine = OthelloEngine(level: strength.rawValue, seed: 1)
+            for seed in 1...12 {
+                let (board, stone) = Self.randomBoard(seed: UInt64(seed), plies: 8 + seed * 3)
+                let moves = board.validMoves(for: stone)
+                guard moves.count >= 2 else { continue }
+                func score(_ m: (Int, Int)) -> Int {
+                    var b = board
+                    b.place(row: m.0, col: m.1, stone: stone)
+                    var nodes = 0
+                    return -engine.negamax(b, stone: stone.opponent, depth: engine.slipDepth - 1,
+                                           alpha: -Int.max, beta: Int.max, deadline: .distantFuture,
+                                           nodes: &nodes, nodeLimit: .max)
+                }
+                let best = moves.map(score).max()!
+                let pool = engine.slipPool(moves, board: board, stone: stone)
+                #expect(pool.count < moves.count, "\(strength.label) seed \(seed): 最善が候補に残っている")
+                for m in pool {
+                    #expect(score(m) >= best - OthelloEngine.slipMargin, "\(strength.label) seed \(seed): 損の幅を超えた手 \(m)")
+                }
+            }
+        }
+    }
+
+    /// 外しの採点は、その段の深さの上限より深く読まない（入門は 1 手）。上限より深く読むと、外した手のほうが
+    /// 探索の最善手より良い手になりうる（#1464 の段階表の注）。
+    @Test("外しの採点はその段の深さの上限より深く読まない")
+    func slipReadsNoDeeperThanTheLevel() {
+        #expect(OthelloEngine(level: CPUStrength.novice.rawValue).slipDepth == 1)
+        #expect(OthelloEngine(level: CPUStrength.easy.rawValue).slipDepth == 2)
+        #expect(OthelloEngine(level: CPUStrength.normal.rawValue).slipDepth == 2)
+    }
+
+    /// 黒の唯一の手 (7,2) を打つと、白が (0,3) で上の辺を返して終局し、黒が 3 対 4 で負ける局面。
+    private func boardWhoseOnlyMoveLosesAtOnce() -> OthelloBoard {
+        var board = OthelloBoard(cells: [OthelloStone?](repeating: nil, count: othelloBoardSize * othelloBoardSize))
+        board[0, 0] = .white
+        board[0, 1] = .black
+        board[0, 2] = .black
+        board[7, 0] = .black
+        board[7, 1] = .white
+        return board
+    }
+
+    @Test("即負けの手を見分ける")
+    func detectsAMoveThatLosesAtOnce() {
+        let board = boardWhoseOnlyMoveLosesAtOnce()
+        let moves = board.validMoves(for: .black)
+        let onlyMove = moves.count == 1 && moves[0] == (7, 2)
+        #expect(onlyMove, "前提が崩れている: \(moves)")
+        #expect(OthelloEngine.allowsImmediateLoss(board, move: (7, 2), stone: .black))
+        // 初期配置の手は即負けにならない。
+        for m in OthelloBoard().validMoves(for: .black) {
+            #expect(!OthelloEngine.allowsImmediateLoss(OthelloBoard(), move: m, stone: .black))
+        }
+    }
+
+    /// 外しは即負けの手を選ばない。選べる手がそれしか無ければ、外さずに探索の手を打つ（ここでは唯一の合法手）。
+    @Test("外しは即負けの手を選ばない")
+    func slipNeverChoosesAnImmediateLoss() {
+        let board = boardWhoseOnlyMoveLosesAtOnce()
+        var rng = SplitMix64(seed: 1)
+        let engine = OthelloEngine(level: CPUStrength.novice.rawValue, policy: OthelloEngine.policy(0), seed: 1)
+        let slip = engine.slipMove(board.validMoves(for: .black), board: board, stone: .black, using: &rng)
+        #expect(slip == nil)
+        let move = engine.move(board: board, stone: .black)
+        #expect(move?.row == 7 && move?.col == 2)
+
+        // 乱数で進めた局面でも、外しの手は即負けの手にならない。
+        for seed in 1...20 {
+            let (b, stone) = Self.randomBoard(seed: UInt64(seed), plies: 40 + seed % 15)
+            let moves = b.validMoves(for: stone)
+            guard !moves.isEmpty else { continue }
+            var r = SplitMix64(seed: UInt64(seed))
+            if let m = engine.slipMove(moves, board: b, stone: stone, using: &r) {
+                #expect(!OthelloEngine.allowsImmediateLoss(b, move: m, stone: stone))
+            }
+        }
+    }
+
+    /// 確率 0 なら（外しの候補がある局面では）探索の最善手と違う手を打つ。確率 1 は外さない。
+    @Test("最善手の確率が 0 なら外し、1 なら外さない")
+    func bestMoveProbabilityDecidesTheSlip() {
+        var slipped = 0, compared = 0
+        for seed in 1...12 {
+            let (board, stone) = Self.randomBoard(seed: UInt64(seed), plies: 10 + seed)
+            let moves = board.validMoves(for: stone)
+            guard moves.count >= 2 else { continue }
+            let exact = OthelloEngine(level: CPUStrength.easy.rawValue, timeLimitOverride: .infinity,
+                                      policy: OthelloEngine.policy(1), seed: UInt64(seed))
+            let always = OthelloEngine(level: CPUStrength.easy.rawValue, timeLimitOverride: .infinity,
+                                       policy: OthelloEngine.policy(0), seed: UInt64(seed))
+            let best = exact.move(board: board, stone: stone)!
+            let again = exact.move(board: board, stone: stone)!
+            let same = best == again
+            #expect(same, "確率 1 なのに手が揺れた")
+            guard !always.slipPool(moves, board: board, stone: stone).isEmpty else { continue }
+            compared += 1
+            let m = always.move(board: board, stone: stone)!
+            #expect(board.isValid(row: m.row, col: m.col, stone: stone))
+            if m != best { slipped += 1 }
+        }
+        #expect(compared > 0, "前提が崩れている: 外しの候補がある局面が 1 つも無い")
+        #expect(slipped * 2 >= compared, "確率 0 なのに最善手ばかり打った: \(slipped)/\(compared)")
+    }
+
+    /// 入門（出荷値）は一様乱択の相手に大きく勝ち越す（決裁の基準は先後入れ替え 100 局で 8 割以上。実測は段階表）。
+    /// 入門は 1 手先しか読まないのでデバッグビルドでも速い。種を固定して毎回同じ対局にする。
+    @Test("入門は一様乱択の相手に勝ち越す")
+    func noviceBeatsRandom() async {
+        let games = 20
         var wins = 0
         for i in 0..<games {
-            let weakIsBlack = i % 2 == 0
+            let noviceIsBlack = i % 2 == 0
+            let novice = OthelloSelfPlay.Side.level(CPUStrength.novice.rawValue)
             let result = await OthelloSelfPlay.play(
-                black: weakIsBlack ? .weak : .random,
-                white: weakIsBlack ? .random : .weak,
-                seed: UInt64(i) &+ 1)
-            let weakStones = weakIsBlack ? result.black : result.white
-            let randomStones = weakIsBlack ? result.white : result.black
-            if weakStones > randomStones { wins += 1 }
+                black: noviceIsBlack ? novice : .random,
+                white: noviceIsBlack ? .random : novice,
+                seed: UInt64(i / 2) &+ 1)
+            let mine = noviceIsBlack ? result.black : result.white
+            let theirs = noviceIsBlack ? result.white : result.black
+            if mine > theirs { wins += 1 }
         }
-        let rate = Double(wins) / Double(games)
-        #expect(rate <= 0.75, "弱がでたらめな相手に \(wins)/\(games) 勝っている（強すぎる）")
-        #expect(rate >= 0.35, "弱がでたらめな相手に \(wins)/\(games) しか勝てない（弱すぎる）")
+        #expect(wins >= 14, "入門が一様乱択の相手に \(wins)/\(games) しか勝てない")
     }
 
     // MARK: - 時間切れ時の反復深化（#1133）
@@ -155,7 +267,7 @@ struct OthelloEngineTests {
         let switching = SwitchingClock(switchAfterCalls: switchAt, before: before, after: after)
         let switchingEngine = OthelloEngine(level: CPUStrength.hard.rawValue, now: switching.now)
         let result = switchingEngine.iterativeDeepening(moves, board: board, stone: .black,
-                                                        maxDepth: OthelloEngine.hardMaxDepth, deadline: deadline)
+                                                        maxDepth: 5, deadline: deadline)
         #expect(result.0 == depth1Only.0 && result.1 == depth1Only.1,
                 "深さ1の結果と異なる（未完了の深い探索の結果が混入している可能性）")
     }
@@ -238,94 +350,17 @@ struct OthelloSearchBudgetTests {
         #expect(move.row == moves[0].0 && move.col == moves[0].1)
     }
 
-    /// 強さは時計で変わらない: 同じ局面には、時計が速くても遅くても同じ手を返す（局面数が主）。
-    @Test("むずかしいは時計が違っても同じ手を返す")
-    func hardMoveIsIndependentOfClock() {
+    /// 局面数で打ち切る計測用のエンジン（`CPUBenchLadder.engine`）は時計に依存しない: 時計が止まっていても
+    /// 進んでいても同じ手を返す（計測の対局を同時に回しても強さが揺れない）。
+    @Test("局面数で打ち切るエンジンは時計が違っても同じ手を返す")
+    func nodeLimitedEngineIsIndependentOfClock() {
         let board = OthelloBoard()
-        let slow = OthelloEngine(level: CPUStrength.hard.rawValue,
-                                 now: { Date(timeIntervalSince1970: 0) })
-        let fast = OthelloEngine(level: CPUStrength.hard.rawValue)
-        let a = slow.move(board: board, stone: .black)
-        let b = fast.move(board: board, stone: .black)
+        let stopped = OthelloEngine(level: CPUStrength.hard.rawValue, timeLimitOverride: .infinity,
+                                    nodeLimit: 20_000, now: { Date(timeIntervalSince1970: 0) })
+        let running = OthelloEngine(level: CPUStrength.hard.rawValue, timeLimitOverride: .infinity, nodeLimit: 20_000)
+        let a = stopped.move(board: board, stone: .black)
+        let b = running.move(board: board, stone: .black)
         #expect(a?.row == b?.row && a?.col == b?.col)
-    }
-}
-
-// MARK: - 入門（#1174）
-
-@Suite("オセロ 入門")
-struct OthelloNoviceAndSeriousTests {
-
-    private static let novice = CPUStrength.novice.rawValue
-
-    /// 入門は角が取れても取らない（#1401。2 手読んで自分にいちばん不利な手を選ぶので、角は選ばれない）。
-    /// 以前（#1174）は「取れる角は取る」だったが、簡単に負け越さなかったので悪手そのものを選ぶ形にした。
-    @Test("入門は取れる角を取らない")
-    func noviceDoesNotTakeTheCorner() async {
-        var cells = [OthelloStone?](repeating: nil, count: othelloBoardSize * othelloBoardSize)
-        cells[0 * othelloBoardSize + 1] = .white
-        cells[0 * othelloBoardSize + 2] = .black
-        cells[3 * othelloBoardSize + 3] = .white
-        cells[2 * othelloBoardSize + 3] = .white
-        cells[1 * othelloBoardSize + 3] = .white
-        cells[0 * othelloBoardSize + 3] = .black
-        let board = OthelloBoard(cells: cells)
-        #expect(board.isValid(row: 0, col: 0, stone: .black))
-
-        let move = await OthelloEngine(level: Self.novice).bestMove(board: board, stone: .black)
-        #expect(!(move?.row == 0 && move?.col == 0), "入門が角を取った: \(String(describing: move))")
-    }
-
-    /// 角が無いときは**角のとなり**（X打ち・C打ち）へ飛びつく。初心者の癖をそのまま真似ている。
-    @Test("入門は角のとなりを選ぶ")
-    func novicePrefersTheSquaresNextToACorner() async {
-        var cells = [OthelloStone?](repeating: nil, count: othelloBoardSize * othelloBoardSize)
-        // (1,1)（X打ち）に黒を置くと 1 枚返る。
-        cells[2 * othelloBoardSize + 2] = .white
-        cells[3 * othelloBoardSize + 3] = .black
-        // (5,4) に黒を置くと 3 枚返る（枚数だけなら簡単はこちらを選ぶ）。
-        cells[4 * othelloBoardSize + 4] = .white
-        cells[3 * othelloBoardSize + 4] = .white
-        cells[2 * othelloBoardSize + 4] = .white
-        cells[1 * othelloBoardSize + 4] = .black
-        let board = OthelloBoard(cells: cells)
-        #expect(board.flippable(row: 1, col: 1, stone: .black).count == 1)
-        #expect(board.flippable(row: 5, col: 4, stone: .black).count == 3)
-
-        let novice = await OthelloEngine(level: Self.novice).bestMove(board: board, stone: .black)
-        #expect(novice?.row == 1 && novice?.col == 1, "入門が角のとなりを選ばない: \(String(describing: novice))")
-        let easy = await OthelloEngine(level: 0).bestMove(board: board, stone: .black)
-        #expect(easy?.row == 5 && easy?.col == 4, "前提が崩れている: 簡単は枚数で選ぶ")
-    }
-
-    @Test("入門は同じ盤面に必ず同じ手を返す")
-    func noviceIsDeterministic() async {
-        let board = OthelloBoard()
-        let first = await OthelloEngine(level: Self.novice).bestMove(board: board, stone: .black)
-        for _ in 0..<20 {
-            let move = await OthelloEngine(level: Self.novice).bestMove(board: board, stone: .black)
-            #expect(move?.row == first?.row && move?.col == first?.col)
-        }
-    }
-
-    /// 入門は簡単に負け越す。どちらも決定的な打ち方なので同じ手順しか作れず、
-    /// **最初の 8 手をでたらめに進めてから**戦わせて局面を散らす。
-    @Test("入門は簡単に負け越す")
-    func noviceLosesToEasy() async {
-        let games = 12
-        var wins = 0
-        for i in 0..<games {
-            let noviceIsBlack = i % 2 == 0
-            let result = await OthelloSelfPlay.play(
-                black: noviceIsBlack ? .level(Self.novice) : .level(0),
-                white: noviceIsBlack ? .level(0) : .level(Self.novice),
-                seed: UInt64(i) &+ 1, openingPlies: 8)
-            let mine = noviceIsBlack ? result.black : result.white
-            let theirs = noviceIsBlack ? result.white : result.black
-            if mine > theirs { wins += 1 }
-        }
-        print("othello novice vs easy: \(wins)/\(games)")
-        #expect(wins <= games / 10, "入門が簡単に \(wins)/\(games) 勝っている（段の順が崩れている）")
     }
 }
 
@@ -333,8 +368,7 @@ struct OthelloNoviceAndSeriousTests {
 
 enum OthelloSelfPlay {
     enum Side: Equatable {
-        case weak
-        /// 出荷している段階そのもの（#1174。段の番号から `OthelloEngine` を作る）。
+        /// 出荷している段階そのもの（#1174。段の番号から `OthelloEngine` を作る。乱数の種は対局と手数から決める）。
         case level(Int)
         case random
     }
@@ -367,12 +401,9 @@ enum OthelloSelfPlay {
                 continue
             }
             switch stone == .black ? black : white {
-            case .weak:
-                if let move = await OthelloEngine(level: 0).bestMove(board: board, stone: stone) {
-                    chosen = move
-                }
             case .level(let level):
-                if let move = await OthelloEngine(level: level).bestMove(board: board, stone: stone) {
+                let engine = OthelloEngine(level: level, seed: seed &* 1_000 &+ UInt64(ply))
+                if let move = await engine.bestMove(board: board, stone: stone) {
                     chosen = move
                 }
             case .random:

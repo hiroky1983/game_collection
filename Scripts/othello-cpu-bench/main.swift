@@ -3,6 +3,7 @@ import Foundation
 // オセロ CPU の計測（#1464）。`build.sh` で作った単体バイナリの引数:
 //   nps                                  1 秒あたりに読める局面数（最適化ビルド・1 スレッド・むずかしいの探索）
 //   slip [positions]                     外しの候補の数（損の幅の中に最善以外の手が何手あるか）
+//   endgame                              むずかしいが空き 12 以下を時間内に終局まで読み切れた割合
 //   timing [positions]                   出荷の設定（実時間）で 1 手にかかる時間: 平均・最大・上限で打ち切られた割合
 //   match <上> <上の確率> <下> <下の確率> <局面数>
 //                                        上の段階と下の段階を、先後入れ替えで局面数×2 局。確率は 0...1 か shipped（出荷値）。
@@ -113,6 +114,18 @@ struct Bench {
                 }
                 print("TIMING \(s.label) 上限 \(e3(s))s: 実時間 平均 \(f3(wall.reduce(0, +) / Double(wall.count)))s 最大 \(f3(wall.max()!))s / CPU 時間 平均 \(f3(cpu.reduce(0, +) / Double(cpu.count)))s 最大 \(f3(cpu.max()!))s / 上限で打ち切り \(cut)/\(wall.count)（\(cut * 100 / wall.count)%）")
             }
+        case "endgame":
+            // むずかしいが、空き 12 以下の局面を時間内に終局まで読み切れた割合（終盤の完全読み）。
+            let positions = samplePositions(count: 400).filter { 64 - $0.0.count(for: .black) - $0.0.count(for: .white) <= 12 }
+            var full = 0
+            var wall: [Double] = []
+            for (board, turn) in positions.prefix(40) {
+                let empties = 64 - board.count(for: .black) - board.count(for: .white)
+                let t = Date()
+                if let r = OthelloEngine(level: CPUStrength.hard.rawValue).analyze(board: board, stone: turn), r.depth >= empties { full += 1 }
+                wall.append(Date().timeIntervalSince(t))
+            }
+            print("ENDGAME むずかしい 空き 8〜12: 終局まで読み切り \(full)/\(wall.count) 実時間 平均 \(f3(wall.reduce(0, +) / Double(wall.count)))s 最大 \(f3(wall.max()!))s")
         case "match", "random":
             let nps = Double(env["NPS"] ?? "") ?? 300_000
             let conc = Int(env["CONCURRENCY"] ?? "") ?? 4

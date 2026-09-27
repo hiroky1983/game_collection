@@ -81,28 +81,38 @@ enum CPUBenchLadder {
     static func run(upper: @escaping EngineFactory, lower: EngineFactory?, openings: Int,
                     concurrency: Int = 4, firstOpening: Int = 1) -> Tally {
         let jobs = (0..<openings).flatMap { i in [true, false].map { (UInt64(firstOpening + i), $0) } }
-        let lock = NSLock()
-        var tally = Tally()
-        var next = 0
+        let shared = Shared()
         DispatchQueue.concurrentPerform(iterations: max(1, concurrency)) { _ in
-            while true {
-                lock.lock()
-                guard next < jobs.count else { lock.unlock(); return }
-                let (seed, upperIsBlack) = jobs[next]
-                next += 1
-                lock.unlock()
+            while let (seed, upperIsBlack) = shared.nextJob(jobs) {
                 let (outcome, diff) = play(upper: upper, lower: lower, upperIsBlack: upperIsBlack, seed: seed)
-                lock.lock()
-                switch outcome {
-                case .upperWon: tally.upperWins += 1
-                case .lowerWon: tally.lowerWins += 1
-                case .draw: tally.draws += 1
-                }
-                tally.lowerDiscDiffSum += diff
-                lock.unlock()
+                shared.record(outcome, diff)
             }
         }
-        return tally
+        return shared.tally
+    }
+
+    /// 同時に走る対局が共有する状態（次の対局の番号と集計）。`lock` の中でだけ触る。
+    private final class Shared: @unchecked Sendable {
+        private let lock = NSLock()
+        private var next = 0
+        private(set) var tally = Tally()
+
+        func nextJob(_ jobs: [(UInt64, Bool)]) -> (UInt64, Bool)? {
+            lock.lock(); defer { lock.unlock() }
+            guard next < jobs.count else { return nil }
+            next += 1
+            return jobs[next - 1]
+        }
+
+        func record(_ outcome: Outcome, _ lowerDiscDiff: Int) {
+            lock.lock(); defer { lock.unlock() }
+            switch outcome {
+            case .upperWon: tally.upperWins += 1
+            case .lowerWon: tally.lowerWins += 1
+            case .draw: tally.draws += 1
+            }
+            tally.lowerDiscDiffSum += lowerDiscDiff
+        }
     }
 
     /// 出荷している段階の設定で、考える時間を「読む局面数」に置き換えたエンジン。
