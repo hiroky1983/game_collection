@@ -170,6 +170,10 @@ public struct MahjongSolitaireView: View {
             if ProcessInfo.processInfo.arguments.contains("-solitaireHintConfirm") {
                 showHintConfirm = true
             }
+            // 手詰まりの画面を確認する経路（`-mahjongSolitaireDeadlock`）。乱択で取り続けて手詰まりまで進める。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongSolitaireDeadlock") {
+                model.debugPlayUntilDeadlock()
+            }
             #endif
         }
         // 取り切ったら、最後の 1 組が消えきってから盤面をクリア表示に差し替える（#199）。
