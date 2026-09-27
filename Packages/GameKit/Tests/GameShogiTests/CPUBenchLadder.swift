@@ -83,10 +83,11 @@ enum CPUBenchLadder {
     }
 
     /// `upper` が `lower` に、先後を入れ替えて `openings` 通り × 2 局戦う。
+    /// `firstOpening` は最初の開始局面の番号（計測を小分けにして続きから回すため）。
     static func run(upper: @escaping EngineFactory, lower: EngineFactory?, openings: Int, maxPlies: Int,
-                    concurrency: Int = 4) async -> Tally {
+                    concurrency: Int = 4, firstOpening: Int = 1) async -> Tally {
         var tally = Tally()
-        let jobs = (0..<openings).flatMap { i in [true, false].map { (UInt64(i + 1), $0) } }
+        let jobs = (0..<openings).flatMap { i in [true, false].map { (UInt64(firstOpening + i), $0) } }
         var next = 0
         await withTaskGroup(of: (Outcome, Bool).self) { group in
             func add() {

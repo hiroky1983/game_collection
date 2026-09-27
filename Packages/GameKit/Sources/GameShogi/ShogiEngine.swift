@@ -134,7 +134,7 @@ private let advanceTable: [[Int]] = [
 
 /// 段階ごとの「最善手を打つ確率」（会長決裁 2026-09-26）。
 ///
-/// 難易度は**考える時間**（`SimpleMinimaxEngine.timeLimit`）と、この確率だけで決める。
+/// 難易度は**考える時間**（`SimpleMinimaxEngine.timeLimit`）・読む深さの上限（`depth`）と、この確率で決める。
 /// 確率が外れたときは、1 手読み（＋静止探索）で全候補に点を付け、最善から `slipMargin` 以内の損で済む手
 /// （次の一手で詰まされる手は除く）のうち、最善以外から乱択する。
 /// 玉を取らせる手は合法手にならないので、どの段階でも選ばれない。
@@ -159,7 +159,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     let usePositional: Bool
     let useQuiescence: Bool
     let useBook: Bool
-    /// 1 手の考える時間の上限（秒）。読み終われば早く指す。段階の差は、この時間と
+    /// 1 手の考える時間の上限（秒）。読み終われば早く指す。段階の差は、この時間・`depth`（深さの上限）と
     /// `policy.bestMoveProbability` だけで付ける（#1461）。
     let timeLimit: TimeInterval
     /// 読む局面数の上限（`nil` なら無し）。出荷値では使わない（計測・テスト用の口）。
@@ -171,15 +171,16 @@ public struct SimpleMinimaxEngine: ShogiEngine {
 
     /// 難易度。**表示している強さの文言と中身が一致していること**（#416 の教訓）:
     ///
-    /// | level | 表示 | 考える時間 | 最善手を打つ確率 | 定跡 |
-    /// |---|---|---|---|---|
-    /// | -1 | 入門 | 0.5 秒 | 0%（`noviceBestMoveProbability`） | 無し |
-    /// | 0 | かんたん | 1 秒 | 10% | 無し |
-    /// | 1 | ふつう | 2 秒 | 50% | 無し |
-    /// | 2 | むずかしい | 3 秒 | 100% | 有り |
+    /// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 | 定跡 |
+    /// |---|---|---|---|---|---|
+    /// | -1 | 入門 | 0.02 秒 | 1 手先 | `noviceBestMoveProbability` | 無し |
+    /// | 0 | かんたん | 0.1 秒 | 2 手先 | `easyBestMoveProbability` | 無し |
+    /// | 1 | ふつう | 0.5 秒 | 3 手先 | 80% | 無し |
+    /// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% | 有り |
     ///
-    /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか読み終えたら指す。
-    /// 確率の根拠は PR #1461 の勝率表（上の段階が下の段階に負ける割合 3% 以下で最も高い値）。
+    /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら指す。
+    /// 確率の根拠は PR #1461 の段階表（`docs/analytics/shogi-1461-ladder.md`: 上の段の得点率 90% 以上で
+    /// 最も高い値）。
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
     public init(level: Int = CPUStrength.standard.rawValue) {
@@ -188,27 +189,27 @@ public struct SimpleMinimaxEngine: ShogiEngine {
 
     init(level: Int, seed: UInt64?) {
         let strength = CPUStrength.strength(for: level)
-        (depth, usePositional, useQuiescence) = (Self.maxDepth, true, true)
+        (usePositional, useQuiescence) = (true, true)
         useBook = strength == .hard
         switch strength {
-        case .novice: (timeLimit, policy) = (0.5, Self.policy(Self.noviceBestMoveProbability))
-        case .easy:   (timeLimit, policy) = (1.0, Self.policy(Self.easyBestMoveProbability))
-        case .normal: (timeLimit, policy) = (2.0, Self.policy(Self.normalBestMoveProbability))
-        case .hard:   (timeLimit, policy) = (3.0, .exact)
+        case .novice: (timeLimit, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability))
+        case .easy:   (timeLimit, depth, policy) = (0.1, 2, Self.policy(Self.easyBestMoveProbability))
+        case .normal: (timeLimit, depth, policy) = (0.5, 3, Self.policy(Self.normalBestMoveProbability))
+        case .hard:   (timeLimit, depth, policy) = (2.0, Self.maxDepth, .exact)
         }
         self.nodeLimit = nil
         self.seed = seed
     }
 
-    /// 反復深化の深さの上限。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
+    /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
+    /// 下の段は `depth` に 3 / 2 / 1 手先の上限を持つ（会長決裁 2026-09-27）。
     static let maxDepth = 32
 
-    /// 最善手を打つ確率（#1461 の実測。上の段階との対戦で上の負けが 3% 以下になる、10% 刻みで最も高い値。
-    /// 上から順に決めた: むずかしい 100% に対しふつう 50%、ふつう 50% に対しかんたん 10%、
-    /// かんたん 10% に対し入門 0%）。入門は探索を回さず、毎手「外し」の選び方で指す。
-    static let noviceBestMoveProbability = 0.0
-    static let easyBestMoveProbability = 0.1
-    static let normalBestMoveProbability = 0.5
+    /// 最善手を打つ確率（#1461 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。
+    /// ふつうは会長決裁の 80%、かんたん・入門は上から順に計測で決めた）。
+    static let noviceBestMoveProbability = 1.0
+    static let easyBestMoveProbability = 1.0
+    static let normalBestMoveProbability = 0.8
 
     /// 外したときに許す損の幅（銀 1 枚ぶん）。歩・香・桂・銀を只で失う手までが入り、金・角・飛は入らない。
     /// 300（歩 3 枚ぶん）だと外した手が強すぎて、ふつうが 40% まで下がり、かんたん・入門に割り当てる
