@@ -88,15 +88,18 @@ public final class MahjongSolitaireModel {
     /// 動作確認用（DEBUG 限定）: 取れる組を乱択で取り続け、手詰まりの盤面まで進める（`-mahjongSolitaireDeadlock`）。
     /// 手詰まりの画面（並べ替えの広告・最初から）は普通に遊ぶとなかなか出せず、シミュレータは自動タップも
     /// できないため、起動引数で直接その状態を作る。取り切ってしまったら配り直してやり直す。
+    /// `tap()` は経由しない: 乱択が手詰まりに至る前に盤面を取り切ってしまうと `finish()` が走り、
+    /// 乱択プレイの結果が通算成績（自己ベスト）に記録されてしまうため、盤面操作だけを直接行う。
     func debugPlayUntilDeadlock(maxDeals: Int = 50) {
         var rng = SystemRandomNumberGenerator()
         for _ in 0..<maxDeals {
-            while phase == .playing && !isDeadlocked {
+            while remainingCount > 0 {
                 let pairs = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout)
                 guard let pair = pairs.randomElement(using: &rng) else { break }
-                selectedIndex = nil
-                tap(pair.0)
-                tap(pair.1)
+                faces[pair.0] = nil
+                faces[pair.1] = nil
+                remainingCount -= 2
+                refreshDerivedState()
             }
             if isDeadlocked { return }
             newGame()
