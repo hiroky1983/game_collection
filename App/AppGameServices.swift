@@ -83,9 +83,10 @@ enum AppEnvironment {
     /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
     /// アプリがバックグラウンドに入るたびに対象を判定し直す（`GameCollectionApp` から呼ぶ）。
     /// 撮影モードと DEBUG ビルドでは予約しない（#663 と同じ理由）。
+    /// オン / オフは #663 と同じ設定トグルを共有する（#1508）。
     static let reengagement = ReengagementReminderService(
         scheduler: UserNotificationReengagementScheduler(),
-        isEnabled: { settings.reengagementRemindersEnabled },
+        isEnabled: { settings.notificationsEnabled },
         isSuppressed: isScreenshotMode || isDebugBuild,
         // #663 と異なり「中断データから局を復元できるか」は問わない。設定で非表示にしたゲームだけ除く。
         reminderTitle: { gameID in
