@@ -59,6 +59,8 @@ public struct MahjongSolitaireView: View {
     /// 出ないまま終わる。牌が消えきる時間だけ切り替えを遅らせて、最後の 1 組も同じ演出で消す。
     /// 遅らせるのは**盤面の表示だけ**で、勝敗・記録・計時（`model`）は従来どおり即座に確定する。
     @State private var showsClearDisplay = false
+    /// 卓の上に出す文字の色（#1501）。`cardTable()` を付けた盤の内側で読むのでフェルト用の値が届く。
+    @Environment(\.cardTableInk) private var tableInk
 
     private typealias Metrics = MahjongSolitaireBoardMetrics
 
@@ -97,9 +99,12 @@ public struct MahjongSolitaireView: View {
         // 盤面に回せる高さを間隔から捻出している（#148）。
         VStack(spacing: 8) {
             statusBar
+            // 盤は卓の上に置く（#1501）。牌の大きさは卓の内側の幅から決まるので、山が卓からはみ出さない。
             board
-                // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白ぶんまで使って牌を大きくする。
-                .padding(.horizontal, -Theme.pad)
+                .cardTable()
+                // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白を卓の分（`boardSideInset` 4pt。
+                // ソリティア系 3 本と同じ）まで詰めて牌を大きくする。
+                .padding(.horizontal, -(Theme.pad - CardStackLayout.boardSideInset))
                 .layoutPriority(1)
             controlArea
             HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
@@ -270,16 +275,17 @@ public struct MahjongSolitaireView: View {
         Group {
             if showsClearDisplay {
                 // 取り切った直後は盤面が空になるので、代わりにクリアの演出を置く。
+                // 文字色は卓の上（白系）と地の上（`Theme.ink` 系）で `cardTableInk` から取る（#1501）。
                 VStack(spacing: 12) {
                     Text("🎉").font(.system(size: 64))
                     Text("全部取り切った！")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(tableInk.label)
                     // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
                     // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
                     Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(tableInk.labelSub)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

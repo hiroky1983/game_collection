@@ -11,16 +11,167 @@ import SwiftUI
 /// ここが受け持つのは「枠・段差・指の位置・配りの動き」という描画と入力の器だけ。
 /// `PlayingCard`（札 1 枚の面・#397）と `CardStyle`（紙の質感・#366）の上に載る層になる。
 
+// MARK: - 卓の面（#1501）
+
+/// 札・牌を並べる「卓」の面の寸法と色。ソリティア・スパイダー・フリーセル・麻雀ソリティアの
+/// 4 本が**この 1 つ**を共有する（ゲームごとに別の卓は作らない）。
+///
+/// 4 本はどれも画面の地（`Theme.background`）の上に札・牌が直接乗っていて、遊ぶ場所の区切りが
+/// 無かった。見た目は、麻雀（4 人打ち）の雀卓 `MahjongTableSurface` の**フェルトと木枠**を、
+/// ポーカー・ブラックジャック・花札の `popCard`（角丸 20 + 落ち影）の**外形**に収めたもの。
+/// フェルトの緑・木枠の茶は雀卓と同じ値で、盤・駒・牌と同じく**ライト / ダークで変えない**
+/// （`Theme.Fixed` と同じ扱い）。上に乗る空き枠・仕切り・文字の色だけ `CardTableInk` で白系に振る。
+///
+/// `Color` は生成後に成分を取り出せないため、雀卓との一致とコントラストを検証する
+/// `CardTableSurfaceTests` が参照できるよう数値のままここに置く。
+public enum CardTableStyle {
+    /// フェルトの中央 → 縁。`MahjongTableSurface` のフェルトと同じ値。
+    public static let feltCenter: UInt32 = 0x2E7A50
+    public static let feltEdge: UInt32 = 0x14432C
+    /// 木枠の上 → 中 → 下。`MahjongTableSurface` の木枠と同じ値。
+    public static let rimTop: UInt32 = 0xC48A4A
+    public static let rimMiddle: UInt32 = 0x8A5A2B
+    public static let rimBottom: UInt32 = 0x4A2C12
+    /// 木枠の太さ。
+    public static let rimWidth: CGFloat = 3
+    /// 木枠の内側から札・牌までの余白。狭い画面（iPhone SE・スパイダーの 10 列）で札を削りすぎない値。
+    public static let contentInset: CGFloat = 6
+    /// 角丸。`popCard` と同じ。
+    public static let corner: CGFloat = Theme.corner
+    /// フェルトの中央色をそのまま伸ばす半径（全体に対する比）と、縁の暗さに達する半径。
+    public static let feltPlateauFraction: CGFloat = 0.35
+    public static let feltEdgeFraction: CGFloat = 0.85
+    /// フェルトの上に置く白の不透明度。空き枠の破線と印は 3:1（WCAG 1.4.11 の非テキスト）、
+    /// 文字は 4.5:1（AA）をフェルトの**いちばん明るい中央**に対して満たす値
+    /// （`CardTableSurfaceTests` で固定）。
+    public static let feltSlotAlpha: Double = 0.65
+    public static let feltDividerAlpha: Double = 0.65
+    public static let feltLabelAlpha: Double = 1
+    public static let feltLabelSubAlpha: Double = 0.9
+}
+
+/// 卓の上に乗る「札・牌ではないもの」の色（空き枠の破線と印・上段の仕切り・盤の場所に出す文字）。
+///
+/// 地の上（既定）では `Theme.inkSub` / `Theme.ink` の系統、フェルトの上では白の系統。
+/// `View.cardTable()` が環境値 `cardTableInk` にフェルト用を配り、`CardSlot` などがそれを読む。
+/// 空き枠を描く側が「卓の上か」を知らなくて済むようにするための間接化で、
+/// 4 本の画面のどこにも色の分岐を持たせない。
+public struct CardTableInk: Sendable {
+    /// 空き枠の破線。
+    public var slotStroke: Color
+    /// 空き枠の印（スート記号・SF Symbol）。
+    public var slotMark: Color
+    /// 上段の仕切り（フリーセルの左 4 枠と右 4 枠の境目）。
+    public var divider: Color
+    /// 盤の場所に出す見出し（麻雀ソリティアの「全部取り切った！」）。
+    public var label: Color
+    /// 同じ場所の補助文字。
+    public var labelSub: Color
+
+    public init(slotStroke: Color, slotMark: Color, divider: Color, label: Color, labelSub: Color) {
+        self.slotStroke = slotStroke
+        self.slotMark = slotMark
+        self.divider = divider
+        self.label = label
+        self.labelSub = labelSub
+    }
+
+    /// 地（`Theme.background`）の上。従来の値そのまま。
+    public static let plain = CardTableInk(
+        slotStroke: Theme.inkSub.opacity(0.35),
+        slotMark: Theme.inkSub.opacity(0.45),
+        divider: Theme.inkSub.opacity(0.5),
+        label: Theme.ink,
+        labelSub: Theme.inkSub
+    )
+
+    /// フェルトの上。
+    public static let felt = CardTableInk(
+        slotStroke: Color.white.opacity(CardTableStyle.feltSlotAlpha),
+        slotMark: Color.white.opacity(CardTableStyle.feltSlotAlpha),
+        divider: Color.white.opacity(CardTableStyle.feltDividerAlpha),
+        label: Color.white.opacity(CardTableStyle.feltLabelAlpha),
+        labelSub: Color.white.opacity(CardTableStyle.feltLabelSubAlpha)
+    )
+}
+
+private struct CardTableInkKey: EnvironmentKey {
+    static let defaultValue = CardTableInk.plain
+}
+
+public extension EnvironmentValues {
+    /// 卓の上に乗る空き枠・仕切り・文字の色。`View.cardTable()` を付けた祖先から配られる。
+    var cardTableInk: CardTableInk {
+        get { self[CardTableInkKey.self] }
+        set { self[CardTableInkKey.self] = newValue }
+    }
+}
+
+/// 卓の面そのもの（木枠 + フェルト + 木枠の内側の落ち影 + 外の落ち影）。
+///
+/// 雀卓（`MahjongTableSurface`）は `Canvas` に台形を描いていたが、ここは角丸の長方形なので
+/// `RoundedRectangle` で組む。フェルトの照りは `EllipticalGradient`（大きさに対する比で指定できる）に
+/// して `GeometryReader` を挟まない。読み上げはしない（面は情報を持たない）。
+public struct CardTableSurface: View {
+    public init() {}
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: CardTableStyle.corner, style: .continuous)
+    }
+
+    public var body: some View {
+        shape
+            .fill(EllipticalGradient(
+                stops: [
+                    .init(color: Color(hex: CardTableStyle.feltCenter), location: 0),
+                    .init(color: Color(hex: CardTableStyle.feltCenter), location: CardTableStyle.feltPlateauFraction),
+                    .init(color: Color(hex: CardTableStyle.feltEdge), location: CardTableStyle.feltEdgeFraction),
+                ],
+                center: .center, startRadiusFraction: 0, endRadiusFraction: 0.7
+            ))
+            // 木枠の内側の落ち影（フェルトに切り抜いたぼかし線。雀卓と同じ作り）。
+            .overlay(
+                shape.inset(by: CardTableStyle.rimWidth)
+                    .strokeBorder(Color.black.opacity(0.45), lineWidth: 5)
+                    .blur(radius: 3)
+                    .clipShape(shape.inset(by: CardTableStyle.rimWidth))
+            )
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [Color(hex: CardTableStyle.rimTop),
+                                 Color(hex: CardTableStyle.rimMiddle),
+                                 Color(hex: CardTableStyle.rimBottom)],
+                        startPoint: .top, endPoint: .bottom),
+                    lineWidth: CardTableStyle.rimWidth)
+            )
+            .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 6)
+            .accessibilityHidden(true)
+    }
+}
+
+public extension View {
+    /// このビューを卓の上に置く（#1501）。木枠と内側の余白ぶんだけ中身が縮む
+    /// （中身が `GeometryReader` で札の大きさを決めていれば、そのまま卓に収まる）。
+    func cardTable() -> some View {
+        padding(CardTableStyle.rimWidth + CardTableStyle.contentInset)
+            .background(CardTableSurface())
+            .environment(\.cardTableInk, .felt)
+    }
+}
+
 // MARK: - 空き枠
 
 /// 札の無い枠（山札・組札・フリーセル・空いた列）。破線の角丸に印を 1 つ置く。
 ///
 /// 印は**スート記号（文字）か SF Symbol のどちらか**で、両方渡されたらスートを優先する
 /// （組札の空き枠は ♠♥♦♣ を出し、それ以外は用途の絵を出す、という既存の使い分けに合わせる）。
+/// 色は `cardTableInk`（卓の上なら白系、地の上なら `Theme.inkSub` 系）から取る。
 public struct CardSlot: View {
     private let metrics: PlayingCardMetrics
     private let systemImage: String?
     private let suitSymbol: String?
+    @Environment(\.cardTableInk) private var ink
 
     public init(metrics: PlayingCardMetrics, systemImage: String? = nil, suitSymbol: String? = nil) {
         self.metrics = metrics
@@ -31,16 +182,16 @@ public struct CardSlot: View {
     public var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
-                .strokeBorder(Theme.inkSub.opacity(0.35),
+                .strokeBorder(ink.slotStroke,
                               style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
             if let suitSymbol {
                 Text(suitSymbol)
                     .font(.system(size: metrics.suitFont))
-                    .foregroundStyle(Theme.inkSub.opacity(0.45))
+                    .foregroundStyle(ink.slotMark)
             } else if let systemImage {
                 Image(systemName: systemImage)
                     .font(.system(size: metrics.suitFont * 0.8, weight: .semibold))
-                    .foregroundStyle(Theme.inkSub.opacity(0.45))
+                    .foregroundStyle(ink.slotMark)
             }
         }
         .frame(width: metrics.width, height: metrics.height)

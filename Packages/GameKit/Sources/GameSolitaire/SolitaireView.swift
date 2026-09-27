@@ -36,21 +36,31 @@ public struct SolitaireView: View {
     }
 
     public var body: some View {
+        // 左右の余白は部品ごとに付ける。卓だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
+        // 帯・ボタン・バナーは従来どおり `Theme.pad`（16pt）。フリーセル・スパイダーと同じ。
         VStack(spacing: 8) {
             statusBar
-            SolitaireBoardView(model: model, services: services).layoutPriority(1)
+                .padding(.horizontal, Theme.pad)
+            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
+            SolitaireBoardView(model: model, services: services)
+                .cardTable()
+                .padding(.horizontal, CardStackLayout.boardSideInset)
+                .layoutPriority(1)
             SolitaireControlsView(
                 model: model,
                 services: services,
                 isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo
             )
+            .padding(.horizontal, Theme.pad)
             HowToPlayHint(.solitaire, playLog: services.playLog)
+                .padding(.horizontal, Theme.pad)
             // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
+                .padding(.horizontal, Theme.pad)
         }
-        .padding(Theme.pad)
+        .padding(.vertical, Theme.pad)
         .gameChrome(title: "ソリティア", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
