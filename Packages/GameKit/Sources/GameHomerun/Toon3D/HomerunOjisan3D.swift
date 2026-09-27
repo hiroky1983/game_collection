@@ -38,10 +38,14 @@ struct HomerunOjisanPose3: Equatable {
     static let whiff = HomerunOjisanPose3(
         elbowR: [1.25, 1.55, 0.2], handR: [1.2, 1.0, 0.45], elbowL: [-1.25, 1.55, 0.2], handL: [-1.15, 1.0, 0.45],
         batTip: [1.6, 0.1, 1.3], sweat: true, eyes: .closed, mouth: .line, headTilt: 0.18, batOneHand: true)
-    /// 投手（背中をカメラへ向ける・投球の瞬間）。
+    /// 投手（背中をカメラへ向ける・投球の瞬間＝リリース）。`mock3d.swift` の「投球」ポーズの写し。
     static let pitch = HomerunOjisanPose3(
         elbowR: [1.55, 3.3, -0.45], handR: [1.35, 4.35, -0.75], elbowL: [-1.35, 2.25, 0.5], handL: [-1.0, 2.65, 1.15],
         headTilt: 0.05)
+    /// 投手の振りかぶり（セットポジション。両手を胸の前で合わせる）。`mock3d.swift` に定義が無いため、
+    /// リリース（`.pitch`）から逆算した当番側の追加ポーズ（README 未記載）。
+    static let windup = HomerunOjisanPose3(
+        elbowR: [0.5, 2.9, 0.3], handR: [0.15, 3.55, 0.55], elbowL: [-0.5, 2.9, 0.3], handL: [-0.15, 3.55, 0.55])
     /// 外野手（見上げる。グラブの左手を上げて追う。`mock3d.swift` の `outfieldShot()` の写し）。
     static let outfielder = HomerunOjisanPose3(
         elbowR: [1.3, 1.6, 0.2], handR: [1.1, 1.0, 0.4], elbowL: [-1.4, 3.0, 0.2], handL: [-1.2, 4.2, 0.5],
