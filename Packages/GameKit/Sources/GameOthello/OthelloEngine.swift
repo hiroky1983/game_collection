@@ -86,7 +86,7 @@ public struct OthelloEngine: Sendable {
     /// 最善手を打つ確率（#1464 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
     static let noviceBestMoveProbability = 1.0
     static let easyBestMoveProbability = 1.0
-    static let normalBestMoveProbability = 1.0
+    static let normalBestMoveProbability = 0.9
 
     /// 外したときに許す損の幅（`evaluate` の点数）。
     static let slipMargin = 40
