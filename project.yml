@@ -119,21 +119,30 @@ targets:
         CFBundleLocalizations:
           - ja
         UILaunchScreen: {}
+        # 既定は縦固定（下記のマニフェストの一覧は「アプリが将来使いうる向きの宣言」で、
+        # 実行時にどれを許すかは `AppDelegate.application(_:supportedInterfaceOrientationsFor:)` が
+        # `OrientationLockController` 経由で絞る）。横 2 方向を足したのは #1511（非リリース枠。
+        # トランプのソリティア系 3 本だけ、表示中に限って横向きを許可する）。
+        # このマニフェスト自体は「対応しうる向き」を宣言するだけで、対象外の画面・他の 14 本は
+        # 実行時のマスクが縦のみに絞るため見た目は変わらない。
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        # iPad も縦固定にする（#458 の「横向きの扱いを明示的に決める」）。
-        # 収録 14 本はいずれも「盤（または場札）を上、操作ボタンを下、最下段にバナー」という
-        # 縦 1 カラムの構成で、横向きでは盤が画面の高さに縛られて左右に大きな死に領域が出る。
-        # 正方形の盤を持つゲーム（将棋・囲碁・オセロ・五目並べ・ナンプレ）は縦向きのほうが
-        # 盤を大きく取れるため、iPad でも縦を既定にするのが素直。
-        # 上下逆さまは iPad では自然な持ち方なので許可する（iPhone 側は従来どおり許可しない）。
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # iPad も同様に既定は縦固定＋上下逆さま許可（#458）のまま、横 2 方向を宣言だけ足す。
+        # 収録ゲームの大半は「盤（または場札）を上、操作ボタンを下、最下段にバナー」という
+        # 縦 1 カラムの構成で、横向きでは盤が画面の高さに縛られて左右に大きな死に領域が出るため、
+        # 対象外の画面は実行時のマスクで縦のみに絞ったままにする。
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
-        # iPad マルチタスキング（Split View / Slide Over）をオプトアウトする。
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # iPad マルチタスキング（Split View / Slide Over）はオプトアウトしたまま。
         # マルチタスキング対応には4方向すべての回転サポートが必須で、縦専用のままだと
-        # アップロード検証 (90474) で弾かれる（v1.1.3 build 8 で実測）。全ゲームが縦1カラム
-        # 設計なので、対応するならレイアウトの再設計とセット（現時点ではしない）。
+        # アップロード検証 (90474) で弾かれた実績がある（v1.1.3 build 8）。#1511 で横向きの
+        # 宣言を足した後も `UIRequiresFullScreen: true` は維持し、マルチタスキングには対応しない
+        # （対応するならレイアウトの再設計とセットで別途判断する）。
         UIRequiresFullScreen: true
         GADApplicationIdentifier: ca-app-pub-1869410932032409~4823987816
         NSUserTrackingUsageDescription: より関連性の高い広告を表示するために使用します。

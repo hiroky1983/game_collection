@@ -61,7 +61,8 @@ enum AppEnvironment {
         analytics: analytics,
         gameCenter: gameCenter,
         reminders: reminders,
-        reengagement: reengagement
+        reengagement: reengagement,
+        orientationLock: OrientationLockController.shared
     )
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。

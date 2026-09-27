@@ -48,6 +48,9 @@ public struct GameServices {
     /// よく遊んでいたのに最近開いていないゲームへの再エンゲージメント通知（#1193）。
     /// テスト・プレビューでは nil（予約しない）。
     public let reengagement: ReengagementReminderService?
+    /// 画面ごとの向き固定の解除（#1511）。テスト・プレビュー・対象外の画面では
+    /// `NoopOrientationLockService`（何もしない）。
+    public let orientationLock: OrientationLockService
 
     public init(
         snapshots: SnapshotStore,
@@ -60,7 +63,8 @@ public struct GameServices {
         gameCenter: GameCenterReporter? = nil,
         screenGeneration: GameScreenGeneration = GameScreenGeneration(),
         reminders: ResumeReminderService? = nil,
-        reengagement: ReengagementReminderService? = nil
+        reengagement: ReengagementReminderService? = nil,
+        orientationLock: OrientationLockService = NoopOrientationLockService()
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -73,6 +77,7 @@ public struct GameServices {
         self.screenGeneration = screenGeneration
         self.reminders = reminders
         self.reengagement = reengagement
+        self.orientationLock = orientationLock
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。

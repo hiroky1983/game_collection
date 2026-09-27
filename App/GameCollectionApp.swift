@@ -2,6 +2,9 @@ import SwiftUI
 import Core
 import MahjongTiles
 import FirebaseCore
+#if DEBUG
+import UIKit
+#endif
 
 @main
 struct GameCollectionApp: App {
@@ -78,6 +81,23 @@ struct GameCollectionApp: App {
         // `\.adaptiveLayout` として全画面へ配る。各画面はこの値を読むだけで、
         // `horizontalSizeClass` の分岐を自前で持たない。
         .providesAdaptiveLayout()
+        #if DEBUG
+        .task {
+            // 撮影用（#1511）: 横向き対応の実機確認をシミュレータの自動タップ・GUI操作なしで行う。
+            // `-startGame <対象3画面> -forceLandscape` で起動すると、対象画面が
+            // `beginAllowingLandscape()`（`.onAppear`）で横向きを許可した直後に OS へ回転を強制する。
+            // 対象外の画面ではマスクが縦のみのままなので、回転を強制しても縦に押し戻される
+            // （= 実際の権限どおりにしか回らないことも合わせて確認できる）。
+            guard ProcessInfo.processInfo.arguments.contains("-forceLandscape") else { return }
+            try? await Task.sleep(for: .seconds(2))
+            let scene = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first
+            scene?.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeLeft)) { error in
+                print("forceLandscape requestGeometryUpdate error: \(error)")
+            }
+        }
+        #endif
     }
 
     private var startGameID: String? {

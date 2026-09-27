@@ -36,21 +36,22 @@ public struct SolitaireView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 8) {
+        OrientationAdaptiveGameLayout(boardSideInset: Theme.pad, ads: services.ads) {
             statusBar
-            SolitaireBoardView(model: model, services: services).layoutPriority(1)
+        } board: {
+            SolitaireBoardView(model: model, services: services)
+        } hint: {
+            HowToPlayHint(.solitaire, playLog: services.playLog)
+        } controls: {
             SolitaireControlsView(
                 model: model,
                 services: services,
                 isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo
             )
-            HowToPlayHint(.solitaire, playLog: services.playLog)
-            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
-            Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
         }
-        .padding(Theme.pad)
+        // 横向き対応は対象 3 画面だけ（#1511）。表示中だけ許可し、離れたら自動で終える。
+        .allowsLandscapeWhileVisible(services.orientationLock)
         .gameChrome(title: "ソリティア", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()

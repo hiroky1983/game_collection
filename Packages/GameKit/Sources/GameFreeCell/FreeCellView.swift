@@ -42,24 +42,17 @@ public struct FreeCellView: View {
     }
 
     public var body: some View {
-        // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
-        // 帯・ヒント・ボタン・バナーは従来どおり `Theme.pad`（16pt）。
-        VStack(spacing: 8) {
+        OrientationAdaptiveGameLayout(boardSideInset: FreeCellMetrics.boardSideInset, ads: services.ads) {
             statusBar
-                .padding(.horizontal, Theme.pad)
+        } board: {
             board
-                .padding(.horizontal, FreeCellMetrics.boardSideInset)
-                .layoutPriority(1)
-            controlArea
-                .padding(.horizontal, Theme.pad)
+        } hint: {
             HowToPlayHint(.freecell, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
-            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
-            Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
-                .padding(.horizontal, Theme.pad)
+        } controls: {
+            controlArea
         }
-        .padding(.vertical, Theme.pad)
+        // 横向き対応は対象 3 画面だけ（#1511）。表示中だけ許可し、離れたら自動で終える。
+        .allowsLandscapeWhileVisible(services.orientationLock)
         .gameChrome(title: "フリーセル", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         startNewGame()
