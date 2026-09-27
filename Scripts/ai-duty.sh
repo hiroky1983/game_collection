@@ -908,8 +908,12 @@ APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --s
   --json number,labels \
   --jq '[.[] | ([.labels[].name]) as $l
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
-                 and ($l | index("blocked")) == null)] | length' 2>/dev/null || echo 0)
+                 and ($l | index("blocked")) == null and ($l | index("duty:heavy")) == null)] | length' 2>/dev/null || echo 0)
 
+# 重い Issue（duty:heavy）はこの Mac の当番では拾わない。クラウド（claude.ai の routine）で進める
+# （会長決裁 2026-09-27「duty:heavy がついてるやつはクラウドに移そう」。対局計測が Mac を何時間もふさぐため）。
+# 下の同時1本の仕組み（heavy_claimed_by_other）は、ラベルを外して手元で回す場合のために残す。
+#
 # 着手する Issue の確保（2並列化 2026-09-25）。以前は仕事2（ai-duty-prompt.md セクション2）で LLM が
 # 選んでいたが、2つの当番がほぼ同時に起動すると、どちらかが ai:in-progress を付ける前に同じ Issue を
 # 選びうる。プロンプトの選定手順と同じ順（マイルストーンの版 → 番号）に並べた候補を、先頭から
@@ -920,7 +924,7 @@ CANDIDATES=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" -
   --json number,labels,milestone \
   --jq '[.[] | ([.labels[].name]) as $l
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
-                 and ($l | index("blocked")) == null)
+                 and ($l | index("blocked")) == null and ($l | index("duty:heavy")) == null)
         | {number: .number,
            fable: (($l | index("model:fable")) != null),
            heavy: (($l | index("duty:heavy")) != null),
