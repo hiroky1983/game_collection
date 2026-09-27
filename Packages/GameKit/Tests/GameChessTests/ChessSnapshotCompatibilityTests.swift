@@ -34,6 +34,6 @@ struct ChessSnapshotCompatibilityTests {
         #expect(model.phase == .playing)
         #expect(model.aiLevel == 2)
         #expect(model.undoUsed)
-        #expect(model.hintsRemaining == BoardHintBudget.perGame - 1)
+        #expect(model.hintsRemaining == BoardHintBudget.total - 1)
     }
 }
