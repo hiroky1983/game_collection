@@ -64,10 +64,8 @@ struct NumericCornerRadiusScanTests {
         "GameConcentration/ConcentrationView.swift": 4,
         "GameDaifugo/DaifugoView.swift": 1,
         "GameFifteen/FifteenView.swift": 1,
-        "GameFreeCell/FreeCellView.swift": 2,
         "GameMahjong/MahjongStartSheet.swift": 1,
         "GameMahjong/MahjongView+Hand.swift": 1,
-        "GameMahjongSolitaire/MahjongSolitaireView.swift": 3,
         "GameMinesweeper/MinesweeperView.swift": 2,
         "GameOthello/OthelloView.swift": 1,
         "GamePoker/PokerSheets.swift": 3,
@@ -77,9 +75,7 @@ struct NumericCornerRadiusScanTests {
         "GameRunner/RunnerWorldMap.swift": 1,
         "GameShiritori/ShiritoriView.swift": 3,
         "GameShogi/ShogiView.swift": 9,
-        "GameSolitaire/SolitaireRescueOverlay.swift": 3,
         "GameSpeed/SpeedView.swift": 2,
-        "GameSpider/SpiderView.swift": 2,
     ]
 
     private static func sourceFiles() throws -> [(path: String, source: String)] {
