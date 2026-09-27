@@ -143,7 +143,7 @@ public struct SimpleGomokuEngine: GomokuEngine {
 
     /// 最善手を打つ確率（#1463 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
     static let noviceBestMoveProbability = 1.0
-    static let easyBestMoveProbability = 1.0
+    static let easyBestMoveProbability = 0.0
     static let normalBestMoveProbability = 0.6
 
     /// 外したときに許す損の幅（評価値の差）。開三 1 本（`patternScore` の 500）ぶん。
