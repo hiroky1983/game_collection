@@ -92,6 +92,11 @@ struct GameOverflowBarTests {
 
     /// `(ファイル, 盤の目印, 「⋯」の行の目印)`。盤の目印から「⋯」の行までに `Spacer` を挟まないこと、
     /// 余白を吸う `Spacer` が「⋯」の行と `BannerSlot` のあいだにあることを本体の組み立てで確かめる。
+    ///
+    /// トランプのソリティア系 3 本（フリーセル・スパイダー・ソリティア）はこの並びを自前の body には
+    /// 持たず、共通の器 `OrientationAdaptiveGameLayout`（`Core/GameLandscapeLayout.swift`）へ委ねている
+    /// （#1511）。それらの並びは `sharedLandscapeLayoutKeepsPortraitOrder` で別途固定し、ここでは
+    /// 委譲していることだけを見る（`landscapeAdaptiveGamesDelegateToSharedLayout`）。
     static let layoutCases: [(String, String, String)] = [
         ("GameChess/ChessView.swift", "\n            board\n", "controlArea"),
         ("GameShogi/ShogiView.swift", "\n            board\n", "controlArea"),
@@ -101,9 +106,13 @@ struct GameOverflowBarTests {
         ("GameMinesweeper/MinesweeperView.swift", "\n            board\n", "controlArea"),
         ("GameMahjongSolitaire/MahjongSolitaireView.swift", "\n            board\n", "controlArea"),
         ("GameSudoku/SudokuView.swift", "\n            board\n", "controlArea"),
-        ("GameFreeCell/FreeCellView.swift", "\n            board\n", "controlArea"),
-        ("GameSpider/SpiderView.swift", "\n            board\n", "controlArea"),
-        ("GameSolitaire/SolitaireView.swift", "SolitaireBoardView(", "SolitaireControlsView("),
+    ]
+
+    /// 共通の器へ委ねているソリティア系 3 本の View ファイル。
+    static let landscapeAdaptiveViewPaths: [String] = [
+        "GameFreeCell/FreeCellView.swift",
+        "GameSpider/SpiderView.swift",
+        "GameSolitaire/SolitaireView.swift",
     ]
 
     @Test("「⋯」の行は盤のすぐ下に付き、余白は「⋯」の行と広告のあいだにある", arguments: layoutCases.indices)
@@ -120,6 +129,31 @@ struct GameOverflowBarTests {
                 "\(path) の盤と「⋯」の行のあいだに Spacer がある（「⋯」が盤から離れて浮く）")
         #expect(body[control.upperBound..<banner.lowerBound].contains("Spacer(minLength: 0)"),
                 "\(path) の「⋯」の行と広告のあいだに余白を吸う Spacer が無い")
+    }
+
+    @Test("横向き対応3画面（#1511）は盤下の並びを共通の器（OrientationAdaptiveGameLayout）に委ねている",
+          arguments: landscapeAdaptiveViewPaths)
+    func landscapeAdaptiveGamesDelegateToSharedLayout(path: String) throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
+        let body = try #require(SourceScan.declaration(of: "public var body: some View", in: source), "\(path) の body が無い")
+        #expect(body.contains("OrientationAdaptiveGameLayout("),
+                "\(path) が共通の器に乗っていない（盤下の並びはその器の中でしか保証されない）")
+    }
+
+    @Test("共通の器（OrientationAdaptiveGameLayout）の縦向きは、盤のすぐ下に操作が付き、余白は操作/ヒントと広告のあいだにある")
+    func sharedLandscapeLayoutKeepsPortraitOrder() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameLandscapeLayout.swift"))
+        let body = try #require(SourceScan.declaration(of: "private var portraitBody: some View", in: source),
+                                "portraitBody が無い")
+        let board = try #require(body.range(of: "\n            board\n"), "portraitBody に盤が無い")
+        let controls = try #require(body.range(of: "\n            controls\n", range: board.upperBound..<body.endIndex),
+                                    "portraitBody の操作が盤より下に無い")
+        let banner = try #require(body.range(of: "BannerSlot(", range: controls.upperBound..<body.endIndex),
+                                  "portraitBody の広告が操作より下に無い")
+        #expect(!body[board.upperBound..<controls.lowerBound].contains("Spacer("),
+                "portraitBody の盤と操作のあいだに Spacer がある（「⋯」が盤から離れて浮く）")
+        #expect(body[controls.upperBound..<banner.lowerBound].contains("Spacer(minLength: 0)"),
+                "portraitBody の操作と広告のあいだに余白を吸う Spacer が無い")
     }
 
     @Test("盤下の操作エリアは対局中の中身を上寄せにする（「⋯」を広告の直上へ沈めない）")
