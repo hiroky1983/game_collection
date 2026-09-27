@@ -55,22 +55,16 @@ final class GameSettings {
             AppEnvironment.analytics.discardPlayState()
         }
     }
-    /// 中断したゲームのお知らせ（#663）のオン / オフ。既定はオン。
-    /// オフにした時点で予約済みのお知らせも取り消す（オフにしたのに翌日届く、を作らない）。
+    /// 通知のオン / オフ（#1508）。既定はオン。
+    /// 「続きのお知らせ」（#663）と「久しぶり通知」（#1193）は判定条件・予約ロジックは別のまま、
+    /// 設定画面のトグルと保存値はこの1つにまとめている。オフにした時点で両方の予約済みの
+    /// お知らせを取り消す（オフにしたのに翌日届く、を作らない）。
     var notificationsEnabled: Bool {
         didSet {
             Self.notifications.isEnabled = notificationsEnabled
+            Self.reengagementReminders.isEnabled = notificationsEnabled
             if !notificationsEnabled {
                 AppEnvironment.reminders.cancelAll()
-            }
-        }
-    }
-    /// 再エンゲージメント通知（#1193）のオン / オフ。既定はオン。
-    /// #663 とは別の許諾（標準ダイアログ）・別の判定条件のため、トグルも分ける。
-    var reengagementRemindersEnabled: Bool {
-        didSet {
-            Self.reengagementReminders.isEnabled = reengagementRemindersEnabled
-            if !reengagementRemindersEnabled {
                 AppEnvironment.reengagement.cancelAll()
             }
         }
@@ -100,8 +94,15 @@ final class GameSettings {
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
         self.analyticsEnabled = Self.analytics.isEnabled
-        self.notificationsEnabled = Self.notifications.isEnabled
-        self.reengagementRemindersEnabled = Self.reengagementReminders.isEnabled
+        let mergedNotificationsEnabled = NotificationsPreferenceMerge.mergedIsEnabled(
+            resume: Self.notifications.isEnabled,
+            reengagement: Self.reengagementReminders.isEnabled
+        )
+        self.notificationsEnabled = mergedNotificationsEnabled
+        // 統合前に片方だけオフだった保存値を、次回起動時からも一致させておく（didSet は
+        // 初期化中の代入では呼ばれないため、ここで明示的に書き戻す）。
+        Self.notifications.isEnabled = mergedNotificationsEnabled
+        Self.reengagementReminders.isEnabled = mergedNotificationsEnabled
         self.hintsEnabled = Self.hints.isEnabled
         self.slowModeEnabled = Self.slowMode.isEnabled
     }
