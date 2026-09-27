@@ -231,12 +231,16 @@ public struct SimpleChessEngine: ChessEngine {
     /// 下の段は `depth` に 3 / 2 / 1 手先の上限を持つ（会長決裁 2026-09-27）。
     static let maxDepth = 32
 
-    /// 最善手を打つ確率（#1462 の実測。すぐ上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
-    static let noviceBestMoveProbability = 1.0
+    /// 最善手を打つ確率（#1462 の実測。すぐ上の段の得点率が 90% 以上になる、10% 刻みで最も高い値を上から順に決めた:
+    /// むずかしいに対しふつう 90%（100% は 200 局 89.2% で不合格）、ふつう 90% に対しかんたん 80%、
+    /// かんたん 80% に対し入門 60%。入門は一様乱択の相手に 100 局全勝）。
+    static let noviceBestMoveProbability = 0.6
     static let easyBestMoveProbability = 0.8
     static let normalBestMoveProbability = 0.9
 
-    /// 外したときに許す損の幅（ナイト・ビショップ 1 枚ぶん）。
+    /// 外したときに許す損の幅（ナイト・ビショップ 1 枚ぶん）。駒 1 枚ぶんを目安に、軽い駒（ナイト 320・ビショップ 330）を
+    /// 位置の点込みで只で失う手までが入り、ルーク（500）・クイーンを只で失う手は入らない。初心者らしい
+    /// 「駒をうっかり取られる」間違いは出しつつ、大駒を捨てて一気に負ける手は選ばない幅。
     static let slipMargin = 350
 
     static func policy(_ probability: Double) -> ChessMovePolicy {

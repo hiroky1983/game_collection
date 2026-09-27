@@ -3,97 +3,108 @@ import Foundation
 import CoreEngine
 @testable import GameChess
 
-/// 手の選び方（見逃し）と読む局面数の上限（#1398）。数秒で終わるものだけを置く。
-/// CPU 同士の対局・探索深さの計測は `CPUBenchTests`（`CPU_BENCH=1` のときだけ）。
-@Suite("チェスの難易度: 手の選び方と局面数の上限（#1398）")
+/// 最善手を外すときの手の選び方と局面数の上限（#1462）。数秒で終わるものだけを置く。
+/// CPU 同士の対局・所要時間の計測は `Scripts/chess-cpu-bench`（`CPUBenchTests` は `CPU_BENCH=1` のときだけ）。
+@Suite("チェスの難易度: 最善手の確率と外したときの手（#1462）")
 struct ChessMovePolicyTests {
 
-    private static func mv(_ to: Int) -> ChessMove { ChessMove(from: 0, to: to) }
+    /// 白ルークが黒ポーンを只で取れる局面。1 手先の読みでは取る手（e1e5）が最善（2 手先以上は、逃げられない
+    /// ポーンを後回しにしてキングを寄せる手を選ぶので、読みは 1 手先に固定する）。
+    private static let freePawn = "k7/8/8/4p3/8/8/8/K3R3 w - - 0 1"
 
-    /// 手 A（最善）・B（ポーン 1 枚損）・C（駒 1 枚損）・D（キングを取られる）。
-    private var scored: [(move: ChessMove, score: Int)] {
-        [(Self.mv(1), 0), (Self.mv(2), -100), (Self.mv(3), -300), (Self.mv(4), -100_000)]
-    }
-
-    private func picks(margin: Int, count: Int) -> [ChessMove] {
-        var rng = SplitMix64(seed: 42)
-        return (0..<count).compactMap { _ in
-            SimpleChessEngine.pick(scored, best: 0, margin: margin, using: &rng)
-        }
-    }
-
-    @Test("同等幅 0 なら常に最初の最善手")
-    func zeroMarginPicksTheBest() {
-        let moves = picks(margin: 0, count: 200)
-        #expect(moves.count == 200 && moves.allSatisfy { $0 == Self.mv(1) })
-    }
-
-    @Test("幅の中からだけ乱択し、幅の外（キングを取られる手）は選ばない")
-    func picksOnlyWithinTheMargin() {
-        let moves = picks(margin: 350, count: 600)
-        let allowed = [Self.mv(1), Self.mv(2), Self.mv(3)]
-        #expect(moves.allSatisfy { allowed.contains($0) })
-        #expect(allowed.allSatisfy { moves.contains($0) }, "幅の中の手が使われていない")
-    }
-
-    /// 指定局面で、見逃しを切った同じ段階の手と違う手を指す割合（＝見逃しの確率）を測る。
-    /// 読みの深さは 4 まで、局面数の上限は 300 に絞る（デバッグビルドの CI 時間）。定跡は使わない。
-    private func slipRate(level: Int, fen: String, trials: Int) async -> Double {
-        let shipped = SimpleChessEngine(level: level)
-        func make(_ policy: ChessMovePolicy, _ seed: UInt64) -> SimpleChessEngine {
-            SimpleChessEngine(
-                depth: min(shipped.depth, 4), usePositional: shipped.usePositional,
-                useQuiescence: shipped.useQuiescence, useBook: false, timeLimit: .infinity,
-                nodeLimit: shipped.nodeLimit == nil ? nil : 300, policy: policy, seed: seed)
-        }
-        var slipped = 0
+    /// 只のポーンを取らずに別の手を指す割合。外したときは最善（取る手）を除いて選ぶので、
+    /// 割合は 1 − 確率にそのまま近づく。
+    private func missRate(probability: Double, trials: Int) async -> Double {
+        let policy = SimpleChessEngine.policy(probability)
+        var missed = 0
         for seed in 1...UInt64(trials) {
-            let reference = await make(shipped.policy.withoutSlip, seed).bestMove(fen: fen)
-            if await make(shipped.policy, seed).bestMove(fen: fen) != reference { slipped += 1 }
+            let e = SimpleChessEngine(depth: 1, usePositional: true, useQuiescence: true, useBook: false,
+                                      timeLimit: .infinity, policy: policy, seed: seed)
+            if await e.bestMove(fen: Self.freePawn) != "e1e5" { missed += 1 }
         }
-        return Double(slipped) / Double(trials)
+        return Double(missed) / Double(trials)
     }
 
-    /// 白ルークが黒ナイト（320）を只で取れる局面。取らない手はどれも 320 損する。
-    private static let freeKnight = "k7/8/8/4n3/8/8/8/K3R3 w - - 0 1"
-
-    @Test("入門は只のナイトを約 3 割見逃し、むずかしいは見逃さない")
-    func overlookRatesFollowTheStage() async {
-        let novice = await slipRate(level: CPUStrength.novice.rawValue, fen: Self.freeKnight, trials: 300)
-        #expect((0.2...0.45).contains(novice), "入門の見逃し率が想定（約 3 割）から外れている: \(novice)")
-        let hard = await slipRate(level: CPUStrength.hard.rawValue, fen: Self.freeKnight, trials: 3)
-        #expect(hard == 0, "むずかしいが見逃した: \(hard)")
+    @Test("最善手を外す割合が設定した確率どおりになる（0% と 100% の両端を含む）")
+    func missRateFollowsTheProbability() async {
+        #expect(await missRate(probability: 1, trials: 20) == 0)
+        #expect(await missRate(probability: 0, trials: 20) == 1, "確率 0% は最善手を一度も指さない")
+        for p in [0.1, 0.6, 0.9] {
+            let rate = await missRate(probability: p, trials: 400)
+            #expect(abs(rate - (1 - p)) < 0.09, "確率 \(p) の外し率が \(rate)（期待 \(1 - p)）")
+        }
     }
 
-    /// 簡単・ふつうも見逃す（確率 0 や、深い探索の段階で見逃しの分岐が死んでいる変異を捕まえる）。
-    /// 初期局面は候補の損得が小さく、見逃しの手番は幅の中の 20 手から乱択する（最善と同じ手を引く目もある）。
-    @Test("簡単は約 8%、ふつうは約 10% 見逃す")
-    func easyAndNormalOverlookSometimes() async {
-        let easy = await slipRate(level: CPUStrength.easy.rawValue, fen: ChessPosition.startFEN, trials: 100)
-        #expect((0.02...0.16).contains(easy), "簡単の見逃し率が想定（約 8%）から外れている: \(easy)")
-        let normal = await slipRate(level: CPUStrength.normal.rawValue, fen: ChessPosition.startFEN, trials: 100)
-        // 深く読む段階は 1 回ごとに時間がかかるので幅を広げる（期待 10%・全く出ない確率は 0.003%）。
-        #expect((0.01...0.30).contains(normal), "ふつうの見逃し率が想定（約 10%）から外れている: \(normal)")
+    /// 白の 1 段目が空いていて、黒の Re1 でバックランクメイトになる局面。脅威を放っておく手（ビショップの
+    /// 多くの手など）は次の一手で詰まされ、ポーンで逃げ道を空ける手・Bf1/Be2 などは詰まされない。
+    private static let backRankThreat = "4r1k1/5ppp/8/8/2B5/8/5PPP/6K1 w - - 0 1"
+
+    private func slippingEngine(seed: UInt64, margin: Int = SimpleChessEngine.slipMargin) -> SimpleChessEngine {
+        SimpleChessEngine(depth: 2, usePositional: true, useQuiescence: true, useBook: false, timeLimit: .infinity,
+                          policy: ChessMovePolicy(bestMoveProbability: 0, slipMargin: margin), seed: seed)
     }
 
-    @Test("見逃しを切った方針は同等幅だけが残る（読みを固定するテストの前提）")
-    func withoutSlip() {
-        #expect(SimpleChessEngine.novicePolicy.withoutSlip.slipProbability == 0)
-        #expect(SimpleChessEngine.easyPolicy.withoutSlip.isExact)
-        #expect(SimpleChessEngine.normalPolicy.withoutSlip.isExact)
-        #expect(!SimpleChessEngine.novicePolicy.withoutSlip.isExact)
+    @Test("外したときの手に、次の一手でチェックメイトされる手は入らない")
+    func slipNeverWalksIntoMate() {
+        let pos = ChessPosition.fromFEN(Self.backRankThreat)!
+        let moves = pos.legalMoves()
+        var probe = pos
+        let mating = Set(moves.filter { SimpleChessEngine.allowsMateInOne(&probe, after: $0) }.map(\.uci))
+        #expect(!mating.isEmpty && mating.count < moves.count, "前提: 詰まされる手とそうでない手の両方がある")
+
+        // 対照: 損の幅を実質無制限にすると、候補（詰みの確認前）に詰まされる手が入る。
+        // 確認が効いていなければ、下のループで選ばれる。
+        var pooled = pos
+        let pool = slippingEngine(seed: 1, margin: 1_000_000).slipPool(&pooled, moves: moves).map(\.uci)
+        #expect(pool.contains { mating.contains($0) }, "対照: 候補に詰まされる手が入っていない（前提が崩れている）")
+
+        for seed in 1...60 {
+            var p = pos
+            var rng = SplitMix64(seed: UInt64(seed))
+            let e = slippingEngine(seed: UInt64(seed), margin: 1_000_000)
+            if let m = e.slipMove(&p, moves: moves, using: &rng) {
+                #expect(!mating.contains(m.uci), "詰まされる手を選んだ: \(m.uci)")
+            }
+        }
     }
 
-    @Test("ふつうよりむずかしいのほうが多く読み、時間は安全用に長めに残してある")
-    func nodeLimitsAreOrdered() {
-        let normal = SimpleChessEngine(level: CPUStrength.normal.rawValue)
-        let hard = SimpleChessEngine(level: CPUStrength.hard.rawValue)
-        let easy = SimpleChessEngine(level: CPUStrength.easy.rawValue)
-        #expect(normal.nodeLimit != nil && hard.nodeLimit != nil)
-        #expect(normal.nodeLimit! < hard.nodeLimit!)
-        #expect(normal.timeLimit >= 3 && hard.timeLimit >= 5, "時間の上限が主になって端末の速さで強さが変わる")
-        #expect(easy.nodeLimit == nil && !easy.policy.isExact)
-        #expect(hard.policy.isExact, "むずかしいは当面 100% 最善手（会長決裁 2026-09-25）")
+    @Test("外しの手は、最善と損の幅の外の手（クイーンを只で取られる手）を選ばない")
+    func slipStaysWithinTheMargin() {
+        // e1 の白クイーンは e5 の黒ポーンを只で取れる（最善）。d4・f4 はそのポーンに、a7・b7・b8 は黒キングに
+        // クイーンを取られる。幅（350 = ナイト・ビショップ 1 枚ぶん）の外。
+        let fen = "k7/8/8/4p3/8/8/8/K3Q3 w - - 0 1"
+        let pos = ChessPosition.fromFEN(fen)!
+        var p = pos
+        let pool = slippingEngine(seed: 1).slipPool(&p, moves: pos.legalMoves())
+        #expect(!pool.isEmpty)
+        #expect(!pool.contains { $0.uci == "e1e5" }, "最善（ポーンを取る手）は外しの候補に入らない")
+        for move in pool {
+            var q = pos
+            q.make(move)
+            let lostQueen = q.legalMoves().contains { q.squares[$0.to]?.type == .queen }
+            #expect(!lostQueen, "クイーンを只で取られる手が候補に入っている: \(move.uci)")
+        }
+    }
+
+    /// 外しの候補が無い（合法手が 1 手だけ）ときは、外せないので探索して最善手を指す。
+    /// 何も返さない・非合法手を返すと、CPU が止まる。
+    @Test("外しの候補が無ければ探索に回り、唯一の合法手を返す")
+    func slipWithNoCandidatesFallsBackToSearch() async {
+        // h1 の白キングは g1・h2 を g2 の黒ルークに押さえられ、そのルークを取る手しかない。
+        let pos = ChessPosition.fromFEN("k7/8/8/8/8/8/6r1/7K w - - 0 1")!
+        let moves = pos.legalMoves()
+        #expect(moves.count == 1, "前提: 合法手が 1 手だけ（\(moves.map(\.uci))）")
+        let e = SimpleChessEngine(depth: 2, usePositional: true, useQuiescence: true, useBook: false,
+                                  timeLimit: .infinity, policy: SimpleChessEngine.policy(0), seed: 1)
+        #expect(await e.bestMove(fen: pos.toFEN()) == moves[0].uci)
+    }
+
+    @Test("探索に残す時間は、使った時間と後始末ぶんを引く（上限を超えない・0 にならない）")
+    func searchTimeSubtractsWhatWasUsed() {
+        let over = SimpleChessEngine.searchOverhead
+        #expect(abs(SimpleChessEngine.searchTime(limit: 1, elapsed: 0.4) - (0.6 - over)) < 1e-9)
+        #expect(SimpleChessEngine.searchTime(limit: 1, elapsed: 5) == SimpleChessEngine.minSearchTime)
+        #expect(SimpleChessEngine.searchTime(limit: .infinity, elapsed: 5) == .infinity)
     }
 
     @Test("局面数の上限に達したら読みを打ち切り、途中の深さは採用せず合法手を返す")
@@ -129,5 +140,17 @@ struct ChessMovePolicyTests {
         let move = r?.uci.flatMap(ChessMove.fromUCI)
         #expect(r?.depth == 0)
         #expect(move != nil && ChessPosition.start().legalMoves().contains(move!))
+    }
+
+    /// 確率は `docs/analytics/chess-1462-ladder.md` の段階表（すぐ上の段の得点率 90% 以上で最も高い値）で決めた値。
+    /// 変えるときは同じ計測（`Scripts/chess-cpu-bench`）をやり直して表を更新する。
+    @Test("最善手の確率は 入門 60% / かんたん 80% / ふつう 90% / むずかしい 100%、損の幅はナイト・ビショップ 1 枚ぶん")
+    func probabilitiesArePinnedToTheMeasurement() {
+        let p = CPUStrength.allCases.map { SimpleChessEngine(level: $0.rawValue).policy }
+        #expect(p.map(\.bestMoveProbability) == [0.6, 0.8, 0.9, 1])
+        #expect(p[3].isExact)
+        #expect(p[0..<3].allSatisfy { $0.slipMargin == SimpleChessEngine.slipMargin })
+        #expect(SimpleChessEngine.slipMargin > ChessPieceValue.base(.bishop))
+        #expect(SimpleChessEngine.slipMargin < ChessPieceValue.base(.rook), "外しでもルーク・クイーンは只で損しない")
     }
 }
