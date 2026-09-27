@@ -35,8 +35,6 @@ public struct FreeCellView: View {
     private let services: GameServices
     /// 画面の広さ（#458）。札の幅の上限をここから受け取る。
     @Environment(\.adaptiveLayout) private var layout
-    /// 卓の上に乗る仕切りの色（#1501）。`cardTable()` を付けた盤の内側で読むのでフェルト用の値が届く。
-    @Environment(\.cardTableInk) private var tableInk
 
     public init(services: GameServices) {
         self.services = services
@@ -384,13 +382,16 @@ public struct FreeCellView: View {
         // 見えない**（実測。空のうちは受け皿の絵と ♠♥♦♣ で区別が付くが、埋まると消える）。
         // 列の幅を崩さずに境目だけ描くため、レイアウトを取らない overlay で中央に引く。
         // 色は卓の上（白系）と地の上（`Theme.inkSub` 系）で `cardTableInk` から取る（#1501）。
+        // 画面の View 本体で `@Environment` を読んでも盤に付けた卓の値は届かないので、盤の中で読む。
         .overlay {
-            Capsule()
-                .fill(tableInk.divider)
-                .frame(width: 2.5)
-                .padding(.vertical, 2)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            CardTableInkReader { ink in
+                Capsule()
+                    .fill(ink.divider)
+                    .frame(width: 2.5)
+                    .padding(.vertical, 2)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
     }
 

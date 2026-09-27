@@ -86,6 +86,22 @@ struct CardTableSurfaceTests {
         #expect(!source.contains("EllipticalGradient"), "\(module) にフェルトの描画が直書きされている")
     }
 
+    /// 環境値は祖先から子孫へしか流れない。`.cardTable()` は盤（子）に付くので、画面の View 本体が
+    /// `@Environment(\.cardTableInk)` を持っても既定の `.plain` しか届かず、フェルトの上に地の色が
+    /// 乗る（verifier が最小構成で再現。フリーセルの仕切りと麻雀ソリティアのクリア文字で実際に起きた）。
+    @Test("卓の上の色は画面の View 本体で読まず、盤の中の子 View（CardTableInkReader）で読む", arguments: [
+        "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire",
+    ])
+    func tableInkIsReadInsideTheTable(module: String) throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
+        #expect(!source.contains("@Environment(\\.cardTableInk)"),
+                "\(module) が画面の View 本体で cardTableInk を読んでいる（盤に付けた卓の値は届かない）")
+        // 卓の上に色の要る部品を持つゲームは、器を通して読む。
+        if module == "GameFreeCell" || module == "GameMahjongSolitaire" {
+            #expect(source.contains("CardTableInkReader {"), "\(module) が CardTableInkReader を使っていない")
+        }
+    }
+
     @Test("空き枠は色を直書きせず、卓の上かどうかを環境値から受け取る")
     func cardSlotReadsInkFromTheEnvironment() throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/CardTable.swift"))

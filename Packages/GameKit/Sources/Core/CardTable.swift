@@ -107,6 +107,25 @@ public extension EnvironmentValues {
     }
 }
 
+/// 卓の上に置くものの色を、**その場所で**読んで組み立てるための器。
+///
+/// 環境値は祖先から子孫へしか流れないので、`.cardTable()` を付けた盤の**親**（画面の View 本体）が
+/// `@Environment(\.cardTableInk)` を持っても既定の `.plain` しか届かない（verifier の再現で実測）。
+/// 仕切り・卓上の文字のように盤の中に置く部品は、必ずこの器（か自前の `@Environment` を持つ子 View）
+/// 経由で色を取る。`CardTableSurfaceTests` が「画面の View 本体で読んでいない」ことを走査で固定する。
+public struct CardTableInkReader<Content: View>: View {
+    @Environment(\.cardTableInk) private var ink
+    private let content: (CardTableInk) -> Content
+
+    public init(@ViewBuilder content: @escaping (CardTableInk) -> Content) {
+        self.content = content
+    }
+
+    public var body: some View {
+        content(ink)
+    }
+}
+
 /// 卓の面そのもの（木枠 + フェルト + 木枠の内側の落ち影 + 外の落ち影）。
 ///
 /// 雀卓（`MahjongTableSurface`）は `Canvas` に台形を描いていたが、ここは角丸の長方形なので

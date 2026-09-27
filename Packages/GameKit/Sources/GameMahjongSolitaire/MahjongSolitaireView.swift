@@ -59,8 +59,6 @@ public struct MahjongSolitaireView: View {
     /// 出ないまま終わる。牌が消えきる時間だけ切り替えを遅らせて、最後の 1 組も同じ演出で消す。
     /// 遅らせるのは**盤面の表示だけ**で、勝敗・記録・計時（`model`）は従来どおり即座に確定する。
     @State private var showsClearDisplay = false
-    /// 卓の上に出す文字の色（#1501）。`cardTable()` を付けた盤の内側で読むのでフェルト用の値が届く。
-    @Environment(\.cardTableInk) private var tableInk
 
     private typealias Metrics = MahjongSolitaireBoardMetrics
 
@@ -276,17 +274,20 @@ public struct MahjongSolitaireView: View {
             if showsClearDisplay {
                 // 取り切った直後は盤面が空になるので、代わりにクリアの演出を置く。
                 // 文字色は卓の上（白系）と地の上（`Theme.ink` 系）で `cardTableInk` から取る（#1501）。
-                VStack(spacing: 12) {
-                    Text("🎉").font(.system(size: 64))
-                    Text("全部取り切った！")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(tableInk.label)
-                    // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
-                    // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
-                    Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(tableInk.labelSub)
-                        .lineLimit(1).minimumScaleFactor(0.7)
+                // 画面の View 本体で `@Environment` を読んでも盤に付けた卓の値は届かないので、盤の中で読む。
+                CardTableInkReader { ink in
+                    VStack(spacing: 12) {
+                        Text("🎉").font(.system(size: 64))
+                        Text("全部取り切った！")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(ink.label)
+                        // 補助の利用実績。**0 回でも省かず全部出す**（クリアしたときの記録の内訳であり、
+                        // 「使わずに取り切った」ことが読み取れる形にしておく = 記録の公平性・#198）。
+                        Text("ヒント\(model.hintCount)回 / 並べ替え\(model.shuffleCount)回 / 戻す\(model.undoCount)回")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(ink.labelSub)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
