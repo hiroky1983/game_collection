@@ -8,9 +8,11 @@ import Testing
 /// 世代照合で弾かれて視聴が無駄になる。画面の状態はテストから操作できないので、書き方そのものを見る
 /// （ナンプレ #911・マインスイーパー #816 と同じ趣旨）。チャリンコおじさんは共通の `RewardedContinueOverlay`
 /// ではなく独自の幕を持つため、そちらの走査テストには掛からない。
+/// #1486 でボタンを共通部品（`GameDeadEndActionButton`）へ寄せたため、「視聴中に押せない」は
+/// `.disabled` 修飾子ではなく `isDisabled:` 引数で見る。
 @Suite("チャリンコおじさん 再開広告の視聴中ガード")
 struct RunnerRewardedResumeGuardTests {
-    private static let disabledWhileWatching = ".disabled(resumeRescue.isWatching)"
+    private static let disabledWhileWatching = "isDisabled: resumeRescue.isWatching"
 
     @Test("視聴中はミス画面の「もう一度」を押せない")
     func retryButtonIsDisabledWhileWatching() throws {
@@ -18,9 +20,9 @@ struct RunnerRewardedResumeGuardTests {
         let retry = try #require(SourceScan.declaration(of: "private var retryButton: some View", in: source),
                                  "「もう一度」ボタンの定義が見つからない（走査が空振りしている）")
         #expect(retry.contains("model.retryStage()"))
-        let button = try #require(retry.range(of: "Button {"),
-                                  "「もう一度」の Button が見つからない（走査が空振りしている）")
-        #expect(retry[button.upperBound...].contains(Self.disabledWhileWatching),
+        #expect(retry.contains("GameDeadEndActionButton("),
+                "「もう一度」の共通ボタン部品が見つからない（走査が空振りしている）")
+        #expect(retry.contains(Self.disabledWhileWatching),
                 "広告のロード〜視聴中に「もう一度」が押せる")
 
         let resume = try #require(SourceScan.declaration(of: "private var resumeButton: some View", in: source),

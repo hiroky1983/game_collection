@@ -10,8 +10,8 @@
 /// 長生きする場所に世代を置いて突き合わせる必要がある。それがこの型。
 ///
 /// 進めるのは `GameServices.gameDidLeave(gameID:)` の 1 か所だけ（ハブの `onChange(of: path)`
-/// が唯一の発火点）。照合は `RewardedRescue` と、広告を自分で抱えている 3 つの Model
-/// （麻雀・ブラックジャック・ポーカー）が行う。
+/// が唯一の発火点）。照合は `RewardedRescue` と、広告を自分で抱えている Model
+/// （麻雀・ブラックジャック・ポーカー・ルーレット・将棋・チェス・五目並べのヒント・#1500）が行う。
 @MainActor
 public final class GameScreenGeneration {
     public private(set) var current = 0
@@ -108,7 +108,7 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
-    /// 無料ヒントを**1回使った**ときに各 Model から呼ぶ（#1326）。`game_end` の `hints_used` に載る。
+    /// ヒントを**1回使った**（無料・広告のどちらでも）ときに各 Model から呼ぶ（#1326・#1500）。`game_end` の `hints_used` に載る。
     ///
     /// 途中離脱の `game_end` は Model を経由せず共通経路で出るため、決着時に値を渡す形ではなく
     /// 使うたびにここへ伝えて `GameAnalytics` に覚えさせる。

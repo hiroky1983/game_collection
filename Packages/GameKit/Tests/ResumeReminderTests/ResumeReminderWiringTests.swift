@@ -84,14 +84,14 @@ struct ResumeReminderWiringTests {
                 "ハブがタップされたゲームを notification の導線で開いていない")
     }
 
-    @Test("設定の「通知」トグルで止められ、オフにすると予約済みも取り消す")
+    @Test("設定の「通知」トグルで止められ、オフにすると予約済みも取り消す（#1508: 久しぶり通知と共有）")
     func settingToggleStopsReminders() throws {
         let source = try SourceScan.appSources()
         #expect(Self.matches(#"get: \{ settings\.notificationsEnabled \},\s*set: \{ settings\.notificationsEnabled = \$0 \}"#, in: source),
                 "設定画面に通知のトグルが無い")
         #expect(Self.matches(#"isEnabled: \{ settings\.notificationsEnabled \}"#, in: source),
                 "設定のオン / オフが予約の判定に届いていない")
-        #expect(Self.matches(#"if !notificationsEnabled \{\s*AppEnvironment\.reminders\.cancelAll\(\)"#, in: source),
-                "オフにしても予約済みのお知らせが残る")
+        #expect(Self.matches(#"if !notificationsEnabled \{\s*AppEnvironment\.reminders\.cancelAll\(\)\s*AppEnvironment\.reengagement\.cancelAll\(\)"#, in: source),
+                "オフにしても予約済みのお知らせ（続きのお知らせ・久しぶり通知の両方）が残る")
     }
 }

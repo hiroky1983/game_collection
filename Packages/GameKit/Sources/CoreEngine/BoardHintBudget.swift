@@ -1,17 +1,23 @@
 import Foundation
 
-/// 戦略ゲーム（将棋・チェス・五目並べ）のヒントの回数制（#1118）。
+/// 戦略ゲーム（将棋・チェス・五目並べ）のヒントの回数制（#1118・#1500）。
 ///
 /// **1 か所に持つ理由**: 3 本が別々に定数と数え方を持つと、片方だけ調整したときに
 /// 「同じヒントなのにゲームによって回数が違う」「片方だけ順位表から外れない」状態が静かに生まれる
 /// （`RewardedUndoBudget` を Core へ上げたのと同じ理由）。回数・使い切りの判定・順位表の扱いの
 /// 3 つをこの型が持ち、各ゲームの Model は値を 1 つ抱えるだけにする。
 ///
-/// **広告での補充は持たない**（会長決裁 2026-09-19「A: 無料3回のみ・広告連携なし」）。
-/// 補充が要るようになったら `RewardedUndoBudget` と同じく `refill` をここへ足す。
+/// **無料 3 回に加え、広告 1 本ごとに 1 回だけ足せる（最大 5 回・合計 8 回）**（会長決裁 2026-09-27・#1500）。
+/// 2026-09-19 の決裁「A: 無料3回のみ・広告連携なし」はこの Issue で上書きされた。
+/// 無料枠と広告枠は同じ `used` を共有する 1 本のカウンタで、無料が残っているうちは広告を要求しない
+/// （`hasFreeRemaining` で判定する）。
 public struct BoardHintBudget: Equatable, Sendable {
-    /// 1 局に使える回数。1 局ごとに戻る（`reset()`）。
+    /// 無料で使える回数。1 局ごとに戻る（`reset()`）。
     public static let perGame = 3
+    /// 無料枠を使い切った後、広告 1 本につき 1 回だけ足せる上限。
+    public static let adRefillMax = 5
+    /// 1 局で使える合計回数（無料 + 広告）。
+    public static let total = perGame + adRefillMax
 
     /// ヒントを読ませる CPU の強さ（`SimpleMinimaxEngine` 等の `level`）。
     ///
@@ -27,26 +33,39 @@ public struct BoardHintBudget: Equatable, Sendable {
 
     /// - Parameter used: 中断データから復元した使用回数。壊れた値・上限を超えた値は範囲に丸める。
     public init(used: Int = 0) {
-        self.used = min(max(used, 0), Self.perGame)
+        self.used = min(max(used, 0), Self.total)
     }
 
-    /// 残り回数。
-    public var remaining: Int { Self.perGame - used }
+    /// 残り回数（無料 + 広告の合計）。
+    public var remaining: Int { Self.total - used }
 
-    /// 使い切ったか。
+    /// 合計で使い切ったか。
     public var isExhausted: Bool { remaining <= 0 }
 
     /// この局でヒントを 1 回でも使ったか。順位表の資格はこれで決まる。
     public var wasUsed: Bool { used > 0 }
 
-    /// 1 回使う。残っていなければ **何も変えずに** false を返す。
+    /// 無料枠がまだ残っているか。true のあいだは次の 1 回が無料で出せる
+    /// （= 次の 1 回に広告が要るかは `!hasFreeRemaining && !isExhausted` で判定する）。
+    public var hasFreeRemaining: Bool { used < Self.perGame }
+
+    /// 無料の 1 回を消費する。無料枠を使い切っていれば **何も変えずに** false を返す
+    /// （広告での補充は `consumeAd()` の担当）。
     public mutating func consume() -> Bool {
-        guard !isExhausted else { return false }
+        guard hasFreeRemaining else { return false }
         used += 1
         return true
     }
 
-    /// 新規対局で回数を戻す。
+    /// 広告視聴後の 1 回を消費する。無料枠が残っている・8 回を使い切っている場合は
+    /// **何も変えずに** false を返す（無料が残っているうちは広告を求めない契約）。
+    public mutating func consumeAd() -> Bool {
+        guard !hasFreeRemaining, !isExhausted else { return false }
+        used += 1
+        return true
+    }
+
+    /// 新規対局で回数を戻す（無料・広告とも戻る）。
     public mutating func reset() {
         used = 0
     }

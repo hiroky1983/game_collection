@@ -203,6 +203,25 @@ public final class Game2048Model {
         services?.gameDidRestart(gameID: gameID)
     }
 
+    #if DEBUG
+    /// 撮影・動作確認用: ゲームオーバーの画を直接作る（`-simulate2048GameOver`・#1486）。
+    /// 指し手で自然に詰ませようとすると新しいタイルの出現がランダムで時間もかかるため、
+    /// 隣どうしが必ず異なる 2 のべき乗を蛇行順に敷き詰めて（合体できない・空きも無い）確定で詰ませる。
+    public func debugForceGameOver() {
+        let n = Game2048Logic.size
+        var value = 1
+        board = (0..<n).map { r in
+            let row = (0..<n).map { _ -> Int in
+                value *= 2
+                return value
+            }
+            // 蛇行順（行ごとに向きを反転）にすることで、上下の行境界でも値が必ず食い違う。
+            return r % 2 == 0 ? row : Array(row.reversed())
+        }
+        gameOver = true
+    }
+    #endif
+
     private func persist() {
         guard !gameOver else { return }
         try? services?.snapshots.save(

@@ -520,6 +520,24 @@ struct ReengagementReminderServiceTests {
         #expect(spy.scheduled.isEmpty)
     }
 
+    @Test("オフからオンに戻すと、次の判定で再び予約される（#1508: 続きのお知らせと共有する統合トグル）")
+    func settingTurnsBackOnReschedules() async {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(20))
+        let service = makeService(spy, env)
+        let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
+
+        env.enabled = false
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await service.pendingWork?.value
+        #expect(spy.scheduled.isEmpty, "オフのときに予約している")
+
+        env.enabled = true
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await service.pendingWork?.value
+        #expect(spy.scheduled["shogi"] != nil, "オンに戻しても再び予約されない")
+    }
+
     @Test("撮影モード・DEBUG ビルドでは判定も許諾の要求もしない")
     func suppressedBuildsDoNothing() async {
         let spy = SpyScheduler(status: .notDetermined)

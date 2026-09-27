@@ -96,6 +96,14 @@ public struct HanafudaView: View {
             if model.phase == .idle { model.startMatch(options: draft) }
             showYakuSheet = true
         }
+        // 試合の結果画面（#1496）。同じくタップ無しでは辿り着けない画面。
+        .task {
+            if ProcessInfo.processInfo.arguments.contains("-hanafudaMatchResult") {
+                model.debugForceMatchResult(resigned: false)
+            } else if ProcessInfo.processInfo.arguments.contains("-hanafudaMatchResultResigned") {
+                model.debugForceMatchResult(resigned: true)
+            }
+        }
         #endif
     }
 
@@ -342,10 +350,7 @@ public struct HanafudaView: View {
                 ) { model.advanceAfterRound() }
             }
         case .matchResult:
-            HStack(spacing: 10) {
-                actionButton("もう一度", role: .primary) { model.restartMatch() }
-                actionButton("ハブへ戻る", role: .skip) { dismiss() }
-            }
+            actionButton("もう一度", role: .primary) { model.restartMatch() }
         default:
             // 対局中は操作の行を出さない。投了は札のすぐ下の「⋯」（`overflowBar`）、手番は状態の帯（#1485）。
             EmptyView()
@@ -430,13 +435,13 @@ public struct HanafudaView: View {
             Text(matchTitle)
                 .themeBody(26, weight: .heavy)
                 .fitOneLine()
-                .foregroundStyle(model.humanTotal > model.cpuTotal ? Theme.teal : Theme.ink)
+                .foregroundStyle(matchTitleColor)
             Text("あなた \(model.humanTotal)文 ・ CPU \(model.cpuTotal)文")
                 .themeBody(15, weight: .semibold, maxScale: 1.5)
                 .foregroundStyle(Theme.inkSub)
             RecordLabel(model.recordResult)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .padding(16)
         .popCard(corner: Theme.cornerSmall)
     }
@@ -451,9 +456,15 @@ public struct HanafudaView: View {
     }
 
     private var matchTitle: String {
+        if model.wasResigned { return "投了（CPUの勝ち）" }
         if model.humanTotal > model.cpuTotal { return "あなたの勝ち！" }
         if model.humanTotal < model.cpuTotal { return "CPUの勝ち" }
         return "引き分け"
+    }
+
+    private var matchTitleColor: Color {
+        if model.wasResigned { return Theme.ink }
+        return model.humanTotal > model.cpuTotal ? Theme.teal : Theme.ink
     }
 
     /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。

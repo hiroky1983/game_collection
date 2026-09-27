@@ -34,10 +34,29 @@ struct HintNudgeTests {
         let menu = try #require(SourceScan.declaration(of: "public struct GameControlMenu: View", in: bar))
         #expect(menu.contains(".onAppear { setOpen(true) }"), "メニューが開いたことを拾っていない")
         #expect(menu.contains(".onDisappear { setOpen(false) }"), "メニューが閉じたことを拾っていない")
+        // onAppear / onDisappear は実機で発火が確認できなかった（#1499）。「⋯」自体へのタップでも
+        // 開いた合図を重ねて取る（Menu 本来のタップは simultaneousGesture なら妨げない）。
+        #expect(menu.contains(".simultaneousGesture(TapGesture().onEnded { setOpen(true) })"),
+                "「⋯」へのタップでも開いたことを拾っていない")
         let nudge = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/HintNudge.swift"))
         let key = try #require(SourceScan.declaration(of: "private struct Key", in: nudge))
         #expect(key.contains("let isMenuOpen: Bool"), "開閉が待ち時間の数え直しの条件に入っていない")
         #expect(nudge.contains("isMenuOpen: key.isMenuOpen"))
+    }
+
+    @Test("押せない項目はアイコンも文字と同じグレーにする")
+    func disabledItemGreysIconToo() throws {
+        let bar = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameOverflowBar.swift"))
+        let menu = try #require(SourceScan.declaration(of: "public struct GameControlMenu: View", in: bar))
+        let label = try #require(SourceScan.declaration(
+            of: "private static func label(for item: GameControlMenuItem) -> some View", in: menu))
+        #expect(label.contains("if item.isEnabled {"), "押せる項目の色を分岐で変えていない前提が崩れている")
+        #expect(label.contains(".foregroundStyle(.secondary)"), "押せない項目のアイコン・文字を揃えてグレーにしていない")
+        // 押せる分岐（if item.isEnabled の直後、else の手前）には色の上書きが無く、従来どおりの見た目のまま。
+        let enabledBranch = try #require(label.range(of: "if item.isEnabled {"))
+        let elseBranch = try #require(label.range(of: "} else {"))
+        #expect(!label[enabledBranch.upperBound..<elseBranch.lowerBound].contains(".foregroundStyle"),
+                "押せる項目の見た目まで変えてしまっている")
     }
 
     @Test("吹き出しは「⋯」の左に、行の高さの中で出す（盤・広告に重ねない）")
