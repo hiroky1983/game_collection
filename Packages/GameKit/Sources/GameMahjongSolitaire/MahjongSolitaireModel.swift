@@ -84,6 +84,26 @@ public final class MahjongSolitaireModel {
         phase == .playing && remainingCount > 0 && availablePairCount == 0
     }
 
+    #if DEBUG
+    /// 動作確認用（DEBUG 限定）: 取れる組を乱択で取り続け、手詰まりの盤面まで進める（`-mahjongSolitaireDeadlock`）。
+    /// 手詰まりの画面（並べ替えの広告・最初から）は普通に遊ぶとなかなか出せず、シミュレータは自動タップも
+    /// できないため、起動引数で直接その状態を作る。取り切ってしまったら配り直してやり直す。
+    func debugPlayUntilDeadlock(maxDeals: Int = 50) {
+        var rng = SystemRandomNumberGenerator()
+        for _ in 0..<maxDeals {
+            while phase == .playing && !isDeadlocked {
+                let pairs = MahjongSolitaireRules.availablePairs(faces: faces, layout: layout)
+                guard let pair = pairs.randomElement(using: &rng) else { break }
+                selectedIndex = nil
+                tap(pair.0)
+                tap(pair.1)
+            }
+            if isDeadlocked { return }
+            newGame()
+        }
+    }
+    #endif
+
     /// 1 手戻せるか。取った直後だけ true。
     public var canUndo: Bool { phase == .playing && lastTake != nil }
 
