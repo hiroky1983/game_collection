@@ -196,46 +196,53 @@ public enum GoLevel: Int, Codable, Equatable, Sendable, CaseIterable {
 
     public var label: String { CPUStrength(rawValue: rawValue)?.label ?? "" }
 
-    /// 1 手あたりのプレイアウト数。**打ち切りはこの回数を主にする**（#1400）。
+    /// 1 手あたりのプレイアウト数の上限（#1465・社長決定 2026-09-27）。`timeLimit` と早い方で打ち切る。
     ///
-    /// 時間で打ち切ると遅い端末で上の段階が下の段階と同じ回数に張り付き、強さの差が端末の速さで
-    /// 消える（実測: 4 倍遅い端末想定で普通と強が 860〜1,700 回 / 970〜1,930 回）。
+    /// 時間だけで打ち切ると段階の差が端末の速さで変わる（Mac M2 で約 7,000 回/秒）ので、将棋の
+    /// 「読む深さの上限」にあたるこの回数で段階の差を作る。むずかしいの 8,000 回は iPhone でも 2 秒以内に
+    /// 読み切れる量（12,000 回は Mac で 1.6 秒かかるため見送り）。
     public var playouts: Int {
         switch self {
-        case .novice: return 100
-        case .easy:   return 200
-        case .normal: return 1_500
-        case .hard:   return 6_000
+        case .novice: return 500
+        case .easy:   return 1_500
+        case .normal: return 4_000
+        case .hard:   return 8_000
         }
     }
 
-    /// 1 手にかけてよい実時間の上限（秒）。**安全用**で、回数に比例させて長めに取る
-    /// （比率を揃えないと、遅い端末でどれかの段階だけ上限に届いて差が縮む）。
-    /// 普通の端末では回数が先に尽きるので、この値は強さに効かない。
+    /// 1 手の考える時間の上限（秒。会長決裁 2026-09-26）。回数を読み終われば早く打つ。
     public var timeLimit: TimeInterval {
-        max(2.0, Double(playouts) * 0.001)
+        switch self {
+        case .novice: return 0.5
+        case .easy:   return 1.0
+        case .normal: return 1.5
+        case .hard:   return 2.0
+        }
     }
 
-    /// 最善手（訪問数が最大の手）を選ぶ確率。外れたときは `mistakeMargin` の幅で選び直す。
-    /// むずかしいは当面 100%（会長決裁 2026-09-25）。
+    /// 最善手（訪問数が最大の手）を打つ確率。外れたときは `GoEngine.mistakeMove` で選び直す。
+    /// むずかしいは 100%。ほかは #1465 の実測で決めた値（`docs/analytics/go-1465-ladder.md`）。
     public var bestMoveChance: Double {
         switch self {
-        case .novice: return 0.1
-        case .easy:   return 0.85
-        case .normal: return 0.9
+        case .novice: return Self.noviceBestMoveChance
+        case .easy:   return Self.easyBestMoveChance
+        case .normal: return Self.normalBestMoveChance
         case .hard:   return 1.0
         }
     }
 
-    /// 最善手を外すとき、最善手との勝率の差がこの幅以内の手から選ぶ（許す損の幅）。
-    public var mistakeMargin: Double {
-        switch self {
-        case .novice: return 0.6
-        case .easy:   return 0.15
-        case .normal: return 0.08
-        case .hard:   return 0
-        }
-    }
+    /// 最善手を打つ確率（#1465 の実測。すぐ上の段と先後半々で戦い、上の段の得点率が 90% 以上になる
+    /// 10% 刻みで最も高い値。ふつう → かんたん → 入門の順に決めた）。
+    static let noviceBestMoveChance = 1.0
+    static let easyBestMoveChance = 1.0
+    static let normalBestMoveChance = 1.0
+
+    /// 最善手を外すとき、最善手との勝率の差がこの幅以内の手から選ぶ（許す損の幅・全段階共通）。
+    ///
+    /// 10 ポイント。9 路の読みの勝率は 1 手の悪手（石を取られる・地を大きく損する）で 20 ポイント以上動くので、
+    /// その手は入らず、「最善ではないが筋は悪くない手」だけが残る。これより狭いと読みのぶれ（数百回の
+    /// プレイアウトで数ポイント）の中に候補がほとんど残らず、広いと大石を見捨てる手まで入る。
+    public static let mistakeMargin = 0.1
 
     public var detail: String {
         switch self {
