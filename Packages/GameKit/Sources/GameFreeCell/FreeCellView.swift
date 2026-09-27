@@ -613,54 +613,30 @@ public struct FreeCellView: View {
     /// クロンダイク（#491）と違い盤に触れる手が残っていないので、告知は「取り上げている」わけではない。
     /// それでも閉じられるようにするのは、**どこで間違えたかを盤で読み返してから戻したい**ため。
     private var deadEndOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("😵").font(.system(size: 52))
-                Text("指せる手がありません")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text("フリーセルが全部埋まり、どの札も置き先がありません。この配札は必ずクリアできるので、手を戻せばやり直せます。")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
-
-                if model.canUndo {
-                    Button { requestUndo() } label: {
-                        Label("1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(undoRescue.isWatching)
-                    .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
-                    .accessibilityHint(FreeCellAccessibility.undoButtonHint(
-                        canUndo: model.canUndo, remaining: model.undosRemaining))
+        GameDeadEndPanel(
+            emoji: "😵",
+            title: "指せる手がありません",
+            message: "フリーセルが全部埋まり、どの札も置き先がありません。この配札は必ずクリアできるので、手を戻せばやり直せます。"
+        ) {
+            if model.canUndo {
+                GameDeadEndActionButton(
+                    "1手戻す（残り\(model.undosRemaining)）", systemImage: "arrow.uturn.backward",
+                    tint: Theme.Fill.coral, isDisabled: undoRescue.isWatching
+                ) {
+                    requestUndo()
                 }
-
-                Button { model.newGame() } label: {
-                    Text("新しい配札にする")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(undoRescue.isWatching)
-
-                Button { model.dismissDeadEndPrompt() } label: {
-                    Text("盤面を見る")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
-                .disabled(undoRescue.isWatching)
+                .accessibilityLabel(FreeCellAccessibility.undoButtonLabel(remaining: model.undosRemaining))
+                .accessibilityHint(FreeCellAccessibility.undoButtonHint(
+                    canUndo: model.canUndo, remaining: model.undosRemaining))
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+
+            GameDeadEndDismissButton("新しい配札にする", isDisabled: undoRescue.isWatching) {
+                model.newGame()
+            }
+
+            GameDeadEndDismissButton("盤面を見る", isDisabled: undoRescue.isWatching) {
+                model.dismissDeadEndPrompt()
+            }
         }
         .accessibilityElement(children: .contain)
         // 暗幕が背面のタップを塞ぐので、VoiceOver も告知の中だけを移動させる。

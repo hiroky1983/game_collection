@@ -506,55 +506,26 @@ public struct MahjongSolitaireView: View {
     }
 
     private var deadlockOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("😵").font(.system(size: 52))
-                Text("取れる牌がありません")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.ink)
-                Text("広告を見ると残りが並べ替わり、そこから必ず取り切れる配置になります。")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.inkSub)
-                    .multilineTextAlignment(.center)
-
-                Button {
-                    requestShuffle()
-                } label: {
-                    Label("広告を見て並べ替える", systemImage: "play.rectangle.fill")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.Fill.purple, in: RoundedRectangle(cornerRadius: 14))
-                        .foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.plain)
-
-                // 手詰まりは直前の 1 手が作ったことが多い。オーバーレイは盤の下の操作を覆って
-                // しまうので、ここにも出口を置かないとアンドゥが**必要な場面でだけ押せない**（#198）。
-                if model.canUndo {
-                    Button { model.undoLastTake() } label: {
-                        Label("直前の1手を戻す", systemImage: "arrow.uturn.backward")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.Fill.coral, in: RoundedRectangle(cornerRadius: 14))
-                            .foregroundStyle(Theme.onAccent)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Button { model.giveUpAndRestart() } label: {
-                    Text("最初から")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .buttonStyle(.plain)
+        GameDeadEndPanel(
+            emoji: "😵",
+            title: "取れる牌がありません",
+            message: "広告を見ると残りが並べ替わり、そこから必ず取り切れる配置になります。"
+        ) {
+            GameDeadEndActionButton("広告を見て並べ替える", systemImage: "play.rectangle.fill", tint: Theme.Fill.purple) {
+                requestShuffle()
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
-            .padding(.horizontal, 28)
+
+            // 手詰まりは直前の 1 手が作ったことが多い。オーバーレイは盤の下の操作を覆って
+            // しまうので、ここにも出口を置かないとアンドゥが**必要な場面でだけ押せない**（#198）。
+            if model.canUndo {
+                GameDeadEndActionButton("直前の1手を戻す", systemImage: "arrow.uturn.backward", tint: Theme.Fill.coral) {
+                    model.undoLastTake()
+                }
+            }
+
+            GameDeadEndDismissButton("最初から") {
+                model.giveUpAndRestart()
+            }
         }
     }
 }
