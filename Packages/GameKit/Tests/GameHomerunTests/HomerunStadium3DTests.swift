@@ -239,6 +239,26 @@ struct HomerunStadium3DTests {
         }
     }
 
+    @Test("後ろから外野を向く案（B・C）だけ左右反転し、反転しても打者（x < 0）は画面の左半分に映る（HUD の右 = 一塁側に合う）")
+    func rearPresetsAreMirrored() {
+        typealias L = HomerunAtBatLayout
+        #expect(!L.CameraPreset.center.camera.mirrored && !L.CameraPreset.broadcastHigh.camera.mirrored)
+        #expect(L.CameraPreset.highHome.camera.mirrored && L.CameraPreset.overShoulder.camera.mirrored)
+        for preset in L.CameraPreset.allCases {
+            let cam = preset.camera
+            let batter = cam.screenPoint(of: [L.batter.position.x, 1, L.batter.position.z], aspect: 0.5)
+            let firstBase = cam.screenPoint(of: [19.4, 0, 19.4], aspect: 0.5)
+            #expect(batter.x < 0.5, "\(preset): 打者が画面の右半分に映る")
+            #expect(firstBase.x > 0.5, "\(preset): 一塁側（+x）が画面の左に映り、方向メーターの右と食い違う")
+        }
+        // 反転は x だけ（y はそのまま）。
+        var cam = L.CameraPreset.center.camera
+        let before = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
+        cam.mirrored = true
+        let after = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
+        #expect(abs(before.x + after.x - 1) < 1e-9 && before.y == after.y)
+    }
+
     @Test("現行のセンターカメラは以前と同じ位置・注視点・画角のまま（既定の見た目を変えない）")
     func centerPresetUnchanged() {
         let cam = HomerunAtBatLayout.CameraPreset.center.camera

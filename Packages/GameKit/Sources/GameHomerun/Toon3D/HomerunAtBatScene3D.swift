@@ -25,6 +25,10 @@ enum HomerunAtBatLayout {
         var position: SIMD3<Float>
         var target: SIMD3<Float>
         var verticalFieldOfView: Float
+        /// 描画を左右反転する。世界座標は +x が一塁側で、センターカメラ（本塁を向く）では +x が画面の右 = HUD の方向メーター・
+        /// スプレーチャートの「右」と一致する。本塁の後ろから外野を向くカメラでは +x が画面の左に来て HUD と食い違うので反転して合わせる
+        /// （右打席の打者も、後ろから見て左に立つ本来の見え方になる）。
+        var mirrored = false
 
         /// 世界の点が画面のどこ（左上 = (0, 0)・右下 = (1, 1)）に映るか。`aspect` は画面の幅 / 高さ。透視投影・ロール無し。
         func screenPoint(of point: SIMD3<Float>, aspect: Double) -> (x: Double, y: Double) {
@@ -34,8 +38,8 @@ enum HomerunAtBatLayout {
             let v = point - position
             let depth = Double(simd_dot(v, forward))
             let halfTan = tan(Double(verticalFieldOfView) * .pi / 360)
-            return (0.5 + 0.5 * Double(simd_dot(v, right)) / depth / (halfTan * aspect),
-                    0.5 - 0.5 * Double(simd_dot(v, up)) / depth / halfTan)
+            let x = 0.5 + 0.5 * Double(simd_dot(v, right)) / depth / (halfTan * aspect)
+            return (mirrored ? 1 - x : x, 0.5 - 0.5 * Double(simd_dot(v, up)) / depth / halfTan)
         }
 
         /// 世界の点が画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
@@ -43,14 +47,14 @@ enum HomerunAtBatLayout {
 
         /// `anchor` が画面の横の中央・高さ `yFraction` に映るように注視点を決めたカメラ。
         /// 注視点は anchor を通る鉛直面の中にあり、anchor の向きから δ（tan δ = (1 − 2·yFraction)·tan(fov/2)）だけ下を向く。
-        static func aimed(from position: SIMD3<Float>, at anchor: SIMD3<Float>, yFraction: Double, verticalFieldOfView fov: Float) -> Camera {
+        static func aimed(from position: SIMD3<Float>, at anchor: SIMD3<Float>, yFraction: Double, verticalFieldOfView fov: Float, mirrored: Bool = false) -> Camera {
             let v = anchor - position
             let ahead = simd_normalize(v)
             let right = simd_normalize(simd_cross(ahead, [0, 1, 0]))
             let up = simd_cross(right, ahead)
             let delta = atan((1 - 2 * Float(yFraction)) * tan(fov * .pi / 360))
             let forward = ahead * cos(delta) - up * sin(delta)
-            return Camera(position: position, target: position + forward * simd_length(v), verticalFieldOfView: fov)
+            return Camera(position: position, target: position + forward * simd_length(v), verticalFieldOfView: fov, mirrored: mirrored)
         }
     }
 
@@ -62,9 +66,11 @@ enum HomerunAtBatLayout {
         /// 案 A「中継・センター高め」: センター（やや一塁側 x 1m）・高さ 9.5m から 12° 見下ろす望遠。打者は正面のまま内野の土・走路・打席が
         /// 奥行きをもって見え、投手は帽子だけが下端に残る（横へ寄せる・近づけるほど投手が画面の下に落ちるので、寄せは 1m に留めた）。
         case broadcastHigh
-        /// 案 B「バックネット裏の高め」: 本塁の 14m 後ろ・高さ 8m から 27° 見下ろす。打者は背中・捕手越しに投手と外野の柵・スタンドまで映る。
+        /// 案 B「バックネット裏の高め」: 本塁の 14m 後ろ・高さ 7m から 24° 見下ろす広角（54°）。審判・捕手の背中越しに打者・投手・
+        /// 外野の柵とスタンドまで 1 画面に入る（左右反転で HUD の右 = 右翼に合わせる）。
         case highHome
-        /// 案 C「打者の斜め後ろ上方」: 三塁側やや後ろ（x −2.5m・z −13m）・高さ 5m から 17° 見下ろす。打者の背中越しに投手が右上に映る。
+        /// 案 C「打者の斜め後ろ上方」: 三塁側やや後ろ（x −2.5m・z −13m）・高さ 5m から 17° 見下ろす（42°）。打者の背中越しに投手・
+        /// 内野・外野が斜めに見え、奥行きが最も出る（左右反転で HUD の右 = 右翼に合わせる）。
         case overShoulder
 
         var title: String {
@@ -84,9 +90,9 @@ enum HomerunAtBatLayout {
             case .broadcastHigh:
                 return .aimed(from: [1, 9.5, 40], at: zone, yFraction: y, verticalFieldOfView: 11.5)
             case .highHome:
-                return .aimed(from: [0.5, 8, -14], at: zone, yFraction: y, verticalFieldOfView: 50)
+                return .aimed(from: [0.5, 7, -14], at: zone, yFraction: y, verticalFieldOfView: 54, mirrored: true)
             case .overShoulder:
-                return .aimed(from: [-2.5, 5, -13], at: zone, yFraction: y, verticalFieldOfView: 42)
+                return .aimed(from: [-2.5, 5, -13], at: zone, yFraction: y, verticalFieldOfView: 42, mirrored: true)
             }
         }
     }
@@ -174,7 +180,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         return e
     }
 
-    func makeUIView(context: Context) -> ARView {
+    func makeUIView(context: Context) -> HomerunMirrorableView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
         view.environment.background = .color(.clear)
         view.backgroundColor = .clear
@@ -205,7 +211,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         context.coordinator.cameraEntity = cam
         context.coordinator.camera = camera
         view.scene.addAnchor(anchor)
-        return view
+        return HomerunMirrorableView(content: view, mirrored: camera.mirrored)
     }
 
     private static func aim(_ cam: PerspectiveCamera, _ camera: HomerunAtBatLayout.Camera) {
@@ -213,8 +219,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         cam.look(at: camera.target, from: camera.position, relativeTo: nil)
     }
 
-    func updateUIView(_ uiView: ARView, context: Context) {
+    func updateUIView(_ uiView: HomerunMirrorableView, context: Context) {
         let c = context.coordinator
+        uiView.mirrored = camera.mirrored
         if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
             let new = Self.characterEntity(batterPose, outfit: .batter, HomerunAtBatLayout.batter)
             parent.addChild(new)
@@ -233,6 +240,34 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             Self.aim(cam, camera)
             c.camera = camera
         }
+    }
+}
+
+/// 中身（ARView）を左右反転できる入れ物。SwiftUI が frame を決めるのはこの入れ物で、中身は bounds と center で置いて transform を掛ける。
+final class HomerunMirrorableView: UIView {
+    let content: UIView
+    var mirrored: Bool {
+        didSet { if mirrored != oldValue { setNeedsLayout() } }
+    }
+
+    init(content: UIView, mirrored: Bool) {
+        self.content = content
+        self.mirrored = mirrored
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        isOpaque = false
+        addSubview(content)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        content.transform = .identity
+        content.bounds = bounds
+        content.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        content.transform = mirrored ? CGAffineTransform(scaleX: -1, y: 1) : .identity
     }
 }
 #endif
