@@ -36,16 +36,18 @@ struct MinesweeperRewardedContinueTests {
     }
 
     /// 画面の状態はテストから操作できないので、書き方そのものを見る（#816。BJ・ポーカーの #727 と同じ形）。
-    /// 範囲を「あきらめる」ボタンから先に絞るのは、手前のコンティニューボタンにも同じ `.disabled` があり、
-    /// ファイル全体を探すとそちらに当たって空振りするため。
+    /// 範囲を「あきらめる」ボタンの呼び出しから絞るのは、手前のコンティニューボタンにも同じ
+    /// `isDisabled: continueRescue.isWatching` があり、ファイル全体を探すとそちらに当たって
+    /// 空振りするため（#1486 で共通ボタン部品 `GameDeadEndDismissButton` へ切り替えた）。
     @Test("視聴中は「あきらめる」を押せない")
     func giveUpButtonIsDisabledWhileWatching() throws {
         let source = try SourceScan.packageSource("Sources/GameMinesweeper/MinesweeperView.swift")
-        let start = try #require(source.range(of: "Button { showContinue = false } label: {"),
+        let start = try #require(source.range(of: "GameDeadEndDismissButton(\"諦める\""),
                                  "「あきらめる」ボタンの定義が見つからない（走査が空振りしている）")
-        let end = try #require(source.range(of: "// MARK: - 盤の下の操作エリア", range: start.upperBound..<source.endIndex))
-        let giveUpButton = source[start.upperBound..<end.lowerBound]
-        #expect(giveUpButton.contains("\n                .disabled(continueRescue.isWatching)"),
+        let end = try #require(source.range(of: "showContinue = false", range: start.upperBound..<source.endIndex),
+                                 "「あきらめる」ボタンの本体が見つからない")
+        let giveUpButton = source[start.lowerBound..<end.upperBound]
+        #expect(giveUpButton.contains("isDisabled: continueRescue.isWatching"),
                 "広告のロード〜視聴中に「あきらめる」が押せる")
     }
 }

@@ -52,6 +52,10 @@ public struct Game2048View: View {
                let direction = Self.direction(named: args[i + 1]) {
                 withGameAnimation(.easeInOut(duration: 0.12)) { model.move(direction) }
             }
+            // 撮影・動作確認用: `-simulate2048GameOver` でゲームオーバーの幕（盤だけに重ねる・#1486）を出す。
+            if args.contains("-simulate2048GameOver") {
+                model.debugForceGameOver()
+            }
             #endif
         }
         .rewardedRescueAlerts(
