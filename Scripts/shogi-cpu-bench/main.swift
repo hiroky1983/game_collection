@@ -17,8 +17,20 @@ func strength(_ name: String) -> CPUStrength {
     case "novice": return .novice
     case "easy": return .easy
     case "normal": return .normal
-    default: return .hard
+    case "hard": return .hard
+    default:
+        FileHandle.standardError.write("不明な段階: \(name)\n".data(using: .utf8)!)
+        exit(2)
     }
+}
+
+func probability(_ arg: String) -> Double? {
+    if arg == "shipped" { return nil }
+    guard let p = Double(arg), (0...1).contains(p) else {
+        FileHandle.standardError.write("確率は 0...1 か shipped: \(arg)\n".data(using: .utf8)!)
+        exit(2)
+    }
+    return p
 }
 
 let env = ProcessInfo.processInfo.environment
@@ -109,8 +121,8 @@ struct Bench {
             let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
             if args[1] == "match" {
                 let up = strength(args[2]), low = strength(args[4])
-                let upP: Double? = args[3] == "shipped" ? nil : Double(args[3])
-                let p: Double? = args[5] == "shipped" ? nil : Double(args[5])
+                let upP = probability(args[3])
+                let p = probability(args[5])
                 let openings = Int(args[6]) ?? 100
                 let t0 = Date()
                 let t = await CPUBenchLadder.run(
@@ -120,7 +132,7 @@ struct Bench {
                 print("MATCH 損の幅 \(margin.map(String.init) ?? "shipped") \(up.label)(確率 \(args[3])) 対 \(low.label)(確率 \(args[5])) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins)（\(String(format: "%.1f", Double(t.lowerWins) * 100 / Double(t.games)))%） 引き分け \(t.draws)（うち下が駒得 \(t.drawsLowerAhead)） 所要 \(Int(Date().timeIntervalSince(t0)))s")
             } else {
                 let s = strength(args[2])
-                let p: Double? = args[3] == "shipped" ? nil : Double(args[3])
+                let p = probability(args[3])
                 let openings = Int(args[4]) ?? 50
                 let t = await CPUBenchLadder.run(
                     upper: { CPUBenchLadder.engine(s, nodesPerSecond: nps, bestMoveProbability: p, slipMargin: margin, seed: $0) },
