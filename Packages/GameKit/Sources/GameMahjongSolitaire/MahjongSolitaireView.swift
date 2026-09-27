@@ -101,9 +101,10 @@ public struct MahjongSolitaireView: View {
                 // 15 枚並ぶ盤面は横幅で大きさが決まるので、左右の余白ぶんまで使って牌を大きくする。
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
-            HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
-            Spacer(minLength: 0)
             controlArea
+            HowToPlayHint(.mahjongSolitaire, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)

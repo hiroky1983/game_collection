@@ -25,10 +25,11 @@ public struct GomokuView: View {
             board
                 .layoutPriority(1)
             stoneRow(stone: model.humanSide, isYou: true)
+            controlArea
             HowToPlayHint(model.forbiddenMovesEnabled ? .gomokuRenju : .gomoku,
                           playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
-            controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

@@ -30,8 +30,12 @@ public struct HanafudaView: View {
                 if model.phase == .matchResult {
                     matchResultCard.transition(.opacity)
                 } else {
+                    // 「⋯」の行は札のすぐ下に置き、余りの高さは「⋯」の行と広告のあいだに残す（#1485）。
+                    // 行のぶんを先に引いてから札の大きさを決める（行を外に置いていた従来と同じ高さの配分）。
+                    let showsOverflow = showsOverflowBar
                     let fit = HanafudaFit.metrics(
-                        availableWidth: geo.size.width, availableHeight: geo.size.height,
+                        availableWidth: geo.size.width,
+                        availableHeight: geo.size.height - (showsOverflow ? HanafudaFit.overflowRowHeight + HanafudaFit.sectionSpacing : 0),
                         stripHeight: layout.scaled(HanafudaFit.baseStripHeight),
                         fieldCount: model.field.count, handCount: model.humanHand.count
                     )
@@ -39,6 +43,9 @@ public struct HanafudaView: View {
                         opponentArea(fit)
                         fieldArea(fit).transition(.opacity)
                         handArea(fit)
+                        if showsOverflow {
+                            overflowBar
+                        }
                     }
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                 }
@@ -96,24 +103,44 @@ public struct HanafudaView: View {
 
     private var scoreBar: some View {
         VStack(spacing: 6) {
+            // 手番はほかの対戦ゲームと同じく状態の帯の左に出す（#1485。以前は盤の下の行に「あなたの番」だけが残っていた）。
             GameStatusBar {
-                scoreChip(title: "あなた", value: model.humanTotal, fill: Theme.Fill.teal)
+                turnBadge
             } trailing: {
+                scoreChip(title: "あなた", value: model.humanTotal, fill: Theme.Fill.teal)
+                scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.coral)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(model.message)
+                    .themeCaption(13, weight: .semibold, maxScale: 1.5)
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(2)
+                // 局数は帯から手番に場所を譲り、この行の右端へ（小さい画面で帯に収めるため）。
                 if model.phase != .matchResult {
                     Text(model.round > model.options.rounds ? "延長戦" : "\(model.round) / \(model.options.rounds)局")
                         .themeCaption(13, weight: .bold, maxScale: 1.5)
                         .fitOneLine()
                         .foregroundStyle(Theme.inkSub)
                 }
-                scoreChip(title: "CPU", value: model.cpuTotal, fill: Theme.Fill.coral)
             }
-            Text(model.message)
-                .themeCaption(13, weight: .semibold, maxScale: 1.5)
-                .minimumScaleFactor(0.6)
-                .foregroundStyle(Theme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
-                .lineLimit(2)
+            .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
+        }
+    }
+
+    /// 状態の帯の手番表示。局・試合の決着のあいだは終局色で出す。
+    @ViewBuilder
+    private var turnBadge: some View {
+        switch model.phase {
+        case .idle:
+            TurnBadge("開始待ち", kind: .finished)
+        case .playing, .koiKoiPrompt:
+            TurnBadge(isYourTurn: model.turn == .human)
+        case .roundResult:
+            TurnBadge("局の終わり", kind: .finished)
+        case .matchResult:
+            TurnBadge("決着", kind: .finished)
         }
     }
 
@@ -320,19 +347,27 @@ public struct HanafudaView: View {
                 actionButton("ハブへ戻る", role: .skip) { dismiss() }
             }
         default:
-            // 手番は表示だけ。投了は右下の「⋯」へ（#1468）。
-            HStack(spacing: 10) {
-                TurnBadge(isYourTurn: model.isPlayerTurn)
-                Spacer()
-                GameControlMenu(items: [
-                    GameControlMenuItem(
-                        id: "resign", title: "投了", systemImage: "flag.fill",
-                        isDestructive: true, isEnabled: model.canResign
-                    ) { showResignConfirm = true },
-                ])
-            }
-            .padding(.vertical, 2)
+            // 対局中は操作の行を出さない。投了は札のすぐ下の「⋯」（`overflowBar`）、手番は状態の帯（#1485）。
+            EmptyView()
         }
+    }
+
+    /// 「⋯」の行を札のすぐ下に出す局面（こいこい・局の結果・試合の結果はその場の操作ボタンを出す）。
+    private var showsOverflowBar: Bool {
+        model.phase == .idle || model.phase == .playing
+    }
+
+    /// 札のすぐ下の「⋯」の行。投了は「⋯」へ（#1468）。
+    private var overflowBar: some View {
+        GameOverflowBar(
+            menuItems: [
+                GameControlMenuItem(
+                    id: "resign", title: "投了", systemImage: "flag.fill",
+                    isDestructive: true, isEnabled: model.canResign
+                ) { showResignConfirm = true },
+            ],
+            verticalPadding: HanafudaFit.overflowRowPadding
+        )
     }
 
     /// 最終局で負けているときにだけ出す「広告を見て1局延長」（#1049）。
@@ -454,6 +489,10 @@ enum HanafudaFit {
     static let minScale: CGFloat = 0.4
     /// 札の並べ方の候補（列数）。広い画面は 6 列 2 段、狭い画面は 8 列 1 段のほうが大きく取れる。
     static let columnChoices = [6, 8]
+    /// 札のすぐ下の「⋯」の行の上下の余白と、それを含めた行の高さ（44pt の「⋯」+ 上下の余白・#1485）。
+    /// 行を札の外に置いていた頃（44pt + 上下 2pt）と同じ外寸にして、札の大きさを変えない。
+    static let overflowRowPadding: CGFloat = 2
+    static let overflowRowHeight: CGFloat = BoardGameControlMetrics.minTapTarget + 2 * overflowRowPadding
     /// 縮められない部分（見出しの文字・カードの内側の余白・段のあいだ以外）の高さ。
     /// 見出し 3 行（12pt の文字 ≈ 16pt。役名の行は lineLimit(1) で折り返さない）＋ 3 カードぶんの上下余白 60 ＋ カード内の縦の間隔 4 か所 ＋ カード間の間隔 2 か所。
     static let fixedHeight: CGFloat = 3 * 16 + 3 * 2 * cardPadding + 4 * gap + 2 * sectionSpacing

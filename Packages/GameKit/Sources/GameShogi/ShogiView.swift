@@ -42,9 +42,10 @@ public struct ShogiView: View {
             board
                 .layoutPriority(1)
             HandAreaView(model: model, color: model.humanSide)
-            HowToPlayHint(.shogi, playLog: services.playLog)
-            Spacer(minLength: 0)
             controlArea
+            HowToPlayHint(.shogi, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

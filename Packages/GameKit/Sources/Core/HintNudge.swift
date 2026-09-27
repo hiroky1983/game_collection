@@ -12,6 +12,12 @@ public enum HintNudgePolicy {
 
     /// まだ出してよいか。
     public static func canShow(shownCount: Int) -> Bool { shownCount < maxPerGame }
+
+    /// 待ち時間を数え始めてよいか。「⋯」メニューを開いているあいだは数えず、出ている吹き出しも隠す（#1485）。
+    /// 閉じると条件が変わるので、そこから改めて `idleDelay` を待つ（閉じた直後にすぐは出さない）。
+    public static func canSchedule(isEligible: Bool, isActive: Bool, isMenuOpen: Bool, shownCount: Int) -> Bool {
+        isEligible && isActive && !isMenuOpen && canShow(shownCount: shownCount)
+    }
 }
 
 /// 操作行に渡す「ヒントを促してよい状態か」と「操作があったか」の 2 つ。
@@ -34,13 +40,15 @@ public struct HintNudge {
 
 extension View {
     /// 操作行に、ヒントを促す吹き出しを重ねる。`nudge` が nil なら何もしない。
-    func hintNudge(_ nudge: HintNudge?) -> some View {
-        modifier(HintNudgeModifier(nudge: nudge))
+    /// - Parameter isMenuOpen: 「⋯」メニューを開いているか。開いているあいだは吹き出しを出さない（#1485）。
+    func hintNudge(_ nudge: HintNudge?, isMenuOpen: Bool = false) -> some View {
+        modifier(HintNudgeModifier(nudge: nudge, isMenuOpen: isMenuOpen))
     }
 }
 
 private struct HintNudgeModifier: ViewModifier {
     let nudge: HintNudge?
+    let isMenuOpen: Bool
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shownCount = 0
@@ -52,27 +60,30 @@ private struct HintNudgeModifier: ViewModifier {
         let game: Int
         let activity: AnyHashable
         let isActive: Bool
+        let isMenuOpen: Bool
     }
 
     private var key: Key {
-        Key(isEligible: nudge?.isEligible ?? false, game: nudge?.game ?? 0, activity: nudge?.activity ?? AnyHashable(0), isActive: scenePhase == .active)
+        Key(isEligible: nudge?.isEligible ?? false, game: nudge?.game ?? 0, activity: nudge?.activity ?? AnyHashable(0),
+            isActive: scenePhase == .active, isMenuOpen: isMenuOpen)
     }
 
     func body(content: Content) -> some View {
         content
-            .overlay(alignment: .topTrailing) {
-                // 出し入れは opacity で行う（`if` で挿し替えると下の alignmentGuide が効かず、吹き出しが操作行に重なった）。
+            .overlay(alignment: .trailing) {
+                // 「⋯」の**左**に、行の高さの中で横向きに置く（#1485）。行の中に収まるので、盤にも広告にも重ならない。
+                // 出し入れは opacity で行う（`if` で挿し替えると出入りのたびに重なりの計算がやり直しになる）。
                 HintNudgeBubble()
                     .opacity(isShowing ? 1 : 0)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
-                    // 操作行の真上・右端（「⋯」の上）に、下端を操作行の上辺へ合わせて置く。
-                    .alignmentGuide(.top) { $0[.bottom] + 4 }
+                    .padding(.trailing, HintNudgeBubble.trailingInset)
             }
             .onChange(of: nudge?.game) { shownCount = 0 }
             .task(id: key) {
                 setShowing(false)
-                guard key.isEligible, key.isActive, HintNudgePolicy.canShow(shownCount: shownCount) else { return }
+                guard HintNudgePolicy.canSchedule(isEligible: key.isEligible, isActive: key.isActive,
+                                                  isMenuOpen: key.isMenuOpen, shownCount: shownCount) else { return }
                 try? await Task.sleep(for: HintNudgePolicy.idleDelay)
                 guard !Task.isCancelled else { return }
                 shownCount += 1
@@ -86,10 +97,13 @@ private struct HintNudgeModifier: ViewModifier {
     }
 }
 
-/// 吹き出し。黄＋電球（ヒントの色・#1011）で、下向きの三角が「⋯」を指す。
-private struct HintNudgeBubble: View {
+/// 吹き出し。黄＋電球（ヒントの色・#1011）で、右向きの三角が右隣の「⋯」を指す（#1485）。
+struct HintNudgeBubble: View {
+    /// 行の右端からの距離。「⋯」の丸（44pt）とのあいだに 4pt あける。
+    static let trailingInset: CGFloat = BoardGameControlMetrics.minTapTarget + 4
+
     var body: some View {
-        VStack(alignment: .trailing, spacing: 0) {
+        HStack(spacing: 0) {
             Label("ヒントは「⋯」から", systemImage: "lightbulb.fill")
                 .themeCaption(12)
                 .lineLimit(1)
@@ -98,18 +112,18 @@ private struct HintNudgeBubble: View {
                 .background(Capsule().fill(Theme.yellow))
             Triangle()
                 .fill(Theme.yellow)
-                .frame(width: 12, height: 6)
-                .padding(.trailing, 16)
+                .frame(width: 6, height: 12)
         }
         .fixedSize()
     }
 
+    /// 右を向いた三角。
     private struct Triangle: Shape {
         func path(in rect: CGRect) -> Path {
             var path = Path()
             path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
             path.closeSubpath()
             return path
         }

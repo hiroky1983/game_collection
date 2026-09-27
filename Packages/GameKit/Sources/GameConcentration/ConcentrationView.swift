@@ -25,13 +25,12 @@ public struct ConcentrationView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Self.stackSpacing) {
             statusBar
+            // 札の並びと「⋯」の行は `cardGrid` の中で上から詰めて置き、余りの高さは「⋯」の行と広告の
+            // あいだに残す（盤→「⋯」→余白→広告・#1485）。
             cardGrid
             HowToPlayHint(.concentration, playLog: services.playLog)
-            if !model.isGameOver {
-                mattaControls
-            }
             // レコメンド・階段の枠は結果の暗幕の中に置く（`resultOverlay`）。ここに置くと
             // 決着後は暗幕の下になり、透けて見えるのに押せない（#847）。
             BannerSlot(ads: services.ads)
@@ -171,6 +170,7 @@ public struct ConcentrationView: View {
                     showMattaConfirm = true
                 }
             ],
+            verticalPadding: Self.controlRowPadding,
             // ミスマッチは自動で裏返るため「次へ」ボタンは無い（#137）。
             // 待っている間だけ「待った」が押せることをここで知らせる。
             caption: model.canMatta
@@ -187,34 +187,48 @@ public struct ConcentrationView: View {
 
         // 幅だけでカードの大きさを決めると縦に大きな空白が残る。与えられた高さも見て、
         // 余っていればカードを縦に伸ばす（伸ばしすぎて不自然にならないよう上限を設ける）。
+        // 「⋯」の行（対局中だけ）も同じ枠の中で札のすぐ下に置くので、その高さを先に引いておく（#1485）。
         return GeometryReader { geo in
             let spacing = Self.gridSpacing
+            let controls = model.isGameOver ? 0 : Self.controlRowHeight + Self.stackSpacing
+            let gridHeight = max(0, geo.size.height - controls)
             let widthLimit = (geo.size.width - spacing * CGFloat(cols - 1)) / CGFloat(cols)
             let heightLimit = rows > 0
-                ? (geo.size.height - spacing * CGFloat(rows - 1)) / CGFloat(rows)
+                ? (gridHeight - spacing * CGFloat(rows - 1)) / CGFloat(rows)
                 : widthLimit / Self.cardAspect
             // 高さが足りないときは幅を削って収める。余っているときは幅いっぱいに使う。
             let cardWidth = max(1, min(widthLimit, heightLimit * Self.cardAspect / Self.maxStretch))
             let cardHeight = max(1, min(heightLimit, cardWidth / Self.cardAspect * Self.maxStretch))
             let columns = Array(repeating: GridItem(.fixed(cardWidth), spacing: spacing), count: cols)
 
-            LazyVGrid(columns: columns, spacing: spacing) {
-                ForEach(model.cards) { card in
-                    CardView(
-                        card: card,
-                        isLastMatched: model.lastMatchedIndices.contains(card.id),
-                        isMismatched: model.mismatchedIndices.contains(card.id)
-                    )
-                    .onTapGesture {
-                        guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
-                        model.tap(index: card.id)
+            VStack(spacing: Self.stackSpacing) {
+                LazyVGrid(columns: columns, spacing: spacing) {
+                    ForEach(model.cards) { card in
+                        CardView(
+                            card: card,
+                            isLastMatched: model.lastMatchedIndices.contains(card.id),
+                            isMismatched: model.mismatchedIndices.contains(card.id)
+                        )
+                        .onTapGesture {
+                            guard model.isHumanTurn, model.mismatchedIndices.isEmpty else { return }
+                            model.tap(index: card.id)
+                        }
+                        .frame(width: cardWidth, height: cardHeight)
                     }
-                    .frame(width: cardWidth, height: cardHeight)
+                }
+                if !model.isGameOver {
+                    mattaControls
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
     }
+
+    /// 画面の縦の並びの間隔。
+    private static let stackSpacing: CGFloat = 10
+    /// 「⋯」の行の上下の余白と、それを含めた行の高さ（`GameOverflowBar` は 44pt の枠 + 上下の余白）。
+    private static let controlRowPadding: CGFloat = 8
+    private static let controlRowHeight: CGFloat = BoardGameControlMetrics.minTapTarget + 2 * controlRowPadding
 
     /// カードの基準の幅 : 高さ
     private static let cardAspect: CGFloat = 0.75

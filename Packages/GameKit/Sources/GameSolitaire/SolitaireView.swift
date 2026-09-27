@@ -39,14 +39,15 @@ public struct SolitaireView: View {
         VStack(spacing: 8) {
             statusBar
             SolitaireBoardView(model: model, services: services).layoutPriority(1)
-            HowToPlayHint(.solitaire, playLog: services.playLog)
-            Spacer(minLength: 0)
             SolitaireControlsView(
                 model: model,
                 services: services,
                 isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo
             )
+            HowToPlayHint(.solitaire, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)

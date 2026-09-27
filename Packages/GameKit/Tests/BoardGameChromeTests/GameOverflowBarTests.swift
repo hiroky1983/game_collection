@@ -85,7 +85,77 @@ struct GameOverflowBarTests {
         #expect(go.contains(#"id: "pass""#))
         let hanafuda = SourceScan.strippingComments(try SourceScan.moduleSources("GameHanafuda"))
         #expect(hanafuda.contains(#"id: "resign""#))
-        #expect(hanafuda.contains("GameControlMenu(items:"))
+        #expect(hanafuda.contains("GameOverflowBar("), "花札の投了が共通の「⋯」の行に乗っていない")
+    }
+
+    // MARK: - 盤→「⋯」→余白→広告 の並び（#1485）
+
+    /// `(ファイル, 盤の目印, 「⋯」の行の目印)`。盤の目印から「⋯」の行までに `Spacer` を挟まないこと、
+    /// 余白を吸う `Spacer` が「⋯」の行と `BannerSlot` のあいだにあることを本体の組み立てで確かめる。
+    static let layoutCases: [(String, String, String)] = [
+        ("GameChess/ChessView.swift", "\n            board\n", "controlArea"),
+        ("GameShogi/ShogiView.swift", "\n            board\n", "controlArea"),
+        ("GameGo/GoView.swift", "\n            board\n", "controlArea"),
+        ("GameGomoku/GomokuView.swift", "\n            board\n", "controlArea"),
+        ("GameOthello/OthelloView.swift", "\n            board\n", "controlArea"),
+        ("GameMinesweeper/MinesweeperView.swift", "\n            board\n", "controlArea"),
+        ("GameMahjongSolitaire/MahjongSolitaireView.swift", "\n            board\n", "controlArea"),
+        ("GameSudoku/SudokuView.swift", "\n            board\n", "controlArea"),
+        ("GameFreeCell/FreeCellView.swift", "\n            board\n", "controlArea"),
+        ("GameSpider/SpiderView.swift", "\n            board\n", "controlArea"),
+        ("GameSolitaire/SolitaireView.swift", "SolitaireBoardView(", "SolitaireControlsView("),
+    ]
+
+    @Test("「⋯」の行は盤のすぐ下に付き、余白は「⋯」の行と広告のあいだにある", arguments: layoutCases.indices)
+    func overflowRowSitsRightUnderTheBoard(index: Int) throws {
+        let (path, boardMark, controlMark) = Self.layoutCases[index]
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
+        let body = try #require(SourceScan.declaration(of: "public var body: some View", in: source), "\(path) の body が無い")
+        let board = try #require(body.range(of: boardMark), "\(path) の body に盤が無い")
+        let control = try #require(body.range(of: controlMark, range: board.upperBound..<body.endIndex),
+                                   "\(path) の「⋯」の行が盤より下に無い")
+        let banner = try #require(body.range(of: "BannerSlot(", range: control.upperBound..<body.endIndex),
+                                  "\(path) の広告が「⋯」の行より下に無い")
+        #expect(!body[board.upperBound..<control.lowerBound].contains("Spacer("),
+                "\(path) の盤と「⋯」の行のあいだに Spacer がある（「⋯」が盤から離れて浮く）")
+        #expect(body[control.upperBound..<banner.lowerBound].contains("Spacer(minLength: 0)"),
+                "\(path) の「⋯」の行と広告のあいだに余白を吸う Spacer が無い")
+    }
+
+    @Test("盤下の操作エリアは対局中の中身を上寄せにする（「⋯」を広告の直上へ沈めない）")
+    func controlAreaAlignsPlayingRowToTop() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameChrome.swift"))
+        let area = try #require(SourceScan.declaration(of: "public struct GameControlArea", in: source))
+        #expect(area.contains("ZStack(alignment: .top)"))
+        #expect(!area.contains("alignment: .bottom"))
+    }
+
+    @Test("神経衰弱: 「⋯」の行は札の並びと同じ枠で札のすぐ下に置き、余りは下に残す")
+    func concentrationRowFollowsTheGrid() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameConcentration/ConcentrationView.swift"))
+        let body = try #require(SourceScan.declaration(of: "public var body: some View", in: source))
+        #expect(!body.contains("mattaControls"), "「⋯」の行が札の枠の外（広告側）に出ている")
+        let grid = try #require(SourceScan.declaration(of: "private var cardGrid: some View", in: source))
+        let lazyGrid = try #require(grid.range(of: "LazyVGrid("))
+        let row = try #require(grid.range(of: "mattaControls", range: lazyGrid.upperBound..<grid.endIndex))
+        #expect(grid[row.upperBound...].contains("alignment: .top"), "札と「⋯」を上から詰めていない")
+        #expect(grid.contains("geo.size.height - controls"), "「⋯」の行の高さを札の高さから引いていない")
+    }
+
+    @Test("花札: 「⋯」の行は手札のすぐ下に置き、手番は状態の帯に出す（盤の下に「あなたの番」だけの行を残さない）")
+    func hanafudaRowAndTurnBadge() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHanafuda/HanafudaView.swift"))
+        let body = try #require(SourceScan.declaration(of: "public var body: some View", in: source))
+        let hand = try #require(body.range(of: "handArea(fit)"))
+        let row = try #require(body.range(of: "overflowBar", range: hand.upperBound..<body.endIndex))
+        #expect(body.range(of: "BannerSlot(", range: row.upperBound..<body.endIndex) != nil)
+        let actionArea = try #require(SourceScan.declaration(of: "private var actionArea: some View", in: source))
+        #expect(!actionArea.contains("TurnBadge"), "盤の下の行に手番が残っている")
+        #expect(!actionArea.contains("GameControlMenu"), "「⋯」が札の外の行に残っている")
+        let scoreBar = try #require(SourceScan.declaration(of: "private var scoreBar: some View", in: source))
+        #expect(scoreBar.contains("turnBadge"), "状態の帯に手番が無い")
+        let badge = try #require(SourceScan.declaration(of: "private var turnBadge: some View", in: source))
+        #expect(badge.contains("TurnBadge(isYourTurn:"))
     }
 
     @Test("あきらめるは確認付きで「⋯」メニューに入っている（ナンプレ・マインスイーパー）",

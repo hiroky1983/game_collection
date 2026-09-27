@@ -43,9 +43,10 @@ public struct OthelloView: View {
                         value: model.gameOver
                     )
                 }
-            Spacer(minLength: 0)
-            HowToPlayHint(.othello, playLog: services.playLog)
+            // 「⋯」の行は盤のすぐ下に付け、盤の下の余りは「⋯」の行と広告のあいだに回す（#1485）。
             controlArea
+            HowToPlayHint(.othello, playLog: services.playLog)
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

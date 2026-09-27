@@ -25,9 +25,10 @@ public struct MinesweeperView: View {
             statusBar
             board
                 .layoutPriority(1)
-            HowToPlayHint(.minesweeper, playLog: services.playLog)
-            Spacer(minLength: 0)
             controlArea
+            HowToPlayHint(.minesweeper, playLog: services.playLog)
+            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+            Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)

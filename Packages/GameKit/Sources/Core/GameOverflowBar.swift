@@ -7,6 +7,7 @@ import SwiftUI
 /// ボタンを置かない。
 ///
 /// - 「⋯」は丸 44pt。全ゲーム同じ位置・同じ見た目（`GameControlMenu`）。
+/// - 行は盤・札の**すぐ下**に置き、余白を吸う `Spacer` はこの行と広告のあいだに置く（#1485）。
 /// - 行そのものは透明で、盤・札にも広告バナーにも重ならない 1 行ぶんの場所を確保するだけ
 ///   （AdMob の誤クリック誘導を避けるため、バナーに重ねも隣接もさせない）。
 /// - 「⋯」は `menuItems` が空なら出さない。
@@ -15,6 +16,8 @@ public struct GameOverflowBar: View {
     private let verticalPadding: CGFloat
     private let nudge: HintNudge?
     private let caption: GameOverflowCaption?
+    /// 「⋯」メニューを開いているか。開いているあいだはヒントの吹き出しを出さない（#1485）。
+    @State private var isMenuOpen = false
 
     /// - Parameter caption: 左端に出す表示だけの短い文字（ソリティアの「3枚めくり」・スパイダーの配れない理由など、操作ではない情報）。
     /// - Parameter verticalPadding: 行の上下の余白。盤の大きさを決める高さの計算に効くので、
@@ -44,12 +47,14 @@ public struct GameOverflowBar: View {
             }
             Spacer(minLength: 0)
             if !menuItems.isEmpty {
-                GameControlMenu(items: menuItems)
+                GameControlMenu(items: menuItems, isOpen: $isMenuOpen)
             }
         }
         .frame(minHeight: BoardGameControlMetrics.minTapTarget)
         .padding(.vertical, verticalPadding)
-        .hintNudge(nudge)
+        .hintNudge(nudge, isMenuOpen: isMenuOpen)
+        // 盤で操作があった＝メニューは閉じている。閉じた知らせを取りこぼしても、吹き出しが止まったままにならないよう戻す。
+        .onChange(of: nudge?.activity) { isMenuOpen = false }
     }
 }
 
@@ -106,9 +111,18 @@ public struct GameControlMenuItem: Identifiable {
 /// 右下の「⋯」。丸 44pt・全ゲーム共通の見た目。当たり判定は枠の中に取る（枠の外へはみ出させても Button は反応しない・#711）。
 public struct GameControlMenu: View {
     let items: [GameControlMenuItem]
+    private let isOpen: Binding<Bool>?
 
-    public init(items: [GameControlMenuItem]) {
+    /// - Parameter isOpen: メニューを開いているあいだ true にする（ヒントの吹き出しを止めるため・#1485）。
+    ///   SwiftUI の `Menu` は開閉を知らせないので、中身の出入り（onAppear / onDisappear）と項目の選択で追う。
+    public init(items: [GameControlMenuItem], isOpen: Binding<Bool>? = nil) {
         self.items = items
+        self.isOpen = isOpen
+    }
+
+    private func setOpen(_ value: Bool) {
+        guard let isOpen, isOpen.wrappedValue != value else { return }
+        isOpen.wrappedValue = value
     }
 
     /// 投了・あきらめるなどの破壊的操作はメニューの末尾に寄せる（元の並びは保つ）。
@@ -120,14 +134,17 @@ public struct GameControlMenu: View {
         Menu {
             ForEach(Self.ordered(items)) { item in
                 if let isChecked = item.isChecked {
-                    Toggle(isOn: Binding(get: { isChecked }, set: { _ in item.action() })) {
+                    Toggle(isOn: Binding(get: { isChecked }, set: { _ in setOpen(false); item.action() })) {
                         Label(item.title, systemImage: item.systemImage)
                     }
                     .disabled(!item.isEnabled)
                     .accessibilityLabel(item.accessibilityLabel ?? item.title)
                     .accessibilityHint(item.accessibilityHint ?? "")
                 } else {
-                    Button(role: item.isDestructive ? .destructive : nil, action: item.action) {
+                    Button(role: item.isDestructive ? .destructive : nil) {
+                        setOpen(false)
+                        item.action()
+                    } label: {
                         Label(item.title, systemImage: item.systemImage)
                     }
                     .disabled(!item.isEnabled)
@@ -135,6 +152,8 @@ public struct GameControlMenu: View {
                     .accessibilityHint(item.accessibilityHint ?? "")
                 }
             }
+            .onAppear { setOpen(true) }
+            .onDisappear { setOpen(false) }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 18, weight: .bold))
