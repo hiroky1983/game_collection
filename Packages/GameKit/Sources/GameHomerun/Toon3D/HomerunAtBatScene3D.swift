@@ -21,8 +21,27 @@ enum HomerunAtBatLayout {
 
     /// センター側の遠くからの望遠（投手と打者の大きさの差を縮め、投手は腰から上だけ映す = 中継のセンターカメラ）。
     static let cameraPosition: SIMD3<Float> = [0, 6, 43]
-    static let cameraTarget: SIMD3<Float> = [0, 1.35, 0.3]
+    /// 注視点は、ストライクゾーンの中心（`zoneWorldCenter`）が画面の高さの `zoneScreenFraction` に映るように決めている
+    /// （原本より少し下を向く = 打席の HUD の 2D のゾーン・的・カーソルをそこへ重ねる。押せる帯の下 1/3 と重ねない）。
+    static let cameraTarget: SIMD3<Float> = [0, 0.57, 0.3]
     static let verticalFieldOfView: Float = 9.6
+
+    /// ストライクゾーンの中心（本塁の真上・胸の高さ）。
+    static let zoneWorldCenter: SIMD3<Float> = [0, 0.9, 0]
+    /// 2D のゾーンの中心を置く画面の高さの割合（上端 = 0）。
+    static let zoneScreenFraction: Double = 0.45
+
+    /// 世界の点が画面の高さのどこ（上端 = 0・下端 = 1）に映るか。カメラは左右に振らない（真正面）前提の透視投影。
+    static func screenFraction(of point: SIMD3<Float>) -> Double {
+        let forward = simd_normalize(cameraTarget - cameraPosition)
+        let right = simd_normalize(simd_cross(forward, [0, 1, 0]))
+        let up = simd_cross(right, forward)
+        let v = point - cameraPosition
+        let depth = Double(simd_dot(v, forward))
+        let height = Double(simd_dot(v, up))
+        let halfTan = tan(Double(verticalFieldOfView) * .pi / 360)
+        return 0.5 - 0.5 * height / depth / halfTan
+    }
 }
 
 /// 3D の打席シーン（球場 + 打者・投手・捕手・審判）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。

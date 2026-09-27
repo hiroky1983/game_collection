@@ -103,4 +103,15 @@ struct HomerunStadium3DTests {
         let angle = acos(simd_dot(toBatter, axis)) * 180 / .pi
         #expect(angle < L.verticalFieldOfView / 2, "打者の頭が画角の外（\(angle)°）")
     }
+
+    @Test("ストライクゾーンの中心は画面の高さの 45% に映り（2D のゾーンを重ねる位置）、打者の頭・足元も画面に収まる")
+    func zoneProjectsWhereTheHUDPutsIt() {
+        typealias L = HomerunAtBatLayout
+        let zone = L.screenFraction(of: L.zoneWorldCenter)
+        #expect(abs(zone - L.zoneScreenFraction) < 0.005, "ゾーンの中心が \(zone)")
+        let head = L.screenFraction(of: [L.batter.position.x, 1.75, L.batter.position.z])
+        let feet = L.screenFraction(of: [L.batter.position.x, 0, L.batter.position.z])
+        #expect(head > 0.05 && feet < 0.95, "打者が画面の外（頭 \(head)・足元 \(feet)）")
+        #expect(L.zoneScreenFraction + 0.2 < 2.0 / 3, "ゾーンの下端が押せる帯（下 1/3）に食い込む")
+    }
 }
