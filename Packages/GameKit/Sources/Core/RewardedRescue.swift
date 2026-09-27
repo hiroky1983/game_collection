@@ -270,7 +270,10 @@ public struct RewardedContinueOverlay<Detail: View>: View {
                 Text(title).font(titleFont).foregroundStyle(.white)
                 detail
                 if canContinue {
-                    Button {
+                    GameDeadEndActionButton(
+                        rescueLabel, systemImage: "play.rectangle.fill",
+                        tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
+                    ) {
                         // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
                         // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
                         let game = serial()
@@ -280,20 +283,13 @@ public struct RewardedContinueOverlay<Detail: View>: View {
                         ) {
                             grant(game)
                         }
-                    } label: {
-                        Label(rescueLabel, systemImage: "play.rectangle.fill")
-                            .foregroundStyle(Theme.onAccent)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Fill.coral)
-                    .disabled(continueRescue.isWatching)
                 }
                 // 視聴中に「もう一度」「諦めて答えを見る」を押すと局が入れ替わり、見終えた広告が
                 // `grant` の局照合で弾かれて見損になる（#911。マインスイーパーの #816 と同型）。
-                Button(secondaryTitle) { secondaryAction() }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-                    .disabled(continueRescue.isWatching)
+                GameDeadEndDismissButton(secondaryTitle, isDisabled: continueRescue.isWatching) {
+                    secondaryAction()
+                }
             }
             .padding(contentPadding)
         }

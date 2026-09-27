@@ -28,6 +28,8 @@ struct SudokuRewardedContinueTests {
     /// 画面の状態はテストから操作できないので、書き方そのものを見る（#911。マインスイーパーの #816 と同じ趣旨）。
     /// ナンプレの失敗幕は Core の `RewardedContinueOverlay` に寄せてある（#829）ため、「ナンプレがその幕を使い、
     /// 諦めるボタンを二次ボタンとして渡していること」と「幕の二次ボタンが視聴中に止まること」の両方を固定する。
+    /// #1486 でボタンを共通部品（`GameDeadEndActionButton` / `GameDeadEndDismissButton`）へ寄せたため、
+    /// 「視聴中に押せない」は `.disabled` 修飾子ではなく `isDisabled:` 引数で見る。
     /// 整形で赤くならないよう、インデント込みの照合ではなく件数で見る。
     @Test("視聴中は失敗幕の「諦めて答えを見る」を押せない")
     func giveUpButtonIsDisabledWhileWatching() throws {
@@ -41,13 +43,14 @@ struct SudokuRewardedContinueTests {
         let core = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/RewardedRescue.swift"))
         let overlay = try #require(SourceScan.declaration(of: "public struct RewardedContinueOverlay", in: core),
                                    "RewardedContinueOverlay の定義が見つからない（走査が空振りしている）")
-        let disabledWhileWatching = ".disabled(continueRescue.isWatching)"
-        // 救済ボタンと二次ボタンの 2 か所。
+        let disabledWhileWatching = "isDisabled: continueRescue.isWatching"
+        // 救済ボタン（GameDeadEndActionButton）と二次ボタン（GameDeadEndDismissButton）の 2 か所。
         #expect(overlay.components(separatedBy: disabledWhileWatching).count - 1 == 2,
                 "広告のロード〜視聴中に押せるボタンが幕に残っている")
-        let secondary = try #require(overlay.range(of: "Button(secondaryTitle)"),
+        let secondary = try #require(overlay.range(of: "GameDeadEndDismissButton(secondaryTitle"),
                                      "二次ボタンの定義が見つからない（走査が空振りしている）")
-        #expect(overlay[secondary.upperBound...].contains(disabledWhileWatching),
+        let secondaryCall = try #require(overlay[secondary.lowerBound...].range(of: ") {"))
+        #expect(overlay[secondary.lowerBound..<secondaryCall.lowerBound].contains(disabledWhileWatching),
                 "広告のロード〜視聴中に「諦めて答えを見る」が押せる")
     }
 
