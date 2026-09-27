@@ -24,6 +24,8 @@ enum HomerunOutfieldLayout {
     /// 外野手はフェンスの少し手前（フェンス側へ寄り過ぎない下限も設ける）。
     private static let fielderInFrontOfFence: Double = 4
     private static let fielderMinDistance: Double = 20
+    /// カメラは打球より本塁側（手前）にこの距離だけ離す（近距離の inPlay がカメラの死角に入らないように）。
+    private static let cameraInFrontOfBall: Double = 10
 
     /// 本塁を原点・+z をセンターとする世界座標（`HomerunStadium3D.stadium()` と同じ座標系）。
     static func point(direction degrees: Double, distance: Double, height: Double = 0) -> SIMD3<Float> {
@@ -47,7 +49,10 @@ enum HomerunOutfieldLayout {
         let fielderPosition = point(direction: ball.direction, distance: fielderDistance)
         // 本塁の方（打球が飛んできた側）を向く = 外向き（`point` と同じ回転）から180°回す。
         let fielderYaw = Float(ball.direction * .pi / 180) + .pi
-        let cameraPosition = point(direction: ball.direction, distance: fence - cameraBehindFence, height: cameraHeight)
+        // 柵の 50m 手前を基本の位置にしつつ、近距離の inPlay（弱いゴロ等）ではそれより本塁側に寄せて
+        // 打球がカメラの死角（後方）に入らないようにする（PR #1484 CodeRabbit 指摘）。
+        let cameraDistance = min(fence - cameraBehindFence, max(renderDistance - cameraInFrontOfBall, 0))
+        let cameraPosition = point(direction: ball.direction, distance: cameraDistance, height: cameraHeight)
         let cameraTarget = point(direction: ball.direction, distance: fence, height: targetHeight)
         return Shot(ballPosition: ballPosition, fielderPosition: fielderPosition, fielderYaw: fielderYaw,
                     cameraPosition: cameraPosition, cameraTarget: cameraTarget)

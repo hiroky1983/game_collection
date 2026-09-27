@@ -36,7 +36,7 @@ struct HomerunOutfieldLayoutTests {
         }
     }
 
-    @Test("カメラは柵の 50m 手前・注視点は柵そのもの（打球の実際の距離によらない）")
+    @Test("カメラは柵の 50m 手前・注視点は柵そのもの（打球が柵の近くまで飛ぶ通常のケースでは距離によらない）")
     func cameraFramesTheFence() {
         for t in [-90.0, 0, 40] {
             let ball = HomerunJudge.judge(swing(t: t))
@@ -76,6 +76,17 @@ struct HomerunOutfieldLayoutTests {
         #expect(fielderDistance >= 20, "外野手が本塁に寄り過ぎている")
         let expectedYaw = Float(ball.direction * .pi / 180) + .pi
         #expect(abs(shot.fielderYaw - expectedYaw) < 1e-5)
+    }
+
+    @Test("近距離の inPlay（弱いゴロ）でもカメラは打球より本塁側にあり、打球が画面に映る")
+    func nearInPlayBallStaysInFrontOfCamera() {
+        // 標準能力値・ジャストタイミング・ゴロは 40.5m の inPlay になる（柵は約122m）。
+        let grounder = HomerunJudge.judge(swing(t: 0, band: .grounder))
+        #expect(grounder.kind == .inPlay, "テストの前提（近距離の inPlay を作れているか）")
+        let shot = HomerunOutfieldLayout.shot(for: grounder)
+        let camDistance = Double(hypot(shot.cameraPosition.x, shot.cameraPosition.z))
+        let ballDistance = Double(hypot(shot.ballPosition.x, shot.ballPosition.z))
+        #expect(camDistance < ballDistance, "打球がカメラの後方（死角）に入っている")
     }
 
     @Test("同じ打球からは常に同じショットになる（乱数を使わない）")
