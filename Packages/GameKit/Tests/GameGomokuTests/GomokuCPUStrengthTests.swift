@@ -10,145 +10,144 @@ private func makeBoard(black: [(Int, Int)] = [], white: [(Int, Int)] = []) -> Go
     return board
 }
 
-/// 連番の種をそのまま渡すと MMIX の出目が似通うので、散らばった種にする。
-private func spread(_ i: Int) -> UInt64 { UInt64(i + 1) &* 0x9E37_79B9_7F4A_7C15 }
+// MARK: - 手の選び方（#1399）
 
-// MARK: - 段階の設定（#1463）
-
-@Suite("五目並べ CPU の段階の設定（#1463）")
-struct GomokuStrengthConfigTests {
-
-    /// 会長決裁（2026-09-26）: 入門 0.3 秒 / かんたん 0.5 秒 / ふつう 1 秒 / むずかしい 2 秒。
-    /// 局面数の上限は強さの主軸にしない（出荷値では使わない）。
-    @Test("考える時間は 0.3 / 0.5 / 1 / 2 秒で、局面数の上限は無い")
-    func timeLimitsFollowTheDecision() {
-        let engines = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue) }
-        #expect(engines.map(\.timeLimit) == [0.3, 0.5, 1, 2])
-        #expect(engines.allSatisfy { $0.nodeLimit == nil })
-    }
-
-    /// 会長決裁（2026-09-28）: 深さの上限は 入門 1 / かんたん 3 / ふつう 5 手先、むずかしいは上限なし。
-    /// 探索の形（候補手の絞り方）は全段で同じ（`SimpleGomokuEngine.breadth`）なので、違いは深さ・時間・確率だけ。
-    @Test("読む深さの上限は 1 / 3 / 5 手先・むずかしいは上限なし")
-    func depthCapsFollowTheDecision() {
-        let depths = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue).depth }
-        #expect(depths == [1, 3, 5, SimpleGomokuEngine.maxDepth])
-    }
-
-    /// むずかしいは 100%。下の段の確率は段階表（`docs/analytics/gomoku-1463-ladder.md`）で決めた値。
-    @Test("最善手を打つ確率は むずかしい 100%・下の段は段階表の値で、損の幅は全段共通")
-    func probabilitiesFollowTheLadder() {
-        let policies = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue).policy }
-        #expect(policies.map(\.bestMoveProbability) == [
-            SimpleGomokuEngine.noviceBestMoveProbability, SimpleGomokuEngine.easyBestMoveProbability,
-            SimpleGomokuEngine.normalBestMoveProbability, 1,
-        ])
-        #expect(policies.last == .exact)
-        #expect(policies.dropLast().allSatisfy { $0.slipMargin == SimpleGomokuEngine.slipMargin })
-    }
-}
-
-// MARK: - 外したときの手（#1463）
-
-@Suite("五目並べ CPU の最善手の確率と外したときの手（#1463）")
+@Suite("五目並べ CPU の手の選び方")
 struct GomokuMovePolicyTests {
 
     private let scores: [(move: Int, score: Int)] = [(10, 900), (11, 800), (12, 500), (13, -60_000)]
 
-    /// 外したときは最善を除き、最善から損の幅（`slipMargin`）以内の手だけを選ぶ。
-    @Test func slipExcludesTheBestAndStaysWithinTheMargin() {
-        let policy = GomokuMovePolicy(bestMoveProbability: 0, slipMargin: 150)
+    @Test func exactPolicyPicksTheBestMove() {
+        var rng = MMIXRandom(seed: 1)
+        for _ in 0..<50 { #expect(GomokuMovePolicy.exact.choose(scores, using: &rng) == 10) }
+    }
+
+    /// 見逃し（slip）は最善から `slipMargin` 以内の手だけを選ぶ。損の幅を超える手は出ない。
+    @Test func slipStaysWithinTheMargin() {
+        let policy = GomokuMovePolicy(slipProbability: 1, slipMargin: 150, tieMargin: 0)
         var rng = MMIXRandom(seed: 2)
-        let picked = Set((0..<200).compactMap { _ in policy.slip(scores, best: 10, using: &rng) })
-        #expect(picked == [11], "最善(900)は除き、150 以内(800)だけ。500 以下は選ばれない: \(picked)")
+        let picked = Set((0..<200).compactMap { _ in policy.choose(scores, using: &rng) })
+        #expect(picked == [10, 11], "最善(900)と 150 以内(800)だけ。500 以下は選ばれない: \(picked)")
     }
 
-    /// 相手に五を作られる読み筋の手（`losingScore` 以下）は、損の幅がどれだけ広くても選ばない。
-    @Test func slipNeverPicksALosingMove() {
-        let policy = GomokuMovePolicy(bestMoveProbability: 0, slipMargin: 1_000_000)
+    /// 見逃しの確率どおりに最善手以外が混ざる（0% なら混ざらない・100% なら常に混ぜる幅）。
+    @Test func slipProbabilityControlsHowOftenTheBestIsSkipped() {
+        let sometimes = GomokuMovePolicy(slipProbability: 0.25, slipMargin: 150, tieMargin: 0)
+        var rng = MMIXRandom(seed: 3)
+        let skipped = (0..<2000).filter { _ in sometimes.choose(scores, using: &rng) != 10 }.count
+        // 25% の手番で見逃し、その半分（2 手から乱択）が最善以外 → 約 12.5%。
+        #expect((150...350).contains(skipped), "最善以外が \(skipped)/2000")
+        var rng2 = MMIXRandom(seed: 3)
+        let never = GomokuMovePolicy(slipProbability: 0, slipMargin: 150, tieMargin: 0)
+        #expect((0..<500).allSatisfy { _ in never.choose(scores, using: &rng2) == 10 })
+    }
+
+    /// 相手に五を作らせる手（-50,000 以下）は、他に手があれば損の幅がどれだけ広くても選ばない。
+    @Test func neverPicksAMoveThatLosesOutright() {
+        let policy = GomokuMovePolicy(slipProbability: 1, slipMargin: 1_000_000, tieMargin: 0)
         var rng = MMIXRandom(seed: 4)
-        #expect((0..<300).allSatisfy { _ in policy.slip(scores, best: 10, using: &rng) != 13 })
-        // 最善のほかに候補が無ければ外さない（呼び出し側が最善手を打つ）。
-        #expect(policy.slip([(1, 100), (2, -70_000)], best: 1, using: &rng) == nil)
-        #expect(policy.slip([], best: 1, using: &rng) == nil)
+        #expect((0..<300).allSatisfy { _ in policy.choose(scores, using: &rng) != 13 })
+        // 最善がそれしか無い（全部負け）なら、負けの中から選ぶ。
+        let doomed: [(move: Int, score: Int)] = [(1, -70_000), (2, -80_000)]
+        #expect(policy.choose(doomed, using: &rng) != nil)
     }
 
-    /// 中盤の局面で、探索の最善手を打たない割合。外した手番は最善を除いて選ぶので、割合は 1 − 確率に近づく。
-    /// 時間ではなく深さ 2 で止めて、実行環境の速さで結果が揺れないようにする。
-    private func missRate(probability: Double, trials: Int) async -> Double {
-        let board = makeBoard(black: [(7, 7), (7, 8), (9, 9), (6, 9)], white: [(7, 9), (8, 8), (6, 6)])
-        let best = SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: 1, timeLimit: .infinity, maxDepth: 2)
-            .analyze(board: board, stone: .white).move!
-        var missed = 0
-        for i in 0..<trials {
-            let e = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: spread(i), timeLimit: .infinity,
-                                       maxDepth: 2, policy: SimpleGomokuEngine.policy(probability))
-            let m = await e.bestMove(board: board, stone: .white)!
-            if m.row != best.0 || m.col != best.1 { missed += 1 }
-        }
-        return Double(missed) / Double(trials)
-    }
-
-    @Test("最善手を外す割合が設定した確率どおりになる（0% と 100% の両端を含む）")
-    func missRateFollowsTheProbability() async {
-        #expect(await missRate(probability: 1, trials: 20) == 0)
-        #expect(await missRate(probability: 0, trials: 20) == 1, "確率 0% は最善手を一度も打たない")
-        let rate = await missRate(probability: 0.5, trials: 200)
-        #expect(abs(rate - 0.5) < 0.12, "確率 50% の外し率が \(rate)")
-    }
-
-    /// 相手の四は、確率 0% でも必ず止める（止めない手は外しの候補に入らない）。自分の五も必ず取る。
-    @Test func slipNeverIgnoresAFourOrAWin() async {
-        let mustBlock = makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)], white: [(7, 2), (3, 3)])
-        let winnable = makeBoard(black: [(3, 10), (4, 10), (5, 10), (1, 1)],
-                                 white: [(7, 3), (7, 4), (7, 5), (7, 6)])
-        for i in 0..<30 {
-            let e = SimpleGomokuEngine(level: CPUStrength.novice.rawValue, seed: spread(i), timeLimit: .infinity,
-                                       policy: SimpleGomokuEngine.policy(0))
-            let block = await e.bestMove(board: mustBlock, stone: .white)
-            #expect(block?.row == 7 && block?.col == 7, "四を止めていない: \(String(describing: block))")
-            let win = await e.bestMove(board: winnable, stone: .white)
-            #expect(win?.row == 7 && (win?.col == 7 || win?.col == 2), "五を取っていない: \(String(describing: win))")
-        }
+    @Test func emptyScoresGiveNoMove() {
+        var rng = MMIXRandom(seed: 5)
+        #expect(GomokuMovePolicy.exact.choose([], using: &rng) == nil)
     }
 }
 
-// MARK: - 探索の上限
+// MARK: - 段階の設定（#1399）
 
 @Suite("五目並べ CPU の探索の上限")
 struct GomokuSearchBudgetTests {
 
-    /// 局面数の上限（計測・テスト用の口）が小さいほど浅くしか読めない。
-    @Test func aSmallerNodeLimitReadsLessDeep() {
+    /// 段階の強さは読む局面数で決まり、時計に左右されない（端末が遅くても同じ深さになる）。
+    /// 時計を止めた探索と実時間の探索が、同じ手・同じ局面数・同じ深さになること。
+    @Test func nodeLimitMakesTheSearchIndependentOfTheClock() {
         let board = makeBoard(black: [(7, 7), (7, 8), (9, 9), (6, 9)], white: [(7, 9), (8, 8), (6, 6)])
-        let small = SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: 1, timeLimit: .infinity, maxDepth: 6,
-                                       nodeLimit: 300).analyze(board: board, stone: .white)
-        let large = SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: 1, timeLimit: .infinity, maxDepth: 6,
-                                       nodeLimit: 20_000).analyze(board: board, stone: .white)
-        #expect(small.depth < large.depth, "\(small.depth) / \(large.depth)")
+        let frozen = Date()
+        let a = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: 1, now: { frozen })
+            .analyze(board: board, stone: .white)
+        let b = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: 1).analyze(board: board, stone: .white)
+        #expect(a.nodes == b.nodes && a.depth == b.depth)
+        #expect(a.move?.0 == b.move?.0 && a.move?.1 == b.move?.1)
+        #expect(a.nodes <= SimpleGomokuEngine.normalNodeLimit + 1, "局面数の上限を超えて読んでいる: \(a.nodes)")
     }
 
-    /// 下の段は深さの上限まで読み終えたら、時間を残して打つ（時間ではなく深さで止まる）。
-    @Test func lowerStagesStopAtTheirDepthCap() {
+    /// 局面数の上限が小さいほど浅くしか読めない（上限が読みの深さを決めている）。
+    @Test func aSmallerNodeLimitReadsLessDeep() {
         let board = makeBoard(black: [(7, 7), (7, 8), (9, 9), (6, 9)], white: [(7, 9), (8, 8), (6, 6)])
-        for (strength, cap) in [(CPUStrength.novice, 1), (.easy, 3)] {
-            let r = SimpleGomokuEngine(level: strength.rawValue, seed: 1, timeLimit: .infinity)
-                .analyze(board: board, stone: .white)
-            #expect(r.depth == cap, "\(strength.label) が深さ \(r.depth) まで読んだ（上限 \(cap)）")
-        }
+        let small = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: 1, maxDepth: 6, nodeLimit: .some(300))
+            .analyze(board: board, stone: .white)
+        let large = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: 1, maxDepth: 6, nodeLimit: .some(20_000))
+            .analyze(board: board, stone: .white)
+        #expect(small.depth < large.depth, "\(small.depth) / \(large.depth)")
     }
 }
 
-// MARK: - 戦術
+// MARK: - 戦術（#1399）
 
-@Suite("五目並べ CPU の戦術")
-struct GomokuTacticsTests {
+@Suite("五目並べ ふつうの戦術")
+struct GomokuNormalTacticsTests {
 
-    /// むずかしいは開三（両端が空いた 3 連）を放置せず、活四を作らせない（深く読ませても足元が崩れていない）。
+    /// 連番の種をそのまま渡すと MMIX の初手が似通うので、散らばった種にする。
+    private func moves(_ board: GomokuBoard, stone: GomokuStone, level: Int, seeds: Int = 30) async -> Set<[Int]> {
+        var out = Set<[Int]>()
+        for i in 0..<seeds {
+            if let m = await SimpleGomokuEngine(level: level, seed: UInt64(i + 1) &* 0x9E37_79B9_7F4A_7C15).bestMove(board: board, stone: stone) {
+                out.insert([m.row, m.col])
+            }
+        }
+        return out
+    }
+
+    /// 相手の開三（両端が空いた 3 連）は、次で活四にされる前に止める。深さ 3 の探索だけでは届かない。
+    @Test func normalBlocksAnOpenThree() async {
+        let board = makeBoard(black: [(7, 6), (7, 7), (7, 8)], white: [(3, 3), (11, 11)])
+        let picked = await moves(board, stone: .white, level: CPUStrength.normal.rawValue)
+        #expect(picked.isSubset(of: [[7, 5], [7, 9]]), "開三を止めていない: \(picked)")
+    }
+
+    /// 三三になる点を先に潰す（相手が置くと開三が 2 本できる点）。
+    @Test func normalStopsAThreeThreeFork() async {
+        let board = makeBoard(black: [(7, 8), (7, 9), (8, 10), (9, 10)], white: [(3, 3), (11, 11)])
+        let picked = await moves(board, stone: .white, level: CPUStrength.normal.rawValue)
+        #expect(picked == [[7, 10]], "三三の点を取っていない: \(picked)")
+    }
+
+    /// 四三（四を作りながら開三も作る手）は、相手に止める手が無いので必ず打つ。
+    @Test func normalPlaysAFourThree() async {
+        let board = makeBoard(black: [(7, 5), (7, 6), (7, 7), (8, 8), (9, 8)], white: [(7, 4), (3, 12), (12, 3)])
+        let picked = await moves(board, stone: .black, level: CPUStrength.normal.rawValue)
+        #expect(picked == [[7, 8]], "四三を打っていない: \(picked)")
+    }
+
+    /// 弱い 2 段（入門・簡単）はこの補いを持たない（開三を放置する回がある）。
+    @Test func weakLevelsSometimesIgnoreAnOpenThree() async {
+        let board = makeBoard(black: [(7, 6), (7, 7), (7, 8)], white: [(3, 3), (11, 11)])
+        for level in [CPUStrength.easy.rawValue, CPUStrength.novice.rawValue] {
+            let picked = await moves(board, stone: .white, level: level)
+            #expect(!picked.isSubset(of: [[7, 5], [7, 9]]), "level \(level) が毎回開三を止めている: \(picked)")
+        }
+    }
+
+    /// 連珠ルールの黒は、相手（白）の二重の脅威を潰す点が自分の禁じ手（三三）のことがある。その点は打たない（検証で発覚）。
+    @Test func normalNeverPlaysAForbiddenPointWhileBlockingAFork() async {
+        let board = makeBoard(black: [(5, 5), (6, 6), (6, 8), (5, 9)], white: [(7, 8), (7, 9), (8, 7), (9, 7)])
+        for i in 0..<10 {
+            let engine = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, forbiddenMoves: true,
+                                            seed: UInt64(i + 1) &* 0x9E37_79B9_7F4A_7C15)
+            let move = await engine.bestMove(board: board, stone: .black)
+            #expect(!(move?.row == 7 && move?.col == 7), "三三の禁じ手 (7,7) を打った（種 \(i)）")
+        }
+    }
+
+    /// むずかしいは即勝ちも即防ぎも、開三への対処も外さない（深く読ませても足元が崩れていない）。
     @Test func hardDoesNotLoseToAnOpenThree() async {
         let board = makeBoard(black: [(7, 6), (7, 7), (7, 8)], white: [(3, 3), (11, 11)])
-        let move = await SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: 1, timeLimit: .infinity,
-                                            nodeLimit: 30_000).bestMove(board: board, stone: .white)
+        let move = await SimpleGomokuEngine(level: CPUStrength.hard.rawValue, seed: 1, nodeLimit: .some(30_000)).bestMove(board: board, stone: .white)
         // 活四を作らせない手（両端か、片側を先に塞ぐ手）であること。
         var after = board
         after[move!.row, move!.col] = .white
@@ -161,16 +160,19 @@ struct GomokuTacticsTests {
         }
         #expect(!openFourRemains, "活四を作られる: \(String(describing: move))")
     }
+}
 
-    /// 連珠ルールの黒は、禁じ手（三三）の点を打たない（探索の候補から外れている。外した手番も同じ）。
-    /// デバッグビルドで深さ 5 まで読むと 10 回で 1 分を超えるので、深さ 3 で止める。
-    @Test func neverPlaysAForbiddenPoint() async {
-        let board = makeBoard(black: [(5, 5), (6, 6), (6, 8), (5, 9)], white: [(7, 8), (7, 9), (8, 7), (9, 7)])
-        for i in 0..<10 {
-            let engine = SimpleGomokuEngine(level: CPUStrength.normal.rawValue, forbiddenMoves: true, seed: spread(i),
-                                            timeLimit: .infinity, maxDepth: 3, policy: SimpleGomokuEngine.policy(0.5))
-            let move = await engine.bestMove(board: board, stone: .black)
-            #expect(!(move?.row == 7 && move?.col == 7), "三三の禁じ手 (7,7) を打った（種 \(i)）")
-        }
+// MARK: - 段階の序列（#1399）
+
+@Suite("五目並べ 段階の序列")
+struct GomokuLadderQuickTests {
+
+    /// 簡単は入門に負けない（先後を入れ替えて 20 局。会長決裁 2026-09-25。基準は 2026-09-26 に「負け 3% 以下」へ緩和済みだが、固定 seed の 20 局は負け 0 で通っている）。
+    /// 重い組（ふつう対簡単・むずかしい対ふつう）は `CPUBenchTests`（`CPU_BENCH=1`）で計測する。
+    @Test func easyNeverLosesToNovice() async {
+        let t = await CPUBenchLadder.run(upperLevel: CPUStrength.easy.rawValue,
+                                         lowerLevel: CPUStrength.novice.rawValue, openings: 10)
+        #expect(t.games == 20)
+        #expect(t.lowerWins == 0, "簡単が入門に \(t.lowerWins) 局負けた（勝ち \(t.upperWins)・引き分け \(t.draws)）")
     }
 }

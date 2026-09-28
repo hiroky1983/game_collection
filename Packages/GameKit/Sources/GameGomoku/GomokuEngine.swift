@@ -58,38 +58,35 @@ private let gomokuCenterOrder: [Int] = (0..<(gomokuBoardSize * gomokuBoardSize))
     return (da, a / gomokuBoardSize, a % gomokuBoardSize) < (db, b / gomokuBoardSize, b % gomokuBoardSize)
 }
 
-// MARK: - 手の選び方（#1463）
+// MARK: - 手の選び方（#1399）
 
-/// 段階ごとの「最善手を打つ確率」（会長決裁 2026-09-26・将棋 #1461 と同じ形）。
+/// 探索で全候補に点を付けたあと、**段階ごとにどう選ぶか**（会長決裁 2026-09-25）。
+/// 将棋 `ShogiMovePolicy`・チェス `ChessMovePolicy` と同じ形。
 ///
-/// 難易度は**考える時間**（`SimpleGomokuEngine.timeLimit`）・読む深さの上限（`depth`）と、この確率で決める。
-/// 確率が外れた手番は、同じ探索で最善から `slipMargin` 以内の手に正確な評価値を付け（`scoreWindow`）、
-/// 最善以外のうち損が `slipMargin` 以内の手から乱択する。自分の五・相手の四を止める手は探索の前に
-/// 決まる（外さない）ので、相手の五を止めない手は選ばれない。相手に五を作られる読み筋の手
-/// （評価値 `losingScore` 以下）も選ばない。
+/// - `slipProbability`: 「見逃し」を起こす確率。起きたときは最善から `slipMargin` 以内の損で済む手から乱択する。
+/// - `tieMargin`: 見逃しでないときに「最善と同等」とみなす幅。0 なら最善手だけ（決定的）。
+///
+/// 相手に五を作らせる手（評価値 -50,000 以下）は、最善がそれしか無いときを除いてどの段階でも選ばない。
+/// むずかしいは当面 100%（最善手のみ）。
 struct GomokuMovePolicy: Equatable {
-    /// 探索が出した最善手をそのまま打つ確率（0...1）。
-    var bestMoveProbability: Double
-    /// 外したときに許す損の幅（評価値の差）。
+    var slipProbability: Double
     var slipMargin: Int
+    var tieMargin: Int
+    /// 相手の開三（次で活四）を止める手だけを候補にする。読みが浅い（3 手）ふつうの補い。
+    var forcesDefense = false
 
-    /// 最善手だけを選ぶ（むずかしい）。
-    static let exact = GomokuMovePolicy(bestMoveProbability: 1, slipMargin: 0)
-    /// 探索を素直に回すだけでよいか。
-    var isExact: Bool { bestMoveProbability >= 1 }
+    /// 最善手だけを選ぶ（むずかしい。探索そのものが強さを決める）。
+    static let exact = GomokuMovePolicy(slipProbability: 0, slipMargin: 0, tieMargin: 0)
+    var isExact: Bool { self == .exact }
 
-    /// この値以下の評価値の手は、読みの中で相手に五（か止められない四）を作られる手。外しの候補に入れない。
-    static let losingScore = -50_000
-
-    /// 外したときの手。根の全候補の評価値から、`best` を除き、最善から `slipMargin` 以内の損で負けにならない手を
-    /// 乱択する。候補が無ければ `nil`（呼び出し側は最善手を打つ）。
-    func slip<R: RandomNumberGenerator>(_ scores: [(move: Int, score: Int)], best: Int,
-                                        using rng: inout R) -> Int? {
-        guard let bestScore = scores.first(where: { $0.move == best })?.score else { return nil }
-        let pool = scores.filter {
-            $0.move != best && $0.score >= bestScore - slipMargin && $0.score > Self.losingScore
-        }
-        guard !pool.isEmpty else { return nil }
+    /// 根の全候補の評価値から 1 手を選ぶ。`scores` は良い順に並べる必要は無い（最初に最大値をとった手が最善）。
+    func choose<R: RandomNumberGenerator>(_ scores: [(move: Int, score: Int)], using rng: inout R) -> Int? {
+        guard let first = scores.first else { return nil }
+        let best = scores.reduce(first) { $1.score > $0.score ? $1 : $0 }
+        let slip = slipProbability > 0 && Double.random(in: 0..<1, using: &rng) < slipProbability
+        let margin = slip ? slipMargin : tieMargin
+        guard margin > 0 else { return best.move }
+        let pool = scores.filter { $0.score >= best.score - margin && ($0.score > -50_000 || best.score <= -50_000) }
         return pool[Int.random(in: 0..<pool.count, using: &rng)].move
     }
 }
@@ -109,92 +106,162 @@ private struct GomokuRandom: RandomNumberGenerator {
 
 /// 五目並べの CPU。
 ///
-/// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 |
-/// |---|---|---|---|---|
-/// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` |
-/// | 0 | かんたん | 0.5 秒 | 3 手先 | `easyBestMoveProbability` |
-/// | 1 | ふつう | 1 秒 | 5 手先 | `normalBestMoveProbability` |
-/// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% |
-///
-/// 探索（反復深化の αβ・各局面は点の高い `breadth` 手だけ読む・四を作る手は 1 手延長）は全段階で同じで、
-/// 時間が来るか深さの上限まで読み終えたら打つ（#1463。会長決裁 2026-09-26・09-28）。
-/// 確率の根拠は段階表（`docs/analytics/gomoku-1463-ladder.md`: 上の段の得点率 90% 以上で最も高い値）。
+/// | level | 表示 | 打ち方 |
+/// |---|---|---|
+/// | -1 | 入門 | 読まずに1手先の形だけ。相手の四を防ぐのは 20 回に 1 回・6 割は形を見ずに無作為（#1399） |
+/// | 0 | 簡単 | 読まずに1手先の形だけ（#665）＋ 相手の四を防ぐのは 2 回に 1 回 |
+/// | 1 | ふつう | 深さ 3 の αβ（局面数 15,000 まで）＋ 開三・二重の脅威を先に潰す・10% で形の甘い手 |
+/// | 2 | むずかしい | 深さ 9 の αβ（局面数 250,000 まで・各局面は点の高い 14 手だけ読む）・最善手のみ |
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
+/// **段階の強さは「読む局面数」で決め、時間は安全用に長めに残す**（#1399。時間主体だと遅い端末ほど
+/// 浅くしか読めず、ふつうとむずかしいが同じ深さに潰れる）。**上の段階は下の段階に負けない**
+/// （会長決裁 2026-09-25。`CPUBenchTests` で隣り合う段階どうしを先後入れ替えで計測する）。
+/// 「入門」は簡単と同じ打ち方のまま、**相手の四・開三を防ぐ率**と**候補の広さ**を緩め、
+/// 形を見ずに打つ回を混ぜてある（#1174・#1399。手なりに打っても偶然の連で簡単に勝たないように）。
+/// 自分の五は必ず取るところは変えていないので、弱いが壊れてはいない。
 public struct SimpleGomokuEngine: GomokuEngine {
     var depth: Int
-    /// 1 手の考える時間の上限（秒）。読み終われば早く打つ。
     let timeLimit: TimeInterval
     /// 探索の時計。テストが「最後の根手の評価中に時間切れ」を実時間なしで再現するために差し替える（#1226）。
     let now: @Sendable () -> Date
     /// 連珠の禁じ手ルール（#441）。オンのとき、黒番では三三・四四・長連を候補から外す。
     let forbiddenMoves: Bool
+    /// 「弱」か（#665）。弱は探索せず `GomokuSearchContext.weakMove` の1手先の形だけで打つ。
+    /// 「入門」（#1174）も同じ打ち方なので、どちらもここが true になる。
+    let isWeak: Bool
+    /// 弱が相手の即勝ち（四）を防ぐ確率（#665）。残りは見逃すので、人間が五を完成できる。
+    let weakBlockRate: Double
     /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テストだけが種を渡して再現する）。
     let seed: UInt64?
-    /// 読む局面数の上限（`nil` なら無し）。出荷値では使わない（計測・テストが探索量を揃えるための口）。
+    /// 読まない段階が着手をどこから選ぶか。「入門」は広げて手なりに打つ（#1174）。
+    let weakChoice: WeakChoice
+    /// 読む局面数の上限（`nil` なら無し）。段階の強さはこれが決め、端末が遅くても変わらないようにする（#1399。
+    /// 時間主体だと遅い端末ほど浅くしか読めず、ふつうとむずかしいが同じ深さに潰れる）。時間は安全用に長めに残す。
     var nodeLimit: Int?
+    /// 根より先の各局面で読む手の数（点の高い順）。`nil` なら全部。強制手（勝ち・防ぎ）は点が最上位なので落ちない。
+    /// 絞ると同じ局面数でずっと深く読める（#1399）。
+    let breadth: Int?
+    /// 四を作る手は 1 手ぶん深く読む（強制手なので分岐が少ない）。浅い探索が四三の罠を読み落とすのを補う。
+    let extendsFours: Bool
+    /// 探索したあとの手の選び方（#1399）。読まない段階（入門・簡単）は使わない。
     var policy: GomokuMovePolicy
+    /// 相手の四四・四三・三三の形を作らせない／自分が作れるなら作る（読みが浅い段階の補い）。
+    let seesDoubleThreats: Bool
 
-    /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間。
-    static let maxDepth = 32
-    /// 根より先の各局面で読む手の数（点の高い順）。強制手（勝ち・防ぎ）は点が最上位なので落ちない。
-    /// 全段階で同じ（#1463。全幅で読むと深さ 5 で 1 秒を超える）。
-    static let breadth = 14
+    /// 弱の既定の防御率。深さ3の読みと即防ぎを持っていた旧「弱」は盤ゲーム5本で最も強かった（#665）。
+    static let defaultWeakBlockRate = 0.5
+    /// 「入門」の防御率（#1174）。簡単の半分以下にして、人間の四がだいたい通るようにする。
+    static let noviceBlockRate = 0.05
+    /// 段階の差を付ける読みの局面数（#1399）。時間は安全用に長めに残す。
+    static let normalDepth = 3
+    static let hardDepth = 9
+    static let normalNodeLimit = 15_000
+    static let hardNodeLimit = 250_000
+    static let hardBreadth = 14
+    /// ふつう: 10% の手番だけ「評価で 150 以内の損」の手を混ぜる（開二つぶんに満たない。形の甘い手が出る程度）。
+    /// むずかしいは 100% 最善手。
+    static let normalPolicy = GomokuMovePolicy(slipProbability: 0.10, slipMargin: 150, tieMargin: 0, forcesDefense: true)
 
-    /// 最善手を打つ確率（#1463 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
-    static let noviceBestMoveProbability = 0.2
-    static let easyBestMoveProbability = 0.1
-    static let normalBestMoveProbability = 0.6
-
-    /// 外したときに許す損の幅（評価値の差）。開三 1 本（`patternScore` の 500）ぶん。
-    /// 相手に活四を許す手（1 万以上）や、自分の開三を逃して相手に先手を渡す手は入らず、
-    /// 形が 1 段甘い手（開二・止め三の置き場所の違い）までが入る。
-    static let slipMargin = 500
-
-    static func policy(_ probability: Double) -> GomokuMovePolicy {
-        GomokuMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
+    /// 読まない段階が乱択する候補の広さ。広げるほど形の良し悪しを気にしなくなる。
+    struct WeakChoice: Equatable, Sendable {
+        /// 形を見ずに候補から無作為に打つ確率（#1399）。手なりに打つ入門が、偶然の連を作って簡単に勝たないようにする。
+        var randomRate = 0.0
+        /// 点の高い順に何手まで候補にするか。
+        let count: Int
+        /// 最善の何分の1以上の点が付いた手までを候補にするか（2 なら半分以上）。
+        let shareDenominator: Int
     }
+
+    /// 「簡単」の広さ（#665 の実装そのまま。上位 3 手・最善の半分以上）。
+    static let easyChoice = WeakChoice(count: 3, shareDenominator: 2)
+    /// 「入門」の広さ（#1174）。上位 6 手・最善の 1/4 以上まで広げる。
+    /// 防御率を下げるだけでは簡単と互角だったため（実測 20/40）、形の選び方も崩している。
+    static let noviceChoice = WeakChoice(randomRate: 0.6, count: 8, shareDenominator: 20)
 
     public init(level: Int = CPUStrength.standard.rawValue, forbiddenMoves: Bool = false) {
         self.init(level: level, forbiddenMoves: forbiddenMoves, seed: nil)
     }
 
-    /// `timeLimit` / `nodeLimit` / `policy` / `maxDepth` はテスト・計測用の差し替え。
-    /// 時間切れによる打ち切りを無くしたいときは `timeLimit: .infinity` を渡す（`.distantFuture` を締切にする）。
     init(level: Int, forbiddenMoves: Bool = false, seed: UInt64?,
-         timeLimit: TimeInterval? = nil, maxDepth: Int? = nil, nodeLimit: Int? = nil, policy: GomokuMovePolicy? = nil,
+         weakBlockRate: Double? = nil, maxDepth: Int? = nil, nodeLimit: Int?? = nil, policy: GomokuMovePolicy? = nil,
          now: @escaping @Sendable () -> Date = { Date() }) {
         self.now = now
-        let shippedTime: TimeInterval
-        switch CPUStrength.strength(for: level) {
-        case .novice: (shippedTime, depth, self.policy) = (0.3, 1, Self.policy(Self.noviceBestMoveProbability))
-        case .easy:   (shippedTime, depth, self.policy) = (0.5, 3, Self.policy(Self.easyBestMoveProbability))
-        case .normal: (shippedTime, depth, self.policy) = (1.0, 5, Self.policy(Self.normalBestMoveProbability))
-        case .hard:   (shippedTime, depth, self.policy) = (2.0, Self.maxDepth, .exact)
+        let strength = CPUStrength.strength(for: level)
+        switch strength {
+        case .novice:  (depth, timeLimit, self.nodeLimit, self.policy) = (1, 0.4, nil, .exact)
+        case .easy:    (depth, timeLimit, self.nodeLimit, self.policy) = (1, 0.4, nil, .exact)
+        case .hard:    (depth, timeLimit, self.nodeLimit, self.policy) = (Self.hardDepth, 5.0, Self.hardNodeLimit, .exact)
+        case .normal:  (depth, timeLimit, self.nodeLimit, self.policy) = (Self.normalDepth, 3.0, Self.normalNodeLimit, Self.normalPolicy)
         }
-        self.timeLimit = timeLimit ?? shippedTime
+        seesDoubleThreats = strength == .normal
+        breadth = strength == .hard ? Self.hardBreadth : nil
+        extendsFours = strength == .hard
+        if let nodeLimit { self.nodeLimit = nodeLimit }   // テスト用: 局面数の上限を差し替える
         if let policy { self.policy = policy }
         if let maxDepth { depth = maxDepth }   // テスト用: 反復深化の上限を絞る（#1226）
-        self.nodeLimit = nodeLimit
         self.forbiddenMoves = forbiddenMoves
+        self.isWeak = strength == .easy || strength == .novice
+        self.weakBlockRate = weakBlockRate
+            ?? (strength == .novice ? Self.noviceBlockRate : Self.defaultWeakBlockRate)
+        self.weakChoice = strength == .novice ? Self.noviceChoice : Self.easyChoice
         self.seed = seed
     }
 
     public func bestMove(board: GomokuBoard, stone: GomokuStone) async -> (row: Int, col: Int)? {
         var rng = GomokuRandom(seed: seed)
-        // 外すかどうかを先に決める。外す手番だけ、最善から `slipMargin` 以内の手に正確な評価値を付けて読む。
-        let slips = !policy.isExact && Double.random(in: 0..<1, using: &rng) >= policy.bestMoveProbability
-        var ctx = makeContext()
-        guard let best = ctx.search(board: board, stone: stone, scoreWindow: slips ? policy.slipMargin : nil)
-        else { return nil }
-        guard slips, let picked = policy.slip(ctx.rootScores, best: best.0 * gomokuBoardSize + best.1, using: &rng)
-        else { return best }
-        return (picked / gomokuBoardSize, picked % gomokuBoardSize)
+        if isWeak {
+            // 探索しないので置換表（約4MB）は確保しない。
+            let ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
+                                          forbiddenMoves: forbiddenMoves, transpositionTableSize: 0, now: now)
+            return ctx.weakMove(board: board, stone: stone, blockRate: weakBlockRate,
+                                choice: weakChoice, using: &rng)
+        }
+        var ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
+                                      forbiddenMoves: forbiddenMoves, nodeLimit: nodeLimit, breadth: breadth, extendsFours: extendsFours, now: now)
+        // 読みが浅いふつうの補い: 相手の開三・二重の脅威を先に潰し、自分が四を伴う二重の脅威を作れるなら作る。
+        var only: [Int]? = nil
+        if policy.forcesDefense {
+            let candidates = ctx.legalMoves(ctx.candidateMoves(board: board), board: board, stone: stone)
+            let opp = stone.opponent
+            let winning = candidates.contains { var b = board; b[$0.0, $0.1] = stone; return b.checkWin(row: $0.0, col: $0.1) }
+            let mustBlockFour = candidates.contains { m in
+                guard !ctx.isForbidden(board, row: m.0, col: m.1, stone: opp) else { return false }
+                var b = board; b[m.0, m.1] = opp; return b.checkWin(row: m.0, col: m.1)
+            }
+            if !winning, !mustBlockFour {
+                // 1. 四を伴う二重の脅威は、相手に開三があっても先に決まる。
+                // 2. 相手の開三は止める。3. 三三は相手に開三が無いときだけ。4. 相手の二重の脅威を作らせない。
+                let mine = seesDoubleThreats
+                    ? ctx.doubleThreatPoints(board, stone: stone, candidates: candidates) : (withFour: [], threesOnly: [])
+                let threeBlocks = candidates.filter { ctx.makesOpenFour(board, row: $0.0, col: $0.1, stone: opp) }
+                if let attack = mine.withFour.first {
+                    return (attack / gomokuBoardSize, attack % gomokuBoardSize)
+                } else if !threeBlocks.isEmpty {
+                    only = threeBlocks.map { $0.0 * gomokuBoardSize + $0.1 }
+                } else if let attack = mine.threesOnly.first {
+                    return (attack / gomokuBoardSize, attack % gomokuBoardSize)
+                } else if seesDoubleThreats {
+                    let theirs = ctx.doubleThreatPoints(
+                        board, stone: opp,
+                        candidates: ctx.legalMoves(ctx.candidateMoves(board: board), board: board, stone: opp))
+                    // 相手の打てる点は、自分には禁じ手（連珠の黒）のことがある。自分に打てる点だけに絞る。
+                    let legal = Set(candidates.map { $0.0 * gomokuBoardSize + $0.1 })
+                    let points = (theirs.withFour + theirs.threesOnly).filter { legal.contains($0) }
+                    if !points.isEmpty { only = points }
+                }
+            }
+        }
+        let best = ctx.search(board: board, stone: stone, scoreWindow: policy.slipProbability > 0 || policy.tieMargin > 0 ? max(policy.slipMargin, policy.tieMargin) : nil, only: only)
+        guard !policy.isExact, !ctx.rootScores.isEmpty else { return best }
+        let picked = policy.choose(ctx.rootScores, using: &rng)
+        return picked.map { ($0 / gomokuBoardSize, $0 % gomokuBoardSize) } ?? best
     }
 
-    /// 計測用: 探索した局面数と読み切った深さ（`bestMove` と同じ設定で、外さずに 1 手だけ探索する）。
+    /// 計測用: 探索した局面数と読み切った深さ（`bestMove` と同じ設定で 1 手だけ探索する）。
     func analyze(board: GomokuBoard, stone: GomokuStone) -> (move: (Int, Int)?, nodes: Int, depth: Int) {
-        var ctx = makeContext()
+        var ctx = GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit,
+                                      forbiddenMoves: forbiddenMoves, nodeLimit: nodeLimit, breadth: breadth, extendsFours: extendsFours, now: now)
         let move = ctx.search(board: board, stone: stone)
         return (move, ctx.nodes, ctx.completedDepth)
     }
@@ -203,15 +270,6 @@ public struct SimpleGomokuEngine: GomokuEngine {
     func candidateMoves(board: GomokuBoard) -> [(Int, Int)] {
         GomokuSearchContext(maxDepth: depth, timeLimit: timeLimit, forbiddenMoves: forbiddenMoves,
                             transpositionTableSize: 0, now: now).candidateMoves(board: board)
-    }
-
-    /// 探索の締切から引く、置換表の確保・後始末ぶん（秒）。1 手の合計が `timeLimit` を超えないための余裕。
-    static let searchOverhead = 0.02
-
-    private func makeContext() -> GomokuSearchContext {
-        let searchTime = timeLimit.isFinite ? max(Self.searchOverhead, timeLimit - Self.searchOverhead) : timeLimit
-        return GomokuSearchContext(maxDepth: depth, timeLimit: searchTime, forbiddenMoves: forbiddenMoves,
-                            nodeLimit: nodeLimit, breadth: Self.breadth, extendsFours: true, now: now)
     }
 }
 
@@ -244,10 +302,143 @@ private struct GomokuSearchContext {
         self.breadth = breadth
         self.extendsFours = extendsFours
         self.now = now
-        self.deadline = timeLimit.isFinite ? now().addingTimeInterval(timeLimit) : .distantFuture
+        self.deadline = now().addingTimeInterval(timeLimit)
         self.forbiddenMoves = forbiddenMoves
         self.killers = [[Int?]](repeating: [nil, nil], count: maxDepth + 10)
         self.tt = [GomokuTTEntry](repeating: GomokuTTEntry(), count: transpositionTableSize)
+    }
+
+    // MARK: 弱の着手（#665）
+
+    /// 「弱」の着手: 読まずに1手先の形（`moveScore`）だけを見て打つ。
+    ///
+    /// - 自分の即勝ちは必ず取る（取らないと「勝てるのに打たない」不自然な CPU になる）。
+    /// - 相手の即勝ちを防ぐのは `blockRate` の確率だけ。見逃した回は防ぐ手を候補から外す
+    ///   （外さないと `moveScore` が防ぐ手を最上位に置くので、結局そこへ打って穴にならない）。
+    /// - それ以外は、最善に近い点が付いた手（`choice` の広さ）から乱択する。
+    ///   「簡単」は最善の半分以上・最大3手なので、形の良い手がある局面で無意味な手を打つほどは
+    ///   崩さない。「入門」はここを広げて手なりに打つ（#1174）。
+    func weakMove<R: RandomNumberGenerator>(
+        board: GomokuBoard, stone: GomokuStone, blockRate: Double,
+        choice: SimpleGomokuEngine.WeakChoice, using rng: inout R
+    ) -> (Int, Int)? {
+        let candidates = legalMoves(candidateMoves(board: board), board: board, stone: stone)
+        guard !candidates.isEmpty else { return (gomokuBoardSize / 2, gomokuBoardSize / 2) }
+
+        for (r, c) in candidates {
+            var b = board; b[r, c] = stone
+            if b.checkWin(row: r, col: c) { return (r, c) }
+        }
+
+        let opp = stone.opponent
+        let blocks = candidates.filter { move in
+            guard !isForbidden(board, row: move.0, col: move.1, stone: opp) else { return false }
+            var b = board; b[move.0, move.1] = opp
+            return b.checkWin(row: move.0, col: move.1)
+        }
+        var pool = candidates
+        if !blocks.isEmpty {
+            if Double.random(in: 0..<1, using: &rng) < blockRate { return blocks[0] }
+            let rest = candidates.filter { m in !blocks.contains { $0 == m } }
+            if !rest.isEmpty { pool = rest }
+        }
+
+        // 相手の開三（置かれると活四になる点）を防ぐのも `blockRate` の確率だけ（#1399）。
+        // 四を止めるだけだと、開三を放置しても四を作られてから止める形になり、見逃しが弱さに効かない。
+        let openFourPoints = pool.filter { makesOpenFour(board, row: $0.0, col: $0.1, stone: opp) }
+        if !openFourPoints.isEmpty, Double.random(in: 0..<1, using: &rng) >= blockRate {
+            let rest = pool.filter { m in !openFourPoints.contains { $0 == m } }
+            if !rest.isEmpty { pool = rest }
+        }
+
+        if choice.randomRate > 0, Double.random(in: 0..<1, using: &rng) < choice.randomRate {
+            return pool[Int.random(in: 0..<pool.count, using: &rng)]
+        }
+        let scored = pool
+            .map { (move: $0, score: moveScore($0.0 * gomokuBoardSize + $0.1, board: board, stone: stone,
+                                                killers: [nil, nil], ttMove: nil)) }
+            // 同点は座標順に並べる。候補は Set 由来で並びが実行ごとに変わるため、種が同じなら同じ手になるようにする。
+            .sorted { $0.score != $1.score ? $0.score > $1.score
+                                           : ($0.move.0, $0.move.1) < ($1.move.0, $1.move.1) }
+        let best = scored[0].score
+        let choices = scored.prefix(choice.count).filter { $0.score * choice.shareDenominator >= best }
+        return choices[Int.random(in: 0..<choices.count, using: &rng)].move
+    }
+
+    /// `stone` がそこに打つと、両端が空いた四（活四）ができるか。相手の開三を防ぐ点の判定に使う（#1399）。
+    func makesOpenFour(_ board: GomokuBoard, row: Int, col: Int, stone: GomokuStone) -> Bool {
+        var b = board; b[row, col] = stone
+        for (dr, dc) in gomokuDirections {
+            var count = 1
+            var ends = 0
+            for sign in [-1, 1] {
+                var r = row + dr * sign, c = col + dc * sign
+                while r >= 0 && r < gomokuBoardSize && c >= 0 && c < gomokuBoardSize && b[r, c] == stone {
+                    count += 1; r += dr * sign; c += dc * sign
+                }
+                if r >= 0 && r < gomokuBoardSize && c >= 0 && c < gomokuBoardSize && b[r, c] == nil { ends += 1 }
+            }
+            if count == 4 && ends == 2 { return true }
+        }
+        return false
+    }
+
+    // MARK: 開三・二重の脅威
+
+    /// `stone` の開三（連続 3・両端が空き）の遮断点。線ごとに、両端とその外側 1 点までの空き点を返す。
+    func openThreeLines(_ board: GomokuBoard, stone: GomokuStone) -> [[Int]] {
+        var lines: [[Int]] = []
+        func empty(_ r: Int, _ c: Int) -> Bool {
+            r >= 0 && r < gomokuBoardSize && c >= 0 && c < gomokuBoardSize && board[r, c] == nil
+        }
+        for row in 0..<gomokuBoardSize {
+            for col in 0..<gomokuBoardSize where board[row, col] == stone {
+                for (dr, dc) in gomokuDirections {
+                    let (pr, pc) = (row - dr, col - dc)
+                    if pr >= 0 && pr < gomokuBoardSize && pc >= 0 && pc < gomokuBoardSize && board[pr, pc] == stone { continue }
+                    var count = 0
+                    var (r, c) = (row, col)
+                    while r >= 0 && r < gomokuBoardSize && c >= 0 && c < gomokuBoardSize && board[r, c] == stone {
+                        count += 1; r += dr; c += dc
+                    }
+                    guard count == 3, empty(r, c), empty(pr, pc) else { continue }
+                    var pts = [r * gomokuBoardSize + c, pr * gomokuBoardSize + pc]
+                    if empty(r + dr, c + dc) { pts.append((r + dr) * gomokuBoardSize + c + dc) }
+                    if empty(pr - dr, pc - dc) { pts.append((pr - dr) * gomokuBoardSize + pc - dc) }
+                    lines.append(pts)
+                }
+            }
+        }
+        return lines
+    }
+
+    /// `stone` が打つと、相手が 1 手では止められない形になる空き点。四を伴うもの（四四・活四・四三）と、
+    /// 開三 2 本だけのもの（三三）に分ける。相手に四がある局面（先に五を打たれる）では空。
+    func doubleThreatPoints(_ board: GomokuBoard, stone: GomokuStone,
+                            candidates: [(Int, Int)]) -> (withFour: [Int], threesOnly: [Int]) {
+        guard fiveSquares(board, stone: stone.opponent).isEmpty else { return ([], []) }
+        let before = openThreeLines(board, stone: stone).count
+        var withFour: [Int] = [], threesOnly: [Int] = []
+        for (r, c) in candidates {
+            var b = board; b[r, c] = stone
+            guard fiveSquares(b, stone: stone.opponent).isEmpty else { continue }
+            let fives = fiveSquares(b, stone: stone).count
+            let threes = openThreeLines(b, stone: stone).count - before
+            if fives >= 2 || (fives == 1 && threes >= 1) { withFour.append(r * gomokuBoardSize + c) }
+            else if fives == 0 && threes >= 2 { threesOnly.append(r * gomokuBoardSize + c) }
+        }
+        return (withFour, threesOnly)
+    }
+
+    /// `stone` が打つと五になる空き点（禁じ手の黒は除く）。
+    func fiveSquares(_ board: GomokuBoard, stone: GomokuStone) -> [Int] {
+        var out: [Int] = []
+        for (r, c) in candidateMoves(board: board) {
+            guard !isForbidden(board, row: r, col: c, stone: stone) else { continue }
+            var b = board; b[r, c] = stone
+            if b.checkWin(row: r, col: c) { out.append(r * gomokuBoardSize + c) }
+        }
+        return out
     }
 
     // MARK: 禁じ手のふるい分け（#441）
@@ -284,10 +475,14 @@ private struct GomokuSearchContext {
 
     /// `scoreWindow` を渡すと、最善から `scoreWindow` 以内の手はすべて正確な評価値を持つように根を探索し、
     /// `rootScores` に残す（手の選び方 `GomokuMovePolicy` の材料。窓の外の手は上限値になるので選ばれない）。
-    /// 自分の五・相手の四を止める手は探索せずに返す（`rootScores` は空のまま＝外さない）。
-    mutating func search(board: GomokuBoard, stone: GomokuStone, scoreWindow: Int? = nil) -> (Int, Int)? {
+    /// `only` を渡すと、根の候補をその手（row*15+col）だけに絞り、即勝ち・即防ぎの自動選択もしない（簡単の防御見逃しの材料）。
+    mutating func search(board: GomokuBoard, stone: GomokuStone, scoreWindow: Int? = nil,
+                         only: [Int]? = nil) -> (Int, Int)? {
         let candidates = legalMoves(candidateMoves(board: board), board: board, stone: stone)
         guard !candidates.isEmpty else { return (gomokuBoardSize / 2, gomokuBoardSize / 2) }
+        if let only, !only.isEmpty {
+            return searchRoot(board: board, stone: stone, roots: only, scoreWindow: scoreWindow)
+        }
 
         // 即勝ち（候補は禁じ手を除いてあるので、黒の 6 連は最初から入っていない）
         for (r, c) in candidates {

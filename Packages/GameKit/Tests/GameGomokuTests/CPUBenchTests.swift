@@ -3,32 +3,58 @@ import Foundation
 import CoreEngine
 @testable import GameGomoku
 
-/// CPU 同士の対局・所要時間の計測（#1399・#1463）。**CI と通常の `swift test` では走らせない**
+/// CPU 同士の対局・探索の計測（#1399）。**CI と通常の `swift test` では走らせない**
 /// （環境変数 `CPU_BENCH=1` を付けたときだけ動く）。
 ///
-/// 確率の根拠になる段階表の対局は、最適化ビルドの単体バイナリで回す（`Scripts/gomoku-cpu-bench`。
-/// `swift test -c release` は通らず、デバッグビルドでは 1 手 2 秒の探索が現実の速さで測れない）。
-/// ここには、デバッグビルドでも回せる小さい確認だけを置く。
-///
 /// 実行例: `CPU_BENCH=1 swift test --package-path Packages/GameKit --filter CPUBenchTests`
+/// （デバッグビルドでは遅いので、対局は `swiftc -O -D GOMOKU_BENCH_STANDALONE` の単体バイナリでも回せる）
 enum CPUBench {
     static var enabled: Bool { ProcessInfo.processInfo.environment["CPU_BENCH"] == "1" }
 }
 
 @Suite("五目並べ CPU の計測（CPU_BENCH=1 のときだけ）", .serialized)
 struct CPUBenchTests {
-    /// 出荷の設定（実時間）で 1 手にかかる時間が、段階の上限を大きく超えないこと（ヒントは「むずかしい」と同じ）。
-    /// デバッグビルドは遅いので余裕を見る。平均・最大・上限で打ち切られた割合の実測は単体バイナリ（`timing`）。
-    @Test(.enabled(if: CPUBench.enabled), .timeLimit(.minutes(30)))
-    func eachMoveStaysWithinItsTimeLimit() async {
-        let board = CPUBenchLadder.opening(seed: 3)
-        for strength in CPUStrength.allCases {
-            let engine = SimpleGomokuEngine(level: strength.rawValue)
-            let t = Date()
-            _ = await engine.bestMove(board: board, stone: .white)
-            let elapsed = Date().timeIntervalSince(t)
-            print("BENCH \(strength.label): \(String(format: "%.2f", elapsed)) 秒（上限 \(engine.timeLimit) 秒）")
-            #expect(elapsed < engine.timeLimit + 1.0, "\(strength.label) が上限を超えた: \(elapsed)")
+    /// 隣り合う段階どうしを先後入れ替えで戦わせ、**上の段階の負けが対局数の 3% 以下**
+    /// であることを確かめる（会長決裁 2026-09-26。引き分けは負けに数えない）。1 組 `CPU_BENCH_OPENINGS`（既定 12）局面 × 先後 = 24 局。
+    @Test(.enabled(if: CPUBench.enabled), .timeLimit(.minutes(240)))
+    func upperStageLosesAtMostThreePercent() async {
+        let openings = Int(ProcessInfo.processInfo.environment["CPU_BENCH_OPENINGS"] ?? "") ?? 12
+        for pair in CPUBenchLadder.pairs {
+            let t = await CPUBenchLadder.run(upperLevel: pair.upper.rawValue, lowerLevel: pair.lower.rawValue,
+                                             openings: openings)
+            print("BENCH \(pair.name): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws)")
+            #expect(Double(t.lowerWins) <= Double(t.games) * 0.03, "\(pair.name): 上の段階が \(t.games) 局中 \(t.lowerWins) 局負けた")
+        }
+    }
+
+    /// 段階ごとの読み（序盤〜中盤の局面での局面数・読み切った深さ）。局面数の上限を決める材料。
+    @Test(.enabled(if: CPUBench.enabled), .timeLimit(.minutes(60)))
+    func nodesAndDepthPerStage() async {
+        var boards: [GomokuBoard] = []
+        for seed in 1...6 {
+            var board = CPUBenchLadder.opening(seed: UInt64(seed))
+            var stone = GomokuStone.black
+            for ply in 0..<30 {
+                if ply % 6 == 5 { boards.append(board) }
+                guard let (r, c) = await SimpleGomokuEngine(level: CPUStrength.easy.rawValue, seed: UInt64(seed * 1000 + ply))
+                    .bestMove(board: board, stone: stone), board[r, c] == nil else { break }
+                board[r, c] = stone
+                if board.checkWin(row: r, col: c) { break }
+                stone = stone.opponent
+            }
+        }
+        for level in [CPUStrength.normal, .hard] {
+            var nodes: [Int] = [], depths: [Int] = []
+            var seconds = 0.0
+            for (i, board) in boards.enumerated() {
+                let stone: GomokuStone = board.cells.filter { $0 != nil }.count % 2 == 0 ? .black : .white
+                let t = Date()
+                let r = SimpleGomokuEngine(level: level.rawValue, seed: UInt64(i)).analyze(board: board, stone: stone)
+                seconds += Date().timeIntervalSince(t)
+                nodes.append(r.nodes); depths.append(r.depth)
+            }
+            nodes.sort(); depths.sort()
+            print("BENCH \(level.label): 局面 \(boards.count) 局面数 中央値 \(nodes[nodes.count / 2]) 最大 \(nodes.last!) / 読み切った深さ 中央値 \(depths[depths.count / 2]) 最小 \(depths.first!) / 平均秒 \(seconds / Double(boards.count))")
         }
     }
 }
