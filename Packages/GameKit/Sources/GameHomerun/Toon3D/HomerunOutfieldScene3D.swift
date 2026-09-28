@@ -24,8 +24,10 @@ enum HomerunOutfieldLayout {
     /// 外野手はフェンスの少し手前（フェンス側へ寄り過ぎない下限も設ける）。
     private static let fielderInFrontOfFence: Double = 4
     private static let fielderMinDistance: Double = 20
-    /// カメラは打球より本塁側（手前）にこの距離だけ離す（近距離の inPlay がカメラの死角に入らないように）。
-    private static let cameraInFrontOfBall: Double = 10
+    /// 外野手の背の高さ（m。頭の上まで画角に収める）。
+    private static let fielderHeight: Double = 2.2
+    /// 画角の縁からこの角度（度）は内側に収める（打球・外野手が画面の端ぎりぎりに映らないように）。
+    private static let frameMargin: Double = 4
 
     /// 本塁を原点・+z をセンターとする世界座標（`HomerunStadium3D.stadium()` と同じ座標系）。
     static func point(direction degrees: Double, distance: Double, height: Double = 0) -> SIMD3<Float> {
@@ -49,13 +51,38 @@ enum HomerunOutfieldLayout {
         let fielderPosition = point(direction: ball.direction, distance: fielderDistance)
         // 本塁の方（打球が飛んできた側）を向く = 外向き（`point` と同じ回転）から180°回す。
         let fielderYaw = Float(ball.direction * .pi / 180) + .pi
-        // 柵の 50m 手前を基本の位置にしつつ、近距離の inPlay（弱いゴロ等）ではそれより本塁側に寄せて
-        // 打球がカメラの死角（後方）に入らないようにする（PR #1484 CodeRabbit 指摘）。
-        let cameraDistance = min(fence - cameraBehindFence, max(renderDistance - cameraInFrontOfBall, 0))
+        // 柵の 50m 手前・柵を注視するのを基本にする。打球が近いと画角（縦 ±16°）に打球・外野手が収まらない
+        // （カメラの真下に落ちる・カメラの後方に入る）ので、収まるまでカメラを本塁側へ 1m ずつ引く。
+        // 本塁まで引いても収まらない近距離の当たりは、打球と外野手が画角の真ん中に来るように注視点を下げる。
+        let subjects: [(d: Double, y: Double)] = [(renderDistance, ballHeight), (fielderDistance, 0), (fielderDistance, fielderHeight)]
+        let fenceTarget = (d: fence, y: targetHeight)
+        var cameraDistance = fence - cameraBehindFence
+        while cameraDistance > 0, !fits(subjects, cameraDistance: cameraDistance, target: fenceTarget) {
+            cameraDistance = max(cameraDistance - 1, 0)
+        }
+        var target = fenceTarget
+        if !fits(subjects, cameraDistance: cameraDistance, target: target) {
+            let angles = subjects.map { depression(from: cameraDistance, to: $0) }
+            let pitch = ((angles.min() ?? 0) + (angles.max() ?? 0)) / 2 * .pi / 180
+            target = (d: renderDistance, y: cameraHeight - (renderDistance - cameraDistance) * tan(pitch))
+        }
         let cameraPosition = point(direction: ball.direction, distance: cameraDistance, height: cameraHeight)
-        let cameraTarget = point(direction: ball.direction, distance: fence, height: targetHeight)
+        let cameraTarget = point(direction: ball.direction, distance: target.d, height: target.y)
         return Shot(ballPosition: ballPosition, fielderPosition: fielderPosition, fielderYaw: fielderYaw,
                     cameraPosition: cameraPosition, cameraTarget: cameraTarget)
+    }
+
+    /// カメラ（本塁から `c`m・高さ `cameraHeight`）から (距離, 高さ) の点を見たときの、水平からの下向きの角度（度）。
+    /// カメラ・注視点・打球・外野手はすべて打球方向の同じ線の上にあるので、縦の画角の判定は 2 次元で足りる。
+    private static func depression(from c: Double, to p: (d: Double, y: Double)) -> Double {
+        atan2(cameraHeight - p.y, p.d - c) * 180 / .pi
+    }
+
+    /// `subjects` のすべてがカメラの前にあり、縦の画角（余白を除く）に収まるか。
+    private static func fits(_ subjects: [(d: Double, y: Double)], cameraDistance c: Double, target: (d: Double, y: Double)) -> Bool {
+        let pitch = depression(from: c, to: target)
+        let limit = Double(verticalFieldOfView) / 2 - frameMargin
+        return subjects.allSatisfy { $0.d > c + 1 && abs(depression(from: c, to: $0) - pitch) <= limit }
     }
 }
 
