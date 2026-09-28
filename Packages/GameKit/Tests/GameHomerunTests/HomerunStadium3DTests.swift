@@ -225,17 +225,17 @@ struct HomerunStadium3DTests {
         #expect(plate.positions.contains { abs($0.x) < 0.01 && abs($0.z + 0.432) < 0.01 }, "本塁の先端が無い")
     }
 
-    @Test("打席シーンの置き方: 右打者は三塁側（センターカメラから見て右）で左肩を投手へ・捕手と審判は本塁の後ろの一塁側・投手はマウンドでカメラに背を向ける")
+    @Test("打席シーンの置き方: 右打者は前のカメラの画面の右（+x）で左肩を投手へ・捕手と審判は本塁の後ろの打者と反対側・投手はマウンドでカメラに背を向ける")
     func atBatLayout() {
         typealias L = HomerunAtBatLayout
-        #expect(L.batter.position.x > 0.5, "右打者は三塁側（+x）の打席に立つ")
+        #expect(L.batter.position.x > 0.5, "右打者は前のカメラの画面の右（+x）に立つ")
         // Meshy の打者は構えで左肩が +x。y 軸まわりに yaw 回すと +x は (cos, 0, -sin) へ向く → 投手（+z）を向くこと。
         let leftShoulder = SIMD3<Float>(cos(L.batter.yaw), 0, -sin(L.batter.yaw))
         #expect(simd_dot(leftShoulder, [0, 0, 1]) > 0.99, "左肩が投手を向いていない")
         let chest = SIMD3<Float>(sin(L.batter.yaw), 0, cos(L.batter.yaw))
         #expect(simd_dot(chest, [-1, 0, 0]) > 0.99, "胸が本塁（-x）を向いていない")
         #expect(L.catcher.position.z < 0 && L.umpire.position.z < L.catcher.position.z, "審判は捕手のさらに後ろ")
-        #expect(L.catcher.position.x < 0 && L.umpire.position.x < 0, "捕手・審判は打者と反対の一塁側へ寄せる")
+        #expect(L.catcher.position.x < 0 && L.umpire.position.x < 0, "捕手・審判は打者と反対側へ寄せる")
         #expect(abs(L.pitcher.position.z - 17.4) < 1e-4 && abs(L.pitcher.position.y - 0.3) < 1e-4, "マウンドの上（高さ 0.3m）")
         #expect(abs(L.pitcher.yaw - .pi) < 1e-6)
         #expect(L.cameraPosition.z > 30 && L.cameraTarget.z < 1, "センターの遠くから本塁を見る")
@@ -264,11 +264,11 @@ struct HomerunStadium3DTests {
         for aspect in [9.0 / 19.5, 9.0 / 16.0] {
             let zone = cam.screenPoint(of: L.zoneWorldCenter, aspect: aspect)
             #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005, "\(preset): ゾーンが (\(zone.x), \(zone.y))")
-            let head = cam.screenPoint(of: [L.batter.position.x, 1.75, L.batter.position.z], aspect: aspect)
-            let feet = cam.screenPoint(of: [L.batter.position.x, 0, L.batter.position.z], aspect: aspect)
+            let head = cam.screenPoint(of: L.worldPoint([0, 1.75, 0], of: L.batter, for: cam), aspect: aspect)
+            let feet = cam.screenPoint(of: L.worldPoint([0, 0, 0], of: L.batter, for: cam), aspect: aspect)
             #expect(head.y > 0.05 && feet.y < 0.95 && head.x > 0.05 && head.x < 0.95, "\(preset): 打者が画面の外（頭 \(head)・足元 \(feet)）")
             // 投手（マウンドの上・頭）も画面の中。
-            let pitcher = cam.screenPoint(of: [L.pitcher.position.x, 2.1, L.pitcher.position.z], aspect: aspect)
+            let pitcher = cam.screenPoint(of: L.worldPoint([0, 1.8, 0], of: L.pitcher, for: cam), aspect: aspect)
             #expect(pitcher.x > 0 && pitcher.x < 1 && pitcher.y > 0 && pitcher.y < 1, "\(preset): 投手が画面の外 \(pitcher)")
         }
         #expect(simd_length(cam.target - cam.position) > 5)
@@ -293,28 +293,29 @@ struct HomerunStadium3DTests {
         let back = L.CameraPreset.back.camera
         for aspect in [9.0 / 19.5, 9.0 / 16.0] {
             func height(_ cam: L.Camera) -> Double {
-                cam.screenPoint(of: [L.batter.position.x, 0, L.batter.position.z], aspect: aspect).y
-                    - cam.screenPoint(of: [L.batter.position.x, 1.75, L.batter.position.z], aspect: aspect).y
+                cam.screenPoint(of: L.worldPoint([0, 0, 0], of: L.batter, for: cam), aspect: aspect).y
+                    - cam.screenPoint(of: L.worldPoint([0, 1.75, 0], of: L.batter, for: cam), aspect: aspect).y
             }
             #expect(height(back) > 2 * height(caseB), "打者の背丈 \(height(back)) / 案 B \(height(caseB))")
             #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
             // 手前の審判・捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
             let zoneRight = 0.5 + Double(HomerunZoneGeometry.zoneSize) / 2 / 375
-            for head: SIMD3<Float> in [[L.umpire.position.x, 1.77, L.umpire.position.z + 0.2], [L.catcher.position.x, 1.53, L.catcher.position.z]] {
+            for head in [L.worldPoint([0, 1.77, 0.2], of: L.umpire, for: back), L.worldPoint([0, 1.53, 0], of: L.catcher, for: back)] {
                 #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "審判・捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
             }
         }
     }
 
-    @Test("後ろのカメラだけ左右反転し、反転しても打者（x < 0）は画面の左半分に映る（HUD の右 = 一塁側に合う）")
+    @Test("後ろのカメラだけ左右反転し（HUD の右 = 一塁側に合う）、右打者は前では画面の右・後ろでは画面の左に映る")
     func rearPresetsAreMirrored() {
         typealias L = HomerunAtBatLayout
         #expect(!L.CameraPreset.front.camera.mirrored && L.CameraPreset.back.camera.mirrored)
         for preset in L.CameraPreset.allCases {
             let cam = preset.camera
-            let batter = cam.screenPoint(of: [L.batter.position.x, 1, L.batter.position.z], aspect: 0.5)
+            let batter = cam.screenPoint(of: L.worldPoint([0, 1, 0], of: L.batter, for: cam), aspect: 0.5)
             let firstBase = cam.screenPoint(of: [19.4, 0, 19.4], aspect: 0.5)
-            #expect(batter.x < 0.5, "\(preset): 打者が画面の右半分に映る")
+            // 右打者は前（センター側から見る）では画面の右、後ろ（本塁の後ろから見る）では画面の左に立つのが本来の見え方。
+            #expect(preset == .front ? batter.x > 0.5 : batter.x < 0.5, "\(preset): 打者が \(batter.x)")
             #expect(firstBase.x > 0.5, "\(preset): 一塁側（+x）が画面の左に映り、方向メーターの右と食い違う")
         }
         // 反転は x だけ（y はそのまま）。
@@ -323,6 +324,28 @@ struct HomerunStadium3DTests {
         cam.mirrored = true
         let after = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
         #expect(abs(before.x + after.x - 1) < 1e-9 && before.y == after.y)
+    }
+
+    // 後ろのカメラは描画を左右反転するので、人物を鏡映しないと右打ちの Meshy の打者が左打ちに見える。
+    // 画面に映った打者の「胸・上・左肩」の 3 本の向きの掌性（行列式の符号）が前と後ろで同じ = 同じ右打ちに見えること。
+    @Test("後ろのカメラでも打者は前と同じ右打ちに見える（左右反転の描画を人物の鏡映で打ち消す）")
+    func batterKeepsHandednessOnScreen() {
+        typealias L = HomerunAtBatLayout
+        func handedness(_ cam: L.Camera) -> Float {
+            let forward = simd_normalize(cam.target - cam.position)
+            let right = simd_normalize(simd_cross(forward, [0, 1, 0]))
+            let up = simd_cross(right, forward)
+            func onScreen(_ local: SIMD3<Float>) -> SIMD3<Float> {
+                let v = L.worldPoint(local, of: L.batter, for: cam) - L.worldPoint([0, 1, 0], of: L.batter, for: cam)
+                return [simd_dot(v, right) * (cam.mirrored ? -1 : 1), simd_dot(v, up), simd_dot(v, forward)]
+            }
+            // Meshy の打者の局所座標: 胸 = +z・左肩 = +x・上 = +y。
+            let chest = onScreen([0, 1, 1]), leftShoulder = onScreen([1, 1, 0]), head = onScreen([0, 2, 0])
+            return simd_dot(chest, simd_cross(head, leftShoulder))
+        }
+        let front = handedness(L.CameraPreset.front.camera), back = handedness(L.CameraPreset.back.camera)
+        #expect(abs(front) > 0.5 && front * back > 0, "前 \(front)・後ろ \(back) で掌性が逆（後ろで左打ちに見える）")
+        #expect(!L.castMirrored(for: L.CameraPreset.front.camera) && L.castMirrored(for: L.CameraPreset.back.camera))
     }
 
     @Test("前のカメラは以前のセンターカメラと同じ位置・注視点・画角のまま（既定の見た目を変えない）")
