@@ -37,6 +37,7 @@ struct HomerunAtBatView: View {
                         HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                              batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
                                              pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
+                                             cameraPreset: model.atBatCamera,
                                              batterMotion: batterMotion(at: now))
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
@@ -69,6 +70,11 @@ struct HomerunAtBatView: View {
                     }
                     touchPad(height: padHeight)
                         .frame(maxHeight: .infinity, alignment: .bottom)
+                    // 「⋯」は押せる帯（下 1/3）のすぐ上の右端に置く（帯の中に置くと押す指と取り合う。ゾーンは横の中央なので重ならない）。
+                    GameControlMenu(items: Self.menuItems(for: model))
+                        .padding(.trailing, Theme.pad)
+                        .padding(.bottom, padHeight + 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
             }
         }
@@ -80,6 +86,16 @@ struct HomerunAtBatView: View {
             try? await Task.sleep(for: .seconds(Self.swingShowDuration))
             guard !Task.isCancelled else { return }
             withGameAnimation(.easeOut(duration: 0.2)) { swingShown = true }
+        }
+    }
+
+    /// 「⋯」メニューの項目: カメラの前 / 後ろ（チェック付きの 2 択・#1506）。選ぶのは見た目だけで、投球中でも判定・座標は変えない。
+    static func menuItems(for model: HomerunModel) -> [GameControlMenuItem] {
+        HomerunAtBatLayout.CameraPreset.allCases.map { preset in
+            GameControlMenuItem(id: "camera.\(preset.rawValue)", title: preset.title, systemImage: "video",
+                                isChecked: model.atBatCamera == preset) {
+                model.atBatCamera = preset
+            }
         }
     }
 
@@ -217,11 +233,13 @@ struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
+    var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
     var batterMotion: HomerunBatterMotion = .stance
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, batterMotion: batterMotion).ignoresSafeArea()
+        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset,
+                                batterMotion: batterMotion).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
         #endif

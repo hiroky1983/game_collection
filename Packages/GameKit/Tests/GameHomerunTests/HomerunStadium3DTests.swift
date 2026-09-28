@@ -15,7 +15,7 @@ struct HomerunStadium3DTests {
         let colors = stadium.parts.map(\.color)
         #expect(Set(colors).count == colors.count, "同じ色の部品が分かれている")
         #expect(stadium.parts.allSatisfy { $0.outline == nil && !$0.striped })
-        #expect(stadium.parts.count < 40, "実体が \(stadium.parts.count) 個ある（客席が色ごとにまとまっていない）")
+        #expect(stadium.parts.count < 48, "実体が \(stadium.parts.count) 個ある（客席が色ごとにまとまっていない）")
         for part in stadium.parts {
             let m = part.mesh
             #expect(m.indices.count % 3 == 0 && m.indices.allSatisfy { Int($0) < m.positions.count })
@@ -37,13 +37,148 @@ struct HomerunStadium3DTests {
         #expect(HomerunJudge.fence(atDirection: 0) == 122 && abs(HomerunJudge.fence(atDirection: 45) - 100) < 1e-9)
     }
 
-    @Test("球場は地面（y ≒ 0）から客席の最上段までで、本塁の後ろにも客席がある")
+    @Test("球場は地面（y ≒ 0）から雲までで、本塁の後ろにも客席がある")
     func stadiumExtent() {
         let ys = allPositions.map(\.y)
         #expect(ys.min()! >= -0.03)
-        #expect(ys.max()! < 20)
+        #expect(ys.max()! < 100)
         #expect(allPositions.contains { $0.z < -20 && $0.y > 5 }, "本塁の後ろのスタンドが無い")
         #expect(allPositions.contains { $0.z > 110 }, "外野スタンドが無い")
+    }
+
+    private func positions(of color: UInt32) -> [SIMD3<Float>] {
+        stadium.parts.first { $0.color == color }?.mesh.positions ?? []
+    }
+
+    @Test("スタンドは 1 周つながる: 両翼（60°〜120°）と外野・バックネット裏のどこにも下段・上段の座席がある")
+    func standsWrapAround() {
+        typealias S = HomerunToonModel.StadiumColor
+        let lower = (0..<S.crowd.count).flatMap { positions(of: S.mutedCrowd($0, fraction: S.lowerTierMute)) }
+        let upper = (0..<S.crowd.count).flatMap { positions(of: S.mutedCrowd($0, fraction: S.upperTierMute)) }
+        #expect(!lower.isEmpty && !upper.isEmpty)
+        func direction(_ p: SIMD3<Float>) -> Double { atan2(Double(p.x), Double(p.z)) * 180 / .pi }
+        for deg in stride(from: -170.0, through: 170.0, by: 20) where abs(deg) >= 8 {
+            #expect(lower.contains { abs(direction($0) - deg) < 5 }, "\(deg)° に下段の座席が無い")
+            #expect(upper.contains { abs(direction($0) - deg) < 5 }, "\(deg)° に上段の座席が無い")
+        }
+        // 上段は下段より高く・奥にある（段差）。
+        let topOfLower = lower.map(\.y).max()!, bottomOfUpper = upper.map(\.y).min()!
+        #expect(bottomOfUpper > topOfLower - 0.5, "上段（\(bottomOfUpper)）が下段の最上列（\(topOfLower)）より低い")
+        #expect(HomerunToonModel.Stand.depth(row: HomerunToonModel.Stand.lowerRows) - HomerunToonModel.Stand.depth(row: HomerunToonModel.Stand.lowerRows - 1) > 3,
+                "上段の前に通路が無い")
+        // 中堅（|θ| < 6°）はバックスクリーンで、座席は置かない。
+        #expect(!lower.contains { abs(direction($0)) < 3 && $0.z > 100 }, "バックスクリーンの位置に座席がある")
+        // 箱の頂点は角だけなので、幅 26m の板の角（x = ±13）で見る。
+        #expect(positions(of: S.battersEye).contains { abs(abs($0.x) - 13) < 0.01 && $0.z > 120 && $0.y > 14 }, "バックスクリーンが無い")
+    }
+
+    @Test("スタンドの周回: 区間は -180° から 180° をちょうど埋め、各区間はその位置の座席 1 つ分以下（最後は切り詰め）で、箱の幅も区間に合わせる")
+    func standSweepCoversTheLoopOnce() {
+        typealias M = HomerunToonModel
+        for depth: Float in [2, 13.6, 25.3] {
+            let segments = M.standSweep(depth: depth, size: 1.5)
+            #expect(segments.first?.deg == -180)
+            let sum = segments.reduce(0.0) { $0 + $1.step }
+            #expect(abs(sum - 360) < 1e-9, "区間の合計が \(sum)°")
+            #expect(abs((segments.last!.deg + segments.last!.step) - 180) < 1e-9)
+            for seg in segments {
+                let nominal = Double(1.5 / M.standFront(seg.deg, depth: depth)) * 180 / .pi
+                #expect(seg.step <= nominal + 1e-9 && seg.step > 0)
+            }
+            // 区間は重ならず隙間もない（次の始点 = 前の始点 + 幅）。
+            for (a, b) in zip(segments, segments.dropFirst()) {
+                #expect(abs(a.deg + a.step - b.deg) < 1e-9)
+            }
+        }
+        // 最後の区間の箱は区間の長さに切り詰める（1 周の継ぎ目で -180° の最初の座席と重ねない）。座席の箱の x 幅は 1.5m 以下。
+        typealias S = M.StadiumColor
+        let lower = (0..<S.crowd.count).flatMap { color -> [SIMD3<Float>] in
+            stadium.parts.first { $0.color == S.mutedCrowd(color, fraction: S.lowerTierMute) }?.mesh.positions ?? []
+        }
+        let seam = lower.filter { abs($0.x) < 3 && $0.z < -17 && $0.z > -19 && abs($0.y - 0.45) < 0.01 }.map(\.x).sorted()
+        #expect(seam.count >= 8, "継ぎ目の座席が見つからない")
+        // 隣り合う箱の縁（頂点が 0.1m 未満に固まる）を数え、縁と縁の間隔は座席の幅 1.5m を超えない。
+        var edges: [Float] = []
+        for x in seam where edges.last.map({ x - $0 > 0.1 }) ?? true { edges.append(x) }
+        for (a, b) in zip(edges, edges.dropFirst()) { #expect(b - a <= 1.5 + 0.01, "縁の間隔 \(b - a)") }
+    }
+
+    @Test("スタンドの前縁: 外野は柵の 2m 外・バックネット裏は 16m・両翼はファウルラインの 16m 外側の直線で、弧と直線がつながる")
+    func standFront() {
+        typealias M = HomerunToonModel
+        #expect(abs(Double(M.standFront(0, depth: 0)) - 124) < 1e-3)
+        #expect(abs(Double(M.standFront(180, depth: 0)) - 16) < 1e-3 && abs(Double(M.standFront(-150, depth: 5)) - 21) < 1e-3)
+        // 90°（一塁線の真横）: ファウルラインからの垂直距離 16m → 本塁から 16/sin45° = 22.6m。
+        #expect(abs(Double(M.standFront(90, depth: 0)) - 16 / sin(Double.pi / 4)) < 1e-3)
+        // 135° で直線と本塁の弧が一致し、46° 付近で直線は柵の弧に切り替わる（弧より外へは出ない）。
+        #expect(abs(M.standFront(135, depth: 3) - M.standFront(136, depth: 3)) < 0.05)
+        #expect(M.standFront(50, depth: 0) <= Float(HomerunJudge.fence(atDirection: 46)) + 2 + 1e-3)
+        // 奥の列ほど外へ（両翼は垂直距離が増えるので本塁からの距離はより速く増える）。
+        #expect(M.standFront(100, depth: 10) > M.standFront(100, depth: 0) + 10)
+    }
+
+    @Test("設備: 照明塔 4 基（灯体は 30m より上）・スコアボード（中堅の奥・16m より上）・ファウルポール（両翼 100m の柵の上・20m）")
+    func facilities() {
+        typealias S = HomerunToonModel.StadiumColor
+        let lamps = positions(of: S.lamp).filter { $0.y > 30 }
+        #expect(!lamps.isEmpty)
+        for (x, z) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+            #expect(lamps.contains { Double($0.x) * x > 20 && Double($0.z) * z > 5 }, "(\(x), \(z)) の象限に照明塔が無い")
+        }
+        #expect(positions(of: S.screen).contains { abs(abs($0.x) - 12) < 0.01 && $0.z > 145 && $0.y > 16 }, "スコアボードが無い")
+        // 灯体（幅 10m の箱）は幅の向きが円の接線 = 面がホームを向く: 外野右の塔（36°）の角は接線 (cos36°, -sin36°) 方向に ±5m。
+        let lamp36 = lamps.filter { $0.x > 20 && $0.z > 5 && $0.y > 40 }
+        let r36 = HomerunJudge.fence(atDirection: 36) + 30, a36 = 36.0 * .pi / 180
+        let center36 = SIMD2(Float(r36 * sin(a36)), Float(r36 * cos(a36)))
+        let tangent = SIMD2(Float(cos(a36)), Float(-sin(a36)))
+        #expect(lamp36.contains { simd_length(SIMD2($0.x, $0.z) - (center36 + tangent * 5)) < 1.0 }, "灯体の面がホームを向いていない（yaw の符号）")
+        // バックネット裏の壁も接線向き（180° の板の幅は x 方向）。
+        let wall = positions(of: HomerunToonModel.StadiumColor.backWall)
+        #expect(wall.contains { abs($0.x - 0.5) < 0.01 && abs($0.z + 14.5) < 0.25 }, "バックネット裏の壁が接線を向いていない")
+        let yellow = positions(of: HomerunToonPalette.yellow)
+        let r = 100 * sin(Double.pi / 4)
+        for s in [-1.0, 1.0] {
+            #expect(yellow.contains { abs(Double($0.x) - s * r) < 1 && abs(Double($0.z) - r) < 1 && $0.y > 19 }, "\(s > 0 ? "右" : "左")翼のファウルポールが無い")
+        }
+    }
+
+    @Test("内野: 土の弧の上にダイヤモンドの内側とファウルラインの外側の芝が戻り、走路は 4 辺ある")
+    func infieldDirtAndGrass() {
+        typealias S = HomerunToonModel.StadiumColor
+        let grass = positions(of: S.grass), dirt = positions(of: S.dirt)
+        // 土の弧（マウンド中心・半径 29m）の頂点。
+        #expect(dirt.contains { abs(Double($0.z) - (18.44 + 29)) < 0.5 && abs($0.x) < 0.5 })
+        // 箱の頂点は角だけ。ダイヤモンドの内側の芝（走路の内側に 25.5m 角）は二塁側の角 (0, 19.4 + 25.5/√2) が土より上（y ≥ 0.02）。
+        let diamondTip = 19.4 + 25.5 / Float(2).squareRoot()
+        #expect(grass.contains { abs($0.x) < 0.01 && abs($0.z - diamondTip) < 0.01 && $0.y >= 0.02 }, "ダイヤモンドの内側の芝が無い・土より下にある")
+        // ファウルラインの外側の芝は本塁の後ろ（z < -20）まで届き、縞（y ≤ 0）より上にある。
+        #expect(grass.contains { $0.z < -20 && $0.y >= 0.02 }, "ファウル側の芝が無い")
+        // 一塁→二塁・三塁→二塁の走路: 一塁側の端の内側の角 (±18.72, 18.74)（本塁→一塁の走路の角 (±20.06, 18.72) とは別）。
+        for s: Float in [-1, 1] {
+            #expect(dirt.contains { abs($0.x - s * 18.72) < 0.05 && abs($0.z - 18.74) < 0.05 && $0.y >= 0.04 }, "塁間の走路が無い")
+        }
+    }
+
+    @Test("遠景（街並み・雲）は陰影なし（shade = 1）で、スタンドの外（220m 以遠）にある")
+    func skylineIsFlatAndFar() {
+        typealias S = HomerunToonModel.StadiumColor
+        for color in [S.skylineNear, S.skylineFar, S.cloud] {
+            let part = stadium.parts.first { $0.color == color }
+            #expect(part != nil, "\(String(color, radix: 16)) が無い")
+            guard let part else { continue }
+            #expect(part.mesh.shade.allSatisfy { $0 == 1 })
+            #expect(part.mesh.positions.allSatisfy { simd_length(SIMD2($0.x, $0.z)) > 200 })
+        }
+        // 球場の本体（座席）は陰影が付く。
+        let seat = stadium.parts.first { $0.color == S.mutedCrowd(0, fraction: S.lowerTierMute) }!
+        #expect(seat.mesh.shade.contains { $0 < 0.5 })
+    }
+
+    @Test("三角形の数は 20 万未満（古い端末で 60fps を保つ予算）")
+    func triangleBudget() {
+        let triangles = stadium.parts.reduce(0) { $0 + $1.mesh.indices.count / 3 }
+        #expect(triangles < 200_000, "三角形が \(triangles) 個")
+        #expect(triangles > 40_000, "球場が薄すぎる（\(triangles) 個）")
     }
 
     @Test("merged は輪郭線つきの部品を分けたまま残し、頂点数の合計を変えない")
@@ -90,17 +225,17 @@ struct HomerunStadium3DTests {
         #expect(plate.positions.contains { abs($0.x) < 0.01 && abs($0.z + 0.432) < 0.01 }, "本塁の先端が無い")
     }
 
-    @Test("打席シーンの置き方: 右打者は三塁側（センターカメラから見て右）で左肩を投手へ・捕手と審判は本塁の後ろの一塁側・投手はマウンドでカメラに背を向ける")
+    @Test("打席シーンの置き方: 右打者は前のカメラの画面の右（+x）で左肩を投手へ・捕手と審判は本塁の後ろの打者と反対側・投手はマウンドでカメラに背を向ける")
     func atBatLayout() {
         typealias L = HomerunAtBatLayout
-        #expect(L.batter.position.x > 0.5, "右打者は三塁側（+x）の打席に立つ")
+        #expect(L.batter.position.x > 0.5, "右打者は前のカメラの画面の右（+x）に立つ")
         // Meshy の打者は構えで左肩が +x。y 軸まわりに yaw 回すと +x は (cos, 0, -sin) へ向く → 投手（+z）を向くこと。
         let leftShoulder = SIMD3<Float>(cos(L.batter.yaw), 0, -sin(L.batter.yaw))
         #expect(simd_dot(leftShoulder, [0, 0, 1]) > 0.99, "左肩が投手を向いていない")
         let chest = SIMD3<Float>(sin(L.batter.yaw), 0, cos(L.batter.yaw))
         #expect(simd_dot(chest, [-1, 0, 0]) > 0.99, "胸が本塁（-x）を向いていない")
         #expect(L.catcher.position.z < 0 && L.umpire.position.z < L.catcher.position.z, "審判は捕手のさらに後ろ")
-        #expect(L.catcher.position.x < 0 && L.umpire.position.x < 0, "捕手・審判は打者と反対の一塁側へ寄せる")
+        #expect(L.catcher.position.x < 0 && L.umpire.position.x < 0, "捕手・審判は打者と反対側へ寄せる")
         #expect(abs(L.pitcher.position.z - 17.4) < 1e-4 && abs(L.pitcher.position.y - 0.3) < 1e-4, "マウンドの上（高さ 0.3m）")
         #expect(abs(L.pitcher.yaw - .pi) < 1e-6)
         #expect(L.cameraPosition.z > 30 && L.cameraTarget.z < 1, "センターの遠くから本塁を見る")
@@ -119,6 +254,129 @@ struct HomerunStadium3DTests {
         let feet = L.screenFraction(of: [L.batter.position.x, 0, L.batter.position.z])
         #expect(head > 0.05 && feet < 0.95, "打者が画面の外（頭 \(head)・足元 \(feet)）")
         #expect(L.zoneScreenFraction + 0.2 < 2.0 / 3, "ゾーンの下端が押せる帯（下 1/3）に食い込む")
+    }
+
+    @Test("カメラ（前・後ろ）はどちらもストライクゾーンの中心を画面の横の中央・高さ 45% に映し、打者の頭と足元が画面に収まる",
+          arguments: HomerunAtBatLayout.CameraPreset.allCases)
+    func presetsKeepZoneWhereTheHUDIs(preset: HomerunAtBatLayout.CameraPreset) {
+        typealias L = HomerunAtBatLayout
+        let cam = preset.camera
+        for aspect in [9.0 / 19.5, 9.0 / 16.0] {
+            let zone = cam.screenPoint(of: L.zoneWorldCenter, aspect: aspect)
+            #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005, "\(preset): ゾーンが (\(zone.x), \(zone.y))")
+            let head = cam.screenPoint(of: L.worldPoint([0, 1.75, 0], of: L.batter, for: cam), aspect: aspect)
+            let feet = cam.screenPoint(of: L.worldPoint([0, 0, 0], of: L.batter, for: cam), aspect: aspect)
+            #expect(head.y > 0.05 && feet.y < 0.95 && head.x > 0.05 && head.x < 0.95, "\(preset): 打者が画面の外（頭 \(head)・足元 \(feet)）")
+            // 投手（マウンドの上・頭）も画面の中。
+            let pitcher = cam.screenPoint(of: L.worldPoint([0, 1.8, 0], of: L.pitcher, for: cam), aspect: aspect)
+            #expect(pitcher.x > 0 && pitcher.x < 1 && pitcher.y > 0 && pitcher.y < 1, "\(preset): 投手が画面の外 \(pitcher)")
+        }
+        #expect(simd_length(cam.target - cam.position) > 5)
+    }
+
+    @Test("aimed は指定の点を画面の (0.5, yFraction) に置き、位置と画角は変えない")
+    func aimedCamera() {
+        let anchor: SIMD3<Float> = [1, 0.9, 0]
+        for (position, fov, y) in [(SIMD3<Float>(8, 10, 40), Float(14), 0.45), ([-3, 6, -12], 45, 0.3), ([0, 2, 20], 30, 0.6)] {
+            let cam = HomerunAtBatLayout.Camera.aimed(from: position, at: anchor, yFraction: y, verticalFieldOfView: fov)
+            let p = cam.screenPoint(of: anchor, aspect: 0.5)
+            #expect(abs(p.x - 0.5) < 1e-4 && abs(p.y - y) < 1e-4, "\(p)")
+            #expect(cam.position == position && cam.verticalFieldOfView == fov)
+        }
+    }
+
+    @Test("後ろのカメラは打者を検討時の案 B（14m 後ろ・高さ 7m・54°）より 2 倍以上大きく、本塁を画面のより下（手前）に映す")
+    func backCameraBringsTheBoxCloser() {
+        typealias L = HomerunAtBatLayout
+        let caseB = L.Camera.aimed(from: [0.5, 7, -14], at: L.zoneWorldCenter, yFraction: L.zoneScreenFraction,
+                                   verticalFieldOfView: 54, mirrored: true)
+        let back = L.CameraPreset.back.camera
+        for aspect in [9.0 / 19.5, 9.0 / 16.0] {
+            func height(_ cam: L.Camera) -> Double {
+                cam.screenPoint(of: L.worldPoint([0, 0, 0], of: L.batter, for: cam), aspect: aspect).y
+                    - cam.screenPoint(of: L.worldPoint([0, 1.75, 0], of: L.batter, for: cam), aspect: aspect).y
+            }
+            #expect(height(back) > 2 * height(caseB), "打者の背丈 \(height(back)) / 案 B \(height(caseB))")
+            #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
+            // 手前の審判・捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
+            let zoneRight = 0.5 + Double(HomerunZoneGeometry.zoneSize) / 2 / 375
+            for head in [L.worldPoint([0, 1.77, 0.2], of: L.umpire, for: back), L.worldPoint([0, 1.53, 0], of: L.catcher, for: back)] {
+                #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "審判・捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
+            }
+        }
+    }
+
+    @Test("後ろのカメラだけ左右反転し（HUD の右 = 一塁側に合う）、右打者は前では画面の右・後ろでは画面の左に映る")
+    func rearPresetsAreMirrored() {
+        typealias L = HomerunAtBatLayout
+        #expect(!L.CameraPreset.front.camera.mirrored && L.CameraPreset.back.camera.mirrored)
+        for preset in L.CameraPreset.allCases {
+            let cam = preset.camera
+            let batter = cam.screenPoint(of: L.worldPoint([0, 1, 0], of: L.batter, for: cam), aspect: 0.5)
+            let firstBase = cam.screenPoint(of: [19.4, 0, 19.4], aspect: 0.5)
+            // 右打者は前（センター側から見る）では画面の右、後ろ（本塁の後ろから見る）では画面の左に立つのが本来の見え方。
+            #expect(preset == .front ? batter.x > 0.5 : batter.x < 0.5, "\(preset): 打者が \(batter.x)")
+            #expect(firstBase.x > 0.5, "\(preset): 一塁側（+x）が画面の左に映り、方向メーターの右と食い違う")
+        }
+        // 反転は x だけ（y はそのまま）。
+        var cam = L.CameraPreset.front.camera
+        let before = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
+        cam.mirrored = true
+        let after = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
+        #expect(abs(before.x + after.x - 1) < 1e-9 && before.y == after.y)
+    }
+
+    // 後ろのカメラは描画を左右反転するので、人物を鏡映しないと右打ちの Meshy の打者が左打ちに見える。
+    // 画面に映った打者の「胸・上・左肩」の 3 本の向きの掌性（行列式の符号）が前と後ろで同じ = 同じ右打ちに見えること。
+    @Test("後ろのカメラでも打者は前と同じ右打ちに見える（左右反転の描画を人物の鏡映で打ち消す）")
+    func batterKeepsHandednessOnScreen() {
+        typealias L = HomerunAtBatLayout
+        func handedness(_ cam: L.Camera) -> Float {
+            let forward = simd_normalize(cam.target - cam.position)
+            let right = simd_normalize(simd_cross(forward, [0, 1, 0]))
+            let up = simd_cross(right, forward)
+            func onScreen(_ local: SIMD3<Float>) -> SIMD3<Float> {
+                let v = L.worldPoint(local, of: L.batter, for: cam) - L.worldPoint([0, 1, 0], of: L.batter, for: cam)
+                return [simd_dot(v, right) * (cam.mirrored ? -1 : 1), simd_dot(v, up), simd_dot(v, forward)]
+            }
+            // Meshy の打者の局所座標: 胸 = +z・左肩 = +x・上 = +y。
+            let chest = onScreen([0, 1, 1]), leftShoulder = onScreen([1, 1, 0]), head = onScreen([0, 2, 0])
+            return simd_dot(chest, simd_cross(head, leftShoulder))
+        }
+        let front = handedness(L.CameraPreset.front.camera), back = handedness(L.CameraPreset.back.camera)
+        #expect(abs(front) > 0.5 && front * back > 0, "前 \(front)・後ろ \(back) で掌性が逆（後ろで左打ちに見える）")
+        #expect(!L.castMirrored(for: L.CameraPreset.front.camera) && L.castMirrored(for: L.CameraPreset.back.camera))
+    }
+
+    // 描画は反転（UIView の scaleX -1）と人物の鏡映の代わりに、カメラを x について鏡映して反転なしで描く
+    // （人物を鏡映すると三角形の表裏が逆になり、iOS 17 では輪郭線が体を覆って真っ黒になった）。同じ画になること。
+    @Test("後ろのカメラの描画（鏡映したカメラ・反転なし）は、人物を鏡映して反転した投影（screenPoint）と同じ画になる",
+          arguments: HomerunAtBatLayout.CameraPreset.allCases)
+    func renderPoseMatchesMirroredProjection(preset: HomerunAtBatLayout.CameraPreset) {
+        typealias L = HomerunAtBatLayout
+        let cam = preset.camera
+        let pose = cam.renderPose
+        let rendered = L.Camera(position: pose.position, target: pose.target, verticalFieldOfView: cam.verticalFieldOfView)
+        for p in [L.batter, L.catcher, L.umpire, L.pitcher] {
+            for local: SIMD3<Float> in [[0, 0, 0], [0.3, 1.2, 0.2], [-0.2, 1.7, -0.1]] {
+                // 描画される世界の点（人物は鏡映しない）。
+                let drawn = p.position + simd_quatf(angle: p.yaw, axis: [0, 1, 0]).act(local)
+                let a = rendered.screenPoint(of: drawn, aspect: 0.5)
+                let b = cam.screenPoint(of: L.worldPoint(local, of: p, for: cam), aspect: 0.5)
+                #expect(abs(a.x - b.x) < 1e-5 && abs(a.y - b.y) < 1e-5, "\(preset): \(a) と \(b)")
+            }
+        }
+        // 球場（左右対称）の点は鏡映した点どうしが対応する（ゾーンの中心は同じ所に映る）。
+        let zone = rendered.screenPoint(of: L.zoneWorldCenter, aspect: 0.5)
+        #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005)
+    }
+
+    @Test("前のカメラは以前のセンターカメラと同じ位置・注視点・画角のまま（既定の見た目を変えない）")
+    func centerPresetUnchanged() {
+        #expect(HomerunAtBatLayout.CameraPreset.allCases == [.front, .back], "選べるのは前・後ろの 2 つだけ")
+        let cam = HomerunAtBatLayout.CameraPreset.front.camera
+        #expect(cam.position == [0, 6, 43] && cam.target == [0, 0.57, 0.3] && cam.verticalFieldOfView == 9.6)
+        #expect(HomerunAtBatLayout.cameraPosition == cam.position && HomerunAtBatLayout.verticalFieldOfView == 9.6)
     }
 }
 

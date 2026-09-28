@@ -186,4 +186,62 @@ struct HomerunGeometryTests {
         let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
         #expect(atBat.contains("model.showsDirectionMeter"))
     }
+
+    @Test("打席のカメラは既定で前。後ろに切り替えると保存され、次のモデルに引き継がれる")
+    @MainActor func atBatCameraPreference() {
+        let suite = "asobiba.homerun.camera.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let first = HomerunModel(defaults: defaults)
+        #expect(first.atBatCamera == .front)
+        first.atBatCamera = .back
+        #expect(defaults.string(forKey: HomerunModel.atBatCameraKey) == "back")
+        #expect(HomerunModel(defaults: defaults).atBatCamera == .back)
+        first.atBatCamera = .front
+        #expect(HomerunModel(defaults: defaults).atBatCamera == .front)
+        // 知らない値（将来の案を消したときなど）は前に戻す。
+        defaults.set("broadcastHigh", forKey: HomerunModel.atBatCameraKey)
+        #expect(HomerunModel(defaults: defaults).atBatCamera == .front)
+    }
+
+    @Test("打席の「⋯」はカメラの前 / 後ろのチェック付き 2 択で、選んだ方にだけチェックが付く")
+    @MainActor func atBatMenuHasCameraChoices() {
+        let suite = "asobiba.homerun.menu.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let model = HomerunModel(defaults: defaults)
+        var items = HomerunAtBatView.menuItems(for: model)
+        #expect(items.map(\.title) == ["カメラ: 前", "カメラ: 後ろ"])
+        #expect(items.map(\.isChecked) == [true, false])
+        items[1].action()
+        #expect(model.atBatCamera == .back)
+        items = HomerunAtBatView.menuItems(for: model)
+        #expect(items.map(\.isChecked) == [false, true])
+        items[0].action()
+        #expect(model.atBatCamera == .front)
+    }
+
+    @Test("投球中にカメラを切り替えても、球・カーソル・進行は変わらない（見た目だけ）")
+    @MainActor func switchingCameraMidPitchKeepsThePlay() {
+        let suite = "asobiba.homerun.switch.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let model = HomerunModel(defaults: defaults)
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        #expect(model.start(now: now))
+        model.press(at: CGPoint(x: 100, y: 100))
+        model.drag(to: CGPoint(x: 120, y: 90))
+        let before = (model.phase, model.step, model.cursor, model.ballPoint, model.pitchStart, model.pitchNumber, model.ledger)
+        model.atBatCamera = .back
+        #expect(model.phase == before.0 && model.step == before.1 && model.cursor == before.2)
+        #expect(model.ballPoint == before.3 && model.pitchStart == before.4 && model.pitchNumber == before.5 && model.ledger == before.6)
+        #expect(model.isHolding)
+    }
+
+    @Test("打席の画面は「⋯」を共通の部品（GameControlMenu）で出し、カメラはモデルの設定から読む")
+    func atBatUsesSharedMenu() throws {
+        let atBat = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameHomerun/HomerunAtBatView.swift"))
+        #expect(atBat.contains("GameControlMenu(items: Self.menuItems(for: model))"))
+        #expect(atBat.contains("cameraPreset: model.atBatCamera"))
+    }
 }
