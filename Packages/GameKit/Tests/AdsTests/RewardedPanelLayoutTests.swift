@@ -15,6 +15,13 @@ struct RewardedPanelLayoutTests {
         #expect(RewardedPanelLayout.contentPadding > 0)
     }
 
+    /// 既定値が定数を指していないと、上書きしない 2048・ブロックならべの余白が元の 0 に戻る。
+    @Test("幕の内側余白の既定値は共通の定数を指す")
+    func overlayDefaultPointsToSharedConstant() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/RewardedRescue.swift"))
+        #expect(code.contains("contentPadding: CGFloat = RewardedPanelLayout.contentPadding"))
+    }
+
     /// 余白を上書きしている面は、共通の値からずれていく。共通部品を使う面は既定値に任せる。
     @Test("共通の幕を使う面は余白を上書きしない",
           arguments: ["Game2048", "GameBlockPuzzle", "GameSudoku", "GameFruits"])
