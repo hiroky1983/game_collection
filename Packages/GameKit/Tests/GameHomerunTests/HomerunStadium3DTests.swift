@@ -348,6 +348,29 @@ struct HomerunStadium3DTests {
         #expect(!L.castMirrored(for: L.CameraPreset.front.camera) && L.castMirrored(for: L.CameraPreset.back.camera))
     }
 
+    // 描画は反転（UIView の scaleX -1）と人物の鏡映の代わりに、カメラを x について鏡映して反転なしで描く
+    // （人物を鏡映すると三角形の表裏が逆になり、iOS 17 では輪郭線が体を覆って真っ黒になった）。同じ画になること。
+    @Test("後ろのカメラの描画（鏡映したカメラ・反転なし）は、人物を鏡映して反転した投影（screenPoint）と同じ画になる",
+          arguments: HomerunAtBatLayout.CameraPreset.allCases)
+    func renderPoseMatchesMirroredProjection(preset: HomerunAtBatLayout.CameraPreset) {
+        typealias L = HomerunAtBatLayout
+        let cam = preset.camera
+        let pose = cam.renderPose
+        let rendered = L.Camera(position: pose.position, target: pose.target, verticalFieldOfView: cam.verticalFieldOfView)
+        for p in [L.batter, L.catcher, L.umpire, L.pitcher] {
+            for local: SIMD3<Float> in [[0, 0, 0], [0.3, 1.2, 0.2], [-0.2, 1.7, -0.1]] {
+                // 描画される世界の点（人物は鏡映しない）。
+                let drawn = p.position + simd_quatf(angle: p.yaw, axis: [0, 1, 0]).act(local)
+                let a = rendered.screenPoint(of: drawn, aspect: 0.5)
+                let b = cam.screenPoint(of: L.worldPoint(local, of: p, for: cam), aspect: 0.5)
+                #expect(abs(a.x - b.x) < 1e-5 && abs(a.y - b.y) < 1e-5, "\(preset): \(a) と \(b)")
+            }
+        }
+        // 球場（左右対称）の点は鏡映した点どうしが対応する（ゾーンの中心は同じ所に映る）。
+        let zone = rendered.screenPoint(of: L.zoneWorldCenter, aspect: 0.5)
+        #expect(abs(zone.x - 0.5) < 0.005 && abs(zone.y - L.zoneScreenFraction) < 0.005)
+    }
+
     @Test("前のカメラは以前のセンターカメラと同じ位置・注視点・画角のまま（既定の見た目を変えない）")
     func centerPresetUnchanged() {
         #expect(HomerunAtBatLayout.CameraPreset.allCases == [.front, .back], "選べるのは前・後ろの 2 つだけ")

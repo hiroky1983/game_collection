@@ -14,7 +14,7 @@ enum HomerunAtBatLayout {
 
     /// 打者（右打者を中継のセンターカメラのように**前のカメラの画面の右**に立たせる = +x）。Meshy の 3D モデル（`HomerunBatterAsset`）は構えで
     /// 胸が +z・左肩が +x を向いているので、y 軸で -90° 回して左肩を投手（+z）へ、胸を本塁（-x）へ向ける（試作）。
-    /// 人物の置き方はすべて前のカメラ用。左右反転して描く後ろのカメラでは `castMirrored` で x について鏡映して置く。
+    /// 人物の置き方はすべて前のカメラ用。左右反転する後ろのカメラでは `castMirrored` で x について鏡映して置いた扱いになる。
     static let batter = Placement(position: [0.95, 0, 0.1], yaw: -.pi / 2)
     /// 審判は捕手の後ろ（ほとんど隠れる）。捕手は本塁の少し打者と反対側（-x）・奥で、リングとストライクゾーンと打者の周りを空ける。
     static let umpire = Placement(position: [-0.75, 0, -3.2], yaw: 0)
@@ -22,13 +22,14 @@ enum HomerunAtBatLayout {
     /// 投手はマウンドの上・本塁に向く（カメラに背中）。
     static let pitcher = Placement(position: [0, 0.3, 17.4], yaw: .pi)
 
-    /// 人物（打者・投手・捕手・審判）を x について鏡映して置くか。描画を左右反転するカメラ（後ろ）では人物も鏡映し、
+    /// 人物（打者・投手・捕手・審判）を x について鏡映して置くか。左右反転するカメラ（後ろ）では人物も鏡映し、
     /// 反転を打ち消す（そのままだと右打ちの Meshy の打者が画面の右に立つ左打ちに見える）。これで後ろから見て右打者が
-    /// 画面の左に右打ちで立ち、捕手・審判は画面の右へ逃げる。球場（左右対称）と判定・座標・HUD は鏡映しない。
+    /// 画面の左に右打ちで立ち、捕手・審判は画面の右へ逃げる。判定・座標・HUD は鏡映しない。
+    /// 描画では人物を鏡映せず、カメラ側を鏡映して同じ画を作る（`Camera.renderPose`）。
     static func castMirrored(for camera: Camera) -> Bool { camera.mirrored }
 
-    /// 人物の置き方 `p` の中の点（人物の局所座標・`characterScale` 済みのメートル）が、`camera` で描くときに世界のどこに来るか。
-    /// 描画（`HomerunAtBatSceneView` の人物の親の scale）と同じ式で、テストはこれで画面の位置を測る。
+    /// 人物の置き方 `p` の中の点（人物の局所座標・`characterScale` 済みのメートル）が、`camera` の投影（`screenPoint`）で
+    /// 世界のどこにある扱いになるか。テストはこれで画面の位置を測る（描画が同じ画になることは `renderPose` のテストで固定）。
     static func worldPoint(_ local: SIMD3<Float>, of p: Placement, for camera: Camera) -> SIMD3<Float> {
         let point = p.position + simd_quatf(angle: p.yaw, axis: [0, 1, 0]).act(local)
         return castMirrored(for: camera) ? [-point.x, point.y, point.z] : point
@@ -41,7 +42,7 @@ enum HomerunAtBatLayout {
         var verticalFieldOfView: Float
         /// 描画を左右反転する。世界座標は +x が一塁側で、センターカメラ（本塁を向く）では +x が画面の右 = HUD の方向メーター・
         /// スプレーチャートの「右」と一致する。本塁の後ろから外野を向くカメラでは +x が画面の左に来て HUD と食い違うので反転して合わせる
-        /// （右打席の打者も、後ろから見て左に立つ本来の見え方になる）。
+        /// （人物は `castMirrored` で鏡映した扱い。描画は反転の代わりにカメラを鏡映する = `renderPose`）。
         var mirrored = false
 
         /// 世界の点が画面のどこ（左上 = (0, 0)・右下 = (1, 1)）に映るか。`aspect` は画面の幅 / 高さ。透視投影・ロール無し。
@@ -54,6 +55,15 @@ enum HomerunAtBatLayout {
             let halfTan = tan(Double(verticalFieldOfView) * .pi / 360)
             let x = 0.5 + 0.5 * Double(simd_dot(v, right)) / depth / (halfTan * aspect)
             return (mirrored ? 1 - x : x, 0.5 - 0.5 * Double(simd_dot(v, up)) / depth / halfTan)
+        }
+
+        /// RealityKit のカメラを置く位置・注視点。左右反転するカメラは、描画を反転して人物を鏡映する（`castMirrored`）代わりに、
+        /// カメラの位置・注視点を x について鏡映して反転なしで描く。人物を鏡映すると三角形の表裏が入れ替わり、iOS 17 では
+        /// `UnlitMaterial` のカリングを変えられず反転ハルの輪郭線が体を覆って真っ黒になるため。球場は左右対称なので、
+        /// 画は「球場も人物も鏡映して描画を反転する」のと同じになる（`screenPoint` と一致することをテストで固定）。
+        var renderPose: (position: SIMD3<Float>, target: SIMD3<Float>) {
+            guard mirrored else { return (position, target) }
+            return ([-position.x, position.y, position.z], [-target.x, target.y, target.z])
         }
 
         /// 世界の点が画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
@@ -187,7 +197,6 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var batterPose: HomerunOjisanPose3?
         var pitcher: Entity?
         var pitcherPose: HomerunOjisanPose3?
-        var cast: Entity?
         var cameraEntity: PerspectiveCamera?
         var camera: HomerunAtBatLayout.Camera?
     }
@@ -208,7 +217,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         return characterEntity(pose, outfit: .batter, p)
     }
 
-    func makeUIView(context: Context) -> HomerunMirrorableView {
+    func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
         // 触りは SwiftUI の押せる帯で受ける（`allowsHitTesting(false)` と二重に止める）。
         view.isUserInteractionEnabled = false
@@ -219,32 +228,27 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
                                       .disableCameraGrain, .disableAREnvironmentLighting])
         let anchor = AnchorEntity(world: .zero)
         anchor.addChild(HomerunToonScene.entity(for: .stadium()))
-        // 人物はこの親の下に置き、後ろのカメラ（左右反転の描画）では親ごと x について鏡映する（`castMirrored`）。
-        let cast = Entity()
-        cast.scale = Self.castScale(camera)
-        anchor.addChild(cast)
-        context.coordinator.cast = cast
         func place(_ model: HomerunToonModel, _ p: HomerunAtBatLayout.Placement) {
             let e = HomerunToonScene.entity(for: model, scale: HomerunAtBatLayout.characterScale)
             e.position = p.position
             e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
-            cast.addChild(e)
+            anchor.addChild(e)
         }
         if let rig = HomerunBatterRig() {
             rig.entity.position = HomerunAtBatLayout.batter.position
             rig.entity.orientation = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
-            cast.addChild(rig.entity)
+            anchor.addChild(rig.entity)
             context.coordinator.batterRig = rig
             if batterMotion != .stance { rig.show(batterMotion) }
             context.coordinator.batterMotion = batterMotion
         } else {
             let batter = Self.legacyBatter(batterPose)
-            cast.addChild(batter)
+            anchor.addChild(batter)
             context.coordinator.batter = batter
             context.coordinator.batterPose = batterPose
         }
         let pitcher = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
-        cast.addChild(pitcher)
+        anchor.addChild(pitcher)
         context.coordinator.pitcher = pitcher
         context.coordinator.pitcherPose = pitcherPose
         place(.catcher(), HomerunAtBatLayout.catcher)
@@ -255,21 +259,17 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         context.coordinator.cameraEntity = cam
         context.coordinator.camera = camera
         view.scene.addAnchor(anchor)
-        return HomerunMirrorableView(content: view, mirrored: camera.mirrored)
-    }
-
-    private static func castScale(_ camera: HomerunAtBatLayout.Camera) -> SIMD3<Float> {
-        HomerunAtBatLayout.castMirrored(for: camera) ? [-1, 1, 1] : [1, 1, 1]
+        return view
     }
 
     private static func aim(_ cam: PerspectiveCamera, _ camera: HomerunAtBatLayout.Camera) {
         cam.camera.fieldOfViewInDegrees = camera.verticalFieldOfView
-        cam.look(at: camera.target, from: camera.position, relativeTo: nil)
+        let pose = camera.renderPose
+        cam.look(at: pose.target, from: pose.position, relativeTo: nil)
     }
 
-    func updateUIView(_ uiView: HomerunMirrorableView, context: Context) {
+    func updateUIView(_ uiView: ARView, context: Context) {
         let c = context.coordinator
-        uiView.mirrored = camera.mirrored
         if let rig = c.batterRig {
             if c.batterMotion != batterMotion {
                 rig.show(batterMotion)
@@ -291,37 +291,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         }
         if c.camera != camera, let cam = c.cameraEntity {
             Self.aim(cam, camera)
-            c.cast?.scale = Self.castScale(camera)
             c.camera = camera
         }
     }
 }
 
-/// 中身（ARView）を左右反転できる入れ物。SwiftUI が frame を決めるのはこの入れ物で、中身は bounds と center で置いて transform を掛ける。
-final class HomerunMirrorableView: UIView {
-    let content: UIView
-    var mirrored: Bool {
-        didSet { if mirrored != oldValue { setNeedsLayout() } }
-    }
-
-    init(content: UIView, mirrored: Bool) {
-        self.content = content
-        self.mirrored = mirrored
-        super.init(frame: .zero)
-        backgroundColor = .clear
-        isOpaque = false
-        addSubview(content)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { nil }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        content.transform = .identity
-        content.bounds = bounds
-        content.center = CGPoint(x: bounds.midX, y: bounds.midY)
-        content.transform = mirrored ? CGAffineTransform(scaleX: -1, y: 1) : .identity
-    }
-}
 #endif
