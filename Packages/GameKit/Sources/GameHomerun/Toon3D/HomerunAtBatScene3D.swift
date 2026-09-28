@@ -58,61 +58,55 @@ enum HomerunAtBatLayout {
         }
     }
 
-    /// 打席カメラの案（#1506 のモック。会長が選ぶまで既定は `.center`）。どの案もストライクゾーンの中心が
-    /// 画面の横の中央・高さ `zoneScreenFraction` に映る（2D のゾーン・的・カーソルの位置と片手操作を変えないため）。
+    /// 打席カメラ（#1506・会長決裁 2026-09-28: 前 / 後ろの 2 択・既定は前）。打席の「⋯」メニューで切り替え、選んだ方は次回も残る
+    /// （`HomerunModel.atBatCamera`）。どちらもストライクゾーンの中心が画面の横の中央・高さ `zoneScreenFraction` に映る
+    /// （2D のゾーン・的・カーソルの位置と片手操作を変えない）。切り替えるのは見た目だけで、判定・座標・解析は変えない。
+    /// `rawValue` は保存に使うので変えない。
     enum CameraPreset: String, CaseIterable, Sendable {
-        /// 現行: 中継のセンターカメラ（本塁から 43m・高さ 6m・望遠 9.6°・ほぼ水平）。
-        case center
-        /// 案 A「中継・センター高め」: センター（やや一塁側 x 1m）・高さ 9.5m から 12° 見下ろす望遠。打者は正面のまま内野の土・走路・打席が
-        /// 奥行きをもって見え、投手は帽子だけが下端に残る（横へ寄せる・近づけるほど投手が画面の下に落ちるので、寄せは 1m に留めた）。
-        case broadcastHigh
-        /// 案 B「バックネット裏の高め」: 本塁の 14m 後ろ・高さ 7m から 24° 見下ろす広角（54°）。審判・捕手の背中越しに打者・投手・
-        /// 外野の柵とスタンドまで 1 画面に入る（左右反転で HUD の右 = 右翼に合わせる）。
-        case highHome
-        /// 案 C「打者の斜め後ろ上方」: 三塁側やや後ろ（x −2.5m・z −13m）・高さ 5m から 17° 見下ろす（42°）。打者の背中越しに投手・
-        /// 内野・外野が斜めに見え、奥行きが最も出る（左右反転で HUD の右 = 右翼に合わせる）。
-        case overShoulder
+        /// 前: 中継のセンターカメラ（本塁から 43m・高さ 6m・望遠 9.6°・ほぼ水平）。
+        case front
+        /// 後ろ: 本塁の 7.5m 後ろ・三塁側へ 0.5m（打者の側）・高さ 3m から、ストライクゾーンを 15.6° 見下ろす（画角 53°・光軸は 18.5° 下向き）。
+        /// 審判・捕手の肩越しに打者・本塁・バッターボックスを手前に大きく、奥に投手・外野の柵を映す（左右反転で HUD の右 = 右翼に合わせる）。
+        /// 検討時の案 B（14m 後ろ・一塁側 0.5m・高さ 7m・54°・23.5° 見下ろす）から寄せて打者の背丈を約 2.1 倍にした。
+        /// 三塁側へずらすのは、真後ろだと手前の審判・捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす）。これ以上寄せる・下げると、
+        /// 打者（本塁の 1m 左）が画面の左端へ、投手の頭が上端の HUD（球数・今回・直前の球）の裏へ寄る。
+        case back
 
+        /// 「⋯」メニューの文言。
         var title: String {
             switch self {
-            case .center: "現行（センターカメラ・水平）"
-            case .broadcastHigh: "案 A 中継・センター高め（やや一塁側）"
-            case .highHome: "案 B バックネット裏の高め"
-            case .overShoulder: "案 C 打者の斜め後ろ上方"
+            case .front: "カメラ: 前"
+            case .back: "カメラ: 後ろ"
             }
         }
 
         var camera: Camera {
-            let zone = HomerunAtBatLayout.zoneWorldCenter, y = HomerunAtBatLayout.zoneScreenFraction
             switch self {
-            case .center:
+            case .front:
                 return Camera(position: [0, 6, 43], target: [0, 0.57, 0.3], verticalFieldOfView: 9.6)
-            case .broadcastHigh:
-                return .aimed(from: [1, 9.5, 40], at: zone, yFraction: y, verticalFieldOfView: 11.5)
-            case .highHome:
-                return .aimed(from: [0.5, 7, -14], at: zone, yFraction: y, verticalFieldOfView: 54, mirrored: true)
-            case .overShoulder:
-                return .aimed(from: [-2.5, 5, -13], at: zone, yFraction: y, verticalFieldOfView: 42, mirrored: true)
+            case .back:
+                return .aimed(from: [-0.5, 3, -7.5], at: HomerunAtBatLayout.zoneWorldCenter,
+                              yFraction: HomerunAtBatLayout.zoneScreenFraction, verticalFieldOfView: 53, mirrored: true)
             }
         }
     }
 
-    /// 現行のセンターカメラ（`CameraPreset.center`）。センター側の遠くからの望遠（投手と打者の大きさの差を縮め、
+    /// 前のカメラ（`CameraPreset.front`）。センター側の遠くからの望遠（投手と打者の大きさの差を縮め、
     /// 投手は腰から上だけ映す = 中継のセンターカメラ）。注視点は、ストライクゾーンの中心（`zoneWorldCenter`）が画面の高さの
     /// `zoneScreenFraction` に映るように決めている（原本より少し下を向く = 打席の HUD の 2D のゾーン・的・カーソルをそこへ重ねる。
     /// 押せる帯の下 1/3 と重ねない）。
-    static var cameraPosition: SIMD3<Float> { CameraPreset.center.camera.position }
-    static var cameraTarget: SIMD3<Float> { CameraPreset.center.camera.target }
-    static var verticalFieldOfView: Float { CameraPreset.center.camera.verticalFieldOfView }
+    static var cameraPosition: SIMD3<Float> { CameraPreset.front.camera.position }
+    static var cameraTarget: SIMD3<Float> { CameraPreset.front.camera.target }
+    static var verticalFieldOfView: Float { CameraPreset.front.camera.verticalFieldOfView }
 
     /// ストライクゾーンの中心（本塁の真上・胸の高さ）。
     static let zoneWorldCenter: SIMD3<Float> = [0, 0.9, 0]
     /// 2D のゾーンの中心を置く画面の高さの割合（上端 = 0）。
     static let zoneScreenFraction: Double = 0.45
 
-    /// 世界の点が現行のセンターカメラで画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
+    /// 世界の点が前のカメラで画面の高さのどこ（上端 = 0・下端 = 1）に映るか。
     static func screenFraction(of point: SIMD3<Float>) -> Double {
-        CameraPreset.center.camera.screenFraction(of: point)
+        CameraPreset.front.camera.screenFraction(of: point)
     }
 }
 
@@ -139,7 +133,7 @@ extension HomerunAtBatLayout {
 struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
-    var cameraPreset: HomerunAtBatLayout.CameraPreset = .center
+    var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
 
     var body: some View {
         ZStack {

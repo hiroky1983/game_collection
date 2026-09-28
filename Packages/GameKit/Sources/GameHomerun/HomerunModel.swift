@@ -73,6 +73,12 @@ public final class HomerunModel {
     public var showsDirectionMeter: Bool {
         didSet { directionMeter.isEnabled = showsDirectionMeter }
     }
+    /// 打席のカメラ（前 / 後ろ・#1506）。既定は前。選んだ方は保存して次回も使う。見た目だけで、判定・座標・解析は変えない
+    /// （投球中に切り替えても同じ球のまま続く）。
+    var atBatCamera: HomerunAtBatLayout.CameraPreset {
+        didSet { defaults.set(atBatCamera.rawValue, forKey: Self.atBatCameraKey) }
+    }
+    static let atBatCameraKey = "homerun_atBatCamera_v1"
     /// 進行が変わるたびに進む。View は `.task(id:)` の鍵にする。
     public private(set) var step = 0
     public private(set) var holds: Hold = []
@@ -109,6 +115,7 @@ public final class HomerunModel {
         self.defaults = defaults
         self.directionMeter = directionMeter
         showsDirectionMeter = directionMeter.isEnabled
+        atBatCamera = defaults.string(forKey: Self.atBatCameraKey).flatMap(HomerunAtBatLayout.CameraPreset.init(rawValue:)) ?? .front
         self.calendar = calendar
         self.pitches = pitches
         ledger = HomerunStorage.loadLedger(defaults)

@@ -10,8 +10,6 @@ import HomerunCore
 /// ゾーン・的・カーソルは画面の上寄り（高さの 45%）に置き、押せる帯（下 1/3）と重ねない = 指で的を隠さない。
 struct HomerunAtBatView: View {
     let model: HomerunModel
-    /// 3D の打席カメラの案（#1506 のモック。会長が選ぶまで既定は現行のセンターカメラ）。
-    var cameraPreset: HomerunAtBatLayout.CameraPreset = .center
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 押している指の位置（残像の描画用・押せる帯の座標）。
     @State private var fingerPoint: CGPoint?
@@ -34,7 +32,7 @@ struct HomerunAtBatView: View {
                         HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                              batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
                                              pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
-                                             cameraPreset: cameraPreset)
+                                             cameraPreset: model.atBatCamera)
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             ball: model.phase == .pitching ? model.ballPoint : nil,
@@ -65,10 +63,25 @@ struct HomerunAtBatView: View {
                     }
                     touchPad(height: padHeight)
                         .frame(maxHeight: .infinity, alignment: .bottom)
+                    // 「⋯」は押せる帯（下 1/3）のすぐ上の右端に置く（帯の中に置くと押す指と取り合う。ゾーンは横の中央なので重ならない）。
+                    GameControlMenu(items: Self.menuItems(for: model))
+                        .padding(.trailing, Theme.pad)
+                        .padding(.bottom, padHeight + 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
             }
         }
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
+    }
+
+    /// 「⋯」メニューの項目: カメラの前 / 後ろ（チェック付きの 2 択・#1506）。選ぶのは見た目だけで、投球中でも判定・座標は変えない。
+    static func menuItems(for model: HomerunModel) -> [GameControlMenuItem] {
+        HomerunAtBatLayout.CameraPreset.allCases.map { preset in
+            GameControlMenuItem(id: "camera.\(preset.rawValue)", title: preset.title, systemImage: "video",
+                                isChecked: model.atBatCamera == preset) {
+                model.atBatCamera = preset
+            }
+        }
     }
 
     /// 当たり以上（外野へ飛んだ）の結果は外野カメラの静止ショットに切り替える（README §3.2）。
@@ -195,7 +208,7 @@ struct HomerunAtBatBackdrop: View {
     let zoneCenter: CGPoint
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
-    var cameraPreset: HomerunAtBatLayout.CameraPreset = .center
+    var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)

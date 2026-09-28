@@ -250,7 +250,7 @@ struct HomerunStadium3DTests {
         #expect(L.zoneScreenFraction + 0.2 < 2.0 / 3, "ゾーンの下端が押せる帯（下 1/3）に食い込む")
     }
 
-    @Test("カメラの案はどれもストライクゾーンの中心を画面の横の中央・高さ 45% に映し、打者の頭と足元が画面に収まる",
+    @Test("カメラ（前・後ろ）はどちらもストライクゾーンの中心を画面の横の中央・高さ 45% に映し、打者の頭と足元が画面に収まる",
           arguments: HomerunAtBatLayout.CameraPreset.allCases)
     func presetsKeepZoneWhereTheHUDIs(preset: HomerunAtBatLayout.CameraPreset) {
         typealias L = HomerunAtBatLayout
@@ -261,7 +261,7 @@ struct HomerunStadium3DTests {
             let head = cam.screenPoint(of: [L.batter.position.x, 1.75, L.batter.position.z], aspect: aspect)
             let feet = cam.screenPoint(of: [L.batter.position.x, 0, L.batter.position.z], aspect: aspect)
             #expect(head.y > 0.05 && feet.y < 0.95 && head.x > 0.05 && head.x < 0.95, "\(preset): 打者が画面の外（頭 \(head)・足元 \(feet)）")
-            // 投手（マウンドの上・頭）も画面の中（HUD の帯より下に来るかは案ごとの見た目で会長が判断）。
+            // 投手（マウンドの上・頭）も画面の中。
             let pitcher = cam.screenPoint(of: [L.pitcher.position.x, 2.1, L.pitcher.position.z], aspect: aspect)
             #expect(pitcher.x > 0 && pitcher.x < 1 && pitcher.y > 0 && pitcher.y < 1, "\(preset): 投手が画面の外 \(pitcher)")
         }
@@ -279,11 +279,31 @@ struct HomerunStadium3DTests {
         }
     }
 
-    @Test("後ろから外野を向く案（B・C）だけ左右反転し、反転しても打者（x < 0）は画面の左半分に映る（HUD の右 = 一塁側に合う）")
+    @Test("後ろのカメラは打者を検討時の案 B（14m 後ろ・高さ 7m・54°）より 2 倍以上大きく、本塁を画面のより下（手前）に映す")
+    func backCameraBringsTheBoxCloser() {
+        typealias L = HomerunAtBatLayout
+        let caseB = L.Camera.aimed(from: [0.5, 7, -14], at: L.zoneWorldCenter, yFraction: L.zoneScreenFraction,
+                                   verticalFieldOfView: 54, mirrored: true)
+        let back = L.CameraPreset.back.camera
+        for aspect in [9.0 / 19.5, 9.0 / 16.0] {
+            func height(_ cam: L.Camera) -> Double {
+                cam.screenPoint(of: [L.batter.position.x, 0, L.batter.position.z], aspect: aspect).y
+                    - cam.screenPoint(of: [L.batter.position.x, 1.75, L.batter.position.z], aspect: aspect).y
+            }
+            #expect(height(back) > 2 * height(caseB), "打者の背丈 \(height(back)) / 案 B \(height(caseB))")
+            #expect(back.screenPoint(of: [0, 0, 0], aspect: aspect).y > caseB.screenPoint(of: [0, 0, 0], aspect: aspect).y + 0.05)
+            // 手前の審判・捕手の頭はゾーン（2D・SE の幅 375pt で測る）の右の外に逃がし、ゾーンと本塁を塞がない。
+            let zoneRight = 0.5 + Double(HomerunZoneGeometry.zoneSize) / 2 / 375
+            for head: SIMD3<Float> in [[L.umpire.position.x, 1.77, L.umpire.position.z + 0.2], [L.catcher.position.x, 1.53, L.catcher.position.z]] {
+                #expect(back.screenPoint(of: head, aspect: aspect).x > zoneRight, "審判・捕手の頭がゾーンに重なる \(back.screenPoint(of: head, aspect: aspect))")
+            }
+        }
+    }
+
+    @Test("後ろのカメラだけ左右反転し、反転しても打者（x < 0）は画面の左半分に映る（HUD の右 = 一塁側に合う）")
     func rearPresetsAreMirrored() {
         typealias L = HomerunAtBatLayout
-        #expect(!L.CameraPreset.center.camera.mirrored && !L.CameraPreset.broadcastHigh.camera.mirrored)
-        #expect(L.CameraPreset.highHome.camera.mirrored && L.CameraPreset.overShoulder.camera.mirrored)
+        #expect(!L.CameraPreset.front.camera.mirrored && L.CameraPreset.back.camera.mirrored)
         for preset in L.CameraPreset.allCases {
             let cam = preset.camera
             let batter = cam.screenPoint(of: [L.batter.position.x, 1, L.batter.position.z], aspect: 0.5)
@@ -292,16 +312,17 @@ struct HomerunStadium3DTests {
             #expect(firstBase.x > 0.5, "\(preset): 一塁側（+x）が画面の左に映り、方向メーターの右と食い違う")
         }
         // 反転は x だけ（y はそのまま）。
-        var cam = L.CameraPreset.center.camera
+        var cam = L.CameraPreset.front.camera
         let before = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
         cam.mirrored = true
         let after = cam.screenPoint(of: [3, 1, 0], aspect: 0.5)
         #expect(abs(before.x + after.x - 1) < 1e-9 && before.y == after.y)
     }
 
-    @Test("現行のセンターカメラは以前と同じ位置・注視点・画角のまま（既定の見た目を変えない）")
+    @Test("前のカメラは以前のセンターカメラと同じ位置・注視点・画角のまま（既定の見た目を変えない）")
     func centerPresetUnchanged() {
-        let cam = HomerunAtBatLayout.CameraPreset.center.camera
+        #expect(HomerunAtBatLayout.CameraPreset.allCases == [.front, .back], "選べるのは前・後ろの 2 つだけ")
+        let cam = HomerunAtBatLayout.CameraPreset.front.camera
         #expect(cam.position == [0, 6, 43] && cam.target == [0, 0.57, 0.3] && cam.verticalFieldOfView == 9.6)
         #expect(HomerunAtBatLayout.cameraPosition == cam.position && HomerunAtBatLayout.verticalFieldOfView == 9.6)
     }
