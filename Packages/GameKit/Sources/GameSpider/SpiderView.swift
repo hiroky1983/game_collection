@@ -48,7 +48,9 @@ public struct SpiderView: View {
         VStack(spacing: 8) {
             statusBar
                 .padding(.horizontal, Theme.pad)
+            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
             board
+                .cardTable(topInset: CardTableStyle.cardTopInset)
                 .padding(.horizontal, SpiderMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea

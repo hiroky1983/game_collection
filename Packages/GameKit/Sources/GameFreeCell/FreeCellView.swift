@@ -47,7 +47,9 @@ public struct FreeCellView: View {
         VStack(spacing: 8) {
             statusBar
                 .padding(.horizontal, Theme.pad)
+            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
             board
+                .cardTable(topInset: CardTableStyle.cardTopInset)
                 .padding(.horizontal, FreeCellMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea
@@ -379,13 +381,17 @@ public struct FreeCellView: View {
         // 上段は 8 枠が等間隔に並ぶので、**札が載ると 8 枚が 1 列に並んでいるようにしか
         // 見えない**（実測。空のうちは受け皿の絵と ♠♥♦♣ で区別が付くが、埋まると消える）。
         // 列の幅を崩さずに境目だけ描くため、レイアウトを取らない overlay で中央に引く。
+        // 色は卓の上（白系）と地の上（`Theme.inkSub` 系）で `cardTableInk` から取る（#1501）。
+        // 画面の View 本体で `@Environment` を読んでも盤に付けた卓の値は届かないので、盤の中で読む。
         .overlay {
-            Capsule()
-                .fill(Theme.inkSub.opacity(0.5))
-                .frame(width: 2.5)
-                .padding(.vertical, 2)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            CardTableInkReader { ink in
+                Capsule()
+                    .fill(ink.divider)
+                    .frame(width: 2.5)
+                    .padding(.vertical, 2)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
     }
 

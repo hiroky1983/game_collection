@@ -21,10 +21,27 @@ struct MahjongSolitaireBoardMetricsTests {
 
     typealias Metrics = MahjongSolitaireBoardMetrics
 
-    @Test("盤面は横 15.56 枚・縦 8.56 枚ぶんの広さ")
+    /// 盤面の枠は牌の外接矩形（会長 QA 2026-09-28）。上の段は山の中ほどにしか無いので、亀甲は
+    /// 地の段の 15×8 枚ぶんちょうど。以前は最上段ぶんのずらし（0.56 枚）を右と上に足していて、山が左に寄った。
+    @Test("盤面は横 15 枚・縦 8 枚ぶんの広さ（牌の外接矩形）")
     func canvasExtent() {
-        #expect(abs(Metrics.canvasWidthInTiles(layout: .turtle) - 15.56) < 0.001)
-        #expect(abs(Metrics.canvasHeightInTiles(layout: .turtle) - 8.56) < 0.001)
+        #expect(abs(Metrics.canvasWidthInTiles(layout: .turtle) - 15) < 0.001)
+        #expect(abs(Metrics.canvasHeightInTiles(layout: .turtle) - 8) < 0.001)
+    }
+
+    /// 枠の中で山が片側に寄らないこと。どのかたちも牌の外接矩形がそのまま枠になり、
+    /// 左端・上端の牌が 0 に、右端・下端の牌が枠の端にぴったり接する（余白が片側にだけ残らない）。
+    @Test("どのかたちも牌が枠の四辺に接する（山が枠の中で偏らない）", arguments: MahjongSolitaireLayout.all)
+    func tilesTouchEveryEdgeOfTheCanvas(layout: MahjongSolitaireLayout) {
+        let tileWidth: CGFloat = 30
+        let canvas = Metrics.canvasSize(tileWidth: tileWidth, layout: layout)
+        let frames = layout.positions.indices.map {
+            Metrics.tileFrame(index: $0, tileWidth: tileWidth, layout: layout)
+        }
+        #expect(abs(frames.map(\.minX).min()! - 0) < 0.001, "\(layout.displayName) の左に余白が残る")
+        #expect(abs(frames.map(\.minY).min()! - 0) < 0.001, "\(layout.displayName) の上に余白が残る")
+        #expect(abs(frames.map(\.maxX).max()! - canvas.width) < 0.001, "\(layout.displayName) の右に余白が残る")
+        #expect(abs(frames.map(\.maxY).max()! - canvas.height) < 0.001, "\(layout.displayName) の下に余白が残る")
     }
 
     @Test(
@@ -43,10 +60,10 @@ struct MahjongSolitaireBoardMetricsTests {
         arguments: [iPhoneSE, iPhone17]
     )
     func fittingTileIsBelowTapTargetOnPhones(size: CGSize) {
-        // 44pt の牌で盤面全体を出すには 684.6pt の幅が要る。iPhone では成立しないため
+        // 44pt の牌で盤面全体を出すには 660pt の幅が要る（外接矩形の 15 枚ぶん）。iPhone では成立しないため
         // 「全体表示を既定に戻す」と #196 の受け入れ条件を満たせなくなる。この関係が崩れたら気づけるようにする。
         #expect(Metrics.fittingTileWidth(in: size, layout: .turtle) < 44)
-        #expect(44 * Metrics.canvasWidthInTiles(layout: .turtle) > 680)
+        #expect(44 * Metrics.canvasWidthInTiles(layout: .turtle) > 640)
     }
 
     @Test("全体表示では盤面が与えられた領域に収まる", arguments: [iPhoneSE, iPhone17])
