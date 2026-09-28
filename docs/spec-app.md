@@ -47,6 +47,7 @@ Packages/GameKit/
     GameAnzan/          ← ぱっと暗算（企画倉庫・ハブ未登録。2026-09-24 時点・#1321。数が 1 つずつ出ては消え、合計を暗算して入力する脳トレ。難易度は桁数（1〜3）・個数（5 / 10 / 15）・速さ（1.5 / 1 / 0.6 秒）の 3 軸を開始シートで独立に選び、問題の開始時に焼き込む。1 問 = 1 プレイで、記録は難易度の組（27 通り）ごとに正誤・連続正解・最速回答（`GameScore(metric: .winLoss, seconds:, variant:)`。順位表無し）。`game_start` の `level` は 3 軸の段の和を beginner / normal / hard / expert に丸める。広告救済は入力中の「もう一度見る」（1 問 1 回・`purpose: .hint`・問題の通し番号で局ガード。見直した問題は最速回答の記録から外す）。中断データは最後に選んだ難易度の控えだけで問題は復元しない（`resumesFromSnapshot = false` + `gameWillNotResume`）。表示の進行は Model が待ち時間を返し View の `.task(id: displayRun)` が待つだけで、テストは実時間を待たない。**表示名は「フラッシュ暗算」にしない**（登録第4801121号・株式会社グリーン・フィールド・第9類/第41類。`docs/aso/metadata-v1.1.1.md` §3 ⚠️）。`AppGameServices.registry` の登録行はコメントアウトで、出荷の版が決まったら外す）
     GameBackgammon/     ← バックギャモン（企画倉庫・ハブ未登録。2026-09-24 時点・#1322。サイコロで駒を進める 1 人用 CPU 対戦。人間は白（24 → 1 の向き）で、サイコロは手番が回った瞬間に自動で振る。移動・叩き（ブロットをバーへ）・バーからの入場・ベアオフ（全駒が自陣 1〜6 に入ってから。大きい目は一番後ろの駒だけ）・目の使い切り義務（両方使える手順があれば片方だけの手は禁止・片方しか使えなければ大きい目）は `BackgammonRules` の純粋関数で、`legalMoves` は「その先で最大限使える 1 手」だけを返す。オープニングロールは大きい目の側が先手（同目は振り直し）。決着はあがり 15 個で、相手のあがりが 0 ならギャモン（2 点）・さらにバーか勝者の自陣に残っていればバックギャモン（3 点）。ダブリングキューブは持たない。CPU は `CPUStrength` の 4 段階（入門: 無作為 / 簡単: ピップ差と叩きの貪欲 / ふつう: ブロットの危険・作ったポイント・自陣・バーの静的評価 / むずかしい: 上位 4 候補について相手の 21 通りの目の最善応手を平均する 1 手先の期待値）で、手番は オセロと同じ `withAITurnGuard` で 1 手ずつ進む。「待った」は Core の `BoardUndoButton`（無料 1 回・以後は広告 `purpose: .undo`・`aiTurnKey` で局ガード）で自分の直前の手番を CPU の応手ごと戻し、振った目も戻る。手番の途中の「やり直し」（振った直後へ戻す）は無料で何度でも。記録は勝敗のみ（順位表無し）。`game_start` の `level` は選んだ強さ。中断データは盤・目・手番・待った先・やり直し先を保存し、駒が 15 個ずつでない壊れたデータは捨てる。開いただけ（オープニングロールだけ）の局は保存しない（#240）。`AppGameServices.registry` の登録行はコメントアウトで、出荷の版が決まったら外す）
     GameSpeed/          ← スピード（企画倉庫・ハブ未登録。2026-09-24 時点・#1323。トランプの「スピード」を CPU と 1 対 1 で遊ぶ。赤 26 枚（あなた）・黒 26 枚（CPU）、手札 4 枚、台札 2 山に 1 つ違い（A-K もつながる）の札を重ね、出した位置に山札から補充。**手番が無い同時進行**で、本アプリで唯一 `AITurnGuarded` を使わない: Model が「次に待つ時間」（`nextCPUWait()`）と「待ち終えたらすること」（`performCPUAction()`）を返し、View の `.task(id: cpuRun)` が待つだけ（時計は注入・テストは実時間を待たない）。CPU の速さ 3 段（ゆっくり 2.6 秒 / ふつう 1.4 秒 / はやい 0.75 秒・±20% の揺らぎ）で、あなたの側に制限時間は無い。設定の「ゆっくりモード」（`FeedbackPreference.actionSlowMode`・アクション枠共通）がオンなら CPU の反応と「めくる」までの間を 1.5 倍（ゲーム開始時に焼き込み）。どちらも出せなければ「めくる」（両方の山札から 1 枚ずつ。0.9 秒後に CPU も自動でめくる。山札が尽きたら自分側の台札を切り直す）で、めくるだけが 20 回続いたら引き分け。記録は速さごとの勝敗・連勝・最速（順位表無し）。`game_start` の `level` は速さ。広告救済は負けそうなとき（CPU の残り 8 枚以下で自分より少ない）の「タイム」（CPU 8 秒休み・1 ゲーム 1 回・`purpose: .revival`・ゲームの通し番号で局ガード。タイムを使った勝ちは最速から外す）。中断データは速さの控えだけ（`resumesFromSnapshot = false` + `gameWillNotResume`）。操作はタップだけ（置ける台札が 1 つなら即出し・2 つなら選択 → 台札）。名称「スピード」は文字商標 0 件（patent-i.com・2026-09-24）の一般名称。`AppGameServices.registry` の登録行はコメントアウトで、出荷の版が決まったら外す）
+    GameHomerun/        ← 柵越えおじさん（企画倉庫・ハブ未登録。2026-09-29 時点・#1348。押したまま狙って離して振る 1 人用の打撃ゲームで、1 挑戦 10 球・配球は乱数なしの固定（毎日同じ 10 球で競える）。1 日の挑戦回数は無料 3・広告 +1（1 日 5 本まで・`purpose` は `challenge`）・アンケート +1（1 日 1 回・`survey_answer`）で、0:00 に戻る。判定・日次台帳・蓄積は SwiftUI 非依存の `HomerunCore`。画面は RealityKit の 3D で、GameHomerun が**アプリで初めて 3D 描画を使うゲーム**（→「3D 描画基盤」）。`AppGameServices.registry` の登録行はコメントアウトで、出荷の版が決まったら外す）
 ```
 
 登録順・表示順の正典は `App/AppGameServices.swift` の `registry`（新ゲームは 1 行追加するだけ）。
@@ -140,18 +141,26 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
   「ガチ」が無い現状は CPU 対戦からは送信されない。GA4 に貯まっている既存3段階の数字は
   そのまま続けて読める
 
-### 戦略ゲームのヒント（`BoardHintBudget`・#1118・v1.1.6）
+### 戦略ゲームのヒント（`BoardHintBudget`・#1118・#1500・v1.1.6 / v1.1.7）
 
-将棋・チェス・五目並べの 3 本が持つ**無料・回数制のヒント**（会長決裁 2026-09-19「無料 3 回のみ・広告連携なし」）。
+将棋・チェス・五目並べの 3 本が持つ**回数制のヒント**。v1.1.6 で入れたときは無料 3 回のみだったが（会長決裁
+2026-09-19「無料 3 回のみ・広告連携なし」）、**`release/v1.1.7` の #1500 で広告での補充を足した**
+（会長決裁 2026-09-27。前の決裁はこの Issue で上書きされた）。
 回数と順位表の扱いは `CoreEngine/BoardHintBudget` に 1 つだけ置き、3 本が同じ勘定に乗る。
-ボタンは `Core/BoardGameChrome.swift` の `BoardHintButton` 1 部品。
+ボタンは持たず、対局中の操作列の「⋯」メニュー（`Core/BoardGameControlBar.swift` の `BoardControlBarHint`・#1421）の
+1 項目に入る（「ヒント（残り N 回）」。無料を使い切ったあとは「広告を見てヒント（残り N 回）」に変わる）。
 
-- **1 局 3 回**。1 局ごとに 3 回へ戻る（`newGame`）。**広告での補充は持たない。**
-  収益化の凍結が禁じているのは「収益を増やす目的で広告の面・頻度を増やすこと」で、
-  #480（ソリティアの「戻す」）の例外は**詰み（それ以上進めない）の救済**に対して認められたもの。
-  「負けそう」は詰みではないため例外の射程に入らない、というのが決裁の理由。
-  したがってヒントは `RewardedRescue` を通らず、`reward_*` の解析イベントも出ない
-  （要るようになったら `BoardHintBudget` に `refill` を足す。`RewardedUndoBudget` と同じ形）
+- **1 局 3 回は無料、使い切ったあとは広告 1 本につき 1 回、最大 5 回まで足せる（合計 8 回）**。
+  1 局ごとに戻る（`newGame`・無料も広告も）。無料枠と広告枠は同じ `used` を共有する 1 本のカウンタで、
+  無料が残っているうちは広告を要求しない（`hasFreeRemaining`）。8 回を使い切ると項目は押せなくなる。
+  - 広告の経路は `requestAdHint()`（各ゲームの Model）。**広告の視聴完了を確かめてから CPU の読みを始める**
+    （読み終えてから広告を流さない）。視聴のあいだに指す・待った・新規対局が入ったら回数を減らさず
+    `.unavailable` を返し、「ヒントを出せませんでした」のアラートで知らせる（視聴しなかったときは「ヒントを表示できませんでした」）。
+    広告の視聴中は同じメニューの「待った」も塞ぐ（2 本目のロード失敗で誤アラートが出るのを防ぐ）
+  - 解析は `RewardedRescue.requestHandledByModel(withOutcome:)` で、`purpose` は既存の `hint`。
+    したがって `reward_request` / `reward_ad`（`purpose = hint`）は出る。**`reward_offer` は出ない**
+    （常設のメニュー項目で、確認を挟まずに広告へ進むため。ナンプレのヒントと同じ扱い。下の「提示の瞬間が無い面」）。
+    無料の 1 回は広告を通らないので `reward_*` は出ない
 - 押すと**既存の CPU 思考エンジンで最善手を 1 手だけ**求め、盤の上に紫の枠（`BoardGameHintColor`）で示す。
   読みは対局中の CPU の強さに関わらず**常に最強**（`BoardHintBudget.engineLevel`）。
   五目並べの level 0（弱）は探索せず確率で見逃すため、対局の強さに合わせると最善手にならない（#665）
@@ -167,10 +176,12 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
   足したときに勝手に混ざらないための保証として先に立ててある
 - 使った回数は中断データに持ち回る（`hintsUsed` は **Optional**。鍵を持たない v1.1.5 までの中断データは
   未使用として読む）。**盤の上の印は保存しない**（開き直したら出し直す）
-- 解析イベントは増やさない。ヒントの使用は `game_start` / `game_end` の数え方にも値にも影響しない
-- ボタンは 3 本とも同じ部品・同じ見た目（黄色 + 電球はナンプレのヒントと同じ）。
-  将棋・チェスは 44pt の枠をレイアウト上だけ詰め、対局中の操作列の高さを据え置く（#139・#148）。
-  パズル系（ナンプレ #262・麻雀ソリティア #336）の**リワード広告制のヒントとは別の仕組み**で、そちらは従来どおり
+- **ヒントのために増やしたイベントは無い**。使った回数（無料・広告の合計）は、進行中のプレイに覚えておき、
+  終わりの `game_end` に `hints_used` として載せる（#1326。ヒントを使わなかったプレイでは鍵ごと送らない。
+  `GameServices.gameDidUseHint` を呼ぶのはこの 3 本だけで、ナンプレ・麻雀ソリティアのヒントは載せない）。`game_start` / `game_end` の数え方には影響しない。広告での補充ぶんは上の `reward_request` /
+  `reward_ad` が数える
+- 3 本とも同じ部品・同じ見た目（電球のアイコン。「⋯」メニューの 1 項目）。
+  パズル系（ナンプレ #262・麻雀ソリティア #336）のヒントは**最初から広告制**で、こちらは無料 3 回を持つ点が違う
 
 ### ドット絵の共通基盤（`PixelSprite`・`Core/PixelArt.swift`・#939）
 
@@ -187,6 +198,34 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
   テストの両方で検査する
 
 ---
+
+### 3D 描画基盤（RealityKit・`GameHomerun/Toon3D/`・#1479 #1480 #1481・`release/v1.1.7`）
+
+柵越えおじさんの球場・おじさん・打者・投手・捕手・審判は、**アプリで初めて RealityKit の 3D で描く**
+（ほかのゲームは SwiftUI / SpriteKit の 2D）。絵柄は `docs/design/homerun/`（`README.md`・`mock3d.swift`）で決めたトゥーン調で、
+`mock3d.swift`（SceneKit のモック）の `sphere` / `box` / `limb` / `bat` を `HomerunToonModel` に写してある。
+
+- **描画は `ARView(cameraMode: .nonAR)` を `UIViewRepresentable` で包んだもの**（`HomerunToonSceneView`・`HomerunAtBatSceneView`・
+  `HomerunOutfieldSceneView`）。`RealityView` は iOS 18 からで配備対象（iOS 17）に置けないため。AR セッションは使わない
+  （`automaticallyConfigureSession: false`）。背景は透明にして SwiftUI 側の空色のグラデーションを見せ、
+  モーションブラー・被写界深度・HDR・接地影などのレンダーオプションは切ってある
+- **形は RealityKit に依存しない純粋な値で作る**（`HomerunToonMesh` = 頂点・法線・陰影の u・縞の v・添字、`HomerunToonModel` = 色ごとの部品の並び）。
+  `HomerunToonScene` がそれを `MeshResource` / `ModelEntity` に変えるだけなので、形・配置・陰影の段は `swift test` で固定できる
+  （`HomerunToonMeshTests`・`HomerunStadium3DTests`・`HomerunOutfieldLayoutTests`）。
+  座標はメートル（本塁が原点・+z がセンター・+x が一塁側）。おじさん単体は頭の半径 = 1 の単位で組み、置くときに縮尺を掛ける
+- **トゥーン陰影**: 頂点の `u` に「法線・光の向きの内積」（0 以上に切る）を焼き、**暗・中・明の 3 段の階段状ランプ画像**
+  （`u` が 0.18 以下 = 明るさ 0.6、0.18〜0.5 = 0.78、0.5 超 = 1.0）を引いて、部品の色（tint）を掛ける。光源はモデルに対して固定
+  （カメラの左上手前）。ランプ画像は `CGImage` からコードで生成する（白のジャージの縞つきの 1 本を含む）。
+  **Metal のシェーダ（`.metal`）は使わない**: SwiftPM の `.metal` は Metal Toolchain の無い環境で `swift test` ごと落ちるため。
+  ランプ画像を作れない環境（Metal の無い CI など）では nil になり、色は陰影なしの単色になる
+- **輪郭線（反転ハル）**: 部品を一回り大きくした殻の三角形の巻きを逆にし（`HomerunToonMesh.flipped()`）、インク色（`0x2B2634`）で塗る。
+  既定の背面カリングで殻の**内側の面だけ**が見えて縁取りになる。材質は陰影・輪郭とも `UnlitMaterial` だけ
+- **球場は数千個の箱を色ごとのメッシュ 1 個にまとめる**（`HomerunToonModel.merged()`。輪郭線と縞の無い部品だけが対象）。実体の数を色数まで減らすため
+- **macOS では 3D を描かない**（`#if os(iOS) && canImport(RealityKit)`）。おじさん単体（ロビー）は既存の 2D の絵（`OjisanCanvas`）に、
+  打席・外野のシーンは空色の背景だけに落ちる。GameKit が macOS 14 でも `swift test` を通す（`Package.swift` の `platforms`）ための落とし先で、アプリ（`project.yml`）の対象は iOS 17 以降
+- 3D の描画は VoiceOver から隠す（`accessibilityHidden`）。打席の操作・結果は 2D の SwiftUI 部品が受け持つ
+- 外野のシーンは**静止ショット**（当たり以上でカメラが切り替わり、方向の柵・外野手・打球の落下点 / フェンス直撃 / 柵越えの位置が 1 枚で見える）。
+  軌道の連続アニメーションは持たない。乱数なしで、同じ `HomerunBattedBall` は同じショットになる
 
 ## ハブ画面 (HubView)
 
@@ -672,7 +711,10 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 チェス・神経衰弱・ブロック崩し・ブロックならべ・チャリンコおじさん、`release/v1.1.5` の 2026-09-15 時点）が採用している。
 `release/v1.1.6` で大富豪が加わった（大貧民で決着したリザルトから、次のゲームの献上を免除する。`purpose` は `revival`・#1048）。
 同じく花札こいこいが加わった（最終局で負けている局の結果画面から、1試合に1回だけ1局延長する。`purpose` は `continue`・#1049）。
-救済の種類（`RewardPurpose`）は次の7つに閉じる:
+`release/v1.1.7` の柵越えおじさん（企画倉庫・registry コメントアウト中）は、使い切った 1 日の挑戦回数を広告で 1 回ぶん足す
+（`purpose` は `challenge`・#1348・#1475。1 日 5 本まで。打席前と結果の 2 か所に同じボタンを置き、広告の呼び出しは
+`HomerunRecoveryButton` の 1 か所）。
+救済の種類（`RewardPurpose`）は次の8つに閉じる:
 
 | purpose | 内容 |
 |---|---|
@@ -683,6 +725,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | `joker` | ジョーカー（万能札）の付与 |
 | `checkpoint` | チェックポイントからのやり直し |
 | `shuffle` | 手詰まりの盤面を、取り切れる配置へ並べ替える（麻雀ソリティア） |
+| `challenge` | 1 日の挑戦回数を 1 回ぶん増やす（柵越えおじさん・#1348・#1475）。盤面を救う 7 種とは違い、**回数制の枠そのものを買い足す** |
 
 ---
 
@@ -697,11 +740,11 @@ v1.1.4 までの公開版は3種）。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合を渡したときだけ `play_count`・一度でも遊んだゲームだけ `days_since_last_play`（イベントは増やさずパラメータだけ足した・会長決裁 2026-09-21・#1195・#1240） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089) |
-| `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の7値） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326） |
+| `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり） |
-| `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の7値） / `result`(accepted\|declined\|not_ready) |
+| `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の8値） / `result`(accepted\|declined\|not_ready) |
 | `share_tap` | 自己ベストを更新したリザルトの**共有ボタンを押した**（`RecordLabel` の共有ボタン。共有シートで実際に送ったかは問わない） | `game_id` のみ |
 | `survey_answer` | ゲーム内アンケートに答えた（#1348・柵越えおじさん。`allowedGameIDs` 外のゲームからは送られない） | `game_id` / 設問ごとの `q1`〜`q3`（選んだ選択肢の**番号・1 始まり**。自由記述は持たない。設問と選択肢は `HomerunCore/HomerunSurvey`。GA4 でのカスタムディメンション登録は出荷版が決まった時点の会長操作） |
 
@@ -759,8 +802,10 @@ v1.1.4 までの公開版は3種）。
   `RewardedRescue` の要求が知っている。`result` は、広告ボタンを押して先読み済みの広告があれば `accepted`、
   無ければ `not_ready`（その場で読み込む。#658 の先読みで減る値）、押さずに閉じた・画面を離れたら `declined`。
   見なかった後に同じ画面でもう一度押しても提示は 1 回のまま（タップの数は `reward_request` が持つ）
-  - **提示の瞬間が無い面は数えない**: ナンプレのヒント（常設のボタンで、確認を挟まずに広告へ進む）。
+  - **提示の瞬間が無い面は数えない**: ナンプレのヒント（常設のボタンで、確認を挟まずに広告へ進む）と、
+    将棋・チェス・五目並べのヒント（無料 3 回を使い切ったあと、「⋯」メニューの項目から確認を挟まずに広告へ進む・#1500）。
     この面は `reward_request ÷ game_start` で読む。対象の一覧は `AnalyticsTests` の `RewardOfferWiringTests` が固定する
+    （`unpresentedRescues` に `GameSudoku` / `GameShogi` / `GameChess` / `GameGomoku` の `hintRescue` の 4 件）
   - 読み方（週次会議）: **受諾率** = (`accepted` + `not_ready`) ÷ `reward_offer`、**先読み不足率** = `not_ready` ÷
     (`accepted` + `not_ready`)、**提示率** = `reward_offer` ÷ 該当場面の発生（コンティニュー・復活は `game_end` の `loss`、
     待った・戻す・並べ替えは `game_start`）。いずれも `purpose` × `game_id` で分けて読む。`reward_ad ÷ reward_request` の完了率と合わせると、
