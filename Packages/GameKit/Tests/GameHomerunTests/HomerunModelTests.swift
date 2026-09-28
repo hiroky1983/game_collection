@@ -185,6 +185,23 @@ struct HomerunModelTests {
         #expect(model.lastBall?.launch == nil)
     }
 
+    @Test("振った球だけ swingCount が進み didSwingLastBall が立つ（3D の打者のスイングの合図）。見送りでは進まない")
+    func swingCountOnlyCountsSwings() throws {
+        let f = Fixture()
+        let model = f.model()
+        model.start(now: Fixture.t0)
+        #expect(model.swingCount == 0 && !model.didSwingLastBall)
+        try swing(model, dx: 0, dy: 10, offset: 0)
+        #expect(model.phase == .ballResult)
+        #expect(model.swingCount == 1 && model.didSwingLastBall)
+        let close = try #require(model.resultUntil)
+        model.advance(now: close)
+        #expect(model.phase == .pitching)
+        try skipPitch(model)
+        #expect(model.swingCount == 1, "見送りで数が進んだ")
+        #expect(!model.didSwingLastBall)
+    }
+
     @Test("押したまま締め切りを過ぎても見送り。離しても 2 球目は振られない")
     func holdingPastDeadlineIsMiss() throws {
         let f = Fixture()

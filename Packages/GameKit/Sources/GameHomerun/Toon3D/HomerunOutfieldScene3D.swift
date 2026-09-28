@@ -72,6 +72,8 @@ struct HomerunOutfieldScene3DView: View {
             HomerunOutfieldSceneView(ball: ball)
             #endif
         }
+        // 3D（ARView）に当たり判定を残すと、手前の押せる帯へのドラッグを吸う（`HomerunAtBatScene3DView` と同じ）。
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }
@@ -90,6 +92,7 @@ private struct HomerunOutfieldSceneView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
+        view.isUserInteractionEnabled = false
         view.environment.background = .color(.clear)
         view.backgroundColor = .clear
         view.isOpaque = false

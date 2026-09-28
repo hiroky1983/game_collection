@@ -108,7 +108,9 @@ let package = Package(
         // 柵越えおじさんの画面（#1348 の段 3・企画倉庫）。2D の仮絵で一回遊べる形。判定・台帳・蓄積は HomerunCore。
         // 時間は Model が「次に起こしてほしい時刻」を返し、View の `.task` が待つだけ（スピード・ぱっと暗算と同じ）。
         // 3D（RealityKit）・広告/アンケートでの回数回復・解析・Game Center は後続の段で足す。
-        .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"]),
+        // 試作: 打者おじさんの 3D モデル（Meshy 製・右打ちスイング 1 本入り USDZ）。
+        .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"],
+                resources: [.copy("Resources/HomerunBatter.usdz")]),
         // ブロックならべ（#493）。置き型の行列消しパズル。判定・得点・手札生成は純粋ロジックなので
         // Core だけに依存する。
         .target(name: "GameBlockPuzzle",    dependencies: ["Core", "CoreEngine"]),

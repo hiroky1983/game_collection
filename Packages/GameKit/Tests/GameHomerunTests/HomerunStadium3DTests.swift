@@ -90,11 +90,17 @@ struct HomerunStadium3DTests {
         #expect(plate.positions.contains { abs($0.x) < 0.01 && abs($0.z + 0.432) < 0.01 }, "本塁の先端が無い")
     }
 
-    @Test("打席シーンの置き方: 打者は本塁の一塁側・捕手と審判は本塁の後ろ・投手はマウンドでカメラに背を向け、カメラは打者を正面から見る")
+    @Test("打席シーンの置き方: 右打者は三塁側（センターカメラから見て右）で左肩を投手へ・捕手と審判は本塁の後ろの一塁側・投手はマウンドでカメラに背を向ける")
     func atBatLayout() {
         typealias L = HomerunAtBatLayout
-        #expect(L.batter.position.z == 0.15 && L.batter.position.x < 0)
+        #expect(L.batter.position.x > 0.5, "右打者は三塁側（+x）の打席に立つ")
+        // Meshy の打者は構えで左肩が +x。y 軸まわりに yaw 回すと +x は (cos, 0, -sin) へ向く → 投手（+z）を向くこと。
+        let leftShoulder = SIMD3<Float>(cos(L.batter.yaw), 0, -sin(L.batter.yaw))
+        #expect(simd_dot(leftShoulder, [0, 0, 1]) > 0.99, "左肩が投手を向いていない")
+        let chest = SIMD3<Float>(sin(L.batter.yaw), 0, cos(L.batter.yaw))
+        #expect(simd_dot(chest, [-1, 0, 0]) > 0.99, "胸が本塁（-x）を向いていない")
         #expect(L.catcher.position.z < 0 && L.umpire.position.z < L.catcher.position.z, "審判は捕手のさらに後ろ")
+        #expect(L.catcher.position.x < 0 && L.umpire.position.x < 0, "捕手・審判は打者と反対の一塁側へ寄せる")
         #expect(abs(L.pitcher.position.z - 17.4) < 1e-4 && abs(L.pitcher.position.y - 0.3) < 1e-4, "マウンドの上（高さ 0.3m）")
         #expect(abs(L.pitcher.yaw - .pi) < 1e-6)
         #expect(L.cameraPosition.z > 30 && L.cameraTarget.z < 1, "センターの遠くから本塁を見る")
