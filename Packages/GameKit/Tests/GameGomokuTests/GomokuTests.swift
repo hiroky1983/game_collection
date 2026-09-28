@@ -258,23 +258,22 @@ struct GomokuInvalidTapTests {
 @Suite("Gomoku 強さ表示")
 struct GomokuStrengthLabelTests {
 
-    /// 実際の探索深さの上限は 1/1/3/9（「簡単」は #665 で探索をやめ、1手先の形だけを見る。
-    /// 「入門」は #1174 でその簡単と同じ読みのまま防御率だけを下げた。#1399 でふつうを 3、
-    /// むずかしいを 9（候補を点の高い 14 手に絞る）にした）。この前提が変わったら表示も見直す。
-    @Test func engineDepthsAreOneOneThreeNine() {
+    /// 実際の探索深さの上限は 1/3/5 手先・むずかしいは上限なし（#1463。探索の形は全段同じで、
+    /// 段の差は深さの上限・考える時間・最善手を打つ確率で付ける）。この前提が変わったら表示も見直す。
+    @Test func engineDepthCapsAreOneThreeFiveAndUnbounded() {
         #expect(SimpleGomokuEngine(level: -1).depth == 1)
-        #expect(SimpleGomokuEngine(level: 0).depth == 1)
-        #expect(SimpleGomokuEngine(level: 1).depth == 3)
-        #expect(SimpleGomokuEngine(level: 2).depth == 9)
+        #expect(SimpleGomokuEngine(level: 0).depth == 3)
+        #expect(SimpleGomokuEngine(level: 1).depth == 5)
+        #expect(SimpleGomokuEngine(level: 2).depth == SimpleGomokuEngine.maxDepth)
     }
 
-    /// 手数を名乗らない。反復深化＋読む局面数の上限で打ち切られるため、
+    /// 手数を名乗らない。反復深化＋考える時間で打ち切られるため、
     /// depth は上限であって「必ず N 手読む」保証ではなく、具体的な数字は書けない。
     @Test func viewDoesNotClaimAPlyCount() throws {
         let source = try Self.viewSource()
         #expect(
             SourceScan.matchCount(of: #"\d+\s*手読み"#, in: source) == 0,
-            "「N手読み」という表示が復活している（実際の探索深さは 3/4/5 で、しかも時間制限で上限に届かないことがある）"
+            "「N手読み」という表示が復活している（実際の探索深さの上限は 3/4/5 手先・むずかしいは上限なしで、しかも時間制限で上限に届かないことがある）"
         )
     }
 
