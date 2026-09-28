@@ -632,7 +632,6 @@ public struct SudokuView: View {
             title: "ミスが\(SudokuModel.maxMistakes)回になりました",
             titleFont: .title3.bold(),
             cornerRadius: Theme.cornerSmall,
-            contentPadding: 16,
             detail: Text("広告を見るとミスが0に戻り、続きから遊べます")
                 .themeBody(15).foregroundStyle(.white.opacity(0.85)),
             rescueLabel: "広告を見てコンティニュー",

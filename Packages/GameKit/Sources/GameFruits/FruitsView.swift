@@ -197,7 +197,6 @@ public struct FruitsView: View {
         RewardedContinueOverlay(
             title: "ゲームオーバー",
             cornerRadius: Theme.cornerSmall,
-            contentPadding: 16,
             detail: VStack(spacing: 6) {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
                 if !model.continueUsed {
