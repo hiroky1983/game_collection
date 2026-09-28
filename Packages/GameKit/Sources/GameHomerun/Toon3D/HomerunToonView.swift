@@ -34,7 +34,7 @@ struct HomerunOjisan3DStillView: View {
             if let still {
                 Image(uiImage: still).resizable().scaledToFit()
             } else {
-                HomerunToonSceneView(model: .ojisan(.stance), camera: HomerunBatterPortrait.stillCamera,
+                HomerunToonSceneView(model: .ojisan(.stance), camera: .init(target: [0, 2.7, 0], distance: 14, fieldOfView: 26),
                                      batterCamera: HomerunBatterPortrait.stillCamera) { image in
                     HomerunOjisanStillCache.image = image
                     still = image
@@ -121,11 +121,13 @@ struct HomerunToonSceneView: UIViewRepresentable {
         view.scene.addAnchor(anchor)
         if let onSnapshot {
             let coordinator = context.coordinator
-            coordinator.updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak view] _ in
+            coordinator.updates = view.scene.subscribe(to: SceneEvents.Update.self) { [weak view, weak coordinator] _ in
+                guard let coordinator else { return }
                 coordinator.frames += 1
                 guard coordinator.frames >= Self.framesBeforeSnapshot, !coordinator.didSnapshot, let view else { return }
                 coordinator.didSnapshot = true
-                view.snapshot(saveToHDR: false) { image in
+                view.snapshot(saveToHDR: false) { [weak coordinator] image in
+                    guard let coordinator else { return }
                     guard let image else { coordinator.didSnapshot = false; return }
                     coordinator.updates?.cancel()
                     onSnapshot(image)
@@ -136,5 +138,9 @@ struct HomerunToonSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {}
+
+    static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
+        coordinator.updates?.cancel()
+    }
 }
 #endif
