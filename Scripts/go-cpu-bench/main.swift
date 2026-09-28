@@ -87,18 +87,20 @@ struct Bench {
             let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
             let t0 = Date()
             if args[1] == "match" {
+                guard args.count >= 6 else { print("引数が足りません: match <上> <上の確率> <下> <下の確率> [開始局面数]"); return }
                 let up = level(args[2]), low = level(args[4])
                 let upP: Double? = args[3] == "shipped" ? nil : Double(args[3])
                 let p: Double? = args[5] == "shipped" ? nil : Double(args[5])
-                let openings = Int(args[6]) ?? 20
+                let openings = args.count > 6 ? Int(args[6]) ?? 20 : 20
                 let t = CPUBenchLadder.run(upper: .init(level: up, bestMoveChance: upP),
                                            lower: .init(level: low, bestMoveChance: p),
                                            openings: openings, firstOpening: first, concurrency: conc)
                 print("MATCH \(up.label)(確率 \(args[3])) 対 \(low.label)(確率 \(args[5])) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 所要 \(Int(Date().timeIntervalSince(t0)))s")
             } else {
+                guard args.count >= 4 else { print("引数が足りません: random <段階> <確率|shipped> [開始局面数]"); return }
                 let l = level(args[2])
                 let p: Double? = args[3] == "shipped" ? nil : Double(args[3])
-                let openings = Int(args[4]) ?? 50
+                let openings = args.count > 4 ? Int(args[4]) ?? 50 : 50
                 let t = CPUBenchLadder.run(upper: .init(level: l, bestMoveChance: p), lower: .random(),
                                            openings: openings, firstOpening: first, concurrency: conc)
                 print("RANDOM \(l.label)(確率 \(args[3])) 対 一様乱択 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 所要 \(Int(Date().timeIntervalSince(t0)))s")
