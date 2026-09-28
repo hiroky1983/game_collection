@@ -1,7 +1,6 @@
 import Foundation
 import Observation
 import Core
-import CoreEngine
 
 /// 対局の局面。
 ///
@@ -423,7 +422,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel {
         self.passBannerDismissID += 1
         persist()
         pendingInitialStart = false
-        services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel.rawValue))
+        services?.gameDidRestart(gameID: gameID, level: .aiStrength(aiLevel.rawValue))
     }
 
     // MARK: - CPU
