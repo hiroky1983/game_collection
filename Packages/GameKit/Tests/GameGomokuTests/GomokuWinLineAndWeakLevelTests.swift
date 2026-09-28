@@ -161,59 +161,6 @@ struct GomokuWinningLineModelTests {
     }
 }
 
-// MARK: - 「弱」の穴（#665）
-
-/// CPU（白）が止めないと黒が五になる局面と、その唯一の防ぎ点。
-private let blackFourPositions: [(board: GomokuBoard, block: (Int, Int))] = [
-    (makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)], white: [(7, 2)]), (7, 7)),
-    (makeBoard(black: [(3, 10), (4, 10), (5, 10), (6, 10)], white: [(2, 10)]), (7, 10)),
-    (makeBoard(black: [(2, 2), (3, 3), (4, 4), (5, 5)], white: [(1, 1)]), (6, 6)),
-    (makeBoard(black: [(9, 3), (9, 4), (9, 6), (9, 7)], white: [(1, 13)]), (9, 5)),
-]
-
-@Suite("五目並べ 弱の穴")
-struct GomokuWeakLevelTests {
-
-    /// 相手の四を防ぐのは半分程度。旧「弱」は必ず防いでいた（深さ3の読み + 即防ぎ）。
-    @Test func weakMissesAboutHalfOfTheBlocks() async {
-        var blocked = 0, total = 0
-        for (index, position) in blackFourPositions.enumerated() {
-            #expect(position.board.checkWin(row: position.block.0, col: position.block.1) == false)
-            for i in 0..<100 {
-                let engine = SimpleGomokuEngine(level: 0, seed: spreadSeed(i, salt: UInt64(index) << 32))
-                let move = await engine.bestMove(board: position.board, stone: .white)
-                total += 1
-                if move?.row == position.block.0 && move?.col == position.block.1 { blocked += 1 }
-            }
-        }
-        let rate = Double(blocked) / Double(total)
-        #expect((0.4...0.6).contains(rate), "弱の防御率が \(rate)（400 回中 \(blocked) 回）")
-    }
-
-    /// 対照: 穴を塞いだ（防御率 1）弱と「普通」は、同じ局面を必ず防ぐ。
-    @Test func withoutTheHoleEveryBlockIsFound() async {
-        for position in blackFourPositions {
-            for i in 0..<20 {
-                let engine = SimpleGomokuEngine(level: 0, seed: spreadSeed(i), weakBlockRate: 1)
-                let move = await engine.bestMove(board: position.board, stone: .white)
-                #expect(move?.row == position.block.0 && move?.col == position.block.1)
-            }
-            let normal = await SimpleGomokuEngine(level: 1).bestMove(board: position.board, stone: .white)
-            #expect(normal?.row == position.block.0 && normal?.col == position.block.1)
-        }
-    }
-
-    /// 自分の五は見逃さない（相手の四が同時にあっても勝ちを取る）。
-    @Test func weakAlwaysTakesItsOwnWin() async {
-        let board = makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)],
-                              white: [(3, 10), (4, 10), (5, 10), (6, 10)])
-        for i in 0..<50 {
-            let move = await SimpleGomokuEngine(level: 0, seed: spreadSeed(i)).bestMove(board: board, stone: .white)
-            #expect(move?.row == 7 && move?.col == 10 || move?.row == 2 && move?.col == 10)
-        }
-    }
-}
-
 // MARK: - 候補手の並び（#812）
 
 @Suite("五目並べ 候補手の並びが全順序")
@@ -244,7 +191,7 @@ struct GomokuCandidateOrderTests {
         let board = makeBoard(black: [(2, 3), (2, 4), (2, 5), (2, 6), (12, 3), (12, 4), (12, 5), (12, 6)],
                               white: [(2, 2), (12, 2)])
         for i in 0..<20 {
-            let move = await SimpleGomokuEngine(level: 0, seed: spreadSeed(i), weakBlockRate: 1)
+            let move = await SimpleGomokuEngine(level: 0, seed: spreadSeed(i))
                 .bestMove(board: board, stone: .white)
             #expect(move?.row == 2 && move?.col == 7)
         }
@@ -261,141 +208,28 @@ struct GomokuCandidateOrderTests {
     }
 }
 
-// MARK: - 「弱」の勝率（#665）
+// MARK: - 入門の下限（#1463）
 
-private enum TestPlayer {
-    /// 弱（`blockRate` を変えると穴の大きさだけが変わる）。
-    case weak(blockRate: Double)
-    /// 出荷している段階そのもの（#1174。段の番号から `SimpleGomokuEngine` を作る）。
-    case level(Int)
-    /// 既存の石から2マス以内へ一様に乱択する。
-    case random
+/// 合法手（空いている交点）から一様に乱択する相手（会長決裁の「入門は一様乱択の相手に 8 割以上勝つ」の相手役）。
+private func randomMove(board: GomokuBoard, seed: UInt64) -> (row: Int, col: Int) {
+    let empty = board.cells.indices.filter { board.cells[$0] == nil }
+    var rng = TestRNG(state: seed)
+    let pick = empty[Int.random(in: 0..<empty.count, using: &rng)]
+    return (pick / gomokuBoardSize, pick % gomokuBoardSize)
 }
 
-private func move(by player: TestPlayer, board: GomokuBoard, stone: GomokuStone,
-                  seed: UInt64) async -> (row: Int, col: Int)? {
-    switch player {
-    case .weak(let blockRate):
-        return await SimpleGomokuEngine(level: 0, seed: seed, weakBlockRate: blockRate)
-            .bestMove(board: board, stone: stone)
-    case .level(let level):
-        return await SimpleGomokuEngine(level: level, seed: seed)
-            .bestMove(board: board, stone: stone)
-    case .random:
-        var near: [(Int, Int)] = []
-        for row in 0..<gomokuBoardSize {
-            for col in 0..<gomokuBoardSize where board[row, col] == nil {
-                let hasNeighbor = (max(0, row - 2)...min(gomokuBoardSize - 1, row + 2)).contains { r in
-                    (max(0, col - 2)...min(gomokuBoardSize - 1, col + 2)).contains { c in board[r, c] != nil }
-                }
-                if hasNeighbor { near.append((row, col)) }
-            }
-        }
-        guard !near.isEmpty else { return (gomokuBoardSize / 2, gomokuBoardSize / 2) }
-        var rng = TestRNG(state: seed)
-        let pick = near[Int.random(in: 0..<near.count, using: &rng)]
-        return (pick.0, pick.1)
-    }
-}
+@Suite("五目並べ 入門とむずかしい")
+struct GomokuNoviceAndHardTests {
 
-/// `subject` を黒・白交互に持たせて `games` 局打ち、`subject` の勝ち数を返す。
-private func wins(of subject: TestPlayer, against opponent: TestPlayer, games: Int, salt: UInt64) async -> Int {
-    var won = 0
-    for game in 0..<games {
-        let subjectStone: GomokuStone = game % 2 == 0 ? .black : .white
-        var board = GomokuBoard()
-        var stone = GomokuStone.black
-        for ply in 0..<(gomokuBoardSize * gomokuBoardSize) {
-            let player = stone == subjectStone ? subject : opponent
-            let seed = spreadSeed(game * 1000 + ply, salt: salt)
-            guard let m = await move(by: player, board: board, stone: stone, seed: seed),
-                  board[m.row, m.col] == nil else {
-                Issue.record("打てない手が返った（\(game) 局目 \(ply) 手目）")
-                return won
-            }
-            board[m.row, m.col] = stone
-            if board.checkWin(row: m.row, col: m.col) {
-                if stone == subjectStone { won += 1 }
-                break
-            }
-            stone = stone.opponent
-        }
-    }
-    return won
-}
-
-@Suite("五目並べ 弱の勝率")
-struct GomokuWeakWinRateTests {
-
-    /// 下限: 弱くしても、でたらめに打つ相手には勝てる（勝負として成立する）。
-    @Test func weakStillBeatsARandomMover() async {
-        let games = 40
-        let won = await wins(of: .weak(blockRate: SimpleGomokuEngine.defaultWeakBlockRate),
-                             against: .random, games: games, salt: 1)
-        print("weak vs random: \(won)/\(games)")
-        #expect(won >= games * 9 / 10, "弱がでたらめな相手に \(won)/\(games) しか勝てない")
-    }
-
-    /// 上限: 穴（四の見逃し）を持たない同じ CPU には負け越す。旧「弱」は読みを持つぶんこの相手に勝ち越す。
-    @Test func weakLosesToTheSamePlayerWithoutTheHole() async {
-        let games = 40
-        let won = await wins(of: .weak(blockRate: SimpleGomokuEngine.defaultWeakBlockRate),
-                             against: .weak(blockRate: 1), games: games, salt: 2)
-        print("weak vs no-hole: \(won)/\(games)")
-        #expect(won <= games * 4 / 10, "穴のない相手に \(won)/\(games) 勝っている（弱の穴が効いていない）")
-    }
-}
-
-// MARK: - 入門・ガチ（#1174）
-
-@Suite("五目並べ 入門とガチ")
-struct GomokuNoviceAndSeriousTests {
-
-    /// 「入門」は簡単と同じ打ち方（読まずに1手先の形だけ）で、防御率だけを下げてある。
-    /// 深さ・時間は簡単と同じなので、思考の待ち時間も変わらない。
-    @Test func noviceSharesTheEasySearchWithALowerBlockRate() {
-        let novice = SimpleGomokuEngine(level: CPUStrength.novice.rawValue)
-        let easy = SimpleGomokuEngine(level: CPUStrength.easy.rawValue)
-        #expect(novice.isWeak)
-        #expect(novice.depth == easy.depth)
-        #expect(novice.timeLimit == easy.timeLimit)
-        #expect(novice.weakBlockRate == SimpleGomokuEngine.noviceBlockRate)
-        #expect(novice.weakBlockRate < easy.weakBlockRate, "入門の防御率が簡単より高い")
-    }
-
-    /// 既存 3 段階の設定は #1174 で 1 ビットも動かしていない（`GomokuStrengthLabelTests` と対）。
-    @Test func hardConfigurationIsUnchanged() {
-        let hard = SimpleGomokuEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.depth == 5 && hard.timeLimit == 1.5, "むずかしいの設定は変えない")
-        #expect(!hard.isWeak)
-    }
-
-    /// 弱くしても壊さない: 自分の五は必ず取る（#665 の「弱」と同じ下限）。
+    /// 弱くしても壊さない: 入門でも自分の五は必ず取る。
     @Test func noviceAlwaysTakesItsOwnWin() async {
         let board = makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)],
                               white: [(3, 10), (4, 10), (5, 10), (6, 10)])
-        for i in 0..<50 {
+        for i in 0..<20 {
             let move = await SimpleGomokuEngine(level: CPUStrength.novice.rawValue, seed: spreadSeed(i))
                 .bestMove(board: board, stone: .white)
             #expect(move?.row == 7 && move?.col == 10 || move?.row == 2 && move?.col == 10)
         }
-    }
-
-    /// 相手の四を防ぐ率は簡単（約 0.5）よりはっきり低い。
-    @Test func noviceMissesMoreBlocksThanEasy() async {
-        var blocked = 0, total = 0
-        for (index, position) in blackFourPositions.enumerated() {
-            for i in 0..<100 {
-                let engine = SimpleGomokuEngine(level: CPUStrength.novice.rawValue,
-                                                seed: spreadSeed(i, salt: UInt64(index) << 32))
-                let move = await engine.bestMove(board: position.board, stone: .white)
-                total += 1
-                if move?.row == position.block.0 && move?.col == position.block.1 { blocked += 1 }
-            }
-        }
-        let rate = Double(blocked) / Double(total)
-        print("novice block rate: \(rate)")
-        #expect((0.1...0.3).contains(rate), "入門の防御率が \(rate)（400 回中 \(blocked) 回）")
     }
 
     /// むずかしいは即勝ちも即防ぎも見逃さない（深く読ませても足元が崩れていないこと）。
@@ -412,22 +246,37 @@ struct GomokuNoviceAndSeriousTests {
         #expect(block?.row == 7 && block?.col == 7, "むずかしいが四を止めていない: \(String(describing: block))")
     }
 
-    /// 下限: 弱くしても、でたらめに打つ相手には勝ち越す（勝負として成立している）。
-    @Test func noviceStillBeatsARandomMover() async {
-        let games = 40
-        let won = await wins(of: .level(CPUStrength.novice.rawValue),
-                             against: .random, games: games, salt: 4)
-        print("novice vs random: \(won)/\(games)")
-        #expect(won >= games * 6 / 10, "入門がでたらめな相手に \(won)/\(games) しか勝てない（壊れている）")
-    }
-
-    /// 入門は簡単に負け越す（段の順どおり）。どちらも読まない打ち方なので CI でも軽い。
-    @Test func noviceLosesToEasy() async {
-        let games = 40
-        let won = await wins(of: .level(CPUStrength.novice.rawValue),
-                             against: .level(CPUStrength.easy.rawValue), games: games, salt: 3)
-        print("novice vs easy: \(won)/\(games)")
-        #expect(won <= games * 4 / 10, "入門が簡単に \(won)/\(games) 勝っている（段の順が崩れている）")
+    /// 下限: 入門は、合法手から一様に乱択する相手に 8 割以上勝つ（会長決裁 2026-09-27。
+    /// 先後入れ替え 100 局の実測は段階表 `docs/analytics/gomoku-1463-ladder.md`。ここは 20 局の軽い確認）。
+    @Test func noviceBeatsAUniformRandomMover() async {
+        let games = 20
+        var won = 0
+        for game in 0..<games {
+            let noviceStone: GomokuStone = game % 2 == 0 ? .black : .white
+            var board = GomokuBoard()
+            var stone = GomokuStone.black
+            for ply in 0..<(gomokuBoardSize * gomokuBoardSize) {
+                let seed = spreadSeed(game * 1000 + ply, salt: 5)
+                let m: (row: Int, col: Int)
+                if stone == noviceStone {
+                    guard let e = await SimpleGomokuEngine(level: CPUStrength.novice.rawValue, seed: seed, timeLimit: .infinity)
+                        .bestMove(board: board, stone: stone), board[e.row, e.col] == nil else {
+                        Issue.record("打てない手が返った（\(game) 局目 \(ply) 手目）")
+                        return
+                    }
+                    m = e
+                } else {
+                    m = randomMove(board: board, seed: seed)
+                }
+                board[m.row, m.col] = stone
+                if board.checkWin(row: m.row, col: m.col) {
+                    if stone == noviceStone { won += 1 }
+                    break
+                }
+                stone = stone.opponent
+            }
+        }
+        #expect(won >= games * 8 / 10, "入門が一様乱択の相手に \(won)/\(games) しか勝てない")
     }
 }
 

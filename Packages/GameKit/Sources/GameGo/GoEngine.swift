@@ -2,34 +2,45 @@ import Foundation
 
 /// CPU の設定。
 ///
-/// `timeLimit` は**実時間の上限**で、遅い端末でも 1 手が長引かないための歯止め。
-/// nil にすると `playouts` 回を必ず回すので、種を固定すれば結果が完全に再現する
-/// （テストは常に nil を使う。実時間で打ち切ると再現しないため）。
+/// 1 手の読みは **`playouts`（回数の上限）と `timeLimit`（実時間の上限）の早い方**で打ち切る（#1465）。
+/// `timeLimit` を nil にすると `playouts` 回を必ず回すので、種を固定すれば結果が完全に再現する
+/// （テスト・計測は nil を使う。実時間で打ち切ると再現しないため）。
 public struct GoEngineConfig: Sendable {
     public var playouts: Int
     /// UCT の探索定数。大きいほど広く浅く読む。
     public var exploration: Double
     public var seed: UInt64
     public var timeLimit: TimeInterval?
+    /// 最善手（訪問数が最大の手）を打つ確率。1 なら常に最善手（#1465）。
+    public var bestMoveChance: Double
+    /// 最善手を外すとき、最善手との勝率の差がこの幅以内の手から選ぶ（許す損の幅）。
+    public var mistakeMargin: Double
 
     public init(
         playouts: Int,
         exploration: Double = 1.0,
         seed: UInt64 = 0xA50_B1BA,
-        timeLimit: TimeInterval? = nil
+        timeLimit: TimeInterval? = nil,
+        bestMoveChance: Double = 1.0,
+        mistakeMargin: Double = GoLevel.mistakeMargin
     ) {
         self.playouts = playouts
         self.exploration = exploration
         self.seed = seed
         self.timeLimit = timeLimit
+        self.bestMoveChance = bestMoveChance
+        self.mistakeMargin = mistakeMargin
     }
 
-    /// 強さ 3 段階の既定値。9路なら「強」でも 1 手 1 秒以内に収まるよう実時間の上限を掛ける。
+    /// 段階ごとの出荷値（考える時間・回数の上限・最善手を打つ確率。#1465）。
     ///
     /// テストは実時間で打ち切ると再現しないので、この関数ではなく
     /// `GoEngineConfig(playouts:seed:timeLimit: nil)` を直接組み立てること。
     public static func level(_ level: GoLevel, seed: UInt64 = 0xA50_B1BA) -> GoEngineConfig {
-        GoEngineConfig(playouts: level.playouts, seed: seed, timeLimit: level.timeLimit)
+        GoEngineConfig(
+            playouts: level.playouts, seed: seed, timeLimit: level.timeLimit,
+            bestMoveChance: level.bestMoveChance, mistakeMargin: GoLevel.mistakeMargin
+        )
     }
 }
 
@@ -64,14 +75,19 @@ public struct GoEngine: Sendable {
         var mover: GoStone?
     }
 
-    /// 現局面での最善手。合法手が無ければパス。
+    /// 現局面で打つ手。合法手が無ければパス。`bestMoveChance` の確率で最善手、外れたら `mistakeMove`。
     public func bestMove(state: GoState) -> GoMove {
-        guard !state.isTwoPassEnd else { return .pass }
+        search(state: state).move
+    }
+
+    /// 計測用: 打つ手に加えて、回したプレイアウト数と実時間の上限で打ち切ったかを返す（#1465）。
+    func search(state: GoState) -> (move: GoMove, playouts: Int, timedOut: Bool) {
+        guard !state.isTwoPassEnd else { return (.pass, 0, false) }
 
         let rootMoves = rootCandidates(state)
-        guard !rootMoves.isEmpty else { return .pass }
+        guard !rootMoves.isEmpty else { return (.pass, 0, false) }
         // 選択肢が 1 つしか無いなら読む意味が無い（パスしか無い終盤で時間を使わない）。
-        guard rootMoves.count > 1 else { return rootMoves[0] }
+        guard rootMoves.count > 1 else { return (rootMoves[0], 0, false) }
 
         var random = GoRandom(seed: config.seed)
         var nodes: [Node] = [Node(move: nil, parent: -1, untried: rootMoves, mover: nil)]
@@ -79,13 +95,16 @@ public struct GoEngine: Sendable {
         let start = clock.now
 
         var iteration = 0
+        var timedOut = false
         while iteration < config.playouts {
-            iteration += 1
             // 実時間の上限は 32 回ごとに見る（毎回時計を読むと playout より重くなる）。
-            if let limit = config.timeLimit, iteration % 32 == 0,
-               (clock.now - start) > .seconds(limit) {
+            // 上限から後始末ぶん（`timeMargin`）を引いた時点で止め、1 手の合計が上限を超えないようにする。
+            if let limit = config.timeLimit, iteration > 0, iteration % 32 == 0,
+               (clock.now - start) > .seconds(max(0, limit - Self.timeMargin)) {
+                timedOut = true
                 break
             }
+            iteration += 1
 
             var playout = state.playoutCopy()
             var node = 0
@@ -134,8 +153,63 @@ public struct GoEngine: Sendable {
         let best = nodes[0].children.max { lhs, rhs in
             nodes[lhs].visits < nodes[rhs].visits
         }
-        guard let best, let move = nodes[best].move else { return rootMoves[0] }
-        return move
+        guard let best, let move = nodes[best].move else { return (rootMoves[0], iteration, timedOut) }
+        return (mistakeMove(best: best, move: move, nodes: nodes, state: state, random: &random) ?? move,
+                iteration, timedOut)
+    }
+
+    /// 実時間の上限から引く後始末ぶん（秒）。32 回ぶんのプレイアウトと手の選び直しが上限を超えないための余裕。
+    static let timeMargin: TimeInterval = 0.02
+
+    /// 外しの候補に入れる最低の訪問数。読みの回数が少なすぎる手は勝率の見積もりが当てにならない。
+    static let minMistakeVisits = 10
+
+    /// 最善手を外すときの手（#1465）。`bestMoveChance` の確率で `nil`（最善手を打つ）。
+    ///
+    /// 外すときは、最善手を除いた根の候補のうち、次をすべて満たす手から乱択する:
+    /// - 勝率が最善手から `mistakeMargin` 以内（大石を取られる手などは勝率が大きく落ちるので入らない）
+    /// - 訪問数が `minMistakeVisits` 以上（勝率の見積もりが当てになる）
+    /// - パスではない（パスは終局につながる）
+    /// - 打った直後にアタリ（呼吸点 1）になる自分の石が、最善手を打ったときより増えない
+    ///   （自分からアタリに飛び込む手・取られかけの石を見捨てる手＝次の一手で石を取られる手を除く）
+    /// 自分の眼をつぶす手は、もともと根の候補に入らない（`GoPlayout.candidateMoves`）。
+    /// 候補が無ければ `nil`（最善手を打つ）。
+    private func mistakeMove(best: Int, move: GoMove, nodes: [Node], state: GoState,
+                             random: inout GoRandom) -> GoMove? {
+        guard config.bestMoveChance < 1, move != .pass else { return nil }
+        let roll = Double(random.next() >> 11) / Double(1 << 53)
+        guard roll >= config.bestMoveChance else { return nil }
+        let bestRate = nodes[best].wins / Double(max(1, nodes[best].visits))
+        let bestAtari = Self.stonesInAtari(after: move, in: state)
+        let pool = nodes[0].children.filter { child in
+            guard child != best, let candidate = nodes[child].move, candidate != .pass,
+                  nodes[child].visits >= Self.minMistakeVisits,
+                  nodes[child].wins / Double(nodes[child].visits) >= bestRate - config.mistakeMargin
+            else { return false }
+            return Self.stonesInAtari(after: candidate, in: state) <= bestAtari
+        }
+        guard !pool.isEmpty else { return nil }
+        return nodes[pool[random.index(below: pool.count)]].move
+    }
+
+    /// `move` を打った直後に、アタリ（呼吸点 1）になっている打った側の石の数。
+    static func stonesInAtari(after move: GoMove, in state: GoState) -> Int {
+        var next = state.playoutCopy()
+        let color = state.sideToMove
+        guard next.play(move) == nil else { return .max }
+        var seen = Set<GoPoint>()
+        var count = 0
+        let board = next.board
+        for row in 0..<board.size {
+            for col in 0..<board.size {
+                let point = GoPoint(row: row, col: col)
+                guard board[point] == color, !seen.contains(point) else { continue }
+                let group = next.group(at: point)
+                seen.formUnion(group.stones)
+                if group.liberties == 1 { count += group.stones.count }
+            }
+        }
+        return count
     }
 
     private func selectChild(of node: Int, in nodes: [Node]) -> Int {
