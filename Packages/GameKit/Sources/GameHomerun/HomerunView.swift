@@ -256,7 +256,7 @@ struct HomerunResultView: View {
         let total = model.challenge?.totalDistance ?? 0
         let homers = model.challenge?.homerCount ?? 0
         return HStack(spacing: 14) {
-            OjisanCanvas(parts: OjisanArt.poseParts(.mascotFront))
+            HomerunOjisan3DStillView()
                 .frame(width: 80, height: 80)
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: "\(HomerunChallenge.pitchCount) 球の結果").themeCaption(13).foregroundStyle(Theme.inkSub)
