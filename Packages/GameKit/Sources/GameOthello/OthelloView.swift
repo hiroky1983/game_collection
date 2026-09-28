@@ -538,7 +538,7 @@ struct OthelloNewGameSheet: View {
             GameSetupSection("CPUの強さ") {
                 // 説明は `OthelloEngine.bestMove` の中身と一致させる（#416）。
                 CPUStrengthPicker(level: $level, details: [
-                    "1手先だけ読む", "3手先まで読む", "5手先まで読む", "終盤は最後まで読む",
+                    "角のとなりが好き", "浅い読み", "標準", "深い読み",
                 ])
             }
         }
