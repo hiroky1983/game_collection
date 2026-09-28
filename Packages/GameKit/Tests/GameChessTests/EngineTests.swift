@@ -64,15 +64,25 @@ struct EngineTests {
         #expect(isStalemate == false, "\(uci) はステイルメイトになる")
     }
 
-    @Test("難易度の設定が表示している文言と一致する（#416・#1462）")
+    @Test("難易度の設定が表示している文言と一致する（#416）")
     func levelsMatchTheirLabels() {
-        // 段階の差は考える時間・深さの上限・最善手の確率だけ（会長決裁 2026-09-27）。上の段ほど長く深く読む。
-        let engines = CPUStrength.allCases.map { SimpleChessEngine(level: $0.rawValue) }
-        #expect(engines.map(\.timeLimit) == [0.02, 0.1, 0.5, 2])
-        #expect(engines.map(\.depth) == [1, 2, 3, SimpleChessEngine.maxDepth])
-        #expect(engines.allSatisfy { $0.usePositional && $0.useQuiescence && $0.nodeLimit == nil })
-        // 定跡は「むずかしい」だけの売り。
-        #expect(engines.map(\.useBook) == [false, false, false, true])
+        // 弱: 駒の損得だけ（位置評価も静止探索も定跡も無し・浅い）
+        let weak = SimpleChessEngine(level: 0)
+        #expect(weak.depth == 2)
+        #expect(weak.usePositional == false, "「駒の損得だけ」なので位置評価を持たない")
+        #expect(weak.useQuiescence == false)
+        #expect(weak.useBook == false)
+
+        // 普通: 駒の働きも見る
+        let normal = SimpleChessEngine(level: 1)
+        #expect(normal.usePositional, "「駒の働きも見る」ので位置評価を持つ")
+        #expect(normal.useBook == false, "定跡は「強」だけの売り")
+
+        // 強: 定跡＋深読み
+        let strong = SimpleChessEngine(level: 2)
+        #expect(strong.useBook, "「定跡」を名乗るので定跡を持つ")
+        #expect(strong.depth > normal.depth, "「深読み」を名乗るので普通より深い")
+        #expect(normal.depth > weak.depth)
     }
 
     @Test("定跡は「強」だけが使い、初手は定跡どおりに指す")
@@ -84,10 +94,12 @@ struct EngineTests {
         #expect(await engine(depth: 1, book: true).bestMove(fen: afterE4) != nil)
     }
 
-    @Test("深く読む設定はクイーンを只で捨てない")
-    func deepSearchKeepsTheQueen() async {
+    @Test("弱いレベルは駒の只捨てを見落とす（初心者が勝てる最弱の根拠）")
+    func weakLevelHangsPieces() async {
         // 白のクイーンが d5 に出ると、c6 の黒ポーンでも e6 の黒ポーンでも取られる。
-        // 深さ 3 の探索は取り返される手を選ばないことを固定する。
+        // 静止探索が無い level 0 は「取ったら得」までしか読まず、取り返しを見ない。
+        // ここでは「level 2 は取り返される手を選ばない」ことだけを固定する
+        // （level 0 の具体的な手は評価の細部に依存するので固定しない）。
         let fen = "rnbqkbnr/pp1p1ppp/2p1p3/8/3Q4/8/PPP1PPPP/RNB1KBNR w KQkq - 0 1"
         let strong = await engine(depth: 3).bestMove(fen: fen)
         #expect(strong != nil)
@@ -213,43 +225,73 @@ enum ChessSelfPlay {
     }
 }
 
-// MARK: - 段階ごとの手（#1174・#1462）
+// MARK: - 入門・ガチ（#1174）
 
-/// 下の段（入門・かんたん）の読みの下限と、最善手を外す段の振る舞い。段の番号は 0 始まりではない（`CPUStrength`）。
+/// 両端に足した 2 段（#1174）。段の番号は 0 始まりではない（`CPUStrength`）。
 ///
-/// 段階どうしの強さの差（上の段の得点率 90% 以上）は CI では回さない。最適化ビルドでも 1 組数十分かかるため、
-/// `Scripts/chess-cpu-bench` で計測し `docs/analytics/chess-1462-ladder.md` に記録してある。
-@Suite("チェスの入門・かんたん")
+/// 将棋 `ShogiNoviceAndSeriousTests` と対で、同じ考え方・同じ物差しで見る
+/// （エンジンは共通化しないが、段の設計は 4 ゲームで揃える）。
+///
+/// **「入門 < 簡単」の直接対戦もこのファイルの方針どおり CI に置かない。** 将棋と同じ理由が
+/// そのまま当てはまる: 深さ 2 どうしの直接対戦では、乱択の幅が「簡単の最善からポーン 1 枚未満」
+/// しかないため差が埋もれる。実測（8手だけランダムに進めてから 60 手・40 局、先後を半々にした
+/// 直接対戦・デバッグビルド・192 秒）: **入門 19 勝/40 局・引き分け 7・入門視点の駒得合計 +5340**
+/// と、むしろ入門が上回っている（ノイズの範囲。統計的な差にならない）。将棋の旧「弱」に相当する
+/// 深い相手を挟めば差は出るはずだが、チェスの「ふつう」（深さ 3・位置評価＋静止探索あり）を
+/// 相手に 16 局（4 シード×先後）試したところ 3 分 43 秒かかった（実測）ため、有意な局数を
+/// 回すにはオフラインでも現実的な時間に収まらない。そのため CI には①設定の一致
+/// ②タダ取り・刺し違え回避・1 手詰め（このファイルの下にある個別テスト）
+/// ③入門がでたらめな相手には大差で勝つこと、の 3 つを置く。
+@Suite("チェスの入門")
 struct ChessNoviceAndSeriousTests {
 
     private static let novice = CPUStrength.novice.rawValue
 
-    /// 時間で打ち切られない指定段階。`slips` が `false` なら最善手を外さない（読みの深さだけを固定するテスト用）。
-    /// むずかしいの深さ上限（32）はそのままでは終わらないので 4 に絞る。
-    private func untimed(level: Int, seed: UInt64? = nil, slips: Bool = false) -> SimpleChessEngine {
-        let shipped = SimpleChessEngine(level: level)
-        return SimpleChessEngine(
-            depth: min(shipped.depth, 4), usePositional: shipped.usePositional,
-            useQuiescence: shipped.useQuiescence, useBook: false, timeLimit: .infinity,
-            policy: slips ? shipped.policy : shipped.policy.withoutSlip, seed: seed
-        )
-    }
-
-    /// 呼び出し時点で既に期限切れの指定段階。`timeLimit` に負の値を渡すと
-    /// `ChessSearchContext.init` の `Date().addingTimeInterval` がその場で過去の時刻になる。
-    private func expired(level: Int, seed: UInt64?) -> SimpleChessEngine {
-        let shipped = SimpleChessEngine(level: level)
+    /// 時間で打ち切られない「入門」（`seed` を渡すと乱択を再現できる）。
+    private func untimedNovice(seed: UInt64?) -> SimpleChessEngine {
+        let shipped = SimpleChessEngine(level: Self.novice)
         return SimpleChessEngine(
             depth: shipped.depth, usePositional: shipped.usePositional,
-            useQuiescence: shipped.useQuiescence, useBook: false, timeLimit: -1,
-            policy: shipped.policy, seed: seed
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: 600,
+            isNovice: true, seed: seed
         )
     }
 
-    @Test("むずかしいの設定（定跡・2 秒・深さ上限なし・100%）")
-    func hardConfiguration() {
+    /// 呼び出し時点で既に期限切れの「入門」（#1196 回帰テスト用）。`timeLimit` に負の値を渡すと
+    /// `ChessSearchContext.init` の `Date().addingTimeInterval` がその場で過去の時刻になる。
+    private func expiredNovice(seed: UInt64?) -> SimpleChessEngine {
+        let shipped = SimpleChessEngine(level: Self.novice)
+        return SimpleChessEngine(
+            depth: shipped.depth, usePositional: shipped.usePositional,
+            useQuiescence: shipped.useQuiescence, useBook: shipped.useBook, timeLimit: -1,
+            isNovice: true, seed: seed
+        )
+    }
+
+    /// 「入門」は**読みの設定を「簡単」と 1 ビットも変えず**、着手の選び方だけを崩してある。
+    /// 深さを 1 に落とすと只捨てを始めるので、そこには戻さない。
+    @Test("入門の読みは簡単と同じで、選び方だけが違う")
+    func noviceSharesTheEasySearch() {
+        let novice = SimpleChessEngine(level: Self.novice)
+        let easy = SimpleChessEngine(level: CPUStrength.easy.rawValue)
+        #expect(novice.isNovice)
+        #expect(!easy.isNovice)
+        #expect(novice.depth == easy.depth && easy.depth == 2)
+        #expect(novice.useQuiescence == easy.useQuiescence)
+        #expect(novice.usePositional == easy.usePositional)
+        #expect(novice.useBook == easy.useBook)
+        #expect(novice.timeLimit == easy.timeLimit)
+        // 許す損はポーン 1 枚未満。駒を只で捨てる手はこの幅に入らない。
+        #expect(SimpleChessEngine.noviceMargin < ChessPieceValue.base(.pawn))
+    }
+
+    /// 既存の最上段（むずかしい）の設定は変えていない。
+    @Test("むずかしいの設定は #1174 で触らない")
+    func hardConfigurationIsUnchanged() {
         let hard = SimpleChessEngine(level: CPUStrength.hard.rawValue)
-        #expect(hard.useBook && hard.timeLimit == 2 && hard.depth == SimpleChessEngine.maxDepth && hard.policy.isExact)
+        #expect(hard.depth == 5 && hard.timeLimit == 2.0)
+        #expect(hard.useBook && hard.useQuiescence && hard.usePositional)
+        #expect(!hard.isNovice)
     }
 
     /// タダの駒は入門も取る（弱くはするが壊さない）。
@@ -258,74 +300,89 @@ struct ChessNoviceAndSeriousTests {
         // e5 の黒ルークは e1 の白ルークで取れて、取り返されない。
         let fen = "k7/8/8/4r3/8/8/8/K3R3 w - - 0 1"
         for seed in UInt64(1)...10 {
-            #expect(await untimed(level: Self.novice, seed: seed).bestMove(fen: fen) == "e1e5",
+            #expect(await untimedNovice(seed: seed).bestMove(fen: fen) == "e1e5",
                     "入門がタダのルークを取っていない（seed \(seed)）")
         }
     }
 
-    /// 全段階が静止探索つきで読む（#1462）ので、入門（1 手先）でも最善手の手番では取り返しを見る。
-    @Test("入門・かんたんは（外さない手番では）取り返されるだけの取りを指さない")
-    func lowerLevelsAvoidTheHangingCapture() async {
+    /// 取り返されるだけの取りは入門も指さない（只捨てに落ちていない）。
+    @Test("入門は取り返されるだけの取りを指さない")
+    func noviceAvoidsTheHangingCapture() async {
         // Qxe5 は d6 のポーンに取り返される（クイーン 900 とポーン 100 の刺し違え）。
         let fen = "k7/8/3p4/4p3/8/8/8/K3Q3 w - - 0 1"
-        for level in [Self.novice, CPUStrength.easy.rawValue] {
-            #expect(await untimed(level: level).bestMove(fen: fen) != "e1e5",
-                    "段階 \(level) がクイーンをポーンと刺し違えている")
+        for seed in UInt64(1)...10 {
+            #expect(await untimedNovice(seed: seed).bestMove(fen: fen) != "e1e5",
+                    "入門がクイーンをポーンと刺し違えている（seed \(seed)）")
         }
     }
 
-    /// 勝てる手は入門も逃さない。
+    /// 勝てる手は入門も逃さない（乱択の幅に「詰み」は埋もれない）。
     @Test("入門も1手詰めは逃さない")
     func noviceFindsMateInOne() async {
-        #expect(await untimed(level: Self.novice)
-            .bestMove(fen: "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1") == "a1a8")
-    }
-
-    /// 入門・かんたん・ふつうは最善手を外すので、同じ局面でも指す手が散る。むずかしいは決定的。
-    @Test("最善手を外す段は同じ局面でも指す手が散り、むずかしいは散らない")
-    func slippingLevelsVaryTheirMove() async {
-        let fen = "k7/8/8/4p3/8/8/8/K3R3 w - - 0 1"
-        for level in [Self.novice, CPUStrength.easy.rawValue, CPUStrength.normal.rawValue] {
-            var moves = Set<String>()
-            for seed in UInt64(1)...40 {
-                if let uci = await untimed(level: level, seed: seed, slips: true).bestMove(fen: fen) { moves.insert(uci) }
-            }
-            #expect(moves.count > 1, "段階 \(level) の手が 1 通りしかない（外しが効いていない）")
-        }
-        var hard = Set<String>()
-        for seed in UInt64(1)...5 {
-            if let uci = await untimed(level: CPUStrength.hard.rawValue, seed: seed, slips: true).bestMove(fen: fen) {
-                hard.insert(uci)
-            }
-        }
-        #expect(hard.count == 1, "むずかしいの手が散っている")
-    }
-
-    /// 呼び出し時点で既に期限切れでも、外しの採点（最低限の手数）か探索の先頭の手で合法手を返す。
-    @Test("期限切れでも合法手を返す")
-    func expiredStillReturnsALegalMove() async {
-        let legal = Set(ChessPosition.start().legalMoves().map(\.uci))
-        for level in CPUStrength.allCases.map(\.rawValue) {
-            for seed in UInt64(1)...10 {
-                let uci = await expired(level: level, seed: seed).bestMove(fen: ChessPosition.startFEN)
-                #expect(uci.map(legal.contains) == true, "段階 \(level) が合法手を返さない（\(uci ?? "nil")）")
-            }
+        for seed in UInt64(1)...10 {
+            #expect(await untimedNovice(seed: seed)
+                .bestMove(fen: "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1") == "a1a8",
+                    "入門が1手詰めを逃した（seed \(seed)）")
         }
     }
 
-    /// 弱くしても壊れていないことの下限: 入門の読み（1 手先）でも、でたらめに指す相手には大差で勝つ。
-    /// 種を固定した同じエンジンは毎手同じ目を引くので、ここでは外しを切って読みだけを見る
-    /// （出荷どおり 60% で外す入門の対一様乱択は、計測で 100 局全勝・`docs/analytics/chess-1462-ladder.md`）。
+    /// 入門は同じ局面でも手が散る（＝選び方を崩している）。簡単は乱数を使わないので必ず同じ手。
+    @Test("入門は同じ局面でも指す手が散る")
+    func noviceVariesItsMove() async {
+        var noviceMoves = Set<String>()
+        for seed in UInt64(1)...30 {
+            if let uci = await untimedNovice(seed: seed).bestMove(fen: ChessPosition.startFEN) {
+                noviceMoves.insert(uci)
+            }
+        }
+        #expect(noviceMoves.count > 1, "入門の手が 1 通りしかない（乱択が効いていない）")
+
+        var easyMoves = Set<String>()
+        for _ in 0..<5 {
+            if let uci = await SimpleChessEngine(
+                depth: 2, usePositional: false, useQuiescence: false, useBook: false, timeLimit: 600
+            ).bestMove(fen: ChessPosition.startFEN) { easyMoves.insert(uci) }
+        }
+        #expect(easyMoves.count == 1, "前提が崩れている: 簡単は決定的")
+    }
+
+    /// 呼び出し時点で既に `deadline` を過ぎていても、`noviceMove` は評価済みの候補から選ぶ
+    /// （#1196）。安全フロア（`minNoviceEvaluations`）を入れる前は、1手も評価できないまま
+    /// `orderedMoves.first` を無条件に返していたため、乱数の種を変えても常に同じ手になっていた。
+    @Test("期限切れでも評価済みの候補から選ぶ（1手固定に戻らない）")
+    func noviceStillVariesWhenDeadlineAlreadyPassed() async {
+        var moves = Set<String>()
+        for seed in UInt64(1)...30 {
+            if let uci = await expiredNovice(seed: seed).bestMove(fen: ChessPosition.startFEN) {
+                moves.insert(uci)
+            }
+        }
+        #expect(moves.count > 1, "期限切れ時に手が1通りしかない = 1件も評価されず orderedMoves.first に固定されている")
+    }
+
+    /// 安全フロアの評価は `negamax` の期限判定も無効化しないと、相手の応手を読まない
+    /// 静的評価（`evaluate(pos)`）のまま候補に残り、取り返される取りを選びうる
+    /// （CodeRabbit 指摘・PR #1199）。`noviceAvoidsTheHangingCapture` と同じ局面を
+    /// 呼び出し時点で期限切れにして確認する。
+    @Test("期限切れでも取り返されるだけの取りは選ばない")
+    func expiredNoviceAvoidsTheHangingCapture() async {
+        let fen = "k7/8/3p4/4p3/8/8/8/K3Q3 w - - 0 1"
+        for seed in UInt64(1)...30 {
+            #expect(await expiredNovice(seed: seed).bestMove(fen: fen) != "e1e5",
+                    "期限切れの入門がクイーンをポーンと刺し違えている（seed \(seed)）")
+        }
+    }
+
+    /// 弱くしても壊れていないことの下限: でたらめに指す相手には大差で駒得する
+    /// （将棋 `noviceStillCrushesRandomPlay` と同じ物差し）。
     @Test("入門もでたらめな相手には大差で勝つ")
     func noviceStillCrushesRandomPlay() async {
-        let novice = untimed(level: Self.novice, seed: 13)
+        let novice = untimedNovice(seed: 13)
 
         let asWhite = await ChessSelfPlay.play(white: novice, black: nil, seed: 13, maxPlies: 120)
-        #expect(asWhite.mated == .black || asWhite.material > 1_000,
-                "白の「入門」が勝てていない（駒得 \(asWhite.material)）")
+        #expect(asWhite.material > 1_000, "白の「入門」が駒得できていない（\(asWhite.material)）")
 
         let asBlack = await ChessSelfPlay.play(white: nil, black: novice, seed: 13, maxPlies: 120)
-        #expect(asBlack.mated == .white || asBlack.material < -1_000,
-                "黒の「入門」が勝てていない（駒得 \(asBlack.material)）")
+        #expect(asBlack.material < -1_000, "黒の「入門」が駒得できていない（\(asBlack.material)）")
     }
 }

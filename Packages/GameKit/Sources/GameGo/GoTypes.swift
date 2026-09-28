@@ -1,5 +1,4 @@
 import Foundation
-import CoreEngine
 
 /// 盤の路数。9路を既定にし、13路は後日の拡張に備えて型で持つ（#398。UI では 9 だけを出す）。
 ///
@@ -187,67 +186,41 @@ public struct GoRuleset: Equatable, Sendable, Codable {
     }
 }
 
-/// CPU の強さ。共通の 4 段階（入門・簡単・ふつう・むずかしい。#1400）。
-///
-/// `rawValue` は `CPUStrength` と同じ（入門 -1・簡単 0・ふつう 1・むずかしい 2）。既存 3 段階の番号は
-/// 動かさないので、中断データからの再開が 1 段ずれない。
+/// CPU の強さ。3 段階（#398 の受け入れ条件）。
 public enum GoLevel: Int, Codable, Equatable, Sendable, CaseIterable {
-    case novice = -1, easy = 0, normal = 1, hard = 2
+    case easy = 0, normal = 1, hard = 2
 
-    public var label: String { CPUStrength(rawValue: rawValue)?.label ?? "" }
+    public var label: String {
+        switch self {
+        case .easy:   return "弱"
+        case .normal: return "普通"
+        case .hard:   return "強"
+        }
+    }
 
-    /// 1 手あたりのプレイアウト数の上限（#1465・社長決定 2026-09-27）。`timeLimit` と早い方で打ち切る。
-    ///
-    /// 時間だけで打ち切ると段階の差が端末の速さで変わる（Mac M2 で約 7,000 回/秒）ので、将棋の
-    /// 「読む深さの上限」にあたるこの回数で段階の差を作る。むずかしいの 8,000 回は iPhone でも 2 秒以内に
-    /// 読み切れる量（12,000 回は Mac で 1.6 秒かかるため見送り）。
+    /// 1 手あたりのプレイアウト数。体感差が出るよう桁で分ける。
     public var playouts: Int {
         switch self {
-        case .novice: return 500
-        case .easy:   return 1_500
-        case .normal: return 4_000
-        case .hard:   return 8_000
+        case .easy:   return 400
+        case .normal: return 2_500
+        case .hard:   return 9_000
         }
     }
 
-    /// 1 手の考える時間の上限（秒。会長決裁 2026-09-26）。回数を読み終われば早く打つ。
+    /// 1 手にかけてよい実時間の上限（秒）。
+    ///
+    /// 遅い端末でも「1 手 1 秒以内」（#398）に収めるための歯止め。**段階ごとに別の値**にするのが
+    /// 要点で、共通の上限にすると遅い端末で普通と強がどちらも上限に張り付いて同じ強さになる。
     public var timeLimit: TimeInterval {
         switch self {
-        case .novice: return 0.5
-        case .easy:   return 1.0
-        case .normal: return 1.5
-        case .hard:   return 2.0
+        case .easy:   return 0.4
+        case .normal: return 0.8
+        case .hard:   return 0.9
         }
     }
-
-    /// 最善手（訪問数が最大の手）を打つ確率。外れたときは `GoEngine.mistakeMove` で選び直す。
-    /// むずかしいは 100%。ほかは #1465 の実測で決めた値（`docs/analytics/go-1465-ladder.md`）。
-    public var bestMoveChance: Double {
-        switch self {
-        case .novice: return Self.noviceBestMoveChance
-        case .easy:   return Self.easyBestMoveChance
-        case .normal: return Self.normalBestMoveChance
-        case .hard:   return 1.0
-        }
-    }
-
-    /// 最善手を打つ確率（#1465 の実測。すぐ上の段と先後半々で戦い、上の段の得点率が 90% 以上になる
-    /// 10% 刻みで最も高い値。ふつう → かんたん → 入門の順に決めた: むずかしい 100% に対しふつう 90%、
-    /// ふつう 90% に対しかんたん 90%、かんたん 90% に対し入門 100%。入門は外しを使わず、500 回の読みの少なさだけで弱くなる）。
-    static let noviceBestMoveChance = 1.0
-    static let easyBestMoveChance = 0.9
-    static let normalBestMoveChance = 0.9
-
-    /// 最善手を外すとき、最善手との勝率の差がこの幅以内の手から選ぶ（許す損の幅・全段階共通）。
-    ///
-    /// 10 ポイント。9 路の読みの勝率は 1 手の悪手（石を取られる・地を大きく損する）で 20 ポイント以上動くので、
-    /// その手は入らず、「最善ではないが筋は悪くない手」だけが残る。これより狭いと読みのぶれ（数百回の
-    /// プレイアウトで数ポイント）の中に候補がほとんど残らず、広いと大石を見捨てる手まで入る。
-    public static let mistakeMargin = 0.1
 
     public var detail: String {
         switch self {
-        case .novice: return "ほぼ読まない"
         case .easy:   return "軽く読む"
         case .normal: return "そこそこ読む"
         case .hard:   return "しっかり読む"
