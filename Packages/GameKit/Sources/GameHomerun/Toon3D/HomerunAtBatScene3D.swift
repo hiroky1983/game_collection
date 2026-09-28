@@ -139,8 +139,8 @@ struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
-    /// 打者のスイング（試作）。nil なら構え、値が変わるたびにスイングを頭から 1 回再生する。
-    var batterSwing: Int?
+    /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を頭から流す。
+    var batterMotion: HomerunBatterMotion = .stance
 
     var body: some View {
         ZStack {
@@ -148,7 +148,7 @@ struct HomerunAtBatScene3DView: View {
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
             HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera,
-                                  batterSwing: batterSwing)
+                                  batterMotion: batterMotion)
             #endif
         }
         .allowsHitTesting(false)
@@ -163,13 +163,13 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
     let pitcherPose: HomerunOjisanPose3
     let camera: HomerunAtBatLayout.Camera
-    let batterSwing: Int?
+    let batterMotion: HomerunBatterMotion
 
     /// 打者・投手の実体（ポーズが変わったら差し替える）とカメラ（案が変わったら向け直す）。打者は Meshy のモデルが読めればそれ
     /// （`batterRig`）を使い、読めなければ旧モデル（プリミティブで組んだおじさん）をポーズごとに差し替える。
     final class Coordinator {
         var batterRig: HomerunBatterRig?
-        var batterSwing: Int?
+        var batterMotion: HomerunBatterMotion = .stance
         var batter: Entity?
         var batterPose: HomerunOjisanPose3?
         var pitcher: Entity?
@@ -216,8 +216,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             rig.entity.orientation = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
             anchor.addChild(rig.entity)
             context.coordinator.batterRig = rig
-            if batterSwing != nil { rig.playSwing() }
-            context.coordinator.batterSwing = batterSwing
+            if batterMotion != .stance { rig.show(batterMotion) }
+            context.coordinator.batterMotion = batterMotion
         } else {
             let batter = Self.legacyBatter(batterPose)
             anchor.addChild(batter)
@@ -248,9 +248,9 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         let c = context.coordinator
         uiView.mirrored = camera.mirrored
         if let rig = c.batterRig {
-            if c.batterSwing != batterSwing {
-                if batterSwing != nil { rig.playSwing() } else { rig.showStance() }
-                c.batterSwing = batterSwing
+            if c.batterMotion != batterMotion {
+                rig.show(batterMotion)
+                c.batterMotion = batterMotion
             }
         } else if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
             let new = Self.legacyBatter(batterPose)

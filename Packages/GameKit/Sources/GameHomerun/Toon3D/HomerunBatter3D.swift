@@ -54,44 +54,70 @@ enum HomerunBatterAsset {
     }
 }
 
-/// 打者 1 人ぶんの実体とスイングの再生。構え = スイングの 1 コマ目で止めた姿勢、スイング = 1 回だけ再生して最後のコマで止める。
+/// 打者の動きの段階（試作）。1 本のスイングを 3 つに切って使う。
+///
+/// USDZ のスイングは、1〜20 コマ目（0.63 秒）が**踏み込み**（バットはほとんど動かない）、21〜30 コマ目で振り抜き、
+/// 31〜44 コマ目がフォロースルー。離した瞬間に頭から流すと、バットが動き出すのが 0.67 秒後になり、
+/// その前に結果（外野カメラ・次の球）へ切り替わって「振らない」ように見える（会長 QA 2026-09-28）。
+/// そこで踏み込みは投球中（輪が的に重なる 0.63 秒前から）に流し、離した瞬間は振り抜きから流す。
+enum HomerunBatterMotion: Equatable {
+    /// 構え（1 コマ目で止める）。
+    case stance
+    /// 踏み込み（1〜20 コマ目を流して止める）。
+    case load
+    /// 振り抜き〜フォロースルー（20 コマ目から最後まで流して止める）。値は振った回数（変わるたびに頭から）。
+    case swing(Int)
+
+    /// 踏み込みの長さ（秒・20 コマ目 = 19/30 秒）。振り抜きはここから始まる。
+    static let loadDuration: TimeInterval = 19.0 / 30
+
+    /// 投球中の経過（`HomerunModel.pitchElapsed`）から、構えか踏み込みかを決める。輪が的に重なる（`travel` 秒）ときに
+    /// 踏み込み終わるように、その `loadDuration` 秒前から踏み込む。
+    static func beforeSwing(elapsed: TimeInterval?, travel: TimeInterval) -> HomerunBatterMotion {
+        guard let elapsed, elapsed >= travel - loadDuration else { return .stance }
+        return .load
+    }
+}
+
+/// 打者 1 人ぶんの実体と動きの再生（どの段階も 1 回だけ流して最後のコマで止める）。
 @MainActor
 final class HomerunBatterRig {
     let entity: Entity
-    private let swingAnimation: AnimationResource?
     private let stanceAnimation: AnimationResource?
+    private let loadAnimation: AnimationResource?
+    private let swingAnimation: AnimationResource?
     private var controller: AnimationPlaybackController?
 
-    /// スイング 1 本の長さ（秒）。
-    var swingDuration: TimeInterval { swingAnimation?.definition.duration ?? 0 }
+    /// スイング 1 本（踏み込み〜フォロースルー）の長さ（秒）。
+    let fullDuration: TimeInterval
 
     init?() {
         guard let e = HomerunBatterAsset.makeEntity() else { return nil }
         entity = e
-        if let source = e.availableAnimations.first {
-            var swing = source.definition
-            swing.fillMode = .forwards
-            swingAnimation = try? AnimationResource.generate(with: swing)
-            var stance = source.definition.trimmed(start: 0, end: 1.0 / 60)
-            stance.fillMode = .forwards
-            stanceAnimation = try? AnimationResource.generate(with: stance)
-        } else {
-            swingAnimation = nil
-            stanceAnimation = nil
+        // 再生は読み込んだ根の実体の「default subtree animation」（骨の動き 1 本）で行う。
+        guard let source = e.availableAnimations.first?.definition else { return nil }
+        fullDuration = source.duration
+        func segment(_ start: TimeInterval, _ end: TimeInterval) -> AnimationResource? {
+            var d = source.trimmed(start: start, end: end)
+            d.fillMode = .forwards
+            return try? AnimationResource.generate(with: d)
         }
-        showStance()
+        stanceAnimation = segment(0, 1.0 / 60)
+        loadAnimation = segment(0, HomerunBatterMotion.loadDuration)
+        swingAnimation = segment(HomerunBatterMotion.loadDuration, source.duration)
+        show(.stance)
     }
 
-    /// 構え（1 コマ目）で止める。
-    func showStance() {
+    /// 段階を切り替える（呼ぶたびにその段階を頭から流す）。
+    func show(_ motion: HomerunBatterMotion) {
+        let animation: AnimationResource?
+        switch motion {
+        case .stance: animation = stanceAnimation
+        case .load: animation = loadAnimation
+        case .swing: animation = swingAnimation
+        }
         controller?.stop()
-        controller = stanceAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
-    }
-
-    /// スイングを頭から 1 回再生し、最後のコマで止める。
-    func playSwing() {
-        controller?.stop()
-        controller = swingAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
+        controller = animation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
     }
 }
 #endif

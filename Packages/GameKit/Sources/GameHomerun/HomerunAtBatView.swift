@@ -13,6 +13,11 @@ struct HomerunAtBatView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 押している指の位置（残像の描画用・押せる帯の座標）。
     @State private var fingerPoint: CGPoint?
+    /// 振った球の結果に入ってから、打者の振り抜きを見せ終えたか（外野カメラへの切り替えと結果のカードをそれまで待つ・試作）。
+    @State private var swingShown = false
+
+    /// 振り抜きを見せる時間（秒）。踏み込みの後の 21〜30 コマ目（約 0.33 秒）＋フォロースルーの入り。
+    static let swingShowDuration: TimeInterval = 0.55
 
     var body: some View {
         GeometryReader { geo in
@@ -33,7 +38,7 @@ struct HomerunAtBatView: View {
                                              batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
                                              pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
                                              cameraPreset: model.atBatCamera,
-                                             batterSwing: batterSwing)
+                                             batterMotion: batterMotion(at: now))
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             ball: model.phase == .pitching ? model.ballPoint : nil,
@@ -56,7 +61,8 @@ struct HomerunAtBatView: View {
                     }
                     .padding(.horizontal, Theme.pad)
                     .padding(.top, 8)
-                    if model.phase == .ballResult, let ball = model.lastBall {
+                    // 振った球は、振り抜きを見せ終えてから結果のカードを出す（先に出すと打者に重なってスイングが隠れる・試作）。
+                    if model.phase == .ballResult, !model.didSwingLastBall || swingShown, let ball = model.lastBall {
                         HomerunBallResultCard(ball: ball, number: model.pitchNumber)
                             .padding(.horizontal, Theme.pad)
                             .padding(.top, size.height * 0.2)
@@ -73,6 +79,14 @@ struct HomerunAtBatView: View {
             }
         }
         .gameAnimation(.easeOut(duration: 0.2), value: model.phase)
+        // 振った球は、外野カメラへ切り替える前に打席で振り抜きを見せる（離した瞬間に切り替えるとスイングが見えない）。
+        .task(id: model.step) {
+            swingShown = false
+            guard model.phase == .ballResult, model.didSwingLastBall else { return }
+            try? await Task.sleep(for: .seconds(Self.swingShowDuration))
+            guard !Task.isCancelled else { return }
+            withGameAnimation(.easeOut(duration: 0.2)) { swingShown = true }
+        }
     }
 
     /// 「⋯」メニューの項目: カメラの前 / 後ろ（チェック付きの 2 択・#1506）。選ぶのは見た目だけで、投球中でも判定・座標は変えない。
@@ -85,14 +99,19 @@ struct HomerunAtBatView: View {
         }
     }
 
-    /// 3D の打者のスイングの合図（試作）。振った球の結果を見せているあいだだけ値があり、振るたびに変わる。
-    private var batterSwing: Int? {
-        model.phase == .ballResult && model.didSwingLastBall ? model.swingCount : nil
+    /// Meshy の打者の動きの段階（試作）。投球中は輪が的に重なる少し前から踏み込み、振った球の結果の間は振り抜き（振るたびに頭から）。
+    private func batterMotion(at now: Date) -> HomerunBatterMotion {
+        switch model.phase {
+        case .pitching: HomerunBatterMotion.beforeSwing(elapsed: model.pitchElapsed(at: now), travel: HomerunModel.travel)
+        case .ballResult where model.didSwingLastBall: .swing(model.swingCount)
+        default: .stance
+        }
     }
 
     /// 当たり以上（外野へ飛んだ）の結果は外野カメラの静止ショットに切り替える（README §3.2）。
     private var showsOutfield: Bool {
         guard model.phase == .ballResult, let kind = model.lastBall?.kind else { return false }
+        if model.didSwingLastBall, !swingShown { return false }
         return kind == .inPlay || kind == .fenceHit || kind == .homer
     }
 
@@ -215,12 +234,12 @@ struct HomerunAtBatBackdrop: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
-    var batterSwing: Int?
+    var batterMotion: HomerunBatterMotion = .stance
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
         HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset,
-                                batterSwing: batterSwing).ignoresSafeArea()
+                                batterMotion: batterMotion).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
         #endif

@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import simd
 import GameKitTestSupport
 @testable import GameHomerun
 #if canImport(RealityKit)
@@ -51,11 +52,68 @@ struct HomerunBatter3DTests {
     @MainActor
     func rigLoads() throws {
         let rig = try #require(HomerunBatterRig(), "USDZ が読めない")
-        #expect(abs(rig.swingDuration - 43.0 / 30) < 0.02, "スイングの長さ \(rig.swingDuration) 秒")
+        #expect(abs(rig.fullDuration - 43.0 / 30) < 0.02, "スイングの長さ \(rig.fullDuration) 秒")
         let joints = allJointNames(rig.entity)
         #expect(joints.contains { $0.hasSuffix("RightHand/Bat") }, "バットの骨が右手の子になっていない")
         let bounds = rig.entity.visualBounds(relativeTo: nil)
         #expect(abs(bounds.min.y) < 0.05 && abs(bounds.max.y - 1.72) < 0.1, "足元が y = 0・身長 1.72m になっていない（\(bounds.min.y)〜\(bounds.max.y)）")
+    }
+
+    @Test("踏み込みは輪が的に重なる 19/30 秒前から。投球前・モーション中・結果の外は構え")
+    func loadStartsBeforeArrival() {
+        let travel = 1.2, load = HomerunBatterMotion.loadDuration
+        #expect(HomerunBatterMotion.beforeSwing(elapsed: nil, travel: travel) == .stance)
+        #expect(HomerunBatterMotion.beforeSwing(elapsed: -0.5, travel: travel) == .stance)
+        #expect(HomerunBatterMotion.beforeSwing(elapsed: travel - load - 0.01, travel: travel) == .stance)
+        #expect(HomerunBatterMotion.beforeSwing(elapsed: travel - load, travel: travel) == .load)
+        #expect(HomerunBatterMotion.beforeSwing(elapsed: travel + 0.1, travel: travel) == .load)
+    }
+
+    // 離した瞬間に頭から流すと最初の 0.63 秒は踏み込みでバットがほぼ動かず、先に外野カメラへ切り替わって
+    // 「振らない」ように見えた（会長 QA 2026-09-28）。振り抜きの段は流し始めてすぐバットが大きく動くこと。
+    @Test("振り抜きの段は流し始めて 0.2 秒でバットの骨が大きく回る（踏み込みの段はほとんど回らない）")
+    @MainActor
+    func swingSegmentMovesTheBatImmediately() async throws {
+        guard #available(macOS 15.0, iOS 18.0, *) else { return }
+        let rig = try #require(HomerunBatterRig())
+        let renderer = try RealityRenderer()
+        renderer.entities.append(rig.entity)
+        func batAngle(after motion: HomerunBatterMotion, seconds: Double) throws -> Float {
+            rig.show(.stance)
+            try renderer.update(0.05)
+            let start = try batRotation(rig)
+            rig.show(motion)
+            for _ in 0..<Int(seconds / 0.05) { try renderer.update(0.05) }
+            let end = try batRotation(rig)
+            return 2 * acos(min(1, abs(simd_dot(start.vector, end.vector))))
+        }
+        let swing = try batAngle(after: .swing(1), seconds: 0.2)
+        let load = try batAngle(after: .load, seconds: 0.2)
+        #expect(swing > 0.5, "振り抜きの 0.2 秒でバットが \(swing) rad しか回らない")
+        #expect(load < swing / 2, "踏み込み \(load) rad・振り抜き \(swing) rad")
+    }
+
+    @MainActor
+    private func batRotation(_ rig: HomerunBatterRig) throws -> simd_quatf {
+        let model = try #require(findSkinned(rig.entity))
+        let index = try #require(model.jointNames.firstIndex { $0.hasSuffix("RightHand/Bat") })
+        // 親（右手）ごと回るので、根からの向きを合成して比べる。
+        var q = simd_quatf(angle: 0, axis: [0, 1, 0])
+        let names = model.jointNames
+        var path = names[index]
+        while true {
+            if let i = names.firstIndex(of: path) { q = model.jointTransforms[i].rotation * q }
+            guard let slash = path.lastIndex(of: "/") else { break }
+            path = String(path[..<slash])
+        }
+        return q
+    }
+
+    @MainActor
+    private func findSkinned(_ e: Entity) -> ModelEntity? {
+        if let m = e as? ModelEntity, !m.jointNames.isEmpty { return m }
+        for c in e.children { if let m = findSkinned(c) { return m } }
+        return nil
     }
 
     @MainActor
