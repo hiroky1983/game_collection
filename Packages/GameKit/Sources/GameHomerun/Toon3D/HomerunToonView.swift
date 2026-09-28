@@ -9,7 +9,9 @@ struct HomerunOjisan3DView: View {
     var body: some View {
         #if os(iOS)
         HomerunToonSceneView(model: .ojisan(pose), camera: .init(target: [0, 2.7, 0], distance: 14, fieldOfView: 26),
-                             batterCamera: .init(target: [0, 0.86, 0], distance: 4.3, fieldOfView: 26))
+                             batterCamera: HomerunBatterPortrait.stillCamera,
+                             // 結果画面の 1 枚絵（`HomerunOjisan3DStillView`）を、すでに描いているこの画面のうちに作っておく。
+                             onSnapshot: HomerunOjisanStillCache.image == nil ? { HomerunOjisanStillCache.image = $0 } : nil)
             // 3D（ARView）に当たり判定を残さない（スクロールや手前の操作を吸わせない）。
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -19,9 +21,10 @@ struct HomerunOjisan3DView: View {
     }
 }
 
-/// 結果画面用の 3D おじさん（構えの 1 枚絵）。ARView は最初に 1 枚描いて画像にするあいだだけ生かし、以後は画像を出す
-/// （小さな枠のために RealityKit を回し続けない）。画像は作り直さない（2 回目以降の結果画面は最初から画像）。
-/// 描く大きさは最初に置いた枠のまま（この画面の枠は 1 か所だけ）。macOS の `swift test` では 2D の絵に落ちる。
+/// 結果画面用の 3D おじさん（構えの 1 枚絵）。小さな枠のために RealityKit を回し続けず、画像を出す。
+/// 画像は打席前のおじさん（`HomerunOjisan3DView`）が描いたついでに作っておく（結果画面を開くときに ARView を作ると
+/// 主スレッドが止まるため）。作られていなければ（打席前を通らずに結果へ来たとき）ここで 1 枚描いてから画像にする。
+/// macOS の `swift test` では 2D の絵に落ちる。
 struct HomerunOjisan3DStillView: View {
     #if os(iOS) && canImport(RealityKit)
     @State private var still = HomerunOjisanStillCache.image
@@ -78,7 +81,7 @@ struct HomerunToonSceneView: UIViewRepresentable {
     let camera: HomerunToonCamera
     /// Meshy の打者おじさんを置くときのカメラ（nil なら常に `model` を置く）。
     var batterCamera: HomerunToonCamera?
-    /// 渡すと、数フレーム描いたところで 1 枚の画像にして返す（返したあとの ARView は呼び出し側が外す）。
+    /// 渡すと、数フレーム描いたところで 1 枚の画像にして返す（ARView を外すかは呼び出し側が決める）。
     var onSnapshot: ((UIImage) -> Void)?
 
     /// 画像にする前に描く枚数（Meshy の実体の読み込み・骨の構え・テクスチャの反映を待つ）。
@@ -124,6 +127,7 @@ struct HomerunToonSceneView: UIViewRepresentable {
                 coordinator.didSnapshot = true
                 view.snapshot(saveToHDR: false) { image in
                     guard let image else { coordinator.didSnapshot = false; return }
+                    coordinator.updates?.cancel()
                     onSnapshot(image)
                 }
             }
