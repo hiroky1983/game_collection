@@ -515,9 +515,18 @@ public struct RunnerView: View {
     ///
     /// 広告のロード〜視聴中は押せない（#1068）。押すと `runGeneration` が進み、見終えた広告が
     /// `resumeFromCheckpoint(forRun:)` の世代照合で弾かれて視聴が無駄になる（#816 / #911 と同型）。
-    private var retryButton: some View {
-        GameDeadEndActionButton("もう一度", systemImage: "arrow.clockwise", tint: Theme.Fill.coral, isDisabled: resumeRescue.isWatching) {
-            model.retryStage()
+    ///
+    /// 「広告を見て途中から再開」と並ぶときは、主ボタン（コーラル）と色を分けて締めのボタンの見た目にする
+    /// （会長 QA 2026-09-28「もう一度のボタンの色を変えて」。#1486 で決めた色の役割）。並ばないときは主ボタンのまま。
+    @ViewBuilder private var retryButton: some View {
+        if model.canResumeFromCheckpoint {
+            GameDeadEndDismissButton("もう一度", isDisabled: resumeRescue.isWatching) {
+                model.retryStage()
+            }
+        } else {
+            GameDeadEndActionButton("もう一度", systemImage: "arrow.clockwise", tint: Theme.Fill.coral, isDisabled: resumeRescue.isWatching) {
+                model.retryStage()
+            }
         }
     }
 
