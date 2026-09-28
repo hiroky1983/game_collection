@@ -226,32 +226,48 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     /// タップされた。そのゲームを開くようハブへ伝える。
+    ///
+    /// async 版の delegate は、完了の合図が Swift Concurrency の協調スレッドから iOS へ返ることがあり、
+    /// UIKit の状態保存処理がメインスレッド外で走って `Call must be made on main thread` で落ちる（#1546）。
+    /// そのため completion handler 版にし、振り分けも完了の合図もメインスレッドで行う。
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
-        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
-        let request = response.notification.request
-        let userInfo = request.content.userInfo
-        // gameIDKey は両方とも "gameID" で共通のため、先に識別子の接頭辞で通知の種類を判定する。
-        if request.identifier.hasPrefix(ResumeReminderNotification.identifierPrefix),
-           let gameID = userInfo[ResumeReminderNotification.gameIDKey] as? String {
-            await MainActor.run {
-                AppEnvironment.reminders.notificationTapped(gameID: gameID)
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        var resumeGameID: String?
+        var reengagementGameID: String?
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            let request = response.notification.request
+            let userInfo = request.content.userInfo
+            // gameIDKey は両方とも "gameID" で共通のため、先に識別子の接頭辞で通知の種類を判定する。
+            if request.identifier.hasPrefix(ResumeReminderNotification.identifierPrefix) {
+                resumeGameID = userInfo[ResumeReminderNotification.gameIDKey] as? String
+            } else if request.identifier.hasPrefix(ReengagementReminderNotification.identifierPrefix) {
+                reengagementGameID = userInfo[ReengagementReminderNotification.gameIDKey] as? String
             }
-        } else if request.identifier.hasPrefix(ReengagementReminderNotification.identifierPrefix),
-                  let gameID = userInfo[ReengagementReminderNotification.gameIDKey] as? String {
-            await MainActor.run {
-                AppEnvironment.reengagement.notificationTapped(gameID: gameID)
+        }
+        DispatchQueue.main.async { [resumeGameID, reengagementGameID] in
+            MainActor.assumeIsolated {
+                if let gameID = resumeGameID {
+                    AppEnvironment.reminders.notificationTapped(gameID: gameID)
+                } else if let gameID = reengagementGameID {
+                    AppEnvironment.reengagement.notificationTapped(gameID: gameID)
+                }
             }
+            completionHandler()
         }
     }
 
     /// アプリを開いている最中に届いたら出さない。ハブを見ている人に「途中のままです」は要らない。
+    /// 完了の合図はメインスレッドで返す（#1546。`didReceive` と同じ理由）。
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        []
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        DispatchQueue.main.async {
+            completionHandler([])
+        }
     }
 }
