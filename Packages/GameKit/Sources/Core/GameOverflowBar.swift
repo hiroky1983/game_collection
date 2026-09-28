@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 盤（札）と広告バナーのあいだに置く「⋯」の行（#1468。旧 `GameControlBar`）。
 ///
@@ -138,9 +141,29 @@ public struct GameControlMenu: View {
         if item.isEnabled {
             Label(item.title, systemImage: item.systemImage)
         } else {
-            Label(item.title, systemImage: item.systemImage)
-                .foregroundStyle(.secondary)
+            // iOS 標準のメニューはアイコンをアプリの差し色（`HubView` の `.tint(Theme.coral)`）で塗り直すため、
+            // `.foregroundStyle` の指定は効かずコーラルのまま残った（会長 QA 2026-09-28）。色を焼き込んだ画像
+            // （`alwaysOriginal`）で渡すと塗り直されないので、押せない項目だけアイコンを文字と同じグレーにできる。
+            Label {
+                Text(item.title)
+            } icon: {
+                disabledIcon(item.systemImage)
+            }
         }
+    }
+
+    @ViewBuilder
+    private static func disabledIcon(_ systemImage: String) -> some View {
+        #if canImport(UIKit)
+        if let image = UIImage(systemName: systemImage)?
+            .withTintColor(.tertiaryLabel, renderingMode: .alwaysOriginal) {
+            Image(uiImage: image)
+        } else {
+            Image(systemName: systemImage)
+        }
+        #else
+        Image(systemName: systemImage)
+        #endif
     }
 
     public var body: some View {

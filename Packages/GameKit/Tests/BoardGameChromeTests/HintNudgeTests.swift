@@ -51,7 +51,12 @@ struct HintNudgeTests {
         let label = try #require(SourceScan.declaration(
             of: "private static func label(for item: GameControlMenuItem) -> some View", in: menu))
         #expect(label.contains("if item.isEnabled {"), "押せる項目の色を分岐で変えていない前提が崩れている")
-        #expect(label.contains(".foregroundStyle(.secondary)"), "押せない項目のアイコン・文字を揃えてグレーにしていない")
+        // `.foregroundStyle` はメニューがアプリの差し色でアイコンを塗り直すため効かない（会長 QA 2026-09-28）。
+        // 色を焼き込んだ画像（alwaysOriginal）で渡していることを固定する。
+        #expect(label.contains("disabledIcon(item.systemImage)"), "押せない項目のアイコンを専用の画像で描いていない")
+        let icon = try #require(SourceScan.declaration(
+            of: "private static func disabledIcon(_ systemImage: String) -> some View", in: menu))
+        #expect(icon.contains("renderingMode: .alwaysOriginal"), "アイコンの色を焼き込んでいない（差し色で塗り直される）")
         // 押せる分岐（if item.isEnabled の直後、else の手前）には色の上書きが無く、従来どおりの見た目のまま。
         let enabledBranch = try #require(label.range(of: "if item.isEnabled {"))
         let elseBranch = try #require(label.range(of: "} else {"))
