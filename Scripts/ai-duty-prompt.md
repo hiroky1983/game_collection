@@ -224,7 +224,7 @@ Issue を `blocked` のまま留めない。**コード・テスト・PR が完�
 
 当番が着手直後に異常終了すると `ai:in-progress` が残留し、その Issue は着手対象の集計から恒久的に外れて誰も進められなくなる（#80 で発生。約2.5時間滞留）。**この節はスロット1だけが行う**。当番は最大2つ同時に動く（2026-09-25）ので、「他の当番は動いていない」とはもう言えない。**補足に「他スロットが作業中」と書かれた Issue は、更新が30分以上前でも孤児ではない**（他スロットが実装中。`ai-duty.sh` の検知側でも除外している）。それ以外で `ai:in-progress` が付いていて**最終更新から30分以上経っている** Issue は孤児と断定してよい（生きている当番の作業中 Issue は、すべて補足に列挙される）。
 
-1. `gh issue list --label "ai:in-progress" --state open --json number,title,updatedAt` で対象を洗い出す。**このセッションで自分が付けたものと、補足の「他スロットが作業中」の Issue は対象外**（前者は updatedAt が新しいので自然に外れる）。
+1. `gh issue list --label "ai:in-progress" --state open --json number,title,updatedAt,labels` で対象を洗い出す。**このセッションで自分が付けたもの、補足の「他スロットが作業中」の Issue、`duty:heavy` の Issue は対象外**（前者は updatedAt が新しいので自然に外れる）。`duty:heavy` はクラウド（claude.ai の routine）が `claude/...` ブランチで進めていて Issue を更新しないため、無更新でも孤児ではない。**`duty:heavy` の Issue・`claude/...` ブランチ・それを元にした PR には、この節でもほかの節でも手を出さない**（引き取り・作り直し・クローズ・ブランチ削除をしない。2026-09-28 に当番が #1462〜#1465 を引き取り、社長の PR を閉じてクラウドのブランチを消した）。
 2. 作業の痕跡を確認する: `gh pr list --search "<Issue番号>" --state all` と `git branch -r` で、その Issue に紐づくブランチ・PR が残っていないか調べる。
 3. 状態に応じて回収する:
    - **PR まで出来ている** → `ai:in-progress` は残したまま、PR 側を通常のレビュー・マージフロー（セクション1）で前に進める。孤児ではないので回収不要（`Closes #N` で紐づいた PR がオープンなら `ai-duty.sh` の検知側でも除外される。ここに現れるのは紐づけが無い PR のケース）。

@@ -536,6 +536,10 @@ check "承認済みでも更新が新しければ数えない" "0" \
   "$(count_orphans "$(orphan_issues "1|ai:approved,ai:in-progress|$NOW")" 1800 '[]')"
 check "承認済みでもオープン PR に紐づいていれば数えない" "0" \
   "$(count_orphans "$(orphan_issues "7|ai:approved,ai:in-progress|$OLD")" 1800 '[7]')"
+check "duty:heavy（クラウドが担当）は無更新でも数えない" "0" \
+  "$(count_orphans "$(orphan_issues "1462|ai:approved,ai:in-progress,duty:heavy|$OLD")" 1800 '[]')"
+check "duty:heavy と通常の孤児が混ざっていれば通常のほうだけ数える" "1" \
+  "$(count_orphans "$(orphan_issues "1462|ai:approved,ai:in-progress,duty:heavy|$OLD" "80|ai:approved,ai:in-progress|$OLD")" 1800 '[]')"
 check "取得に失敗して空なら件数を出さない（呼び出し側が 0 に倒す）" "" \
   "$(count_orphans "" 1800 '[]')"
 
