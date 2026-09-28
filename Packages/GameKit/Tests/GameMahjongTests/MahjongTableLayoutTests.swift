@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CoreGraphics
+import Core
 @testable import GameMahjong
 
 /// 卓のレイアウト（#736、長方形 #927）。絵は測れないので、重なり・密着・収まりだけを機械的に縛る。
@@ -561,6 +562,27 @@ struct MahjongTableLayoutTests {
             #expect(frame[2].x > right && frame[2].y > bottom, "手前右")
             #expect(frame[3].x < left && frame[3].y > bottom, "手前左")
         }
+    }
+
+    /// #1535: 卓は共通の部品（`CardTableSurface`）が `tableFrame` で描く。牌・河の座標（`project`）の
+    /// フェルトと、部品が描くフェルトが同じ矩形であること。木枠の太さは #927 の値のまま。
+    @Test("共通の卓の部品が描くフェルトは、牌・河の座標のフェルトと同じ矩形（#1535）")
+    func sharedTableFeltMatchesLayoutFelt() {
+        for l in [Self.phone, Self.pad, Self.phone17] {
+            let drawn = MahjongTableLayout.tableFrame.feltRect(in: l.size)
+            let w = l.size.width
+            #expect(abs(drawn.minX - w * 12 / 393) < 1e-9)
+            #expect(abs(drawn.minY - w * 16 / 393) < 1e-9)
+            #expect(abs(drawn.maxX - (w - w * 12 / 393)) < 1e-9)
+            #expect(abs(drawn.maxY - (l.size.height - w * 12 / 393)) < 1e-9)
+            let felt = l.felt
+            #expect(felt[0] == CGPoint(x: drawn.minX, y: drawn.minY))
+            #expect(felt[2] == CGPoint(x: drawn.maxX, y: drawn.maxY))
+        }
+        let f = MahjongTableLayout.tableFrame
+        #expect(f.aspectRatio == MahjongTableLayout.aspect)
+        #expect(f.cornerRadius == 0 && !f.dropShadow)
+        #expect(f.innerShadow == .standard)
     }
 
     @Test("上家・下家の副露 1 枚の矩形: 下家は手前へ・上家は奥へ牌の幅ずつ進み、組の区切りで間隔ぶん進む（#833）")

@@ -1,28 +1,92 @@
 import Testing
 import Foundation
 import CoreGraphics
+import SwiftUI
 import Core
 import GameKitTestSupport
 
-/// 卓の面（#1501）を固定する。
+/// 卓の面（#1501 / #1535）を固定する。
 ///
-/// 4 本（ソリティア・スパイダー・フリーセル・麻雀ソリティア）が**同じ 1 つの卓**に乗っていること、
-/// 卓の色が雀卓（`MahjongTableSurface`）と同じ値でアプリ全体で浮かないこと、フェルトの上に置く
-/// 空き枠・文字が読めること（コントラスト）を、数値とソースの 2 方向から見る。
+/// 麻雀（4 人打ち）と 4 本（ソリティア・スパイダー・フリーセル・麻雀ソリティア）が**同じ 1 つの卓の部品**
+/// （`CardTableSurface` / `cardTable`）に乗っていること、卓の色が `CardTableStyle` の 1 か所だけで決まること、
+/// フェルトの上に置く空き枠・文字が読めること（コントラスト）を、数値とソースの 2 方向から見る。
 @Suite("卓の面")
 struct CardTableSurfaceTests {
 
-    // MARK: - 雀卓と同じ色
+    // MARK: - 色は 1 か所だけ（#1535）
 
-    @Test("フェルトと木枠の色は雀卓（MahjongTableSurface）と同じ値")
-    func feltAndRimMatchTheMahjongTable() throws {
-        let source = try SourceScan.packageSource("Sources/GameMahjong/MahjongTableView.swift")
-        let surface = try #require(SourceScan.declaration(of: "struct MahjongTableSurface", in: source))
-        for hex in [CardTableStyle.feltCenter, CardTableStyle.feltEdge,
-                    CardTableStyle.rimTop, CardTableStyle.rimMiddle, CardTableStyle.rimBottom] {
-            let literal = String(format: "0x%06X", hex)
-            #expect(surface.contains(literal), "雀卓に \(literal) が無い。卓の色が雀卓から離れている")
+    @Test("卓の色（フェルト 2 色・木枠の上端）は CardTableStyle の外のソースに書かれていない")
+    func tableColorsLiveOnlyInTheStyle() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/CardTable.swift"))
+        let style = try #require(SourceScan.declaration(of: "public enum CardTableStyle", in: source))
+        // 木枠の中・下の 2 色は麻雀の手牌の牌台（`MahjongWoodTray`。卓ではない別の部品）も使うので、
+        // 卓に固有のフェルト 2 色と木枠の上端の色で見る。
+        let literals = [CardTableStyle.feltCenter, CardTableStyle.feltEdge, CardTableStyle.rimTop]
+            .map { String(format: "0x%06X", $0) }
+        for literal in literals {
+            #expect(style.contains(literal), "CardTableStyle に \(literal) が無い")
+            #expect(SourceScan.matchCount(of: literal, in: source) == 1,
+                    "CardTable.swift の CardTableStyle の外に \(literal) がある")
         }
+        let modules = try FileManager.default.contentsOfDirectory(
+            atPath: SourceScan.packageRoot.appendingPathComponent("Sources").path)
+        #expect(modules.contains("GameMahjong") && modules.contains("GameSolitaire"), "走査の空振り")
+        for module in modules where module != "Core" {
+            guard let other = try? SourceScan.moduleSources(module) else { continue }
+            let code = SourceScan.strippingComments(other)
+            for literal in literals {
+                #expect(!code.contains(literal), "\(module) が卓の色 \(literal) を直書きしている（CardTableStyle を使う）")
+            }
+        }
+    }
+
+    @Test("卓の形（CardTableFrame）は色を持たない（呼び出し側で色を変えられない）")
+    func tableFrameHasNoColor() throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/CardTable.swift"))
+        let frame = try #require(SourceScan.declaration(of: "public struct CardTableFrame", in: source))
+        #expect(!frame.contains("Color"), "CardTableFrame に色の設定がある")
+        let modifier = try #require(SourceScan.declaration(of: "func cardTable(", in: source))
+        #expect(!modifier.contains("Color"), "cardTable が色を受け取っている")
+    }
+
+    // MARK: - 形
+
+    @Test("4 本の卓の木枠の太さと内側の影は麻雀（4 人打ち）の左右・下と同じ比")
+    func standardFrameMatchesTheMahjongRim() {
+        let f = CardTableFrame.standard
+        for edge in [f.top, f.leading, f.bottom, f.trailing] {
+            #expect(edge == .widthFraction(12 / 393))
+        }
+        #expect(f.innerShadow == .standard)
+        #expect(CardTableFrame.InnerShadow.standard ==
+                .init(opacity: 0.45, width: .widthFraction(0.016), blur: .widthFraction(0.01)))
+        #expect(f.aspectRatio == nil, "4 本の卓は空いている大きさいっぱい")
+        #expect(f.cornerRadius == Theme.corner)
+    }
+
+    @Test("木枠の太さは pt でも幅の比でも指定でき、フェルトはその内側")
+    func feltRectFollowsTheFrame() {
+        let frame = CardTableFrame(top: .points(10), leading: .widthFraction(0.1),
+                                   bottom: .points(4), trailing: .widthFraction(0.05))
+        let felt = frame.feltRect(in: CGSize(width: 200, height: 300))
+        #expect(felt == CGRect(x: 20, y: 10, width: 170, height: 286))
+        // 大きさ 0（SwiftUI の最初のレイアウト）でも負の大きさを作らない。
+        #expect(frame.feltRect(in: .zero).width == 0)
+        #expect(frame.feltRect(in: .zero).height == 0)
+    }
+
+    @MainActor
+    @Test("cardTable は幅の比で決まる木枠を解いて、中身の大きさ + 木枠 + 余白の卓を作る")
+    func cardTableSolvesTheRimFromTheWidth() throws {
+        let inner = CGSize(width: 300, height: 200)
+        let renderer = ImageRenderer(content: Color.clear.frame(width: inner.width, height: inner.height).cardTable())
+        renderer.scale = 1
+        let image = try #require(renderer.cgImage)
+        let pad = CardTableStyle.contentInset
+        let width = (inner.width + pad * 2) / (1 - 2 * 12 / 393)
+        let rim = width * 12 / 393
+        #expect(abs(CGFloat(image.width) - width) <= 1, "\(image.width) ≠ \(width)")
+        #expect(abs(CGFloat(image.height) - (inner.height + (rim + pad) * 2)) <= 1)
     }
 
     // MARK: - フェルトの上の読みやすさ
@@ -86,6 +150,19 @@ struct CardTableSurfaceTests {
         #expect(!source.contains("EllipticalGradient"), "\(module) にフェルトの描画が直書きされている")
     }
 
+    /// #1535: 麻雀（4 人打ち）も同じ部品で卓を描く。以前は `MahjongTableSurface` が `Canvas` に木枠と
+    /// フェルトを自前で描いていた（色の値も 5 つ直書き）。
+    @Test("麻雀（4 人打ち）は共通の卓の部品を使い、独自の卓を描いていない")
+    func mahjongSitsOnTheSharedTable() throws {
+        let source = SourceScan.strippingComments(try SourceScan.moduleSources("GameMahjong"))
+        #expect(SourceScan.matchCount(of: "CardTableSurface\\(frame: MahjongTableLayout\\.tableFrame\\)", in: source) == 1,
+                "麻雀の卓が共通の部品で描かれていない")
+        #expect(!source.contains("MahjongTableSurface"), "麻雀独自の卓の面が残っている")
+        #expect(!source.contains("layout.woodFrame"), "木枠を麻雀側で描いている")
+        #expect(!source.contains("layout.felt"), "フェルトを麻雀側で描いている")
+        #expect(!source.contains(".radialGradient("), "フェルトの照りを麻雀側で描いている")
+    }
+
     /// 環境値は祖先から子孫へしか流れない。`.cardTable()` は盤（子）に付くので、画面の View 本体が
     /// `@Environment(\.cardTableInk)` を持っても既定の `.plain` しか届かず、フェルトの上に地の色が
     /// 乗る（verifier が最小構成で再現。フリーセルの仕切りと麻雀ソリティアのクリア文字で実際に起きた）。
@@ -126,7 +203,9 @@ struct CardTableSurfaceTests {
     func tableModifierInsetsContentAndProvidesFeltInk() throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/CardTable.swift"))
         let modifier = try #require(SourceScan.declaration(of: "func cardTable(", in: source))
-        #expect(modifier.contains("CardTableStyle.rimWidth + CardTableStyle.contentInset"))
+        #expect(modifier.contains("CardTableInsetLayout("))
+        #expect(modifier.contains("CardTableStyle.contentInset"))
+        #expect(modifier.contains("CardTableSurface(frame:"))
         #expect(modifier.contains(".environment(\\.cardTableInk, .felt)"))
     }
 }
