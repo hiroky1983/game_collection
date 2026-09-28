@@ -36,6 +36,10 @@ public enum CardTableStyle {
     public static let rimWidth: CGFloat = 3
     /// 木枠の内側から札・牌までの余白。狭い画面（iPhone SE・スパイダーの 10 列）で札を削りすぎない値。
     public static let contentInset: CGFloat = 6
+    /// ナビバーから画面の最初の部品（状態の帯）までの余白。ソリティア・スパイダー・フリーセルの 3 本で共通。
+    /// 地の余白 `Theme.pad`（16pt）だけだと帯と卓が画面の上に詰まって見える（会長 QA 2026-09-28）ので 8pt 足す。
+    /// 麻雀ソリティアは卓が縦に余るので対象外（`Theme.pad` のまま）。
+    public static let screenTopPadding: CGFloat = Theme.pad + 8
     /// 角丸。`popCard` と同じ。
     public static let corner: CGFloat = Theme.corner
     /// フェルトの中央色をそのまま伸ばす半径（全体に対する比）と、縁の暗さに達する半径。

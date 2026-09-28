@@ -102,6 +102,19 @@ struct CardTableSurfaceTests {
         }
     }
 
+    /// 会長 QA（2026-09-28）: 帯と卓が画面の上に詰まって見えるので、札の 3 本は上の余白を少し広げ、
+    /// **3 本で同じ値**にそろえる。ゲームごとに数値を持つと 1 本だけずれる。
+    @Test("札の 3 本は画面の上の余白を共通の値（screenTopPadding）で取る", arguments: [
+        "GameSolitaire/SolitaireView.swift", "GameSpider/SpiderView.swift", "GameFreeCell/FreeCellView.swift",
+    ])
+    func cardGamesShareTheTopPadding(path: String) throws {
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
+        #expect(SourceScan.matchCount(of: "\\.padding\\(\\.top, CardTableStyle\\.screenTopPadding\\)", in: source) == 1,
+                "\(path) が共通の上の余白を使っていない")
+        #expect(!source.contains(".padding(.vertical, Theme.pad)"), "\(path) の上の余白が地の 16pt のまま")
+        #expect(CardTableStyle.screenTopPadding > Theme.pad)
+    }
+
     @Test("空き枠は色を直書きせず、卓の上かどうかを環境値から受け取る")
     func cardSlotReadsInkFromTheEnvironment() throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/CardTable.swift"))

@@ -34,7 +34,7 @@ struct GameSetupSheetSourceTests {
         }
     }
 
-    /// 開始シートを出す全 18 本（#1415）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
+    /// 開始シートを出す全 19 本（#1415。麻雀ソリティアは 2026-09-28 に追加）。種別は対戦か一人用かで、題名と開始文言はここから決まる。
     private static let allSheets: [(path: String, kind: String)] = [
         ("GameChess/ChessView.swift", ".versus"),
         ("GameShogi/ShogiView.swift", ".versus"),
@@ -54,6 +54,7 @@ struct GameSetupSheetSourceTests {
         ("GameMahjong/MahjongStartSheet.swift", ".versus"),
         ("GamePoker/PokerSheets.swift", ".versus"),
         ("GameSolitaire/SolitaireSetupSheet.swift", ".solo"),
+        ("GameMahjongSolitaire/MahjongSolitaireSetupSheet.swift", ".solo"),
     ]
 
     /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。

@@ -62,7 +62,9 @@ public struct SpiderView: View {
             BannerSlot(ads: services.ads)
                 .padding(.horizontal, Theme.pad)
         }
-        .padding(.vertical, Theme.pad)
+        // 上だけ少し広く取る（帯と卓が画面の上に詰まって見えないように。3 本で共通の値・#1501 QA）。
+        .padding(.top, CardTableStyle.screenTopPadding)
+        .padding(.bottom, Theme.pad)
         .gameChrome(title: "スパイダーソリティア", review: services.review,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()

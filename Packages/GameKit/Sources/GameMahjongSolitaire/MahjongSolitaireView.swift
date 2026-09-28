@@ -36,10 +36,11 @@ public struct MahjongSolitaireView: View {
     /// 形を把握し、取りに行くときに「拡大」で 44pt の触れる大きさへ切り替える流れにする。
     /// （#196 当初は「触れる大きさ」既定だったが、初手から局所しか見えないほうが不便という判断）
     @State private var showsWholeBoard = MahjongSolitaireView.initialShowsWholeBoard
-    @State private var showConfirmNewGame = false
-    /// 確認ダイアログで「終了して新規ゲーム」を押したときに配るかたち（#239）。
-    /// nil なら今と同じかたちのまま配り直す。
-    @State private var pendingLayout: MahjongSolitaireLayout?
+    /// 盤面のかたちを選ぶ開始シート（会長 QA 2026-09-28）。ほかのゲームの難易度選びと同じく、
+    /// **中断データが無い初回はシートから始め**、ナビバーの「新規ゲーム」でも開く。中断データがあれば出さず続きから。
+    @State private var showSetup: Bool
+    /// 開始シートで選んでいる最中のかたち。「スタート」を押すまで局には効かない（1局=1RuleSet）。
+    @State private var draftLayout: MahjongSolitaireLayout = .turtle
     @State private var showShuffleConfirm = false
     /// 並べ替えのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var shuffleRescue = RewardedRescue()
@@ -72,24 +73,32 @@ public struct MahjongSolitaireView: View {
     }
 
     /// 撮影用に特定のかたちで起動する経路（DEBUG 限定・#239）。
-    /// シミュレータは自動タップができないため、「＋」から選ぶ操作を再現する手段がこれしかない
-    /// （`-mahjongSolitaireZoomed` と同じ理由）。
-    private static var initialLayout: MahjongSolitaireLayout {
+    /// シミュレータは自動タップができないため、開始シートから選ぶ操作を再現する手段がこれしかない
+    /// （`-mahjongSolitaireZoomed` と同じ理由）。指定したときは開始シートを出さずにそのかたちで配る。
+    private static var launchLayout: MahjongSolitaireLayout? {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-mahjongLayout"), i + 1 < args.count {
             return .named(args[i + 1])
         }
         #endif
-        return .turtle
+        return nil
     }
 
     public init(services: GameServices) {
         self.services = services
+        let launchLayout = MahjongSolitaireView.launchLayout
+        // 中断データの有無はモデルを作る前に見る（モデルは作った時点では保存しないが、順序に頼らない）。
+        let hasSnapshot = services.snapshots.exists(for: MahjongSolitaireModel.snapshotID)
+        // 中断データがあれば続きから（シートを出さない）。起動引数でかたちを指定したときも出さない。
+        let showsInitialSetup = launchLayout == nil && !hasSnapshot
         _model = State(initialValue: MahjongSolitaireModel(
             services: services,
-            layout: MahjongSolitaireView.initialLayout
+            layout: launchLayout ?? .turtle,
+            // シートを出すときは `game_start` をシートを閉じるまで保留する（二重計上の防止・囲碁 #1372 と同じ）。
+            defersInitialStart: showsInitialSetup
         ))
+        _showSetup = State(initialValue: showsInitialSetup)
     }
 
     public var body: some View {
@@ -111,16 +120,26 @@ public struct MahjongSolitaireView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
-        .gameChrome(title: "麻雀ソリティア", review: services.review) {
-            ToolbarItem(placement: .primaryAction) { newGameMenu }
-        }
+        // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
+        // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
+        .gameChrome(title: "麻雀ソリティア", review: services.review,
+                    newGame: GameChromeNewGame(.solo, isDisabled: isWatchingRewardAd) {
+                        openSetup()
+                    })
         .howToPlay(.mahjongSolitaire) { MahjongSolitaireRuleSheet() }
-        .confirmationDialog("新規ゲームを始めますか？", isPresented: $showConfirmNewGame, titleVisibility: .visible) {
-            Button("終了して新規ゲーム", role: .destructive) { model.newGame(layout: pendingLayout) }
-            Button("キャンセル", role: .cancel) { pendingLayout = nil }
-        } message: {
-            Text(pendingLayout.map { "「\($0.displayName)」を配ります。途中で終了すると今の盤面が失われます。" }
-                 ?? "途中で終了すると今の盤面が失われます。")
+        // 初回のシートを閉じたとき（キャンセル・下へのスワイプを含む）は、配ってある盤面（亀甲）で
+        // そのまま遊べるよう計時を始め、保留していた `game_start` を数える（シートで配り直したなら
+        // `newGame` が数え済みで何もしない）。プレイ中に開いたシートなら計時は止めていないので何も起きない。
+        .sheet(isPresented: $showSetup, onDismiss: {
+            model.startPlayIfPending()
+            model.resumeTimerIfNeeded()
+        }) {
+            MahjongSolitaireSetupSheet(draft: $draftLayout, discardsProgress: hasProgress) {
+                showSetup = false
+                startGame(layout: draftLayout)
+            } onCancel: {
+                showSetup = false
+            }
         }
         // 並べ替えはリワード広告制（会長指示 2026-08-30）。将棋の「待った」と同じく、
         // 広告が出ることをダイアログで予告してから視聴に進める（突然の広告を出さない）。
@@ -164,18 +183,25 @@ public struct MahjongSolitaireView: View {
         // 広告のロード〜視聴中は計時を止める（全画面広告は onDisappear を発火させない・#1382）。
         .pausesTimerWhileWatching([shuffleRescue, hintRescue], pause: { model.pauseTimer() }, resume: { model.resumeTimerIfNeeded() })
         .task {
-            model.resumeTimerIfNeeded()
+            // 初回の開始シートを出しているあいだは計時しない（選び終えてから数え始める）。
+            if !showSetup { model.resumeTimerIfNeeded() }
             #if DEBUG
             // 撮影・動作確認用（DEBUG 限定）: タップ無しでヒントの確認ダイアログを出す
             // （`-solitaireHintConfirm`）。この画面はタップ起点でしかダイアログを出せず、
             // シミュレータは自動タップができないため、非対話の確認にはこの経路が要る
             // （`-simulateGiveUp` と同じ理由・#336）。
             if ProcessInfo.processInfo.arguments.contains("-solitaireHintConfirm") {
+                showSetup = false
                 showHintConfirm = true
             }
             // 手詰まりの画面を確認する経路（`-mahjongSolitaireDeadlock`）。乱択で取り続けて手詰まりまで進める。
             if ProcessInfo.processInfo.arguments.contains("-mahjongSolitaireDeadlock") {
+                showSetup = false
                 model.debugPlayUntilDeadlock()
+            }
+            // 中断データがあっても開始シートを開く経路（`-mahjongSolitaireSetup`・撮影用）。
+            if ProcessInfo.processInfo.arguments.contains("-mahjongSolitaireSetup") {
+                openSetup()
             }
             #endif
         }
@@ -196,40 +222,28 @@ public struct MahjongSolitaireView: View {
 
     // MARK: - 新規ゲーム（盤面のかたちの選択・#239）
 
-    /// 「＋」からかたちを選んで配り直す。
-    ///
-    /// 選択の導線をここ 1 か所にまとめているのは、盤面の下（操作カード）が既にヒント・並べ替え・
-    /// 戻すで埋まっていて iPhone の幅に 4 つ目が入らないため（#198 で実測済み）。
-    /// いま遊んでいるかたちにはチェックを付け、「どれで遊んでいるか」もこのメニューで分かるようにする。
-    private var newGameMenu: some View {
-        Menu {
-            ForEach(MahjongSolitaireLayout.all) { layout in
-                Button {
-                    startNewGame(layout: layout)
-                } label: {
-                    // 選択中はチェック付き。`Label` にすると iOS がアイコンだけに畳むことがあるので
-                    // メニュー項目は `Text` で組む。
-                    if layout == model.layout {
-                        Label(layout.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(layout.displayName)
-                    }
-                }
-            }
-        } label: {
-            Label("新規ゲーム", systemImage: "plus.circle.fill")
-        }
-        .accessibilityLabel("新規ゲーム（盤面のかたちを選ぶ）")
-        // ヒント・並べ替えの広告中は配り直させない（#815。照合は `forDeal:` が持つので、ここは
-        // 「広告を見たのに何も起きなかった」を起こさないための緩和）。
-        .disabled(isWatchingRewardAd)
+    /// 開始シートを開く。**いま遊んでいるかたちを初期選択にする**（ソリティア #498・スパイダーと同じ）。
+    private func openSetup() {
+        draftLayout = model.layout
+        showSetup = true
     }
 
-    /// 途中の盤面があるときだけ確認を挟んでから配り直す。
-    private func startNewGame(layout: MahjongSolitaireLayout) {
-        if model.phase == .playing && model.remainingCount < model.layout.count {
-            pendingLayout = layout
-            showConfirmNewGame = true
+    /// 途中の盤面（1 組でも取った）があるか。開始シートの確定ボタンを「終了してスタート」にする
+    /// （旧・確認ダイアログ「終了して新規ゲーム」の役目をシートが兼ねる。ソリティアと同じ）。
+    private var hasProgress: Bool {
+        model.phase == .playing && model.remainingCount < model.layout.count
+    }
+
+    /// 開始シートの「スタート」。
+    ///
+    /// 初回のシートでは、画面を開いた時点で亀甲が配ってある（シートのあいだは計時もしていない）。
+    /// **同じかたちで、配ったまま何もしていないなら配り直さない**（無駄に配り直さない。
+    /// `game_start` はシートを閉じたときの `startPlayIfPending()` が 1 回だけ数える）。
+    private func startGame(layout: MahjongSolitaireLayout) {
+        if layout == model.layout && model.phase == .playing && model.dealSerial == 0
+            && model.remainingCount == model.layout.count && model.elapsedSeconds == 0
+            && model.shuffleCount == 0 && model.hintCount == 0 {
+            model.resumeTimerIfNeeded()
         } else {
             model.newGame(layout: layout)
         }
@@ -320,11 +334,13 @@ public struct MahjongSolitaireView: View {
 
     private func boardCanvas(tileWidth: CGFloat) -> some View {
         let canvas = Metrics.canvasSize(tileWidth: tileWidth, layout: model.layout)
+        // 牌の外接矩形。牌ごとに求め直さないよう 1 度だけ計算して渡す。
+        let extent = Metrics.extent(layout: model.layout)
         return ZStack(alignment: .topLeading) {
             // 下の段から順に描くことで、上に積まれた牌が手前に来る。
             ForEach(model.faces.indices, id: \.self) { index in
                 if let face = model.faces[index] {
-                    tileView(index: index, face: face, tileWidth: tileWidth)
+                    tileView(index: index, face: face, tileWidth: tileWidth, extent: extent)
                 }
             }
         }
@@ -359,8 +375,8 @@ public struct MahjongSolitaireView: View {
         let hintPair: [Int]
     }
 
-    private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat) -> some View {
-        let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth, layout: model.layout)
+    private func tileView(index: Int, face: MahjongFace, tileWidth: CGFloat, extent: Metrics.Extent) -> some View {
+        let frame = Metrics.tileFrame(index: index, tileWidth: tileWidth, layout: model.layout, extent: extent)
         return MahjongTileView(
             face: face,
             width: frame.width,
@@ -544,7 +560,7 @@ struct MahjongSolitaireRuleSheet: View {
         ("花牌と季節牌", "花牌（梅・蘭・菊・竹）どうし、季節牌（春・夏・秋・冬）どうしは、絵柄が違っても合わせて取れます。梅と蘭、春と冬のような組み合わせで消えるのはこのためです"),
         ("そのほかの牌", "花牌・季節牌以外は、まったく同じ絵柄の2枚だけが合います。一萬と二萬のように種類が同じでも数が違えば合いません"),
         ("並んでいる牌", "全部で144枚（標準の34種が4枚ずつ + 花牌4枚 + 季節牌4枚）です。配る盤面は取り切れる順番があるように作っているので、必ずクリアできます"),
-        ("盤面のかたち", "右上の「＋」から盤面のかたちを選べます。亀甲・ピラミッド・十字の3種類があり、どれも144枚で必ずクリアできます。最短タイムはかたちごとに別々に記録されます"),
+        ("盤面のかたち", "はじめるときと「新規ゲーム」を押したときに、盤面のかたちを選べます。亀甲・ピラミッド・十字の3種類があり、どれも144枚で必ずクリアできます。最短タイムはかたちごとに別々に記録されます"),
         ("ヒント・並べ替え・戻す", "「ヒント」は取れる2枚を1組光らせます。「並べ替え」は残りをそこから取り切れる配置に組み直します（戻せる1手は無くなります）。「戻す」は直前に取った2枚を盤に返します"),
     ]
 
