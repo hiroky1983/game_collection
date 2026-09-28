@@ -12,11 +12,12 @@ enum HomerunAtBatLayout {
     /// 頭の半径 1 → 0.354m（全身 4.8 → 1.7m）。
     static let characterScale: Float = 0.354
 
-    /// 打者（右打席・胸を少し一塁側に開く）。
-    static let batter = Placement(position: [-1.0, 0, 0.15], yaw: 0.35)
-    /// 審判は捕手の後ろ（ほとんど隠れる）。捕手は本塁の少し一塁側・奥で、リングとストライクゾーンの周りを空ける。
-    static let umpire = Placement(position: [0.75, 0, -3.2], yaw: 0)
-    static let catcher = Placement(position: [0.6, 0, -2.2], yaw: 0)
+    /// 打者（右打席 = 三塁側 = センターカメラから見て右の +x）。Meshy の 3D モデル（`HomerunBatterAsset`）は構えで
+    /// 胸が +z・左肩が +x を向いているので、y 軸で -90° 回して左肩を投手（+z）へ、胸を本塁（-x）へ向ける（試作）。
+    static let batter = Placement(position: [0.95, 0, 0.1], yaw: -.pi / 2)
+    /// 審判は捕手の後ろ（ほとんど隠れる）。捕手は本塁の少し一塁側（-x）・奥で、リングとストライクゾーンと打者の周りを空ける。
+    static let umpire = Placement(position: [-0.75, 0, -3.2], yaw: 0)
+    static let catcher = Placement(position: [-0.6, 0, -2.2], yaw: 0)
     /// 投手はマウンドの上・本塁に向く（カメラに背中）。
     static let pitcher = Placement(position: [0, 0.3, 17.4], yaw: .pi)
 
@@ -130,19 +131,27 @@ extension HomerunAtBatLayout {
 }
 
 /// 3D の打席シーン（球場 + 打者・投手・捕手・審判）を SwiftUI に置く。RealityKit の描画は iOS だけ（macOS の `swift test` では空色の背景だけ）。
+///
+/// **当たり判定を持たない**（`allowsHitTesting(false)`）。3D は UIKit の `ARView` なので、当たり判定を残すと
+/// 手前に重ねた押せる帯（`HomerunAtBatView.touchPad`）へのドラッグを `ARView` が吸ってしまい、
+/// カーソルが動かずスイングもできなくなる（会長 QA 2026-09-28。チャリンコ・ブロックの SpriteView と同じ扱い）。
 struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
+    /// 打者のスイング（試作）。nil なら構え、値が変わるたびにスイングを頭から 1 回再生する。
+    var batterSwing: Int?
 
     var body: some View {
         ZStack {
             LinearGradient(colors: [Color(red: 0.31, green: 0.64, blue: 0.90), Color(red: 0.60, green: 0.82, blue: 0.96), Color(red: 0.85, green: 0.93, blue: 0.98)],
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
-            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera)
+            HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera,
+                                  batterSwing: batterSwing)
             #endif
         }
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }
@@ -154,9 +163,13 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let batterPose: HomerunOjisanPose3
     let pitcherPose: HomerunOjisanPose3
     let camera: HomerunAtBatLayout.Camera
+    let batterSwing: Int?
 
-    /// 打者・投手の実体（ポーズが変わったら差し替える）とカメラ（案が変わったら向け直す）。
+    /// 打者・投手の実体（ポーズが変わったら差し替える）とカメラ（案が変わったら向け直す）。打者は Meshy のモデルが読めればそれ
+    /// （`batterRig`）を使い、読めなければ旧モデル（プリミティブで組んだおじさん）をポーズごとに差し替える。
     final class Coordinator {
+        var batterRig: HomerunBatterRig?
+        var batterSwing: Int?
         var batter: Entity?
         var batterPose: HomerunOjisanPose3?
         var pitcher: Entity?
@@ -174,8 +187,17 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         return e
     }
 
+    /// 旧モデルの打者（正面向きに作られているので、打席の向きではなく本塁側へ少し開いた向きで置く）。
+    private static func legacyBatter(_ pose: HomerunOjisanPose3) -> Entity {
+        var p = HomerunAtBatLayout.batter
+        p.yaw = -0.35
+        return characterEntity(pose, outfit: .batter, p)
+    }
+
     func makeUIView(context: Context) -> HomerunMirrorableView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
+        // 触りは SwiftUI の押せる帯で受ける（`allowsHitTesting(false)` と二重に止める）。
+        view.isUserInteractionEnabled = false
         view.environment.background = .color(.clear)
         view.backgroundColor = .clear
         view.isOpaque = false
@@ -189,10 +211,19 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             e.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
             anchor.addChild(e)
         }
-        let batter = Self.characterEntity(batterPose, outfit: .batter, HomerunAtBatLayout.batter)
-        anchor.addChild(batter)
-        context.coordinator.batter = batter
-        context.coordinator.batterPose = batterPose
+        if let rig = HomerunBatterRig() {
+            rig.entity.position = HomerunAtBatLayout.batter.position
+            rig.entity.orientation = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
+            anchor.addChild(rig.entity)
+            context.coordinator.batterRig = rig
+            if batterSwing != nil { rig.playSwing() }
+            context.coordinator.batterSwing = batterSwing
+        } else {
+            let batter = Self.legacyBatter(batterPose)
+            anchor.addChild(batter)
+            context.coordinator.batter = batter
+            context.coordinator.batterPose = batterPose
+        }
         let pitcher = Self.characterEntity(pitcherPose, outfit: .pitcher, HomerunAtBatLayout.pitcher)
         anchor.addChild(pitcher)
         context.coordinator.pitcher = pitcher
@@ -216,8 +247,13 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     func updateUIView(_ uiView: HomerunMirrorableView, context: Context) {
         let c = context.coordinator
         uiView.mirrored = camera.mirrored
-        if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
-            let new = Self.characterEntity(batterPose, outfit: .batter, HomerunAtBatLayout.batter)
+        if let rig = c.batterRig {
+            if c.batterSwing != batterSwing {
+                if batterSwing != nil { rig.playSwing() } else { rig.showStance() }
+                c.batterSwing = batterSwing
+            }
+        } else if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
+            let new = Self.legacyBatter(batterPose)
             parent.addChild(new)
             parent.removeChild(old)
             c.batter = new

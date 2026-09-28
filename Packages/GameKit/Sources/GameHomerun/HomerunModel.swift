@@ -65,6 +65,10 @@ public final class HomerunModel {
     public private(set) var challenge: HomerunChallenge?
     /// 直前の 1 球の結果。
     public private(set) var lastBall: HomerunBattedBall?
+    /// 実際に振った回数（見送りは数えない）。打席の 3D の打者がスイングを再生する合図に使う（試作）。
+    public private(set) var swingCount = 0
+    /// 直前の 1 球で振ったか（見送りなら false）。
+    public private(set) var didSwingLastBall = false
     /// 10 球の結果で自己ベストを更新したか。
     public private(set) var isNewBest = false
     /// 回数が無いのに打席に立とうとした（使い切りシートを出す）。
@@ -337,6 +341,8 @@ public final class HomerunModel {
     @discardableResult
     private func resolve(_ swing: HomerunSwing?, now: Date) -> HomerunBattedBall? {
         guard phase == .pitching, var challenge else { return nil }
+        didSwingLastBall = swing != nil
+        if didSwingLastBall { swingCount += 1 }
         let ball = challenge.swing(swing)
         self.challenge = challenge
         if !hasProgressed {

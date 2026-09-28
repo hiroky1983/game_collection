@@ -32,7 +32,8 @@ struct HomerunAtBatView: View {
                         HomerunAtBatBackdrop(zoneCenter: zoneCenter,
                                              batterPose: HomerunAtBatLayout.batterPose(phase: model.phase, lastKind: model.lastBall?.kind),
                                              pitcherPose: HomerunAtBatLayout.pitcherPose(phase: model.phase, elapsed: model.pitchElapsed(at: now)),
-                                             cameraPreset: model.atBatCamera)
+                                             cameraPreset: model.atBatCamera,
+                                             batterSwing: batterSwing)
                         HomerunZoneCanvas(
                             zoneCenter: zoneCenter,
                             ball: model.phase == .pitching ? model.ballPoint : nil,
@@ -82,6 +83,11 @@ struct HomerunAtBatView: View {
                 model.atBatCamera = preset
             }
         }
+    }
+
+    /// 3D の打者のスイングの合図（試作）。振った球の結果を見せているあいだだけ値があり、振るたびに変わる。
+    private var batterSwing: Int? {
+        model.phase == .ballResult && model.didSwingLastBall ? model.swingCount : nil
     }
 
     /// 当たり以上（外野へ飛んだ）の結果は外野カメラの静止ショットに切り替える（README §3.2）。
@@ -209,10 +215,12 @@ struct HomerunAtBatBackdrop: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
+    var batterSwing: Int?
 
     var body: some View {
         #if os(iOS) && canImport(RealityKit)
-        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset).ignoresSafeArea()
+        HomerunAtBatScene3DView(batterPose: batterPose, pitcherPose: pitcherPose, cameraPreset: cameraPreset,
+                                batterSwing: batterSwing).ignoresSafeArea()
         #else
         HomerunFieldBackdrop(zoneCenter: zoneCenter)
         #endif
