@@ -45,7 +45,9 @@ struct MahjongTableView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            MahjongTableSurface(layout: layout)
+            // 木枠とフェルトはソリティア系 4 本と共通の卓（#1535）。フェルトの位置は `layout` と同じ `tableFrame` から出る。
+            CardTableSurface(frame: MahjongTableLayout.tableFrame)
+                .frame(width: layout.size.width, height: layout.size.height)
             // CPU の手牌（奥の対面から先に、左右は奥から手前へ）
             MahjongTileBlockCanvas(blocks: standingBlocks)
                 .frame(width: layout.size.width, height: layout.size.height)
@@ -152,40 +154,6 @@ struct MahjongTableView: View {
         )
         + "。"
         + MahjongAccessibility.discardPileLabel(player: name, tiles: scene.discards[seat])
-    }
-}
-
-// MARK: - 卓の面
-
-/// 木枠とフェルト。長方形の卓（#927。以前は台形）を `Canvas` 1 枚に描く（照明の照りと縁の落ち影を含む）。
-struct MahjongTableSurface: View {
-    let layout: MahjongTableLayout
-
-    var body: some View {
-        Canvas { ctx, _ in
-            let wood = Path { p in
-                let f = layout.woodFrame
-                p.move(to: f[0]); p.addLine(to: f[1]); p.addLine(to: f[2]); p.addLine(to: f[3]); p.closeSubpath()
-            }
-            ctx.fill(wood, with: .linearGradient(
-                Gradient(colors: [Color(hex: 0xC48A4A), Color(hex: 0x8A5A2B), Color(hex: 0x4A2C12)]),
-                startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: layout.size.height)))
-            let felt = Path { p in
-                let f = layout.felt
-                p.move(to: f[0]); p.addLine(to: f[1]); p.addLine(to: f[2]); p.addLine(to: f[3]); p.closeSubpath()
-            }
-            let center = layout.project(u: 0.5, v: 0.5).point
-            ctx.fill(felt, with: .radialGradient(
-                Gradient(colors: [Color(hex: 0x2E7A50), Color(hex: 0x2E7A50), Color(hex: 0x14432C)]),
-                center: center, startRadius: layout.size.width * 0.1, endRadius: layout.size.height * 0.78))
-            // 木枠の内側の落ち影（フェルトに切り抜いたぼかし線）
-            var shadow = ctx
-            shadow.clip(to: felt)
-            shadow.addFilter(.blur(radius: layout.size.width * 0.01))
-            shadow.stroke(felt, with: .color(Color.black.opacity(0.45)), lineWidth: layout.size.width * 0.016)
-        }
-        .frame(width: layout.size.width, height: layout.size.height)
-        .accessibilityHidden(true)
     }
 }
 

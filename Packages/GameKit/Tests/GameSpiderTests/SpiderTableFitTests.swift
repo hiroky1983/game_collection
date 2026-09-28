@@ -12,9 +12,9 @@ struct SpiderTableFitTests {
 
     /// 画面幅から、卓の外の余白（`boardSideInset`）と卓の木枠 + 内側の余白を引いた、札に使える幅。
     private static func innerWidth(screenWidth: CGFloat) -> CGFloat {
-        screenWidth
-            - SpiderMetrics.boardSideInset * 2
-            - (CardTableStyle.rimWidth + CardTableStyle.contentInset) * 2
+        let table = screenWidth - SpiderMetrics.boardSideInset * 2
+        let rim = CardTableFrame.standard.insets(width: table)
+        return table - rim.leading - rim.trailing - CardTableStyle.contentInset * 2
     }
 
     @Test("卓の内側で 10 列が下限を割らずに収まる", arguments: [CGFloat(375), 390, 393, 402, 430, 440])
@@ -26,8 +26,13 @@ struct SpiderTableFitTests {
                 "10 列（\(SpiderMetrics.boardWidth(cardWidth: card))pt）が卓の内側（\(inner)pt）をはみ出す")
     }
 
-    @Test("卓の木枠と余白は片側 9pt（これより広げるなら SE の 10 列を見直す）")
+    /// #1535 で木枠を麻雀と同じ太さ（卓の幅の 12/393）にそろえた。iPhone SE（卓の幅 367pt）で片側 17.2pt、
+    /// 札は 31.5pt（下限 28pt に 3.5pt の余裕）。これより広げるなら SE の 10 列を見直す。
+    @Test("卓の木枠と余白は iPhone SE で片側 18pt 以下（これより広げるなら SE の 10 列を見直す）")
     func tableInsetIsSmall() {
-        #expect(CardTableStyle.rimWidth + CardTableStyle.contentInset == 9)
+        let table = CGFloat(375) - SpiderMetrics.boardSideInset * 2
+        let rim = CardTableFrame.standard.insets(width: table)
+        #expect(rim.leading + CardTableStyle.contentInset <= 18)
+        #expect(rim.leading == rim.trailing)
     }
 }
