@@ -708,6 +708,9 @@ is_ship_ready() {
 #   - ai:approved が付いていない Issue は数えない（#1075）。回収の目的は「承認済み Issue を着手候補に戻す」ことで、
 #     未承認の企画 Issue は外しても候補にならない。社長セッションが試作に入るときに付けた目印を壊すだけなので
 #     当番は毎回見送り、それでも30分ごとに鳴り続けた（#1016 で 01:47〜06:23 JST に8回空振り）
+#   - duty:heavy は数えない（2026-09-28 会長指摘）。重い Issue はクラウド（claude.ai の routine）が
+#     `claude/...` ブランチで進め、Issue にはコメントしないので無更新に見える。数えると当番が「ブランチだけある」
+#     として引き取り、クラウドの作業と二重になる（2026-09-28 に #1462〜#1465 で発生し、クラウドのブランチを消した）
 #   - 最終更新から $2 秒以上経っているものだけ
 #   - オープン PR に紐づいている（closingIssuesReferences）ものは除く
 #   - 生きている他スロットの当番が確保している Issue は除く（2026-09-25 の2並列化）。以前は「ロックで
@@ -722,6 +725,7 @@ count_orphans() {
     | jq --argjson age "$2" --argjson linked "$3" --argjson busy "${4:-[]}" \
        '[.[] | . as $i
              | select(([$i.labels[]?.name] | index("ai:approved")) != null)
+             | select(([$i.labels[]?.name] | index("duty:heavy")) == null)
              | select(($i.updatedAt | fromdateiso8601) < (now - $age))
              | select(($linked | index($i.number)) == null)
              | select(($busy | index($i.number)) == null)] | length' 2>/dev/null || echo 0
