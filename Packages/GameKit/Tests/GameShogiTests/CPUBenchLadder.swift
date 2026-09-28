@@ -48,32 +48,24 @@ enum CPUBenchLadder {
         return s
     }
 
-    /// 手ごとに、種の違うエンジンを作る（実機は種なしで毎回違う乱数）。`nil` を渡した側は合法手から一様乱択する。
-    typealias EngineFactory = @Sendable (_ seed: UInt64) -> SimpleMinimaxEngine
-
     /// 1 局。返り値の Bool は「手数上限で終わり、下の段階が駒得で上回っていた」。
-    /// 種を渡した同じエンジンは同じ手番なら同じ外しの目を引くので、エンジンは手ごとに作り直す。
-    static func play(upper: @escaping EngineFactory, lower: EngineFactory?, seed: UInt64,
+    /// 種を渡した同じエンジンは同じ手番なら同じ見逃しの目を引くので、エンジンは手ごとに作り直す
+    /// （`upper` / `lower` は手数を受け取って種の違うエンジンを返す。実機は種なしで毎回違う乱数）。
+    static func play(upper: (Int) -> SimpleMinimaxEngine, lower: (Int) -> SimpleMinimaxEngine,
                      upperIsBlack: Bool, opening: Position, maxPlies: Int) async -> (Outcome, lowerAhead: Bool) {
         var pos = opening
-        var rng = MMIXRandom(seed: seed &* 7 &+ 3)
         for ply in 0..<maxPlies {
             let moves = pos.legalMoves()
             if moves.isEmpty {
                 let upperLost = (pos.sideToMove == .black) == upperIsBlack
-                return (upperLost ? .lowerWon : .upperWon, false)
+                if upperLost { print("LOSS 詰まされた局面 \(pos.toSFEN()) 駒得(先手視点) \(material(pos)) 上は\(upperIsBlack ? "先手" : "後手")") }
+            return (upperLost ? .lowerWon : .upperWon, false)
             }
             let upperToMove = (pos.sideToMove == .black) == upperIsBlack
-            let move: Move
-            if let factory = upperToMove ? upper : lower {
-                let engineSeed = seed &* 100_000 &+ UInt64(ply) &* 2 &+ (upperToMove ? 1 : 2)
-                guard let usi = await factory(engineSeed).bestMove(sfen: pos.toSFEN()),
-                      let m = Move.fromUSI(usi), moves.contains(m) else {
-                    return (upperToMove ? .lowerWon : .upperWon, false)  // 手を返せない・非合法は反則負け
-                }
-                move = m
-            } else {
-                move = moves[Int(rng.next() % UInt64(moves.count))]
+            let engine = upperToMove ? upper(ply) : lower(ply)
+            guard let usi = await engine.bestMove(sfen: pos.toSFEN()),
+                  let move = Move.fromUSI(usi), moves.contains(move) else {
+                return (upperToMove ? .lowerWon : .upperWon, false)  // 手を返せない・非合法は反則負け
             }
             pos.make(move)
         }
@@ -83,11 +75,10 @@ enum CPUBenchLadder {
     }
 
     /// `upper` が `lower` に、先後を入れ替えて `openings` 通り × 2 局戦う。
-    /// `firstOpening` は最初の開始局面の番号（計測を小分けにして続きから回すため）。
-    static func run(upper: @escaping EngineFactory, lower: EngineFactory?, openings: Int, maxPlies: Int,
-                    concurrency: Int = 4, firstOpening: Int = 1) async -> Tally {
+    static func run(upperLevel: Int, lowerLevel: Int, openings: Int, maxPlies: Int,
+                    concurrency: Int = 4) async -> Tally {
         var tally = Tally()
-        let jobs = (0..<openings).flatMap { i in [true, false].map { (UInt64(firstOpening + i), $0) } }
+        let jobs = (0..<openings).flatMap { i in [true, false].map { (UInt64(i + 1), $0) } }
         var next = 0
         await withTaskGroup(of: (Outcome, Bool).self) { group in
             func add() {
@@ -95,7 +86,10 @@ enum CPUBenchLadder {
                 let (seed, upperIsBlack) = jobs[next]
                 next += 1
                 group.addTask {
-                    let r = await play(upper: upper, lower: lower, seed: seed, upperIsBlack: upperIsBlack,
+                    let r = await play(
+                        upper: { SimpleMinimaxEngine(level: upperLevel, seed: seed &* 100_000 &+ UInt64($0) &* 2 &+ 1) },
+                        lower: { SimpleMinimaxEngine(level: lowerLevel, seed: seed &* 100_000 &+ UInt64($0) &* 2 &+ 2) },
+                        upperIsBlack: upperIsBlack,
                                        opening: opening(seed: seed), maxPlies: maxPlies)
                     return (r.0, r.lowerAhead)
                 }
@@ -115,23 +109,9 @@ enum CPUBenchLadder {
         return tally
     }
 
-    /// 出荷している段階の設定で、考える時間を「読む局面数」に置き換えたエンジン。
-    /// `nodesPerSecond` は最適化ビルドで測った 1 秒あたりの局面数。時間で打ち切ると同時に走る対局の
-    /// 負荷で強さが揺れるので、計測の対局は局面数で打ち切る（実機の時間で読める量と等しい）。
-    /// `bestMoveProbability` を渡すと、その段階の確率だけを差し替える（確率の候補を試すため）。
-    /// `slipMargin` は外したときに許す損の幅の差し替え。
-    static func engine(_ strength: CPUStrength, nodesPerSecond: Double, bestMoveProbability: Double? = nil,
-                       slipMargin: Int? = nil, seed: UInt64) -> SimpleMinimaxEngine {
-        let shipped = SimpleMinimaxEngine(level: strength.rawValue)
-        var policy = shipped.policy
-        if let p = bestMoveProbability {
-            policy.bestMoveProbability = p
-            if policy.slipMargin == 0 { policy.slipMargin = SimpleMinimaxEngine.slipMargin }  // 「むずかしい」の確率を下げて試すとき
-        }
-        if let m = slipMargin, !policy.isExact { policy.slipMargin = m }
-        return SimpleMinimaxEngine(
-            depth: shipped.depth, usePositional: shipped.usePositional, useQuiescence: shipped.useQuiescence,
-            useBook: shipped.useBook, timeLimit: .infinity,
-            nodeLimit: Int(shipped.timeLimit * nodesPerSecond), policy: policy, seed: seed)
-    }
+    static let pairs: [(name: String, upper: CPUStrength, lower: CPUStrength)] = [
+        ("簡単 対 入門", .easy, .novice),
+        ("ふつう 対 簡単", .normal, .easy),
+        ("むずかしい 対 ふつう", .hard, .normal),
+    ]
 }
