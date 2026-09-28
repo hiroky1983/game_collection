@@ -80,7 +80,7 @@ struct CardTableSurfaceTests {
     ])
     func everyGameSitsOnTheSharedTable(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
-        #expect(SourceScan.matchCount(of: "\\.cardTable\\(\\)", in: source) == 1,
+        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: source) == 1,
                 "\(module) が卓を 1 か所で付けていない（0 = 卓が無い / 2 以上 = 二重）")
         #expect(!source.contains("CardTableSurface("), "\(module) が卓の面を直接組み立てている")
         #expect(!source.contains("EllipticalGradient"), "\(module) にフェルトの描画が直書きされている")
@@ -102,17 +102,16 @@ struct CardTableSurfaceTests {
         }
     }
 
-    /// 会長 QA（2026-09-28）: 帯と卓が画面の上に詰まって見えるので、札の 3 本は上の余白を少し広げ、
-    /// **3 本で同じ値**にそろえる。ゲームごとに数値を持つと 1 本だけずれる。
-    @Test("札の 3 本は画面の上の余白を共通の値（screenTopPadding）で取る", arguments: [
+    /// 会長 QA（2026-09-28）: 札が卓の一番上に張り付いて見えるので、札の 3 本は**卓の中の上**に余白を足し、
+    /// **3 本で同じ値**にそろえる。ゲームごとに数値を持つと 1 本だけずれる。麻雀ソリティアは対象外。
+    @Test("札の 3 本は卓の中の上の余白を共通の値（cardTopInset）で取る", arguments: [
         "GameSolitaire/SolitaireView.swift", "GameSpider/SpiderView.swift", "GameFreeCell/FreeCellView.swift",
     ])
-    func cardGamesShareTheTopPadding(path: String) throws {
+    func cardGamesShareTheTableTopInset(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
-        #expect(SourceScan.matchCount(of: "\\.padding\\(\\.top, CardTableStyle\\.screenTopPadding\\)", in: source) == 1,
-                "\(path) が共通の上の余白を使っていない")
-        #expect(!source.contains(".padding(.vertical, Theme.pad)"), "\(path) の上の余白が地の 16pt のまま")
-        #expect(CardTableStyle.screenTopPadding > Theme.pad)
+        #expect(SourceScan.matchCount(of: "\\.cardTable\\(topInset: CardTableStyle\\.cardTopInset\\)", in: source) == 1,
+                "\(path) が卓の中の共通の上の余白を使っていない")
+        #expect(CardTableStyle.cardTopInset > 0)
     }
 
     @Test("空き枠は色を直書きせず、卓の上かどうかを環境値から受け取る")
@@ -126,7 +125,7 @@ struct CardTableSurfaceTests {
     @Test("卓の修飾子は木枠と余白ぶん中身を縮め、フェルト用の色を配る")
     func tableModifierInsetsContentAndProvidesFeltInk() throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/CardTable.swift"))
-        let modifier = try #require(SourceScan.declaration(of: "func cardTable()", in: source))
+        let modifier = try #require(SourceScan.declaration(of: "func cardTable(", in: source))
         #expect(modifier.contains("CardTableStyle.rimWidth + CardTableStyle.contentInset"))
         #expect(modifier.contains(".environment(\\.cardTableInk, .felt)"))
     }

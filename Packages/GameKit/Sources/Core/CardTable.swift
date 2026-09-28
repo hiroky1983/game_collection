@@ -36,10 +36,10 @@ public enum CardTableStyle {
     public static let rimWidth: CGFloat = 3
     /// 木枠の内側から札・牌までの余白。狭い画面（iPhone SE・スパイダーの 10 列）で札を削りすぎない値。
     public static let contentInset: CGFloat = 6
-    /// ナビバーから画面の最初の部品（状態の帯）までの余白。ソリティア・スパイダー・フリーセルの 3 本で共通。
-    /// 地の余白 `Theme.pad`（16pt）だけだと帯と卓が画面の上に詰まって見える（会長 QA 2026-09-28）ので 8pt 足す。
-    /// 麻雀ソリティアは卓が縦に余るので対象外（`Theme.pad` のまま）。
-    public static let screenTopPadding: CGFloat = Theme.pad + 8
+    /// 卓の中で、札の最上段を卓の上端から離す余白（`contentInset` に足す分）。ソリティア・スパイダー・フリーセルの
+    /// 3 本で共通。`contentInset` だけだと札が卓の一番上に張り付いて見える（会長 QA 2026-09-28）。
+    /// 麻雀ソリティアは牌の山を卓の中央に置くので対象外。
+    public static let cardTopInset: CGFloat = 12
     /// 角丸。`popCard` と同じ。
     public static let corner: CGFloat = Theme.corner
     /// フェルトの中央色をそのまま伸ばす半径（全体に対する比）と、縁の暗さに達する半径。
@@ -176,8 +176,10 @@ public struct CardTableSurface: View {
 public extension View {
     /// このビューを卓の上に置く（#1501）。木枠と内側の余白ぶんだけ中身が縮む
     /// （中身が `GeometryReader` で札の大きさを決めていれば、そのまま卓に収まる）。
-    func cardTable() -> some View {
+    /// - Parameter topInset: 上だけに足す余白（札を卓の上端から離す。`CardTableStyle.cardTopInset`）。
+    func cardTable(topInset: CGFloat = 0) -> some View {
         padding(CardTableStyle.rimWidth + CardTableStyle.contentInset)
+            .padding(.top, topInset)
             .background(CardTableSurface())
             .environment(\.cardTableInk, .felt)
     }
