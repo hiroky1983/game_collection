@@ -15,7 +15,17 @@ enum HomerunAtBatLayout {
     /// 打者（右打者を中継のセンターカメラのように**前のカメラの画面の右**に立たせる = +x）。Meshy の 3D モデル（`HomerunBatterAsset`）は構えで
     /// 胸が +z・左肩が +x を向いているので、y 軸で -90° 回して左肩を投手（+z）へ、胸を本塁（-x）へ向ける（試作）。
     /// 人物の置き方はすべて前のカメラ用。左右反転する後ろのカメラでは `castMirrored` で x について鏡映して置いた扱いになる。
-    static let batter = Placement(position: [0.95, 0, 0.1], yaw: -.pi / 2)
+    ///
+    /// 本塁からの距離は**バットが球の通り道に届く所**（`HomerunSwingContact`）。USDZ のスイングは腕を伸ばさず、バットの先端は
+    /// 打者の原点から本塁側へ 0.48m しか出ない（実寸で測った値）。0.95m に置くと先端が本塁の 0.5m 手前で止まるので、
+    /// 外の列（-0.12m）にも先端が届く 0.30m に寄せる（腰は 0.40m・バッターボックスの内側の線 0.29m の内）。z は本塁の前縁より
+    /// 少し捕手側（-0.10m）にして、ジャストの打点が本塁の前縁の 0.3m 前に来るようにする。
+    static let batter = Placement(position: [0.30, 0, -0.10], yaw: -.pi / 2)
+
+    /// 打者の局所座標の点を打席の世界座標（前のカメラの置き方・鏡映なし）へ置く。
+    static func batterWorld(_ local: SIMD3<Float>) -> SIMD3<Float> {
+        batter.position + simd_quatf(angle: batter.yaw, axis: [0, 1, 0]).act(local)
+    }
     /// 審判は捕手の後ろ（ほとんど隠れる）。捕手は本塁の少し打者と反対側（-x）・奥で、リングとストライクゾーンと打者の周りを空ける。
     static let umpire = Placement(position: [-0.75, 0, -3.2], yaw: 0)
     static let catcher = Placement(position: [-0.6, 0, -2.2], yaw: 0)
@@ -87,13 +97,14 @@ enum HomerunAtBatLayout {
     /// （2D のゾーン・的・カーソルの位置と片手操作を変えない）。切り替えるのは見た目だけで、判定・座標・解析は変えない。
     /// `rawValue` は保存に使うので変えない。
     enum CameraPreset: String, CaseIterable, Sendable {
-        /// 前: 中継のセンターカメラ（本塁から 43m・高さ 6m・望遠 9.6°・ほぼ水平）。
+        /// 前: 中継のセンターカメラ（本塁から 28m・高さ 4.5m・望遠 9.6°）。会長指示「おじさん遠すぎ」（2026-09-29）で 43m・6m から寄せ、
+        /// 打者の背丈を画面の高さの 23% → 36% にした。投手（マウンド 17.4m）はカメラの 10.6m 前で画角の下に外れる
+        /// （投手はバッティングマシンに置き換える予定なので画面内の制約を外した）。
         case front
-        /// 後ろ: 本塁の 7.5m 後ろ・三塁側へ 0.5m（打者の側）・高さ 3m から、ストライクゾーンを 15.6° 見下ろす（画角 53°・光軸は 18.5° 下向き）。
+        /// 後ろ: 本塁の 5.5m 後ろ・三塁側へ 0.5m（打者の側）・高さ 2.6m から、ストライクゾーンを見下ろす（画角 50°）。
+        /// 打者の背丈は画面の高さの 31%（7.5m・3m・53° のときの 22% から寄せた・会長指示 2026-09-29）。
         /// 審判・捕手の肩越しに打者・本塁・バッターボックスを手前に大きく、奥に投手・外野の柵を映す（左右反転で HUD の右 = 右翼に合わせる）。
-        /// 検討時の案 B（14m 後ろ・一塁側 0.5m・高さ 7m・54°・23.5° 見下ろす）から寄せて打者の背丈を約 2.1 倍にした。
-        /// 三塁側へずらすのは、真後ろだと手前の審判・捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす）。これ以上寄せる・下げると、
-        /// 打者（本塁の 1m 左）が画面の左端へ、投手の頭が上端の HUD（球数・今回・直前の球）の裏へ寄る。
+        /// 三塁側へずらすのは、真後ろだと手前の審判・捕手が本塁とゾーンの右下を塞ぐため（右端へ逃がす。審判・捕手は廃止予定）。
         case back
 
         /// 「⋯」メニューの文言。
@@ -107,18 +118,18 @@ enum HomerunAtBatLayout {
         var camera: Camera {
             switch self {
             case .front:
-                return Camera(position: [0, 6, 43], target: [0, 0.57, 0.3], verticalFieldOfView: 9.6)
+                return .aimed(from: [0, 4.5, 28], at: HomerunAtBatLayout.zoneWorldCenter,
+                              yFraction: HomerunAtBatLayout.zoneScreenFraction, verticalFieldOfView: 9.6)
             case .back:
-                return .aimed(from: [-0.5, 3, -7.5], at: HomerunAtBatLayout.zoneWorldCenter,
-                              yFraction: HomerunAtBatLayout.zoneScreenFraction, verticalFieldOfView: 53, mirrored: true)
+                return .aimed(from: [-0.5, 2.6, -5.5], at: HomerunAtBatLayout.zoneWorldCenter,
+                              yFraction: HomerunAtBatLayout.zoneScreenFraction, verticalFieldOfView: 50, mirrored: true)
             }
         }
     }
 
-    /// 前のカメラ（`CameraPreset.front`）。センター側の遠くからの望遠（投手と打者の大きさの差を縮め、
-    /// 投手は腰から上だけ映す = 中継のセンターカメラ）。注視点は、ストライクゾーンの中心（`zoneWorldCenter`）が画面の高さの
-    /// `zoneScreenFraction` に映るように決めている（原本より少し下を向く = 打席の HUD の 2D のゾーン・的・カーソルをそこへ重ねる。
-    /// 押せる帯の下 1/3 と重ねない）。
+    /// 前のカメラ（`CameraPreset.front`）。センター側からの望遠（中継のセンターカメラ）。注視点は、ストライクゾーンの中心
+    /// （`zoneWorldCenter`）が画面の高さの `zoneScreenFraction` に映るように決めている（打席の HUD の 2D のゾーン・的・カーソルを
+    /// そこへ重ねる。押せる帯の下 1/3 と重ねない）。
     static var cameraPosition: SIMD3<Float> { CameraPreset.front.camera.position }
     static var cameraTarget: SIMD3<Float> { CameraPreset.front.camera.target }
     static var verticalFieldOfView: Float { CameraPreset.front.camera.verticalFieldOfView }
@@ -162,8 +173,13 @@ struct HomerunAtBatScene3DView: View {
     var batterPose: HomerunOjisanPose3 = .stance
     var pitcherPose: HomerunOjisanPose3 = .pitch
     var cameraPreset: HomerunAtBatLayout.CameraPreset = .front
-    /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を頭から流す。
+    /// Meshy の打者の動きの段階（試作）。変わるたびにその段階を流し直す（振り抜きは `start` からの経過ぶん進めた所から）。
     var batterMotion: HomerunBatterMotion = .stance
+    /// 3D の球の位置（世界座標・前のカメラの置き方・`HomerunSwingPlan.ballPosition`）。nil なら見せない。
+    /// 左右反転する後ろのカメラでは人物と同じく x について鏡映して置く。
+    var ballPosition: SIMD3<Float>? = nil
+    /// 今の時刻（振り抜きの再生位置を合わせるのに使う）。
+    var now: Date = Date()
 
     var body: some View {
         ZStack {
@@ -171,7 +187,7 @@ struct HomerunAtBatScene3DView: View {
                            startPoint: .top, endPoint: .bottom)
             #if os(iOS) && canImport(RealityKit)
             HomerunAtBatSceneView(batterPose: batterPose, pitcherPose: pitcherPose, camera: cameraPreset.camera,
-                                  batterMotion: batterMotion)
+                                  batterMotion: batterMotion, ballPosition: ballPosition, now: now)
             #endif
         }
         .allowsHitTesting(false)
@@ -187,6 +203,8 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
     let pitcherPose: HomerunOjisanPose3
     let camera: HomerunAtBatLayout.Camera
     let batterMotion: HomerunBatterMotion
+    let ballPosition: SIMD3<Float>?
+    let now: Date
 
     /// 打者・投手の実体（ポーズが変わったら差し替える）とカメラ（案が変わったら向け直す）。打者は Meshy のモデルが読めればそれ
     /// （`batterRig`）を使い、読めなければ旧モデル（プリミティブで組んだおじさん）をポーズごとに差し替える。
@@ -199,6 +217,26 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         var pitcherPose: HomerunOjisanPose3?
         var cameraEntity: PerspectiveCamera?
         var camera: HomerunAtBatLayout.Camera?
+        var ball: ModelEntity?
+    }
+
+    /// 3D の球（白い球・陰影なし）。
+    private static func makeBall() -> ModelEntity {
+        var material = UnlitMaterial()
+        material.color = .init(tint: HomerunPlatformColor(red: 0.98, green: 0.98, blue: 0.96, alpha: 1))
+        let ball = ModelEntity(mesh: .generateSphere(radius: HomerunSwingContact.ballRadius), materials: [material])
+        ball.isEnabled = false
+        return ball
+    }
+
+    /// 球を置く（鏡映するカメラでは人物と同じく x を鏡映）。nil なら隠す。
+    private static func placeBall(_ ball: ModelEntity, at position: SIMD3<Float>?, camera: HomerunAtBatLayout.Camera) {
+        guard let position else {
+            ball.isEnabled = false
+            return
+        }
+        ball.position = HomerunAtBatLayout.castMirrored(for: camera) ? [-position.x, position.y, position.z] : position
+        ball.isEnabled = true
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -239,7 +277,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             rig.entity.orientation = simd_quatf(angle: HomerunAtBatLayout.batter.yaw, axis: [0, 1, 0])
             anchor.addChild(rig.entity)
             context.coordinator.batterRig = rig
-            if batterMotion != .stance { rig.show(batterMotion) }
+            if batterMotion != .stance { rig.show(batterMotion, now: now) }
             context.coordinator.batterMotion = batterMotion
         } else {
             let batter = Self.legacyBatter(batterPose)
@@ -253,6 +291,10 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         context.coordinator.pitcherPose = pitcherPose
         place(.catcher(), HomerunAtBatLayout.catcher)
         place(.umpire(), HomerunAtBatLayout.umpire)
+        let ball = Self.makeBall()
+        anchor.addChild(ball)
+        Self.placeBall(ball, at: ballPosition, camera: camera)
+        context.coordinator.ball = ball
         let cam = PerspectiveCamera()
         anchor.addChild(cam)
         Self.aim(cam, camera)
@@ -272,7 +314,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
         let c = context.coordinator
         if let rig = c.batterRig {
             if c.batterMotion != batterMotion {
-                rig.show(batterMotion)
+                rig.show(batterMotion, now: now)
                 c.batterMotion = batterMotion
             }
         } else if c.batterPose != batterPose, let old = c.batter, let parent = old.parent {
@@ -293,6 +335,7 @@ private struct HomerunAtBatSceneView: UIViewRepresentable {
             Self.aim(cam, camera)
             c.camera = camera
         }
+        if let ball = c.ball { Self.placeBall(ball, at: ballPosition, camera: camera) }
     }
 }
 

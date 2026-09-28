@@ -89,6 +89,24 @@ public final class HomerunModel {
 
     /// 投球が始まる（投手のモーションが終わり、的が出て輪が縮み始める）時刻。
     public private(set) var pitchStart: Date?
+
+    /// 今（または直前）の 1 球の時刻の記録。3D の打者のスイングと球を判定の時刻に同期させるためのもの（試作・
+    /// `HomerunSwingPlan`）。結果を見せている間も残す（`pitchStart` は結果に入ると消えるため）。判定には使わない。
+    public struct BallClock: Equatable, Sendable {
+        /// 的が出る（輪が縮み始める）時刻。
+        public var pitchStart: Date
+        /// この球のゾーン（0〜8）。
+        public var zone: Int
+        /// この球で押した時刻（押していなければ nil。的が出る前に離したら nil に戻る）。
+        public var pressedAt: Date?
+        /// 振った（離した）時刻。振っていなければ nil。
+        public var releasedAt: Date?
+        /// 振ったときのずれ（ms・負が早い）。
+        public var timingOffset: Double?
+        /// 輪が的に重なる時刻。
+        public var arrival: Date { pitchStart.addingTimeInterval(TimeInterval(HomerunPitch.travelMilliseconds) / 1000) }
+    }
+    public private(set) var ballClock: BallClock?
     /// 1 球の結果を閉じる時刻。
     public private(set) var resultUntil: Date?
 
@@ -243,18 +261,21 @@ public final class HomerunModel {
         phase = .idle
         challenge = nil
         lastBall = nil
+        ballClock = nil
         step += 1
     }
 
     // MARK: 指の操作（片手: 押す → ずらす → 離す）
 
     /// 押す。投球前・投球中どちらでもよい（押しただけでは振らない）。`point` は押せる帯の中の座標（pt）。
-    public func press(at point: CGPoint) {
+    /// `now` は押した時刻（3D の打者が逆算して振り始める時刻に押していたかを見るだけ。判定には使わない）。
+    public func press(at point: CGPoint, now: Date = .distantPast) {
         guard phase == .pitching || phase == .ballResult, !isHeld else { return }
         isHolding = true
         anchor = point
         finger = point
         cursorBase = cursor
+        if phase == .pitching { ballClock?.pressedAt = now }
     }
 
     /// 押したままずらす。カーソルは指の移動量だけ動く（指 1pt = カーソル 1pt）。
@@ -273,7 +294,12 @@ public final class HomerunModel {
         guard isHolding else { return nil }
         drag(to: point)
         isHolding = false
-        guard let offset = timingOffset(at: now) else { return nil }
+        guard let offset = timingOffset(at: now) else {
+            ballClock?.pressedAt = nil
+            return nil
+        }
+        ballClock?.releasedAt = now
+        ballClock?.timingOffset = offset
         return resolve(makeSwing(offset: offset), now: now)
     }
 
@@ -306,7 +332,10 @@ public final class HomerunModel {
         if on { holds.insert(reason) } else { holds.remove(reason) }
         if !wasHeld, isHeld {
             isHolding = false
-            if phase == .pitching { pitchStart = nil }
+            if phase == .pitching {
+                pitchStart = nil
+                ballClock = nil
+            }
             step += 1
         } else if wasHeld, !isHeld {
             switch phase {
@@ -330,6 +359,9 @@ public final class HomerunModel {
     private func beginPitch(now: Date) {
         phase = .pitching
         pitchStart = now.addingTimeInterval(Self.windup)
+        // 押したまま次の球に入ったら、その押しは新しい球でも「押していた」扱い（時刻は前の球のまま = 振り始めより前）。
+        ballClock = BallClock(pitchStart: pitchStart!, zone: currentPitch?.zone ?? 4,
+                              pressedAt: isHolding ? (ballClock?.pressedAt ?? .distantPast) : nil)
         resultUntil = nil
         // カーソルは投球ごとにゾーンの中央へ戻る。押したままなら今の指の位置を新しい基準にする。
         cursor = .zero

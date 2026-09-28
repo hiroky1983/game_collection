@@ -59,14 +59,10 @@ struct HomerunBatter3DTests {
         #expect(abs(bounds.min.y) < 0.05 && abs(bounds.max.y - 1.72) < 0.1, "足元が y = 0・身長 1.72m になっていない（\(bounds.min.y)〜\(bounds.max.y)）")
     }
 
-    @Test("踏み込みは輪が的に重なる 19/30 秒前から。投球前・モーション中・結果の外は構え")
-    func loadStartsBeforeArrival() {
-        let travel = 1.2, load = HomerunBatterMotion.loadDuration
-        #expect(HomerunBatterMotion.beforeSwing(elapsed: nil, travel: travel) == .stance)
-        #expect(HomerunBatterMotion.beforeSwing(elapsed: -0.5, travel: travel) == .stance)
-        #expect(HomerunBatterMotion.beforeSwing(elapsed: travel - load - 0.01, travel: travel) == .stance)
-        #expect(HomerunBatterMotion.beforeSwing(elapsed: travel - load, travel: travel) == .load)
-        #expect(HomerunBatterMotion.beforeSwing(elapsed: travel + 0.1, travel: travel) == .load)
+    @Test("踏み込みの長さは 19/30 秒（20 コマ目まで）。投球中の段階の切り替えは HomerunSwingPlan が逆算した振り始めから決める")
+    func loadDuration() {
+        #expect(abs(HomerunBatterMotion.loadDuration - 19.0 / 30) < 1e-9)
+        #expect(HomerunSwingContact.swingClipStart == HomerunBatterMotion.loadDuration)
     }
 
     // 離した瞬間に頭から流すと最初の 0.63 秒は踏み込みでバットがほぼ動かず、先に外野カメラへ切り替わって
@@ -78,19 +74,33 @@ struct HomerunBatter3DTests {
         let rig = try #require(HomerunBatterRig())
         let renderer = try RealityRenderer()
         renderer.entities.append(rig.entity)
+        let now = Date()
         func batAngle(after motion: HomerunBatterMotion, seconds: Double) throws -> Float {
-            rig.show(.stance)
+            rig.show(.stance, now: now)
             try renderer.update(0.05)
             let start = try batRotation(rig)
-            rig.show(motion)
+            rig.show(motion, now: now)
             for _ in 0..<Int(seconds / 0.05) { try renderer.update(0.05) }
             let end = try batRotation(rig)
             return 2 * acos(min(1, abs(simd_dot(start.vector, end.vector))))
         }
-        let swing = try batAngle(after: .swing(1), seconds: 0.2)
+        let swing = try batAngle(after: .swing(start: now), seconds: 0.2)
         let load = try batAngle(after: .load, seconds: 0.2)
         #expect(swing > 0.5, "振り抜きの 0.2 秒でバットが \(swing) rad しか回らない")
         #expect(load < swing / 2, "踏み込み \(load) rad・振り抜き \(swing) rad")
+    }
+
+    @Test("振り抜きは start が過去ならその分だけ進めた所から流す（離した瞬間に打点のコマへ合わせ直す）")
+    @MainActor
+    func swingSeeksWhenStartIsInThePast() throws {
+        let rig = try #require(HomerunBatterRig())
+        let now = Date()
+        rig.show(.swing(start: now), now: now)
+        #expect(abs((rig.swingClipTime ?? -1) - HomerunBatterMotion.loadDuration) < 0.01)
+        rig.show(.swing(start: now.addingTimeInterval(-0.2)), now: now)
+        #expect(abs((rig.swingClipTime ?? -1) - (HomerunBatterMotion.loadDuration + 0.2)) < 0.01)
+        rig.show(.swing(start: now.addingTimeInterval(0.5)), now: now)
+        #expect(abs((rig.swingClipTime ?? -1) - HomerunBatterMotion.loadDuration) < 0.01, "未来の start は頭から")
     }
 
     @MainActor
