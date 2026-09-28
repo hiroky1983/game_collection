@@ -1,49 +1,100 @@
 import Foundation
 import Core
 
+// MARK: - 手の選び方（#1464）
+
+/// 段階ごとの「最善手を打つ確率」（会長決裁 2026-09-26・2026-09-27）。
+///
+/// 難易度は**考える時間**（`OthelloEngine.timeLimit`）・読む深さの上限（`depthLimit`）と、この確率で決める。
+/// 確率が外れたときは、自分の手と相手の応手の 2 手だけ読んで全候補に点を付け、最善から `slipMargin` 以内の損で済む手
+/// （打つと終局まで相手の 1 手で負けが決まる手は除く）のうち、最善以外から乱択する。
+struct OthelloMovePolicy: Equatable, Sendable {
+    /// 探索が出した最善手をそのまま打つ確率（0...1）。
+    var bestMoveProbability: Double
+    /// 外したときに許す損の幅（`evaluate` の点数）。
+    var slipMargin: Int
+
+    /// 最善手だけを選ぶ（むずかしい）。
+    static let exact = OthelloMovePolicy(bestMoveProbability: 1, slipMargin: 0)
+    /// 探索を素直に回すだけでよいか。
+    var isExact: Bool { bestMoveProbability >= 1 }
+}
+
 /// オセロの CPU。
 ///
-/// | level | 表示 | 打ち方 |
-/// |---|---|---|
-/// | -1 | 入門 | 2 手先まで読んで**自分にいちばん不利な手**を選ぶ（#1401。乱数なし） |
-/// | 0 | 簡単 | 読まずに**最も多く返る手**を選ぶ（角の価値もモビリティも知らない初心者の打ち方） |
-/// | 1 | ふつう | 深さ 2 の αβ + 位置評価（局面数の上限 2 万） |
-/// | 2 | むずかしい | 深さ 5 までの反復深化 αβ + 位置評価。空き 12 以下は終局まで読む（局面数の上限 80 万） |
+/// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 |
+/// |---|---|---|---|---|
+/// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` |
+/// | 0 | かんたん | 0.5 秒 | 3 手先 | `easyBestMoveProbability` |
+/// | 1 | ふつう | 1 秒 | 5 手先 | `normalBestMoveProbability` |
+/// | 2 | むずかしい | 1.5 秒 | 無し（終局まで） | 100% |
+///
+/// **段階の差は、この時間・深さの上限・確率の 3 つだけで付ける**（#1464・会長決裁 2026-09-27）。
+/// 探索（反復深化 αβ・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら打つ。
+/// むずかしいは深さの上限が無いので、空きが少なくなれば時間内に終局まで読み切る（終盤の完全読み）。
+/// 以前（#1401）の段階ごとの打ち方（入門=自分にいちばん不利な手・簡単=最も多く返る手・局面数の上限）は廃止した。
+/// 深さの上限が奇数なのは、偶数の深さは 1 つ手前の奇数より弱くなることがあるため（実測）。
+/// 確率の根拠は `docs/analytics/othello-1464-ladder.md`（上の段の得点率 90% 以上で最も高い値）。
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
-///
-/// **強さは時間ではなく「読む局面数」で決める**（#1401）。端末が遅いと時間切れで浅い読みに落ち、
-/// 段階の差が端末ごとに変わっていた。時間の上限（5 秒）は暴走を止める安全用。
-///
-/// **段階どうしの差は先後入れ替えの実測で決めた**（会長決裁 2026-09-26: 上の段の負けが 3% 以下）。
-/// 評価関数が同じ探索どうしは深さを 1〜2 変えても 10〜20% は負けるので、ふつうは深さ 2、
-/// むずかしいは深さ 5 + 終盤の完全読みと大きく離してある。深さ 3 と 4 は偶奇の癖で
-/// 深さ 4 が深さ 3 に 20% 負ける。詳細は `CPUBenchTests`。
-///
-/// **level 0 が「石数を最大にするだけ」なのは意図**（#1013）。以前は深さ 1 + 位置評価で、
-/// 角を確実に取り・角の隣を避けるので初心者には強すぎた（でたらめに打つ相手に 88.3%・平均 +16.9 石。
-/// 実測は #1013）。オセロでは序盤に石を取りすぎると打てる場所が減るため、石数だけを見る打ち方は
-/// それ自体が弱く、かつ**乱数を使わないので毎回同じ弱さ**になる（「かんたんが不安定」の解消）。
 public struct OthelloEngine: Sendable {
     let level: Int
-    /// テスト専用: 持ち時間を上書きする（時間切れの挙動を決定的に検証するため・#1133）。
-    /// `nil` なら `level` から決まる通常の持ち時間を使う。
-    let timeLimitOverride: TimeInterval?
+    /// 1 手の考える時間の上限（秒）。読み終われば早く打つ。
+    let timeLimit: TimeInterval
+    /// 読む深さの上限（`nil` なら無し＝終局まで）。
+    let depthLimit: Int?
+    /// 読む局面数の上限。出荷値では使わない（`.max`）。計測が考える時間を局面数に置き換えるための口。
+    let nodeLimit: Int
+    let policy: OthelloMovePolicy
+    /// 乱数の種。`nil` なら実プレイ用に毎回違う乱数を使う（テスト・計測だけが種を渡して再現する）。
+    /// `policy` が乱数を使わない段階（むずかしい）は、この値を見ない。
+    let seed: UInt64?
     /// テスト専用: 現在時刻の取得元（#1133 CodeRabbit 指摘）。実時間に依存しない固定時計を
     /// 注入できるようにし、実行環境の速度差でフレークする回帰テストを避ける。
     let now: @Sendable () -> Date
 
     public init(level: Int = CPUStrength.standard.rawValue) {
-        self.level = level
-        self.timeLimitOverride = nil
-        self.now = { Date() }
+        self.init(level: level, seed: nil)
     }
 
-    /// テスト用: 持ち時間・時計を直接指定する（#1133 回帰テスト用）。
-    init(level: Int, timeLimitOverride: TimeInterval? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
+    /// テスト・計測用: 段階の出荷値から、指定したものだけを差し替える。
+    /// `timeLimitOverride` は時間切れの挙動を決定的に検証するため（#1133）。
+    init(level: Int, timeLimitOverride: TimeInterval? = nil, nodeLimit: Int = .max,
+         policy: OthelloMovePolicy? = nil, seed: UInt64? = nil,
+         now: @escaping @Sendable () -> Date = { Date() }) {
         self.level = level
-        self.timeLimitOverride = timeLimitOverride
+        let shipped = Self.settings(for: CPUStrength.strength(for: level))
+        self.timeLimit = timeLimitOverride ?? shipped.timeLimit
+        self.depthLimit = shipped.depthLimit
+        self.nodeLimit = nodeLimit
+        self.policy = policy ?? shipped.policy
+        self.seed = seed
         self.now = now
+    }
+
+    /// 段階の出荷値（#1464）。
+    static func settings(for strength: CPUStrength)
+        -> (timeLimit: TimeInterval, depthLimit: Int?, policy: OthelloMovePolicy) {
+        switch strength {
+        case .novice: return (0.3, 1, policy(noviceBestMoveProbability))
+        case .easy:   return (0.5, 3, policy(easyBestMoveProbability))
+        case .normal: return (1.0, 5, policy(normalBestMoveProbability))
+        case .hard:   return (1.5, nil, .exact)
+        }
+    }
+
+    /// 最善手を打つ確率（#1464 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。上から順に決めた:
+    /// むずかしい 100% に対しふつう 90%、ふつう 90% に対しかんたん 60%、かんたん 60% に対し入門 50%）。
+    static let noviceBestMoveProbability = 0.5
+    static let easyBestMoveProbability = 0.6
+    static let normalBestMoveProbability = 0.9
+
+    /// 外したときに許す損の幅（`evaluate` の点数）。X 打ち（角のななめとなり）の減点 1 つ・着手可能数の差 4 手ぶん。
+    /// 角を相手に渡す手（角の点 120）は入らない。実測で、外しの候補（最善以外）が残る局面は 8 割強（平均 3 手）。
+    static let slipMargin = 40
+
+    static func policy(_ probability: Double) -> OthelloMovePolicy {
+        OthelloMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
     }
 
     public func bestMove(board: OthelloBoard, stone: OthelloStone) async -> (row: Int, col: Int)? {
@@ -54,43 +105,96 @@ public struct OthelloEngine: Sendable {
     func move(board: OthelloBoard, stone: OthelloStone) -> (row: Int, col: Int)? {
         let moves = board.validMoves(for: stone)
         guard !moves.isEmpty else { return nil }
-        let strength = CPUStrength.strength(for: level)
-        if strength == .novice { return noviceMove(moves, on: board, for: stone) }
-        if strength == .easy { return greediestMove(moves, on: board, for: stone) }
-
-        let empties = othelloBoardSize * othelloBoardSize - board.count(for: .black) - board.count(for: .white)
-        let (maxDepth, nodeLimit, defaultTimeLimit): (Int, Int, TimeInterval)
-        switch strength {
-        case .hard:
-            let depth = empties <= Self.hardEndgameEmpties ? empties : Self.hardMaxDepth
-            (maxDepth, nodeLimit, defaultTimeLimit) = (depth, Self.hardNodeLimit, Self.safetyTimeLimit)
-        default:
-            (maxDepth, nodeLimit, defaultTimeLimit) = (Self.normalMaxDepth, Self.normalNodeLimit, Self.safetyTimeLimit)
+        let deadline = self.deadline()
+        if !policy.isExact {
+            var rng = SplitMix64(seed: seed ?? UInt64.random(in: .min ... .max))
+            if Double.random(in: 0..<1, using: &rng) >= policy.bestMoveProbability,
+               let slip = slipMove(moves, board: board, stone: stone, using: &rng) {
+                return slip
+            }
         }
-        let timeLimit = timeLimitOverride ?? defaultTimeLimit
-
-        let deadline = now().addingTimeInterval(timeLimit)
+        let empties = othelloBoardSize * othelloBoardSize - board.count(for: .black) - board.count(for: .white)
+        let maxDepth = max(1, min(depthLimit ?? empties, empties))
         return iterativeDeepening(moves, board: board, stone: stone, maxDepth: maxDepth,
                                   deadline: deadline, nodeLimit: nodeLimit)
     }
 
-    /// 「むずかしい」の読みの深さ（#502 のまま）。
-    static let hardMaxDepth = 5
-    /// 終盤の完全読み（#1401）: 空きがこの数以下なら終局まで読む。
-    static let hardEndgameEmpties = 12
-    static let normalMaxDepth = 2
+    /// 考える時間の締切。`timeLimit: .infinity`（計測が局面数で打ち切るとき）は時間で打ち切らない。
+    /// 締切を過ぎてから探索を巻き戻して手を返すまでの分（`searchOverhead`）を先に引き、1 手が上限を超えないようにする。
+    func deadline() -> Date {
+        timeLimit.isFinite ? now().addingTimeInterval(timeLimit - Self.searchOverhead) : .distantFuture
+    }
 
-    /// 「読む局面数」の上限（#1401）。**強さは時間ではなくこの数で決める**（端末が遅いと時間切れで
-    /// 読みが浅くなり、段階の差が端末によって変わっていた）。実測（`CPUBenchLadder`）で、
-    /// 深さの上限まで読み切れる大きさにしてある。
-    static let normalNodeLimit = 20_000
-    static let hardNodeLimit = 800_000
+    /// 締切を過ぎてから手を返すまでの余裕（秒）。引かないと、むずかしいが 1.5 秒を 1 ミリ秒ほど超えた（実測）。
+    static let searchOverhead = 0.02
 
-    /// 入門が悪手を選ぶときに読む深さ（#1401）。
-    static let noviceDepth = 2
+    /// 計測用: 手に加えて、読んだ局面数と読み切った深さを返す（`policy` は通さず、探索そのものだけを見る）。
+    func analyze(board: OthelloBoard, stone: OthelloStone) -> (move: (row: Int, col: Int), nodes: Int, depth: Int)? {
+        let moves = board.validMoves(for: stone)
+        guard !moves.isEmpty else { return nil }
+        let empties = othelloBoardSize * othelloBoardSize - board.count(for: .black) - board.count(for: .white)
+        let maxDepth = max(1, min(depthLimit ?? empties, empties))
+        var nodes = 0, depth = 0
+        let move = iterativeDeepening(moves, board: board, stone: stone, maxDepth: maxDepth,
+                                      deadline: deadline(), nodeLimit: nodeLimit,
+                                      nodes: &nodes, completedDepth: &depth)
+        return (move, nodes, depth)
+    }
 
-    /// 時間の上限は暴走を止める安全用（実運用では局面数の上限が先に効く）。
-    static let safetyTimeLimit: TimeInterval = 5
+    /// 最善手を外すときの手（#1464）。全候補に自分の手と相手の応手の 2 手だけ（入門は 1 手）読んで点を付け、点の最も高い手を
+    /// 除いたうち、最善から `slipMargin` 以内の損の手から乱択する。角を渡す手・角を捨てる手は幅の外に出る。
+    /// 候補が無い・選べる手が即負けの手だけなら `nil`（呼び出し側が探索して最善手を打つ）。
+    func slipMove(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
+                  using rng: inout SplitMix64) -> (row: Int, col: Int)? {
+        var pool = slipPool(moves, board: board, stone: stone)
+        while !pool.isEmpty {
+            let move = pool.remove(at: Int.random(in: 0..<pool.count, using: &rng))
+            if !Self.allowsImmediateLoss(board, move: move, stone: stone) { return move }
+        }
+        return nil
+    }
+
+    /// 外しの採点で読む深さ（自分の手＋相手の応手）。1 手だけ（打った直後の評価）だと、相手に角を渡す手が見えない。
+    /// ただし**その段の深さの上限より深くは読まない**（入門は 1 手）。上限より深く読んで採点すると、外した手のほうが
+    /// 探索の最善手より良い手になりうる（実測: 入門の確率を 50% に下げると、かんたんの得点率が 100% のときより下がった）。
+    static let slipReadDepth = 2
+    var slipDepth: Int { min(Self.slipReadDepth, depthLimit ?? Self.slipReadDepth) }
+
+    /// 外しの候補（即負けの確認前）。最善（2 手読みの点が最も高い手）を除く。
+    func slipPool(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone) -> [(Int, Int)] {
+        var scored: [(move: (Int, Int), score: Int)] = []
+        for (r, c) in moves {
+            var b = board
+            b.place(row: r, col: c, stone: stone)
+            var nodes = 0
+            // 全幅で読む（αβ の窓を狭めると「最善から〜以内」を判定できる値が返らない）。
+            let score = -negamax(b, stone: stone.opponent, depth: slipDepth - 1,
+                                 alpha: -Int.max, beta: Int.max, deadline: .distantFuture,
+                                 nodes: &nodes, nodeLimit: .max)
+            scored.append(((r, c), score))
+        }
+        guard let best = scored.map(\.score).max(), let top = scored.firstIndex(where: { $0.score == best })
+        else { return [] }
+        scored.remove(at: top)
+        return scored.filter { $0.score >= best - policy.slipMargin }.map(\.move)
+    }
+
+    /// `move` を打つと、その場で終局して負けるか、相手の次の 1 手で終局して負けが決まる（＝即負け）か。
+    static func allowsImmediateLoss(_ board: OthelloBoard, move: (Int, Int), stone: OthelloStone) -> Bool {
+        func isLostEnd(_ b: OthelloBoard) -> Bool {
+            b.validMoves(for: .black).isEmpty && b.validMoves(for: .white).isEmpty
+                && b.count(for: stone) < b.count(for: stone.opponent)
+        }
+        var b = board
+        b.place(row: move.0, col: move.1, stone: stone)
+        if isLostEnd(b) { return true }
+        for (r, c) in b.validMoves(for: stone.opponent) {
+            var reply = b
+            reply.place(row: r, col: c, stone: stone.opponent)
+            if isLostEnd(reply) { return true }
+        }
+        return false
+    }
 
     /// 反復深化。深さ 1 から `maxDepth` まで順に上げ、**時間内に読み切れた最後の深さの手だけ**を使う
     /// （#1133）。時間切れになった深さの `rootSearch` は「未評価の候補手が残ったままの best」や
@@ -98,20 +202,26 @@ public struct OthelloEngine: Sendable {
     /// 結果は丸ごと捨てる。読み切れた深さが1つも無ければ `moves[0]` に倒す
     /// （深さ 1 すら時間内に終わらないほど遅い場合の保険。実運用では起こらない想定）。
     func iterativeDeepening(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
-                                    maxDepth: Int, deadline: Date,
-                                    nodeLimit: Int = .max) -> (row: Int, col: Int) {
+                            maxDepth: Int, deadline: Date, nodeLimit: Int = .max) -> (row: Int, col: Int) {
+        var nodes = 0, depth = 0
+        return iterativeDeepening(moves, board: board, stone: stone, maxDepth: maxDepth, deadline: deadline,
+                                  nodeLimit: nodeLimit, nodes: &nodes, completedDepth: &depth)
+    }
+
+    func iterativeDeepening(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
+                            maxDepth: Int, deadline: Date, nodeLimit: Int,
+                            nodes: inout Int, completedDepth: inout Int) -> (row: Int, col: Int) {
         var best = moves[0]
-        var nodes = 0
         for d in 1...maxDepth {
             if now() > deadline { break }
             let result = rootSearch(moves, board: board, stone: stone, depth: d, deadline: deadline,
                                     nodes: &nodes, nodeLimit: nodeLimit)
             guard result.completed else { break }
             best = result.best
+            completedDepth = d
         }
         return best
     }
-
     /// 根の手を 1 巡して最善を返す。`completed` は時間切れで打ち切られなかったか。
     /// 打ち切られた場合の `best` は読み残しがある不完全な結果なので、呼び出し側
     /// （`iterativeDeepening`）は使わずに前の深さの結果を採る（#1133）。
@@ -136,47 +246,6 @@ public struct OthelloEngine: Sendable {
         // 最後の根手の探索中に期限切れ・上限超えになっていた場合もここで拾う。ループ先頭のチェックだけだと、
         // 全ての根手を一応は評価しているのに「読み切った」と誤って報告してしまう（検証指摘）。
         return (best, now() <= deadline && nodes <= nodeLimit)
-    }
-
-    /// 「入門」の着手（#1401）。**2 手先まで読んで、自分にいちばん不利になる手を選ぶ**（乱数なし）。
-    /// 角を相手に渡し、角のとなりへ飛びつく初心者の癖を極端にしたもの。
-    ///
-    /// 以前（#1174）は「角が取れれば取り、そうでなければ角のとなりを好む」だったが、簡単（石数最大）が
-    /// もともと弱く、入門に負け越さなかった（先後入れ替え 80 局で入門の 27 勝）。「上の段は下の段に
-    /// ほぼ負けない」（会長決裁 2026-09-26）を満たすため、悪手そのものを選ぶ形にした。
-    /// 同点は `validMoves` の並びで先のものを採るので、同じ盤面には必ず同じ手を返す。
-    func noviceMove(_ moves: [(Int, Int)], on board: OthelloBoard,
-                    for stone: OthelloStone) -> (row: Int, col: Int) {
-        var best = moves[0]
-        var bestScore = Int.max
-        for (r, c) in moves {
-            var b = board
-            b.place(row: r, col: c, stone: stone)
-            var nodes = 0
-            let score = -negamax(b, stone: stone.opponent, depth: Self.noviceDepth - 1,
-                                 alpha: -Int.max, beta: Int.max, deadline: .distantFuture,
-                                 nodes: &nodes, nodeLimit: .max)
-            if score < bestScore { bestScore = score; best = (r, c) }
-        }
-        return best
-    }
-
-    /// 「簡単」の着手（#1013）。置いたあとの自分の石が最も多くなる手を選ぶ。
-    /// 同点は `validMoves` の並び（左上から）で先のものを採るので、同じ盤面には必ず同じ手を返す。
-    func greediestMove(_ moves: [(Int, Int)], on board: OthelloBoard,
-                       for stone: OthelloStone) -> (row: Int, col: Int) {
-        var best = moves[0]
-        var bestCount = -1
-        for (r, c) in moves {
-            var b = board
-            b.place(row: r, col: c, stone: stone)
-            let count = b.count(for: stone)
-            if count > bestCount {
-                bestCount = count
-                best = (r, c)
-            }
-        }
-        return best
     }
 
     func negamax(_ board: OthelloBoard, stone: OthelloStone, depth: Int,
