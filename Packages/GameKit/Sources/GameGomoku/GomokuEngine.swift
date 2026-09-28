@@ -111,13 +111,13 @@ private struct GomokuRandom: RandomNumberGenerator {
 ///
 /// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 |
 /// |---|---|---|---|---|
-/// | -1 | 入門 | 0.3 秒 | 3 手先 | `noviceBestMoveProbability` |
-/// | 0 | かんたん | 0.5 秒 | 4 手先 | `easyBestMoveProbability` |
+/// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` |
+/// | 0 | かんたん | 0.5 秒 | 3 手先 | `easyBestMoveProbability` |
 /// | 1 | ふつう | 1 秒 | 5 手先 | `normalBestMoveProbability` |
 /// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% |
 ///
 /// 探索（反復深化の αβ・各局面は点の高い `breadth` 手だけ読む・四を作る手は 1 手延長）は全段階で同じで、
-/// 時間が来るか深さの上限まで読み終えたら打つ（#1463。会長決裁 2026-09-26・社長決定 2026-09-27）。
+/// 時間が来るか深さの上限まで読み終えたら打つ（#1463。会長決裁 2026-09-26・09-28）。
 /// 確率の根拠は段階表（`docs/analytics/gomoku-1463-ladder.md`: 上の段の得点率 90% 以上で最も高い値）。
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
@@ -142,7 +142,7 @@ public struct SimpleGomokuEngine: GomokuEngine {
     static let breadth = 14
 
     /// 最善手を打つ確率（#1463 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
-    static let noviceBestMoveProbability = 1.0
+    static let noviceBestMoveProbability = 0.2
     static let easyBestMoveProbability = 0.1
     static let normalBestMoveProbability = 0.6
 
