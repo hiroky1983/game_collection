@@ -105,6 +105,9 @@ public final class HomerunModel {
         public var releasedAt: Date?
         /// 振ったときのずれ（ms・負が早い）。
         public var timingOffset: Double?
+        /// 的が出る前（投手のモーション中）に離して素振りした時刻（最後の 1 回）。3D の打者がその場で振るためだけのもので、
+        /// 判定・球数・台帳・記録には使わない（その球はそのまま投げられてくる）。
+        public var practiceSwingAt: Date? = nil
         /// 輪が的に重なる時刻。
         public var arrival: Date { pitchStart.addingTimeInterval(TimeInterval(HomerunPitch.travelMilliseconds) / 1000) }
     }
@@ -292,7 +295,8 @@ public final class HomerunModel {
         ))
     }
 
-    /// 離す。投球中（的が出てから）なら、その瞬間がスイング。モーション中に離したときは振らない。
+    /// 離す。投球中（的が出てから）なら、その瞬間がスイング。モーション中（的が出る前）に離したときは**素振り**:
+    /// 打者はその場で振る（`BallClock.practiceSwingAt`）が判定には使わず、その球はそのまま投げられてくる（nil を返す）。
     @discardableResult
     public func release(at point: CGPoint, now: Date) -> HomerunBattedBall? {
         guard isHolding else { return nil }
@@ -300,6 +304,7 @@ public final class HomerunModel {
         isHolding = false
         guard let offset = timingOffset(at: now) else {
             ballClock?.pressedAt = nil
+            if phase == .pitching { ballClock?.practiceSwingAt = now }
             return nil
         }
         ballClock?.releasedAt = now
