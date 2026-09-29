@@ -207,6 +207,16 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
   まま出荷される退行が起きる（2026-08-22: `release/v1.1.1` の Firebase Analytics 追加が
   `release/v1.1.2` に未反映のまま放置されていたのを検知し PR #211 で解消）。コミット差が開くほど
   コンフリクト解消コストが上がるため、放置期間を作らない。
+  - **同期 PR を作る前に、重複していないか必ず確認する**（2026-09-29 追加・#1563。`release/v1.1.7` → `release/v1.1.8` の
+    同期が #1544 と #1545 の2本で重複し、後発の #1545 は古い v1.1.8 HEAD から作られていたため、tree が
+    #1544 と完全一致する no-op マージになった。本文の「7コミット取り込み」も事実と異なっていた）:
+    1. 着手直前に `git fetch origin` し、同種の PR が無いことを確かめる:
+       `gh pr list --state open --search "sync-vX.Y.Z-to-vA.B.C in:title,head"` と、直近にマージ済みでないか
+       （`gh pr list --state merged --limit 10 --base release/vA.B.C`）。あればそれを使い、新しく作らない。
+    2. ブランチは必ず**その時点の `origin/release/vA.B.C`** から切る（ローカルの古い ref や既存の作業ブランチを流用しない）。
+    3. 「前回同期以降の差分」は自分で数える: `git rev-list --count origin/release/vA.B.C..origin/release/vX.Y.Z` が
+       0 なら同期は不要（PR を作らない）。PR 本文のコミット数はこの値を書く。
+    4. PR 作成の直前に `git fetch origin` を再度行い、base の HEAD が動いていたら取り込み直してから出す。
 - リリースフロー: release ブランチが揃う → fastlane で TestFlight → **会長が実機確認（必須の関所）** →
   **審査提出の承認（会長）** → App Store 公開後に release/vX.Y.Z → main をマージしタグを打つ。
   release→main のマージ差分がそのまま「このバージョンで世に出た全変更」の一覧になる。
