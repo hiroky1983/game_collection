@@ -200,13 +200,13 @@ public struct SimpleChessEngine: ChessEngine {
     /// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 | 定跡 |
     /// |---|---|---|---|---|---|
     /// | -1 | 入門 | 0.02 秒 | 1 手先 | `noviceBestMoveProbability` | 無し |
-    /// | 0 | かんたん | 0.1 秒 | 2 手先 | `easyBestMoveProbability` | 無し |
-    /// | 1 | ふつう | 0.5 秒 | 3 手先 | `normalBestMoveProbability` | 無し |
+    /// | 0 | かんたん | 0.1 秒 | 1 手先 | `easyBestMoveProbability` | 無し |
+    /// | 1 | ふつう | 0.5 秒 | 1 手先 | `normalBestMoveProbability` | 無し |
     /// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% | 有り |
     ///
     /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら指す。
-    /// 確率の根拠は #1462 の段階表（`docs/analytics/chess-1462-ladder.md`: すぐ上の段の得点率 90% 以上で
-    /// 最も高い値）。
+    /// 下の 3 段の深さ・確率の根拠は #1566 の段階表（`docs/analytics/chess-1566-ladder.md`: すぐ下の段に対する
+    /// 得点率が 60〜70% に収まる組み合わせ）。
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
     public init(level: Int = CPUStrength.standard.rawValue) {
@@ -219,8 +219,8 @@ public struct SimpleChessEngine: ChessEngine {
         useBook = strength == .hard
         switch strength {
         case .novice: (timeLimit, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability))
-        case .easy:   (timeLimit, depth, policy) = (0.1, 2, Self.policy(Self.easyBestMoveProbability))
-        case .normal: (timeLimit, depth, policy) = (0.5, 3, Self.policy(Self.normalBestMoveProbability))
+        case .easy:   (timeLimit, depth, policy) = (0.1, 1, Self.policy(Self.easyBestMoveProbability))
+        case .normal: (timeLimit, depth, policy) = (0.5, 1, Self.policy(Self.normalBestMoveProbability))
         case .hard:   (timeLimit, depth, policy) = (2.0, Self.maxDepth, .exact)
         }
         self.nodeLimit = nil
@@ -228,15 +228,15 @@ public struct SimpleChessEngine: ChessEngine {
     }
 
     /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
-    /// 下の段は `depth` に 3 / 2 / 1 手先の上限を持つ（会長決裁 2026-09-27）。
+    /// 下の 3 段は `depth` に 1 手先の上限を持つ（#1566。2 手先以上は 10% 刻みのどの確率でも下の段に 60〜70% に収まらない）。
     static let maxDepth = 32
 
-    /// 最善手を打つ確率（#1462 の実測。すぐ上の段の得点率が 90% 以上になる、10% 刻みで最も高い値を上から順に決めた:
-    /// むずかしいに対しふつう 90%（100% は 200 局 89.2% で不合格）、ふつう 90% に対しかんたん 80%、
-    /// かんたん 80% に対し入門 60%。入門は一様乱択の相手に 100 局全勝）。
+    /// 最善手を打つ確率。入門 60% は #1462 の実測（一様乱択の相手に 100 局全勝）。かんたん・ふつうは #1566 の実測
+    /// （各 400 局）で、かんたん 70% が入門に 67.0%、ふつう 80% がかんたんに 61.5% と、すぐ下の段に対する
+    /// 得点率 60〜70% に収まる、制約内で唯一の組み合わせ（`docs/analytics/chess-1566-ladder.md`）。
     static let noviceBestMoveProbability = 0.6
-    static let easyBestMoveProbability = 0.8
-    static let normalBestMoveProbability = 0.9
+    static let easyBestMoveProbability = 0.7
+    static let normalBestMoveProbability = 0.8
 
     /// 外したときに許す損の幅（ナイト・ビショップ 1 枚ぶん）。駒 1 枚ぶんを目安に、軽い駒（ナイト 320・ビショップ 330）を
     /// 位置の点込みで只で失う手までが入り、ルーク（500）・クイーンを只で失う手は入らない。初心者らしい
