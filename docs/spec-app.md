@@ -48,6 +48,15 @@ Packages/GameKit/
 他のゲームと同格に動く（`GameRegistry` はストア配信状態を持たない）。配信中かどうかは
 別途 ASO ドキュメント（`docs/aso/`）やリリースノートで確認すること。
 
+### 依存パッケージの版の固定（`Config/Package.resolved`・#1579）
+
+`GameCollection.xcodeproj/` は git 管理外で、`xcodegen generate` のたびに作り直される。Package.resolved がその中にあるため、
+以前はビルドごとに Firebase などの版が「`from:` の範囲の最新」へ黙って変わっていた（v1.1.5 は Firebase 12.19.0 で出荷）。
+
+- 版の正典は **`Config/Package.resolved`**（git 管理）。`xcodegen generate` の直後に `bash Scripts/apply-package-resolved.sh` で Xcode が読む場所へ置く（CI・`fastlane beta`・`capture-aso-screenshots.sh` は実施済み）
+- CI のビルドは `-disableAutomaticPackageResolution` 付き。`project.yml` の指定と食い違うと落ちる
+- **版を上げるとき**: `project.yml` を直し、`xcodegen generate` → `xcodebuild -resolvePackageDependencies -project GameCollection.xcodeproj -scheme GameCollection` で生成された `GameCollection.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` を `Config/Package.resolved` へコピーして同じ PR に含める
+
 ### 主要プロトコル
 
 **`GameModule`**: ゲームをプラグイン形式で登録するプロトコル
