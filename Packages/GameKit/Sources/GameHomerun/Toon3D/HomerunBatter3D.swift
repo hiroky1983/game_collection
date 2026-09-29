@@ -54,32 +54,8 @@ enum HomerunBatterAsset {
     }
 }
 
-/// 打者の動きの段階（試作）。1 本のスイングを 3 つに切って使う。
-///
-/// USDZ のスイングは、1〜20 コマ目（0.63 秒）が**踏み込み**（バットはほとんど動かない）、21〜30 コマ目で振り抜き、
-/// 31〜44 コマ目がフォロースルー。離した瞬間に頭から流すと、バットが動き出すのが 0.67 秒後になり、
-/// その前に結果（外野カメラ・次の球）へ切り替わって「振らない」ように見える（会長 QA 2026-09-28）。
-/// そこで踏み込みは投球中（輪が的に重なる 0.63 秒前から）に流し、離した瞬間は振り抜きから流す。
-enum HomerunBatterMotion: Equatable {
-    /// 構え（1 コマ目で止める）。
-    case stance
-    /// 踏み込み（1〜20 コマ目を流して止める）。
-    case load
-    /// 振り抜き〜フォロースルー（20 コマ目から最後まで流して止める）。値は振った回数（変わるたびに頭から）。
-    case swing(Int)
-
-    /// 踏み込みの長さ（秒・20 コマ目 = 19/30 秒）。振り抜きはここから始まる。
-    static let loadDuration: TimeInterval = 19.0 / 30
-
-    /// 投球中の経過（`HomerunModel.pitchElapsed`）から、構えか踏み込みかを決める。輪が的に重なる（`travel` 秒）ときに
-    /// 踏み込み終わるように、その `loadDuration` 秒前から踏み込む。
-    static func beforeSwing(elapsed: TimeInterval?, travel: TimeInterval) -> HomerunBatterMotion {
-        guard let elapsed, elapsed >= travel - loadDuration else { return .stance }
-        return .load
-    }
-}
-
-/// 打者 1 人ぶんの実体と動きの再生（どの段階も 1 回だけ流して最後のコマで止める）。
+/// 打者 1 人ぶんの実体と動きの再生（どの段階も 1 回だけ流して最後のコマで止める）。段階の定義は `HomerunBatterMotion`、
+/// 打点の同期は `HomerunSwingContact`（どちらも RealityKit に依らない `HomerunSwingContact.swift`）。
 @MainActor
 final class HomerunBatterRig {
     let entity: Entity
@@ -105,19 +81,30 @@ final class HomerunBatterRig {
         stanceAnimation = segment(0, 1.0 / 60)
         loadAnimation = segment(0, HomerunBatterMotion.loadDuration)
         swingAnimation = segment(HomerunBatterMotion.loadDuration, source.duration)
-        show(.stance)
+        // 振り抜きの初回再生の準備コストを打席の前に払っておく（最初の 1 球だけ当たる瞬間の描画が 0.1 秒ほど止まった）。
+        for animation in [loadAnimation, swingAnimation] {
+            if let animation { entity.playAnimation(animation, transitionDuration: 0, startsPaused: true).stop() }
+        }
+        show(.stance, now: Date())
     }
 
-    /// 段階を切り替える（呼ぶたびにその段階を頭から流す）。
-    func show(_ motion: HomerunBatterMotion) {
-        let animation: AnimationResource?
-        switch motion {
-        case .stance: animation = stanceAnimation
-        case .load: animation = loadAnimation
-        case .swing: animation = swingAnimation
-        }
+    /// 段階を切り替える（呼ぶたびにその段階を頭から流す）。振り抜きは `start`（20 コマ目を置く実時刻）が `now` より前なら
+    /// その分だけ進めた所から流す（離した瞬間に打点のコマへ合わせ直すため）。
+    func show(_ motion: HomerunBatterMotion, now: Date) {
         controller?.stop()
-        controller = animation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
+        switch motion {
+        case .stance:
+            controller = stanceAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
+        case .load:
+            controller = loadAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
+        case .swing(let start):
+            controller = swingAnimation.map { entity.playAnimation($0, transitionDuration: 0, startsPaused: false) }
+            let ahead = now.timeIntervalSince(start)
+            if ahead > 0 { controller?.time = min(ahead, fullDuration - HomerunBatterMotion.loadDuration) }
+        }
     }
+
+    /// 振り抜きの再生位置（クリップ秒・20 コマ目 = 19/30）。テスト用。
+    var swingClipTime: TimeInterval? { controller.map { HomerunBatterMotion.loadDuration + $0.time } }
 }
 #endif
