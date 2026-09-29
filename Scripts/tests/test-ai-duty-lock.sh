@@ -424,18 +424,33 @@ check "他スロットの Issue を Closes する PR は数えない（gh pr lis
 check "他スロットが無ければ全部数える" "2" \
   "$(busy_count '[{"closingIssuesReferences":[{"number":8}]},{"closingIssuesReferences":[]}]' '[]')"
 
-echo "== 12. シミュレータの後片付けは他スロットの分を落とさない =="
-# 引数: 起動中 / 自分の実行前 / 自分の記録 / 他スロットの記録 / 他スロットの実行前（1スロット1行・行頭 ":"）
-sims() { lib "sims_to_shutdown '$1' '$2' '$3' '$4' '$5'" | tr '\n' ' ' | sed 's/ $//'; }
-check "他スロットが無ければ従来どおり差分を落とす" "B" "$(sims "A B" "A" "" "" "")"
-check "他スロットの実行前から起動していたものは落とす（他スロットのものではない）" "B" "$(sims "A B" "A" "" "" ":A B")"
-check "他スロットの実行中に起動された記録なしのものは残す（そのスロットに委ねる）" "" "$(sims "A B" "A" "" "" ":A")"
-check "他スロットの実行前一覧が空でも委ねる" "" "$(sims "B" "" "" "" ":")"
-check "自分が記録したものは他スロットの実行中でも落とす" "B" "$(sims "A B" "A" "B" "" ":A")"
-check "他スロットが記録したものは落とさない" "" "$(sims "A B" "A" "" "B" ":A B")"
-check "自分の実行前から起動していたものは記録があっても落とさない" "" "$(sims "A" "A" "A" "" "")"
-check "複数の他スロットのどれか1つでも実行前に無ければ委ねる" "" "$(sims "A B" "A" "" "" ":A B
-:A")"
+echo "== 12. シミュレータの後片付けは自分が起動した記録のあるものだけを落とす（2026-09-30） =="
+# 引数: 起動中 / 自分の実行前 / 自分の記録 / 他スロットの記録
+sims() { lib "sims_to_shutdown '$1' '$2' '$3' '$4'" | tr '\n' ' ' | sed 's/ $//'; }
+check "自分が記録したものは落とす" "B" "$(sims "A B" "A" "B" "")"
+check "記録の無いものは実行中に新しく起動されていても落とさない（会長のシミュレータ）" "" "$(sims "A B" "A" "" "")"
+check "記録の無いものは他スロットが居なくても落とさない" "" "$(sims "B" "" "" "")"
+check "他スロットが記録したものは落とさない" "" "$(sims "A B" "A" "" "B")"
+check "自分と他スロットの両方が記録していたら落とさない（他スロットが使用中）" "" "$(sims "B" "" "B" "B")"
+check "自分の実行前から起動していたものは記録があっても落とさない" "" "$(sims "A" "A" "A" "")"
+check "記録したが既に止まっているものは出さない" "" "$(sims "A" "" "B" "")"
+check "複数の記録のうち起動中のものだけ落とす" "B C" "$(sims "A B C" "A" "B C D" "")"
+
+echo "== 12-2. xcrun の記録係は simctl boot / bootstatus -b の UDID を記録し、本物へ渡す =="
+SHIM="$SCRIPT_DIR/../duty-xcrun-shim/xcrun"
+REC="$TEST_HOME/sims-record"
+FAKE_XCRUN="$TEST_HOME/fake-xcrun"
+printf '#!/bin/bash\necho "REAL $*"\n' >"$FAKE_XCRUN"; chmod +x "$FAKE_XCRUN"
+: >"$REC"
+check "boot は記録して本物へ渡す" "REAL simctl boot U1" "$(DUTY_SIM_RECORD="$REC" DUTY_REAL_XCRUN="$FAKE_XCRUN" "$SHIM" simctl boot U1)"
+DUTY_SIM_RECORD="$REC" DUTY_REAL_XCRUN="$FAKE_XCRUN" "$SHIM" simctl bootstatus U2 -b >/dev/null
+DUTY_SIM_RECORD="$REC" DUTY_REAL_XCRUN="$FAKE_XCRUN" "$SHIM" simctl bootstatus U3 >/dev/null
+DUTY_SIM_RECORD="$REC" DUTY_REAL_XCRUN="$FAKE_XCRUN" "$SHIM" simctl shutdown U4 >/dev/null
+DUTY_SIM_RECORD="$REC" DUTY_REAL_XCRUN="$FAKE_XCRUN" "$SHIM" simctl install U5 app >/dev/null
+check "記録されるのは boot と bootstatus -b だけ" "U1 U2" "$(tr '\n' ' ' <"$REC" | sed 's/ $//')"
+check "記録先が無くても本物へ渡す" "REAL simctl boot U6" "$(DUTY_REAL_XCRUN="$FAKE_XCRUN" "$SHIM" simctl boot U6)"
+check "simctl 以外はそのまま渡す" "REAL -f swift" "$(DUTY_SIM_RECORD="$REC" DUTY_REAL_XCRUN="$FAKE_XCRUN" "$SHIM" -f swift)"
+
 echo "== 13. 通し実行: スロット2は他スロットが確保中の Issue を飛ばし、Issue が無ければ何もしない =="
 # 本物の本体を「起動モデルを決めた直後」まで走らせる。gh は偽物（ai:approved の一覧だけを返し、
 # --jq は本物の jq で評価する）。ai-duty.sh は PATH の先頭を $HOME/.local/bin に固定するのでそこへ置く

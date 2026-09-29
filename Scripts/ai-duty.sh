@@ -171,53 +171,29 @@ release_claim() {
   rm -rf "${CLAIMS_DIR:?}/$DUTY_ISSUE" 2>/dev/null
 }
 
-# シミュレータの後片付け（Issue #100）。当番が動作確認のために起動したシミュレータだけを落とし、
-# 実行前から起動していたもの（= 会長が使用中の可能性がある）には触らない差分方式。
+# シミュレータの後片付け（Issue #100）。**当番が自分で起動したと記録したシミュレータだけ**を落とす。
 #   - EXIT トラップから呼ぶ。claude が異常終了しても launchd に止められても必ず走らせるため
-#     （正常終了時だけの後片付けだと、落ちた回のシミュレータが残り続ける）
-#   - 実行前の状態を記録**できたとき**しか片付けない。記録に失敗した状態で片付けると
-#     「起動中のすべてが当番のもの」と誤認して会長のシミュレータを落としてしまう
-#   - **既知の限界**: 差分は「claude を起動する直前」のスナップショットとの比較なので、当番の実行中
-#     （長いと1時間近い）に会長が新しく起動したシミュレータは「当番が起動した」と見えて落ちる。
-#     Issue #100 の受け入れ条件が「当番の実行中に新しく起動されたものだけを落とす差分方式」と
-#     定めているため実装はこれに従う。当番の起動したデバイスだけを厳密に特定するには当番自身に
-#     UDID を記録させるしかないが、それを忘れることこそが本スクリプトの存在理由なので backstop に
-#     はできない。実害が出たら「あそびば以外のアプリが前面にあるデバイスは落とさない」等の
-#     追加条件を検討する
-#   - **2並列化（2026-09-25）での持ち主の判定**: 差分だけだと、スロット1の後片付けがスロット2の起動した
-#     シミュレータ（スロット1の実行前には無かった = 差分に入る）を撮影の途中で落とす。そこで各スロットは
-#     実行前の一覧（sims_before）と、当番が自分で起動したと記録した UDID（sims。プロンプトで記録させる）を
-#     自分のロックディレクトリに置き、判定は sims_to_shutdown に切り出して次の順で行う:
-#       1. 自分の実行前から起動 → 触らない（従来どおり）
-#       2. 生きている他スロットが「自分が起動した」と記録 → 触らない
-#       3. 自分が記録 → 落とす（確実に自分のもの）
-#       4. 記録の無いもの: 生きている他スロットの実行前一覧に**すべて**載っている（= どの他スロットの
-#          実行中にも新しく起動されたものではない）なら落とす。1つでも載っていない他スロットがあれば、
-#          そのスロットが起動した可能性があるので落とさずに**判定を委ねる**。委ねた先のスロットの実行前には
-#          無かったものなので、そのスロットの終了時の差分に必ず入る（最後に抜けるスロットが落とすので残り続けない）
-#     記録は LLM が忘れうるので 4 が安全側の本線で、記録は「自分の分を早く片付ける」ための補助に留める
+#   - 記録は 2 経路: (1) claude セッションの PATH の先頭に置く `xcrun` の記録係（Scripts/duty-xcrun-shim/xcrun）が
+#     `xcrun simctl boot <UDID>` / `xcrun simctl bootstatus <UDID> -b` を見て自動で $DUTY_SIM_RECORD へ追記する
+#     (2) プロンプトの規程（起動直後に echo で追記）。どちらも「当番が起動した」ことを直接示す
+#   - **記録の無いものには触らない**（2026-09-30 会長指摘で変更）。以前は「実行前に無かった = 当番のもの」とみなす
+#     差分方式（#100・2026-08-13）で、当番の実行中に会長が起動したシミュレータまで落としていた（既知の限界として
+#     コメントに残したまま放置）。2並列化（2026-09-25）でほぼ常にどれかの当番が実行中になり、会長の QA 中の
+#     シミュレータが繰り返し落ちた。取りこぼし（記録漏れで残る）は会長の画面を落とすより害が小さいので安全側に倒す
+#   - 自分の実行前から起動していたもの・他スロットが記録したものは、記録があっても落とさない
+#   - 実行前の一覧（sims_before）は起動台数の補足と、記録の誤り（実行前から在った UDID を記録した）を弾くために使う
 SIMS_BEFORE=""
 SIMS_TRACKED=0
 
-# 落とすシミュレータの判定（上の 1〜4）。副作用が無いので Scripts/tests/test-ai-duty-lock.sh から直接検証する。
+# 落とすシミュレータの判定。副作用が無いので Scripts/tests/test-ai-duty-lock.sh から直接検証する。
 # 引数: $1 = 起動中の UDID / $2 = 自分の実行前の UDID / $3 = 自分の記録 / $4 = 生きている他スロットの記録
-#       $5 = 生きている他スロットの実行前一覧（1スロット1行。行頭に ":" を付ける。実行前が0台でも行が消えない
-#            ようにするため。一覧が読めないスロットは ":" だけの行 = 何も載っていない扱いで安全側に倒れる）
-# 出力: 落とす UDID（1行1件）
+# 出力: 落とす UDID（1行1件）。起動中で・自分が記録し・自分の実行前に無く・他スロットが記録していないものだけ
 sims_to_shutdown() {
-  local booted="$1" before="$2" mine="$3" theirs="$4" others="$5" u line keep
+  local booted="$1" before="$2" mine="$3" theirs="$4" u
   for u in $booted; do
     case " $before " in *" $u "*) continue ;; esac
     case " $theirs " in *" $u "*) continue ;; esac
-    case " $mine " in *" $u "*) echo "$u"; continue ;; esac
-    keep=0
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      case " ${line#:} " in *" $u "*) ;; *) keep=1 ;; esac
-    done <<EOF
-$others
-EOF
-    [ "$keep" -eq 0 ] && echo "$u"
+    case " $mine " in *" $u "*) echo "$u" ;; esac
   done
 }
 
@@ -234,26 +210,22 @@ capture_sims_before() {
   SIMS_BEFORE=$(printf '%s' "$raw" | jq -r '.devices[][]? | select(.state == "Booted") | .udid' 2>/dev/null | tr '\n' ' ') \
     || { log "後片付け: シミュレータ一覧の解析に失敗（jq）。後片付けは行わない"; SIMS_BEFORE=""; return 0; }
   SIMS_TRACKED=1
-  # 他スロットの判定材料（sims_to_shutdown の $5）。書けなくても他スロット側は安全側（委ねる）に倒れる
-  { printf '%s' "$SIMS_BEFORE" >"$LOCK_DIR/sims_before"; } 2>/dev/null
 }
 
 cleanup_simulators() {
   [ "$SIMS_TRACKED" -eq 1 ] || return 0
-  local u d booted mine theirs="" others="" target
+  local u d booted mine theirs="" target
   booted=$(booted_sims)
   mine=$(cat "$LOCK_DIR/sims" 2>/dev/null | tr '\n' ' ')
   for d in $(other_live_slot_dirs); do
     theirs="$theirs $(cat "$d/sims" 2>/dev/null | tr '\n' ' ')"
-    others="$others
-:$(cat "$d/sims_before" 2>/dev/null)"
   done
-  target=$(sims_to_shutdown "$booted" "$SIMS_BEFORE" "$mine" "$theirs" "$others")
+  target=$(sims_to_shutdown "$booted" "$SIMS_BEFORE" "$mine" "$theirs")
   for u in $booted; do
     case " $SIMS_BEFORE " in *" $u "*) continue ;; esac
     case " $(printf '%s' "$target" | tr '\n' ' ') " in
-      *" $u "*) xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown" ;;
-      *) log "後片付け: シミュレータ $u は他スロットの実行中に起動されたため残す（そのスロットの終了時に判定する）" ;;
+      *" $u "*) xcrun simctl shutdown "$u" >>"$LOG" 2>&1 && log "後片付け: シミュレータ $u を shutdown（自分が起動した記録あり）" ;;
+      *) log "後片付け: シミュレータ $u は自分が起動した記録が無いため残す（会長・他スロットのものの可能性）" ;;
     esac
   done
   # 画面を映すアプリ自体は終了しない。実行前のシミュレータがゼロでも、当番の実行中（最大1時間）に
@@ -1498,6 +1470,15 @@ PROBE
 if ! install_gh_shim; then
   log "入力フィルタ（Issue #164）を用意できないため今回は起動しない"
   exit 0
+fi
+
+# シミュレータ起動の記録係（2026-09-30）。claude セッションの `xcrun simctl boot` を記録してから本物へ渡す。
+# 置けなくても起動は続ける（記録はプロンプトの規程でも取る。記録が無いものは後片付けで残るだけで、会長の画面は落ちない）
+if [ -f "$RUN_DIR/Scripts/duty-xcrun-shim/xcrun" ] && cp "$RUN_DIR/Scripts/duty-xcrun-shim/xcrun" "$GH_SHIM_DIR/xcrun" \
+  && chmod +x "$GH_SHIM_DIR/xcrun"; then
+  :
+else
+  log "シミュレータ起動の記録係を置けなかった（プロンプトの記録だけで後片付けする）"
 fi
 
 # 確保した Issue には、ここでスクリプトが ai:in-progress を付ける（会長確認 2026-09-25）。ラベルは原子的な
