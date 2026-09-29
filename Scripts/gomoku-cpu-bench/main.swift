@@ -4,8 +4,9 @@ import Foundation
 //   nps                                  1 秒あたりに読める局面数（最適化ビルド・1 スレッド・むずかしいの探索）
 //   timing [positions]                   出荷の設定（実時間）で 1 手にかかる時間: 平均・最大・上限で打ち切られた割合。
 //                                        外す手番（確率 0% にした同じ段階）も測る
-//   match <上> <上の確率> <下> <下の確率> <局面数>
+//   match <上> <上の確率> <下> <下の確率> <局面数> [<上の深さ> <下の深さ>]
 //                                        上の段階と下の段階を、先後入れ替えで局面数×2 局。確率は 0...1 か shipped（出荷値）。
+//                                        深さ（読む深さの上限）は整数か shipped。省くと出荷値（#1566）
 //                                        段階は novice / easy / normal / hard
 //   random <段階> <確率|shipped> <局面数>  合法手（空いている交点）から一様乱択する相手と先後入れ替えで局面数×2 局
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
@@ -114,11 +115,13 @@ struct Bench {
                 let upP: Double? = args[3] == "shipped" ? nil : Double(args[3])
                 let p: Double? = args[5] == "shipped" ? nil : Double(args[5])
                 let openings = Int(args[6]) ?? 4
+                let upD = args.count > 7 ? Int(args[7]) : nil, lowD = args.count > 8 ? Int(args[8]) : nil
+                let upDL = upD.map(String.init) ?? "shipped", lowDL = lowD.map(String.init) ?? "shipped"
                 let t = await CPUBenchLadder.run(
-                    upper: { CPUBenchLadder.engine(up, nodesPerSecond: nps, bestMoveProbability: upP, seed: $0) },
-                    lower: { CPUBenchLadder.engine(low, nodesPerSecond: nps, bestMoveProbability: p, seed: $0) },
+                    upper: { CPUBenchLadder.engine(up, nodesPerSecond: nps, bestMoveProbability: upP, maxDepth: upD, seed: $0) },
+                    lower: { CPUBenchLadder.engine(low, nodesPerSecond: nps, bestMoveProbability: p, maxDepth: lowD, seed: $0) },
                     openings: openings, concurrency: conc, firstOpening: first)
-                print("MATCH \(up.label)(確率 \(args[3])) 対 \(low.label)(確率 \(args[5])) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 得点率 \(String(format: "%.1f", t.upperScore * 100))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
+                print("MATCH \(up.label)(確率 \(args[3]) 深さ \(upDL)) 対 \(low.label)(確率 \(args[5]) 深さ \(lowDL)) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 得点率 \(String(format: "%.1f", t.upperScore * 100))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
             } else {
                 let s = strength(args[2])
                 let p: Double? = args[3] == "shipped" ? nil : Double(args[3])

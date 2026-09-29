@@ -112,13 +112,14 @@ private struct GomokuRandom: RandomNumberGenerator {
 /// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 |
 /// |---|---|---|---|---|
 /// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` |
-/// | 0 | かんたん | 0.5 秒 | 3 手先 | `easyBestMoveProbability` |
-/// | 1 | ふつう | 1 秒 | 5 手先 | `normalBestMoveProbability` |
+/// | 0 | かんたん | 0.5 秒 | 1 手先 | `easyBestMoveProbability` |
+/// | 1 | ふつう | 1 秒 | 1 手先 | `normalBestMoveProbability` |
 /// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% |
 ///
 /// 探索（反復深化の αβ・各局面は点の高い `breadth` 手だけ読む・四を作る手は 1 手延長）は全段階で同じで、
 /// 時間が来るか深さの上限まで読み終えたら打つ（#1463。会長決裁 2026-09-26・09-28）。
-/// 確率の根拠は段階表（`docs/analytics/gomoku-1463-ladder.md`: 上の段の得点率 90% 以上で最も高い値）。
+/// かんたん・ふつうの深さと確率の根拠は段階表（`docs/analytics/gomoku-1566-ladder.md`: 隣の段に対する上の段の得点率 60〜70%。
+/// 会長決裁 2026-09-29）。入門は `docs/analytics/gomoku-1463-ladder.md`。
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
 public struct SimpleGomokuEngine: GomokuEngine {
@@ -141,10 +142,10 @@ public struct SimpleGomokuEngine: GomokuEngine {
     /// 全段階で同じ（#1463。全幅で読むと深さ 5 で 1 秒を超える）。
     static let breadth = 14
 
-    /// 最善手を打つ確率（#1463 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値）。
+    /// 最善手を打つ確率。入門は #1463 の実測、かんたん・ふつうは #1566 の実測（隣の段に対する得点率 60〜70% の合格範囲から）。
     static let noviceBestMoveProbability = 0.2
-    static let easyBestMoveProbability = 0.1
-    static let normalBestMoveProbability = 0.6
+    static let easyBestMoveProbability = 0.6
+    static let normalBestMoveProbability = 0.9
 
     /// 外したときに許す損の幅（評価値の差）。開三 1 本（`patternScore` の 500）ぶん。
     /// 相手に活四を許す手（1 万以上）や、自分の開三を逃して相手に先手を渡す手は入らず、
@@ -168,8 +169,8 @@ public struct SimpleGomokuEngine: GomokuEngine {
         let shippedTime: TimeInterval
         switch CPUStrength.strength(for: level) {
         case .novice: (shippedTime, depth, self.policy) = (0.3, 1, Self.policy(Self.noviceBestMoveProbability))
-        case .easy:   (shippedTime, depth, self.policy) = (0.5, 3, Self.policy(Self.easyBestMoveProbability))
-        case .normal: (shippedTime, depth, self.policy) = (1.0, 5, Self.policy(Self.normalBestMoveProbability))
+        case .easy:   (shippedTime, depth, self.policy) = (0.5, 1, Self.policy(Self.easyBestMoveProbability))
+        case .normal: (shippedTime, depth, self.policy) = (1.0, 1, Self.policy(Self.normalBestMoveProbability))
         case .hard:   (shippedTime, depth, self.policy) = (2.0, Self.maxDepth, .exact)
         }
         self.timeLimit = timeLimit ?? shippedTime

@@ -107,12 +107,13 @@ enum CPUBenchLadder {
     /// `nodesPerSecond` は最適化ビルドで測った 1 秒あたりの局面数。時間で打ち切ると同時に走る対局の
     /// 負荷で強さが揺れるので、計測の対局は局面数で打ち切る（実機の時間で読める量と等しい）。
     /// `bestMoveProbability` を渡すと、その段階の確率だけを差し替える（確率の候補を試すため）。
+    /// `maxDepth` を渡すと、読む深さの上限だけを差し替える（#1566。深さの候補を試すため）。
     static func engine(_ strength: CPUStrength, nodesPerSecond: Double, bestMoveProbability: Double? = nil,
-                       seed: UInt64) -> SimpleGomokuEngine {
+                       maxDepth: Int? = nil, seed: UInt64) -> SimpleGomokuEngine {
         let shipped = SimpleGomokuEngine(level: strength.rawValue)
         return SimpleGomokuEngine(
             level: strength.rawValue, seed: seed, timeLimit: .infinity,
-            nodeLimit: Int(shipped.timeLimit * nodesPerSecond),
+            maxDepth: maxDepth, nodeLimit: Int(shipped.timeLimit * nodesPerSecond),
             policy: bestMoveProbability.map(SimpleGomokuEngine.policy))
     }
 }
